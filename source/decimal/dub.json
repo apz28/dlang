@@ -1,0 +1,9 @@
+{
+  "name": "decimal",
+  "copyright": "Copyright © 2017 rumbu13",
+  "description": "IEEE-754-2008 compliant decimal data type.",
+  "authors": ["rumbu13"],
+	"homepage": "",
+  "license": "boost",
+  "dependencies": {}
+}
