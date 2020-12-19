@@ -1,0 +1,10 @@
+{
+	"name": "pham.cp",
+	"description": "Various utility modules.",
+	"authors": ["An Pham"],
+	"homepage": "",
+	"license": "Boost Software License - Version 1.0",
+	"dependencies": {
+    "pham.utl": "~>1.0.0"
+  }
+}
