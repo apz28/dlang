@@ -1,0 +1,12 @@
+{
+	"name": "pham.db",
+	"description": "Database drivers.",
+	"authors": ["An Pham"],
+	"homepage": "",
+	"license": "Boost Software License - Version 1.0",
+	"dependencies": {
+    "pham.utl": "~>1.0.0",
+    "pham.cp": "~>1.0.0",
+    "decimal": "~>1.0.0"
+  }
+}
