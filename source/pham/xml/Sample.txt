@@ -1,0 +1,46 @@
+s1. Load xml from utf-8 encoded string
+
+import pham.xml_new;
+auto doc = new XmlDocument!string().load(xml);
+
+
+s2. Get xml string from a document
+
+string xml = doc.outerXml();
+
+or
+
+import std.typecons : Yes;
+string xml = doc.outerXml(Yes.PrettyOutput);
+
+
+s3. Load xml from utf-8 encoded text file
+
+import pham.xml_new;
+auto doc = new XmlDocument!string().loadFromFile("c:\\a-file-name.xml");
+
+
+s4. Save xml from a document to a file name
+
+doc.saveToFile("c:\\a-file-name.xml");
+
+or
+
+import std.typecons : Yes;
+doc.saveToFile("c:\\a-file-name.xml", Yes.PrettyOutput);
+
+
+s3. Navigate all sub-nodes of a node
+
+import std.typecons : Yes;
+auto nodeList = doc.documentElement.firstChild().getChildNodes(null, Yes.deep);
+foreach (node; nodeList)
+{
+...
+}
+
+
+s4. Navigate all child nodes of a node
+
+auto nodeList = doc.documentElement.lastChild().getChildNodes();
+foreach (node; nodeList)
