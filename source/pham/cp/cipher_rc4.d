@@ -31,7 +31,7 @@ public:
     }
     do
     {
-        _key = parameters.privateKey;
+        this._parameters = parameters;
         initKey();
     }
 
@@ -54,7 +54,7 @@ public:
     final override Cipher reInit()
     in
     {
-        assert(_key.length != 0);
+        assert(_parameters.privateKey.length != 0);
     }
     do
     {
@@ -75,13 +75,9 @@ public:
 protected:
     override void doDispose(bool disposing)
     {
-        version (TraceFunction)
-        if (disposing)
-            dgFunctionTrace();
-
-        _key = null;
-        _stateData = 0;
+        _stateData[] = 0;
         x = y = 0;
+        super.doDispose(disposing);
     }
 
 private:
@@ -94,9 +90,9 @@ private:
         int iKey, i2;
         foreach (i; 0..stateLength)
         {
-            i2 = (_key[iKey] + _stateData[i] + i2) & 0xff;
+            i2 = (_parameters.privateKey[iKey] + _stateData[i] + i2) & 0xff;
             swap(_stateData[i], _stateData[i2]);
-            if (++iKey >= _key.length)
+            if (++iKey >= _parameters.privateKey.length)
                 iKey = 0;
         }
     }
@@ -127,7 +123,6 @@ private:
 private:
     enum stateLength = 256;
 
-    const(ubyte)[] _key;
     ubyte[stateLength] _stateData;
     int x, y;
 }
@@ -152,13 +147,20 @@ unittest // CipherRC4
 
         assert(cipherRC4.encrypt(test, testResult) == testEncrypted);
         assert(cipherRC4.reInit().decrypt(testEncrypted, testResult) == test);
+
+        cipherRC4.dispose();
+        cipherRC4 = null;
     }
 
     {
         auto key = bytesFromHexs("1234ABCD43211234ABCD432112345678");
-        auto cryptor = new CipherRC4(CipherParameters(key));
+        auto cipherRC4 = new CipherRC4(CipherParameters(key));
+
         auto input = key;
         ubyte[] output;
-        assert(cryptor.encrypt(input, output) == bytesFromHexs("4B8E9F295B071B7239ABC838B3E4DC9B"));
+        assert(cipherRC4.encrypt(input, output) == bytesFromHexs("4B8E9F295B071B7239ABC838B3E4DC9B"));
+
+        cipherRC4.dispose();
+        cipherRC4 = null;
     }
 }

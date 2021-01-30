@@ -20,16 +20,24 @@ struct CipherParameters
 nothrow @safe:
 
 public:
-    this(const(ubyte)[] privateKey)
+    this(ubyte[] privateKey)
     {
         this(privateKey, null, null);
     }
 
-    this(const(ubyte)[] privateKey, const(ubyte)[] publicKey, const(ubyte)[] salt)
+    this(ubyte[] privateKey, ubyte[] publicKey, ubyte[] salt)
     {
         this._privateKey = privateKey;
         this._publicKey = publicKey;
         this._salt = salt;
+    }
+
+    // For security reason, need to clear the secrete information
+    void dispose(bool disposing = true)
+    {
+        _privateKey[] = 0;
+        _publicKey[] = 0;
+        _salt[] = 0;
     }
 
     @property const(ubyte)[] privateKey() const
@@ -48,9 +56,9 @@ public:
     }
 
 private:
-    const(ubyte)[] _privateKey;
-    const(ubyte)[] _publicKey;
-    const(ubyte)[] _salt;
+    ubyte[] _privateKey;
+    ubyte[] _publicKey;
+    ubyte[] _salt;
 }
 
 abstract class Cipher : DisposableObject
@@ -64,4 +72,13 @@ public:
 
     @property bool isSymantic() const;
     @property string name() const;
+
+protected:
+    override void doDispose(bool disposing)
+    {
+        _parameters.dispose(disposing);
+    }
+
+protected:
+    CipherParameters _parameters;
 }

@@ -62,14 +62,14 @@ public:
         this(size, value[]);
     }
 
-    uint[] opIndex() nothrow pure return @safe
+    uint[] opSlice() nothrow pure return @safe
     {
         return _bits[];
     }
 
     uint[] dup() nothrow pure @safe
     {
-        return opIndex().dup;
+        return this[].dup;
     }
 
     void multiplySelf(ref BitsBuffer value, ref BitsBuffer temp) nothrow pure @safe

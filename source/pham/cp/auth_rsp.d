@@ -97,9 +97,30 @@ enum minExponentSize = 32;
 
 enum maxHashSize = 1024 / 8 * 2;
 
+ubyte[] bytesFromBigInteger(in BigInteger n) pure
+{
+    auto result = reverse(n.toBytes(No.includeSign));
+    while (result.length > 1 && result[0] == 0)
+        result = result[1..$];
+    return result;
+}
+
+ubyte[] bytesFromBigIntegerPad(in BigInteger n, size_t padSize) pure
+{
+    auto result = bytesFromBigInteger(n);
+
+    if (result.length > padSize)
+        return result[result.length - padSize..$];
+
+    //if (padSize > result.length)
+    //    return arrayOfChar(0, padSize - result.length) ~ result;
+
+    return result;
+}
+
 BigInteger bytesToBigInteger(scope const(ubyte)[] bytes) pure
 {
-    return BigInteger(reverse(bytes.dup), Yes.unsigned);
+    return BigInteger(reverse(bytes.dup) ~ cast(ubyte[])[0], Yes.unsigned);
 }
 
 BigInteger digitsToBigInteger(scope const(char)[] validDigitChars) pure
@@ -113,6 +134,11 @@ BigInteger digitsToBigInteger(scope const(char)[] validDigitChars) pure
     };
 
     return assumeWontThrow(BigInteger(validDigitChars, format));
+}
+
+ubyte[] hexCharsFromBigInteger(in BigInteger n) pure @trusted //@trusted=cast()
+{
+    return cast(ubyte[])(n.toHexString(No.includeSign));
 }
 
 BigInteger hexCharsToBigInteger(scope const(ubyte)[] validHexChars) pure
@@ -133,30 +159,6 @@ BigInteger hexCharsToBigInteger(scope const(char)[] validHexChars) pure
     };
 
     return assumeWontThrow(BigInteger(validHexChars, format));
-}
-
-ubyte[] bigIntegerToBytes(in BigInteger n) pure
-{
-    auto result = reverse(n.toBytes(No.includeSign));
-    while (result.length > 1 && result[0] == 0)
-        result = result[1..$];
-    return result;
-}
-
-ubyte[] bigIntegerToBytesPad(in BigInteger n, uint padSize) pure
-{
-    auto result = bigIntegerToBytes(n);
-    if (result.length < padSize)
-        return arrayOfChar(cast(ubyte)0, padSize - result.length) ~ result;
-    //if (result.length > padSize)
-    //    return result[result.length - padSize..$];
-    else
-        return result;
-}
-
-ubyte[] bigIntegerToHexChars(in BigInteger n) pure @trusted //@trusted=cast()
-{
-    return cast(ubyte[])(n.toHexString(No.includeSign));
 }
 
 ubyte[] digestOf(DigestAlgorithm digestAlgorithm)(scope const(ubyte)[] data...)
@@ -365,33 +367,19 @@ public:
 
     ubyte[] generateSalt() @trusted
     {
-        version (unittest)
-        {
-            return [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,20,31,32];
-        }
-        else
-        {
-            return cast(ubyte[])generateRandom(maxExponentSize);
-        }
+        return cast(ubyte[])generateRandom(maxExponentSize);
     }
 
     BigInteger generateSecret()
     {
-        version (unittest)
-        {
-            return BigInteger(cast(ubyte[])[16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1]);
-        }
-        else
-        {
-            auto hexs = generateRandom(exponentSize);
-            return assumeWontThrow(hexCharsToBigInteger(hexs));
-        }
+        auto hexs = generateRandom(exponentSize);
+        return assumeWontThrow(hexCharsToBigInteger(hexs));
     }
 
     ubyte[] hash(BigInteger n, Flag!"pad" pad)
     {
         AuthDigestResult rTemp = void;
-        auto bytes = pad ? bigIntegerToBytesPad(n, padSize) : bigIntegerToBytes(n);
+        auto bytes = pad ? bytesFromBigIntegerPad(n, padSize) : bytesFromBigInteger(n);
         return _hasher.begin()
             .digest(bytes)
             .finish(rTemp).dup;
@@ -474,20 +462,20 @@ public:
 
         AuthDigestResult kTemp = void;
         auto rHash = hasher.begin()
-            .digest(bigIntegerToBytesPad(A, padSize))
-            .digest(bigIntegerToBytesPad(B, padSize))
+            .digest(bytesFromBigIntegerPad(A, padSize))
+            .digest(bytesFromBigIntegerPad(B, padSize))
             .finish(kTemp);
         auto result = bytesToBigInteger(rHash);
 
-        version (TraceAuthRSP)
+        version (TraceAuth)
         {
-        import pham.utl_unittest;
-        dgWriteln("calculateU.A:     " ~ A.toString());
-        dgWriteln("calculateU.A.pad: " ~ bytesToHexs(bigIntegerToBytesPad(A, padSize)));
-        dgWriteln("calculateU.B:     " ~ B.toString());
-        dgWriteln("calculateU.B.pad: " ~ bytesToHexs(bigIntegerToBytesPad(B, padSize)));
-        dgWriteln("calculateU.hash:  " ~ bytesToHexs(rHash));
-        dgWriteln("calculateU:       " ~ result.toString());
+            import pham.utl.utltest;
+            dgFunctionTrace("A=", A.toString(),
+                ", A.pad=", bytesFromBigIntegerPad(A, padSize).dgToString(),
+                ", B=", B.toString(),
+                ", B.pad=", bytesFromBigIntegerPad(B, padSize).dgToString(),
+                ", rHash=", rHash.dgToString(),
+                ", result=", result.toString());
         }
 
         return result;
@@ -536,7 +524,7 @@ public:
 
         AuthDigestResult hashTemp = void;
         return hasher.begin()
-            .digest(bigIntegerToBytes(v))
+            .digest(bytesFromBigInteger(v))
             .finish(hashTemp).dup;
     }
 
@@ -546,7 +534,7 @@ public:
 
         AuthDigestResult hashTemp = void;
         return hasher.begin()
-            .digest(bigIntegerToBytesPad(v, padSize))
+            .digest(bytesFromBigIntegerPad(v, padSize))
             .finish(hashTemp).dup;
     }
 
@@ -578,7 +566,7 @@ public:
 
     @property final ubyte[] ephemeralPrivateKey() const pure
     {
-        return bigIntegerToHexChars(_ephemeralPrivate);
+        return hexCharsFromBigInteger(_ephemeralPrivate);
     }
 
     @property final BigInteger ephemeralPublic() pure
@@ -588,7 +576,7 @@ public:
 
     @property final ubyte[] ephemeralPublicKey() const pure
     {
-        return bigIntegerToHexChars(_ephemeralPublic);
+        return hexCharsFromBigInteger(_ephemeralPublic);
     }
 
     @property final BigInteger g()
@@ -624,17 +612,17 @@ protected:
 
         AuthDigestResult kTemp = void;
         auto rHash = hasher.begin()
-            .digest(bigIntegerToBytes(N))
-            .digest(bigIntegerToBytesPad(g, padSize))
+            .digest(bytesFromBigIntegerPad(N, padSize))
+            .digest(bytesFromBigIntegerPad(g, padSize))
             .finish(kTemp);
         auto result = bytesToBigInteger(rHash);
 
-        version (TraceAuthRSP)
+        version (TraceAuth)
         {
-        import pham.utl_unittest;
-        dgWriteln("N:          " ~ N.toString());
-        dgWriteln("g:          " ~ g.toString());
-        dgWriteln("calculateK: " ~ result.toString());
+            import pham.utl.utltest;
+            dgFunctionTrace("N=" ~ N.toString(),
+                ", g=" ~ g.toString(),
+                ", result=", result.toString());
         }
 
         return result;
@@ -642,9 +630,9 @@ protected:
 
     override void doDispose(bool disposing) nothrow @safe
     {
-        _ephemeralPrivate.setZero();
-        _ephemeralPublic.setZero();
-        _k.setZero();
+        _ephemeralPrivate.dispose(disposing);
+        _ephemeralPublic.dispose(disposing);
+        _k.dispose(disposing);
     }
 
 protected:
@@ -691,6 +679,44 @@ public:
     final BigInteger calculatePremasterKey(scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] salt, BigInteger serverPublicKey)
     {
+        // Firebird algorithm
+    version (all)
+    {
+        auto u = calculateU(ephemeralPublic, serverPublicKey);
+        auto x = calculateX(userName, userPassword, salt);
+		auto gx = modPow(g, x, N);
+        BigInteger kgx;
+        divRem(k * gx, N, kgx);
+		auto bkgx = serverPublicKey - kgx;
+        if (bkgx < 0)
+            bkgx = bkgx + N;
+        BigInteger diff;
+        divRem(bkgx, N, diff);
+        BigInteger ux;
+        divRem(u * x, N, ux);
+        BigInteger aux;
+        divRem(ephemeralPrivate + ux, N, aux);
+        auto result = modPow(diff, aux, N);
+
+        version (TraceAuth)
+        {
+            import pham.utl.utltest;
+            dgFunctionTrace("ephemeralPublic=", ephemeralPublic.toString(),
+                ", ephemeralPrivate=", ephemeralPrivate.toString(),
+                ", serverPublicKey=", serverPublicKey.toString(),
+                ", u=", u.toString(),
+                ", x=", x.toString(),
+                ", gx=", gx.toString(),
+                ", kgx=", kgx.toString(),
+                ", bkgx=", bkgx.toString(),
+                ", diff=", diff.toString(),
+                ", ux=", ux.toString(),
+                ", aux=", aux.toString(),
+                ", result=", result.toString());
+        }
+    }
+    else
+    {
         auto u = calculateU(ephemeralPublic, serverPublicKey);
         auto x = calculateX(userName, userPassword, salt);
 		auto gx = modPow(g, x, N);
@@ -700,19 +726,22 @@ public:
         auto exponent = (ephemeralPrivate + ux) % N;
 		auto result = modPow(base, exponent, N);
 
-        version (TraceAuthRSP)
+        version (TraceAuth)
         {
-        import pham.utl_unittest;
-        dgWriteln("serverPublicKey:       " ~ serverPublicKey.toString());
-        dgWriteln("u:                     " ~ u.toString());
-        dgWriteln("x:                     " ~ x.toString());
-        dgWriteln("gx:                    " ~ gx.toString());
-        dgWriteln("kgx:                   " ~ kgx.toString());
-        dgWriteln("base:                  " ~ base.toString());
-        dgWriteln("ux:                    " ~ ux.toString());
-        dgWriteln("exponent:              " ~ exponent.toString());
-        dgWriteln("calculatePremasterKey: " ~ result.toString());
+            import pham.utl.utltest;
+            dgFunctionTrace("ephemeralPublic=", ephemeralPublic.toString(),
+                ", ephemeralPrivate=", ephemeralPrivate.toString(),
+                ", serverPublicKey=", serverPublicKey.toString(),
+                ", u=", u.toString(),
+                ", x=", x.toString(),
+                ", gx=", gx.toString(),
+                ", kgx=", kgx.toString(),
+                ", base=", base.toString(),
+                ", ux=", ux.toString(),
+                ", exponent=", exponent.toString(),
+                ", result=", result.toString());
         }
+    }
 
         return result;
     }
@@ -1015,6 +1044,10 @@ nothrow @safe unittest // digestOf
 
     hash = digestOf!(DigestAlgorithm.sha1)(cast(const(ubyte)[])"SYSDBA:masterkey");
     assert(hash == bytesFromHexs("E395799C5652AAA4536273A20AA740E246835CC4"));
+
+    hash = digestOf!(DigestAlgorithm.sha1)(cast(const(ubyte)[])"DAVIDS:aaa123");
+    //dgWriteln("testHash=", hash.dgToString());
+    assert(hash == bytesFromHexs("DF2ACDCF3828998D9ED023AB1F54464220F0D17C"));
 }
 
 nothrow @safe unittest // bytesToBigInteger
@@ -1032,10 +1065,10 @@ nothrow @safe unittest // bigIntegerToBytes
 {
     import pham.utl.utlobject;
     import pham.utl.utltest;
-    dgWriteln("unittest cp.auth_rsp.bigIntegerToBytes");
+    dgWriteln("unittest cp.auth_rsp.bytesFromBigInteger");
 
-    assert(bytesToHexs(bigIntegerToBytes(digitsToBigInteger("58543554083751952442334332707885450963256912723720014361224396835623580320574993412213112731622008780624513837590415042361332636920155374789034615041232473542789648377986158701807740526423554224690384086846078749662234094040670372520229647584994218966915554154095758043112636200250640433313973626261330006062"))) == "535E68E994A09E4C230894A6CC5F2B2485048097578E647222329B71A0AE81A91ADB0130AFEA1137DC1D2E6E22B0344C27C1572EDC5458B467087F05949B06B48F93E24D03A6320DCD07650E427F15F29DCDC90BAE5C81B37F418AB2CD48C27E2B919526A02AF70DC8FC0AED061B44CD3B17FB5042043FD2EDBE81296075102E");
-    assert(bytesToHexs(bigIntegerToBytes(digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
-    assert(bytesToHexs(bigIntegerToBytes(digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
-    assert(bytesToHexs(bigIntegerToBytes(digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
+    assert(bytesToHexs(bytesFromBigInteger(digitsToBigInteger("58543554083751952442334332707885450963256912723720014361224396835623580320574993412213112731622008780624513837590415042361332636920155374789034615041232473542789648377986158701807740526423554224690384086846078749662234094040670372520229647584994218966915554154095758043112636200250640433313973626261330006062"))) == "535E68E994A09E4C230894A6CC5F2B2485048097578E647222329B71A0AE81A91ADB0130AFEA1137DC1D2E6E22B0344C27C1572EDC5458B467087F05949B06B48F93E24D03A6320DCD07650E427F15F29DCDC90BAE5C81B37F418AB2CD48C27E2B919526A02AF70DC8FC0AED061B44CD3B17FB5042043FD2EDBE81296075102E");
+    assert(bytesToHexs(bytesFromBigInteger(digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
+    assert(bytesToHexs(bytesFromBigInteger(digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
+    assert(bytesToHexs(bytesFromBigInteger(digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
 }
