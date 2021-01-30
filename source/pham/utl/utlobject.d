@@ -11,10 +11,12 @@
 
 module pham.utl.utlobject;
 
-public import std.ascii : LetterCase;
+import std.ascii : LetterCase;
 import std.exception : assumeWontThrow;
 import std.math : isPowerOf2;
 import std.traits : isArray, isAssociativeArray, isPointer;
+
+version (TraceInvalidMemoryOp) import pham.utl.utltest;
 
 pragma(inline, true);
 size_t alignRoundup(size_t n, size_t powerOf2AlignmentSize) @nogc nothrow pure @safe
@@ -309,34 +311,35 @@ nothrow @safe:
 public:
     ~this()
     {
-        version (TraceInvalidMemoryOp) import pham.utl.utltest : dgFunctionTrace;
         version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
 
-        _disposing = byte.min; // Set to min avoid ++ then --
-        doDispose(false);
+        if (_disposing == 0)
+        {
+            _disposing = byte.min; // Set to indicate in destructor
+            doDispose(false);
+        }
 
         version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
     }
 
     final void disposal(bool disposing)
     {
-        if (!disposing)
-            _disposing = byte.min; // Set to min avoid ++ then --
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
 
         _disposing++;
-        scope (exit)
-            _disposing--;
-
         doDispose(disposing);
+
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
     }
 
     final void dispose()
     {
-        _disposing++;
-        scope (exit)
-            _disposing--;
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
 
+        _disposing++;
         doDispose(true);
+
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
     }
 
     @property final DisposableState disposingState() const
@@ -389,16 +392,17 @@ public:
             return false;
     }
 
-    void reset()
+    ref typeof(this) reset() return
     {
         if (_inited)
         {
             _value = T.init;
             _inited = false;
         }
+        return this;
     }
 
-    @property bool inited() const
+    @property bool inited() const pure
     {
         return _inited;
     }

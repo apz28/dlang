@@ -11,6 +11,7 @@
 
 module pham.utl.array;
 
+//import core.memory;
 import std.range.primitives : ElementType;
 import std.traits : isDynamicArray, isStaticArray, lvalueOf;
 
@@ -29,7 +30,7 @@ if (is(C == char) || is(C == byte) || is(C == ubyte))
         return null;
 }
 
-void removeAt(T)(ref T array, size_t index) //pure
+void removeAt(T)(ref T array, size_t index) pure
 if (isDynamicArray!T)
 in
 {
@@ -38,6 +39,9 @@ in
 }
 do
 {
+    //if (GC.inFinalizer())
+    //    return;
+
     // Move all items after index to the left
     if (array.length > 1)
     {
@@ -53,7 +57,7 @@ do
     array.length = array.length - 1;
 }
 
-void removeAt(T)(ref T array, size_t index, ref size_t length) //pure
+void removeAt(T)(ref T array, size_t index, ref size_t length) pure
 if (isStaticArray!T)
 in
 {
@@ -62,6 +66,9 @@ in
 }
 do
 {
+    //if (GC.inFinalizer())
+    //    return;
+
     // Safety check
     if (length > array.length)
         length = array.length;
@@ -89,7 +96,7 @@ struct IndexedArray(T, ushort staticSize)
 nothrow:
 
 public:
-    this(size_t capacity) pure
+    this(size_t capacity) pure @safe
     {
         if (capacity > staticSize)
             _dynamicItems.reserve(capacity);
@@ -114,7 +121,7 @@ public:
         }
     }
 
-    void opOpAssign(string op)(T item)
+    ref typeof(this) opOpAssign(string op)(T item) return
     if (op == "~" || op == "+" || op == "-")
     {
         static if (op == "~" || op == "+")
@@ -123,6 +130,7 @@ public:
             remove(item);
         else
             static assert(0);
+        return this;
     }
 
     bool opCast(To: bool)() const nothrow
@@ -132,7 +140,7 @@ public:
 
     /** Returns range interface
     */
-    T[] opIndex() return
+    T[] opSlice() return
     {
         const len = length;
         return len != 0 ? (useStatic() ? _staticItems[0..len] : _dynamicItems) : null;
@@ -148,7 +156,7 @@ public:
         return useStatic() ? _staticItems[index] : _dynamicItems[index];
     }
 
-    void opIndexAssign(T item, size_t index)
+    ref typeof(this) opIndexAssign(T item, size_t index) return
     {
         const atLength = index + 1;
         if (atLength > staticSize || !useStatic())
@@ -164,9 +172,10 @@ public:
             assert(_staticLength <= staticSize);
         }
         assert(atLength <= length);
+        return this;
     }
 
-    void opIndexAssign(inout(T)[] items, size_t startIndex)
+    ref typeof(this) opIndexAssign(inout(T)[] items, size_t startIndex) return
     {
         const atLength = startIndex + items.length;
         if (atLength > staticSize || !useStatic())
@@ -182,11 +191,12 @@ public:
             assert(_staticLength <= staticSize);
         }
         assert(atLength <= length);
+        return this;
     }
 
     /** Returns range interface
     */
-    T[] opSlice(size_t begin = 0, size_t end = size_t.max) return
+    T[] opSlice(size_t begin = 0, size_t end = size_t.max) pure return
     in
     {
         assert(begin < end);
@@ -201,7 +211,7 @@ public:
         return end - begin > 0 ? (useStatic() ? _staticItems[begin..end] : _dynamicItems[begin..end]) : null;
     }
 
-    void clear(size_t capacity = 0)
+    ref typeof(this) clear(size_t capacity = 0) pure return
     {
         assert(_staticLength <= staticSize);
 
@@ -218,11 +228,12 @@ public:
         }
         else
             _dynamicItems = null;
+        return this;
     }
 
     T[] dup()
     {
-        return opIndex().dup;
+        return this[].dup;
     }
 
     ptrdiff_t indexOf(in T item) @trusted
@@ -230,7 +241,7 @@ public:
         if (length == 0)
             return -1;
 
-        auto items = opIndex();
+        auto items = this[];
         for (ptrdiff_t i = 0; i < items.length; ++i)
         {
             if (items[i] == item)
@@ -286,7 +297,7 @@ public:
         return useStatic() ? &_staticItems[startIndex] : &_dynamicItems[startIndex];
     }
 
-    void fill(T item, size_t startIndex = 0)
+    ref typeof(this) fill(T item, size_t startIndex = 0) return
     in
     {
         assert(startIndex < length);
@@ -297,6 +308,7 @@ public:
             _staticItems[startIndex..length] = item;
         else
             _dynamicItems[startIndex..length] = item;
+        return this;
     }
 
     pragma (inline, true)
@@ -350,13 +362,13 @@ private:
         }
     }
 
-    void switchToDynamicItems(size_t newLength, bool mustSet) @trusted
+    void switchToDynamicItems(size_t newLength, bool mustSet) pure @trusted
     {
         if (useStatic())
         {
             const setLength = mustSet ? newLength : _staticLength;
             const copyLength = _staticLength > setLength ? setLength : _staticLength;
-            _dynamicItems.reserve(setLength + setLength / 2);
+            _dynamicItems.reserve(setLength + (setLength / 2));
 
             _dynamicItems.length = setLength;
             _dynamicItems[0..copyLength] = _staticItems[0..copyLength];
@@ -367,8 +379,7 @@ private:
         else
         {
             if (newLength > _dynamicItems.capacity)
-                _dynamicItems.reserve(newLength + newLength / 2);
-
+                _dynamicItems.reserve(newLength + (newLength / 2));
             if (mustSet || _dynamicItems.length < newLength)
                 _dynamicItems.length = newLength;
         }
@@ -385,13 +396,13 @@ struct UnshrinkArray(T)
 nothrow:
 
 public:
-    this(size_t capacity) pure
+    this(size_t capacity) @safe
     {
         if (capacity)
             _items.reserve(capacity);
     }
 
-    void opOpAssign(string op)(T item)
+    ref typeof(this) opOpAssign(string op)(T item) return
     if (op == "~" || op == "+" || op == "-")
     {
         static if (op == "~" || op == "+")
@@ -400,6 +411,7 @@ public:
             remove(item);
         else
             static assert(0);
+        return this;
     }
 
     bool opCast(To: bool)() const
@@ -410,7 +422,7 @@ public:
     /**
      * Returns range interface
      */
-    T[] opIndex() return
+    T[] opSlice() return
     {
         return _items;
     }
@@ -425,7 +437,7 @@ public:
         return _items[index];
     }
 
-    void opIndexAssign(T item, size_t index)
+    ref typeof(this) opIndexAssign(T item, size_t index) return
     in
     {
         assert(index < _items.length);
@@ -433,11 +445,13 @@ public:
     do
     {
         _items[index] = item;
+        return this;
     }
 
-    void clear() @trusted
+    ref typeof(this) clear() pure return @trusted
     {
         _items.length = 0;
+        return this;
     }
 
     T[] dup()

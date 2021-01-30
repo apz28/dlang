@@ -126,3 +126,13 @@ version (unittest)
         debug writefln(fmt, args);
     }
 }
+
+version (TraceInvalidMemoryOp)
+shared static this()
+{
+    import pham.utl.utltest;
+    dgWriteln("utl.utltest.shared static this()");
+
+    import core.exception;
+    assertHandler(null);
+}

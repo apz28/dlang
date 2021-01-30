@@ -143,12 +143,12 @@ public:
     }
 
     static if (elaborateDestructor)
-    ~this() nothrow @safe
+    ~this() nothrow @trusted
     {
         if (handler)
         {
             handler.destruct(size, pointer);
-            () @trusted { handler = &voidHandler; } ();
+            handler = &voidHandler;
         }
     }
 
@@ -652,7 +652,7 @@ public:
             {
                 // Value type will invoke destructor with garbage -> access violation
                 static if (hasElaborateDestructor!T)
-                memset(cast(R*)&result, 0, T.sizeof);
+                memset(cast(void*)&result, 0, T.sizeof);
 
                 throw new VariantException(typeInfo, typeid(T), "get()");
             }
@@ -741,7 +741,7 @@ public:
         {
             // Value type will invoke destructor with garbage -> access violation
             static if (hasElaborateDestructor!T)
-            memset(&tempValue, 0, T.sizeof);
+            memset(cast(void*)&tempValue, 0, T.sizeof);
 
             return false;
         }
@@ -1053,7 +1053,7 @@ template maxSize(T...)
  * `VariantN` directly with a different maximum size either for
  * storing larger types unboxed, or for saving memory.
  */
-alias Variant = VariantN!(maxSize!(RealComplex, char[], void delegate()));
+alias Variant = VariantN!(maxSize!(long, real, char[], void delegate(), RefCounted!(void*)));
 
 /**
  * Algebraic data type restricted to a closed set of possible
@@ -1386,7 +1386,7 @@ private:
 
         // Because of conservatively mark the storage as pointers
         // need to reset to help garbage collect avoid false positive
-        () nothrow @trusted { memset(store, 0, size); } ();
+        memset(store, 0, size);
     }
 
     static bool hEquals(size_t lhsSize, scope void* lhsStore,
@@ -1698,12 +1698,6 @@ private:
 }
 
 __gshared Handler!void voidHandler;
-
-// Avoid import std.complex
-struct RealComplex
-{
-    real re, im;
-}
 
 template AssignableTypes(T)
 {

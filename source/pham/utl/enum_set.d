@@ -18,18 +18,29 @@ import std.traits : EnumMembers, isIntegral, Unqual;
 
 nothrow @safe:
 
+/**
+ * Count members of an enum type, E
+ * Params:
+ *  E = an enum type
+ * Returns:
+ *  Number of members in E enum
+ * Ex:
+ *  enum E {e1, e2, e3}
+ *  count!E() returns 3
+ */
 size_t count(E)() pure
 if (is(E == enum))
 {
-    size_t res;
+    size_t result;
     foreach (i; EnumMembers!E)
-        ++res;
-    return res;
+        result++;
+    return result;
 }
 
 /**
  * Detect whether an enum is of integral type and has distinct bit flag values
- *   Ex: enum E {e1 = 1 << 0, e2 = 1 << 1,... }
+ * Ex:
+ *  enum E {e1 = 1 << 0, e2 = 1 << 1, ...}
  */
 template isBitEnum(E)
 {
@@ -55,7 +66,8 @@ template isBitEnum(E)
 
 /**
  * Detect whether an enum is of integral type and has increasing values
- *   Ex: enum E {e1 = 1, e2 = 2, e3 = 10,... }
+ * Ex:
+ *  enum E {e1 = 1, e2 = 2, e3 = 10, ...}
  */
 template isOrderedEnum(E)
 {
@@ -81,7 +93,8 @@ template isOrderedEnum(E)
 
 /**
  * Detect whether an enum is of integral type and has increasing sequence values
- *   Ex: enum E {e1 = 0, e2 = 1, e3 = 2,... }
+ * Ex:
+ *  enum E {e1 = 0, e2 = 1, e3 = 2, ...}
  */
 template isSequenceEnum(E)
 {
@@ -105,6 +118,9 @@ template isSequenceEnum(E)
     }
 }
 
+/**
+ * Check if an enum, E, can be used in enum set
+ */
 template isEnumSet(E)
 {
     enum isEnumSet =
@@ -113,6 +129,9 @@ template isEnumSet(E)
     }();
 }
 
+/**
+ * Define a simple enum set fit in 32/64 bit integral
+ */
 template EnumSetType(E)
 if (isEnumSet!E)
 {
@@ -132,6 +151,12 @@ if (isEnumSet!E)
     }
 }
 
+/**
+ * Return the bit mask for an enum, value
+ * Ex:
+ *  enum E {e1 = 1, e2 = 2, e3 = 10, ...}
+ *  bit!E(e3) returns 4
+ */
 auto bit(E)(E value) pure
 if (isEnumSet!E)
 {
@@ -152,6 +177,12 @@ if (isEnumSet!E)
     }
 }
 
+/**
+ * Return order value of an enum, value
+ * Ex:
+ *  enum E {e1 = 1, e2 = 2, e3 = 10, ...}
+ *  ord!E(e3) returns 2
+ */
 size_t ord(E)(E value) pure
 if (isEnumSet!E)
 {
@@ -170,18 +201,45 @@ if (isEnumSet!E)
     }
 }
 
+/**
+ * Convert a string, value, to it E enum presentation
+ * Assume that value is a valid/matching value
+ * Params:
+ *  value = a string to be converted
+ *  emptyValue = a result if value is empty
+ * Returns:
+ *  if value is empty, return enum emptyValue
+ *  otherwise return the enum that matches value
+ * Ex:
+ *  enum E {e1 = 1, e2 = 2, e3 = 10, ...}
+ *  toEnum!E("e3") returns e3
+ *  toEnum!E("", e2) returns e2
+ */
 E toEnum(E)(string value, E emptyValue = E.init) pure
 if (is(E Base == enum))
 {
     return value.length != 0 ? assumeWontThrow(to!E(value)) : emptyValue;
 }
 
+/**
+ * Convert an enum to its string presentation
+ * Params:
+ *  value = an enum to be converted
+ * Returns:
+ *  a string for parameter value
+ * Ex:
+ *  enum E {e1 = 1, e2 = 2, e3 = 10, ...}
+ *  toName!E(e3) returns "e3"
+ */
 string toName(E)(E value) pure
 if (is(E Base == enum))
 {
     return assumeWontThrow(to!string(value));
 }
 
+/**
+ * Define a simple enum set struct that fit in 32/64 bit integral
+ */
 struct EnumSet(E)
 if (isEnumSet!E)
 {
@@ -191,7 +249,7 @@ public:
     enum size = count!E();
 
 public:
-    static struct Range
+    static struct EnumSetRange
     {
     nothrow @safe:
 
@@ -259,14 +317,14 @@ public:
         this._values = bit(value);
     }
 
-    this(const(E)[] values) pure
+    this(scope const(E)[] values) pure
     {
         this._values = 0;
         foreach (e; values)
             this._values |= bit(e);
     }
 
-    this(V...)(V values) pure
+    this(V...)(scope V values) pure
     if (allSatisfy!(isEnumSet, V))
     {
         this._values = 0;
@@ -286,13 +344,13 @@ public:
         return this;
     }
 
-    ref typeof(this) opAssign(E value) pure
+    ref typeof(this) opAssign(E value) pure return
     {
         this._values = bit(value);
         return this;
     }
 
-    ref typeof(this) opAssign(const(E)[] values) pure
+    ref typeof(this) opAssign(const(E)[] values) pure return
     {
         this._values = 0;
         foreach (e; values)
@@ -300,7 +358,7 @@ public:
         return this;
     }
 
-    ref typeof(this) opAssign(V...)(V values) pure
+    ref typeof(this) opAssign(V...)(V values) pure return
     if (allSatisfy!(isEnumSet, V))
     {
         this._values = 0;
@@ -309,7 +367,7 @@ public:
         return this;
     }
 
-    ref typeof(this) opOpAssign(string op)(E value) pure
+    ref typeof(this) opOpAssign(string op)(E value) pure return
     if (op == "^" || op == "-" || op == "|" || op == "+")
     {
         static if (op == "^" || op == "-")
@@ -361,23 +419,23 @@ public:
         return _values == source.values;
     }
 
-    Range opSlice() const
+    EnumSetRange opSlice() return
     {
-        return Range(this);
+        return EnumSetRange(this);
     }
 
-    void exclude(E value) pure
+    ref typeof(this) exclude(E value) pure return
     {
-        opOpAssign!"-"(value);
+        return opOpAssign!"-"(value);
     }
 
-    void include(E value) pure
+    ref typeof(this) include(E value) pure return
     {
-        opOpAssign!"+"(value);
+        return opOpAssign!"+"(value);
     }
 
     pragma (inline, true)
-    bool any(const(E)[] source) const pure
+    bool any(scope const(E)[] source) const pure
     {
         foreach (i; source)
         {
@@ -387,7 +445,7 @@ public:
         return false;
     }
 
-    bool any(V...)(V source) const pure
+    bool any(V...)(scope V source) const pure
     if (allSatisfy!(isEnumSet, V))
     {
         foreach (e; source)
@@ -410,26 +468,28 @@ public:
         return _values != 0 && (_values & bit(value)) != 0;
     }
 
-    void reset() pure
+    ref typeof(this) reset() pure return
     {
         _values = 0;
+        return this;
     }
 
-    void set(E value, bool opSet) pure
+    ref typeof(this) set(E value, bool isSet) pure return
     {
-        if (opSet)
-            opOpAssign!"+"(value);
+        if (isSet)
+            return opOpAssign!"+"(value);
         else
-            opOpAssign!"-"(value);
+            return opOpAssign!"-"(value);
     }
 
-    /** Defines the set from a string representation
-        Params:
-            values = a string representing one or several E members separated by comma
-        Returns:
-            Number of failed to convert a member string
-    */
-    size_t fromString(const(char)[] values) pure
+    /**
+     * Defines the set from a string representation
+     * Params:
+     *  values = a string representing one or several E members separated by comma
+     * Returns:
+     *  Number of failed to convert from a member string
+     */
+    size_t fromString(scope const(char)[] values) pure
     {
         import std.ascii : isWhite;
         import std.conv : to;
@@ -500,14 +560,15 @@ public:
         return fails;
     }
 
-    ulong toHash() pure
+    ulong toHash() const pure
     {
         return _values;
     }
 
-    /** Returns the string representation of the set
-    */
-    string toString()
+    /**
+     * Returns the string representation of the set
+     */
+    string toString() const
     {
         import std.array : Appender;
 
@@ -522,7 +583,7 @@ public:
         {
             if (on(e))
             {
-                if (++count != 1)
+                if (count++ != 0)
                     res.put(',');
                 res.put(toName(e));
             }
@@ -545,6 +606,9 @@ private:
     EnumSetType!E _values;
 }
 
+/**
+ * Define a static array with length of number of enum values
+ */
 struct EnumArray(E, T)
 if (isEnumSet!E)
 {
@@ -553,7 +617,7 @@ nothrow @safe:
 public:
     enum size = count!E();
 
-    static struct Entry
+    static struct EnumArrayEntry
     {
     nothrow @safe:
 
@@ -570,24 +634,34 @@ public:
     }
 
 public:
-    this(V...)(V values) pure
+    this(V...)(V values)
     if (allSatisfy!(isEntry, V))
     {
         foreach (i; values)
             this._values[ord(i.e)] = i.v;
     }
 
-    T opIndex(E value) const pure
+    /**
+     * Returns value for enum, i
+     */
+    T opIndex(E i) inout
     {
-        return _values[ord(value)];
+        return _values[ord(i)];
     }
 
-    T opIndexAssign(T value, E enumValue) pure
+    /**
+     * Assigns value for enum i
+     */
+    ref typeof(this) opIndexAssign(T value, E i) return
     {
-        return _values[ord(enumValue)] = value;
+        this._values[ord(i)] = value;
+        return this;
     }
 
-    T opDispatch(string enumName)() const
+    /**
+     * Returns value for an enum by its name
+     */
+    T opDispatch(string enumName)()
     {
         import std.conv : to;
 
@@ -595,6 +669,9 @@ public:
         return _values[ord(e)];
     }
 
+    /**
+     * Assigns value for enum name, enumName
+     */
     T opDispatch(string enumName)(T value)
     {
         import std.conv : to;
@@ -603,7 +680,10 @@ public:
         return _values[ord(e)] = value;
     }
 
-    bool exist(T value) const pure
+    /**
+     * Returns true if value exists in this array
+     */
+    bool exist(T value) const
     {
         foreach (i; EnumMembers!E)
         {
@@ -614,7 +694,11 @@ public:
         return false;
     }
 
-    E get(T value, E defaultValue = E.min) const pure
+    /**
+     * Returns enum for its associated value
+     * If the value is not exists, returns defaultValue
+     */
+    E get(T value, E defaultValue = E.min) const
     {
         foreach (i; EnumMembers!E)
         {
@@ -625,13 +709,16 @@ public:
         return defaultValue;
     }
 
+    /**
+     * Length of this enum array
+     */
     @property size_t length() const pure
     {
         return size;
     }
 
 private:
-    enum isEntry(TEntry) = is(TEntry == Entry);
+    enum isEntry(TEntry) = is(TEntry == EnumArrayEntry);
     T[size] _values;
 }
 
@@ -884,9 +971,9 @@ nothrow @safe unittest // EnumArray
     alias EnumTestInt = EnumArray!(EnumTest, int);
 
     EnumTestInt testInt = EnumTestInt(
-        EnumTestInt.Entry(EnumTest.one, 1),
-        EnumTestInt.Entry(EnumTest.two, 2),
-        EnumTestInt.Entry(EnumTest.max, int.max)
+        EnumTestInt.EnumArrayEntry(EnumTest.one, 1),
+        EnumTestInt.EnumArrayEntry(EnumTest.two, 2),
+        EnumTestInt.EnumArrayEntry(EnumTest.max, int.max)
     );
 
     assert(testInt.one == 1);
@@ -909,9 +996,9 @@ nothrow @safe unittest // EnumArray
     alias EnumTestString = EnumArray!(EnumTest, string);
 
     EnumTestString testString = EnumTestString(
-        EnumTestString.Entry(EnumTest.one, "1"),
-        EnumTestString.Entry(EnumTest.two, "2"),
-        EnumTestString.Entry(EnumTest.max, "int.max")
+        EnumTestString.EnumArrayEntry(EnumTest.one, "1"),
+        EnumTestString.EnumArrayEntry(EnumTest.two, "2"),
+        EnumTestString.EnumArrayEntry(EnumTest.max, "int.max")
     );
 
     assert(testString[EnumTest.one] == "1");
