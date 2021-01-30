@@ -21,6 +21,7 @@ import pham.xml.type;
 @safe:
 
 package enum defaultXmlLevels = 400;
+package enum defaultXmlBufferCapacity = 1000;
 
 struct XmlIdentifierList(S = string)
 if (isXmlString!S)

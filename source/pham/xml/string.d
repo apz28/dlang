@@ -30,18 +30,18 @@ public:
     alias C = XmlChar!S;
 
 public:
-    this(const(C)[] str)
+    this(const(C)[] str) nothrow
     {
         this(str, XmlEncodeMode.check);
     }
 
-    this(const(C)[] str, XmlEncodeMode mode)
+    this(const(C)[] str, XmlEncodeMode mode) nothrow
     {
         this.data = str;
         this.mode = mode;
     }
 
-    auto ref opAssign(const(C)[] value)
+    ref typeof(this) opAssign(const(C)[] value) nothrow
     {
         this.data = value;
         if (mode != XmlEncodeMode.none)
@@ -56,7 +56,7 @@ public:
         return data;
     }
 
-    const(C)[] decodedText(XmlBuffer!(S, No.CheckEncoded) buffer, in XmlEntityTable!S entityTable)
+    const(C)[] decodedText(XmlDecodeMode DecodeMode = XmlDecodeMode.strict)(XmlBuffer!(S, No.CheckEncoded) buffer, in XmlEntityTable!S entityTable)
     in
     {
         assert(buffer !is null);
@@ -65,10 +65,10 @@ public:
     }
     do
     {
-        return buffer.decode(data, entityTable);
+        return buffer.decode!DecodeMode(data, entityTable);
     }
 
-    const(C)[] encodedText(XmlBuffer!(S, No.CheckEncoded) buffer)
+    const(C)[] encodedText(XmlBuffer!(S, No.CheckEncoded) buffer) nothrow
     in
     {
         assert(buffer !is null);
@@ -101,19 +101,19 @@ public:
         return data;
     }
 
-    @property const(C)[] value()
+    @property const(C)[] value() nothrow
     {
         if (needDecode())
         {
             auto buffer = new XmlBuffer!(S, No.CheckEncoded)(data.length);
-            data = buffer.decode(data);
+            data = buffer.decode!(XmlDecodeMode.loose)(data);
             mode = buffer.decodeOrEncodeResultMode;
         }
 
         return data;
     }
 
-    @property const(C)[] value(const(C)[] newText)
+    @property const(C)[] value(const(C)[] newText) nothrow
     {
         data = newText;
         if (mode != XmlEncodeMode.none)

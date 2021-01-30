@@ -11,8 +11,8 @@
 
 module pham.xml.writer;
 
-import std.range.primitives : back, empty, front, popFront;
 import std.array : Appender;
+import std.range.primitives : back, empty, front, popFront;
 import std.typecons : Flag, No, Yes;
 
 import pham.xml.type;
@@ -25,6 +25,8 @@ import pham.xml.buffer;
 
 abstract class XmlWriter(S = string) : XmlObject!S
 {
+@safe:
+
 public:
     final void decOnlyOneNodeText() nothrow
     {
@@ -56,19 +58,18 @@ public:
         {
             import std.encoding : encode;
 
-            C[6] b;
+            C[6] b = void;
             const n = encode(c, b);
             put(b[0..n]);
         }
     }
 
-    final XmlWriter!S putLF()
+    final typeof(this) putLF()
     {
-        version (none) version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParserF("putLF%d.%d()", _nodeLevel, _onlyOneNodeText);
 
         put('\n');
-
         return this;
     }
 
@@ -414,7 +415,7 @@ public:
 
 protected:
     pragma (inline, true)
-    final S indentString()
+    final S indentString() nothrow
     {
         return stringOfChar!S(' ', _nodeLevel << 1);
     }
@@ -427,14 +428,16 @@ protected:
 
 class XmlStringWriter(S = string) : XmlWriter!S
 {
+@safe:
+
 public:
     this(Flag!"prettyOutput" prettyOutput,
-         size_t capacity = 64000)
+         size_t capacity = 64000) nothrow
     {
         this(prettyOutput, new XmlBuffer!(S, No.CheckEncoded)(capacity));
     }
 
-    this(Flag!"prettyOutput" prettyOutput, XmlBuffer!(S, No.CheckEncoded) buffer)
+    this(Flag!"prettyOutput" prettyOutput, XmlBuffer!(S, No.CheckEncoded) buffer) nothrow
     {
         this._prettyOutput = prettyOutput;
         this.buffer = buffer;
@@ -447,7 +450,7 @@ public:
 
     final override void put(scope const(C)[] s)
     {
-        version (none) version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParserF("put%d.%d('%s')", _nodeLevel, _onlyOneNodeText, s);
 
         buffer.put(s);
@@ -459,6 +462,8 @@ protected:
 
 class XmlFileWriter(S = string) : XmlWriter!S
 {
+@safe:
+
 import std.file;
 import std.stdio;
 import std.algorithm.comparison : max;

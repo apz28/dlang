@@ -21,8 +21,10 @@ import pham.xml.xmlobject;
 
 class XmlEntityTable(S = string) : XmlObject!S
 {
+@safe:
+
 public:
-    this() pure
+    this() nothrow pure
     {
         initDefault();
     }
@@ -43,7 +45,6 @@ public:
     final bool find(scope const(C)[] encodedValue, ref const(C)[] decodedValue) const nothrow
     {
         const const(C)[]* r = encodedValue in data;
-
         if (r is null)
             return false;
         else
@@ -55,10 +56,11 @@ public:
 
     /** Reset the table with 5 standard reserved encoded XML characters
     */
-    final void reset() nothrow
+    final typeof(this) reset() nothrow
     {
         data = null;
         initDefault();
+        return this;
     }
 
     alias data this;
@@ -89,7 +91,8 @@ private:
 
 unittest // XmlEntityTable.defaultEntityTable
 {
-    outputXmlTraceProgress("unittest xml.entity_table.XmlEntityTable.defaultEntityTable");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.entity_table.XmlEntityTable.defaultEntityTable");
 
     auto table = XmlEntityTable!string.defaultEntityTable();
     assert(table !is null);

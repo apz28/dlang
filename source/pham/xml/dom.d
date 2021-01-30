@@ -11,7 +11,7 @@
 
 module pham.xml.dom;
 
-import std.array : split;
+import std.array : Appender, split;
 import std.typecons : Flag, No, Yes;
 
 import pham.utl.dlink_list;
@@ -51,26 +51,28 @@ if (isXmlString!S)
     XmlSaxElementEndEvent onSaxElementNodeEnd;
     XmlSaxNodeEvent onSaxOtherNode;
 
+@safe:
+
     EnumSet!XmlParseOptionFlag flags = EnumSet!XmlParseOptionFlag(XmlParseOptionFlag.validate);
 
     pragma (inline, true)
-    @property bool preserveWhitespace() const
+    @property bool preserveWhitespace() const nothrow
     {
         return flags.on(XmlParseOptionFlag.preserveWhitespace);
     }
 
-    @property void preserveWhitespace(bool value)
+    @property void preserveWhitespace(bool value) nothrow
     {
         flags.set(XmlParseOptionFlag.preserveWhitespace, value);
     }
 
     pragma (inline, true)
-    @property bool validate() const
+    @property bool validate() const nothrow
     {
         return flags.on(XmlParseOptionFlag.validate);
     }
 
-    @property void validate(bool value)
+    @property void validate(bool value) nothrow
     {
         flags.set(XmlParseOptionFlag.validate, value);
     }
@@ -117,48 +119,64 @@ enum XmlNodeType : byte
     documentTypeElement = 21
 }
 
+/** A state of a XmlNodeList struct
+    $(XmlNodeListType.attributes) A node list represents of attribute nodes
+    $(XmlNodeListType.childNodes) A node list represents of xml nodes except attribute node
+    $(XmlNodeListType.childNodesDeep) Similar to childNodes but it includes all sub-nodes
+    $(XmlNodeListType.flat) A simple copy array of nodes
+*/
+enum XmlNodeListType : byte
+{
+    attributes,
+    childNodes,
+    childNodesDeep,
+    flat
+}
+
 class XmlNodeFilterContext(S = string) : XmlObject!S
 {
+nothrow @safe:
+
 public:
     @disable this();
 
-    this(XmlDocument!S document, const(C)[] name) nothrow
+    this(XmlDocument!S document, const(C)[] name) pure
     {
         this._name = name;
         this.equalName = document.equalName;
     }
 
-    this(XmlDocument!S document, const(C)[] localName, const(C)[] namespaceUri) nothrow
+    this(XmlDocument!S document, const(C)[] localName, const(C)[] namespaceUri) pure
     {
         this._localName = localName;
         this._namespaceUri = namespaceUri;
         this.equalName = document.equalName;
     }
 
-    final bool matchElementByName(ref XmlNodeList!S list, XmlNode!S node) nothrow
+    final bool matchElementByName(Object context, XmlNode!S node) const
     {
         return (node.nodeType == XmlNodeType.element) &&
             ((name == "*") || equalName(name, node.name));
     }
 
-    final bool matchElementByLocalNameUri(ref XmlNodeList!S list, XmlNode!S node) nothrow
+    final bool matchElementByLocalNameUri(Object context, XmlNode!S node) const
     {
         return (node.nodeType == XmlNodeType.element) &&
             ((localName == "*") || equalName(localName, node.localName)) &&
             ((namespaceUri == "*") || equalName(namespaceUri, node.namespaceUri));
     }
 
-    @property const(C)[] localName() nothrow
+    @property final const(C)[] localName() const pure
     {
         return _localName;
     }
 
-    @property const(C)[] name() nothrow
+    @property final const(C)[] name() const pure
     {
         return _name;
     }
 
-    @property const(C)[] namespaceUri() nothrow
+    @property final const(C)[] namespaceUri() const pure
     {
         return _namespaceUri;
     }
@@ -176,6 +194,12 @@ protected:
 */
 abstract class XmlNode(S = string) : XmlObject!S
 {
+@safe:
+
+public:
+    mixin DLinkTypes!(XmlNode!S) DLinkXmlNodeTypes;
+    mixin DLinkTypes!(XmlAttribute!S) DLinkXmlAttributeTypes;
+
 public:
     /** Returns attribute list of this node
         If node does not have any attribute or not applicable, returns an empty list
@@ -280,12 +304,6 @@ public:
         return XmlNodeList!S(this, XmlNodeListType.childNodesDeep, &filterContext.matchElementByLocalNameUri, filterContext);
     }
 
-    version (none)
-    XmlNodeList!S opSlice()
-    {
-        return children(false);
-    }
-
     /** Returns true if node is an ancestor of this node; false otherwise
         Params:
             node = a node to be checked
@@ -380,7 +398,7 @@ public:
         debug (PhamXml) ++childVersion;
 
         newChild._parent = this;
-        return DLinkNodeFunctions.insertEnd(_childLast, newChild);
+        return _children.insertEnd(newChild);
     }
 
     /** Finds an attribute matched name with name and returns it;
@@ -394,10 +412,10 @@ public:
     final XmlAttribute!S findAttribute(const(C)[] name) nothrow
     {
         const equalName = document.equalName;
-        for (XmlNode!S i = firstAttribute; i !is null; i = i.nextSibling)
+        foreach (a; _attributes[])
         {
-            if (equalName(i.name, name))
-                return cast(XmlAttribute!S)i;
+            if (equalName(a.name, name))
+                return a;
         }
         return null;
     }
@@ -411,13 +429,13 @@ public:
             Found attribute node
             Otherwise null
     */
-    final XmlAttribute!S findAttribute(const(C)[] localName, const(C)[] namespaceUri)
+    final XmlAttribute!S findAttribute(const(C)[] localName, const(C)[] namespaceUri) nothrow
     {
         const equalName = document.equalName;
-        for (XmlNode!S i = firstAttribute; i !is null; i = i.nextSibling)
+        foreach (a; _attributes[])
         {
-            if (equalName(i.localName, localName) && equalName(i.namespaceUri, namespaceUri))
-                return cast(XmlAttribute!S)i;
+            if (equalName(a.localName, localName) && equalName(a.namespaceUri, namespaceUri))
+                return a;
         }
         return null;
     }
@@ -428,12 +446,12 @@ public:
             Found attribute node
             Otherwise null
     */
-    final XmlAttribute!S findAttributeById()
+    final XmlAttribute!S findAttributeById() nothrow
     {
-        for (XmlNode!S i = firstAttribute; i !is null; i = i.nextSibling)
+        foreach (a; _attributes[])
         {
-            if (equalCaseInsensitive!S(i.name, "id"))
-                return cast(XmlAttribute!S)i;
+            if (equalCaseInsensitive!S(a.name, "id"))
+                return a;
         }
         return null;
     }
@@ -559,7 +577,7 @@ public:
             Found element node
             Otherwise null
     */
-    final XmlElement!S findElementById(const(C)[] id)
+    final XmlElement!S findElementById(const(C)[] id) nothrow
     {
         const equalName = document.equalName;
 
@@ -635,7 +653,7 @@ public:
         debug (PhamXml) ++childVersion;
 
         newChild._parent = this;
-        return DLinkNodeFunctions.insertAfter(refChild, newChild);
+        return _children.insertAfter(refChild, newChild);
     }
 
     /** Insert a child node, newChild, before anchor node, refChild and returns refChild
@@ -675,7 +693,7 @@ public:
         debug (PhamXml) ++childVersion;
 
         newChild._parent = this;
-        return DLinkNodeFunctions.insertAfter(refChild._prev, newChild);
+        return _children.insertAfter(refChild._prev, newChild);
     }
 
     /** Returns string of xml structure of this node
@@ -709,11 +727,7 @@ public:
     final XmlAttribute!S removeAttribute(XmlAttribute!S removedAttribute)
     {
         checkParent(removedAttribute, false, "removeAttribute()");
-
-        debug (PhamXml) ++attrbVersion;
-
-        removedAttribute._parent = null;
-        return cast(XmlAttribute!S)DLinkNodeFunctions.remove(_attrbLast, removedAttribute);
+        return removeAttributeImpl(removedAttribute);
     }
 
     /** Remove an attribute with name, name, from its' attribute list
@@ -723,24 +737,25 @@ public:
             An attribute with name, name, if found
             Otherwise null
     */
-    final XmlAttribute!S removeAttribute(const(C)[] name)
+    final XmlAttribute!S removeAttribute(const(C)[] name) nothrow
     {
         auto r = findAttribute(name);
-        return (r is null) ? null : removeAttribute(r);
+        return (r is null) ? null : removeAttributeImpl(r);
     }
 
     /** Remove all its' attribute nodes
     */
     void removeAttributes()
     {
-        if (_attrbLast !is null)
+        if (!_attributes.empty)
         {
             debug (PhamXml) ++attrbVersion;
 
-            while (_attrbLast !is null)
+            while (!_attributes.empty)
             {
-                _attrbLast._parent = null;
-                DLinkNodeFunctions.remove(_attrbLast, _attrbLast);
+                auto last = _attributes.last;
+                last._parent = null;
+                _attributes.remove(last);
             }
         }
     }
@@ -751,16 +766,17 @@ public:
     */
     void removeChildNodes(Flag!"deep" deep = No.deep)
     {
-        if (_childLast !is null)
+        if (!_children.empty)
         {
             debug (PhamXml) ++childVersion;
 
-            while (_childLast !is null)
+            while (!_children.empty)
             {
+                auto last = _children.last;
                 if (deep)
-                    _childLast.removeChildNodes(Yes.deep);
-                _childLast._parent = null;
-                DLinkNodeFunctions.remove(_childLast, _childLast);
+                    last.removeChildNodes(Yes.deep);
+                last._parent = null;
+                _children.remove(last);
             }
         }
     }
@@ -779,7 +795,7 @@ public:
         debug (PhamXml) ++childVersion;
 
         removedChild._parent = null;
-        return DLinkNodeFunctions.remove(_childLast, removedChild);
+        return _children.remove(removedChild);
     }
 
     /** Replace an child node, oldChild, with newChild
@@ -802,7 +818,7 @@ public:
         auto pre = oldChild.previousSibling;
 
         oldChild._parent = null;
-        DLinkNodeFunctions.remove(_childLast, oldChild);
+        _children.remove(oldChild);
 
         insertChildAfter(newChild, pre);
 
@@ -821,12 +837,7 @@ public:
     final XmlAttribute!S setAttribute(const(C)[] name, const(C)[] value)
     {
         checkAttribute(null, "setAttribute()");
-
-        auto a = findAttribute(name);
-        if (a is null)
-            a = appendAttribute(selfOwnerDocument.createAttribute(name));
-        a.value = value;
-        return a;
+        return setAttributeImpl(name, value);
     }
 
     /** Find an attribute with localnamne + namespaceUri matched localName + namespaceUri and set its value to value
@@ -842,12 +853,7 @@ public:
     final XmlAttribute!S setAttribute(const(C)[] localName, const(C)[] namespaceUri, const(C)[] value)
     {
         checkAttribute(null, "setAttribute()");
-
-        auto a = findAttribute(localName, namespaceUri);
-        if (a is null)
-            a = appendAttribute(selfOwnerDocument.createAttribute("", localName, namespaceUri));
-        a.value = value;
-        return a;
+        return setAttributeImpl(localName, namespaceUri, value);
     }
 
     /** Write out xml to writer according to its' structure
@@ -901,28 +907,28 @@ public:
     */
     @property final XmlAttribute!S firstAttribute() nothrow
     {
-        return _attrbLast is null ? null : cast(XmlAttribute!S)(_attrbLast._next);
+        return _attributes.first;
     }
 
     /** Returns its' first child node. A null if node has no child
     */
     @property final XmlNode!S firstChild() nothrow
     {
-        return _childLast is null ? null : _childLast._next;
+        return _children.first;
     }
 
     /** Return true if a node has any attribute node, false otherwise
     */
     @property final bool hasAttributes() nothrow
     {
-        return _attrbLast !is null;
+        return !_attributes.empty;
     }
 
     /** Return true if a node has any child node, false otherwise
     */
     @property final bool hasChildNodes() nothrow
     {
-        return _childLast !is null;
+        return !_children.empty;
     }
 
     /** Returns true if a node has any value, false otherwise
@@ -1003,14 +1009,14 @@ public:
     */
     @property final XmlAttribute!S lastAttribute() nothrow
     {
-        return cast(XmlAttribute!S)_attrbLast;
+        return _attributes.last;
     }
 
     /** Returns its' last child node. A null if node has no child
     */
     @property final XmlNode!S lastChild() nothrow
     {
-        return _childLast;
+        return _children.last;
     }
 
     /** Returns level within its' node hierarchy
@@ -1029,9 +1035,9 @@ public:
 
     /** Setter of localName
     */
-    @property XmlNode!S localName(const(C)[] newValue)
+    @property XmlNode!S localName(const(C)[] newValue) nothrow
     {
-        throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), "localName()");
+        return this;
     }
 
     /** Return node's full name if any, null otherwise
@@ -1043,9 +1049,9 @@ public:
 
     /** Setter of name
     */
-    @property XmlNode!S name(const(C)[] newValue)
+    @property XmlNode!S name(const(C)[] newValue) nothrow
     {
-        throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), "name()");
+        return this;
     }
 
     /** Return node's namespceUri if any, null otherwise
@@ -1057,9 +1063,9 @@ public:
 
     /** Setter of namespaceUri
     */
-    @property XmlNode!S namespaceUri(const(C)[] newValue)
+    @property XmlNode!S namespaceUri(const(C)[] newValue) nothrow
     {
-        throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), "namespaceUri()");
+        return this;
     }
 
     /** Returns its' next sibling node. A null if node has no sibling
@@ -1070,7 +1076,6 @@ public:
             return _next;
 
         auto last = nodeType == XmlNodeType.attribute ? parent.lastAttribute : parent.lastChild;
-
         return this is last ? null : _next;
     }
 
@@ -1093,7 +1098,7 @@ public:
     }
 
     version (none)
-    @property final ptrdiff_t indexOf()
+    @property final ptrdiff_t indexOf() nothrow
     {
         if (auto p = parentNode())
         {
@@ -1134,12 +1139,12 @@ public:
 
     /** Setter of prefix
     */
-    @property XmlNode!S prefix(const(C)[] newValue)
+    @property XmlNode!S prefix(const(C)[] newValue) nothrow
     {
-        throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), "prefix()");
+        return this;
     }
 
-    /** Returns its' previous sibling node. A null if node has no sibling
+    /** Returns its' previous sibling node. null if node has no sibling
     */
     @property final XmlNode!S previousSibling() nothrow
     {
@@ -1147,54 +1152,54 @@ public:
             return _prev;
 
         auto first = nodeType == XmlNodeType.attribute ? parent.firstAttribute : parent.firstChild;
-
         return this is first ? null : _prev;
     }
 
-    /** Return node's value if any, null otherwise
-    */
-    @property const(C)[] value()
+    /**
+     * Return node's value if any, null otherwise
+     */
+    @property const(C)[] value() nothrow
     {
         return null;
     }
 
-    /** Setter of value. Throw XmlInvalidOperationException exception if node does not
-        accept value
-    */
-    @property XmlNode!S value(const(C)[] newValue)
+    /**
+     * Setter of value. Do nothing if node does not accept value
+     */
+    @property XmlNode!S value(const(C)[] newValue) nothrow
     {
-        throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), "value()");
+        return this;
     }
 
 package:
-    final XmlAttribute!S appendAttribute(XmlAttribute!S newAttribute)
+    final XmlAttribute!S appendAttribute(XmlAttribute!S newAttribute) nothrow
+    in
+    {
+        if (!isLoading())
+            assert(isAllowAttribute(newAttribute) == 0);
+    }
+    do
     {
         if (!isLoading())
         {
-            checkAttribute(newAttribute, "appendAttribute()");
-
-            if (auto n = newAttribute.parent)
-                n.removeAttribute(newAttribute);
+            if (auto p = newAttribute.parent)
+                p.removeAttributeImpl(newAttribute);
         }
 
         debug (PhamXml) ++attrbVersion;
 
         newAttribute._parent = this;
-        return cast(XmlAttribute!S)DLinkNodeFunctions.insertEnd(_attrbLast, newAttribute);
+        return _attributes.insertEnd(newAttribute);
     }
 
     final void checkAttribute(XmlNode!S attribute, string op)
     {
-        if (!allowAttribute())
-            throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), op);
-
-        if (attribute !is null)
+        switch (isAllowAttribute(attribute))
         {
-            if (attribute.ownerDocument !is null && attribute.ownerDocument !is selfOwnerDocument)
-                throw new XmlInvalidOperationException(XmlMessage.eNotAllowAppendDifDoc, "attribute");
-
-            if (findAttribute(attribute.name) !is null)
-                throw new XmlInvalidOperationException(XmlMessage.eAttributeDuplicated, attribute.name);
+            case 1: throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), op);
+            case 2: throw new XmlInvalidOperationException(XmlMessage.eNotAllowAppendDifDoc, "attribute");
+            case 3: throw new XmlInvalidOperationException(XmlMessage.eAttributeDuplicated, attribute.name);
+            default: break;
         }
     }
 
@@ -1217,9 +1222,26 @@ package:
         }
     }
 
-    final bool matchElement(ref XmlNodeList!S list, XmlNode!S node)
+    final bool matchElement(Object context, XmlNode!S node)
     {
         return node.nodeType == XmlNodeType.element;
+    }
+
+    final int isAllowAttribute(XmlNode!S attribute) nothrow
+    {
+        if (!allowAttribute())
+            return 1;
+
+        if (attribute !is null)
+        {
+            if (attribute.ownerDocument !is null && attribute.ownerDocument !is selfOwnerDocument)
+                return 2;
+
+            if (findAttribute(attribute.name) !is null)
+                return 3;
+        }
+
+        return 0;
     }
 
 protected:
@@ -1275,6 +1297,14 @@ protected:
         return selfOwnerDocument().isLoading();
     }
 
+    final XmlAttribute!S removeAttributeImpl(XmlAttribute!S removedAttribute) nothrow
+    {
+        debug (PhamXml) ++attrbVersion;
+
+        removedAttribute._parent = null;
+        return _attributes.remove(removedAttribute);
+    }
+
     /** Returns true if this node is a Text type node
     CData, comment, significantWhitespace, text & whitespace
     */
@@ -1286,6 +1316,24 @@ protected:
     XmlDocument!S selfOwnerDocument() nothrow
     {
         return _ownerDocument;
+    }
+
+    final XmlAttribute!S setAttributeImpl(const(C)[] name, const(C)[] value) nothrow
+    {
+        auto a = findAttribute(name);
+        if (a is null)
+            a = appendAttribute(selfOwnerDocument.createAttribute(name));
+        a.value = value;
+        return a;
+    }
+
+    final XmlAttribute!S setAttributeImpl(const(C)[] localName, const(C)[] namespaceUri, const(C)[] value) nothrow
+    {
+        auto a = findAttribute(localName, namespaceUri);
+        if (a is null)
+            a = appendAttribute(selfOwnerDocument.createAttribute("", localName, namespaceUri));
+        a.value = value;
+        return a;
     }
 
     final XmlWriter!S writeAttributes(XmlWriter!S writer)
@@ -1328,8 +1376,8 @@ protected:
 
 protected:
     XmlDocument!S _ownerDocument;
-    XmlNode!S _attrbLast;
-    XmlNode!S _childLast;
+    DLinkXmlAttributeTypes.DLinkList _attributes;
+    DLinkXmlNodeTypes.DLinkList _children;
     XmlNode!S _parent;
     XmlName!S _qualifiedName;
     debug (PhamXml)
@@ -1339,25 +1387,8 @@ protected:
     }
 
 private:
-    mixin DLinkFunctions!(XmlNode!S) DLinkNodeFunctions;
-
-private:
     XmlNode!S _next;
     XmlNode!S _prev;
-}
-
-/** A state of a XmlNodeList struct
-    $(XmlNodeListType.attributes) A node list represents of attribute nodes
-    $(XmlNodeListType.childNodes) A node list represents of xml nodes except attribute node
-    $(XmlNodeListType.childNodesDeep) Similar to childNodes but it includes all sub-nodes
-    $(XmlNodeListType.flat) A array type of node list
-*/
-enum XmlNodeListType : byte
-{
-    attributes,
-    childNodes,
-    childNodesDeep,
-    flat
 }
 
 /** A struct type for holding various xml node objects
@@ -1366,28 +1397,38 @@ enum XmlNodeListType : byte
 struct XmlNodeList(S = string)
 if (isXmlString!S)
 {
+@safe:
+
 public:
-    alias XmlNodeListFilterEvent = bool delegate(ref XmlNodeList!S list, XmlNode!S node);
+    alias XmlNodeListFilterEvent = bool delegate(Object context, XmlNode!S node);
 
 public:
     this(this) nothrow
     {
-        version (none) version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParser("XmlNodeList.this(this)");
 
         if (_listType == XmlNodeListType.childNodesDeep)
             _walkNodes = _walkNodes.dup;
     }
 
-    this(Object context, XmlNodeListType listType) nothrow
+    /**
+     * Create a XmlNodeList with listType = XmlNodeListType.flat
+     */
+    this(Object context) nothrow
     {
         this._context = context;
-        this._listType = listType;
+        this._listType = XmlNodeListType.flat;
     }
 
     this(XmlNode!S parent, XmlNodeListType listType, XmlNodeListFilterEvent onFilter, Object context)
+    in
     {
-        version (none) version (unittest)
+        assert(listType != XmlNodeListType.flat);
+    }
+    do
+    {
+        version (xmlTraceParser)
         outputXmlTraceParser("XmlNodeList.this(...)");
 
         if (listType == XmlNodeListType.flat)
@@ -1398,14 +1439,13 @@ public:
         this._onFilter = onFilter;
         this._context = context;
 
-        if (_listType == XmlNodeListType.childNodesDeep)
+        if (listType == XmlNodeListType.childNodesDeep)
             _walkNodes.reserve(defaultXmlLevels);
 
         reset();
     }
 
     /** Returns the last item in the list
-
         Returns:
             xml node object
     */
@@ -1419,10 +1459,8 @@ public:
 
     /** Insert xml node, node, to the end
         Valid only if list-type is XmlNodeListType.flat
-
         Params:
             node = a xml node to be inserted
-
         Returns:
             node
     */
@@ -1438,16 +1476,14 @@ public:
     }
 
     /** Returns the item in the list at index, index
-
         Params:
             index = where a xml node to be returned
-
         Returns:
             xml node object
     */
     XmlNode!S item(size_t index)
     {
-        version (none) version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParser("XmlNodeList.item()");
 
         if (_listType == XmlNodeListType.flat)
@@ -1471,13 +1507,12 @@ public:
 
     /** Returns the count of xml nodes
         It can be expensive operation if listType != XmlNodeListType.flat
-
         Returns:
             count of xml nodes
     */
     size_t length()
     {
-        version (none) version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParser("XmlNodeList.length()");
 
         if (empty)
@@ -1510,7 +1545,6 @@ public:
 
     /** A range based operation by moving current position to the next item
         and returns the current node object
-
         Returns:
             Current xml node object before the call
     */
@@ -1525,7 +1559,7 @@ public:
     */
     void popFront()
     {
-        version (none) version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParser("XmlNodeList.popFront()");
 
         if (_listType == XmlNodeListType.flat)
@@ -1587,7 +1621,7 @@ public:
 
     void reset()
     {
-        version (none) version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParser("XmlNodeList.reset()");
 
         if (_listType == XmlNodeListType.flat)
@@ -1595,7 +1629,7 @@ public:
         else
         {
             _parent = _orgParent;
-            switch (_listType)
+            final switch (_listType)
             {
                 case XmlNodeListType.attributes:
                     _current = _parent.firstAttribute;
@@ -1604,7 +1638,7 @@ public:
                 case XmlNodeListType.childNodesDeep:
                     _current = _parent.firstChild;
                     break;
-                default:
+                case XmlNodeListType.flat:
                     assert(0);
             }
 
@@ -1624,12 +1658,17 @@ public:
         }
     }
 
-    @property Object context() nothrow
+    typeof(this) save()
+    {
+        return this;
+    }
+
+    @property Object context() nothrow pure
     {
         return _context;
     }
 
-    @property bool empty() nothrow
+    @property bool empty() const nothrow pure
     {
         if (_listType == XmlNodeListType.flat)
             return _currentIndex >= _flatList.length;
@@ -1637,84 +1676,22 @@ public:
             return _emptyList || _current is null;
     }
 
-    @property XmlNode!S front()
+    @property XmlNode!S front() nothrow pure
     {
         return (_listType == XmlNodeListType.flat) ? _flatList[_currentIndex] : _current;
     }
 
-    @property XmlNode!S parent() nothrow
+    @property XmlNodeListType listType() const nothrow pure
+    {
+        return _listType;
+    }
+
+    @property XmlNode!S parent() nothrow pure
     {
         return _orgParent;
     }
 
-    @property auto save()
-    {
-        return this;
-    }
-
 private:
-    static struct WalkNode
-    {
-        XmlNode!S parent, next;
-        debug (PhamXml) size_t parentVersion;
-
-        this(XmlNode!S parent, XmlNode!S next)
-        {
-            this.parent = parent;
-            this.next = next;
-            debug (PhamXml) this.parentVersion = parent.childVersion;
-        }
-    }
-
-    Object _context;
-    XmlNode!S _orgParent, _parent, _current;
-    XmlNode!S[] _flatList;
-    WalkNode[] _walkNodes;
-    XmlNodeListFilterEvent _onFilter;
-    size_t _currentIndex;
-    size_t _length = size_t.max;
-    int _inFilter;
-    XmlNodeListType _listType;
-    bool _emptyList;
-
-    debug (PhamXml)
-    {
-        size_t _parentVersion;
-
-        pragma (inline, true)
-        size_t getVersionAttrb()
-        {
-            return _parent.attrbVersion;
-        }
-
-        pragma (inline, true)
-        size_t getVersionChild()
-        {
-            return _parent.childVersion;
-        }
-
-        void checkVersionChangedAttrb()
-        {
-            if (_parentVersion != getVersionAttrb())
-                throw new XmlException(Message.EAttributeListChanged);
-        }
-
-        void checkVersionChangedChild()
-        {
-            if (_parentVersion != getVersionChild())
-                throw new XmlException(Message.EChildListChanged);
-        }
-
-        pragma (inline, true)
-        void checkVersionChanged()
-        {
-            if (_listType == XmlNodeListType.Attributes)
-                checkVersionChangedAttrb();
-            else
-                checkVersionChangedChild();
-        }
-    }
-
     void checkFilter(void delegate() @safe advance)
     in
     {
@@ -1722,14 +1699,14 @@ private:
     }
     do
     {
-        version (none) version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParser("XmlNodeList.checkFilter()");
 
         ++_inFilter;
         scope (exit)
             --_inFilter;
 
-        while (_current !is null && !_onFilter(this, _current))
+        while (_current !is null && !_onFilter(_context, _current))
             advance();
     }
 
@@ -1741,7 +1718,7 @@ private:
     }
     do
     {
-        version (none) version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParser("XmlNodeList.popFrontSibling()");
 
         _current = _current.nextSibling;
@@ -1758,14 +1735,14 @@ private:
     }
     do
     {
-        version (none) version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParserF("XmlNodeList.popFrontDeep(current(%s.%s))", _parent.name, _current.name);
 
         if (_current.hasChildNodes)
         {
             if (_current.nextSibling !is null)
             {
-                version (none) version (unittest)
+                version (xmlTraceParser)
                 outputXmlTraceParserF("XmlNodeList.popFrontDeep(push(%s.%s))", _parent.name, _current.nextSibling.name);
 
                 _walkNodes ~= WalkNode(_parent, _current.nextSibling);
@@ -1800,7 +1777,7 @@ private:
     }
     do
     {
-        version (none) version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParser("XmlNodeList.getItem()");
 
         if (_current is null || index == 0)
@@ -1827,7 +1804,7 @@ private:
     }
     do
     {
-        version (none) version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParser("XmlNodeList.getItemDeep()");
 
         if (_current is null || index == 0)
@@ -1856,7 +1833,7 @@ private:
     }
     do
     {
-        version (none) version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParser("XmlNodeList.moveBackSibling()");
 
         _current = _current.previousSibling;
@@ -1864,6 +1841,68 @@ private:
         if (_inFilter == 0 && _onFilter !is null)
             checkFilter(&moveBackSibling);
     }
+
+    debug (PhamXml)
+    {
+        pragma (inline, true)
+        size_t getVersionAttrb() const nothrow
+        {
+            return _parent.attrbVersion;
+        }
+
+        pragma (inline, true)
+        size_t getVersionChild() const nothrow
+        {
+            return _parent.childVersion;
+        }
+
+        void checkVersionChangedAttrb() const
+        {
+            if (_parentVersion != getVersionAttrb())
+                throw new XmlException(Message.EAttributeListChanged);
+        }
+
+        void checkVersionChangedChild() const
+        {
+            if (_parentVersion != getVersionChild())
+                throw new XmlException(Message.EChildListChanged);
+        }
+
+        pragma (inline, true)
+        void checkVersionChanged() const
+        {
+            if (_listType == XmlNodeListType.Attributes)
+                checkVersionChangedAttrb();
+            else
+                checkVersionChangedChild();
+        }
+    }
+
+private:
+    static struct WalkNode
+    {
+        XmlNode!S parent, next;
+        debug (PhamXml) size_t parentVersion;
+
+        this(XmlNode!S parent, XmlNode!S next)
+        {
+            this.parent = parent;
+            this.next = next;
+            debug (PhamXml) this.parentVersion = parent.childVersion;
+        }
+    }
+
+    Object _context;
+    XmlNode!S _orgParent, _parent, _current;
+    XmlNode!S[] _flatList;
+    WalkNode[] _walkNodes;
+    XmlNodeListFilterEvent _onFilter;
+    size_t _currentIndex;
+    size_t _length = size_t.max;
+    debug (PhamXml) size_t _parentVersion;
+    int _inFilter;
+    XmlNodeListType _listType;
+    bool _emptyList;
 }
 
 /** A xml attribute node object
@@ -1871,19 +1910,22 @@ private:
 class XmlAttribute(S = string) : XmlNode!S
 {
 public:
-    this(XmlDocument!S ownerDocument, XmlName!S name)
+    this(XmlDocument!S ownerDocument, XmlName!S name) nothrow
+    in
     {
         if (!ownerDocument.isLoading())
         {
-            checkName!(S, Yes.AllowEmpty)(name.prefix);
-            checkName!(S, No.AllowEmpty)(name.localName);
+            assert(isName!(S, Yes.AllowEmpty)(name.prefix));
+            assert(isName!(S, No.AllowEmpty)(name.localName));
         }
-
+    }
+    do
+    {
         this._ownerDocument = ownerDocument;
         this._qualifiedName = name;
     }
 
-    this(XmlDocument!S ownerDocument, XmlName!S name, const(C)[] text)
+    this(XmlDocument!S ownerDocument, XmlName!S name, const(C)[] text) nothrow
     {
         this(ownerDocument, name);
         this._text = XmlString!S(text);
@@ -1912,7 +1954,7 @@ public:
 
     alias localName = typeof(super).localName;
 
-    @property final override XmlNode!S localName(const(C)[] newValue)
+    @property final override XmlNode!S localName(const(C)[] newValue) nothrow
     {
         _qualifiedName = ownerDocument.createName(prefix, newValue, namespaceUri);
         return this;
@@ -1920,7 +1962,7 @@ public:
 
     alias name = typeof(super).name;
 
-    @property final override XmlNode!S name(const(C)[] newValue)
+    @property final override XmlNode!S name(const(C)[] newValue) nothrow
     {
         _qualifiedName = ownerDocument.createName(newValue);
         return this;
@@ -1928,7 +1970,7 @@ public:
 
     alias namespaceUri = typeof(super).namespaceUri;
 
-    @property final override XmlNode!S namespaceUri(const(C)[] newValue)
+    @property final override XmlNode!S namespaceUri(const(C)[] newValue) nothrow
     {
         _qualifiedName = ownerDocument.createName(prefix, localName, newValue);
         return this;
@@ -1941,32 +1983,35 @@ public:
 
     alias prefix = typeof(super).prefix;
 
-    @property final override XmlNode!S prefix(const(C)[] newValue)
+    @property final override XmlNode!S prefix(const(C)[] newValue) nothrow
     {
         _qualifiedName = ownerDocument.createName(newValue, localName, namespaceUri);
         return this;
     }
 
-    @property final override const(C)[] value()
+    @property final override const(C)[] value() nothrow
     {
         return ownerDocument.getDecodedText(_text);
     }
 
-    @property final override XmlNode!S value(const(C)[] newValue)
+    @property final override XmlNode!S value(const(C)[] newValue) nothrow
     {
         _text = newValue;
         return this;
     }
 
 package:
-    this(XmlDocument!S ownerDocument, XmlName!S name, XmlString!S text)
+    this(XmlDocument!S ownerDocument, XmlName!S name, XmlString!S text) nothrow
+    in
     {
         if (!ownerDocument.isLoading())
         {
-            checkName!(S, Yes.AllowEmpty)(name.prefix);
-            checkName!(S, No.AllowEmpty)(name.localName);
+            assert(isName!(S, Yes.AllowEmpty)(name.prefix));
+            assert(isName!(S, No.AllowEmpty)(name.localName));
         }
-
+    }
+    do
+    {
         this._ownerDocument = ownerDocument;
         this._qualifiedName = name;
         this._text = text;
@@ -1987,7 +2032,7 @@ protected:
 class XmlCData(S = string) : XmlCharacterDataCustom!S
 {
 public:
-    this(XmlDocument!S ownerDocument, const(C)[] data) @trusted
+    this(XmlDocument!S ownerDocument, const(C)[] data) nothrow @trusted
     {
         super(ownerDocument, XmlString!S(data, XmlEncodeMode.none));
         this._qualifiedName = singleton!(XmlName!S)(_defaultQualifiedName, &createDefaultQualifiedName);
@@ -2019,7 +2064,7 @@ private:
 class XmlComment(S = string) : XmlCharacterDataCustom!S
 {
 public:
-    this(XmlDocument!S ownerDocument, const(C)[] text) @trusted
+    this(XmlDocument!S ownerDocument, const(C)[] text) nothrow @trusted
     {
         super(ownerDocument, text);
         this._qualifiedName = singleton!(XmlName!S)(_defaultQualifiedName, &createDefaultQualifiedName);
@@ -2058,16 +2103,20 @@ private:
 class XmlDeclaration(S = string) : XmlNode!S
 {
 public:
-    this(XmlDocument!S ownerDocument) @trusted
+    this(XmlDocument!S ownerDocument) nothrow @trusted
     {
         this._ownerDocument = ownerDocument;
         this._qualifiedName = singleton!(XmlName!S)(_defaultQualifiedName, &createDefaultQualifiedName);
     }
 
-    this(XmlDocument!S ownerDocument, const(C)[] versionStr, const(C)[] encoding, bool standalone)
+    this(XmlDocument!S ownerDocument, const(C)[] versionStr, const(C)[] encoding, bool standalone) nothrow
+    in
     {
-        checkVersion(versionStr);
-
+        if (!ownerDocument.isLoading())
+            assert(isVersionStr!(S, Yes.AllowEmpty)(versionStr));
+    }
+    do
+    {
         this(ownerDocument);
         this.versionStr = versionStr;
         this.encoding = encoding;
@@ -2100,17 +2149,17 @@ public:
         return writer;
     }
 
-    @property final const(C)[] encoding()
+    @property final const(C)[] encoding() nothrow
     {
         return getAttribute(XmlConst!S.declarationEncodingName);
     }
 
-    @property final XmlDeclaration!S encoding(const(C)[] newValue)
+    @property final typeof(this) encoding(const(C)[] newValue) nothrow
     {
         if (newValue.length == 0)
             removeAttribute(XmlConst!S.declarationEncodingName);
         else
-            setAttribute(XmlConst!S.declarationEncodingName, newValue);
+            setAttributeImpl(XmlConst!S.declarationEncodingName, newValue);
         buildText();
         return this;
     }
@@ -2131,53 +2180,51 @@ public:
         return XmlNodeType.declaration;
     }
 
-    @property final const(C)[] standalone()
+    @property final const(C)[] standalone() nothrow
     {
         return getAttribute(XmlConst!S.declarationStandaloneName);
     }
 
-    @property final XmlDeclaration!S standalone(bool newValue)
+    @property final typeof(this) standalone(bool newValue) nothrow
     {
-        auto newValueText = newValue ? XmlConst!S.true_ : XmlConst!S.false_;
-        setAttribute(XmlConst!S.declarationStandaloneName, newValueText);
+        auto newValueText = newValue ? XmlConst!S.yes : XmlConst!S.no;
+        setAttributeImpl(XmlConst!S.declarationStandaloneName, newValueText);
         buildText();
         return this;
     }
 
-    @property final override const(C)[] value()
+    @property final override const(C)[] value() nothrow
     {
         return _innerText;
     }
 
-    @property final override XmlNode!S value(const(C)[] newValue)
+    @property final override XmlNode!S value(const(C)[] newValue) nothrow
     {
         breakText(newValue);
         return this;
     }
 
-    @property final const(C)[] versionStr()
+    @property final const(C)[] versionStr() nothrow
     {
         return getAttribute(XmlConst!S.declarationVersionName);
     }
 
-    @property final XmlDeclaration!S versionStr(const(C)[] newValue)
+    @property final typeof(this) versionStr(const(C)[] newValue) nothrow
     {
         if (newValue.length == 0)
             removeAttribute(XmlConst!S.declarationVersionName);
         else
-            setAttribute(XmlConst!S.declarationVersionName, newValue);
+            setAttributeImpl(XmlConst!S.declarationVersionName, newValue);
         buildText();
         return this;
     }
 
 protected:
-    static XmlName!S createDefaultQualifiedName() nothrow pure
+    final void breakText(const(C)[] s) nothrow
     {
-        return new XmlName!S(XmlConst!S.declarationTagName);
-    }
+        scope (failure)
+            assert(0);
 
-    final void breakText(const(C)[] s)
-    {
         const(C)[][] t = s.split();
         foreach (e; t)
         {
@@ -2191,16 +2238,22 @@ protected:
                 encoding = value;
             else if (equalCaseInsensitive!S(name, XmlConst!S.declarationStandaloneName))
             {
-                checkStandalone(value);
-                standalone = value == XmlConst!S.true_;
+                assert(isStandalone(value));
+                standalone = value == XmlConst!S.yes;
             }
             else
-                throw new XmlException(XmlMessage.eInvalidName, name);
+            {
+                //throw new XmlException(XmlMessage.eInvalidName, name);
+                assert(0);
+            }
         }
     }
 
-    final const(C)[] buildText()
+    final const(C)[] buildText() nothrow
     {
+        scope (failure)
+            assert(0);
+
         auto buffer = selfOwnerDocument.acquireBuffer(nodeType);
         scope (exit)
             selfOwnerDocument.releaseBuffer(buffer);
@@ -2209,19 +2262,27 @@ protected:
 
         const(C)[] s;
 
-        writer.putAttribute(XmlConst!S.declarationVersionName, versionStr);
+        s = versionStr;
+        if (s.length)
+        {
+            if (buffer.length)
+                writer.put(' ');
+            writer.putAttribute(XmlConst!S.declarationVersionName, s);
+        }
 
         s = encoding;
-        if (s.length != 0)
+        if (s.length)
         {
-            writer.put(' ');
+            if (buffer.length)
+                writer.put(' ');
             writer.putAttribute(XmlConst!S.declarationEncodingName, s);
         }
 
         s = standalone;
-        if (s.length != 0)
+        if (s.length)
         {
-            writer.put(' ');
+            if (buffer.length)
+                writer.put(' ');
             writer.putAttribute(XmlConst!S.declarationStandaloneName, s);
         }
 
@@ -2230,22 +2291,34 @@ protected:
         return _innerText;
     }
 
+    version (none)
     final void checkStandalone(const(C)[] s)
     {
-        if ((s.length != 0) && (s != XmlConst!S.yes || s != XmlConst!S.no))
+        if (!isStandalone(s))
             throw new XmlException(XmlMessage.eInvalidTypeValueOf2,
                 XmlConst!string.declarationStandaloneName, XmlConst!string.yes, XmlConst!string.no, s);
     }
 
+    version (none)
     final void checkVersion(const(C)[] s) // rule 26
     {
         if (!isVersionStr!(S, Yes.AllowEmpty)(s))
             throw new XmlException(XmlMessage.eInvalidVersionStr, s);
     }
 
+    static XmlName!S createDefaultQualifiedName() nothrow pure
+    {
+        return new XmlName!S(XmlConst!S.declarationTagName);
+    }
+
     final override bool hasValueImpl() const nothrow
     {
         return _innerText.length != 0;
+    }
+
+    static bool isStandalone(const(C)[] s) nothrow pure
+    {
+        return s.length == 0 || s == XmlConst!S.yes || s == XmlConst!S.no;
     }
 
 protected:
@@ -2387,84 +2460,84 @@ public:
         return fileName;
     }
 
-    XmlAttribute!S createAttribute(const(C)[] name)
+    XmlAttribute!S createAttribute(const(C)[] name) nothrow
     {
         return new XmlAttribute!S(this, createName(name));
     }
 
-    XmlAttribute!S createAttribute(const(C)[] name, const(C)[] value)
+    XmlAttribute!S createAttribute(const(C)[] name, const(C)[] value) nothrow
     {
         return new XmlAttribute!S(this, createName(name), value);
     }
 
-    XmlAttribute!S createAttribute(const(C)[] prefix, const(C)[] localName, const(C)[] namespaceUri)
+    XmlAttribute!S createAttribute(const(C)[] prefix, const(C)[] localName, const(C)[] namespaceUri) nothrow
     {
         return new XmlAttribute!S(this, createName(prefix, localName, namespaceUri));
     }
 
-    XmlCData!S createCData(const(C)[] data)
+    XmlCData!S createCData(const(C)[] data) nothrow
     {
         return new XmlCData!S(this, data);
     }
 
-    XmlComment!S createComment(const(C)[] text)
+    XmlComment!S createComment(const(C)[] text) nothrow
     {
         return new XmlComment!S(this, text);
     }
 
-    XmlDeclaration!S createDeclaration()
+    XmlDeclaration!S createDeclaration() nothrow
     {
         return new XmlDeclaration!S(this);
     }
 
-    XmlDeclaration!S createDeclaration(const(C)[] versionStr, const(C)[] encoding, bool standalone)
+    XmlDeclaration!S createDeclaration(const(C)[] versionStr, const(C)[] encoding, bool standalone) nothrow
     {
         return new XmlDeclaration!S(this, versionStr, encoding, standalone);
     }
 
-    XmlDocumentType!S createDocumentType(const(C)[] name)
+    XmlDocumentType!S createDocumentType(const(C)[] name) nothrow
     {
         return new XmlDocumentType!S(this, name);
     }
 
     XmlDocumentType!S createDocumentType(const(C)[] name, const(C)[] publicOrSystem, const(C)[] publicId,
-        const(C)[] text)
+        const(C)[] text) nothrow
     {
         return new XmlDocumentType!S(this, name, publicOrSystem, publicId, text);
     }
 
-    XmlDocumentTypeAttributeList!S createDocumentTypeAttributeList(const(C)[] name)
+    XmlDocumentTypeAttributeList!S createDocumentTypeAttributeList(const(C)[] name) nothrow
     {
         return new XmlDocumentTypeAttributeList!S(this, name);
     }
 
-    XmlDocumentTypeElement!S createDocumentTypeElement(const(C)[] name)
+    XmlDocumentTypeElement!S createDocumentTypeElement(const(C)[] name) nothrow
     {
         return new XmlDocumentTypeElement!S(this, name);
     }
 
-    XmlElement!S createElement(const(C)[] name)
+    XmlElement!S createElement(const(C)[] name) nothrow
     {
         return new XmlElement!S(this, createName(name));
     }
 
-    XmlElement!S createElement(const(C)[] prefix, const(C)[] localName, const(C)[] namespaceUri)
+    XmlElement!S createElement(const(C)[] prefix, const(C)[] localName, const(C)[] namespaceUri) nothrow
     {
         return new XmlElement!S(this, createName(prefix, localName, namespaceUri));
     }
 
-    XmlEntity!S createEntity(const(C)[] name, const(C)[] value)
+    XmlEntity!S createEntity(const(C)[] name, const(C)[] value) nothrow
     {
         return new XmlEntity!S(this, name, value);
     }
 
     XmlEntity!S createEntity(const(C)[] name, const(C)[] publicOrSystem, const(C)[] publicId,
-        const(C)[] text, const(C)[] notationName)
+        const(C)[] text, const(C)[] notationName) nothrow
     {
         return new XmlEntity!S(this, name, publicOrSystem, publicId, text, notationName);
     }
 
-    XmlEntityReference!S createEntityReference(const(C)[] name, const(C)[] text)
+    XmlEntityReference!S createEntityReference(const(C)[] name, const(C)[] text) nothrow
     {
         return new XmlEntityReference!S(this, name, text);
     }
@@ -2476,27 +2549,27 @@ public:
     }
 
     XmlNotation!S createNotation(const(C)[] name, const(C)[] publicOrSystem, const(C)[] publicId,
-        const(C)[] text)
+        const(C)[] text) nothrow
     {
         return new XmlNotation!S(this, name, publicOrSystem, publicId, text);
     }
 
-    XmlProcessingInstruction!S createProcessingInstruction(const(C)[] target, const(C)[] text)
+    XmlProcessingInstruction!S createProcessingInstruction(const(C)[] target, const(C)[] text) nothrow
     {
         return new XmlProcessingInstruction!S(this, target, text);
     }
 
-    XmlSignificantWhitespace!S createSignificantWhitespace(const(C)[] text)
+    XmlSignificantWhitespace!S createSignificantWhitespace(const(C)[] text) nothrow
     {
         return new XmlSignificantWhitespace!S(this, text);
     }
 
-    XmlText!S createText(const(C)[] text)
+    XmlText!S createText(const(C)[] text) nothrow
     {
         return new XmlText!S(this, text);
     }
 
-    XmlWhitespace!S createWhitespace(const(C)[] text)
+    XmlWhitespace!S createWhitespace(const(C)[] text) nothrow
     {
         return new XmlWhitespace!S(this, text);
     }
@@ -2660,7 +2733,7 @@ package:
 protected:
     pragma (inline, true)
     final XmlBuffer!(S, No.CheckEncoded) acquireBuffer(XmlNodeType fromNodeType,
-        size_t capacity = 0)
+        size_t capacity = 0) nothrow
     {
         auto b = _buffers.acquire();
         if (capacity == 0 && fromNodeType == XmlNodeType.document)
@@ -2677,12 +2750,12 @@ protected:
     }
 
     pragma (inline, true)
-    final S getAndReleaseBuffer(XmlBuffer!(S, No.CheckEncoded) b)
+    final S getAndReleaseBuffer(XmlBuffer!(S, No.CheckEncoded) b) nothrow
     {
         return _buffers.getAndRelease(b);
     }
 
-    final const(C)[] getDecodedText(ref XmlString!S s)
+    final const(C)[] getDecodedText(ref XmlString!S s) nothrow
     {
         if (s.needDecode())
         {
@@ -2690,13 +2763,13 @@ protected:
             scope (exit)
                 releaseBuffer(buffer);
 
-            return s.decodedText(buffer, decodeEntityTable());
+            return s.decodedText!(XmlDecodeMode.loose)(buffer, decodeEntityTable());
         }
         else
             return s.rawValue();
     }
 
-    final const(C)[] getEncodedText(ref XmlString!S s)
+    final const(C)[] getEncodedText(ref XmlString!S s) nothrow
     {
         if (s.needEncode())
         {
@@ -2711,7 +2784,7 @@ protected:
     }
 
     pragma (inline, true)
-    final void releaseBuffer(XmlBuffer!(S, No.CheckEncoded) b)
+    final void releaseBuffer(XmlBuffer!(S, No.CheckEncoded) b) nothrow
     {
         _buffers.release(b);
     }
@@ -2792,14 +2865,14 @@ protected:
 class XmlDocumentType(S = string) : XmlNode!S
 {
 public:
-    this(XmlDocument!S ownerDocument, const(C)[] name)
+    this(XmlDocument!S ownerDocument, const(C)[] name) nothrow
     {
         this._ownerDocument = ownerDocument;
         this._qualifiedName = new XmlName!S(name);
     }
 
     this(XmlDocument!S ownerDocument, const(C)[] name, const(C)[] publicOrSystem,
-        const(C)[] publicId, const(C)[] text)
+        const(C)[] publicId, const(C)[] text) nothrow
     {
         this(ownerDocument, name);
         this._publicOrSystem = publicOrSystem;
@@ -2808,7 +2881,7 @@ public:
     }
 
     this(XmlDocument!S ownerDocument, const(C)[] name, const(C)[] publicOrSystem,
-        XmlString!S publicId, XmlString!S text)
+        XmlString!S publicId, XmlString!S text) nothrow
     {
         this(ownerDocument, name);
         this._publicOrSystem = publicOrSystem;
@@ -2860,12 +2933,12 @@ public:
         return XmlNodeType.documentType;
     }
 
-    @property final const(C)[] publicId()
+    @property final const(C)[] publicId() nothrow
     {
         return ownerDocument.getDecodedText(_publicId);
     }
 
-    @property final const(C)[] publicId(const(C)[] newValue)
+    @property final const(C)[] publicId(const(C)[] newValue) nothrow
     {
         _publicId = newValue;
         return newValue;
@@ -2876,7 +2949,7 @@ public:
         return _publicOrSystem;
     }
 
-    @property final const(C)[] publicOrSystem(const(C)[] newValue)
+    @property final const(C)[] publicOrSystem(const(C)[] newValue) nothrow
     {
         const equalName = document.equalName;
         if (newValue.length == 0 ||
@@ -2887,12 +2960,12 @@ public:
             return null;
     }
 
-    @property final override const(C)[] value()
+    @property final override const(C)[] value() nothrow
     {
         return ownerDocument.getDecodedText(_text);
     }
 
-    @property final override XmlNode!S value(const(C)[] newValue)
+    @property final override XmlNode!S value(const(C)[] newValue) nothrow
     {
         _text = newValue;
         return this;
@@ -3190,14 +3263,17 @@ protected:
 class XmlElement(S = string) : XmlNode!S
 {
 public:
-    this(XmlDocument!S ownerDocument, XmlName!S name)
+    this(XmlDocument!S ownerDocument, XmlName!S name) nothrow
+    in
     {
         if (!ownerDocument.isLoading())
         {
-            checkName!(S, Yes.AllowEmpty)(name.prefix);
-            checkName!(S, No.AllowEmpty)(name.localName);
+            assert(isName!(S, Yes.AllowEmpty)(name.prefix));
+            assert(isName!(S, No.AllowEmpty)(name.localName));
         }
-
+    }
+    do
+    {
         this._ownerDocument = ownerDocument;
         this._qualifiedName = name;
     }
@@ -3272,7 +3348,7 @@ public:
 
     alias localName = typeof(super).localName;
 
-    @property final override XmlNode!S localName(const(C)[] newValue)
+    @property final override XmlNode!S localName(const(C)[] newValue) nothrow
     {
         _qualifiedName = ownerDocument.createName(prefix, newValue, namespaceUri);
         return this;
@@ -3280,7 +3356,7 @@ public:
 
     alias name = typeof(super).name;
 
-    @property final override XmlNode!S name(const(C)[] newValue)
+    @property final override XmlNode!S name(const(C)[] newValue) nothrow
     {
         _qualifiedName = ownerDocument.createName(newValue);
         return this;
@@ -3288,7 +3364,7 @@ public:
 
     alias namespaceUri = typeof(super).namespaceUri;
 
-    @property final override XmlNode!S namespaceUri(const(C)[] newValue)
+    @property final override XmlNode!S namespaceUri(const(C)[] newValue) nothrow
     {
         _qualifiedName = ownerDocument.createName(prefix, localName, newValue);
         return this;
@@ -3296,7 +3372,7 @@ public:
 
     alias prefix = typeof(super).prefix;
 
-    @property final override XmlNode!S prefix(const(C)[] newValue)
+    @property final override XmlNode!S prefix(const(C)[] newValue) nothrow
     {
         _qualifiedName = ownerDocument.createName(newValue, localName, namespaceUri);
         return this;
@@ -3392,7 +3468,7 @@ class XmlNotation(S = string) : XmlNode!S
 {
 public:
     this(XmlDocument!S ownerDocument, const(C)[] name, const(C)[] publicOrSystem,
-        const(C)[] publicId, const(C)[] text)
+        const(C)[] publicId, const(C)[] text) nothrow
     {
         this(ownerDocument, name);
         this._publicOrSystem = publicOrSystem;
@@ -3413,7 +3489,7 @@ public:
         return XmlNodeType.notation;
     }
 
-    @property final const(C)[] publicId()
+    @property final const(C)[] publicId() nothrow
     {
         return ownerDocument.getDecodedText(_publicId);
     }
@@ -3423,12 +3499,12 @@ public:
         return _publicOrSystem;
     }
 
-    @property final override const(C)[] value()
+    @property final override const(C)[] value() nothrow
     {
         return ownerDocument.getDecodedText(_text);
     }
 
-    @property final override XmlNode!S value(const(C)[] newValue)
+    @property final override XmlNode!S value(const(C)[] newValue) nothrow
     {
         _text = newValue;
         return this;
@@ -3436,7 +3512,7 @@ public:
 
 package:
     this(XmlDocument!S ownerDocument, const(C)[] name, const(C)[] publicOrSystem,
-         XmlString!S publicId, XmlString!S text)
+         XmlString!S publicId, XmlString!S text) nothrow
     {
         this(ownerDocument, name);
         this._publicOrSystem = publicOrSystem;
@@ -3445,7 +3521,7 @@ package:
     }
 
 protected:
-    this(XmlDocument!S ownerDocument, const(C)[] name)
+    this(XmlDocument!S ownerDocument, const(C)[] name) nothrow
     {
         this._ownerDocument = ownerDocument;
         this._qualifiedName = new XmlName!S(name);
@@ -3467,7 +3543,7 @@ protected:
 class XmlProcessingInstruction(S = string) : XmlNode!S
 {
 public:
-    this(XmlDocument!S ownerDocument, const(C)[] target, const(C)[] text)
+    this(XmlDocument!S ownerDocument, const(C)[] target, const(C)[] text) nothrow
     {
         this(ownerDocument, target);
         this._text = XmlString!S(text);
@@ -3495,31 +3571,31 @@ public:
         return XmlNodeType.processingInstruction;
     }
 
-    @property final const(C)[] target()
+    @property final const(C)[] target() nothrow
     {
         return _qualifiedName.name;
     }
 
-    @property final override const(C)[] value()
+    @property final override const(C)[] value() nothrow
     {
         return ownerDocument.getDecodedText(_text);
     }
 
-    @property final override XmlNode!S value(const(C)[] newValue)
+    @property final override XmlNode!S value(const(C)[] newValue) nothrow
     {
         _text = newValue;
         return this;
     }
 
 package:
-    this(XmlDocument!S ownerDocument, const(C)[] target, XmlString!S text)
+    this(XmlDocument!S ownerDocument, const(C)[] target, XmlString!S text) nothrow
     {
         this(ownerDocument, target);
         this._text = text;
     }
 
 protected:
-    this(XmlDocument!S ownerDocument, const(C)[] target)
+    this(XmlDocument!S ownerDocument, const(C)[] target) nothrow
     {
         this._ownerDocument = ownerDocument;
         this._qualifiedName = new XmlName!S(target);
@@ -3539,7 +3615,7 @@ protected:
 class XmlSignificantWhitespace(S = string) : XmlCharacterWhitespace!S
 {
 public:
-    this(XmlDocument!S ownerDocument, const(C)[] text) @trusted
+    this(XmlDocument!S ownerDocument, const(C)[] text) nothrow @trusted
     {
         super(ownerDocument, text);
         this._qualifiedName = singleton!(XmlName!S)(_defaultQualifiedName, &createDefaultQualifiedName);
@@ -3565,7 +3641,7 @@ private:
 class XmlText(S = string) : XmlCharacterDataCustom!S
 {
 public:
-    this(XmlDocument!S ownerDocument, const(C)[] text) @trusted
+    this(XmlDocument!S ownerDocument, const(C)[] text) nothrow @trusted
     {
         super(ownerDocument, text);
         this._qualifiedName = singleton!(XmlName!S)(_defaultQualifiedName, &createDefaultQualifiedName);
@@ -3592,7 +3668,7 @@ public:
     }
 
 package:
-    this(XmlDocument!S ownerDocument, XmlString!S text) @trusted
+    this(XmlDocument!S ownerDocument, XmlString!S text) nothrow @trusted
     {
         super(ownerDocument, text);
         this._qualifiedName = singleton!(XmlName!S)(_defaultQualifiedName, &createDefaultQualifiedName);
@@ -3613,7 +3689,7 @@ private:
 class XmlWhitespace(S = string) : XmlCharacterWhitespace!S
 {
 public:
-    this(XmlDocument!S ownerDocument, const(C)[] text) @trusted
+    this(XmlDocument!S ownerDocument, const(C)[] text) nothrow @trusted
     {
         super(ownerDocument, text);
         this._qualifiedName = singleton!(XmlName!S)(_defaultQualifiedName, &createDefaultQualifiedName);
@@ -3649,34 +3725,29 @@ public:
         return value(newValue);
     }
 
-    @property override const(C)[] value()
+    @property override const(C)[] value() nothrow
     {
         return ownerDocument.getDecodedText(_text);
     }
 
-    @property override XmlNode!S value(const(C)[] newValue)
+    @property override XmlNode!S value(const(C)[] newValue) nothrow
     {
         _text = newValue;
         return this;
     }
 
 protected:
-    final override bool isText() const nothrow
-    {
-        return true;
-    }
-
-    this(XmlDocument!S ownerDocument, const(C)[] text)
+    this(XmlDocument!S ownerDocument, const(C)[] text) nothrow
     {
         this(ownerDocument, XmlString!S(text, XmlEncodeMode.check));
     }
 
-    this(XmlDocument!S ownerDocument, const(C)[] text, XmlEncodeMode mode)
+    this(XmlDocument!S ownerDocument, const(C)[] text, XmlEncodeMode mode) nothrow
     {
         this(ownerDocument, XmlString!S(text, mode));
     }
 
-    this(XmlDocument!S ownerDocument, XmlString!S text)
+    this(XmlDocument!S ownerDocument, XmlString!S text) nothrow
     {
         this._ownerDocument = ownerDocument;
         this._text = text;
@@ -3685,6 +3756,11 @@ protected:
     final override bool hasValueImpl() const nothrow
     {
         return _text.length != 0;
+    }
+
+    final override bool isText() const nothrow
+    {
+        return true;
     }
 
 protected:
@@ -3696,11 +3772,14 @@ protected:
 class XmlCharacterWhitespace(S = string) : XmlCharacterDataCustom!S
 {
 public:
-    this(XmlDocument!S ownerDocument, const(C)[] text)
+    this(XmlDocument!S ownerDocument, const(C)[] text) nothrow
+    in
     {
         if (!ownerDocument.isLoading())
-            checkWhitespaces(text);
-
+            assert(isSpaces!S(text));
+    }
+    do
+    {
         super(ownerDocument, XmlString!S(text, XmlEncodeMode.none));
     }
 
@@ -3717,23 +3796,30 @@ public:
         return (parent is null) ? 0 : parent.level;
     }
 
-    @property final override const(C)[] value()
+    @property final override const(C)[] value() nothrow
     {
         return _text.rawValue();
     }
 
-    @property final override XmlNode!S value(const(C)[] newValue)
+    @property final override XmlNode!S value(const(C)[] newValue) nothrow
     {
-        _text = checkWhitespaces(newValue);
+        if (!isSpaces!S(newValue))
+        {
+            Appender!S buffer;
+            buffer.reserve(newValue.length);
+            foreach (i; 0..newValue.length)
+            {
+                const c = newValue[i];
+                if (isSpace(c))
+                    buffer.put(c);
+                else
+                    buffer.put(' ');
+            }
+            _text = buffer.data;
+        }
+        else
+            _text = newValue;
         return this;
-    }
-
-protected:
-    final const(C)[] checkWhitespaces(const(C)[] text)
-    {
-        if (!isSpaces!S(text))
-            throw new XmlException(XmlMessage.eNotAllWhitespaces);
-        return text;
     }
 }
 
@@ -3742,14 +3828,14 @@ protected:
 class XmlEntityCustom(S = string) : XmlNode!S
 {
 public:
-    this(XmlDocument!S ownerDocument, const(C)[] name, const(C)[] text)
+    this(XmlDocument!S ownerDocument, const(C)[] name, const(C)[] text) nothrow
     {
         this(ownerDocument, name);
         this._text = XmlString!S(text);
     }
 
     this(XmlDocument!S ownerDocument, const(C)[] name, const(C)[] publicOrSystem, const(C)[] publicId,
-        const(C)[] text, const(C)[] notationName)
+        const(C)[] text, const(C)[] notationName) nothrow
     {
         this(ownerDocument, name);
         this._publicOrSystem = publicOrSystem;
@@ -3758,7 +3844,7 @@ public:
         this._notationName = notationName;
     }
 
-    @property final const(C)[] notationName() nothrow
+    @property final const(C)[] notationName() const nothrow
     {
         return _notationName;
     }
@@ -3768,37 +3854,37 @@ public:
         return ownerDocument.getDecodedText(_publicId);
     }
 
-    @property final const(C)[] publicOrSystem() nothrow
+    @property final const(C)[] publicOrSystem() const nothrow
     {
         return _publicOrSystem;
     }
 
-    @property final override const(C)[] value()
+    @property final override const(C)[] value() nothrow
     {
         return ownerDocument.getDecodedText(_text);
     }
 
-    @property final override XmlNode!S value(const(C)[] newValue)
+    @property final override XmlNode!S value(const(C)[] newValue) nothrow
     {
         _text = newValue;
         return this;
     }
 
 protected:
-    this(XmlDocument!S ownerDocument, const(C)[] name)
+    this(XmlDocument!S ownerDocument, const(C)[] name) nothrow
     {
         this._ownerDocument = ownerDocument;
         this._qualifiedName = new XmlName!S(name);
     }
 
-    this(XmlDocument!S ownerDocument, const(C)[] name, XmlString!S text)
+    this(XmlDocument!S ownerDocument, const(C)[] name, XmlString!S text) nothrow
     {
         this(ownerDocument, name);
         this._text = text;
     }
 
     this(XmlDocument!S ownerDocument, const(C)[] name, const(C)[] publicOrSystem,
-         XmlString!S publicId, XmlString!S text, const(C)[] notationName)
+         XmlString!S publicId, XmlString!S text, const(C)[] notationName) nothrow
     {
         this(ownerDocument, name);
         this._publicOrSystem = publicOrSystem;
@@ -3823,8 +3909,10 @@ protected:
 */
 class XmlName(S = string) : XmlObject!S
 {
+nothrow @safe:
+
 public:
-    this(XmlDocument!S ownerDocument, const(C)[] prefix, const(C)[] localName, const(C)[] namespaceUri) nothrow
+    this(XmlDocument!S ownerDocument, const(C)[] prefix, const(C)[] localName, const(C)[] namespaceUri)
     in
     {
         assert(localName.length != 0);
@@ -3840,7 +3928,7 @@ public:
             this._name = localName;
     }
 
-    this(XmlDocument!S ownerDocument, const(C)[] qualifiedName) nothrow
+    this(XmlDocument!S ownerDocument, const(C)[] qualifiedName)
     in
     {
         assert(qualifiedName.length != 0);
@@ -3851,7 +3939,7 @@ public:
         this._name = ownerDocument.addSymbolIf(qualifiedName);
     }
 
-    @property final const(C)[] localName() nothrow
+    @property final const(C)[] localName()
     {
         if (_localName.length == 0)
             doSplitName();
@@ -3859,7 +3947,7 @@ public:
         return _localName;
     }
 
-    @property final const(C)[] name() nothrow
+    @property final const(C)[] name()
     {
         if (_name.length == 0)
         {
@@ -3872,7 +3960,7 @@ public:
         return _name;
     }
 
-    @property final const(C)[] namespaceUri() nothrow
+    @property final const(C)[] namespaceUri()
     {
         if (_namespaceUri.ptr is null)
         {
@@ -3890,7 +3978,7 @@ public:
         return _namespaceUri;
     }
 
-    @property final const(C)[] prefix() nothrow
+    @property final const(C)[] prefix()
     {
         if (_prefix.ptr is null)
             doSplitName();
@@ -3899,7 +3987,7 @@ public:
     }
 
 package:
-    this(const(C)[] staticName) nothrow
+    this(const(C)[] staticName)
     {
         this._localName = staticName;
         this._name = staticName;
@@ -3908,7 +3996,7 @@ package:
     }
 
 protected:
-    final void doSplitName() nothrow
+    final void doSplitName()
     {
         if (_name.length != 0)
             splitName!S(_name, _prefix, _localName);
@@ -3927,42 +4015,43 @@ protected:
 
 unittest  // Display object sizeof
 {
-    import std.conv : to;
+    import pham.utl.utltest;
 
-    outputXmlTraceProgress("");
-    outputXmlTraceProgress("xml.XmlNodeList.sizeof: " ~ to!string(XmlNodeList!string.sizeof));
-    outputXmlTraceProgress("xml.XmlAttribute.sizeof: " ~ to!string(XmlAttribute!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlCData.sizeof: " ~ to!string(XmlCData!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlComment.sizeof: " ~ to!string(XmlComment!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlDeclaration.sizeof: " ~ to!string(XmlDeclaration!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlDocument.sizeof: " ~ to!string(XmlDocument!string.classinfo.initializer.length));
-    //outputXmlTraceProgress("xml.XmlDocumentFragment.sizeof: " ~ to!string(XmlDocumentFragment!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlDocumentType.sizeof: " ~ to!string(XmlDocumentType!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlDocumentTypeAttributeList.sizeof: " ~ to!string(XmlDocumentTypeAttributeList!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlDocumentTypeAttributeListDef.sizeof: " ~ to!string(XmlDocumentTypeAttributeListDef!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlDocumentTypeAttributeListDefType.sizeof: " ~ to!string(XmlDocumentTypeAttributeListDefType!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlDocumentTypeElement.sizeof: " ~ to!string(XmlDocumentTypeElement!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlDocumentTypeElementItem.sizeof: " ~ to!string(XmlDocumentTypeElementItem!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlElement.sizeof: " ~ to!string(XmlElement!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlEntity.sizeof: " ~ to!string(XmlEntity!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlEntityReference.sizeof: " ~ to!string(XmlEntityReference!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlNotation.sizeof: " ~ to!string(XmlNotation!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlProcessingInstruction.sizeof: " ~ to!string(XmlProcessingInstruction!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlSignificantWhitespace.sizeof: " ~ to!string(XmlSignificantWhitespace!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlText.sizeof: " ~ to!string(XmlText!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlWhitespace.sizeof: " ~ to!string(XmlWhitespace!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlCharacterWhitespace.sizeof: " ~ to!string(XmlCharacterWhitespace!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlName.sizeof: " ~ to!string(XmlName!string.classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlParser.sizeof: " ~ to!string(XmlParser!string.sizeof));
-    outputXmlTraceProgress("xml.XmlString.sizeof: " ~ to!string(XmlString!string.sizeof));
-    outputXmlTraceProgress("xml.XmlBuffer.sizeof: " ~ to!string(XmlBuffer!(string, No.CheckEncoded).classinfo.initializer.length));
-    outputXmlTraceProgress("xml.XmlBufferList.sizeof: " ~ to!string(XmlBufferList!(string, No.CheckEncoded).classinfo.initializer.length));
-    outputXmlTraceProgress("");
+    dgWriteln("");
+    dgWriteln("xml.XmlNodeList.sizeof: ", XmlNodeList!string.sizeof);
+    dgWriteln("xml.XmlAttribute.sizeof: ", XmlAttribute!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlCData.sizeof: ", XmlCData!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlComment.sizeof: ", XmlComment!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlDeclaration.sizeof: ", XmlDeclaration!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlDocument.sizeof: ", XmlDocument!string.classinfo.initializer.length);
+    //dgWriteln("xml.XmlDocumentFragment.sizeof: ", XmlDocumentFragment!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlDocumentType.sizeof: ", XmlDocumentType!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlDocumentTypeAttributeList.sizeof: ", XmlDocumentTypeAttributeList!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlDocumentTypeAttributeListDef.sizeof: ", XmlDocumentTypeAttributeListDef!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlDocumentTypeAttributeListDefType.sizeof: ", XmlDocumentTypeAttributeListDefType!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlDocumentTypeElement.sizeof: ", XmlDocumentTypeElement!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlDocumentTypeElementItem.sizeof: ", XmlDocumentTypeElementItem!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlElement.sizeof: ", XmlElement!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlEntity.sizeof: ", XmlEntity!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlEntityReference.sizeof: ", XmlEntityReference!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlNotation.sizeof: ", XmlNotation!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlProcessingInstruction.sizeof: ", XmlProcessingInstruction!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlSignificantWhitespace.sizeof: ", XmlSignificantWhitespace!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlText.sizeof: ", XmlText!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlWhitespace.sizeof: ", XmlWhitespace!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlCharacterWhitespace.sizeof: ", XmlCharacterWhitespace!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlName.sizeof: ", XmlName!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlParser.sizeof: ", XmlParser!string.sizeof);
+    dgWriteln("xml.XmlString.sizeof: ", XmlString!string.sizeof);
+    dgWriteln("xml.XmlBuffer.sizeof: ", XmlBuffer!(string, No.CheckEncoded).classinfo.initializer.length);
+    dgWriteln("xml.XmlBufferList.sizeof: ", XmlBufferList!(string, No.CheckEncoded).classinfo.initializer.length);
+    dgWriteln("");
 }
 
 unittest  // XmlDocument
 {
-    outputXmlTraceProgress("unittest xml.XmlDocument");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.XmlDocument");
 
     auto doc = new XmlDocument!string();
 
@@ -4007,13 +4096,13 @@ unittest  // XmlDocument
         "<![CDATA[data &<>]]>" ~
     "</root>";
 
-    outputXmlTraceProgress("unittest XmlDocument - outerXml()");
+    dgWriteln("unittest XmlDocument - outerXml()");
     assert(doc.outerXml() == res, doc.outerXml());
 
-    outputXmlTraceProgress("unittest XmlDocument - load()");
+    dgWriteln("unittest XmlDocument - load()");
     doc = XmlDocument!string(res);
 
-    outputXmlTraceProgress("unittest XmlDocument - load()+outerXml()");
+    dgWriteln("unittest XmlDocument - load()+outerXml()");
     assert(doc.outerXml() == res, doc.outerXml());
 
     assert(doc.documentElement !is null);

@@ -11,8 +11,8 @@
 
 module pham.xml.buffer;
 
-import std.typecons : Flag, No, Yes;
 import std.array : Appender;
+import std.typecons : Flag, No, Yes;
 
 import pham.utl.dlink_list;
 import pham.xml.type;
@@ -24,25 +24,25 @@ import pham.xml.entity_table;
 
 @safe:
 
-enum XmlBufferDefaultCapacity = 1000;
-
-/** Mode to use for decoding.
-    $(XmlDecodeMode.loose) Decode but ignore error
-    $(XmlDecodeMode.strict) Decode and throw exception on error
-*/
+/**
+ * Mode to use for decoding.
+ * $(XmlDecodeMode.loose) Decode but ignore on error (if not able to substitute the entity text, leave it as is)
+ * $(XmlDecodeMode.strict) Decode and throw exception on error (if not able to substitute the entity text)
+ */
 enum XmlDecodeMode : byte
 {
     loose,
     strict
 }
 
-/** A state if a string if it has an reserved xml character
-    $(XmlEncodeMode.check) A text need to be checked for reserved char
-    $(XmlEncodeMode.checked) A text is already checked and it does not have reserved character
-    $(XmlEncodeMode.decoded) A text has reserved character in decoded form
-    $(XmlEncodeMode.encoded) A text has reserved char in encoded form
-    $(XmlEncodeMode.none) A text should be left as-is and no need to do encode or decode check
-*/
+/**
+ * A state if a string if it has an reserved xml character
+ * $(XmlEncodeMode.check) A text need to be checked for reserved char
+ * $(XmlEncodeMode.checked) A text is already checked and it does not have reserved character
+ * $(XmlEncodeMode.decoded) A text has reserved character in decoded form
+ * $(XmlEncodeMode.encoded) A text has reserved char in encoded form
+ * $(XmlEncodeMode.none) A text should be left as-is and no need to do encode or decode check
+ */
 enum XmlEncodeMode : byte
 {
     check,
@@ -54,23 +54,19 @@ enum XmlEncodeMode : byte
 
 class XmlBuffer(S = string, Flag!"CheckEncoded" CheckEncoded = No.CheckEncoded) : XmlObject!S
 {
-public:
-    alias XmlBuffer = typeof(this);
+@safe:
 
 public:
-    XmlDecodeMode decodeMode = XmlDecodeMode.strict;
-
-public:
-    this(size_t capacity = XmlBufferDefaultCapacity)
+    this(size_t capacity = defaultXmlBufferCapacity) nothrow
     {
-        _buffer.reserve(capacity);
+        if (capacity != 0)
+            _buffer.reserve(capacity);
     }
 
-    final XmlBuffer clear() nothrow
+    final typeof(this) clear() nothrow
     {
         _buffer.clear();
         _decodeOrEncodeResultMode = XmlEncodeMode.checked;
-
         return this;
     }
 
@@ -94,9 +90,9 @@ public:
         Example:
             writeln(decode("a &gt; b")); // writes "a > b"
     */
-    final const(C)[] decode(return const(C)[] s)
+    final const(C)[] decode(XmlDecodeMode DecodeMode = XmlDecodeMode.strict)(return const(C)[] s)
     {
-        return decode(s, XmlEntityTable!S.defaultEntityTable());
+        return decode!DecodeMode(s, XmlEntityTable!S.defaultEntityTable());
     }
 
     /** Decode a string, s, by unescaping all passed in entities in entityTable.
@@ -116,14 +112,14 @@ public:
         Example:
             writeln(decode("a &gt; b")); // writes "a > b"
     */
-    final const(C)[] decode(return const(C)[] s, in XmlEntityTable!S entityTable)
+    final const(C)[] decode(XmlDecodeMode DecodeMode = XmlDecodeMode.strict)(return const(C)[] s, in XmlEntityTable!S entityTable)
     {
         import std.string : startsWith;
 
         assert(entityTable !is null);
 
-        version (none) version (unittest)
-        writefln("decode(%s)", s);
+        version (xmlTraceParser)
+        outputXmlTraceParserF("decode(%s)", s);
 
         const(C)[] refChars;
         size_t i, lastI, mark;
@@ -149,7 +145,7 @@ public:
                         refChars = s[i..j + 1];
                         mark = 1;
 
-                        version (none) version (unittest)
+                        version (xmlTraceParser)
                         outputXmlTraceParserF("refChars(;): %s, i: %d, j: %d", refChars, i, j);
 
                         break;
@@ -157,8 +153,8 @@ public:
                         refChars = s[i..j];
                         mark = 2;
 
-                        version (none) version (unittest)
-                        writefln("refChars(&): %s, i: %d, j: %d", refChars, i, j);
+                        version (xmlTraceParser)
+                        outputXmlTraceParserF("refChars(&): %s, i: %d, j: %d", refChars, i, j);
 
                         break;
                     default:
@@ -168,42 +164,44 @@ public:
 
             if (mark != 1 || refChars.length <= 2)
             {
-                if (decodeMode == XmlDecodeMode.strict)
+                static if (DecodeMode == XmlDecodeMode.strict)
                 {
-                    auto msg = XmlMessage.eUnescapeAndChar ~ " " ~
-                        toUTF!(S, string)(leftString!S(refChars, 20).idup);
+                    auto msg = XmlMessage.eUnescapeAndChar ~ " " ~ toUTF!(S, string)(leftString!S(refChars, 20).idup);
                     throw new XmlConvertException(XmlLoc(0, i), msg);
-                }
-
-                if (mark == 0)
-                {
-                    lastI = i;
-                    break;
                 }
                 else
                 {
-                    put(refChars);
-                    i += refChars.length;
+                    if (mark == 0)
+                    {
+                        lastI = i;
+                        break;
+                    }
+                    else
+                    {
+                        put(refChars);
+                        i += refChars.length;
+                    }
                 }
             }
             else
             {
-                version (none) version (unittest)
-                writefln("refChars(convert): %s", refChars);
+                version (xmlTraceParser)
+                outputXmlTraceParserF("refChars(convert): %s", refChars);
 
                 if (refChars[1] == '#')
                 {
                     dchar c;
                     if (!convertToChar!S(refChars[2..$ - 1], c))
                     {
-                        if (decodeMode == XmlDecodeMode.strict)
+                        static if (DecodeMode == XmlDecodeMode.strict)
                         {
-                            auto msg = XmlMessage.eUnescapeAndChar ~ " " ~
-                                toUTF!(S, string)(leftString!S(refChars, 20).idup);
+                            auto msg = XmlMessage.eUnescapeAndChar ~ " " ~ toUTF!(S, string)(leftString!S(refChars, 20).idup);
                             throw new XmlConvertException(XmlLoc(0, i), msg);
                         }
-
-                        put(refChars);
+                        else
+                        {
+                            put(refChars);
+                        }
                     }
                     else
                         put(c);
@@ -215,22 +213,23 @@ public:
                         put(r);
                     else
                     {
-                        if (decodeMode == XmlDecodeMode.strict)
+                        static if (DecodeMode == XmlDecodeMode.strict)
                         {
-                            auto msg = XmlMessage.eUnescapeAndChar ~ " " ~
-                                toUTF!(S, string)(leftString!S(refChars, 20).idup);
+                            auto msg = XmlMessage.eUnescapeAndChar ~ " " ~ toUTF!(S, string)(leftString!S(refChars, 20).idup);
                             throw new XmlConvertException(XmlLoc(0, i), msg);
                         }
-
-                        put(refChars);
+                        else
+                        {
+                            put(refChars);
+                        }
                     }
                 }
 
                 i += refChars.length;
             }
 
-            version (none) version (unittest)
-            writefln("refChars.length: %d, i: %d", refChars.length, i);
+            version (xmlTraceParser)
+            outputXmlTraceParserF("refChars.length: %d, i: %d", refChars.length, i);
 
             lastI = i;
         }
@@ -247,62 +246,49 @@ public:
         return value();
     }
 
-    /** Truncates this buffer, count of elements and returns itself.
-        If count is greater then the length, it will clear the buffer
-
-        Params:
-            count = how many elements to be truncated from the righ
-
-        Returns:
-            The itself
-    */
-    final XmlBuffer dropBack(size_t count) nothrow
+    /**
+     * Truncates this buffer, count of elements and returns itself.
+     * If count is greater then the length, it will clear the buffer
+     * Params:
+     *  count = how many elements to be truncated from the righ
+     * Returns:
+     *  The itself
+     */
+    final typeof(this) dropBack(size_t count) nothrow
     {
         auto len = length;
         if (len <= count)
             return clear();
-        else
-        {
-            try
-            {
-                _buffer.shrinkTo(len - count);
-            }
-            catch (Exception e)
-            {
-                assert(0);
-            }
 
-            return this;
-        }
+        scope (failure)
+            assert(0);
+
+        _buffer.shrinkTo(len - count);
+        return this;
     }
 
-    /** Encodes a string by replacing all characters which need to be escaped with
-        appropriate predefined XML entities.
-
-        encode() escapes certain characters (ampersand, quote, apostrophe, less-than
-        and greater-than)
-
-        If the string is not modified, the original will be returned.
-
-        Standards:
-            $(LINK2 http://www.w3.org/TR/1998/REC-xml-19980210, XML 1.0)
-
-        Params:
-            s = The string to be encoded
-
-        Returns:
-            The xml encoded string
-
-        Example:
-            writeln(encode("a > b")); // writes "a &gt; b"
-    */
+    /**
+     * Encodes a string by replacing all characters which need to be escaped with
+     * appropriate predefined XML entities.
+     * encode() escapes certain characters (ampersand, quote, apostrophe, less-than
+     * and greater-than)
+     * If the string is not modified, the original will be returned.
+     * Standards:
+     *  $(LINK2 http://www.w3.org/TR/1998/REC-xml-19980210, XML 1.0)
+     * Params:
+     *  s = The string to be encoded
+     * Returns:
+     *  The xml encoded string
+     * Example:
+     *  writeln(encode("a > b")); // writes "a &gt; b"
+     */
     final const(C)[] encode(return const(C)[] s) nothrow
     {
-        version (none) version (unittest)
+        version (xmlTraceParser)
         {
-            writefln("encode(%s) - %s", s, value());
+            outputXmlTraceParserF("encode(%s) - %s", s, value());
             scope (exit)
-                writefln("encode() - %s", value());
+                outputXmlTraceParserF("encode() - %s", value());
         }
 
         const(C)[] r;
@@ -356,11 +342,11 @@ public:
         return value();
     }
 
-    /** Put a character, c, to the end of buffer
-
-        Params:
-            c = character to be appended at the end
-    */
+    /**
+     * Put a character, c, to the end of buffer
+     * Params:
+     *  c = character to be appended at the end
+     */
     pragma (inline, true)
     final void put(C c) nothrow
     {
@@ -372,12 +358,12 @@ public:
             _decodeOrEncodeResultMode = XmlEncodeMode.encoded;
     }
 
-    /** Put a character, c, to the end of buffer. If c is not the same type as C,
-        it will convert c to arrar of C type and append them to the end
-
-        Params:
-            c = character to be appended at the end
-    */
+    /**
+     * Put a character, c, to the end of buffer. If c is not the same type as C,
+     * it will convert c to arrar of C type and append them to the end
+     * Params:
+     *  c = character to be appended at the end
+     */
     static if (!is(C == dchar))
     final void put(dchar c) nothrow
     {
@@ -393,11 +379,11 @@ public:
             _decodeOrEncodeResultMode = XmlEncodeMode.encoded;
     }
 
-    /** Put an array of characters, s, to the end of buffer
-
-        Params:
-            s = array of characters to be appended at the end
-    */
+    /**
+     * Put an array of characters, s, to the end of buffer
+     * Params:
+     *  s = array of characters to be appended at the end
+     */
     final void put(scope const(C)[] s) nothrow
     {
         reserve(s.length);
@@ -448,11 +434,11 @@ public:
         return _buffer.capacity;
     }
 
-    @property final size_t capacity(size_t newCapacity) nothrow
+    @property final typeof(this) capacity(size_t newCapacity) nothrow
     {
         if (newCapacity > _buffer.capacity)
             _buffer.reserve(newCapacity);
-        return _buffer.capacity;
+        return this;
     }
 
     @property final XmlEncodeMode decodeOrEncodeResultMode() const nothrow
@@ -490,27 +476,31 @@ private:
 
 class XmlBufferList(S = string, Flag!"CheckEncoded" CheckEncoded = No.CheckEncoded) : XmlObject!S
 {
+@safe:
+
 public:
     alias XmlBufferElement = XmlBuffer!(S, CheckEncoded);
+    mixin DLinkTypes!(XmlBufferElement) DLinkXmlBufferElementTypes;
 
 public:
     final XmlBufferElement acquire() nothrow
     {
-        if (last is null)
+        if (list.empty)
             return new XmlBufferElement();
         else
-            return DLinkLastFunctions.remove(last, last);
+            return list.remove(list.last);
     }
 
-    final void clear() nothrow
+    final typeof(this) clear() nothrow
     {
-        while (last !is null)
-            DLinkLastFunctions.remove(last, last);
+        while (!list.empty)
+            list.remove(list.last);
+        return this;
     }
 
     final void release(XmlBufferElement b) nothrow
     {
-        DLinkLastFunctions.insertEnd(last, b.clear());
+        list.insertEnd(b.clear());
     }
 
     pragma (inline, true)
@@ -522,55 +512,53 @@ public:
     }
 
 private:
-    mixin DLinkFunctions!(XmlBufferElement) DLinkLastFunctions;
-
-private:
-    XmlBufferElement last;
+    DLinkXmlBufferElementTypes.DLinkList list;
 }
 
 unittest  // XmlBuffer.decode
 {
     import std.exception : assertThrown;
-    outputXmlTraceProgress("unittest xml.buffer.XmlBuffer.decode");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.buffer.XmlBuffer.decode");
 
     const(char)[] s;
     auto buffer = new XmlBuffer!(string, No.CheckEncoded)();
 
     // Assert that things that should work, do
     s = "hello";
-    assert(buffer.clear().decode(s) is s);
+    assert(buffer.clear().decode!(XmlDecodeMode.strict)(s) is s);
 
-    s = buffer.clear().decode("a &gt; b");
+    s = buffer.clear().decode!(XmlDecodeMode.loose)("a &gt; b");
     assert(s == "a > b", s);
-    assert(buffer.clear().decode("a &lt; b") == "a < b");
-    assert(buffer.clear().decode("don&apos;t") == "don't");
-    assert(buffer.clear().decode("&quot;hi&quot;") == "\"hi\"");
-    assert(buffer.clear().decode("cat &amp; dog") == "cat & dog");
-    assert(buffer.clear().decode("&#42;") == "*");
-    assert(buffer.clear().decode("&#x2A;") == "*");
-    assert(buffer.clear().decode("&lt;&gt;&amp;&apos;&quot;") == "<>&'\"");
+    assert(buffer.clear().decode!(XmlDecodeMode.loose)("a &lt; b") == "a < b");
+    assert(buffer.clear().decode!(XmlDecodeMode.loose)("don&apos;t") == "don't");
+    assert(buffer.clear().decode!(XmlDecodeMode.loose)("&quot;hi&quot;") == "\"hi\"");
+    assert(buffer.clear().decode!(XmlDecodeMode.loose)("cat &amp; dog") == "cat & dog");
+    assert(buffer.clear().decode!(XmlDecodeMode.loose)("&#42;") == "*");
+    assert(buffer.clear().decode!(XmlDecodeMode.loose)("&#x2A;") == "*");
+    assert(buffer.clear().decode!(XmlDecodeMode.loose)("&lt;&gt;&amp;&apos;&quot;") == "<>&'\"");
 
     // Assert that things that shouldn't work, don't
-    assertThrown!XmlConvertException(buffer.clear().decode("cat & dog"));
-    assertThrown!XmlConvertException(buffer.clear().decode("a &gt b"));
-    assertThrown!XmlConvertException(buffer.clear().decode("&#;"));
-    assertThrown!XmlConvertException(buffer.clear().decode("&#x;"));
-    assertThrown!XmlConvertException(buffer.clear().decode("&#2G;"));
-    assertThrown!XmlConvertException(buffer.clear().decode("&#x2G;"));
+    assertThrown!XmlConvertException(buffer.clear().decode!(XmlDecodeMode.strict)("cat & dog"));
+    assertThrown!XmlConvertException(buffer.clear().decode!(XmlDecodeMode.strict)("a &gt b"));
+    assertThrown!XmlConvertException(buffer.clear().decode!(XmlDecodeMode.strict)("&#;"));
+    assertThrown!XmlConvertException(buffer.clear().decode!(XmlDecodeMode.strict)("&#x;"));
+    assertThrown!XmlConvertException(buffer.clear().decode!(XmlDecodeMode.strict)("&#2G;"));
+    assertThrown!XmlConvertException(buffer.clear().decode!(XmlDecodeMode.strict)("&#x2G;"));
 
-    buffer.decodeMode = XmlDecodeMode.loose;
-    s = buffer.clear().decode("cat & dog");
+    s = buffer.clear().decode!(XmlDecodeMode.loose)("cat & dog");
     assert(s == "cat & dog", s);
-    assert(buffer.clear().decode("a &gt b") == "a &gt b");
-    assert(buffer.clear().decode("&#;") == "&#;");
-    assert(buffer.clear().decode("&#x;") == "&#x;");
-    assert(buffer.clear().decode("&#2G;") == "&#2G;");
-    assert(buffer.clear().decode("&#x2G;") == "&#x2G;");
+    assert(buffer.clear().decode!(XmlDecodeMode.loose)("a &gt b") == "a &gt b");
+    assert(buffer.clear().decode!(XmlDecodeMode.loose)("&#;") == "&#;");
+    assert(buffer.clear().decode!(XmlDecodeMode.loose)("&#x;") == "&#x;");
+    assert(buffer.clear().decode!(XmlDecodeMode.loose)("&#2G;") == "&#2G;");
+    assert(buffer.clear().decode!(XmlDecodeMode.loose)("&#x2G;") == "&#x2G;");
 }
 
 unittest  // XmlBuffer.encode
 {
-    outputXmlTraceProgress("unittest xml.buffer.XmlBuffer.encode");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.buffer.XmlBuffer.encode");
 
     const(XmlChar!string)[] s;
     auto buffer = new XmlBuffer!(string, No.CheckEncoded)();

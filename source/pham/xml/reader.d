@@ -11,9 +11,9 @@
 
 module pham.xml.reader;
 
+import std.range.primitives : back, empty, front, popFront;
 import std.traits : hasMember;
 import std.typecons : Flag, No, Yes;
-import std.range.primitives : back, empty, front, popFront;
 
 import pham.utl.utf8;
 import pham.xml.type;
@@ -32,19 +32,10 @@ enum UnicodeErrorKind : byte
     invalidCode = 2
 }
 
-package struct ParseContext(S)
-if (isXmlString!S)
+abstract class XmlReader(S = string) : XmlObject!S
 {
 @safe:
 
-    alias C = XmlChar!S;
-
-    const(C)[] s;
-    XmlLoc loc;
-}
-
-abstract class XmlReader(S = string) : XmlObject!S
-{
 public:
     enum isBlockReader = hasMember!(typeof(this), "nextBlock");
 
@@ -256,7 +247,7 @@ public:
         return false;
     }
 
-    final auto skipSpaces()
+    final typeof(this) skipSpaces()
     {
         while (isSpace(current))
             popFront();
@@ -292,27 +283,27 @@ package:
     }
 
     pragma (inline, true)
-    final bool isDeclarationNameStart()
+    final bool isDeclarationNameStart() nothrow
     {
         return !isDeclarationAttributeNameSeparator(current) && isNameStartC(current);
     }
 
     pragma (inline, true)
-    final bool isElementAttributeNameStart()
+    final bool isElementAttributeNameStart() nothrow
     {
         return !isElementAttributeNameSeparator(current) && isNameStartC(current);
     }
 
     pragma (inline, true)
-    final bool isElementTextStart()
+    final bool isElementTextStart() nothrow
     {
         return !isElementSeparator(current);
     }
 
-    final dchar moveFrontIf(dchar aCheckNonSpaceChar)
+    final dchar moveFrontIf(dchar checkNonSpaceChar)
     {
         const f = front();
-        if (f == aCheckNonSpaceChar)
+        if (f == checkNonSpaceChar)
         {
             popFrontColumn();
             return f;
@@ -344,7 +335,7 @@ package:
         if (name.s.length == 0)
             throw new XmlParserException(name.loc, XmlMessage.eBlankName);
 
-        version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParserF("readNameImpl: name: %s, line: %d, column: %d, nline: %d, ncolumn: %d",
             name.s, name.loc.sourceLine, name.loc.sourceColumn, loc.sourceLine, loc.sourceColumn);
 
@@ -447,7 +438,7 @@ package:
         if (name.s.length == 0)
             throw new XmlParserException(name.loc, XmlMessage.eBlankName);
 
-        version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParserF("readElementEName: name: %s, line: %d, column: %d, nline: %d, ncolumn: %d",
             name.s, name.loc.sourceLine, name.loc.sourceColumn, loc.sourceLine, loc.sourceColumn);
 
@@ -844,6 +835,8 @@ protected:
 
 class XmlStringReader(S = string) : XmlReader!S
 {
+@safe:
+
 public:
     this(const(XmlChar!S)[] str)
     {
@@ -869,6 +862,8 @@ public:
 
 class XmlFileReader(S = string) : XmlReader!S
 {
+@safe:
+
 import std.file;
 import std.stdio;
 import std.algorithm.comparison : max;
@@ -937,4 +932,15 @@ protected:
     string _fileName;
     C[] sBuffer;
     bool eof;
+}
+
+package struct ParseContext(S)
+if (isXmlString!S)
+{
+@safe:
+
+    alias C = XmlChar!S;
+
+    const(C)[] s;
+    XmlLoc loc;
 }

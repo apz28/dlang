@@ -18,6 +18,9 @@ import pham.xml.xmlobject;
 
 template XmlExceptionConstructors()
 {
+@safe:
+
+public:
     this(string message, Exception next)
     {
         super(message, next);
@@ -28,7 +31,7 @@ template XmlExceptionConstructors()
         if (loc.isSpecified())
             message = message ~ loc.lineMessage();
 
-        loc = loc;
+        this.loc = loc;
         super(message, next);
     }
 
@@ -36,7 +39,7 @@ template XmlExceptionConstructors()
     {
         import std.format : format;
 
-        string msg = format(fmt, args);
+        auto msg = format(fmt, args);
         super(msg);
     }
 
@@ -44,20 +47,18 @@ template XmlExceptionConstructors()
     {
         import std.format : format;
 
-        string msg = format(fmt, args);
-
+        auto msg = format(fmt, args);
         if (loc.isSpecified())
             msg = msg ~ loc.lineMessage();
 
-        loc = loc;
+        this.loc = loc;
         super(msg);
     }
 }
 
 class XmlException : Exception
 {
-public:
-    XmlLoc loc;
+@safe:
 
 public:
     mixin XmlExceptionConstructors;
@@ -75,22 +76,31 @@ public:
 
         return s;
     }
+
+public:
+    XmlLoc loc;
 }
 
 class XmlConvertException : XmlException
 {
+@safe:
+
 public:
     mixin XmlExceptionConstructors;
 }
 
 class XmlInvalidOperationException : XmlException
 {
+@safe:
+
 public:
     mixin XmlExceptionConstructors;
 }
 
 class XmlParserException : XmlException
 {
+@safe:
+
 public:
     mixin XmlExceptionConstructors;
 }

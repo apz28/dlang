@@ -20,56 +20,6 @@ import pham.xml.exception;
 
 @safe:
 
-version (unittest)
-{
-    import std.traits : isSomeChar;
-    import pham.utl.utltest;
-
-    debug (xmlTraceProfile)
-        enum isXmlTraceProgress = false;
-    else
-        enum isXmlTraceProgress = true;
-
-    void outputXmlTraceParser(A...)(A args) nothrow
-    {
-        debug (xmlTraceParser)
-        dgWriteln(args);
-    }
-
-    void outputXmlTraceParserF(Char, A...)(in Char[] fmt, A args) nothrow
-    if (isSomeChar!Char)
-    {
-        debug (xmlTraceParser)
-        dgWritefln(fmt, args);
-    }
-
-    void outputXmlTraceParserF0(Char, A...)(in Char[] fmt, A args) nothrow
-    if (isSomeChar!Char)
-    {
-        debug (xmlTraceParser)
-        dgWritef(fmt, args);
-    }
-
-    void outputXmlTraceXPathParser(A...)(A args) nothrow
-    {
-        debug (xmlTraceXPathParser)
-        dgWriteln(args);
-    }
-
-    void outputXmlTraceXPathParserF(Char, A...)(in Char[] fmt, A args) nothrow
-    if (isSomeChar!Char)
-    {
-        debug (xmlTraceXPathParser)
-        dgWritefln(fmt, args);
-    }
-
-    void outputXmlTraceProgress(A...)(A args) nothrow
-    {
-        static if (isXmlTraceProgress)
-        dgWriteln(args);
-    }
-}
-
 /** Code to identify what kind of encoding of an array of bytes or stream of bytes.
     $(XmlEncodedMarker none) there is not encoded marker
     $(XmlEncodedMarker utf8) utf8 encoded marker
@@ -328,8 +278,8 @@ if (isFloatingPoint!N)
     import std.format : format;
     import std.string : indexOf;
 
-    string v = format(spec.fmt, n);
-    auto decimalIndex = v.indexOf(spec.decimalChar);
+    const v = format(spec.fmt, n);
+    const decimalIndex = v.indexOf(spec.decimalChar);
 
     if (decimalIndex >= 0)
     {
@@ -357,43 +307,6 @@ if (isIntegral!N)
     import std.format : format;
 
     return formatGroup(format(spec.fmt, n), spec.fmtg);
-}
-
-private string formatGroup(const(char)[] v, in FormatGroupSpec spec = FormatGroupSpec.init) nothrow pure
-{
-    import std.uni : byGrapheme;
-    import std.range : Appender, appender, walkLength;
-
-    char[100] buffer;
-    ptrdiff_t bLen;
-    ptrdiff_t cLen = v.length;
-    ptrdiff_t c = 2 - (cLen % 3);
-    for (ptrdiff_t i = 0; cLen > 0; ++i)
-    {
-        char e = v[i];
-        buffer[bLen++] = e;
-        if (--cLen > 0)
-        {
-            if (c == 1 && e != spec.negChar)
-                buffer[bLen++] = spec.groupChar;
-            c = (c + 1) % 3;
-        }
-    }
-
-    string result = buffer[0..bLen].idup;
-
-    version (none)
-    {
-        import std.stdio : writeln;
-
-        writeln(" negChar: ", cast(int)(spec.negChar),
-                " groupChar: ", cast(int)(spec.groupChar),
-                " v: ", v, " vlen: ", v.length,
-                " r: ", result,
-                " rlen: ", result.length);
-    }
-
-    return result;
 }
 
 /** Returns true if the character is a base character according to the XML standard
@@ -588,7 +501,7 @@ if (isXmlString!S)
     Params:
         aObj = A class object.
 */
-bool isClassType(T)(Object object)
+bool isClassType(T)(Object object) nothrow pure
 {
     return (cast(T)object) !is null;
 }
@@ -687,28 +600,6 @@ if (isXmlString!fromS && isXmlString!toS)
 
         return toUTF8(s);
     }
-}
-
-private bool lookup(const(int[][]) pairTable, int c) nothrow pure
-in
-{
-    assert(pairTable.length != 0);
-}
-do
-{
-    ptrdiff_t l;
-    ptrdiff_t r = pairTable.length - 1;
-    while (l <= r)
-    {
-        const m = (l + r) >> 1;
-        if (c < pairTable[m][0])
-            r = m - 1;
-        else if (c > pairTable[m][1])
-            l = m + 1;
-        else
-            return true;
-    }
-    return false;
 }
 
 /** Returns number of code-points from right of a string
@@ -844,7 +735,62 @@ do
         return "";
 }
 
-private immutable baseCharTable = [
+version (xmlTraceParser)
+{
+    import std.traits : isSomeChar;
+    import pham.utl.utltest;
+
+    void outputXmlTraceParser(A...)(A args) nothrow
+    {
+        dgWriteln(args);
+    }
+
+    void outputXmlTraceParserF(Char, A...)(in Char[] fmt, A args) nothrow
+    if (isSomeChar!Char)
+    {
+        dgWritefln(fmt, args);
+    }
+
+    void outputXmlTraceParserF0(Char, A...)(in Char[] fmt, A args) nothrow
+    if (isSomeChar!Char)
+    {
+        dgWritef(fmt, args);
+    }
+}
+
+version (xmlTraceXPathParser)
+{
+    import std.traits : isSomeChar;
+    import pham.utl.utltest;
+
+    void outputXmlTraceXPathParser(A...)(A args) nothrow
+    {
+        dgWriteln(args);
+    }
+
+    void outputXmlTraceXPathParserF(Char, A...)(in Char[] fmt, A args) nothrow
+    if (isSomeChar!Char)
+    {
+        dgWritefln(fmt, args);
+    }
+}
+
+version (isXmlTraceProgress)
+{
+    import pham.utl.utltest;
+
+    void outputXmlTraceProgress(A...)(A args) nothrow
+    {
+        dgWriteln(args);
+    }
+}
+
+
+// Any below codes are private
+private:
+
+
+immutable baseCharTable = [
     [0x0041, 0x005A], [0x0061, 0x007A], [0x00C0, 0x00D6], [0x00D8, 0x00F6],
     [0x00F8, 0x00FF], [0x0100, 0x0131], [0x0134, 0x013E], [0x0141, 0x0148],
     [0x014A, 0x017E], [0x0180, 0x01C3], [0x01CD, 0x01F0], [0x01F4, 0x01F5],
@@ -900,12 +846,12 @@ private immutable baseCharTable = [
 
 /** Definitions from the XML specification
 */
-private immutable charTable = [
+immutable charTable = [
     [0x0009, 0x0009], [0x000A, 0x000A], [0x000D, 0x000D], [0x0020, 0xD7FF],
     [0xE000, 0xFFFD], [0x10000, 0x10FFFF]
 ];
 
-private immutable combiningCharTable = [
+immutable combiningCharTable = [
     [0x0300, 0x0345], [0x0360, 0x0361], [0x0483, 0x0486], [0x0591, 0x05A1],
     [0x05A3, 0x05B9], [0x05BB, 0x05BD], [0x05BF, 0x05BF], [0x05C1, 0x05C2],
     [0x05C4, 0x05C4], [0x064B, 0x0652], [0x0670, 0x0670], [0x06D6, 0x06DC],
@@ -932,24 +878,83 @@ private immutable combiningCharTable = [
     [0x302A, 0x302F], [0x3099, 0x3099], [0x309A, 0x309A]
 ];
 
-private immutable digitTable = [
+immutable digitTable = [
     [0x0030, 0x0039], [0x0660, 0x0669], [0x06F0, 0x06F9], [0x0966, 0x096F],
     [0x09E6, 0x09EF], [0x0A66, 0x0A6F], [0x0AE6, 0x0AEF], [0x0B66, 0x0B6F],
     [0x0BE7, 0x0BEF], [0x0C66, 0x0C6F], [0x0CE6, 0x0CEF], [0x0D66, 0x0D6F],
     [0x0E50, 0x0E59], [0x0ED0, 0x0ED9], [0x0F20, 0x0F29]
 ];
 
-private immutable extenderTable = [
+immutable extenderTable = [
     [0x00B7, 0x00B7], [0x02D0, 0x02D0], [0x02D1, 0x02D1], [0x0387, 0x0387],
     [0x0640, 0x0640], [0x0E46, 0x0E46], [0x0EC6, 0x0EC6], [0x3005, 0x3005],
     [0x3031, 0x3035], [0x309D, 0x309E], [0x30FC, 0x30FE]
 ];
 
-private immutable ideographicTable = [[0x3007, 0x3007], [0x3021, 0x3029], [0x4E00, 0x9FA5]];
+immutable ideographicTable = [[0x3007, 0x3007], [0x3021, 0x3029], [0x4E00, 0x9FA5]];
+
+string formatGroup(const(char)[] v, in FormatGroupSpec spec = FormatGroupSpec.init) nothrow pure
+{
+    import std.uni : byGrapheme;
+    import std.range : Appender, appender, walkLength;
+
+    char[100] buffer;
+    ptrdiff_t bLen;
+    ptrdiff_t cLen = v.length;
+    ptrdiff_t c = 2 - (cLen % 3);
+    for (ptrdiff_t i = 0; cLen > 0; ++i)
+    {
+        char e = v[i];
+        buffer[bLen++] = e;
+        if (--cLen > 0)
+        {
+            if (c == 1 && e != spec.negChar)
+                buffer[bLen++] = spec.groupChar;
+            c = (c + 1) % 3;
+        }
+    }
+    string result = buffer[0..bLen].idup;
+
+    version (none)
+    {
+        import std.stdio : writeln;
+
+        writeln(" negChar: ", cast(int)(spec.negChar),
+                " groupChar: ", cast(int)(spec.groupChar),
+                " v: ", v, " vlen: ", v.length,
+                " r: ", result,
+                " rlen: ", result.length);
+    }
+
+    return result;
+}
+
+bool lookup(const(int[][]) pairTable, int c) nothrow pure
+in
+{
+    assert(pairTable.length != 0);
+}
+do
+{
+    ptrdiff_t l;
+    ptrdiff_t r = pairTable.length - 1;
+    while (l <= r)
+    {
+        const m = (l + r) >> 1;
+        if (c < pairTable[m][0])
+            r = m - 1;
+        else if (c > pairTable[m][1])
+            l = m + 1;
+        else
+            return true;
+    }
+    return false;
+}
 
 unittest  // combineName
 {
-    outputXmlTraceProgress("unittest xml.util.combineName");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.combineName");
 
     assert(combineName!string("", "") == "");
     assert(combineName!string("", "name") == "name");
@@ -959,7 +964,8 @@ unittest  // combineName
 
 unittest  // equalCase
 {
-    outputXmlTraceProgress("unittest xml.util.equalCase");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.equalCase");
 
     assert(equalCase!string("", ""));
     assert(equalCase!string(" ", " "));
@@ -974,7 +980,8 @@ unittest  // equalCase
 
 unittest  // equalCaseInsensitive
 {
-    outputXmlTraceProgress("unittest xml.util.equalCaseInsensitive");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.equalCaseInsensitive");
 
     assert(equalCaseInsensitive!string("", ""));
     assert(equalCaseInsensitive!string(" ", " "));
@@ -989,7 +996,8 @@ unittest  // equalCaseInsensitive
 
 unittest  // formatNumber
 {
-    outputXmlTraceProgress("unittest xml.util.formatNumber");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.formatNumber");
 
     assert(formatNumber!int(0) == "0");
     assert(formatNumber!int(100) == "100");
@@ -1022,7 +1030,8 @@ unittest  // formatNumber
 
 unittest  // formatFloat
 {
-   outputXmlTraceProgress("unittest xml.util.formatFloat");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.formatFloat");
 
     assert(formatFloat!double(0.0) == "0.000_000");
     assert(formatFloat!double(100.0) == "100.000_000");
@@ -1040,7 +1049,8 @@ unittest  // formatFloat
 
 unittest  // stringOfChar
 {
-    outputXmlTraceProgress("unittest xml.util.stringOfChar");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.stringOfChar");
 
     assert(stringOfChar!string(' ', 0) == "");
     assert(stringOfChar!string(' ', 1) == " ");
@@ -1049,7 +1059,8 @@ unittest  // stringOfChar
 
 unittest  // isChar
 {
-    outputXmlTraceProgress("unittest xml.util.isChar");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.isChar");
 
     assert(isChar(cast(dchar)0x9));
     assert(isChar(cast(dchar)0xA));
@@ -1091,7 +1102,8 @@ unittest  // isChar
 
 unittest  // isDigit
 {
-    outputXmlTraceProgress("unittest xml.util.isDigit");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.isDigit");
 
     assert(isDigit('0'));
     assert(isDigit('1'));
@@ -1161,7 +1173,8 @@ unittest  // isDigit
 
 unittest  // isExtender
 {
-    outputXmlTraceProgress("unittest xml.util.isExtender");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.isExtender");
 
     assert(isExtender(cast(dchar)0x00B7));
     assert(isExtender(cast(dchar)0x02D0));
@@ -1184,7 +1197,8 @@ unittest  // isExtender
 
 unittest  // isIdeographic
 {
-    outputXmlTraceProgress("unittest xml.util.isIdeographic");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.isIdeographic");
 
     assert(isIdeographic('\u4E00'));
     assert(isIdeographic('\u9FA5'));
@@ -1203,10 +1217,12 @@ unittest  // isIdeographic
 
 unittest  // all code points for xml_util.isChar, xml_util.isDigit, xml_util.isIdeographic
 {
+    import pham.utl.utltest;
+
     version (none)
     {
         import std.conv;
-        outputXmlTraceProgress("unittest xml.util.isChar, isDigit, isIdeographic");
+        dgWriteln("unittest xml.util.isChar, isDigit, isIdeographic");
 
         foreach (c; 0..dchar.max + 1)
         {
@@ -1220,7 +1236,8 @@ unittest  // all code points for xml_util.isChar, xml_util.isDigit, xml_util.isI
 
 unittest  // isSpaces
 {
-    outputXmlTraceProgress("unittest xml.util.isSpaces");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.isSpaces");
 
     assert(isSpaces!string(" "));
     assert(isSpaces!string("    \n\t"));
@@ -1241,7 +1258,8 @@ unittest  // isSpaces
 unittest  // isVersionStr
 {
     import std.typecons : No, Yes;
-    outputXmlTraceProgress("unittest xml.util.isVersionStr");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.isVersionStr");
 
     assert(isVersionStr!(string, Yes.AllowEmpty)(""));
     assert(isVersionStr!(string, No.AllowEmpty)("1"));
@@ -1258,7 +1276,8 @@ unittest  // isVersionStr
 
 unittest  // leftString
 {
-    outputXmlTraceProgress("unittest xml.util.leftString");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.leftString");
 
     assert(leftString!string("", 1) == "");
     assert(leftString!string("abc", 1) == "a");
@@ -1268,7 +1287,8 @@ unittest  // leftString
 
 unittest  // leftStringIndicator
 {
-    outputXmlTraceProgress("unittest xml.util.leftStringIndicator");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.leftStringIndicator");
 
     assert(leftStringIndicator!string("", 1) == "");
     assert(leftStringIndicator!string("abc", 1) == "a...");
@@ -1278,7 +1298,8 @@ unittest  // leftStringIndicator
 
 unittest  // rightString
 {
-    outputXmlTraceProgress("unittest xml.util.rightString");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.rightString");
 
     assert(rightString!string("", 1) == "");
     assert(rightString!string("abc", 1) == "c");
@@ -1288,7 +1309,8 @@ unittest  // rightString
 
 unittest  // splitName
 {
-    outputXmlTraceProgress("unittest xml.util.splitName");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.splitName");
 
     const(char)[] p, n;
 
@@ -1307,7 +1329,8 @@ unittest  // splitName
 
 unittest  // splitNameValue
 {
-    outputXmlTraceProgress("unittest xml.util.splitNameValue");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.util.splitNameValue");
 
     const(XmlChar!string)[] n, v;
 

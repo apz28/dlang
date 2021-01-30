@@ -11,8 +11,8 @@
 
 module pham.xml.parser;
 
-import std.range.primitives : back, empty, front, popFront, popBack;
 import std.conv : to;
+import std.range.primitives : back, empty, front, popFront, popBack;
 import std.string : indexOf;
 import std.typecons : Flag, No, Yes;
 
@@ -39,7 +39,7 @@ public:
 public:
     @disable this();
 
-    this(XmlDocument!S document, XmlReader!S reader, XmlParseOptions!S options)
+    this(XmlDocument!S document, XmlReader!S reader, XmlParseOptions!S options) nothrow
     {
         this.document = document;
         this.reader = reader;
@@ -58,7 +58,7 @@ public:
 
     XmlDocument!S parse()
     {
-        version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParser("parse");
 
         nodeStack.length = 0;
@@ -97,24 +97,7 @@ public:
     }
 
 private:
-    enum skipSpaceBefore = 1;
-    enum skipSpaceAfter = 2;
-
-    XmlNode!S[] nodeStack;
-
-    XmlDocument!S document;
-    XmlReader!S reader;
-    const(XmlParseOptions!S) options;
-
-    static if (SAX)
-    {
-        bool useSaxAttribute;
-        bool useSaxElementBegin;
-        bool useSaxElementEnd;
-        bool useSaxOtherNode;
-    }
-
-    version (unittest)
+    version (xmlTraceParser)
     {
         size_t nodeIndent;
 
@@ -197,7 +180,7 @@ private:
 
     void parseCData(ref ParseContext!S tagName)
     {
-        version (unittest)
+        version (xmlTraceParser)
         {
             outputXmlTraceParserF("%sparseCData.%s", indentString(), tagName.s);
             ++nodeIndent;
@@ -230,7 +213,7 @@ private:
 
     void parseComment(ref ParseContext!S tagName)
     {
-        version (unittest)
+        version (xmlTraceParser)
         {
             outputXmlTraceParserF("%sparseComment.%s", indentString(), tagName.s);
             ++nodeIndent;
@@ -263,7 +246,7 @@ private:
 
     void parseDeclaration(ref ParseContext!S tagName)
     {
-        version (unittest)
+        version (xmlTraceParser)
         {
             outputXmlTraceParserF("%sparseDeclaration.%s", indentString(), tagName.s);
             ++nodeIndent;
@@ -300,7 +283,7 @@ private:
 
     void parseAttributeDeclaration(XmlDeclaration!S parentNode, ref ParseContext!S contextName)
     {
-        version (unittest)
+        version (xmlTraceParser)
         {
             outputXmlTraceParserF0("%sparseAttributeDeclaration: ", indentString());
             ++nodeIndent;
@@ -319,7 +302,7 @@ private:
                 throw new XmlParserException(contextName.loc, XmlMessage.eAttributeDuplicated, name);
         }
 
-        version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParserF("'%s'", name);
 
         expectChar!(skipSpaceBefore | skipSpaceAfter)('=');
@@ -342,7 +325,7 @@ private:
 
     void parseDocumentType(ref ParseContext!S tagName)
     {
-        version (unittest)
+        version (xmlTraceParser)
         {
             outputXmlTraceParserF("%sparseDocumentType.%s", indentString(), tagName.s);
             ++nodeIndent;
@@ -429,7 +412,7 @@ private:
 
     void parseDocumentTypeAttributeList(ref ParseContext!S tagName)
     {
-        version (unittest)
+        version (xmlTraceParser)
         {
             outputXmlTraceParserF("%sparseDocumentTypeAttributeList.%s", indentString(), tagName.s);
             ++nodeIndent;
@@ -462,7 +445,7 @@ private:
 
     void parseDocumentTypeAttributeListItem(XmlDocumentTypeAttributeList!S attributeList)
     {
-        version (unittest)
+        version (xmlTraceParser)
         {
             outputXmlTraceParserF("%sparseDocumentTypeAttributeListItem", indentString());
             ++nodeIndent;
@@ -526,7 +509,7 @@ private:
 
     void parseDocumentTypeElement(ref ParseContext!S tagName)
     {
-        version (unittest)
+        version (xmlTraceParser)
         {
             outputXmlTraceParserF("%sparseDocumentTypeElement.%s", indentString(), tagName.s);
             ++nodeIndent;
@@ -571,7 +554,7 @@ private:
 
     void parseDocumentTypeElementChoice(XmlDocumentTypeElement!S node, XmlDocumentTypeElementItem!S parent)
     {
-        version (unittest)
+        version (xmlTraceParser)
         {
             outputXmlTraceParserF("%sparseDocumentTypeElementChoice", indentString());
             ++nodeIndent;
@@ -633,7 +616,7 @@ private:
 
     void parseElement()
     {
-        version (unittest)
+        version (xmlTraceParser)
         {
             outputXmlTraceParserF("%sparseElement(%c)", indentString(), reader.front);
             ++nodeIndent;
@@ -682,7 +665,7 @@ private:
 
     void parseEntity(ref ParseContext!S tagName)
     {
-        version (unittest)
+        version (xmlTraceParser)
         {
             outputXmlTraceParserF("%sparseEntity.%s", indentString(), tagName.s);
             ++nodeIndent;
@@ -752,7 +735,7 @@ private:
 
     void parseElementX(ref ParseContext!S tagName)
     {
-        version (unittest)
+        version (xmlTraceParser)
         {
             outputXmlTraceParserF("%sparseElementX.%s", indentString(), tagName.s);
             ++nodeIndent;
@@ -824,7 +807,7 @@ private:
 
     void parseElementXAttribute(XmlElement!S parentNode, ref ParseContext!S contextName)
     {
-        version (unittest)
+        version (xmlTraceParser)
         {
             outputXmlTraceParserF0("%sparseElementXAttribute: ", indentString());
             ++nodeIndent;
@@ -843,7 +826,7 @@ private:
                 throw new XmlParserException(contextName.loc, XmlMessage.eAttributeDuplicated, name);
         }
 
-        version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParserF("'%s'", name);
 
         expectChar!(skipSpaceBefore | skipSpaceAfter)('=');
@@ -866,7 +849,7 @@ private:
 
     void parseElementXEnd(const(C)[] beginTagName)
     {
-        version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParserF("%sparseElementXEnd.%s", indentString(), beginTagName);
 
         ParseContext!S endTagName;
@@ -888,14 +871,14 @@ private:
 
     void parseElementXText(XmlElement!S parentNode)
     {
-        version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParserF0("%sparseElementXText: ", indentString());
 
         XmlString!S text;
         bool allWhitespaces;
         reader.readElementXText(text, allWhitespaces);
 
-        version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParserF("'%s'", text.rawValue().leftStringIndicator!S(30));
 
         XmlNode!S node;
@@ -927,7 +910,7 @@ private:
     void parseExternalId(ref const(C)[] systemOrPublic, ref XmlString!S publicId,
         ref XmlString!S text, bool optionalText)
     {
-        version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParserF("%sparseExternalId", indentString());
 
         ParseContext!S localContext;
@@ -952,7 +935,7 @@ private:
 
     void parseNotation(ref ParseContext!S tagName)
     {
-        version (unittest)
+        version (xmlTraceParser)
         {
             outputXmlTraceParserF("%sparseNotation.%s", indentString(), tagName.s);
             ++nodeIndent;
@@ -986,7 +969,7 @@ private:
 
     void parseProcessingInstruction(ref ParseContext!S tagName)
     {
-        version (unittest)
+        version (xmlTraceParser)
         {
             outputXmlTraceParserF("%sparseProcessingInstruction.%s", indentString(), tagName.s);
             ++nodeIndent;
@@ -1024,7 +1007,7 @@ private:
 
     XmlString!S parseQuotedValue()
     {
-        version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParserF0("%sparseQuotedValue: ", indentString());
 
         auto q = expectChar!(0)("\"'");
@@ -1032,7 +1015,7 @@ private:
         if (!reader.readUntilText!false(data, to!S(q)))
             expectChar!(0)(q);
 
-        version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParserF("'%s'", data.rawValue().leftStringIndicator!S(30));
 
         return data;
@@ -1040,7 +1023,7 @@ private:
 
     void parseSpaces()
     {
-        version (unittest)
+        version (xmlTraceParser)
         outputXmlTraceParserF("%sparseSpaces", indentString());
 
         auto s = reader.readSpaces();
@@ -1077,11 +1060,29 @@ private:
             }
         }
     }
+
+private:
+    enum skipSpaceBefore = 1;
+    enum skipSpaceAfter = 2;
+
+    XmlNode!S[] nodeStack;
+    XmlDocument!S document;
+    XmlReader!S reader;
+    const(XmlParseOptions!S) options;
+
+    static if (SAX)
+    {
+        bool useSaxAttribute;
+        bool useSaxElementBegin;
+        bool useSaxElementEnd;
+        bool useSaxOtherNode;
+    }
 }
 
 unittest  // XmlParser.invalid construct
 {
-    outputXmlTraceProgress("unittest xml.parser.XmlParser.invalid construct");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.parser.XmlParser.invalid construct");
 
     void parseError(string xml)
     {
@@ -1106,7 +1107,8 @@ unittest  // XmlParser.invalid construct
 
 unittest  // XmlParser.DOCTYPE
 {
-    outputXmlTraceProgress("unittest xml.parser.XmlParser.DOCTYPE");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.parser.XmlParser.DOCTYPE");
 
     static immutable string xml =
 q"XML
@@ -1123,7 +1125,8 @@ XML";
 unittest  // XmlParser
 {
     import pham.xml_test;
-    outputXmlTraceProgress("unittest xml.parser.XmlParser");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.parser.XmlParser");
 
     auto doc = new XmlDocument!string().load(parserXml);
 }
@@ -1132,7 +1135,8 @@ unittest  // XmlParser.navigation
 {
     import std.conv : to;
     import std.typecons : No, Yes;
-    outputXmlTraceProgress("unittest xml.parser.XmlParser.navigation");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.parser.XmlParser.navigation");
 
     static immutable string xml =
 q"XML
@@ -1155,13 +1159,13 @@ XML";
 
     auto doc = new XmlDocument!string().load(xml);
 
-    outputXmlTraceProgress("unittest XmlParser - navigation(start walk)");
-    outputXmlTraceProgress("check doc.documentDeclaration");
+    dgWriteln("unittest XmlParser - navigation(start walk)");
+    dgWriteln("check doc.documentDeclaration");
 
     assert(doc.documentDeclaration !is null);
     assert(doc.documentDeclaration.innerText = "version=\"1.0\" encoding=\"UTF-8\"");
 
-    outputXmlTraceProgress("check doc.documentElement");
+    dgWriteln("check doc.documentElement");
 
     assert(doc.documentElement !is null);
     assert(doc.documentElement.nodeType == XmlNodeType.element);
@@ -1170,7 +1174,7 @@ XML";
 
     XmlNodeList!string L;
 
-    outputXmlTraceProgress("check doc.documentElement.getChildNodes(deep=true)");
+    dgWriteln("check doc.documentElement.getChildNodes(deep=true)");
 
     L = doc.documentElement.getChildNodes(null, Yes.deep);
 
@@ -1566,7 +1570,8 @@ XML";
 unittest  // XmlParser.SAX
 {
     import pham.xml.test;
-    outputXmlTraceProgress("unittest xml.parser.XmlParser.SAX");
+    import pham.utl.utltest;
+    dgWriteln("unittest xml.parser.XmlParser.SAX");
 
     version (none)
     static bool processAttribute(XmlNode!string parent, XmlAttribute!string attribute)

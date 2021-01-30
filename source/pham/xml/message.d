@@ -19,6 +19,7 @@ struct XmlMessage
 {
 nothrow @safe:
 
+public:
     static immutable eBlankName = "Name is blank";
     static immutable eEos = "Incompleted xml data";
     static immutable eExpectedCharButChar = "Expect character \"%c\" but found \"%c\"";
@@ -66,6 +67,7 @@ if (isXmlString!S)
 {
 nothrow @safe:
 
+public:
     static immutable S CDataTagName = "#cdata-section";
     static immutable S commentTagName = "#comment";
     static immutable S declarationTagName = "xml";
