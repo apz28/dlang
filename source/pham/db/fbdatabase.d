@@ -1159,19 +1159,16 @@ public:
 
     final IbWriteBuffer acquireParameterWriteBuffer(size_t capacity = FbIscSize.parameterBufferLength) nothrow @safe
     {
-        if (_parameterWriteBuffers is null)
-            return cast(IbWriteBuffer)(new FbParameterWriteBuffer(capacity));
+        if (_parameterWriteBuffers.empty)
+            return new FbParameterWriteBuffer(capacity);
         else
-            return cast(IbWriteBuffer)_parameterWriteBuffers.removeHead(_parameterWriteBuffers);
+            return _parameterWriteBuffers.remove(_parameterWriteBuffers.last).isWriteBuffer();
     }
 
     final void releaseParameterWriteBuffer(IbWriteBuffer item) nothrow @safe
     {
         if (!disposingState)
-        {
-            auto temp = cast(DbBuffer)(item.reset());
-            temp.insertEnd(_parameterWriteBuffers);
-        }
+            _parameterWriteBuffers.insertEnd(item.reset().self());
     }
 
     /* Properties */
@@ -1227,11 +1224,8 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        while (_parameterWriteBuffers !is null)
-        {
-            auto temp = _parameterWriteBuffers.removeHead(_parameterWriteBuffers);
-            temp.disposal(disposing);
-        }
+        while (!_parameterWriteBuffers.empty)
+            _parameterWriteBuffers.remove(_parameterWriteBuffers.last).disposal(disposing);
     }
 
     final void disposeProtocol(bool disposing) nothrow @safe
@@ -1265,15 +1259,11 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        scope (exit)
-        {
-            disposeProtocol(true);
-            disposeSocketBufferFilters(true);
-            doCloseSocket();
-        }
-
+        _arrayManager.dispose(false);
         if (_protocol !is null && state == DbConnectionState.open && socketActive)
             _protocol.disconnectWrite();
+        disposeProtocol(false);
+        super.doClose();
     }
 
     final override void doOpen()
@@ -1328,7 +1318,7 @@ protected:
     FbProtocol _protocol;
 
 private:
-    DbBuffer _parameterWriteBuffers;
+    DLinkDbBufferTypes.DLinkList _parameterWriteBuffers;
 }
 
 class FbConnectionStringBuilder : SkConnectionStringBuilder
@@ -1676,9 +1666,8 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace("disposing=", disposing);
 
-        const canRetain = !disposing && isRetaining && disposingState != DisposableState.destructing;
         auto protocol = fbConnection.protocol;
-        if (canRetain)
+        if (!disposing && canRetain())
         {
             scope (failure)
                 _handle.reset();
@@ -1851,11 +1840,19 @@ unittest // FbConnectionStringBuilder
 version (UnitTestFBDatabase)
 unittest // FbConnection
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n*********************************");
     dgWriteln("unittest db.fbdatabase.FbConnection");
 
     auto connection = createTestConnection();
+    scope (exit)
+    {
+        connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
+    }
     assert(connection.state == DbConnectionState.closed);
 
     connection.open();
@@ -1868,11 +1865,19 @@ unittest // FbConnection
 version (UnitTestFBDatabase)
 unittest // FbConnection
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n***************************************************");
     dgWriteln("unittest db.fbdatabase.FbConnection - encrypt=enabled");
 
     auto connection = createTestConnection(DbEncryptedConnection.enabled);
+    scope (exit)
+    {
+        connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
+    }
     assert(connection.state == DbConnectionState.closed);
 
     connection.open();
@@ -1885,11 +1890,19 @@ unittest // FbConnection
 version (UnitTestFBDatabase)
 unittest // FbConnection
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n****************************************************");
     dgWriteln("unittest db.fbdatabase.FbConnection - encrypt=required");
 
     auto connection = createTestConnection(DbEncryptedConnection.required);
+    scope (exit)
+    {
+        connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
+    }
     assert(connection.state == DbConnectionState.closed);
 
     connection.open();
@@ -1902,11 +1915,19 @@ unittest // FbConnection
 version (UnitTestFBDatabase)
 unittest // FbConnection
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n*******************************************************************");
     dgWriteln("unittest db.fbdatabase.FbConnection - encrypt=required, compress=true");
 
     auto connection = createTestConnection(DbEncryptedConnection.required, true);
+    scope (exit)
+    {
+        connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
+    }
     assert(connection.state == DbConnectionState.closed);
 
     connection.open();
@@ -1919,13 +1940,20 @@ unittest // FbConnection
 version (UnitTestFBDatabase)
 unittest // FbTransaction
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n**********************************");
     dgWriteln("unittest db.fbdatabase.FbTransaction");
 
     auto connection = createTestConnection();
     scope (exit)
+    {
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
+    }
     connection.open();
 
     auto transaction = connection.createTransaction(DbIsolationLevel.readUncommitted);
@@ -1951,28 +1979,39 @@ unittest // FbTransaction
     transaction = connection.defaultTransaction();
     transaction.start();
     transaction.rollback();
+
+    transaction = null;
 }
 
 version (UnitTestFBDatabase)
 unittest // FbTransaction
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n*******************************************************************");
     dgWriteln("unittest db.fbdatabase.FbTransaction - encrypt=enabled, compress=true");
 
     auto connection = createTestConnection(DbEncryptedConnection.enabled, true);
     scope (exit)
+    {
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
+    }
     connection.open();
 
     auto transaction = connection.createTransaction(DbIsolationLevel.readCommitted);
     transaction.start();
     transaction.commit();
+    transaction = null;
 }
 
 version (UnitTestFBDatabase)
 unittest // FbCommand.DDL
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n**********************************");
     dgWriteln("unittest db.fbdatabase.FbCommand.DDL");
@@ -1983,13 +2022,21 @@ unittest // FbCommand.DDL
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
+    {
         command.dispose();
+        command = null;
+    }
 
     command.commandDDL = q"{CREATE TABLE create_then_drop (a INT NOT NULL PRIMARY KEY, b VARCHAR(100))}";
     command.executeNonQuery();
@@ -2003,6 +2050,7 @@ unittest // FbCommand.DDL
 version (UnitTestFBDatabase)
 unittest // FbCommand.DDL
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n*******************************************************************");
     dgWriteln("unittest db.fbdatabase.FbCommand.DDL - encrypt=enabled, compress=true");
@@ -2013,13 +2061,21 @@ unittest // FbCommand.DDL
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
+    {
         command.dispose();
+        command = null;
+    }
 
     command.commandDDL = q"{CREATE TABLE create_then_drop (a INT NOT NULL PRIMARY KEY, b VARCHAR(100))}";
     command.executeNonQuery();
@@ -2033,6 +2089,7 @@ unittest // FbCommand.DDL
 version (UnitTestFBDatabase)
 unittest // FbCommand.getExecutionPlan
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n***********************************************");
     dgWriteln("unittest db.fbdatabase.FbCommand.getExecutionPlan");
@@ -2043,13 +2100,21 @@ unittest // FbCommand.getExecutionPlan
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
+    {
         command.dispose();
+        command = null;
+    }
 
     command.commandText = simpleSelectCommandText();
 
@@ -2075,6 +2140,7 @@ Select Expression
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML
 {
+    import core.memory;
     import std.math;
     import pham.utl.utltest;
     dgWriteln("\n**************************************************");
@@ -2086,13 +2152,21 @@ unittest // FbCommand.DML
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
+    {
         command.dispose();
+        command = null;
+    }
 
     command.commandText = simpleSelectCommandText();
     auto reader = command.executeReader();
@@ -2156,6 +2230,7 @@ unittest // FbCommand.DML
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML
 {
+    import core.memory;
     import std.math;
     import pham.utl.utltest;
     dgWriteln("\n*****************************************************");
@@ -2167,13 +2242,21 @@ unittest // FbCommand.DML
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
+    {
         command.dispose();
+        command = null;
+    }
 
     command.commandText = parameterSelectCommandText();
     command.parameters.add("INT_FIELD", DbType.int32).value = 1;
@@ -2244,6 +2327,7 @@ unittest // FbCommand.DML
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML
 {
+    import core.memory;
     import std.math;
     import pham.utl.utltest;
     dgWriteln("\n**************************************************************************************");
@@ -2255,13 +2339,21 @@ unittest // FbCommand.DML
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
+    {
         command.dispose();
+        command = null;
+    }
 
     command.commandText = simpleSelectCommandText();
     auto reader = command.executeReader();
@@ -2325,6 +2417,7 @@ unittest // FbCommand.DML
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n***************************************************");
     dgWriteln("unittest db.fbdatabase.FbCommand.DML - FbArrayManager");
@@ -2335,7 +2428,12 @@ unittest // FbCommand.DML
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
     }
     connection.open();
 
@@ -2355,6 +2453,7 @@ unittest // FbCommand.DML
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n******************************************");
     dgWriteln("unittest db.fbdatabase.FbCommand.DML - Array");
@@ -2370,7 +2469,12 @@ unittest // FbCommand.DML
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
     }
     connection.open();
 
@@ -2423,6 +2527,7 @@ unittest // FbCommand.DML
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n***********************************************");
     dgWriteln("unittest db.fbdatabase.FbCommand.DML - Array.Less");
@@ -2443,7 +2548,12 @@ unittest // FbCommand.DML
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
     }
     connection.open();
 

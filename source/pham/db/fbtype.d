@@ -17,6 +17,7 @@ import std.exception : assumeWontThrow;
 import std.format : format;
 import std.traits : EnumMembers, Unqual;
 
+version (TraceFunction) import pham.utl.utltest;
 import pham.utl.variant;
 import pham.db.message;
 import pham.db.type;
@@ -237,14 +238,14 @@ struct FbIscError
 nothrow @safe:
 
 public:
-	this(int type, int intParam, int argNumber) pure
+	this(int32 type, int32 intParam, int argNumber) pure
 	{
 		this._type = type;
 		this._intParam = intParam;
         this._argNumber = argNumber;
 	}
 
-	this(int type, string strParam, int argNumber) pure
+	this(int32 type, string strParam, int argNumber) pure
 	{
 		this._type = type;
 		this._strParam = strParam;
@@ -274,12 +275,12 @@ public:
         return _argNumber;
     }
 
-    @property final int code() const
+    @property final int32 code() const
     {
         return _intParam;
     }
 
-    @property final int type() const
+    @property final int32 type() const
     {
         return _type;
     }
@@ -305,8 +306,8 @@ public:
 private:
     string _strParam;
     int _argNumber;
-    int _intParam;
-    int _type;
+    int32 _intParam;
+    int32 _type;
 }
 
 struct FbIscFetchResponse
@@ -314,7 +315,7 @@ struct FbIscFetchResponse
 nothrow @safe:
 
 public:
-    this(int status, int count) pure
+    this(int32 status, int count) pure
     {
         this.status = status;
         this.count = count;
@@ -332,7 +333,7 @@ public:
 
 public:
     int count;
-    int status;
+    int32 status;
 }
 
 struct FbIscFieldInfo
@@ -744,11 +745,12 @@ struct FbIscStatues
 nothrow @safe:
 
 public:
-    void buildMessage(out string errorMessage, out int errorCode)
+    void buildMessage(out string errorMessage, out int32 errorCode)
     {
+        version (TraceFunction) dgFunctionTrace();
+
         errorMessage = "";
         errorCode = 0;
-
         foreach (ref i; errors)
         {
             switch (i.type)
@@ -773,7 +775,7 @@ public:
         }
     }
 
-    final int errorCode() const
+    final int32 errorCode() const
     {
         foreach (ref i; errors)
         {
@@ -815,7 +817,7 @@ public:
 
 public:
     FbIscError[] errors;
-    int sqlCode;
+    int32 sqlCode;
 }
 
 struct FbIscTrustedAuthenticationResponse

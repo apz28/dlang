@@ -69,14 +69,12 @@ public
 protected:
     override void doDispose(bool disposing)
     {
-        super.doDispose(disposing);
         if (_cipher !is null)
         {
-            // Compiler Bug - "Invalid Memory Operation"
-            //_cipher.disposal(disposing);
-
+            _cipher.disposal(disposing);
             _cipher = null;
         }
+        super.doDispose(disposing);
     }
 
 private:
@@ -106,7 +104,7 @@ unittest // DbBufferFilterCipherRC4
     import pham.utl.utltest;
     dgWriteln("unittest db.buffer_filter_cipher.DbBufferFilterCipherRC4");
 
-    auto keyParameters = CipherParameters(cast(const(ubyte)[])"abc0123456789xyz");
+    auto keyParameters = CipherParameters(cast(ubyte[])("abc0123456789xyz".dup));
 	auto encryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.write)(keyParameters);
 	auto decryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.read)(keyParameters);
 
@@ -115,4 +113,10 @@ unittest // DbBufferFilterCipherRC4
     encryptor.process(original, encrypted);
     decryptor.process(encrypted, decrypted);
     assert(original == decrypted);
+
+    encryptor.dispose();
+    encryptor = null;
+
+    decryptor.dispose();
+    decryptor = null;
 }

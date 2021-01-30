@@ -11,6 +11,7 @@
 
 module pham.db.pgprotocol;
 
+import std.ascii : LetterCase;
 import std.conv : to;
 import std.digest.md : md5Of;
 import std.format : format;

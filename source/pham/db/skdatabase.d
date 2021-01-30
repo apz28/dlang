@@ -120,17 +120,17 @@ package(pham):
 
         if (_socketReadBuffer is null)
             _socketReadBuffer = createSocketReadBuffer(capacity);
-        return cast(IbReadBuffer)_socketReadBuffer;
+        return _socketReadBuffer.isReadBuffer();
     }
 
     final IbWriteBuffer acquireSocketWriteBuffer(size_t capacity = DbDefaultSize.socketWriteBufferLength) nothrow @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
-        if (_socketWriteBuffers is null)
-            return cast(IbWriteBuffer)createSocketWriteBuffer(capacity);
+        if (_socketWriteBuffers.empty)
+            return createSocketWriteBuffer(capacity).isWriteBuffer();
         else
-            return cast(IbWriteBuffer)_socketWriteBuffers.removeHead(_socketWriteBuffers);
+            return _socketWriteBuffers.remove(_socketWriteBuffers.last).isWriteBuffer();
     }
 
     final void releaseSocketWriteBuffer(IbWriteBuffer item) nothrow @safe
@@ -138,10 +138,7 @@ package(pham):
         version (TraceFunction) dgFunctionTrace();
 
         if (!disposingState)
-        {
-            auto temp = cast(DbBuffer)(item.reset());
-            temp.insertEnd(_socketWriteBuffers);
-        }
+            _socketWriteBuffers.insertEnd(item.reset().self());
     }
 
     void setSocketOptions() @safe
@@ -311,11 +308,16 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        while (_socketWriteBuffers !is null)
-        {
-            auto temp = _socketWriteBuffers.removeHead(_socketWriteBuffers);
-            temp.disposal(disposing);
-        }
+        while (!_socketWriteBuffers.empty)
+            _socketWriteBuffers.remove(_socketWriteBuffers.last).disposal(disposing);
+    }
+
+    override void doClose()
+    {
+        version (TraceFunction) dgFunctionTrace();
+
+        disposeSocketBufferFilters(false);
+        doCloseSocket();
     }
 
     final void doCloseSocket()
@@ -330,12 +332,13 @@ protected:
 
     override void doDispose(bool disposing) nothrow @safe
     {
-        version (TraceFunction)
-        if (disposing)
-            dgFunctionTrace();
+        version (TraceFunction) dgFunctionTrace();
 
         super.doDispose(disposing);
         disposeSocket(disposing);
+        disposeSocketBufferFilters(disposing);
+        disposeSocketReadBuffer(disposing);
+        disposeSocketReadBuffer(disposing);
     }
 
     final void doOpenSocket()
@@ -404,7 +407,7 @@ protected:
 
 private:
     DbBuffer _socketReadBuffer;
-    DbBuffer _socketWriteBuffers;
+    DLinkDbBufferTypes.DLinkList _socketWriteBuffers;
 }
 
 abstract class SkConnectionStringBuilder : DbConnectionStringBuilder
@@ -532,8 +535,8 @@ public:
 protected:
     override void doDispose(bool disposing) nothrow
     {
-        super.doDispose(disposing);
         _connection = null;
+        super.doDispose(disposing);
     }
 
     final override void ensureAvailable(size_t nBytes) @trusted
@@ -582,8 +585,8 @@ public:
 protected:
     override void doDispose(bool disposing) nothrow
     {
-        super.doDispose(disposing);
         _connection = null;
+        super.doDispose(disposing);
     }
 
 protected:

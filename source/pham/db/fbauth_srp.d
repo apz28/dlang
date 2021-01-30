@@ -28,23 +28,24 @@ nothrow @safe:
 public:
     this()
     {
-        this._authClient = new AuthClient(AuthParameters(DigestAlgorithm.sha1, fbPrime),
-            digitsToBigInteger(fbK));
+        this._authClient = new AuthClient(AuthParameters(DigestAlgorithm.sha1, fbPrime), digitsToBigInteger(fbK));
     }
 
     version (unittest)
     this(BigInteger ephemeralPrivate)
     {
-        import pham.utl.utltest;
-
         this._authClient = new AuthClient(AuthParameters(DigestAlgorithm.sha1, fbPrime),
             digitsToBigInteger(fbK), ephemeralPrivate);
 
-		dgFunctionTrace("N:          ", this._authClient.N);
-		dgFunctionTrace("g:          ", this._authClient.g);
-		dgFunctionTrace("k:          ", this._authClient.k);
-		dgFunctionTrace("PrivateKey: ", this._authClient.ephemeralPrivate);
-		dgFunctionTrace("PublicKey:  ", this._authClient.ephemeralPublic);
+        version (TraceAuth)
+        {
+            import pham.utl.utltest;
+		    dgFunctionTrace("_authClient.N=", this._authClient.N.toString(),
+		        ", _authClient.g=", this._authClient.g.toString(),
+		        ", _authClient.k=", this._authClient.k.toString(),
+		        ", _authClient.ephemeralPrivate=", this._authClient.ephemeralPrivate.toString(),
+		        ", _authClient.ephemeralPublic=", this._authClient.ephemeralPublic.toString());
+        }
     }
 
     final override ubyte[] getAuthData(scope const(char)[] userName, scope const(char)[] userPassword, ubyte[] serverAuthData)
@@ -108,67 +109,53 @@ protected:
         auto parameters = _authClient.parameters;
         auto hasher = parameters.hasher;
 
-
-        /* .NET
-		var K = GetClientSessionKey(user, password, salt, serverPublicKey);
-
-		var n1 = BigIntegerFromByteArray(ComputeHash(BigIntegerToByteArray(N)));
-		var n2 = BigIntegerFromByteArray(ComputeHash(BigIntegerToByteArray(g)));
-
-		n1 = BigInteger.ModPow(n1, n2, N);
-		n2 = BigIntegerFromByteArray(ComputeHash(Encoding.UTF8.GetBytes(user)));
-
-		var M = ComputeHash(BigIntegerToByteArray(n1),
-			BigIntegerToByteArray(n2),
-			salt,
-			BigIntegerToByteArray(PublicKey),
-			BigIntegerToByteArray(serverPublicKey),
-			K);
-        */
         auto K = _authClient.digest(_premasterKey);
 		auto n1 = bytesToBigInteger(_authClient.digest(_authClient.N));
 		auto n2 = bytesToBigInteger(_authClient.digest(_authClient.g));
-
 		n1 = modPow(n1, n2, _authClient.N);
 		n2 = bytesToBigInteger(_authClient.digest(userName));
 
         AuthDigestResult hashTemp = void;
         auto M = hasher.begin()
-            .digest(bigIntegerToBytes(n1))
-            .digest(bigIntegerToBytes(n2))
+            .digest(bytesFromBigInteger(n1))
+            .digest(bytesFromBigInteger(n2))
             .digest(salt)
-            .digest(bigIntegerToBytes(_authClient.ephemeralPublic))
-            .digest(bigIntegerToBytes(serverPublicKey))
+            .digest(bytesFromBigInteger(_authClient.ephemeralPublic))
+            .digest(bytesFromBigInteger(serverPublicKey))
             .digest(K)
             .finish(hashTemp).dup;
-
         _sessionKey = K;
-        return M;
 
-        version (TraceAuthRSP)
+        version (TraceAuth)
         {
-		dgWriteln("ClientProof.ComputeHash.n1(2):             ", n1.toString());
-		dgWriteln("ClientProof.ComputeHash.n2(2):             ", n2.toString());
-		dgWriteln("ClientProof.ComputeHash.n2(2).ComputeHash: ", hasher.begin()
-            .digest(AuthParameters.asBytes(userName))
-            .finish(hashTemp));
-		dgWriteln("ClientProof.SessionKey:                    ", premasterKeyDigest);
-		dgWriteln("ClientProof.Proof:                         ", _proof);
-		dgWriteln("ClientProof.result:                        ", _proof);
+            import pham.utl.utltest;
+		    dgFunctionTrace("userName=", userName,
+                ", userPassword=", userPassword,
+                ", salt=", salt.dgToString(),
+                ", serverPublicKey=", serverPublicKey.toString(),
+                ", _premasterKey=", _premasterKey.toString(),
+                ", n1=", n1.toString(),
+		        ", n2=", n2.toString(),
+		        ", _authClient.ephemeralPrivate=", _authClient.ephemeralPrivate.toString(),
+		        ", _authClient.ephemeralPublic=", _authClient.ephemeralPublic.toString(),
+                ", K=", K.dgToString(),
+                ", M=", M.dgToString());
         }
+
+        return M;
     }
 
     override void doDispose(bool disposing) nothrow @safe
     {
-        super.doDispose(disposing);
         if (_authClient !is null)
         {
             _authClient.disposal(disposing);
             _authClient = null;
         }
-        _premasterKey.setZero();
-        _proof = null;
-        _sessionKey = null;
+        _premasterKey.dispose(disposing);
+        _proof[] = 0;
+        _sessionKey[] = 0;
+        super.doDispose(disposing);
     }
 
 private:
@@ -245,6 +232,9 @@ version (unittest)
             "expectedDigitServerPublicKey(" ~ to!string(line) ~ "): " ~ serverPublicKey.toString() ~ " ? " ~ expectedDigitServerPublicKey);
         assert(cast(char[])proof == expectedHexProof,
             "expectedHexProof(" ~ to!string(line) ~ "): " ~ cast(char[])proof ~ " ? " ~ expectedHexProof);
+
+        client.dispose();
+        client = null;
     }
 }
 

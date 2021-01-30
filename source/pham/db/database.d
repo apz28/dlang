@@ -673,17 +673,15 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        //TODO unprepare();
-
         if (_fields !is null)
         {
-            _fields.disposal(disposing);
+            version (none) _fields.disposal(disposing);
             _fields = null;
         }
 
         if (_parameters !is null)
         {
-            _parameters.disposal(disposing);
+            version (none) _parameters.disposal(disposing);
             _parameters = null;
         }
 
@@ -877,12 +875,10 @@ private:
     DbCommand _prev;
 }
 
+mixin DLinkTypes!(DbCommand) DLinkDbCommandTypes;
+
 abstract class DbConnection : DbDisposableObject
 {
-public:
-    mixin DLinkTypes!(DbCommand) DLinkDbCommandTypes;
-    mixin DLinkTypes!(DbTransaction) DLinkDbTransactionTypes;
-
 public:
     this(DbDatabase database) nothrow @safe
     {
@@ -930,14 +926,15 @@ public:
 
         _state = DbConnectionState.closing;
         doBeginStateChange(DbConnectionState.closed);
-        disposeTransactions(true);
-        disposeCommands(true);
+        rollbackTransactions(false);
+        disposeTransactions(false);
+        disposeCommands(false);
         doClose();
     }
 
-    final DLinkDbCommandTypes.Range commands()
+    final DLinkDbCommandTypes.DLinkRange commands()
     {
-        return DLinkDbCommandTypes.Range(_commands);
+        return _commands[];
     }
 
     final DbCommand createCommand(string name = null) @safe
@@ -945,8 +942,7 @@ public:
         version (TraceFunction) dgFunctionTrace();
 
         checkActive();
-        auto result = database.createCommand(this, name);
-        return DLinkCommandLastFunctions.insertEnd(_commands, result);
+        return _commands.insertEnd(database.createCommand(this, name));
     }
 
     final DbTransaction createTransaction(DbIsolationLevel isolationLevel = DbIsolationLevel.readCommitted) @safe
@@ -1000,9 +996,9 @@ public:
         return connectionStringBuilder.toHash().hashOf(scheme.toHash());
     }
 
-    final DLinkDbTransactionTypes.Range transactions()
+    final DLinkDbTransactionTypes.DLinkRange transactions()
     {
-        return DLinkDbTransactionTypes.Range(_transactions);
+        return _transactions[];
     }
 
     /* Properties */
@@ -1050,7 +1046,7 @@ public:
      */
     @property final bool hasCommands() const nothrow @safe
     {
-        return _commands !is null;
+        return !_commands.empty;
     }
 
     /**
@@ -1058,7 +1054,7 @@ public:
      */
     @property final bool hasTransactions() const nothrow @safe
     {
-        return _transactions !is null;
+        return !_transactions.empty;
     }
 
 	/**
@@ -1104,21 +1100,15 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto result = database.createTransaction(this, isolationLevel, defaultTransaction);
-        return DLinkTransactionLastFunctions.insertEnd(_transactions, result);
+        return _transactions.insertEnd(database.createTransaction(this, isolationLevel, defaultTransaction));
     }
 
     void disposeCommands(bool disposing) nothrow @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
-        while (_commands !is null)
-        {
-            auto t = _commands;
-            // Must unhook before calling dispose
-            DLinkCommandLastFunctions.remove(_commands, t);
-            t.disposal(disposing);
-        }
+        while (!_commands.empty)
+            _commands.remove(_commands.last).disposal(disposing);
     }
 
     void disposeTransactions(bool disposing) nothrow @safe
@@ -1126,13 +1116,8 @@ protected:
         version (TraceFunction) dgFunctionTrace();
 
         _defaultTransaction = null;
-        while (_transactions !is null)
-        {
-            auto t = _transactions;
-            // Must unhook before calling dispose
-            DLinkTransactionLastFunctions.remove(_transactions, t);
-            t.disposal(disposing);
-        }
+        while (!_transactions.empty)
+            _transactions.remove(_transactions.last).disposal(disposing);
     }
 
     final void doBeginStateChange(DbConnectionState newState)
@@ -1151,28 +1136,12 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        void doCloseSafe() nothrow @trusted
-        {
-            try
-            {
-                doClose();
-            }
-            catch (Exception e)
-            {
-                //todo log
-            }
-        }
-
         beginStateChanges.clear();
         endStateChanges.clear();
+        disposeTransactions(disposing);
+        disposeCommands(disposing);
         serverInfo = null;
         _list = null;
-
-        disposeCommands(disposing);
-        disposeTransactions(disposing);
-        if (state == DbConnectionState.open)
-            doCloseSafe();
-
         _connectionStringBuilder = null;
         _database = null;
         _handle.reset();
@@ -1197,7 +1166,7 @@ protected:
         if (!disposingState)
         {
             if (value._prev !is null || value._next !is null)
-                DLinkCommandLastFunctions.remove(_commands, value);
+                _commands.remove(value);
         }
     }
 
@@ -1211,8 +1180,16 @@ protected:
                 _defaultTransaction = null;
 
             if (value._prev !is null || value._next !is null)
-                DLinkTransactionLastFunctions.remove(_transactions, value);
+                _transactions.remove(value);
         }
+    }
+
+    final void rollbackTransactions(bool disposing) @safe
+    {
+        version (TraceFunction) dgFunctionTrace();
+
+        foreach (t; _transactions[])
+            t.rollback();
     }
 
     void setConnectionString(string value) nothrow @safe
@@ -1225,10 +1202,6 @@ protected:
     abstract void doCancelCommand();
     abstract void doClose();
     abstract void doOpen();
-
-private:
-    mixin DLinkFunctions!(DbCommand) DLinkCommandLastFunctions;
-    mixin DLinkFunctions!(DbTransaction) DLinkTransactionLastFunctions;
 
 public:
     /**
@@ -1261,21 +1234,19 @@ protected:
     DbConnectionState _state;
 
 private:
-    DbCommand _commands;
+    DLinkDbCommandTypes.DLinkList _commands;
     DbConnectionStringBuilder _connectionStringBuilder;
-    DbTransaction _transactions;
+    DLinkDbTransactionTypes.DLinkList _transactions;
 
 private:
     DbConnection _next;
     DbConnection _prev;
 }
 
+mixin DLinkTypes!(DbConnection) DLinkDbConnectionTypes;
+
 class DbConnectionList : DbDisposableObject
 {
-public:
-    // Range
-    mixin DLinkTypes!(DbConnection) DLinkDbConnectionTypes;
-
 public:
     this(DbDatabase database, DbConnectionPool pool)
     {
@@ -1283,19 +1254,18 @@ public:
         this._pool = pool;
     }
 
-    final DLinkDbConnectionTypes.Range opSlice() nothrow @safe
+    final DLinkDbConnectionTypes.DLinkRange opSlice() nothrow @safe
     {
-        return DLinkDbConnectionTypes.Range(_connections);
+        return _connections[];
     }
 
     final DbConnection acquire(out bool created) @safe
     {
-        if (_connections !is null)
+        if (!_connections.empty)
         {
             --_length;
             created = false;
-            auto result = _connections;
-            DLinkConnectionLastFunctions.remove(_connections, result);
+            auto result = _connections.remove(_connections.last);
             result.doPool(false);
             return result;
         }
@@ -1337,7 +1307,7 @@ public:
             throw e; // rethrow
         }
         ++_length;
-        DLinkConnectionLastFunctions.insertEnd(_connections, item);
+        _connections.insertEnd(item);
 
         return null;
     }
@@ -1398,23 +1368,16 @@ protected:
 
     override void doDispose(bool disposing) nothrow @safe
     {
-        while (_connections !is null)
-        {
-            auto t = _connections;
-            DLinkConnectionLastFunctions.remove(_connections, t);
-            t.disposal(disposing);
-        }
+        while (!_connections.empty)
+            _connections.remove(_connections.last).disposal(disposing);
         _length = 0;
         _database = null;
         _pool = null;
     }
 
-private:
-    mixin DLinkFunctions!(DbConnection) DLinkConnectionLastFunctions;
-
 protected:
     string _connectionString;
-    DbConnection _connections;
+    DLinkDbConnectionTypes.DLinkList _connections;
     DbDatabase _database;
     DbConnectionPool _pool;
     size_t _length;
@@ -2421,12 +2384,16 @@ public:
         this._command = command;
     }
 
+    version (none)
     ~this()
     {
         version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
 
-        _disposing = byte.min; // Set to min avoid ++ then --
-        doDispose(false);
+        if (_disposing == 0)
+        {
+            _disposing = byte.min; // Set to indicate in destructor
+            doDispose(false);
+        }
 
         version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
     }
@@ -2444,27 +2411,22 @@ public:
 
     final void disposal(bool disposing) nothrow @safe
     {
-        if (!disposing)
-            _disposing = byte.min; // Set to min avoid ++ then --
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
 
         _disposing++;
-        scope (exit)
-            _disposing--;
-
         doDispose(disposing);
+
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
     }
 
     final void dispose() nothrow @safe
     {
-        version (TraceFunction)
-        if (disposingState != DisposableState.destructing)
-            dgFunctionTrace();
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
 
         _disposing++;
-        scope (exit)
-            _disposing--;
-
         doDispose(true);
+
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
     }
 
     @property final DbCommand command() nothrow @safe
@@ -2597,12 +2559,16 @@ public:
         this._database = database;
     }
 
+    version (none)
     ~this()
     {
         version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
 
-        _disposing = byte.min; // Set to min avoid ++ then --
-        doDispose(false);
+        if (_disposing == 0)
+        {
+            _disposing = byte.min; // Set to indicate in destructor
+            doDispose(false);
+        }
 
         version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
     }
@@ -2654,27 +2620,22 @@ public:
 
     final void disposal(bool disposing) nothrow @safe
     {
-        if (!disposing)
-            _disposing = byte.min; // Set to min avoid ++ then --
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
 
         _disposing++;
-        scope (exit)
-            _disposing--;
-
         doDispose(disposing);
+
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
     }
 
     final void dispose() nothrow @safe
     {
-        version (TraceFunction)
-        if (disposingState != DisposableState.destructing)
-            dgFunctionTrace();
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
 
         _disposing++;
-        scope (exit)
-            _disposing--;
-
         doDispose(true);
+
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
     }
 
     final DbIdentitier generateParameterName() nothrow @safe
@@ -3042,9 +3003,7 @@ private:
 
     void doDetach(bool disposing) nothrow @safe
     {
-        version (TraceFunction)
-        if (disposing)
-            dgFunctionTrace();
+        version (TraceFunction) dgFunctionTrace();
 
         _command.removeReader(this);
         _command = null;
@@ -3296,6 +3255,13 @@ protected:
         retaining
     }
 
+    final bool canRetain() const nothrow @safe
+    {
+        return isRetaining
+            && disposingState == DisposableState.none
+            && _connection.state == DbConnectionState.open;
+    }
+
     final void checkState(DbTransactionState checkingState,
         string callerName = __FUNCTION__) @safe
     {
@@ -3332,25 +3298,11 @@ protected:
 
     override void doDispose(bool disposing) nothrow @safe
     {
-        if (state == DbTransactionState.active)
-        {
-            try
-            {
-                () @trusted
-                {
-                    if (autoCommit)
-                        doCommit(disposing);
-                    else
-                        doRollback(disposing);
-                } ();
-            }
-            catch (Exception)
-            {
-                //todo log
-            }
-        }
+        assert(state != DbTransactionState.active);
 
         complete(disposing);
+        _next = null;
+        _prev = null;
     }
 
     void doOptionChanged(string name) nothrow @safe
@@ -3375,6 +3327,7 @@ private:
     DbTransaction _prev;
 }
 
+mixin DLinkTypes!(DbTransaction) DLinkDbTransactionTypes;
 
 // Any below codes are private
 private:

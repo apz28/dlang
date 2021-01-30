@@ -25,12 +25,8 @@ public:
     const(ubyte)[] privateKey() const;
     const(ubyte)[] publicKey() const;
     const(ubyte)[] sessionKey() const;
-
-    version (unittest)
-    {
-        const(ubyte)[] serverPublicKey() const;
-        const(ubyte)[] serverSalt() const;
-    }
+    const(ubyte)[] serverPublicKey() const;
+    const(ubyte)[] serverSalt() const;
 
     @property bool isSymantic() const;
     @property string name() const;

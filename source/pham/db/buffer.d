@@ -34,19 +34,14 @@ class DbBuffer : DbDisposableObject
 @safe:
 
 public:
-    final void insertEnd(ref DbBuffer head) nothrow
+    IbReadBuffer isReadBuffer() nothrow pure
     {
-        DLinkDbBufferFunctions.insertEnd(head, this);
+        return null;
     }
 
-    final DbBuffer removeHead(ref DbBuffer head) nothrow
-    in
+    IbWriteBuffer isWriteBuffer() nothrow pure
     {
-        assert(head !is null);
-    }
-    do
-    {
-        return DLinkDbBufferFunctions.remove(head, head);
+        return null;
     }
 
 protected:
@@ -58,9 +53,6 @@ protected:
         _prev = null;
     }
 
-private:
-    mixin DLinkFunctions!(DbBuffer) DLinkDbBufferFunctions;
-
 protected:
     enum size_t alignValue = 32;
     ubyte[] _data;
@@ -71,13 +63,18 @@ private:
     DbBuffer _prev;
 }
 
+mixin DLinkTypes!(DbBuffer) DLinkDbBufferTypes;
+
 interface IbReadBuffer
 {
+@safe:
+
     IbReadBuffer advance(size_t nBytes);
     IbReadBuffer fill(const size_t additionalBytes, bool mustSatisfied);
     ubyte[] peekBytes() nothrow;
     IbReadBuffer reset() nothrow;
     size_t search(ubyte searchedByte) nothrow;
+    DbBuffer self() nothrow pure;
 
     bool readBool();
     ubyte[] readBytes(size_t nBytes);
@@ -131,6 +128,11 @@ public:
         return this;
     }
 
+    final override IbReadBuffer isReadBuffer() nothrow pure
+    {
+        return this;
+    }
+
     final override ubyte[] peekBytes() nothrow
     {
         return _data[_offset.._offset + length];
@@ -156,6 +158,11 @@ public:
                 endOffset++;
         }
         return endOffset - _offset;
+    }
+
+    final override DbBuffer self() nothrow pure
+    {
+        return this;
     }
 
     final override bool readBool()
@@ -316,7 +323,7 @@ public:
         return _offset >= _maxLength ? 0 : _maxLength - _offset;
     }
 
-    @property size_t offset() const nothrow
+    @property final size_t offset() const nothrow
     {
         return _offset;
     }
@@ -324,8 +331,8 @@ public:
 protected:
     override void doDispose(bool disposing) nothrow
     {
-        super.doDispose(disposing);
         _maxLength = 0;
+        super.doDispose(disposing);
     }
 
     void ensureAvailable(size_t nBytes) @trusted
@@ -386,11 +393,14 @@ protected:
 
 interface IbWriteBuffer
 {
+@safe:
+
     void flush();
     version (TraceFunction) string logData() nothrow;
     ubyte[] peekBytes() nothrow;
     IbWriteBuffer reset() nothrow;
     IbWriteBuffer rewriteInt32(int32 v, size_t offset) nothrow;
+    DbBuffer self() nothrow pure;
 
     IbWriteBuffer writeBool(bool v) nothrow;
     IbWriteBuffer writeBytes(scope const(ubyte)[] v) nothrow;
@@ -429,6 +439,11 @@ public:
         reset();
     }
 
+    final override IbWriteBuffer isWriteBuffer() nothrow pure
+    {
+        return this;
+    }
+
     version (TraceFunction)
     final override string logData() nothrow @trusted
     {
@@ -463,6 +478,11 @@ public:
             this._offset = saveOffset;
 
         return writeInt32(v);
+    }
+
+    final override DbBuffer self() nothrow pure
+    {
+        return this;
     }
 
     final override IbWriteBuffer writeBool(bool v) nothrow
@@ -616,7 +636,7 @@ public:
         return _offset;
     }
 
-    @property size_t offset() const nothrow
+    @property final size_t offset() const nothrow
     {
         return _offset;
     }
@@ -684,7 +704,10 @@ unittest // DbWriteBuffer & DbReadBuffer
     writer.writeFloat64(double.max);
     writer.writeChars(chars);
 
-    ubyte[] bytes = writer.peekBytes();
+    ubyte[] bytes = writer.peekBytes().dup;
+    writer.dispose();
+    writer = null;
+
     auto reader = new DbReadBuffer!(Endian.littleEndian)(bytes);
     assert(reader.readInt8() == byte.min);
     assert(reader.readInt8() == 8);
@@ -706,4 +729,6 @@ unittest // DbWriteBuffer & DbReadBuffer
     assert(reader.readFloat64() == double.max);
     assert(reader.readChars(chars.length) == chars);
     assert(reader.empty);
+    reader.dispose();
+    reader = null;
 }

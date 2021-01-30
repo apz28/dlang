@@ -11,7 +11,6 @@
 
 module pham.db.fbauth;
 
-version (unittest) import pham.utl.utltest;
 import pham.db.auth;
 
 nothrow @safe:
@@ -25,6 +24,9 @@ public:
 
     bool parseServerAuthData(ubyte[] serverAuthData, ref ubyte[] serverSalt, ref ubyte[] serverPublicKey)
     {
+        version (TraceAuth)
+            auto serverAuthDataOrg = serverAuthData;
+
         enum minLength = 3; // two leading size data + at least 1 byte data
 
         // Min & Max length?
@@ -47,44 +49,41 @@ public:
 
         serverPublicKey = serverAuthData[2..keyLength + 2];
 
-        version (unittest)
-        {
-            this._serverPublicKey = serverPublicKey.dup;
-            this._serverSalt = serverSalt.dup;
-        }
+        this._serverPublicKey = serverPublicKey;
+        this._serverSalt = serverSalt;
 
-        //version (TraceFunction) dgFunctionTrace("serverSalt.length=", serverSalt.length, ", serverPublicKey.length=", serverPublicKey.length);
+        version (TraceAuth)
+        {
+            import pham.utl.utltest;
+            dgFunctionTrace("keyLength=", keyLength,
+                ", saltLength=", saltLength,
+                ", serverAuthDataLength=", serverAuthDataOrg.length,
+                ", serverPublicKey=", serverPublicKey.dgToString(),
+                ", serverSalt=", serverSalt.dgToString(),
+                ", serverAuthData=", serverAuthDataOrg.dgToString());
+        }
 
         return true;
     }
 
-    version (unittest)
+    final override const(ubyte)[] serverPublicKey() const
     {
-        final override const(ubyte)[] serverPublicKey() const
-        {
-            return _serverPublicKey;
-        }
+        return _serverPublicKey;
+    }
 
-        final override const(ubyte)[] serverSalt() const
-        {
-            return _serverSalt;
-        }
+    final override const(ubyte)[] serverSalt() const
+    {
+        return _serverSalt;
     }
 
 protected:
-    override void doDispose(bool disposing) nothrow @safe
+    override void doDispose(bool disposing) nothrow
     {
-        version (unittest)
-        {
-            _serverPublicKey = null;
-            _serverSalt = null;
-        }
+        _serverPublicKey[] = 0;
+        _serverSalt[] = 0;
     }
 
 private:
-    version (unittest)
-    {
-        ubyte[] _serverPublicKey;
-        ubyte[] _serverSalt;
-    }
+    ubyte[] _serverPublicKey;
+    ubyte[] _serverSalt;
 }

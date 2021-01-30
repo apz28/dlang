@@ -846,9 +846,7 @@ protected:
 
     final void disposeProtocol(bool disposing) nothrow @safe
     {
-        version (TraceFunction)
-        if (disposing)
-            dgFunctionTrace();
+        version (TraceFunction) dgFunctionTrace();
 
         if (_protocol !is null)
         {
@@ -871,16 +869,10 @@ protected:
         version (TraceFunction) dgFunctionTrace();
 
         _largeBlobManager.dispose(false);
-
-        scope (exit)
-        {
-            disposeProtocol(true);
-            //todo disposeSocketBufferFilters(true);
-            doCloseSocket();
-        }
-
         if (_protocol !is null && state == DbConnectionState.open && socketActive)
             _protocol.disconnectWrite();
+        disposeProtocol(false);
+        super.doClose();
     }
 
     final override void doOpen()
@@ -1445,11 +1437,19 @@ WHERE INT_FIELD = @INT_FIELD
 version (UnitTestPGDatabase)
 unittest // PgConnection
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n*********************************");
     dgWriteln("unittest db.pgdatabase.PgConnection");
 
     auto connection = createTestConnection();
+    scope (exit)
+    {
+        connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
+    }
     assert(connection.state == DbConnectionState.closed);
 
     connection.open();
@@ -1462,13 +1462,20 @@ unittest // PgConnection
 version (UnitTestPGDatabase)
 unittest // PgTransaction
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n**********************************");
     dgWriteln("unittest db.pgdatabase.PgTransaction");
 
     auto connection = createTestConnection();
     scope (exit)
+    {
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
+    }
     connection.open();
 
     auto transaction = connection.createTransaction(DbIsolationLevel.readUncommitted);
@@ -1494,11 +1501,14 @@ unittest // PgTransaction
     transaction = connection.defaultTransaction();
     transaction.start();
     transaction.rollback();
+
+    transaction = null;
 }
 
 version (UnitTestPGDatabase)
 unittest // PgCommand.DDL
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n**********************************");
     dgWriteln("unittest db.pgdatabase.PgCommand.DDL");
@@ -1509,13 +1519,21 @@ unittest // PgCommand.DDL
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
+    {
         command.dispose();
+        command = null;
+    }
 
     command.commandDDL = q"{CREATE TABLE create_then_drop (a INT NOT NULL PRIMARY KEY, b VARCHAR(100))}";
     command.executeNonQuery();
@@ -1529,6 +1547,7 @@ unittest // PgCommand.DDL
 version (UnitTestPGDatabase)
 unittest // PgCommand.DML
 {
+    import core.memory;
     import std.math;
     import pham.utl.utltest;
     dgWriteln("\n**************************************************");
@@ -1540,13 +1559,21 @@ unittest // PgCommand.DML
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
+    {
         command.dispose();
+        command = null;
+    }
 
     command.commandText = simpleSelectCommandText();
     auto reader = command.executeReader();
@@ -1610,6 +1637,7 @@ unittest // PgCommand.DML
 version (UnitTestPGDatabase)
 unittest // PgCommand.DML
 {
+    import core.memory;
     import std.math;
     import pham.utl.utltest;
     dgWriteln("\n*****************************************************");
@@ -1621,13 +1649,21 @@ unittest // PgCommand.DML
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
+    {
         command.dispose();
+        command = null;
+    }
 
     command.commandText = parameterSelectCommandText();
     command.parameters.add("INT_FIELD", DbType.int32).value = 1;
@@ -1698,9 +1734,10 @@ unittest // PgCommand.DML
 version (UnitTestPGDatabase)
 unittest // PgCommand.DML
 {
+    import core.memory;
     import std.math;
     import pham.utl.utltest;
-    dgWriteln("\n**************************************************");
+    dgWriteln("\n********************************************");
     dgWriteln("unittest db.pgdatabase.PgCommand.DML - pg_proc");
 
     bool failed = true;
@@ -1709,13 +1746,21 @@ unittest // PgCommand.DML
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
+    {
         command.dispose();
+        command = null;
+    }
 
     command.commandText = q"{
 SELECT pg_proc.proname, pg_proc.pronargs, pg_proc.proargnames, pg_proc.proargtypes, pg_proc.proargmodes, pg_proc.prorettype
@@ -1748,6 +1793,7 @@ ORDER BY pg_proc.proname
 version (UnitTestPGDatabase)
 unittest // PgLargeBlob
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n********************************");
     dgWriteln("unittest db.pgdatabase.PgLargeBlob");
@@ -1758,7 +1804,12 @@ unittest // PgLargeBlob
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
     }
     connection.open();
 
@@ -1767,7 +1818,10 @@ unittest // PgLargeBlob
     auto transaction = connection.createTransaction();
     transaction.start();
     scope (failure)
-        transaction.rollback();
+    {
+        if (transaction)
+            transaction.rollback();
+    }
 
     auto blob = PgLargeBlob(connection);
     blob.create();
@@ -1794,6 +1848,7 @@ unittest // PgLargeBlob
 
     transaction.commit();
     transaction.dispose();
+    transaction = null;
 
     failed = false;
 }
@@ -1801,6 +1856,7 @@ unittest // PgLargeBlob
 version (UnitTestPGDatabase)
 unittest // PgCommand.DML
 {
+    import core.memory;
     import pham.utl.utltest;
     dgWriteln("\n******************************************");
     dgWriteln("unittest db.pgdatabase.PgCommand.DML - Array");
@@ -1816,7 +1872,12 @@ unittest // PgCommand.DML
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
     }
     connection.open();
 
@@ -1869,6 +1930,7 @@ unittest // PgCommand.DML
 version (UnitTestPGDatabase)
 unittest // PgCommand.getExecutionPlan
 {
+    import core.memory;
     import std.algorithm.searching : startsWith;
     import std.array : split;
     import pham.utl.utltest;
@@ -1881,13 +1943,21 @@ unittest // PgCommand.getExecutionPlan
     {
         if (failed)
             dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
         connection.dispose();
-    }
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
+   }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
+    {
         command.dispose();
+        command = null;
+    }
 
     command.commandText = simpleSelectCommandText();
 

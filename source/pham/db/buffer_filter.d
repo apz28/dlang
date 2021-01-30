@@ -103,21 +103,19 @@ protected:
         errorCode = 0;
     }
 
+    override void doDispose(bool disposing)
+    {
+        _next = null;
+        _outputBuffer = null;
+        errorMessage = null;
+        errorCode = 0;
+    }
+
     ubyte[] increaseOutputBuffer(size_t nBytes) return
     {
         if (_outputBuffer.length < nBytes)
             _outputBuffer.length = nBytes;
         return _outputBuffer;
-    }
-
-    override void doDispose(bool disposing)
-    {
-        version (TraceFunction) dgFunctionTrace();
-
-        _next = null;
-        _outputBuffer = null;
-
-        clearError();
     }
 
 protected:

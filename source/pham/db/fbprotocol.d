@@ -880,11 +880,6 @@ public:
 					auto isAuthenticated = reader.readBool();
 					_serverAuthKey = reader.readBytes();
 
-                    version (TraceFunction) dgFunctionTrace("isAuthenticated=", isAuthenticated,
-                        ", acceptPluginName=", acceptPluginName,
-                        ", serverData=", bytesToHexs(serverAuthData),
-                        ", serverKey=", bytesToHexs(_serverAuthKey));
-
                     auto useCSB = connection.fbConnectionStringBuilder;
 
 					if (!isAuthenticated || op == FbIsc.op_cond_accept)
@@ -1572,7 +1567,7 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace("sessionKey=", _auth.sessionKey());
 
-        auto keyParameters = CipherParameters(_auth.sessionKey());
+        auto keyParameters = CipherParameters(_auth.sessionKey().dup);
 		auto encryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.write)(keyParameters);
 		auto decryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.read)(keyParameters);
 		connection.chainBufferFilters(decryptor, encryptor);
@@ -1704,9 +1699,11 @@ protected:
             _auth.disposal(disposing);
             _auth = null;
         }
-        _authData = null;
-        _serverAuthKey = null;
+        _authData[] = 0;
+        _serverAuthKey[] = 0;
         _connection = null;
+        _serverMinType.reset();
+        _serverVersion.reset();
     }
 
     final int getCryptedConnectionCode() nothrow @safe

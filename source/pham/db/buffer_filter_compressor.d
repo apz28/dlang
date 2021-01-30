@@ -17,7 +17,7 @@ import pham.db.buffer_filter;
 
 nothrow @safe:
 
-abstract class DbBufferFilterCompressor(DbBufferFilterKind Kind) : DbBufferFilter
+class DbBufferFilterCompressor(DbBufferFilterKind Kind) : DbBufferFilter
 {
 nothrow @safe:
 
@@ -176,4 +176,10 @@ unittest // DbBufferFilterCompressorZip
     compress.process(original, compressed);
     uncompress.process(compressed, uncompressed);
     assert(original == uncompressed);
+
+    compress.dispose();
+    compress = null;
+
+    uncompress.dispose();
+    uncompress = null;
 }

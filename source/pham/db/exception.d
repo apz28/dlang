@@ -13,6 +13,7 @@ module pham.db.exception;
 
 import std.format : format;
 
+version (TraceFunction) import pham.utl.utltest;
 import pham.db.message;
 
 class DbException : Exception
@@ -22,6 +23,8 @@ class DbException : Exception
 public:
     this(string message, int code, int socketCode, int vendorCode, Exception next = null)
     {
+        version (TraceFunction) dgFunctionTrace();
+
         if (code)
             message ~= "\n" ~ format(DbMessage.eErrorCode, code);
 
@@ -33,6 +36,8 @@ public:
 
     override string toString() @trusted
     {
+        version (TraceFunction) dgFunctionTrace();
+
         auto result = super.toString();
 
         auto e = next;

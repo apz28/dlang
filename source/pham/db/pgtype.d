@@ -13,6 +13,7 @@ module pham.db.pgtype;
 
 import std.conv : to;
 
+version (TraceFunction) import pham.utl.utltest;
 import pham.db.message;
 import pham.db.type;
 import pham.db.pgoid;
@@ -281,6 +282,8 @@ public:
 
     string errorString() const
     {
+        version (TraceFunction) dgFunctionTrace();
+
         auto result = severity ~ ' ' ~ sqlState ~ ": " ~ message;
 
         auto detail = PgDiag.messageDetail in typeValues;

@@ -294,31 +294,33 @@ public:
     {
         version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
 
-        _disposing = byte.min; // Set to min avoid ++ then --
-        doDispose(false);
+        if (_disposing == 0)
+        {
+            _disposing = byte.min; // Set to indicate in destructor
+            doDispose(false);
+        }
 
         version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
     }
 
     final void disposal(bool disposing)
     {
-        if (!disposing)
-            _disposing = byte.min; // Set to min avoid ++ then --
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
 
         _disposing++;
-        scope (exit)
-            _disposing--;
-
         doDispose(disposing);
+
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
     }
 
     final void dispose()
     {
-        _disposing++;
-        scope (exit)
-            _disposing--;
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
 
+        _disposing++;
         doDispose(true);
+
+        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
     }
 
     @property final DisposableState disposingState() const

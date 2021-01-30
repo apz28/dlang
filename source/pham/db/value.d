@@ -410,8 +410,8 @@ public:
 
     void dispose(bool disposing = true) nothrow @safe
     {
-        clearItems(pools);
         clearItems(head);
+        clearItems(pools);
         tail = null;
         _length = 0;
     }
