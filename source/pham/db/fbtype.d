@@ -112,6 +112,73 @@ immutable DbTypeInfo[] fbNativeTypes = [
 
 immutable DbTypeInfo*[int32] fbIscTypeToDbTypeInfos;
 
+struct FbIscAcceptResponse
+{
+nothrow @safe:
+
+public:
+    this(int32 version_, int32 architecture, int32 acceptType)
+    {
+        this.version_ = version_;
+        this.architecture = architecture;
+        this.acceptType = acceptType;
+    }
+
+    bool canCompress() const
+    {
+        return (acceptType & FbIsc.ptype_compress_flag) != 0;
+    }
+
+    static int32 normalizeVersion(int32 version_) pure
+    {
+        return (version_ < 0)
+		    ? FbIsc.protocol_flag | cast(ushort)(version_ & FbIsc.protocol_mask)
+            : version_;
+    }
+
+public:
+    int32 acceptType;
+    int32 architecture;
+    int32 version_;
+}
+
+struct FbIscAcceptDataResponse
+{
+nothrow @safe:
+
+public:
+    this(int32 version_, int32 architecture, int32 acceptType, ubyte[] authData,
+        string authName, int32 authenticated, ubyte[] authKey)
+    {
+        this.version_ = version_;
+        this.architecture = architecture;
+        this.acceptType = acceptType;
+        this.authData = authData;
+        this.authName = authName;
+        this.authenticated = authenticated;
+        this.authKey = authKey;
+    }
+
+    @property bool canCompress() const
+    {
+        return (acceptType & FbIsc.ptype_compress_flag) != 0;
+    }
+
+    @property bool isAuthenticated() const
+    {
+        return authenticated == 1;
+    }
+
+public:
+    ubyte[] authData;
+    ubyte[] authKey;
+    string authName;
+    int32 acceptType;
+    int32 architecture;
+    int32 authenticated;
+    int32 version_;
+}
+
 struct FbIscArrayDescriptor
 {
 nothrow @safe:
@@ -217,6 +284,28 @@ public:
     int32 maxSegment;
     int32 segmentCount;
     int32 length;
+}
+
+alias FbIscCondAcceptResponse = FbIscAcceptDataResponse;
+
+struct FbIscCondAuthResponse
+{
+nothrow @safe:
+
+public:
+    this(ubyte[] data, string name, ubyte[] list, ubyte[] key) pure
+    {
+        this.data = data;
+        this.name = name;
+        this.list = list;
+        this.key = key;
+    }
+
+public:
+    ubyte[] data;
+    ubyte[] key;
+    ubyte[] list;
+    string name;
 }
 
 struct FbIscCryptKeyCallbackResponse
@@ -820,7 +909,7 @@ public:
     int32 sqlCode;
 }
 
-struct FbIscTrustedAuthenticationResponse
+struct FbIscTrustedAuthResponse
 {
 nothrow @safe:
 
@@ -832,6 +921,7 @@ public:
 
 public:
     ubyte[] data;
+
 }
 
 struct FbCommandPlanInfo

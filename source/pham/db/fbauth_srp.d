@@ -26,16 +26,17 @@ class FbAuthSrp : FbAuth
 nothrow @safe:
 
 public:
-    this()
+    this(DigestAlgorithm digestAlgorithm)
     {
-        this._authClient = new AuthClient(AuthParameters(DigestAlgorithm.sha1, fbPrime), digitsToBigInteger(fbK));
+        this._authClient = new AuthClient(AuthParameters(digestAlgorithm, fbPrime), digitsToBigInteger(K));
+        setName(digestAlgorithm);
     }
 
     version (unittest)
-    this(BigInteger ephemeralPrivate)
+    this(DigestAlgorithm digestAlgorithm, BigInteger ephemeralPrivate)
     {
-        this._authClient = new AuthClient(AuthParameters(DigestAlgorithm.sha1, fbPrime),
-            digitsToBigInteger(fbK), ephemeralPrivate);
+        this._authClient = new AuthClient(AuthParameters(digestAlgorithm, fbPrime), digitsToBigInteger(K), ephemeralPrivate);
+        setName(digestAlgorithm);
 
         version (TraceAuth)
         {
@@ -48,15 +49,21 @@ public:
         }
     }
 
+    final override bool canCryptedConnection() const pure
+    {
+        return true;
+    }
+
     final override ubyte[] getAuthData(scope const(char)[] userName, scope const(char)[] userPassword, ubyte[] serverAuthData)
     {
         ubyte[] serverAuthSalt, serverAuthPublicKey;
         if (!parseServerAuthData(serverAuthData, serverAuthSalt, serverAuthPublicKey))
             return null;
 
+        auto normalizedUserName = normalizeUserName(userName);
         auto serverPublicKey = getServerAuthPublicKey(serverAuthPublicKey);
-        _premasterKey = _authClient.calculatePremasterKey(userName, userPassword, serverAuthSalt, serverPublicKey);
-        _proof = calculateProof(userName, userPassword, serverAuthSalt, serverPublicKey);
+        _premasterKey = _authClient.calculatePremasterKey(normalizedUserName, userPassword, serverAuthSalt, serverPublicKey);
+        _proof = calculateProof(normalizedUserName, userPassword, serverAuthSalt, serverPublicKey);
         return cast(ubyte[])bytesToHexs(_proof);
     }
 
@@ -67,9 +74,9 @@ public:
 
     final override size_t maxSizeServerAuthData(out size_t maxSaltLength) const pure
     {
-        maxSaltLength = fbSaltLength * 2;
-        // ((fbSaltLength + 1) * 2) + ((fbKeyLength + 1) * 2)
-        return (fbSaltLength + fbKeyLength + 2) * 2;  //+2 for leading size data
+        maxSaltLength = saltLength * 2;
+        // ((saltLength + 1) * 2) + ((keyLength + 1) * 2)
+        return (saltLength + keyLength + 2) * 2;  //+2 for leading size data
     }
 
     final override const(ubyte)[] privateKey() const
@@ -94,7 +101,7 @@ public:
 
     @property final override string name() const
     {
-        return "Srp";
+        return _name;
     }
 
     @property final override string sessionKeyName() const
@@ -103,6 +110,42 @@ public:
     }
 
 protected:
+    override void doDispose(bool disposing) nothrow @safe
+    {
+        if (_authClient !is null)
+        {
+            _authClient.disposal(disposing);
+            _authClient = null;
+        }
+        _premasterKey.dispose(disposing);
+        _proof[] = 0;
+        _sessionKey[] = 0;
+        super.doDispose(disposing);
+    }
+
+    static string getName(DigestAlgorithm digestAlgorithm) pure
+    {
+        final switch (digestAlgorithm)
+        {
+            case DigestAlgorithm.md5:
+                return "md5";
+            case DigestAlgorithm.sha1:
+                return "Srp";
+            case DigestAlgorithm.sha256:
+                return "Srp256";
+            case DigestAlgorithm.sha384:
+                return "Srp384";
+            case DigestAlgorithm.sha512:
+                return "Srp512";
+        }
+    }
+
+    final void setName(DigestAlgorithm digestAlgorithm)
+    {
+        _name = getName(digestAlgorithm);
+    }
+
+private:
     final ubyte[] calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] salt, const BigInteger serverPublicKey)
 	{
@@ -145,24 +188,61 @@ protected:
         return M;
     }
 
-    override void doDispose(bool disposing) nothrow @safe
-    {
-        if (_authClient !is null)
-        {
-            _authClient.disposal(disposing);
-            _authClient = null;
-        }
-        _premasterKey.dispose(disposing);
-        _proof[] = 0;
-        _sessionKey[] = 0;
-        super.doDispose(disposing);
-    }
-
 private:
+    static immutable K = "1277432915985975349439481660349303019122249719989";
+    static immutable N = "161854874649776085868045952190159031555772097014435707776279513538616175047026058065927714606879676219064271341818754038806823814541886861147177045257236811627035155212310813305487929926508522581710604504792711726648563877865328333166885998671854094528177699206377434633696300213499023964016345755132798642663";
+    enum keyLength = 128;
+    enum saltLength = 32;
+
     AuthClient _authClient;
     BigInteger _premasterKey;
+    string _name;
     ubyte[] _proof;
     ubyte[] _sessionKey;
+}
+
+class FbAuthSrpSHA1 : FbAuthSrp
+{
+nothrow @safe:
+
+public:
+    this()
+    {
+        super(DigestAlgorithm.sha1);
+    }
+}
+
+class FbAuthSrpSHA256 : FbAuthSrp
+{
+nothrow @safe:
+
+public:
+    this()
+    {
+        super(DigestAlgorithm.sha256);
+    }
+}
+
+class FbAuthSrpSHA384 : FbAuthSrp
+{
+nothrow @safe:
+
+public:
+    this()
+    {
+        super(DigestAlgorithm.sha384);
+    }
+}
+
+class FbAuthSrpSHA512 : FbAuthSrp
+{
+nothrow @safe:
+
+public:
+    this()
+    {
+        super(DigestAlgorithm.sha512);
+    }
 }
 
 
@@ -170,10 +250,33 @@ private:
 private:
 
 
-enum fbK = "1277432915985975349439481660349303019122249719989";
-enum fbN = "161854874649776085868045952190159031555772097014435707776279513538616175047026058065927714606879676219064271341818754038806823814541886861147177045257236811627035155212310813305487929926508522581710604504792711726648563877865328333166885998671854094528177699206377434633696300213499023964016345755132798642663";
-enum fbKeyLength = 128;
-enum fbSaltLength = 32;
+shared static this()
+{
+    FbAuth.registerAuthMap(FbAuthMap(FbAuthSrp.getName(DigestAlgorithm.sha1), &createSrpSHA1));
+    FbAuth.registerAuthMap(FbAuthMap(FbAuthSrp.getName(DigestAlgorithm.sha256), &createSrpSHA256));
+    FbAuth.registerAuthMap(FbAuthMap(FbAuthSrp.getName(DigestAlgorithm.sha384), &createSrpSHA384));
+    FbAuth.registerAuthMap(FbAuthMap(FbAuthSrp.getName(DigestAlgorithm.sha512), &createSrpSHA512));
+}
+
+FbAuth createSrpSHA1()
+{
+    return new FbAuthSrpSHA1();
+}
+
+FbAuth createSrpSHA256()
+{
+    return new FbAuthSrpSHA256();
+}
+
+FbAuth createSrpSHA384()
+{
+    return new FbAuthSrpSHA384();
+}
+
+FbAuth createSrpSHA512()
+{
+    return new FbAuthSrpSHA512();
+}
 
 immutable PrimeGroup fbPrime;
 
@@ -185,8 +288,8 @@ shared static this()
          2C3E1E9C E8F0A8BE A6CB13CD 29DDEBF7 A96D4A93 B55D488D F099A15C 89DCB064
          0738EB2C BDD9A8F7 BAB561AB 1B0DC1C6 CDABF303 264A08D1 BCA932D1 F1EE428B
          619D970F 342ABA9A 65793B8B 2F041AE5 364350C1 6F735F56 ECBCA87B D57B29E7",
-        fbSaltLength,
-        fbKeyLength);
+        FbAuthSrp.saltLength,
+        FbAuthSrp.keyLength);
 }
 
 nothrow @safe unittest // PrimeGroup
@@ -194,9 +297,9 @@ nothrow @safe unittest // PrimeGroup
     import pham.utl.utltest;
     dgWriteln("unittest db.fbauth_srp.PrimeGroup");
 
-    assert(fbPrime.N.toString() == fbN);
+    assert(fbPrime.N.toString() == FbAuthSrp.N);
     assert(fbPrime.g.toString() == "2");
-    assert(fbPrime.padSize == fbKeyLength);
+    assert(fbPrime.padSize == FbAuthSrp.keyLength);
 }
 
 version (unittest)
@@ -207,7 +310,7 @@ version (unittest)
     auto testUserName = "SYSDBA";
     auto testUserPassword = "masterkey";
 
-    void testCheck(const(char)[] digitPrivateKey,
+    void testCheckSHA1(const(char)[] digitPrivateKey,
         const(char)[] digitExpectedPublicKey,
         const(char)[] serverHexAuthData,
         const(char)[] expectedHexProof,
@@ -218,7 +321,7 @@ version (unittest)
     {
         auto privateKey = digitsToBigInteger(digitPrivateKey);
         auto serverAuthData = bytesFromHexs(serverHexAuthData);
-        auto client = new FbAuthSrp(privateKey);
+        auto client = new FbAuthSrp(DigestAlgorithm.sha1, privateKey);
         auto proof = client.getAuthData(testUserName, testUserPassword, serverAuthData);
 
         assert(client._authClient.ephemeralPublic.toString() == digitExpectedPublicKey,
@@ -227,7 +330,7 @@ version (unittest)
             "expectedHexServerPublicKey(" ~ to!string(line) ~ "): " ~ bytesToHexs(client.serverPublicKey) ~ " ? " ~ expectedHexServerPublicKey);
         assert(bytesToHexs(client.serverSalt) == expectedHexServerSalt,
             "expectedHexServerSalt(" ~ to!string(line) ~ "): " ~ bytesToHexs(client.serverSalt) ~ " ? " ~ expectedHexServerSalt);
-        auto serverPublicKey = FbAuthSrp.getServerAuthPublicKey(client.serverPublicKey);
+        auto serverPublicKey = FbAuthSrpSHA1.getServerAuthPublicKey(client.serverPublicKey);
         assert(serverPublicKey.toString() == expectedDigitServerPublicKey,
             "expectedDigitServerPublicKey(" ~ to!string(line) ~ "): " ~ serverPublicKey.toString() ~ " ? " ~ expectedDigitServerPublicKey);
         assert(cast(char[])proof == expectedHexProof,
@@ -238,12 +341,12 @@ version (unittest)
     }
 }
 
-nothrow @safe unittest // FbAuthSrp
+nothrow @safe unittest // FbAuthSrpSHA1
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.fbauth_srp.FbAuthSrp");
+    dgWriteln("unittest db.fbauth_srp.FbAuthSrpSHA1");
 
-    testCheck(
+    testCheckSHA1(
         /*digitPrivateKey*/ "264905762513559650080771073972109248903",
         /*digitExpectedPublicKey*/ "20683020699665853524089952214242729025570102331355286896164651135690756690875771106556553465927252488139803212504773984793490588986767319872337272030442815731428721361389194577481083428832457789266753718602245677204767791176476438551576288962556819987630078684529566279195237212923198916151796921004472200100",
         /*serverHexAuthData*/ "400043414137364546413943383943443734433130363737303145434232424332363635393136423946384145383143353537453543333044383939463236434443000141454444374133423436343346313545333943364232453835333941334442464336433231444530444542303632354433463430374337453234384435303343333832413442353646334138323131413943393443433044343137333334303731333636443833323732413031433433463539363846424130423842363446313344334437454637353042354246463536314238414630323645314333434234424345453330413931324541384236374337463935424231363642423331334337374343424533314538334546413438454634464339393442354234383543454137394142333139344343303542303032383739383946423138423539323542",
@@ -252,7 +355,7 @@ nothrow @safe unittest // FbAuthSrp
         /*expectedHexServerPublicKey*/ "41454444374133423436343346313545333943364232453835333941334442464336433231444530444542303632354433463430374337453234384435303343333832413442353646334138323131413943393443433044343137333334303731333636443833323732413031433433463539363846424130423842363446313344334437454637353042354246463536314238414630323645314333434234424345453330413931324541384236374337463935424231363642423331334337374343424533314538334546413438454634464339393442354234383543454137394142333139344343303542303032383739383946423138423539323542",
         /*expectedDigitServerPublicKey*/ "122794481691256336976092504484682159342073724919120490560325361482978121758107403785116811617321015749520781999274663407045551768201722343482077317182691516688493237430938639003996055723030390419024244864218313640971850213487122457987110730006824960154761449277369233202613446097587560665634914036217458037339");
 
-    testCheck(
+    testCheckSHA1(
         /*digitPrivateKey*/ "270171508735298645974390825330911403670",
         /*digitExpectedPublicKey*/ "90601182554443833646240732529595335357718206973596771208700719399606004823938813613233818285223851022085728368640419211513647539405419744687959875936482152456343610020609119700028320381695401814333844670102621019521662806635505332344045469300581224121204528440759728394449869884840811226751426023025109979600",
         /*serverHexAuthData*/ "400043414137364546413943383943443734433130363737303145434232424332363635393136423946384145383143353537453543333044383939463236434443000135464646374337314146444330384434333143443430304438384330424633444545414131353345423135423646383846364342463932424339414538304445383937383946463733323542313236364535343741373645433444424233313542373343324236464545413146303833373944453641353545394542314434354541453544303931304630313630433141414646333330423544454333334646423837303535423641303138434444423534443341373134434345383842433442384338333343444135303938344630463131383234343635444534454636423034423641384638373134304642433738423544454232413037384138384537",

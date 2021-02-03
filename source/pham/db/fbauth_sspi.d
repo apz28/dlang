@@ -11,17 +11,62 @@
 
 module pham.db.fbauth_sspi;
 
+version (Windows):
+
+import core.sys.windows.sspi;
+import std.conv : to;
+import std.string : toStringz;
+
 import pham.db.fbauth;
+
+nothrow @safe:
 
 class FbAuthSspi : FbAuth
 {
 nothrow @safe:
 
 public:
-    final override ubyte[] getAuthData(const(char)[] userName, const(char)[] userPassword, ubyte[] serverAuthData)
+    this(string secPackage = "NTLM", string remotePrincipal = null)
     {
-        //todo
-        return null; //todo
+        this._secPackage = secPackage;
+        this._remotePrincipal = remotePrincipal;
+        if (initClientCredentials())
+            initClientContext();
+    }
+
+    final override bool canCryptedConnection() const pure
+    {
+        return false;
+    }
+
+    final override ubyte[] getAuthData(const(char)[] userName, const(char)[] userPassword, ubyte[] serverAuthData)
+    in
+    {
+        assert(errorCode == 0);
+        assert(isValid(_clientContext));
+    }
+    do
+    {
+        ULONG contextAttributes;
+        RequestSecBufferDesc requestSecBufferDesc, serverSecBufferDesc;
+        scope (exit)
+        {
+            requestSecBufferDesc.dispose();
+            serverSecBufferDesc.dispose();
+        }
+
+		errorCode = InitializeSecurityContextA(&_clientCredentials, &_clientContext, remotePrincipalz(),
+            ISC_REQ_STANDARD_CONTEXT_ATTRIBUTES, 0, SECURITY_NATIVE_DREP, serverSecBufferDesc.initServerContext(serverAuthData), 0,
+			&_clientContext, requestSecBufferDesc.initClientContext(), &contextAttributes, &_clientContextTimestamp);
+		if (errorCode != 0 && errorCode != SEC_I_CONTINUE_NEEDED)
+        {
+            this.errorMessage = "InitializeSecurityContextA failed: " ~ to!string(errorCode);
+            return null;
+        }
+
+        errorCode = 0;
+        _proof = requestSecBufferDesc.getSecBytes();
+        return _proof;
     }
 
     final override size_t maxSizeServerAuthData(out size_t maxSaltLength) const nothrow pure
@@ -37,13 +82,11 @@ public:
 
     final override const(ubyte)[] publicKey() const
     {
-        //todo
-        return null;
+        return _publicKey;
     }
 
     final override const(ubyte)[] sessionKey() const
     {
-        //todo
         return null;
     }
 
@@ -54,7 +97,17 @@ public:
 
     @property final override string name() const
     {
-        return "Win_Sspi";
+        return authSSPIName;
+    }
+
+    @property final string remotePrincipal() const pure
+    {
+        return _remotePrincipal;
+    }
+
+    @property final string secPackage() const pure
+    {
+        return _secPackage;
     }
 
     @property final override string sessionKeyName() const
@@ -62,5 +115,106 @@ public:
         return null;
     }
 
+protected:
+    final void disposeClientContext()
+    {
+        if (isValid(_clientContext))
+        {
+            DeleteSecurityContext(&_clientContext);
+            reset(_clientContext);
+        }
+    }
+
+    final void disposeClientCredentials()
+    {
+        if (isValid(_clientCredentials))
+        {
+            FreeCredentialsHandle(&_clientCredentials);
+            reset(_clientCredentials);
+        }
+    }
+
+    override void doDispose(bool disposing) nothrow
+    {
+        _proof[] = 0;
+        _publicKey[] = 0;
+        disposeClientContext();
+        disposeClientCredentials();
+        super.doDispose(disposing);
+    }
+
+    final bool initClientContext() @trusted
+    {
+        ULONG contextAttributes;
+        RequestSecBufferDesc requestSecBufferDesc;
+        scope (exit)
+            requestSecBufferDesc.dispose();
+
+        errorCode = InitializeSecurityContextA(&_clientCredentials, null, remotePrincipalz(),
+            ISC_REQ_STANDARD_CONTEXT_ATTRIBUTES, 0, SECURITY_NATIVE_DREP, null, 0,
+            &_clientContext, requestSecBufferDesc.initClientContext(), &contextAttributes, &_clientContextTimestamp);
+		if (errorCode != 0 && errorCode != SEC_I_CONTINUE_NEEDED)
+        {
+            this.errorMessage = "InitializeSecurityContextA failed: " ~ to!string(errorCode);
+            return false;
+        }
+
+        errorCode = 0;
+        _publicKey = requestSecBufferDesc.getSecBytes();
+        return true;
+    }
+
+    final bool initClientCredentials()
+    {
+		errorCode = AcquireCredentialsHandleA(null, secPackagez(), SECPKG_CRED_OUTBOUND,
+            null, null, null, null, &_clientCredentials, &_clientCredentialsTimestamp);
+		if (errorCode != 0)
+        {
+            this.errorMessage = "AcquireCredentialsHandleA failed: %d" ~ to!string(errorCode);
+            return false;
+        }
+
+        return true;
+    }
+
+    final char* remotePrincipalz() @trusted
+    {
+        if (_remotePrincipal.length)
+            return cast(char*)(_remotePrincipal.toStringz());
+        else
+            return null;
+    }
+
+    // This is required value
+    final char* secPackagez() @trusted
+    {
+        return cast(char*)(_secPackage.toStringz());
+    }
+
 private:
+	CtxtHandle _clientContext;
+	SecHandle _clientCredentials;
+    TimeStamp _clientCredentialsTimestamp, _clientContextTimestamp;
+    ubyte[] _proof;
+    ubyte[] _publicKey;
+    string _remotePrincipal;
+    string _secPackage;
+
+private:
+    static immutable string authSSPIName = "Win_Sspi";
+}
+
+
+// Any below codes are private
+private:
+
+
+shared static this()
+{
+    FbAuth.registerAuthMap(FbAuthMap(FbAuthSspi.authSSPIName, &createAuthSSPI));
+}
+
+FbAuth createAuthSSPI()
+{
+    return new FbAuthSspi();
 }

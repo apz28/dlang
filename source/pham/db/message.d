@@ -45,14 +45,15 @@ nothrow @safe:
     static immutable eInvalidCommandSuspended = "Command is suspended";
 
     static immutable eInvalidConnectionActive = "Cannot perform %s when connection '%s.%s' is opened";
-    static immutable eInvalidConnectionAuthServerData = "Invalid authenticated server data: %s";
-    static immutable eInvalidConnectionAuthUnsupportedName = "Unsupported authenticated name/type: %s";
+    static immutable eInvalidConnectionAuthServerData = "Invalid authenticated server data for authenticated type: %s.\n%s";
+    static immutable eInvalidConnectionAuthUnsupportedName = "Unsupported authenticated type: %s";
     static immutable eInvalidConnectionHostName = "Unable to resolve host '%s'";
     static immutable eInvalidConnectionInactive = "Cannot perform %s when connection to '%s' is closed";
     static immutable eInvalidConnectionName = "Connection element name '%s' is invalid";
     static immutable eInvalidConnectionStatus = "Connection status '%s' is invalid";
     static immutable eInvalidConnectionRequiredEncryption = "Wire encryption to '%s' is required but not support";
     static immutable eInvalidConnectionPoolMaxUsed = "All connections are used: %d / %d";
+    static immutable eInvalidConnectionMalformServerData = "Missing/Malform serverAuthData"; // generic error message
 
     static immutable eInvalidSQLDAFieldIndex = "Invalid/Unsupported SQLDA type %d. FieldIndex, %d, is invalid";
     static immutable eInvalidSQLDAIndex = "Invalid/Unsupported SQLDA type %d. Index is not set";

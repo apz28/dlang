@@ -184,14 +184,13 @@ enum DbFetchResultStatus : byte
  * Describes how to client send authenticated data to server
  * $(DbIntegratedSecurityConnection.srp)
  * $(DbIntegratedSecurityConnection.sspi)
- * $(DbIntegratedSecurityConnection.trusted)
  * $(DbIntegratedSecurityConnection.legacy) name and password
  */
 enum DbIntegratedSecurityConnection : byte
 {
     srp,
+    srp256,
     sspi,
-    trusted,
     legacy
 }
 

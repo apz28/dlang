@@ -630,9 +630,9 @@ enum FbIscType
 
 enum FbIdentifier
 {
+    serverAcceptType = "serverAcceptType",
     serverArchitect = "serverArchitect",
 	serverCompressed = "serverCompressed",
 	serverEncrypted = "serverEncrypted",
-    serverMinType = "serverMinType",
     serverVersion = "serverVersion",
 }

@@ -833,7 +833,7 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto useCSB = connection.fbConnectionStringBuilder;
+        auto useCSB = connection.connectionStringBuilder;
         auto writerAI = FbConnectionWriter(connection, FbIsc.isc_dpb_version);
 
         auto writer = FbXdrWriter(connection);
@@ -848,90 +848,92 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
+        void setupCompression()
+        {
+			if (canCompressConnection())
+            {
+                connection.serverInfo[FbIdentifier.serverCompressed] = dbBoolTrues[0];
+                compressSetupBufferFilter();
+            }
+        }
+
+        bool setupEncryption()
+        {
+            if (canCryptedConnection())
+            {
+                connection.serverInfo[FbIdentifier.serverEncrypted] = dbBoolTrues[0];
+                cryptWrite();
+                cryptSetupBufferFilter(); // after writing before reading
+                cryptRead();
+                return true;
+            }
+            else
+                return false;
+        }
+
+        void validateRequiredEncryption()
+        {
+			if (getCryptedConnectionCode() == FbIsc.connect_crypt_required)
+            {
+                auto msg = format(DbMessage.eInvalidConnectionRequiredEncryption, connection.connectionStringBuilder.forErrorInfo);
+                throw new FbException(msg, DbErrorCode.connect, 0, FbIscResultCode.isc_wirecrypt_incompatible);
+            }
+        }
+
         auto reader = FbXdrReader(connection);
 
         const op = reader.readOperation();
         switch (op)
         {
-            //case FbIsc.op_cont_auth:
             case FbIsc.op_accept:
-            case FbIsc.op_cond_accept:
+                auto aResponse = readAcceptResponseImpl(reader);
+                _serverAcceptType = aResponse.acceptType;
+                _serverVersion = aResponse.version_;
+                connection.serverInfo[FbIdentifier.serverAcceptType] = to!string(aResponse.acceptType);
+                connection.serverInfo[FbIdentifier.serverArchitect] = to!string(aResponse.architecture);
+                connection.serverInfo[FbIdentifier.serverVersion] = to!string(aResponse.version_);
+                setupCompression();
+                if (!setupEncryption())
+                    validateRequiredEncryption();
+                break;
             case FbIsc.op_accept_data:
-                auto v = reader.readInt32();
-                if (v < 0)
-			        v = FbIsc.protocol_flag | cast(ushort)(v & FbIsc.protocol_mask);
-                _serverVersion = v;
-                auto serverArchitect = reader.readInt32();
-                _serverMinType = reader.readInt32();
+            case FbIsc.op_cond_accept:
+                auto adResponse = readAcceptDataResponseImpl(reader);
+                _serverAcceptType = adResponse.acceptType;
+                _serverVersion = adResponse.version_;
+                _serverAuthKey = adResponse.authKey;
+                connection.serverInfo[FbIdentifier.serverAcceptType] = to!string(adResponse.acceptType);
+                connection.serverInfo[FbIdentifier.serverArchitect] = to!string(adResponse.architecture);
+                connection.serverInfo[FbIdentifier.serverVersion] = to!string(adResponse.version_);
 
-                connection.serverInfo[FbIdentifier.serverArchitect] = to!string(serverArchitect);
-                connection.serverInfo[FbIdentifier.serverMinType] = to!string(serverMinType);
-                connection.serverInfo[FbIdentifier.serverVersion] = to!string(serverVersion);
-
-                version (TraceFunction) dgFunctionTrace(
-                    "serverVersion=", serverVersion,
-                    ", serverArchitect=", serverArchitect,
-                    ", serverMinType=", serverMinType);
-
-                if (op == FbIsc.op_cond_accept || op == FbIsc.op_accept_data)
-                {
-				    auto serverAuthData = reader.readBytes();
-					auto acceptPluginName = reader.readChars();
-					auto isAuthenticated = reader.readBool();
-					_serverAuthKey = reader.readBytes();
-
-                    auto useCSB = connection.fbConnectionStringBuilder;
-
-					if (!isAuthenticated || op == FbIsc.op_cond_accept)
-					{
-						if (_auth is null || acceptPluginName != _auth.name)
-                        {
-                            auto msg = format(DbMessage.eInvalidConnectionAuthUnsupportedName, acceptPluginName);
-                            throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_auth_data);
-                        }
-
-                        _authData = _auth.getAuthData(useCSB.normalizedUserName, useCSB.userPassword, serverAuthData);
-                        if (_authData.length == 0)
-                        {
-                            auto msg = format(DbMessage.eInvalidConnectionAuthServerData, acceptPluginName);
-                            throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_auth_data);
-                        }
-
-						//case SspiHelper.PluginName: todo
-						//	AuthData = sspi.GetClientSecurity(serverData);
-						//	break;
-					}
-
-					if (canCompressConnection())
+				if (!adResponse.isAuthenticated || op == FbIsc.op_cond_accept)
+				{
+					if (_auth is null || adResponse.authName != _auth.name)
                     {
-                        connection.serverInfo[FbIdentifier.serverCompressed] = dbBoolTrues[0];
-                        compressSetupBufferFilter();
+                        auto msg = format(DbMessage.eInvalidConnectionAuthUnsupportedName, adResponse.authName);
+                        throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_auth_data);
                     }
 
-                    // Authentication info will be resent when doing attachment for other op
-                    if (op == FbIsc.op_cond_accept)
-					{
-                        connectAuthenticationAcceptWrite();
-                        connectAuthenticationAcceptRead();
-                        isAuthenticated = true;
-					}
-
-                    auto serverEncrypted = op == FbIsc.op_cond_accept && canCryptedConnection();
-                    if (serverEncrypted)
+                    auto useCSB = connection.connectionStringBuilder;
+                    _authData = _auth.getAuthData(useCSB.userName, useCSB.userPassword, adResponse.authData);
+                    if (_authData.length == 0)
                     {
-                        connection.serverInfo[FbIdentifier.serverEncrypted] = dbBoolTrues[0];
-                        cryptWrite();
-                        cryptSetupBufferFilter(); // after writing before reading
-                        cryptRead();
+                        auto msg = format(DbMessage.eInvalidConnectionAuthServerData, adResponse.authName, _auth.errorMessage);
+                        throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_auth_data);
                     }
+				}
 
-					if (!serverEncrypted && getCryptedConnectionCode() == FbIsc.connect_crypt_required)
-                    {
-                        auto msg = format(DbMessage.eInvalidConnectionRequiredEncryption, useCSB.forErrorInfo);
-                        throw new FbException(msg, DbErrorCode.connect, 0, FbIscResultCode.isc_wirecrypt_incompatible);
-                    }
-                }
+                setupCompression(); // Before further sending requests
 
+                // Authentication info will be resent when doing attachment for other op
+                if (op == FbIsc.op_cond_accept)
+				{
+                    connectAuthenticationAcceptWrite();
+                    connectAuthenticationAcceptRead();
+				}
+
+                if (!setupEncryption())
+                    validateRequiredEncryption();
                 return;
             case FbIsc.op_response:
                 readGenericResponseImpl(reader);
@@ -1454,9 +1456,9 @@ public:
         return _connection;
     }
 
-    @property final int serverMinType() const nothrow pure @nogc @safe
+    @property final int serverAcceptType() const nothrow pure @nogc @safe
     {
-        return _serverMinType.inited ? _serverMinType : 0;
+        return _serverAcceptType.inited ? _serverAcceptType : 0;
     }
 
     @property final int serverVersion() const nothrow pure @nogc @safe
@@ -1477,13 +1479,10 @@ protected:
 
     final bool canCompressConnection() nothrow @safe
     {
-        if (!_serverVersion.inited || !_serverMinType.inited)
+        if (!_serverVersion.inited || _serverVersion < FbIsc.protocol_version13)
             return false;
 
-        if (serverVersion < FbIsc.protocol_version13)
-            return false;
-
-        if ((serverMinType & FbIsc.ptype_compress_flag) == 0)
+        if (!_serverAcceptType.inited || (_serverAcceptType & FbIsc.ptype_compress_flag) == 0)
 			return false;
 
         return connection.fbConnectionStringBuilder.compress;
@@ -1491,18 +1490,15 @@ protected:
 
     final bool canCryptedConnection() nothrow @safe
     {
-        if (!_serverVersion.inited)
+        if (!_serverVersion.inited || _serverVersion < FbIsc.protocol_version13)
             return false;
 
-        if (serverVersion < FbIsc.protocol_version13)
-            return false;
-
-        return _auth !is null && getCryptedConnectionCode() != FbIsc.connect_crypt_disabled;
+        return _auth !is null && _auth.canCryptedConnection() && getCryptedConnectionCode() != FbIsc.connect_crypt_disabled;
     }
 
     final void clearServerInfo(Flag!"includeAuth" includeAuth)
     {
-        _serverMinType.reset();
+        _serverAcceptType.reset();
         _serverVersion.reset();
 
         if (includeAuth)
@@ -1526,8 +1522,44 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto authenticationResponse = readGenericResponse();
-        _serverAuthKey = authenticationResponse.data;
+        auto reader = FbXdrReader(connection);
+        const op = reader.readOperation();
+        switch (op)
+        {
+            case FbIsc.op_response:
+                auto gResponse = readGenericResponseImpl(reader);
+                _serverAuthKey = gResponse.data;
+                break;
+            case FbIsc.op_trusted_auth:
+                auto tResponse = readTrustedAuthResponseImpl(reader);
+                _serverAuthKey = tResponse.data;
+                break;
+            case FbIsc.op_cont_auth:
+                auto cResponse = readCondAuthResponseImpl(reader);
+                _serverAuthKey = cResponse.key;
+
+                if (cResponse.name.length != 0)
+                {
+                    auto authMap = FbAuth.findAuthMap(cResponse.name);
+                    if (!authMap.isValid())
+                    {
+                        auto msg = format(DbMessage.eInvalidConnectionAuthUnsupportedName, cResponse.name);
+                        throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_auth_data);
+                    }
+                    _auth = authMap.createAuth();
+                    auto useCSB = connection.connectionStringBuilder;
+                    _authData = _auth.getAuthData(useCSB.userName, useCSB.userPassword, cResponse.data);
+                    if (_authData.length == 0)
+                    {
+                        auto msg = format(DbMessage.eInvalidConnectionAuthServerData, cResponse.name, _auth.errorMessage);
+                        throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_auth_data);
+                    }
+                }
+                break;
+            default:
+                auto msg = format(DbMessage.eUnhandleOperation, op);
+                throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_auth_data);
+        }
     }
 
     final void connectAuthenticationAcceptWrite()
@@ -1649,7 +1681,7 @@ protected:
         final switch (useCSB.integratedSecurity)
         {
             case DbIntegratedSecurityConnection.srp:
-                _auth = new FbAuthSrp();
+                _auth = new FbAuthSrpSHA1();
 
                 writer.writeChars(FbIsc.CNCT_login, useCSB.userName);
                 writer.writeChars(FbIsc.CNCT_plugin_name, _auth.name);
@@ -1658,21 +1690,38 @@ protected:
                 writer.writeInt32(FbIsc.CNCT_client_crypt, hostToNetworkOrder!int(getCryptedConnectionCode()));
 
                 version (TraceFunction) dgFunctionTrace("specificData=", _auth.publicKey());
+                break;
 
+            case DbIntegratedSecurityConnection.srp256:
+                _auth = new FbAuthSrpSHA256();
+
+                writer.writeChars(FbIsc.CNCT_login, useCSB.userName);
+                writer.writeChars(FbIsc.CNCT_plugin_name, _auth.name);
+                writer.writeChars(FbIsc.CNCT_plugin_list, _auth.name);
+                writer.writeMultiParts(FbIsc.CNCT_specific_data, _auth.publicKey());
+                writer.writeInt32(FbIsc.CNCT_client_crypt, hostToNetworkOrder!int(getCryptedConnectionCode()));
+
+                version (TraceFunction) dgFunctionTrace("specificData=", _auth.publicKey());
                 break;
 
             case DbIntegratedSecurityConnection.sspi:
-            case DbIntegratedSecurityConnection.trusted:
-                goto case DbIntegratedSecurityConnection.legacy; //todo remove after testing
-                /* todo
-                _auth = new FbAuthSspi();
+                version (Windows)
+                {
+                    _auth = new FbAuthSspi();
+                    if (_auth.errorCode != 0)
+                        throw new FbException(_auth.errorMessage, DbErrorCode.write, 0, FbIscResultCode.isc_auth_data);
 
-                buffer.writeChars(FbIsc.CNCT_plugin_name, _auth.name);
-                buffer.writeChars(FbIsc.CNCT_plugin_list, _auth.name);
-                buffer.writeMultiParts(FbIsc.CNCT_specific_data, _auth.publicKey());
-                //var specificData = sspi.InitializeClientSecurity();
+                    writer.writeChars(FbIsc.CNCT_login, useCSB.userName);
+                    writer.writeChars(FbIsc.CNCT_plugin_name, _auth.name);
+                    writer.writeChars(FbIsc.CNCT_plugin_list, _auth.name);
+                    writer.writeMultiParts(FbIsc.CNCT_specific_data, _auth.publicKey());
+                    writer.writeInt32(FbIsc.CNCT_client_crypt, hostToNetworkOrder!int(getCryptedConnectionCode()));
+
+                    version (TraceFunction) dgFunctionTrace("specificData=", _auth.publicKey());
+                }
+                else
+                    goto case DbIntegratedSecurityConnection.srp;
                 break;
-                */
 
             case DbIntegratedSecurityConnection.legacy:
                 _auth = new FbAuthLegacy();
@@ -1702,23 +1751,23 @@ protected:
         _authData[] = 0;
         _serverAuthKey[] = 0;
         _connection = null;
-        _serverMinType.reset();
+        _serverAcceptType.reset();
         _serverVersion.reset();
     }
 
     final int getCryptedConnectionCode() nothrow @safe
     {
-        auto useCSB = connection.fbConnectionStringBuilder;
+        auto useCSB = connection.connectionStringBuilder;
 
-        // For these securities, no supported encryption regardless of encrypt setting
-        switch (useCSB.integratedSecurity)
+        // Check security settting that supports encryption regardless of encrypt setting
+        final switch (useCSB.integratedSecurity)
         {
+            case DbIntegratedSecurityConnection.srp:
+            case DbIntegratedSecurityConnection.srp256:
+                break;
             case DbIntegratedSecurityConnection.sspi:
-            case DbIntegratedSecurityConnection.trusted:
             case DbIntegratedSecurityConnection.legacy:
                 return FbIsc.connect_crypt_disabled;
-            default:
-                break;
         }
 
         final switch (useCSB.encrypt)
@@ -1730,6 +1779,28 @@ protected:
             case DbEncryptedConnection.required:
                 return FbIsc.connect_crypt_required;
         }
+    }
+
+    final FbIscAcceptResponse readAcceptResponseImpl(ref FbXdrReader reader)
+    {
+        auto version_ = FbIscAcceptResponse.normalizeVersion(reader.readInt32());
+        auto architecture = reader.readInt32();
+        auto acceptType = reader.readInt32();
+
+        return FbIscAcceptResponse(version_, architecture, acceptType);
+    }
+
+    final FbIscAcceptDataResponse readAcceptDataResponseImpl(ref FbXdrReader reader)
+    {
+        auto version_ = FbIscAcceptResponse.normalizeVersion(reader.readInt32());
+        auto architecture = reader.readInt32();
+        auto acceptType = reader.readInt32();
+        auto authData = reader.readBytes();
+        auto authName = reader.readString();
+        auto authenticated = reader.readInt32();
+        auto authKey = reader.readBytes();
+
+        return FbIscAcceptDataResponse(version_, architecture, acceptType, authData, authName, authenticated, authKey);
     }
 
     final FbIscArrayGetResponse readArrayGetResponseImpl(ref FbXdrReader reader, in FbIscArrayDescriptor descriptor)
@@ -1774,6 +1845,17 @@ protected:
             result.data = reader.readOpaqueBytes(result.sliceLength);
 
         return result;
+    }
+
+    alias readCondAcceptResponseImpl = readAcceptDataResponseImpl;
+
+    final FbIscCondAuthResponse readCondAuthResponseImpl(ref FbXdrReader reader)
+    {
+        auto rData = reader.readBytes();
+        auto rName = reader.readString();
+        auto rList = reader.readBytes();
+        auto rKey = reader.readBytes();
+        return FbIscCondAuthResponse(rData, rName, rList, rKey);
     }
 
     final FbIscCryptKeyCallbackResponse readCryptKeyCallbackResponseImpl(ref FbXdrReader reader)
@@ -1830,11 +1912,11 @@ protected:
         return FbIscSqlResponse(rCount);
     }
 
-    final FbIscTrustedAuthenticationResponse readTrustedAuthenticationResponseImpl(ref FbXdrReader reader)
+    final FbIscTrustedAuthResponse readTrustedAuthResponseImpl(ref FbXdrReader reader)
     {
         auto rData = reader.readBytes().dup;
 
-        return FbIscTrustedAuthenticationResponse(rData);
+        return FbIscTrustedAuthResponse(rData);
     }
 
     final void writeCommandInfo(FbCommand command, scope const(ubyte)[] items, uint32 resultBufferLength)
@@ -1855,7 +1937,7 @@ private:
     ubyte[] _authData;
     ubyte[] _serverAuthKey;
     FbConnection _connection;
-    InitializedValue!int _serverMinType;
+    InitializedValue!int _serverAcceptType;
     InitializedValue!int _serverVersion;
 }
 

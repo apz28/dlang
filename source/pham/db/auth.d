@@ -20,8 +20,21 @@ abstract class DbAuth : DbDisposableObject
 nothrow @safe:
 
 public:
-    ubyte[] getAuthData(const(char)[] userName, const(char)[] userPassword, ubyte[] serverAuthData);
+    final typeof(this) clearError()
+    {
+        errorMessage = null;
+        errorCode = 0;
+        return this;
+    }
 
+    final typeof(this) setError(int errorCode, string errorMessage)
+    {
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+        return this;
+    }
+
+    ubyte[] getAuthData(const(char)[] userName, const(char)[] userPassword, ubyte[] serverAuthData);
     const(ubyte)[] privateKey() const;
     const(ubyte)[] publicKey() const;
     const(ubyte)[] sessionKey() const;
@@ -31,4 +44,8 @@ public:
     @property bool isSymantic() const;
     @property string name() const;
     @property string sessionKeyName() const;
+
+public:
+    string errorMessage;
+    int errorCode;
 }

@@ -1329,50 +1329,6 @@ public:
         super(connectionString);
     }
 
-    final DbIdentitier normalizedUserName() nothrow @safe
-    {
-        import std.range : Appender;
-	    import std.uni : toUpper;
-
-        auto s = getString(DbParameterName.userName);
-
-        if (s.length)
-        {
-            if (s.length > 2 && s[0] == '"' && s[s.length - 1] == '"')
-            {
-                Appender!string quotedS;
-                quotedS.reserve(s.length);
-                int i = 1;
-                for (; i < (s.length - 1); i++)
-                {
-                    auto c = s[i];
-                    if (c == '"')
-                    {
-                        // Strip double quote escape
-                        i++;
-                        if (i < (s.length - 1))
-                        {
-                            // Retain escaped double quote?
-                            if ('"' == s[i])
-                                quotedS.put('"');
-                            else
-        						// The character after escape is not a double quote,
-                                // we terminate the conversion and truncate.
-		        				// Firebird does this as well (see common/utils.cpp#dpbItemUpper)
-                                break;
-                        }
-                    }
-                    else
-                        quotedS.put(c);
-                }
-            }
-            else
-                s = assumeWontThrow(toUpper(s));
-        }
-
-        return DbIdentitier(s);
-    }
-
     final override const(string[]) parameterNames() const nothrow @safe
     {
         return fbValidParameterNames;
@@ -1741,7 +1697,8 @@ version (UnitTestFBDatabase)
 {
     FbConnection createTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
-        bool compress = false)
+        bool compress = false,
+        DbIntegratedSecurityConnection integratedSecurity = DbIntegratedSecurityConnection.srp)
     {
         auto db = DbDatabaseList.instance.get(DbScheme.fb);
         assert(cast(FbDatabase)db !is null);
@@ -1752,6 +1709,7 @@ version (UnitTestFBDatabase)
         result.connectionStringBuilder.sendTimeout = dur!"seconds"(10);
         result.connectionStringBuilder.encrypt = encrypt;
         result.connectionStringBuilder.compress = compress;
+        result.connectionStringBuilder.integratedSecurity = integratedSecurity;
 
         assert(cast(FbConnection)result !is null);
 
@@ -1832,7 +1790,6 @@ unittest // FbConnectionStringBuilder
     assert(useCSB.serverName == "localhost");
     assert(useCSB.port == 3050);
     assert(useCSB.userName == "SYSDBA");
-    assert(useCSB.normalizedUserName == "SYSDBA");
     assert(useCSB.userPassword == "masterkey");
     assert(useCSB.dialect == 3);
 }
@@ -1863,57 +1820,80 @@ unittest // FbConnection
 }
 
 version (UnitTestFBDatabase)
-unittest // FbConnection
+unittest // FbConnection.encrypt
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n***************************************************");
-    dgWriteln("unittest db.fbdatabase.FbConnection - encrypt=enabled");
+    dgWriteln("\n*******************************************");
+    dgWriteln("unittest db.fbdatabase.FbConnection - encrypt");
 
-    auto connection = createTestConnection(DbEncryptedConnection.enabled);
-    scope (exit)
     {
-        connection.dispose();
-        connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
+        auto connection = createTestConnection(DbEncryptedConnection.enabled);
+        scope (exit)
+        {
+            connection.dispose();
+            connection = null;
+            version (TraceInvalidMemoryOp)
+                GC.collect();
+        }
+        assert(connection.state == DbConnectionState.closed);
+
+        connection.open();
+        assert(connection.state == DbConnectionState.open);
+
+        connection.close();
+        assert(connection.state == DbConnectionState.closed);
     }
-    assert(connection.state == DbConnectionState.closed);
 
-    connection.open();
-    assert(connection.state == DbConnectionState.open);
+    {
+        auto connection = createTestConnection(DbEncryptedConnection.required);
+        scope (exit)
+        {
+            connection.dispose();
+            connection = null;
+            version (TraceInvalidMemoryOp)
+                GC.collect();
+        }
+        assert(connection.state == DbConnectionState.closed);
 
-    connection.close();
-    assert(connection.state == DbConnectionState.closed);
+        connection.open();
+        assert(connection.state == DbConnectionState.open);
+
+        connection.close();
+        assert(connection.state == DbConnectionState.closed);
+    }
 }
 
 version (UnitTestFBDatabase)
-unittest // FbConnection
+unittest // FbConnection.integratedSecurity
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n****************************************************");
-    dgWriteln("unittest db.fbdatabase.FbConnection - encrypt=required");
+    dgWriteln("\n******************************************************");
+    dgWriteln("unittest db.fbdatabase.FbConnection - integratedSecurity");
 
-    auto connection = createTestConnection(DbEncryptedConnection.required);
-    scope (exit)
+    version (Windows)
     {
-        connection.dispose();
-        connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
+        auto connection = createTestConnection(DbEncryptedConnection.enabled, false, DbIntegratedSecurityConnection.srp256);
+        scope (exit)
+        {
+            connection.dispose();
+            connection = null;
+            version (TraceInvalidMemoryOp)
+                GC.collect();
+        }
+        assert(connection.state == DbConnectionState.closed);
+
+        connection.open();
+        assert(connection.state == DbConnectionState.open);
+
+        connection.close();
+        assert(connection.state == DbConnectionState.closed);
     }
-    assert(connection.state == DbConnectionState.closed);
-
-    connection.open();
-    assert(connection.state == DbConnectionState.open);
-
-    connection.close();
-    assert(connection.state == DbConnectionState.closed);
 }
 
 version (UnitTestFBDatabase)
-unittest // FbConnection
+unittest // FbConnection.encrypt.compress
 {
     import core.memory;
     import pham.utl.utltest;
@@ -2048,7 +2028,7 @@ unittest // FbCommand.DDL
 }
 
 version (UnitTestFBDatabase)
-unittest // FbCommand.DDL
+unittest // FbCommand.DDL.encrypt.compress
 {
     import core.memory;
     import pham.utl.utltest;
@@ -2228,7 +2208,7 @@ unittest // FbCommand.DML
 }
 
 version (UnitTestFBDatabase)
-unittest // FbCommand.DML
+unittest // FbCommand.DML.Parameter
 {
     import core.memory;
     import std.math;
@@ -2325,7 +2305,7 @@ unittest // FbCommand.DML
 }
 
 version (UnitTestFBDatabase)
-unittest // FbCommand.DML
+unittest // FbCommand.DML.encrypt.compress
 {
     import core.memory;
     import std.math;
@@ -2415,7 +2395,7 @@ unittest // FbCommand.DML
 }
 
 version (UnitTestFBDatabase)
-unittest // FbCommand.DML
+unittest // FbCommand.DML.FbArrayManager
 {
     import core.memory;
     import pham.utl.utltest;
@@ -2451,7 +2431,7 @@ unittest // FbCommand.DML
 }
 
 version (UnitTestFBDatabase)
-unittest // FbCommand.DML
+unittest // FbCommand.DML.Array
 {
     import core.memory;
     import pham.utl.utltest;
@@ -2525,7 +2505,7 @@ unittest // FbCommand.DML
 }
 
 version (UnitTestFBDatabase)
-unittest // FbCommand.DML
+unittest // FbCommand.DML.Array.Less
 {
     import core.memory;
     import pham.utl.utltest;
