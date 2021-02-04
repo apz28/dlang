@@ -14,7 +14,8 @@ nothrow @trusted:
 
 version (ANSI)
 {}
-else version = Unicode;
+else 
+    version = Unicode;
 
 public import core.sys.windows.windef;
 import core.sys.windows.ntdef;
@@ -162,7 +163,7 @@ nothrow @safe:
         secBuffer.pvBuffer = secBufferData.length != 0 ? &secBufferData[0] : null;
 
         secBufferDesc.ulVersion = SECBUFFER_VERSION;
-		secBufferDesc.cBuffers = 1;
+        secBufferDesc.cBuffers = 1;
         secBufferDesc.pBuffers = &secBuffer;
 
         return &secBufferDesc;
@@ -177,7 +178,7 @@ nothrow @safe:
         secBuffer.pvBuffer = &secBufferData[0];
 
         secBufferDesc.ulVersion = SECBUFFER_VERSION;
-		secBufferDesc.cBuffers = 1;
+        secBufferDesc.cBuffers = 1;
         secBufferDesc.pBuffers = &secBuffer;
 
         return &secBufferDesc;
