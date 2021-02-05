@@ -2504,6 +2504,18 @@ public:
         return this;
     }
 
+    @property final Variant getValue() @safe
+    {
+        return _value.value;
+    }
+
+    @property final DbParameter setValue(Variant value) @safe
+    {
+        this._value = value;
+        valueAssigned();
+        return this;
+    }
+
     /**
      * Gets or sets the value of the parameter
      */
@@ -2514,16 +2526,8 @@ public:
 
     @property final DbParameter value(DbValue value) @safe
     {
-        _value = value;
-
-        if (type == DbType.unknown && value.type != DbType.unknown)
-        {
-            if (isDbTypeHasSize(value.type) && value.hasSize)
-                size = value.size;
-            type = value.type;
-            reevaluateBaseType();
-        }
-
+        this._value = value;
+        valueAssigned();
         return this;
     }
 
@@ -2540,10 +2544,20 @@ protected:
         }
     }
 
-protected:
     final void nullifyValue() nothrow @safe
     {
         _value.nullify();
+    }
+
+    final void valueAssigned() @safe
+    {
+        if (type == DbType.unknown && value.type != DbType.unknown)
+        {
+            if (isDbTypeHasSize(value.type) && value.hasSize)
+                size = value.size;
+            type = value.type;
+            reevaluateBaseType();
+        }
     }
 
 protected:
@@ -2641,6 +2655,25 @@ public:
     final DbIdentitier generateParameterName() nothrow @safe
     {
         return generateUniqueName("parameter");
+    }
+
+    final DbParameter hasOutputParameter(string name, size_t outputIndex) nothrow @safe
+    {
+        DbParameter result;
+        // Parameter can't have same name regardless of direction
+        if (name.length != 0 && find(name, result))
+            return result;
+        size_t outIndex;
+        foreach (i; 0..length)
+        {
+            result = this[i];
+            if (result.isOutput(false))
+            {
+                if (outIndex++ == outputIndex)
+                    return result;
+            }
+        }
+        return null;
     }
 
     final size_t inputCount() nothrow @safe

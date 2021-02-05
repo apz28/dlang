@@ -1987,3 +1987,77 @@ Execution Time: 0.053 ms}";
 
     failed = false;
 }
+
+version (UnitTestPGDatabase)
+unittest // PgCommand.DML.Function
+{
+    import core.memory;
+    import pham.utl.utltest;
+    dgWriteln("\n*******************************************");
+    dgWriteln("unittest db.pgdatabase.PgCommand.DML.Function");
+
+    bool failed = true;
+    auto connection = createTestConnection();
+    scope (exit)
+    {
+        if (failed)
+            dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
+        connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
+    }
+    connection.open();
+
+    {
+        auto command = connection.createCommand();
+        scope (exit)
+        {
+            command.dispose();
+            command = null;
+        }
+
+        command.commandText = "select * from multiple_by2(2)";
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+
+        int count;
+        assert(reader.hasRows());
+        while (reader.read())
+        {
+            count++;
+
+            assert(reader.getValue(0) == 4);
+        }
+        assert(count == 1);
+    }
+
+    {
+        auto command = connection.createCommand();
+        scope (exit)
+        {
+            command.dispose();
+            command = null;
+        }
+
+        command.commandText = "select multiple_by2(2)";
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+
+        int count;
+        assert(reader.hasRows());
+        while (reader.read())
+        {
+            count++;
+
+            assert(reader.getValue(0) == 4);
+        }
+        assert(count == 1);
+    }
+
+    failed = false;
+}

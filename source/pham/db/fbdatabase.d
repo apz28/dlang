@@ -1063,6 +1063,8 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace();
 
+        const isStoredProcedure = commandType == DbCommandType.storedProcedure;
+
         foreach (ref iscBindInfo; iscBindInfos)
         {
             if (iscBindInfo.selectOrBind == FbIsc.isc_info_sql_select)
@@ -1070,13 +1072,32 @@ protected:
                 version (TraceFunction) dgFunctionTrace("fields");
 
                 auto localFields = fields;
-                foreach (ref iscField; iscBindInfo.fields)
+                foreach (i, ref iscField; iscBindInfo.fields)
                 {
-                    auto localField = localFields.createField(this);
-                    localField.name = iscField.useName;
-                    localField.isAlias = iscField.aliasName.length != 0;
-                    localField.fillNamedColumn(iscField, true);
-                    localFields.put(localField);
+                    auto newField = localFields.createField(this);
+                    newField.name = iscField.useName;
+                    newField.isAlias = iscField.aliasName.length != 0;
+                    newField.fillNamedColumn(iscField, true);
+                    localFields.put(newField);
+
+                    if (isStoredProcedure)
+                    {
+                        auto foundParameter = parameters.hasOutputParameter(newField.name, i);
+                        if (foundParameter is null)
+                        {
+                            auto newParameter = parameters.createParameter();
+                            newParameter.name = newField.name;
+                            newParameter.direction = DbParameterDirection.output;
+                            newParameter.fillNamedColumn(iscField, true);
+                            parameters.put(newParameter);
+                        }
+                        else
+                        {
+                            if (foundParameter.name.length == 0)
+                                foundParameter.name = newField.name;
+                            foundParameter.fillNamedColumn(iscField, false);
+                        }
+                    }
                 }
             }
             else if (iscBindInfo.selectOrBind == FbIsc.isc_info_sql_bind)
@@ -1086,21 +1107,18 @@ protected:
                 auto localParameters = parameters;
                 foreach (i, ref iscField; iscBindInfo.fields)
                 {
-                    const isNew = i >= localParameters.length;
-                    DbParameter localParameter;
-                    if (isNew)
+                    if (i >= localParameters.length)
                     {
                         auto newName = iscField.useName;
                         if (localParameters.exist(newName))
                             newName = localParameters.generateParameterName();
-                        localParameter = localParameters.createParameter();
-                        localParameter.name = newName;
+                        auto newParameter = localParameters.createParameter();
+                        newParameter.name = newName;
+                        newParameter.fillNamedColumn(iscField, true);
+                        localParameters.put(newParameter);
                     }
                     else
-                        localParameter = localParameters[i];
-                    localParameter.fillNamedColumn(iscField, isNew);
-                    if (isNew)
-                        localParameters.put(localParameter);
+                        localParameters[i].fillNamedColumn(iscField, false);
                 }
             }
             else
@@ -1864,7 +1882,7 @@ unittest // FbConnection.encrypt
     }
 }
 
-version (UnitTestFBDatabase)
+version (none)
 unittest // FbConnection.integratedSecurity
 {
     import core.memory;
@@ -2579,6 +2597,71 @@ unittest // FbCommand.DML.Array.Less
 
     setArrayValue();
     readArrayValue();
+
+    failed = false;
+}
+
+version (UnitTestFBDatabase)
+unittest // FbCommand.DML.StoredProcedure
+{
+    import core.memory;
+    import pham.utl.utltest;
+    dgWriteln("\n**************************************************");
+    dgWriteln("unittest db.fbdatabase.FbCommand.DML.StoredProcedure");
+
+    bool failed = true;
+    auto connection = createTestConnection();
+    scope (exit)
+    {
+        if (failed)
+            dgWriteln("failed - exiting and closing connection");
+
+        connection.close();
+        connection.dispose();
+        connection = null;
+        version (TraceInvalidMemoryOp)
+            GC.collect();
+    }
+    connection.open();
+
+    {
+        auto command = connection.createCommand();
+        scope (exit)
+        {
+            command.dispose();
+            command = null;
+        }
+
+        command.commandStoredProcedure = "MULTIPLE_BY2";
+        command.parameters.add("X", DbType.int32).value = 2;
+        command.executeNonQuery();
+        assert(command.parameters.get("Y").getValue == 4);
+    }
+
+    {
+        auto command = connection.createCommand();
+        scope (exit)
+        {
+            command.dispose();
+            command = null;
+        }
+
+        command.commandText = "select * from MULTIPLE_BY2(2)";
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+
+        int count;
+        assert(reader.hasRows());
+        while (reader.read())
+        {
+            count++;
+
+            assert(reader.getValue(0) == 4);
+            assert(reader.getValue("Y") == 4);
+        }
+        assert(count == 1);
+    }
 
     failed = false;
 }
