@@ -124,19 +124,11 @@ class FileLogger : Logger
         {}
     }
 
-    /** If the `FileLogger` is managing the `File` it logs to, this
-    method will return a reference to this File.
-    */
-    @property final File file() nothrow @safe
-    {
-        return this.file_;
-    }
-
     /* This method overrides the base class method in order to log to a file
     without requiring heap allocated memory. Additionally, the `FileLogger`
     local mutex is logged to serialize the log calls.
     */
-    override protected void beginLogMsg(int line, string file, string funcName, string prettyFuncName, string moduleName,
+    protected override void beginLogMsg(int line, string file, string funcName, string prettyFuncName, string moduleName,
         LogLevel logLevel, Tid threadId, SysTime timestamp, Logger logger) nothrow @safe
     {
         import std.conv : to;
@@ -154,24 +146,11 @@ class FileLogger : Logger
         {}
     }
 
-    /* This methods overrides the base class method and writes the parts of
-    the log call directly to the file.
-    */
-    override protected void logMsgPart(scope const(char)[] msg) nothrow @safe
-    {
-        try
-        {
-            formattedWrite(this.file_.lockingTextWriter(), "%s", msg);
-        }
-        catch (Exception)
-        {}
-    }
-
     /* This methods overrides the base class method and finalizes the active
     log call. This requires flushing the `File` and releasing the
     `FileLogger` local mutex.
     */
-    override protected void finishLogMsg() nothrow
+    protected override void finishLogMsg() nothrow @safe
     {
         try
         {
@@ -182,10 +161,23 @@ class FileLogger : Logger
         {}
     }
 
+    /* This methods overrides the base class method and writes the parts of
+    the log call directly to the file.
+    */
+    protected override void logMsgPart(scope const(char)[] msg) nothrow @safe
+    {
+        try
+        {
+            formattedWrite(this.file_.lockingTextWriter(), "%s", msg);
+        }
+        catch (Exception)
+        {}
+    }
+
     /* This methods overrides the base class method and delegates the
     `LogEntry` data to the actual implementation.
     */
-    override protected void writeLogMsg(ref LogEntry payload) nothrow
+    protected override void writeLogMsg(ref LogEntry payload) nothrow @safe
     {
         this.beginLogMsg(payload.line, payload.file, payload.funcName, payload.prettyFuncName, payload.moduleName,
             payload.logLevel, payload.threadId, payload.timestamp, payload.logger);
@@ -193,10 +185,18 @@ class FileLogger : Logger
         this.finishLogMsg();
     }
 
+    /** If the `FileLogger` is managing the `File` it logs to, this
+    method will return a reference to this File.
+    */
+    @property final File file() nothrow @safe
+    {
+        return this.file_;
+    }
+
     /** If the `FileLogger` was constructed with a filename, this method
     returns this filename. Otherwise an empty `string` is returned.
     */
-    final string filename() nothrow pure @safe
+    @property final string filename() nothrow pure @safe
     {
         return this.filename_;
     }

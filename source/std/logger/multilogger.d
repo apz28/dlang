@@ -43,13 +43,6 @@ class MultiLogger : Logger
         super(lv);
     }
 
-    /** This member holds all `Logger`s stored in the `MultiLogger`.
-
-    When inheriting from `MultiLogger` this member can be used to gain
-    access to the stored `Logger`.
-    */
-    protected MultiLoggerEntry[] logger;
-
     /** This method inserts a new Logger into the `MultiLogger`.
 
     Params:
@@ -58,7 +51,15 @@ class MultiLogger : Logger
     */
     void insertLogger(string name, Logger newLogger) nothrow @safe
     {
-        this.logger ~= MultiLoggerEntry(name, newLogger);
+        try
+        {
+            synchronized (mutex)
+            {
+                this.loggers ~= MultiLoggerEntry(name, newLogger);
+            }
+        }
+        catch (Exception)
+        {}
     }
 
     /** This method removes a Logger from the `MultiLogger`.
@@ -75,17 +76,25 @@ class MultiLogger : Logger
         import std.algorithm.mutation : copy;
         import std.range.primitives : back, popBack;
 
-        for (size_t i = 0; i < this.logger.length; ++i)
+        try
         {
-            if (this.logger[i].name == toRemove)
+            synchronized (mutex)
             {
-                Logger ret = this.logger[i].logger;
-                this.logger[i] = this.logger.back;
-                this.logger.popBack();
+                for (size_t i = 0; i < this.loggers.length; ++i)
+                {
+                    if (this.loggers[i].name == toRemove)
+                    {
+                        auto ret = this.loggers[i].logger;
+                        this.loggers[i] = this.loggers.back;
+                        this.loggers.popBack();
 
-                return ret;
+                        return ret;
+                    }
+                }
             }
         }
+        catch (Exception)
+        {}
 
         return null;
     }
@@ -93,9 +102,9 @@ class MultiLogger : Logger
     /* The override to pass the payload to all children of the
     `MultiLoggerBase`.
     */
-    override protected void writeLogMsg(ref LogEntry payload) nothrow @safe
+    protected override void writeLogMsg(ref LogEntry payload) nothrow @safe
     {
-        foreach (it; this.logger)
+        foreach (ref it; this.loggers)
         {
             /* We don't perform any checks here to avoid race conditions.
             Instead the child will check on its own if its log level matches
@@ -105,6 +114,13 @@ class MultiLogger : Logger
             it.logger.forwardMsg(payload);
         }
     }
+
+    /** This member holds all `Logger`s stored in the `MultiLogger`.
+
+    When inheriting from `MultiLogger` this member can be used to gain
+    access to the stored `Logger`.
+    */
+    protected MultiLoggerEntry[] loggers;
 }
 
 @safe unittest

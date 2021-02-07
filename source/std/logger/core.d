@@ -728,15 +728,32 @@ abstract class Logger
         this.mutex = new Mutex();
     }
 
-    /** A custom logger must implement this method in order to work in a
-    `MultiLogger` and `ArrayLogger`.
+    /** This method allows forwarding log entries from one logger to another.
 
-    Params:
-      payload = All information associated with call to log function.
-
-    See_Also: beginLogMsg, logMsgPart, finishLogMsg
+    `forwardMsg` will ensure proper synchronization and then call
+    `writeLogMsg`. This is an API for implementing your own loggers and
+    should not be called by normal user code. A notable difference from other
+    logging functions is that the `globalLogLevel` won't be evaluated again
+    since it is assumed that the caller already checked that.
     */
-    abstract protected void writeLogMsg(ref LogEntry payload) nothrow @safe;
+    void forwardMsg(ref LogEntry payload) nothrow @safe
+    {
+        static if (isLoggingActive)
+        try
+        {
+            synchronized (mutex)
+            {
+                if (isLoggingEnabled(payload.logLevel, this.logLevel_, globalLogLevel))
+                {
+                    this.writeLogMsg(payload);
+                    if (payload.logLevel == LogLevel.fatal)
+                        this.fatalHandler_();
+                }
+            }
+        }
+        catch (Exception)
+        {}
+    }
 
     /* The default implementation will use an `std.array.appender`
     internally to construct the message string. This means dynamic,
@@ -786,6 +803,16 @@ abstract class Logger
         }
     }
 
+    /** Signals that the message has been written and no more calls to `logMsgPart` follow. */
+    protected void finishLogMsg() nothrow @safe
+    {
+        static if (isLoggingActive)
+        {
+            header.msg = msgAppender.data;
+            this.writeLogMsg(header);
+        }
+    }
+
     /** Logs a part of the log message. */
     protected void logMsgPart(scope const(char)[] msg) nothrow @safe
     {
@@ -795,16 +822,15 @@ abstract class Logger
         }
     }
 
-    /** Signals that the message has been written and no more calls to
-    `logMsgPart` follow. */
-    protected void finishLogMsg() nothrow @safe
-    {
-        static if (isLoggingActive)
-        {
-            header.msg = msgAppender.data;
-            this.writeLogMsg(header);
-        }
-    }
+    /** A custom logger must implement this method in order to work in a
+    `MultiLogger` and `ArrayLogger`.
+
+    Params:
+      payload = All information associated with call to log function.
+
+    See_Also: beginLogMsg, logMsgPart, finishLogMsg
+    */
+    abstract protected void writeLogMsg(ref LogEntry payload) nothrow @safe;
 
     /** The `LogLevel` determines if the log call are processed or dropped
     by the `Logger`. In order for the log call to be processed the
@@ -848,33 +874,6 @@ abstract class Logger
     {
         scope (failure) assert(0);
         synchronized (mutex) this.fatalHandler_ = fh;
-    }
-
-    /** This method allows forwarding log entries from one logger to another.
-
-    `forwardMsg` will ensure proper synchronization and then call
-    `writeLogMsg`. This is an API for implementing your own loggers and
-    should not be called by normal user code. A notable difference from other
-    logging functions is that the `globalLogLevel` wont be evaluated again
-    since it is assumed that the caller already checked that.
-    */
-    void forwardMsg(ref LogEntry payload) nothrow @trusted
-    {
-        static if (isLoggingActive)
-        try
-        {
-            synchronized (mutex)
-            {
-                if (isLoggingEnabled(payload.logLevel, this.logLevel_, globalLogLevel))
-                {
-                    this.writeLogMsg(payload);
-                    if (payload.logLevel == LogLevel.fatal)
-                        this.fatalHandler_();
-                }
-            }
-        }
-        catch (Exception)
-        {}
     }
 
     /** This template provides the log functions for the `Logger` `class`
@@ -1611,12 +1610,12 @@ abstract class Logger
         {}
     }
 
-    private void delegate() @safe fatalHandler_;
-    private shared LogLevel logLevel_ = LogLevel.info;
-    private Mutex mutex;
-
     protected Appender!string msgAppender;
     protected LogEntry header;
+    protected Mutex mutex;
+
+    private void delegate() @safe fatalHandler_;
+    private shared LogLevel logLevel_ = LogLevel.info;
 }
 
 // Thread Global
@@ -1743,7 +1742,7 @@ class StdForwardLogger : Logger
         this.fatalHandler = delegate() {};
     }
 
-    override protected void writeLogMsg(ref LogEntry payload) nothrow
+    protected final override void writeLogMsg(ref LogEntry payload) nothrow @safe
     {
         sharedLog.forwardMsg(payload);
     }
@@ -1815,6 +1814,7 @@ functions.
     globalLogLevel = ll;
 }
 
+version (unittest)
 package class TestLogger : Logger
 {
     int line = -1;
@@ -1829,7 +1829,7 @@ package class TestLogger : Logger
         super(lv);
     }
 
-    override protected void writeLogMsg(ref LogEntry payload) nothrow @safe
+    protected final override void writeLogMsg(ref LogEntry payload) nothrow @safe
     {
         this.line = payload.line;
         this.file = payload.file;
@@ -2908,7 +2908,7 @@ private void trustedStore(T)(ref shared T dst, ref T src) nothrow @trusted
             this.tid = thisTid;
         }
 
-        override void writeLogMsg(ref LogEntry payload) nothrow @trusted
+        final override void writeLogMsg(ref LogEntry payload) nothrow @safe
         {
             //assert(thisTid == this.tid);
             atomicOp!"+="(logged_count, 1);
@@ -2922,7 +2922,7 @@ private void trustedStore(T)(ref shared T dst, ref T src) nothrow @trusted
             super(LogLevel.trace);
         }
 
-        override void writeLogMsg(ref LogEntry payload) nothrow @trusted
+        final override void writeLogMsg(ref LogEntry payload) nothrow @safe
         {
             assert(false);
         }

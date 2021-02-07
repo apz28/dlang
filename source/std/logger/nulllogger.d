@@ -26,7 +26,10 @@ class NullLogger : Logger
         this.fatalHandler = delegate() {};
     }
 
-    override protected void writeLogMsg(ref LogEntry payload) nothrow @safe @nogc
+    final override void forwardMsg(ref LogEntry payload) nothrow @safe
+    {}
+
+    protected final override void writeLogMsg(ref LogEntry payload) nothrow @safe
     {}
 }
 
