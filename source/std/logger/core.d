@@ -766,27 +766,26 @@ abstract class Logger
     ----------------
     class CLogger : Logger
     {
-        override void beginLogMsg(int line, string file, string funcName, string prettyFuncName, string moduleName,
-            LogLevel logLevel, Tid threadId, SysTime timestamp)
+        protected override void beginLogMsg(int line, string file, string funcName, string prettyFuncName, string moduleName,
+            LogLevel logLevel, Tid threadId, SysTime timestamp) nothrow @safe
         {
             ... logic here
         }
 
-        override void logMsgPart(const(char)[] msg)
+        protected override void finishLogMsg() nothrow @safe
         {
             ... logic here
         }
 
-        override void finishLogMsg()
+        protected override void logMsgPart(const(char)[] msg) nothrow @safe
         {
             ... logic here
         }
 
-        void writeLogMsg(ref LogEntry payload)
+        protected override void writeLogMsg(ref LogEntry payload) nothrow @safe
         {
             this.beginLogMsg(payload.line, payload.file, payload.funcName, payload.prettyFuncName, payload.moduleName,
                 payload.logLevel, payload.threadId, payload.timestamp, payload.logger);
-
             this.logMsgPart(payload.msg);
             this.finishLogMsg();
         }
@@ -830,7 +829,7 @@ abstract class Logger
 
     See_Also: beginLogMsg, logMsgPart, finishLogMsg
     */
-    abstract protected void writeLogMsg(ref LogEntry payload) nothrow @safe;
+    protected abstract void writeLogMsg(ref LogEntry payload) nothrow @safe;
 
     /** The `LogLevel` determines if the log call are processed or dropped
     by the `Logger`. In order for the log call to be processed the
