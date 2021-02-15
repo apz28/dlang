@@ -183,6 +183,4 @@ Source: $(PHOBOSSRC std/experimental/logger/package.d)
 module std.logger;
 
 public import std.logger.core;
-public import std.logger.filelogger;
 public import std.logger.multilogger;
-public import std.logger.nulllogger;
