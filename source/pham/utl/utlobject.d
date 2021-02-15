@@ -14,7 +14,7 @@ module pham.utl.utlobject;
 import std.ascii : LetterCase;
 import std.exception : assumeWontThrow;
 import std.math : isPowerOf2;
-import std.traits : isArray, isAssociativeArray, isPointer;
+import std.traits;
 
 version (TraceInvalidMemoryOp) import pham.utl.utltest;
 
@@ -106,6 +106,106 @@ string className(Object object) nothrow pure @safe
         return typeid(object).name;
 }
 
+string currentComputerName() nothrow @trusted
+{
+    version (Windows)
+    {
+        import core.sys.windows.winbase : GetComputerNameW;
+        import std.conv : to;
+
+        wchar[256] result = void;
+        uint len = result.length - 1;
+        if (GetComputerNameW(&result[0], &len))
+            return assumeWontThrow(to!string(result[0..len]));
+        else
+            return "";
+    }
+    else version (Posix)
+    {
+        import core.sys.posix.unistd : gethostname;
+        import std.conv : to;
+
+        char[256] result = void;
+        uint len = result.length - 1;
+        if (gethostname(&result[0], len) == 0)
+            return assumeWontThrow(to!string(result.ptr));
+        else
+            return "";
+    }
+    else
+    {
+        pragma(msg, "currentComputerName() not supported");
+        return "";
+    }
+}
+
+uint currentProcessId() nothrow @safe
+{
+    import std.process : thisProcessID;
+
+    return thisProcessID;
+}
+
+string currentProcessName() nothrow @trusted
+{
+    version (Windows)
+    {
+        import core.sys.windows.winbase : GetModuleFileNameW;
+        import std.conv : to;
+
+        wchar[1024] result = void;
+        auto len = GetModuleFileNameW(null, &result[0], result.length - 1);
+        return assumeWontThrow(to!string(result[0..len]));
+    }
+    else version (Posix)
+    {
+        import core.sys.posix.unistd : readlink;
+
+        char[1024] result = void;
+        uint len = result.length - 1;
+        len = readlink("/proc/self/exe".ptr, &result[0], len);
+        return result[0..len].idup;
+    }
+    else
+    {
+        pragma(msg, "currentProcessName() not supported");
+        return "";
+    }
+}
+
+string currentUserName() nothrow @trusted
+{
+    version (Windows)
+    {
+        import core.sys.windows.winbase : GetUserNameW;
+        import std.conv : to;
+
+        wchar[256] result = void;
+        uint len = result.length - 1;
+        if (GetUserNameW(&result[0], &len))
+            return assumeWontThrow(to!string(result[0..len]));
+        else
+            return "";
+    }
+    else version (Posix)
+    {
+        import core.sys.posix.unistd : getlogin_r;
+        import std.conv : to;
+
+        char[256] result = void;
+        uint len = result.length - 1;
+        if (getlogin_r(&result[0], len) == 0)
+            return assumeWontThrow(to!string(&result[0]));
+        else
+            return "";
+    }
+    else
+    {
+        pragma(msg, "currentUserName() not supported");
+        return "";
+    }
+}
+
 string functionName(string name = __FUNCTION__) nothrow pure @safe
 {
     return name;
@@ -140,6 +240,20 @@ bool isHex(char c, out ubyte b) @nogc nothrow pure @safe
     }
 
     return true;
+}
+
+S pad(S, C)(S value, const(ptrdiff_t) size, C c) nothrow pure @safe
+if (isSomeString!S && isSomeChar!C && is(Unqual!(typeof(S.init[0])) == C))
+{
+    import std.math : abs;
+
+    const n = abs(size);
+    if (value.length >= n)
+        return value;
+    else
+        return size > 0
+            ? stringOfChar!C(n - value.length, c) ~ value
+            : value ~ stringOfChar!C(n - value.length, c);
 }
 
 char[] randomCharacters(size_t numCharacters) nothrow pure @safe
@@ -287,6 +401,19 @@ if (is(T == class))
     }
 
     return v;
+}
+
+auto stringOfChar(C = char)(size_t count, C c) nothrow pure @trusted
+if (is(Unqual!C == char) || is(Unqual!C == wchar) || is(Unqual!C == dchar))
+{
+    auto result = new Unqual!C[count];
+    result[] = c;
+    static if (is(Unqual!C == char))
+        return cast(string)result;
+    else static if (is(Unqual!C == wchar))
+        return cast(wstring)result;
+    else
+        return cast(dstring)result;
 }
 
 enum DisposableState : byte
@@ -448,6 +575,38 @@ nothrow @safe unittest // className
     assert(className(c2) == "pham.utl.utlobject.ClassTemplate!int.ClassTemplate");
 }
 
+nothrow @safe unittest // currentComputerName
+{
+    import pham.utl.utltest;
+    dgWriteln("unittest utl.utlobject.currentComputerName");
+
+    assert(currentComputerName().length != 0);
+}
+
+nothrow @safe unittest // currentProcessId
+{
+    import pham.utl.utltest;
+    dgWriteln("unittest utl.utlobject.currentProcessId");
+
+    assert(currentProcessId() != 0);
+}
+
+nothrow @safe unittest // currentUserName
+{
+    import pham.utl.utltest;
+    dgWriteln("unittest utl.utlobject.currentUserName");
+
+    assert(currentUserName().length != 0);
+}
+
+nothrow @safe unittest // pad
+{
+    assert(pad("", 2, ' ') == "  ");
+    assert(pad("12", 2, ' ') == "12");
+    assert(pad("12", 3, ' ') == " 12");
+    assert(pad("12", -3, ' ') == "12 ");
+}
+
 nothrow @safe unittest // shortClassName
 {
     import pham.utl.utltest;
@@ -475,6 +634,12 @@ unittest // singleton
     A a;
     assert(a is null);
     assert(singleton(a, &createA) !is null);
+}
+
+nothrow @safe unittest // stringOfChar
+{
+    assert(stringOfChar(4, ' ') == "    ");
+    assert(stringOfChar(0, ' ').length == 0);
 }
 
 unittest // InitializedValue
