@@ -12,6 +12,8 @@ import std.traits;
 
 import pham.utl.utlobject : pad;
 
+@safe:
+
 enum FmtTimeSpecifier : char
 {
     fullShortDateTime = 'f', /// 2009-06-15T12:1:30 -> Monday, June 15, 2009 12:01 PM
@@ -33,16 +35,8 @@ enum FmtTimeSpecifier : char
     shortDate = 'd', /// 2009-06-15T13:45:30 -> 6/15/2009
     shortTime = 't', /// 2009-06-15T13:45:30 -> 1:45 PM
     sortableDateTime = 's', /// 2009-06-15T13:45:30.001000 -> 2009-06-15T13:45:30.001000
-    utcFullDateTime = 'U', /// 2009-06-15T13:45:30 -> Monday, June 15, 2009 8:45:30 PM
-    utcSortableDateTime = 'u', /// 2009-06-15T13:45:30 -> 2009-06-15 13:45:30Z
-}
-
-DateTimeContext threadDateTimeContext;
-__gshared DateTimeContext sharedDateTimeContext = DateTimeContext.us();
-
-static this()
-{
-    threadDateTimeContext = sharedDateTimeContext;
+    utcFullDateTime = 'U', /// 2009-06-15T13:45:30 -> Monday, June 15, 2009 1:45:30 PM
+    utcSortableDateTime = 'u', /// 2009-06-15T13:45:30.000001 -> 2009-06-15 13:45:30.000001Z
 }
 
 struct DateTimeContext
@@ -71,36 +65,8 @@ alias AmPmValues = string[2];
 alias DayOfWeekNames = string[7];
 alias MonthNames = string[12];
 
-immutable AmPmValues usAmPmValues = ["AM", "PM"];
-immutable char usDateSeparator = '/';
-immutable char usTimeSeparator = ':';
-
-// Must match order of DayOfWeek
-immutable DayOfWeekNames usDayOfWeekNames = [
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday"
-    ];
-
-// Must match order of Month
-immutable MonthNames usMonthNames = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December"
-    ];
+DateTimeContext threadDateTimeContext;
+__gshared DateTimeContext sharedDateTimeContext = DateTimeContext.us();
 
 immutable(Char)[] formatDateTime(Char)(scope const(Char)[] fmt, in Date date)
 if (isSomeChar!Char)
@@ -225,22 +191,43 @@ nothrow @safe:
     long julianDay;
     DayOfWeek dayOfWeek;
 
-    @property size_t monthNameIndex() const pure
+    string amPM(const DateTimeContext context) const pure
     {
-        return month - Month.jan;
+        if (context.amPmValues is null)
+            return null;
+        else
+            return (*context.amPmValues)[hour >= 12];
+    }
+
+    string dayOfWeekName(const DateTimeContext context) const pure
+    {
+        return (*context.dayOfWeekNames)[this.dayOfWeek];
+    }
+
+    string monthName(const DateTimeContext context) const pure
+    {
+        const index = this.month - Month.jan;
+        return (*context.monthNames)[index];
+    }
+
+    @property ubyte shortHour() const pure
+    in
+    {
+        assert(hour <= 23);
+    }
+    do
+    {
+        return hour <= 12 ? hour : cast(ubyte)(hour - 12);
     }
 }
 
-uint formattedWriteDateTime(Writer, Char)(auto ref Writer writer, scope const(Char)[] fmt, const ref FmtTime fmtTime)
+uint formattedWriteDateTime(Writer, Char)(auto ref Writer writer, scope const(Char)[] fmt, const ref FmtTime fmtTime) @trusted
 {
     const context = threadDateTimeContext;
 
-    void putAMorPM() nothrow @trusted
+    void putAMorPM() nothrow @safe
     {
-        if (context.amPmValues is null)
-            return;
-
-        auto s = context.amPmValues[fmtTime.hour >= 12];
+        auto s = fmtTime.amPM(context);
         if (s.length)
         {
             put(writer, ' ');
@@ -248,17 +235,17 @@ uint formattedWriteDateTime(Writer, Char)(auto ref Writer writer, scope const(Ch
         }
     }
 
-    void putFullDateTime() nothrow @trusted
+    void putFullDateTime() nothrow @safe
     {
-        put(writer, (context.dayOfWeekNames[fmtTime.dayOfWeek])[]);
+        put(writer, fmtTime.dayOfWeekName(context));
         put(writer, ", ");
-        put(writer, (context.monthNames[fmtTime.monthNameIndex])[]);
+        put(writer, fmtTime.monthName(context));
         put(writer, ' ');
         put(writer, to!string(fmtTime.day));
         put(writer, ", ");
         put(writer, pad(to!string(fmtTime.year), 4, '0'));
         put(writer, ' ');
-        put(writer, to!string(fmtTime.hour));
+        put(writer, to!string(fmtTime.shortHour));
         put(writer, context.timeSeparator);
         put(writer, pad(to!string(fmtTime.minute), 2, '0'));
     }
@@ -271,14 +258,14 @@ uint formattedWriteDateTime(Writer, Char)(auto ref Writer writer, scope const(Ch
         put(writer, context.dateSeparator);
         put(writer, pad(to!string(fmtTime.year), 4, '0'));
         put(writer, ' ');
-        put(writer, to!string(fmtTime.hour));
+        put(writer, to!string(fmtTime.shortHour));
         put(writer, context.timeSeparator);
         put(writer, pad(to!string(fmtTime.minute), 2, '0'));
     }
 
     void putTime() nothrow @safe
     {
-        put(writer, to!string(fmtTime.hour));
+        put(writer, to!string(fmtTime.shortHour));
         put(writer, context.timeSeparator);
         put(writer, pad(to!string(fmtTime.minute), 2, '0'));
     }
@@ -313,9 +300,9 @@ uint formattedWriteDateTime(Writer, Char)(auto ref Writer writer, scope const(Ch
                 put(writer, to!string(fmtTime.julianDay));
                 break;
             case FmtTimeSpecifier.longDate: // 2009-06-15T13:45:30 -> Monday, June 15, 2009
-                put(writer, (context.dayOfWeekNames[fmtTime.dayOfWeek])[]);
+                put(writer, fmtTime.dayOfWeekName(context));
                 put(writer, ", ");
-                put(writer, (context.monthNames[fmtTime.monthNameIndex])[]);
+                put(writer, fmtTime.monthName(context));
                 put(writer, ' ');
                 put(writer, to!string(fmtTime.day));
                 put(writer, ", ");
@@ -328,12 +315,12 @@ uint formattedWriteDateTime(Writer, Char)(auto ref Writer writer, scope const(Ch
                 putAMorPM();
                 break;
             case FmtTimeSpecifier.monthDay: // 2009-06-15T13:45:30 -> June 15
-                put(writer, (context.monthNames[fmtTime.monthNameIndex])[]);
+                put(writer, fmtTime.monthName(context));
                 put(writer, ' ');
                 put(writer, to!string(fmtTime.day));
                 break;
             case FmtTimeSpecifier.monthYear: // 2009-06-15T13:45:30 -> June 2009
-                put(writer, (context.monthNames[fmtTime.monthNameIndex])[]);
+                put(writer, fmtTime.monthName(context));
                 put(writer, ' ');
                 put(writer, pad(to!string(fmtTime.year), 4, '0'));
                 break;
@@ -395,16 +382,16 @@ uint formattedWriteDateTime(Writer, Char)(auto ref Writer writer, scope const(Ch
                 put(writer, '.');
                 put(writer, pad(to!string(fmtTime.usec), 6, '0'));
                 break;
-            case FmtTimeSpecifier.utcFullDateTime: // 2009-06-15T13:45:30 -> Monday, June 15, 2009 8:45:30 PM
-                put(writer, (context.dayOfWeekNames[fmtTime.dayOfWeek])[]);
+            case FmtTimeSpecifier.utcFullDateTime: // 2009-06-15T13:45:30 -> Monday, June 15, 2009 1:45:30 PM
+                put(writer, fmtTime.dayOfWeekName(context));
                 put(writer, ", ");
-                put(writer, (context.monthNames[fmtTime.monthNameIndex])[]);
+                put(writer, fmtTime.monthName(context));
                 put(writer, ' ');
                 put(writer, to!string(fmtTime.day));
                 put(writer, ", ");
                 put(writer, pad(to!string(fmtTime.year), 4, '0'));
                 put(writer, ' ');
-                put(writer, to!string(fmtTime.hour));
+                put(writer, to!string(fmtTime.shortHour));
                 put(writer, ':');
                 put(writer, pad(to!string(fmtTime.minute), 2, '0'));
                 put(writer, ':');
@@ -425,6 +412,7 @@ uint formattedWriteDateTime(Writer, Char)(auto ref Writer writer, scope const(Ch
                 put(writer, pad(to!string(fmtTime.second), 2, '0'));
                 put(writer, '.');
                 put(writer, pad(to!string(fmtTime.usec), 6, '0'));
+                put(writer, 'Z');
                 break;
         }
         result++;
@@ -479,8 +467,11 @@ if (is(Unqual!Char == Char))
             if (trailing[i] != '%')
                 continue;
 
-            put(writer, trailing[0..i]);
-            trailing = trailing[i..$];
+            if (i)
+            {
+                put(writer, trailing[0..i]);
+                trailing = trailing[i..$];
+            }
             enforceFmt(trailing.length >= 2, `Unterminated format specifier: "%"` ~ trailing);
             trailing = trailing[1..$];
 
@@ -501,7 +492,7 @@ if (is(Unqual!Char == Char))
         return false;
     }
 
-    private void fillSpec() scope
+    private void fillSpec() scope @trusted
     {
         specModifier = null;
         spec = cast(char)trailing[0];
@@ -557,3 +548,160 @@ if (is(Unqual!Char == Char))
         }
     }
 }
+
+
+immutable AmPmValues usAmPmValues = ["AM", "PM"];
+immutable char usDateSeparator = '/';
+immutable char usTimeSeparator = ':';
+
+// Must match order of DayOfWeek
+immutable DayOfWeekNames usDayOfWeekNames = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday"
+    ];
+
+// Must match order of Month
+immutable MonthNames usMonthNames = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December"
+    ];
+
+
+private:
+
+
+static this() @trusted
+{
+    threadDateTimeContext = sharedDateTimeContext;
+}
+
+@safe unittest // FmtTimeSpecifier.fullShortDateTime, fullLongDateTime
+{
+    string s;
+
+    s = formatDateTime("%f", DateTime(2009, 06, 15, 12, 1, 30));
+    assert(s == "Monday, June 15, 2009 12:01 PM", s);
+    s = formatDateTime("%F", DateTime(2009, 06, 15, 13, 1, 30));
+    assert(s == "Monday, June 15, 2009 1:01:30 PM", s);
+}
+
+@safe unittest // FmtTimeSpecifier.generalShortDateTime, generalLongDateTime
+{
+    string s;
+
+    s = formatDateTime("%g", DateTime(2009, 06, 15, 13, 45, 30));
+    assert(s == "6/15/2009 1:45 PM", s);
+    s = formatDateTime("%G", DateTime(2009, 06, 15, 13, 45, 30));
+    assert(s == "6/15/2009 1:45:30 PM", s);
+}
+
+@safe unittest // FmtTimeSpecifier.julianDay
+{
+    string s;
+
+    s = formatDateTime("%j", DateTime(2010, 8, 24, 0, 0, 0));
+    assert(s == "2455432", s);
+}
+
+@safe unittest // FmtTimeSpecifier.longDate, shortDate
+{
+    string s;
+
+    s = formatDateTime("%D", DateTime(2009, 06, 15, 13, 45, 30));
+    assert(s == "Monday, June 15, 2009", s);
+    s = formatDateTime("%d", DateTime(2009, 06, 15, 13, 45, 30));
+    assert(s == "6/15/2009", s);
+
+    s = formatDateTime("%D", Date(2009, 06, 15));
+    assert(s == "Monday, June 15, 2009", s);
+    s = formatDateTime("%d", Date(2009, 06, 15));
+    assert(s == "6/15/2009");
+
+    s = formatDateTime("%D", SysTime(DateTime(2009, 06, 15, 13, 45, 30)));
+    assert(s == "Monday, June 15, 2009", s);
+    s = formatDateTime("%d", SysTime(DateTime(2009, 06, 15, 13, 45, 30)));
+    assert(s == "6/15/2009", s);
+}
+
+@safe unittest // FmtTimeSpecifier.longTime, shortTime
+{
+    string s;
+
+    s = formatDateTime("%T", DateTime(2009, 06, 15, 13, 45, 30));
+    assert(s == "1:45:30 PM", s);
+    s = formatDateTime("%t", DateTime(2009, 06, 15, 13, 45, 30));
+    assert(s == "1:45 PM", s);
+
+    s = formatDateTime("%T", TimeOfDay(13, 45, 30));
+    assert(s == "1:45:30 PM", s);
+    s = formatDateTime("%t", TimeOfDay(13, 45, 30));
+    assert(s == "1:45 PM", s);
+
+    s = formatDateTime("%T", SysTime(DateTime(2009, 06, 15, 13, 45, 30)));
+    assert(s == "1:45:30 PM", s);
+    s = formatDateTime("%t", SysTime(DateTime(2009, 06, 15, 13, 45, 30)));
+    assert(s == "1:45 PM", s);
+}
+
+@safe unittest // FmtTimeSpecifier.monthDay, monthYear
+{
+    string s;
+
+    s = formatDateTime("%M", DateTime(2009, 06, 15, 13, 45, 30));
+    assert(s == "June 15", s);
+    s = formatDateTime("%Y", DateTime(2009, 06, 15, 13, 45, 30));
+    assert(s == "June 2009");
+}
+
+@safe unittest // FmtTimeSpecifier.sortableDateTime
+{
+    string s;
+
+    s = formatDateTime("%s", DateTime(2009, 06, 15, 13, 45, 30));
+    assert(s == "2009-06-15T13:45:30.000000", s);
+    s = formatDateTime("%s", DateTime(2009, 06, 15, 13, 45, 30));
+    assert(s == "2009-06-15T13:45:30.000000", s);
+    s = formatDateTime("%s", SysTime(DateTime(2009, 06, 15, 13, 45, 30), usecs(1), null));
+    assert(s == "2009-06-15T13:45:30.000001", s);
+}
+
+@safe unittest // FmtTimeSpecifier.utcFullDateTime
+{
+    string s;
+
+    s = formatDateTime("%U", DateTime(2009, 06, 15, 13, 45, 30));
+    assert(s == "Monday, June 15, 2009 1:45:30 PM", s);
+}
+
+@safe unittest // FmtTimeSpecifier.utcSortableDateTime
+{
+    string s;
+
+    s = formatDateTime("%u", SysTime(DateTime(2009, 06, 15, 13, 45, 30), usecs(1), null));
+    assert(s == "2009-06-15 13:45:30.000001Z", s);
+}
+
+/*
+    part = 'p', /// pyy, pyyyy - 2009-06-01T01:02:03 -> 09, 2009
+                /// pm, pmm, pmmmm - 2009-06-01T01:02:03 -> 6, 06, June
+                /// pd, pdd, pdddd - 2009-06-01T01:02:03 -> 1, 01, Saturday
+                /// ph, phh - 2009-06-01T01:02:03 -> 1, 01
+                /// pn, pnn - 2009-06-01T01:02:03 -> 2, 02
+                /// ps, pss - 2009-06-01T01:02:03 -> 3, 03
+                /// pz, pzzz - 2009-06-01T01:02:03.4 -> 4, 004
+*/
