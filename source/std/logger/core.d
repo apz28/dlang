@@ -1942,8 +1942,8 @@ import std.conv : to;
 import std.format : format;
 import std.string : lastIndexOf;
 
+import pham.utl.fmttime : formatDateTime;
 import pham.utl.utlobject : pad, stringOfChar;
-import pham.utl.fmttime;
 
 @safe:
 
@@ -2439,14 +2439,13 @@ ForwardThreadLogger threadLogDefault_;
     return threadLogDefault_;
 }
 
-// Workaround for atomics not allowed in @safe code
-auto trustedLoad(T)(ref shared T value) nothrow @trusted
+auto trustedLoad(T)(ref shared T value) nothrow @safe
 {
     return atomicLoad!(MemoryOrder.acq)(value);
 }
 
 // ditto
-void trustedStore(T)(ref shared T dst, shared T src) nothrow @trusted
+void trustedStore(T)(ref shared T dst, shared T src) nothrow @safe
 {
     atomicStore!(MemoryOrder.rel)(dst, src);
 }
