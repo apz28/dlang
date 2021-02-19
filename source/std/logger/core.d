@@ -2249,6 +2249,8 @@ struct LogTimming
 nothrow @safe:
 
 public:
+    @disable this(this);
+
     /**
      * Params:
      *  logger = Logger where logging message being written to
@@ -2291,6 +2293,12 @@ public:
     {
         if (canLog())
             log();
+    }
+
+    version (none) // Just use this instead: xxx = LogTimming.init;
+    static typeof(this) opCall()
+    {
+        return LogTimming(null, false, 0, 0, null, null, null, null);
     }
 
     bool canLog()
@@ -2851,6 +2859,13 @@ public:
     static LoggerOptions defaultOptions() nothrow pure @safe
     {
         return LoggerOptions(LogLevel.all, "Test", defaultOutputPattern);
+    }
+
+    final void reset() nothrow pure @safe
+    {
+        lvl = LogLevel.all;
+        line = 0;
+        file = func = outputMessage = prettyFunc = msg = null;
     }
 
 protected:
@@ -3915,6 +3930,28 @@ void testFuncNames(Logger logger) @safe
     version (DebugLogger) debug writeln(tl.outputMessage);
     version (DebugLogger) debug writeln(expectedOutput);
     assert(tl.outputMessage == expectedOutput, tl.outputMessage ~ " vs " ~ expectedOutput);
+}
+
+unittest // LogTimming
+{
+    import core.Thread;
+    import std.conv : to;
+    import std.stdio : writeln;
+
+    auto tl = new TestLogger();
+
+    void timeLog(bool logBeginEnd = false, int warnMsecs = 0, bool logIt = true) nothrow
+    {
+        auto timing = logIt ? LogTimming(tl, logBeginEnd, warnMsecs) : LogTimming.init;
+        if (warnMsecs > 0)
+            Thread.sleep(msecs(warnMsecs + 1));
+    }
+
+    timeLog(); assert(tl.msg == "0");
+    timeLog(true); assert(tl.msg == "0");
+    timeLog(false, 2); assert(to!int(tl.msg) >= 3);
+    timeLog(true, 2); assert(to!int(tl.msg) >= 3);
+    tl.reset(); timeLog(true, 2, false); assert(tl.msg.length == 0);
 }
 
 /* Sample D predefined variable
