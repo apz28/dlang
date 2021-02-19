@@ -1,11 +1,17 @@
-// Written in the D programming language.
-/**
-Implements logging facilities.
+/*
+ *
+ * Source: $(PHOBOSSRC std/experimental/logger/core.d)
+ *
+ * License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
+ * Authors: Copyright Robert, An Pham
+ *
+ * Copyright Copyright Robert "burner" Schadek 2013, $(HTTP www.svs.informatik.uni-oldenburg.de/60865.html
+ * Distributed under the Boost Software License, Version 1.0.
+ * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+ *
+*/
 
-Copyright: Copyright Robert "burner" Schadek 2013 --
-License: <a href="http://www.boost.org/LICENSE_1_0.txt">Boost License 1.0</a>.
-Authors: $(HTTP www.svs.informatik.uni-oldenburg.de/60865.html, Robert burner Schadek)
-
+/*
 $(H3 Basic Logging)
 
 Message logging is a common approach to expose runtime information of a
@@ -14,9 +20,10 @@ program. Logging should be easy, but also flexible and powerful, therefore
 
 The easiest way to create a log message is to write:
 -------------
-import std.experimental.logger;
+import std.logger;
 
-void main() {
+void main()
+{
     log("Hello World");
 }
 -------------
@@ -29,19 +36,19 @@ More complex log call can go along the lines like:
 log("Logging to the sharedLog with its default LogLevel");
 logf(LogLevel.info, 5 < 6, "%s to the sharedLog with its LogLevel.info", "Logging");
 info("Logging to the sharedLog with its info LogLevel");
-warning(5 < 6, "Logging to the sharedLog with its LogLevel.warning if 5 is less than 6");
+warn(5 < 6, "Logging to the sharedLog with its LogLevel.warn if 5 is less than 6");
 error("Logging to the sharedLog with its error LogLevel");
 errorf("Logging %s the sharedLog %s its error LogLevel", "to", "with");
-critical("Logging to the"," sharedLog with its error LogLevel");
+critical("Logging to the", " sharedLog with its error LogLevel");
 fatal("Logging to the sharedLog with its fatal LogLevel");
 
 auto fLogger = new FileLogger("NameOfTheLogFile");
 fLogger.log("Logging to the fileLogger with its default LogLevel");
 fLogger.info("Logging to the fileLogger with its default LogLevel");
-fLogger.warning(5 < 6, "Logging to the fileLogger with its LogLevel.warning if 5 is less than 6");
-fLogger.warningf(5 < 6, "Logging to the fileLogger with its LogLevel.warning if %s is %s than 6", 5, "less");
+fLogger.warn(5 < 6, "Logging to the fileLogger with its LogLevel.warning if 5 is less than 6");
+fLogger.warnf(5 < 6, "Logging to the fileLogger with its LogLevel.warning if %s is %s than 6", 5, "less");
 fLogger.critical("Logging to the fileLogger with its info LogLevel");
-fLogger.log(LogLevel.trace, 5 < 6, "Logging to the fileLogger"," with its default LogLevel if 5 is less than 6");
+fLogger.log(LogLevel.trace, 5 < 6, "Logging to the fileLogger", " with its default LogLevel if 5 is less than 6");
 fLogger.fatal("Logging to the fileLogger with its warning LogLevel");
 -------------
 Additionally, this example shows how a new `FileLogger` is created.
@@ -53,15 +60,15 @@ $(UL
     $(LI `log`)
     $(LI `trace`)
     $(LI `info`)
-    $(LI `warning`)
+    $(LI `warn`)
     $(LI `critical`)
     $(LI `fatal`)
 )
 The default `Logger` will by default log to `stderr` and has a default
-`LogLevel` of `LogLevel.all`. The default Logger can be accessed by
+`LogLevel` of `LogLevel.warn`. The default Logger can be accessed by
 using the property called `sharedLog`. This property is a reference to the
 current default `Logger`. This reference can be used to assign a new
-default `Logger`.
+default `Logger` with desired LogLevel.
 -------------
 sharedLog = new FileLogger("New_Default_Log_File.log");
 -------------
@@ -74,13 +81,10 @@ $(H4 LogLevel)
 The `LogLevel` of a log call can be defined in two ways. The first is by
 calling `log` and passing the `LogLevel` explicitly as the first argument.
 The second way of setting the `LogLevel` of a
-log call, is by calling either `trace`, `info`, `warning`,
+log call, is by calling either `trace`, `info`, `warn`,
 `critical`, or `fatal`. The log call will then have the respective
 `LogLevel`. If no `LogLevel` is defined the log call will use the
-current `LogLevel` of the used `Logger`. If data is logged with
-`LogLevel` `fatal` by default an `Error` will be thrown.
-This behaviour can be modified by using the member `fatalHandler` to
-assign a custom delegate to handle log call with `LogLevel` `fatal`.
+current `LogLevel` of the used `Logger`.
 
 $(H4 Conditional Logging)
 Conditional logging can be achieved be passing a `bool` as first
@@ -97,7 +101,7 @@ equal to the `LogLevel` of the used `Logger` and additionally if the
 `LogLevel` of the log message is greater than or equal to the global `LogLevel`.
 If a condition is passed into the log call, this condition must be true.
 
-The global `LogLevel` is accessible by using `globalLogLevel`.
+The global `LogLevel` is accessible by using `sharedLogLevel`.
 To assign a `LogLevel` of a `Logger` use the `logLevel` property of
 the logger.
 
@@ -111,34 +115,57 @@ logging functions and methods.
 $(H4 Thread Local Redirection)
 Calls to the free standing log functions are not directly forwarded to the
 global `Logger` `sharedLog`. Actually, a thread local `Logger` of
-type `StdForwardLogger` processes the log call and then, by default, forwards
+type `ForwardThreadLogger` processes the log call and then, by default, forwards
 the created `Logger.LogEntry` to the `sharedLog` `Logger`.
-The thread local `Logger` is accessible by the `stdThreadLocalLog`
+The thread local `Logger` is accessible by the `threadLog`
 property. This property allows to assign user defined `Logger`. The default
-`LogLevel` of the `stdThreadLocalLog` `Logger` is `LogLevel.all`
+`LogLevel` of the `threadLog` `Logger` is `LogLevel.all`
 and it will therefore forward all messages to the `sharedLog` `Logger`.
-The `LogLevel` of the `stdThreadLocalLog` can be used to filter log
+The `LogLevel` of the `threadLog` can be used to filter log
 calls before they reach the `sharedLog` `Logger`.
 
 $(H3 User Defined Logger)
 To customize the `Logger` behavior, create a new `class` that inherits from
-the abstract `Logger` `class`, and implements the `writeLogMsg`
-method.
+the `MemLogger` `class`, and implements the `writeLog` method or
+abstract `Logger` and implements `beginMsg`, `commitMsg`, `endMsg` and `writeLog` methods
 -------------
-class MyCustomLogger : Logger
+class MyCustomLogger : MemLogger
 {
-    this(LogLevel lv) @safe
-    {
-        super(lv);
-    }
-
-    override void writeLogMsg(ref LogEntry payload)
+    final override void writeLog(ref Logger.LogEntry payload) nothrow @safe
     {
         // log message in my custom way
     }
 }
 
-auto logger = new MyCustomLogger(LogLevel.info);
+class MyCustomLogger : Logger
+{
+    this(LoggerOptions options) nothrow @safe
+    {
+        super(options);
+    }
+
+    final override void beginMsg(ref Logger.LogHeader header) nothrow @safe
+    {
+        // log message in my custom way
+    }
+
+    final override void commitMsg(scope const(char)[] msg) nothrow @safe
+    {
+        // log message in my custom way
+    }
+
+    final override void endMsg() nothrow @safe
+    {
+        // log message in my custom way
+    }
+
+    final override void writeLog(ref Logger.LogEntry payload) nothrow @safe
+    {
+        // log message in my custom way
+    }
+}
+
+auto logger = new MyCustomLogger(LoggerOptions(LogLevel.info, "MyCustomLogger", defaultOutputPattern));
 logger.log("Awesome log message with LogLevel.info");
 -------------
 
@@ -147,21 +174,21 @@ overriding the `writeLogMsg` method the methods `beginLogMsg`,
 `logMsgPart` and `finishLogMsg` can be overridden.
 
 $(H3 Compile Time Disabling of `Logger`)
-In order to disable logging at compile time, pass `StdLoggerDisableLogging` as a
+In order to disable logging at compile time, pass `DisableLogger...` as a
 version argument to the `D` compiler when compiling your program code.
 This will disable all logging functionality.
 Specific `LogLevel` can be disabled at compile time as well.
 In order to disable logging with the `trace` `LogLevel` pass
-`StdLoggerDisableTrace` as a version.
+`DisableLoggerTrace` as a version.
 The following table shows which version statement disables which
 `LogLevel`.
 $(TABLE
-    $(TR $(TD `LogLevel.trace` ) $(TD StdLoggerDisableTrace))
-    $(TR $(TD `LogLevel.info` ) $(TD StdLoggerDisableInfo))
-    $(TR $(TD `LogLevel.warning` ) $(TD StdLoggerDisableWarning))
-    $(TR $(TD `LogLevel.error` ) $(TD StdLoggerDisableError))
-    $(TR $(TD `LogLevel.critical` ) $(TD StdLoggerDisableCritical))
-    $(TR $(TD `LogLevel.fatal` ) $(TD StdLoggerDisableFatal))
+    $(TR $(TD `LogLevel.trace` ) $(TD DisableLoggerTrace))
+    $(TR $(TD `LogLevel.info` ) $(TD DisableLoggerInfo))
+    $(TR $(TD `LogLevel.warn` ) $(TD DisableLoggerWarn))
+    $(TR $(TD `LogLevel.error` ) $(TD DisableLoggerError))
+    $(TR $(TD `LogLevel.critical` ) $(TD DisableLoggerCritical))
+    $(TR $(TD `LogLevel.fatal` ) $(TD DisableLoggerFatal))
 )
 Such a version statement will only disable logging in the associated compile
 unit.
@@ -177,8 +204,6 @@ The `MultiLogger` is basically an associative array of `string`s to
 calls to its stored `Logger`. The `NullLogger` does not do anything. It
 will never log a message and will never throw on a log call with `LogLevel`
 `error`.
-
-Source: $(PHOBOSSRC std/experimental/logger/package.d)
 */
 module std.logger;
 

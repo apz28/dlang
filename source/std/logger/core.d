@@ -1,16 +1,23 @@
-/**
+/*
+ *
  * Source: $(PHOBOSSRC std/experimental/logger/core.d)
  *
- * Significant Modification Authors: An Pham
- * Distributed under the Boost Software License, Version 1.0.
  * License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
- */
+ * Authors: Copyright Robert, An Pham
+ *
+ * Copyright Copyright Robert "burner" Schadek 2013, $(HTTP www.svs.informatik.uni-oldenburg.de/60865.html
+ * Distributed under the Boost Software License, Version 1.0.
+ * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+ *
+*/
 module std.logger.core;
 
 import core.atomic : atomicLoad, atomicStore,  MemoryOrder;
 import core.sync.mutex : Mutex;
 import core.thread : ThreadID;
 import core.time : Duration, msecs;
+public import std.ascii : newline;
+import std.conv : to;
 import std.datetime.date : DateTime;
 import std.datetime.systime : Clock, SysTime;
 import std.datetime.timezone : LocalTime, UTC;
@@ -475,7 +482,7 @@ template defaultLogFunction(LogLevel ll)
 
         static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
         {
-            threadLog.memLogFunctions!(ll).logImpl!(moduleName, A)(args, ex, line, fileName, funcName, prettyFuncName);
+            threadLog.logFunction!(ll).logImpl!(moduleName, A)(args, ex, line, fileName, funcName, prettyFuncName);
         }
     }
 
@@ -487,7 +494,7 @@ template defaultLogFunction(LogLevel ll)
 
         static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
         {
-            threadLog.memLogFunctions!(ll).logImpl!(moduleName, A)(condition, args, ex, line, fileName, funcName, prettyFuncName);
+            threadLog.logFunction!(ll).logImpl!(moduleName, A)(condition, args, ex, line, fileName, funcName, prettyFuncName);
         }
     }
 }
@@ -547,7 +554,7 @@ template defaultLogFunctionf(LogLevel ll)
 
         static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
         {
-            threadLog.memLogFunctions!(ll).logImplf!(moduleName, A)(fmt, args, ex, line, fileName, funcName, prettyFuncName);
+            threadLog.logFunction!(ll).logImplf!(moduleName, A)(fmt, args, ex, line, fileName, funcName, prettyFuncName);
         }
     }
 
@@ -559,7 +566,7 @@ template defaultLogFunctionf(LogLevel ll)
 
         static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
         {
-            threadLog.memLogFunctions!(ll).logImplf!(moduleName, A)(condition, fmt, args, ex, line, fileName, funcName, prettyFuncName);
+            threadLog.logFunction!(ll).logImplf!(moduleName, A)(condition, fmt, args, ex, line, fileName, funcName, prettyFuncName);
         }
     }
 }
@@ -681,13 +688,13 @@ public:
      */
     @property final LogLevel logLevel() const nothrow pure @safe
     {
-        return trustedLoad(cast(shared)(this.options.logLevel));
+        return sharedLoad(cast(shared)(this.options.logLevel));
     }
 
     /// Ditto
     @property final Logger logLevel(const LogLevel value) nothrow @safe @nogc
     {
-        trustedStore(cast(shared)(this.options.logLevel), value);
+        sharedStore(cast(shared)(this.options.logLevel), value);
         return this;
     }
 
@@ -719,18 +726,69 @@ public:
 
     @property final Object userContext() nothrow pure @trusted
     {
-        return cast(Object)trustedLoad(cast(shared)(this.userContext_));
-     }
+        return cast(Object)sharedLoad(cast(shared)(this.userContext_));
+    }
 
     @property final Logger userContext(Object value) nothrow @trusted
-     {
-        trustedStore(cast(shared)(this.userContext_), cast(shared)value);
+    {
+        sharedStore(cast(shared)(this.userContext_), cast(shared)value);
         return this;
-     }
+    }
 
     @property final string userName() nothrow @safe
     {
         return userName_;
+    }
+
+    /**
+     * This template provides the checking for if a level is enabled for the `Logger` `class`
+     * with the `LogLevel` encoded in the function name.
+     * For further information see the the two functions defined inside of this
+     * template.
+     * The aliases following this template create the public names of these log
+     * functions.
+     */
+    template isFunction(LogLevel ll)
+    {
+        final bool isImpl(string moduleName = __MODULE__)() nothrow @safe
+        {
+            static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
+            {
+                return isLoggingEnabled(ll, this.logLevel, sharedLogLevel);
+            }
+            else
+            {
+                return false;
+            }
+        }
+    }
+
+    /// Ditto
+    alias isTrace = isFunction!(LogLevel.trace).isImpl;
+    /// Ditto
+    alias isInfo = isFunction!(LogLevel.info).isImpl;
+    /// Ditto
+    alias isWarn = isFunction!(LogLevel.warn).isImpl;
+    /// Ditto
+    alias isError = isFunction!(LogLevel.error).isImpl;
+    /// Ditto
+    alias isCritical = isFunction!(LogLevel.critical).isImpl;
+    /// Ditto
+    alias isFatal = isFunction!(LogLevel.fatal).isImpl;
+    /// Ditto
+    final bool isLogLevel(const LogLevel ll) nothrow @safe
+    {
+        final switch (ll)
+        {
+            case LogLevel.all: return isInfo();
+            case LogLevel.trace: return isTrace();
+            case LogLevel.info: return isInfo();
+            case LogLevel.warn: return isWarn();
+            case LogLevel.error: return isError();
+            case LogLevel.critical: return isCritical();
+            case LogLevel.fatal: return isFatal();
+            case LogLevel.off: return false;
+        }
     }
 
     /**
@@ -741,7 +799,7 @@ public:
      * The aliases following this template create the public names of these log
      * functions.
      */
-    template memLogFunctions(LogLevel ll)
+    template logFunction(LogLevel ll)
     {
         /**
          * This function logs data to the used `Logger`.
@@ -760,26 +818,23 @@ public:
         s.fatal(1337, "is number");
         --------------------
          */
-        void logImpl(string moduleName = __MODULE__, A...)(lazy A args, Exception ex = null,
+        final void logImpl(string moduleName = __MODULE__, A...)(lazy A args, Exception ex = null,
             in int line = __LINE__, in string fileName = __FILE__,
             in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
         if (args.length == 0 || (args.length > 0 && !is(Unqual!(A[0]) : bool)))
         {
-            version (DebugLogger) debug writeln("memLogFunctions.args.line=", line);
+            version (DebugLogger) debug writeln("logFunction.args.line=", line);
 
             static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
             try
             {
-                synchronized (mutex)
+                if (isFunction!(ll).isImpl()) synchronized (mutex)
                 {
-                    if (isLoggingEnabled(ll, this.options.logLevel, sharedLogLevel))
-                    {
-                        auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                        this.beginMsg(header);
-                        auto writer = LogArgumentWriter(this);
-                        writer.put!(A)(args);
-                        this.endMsg();
-                    }
+                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.put!(A)(args);
+                    this.endMsg();
                 }
             }
             catch (Exception)
@@ -806,25 +861,22 @@ public:
         s.fatal(true, 1337, "is number");
         --------------------
          */
-        void logImpl(string moduleName = __MODULE__, A...)(lazy bool condition, lazy A args, Exception ex = null,
+        final void logImpl(string moduleName = __MODULE__, A...)(lazy bool condition, lazy A args, Exception ex = null,
             in int line = __LINE__, in string fileName = __FILE__,
             in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
         {
-            version (DebugLogger) debug writeln("memLogFunctions.condition.args.line=", line);
+            version (DebugLogger) debug writeln("logFunction.condition.args.line=", line);
 
             static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
             try
             {
-                synchronized (mutex)
+                if (isFunction!(ll).isImpl() && condition) synchronized (mutex)
                 {
-                    if (isLoggingEnabled(ll, this.options.logLevel, sharedLogLevel) && condition)
-                    {
-                        auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                        this.beginMsg(header);
-                        auto writer = LogArgumentWriter(this);
-                        writer.put!(A)(args);
-                        this.endMsg();
-                    }
+                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.put!(A)(args);
+                    this.endMsg();
                 }
             }
             catch (Exception)
@@ -850,26 +902,23 @@ public:
         s.fatalf("is number %d", 5);
         --------------------
          */
-        void logImplf(string moduleName = __MODULE__, A...)(lazy string fmt, lazy A args, Exception ex = null,
+        final void logImplf(string moduleName = __MODULE__, A...)(lazy string fmt, lazy A args, Exception ex = null,
             in int line = __LINE__, in string fileName = __FILE__,
             in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
         if (args.length == 0 || (args.length > 0 && !is(Unqual!(A[0]) : string)))
         {
-            version (DebugLogger) debug writeln("memLogFunctions.args.line=", line);
+            version (DebugLogger) debug writeln("logFunction.args.line=", line);
 
             static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
             try
             {
-                synchronized (mutex)
+                if (isFunction!(ll).isImpl()) synchronized (mutex)
                 {
-                    if (isLoggingEnabled(ll, this.options.logLevel, sharedLogLevel))
-                    {
-                        auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                        this.beginMsg(header);
-                        auto writer = LogArgumentWriter(this);
-                        writer.putf(fmt, args);
-                        this.endMsg();
-                    }
+                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.putf(fmt, args);
+                    this.endMsg();
                 }
             }
             catch (Exception)
@@ -897,25 +946,22 @@ public:
         s.fatalf(true, "is number %d", 5);
         --------------------
          */
-        void logImplf(string moduleName = __MODULE__, A...)(lazy bool condition, lazy string fmt, lazy A args, Exception ex = null,
+        final void logImplf(string moduleName = __MODULE__, A...)(lazy bool condition, lazy string fmt, lazy A args, Exception ex = null,
             in int line = __LINE__, in string fileName = __FILE__,
             in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
         {
-            version (DebugLogger) debug writeln("memLogFunctions.condition.fmt.args.line=", line);
+            version (DebugLogger) debug writeln("logFunction.condition.fmt.args.line=", line);
 
             static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
             try
             {
-                synchronized (mutex)
+                if (isFunction!(ll).isImpl() && condition) synchronized (mutex)
                 {
-                    if (isLoggingEnabled(ll, this.options.logLevel, sharedLogLevel) && condition)
-                    {
-                        auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                        this.beginMsg(header);
-                        auto writer = LogArgumentWriter(this);
-                        writer.putf(fmt, args);
-                        this.endMsg();
-                    }
+                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.putf(fmt, args);
+                    this.endMsg();
                 }
             }
             catch (Exception)
@@ -924,30 +970,29 @@ public:
     }
 
     /// Ditto
-    alias trace = memLogFunctions!(LogLevel.trace).logImpl;
+    alias trace = logFunction!(LogLevel.trace).logImpl;
     /// Ditto
-    alias tracef = memLogFunctions!(LogLevel.trace).logImplf;
+    alias tracef = logFunction!(LogLevel.trace).logImplf;
     /// Ditto
-    alias info = memLogFunctions!(LogLevel.info).logImpl;
+    alias info = logFunction!(LogLevel.info).logImpl;
     /// Ditto
-    alias infof = memLogFunctions!(LogLevel.info).logImplf;
+    alias infof = logFunction!(LogLevel.info).logImplf;
     /// Ditto
-    alias warn = memLogFunctions!(LogLevel.warn).logImpl;
+    alias warn = logFunction!(LogLevel.warn).logImpl;
     /// Ditto
-    alias warnf = memLogFunctions!(LogLevel.warn).logImplf;
+    alias warnf = logFunction!(LogLevel.warn).logImplf;
     /// Ditto
-    alias error = memLogFunctions!(LogLevel.error).logImpl;
+    alias error = logFunction!(LogLevel.error).logImpl;
     /// Ditto
-    alias errorf = memLogFunctions!(LogLevel.error).logImplf;
+    alias errorf = logFunction!(LogLevel.error).logImplf;
     /// Ditto
-    alias critical = memLogFunctions!(LogLevel.critical).logImpl;
+    alias critical = logFunction!(LogLevel.critical).logImpl;
     /// Ditto
-    alias criticalf = memLogFunctions!(LogLevel.critical).logImplf;
+    alias criticalf = logFunction!(LogLevel.critical).logImplf;
     /// Ditto
-    alias fatal = memLogFunctions!(LogLevel.fatal).logImpl;
+    alias fatal = logFunction!(LogLevel.fatal).logImpl;
     /// Ditto
-    alias fatalf = memLogFunctions!(LogLevel.fatal).logImplf;
-
+    alias fatalf = logFunction!(LogLevel.fatal).logImplf;
 
     /**
      * This function logs data to the used `Logger` with the `LogLevel`
@@ -967,7 +1012,7 @@ public:
     s.log(1337, "is number");
     --------------------
      */
-    void log(string moduleName = __MODULE__, A...)(lazy A args, Exception ex = null,
+    final void log(string moduleName = __MODULE__, A...)(lazy A args, Exception ex = null,
         in int line = __LINE__, in string fileName = __FILE__,
         in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(A[0]) : bool) && !is(Unqual!(A[0]) == LogLevel)))
@@ -977,17 +1022,14 @@ public:
         static if (isLoggingActive)
         try
         {
-            synchronized (mutex)
+            const ll = this.logLevel;
+            if (isLogLevel(ll)) synchronized (mutex)
             {
-                const ll = this.options.logLevel;
-                if (isLoggingEnabled(ll, this.options.logLevel, sharedLogLevel))
-                {
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                    this.beginMsg(header);
-                    auto writer = LogArgumentWriter(this);
-                    writer.put!(A)(args);
-                    this.endMsg();
-                }
+                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
+                this.beginMsg(header);
+                auto writer = LogArgumentWriter(this);
+                writer.put!(A)(args);
+                this.endMsg();
             }
         }
         catch (Exception)
@@ -1014,7 +1056,7 @@ public:
     s.log(false, 1337, "is number");
     --------------------
      */
-    void log(string moduleName = __MODULE__, A...)(lazy bool condition, lazy A args, Exception ex = null,
+    final void log(string moduleName = __MODULE__, A...)(lazy bool condition, lazy A args, Exception ex = null,
         in int line = __LINE__, in string fileName = __FILE__,
         in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
     {
@@ -1023,17 +1065,14 @@ public:
         static if (isLoggingActive)
         try
         {
-            synchronized (mutex)
+            const ll = this.logLevel;
+            if (isLogLevel(ll) && condition) synchronized (mutex)
             {
-                const ll = this.options.logLevel;
-                if (isLoggingEnabled(ll, this.options.logLevel, sharedLogLevel) && condition)
-                {
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                    this.beginMsg(header);
-                    auto writer = LogArgumentWriter(this);
-                    writer.put!(A)(args);
-                    this.endMsg();
-                }
+                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
+                this.beginMsg(header);
+                auto writer = LogArgumentWriter(this);
+                writer.put!(A)(args);
+                this.endMsg();
             }
         }
         catch (Exception)
@@ -1059,7 +1098,7 @@ public:
     s.log(LogLevel.fatal, 1337, "is number");
     --------------------
      */
-    void log(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy A args, Exception ex = null,
+    final void log(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy A args, Exception ex = null,
         in int line = __LINE__, in string fileName = __FILE__,
         in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(A[0]) : bool)))
@@ -1069,16 +1108,13 @@ public:
         static if (isLoggingActive)
         try
         {
-            synchronized (mutex)
+            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll)) synchronized (mutex)
             {
-                if (isLoggingEnabled(ll, this.options.logLevel, sharedLogLevel) && ll >= moduleLogLevel!moduleName)
-                {
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                    this.beginMsg(header);
-                    auto writer = LogArgumentWriter(this);
-                    writer.put!(A)(args);
-                    this.endMsg();
-                }
+                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
+                this.beginMsg(header);
+                auto writer = LogArgumentWriter(this);
+                writer.put!(A)(args);
+                this.endMsg();
             }
         }
         catch (Exception)
@@ -1102,7 +1138,7 @@ public:
     l.log(1337);
     --------------------
      */
-    void log(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy bool condition, lazy A args, Exception ex = null,
+    final void log(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy bool condition, lazy A args, Exception ex = null,
         in int line = __LINE__, in string fileName = __FILE__,
         in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
     {
@@ -1111,16 +1147,13 @@ public:
         static if (isLoggingActive)
         try
         {
-            synchronized (mutex)
+            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll) && condition) synchronized (mutex)
             {
-                if (isLoggingEnabled(ll, this.options.logLevel, sharedLogLevel) && ll >= moduleLogLevel!moduleName && condition)
-                {
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                    this.beginMsg(header);
-                    auto writer = LogArgumentWriter(this);
-                    writer.put!(A)(args);
-                    this.endMsg();
-                }
+                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
+                this.beginMsg(header);
+                auto writer = LogArgumentWriter(this);
+                writer.put!(A)(args);
+                this.endMsg();
             }
         }
         catch (Exception)
@@ -1145,7 +1178,7 @@ public:
     s.logf("%d %s", 1337, "is number");
     --------------------
      */
-    void logf(string moduleName = __MODULE__, A...)(lazy string fmt, lazy A args, Exception ex = null,
+    final void logf(string moduleName = __MODULE__, A...)(lazy string fmt, lazy A args, Exception ex = null,
         in int line = __LINE__, in string fileName = __FILE__,
         in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(A[0]) : bool) && !is(Unqual!(A[0]) == LogLevel)))
@@ -1155,17 +1188,14 @@ public:
         static if (isLoggingActive)
         try
         {
-            synchronized (mutex)
+            const ll = this.logLevel;
+            if (isLogLevel(ll)) synchronized (mutex)
             {
-                const ll = this.options.logLevel;
-                if (isLoggingEnabled(ll, this.options.logLevel, sharedLogLevel))
-                {
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                    this.beginMsg(header);
-                    auto writer = LogArgumentWriter(this);
-                    writer.putf!(A)(fmt, args);
-                    this.endMsg();
-                }
+                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
+                this.beginMsg(header);
+                auto writer = LogArgumentWriter(this);
+                writer.putf!(A)(fmt, args);
+                this.endMsg();
             }
         }
         catch (Exception)
@@ -1193,7 +1223,7 @@ public:
     s.logf(true ,"%d %s", 1337, "is number");
     --------------------
      */
-    void logf(string moduleName = __MODULE__, A...)(lazy bool condition, lazy string fmt, lazy A args, Exception ex = null,
+    final void logf(string moduleName = __MODULE__, A...)(lazy bool condition, lazy string fmt, lazy A args, Exception ex = null,
         in int line = __LINE__, in string fileName = __FILE__,
         in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
     {
@@ -1202,17 +1232,14 @@ public:
         static if (isLoggingActive)
         try
         {
-            synchronized (mutex)
+            const ll = this.logLevel;
+            if (isLogLevel(ll) && condition) synchronized (mutex)
             {
-                const ll = this.options.logLevel;
-                if (isLoggingEnabled(ll, this.options.logLevel, sharedLogLevel) && condition)
-                {
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                    this.beginMsg(header);
-                    auto writer = LogArgumentWriter(this);
-                    writer.putf!(A)(fmt, args);
-                    this.endMsg();
-                }
+                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
+                this.beginMsg(header);
+                auto writer = LogArgumentWriter(this);
+                writer.putf!(A)(fmt, args);
+                this.endMsg();
             }
         }
         catch (Exception)
@@ -1239,7 +1266,7 @@ public:
     s.logf(LogLevel.fatal, "%d %s", 1337, "is number");
     --------------------
      */
-    void logf(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy string fmt, lazy A args, Exception ex = null,
+    final void logf(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy string fmt, lazy A args, Exception ex = null,
         in int line = __LINE__, in string fileName = __FILE__,
         in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
     {
@@ -1248,16 +1275,13 @@ public:
         static if (isLoggingActive)
         try
         {
-            synchronized (mutex)
+            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll)) synchronized (mutex)
             {
-                if (isLoggingEnabled(ll, this.options.logLevel, sharedLogLevel) && ll >= moduleLogLevel!moduleName)
-                {
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                    this.beginMsg(header);
-                    auto writer = LogArgumentWriter(this);
-                    writer.putf!(A)(fmt, args);
-                    this.endMsg();
-                }
+                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
+                this.beginMsg(header);
+                auto writer = LogArgumentWriter(this);
+                writer.putf!(A)(fmt, args);
+                this.endMsg();
             }
         }
         catch (Exception)
@@ -1286,7 +1310,7 @@ public:
     s.logf(LogLevel.fatal, true ,"%d %s", 1337, "is number");
     --------------------
      */
-    void logf(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy bool condition, lazy string fmt, lazy A args, Exception ex = null,
+    final void logf(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy bool condition, lazy string fmt, lazy A args, Exception ex = null,
         in int line = __LINE__, in string fileName = __FILE__,
         in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
     {
@@ -1295,16 +1319,13 @@ public:
         static if (isLoggingActive)
         try
         {
-            synchronized (mutex)
+            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll) && condition) synchronized (mutex)
             {
-                if (isLoggingEnabled(ll, this.options.logLevel, sharedLogLevel) && ll >= moduleLogLevel!moduleName && condition)
-                {
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                    this.beginMsg(header);
-                    auto writer = LogArgumentWriter(this);
-                    writer.putf!(A)(fmt, args);
-                    this.endMsg();
-                }
+                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
+                this.beginMsg(header);
+                auto writer = LogArgumentWriter(this);
+                writer.putf!(A)(fmt, args);
+                this.endMsg();
             }
         }
         catch (Exception)
@@ -1609,7 +1630,6 @@ protected:
 
 struct LogArgumentWriter
 {
-import std.conv : to;
 import std.typecons : Yes;
 import std.utf : encode;
 
@@ -1711,7 +1731,6 @@ public:
 struct LogOutputPatternParser
 {
 import std.array : Appender;
-import std.conv : to;
 
 nothrow @safe:
 
@@ -1937,8 +1956,6 @@ struct LogOutputWriter
 {
 import std.algorithm.comparison : max, min;
 import std.array : Appender, split;
-import std.ascii : newline;
-import std.conv : to;
 import std.format : format;
 import std.string : lastIndexOf;
 
@@ -2227,7 +2244,107 @@ private:
     Logger logger;
 }
 
+struct LogTimming
+{
+nothrow @safe:
+
+public:
+    /**
+     * Params:
+     *  logger = Logger where logging message being written to
+     *  logBeginEnd = if true, immediately write a log with message = "0"
+     *  warnMsecs = Change log to warn when > 0 and at time of writing log with
+     *      elapsed time in millisecond greater than this parameter value
+     */
+    this(Logger logger,
+        bool logBeginEnd = false,
+        int warnMsecs = 0,
+        in int line = __LINE__, in string fileName = __FILE__,
+        in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__,
+        in string moduleName = __MODULE__)
+    {
+        payload.logger = logger;
+        payload.header.logLevel = LogLevel.info;
+        payload.header.line = line;
+        payload.header.fileName = fileName;
+        payload.header.funcName = funcName;
+        payload.header.prettyFuncName = prettyFuncName;
+        payload.header.moduleName = moduleName;
+        payload.header.threadID = thisThreadID;
+        this.logBeginEnd = logBeginEnd;
+        this.warnMsecs = warnMsecs;
+        this.done = false;
+        if (payload.logger !is null)
+        {
+            if (logBeginEnd)
+            {
+                payload.message = "0";
+                payload.header.logLevel = LogLevel.info;
+                payload.header.timestamp = currTime();
+                payload.logger.forwardLog(payload);
+            }
+            this.startedTimestamp = currTime();
+        }
+    }
+
+    ~this()
+    {
+        if (canLog())
+            log();
+    }
+
+    bool canLog()
+    {
+        return !done && payload.logger !is null;
+    }
+
+    void log()
+    {
+        if (payload.logger !is null)
+        {
+            payload.header.timestamp = currTime();
+            const msecs = (payload.header.timestamp - startedTimestamp).total!"msecs";
+            payload.header.logLevel = warnMsecs > 0 && msecs >= warnMsecs ? LogLevel.warn : LogLevel.info;
+            payload.message = to!string(msecs);
+            payload.logger.forwardLog(payload);
+        }
+        done = true;
+    }
+
+    void logAndReset()
+    {
+        log();
+        done = false;
+        if (payload.logger !is null)
+        {
+            if (logBeginEnd)
+            {
+                payload.message = "0";
+                payload.header.logLevel = LogLevel.info;
+                payload.header.timestamp = currTime();
+                payload.logger.forwardLog(payload);
+            }
+            startedTimestamp = currTime();
+        }
+    }
+
+private:
+    Logger.LogEntry payload;
+    SysTime startedTimestamp;
+    int warnMsecs;
+    bool done;
+    bool logBeginEnd;
+}
+
 immutable SysTime appStartupTimestamp;
+
+pragma(inline, true)
+SysTime currTime() nothrow @safe
+{
+    scope (failure) assert(0);
+
+    return Clock.currTime;
+}
 
 /**
  * This property sets and gets the default `Logger`.
@@ -2253,7 +2370,7 @@ if (sharedLog !is myLogger)
 @property Logger sharedLog() nothrow @trusted
 {
     // If we have set up our own logger use that
-    if (auto logger = trustedLoad(sharedLog_))
+    if (auto logger = sharedLoad(sharedLog_))
         return cast(Logger)logger;
     else
         return sharedLogImpl; // Otherwise resort to the default logger
@@ -2262,7 +2379,7 @@ if (sharedLog !is myLogger)
 /// Ditto
 @property void sharedLog(Logger logger) nothrow @trusted
 {
-    trustedStore(sharedLog_, cast(shared)logger);
+    sharedStore(sharedLog_, cast(shared)logger);
 }
 
 /**
@@ -2278,13 +2395,13 @@ if (sharedLog !is myLogger)
     entry. Otherwise when another threads changes the level, we would work with
     different levels at different spots in the code.
     */
-    return trustedLoad(sharedLogLevel_);
+    return sharedLoad(sharedLogLevel_);
 }
 
 /// Ditto
 @property void sharedLogLevel(LogLevel ll) nothrow @safe
 {
-    trustedStore(sharedLogLevel_, ll);
+    sharedStore(sharedLogLevel_, ll);
     if (sharedLog_ !is null)
         sharedLog.logLevel = ll;
 }
@@ -2319,7 +2436,6 @@ string currentUserName() nothrow @trusted
     version (Windows)
     {
         import core.sys.windows.winbase : GetUserNameW;
-        import std.conv : to;
         import std.exception : assumeWontThrow;
 
         wchar[256] result = void;
@@ -2332,7 +2448,6 @@ string currentUserName() nothrow @trusted
     else version (Posix)
     {
         import core.sys.posix.unistd : getlogin_r;
-        import std.conv : to;
         import std.exception : assumeWontThrow;
 
         char[256] result = void;
@@ -2349,6 +2464,17 @@ string currentUserName() nothrow @trusted
     }
 }
 
+/// Thread safe to read value from a variable
+auto sharedLoad(T)(ref shared T value) nothrow @safe
+{
+    return atomicLoad!(MemoryOrder.acq)(value);
+}
+
+/// Thread safe to write value to a variable
+void sharedStore(T)(ref shared T dst, shared T src) nothrow @safe
+{
+    atomicStore!(MemoryOrder.rel)(dst, src);
+}
 
 private:
 
@@ -2439,17 +2565,6 @@ ForwardThreadLogger threadLogDefault_;
     return threadLogDefault_;
 }
 
-auto trustedLoad(T)(ref shared T value) nothrow @safe
-{
-    return atomicLoad!(MemoryOrder.acq)(value);
-}
-
-// ditto
-void trustedStore(T)(ref shared T dst, shared T src) nothrow @safe
-{
-    atomicStore!(MemoryOrder.rel)(dst, src);
-}
-
 string parentOf(string mod) nothrow @safe
 {
     foreach_reverse (i, c; mod)
@@ -2462,7 +2577,7 @@ string parentOf(string mod) nothrow @safe
 
 shared static this()
 {
-    appStartupTimestamp = Clock.currTime;
+    appStartupTimestamp = currTime();
 }
 
 ///
