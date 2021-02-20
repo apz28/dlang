@@ -15,7 +15,7 @@ module std.logger.core;
 import core.atomic : atomicLoad, atomicStore,  MemoryOrder;
 import core.sync.mutex : Mutex;
 import core.thread : ThreadID;
-import core.time : Duration, msecs;
+public import core.time : Duration, dur, msecs;
 public import std.ascii : newline;
 import std.conv : to;
 import std.datetime.date : DateTime;
@@ -2320,7 +2320,7 @@ public:
      */
     this(Logger logger, string message,
         bool logBeginEnd = false,
-        int warnMsecs = 0,
+        Duration warnMsecs = Duration.zero,
         in int line = __LINE__, in string fileName = __FILE__,
         in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__,
         in string moduleName = __MODULE__)
@@ -2372,9 +2372,9 @@ public:
         if (payload.logger !is null)
         {
             payload.header.timestamp = currTime();
-            const msecs = (payload.header.timestamp - startedTimestamp).total!"msecs";
-            payload.header.logLevel = warnMsecs > 0 && msecs >= warnMsecs ? LogLevel.warn : LogLevel.info;
-            payload.message = logMessage(msecs, false);
+            const elapsed = payload.header.timestamp - startedTimestamp;
+            payload.header.logLevel = warnMsecs > Duration.zero && elapsed >= warnMsecs ? LogLevel.warn : LogLevel.info;
+            payload.message = logMessage(elapsed.total!"msecs", false);
             payload.logger.forwardLog(payload);
         }
         done = true;
@@ -2413,7 +2413,7 @@ private:
     Logger.LogEntry payload;
     string message;
     SysTime startedTimestamp;
-    int warnMsecs;
+    Duration warnMsecs;
     bool done;
     bool logBeginEnd;
 }
@@ -4008,19 +4008,19 @@ void testFuncNames(Logger logger) @safe
 
 unittest // LogTimming
 {
-    import core.Thread;
+    import core.thread : Thread;
     import std.conv : to;
     import std.stdio : writeln;
     import std.string : indexOf;
 
     auto tl = new TestLogger();
     string msg;
-    void timeLog(bool logBeginEnd = false, int warnMsecs = 0, bool logIt = true) nothrow
+    void timeLog(bool logBeginEnd = false, Duration warnMsecs = Duration.zero, bool logIt = true) nothrow
     {
         auto timing = logIt ? LogTimming(tl, "timeLog", logBeginEnd, warnMsecs) : LogTimming.init;
         msg = tl.msg;
-        if (warnMsecs > 0)
-            Thread.sleep(msecs(warnMsecs + 1));
+        if (warnMsecs > Duration.zero)
+            Thread.sleep(warnMsecs + dur!"msecs"(1));
     }
 
     int msecs()
@@ -4035,14 +4035,14 @@ unittest // LogTimming
     timeLog(true);
     assert(msg == "0,Begin,timeLog" && tl.msg == "0,End,timeLog");
 
-    timeLog(false, 2);
+    timeLog(false, dur!"msecs"(2));
     assert(msecs() >= 3 && tl.lvl == LogLevel.warn);
 
-    timeLog(true, 2);
+    timeLog(true, dur!"msecs"(2));
     assert(msg == "0,Begin,timeLog" && msecs() >= 3 && tl.lvl == LogLevel.warn);
 
     tl.reset();
-    timeLog(true, 2, false);
+    timeLog(true, dur!"msecs"(2), false);
     assert(tl.msg.length == 0);
 }
 
