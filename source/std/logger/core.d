@@ -648,6 +648,16 @@ public:
         this.mutex = new Mutex();
     }
 
+    ~this() nothrow @trusted
+    {
+        if (mutex !is null)
+        {
+            mutex.destroy();
+            mutex = null;
+        }
+        userContext_ = null;
+    }
+
     /**
      * This method allows forwarding log entries from one logger to another.
      * `forwardMsg` will ensure proper synchronization and then call
@@ -828,13 +838,17 @@ public:
             static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
             try
             {
-                if (isFunction!(ll).isImpl()) synchronized (mutex)
+                if (isFunction!(ll).isImpl())
                 {
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                    this.beginMsg(header);
-                    auto writer = LogArgumentWriter(this);
-                    writer.put!(A)(args);
-                    this.endMsg();
+                    auto currTime = Clock.currTime;
+                    synchronized (mutex)
+                    {
+                        auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                        this.beginMsg(header);
+                        auto writer = LogArgumentWriter(this);
+                        writer.put!(A)(args);
+                        this.endMsg();
+                    }
                 }
             }
             catch (Exception)
@@ -870,13 +884,17 @@ public:
             static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
             try
             {
-                if (isFunction!(ll).isImpl() && condition) synchronized (mutex)
+                if (isFunction!(ll).isImpl() && condition)
                 {
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                    this.beginMsg(header);
-                    auto writer = LogArgumentWriter(this);
-                    writer.put!(A)(args);
-                    this.endMsg();
+                    auto currTime = Clock.currTime;
+                    synchronized (mutex)
+                    {
+                        auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                        this.beginMsg(header);
+                        auto writer = LogArgumentWriter(this);
+                        writer.put!(A)(args);
+                        this.endMsg();
+                    }
                 }
             }
             catch (Exception)
@@ -912,13 +930,17 @@ public:
             static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
             try
             {
-                if (isFunction!(ll).isImpl()) synchronized (mutex)
+                if (isFunction!(ll).isImpl())
                 {
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                    this.beginMsg(header);
-                    auto writer = LogArgumentWriter(this);
-                    writer.putf(fmt, args);
-                    this.endMsg();
+                    auto currTime = Clock.currTime;
+                    synchronized (mutex)
+                    {
+                        auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                        this.beginMsg(header);
+                        auto writer = LogArgumentWriter(this);
+                        writer.putf(fmt, args);
+                        this.endMsg();
+                    }
                 }
             }
             catch (Exception)
@@ -955,13 +977,17 @@ public:
             static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
             try
             {
-                if (isFunction!(ll).isImpl() && condition) synchronized (mutex)
+                if (isFunction!(ll).isImpl() && condition)
                 {
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                    this.beginMsg(header);
-                    auto writer = LogArgumentWriter(this);
-                    writer.putf(fmt, args);
-                    this.endMsg();
+                    auto currTime = Clock.currTime;
+                    synchronized (mutex)
+                    {
+                        auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                        this.beginMsg(header);
+                        auto writer = LogArgumentWriter(this);
+                        writer.putf(fmt, args);
+                        this.endMsg();
+                    }
                 }
             }
             catch (Exception)
@@ -1023,13 +1049,17 @@ public:
         try
         {
             const ll = this.logLevel;
-            if (isLogLevel(ll)) synchronized (mutex)
+            if (isLogLevel(ll))
             {
-                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.put!(A)(args);
-                this.endMsg();
+                auto currTime = Clock.currTime;
+                synchronized (mutex)
+                {
+                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.put!(A)(args);
+                    this.endMsg();
+                }
             }
         }
         catch (Exception)
@@ -1066,13 +1096,17 @@ public:
         try
         {
             const ll = this.logLevel;
-            if (isLogLevel(ll) && condition) synchronized (mutex)
+            if (isLogLevel(ll) && condition)
             {
-                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.put!(A)(args);
-                this.endMsg();
+                auto currTime = Clock.currTime;
+                synchronized (mutex)
+                {
+                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.put!(A)(args);
+                    this.endMsg();
+                }
             }
         }
         catch (Exception)
@@ -1108,13 +1142,17 @@ public:
         static if (isLoggingActive)
         try
         {
-            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll)) synchronized (mutex)
+            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll))
             {
-                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.put!(A)(args);
-                this.endMsg();
+                auto currTime = Clock.currTime;
+                synchronized (mutex)
+                {
+                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.put!(A)(args);
+                    this.endMsg();
+                }
             }
         }
         catch (Exception)
@@ -1147,13 +1185,17 @@ public:
         static if (isLoggingActive)
         try
         {
-            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll) && condition) synchronized (mutex)
+            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll) && condition)
             {
-                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.put!(A)(args);
-                this.endMsg();
+                auto currTime = Clock.currTime;
+                synchronized (mutex)
+                {
+                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.put!(A)(args);
+                    this.endMsg();
+                }
             }
         }
         catch (Exception)
@@ -1189,13 +1231,17 @@ public:
         try
         {
             const ll = this.logLevel;
-            if (isLogLevel(ll)) synchronized (mutex)
+            if (isLogLevel(ll))
             {
-                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.putf!(A)(fmt, args);
-                this.endMsg();
+                auto currTime = Clock.currTime;
+                synchronized (mutex)
+                {
+                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.putf!(A)(fmt, args);
+                    this.endMsg();
+                }
             }
         }
         catch (Exception)
@@ -1233,13 +1279,17 @@ public:
         try
         {
             const ll = this.logLevel;
-            if (isLogLevel(ll) && condition) synchronized (mutex)
+            if (isLogLevel(ll) && condition)
             {
-                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.putf!(A)(fmt, args);
-                this.endMsg();
+                auto currTime = Clock.currTime;
+                synchronized (mutex)
+                {
+                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.putf!(A)(fmt, args);
+                    this.endMsg();
+                }
             }
         }
         catch (Exception)
@@ -1275,13 +1325,17 @@ public:
         static if (isLoggingActive)
         try
         {
-            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll)) synchronized (mutex)
+            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll))
             {
-                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.putf!(A)(fmt, args);
-                this.endMsg();
+                auto currTime = Clock.currTime;
+                synchronized (mutex)
+                {
+                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.putf!(A)(fmt, args);
+                    this.endMsg();
+                }
             }
         }
         catch (Exception)
@@ -1319,13 +1373,17 @@ public:
         static if (isLoggingActive)
         try
         {
-            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll) && condition) synchronized (mutex)
+            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll) && condition)
             {
-                auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, Clock.currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.putf!(A)(fmt, args);
-                this.endMsg();
+                auto currTime = Clock.currTime;
+                synchronized (mutex)
+                {
+                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.putf!(A)(fmt, args);
+                    this.endMsg();
+                }
             }
         }
         catch (Exception)
@@ -2246,6 +2304,8 @@ private:
 
 struct LogTimming
 {
+import std.conv : text;
+
 nothrow @safe:
 
 public:
@@ -2258,29 +2318,30 @@ public:
      *  warnMsecs = Change log to warn when > 0 and at time of writing log with
      *      elapsed time in millisecond greater than this parameter value
      */
-    this(Logger logger,
+    this(Logger logger, string message,
         bool logBeginEnd = false,
         int warnMsecs = 0,
         in int line = __LINE__, in string fileName = __FILE__,
         in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__,
         in string moduleName = __MODULE__)
     {
-        payload.logger = logger;
-        payload.header.logLevel = LogLevel.info;
-        payload.header.line = line;
-        payload.header.fileName = fileName;
-        payload.header.funcName = funcName;
-        payload.header.prettyFuncName = prettyFuncName;
-        payload.header.moduleName = moduleName;
-        payload.header.threadID = thisThreadID;
+        this.message = message;
+        this.payload.logger = logger;
+        this.payload.header.logLevel = LogLevel.info;
+        this.payload.header.line = line;
+        this.payload.header.fileName = fileName;
+        this.payload.header.funcName = funcName;
+        this.payload.header.prettyFuncName = prettyFuncName;
+        this.payload.header.moduleName = moduleName;
+        this.payload.header.threadID = thisThreadID;
         this.logBeginEnd = logBeginEnd;
         this.warnMsecs = warnMsecs;
         this.done = false;
-        if (payload.logger !is null)
+        if (this.payload.logger !is null)
         {
             if (logBeginEnd)
             {
-                payload.message = "0";
+                payload.message = logMessage(0, true);
                 payload.header.logLevel = LogLevel.info;
                 payload.header.timestamp = currTime();
                 payload.logger.forwardLog(payload);
@@ -2313,7 +2374,7 @@ public:
             payload.header.timestamp = currTime();
             const msecs = (payload.header.timestamp - startedTimestamp).total!"msecs";
             payload.header.logLevel = warnMsecs > 0 && msecs >= warnMsecs ? LogLevel.warn : LogLevel.info;
-            payload.message = to!string(msecs);
+            payload.message = logMessage(msecs, false);
             payload.logger.forwardLog(payload);
         }
         done = true;
@@ -2327,7 +2388,7 @@ public:
         {
             if (logBeginEnd)
             {
-                payload.message = "0";
+                payload.message = logMessage(0, true);
                 payload.header.logLevel = LogLevel.info;
                 payload.header.timestamp = currTime();
                 payload.logger.forwardLog(payload);
@@ -2337,7 +2398,20 @@ public:
     }
 
 private:
+    string logMessage(const ulong msecs, bool beginLog)
+    {
+        if (logBeginEnd)
+        {
+            const preMessage = beginLog ? "Begin" : "End";
+            return text(to!string(msecs), ",", preMessage, ",", message);
+        }
+        else
+            return text(to!string(msecs), ",", message);
+    }
+
+private:
     Logger.LogEntry payload;
+    string message;
     SysTime startedTimestamp;
     int warnMsecs;
     bool done;
@@ -3937,21 +4011,39 @@ unittest // LogTimming
     import core.Thread;
     import std.conv : to;
     import std.stdio : writeln;
+    import std.string : indexOf;
 
     auto tl = new TestLogger();
-
+    string msg;
     void timeLog(bool logBeginEnd = false, int warnMsecs = 0, bool logIt = true) nothrow
     {
-        auto timing = logIt ? LogTimming(tl, logBeginEnd, warnMsecs) : LogTimming.init;
+        auto timing = logIt ? LogTimming(tl, "timeLog", logBeginEnd, warnMsecs) : LogTimming.init;
+        msg = tl.msg;
         if (warnMsecs > 0)
             Thread.sleep(msecs(warnMsecs + 1));
     }
 
-    timeLog(); assert(tl.msg == "0");
-    timeLog(true); assert(tl.msg == "0");
-    timeLog(false, 2); assert(to!int(tl.msg) >= 3);
-    timeLog(true, 2); assert(to!int(tl.msg) >= 3);
-    tl.reset(); timeLog(true, 2, false); assert(tl.msg.length == 0);
+    int msecs()
+    {
+        const i = tl.msg.indexOf(',');
+        return to!int(tl.msg[0..i]);
+    }
+
+    timeLog();
+    assert(tl.msg == "0,timeLog");
+
+    timeLog(true);
+    assert(msg == "0,Begin,timeLog" && tl.msg == "0,End,timeLog");
+
+    timeLog(false, 2);
+    assert(msecs() >= 3 && tl.lvl == LogLevel.warn);
+
+    timeLog(true, 2);
+    assert(msg == "0,Begin,timeLog" && msecs() >= 3 && tl.lvl == LogLevel.warn);
+
+    tl.reset();
+    timeLog(true, 2, false);
+    assert(tl.msg.length == 0);
 }
 
 /* Sample D predefined variable
