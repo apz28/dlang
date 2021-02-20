@@ -12,8 +12,9 @@
 module pham.db.pgdatabase;
 
 import std.array : Appender;
-import std.conv : to;
+import std.conv : text, to;
 import std.exception : assumeWontThrow;
+import std.logger.core : Logger, LogTimming;
 import std.system : Endian;
 
 version (unittest) import pham.utl.utltest;
@@ -647,6 +648,10 @@ protected:
         if (!prepared)
             prepare();
 
+        auto logTimming = logger !is null
+            ? LogTimming(logger, text(forLogInfo(), newline, executeCommandText), false, dur!"seconds"(10))
+            : LogTimming.init;
+
         prepareExecute(type);
 
         auto protocol = pgConnection.protocol;
@@ -730,6 +735,10 @@ protected:
     final override void doPrepare(string sql) @safe
     {
         version (TraceFunction) dgFunctionTrace("sql=", sql);
+
+        auto logTimming = logger !is null
+            ? LogTimming(logger, text(forLogInfo(), newline, sql), false, dur!"seconds"(1))
+            : LogTimming.init;
 
         auto protocol = pgConnection.protocol;
         protocol.prepareCommandWrite(this, sql);
@@ -1030,7 +1039,9 @@ public:
 
     override DbConnection createConnection(string connectionString)
     {
-        return new PgConnection(this, connectionString);
+        auto result = new PgConnection(this, connectionString);
+        result.logger = this.logger;
+        return result;
     }
 
     override DbConnectionStringBuilder createConnectionStringBuilder(string connectionString)

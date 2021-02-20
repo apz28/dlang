@@ -13,10 +13,10 @@ module pham.db.fbdatabase;
 
 import std.algorithm.comparison : max;
 import std.array : Appender;
-import std.conv : to;
+import std.conv : text, to;
 import std.exception : assumeWontThrow;
-import std.experimental.logger : logError = error;
 import std.format : format;
+import std.logger.core : Logger, LogTimming;
 import std.math : abs;
 import std.string : indexOf;
 import std.system : Endian;
@@ -885,6 +885,10 @@ protected:
         if (!prepared)
             prepare();
 
+        auto logTimming = logger !is null
+            ? LogTimming(logger, text(forLogInfo(), newline, executeCommandText), false, dur!"seconds"(10))
+            : LogTimming.init;
+
         prepareExecute(type);
 
         if (hasParameters)
@@ -961,6 +965,10 @@ protected:
     final override void doPrepare(string sql) @safe
     {
         version (TraceFunction) dgFunctionTrace("sql=", sql);
+
+        auto logTimming = logger !is null
+            ? LogTimming(logger, text(forLogInfo(), newline, sql), false, dur!"seconds"(1))
+            : LogTimming.init;
 
 		if (!_handle)
             allocateHandle();
@@ -1428,7 +1436,9 @@ public:
 
     override DbConnection createConnection(string connectionString)
     {
-        return new FbConnection(this, connectionString);
+        auto result = new FbConnection(this, connectionString);
+        result.logger = this.logger;
+        return result;
     }
 
     override DbConnectionStringBuilder createConnectionStringBuilder(string connectionString)
@@ -1882,7 +1892,7 @@ unittest // FbConnection.encrypt
     }
 }
 
-version (none)
+version (UnitTestFBDatabase)
 unittest // FbConnection.integratedSecurity
 {
     import core.memory;

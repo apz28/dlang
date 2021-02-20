@@ -303,7 +303,7 @@ enum DbParameterName
     */
 }
 
-enum DbScheme
+enum DbScheme : string
 {
     fb = "firebird",
     //lt = "sqlite",

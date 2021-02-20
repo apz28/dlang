@@ -12,7 +12,6 @@
 module pham.db.skdatabase;
 
 import std.exception : assumeWontThrow;
-import std.experimental.logger : logError = error;
 import std.format : format;
 import std.socket : socket_t, Address, AddressFamily, InternetAddress, lastSocketError, Socket, SocketOption, SocketOptionLevel, SocketType;
 import std.system : Endian;
@@ -240,19 +239,22 @@ package(pham):
 protected:
     SkException createConnectError(string message, int socketCode, Exception e) @safe
     {
-        logError(message);
+        if (auto log = logger)
+            log.error(forLogInfo(), newline, message, e);
         return new SkException(e.msg, DbErrorCode.connect, socketCode, 0, e);
     }
 
     SkException createReadDataError(string message, int socketCode, Exception e) @safe
     {
-        logError(message);
+        if (auto log = logger)
+            log.error(forLogInfo(), newline, message, e);
         return new SkException(message, DbErrorCode.read, socketCode, 0, e);
     }
 
     SkException createWriteDataError(string message, int socketCode, Exception e) @safe
     {
-        logError(message);
+        if (auto log = logger)
+            log.error(forLogInfo(), newline, message, e);
         return new SkException(message, DbErrorCode.write, socketCode, 0, e);
     }
 

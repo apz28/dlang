@@ -14,10 +14,11 @@ module pham.db.database;
 import core.sync.mutex : Mutex;
 public import core.time : Duration;
 import std.array : Appender;
-import std.conv : to;
+public import std.ascii : newline;
+import std.conv : text, to;
 import std.exception : assumeWontThrow;
-import std.experimental.logger : logError = error;
 import std.format : format;
+import std.logger.core : Logger, LogTimming;
 import std.traits; // : allMembers, getMember;
 import std.typecons : Flag, No, Yes;
 
@@ -182,6 +183,11 @@ public:
 
     abstract DbRowValue fetch(bool isScalar) @safe;
 
+    final string forLogInfo() const nothrow @safe
+    {
+        return _connection !is null ? _connection.forLogInfo() : null;
+    }
+
     abstract string getExecutionPlan(uint vendorMode = 0);
 
     final DbParameter[] inputParameters() nothrow @safe
@@ -213,13 +219,13 @@ public:
 
         try
         {
-            _executeCommandText = buildExecuteCommandText();
-            doPrepare(_executeCommandText);
+            doPrepare(executeCommandText);
             _commandState = DbCommandState.prepared;
         }
         catch (Exception e)
         {
-            //todo logError(e.message);
+            if (auto log = logger)
+                log.error(forLogInfo(), newline, e.msg, newline, executeCommandText, e);
             throw e;
         }
 
@@ -414,6 +420,11 @@ public:
         return commandType == DbCommandType.storedProcedure;
     }
 
+    @property final Logger logger() nothrow pure @safe
+    {
+        return _connection !is null ? _connection.logger : null;
+    }
+
     /**
      * Returns name of this DbCommand if supplied
      */
@@ -516,15 +527,24 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace();
 
+        string result;
         final switch (commandType)
         {
             case DbCommandType.text:
-                return buildTextSql(commandText);
+                result = buildTextSql(commandText);
+                break;
             case DbCommandType.storedProcedure:
-                return buildStoredProcedureSql(commandText);
+                result = buildStoredProcedureSql(commandText);
+                break;
             case DbCommandType.table:
-                return buildTableSql(commandText);
+                result = buildTableSql(commandText);
+                break;
         }
+
+        if (auto log = logger)
+            log.info(forLogInfo(), newline, result);
+
+        return result;
     }
 
     final void buildParameterNameCallback(ref Appender!string result, string parameterName, size_t ordinal) nothrow @safe
@@ -662,9 +682,9 @@ protected:
 
         if (prepared)
             unprepare();
+
         clearParameters();
         _executeCommandText = null;
-
         _commandText = customText;
         return commandType(type);
     }
@@ -696,8 +716,8 @@ protected:
             _connection = null;
         }
 
-        _commandText = null;
         _commandState = DbCommandState.closed;
+        _commandText = null;
         _executeCommandText = null;
         _baseCommandType = 0;
         _handle.reset();
@@ -707,8 +727,8 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace("type=", type);
 
-        return commandType != DbCommandType.table &&
-            !prepared &&
+        return !prepared &&
+            commandType != DbCommandType.table &&
             (parametersCheck || hasParameters);
     }
 
@@ -722,8 +742,7 @@ protected:
         if (hasParameters)
             parameters.nullifyOutputParameters();
 
-        if (_executeCommandText.length == 0)
-            _executeCommandText = buildExecuteCommandText();
+        executeCommandText(); // Make sure _executeCommandText is initialized
     }
 
     void removeReader(ref DbReader value) nothrow @safe
@@ -742,7 +761,8 @@ protected:
                 }
                 catch (Exception e)
                 {
-                    //todo logError(e.message);
+                    if (auto log = logger)
+                        log.error(forLogInfo(), newline, e.msg, e);
                 }
             }
         }
@@ -851,6 +871,13 @@ protected:
     abstract void doPrepare(string sql) @safe;
     abstract void doUnprepare() @safe;
     abstract bool isSelectCommandType() const nothrow @safe;
+
+    @property final string executeCommandText() @safe
+    {
+        if (_executeCommandText.length == 0)
+            _executeCommandText = buildExecuteCommandText();
+        return _executeCommandText;
+    }
 
 protected:
     DbConnection _connection;
@@ -961,6 +988,16 @@ public:
         if (_defaultTransaction is null)
             _defaultTransaction = createTransactionImpl(isolationLevel, true);
         return _defaultTransaction;
+    }
+
+    final string forErrorInfo() const nothrow @safe
+    {
+        return _connectionStringBuilder.forErrorInfo();
+    }
+
+    final string forLogInfo() const nothrow @safe
+    {
+        return _connectionStringBuilder.forLogInfo();
     }
 
     final typeof(this) open()
@@ -1224,6 +1261,11 @@ public:
      * Populate when connection is established
      */
     string[string] serverInfo;
+
+    /**
+     * For logging various message & trace
+     */
+    Logger logger;
 
 protected:
     DbDatabase _database;
@@ -1539,7 +1581,12 @@ public:
 
     final string forErrorInfo() const nothrow @safe
     {
-        return serverName ~ ":" ~ databaseName;
+        return forErrorInfoCustom.length != 0 ? forErrorInfoCustom : serverName ~ ":" ~ databaseName;
+    }
+
+    final string forLogInfo() const nothrow @safe
+    {
+        return forLogInfoCustom.length != 0 ? forLogInfoCustom : serverName ~ ":" ~ databaseName;
     }
 
     final string getCustomValue(string name) nothrow @safe
@@ -1936,6 +1983,10 @@ protected:
         //putIf(, getDefault());
     }
 
+public:
+    string forErrorInfoCustom;
+    string forLogInfoCustom;
+
 protected:
     char _elementSeparator = ';';
     char _valueSeparator = '=';
@@ -1958,10 +2009,36 @@ public:
     abstract DbParameterList createParameterList();
     abstract DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel, bool defaultTransaction);
 
+    /**
+     * For logging various message & trace
+     * Central place to assign to newly created DbConnection
+     */
+    @property Logger logger() nothrow @trusted //@trusted=cast()
+    {
+        import core.atomic : atomicLoad,  MemoryOrder;
+
+        return cast(Logger)atomicLoad!(MemoryOrder.acq)(_logger);
+    }
+
+    @property DbDatabase logger(Logger logger) nothrow @trusted //@trusted=cast()
+    {
+        import core.atomic : atomicStore,  MemoryOrder;
+
+        atomicStore!(MemoryOrder.rel)(_logger, cast(shared)logger);
+        return this;
+    }
+
+    /**
+     * Name of database kind, firebird, postgresql ...
+     * Refer pham.db.type.DbScheme for a list of possible values
+     */
     @property final DbIdentitier scheme() const
     {
         return name;
     }
+
+private:
+    shared Logger _logger;
 }
 
 class DbDatabaseList : DbSimpleNamedObjectList!DbDatabase
@@ -3113,6 +3190,9 @@ public:
 
         checkState(DbTransactionState.active);
 
+        if (auto log = logger)
+            log.info(forLogInfo(), newline, "transaction.commit()");
+
         scope (failure)
             _state = DbTransactionState.error;
 
@@ -3121,6 +3201,11 @@ public:
             _state = DbTransactionState.inactive;
 
         return this;
+    }
+
+    final string forLogInfo() const nothrow @safe
+    {
+        return _connection !is null ? _connection.forLogInfo() : null;
     }
 
     /**
@@ -3132,6 +3217,9 @@ public:
 
         if (state == DbTransactionState.active)
         {
+            if (auto log = logger)
+                log.info(forLogInfo(), newline, "transaction.rollback()");
+
             scope (failure)
                 _state = DbTransactionState.error;
 
@@ -3148,6 +3236,9 @@ public:
         version (TraceFunction) dgFunctionTrace();
 
         checkState(DbTransactionState.inactive);
+
+        if (auto log = logger)
+            log.info(forLogInfo(), newline, "transaction.start()");
 
         scope (failure)
         {
@@ -3247,6 +3338,11 @@ public:
             doOptionChanged("lockTimeout");
         }
         return this;
+    }
+
+    @property final Logger logger() nothrow pure @safe
+    {
+        return _connection !is null ? _connection.logger : null;
     }
 
     /**

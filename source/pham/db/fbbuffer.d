@@ -13,7 +13,6 @@ module pham.db.fbbuffer;
 
 import std.algorithm.comparison : max, min;
 import std.array : replicate;
-import std.experimental.logger : logError = error;
 import std.format : format;
 import std.system : Endian;
 import std.typecons : Flag, No, Yes;
