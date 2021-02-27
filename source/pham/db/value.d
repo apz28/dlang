@@ -13,6 +13,7 @@ module pham.db.value;
 
 import std.datetime.date : DateTime, TimeOfDay;
 import std.datetime.systime : SysTime;
+import std.range.primitives: ElementType;
 import std.traits : isArrayT = isArray, Unqual;
 
 public import pham.utl.variant;
