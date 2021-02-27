@@ -21,8 +21,7 @@ version (unittest)
         int line = __LINE__,
         string functionName = __FUNCTION__)
     {
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0);
 
         dgWrite(functionName, "(", line, ")");
         if (args.length)
@@ -81,8 +80,7 @@ version (unittest)
     {
         import std.stdio : write;
 
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0);
 
         debug write(args);
     }
@@ -92,8 +90,7 @@ version (unittest)
     {
         import std.stdio : writef;
 
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0);
 
         debug writef(fmt, args);
     }
@@ -102,8 +99,7 @@ version (unittest)
     {
         import std.stdio : writeln;
 
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0);
 
         debug writeln(args);
     }
@@ -120,8 +116,7 @@ version (unittest)
     {
         import std.stdio : writefln;
 
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0);
 
         debug writefln(fmt, args);
     }

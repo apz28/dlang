@@ -844,8 +844,7 @@ version (unittest)
     {
         import std.format : format;
 
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0);
 
         return format("%s", b);
     }
@@ -854,8 +853,7 @@ version (unittest)
     {
         import std.format : format;
 
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0);
 
         return format("%b", b);
     }

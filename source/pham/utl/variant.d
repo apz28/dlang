@@ -1330,8 +1330,7 @@ private:
     static float hCmp(size_t lhsSize, scope void* lhsStore,
         size_t rhsSize, scope void* rhsStore) nothrow @trusted
     {
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0);
 
         static if (is(T == void))
         {
@@ -1392,8 +1391,7 @@ private:
     static bool hEquals(size_t lhsSize, scope void* lhsStore,
         size_t rhsSize, scope void* rhsStore) nothrow @trusted
     {
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0);
 
         static if (is(T == void))
         {
