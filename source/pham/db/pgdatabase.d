@@ -612,8 +612,7 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace("storedProcedureName=", storedProcedureName);
 
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0);
 
         if (storedProcedureName.length == 0)
             return storedProcedureName;
@@ -732,9 +731,11 @@ protected:
         }
     }
 
-    final override void doPrepare(string sql) @safe
+    final override void doPrepare() @safe
     {
-        version (TraceFunction) dgFunctionTrace("sql=", sql);
+        version (TraceFunction) dgFunctionTrace();
+
+        auto sql = executeCommandText; // Make sure statement is constructed before doing other tasks
 
         auto logTimming = logger !is null
             ? LogTimming(logger, text(forLogInfo(), newline, sql), false, dur!"seconds"(1))

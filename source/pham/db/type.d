@@ -107,12 +107,14 @@ enum DbCommandState : byte
  * $(DbCommandType.text) An SQL text command
  * $(DbCommandType.storedProcedure) The name of a stored procedure
  * $(DbCommandType.table) The name of a table or view
+ * $(DbCommandType.ddl) The data definition command: ALTER, CREATE, DROP...
  */
 enum DbCommandType : byte
 {
     text,
     storedProcedure,
-    table
+    table,
+    ddl
 }
 
 /**
@@ -544,8 +546,7 @@ public:
     {
         import std.format : formattedWrite;
 
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0);
 
         if (dt.year >= 0)
         {
@@ -894,8 +895,7 @@ public:
     {
         import std.format : formattedWrite;
 
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0);
 
         auto t = cast(TimeOfDay)tm;
         auto ms = cast(int)(tm.fracSecs().total!"msecs");

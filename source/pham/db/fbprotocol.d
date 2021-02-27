@@ -616,9 +616,16 @@ public:
         version (TraceFunction) dgFunctionTrace();
 
         auto writer = FbXdrWriter(connection);
+        allocateCommandWrite(writer);
+        writer.flush();
+    }
+
+    final void allocateCommandWrite(ref FbXdrWriter writer) nothrow
+    {
+        version (TraceFunction) dgFunctionTrace();
+
 		writer.writeOperation(FbIsc.op_allocate_statement);
 		writer.writeHandle(connection.fbHandle);
-        writer.flush();
     }
 
     final FbIscArrayGetResponse arrayGetRead(ref FbArray array)
@@ -1109,7 +1116,7 @@ public:
         auto describeItems = mode == 0
             ? describeStatementPlanInfoItems
             : describeStatementExplaindPlanInfoItems;
-        writeCommandInfo(command, describeItems, bufferLength);
+        commandInfoWrite(command, describeItems, bufferLength);
     }
 
     final FbIscFetchResponse fetchCommandRead(FbCommand command)
@@ -1195,7 +1202,7 @@ public:
                 }
             }
 
-            writeCommandInfo(command, truncateBindItems, FbIscSize.prepareInfoBufferLength);
+            commandInfoWrite(command, truncateBindItems, FbIscSize.prepareInfoBufferLength);
             response = readGenericResponse();
         }
 
@@ -1206,18 +1213,27 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto useCSB = connection.fbConnectionStringBuilder;
+        auto writer = FbXdrWriter(connection);
+        prepareCommandWrite(command, sql, writer);
+        writer.flush();
+    }
+
+    final prepareCommandWrite(FbCommand command, scope const(char)[] sql, ref FbXdrWriter writer) nothrow
+    {
+        version (TraceFunction) dgFunctionTrace();
+
         auto bindItems = describeStatementInfoAndBindInfoItems;
 
-        auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_prepare_statement);
 		writer.writeHandle(command.fbTransaction.fbHandle);
-		writer.writeHandle(command.fbHandle);
-		writer.writeInt32(useCSB.dialect);
+        version (DeferredProtocol)
+		    writer.writeHandle(command.handle.isValid ? command.fbHandle : fbCommandDeferredHandle);
+        else
+		    writer.writeHandle(command.fbHandle);
+		writer.writeInt32(connection.dialect);
 		writer.writeChars(sql);
 		writer.writeBytes(bindItems);
 		writer.writeInt32(FbIscSize.prepareInfoBufferLength);
-        writer.flush();
     }
 
     final DbRecordsAffected recordsAffectedCommandRead()
@@ -1243,7 +1259,7 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        writeCommandInfo(command, describeStatementRowsAffectedInfoItems, FbIscSize.rowsEffectedBufferLength);
+        commandInfoWrite(command, describeStatementRowsAffectedInfoItems, FbIscSize.rowsEffectedBufferLength);
     }
 
     final void rollbackRetainingTransactionWrite(FbTransaction transaction)
@@ -1310,7 +1326,14 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        writeCommandInfo(command, describeStatementTypeInfoItems, FbIscSize.statementTypeBufferLength);
+        commandInfoWrite(command, describeStatementTypeInfoItems, FbIscSize.statementTypeBufferLength);
+    }
+
+    final void typeCommandWrite(FbCommand command, ref FbXdrWriter writer) nothrow
+    {
+        version (TraceFunction) dgFunctionTrace();
+
+        commandInfoWrite(command, describeStatementTypeInfoItems, FbIscSize.statementTypeBufferLength, writer);
     }
 
     final FbIscGenericResponse readGenericResponse()
@@ -1507,6 +1530,29 @@ protected:
             _authData = null;
             _auth = null;
         }
+    }
+
+    final void commandInfoWrite(FbCommand command, scope const(ubyte)[] items, uint32 resultBufferLength)
+    {
+        version (TraceFunction) dgFunctionTrace();
+
+        auto writer = FbXdrWriter(connection);
+        commandInfoWrite(command, items, resultBufferLength, writer);
+        writer.flush();
+    }
+
+    final void commandInfoWrite(FbCommand command, scope const(ubyte)[] items, uint32 resultBufferLength, ref FbXdrWriter writer) nothrow
+    {
+        version (TraceFunction) dgFunctionTrace();
+
+		writer.writeOperation(FbIsc.op_info_sql);
+        version (DeferredProtocol)
+		    writer.writeHandle(command.handle.isValid ? command.fbHandle : fbCommandDeferredHandle);
+        else
+            writer.writeHandle(command.fbHandle);
+		writer.writeInt32(0);
+		writer.writeBytes(items);
+		writer.writeInt32(resultBufferLength);
     }
 
     final void compressSetupBufferFilter()
@@ -1919,19 +1965,6 @@ protected:
         return FbIscTrustedAuthResponse(rData);
     }
 
-    final void writeCommandInfo(FbCommand command, scope const(ubyte)[] items, uint32 resultBufferLength)
-    {
-        version (TraceFunction) dgFunctionTrace();
-
-        auto writer = FbXdrWriter(connection);
-		writer.writeOperation(FbIsc.op_info_sql);
-		writer.writeHandle(command.fbHandle);
-		writer.writeInt32(0);
-		writer.writeBytes(items);
-		writer.writeInt32(resultBufferLength);
-        writer.flush();
-    }
-
 private:
     FbAuth _auth;
     ubyte[] _authData;
@@ -2016,12 +2049,17 @@ immutable ubyte[] describeServerVersionInfoItems = [
     FbIsc.isc_info_end
 ];
 
+version (DeferredProtocol)
+    enum ptype = FbIsc.ptype_lazy_send;
+else
+    enum ptype = FbIsc.ptype_batch_send;
+
 // Codes only support v13 and above
 immutable FbProtocolInfo[] describeProtocolItems = [
     //FbProtocolInfo(FbIsc.protocol_version10, FbIsc.connect_generic_achitecture_client, FbIsc.ptype_rpc, FbIsc.ptype_batch_send, 1),
-    //FbProtocolInfo(FbIsc.protocol_version11, FbIsc.connect_generic_achitecture_client, FbIsc.ptype_rpc, FbIsc.ptype_batch_send, 2),
-    //FbProtocolInfo(FbIsc.protocol_version12, FbIsc.connect_generic_achitecture_client, FbIsc.ptype_rpc, FbIsc.ptype_batch_send, 3),
-    FbProtocolInfo(FbIsc.protocol_version13, FbIsc.connect_generic_achitecture_client, FbIsc.ptype_rpc, FbIsc.ptype_batch_send, 4)
+    //FbProtocolInfo(FbIsc.protocol_version11, FbIsc.connect_generic_achitecture_client, FbIsc.ptype_rpc, ptype, 2),
+    //FbProtocolInfo(FbIsc.protocol_version12, FbIsc.connect_generic_achitecture_client, FbIsc.ptype_rpc, ptype, 3),
+    FbProtocolInfo(FbIsc.protocol_version13, FbIsc.connect_generic_achitecture_client, FbIsc.ptype_rpc, ptype, 4)
 ];
 
 immutable ubyte[] describeStatementExplaindPlanInfoItems = [
@@ -2354,7 +2392,7 @@ private:
  * Returns:
  *  false if truncate otherwise true
  */
-bool parseBindInfo(const(ubyte)[] data, ref FbIscBindInfo[] bindResult,
+bool parseBindInfo(scope const(ubyte)[] data, ref FbIscBindInfo[] bindResult,
     ref ptrdiff_t previousBindIndex, ref ptrdiff_t previousFieldIndex) @safe
 {
     version (TraceFunction) dgFunctionTrace("data.length=", data.length);

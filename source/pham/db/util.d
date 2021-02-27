@@ -11,107 +11,12 @@
 
 module pham.db.util;
 
-import std.conv : to;
 import std.exception : assumeWontThrow;
 import std.format : format;
-import std.process : thisProcessID;
 
 import pham.db.type;
 
 nothrow @safe:
-
-string currentComputerName() @trusted
-{
-    version (Windows)
-    {
-        import core.sys.windows.winbase : GetComputerNameW;
-
-        wchar[256] result = void;
-        uint len = result.length - 1;
-        if (GetComputerNameW(&result[0], &len))
-            return assumeWontThrow(to!string(result[0..len]));
-        else
-            return "";
-    }
-    else version (Posix)
-    {
-        import core.sys.posix.unistd : gethostname;
-
-        char[256] result = void;
-        uint len = result.length - 1;
-        if (gethostname(&result[0], len) == 0)
-            return assumeWontThrow(to!string(result.ptr));
-        else
-            return "";
-    }
-    else
-    {
-        pragma(msg, "currentComputerName() not supported");
-        return "";
-    }
-}
-
-uint currentProcessId()
-{
-    return thisProcessID;
-}
-
-string currentProcessName() @trusted
-{
-    version (Windows)
-    {
-        import core.sys.windows.winbase : GetModuleFileNameW;
-
-        wchar[1024] result = void;
-        auto len = GetModuleFileNameW(null, &result[0], result.length - 1);
-        return assumeWontThrow(to!string(result[0..len]));
-    }
-    else version (Posix)
-    {
-        import core.sys.posix.unistd : readlink;
-
-        char[1024] result = void;
-        uint len = result.length - 1;
-        len = readlink("/proc/self/exe".ptr, &result[0], len);
-        return result[0..len].idup;
-    }
-    else
-    {
-        pragma(msg, "currentProcessName() not supported");
-        return "";
-    }
-}
-
-string currentUserName() @trusted
-{
-    version (Windows)
-    {
-        import core.sys.windows.winbase : GetUserNameW;
-
-        wchar[256] result = void;
-        uint len = result.length - 1;
-        if (GetUserNameW(&result[0], &len))
-            return assumeWontThrow(to!string(result[0..len]));
-        else
-            return "";
-    }
-    else version (Posix)
-    {
-        import core.sys.posix.unistd : getlogin_r;
-
-        char[256] result = void;
-        uint len = result.length - 1;
-        if (getlogin_r(&result[0], len) == 0)
-            return assumeWontThrow(to!string(result.ptr));
-        else
-            return "";
-    }
-    else
-    {
-        pragma(msg, "currentUserName() not supported");
-        return "";
-    }
-}
 
 /*
 * Defines a total order on a decimal value vs other.
@@ -158,8 +63,7 @@ if (isFloatingPoint!T)
 
 string makeCommandName(void* command, uint counter)
 {
-    scope (failure)
-        assert(0);
+    scope (failure) assert(0);
 
     return format("%X_%u", command, counter);
 }
@@ -175,6 +79,7 @@ string makeCommandName(void* command, uint counter)
 string toSeparatedString(scope const int[] values, string separator) pure
 {
     import std.array : Appender;
+    import std.conv : to;
 
     if (values.length == 0)
         return null;
@@ -232,22 +137,6 @@ if (is(A == const(ubyte)[]) || is(A == ubyte[]))
 // Any below codes are private
 private:
 
-
-unittest // currentComputerName
-{
-    import pham.utl.utltest;
-    dgWriteln("unittest db.util.currentComputerName");
-
-    assert(currentComputerName().length != 0);
-}
-
-unittest // currentUserName
-{
-    import pham.utl.utltest;
-    dgWriteln("unittest db.util.currentUserName");
-
-    assert(currentUserName().length != 0);
-}
 
 unittest // truncate
 {

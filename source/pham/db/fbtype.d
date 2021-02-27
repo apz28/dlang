@@ -30,10 +30,13 @@ alias FbId = int64;
 alias FbHandle = uint32;
 alias FbOperation = int32;
 
-enum FbMaxChars = 32_767;
-enum FbMaxPackageSize = 32_767;
-enum FbMaxVarChars = FbMaxChars - 2; // -2 for size place holder
-enum FbNullIndicator = -1;
+enum fbMaxChars = 32_767;
+enum fbMaxPackageSize = 32_767;
+enum fbMaxVarChars = fbMaxChars - 2; // -2 for size place holder
+enum fbNullIndicator = -1;
+
+version (DeferredProtocol)
+enum fbCommandDeferredHandle = 65535;
 
 enum FbIscCommandType : int32
 {

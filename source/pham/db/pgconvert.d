@@ -118,8 +118,7 @@ void dateTimeEncodeTZ(in DbDateTime value, out int64 pgTime, out int32 pgZone)
 
 Decimal numericDecode(in PgOIdNumeric pgNumeric)
 {
-	scope (failure)
-		assert(0);
+	scope (failure) assert(0);
 
     version (TraceFunction)
     dgFunctionTrace("ndigits=", pgNumeric.ndigits,

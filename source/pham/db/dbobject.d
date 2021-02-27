@@ -252,8 +252,7 @@ public:
 
     @property string ivalue() const pure
     {
-	    scope (failure)
-		    assert(0);
+	    scope (failure) assert(0);
 
         return toUpper(_s);
     }

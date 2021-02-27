@@ -877,7 +877,7 @@ public:
     void writeBlob(scope const(ubyte)[] v) nothrow
     in
     {
-        assert(v.length < FbMaxPackageSize);
+        assert(v.length < fbMaxPackageSize);
     }
     do
     {
@@ -899,7 +899,7 @@ public:
     void writeBytes(scope const(ubyte)[] v) nothrow
     in
     {
-        assert(v.length < FbMaxPackageSize);
+        assert(v.length < fbMaxPackageSize);
     }
     do
     {
@@ -912,7 +912,7 @@ public:
     void writeChars(scope const(char)[] v) nothrow
     in
     {
-        assert(v.length < FbMaxPackageSize);
+        assert(v.length < fbMaxPackageSize);
     }
     do
     {
@@ -980,8 +980,8 @@ public:
     void writeFixedChars(scope const(char)[] v, in DbBaseType baseType) nothrow
     in
     {
-        assert(v.length < FbMaxPackageSize);
-        assert(baseType.size < FbMaxPackageSize);
+        assert(v.length < fbMaxPackageSize);
+        assert(baseType.size < fbMaxPackageSize);
     }
     do
     {
@@ -1048,8 +1048,8 @@ public:
     void writeOpaqueBytes(scope const(ubyte)[] v, size_t forLength) nothrow
     in
     {
-        assert(v.length < FbMaxPackageSize);
-        assert(forLength < FbMaxPackageSize);
+        assert(v.length < fbMaxPackageSize);
+        assert(forLength < fbMaxPackageSize);
     }
     do
     {

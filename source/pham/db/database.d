@@ -118,23 +118,31 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
+        bool implicitTransactionCalled = false;
+        bool unprepareCalled = false;
         checkCommand();
         const wasPrepared = prepared;
         resetNewStatement(ResetStatementKind.execute);
         const implicitTransaction = setImplicitTransactionIf();
         scope (failure)
         {
-            if (implicitTransaction)
+            if (!implicitTransactionCalled && implicitTransaction)
                 resetImplicitTransactionIf(cast(ResetImplicitTransactiontFlag)(ResetImplicitTransactiontFlag.error | ResetImplicitTransactiontFlag.nonQuery));
-            if (!wasPrepared && prepared)
+            if (!unprepareCalled && !wasPrepared && prepared)
                 unprepare();
         }
         doExecuteCommand(DbCommandExecuteType.nonQuery);
         auto result = recordsAffected;
         if (implicitTransaction)
+        {
+            implicitTransactionCalled = true;
             resetImplicitTransactionIf(ResetImplicitTransactiontFlag.nonQuery);
+        }
         if (!wasPrepared && prepared)
+        {
+            unprepareCalled = true;
             unprepare();
+        }
         return result;
     }
 
@@ -161,23 +169,31 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
+        bool implicitTransactionCalled = false;
+        bool unprepareCalled = false;
         checkCommand();
         const wasPrepared = prepared;
         resetNewStatement(ResetStatementKind.execute);
         const implicitTransaction = setImplicitTransactionIf();
         scope (failure)
         {
-            if (implicitTransaction)
+            if (!implicitTransaction && implicitTransaction)
                 resetImplicitTransactionIf(ResetImplicitTransactiontFlag.error);
-            if (!wasPrepared && prepared)
+            if (!unprepareCalled && !wasPrepared && prepared)
                 unprepare();
         }
         doExecuteCommand(DbCommandExecuteType.scalar);
         auto values = fetch(true);
         if (implicitTransaction)
+        {
+            implicitTransactionCalled = true;
             resetImplicitTransactionIf(ResetImplicitTransactiontFlag.none);
+        }
         if (!wasPrepared && prepared)
+        {
+            unprepareCalled = true;
             unprepare();
+        }
         return values ? values[0] : DbValue.dbNull();
     }
 
@@ -219,7 +235,7 @@ public:
 
         try
         {
-            doPrepare(executeCommandText);
+            doPrepare();
             _commandState = DbCommandState.prepared;
         }
         catch (Exception e)
@@ -294,8 +310,7 @@ public:
     {
         checkActiveReader();
 
-        parametersCheck(false);
-        return doCommandText(value, DbCommandType.text);
+        return doCommandText(value, DbCommandType.ddl);
     }
 
     @property final typeof(this) commandStoredProcedure(string storedProcedureName) @safe
@@ -539,6 +554,9 @@ protected:
             case DbCommandType.table:
                 result = buildTableSql(commandText);
                 break;
+            case DbCommandType.ddl:
+                result = buildTextSql(commandText);
+                break;
         }
 
         if (auto log = logger)
@@ -568,8 +586,7 @@ protected:
         if (storedProcedureName.length == 0)
             return null;
 
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0);
 
         auto params = inputParameters();
         auto result = Appender!string();
@@ -610,11 +627,9 @@ protected:
         // Do not clear to allow parameters to be filled without calling prepare
         // clearParameters();
 
-        string result;
-        if (parametersCheck)
-            result = parseParameter(sql, &buildParameterNameCallback);
-        else
-            result = sql;
+        auto result = parametersCheck && commandType != DbCommandType.ddl
+            ? parseParameter(sql, &buildParameterNameCallback)
+            : sql;
 
         version (TraceFunction) dgFunctionTrace("result=", result);
 
@@ -868,11 +883,11 @@ protected:
     }
 
     abstract void doExecuteCommand(DbCommandExecuteType type) @safe;
-    abstract void doPrepare(string sql) @safe;
+    abstract void doPrepare() @safe;
     abstract void doUnprepare() @safe;
     abstract bool isSelectCommandType() const nothrow @safe;
 
-    @property final string executeCommandText() @safe
+    @property final string executeCommandText() nothrow @safe
     {
         if (_executeCommandText.length == 0)
             _executeCommandText = buildExecuteCommandText();
@@ -1542,8 +1557,7 @@ protected:
 
     override void doDispose(bool disposing) nothrow @safe
     {
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0);
 
         foreach (_, lst; _schemeConnections)
             lst.disposal(disposing);

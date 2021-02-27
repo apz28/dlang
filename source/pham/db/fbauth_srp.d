@@ -26,17 +26,17 @@ class FbAuthSrp : FbAuth
 nothrow @safe:
 
 public:
-    this(DigestAlgorithm digestAlgorithm)
+    this(DigestAlgorithm digestAlgorithm, DigestAlgorithm proofDigestAlgorithm)
     {
-        this._authClient = new AuthClient(AuthParameters(digestAlgorithm, fbPrime), digitsToBigInteger(K));
-        setName(digestAlgorithm);
+        this._authClient = new AuthClient(AuthParameters(digestAlgorithm, proofDigestAlgorithm, fbPrime), digitsToBigInteger(K));
+        setName(proofDigestAlgorithm);
     }
 
     version (unittest)
-    this(DigestAlgorithm digestAlgorithm, BigInteger ephemeralPrivate)
+    this(DigestAlgorithm digestAlgorithm, DigestAlgorithm proofDigestAlgorithm, BigInteger ephemeralPrivate)
     {
-        this._authClient = new AuthClient(AuthParameters(digestAlgorithm, fbPrime), digitsToBigInteger(K), ephemeralPrivate);
-        setName(digestAlgorithm);
+        this._authClient = new AuthClient(AuthParameters(digestAlgorithm, proofDigestAlgorithm, fbPrime), digitsToBigInteger(K), ephemeralPrivate);
+        setName(proofDigestAlgorithm);
 
         version (TraceAuth)
         {
@@ -150,7 +150,7 @@ private:
         scope const(ubyte)[] salt, const BigInteger serverPublicKey)
 	{
         auto parameters = _authClient.parameters;
-        auto hasher = parameters.hasher;
+        auto proofHasher = parameters.proofHasher;
 
         auto K = _authClient.digest(_premasterKey);
 		auto n1 = bytesToBigInteger(_authClient.digest(_authClient.N));
@@ -159,7 +159,7 @@ private:
 		n2 = bytesToBigInteger(_authClient.digest(userName));
 
         AuthDigestResult hashTemp = void;
-        auto M = hasher.begin()
+        auto M = proofHasher.begin()
             .digest(bytesFromBigInteger(n1))
             .digest(bytesFromBigInteger(n2))
             .digest(salt)
@@ -208,7 +208,7 @@ nothrow @safe:
 public:
     this()
     {
-        super(DigestAlgorithm.sha1);
+        super(DigestAlgorithm.sha1, DigestAlgorithm.sha1);
     }
 }
 
@@ -219,7 +219,7 @@ nothrow @safe:
 public:
     this()
     {
-        super(DigestAlgorithm.sha256);
+        super(DigestAlgorithm.sha1, DigestAlgorithm.sha256);
     }
 }
 
@@ -230,7 +230,7 @@ nothrow @safe:
 public:
     this()
     {
-        super(DigestAlgorithm.sha384);
+        super(DigestAlgorithm.sha1, DigestAlgorithm.sha384);
     }
 }
 
@@ -241,7 +241,7 @@ nothrow @safe:
 public:
     this()
     {
-        super(DigestAlgorithm.sha512);
+        super(DigestAlgorithm.sha1, DigestAlgorithm.sha512);
     }
 }
 
@@ -321,7 +321,7 @@ version (unittest)
     {
         auto privateKey = digitsToBigInteger(digitPrivateKey);
         auto serverAuthData = bytesFromHexs(serverHexAuthData);
-        auto client = new FbAuthSrp(DigestAlgorithm.sha1, privateKey);
+        auto client = new FbAuthSrp(DigestAlgorithm.sha1, DigestAlgorithm.sha1, privateKey);
         auto proof = client.getAuthData(testUserName, testUserPassword, serverAuthData);
 
         assert(client._authClient.ephemeralPublic.toString() == digitExpectedPublicKey,

@@ -699,7 +699,7 @@ public:
     {
         // Max package size - overhead
         // See FbXdrWriter.writeBlob for overhead
-        const max = FbMaxPackageSize - (int32.sizeof * 6);
+        const max = fbMaxPackageSize - (int32.sizeof * 6);
         return (segmentLength < 100 || segmentLength > max) ? max : segmentLength;
     }
 
@@ -827,13 +827,29 @@ package:
     }
 
 protected:
-    final void allocateHandle() @safe
+    final void allocateHandleRead() @safe
+    {
+        version (TraceFunction) dgFunctionTrace();
+
+        auto protocol = fbConnection.protocol;
+        _handle = protocol.allocateCommandRead().handle;
+    }
+
+    final void allocateHandleWrite() @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
         auto protocol = fbConnection.protocol;
         protocol.allocateCommandWrite();
-        _handle = protocol.allocateCommandRead().handle;
+    }
+
+    version (DeferredProtocol)
+    final void allocateHandleWrite(ref FbXdrWriter writer) nothrow @safe
+    {
+        version (TraceFunction) dgFunctionTrace();
+
+        auto protocol = fbConnection.protocol;
+        protocol.allocateCommandWrite(writer);
     }
 
     final bool canBundleOperations() nothrow @safe
@@ -848,7 +864,7 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        if (!returnRecordsAffected)
+        if (!returnRecordsAffected || commandType == DbCommandType.ddl)
             return false;
 
         switch (baseCommandType)
@@ -874,7 +890,12 @@ protected:
 
         auto protocol = fbConnection.protocol;
         protocol.deallocateCommandWrite(this);
-        protocol.deallocateCommandRead();
+        version (DeferredProtocol)
+        {}
+        else
+        {
+            protocol.deallocateCommandRead();
+        }
     }
 
     final override void doExecuteCommand(DbCommandExecuteType type) @safe
@@ -962,26 +983,84 @@ protected:
         }
     }
 
-    final override void doPrepare(string sql) @safe
+    final override void doPrepare() @safe
     {
-        version (TraceFunction) dgFunctionTrace("sql=", sql);
+        version (TraceFunction) dgFunctionTrace();
+
+        auto sql = executeCommandText; // Make sure statement is constructed before doing other tasks
 
         auto logTimming = logger !is null
             ? LogTimming(logger, text(forLogInfo(), newline, sql), false, dur!"seconds"(1))
             : LogTimming.init;
 
-		if (!_handle)
-            allocateHandle();
+        version (DeferredProtocol)
+        {
+            alias RequestReader = void delegate() @safe;
+            RequestReader[] requestReaders;
+            auto writer = FbXdrWriter(fbConnection);
 
-        auto protocol = fbConnection.protocol;
-        protocol.prepareCommandWrite(this, sql);
-        processPrepareResponse(protocol.prepareCommandRead(this));
+            if (!_handle)
+            {
+                allocateHandleWrite(writer);
+                requestReaders ~= &allocateHandleRead;
+            }
 
-    	_baseCommandType = getStatementType();
+            doPrepareWrite(writer);
+            requestReaders ~= &doPrepareRead;
+
+            getStatementTypeWrite(writer);
+            requestReaders ~= &getStatementTypeRead;
+
+            writer.flush();
+            foreach (ref requestReader; requestReaders)
+                requestReader();
+        }
+        else
+        {
+            if (!_handle)
+            {
+                allocateHandleWrite();
+                allocateHandleRead();
+            }
+
+            doPrepareWrite();
+            doPrepareRead();
+
+            if (commandType != DbCommandType.ddl)
+            {
+                getStatementTypeWrite();
+                getStatementTypeRead();
+            }
+        }
 
         version (TraceFunction) dgFunctionTrace(
             "handle=", _handle,
             ", baseCommandType=", _baseCommandType);
+    }
+
+    final void doPrepareRead() @safe
+    {
+        version (TraceFunction) dgFunctionTrace();
+
+        auto protocol = fbConnection.protocol;
+        processPrepareResponse(protocol.prepareCommandRead(this));
+    }
+
+    final void doPrepareWrite() @safe
+    {
+        version (TraceFunction) dgFunctionTrace();
+
+        auto protocol = fbConnection.protocol;
+        protocol.prepareCommandWrite(this, executeCommandText);
+    }
+
+    version (DeferredProtocol)
+    final void doPrepareWrite(ref FbXdrWriter writer) nothrow @safe
+    {
+        version (TraceFunction) dgFunctionTrace();
+
+        auto protocol = fbConnection.protocol;
+        protocol.prepareCommandWrite(this, executeCommandText, writer);
     }
 
     final override void doUnprepare() @safe
@@ -1001,13 +1080,29 @@ protected:
         return protocol.recordsAffectedCommandRead();
 	}
 
-	final int getStatementType() @safe
+	final void getStatementTypeRead() @safe
+	{
+        version (TraceFunction) dgFunctionTrace();
+
+        auto protocol = fbConnection.protocol;
+        _baseCommandType = protocol.typeCommandRead();
+	}
+
+	final void getStatementTypeWrite() @safe
 	{
         version (TraceFunction) dgFunctionTrace();
 
         auto protocol = fbConnection.protocol;
         protocol.typeCommandWrite(this);
-        return protocol.typeCommandRead();
+	}
+
+    version (DeferredProtocol)
+	final void getStatementTypeWrite(ref FbXdrWriter writer) nothrow @safe
+	{
+        version (TraceFunction) dgFunctionTrace();
+
+        auto protocol = fbConnection.protocol;
+        protocol.typeCommandWrite(this, writer);
 	}
 
     final override bool isSelectCommandType() const nothrow @safe
@@ -1202,6 +1297,11 @@ public:
     @property final ref FbArrayManager arrayManager() nothrow @safe
     {
         return _arrayManager;
+    }
+
+    @property final int16 dialect() nothrow @safe
+    {
+        return fbConnectionStringBuilder.dialect;
     }
 
     @property final FbConnectionStringBuilder fbConnectionStringBuilder() nothrow pure @safe
