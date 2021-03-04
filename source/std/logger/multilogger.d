@@ -66,13 +66,15 @@ public:
      *  toRemove = The name of the `Logger` to remove. If the `Logger`
      *      is not found `null` will be returned. Only the first occurrence of
      *      a `Logger` with the given name will be removed.
+     *  all = indicate to remove all logger with matched name, toRemove
      * Returns:
      *  The removed `Logger`.
      */
-    Logger removeLogger(scope const(char)[] toRemove) nothrow @safe
+    Logger removeLogger(scope const(char)[] toRemove, const bool all = true) nothrow @safe
     {
         import std.algorithm : remove;
 
+        Logger firstRemoved;
         try
         {
             synchronized (mutex)
@@ -81,9 +83,11 @@ public:
                 {
                     if (this.loggerEntries[i].name == toRemove)
                     {
-                        auto result = this.loggerEntries[i].logger;
+                        if (firstRemoved is null)
+                            firstRemoved = this.loggerEntries[i].logger;
                         this.loggerEntries = this.loggerEntries.remove(i);
-                        return result;
+                        if (!all)
+                            break;
                     }
                 }
             }
@@ -91,7 +95,7 @@ public:
         catch (Exception)
         {}
 
-        return null;
+        return firstRemoved;
     }
 
 protected:

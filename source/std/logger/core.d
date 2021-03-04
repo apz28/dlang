@@ -2420,7 +2420,6 @@ private:
 
 immutable SysTime appStartupTimestamp;
 
-pragma(inline, true)
 SysTime currTime() nothrow @safe
 {
     scope (failure) assert(0);
