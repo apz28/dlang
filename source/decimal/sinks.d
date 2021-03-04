@@ -3,7 +3,7 @@ module decimal.sinks;
 import std.format : FormatSpec;
 import std.traits : isSomeChar, Unqual;
 
-import decimal.integrals : prec, divrem, isAnyUnsigned;
+import decimal.integrals : divrem, isAnyUnsigned, prec;
 
 nothrow @safe:
 
@@ -15,11 +15,15 @@ template ToStringSink(C)
 package:
 
 //dumps value to buffer right aligned, assumes buffer has enough space
-int dumpUnsigned(C, T)(C[] buffer, auto const ref T value)
+int dumpUnsigned(C, T)(C[] buffer, auto const ref T value) pure
 if (isSomeChar!C && isAnyUnsigned!T)
+in
 {
+    assert(buffer.length < int.max);
     assert(buffer.length >  0 && buffer.length >= prec(value));
-
+}
+do
+{
     auto i = buffer.length;
     Unqual!T v = value;
     do
@@ -30,38 +34,44 @@ if (isSomeChar!C && isAnyUnsigned!T)
     return cast(int)(buffer.length - i);
 }
 
-//dumps value to buffer right aligned, assumes buffer has enough space
-int dumpUnsignedHex(C, T)(C[] buffer, auto const ref T value, const bool uppercase)
-if (isSomeChar!C && isAnyUnsigned!T)
-{
-    assert(buffer.length >  0 && buffer.length >= prec(value));
+immutable char[] loHexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
+immutable char[] upHexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'];
 
+//dumps value to buffer right aligned, assumes buffer has enough space
+int dumpUnsignedHex(C, T)(C[] buffer, auto const ref T value, const bool uppercase = true) pure
+if (isSomeChar!C && isAnyUnsigned!T)
+in
+{
+    assert(buffer.length < int.max);
+    assert(buffer.length > 0 && buffer.length >= prec(value));
+}
+do
+{
+    const chars = uppercase ? upHexChars : loHexChars;
     auto i = buffer.length;
     Unqual!T v = value;
     do
     {
-        auto digit = (cast(uint)v & 0xFU);
-        buffer[--i] = cast(C)(digit < 10 ? '0' + digit :
-                              (uppercase ? 'A' + (digit - 10) : 'a' + (digit - 10)));
+        const digit = (cast(uint)v & 0xFU);
+        buffer[--i] = cast(C)(chars[digit]);
         v >>= 4;
     } while (v);
     return cast(int)(buffer.length - i);
 }
 
-//repeats sinking of value count times using a default buffer size of 8
-void sinkRepeat(C)(scope ToStringSink!C sink, const C value, const int count)
+//repeats sinking of value count times using a default buffer size of 16
+void sinkRepeat(C)(scope ToStringSink!C sink, const C value, int count)
 if (isSomeChar!C)
 {
-    if (!count)
+    if (count <= 0)
         return;
 
     enum bufferSize = 16;
     Unqual!C[bufferSize] buffer = value;
-    int cnt = count;
-    while (cnt > 0)
+    while (count > 0)
     {
-        sink(buffer[0 .. cnt > bufferSize ? bufferSize : cnt]);
-        cnt -= bufferSize;
+        sink(buffer[0 .. count > bufferSize ? bufferSize : count]);
+        count -= bufferSize;
     }
 }
 
@@ -115,7 +125,7 @@ void sinkNaN(C, T)(auto const ref FormatSpec!C spec, scope ToStringSink!C sink, 
     const bool signaling, T payload, bool hex)
 if (isSomeChar!C)
 {
-    C[40] buffer;
+    C[200] buffer;
     FormatSpec!C nanspec = spec;
     nanspec.flZero = false;
     nanspec.flHash = false;
@@ -164,10 +174,7 @@ if (isSomeChar!C)
     FormatSpec!C infspec = spec;
     infspec.flZero = false;
     infspec.flHash = false;
-
-    int w = 3;
-    if (infspec.flPlus || infspec.flSpace || signed)
-        ++w;
+    const w = infspec.flPlus || infspec.flSpace || signed ? 4 : 3;
     int pad = infspec.width - w;
     sinkPadLeft!C(infspec, sink, pad);
     sinkSign!C(infspec, sink, signed);
@@ -180,16 +187,13 @@ void sinkZero(C)(auto const ref FormatSpec!C spec, scope ToStringSink!C sink, co
     const bool skipTrailingZeros = false)
 if (isSomeChar!C)
 {
-    int requestedDecimals = spec.precision == spec.UNSPECIFIED || spec.precision < 0 ? 6 : spec.precision;
-
-    if (skipTrailingZeros)
-        requestedDecimals = 0;
+    const int requestedDecimals = skipTrailingZeros
+        ? 0
+        : spec.precision == spec.UNSPECIFIED || spec.precision < 0 ? 6 : spec.precision;
 
     int w = requestedDecimals == 0 ? 1 : requestedDecimals + 2;
-
     if (requestedDecimals == 0 && spec.flHash)
         ++w;
-
     if (spec.flPlus || spec.flSpace || signed)
         ++w;
     int pad = spec.width - w;

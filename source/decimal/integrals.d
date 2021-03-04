@@ -1,15 +1,16 @@
 module decimal.integrals;
 
-private import core.bitop : bsr, bsf;
-private import std.traits: isUnsigned, isSigned, isSomeChar, Unqual, CommonType, Unsigned, Signed;
-private import core.checkedint: addu, subu, mulu, adds, subs;
+import core.bitop : bsf, bsr;
+import core.checkedint: adds, addu, mulu, subs, subu;
+import std.traits: CommonType, isSigned, isSomeChar, isUnsigned, Signed, Unqual, Unsigned;
+
+nothrow @safe:
 
 package:
 
 /* ****************************************************************************************************************** */
 /* n BIT UNSIGNED IMPLEMENTATION                                                                                    */
 /* ****************************************************************************************************************** */
-
 
 template MakeUnsigned(int bits)
 {
@@ -29,12 +30,14 @@ template MakeUnsigned(int bits)
 
 template isCustomUnsigned(T)
 {
-    enum isCustomUnsigned = is(T: unsigned!bits, int bits);
+    alias UT = Unqual!T;
+    enum isCustomUnsigned = is(UT: unsigned!bits, int bits);
 }
 
 template isAnyUnsigned(T)
 {
-    enum isAnyUnsigned = isUnsigned!T || isCustomUnsigned!T;
+    alias UT = Unqual!T;
+    enum isAnyUnsigned = isUnsigned!UT || isCustomUnsigned!UT;
 }
 
 template isUnsignedAssignable(T, U)
@@ -42,17 +45,23 @@ template isUnsignedAssignable(T, U)
     enum isUnsignedAssignable = isAnyUnsigned!T && isAnyUnsigned!U && T.sizeof >= U.sizeof;
 }
 
-struct unsigned(int bits) if (bits >= 128 && (bits & (bits - 1)) == 0)
+bool isHexString(string s) @nogc pure
 {
-    alias HALF = MakeUnsigned!(bits / 2);
+    return s.length >= 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X');
+}
 
+struct unsigned(int bits)
+if (bits >= 128 && (bits & (bits - 1)) == 0)
+{
+@nogc nothrow @safe:
+
+    alias HALF = MakeUnsigned!(bits / 2);
     alias THIS = typeof(this);
 
     version (LittleEndian) { HALF lo; HALF hi; } else { HALF hi; HALF lo; }
 
     enum min  = THIS();
     enum max = THIS(HALF.max, HALF.max);
-
 
     this(T, U)(auto const ref T hi, auto const ref U lo)
     if (isUnsignedAssignable!(HALF, T) && isUnsignedAssignable!(HALF, U))
@@ -68,13 +77,17 @@ struct unsigned(int bits) if (bits >= 128 && (bits & (bits - 1)) == 0)
     }
 
     this(string s)
+    in
     {
         assert (s.length, "Empty string");
+        assert (!isHexString(s) || s.length > 2, "Empty hexadecimal string");
+    }
+    do
+    {
         size_t i = 0;
-        if (s.length > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
+        if (isHexString(s))
         {
-            i+=2;
-            assert (i < s.length, "Empty hexadecimal string");
+            i += 2;
             while (i < s.length && (s[i] == '0' || s[i] == '_'))
                 ++i;
             int width = 0;
@@ -123,7 +136,6 @@ struct unsigned(int bits) if (bits >= 128 && (bits & (bits - 1)) == 0)
         }
     }
 
-
     auto ref opAssign(T)(auto const ref  T x)
     if (isUnsignedAssignable!(HALF, T))
     {
@@ -141,7 +153,6 @@ struct unsigned(int bits) if (bits >= 128 && (bits & (bits - 1)) == 0)
     {
         return ++(~this);
     }
-
 
     auto opUnary(string op: "~")() const
     {
@@ -285,7 +296,7 @@ struct unsigned(int bits) if (bits >= 128 && (bits & (bits - 1)) == 0)
     {
         assert(shift >= 0 && shift < THIS.sizeof * 8);
     }
-    body
+    do
     {
         enum int halfBits = HALF.sizeof * 8;
         THIS ret = void;
@@ -316,7 +327,7 @@ struct unsigned(int bits) if (bits >= 128 && (bits & (bits - 1)) == 0)
     {
         assert(shift >= 0 && shift < THIS.sizeof * 8);
     }
-    body
+    do
     {
         enum int halfBits = HALF.sizeof * 8;
         if (shift == halfBits)
@@ -343,7 +354,7 @@ struct unsigned(int bits) if (bits >= 128 && (bits & (bits - 1)) == 0)
     {
         assert(shift >= 0 && shift < THIS.sizeof * 8);
     }
-    body
+    do
     {
         THIS ret = void;
         enum int halfBits = HALF.sizeof * 8;
@@ -374,7 +385,7 @@ struct unsigned(int bits) if (bits >= 128 && (bits & (bits - 1)) == 0)
     {
         assert(shift >= 0 && shift < THIS.sizeof * 8);
     }
-    body
+    do
     {
         enum int halfBits = HALF.sizeof * 8;
 
@@ -498,6 +509,7 @@ struct unsigned(int bits) if (bits >= 128 && (bits & (bits - 1)) == 0)
     if (isUnsignedAssignable!(HALF, T))
     {
         divrem(this, value);
+        return this;
     }
 
     auto opBinary(string op :"/", T: THIS)(const T value) const
@@ -510,6 +522,7 @@ struct unsigned(int bits) if (bits >= 128 && (bits & (bits - 1)) == 0)
     auto ref opOpAssign(string op :"/", T: THIS)(const T value)
     {
         divrem(this, value);
+        return this;
     }
 
     auto opBinary(string op :"%", T)(const T value) const
@@ -554,25 +567,45 @@ struct unsigned(int bits) if (bits >= 128 && (bits & (bits - 1)) == 0)
             static assert("Cannot cast '" ~ Unqual!THIS.stringof ~ "' to '" ~ Unqual!T.stringof ~ "'");
     }
 
-    //for debugging purposes
-    string toString() const
+    @property size_t bitCount() const pure
     {
-        char[bits / 3 + 1] buffer;
-        size_t i = buffer.length;
-        THIS v = this;
-        do
-        {
-            auto r = divrem(v, 10U);
-            buffer[--i] = cast(char)('0' + cast(uint)r);
-        } while (v != 0U);
-        return buffer[i .. $].dup;
+        return bits;
     }
-
 }
 
 alias uint128 = unsigned!128;
 alias uint256 = unsigned!256;
 alias uint512 = unsigned!512;
+
+///Returns true if all specified types are unsigned... types.
+template isUnsigned(T...)
+{
+    enum isUnsigned =
+    {
+        bool result = T.length > 0;
+        static foreach (t; T)
+        {
+            if (!(is(t == uint128) || is(t == uint256) || is(t == uint512)))
+                result = false;
+        }
+        return result;
+    }();
+}
+
+//for debugging purposes
+string toString(T)(auto const ref U value) const
+if (isUnsigned!T)
+{
+    char[T.sizeof * 8 / 3 + 1] buffer;
+    size_t i = buffer.length;
+    T.THIS v = value;
+    do
+    {
+        auto r = divrem(v, 10U);
+        buffer[--i] = cast(char)('0' + cast(uint)r);
+    } while (v != 0U);
+    return buffer[i .. $].dup;
+}
 
 unittest
 {
@@ -583,17 +616,15 @@ unittest
 
     T rnd(T)()
     {
+        scope (failure) assert(0);
+
         static if (is(T == uint))
             return uniform(1U, uint.max, gen);
         else static if (is(T == ulong))
             return uniform(1UL, ulong.max, gen);
         else
             return T(rnd!(T.HALF)(), rnd!(T.HALF)());
-
     }
-
-
-
 
     foreach (T; TypeTuple!(unsigned!128, unsigned!256, unsigned!512))
     {
@@ -924,7 +955,6 @@ unittest
         assert (-(-previous) == previous);
         assert (-(-next) == next);
 
-
         for(auto i = 0; i < 10; ++i)
         {
             T a = rnd!T();
@@ -994,7 +1024,7 @@ if (isCustomUnsigned!T)
 uint xadd(T, U)(ref T x, auto const ref U y)
 if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
 {
-    auto carry = xadd(x.lo, y);
+    const carry = xadd(x.lo, y);
     return xadd(x.hi, carry);
 }
 
@@ -1033,28 +1063,28 @@ if (isCustomUnsigned!T)
 uint xsub(T, U)(ref T x, auto const ref U y)
 if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
 {
-    auto carry = xsub(x.lo, y);
+    const carry = xsub(x.lo, y);
     return xsub(x.hi, carry);
 }
 
 @safe pure nothrow @nogc
 uint fma(const uint x, const uint y, const uint z, out bool overflow)
 {
-    auto result = mulu(x, y, overflow);
+    const result = mulu(x, y, overflow);
     return addu(result, z, overflow);
 }
 
 @safe pure nothrow @nogc
 ulong fma(const ulong x, const ulong y, const ulong z, ref bool overflow)
 {
-    auto result = mulu(x, y, overflow);
+    const result = mulu(x, y, overflow);
     return addu(result, z, overflow);
 }
 
 @safe pure nothrow @nogc
 ulong fma(const ulong x, const uint y, const uint z, ref bool overflow)
 {
-    auto result = mulu(x, cast(ulong)y, overflow);
+    const result = mulu(x, cast(ulong)y, overflow);
     return addu(result, cast(ulong)z, overflow);
 }
 
@@ -1106,19 +1136,18 @@ uint128 xmul(const ulong x, const ulong y)
     if (x == y)
         return xsqr(x);
 
-
-    immutable xlo = cast(uint)x;
-    immutable xhi = cast(uint)(x >>> 32);
-    immutable ylo = cast(uint)y;
-    immutable yhi = cast(uint)(y >>> 32);
+    const xlo = cast(uint)x;
+    const xhi = cast(uint)(x >>> 32);
+    const ylo = cast(uint)y;
+    const yhi = cast(uint)(y >>> 32);
 
     ulong t = xmul(xlo, ylo);
-    ulong w0 = cast(uint)t;
+    const ulong w0 = cast(uint)t;
     ulong k = t >>> 32;
 
     t = xmul(xhi, ylo) + k;
-    ulong w1 = cast(uint)t;
-    ulong w2 = t >>> 32;
+    const ulong w1 = cast(uint)t;
+    const ulong w2 = t >>> 32;
 
     t = xmul(xlo, yhi) + w1;
     k = t >>> 32;
@@ -1129,17 +1158,17 @@ uint128 xmul(const ulong x, const ulong y)
 @safe pure nothrow @nogc
 uint128 xsqr(const ulong x)
 {
-    immutable xlo = cast(uint)x;
-    immutable xhi = cast(uint)(x >>> 32);
-    immutable hilo = xmul(xlo, xhi);
+    const xlo = cast(uint)x;
+    const xhi = cast(uint)(x >>> 32);
+    const hilo = xmul(xlo, xhi);
 
     ulong t = xsqr(xlo);
-    ulong w0 = cast(uint)t;
+    const ulong w0 = cast(uint)t;
     ulong k = t >>> 32;
 
     t = hilo + k;
-    ulong w1 = cast(uint)t;
-    ulong w2 = t >>> 32;
+    const ulong w1 = cast(uint)t;
+    const ulong w2 = t >>> 32;
 
     t = hilo + w1;
     k = t >>> 32;
@@ -1161,16 +1190,16 @@ uint128 xmul(const ulong x, const uint y)
     if ((y & (y - 1)) == 0)
         return uint128(x) << ctz(y);
 
-    immutable xlo = cast(uint)x;
-    immutable xhi = cast(uint)(x >>> 32);
+    const xlo = cast(uint)x;
+    const xhi = cast(uint)(x >>> 32);
 
     ulong t = xmul(xlo, y);
-    ulong w0 = cast(uint)t;
-    ulong k = t >>> 32;
+    const ulong w0 = cast(uint)t;
+    const ulong k = t >>> 32;
 
     t = xmul(xhi, y) + k;
-    ulong w1 = cast(uint)t;
-    ulong w2 = t >>> 32;
+    const ulong w1 = cast(uint)t;
+    const ulong w2 = t >>> 32;
 
     return uint128(w2, (w1 << 32) + w0);
 }
@@ -1196,11 +1225,11 @@ if (isCustomUnsigned!T)
         return xsqr(x);
 
     auto t = xmul(x.lo, y.lo);
-    auto w0 = t.lo;
-    auto k = t.hi;
+    const w0 = t.lo;
+    const k = t.hi;
 
     t = xmul(x.hi, y.lo) + k;
-    auto w2 = t.hi;
+    const w2 = t.hi;
 
     t = xmul(x.lo, y.hi) + t.lo;
 
@@ -1220,16 +1249,16 @@ if (isCustomUnsigned!T)
         return x;
     if ((x & (x - 1)) == 0U)
     {
-        auto lz = clz(y);
-        auto shift = ctz(x);
+        const lz = clz(y);
+        const shift = ctz(x);
         if (lz < shift)
             overflow = true;
         return y << shift;
     }
     if ((y & (y - 1)) == 0U)
     {
-        auto lz = clz(x);
-        auto shift = ctz(y);
+        const lz = clz(x);
+        const shift = ctz(y);
         if (lz < shift)
             overflow = true;
         return x << shift;
@@ -1238,11 +1267,11 @@ if (isCustomUnsigned!T)
         return sqru(x, overflow);
 
     auto t = xmul(x.lo, y.lo);
-    auto w0 = t.lo;
-    auto k = t.hi;
+    const w0 = t.lo;
+    const k = t.hi;
 
     t = xmul(x.hi, y.lo) + k;
-    auto w2 = t.hi;
+    const w2 = t.hi;
 
     t = xmul(x.lo, y.hi) + t.lo;
 
@@ -1257,19 +1286,18 @@ if (isCustomUnsigned!T)
 auto xsqr(T)(auto const ref T x)
 if (isCustomUnsigned!T)
 {
-
     enum bits = T.sizeof * 8;
     enum rbits = bits * 2;
     alias R = unsigned!rbits;
 
-    immutable hilo = xmul(x.lo, x.hi);
+    const hilo = xmul(x.lo, x.hi);
 
     auto t = xsqr(x.lo);
-    auto w0 = t.lo;
-    auto k = t.hi;
+    const w0 = t.lo;
+    const k = t.hi;
 
     t = hilo + k;
-    auto w2 = t.hi;
+    const w2 = t.hi;
 
     t = hilo + t.lo;
 
@@ -1281,13 +1309,13 @@ if (isCustomUnsigned!T)
 {
     enum bits = T.sizeof * 8;
 
-    immutable hilo = xmul(x.lo, x.hi);
+    const hilo = xmul(x.lo, x.hi);
     auto t = xsqr(x.lo);
-    auto w0 = t.lo;
-    auto k = t.hi;
+    const w0 = t.lo;
+    const k = t.hi;
 
     t = hilo + k;
-    auto w2 = t.hi;
+    const w2 = t.hi;
 
     t = hilo + t.lo;
 
@@ -1302,7 +1330,6 @@ if (isCustomUnsigned!T)
 auto xmul(T, U)(auto const ref T x, auto const ref U y)
 if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
 {
-
     enum bits = T.sizeof * 8;
     enum rbits = bits * 2;
     alias R = unsigned!rbits;
@@ -1319,11 +1346,11 @@ if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
         return R(x) << ctz(y);
 
     auto t = xmul(x.lo, y);
-    auto w0 = t.lo;
-    auto k = t.hi;
+    const w0 = t.lo;
+    const k = t.hi;
 
     t = xmul(x.hi, y) + k;
-    auto w2 = t.hi;
+    const w2 = t.hi;
 
     t = t.lo;
 
@@ -1333,7 +1360,6 @@ if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
 T mulu(T, U)(auto const ref T x, auto const ref U y, ref bool overflow)
 if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
 {
-
     enum bits = T.sizeof * 8;
 
     if (x == 0U || y == 0U)
@@ -1344,25 +1370,25 @@ if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
         return x;
     if ((x & (x - 1U)) == 0U)
     {
-        auto yy = T(y);
-        auto lz = clz(y);
-        auto shift = ctz(x);
+        const yy = T(y);
+        const lz = clz(y);
+        const shift = ctz(x);
         if (lz < shift)
             overflow = true;
         return yy << shift;
     }
     if ((y & (y - 1)) == 0U)
     {
-        auto lz = clz(x);
-        auto shift = ctz(y);
+        const lz = clz(x);
+        const shift = ctz(y);
         if (lz < shift)
             overflow = true;
         return x << shift;
     }
 
     auto t = xmul(x.lo, y);
-    auto w0 = t.lo;
-    auto k = t.hi;
+    const w0 = t.lo;
+    const k = t.hi;
 
     t = xmul(x.hi, y) + k;
 
@@ -1389,7 +1415,7 @@ auto clz(const ulong x)
         return 63 - bsr(x);
     else static if(is(size_t == uint))
     {
-        immutable hi = cast(uint)(x >> 32);
+        const hi = cast(uint)(x >> 32);
         if (hi)
             return 31 - bsr(hi);
         else
@@ -1422,7 +1448,7 @@ auto ctz(const ulong x)
         return bsf(x);
     else static if (is(size_t == uint))
     {
-        immutable lo = cast(uint)x;
+        const lo = cast(uint)x;
         if (lo)
             return bsf(lo);
         else
@@ -1489,13 +1515,13 @@ ulong divrem(ref ulong x, const uint y)
 T divrem(T)(ref T x, auto const ref T y)
 if (isCustomUnsigned!T)
 {
-    Unqual!T r;
-    int shift;
+    alias UT = Unqual!T;
+    UT r;
 
     if (!x.hi)
     {
         if (!y.hi)
-            return Unqual!T(divrem(x.lo, y.lo));
+            return UT(divrem(x.lo, y.lo));
         r.lo = x.lo;
         x.lo = 0U;
         return r;
@@ -1504,7 +1530,7 @@ if (isCustomUnsigned!T)
     if (!y.lo)
     {
         if (!y.hi)
-            return Unqual!T(divrem(x.hi, y.lo));
+            return UT(divrem(x.hi, y.lo));
         if (!x.lo)
         {
             r.hi = divrem(x.hi, y.hi);
@@ -1520,7 +1546,7 @@ if (isCustomUnsigned!T)
             x.hi = 0U;
             return r;
         }
-        shift = clz(y.hi) - clz(x.hi);
+        const shift = clz(y.hi) - clz(x.hi);
         if (shift > T.HALF.sizeof * 8 - 2)
         {
             r = x;
@@ -1543,7 +1569,7 @@ if (isCustomUnsigned!T)
         }
         else
         {
-            shift = clz(y.hi) - clz(x.hi);
+            const shift = clz(y.hi) - clz(x.hi);
             if (shift > T.HALF.sizeof * 8 - 1)
             {
                 r = x;
@@ -1558,7 +1584,7 @@ if (isCustomUnsigned!T)
     T z = 1U;
     x = 0U;
 
-    shift = clz(d);
+    const shift = clz(d);
 
     z <<= shift;
     d <<= shift;
@@ -1580,14 +1606,14 @@ if (isCustomUnsigned!T)
 T divrem(T, U)(ref T x, auto const ref U y)
 if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
 {
-    Unqual!T r;
-    int shift;
+    alias UT = Unqual!T;
+    UT r;
 
     if (!x.hi)
-        return Unqual!T(divrem(x.lo, y));
+        return UT(divrem(x.lo, y));
 
     if (!y)
-        return Unqual!T(divrem(x.hi, y));
+        return UT(divrem(x.hi, y));
 
     if ((y & (y - 1U)) == 0U)
     {
@@ -1598,13 +1624,12 @@ if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
         return r;
     }
 
-
     r = x;
     T d = y;
     T z = 1U;
     x = 0U;
 
-    shift = clz(d);
+    const shift = clz(d);
 
     z <<= shift;
     d <<= shift;
@@ -1683,7 +1708,6 @@ unittest
     static assert (sign!short(uint(32768), true) == short.min);
     static assert (sign!short(ulong(32768), true) == short.min);
 
-
     static assert (sign!int(ubyte(128), true) == byte.min);
     static assert (sign!int(ushort(32768), true) == short.min);
     static assert (sign!int(uint(2147483648), true) == int.min);
@@ -1693,13 +1717,12 @@ unittest
     static assert (sign!long(ushort(32768), true) == short.min);
     static assert (sign!long(uint(2147483648), true) == int.min);
     static assert (sign!long(ulong(9223372036854775808UL), true) == long.min);
-
 }
 
 auto sign(S, U)(const U u, const bool isNegative)
 if (isCustomUnsigned!U && isSigned!S)
 {
-     return isNegative ? cast(S)-cast(ulong)u : cast(S)cast(ulong)u;
+    return isNegative ? cast(S)-cast(ulong)u : cast(S)cast(ulong)u;
 }
 
 auto unsign(U, S)(const S s, out bool isNegative)
@@ -1716,7 +1739,6 @@ if (isUnsigned!U && isSigned!S)
 
 unittest
 {
-
     static assert (unsign!ubyte(byte.min) == 128);
     static assert (unsign!ubyte(short(-128)) == 128);
     static assert (unsign!ubyte(int(-128)) == 128);
@@ -1736,8 +1758,6 @@ unittest
     static assert (unsign!ulong(short.min) == 32768);
     static assert (unsign!ulong(int.min) == 2147483648);
     static assert (unsign!ulong(long.min) == 9223372036854775808UL);
-
-
 }
 
 auto unsign(U, V)(const V v, out bool isNegative)
@@ -1865,8 +1885,6 @@ unittest
     px = cappedSub(ex, -2);
     assert (ex == int.max - 1);
     assert(px == -2);
-
-
 }
 
 /* ****************************************************************************************************************** */
@@ -2213,19 +2231,20 @@ immutable uint512[155] pow10_512 =
 
 template pow10(T)
 {
-    static if (is(Unqual!T == uint))
+    alias UT = Unqual!T;
+    static if (is(UT == uint))
         alias pow10 = pow10_32;
-    else static if (is(Unqual!T == ulong))
+    else static if (is(UT == ulong))
         alias pow10 = pow10_64;
-    else static if (is(Unqual!T == uint128))
+    else static if (is(UT == uint128))
         alias pow10 = pow10_128;
-    else static if (is(Unqual!T == uint256))
+    else static if (is(UT == uint256))
         alias pow10 = pow10_256;
-    else static if (is(Unqual!T == uint512))
+    else static if (is(UT == uint512))
         alias pow10 = pow10_512;
-    else static if (is(Unqual!T == ushort))
+    else static if (is(UT == ushort))
         alias pow10 = pow10_16;
-    else static if (is(Unqual!T == ubyte))
+    else static if (is(UT == ubyte))
         alias pow10 = pow10_8;
     else
         static assert(0);
@@ -2416,17 +2435,18 @@ immutable uint256[78] maxmul10_256 =
 
 template maxmul10(T)
 {
-    static if (is(Unqual!T == uint))
+    alias UT = Unqual!T;
+    static if (is(UT == uint))
         alias maxmul10 = maxmul10_32;
-    else static if (is(Unqual!T == ulong))
+    else static if (is(UT == ulong))
         alias maxmul10 = maxmul10_64;
-    else static if (is(Unqual!T == uint128))
+    else static if (is(UT == uint128))
         alias maxmul10 = maxmul10_128;
-    else static if (is(Unqual!T == uint256))
+    else static if (is(UT == uint256))
         alias maxmul10 = maxmul10_256;
-    else static if (is(Unqual!T == ushort))
+    else static if (is(UT == ushort))
         alias maxmul10 = maxmul10_16;
-    else static if (is(Unqual!T == ubyte))
+    else static if (is(UT == ubyte))
         alias maxmul10 = maxmul10_8;
     else
         static assert(0);
@@ -2440,19 +2460,19 @@ if (isAnyUnsigned!U)
     //x
     if (x <= 1U)
         return false;
-    immutable n = x;
-    Unqual!U y;
+    const n = x;
     //1 ..          99   1 x 10^0 .. 99 x 10^0         1 .. 2  //0 - 10^0  <10^1      2 x 10^0, 6x10^0
     //100 ..      9999   1 x 10^2 ...99.99 x 10^2      3 .. 4  //2  -10^1  <10^3      2 x 10^1, 6x10^1
     //10000 ..  999999   1.x 10^4 ...99999.99 x 10^4   5 .. 6  //4  -10^2  <10^5      2 x 10^2, 6x10^2
-    auto p = prec(x);
-    int power = p & 1 ? p - 1 : p - 2;
+    const p = prec(x);
+    const int power = p & 1 ? p - 1 : p - 2;
 
     if (power >= pow10!U.length - 1 || x >= pow10!U[power + 1])
         x = pow10!U[power >> 1] * 6U;
     else
         x = pow10!U[power >> 1] << 1;  //* 2U;
 
+    Unqual!U y;
     do
     {
         y = x;
@@ -2469,8 +2489,7 @@ if (isAnyUnsigned!U)
     // Newton-Raphson: x = (2x + N/x2)/3
     if (x <= 1U)
         return false;
-    immutable n = x;
-    Unqual!U y;
+    const n = x;
     //1 ..          99   1 x 10^0 .. 99 x 10^0         1 .. 2  //0 - 10^0  <10^1      2 x 10^0, 6x10^0
     //100 ..      9999   1 x 10^2 ...99.99 x 10^2      3 .. 4  //2  -10^1  <10^3      2 x 10^1, 6x10^1
     //10000 ..  999999   1.x 10^4 ...99999.99 x 10^4   5 .. 6  //4  -10^2  <10^5      2 x 10^2, 6x10^2
@@ -2478,6 +2497,8 @@ if (isAnyUnsigned!U)
     x /= 3U;
     if (!x)
         return true;
+
+    Unqual!U y;
     do
     {
         y = x;
@@ -2488,14 +2509,18 @@ if (isAnyUnsigned!U)
 }
 
 U uparse(U)(string s)
+in
+{
+    assert (s.length, "Empty string");
+    assert (!isHexString(s) || s.length > 2, "Empty hexadecimal string");
+}
+do
 {
     Unqual!U result;
-    assert (s.length, "Empty string");
     size_t i = 0;
-    if (s.length > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
+    if (isHexString(s))
     {
-        i+=2;
-        assert (i < s.length, "Empty hexadecimal string");
+        i += 2;
         while (i < s.length && (s[i] == '0' || s[i] == '_'))
             ++i;
         int width = 0;
@@ -2549,4 +2574,6 @@ U uparse(U)(string s)
 unittest
 {
     uint512 x = uparse!uint512("1234567890123456789012345678901234567890");
+    uint512 x2 = uparse!uint512("0x1234567890123456789012345678901234567890");
+    uint512 x3 = uparse!uint512("0X1234567890123456789012345678901234567890");
 }

@@ -4,7 +4,7 @@ module decimal.floats;
 /* FLOAT UTILITY FUNCTIONS                                                                                            */
 /* ****************************************************************************************************************** */
 
-private import decimal.integrals: uint128, clz, divrem;
+import decimal.integrals: uint128, clz, divrem;
 
 package:
 
@@ -25,8 +25,8 @@ enum MIN_REAL_EXPONENT_34       = -4984;
 
 union FU
 {
-    float f;
     uint u;
+    float f;
 }
 
 @safe pure nothrow @nogc
@@ -34,7 +34,7 @@ float fpack(const bool sign, int exp, uint mantissa)
 {
     if (mantissa == 0)
         return sign ? -0.0f : +0.0f;
-    auto shift = clz(mantissa) - 8;
+    const shift = clz(mantissa) - 8;
     if (shift < 0)
     {
         if (exp > int.max + shift)
@@ -104,8 +104,8 @@ bool funpack(const float f, out int exp, out uint mantissa, out bool inf, out bo
 
 union DU
 {
-    double d;
     ulong u;
+    double d;
 }
 
 @safe pure nothrow @nogc
@@ -207,7 +207,7 @@ real rpack(const bool sign, int exp, ulong mantissa)
     if (mantissa == 0)
         return sign ? -0.0L : +0.0L;
 
-    auto shift = clz(mantissa);
+    const shift = clz(mantissa);
     if (exp < int.min + shift)
         return sign ? -0.0L : +0.0L;
     mantissa <<= shift;

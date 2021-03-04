@@ -1,8 +1,8 @@
 module decimal.ranges;
 
-private import std.range.primitives: isInputRange, ElementType;
-private import std.traits: isSomeChar, Unqual;
-private import decimal.integrals: fma, uint128;
+import std.range.primitives: ElementType, isInputRange;
+import std.traits: isSomeChar, Unqual;
+import decimal.integrals: fma, uint128;
 
 package:
 
