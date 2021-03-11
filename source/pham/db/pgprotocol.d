@@ -438,7 +438,7 @@ public:
                 case DbType.int64:
                     return DbValue(readValueArray!int64(command, reader, column, valueLength), column.type);
                 case DbType.decimal:
-                    return DbValue(readValueArray!Decimal(command, reader, column, valueLength), column.type);
+                    return DbValue(readValueArray!Decimal64(command, reader, column, valueLength), column.type);
                 case DbType.float32:
                     return DbValue(readValueArray!float32(command, reader, column, valueLength), column.type);
                 case DbType.float64:
@@ -486,7 +486,7 @@ public:
             case DbType.int64:
                 return DbValue(checkValueLength(8).readInt64(), column.type);
             case DbType.decimal:
-                return DbValue(checkValueLength(0).readDecimal(column.baseType), column.type);
+                return DbValue(checkValueLength(0).readDecimal!Decimal64(column.baseType), column.type);
             case DbType.float32:
                 return DbValue(checkValueLength(4).readFloat32(), column.type);
             case DbType.float64:
@@ -586,8 +586,8 @@ public:
                 result[i] = checkValueLength(elementValueLength, 4).readInt32();
             else static if (is(T == int64))
                 result[i] = checkValueLength(elementValueLength, 8).readInt64();
-            else static if (is(T == Decimal))
-                result[i] = checkValueLength(elementValueLength, 0).readDecimal(column.baseType);
+            else static if (is(T == Decimal32) || is(T == Decimal64) || is(T == Decimal128))
+                result[i] = checkValueLength(elementValueLength, 0).readDecimal!T(column.baseType);
             else static if (is(T == float32))
                 result[i] = checkValueLength(elementValueLength, 4).readFloat32();
             else static if (is(T == float64))
@@ -828,7 +828,7 @@ protected:
                 case DbType.int64:
                     return describeValueArray!int64(writer, column, value, PgOIdType.int8);
                 case DbType.decimal:
-                    return describeValueArray!Decimal(writer, column, value, PgOIdType.numeric);
+                    return describeValueArray!Decimal64(writer, column, value, PgOIdType.numeric);
                 case DbType.float32:
                     return describeValueArray!float32(writer, column, value, PgOIdType.float4);
                 case DbType.float64:
@@ -889,7 +889,7 @@ protected:
                 valueWriter.writeInt64(value.coerce!int64());
                 return;
             case DbType.decimal:
-                valueWriter.writeDecimal(value.get!Decimal(), column.baseType);
+                valueWriter.writeDecimal!Decimal64(value.get!Decimal64(), column.baseType);
                 return;
             case DbType.float32:
                 valueWriter.writeFloat32(value.coerce!float32());
@@ -967,8 +967,8 @@ protected:
                 valueWriter.writeInt32(values[i]);
             else static if (is(T == int64))
                 valueWriter.writeInt64(values[i]);
-            else static if (is(T == Decimal))
-                valueWriter.writeDecimal(values[i], column.baseType);
+            else static if (is(T == Decimal32) || is(T == Decimal64) || is(T == Decimal128))
+                valueWriter.writeDecimal!T(values[i], column.baseType);
             else static if (is(T == float32))
                 valueWriter.writeFloat32(values[i]);
             else static if (is(T == float64))

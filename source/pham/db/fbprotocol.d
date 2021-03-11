@@ -1402,7 +1402,7 @@ public:
             case DbType.int64:
                 return DbValue(reader.readInt64(), column.type);
             case DbType.decimal:
-                return DbValue(reader.readDecimal(column.baseType), column.type);
+                return DbValue(reader.readDecimal!Decimal64(column.baseType), column.type);
             case DbType.float32:
                 return DbValue(reader.readFloat32(), column.type);
             case DbType.float64:
@@ -2336,7 +2336,7 @@ do
             writer.writeInt64(value.coerce!int64());
             return;
         case DbType.decimal:
-            writer.writeDecimal(value.get!Decimal(), column.baseType);
+            writer.writeDecimal!Decimal64(value.get!Decimal64(), column.baseType);
             return;
         case DbType.float32:
             writer.writeFloat32(value.coerce!float32());

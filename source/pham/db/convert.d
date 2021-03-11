@@ -16,37 +16,32 @@ import std.conv : to;
 import std.datetime.date : DateTime, TimeOfDay;
 import std.datetime.systime : SysTime;
 import std.exception : assumeWontThrow;
-import std.math : pow;
+import std.math : abs, pow;
+import std.traits: isIntegral, Unqual;
 
 version (unittest) import pham.utl.utltest;
 import pham.db.type;
 
 nothrow @safe:
 
-Decimal decimalDecode(T)(T value, int32 integralScale, RoundingMode roundingMode = RoundingMode.banking)
-if (is(T == int16) || is(T == int32) || is(T == int64) || is(T == float32) || is(T == float64))
+D decimalDecode(D, T)(const T value, const int32 scale, const RoundingMode roundingMode = RoundingMode.banking) @nogc pure
+if (isDecimal!D && (is(T == int16) || is(T == int32) || is(T == int64) || is(T == float32) || is(T == float64)))
 {
-    static int32 precision() nothrow pure @safe
-    {
-        static if (T.sizeof == 2)
-            return 5;
-        else static if (T.sizeof == 4)
-            return 10;
-        else
-            return 20;
-    }
+    import decimal.decimal : scaleFrom;
 
-	auto result = Decimal(value, precision(), roundingMode);
+    D result = D(value, cast(int)abs(scale), roundingMode);
 	static if (is(T == int16) || is(T == int32) || is(T == int64))
-        return result.scaleFrom(integralScale, roundingMode);
+        return scale != 0 ? scaleFrom!D(result, scale, roundingMode) : result;
     else
         return result;
 }
 
-T decimalEncode(T)(scope Decimal value, int32 integralScale, RoundingMode roundingMode = RoundingMode.banking)
-if (is(T == int16) || is(T == int32) || is(T == int64) || is(T == float32) || is(T == float64))
+T decimalEncode(D, T)(auto const ref D value, const int32 scale, const RoundingMode roundingMode = RoundingMode.banking) @nogc
+if (isDecimal!D && (is(T == int16) || is(T == int32) || is(T == int64) || is(T == float32) || is(T == float64)))
 {
-    return value.scaleTo!T(integralScale, roundingMode);
+    import decimal.decimal : scaleTo;
+
+    return scaleTo!(D, T)(value, scale, roundingMode);
 }
 
 Duration minDuration(Duration value, const int64 minSecond = 0) pure
@@ -93,9 +88,10 @@ if (is(I == int) || is(I == uint)
     return validValue.length != 0 ? assumeWontThrow(to!I(validValue)) : emptyValue;
 }
 
-Decimal toDecimal(const(char)[] validDecimal)
+D toDecimal(D)(const(char)[] validDecimal)
+if (isDecimal!D)
 {
-    return assumeWontThrow(Decimal(validDecimal));
+    return assumeWontThrow(D(validDecimal));
 }
 
 int64 toMinSecond(scope const Duration value, const int64 minSecond = 0) pure

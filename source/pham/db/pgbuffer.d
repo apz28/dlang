@@ -410,12 +410,13 @@ public:
         return dateTimeDecodeTZ(dt, z);
     }
 
-    Decimal readDecimal(in DbBaseType baseType)
+    D readDecimal(D)(in DbBaseType baseType)
+    if (isDecimal!D)
     {
         if (baseType.typeId == PgOIdType.money)
-            return readMoney();
+            return cast(D)readMoney();
         else
-            return readNumeric();
+            return cast(D)readNumeric();
     }
 
     float readFloat32()
@@ -443,12 +444,12 @@ public:
         return _buffer.readInt64();
     }
 
-    Decimal readMoney()
+    Decimal64 readMoney()
     {
-        return decimalDecode!int64(readInt64(), -2);
+        return decimalDecode!(Decimal64, int64)(readInt64(), -2);
     }
 
-    Decimal readNumeric()
+    Decimal64 readNumeric()
     {
         PgOIdNumeric result;
         result.ndigits = readInt16();
@@ -583,12 +584,13 @@ public:
         _buffer.writeInt32(z);
     }
 
-    void writeDecimal(in Decimal v, in DbBaseType baseType) nothrow
+    void writeDecimal(D)(in D v, in DbBaseType baseType) nothrow
+    if (isDecimal!D)
     {
         if (baseType.typeId == PgOIdType.money)
-            writeMoney(v);
+            writeMoney(cast(Decimal64)v);
         else
-            writeNumeric(v);
+            writeNumeric(cast(Decimal64)v);
     }
 
     void writeFloat32(float32 v) nothrow
@@ -621,12 +623,12 @@ public:
         _buffer.writeInt64(v);
     }
 
-    void writeMoney(in Decimal v) nothrow
+    void writeMoney(in Decimal64 v) nothrow
     {
-        writeInt64(decimalEncode!int64(v, -2));
+        writeInt64(decimalEncode!(Decimal64, int64)(v, -2));
     }
 
-    void writeNumeric(in Decimal v) nothrow
+    void writeNumeric(in Decimal64 v) nothrow
     {
         auto n = numericEncode(v);
 

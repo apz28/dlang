@@ -93,7 +93,7 @@ public:
             case DbType.int64:
                 return Variant(readArray!int64(arrayColumn));
             case DbType.decimal:
-                return Variant(readArray!Decimal(arrayColumn));
+                return Variant(readArray!Decimal64(arrayColumn));
             case DbType.float32:
                 return Variant(readArray!float32(arrayColumn));
             case DbType.float64:
@@ -151,8 +151,8 @@ public:
                 result[i] = reader.readInt32();
             else static if (is(T == int64))
                 result[i] = reader.readInt64();
-            else static if (is(T == Decimal))
-                result[i] = reader.readDecimal(baseType);
+            else static if (is(T == Decimal32) || is(T == Decimal64) || is(T == Decimal128))
+                result[i] = reader.readDecimal!T(baseType);
             else static if (is(T == float32))
                 result[i] = reader.readFloat32();
             else static if (is(T == float64))
@@ -228,7 +228,7 @@ public:
                 encodedArrayValue = writeArray!int64(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.decimal:
-                encodedArrayValue = writeArray!Decimal(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArray!Decimal64(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.float32:
                 encodedArrayValue = writeArray!float32(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
@@ -294,8 +294,8 @@ public:
                 writer.writeInt32(value);
             else static if (is(T == int64))
                 writer.writeInt64(value);
-            else static if (is(T == Decimal))
-                writer.writeDecimal(value, baseType);
+            else static if (is(T == Decimal32) || is(T == Decimal64) || is(T == Decimal128))
+                writer.writeDecimal!T(value, baseType);
             else static if (is(T == float32))
                 writer.writeFloat32(value);
             else static if (is(T == float64))
@@ -2300,11 +2300,11 @@ unittest // FbCommand.DML
         assert(isClose(reader.getValue(3).get!double(), 4.20));
         assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
 
-        assert(decimalEqual(reader.getValue(4).get!Decimal(), 5.4));
-        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal(), 5.4));
+        assert(decimalEqual(reader.getValue(4).get!Decimal64(), 5.4));
+        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal64(), 5.4));
 
-        assert(decimalEqual(reader.getValue(5).get!Decimal(), 6.5));
-        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal(), 6.5));
+        assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
+        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
 
         assert(reader.getValue(6) == toDate(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == toDate(2020, 5, 20));
@@ -2369,7 +2369,7 @@ unittest // FbCommand.DML.Parameter
     command.commandText = parameterSelectCommandText();
     command.parameters.add("INT_FIELD", DbType.int32).value = 1;
     command.parameters.add("DOUBLE_FIELD", DbType.float64).value = 4.20;
-    command.parameters.add("DECIMAL_FIELD", DbType.decimal).value = Decimal(6.5);
+    command.parameters.add("DECIMAL_FIELD", DbType.decimal).value = Decimal64(6.5);
     command.parameters.add("DATE_FIELD", DbType.date).value = toDate(2020, 5, 20);
     command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1);
     command.parameters.add("CHAR_FIELD", DbType.chars).value = "ABC       ";
@@ -2397,11 +2397,11 @@ unittest // FbCommand.DML.Parameter
         assert(isClose(reader.getValue(3).get!double(), 4.20));
         assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
 
-        assert(decimalEqual(reader.getValue(4).get!Decimal(), 5.4));
-        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal(), 5.4));
+        assert(decimalEqual(reader.getValue(4).get!Decimal64(), 5.4));
+        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal64(), 5.4));
 
-        assert(decimalEqual(reader.getValue(5).get!Decimal(), 6.5));
-        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal(), 6.5));
+        assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
+        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
 
         assert(reader.getValue(6) == toDate(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == toDate(2020, 5, 20));
@@ -2487,11 +2487,11 @@ unittest // FbCommand.DML.encrypt.compress
         assert(isClose(reader.getValue(3).get!double(), 4.20));
         assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
 
-        assert(decimalEqual(reader.getValue(4).get!Decimal(), 5.4));
-        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal(), 5.4));
+        assert(decimalEqual(reader.getValue(4).get!Decimal64(), 5.4));
+        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal64(), 5.4));
 
-        assert(decimalEqual(reader.getValue(5).get!Decimal(), 6.5));
-        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal(), 6.5));
+        assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
+        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
 
         assert(reader.getValue(6) == toDate(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == toDate(2020, 05, 20));

@@ -116,7 +116,7 @@ void dateTimeEncodeTZ(in DbDateTime value, out int64 pgTime, out int32 pgZone)
     pgZone = 0;
 }
 
-Decimal numericDecode(in PgOIdNumeric pgNumeric)
+Decimal64 numericDecode(in PgOIdNumeric pgNumeric)
 {
 	scope (failure) assert(0);
 
@@ -128,7 +128,7 @@ Decimal numericDecode(in PgOIdNumeric pgNumeric)
         ", digits=", pgNumeric.digits);
 
     if (pgNumeric.isNaN)
-        return Decimal.nan;
+        return Decimal64.nan;
 
     size_t vInd;
     char[] value = new char[](pgNumeric.digitLength());
@@ -215,10 +215,10 @@ Decimal numericDecode(in PgOIdNumeric pgNumeric)
     version (TraceFunction)
     dgFunctionTrace("vInd=", vInd, ", value.length=", value.length, ", value=", value[0..vInd]);
 
-	return Decimal(value[0..vInd]);
+	return Decimal64(value[0..vInd]);
 }
 
-PgOIdNumeric numericEncode(in Decimal value)
+PgOIdNumeric numericEncode(in Decimal64 value)
 {
 	if (value.isNaN)
 		return PgOIdNumeric.NaN;
@@ -368,8 +368,8 @@ unittest // numericDecode
 	PgOIdNumeric n5_40 = {ndigits:2, weight:0, sign:0, dscale:2, digits:[5, 4000]};
 	PgOIdNumeric n6_50 = {ndigits:2, weight:0, sign:0, dscale:2, digits:[6, 5000]};
 
-	assert(numericDecode(n5_40) == toDecimal("5.40"));
-	assert(numericDecode(n6_50) == toDecimal("6.50"));
+	assert(numericDecode(n5_40) == toDecimal!Decimal64("5.40"));
+	assert(numericDecode(n6_50) == toDecimal!Decimal64("6.50"));
 }
 
 unittest // numericEncode
@@ -390,14 +390,14 @@ unittest // numericEncode
 			", digits=", pgNumeric.digits);
     }
 
-	auto dec5_40 = toDecimal("5.40");
+	auto dec5_40 = toDecimal!Decimal64("5.40");
 	auto num5_40 = numericEncode(dec5_40);
 	//dgFunctionTrace(dec5_40.toString());
 	//traceNumeric(num5_40);
 	//traceNumeric(n5_40);
 	assert(num5_40 == n5_40);
 
-	auto dec6_50 = toDecimal("6.50");
+	auto dec6_50 = toDecimal!Decimal64("6.50");
 	auto num6_50 = numericEncode(dec6_50);
 	assert(num6_50 == n6_50);
 }

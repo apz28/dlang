@@ -13,6 +13,7 @@ module pham.db.util;
 
 import std.exception : assumeWontThrow;
 import std.format : format;
+import std.traits: isFloatingPoint, isIntegral;
 
 import pham.db.type;
 
@@ -27,18 +28,22 @@ nothrow @safe:
 *   -1 if x precedes y, 0 if x is equal to y, +1 if x follows y
 *   float.nan if any operands is a NaN
 */
-float decimalCompare(T)(auto const ref Decimal lhs, auto const ref T rhs) @nogc
-if (isIntegral!T || isDecimal!T)
+float decimalCompare(D, T)(auto const ref D lhs, auto const ref T rhs) @nogc
+if (isDecimal!D && (isIntegral!T || isDecimal!T))
 {
+    import decimal.decimal : cmp;
+
     return cmp(lhs, rhs);
 }
 
 ///
-float decimalCompare(T)(auto const ref Decimal lhs, auto const ref T rhs,
+float decimalCompare(D, T)(auto const ref D lhs, auto const ref T rhs,
     const int precision = Precision.banking,
     const RoundingMode mode = RoundingMode.banking) @nogc
-if (isFloatingPoint!T)
+if (isDecimal!D && isFloatingPoint!T)
 {
+    import decimal.decimal : cmp;
+
     return cmp(lhs, rhs, precision, mode);
 }
 
@@ -47,17 +52,21 @@ if (isFloatingPoint!T)
 * Returns:
 *   true if the specified condition is satisfied, false otherwise or if any of the operands is NaN.
 */
-bool decimalEqual(T)(auto const ref Decimal lhs, auto const ref T rhs) @nogc
-if (isIntegral!T || isDecimal!T)
+bool decimalEqual(D, T)(auto const ref D lhs, auto const ref T rhs) @nogc
+if (isDecimal!D && (isIntegral!T || isDecimal!T))
 {
+    import decimal.decimal : isEqual;
+
     return isEqual(lhs, rhs);
 }
 
-bool decimalEqual(T)(auto const ref Decimal lhs, auto const ref T rhs,
+bool decimalEqual(D, T)(auto const ref D lhs, auto const ref T rhs,
     const int precision = Precision.banking,
     const RoundingMode mode = RoundingMode.banking) @nogc
-if (isFloatingPoint!T)
+if (isDecimal!D && isFloatingPoint!T)
 {
+    import decimal.decimal : isEqual;
+
    return isEqual(lhs, rhs, precision, mode);
 }
 

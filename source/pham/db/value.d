@@ -285,7 +285,7 @@ private:
             this._value = rhs;
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.binary;
         }
-        else static if (is(UT == Decimal))
+        else static if (is(UT == Decimal32) || is(UT == Decimal64) || is(UT == Decimal128))
         {
             if (rhs.isNaN)
                 this._value.nullify();

@@ -598,22 +598,23 @@ public:
         return dateTimeDecodeTZ(d, t, zId, zOffset);
     }
 
-    Decimal readDecimal(in DbBaseType baseType)
+    D readDecimal(D)(in DbBaseType baseType)
+    if (isDecimal!D)
     {
 		switch (FbIscFieldInfo.fbType(baseType.typeId))
 		{
 			case FbIscType.SQL_SHORT:
-				return decimalDecode!int16(readInt16(), baseType.numericScale);
+				return decimalDecode!(D, int16)(readInt16(), baseType.numericScale);
 			case FbIscType.SQL_LONG:
-				return decimalDecode!int32(readInt32(), baseType.numericScale);
+				return decimalDecode!(D, int32)(readInt32(), baseType.numericScale);
 			case FbIscType.SQL_QUAD:
 			case FbIscType.SQL_INT64:
-				return decimalDecode!int64(readInt64(), baseType.numericScale);
+				return decimalDecode!(D, int64)(readInt64(), baseType.numericScale);
 			case FbIscType.SQL_DOUBLE:
 			case FbIscType.SQL_D_FLOAT:
-				return decimalDecode!float64(readFloat64(), baseType.numericScale);
+				return decimalDecode!(D, float64)(readFloat64(), baseType.numericScale);
     		case FbIscType.SQL_FLOAT:
-				return decimalDecode!float32(readFloat32(), baseType.numericScale);
+				return decimalDecode!(D, float32)(readFloat32(), baseType.numericScale);
 			default:
                 //TODO for new decimal
                 assert(0);
@@ -955,22 +956,23 @@ public:
         writeInt16(zOffset);
     }
 
-    void writeDecimal(in Decimal v, in DbBaseType baseType)
+    void writeDecimal(D)(in D v, in DbBaseType baseType)
+    if (isDecimal!D)
     {
 		switch (FbIscFieldInfo.fbType(baseType.typeId))
 		{
 			case FbIscType.SQL_SHORT:
-				return writeInt16(decimalEncode!int16(v, baseType.numericScale));
+				return writeInt16(decimalEncode!(D, int16)(v, baseType.numericScale));
 			case FbIscType.SQL_LONG:
-				return writeInt32(decimalEncode!int32(v, baseType.numericScale));
+				return writeInt32(decimalEncode!(D, int32)(v, baseType.numericScale));
 			case FbIscType.SQL_QUAD:
 			case FbIscType.SQL_INT64:
-				return writeInt64(decimalEncode!int64(v, baseType.numericScale));
+				return writeInt64(decimalEncode!(D, int64)(v, baseType.numericScale));
 			case FbIscType.SQL_DOUBLE:
 			case FbIscType.SQL_D_FLOAT:
-				return writeFloat64(decimalEncode!float64(v, baseType.numericScale));
+				return writeFloat64(decimalEncode!(D, float64)(v, baseType.numericScale));
     		case FbIscType.SQL_FLOAT:
-				return writeFloat32(decimalEncode!float32(v, baseType.numericScale));
+				return writeFloat32(decimalEncode!(D, float32)(v, baseType.numericScale));
 			default:
                 //TODO for new decimal
                 assert(0);

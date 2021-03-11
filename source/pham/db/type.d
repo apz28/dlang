@@ -22,13 +22,12 @@ public import core.time : Duration, dur;
 public import std.datetime.date : Date;
 public import std.datetime.timezone : LocalTime, SimpleTimeZone, TimeZone, UTC;
 public import std.uuid : UUID;
-public import decimal.decimal; // : Decimal
+public import decimal.decimal : Decimal32, Decimal64, Decimal128, isDecimal, Precision, RoundingMode;
 
 import pham.utl.enum_set;
 import pham.db.convert : removeDate, timeOfDayToDuration, toDate;
 import pham.db.timezone;
 
-alias Decimal = decimal.decimal.Decimal!128;
 alias float32 = float;
 alias float64 = double;
 alias int8 = byte;
@@ -533,6 +532,8 @@ public:
     ref W toString(W)(return ref W writer) const
     if (isOutputRange!(W, char))
     {
+        scope (failure) assert(0);
+
         // Date part
         toString(writer, getDate());
 
@@ -541,7 +542,7 @@ public:
         return DbTime.toString(writer, _value, zoneId, kind);
     }
 
-    static ref W toString(W)(return ref W writer, scope const Date dt) pure
+    static ref W toString(W)(return ref W writer, scope const Date dt)
     if (isOutputRange!(W, char))
     {
         import std.format : formattedWrite;
@@ -1009,8 +1010,8 @@ immutable DbTypeInfo[] dbNativeTypes = [
     // Library
     {dbName:"", nativeName:"DbDateTime", displaySize:28, nativeSize:DbDateTime.sizeof, nativeId:0, dbType:DbType.datetime},
     {dbName:"", nativeName:"DbTime", displaySize:11, nativeSize:DbTime.sizeof, nativeId:0, dbType:DbType.time},
-    {dbName:"", nativeName:"Decimal", displaySize:34, nativeSize:Decimal.sizeof, nativeId:0, dbType:DbType.decimal},
-    {dbName:"", nativeName:Decimal.stringof, displaySize:34, nativeSize:Decimal.sizeof, nativeId:0, dbType:DbType.decimal},
+    {dbName:"", nativeName:"Decimal", displaySize:34, nativeSize:Decimal128.sizeof, nativeId:0, dbType:DbType.decimal},
+    {dbName:"", nativeName:Decimal128.stringof, displaySize:34, nativeSize:Decimal128.sizeof, nativeId:0, dbType:DbType.decimal},
 
     // Alias
     {dbName:"", nativeName:"int8", displaySize:4, nativeSize:int8.sizeof, nativeId:0, dbType:DbType.int8},
@@ -1178,7 +1179,7 @@ unittest // dbTypeOf
     assert(dbTypeOf!DbTime() == DbType.time);
     assert(dbTypeOf!DbDateTime() == DbType.datetime);
     assert(dbTypeOf!(ubyte[])() == DbType.binary);
-    assert(dbTypeOf!Decimal() == DbType.decimal);
+    assert(dbTypeOf!Decimal128() == DbType.decimal);
     assert(dbTypeOf!UUID() == DbType.uuid);
 
     version (none)

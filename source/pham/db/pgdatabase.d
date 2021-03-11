@@ -1611,11 +1611,11 @@ unittest // PgCommand.DML
         assert(isClose(reader.getValue(3).get!double(), 4.20));
         assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
 
-        assert(decimalEqual(reader.getValue(4).get!Decimal(), 5.4));
-        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal(), 5.4));
+        assert(decimalEqual(reader.getValue(4).get!Decimal64(), 5.4));
+        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal64(), 5.4));
 
-        assert(decimalEqual(reader.getValue(5).get!Decimal(), 6.5));
-        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal(), 6.5));
+        assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
+        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
 
         assert(reader.getValue(6) == toDate(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == toDate(2020, 5, 20));
@@ -1680,7 +1680,7 @@ unittest // PgCommand.DML
     command.commandText = parameterSelectCommandText();
     command.parameters.add("INT_FIELD", DbType.int32).value = 1;
     command.parameters.add("DOUBLE_FIELD", DbType.float64).value = 4.20;
-    command.parameters.add("DECIMAL_FIELD", DbType.decimal).value = Decimal(6.5);
+    command.parameters.add("DECIMAL_FIELD", DbType.decimal).value = Decimal64(6.5);
     command.parameters.add("DATE_FIELD", DbType.date).value = toDate(2020, 5, 20);
     command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1);
     command.parameters.add("CHAR_FIELD", DbType.chars).value = "ABC       ";
@@ -1708,11 +1708,11 @@ unittest // PgCommand.DML
         assert(isClose(reader.getValue(3).get!double(), 4.20));
         assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
 
-        assert(decimalEqual(reader.getValue(4).get!Decimal(), 5.4));
-        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal(), 5.4));
+        assert(decimalEqual(reader.getValue(4).get!Decimal64(), 5.4));
+        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal64(), 5.4));
 
-        assert(decimalEqual(reader.getValue(5).get!Decimal(), 6.5));
-        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal(), 6.5));
+        assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
+        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
 
         assert(reader.getValue(6) == toDate(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == toDate(2020, 5, 20));
@@ -1945,9 +1945,30 @@ unittest // PgCommand.getExecutionPlan
     import core.memory;
     import std.algorithm.searching : startsWith;
     import std.array : split;
+    import std.string : indexOf;
     import pham.utl.utltest;
     dgWriteln("\n***********************************************");
     dgWriteln("unittest db.pgdatabase.PgCommand.getExecutionPlan");
+
+    static string removePText(string s)
+    {
+        while (1)
+        {
+            const i = s.indexOf('(');
+            if (i < 0)
+                break;
+            const j = s.indexOf(')', i + 1);
+            if (j < i)
+                break;
+            if (i == 0)
+                s = s[j + 1..$];
+            else if (j == s.length)
+                s = s[0..i];
+            else
+                s = s[0..i] ~ s[j + 1..$];
+        }
+        return s;
+    }
 
     bool failed = true;
     auto connection = createTestConnection();
@@ -1977,9 +1998,8 @@ unittest // PgCommand.getExecutionPlan
 q"{Seq Scan on test_select  (cost=0.00..13.50 rows=1 width=260)
   Filter: (int_field = 1)}";
     auto planDefault = command.getExecutionPlan();
-    //dgWriteln("'", planDefault, "'");
-    //dgWriteln("'", expectedDefault, "'");
-    assert(planDefault == expectedDefault);
+    //dgWriteln("'", removePText(planDefault), "' vs ", "'", removePText(expectedDefault), "'");
+    assert(removePText(planDefault) == removePText(expectedDefault));
 
     auto expectedDetail =
 q"{Seq Scan on test_select  (cost=0.00..13.50 rows=1 width=260) (actual time=0.031..0.032 rows=1 loops=1)
@@ -1993,7 +2013,7 @@ Execution Time: 0.053 ms}";
     // Can't check for exact because time change for each run
     auto lines = planDetail.split("\n");
     assert(lines.length == 5);
-    assert(startsWith(lines[0], "Seq Scan on test_select  (cost=0.00..13.50 rows=1 width=260)"));
+    assert(startsWith(lines[0], "Seq Scan on test_select"));
     assert(startsWith(lines[3], "Planning Time:"));
     assert(startsWith(lines[4], "Execution Time:"));
 
