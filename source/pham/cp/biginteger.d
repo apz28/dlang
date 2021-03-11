@@ -562,7 +562,7 @@ public:
                 if (negx)
                 {
                     if (shift >= (kcbitUint * xl))
-                        return minusOne();
+                        return negOne();
 
                     BigIntegerCalculator.makeTwosComplement(xd); // Mutates xd
                 }
@@ -915,64 +915,13 @@ public:
         return getUBytesLittleEndian(includeSign, GetBytesMode.count, bytes);
     }
 
-    bool isEven() const @nogc nothrow pure
-    {
-        debug assertValid();
-
-        return _bits.length == 0 ? (_sign & 1) == 0 : (_bits[0] & 1) == 0;
-    }
-
-    bool isOne() const @nogc nothrow pure
-    {
-        debug assertValid();
-
-        return _sign == 1 && _bits.length == 0;
-    }
-
-    bool isPowerOfTwo() const @nogc nothrow pure
-    {
-        debug assertValid();
-
-        if (_bits.length == 0)
-            return (_sign & (_sign - 1)) == 0 && _sign != 0;
-
-        if (_sign != 1)
-            return false;
-
-        ptrdiff_t iu = cast(ptrdiff_t)(_bits.length) - 1;
-        if ((_bits[iu] & (_bits[iu] - 1)) != 0)
-            return false;
-
-        while (--iu >= 0)
-        {
-            if (_bits[iu] != 0)
-                return false;
-        }
-
-        return true;
-    }
-
-    bool isZero() const @nogc nothrow pure
-    {
-        debug assertValid();
-
-        return _sign == 0;
-    }
-
     void setZero() nothrow pure
     {
         _sign = 0;
         _bits = null;
     }
 
-    int sign() const @nogc nothrow pure
-    {
-        debug assertValid();
-
-        return (_sign >> (kcbitUint - 1)) - (-_sign >> (kcbitUint - 1));
-    }
-
-    static BigInteger minusOne() nothrow pure
+    static BigInteger negOne() nothrow pure
     {
         return BigInteger(-1);
     }
@@ -1198,6 +1147,64 @@ public:
         toHexString(writer, f, includeSign);
 
         return writer.data;
+    }
+
+    @property bool isEven() const @nogc nothrow pure
+    {
+        debug assertValid();
+
+        return _bits.length == 0 ? (_sign & 1) == 0 : (_bits[0] & 1) == 0;
+    }
+
+    @property bool isOne() const @nogc nothrow pure
+    {
+        debug assertValid();
+
+        return _sign == 1 && _bits.length == 0;
+    }
+
+    @property bool isPowerOfTwo() const @nogc nothrow pure
+    {
+        debug assertValid();
+
+        if (_bits.length == 0)
+            return (_sign & (_sign - 1)) == 0 && _sign != 0;
+
+        if (_sign != 1)
+            return false;
+
+        ptrdiff_t iu = cast(ptrdiff_t)(_bits.length) - 1;
+        if ((_bits[iu] & (_bits[iu] - 1)) != 0)
+            return false;
+
+        while (--iu >= 0)
+        {
+            if (_bits[iu] != 0)
+                return false;
+        }
+
+        return true;
+    }
+
+    @property bool isZero() const @nogc nothrow pure
+    {
+        debug assertValid();
+
+        return _sign == 0;
+    }
+
+    /**
+     * Returns a number that indicates the sign (negative, positive, or zero)
+     * Returns
+     *  -1  The value is negative.
+     *  0   The value is 0 (zero).
+     *  1 	The value is positive.
+     */
+    @property int sign() const @nogc nothrow pure
+    {
+        debug assertValid();
+
+        return (_sign >> (kcbitUint - 1)) - (-_sign >> (kcbitUint - 1));
     }
 
 private:
@@ -2332,7 +2339,7 @@ do
                     BigIntegerCalculator.pow(value._bits, BigIntegerHelper.abs(exponent._sign), BigIntegerHelper.abs(modulus._sign)) :
                     BigIntegerCalculator.pow(value._bits, exponent._bits, BigIntegerHelper.abs(modulus._sign));
 
-        return value._sign < 0 && !exponent.isEven ? BigInteger.minusOne() * BigInteger(resultBits) : BigInteger(resultBits);
+        return value._sign < 0 && !exponent.isEven ? BigInteger.negOne() * BigInteger(resultBits) : BigInteger(resultBits);
     }
     else
     {
