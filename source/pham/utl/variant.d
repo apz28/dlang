@@ -325,6 +325,14 @@ public:
         return doLogic!(op, T)(lhs);
     }
 
+    ///ditto
+    VariantN opUnary(string op)() nothrow @safe
+    if ((op == "-" || op == "+" || op == "--" || op == "++")
+        && is(typeof(doUnary!(op)())))
+    {
+        return doUnary!op();
+    }
+
     Variant opCall(P...)(auto ref P params) @trusted
     {
         Variant[P.length] paramVariants;
@@ -830,22 +838,24 @@ private:
             if (canGet!uint)
                 return VariantN(mixin("doGet!uint() " ~ op ~ " other"));
 
-            static if (allowed!long && is(typeof(T.max) : long) && !isUnsigned!T)
+            static if (allowed!long && is(typeof(T.max) : long))
             if (canGet!long)
                 return VariantN(mixin("doGet!long() " ~ op ~ " other"));
 
-            static if (allowed!ulong && is(typeof(T.max) : ulong) && isUnsigned!T)
+            static if (allowed!ulong && is(typeof(T.max) : ulong))
             if (canGet!ulong)
                 return VariantN(mixin("doGet!ulong() " ~ op ~ " other"));
 
-            static if (allowed!float && is(T : float))
+            static if (allowed!float && is(T : float) && T.sizeof <= 4)
             if (canGet!float)
                 return VariantN(mixin("doGet!float() " ~ op ~ " other"));
 
+            // is(T : real) = T can be implicitly converted to double
             static if (allowed!double && is(T : double))
             if (canGet!double)
                 return VariantN(mixin("doGet!double() " ~ op ~ " other"));
 
+            // is(T : real) = T can be implicitly converted to real
             static if (allowed!real && is(T : real))
             if (canGet!real)
                 return VariantN(mixin("doGet!real() " ~ op ~ " other"));
@@ -940,7 +950,7 @@ private:
                 (cast(RefCounted!(T*)*)pointer).__xpostblit();
             }
 
-            handler = cast(Handler!void*)Handler!T.getHandler();
+            handler = cast(Handler!void*)(Handler!T.getHandler());
         }
     }
 
@@ -982,6 +992,118 @@ private:
         }
 
         assert(0, "Cannot do VariantN(" ~ AllowedTypes.stringof ~ ") " ~ op ~ " " ~ T.stringof);
+    }
+
+    VariantN doUnary(string op)() nothrow @safe
+    if (op == "++" || op == "--")
+    {
+        if (canGet!int)
+        {
+            auto r = doGet!int();
+            mixin(op ~ "r;");
+            this = r;
+            return this;
+        }
+        else if (canGet!uint)
+        {
+            auto r = doGet!uint();
+            mixin(op ~ "r;");
+            this = r;
+            return this;
+        }
+        else if (canGet!long)
+        {
+            auto r = doGet!long();
+            mixin(op ~ "r;");
+            this = r;
+            return this;
+        }
+        else if (canGet!ulong)
+        {
+            auto r = doGet!ulong();
+            mixin(op ~ "r;");
+            this = r;
+            return this;
+        }
+        else if (canGet!float)
+        {
+            auto r = doGet!float();
+            mixin(op ~ "r;");
+            this = r;
+            return this;
+        }
+        else if (canGet!double)
+        {
+            auto r = doGet!double();
+            mixin(op ~ "r;");
+            this = r;
+            return this;
+        }
+        else if (canGet!real)
+        {
+            auto r = doGet!real();
+            mixin(op ~ "r;");
+            this = r;
+            return this;
+        }
+
+        assert(0, "Cannot do unary " ~ op ~ "VariantN(" ~ AllowedTypes.stringof ~ ")");
+    }
+
+    VariantN doUnary(string op)() nothrow @safe
+    if (op == "+" || op == "-")
+    {
+        if (canGet!int)
+        {
+            auto r = doGet!int();
+            mixin("r = " ~ op ~ "r;");
+            this = r;
+            return this;
+        }
+        else if (canGet!uint)
+        {
+            auto r = doGet!uint();
+            mixin("r = " ~ op ~ "r;");
+            this = r;
+            return this;
+        }
+        else if (canGet!long)
+        {
+            auto r = doGet!long();
+            mixin("r = " ~ op ~ "r;");
+            this = r;
+            return this;
+        }
+        else if (canGet!ulong)
+        {
+            auto r = doGet!ulong();
+            mixin("r = " ~ op ~ "r;");
+            this = r;
+            return this;
+        }
+        else if (canGet!float)
+        {
+            auto r = doGet!float();
+            mixin("r = " ~ op ~ "r;");
+            this = r;
+            return this;
+        }
+        else if (canGet!double)
+        {
+            auto r = doGet!double();
+            mixin("r = " ~ op ~ "r;");
+            this = r;
+            return this;
+        }
+        else if (canGet!real)
+        {
+            auto r = doGet!real();
+            mixin("r = " ~ op ~ "r;");
+            this = r;
+            return this;
+        }
+
+        assert(0, "Cannot do unary " ~ op ~ "VariantN(" ~ AllowedTypes.stringof ~ ")");
     }
 
     @property void* pointer() const nothrow pure return @trusted
@@ -1035,7 +1157,7 @@ template maxSize(T...)
 {
     enum maxSize =
     {
-        size_t result;
+        size_t result = 0;
         static foreach (t; T)
         {
             if (t.sizeof > result)
@@ -1046,8 +1168,8 @@ template maxSize(T...)
 }
 
 /**
- * Alias for $(LREF VariantN) instantiated with the largest size of `creal`,
- * `char[]`, and `void delegate()`. This ensures that `Variant` is large enough
+ * Alias for $(LREF VariantN) instantiated with the largest size of `long`, `real`,
+ * `char[]`, `void delegate()`, and `RefCounted!(void*)`. This ensures that `Variant` is large enough
  * to hold all of D's predefined types unboxed, including all numeric types,
  * pointers, delegates, and class references. You may want to use
  * `VariantN` directly with a different maximum size either for
@@ -1943,7 +2065,7 @@ nothrow @safe version (unittest)
     }
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // Handler.getHandler
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Handler.getHandler");
@@ -2158,7 +2280,7 @@ nothrow @safe unittest
     assert(hFct.variantType() == VariantType.function_);
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // Variant.typeInfo
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant.typeInfo");
@@ -2367,7 +2489,7 @@ nothrow @safe unittest
     assert(vFct.variantType == VariantType.function_);
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // Variant.length
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant.length");
@@ -2567,7 +2689,7 @@ nothrow @safe unittest
     assert(vFct.length == 0);
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // Variant.isNull & Variant.nullify
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant.isNull & nullify");
@@ -2857,7 +2979,7 @@ nothrow @safe unittest
     assert(vFct.isNull);
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // Variant.peek
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant.peek");
@@ -3068,7 +3190,7 @@ nothrow @safe unittest
     assert(!vFct.peek!(int delegate()));
 }
 
-@safe unittest
+@safe unittest // Variant.get
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant.get");
@@ -3287,7 +3409,7 @@ nothrow @safe unittest
     assert(vFct.get!(int function()) == f);
 }
 
-@system unittest
+@system unittest // Variant.get
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant.get");
@@ -3299,7 +3421,7 @@ nothrow @safe unittest
     assert(returned == elements);
 }
 
-@safe unittest
+@safe unittest // Variant.get & peek - conversion
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant.get & peek - conversion");
@@ -3615,7 +3737,7 @@ nothrow @safe unittest
     }
 }
 
-@system unittest
+@system unittest // Variant.get & peek - conversion
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant.get & peek - conversion");
@@ -3657,7 +3779,7 @@ nothrow @safe unittest
     }
 }
 
-@safe unittest
+@safe unittest // Variant.get - incompatible conversion
 {
     import std.exception : assertThrown;
     import pham.utl.utltest;
@@ -3802,7 +3924,7 @@ nothrow @safe unittest
     }
 }
 
-@system unittest
+@system unittest // Variant - Aggregate with pointer fit in Variant.size
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant - Aggregate with pointer fit in Variant.size");
@@ -3885,7 +4007,7 @@ nothrow @safe unittest
     }
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // Variant.canGet
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant.canGet");
@@ -3924,10 +4046,10 @@ nothrow @safe unittest
     assert(v.canGet!(char[])());
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // Variant.operator - compare
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.variant.Variant.operator");
+    dgWriteln("unittest utl.variant.Variant.operator - compare");
 
     {
         Variant a = 1;
@@ -4037,7 +4159,7 @@ nothrow @safe unittest
     }
 }
 
-@safe unittest
+@safe unittest // Variant.operator(~)
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant.operator");
@@ -4058,7 +4180,111 @@ nothrow @safe unittest
     }
 }
 
-nothrow @safe unittest
+@system unittest // Variant.opBinary
+{
+    import pham.utl.utltest;
+    dgWriteln("unittest utl.variant.opBinary");
+
+    // For ubyte & ushort, D will promote it to int after calculation
+    static foreach (T; AliasSeq!(byte, ubyte, short, ushort, int, long))
+    {
+        {
+            Variant vt = cast(T)1;
+            Variant t = vt + 1;
+            assert(t == 2);
+            t = vt + vt;
+            assert(t == 2);
+            t = t - 1;
+            assert(t == 1);
+            t = vt * 2;
+            assert(t == 2);
+            t = t / 2;
+            assert(t == 1);
+        }
+    }
+
+    static foreach (T; AliasSeq!(uint, ulong))
+    {
+        {
+            Variant vt = cast(T)1;
+            Variant t = vt + 1;
+            assert(t == 2u);
+            t = vt + vt;
+            assert(t == 2u);
+            t = t - 1;
+            assert(t == 1u);
+            t = vt * 2;
+            assert(t == 2u);
+            t = t / 2;
+            assert(t == 1u);
+        }
+    }
+
+    static foreach (T; AliasSeq!(float, double, real))
+    {
+        {
+            Variant vt = cast(T)1.0;
+            Variant t = vt + 1.0;
+            assert(t == 2.0);
+            t = vt + vt;
+            assert(t == 2.0);
+            t = t - 1.0;
+            assert(t == 1.0);
+            t = vt * 2.0;
+            assert(t == 2.0);
+            t = t / 2.0;
+            assert(t == 1.0);
+        }
+    }
+}
+
+@system unittest // Variant.opUnary
+{
+    import pham.utl.utltest;
+    dgWriteln("unittest utl.variant.opUnary");
+
+    // For ubyte & ushort, D will promote it to int after calculation
+    static foreach (T; AliasSeq!(byte, ubyte, short, ushort, int, long))
+    {
+        {
+            Variant vt = cast(T)1;
+            ++vt;
+            assert(vt == 2);
+            -vt;
+            assert(vt == -2);
+            --vt;
+            assert(vt == -3);
+        }
+    }
+
+    static foreach (T; AliasSeq!(uint, ulong))
+    {
+        {
+            Variant vt = cast(T)1;
+            ++vt;
+            assert(vt == 2u);
+            --vt;
+            assert(vt == 1u);
+            -vt;
+            assert(vt == T.max);
+        }
+    }
+
+    static foreach (T; AliasSeq!(float, double, real))
+    {
+        {
+            Variant vt = cast(T)1.0;
+            ++vt;
+            assert(vt == 2.0);
+            -vt;
+            assert(vt == -2.0);
+            --vt;
+            assert(vt == -3.0);
+        }
+    }
+}
+
+nothrow @safe unittest // Variant.opCast!bool
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant.isValue");
@@ -4094,7 +4320,7 @@ nothrow @safe unittest
     v = aa; assert(!v);
 }
 
-@system unittest
+@system unittest // Variant.toString
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant.toString");
@@ -4119,7 +4345,7 @@ nothrow @safe unittest
     v = true; assert(v.toString() == "true");
 }
 
-@system unittest
+@system unittest // Variant.opIndex & opIndexAssign
 {
     import std.exception : assertThrown;
     import pham.utl.utltest;
@@ -4204,7 +4430,7 @@ nothrow @safe unittest
     }
 }
 
-@system unittest
+@system unittest // Variant.opOpAssign(~) - array
 {
     import std.exception : assertThrown;
     import pham.utl.utltest;
@@ -4219,7 +4445,7 @@ nothrow @safe unittest
     assert(arr[1] == 4.5);
 }
 
-@system unittest
+@system unittest // Variant.delegate & function
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant.delegate & function");
@@ -4237,7 +4463,7 @@ nothrow @safe unittest
     assert(v("43") == 43);
 }
 
-@system unittest
+@system unittest // variantArray
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.variantArray");
@@ -4249,10 +4475,10 @@ nothrow @safe unittest
     assert(b[1] == 3.14);
 }
 
-@system unittest
+@system unittest // Variant.opApply - static array
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.variant.Variant.opApply - Static array");
+    dgWriteln("unittest utl.variant.Variant.opApply - static array");
 
     // static array - unchange
     {
@@ -4285,10 +4511,10 @@ nothrow @safe unittest
     }
 }
 
-@system unittest
+@system unittest // Variant.opApply - dynamic array
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.variant.Variant.opApply - Dynamic array");
+    dgWriteln("unittest utl.variant.Variant.opApply - dynamic array");
 
     // dynamic array - unchange
     {
@@ -4320,10 +4546,10 @@ nothrow @safe unittest
     }
 }
 
-@system unittest
+@system unittest // Variant.opApply - associative array
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.variant.Variant.opApply - Associative array");
+    dgWriteln("unittest utl.variant.Variant.opApply - associative array");
 
     double[string] aa; // key type is string, value type is double
     aa["a"] = 1;
@@ -4343,7 +4569,7 @@ nothrow @safe unittest
     assert(count == 2);
 }
 
-@system unittest
+@system unittest // Algebraic
 {
     import std.exception : assertThrown;
     import pham.utl.utltest;
@@ -4403,7 +4629,7 @@ nothrow @safe unittest
     }
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // Algebraic
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Algebraic");
@@ -4434,7 +4660,7 @@ nothrow @safe unittest
     }
 }
 
-@safe unittest
+@safe unittest // visit
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.visit");
@@ -4570,7 +4796,7 @@ nothrow @safe unittest
     }
 }
 
-@safe unittest
+@safe unittest // tryVisit
 {
     import std.exception : assertThrown;
     import pham.utl.utltest;
@@ -4624,7 +4850,7 @@ nothrow @safe unittest
 
 // Extra unittests from D std
 
-@safe unittest
+@safe unittest // https://issues.dlang.org/show_bug.cgi?id=10194
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=10194");
@@ -4675,7 +4901,7 @@ nothrow @safe unittest
     assert(S.cnt == 0);
 }
 
-@safe unittest
+@safe unittest // https://issues.dlang.org/show_bug.cgi?id=18934
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=18934");
@@ -4695,7 +4921,7 @@ nothrow @safe unittest
     assert(v.get!S.x == 2);
 }
 
-@safe unittest
+@safe unittest // https://issues.dlang.org/show_bug.cgi?id=15940
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=15940");
@@ -4710,7 +4936,7 @@ nothrow @safe unittest
     auto v = Variant(s); // compile error
 }
 
-@safe unittest
+@safe unittest // https://issues.dlang.org/show_bug.cgi?id=20666
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=20666");
@@ -4734,7 +4960,7 @@ nothrow @safe unittest
     Variant a64 = s64;
 }
 
-@system unittest
+@system unittest // https://issues.dlang.org/show_bug.cgi?id=20360
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=20360");
@@ -4818,7 +5044,7 @@ nothrow @safe unittest
     }
 }
 
-@system unittest
+@system unittest // https://issues.dlang.org/show_bug.cgi?id=13262
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=13262");
@@ -4872,7 +5098,7 @@ nothrow @safe unittest
     static assert(!is(typeof(fun!(shared(S4))(v))));
 }
 
-@safe unittest
+@safe unittest // https://issues.dlang.org/show_bug.cgi?id=19986
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=19986");
@@ -4889,7 +5115,7 @@ nothrow @safe unittest
     v2 = const(S).init;
 }
 
-@system unittest
+@system unittest // https://issues.dlang.org/show_bug.cgi?id=5424
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=5424");
@@ -4903,7 +5129,7 @@ nothrow @safe unittest
     Variant b = Variant(a);
 }
 
-@system unittest
+@system unittest // https://issues.dlang.org/show_bug.cgi?id=15791
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=15791");
@@ -4921,7 +5147,7 @@ nothrow @safe unittest
     assert(v.get!NS2.foo() == 30);
 }
 
-@safe unittest
+@safe unittest // https://issues.dlang.org/show_bug.cgi?id=12071
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=12071");
@@ -4940,7 +5166,7 @@ nothrow @safe unittest
     assert(called);
 }
 
-@system unittest
+@system unittest // https://issues.dlang.org/show_bug.cgi?id=14233
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=14233");
@@ -4950,7 +5176,7 @@ nothrow @safe unittest
     auto a = Atom(values);
 }
 
-@safe unittest
+@safe unittest // https://issues.dlang.org/show_bug.cgi?id=14198
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=14198");
@@ -4959,7 +5185,7 @@ nothrow @safe unittest
     assert(a.typeInfo is typeid(bool));
 }
 
-@system unittest
+@system unittest // https://issues.dlang.org/show_bug.cgi?id=13354
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=13354");
@@ -4983,7 +5209,7 @@ nothrow @safe unittest
     }
 }
 
-@system unittest
+@system unittest // https://issues.dlang.org/show_bug.cgi?id=13352
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=13352");
@@ -5001,7 +5227,7 @@ nothrow @safe unittest
     assert(a + c == 4L);
 }
 
-@system unittest
+@system unittest // https://issues.dlang.org/show_bug.cgi?id=13300
 {
     import std.array;
     import pham.utl.utltest;
@@ -5033,7 +5259,7 @@ nothrow @safe unittest
     auto a = appender!(T[]);
 }
 
-@safe unittest
+@safe unittest // https://issues.dlang.org/show_bug.cgi?id=13871
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=13871");
@@ -5046,7 +5272,7 @@ nothrow @safe unittest
     var = C(B());
 }
 
-@safe unittest
+@safe unittest // https://issues.dlang.org/show_bug.cgi?id=19994
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=19994");
@@ -5057,7 +5283,7 @@ nothrow @safe unittest
     static assert(is(Outer.AllowedTypes == AliasSeq!(Inner, Outer*)));
 }
 
-@system unittest
+@system unittest // https://issues.dlang.org/show_bug.cgi?id=15615
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=15615");
@@ -5082,7 +5308,7 @@ nothrow @safe unittest
     static assert(!__traits(compiles, VariantWrapper(cw)), "Stripping `const` from type with indirection!");
 }
 
-@safe unittest
+@safe unittest // https://issues.dlang.org/show_bug.cgi?id=14457
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=14457");
@@ -5101,7 +5327,7 @@ nothrow @safe unittest
     }
 }
 
-@safe unittest
+@safe unittest // https://issues.dlang.org/show_bug.cgi?id=16383
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant.visit - https://issues.dlang.org/show_bug.cgi?id=16383");
@@ -5115,7 +5341,7 @@ nothrow @safe unittest
     assert(x == 3);
 }
 
-@safe unittest
+@safe unittest // https://issues.dlang.org/show_bug.cgi?id=15039
 {
     import std.typecons;
     import pham.utl.utltest;
@@ -5132,7 +5358,7 @@ nothrow @safe unittest
     );
 }
 
-@system unittest
+@system unittest // https://issues.dlang.org/show_bug.cgi?id=21021
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant - https://issues.dlang.org/show_bug.cgi?id=21021");
@@ -5165,7 +5391,7 @@ nothrow @safe unittest
     assert(a2.array[0] == 3);
 }
 
-@system unittest
+@system unittest // https://issues.dlang.org/show_bug.cgi?id=21069
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant - https://issues.dlang.org/show_bug.cgi?id=21069");
@@ -5175,7 +5401,7 @@ nothrow @safe unittest
     assert(y == v);
 }
 
-@system unittest
+@system unittest // https://issues.dlang.org/show_bug.cgi?id=21253
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant - https://issues.dlang.org/show_bug.cgi?id=21253");
@@ -5189,7 +5415,7 @@ nothrow @safe unittest
         (a  ) => a.n) == 42);
 }
 
-@safe unittest
+@safe unittest // Variant.get - class type conversion
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant - class type conversion");
@@ -5222,7 +5448,7 @@ version (none)
     auto f = x.get!F1;
 }
 
-@system unittest
+@system unittest // https://issues.dlang.org/show_bug.cgi?id=21296
 {
     import pham.utl.utltest;
     dgWriteln("unittest utl.variant - https://issues.dlang.org/show_bug.cgi?id=21296");

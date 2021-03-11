@@ -15,22 +15,27 @@ nothrow @safe:
 
 version (unittest)
 {
+    import std.conv : to;
+    import std.format : format;
     import std.traits : isSomeChar;
 
     void dgFunctionTrace(A...)(A args,
         int line = __LINE__,
         string functionName = __FUNCTION__)
     {
-        scope (failure) assert(0);
-
-        dgWrite(functionName, "(", line, ")");
-        if (args.length)
+        try
         {
-            dgWrite(": ");
-            dgWriteln(args);
+            debug dgWrite(functionName, "(", line, ")");
+            if (args.length)
+            {
+                debug dgWrite(": ");
+                debug dgWriteln(args);
+            }
+            else
+                debug dgWriteln("");
         }
-        else
-            dgWriteln("");
+        catch (Exception)
+        {}
     }
 
 	static ubyte[] dgReadAllBinary(string fileName) nothrow @trusted
@@ -50,75 +55,108 @@ version (unittest)
 		}
 		catch (Exception e)
         {
-			dgWriteln("fileName=", fileName, ", e.msg=", e.msg);
+			debug dgWriteln("fileName=", fileName, ", e.msg=", e.msg);
 			return null;
         }
     }
 
-    string dgToString(size_t n) nothrow pure
+    string dgToHex(ubyte n) @nogc nothrow pure @safe
     {
-        import std.conv : to;
-
-        return to!string(n);
+        debug return format!"%.2X"(n);
     }
 
-    string dgToString(long n) nothrow pure
+    string dgToHex(ushort n) @nogc nothrow pure @safe
     {
-        import std.conv : to;
-
-        return to!string(n);
+        debug return format!"%.4X"(n);
     }
 
-    string dgToString(scope const(ubyte)[] b) nothrow pure
+    string dgToHex(uint n) @nogc nothrow pure @safe
+    {
+        debug return format!"%.8X"(n);
+    }
+
+    string dgToHex(ulong n) @nogc nothrow pure @safe
+    {
+        debug return format!"%.16X"(n);
+    }
+
+    string dgToHex(scope const(ubyte)[] b) @nogc nothrow pure @safe
     {
         import pham.utl.utlobject : bytesToHexs;
 
-        return bytesToHexs(b);
+        debug return bytesToHexs(b);
     }
 
-    void dgWrite(A...)(A args)
+    string dgToStr(int n) @nogc nothrow pure @safe
+    {
+        debug return format!"%d"(n);
+    }
+
+    string dgToStr(long n) @nogc nothrow pure @safe
+    {
+        debug return format!"%d"(n);
+    }
+
+    void dgWrite(A...)(A args) nothrow
     {
         import std.stdio : write;
 
-        scope (failure) assert(0);
-
-        debug write(args);
+        try
+        {
+            debug write(args);
+        }
+        catch (Exception)
+        {}
     }
 
-    void dgWritef(Char, A...)(in Char[] fmt, A args)
+    void dgWritef(Char, A...)(in Char[] fmt, A args) nothrow
     if (isSomeChar!Char)
     {
         import std.stdio : writef;
 
-        scope (failure) assert(0);
-
-        debug writef(fmt, args);
+        try
+        {
+            debug writef(fmt, args);
+        }
+        catch (Exception)
+        {}
     }
 
-    void dgWriteln(A...)(A args)
+    void dgWriteln(A...)(A args) nothrow
     {
         import std.stdio : writeln;
 
-        scope (failure) assert(0);
-
-        debug writeln(args);
+        try
+        {
+            debug writeln(args);
+        }
+        catch (Exception)
+        {}
     }
 
-    void dgWriteln(const(char)[] prefix, scope const(ubyte)[] bytes)
+    void dgWriteln(const(char)[] prefix, scope const(ubyte)[] bytes) nothrow
     {
         import pham.utl.utlobject : bytesToHexs;
 
-        debug dgWriteln(prefix, bytesToHexs(bytes));
+        try
+        {
+            debug dgWriteln(prefix, bytesToHexs(bytes));
+        }
+        catch (Exception)
+        {}
     }
 
-    void dgWritefln(Char, A...)(in Char[] fmt, A args)
+    void dgWritefln(Char, A...)(in Char[] fmt, A args) nothrow
     if (isSomeChar!Char)
     {
         import std.stdio : writefln;
 
-        scope (failure) assert(0);
-
-        debug writefln(fmt, args);
+        try
+        {
+            debug writefln(fmt, args);
+        }
+        catch (Exception)
+        {}
     }
 }
 

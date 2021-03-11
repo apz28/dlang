@@ -836,7 +836,7 @@ version (unittest)
 
         foreach (i; start..end)
         {
-            assert(b[i] == v, "BitDifference(" ~ dgToString(callerLine) ~ "): at index " ~ dgToString(i));
+            assert(b[i] == v, "BitDifference(" ~ dgToStr(callerLine) ~ "): at index " ~ dgToStr(i));
         }
     }
 
