@@ -11,7 +11,7 @@
 
 module pham.cp.cipher;
 
-import pham.utl.utlobject;
+import pham.utl.utlobject : DisposableObject;
 
 nothrow @safe:
 

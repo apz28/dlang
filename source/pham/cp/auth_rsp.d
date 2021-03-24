@@ -68,8 +68,8 @@ import std.exception : assumeWontThrow;
 import std.typecons : Flag, No, Yes;
 
 import pham.utl.array : arrayOfChar;
-import pham.utl.utlobject;
-import pham.cp.biginteger;
+import pham.utl.biginteger;
+import pham.utl.utlobject : DisposableObject, isHex, randomHexDigits;
 
 nothrow @safe:
 
@@ -339,22 +339,23 @@ public:
     alias Generator = char[] function(size_t numDigits, bool leadingIndicator) nothrow;
 
 public:
-    this(DigestAlgorithm digestAlgorithm,
+    this(DigestAlgorithm digestAlgorithm, DigestAlgorithm proofDigestAlgorithm,
          char separator = ':')
     {
-        this(digestAlgorithm, prime2048, separator);
+        this(digestAlgorithm, proofDigestAlgorithm, prime2048, separator);
     }
 
-    this(DigestAlgorithm digestAlgorithm, const PrimeGroup group,
+    this(DigestAlgorithm digestAlgorithm, DigestAlgorithm proofDigestAlgorithm, const PrimeGroup group,
          char separator = ':')
     {
-        this(digestAlgorithm, group, &randomHexDigits, separator);
+        this(digestAlgorithm, proofDigestAlgorithm, group, &randomHexDigits, separator);
     }
 
-    this(DigestAlgorithm digestAlgorithm, const PrimeGroup group, Generator hexGenerator,
+    this(DigestAlgorithm digestAlgorithm, DigestAlgorithm proofDigestAlgorithm, const PrimeGroup group, Generator hexGenerator,
          char separator = ':')
     {
         this._hasher = AuthHasher(digestAlgorithm);
+        this._proofHasher = AuthHasher(proofDigestAlgorithm);
         this._hexGenerator = hexGenerator;
         this._group = group;
         this._separator = separator;
@@ -405,7 +406,12 @@ public:
         return _group;
     }
 
-    @property ref AuthHasher hasher() return
+    @property ref AuthHasher proofHasher() pure return
+    {
+        return _proofHasher;
+    }
+
+    @property ref AuthHasher hasher() pure return
     {
         return _hasher;
     }
@@ -432,6 +438,7 @@ public:
 
 private:
     const PrimeGroup _group;
+    AuthHasher _proofHasher;
     AuthHasher _hasher;
     Generator _hexGenerator;
     char _separator;
@@ -471,11 +478,11 @@ public:
         {
             import pham.utl.utltest;
             dgFunctionTrace("A=", A.toString(),
-                ", A.pad=", bytesFromBigIntegerPad(A, padSize).dgToString(),
+                ", A.pad=", bytesFromBigIntegerPad(A, padSize).dgToHex(),
                 ", B=", B.toString(),
-                ", B.pad=", bytesFromBigIntegerPad(B, padSize).dgToString(),
-                ", rHash=", rHash.dgToString(),
-                ", result=", result.toString());
+                ", B.pad=", bytesFromBigIntegerPad(B, padSize).dgToHex(),
+                ", rHash=", rHash.dgToHex(),
+                ", result=", result.dgToHex());
         }
 
         return result;
@@ -599,7 +606,7 @@ public:
         return _parameters.padSize;
     }
 
-    @property final ref AuthParameters parameters()
+    @property final ref AuthParameters parameters() pure
     {
         return _parameters;
     }
@@ -1023,7 +1030,7 @@ nothrow @safe unittest // digestOf
 {
     import pham.utl.utlobject;
     import pham.utl.utltest;
-    dgWriteln("unittest cp.auth_rsp.digestOf");
+    traceUnitTest("unittest cp.auth_rsp.digestOf");
 
     ubyte[] hash;
 
@@ -1046,7 +1053,7 @@ nothrow @safe unittest // digestOf
     assert(hash == bytesFromHexs("E395799C5652AAA4536273A20AA740E246835CC4"));
 
     hash = digestOf!(DigestAlgorithm.sha1)(cast(const(ubyte)[])"DAVIDS:aaa123");
-    //dgWriteln("testHash=", hash.dgToString());
+    //traceUnitTest("testHash=", hash.dgToHex());
     assert(hash == bytesFromHexs("DF2ACDCF3828998D9ED023AB1F54464220F0D17C"));
 }
 
@@ -1054,7 +1061,7 @@ nothrow @safe unittest // bytesToBigInteger
 {
     import pham.utl.utlobject;
     import pham.utl.utltest;
-    dgWriteln("unittest cp.auth_rsp.bytesToBigInteger");
+    traceUnitTest("unittest cp.auth_rsp.bytesToBigInteger");
 
     assert(bytesToBigInteger(bytesFromHexs("BADAD8293C6296A5E190B90189CC983140C933CC")).toString() == "1066752676112117711667100034894519583952173872076");
     assert(bytesToBigInteger(bytesFromHexs("C4EA21BB365BBEEAF5F2C654883E56D11E43C44E")).toString() == "1124183503868421757928291737012660252296180122702");
@@ -1065,7 +1072,7 @@ nothrow @safe unittest // bigIntegerToBytes
 {
     import pham.utl.utlobject;
     import pham.utl.utltest;
-    dgWriteln("unittest cp.auth_rsp.bytesFromBigInteger");
+    traceUnitTest("unittest cp.auth_rsp.bytesFromBigInteger");
 
     assert(bytesToHexs(bytesFromBigInteger(digitsToBigInteger("58543554083751952442334332707885450963256912723720014361224396835623580320574993412213112731622008780624513837590415042361332636920155374789034615041232473542789648377986158701807740526423554224690384086846078749662234094040670372520229647584994218966915554154095758043112636200250640433313973626261330006062"))) == "535E68E994A09E4C230894A6CC5F2B2485048097578E647222329B71A0AE81A91ADB0130AFEA1137DC1D2E6E22B0344C27C1572EDC5458B467087F05949B06B48F93E24D03A6320DCD07650E427F15F29DCDC90BAE5C81B37F418AB2CD48C27E2B919526A02AF70DC8FC0AED061B44CD3B17FB5042043FD2EDBE81296075102E");
     assert(bytesToHexs(bytesFromBigInteger(digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");

@@ -14,7 +14,6 @@ module pham.cp.cipher_rc4;
 import std.algorithm.mutation : swap;
 
 version (unittest) import pham.utl.utltest;
-import pham.utl.utlobject;
 import pham.cp.cipher;
 
 nothrow @safe:
@@ -134,8 +133,9 @@ private:
 
 unittest // CipherRC4
 {
+    import pham.utl.utlobject : bytesFromHexs;
     import pham.utl.utltest;
-    dgWriteln("unittest cp.cipher_rc4.CipherRC4");
+    traceUnitTest("unittest cp.cipher_rc4.CipherRC4");
 
     {
         ubyte[] key = [ 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef ];
