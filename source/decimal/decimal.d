@@ -80,8 +80,6 @@ $(DIVC quickindex,
         $(MYREF atanh) $(MYREF atanpi) $(MYREF cos) $(MYREF cosh) $(MYREF cospi)
         $(MYREF hypot) $(MYREF sin) $(MYREF sinh) $(MYREF sinpi) $(MYREF tan) $(MYREF tanh)
     ))
-
-
  )
 )
 
@@ -392,6 +390,21 @@ version (unittest)
     import std.typetuple;
 }
 
+enum CheckInfinity : byte
+{
+    no = 0,         /// The value is $(B NaN) (quiet or signaling) or any finite value
+    yes = 1,        /// The value is infinite
+    negative = -1   /// The value is negative infinite
+}
+
+enum CheckNaN : byte
+{
+    no = 0,         /// The value is not $(B NaN) (quiet or signaling)
+    qNaN = 1,       /// The value is $(B NaN) quiet
+    sNaN = 2,       /// The value is $(B NaN) signaling
+    negQNaN = -1,   /// The value is negative $(B NaN) quiet
+    negSNaN = -2    /// The value is negative $(B NaN) signaling
+}
 
 /**
 These flags indicate that an error has occurred. They indicate that a 0, $(B NaN) or an infinity value has been generated,
@@ -487,8 +500,18 @@ private:
 	static ExceptionFlags flags;
 	static ExceptionFlags traps;
 
-    @safe
-    static void checkFlags(const ExceptionFlags group, const ExceptionFlags traps)
+    version(D_BetterC)
+    {}
+    else
+    {
+        static immutable EInvalidOperationException = new InvalidOperationException("Invalid operation");
+        static immutable EDivisionByZeroException = new DivisionByZeroException("Division by zero");
+        static immutable EOverflowException = new OverflowException("Overflow");
+        static immutable EUnderflowException = new UnderflowException("Underflow");
+        static immutable EInexactException = new InexactException("Inexact");
+    }
+
+    static void checkFlags(const ExceptionFlags group, const ExceptionFlags traps) @nogc pure @safe
     {
         version(D_BetterC)
         {
@@ -505,15 +528,15 @@ private:
         else
         {
             if ((group & ExceptionFlags.invalidOperation) && (traps & ExceptionFlags.invalidOperation))
-                throw new InvalidOperationException("Invalid operation");
+                throw EInvalidOperationException;
             if ((group & ExceptionFlags.divisionByZero) && (traps & ExceptionFlags.divisionByZero))
-                throw new DivisionByZeroException("Division by zero");
+                throw EDivisionByZeroException;
             if ((group & ExceptionFlags.overflow) && (traps & ExceptionFlags.overflow))
-                throw new OverflowException("Overflow");
+                throw EOverflowException;
             if ((group & ExceptionFlags.underflow) && (traps & ExceptionFlags.underflow))
-                throw new UnderflowException("Underflow");
+                throw EUnderflowException;
             if ((group & ExceptionFlags.inexact) && (traps & ExceptionFlags.inexact))
-                throw new InexactException("Inexact");
+                throw EInexactException;
         }
     }
 
@@ -562,14 +585,13 @@ public:
     ---
 	*/
     @IEEECompliant("raiseFlags", 26)
-	@safe
-	static void raiseFlags(const ExceptionFlags group)
+	static void raiseFlags(const ExceptionFlags group) @nogc @safe
 	{
         if (__ctfe)
             checkFlags(group, ExceptionFlags.severe);
         else
         {
-            ExceptionFlags newFlags = flags ^ (group & ExceptionFlags.all);
+            const newFlags = flags ^ (group & ExceptionFlags.all);
             flags |= group & ExceptionFlags.all;
 		    checkFlags(newFlags, traps);
         }
@@ -620,8 +642,7 @@ public:
 	*/
     @IEEECompliant("testFlags", 26)
     @IEEECompliant("testSavedFlags", 26)
-	@nogc @safe nothrow
-	static bool hasFlags(const ExceptionFlags group)
+	static bool hasFlags(const ExceptionFlags group) @nogc nothrow @safe
 	{
 		return (flags & (group & ExceptionFlags.all)) != 0;
 	}
@@ -634,8 +655,7 @@ public:
     ---
 	*/
     @IEEECompliant("saveAllFlags", 26)
-	@nogc @safe nothrow
-	static ExceptionFlags saveFlags()
+	static ExceptionFlags saveFlags() @nogc nothrow @safe
 	{
 		return flags;
 	}
@@ -643,8 +663,7 @@ public:
 	static void setFlags(const ExceptionFlags group) @nogc nothrow @safe
 	{
         if (__ctfe)
-        {
-        }
+        {}
         else
         {
             flags |= group & ExceptionFlags.all;
@@ -657,7 +676,7 @@ public:
     DecimalControl.disableExceptions(ExceptionFlags.overflow);
     auto d = Decimal64.max * Decimal64.max;
     assert (DecimalControl.overflow);
-    assert (isInfinity(d));
+    assert (d.isInfinity);
     ---
 	*/
 	@nogc @safe nothrow
@@ -701,8 +720,7 @@ public:
     DecimalControl.enableExceptions(saved);
     ---
 	*/
-	@nogc @safe nothrow
-	static @property ExceptionFlags enabledExceptions()
+	static @property ExceptionFlags enabledExceptions() @nogc nothrow @safe
 	{
 		return traps;
 	}
@@ -718,36 +736,31 @@ public:
     assert(DecimalControl.invalidOperation);
     ---
     */
-	@nogc @safe nothrow
-	static @property bool invalidOperation()
+	static @property bool invalidOperation() @nogc nothrow @safe
 	{
 		return (flags & ExceptionFlags.invalidOperation) != 0;
 	}
 
     ///ditto
-	@nogc @safe nothrow
-	static @property bool divisionByZero()
+	static @property bool divisionByZero() @nogc nothrow @safe
 	{
 		return (flags & ExceptionFlags.divisionByZero) != 0;
 	}
 
     ///ditto
-	@nogc @safe nothrow
-	static @property bool overflow()
+	static @property bool overflow() @nogc nothrow @safe
 	{
 		return (flags & ExceptionFlags.overflow) != 0;
 	}
 
     ///ditto
-	@nogc @safe nothrow
-	static @property bool underflow()
+	static @property bool underflow() @nogc nothrow @safe
 	{
 		return (flags & ExceptionFlags.underflow) != 0;
 	}
 
     ///ditto
-	@nogc @safe nothrow
-	static @property bool inexact()
+	static @property bool inexact() @nogc nothrow @safe
 	{
 		return (flags & ExceptionFlags.inexact) != 0;
 	}
@@ -759,32 +772,6 @@ public:
     ///true if this programming environment conforms to IEEE 754-2008
     @IEEECompliant("is754version2008", 24)
     enum is754version2008 = true;
-}
-
-///IEEE-754-2008 floating point categories
-enum DecimalClass : byte
-{
-    ///a signalling $(B NaN) represents most of the time an uninitialized variable;
-    ///a quiet $(B NaN) represents the result of an invalid operation
-    signalingNaN,
-    ///ditto
-    quietNaN,
-    ///value represents infinity
-    negativeInfinity,
-    ///ditto
-    positiveInfinity,
-    ///value represents a normalized _decimal value
-    negativeNormal,
-    ///ditto
-    positiveNormal,
-    ///value represents a subnormal _decimal value
-    negativeSubnormal,
-    ///ditto
-    positiveSubnormal,
-    ///value is 0
-    negativeZero,
-    ///ditto
-    positiveZero,
 }
 
 int maxPrecision(T)() @nogc nothrow pure @safe
@@ -810,6 +797,8 @@ if (bits == 32 || bits == 64 || bits == 128)
 {
 private:
     alias D = typeof(this);
+
+package:
     alias U = DataType!D;
 
 public:
@@ -818,10 +807,15 @@ public:
     enum EXP_BIAS       = EMAX + PRECISION - 2;          //101, 398, 6176
     enum EXP_MIN        = -EXP_BIAS;
     enum EXP_MAX        = EMAX - PRECISION + 1;          //90, 369, 6111
+    enum COEF_MAX       = pow10!U[PRECISION] - 1U;
+    enum COEF_MAX_RAW   = MASK_COE2 | MASK_COEX;
+
+	enum bitLength      = bits;
+	enum byteLength     = bits / 8;
 
     enum dig            = PRECISION;
     enum epsilon        = buildin(U(1U), -PRECISION + 1, false);
-    enum infinity       = buildin(MASK_NONE, MASK_NONE, MASK_INF);
+    enum infinity       = buildin(MASK_INF, MASK_NONE, MASK_NONE);
     enum max            = buildin(COEF_MAX, EXP_MAX, false);
     enum max_10_exp     = EMAX;
     enum max_exp        = cast(int)(max_10_exp / LOG10_2);
@@ -830,30 +824,31 @@ public:
     enum min_10_exp     = -(max_10_exp - 1);
     enum min_exp        = cast(int)(min_10_exp / LOG10_2);
     enum min_normal     = buildin(U(1U), min_10_exp, false);
-    enum nan            = buildin(MASK_NONE, MASK_NONE, MASK_QNAN);
+    enum nan            = qNaN;
+    enum negInfinity    = buildin(MASK_INF, MASK_NONE, MASK_SGN);
+    enum negOne         = buildin(U(1U), 0, true);
+    enum negQNaN        = buildin(MASK_QNAN, MASK_NONE, MASK_SGN);
+    enum negSNaN        = buildin(MASK_SNAN, MASK_NONE, MASK_SGN);
     enum one            = buildin(U(1U), 0, false);
-
-    enum E              = fromString!D(s_e);
-    enum PI             = fromString!D(s_pi);
-    enum PI_2           = fromString!D(s_pi_2);
-    enum PI_4           = fromString!D(s_pi_4);
-    enum M_1_PI         = fromString!D(s_m_1_pi);
-    enum M_2_PI         = fromString!D(s_m_2_pi);
-    enum M_2_SQRTPI     = fromString!D(s_m_2_sqrtpi);
-    enum SQRT2          = fromString!D(s_sqrt2);
-    enum SQRT1_2        = fromString!D(s_sqrt1_2);
-    enum LN10           = fromString!D(s_ln10);
-    enum LOG2T          = fromString!D(s_log2t);
-    enum LOG2E          = fromString!D(s_log2e);
-    enum LOG2           = fromString!D(s_log2);
-    enum LOG10E         = fromString!D(s_log10e);
-    enum LN2            = fromString!D(s_ln2);
-
-    enum minusOne       = buildin(U(1U), 0, true);
-    enum minusInfinity  = -infinity;
-    enum qnan           = nan;
-    enum snan           = buildin(MASK_NONE, MASK_NONE, MASK_SNAN);
+    enum qNaN           = buildin(MASK_QNAN, MASK_NONE, MASK_NONE);
+    enum sNaN           = buildin(MASK_SNAN, MASK_NONE, MASK_NONE);
     enum zero           = buildin(U(0U), 0, false);
+
+    enum E              = buildin(s_e);
+    enum PI             = buildin(s_pi);
+    enum PI_2           = buildin(s_pi_2);
+    enum PI_4           = buildin(s_pi_4);
+    enum M_1_PI         = buildin(s_m_1_pi);
+    enum M_2_PI         = buildin(s_m_2_pi);
+    enum M_2_SQRTPI     = buildin(s_m_2_sqrtpi);
+    enum SQRT2          = buildin(s_sqrt2);
+    enum SQRT1_2        = buildin(s_sqrt1_2);
+    enum LN10           = buildin(s_ln10);
+    enum LOG2T          = buildin(s_log2t);
+    enum LOG2E          = buildin(s_log2e);
+    enum LOG2           = buildin(s_log2);
+    enum LOG10E         = buildin(s_log10e);
+    enum LN2            = buildin(s_ln2);
 
     ///always 10 for _decimal data types
     @IEEECompliant("radix", 25)
@@ -1103,7 +1098,7 @@ public:
                 DecimalControl.setFlags(flags);
         }
         else static if (is(T: bool))
-            result = !isZero(this);
+            result = !this.isZero;
         else
             static assert(0, "Cannot cast a value of type '" ~
                               Unqual!D.stringof ~ "' to '" ~
@@ -1127,7 +1122,7 @@ public:
     auto opUnary(string op: "-")() const
     {
         D result = this;
-        static if (is(D: Decimal128))
+        static if (bits == 128)
             result.data.hi ^= D.MASK_SGN.hi;
         else
             result.data ^= D.MASK_SGN;
@@ -1144,8 +1139,7 @@ public:
             $(TR $(TD any  ) $(TD any   ) $(TD        ) $(TD ✓      ) $(TD ✓     ))
         )
     */
-    @safe
-    auto ref opUnary(string op: "++")()
+    auto ref opUnary(string op: "++")() @nogc @safe
     {
         const flags = decimalInc(this,
                         __ctfe ? 0 : DecimalControl.precision,
@@ -1156,8 +1150,7 @@ public:
     }
 
     ///ditto
-    @safe
-    auto ref opUnary(string op: "--")()
+    auto ref opUnary(string op: "--")() @nogc @safe
     {
         const flags = decimalDec(this,
                         __ctfe ? 0 : DecimalControl.precision,
@@ -1173,7 +1166,7 @@ public:
     */
     @IEEECompliant("compareQuietEqual", 24)
     @IEEECompliant("compareQuietNotEqual", 24)
-    bool opEquals(T)(auto const ref T value) const @nogc nothrow
+    bool opEquals(T)(auto const ref T value) const @nogc nothrow @safe
     {
         static if (isDecimal!T || isIntegral!T)
         {
@@ -1213,7 +1206,7 @@ public:
     @IEEECompliant("compareSignalingLessUnordered", 24)
     @IEEECompliant("compareSignalingNotGreater", 24)
     @IEEECompliant("compareSignalingNotLess", 24)
-    float opCmp(T)(auto const ref T value) const @nogc nothrow
+    float opCmp(T)(auto const ref T value) const @nogc nothrow @safe
     {
         static if (isDecimal!T || isIntegral!T)
             return cmp(this, value);
@@ -1280,7 +1273,7 @@ public:
     @IEEECompliant("powr", 42)
     @IEEECompliant("remainder", 25)
     @IEEECompliant("substraction", 21)
-    auto opBinary(string op, T)(auto const ref T value) const
+    auto opBinary(string op, T)(auto const ref T value) const @nogc @safe
     if (op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "^^")
     {
         static if (isDecimal!T)
@@ -1321,7 +1314,7 @@ public:
     }
 
     ///ditto
-    auto opBinaryRight(string op, T)(auto const ref T value) const
+    auto opBinaryRight(string op, T)(auto const ref T value) const @nogc @safe
     if (op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "^^")
     {
         static if (isDecimal!T)
@@ -1366,7 +1359,7 @@ public:
     }
 
     ///ditto
-    auto opOpAssign(string op, T)(auto const ref T value)
+    auto opOpAssign(string op, T)(auto const ref T value) @nogc @safe
     if (op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "^^")
     {
         static if (op == "+")
@@ -1429,7 +1422,8 @@ public:
         }
     }
 
-    version (D_BetterC) {}
+    version (D_BetterC)
+    {}
     else {
 
     /**
@@ -1502,6 +1496,251 @@ public:
 
     } //!D_BetterC
 
+    /**
+    Determines if _decimal is a finite value.
+    This operation is silent, no error flags are set and no exceptions are thrown.
+    Returns:
+        true if finite, false otherwise ($(B NaN) or infinity)
+    */
+    @IEEECompliant("isFinite", 25)
+    @property bool isFinite() const @nogc nothrow pure @safe
+    // @("this must be fast")
+    {
+        static if (bits == 128)
+            return (data.hi & MASK_INF.hi) != MASK_INF.hi;
+        else
+            return (data & MASK_INF) != MASK_INF;
+    }
+
+    /**
+    Determines if _decimal represents a infinity.
+    This operation is silent, no error flags are set and no exceptions are thrown.
+    Returns:
+        One of the value of enum $(B CheckInfinity)
+    */
+    @IEEECompliant("isInfinite", 25)
+    @property CheckInfinity isInfinity() const @nogc nothrow pure @safe
+    // @("this must be fast")
+    {
+        static if (bits == 128)
+            const isInf = (data.hi & MASK_SNAN.hi) == MASK_INF.hi;
+        else
+            const isInf = (data & MASK_SNAN) == MASK_INF;
+        return isInf ? (isNeg ? CheckInfinity.negative : CheckInfinity.yes) : CheckInfinity.no;
+    }
+
+    /**
+    Determines if _decimal represents a $(B NaN).
+    This operation is silent, no error flags are set and no exceptions are thrown.
+    Returns:
+        One of the value of enum $(B CheckNaN)
+    */
+    @IEEECompliant("isNaN", 25)
+    @property CheckNaN isNaN() const @nogc nothrow pure @safe
+    // @("this must be fast")
+    {
+        static if (bits == 128)
+        {
+            enum qnanMask = MASK_QNAN.hi;
+            enum snanMask = MASK_SNAN.hi;
+            const nanBits = data.hi & snanMask;
+        }
+        else
+        {
+            enum qnanMask = MASK_QNAN;
+            enum snanMask = MASK_SNAN;
+            const nanBits = data & snanMask;
+        }
+        return nanBits == snanMask
+            ? (isNeg ? CheckNaN.negSNaN : CheckNaN.sNaN)
+            : (nanBits == qnanMask
+                ? (isNeg ? CheckNaN.negQNaN : CheckNaN.qNaN)
+                : CheckNaN.no);
+    }
+
+    /**
+    Determines if _decimal is a negative.
+    This operation is silent, no error flags are set and no exceptions are thrown.
+    Returns:
+        true if is negative, false otherwise
+    */
+    @property bool isNeg() const @nogc nothrow pure @safe
+    // @("this must be fast")
+    {
+        static if (bits == 128)
+            return (data.hi & MASK_SGN.hi) == MASK_SGN.hi;
+        else
+            return (data & MASK_SGN) == MASK_SGN;
+    }
+
+    /**
+    Determines if _decimal represents a quiet $(B NaN).
+    This operation is silent, no error flags are set and no exceptions are thrown.
+    Returns:
+        true if $(B NaN) and is quiet, false otherwise (signaling $(B NaN), any other value)
+    */
+    @IEEECompliant("isQuietNaN", 25)
+    @property bool isQuietNaN() const @nogc nothrow pure @safe
+    {
+        const n = isNaN;
+        return n == CheckNaN.negQNaN || n == CheckNaN.qNaN;
+    }
+
+    /**
+    Determines if _decimal represents a signaling $(B NaN).
+    This operation is silent, no error flags are set and no exceptions are thrown.
+    Returns:
+        true if $(B NaN) and is signaling, false otherwise (quiet $(B NaN), any other value)
+    */
+    @IEEECompliant("isSignalNaN", 25)
+    @property bool isSignalNaN() const @nogc nothrow pure @safe
+    {
+        const n = isNaN;
+        return n == CheckNaN.negSNaN || n == CheckNaN.sNaN;
+    }
+
+    /**
+    Determines if _decimal represents the value zero.
+    This operation is silent, no error flags are set and no exceptions are thrown.
+    Returns:
+        true if is zero, false otherwise (any other value than zero)
+    Standards:
+        If the internal representation of the _decimal data type has a coefficient
+        greater that 10$(SUPERSCRIPT precision) - 1, is considered 0 according to
+        IEEE standard.
+    */
+    @IEEECompliant("isZero", 25)
+    @property bool isZero() const @nogc nothrow pure
+    // @("this must be fast")
+    {
+        static if (bits == 128)
+        {
+            if ((data.hi & MASK_INF.hi) != MASK_INF.hi)
+            {
+                if ((data.hi & MASK_EXT.hi) == MASK_EXT.hi)
+                    return true;
+                else
+                {
+                    const cx = data & MASK_COE1;
+                    return !cx || cx > COEF_MAX;
+                }
+            }
+            else
+                return false;
+        }
+        else
+        {
+            if ((data & MASK_INF) != MASK_INF)
+            {
+                if ((data & MASK_EXT) == MASK_EXT)
+                    return ((data & MASK_COE2) | MASK_COEX) > COEF_MAX;
+                else
+                    return (data & MASK_COE1) == 0;
+            }
+            else
+                return false;
+        }
+    }
+
+    /**
+    Returns a number that indicates the sign (negative, positive, or zero)
+    Returns:
+        -1  The value is negative.
+        0   The value is 0 (zero).
+        1 	The value is positive.
+    */
+    @IEEECompliant("sign", 25)
+    @property int sign() const @nogc nothrow pure
+    // @("this must be fast")
+    {
+        return isNeg ? -1 : (isZero ? 0 : 1);
+    }
+
+package:
+    static D buildin(const U coefficientMask, const U exponentMask, const U signMask) @nogc nothrow pure @safe
+    {
+        D result = void;
+        result.data = signMask | exponentMask | coefficientMask;
+        return result;
+    }
+
+    static D buildin(const U coefficient, const int biasedExponent, const bool isNegative) @nogc nothrow pure @safe
+    {
+        D result = void;
+        result.pack(coefficient, biasedExponent, isNegative);
+        return result;
+    }
+
+    static D buildin(C)(scope const(C)[] validDecimal) @nogc nothrow pure @safe
+    if (isSomeChar!C)
+    {
+        Unqual!D result = void;
+        result.packString(validDecimal, D.PRECISION, RoundingMode.implicit);
+        return result;
+    }
+
+    //packs valid components
+    void pack(const U coefficient, const int biasedExponent, const bool isNegative) @nogc nothrow pure @safe
+    in
+    {
+        assert (coefficient <= COEF_MAX_RAW);
+        assert (biasedExponent >= EXP_MIN && biasedExponent <= EXP_MAX);
+    }
+    out
+    {
+        assert ((this.data & MASK_INF) != MASK_INF);
+    }
+    do
+    {
+        const U expMask = U(cast(uint)(biasedExponent + EXP_BIAS));
+        const U sgnMask = isNegative ? MASK_SGN : MASK_NONE;
+
+        if (coefficient <= MASK_COE1)
+            this.data = sgnMask | (expMask << SHIFT_EXP1) | coefficient;
+        else
+            this.data = sgnMask | (expMask << SHIFT_EXP2) | (coefficient & MASK_COE2) | MASK_EXT;
+    }
+
+    void packRaw(const U coefficient, const uint unbiasedExponent, const bool isNegative)
+    {
+        const U expMask = U(unbiasedExponent);
+        const U sgnMask = isNegative ? MASK_SGN : MASK_NONE;
+
+        if (coefficient <= MASK_COE1)
+            this.data = sgnMask | (expMask << SHIFT_EXP1) | coefficient;
+        else
+            this.data = sgnMask | (expMask << SHIFT_EXP2) | (coefficient & MASK_COE2) | MASK_EXT;
+    }
+
+    bool unpack(out U coefficient, out int biasedExponent) const @nogc nothrow pure @safe
+    out
+    {
+        assert (coefficient <= (MASK_COE2 | MASK_COEX));
+        assert (biasedExponent >= EXP_MIN && biasedExponent <= EXP_MAX);
+    }
+    do
+    {
+        uint e;
+        const bool isNegative = unpackRaw(coefficient, e);
+        biasedExponent = cast(int)(e - EXP_BIAS);
+        return isNegative;
+    }
+
+    bool unpackRaw(out U coefficient, out uint unbiasedExponent) const @nogc nothrow pure @safe
+    {
+        if ((data & MASK_EXT) == MASK_EXT)
+        {
+            coefficient = data & MASK_COE2 | MASK_COEX;
+            unbiasedExponent = cast(uint)((data & MASK_EXP2) >>> SHIFT_EXP2);
+        }
+        else
+        {
+            coefficient = data & MASK_COE1;
+            unbiasedExponent = cast(uint)((data & MASK_EXP1) >>> SHIFT_EXP1);
+        }
+        return (data & MASK_SGN) != 0U;
+    }
+
 private:
     U data = MASK_SNAN;
 
@@ -1526,46 +1765,9 @@ private:
     enum MASK_PAYL      = (U(1U) << (trailingBits - 3)) - 1U;
     enum MASK_NONE      = U(0U);
 
-    enum COEF_MAX       = pow10!U[PRECISION] - 1U;
     enum PAYL_MAX       = pow10!U[PRECISION - 1] - 1U;
 
     enum LOG10_2        = 0.30102999566398119521L;
-
-    static D buildin(const U signMask, const U expMask, const U coefMask) @nogc nothrow pure @safe
-    {
-        D result;
-        result.data = signMask | expMask | coefMask;
-        return result;
-    }
-
-    static D buildin(const U coefficient, const int exponent, const bool isNegative) @nogc nothrow pure @safe
-    {
-        D result;
-        result.pack(coefficient, exponent, isNegative);
-        return result;
-    }
-
-    //packs valid components
-    void pack(const U coefficient, const int exponent, const bool isNegative) @nogc nothrow pure @safe
-    in
-    {
-        assert (coefficient <= (MASK_COE2 | MASK_COEX));
-        assert (exponent >= EXP_MIN && exponent <= EXP_MAX);
-    }
-    out
-    {
-        assert ((this.data & MASK_INF) != MASK_INF);
-    }
-    do
-    {
-        const U expMask = U(cast(uint)(exponent + EXP_BIAS));
-        const U sgnMask = isNegative ? MASK_SGN : MASK_NONE;
-
-        if (coefficient <= MASK_COE1)
-            this.data = sgnMask | (expMask << SHIFT_EXP1) | coefficient;
-        else
-            this.data = sgnMask | (expMask << SHIFT_EXP2) | (coefficient & MASK_COE2) | MASK_EXT;
-    }
 
     //packs components, but checks the limits before
     @nogc nothrow pure @safe
@@ -1581,16 +1783,15 @@ private:
         if (coefficient > (MASK_COE2 | MASK_COEX) && acceptNonCanonical)
             return overflowPack(isNegative, precision, mode);
 
-        U expMask = U(cast(uint)(exponent + EXP_BIAS));
-        U sgnMask = isNegative ? MASK_SGN : MASK_NONE;
+        const U expMask = U(cast(uint)(exponent + EXP_BIAS));
+        const U sgnMask = isNegative ? MASK_SGN : MASK_NONE;
 
         if (coefficient <= MASK_COE1)
             this.data = sgnMask | (expMask << SHIFT_EXP1) | coefficient;
         else
             this.data = sgnMask | (expMask << SHIFT_EXP2) | (coefficient & MASK_COE2) | MASK_EXT;
 
-        if (expMask < cast(uint)(D.PRECISION - 1)
-            && prec(coefficient) < D.PRECISION - cast(uint)expMask)
+        if (expMask < cast(uint)(D.PRECISION - 1) && prec(coefficient) < D.PRECISION - cast(uint)expMask)
             return ExceptionFlags.underflow;
 
         return ExceptionFlags.none;
@@ -1634,8 +1835,7 @@ private:
     @nogc nothrow pure @safe
     ExceptionFlags minPack(const bool isNegative)
     {
-        data = isNegative ? MASK_SGN : MASK_NONE;
-        data |= subn.data;
+        data = (isNegative ? MASK_SGN : MASK_NONE) | subn.data;
         return ExceptionFlags.underflow;
     }
 
@@ -1656,9 +1856,8 @@ private:
                     return maxPack(true, precision) | ExceptionFlags.overflow;
                 goto default;
             default:
-                data = MASK_INF;
-                if (isNegative)
-                    data |= D.MASK_SGN;
+                data = isNegative ? (MASK_INF | MASK_SGN) : MASK_INF;
+                break;
         }
         return ExceptionFlags.overflow;
     }
@@ -1666,10 +1865,7 @@ private:
     @nogc nothrow pure @safe
     ExceptionFlags infinityPack(const bool isNegative)
     {
-
-        data = MASK_INF;
-        if (isNegative)
-            data |= D.MASK_SGN;
+        data = isNegative ? (MASK_INF | MASK_SGN) : MASK_INF;
         return ExceptionFlags.none;
     }
 
@@ -1688,9 +1884,8 @@ private:
                     return minPack(true);
                 goto default;
             default:
-                data = MASK_ZERO;
-                if (isNegative)
-                    data |= D.MASK_SGN;
+                data = isNegative ? (MASK_ZERO | MASK_SGN) : MASK_ZERO;
+                break;
         }
         return ExceptionFlags.underflow;
     }
@@ -1699,10 +1894,7 @@ private:
     @nogc nothrow pure @safe
     ExceptionFlags invalidPack(const bool isNegative, const U payload)
     {
-        data = MASK_QNAN;
-        data |= (payload & MASK_PAYL);
-        if (isNegative)
-            data |= MASK_SGN;
+        data = isNegative ? (MASK_QNAN | (payload & MASK_PAYL) | MASK_SGN) : (MASK_QNAN | (payload & MASK_PAYL));
         return ExceptionFlags.invalidOperation;
     }
 
@@ -1710,9 +1902,7 @@ private:
     @nogc nothrow pure @safe
     ExceptionFlags div0Pack(const bool isNegative)
     {
-        data = MASK_INF;
-        if (isNegative)
-            data |= MASK_SGN;
+        data = isNegative ? (MASK_INF | MASK_SGN) : MASK_INF;
         return ExceptionFlags.divisionByZero;
     }
 
@@ -1723,7 +1913,7 @@ private:
     {
         if (!errorPack(isNegative, previousFlags, precision, mode, cvt!U(coefficient)))
         {
-            bool stickyUnderflow = coefficient && (exponent < int.max - EXP_BIAS && exponent + EXP_BIAS < PRECISION - 1 && prec(coefficient) < PRECISION - (exponent + EXP_BIAS));
+            const bool stickyUnderflow = coefficient && (exponent < int.max - EXP_BIAS && exponent + EXP_BIAS < PRECISION - 1 && prec(coefficient) < PRECISION - (exponent + EXP_BIAS));
             static if (T.sizeof <= U.sizeof)
                 U cx = coefficient;
             else
@@ -1735,37 +1925,6 @@ private:
             return checkedPack(cvt!U(cx), ex, isNegative, precision, mode, false) | flags;
         }
         return previousFlags;
-    }
-
-    @nogc nothrow pure @safe
-    bool unpack(out U coefficient, out int exponent) const
-    out
-    {
-        assert (exponent >= EXP_MIN && exponent <= EXP_MAX);
-        assert (coefficient <= (MASK_COE2 | MASK_COEX));
-    }
-    do
-    {
-        uint e;
-        bool isNegative = unpackRaw(coefficient, e);
-        exponent = cast(int)(e - EXP_BIAS);
-        return isNegative;
-    }
-
-    @nogc nothrow pure @safe
-    bool unpackRaw(out U coefficient, out uint exponent) const
-    {
-        if ((data & MASK_EXT) == MASK_EXT)
-        {
-            coefficient = data & MASK_COE2 | MASK_COEX;
-            exponent = cast(uint)((data & MASK_EXP2) >>> SHIFT_EXP2);
-        }
-        else
-        {
-            coefficient = data & MASK_COE1;
-            exponent = cast(uint)((data & MASK_EXP1) >>> SHIFT_EXP1);
-        }
-        return (data & MASK_SGN) != 0U;
     }
 
     @nogc nothrow pure @safe
@@ -1812,20 +1971,13 @@ private:
         switch (fastDecode(value, cx, ex, sx, mode, flags))
         {
             case FastClass.quietNaN:
-                data = MASK_QNAN;
-                if (sx)
-                    data |= MASK_SGN;
-                data |= cx & MASK_PAYL;
+                data = (sx ? (MASK_QNAN | MASK_SGN) : MASK_QNAN) | (cx & MASK_PAYL);
                 return ExceptionFlags.none;
             case FastClass.infinite:
-                data = MASK_INF;
-                if (sx)
-                    data |= MASK_SGN;
+                data = sx ? (MASK_INF | MASK_SGN) : MASK_INF;
                 return ExceptionFlags.none;
             case FastClass.zero:
-                data = MASK_ZERO;
-                if (sx)
-                    data |= MASK_SGN;
+                data = sx ? (MASK_ZERO | MASK_SGN) : MASK_ZERO;
                 return ExceptionFlags.none;
             case FastClass.finite:
                 enum fltTargetPrecision = maxPrecision!T();
@@ -1844,121 +1996,121 @@ private:
         }
     }
 
-    ExceptionFlags packString(C)(const(C)[] value, const int precision, const RoundingMode mode)
+    ExceptionFlags packString(C)(scope const(C)[] value, const int precision, const RoundingMode mode)
     if (isSomeChar!C)
     {
-            U coefficient;
-            bool isinf, isnan, issnan, isnegative, wasHex;
-            int exponent;
-            const(C)[] ss = value;
-            auto flags = parseDecimal(ss, coefficient, exponent, isinf, isnan, issnan, isnegative, wasHex);
+        U coefficient;
+        bool isinf, isnan, issnan, isnegative, wasHex;
+        int exponent;
+        const(C)[] ss = value;
+        auto flags = parseDecimal(ss, coefficient, exponent, isinf, isnan, issnan, isnegative, wasHex);
 
-            if (!ss.empty)
-                return invalidPack(isnegative, coefficient) | flags;
+        if (!ss.empty)
+            return invalidPack(isnegative, coefficient) | flags;
 
-            if (flags & ExceptionFlags.invalidOperation)
-                return invalidPack(isnegative, coefficient) | flags;
+        if (flags & ExceptionFlags.invalidOperation)
+            return invalidPack(isnegative, coefficient) | flags;
 
-            if (issnan)
-                data = MASK_SNAN | (coefficient & MASK_PAYL);
-            else if (isnan)
-                data = MASK_QNAN | (coefficient & MASK_PAYL);
-            else if (isinf)
-                data = MASK_INF;
+        if (issnan)
+            data = MASK_SNAN | (coefficient & MASK_PAYL);
+        else if (isnan)
+            data = MASK_QNAN | (coefficient & MASK_PAYL);
+        else if (isinf)
+            data = MASK_INF;
+        else
+        {
+            if (!wasHex)
+                return adjustedPack(coefficient, exponent, isnegative, precision, mode, flags);
             else
-            {
-                if (!wasHex)
-                    return adjustedPack(coefficient, exponent, isnegative, precision, mode, flags);
-                else
-                    return flags | checkedPack(coefficient, exponent, isnegative, precision, mode, true);
-            }
+                return flags | checkedPack(coefficient, exponent, isnegative, precision, mode, true);
+        }
 
-            if (isnegative)
-                data |= MASK_SGN;
+        if (isnegative)
+            data |= MASK_SGN;
 
-            return flags;
+        return flags;
     }
 
     ExceptionFlags packRange(R)(ref R range, const int precision, const RoundingMode mode)
     if (isInputRange!R && isSomeChar!(ElementType!R) && !isSomeString!range)
     {
-            U coefficient;
-            bool isinf, isnan, issnan, isnegative, wasHex;
-            int exponent;
-            auto flags = parseDecimal(range, coefficient, exponent, isinf, isnan, issnan, isnegative, wasHex);
+        U coefficient;
+        bool isinf, isnan, issnan, isnegative, wasHex;
+        int exponent;
+        auto flags = parseDecimal(range, coefficient, exponent, isinf, isnan, issnan, isnegative, wasHex);
 
-            if (!ss.empty)
-                flags |= ExceptionFlags.invalidOperation;
+        if (!ss.empty)
+            flags |= ExceptionFlags.invalidOperation;
 
-            if (flags & ExceptionFlags.invalidOperation)
-            {
-                packErrors(isnegative, flags, coefficient);
-                return flags;
-            }
-
-            if (issnan)
-                data = MASK_SNAN | (coefficient & MASK_PAYL);
-            else if (isnan)
-                data = MASK_QNAN | (coefficient & MASK_PAYL);
-            else if (isinf)
-                data = MASK_INF;
-            if (flags & ExceptionFlags.underflow)
-                data = MASK_ZERO;
-            else if (flags & ExceptionFlags.overflow)
-                data = MASK_INF;
-            else
-            {
-                flags |= adjustCoefficient(coefficient, exponent, EXP_MIN, EXP_MAX, COEF_MAX, isnegative, mode);
-                flags |= adjustPrecision(coefficient, exponent, EXP_MIN, EXP_MAX, precision, isnegative, mode);
-            }
-
-            if (flags & ExceptionFlags.underflow)
-                data = MASK_ZERO;
-            else if (flags & ExceptionFlags.overflow)
-                data = MASK_INF;
-
-            if (isnegative)
-                data |= MASK_SGN;
-
+        if (flags & ExceptionFlags.invalidOperation)
+        {
+            packErrors(isnegative, flags, coefficient);
             return flags;
+        }
+
+        if (issnan)
+            data = MASK_SNAN | (coefficient & MASK_PAYL);
+        else if (isnan)
+            data = MASK_QNAN | (coefficient & MASK_PAYL);
+        else if (isinf)
+            data = MASK_INF;
+        if (flags & ExceptionFlags.underflow)
+            data = MASK_ZERO;
+        else if (flags & ExceptionFlags.overflow)
+            data = MASK_INF;
+        else
+        {
+            flags |= adjustCoefficient(coefficient, exponent, EXP_MIN, EXP_MAX, COEF_MAX, isnegative, mode);
+            flags |= adjustPrecision(coefficient, exponent, EXP_MIN, EXP_MAX, precision, isnegative, mode);
+        }
+
+        if (flags & ExceptionFlags.underflow)
+            data = MASK_ZERO;
+        else if (flags & ExceptionFlags.overflow)
+            data = MASK_INF;
+
+        if (isnegative)
+            data |= MASK_SGN;
+
+        return flags;
     }
 
-    enum minusZero      = buildin(U(0U), 0, true);
+    enum half           = buildin(U(5U), -1, false);
+    enum negZero        = buildin(U(0U), 0, true);
     enum two            = buildin(U(2U), 0, false);
     enum three          = buildin(U(3U), 0, false);
     enum ten            = buildin(U(10U), 0, false);
-    enum minusTen       = buildin(U(10U), 0, true);
-    enum subn           = buildin(U(1U), EXP_MIN, false);
-    enum minusSubn      = buildin(U(1U), EXP_MIN, true);
-    enum half           = buildin(U(5U), -1, false);
-    enum threequarters  = buildin(U(75U), -2, false);
+    enum negSubn        = buildin(U(1U), EXP_MIN, true);
+    enum negTen         = buildin(U(10U), 0, true);
     enum quarter        = buildin(U(25U), -2, false);
+    enum subn           = buildin(U(1U), EXP_MIN, false);
+    enum threequarters  = buildin(U(75U), -2, false);
 
     static if (bits == 128)
     {
-        enum maxFloat       = D(s_max_float);
-        enum maxDouble      = D(s_max_double);
-        enum maxReal        = D(s_max_real);
-        enum minFloat       = D(s_min_float);
-        enum minDouble      = D(s_min_double);
-        enum minReal        = D(s_min_real);
+        enum maxFloat   = buildin(s_max_float);
+        enum maxDouble  = buildin(s_max_double);
+        enum maxReal    = buildin(s_max_real);
+        enum minFloat   = buildin(s_min_float);
+        enum minDouble  = buildin(s_min_double);
+        enum minReal    = buildin(s_min_real);
     }
 
-    enum SQRT3          = fromString!D(s_sqrt3);
-    enum M_SQRT3        = fromString!D(s_m_sqrt3);
-    enum PI_3           = fromString!D(s_pi_3);
-    enum PI_6           = fromString!D(s_pi_6);
-    enum _5PI_6         = fromString!D(s_5pi_6);
-    enum _3PI_4         = fromString!D(s_3pi_4);
-    enum _2PI_3         = fromString!D(s_2pi_3);
-    enum SQRT3_2        = fromString!D(s_sqrt3_2);
-    enum SQRT2_2        = fromString!D(s_sqrt2_2);
-    enum onethird       = fromString!D(s_onethird);
-    enum twothirds      = fromString!D(s_twothirds);
-    enum _5_6           = fromString!D(s_5_6);
-    enum _1_6           = fromString!D(s_1_6);
-    enum M_1_2PI        = fromString!D(s_m_1_2pi);
-    enum PI2            = fromString!D(s_pi2);
+    enum SQRT3          = buildin(s_sqrt3);
+    enum M_SQRT3        = buildin(s_m_sqrt3);
+    enum PI_3           = buildin(s_pi_3);
+    enum PI_6           = buildin(s_pi_6);
+    enum _5PI_6         = buildin(s_5pi_6);
+    enum _3PI_4         = buildin(s_3pi_4);
+    enum _2PI_3         = buildin(s_2pi_3);
+    enum SQRT3_2        = buildin(s_sqrt3_2);
+    enum SQRT2_2        = buildin(s_sqrt2_2);
+    enum onethird       = buildin(s_onethird);
+    enum twothirds      = buildin(s_twothirds);
+    enum _5_6           = buildin(s_5_6);
+    enum _1_6           = buildin(s_1_6);
+    enum M_1_2PI        = buildin(s_m_1_2pi);
+    enum PI2            = buildin(s_pi2);
 }
 
 ///Shorthand notations for $(MYREF Decimal) types
@@ -2465,6 +2617,32 @@ else
     }
 }
 
+///IEEE-754-2008 floating point categories
+enum DecimalClass : byte
+{
+    ///a signalling $(B NaN) represents most of the time an uninitialized variable;
+    ///a quiet $(B NaN) represents the result of an invalid operation
+    signalingNaN,
+    ///ditto
+    quietNaN,
+    ///value represents infinity
+    negativeInfinity,
+    ///ditto
+    positiveInfinity,
+    ///value represents a normalized _decimal value
+    negativeNormal,
+    ///ditto
+    positiveNormal,
+    ///value represents a subnormal _decimal value
+    negativeSubnormal,
+    ///ditto
+    positiveSubnormal,
+    ///value is 0
+    negativeZero,
+    ///ditto
+    positiveZero,
+}
+
 /**
 Returns the decimal class where x falls into.
 This operation is silent, no exception flags are set and no exceptions are thrown.
@@ -2483,13 +2661,12 @@ if (isDecimal!D)
     static if (is(D: Decimal32) || is(D: Decimal64))
     {
         if ((x.data & D.MASK_INF) == D.MASK_INF)
+        {
             if ((x.data & D.MASK_QNAN) == D.MASK_QNAN)
-                if ((x.data & D.MASK_SNAN) == D.MASK_SNAN)
-                    return DecimalClass.signalingNaN;
-                else
-                    return DecimalClass.quietNaN;
+                return (x.data & D.MASK_SNAN) == D.MASK_SNAN ? DecimalClass.signalingNaN : DecimalClass.quietNaN;
             else
-                return x.data & D.MASK_SGN ? DecimalClass.negativeInfinity : DecimalClass.positiveInfinity;
+                return (x.data & D.MASK_SGN) ? DecimalClass.negativeInfinity : DecimalClass.positiveInfinity;
+        }
         else if ((x.data & D.MASK_EXT) == D.MASK_EXT)
         {
             coefficient = (x.data & D.MASK_COE2) | D.MASK_COEX;
@@ -2504,18 +2681,17 @@ if (isDecimal!D)
                 return (x.data & D.MASK_SGN) == D.MASK_SGN ? DecimalClass.negativeZero : DecimalClass.positiveZero;
             exponent = cast(uint)((x.data & D.MASK_EXP1) >>> D.SHIFT_EXP1);
         }
-        bool sx = (x.data & D.MASK_SGN) == D.MASK_SGN;
+        const bool sx = (x.data & D.MASK_SGN) == D.MASK_SGN;
     }
     else
     {
         if ((x.data.hi & D.MASK_INF.hi) == D.MASK_INF.hi)
+        {
             if ((x.data.hi & D.MASK_QNAN.hi) == D.MASK_QNAN.hi)
-                if ((x.data.hi & D.MASK_SNAN.hi) == D.MASK_SNAN.hi)
-                    return DecimalClass.signalingNaN;
-                else
-                    return DecimalClass.quietNaN;
+                return (x.data.hi & D.MASK_SNAN.hi) == D.MASK_SNAN.hi ? DecimalClass.signalingNaN : DecimalClass.quietNaN;
             else
-                return x.data.hi & D.MASK_SGN.hi ? DecimalClass.negativeInfinity : DecimalClass.positiveInfinity;
+                return (x.data.hi & D.MASK_SGN.hi) ? DecimalClass.negativeInfinity : DecimalClass.positiveInfinity;
+        }
         else if ((x.data.hi & D.MASK_EXT.hi) == D.MASK_EXT.hi)
             return (x.data.hi & D.MASK_SGN.hi) == D.MASK_SGN.hi ? DecimalClass.negativeZero : DecimalClass.positiveZero;
         else
@@ -2525,7 +2701,7 @@ if (isDecimal!D)
                 return (x.data.hi & D.MASK_SGN.hi) == D.MASK_SGN.hi ? DecimalClass.negativeZero : DecimalClass.positiveZero;
             exponent = cast(uint)((x.data & D.MASK_EXP1) >>> D.SHIFT_EXP1);
         }
-        bool sx = (x.data.hi & D.MASK_SGN.hi) == D.MASK_SGN.hi;
+        const bool sx = (x.data.hi & D.MASK_SGN.hi) == D.MASK_SGN.hi;
     }
 
     if (exponent < D.PRECISION - 1)
@@ -2551,20 +2727,67 @@ unittest
 {
     foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert(decimalClass(T.snan) == DecimalClass.signalingNaN);
-        assert(decimalClass(T.qnan) == DecimalClass.quietNaN);
-        assert(decimalClass(T.minusInfinity) == DecimalClass.negativeInfinity);
+        assert(decimalClass(T.sNaN) == DecimalClass.signalingNaN);
+        assert(decimalClass(T.qNaN) == DecimalClass.quietNaN);
+        assert(decimalClass(T.negInfinity) == DecimalClass.negativeInfinity);
         assert(decimalClass(T.infinity) == DecimalClass.positiveInfinity);
         assert(decimalClass(T.zero) == DecimalClass.positiveZero);
-        assert(decimalClass(T.minusZero) == DecimalClass.negativeZero);
+        assert(decimalClass(T.negZero) == DecimalClass.negativeZero);
         assert(decimalClass(T.subn) == DecimalClass.positiveSubnormal);
-        assert(decimalClass(T.minusSubn) == DecimalClass.negativeSubnormal);
+        assert(decimalClass(T.negSubn) == DecimalClass.negativeSubnormal);
         assert(decimalClass(T.ten) == DecimalClass.positiveNormal);
-        assert(decimalClass(T.minusTen) == DecimalClass.negativeNormal);
+        assert(decimalClass(T.negTen) == DecimalClass.negativeNormal);
         assert(decimalClass(T.max) == DecimalClass.positiveNormal);
         assert(decimalClass(-T.max) == DecimalClass.negativeNormal);
         assert(decimalClass(T.min_normal) == DecimalClass.positiveNormal);
         assert(decimalClass(T.epsilon) == DecimalClass.positiveNormal);
+    }
+}
+
+///IEEE-754-2008 subset of floating point categories
+enum DecimalSubClass : byte
+{
+    signalingNaN,
+    quietNaN,
+    negativeInfinity,
+    positiveInfinity,
+    finite,
+}
+
+/**
+Returns the decimal class where x falls into.
+This operation is silent, no exception flags are set and no exceptions are thrown.
+Params:
+    x = a _decimal value
+Returns:
+    One of the members of $(MYREF DecimalSubClass) enumeration
+*/
+DecimalSubClass decimalSubClass(D)(auto const ref D x)
+if (isDecimal!D)
+{
+    static if (is(D: Decimal128))
+    {
+        if ((x.data.hi & D.MASK_INF.hi) == D.MASK_INF.hi)
+        {
+            if ((x.data.hi & D.MASK_QNAN.hi) == D.MASK_QNAN.hi)
+                return (x.data.hi & D.MASK_SNAN.hi) == D.MASK_SNAN.hi ? DecimalSubClass.signalingNaN : DecimalSubClass.quietNaN;
+            else
+                return (x.data.hi & D.MASK_SGN.hi) ? DecimalSubClass.negativeInfinity : DecimalSubClass.positiveInfinity;
+        }
+        else
+            return DecimalSubClass.finite;
+    }
+    else
+    {
+        if ((x.data & D.MASK_INF) == D.MASK_INF)
+        {
+            if ((x.data & D.MASK_QNAN) == D.MASK_QNAN)
+                return (x.data & D.MASK_SNAN) == D.MASK_SNAN ? DecimalSubClass.signalingNaN : DecimalSubClass.quietNaN;
+            else
+                return (x.data & D.MASK_SGN) ? DecimalSubClass.negativeInfinity : DecimalSubClass.positiveInfinity;
+        }
+        else
+            return DecimalSubClass.finite;
     }
 }
 
@@ -2587,7 +2810,7 @@ bool approxEqual(D1, D2, D3, D4)(auto const ref D1 x, auto const ref D2 y,
     auto const ref D3 maxRelDiff, auto const ref D4 maxAbsDiff) @nogc nothrow @safe
 if (isDecimal!(D1, D2, D3, D4))
 {
-    if (isInfinity(x) && isInfinity(y))
+    if (x.isInfinity != 0 && y.isInfinity != 0)
         return signbit(x) == signbit(y);
     else
     {
@@ -2778,7 +3001,7 @@ if (isDecimal!D && isIntegral!I)
 ///
 unittest
 {
-    assert (cmp(Decimal32(540, Precision.banking, RoundingMode.banking), 540) == 0);
+    assert (cmp(Decimal32(540), 540) == 0);
 }
 
 /**
@@ -3139,7 +3362,6 @@ unittest
     Decimal32 negative = -Decimal32.min_normal;
     Decimal64 test = Decimal64.max;
     assert(copysign(test, negative) == -Decimal64.max);
-
 }
 
 
@@ -3191,7 +3413,7 @@ unittest
         assert (acos(-T.one) == T.PI);
         assert (acos(T.one) == 0);
         assert (acos(T.zero) == T.PI_2);
-        assert (isNaN(acos(T.nan)));
+        assert (acos(T.nan).isNaN);
     }
 }
 
@@ -3239,7 +3461,7 @@ unittest
     {
         assert (acosh(T.one) == T.zero);
         assert (acosh(T.infinity) == T.infinity);
-        assert (isNaN(acosh(T.nan)));
+        assert (acosh(T.nan).isNaN);
     }
 }
 
@@ -3409,7 +3631,7 @@ unittest
         assert (asin(-T.one) == -T.PI_2);
         assert (asin(T.zero) == 0);
         assert (asin(T.one) == T.PI_2);
-        assert (isNaN(asin(T.nan)));
+        assert (asin(T.nan).isNaN);
     }
 }
 
@@ -3458,7 +3680,7 @@ unittest
     {
         assert (asinh(T.zero) == T.zero);
         assert (asinh(T.infinity) == T.infinity);
-        assert (isNaN(asinh(T.nan)));
+        assert (asinh(T.nan).isNaN);
     }
 }
 
@@ -3509,7 +3731,7 @@ unittest
         assert (isIdentical(atan(-T.zero), -T.zero));
         assert (isIdentical(atan(T.infinity), T.PI_2));
         assert (isIdentical(atan(-T.infinity), -T.PI_2));
-        assert (isNaN(atan(T.nan)));
+        assert (atan(T.nan).isNaN);
     }
 }
 
@@ -3566,8 +3788,8 @@ unittest
 {
     foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert (isNaN(atan2(T.nan, T.zero)));
-        assert (isNaN(atan2(T.one, T.nan)));
+        assert (atan2(T.nan, T.zero).isNaN);
+        assert (atan2(T.one, T.nan).isNaN);
         assert (atan2(T.zero, -T.zero) == T.PI);
         assert (atan2(-T.zero, -T.zero) == -T.PI);
         assert (atan2(T.zero, T.zero) == T.zero);
@@ -3644,8 +3866,8 @@ unittest
 {
     foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert (isNaN(atan2(T.nan, T.zero)));
-        assert (isNaN(atan2(T.one, T.nan)));
+        assert (atan2(T.nan, T.zero).isNaN);
+        assert (atan2(T.one, T.nan).isNaN);
         assert (atan2pi(T.zero, -T.zero) == T.one);
         assert (atan2pi(-T.zero, -T.zero) == -T.one);
         assert (atan2pi(T.zero, T.zero) == T.zero);
@@ -3760,7 +3982,7 @@ unittest
         assert (isIdentical(atanpi(-T.zero), -T.zero));
         assert (isIdentical(atanpi(T.infinity), T.half));
         assert (isIdentical(atanpi(-T.infinity), -T.half));
-        assert (isNaN(atanpi(T.nan)));
+        assert (atanpi(T.nan).isNaN);
     }
 }
 
@@ -3913,7 +4135,7 @@ unittest
         assert (exp(T.zero) == T.one);
         assert (exp(-T.infinity) == T.zero);
         assert (exp(T.infinity) == T.infinity);
-        assert (isNaN(exp(T.nan)));
+        assert (exp(T.nan).isNaN);
     }
 }
 
@@ -4130,7 +4352,7 @@ Calculates |x|.
 This operation is silent, no error flags are set and no exceptions are thrown.
 */
 @IEEECompliant("abs", 23)
-D fabs(D)(auto const ref D x)
+D fabs(D)(auto const ref D x) @nogc nothrow pure @safe
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -4173,7 +4395,7 @@ auto fdim(D1, D2)(auto const ref D1 x, auto const ref D2 y)
     alias D = CommonDecimal!(D1, D2);
     D result = x;
 
-    if (isInfinity(x) && isInfinity(y))
+    if (x.isInfinity != 0 && y.isInfinity != 0)
     {
         if (signbit(x) == signbit(y))
             return D.zero;
@@ -4187,7 +4409,7 @@ auto fdim(D1, D2)(auto const ref D1 x, auto const ref D2 y)
     const flags = decimalSub(result, y,
                        __ctfe ? 0 : DecimalControl.precision,
                        __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
-    if (!isNaN(result) && signbit(result))
+    if (!result.isNaN && signbit(result))
         result = D.zero;
     DecimalControl.raiseFlags(flags);
     return result;
@@ -4692,48 +4914,27 @@ unittest
         assert(isCanonical(T.zero));
         assert(isCanonical(T.max));
         assert(isCanonical(T.nan));
-        assert(isCanonical(T.snan));
+        assert(isCanonical(T.sNaN));
         assert(isCanonical(T.infinity));
     }
 }
 
-/**
-Determines if x is a finite value.
-This operation is silent, no error flags are set and no exceptions are thrown.
-Params:
-    x = a _decimal value
-Returns:
-    true if x is finite, false otherwise ($(B NaN) or infinity)
-*/
-@IEEECompliant("isFinite", 25)
-bool isFinite(D: Decimal!bits, int bits)(auto const ref D x)
+///isFinite
+unittest // isFinite
 {
-    static if (is(D: Decimal32) || is(D: Decimal64))
-    {
-        return (x.data & D.MASK_INF) != D.MASK_INF;
-    }
-    else
-    {
-        return (x.data.hi & D.MASK_INF.hi) != D.MASK_INF.hi;
-    }
+    assert(Decimal32.max.isFinite);
+    assert(!Decimal64.nan.isFinite);
+    assert(!Decimal128.infinity.isFinite);
 }
 
-///
-unittest
-{
-    assert(isFinite(Decimal32.max));
-    assert(!isFinite(Decimal64.nan));
-    assert(!isFinite(Decimal128.infinity));
-}
-
-unittest
+unittest // isFinite
 {
     foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert(isFinite(T.max));
-        assert(!isFinite(T.infinity));
-        assert(!isFinite(T.snan));
-        assert(!isFinite(T.qnan));
+        assert(T.max.isFinite);
+        assert(!T.infinity.isFinite);
+        assert(!T.sNaN.isFinite);
+        assert(!T.qNaN.isFinite);
     }
 }
 
@@ -4766,88 +4967,61 @@ unittest
     assert (!isIdentical(Decimal64("nan"), Decimal64("nan<200>")));
 }
 
-/**
-Determines if x represents infinity.
-This operation is silent, no error flags are set and no exceptions are thrown.
-Params:
-    x = a _decimal value
-Returns:
-    true if x is infinite, false otherwise ($(B NaN) or any finite value)
-*/
-@IEEECompliant("isInfinite", 25)
-bool isInfinity(D)(auto const ref D x)
-if (isDecimal!D)
+///isInfinity
+unittest // isInfinity
 {
-    static if (is(D: Decimal32) || is(D: Decimal64))
-    {
-        return (x.data & D.MASK_QNAN) == D.MASK_INF;
-    }
-    else
-    {
-        return (x.data.hi & D.MASK_QNAN.hi) == D.MASK_INF.hi;
-    }
+    assert(Decimal32.infinity.isInfinity);
+    assert(Decimal32.negInfinity.isInfinity);
+    assert(!Decimal128.nan.isInfinity);
 }
 
-///
-unittest
-{
-    assert(isInfinity(Decimal32.infinity));
-    assert(isInfinity(-Decimal64.infinity));
-    assert(!isInfinity(Decimal128.nan));
-}
-
-unittest
+unittest // isInfinity
 {
     foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert(isInfinity(T.infinity));
-        assert(isInfinity(-T.infinity));
-        assert(!isInfinity(T.ten));
-        assert(!isInfinity(T.snan));
-        assert(!isInfinity(T.qnan));
+        assert(T.infinity.isInfinity);
+        assert(T.negInfinity.isInfinity);
+        assert((-T.infinity).isInfinity);
+        assert(!T.ten.isInfinity);
+        assert(!T.sNaN.isInfinity);
+        assert(!T.qNaN.isInfinity);
     }
 }
 
-/**
-Determines if x represents a $(B NaN).
-This operation is silent, no error flags are set and no exceptions are thrown.
-Params:
-    x = a _decimal value
-Returns:
-    true if x is $(B NaN) (quiet or signaling), false otherwise (any other value than $(B NaN))
-*/
-@IEEECompliant("isNaN", 25)
-bool isNaN(D)(auto const ref D x)
-if (isDecimal!D)
+///isNaN
+unittest // isNaN
 {
-    static if (is(D: Decimal32) || is(D: Decimal64))
-    {
-        return (x.data & D.MASK_QNAN) == D.MASK_QNAN;
-    }
-    else
-    {
-        return (x.data.hi & D.MASK_QNAN.hi) == D.MASK_QNAN.hi;
-    }
+    assert(Decimal32().isNaN);
+    assert(Decimal64.nan.isNaN);
+    assert(!Decimal128.max.isNaN);
 }
 
-///
-unittest
-{
-    assert(isNaN(Decimal32()));
-    assert(isNaN(Decimal64.nan));
-    assert(!isNaN(Decimal128.max));
-}
-
-unittest
+unittest // isNaN
 {
     foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert(isNaN(T.snan));
-        assert(isNaN(T()));
-        assert(!isSignaling(T.ten));
-        assert(!isSignaling(T.min_normal));
-        assert(isNaN(T.qnan));
+        assert(T.sNaN.isNaN);
+        assert(T().isNaN);
+        assert(T.qNaN.isNaN);
+        assert(!T.ten.isNaN);
+        assert(!T.min_normal.isSignalNaN);
     }
+}
+
+///isNeg
+unittest // isNeg
+{
+    assert(Decimal32(-1).isNeg);
+    assert(Decimal64(-2).isNeg);
+    assert(Decimal128(-3).isNeg);
+
+    assert(!Decimal32(0).isNeg);
+    assert(!Decimal64(0).isNeg);
+    assert(!Decimal128(0).isNeg);
+
+    assert(!Decimal32(1).isNeg);
+    assert(!Decimal64(2).isNeg);
+    assert(!Decimal128(3).isNeg);
 }
 
 /**
@@ -4934,7 +5108,7 @@ Returns:
 bool isPowerOf10(D)(auto const ref D x)
 if (isDecimal!D)
 {
-    if (isNaN(x) || isInfinity(x) || isZero(x) || signbit(x) != 0U)
+    if (x.isNaN || x.isInfinity || x.isZero || signbit(x) != 0U)
         return false;
 
     alias U = DataType!D;
@@ -4951,45 +5125,23 @@ unittest
     assert (isPowerOf10(Decimal32("0.001")));
 }
 
-/**
-Determines if x represents a signaling $(B NaN).
-This operation is silent, no error flags are set and no exceptions are thrown.
-Params:
-    x = a _decimal value
-Returns:
-    true if x is $(B NaN) and is signaling, false otherwise (quiet $(B NaN), any other value)
-*/
-@IEEECompliant("isSignaling", 25)
-bool isSignaling(D)(auto const ref D x) @nogc nothrow pure @safe
-if (isDecimal!D)
+///isSignalingNaN
+unittest // isSignalingNaN
 {
-    static if (is(D: Decimal32) || is(D: Decimal64))
-    {
-        return (x.data & D.MASK_SNAN) == D.MASK_SNAN;
-    }
-    else
-    {
-        return (x.data.hi & D.MASK_SNAN.hi) == D.MASK_SNAN.hi;
-    }
+    assert(Decimal32().isSignalNaN);
+    assert(!Decimal64.nan.isSignalNaN);
+    assert(!Decimal128.max.isSignalNaN);
 }
 
-///
-unittest
-{
-    assert(isSignaling(Decimal32()));
-    assert(!isSignaling(Decimal64.nan));
-    assert(!isSignaling(Decimal128.max));
-}
-
-unittest
+unittest // isSignalingNaN
 {
     foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert(isSignaling(T.snan));
-        assert(isSignaling(T()));
-        assert(!isSignaling(T.ten));
-        assert(!isSignaling(T.min_normal));
-        assert(!isSignaling(T.qnan));
+        assert(T.sNaN.isSignalNaN);
+        assert(T().isSignalNaN);
+        assert(!T.ten.isSignalNaN);
+        assert(!T.min_normal.isSignalNaN);
+        assert(!T.qNaN.isSignalNaN);
     }
 }
 
@@ -5056,7 +5208,6 @@ unittest
 
 unittest
 {
-
     foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(!isSubnormal(T.zero));
@@ -5068,68 +5219,22 @@ unittest
     }
 }
 
-/**
-Determines if x represents the value zero.
-This operation is silent, no error flags are set and no exceptions are thrown.
-Params:
-    x = a _decimal value
-Returns:
-    true if x is zero, false otherwise (any other value than zero)
-Standards:
-    If the internal representation of the _decimal data type has a coefficient
-    greater that 10$(SUPERSCRIPT precision) - 1, is considered 0 according to
-    IEEE standard.
-*/
-@("this must be fast")
-@IEEECompliant("isZero", 25)
-bool isZero(D)(auto const ref D x)
-if (isDecimal!D)
+///isZero
+unittest // isZero
 {
-    static if (is(D: Decimal32) || is(D: Decimal64))
-    {
-        if ((x.data & D.MASK_INF) != D.MASK_INF)
-        {
-            if ((x.data & D.MASK_EXT) == D.MASK_EXT)
-                return ((x.data & D.MASK_COE2) | D.MASK_COEX) > D.COEF_MAX;
-            else
-                return (x.data & D.MASK_COE1) == 0;
-        }
-        else
-            return false;
-    }
-    else
-    {
-        if ((x.data.hi & D.MASK_INF.hi) != D.MASK_INF.hi)
-        {
-            if ((x.data.hi & D.MASK_EXT.hi) == D.MASK_EXT.hi)
-                return true;
-            else
-            {
-                const cx = x.data & D.MASK_COE1;
-                return !cx || cx > D.COEF_MAX;
-            }
-        }
-        else
-            return false;
-    }
+    assert(Decimal32(0).isZero);
+    assert(!Decimal64.nan.isZero);
+    assert(Decimal32("0x9FFFFFp+10").isZero);
 }
 
-///
-unittest
-{
-    assert(isZero(Decimal32(0)));
-    assert(!isZero(Decimal64.nan));
-    assert(isZero(Decimal32("0x9FFFFFp+10")));
-}
-
-unittest
+unittest // isZero
 {
     foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert(isZero(T.zero));
-        assert(isZero(T.minusZero));
-        assert(!isZero(T.ten));
-        assert(isZero(T.buildin(T.MASK_NONE, T.MASK_EXT, T.MASK_COE2 | T.MASK_COEX)));
+        assert(T.zero.isZero);
+        assert(T.negZero.isZero);
+        assert(!T.ten.isZero);
+        assert(T.buildin(T.MASK_COE2 | T.MASK_COEX, T.MASK_EXT, T.MASK_NONE).isZero);
     }
 }
 
@@ -5485,23 +5590,23 @@ $(BOOKTABLE,
 D modf(D)(auto const ref D x, ref D y)
 if (isDecimal!D)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         y = copysign(D.nan, x);
         DecimalControl.raiseFlags(ExceptionFlags.invalidOperation);
         return y;
     }
-    else if (isNaN(x))
+    else if (x.isNaN)
     {
         y = copysign(D.nan, x);
         return y;
     }
-    else if (isZero(x))
+    else if (x.isZero)
     {
         y = copysign(D.zero, x);
         return y;
     }
-    else if (isInfinity(x))
+    else if (x.isInfinity)
     {
         y = x;
         return copysign(D.zero, x);
@@ -5636,14 +5741,14 @@ if (isDecimal!D)
     Unqual!D result;
     ExceptionFlags flags;
 
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         result = D.nan;
         flags = ExceptionFlags.invalidOperation;
     }
-    else if (isNaN(x) || isInfinity(x))
+    else if (x.isNaN || x.isInfinity)
         result = x;
-    else if (isZero(x))
+    else if (x.isZero)
         result = D.one;
     else
     {
@@ -5703,22 +5808,22 @@ $(BOOKTABLE,
 D1 nextAfter(D1, D2)(auto const ref D1 x, auto const ref D2 y)
 if (isDecimal!(D1, D2))
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         DecimalControl.raiseFlags(ExceptionFlags.invalidOperation);
         return copysign(D1.nan, x);
     }
 
-    if (isSignaling(y))
+    if (y.isSignalNaN)
     {
         DecimalControl.raiseFlags(ExceptionFlags.invalidOperation);
         return copysign(D1.nan, y);
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return copysign(D1.nan, x);
 
-    if (isNaN(y))
+    if (y.isNaN)
         return copysign(D1.nan, y);
 
     Unqual!D1 result = x;
@@ -5735,9 +5840,9 @@ if (isDecimal!(D1, D2))
         flags = c < 0 ? decimalNextUp(result) : decimalNextDown(result);
         flags &= ~ExceptionFlags.inexact;
     }
-    if (isInfinity(result))
+    if (result.isInfinity)
         flags |= ExceptionFlags.overflow | ExceptionFlags.inexact;
-    else if (isZero(result) || isSubnormal(result))
+    else if (result.isZero || isSubnormal(result))
         flags |= ExceptionFlags.underflow | ExceptionFlags.inexact;
     DecimalControl.raiseFlags(flags);
     return result;
@@ -6087,12 +6192,12 @@ if (isDecimal!D)
     Unqual!D result = x;
     ExceptionFlags flags;
     long l;
-    if (isNaN(x))
+    if (x.isNaN)
     {
         flags = ExceptionFlags.invalidOperation;
         result = signbit(x) ? -D.nan : D.nan;
     }
-    else if (isInfinity(x))
+    else if (x.isInfinity)
         flags = ExceptionFlags.overflow;
     else
     {
@@ -6426,9 +6531,7 @@ Returns:
 @safe pure nothrow @nogc
 D sgn(D: Decimal!bits, int bits)(auto const ref D x)
 {
-    if (isZero(x))
-        return D.zero;
-    return (x.data & D.MASK_SGN) ? D.minusOne : D.one;
+    return x.isNeg ? D.negOne : (x.isZero ? D.zero : D.one);
 }
 
 ///
@@ -6441,12 +6544,32 @@ unittest
 
 unittest
 {
-
     foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(sgn(T.nan) == 1);
         assert(sgn(T.infinity) == 1);
-        assert(sgn(T.minusInfinity) == -1);
+        assert(sgn(T.negInfinity) == -1);
+    }
+}
+
+///sign
+unittest // sign
+{
+    assert((-Decimal32.infinity).sign == -1);
+    assert(Decimal64.min.sign == -1);
+    assert(Decimal64.min_normal.sign == 1);
+    assert(Decimal128.max.sign == 1);
+    assert((-Decimal128.max).sign == -1);
+}
+
+unittest // sign
+{
+    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    {
+        assert(T.sNaN.sign == 1);
+        assert(T.negInfinity.sign == -1);
+        assert(T.zero.sign == 0);
+        assert(T.negZero.sign == -1);
     }
 }
 
@@ -6483,10 +6606,10 @@ unittest
 {
     foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert(signbit(T.snan) == 0);
-        assert(signbit(T.minusInfinity) == 1);
+        assert(signbit(T.sNaN) == 0);
+        assert(signbit(T.negInfinity) == 1);
         assert(signbit(T.zero) == 0);
-        assert(signbit(T.minusZero) == 1);
+        assert(signbit(T.negZero) == 1);
     }
 }
 
@@ -6850,7 +6973,7 @@ Notes:
 @safe pure nothrow @nogc
 Decimal32 toDPD(const Decimal32 x)
 {
-    if (isNaN(x) || isInfinity(x) || isZero(x))
+    if (x.isNaN || x.isInfinity || x.isZero)
         return canonical(x);
 
     uint cx;
@@ -6876,7 +6999,7 @@ Decimal32 toDPD(const Decimal32 x)
 @safe pure nothrow @nogc
 Decimal64 toDPD(const Decimal64 x)
 {
-    if (isNaN(x) || isInfinity(x) || isZero(x))
+    if (x.isNaN || x.isInfinity || x.isZero)
         return canonical(x);
 
     ulong cx;
@@ -6905,7 +7028,7 @@ Decimal64 toDPD(const Decimal64 x)
 @safe pure nothrow @nogc
 Decimal128 toDPD(const Decimal128 x)
 {
-    if (isNaN(x) || isInfinity(x) || isZero(x))
+    if (x.isNaN || x.isInfinity || x.isZero)
         return canonical(x);
 
     uint128 cx;
@@ -6940,7 +7063,7 @@ Decimal128 toDPD(const Decimal128 x)
 @safe pure nothrow @nogc
 Decimal32 fromDPD(const Decimal32 x)
 {
-    if (isNaN(x) || isInfinity(x) || isZero(x))
+    if (x.isNaN || x.isInfinity || x.isZero)
         return canonical(x);
 
     uint[7] digits;
@@ -6966,7 +7089,7 @@ Decimal32 fromDPD(const Decimal32 x)
 @safe pure nothrow @nogc
 Decimal64 fromDPD(const Decimal64 x)
 {
-    if (isNaN(x) || isInfinity(x) || isZero(x))
+    if (x.isNaN || x.isInfinity || x.isZero)
         return canonical(x);
 
     uint[16] digits;
@@ -6995,7 +7118,7 @@ Decimal64 fromDPD(const Decimal64 x)
 @IEEECompliant("decodeDecimal", 23)
 Decimal128 fromDPD(const Decimal128 x)
 {
-    if (isNaN(x) || isInfinity(x) || isZero(x))
+    if (x.isNaN || x.isInfinity || x.isZero)
         return canonical(x);
 
     uint[34] digits;
@@ -7093,19 +7216,19 @@ Notes:
 long toMsCurrency(D)(auto const ref D x)
 if (isDecimal!D)
 {
-    if (isNaN(x))
+    if (x.isNaN)
     {
         DecimalControl.raiseFlags(ExceptionFlags.invalidOperation);
         return 0;
     }
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         DecimalControl.raiseFlags(ExceptionFlags.overflow);
         return signbit(x) ? long.max : long.min;
     }
 
-    if (isZero(x))
+    if (x.isZero)
         return 0;
 
     ex +=4;
@@ -7151,7 +7274,7 @@ DECIMAL toMsDecimal(D)(auto const ref D x)
 {
     DECIMAL result;
 
-    if (isNaN(x))
+    if (x.isNaN)
     {
         if (__ctfe)
             DecimalControl.checkFlags(ExceptionFlags.invalidOperation, ExceptionFlags.severe);
@@ -7160,7 +7283,7 @@ DECIMAL toMsDecimal(D)(auto const ref D x)
         return result;
     }
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         if (__ctfe)
             DecimalControl.checkFlags(ExceptionFlags.overflow, ExceptionFlags.severe);
@@ -7173,7 +7296,7 @@ DECIMAL toMsDecimal(D)(auto const ref D x)
         return result;
     }
 
-    if (isZero(x))
+    if (x.isZero)
         return result;
 
     DataType!D cx;
@@ -7312,12 +7435,12 @@ if (isDecimal!D)
     Unqual!D result;
     ExceptionFlags flags;
 
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         result = D.nan;
         flags = ExceptionFlags.invalidOperation;
     }
-    else if (isNaN(x) || isInfinity(x) || isZero(x))
+    else if (x.isNaN || x.isInfinity || x.isZero)
         result = x;
     else
     {
@@ -7718,7 +7841,7 @@ if (isSomeChar!C && isDecimal!D)
     else if (fx == FastClass.quietNaN)
         sinkNaN!(C, DataType!D)(spec, sink, isNegative, false, coefficient, spec.spec == 'a' || spec.spec == 'A');
     else if (fx == FastClass.infinite)
-        sinkInfinity!C(spec, sink, signbit(decimal) != 0);
+        sinkInfinity!C(spec, sink, decimal.isNeg);
     else
     {
         switch (spec.spec)
@@ -8314,17 +8437,6 @@ if (isInputRange!R && isSomeChar!(ElementType!R) && isDecimal!D)
     if (isNegative)
         decimal.data |= D.MASK_SGN;
     return flags;
-}
-
-D fromString(D, C)(const(C)[] s)
-if (isDecimal!D && isSomeChar!C)
-{
-    Unqual!D result = void;
-    const flags = result.packString(s,
-                                   __ctfe ? D.PRECISION : DecimalControl.precision,
-                                   __ctfe ? RoundingMode.implicit: DecimalControl.rounding);
-    DecimalControl.raiseFlags(flags);
-    return result;
 }
 
 /* ****************************************************************************************************************** */
@@ -9932,7 +10044,7 @@ if (isDecimal!(D1, D2))
 
     auto flags = coefficientAdd(cx, ex, sx, cy, ey, sy, mode);
     flags = x.adjustedPack(cx, ex, sx, precision, mode, flags);
-    if (isZero(x))
+    if (x.isZero)
         x = (mode == RoundingMode.towardNegative && sx != sy)  || (sx && sy) ? -D1.zero : D1.zero;
     return flags;
 }
@@ -10170,7 +10282,7 @@ if (isDecimal!(D1, D2))
 
     auto flags = coefficientMod(cx, ex, sx, cy, ey, sy, mode);
     flags = x.adjustedPack(cx, ex, sx, precision, mode, flags);
-    if (isZero(x))
+    if (x.isZero)
         x = sxx ? -D1.zero : D1.zero;
     return flags;
 }
@@ -10400,15 +10512,15 @@ if (isDecimal!D && isIntegral!T)
 int decimalCmp(D, F)(auto const ref D x, auto const ref F y, const int yPrecision, const RoundingMode yMode)
 if (isDecimal!D && isFloatingPoint!F)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
         return -3;
-    if (isNaN(x) || isNaN(y))
+    if (x.isNaN || y.isNaN)
         return -2;
 
     const sx = cast(bool)signbit(x);
     const sy = cast(bool)signbit(y);
 
-    if (isZero(x))
+    if (x.isZero)
     {
         if (y == 0.0)
             return 0;
@@ -10421,14 +10533,14 @@ if (isDecimal!D && isFloatingPoint!F)
     if (sx != sy)
         return sx ? -1 : 1;
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
-        if (isInfinity(y))
+        if (y.isInfinity)
             return 0;
         return sx ? -1 : 1;
     }
 
-    if (isInfinity(y))
+    if (y.isInfinity)
         return sx ? 1 : -1;
 
     Unqual!D v = void;
@@ -10519,11 +10631,11 @@ if (isDecimal!D && isIntegral!T)
 int decimalEqu(D, F)(auto const ref D x, auto const ref F y, const int yPrecision, const RoundingMode yMode)
 if (isDecimal!D && isFloatingPoint!F)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
         return -3;
-    if (isNaN(x) || isNaN(y))
+    if (x.isNaN || y.isNaN)
         return -2;
-    if (isZero(x))
+    if (x.isZero)
         return y == 0.0 ? 1 : 0;
     if (y == 0.0)
         return 0;
@@ -10533,9 +10645,9 @@ if (isDecimal!D && isFloatingPoint!F)
     if (sx != sy)
         return 0;
 
-    if (isInfinity(x))
-        return isInfinity(y) ? 1 : 0;
-    if (isInfinity(y))
+    if (x.isInfinity)
+        return y.isInfinity ? 1 : 0;
+    if (y.isInfinity)
         return 0;
 
     Unqual!D v = void;
@@ -10927,22 +11039,22 @@ if (isDecimal!D && isFloatingPoint!F)
 ExceptionFlags decimalExp(D)(ref D x, const int precision, const RoundingMode mode)
 if (isDecimal!D)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isZero(x))
+    if (x.isZero)
     {
         x = D.one;
         return ExceptionFlags.none;
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         x = signbit(x) ? D.zero : D.infinity;
         return ExceptionFlags.none;
@@ -10994,13 +11106,13 @@ if (isDecimal!D)
 ExceptionFlags decimalLog(D)(ref D x, const int precision, const RoundingMode mode)
 if (isDecimal!D)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
     if (signbit(x))
@@ -11009,13 +11121,13 @@ if (isDecimal!D)
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         x = D.infinity;
         return ExceptionFlags.none;
     }
 
-    if (isZero(x))
+    if (x.isZero)
     {
         x = -D.infinity;
         return ExceptionFlags.divisionByZero;
@@ -11043,22 +11155,22 @@ if (isDecimal!D)
 ExceptionFlags decimalExp10(D)(ref D x, const int precision, const RoundingMode mode)
 if (isDecimal!D)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isZero(x))
+    if (x.isZero)
     {
         x = D.one;
         return ExceptionFlags.none;
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         x = signbit(x) ? D.zero : D.infinity;
         return ExceptionFlags.none;
@@ -11077,19 +11189,19 @@ if (isDecimal!D)
 ExceptionFlags decimalExp10m1(D)(ref D x, const int precision, const RoundingMode mode)
 if (isDecimal!D)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isZero(x))
+    if (x.isZero)
         return ExceptionFlags.none;
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         x = signbit(x) ? -D.one : D.infinity;
         return ExceptionFlags.none;
@@ -11103,19 +11215,19 @@ if (isDecimal!D)
 ExceptionFlags decimalExpm1(D)(ref D x, const int precision, const RoundingMode mode)
 if (isDecimal!D)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isZero(x))
+    if (x.isZero)
         return ExceptionFlags.none;
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         x = signbit(x) ? -D.one : D.infinity;
         return ExceptionFlags.none;
@@ -11129,22 +11241,22 @@ if (isDecimal!D)
 ExceptionFlags decimalExp2(D)(ref D x, const int precision, const RoundingMode mode)
 if (isDecimal!D)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isZero(x))
+    if (x.isZero)
     {
         x = D.one;
         return ExceptionFlags.none;
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         x = signbit(x) ? D.zero : D.infinity;
         return ExceptionFlags.none;
@@ -11166,19 +11278,19 @@ if (isDecimal!D)
 ExceptionFlags decimalExp2m1(D)(ref D x, const int precision, const RoundingMode mode)
 if (isDecimal!D)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isZero(x))
+    if (x.isZero)
         return ExceptionFlags.none;
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         x = signbit(x) ? -D.one : D.infinity;
         return ExceptionFlags.none;
@@ -11200,13 +11312,13 @@ if (isDecimal!D)
 ExceptionFlags decimalLog10(D)(ref D x, const int precision, const RoundingMode mode)
 if (isDecimal!D)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
     if (signbit(x))
@@ -11215,13 +11327,13 @@ if (isDecimal!D)
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         x = D.infinity;
         return ExceptionFlags.none;
     }
 
-    if (isZero(x))
+    if (x.isZero)
     {
         x = -D.infinity;
         return ExceptionFlags.divisionByZero;
@@ -11267,7 +11379,7 @@ if (isDecimal!D)
 ExceptionFlags decimalCompound(D)(ref D x, const int n, const int precision, const RoundingMode mode)
 if (isDecimal!D)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
@@ -11297,10 +11409,10 @@ if (isDecimal!D)
         return ExceptionFlags.none;
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         if (signbit(x))
             x = n & 1 ? -D.infinity : D.infinity;
@@ -11327,7 +11439,7 @@ if (isDecimal!D)
 ExceptionFlags decimalRoot(D, T)(ref D x, const T n, const int precision, const RoundingMode mode)
 if (isDecimal!D && isIntegral!T)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
@@ -11344,15 +11456,15 @@ if (isDecimal!D && isIntegral!T)
         return ExceptionFlags.overflow | ExceptionFlags.underflow;
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         x = !signbit(x) || (n & 1) ? D.infinity : -D.infinity;
     }
 
-    if (isZero(x))
+    if (x.isZero)
     {
         if (n & 1) //odd
         {
@@ -11543,13 +11655,13 @@ if (isDecimal!D)
 ExceptionFlags decimalSinPi(D)(ref D x, const int precision, const RoundingMode mode)
 if (isDecimal!D)
 {
-    if (isSignaling(x) || isInfinity(x))
+    if (x.isSignalNaN || x.isInfinity)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
     decimalReduceAngle(x);
@@ -11562,13 +11674,13 @@ if (isDecimal!D)
 ExceptionFlags decimalCosPi(D)(ref D x, const int precision, const RoundingMode mode)
 if (isDecimal!D)
 {
-    if (isSignaling(x) || isInfinity(x))
+    if (x.isSignalNaN || x.isInfinity)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
     decimalReduceAngle(x);
@@ -11581,16 +11693,16 @@ if (isDecimal!D)
 ExceptionFlags decimalAtanPi(D)(ref D x, const int precision, const RoundingMode mode)
 if (isDecimal!D)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isNaN(x) || isZero(x))
+    if (x.isNaN || x.isZero)
         return ExceptionFlags.none;
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         x = signbit(x) ? -D.half : D.half;
         return ExceptionFlags.none;
@@ -11626,19 +11738,19 @@ ExceptionFlags decimalAtan2(D1, D2, D3)(auto const ref D1 y, auto const ref D2 x
 {
     alias D = CommonDecimal!(D1, D2);
 
-    if (isSignaling(x) || isSignaling(y))
+    if (x.isSignalNaN || y.isSignalNaN)
     {
         z = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isNaN(x) || isNaN(y))
+    if (x.isNaN || y.isNaN)
     {
         z = D.nan;
         return ExceptionFlags.none;
     }
 
-    if (isZero(y))
+    if (y.isZero)
     {
         if (signbit(x))
             z = signbit(y) ? -D.PI : D.PI;
@@ -11647,15 +11759,15 @@ ExceptionFlags decimalAtan2(D1, D2, D3)(auto const ref D1 y, auto const ref D2 x
         return ExceptionFlags.inexact;
     }
 
-    if (isZero(x))
+    if (x.isZero)
     {
         z = signbit(y) ? -D.PI_2 : D.PI_2;
         return ExceptionFlags.inexact;
     }
 
-    if (isInfinity(y))
+    if (y.isInfinity)
     {
-        if (isInfinity(x))
+        if (x.isInfinity)
         {
             if (signbit(x))
                 z = signbit(y) ? -D._3PI_4 : D._3PI_4;
@@ -11667,7 +11779,7 @@ ExceptionFlags decimalAtan2(D1, D2, D3)(auto const ref D1 y, auto const ref D2 x
         return ExceptionFlags.inexact;
     }
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         if (signbit(x))
             z = signbit(y) ? -D.PI : D.PI;
@@ -11700,19 +11812,19 @@ if (isDecimal!(D1, D2, D3))
 {
     alias D = CommonDecimal!(D1, D2);
 
-    if (isSignaling(x) || isSignaling(y))
+    if (x.isSignalNaN || y.isSignalNaN)
     {
         z = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isNaN(x) || isNaN(y))
+    if (x.isNaN || y.isNaN)
     {
         z = D.nan;
         return ExceptionFlags.none;
     }
 
-    if (isZero(y))
+    if (y.isZero)
     {
         if (signbit(x))
             z = signbit(y) ? -D.one : D.one;
@@ -11721,15 +11833,15 @@ if (isDecimal!(D1, D2, D3))
         return ExceptionFlags.inexact;
     }
 
-    if (isZero(x))
+    if (x.isZero)
     {
         z = signbit(y) ? -D.half : D.half;
         return ExceptionFlags.inexact;
     }
 
-    if (isInfinity(y))
+    if (y.isInfinity)
     {
-        if (isInfinity(x))
+        if (x.isInfinity)
         {
             if (signbit(x))
                 z = signbit(y) ? -D.threequarters : D.threequarters;
@@ -11741,7 +11853,7 @@ if (isDecimal!(D1, D2, D3))
         return ExceptionFlags.inexact;
     }
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         if (signbit(x))
             z = signbit(y) ? -D.one : D.one;
@@ -11756,13 +11868,13 @@ if (isDecimal!(D1, D2, D3))
 
 ExceptionFlags decimalAsin(D)(ref D x, const int precision, const RoundingMode mode)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
     if (isLess(x, -D.one) || isGreater(x, D.one))
@@ -11771,7 +11883,7 @@ ExceptionFlags decimalAsin(D)(ref D x, const int precision, const RoundingMode m
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isZero(x))
+    if (x.isZero)
         return ExceptionFlags.none;
 
     if (x == -D.one)
@@ -11837,13 +11949,13 @@ ExceptionFlags decimalAsin(D)(ref D x, const int precision, const RoundingMode m
 
 ExceptionFlags decimalAcos(D)(ref D x, const int precision, const RoundingMode mode)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
     if (isLess(x, -D.one) || isGreater(x, D.one))
@@ -11852,7 +11964,7 @@ ExceptionFlags decimalAcos(D)(ref D x, const int precision, const RoundingMode m
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isZero(x))
+    if (x.isZero)
     {
         x = D.PI_2;
         return decimalAdjust(x, precision, mode);
@@ -11921,22 +12033,22 @@ ExceptionFlags decimalAcos(D)(ref D x, const int precision, const RoundingMode m
 
 ExceptionFlags decimalSinh(D)(ref D x, const int precision, const RoundingMode mode)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         x = D.infinity;
         return ExceptionFlags.none;
     }
 
-    if (isZero(x))
+    if (x.isZero)
         return ExceptionFlags.none;
 
     Unqual!D x1 = x;
@@ -11952,22 +12064,22 @@ ExceptionFlags decimalSinh(D)(ref D x, const int precision, const RoundingMode m
 
 ExceptionFlags decimalCosh(D)(ref D x, const int precision, const RoundingMode mode)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         x = D.infinity;
         return ExceptionFlags.none;
     }
 
-    if (isZero(x))
+    if (x.isZero)
     {
         x = D.one;
         return ExceptionFlags.none;
@@ -11985,22 +12097,22 @@ ExceptionFlags decimalCosh(D)(ref D x, const int precision, const RoundingMode m
 
 ExceptionFlags decimalTanh(D)(ref D x, const int precision, const RoundingMode mode)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
-    if (isInfinity(x))
+    if (x.isInfinity)
     {
         x = signbit(x) ? -D.one : D.one;
         return ExceptionFlags.none;
     }
 
-    if (isZero(x))
+    if (x.isZero)
         return ExceptionFlags.none;
 
     Unqual!D x1 = x;
@@ -12014,13 +12126,13 @@ ExceptionFlags decimalTanh(D)(ref D x, const int precision, const RoundingMode m
 
 ExceptionFlags decimalAsinh(D)(ref D x, const int precision, const RoundingMode mode)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isNaN(x) || isZero(x) || isInfinity(x))
+    if (x.isNaN || x.isZero || x.isInfinity)
         return ExceptionFlags.none;
 
     //+- ln(|x| + sqrt(x*x + 1))
@@ -12067,13 +12179,13 @@ ExceptionFlags decimalAsinh(D)(ref D x, const int precision, const RoundingMode 
 
 ExceptionFlags decimalAcosh(D)(ref D x, const int precision, const RoundingMode mode)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isNaN(x))
+    if (x.isNaN)
         return ExceptionFlags.none;
 
     if (isLess(x, D.one))
@@ -12088,7 +12200,7 @@ ExceptionFlags decimalAcosh(D)(ref D x, const int precision, const RoundingMode 
         return ExceptionFlags.none;
     }
 
-    if (isInfinity(x))
+    if (x.isInfinity)
         return ExceptionFlags.none;
 
     /*
@@ -12131,13 +12243,13 @@ ExceptionFlags decimalAcosh(D)(ref D x, const int precision, const RoundingMode 
 
 ExceptionFlags decimalAtanh(D)(ref D x, const int precision, const RoundingMode mode)
 {
-    if (isSignaling(x))
+    if (x.isSignalNaN)
     {
         x = D.nan;
         return ExceptionFlags.invalidOperation;
     }
 
-    if (isNaN(x) || isZero(x))
+    if (x.isNaN || x.isZero)
         return ExceptionFlags.none;
 
     alias T = DataType!D;
@@ -12179,19 +12291,19 @@ if (isDecimal!D)
     size_t i = 0;
     while (i < x.length)
     {
-        if (isSignaling(x[i]))
+        if (x[i].isSignalNaN)
         {
             result = D.nan;
             return ExceptionFlags.invalidOperation;
         }
 
-        if (isNaN(x[i]))
+        if (x[i].isNaN)
         {
             result = D.nan;
             return ExceptionFlags.none;
         }
 
-        if (isInfinity(x[i]))
+        if (x[i].isInfinity)
         {
             if (signbit(x[i]))
                 hasNegativeInfinity = true;
@@ -12201,7 +12313,7 @@ if (isDecimal!D)
             break;
         }
 
-        if (isZero(x[i]))
+        if (x[i].isZero)
         {
             ++i;
             continue;
@@ -12219,19 +12331,19 @@ if (isDecimal!D)
     while (i < x.length)
     {
         //infinity or overflow detected
-        if (isSignaling(x[i]))
+        if (x[i].isSignalNaN)
         {
             result = D.nan;
             return ExceptionFlags.invalidOperation;
         }
 
-        if (isNaN(x[i]))
+        if (x[i].isNaN)
         {
             result = D.nan;
             return ExceptionFlags.none;
         }
 
-        if (isInfinity(x[i]))
+        if (x[i].isInfinity)
         {
             if (signbit(x[i]))
                 hasNegativeInfinity = true;
@@ -12276,26 +12388,26 @@ if (isDecimal!D)
     size_t i = 0;
     while (i < x.length)
     {
-        if (isSignaling(x[i]))
+        if (x[i].isSignalNaN)
         {
             result = D.nan;
             return ExceptionFlags.invalidOperation;
         }
 
-        if (isNaN(x[i]))
+        if (x[i].isNaN)
         {
             result = D.nan;
             return ExceptionFlags.none;
         }
 
-        if (isInfinity(x[i]))
+        if (x[i].isInfinity)
         {
             hasInfinity = true;
             ++i;
             break;
         }
 
-        if (isZero(x[i]))
+        if (x[i].isZero)
         {
             ++i;
             continue;
@@ -12314,19 +12426,19 @@ if (isDecimal!D)
     while (i < x.length)
     {
         //infinity or overflow detected
-        if (isSignaling(x[i]))
+        if (x[i].isSignalNaN)
         {
             result = D.nan;
             return ExceptionFlags.invalidOperation;
         }
 
-        if (isNaN(x[i]))
+        if (x[i].isNaN)
         {
             result = D.nan;
             return ExceptionFlags.none;
         }
 
-        if (isInfinity(x[i]))
+        if (x[i].isInfinity)
             hasInfinity = true;
         ++i;
     }
@@ -12356,26 +12468,26 @@ if (isDecimal!D)
     size_t i = 0;
     while (i < x.length)
     {
-        if (isSignaling(x[i]))
+        if (x[i].isSignalNaN)
         {
             result = D.nan;
             return ExceptionFlags.invalidOperation;
         }
 
-        if (isNaN(x[i]))
+        if (x[i].isNaN)
         {
             result = D.nan;
             return ExceptionFlags.none;
         }
 
-        if (isInfinity(x[i]))
+        if (x[i].isInfinity)
         {
             hasInfinity = true;
             ++i;
             break;
         }
 
-        if (isZero(x[i]))
+        if (x[i].isZero)
         {
             ++i;
             continue;
@@ -12393,19 +12505,19 @@ if (isDecimal!D)
     while (i < x.length)
     {
         //infinity or overflow detected
-        if (isSignaling(x[i]))
+        if (x[i].isSignalNaN)
         {
             result = D.nan;
             return ExceptionFlags.invalidOperation;
         }
 
-        if (isNaN(x[i]))
+        if (x[i].isNaN)
         {
             result = D.nan;
             return ExceptionFlags.none;
         }
 
-        if (isInfinity(x[i]))
+        if (x[i].isInfinity)
             hasInfinity = true;
         ++i;
     }
@@ -12436,27 +12548,27 @@ if (isDecimal!D)
     size_t i = 0;
     while (i < len)
     {
-        if (isSignaling(x[i]) || isSignaling(y[i]))
+        if (x[i].isSignalNaN || y[i].isSignalNaN)
         {
             result = D.nan;
             return ExceptionFlags.invalidOperation;
         }
 
-        if (isNaN(x[i]) || isNaN(y[i]))
+        if (x[i].isNaN || y[i].isNaN)
         {
             result = D.nan;
             return ExceptionFlags.none;
         }
 
-        if (isInfinity(x[i]))
+        if (x[i].isInfinity)
         {
-            if (isZero(y[i]))
+            if (y[i].isZero)
             {
                 result = D.nan;
                 return ExceptionFlags.invalidOperation;
             }
 
-            if (isInfinity(y[i]))
+            if (y[i].isInfinity)
             {
                 if (signbit(x[i]) ^ signbit(y[i]))
                     hasNegativeInfinity = true;
@@ -12475,9 +12587,9 @@ if (isDecimal!D)
             break;
         }
 
-        if (isInfinity(y[i]))
+        if (y[i].isInfinity)
         {
-            if (isZero(x[i]))
+            if (x[i].isZero)
             {
                 result = D.nan;
                 return ExceptionFlags.invalidOperation;
@@ -12492,7 +12604,7 @@ if (isDecimal!D)
             break;
         }
 
-        if (isZero(x[i]) || isZero(y[i]))
+        if (x[i].isZero || y[i].isZero)
         {
             ++i;
             continue;
@@ -12510,27 +12622,27 @@ if (isDecimal!D)
 
     while (i < len)
     {
-        if (isSignaling(x[i]) || isSignaling(y[i]))
+        if (x[i].isSignalNaN || y[i].isSignalNaN)
         {
             result = D.nan;
             return ExceptionFlags.invalidOperation;
         }
 
-        if (isNaN(x[i]) || isNaN(y[i]))
+        if (x[i].isNaN || y[i].isNaN)
         {
             result = D.nan;
             return ExceptionFlags.none;
         }
 
-        if (isInfinity(x[i]))
+        if (x[i].isInfinity)
         {
-            if (isZero(y[i]))
+            if (y[i].isZero)
             {
                 result = D.nan;
                 return ExceptionFlags.invalidOperation;
             }
 
-            if (isInfinity(y[i]))
+            if (y[i].isInfinity)
             {
                 if (signbit(x[i]) ^ signbit(y[i]))
                     hasNegativeInfinity = true;
@@ -12546,9 +12658,9 @@ if (isDecimal!D)
             }
         }
 
-        if (isInfinity(y[i]))
+        if (y[i].isInfinity)
         {
-            if (isZero(x[i]))
+            if (x[i].isZero)
             {
                 result = D.nan;
                 return ExceptionFlags.invalidOperation;
@@ -12603,19 +12715,19 @@ if (isDecimal!D)
     size_t i = 0;
     while (i < x.length)
     {
-        if (isSignaling(x[i]))
+        if (x[i].isSignalNaN)
         {
             result = D.nan;
             return ExceptionFlags.invalidOperation;
         }
 
-        if (isNaN(x[i]))
+        if (x[i].isNaN)
         {
             result = D.nan;
             return ExceptionFlags.none;
         }
 
-        if (isInfinity(x[i]))
+        if (x[i].isInfinity)
         {
             hasInfinity = true;
             infinitySign = cast(bool)(signbit(x[i]));
@@ -12623,7 +12735,7 @@ if (isDecimal!D)
             break;
         }
 
-        if (isZero(x[i]))
+        if (x[i].isZero)
         {
             hasZero = true;
             zeroSign = cast(bool)(signbit(x[i]));
@@ -12644,24 +12756,24 @@ if (isDecimal!D)
     while (i < x.length)
     {
         //infinity or overflow detected
-        if (isSignaling(x[i]))
+        if (x[i].isSignalNaN)
         {
             result = D.nan;
             return ExceptionFlags.invalidOperation;
         }
 
-        if (isNaN(x[i]))
+        if (x[i].isNaN)
         {
             result = D.nan;
             return ExceptionFlags.none;
         }
 
-        if (isInfinity(x[i]))
+        if (x[i].isInfinity)
         {
             hasInfinity = true;
             infinitySign ^= cast(bool)(signbit(x[i]));
         }
-        else if (isZero(x[i]))
+        else if (x[i].isZero)
         {
             hasZero = true;
             zeroSign ^= cast(bool)(signbit(x[i]));
@@ -12715,21 +12827,21 @@ if (isDecimal!D)
     size_t i = 0;
     while (i < len)
     {
-        if (isSignaling(x[i]) || isSignaling(y[i]))
+        if (x[i].isSignalNaN || y[i].isSignalNaN)
         {
             result = D.nan;
             return ExceptionFlags.invalidOperation;
         }
 
-        if (isNaN(x[i]) || isNaN(y[i]))
+        if (x[i].isNaN || y[i].isNaN)
         {
             result = D.nan;
             return ExceptionFlags.none;
         }
 
-        if (isInfinity(x[i]))
+        if (x[i].isInfinity)
         {
-            if (isInfinity(y[i]) && signbit(x) != signbit(y))
+            if (y[i].isInfinity && signbit(x) != signbit(y))
             {
                 invalidSum = true;
                 ++i;
@@ -12742,7 +12854,7 @@ if (isDecimal!D)
             break;
         }
 
-        if (isInfinity(y[i]))
+        if (y[i].isInfinity)
         {
             hasInfinity = true;
             infinitySign = cast(bool)signbit(x[i]);
@@ -12770,21 +12882,21 @@ if (isDecimal!D)
     while (i < len)
     {
         //inf, zero or overflow, underflow, invalidSum;
-        if (isSignaling(x[i]) || isSignaling(y[i]))
+        if (x[i].isSignalNaN || y[i].isSignalNaN)
         {
             result = D.nan;
             return ExceptionFlags.invalidOperation;
         }
 
-        if (isNaN(x[i]) || isNaN(y[i]))
+        if (x[i].isNaN || y[i].isNaN)
         {
             result = D.nan;
             return ExceptionFlags.none;
         }
 
-        if (isInfinity(x[i]))
+        if (x[i].isInfinity)
         {
-            if (isInfinity(y[i]) && signbit(x) != signbit(y))
+            if (y[i].isInfinity && signbit(x) != signbit(y))
                 invalidSum = true;
             else
             {
@@ -12792,7 +12904,7 @@ if (isDecimal!D)
                 infinitySign ^= cast(bool)signbit(x[i]);
             }
         }
-        else if (isInfinity(y[i]))
+        else if (y[i].isInfinity)
         {
             hasInfinity = true;
             infinitySign ^= cast(bool)signbit(y[i]);
@@ -12849,21 +12961,21 @@ if (isDecimal!D)
     size_t i = 0;
     while (i < len)
     {
-        if (isSignaling(x[i]) || isSignaling(y[i]))
+        if (x[i].isSignalNaN || y[i].isSignalNaN)
         {
             result = D.nan;
             return ExceptionFlags.invalidOperation;
         }
 
-        if (isNaN(x[i]) || isNaN(y[i]))
+        if (x[i].isNaN || y[i].isNaN)
         {
             result = D.nan;
             return ExceptionFlags.none;
         }
 
-        if (isInfinity(x[i]))
+        if (x[i].isInfinity)
         {
-            if (isInfinity(y[i]) && signbit(x) != signbit(y))
+            if (y[i].isInfinity && signbit(x) != signbit(y))
             {
                 invalidSum = true;
                 ++i;
@@ -12876,7 +12988,7 @@ if (isDecimal!D)
             break;
         }
 
-        if (isInfinity(y[i]))
+        if (y[i].isInfinity)
         {
             hasInfinity = true;
             infinitySign = cast(bool)signbit(x[i]);
@@ -12904,21 +13016,21 @@ if (isDecimal!D)
     while (i < len)
     {
         //inf, zero or overflow, underflow, invalidSum;
-        if (isSignaling(x[i]) || isSignaling(y[i]))
+        if (x[i].isSignalNaN || y[i].isSignalNaN)
         {
             result = D.nan;
             return ExceptionFlags.invalidOperation;
         }
 
-        if (isNaN(x[i]) || isNaN(y[i]))
+        if (x[i].isNaN || y[i].isNaN)
         {
             result = D.nan;
             return ExceptionFlags.none;
         }
 
-        if (isInfinity(x[i]))
+        if (x[i].isInfinity)
         {
-            if (isInfinity(y[i]) && signbit(x) != signbit(y))
+            if (y[i].isInfinity && signbit(x) != signbit(y))
                 invalidSum = true;
             else
             {
@@ -12926,7 +13038,7 @@ if (isDecimal!D)
                 infinitySign ^= cast(bool)signbit(x[i]);
             }
         }
-        else if (isInfinity(y[i]))
+        else if (y[i].isInfinity)
         {
             hasInfinity = true;
             infinitySign ^= cast(bool)signbit(y[i]);

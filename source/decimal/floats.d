@@ -4,7 +4,7 @@ module decimal.floats;
 /* FLOAT UTILITY FUNCTIONS                                                                                            */
 /* ****************************************************************************************************************** */
 
-import decimal.integrals: uint128, clz, divrem;
+import decimal.integrals: clz, divrem, uint128;
 
 package:
 
