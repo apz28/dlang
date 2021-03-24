@@ -648,14 +648,14 @@ public:
         this.mutex = new Mutex();
     }
 
-    ~this() nothrow @trusted
+    ~this() nothrow @safe
     {
-        if (mutex !is null)
-        {
-            mutex.destroy();
-            mutex = null;
-        }
-        userContext_ = null;
+        doDispose(false);
+    }
+
+    final void dispose()
+    {
+        doDispose(true);
     }
 
     /**
@@ -1417,6 +1417,18 @@ public:
     }
 
 protected:
+    void doDispose(bool disposing) nothrow @trusted
+    {
+        userName_ = null;
+        userContext_ = null;
+        options.logLevel = LogLevel.off;
+        if (mutex !is null)
+        {
+            mutex.destroy();
+            mutex = null;
+        }
+    }
+
     /** Signals that the log message started. */
     abstract void beginMsg(ref LogHeader header) nothrow @safe;
 
