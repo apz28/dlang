@@ -22,9 +22,11 @@ public import core.time : Duration, dur;
 public import std.datetime.date : Date;
 public import std.datetime.timezone : LocalTime, SimpleTimeZone, TimeZone, UTC;
 public import std.uuid : UUID;
+
 public import decimal.decimal : Decimal32, Decimal64, Decimal128, isDecimal, Precision, RoundingMode;
 
-import pham.utl.enum_set;
+public import pham.utl.biginteger : BigInteger;
+import pham.utl.enum_set : toName;
 import pham.db.convert : removeDate, timeOfDayToDuration, toDate;
 import pham.db.timezone;
 
@@ -38,6 +40,10 @@ alias uint8 = ubyte;
 alias uint16 = ushort;
 alias uint32 = uint;
 alias uint64 = ulong;
+alias int128 = BigInteger;
+
+alias Decimal = Decimal128;
+alias Numeric = Decimal128;
 
 union Map16Bit
 {
@@ -159,6 +165,11 @@ enum DbDefaultSize
      * Default maximum number of connections being in pool
      */
     connectionPoolLength = 100,
+
+    /**
+     * Default maximum inactive time of a connection being in pool - value in seconds
+     */
+    connectionPoolInactiveTime = 360,
 }
 
 /**
@@ -369,7 +380,12 @@ enum DbType
     int16,
     int32,
     int64,
+    int128,
     decimal,
+    decimal32,
+    decimal64,
+    decimal128,
+    numeric,  // Same as decimal
     float32,
     float64,
     date,
@@ -608,17 +624,47 @@ struct DbHandle
 nothrow @safe:
 
 public:
-    enum notSetValue = -1;
+    static union DbHandleStorage
+    {
+        ulong u64 = 0xFFFF_FFFF_FFFF_FFFF;
+        long i64;
+        uint u32;
+        int i32;
+    }
+
+    static void set(T)(ref DbHandleStorage storage, const T value) pure
+    if (is(T == ulong) || is(T == long) || is(T == uint) || is(T == int))
+    {
+        static if (is(T == ulong))
+            storage.u64 = value;
+        else static if (is(T == long))
+            storage.i64 = value;
+        else static if (is(T == uint))
+        {
+            storage.u64 = 0u;
+            storage.u32 = value;
+        }
+        else static if (is(T == int))
+        {
+            storage.u64 = 0u;
+            storage.i32 = value;
+        }
+        else
+            static assert(0);
+    }
 
 public:
-    ref typeof(this) opAssign(size_t rhs) return
-    in
+    this(T)(const T notSetValue)
+    if (is(T == ulong) || is(T == long) || is(T == uint) || is(T == int))
     {
-        assert(value == notSetValue);
+        set(this.notSetValue, notSetValue);
+        this.value = this.notSetValue;
     }
-    do
+
+    ref typeof(this) opAssign(T)(const T rhs) return
+    if (is(T == ulong) || is(T == long) || is(T == uint) || is(T == int))
     {
-        value = rhs;
+        set(this.value, rhs);
         return this;
     }
 
@@ -634,18 +680,42 @@ public:
         return this;
     }
 
-    void reset()
+    T opCast(T)() const
+    if (is(T == ulong) || is(T == long) || is(T == uint) || is(T == int))
     {
-        value = notSetValue;
+        return get!T();
     }
 
-    @property bool isValid() const
+    T get(T)() const pure
+    if (is(T == ulong) || is(T == long) || is(T == uint) || is(T == int))
     {
-        return value != notSetValue;
+        static if (is(T == ulong))
+            return value.u64;
+        else static if (is(T == long))
+            return value.i64;
+        else static if (is(T == uint))
+            return value.u32;
+        else static if (is(T == int))
+            return value.i32;
+        else
+            static assert(0);
+    }
+
+    void reset() pure
+    {
+        value.u64 = notSetValue.u64;
+    }
+
+    @property bool isValid() const pure
+    {
+        return value.u64 != notSetValue.u64;
     }
 
 public:
-    size_t value = notSetValue;
+    DbHandleStorage value;
+
+private:
+    DbHandleStorage notSetValue;
 }
 
 struct DbLockTable
@@ -972,7 +1042,7 @@ public:
 }
 
  /**
-  * First element is being used as conversion between bool and its string
+  * First element is being used as default value for conversion between bool and its' string
   */
 immutable string[] dbBoolFalses = ["False", "F", "No", "N", "0"];
 immutable string[] dbBoolTrues = ["True", "T", "Yes", "Y", "1"];
@@ -1011,7 +1081,14 @@ immutable DbTypeInfo[] dbNativeTypes = [
     {dbName:"", nativeName:"DbDateTime", displaySize:28, nativeSize:DbDateTime.sizeof, nativeId:0, dbType:DbType.datetime},
     {dbName:"", nativeName:"DbTime", displaySize:11, nativeSize:DbTime.sizeof, nativeId:0, dbType:DbType.time},
     {dbName:"", nativeName:"Decimal", displaySize:34, nativeSize:Decimal128.sizeof, nativeId:0, dbType:DbType.decimal},
-    {dbName:"", nativeName:Decimal128.stringof, displaySize:34, nativeSize:Decimal128.sizeof, nativeId:0, dbType:DbType.decimal},
+    {dbName:"", nativeName:"Decimal32", displaySize:17, nativeSize:Decimal32.sizeof, nativeId:0, dbType:DbType.decimal32},
+    {dbName:"", nativeName:"Decimal64", displaySize:21, nativeSize:Decimal64.sizeof, nativeId:0, dbType:DbType.decimal64},
+    {dbName:"", nativeName:"Decimal128", displaySize:34, nativeSize:Decimal128.sizeof, nativeId:0, dbType:DbType.decimal128},
+    {dbName:"", nativeName:"Numeric", displaySize:34, nativeSize:Decimal128.sizeof, nativeId:0, dbType:DbType.numeric},
+
+    {dbName:"", nativeName:Decimal32.stringof, displaySize:17, nativeSize:Decimal32.sizeof, nativeId:0, dbType:DbType.decimal32},
+    {dbName:"", nativeName:Decimal64.stringof, displaySize:21, nativeSize:Decimal64.sizeof, nativeId:0, dbType:DbType.decimal64},
+    {dbName:"", nativeName:Decimal128.stringof, displaySize:34, nativeSize:Decimal128.sizeof, nativeId:0, dbType:DbType.decimal128},
 
     // Alias
     {dbName:"", nativeName:"int8", displaySize:4, nativeSize:int8.sizeof, nativeId:0, dbType:DbType.int8},
@@ -1022,6 +1099,7 @@ immutable DbTypeInfo[] dbNativeTypes = [
     {dbName:"", nativeName:"uint32", displaySize:20, nativeSize:int64.sizeof, nativeId:0, dbType:DbType.int64},
     {dbName:"", nativeName:"int64", displaySize:20, nativeSize:int64.sizeof, nativeId:0, dbType:DbType.int64},
     {dbName:"", nativeName:"uint64", displaySize:20, nativeSize:int64.sizeof, nativeId:0, dbType:DbType.int64},
+    {dbName:"", nativeName:"int128", displaySize:41, nativeSize:BigInteger.sizeof, nativeId:0, dbType:DbType.int128},
     {dbName:"", nativeName:"float32", displaySize:17, nativeSize:float32.sizeof, nativeId:0, dbType:DbType.float32},
     {dbName:"", nativeName:"float64", displaySize:21, nativeSize:float64.sizeof, nativeId:0, dbType:DbType.float64},
     {dbName:"", nativeName:"DateTimeTZ", displaySize:28, nativeSize:DbDateTime.sizeof, nativeId:0, dbType:DbType.datetimeTZ},
@@ -1030,6 +1108,8 @@ immutable DbTypeInfo[] dbNativeTypes = [
 
 immutable DbTypeInfo*[DbType] dbTypeToDbTypeInfos;
 immutable DbTypeInfo*[string] nativeNameToDbTypeInfos;
+
+immutable char dbSchemeSeparator = ':';
 
 DbType dbArrayOf(DbType elementType) pure
 in
@@ -1152,7 +1232,7 @@ unittest // dbTypeOf
 {
     import std.datetime.systime;
     import pham.utl.utltest;
-    dgWriteln("unittest db.type.dbTypeOf");
+    traceUnitTest("unittest db.type.dbTypeOf");
 
     assert(dbTypeOf!bool() == DbType.boolean);
     assert(dbTypeOf!char() == DbType.chars);
@@ -1179,8 +1259,10 @@ unittest // dbTypeOf
     assert(dbTypeOf!DbTime() == DbType.time);
     assert(dbTypeOf!DbDateTime() == DbType.datetime);
     assert(dbTypeOf!(ubyte[])() == DbType.binary);
-    assert(dbTypeOf!Decimal128() == DbType.decimal);
     assert(dbTypeOf!UUID() == DbType.uuid);
+    assert(dbTypeOf!Decimal32() == DbType.decimal32, toName(dbTypeOf!Decimal32()));
+    assert(dbTypeOf!Decimal64() == DbType.decimal64, toName(dbTypeOf!Decimal64()));
+    assert(dbTypeOf!Decimal128() == DbType.decimal128, toName(dbTypeOf!Decimal128()));
 
     version (none)
     {

@@ -13,6 +13,7 @@ module pham.db.value;
 
 import std.datetime.date : DateTime, TimeOfDay;
 import std.datetime.systime : SysTime;
+import std.math : isNaN;
 import std.range.primitives: ElementType;
 import std.traits : isArrayT = isArray, Unqual;
 
@@ -162,153 +163,174 @@ private:
         static if (typeid(T) is typeid(null))
         {
             // Do not reset _type to keep track of type, just value
-            this._value.nullify();
             if (rhsTypeIf != DbType.unknown)
                 this._type = rhsTypeIf;
+            this._value.nullify();
         }
         else static if (is(UT == bool))
         {
-            this._value = rhs;
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.boolean;
+            this._value = rhs;
         }
         else static if (is(UT == byte))
         {
-            this._value = rhs;
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.int8;
+            this._value = rhs;
         }
         else static if (is(UT == ubyte) || is(UT == short))
         {
-            this._value = cast(short)rhs;
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.int16;
+            this._value = cast(short)rhs;
         }
         else static if (is(UT == ushort) || is(UT == int))
         {
-            this._value = cast(int)rhs;
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.int32;
+            this._value = cast(int)rhs;
         }
         else static if (is(UT == uint) || is(UT == long) || is(UT == ulong))
         {
-            this._value = cast(long)rhs;
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.int64;
+            this._value = cast(long)rhs;
         }
         else static if (is(UT == float))
         {
-            import std.math : isNaN;
-
+            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.float32;
             if (rhs.isNaN)
                 this._value.nullify();
             else
                 this._value = rhs;
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.float32;
         }
         else static if (is(UT == double))
         {
-            import std.math : isNaN;
-
+            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.float64;
             if (rhs.isNaN)
                 this._value.nullify();
             else
                 this._value = rhs;
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.float64;
         }
         else static if (is(UT == real))
         {
-            import std.math : isNaN;
-
+            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.float64;
             if (rhs.isNaN)
                 this._value.nullify();
             else
                 this._value = cast(double)rhs;
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.float64;
         }
         else static if (is(UT == Date))
         {
-            this._value = rhs;
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.date;
+            this._value = rhs;
         }
         else static if (is(UT == DbDateTime))
         {
+            this._type = rhsTypeIf != DbType.unknown
+                ? rhsTypeIf
+                : (rhs.isTZ ? DbType.datetimeTZ : DbType.datetime);
             this._value = rhs;
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : (rhs.isTZ ? DbType.datetimeTZ : DbType.datetime);
         }
         else static if (is(UT == DbTime))
         {
+            this._type = rhsTypeIf != DbType.unknown
+                ? rhsTypeIf
+                : (rhs.isTZ ? DbType.timeTZ : DbType.time);
             this._value = rhs;
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : (rhs.isTZ ? DbType.timeTZ : DbType.time);
         }
         // Map to DbDateTime
         else static if (is(UT == DateTime))
         {
-            this._value = DbDateTime(rhs);
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.datetime;
+            this._value = DbDateTime(rhs);
         }
         // Map to DbTime
         else static if (is(UT == TimeOfDay))
         {
-            this._value = DbTime(rhs);
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.time;
+            this._value = DbTime(rhs);
         }
         // Map to DbDateTime
         else static if (is(UT == SysTime))
         {
             auto rhsConvert = DbDateTime.toDbDateTime(rhs);
+            this._type = rhsTypeIf != DbType.unknown
+                ? rhsTypeIf
+                : (rhsConvert.isTZ ? DbType.datetimeTZ : DbType.datetime);
             this._value = rhsConvert;
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : (rhsConvert.isTZ ? DbType.datetimeTZ : DbType.datetime);
         }
         else static if (is(UT == UUID))
         {
-            this._value = rhs;
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.uuid;
+            this._value = rhs;
         }
         else static if (is(UT == char) || is(UT == wchar) || is(UT == dchar))
         {
-            this._value = toString(rhs);
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.chars;
+            this._value = toString(rhs);
         }
         else static if (is(T == string))
         {
-            this._value = rhs;
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.string;
+            this._value = rhs;
         }
         else static if (is(T == wstring) || is(T == dstring))
         {
-            this._value = toString(rhs);
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.string;
+            this._value = toString(rhs);
         }
         else static if (is(UT == char[]))
         {
-            this._value = rhs;
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.chars;
+            this._value = rhs;
         }
         else static if (is(UT == ubyte[]))
         {
-            this._value = rhs;
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.binary;
+            this._value = rhs;
         }
-        else static if (is(UT == Decimal32) || is(UT == Decimal64) || is(UT == Decimal128))
+        else static if (is(UT == Decimal32))
         {
+            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.decimal32;
             if (rhs.isNaN)
                 this._value.nullify();
             else
                 this._value = rhs;
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.decimal;
+        }
+        else static if (is(UT == Decimal64))
+        {
+            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.decimal64;
+            if (rhs.isNaN)
+                this._value.nullify();
+            else
+                this._value = rhs;
+        }
+        else static if (is(UT == Decimal128))
+        {
+            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.decimal128;
+            if (rhs.isNaN)
+                this._value.nullify();
+            else
+                this._value = rhs;
+        }
+        else static if (is(UT == BigInteger))
+        {
+            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.int128;
+            this._value = rhs;
         }
         else static if (is(UT == DbValue))
         {
-            this._value = rhs._value;
             this._type = rhs._type;
+            this._value = rhs._value;
             return;
         }
         else static if (is(T == struct))
         {
-            this._value = rhs;
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.record;
+            this._value = rhs;
         }
         else static if (isArrayT!T)
         {
             alias E = ElementType!T;
-            this._value = rhs;
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : (DbType.array | dbTypeOf!E());
+            this._value = rhs;
         }
         else
             static assert(0, "Not supported type: " ~ T.stringof);
@@ -546,7 +568,7 @@ private:
 unittest // DbValue
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.value.DbValue");
+    traceUnitTest("unittest db.value.DbValue");
 
     DbValue vb = DbValue(true);
     assert(vb.value == true);

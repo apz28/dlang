@@ -246,10 +246,12 @@ public:
 		    case FbIscType.SQL_TIME_TZ_EX:
 			    _buffer.writeUInt8(FbBlrType.blr_ex_time_tz);
 			    break;
-		    case FbIscType.SQL_DEC_FIXED:
+		    /*
+            case FbIscType.SQL_DEC_FIXED:
 			    _buffer.writeUInt8(FbBlrType.blr_int128);
 			    _buffer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
+            */
 		    case FbIscType.SQL_DEC64:
 			    _buffer.writeUInt8(FbBlrType.blr_dec64);
 			    _buffer.writeUInt8(cast(ubyte)baseType.numericScale);
@@ -615,8 +617,11 @@ public:
 				return decimalDecode!(D, float64)(readFloat64(), baseType.numericScale);
     		case FbIscType.SQL_FLOAT:
 				return decimalDecode!(D, float32)(readFloat32(), baseType.numericScale);
+            case FbIscType.SQL_DEC64:
+            case FbIscType.SQL_DEC128:
+                auto bytes = _buffer.readBytes(decimalByteLength!D());
+                return decimalDecode!D(bytes);
 			default:
-                //TODO for new decimal
                 assert(0);
 		}
     }
@@ -670,6 +675,12 @@ public:
     int64 readInt64()
     {
         return _buffer.readInt64();
+    }
+
+    BigInteger readInt128()
+    {
+        auto buffer = new ubyte[int128ByteLength];
+        return int128Decode(_buffer.readBytes(buffer));
     }
 
     ubyte[] readOpaqueBytes(size_t forLength)
@@ -973,8 +984,11 @@ public:
 				return writeFloat64(decimalEncode!(D, float64)(v, baseType.numericScale));
     		case FbIscType.SQL_FLOAT:
 				return writeFloat32(decimalEncode!(D, float32)(v, baseType.numericScale));
+            case FbIscType.SQL_DEC64:
+            case FbIscType.SQL_DEC128:
+                _buffer.writeBytes(decimalEncode!D(v));
+                return;
 			default:
-                //TODO for new decimal
                 assert(0);
 		}
     }
@@ -1045,6 +1059,14 @@ public:
     void writeInt64(int64 v) nothrow
     {
         _buffer.writeInt64(v);
+    }
+
+    void writeInt128(in BigInteger v) nothrow
+    {
+        ubyte[int128ByteLength] bytes;
+        const e = int128Encode(v, bytes);
+        assert(e);
+        _buffer.writeBytes(bytes);
     }
 
     void writeOpaqueBytes(scope const(ubyte)[] v, size_t forLength) nothrow
@@ -1161,7 +1183,7 @@ private:
 unittest // FbXdrWriter & FbXdrReader
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.fbbuffer.FbXdrReader & db.fbbuffer.FbXdrWriter");
+    traceUnitTest("unittest db.fbbuffer.FbXdrReader & db.fbbuffer.FbXdrWriter");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
 

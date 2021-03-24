@@ -166,7 +166,7 @@ private:
 unittest // DbBufferFilterCompressorZip
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.buffer_filter_compressor.DbBufferFilterCompressorZip");
+    traceUnitTest("unittest db.buffer_filter_compressor.DbBufferFilterCompressorZip");
 
 	auto compress = new DbBufferFilterCompressorZip!(DbBufferFilterKind.write)();
 	auto uncompress = new DbBufferFilterCompressorZip!(DbBufferFilterKind.read)();

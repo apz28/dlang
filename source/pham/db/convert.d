@@ -190,7 +190,7 @@ private:
 unittest // toInt
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.util.toInt");
+    traceUnitTest("unittest db.util.toInt");
 
     assert(toInt!int("") == 0);
     assert(toInt!int("", int.max) == int.max);
@@ -203,7 +203,7 @@ unittest // toInt
 unittest // toString
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.util.toString");
+    traceUnitTest("unittest db.util.toString");
 
     assert(toString('a') == "a");
     assert(toString(wchar('b')) == "b");

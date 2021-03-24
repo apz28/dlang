@@ -101,14 +101,14 @@ immutable DbTypeInfo[] fbNativeTypes = [
     {dbName:"", nativeName:"TIME", displaySize:11, nativeSize:4, nativeId:FbIscType.SQL_TIME, dbType:DbType.time},
     {dbName:"", nativeName:"DATE", displaySize:10, nativeSize:4, nativeId:FbIscType.SQL_DATE, dbType:DbType.date},
     {dbName:"", nativeName:"INT64", displaySize:20, nativeSize:8, nativeId:FbIscType.SQL_INT64, dbType:DbType.int64},
-    {dbName:"", nativeName:"INT128", displaySize:40, nativeSize:16, nativeId:FbIscType.SQL_INT128, dbType:DbType.decimal},
+    {dbName:"", nativeName:"INT128", displaySize:40, nativeSize:16, nativeId:FbIscType.SQL_INT128, dbType:DbType.int128},
     {dbName:"", nativeName:"TIMESTAMP WITH TIMEZONE", displaySize:28, nativeSize:10, nativeId:FbIscType.SQL_TIMESTAMP_TZ, dbType:DbType.datetimeTZ},
     {dbName:"", nativeName:"TIMESTAMP WITH OFFSET TIMEZONE", displaySize:28, nativeSize:10, nativeId:FbIscType.SQL_TIMESTAMP_TZ_EX, dbType:DbType.datetimeTZ},
     {dbName:"", nativeName:"TIME WITH TIMEZONE", displaySize:17, nativeSize:6, nativeId:FbIscType.SQL_TIME_TZ, dbType:DbType.timeTZ},
     {dbName:"", nativeName:"TIME WITH OFFSET TIMEZONE", displaySize:17, nativeSize:6, nativeId:FbIscType.SQL_TIME_TZ_EX, dbType:DbType.timeTZ},
-    {dbName:"", nativeName:"DECFIXED", displaySize:34, nativeSize:16, nativeId:FbIscType.SQL_DEC_FIXED, dbType:DbType.decimal},
-    {dbName:"", nativeName:"DECFLOAT(16)", displaySize:16, nativeSize:8, nativeId:FbIscType.SQL_DEC64, dbType:DbType.decimal},
-    {dbName:"", nativeName:"DECFLOAT(34)", displaySize:34, nativeSize:16, nativeId:FbIscType.SQL_DEC128, dbType:DbType.decimal},
+    //{dbName:"", nativeName:"DECFIXED", displaySize:34, nativeSize:16, nativeId:FbIscType.SQL_DEC_FIXED, dbType:DbType.decimal},
+    {dbName:"", nativeName:"DECFLOAT(16)", displaySize:16, nativeSize:8, nativeId:FbIscType.SQL_DEC64, dbType:DbType.decimal64},
+    {dbName:"", nativeName:"DECFLOAT(34)", displaySize:34, nativeSize:16, nativeId:FbIscType.SQL_DEC128, dbType:DbType.decimal128},
     {dbName:"", nativeName:"BOOLEAN", displaySize:5, nativeSize:1, nativeId:FbIscType.SQL_BOOLEAN, dbType:DbType.boolean},
     {dbName:"", nativeName:"NULL", displaySize:4, nativeSize:0, nativeId:FbIscType.SQL_NULL, dbType:DbType.unknown}
 ];
@@ -260,7 +260,7 @@ public:
     }
 
 public:
-    int selectOrBind; // FbIsc.isc_info_sql_select or FbIsc.isc_info_sql_bind
+    int32 selectOrBind; // FbIsc.isc_info_sql_select or FbIsc.isc_info_sql_bind
 
 private:
     FbIscFieldInfo[] _fields;
@@ -407,7 +407,7 @@ struct FbIscFetchResponse
 nothrow @safe:
 
 public:
-    this(int32 status, int count) pure
+    this(int32 status, int32 count) pure
     {
         this.status = status;
         this.count = count;
@@ -424,7 +424,7 @@ public:
     }
 
 public:
-    int count;
+    int32 count;
     int32 status;
 }
 
@@ -539,11 +539,13 @@ public:
         {
             switch (t)
             {
-		        case FbIscType.SQL_LONG:
 		        case FbIscType.SQL_SHORT:
+		        case FbIscType.SQL_LONG:
+                    result = DbType.decimal32;
+                    break;
 		        case FbIscType.SQL_QUAD:
 		        case FbIscType.SQL_INT64:
-                    result = DbType.decimal;
+                    result = DbType.decimal64;
                     break;
                 default:
                     break;
@@ -633,7 +635,7 @@ public:
              t == FbIscType.SQL_LONG ||
              t == FbIscType.SQL_QUAD ||
              t == FbIscType.SQL_INT64 ||
-             t == FbIscType.SQL_DEC_FIXED ||
+             //t == FbIscType.SQL_DEC_FIXED ||
              t == FbIscType.SQL_DEC64 ||
              t == FbIscType.SQL_DEC128
             );
@@ -696,9 +698,9 @@ public:
         this.statues = statues;
     }
 
-    FbIscObject getIscObject() pure
+    FbIscObject getIscObject() const pure
     {
-        return FbIscObject(id, handle);
+        return FbIscObject(handle, id);
     }
 
 public:
@@ -797,25 +799,53 @@ struct FbIscObject
 nothrow @safe:
 
 public:
+    this(FbHandle handle, FbId id) pure
+    {
+        this._handleStorage = handle;
+        this._idStorage = id;
+    }
+
     void reset() pure
     {
-        id = 0;
-        handle = DbHandle.notSetValue;
+        _handleStorage.reset();
+        _idStorage.reset();
     }
 
     void resetHandle() pure
     {
-        handle = DbHandle.notSetValue;
+        _handleStorage.reset();
     }
 
     @property bool hasHandle() const pure
     {
-        return handle != DbHandle.notSetValue;
+        return _handleStorage.isValid;
     }
 
-public:
-    FbId id;
-    FbHandle handle = DbHandle.notSetValue;
+    @property FbHandle handle() const pure
+    {
+        return _handleStorage.get!FbHandle();
+    }
+
+    @property ref FbIscObject handle(const FbHandle newValue) pure return
+    {
+        _handleStorage = newValue;
+        return this;
+    }
+
+    @property FbId id() const pure
+    {
+        return _idStorage.get!FbId();
+    }
+
+    @property ref FbIscObject id(const FbId newValue) pure return
+    {
+        _idStorage = newValue;
+        return this;
+    }
+
+private:
+    DbHandle _handleStorage;
+    DbHandle _idStorage = DbHandle(0);
 }
 
 struct FbIscSqlResponse
@@ -823,13 +853,13 @@ struct FbIscSqlResponse
 nothrow @safe:
 
 public:
-    this(long count) pure
+    this(int64 count) pure
     {
         this.count = count;
     }
 
 public:
-    long count;
+    int64 count;
 }
 
 struct FbIscStatues
@@ -957,11 +987,11 @@ struct FbProtocolInfo
 nothrow @safe:
 
 public:
-    int version_;
-    int achitectureClient;
-    int minType;
-    int maxType;
-    int priority;
+    int32 version_;
+    int32 achitectureClient;
+    int32 minType;
+    int32 maxType;
+    int32 priority;
 }
 
 version (none)

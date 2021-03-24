@@ -17,7 +17,6 @@ import std.socket : socket_t, Address, AddressFamily, InternetAddress, lastSocke
 import std.system : Endian;
 
 version (unittest) import pham.utl.utltest;
-import pham.utl.utlobject;
 import pham.db.dbobject;
 import pham.db.message;
 import pham.db.exception;
@@ -78,6 +77,17 @@ public:
     this(DbDatabase database, string connectionString) nothrow @safe
     {
         super(database, connectionString);
+    }
+
+    this(DbDatabase database, SkConnectionStringBuilder connectionStringBuilder) nothrow @safe
+    in
+    {
+        assert(connectionStringBuilder !is null);
+        assert(connectionStringBuilder.scheme == scheme);
+    }
+    do
+    {
+        super(database, connectionStringBuilder);
     }
 
     final void chainBufferFilters(DbBufferFilter readFilter, DbBufferFilter writeFilter) @safe

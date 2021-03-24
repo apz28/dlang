@@ -47,15 +47,12 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto reader = PgReader(connection);
-
     receiveAgain:
-        auto messageType = reader.readMessage();
-        switch (messageType)
+        auto reader = PgReader(connection);
+        switch (reader.messageType)
         {
             case '2': // BindComplete
             case '3': // CloseComplete
-                reader.skipLastMessage();
                 goto receiveAgain;
 
             case 'E': // ErrorResponse
@@ -64,7 +61,6 @@ public:
                 throw new PgException(EResponse);
 
             case 'n': // NoData (response to Describe)
-                reader.skipLastMessage();
                 return null;
 
             case 'T': // RowDescription (response to Describe)
@@ -83,7 +79,6 @@ public:
                 return result;
 
             default: // async notice, notification
-                reader.skipLastMessage();
                 goto receiveAgain;
         }
     }
@@ -114,11 +109,10 @@ public:
         version (TraceFunction) dgFunctionTrace();
 
         auto useCSB = connection.pgConnectionStringBuilder;
-        auto reader = PgReader(connection);
 
     receiveAgain:
-        auto messageType = reader.readMessage();
-        switch (messageType)
+        auto reader = PgReader(connection);
+        switch (reader.messageType)
         {
             case 'E': // ErrorResponse
                 auto EResponse = readGenericResponse(reader);
@@ -141,7 +135,6 @@ public:
                 switch (authType)
                 {
                     case 0: // authentication successful, now wait for another messages
-                        reader.skipLastMessage();
                         goto receiveAgain;
 
                     case 3: // clear-text password is required
@@ -185,7 +178,6 @@ public:
                 return;
 
             default: // unknown message type, ignore it
-                reader.skipLastMessage();
                 goto receiveAgain;
         }
     }
@@ -242,16 +234,18 @@ public:
         clearServerInfo();
     }
 
-    final PgOIdExecuteResult executeCommandRead(PgCommand command, DbCommandExecuteType type)
+    final PgOIdExecuteResult executeCommandRead(PgCommand command, DbCommandExecuteType type, out PgReader reader)
     {
+        // Need to return package reader to continue reading row values
+
         version (TraceFunction) dgFunctionTrace("type=", type);
 
         PgOIdExecuteResult result;
-        auto reader = PgReader(connection);
 
 	receiveAgain:
-        result.messageType = reader.readMessage();
-		switch (result.messageType)
+        reader = PgReader(connection);
+        result.messageType = reader.messageType;
+		switch (reader.messageType)
         {
             case 'C': // CommandComplete
                 auto tag = reader.readCString();
@@ -295,19 +289,15 @@ public:
                 throw new PgException(EResponse);
 
             case 'I': // EmptyQueryResponse
-                reader.skipLastMessage();
                 throw new PgException(DbMessage.eInvalidCommandText, DbErrorCode.read, 0, 0);
 
             case 'Z': // ReadyForQuery - done
-                reader.skipLastMessage();
                 break;
 
             case 's': // PortalSuspended
-                reader.skipLastMessage();
                 throw new PgException(DbMessage.eInvalidCommandSuspended, DbErrorCode.read, 0, 0);
 
             default: // async notice, notification
-                reader.skipLastMessage();
                 goto receiveAgain;
         }
 
@@ -325,21 +315,23 @@ public:
         writer.flush();
     }
 
-    final PgOIdFetchResult fetchCommandRead(PgCommand command)
+    final PgOIdFetchResult fetchCommandRead(PgCommand command, out PgReader reader)
     in
     {
         assert(command.hasFields);
     }
     do
     {
+        // Need to return package reader to continue reading row values
+
         version (TraceFunction) dgFunctionTrace();
 
         PgOIdFetchResult result;
-        auto reader = PgReader(connection);
 
 	receiveAgain:
-        result.messageType = reader.readMessage();
-		switch (result.messageType)
+        reader = PgReader(connection);
+        result.messageType = reader.messageType;
+		switch (reader.messageType)
         {
             case 'D': // DataRow - Let caller to read the row result
                 break;
@@ -349,11 +341,9 @@ public:
                 throw new PgException(EResponse);
 
             case 'Z': // ReadyForQuery - done
-                reader.skipLastMessage();
                 break;
 
             default: // async notice, notification
-                reader.skipLastMessage();
                 goto receiveAgain;
         }
 
@@ -374,14 +364,11 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto reader = PgReader(connection);
-
 	receiveAgain:
-        auto messageType = reader.readMessage();
-		switch (messageType)
+        auto reader = PgReader(connection);
+		switch (reader.messageType)
         {
             case '1': // ParseComplete
-                reader.skipLastMessage();
                 return;
 
             case 'E': // ErrorResponse
@@ -390,7 +377,6 @@ public:
                 throw new PgException(EResponse);
 
             default: // async notice, notification
-                reader.skipLastMessage();
                 goto receiveAgain;
         }
     }
@@ -437,8 +423,18 @@ public:
                     return DbValue(readValueArray!int32(command, reader, column, valueLength), column.type);
                 case DbType.int64:
                     return DbValue(readValueArray!int64(command, reader, column, valueLength), column.type);
+                case DbType.int128:
+                    return DbValue(readValueArray!int128(command, reader, column, valueLength), column.type);
                 case DbType.decimal:
+                    return DbValue(readValueArray!Decimal(command, reader, column, valueLength), column.type);
+                case DbType.decimal32:
+                    return DbValue(readValueArray!Decimal32(command, reader, column, valueLength), column.type);
+                case DbType.decimal64:
                     return DbValue(readValueArray!Decimal64(command, reader, column, valueLength), column.type);
+                case DbType.decimal128:
+                    return DbValue(readValueArray!Decimal128(command, reader, column, valueLength), column.type);
+                case DbType.numeric:
+                    return DbValue(readValueArray!Numeric(command, reader, column, valueLength), column.type);
                 case DbType.float32:
                     return DbValue(readValueArray!float32(command, reader, column, valueLength), column.type);
                 case DbType.float64:
@@ -485,8 +481,18 @@ public:
                 return DbValue(checkValueLength(4).readInt32(), column.type);
             case DbType.int64:
                 return DbValue(checkValueLength(8).readInt64(), column.type);
+            case DbType.int128:
+                return DbValue(checkValueLength(16).readInt128(), column.type);
             case DbType.decimal:
+                return DbValue(checkValueLength(0).readDecimal!Decimal(column.baseType), column.type);
+            case DbType.decimal32:
+                return DbValue(checkValueLength(0).readDecimal!Decimal32(column.baseType), column.type);
+            case DbType.decimal64:
                 return DbValue(checkValueLength(0).readDecimal!Decimal64(column.baseType), column.type);
+            case DbType.decimal128:
+                return DbValue(checkValueLength(0).readDecimal!Decimal128(column.baseType), column.type);
+            case DbType.numeric:
+                return DbValue(checkValueLength(0).readDecimal!Numeric(column.baseType), column.type);
             case DbType.float32:
                 return DbValue(checkValueLength(4).readFloat32(), column.type);
             case DbType.float64:
@@ -586,6 +592,8 @@ public:
                 result[i] = checkValueLength(elementValueLength, 4).readInt32();
             else static if (is(T == int64))
                 result[i] = checkValueLength(elementValueLength, 8).readInt64();
+            else static if (is(T == int128))
+                result[i] = checkValueLength(elementValueLength, 16).readInt128();
             else static if (is(T == Decimal32) || is(T == Decimal64) || is(T == Decimal128))
                 result[i] = checkValueLength(elementValueLength, 0).readDecimal!T(column.baseType);
             else static if (is(T == float32))
@@ -630,11 +638,10 @@ public:
         throw new PgException(msg, DbErrorCode.read, 0, 0);
     }
 
-    final DbRowValue readValues(PgCommand command, PgFieldList fields)
+    final DbRowValue readValues(PgCommand command, ref PgReader reader, PgFieldList fields)
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto reader = PgReader(connection);
         const fieldCount = reader.readFieldCount();
 
         version (TraceFunction) dgFunctionTrace("fieldCount=", fieldCount, ", fields.length=", fields.length);
@@ -656,14 +663,11 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto reader = PgReader(connection);
-
     receiveAgain:
-        auto messageType = reader.readMessage();
-        switch (messageType)
+        auto reader = PgReader(connection);
+        switch (reader.messageType)
         {
             case '3': // CloseComplete
-                reader.skipLastMessage();
                 return;
 
             case 'E': // ErrorResponse
@@ -671,7 +675,6 @@ public:
                 throw new PgException(EResponse);
 
             default: // async notice, notification
-                reader.skipLastMessage();
                 goto receiveAgain;
         }
     }
@@ -698,7 +701,7 @@ public:
             if (type == 0)
                 break;
 
-            auto value = cast(string)reader.readCChars();
+            auto value = reader.readCString();
             result.typeValues[cast(char)type] = value;
         }
 
@@ -827,8 +830,18 @@ protected:
                     return describeValueArray!int32(writer, column, value, PgOIdType.int4);
                 case DbType.int64:
                     return describeValueArray!int64(writer, column, value, PgOIdType.int8);
+                case DbType.int128:
+                    return describeValueArray!int64(writer, column, value, PgOIdType.unknown); //TODO they do not have this type
                 case DbType.decimal:
+                    return describeValueArray!Decimal(writer, column, value, PgOIdType.numeric);
+                case DbType.decimal32:
+                    return describeValueArray!Decimal32(writer, column, value, PgOIdType.numeric);
+                case DbType.decimal64:
                     return describeValueArray!Decimal64(writer, column, value, PgOIdType.numeric);
+                case DbType.decimal128:
+                    return describeValueArray!Decimal128(writer, column, value, PgOIdType.numeric);
+                case DbType.numeric:
+                    return describeValueArray!Numeric(writer, column, value, PgOIdType.numeric);
                 case DbType.float32:
                     return describeValueArray!float32(writer, column, value, PgOIdType.float4);
                 case DbType.float64:
@@ -888,8 +901,23 @@ protected:
             case DbType.int64:
                 valueWriter.writeInt64(value.coerce!int64());
                 return;
+            case DbType.int128:
+                valueWriter.writeInt128(value.get!BigInteger());
+                return;
             case DbType.decimal:
+                valueWriter.writeDecimal!Decimal(value.get!Decimal(), column.baseType);
+                return;
+            case DbType.decimal32:
+                valueWriter.writeDecimal!Decimal32(value.get!Decimal32(), column.baseType);
+                return;
+            case DbType.decimal64:
                 valueWriter.writeDecimal!Decimal64(value.get!Decimal64(), column.baseType);
+                return;
+            case DbType.decimal128:
+                valueWriter.writeDecimal!Decimal128(value.get!Decimal128(), column.baseType);
+                return;
+            case DbType.numeric:
+                valueWriter.writeDecimal!Numeric(value.get!Numeric(), column.baseType);
                 return;
             case DbType.float32:
                 valueWriter.writeFloat32(value.coerce!float32());
@@ -1102,7 +1130,7 @@ char[] MD5toHex(T...)(in T data) nothrow @safe
 unittest // computeMD5HashPassword
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.pgprotocol.computeMD5HashPassword");
+    traceUnitTest("unittest db.pgprotocol.computeMD5HashPassword");
 
     auto salt = bytesFromHexs("9F170CAC");
     auto encp = PgProtocol.computeMD5HashPassword("postgres", "masterkey", salt);

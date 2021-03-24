@@ -116,7 +116,8 @@ void dateTimeEncodeTZ(in DbDateTime value, out int64 pgTime, out int32 pgZone)
     pgZone = 0;
 }
 
-Decimal64 numericDecode(in PgOIdNumeric pgNumeric)
+D numericDecode(D)(in PgOIdNumeric pgNumeric)
+if (isDecimal!D)
 {
 	scope (failure) assert(0);
 
@@ -128,7 +129,7 @@ Decimal64 numericDecode(in PgOIdNumeric pgNumeric)
         ", digits=", pgNumeric.digits);
 
     if (pgNumeric.isNaN)
-        return Decimal64.nan;
+        return D.nan;
 
     size_t vInd;
     char[] value = new char[](pgNumeric.digitLength());
@@ -215,10 +216,11 @@ Decimal64 numericDecode(in PgOIdNumeric pgNumeric)
     version (TraceFunction)
     dgFunctionTrace("vInd=", vInd, ", value.length=", value.length, ", value=", value[0..vInd]);
 
-	return Decimal64(value[0..vInd]);
+	return D(value[0..vInd]);
 }
 
-PgOIdNumeric numericEncode(in Decimal64 value)
+PgOIdNumeric numericEncode(D)(in D value)
+if (isDecimal!D)
 {
 	if (value.isNaN)
 		return PgOIdNumeric.NaN;
@@ -363,19 +365,19 @@ shared static this()
 unittest // numericDecode
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.pgconvert.numericDecode");
+    traceUnitTest("unittest db.pgconvert.numericDecode");
 
 	PgOIdNumeric n5_40 = {ndigits:2, weight:0, sign:0, dscale:2, digits:[5, 4000]};
 	PgOIdNumeric n6_50 = {ndigits:2, weight:0, sign:0, dscale:2, digits:[6, 5000]};
 
-	assert(numericDecode(n5_40) == toDecimal!Decimal64("5.40"));
-	assert(numericDecode(n6_50) == toDecimal!Decimal64("6.50"));
+	assert(numericDecode!Decimal64(n5_40) == toDecimal!Decimal64("5.40"));
+	assert(numericDecode!Decimal64(n6_50) == toDecimal!Decimal64("6.50"));
 }
 
 unittest // numericEncode
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.pgconvert.numericEncode");
+    traceUnitTest("unittest db.pgconvert.numericEncode");
 
 	// Scale=1 because Decimal.toString will truncate trailing zero
 	PgOIdNumeric n5_40 = {ndigits:2, weight:0, sign:0, dscale:1, digits:[5, 4000]};
@@ -391,13 +393,13 @@ unittest // numericEncode
     }
 
 	auto dec5_40 = toDecimal!Decimal64("5.40");
-	auto num5_40 = numericEncode(dec5_40);
+	auto num5_40 = numericEncode!Decimal64(dec5_40);
 	//dgFunctionTrace(dec5_40.toString());
 	//traceNumeric(num5_40);
 	//traceNumeric(n5_40);
 	assert(num5_40 == n5_40);
 
 	auto dec6_50 = toDecimal!Decimal64("6.50");
-	auto num6_50 = numericEncode(dec6_50);
+	auto num6_50 = numericEncode!Decimal64(dec6_50);
 	assert(num6_50 == n6_50);
 }

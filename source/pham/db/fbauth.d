@@ -130,9 +130,9 @@ public:
             dgFunctionTrace("keyLength=", keyLength,
                 ", saltLength=", saltLength,
                 ", serverAuthDataLength=", serverAuthDataOrg.length,
-                ", serverPublicKey=", serverPublicKey.dgToString(),
-                ", serverSalt=", serverSalt.dgToString(),
-                ", serverAuthData=", serverAuthDataOrg.dgToString());
+                ", serverPublicKey=", serverPublicKey.dgToHex(),
+                ", serverSalt=", serverSalt.dgToHex(),
+                ", serverAuthData=", serverAuthDataOrg.dgToHex());
         }
 
         return true;
@@ -194,7 +194,7 @@ private:
 unittest // FbAuth.normalizeUserName
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.FbAuth.normalizeUserName");
+    traceUnitTest("unittest db.FbAuth.normalizeUserName");
 
     assert(FbAuth.normalizeUserName("sysdba") == "SYSDBA");
     assert(FbAuth.normalizeUserName("\"sysdba\"") == "sysdba");

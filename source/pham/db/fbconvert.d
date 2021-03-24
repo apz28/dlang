@@ -12,12 +12,18 @@
 module pham.db.fbconvert;
 
 import core.time : Duration, dur;
+import std.algorithm.mutation : reverse;
 import std.conv : to;
 import std.datetime.date : TimeOfDay;
 import std.datetime.systime : SysTime;
 import std.exception : assumeWontThrow;
+import std.system : Endian, endian;
+import std.typecons : No;
+
+import decimal.codec;
 
 version (unittest) import pham.utl.utltest;
+import pham.utl.biginteger : toBigEndianFlag;
 import pham.db.type;
 import pham.db.convert;
 import pham.db.fbisc;
@@ -136,6 +142,91 @@ void dateTimeEncodeTZ(in DbDateTime value, out int32 fbDate, out int32 fbTime, o
 	fbZoneOffset = 0; // Already in UTC so set it to zero
 }
 
+size_t decimalByteLength(D)() pure
+if (isDecimal!D)
+{
+	static if (D.bitLength == 32)
+		return DecimalCodec32.formatByteLength;
+	else static if (D.bitLength == 64)
+		return DecimalCodec64.formatByteLength;
+	else static if (D.bitLength == 128)
+		return DecimalCodec128.formatByteLength;
+	else
+		static assert(0);
+}
+
+D decimalDecode(D)(scope ubyte[] bytes)
+if (isDecimal!D)
+{
+	static ubyte[] endianValue(scope ubyte[] value) nothrow pure @safe
+    {
+		return endian == Endian.bigEndian ? value : reverse(value);
+    }
+
+	static if (D.bitLength == 32)
+		return DecimalCodec32.decode(endianValue(bytes));
+	else static if (D.bitLength == 64)
+		return DecimalCodec64.decode(endianValue(bytes));
+	else static if (D.bitLength == 128)
+		return DecimalCodec128.decode(endianValue(bytes));
+	else
+		static assert(0);
+}
+
+ubyte[] decimalEncode(D)(in D value)
+if (isDecimal!D)
+{
+	static ubyte[] endianResult(ubyte[] bytes) nothrow pure @safe
+    {
+		return endian == Endian.bigEndian ? bytes : reverse(bytes);
+    }
+
+	static if (D.bitLength == 32)
+		return endianResult(DecimalCodec32.encode(value).dup);
+	else static if (D.bitLength == 64)
+		return endianResult(DecimalCodec64.encode(value).dup);
+	else static if (D.bitLength == 128)
+		return endianResult(DecimalCodec128.encode(value).dup);
+	else
+		static assert(0);
+}
+
+enum int128ByteLength = 16;
+
+BigInteger int128Decode(scope const(ubyte)[] bytes)
+in
+{
+	assert(bytes.length == int128ByteLength);
+}
+do
+{
+	return BigInteger(bytes, No.unsigned, toBigEndianFlag(endian == Endian.bigEndian));
+}
+
+bool int128Encode(in BigInteger value, ref ubyte[int128ByteLength] bytes)
+{
+	auto b = value.toBytes();
+
+    // Too big?
+	if (b.length > int128ByteLength)
+		return false;
+
+	// Pad?
+	if (b.length < int128ByteLength)
+    {
+		const ubyte padValue = value.sign == -1 ? 255u : 0u;
+		const oldLength = b.length;
+		b.length = int128ByteLength;
+		b[oldLength..$] = padValue;
+    }
+
+	if (endian == Endian.bigEndian)
+		b = b.reverse();
+
+	bytes[] = b[0..int128ByteLength];
+	return true;
+}
+
 DbTime timeDecode(int32 fbTime)
 {
 	return DbTime(timeToDuration(fbTime));
@@ -185,7 +276,7 @@ private:
 unittest // dateDecode & dateEncode
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.fbconvert.dateDecode & dateEncode");
+    traceUnitTest("unittest db.fbconvert.dateDecode & dateEncode");
 
 	enum orgFbDate = 58_989;
 
@@ -201,7 +292,7 @@ unittest // dateDecode & dateEncode
 unittest // timeDecode & timeEncode
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.fbconvert.timeDecode & timeEncode");
+    traceUnitTest("unittest db.fbconvert.timeDecode & timeEncode");
 
 	enum orgFbTime = 36_610_000;
 
@@ -212,4 +303,49 @@ unittest // timeDecode & timeEncode
 
 	auto fbTime = timeEncode(time);
 	assert(fbTime == orgFbTime, to!string(fbTime) ~ " ? " ~ to!string(orgFbTime));
+}
+
+unittest // int128Decode & int128Encode
+{
+	import pham.utl.utlobject : bytesFromHexs;
+    import pham.utl.utltest;
+    traceUnitTest("unittest db.fbconvert.int128Decode & int128Encode");
+
+	static BigInteger safeBigInteger(string value) nothrow pure @safe
+    {
+		scope (failure) assert(0);
+		return BigInteger(value);
+    }
+
+	BigInteger v, v2;
+	ubyte[int128ByteLength] b;
+	bool c;
+
+	v = BigInteger(1234);
+	c = int128Encode(v, b);
+	assert(c);
+	assert(b == bytesFromHexs("D2040000000000000000000000000000"));
+	v2 = int128Decode(b);
+	assert(v2 == v);
+
+	v = safeBigInteger("1234567890123456789012345678901234");
+	c = int128Encode(v, b);
+	assert(c);
+	assert(b == bytesFromHexs("F2AF967ED05C82DE3297FF6FDE3C0000"));
+	v2 = int128Decode(b);
+	assert(v2 == v);
+
+	v = BigInteger(-1234);
+	c = int128Encode(v, b);
+	assert(c);
+	assert(b == bytesFromHexs("2EFBFFFFFFFFFFFFFFFFFFFFFFFFFFFF"));
+	v2 = int128Decode(b);
+	assert(v2 == v);
+
+	v = safeBigInteger("-1234567890123456789012345678901234");
+	c = int128Encode(v, b);
+	assert(c);
+	assert(b == bytesFromHexs("0E5069812FA37D21CD68009021C3FFFF"));
+	v2 = int128Decode(b);
+	assert(v2 == v);
 }

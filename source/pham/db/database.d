@@ -11,11 +11,13 @@
 
 module pham.db.database;
 
+import core.atomic : atomicLoad, atomicStore,  MemoryOrder;
 import core.sync.mutex : Mutex;
-public import core.time : Duration;
+public import core.time : Duration, dur;
 import std.array : Appender;
 public import std.ascii : newline;
 import std.conv : text, to;
+import std.datetime.systime : SysTime;
 import std.exception : assumeWontThrow;
 import std.format : format;
 import std.logger.core : Logger, LogTimming;
@@ -25,8 +27,9 @@ import std.typecons : Flag, No, Yes;
 version (unittest) import pham.utl.utltest;
 import pham.utl.delegate_list;
 import pham.utl.dlink_list;
-import pham.utl.enum_set;
-import pham.utl.utlobject;
+import pham.utl.enum_set : EnumSet, toEnum, toName;
+import pham.utl.timer;
+import pham.utl.utlobject : DisposableState, IDisposable, RAIIMutex, singleton;
 import pham.db.message;
 import pham.db.exception;
 import pham.db.util;
@@ -924,14 +927,27 @@ abstract class DbConnection : DbDisposableObject
 public:
     this(DbDatabase database) nothrow @safe
     {
-        _database = database;
-        _connectionStringBuilder = database.createConnectionStringBuilder(null);
+        this._database = database;
+        this._connectionStringBuilder = database.createConnectionStringBuilder(null);
     }
 
     this(DbDatabase database, string connectionString) nothrow @safe
     {
         this(database);
-        setConnectionString(connectionString);
+        if (connectionString.length != 0)
+            setConnectionString(connectionString);
+    }
+
+    this(DbDatabase database, DbConnectionStringBuilder connectionStringBuilder) nothrow @safe
+    in
+    {
+        assert(connectionStringBuilder !is null);
+        assert(connectionStringBuilder.scheme == scheme);
+    }
+    do
+    {
+        this(database);
+        this._connectionStringBuilder.assign(connectionStringBuilder);
     }
 
     final void cancelCommand(DbCommand command = null)
@@ -1043,6 +1059,25 @@ public:
         return this;
     }
 
+    final typeof(this) release() @safe
+    {
+        version (TraceFunction) dgFunctionTrace();
+
+        auto lst = _list;
+        if (lst !is null)
+        {
+            auto pool = lst.pool;
+            if (pool !is null)
+                pool.release(this);
+            else
+                lst.release(this);
+        }
+        else
+            dispose();
+
+        return null;
+    }
+
     final override size_t toHash() nothrow @safe
     {
         return connectionStringBuilder.toHash().hashOf(scheme.toHash());
@@ -1096,7 +1131,7 @@ public:
     /**
      * Returns true if this connection has any DbCommand
      */
-    @property final bool hasCommands() const nothrow @safe
+    @property final bool hasCommands() const nothrow pure @safe
     {
         return !_commands.empty;
     }
@@ -1104,7 +1139,7 @@ public:
     /**
      * Returns true if this connection has any DbTransaction
      */
-    @property final bool hasTransactions() const nothrow @safe
+    @property final bool hasTransactions() const nothrow pure @safe
     {
         return !_transactions.empty;
     }
@@ -1112,12 +1147,12 @@ public:
 	/**
      * Gets the indicator of current state of the connection
 	 */
-    @property final DbConnectionState state() const nothrow @safe
+    @property final DbConnectionState state() const nothrow pure @safe
     {
         return _state;
     }
 
-    @property abstract DbIdentitier scheme() const nothrow @safe;
+    @property abstract DbIdentitier scheme() const nothrow pure @safe;
 
 package:
     final size_t nextCounter() nothrow @safe
@@ -1286,6 +1321,7 @@ protected:
     DbDatabase _database;
     DbConnectionList _list;
     DbTransaction _defaultTransaction;
+    SysTime _inactiveTime;
     DbHandle _handle;
     size_t _nextCounter;
     DbConnectionState _state;
@@ -1305,9 +1341,10 @@ mixin DLinkTypes!(DbConnection) DLinkDbConnectionTypes;
 class DbConnectionList : DbDisposableObject
 {
 public:
-    this(DbDatabase database, DbConnectionPool pool)
+    this(DbDatabase database, string connectionString, DbConnectionPool pool) nothrow pure @safe
     {
         this._database = database;
+        this._connectionString = connectionString;
         this._pool = pool;
     }
 
@@ -1318,19 +1355,18 @@ public:
 
     final DbConnection acquire(out bool created) @safe
     {
-        if (!_connections.empty)
+        created = _connections.empty;
+        if (created)
         {
-            --_length;
-            created = false;
-            auto result = _connections.remove(_connections.last);
-            result.doPool(false);
+            auto result = database.createConnection(connectionString);
+            result._list = this;
             return result;
         }
         else
         {
-            created = true;
-            auto result = database.createConnection(connectionString);
-            result._list = this;
+            auto result = _connections.remove(_connections.last);
+            _length--;
+            result.doPool(false);
             return result;
         }
     }
@@ -1346,11 +1382,11 @@ public:
         if (item.list !is this)
         {
             if (item.list is null)
-                return disposeConnection(item, null);
+                return disposeConnection(item);
             else
             {
                 auto lst = item.list;
-                return lst.disposeConnection(item, lst);
+                return lst.disposeConnection(item);
             }
         }
 
@@ -1360,29 +1396,39 @@ public:
         }
         catch (Exception e)
         {
-            disposeConnection(item, this);
+            disposeConnection(item);
             throw e; // rethrow
         }
-        ++_length;
         _connections.insertEnd(item);
+        _length++;
 
         return null;
+    }
+
+    final DbConnection[] removeInactives(in SysTime now, in Duration maxInactiveTime) nothrow @safe
+    {
+        DbConnection[] result;
+        result.reserve(length);
+        // Iterate and get inactive connections
+        foreach (connection; this)
+        {
+            const elapsed = now - connection._inactiveTime;
+            if (elapsed > maxInactiveTime)
+                result ~= connection;
+        }
+        // Detach from list
+        foreach (removed; result)
+        {
+            _connections.remove(removed);
+            removed._list = null;
+            _length--;
+        }
+        return result;
     }
 
     @property final string connectionString() const nothrow pure @safe
     {
         return _connectionString;
-    }
-
-    @property final typeof(this) connectionString(string value) nothrow @safe
-    in
-    {
-        assert(length == 0);
-    }
-    do
-    {
-        _connectionString = value;
-        return this;
     }
 
     @property final DbDatabase database() nothrow pure @safe
@@ -1401,22 +1447,15 @@ public:
     }
 
 protected:
-    final DbConnection disposeConnection(DbConnection item, Object caller) @safe
+    final DbConnection disposeConnection(DbConnection item) @safe
     in
     {
         assert(item !is null);
     }
     do
     {
-        static void minusAcquiredLength(DbConnectionPool pool) nothrow @trusted
-        {
-            _lock.lock_nothrow();
-            pool._acquiredLength--;
-            _lock.unlock_nothrow();
-        }
-
-        if (caller is this && item.list !is null && item.list.pool !is null)
-            minusAcquiredLength(item.list.pool);
+        if (item.list !is null && item.list.pool !is null)
+            item.list.pool._acquiredLength--;
 
         item._list = null;
         item.dispose();
@@ -1443,28 +1482,26 @@ protected:
 class DbConnectionPool : DbDisposableObject
 {
 public:
-    this(size_t maxLength = DbDefaultSize.connectionPoolLength) nothrow pure @safe
+    this(size_t maxLength = DbDefaultSize.connectionPoolLength,
+         uint maxInactiveTimeInSeconds = DbDefaultSize.connectionPoolInactiveTime) nothrow pure @safe
     {
         this._maxLength = maxLength;
+        this._maxInactiveTime = dur!"seconds"(maxInactiveTimeInSeconds);
     }
 
-    final DbConnection acquire(string scheme, string connectionString)
+    final DbConnection acquire(string scheme, string connectionString) @safe
     {
-        auto database = DbDatabaseList.getRegister(scheme);
+        auto raiiMutex = () @trusted { return RAIIMutex(_poolMutex); }();
+        const localMaxLength = maxLength;
 
-        _lock.lock_nothrow();
-        scope (exit)
-            _lock.unlock_nothrow();
-
-        if (_acquiredLength >= _maxLength)
+        if (_acquiredLength >= localMaxLength)
         {
-            auto msg = format(DbMessage.eInvalidConnectionPoolMaxUsed, _acquiredLength, _maxLength);
+            auto msg = format(DbMessage.eInvalidConnectionPoolMaxUsed, _acquiredLength, localMaxLength);
             throw new DbException(msg, DbErrorCode.connect, 0, 0);
         }
 
-        auto lst = schemeConnections(database);
-        if (lst.length == 0)
-            lst.connectionString = connectionString;
+        auto database = DbDatabaseList.getDb(scheme);
+        auto lst = schemeConnections(database, connectionString);
         bool created;
         auto result = lst.acquire(created);
         _acquiredLength++;
@@ -1473,7 +1510,12 @@ public:
         return result;
     }
 
-    static void cleanup()
+    final DbConnection acquire(DbConnectionStringBuilder connectionStringBuilder) @safe
+    {
+        return acquire(connectionStringBuilder.scheme, connectionStringBuilder.connectionString);
+    }
+
+    static void cleanup() @trusted
     {
         if (_instance !is null)
         {
@@ -1482,70 +1524,83 @@ public:
         }
     }
 
+    final size_t cleanupInactives() @safe
+    {
+        auto inactives = removeInactives();
+        foreach (inactive; inactives)
+        {
+            inactive.dispose();
+        }
+        return inactives.length;
+    }
+
     static DbConnectionPool instance() nothrow @trusted
     {
         return singleton(_instance, &createInstance);
     }
 
-    final DbConnection release(DbConnection item)
+    final DbConnection release(DbConnection item) @safe
     in
     {
         assert(item !is null);
     }
     do
     {
-        _lock.lock_nothrow();
-        scope (exit)
-            _lock.unlock_nothrow();
-
         auto lst = item.list;
+
+        // Not from pool?
         if (lst is null)
         {
             item.dispose();
             return null;
         }
+
+        // Wrong pool?
         if (lst.pool !is this)
         {
-            lst.disposeConnection(item, lst);
+            if (lst.pool is null)
+                lst.disposeConnection(item);
+            else
+                lst.pool.release(item);
             return null;
         }
 
+        auto raiiMutex = () @trusted { return RAIIMutex(_poolMutex); }();
+        const localMaxLength = maxLength;
+
+        // Over limit?
+        if (_length + 1 >= localMaxLength)
+        {
+            lst.disposeConnection(item);
+            return null;
+        }
+
+        item._inactiveTime = currTime();
+        lst.release(item); // release can raise exception
         _acquiredLength--;
-        if (_length + 1 >= _maxLength)
-        {
-            lst.disposeConnection(item, this);
-        }
-        else
-        {
-            lst.release(item);
-            _length++;
-        }
+        _length++;
 
         return null;
     }
 
-    @property final size_t acquiredLength() const nothrow
+    @property final size_t acquiredLength() const nothrow @safe
     {
         return _acquiredLength;
     }
 
-    @property final size_t length() const nothrow
+    @property final size_t length() const nothrow pure @safe
     {
         return _length;
     }
 
-    @property final size_t maxLength() const nothrow
+    @property final size_t maxLength() const nothrow pure @safe
     {
-        return _maxLength;
+        return atomicLoad!(MemoryOrder.acq)(_maxLength);
     }
 
-    @property final typeof(this) maxLength(size_t value)
+    @property final typeof(this) maxLength(size_t value) nothrow pure @safe
     {
-        _lock.lock_nothrow();
-        scope (exit)
-            _lock.unlock_nothrow();
-
-        _maxLength = value;
+        atomicStore!(MemoryOrder.rel)(_maxLength, cast(shared)value);
         return this;
     }
 
@@ -1566,22 +1621,47 @@ protected:
         _length = 0;
     }
 
-    final DbConnectionList schemeConnections(DbDatabase database)
+    final void doTimer(TimerEvent event)
     {
-        if (auto e = database.scheme in _schemeConnections)
+        cleanupInactives();
+    }
+
+    final DbConnection[] removeInactives() @safe
+    {
+        auto raiiMutex = () @trusted { return RAIIMutex(_poolMutex); }();
+        const now = currTime();
+        DbConnection[] result;
+        result.reserve(_length);
+        foreach (_, lst; _schemeConnections)
+        {
+            auto inactives = lst.removeInactives(now, _maxInactiveTime);
+            if (inactives.length)
+            {
+                _length -= inactives.length;
+                result ~= inactives;
+            }
+        }
+        return result;
+    }
+
+    final DbConnectionList schemeConnections(DbDatabase database, string connectionString) @safe
+    {
+        auto id = DbIdentitier(database.scheme ~ dbSchemeSeparator ~ connectionString);
+        if (auto e = id in _schemeConnections)
             return (*e);
         else
         {
-            auto result = new DbConnectionList(database, this);
-            _schemeConnections[database.scheme] = result;
+            auto result = new DbConnectionList(database, connectionString, this);
+            _schemeConnections[id] = result;
             return result;
         }
     }
 
 private:
     DbConnectionList[DbIdentitier] _schemeConnections;
+    Duration _maxInactiveTime;
     size_t _acquiredLength, _length;
-    size_t _maxLength;
+    shared size_t _maxLength;
     __gshared static DbConnectionPool _instance;
 }
 
@@ -1591,6 +1671,30 @@ public:
     this(string connectionString) nothrow @safe
     {
         parseConnectionString(connectionString);
+    }
+
+    typeof(this) assign(DbConnectionStringBuilder source) nothrow @safe
+    in
+    {
+        assert(source !is null);
+        assert(source.scheme == scheme);
+    }
+    do
+    {
+        super.clear();
+
+        this.forErrorInfoCustom = source.forErrorInfoCustom;
+        this.forLogInfoCustom = source.forLogInfoCustom;
+        this._elementSeparator = source._elementSeparator;
+        this._valueSeparator = source._valueSeparator;
+
+        foreach (n; source.sequenceNames)
+        {
+            auto p = n in source.lookupItems;
+            this.put(p.name, p.value);
+        }
+
+        return this;
     }
 
     final string forErrorInfo() const nothrow @safe
@@ -1709,7 +1813,7 @@ public:
         return secondToDuration(getString(DbParameterName.connectionTimeout));
     }
 
-    @property final typeof(this) connectionTimeout(Duration value) nothrow
+    @property final typeof(this) connectionTimeout(in Duration value) nothrow
     {
         const setSecond = value.toMinSecond();
         auto setValue = setSecond != 0 ? to!string(setSecond) : getDefault(DbParameterName.connectionTimeout);
@@ -1839,7 +1943,7 @@ public:
         return secondToDuration(getString(DbParameterName.poolTimeout));
     }
 
-    @property final typeof(this) poolTimeout(Duration value) nothrow
+    @property final typeof(this) poolTimeout(in Duration value) nothrow
     {
         const setSecond = value.toMinSecond();
         auto setValue = setSecond != 0 ? to!string(setSecond) : getDefault(DbParameterName.poolTimeout);
@@ -1869,7 +1973,7 @@ public:
         return secondToDuration(getString(DbParameterName.receiveTimeout));
     }
 
-    @property final typeof(this) receiveTimeout(Duration value) nothrow
+    @property final typeof(this) receiveTimeout(in Duration value) nothrow
     {
         const setSecond = value.toMinSecond();
         auto setValue = setSecond != 0 ? to!string(setSecond) : getDefault(DbParameterName.receiveTimeout);
@@ -1888,7 +1992,7 @@ public:
         return this;
     }
 
-    @property abstract DbIdentitier scheme() const nothrow @safe;
+    @property abstract DbIdentitier scheme() const nothrow pure @safe;
 
     /**
      * Gets or sets the time (minimum value based in seconds) to wait for a request to completely send to server.
@@ -1900,7 +2004,7 @@ public:
         return secondToDuration(getString(DbParameterName.sendTimeout));
     }
 
-    @property final typeof(this) sendTimeout(Duration value) nothrow
+    @property final typeof(this) sendTimeout(in Duration value) nothrow
     {
         const setSecond = value.toMinSecond();
         auto setValue = setSecond != 0 ? to!string(setSecond) : getDefault(DbParameterName.sendTimeout);
@@ -2016,12 +2120,25 @@ nothrow @safe:
 public:
     abstract DbCommand createCommand(DbConnection connection, string name = null);
     abstract DbConnection createConnection(string connectionString);
+    abstract DbConnection createConnection(DbConnectionStringBuilder connectionStringBuilder);
     abstract DbConnectionStringBuilder createConnectionStringBuilder(string connectionString);
-    abstract DbField createField(DbCommand command);
+    abstract DbField createField(DbCommand command, DbIdentitier name);
     abstract DbFieldList createFieldList(DbCommand command);
-    abstract DbParameter createParameter();
+    abstract DbParameter createParameter(DbIdentitier name);
     abstract DbParameterList createParameterList();
     abstract DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel, bool defaultTransaction);
+
+    final DbField createField(DbCommand command, string name)
+    {
+        DbIdentitier id = DbIdentitier(name);
+        return createField(command, id);
+    }
+
+    final DbParameter createParameter(string name)
+    {
+        DbIdentitier id = DbIdentitier(name);
+        return createParameter(id);
+    }
 
     /**
      * For logging various message & trace
@@ -2046,7 +2163,7 @@ public:
      * Name of database kind, firebird, postgresql ...
      * Refer pham.db.type.DbScheme for a list of possible values
      */
-    @property final DbIdentitier scheme() const
+    @property final DbIdentitier scheme() const pure
     {
         return name;
     }
@@ -2055,19 +2172,53 @@ private:
     shared Logger _logger;
 }
 
+// This instance is initialize at startup hence no need Mutex to have thread-guard
 class DbDatabaseList : DbSimpleNamedObjectList!DbDatabase
 {
 public:
-    static DbDatabase getRegister(string scheme)
+    /**
+     * Search the leading scheme value for matching existing database
+     * If found, will create and return instance of its' corresponding ...Connection
+     * and null otherwise
+     */
+    static DbConnection createConnection(string connectionString) nothrow @safe
+    {
+        import std.string : indexOf;
+
+        const i = connectionString.indexOf(dbSchemeSeparator);
+        if (i <= 0)
+            return null;
+
+        DbDatabase database;
+        if (findDb(connectionString[0..i - 1], database))
+            return database.createConnection(connectionString[i + 1..$]);
+        else
+            return null;
+    }
+
+    static DbConnection createConnection(DbConnectionStringBuilder connectionStringBuilder) nothrow @safe
+    {
+        DbDatabase database;
+        if (findDb(connectionStringBuilder.scheme, database))
+            return database.createConnection(connectionStringBuilder);
+        else
+            return null;
+    }
+
+    static bool findDb(string scheme, ref DbDatabase database) nothrow @safe
+    {
+        auto lst = instance();
+        return lst.find(scheme, database);
+    }
+
+    static DbDatabase getDb(string scheme) @safe
     {
         DbDatabase result;
-        auto lst = instance();
-        if (!lst.find(scheme, result))
-        {
-            auto msg = format(DbMessage.eInvalidSchemeName, scheme);
-            throw new DbException(msg, 0, 0, 0);
-        }
-        return result;
+        if (findDb(scheme, result))
+            return result;
+
+        auto msg = format(DbMessage.eInvalidSchemeName, scheme);
+        throw new DbException(msg, 0, 0, 0);
     }
 
     static DbDatabaseList instance() nothrow @trusted
@@ -2075,7 +2226,7 @@ public:
         return singleton(_instance, &createInstance);
     }
 
-    static void register(DbDatabase database)
+    static void registerDb(DbDatabase database) nothrow @safe
     in
     {
         assert(database !is null);
@@ -2087,7 +2238,7 @@ public:
         instance().put(database);
     }
 
-    static void cleanup()
+    static void cleanup() @trusted
     {
         if (_instance !is null)
         {
@@ -2383,10 +2534,11 @@ protected:
 class DbField : DbNamedColumn
 {
 public:
-    this(DbCommand command) nothrow @safe
+    this(DbCommand command, DbIdentitier name) nothrow @safe
     {
         this._command = command;
-        _flags.set(DbSchemaColumnFlag.allowNull, true);
+        this._name = name;
+        this._flags.set(DbSchemaColumnFlag.allowNull, true);
     }
 
     final typeof(this) clone(DbCommand command) nothrow @safe
@@ -2475,20 +2627,6 @@ public:
         this._command = command;
     }
 
-    version (none)
-    ~this()
-    {
-        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
-
-        if (_disposing == 0)
-        {
-            _disposing = byte.min; // Set to indicate in destructor
-            doDispose(false);
-        }
-
-        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
-    }
-
     final typeof(this) clone(DbCommand command) nothrow @safe
     {
         auto result = createSelf(command);
@@ -2497,8 +2635,14 @@ public:
         return result;
     }
 
-    abstract DbField createField(DbCommand command) nothrow @safe;
+    abstract DbField createField(DbCommand command, DbIdentitier name) nothrow @safe;
     abstract DbFieldList createSelf(DbCommand command) nothrow @safe;
+
+    final DbField createField(DbCommand command, string name) nothrow @safe
+    {
+        DbIdentitier id = DbIdentitier(name);
+        return createField(command, id);
+    }
 
     final void disposal(bool disposing) nothrow @safe
     {
@@ -2563,9 +2707,10 @@ private:
 class DbParameter : DbNamedColumn
 {
 public:
-    this(DbDatabase database) nothrow @safe
+    this(DbDatabase database, DbIdentitier name) nothrow @safe
     {
-        _flags.set(DbSchemaColumnFlag.allowNull, true);
+        this._name = name;
+        this._flags.set(DbSchemaColumnFlag.allowNull, true);
     }
 
     final bool isInput() const nothrow @safe
@@ -2579,6 +2724,18 @@ public:
         return (direction == DbParameterDirection.inputOutput && !outputOnly)
             || direction == DbParameterDirection.output
             || direction == DbParameterDirection.returnValue;
+    }
+
+    final DbParameter updateEmptyName(DbIdentitier noneEmptyName) nothrow @safe
+    in
+    {
+        assert(noneEmptyName.length > 0);
+        assert(name.length == 0);
+    }
+    do
+    {
+        updateName(noneEmptyName);
+        return this;
     }
 
     /**
@@ -2595,16 +2752,9 @@ public:
         return this;
     }
 
-    @property final Variant getValue() @safe
+    @property final Variant val() @safe
     {
-        return _value.value;
-    }
-
-    @property final DbParameter setValue(Variant value) @safe
-    {
-        this._value = value;
-        valueAssigned();
-        return this;
+        return _dbValue.value;
     }
 
     /**
@@ -2612,13 +2762,13 @@ public:
      */
     @property final ref DbValue value() return @safe
     {
-        return _value;
+        return _dbValue;
     }
 
-    @property final DbParameter value(DbValue value) @safe
+    @property final DbParameter value(DbValue newValue) @safe
     {
-        this._value = value;
-        valueAssigned();
+        this._dbValue = newValue;
+        this.valueAssigned();
         return this;
     }
 
@@ -2631,28 +2781,28 @@ protected:
         if (destP)
         {
             destP._direction = _direction;
-            destP._value = _value;
+            destP._dbValue = _dbValue;
         }
     }
 
     final void nullifyValue() nothrow @safe
     {
-        _value.nullify();
+        _dbValue.nullify();
     }
 
     final void valueAssigned() @safe
     {
-        if (type == DbType.unknown && value.type != DbType.unknown)
+        if (type == DbType.unknown && _dbValue.type != DbType.unknown)
         {
-            if (isDbTypeHasSize(value.type) && value.hasSize)
-                size = value.size;
-            type = value.type;
+            if (isDbTypeHasSize(_dbValue.type) && _dbValue.hasSize)
+                size = _dbValue.size;
+            type = _dbValue.type;
             reevaluateBaseType();
         }
     }
 
 protected:
-    DbValue _value;
+    DbValue _dbValue;
     DbParameterDirection _direction;
 }
 
@@ -2662,34 +2812,6 @@ public:
     this(DbDatabase database) nothrow @safe
     {
         this._database = database;
-    }
-
-    version (none)
-    ~this()
-    {
-        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
-
-        if (_disposing == 0)
-        {
-            _disposing = byte.min; // Set to indicate in destructor
-            doDispose(false);
-        }
-
-        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
-    }
-
-    final DbParameter add(string name, DbType type,
-        int32 size = 0,
-        DbParameterDirection direction = DbParameterDirection.input) nothrow @safe
-    in
-    {
-        assert(name.length != 0);
-        assert(!exist(name));
-    }
-    do
-    {
-        auto id = DbIdentitier(name);
-        return add(id, type, size, direction);
     }
 
     DbParameter add(DbIdentitier name, DbType type,
@@ -2702,13 +2824,26 @@ public:
     }
     do
     {
-        auto result = database.createParameter();
-        result.name = name;
+        auto result = database.createParameter(name);
         result.type = type;
         result.size = size;
         result.direction = direction;
         put(result);
         return result;
+    }
+
+    final DbParameter add(string name, DbType type,
+        int32 size = 0,
+        DbParameterDirection direction = DbParameterDirection.input) nothrow @safe
+    in
+    {
+        assert(name.length != 0);
+        assert(!exist(name));
+    }
+    do
+    {
+        DbIdentitier id = DbIdentitier(name);
+        return add(id, type, size, direction);
     }
 
     final DbParameter addClone(DbParameter source) @safe
@@ -2718,9 +2853,15 @@ public:
         return result;
     }
 
-    final DbParameter createParameter() nothrow @safe
+    final DbParameter createParameter(DbIdentitier name) nothrow @safe
     {
-        return database.createParameter();
+        return database.createParameter(name);
+    }
+
+    final DbParameter createParameter(string name) nothrow @safe
+    {
+        DbIdentitier id = DbIdentitier(name);
+        return database.createParameter(id);
     }
 
     final void disposal(bool disposing) nothrow @safe
@@ -2826,19 +2967,6 @@ public:
     /*
      * Search for existing parameter matched with name; if not found, add it
      */
-    final DbParameter touch(string name, DbType type,
-        int32 size = 0,
-        DbParameterDirection direction = DbParameterDirection.input) nothrow @safe
-    in
-    {
-        assert(name.length != 0);
-    }
-    do
-    {
-        auto id = DbIdentitier(name);
-        return touch(id, type, size, direction);
-    }
-
     DbParameter touch(DbIdentitier name, DbType type,
         int32 size = 0,
         DbParameterDirection direction = DbParameterDirection.input) nothrow @safe
@@ -2861,6 +2989,19 @@ public:
         }
         else
             return add(name, type, size, direction);
+    }
+
+    final DbParameter touch(string name, DbType type,
+        int32 size = 0,
+        DbParameterDirection direction = DbParameterDirection.input) nothrow @safe
+    in
+    {
+        assert(name.length != 0);
+    }
+    do
+    {
+        DbIdentitier id = DbIdentitier(name);
+        return touch(id, type, size, direction);
     }
 
     @property final DbDatabase database() nothrow @safe
@@ -3472,25 +3613,40 @@ private:
 
 mixin DLinkTypes!(DbTransaction) DLinkDbTransactionTypes;
 
+
 // Any below codes are private
 private:
 
 
-__gshared static Mutex _lock;
+__gshared static Mutex _poolMutex;
+__gshared static TimerThread _secondTimer;
 
 shared static this()
 {
-    _lock = new Mutex();
+    _poolMutex = new Mutex();
+    _secondTimer = new TimerThread(dur!"seconds"(1));
+
+    // Add pool event to timer
+    auto pool = DbConnectionPool.instance;
+    _secondTimer.addEvent(TimerEvent("DbConnectionPool", dur!"minutes"(1), &pool.doTimer));
 }
 
 shared static ~this()
 {
+    // Timer must be destroyed first
+    if (_secondTimer !is null)
+    {
+        _secondTimer.terminate();
+        _secondTimer.destroy();
+        _secondTimer = null;
+    }
+
     DbConnectionPool.cleanup();
     DbDatabaseList.cleanup();
 
-    if (_lock !is null)
+    if (_poolMutex !is null)
     {
-        _lock.destroy();
-        _lock = null;
+        _poolMutex.destroy();
+        _poolMutex = null;
     }
 }

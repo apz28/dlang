@@ -32,17 +32,18 @@ struct PgReader
 @safe:
 
 public:
-    @disable this(this);
-
     this(PgConnection connection)
     {
         this._connection = connection;
-        this._buffer = connection.acquireSocketReadBuffer();
+        this.readPacketData(connection);
     }
 
-    ~this()
+    this(PgConnection connection, ubyte[] packetData)
     {
-        dispose(false);
+        this._messageType = 0;
+        this._connection = connection;
+        this._messageLength = cast(int)packetData.length;
+        this._buffer = new DbReadBuffer!(Endian.bigEndian)(packetData);
     }
 
     void dispose(bool disposing = true)
@@ -58,12 +59,12 @@ public:
 
     char readChar()
     {
-        return cast(char)readUInt8();
+        return _buffer.readChar();
     }
 
-    char[] readChars(size_t nBytes) @trusted // @trusted=cast()
+    char[] readChars(size_t nBytes)
     {
-        return cast(char[])readBytes(nBytes);
+        return _buffer.readChars(nBytes);
     }
 
     string readString(size_t nBytes) @trusted // @trusted=cast()
@@ -85,30 +86,6 @@ public:
     int16 readFieldCount()
     {
         return _buffer.readInt16();
-    }
-
-    char readMessage()
-    {
-        _lastMessageType = readChar();
-        _lastMessageLength = readInt32();
-        _lastMessageLength -= int32.sizeof; // Substract message length size
-        _lastMessageOffset = _buffer.offset;
-
-        // Read remaining message data?
-        if (_lastMessageLength > 0 && _lastMessageLength > _buffer.length)
-        {
-            _buffer.fill(_lastMessageLength - _buffer.length, true);
-            _lastMessageOffset = _buffer.offset;
-        }
-
-        version (TraceFunction)
-        dgFunctionTrace("messageType=", _lastMessageType,
-            ", messageLength=", _lastMessageLength,
-            ", messageOffset=", _lastMessageOffset,
-            ", _buffer.offset=", _buffer.offset,
-            ", _buffer.length=", _buffer.length);
-
-        return _lastMessageType;
     }
 
     int16 readInt16()
@@ -141,28 +118,6 @@ public:
         _buffer.advance(nBytes);
     }
 
-    void skipLastMessage()
-    {
-        version (TraceFunction)
-        dgFunctionTrace("messageType=", _lastMessageType,
-            ", messageLength=", _lastMessageLength,
-            ", messageOffset=", _lastMessageOffset,
-            ", _buffer.offset=", _buffer.offset,
-            ", _buffer.length=", _buffer.length);
-
-        if (_lastMessageLength > 0)
-        {
-            assert(_buffer.offset >= _lastMessageOffset);
-
-            const alreadyConsumedLength = _buffer.offset - _lastMessageOffset;
-            if (_lastMessageLength > alreadyConsumedLength)
-                _buffer.advance(_lastMessageLength - alreadyConsumedLength);
-        }
-
-        _lastMessageLength = 0;
-        _lastMessageOffset = 0;
-    }
-
     @property IbReadBuffer buffer() nothrow pure
     {
         return _buffer;
@@ -173,24 +128,45 @@ public:
         return _connection;
     }
 
-    @property char lastMessageType() const nothrow
+    @property int messageLength() const nothrow pure
     {
-        return _lastMessageType;
+        return _messageLength;
+    }
+
+    @property char messageType() const nothrow pure
+    {
+        return _messageType;
     }
 
 private:
-    version (unittest)
-    this(ubyte[] data)
+    void readPacketData(PgConnection connection)
     {
-        this._buffer = new DbReadBuffer!(Endian.bigEndian)(data);
+        auto socketBuffer = connection.acquireSocketReadBuffer();
+        _messageType = socketBuffer.readChar();
+        _messageLength = socketBuffer.readInt32();
+        _messageLength -= int32.sizeof; // Substract message length size
+
+        // Read message data?
+        if (_messageLength > 0)
+        {
+            auto packetData = socketBuffer.readBytes(_messageLength);
+            this._buffer = new DbReadBuffer!(Endian.bigEndian)(packetData);
+        }
+        else
+        {
+            ubyte[] packetData;
+            this._buffer = new DbReadBuffer!(Endian.bigEndian)(packetData);
+        }
+
+        version (TraceFunction)
+        dgFunctionTrace("messageType=", _messageType, ", messageLength=", _messageLength);
     }
 
 private:
     IbReadBuffer _buffer;
     PgConnection _connection;
-    size_t _lastMessageOffset;
-    int32 _lastMessageLength;
-    char _lastMessageType;
+    int32 _messageLength;
+    char _messageType;
 }
 
 struct PgWriter
@@ -360,12 +336,6 @@ public:
         this._buffer = buffer;
     }
 
-    version (none)
-    ~this()
-    {
-        dispose(false);
-    }
-
     void dispose(bool disposing = true)
     {
         _buffer = null;
@@ -416,7 +386,7 @@ public:
         if (baseType.typeId == PgOIdType.money)
             return cast(D)readMoney();
         else
-            return cast(D)readNumeric();
+            return readNumeric!D();
     }
 
     float readFloat32()
@@ -444,12 +414,20 @@ public:
         return _buffer.readInt64();
     }
 
+    BigInteger readInt128()
+    {
+        assert(0, "database does not support");
+        //TODO return _buffer.readInt64();
+        //return BigInteger(0);
+    }
+
     Decimal64 readMoney()
     {
         return decimalDecode!(Decimal64, int64)(readInt64(), -2);
     }
 
-    Decimal64 readNumeric()
+    D readNumeric(D)()
+    if (isDecimal!D)
     {
         PgOIdNumeric result;
         result.ndigits = readInt16();
@@ -462,7 +440,7 @@ public:
             foreach (i; 0..result.ndigits)
                 result.digits[i] = readInt16();
         }
-        return numericDecode(result);
+        return numericDecode!D(result);
     }
 
     DbTime readTime()
@@ -517,12 +495,6 @@ public:
     {
         this._connection = connection;
         this._buffer = buffer;
-    }
-
-    version (none)
-    ~this()
-    {
-        dispose(false);
     }
 
     void dispose(bool disposing = true)
@@ -590,7 +562,7 @@ public:
         if (baseType.typeId == PgOIdType.money)
             writeMoney(cast(Decimal64)v);
         else
-            writeNumeric(cast(Decimal64)v);
+            writeNumeric!D(v);
     }
 
     void writeFloat32(float32 v) nothrow
@@ -623,14 +595,20 @@ public:
         _buffer.writeInt64(v);
     }
 
+    void writeInt128(in BigInteger v) nothrow
+    {
+        //TODO
+    }
+
     void writeMoney(in Decimal64 v) nothrow
     {
         writeInt64(decimalEncode!(Decimal64, int64)(v, -2));
     }
 
-    void writeNumeric(in Decimal64 v) nothrow
+    void writeNumeric(D)(in D v) nothrow
+    if (isDecimal!D)
     {
-        auto n = numericEncode(v);
+        auto n = numericEncode!D(v);
 
         const marker = markBegin();
         _buffer.writeInt16(n.ndigits);

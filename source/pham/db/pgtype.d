@@ -87,8 +87,8 @@ immutable DbTypeInfo[] pgNativeTypes = [
     {dbName:"", nativeName:"xml", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.xml, dbType:DbType.xml},
     {dbName:"", nativeName:"real", displaySize:17, nativeSize:4, nativeId:PgOIdType.float4, dbType:DbType.float32},
     {dbName:"", nativeName:"double precision", displaySize:17, nativeSize:8, nativeId:PgOIdType.float8, dbType:DbType.float64},
-    {dbName:"", nativeName:"numeric", displaySize:34, nativeSize:16, nativeId:PgOIdType.numeric, dbType:DbType.decimal}, // Prefer numerice over money for generic setting
-    {dbName:"", nativeName:"money", displaySize:34, nativeSize:16, nativeId:PgOIdType.money, dbType:DbType.decimal},
+    {dbName:"", nativeName:"numeric", displaySize:34, nativeSize:Decimal.sizeof, nativeId:PgOIdType.numeric, dbType:DbType.decimal}, // Prefer numerice over money for generic setting
+    {dbName:"", nativeName:"money", displaySize:34, nativeSize:Decimal64.sizeof, nativeId:PgOIdType.money, dbType:DbType.decimal64},
     {dbName:"", nativeName:"date", displaySize:10, nativeSize:4, nativeId:PgOIdType.date, dbType:DbType.date},
     {dbName:"", nativeName:"time", displaySize:11, nativeSize:8, nativeId:PgOIdType.time, dbType:DbType.time},
     {dbName:"", nativeName:"timestamp", displaySize:22, nativeSize:8, nativeId:PgOIdType.timestamp, dbType:DbType.datetime},
@@ -501,7 +501,7 @@ shared static this()
 unittest // canSendParameter
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.pgtype.canSendParameter");
+    traceUnitTest("unittest db.pgtype.canSendParameter");
 
     string mappedName;
     assert(canSendParameter(DbParameterName.userPassword, mappedName) == CanSendParameter.no);

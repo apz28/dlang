@@ -1226,10 +1226,7 @@ public:
 
 		writer.writeOperation(FbIsc.op_prepare_statement);
 		writer.writeHandle(command.fbTransaction.fbHandle);
-        version (DeferredProtocol)
-		    writer.writeHandle(command.handle.isValid ? command.fbHandle : fbCommandDeferredHandle);
-        else
-		    writer.writeHandle(command.fbHandle);
+		writer.writeHandle(command.fbHandle);
 		writer.writeInt32(connection.dialect);
 		writer.writeChars(sql);
 		writer.writeBytes(bindItems);
@@ -1401,8 +1398,18 @@ public:
                 return DbValue(reader.readInt32(), column.type);
             case DbType.int64:
                 return DbValue(reader.readInt64(), column.type);
+            case DbType.int128:
+                return DbValue(reader.readInt128(), column.type);
             case DbType.decimal:
+                return DbValue(reader.readDecimal!Decimal(column.baseType), column.type);
+            case DbType.decimal32:
+                return DbValue(reader.readDecimal!Decimal32(column.baseType), column.type);
+            case DbType.decimal64:
                 return DbValue(reader.readDecimal!Decimal64(column.baseType), column.type);
+            case DbType.decimal128:
+                return DbValue(reader.readDecimal!Decimal128(column.baseType), column.type);
+            case DbType.numeric:
+                return DbValue(reader.readDecimal!Numeric(column.baseType), column.type);
             case DbType.float32:
                 return DbValue(reader.readFloat32(), column.type);
             case DbType.float64:
@@ -1546,10 +1553,7 @@ protected:
         version (TraceFunction) dgFunctionTrace();
 
 		writer.writeOperation(FbIsc.op_info_sql);
-        version (DeferredProtocol)
-		    writer.writeHandle(command.handle.isValid ? command.fbHandle : fbCommandDeferredHandle);
-        else
-            writer.writeHandle(command.fbHandle);
+        writer.writeHandle(command.fbHandle);
 		writer.writeInt32(0);
 		writer.writeBytes(items);
 		writer.writeInt32(resultBufferLength);
@@ -1780,7 +1784,7 @@ protected:
 
         auto result = writer.peekBytes();
 
-        version (TraceFunction) dgFunctionTrace("end=", dgToString(result));
+        version (TraceFunction) dgFunctionTrace("end=", dgToHex(result));
 
         return result;
     }
@@ -2335,8 +2339,23 @@ do
         case DbType.int64:
             writer.writeInt64(value.coerce!int64());
             return;
+        case DbType.int128:
+            writer.writeInt128(value.get!BigInteger());
+            return;
         case DbType.decimal:
+            writer.writeDecimal!Decimal(value.get!Decimal(), column.baseType);
+            return;
+        case DbType.decimal32:
+            writer.writeDecimal!Decimal32(value.get!Decimal32(), column.baseType);
+            return;
+        case DbType.decimal64:
             writer.writeDecimal!Decimal64(value.get!Decimal64(), column.baseType);
+            return;
+        case DbType.decimal128:
+            writer.writeDecimal!Decimal128(value.get!Decimal128(), column.baseType);
+            return;
+        case DbType.numeric:
+            writer.writeDecimal!Numeric(value.get!Numeric(), column.baseType);
             return;
         case DbType.float32:
             writer.writeFloat32(value.coerce!float32());
@@ -2563,7 +2582,7 @@ bool parseBindInfo(scope const(ubyte)[] data, ref FbIscBindInfo[] bindResult,
 unittest // parseBindInfo
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.fbprotocol.parseBindInfo");
+    traceUnitTest("unittest db.fbprotocol.parseBindInfo");
 
     FbIscBindInfo[] bindResult;
     ptrdiff_t previousBindIndex = -1;
@@ -2609,7 +2628,7 @@ unittest // parseBindInfo
 unittest // parseBlobSizeInfo
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.fbprotocol.parseBlobSizeInfo");
+    traceUnitTest("unittest db.fbprotocol.parseBlobSizeInfo");
 
     auto info = bytesFromHexs("05040004000000040400010000000604000400000001");
     auto parsedSize = parseBlobSizeInfo(info);

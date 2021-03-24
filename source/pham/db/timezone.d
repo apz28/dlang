@@ -11,7 +11,7 @@
 
 module pham.db.timezone;
 
-import pham.utl.utlobject;
+import pham.utl.utlobject : singleton;
 import pham.db.type : uint16;
 
 nothrow @safe:

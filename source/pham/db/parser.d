@@ -170,7 +170,7 @@ private:
 unittest // parseParameter
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.parser.parseParameter");
+    traceUnitTest("unittest db.parser.parseParameter");
 
     static class StringList
     {

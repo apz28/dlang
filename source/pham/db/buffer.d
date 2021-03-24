@@ -78,7 +78,7 @@ interface IbReadBuffer
 
     bool readBool();
     ubyte[] readBytes(size_t nBytes);
-    ubyte[] readBytes(ref ubyte[] value);
+    ubyte[] readBytes(return ref ubyte[] value);
     char readChar();
     char[] readChars(size_t nBytes);
     float32 readFloat32();
@@ -175,7 +175,7 @@ public:
         return readBytesImpl(nBytes);
     }
 
-    final override ubyte[] readBytes(ref ubyte[] value)
+    final override ubyte[] readBytes(return ref ubyte[] value)
     in
     {
         assert(value.length != 0);
@@ -366,7 +366,7 @@ protected:
         return _data[start.._offset].dup;
     }
 
-    final ubyte[] readBytesImpl(ref ubyte[] value)
+    final ubyte[] readBytesImpl(return ref ubyte[] value)
     {
         const nBytes = value.length;
         ensureAvailable(nBytes);
@@ -676,7 +676,7 @@ private:
 unittest // DbWriteBuffer & DbReadBuffer
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.buffer.DbWriteBuffer & db.buffer.DbReadBuffer");
+    traceUnitTest("unittest db.buffer.DbWriteBuffer & db.buffer.DbReadBuffer");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
 

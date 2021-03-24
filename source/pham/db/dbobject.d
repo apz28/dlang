@@ -22,10 +22,10 @@ import std.traits : ParameterTypeTuple, Unqual;
 import std.uni : sicmp, toUpper;
 
 version (unittest) import pham.utl.utltest;
-import pham.utl.utf8;
-import pham.utl.array;
-import pham.utl.enum_set;
-import pham.utl.utlobject;
+import pham.utl.utf8 : utf8NextChar;
+import pham.utl.array : UnshrinkArray;
+import pham.utl.enum_set : EnumSet;
+import pham.utl.utlobject : DisposableState, IDisposable, shortClassName;
 import pham.db.message;
 import pham.db.util;
 import pham.db.exception;
@@ -289,19 +289,6 @@ abstract class DbDisposableObject : DbObject, IDisposable
  nothrow @safe:
 
 public:
-    ~this()
-    {
-        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
-
-        if (_disposing == 0)
-        {
-            _disposing = byte.min; // Set to indicate in destructor
-            doDispose(false);
-        }
-
-        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
-    }
-
     final void disposal(bool disposing)
     {
         version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
@@ -397,35 +384,6 @@ public:
         return _name;
     }
 
-    @property ref typeof(this) name(DbIdentitier newName) return
-    in
-    {
-        assert(newName.length != 0);
-    }
-    do
-    {
-        if (this._name != newName)
-        {
-            auto oldName = _name;
-            this._name = newName;
-
-            if (list !is null)
-                list.nameChanged(this, oldName);
-        }
-        return this;
-    }
-
-    @property ref typeof(this) name(string newName) return
-    in
-    {
-        assert(newName.length != 0);
-    }
-    do
-    {
-        DbIdentitier id = DbIdentitier(newName, _name._index);
-        return name(id);
-    }
-
 public:
     T value;
 
@@ -440,7 +398,6 @@ class DbNameValueList(T) : DbObject
 
 public:
     alias Pair = DbNameValue!T;
-    alias List = typeof(this);
 
 public:
     /**
@@ -449,6 +406,9 @@ public:
     static struct Range
     {
     nothrow @safe:
+
+    public:
+        alias List = DbNameValueList!T;
 
     public:
         this(List list) pure
@@ -557,6 +517,7 @@ public:
     {
         lookupItems.clear();
         sequenceNames.clear();
+        reIndex = false;
         return this;
     }
 
@@ -706,6 +667,21 @@ public:
         return putIf(id, value);
     }
 
+    Pair remove(size_t index) nothrow
+    in
+    {
+        assert(index < length);
+    }
+    do
+    {
+        auto item = this[index];
+        item._list = null;
+        lookupItems.remove(item.name);
+        sequenceNames.removeAt(index);
+        reIndex = index < sequenceNames.length;
+        return item;
+    }
+
     /**
      * Remove a string-name, name, from list
      * Params:
@@ -724,21 +700,6 @@ public:
     {
         const id = DbIdentitier(name);
         return remove(id);
-    }
-
-    Pair remove(size_t index) nothrow
-    in
-    {
-        assert(index < length);
-    }
-    do
-    {
-        auto item = this[index];
-        item._list = null;
-        lookupItems.remove(item.name);
-        sequenceNames.removeAt(index);
-        reIndex = index < sequenceNames.length;
-        return item;
     }
 
     @property size_t length() const nothrow pure
@@ -778,7 +739,6 @@ protected:
     void add(ref Pair item) nothrow
     {
         item._list = this;
-
         item._name._index = length;
         lookupItems[item.name] = item;
         sequenceNames ~= item.name;
@@ -789,7 +749,6 @@ protected:
         if (exist(item.name))
         {
             item._list = this;
-
             lookupItems[item.name] = item;
         }
         else
@@ -831,9 +790,7 @@ class DbSimpleNamedObject : DbObject
 nothrow @safe:
 
 public:
-    alias Item = typeof(this);
-    alias List = DbSimpleNamedObjectList!Item;
-    //pragma(msg, List);
+    alias List = DbSimpleNamedObjectList!DbSimpleNamedObject;
 
 public:
     int opCmp(in DbIdentitier otherName) const
@@ -851,60 +808,37 @@ public:
         return _name.toHash();
     }
 
-    @property final List list()
+    @property final List list() pure @trusted
     {
-        return _list;
+        return cast(List)_list;
     }
 
-    @property final DbIdentitier name() const
+    @property final DbIdentitier name() const pure
     {
         return _name;
     }
 
-    @property typeof(this) name(DbIdentitier newName)
-    in
+protected:
+    final void updateName(in DbIdentitier newName)
     {
-        assert(newName.length != 0);
-    }
-    do
-    {
-        if (_name != newName)
+        if (this._name != newName)
         {
-            auto oldName = _name;
-            _name._s = newName._s;
+            auto oldName = this._name;
+            this._name._s = newName._s;
 
             if (list !is null)
                 list.nameChanged(this, oldName);
         }
-
-        return this;
     }
 
-    @property final typeof(this) name(string newName)
-    in
+    final void updateName(string newName)
     {
-        assert(newName.length != 0);
-    }
-    do
-    {
-        DbIdentitier id = DbIdentitier(newName, _name._index);
-        return name(id);
+        const id = DbIdentitier(newName, _name._index);
+        updateName(id);
     }
 
 protected:
-    final void setName(DbIdentitier newName)
-    {
-        this._name._s = newName._s;
-    }
-
-    final void setName(string newName)
-    {
-        DbIdentitier id = DbIdentitier(newName, _name._index);
-        setName(id);
-    }
-
-protected:
-    List _list;
+    void* _list;
     DbIdentitier _name;
 }
 
@@ -912,15 +846,15 @@ class DbSimpleNamedObjectList(T) : DbObject
 if(is(T : DbSimpleNamedObject))
 {
 public:
-    alias List = typeof(this);
-
-public:
     /**
      * Implements range interface
      */
     static struct Range
     {
     nothrow @safe:
+
+    public:
+        alias List = DbSimpleNamedObjectList!T;
 
     public:
         this(List list) pure
@@ -1198,10 +1132,11 @@ public:
     }
 
 protected:
+    //alias List = DbSimpleNamedObjectList!DbSimpleNamedObject;
+
     void add(T item) nothrow @trusted
     {
-        item._list = cast(DbSimpleNamedObjectList!DbSimpleNamedObject)this;
-
+        item._list = cast(void*)this;
         item._name._index = length;
         lookupItems[item.name] = item;
         sequenceNames ~= item.name;
@@ -1211,8 +1146,7 @@ protected:
     {
         if (exist(item.name))
         {
-            item._list = cast(DbSimpleNamedObjectList!DbSimpleNamedObject)this;
-
+            item._list = cast(void*)this;
             lookupItems[item.name] = item;
         }
         else
@@ -1264,7 +1198,7 @@ unittest // DbNameValueList
     import std.conv : to;
     import std.string : indexOf;
     import pham.utl.utltest;
-    dgWriteln("unittest db.dbobject.DbNameValueList");
+    traceUnitTest("unittest db.dbobject.DbNameValueList");
 
     auto list = new DbNameValueList!string();
     list.put("a", "1");
@@ -1325,7 +1259,7 @@ unittest // DbSimpleNamedObjectList
 {
     import std.string : indexOf;
     import pham.utl.utltest;
-    dgWriteln("unittest db.dbobject.DbSimpleNamedObjectList");
+    traceUnitTest("unittest db.dbobject.DbSimpleNamedObjectList");
 
     static class DbSimpleNamedObjectTest : DbSimpleNamedObject
     {
@@ -1333,7 +1267,7 @@ unittest // DbSimpleNamedObjectList
         int value;
         this(string name, int value)
         {
-            setName(name);
+            this._name = DbIdentitier(name);
             this.value = value;
         }
     }

@@ -18,7 +18,6 @@ import std.logger.core : Logger, LogTimming;
 import std.system : Endian;
 
 version (unittest) import pham.utl.utltest;
-import pham.utl.utlobject;
 import pham.db.type;
 import pham.db.message;
 import pham.db.dbobject;
@@ -657,13 +656,14 @@ protected:
         protocol.bindCommandParameterWrite(this);
         processBindResponse(protocol.bindCommandParameterRead(this));
         protocol.executeCommandWrite(this, type);
-        auto response = protocol.executeCommandRead(this, type);
+        PgReader reader;  // Since it is package message, need reader to continue reading row values
+        auto response = protocol.executeCommandRead(this, type, reader);
         _recordsAffected = response.recordsAffected;
         final switch (response.fetchStatus())
         {
             // Defer subsequence row for fetch call
             case DbFetchResultStatus.hasData:
-                auto row = readRow(type == DbCommandExecuteType.scalar);
+                auto row = readRow(reader, type == DbCommandExecuteType.scalar);
                 fetchedRows.enqueue(row);
                 break;
 
@@ -709,12 +709,13 @@ protected:
         bool continueFetching = true;
         while (continueFetching && continueFetchingCount)
         {
-            auto response = protocol.fetchCommandRead(this);
+            PgReader reader; // Since it is package message, need reader to continue reading row values
+            auto response = protocol.fetchCommandRead(this, reader);
             final switch (response.fetchStatus())
             {
                 case DbFetchResultStatus.hasData:
                     continueFetchingCount--;
-                    auto row = readRow(isScalar);
+                    auto row = readRow(reader, isScalar);
                     fetchedRows.enqueue(row);
                     break;
 
@@ -779,19 +780,18 @@ protected:
         auto localFields = fields;
         foreach (ref oidFieldInfo; oidFieldInfos)
         {
-            auto localField = localFields.createField(this);
-            localField.name = oidFieldInfo.name;
+            auto localField = localFields.createField(this, oidFieldInfo.name);
             localField.fillNamedColumn(oidFieldInfo, true);
             localFields.put(localField);
         }
     }
 
-    final DbRowValue readRow(bool isScalar) @safe
+    final DbRowValue readRow(ref PgReader reader, bool isScalar) @safe
     {
         version (TraceFunction) dgFunctionTrace("isScalar=", isScalar);
 
         auto protocol = pgConnection.protocol;
-        return protocol.readValues(this, pgFields);
+        return protocol.readValues(this, reader, pgFields);
     }
 }
 
@@ -801,13 +801,24 @@ public:
     this(PgDatabase database) nothrow @safe
     {
         super(database);
-        _largeBlobManager._connection = this;
+        this._largeBlobManager._connection = this;
     }
 
     this(PgDatabase database, string connectionString) nothrow @safe
     {
         super(database, connectionString);
-        _largeBlobManager._connection = this;
+        this._largeBlobManager._connection = this;
+    }
+
+    this(DbDatabase database, PgConnectionStringBuilder connectionStringBuilder) nothrow @safe
+    in
+    {
+        assert(connectionStringBuilder !is null);
+    }
+    do
+    {
+        super(database, connectionStringBuilder);
+        this._largeBlobManager._connection = this;
     }
 
     /* Properties */
@@ -830,7 +841,7 @@ public:
         return _protocol;
     }
 
-    @property final override DbIdentitier scheme() const nothrow @safe
+    @property final override DbIdentitier scheme() const nothrow pure @safe
     {
         return DbIdentitier(DbScheme.pg);
     }
@@ -995,7 +1006,7 @@ public:
         return pgValidParameterNames;
     }
 
-    @property final override DbIdentitier scheme() const nothrow @safe
+    @property final override DbIdentitier scheme() const nothrow pure @safe
     {
         return DbIdentitier(DbScheme.pg);
     }
@@ -1022,10 +1033,12 @@ protected:
 
 class PgDatabase : DbDatabase
 {
+nothrow @safe:
+
 public:
     this()
     {
-        setName(DbScheme.pg);
+        this._name = DbIdentitier(DbScheme.pg);
     }
 
     override DbCommand createCommand(DbConnection connection, string name = null)
@@ -1045,19 +1058,32 @@ public:
         return result;
     }
 
+    override DbConnection createConnection(DbConnectionStringBuilder connectionStringBuilder)
+    in
+    {
+        assert(connectionStringBuilder !is null);
+        assert(cast(PgConnectionStringBuilder)connectionStringBuilder !is null);
+    }
+    do
+    {
+        auto result = new PgConnection(this, cast(PgConnectionStringBuilder)connectionStringBuilder);
+        result.logger = this.logger;
+        return result;
+    }
+
     override DbConnectionStringBuilder createConnectionStringBuilder(string connectionString)
     {
         return new PgConnectionStringBuilder(connectionString);
     }
 
-    override DbField createField(DbCommand command)
+    override DbField createField(DbCommand command, DbIdentitier name)
     in
     {
         assert ((cast(PgCommand)command) !is null);
     }
     do
     {
-        return new PgField(cast(PgCommand)command);
+        return new PgField(cast(PgCommand)command, name);
     }
 
     override DbFieldList createFieldList(DbCommand command)
@@ -1070,9 +1096,9 @@ public:
         return new PgFieldList(cast(PgCommand)command);
     }
 
-    override DbParameter createParameter()
+    override DbParameter createParameter(DbIdentitier name)
     {
-        return new PgParameter(this);
+        return new PgParameter(this, name);
     }
 
     override DbParameterList createParameterList()
@@ -1089,26 +1115,21 @@ public:
     {
         return new PgTransaction(cast(PgConnection)connection, isolationLevel);
     }
-
-    @property final override typeof(this) name(DbIdentitier ignoredNewName) nothrow return
-    {
-        return this;
-    }
 }
 
 class PgField : DbField
 {
 public:
-    this(PgCommand command) nothrow @safe
+    this(PgCommand command, DbIdentitier name) nothrow @safe
     {
-        super(command);
+        super(command, name);
     }
 
     final override DbField createSelf(DbCommand command) nothrow
     {
         return database !is null
-            ? database.createField(cast(PgCommand)command)
-            : new PgField(cast(PgCommand)command);
+            ? database.createField(cast(PgCommand)command, name)
+            : new PgField(cast(PgCommand)command, name);
     }
 
     final override DbFieldIdType isIdType() const nothrow @safe
@@ -1130,11 +1151,11 @@ public:
         super(command);
     }
 
-    final override DbField createField(DbCommand command) nothrow
+    final override DbField createField(DbCommand command, DbIdentitier name) nothrow
     {
         return database !is null
-            ? database.createField(cast(PgCommand)command)
-            : new PgField(cast(PgCommand)command);
+            ? database.createField(cast(PgCommand)command, name)
+            : new PgField(cast(PgCommand)command, name);
     }
 
     final override DbFieldList createSelf(DbCommand command) nothrow
@@ -1153,9 +1174,9 @@ public:
 class PgParameter : DbParameter
 {
 public:
-    this(PgDatabase database) nothrow @safe
+    this(PgDatabase database, DbIdentitier name) nothrow @safe
     {
-        super(database);
+        super(database, name);
     }
 
     final override DbFieldIdType isIdType() const nothrow @safe
@@ -1195,7 +1216,7 @@ public:
     {
         this._name = name;
         this._argumentTypes = new PgParameterList(database);
-        this._returnType = new PgParameter(database);
+        this._returnType = new PgParameter(database, DbIdentitier("return"));
         this._returnType.direction = DbParameterDirection.returnValue;
     }
 
@@ -1336,7 +1357,7 @@ private:
 shared static this()
 {
     auto db = new PgDatabase();
-    DbDatabaseList.register(db);
+    DbDatabaseList.registerDb(db);
 }
 
 void fillNamedColumn(DbNamedColumn namedColumn, const ref PgOIdFieldInfo oidField, bool isNew) nothrow @safe
@@ -1371,10 +1392,10 @@ version (UnitTestPGDatabase)
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
         bool compress = false)
     {
-        auto db = DbDatabaseList.instance.get(DbScheme.pg);
+        auto db = DbDatabaseList.getDb(DbScheme.pg);
         assert(cast(PgDatabase)db !is null);
 
-        auto result = db.createConnection(null);
+        auto result = db.createConnection("");
         result.connectionStringBuilder.databaseName = "test";
         result.connectionStringBuilder.userPassword = "masterkey";
         result.connectionStringBuilder.receiveTimeout = dur!"seconds"(20);
@@ -1451,8 +1472,7 @@ unittest // PgConnection
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n*********************************");
-    dgWriteln("unittest db.pgdatabase.PgConnection");
+    traceUnitTest("unittest db.pgdatabase.PgConnection");
 
     auto connection = createTestConnection();
     scope (exit)
@@ -1476,8 +1496,7 @@ unittest // PgTransaction
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n**********************************");
-    dgWriteln("unittest db.pgdatabase.PgTransaction");
+    traceUnitTest("unittest db.pgdatabase.PgTransaction");
 
     auto connection = createTestConnection();
     scope (exit)
@@ -1522,15 +1541,14 @@ unittest // PgCommand.DDL
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n**********************************");
-    dgWriteln("unittest db.pgdatabase.PgCommand.DDL");
+    traceUnitTest("unittest db.pgdatabase.PgCommand.DDL");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -1562,15 +1580,14 @@ unittest // PgCommand.DML
     import core.memory;
     import std.math;
     import pham.utl.utltest;
-    dgWriteln("\n**************************************************");
-    dgWriteln("unittest db.pgdatabase.PgCommand.DML - Simple select");
+    traceUnitTest("unittest db.pgdatabase.PgCommand.DML - Simple select");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -1597,7 +1614,7 @@ unittest // PgCommand.DML
     while (reader.read())
     {
         count++;
-        dgWriteln("checking - count: ", count);
+        traceUnitTest("checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -1611,11 +1628,11 @@ unittest // PgCommand.DML
         assert(isClose(reader.getValue(3).get!double(), 4.20));
         assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
 
-        assert(decimalEqual(reader.getValue(4).get!Decimal64(), 5.4));
-        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal64(), 5.4));
+        assert(decimalEqual(reader.getValue(4).get!Numeric(), 5.4));
+        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Numeric(), 5.4));
 
-        assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
-        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
+        assert(decimalEqual(reader.getValue(5).get!Numeric(), 6.5));
+        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Numeric(), 6.5));
 
         assert(reader.getValue(6) == toDate(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == toDate(2020, 5, 20));
@@ -1652,15 +1669,14 @@ unittest // PgCommand.DML
     import core.memory;
     import std.math;
     import pham.utl.utltest;
-    dgWriteln("\n*****************************************************");
-    dgWriteln("unittest db.pgdatabase.PgCommand.DML - Parameter select");
+    traceUnitTest("unittest db.pgdatabase.PgCommand.DML - Parameter select");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -1680,7 +1696,7 @@ unittest // PgCommand.DML
     command.commandText = parameterSelectCommandText();
     command.parameters.add("INT_FIELD", DbType.int32).value = 1;
     command.parameters.add("DOUBLE_FIELD", DbType.float64).value = 4.20;
-    command.parameters.add("DECIMAL_FIELD", DbType.decimal).value = Decimal64(6.5);
+    command.parameters.add("DECIMAL_FIELD", DbType.numeric).value = Numeric(6.5);
     command.parameters.add("DATE_FIELD", DbType.date).value = toDate(2020, 5, 20);
     command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1);
     command.parameters.add("CHAR_FIELD", DbType.chars).value = "ABC       ";
@@ -1694,7 +1710,7 @@ unittest // PgCommand.DML
     while (reader.read())
     {
         count++;
-        dgWriteln("checking - count: ", count);
+        traceUnitTest("checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -1708,11 +1724,11 @@ unittest // PgCommand.DML
         assert(isClose(reader.getValue(3).get!double(), 4.20));
         assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
 
-        assert(decimalEqual(reader.getValue(4).get!Decimal64(), 5.4));
-        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal64(), 5.4));
+        assert(decimalEqual(reader.getValue(4).get!Numeric(), 5.4));
+        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Numeric(), 5.4));
 
-        assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
-        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
+        assert(decimalEqual(reader.getValue(5).get!Numeric(), 6.5));
+        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Numeric(), 6.5));
 
         assert(reader.getValue(6) == toDate(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == toDate(2020, 5, 20));
@@ -1749,15 +1765,14 @@ unittest // PgCommand.DML
     import core.memory;
     import std.math;
     import pham.utl.utltest;
-    dgWriteln("\n********************************************");
-    dgWriteln("unittest db.pgdatabase.PgCommand.DML - pg_proc");
+    traceUnitTest("unittest db.pgdatabase.PgCommand.DML - pg_proc");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -1789,9 +1804,9 @@ ORDER BY pg_proc.proname
     while (reader.read())
     {
         count++;
-        dgWriteln("checking - count: ", count);
+        traceUnitTest("checking - count: ", count);
 
-        dgWriteln("proname=", reader.getValue("proname"),
+        traceUnitTest("proname=", reader.getValue("proname"),
             ", pronargs=", reader.getValue("pronargs"),
             ", proargnames=", reader.getValue("proargnames"),
             ", proargtypes=", reader.getValue("proargtypes"),
@@ -1807,15 +1822,14 @@ unittest // PgLargeBlob
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n********************************");
-    dgWriteln("unittest db.pgdatabase.PgLargeBlob");
+    traceUnitTest("unittest db.pgdatabase.PgLargeBlob");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -1870,8 +1884,7 @@ unittest // PgCommand.DML
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n******************************************");
-    dgWriteln("unittest db.pgdatabase.PgCommand.DML - Array");
+    traceUnitTest("unittest db.pgdatabase.PgCommand.DML - Array");
 
     static int[] arrayValue() nothrow pure @safe
     {
@@ -1883,7 +1896,7 @@ unittest // PgCommand.DML
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -1925,7 +1938,7 @@ unittest // PgCommand.DML
         while (reader.read())
         {
             count++;
-            dgWriteln("checking - count: ", count);
+            traceUnitTest("checking - count: ", count);
 
             assert(reader.getValue(0) == arrayValue());
             assert(reader.getValue("INTEGER_ARRAY") == arrayValue());
@@ -1947,8 +1960,7 @@ unittest // PgCommand.getExecutionPlan
     import std.array : split;
     import std.string : indexOf;
     import pham.utl.utltest;
-    dgWriteln("\n***********************************************");
-    dgWriteln("unittest db.pgdatabase.PgCommand.getExecutionPlan");
+    traceUnitTest("unittest db.pgdatabase.PgCommand.getExecutionPlan");
 
     static string removePText(string s)
     {
@@ -1975,7 +1987,7 @@ unittest // PgCommand.getExecutionPlan
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -1998,7 +2010,7 @@ unittest // PgCommand.getExecutionPlan
 q"{Seq Scan on test_select  (cost=0.00..13.50 rows=1 width=260)
   Filter: (int_field = 1)}";
     auto planDefault = command.getExecutionPlan();
-    //dgWriteln("'", removePText(planDefault), "' vs ", "'", removePText(expectedDefault), "'");
+    //traceUnitTest("'", removePText(planDefault), "' vs ", "'", removePText(expectedDefault), "'");
     assert(removePText(planDefault) == removePText(expectedDefault));
 
     auto expectedDetail =
@@ -2008,8 +2020,8 @@ q"{Seq Scan on test_select  (cost=0.00..13.50 rows=1 width=260) (actual time=0.0
 Planning Time: 0.062 ms
 Execution Time: 0.053 ms}";
     auto planDetail = command.getExecutionPlan(1);
-    //dgWriteln("'", planDetail, "'");
-    //dgWriteln("'", expectedDetail, "'");
+    //traceUnitTest("'", planDetail, "'");
+    //traceUnitTest("'", expectedDetail, "'");
     // Can't check for exact because time change for each run
     auto lines = planDetail.split("\n");
     assert(lines.length == 5);
@@ -2025,15 +2037,14 @@ unittest // PgCommand.DML.Function
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n*******************************************");
-    dgWriteln("unittest db.pgdatabase.PgCommand.DML.Function");
+    traceUnitTest("unittest db.pgdatabase.PgCommand.DML.Function");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();

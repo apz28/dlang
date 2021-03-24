@@ -22,8 +22,8 @@ import std.string : indexOf;
 import std.system : Endian;
 
 version (unittest) import pham.utl.utltest;
-import pham.utl.enum_set;
-import pham.utl.utlobject;
+import pham.utl.enum_set : toName;
+import pham.utl.utlobject : DisposableState, functionName;
 import pham.db.message;
 import pham.db.exception : SkException;
 import pham.db.util;
@@ -92,8 +92,18 @@ public:
                 return Variant(readArray!int32(arrayColumn));
             case DbType.int64:
                 return Variant(readArray!int64(arrayColumn));
+            case DbType.int128:
+                return Variant(readArray!BigInteger(arrayColumn));
             case DbType.decimal:
+                return Variant(readArray!Decimal(arrayColumn));
+            case DbType.decimal32:
+                return Variant(readArray!Decimal32(arrayColumn));
+            case DbType.decimal64:
                 return Variant(readArray!Decimal64(arrayColumn));
+            case DbType.decimal128:
+                return Variant(readArray!Decimal128(arrayColumn));
+            case DbType.numeric:
+                return Variant(readArray!Numeric(arrayColumn));
             case DbType.float32:
                 return Variant(readArray!float32(arrayColumn));
             case DbType.float64:
@@ -150,6 +160,8 @@ public:
             else static if (is(T == int32))
                 result[i] = reader.readInt32();
             else static if (is(T == int64))
+                result[i] = reader.readInt64();
+            else static if (is(T == BigInteger))
                 result[i] = reader.readInt64();
             else static if (is(T == Decimal32) || is(T == Decimal64) || is(T == Decimal128))
                 result[i] = reader.readDecimal!T(baseType);
@@ -227,8 +239,23 @@ public:
             case DbType.int64:
                 encodedArrayValue = writeArray!int64(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
+            case DbType.int128:
+                encodedArrayValue = writeArray!BigInteger(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                break;
             case DbType.decimal:
+                encodedArrayValue = writeArray!Decimal(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                break;
+            case DbType.decimal32:
+                encodedArrayValue = writeArray!Decimal32(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                break;
+            case DbType.decimal64:
                 encodedArrayValue = writeArray!Decimal64(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                break;
+            case DbType.decimal128:
+                encodedArrayValue = writeArray!Decimal128(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                break;
+            case DbType.numeric:
+                encodedArrayValue = writeArray!Numeric(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.float32:
                 encodedArrayValue = writeArray!float32(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
@@ -294,6 +321,8 @@ public:
                 writer.writeInt32(value);
             else static if (is(T == int64))
                 writer.writeInt64(value);
+            else static if (is(T == BigInteger))
+                writer.writeInt128(value);
             else static if (is(T == Decimal32) || is(T == Decimal64) || is(T == Decimal128))
                 writer.writeDecimal!T(value, baseType);
             else static if (is(T == float32))
@@ -718,6 +747,8 @@ public:
     {
         super(connection, name);
         _flags.set(DbCommandFlag.transactionRequired, true);
+        version (DeferredProtocol)
+            _handle = DbHandle(cast(FbHandle)fbCommandDeferredHandle);
     }
 
 	final override string getExecutionPlan(uint vendorMode)
@@ -805,7 +836,7 @@ public:
 
     @property final FbHandle fbHandle() const nothrow @safe
     {
-        return cast(FbHandle)(handle.value);
+        return handle.get!FbHandle();
     }
 
     @property final FbParameterList fbParameters() nothrow @safe
@@ -1177,8 +1208,7 @@ protected:
                 auto localFields = fields;
                 foreach (i, ref iscField; iscBindInfo.fields)
                 {
-                    auto newField = localFields.createField(this);
-                    newField.name = iscField.useName;
+                    auto newField = localFields.createField(this, iscField.useName);
                     newField.isAlias = iscField.aliasName.length != 0;
                     newField.fillNamedColumn(iscField, true);
                     localFields.put(newField);
@@ -1188,16 +1218,15 @@ protected:
                         auto foundParameter = parameters.hasOutputParameter(newField.name, i);
                         if (foundParameter is null)
                         {
-                            auto newParameter = parameters.createParameter();
-                            newParameter.name = newField.name;
+                            auto newParameter = parameters.createParameter(newField.name);
                             newParameter.direction = DbParameterDirection.output;
                             newParameter.fillNamedColumn(iscField, true);
                             parameters.put(newParameter);
                         }
                         else
                         {
-                            if (foundParameter.name.length == 0)
-                                foundParameter.name = newField.name;
+                            if (foundParameter.name.length == 0 && newField.name.length != 0)
+                                foundParameter.updateEmptyName(newField.name);
                             foundParameter.fillNamedColumn(iscField, false);
                         }
                     }
@@ -1215,8 +1244,7 @@ protected:
                         auto newName = iscField.useName;
                         if (localParameters.exist(newName))
                             newName = localParameters.generateParameterName();
-                        auto newParameter = localParameters.createParameter();
-                        newParameter.name = newName;
+                        auto newParameter = localParameters.createParameter(newName);
                         newParameter.fillNamedColumn(iscField, true);
                         localParameters.put(newParameter);
                     }
@@ -1269,13 +1297,24 @@ public:
     this(FbDatabase database) nothrow @safe
     {
         super(database);
-        _arrayManager._connection = this;
+        this._arrayManager._connection = this;
     }
 
     this(FbDatabase database, string connectionString) nothrow @safe
     {
         super(database, connectionString);
-        _arrayManager._connection = this;
+        this._arrayManager._connection = this;
+    }
+
+    this(DbDatabase database, FbConnectionStringBuilder connectionStringBuilder) nothrow @safe
+    in
+    {
+        assert(connectionStringBuilder !is null);
+    }
+    do
+    {
+        super(database, connectionStringBuilder);
+        this._arrayManager._connection = this;
     }
 
     final IbWriteBuffer acquireParameterWriteBuffer(size_t capacity = FbIscSize.parameterBufferLength) nothrow @safe
@@ -1311,7 +1350,7 @@ public:
 
     @property final FbHandle fbHandle() const nothrow @safe
     {
-        return cast(FbHandle)(handle.value);
+        return handle.get!FbHandle();
     }
 
     /**
@@ -1322,7 +1361,7 @@ public:
         return _protocol;
     }
 
-    @property final override DbIdentitier scheme() const nothrow @safe
+    @property final override DbIdentitier scheme() const nothrow pure @safe
     {
         return DbIdentitier(DbScheme.fb);
     }
@@ -1485,7 +1524,7 @@ public:
         return isDbTrue(getString(DbParameterName.fbGarbageCollect));
     }
 
-    @property final override DbIdentitier scheme() const nothrow @safe
+    @property final override DbIdentitier scheme() const nothrow pure @safe
     {
         return DbIdentitier(DbScheme.fb);
     }
@@ -1521,7 +1560,7 @@ nothrow @safe:
 public:
     this()
     {
-        setName(DbScheme.fb);
+        this._name = DbIdentitier(DbScheme.fb);
     }
 
     override DbCommand createCommand(DbConnection connection, string name = null)
@@ -1541,19 +1580,32 @@ public:
         return result;
     }
 
+    override DbConnection createConnection(DbConnectionStringBuilder connectionStringBuilder)
+    in
+    {
+        assert(connectionStringBuilder !is null);
+        assert(cast(FbConnectionStringBuilder)connectionStringBuilder !is null);
+    }
+    do
+    {
+        auto result = new FbConnection(this, cast(FbConnectionStringBuilder)connectionStringBuilder);
+        result.logger = this.logger;
+        return result;
+    }
+
     override DbConnectionStringBuilder createConnectionStringBuilder(string connectionString)
     {
         return new FbConnectionStringBuilder(connectionString);
     }
 
-    override DbField createField(DbCommand command)
+    override DbField createField(DbCommand command, DbIdentitier name)
     in
     {
         assert ((cast(FbCommand)command) !is null);
     }
     do
     {
-        return new FbField(cast(FbCommand)command);
+        return new FbField(cast(FbCommand)command, name);
     }
 
     override DbFieldList createFieldList(DbCommand command)
@@ -1566,9 +1618,9 @@ public:
         return new FbFieldList(cast(FbCommand)command);
     }
 
-    override DbParameter createParameter()
+    override DbParameter createParameter(DbIdentitier name)
     {
-        return new FbParameter(this);
+        return new FbParameter(this, name);
     }
 
     override DbParameterList createParameterList()
@@ -1586,26 +1638,21 @@ public:
         const isRetaining = defaultTransaction;
         return new FbTransaction(cast(FbConnection)connection, isolationLevel, isRetaining);
     }
-
-    @property final override typeof(this) name(DbIdentitier ignoredNewName) nothrow return
-    {
-        return this;
-    }
 }
 
 class FbField : DbField
 {
 public:
-    this(FbCommand command) nothrow @safe
+    this(FbCommand command, DbIdentitier name) nothrow @safe
     {
-        super(command);
+        super(command, name);
     }
 
     final override DbField createSelf(DbCommand command) nothrow
     {
         return database !is null
-            ? database.createField(cast(FbCommand)command)
-            : new FbField(cast(FbCommand)command);
+            ? database.createField(cast(FbCommand)command, name)
+            : new FbField(cast(FbCommand)command, name);
     }
 
     final override DbFieldIdType isIdType() const nothrow @safe
@@ -1627,11 +1674,11 @@ public:
         super(command);
     }
 
-    final override DbField createField(DbCommand command) nothrow
+    final override DbField createField(DbCommand command, DbIdentitier name) nothrow
     {
         return database !is null
-            ? database.createField(cast(FbCommand)command)
-            : new FbField(cast(FbCommand)command);
+            ? database.createField(cast(FbCommand)command, name)
+            : new FbField(cast(FbCommand)command, name);
     }
 
     final override DbFieldList createSelf(DbCommand command) nothrow
@@ -1650,9 +1697,9 @@ public:
 class FbParameter : DbParameter
 {
 public:
-    this(FbDatabase database) nothrow @safe
+    this(FbDatabase database, DbIdentitier name) nothrow @safe
     {
-        super(database);
+        super(database, name);
     }
 
     final override DbFieldIdType isIdType() const nothrow @safe
@@ -1687,7 +1734,7 @@ public:
 
     @property final FbHandle fbHandle() const nothrow @safe
     {
-        return cast(FbHandle)(handle.value);
+        return handle.get!FbHandle();
     }
 
     /**
@@ -1790,7 +1837,7 @@ private:
 shared static this()
 {
     auto db = new FbDatabase();
-    DbDatabaseList.register(db);
+    DbDatabaseList.registerDb(db);
 }
 
 void fillNamedColumn(DbNamedColumn namedColumn, const ref FbIscFieldInfo iscField, bool isNew) nothrow @safe
@@ -1828,10 +1875,10 @@ version (UnitTestFBDatabase)
         bool compress = false,
         DbIntegratedSecurityConnection integratedSecurity = DbIntegratedSecurityConnection.srp)
     {
-        auto db = DbDatabaseList.instance.get(DbScheme.fb);
+        auto db = DbDatabaseList.getDb(DbScheme.fb);
         assert(cast(FbDatabase)db !is null);
 
-        auto result = db.createConnection(null);
+        auto result = db.createConnection("");
         result.connectionStringBuilder.databaseName = "C:\\Development\\Projects\\DLang\\FirebirdSQL\\TEST.FDB";
         result.connectionStringBuilder.receiveTimeout = dur!"seconds"(20);
         result.connectionStringBuilder.sendTimeout = dur!"seconds"(10);
@@ -1906,9 +1953,9 @@ WHERE INT_FIELD = @INT_FIELD
 unittest // FbConnectionStringBuilder
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.fbdatabase.FbConnectionStringBuilder");
+    traceUnitTest("unittest db.fbdatabase.FbConnectionStringBuilder");
 
-    auto db = DbDatabaseList.instance.get(DbScheme.fb);
+    auto db = DbDatabaseList.getDb(DbScheme.fb);
     assert(cast(FbDatabase)db !is null);
 
     auto connectionStringBuiler = db.createConnectionStringBuilder(null);
@@ -1927,8 +1974,7 @@ unittest // FbConnection
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n*********************************");
-    dgWriteln("unittest db.fbdatabase.FbConnection");
+    traceUnitTest("unittest db.fbdatabase.FbConnection");
 
     auto connection = createTestConnection();
     scope (exit)
@@ -1952,8 +1998,7 @@ unittest // FbConnection.encrypt
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n*******************************************");
-    dgWriteln("unittest db.fbdatabase.FbConnection - encrypt");
+    traceUnitTest("unittest db.fbdatabase.FbConnection - encrypt");
 
     {
         auto connection = createTestConnection(DbEncryptedConnection.enabled);
@@ -1997,8 +2042,7 @@ unittest // FbConnection.integratedSecurity
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n******************************************************");
-    dgWriteln("unittest db.fbdatabase.FbConnection - integratedSecurity");
+    traceUnitTest("unittest db.fbdatabase.FbConnection - integratedSecurity");
 
     version (Windows)
     {
@@ -2025,8 +2069,7 @@ unittest // FbConnection.encrypt.compress
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n*******************************************************************");
-    dgWriteln("unittest db.fbdatabase.FbConnection - encrypt=required, compress=true");
+    traceUnitTest("unittest db.fbdatabase.FbConnection - encrypt=required, compress=true");
 
     auto connection = createTestConnection(DbEncryptedConnection.required, true);
     scope (exit)
@@ -2050,8 +2093,7 @@ unittest // FbTransaction
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n**********************************");
-    dgWriteln("unittest db.fbdatabase.FbTransaction");
+    traceUnitTest("unittest db.fbdatabase.FbTransaction");
 
     auto connection = createTestConnection();
     scope (exit)
@@ -2096,8 +2138,7 @@ unittest // FbTransaction
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n*******************************************************************");
-    dgWriteln("unittest db.fbdatabase.FbTransaction - encrypt=enabled, compress=true");
+    traceUnitTest("unittest db.fbdatabase.FbTransaction - encrypt=enabled, compress=true");
 
     auto connection = createTestConnection(DbEncryptedConnection.enabled, true);
     scope (exit)
@@ -2121,15 +2162,14 @@ unittest // FbCommand.DDL
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n**********************************");
-    dgWriteln("unittest db.fbdatabase.FbCommand.DDL");
+    traceUnitTest("unittest db.fbdatabase.FbCommand.DDL");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -2160,15 +2200,14 @@ unittest // FbCommand.DDL.encrypt.compress
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n*******************************************************************");
-    dgWriteln("unittest db.fbdatabase.FbCommand.DDL - encrypt=enabled, compress=true");
+    traceUnitTest("unittest db.fbdatabase.FbCommand.DDL - encrypt=enabled, compress=true");
 
     bool failed = true;
     auto connection = createTestConnection(DbEncryptedConnection.enabled, true);
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -2199,15 +2238,14 @@ unittest // FbCommand.getExecutionPlan
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n***********************************************");
-    dgWriteln("unittest db.fbdatabase.FbCommand.getExecutionPlan");
+    traceUnitTest("unittest db.fbdatabase.FbCommand.getExecutionPlan");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -2229,8 +2267,8 @@ unittest // FbCommand.getExecutionPlan
     auto expectedDefault = q"{
 PLAN (TEST_SELECT NATURAL)}";
     auto planDefault = command.getExecutionPlan();
-    //dgWriteln("'", planDefault, "'");
-    //dgWriteln("'", expectedDefault, "'");
+    //traceUnitTest("'", planDefault, "'");
+    //traceUnitTest("'", expectedDefault, "'");
     assert(planDefault == expectedDefault);
 
     auto expectedDetail = q"{
@@ -2238,8 +2276,8 @@ Select Expression
     -> Filter
         -> Table "TEST_SELECT" Full Scan}";
     auto planDetail = command.getExecutionPlan(1);
-    //dgWriteln("'", planDetail, "'");
-    //dgWriteln("'", expectedDetail, "'");
+    //traceUnitTest("'", planDetail, "'");
+    //traceUnitTest("'", expectedDetail, "'");
     assert(planDetail == expectedDetail);
 
     failed = false;
@@ -2251,15 +2289,14 @@ unittest // FbCommand.DML
     import core.memory;
     import std.math;
     import pham.utl.utltest;
-    dgWriteln("\n**************************************************");
-    dgWriteln("unittest db.fbdatabase.FbCommand.DML - Simple select");
+    traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Simple select");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -2286,7 +2323,7 @@ unittest // FbCommand.DML
     while (reader.read())
     {
         count++;
-        dgWriteln("checking - count: ", count);
+        traceUnitTest("checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -2341,15 +2378,14 @@ unittest // FbCommand.DML.Parameter
     import core.memory;
     import std.math;
     import pham.utl.utltest;
-    dgWriteln("\n*****************************************************");
-    dgWriteln("unittest db.fbdatabase.FbCommand.DML - Parameter select");
+    traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Parameter select");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -2369,7 +2405,7 @@ unittest // FbCommand.DML.Parameter
     command.commandText = parameterSelectCommandText();
     command.parameters.add("INT_FIELD", DbType.int32).value = 1;
     command.parameters.add("DOUBLE_FIELD", DbType.float64).value = 4.20;
-    command.parameters.add("DECIMAL_FIELD", DbType.decimal).value = Decimal64(6.5);
+    command.parameters.add("DECIMAL_FIELD", DbType.decimal64).value = Decimal64(6.5);
     command.parameters.add("DATE_FIELD", DbType.date).value = toDate(2020, 5, 20);
     command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1);
     command.parameters.add("CHAR_FIELD", DbType.chars).value = "ABC       ";
@@ -2383,7 +2419,7 @@ unittest // FbCommand.DML.Parameter
     while (reader.read())
     {
         count++;
-        dgWriteln("checking - count: ", count);
+        traceUnitTest("checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -2438,15 +2474,14 @@ unittest // FbCommand.DML.encrypt.compress
     import core.memory;
     import std.math;
     import pham.utl.utltest;
-    dgWriteln("\n**************************************************************************************");
-    dgWriteln("unittest db.fbdatabase.FbCommand.DML - Simple select with encrypt=enabled, compress=true");
+    traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Simple select with encrypt=enabled, compress=true");
 
     bool failed = true;
     auto connection = createTestConnection(DbEncryptedConnection.enabled, true);
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -2473,7 +2508,7 @@ unittest // FbCommand.DML.encrypt.compress
     while (reader.read())
     {
         count++;
-        dgWriteln("checking - count: ", count);
+        traceUnitTest("checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -2527,15 +2562,14 @@ unittest // FbCommand.DML.FbArrayManager
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n***************************************************");
-    dgWriteln("unittest db.fbdatabase.FbCommand.DML - FbArrayManager");
+    traceUnitTest("unittest db.fbdatabase.FbCommand.DML - FbArrayManager");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -2563,8 +2597,7 @@ unittest // FbCommand.DML.Array
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n******************************************");
-    dgWriteln("unittest db.fbdatabase.FbCommand.DML - Array");
+    traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Array");
 
     static int[] arrayValue() nothrow pure @safe
     {
@@ -2576,7 +2609,7 @@ unittest // FbCommand.DML.Array
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -2618,7 +2651,7 @@ unittest // FbCommand.DML.Array
         while (reader.read())
         {
             count++;
-            dgWriteln("checking - count: ", count);
+            traceUnitTest("checking - count: ", count);
 
             assert(reader.getValue(0) == arrayValue());
             assert(reader.getValue("INTEGER_ARRAY") == arrayValue());
@@ -2637,8 +2670,7 @@ unittest // FbCommand.DML.Array.Less
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n***********************************************");
-    dgWriteln("unittest db.fbdatabase.FbCommand.DML - Array.Less");
+    traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Array.Less");
 
     static int[] selectArrayValue() nothrow pure @safe
     {
@@ -2655,7 +2687,7 @@ unittest // FbCommand.DML.Array.Less
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -2697,7 +2729,7 @@ unittest // FbCommand.DML.Array.Less
         while (reader.read())
         {
             count++;
-            dgWriteln("checking - count: ", count);
+            traceUnitTest("checking - count: ", count);
 
             assert(reader.getValue(0) == selectArrayValue());
             assert(reader.getValue("INTEGER_ARRAY") == selectArrayValue());
@@ -2716,15 +2748,14 @@ unittest // FbCommand.DML.StoredProcedure
 {
     import core.memory;
     import pham.utl.utltest;
-    dgWriteln("\n**************************************************");
-    dgWriteln("unittest db.fbdatabase.FbCommand.DML.StoredProcedure");
+    traceUnitTest("unittest db.fbdatabase.FbCommand.DML.StoredProcedure");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            dgWriteln("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -2745,7 +2776,7 @@ unittest // FbCommand.DML.StoredProcedure
         command.commandStoredProcedure = "MULTIPLE_BY2";
         command.parameters.add("X", DbType.int32).value = 2;
         command.executeNonQuery();
-        assert(command.parameters.get("Y").getValue == 4);
+        assert(command.parameters.get("Y").val == 4);
     }
 
     {

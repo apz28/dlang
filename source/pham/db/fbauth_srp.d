@@ -15,7 +15,7 @@ import std.algorithm.mutation : reverse;
 import std.typecons : Flag, No, Yes;
 
 import pham.utl.utlobject : bytesFromHexs, bytesToHexs;
-import pham.cp.biginteger;
+import pham.utl.biginteger;
 import pham.cp.auth_rsp;
 import pham.db.fbauth;
 
@@ -174,15 +174,15 @@ private:
             import pham.utl.utltest;
 		    dgFunctionTrace("userName=", userName,
                 ", userPassword=", userPassword,
-                ", salt=", salt.dgToString(),
+                ", salt=", salt.dgToHex(),
                 ", serverPublicKey=", serverPublicKey.toString(),
                 ", _premasterKey=", _premasterKey.toString(),
                 ", n1=", n1.toString(),
 		        ", n2=", n2.toString(),
 		        ", _authClient.ephemeralPrivate=", _authClient.ephemeralPrivate.toString(),
 		        ", _authClient.ephemeralPublic=", _authClient.ephemeralPublic.toString(),
-                ", K=", K.dgToString(),
-                ", M=", M.dgToString());
+                ", K=", K.dgToHex(),
+                ", M=", M.dgToHex());
         }
 
         return M;
@@ -295,7 +295,7 @@ shared static this()
 nothrow @safe unittest // PrimeGroup
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.fbauth_srp.PrimeGroup");
+    traceUnitTest("unittest db.fbauth_srp.PrimeGroup");
 
     assert(fbPrime.N.toString() == FbAuthSrp.N);
     assert(fbPrime.g.toString() == "2");
@@ -344,7 +344,7 @@ version (unittest)
 nothrow @safe unittest // FbAuthSrpSHA1
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.fbauth_srp.FbAuthSrpSHA1");
+    traceUnitTest("unittest db.fbauth_srp.FbAuthSrpSHA1");
 
     testCheckSHA1(
         /*digitPrivateKey*/ "264905762513559650080771073972109248903",

@@ -102,7 +102,7 @@ private:
 unittest // DbBufferFilterCipherRC4
 {
     import pham.utl.utltest;
-    dgWriteln("unittest db.buffer_filter_cipher.DbBufferFilterCipherRC4");
+    traceUnitTest("unittest db.buffer_filter_cipher.DbBufferFilterCipherRC4");
 
     auto keyParameters = CipherParameters(cast(ubyte[])("abc0123456789xyz".dup));
 	auto encryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.write)(keyParameters);
