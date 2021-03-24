@@ -11,13 +11,13 @@
 
 module pham.utl.inifile;
 
-import std.range : ElementType, isInputRange, isOutputRange;
+import std.file : exists;
 import std.format : format;
+import std.range.primitives : ElementType, isInputRange, isOutputRange;
+import std.stdio : File;
 import std.traits : hasUDA, isArray, isBasicType, isSomeString;
 import std.typecons : Flag, No, Yes;
 import std.uni : sicmp;
-import std.file : exists;
-import std.stdio : File;
 
 import pham.utl.array : removeAt;
 import pham.utl.delegate_list;
@@ -220,15 +220,6 @@ public:
             load();
         else if (openMode == IniFileOpenMode.readWrite && exists(inifileName))
             load();
-    }
-
-    version (none)
-    ~this()
-    {
-        if (changed)
-            save();
-        _sections = null;
-        _inifileName = null;
     }
 
     final void clear() nothrow @safe
@@ -938,7 +929,7 @@ private:
 unittest // IniFile.parseSection
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.inifile.IniFile.parseSection");
+    traceUnitTest("unittest utl.inifile.IniFile.parseSection");
 
     IniFile.Line name;
 
@@ -988,7 +979,7 @@ unittest // IniFile.parseSection
 unittest // IniFile.parseNameValue
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.inifile.IniFile.parseNameValue");
+    traceUnitTest("unittest utl.inifile.IniFile.parseNameValue");
 
     IniFile.Line name, value;
 
@@ -1063,7 +1054,7 @@ unittest // IniFile.parseNameValue
 unittest // IniFile
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.inifile.IniFile");
+    traceUnitTest("unittest utl.inifile.IniFile");
 
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);
 
@@ -1123,7 +1114,7 @@ struct Foo
 
 	bool opEquals(Foo other)
     {
-		import std.math : approxEqual, isNaN;
+		import std.math : isClose, isNaN;
         import std.algorithm.comparison : equal;
 
 		return this.name == other.name
@@ -1131,14 +1122,14 @@ struct Foo
             && this.alive == other.alive
             && equal(this.words, other.words)
             && equal(this.ints, other.ints)
-			&& (approxEqual(this.weight, other.weight) || (isNaN(this.weight) && isNaN(other.weight)));
+			&& (isClose(this.weight, other.weight) || (isNaN(this.weight) && isNaN(other.weight)));
 	}
 }
 
 unittest // saveMembers & loadMembers
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.inifile.saveMembers & utl.inifile.loadMembers");
+    traceUnitTest("unittest utl.inifile.saveMembers & utl.inifile.loadMembers");
 
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);
 

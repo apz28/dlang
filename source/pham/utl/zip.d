@@ -650,7 +650,7 @@ unittest // Inflate
 {
 	import pham.utl.utlobject;
     import pham.utl.utltest;
-    dgWriteln("unittest utl.zip.ZlibCodec.Inflate");
+    traceUnitTest("unittest utl.zip.ZlibCodec.Inflate");
 
 	auto zipData1 = bytesFromHexs("789C626060E0644005820C9CC195B9B9A9254599C98C2C8E45C926107146980200000000FFFF");
 	auto expectUnzipData1 = bytesFromHexs("0000000900000000000000000000000000000011000953796D6D6574726963010441726334000000000000010000000000000000");
@@ -679,7 +679,7 @@ unittest // Deflate
 {
 	import pham.utl.utlobject;
     import pham.utl.utltest;
-    dgWriteln("unittest utl.zip.ZlibCodec.Deflate");
+    traceUnitTest("unittest utl.zip.ZlibCodec.Deflate");
 
 	auto zipData1 = bytesFromHexs("789C626060E0644005820C9CC195B9B9A9254599C98C2C8E45C926107146980200000000FFFF");
 	auto expectUnzipData1 = bytesFromHexs("0000000900000000000000000000000000000011000953796D6D6574726963010441726334000000000000010000000000000000");
@@ -708,7 +708,7 @@ unittest // Deflate & Inflate long string
 {
 	import pham.utl.utlobject;
     import pham.utl.utltest;
-    dgWriteln("unittest utl.zip.ZlibCodec.Deflate & Inflate long string");
+    traceUnitTest("unittest utl.zip.ZlibCodec.Deflate & Inflate long string");
 
 	auto sourceBytes = cast(ubyte[])randomCharacters(256_000);
 
@@ -734,7 +734,7 @@ unittest // ZlibCodec.Deflate
 {
 	import pham.utl.utlobject;
     import pham.utl.utltest;
-    dgWriteln("unittest utl.zip.ZlibCodec.Deflate.BigFile");
+    traceUnitTest("unittest utl.zip.ZlibCodec.Deflate.BigFile");
 
 	auto bigData = dgReadAllBinary("F:\\DLang\\std\\utl\\test\\zip_test_expressionsem.d");
 	auto expectZipBigData = dgReadAllBinary("F:\\DLang\\std\\utl\\test\\zip_test_expressionsem.zip");

@@ -158,6 +158,21 @@ version (unittest)
         catch (Exception)
         {}
     }
+
+    void traceUnitTest(A...)(A args) nothrow
+    {
+        version (TraceUnitTest)
+        {
+            import std.stdio : writeln;
+
+            try
+            {
+                debug writeln(args);
+            }
+            catch (Exception)
+            {}
+        }
+    }
 }
 
 version (TraceInvalidMemoryOp)

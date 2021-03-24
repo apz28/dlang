@@ -7,7 +7,7 @@ import std.datetime.date : Date, DateTime, DayOfWeek, Month, TimeOfDay;
 import std.datetime.systime : SysTime;
 import std.exception : enforce;
 import std.format : FormatException, FormatSpec;
-import std.range.primitives;
+import std.range.primitives : empty, put;
 import std.traits;
 
 import pham.utl.utlobject : pad;
@@ -621,6 +621,9 @@ static this() @trusted
 
 @safe unittest // FmtTimeSpecifier.fullShortDateTime, fullLongDateTime
 {
+    import pham.utl.utltest;
+    traceUnitTest("unittest pham.utl.fmttime - %f %F");
+
     string s;
 
     s = formatDateTime("%f", DateTime(2009, 06, 15, 12, 1, 30));
@@ -631,6 +634,9 @@ static this() @trusted
 
 @safe unittest // FmtTimeSpecifier.generalShortDateTime, generalLongDateTime
 {
+    import pham.utl.utltest;
+    traceUnitTest("unittest pham.utl.fmttime - %g");
+
     string s;
 
     s = formatDateTime("%g", DateTime(2009, 06, 15, 13, 45, 30));
@@ -641,6 +647,9 @@ static this() @trusted
 
 @safe unittest // FmtTimeSpecifier.julianDay
 {
+    import pham.utl.utltest;
+    traceUnitTest("unittest pham.utl.fmttime - %j");
+
     string s;
 
     s = formatDateTime("%j", DateTime(2010, 8, 24, 0, 0, 0));
@@ -649,6 +658,9 @@ static this() @trusted
 
 @safe unittest // FmtTimeSpecifier.longDate, shortDate
 {
+    import pham.utl.utltest;
+    traceUnitTest("unittest pham.utl.fmttime - %d %D");
+
     string s;
 
     s = formatDateTime("%D", DateTime(2009, 06, 15, 13, 45, 30));
@@ -669,6 +681,9 @@ static this() @trusted
 
 @safe unittest // FmtTimeSpecifier.longTime, shortTime
 {
+    import pham.utl.utltest;
+    traceUnitTest("unittest pham.utl.fmttime - %t %T");
+
     string s;
 
     s = formatDateTime("%T", DateTime(2009, 06, 15, 13, 45, 30));
@@ -689,6 +704,9 @@ static this() @trusted
 
 @safe unittest // FmtTimeSpecifier.monthDay, monthYear
 {
+    import pham.utl.utltest;
+    traceUnitTest("unittest pham.utl.fmttime - %M %Y");
+
     string s;
 
     s = formatDateTime("%M", DateTime(2009, 06, 15, 13, 45, 30));
@@ -699,6 +717,9 @@ static this() @trusted
 
 @safe unittest // FmtTimeSpecifier.sortableDateTime
 {
+    import pham.utl.utltest;
+    traceUnitTest("unittest pham.utl.fmttime - %s");
+
     string s;
 
     s = formatDateTime("%s", DateTime(2009, 06, 15, 13, 45, 30));
@@ -711,6 +732,9 @@ static this() @trusted
 
 @safe unittest // FmtTimeSpecifier.utcFullDateTime
 {
+    import pham.utl.utltest;
+    traceUnitTest("unittest pham.utl.fmttime - %U");
+
     string s;
 
     s = formatDateTime("%U", DateTime(2009, 06, 15, 13, 45, 30));
@@ -719,6 +743,9 @@ static this() @trusted
 
 @safe unittest // FmtTimeSpecifier.utcSortableDateTime
 {
+    import pham.utl.utltest;
+    traceUnitTest("unittest pham.utl.fmttime - %u");
+
     string s;
 
     s = formatDateTime("%u", SysTime(DateTime(2009, 06, 15, 13, 45, 30), usecs(1), null));
@@ -727,6 +754,9 @@ static this() @trusted
 
 @safe unittest // FmtTimeSpecifier.custom, FmtTimeSpecifier.dateSeparator, FmtTimeSpecifier.timeSeparator
 {
+    import pham.utl.utltest;
+    traceUnitTest("unittest pham.utl.fmttime - %custom....");
+
     string s;
 
     s = formatDateTime("%cmm%/%cdd%/%cyyyy %chh%:%cnn%:%css", DateTime(2009, 06, 15, 13, 45, 30));

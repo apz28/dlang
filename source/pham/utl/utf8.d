@@ -143,7 +143,7 @@ private:
 nothrow @safe unittest // inplaceMoveToLeft
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.utf8.inplaceMoveToLeft");
+    traceUnitTest("unittest utl.utf8.inplaceMoveToLeft");
 
     auto chars = cast(ubyte[])"1234567890".dup;
 

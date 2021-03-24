@@ -11,16 +11,25 @@
  * tree/master/src/System.Runtime.Numerics/src/System/Numerics
  */
 
-module pham.cp.biginteger_helper;
+module pham.utl.biginteger_helper;
 
 nothrow @safe:
+
+package:
+
+enum kcbitUint = cast(uint)(uint.sizeof * 8);
+enum kcbitUlong = cast(uint)(ulong.sizeof * 8);
+enum knMaskHighBit = int.min;
+enum kuMaskHighBit = cast(uint)int.min;
+//enum decimalScaleFactorMask = cast(int)0x00FF0000;
+//enum decimalSignMask = cast(int)0x80000000;
 
 struct BigIntegerHelper
 {
     static union DoubleUlong
     {
+        ulong uu; // Declare integral first to have zero initialized
         double dbl;
-        ulong uu;
     }
 
 @nogc nothrow pure @safe:
@@ -29,7 +38,6 @@ struct BigIntegerHelper
     static void getDoubleParts(double dbl, out int sign, out int exp, out ulong man, out bool fFinite)
     {
         DoubleUlong du;
-        du.uu = 0;
         du.dbl = dbl;
 
         sign = 1 - (cast(int)(du.uu >> 62) & 2);
@@ -60,7 +68,6 @@ struct BigIntegerHelper
     static double getDoubleFromParts(int sign, int exp, ulong man)
     {
         DoubleUlong du;
-        du.dbl = 0;
 
         if (man == 0)
             du.uu = 0;
@@ -196,10 +203,3 @@ struct BigIntegerHelper
             return cbitHighZero(cast(uint)(uu >> 32));
     }
 }
-
-package enum kcbitUint = cast(uint)(uint.sizeof * 8);
-package enum kcbitUlong = cast(uint)(ulong.sizeof * 8);
-package enum knMaskHighBit = int.min;
-package enum kuMaskHighBit = cast(uint)int.min;
-//package enum decimalScaleFactorMask = cast(int)0x00FF0000;
-//package enum decimalSignMask = cast(int)0x80000000;

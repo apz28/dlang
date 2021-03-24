@@ -11,19 +11,21 @@
  * tree/master/src/System.Runtime.Numerics/src/System/Numerics
  */
 
-module pham.cp.biginteger;
+module pham.utl.biginteger;
 
 import std.array : Appender;
+import std.ascii : lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
 import std.conv : ConvException;
 import std.format : FormatSpec, formatValue, FormatException;
+import std.range.primitives : isInputRange, ElementType;
 import std.string : indexOf, CaseSensitive;
-import std.typecons : Flag, No, Yes;
 import std.traits;
+import std.typecons : Flag, No, Yes;
 
 import pham.utl.array : IndexedArray;
-import pham.utl.utlobject;
-import pham.cp.biginteger_helper;
-import pham.cp.biginteger_calculator;
+import pham.utl.utlobject : bytesToHexs, isHex, randomDecimalDigits, randomHexDigits;
+import pham.utl.biginteger_helper;
+import pham.utl.biginteger_calculator;
 
 @safe:
 
@@ -70,6 +72,11 @@ nothrow @safe:
     }
 }
 
+Flag!"bigEndian" toBigEndianFlag(bool value) @nogc nothrow pure
+{
+    return value ? Yes.bigEndian : No.bigEndian;
+}
+
 Flag!"negative" toNegativeFlag(bool value) @nogc nothrow pure
 {
     return value ? Yes.negative : No.negative;
@@ -88,7 +95,7 @@ public:
     this(T)(T value) nothrow pure
     if (is(Unqual!T == BigInteger))
     {
-        setSignInts(value._sign, value._bits);
+        setSignInts(value._bits, value._sign);
     }
 
     this(T)(T value) nothrow pure
@@ -114,9 +121,9 @@ public:
         setBytes(value, unsigned, bigEndian);
     }
 
-    this(int sign, scope const(uint)[] bits) nothrow pure
+    this(scope const(uint)[] bits, int sign) nothrow pure
     {
-        setSignInts(sign, bits);
+        setSignInts(bits, sign);
     }
 
     /// <summary>
@@ -128,6 +135,17 @@ public:
     this(scope const(uint)[] value, const Flag!"negative" negative) nothrow pure
     {
         setNegativeInts(negative, value);
+    }
+
+    /// <summary>
+    /// Create a BigInteger from a little-endian twos-complement UInt32 array.
+    /// When possible, value is assigned directly to this._bits without an array copy
+    /// so use this ctor with care.
+    /// </summary>
+    /// <param name="value"></param>
+    private this(scope const(uint)[] value) nothrow pure
+    {
+        setInts(value);
     }
 
     this(scope const(char)[] hexOrDecimals,
@@ -213,21 +231,10 @@ public:
             this.opUnary!"-"();
     }
 
-    /// <summary>
-    /// Create a BigInteger from a little-endian twos-complement UInt32 array.
-    /// When possible, value is assigned directly to this._bits without an array copy
-    /// so use this ctor with care.
-    /// </summary>
-    /// <param name="value"></param>
-    private this(scope const(uint)[] value) nothrow pure
-    {
-        setInts(value);
-    }
-
     BigInteger opAssign(T)(T x) nothrow pure
     if (is(Unqual!T == BigInteger))
     {
-        setSignInts(x._sign, x._bits);
+        setSignInts(x._bits, x._sign);
         return this;
     }
 
@@ -346,7 +353,7 @@ public:
                 setInt(_sign % right._sign);
             // The divisor is non-trivial and therefore the bigger one
             else if (trivialDividend)
-                setSignInts(_sign, _bits);
+                setSignInts(_bits, _sign);
             else if (trivialDivisor)
             {
                 uint remainder = BigIntegerCalculator.remainder(_bits, BigIntegerHelper.abs(right._sign));
@@ -357,7 +364,7 @@ public:
             }
             else if (_bits.length < right._bits.length)
             {
-                //setSignInts(_sign, _bits);
+                //setSignInts(_bits, _sign);
             }
             else
             {
@@ -397,7 +404,7 @@ public:
         {
             if (isZero)
             {
-                setSignInts(right._sign, right._bits);
+                setSignInts(right._bits, right._sign);
                 return this;
             }
             else if (right.isZero)
@@ -650,7 +657,7 @@ public:
     if (((op == "+" || op == "-" || op == "*" || op == "/" || op == "%") && is(T: BigInteger)) ||
         ((op == "&" || op == "|" || op == "^") && is(T: BigInteger)))
     {
-        auto result = BigInteger(_sign, _bits);
+        auto result = BigInteger(_bits, _sign);
         return result.opOpAssign!op(right);
     }
 
@@ -658,14 +665,14 @@ public:
     if (((op == "+" || op == "-" || op == "*" || op == "/" || op == "%") && isIntegral!T) ||
         ((op == "&" || op == "|" || op == "^") && isIntegral!T))
     {
-        auto result = BigInteger(_sign, _bits);
+        auto result = BigInteger(_bits, _sign);
         return result.opOpAssign!op(BigInteger(right));
     }
 
     BigInteger opBinary(string op)(const int right) const nothrow pure
     if (op == "<<" || op == ">>" || op == "^^")
     {
-        auto result = BigInteger(_sign, _bits);
+        auto result = BigInteger(_bits, _sign);
         return result.opOpAssign!op(right);
     }
 
@@ -877,13 +884,13 @@ public:
         else static if (op == "-")
         {
             debug assertValid();
-            setSignInts(-_sign, _bits);
+            setSignInts(_bits, -_sign);
         }
         else static if (op == "~")
         {
             // -(this + one);
             this.opOpAssign!"+"(one);
-            setSignInts(-_sign, _bits);
+            setSignInts(_bits, -_sign);
         }
         else static if (op == "++")
         {
@@ -1879,16 +1886,16 @@ private:
         // Values like (Int32.MaxValue+1) are stored as "0x80000000" and as such cannot be packed into _sign
         else if (len == 1 && value[0] < kuMaskHighBit)
         {
-            _sign = (negative ? -cast(int)value[0] : cast(int)value[0]);
-            _bits = null;
+            this._sign = (negative ? -cast(int)value[0] : cast(int)value[0]);
+            this._bits = null;
             // Although Int32.MinValue fits in _sign, we represent this case differently for negate
-            if (_sign == int.min)
+            if (this._sign == int.min)
                 setMinInt();
         }
         else
         {
-            _sign = negative ? -1 : +1;
-            _bits = value[0..len].dup;
+            this._sign = negative ? -1 : +1;
+            this._bits = value[0..len].dup;
         }
 
         debug assertValid();
@@ -1900,10 +1907,10 @@ private:
         _sign = 1;
     }
 
-    void setSignInts(int sign, scope const(uint)[] bits) nothrow pure
+    void setSignInts(scope const(uint)[] bits, int sign) nothrow pure
     {
-        _sign = sign;
-        _bits = bits.dup;
+        this._sign = sign;
+        this._bits = bits.dup;
 
         debug assertValid();
     }
@@ -1941,110 +1948,105 @@ private:
 
     void toString(ref Appender!string writer, const ref FormatSpec!char f) const nothrow pure
     {
-        try
+        scope (failure) assert(0);
+
+        const ptrdiff_t cuSrc = _bits.length;
+
+        if (cuSrc == 0)
         {
-            const ptrdiff_t cuSrc = _bits.length;
+            formatValue(writer, _sign, f);
+            return;
+        }
 
-            if (cuSrc == 0)
-            {
-                formatValue(writer, _sign, f);
-                return;
-            }
+        // First convert to base 10^9.
+        const uint kuBase = 1_000_000_000; // 10^9
+        const int kcchBase = 9;
 
-            // First convert to base 10^9.
-            const uint kuBase = 1_000_000_000; // 10^9
-            const int kcchBase = 9;
+        const size_t cuMax = cuSrc * 10 / 9 + 2;
+        auto rguDst = UIntTempArray(cuMax);
+        ptrdiff_t cuDst = 0;
 
-            const size_t cuMax = cuSrc * 10 / 9 + 2;
-            auto rguDst = UIntTempArray(cuMax);
-            ptrdiff_t cuDst = 0;
-
-            for (ptrdiff_t iuSrc = cuSrc; --iuSrc >= 0;)
-            {
-                uint uCarry = _bits[iuSrc];
-                for (size_t iuDst = 0; iuDst < cuDst; iuDst++)
+        for (ptrdiff_t iuSrc = cuSrc; --iuSrc >= 0;)
+        {
+            uint uCarry = _bits[iuSrc];
+            for (size_t iuDst = 0; iuDst < cuDst; iuDst++)
                 {
                     assert(rguDst[iuDst] < kuBase);
                     const ulong uuRes = BigIntegerHelper.makeUlong(rguDst[iuDst], uCarry);
                     rguDst[iuDst] = cast(uint)(uuRes % kuBase);
                     uCarry = cast(uint)(uuRes / kuBase);
                 }
-                if (uCarry != 0)
+            if (uCarry != 0)
                 {
                     rguDst[cuDst++] = uCarry % kuBase;
                     uCarry /= kuBase;
                     if (uCarry != 0)
                         rguDst[cuDst++] = uCarry;
                 }
-            }
+        }
 
-            // Each uint contributes at most 9 digits to the decimal representation.
+        // Each uint contributes at most 9 digits to the decimal representation.
             // Leave an extra slot for a minus sign.
-            const char signChar = _sign < 0 ? '-' : (f.flPlus ? '+' : 0);
-            const size_t cchMax = cuDst * kcchBase + (signChar != 0 ? 1 : 0);
-            ptrdiff_t ichDst = cchMax;
-            auto rgch = CharTempArray(cchMax);
-            for (ptrdiff_t iuDst = 0; iuDst < cuDst - 1; iuDst++)
-            {
-                uint uDig = rguDst[iuDst];
-                assert(uDig < kuBase);
-                for (int cch = kcchBase; --cch >= 0;)
+        const char signChar = _sign < 0 ? '-' : (f.flPlus ? '+' : 0);
+        const size_t cchMax = cuDst * kcchBase + (signChar != 0 ? 1 : 0);
+        ptrdiff_t ichDst = cchMax;
+        auto rgch = CharTempArray(cchMax);
+        for (ptrdiff_t iuDst = 0; iuDst < cuDst - 1; iuDst++)
+        {
+            uint uDig = rguDst[iuDst];
+            assert(uDig < kuBase);
+            for (int cch = kcchBase; --cch >= 0;)
                 {
                     rgch[--ichDst] = cast(char)('0' + uDig % 10);
                     uDig /= 10;
                 }
-            }
-            for (uint uDig = rguDst[cuDst - 1]; uDig != 0;)
-            {
-                rgch[--ichDst] = cast(char)('0' + uDig % 10);
-                uDig /= 10;
-            }
+        }
+        for (uint uDig = rguDst[cuDst - 1]; uDig != 0;)
+        {
+            rgch[--ichDst] = cast(char)('0' + uDig % 10);
+            uDig /= 10;
+        }
 
-            ptrdiff_t resultLength = cchMax - ichDst - (signChar != 0 ? 1 : 0);
-            while (resultLength < f.width)
+        ptrdiff_t resultLength = cchMax - ichDst - (signChar != 0 ? 1 : 0);
+        while (resultLength < f.width)
             {
                 writer.put('0');
                 ++resultLength;
             }
 
-            if (signChar != 0)
-                writer.put(signChar);
+        if (signChar != 0)
+            writer.put(signChar);
 
-            auto digits = rgch[ichDst..rgch.length];
-            if (f.flSeparator)
-            {
-                for (size_t j = 0; j < digits.length; ++j)
-                {
-                    if (j != 0 && (digits.length - j) % f.separators == 0)
-                        writer.put(f.separatorChar);
-                    writer.put(digits[j]);
-                }
-            }
-            else
-                writer.put(digits);
-        }
-        catch (Exception)
+        auto digits = rgch[ichDst..rgch.length];
+        if (f.flSeparator)
         {
-            assert(0);
+            for (size_t j = 0; j < digits.length; ++j)
+            {
+                if (j != 0 && (digits.length - j) % f.separators == 0)
+                    writer.put(f.separatorChar);
+                writer.put(digits[j]);
+            }
         }
+        else
+            writer.put(digits);
     }
 
     void toHexString(ref Appender!string writer, const ref FormatSpec!char f, const Flag!"includeSign" includeSign) const nothrow pure
     {
+        scope (failure) assert(0);
+
         const isUpper = f.spec == 'X';
         const hexDigitSources = isUpper ? upperHexDigits : lowerHexDigits;
 
-        try
-        {
-            UByteTempArray bytesHolder;
-            getUBytesLittleEndian(includeSign, GetBytesMode.allocateArray, bytesHolder);
-            auto bytes = bytesHolder[];
+        UByteTempArray bytesHolder;
+        getUBytesLittleEndian(includeSign, GetBytesMode.allocateArray, bytesHolder);
+        auto bytes = bytesHolder[];
 
-            auto hexDigits = CharTempArray(bytes.length * 2);
+        auto hexDigits = CharTempArray(bytes.length * 2);
 
-            size_t charsPos = 0;
-            ptrdiff_t cur = cast(ptrdiff_t)(bytes.length) - 1;
-            if (cur >= 0)
+        size_t charsPos = 0;
+        ptrdiff_t cur = cast(ptrdiff_t)(bytes.length) - 1;
+        if (cur >= 0)
             {
                 // [FF..F8] drop the high F as the two's complement negative number remains clear
                 // [F7..08] retain the high bits as the two's complement number is wrong without it
@@ -2071,7 +2073,7 @@ private:
                 }
             }
 
-            if (cur >= 0)
+        if (cur >= 0)
             {
                 while (cur >= 0)
                 {
@@ -2081,14 +2083,14 @@ private:
                 }
             }
 
-            ptrdiff_t resultLength = charsPos;
-            while (resultLength < f.width)
+        ptrdiff_t resultLength = charsPos;
+        while (resultLength < f.width)
             {
                 writer.put('0');
                 ++resultLength;
             }
 
-            if (f.flSeparator)
+        if (f.flSeparator)
             {
                 const len = hexDigits.length;
                 for (size_t j = 0; j < len; ++j)
@@ -2098,13 +2100,8 @@ private:
                     writer.put(hexDigits[j]);
                 }
             }
-            else
-                writer.put(hexDigits[]);
-        }
-        catch (Exception)
-        {
-            assert(0);
-        }
+        else
+            writer.put(hexDigits[]);
     }
 
     /// <summary>Mode used to enable sharing <see cref="tryGetUBytes(GetBytesMode, Span{ubyte}, bool, bool, ref int)"/> for multiple purposes.</summary>
@@ -2185,7 +2182,7 @@ BigInteger subtract(const BigInteger left, const BigInteger right) nothrow pure
     debug left.assertValid();
     debug right.assertValid();
 
-    auto result = BigInteger(left._sign, left._bits);
+    auto result = BigInteger(left._bits, left._sign);
     if ((left._sign < 0) != (right._sign < 0))
         return result.addOpAssign(right._bits, -1 * right._sign);
     else
@@ -2224,7 +2221,7 @@ BigInteger divRem(const BigInteger dividend, const BigInteger divisor, out BigIn
     if (trivialDividend)
     {
         // The divisor is non-trivial and therefore the bigger one
-        remainder = BigInteger(dividend._sign, dividend._bits);
+        remainder = BigInteger(dividend._bits, dividend._sign);
         return BigInteger.zero();
     }
 
@@ -2239,7 +2236,7 @@ BigInteger divRem(const BigInteger dividend, const BigInteger divisor, out BigIn
 
     if (dividend._bits.length < divisor._bits.length)
     {
-        remainder = BigInteger(dividend._sign, dividend._bits);
+        remainder = BigInteger(dividend._bits, dividend._sign);
         return BigInteger.zero();
     }
     else
@@ -2254,7 +2251,7 @@ BigInteger divRem(const BigInteger dividend, const BigInteger divisor, out BigIn
 
 BigInteger abs(const BigInteger value) nothrow pure
 {
-    auto result = BigInteger(value._sign, value._bits);
+    auto result = BigInteger(value._bits, value._sign);
     if (result < BigInteger.zero)
         return -result;
     else
@@ -2310,7 +2307,7 @@ double log10(const BigInteger value) nothrow pure
 
 BigInteger negate(const BigInteger value) nothrow pure
 {
-    auto result = BigInteger(value._sign, value._bits);
+    auto result = BigInteger(value._bits, value._sign);
     return -result;
 }
 
@@ -2357,7 +2354,7 @@ do
 
 BigInteger pow(const BigInteger value, int exponent) nothrow pure
 {
-    auto result = BigInteger(value._sign, value._bits);
+    auto result = BigInteger(value._bits, value._sign);
     return result ^^ exponent;
 }
 
@@ -2441,26 +2438,20 @@ BigInteger greatestCommonDivisor(const(uint)[] leftBits, const(uint)[] rightBits
 }
 
 version (unittest)
-string toString(const BigInteger n,
+string toStringSafe(const BigInteger n,
     string format = null,
     char separator = '_') nothrow @safe
 {
-    try
-    {
-        return format.length ? n.toString(format, separator) : n.toString();
-    }
-    catch (Exception)
-    {
-        assert(0);
-    }
-}
+    scope (failure) assert(0);
 
+    return format.length ? n.toString(format, separator) : n.toString();
+}
 
 nothrow unittest
 {
     import std.conv : to;
     import pham.utl.utltest;
-    dgWriteln("unittest cp.biginteger.BigInteger.toString('%d')");
+    traceUnitTest("unittest utl.biginteger.BigInteger.toString('%d')");
 
     static void check(T)(T value, string checkedValue,
         string format = null,
@@ -2468,7 +2459,7 @@ nothrow unittest
         size_t line = __LINE__) nothrow @safe
     {
         auto v = BigInteger(value);
-        auto s = toString(v, format, separator);
+        auto s = toStringSafe(v, format, separator);
         assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
     }
 
@@ -2495,7 +2486,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.utltest;
-    dgWriteln("unittest cp.biginteger.BigInteger.toString('%X')");
+    traceUnitTest("unittest utl.biginteger.BigInteger.toString('%X')");
 
     static void check(T)(T value, string checkedValue,
         string format = "%X",
@@ -2503,7 +2494,7 @@ unittest
         size_t line = __LINE__)
     {
         auto v = BigInteger(value);
-        auto s = toString(v, format, separator);
+        auto s = toStringSafe(v, format, separator);
         assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
     }
 
@@ -2530,13 +2521,13 @@ unittest
 {
     import std.conv : to;
     import pham.utl.utltest;
-    dgWriteln("unittest cp.biginteger.BigInteger(parse integer)");
+    traceUnitTest("unittest utl.biginteger.BigInteger(parse integer)");
 
     static void check(string value,
         size_t line = __LINE__) @safe
     {
         auto v = BigInteger(value);
-        auto s = toString(v);
+        auto s = toStringSafe(v);
         assert(s == value, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ value);
     }
 
@@ -2563,13 +2554,13 @@ unittest
 {
     import std.conv : to;
     import pham.utl.utltest;
-    dgWriteln("unittest cp.biginteger.BigInteger(parse hex)");
+    traceUnitTest("unittest utl.biginteger.BigInteger(parse hex)");
 
     static void check(string value,
         size_t line = __LINE__)
     {
         auto v = BigInteger("0x" ~ value);
-        auto s = toString(v, "%X");
+        auto s = toStringSafe(v, "%X");
         assert(s == value, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ value);
     }
 
@@ -2594,7 +2585,7 @@ unittest
 unittest
 {
     import pham.utl.utltest;
-    dgWriteln("unittest cp.biginteger.BigInteger(compare)");
+    traceUnitTest("unittest utl.biginteger.BigInteger(compare)");
 
     auto x = BigInteger("12345");
     auto x2 = BigInteger("12345");
@@ -2620,7 +2611,7 @@ unittest
     import std.conv : to, ConvException;
     import std.exception : assertThrown;
     import pham.utl.utltest;
-    dgWriteln("unittest cp.biginteger.BigInteger(cast)");
+    traceUnitTest("unittest utl.biginteger.BigInteger(cast)");
 
     // Non-zero values are regarded as true
     auto x = BigInteger("1");
@@ -2677,12 +2668,12 @@ unittest
 {
     import std.conv : to;
     import pham.utl.utltest;
-    dgWriteln("unittest cp.biginteger.BigInteger(operator + - ~ )");
+    traceUnitTest("unittest utl.biginteger.BigInteger(operator + - ~ )");
 
     static void check(const BigInteger value, string checkedValue,
         size_t line = __LINE__)
     {
-        auto s = toString(value, "%,3d", '_');
+        auto s = toStringSafe(value, "%,3d", '_');
         assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
         assert(value == BigInteger(checkedValue), "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
     }
@@ -2827,12 +2818,12 @@ unittest
 {
     import std.conv : to;
     import pham.utl.utltest;
-    dgWriteln("unittest cp.biginteger.BigInteger(operator * / %)");
+    traceUnitTest("unittest utl.biginteger.BigInteger(operator * / %)");
 
     static void check(const BigInteger value, string checkedValue,
         size_t line = __LINE__)
     {
-        auto s = toString(value, "%,3d", '_');
+        auto s = toStringSafe(value, "%,3d", '_');
         assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
         assert(value == BigInteger(checkedValue), "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
     }
@@ -2899,12 +2890,12 @@ unittest
 {
     import std.conv : to;
     import pham.utl.utltest;
-    dgWriteln("unittest cp.biginteger.BigInteger(operator << >> ^^)");
+    traceUnitTest("unittest utl.biginteger.BigInteger(operator << >> ^^)");
 
     static void check(const BigInteger value, string checkedValue,
         size_t line = __LINE__)
     {
-        auto s = toString(value, "%,3d", '_');
+        auto s = toStringSafe(value, "%,3d", '_');
         assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
         assert(value == BigInteger(checkedValue), "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
     }
@@ -2929,7 +2920,7 @@ unittest
 unittest
 {
     import pham.utl.utltest;
-    dgWriteln("unittest cp.biginteger.randomDecimalDigits");
+    traceUnitTest("unittest utl.biginteger.randomDecimalDigits");
 
     string s;
 
@@ -2949,7 +2940,7 @@ unittest
 unittest
 {
     import pham.utl.utltest;
-    dgWriteln("unittest cp.biginteger.randomHexDigits");
+    traceUnitTest("unittest utl.biginteger.randomHexDigits");
 
     string s;
 
@@ -2970,12 +2961,12 @@ unittest
 {
     import std.conv : to;
     import pham.utl.utltest;
-    dgWriteln("unittest cp.biginteger.BigInteger(multiply)");
+    traceUnitTest("unittest utl.biginteger.BigInteger(multiply)");
 
     static void check(const BigInteger value, string checkedValue,
         size_t line = __LINE__)
     {
-        auto s = toString(value);
+        auto s = toStringSafe(value);
         assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
         assert(value == BigInteger(checkedValue), "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
     }
@@ -2990,7 +2981,7 @@ unittest
 unittest
 {
     import pham.utl.utltest;
-    dgWriteln("unittest cp.biginteger.BigInteger.enum");
+    traceUnitTest("unittest utl.biginteger.BigInteger.enum");
 
     enum b = BigInteger("0x123");
     enum b2 = BigInteger("291");
@@ -3000,7 +2991,7 @@ unittest
 unittest
 {
     import pham.utl.utltest;
-    dgWriteln("unittest cp.biginteger.BigInteger.toBytes");
+    traceUnitTest("unittest utl.biginteger.BigInteger.toBytes");
 
     auto b = BigInteger("148607213746748888433115898774488125434956021884951532398437063594981690133657747515764650183781235940657054608881977858196568765979755791042029635107364589767082851027596594595936524517171068826751265581664247659551324634745120309986368437908665195084578221129443657946400665125676458397984792168049771254957");
 
@@ -3011,12 +3002,12 @@ unittest
 {
     import std.conv : to;
     import pham.utl.utltest;
-    dgWriteln("unittest cp.biginteger.BigInteger(RSP Calculation)");
+    traceUnitTest("unittest utl.biginteger.BigInteger(RSP Calculation)");
 
     static void check(string caseNumber, const BigInteger value, string checkedValue,
         size_t line = __LINE__)
     {
-        auto s = toString(value);
+        auto s = toStringSafe(value);
         assert(s == checkedValue, caseNumber ~ " from line s: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
         assert(value == BigInteger(checkedValue), caseNumber ~ " from line b: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
     }
@@ -3101,4 +3092,14 @@ unittest
         "555201248805843277041858572938629561136620975361906949088224612395856927764019534982733028343215",
         "60200670310998898545503783314801977811021352353243349406037365576304366931392344178261453913145139672906516808635493851722658566136188757905752432773862614766677724694879760037219343621851028306075876131499437013356802062182895781455681614269981911929900326407523213579183069256957487352485956427189499088426"
        );
+}
+
+unittest
+{
+    import std.conv : to;
+    import pham.utl.utltest;
+    traceUnitTest("unittest utl.biginteger - to!BigInteger('123...')");
+
+    const a = to!BigInteger("1234");
+    assert(a == 1234);
 }

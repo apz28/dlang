@@ -11,7 +11,8 @@
 
 module pham.utl.utlobject;
 
-import std.ascii : LetterCase;
+import core.sync.mutex : Mutex;
+import std.ascii : LetterCase, lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
 import std.exception : assumeWontThrow;
 import std.math : isPowerOf2;
 import std.traits;
@@ -29,10 +30,6 @@ do
 {
     return (n + powerOf2AlignmentSize - 1) & ~(powerOf2AlignmentSize - 1);
 }
-
-immutable string decimalDigits = "0123456789";
-immutable string lowerHexDigits = "0123456789abcdef";
-immutable string upperHexDigits = "0123456789ABCDEF";
 
 ubyte[] bytesFromHexs(scope const(char)[] validHexChars) nothrow pure @safe
 {
@@ -436,19 +433,6 @@ abstract class DisposableObject : IDisposable
 nothrow @safe:
 
 public:
-    ~this()
-    {
-        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
-
-        if (_disposing == 0)
-        {
-            _disposing = byte.min; // Set to indicate in destructor
-            doDispose(false);
-        }
-
-        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
-    }
-
     final void disposal(bool disposing)
     {
         version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
@@ -551,6 +535,54 @@ private:
     bool _inited;
 }
 
+struct RAIIMutex
+{
+nothrow @safe:
+
+public:
+    @disable this();
+
+    this(Mutex mutex)
+    {
+        this._locked = 0;
+        this._mutex = mutex;
+        lock;
+    }
+
+    ~this()
+    {
+        if (_locked > 0)
+            unlock;
+    }
+
+    void lock()
+    {
+        if (_locked == 0 && _mutex !is null)
+            _mutex.lock_nothrow();
+        _locked++;
+    }
+
+    void unlock()
+    in
+    {
+        assert(_locked > 0);
+    }
+    do
+    {
+        if (--_locked == 0 && _mutex !is null)
+            _mutex.unlock_nothrow();
+    }
+
+    @property int locked() const pure
+    {
+        return _locked;
+    }
+
+private:
+    Mutex _mutex;
+    int _locked;
+}
+
 
 // Any below codes are private
 private:
@@ -566,7 +598,7 @@ version (unittest)
 nothrow @safe unittest // className
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.utlobject.className");
+    traceUnitTest("unittest utl.utlobject.className");
 
     auto c1 = new ClassName();
     assert(className(c1) == "pham.utl.utlobject.ClassName");
@@ -578,7 +610,7 @@ nothrow @safe unittest // className
 nothrow @safe unittest // currentComputerName
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.utlobject.currentComputerName");
+    traceUnitTest("unittest utl.utlobject.currentComputerName");
 
     assert(currentComputerName().length != 0);
 }
@@ -586,7 +618,7 @@ nothrow @safe unittest // currentComputerName
 nothrow @safe unittest // currentProcessId
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.utlobject.currentProcessId");
+    traceUnitTest("unittest utl.utlobject.currentProcessId");
 
     assert(currentProcessId() != 0);
 }
@@ -594,13 +626,16 @@ nothrow @safe unittest // currentProcessId
 nothrow @safe unittest // currentUserName
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.utlobject.currentUserName");
+    traceUnitTest("unittest utl.utlobject.currentUserName");
 
     assert(currentUserName().length != 0);
 }
 
 nothrow @safe unittest // pad
 {
+    import pham.utl.utltest;
+    traceUnitTest("unittest utl.utlobject.pad");
+
     assert(pad("", 2, ' ') == "  ");
     assert(pad("12", 2, ' ') == "12");
     assert(pad("12", 3, ' ') == " 12");
@@ -610,7 +645,7 @@ nothrow @safe unittest // pad
 nothrow @safe unittest // shortClassName
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.utlobject.shortClassName");
+    traceUnitTest("unittest utl.utlobject.shortClassName");
 
     auto c1 = new ClassName();
     assert(shortClassName(c1) == "pham.utl.utlobject.ClassName");
@@ -622,7 +657,7 @@ nothrow @safe unittest // shortClassName
 unittest // singleton
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.utlobject.singleton");
+    traceUnitTest("unittest utl.utlobject.singleton");
 
     static class A {}
 
@@ -638,6 +673,9 @@ unittest // singleton
 
 nothrow @safe unittest // stringOfChar
 {
+    import pham.utl.utltest;
+    traceUnitTest("unittest utl.utlobject.stringOfChar");
+
     assert(stringOfChar(4, ' ') == "    ");
     assert(stringOfChar(0, ' ').length == 0);
 }
@@ -645,7 +683,7 @@ nothrow @safe unittest // stringOfChar
 unittest // InitializedValue
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.utlobject.InitializedValue");
+    traceUnitTest("unittest utl.utlobject.InitializedValue");
 
     InitializedValue!int n;
     assert(!n);
@@ -673,7 +711,7 @@ unittest // InitializedValue
 nothrow @safe unittest // isHex
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.utlobject.isHex");
+    traceUnitTest("unittest utl.utlobject.isHex");
 
     ubyte b;
 
@@ -690,7 +728,7 @@ nothrow @safe unittest // isHex
 nothrow @safe unittest // bytesFromHexs & bytesToHexs
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.utlobject.bytesFromHexs & bytesToHexs");
+    traceUnitTest("unittest utl.utlobject.bytesFromHexs & bytesToHexs");
 
     assert(bytesToHexs([0]) == "00");
     assert(bytesToHexs([1]) == "01");

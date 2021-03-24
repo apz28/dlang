@@ -261,11 +261,15 @@ if (isDLink!T)
     }
 }
 
+
+private:
+
+
 unittest
 {
     import std.conv : to;
     import pham.utl.utltest;
-    dgWriteln("unittest dlink_list");
+    traceUnitTest("unittest dlink_list");
 
     class X
     {

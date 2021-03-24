@@ -11,7 +11,7 @@
 
 module pham.utl.delegate_list;
 
-import pham.utl.array;
+import pham.utl.array : UnshrinkArray;
 
 struct DelegateList(Args...)
 {
@@ -95,7 +95,7 @@ private:
 unittest // DelegateList
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.delegate_list.DelegateList");
+    traceUnitTest("unittest utl.delegate_list.DelegateList");
 
     string eName;
     int eValue;

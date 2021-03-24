@@ -134,7 +134,7 @@ public:
         return isLoaded;
     }
 
-    /** 
+    /**
      * Load the function address using procName
      * Params:
      *  procName = Name of the function
@@ -142,7 +142,7 @@ public:
      *  DllException if loadProc fails if throwIfError is true
      * Returns:
      *  Pointer to the function
-     * 
+     *
      * Example:
      *  fct = loadProc("AFunctionNameToBeLoaded...")
      */
@@ -246,7 +246,7 @@ public:
         return _libHandle;
     }
 
-    /** 
+    /**
      * Name of the library
      */
     @property final string libName() const nothrow @safe
@@ -255,7 +255,7 @@ public:
     }
 
 protected:
-    /** 
+    /**
      * Let the derived class to perform further action when library is loaded
      */
     void loaded()
@@ -275,7 +275,7 @@ private:
 unittest // DllLibrary
 {
     import pham.utl.utltest;
-    dgWriteln("unittest utl.dynlib.DllLibrary");
+    traceUnitTest("unittest utl.dynlib.DllLibrary");
 
     version (Windows)
     {

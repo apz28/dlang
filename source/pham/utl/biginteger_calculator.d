@@ -11,21 +11,22 @@
  * tree/master/src/System.Runtime.Numerics/src/System/Numerics
  */
 
-module pham.cp.biginteger_calculator;
+module pham.utl.biginteger_calculator;
 
 import std.algorithm : swap;
 
 import pham.utl.array : IndexedArray;
 
+nothrow @safe:
+
 // Threadhold if we can use stack memory for speed
-// Mutable for unit testing?
-enum int allocationThreshold = 256;
+enum allocationThreshold = 256;
 
 alias CharTempArray = IndexedArray!(char, allocationThreshold * uint.sizeof);
 alias UByteTempArray = IndexedArray!(ubyte, allocationThreshold * uint.sizeof);
 alias UIntTempArray = IndexedArray!(uint, allocationThreshold);
 
-package(pham):
+package:
 
 // To spare memory allocations a buffer helps reusing memory!
 // We just create the target array twice and switch between every
@@ -33,50 +34,57 @@ package(pham):
 // leading zeros we take care of the current actual length.
 struct BitsBuffer
 {
-private:
-    UIntTempArray _bits;
-    size_t _length;
+nothrow @safe:
 
 public:
-    this(size_t size, uint value) nothrow pure @safe
+    this(size_t size, uint value) pure
+    in
     {
         assert(size >= 1);
-
+    }
+    do
+    {
         _bits.length = size;
         _bits[0] = value;
         _length = value != 0 ? 1 : 0;
     }
 
-    this(size_t size, scope const(uint)[] value) nothrow pure @safe
+    this(size_t size, scope const(uint)[] value) pure
+    in
     {
         assert(size >= BigIntegerCalculator.actualLength(value, value.length));
-
+    }
+    do
+    {
         _bits.length = size;
         _length = BigIntegerCalculator.actualLength(value, value.length);
         if (_length)
             _bits[0] = value[0.._length];
     }
 
-    this(size_t size, UIntTempArray value) nothrow pure @safe
+    this(size_t size, UIntTempArray value) pure
     {
         this(size, value[]);
     }
 
-    uint[] opSlice() nothrow pure return @safe
+    uint[] opSlice() pure return
     {
         return _bits[];
     }
 
-    uint[] dup() nothrow pure @safe
+    uint[] dup() pure
     {
         return this[].dup;
     }
 
-    void multiplySelf(ref BitsBuffer value, ref BitsBuffer temp) nothrow pure @safe
+    void multiplySelf(ref BitsBuffer value, ref BitsBuffer temp) pure
+    in
     {
         assert(temp.length == 0);
         assert(length + value.length <= temp.size);
-
+    }
+    do
+    {
         // Executes a multiplication for this and value, writes the
         // result to temp. Switches this and temp arrays afterwards.
 
@@ -95,21 +103,23 @@ public:
         apply(temp, dLength);
     }
 
-    void squareSelf(ref BitsBuffer temp) nothrow pure @safe
+    void squareSelf(ref BitsBuffer temp) pure
+    in
     {
         assert(temp.length == 0);
         assert(length + length <= temp.size);
-
+    }
+    do
+    {
         // Executes a square for this, writes the result to temp.
         // Switches this and temp arrays afterwards.
 
         const dLength = length + length;
         BigIntegerCalculator.square(ptr(), length, temp.ptr(), dLength);
-
         apply(temp, dLength);
     }
 
-    void reduce(ref FastReducer reducer) nothrow pure @safe
+    void reduce(ref FastReducer reducer) pure
     {
         // Executes a modulo operation using an optimized reducer.
         // Thus, no need of any switching here, happens in-line.
@@ -117,7 +127,7 @@ public:
         _length = reducer.reduce(_bits, _length);
     }
 
-    void reduce(const(uint)[] modulus) nothrow pure @safe
+    void reduce(const(uint)[] modulus) pure
     {
         // Executes a modulo operation using the divide operation.
         // Thus, no need of any switching here, happens in-line.
@@ -130,7 +140,7 @@ public:
         }
     }
 
-    void reduce(ref BitsBuffer modulus) nothrow pure @safe
+    void reduce(ref BitsBuffer modulus) pure
     {
         // Executes a modulo operation using the divide operation.
         // Thus, no need of any switching here, happens in-line.
@@ -143,10 +153,13 @@ public:
         }
     }
 
-    void overwrite(ulong value) nothrow pure @safe
+    void overwrite(ulong value) pure
+    in
     {
         assert(_bits.length >= 2);
-
+    }
+    do
+    {
         // Ensure leading zeros
         if (_length > 2)
             _bits.fill(0);
@@ -159,10 +172,13 @@ public:
         _length = hi != 0 ? 2 : lo != 0 ? 1 : 0;
     }
 
-    void overwrite(uint value) nothrow pure @safe
+    void overwrite(uint value) pure
+    in
     {
         assert(_bits.length >= 1);
-
+    }
+    do
+    {
         // Ensure leading zeros
         if (_length > 1)
             _bits.fill(0);
@@ -171,15 +187,18 @@ public:
         _length = value != 0 ? 1 : 0;
     }
 
-    uint* ptr(size_t startIndex = 0) nothrow pure return @safe
+    uint* ptr(size_t startIndex = 0) pure return
     {
         return _bits.ptr(startIndex);
     }
 
-    void refresh(size_t maxLength) nothrow pure @safe
+    void refresh(size_t maxLength) pure
+    in
     {
         assert(_bits.length >= maxLength);
-
+    }
+    do
+    {
         // Ensure leading zeros
         if (_length > maxLength)
             _bits.fill(0, maxLength);
@@ -187,29 +206,35 @@ public:
         _length = BigIntegerCalculator.actualLength(_bits, maxLength);
     }
 
-    private void apply(ref BitsBuffer temp, size_t maxLength) nothrow pure @safe
+    private void apply(ref BitsBuffer temp, size_t maxLength) pure
+    in
     {
         assert(temp.length == 0);
         assert(maxLength <= temp.size);
-
+    }
+    do
+    {
         // Resets this and switches this and temp afterwards.
         // The caller assumed an empty temp, the next will too.
+
         _bits.fill(0);
-
         swap(temp._bits, _bits);
-
         _length = BigIntegerCalculator.actualLength(_bits, maxLength);
     }
 
-    @property size_t length() const nothrow pure @safe
+    @property size_t length() const pure
     {
         return _length;
     }
 
-    @property size_t size() const nothrow pure @safe
+    @property size_t size() const pure
     {
         return _bits.length;
     }
+
+private:
+    size_t _length;
+    UIntTempArray _bits;
 }
 
 // If we need to reduce by a certain modulus again and again, it's much
@@ -218,15 +243,10 @@ public:
 // see https://en.wikipedia.org/wiki/Barrett_reduction
 struct FastReducer
 {
-private:
-    UIntTempArray _modulus;
-    UIntTempArray _mu;
-    UIntTempArray _q1;
-    UIntTempArray _q2;
-    size_t _muLength;
+nothrow @safe:
 
 public:
-    this(const(uint)[] modulus) nothrow pure @safe
+    this(const(uint)[] modulus) pure
     {
         const dModulusLen = modulus.length * 2;
 
@@ -246,11 +266,14 @@ public:
         _muLength = BigIntegerCalculator.actualLength(_mu, _mu.length);
     }
 
-    size_t reduce(ref UIntTempArray value, size_t length) nothrow pure @safe
+    size_t reduce(ref UIntTempArray value, size_t length) pure
+    in
     {
         assert(length <= value.length);
         assert(value.length <= _modulus.length * 2);
-
+    }
+    do
+    {
         // Trivial: value is shorter
         if (length < _modulus.length)
             return length;
@@ -265,14 +288,18 @@ public:
         return subMod(value, length, _q2, l2, _modulus, _modulus.length + 1);
     }
 
-    private static size_t divMul(ref UIntTempArray left, size_t leftLength,
+private:
+    static size_t divMul(ref UIntTempArray left, size_t leftLength,
         ref UIntTempArray right, size_t rightLength,
-        ref UIntTempArray bits, size_t k) nothrow pure @trusted
+        ref UIntTempArray bits, size_t k) pure @trusted
+    in
     {
         assert(left.length >= leftLength);
         assert(right.length >= rightLength);
         assert(bits.length + k >= leftLength + rightLength);
-
+    }
+    do
+    {
         // Executes the multiplication algorithm for left and right,
         // but skips the first k limbs of left, which is equivalent to
         // preceding division by 2^(32*k). To spare memory allocations
@@ -302,13 +329,16 @@ public:
         return 0;
     }
 
-    private static size_t subMod(ref UIntTempArray left, size_t leftLength,
+    static size_t subMod(ref UIntTempArray left, size_t leftLength,
         ref UIntTempArray right, size_t rightLength,
-        ref UIntTempArray modulus, size_t k) nothrow pure @safe
+        ref UIntTempArray modulus, size_t k) pure
+    in
     {
         assert(left.length >= leftLength);
         assert(right.length >= rightLength);
-
+    }
+    do
+    {
         // Executes the subtraction algorithm for left and right,
         // but considers only the first k limbs, which is equivalent to
         // preceding reduction by 2^(32*k). Furthermore, if left is
@@ -333,14 +363,23 @@ public:
 
         return leftLength;
     }
+
+private:
+    UIntTempArray _modulus;
+    UIntTempArray _mu;
+    UIntTempArray _q1;
+    UIntTempArray _q2;
+    size_t _muLength;
 }
 
 struct BigIntegerCalculator
 {
+nothrow @safe:
+
     // Do an in-place two's complement. "Dangerous" because it causes
     // a mutation and needs to be used with care for immutable types.
     version (none)
-    static void makeTwosComplement(ref uint[] d) nothrow pure @safe
+    static void makeTwosComplement(ref uint[] d) pure
     {
         if (d.length != 0)
         {
@@ -356,7 +395,7 @@ struct BigIntegerCalculator
         }
     }
 
-    static ref UIntTempArray makeTwosComplement(return ref UIntTempArray d) nothrow pure @safe
+    static ref UIntTempArray makeTwosComplement(return ref UIntTempArray d) pure
     {
         if (!d.empty)
         {
@@ -373,17 +412,20 @@ struct BigIntegerCalculator
         return d;
     }
 
-    static double logBase(double number, double logBase) nothrow pure @safe
+    static double logBase(double number, double logBase) pure
     {
         import std.math : log;
 
         return log(number) / log(logBase);
     }
 
-    static UIntTempArray add(const(uint)[] left, uint right) nothrow pure @safe
+    static UIntTempArray add(const(uint)[] left, uint right) pure
+    in
     {
         assert(left.length >= 1);
-
+    }
+    do
+    {
         // Executes the addition for one big and one 32-bit integer.
         // Thus, we've similar code than below, but there is no loop for
         // processing the 32-bit integer, since it's a single element.
@@ -406,28 +448,32 @@ struct BigIntegerCalculator
         return result;
     }
 
-    static UIntTempArray add(const(uint)[] left, const(uint)[] right) nothrow pure @safe
+    static UIntTempArray add(const(uint)[] left, const(uint)[] right) pure
+    in
     {
         assert(left.length >= right.length);
-
+    }
+    do
+    {
         // Switching to unsafe pointers helps sparing
         // some nasty index calculations...
 
         auto result = UIntTempArray(0);
         result.length = left.length + 1;
-
         add(&left[0], left.length, &right[0], right.length, result.ptr(), result.length);
-
         return result;
     }
 
     private static void add(const(uint)* left, size_t leftLength,
         const(uint)* right, size_t rightLength,
-        uint* bits, size_t bitsLength) nothrow pure @trusted
+        uint* bits, size_t bitsLength) pure @trusted
+    in
     {
         assert(leftLength >= rightLength);
         assert(bitsLength == leftLength + 1);
-
+    }
+    do
+    {
         // Executes the "grammar-school" algorithm for computing z = a + b.
         // While calculating z_i = a_i + b_i we take care of overflow:
         // Since a_i + b_i + c <= 2(2^32 - 1) + 1 = 2^33 - 1, our carry c
@@ -452,12 +498,15 @@ struct BigIntegerCalculator
     }
 
     private static void addSelf(uint* left, size_t leftLength,
-        uint* right, size_t rightLength) nothrow pure @trusted
+        uint* right, size_t rightLength) pure @trusted
+    in
     {
         assert(leftLength >= 0);
         assert(rightLength >= 0);
         assert(leftLength >= rightLength);
-
+    }
+    do
+    {
         // Executes the "grammar-school" algorithm for computing z = a + b.
         // Same as above, but we're writing the result directly to a and
         // stop execution, if we're out of b and c is already 0.
@@ -481,11 +530,14 @@ struct BigIntegerCalculator
         assert(carry == 0);
     }
 
-    static UIntTempArray subtract(const(uint)[] left, uint right) nothrow pure @safe
+    static UIntTempArray subtract(const(uint)[] left, uint right) pure
+    in
     {
         assert(left.length >= 1);
         assert(left[0] >= right || left.length >= 2);
-
+    }
+    do
+    {
         // Executes the subtraction for one big and one 32-bit integer.
         // Thus, we've similar code than below, but there is no loop for
         // processing the 32-bit integer, since it's a single element.
@@ -507,30 +559,34 @@ struct BigIntegerCalculator
         return result;
     }
 
-    static UIntTempArray subtract(const(uint)[] left, const(uint)[] right) nothrow pure @safe
+    static UIntTempArray subtract(const(uint)[] left, const(uint)[] right) pure
+    in
     {
         assert(left.length >= right.length);
         assert(compare(left, right) >= 0);
-
+    }
+    do
+    {
         // Switching to unsafe pointers helps sparing
         // some nasty index calculations...
 
         auto result = UIntTempArray(0);
         result.length = left.length;
-
         subtract(&left[0], left.length, &right[0], right.length, result.ptr(), result.length);
-
         return result;
     }
 
     private static void subtract(const(uint)* left, size_t leftLength,
         const(uint)* right, size_t rightLength,
-        uint* bits, size_t bitsLength) nothrow pure @trusted
+        uint* bits, size_t bitsLength) pure @trusted
+    in
     {
         assert(leftLength >= rightLength);
         assert(compare(left, leftLength, right, rightLength) >= 0);
         assert(bitsLength == leftLength);
-
+    }
+    do
+    {
         // Executes the "grammar-school" algorithm for computing z = a - b.
         // While calculating z_i = a_i - b_i we take care of overflow:
         // Since a_i - b_i doesn't need any additional bit, our carry c
@@ -556,11 +612,14 @@ struct BigIntegerCalculator
     }
 
     private static void subtractSelf(uint* left, size_t leftLength,
-        uint* right, size_t rightLength) nothrow pure @trusted
+        uint* right, size_t rightLength) pure @trusted
+    in
     {
         assert(leftLength >= rightLength);
         assert(compare(left, leftLength, right, rightLength) >= 0);
-
+    }
+    do
+    {
         // Executes the "grammar-school" algorithm for computing z = a - b.
         // Same as above, but we're writing the result directly to a and
         // stop execution, if we're out of b and c is already 0.
@@ -584,7 +643,7 @@ struct BigIntegerCalculator
         assert(carry == 0);
     }
 
-    static int compare(const(uint)[] left, const(uint)[] right) nothrow pure @safe
+    static int compare(const(uint)[] left, const(uint)[] right) pure
     {
         if (left.length < right.length)
             return -1;
@@ -604,7 +663,7 @@ struct BigIntegerCalculator
     }
 
     private static int compare(const(uint)* left, size_t leftLength,
-        const(uint)* right, size_t rightLength) nothrow pure @trusted
+        const(uint)* right, size_t rightLength) pure @trusted
     {
         if (leftLength < rightLength)
             return -1;
@@ -612,7 +671,7 @@ struct BigIntegerCalculator
         if (leftLength > rightLength)
             return 1;
 
-        for (ptrdiff_t i = leftLength - 1; i >= 0; i--)
+        for (ptrdiff_t i = cast(ptrdiff_t)(leftLength) - 1; i >= 0; i--)
         {
             if (left[i] < right[i])
                 return -1;
@@ -623,10 +682,13 @@ struct BigIntegerCalculator
         return 0;
     }
 
-    static UIntTempArray divide(const(uint)[] left, uint right, out uint remainder) nothrow pure @safe
+    static UIntTempArray divide(const(uint)[] left, uint right, out uint remainder) pure
+    in
     {
         assert(left.length >= 1);
-
+    }
+    do
+    {
         // Executes the division for one big and one 32-bit integer.
         // Thus, we've similar code than below, but there is no loop for
         // processing the 32-bit integer, since it's a single element.
@@ -647,42 +709,49 @@ struct BigIntegerCalculator
         return quotient;
     }
 
-    static UIntTempArray divide(const(uint)[] left, uint right) nothrow pure @safe
+    static UIntTempArray divide(const(uint)[] left, uint right) pure
+    in
     {
         assert(left.length >= 1);
-
+    }
+    do
+    {
         // Same as above, but only computing the quotient.
+
         uint remainder = void;
         return divide(left, right, remainder);
     }
 
-    static UIntTempArray divide(const(uint)[] left, const(uint)[] right, out UIntTempArray remainder) nothrow pure @safe
+    static UIntTempArray divide(const(uint)[] left, const(uint)[] right, out UIntTempArray remainder) pure
+    in
     {
         assert(left.length >= 1);
         assert(right.length >= 1);
         assert(left.length >= right.length);
-
+    }
+    do
+    {
         // Switching to unsafe pointers helps sparing
         // some nasty index calculations...
 
         // NOTE: left will get overwritten, we need a local copy
 
         remainder = UIntTempArray(left);
-
         auto quotient = UIntTempArray(0);
         quotient.length = left.length - right.length + 1;
-
         divide(remainder.ptr(), remainder.length, &right[0], right.length, quotient.ptr(), quotient.length);
-
         return quotient;
     }
 
-    static UIntTempArray divide(const(uint)[] left, const(uint)[] right) nothrow pure @safe
+    static UIntTempArray divide(const(uint)[] left, const(uint)[] right) pure
+    in
     {
         assert(left.length >= 1);
         assert(right.length >= 1);
         assert(left.length >= right.length);
-
+    }
+    do
+    {
         // Same as above, but only returning the quotient.
 
         UIntTempArray remainder;
@@ -691,13 +760,16 @@ struct BigIntegerCalculator
 
     private static void divide(uint* left, size_t leftLength,
         const(uint)* right, size_t rightLength,
-        uint* bits, size_t bitsLength) nothrow pure @trusted
+        uint* bits, size_t bitsLength) pure @trusted
+    in
     {
         assert(leftLength >= 1);
         assert(rightLength >= 1);
         assert(leftLength >= rightLength);
         assert(bitsLength == leftLength - rightLength + 1 || bitsLength == 0);
-
+    }
+    do
+    {
         // Executes the "grammar-school" algorithm for computing q = a / b.
         // Before calculating q_i, we get more bits into the highest bit
         // block of the divisor. Thus, guessing digits of the quotient
@@ -773,10 +845,13 @@ struct BigIntegerCalculator
         }
     }
 
-    static uint remainder(const(uint)[] left, uint right) nothrow pure @safe
+    static uint remainder(const(uint)[] left, uint right) pure
+    in
     {
         assert(left.length >= 1);
-
+    }
+    do
+    {
         // Same as above, but only computing the remainder.
 
         ulong carry = 0UL;
@@ -789,30 +864,34 @@ struct BigIntegerCalculator
         return cast(uint)carry;
     }
 
-    public static UIntTempArray remainder(const(uint)[] left, const(uint)[] right) nothrow pure @safe
+    static UIntTempArray remainder(const(uint)[] left, const(uint)[] right) pure
+    in
     {
         assert(left.length >= 1);
         assert(right.length >= 1);
         assert(left.length >= right.length);
-
+    }
+    do
+    {
         // Same as above, but only returning the remainder.
 
         // NOTE: left will get overwritten, we need a local copy
 
         auto result = UIntTempArray(left);
-
         divide(result.ptr(), result.length, &right[0], right.length, null, 0);
-
         return result;
     }
 
     private static uint addDivisor(uint* left, size_t leftLength,
-        const(uint)* right, size_t rightLength) nothrow pure @trusted
+        const(uint)* right, size_t rightLength) pure @trusted
+    in
     {
         assert(leftLength >= 0);
         assert(rightLength >= 0);
         assert(leftLength >= rightLength);
-
+    }
+    do
+    {
         // Repairs the dividend, if the last subtract was too much
 
         ulong carry = 0UL;
@@ -829,11 +908,14 @@ struct BigIntegerCalculator
 
     private static uint subtractDivisor(uint* left, size_t leftLength,
         const(uint)* right, size_t rightLength,
-        ulong q) nothrow pure @trusted
+        ulong q) pure @trusted
+    in
     {
         assert(leftLength >= rightLength);
         assert(q <= 0xFFFFFFFF);
-
+    }
+    do
+    {
         // Combines a subtract and a multiply operation, which is naturally
         // more efficient than multiplying and then subtracting...
 
@@ -853,10 +935,13 @@ struct BigIntegerCalculator
     }
 
     private static bool divideGuessTooBig(ulong q, ulong valHi, uint valLo,
-        uint divHi, uint divLo) nothrow pure @safe
+        uint divHi, uint divLo) pure
+    in
     {
         assert(q <= 0xFFFFFFFF);
-
+    }
+    do
+    {
         // We multiply the two most significant limbs of the divisor
         // with the current guess for the quotient. If those are bigger
         // than the three most significant limbs of the current dividend
@@ -881,7 +966,7 @@ struct BigIntegerCalculator
         return false;
     }
 
-    private static uint leadingZeros(uint value) nothrow pure @safe
+    private static uint leadingZeros(uint value) pure
     {
         if (value == 0)
             return 32;
@@ -915,25 +1000,26 @@ struct BigIntegerCalculator
         return count;
     }
 
-    static UIntTempArray square(const(uint)[] value) nothrow pure @safe
+    static UIntTempArray square(const(uint)[] value) pure
     {
         // Switching to unsafe pointers helps sparing
         // some nasty index calculations...
 
         auto result = UIntTempArray(0);
         result.length = value.length + value.length;
-
         square(&value[0], value.length, result.ptr(), result.length);
-
         return result;
     }
 
     private static void square(const(uint)* value, size_t valueLength,
-        uint* bits, const size_t bitsLength) nothrow pure @trusted
+        uint* bits, const size_t bitsLength) pure @trusted
+    in
     {
         assert(valueLength >= 0);
         assert(bitsLength == valueLength + valueLength);
-
+    }
+    do
+    {
         // Executes different algorithms for computing z = a * a
         // based on the actual length of a. If a is "small" enough
         // we stick to the classic "grammar-school" method; for the
@@ -1031,7 +1117,7 @@ struct BigIntegerCalculator
         }
     }
 
-    static UIntTempArray multiply(const(uint)[] left, uint right) nothrow pure @safe
+    static UIntTempArray multiply(const(uint)[] left, uint right) pure
     {
         // Executes the multiplication for one big and one 32-bit integer.
         // Since every step holds the already slightly familiar equation
@@ -1054,30 +1140,34 @@ struct BigIntegerCalculator
         return result;
     }
 
-    static UIntTempArray multiply(const(uint)[] left, const(uint)[] right) nothrow pure @safe
+    static UIntTempArray multiply(const(uint)[] left, const(uint)[] right) pure
+    in
     {
         assert(left.length >= right.length);
-
+    }
+    do
+    {
         // Switching to unsafe pointers helps sparing
         // some nasty index calculations...
 
         auto result = UIntTempArray(0);
         result.length = left.length + right.length;
-
         multiply(&left[0], left.length, &right[0], right.length, result.ptr(), result.length);
-
         return result;
     }
 
     private static void multiply(const(uint)* left, const size_t leftLength,
         const(uint)* right, const size_t rightLength,
-        uint* bits, const size_t bitsLength) nothrow pure @trusted
+        uint* bits, const size_t bitsLength) pure @trusted
+    in
     {
         assert(leftLength >= 0);
         assert(rightLength >= 0);
         assert(leftLength >= rightLength);
         assert(bitsLength == leftLength + rightLength);
-
+    }
+    do
+    {
         // Executes different algorithms for computing z = a * b
         // based on the actual length of b. If b is "small" enough
         // we stick to the classic "grammar-school" method; for the
@@ -1183,11 +1273,14 @@ struct BigIntegerCalculator
 
     private static void subtractCore(const(uint)* left, const size_t leftLength,
         const(uint)* right, const size_t rightLength,
-        uint* core, const size_t coreLength) nothrow pure @trusted
+        uint* core, const size_t coreLength) pure @trusted
+    in
     {
         assert(leftLength >= rightLength);
         assert(coreLength >= leftLength);
-
+    }
+    do
+    {
         // Executes a special subtraction algorithm for the multiplication,
         // which needs to subtract two different values from a core value,
         // while core is always bigger than the sum of these values.
@@ -1218,10 +1311,9 @@ struct BigIntegerCalculator
         }
     }
 
-    static uint gcd(uint left, uint right) nothrow pure @safe
+    static uint gcd(uint left, uint right) pure
     {
         // Executes the classic Euclidean algorithm.
-
         // https://en.wikipedia.org/wiki/Euclidean_algorithm
 
         while (right != 0)
@@ -1234,7 +1326,7 @@ struct BigIntegerCalculator
         return left;
     }
 
-    static ulong gcd(ulong left, ulong right) nothrow pure @safe
+    static ulong gcd(ulong left, ulong right) pure
     {
         // Same as above, but for 64-bit values.
 
@@ -1251,39 +1343,45 @@ struct BigIntegerCalculator
         return left;
     }
 
-    static uint gcd(const(uint)[] left, uint right) nothrow pure @safe
+    static uint gcd(const(uint)[] left, uint right) pure
+    in
     {
         assert(left.length >= 1);
         assert(right != 0);
-
+    }
+    do
+    {
         // A common divisor cannot be greater than right;
         // we compute the remainder and continue above...
 
-        uint temp = remainder(left, right);
-
+        const uint temp = remainder(left, right);
         return gcd(right, temp);
     }
 
-    static UIntTempArray gcd(const(uint)[] left, const(uint)[] right) nothrow pure @trusted
+    static UIntTempArray gcd(const(uint)[] left, const(uint)[] right) pure
+    in
     {
         assert(left.length >= 2);
         assert(right.length >= 2);
         assert(compare(left, right) >= 0);
-
+    }
+    do
+    {
         auto leftBuffer = BitsBuffer(left.length, left);
         auto rightBuffer = BitsBuffer(right.length, right);
-
         gcd(leftBuffer, rightBuffer);
-
         return UIntTempArray(leftBuffer[]);
     }
 
-    private static void gcd(ref BitsBuffer left, ref BitsBuffer right) nothrow pure @safe
+    private static void gcd(ref BitsBuffer left, ref BitsBuffer right) pure
+    in
     {
         assert(left.length >= 2);
         assert(right.length >= 2);
         assert(left.length >= right.length);
-
+    }
+    do
+    {
         // Executes Lehmer's gcd algorithm, but uses the most
         // significant bits to work with 64-bit (not 32-bit) values.
         // Furthermore we're using an optimized version due to Jebelean.
@@ -1294,12 +1392,10 @@ struct BigIntegerCalculator
         while (right.length > 2)
         {
             ulong x, y;
-
             extractDigits(left, right, x, y);
 
             uint a = 1U, b = 0U;
             uint c = 0U, d = 1U;
-
             int iteration = 0;
 
             // Lehmer's guessing
@@ -1392,25 +1488,25 @@ struct BigIntegerCalculator
 
     private static void extractDigits(ref BitsBuffer xBuffer,
         ref BitsBuffer yBuffer,
-        out ulong x, out ulong y) nothrow pure @safe
+        out ulong x, out ulong y) pure
+    in
     {
         assert(xBuffer.length >= 3);
         assert(yBuffer.length >= 3);
         assert(xBuffer.length >= yBuffer.length);
-
+    }
+    do
+    {
         // Extracts the most significant bits of x and y,
         // but ensures the quotient x / y does not change!
 
         const xBits = xBuffer[];
         const xLength = xBuffer.length;
-
         const yBits = yBuffer[];
         const yLength = yBuffer.length;
-
         const ulong xh = xBits[xLength - 1];
         const ulong xm = xBits[xLength - 2];
         const ulong xl = xBits[xLength - 3];
-
         ulong yh, ym, yl;
 
         // arrange the bits
@@ -1451,21 +1547,22 @@ struct BigIntegerCalculator
     }
 
     private static void lehmerCore(ref BitsBuffer xBuffer, ref BitsBuffer yBuffer,
-        long a, long b, long c, long d) nothrow pure @safe
+        long a, long b, long c, long d) pure
+    in
     {
         assert(xBuffer.length >= 1);
         assert(yBuffer.length >= 1);
         assert(xBuffer.length >= yBuffer.length);
         assert(a <= 0x7FFFFFFF && b <= 0x7FFFFFFF);
         assert(c <= 0x7FFFFFFF && d <= 0x7FFFFFFF);
-
+    }
+    do
+    {
         // Executes the combined calculation of Lehmer's step.
 
         auto x = xBuffer[];
         auto y = yBuffer[];
-
         const length = yBuffer.length;
-
         long xCarry = 0L, yCarry = 0L;
         for (size_t i = 0; i < length; i++)
         {
@@ -1486,7 +1583,7 @@ struct BigIntegerCalculator
 
     // https://en.wikipedia.org/wiki/Exponentiation_by_squaring
 
-    public static UIntTempArray pow(uint value, uint power) nothrow pure @safe
+    static UIntTempArray pow(uint value, uint power) pure
     {
         // The basic pow method for a 32-bit integer.
         // To spare memory allocations we first roughly
@@ -1497,7 +1594,7 @@ struct BigIntegerCalculator
         return powCore(power, v);
     }
 
-    public static UIntTempArray pow(const(uint)[] value, uint power) nothrow pure @safe
+    static UIntTempArray pow(const(uint)[] value, uint power) pure
     {
         // The basic pow method for a big integer.
         // To spare memory allocations we first roughly
@@ -1508,21 +1605,18 @@ struct BigIntegerCalculator
         return powCore(power, v);
     }
 
-    private static UIntTempArray powCore(uint power, ref BitsBuffer value) nothrow pure @safe
+    private static UIntTempArray powCore(uint power, ref BitsBuffer value) pure
     {
         // Executes the basic pow algorithm.
 
         const size = value.size;
-
         auto temp = BitsBuffer(size, 0);
         auto result = BitsBuffer(size, 1);
-
         powCore(power, value, result, temp);
-
         return UIntTempArray(result[]);
     }
 
-    private static size_t powBound(uint power, size_t valueLength, size_t resultLength) nothrow pure @safe
+    private static size_t powBound(uint power, size_t valueLength, size_t resultLength) pure
     {
         // The basic pow algorithm, but instead of squaring
         // and multiplying we just sum up the lengths.
@@ -1544,7 +1638,7 @@ struct BigIntegerCalculator
     }
 
     private static void powCore(uint power, ref BitsBuffer value,
-        ref BitsBuffer result, ref BitsBuffer temp) nothrow pure @safe
+        ref BitsBuffer result, ref BitsBuffer temp) pure
     {
         // The basic pow algorithm using square-and-multiply.
 
@@ -1558,7 +1652,7 @@ struct BigIntegerCalculator
         }
     }
 
-    public static uint pow(uint value, uint power, uint modulus) nothrow pure @safe
+    static uint pow(uint value, uint power, uint modulus) pure
     {
         // The 32-bit modulus pow method for a 32-bit integer
         // raised by a 32-bit integer...
@@ -1566,16 +1660,16 @@ struct BigIntegerCalculator
         return powCore(power, modulus, value, 1);
     }
 
-    static uint pow(const(uint)[] value, uint power, uint modulus) nothrow pure @safe
+    static uint pow(const(uint)[] value, uint power, uint modulus) pure
     {
         // The 32-bit modulus pow method for a big integer
         // raised by a 32-bit integer...
 
-        uint v = remainder(value, modulus);
+        const uint v = remainder(value, modulus);
         return powCore(power, modulus, v, 1);
     }
 
-    static uint pow(uint value, const(uint)[] power, uint modulus) nothrow pure @safe
+    static uint pow(uint value, const(uint)[] power, uint modulus) pure
     {
         // The 32-bit modulus pow method for a 32-bit integer
         // raised by a big integer...
@@ -1583,21 +1677,21 @@ struct BigIntegerCalculator
         return powCore(power, modulus, value, 1);
     }
 
-    static uint pow(const(uint)[] value, const(uint)[] power, uint modulus) nothrow pure @safe
+    static uint pow(const(uint)[] value, const(uint)[] power, uint modulus) pure
     {
         // The 32-bit modulus pow method for a big integer
         // raised by a big integer...
 
-        uint v = remainder(value, modulus);
+        const uint v = remainder(value, modulus);
         return powCore(power, modulus, v, 1);
     }
 
-    private static uint powCore(const(uint)[] power, uint modulus, ulong value, ulong result) nothrow pure @safe
+    private static uint powCore(const(uint)[] power, uint modulus, ulong value, ulong result) pure
     {
         // The 32-bit modulus pow algorithm for all but
         // the last power limb using square-and-multiply.
 
-        for (size_t i = 0; i < power.length - 1; i++)
+        for (size_t i = 0; i < cast(ptrdiff_t)(power.length) - 1; i++)
         {
             uint p = power[i];
             for (size_t j = 0; j < 32; j++)
@@ -1612,7 +1706,7 @@ struct BigIntegerCalculator
         return powCore(power[power.length - 1], modulus, value, result);
     }
 
-    private static uint powCore(uint power, uint modulus, ulong value, ulong result) nothrow pure @safe
+    private static uint powCore(uint power, uint modulus, ulong value, ulong result) pure
     {
         // The 32-bit modulus pow algorithm for the last or
         // the only power limb using square-and-multiply.
@@ -1629,7 +1723,7 @@ struct BigIntegerCalculator
         return cast(uint)(result % modulus);
     }
 
-    static UIntTempArray pow(uint value, uint power, const(uint)[] modulus) nothrow pure @safe
+    static UIntTempArray pow(uint value, uint power, const(uint)[] modulus) pure
     {
         // The big modulus pow method for a 32-bit integer
         // raised by a 32-bit integer...
@@ -1639,7 +1733,7 @@ struct BigIntegerCalculator
         return powCore(power, modulus, v);
     }
 
-    static UIntTempArray pow(const(uint)[] value, uint power, const(uint)[] modulus) nothrow pure @safe
+    static UIntTempArray pow(const(uint)[] value, uint power, const(uint)[] modulus) pure
     {
         // The big modulus pow method for a big integer
         // raised by a 32-bit integer...
@@ -1651,7 +1745,7 @@ struct BigIntegerCalculator
         return powCore(power, modulus, v);
     }
 
-    static UIntTempArray pow(uint value, const(uint)[] power, const(uint)[] modulus) nothrow pure @safe
+    static UIntTempArray pow(uint value, const(uint)[] power, const(uint)[] modulus) pure
     {
         // The big modulus pow method for a 32-bit integer
         // raised by a big integer...
@@ -1661,7 +1755,7 @@ struct BigIntegerCalculator
         return powCore(power, modulus, v);
     }
 
-    static UIntTempArray pow(const(uint)[] value, const(uint)[] power, const(uint)[] modulus) nothrow pure @safe
+    static UIntTempArray pow(const(uint)[] value, const(uint)[] power, const(uint)[] modulus) pure
     {
         // The big modulus pow method for a big integer
         // raised by a big integer...
@@ -1676,12 +1770,11 @@ struct BigIntegerCalculator
     // Mutable for unit testing...
     private static enum reducerThreshold = 32;
 
-    private static UIntTempArray powCore(const(uint)[] power, const(uint)[] modulus, ref BitsBuffer value) nothrow pure @safe
+    private static UIntTempArray powCore(const(uint)[] power, const(uint)[] modulus, ref BitsBuffer value) pure
     {
         // Executes the big pow algorithm.
 
         const size = value.size;
-
         auto temp = BitsBuffer(size, 0);
         auto result = BitsBuffer(size, 1);
 
@@ -1698,12 +1791,11 @@ struct BigIntegerCalculator
         return UIntTempArray(result[]);
     }
 
-    private static UIntTempArray powCore(uint power, const(uint)[] modulus, ref BitsBuffer value) nothrow pure @safe
+    private static UIntTempArray powCore(uint power, const(uint)[] modulus, ref BitsBuffer value) pure
     {
         // Executes the big pow algorithm.
 
         const size = value.size;
-
         auto temp = BitsBuffer(size, 0);
         auto result = BitsBuffer(size, 1);
 
@@ -1721,7 +1813,7 @@ struct BigIntegerCalculator
     }
 
     private static void powCore(const(uint)[] power, const(uint)[] modulus,
-        ref BitsBuffer value, ref BitsBuffer result, ref BitsBuffer temp) nothrow pure @safe
+        ref BitsBuffer value, ref BitsBuffer result, ref BitsBuffer temp) pure
     {
         // The big modulus pow algorithm for all but
         // the last power limb using square-and-multiply.
@@ -1729,7 +1821,7 @@ struct BigIntegerCalculator
         // NOTE: we're using an ordinary remainder here,
         // since the reducer overhead doesn't pay off.
 
-        for (size_t i = 0; i < power.length - 1; i++)
+        for (size_t i = 0; i < cast(ptrdiff_t)(power.length) - 1; i++)
         {
             uint p = power[i];
             for (size_t j = 0; j < 32; j++)
@@ -1749,7 +1841,7 @@ struct BigIntegerCalculator
     }
 
     private static void powCore(uint power, const(uint)[] modulus,
-        ref BitsBuffer value, ref BitsBuffer result, ref BitsBuffer temp) nothrow pure @safe
+        ref BitsBuffer value, ref BitsBuffer result, ref BitsBuffer temp) pure
     {
         // The big modulus pow algorithm for the last or
         // the only power limb using square-and-multiply.
@@ -1774,7 +1866,7 @@ struct BigIntegerCalculator
     }
 
     private static void powCore(const(uint)[] power, ref FastReducer reducer,
-        ref BitsBuffer value, ref BitsBuffer result, ref BitsBuffer temp) nothrow pure @safe
+        ref BitsBuffer value, ref BitsBuffer result, ref BitsBuffer temp) pure
     {
         // The big modulus pow algorithm for all but
         // the last power limb using square-and-multiply.
@@ -1782,7 +1874,7 @@ struct BigIntegerCalculator
         // NOTE: we're using a special reducer here,
         // since it's additional overhead does pay off.
 
-        for (size_t i = 0; i < power.length - 1; i++)
+        for (size_t i = 0; i < cast(ptrdiff_t)(power.length) - 1; i++)
         {
             uint p = power[i];
             for (size_t j = 0; j < 32; j++)
@@ -1802,7 +1894,7 @@ struct BigIntegerCalculator
     }
 
     private static void powCore(uint power, ref FastReducer reducer,
-        ref BitsBuffer value, ref BitsBuffer result, ref BitsBuffer temp) nothrow pure @safe
+        ref BitsBuffer value, ref BitsBuffer result, ref BitsBuffer temp) pure
     {
         // The big modulus pow algorithm for the last or
         // the only power limb using square-and-multiply.
@@ -1828,19 +1920,25 @@ struct BigIntegerCalculator
 
     // Since we're reusing memory here, the actual length
     // of a given value may be less then the array's length
-    package static size_t actualLength(ref UIntTempArray value, size_t length) nothrow pure @safe
+    package static size_t actualLength(ref UIntTempArray value, size_t length) pure
+    in
     {
         assert(length <= value.length);
-
+    }
+    do
+    {
         while (length > 0 && value[length - 1] == 0)
             --length;
         return length;
     }
 
-    package static size_t actualLength(const(uint)[] value, size_t length) nothrow pure @safe
+    package static size_t actualLength(const(uint)[] value, size_t length) pure
+    in
     {
         assert(length <= value.length);
-
+    }
+    do
+    {
         while (length > 0 && value[length - 1] == 0)
             --length;
         return length;
