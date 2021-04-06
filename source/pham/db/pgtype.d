@@ -11,6 +11,9 @@
 
 module pham.db.pgtype;
 
+import std.algorithm : startsWith;
+import std.array : split;
+import std.base64 : Base64;
 import std.conv : to;
 
 version (TraceFunction) import pham.utl.utltest;
@@ -150,115 +153,6 @@ CanSendParameter canSendParameter(string name, ref string mappedName) pure
         return CanSendParameter.yes;
 }
 
-struct PgOIdExecuteResult
-{
-nothrow @safe:
-
-public:
-    DbFetchResultStatus fetchStatus() const
-    {
-		if (messageType == 'D')
-            return DbFetchResultStatus.hasData;
-        else if (messageType == 'C')
-            return DbFetchResultStatus.ready;
-        else
-            return DbFetchResultStatus.completed;
-    }
-
-public:
-    string dmlName; // DELETE, INSERT, UPDATE ...
-    DbRecordsAffected recordsAffected;
-    PgOId oid;
-    char messageType;
-}
-
-struct PgOIdFetchResult
-{
-nothrow @safe:
-
-public:
-    DbFetchResultStatus fetchStatus() const
-    {
-        if (messageType == 'Z')
-            return DbFetchResultStatus.completed;
-		else if (messageType == 'D')
-            return DbFetchResultStatus.hasData;
-        else
-            return DbFetchResultStatus.ready;
-    }
-
-public:
-    char messageType;
-}
-
-struct PgOIdFieldInfo
-{
-nothrow @safe:
-
-public:
-    bool opCast(C: bool)() const
-    {
-        return type != 0 && name.length != 0;
-    }
-
-    // Temporary hack until bug http://d.puremagic.com/issues/show_bug.cgi?id=5747 is fixed.
-    PgOidFieldInfo opCast(T)() const
-    if (is(Unqual!T == PgOidFieldInfo))
-    {
-        return this;
-    }
-
-    void reset()
-    {
-        name = null;
-        modifier = 0;
-        size = 0;
-        tableOid = 0;
-        type = 0;
-        index = 0;
-    }
-
-    DbType dbType() const
-    {
-        DbType result = DbType.unknown;
-        if (auto e = type in PgOIdTypeToDbTypeInfos)
-            result = (*e).dbType;
-        return result;
-    }
-
-    int32 dbTypeSize() const
-    {
-        int32 result = -1;
-        if (auto e = dbType() in dbTypeToDbTypeInfos)
-            result = (*e).nativeSize;
-        return result != -1 ? result : size;
-    }
-
-    static DbFieldIdType isIdType(int32 oIdType, int32 oIdSubType) pure
-    {
-        return DbFieldIdType.no; //oIdType == PgOIdType.oid;
-    }
-
-    @property bool allowNull() const nothrow
-    {
-        return true;
-    }
-
-public:
-    string name;
-    /// The type modifier (see pg_attribute.atttypmod). The meaning of the modifier is type-specific.
-    PgOId modifier;
-    /// If the field can be identified as a column of a specific table, the object ID of the table; otherwise zero.
-    PgOId tableOid;
-    /// The object ID of the field's data type.
-    PgOId type;
-    int16 formatCode;
-    /// If the field can be identified as a column of a specific table, the attribute number of the column; otherwise zero.
-    int16 index;
-    /// The data type size (see pg_type.typlen). Note that negative values denote variable-width types.
-    int16 size;
-}
-
 /**
  * Encapsulating errors and notices.
  * $(LINK2 http://www.postgresql.org/docs/9.0/static/protocol-error-fields.html,here).
@@ -369,6 +263,115 @@ public:
     string[char] typeValues;
 }
 
+struct PgOIdExecuteResult
+{
+nothrow @safe:
+
+public:
+    DbFetchResultStatus fetchStatus() const
+    {
+		if (messageType == 'D')
+            return DbFetchResultStatus.hasData;
+        else if (messageType == 'C')
+            return DbFetchResultStatus.ready;
+        else
+            return DbFetchResultStatus.completed;
+    }
+
+public:
+    string dmlName; // DELETE, INSERT, UPDATE ...
+    DbRecordsAffected recordsAffected;
+    PgOId oid;
+    char messageType;
+}
+
+struct PgOIdFetchResult
+{
+nothrow @safe:
+
+public:
+    DbFetchResultStatus fetchStatus() const
+    {
+        if (messageType == 'Z')
+            return DbFetchResultStatus.completed;
+		else if (messageType == 'D')
+            return DbFetchResultStatus.hasData;
+        else
+            return DbFetchResultStatus.ready;
+    }
+
+public:
+    char messageType;
+}
+
+struct PgOIdFieldInfo
+{
+nothrow @safe:
+
+public:
+    bool opCast(C: bool)() const
+    {
+        return type != 0 && name.length != 0;
+    }
+
+    // Temporary hack until bug http://d.puremagic.com/issues/show_bug.cgi?id=5747 is fixed.
+    PgOidFieldInfo opCast(T)() const
+    if (is(Unqual!T == PgOidFieldInfo))
+    {
+        return this;
+    }
+
+    void reset()
+    {
+        name = null;
+        modifier = 0;
+        size = 0;
+        tableOid = 0;
+        type = 0;
+        index = 0;
+    }
+
+    DbType dbType() const
+    {
+        DbType result = DbType.unknown;
+        if (auto e = type in PgOIdTypeToDbTypeInfos)
+            result = (*e).dbType;
+        return result;
+    }
+
+    int32 dbTypeSize() const
+    {
+        int32 result = -1;
+        if (auto e = dbType() in dbTypeToDbTypeInfos)
+            result = (*e).nativeSize;
+        return result != -1 ? result : size;
+    }
+
+    static DbFieldIdType isIdType(int32 oIdType, int32 oIdSubType) pure
+    {
+        return DbFieldIdType.no; //oIdType == PgOIdType.oid;
+    }
+
+    @property bool allowNull() const nothrow
+    {
+        return true;
+    }
+
+public:
+    string name;
+    /// The type modifier (see pg_attribute.atttypmod). The meaning of the modifier is type-specific.
+    PgOId modifier;
+    /// If the field can be identified as a column of a specific table, the object ID of the table; otherwise zero.
+    PgOId tableOid;
+    /// The object ID of the field's data type.
+    PgOId type;
+    int16 formatCode;
+    /// If the field can be identified as a column of a specific table, the attribute number of the column; otherwise zero.
+    int16 index;
+    /// The data type size (see pg_type.typlen). Note that negative values denote variable-width types.
+    int16 size;
+}
+
 struct PgOIdNumeric
 {
 nothrow @safe:
@@ -418,6 +421,130 @@ public:
 	int16[] digits;		/* base-NBASE digits */
 }
 
+struct PgOIdScramSHA256FinalMessage
+{
+nothrow @safe:
+
+public:
+    this(const(char)[] signature) pure
+    {
+        this.signature = signature;
+    }
+
+    this(const(ubyte)[] payload) pure
+    {
+        auto charsPayload = cast(const(char)[])payload;
+        auto parts = charsPayload.split(",");
+        foreach (part; parts)
+        {
+            if (part.startsWith("v="))
+                this.signature = part[2..$];
+            else
+            {
+                version (TraceFunction) dgFunctionTrace("Unknown part: ", part);
+            }
+        }
+    }
+
+    ~this() pure
+    {
+        dispose(false);
+    }
+
+    void dispose(bool disposing) pure
+    {
+        if (disposing)
+        {
+            signature = null;
+        }
+    }
+
+public:
+    const(char)[] signature;
+}
+
+struct PgOIdScramSHA256FirstMessage
+{
+nothrow @safe:
+
+public:
+    this(const(char)[] nonce, const(char)[] salt, uint iteration) pure
+    {
+        this.nonce = nonce;
+        this.salt = salt;
+        this.iteration = to!(const(char)[])(iteration);
+    }
+
+    this(const(ubyte)[] payload) pure
+    {
+        auto charsPayload = cast(const(char)[])payload;
+        auto parts = charsPayload.split(",");
+        foreach (part; parts)
+        {
+            if (part.startsWith("r="))
+                this.nonce = part[2..$];
+            else if (part.startsWith("s="))
+                this.salt = part[2..$];
+            else if (part.startsWith("i="))
+                this.iteration = part[2..$];
+            else
+            {
+                version (TraceFunction) dgFunctionTrace("Unknown part: ", part);
+            }
+        }
+    }
+
+    ~this() pure
+    {
+        dispose(false);
+    }
+
+    void dispose(bool disposing) pure
+    {
+        if (disposing)
+        {
+            iteration = null;
+            nonce = null;
+            salt = null;
+        }
+    }
+
+    int32 getIteration() const pure
+    {
+        if (iteration.length == 0)
+            return -1;
+
+        scope (failure)
+            return -1;
+
+        return to!int32(iteration);
+    }
+
+    const(char)[] getMessage() const pure
+    {
+        return "r=" ~ nonce ~ ",s=" ~ salt ~ ",i=" ~ iteration;
+    }
+
+    const(ubyte)[] getSalt() const pure
+    {
+        scope (failure)
+            return null;
+
+        return Base64.decode(salt);
+    }
+
+    bool isValid() const pure
+    {
+        return nonce.length != 0
+            && salt.length != 0
+            && getIteration() > 0; // Counter start number is 1
+    }
+
+public:
+    const(char)[] iteration;
+    const(char)[] nonce;
+    const(char)[] salt;
+}
 
 // Any below codes are private
 private:

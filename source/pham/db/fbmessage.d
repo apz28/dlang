@@ -11,8 +11,6 @@
 
 module pham.db.fbmessage;
 
-import std.exception : assumeWontThrow;
-
 import pham.utl.utlobject : singleton;
 
 nothrow @safe:
@@ -27,15 +25,15 @@ public:
         initDefault();
     }
 
-    final string getImpl(int id) const
+    final string getImpl(int id) const pure
     {
         if (auto e = id in messages)
             return *e;
         else
-            return "";
+            return null;
     }
 
-    static FbMessages instance() nothrow @trusted
+    static FbMessages instance() @trusted
     {
         return singleton(_instance, &createInstance);
     }
@@ -1317,15 +1315,15 @@ public:
         initDefault();
     }
 
-    final string getImpl(int id) const
+    final string getImpl(int id) const pure
     {
         if (auto e = id in sqlStates)
             return *e;
         else
-            return "";
+            return null;
     }
 
-    static FbSqlStates instance() nothrow @trusted
+    static FbSqlStates instance() @trusted
     {
         return singleton(_instance, &createInstance);
     }

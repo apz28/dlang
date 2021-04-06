@@ -19,7 +19,7 @@ class FbException : SkException
 @safe:
 
 public:
-    this(string message, int code, int socketCode, int vendorCode, Exception next = null)
+    this(string message, int code, int socketCode, int vendorCode, Exception next = null) pure
     {
         super(message, code, socketCode, vendorCode, next);
     }

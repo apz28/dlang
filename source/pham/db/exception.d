@@ -21,7 +21,7 @@ class DbException : Exception
 @safe:
 
 public:
-    this(string message, int code, int socketCode, int vendorCode, Exception next = null)
+    this(string message, int code, int socketCode, int vendorCode, Exception next = null) pure
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -61,7 +61,7 @@ class SkException : DbException
 @safe:
 
 public:
-    this(string message, int code, int socketCode, int vendorCode, Exception next = null)
+    this(string message, int code, int socketCode, int vendorCode, Exception next = null) pure
     {
         super(message, code, socketCode, vendorCode, next);
     }

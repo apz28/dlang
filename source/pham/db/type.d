@@ -1044,8 +1044,8 @@ public:
  /**
   * First element is being used as default value for conversion between bool and its' string
   */
-immutable string[] dbBoolFalses = ["False", "F", "No", "N", "0"];
-immutable string[] dbBoolTrues = ["True", "T", "Yes", "Y", "1"];
+immutable string[] dbBoolFalses = ["0", "False", "F", "No", "N"];
+immutable string[] dbBoolTrues = ["1", "True", "T", "Yes", "Y"];
 
 immutable string[string] dbDefaultParameterValues;
 

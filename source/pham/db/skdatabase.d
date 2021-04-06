@@ -17,6 +17,8 @@ import std.socket : socket_t, Address, AddressFamily, InternetAddress, lastSocke
 import std.system : Endian;
 
 version (unittest) import pham.utl.utltest;
+version (TraceFunction) import pham.utl.utlobject : bytesToHexs;
+
 import pham.db.dbobject;
 import pham.db.message;
 import pham.db.exception;

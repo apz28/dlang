@@ -19,20 +19,20 @@ import std.range.primitives : isOutputRange, put;
 import std.typecons : Flag, No, Yes;
 
 version (unittest) import pham.utl.utltest;
-import pham.utl.bit_array;
-import pham.utl.enum_set;
-import pham.utl.utlobject;
-import pham.cp.auth_rsp;
-import pham.cp.cipher;
+import pham.utl.bit_array : BitArray, hostToNetworkOrder;
+import pham.utl.enum_set : toName;
+import pham.utl.utlobject : InitializedValue, bytesFromHexs, bytesToHexs, functionName,
+    currentComputerName, currentProcessId, currentProcessName, currentUserName;
+import pham.cp.cipher : CipherParameters;
 import pham.db.message;
 import pham.db.convert;
 import pham.db.util;
 import pham.db.type;
-import pham.db.dbobject;
-import pham.db.buffer;
+import pham.db.dbobject : DbDisposableObject;
+import pham.db.auth : DbAuth;
 import pham.db.buffer_filter;
-import pham.db.buffer_filter_compressor;
 import pham.db.buffer_filter_cipher;
+import pham.db.buffer_filter_compressor;
 import pham.db.value;
 import pham.db.database : DbNamedColumn;
 import pham.db.fbisc;
@@ -66,432 +66,6 @@ if (isOutputRange!(W, ubyte))
         result += len;
         pos += len;
 	}
-    return result;
-}
-
-FbIscBlobSize parseBlobSizeInfo(scope const(ubyte)[] data) @safe
-{
-    FbIscBlobSize result;
-
-    if (data.length <= 2)
-        return result;
-
-    const endPos = data.length - 2; // -2 for item length
-    size_t pos = 0;
-    while (pos < endPos)
-    {
-        const typ = data[pos++];
-        if (typ == FbIsc.isc_info_end)
-            break;
-
-        const len = parseInt32!true(data, pos, 2, typ);
-        switch (typ)
-        {
-            case FbIsc.isc_info_blob_max_segment:
-                result.maxSegment = parseInt32!true(data, pos, len, typ);
-                break;
-            case FbIsc.isc_info_blob_num_segments:
-                result.segmentCount = parseInt32!true(data, pos, len, typ);
-                break;
-            case FbIsc.isc_info_blob_total_length:
-                result.length = parseInt32!true(data, pos, len, typ);
-                break;
-            default:
-                pos = data.length; // break out while loop because of garbage
-                break;
-        }
-    }
-
-    version (TraceFunction) dgFunctionTrace("maxSegment=", result.maxSegment, ", segmentCount=", result.segmentCount, ", length=", result.length);
-
-    return result;
-}
-
-bool parseBool(bool Advance)(scope const(ubyte)[] data, size_t index, int type) @safe
-if (Advance == false)
-{
-    parseCheckLength(data, index, 1, type);
-    return parseBoolImpl(data, index);
-}
-
-int parseBool(bool Advance)(scope const(ubyte)[] data, ref size_t index, int type) @safe
-if (Advance == true)
-{
-    parseCheckLength(data, index, 1, type);
-    return parseBoolImpl(data, index);
-}
-
-pragma(inline, true)
-private bool parseBoolImpl(scope const(ubyte)[] data, ref size_t index) nothrow @safe
-{
-    return data[index++] == 1;
-}
-
-pragma(inline, true)
-void parseCheckLength(scope const(ubyte)[] data, size_t index, uint length, int type) @safe
-{
-    if (index + length > data.length)
-    {
-        auto msg = format(DbMessage.eInvalidSQLDANotEnoughData, type, length);
-        throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
-    }
-}
-
-int32 parseInt32(bool Advance)(scope const(ubyte)[] data, size_t index, uint length, int type) @safe
-if (Advance == false)
-{
-    parseCheckLength(data, index, length, type);
-    return parseInt32Impl(data, index, length);
-}
-
-int32 parseInt32(bool Advance)(scope const(ubyte)[] data, ref size_t index, uint length, int type) @safe
-if (Advance == true)
-{
-    parseCheckLength(data, index, length, type);
-    return parseInt32Impl(data, index, length);
-}
-
-private int32 parseInt32Impl(scope const(ubyte)[] data, ref size_t index, uint length) nothrow @safe
-{
-	int32 result = 0;
-	uint shift = 0;
-	while (length--)
-	{
-		result += cast(int)data[index++] << shift;
-		shift += 8;
-	}
-	return result;
-}
-
-version (none)
-int64 parseInt64(bool Advance)(scope const(ubyte)[] data, size_t index, uint length, int type) @safe
-if (Advance == false)
-{
-    parseCheckLength(data, index, length, type);
-    return parseInt64Impl(data, index, length);
-}
-
-version (none)
-int64 parseInt64(bool Advance)(scope const(ubyte)[] data, ref size_t index, uint length, int type) @safe
-if (Advance == true)
-{
-    parseCheckLength(data, index, length, type);
-    return parseInt64Impl(data, index, length);
-}
-
-version (none)
-private int64 parseInt64Impl(bool Advance)(scope const(ubyte)[] data, ref size_t index, uint length) nothrow @safe
-{
-	int64 result = 0;
-	uint shift = 0;
-	while (length--)
-	{
-		result += cast(long)data[index++] << shift;
-		shift += 8;
-	}
-	return result;
-}
-
-string parseString(bool Advance)(scope const(ubyte)[] data, size_t index, uint length, int type) @safe
-if (Advance == false)
-{
-    parseCheckLength(data, index, length, type);
-    return parseStringImpl(data, index, length);
-}
-
-string parseString(bool Advance)(scope const(ubyte)[] data, ref size_t index, uint length, int type) @safe
-if (Advance == true)
-{
-    parseCheckLength(data, index, length, type);
-    return parseStringImpl(data, index, length);
-}
-
-pragma(inline, true)
-private string parseStringImpl(scope const(ubyte)[] data, ref size_t index, uint length) nothrow @trusted
-{
-    if (length)
-    {
-        auto result = ((cast(char[])data[index..index + length])).idup;
-        index += length;
-        return result;
-    }
-    else
-        return null;
-}
-
-FbIscInfo[] parseInfo(scope const(ubyte)[] data) @safe
-{
-    FbIscInfo[] result;
-
-    if (data.length <= 2)
-        return result;
-
-    const endPos = data.length - 2; // -2 for item length
-    size_t pos = 0;
-    while (pos < endPos)
-    {
-        const typ = data[pos++];
-        if (typ == FbIsc.isc_info_end)
-            break;
-
-        const len = parseInt32!true(data, pos, 2, typ);
-        switch (typ)
-        {
-			// Database characteristics
-
-    		// Number of database pages allocated
-			case FbIsc.isc_info_allocation:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			/** Database version (level) number:
-			    1 byte containing the number 1
-			    1 byte containing the version number
-			*/
-			case FbIsc.isc_info_base_level:
-                parseCheckLength(data, pos, 2, typ);
-				result ~= FbIscInfo(toVersionString([data[pos], data[pos + 1]]));
-				break;
-
-			/** Database file name and site name:
-    			1 byte containing the number 2
-	    		1 byte containing the length, d, of the database file name in bytes
-		    	A string of d bytes, containing the database file name
-			    1 byte containing the length, l, of the site name in bytes
-			    A string of l bytes, containing the site name
-			*/
-			case FbIsc.isc_info_db_id:
-                auto pos2 = pos + 1;
-                int len2 = parseInt32!true(data, pos2, 1, typ);
-                auto dbFile = parseString!true(data, pos2, len2, typ);
-
-                len2 = parseInt32!true(data, pos2, 1, typ);
-                auto siteName = parseString!false(data, pos2, len2, typ);
-
-                result ~= FbIscInfo(siteName ~ ":" ~ dbFile);
-				break;
-
-			/** Database implementation number:
-			    1 byte containing a 1
-			    1 byte containing the implementation number
-			    1 byte containing a class number, either 1 or 12
-			*/
-			case FbIsc.isc_info_implementation:
-                parseCheckLength(data, pos, 3, typ);
-				result ~= FbIscInfo(toVersionString([data[pos], data[pos + 1], data[pos + 2]]));
-				break;
-
-			/** 0 or 1
-			    0 indicates space is reserved on each database page for holding
-			      backup versions of modified records [Default]
-			    1 indicates no space is reserved for such records
-			*/
-			case FbIsc.isc_info_no_reserve:
-				result ~= FbIscInfo(parseBool!false(data, pos, typ));
-				break;
-
-			/** ODS major version number
-			    _ Databases with different major version numbers have different
-			    physical layouts; a database engine can only access databases
-			    with a particular ODS major version number
-			    _ Trying to attach to a database with a different ODS number
-			    results in an error
-			*/
-			case FbIsc.isc_info_ods_version:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			/** On-disk structure (ODS) minor version number; an increase in a
-				minor version number indicates a non-structural change, one that
-				still allows the database to be accessed by database engines with
-				the same major version number but possibly different minor
-				version numbers
-			*/
-			case FbIsc.isc_info_ods_minor_version:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			/** Number of bytes per page of the attached database; use with
-				isc_info_allocation to determine the size of the database
-			*/
-			case FbIsc.isc_info_page_size:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			/** Version identification string of the database implementation:
-				1 byte containing the number number of message
-				1 byte specifying the length, of the following string
-				n bytes containing the string
-			*/
-			case FbIsc.isc_info_version:
-			case FbIsc.isc_info_firebird_version:
-                uint msgCount = parseInt32!false(data, pos, 1, typ);
-                auto pos2 = pos + 1;
-                while (msgCount--)
-				{
-                    const len2 = parseInt32!true(data, pos2, 1, typ);
-                    result ~= FbIscInfo(parseString!true(data, pos2, len2, typ));
-				}
-				break;
-
-			// Environmental characteristics
-
-			// Amount of server memory (in bytes) currently in use
-			case FbIsc.isc_info_current_memory:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			/** Number specifying the mode in which database writes are performed
-				0 for asynchronous
-                1 for synchronous
-			*/
-			case FbIsc.isc_info_forced_writes:
-				result ~= FbIscInfo(parseBool!false(data, pos, typ));
-				break;
-
-			/** Maximum amount of memory (in bytes) used at one time since the first
-			    process attached to the database
-			*/
-			case FbIsc.isc_info_max_memory:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			// Number of memory buffers currently allocated
-			case FbIsc.isc_info_num_buffers:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			/** Number of transactions that are committed between sweeps to
-			    remove database record versions that are no longer needed
-		    */
-			case FbIsc.isc_info_sweep_interval:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			// Performance statistics
-
-			// Number of reads from the memory data cache
-			case FbIsc.isc_info_fetches:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			// Number of writes to the memory data cache
-			case FbIsc.isc_info_marks:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			// Number of page reads
-			case FbIsc.isc_info_reads:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			// Number of page writes
-			case FbIsc.isc_info_writes:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			// Database operation counts
-
-			// Number of removals of a version of a record
-			case FbIsc.isc_info_backout_count:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			// Number of database deletes since the database was last attached
-			case FbIsc.isc_info_delete_count:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			/** Number of removals of a record and all of its ancestors, for records
-			    whose deletions have been committed
-			*/
-			case FbIsc.isc_info_expunge_count:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			// Number of inserts into the database since the database was last attached
-			case FbIsc.isc_info_insert_count:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			// Number of removals of old versions of fully mature records
-			case FbIsc.isc_info_purge_count:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			// Number of reads done via an index since the database was last attached
-			case FbIsc.isc_info_read_idx_count:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			/** Number of sequential sequential table scans (row reads) done on each
-			    table since the database was last attached
-			*/
-			case FbIsc.isc_info_read_seq_count:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-    		// Number of database updates since the database was last attached
-			case FbIsc.isc_info_update_count:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			// Misc
-
-			case FbIsc.isc_info_db_class:
-				const serverClass = parseInt32!false(data, pos, len, typ);
-                string serverText = serverClass == FbIsc.isc_info_db_class_classic_access
-					    ? FbIscText.isc_info_db_class_classic_text
-                        : FbIscText.isc_info_db_class_server_text;
-				result ~= FbIscInfo(serverText);
-				break;
-
-			case FbIsc.isc_info_db_read_only:
-				result ~= FbIscInfo(parseBool!false(data, pos, typ));
-				break;
-
-            // Database size in pages
-			case FbIsc.isc_info_db_size_in_pages:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-            // Number of oldest transaction
-			case FbIsc.isc_info_oldest_transaction:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-            // Number of oldest active transaction
-			case FbIsc.isc_info_oldest_active:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-            // Number of oldest snapshot transaction
-			case FbIsc.isc_info_oldest_snapshot:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			// Number of next transaction
-			case FbIsc.isc_info_next_transaction:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-			// Number of active	transactions
-			case FbIsc.isc_info_active_transactions:
-				result ~= FbIscInfo(parseInt32!false(data, pos, len, typ));
-				break;
-
-    		// Active user name
-			case FbIsc.isc_info_user_names:
-                const uint len2 = parseInt32!false(data, pos, 1, typ);
-				result ~= FbIscInfo(parseString!false(data, pos + 1, len2, typ));
-				break;
-
-            default:
-                break;
-        }
-        pos += len;
-    }
-
     return result;
 }
 
@@ -564,41 +138,12 @@ DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
 	return result;
 }
 
-int32 parseCommandType(scope const(ubyte)[] data) @safe
-{
-    int32 result;
-
-    if (data.length <= 2)
-        return result;
-
-    const endPos = data.length - 2;
-	size_t pos = 0;
-	while (pos < endPos)
-	{
-        const typ = data[pos++];
-        if (typ == FbIsc.isc_info_end)
-            break;
-
-		const len = parseInt32!true(data, pos, 2, typ);
-		switch (typ)
-		{
-			case FbIsc.isc_info_sql_stmt_type:
-				result = parseInt32!true(data, pos, len, typ);
-				break;
-			default:
-                pos += len;
-				break;
-		}
-	}
-	return result;
-}
-
 class FbProtocol : DbDisposableObject
 {
 @safe:
 
 public:
-    this(FbConnection connection) nothrow pure @safe
+    this(FbConnection connection) nothrow pure
     {
         this._connection = connection;
     }
@@ -760,7 +305,7 @@ public:
 
         auto response = readGenericResponse();
 		if (response.data.length)
-            return parseBlobSizeInfo(response.data);
+            return FbIscBlobSize(response.data);
         else
             return FbIscBlobSize.init;
     }
@@ -1098,14 +643,8 @@ public:
                 info = FbCommandPlanInfo(kind, null);
                 return kind;
             case FbCommandPlanInfo.Kind.ok:
-            {
-                const len = parseInt32!false(response.data, 1, 2, describeMode);
-                auto plan = len > 0
-                    ? parseString!false(response.data, 3, len, describeMode)
-                    : "";
-                info = FbCommandPlanInfo(kind, plan);
+                info = FbCommandPlanInfo(kind, response.data, describeMode);
                 return kind;
-            }
         }
     }
 
@@ -1166,11 +705,11 @@ public:
 
         auto response = readGenericResponse();
 
-        FbIscBindInfo[] bindResult;
+        FbIscBindInfo[] bindResults;
         ptrdiff_t previousBindIndex = -1; // Start with unknown value
         ptrdiff_t previousFieldIndex = 0;
 
-        while (!parseBindInfo(response.data, bindResult, previousBindIndex, previousFieldIndex))
+        while (!FbIscBindInfo.parse(response.data, bindResults, previousBindIndex, previousFieldIndex))
         {
             version (TraceFunction) dgFunctionTrace("previousBindIndex=", previousBindIndex, ", previousFieldIndex=", previousFieldIndex);
 
@@ -1186,7 +725,7 @@ public:
                     newBindBlock = false;
 
 					auto processedFieldCount = truncateBindIndex <= previousBindIndex
-                        ? bindResult[truncateBindIndex].length
+                        ? bindResults[truncateBindIndex].length
                         : 0;
                     truncateBindItems[i++] = FbIsc.isc_info_sql_sqlda_start;
                     truncateBindItems[i++] = 2;
@@ -1206,7 +745,7 @@ public:
             response = readGenericResponse();
         }
 
-        return bindResult;
+        return bindResults;
     }
 
     final prepareCommandWrite(FbCommand command, scope const(char)[] sql)
@@ -1481,17 +1020,17 @@ public:
         return result;
     }
 
-    @property final FbConnection connection() nothrow pure @safe
+    @property final FbConnection connection() nothrow pure
     {
         return _connection;
     }
 
-    @property final int serverAcceptType() const nothrow pure @nogc @safe
+    @property final int serverAcceptType() const nothrow pure @nogc
     {
         return _serverAcceptType.inited ? _serverAcceptType : 0;
     }
 
-    @property final int serverVersion() const nothrow pure @nogc @safe
+    @property final int serverVersion() const nothrow pure @nogc
     {
         return _serverVersion.inited ? _serverVersion : 0;
     }
@@ -1507,7 +1046,7 @@ protected:
 		writer.flush();
     }
 
-    final bool canCompressConnection() nothrow @safe
+    final bool canCompressConnection() nothrow
     {
         if (!_serverVersion.inited || _serverVersion < FbIsc.protocol_version13)
             return false;
@@ -1518,7 +1057,7 @@ protected:
         return connection.fbConnectionStringBuilder.compress;
     }
 
-    final bool canCryptedConnection() nothrow @safe
+    final bool canCryptedConnection() nothrow
     {
         if (!_serverVersion.inited || _serverVersion < FbIsc.protocol_version13)
             return false;
@@ -1590,7 +1129,7 @@ protected:
 
                 if (cResponse.name.length != 0)
                 {
-                    auto authMap = FbAuth.findAuthMap(cResponse.name);
+                    auto authMap = FbAuth.findAuthMap(DbScheme.fb ~ cResponse.name);
                     if (!authMap.isValid())
                     {
                         auto msg = format(DbMessage.eInvalidConnectionAuthUnsupportedName, cResponse.name);
@@ -1789,7 +1328,7 @@ protected:
         return result;
     }
 
-    override void doDispose(bool disposing) nothrow @safe
+    override void doDispose(bool disposing) nothrow
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -1798,14 +1337,18 @@ protected:
             _auth.disposal(disposing);
             _auth = null;
         }
-        _authData[] = 0;
-        _serverAuthKey[] = 0;
-        _connection = null;
         _serverAcceptType.reset();
         _serverVersion.reset();
+
+        if (disposing)
+        {
+            _authData = null;
+            _connection = null;
+            _serverAuthKey = null;
+        }
     }
 
-    final int getCryptedConnectionCode() nothrow @safe
+    final int getCryptedConnectionCode() nothrow
     {
         auto useCSB = connection.connectionStringBuilder;
 
@@ -1970,9 +1513,9 @@ protected:
     }
 
 private:
-    FbAuth _auth;
-    ubyte[] _authData;
-    ubyte[] _serverAuthKey;
+    DbAuth _auth;
+    const(ubyte)[] _authData;
+    const(ubyte)[] _serverAuthKey;
     FbConnection _connection;
     InitializedValue!int _serverAcceptType;
     InitializedValue!int _serverVersion;
@@ -2405,234 +1948,3 @@ do
 
 // Any below codes are private
 private:
-
-
-/*
- * Returns:
- *  false if truncate otherwise true
- */
-bool parseBindInfo(scope const(ubyte)[] data, ref FbIscBindInfo[] bindResult,
-    ref ptrdiff_t previousBindIndex, ref ptrdiff_t previousFieldIndex) @safe
-{
-    version (TraceFunction) dgFunctionTrace("data.length=", data.length);
-
-    size_t posData;
-    ptrdiff_t fieldIndex = previousFieldIndex;
-    ptrdiff_t bindIndex = -1; // Always start with unknown value until isc_info_sql_select or isc_info_sql_bind
-
-    size_t checkFieldIndex(ubyte typ) @safe
-    {
-        if (fieldIndex < 0)
-        {
-            auto msg = format(DbMessage.eInvalidSQLDAFieldIndex, typ, fieldIndex);
-            throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
-        }
-        return fieldIndex;
-    }
-
-    size_t checkBindIndex(ubyte typ) @safe
-    {
-        if (bindIndex < 0)
-        {
-            auto msg = format(DbMessage.eInvalidSQLDAIndex, typ);
-            throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
-        }
-        return bindIndex;
-    }
-
-	while (posData + 2 < data.length && data[posData] != FbIsc.isc_info_end)
-	{
-        while (posData + 2 < data.length)
-        {
-            const typ = data[posData++];
-            if (typ == FbIsc.isc_info_sql_describe_end)
-                break;
-
-		    switch (typ)
-		    {
-			    case FbIsc.isc_info_sql_select:
-			    case FbIsc.isc_info_sql_bind:
-                    if (bindIndex == -1)
-                        bindIndex = previousBindIndex;
-                    bindIndex++;
-
-			        if (data[posData++] == FbIsc.isc_info_truncated)
-                    {
-                        fieldIndex = 0; // Reset for new block
-                        goto case FbIsc.isc_info_truncated;
-                    }
-
-			        const uint len = parseInt32!true(data, posData, 2, typ);
-
-                    const uint fieldLen = parseInt32!true(data, posData, len, typ);
-
-                    if (bindIndex == bindResult.length)
-                    {
-                        bindResult ~= FbIscBindInfo(fieldLen);
-                        bindResult[bindIndex].selectOrBind = typ;
-
-                        if (fieldLen == 0)
-                            goto doneItem;
-                    }
-
-			        break;
-
-			    case FbIsc.isc_info_sql_sqlda_seq:
-			        const uint len = parseInt32!true(data, posData, 2, typ);
-
-			        fieldIndex = parseInt32!true(data, posData, len, typ) - 1;
-
-                    if (checkFieldIndex(typ) >= bindResult[checkBindIndex(typ)].length)
-                    {
-                        auto msg = format(DbMessage.eInvalidSQLDAFieldIndex, typ, fieldIndex);
-                        throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
-                    }
-
-			        break;
-
-			    case FbIsc.isc_info_sql_type:
-			        const uint len = parseInt32!true(data, posData, 2, typ);
-                    auto dataType = parseInt32!true(data, posData, len, typ);
-
-			        bindResult[checkBindIndex(typ)].field(checkFieldIndex(typ)).type = dataType;
-			        break;
-
-			    case FbIsc.isc_info_sql_sub_type:
-			        const uint len = parseInt32!true(data, posData, 2, typ);
-                    auto dataSubType = parseInt32!true(data, posData, len, typ);
-
-			        bindResult[checkBindIndex(typ)].field(checkFieldIndex(typ)).subType = dataSubType;
-			        break;
-
-			    case FbIsc.isc_info_sql_scale:
-			        const uint len = parseInt32!true(data, posData, 2, typ);
-                    auto numericScale = parseInt32!true(data, posData, len, typ);
-
-			        bindResult[checkBindIndex(typ)].field(checkFieldIndex(typ)).numericScale = numericScale;
-			        break;
-
-			    case FbIsc.isc_info_sql_length:
-			        const uint len = parseInt32!true(data, posData, 2, typ);
-                    auto dataSize = parseInt32!true(data, posData, len, typ);
-
-			        bindResult[checkBindIndex(typ)].field(checkFieldIndex(typ)).size = dataSize;
-			        break;
-
-			    case FbIsc.isc_info_sql_field:
-			        const uint len = parseInt32!true(data, posData, 2, typ);
-                    auto fieldName = parseString!true(data, posData, len, typ);
-
-			        bindResult[checkBindIndex(typ)].field(checkFieldIndex(typ)).name = fieldName;
-			        break;
-
-			    case FbIsc.isc_info_sql_relation:
-			        const uint len = parseInt32!true(data, posData, 2, typ);
-                    auto tableName = parseString!true(data, posData, len, typ);
-
-			        bindResult[checkBindIndex(typ)].field(checkFieldIndex(typ)).tableName = tableName;
-			        break;
-
-			    case FbIsc.isc_info_sql_owner:
-			        const uint len = parseInt32!true(data, posData, 2, typ);
-                    auto owner = parseString!true(data, posData, len, typ);
-
-			        bindResult[checkBindIndex(typ)].field(checkFieldIndex(typ)).owner = owner;
-			        break;
-
-			    case FbIsc.isc_info_sql_alias:
-			        const uint len = parseInt32!true(data, posData, 2, typ);
-                    auto aliasName = parseString!true(data, posData, len, typ);
-
-			        bindResult[checkBindIndex(typ)].field(checkFieldIndex(typ)).aliasName = aliasName;
-			        break;
-
-                case FbIsc.isc_info_truncated:
-                    previousBindIndex = bindIndex;
-                    previousFieldIndex = fieldIndex;
-                    return false;
-
-			    default:
-                    auto msg = format(DbMessage.eInvalidSQLDAType, typ);
-                    throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
-		    }
-        }
-
-        doneItem:
-    }
-
-    version (TraceFunction)
-    {
-        dgFunctionTrace("rowDescs.length=", bindResult.length);
-        foreach (i, ref desc; bindResult)
-        {
-            dgFunctionTrace("desc=", i, ", count=", desc.length, ", selectOrBind=", desc.selectOrBind);
-            foreach (ref field; desc.fields)
-            {
-                dgFunctionTrace("field-name=", field.name,
-                    ", type=", field.type, ", subtype=", field.subType,
-                    ", numericScale=", field.numericScale, ", size=", field.size,
-                    ", tableName=", field.tableName, ", field.aliasName=", field.aliasName);
-            }
-        }
-    }
-
-    return true;
-}
-
-unittest // parseBindInfo
-{
-    import pham.utl.utltest;
-    traceUnitTest("unittest db.fbprotocol.parseBindInfo");
-
-    FbIscBindInfo[] bindResult;
-    ptrdiff_t previousBindIndex = -1;
-    ptrdiff_t previousFieldIndex;
-    auto info = bytesFromHexs("040704000D000000090400010000000B0400F00100000C0400000000000E0400040000000D040000000000100900494E545F4649454C44110B00544553545F53454C454354130900494E545F4649454C4408090400020000000B0400F50100000C0400000000000E0400020000000D040000000000100E00534D414C4C494E545F4649454C44110B00544553545F53454C454354130E00534D414C4C494E545F4649454C4408090400030000000B0400E30100000C0400000000000E0400040000000D040000000000100B00464C4F41545F4649454C44110B00544553545F53454C454354130B00464C4F41545F4649454C4408090400040000000B0400E10100000C0400000000000E0400080000000D040000000000100C00444F55424C455F4649454C44110B00544553545F53454C454354130C00444F55424C455F4649454C4408090400050000000B0400450200000C0400010000000E0400080000000D0400FEFFFFFF100D004E554D455249435F4649454C44110B00544553545F53454C454354130D004E554D455249435F4649454C4408090400060000000B0400450200000C0400020000000E0400080000000D0400FEFFFFFF100D00444543494D414C5F4649454C44110B00544553545F53454C454354130D00444543494D414C5F4649454C4408090400070000000B04003B0200000C0400000000000E0400040000000D040000000000100A00444154455F4649454C44110B00544553545F53454C454354130A00444154455F4649454C4408090400080000000B0400310200000C0400000000000E0400040000000D040000000000100A0054494D455F4649454C44110B00544553545F53454C454354130A0054494D455F4649454C4408090400090000000B0400FF0100000C0400000000000E0400080000000D040000000000100F0054494D455354414D505F4649454C44110B00544553545F53454C454354130F0054494D455354414D505F4649454C44080904000A0000000B0400C50100000C0400040000000E0400280000000D040000000000100A00434841525F4649454C44110B00544553545F53454C454354130A00434841525F4649454C44080904000B0000000B0400C10100000C0400040000000E0400280000000D040000000000100D00564152434841525F4649454C44110B00544553545F53454C454354130D00564152434841525F4649454C44080904000C0000000B0400090200000C0400000000000E0400080000000D040000000000100A00424C4F425F4649454C44110B00544553545F53454C454354130A00424C4F425F4649454C44080904000D0000000B0400090200000C0400010000000E0400080000000D040004000000100A00544558545F4649454C44110B00544553545F53454C454354130A00544558545F4649454C4408050704000000000001");
-    auto parsed = parseBindInfo(info, bindResult, previousBindIndex, previousFieldIndex);
-    assert(parsed == true);
-    assert(bindResult.length == 2);
-
-    assert(bindResult[0].selectOrBind == FbIsc.isc_info_sql_select);
-    assert(bindResult[0].length == 13);
-    auto field = bindResult[0].field(0);
-    assert(field.name == "INT_FIELD" && field.type == 496 && field.subType == 0 && field.numericScale == 0 && field.size == 4 && field.tableName == "TEST_SELECT" && field.aliasName == "INT_FIELD");
-    field = bindResult[0].field(1);
-    assert(field.name == "SMALLINT_FIELD" && field.type == 501 && field.subType == 0 && field.numericScale == 0 && field.size == 2 && field.tableName == "TEST_SELECT" && field.aliasName == "SMALLINT_FIELD");
-    field = bindResult[0].field(2);
-    assert(field.name == "FLOAT_FIELD" && field.type == 483 && field.subType == 0 && field.numericScale == 0 && field.size == 4 && field.tableName == "TEST_SELECT" && field.aliasName == "FLOAT_FIELD");
-    field = bindResult[0].field(3);
-    assert(field.name == "DOUBLE_FIELD" && field.type == 481 && field.subType == 0 && field.numericScale == 0 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "DOUBLE_FIELD");
-    field = bindResult[0].field(4);
-    assert(field.name == "NUMERIC_FIELD" && field.type == 581 && field.subType == 1 && field.numericScale == -2 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "NUMERIC_FIELD");
-    field = bindResult[0].field(5);
-    assert(field.name == "DECIMAL_FIELD" && field.type == 581 && field.subType == 2 && field.numericScale == -2 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "DECIMAL_FIELD");
-    field = bindResult[0].field(6);
-    assert(field.name == "DATE_FIELD" && field.type == 571 && field.subType == 0 && field.numericScale == 0 && field.size == 4 && field.tableName == "TEST_SELECT" && field.aliasName == "DATE_FIELD");
-    field = bindResult[0].field(7);
-    assert(field.name == "TIME_FIELD" && field.type == 561 && field.subType == 0 && field.numericScale == 0 && field.size == 4 && field.tableName == "TEST_SELECT" && field.aliasName == "TIME_FIELD");
-    field = bindResult[0].field(8);
-    assert(field.name == "TIMESTAMP_FIELD" && field.type == 511 && field.subType == 0 && field.numericScale == 0 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "TIMESTAMP_FIELD");
-    field = bindResult[0].field(9);
-    assert(field.name == "CHAR_FIELD" && field.type == 453 && field.subType == 4 && field.numericScale == 0 && field.size == 40 && field.tableName == "TEST_SELECT" && field.aliasName == "CHAR_FIELD");
-    field = bindResult[0].field(10);
-    assert(field.name == "VARCHAR_FIELD" && field.type == 449 && field.subType == 4 && field.numericScale == 0 && field.size == 40 && field.tableName == "TEST_SELECT" && field.aliasName == "VARCHAR_FIELD");
-    field = bindResult[0].field(11);
-    assert(field.name == "BLOB_FIELD" && field.type == 521 && field.subType == 0 && field.numericScale == 0 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "BLOB_FIELD");
-    field = bindResult[0].field(12);
-    assert(field.name == "TEXT_FIELD" && field.type == 521 && field.subType == 1 && field.numericScale == 4 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "TEXT_FIELD");
-
-    assert(bindResult[1].selectOrBind == FbIsc.isc_info_sql_bind);
-    assert(bindResult[1].length == 0);
-}
-
-unittest // parseBlobSizeInfo
-{
-    import pham.utl.utltest;
-    traceUnitTest("unittest db.fbprotocol.parseBlobSizeInfo");
-
-    auto info = bytesFromHexs("05040004000000040400010000000604000400000001");
-    auto parsedSize = parseBlobSizeInfo(info);
-    assert(parsedSize.maxSegment == 4);
-    assert(parsedSize.segmentCount == 1);
-    assert(parsedSize.length == 4);
-}

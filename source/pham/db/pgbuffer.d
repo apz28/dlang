@@ -12,6 +12,7 @@
 
 module pham.db.pgbuffer;
 
+import std.string : representation;
 import std.system : Endian;
 
 version (unittest) import pham.utl.utltest;
@@ -244,6 +245,17 @@ public:
         _buffer.writeInt32(0);
     }
 
+    void writeBytes(scope const(ubyte)[] v) nothrow
+    {
+        _buffer.writeInt32(v.length);
+        _buffer.writeBytes(v);
+    }
+
+    void writeBytesRaw(scope const(ubyte)[] v) nothrow
+    {
+        _buffer.writeBytes(v);
+    }
+
     void writeChar(char v) nothrow
     {
         _buffer.writeChar(v);
@@ -251,7 +263,7 @@ public:
 
     void writeCChars(scope const(char)[] v) nothrow
     {
-        _buffer.writeBytes(cast(const(ubyte)[])v);
+        _buffer.writeBytes(v.representation);
         _buffer.writeUInt8(0);
     }
 
@@ -306,7 +318,7 @@ private:
     {
         if (_reserveLenghtOffset >= 0)
         {
-            // Package length includes the length itself
+            // Package length includes the length itself but exclude the package code
             const len = _buffer.length - _reserveLenghtOffset;
 
             version (TraceFunction) dgFunctionTrace("_reserveLenghtOffset=", _reserveLenghtOffset, ", len=", len);
@@ -532,7 +544,7 @@ public:
 
     void writeChars(scope const(char)[] v) nothrow
     {
-        writeBytes(cast(const(ubyte)[])v);
+        writeBytes(v.representation);
     }
 
     void writeDate(in Date v) nothrow

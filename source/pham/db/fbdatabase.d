@@ -751,7 +751,7 @@ public:
             _handle = DbHandle(cast(FbHandle)fbCommandDeferredHandle);
     }
 
-	final override string getExecutionPlan(uint vendorMode)
+	final override const(char)[] getExecutionPlan(uint vendorMode)
 	{
         version (TraceFunction) dgFunctionTrace("vendorMode=", vendorMode);
 
@@ -1208,7 +1208,7 @@ protected:
                 auto localFields = fields;
                 foreach (i, ref iscField; iscBindInfo.fields)
                 {
-                    auto newField = localFields.createField(this, iscField.useName);
+                    auto newField = localFields.createField(this, iscField.useName.idup);
                     newField.isAlias = iscField.aliasName.length != 0;
                     newField.fillNamedColumn(iscField, true);
                     localFields.put(newField);
@@ -1241,7 +1241,7 @@ protected:
                 {
                     if (i >= localParameters.length)
                     {
-                        auto newName = iscField.useName;
+                        auto newName = iscField.useName.idup;
                         if (localParameters.exist(newName))
                             newName = localParameters.generateParameterName();
                         auto newParameter = localParameters.createParameter(newName);
@@ -1852,12 +1852,12 @@ void fillNamedColumn(DbNamedColumn namedColumn, const ref FbIscFieldInfo iscFiel
         ", subType=", iscField.subType,
         ", type=", iscField.type);
 
-    namedColumn.baseName = iscField.name;
-    namedColumn.baseOwner = iscField.owner;
+    namedColumn.baseName = iscField.name.idup;
+    namedColumn.baseOwner = iscField.owner.idup;
     namedColumn.baseNumericScale = iscField.numericScale;
     namedColumn.baseSize = iscField.size;
     namedColumn.baseSubTypeId = iscField.subType;
-    namedColumn.baseTableName = iscField.tableName;
+    namedColumn.baseTableName = iscField.tableName.idup;
     namedColumn.baseTypeId = iscField.type;
     namedColumn.allowNull = iscField.allowNull;
 

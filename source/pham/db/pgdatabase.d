@@ -521,7 +521,7 @@ public:
         super(connection, name);
     }
 
-	final override string getExecutionPlan(uint vendorMode)
+	final override const(char)[] getExecutionPlan(uint vendorMode)
 	{
         version (TraceFunction) dgFunctionTrace("vendorMode=", vendorMode);
 
@@ -1962,7 +1962,7 @@ unittest // PgCommand.getExecutionPlan
     import pham.utl.utltest;
     traceUnitTest("unittest db.pgdatabase.PgCommand.getExecutionPlan");
 
-    static string removePText(string s)
+    static const(char)[] removePText(const(char)[] s)
     {
         while (1)
         {

@@ -14,6 +14,7 @@ module pham.db.fbbuffer;
 import std.algorithm.comparison : max, min;
 import std.array : replicate;
 import std.format : format;
+import std.string : representation;
 import std.system : Endian;
 import std.typecons : Flag, No, Yes;
 
@@ -345,7 +346,7 @@ public:
     }
     do
 	{
-		writeBytes(type, cast(const(ubyte)[])v);
+		writeBytes(type, v.representation);
 	}
 
 	bool writeCharsIf(uint8 type, scope const(char)[] v) nothrow
@@ -357,7 +358,7 @@ public:
 	{
         if (v.length)
         {
-		    writeBytes(type, cast(const(ubyte)[])v);
+		    writeBytes(type, v.representation);
             return true;
         }
         else
@@ -488,7 +489,7 @@ public:
     }
     do
 	{
-		writeBytes(type, cast(const(ubyte)[])v);
+		writeBytes(type, v.representation);
 	}
 
 	void writeInt16(uint8 type, int16 v) nothrow
@@ -928,7 +929,7 @@ public:
     }
     do
     {
-        writeBytes(cast(const(ubyte)[])v);
+        writeBytes(v.representation);
     }
 
     void writeDate(in Date v) nothrow
@@ -1001,7 +1002,7 @@ public:
     }
     do
     {
-        _buffer.writeBytes(cast(const(ubyte)[])v);
+        _buffer.writeBytes(v.representation);
         if (baseType.size > v.length)
         {
             writeFiller!(Yes.IsSpace)(baseType.size - v.length);

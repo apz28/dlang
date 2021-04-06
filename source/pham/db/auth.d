@@ -20,6 +20,11 @@ abstract class DbAuth : DbDisposableObject
 nothrow @safe:
 
 public:
+    bool canCryptedConnection() const pure
+    {
+        return false;
+    }
+
     final typeof(this) clearError()
     {
         errorMessage = null;
@@ -34,18 +39,110 @@ public:
         return this;
     }
 
-    ubyte[] getAuthData(const(char)[] userName, const(char)[] userPassword, ubyte[] serverAuthData);
-    const(ubyte)[] privateKey() const;
-    const(ubyte)[] publicKey() const;
-    const(ubyte)[] sessionKey() const;
-    const(ubyte)[] serverPublicKey() const;
-    const(ubyte)[] serverSalt() const;
+    const(ubyte)[] getAuthData(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData);
 
-    @property bool isSymantic() const;
+    const(ubyte)[] privateKey() const
+    {
+        return null;
+    }
+
+    const(ubyte)[] publicKey() const
+    {
+        return null;
+    }
+
+    final const(ubyte)[] serverPublicKey() const pure
+    {
+        return _serverPublicKey;
+    }
+
+    final const(ubyte)[] serverSalt() const pure
+    {
+        return _serverSalt;
+    }
+
+    const(ubyte)[] sessionKey() const
+    {
+        return null;
+    }
+
+    @property bool isSymantic() const
+    {
+        return false;
+    }
+
     @property string name() const;
-    @property string sessionKeyName() const;
+
+    @property string sessionKeyName() const
+    {
+        return null;
+    }
+
+public:
+    static DbAuthMap findAuthMap(scope const(char)[] name) @trusted //@trusted=__gshared
+    {
+        foreach (ref m; _authMaps)
+        {
+            if (m.name == name)
+                return m;
+        }
+        return DbAuthMap.init;
+    }
+
+    static void registerAuthMap(DbAuthMap authMap) @trusted //@trusted=__gshared
+    in
+    {
+        assert(authMap.isValid());
+    }
+    do
+    {
+        foreach (i, ref m; _authMaps)
+        {
+            if (m.name == authMap.name)
+            {
+                _authMaps[i].createAuth = authMap.createAuth;
+                return;
+            }
+        }
+        _authMaps ~= authMap;
+    }
+
+protected:
+    override void doDispose(bool disposing) nothrow
+    {
+        _serverPublicKey[] = 0;
+        _serverSalt[] = 0;
+
+        if (disposing)
+        {
+            _serverPublicKey = null;
+            _serverSalt = null;
+        }
+    }
 
 public:
     string errorMessage;
     int errorCode;
+
+protected:
+    ubyte[] _serverPublicKey;
+    ubyte[] _serverSalt;
+
+private:
+    __gshared static DbAuthMap[] _authMaps;
+}
+
+struct DbAuthMap
+{
+nothrow @safe:
+
+public:
+    bool isValid() const pure
+    {
+        return name.length != 0 && createAuth !is null;
+    }
+
+public:
+    string name;
+    DbAuth function() nothrow @safe createAuth;
 }

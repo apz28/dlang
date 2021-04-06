@@ -207,7 +207,7 @@ public:
         return _connection !is null ? _connection.forLogInfo() : null;
     }
 
-    abstract string getExecutionPlan(uint vendorMode = 0);
+    abstract const(char)[] getExecutionPlan(uint vendorMode = 0);
 
     final DbParameter[] inputParameters() nothrow @safe
     {
@@ -289,7 +289,9 @@ public:
     final DbValue writeClob(DbNamedColumn clobColumn, scope const(char)[] clobValue,
         DbValue optionalClobValueId = DbValue.init) @safe
     {
-        return writeBlob(clobColumn, cast(const(ubyte)[])clobValue, optionalClobValueId);
+        import std.string : representation;
+
+        return writeBlob(clobColumn, clobValue.representation, optionalClobValueId);
     }
 
     /* Properties */

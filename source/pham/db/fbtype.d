@@ -19,12 +19,14 @@ import std.traits : EnumMembers, Unqual;
 
 version (TraceFunction) import pham.utl.utltest;
 import pham.utl.variant;
+import pham.db.util : toVersionString;
 import pham.db.message;
 import pham.db.type;
 import pham.db.fbisc;
 import pham.db.fbmessage;
+import pham.db.fbexception;
 
-nothrow @safe:
+@safe:
 
 alias FbId = int64;
 alias FbHandle = uint32;
@@ -150,8 +152,8 @@ struct FbIscAcceptDataResponse
 nothrow @safe:
 
 public:
-    this(int32 version_, int32 architecture, int32 acceptType, ubyte[] authData,
-        string authName, int32 authenticated, ubyte[] authKey)
+    this(int32 version_, int32 architecture, int32 acceptType, const(ubyte)[] authData,
+        const(char)[] authName, int32 authenticated, const(ubyte)[] authKey)
     {
         this.version_ = version_;
         this.architecture = architecture;
@@ -173,9 +175,9 @@ public:
     }
 
 public:
-    ubyte[] authData;
-    ubyte[] authKey;
-    string authName;
+    const(ubyte)[] authData;
+    const(ubyte)[] authKey;
+    const(char)[] authName;
     int32 acceptType;
     int32 architecture;
     int32 authenticated;
@@ -225,36 +227,198 @@ public:
 
 struct FbIscBindInfo
 {
-nothrow @safe:
+@safe:
 
 public:
-    this(size_t fieldCount) pure
+    this(size_t fieldCount) nothrow pure
     {
         this._fields = new FbIscFieldInfo[fieldCount];
     }
 
-    bool opCast(To: bool)() const
+    bool opCast(To: bool)() const nothrow
     {
         return selectOrBind != 0 || length != 0;
     }
 
-    void reset()
+    /*
+     * Returns:
+     *  false if truncate otherwise true
+     */
+    static bool parse(const(ubyte)[] payload, ref FbIscBindInfo[] bindResults,
+        ref ptrdiff_t previousBindIndex, ref ptrdiff_t previousFieldIndex)
+    {
+        version (TraceFunction) dgFunctionTrace("payload.length=", payload.length);
+
+        size_t posData;
+        ptrdiff_t fieldIndex = previousFieldIndex;
+        ptrdiff_t bindIndex = -1; // Always start with unknown value until isc_info_sql_select or isc_info_sql_bind
+
+        size_t checkFieldIndex(ubyte typ) @safe
+        {
+            if (fieldIndex < 0)
+            {
+                auto msg = format(DbMessage.eInvalidSQLDAFieldIndex, typ, fieldIndex);
+                throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
+            }
+            return fieldIndex;
+        }
+
+        size_t checkBindIndex(ubyte typ) @safe
+        {
+            if (bindIndex < 0)
+            {
+                auto msg = format(DbMessage.eInvalidSQLDAIndex, typ);
+                throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
+            }
+            return bindIndex;
+        }
+
+	    while (posData + 2 < payload.length && payload[posData] != FbIsc.isc_info_end)
+	    {
+            while (posData + 2 < payload.length)
+            {
+                const typ = payload[posData++];
+                if (typ == FbIsc.isc_info_sql_describe_end)
+                    break;
+
+		        switch (typ)
+		        {
+			        case FbIsc.isc_info_sql_select:
+			        case FbIsc.isc_info_sql_bind:
+                        if (bindIndex == -1)
+                            bindIndex = previousBindIndex;
+                        bindIndex++;
+
+			            if (payload[posData++] == FbIsc.isc_info_truncated)
+                        {
+                            fieldIndex = 0; // Reset for new block
+                            goto case FbIsc.isc_info_truncated;
+                        }
+
+			            const uint len = parseInt32!true(payload, posData, 2, typ);
+                        const uint fieldLen = parseInt32!true(payload, posData, len, typ);
+
+                        if (bindIndex == bindResults.length)
+                        {
+                            bindResults ~= FbIscBindInfo(fieldLen);
+                            bindResults[bindIndex].selectOrBind = typ;
+                            if (fieldLen == 0)
+                                goto doneItem;
+                        }
+
+			            break;
+
+			        case FbIsc.isc_info_sql_sqlda_seq:
+			            const uint len = parseInt32!true(payload, posData, 2, typ);
+			            fieldIndex = parseInt32!true(payload, posData, len, typ) - 1;
+
+                        if (checkFieldIndex(typ) >= bindResults[checkBindIndex(typ)].length)
+                        {
+                            auto msg = format(DbMessage.eInvalidSQLDAFieldIndex, typ, fieldIndex);
+                            throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
+                        }
+
+			            break;
+
+			        case FbIsc.isc_info_sql_type:
+			            const uint len = parseInt32!true(payload, posData, 2, typ);
+                        auto dataType = parseInt32!true(payload, posData, len, typ);
+			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).type = dataType;
+			            break;
+
+			        case FbIsc.isc_info_sql_sub_type:
+			            const uint len = parseInt32!true(payload, posData, 2, typ);
+                        auto dataSubType = parseInt32!true(payload, posData, len, typ);
+			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).subType = dataSubType;
+			            break;
+
+			        case FbIsc.isc_info_sql_scale:
+			            const uint len = parseInt32!true(payload, posData, 2, typ);
+                        auto numericScale = parseInt32!true(payload, posData, len, typ);
+			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).numericScale = numericScale;
+			            break;
+
+			        case FbIsc.isc_info_sql_length:
+			            const uint len = parseInt32!true(payload, posData, 2, typ);
+                        auto dataSize = parseInt32!true(payload, posData, len, typ);
+			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).size = dataSize;
+			            break;
+
+			        case FbIsc.isc_info_sql_field:
+			            const uint len = parseInt32!true(payload, posData, 2, typ);
+                        auto fieldName = parseString!true(payload, posData, len, typ);
+			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).name = fieldName;
+			            break;
+
+			        case FbIsc.isc_info_sql_relation:
+			            const uint len = parseInt32!true(payload, posData, 2, typ);
+                        auto tableName = parseString!true(payload, posData, len, typ);
+			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).tableName = tableName;
+			            break;
+
+			        case FbIsc.isc_info_sql_owner:
+			            const uint len = parseInt32!true(payload, posData, 2, typ);
+                        auto owner = parseString!true(payload, posData, len, typ);
+			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).owner = owner;
+			            break;
+
+			        case FbIsc.isc_info_sql_alias:
+			            const uint len = parseInt32!true(payload, posData, 2, typ);
+                        auto aliasName = parseString!true(payload, posData, len, typ);
+			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).aliasName = aliasName;
+			            break;
+
+                    case FbIsc.isc_info_truncated:
+                        previousBindIndex = bindIndex;
+                        previousFieldIndex = fieldIndex;
+                        return false;
+
+			        default:
+                        auto msg = format(DbMessage.eInvalidSQLDAType, typ);
+                        throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
+		        }
+            }
+
+            doneItem:
+        }
+
+        version (TraceFunction)
+        {
+            dgFunctionTrace("rowDescs.length=", bindResults.length);
+            foreach (i, ref desc; bindResults)
+            {
+                dgFunctionTrace("desc=", i, ", count=", desc.length, ", selectOrBind=", desc.selectOrBind);
+                foreach (ref field; desc.fields)
+                {
+                    dgFunctionTrace("field-name=", field.name,
+                        ", type=", field.type, ", subtype=", field.subType,
+                        ", numericScale=", field.numericScale, ", size=", field.size,
+                        ", tableName=", field.tableName, ", field.aliasName=", field.aliasName);
+                }
+            }
+        }
+
+        return true;
+    }
+
+    ref typeof(this) reset() nothrow return
     {
         selectOrBind = 0;
         _fields = null;
+        return this;
     }
 
-    @property ref FbIscFieldInfo field(size_t index) return
+    @property ref FbIscFieldInfo field(size_t index) nothrow return
     {
         return _fields[index];
     }
 
-    @property FbIscFieldInfo[] fields() return
+    @property FbIscFieldInfo[] fields() nothrow return
     {
         return _fields;
     }
 
-    @property size_t length() const
+    @property size_t length() const nothrow
     {
         return _fields.length;
     }
@@ -268,17 +432,62 @@ private:
 
 struct FbIscBlobSize
 {
-nothrow @safe:
+@safe:
 
 public:
-    void reset()
+    this(int32 maxSegment, int32 segmentCount, int32 length) nothrow pure
+    {
+        this.maxSegment = maxSegment;
+        this.segmentCount = segmentCount;
+        this.length = length;
+    }
+
+    this(scope const(ubyte)[] payload)
+    {
+        if (payload.length <= 2)
+            return;
+
+        const endPos = payload.length - 2; // -2 for item length
+        size_t pos = 0;
+        while (pos < endPos)
+        {
+            const typ = payload[pos++];
+            if (typ == FbIsc.isc_info_end)
+                break;
+
+            const len = parseInt32!true(payload, pos, 2, typ);
+            switch (typ)
+            {
+                case FbIsc.isc_info_blob_max_segment:
+                    this.maxSegment = parseInt32!true(payload, pos, len, typ);
+                    break;
+
+                case FbIsc.isc_info_blob_num_segments:
+                    this.segmentCount = parseInt32!true(payload, pos, len, typ);
+                    break;
+
+                case FbIsc.isc_info_blob_total_length:
+                    this.length = parseInt32!true(payload, pos, len, typ);
+                    break;
+
+                default:
+                    pos = payload.length; // break out while loop because of garbage
+                    break;
+            }
+        }
+
+        version (TraceFunction) dgFunctionTrace("maxSegment=", maxSegment, ", segmentCount=", segmentCount, ", length=", length);
+    }
+
+    ref typeof(this) reset() nothrow pure return
     {
         maxSegment = 0;
         segmentCount = 0;
         length = 0;
+        return this;
     }
 
-    @property bool isInitialized() const
+    @property bool isInitialized() const nothrow pure
     {
         return maxSegment != 0 || segmentCount != 0 || length != 0;
     }
@@ -296,7 +505,7 @@ struct FbIscCondAuthResponse
 nothrow @safe:
 
 public:
-    this(ubyte[] data, string name, ubyte[] list, ubyte[] key) pure
+    this(const(ubyte)[] data, const(char)[] name, const(ubyte)[] list, const(ubyte)[] key) pure
     {
         this.data = data;
         this.name = name;
@@ -305,10 +514,10 @@ public:
     }
 
 public:
-    ubyte[] data;
-    ubyte[] key;
-    ubyte[] list;
-    string name;
+    const(ubyte)[] data;
+    const(ubyte)[] key;
+    const(ubyte)[] list;
+    const(char)[] name;
 }
 
 struct FbIscCryptKeyCallbackResponse
@@ -316,13 +525,13 @@ struct FbIscCryptKeyCallbackResponse
 nothrow @safe:
 
 public:
-    this(ubyte[] data) pure
+    this(const(ubyte)[] data) pure
     {
         this.data = data;
     }
 
 public:
-    ubyte[] data;
+    const(ubyte)[] data;
 }
 
 struct FbIscError
@@ -362,22 +571,22 @@ public:
         }
     }
 
-    @property final int argNumber() const
+    @property final int argNumber() const pure
     {
         return _argNumber;
     }
 
-    @property final int32 code() const
+    @property final int32 code() const pure
     {
         return _intParam;
     }
 
-    @property final int32 type() const
+    @property final int32 type() const pure
     {
         return _type;
     }
 
-    @property final bool isArgument() const
+    @property final bool isArgument() const pure
 	{
         switch (type)
         {
@@ -390,7 +599,7 @@ public:
 		}
 	}
 
-	@property final bool isWarning() const
+	@property final bool isWarning() const pure
 	{
         return type == FbIsc.isc_arg_warning;
 	}
@@ -654,7 +863,7 @@ public:
         }
     }
 
-    string useName() const
+    const(char)[] useName() const
     {
         return aliasName.length ? aliasName : name;
     }
@@ -675,10 +884,10 @@ public:
     }
 
 public:
-    string aliasName;
-    string name;
-    string owner;
-    string tableName;
+    const(char)[] aliasName;
+    const(char)[] name;
+    const(char)[] owner;
+    const(char)[] tableName;
     int32 numericScale;
     int32 size;
     int32 subType;
@@ -716,25 +925,301 @@ struct FbIscInfo
 
 public:
     this(T)(T value) nothrow
-    if (is(T == bool) || is(T == int) || is(T == string))
+    if (is(T == bool) || is(T == int) || is(T == string) || is(T == const(char)[]))
     {
         this.value = value;
     }
 
     T get(T)()
-    if (is(T == bool) || is(T == int) || is(T == string))
+    if (is(T == bool) || is(T == int) || is(T == string) || is(T == const(char)[]))
     {
         static if (is(T == bool))
             return asBool();
         else static if (is(T == int))
             return asInt();
-        else static if (is(T == string))
+        else static if (is(T == string) || is(T == const(char)[]))
             return asString();
         else
             static assert(0);
     }
 
-    string toString() nothrow
+    static FbIscInfo[] parse(const(ubyte)[] payload)
+    {
+        FbIscInfo[] result;
+
+        if (payload.length <= 2)
+            return result;
+
+        const endPos = payload.length - 2; // -2 for item length
+        size_t pos = 0;
+        while (pos < endPos)
+        {
+            const typ = payload[pos++];
+            if (typ == FbIsc.isc_info_end)
+                break;
+
+            const len = parseInt32!true(payload, pos, 2, typ);
+            switch (typ)
+            {
+			    // Database characteristics
+
+    		    // Number of database pages allocated
+			    case FbIsc.isc_info_allocation:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    /** Database version (level) number:
+			        1 byte containing the number 1
+			        1 byte containing the version number
+			    */
+			    case FbIsc.isc_info_base_level:
+                    parseCheckLength(payload, pos, 2, typ);
+				    result ~= FbIscInfo(toVersionString([payload[pos], payload[pos + 1]]));
+				    break;
+
+			    /** Database file name and site name:
+    			    1 byte containing the number 2
+	    		    1 byte containing the length, d, of the database file name in bytes
+		    	    A string of d bytes, containing the database file name
+			        1 byte containing the length, l, of the site name in bytes
+			        A string of l bytes, containing the site name
+			    */
+			    case FbIsc.isc_info_db_id:
+                    auto pos2 = pos + 1;
+                    int len2 = parseInt32!true(payload, pos2, 1, typ);
+                    auto dbFile = parseString!true(payload, pos2, len2, typ);
+
+                    len2 = parseInt32!true(payload, pos2, 1, typ);
+                    auto siteName = parseString!false(payload, pos2, len2, typ);
+                    const(char)[] fullName = siteName ~ ":" ~ dbFile;
+                    result ~= FbIscInfo(fullName);
+				    break;
+
+			    /** Database implementation number:
+			        1 byte containing a 1
+			        1 byte containing the implementation number
+			        1 byte containing a class number, either 1 or 12
+			    */
+			    case FbIsc.isc_info_implementation:
+                    parseCheckLength(payload, pos, 3, typ);
+				    result ~= FbIscInfo(toVersionString([payload[pos], payload[pos + 1], payload[pos + 2]]));
+				    break;
+
+			    /** 0 or 1
+			        0 indicates space is reserved on each database page for holding
+			          backup versions of modified records [Default]
+			        1 indicates no space is reserved for such records
+			    */
+			    case FbIsc.isc_info_no_reserve:
+				    result ~= FbIscInfo(parseBool!false(payload, pos, typ));
+				    break;
+
+			    /** ODS major version number
+			        _ Databases with different major version numbers have different
+			        physical layouts; a database engine can only access databases
+			        with a particular ODS major version number
+			        _ Trying to attach to a database with a different ODS number
+			        results in an error
+			    */
+			    case FbIsc.isc_info_ods_version:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    /** On-disk structure (ODS) minor version number; an increase in a
+				    minor version number indicates a non-structural change, one that
+				    still allows the database to be accessed by database engines with
+				    the same major version number but possibly different minor
+				    version numbers
+			    */
+			    case FbIsc.isc_info_ods_minor_version:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    /** Number of bytes per page of the attached database; use with
+				    isc_info_allocation to determine the size of the database
+			    */
+			    case FbIsc.isc_info_page_size:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    /** Version identification string of the database implementation:
+				    1 byte containing the number number of message
+				    1 byte specifying the length, of the following string
+				    n bytes containing the string
+			    */
+			    case FbIsc.isc_info_version:
+			    case FbIsc.isc_info_firebird_version:
+                    uint msgCount = parseInt32!false(payload, pos, 1, typ);
+                    auto pos2 = pos + 1;
+                    while (msgCount--)
+				    {
+                        const len2 = parseInt32!true(payload, pos2, 1, typ);
+                        result ~= FbIscInfo(parseString!true(payload, pos2, len2, typ));
+				    }
+				    break;
+
+			    // Environmental characteristics
+
+			    // Amount of server memory (in bytes) currently in use
+			    case FbIsc.isc_info_current_memory:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    /** Number specifying the mode in which database writes are performed
+				    0 for asynchronous
+                    1 for synchronous
+			    */
+			    case FbIsc.isc_info_forced_writes:
+				    result ~= FbIscInfo(parseBool!false(payload, pos, typ));
+				    break;
+
+			    /** Maximum amount of memory (in bytes) used at one time since the first
+			        process attached to the database
+			    */
+			    case FbIsc.isc_info_max_memory:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    // Number of memory buffers currently allocated
+			    case FbIsc.isc_info_num_buffers:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    /** Number of transactions that are committed between sweeps to
+			        remove database record versions that are no longer needed
+		        */
+			    case FbIsc.isc_info_sweep_interval:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    // Performance statistics
+
+			    // Number of reads from the memory data cache
+			    case FbIsc.isc_info_fetches:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    // Number of writes to the memory data cache
+			    case FbIsc.isc_info_marks:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    // Number of page reads
+			    case FbIsc.isc_info_reads:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    // Number of page writes
+			    case FbIsc.isc_info_writes:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    // Database operation counts
+
+			    // Number of removals of a version of a record
+			    case FbIsc.isc_info_backout_count:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    // Number of database deletes since the database was last attached
+			    case FbIsc.isc_info_delete_count:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    /** Number of removals of a record and all of its ancestors, for records
+			        whose deletions have been committed
+			    */
+			    case FbIsc.isc_info_expunge_count:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    // Number of inserts into the database since the database was last attached
+			    case FbIsc.isc_info_insert_count:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    // Number of removals of old versions of fully mature records
+			    case FbIsc.isc_info_purge_count:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    // Number of reads done via an index since the database was last attached
+			    case FbIsc.isc_info_read_idx_count:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    /** Number of sequential sequential table scans (row reads) done on each
+			        table since the database was last attached
+			    */
+			    case FbIsc.isc_info_read_seq_count:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+    		    // Number of database updates since the database was last attached
+			    case FbIsc.isc_info_update_count:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    // Misc
+
+			    case FbIsc.isc_info_db_class:
+				    const serverClass = parseInt32!false(payload, pos, len, typ);
+                    string serverText = serverClass == FbIsc.isc_info_db_class_classic_access
+					        ? FbIscText.isc_info_db_class_classic_text
+                            : FbIscText.isc_info_db_class_server_text;
+				    result ~= FbIscInfo(serverText);
+				    break;
+
+			    case FbIsc.isc_info_db_read_only:
+				    result ~= FbIscInfo(parseBool!false(payload, pos, typ));
+				    break;
+
+                // Database size in pages
+			    case FbIsc.isc_info_db_size_in_pages:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+                // Number of oldest transaction
+			    case FbIsc.isc_info_oldest_transaction:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+                // Number of oldest active transaction
+			    case FbIsc.isc_info_oldest_active:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+                // Number of oldest snapshot transaction
+			    case FbIsc.isc_info_oldest_snapshot:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    // Number of next transaction
+			    case FbIsc.isc_info_next_transaction:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+			    // Number of active	transactions
+			    case FbIsc.isc_info_active_transactions:
+				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    break;
+
+    		    // Active user name
+			    case FbIsc.isc_info_user_names:
+                    const uint len2 = parseInt32!false(payload, pos, 1, typ);
+				    result ~= FbIscInfo(parseString!false(payload, pos + 1, len2, typ));
+				    break;
+
+                default:
+                    break;
+            }
+            pos += len;
+        }
+
+        return result;
+    }
+
+    const(char)[] toString() nothrow
     {
         return asString();
     }
@@ -749,7 +1234,9 @@ private:
             case VariantType.integer:
                 return *value.peek!int() != 0;
             case VariantType.string:
-                return *value.peek!string() == "1";
+                return *value.peek!string() == dbBoolTrues[0];
+            case VariantType.dynamicArray: // const(char)[]
+                return *value.peek!(const(char)[])() == dbBoolTrues[0];
             default:
                 assert(0);
         }
@@ -769,28 +1256,36 @@ private:
                     return to!int(s);
                 else
                     return 0;
+            case VariantType.dynamicArray: // const(char)[]
+                auto s2 = *value.peek!(const(char)[])();
+                if (s2.length)
+                    return to!int(s2);
+                else
+                    return 0;
             default:
                 assert(0);
         }
     }
 
-    string asString() nothrow
+    const(char)[] asString() nothrow
     {
-         switch (value.variantType)
-         {
-             case VariantType.boolean:
-                 return *value.peek!bool() ? "1" : "0";
-             case VariantType.integer:
-                 return to!string(*value.peek!int());
-             case VariantType.string:
-                 return *value.peek!string();
-             default:
+        switch (value.variantType)
+        {
+            case VariantType.boolean:
+                return *value.peek!bool() ? dbBoolTrues[0] : dbBoolFalses[0];
+            case VariantType.integer:
+                return to!string(*value.peek!int());
+            case VariantType.string:
+                return *value.peek!string();
+            case VariantType.dynamicArray: // const(char)[]
+                return *value.peek!(const(char)[])();
+            default:
                 assert(0);
-         }
+        }
     }
 
 private:
-    alias Value = Algebraic!(void, bool, int, string);
+    alias Value = Algebraic!(void, bool, int, string, const(char)[]);
     Value value;
 }
 
@@ -897,7 +1392,7 @@ public:
         }
     }
 
-    final int32 errorCode() const
+    final int32 errorCode() const pure
     {
         foreach (ref i; errors)
         {
@@ -908,11 +1403,10 @@ public:
         return 0;
     }
 
-    void put(FbIscError error)
+    void put(FbIscError error) pure
     {
         if (errors.length == 0)
             errors.reserve(FbIscSize.iscStatusLength);
-
         errors ~= error;
     }
 
@@ -927,12 +1421,12 @@ public:
         return FbSqlStates.get(errorCode);
     }
 
-	@property final bool isError() const
+	@property final bool isError() const pure
 	{
         return errorCode() != 0;
 	}
 
-	@property final bool isWarning() const
+	@property final bool isWarning() const pure
 	{
         return errors.length && errors[0].isWarning;
 	}
@@ -959,7 +1453,7 @@ public:
 
 struct FbCommandPlanInfo
 {
-nothrow @safe:
+@safe:
 
 public:
     enum Kind : byte
@@ -971,14 +1465,23 @@ public:
     }
 
 public:
-    this(Kind kind, string plan) pure
+    this(Kind kind, const(char)[] plan) nothrow pure
     {
         this.kind = kind;
         this.plan = plan;
     }
 
+    this(Kind kind, const(ubyte)[] payload, FbIsc describeMode) pure
+    {
+        this.kind = kind;
+        const len = parseInt32!false(payload, 1, 2, describeMode);
+        this.plan = len > 0
+            ? parseString!false(payload, 3, len, describeMode)
+            : "";
+    }
+
 public:
-    string plan;
+    const(char)[] plan;
     Kind kind;
 }
 
@@ -1054,6 +1557,146 @@ private:
     FbOperation _operation;
 }
 
+bool parseBool(bool Advance)(scope const(ubyte)[] data, size_t index, int type) pure
+if (Advance == false)
+{
+    parseCheckLength(data, index, 1, type);
+    return parseBoolImpl(data, index);
+}
+
+int parseBool(bool Advance)(scope const(ubyte)[] data, ref size_t index, int type) pure
+if (Advance == true)
+{
+    parseCheckLength(data, index, 1, type);
+    return parseBoolImpl(data, index);
+}
+
+pragma(inline, true)
+private bool parseBoolImpl(scope const(ubyte)[] data, ref size_t index) nothrow pure
+{
+    return data[index++] == 1;
+}
+
+pragma(inline, true)
+void parseCheckLength(scope const(ubyte)[] data, size_t index, uint length, int type) pure
+{
+    if (index + length > data.length)
+    {
+        auto msg = format(DbMessage.eInvalidSQLDANotEnoughData, type, length);
+        throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
+    }
+}
+
+FbIscCommandType parseCommandType(scope const(ubyte)[] data) pure
+{
+    if (data.length <= 2)
+        return FbIscCommandType.none;
+
+    const endPos = data.length - 2;
+	size_t pos = 0;
+	while (pos < endPos)
+	{
+        const typ = data[pos++];
+        if (typ == FbIsc.isc_info_end)
+            break;
+
+		const len = parseInt32!true(data, pos, 2, typ);
+		switch (typ)
+		{
+			case FbIsc.isc_info_sql_stmt_type:
+				return cast(FbIscCommandType)parseInt32!true(data, pos, len, typ);
+
+			default:
+                pos += len;
+				break;
+		}
+	}
+
+	return FbIscCommandType.none;
+}
+
+int32 parseInt32(bool Advance)(scope const(ubyte)[] data, size_t index, uint length, int type) pure
+if (Advance == false)
+{
+    parseCheckLength(data, index, length, type);
+    return parseInt32Impl(data, index, length);
+}
+
+int32 parseInt32(bool Advance)(scope const(ubyte)[] data, ref size_t index, uint length, int type) pure
+if (Advance == true)
+{
+    parseCheckLength(data, index, length, type);
+    return parseInt32Impl(data, index, length);
+}
+
+private int32 parseInt32Impl(scope const(ubyte)[] data, ref size_t index, uint length) nothrow pure
+{
+	int32 result = 0;
+	uint shift = 0;
+	while (length--)
+	{
+		result += cast(int)data[index++] << shift;
+		shift += 8;
+	}
+	return result;
+}
+
+version (none)
+int64 parseInt64(bool Advance)(scope const(ubyte)[] data, size_t index, uint length, int type) pure
+if (Advance == false)
+{
+    parseCheckLength(data, index, length, type);
+    return parseInt64Impl(data, index, length);
+}
+
+version (none)
+int64 parseInt64(bool Advance)(scope const(ubyte)[] data, ref size_t index, uint length, int type) pure
+if (Advance == true)
+{
+    parseCheckLength(data, index, length, type);
+    return parseInt64Impl(data, index, length);
+}
+
+version (none)
+private int64 parseInt64Impl(bool Advance)(scope const(ubyte)[] data, ref size_t index, uint length) nothrow pure
+{
+	int64 result = 0;
+	uint shift = 0;
+	while (length--)
+	{
+		result += cast(int64)data[index++] << shift;
+		shift += 8;
+	}
+	return result;
+}
+
+const(char)[] parseString(bool Advance)(const(ubyte)[] data, size_t index, uint length, int type) pure
+if (Advance == false)
+{
+    parseCheckLength(data, index, length, type);
+    return parseStringImpl(data, index, length);
+}
+
+const(char)[] parseString(bool Advance)(const(ubyte)[] data, ref size_t index, uint length, int type) pure
+if (Advance == true)
+{
+    parseCheckLength(data, index, length, type);
+    return parseStringImpl(data, index, length);
+}
+
+pragma(inline, true)
+private const(char)[] parseStringImpl(const(ubyte)[] data, ref size_t index, uint length) nothrow pure
+{
+    if (length)
+    {
+        const(char)[] result = cast(const(char)[])data[index..index + length];
+        index += length;
+        return result;
+    }
+    else
+        return null;
+}
+
 
 // Any below codes are private
 private:
@@ -1062,7 +1705,7 @@ private:
 version (unittest)
 enum countOfFbIscType = EnumMembers!FbIscType.length;
 
-shared static this()
+shared static this() nothrow
 {
     fbDefaultParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
@@ -1087,4 +1730,64 @@ shared static this()
         }
         return result;
     }();
+}
+
+unittest // FbIscBlobSize
+{
+    import pham.utl.utlobject;
+    import pham.utl.utltest;
+    traceUnitTest("unittest db.fbtype.FbIscBlobSize");
+
+    auto info = bytesFromHexs("05040004000000040400010000000604000400000001");
+    auto parsedSize = FbIscBlobSize(info);
+    assert(parsedSize.maxSegment == 4);
+    assert(parsedSize.segmentCount == 1);
+    assert(parsedSize.length == 4);
+}
+
+unittest // FbIscBindInfo
+{
+    import pham.utl.utlobject;
+    import pham.utl.utltest;
+    traceUnitTest("unittest db.fbtype.FbIscBindInfo");
+
+    FbIscBindInfo[] bindResults;
+    ptrdiff_t previousBindIndex = -1;
+    ptrdiff_t previousFieldIndex;
+    auto info = bytesFromHexs("040704000D000000090400010000000B0400F00100000C0400000000000E0400040000000D040000000000100900494E545F4649454C44110B00544553545F53454C454354130900494E545F4649454C4408090400020000000B0400F50100000C0400000000000E0400020000000D040000000000100E00534D414C4C494E545F4649454C44110B00544553545F53454C454354130E00534D414C4C494E545F4649454C4408090400030000000B0400E30100000C0400000000000E0400040000000D040000000000100B00464C4F41545F4649454C44110B00544553545F53454C454354130B00464C4F41545F4649454C4408090400040000000B0400E10100000C0400000000000E0400080000000D040000000000100C00444F55424C455F4649454C44110B00544553545F53454C454354130C00444F55424C455F4649454C4408090400050000000B0400450200000C0400010000000E0400080000000D0400FEFFFFFF100D004E554D455249435F4649454C44110B00544553545F53454C454354130D004E554D455249435F4649454C4408090400060000000B0400450200000C0400020000000E0400080000000D0400FEFFFFFF100D00444543494D414C5F4649454C44110B00544553545F53454C454354130D00444543494D414C5F4649454C4408090400070000000B04003B0200000C0400000000000E0400040000000D040000000000100A00444154455F4649454C44110B00544553545F53454C454354130A00444154455F4649454C4408090400080000000B0400310200000C0400000000000E0400040000000D040000000000100A0054494D455F4649454C44110B00544553545F53454C454354130A0054494D455F4649454C4408090400090000000B0400FF0100000C0400000000000E0400080000000D040000000000100F0054494D455354414D505F4649454C44110B00544553545F53454C454354130F0054494D455354414D505F4649454C44080904000A0000000B0400C50100000C0400040000000E0400280000000D040000000000100A00434841525F4649454C44110B00544553545F53454C454354130A00434841525F4649454C44080904000B0000000B0400C10100000C0400040000000E0400280000000D040000000000100D00564152434841525F4649454C44110B00544553545F53454C454354130D00564152434841525F4649454C44080904000C0000000B0400090200000C0400000000000E0400080000000D040000000000100A00424C4F425F4649454C44110B00544553545F53454C454354130A00424C4F425F4649454C44080904000D0000000B0400090200000C0400010000000E0400080000000D040004000000100A00544558545F4649454C44110B00544553545F53454C454354130A00544558545F4649454C4408050704000000000001");
+    auto parsed = FbIscBindInfo.parse(info, bindResults, previousBindIndex, previousFieldIndex);
+    assert(parsed == true);
+    assert(bindResults.length == 2);
+
+    assert(bindResults[0].selectOrBind == FbIsc.isc_info_sql_select);
+    assert(bindResults[0].length == 13);
+    auto field = bindResults[0].field(0);
+    assert(field.name == "INT_FIELD" && field.type == 496 && field.subType == 0 && field.numericScale == 0 && field.size == 4 && field.tableName == "TEST_SELECT" && field.aliasName == "INT_FIELD");
+    field = bindResults[0].field(1);
+    assert(field.name == "SMALLINT_FIELD" && field.type == 501 && field.subType == 0 && field.numericScale == 0 && field.size == 2 && field.tableName == "TEST_SELECT" && field.aliasName == "SMALLINT_FIELD");
+    field = bindResults[0].field(2);
+    assert(field.name == "FLOAT_FIELD" && field.type == 483 && field.subType == 0 && field.numericScale == 0 && field.size == 4 && field.tableName == "TEST_SELECT" && field.aliasName == "FLOAT_FIELD");
+    field = bindResults[0].field(3);
+    assert(field.name == "DOUBLE_FIELD" && field.type == 481 && field.subType == 0 && field.numericScale == 0 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "DOUBLE_FIELD");
+    field = bindResults[0].field(4);
+    assert(field.name == "NUMERIC_FIELD" && field.type == 581 && field.subType == 1 && field.numericScale == -2 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "NUMERIC_FIELD");
+    field = bindResults[0].field(5);
+    assert(field.name == "DECIMAL_FIELD" && field.type == 581 && field.subType == 2 && field.numericScale == -2 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "DECIMAL_FIELD");
+    field = bindResults[0].field(6);
+    assert(field.name == "DATE_FIELD" && field.type == 571 && field.subType == 0 && field.numericScale == 0 && field.size == 4 && field.tableName == "TEST_SELECT" && field.aliasName == "DATE_FIELD");
+    field = bindResults[0].field(7);
+    assert(field.name == "TIME_FIELD" && field.type == 561 && field.subType == 0 && field.numericScale == 0 && field.size == 4 && field.tableName == "TEST_SELECT" && field.aliasName == "TIME_FIELD");
+    field = bindResults[0].field(8);
+    assert(field.name == "TIMESTAMP_FIELD" && field.type == 511 && field.subType == 0 && field.numericScale == 0 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "TIMESTAMP_FIELD");
+    field = bindResults[0].field(9);
+    assert(field.name == "CHAR_FIELD" && field.type == 453 && field.subType == 4 && field.numericScale == 0 && field.size == 40 && field.tableName == "TEST_SELECT" && field.aliasName == "CHAR_FIELD");
+    field = bindResults[0].field(10);
+    assert(field.name == "VARCHAR_FIELD" && field.type == 449 && field.subType == 4 && field.numericScale == 0 && field.size == 40 && field.tableName == "TEST_SELECT" && field.aliasName == "VARCHAR_FIELD");
+    field = bindResults[0].field(11);
+    assert(field.name == "BLOB_FIELD" && field.type == 521 && field.subType == 0 && field.numericScale == 0 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "BLOB_FIELD");
+    field = bindResults[0].field(12);
+    assert(field.name == "TEXT_FIELD" && field.type == 521 && field.subType == 1 && field.numericScale == 4 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "TEXT_FIELD");
+
+    assert(bindResults[1].selectOrBind == FbIsc.isc_info_sql_bind);
+    assert(bindResults[1].length == 0);
 }

@@ -12,6 +12,8 @@
 module pham.db.fbauth_legacy;
 
 import pham.cp.auth_crypt3;
+import pham.db.type : DbScheme;
+import pham.db.auth;
 import pham.db.fbauth;
 
 nothrow @safe:
@@ -21,12 +23,7 @@ class FbAuthLegacy : FbAuth
 nothrow @safe:
 
 public:
-    final override bool canCryptedConnection() const pure
-    {
-        return false;
-    }
-
-    final override ubyte[] getAuthData(const(char)[] userName, const(char)[] userPassword, ubyte[] serverAuthData)
+    final override const(ubyte)[] getAuthData(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData)
     {
         // Exclude the 2 salt chars
         return crypt3(userPassword, salt)[2..$];
@@ -39,41 +36,18 @@ public:
         return (saltLength + keyLength + 2) * 2;  //+2 for leading size data
     }
 
-    final override const(ubyte)[] privateKey() const
-    {
-        return null;
-    }
-
-    final override const(ubyte)[] publicKey() const
-    {
-        return null;
-    }
-
-    final override const(ubyte)[] sessionKey() const
-    {
-        return null;
-    }
-
-    @property final override bool isSymantic() const
-    {
-        return false;
-    }
-
     @property final override string name() const
     {
         return authLegacyName;
     }
 
-    @property final override string sessionKeyName() const
-    {
-        return null;
-    }
+public:
+    static immutable string authLegacyName = "Legacy_Auth";
 
 private:
-    static immutable string authLegacyName = "Legacy_Auth";
     enum keyLength = 0;
-    enum saltLength = 2;
     enum salt = "9z";
+    enum saltLength = 2;
 }
 
 
@@ -83,10 +57,10 @@ private:
 
 shared static this()
 {
-    FbAuth.registerAuthMap(FbAuthMap(FbAuthLegacy.authLegacyName, &createAuthLegacy));
+    DbAuth.registerAuthMap(DbAuthMap(DbScheme.fb ~ FbAuthLegacy.authLegacyName, &createAuthLegacy));
 }
 
-FbAuth createAuthLegacy()
+DbAuth createAuthLegacy()
 {
     return new FbAuthLegacy();
 }

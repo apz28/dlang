@@ -165,13 +165,14 @@ private:
 
 unittest // DbBufferFilterCompressorZip
 {
+    import std.string : representation;
     import pham.utl.utltest;
     traceUnitTest("unittest db.buffer_filter_compressor.DbBufferFilterCompressorZip");
 
 	auto compress = new DbBufferFilterCompressorZip!(DbBufferFilterKind.write)();
 	auto uncompress = new DbBufferFilterCompressorZip!(DbBufferFilterKind.read)();
 
-    enum const(ubyte)[] original = cast(const(ubyte)[])"the quick brown fox jumps over the lazy dog\r";
+    enum const(ubyte)[] original = "the quick brown fox jumps over the lazy dog\r".representation;
     ubyte[] compressed, uncompressed;
     compress.process(original, compressed);
     uncompress.process(compressed, uncompressed);

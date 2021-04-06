@@ -17,6 +17,8 @@ import core.sys.windows.sspi;
 import std.conv : to;
 import std.string : toStringz;
 
+import pham.db.type : DbScheme;
+import pham.db.auth;
 import pham.db.fbauth;
 
 nothrow @safe:
@@ -34,12 +36,7 @@ public:
             initClientContext();
     }
 
-    final override bool canCryptedConnection() const pure
-    {
-        return false;
-    }
-
-    final override ubyte[] getAuthData(const(char)[] userName, const(char)[] userPassword, ubyte[] serverAuthData)
+    final override const(ubyte)[] getAuthData(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData)
     in
     {
         assert(errorCode == 0);
@@ -75,24 +72,9 @@ public:
         return size_t.max;
     }
 
-    final override const(ubyte)[] privateKey() const
-    {
-        return null;
-    }
-
     final override const(ubyte)[] publicKey() const
     {
         return _publicKey;
-    }
-
-    final override const(ubyte)[] sessionKey() const
-    {
-        return null;
-    }
-
-    @property final override bool isSymantic() const
-    {
-        return false;
     }
 
     @property final override string name() const
@@ -110,10 +92,8 @@ public:
         return _secPackage;
     }
 
-    @property final override string sessionKeyName() const
-    {
-        return null;
-    }
+public:
+    static immutable string authSSPIName = "Win_Sspi";
 
 protected:
     final void disposeClientContext()
@@ -199,9 +179,6 @@ private:
     ubyte[] _publicKey;
     string _remotePrincipal;
     string _secPackage;
-
-private:
-    static immutable string authSSPIName = "Win_Sspi";
 }
 
 
@@ -211,10 +188,10 @@ private:
 
 shared static this()
 {
-    FbAuth.registerAuthMap(FbAuthMap(FbAuthSspi.authSSPIName, &createAuthSSPI));
+    DbAuth.registerAuthMap(DbAuthMap(DbScheme.fb ~ FbAuthSspi.authSSPIName, &createAuthSSPI));
 }
 
-FbAuth createAuthSSPI()
+DbAuth createAuthSSPI()
 {
     return new FbAuthSspi();
 }

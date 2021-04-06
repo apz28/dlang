@@ -17,6 +17,8 @@ import std.typecons : Flag, No, Yes;
 import pham.utl.utlobject : bytesFromHexs, bytesToHexs;
 import pham.utl.biginteger;
 import pham.cp.auth_rsp;
+import pham.db.type : DbScheme;
+import pham.db.auth;
 import pham.db.fbauth;
 
 nothrow @safe:
@@ -26,17 +28,17 @@ class FbAuthSrp : FbAuth
 nothrow @safe:
 
 public:
-    this(DigestAlgorithm digestAlgorithm, DigestAlgorithm proofDigestAlgorithm)
+    this(DigestId digestId, DigestId proofDigestId)
     {
-        this._authClient = new AuthClient(AuthParameters(digestAlgorithm, proofDigestAlgorithm, fbPrime), digitsToBigInteger(K));
-        setName(proofDigestAlgorithm);
+        this._authClient = new AuthClient(AuthParameters(digestId, proofDigestId, fbPrime), digitsToBigInteger(K));
+        setName(proofDigestId);
     }
 
     version (unittest)
-    this(DigestAlgorithm digestAlgorithm, DigestAlgorithm proofDigestAlgorithm, BigInteger ephemeralPrivate)
+    this(DigestId digestId, DigestId proofDigestId, BigInteger ephemeralPrivate)
     {
-        this._authClient = new AuthClient(AuthParameters(digestAlgorithm, proofDigestAlgorithm, fbPrime), digitsToBigInteger(K), ephemeralPrivate);
-        setName(proofDigestAlgorithm);
+        this._authClient = new AuthClient(AuthParameters(digestId, proofDigestId, fbPrime), digitsToBigInteger(K), ephemeralPrivate);
+        setName(proofDigestId);
 
         version (TraceAuth)
         {
@@ -54,9 +56,9 @@ public:
         return true;
     }
 
-    final override ubyte[] getAuthData(scope const(char)[] userName, scope const(char)[] userPassword, ubyte[] serverAuthData)
+    final override const(ubyte)[] getAuthData(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData)
     {
-        ubyte[] serverAuthSalt, serverAuthPublicKey;
+        const(ubyte)[] serverAuthSalt, serverAuthPublicKey;
         if (!parseServerAuthData(serverAuthData, serverAuthSalt, serverAuthPublicKey))
             return null;
 
@@ -65,6 +67,23 @@ public:
         _premasterKey = _authClient.calculatePremasterKey(normalizedUserName, userPassword, serverAuthSalt, serverPublicKey);
         _proof = calculateProof(normalizedUserName, userPassword, serverAuthSalt, serverPublicKey);
         return cast(ubyte[])bytesToHexs(_proof);
+    }
+
+    static string getName(DigestId digestId) pure
+    {
+        final switch (digestId)
+        {
+            case DigestId.md5:
+                return "md5";
+            case DigestId.sha1:
+                return "Srp";
+            case DigestId.sha256:
+                return "Srp256";
+            case DigestId.sha384:
+                return "Srp384";
+            case DigestId.sha512:
+                return "Srp512";
+        }
     }
 
     static BigInteger getServerAuthPublicKey(scope const(ubyte)[] serverAuthPublicKey) pure
@@ -120,29 +139,18 @@ protected:
         _premasterKey.dispose(disposing);
         _proof[] = 0;
         _sessionKey[] = 0;
+        if (disposing)
+        {
+            _name = null;
+            _proof = null;
+            _sessionKey = null;
+        }
         super.doDispose(disposing);
     }
 
-    static string getName(DigestAlgorithm digestAlgorithm) pure
+    final void setName(DigestId digestId)
     {
-        final switch (digestAlgorithm)
-        {
-            case DigestAlgorithm.md5:
-                return "md5";
-            case DigestAlgorithm.sha1:
-                return "Srp";
-            case DigestAlgorithm.sha256:
-                return "Srp256";
-            case DigestAlgorithm.sha384:
-                return "Srp384";
-            case DigestAlgorithm.sha512:
-                return "Srp512";
-        }
-    }
-
-    final void setName(DigestAlgorithm digestAlgorithm)
-    {
-        _name = getName(digestAlgorithm);
+        _name = getName(digestId);
     }
 
 private:
@@ -158,7 +166,7 @@ private:
 		n1 = modPow(n1, n2, _authClient.N);
 		n2 = bytesToBigInteger(_authClient.digest(userName));
 
-        AuthDigestResult hashTemp = void;
+        DigestResult hashTemp = void;
         auto M = proofHasher.begin()
             .digest(bytesFromBigInteger(n1))
             .digest(bytesFromBigInteger(n2))
@@ -208,7 +216,7 @@ nothrow @safe:
 public:
     this()
     {
-        super(DigestAlgorithm.sha1, DigestAlgorithm.sha1);
+        super(DigestId.sha1, DigestId.sha1);
     }
 }
 
@@ -219,7 +227,7 @@ nothrow @safe:
 public:
     this()
     {
-        super(DigestAlgorithm.sha1, DigestAlgorithm.sha256);
+        super(DigestId.sha1, DigestId.sha256);
     }
 }
 
@@ -230,7 +238,7 @@ nothrow @safe:
 public:
     this()
     {
-        super(DigestAlgorithm.sha1, DigestAlgorithm.sha384);
+        super(DigestId.sha1, DigestId.sha384);
     }
 }
 
@@ -241,7 +249,7 @@ nothrow @safe:
 public:
     this()
     {
-        super(DigestAlgorithm.sha1, DigestAlgorithm.sha512);
+        super(DigestId.sha1, DigestId.sha512);
     }
 }
 
@@ -252,28 +260,28 @@ private:
 
 shared static this()
 {
-    FbAuth.registerAuthMap(FbAuthMap(FbAuthSrp.getName(DigestAlgorithm.sha1), &createSrpSHA1));
-    FbAuth.registerAuthMap(FbAuthMap(FbAuthSrp.getName(DigestAlgorithm.sha256), &createSrpSHA256));
-    FbAuth.registerAuthMap(FbAuthMap(FbAuthSrp.getName(DigestAlgorithm.sha384), &createSrpSHA384));
-    FbAuth.registerAuthMap(FbAuthMap(FbAuthSrp.getName(DigestAlgorithm.sha512), &createSrpSHA512));
+    DbAuth.registerAuthMap(DbAuthMap(DbScheme.fb ~ FbAuthSrp.getName(DigestId.sha1), &createSrpSHA1));
+    DbAuth.registerAuthMap(DbAuthMap(DbScheme.fb ~ FbAuthSrp.getName(DigestId.sha256), &createSrpSHA256));
+    DbAuth.registerAuthMap(DbAuthMap(DbScheme.fb ~ FbAuthSrp.getName(DigestId.sha384), &createSrpSHA384));
+    DbAuth.registerAuthMap(DbAuthMap(DbScheme.fb ~ FbAuthSrp.getName(DigestId.sha512), &createSrpSHA512));
 }
 
-FbAuth createSrpSHA1()
+DbAuth createSrpSHA1()
 {
     return new FbAuthSrpSHA1();
 }
 
-FbAuth createSrpSHA256()
+DbAuth createSrpSHA256()
 {
     return new FbAuthSrpSHA256();
 }
 
-FbAuth createSrpSHA384()
+DbAuth createSrpSHA384()
 {
     return new FbAuthSrpSHA384();
 }
 
-FbAuth createSrpSHA512()
+DbAuth createSrpSHA512()
 {
     return new FbAuthSrpSHA512();
 }
@@ -321,7 +329,7 @@ version (unittest)
     {
         auto privateKey = digitsToBigInteger(digitPrivateKey);
         auto serverAuthData = bytesFromHexs(serverHexAuthData);
-        auto client = new FbAuthSrp(DigestAlgorithm.sha1, DigestAlgorithm.sha1, privateKey);
+        auto client = new FbAuthSrp(DigestId.sha1, DigestId.sha1, privateKey);
         auto proof = client.getAuthData(testUserName, testUserPassword, serverAuthData);
 
         assert(client._authClient.ephemeralPublic.toString() == digitExpectedPublicKey,
@@ -333,8 +341,8 @@ version (unittest)
         auto serverPublicKey = FbAuthSrpSHA1.getServerAuthPublicKey(client.serverPublicKey);
         assert(serverPublicKey.toString() == expectedDigitServerPublicKey,
             "expectedDigitServerPublicKey(" ~ to!string(line) ~ "): " ~ serverPublicKey.toString() ~ " ? " ~ expectedDigitServerPublicKey);
-        assert(cast(char[])proof == expectedHexProof,
-            "expectedHexProof(" ~ to!string(line) ~ "): " ~ cast(char[])proof ~ " ? " ~ expectedHexProof);
+        assert(cast(const(char)[])proof == expectedHexProof,
+            "expectedHexProof(" ~ to!string(line) ~ "): " ~ cast(const(char)[])proof ~ " ? " ~ expectedHexProof);
 
         client.dispose();
         client = null;

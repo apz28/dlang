@@ -13,6 +13,7 @@ module pham.db.buffer;
 
 import std.bitmanip : swapEndian;
 import std.format : format;
+import std.string : representation;
 import std.system : Endian;
 
 version (unittest) import pham.utl.utltest;
@@ -502,7 +503,7 @@ public:
 
     final override IbWriteBuffer writeChars(scope const(char)[] v) nothrow
     {
-        return writeBytesImpl(cast(const(ubyte)[])v);
+        return writeBytesImpl(v.representation);
     }
 
     final override IbWriteBuffer writeFloat32(float32 v) nothrow @trusted

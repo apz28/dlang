@@ -13,13 +13,12 @@ module pham.db.pgprotocol;
 
 import std.ascii : LetterCase;
 import std.conv : to;
-import std.digest.md : md5Of;
 import std.format : format;
-import std.string : indexOf, lastIndexOf;
+import std.string : indexOf, lastIndexOf, representation;
 
 version (unittest) import pham.utl.utltest;
-import pham.utl.enum_set;
-import pham.utl.utlobject;
+import pham.utl.enum_set : toName;
+import pham.utl.utlobject : shortClassName;
 import pham.db.message;
 import pham.db.convert;
 import pham.db.type;
@@ -31,6 +30,8 @@ import pham.db.pgoid;
 import pham.db.pgtype;
 import pham.db.pgexception;
 import pham.db.pgbuffer;
+import pham.db.pgauth_md5;
+import pham.db.pgauth_scram;
 import pham.db.pgdatabase;
 
 class PgProtocol : DbDisposableObject
@@ -108,8 +109,6 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto useCSB = connection.pgConnectionStringBuilder;
-
     receiveAgain:
         auto reader = PgReader(connection);
         switch (reader.messageType)
@@ -138,14 +137,23 @@ public:
                         goto receiveAgain;
 
                     case 3: // clear-text password is required
-                        reader.skip(4);
-                        connectAuthenticationSendPassword(useCSB.userPassword);
+                        connectAuthenticationSendPassword(connection.pgConnectionStringBuilder.userPassword);
                         goto receiveAgain;
 
-                    case 5:
-                        auto salt = reader.readBytes(4);
-                        auto sendingPassword = computeMD5HashPassword(useCSB.userName, useCSB.userPassword, salt);
-                        connectAuthenticationSendPassword(sendingPassword[]);
+                    case 5: // MD5
+                        connectAuthenticationSendMD5(reader);
+                        goto receiveAgain;
+
+                    case 10: // HMAC - SCRAM-SHA-256
+                        connectAuthenticationSendInitialScramSHA256(reader);
+                        goto receiveAgain;
+
+                    case 11: // HMAC - SCRAM-SHA-256
+                        connectAuthenticationSendContinuedScramSHA256(reader);
+                        goto receiveAgain;
+
+                    case 12: // HMAC - SCRAM-SHA-256
+                        connectAuthenticationSendFinalScramSHA256(reader);
                         goto receiveAgain;
 
                     default: // non supported authentication type, close connection
@@ -743,24 +751,71 @@ protected:
         version (TraceFunction) dgFunctionTrace();
     }
 
-    /**
-     * MD5-hashed password is required
-     * Formatted as:
-     *  "md5" + md5(md5(password + username) + salt)
-     *  where md5() returns lowercase hex-string
-     */
-    static char[3 + 32] computeMD5HashPassword(string userName, string userPassword, scope const(ubyte)[] serverSalt) nothrow @safe
+    final void connectAuthenticationSendMD5(ref PgReader reader)
     {
-        auto md5Password = MD5toHex(userPassword, userName);
-        char[3 + 32] result = void;
-        result[0..3] = "md5";
-        result[3..$] = MD5toHex(md5Password, serverSalt);
-        return result;
+        version (TraceFunction) dgFunctionTrace();
+
+        auto useCSB = connection.pgConnectionStringBuilder;
+        const salt = reader.readBytes(4);
+        auto auth = new PgAuthMD5();
+        const password = cast(const(char)[])auth.getAuthData(useCSB.userName, useCSB.userPassword, salt);
+        connectAuthenticationSendPassword(password);
+    }
+
+    final void connectAuthenticationSendContinuedScramSHA256(ref PgReader reader)
+    {
+        version (TraceFunction) dgFunctionTrace();
+
+        auto useCSB = connection.pgConnectionStringBuilder;
+
+        const payload = reader.readBytes(reader.messageLength - int32.sizeof); // Exclude type type indicator size
+        const proof = _authScramSHA256 !is null
+            ? _authScramSHA256.getAuthData(useCSB.userName, useCSB.userPassword, payload)
+            : null;
+        if (proof.length == 0)
+        {
+            auto msg = format(DbMessage.eInvalidConnectionAuthServerData, PgAuthScram256.authScram256Name);
+            throw new PgException(msg, DbErrorCode.read, 0, 0);
+        }
+
+        auto writer = PgWriter(connection);
+        writer.startMessage('p');
+        writer.writeBytesRaw(proof);
+        writer.flush();
+    }
+
+    final void connectAuthenticationSendFinalScramSHA256(ref PgReader reader)
+    {
+        version (TraceFunction) dgFunctionTrace();
+
+        const payload = reader.readBytes(reader.messageLength - int32.sizeof); // Exclude type type indicator size
+        if (_authScramSHA256 is null || !_authScramSHA256.verifyServerSignature(payload))
+        {
+            auto msg = format(DbMessage.eInvalidConnectionAuthVerificationFailed, PgAuthScram256.authScram256Name);
+            throw new PgException(msg, DbErrorCode.read, 0, 0);
+        }
+
+        // Done with authentication
+        _authScramSHA256.dispose();
+        _authScramSHA256 = null;
+    }
+
+    final void connectAuthenticationSendInitialScramSHA256(ref PgReader reader)
+    {
+        _authScramSHA256 = new PgAuthScram256();
+
+        version (TraceFunction) dgFunctionTrace("initialRequest=", _authScramSHA256.initialRequest());
+
+        auto writer = PgWriter(connection);
+        writer.startMessage('p');
+        writer.writeCChars(_authScramSHA256.mechanism);
+        writer.writeBytes(_authScramSHA256.initialRequest().representation);
+        writer.flush();
     }
 
     final void connectAuthenticationSendPassword(scope const(char)[] password) @safe
     {
-        version (TraceFunction) dgFunctionTrace("password=", password);
+        version (TraceFunction) dgFunctionTrace("password.length=", password.length, ", password=", password);
 
         auto writer = PgWriter(connection);
         writer.startMessage('p');
@@ -1114,25 +1169,10 @@ protected:
 
 private:
     PgConnection _connection;
+    PgAuthScram256 _authScramSHA256;
 }
 
 
 // Any below codes are private
 private:
 
-
-//char[32]
-char[] MD5toHex(T...)(in T data) nothrow @safe
-{
-    return md5Of(data).bytesToHexs!(LetterCase.lower);
-}
-
-unittest // computeMD5HashPassword
-{
-    import pham.utl.utltest;
-    traceUnitTest("unittest db.pgprotocol.computeMD5HashPassword");
-
-    auto salt = bytesFromHexs("9F170CAC");
-    auto encp = PgProtocol.computeMD5HashPassword("postgres", "masterkey", salt);
-    assert(encp == "md549f0896152ed83ec298a6c09b270be02", encp);
-}

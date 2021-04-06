@@ -101,6 +101,7 @@ private:
 
 unittest // DbBufferFilterCipherRC4
 {
+    import std.string : representation;
     import pham.utl.utltest;
     traceUnitTest("unittest db.buffer_filter_cipher.DbBufferFilterCipherRC4");
 
@@ -108,7 +109,7 @@ unittest // DbBufferFilterCipherRC4
 	auto encryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.write)(keyParameters);
 	auto decryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.read)(keyParameters);
 
-    enum const(ubyte)[] original = cast(const(ubyte)[])"the quick brown fox jumps over the lazy dog\r";
+    enum const(ubyte)[] original = "the quick brown fox jumps over the lazy dog\r".representation;
     ubyte[] encrypted, decrypted;
     encryptor.process(original, encrypted);
     decryptor.process(encrypted, decrypted);
