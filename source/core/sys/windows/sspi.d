@@ -14,7 +14,7 @@ nothrow @trusted:
 
 version (ANSI)
 {}
-else 
+else
     version = Unicode;
 
 public import core.sys.windows.windef;
@@ -154,9 +154,9 @@ nothrow @safe:
         return secBufferData[0..secBuffer.cbBuffer].dup;
     }
 
-    PSecBufferDesc initServerContext(ubyte[] secBytes) pure return @trusted
+    PSecBufferDesc initServerContext(const(ubyte)[] secBytes) pure return @trusted
     {
-        secBufferData = secBytes;
+        secBufferData = secBytes.dup;
 
         secBuffer.cbBuffer = secBufferData.length;
         secBuffer.BufferType = SECBUFFER_TOKEN;
