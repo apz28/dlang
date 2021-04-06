@@ -26,7 +26,7 @@ nothrow @safe:
 * Returns:     string containing the salt concatenated
 *              on to the encrypted results. Same as stored in passwd file.
 **************************************************************************/
-ubyte[] crypt3(const(char)[] pw, const(char)[2] salt)
+ubyte[] crypt3(scope const(char)[] pw, scope const(char)[2] salt)
 in
 {
     assert(pw.length > 0);

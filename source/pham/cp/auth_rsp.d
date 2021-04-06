@@ -62,31 +62,16 @@ module pham.cp.auth_rsp;
 
 import std.algorithm.mutation : reverse;
 import std.conv : to;
-import std.digest.md : MD5Digest;
-import std.digest.sha : Digest, SHA1Digest, SHA256Digest, SHA384Digest, SHA512Digest;
 import std.exception : assumeWontThrow;
+import std.string : representation;
 import std.typecons : Flag, No, Yes;
 
 import pham.utl.array : arrayOfChar;
 import pham.utl.biginteger;
 import pham.utl.utlobject : DisposableObject, isHex, randomHexDigits;
+public import pham.cp.cipher_digest;
 
 nothrow @safe:
-
-enum DigestAlgorithm : byte
-{
-    md5,
-    sha1,
-    sha256,
-    sha384,
-    sha512
-}
-
-enum defaultDigetAlgorithm = DigestAlgorithm.sha256;
-
-immutable string[] digestAlgorithmTexts = [
-    "md5", "sha1", "sha256", "sha384", "sha512"
-];
 
 // minGroupSize (in bits) sets a lower bound on the size of DH groups
 // that will pass certain internal checks. Defaults to 2048
@@ -94,8 +79,6 @@ enum minGroupSize = 2048;
 
 // minExponentSize (in bytes) for generating ephemeral private keys.
 enum minExponentSize = 32;
-
-enum maxHashSize = 1024 / 8 * 2;
 
 ubyte[] bytesFromBigInteger(in BigInteger n) pure
 {
@@ -159,13 +142,6 @@ BigInteger hexCharsToBigInteger(scope const(char)[] validHexChars) pure
     };
 
     return assumeWontThrow(BigInteger(validHexChars, format));
-}
-
-ubyte[] digestOf(DigestAlgorithm digestAlgorithm)(scope const(ubyte)[] data...)
-{
-    AuthDigestResult rTemp = void;
-    auto hasher = new AuthHasher(digestAlgorithm);
-    return hasher.begin().digest(data).finish(rTemp).dup;
 }
 
 struct PrimeGroup
@@ -241,96 +217,6 @@ immutable PrimeGroup prime4096;
 immutable PrimeGroup prime6144;
 immutable PrimeGroup prime8192;
 
-struct AuthDigestResult
-{
-nothrow @safe:
-
-public:
-    ubyte[maxHashSize] value;
-}
-
-struct AuthHasher
-{
-nothrow @safe:
-
-public:
-    this(DigestAlgorithm algorithm)
-    {
-        _algorithm = algorithm;
-        final switch (algorithm)
-        {
-            case DigestAlgorithm.md5:
-                _digester = new MD5Digest();
-                _bits = 128;
-                _hashSize = bits / 8 * 2;
-                break;
-
-            case DigestAlgorithm.sha1:
-                _digester = new SHA1Digest();
-                _bits = 160;
-                _hashSize = bits / 8 * 2;
-                break;
-
-            case DigestAlgorithm.sha256:
-                _digester = new SHA256Digest();
-                _bits = 256;
-                _hashSize = bits / 8 * 2;
-                break;
-
-            case DigestAlgorithm.sha384:
-                _digester = new SHA384Digest();
-                _bits = 384;
-                _hashSize = bits / 8 * 2;
-                break;
-
-            case DigestAlgorithm.sha512:
-                _digester = new SHA512Digest();
-                _bits = 512;
-                _hashSize = bits / 8 * 2;
-                break;
-        }
-    }
-
-    ref typeof(this) begin() return
-    {
-        _digester.reset();
-        return this;
-    }
-
-    ref typeof(this) digest(scope const(ubyte)[] data...) return @trusted
-    {
-        foreach (d; data)
-            _digester.put(d);
-        return this;
-    }
-
-    ubyte[] finish(return ref AuthDigestResult outBuffer) @trusted
-    {
-        return _digester.finish(outBuffer.value);
-    }
-
-    @property uint bits() const pure
-    {
-        return _bits;
-    }
-
-    @property DigestAlgorithm algorithm() const pure
-    {
-        return _algorithm;
-    }
-
-    @property uint hashSize() const pure
-    {
-        return _hashSize;
-    }
-
-private:
-    Digest _digester;
-    DigestAlgorithm _algorithm;
-    uint _bits;
-    uint _hashSize;
-}
-
 struct AuthParameters
 {
 nothrow @safe:
@@ -339,23 +225,23 @@ public:
     alias Generator = char[] function(size_t numDigits, bool leadingIndicator) nothrow;
 
 public:
-    this(DigestAlgorithm digestAlgorithm, DigestAlgorithm proofDigestAlgorithm,
+    this(DigestId digestId, DigestId proofDigestId,
          char separator = ':')
     {
-        this(digestAlgorithm, proofDigestAlgorithm, prime2048, separator);
+        this(digestId, proofDigestId, prime2048, separator);
     }
 
-    this(DigestAlgorithm digestAlgorithm, DigestAlgorithm proofDigestAlgorithm, const PrimeGroup group,
+    this(DigestId digestId, DigestId proofDigestId, const PrimeGroup group,
          char separator = ':')
     {
-        this(digestAlgorithm, proofDigestAlgorithm, group, &randomHexDigits, separator);
+        this(digestId, proofDigestId, group, &randomHexDigits, separator);
     }
 
-    this(DigestAlgorithm digestAlgorithm, DigestAlgorithm proofDigestAlgorithm, const PrimeGroup group, Generator hexGenerator,
+    this(DigestId digestId, DigestId proofDigestId, const PrimeGroup group, Generator hexGenerator,
          char separator = ':')
     {
-        this._hasher = AuthHasher(digestAlgorithm);
-        this._proofHasher = AuthHasher(proofDigestAlgorithm);
+        this._hasher = Digester(digestId);
+        this._proofHasher = Digester(proofDigestId);
         this._hexGenerator = hexGenerator;
         this._group = group;
         this._separator = separator;
@@ -379,16 +265,11 @@ public:
 
     ubyte[] hash(BigInteger n, Flag!"pad" pad)
     {
-        AuthDigestResult rTemp = void;
+        DigestResult rTemp = void;
         auto bytes = pad ? bytesFromBigIntegerPad(n, padSize) : bytesFromBigInteger(n);
         return _hasher.begin()
             .digest(bytes)
             .finish(rTemp).dup;
-    }
-
-    @property uint bits() const pure
-    {
-        return _hasher.bits;
     }
 
     @property uint exponentSize() const pure
@@ -406,19 +287,24 @@ public:
         return _group;
     }
 
-    @property ref AuthHasher proofHasher() pure return
+    @property ref Digester proofHasher() pure return
     {
         return _proofHasher;
     }
 
-    @property ref AuthHasher hasher() pure return
+    @property ref Digester hasher() pure return
     {
         return _hasher;
     }
 
-    @property uint hashSize() const pure
+    @property uint hasherBits() const pure
     {
-        return _hasher.hashSize;
+        return _hasher.digestBits;
+    }
+
+    @property uint hasherLength() const pure
+    {
+        return _hasher.digestLength;
     }
 
     @property uint maxExponentSize() const pure
@@ -438,8 +324,8 @@ public:
 
 private:
     const PrimeGroup _group;
-    AuthHasher _proofHasher;
-    AuthHasher _hasher;
+    Digester _proofHasher;
+    Digester _hasher;
     Generator _hexGenerator;
     char _separator;
 }
@@ -467,7 +353,7 @@ public:
 
         auto hasher = _parameters.hasher;
 
-        AuthDigestResult kTemp = void;
+        DigestResult kTemp = void;
         auto rHash = hasher.begin()
             .digest(bytesFromBigIntegerPad(A, padSize))
             .digest(bytesFromBigIntegerPad(B, padSize))
@@ -495,14 +381,14 @@ public:
 
         ubyte[1] digestSeparator = [cast(ubyte)parameters.separator];
 
-        AuthDigestResult iTemp = void;
+        DigestResult iTemp = void;
         auto iHash = hasher.begin()
-            .digest(cast(const(ubyte)[])userName)
+            .digest(userName.representation)
             .digest(digestSeparator)
-            .digest(cast(const(ubyte)[])userPassword)
+            .digest(userPassword.representation)
             .finish(iTemp);
 
-        AuthDigestResult rTemp = void;
+        DigestResult rTemp = void;
         auto rHash = hasher.begin()
             .digest(salt)
             .digest(iHash)
@@ -514,7 +400,7 @@ public:
     {
         auto hasher = _parameters.hasher;
 
-        AuthDigestResult hashTemp = void;
+        DigestResult hashTemp = void;
         return hasher.begin()
             .digest(v)
             .finish(hashTemp).dup;
@@ -522,14 +408,14 @@ public:
 
     final ubyte[] digest(scope const(char)[] v)
     {
-        return digest(cast(const(ubyte)[])v);
+        return digest(v.representation);
     }
 
     final ubyte[] digest(const BigInteger v)
     {
         auto hasher = _parameters.hasher;
 
-        AuthDigestResult hashTemp = void;
+        DigestResult hashTemp = void;
         return hasher.begin()
             .digest(bytesFromBigInteger(v))
             .finish(hashTemp).dup;
@@ -539,7 +425,7 @@ public:
     {
         auto hasher = _parameters.hasher;
 
-        AuthDigestResult hashTemp = void;
+        DigestResult hashTemp = void;
         return hasher.begin()
             .digest(bytesFromBigIntegerPad(v, padSize))
             .finish(hashTemp).dup;
@@ -617,7 +503,7 @@ protected:
     {
         auto hasher = parameters.hasher;
 
-        AuthDigestResult kTemp = void;
+        DigestResult kTemp = void;
         auto rHash = hasher.begin()
             .digest(bytesFromBigIntegerPad(N, padSize))
             .digest(bytesFromBigIntegerPad(g, padSize))
@@ -1024,37 +910,6 @@ shared static this()
          4009438B 481C6CD7 889A002E D5EE382B C9190DA6 FC026E47 9558E447 5677E9AA
          9E3050E2 765694DF C81F56E8 80B96E71 60C980DD 98EDD3DF FFFFFFFF FFFFFFFF",
         48);
-}
-
-nothrow @safe unittest // digestOf
-{
-    import pham.utl.utlobject;
-    import pham.utl.utltest;
-    traceUnitTest("unittest cp.auth_rsp.digestOf");
-
-    ubyte[] hash;
-
-    hash = digestOf!(DigestAlgorithm.md5)(cast(const(ubyte)[])"abc");
-    assert(bytesToHexs(hash) == "900150983CD24FB0D6963F7D28E17F72");
-
-    hash = digestOf!(DigestAlgorithm.sha1)(cast(const(ubyte)[])"abc");
-    assert(bytesToHexs(hash) == "A9993E364706816ABA3E25717850C26C9CD0D89D");
-
-    hash = digestOf!(DigestAlgorithm.sha256)(cast(const(ubyte)[])"message digest");
-    assert(hash == bytesFromHexs("f7846f55cf23e14eebeab5b4e1550cad5b509e3348fbc4efa3a1413d393cb650"));
-
-    hash = digestOf!(DigestAlgorithm.sha384)(cast(const(ubyte)[])"message digest");
-    assert(hash == bytesFromHexs("473ed35167ec1f5d8e550368a3db39be54639f828868e9454c239fc8b52e3c61dbd0d8b4de1390c256dcbb5d5fd99cd5"));
-
-    hash = digestOf!(DigestAlgorithm.sha512)(cast(const(ubyte)[])"message digest");
-    assert(hash == bytesFromHexs("107dbf389d9e9f71a3a95f6c055b9251bc5268c2be16d6c13492ea45b0199f3309e16455ab1e96118e8a905d5597b72038ddb372a89826046de66687bb420e7c"));
-
-    hash = digestOf!(DigestAlgorithm.sha1)(cast(const(ubyte)[])"SYSDBA:masterkey");
-    assert(hash == bytesFromHexs("E395799C5652AAA4536273A20AA740E246835CC4"));
-
-    hash = digestOf!(DigestAlgorithm.sha1)(cast(const(ubyte)[])"DAVIDS:aaa123");
-    //traceUnitTest("testHash=", hash.dgToHex());
-    assert(hash == bytesFromHexs("DF2ACDCF3828998D9ED023AB1F54464220F0D17C"));
 }
 
 nothrow @safe unittest // bytesToBigInteger
