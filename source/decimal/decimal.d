@@ -6483,13 +6483,13 @@ if (isDecimal!D)
 D scaleFrom(D)(auto const ref D value, int scale, RoundingMode roundingMode = RoundingMode.banking) @nogc nothrow pure @safe
 if (isDecimal!D)
 {
-    import std.math : pow;
+    import std.math : abs, pow;
 
     alias UD = Unqual!D;
     UD result = value;
-	if (scale < 0 && result != 0)
+	if (scale != 0 && result != 0)
     {
-		const UD scaleD = D(pow(10L, -scale), 0, roundingMode);
+		const UD scaleD = D(pow(10L, cast(int)abs(scale)), 0, roundingMode);
         decimalDiv(result, scaleD, 0, roundingMode);
     }
     return result;
@@ -6498,7 +6498,7 @@ if (isDecimal!D)
 T scaleTo(D, T)(auto const ref D value, int scale, RoundingMode roundingMode = RoundingMode.banking) @nogc nothrow @safe
 if (isDecimal!D && (is(T == short) || is(T == int) || is(T == long) || is(T == float) || is(T == double)))
 {
-    import std.math : pow;
+    import std.math : abs, pow;
 
     alias UD = Unqual!D;
     alias UT = Unqual!T;
@@ -6506,9 +6506,9 @@ if (isDecimal!D && (is(T == short) || is(T == int) || is(T == long) || is(T == f
     static if (is(T == short) || is(T == int) || is(T == long))
     {
         UD scaleResult = value;
-        if (scale < 0 && scaleResult != 0)
+        if (scale != 0 && scaleResult != 0)
         {
-            const UD scaleD = D(pow(10L, -scale), 0, roundingMode);
+            const UD scaleD = D(pow(10L, cast(int)abs(scale)), 0, roundingMode);
             decimalMul(scaleResult, scaleD, 0, roundingMode);
         }
         decimalToSigned(scaleResult, result, roundingMode);
