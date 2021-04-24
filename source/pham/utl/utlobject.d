@@ -215,6 +215,45 @@ if (is(T == class) || is(T == struct))
 }
 
 /**
+ * Check and convert a 'c' from digit to byte
+ * Params:
+ *  c = a charater to be checked and converted
+ *  b = byte presentation of c's value
+ * Returns:
+ *  true if c is a valid digit characters, false otherwise
+ */
+bool isDigit(char c, out ubyte b) @nogc nothrow pure @safe
+{
+    if (c >= '0' && c <= '9')
+    {
+        b = cast(ubyte)(c - '0');
+        return true;
+    }
+    else
+    {
+        b = 0;
+        return false;
+    }
+}
+
+/**
+ * Check 'value' is all digits
+ * Params:
+ *  value = charaters to be checked
+ * Returns:
+ *  true if value is a valid digit characters, false otherwise
+ */
+bool isDigits(const(char)[] value) @nogc nothrow pure @safe
+{
+    foreach (c; value)
+    {
+        if (c < '0' || c > '9')
+            return false;
+    }
+    return value.length != 0;
+}
+
+/**
  * Check and convert a 'c' from hex to byte
  * Params:
  *  c = a charater to be checked and converted
@@ -583,6 +622,102 @@ private:
     int _locked;
 }
 
+struct VersionString
+{
+import std.array : join, split;
+import std.conv : to;
+import std.string : strip;
+
+nothrow @safe:
+
+public:
+    alias Parts = string[4];
+
+public:
+    this(string versionString) pure
+    {
+        this.parts = parse(versionString);
+    }
+
+    int opCmp(T)(const T rhs) const pure
+    if (is(T == string) || is(Unqual!T == VersionString))
+    {
+        static if (is(Unqual!T == VersionString))
+        {
+            alias rhsVersion = rhs;
+        }
+        else
+        {
+            const tmpVersion = VersionString(rhs);
+            alias rhsVersion = tmpVersion;
+        }
+        return compare(this.parts, rhsVersion.parts);
+    }
+
+    bool opEquals(T)(const T rhs) const pure
+    if (is(T == string) || is(Unqual!T == VersionString))
+    {
+        return opCmp(rhs) == 0;
+    }
+
+    static int compare(scope const Parts lhs, scope const Parts rhs) pure
+    {
+        int result = compare(lhs[0], rhs[0]);
+        if (result == 0)
+        {
+            result = compare(lhs[1], rhs[1]);
+            if (result == 0)
+            {
+                result = compare(lhs[2], rhs[2]);
+                if (result == 0)
+                    result = compare(lhs[3], rhs[3]);
+            }
+        }
+        return result;
+    }
+
+    static int compare(scope const(char)[] lhsPart, scope const(char)[] rhsPart) pure
+    {
+        scope (failure) assert(0);
+
+        const lhs = to!int(lhsPart);
+        const rhs = to!int(rhsPart);
+        return lhs == rhs ? 0 : (lhs > rhs ? 1 : -1);
+    }
+
+    static Parts parse(string versionString) pure
+    {
+        Parts result = ["0", "0", "0", "0"];
+        if (versionString.length != 0)
+        {
+            auto versions = split(versionString, ".");
+            if (versions.length > 0)
+                result[0] = part(versions[0]);
+            if (versions.length > 1)
+                result[1] = part(versions[1]);
+            if (versions.length > 2)
+                result[2] = part(versions[2]);
+            if (versions.length > 3)
+                result[3] = part(versions[3]);
+        }
+        return result;
+    }
+
+    static string part(string partString) pure
+    {
+        auto result = strip(partString);
+        return (result.length <= 9 && isDigits(result)) ? result : "0";
+    }
+
+    string toString() const pure
+    {
+        return parts[].join(".");
+    }
+
+public:
+    Parts parts;
+}
+
 
 // Any below codes are private
 private:
@@ -708,6 +843,37 @@ unittest // InitializedValue
     assert(c !is null);
 }
 
+nothrow @safe unittest // isDigit
+{
+    import pham.utl.utltest;
+    traceUnitTest("unittest utl.utlobject.isDigit");
+
+    ubyte b;
+
+    assert(isDigit('0', b));
+    assert(b == 0);
+
+    assert(isDigit('1', b));
+    assert(b == 1);
+
+    assert(isDigit('9', b));
+    assert(b == 9);
+
+    assert(!isDigit('a', b));
+    assert(b == 0);
+}
+
+nothrow @safe unittest // isDigits
+{
+    import pham.utl.utltest;
+    traceUnitTest("unittest utl.utlobject.isDigits");
+
+    assert(isDigits("0"));
+    assert(isDigits("0123456789"));
+    assert(!isDigits(""));
+    assert(!isDigits("0ab"));
+}
+
 nothrow @safe unittest // isHex
 {
     import pham.utl.utltest;
@@ -743,4 +909,37 @@ nothrow @safe unittest // bytesFromHexs & bytesToHexs
     enum testHexs = "43414137364546413943383943443734433130363737303145434232424332363635393136423946384145383143353537453543333044383939463236434443";
     auto bytes = bytesFromHexs(testHexs);
     assert(bytesToHexs(bytes) == testHexs);
+}
+
+nothrow @safe unittest // VersionString
+{
+    import pham.utl.utltest;
+    traceUnitTest("unittest utl.utlobject.VersionString");
+
+    const v1Str = "1.2.3.4";
+    const v1 = VersionString(v1Str);
+    assert(v1.parts[0] == "1");
+    assert(v1.parts[1] == "2");
+    assert(v1.parts[2] == "3");
+    assert(v1.parts[3] == "4");
+    assert(v1.toString() == v1Str);
+
+    const v2Str = "1.2.0.0";
+    const v2 = VersionString("1.2");
+    assert(v2.parts[0] == "1");
+    assert(v2.parts[1] == "2");
+    assert(v2.parts[2] == "0");
+    assert(v2.parts[3] == "0");
+    assert(v2.toString() == v2Str);
+
+    assert(v1 > v2);
+    assert(v1 == VersionString(v1Str));
+    assert(v1 == v1Str);
+    assert(v2 == v2Str);
+    assert(v2 == VersionString(v2Str));
+
+    auto vNull = VersionString("");
+    assert(vNull.toString() == "0.0.0.0");
+    assert(vNull < "1.2.3.4");
+    assert("1.2.3.4" > vNull);
 }

@@ -21,7 +21,7 @@ public:
 public:
     @disable this(this);
 
-    void opOpAssign(string op)(DelegateHandler handler) nothrow
+    void opOpAssign(string op)(DelegateHandler handler) nothrow @safe
     if (op == "~" || op == "+" || op == "-")
     {
         static if (op == "~" || op == "+")
@@ -45,40 +45,41 @@ public:
         }
     }
 
-    bool opCast(ToT)() nothrow @safe
-    if (is(ToT == bool))
+    bool opCast(B)() nothrow @safe
+    if (is(B == bool))
     {
         return length != 0;
     }
 
     /** Removes all the elements from the array
     */
-    void clear() nothrow
+    ref typeof(this) clear() nothrow @safe
     {
         items.clear();
+        return this;
     }
 
     /** Appends element, handler, into end of array
         Params:
             handler = element to be appended
     */
-    void putBack(DelegateHandler handler) nothrow
+    void putBack(DelegateHandler handler) nothrow @safe
     {
         if (handler !is null)
             items.putBack(handler);
     }
 
-    /** Eliminates matched element, handler, from array
+    /** Removes matched element, handler, from array
         Params:
             handler = element to be removed
     */
-    void remove(DelegateHandler handler) nothrow
+    void remove(DelegateHandler handler) nothrow @safe
     {
         if (handler !is null)
             items.remove(handler);
     }
 
-    @property size_t length() const nothrow
+    @property size_t length() const nothrow @safe
     {
         return items.length;
     }
