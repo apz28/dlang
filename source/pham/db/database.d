@@ -1080,6 +1080,18 @@ public:
         return null;
     }
 
+    final string serverVersion() @safe
+    {
+        auto e = DbIdentifier.serverVersion in serverInfo;
+        if (e !is null)
+            return *e;
+
+        auto v = getServerVersion();
+        if (v.length != 0)
+            serverInfo[DbIdentifier.serverVersion] = v;
+        return v;
+    }
+
     final override size_t toHash() nothrow @safe
     {
         return connectionStringBuilder.toHash().hashOf(scheme.toHash());
@@ -1288,9 +1300,10 @@ protected:
         connectionStringBuilder().parseConnectionString(value);
     }
 
-    abstract void doCancelCommand();
-    abstract void doClose();
-    abstract void doOpen();
+    abstract void doCancelCommand() @safe;
+    abstract void doClose() @safe;
+    abstract void doOpen() @safe;
+    abstract string getServerVersion() @safe;
 
 public:
     /**
@@ -1793,7 +1806,7 @@ public:
 
     @property final typeof(this) compress(bool value) nothrow
     {
-        auto setValue = value ? dbBoolTrues[0] : dbBoolFalses[0];
+        auto setValue = value ? dbBoolTrue : dbBoolFalse;
         put(DbParameterName.compress, setValue);
         return this;
     }
@@ -1935,7 +1948,7 @@ public:
 
     @property final typeof(this) pooling(bool value) nothrow
     {
-        auto setValue = value ? dbBoolTrues[0] : dbBoolFalses[0];
+        auto setValue = value ? dbBoolTrue : dbBoolFalse;
         put(DbParameterName.pooling, setValue);
         return this;
     }

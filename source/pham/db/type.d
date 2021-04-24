@@ -72,13 +72,13 @@ enum hnsecsPerDay = convert!("hours", "hnsecs")(24);
 enum nullDate = Date(0, 1, 1);
 immutable SysTime nullDateTimeLocal, nullDateTimeTZ;
 
-enum DbFieldIdType : byte
-{
-    no,
-    array,
-    blob,
-    clob
-}
+ /**
+  * All possible values for conversion between bool and its' string
+  */
+immutable string[] boolFalses = ["0", "False", "F", "No", "N"];
+immutable string[] boolTrues = ["1", "True", "T", "Yes", "Y"];
+immutable string dbBoolFalse = "False";
+immutable string dbBoolTrue = "True";
 
 enum DbCommandExecuteType : byte
 {
@@ -190,6 +190,14 @@ enum DbFetchResultStatus : byte
     ready,
     hasData,
     completed
+}
+
+enum DbFieldIdType : byte
+{
+    no,
+    array,
+    blob,
+    clob
 }
 
 /**
@@ -330,6 +338,19 @@ enum DbSchemaColumnFlag : byte
     isKey,
     isUnique,
     isExpression
+}
+
+enum DbIdentifier
+{
+    serverProtocolAcceptType = "serverProtocolAcceptType",
+    serverProtocolArchitect = "serverProtocolArchitect",
+	serverProtocolCompressed = "serverProtocolCompressed",
+	serverProtocolEncrypted = "serverProtocolEncrypted",
+    serverProtocolProcessId = "serverProtocolProcessId",
+    serverProtocolSecretKey = "serverProtocolSecretKey",
+    serverProtocolTrStatus = "serverProtocolTrStatus",
+    serverProtocolVersion = "serverProtocolVersion",
+    serverVersion = "serverVersion",
 }
 
 /**
@@ -1041,12 +1062,6 @@ public:
     DbType dbType;
 }
 
- /**
-  * First element is being used as default value for conversion between bool and its' string
-  */
-immutable string[] dbBoolFalses = ["0", "False", "F", "No", "N"];
-immutable string[] dbBoolTrues = ["1", "True", "T", "Yes", "Y"];
-
 immutable string[string] dbDefaultParameterValues;
 
 immutable DbTypeInfo[] dbNativeTypes = [
@@ -1162,13 +1177,27 @@ bool isDbTypeString(DbType rawType) pure
         || rawType == rawType.xml;
 }
 
+bool isDbFalse(scope const(char)[] s) pure
+{
+    if (s.length != 0)
+    {
+        foreach (f; boolFalses)
+        {
+            if (sicmp(s, f) == 0)
+                return true;
+        }
+    }
+
+    return false;
+}
+
 bool isDbTrue(scope const(char)[] s) pure
 {
     if (s.length != 0)
     {
-        foreach (e; dbBoolTrues)
+        foreach (t; boolTrues)
         {
-            if (sicmp(s, e) == 0)
+            if (sicmp(s, t) == 0)
                 return true;
         }
     }
@@ -1190,14 +1219,14 @@ shared static this()
     {
         return cast(immutable(string[string]))[
             DbParameterName.charset : "UTF8",
-            DbParameterName.compress : dbBoolFalses[0],
+            DbParameterName.compress : dbBoolFalse,
             DbParameterName.connectionTimeout : "10", // In seconds
             DbParameterName.encrypt : toName(DbEncryptedConnection.disabled),
             DbParameterName.fetchRecordCount : "200",
             DbParameterName.integratedSecurity : toName(DbIntegratedSecurityConnection.srp),
             DbParameterName.maxPoolCount : "100",
             DbParameterName.minPoolCount : "0",
-            DbParameterName.pooling : dbBoolTrues[0],
+            DbParameterName.pooling : dbBoolTrue,
             DbParameterName.poolTimeout : "30", // In seconds
             DbParameterName.receiveTimeout : "3600", // In seconds - do not add underscore, to!... does not work
             DbParameterName.sendTimeout : "60", // In seconds

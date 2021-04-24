@@ -326,7 +326,7 @@ protected:
             _socketWriteBuffers.remove(_socketWriteBuffers.last).disposal(disposing);
     }
 
-    override void doClose()
+    override void doClose() @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -334,7 +334,7 @@ protected:
         doCloseSocket();
     }
 
-    final void doCloseSocket()
+    final void doCloseSocket() @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -355,7 +355,7 @@ protected:
         disposeSocketReadBuffer(disposing);
     }
 
-    final void doOpenSocket()
+    final void doOpenSocket() @trusted
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -451,7 +451,7 @@ public:
 
     @property final typeof(this) blocking(bool value) nothrow
     {
-        auto setValue = value ? dbBoolTrues[0] : dbBoolFalses[0];
+        auto setValue = value ? dbBoolTrue : dbBoolFalse;
         put(DbParameterName.socketBlocking, setValue);
         return this;
     }
@@ -463,7 +463,7 @@ public:
 
     @property final typeof(this) noDelay(bool value) nothrow
     {
-        auto setValue = value ? dbBoolTrues[0] : dbBoolFalses[0];
+        auto setValue = value ? dbBoolTrue : dbBoolFalse;
         put(DbParameterName.socketNoDelay, setValue);
         return this;
     }
@@ -669,8 +669,8 @@ shared static this()
     {
         return cast(immutable(string[string]))[
             DbParameterName.packageSize : "‭16383‬", // In bytes - do not add underscore, to!... does not work
-            DbParameterName.socketBlocking : dbBoolTrues[0],
-            DbParameterName.socketNoDelay : dbBoolTrues[0]
+            DbParameterName.socketBlocking : dbBoolTrue,
+            DbParameterName.socketNoDelay : dbBoolTrue
         ];
     }();
 }

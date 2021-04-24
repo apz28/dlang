@@ -627,12 +627,3 @@ enum FbIscType
 	SQL_BOOLEAN = 32764,
 	SQL_NULL = 32766
 }
-
-enum FbIdentifier
-{
-    serverAcceptType = "serverAcceptType",
-    serverArchitect = "serverArchitect",
-	serverCompressed = "serverCompressed",
-	serverEncrypted = "serverEncrypted",
-    serverVersion = "serverVersion",
-}

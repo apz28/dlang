@@ -89,29 +89,29 @@ immutable string[] fbValidParameterNames = [
 ];
 
 immutable DbTypeInfo[] fbNativeTypes = [
-    {dbName:"", nativeName:"VARCHAR", displaySize:-1, nativeSize:-1, nativeId:FbIscType.SQL_VARYING, dbType:DbType.string}, //varchar
-    {dbName:"", nativeName:"CHAR", displaySize:-1, nativeSize:-1, nativeId:FbIscType.SQL_TEXT, dbType:DbType.chars}, //char[]
-    {dbName:"", nativeName:"DOUBLE", displaySize:17, nativeSize:8, nativeId:FbIscType.SQL_DOUBLE, dbType:DbType.float64},
-    {dbName:"", nativeName:"FLOAT", displaySize:17, nativeSize:4, nativeId:FbIscType.SQL_FLOAT, dbType:DbType.float32},
-    {dbName:"", nativeName:"LONG", displaySize:11, nativeSize:4, nativeId:FbIscType.SQL_LONG, dbType:DbType.int32},
-    {dbName:"", nativeName:"SHORT", displaySize:6, nativeSize:2, nativeId:FbIscType.SQL_SHORT, dbType:DbType.int16},
-    {dbName:"", nativeName:"TIMESTAMP", displaySize:22, nativeSize:8, nativeId:FbIscType.SQL_TIMESTAMP, dbType:DbType.datetime},
-    {dbName:"", nativeName:"BLOB", displaySize:-1, nativeSize:-1, nativeId:FbIscType.SQL_BLOB, dbType:DbType.binary},
-    {dbName:"", nativeName:"DOUBLE", displaySize:17, nativeSize:8, nativeId:FbIscType.SQL_D_FLOAT, dbType:DbType.float64},
-    {dbName:"", nativeName:"ARRAY", displaySize:-1, nativeSize:-1, nativeId:FbIscType.SQL_ARRAY, dbType:DbType.array},
-    {dbName:"", nativeName:"QUAD", displaySize:20, nativeSize:8, nativeId:FbIscType.SQL_QUAD, dbType:DbType.int64},
-    {dbName:"", nativeName:"TIME", displaySize:11, nativeSize:4, nativeId:FbIscType.SQL_TIME, dbType:DbType.time},
-    {dbName:"", nativeName:"DATE", displaySize:10, nativeSize:4, nativeId:FbIscType.SQL_DATE, dbType:DbType.date},
-    {dbName:"", nativeName:"INT64", displaySize:20, nativeSize:8, nativeId:FbIscType.SQL_INT64, dbType:DbType.int64},
-    {dbName:"", nativeName:"INT128", displaySize:40, nativeSize:16, nativeId:FbIscType.SQL_INT128, dbType:DbType.int128},
-    {dbName:"", nativeName:"TIMESTAMP WITH TIMEZONE", displaySize:28, nativeSize:10, nativeId:FbIscType.SQL_TIMESTAMP_TZ, dbType:DbType.datetimeTZ},
-    {dbName:"", nativeName:"TIMESTAMP WITH OFFSET TIMEZONE", displaySize:28, nativeSize:10, nativeId:FbIscType.SQL_TIMESTAMP_TZ_EX, dbType:DbType.datetimeTZ},
-    {dbName:"", nativeName:"TIME WITH TIMEZONE", displaySize:17, nativeSize:6, nativeId:FbIscType.SQL_TIME_TZ, dbType:DbType.timeTZ},
-    {dbName:"", nativeName:"TIME WITH OFFSET TIMEZONE", displaySize:17, nativeSize:6, nativeId:FbIscType.SQL_TIME_TZ_EX, dbType:DbType.timeTZ},
-    //{dbName:"", nativeName:"DECFIXED", displaySize:34, nativeSize:16, nativeId:FbIscType.SQL_DEC_FIXED, dbType:DbType.decimal},
-    {dbName:"", nativeName:"DECFLOAT(16)", displaySize:16, nativeSize:8, nativeId:FbIscType.SQL_DEC64, dbType:DbType.decimal64},
-    {dbName:"", nativeName:"DECFLOAT(34)", displaySize:34, nativeSize:16, nativeId:FbIscType.SQL_DEC128, dbType:DbType.decimal128},
-    {dbName:"", nativeName:"BOOLEAN", displaySize:5, nativeSize:1, nativeId:FbIscType.SQL_BOOLEAN, dbType:DbType.boolean},
+    {dbName:"VARCHAR[?]", nativeName:"VARCHAR", displaySize:-1, nativeSize:-1, nativeId:FbIscType.SQL_VARYING, dbType:DbType.string}, //varchar
+    {dbName:"CHAR[?]", nativeName:"CHAR", displaySize:-1, nativeSize:-1, nativeId:FbIscType.SQL_TEXT, dbType:DbType.chars}, //char[]
+    {dbName:"DOUBLE", nativeName:"DOUBLE PRECISION", displaySize:17, nativeSize:8, nativeId:FbIscType.SQL_DOUBLE, dbType:DbType.float64},
+    {dbName:"FLOAT", nativeName:"FLOAT", displaySize:17, nativeSize:4, nativeId:FbIscType.SQL_FLOAT, dbType:DbType.float32},
+    {dbName:"INTEGER", nativeName:"INTEGER", displaySize:11, nativeSize:4, nativeId:FbIscType.SQL_LONG, dbType:DbType.int32},
+    {dbName:"SMALLINT", nativeName:"SMALLINT", displaySize:6, nativeSize:2, nativeId:FbIscType.SQL_SHORT, dbType:DbType.int16},
+    {dbName:"TIMESTAMP", nativeName:"TIMESTAMP", displaySize:22, nativeSize:8, nativeId:FbIscType.SQL_TIMESTAMP, dbType:DbType.datetime},
+    {dbName:"BLOB", nativeName:"BLOB", displaySize:-1, nativeSize:-1, nativeId:FbIscType.SQL_BLOB, dbType:DbType.binary},
+    {dbName:"DOUBLE", nativeName:"DOUBLE PRECISION", displaySize:17, nativeSize:8, nativeId:FbIscType.SQL_D_FLOAT, dbType:DbType.float64},
+    {dbName:"ARRAY[?,?]", nativeName:"ARRAY", displaySize:-1, nativeSize:-1, nativeId:FbIscType.SQL_ARRAY, dbType:DbType.array},
+    {dbName:"BIGINT", nativeName:"QUAD", displaySize:20, nativeSize:8, nativeId:FbIscType.SQL_QUAD, dbType:DbType.int64},
+    {dbName:"TIME", nativeName:"TIME", displaySize:11, nativeSize:4, nativeId:FbIscType.SQL_TIME, dbType:DbType.time},
+    {dbName:"DATE", nativeName:"DATE", displaySize:10, nativeSize:4, nativeId:FbIscType.SQL_DATE, dbType:DbType.date},
+    {dbName:"BIGINT", nativeName:"BIGINT", displaySize:20, nativeSize:8, nativeId:FbIscType.SQL_INT64, dbType:DbType.int64},
+    {dbName:"BOOLEAN", nativeName:"BOOLEAN", displaySize:5, nativeSize:1, nativeId:FbIscType.SQL_BOOLEAN, dbType:DbType.boolean}, // fb3
+    {dbName:"INT128", nativeName:"INT128", displaySize:40, nativeSize:16, nativeId:FbIscType.SQL_INT128, dbType:DbType.int128}, // fb4
+    {dbName:"TIMESTAMPTZ", nativeName:"TIMESTAMP WITH TIMEZONE", displaySize:28, nativeSize:10, nativeId:FbIscType.SQL_TIMESTAMP_TZ, dbType:DbType.datetimeTZ}, // fb4
+    {dbName:"TIMESTAMPTZ", nativeName:"TIMESTAMP WITH OFFSET TIMEZONE", displaySize:28, nativeSize:10, nativeId:FbIscType.SQL_TIMESTAMP_TZ_EX, dbType:DbType.datetimeTZ}, // fb4
+    {dbName:"TIMETZ", nativeName:"TIME WITH TIMEZONE", displaySize:17, nativeSize:6, nativeId:FbIscType.SQL_TIME_TZ, dbType:DbType.timeTZ}, // fb4
+    {dbName:"TIMETZ", nativeName:"TIME WITH OFFSET TIMEZONE", displaySize:17, nativeSize:6, nativeId:FbIscType.SQL_TIME_TZ_EX, dbType:DbType.timeTZ}, // fb4
+    {dbName:"DECIMAL(16)", nativeName:"DECFLOAT(16)", displaySize:16, nativeSize:8, nativeId:FbIscType.SQL_DEC64, dbType:DbType.decimal64}, // fb4
+    {dbName:"DECIMAL(34)", nativeName:"DECFLOAT(34)", displaySize:34, nativeSize:16, nativeId:FbIscType.SQL_DEC128, dbType:DbType.decimal128}, // fb4
+    {dbName:"DECIMAL(34)", nativeName:"DECFLOAT", displaySize:34, nativeSize:16, nativeId:FbIscType.SQL_DEC128, dbType:DbType.decimal128}, // fb4 - Map to DECFLOAT(34) as document
     {dbName:"", nativeName:"NULL", displaySize:4, nativeSize:0, nativeId:FbIscType.SQL_NULL, dbType:DbType.unknown}
 ];
 
@@ -1234,9 +1234,9 @@ private:
             case VariantType.integer:
                 return *value.peek!int() != 0;
             case VariantType.string:
-                return *value.peek!string() == dbBoolTrues[0];
+                return *value.peek!string() == dbBoolTrue;
             case VariantType.dynamicArray: // const(char)[]
-                return *value.peek!(const(char)[])() == dbBoolTrues[0];
+                return *value.peek!(const(char)[])() == dbBoolTrue;
             default:
                 assert(0);
         }
@@ -1272,7 +1272,7 @@ private:
         switch (value.variantType)
         {
             case VariantType.boolean:
-                return *value.peek!bool() ? dbBoolTrues[0] : dbBoolFalses[0];
+                return *value.peek!bool() ? dbBoolTrue : dbBoolFalse;
             case VariantType.integer:
                 return to!string(*value.peek!int());
             case VariantType.string:
@@ -1715,9 +1715,9 @@ shared static this() nothrow
             DbParameterName.userPassword : "masterkey",
             DbParameterName.fbCachePage : "0", // 0=Not used/set
             DbParameterName.fbDialect : "3",
-            DbParameterName.fbDatabaseTrigger : dbBoolTrues[0],
+            DbParameterName.fbDatabaseTrigger : dbBoolTrue,
             DbParameterName.fbDummyPacketInterval : "300",  // In seconds, 5 minutes
-            DbParameterName.fbGarbageCollect : dbBoolTrues[0]
+            DbParameterName.fbGarbageCollect : dbBoolTrue
         ];
     }();
 

@@ -876,16 +876,16 @@ protected:
         }
     }
 
-    final override void doCancelCommand()
+    final override void doCancelCommand() @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto serverProcessId = to!int32(serverInfo[PgIdentifier.serverProcessId]);
-        auto serverSecretKey = to!int32(serverInfo[PgIdentifier.serverSecretKey]);
+        auto serverProcessId = to!int32(serverInfo[DbIdentifier.serverProtocolProcessId]);
+        auto serverSecretKey = to!int32(serverInfo[DbIdentifier.serverProtocolSecretKey]);
         _protocol.cancelRequestWrite(serverProcessId, serverSecretKey);
     }
 
-    final override void doClose()
+    final override void doClose() @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -896,7 +896,7 @@ protected:
         super.doClose();
     }
 
-    final override void doOpen()
+    final override void doOpen() @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -904,13 +904,28 @@ protected:
         doOpenAuthentication();
     }
 
-    final void doOpenAuthentication()
+    final void doOpenAuthentication() @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
         _protocol = new PgProtocol(this);
         _protocol.connectAuthenticationWrite();
         _protocol.connectAuthenticationRead();
+    }
+
+    final override string getServerVersion() @safe
+    {
+        auto command = createCommand();
+        scope (exit)
+        {
+            command.dispose();
+            command = null;
+        }
+        // Ex: SELECT version()="PostgreSQL 12.4, compiled by Visual C++ build 1914, 64-bit"
+        // Ex: 12.4
+        command.commandText = "SHOW server_version as VARCHAR(60)";
+        auto v = command.executeScalar();
+        return v.isNull() ? null : v.get!string();
     }
 
     final PgStoredProcedureInfo getStoredProcedureInfo(string storedProcedureName) @safe
@@ -1470,7 +1485,6 @@ WHERE INT_FIELD = @INT_FIELD
 version (UnitTestPGDatabase)
 unittest // PgConnection
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.pgdatabase.PgConnection");
 
@@ -1479,8 +1493,6 @@ unittest // PgConnection
     {
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     assert(connection.state == DbConnectionState.closed);
 
@@ -1494,7 +1506,6 @@ unittest // PgConnection
 version (UnitTestPGDatabase)
 unittest // PgTransaction
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.pgdatabase.PgTransaction");
 
@@ -1504,8 +1515,6 @@ unittest // PgTransaction
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -1539,7 +1548,6 @@ unittest // PgTransaction
 version (UnitTestPGDatabase)
 unittest // PgCommand.DDL
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.pgdatabase.PgCommand.DDL");
 
@@ -1553,8 +1561,6 @@ unittest // PgCommand.DDL
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -1577,7 +1583,6 @@ unittest // PgCommand.DDL
 version (UnitTestPGDatabase)
 unittest // PgCommand.DML
 {
-    import core.memory;
     import std.math;
     import pham.utl.utltest;
     traceUnitTest("unittest db.pgdatabase.PgCommand.DML - Simple select");
@@ -1592,8 +1597,6 @@ unittest // PgCommand.DML
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -1666,7 +1669,6 @@ unittest // PgCommand.DML
 version (UnitTestPGDatabase)
 unittest // PgCommand.DML
 {
-    import core.memory;
     import std.math;
     import pham.utl.utltest;
     traceUnitTest("unittest db.pgdatabase.PgCommand.DML - Parameter select");
@@ -1681,8 +1683,6 @@ unittest // PgCommand.DML
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -1760,10 +1760,8 @@ unittest // PgCommand.DML
 }
 
 version (UnitTestPGDatabase)
-unittest // PgCommand.DML
+unittest // PgCommand.DML.pg_proc
 {
-    import core.memory;
-    import std.math;
     import pham.utl.utltest;
     traceUnitTest("unittest db.pgdatabase.PgCommand.DML - pg_proc");
 
@@ -1777,8 +1775,6 @@ unittest // PgCommand.DML
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -1820,7 +1816,6 @@ ORDER BY pg_proc.proname
 version (UnitTestPGDatabase)
 unittest // PgLargeBlob
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.pgdatabase.PgLargeBlob");
 
@@ -1834,8 +1829,6 @@ unittest // PgLargeBlob
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -1882,7 +1875,6 @@ unittest // PgLargeBlob
 version (UnitTestPGDatabase)
 unittest // PgCommand.DML
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.pgdatabase.PgCommand.DML - Array");
 
@@ -1901,8 +1893,6 @@ unittest // PgCommand.DML
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -1955,7 +1945,6 @@ unittest // PgCommand.DML
 version (UnitTestPGDatabase)
 unittest // PgCommand.getExecutionPlan
 {
-    import core.memory;
     import std.algorithm.searching : startsWith;
     import std.array : split;
     import std.string : indexOf;
@@ -1992,8 +1981,6 @@ unittest // PgCommand.getExecutionPlan
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
    }
     connection.open();
 
@@ -2035,7 +2022,6 @@ Execution Time: 0.053 ms}";
 version (UnitTestPGDatabase)
 unittest // PgCommand.DML.Function
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.pgdatabase.PgCommand.DML.Function");
 
@@ -2049,8 +2035,6 @@ unittest // PgCommand.DML.Function
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 

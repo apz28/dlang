@@ -1367,6 +1367,27 @@ public:
     }
 
 protected:
+    final override SkException createConnectError(string message, int socketCode, Exception e) @safe
+    {
+        auto result = super.createConnectError(message, socketCode, e);
+        result.vendorCode = FbIscResultCode.isc_net_connect_err;
+        return result;
+    }
+
+    final override SkException createReadDataError(string message, int socketCode, Exception e) @safe
+    {
+        auto result = super.createReadDataError(message, socketCode, e);
+        result.vendorCode = FbIscResultCode.isc_net_read_err;
+        return result;
+    }
+
+    final override SkException createWriteDataError(string message, int socketCode, Exception e) @safe
+    {
+        auto result = super.createWriteDataError(message, socketCode, e);
+        result.vendorCode = FbIscResultCode.isc_net_write_err;
+        return result;
+    }
+
     final override DbBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
     {
         return new SkReadBuffer!(Endian.bigEndian)(this, capacity);
@@ -1413,14 +1434,14 @@ protected:
         disposeProtocol(disposing);
     }
 
-    final override void doCancelCommand()
+    final override void doCancelCommand() @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
         _protocol.cancelRequestWrite();
     }
 
-    final override void doClose()
+    final override void doClose() @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -1431,7 +1452,7 @@ protected:
         super.doClose();
     }
 
-    final override void doOpen()
+    final override void doOpen() @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -1440,7 +1461,7 @@ protected:
         doOpenAttachment();
     }
 
-    final void doOpenAttachment()
+    final void doOpenAttachment() @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -1448,7 +1469,7 @@ protected:
         _handle = protocol.connectAttachmentRead().handle;
     }
 
-    final void doOpenAuthentication()
+    final void doOpenAuthentication() @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -1457,25 +1478,18 @@ protected:
         _protocol.connectAuthenticationRead();
     }
 
-    final override SkException createConnectError(string message, int socketCode, Exception e) @safe
+    final override string getServerVersion() @safe
     {
-        auto result = super.createConnectError(message, socketCode, e);
-        result.vendorCode = FbIscResultCode.isc_net_connect_err;
-        return result;
-    }
-
-    final override SkException createReadDataError(string message, int socketCode, Exception e) @safe
-    {
-        auto result = super.createReadDataError(message, socketCode, e);
-        result.vendorCode = FbIscResultCode.isc_net_read_err;
-        return result;
-    }
-
-    final override SkException createWriteDataError(string message, int socketCode, Exception e) @safe
-    {
-        auto result = super.createWriteDataError(message, socketCode, e);
-        result.vendorCode = FbIscResultCode.isc_net_write_err;
-        return result;
+        auto command = createCommand();
+        scope (exit)
+        {
+            command.dispose();
+            command = null;
+        }
+        // ex: "3.0.7"
+        command.commandText = "SELECT rdb$get_context('SYSTEM', 'ENGINE_VERSION') FROM rdb$database";
+        auto v = command.executeScalar();
+        return v.isNull() ? null : v.get!string();
     }
 
 protected:
@@ -1972,7 +1986,6 @@ unittest // FbConnectionStringBuilder
 version (UnitTestFBDatabase)
 unittest // FbConnection
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbConnection");
 
@@ -1981,8 +1994,6 @@ unittest // FbConnection
     {
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     assert(connection.state == DbConnectionState.closed);
 
@@ -1996,7 +2007,6 @@ unittest // FbConnection
 version (UnitTestFBDatabase)
 unittest // FbConnection.encrypt
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbConnection - encrypt");
 
@@ -2006,8 +2016,6 @@ unittest // FbConnection.encrypt
         {
             connection.dispose();
             connection = null;
-            version (TraceInvalidMemoryOp)
-                GC.collect();
         }
         assert(connection.state == DbConnectionState.closed);
 
@@ -2040,7 +2048,6 @@ unittest // FbConnection.encrypt
 version (UnitTestFBDatabase)
 unittest // FbConnection.integratedSecurity
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbConnection - integratedSecurity");
 
@@ -2051,8 +2058,6 @@ unittest // FbConnection.integratedSecurity
         {
             connection.dispose();
             connection = null;
-            version (TraceInvalidMemoryOp)
-                GC.collect();
         }
         assert(connection.state == DbConnectionState.closed);
 
@@ -2067,7 +2072,6 @@ unittest // FbConnection.integratedSecurity
 version (UnitTestFBDatabase)
 unittest // FbConnection.encrypt.compress
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbConnection - encrypt=required, compress=true");
 
@@ -2076,8 +2080,6 @@ unittest // FbConnection.encrypt.compress
     {
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     assert(connection.state == DbConnectionState.closed);
 
@@ -2091,7 +2093,6 @@ unittest // FbConnection.encrypt.compress
 version (UnitTestFBDatabase)
 unittest // FbTransaction
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbTransaction");
 
@@ -2101,8 +2102,6 @@ unittest // FbTransaction
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -2136,7 +2135,6 @@ unittest // FbTransaction
 version (UnitTestFBDatabase)
 unittest // FbTransaction
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbTransaction - encrypt=enabled, compress=true");
 
@@ -2146,8 +2144,6 @@ unittest // FbTransaction
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -2160,7 +2156,6 @@ unittest // FbTransaction
 version (UnitTestFBDatabase)
 unittest // FbCommand.DDL
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DDL");
 
@@ -2174,8 +2169,6 @@ unittest // FbCommand.DDL
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -2198,7 +2191,6 @@ unittest // FbCommand.DDL
 version (UnitTestFBDatabase)
 unittest // FbCommand.DDL.encrypt.compress
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DDL - encrypt=enabled, compress=true");
 
@@ -2212,8 +2204,6 @@ unittest // FbCommand.DDL.encrypt.compress
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -2236,7 +2226,6 @@ unittest // FbCommand.DDL.encrypt.compress
 version (UnitTestFBDatabase)
 unittest // FbCommand.getExecutionPlan
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbCommand.getExecutionPlan");
 
@@ -2250,8 +2239,6 @@ unittest // FbCommand.getExecutionPlan
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -2284,9 +2271,360 @@ Select Expression
 }
 
 version (UnitTestFBDatabase)
+unittest // FbCommand.DML.Types
+{
+    import std.conv;
+    import pham.utl.utlobject;
+    import pham.utl.utltest;
+    traceUnitTest("unittest db.fbdatabase.FbCommand.DML.Types");
+
+    bool failed = true;
+    auto connection = createTestConnection();
+    scope (exit)
+    {
+        if (failed)
+            traceUnitTest("failed - exiting and closing connection");
+
+        connection.close();
+        connection.dispose();
+        connection = null;
+    }
+    connection.open();
+
+    auto command = connection.createCommand();
+    scope (exit)
+    {
+        command.dispose();
+        command = null;
+    }
+
+    // char
+    {
+        command.commandText = "select cast(null as char(1)) from rdb$database";
+        auto v = command.executeScalar();
+        assert(v.isNull());
+
+	    command.commandText = "select cast('a' as char(1)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!string() == "a");
+
+	    command.commandText = "select cast(' abc ' as char(5)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!string() == " abc ");
+    }
+
+    // varchar
+    {
+        command.commandText = "select cast(null as varchar(10)) from rdb$database";
+        auto v = command.executeScalar();
+        assert(v.isNull());
+
+	    command.commandText = "select cast('a' as varchar(10)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!string() == "a");
+
+	    command.commandText = "select cast(' abc' as varchar(10)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!string() == " abc");
+    }
+
+    // double
+    {
+        command.commandText = "select cast(null as double precision) from rdb$database";
+        auto v = command.executeScalar();
+        assert(v.isNull());
+
+	    command.commandText = "select cast(0.0 as double precision) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!double() == 0.0);
+
+	    command.commandText = "select cast(-1.0 as double precision) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!double() == -1.0);
+
+	    command.commandText = "select cast(1.0 as double precision) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!double() == 1.0);
+
+        const double dmin = to!double("-3.40E+38");
+	    command.commandText = "select cast((-3.40E+38) as double precision) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!double() == dmin);
+
+        const double dmax = to!double("3.40E+38");
+	    command.commandText = "select cast((3.40E+38) as double precision) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!double() == dmax);
+    }
+
+    // float
+    {
+        command.commandText = "select cast(null as float) from rdb$database";
+        auto v = command.executeScalar();
+        assert(v.isNull());
+
+	    command.commandText = "select cast(0.0 as float) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!float() == 0.0);
+
+	    command.commandText = "select cast(-1.0 as float) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!float() == -1.0);
+
+	    command.commandText = "select cast(1.0 as float) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!float() == 1.0);
+
+        const float fmin = to!float("-1.79E+38");
+	    command.commandText = "select cast((-1.79E+38) as float) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!float() == fmin);
+
+        const float fmax = to!float("1.79E+38");
+	    command.commandText = "select cast((1.79E+38) as float) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!float() == fmax);
+    }
+
+    // smallint
+    {
+        command.commandText = "select cast(null as smallint) from rdb$database";
+        auto v = command.executeScalar();
+        assert(v.isNull());
+
+	    command.commandText = "select cast(0 as smallint) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int16() == 0);
+
+	    command.commandText = "select cast(-1 as smallint) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int16() == -1);
+
+	    command.commandText = "select cast(1 as smallint) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int16() == 1);
+
+	    command.commandText = "select cast(-32768 as smallint) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int16() == -32768);
+
+	    command.commandText = "select cast(32767 as smallint) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int16() == 32767);
+    }
+
+    // integer
+    {
+        command.commandText = "select cast(null as integer) from rdb$database";
+        auto v = command.executeScalar();
+        assert(v.isNull());
+
+	    command.commandText = "select cast(0 as integer) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int32() == 0);
+
+	    command.commandText = "select cast(-1 as integer) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int32() == -1);
+
+	    command.commandText = "select cast(1 as integer) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int32() == 1);
+
+	    command.commandText = "select cast(-2147483648 as integer) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int32() == -2147483648);
+
+	    command.commandText = "select cast(2147483647 as integer) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int32() == 2147483647);
+    }
+
+    // bigint
+    {
+        command.commandText = "select cast(null as bigint) from rdb$database";
+        auto v = command.executeScalar();
+        assert(v.isNull());
+
+	    command.commandText = "select cast(0 as bigint) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int64() == 0);
+
+	    command.commandText = "select cast(-1 as bigint) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int64() == -1);
+
+	    command.commandText = "select cast(1 as bigint) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int64() == 1);
+
+	    command.commandText = "select cast(-9223372036854775808 as bigint) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int64() == -9223372036854775808);
+
+	    command.commandText = "select cast(9223372036854775807 as bigint) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int64() == 9223372036854775807);
+    }
+
+    const dbVersion = VersionString(connection.serverVersion());
+
+    // boolean
+    if (dbVersion >= "3.0")
+    {
+        command.commandText = "select cast(null as boolean) from rdb$database";
+        auto v = command.executeScalar();
+        assert(v.isNull());
+
+	    command.commandText = "select cast(false as boolean) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!bool() == false);
+
+	    command.commandText = "select cast(true as boolean) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!bool() == true);
+    }
+
+    // int128
+    if (dbVersion >= "4.0")
+    {
+        command.commandText = "select cast(null as int128) from rdb$database";
+        auto v = command.executeScalar();
+        assert(v.isNull());
+
+	    command.commandText = "select cast(0 as int128) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int128() == 0);
+
+	    command.commandText = "select cast(-1 as int128) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int128() == -1);
+
+	    command.commandText = "select cast(1 as int128) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int128() == 1);
+
+	    command.commandText = "select cast(-184467440737095516190874 as int128) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int128() == int128("-184467440737095516190874"));
+
+	    command.commandText = "select cast(184467440737095516190874 as int128) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!int128() == int128("184467440737095516190874"));
+    }
+
+    // decfloat(16)
+    if (dbVersion >= "4.0")
+    {
+        command.commandText = "select cast(null as decfloat(16)) from rdb$database";
+        auto v = command.executeScalar();
+        assert(v.isNull());
+
+	    command.commandText = "select cast(0 as decfloat(16)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal64() == 0);
+
+	    command.commandText = "select cast(-1.0 as decfloat(16)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal64() == -1.0);
+
+	    command.commandText = "select cast(1.0 as decfloat(16)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal64() == 1.0);
+
+	    command.commandText = "select cast(-100000000000000000000000000000000000 as decfloat(16)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal64() == Decimal64("-100000000000000000000000000000000000"));
+
+	    command.commandText = "select cast(100000000000000000000000000000000000 as decfloat(16)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal64() == Decimal64("100000000000000000000000000000000000"));
+
+	    command.commandText = "select cast(123.000000001E-1 as decfloat(16)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal64() == Decimal64("123.000000001E-1"));
+
+	    command.commandText = "select cast(-123.000000001E-1 as decfloat(16)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal64() == Decimal64("-123.000000001E-1"));
+    }
+
+    // decfloat(34)
+    if (dbVersion >= "4.0")
+    {
+        command.commandText = "select cast(null as decfloat(34)) from rdb$database";
+        auto v = command.executeScalar();
+        assert(v.isNull());
+
+	    command.commandText = "select cast(0 as decfloat(34)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal128() == 0);
+
+	    command.commandText = "select cast(-1.0 as decfloat(34)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal128() == -1.0);
+
+	    command.commandText = "select cast(1.0 as decfloat(34)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal128() == 1.0);
+
+	    command.commandText = "select cast(-100000000000000000000000000000000000 as decfloat(34)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal128() == Decimal128("-100000000000000000000000000000000000"));
+
+	    command.commandText = "select cast(100000000000000000000000000000000000 as decfloat(34)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal128() == Decimal128("100000000000000000000000000000000000"));
+
+	    command.commandText = "select cast(123.000000001E-1 as decfloat(34)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal128() == Decimal128("123.000000001E-1"));
+
+	    command.commandText = "select cast(-123.000000001E-1 as decfloat(34)) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal128() == Decimal128("-123.000000001E-1"));
+    }
+
+    // decfloat
+    if (dbVersion >= "4.0")
+    {
+        command.commandText = "select cast(null as decfloat) from rdb$database";
+        auto v = command.executeScalar();
+        assert(v.isNull());
+
+	    command.commandText = "select cast(0 as decfloat) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal128() == 0);
+
+	    command.commandText = "select cast(-1.0 as decfloat) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal128() == -1.0);
+
+	    command.commandText = "select cast(1.0 as decfloat) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal128() == 1.0);
+
+	    command.commandText = "select cast(-100000000000000000000000000000000000 as decfloat) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal128() == Decimal128("-100000000000000000000000000000000000"));
+
+	    command.commandText = "select cast(100000000000000000000000000000000000 as decfloat) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal128() == Decimal128("100000000000000000000000000000000000"));
+
+	    command.commandText = "select cast(123.000000001E-1 as decfloat) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal128() == Decimal128("123.000000001E-1"));
+
+	    command.commandText = "select cast(-123.000000001E-1 as decfloat) from rdb$database";
+        v = command.executeScalar();
+        assert(v.get!Decimal128() == Decimal128("-123.000000001E-1"));
+    }
+}
+
+version (UnitTestFBDatabase)
 unittest // FbCommand.DML
 {
-    import core.memory;
     import std.math;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Simple select");
@@ -2301,8 +2639,6 @@ unittest // FbCommand.DML
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -2375,7 +2711,6 @@ unittest // FbCommand.DML
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML.Parameter
 {
-    import core.memory;
     import std.math;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Parameter select");
@@ -2390,8 +2725,6 @@ unittest // FbCommand.DML.Parameter
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -2471,7 +2804,6 @@ unittest // FbCommand.DML.Parameter
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML.encrypt.compress
 {
-    import core.memory;
     import std.math;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Simple select with encrypt=enabled, compress=true");
@@ -2486,8 +2818,6 @@ unittest // FbCommand.DML.encrypt.compress
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -2560,7 +2890,6 @@ unittest // FbCommand.DML.encrypt.compress
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML.FbArrayManager
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML - FbArrayManager");
 
@@ -2574,8 +2903,6 @@ unittest // FbCommand.DML.FbArrayManager
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -2595,7 +2922,6 @@ unittest // FbCommand.DML.FbArrayManager
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML.Array
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Array");
 
@@ -2614,8 +2940,6 @@ unittest // FbCommand.DML.Array
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -2668,7 +2992,6 @@ unittest // FbCommand.DML.Array
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML.Array.Less
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Array.Less");
 
@@ -2692,8 +3015,6 @@ unittest // FbCommand.DML.Array.Less
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 
@@ -2746,7 +3067,6 @@ unittest // FbCommand.DML.Array.Less
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML.StoredProcedure
 {
-    import core.memory;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML.StoredProcedure");
 
@@ -2760,8 +3080,6 @@ unittest // FbCommand.DML.StoredProcedure
         connection.close();
         connection.dispose();
         connection = null;
-        version (TraceInvalidMemoryOp)
-            GC.collect();
     }
     connection.open();
 

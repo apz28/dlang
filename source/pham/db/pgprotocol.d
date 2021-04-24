@@ -120,8 +120,8 @@ public:
             case 'K': // BackendKeyData
                 const serverProcessId = reader.readInt32();
                 const serverSecretKey = reader.readInt32();
-                connection.serverInfo[PgIdentifier.serverProcessId] = to!string(serverProcessId);
-                connection.serverInfo[PgIdentifier.serverSecretKey] = to!string(serverSecretKey);
+                connection.serverInfo[DbIdentifier.serverProtocolProcessId] = to!string(serverProcessId);
+                connection.serverInfo[DbIdentifier.serverProtocolSecretKey] = to!string(serverSecretKey);
                 goto receiveAgain;
 
             case 'N': // NotificationResponse
@@ -174,7 +174,7 @@ public:
                 switch (trStatus) // check for validity
                 {
                     case 'E', 'I', 'T':
-                        connection.serverInfo[PgIdentifier.serverTrStatus] = to!string(trStatus);
+                        connection.serverInfo[DbIdentifier.serverProtocolTrStatus] = to!string(trStatus);
                         break;
 
                     default:

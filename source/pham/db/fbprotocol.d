@@ -404,7 +404,7 @@ public:
         {
 			if (canCompressConnection())
             {
-                connection.serverInfo[FbIdentifier.serverCompressed] = dbBoolTrues[0];
+                connection.serverInfo[DbIdentifier.serverProtocolCompressed] = dbBoolTrue;
                 compressSetupBufferFilter();
             }
         }
@@ -413,7 +413,7 @@ public:
         {
             if (canCryptedConnection())
             {
-                connection.serverInfo[FbIdentifier.serverEncrypted] = dbBoolTrues[0];
+                connection.serverInfo[DbIdentifier.serverProtocolEncrypted] = dbBoolTrue;
                 cryptWrite();
                 cryptSetupBufferFilter(); // after writing before reading
                 cryptRead();
@@ -441,9 +441,9 @@ public:
                 auto aResponse = readAcceptResponseImpl(reader);
                 _serverAcceptType = aResponse.acceptType;
                 _serverVersion = aResponse.version_;
-                connection.serverInfo[FbIdentifier.serverAcceptType] = to!string(aResponse.acceptType);
-                connection.serverInfo[FbIdentifier.serverArchitect] = to!string(aResponse.architecture);
-                connection.serverInfo[FbIdentifier.serverVersion] = to!string(aResponse.version_);
+                connection.serverInfo[DbIdentifier.serverProtocolAcceptType] = to!string(aResponse.acceptType);
+                connection.serverInfo[DbIdentifier.serverProtocolArchitect] = to!string(aResponse.architecture);
+                connection.serverInfo[DbIdentifier.serverProtocolVersion] = to!string(aResponse.version_);
                 setupCompression();
                 if (!setupEncryption())
                     validateRequiredEncryption();
@@ -454,9 +454,9 @@ public:
                 _serverAcceptType = adResponse.acceptType;
                 _serverVersion = adResponse.version_;
                 _serverAuthKey = adResponse.authKey;
-                connection.serverInfo[FbIdentifier.serverAcceptType] = to!string(adResponse.acceptType);
-                connection.serverInfo[FbIdentifier.serverArchitect] = to!string(adResponse.architecture);
-                connection.serverInfo[FbIdentifier.serverVersion] = to!string(adResponse.version_);
+                connection.serverInfo[DbIdentifier.serverProtocolAcceptType] = to!string(adResponse.acceptType);
+                connection.serverInfo[DbIdentifier.serverProtocolArchitect] = to!string(adResponse.architecture);
+                connection.serverInfo[DbIdentifier.serverProtocolVersion] = to!string(adResponse.version_);
 
 				if (!adResponse.isAuthenticated || op == FbIsc.op_cond_accept)
 				{

@@ -105,13 +105,6 @@ enum PgDescribeType : char
     sync = 'S',
 }
 
-enum PgIdentifier
-{
-    serverProcessId = "serverProcessId",
-    serverSecretKey = "serverSecretKey",
-    serverTrStatus = "serverTrStatus",
-}
-
 enum PgOIdType : int
 {
     bool_ = 16,
