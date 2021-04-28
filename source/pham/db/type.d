@@ -342,15 +342,15 @@ enum DbSchemaColumnFlag : byte
 
 enum DbIdentifier
 {
-    serverProtocolAcceptType = "serverProtocolAcceptType",
-    serverProtocolArchitect = "serverProtocolArchitect",
-	serverProtocolCompressed = "serverProtocolCompressed",
-	serverProtocolEncrypted = "serverProtocolEncrypted",
-    serverProtocolProcessId = "serverProtocolProcessId",
-    serverProtocolSecretKey = "serverProtocolSecretKey",
-    serverProtocolTrStatus = "serverProtocolTrStatus",
-    serverProtocolVersion = "serverProtocolVersion",
-    serverVersion = "serverVersion",
+    serverProtocolAcceptType = "serverProtocolAcceptType", // firebird
+    serverProtocolArchitect = "serverProtocolArchitect",   // firebird
+	serverProtocolCompressed = "serverProtocolCompressed", // firebird
+	serverProtocolEncrypted = "serverProtocolEncrypted",   // firebird
+    serverProtocolProcessId = "serverProtocolProcessId",   // postgresql
+    serverProtocolSecretKey = "serverProtocolSecretKey",   // postgresql
+    serverProtocolTrStatus = "serverProtocolTrStatus",     // postgresql
+    serverProtocolVersion = "serverProtocolVersion",       // firebird
+    serverVersion = "serverVersion",                       // firebird, postgresql
 }
 
 /**

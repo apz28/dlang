@@ -513,8 +513,10 @@ public:
         const nOffset = _offset + curLength;
         assert(nOffset + additionalBytes <= _data.length);
 
+        //dgWriteln("nOffset=", nOffset, ", _data.length=", _data.length, ", additionalBytes=", additionalBytes, ", curLength=", curLength);
+
         // n=size_t.max -> no data returned
-        const n = connection.socketReadData(_data[nOffset.._data.length - nOffset]);
+        const n = connection.socketReadData(_data[nOffset.._data.length]);
         const hasReadData = n != size_t.max;
         if (hasReadData)
         {

@@ -345,14 +345,15 @@ protected:
         }
     }
 
-    final void mergeOffset()
+    final void mergeOffset() nothrow
     {
         if (_offset)
         {
-            version (TraceFunction) dgFunctionTrace("offset=", _offset, ", length=", length);
+            //dgWriteln("offset=", _offset, ", length=", length, ", _data.length=", _data.length);
 
             const saveLength = length;
-            inplaceMoveToLeft(_data, _offset, 0, saveLength);
+            if (saveLength != 0)
+                inplaceMoveToLeft(_data, _offset, 0, saveLength);
             _offset = 0;
             _maxLength = saveLength;
         }

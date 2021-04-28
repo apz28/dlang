@@ -3176,7 +3176,7 @@ public:
         return getVariant(index);
     }
 
-    T getValue(T)(size_t index) nothrow @safe
+    T getValue(T)(size_t index) @safe
     in
     {
         assert(index < _currentRow.length);
