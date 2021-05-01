@@ -3059,12 +3059,13 @@ struct DbReader
 public:
     @disable this(this);
 
-    this(DbCommand command, bool implicitTransaction) nothrow @safe
+    this(DbCommand command, bool implicitTransaction) @safe
     {
         this._command = command;
         this._fields = command.fields;
         this._hasRows = HasRows.unknown;
         this._implicitTransaction = implicitTransaction;
+        this._skipFetchNext = fetchFirst();
     }
 
     ~this() @safe
@@ -3082,8 +3083,6 @@ public:
         version (TraceFunction) dgFunctionTrace();
 
         _allRowsFetched = true;
-        if (_hasRows == HasRows.unknown)
-            _hasRows = HasRows.no;
 
         if (_cacheResult && _hasRows == HasRows.yes && _command !is null)
         {
@@ -3195,24 +3194,6 @@ public:
         return getValue(index);
     }
 
-    /**
-     * Gets a value that indicates whether this DbReader contains one or more rows
-     */
-    bool hasRows() @safe
-    {
-        version (TraceFunction) dgFunctionTrace();
-
-        if (_hasRows == HasRows.unknown)
-        {
-            fetchNext();
-            _skipFetchNext = true;
-        }
-
-        version (TraceFunction) dgFunctionTrace("_hasRows=", _hasRows, ", _skipFetchNext=", _skipFetchNext);
-
-        return _hasRows == HasRows.yes;
-    }
-
     bool isNull(size_t index) nothrow @safe
     in
     {
@@ -3246,8 +3227,6 @@ public:
             _skipFetchNext = false;
         }
 
-        version (TraceFunction) dgFunctionTrace("_allRowsFetched=", _allRowsFetched, ", _skipFetchNext=", _skipFetchNext);
-
         return !_allRowsFetched;
     }
 
@@ -3266,6 +3245,14 @@ public:
     @property DbFieldList fields() nothrow pure @safe
     {
         return _fields;
+    }
+
+    /**
+     * Gets a value that indicates whether this DbReader contains one or more rows
+     */
+    @property bool hasRows() nothrow pure @safe
+    {
+        return _hasRows == HasRows.yes;
     }
 
     @property bool implicitTransaction() nothrow pure @safe
@@ -3289,15 +3276,37 @@ private:
         _command = null;
     }
 
-    void fetchNext() @safe
+    bool fetchFirst() @safe
+    in
+    {
+         assert(_hasRows == HasRows.unknown);
+    }
+    do
     {
         version (TraceFunction) dgFunctionTrace();
 
         _currentRow = command.fetch(false);
         _allRowsFetched = _currentRow.length == 0;
-        _fetchedCount++;
-        if (_hasRows == HasRows.unknown)
-            _hasRows = _allRowsFetched ? HasRows.no : HasRows.yes;
+        _fetchedCount += !_allRowsFetched;
+        _hasRows = _allRowsFetched ? HasRows.no : HasRows.yes;
+
+        version (TraceFunction) dgFunctionTrace("_fetchedCount=", _fetchedCount, ", _allRowsFetched=", _allRowsFetched, ", _hasRows=", _hasRows);
+
+        return _hasRows == HasRows.yes;
+    }
+
+    void fetchNext() @safe
+    in
+    {
+         assert(_hasRows == HasRows.yes);
+    }
+    do
+    {
+        version (TraceFunction) dgFunctionTrace();
+
+        _currentRow = command.fetch(false);
+        _allRowsFetched = _currentRow.length == 0;
+        _fetchedCount += !_allRowsFetched;
 
         version (TraceFunction) dgFunctionTrace("_fetchedCount=", _fetchedCount, ", _allRowsFetched=", _allRowsFetched, ", _hasRows=", _hasRows);
     }

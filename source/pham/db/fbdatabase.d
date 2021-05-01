@@ -3151,7 +3151,7 @@ unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
 
-    static class Data
+    static struct Data
     {
         long Foo1;
         long Foo2;
@@ -3188,6 +3188,11 @@ unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
         Decimal64 Foo33;
 
         this(ref DbReader reader)
+        {
+            readData(reader);
+        }
+
+        void readData(ref DbReader reader)
         {
             Foo1 = reader.getValue!int64(0); //foo1 BIGINT NOT NULL,
             Foo2 = reader.getValue!int64(1); //foo2 BIGINT NOT NULL,
@@ -3253,16 +3258,18 @@ unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
         reader.dispose();
 
     enum maxRecordCount = 1_000_000;
-    int count;
-    auto datas = new Data[](maxRecordCount);
+    size_t count;
+    version (UnitTestFBCollectData) auto datas = new Data[](maxRecordCount);
+    else Data data;
     assert(reader.hasRows());
     const timeStart = MonoTime.currTime;
     while (count < maxRecordCount && reader.read())
     {
-        datas[count++] = new Data(reader);
+        version (UnitTestFBCollectData) datas[count++] = Data(reader);
+        else { data.readData(reader); count++; }
     }
     const timeElapsed = MonoTime.currTime - timeStart;
     assert(count > 0);
     failed = false;
-    dgWriteln(format!"%,3d"(timeElapsed.total!"msecs"()));
+    dgWriteln("Count: ", count, ", Elapsed in msecs: ", format!"%,3d"(timeElapsed.total!"msecs"()));
 }

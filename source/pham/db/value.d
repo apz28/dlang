@@ -353,7 +353,7 @@ public:
     }
 
     // Temporary hack until bug http://d.puremagic.com/issues/show_bug.cgi?id=5747 is fixed.
-    DbRowValue opCast(T)() const nothrow
+    DbRowValue opCast(T)() nothrow @safe
     if (is(Unqual!T == DbRowValue))
     {
         return this;
