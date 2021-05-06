@@ -1136,36 +1136,38 @@ private:
  * Gives the `alignof` the largest types given.
  * Default to size_t.alignof if no types given.
  */
-template maxAlignment(T...)
+template maxAlignment(Ts...)
 {
     enum maxAlignment =
     {
-        size_t result;
-        static foreach (t; T)
+        size_t result = 0;
+        static foreach (t; Ts)
         {
             if (t.alignof > result)
                 result = t.alignof;
         }
-        return result == 0 ? size_t.alignof : result;
+        return result != 0 ? result : size_t.alignof;
     }();
 }
 
 /**
  * Gives the `sizeof` the largest types given.
  */
-template maxSize(T...)
+template maxSize(Ts...)
 {
     enum maxSize =
     {
         size_t result = 0;
-        static foreach (t; T)
+        static foreach (t; Ts)
         {
             if (t.sizeof > result)
                 result = t.sizeof;
         }
-        return result;
+        return result != 0 ? result : size_t.sizeof;
     }();
 }
+
+private struct Dummy { long hi; long lo; } // To support Decimal128 bits
 
 /**
  * Alias for $(LREF VariantN) instantiated with the largest size of `long`, `real`,
@@ -1175,7 +1177,7 @@ template maxSize(T...)
  * `VariantN` directly with a different maximum size either for
  * storing larger types unboxed, or for saving memory.
  */
-alias Variant = VariantN!(maxSize!(long, real, char[], void delegate(), RefCounted!(void*)));
+alias Variant = VariantN!(maxSize!(long, real, char[], Dummy, void delegate(), RefCounted!(void*)));
 
 /**
  * Algebraic data type restricted to a closed set of possible
