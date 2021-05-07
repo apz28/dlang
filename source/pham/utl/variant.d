@@ -1167,17 +1167,15 @@ template maxSize(Ts...)
     }();
 }
 
-private struct Dummy { long hi; long lo; } // To support Decimal128 bits
-
 /**
  * Alias for $(LREF VariantN) instantiated with the largest size of `long`, `real`,
- * `char[]`, `void delegate()`, and `RefCounted!(void*)`. This ensures that `Variant` is large enough
- * to hold all of D's predefined types unboxed, including all numeric types,
- * pointers, delegates, and class references. You may want to use
+ * `char[]`, `ubyte[16]`, `void delegate()`, and `RefCounted!(void*)`.
+ * This ensures that `Variant` is large enough to hold all of D's predefined types unboxed,
+ * including all numeric types, pointers, delegates, and class references. You may want to use
  * `VariantN` directly with a different maximum size either for
  * storing larger types unboxed, or for saving memory.
  */
-alias Variant = VariantN!(maxSize!(long, real, char[], Dummy, void delegate(), RefCounted!(void*)));
+alias Variant = VariantN!(maxSize!(long, real, char[], ubyte[16], void delegate(), RefCounted!(void*)));
 
 /**
  * Algebraic data type restricted to a closed set of possible
@@ -1505,11 +1503,10 @@ private:
                 (cast(RefCounted!(T*)*)store).__xdtor();
             else
                 hValuePointer(size, store).__xdtor();
-        }
 
-        // Because of conservatively mark the storage as pointers
-        // need to reset to help garbage collect avoid false positive
-        memset(store, 0, size);
+            // Prevent double calls with dangling data/pointer
+            memset(store, 0, size);
+        }
     }
 
     static bool hEquals(size_t lhsSize, scope void* lhsStore,
