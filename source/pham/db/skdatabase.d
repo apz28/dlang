@@ -124,7 +124,7 @@ public:
         return _socket !is null && _socket.handle != socket_t.init;
     }
 
-package(pham):
+package(pham.db):
     final IbReadBuffer acquireSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
     {
         version (TraceFunction) dgFunctionTrace();

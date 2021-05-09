@@ -14,8 +14,9 @@ module pham.db.pgdatabase;
 import std.array : Appender;
 import std.conv : text, to;
 import std.exception : assumeWontThrow;
-import std.logger.core : Logger, LogTimming;
 import std.system : Endian;
+
+import pham.external.std.logger.core : Logger, LogTimming;
 
 version (unittest) import pham.utl.utltest;
 import pham.db.type;
@@ -319,7 +320,7 @@ public:
         return this;
     }
 
-package:
+package(pham.db):
     void reset() nothrow @safe
     {
         resetClose();
@@ -340,7 +341,7 @@ package:
         return pgConnection.largeBlobManager.seek(pgDescriptorId, offset, origin);
     }
 
-package:
+package(pham.db):
     PgConnection _connection;
     int64 _length = -1;
     int64 _offset;
@@ -501,7 +502,7 @@ private:
         }
     }
 
-package:
+package(pham.db):
     PgConnection _connection;
     PgCommand _close;
     PgCommand _createNew;
@@ -593,7 +594,7 @@ public:
         return cast(PgParameterList)parameters;
     }
 
-package:
+package(pham.db):
     final PgParameter[] pgInputParameters() nothrow @trusted //@trusted=cast()
     {
         version (TraceFunction) dgFunctionTrace();

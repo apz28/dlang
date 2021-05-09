@@ -16,10 +16,11 @@ import std.array : Appender;
 import std.conv : text, to;
 import std.exception : assumeWontThrow;
 import std.format : format;
-import std.logger.core : Logger, LogTimming;
 import std.math : abs;
 import std.string : indexOf;
 import std.system : Endian;
+
+import pham.external.std.logger.core : Logger, LogTimming;
 
 version (unittest) import pham.utl.utltest;
 import pham.utl.enum_set : toName;
@@ -83,49 +84,49 @@ public:
         final switch (descriptor.fieldInfo.dbType)
         {
             case DbType.boolean:
-                return Variant(readArray!bool(arrayColumn));
+                return Variant(readArrayImpl!bool(arrayColumn));
             case DbType.int8:
-                return Variant(readArray!int8(arrayColumn));
+                return Variant(readArrayImpl!int8(arrayColumn));
             case DbType.int16:
-                return Variant(readArray!int16(arrayColumn));
+                return Variant(readArrayImpl!int16(arrayColumn));
             case DbType.int32:
-                return Variant(readArray!int32(arrayColumn));
+                return Variant(readArrayImpl!int32(arrayColumn));
             case DbType.int64:
-                return Variant(readArray!int64(arrayColumn));
+                return Variant(readArrayImpl!int64(arrayColumn));
             case DbType.int128:
-                return Variant(readArray!BigInteger(arrayColumn));
+                return Variant(readArrayImpl!BigInteger(arrayColumn));
             case DbType.decimal:
-                return Variant(readArray!Decimal(arrayColumn));
+                return Variant(readArrayImpl!Decimal(arrayColumn));
             case DbType.decimal32:
-                return Variant(readArray!Decimal32(arrayColumn));
+                return Variant(readArrayImpl!Decimal32(arrayColumn));
             case DbType.decimal64:
-                return Variant(readArray!Decimal64(arrayColumn));
+                return Variant(readArrayImpl!Decimal64(arrayColumn));
             case DbType.decimal128:
-                return Variant(readArray!Decimal128(arrayColumn));
+                return Variant(readArrayImpl!Decimal128(arrayColumn));
             case DbType.numeric:
-                return Variant(readArray!Numeric(arrayColumn));
+                return Variant(readArrayImpl!Numeric(arrayColumn));
             case DbType.float32:
-                return Variant(readArray!float32(arrayColumn));
+                return Variant(readArrayImpl!float32(arrayColumn));
             case DbType.float64:
-                return Variant(readArray!float64(arrayColumn));
+                return Variant(readArrayImpl!float64(arrayColumn));
             case DbType.date:
-                return Variant(readArray!Date(arrayColumn));
+                return Variant(readArrayImpl!Date(arrayColumn));
             case DbType.datetime:
             case DbType.datetimeTZ:
-                return Variant(readArray!DbDateTime(arrayColumn));
+                return Variant(readArrayImpl!DbDateTime(arrayColumn));
             case DbType.time:
             case DbType.timeTZ:
-                return Variant(readArray!DbTime(arrayColumn));
+                return Variant(readArrayImpl!DbTime(arrayColumn));
             case DbType.uuid:
-                return Variant(readArray!UUID(arrayColumn));
+                return Variant(readArrayImpl!UUID(arrayColumn));
             case DbType.chars:
             case DbType.string:
             case DbType.json:
             case DbType.xml:
             case DbType.text:
-                return Variant(readArray!string(arrayColumn));
+                return Variant(readArrayImpl!string(arrayColumn));
             case DbType.binary:
-                return Variant(readArray!(ubyte[])(arrayColumn));
+                return Variant(readArrayImpl!(ubyte[])(arrayColumn));
 
             case DbType.record:
             case DbType.array:
@@ -138,7 +139,7 @@ public:
         assert(0);
     }
 
-    T[] readArray(T)(DbNamedColumn arrayColumn) @safe
+    T[] readArrayImpl(T)(DbNamedColumn arrayColumn) @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -225,67 +226,67 @@ public:
         final switch (descriptor.fieldInfo.dbType)
         {
             case DbType.boolean:
-                encodedArrayValue = writeArray!bool(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!bool(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.int8:
-                encodedArrayValue = writeArray!int8(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!int8(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.int16:
-                encodedArrayValue = writeArray!int16(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!int16(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.int32:
-                encodedArrayValue = writeArray!int32(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!int32(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.int64:
-                encodedArrayValue = writeArray!int64(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!int64(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.int128:
-                encodedArrayValue = writeArray!BigInteger(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!BigInteger(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.decimal:
-                encodedArrayValue = writeArray!Decimal(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!Decimal(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.decimal32:
-                encodedArrayValue = writeArray!Decimal32(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!Decimal32(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.decimal64:
-                encodedArrayValue = writeArray!Decimal64(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!Decimal64(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.decimal128:
-                encodedArrayValue = writeArray!Decimal128(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!Decimal128(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.numeric:
-                encodedArrayValue = writeArray!Numeric(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!Numeric(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.float32:
-                encodedArrayValue = writeArray!float32(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!float32(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.float64:
-                encodedArrayValue = writeArray!float64(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!float64(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.date:
-                encodedArrayValue = writeArray!Date(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!Date(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.datetime:
             case DbType.datetimeTZ:
-                encodedArrayValue = writeArray!DbDateTime(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!DbDateTime(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.time:
             case DbType.timeTZ:
-                encodedArrayValue = writeArray!DbTime(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!DbTime(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.uuid:
-                encodedArrayValue = writeArray!UUID(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!UUID(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.chars:
             case DbType.string:
             case DbType.json:
             case DbType.xml:
             case DbType.text:
-                encodedArrayValue = writeArray!string(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!string(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
             case DbType.binary:
-                encodedArrayValue = writeArray!(ubyte[])(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!(ubyte[])(arrayColumn, arrayValue, writerBuffer, elements).peekBytes();
                 break;
 
             case DbType.record:
@@ -300,7 +301,7 @@ public:
         _id = protocol.arrayPutRead().id;
     }
 
-    IbWriteBuffer writeArray(T)(DbNamedColumn arrayColumn, DbValue arrayValue, IbWriteBuffer writerBuffer,
+    IbWriteBuffer writeArrayImpl(T)(DbNamedColumn arrayColumn, DbValue arrayValue, IbWriteBuffer writerBuffer,
         out size_t elements) @safe
     {
         version (TraceFunction) dgFunctionTrace();
@@ -393,7 +394,7 @@ public:
         return _id;
     }
 
-package:
+package(pham.db):
     FbCommand _command;
     FbIscArrayDescriptor _descriptor;
     FbId _id;
@@ -496,7 +497,7 @@ WHERE rf.RDB$RELATION_NAME = @tableName AND rf.RDB$FIELD_NAME = @fieldName
 ORDER BY b.RDB$DIMENSION
 }";
 
-package:
+package(pham.db):
     FbCommand _arrayType;
     FbConnection _connection;
 }
@@ -735,7 +736,7 @@ public:
 public:
     uint segmentLength;
 
-package:
+package(pham.db):
     FbCommand _command;
     FbIscObject _info;
 }
@@ -849,7 +850,7 @@ public:
         return cast(FbTransaction)_transaction;
     }
 
-package:
+package(pham.db):
     final FbParameter[] fbInputParameters() nothrow @trusted //@trusted=cast()
     {
         version (TraceFunction) dgFunctionTrace();
@@ -1841,6 +1842,137 @@ protected:
 
 private:
     ubyte[] _transactionItems;
+}
+
+version (UnitTestPerfFBDatabase)
+{
+import pham.utl.utltest : PerfTestResult;
+
+PerfTestResult unitTestPerfFBDatabase()
+{
+    import core.time;
+
+    static struct Data
+    {
+        long Foo1;
+        long Foo2;
+        string Foo3;
+        string Foo4;
+        DbDateTime Foo5;
+        DbDateTime Foo6;
+        DbDateTime Foo7;
+        string Foo8;
+        string Foo9;
+        string Foo10;
+        short Foo11;
+        short Foo12;
+        short Foo13;
+        Decimal64 Foo14;
+        Decimal64 Foo15;
+        short Foo16;
+        Decimal64 Foo17;
+        Decimal64 Foo18;
+        long Foo19;
+        long Foo20;
+        long Foo21;
+        long Foo22;
+        string Foo23;
+        string Foo24;
+        string Foo25;
+        string Foo26;
+        long Foo27;
+        string Foo28;
+        long Foo29;
+        string Foo30;
+        long Foo31;
+        Decimal64 Foo32;
+        Decimal64 Foo33;
+
+        this(ref DbReader reader)
+        {
+            readData(reader);
+        }
+
+        void readData(ref DbReader reader)
+        {
+            Foo1 = reader.getValue!int64(0); //foo1 BIGINT NOT NULL,
+            Foo2 = reader.getValue!int64(1); //foo2 BIGINT NOT NULL,
+            Foo3 = reader.getValue!string(2); //foo3 VARCHAR(255),
+            Foo4 = reader.getValue!string(3); //foo4 VARCHAR(255),
+            Foo5 = reader.getValue!DbDateTime(4); //foo5 TIMESTAMP,
+            Foo6 = reader.getValue!DbDateTime(5); //foo6 TIMESTAMP NOT NULL,
+            Foo7 = reader.getValue!DbDateTime(6); //foo7 TIMESTAMP,
+            Foo8 = reader.getValue!string(7); //foo8 VARCHAR(255),
+            Foo9 = reader.getValue!string(8); //foo9 VARCHAR(255),
+            Foo10 = reader.getValue!string(9); //foo10 VARCHAR(255),
+            Foo11 = reader.getValue!int16(10); //foo11 SMALLINT NOT NULL,
+            Foo12 = reader.getValue!int16(11); //foo12 SMALLINT NOT NULL,
+            Foo13 = reader.getValue!int16(12); //foo13 SMALLINT NOT NULL,
+            Foo14 = reader.getValue!Decimal64(13); //foo14 DECIMAL(18, 2) NOT NULL,
+            Foo15 = reader.getValue!Decimal64(14); //foo15 DECIMAL(18, 2) NOT NULL,
+            Foo16 = reader.getValue!int16(15); //foo16 SMALLINT NOT NULL,
+            Foo17 = reader.getValue!Decimal64(16); //foo17 DECIMAL(18, 2) NOT NULL,
+            Foo18 = reader.getValue!Decimal64(17); //foo18 DECIMAL(18, 2) NOT NULL,
+            Foo19 = reader.getValue!int64(18); //foo19 BIGINT NOT NULL,
+            Foo20 = reader.getValue!int64(19); //foo20 BIGINT NOT NULL,
+            Foo21 = reader.getValue!int64(20); //foo21 BIGINT NOT NULL,
+            Foo22 = reader.getValue!int64(21); //foo22 BIGINT NOT NULL,
+            Foo23 = reader.getValue!string(22); //foo23 VARCHAR(255),
+            Foo24 = reader.getValue!string(23); //foo24 VARCHAR(255),
+            Foo25 = reader.getValue!string(24); //foo25 VARCHAR(511),
+            Foo26 = reader.getValue!string(25); //foo26 VARCHAR(256),
+            Foo27 = reader.getValue!int64(26); //foo27 BIGINT NOT NULL,
+            Foo28 = reader.getValue!string(27); //foo28 VARCHAR(255),
+            Foo29 = reader.getValue!int64(28); //foo29 BIGINT NOT NULL,
+            Foo30 = reader.getValue!string(29); //foo30 VARCHAR(255),
+            Foo31 = reader.getValue!int64(30); //foo31 BIGINT NOT NULL,
+            Foo32 = reader.getValue!Decimal64(31); //foo32 DECIMAL(18, 2) NOT NULL,
+            Foo33 = reader.getValue!Decimal64(32); //foo33 DECIMAL(18, 2) NOT NULL
+        }
+    }
+
+    bool failed = true;
+    auto connection = createTestPerfConnection();
+    scope (exit)
+    {
+        version (unittest)
+        if (failed)
+            traceUnitTest("failed - exiting and closing connection");
+
+        connection.close();
+        connection.dispose();
+        connection = null;
+    }
+    connection.open();
+
+    auto command = connection.createCommand();
+    scope (exit)
+    {
+        command.dispose();
+        command = null;
+    }
+
+    command.commandText = "select * from foo";
+    auto reader = command.executeReader();
+    scope (exit)
+        reader.dispose();
+
+    enum maxRecordCount = 1_000_000;
+    version (UnitTestFBCollectData) auto datas = new Data[](maxRecordCount);
+    else Data data;
+    assert(reader.hasRows());
+
+    auto result = PerfTestResult.init();
+    while (result.count < maxRecordCount && reader.read())
+    {
+        version (UnitTestFBCollectData) datas[result.count++] = Data(reader);
+        else { data.readData(reader); result.count++; }
+    }
+    result.mark();
+    assert(result.count > 0);
+    failed = false;
+    return result;
+}
 }
 
 
@@ -3146,130 +3278,9 @@ unittest // FbCommand.DML.StoredProcedure
 version (UnitTestPerfFBDatabase)
 unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953
 {
-    import core.memory;
-    import core.time;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
 
-    static struct Data
-    {
-        long Foo1;
-        long Foo2;
-        string Foo3;
-        string Foo4;
-        DbDateTime Foo5;
-        DbDateTime Foo6;
-        DbDateTime Foo7;
-        string Foo8;
-        string Foo9;
-        string Foo10;
-        short Foo11;
-        short Foo12;
-        short Foo13;
-        Decimal64 Foo14;
-        Decimal64 Foo15;
-        short Foo16;
-        Decimal64 Foo17;
-        Decimal64 Foo18;
-        long Foo19;
-        long Foo20;
-        long Foo21;
-        long Foo22;
-        string Foo23;
-        string Foo24;
-        string Foo25;
-        string Foo26;
-        long Foo27;
-        string Foo28;
-        long Foo29;
-        string Foo30;
-        long Foo31;
-        Decimal64 Foo32;
-        Decimal64 Foo33;
-
-        this(ref DbReader reader)
-        {
-            readData(reader);
-        }
-
-        void readData(ref DbReader reader)
-        {
-            Foo1 = reader.getValue!int64(0); //foo1 BIGINT NOT NULL,
-            Foo2 = reader.getValue!int64(1); //foo2 BIGINT NOT NULL,
-            Foo3 = reader.getValue!string(2); //foo3 VARCHAR(255),
-            Foo4 = reader.getValue!string(3); //foo4 VARCHAR(255),
-            Foo5 = reader.getValue!DbDateTime(4); //foo5 TIMESTAMP,
-            Foo6 = reader.getValue!DbDateTime(5); //foo6 TIMESTAMP NOT NULL,
-            Foo7 = reader.getValue!DbDateTime(6); //foo7 TIMESTAMP,
-            Foo8 = reader.getValue!string(7); //foo8 VARCHAR(255),
-            Foo9 = reader.getValue!string(8); //foo9 VARCHAR(255),
-            Foo10 = reader.getValue!string(9); //foo10 VARCHAR(255),
-            Foo11 = reader.getValue!int16(10); //foo11 SMALLINT NOT NULL,
-            Foo12 = reader.getValue!int16(11); //foo12 SMALLINT NOT NULL,
-            Foo13 = reader.getValue!int16(12); //foo13 SMALLINT NOT NULL,
-            Foo14 = reader.getValue!Decimal64(13); //foo14 DECIMAL(18, 2) NOT NULL,
-            Foo15 = reader.getValue!Decimal64(14); //foo15 DECIMAL(18, 2) NOT NULL,
-            Foo16 = reader.getValue!int16(15); //foo16 SMALLINT NOT NULL,
-            Foo17 = reader.getValue!Decimal64(16); //foo17 DECIMAL(18, 2) NOT NULL,
-            Foo18 = reader.getValue!Decimal64(17); //foo18 DECIMAL(18, 2) NOT NULL,
-            Foo19 = reader.getValue!int64(18); //foo19 BIGINT NOT NULL,
-            Foo20 = reader.getValue!int64(19); //foo20 BIGINT NOT NULL,
-            Foo21 = reader.getValue!int64(20); //foo21 BIGINT NOT NULL,
-            Foo22 = reader.getValue!int64(21); //foo22 BIGINT NOT NULL,
-            Foo23 = reader.getValue!string(22); //foo23 VARCHAR(255),
-            Foo24 = reader.getValue!string(23); //foo24 VARCHAR(255),
-            Foo25 = reader.getValue!string(24); //foo25 VARCHAR(511),
-            Foo26 = reader.getValue!string(25); //foo26 VARCHAR(256),
-            Foo27 = reader.getValue!int64(26); //foo27 BIGINT NOT NULL,
-            Foo28 = reader.getValue!string(27); //foo28 VARCHAR(255),
-            Foo29 = reader.getValue!int64(28); //foo29 BIGINT NOT NULL,
-            Foo30 = reader.getValue!string(29); //foo30 VARCHAR(255),
-            Foo31 = reader.getValue!int64(30); //foo31 BIGINT NOT NULL,
-            Foo32 = reader.getValue!Decimal64(31); //foo32 DECIMAL(18, 2) NOT NULL,
-            Foo33 = reader.getValue!Decimal64(32); //foo33 DECIMAL(18, 2) NOT NULL
-        }
-    }
-
-    bool failed = true;
-    //GC.disable();
-    auto connection = createTestPerfConnection();
-    scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
-        connection.close();
-        connection.dispose();
-        connection = null;
-        //GC.enable();
-    }
-    connection.open();
-
-    auto command = connection.createCommand();
-    scope (exit)
-    {
-        command.dispose();
-        command = null;
-    }
-
-    command.commandText = "select * from foo";
-    auto reader = command.executeReader();
-    scope (exit)
-        reader.dispose();
-
-    enum maxRecordCount = 1_000_000;
-    size_t count;
-    version (UnitTestFBCollectData) auto datas = new Data[](maxRecordCount);
-    else Data data;
-    assert(reader.hasRows());
-    const timeStart = MonoTime.currTime;
-    while (count < maxRecordCount && reader.read())
-    {
-        version (UnitTestFBCollectData) datas[count++] = Data(reader);
-        else { data.readData(reader); count++; }
-    }
-    const timeElapsed = MonoTime.currTime - timeStart;
-    assert(count > 0);
-    failed = false;
-    dgWriteln("Count: ", count, ", Elapsed in msecs: ", format!"%,3d"(timeElapsed.total!"msecs"()));
+    const perfResult = unitTestPerfFBDatabase();
+    dgWriteln(format!"Count: %,3d"(perfResult.count), ", Elapsed in msecs: ", format!"%,3d"(perfResult.elapsedTime.total!"msecs"()));
 }

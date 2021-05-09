@@ -13,9 +13,10 @@ module pham.db.fbauth_sspi;
 
 version (Windows):
 
-import core.sys.windows.sspi;
 import std.conv : to;
 import std.string : toStringz;
+
+import pham.external.std.windows.sspi;
 
 import pham.db.type : DbScheme;
 import pham.db.auth;

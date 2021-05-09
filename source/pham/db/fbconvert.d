@@ -20,7 +20,7 @@ import std.exception : assumeWontThrow;
 import std.system : Endian, endian;
 import std.typecons : No;
 
-import decimal.codec;
+import pham.external.decimal.codec;
 
 version (unittest) import pham.utl.utltest;
 import pham.utl.biginteger : toBigEndianFlag;

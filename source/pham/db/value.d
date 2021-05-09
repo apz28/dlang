@@ -151,7 +151,7 @@ public:
 public:
     alias value this;
 
-package:
+package(pham.db):
     Variant _value;
     DbType _type;
 

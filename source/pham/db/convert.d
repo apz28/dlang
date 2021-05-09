@@ -19,6 +19,8 @@ import std.exception : assumeWontThrow;
 import std.math : abs, pow;
 import std.traits: isIntegral, Unqual;
 
+import pham.external.decimal.decimal : scaleFrom, scaleTo;
+
 version (unittest) import pham.utl.utltest;
 import pham.db.type;
 
@@ -27,8 +29,6 @@ nothrow @safe:
 D decimalDecode(D, T)(const T value, const int32 scale, const RoundingMode roundingMode = RoundingMode.banking) @nogc pure
 if (isDecimal!D && (is(T == int16) || is(T == int32) || is(T == int64) || is(T == float32) || is(T == float64)))
 {
-    import decimal.decimal : scaleFrom;
-
     D result = D(value, cast(int)abs(scale), roundingMode);
 	static if (is(T == int16) || is(T == int32) || is(T == int64))
         return scale != 0 ? scaleFrom!D(result, scale, roundingMode) : result;
@@ -39,8 +39,6 @@ if (isDecimal!D && (is(T == int16) || is(T == int32) || is(T == int64) || is(T =
 T decimalEncode(D, T)(auto const ref D value, const int32 scale, const RoundingMode roundingMode = RoundingMode.banking) @nogc
 if (isDecimal!D && (is(T == int16) || is(T == int32) || is(T == int64) || is(T == float32) || is(T == float64)))
 {
-    import decimal.decimal : scaleTo;
-
     return scaleTo!(D, T)(value, scale, roundingMode);
 }
 

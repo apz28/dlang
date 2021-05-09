@@ -16,6 +16,8 @@ import std.exception : assumeWontThrow;
 import std.format : format;
 import std.traits: isFloatingPoint, isIntegral;
 
+import pham.external.decimal.decimal : isEqual;
+
 import pham.db.type;
 
 nothrow @safe:
@@ -71,8 +73,6 @@ bool decimalEqual(D, T)(auto const ref D lhs, auto const ref T rhs,
     const RoundingMode mode = RoundingMode.banking) @nogc
 if (isDecimal!D && isFloatingPoint!T)
 {
-    import decimal.decimal : isEqual;
-
    return isEqual(lhs, rhs, precision, mode);
 }
 

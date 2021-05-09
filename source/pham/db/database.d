@@ -20,9 +20,10 @@ import std.conv : text, to;
 import std.datetime.systime : SysTime;
 import std.exception : assumeWontThrow;
 import std.format : format;
-import std.logger.core : Logger, LogTimming;
 import std.traits; // : allMembers, getMember;
 import std.typecons : Flag, No, Yes;
+
+import pham.external.std.logger.core : Logger, LogTimming;
 
 version (unittest) import pham.utl.utltest;
 import pham.utl.delegate_list;
@@ -531,7 +532,7 @@ public:
         return _flags.on(DbCommandFlag.transactionRequired);
     }
 
-package:
+package(pham.db):
     @property final void allRowsFetched(bool value) nothrow @safe
     {
         _flags.set(DbCommandFlag.allRowsFetched, value);
@@ -1168,7 +1169,7 @@ public:
 
     @property abstract DbIdentitier scheme() const nothrow pure @safe;
 
-package:
+package(pham.db):
     final size_t nextCounter() nothrow @safe
     {
         return (++_nextCounter);

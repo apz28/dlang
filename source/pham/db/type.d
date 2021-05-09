@@ -23,7 +23,7 @@ public import std.datetime.date : Date;
 public import std.datetime.timezone : LocalTime, SimpleTimeZone, TimeZone, UTC;
 public import std.uuid : UUID;
 
-public import decimal.decimal : Decimal32, Decimal64, Decimal128, isDecimal, Precision, RoundingMode;
+public import pham.external.decimal.decimal : Decimal32, Decimal64, Decimal128, isDecimal, Precision, RoundingMode;
 
 public import pham.utl.biginteger : BigInteger;
 import pham.utl.enum_set : toName;
