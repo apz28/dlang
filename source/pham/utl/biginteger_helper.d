@@ -15,7 +15,7 @@ module pham.utl.biginteger_helper;
 
 nothrow @safe:
 
-package:
+package(pham.utl):
 
 enum kcbitUint = cast(uint)(uint.sizeof * 8);
 enum kcbitUlong = cast(uint)(ulong.sizeof * 8);

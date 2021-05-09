@@ -11,7 +11,37 @@
 
 module pham.utl.utltest;
 
+import core.time;
+
 nothrow @safe:
+
+struct PerfTestResult
+{
+nothrow @safe:
+
+    size_t count;
+    Duration elapsedTime;
+    MonoTime startedTime;
+
+    static typeof(this) init()
+    {
+        typeof(this) result;
+        result.reset();
+        return result;
+    }
+
+    void mark()
+    {
+        elapsedTime = MonoTime.currTime - startedTime;
+    }
+
+    void reset()
+    {
+        count = 0;
+        elapsedTime = Duration.zero;
+        startedTime = MonoTime.currTime;
+    }
+}
 
 version (unittest)
 {

@@ -26,7 +26,7 @@ alias CharTempArray = IndexedArray!(char, allocationThreshold * uint.sizeof);
 alias UByteTempArray = IndexedArray!(ubyte, allocationThreshold * uint.sizeof);
 alias UIntTempArray = IndexedArray!(uint, allocationThreshold);
 
-package:
+package(pham.utl):
 
 // To spare memory allocations a buffer helps reusing memory!
 // We just create the target array twice and switch between every
@@ -1920,7 +1920,7 @@ nothrow @safe:
 
     // Since we're reusing memory here, the actual length
     // of a given value may be less then the array's length
-    package static size_t actualLength(ref UIntTempArray value, size_t length) pure
+    package(pham.utl) static size_t actualLength(ref UIntTempArray value, size_t length) pure
     in
     {
         assert(length <= value.length);
@@ -1932,7 +1932,7 @@ nothrow @safe:
         return length;
     }
 
-    package static size_t actualLength(const(uint)[] value, size_t length) pure
+    package(pham.utl) static size_t actualLength(const(uint)[] value, size_t length) pure
     in
     {
         assert(length <= value.length);
