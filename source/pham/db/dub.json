@@ -7,6 +7,7 @@
 	"dependencies": {
     "pham.utl": "~>1.0.0",
     "pham.cp": "~>1.0.0",
-    "decimal": "~>1.0.0"
+    "pham.external.std.logger": "~>1.0.0",
+    "pham.external.decimal": "~>1.0.0"
   }
 }
