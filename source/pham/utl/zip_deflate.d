@@ -84,8 +84,6 @@ public:
 
 	final int deflate(FlushType flush)
 	{
-		int old_flush;
-
 		if ((_codec.inputBuffer.length == 0 && _codec.availableBytesIn != 0) ||
 			(status == FINISH_STATE && flush != FlushType.finish))
 			return _codec.setError(ZipResult.Z_ERRNO, errorMessages[ZipResult.Z_NEED_DICT - ZipResult.Z_STREAM_ERROR]);
@@ -93,17 +91,17 @@ public:
 		if (_codec.availableBytesOut == 0)
 			return _codec.setError(ZipResult.Z_DATA_ERROR, errorMessages[ZipResult.Z_NEED_DICT - ZipResult.Z_BUF_ERROR]);
 
-		old_flush = last_flush;
+		const int old_flush = last_flush;
 		last_flush = cast(int)flush;
 
 		// Write the zlib (rfc1950) header bytes
 		if (status == INIT_STATE)
 		{
-			int header = (Z_DEFLATED + ((w_bits - 8) << 4)) << 8;
 			int level_flags = ((cast(int)compressionLevel - 1) & 0xff) >> 1;
-
 			if (level_flags > 3)
 				level_flags = 3;
+
+			int header = (Z_DEFLATED + ((w_bits - 8) << 4)) << 8;
 			header |= (level_flags << 6);
 			if (strstart != 0)
 				header |= PRESET_DICT;
@@ -176,7 +174,7 @@ public:
             || lookahead != 0
             || (flush != FlushType.none && status != FINISH_STATE))
 		{
-			BlockState bstate = DeflateFunction(flush);
+			const BlockState bstate = DeflateFunction(flush);
 
 			if (bstate == BlockState.finishStarted || bstate == BlockState.finishDone)
 			{
@@ -445,8 +443,8 @@ private:
 
 	static bool isSmaller(scope const(short)[] tree, int n, int m, scope const(byte)[] depth)
 	{
-		short tn2 = tree[n * 2];
-		short tm2 = tree[m * 2];
+		const short tn2 = tree[n * 2];
+		const short tm2 = tree[m * 2];
 		return (tn2 < tm2 || (tn2 == tm2 && depth[n] <= depth[m]));
 	}
 
@@ -522,8 +520,6 @@ private:
 	 */
 	final int buildBlTree()
 	{
-		int max_blindex; // index of last bit length code of non zero freq
-
 		// Determine the bit length frequencies for literal and distance trees
 		scanTree(dyn_ltree, treeLiterals.max_code);
 		scanTree(dyn_dtree, treeDistances.max_code);
@@ -533,6 +529,7 @@ private:
 		// opt_len now includes the length of the tree representations, except
 		// the lengths of the bit lengths codes and the 5+5+4 bits for the counts.
 
+		int max_blindex; // index of last bit length code of non zero freq
 		// Determine the number of bit length codes to send. The pkzip format
 		// requires that at least 4 bit length codes be sent. (appnote.txt says
 		// 3 but the actual value used is 4.)
@@ -554,11 +551,10 @@ private:
 	 */
 	final void sendAllTrees(int lcodes, int dcodes, int blcodes)
 	{
-		int rank; // index in bl_order
-
 		sendBits(lcodes - 257, 5); // not +255 as stated in appnote.txt
 		sendBits(dcodes - 1, 5);
 		sendBits(blcodes - 4, 4); // not -3 as stated in appnote.txt
+		int rank; // index in bl_order
 		for (rank = 0; rank < blcodes; rank++)
 		{
 			sendBits(bl_tree[Tree.bl_order[rank] * 2 + 1], 3);
@@ -675,13 +671,13 @@ private:
 
 	final void sendCode(int c, scope const(short)[] tree)
 	{
-		int c2 = c * 2;
+		const int c2 = c * 2;
 		sendBits((tree[c2] & 0xffff), (tree[c2 + 1] & 0xffff));
 	}
 
 	final void sendBits(int value, int length)
 	{
-		int len = length;
+		const int len = length;
 
 		if (bi_valid > cast(int)Buf_size - len)
 		{
@@ -764,7 +760,7 @@ private:
 		{
 			// Compute an upper bound for the compressed length
 			int out_length = last_lit << 3;
-			int in_length = strstart - block_start;
+			const int in_length = strstart - block_start;
 			int dcode;
 			for (dcode = 0; dcode < ZipConst.D_CODES; dcode++)
 			{
@@ -795,7 +791,7 @@ private:
 		{
 			do
 			{
-				int ix = _distanceOffset + lx * 2;
+				const int ix = _distanceOffset + lx * 2;
 				distance = ((pending[ix] << 8) & 0xff00) | (pending[ix + 1] & 0xff);
 				lc = (pending[_lengthOffset + lx]) & 0xff;
 				lx++;
@@ -948,7 +944,6 @@ private:
 		// Stored blocks are limited to 0xffff bytes, pending is limited
 		// to pending_buf_size, and each stored block has a 5 byte header:
 
-		int max_start;
 		const max_block_size = cast(int)(0xffff > pending.length - 5 ? pending.length - 5 : 0xffff);
 
 		// Copy as much as possible from input to output:
@@ -968,7 +963,7 @@ private:
 			lookahead = 0;
 
 			// Emit a stored block if pending will be full:
-			max_start = block_start + max_block_size;
+			const int max_start = block_start + max_block_size;
 			if (strstart == 0 || strstart >= max_start)
 			{
 				// strstart == 0 is possible when wraparound on 16-bit machine
@@ -1577,7 +1572,7 @@ private:
 
 	CompressFunc DeflateFunction;
 
-	immutable string[] errorMessages = [
+	static immutable string[] errorMessages = [
 		"need dictionary",
 		"stream end",
 		"",

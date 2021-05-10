@@ -361,7 +361,7 @@ public:
 	bool handleRfc1950HeaderBytes = true;
 
 private:
-	enum const(ubyte)[] mark = [0, 0, 0xff, 0xff];
+	static immutable const(ubyte)[] mark = [0, 0, 0xff, 0xff];
 
 	// preset dictionary flag in zlib header
 	enum int PRESET_DICT = 0x20;
@@ -407,7 +407,7 @@ private:
 }
 
 // And'ing with mask[n] masks the lower n bits
-private enum int[] InflateMask = [
+private static immutable int[] InflateMask = [
 	0x00000000, 0x00000001, 0x00000003, 0x00000007,
 	0x0000000f, 0x0000001f, 0x0000003f, 0x0000007f,
 	0x000000ff, 0x000001ff, 0x000003ff, 0x000007ff,
@@ -1069,7 +1069,7 @@ private:
 	enum int MANY = 1440;
 
 	// Table for deflate from PKZIP's appnote.txt.
-	enum const(int)[] border = [
+	static immutable const(int)[] border = [
 		16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
     ];
 
