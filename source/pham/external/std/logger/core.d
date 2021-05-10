@@ -10,7 +10,7 @@
  * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
 */
-module std.logger.core;
+module pham.external.std.logger.core;
 
 import core.atomic : atomicLoad, atomicStore,  MemoryOrder;
 import core.sync.mutex : Mutex;
@@ -2909,7 +2909,7 @@ shared static this()
 }
 
 version (unittest)
-package class TestLoggerCustomContext
+package(pham.external.std.logger) class TestLoggerCustomContext
 {
     override string toString() nothrow @safe
     {
@@ -2920,7 +2920,7 @@ package class TestLoggerCustomContext
 }
 
 version (unittest)
-package class TestLogger : MemLogger
+package(pham.external.std.logger) class TestLogger : MemLogger
 {
 import std.array : Appender;
 import std.conv : to;
@@ -3005,8 +3005,8 @@ void testFuncNames(Logger logger) @safe
 {
     auto tl1 = new TestLogger();
     testFuncNames(tl1);
-    assert(tl1.func == "std.logger.core.testFuncNames", tl1.func);
-    assert(tl1.prettyFunc == "void std.logger.core.testFuncNames(Logger logger) @safe", tl1.prettyFunc);
+    assert(tl1.func == "pham.external.std.logger.core.testFuncNames", tl1.func);
+    assert(tl1.prettyFunc == "void pham.external.std.logger.core.testFuncNames(Logger logger) @safe", tl1.prettyFunc);
     assert(tl1.msg == "I'm here", tl1.msg);
 }
 
@@ -3055,7 +3055,7 @@ void testFuncNames(Logger logger) @safe
 
 @safe unittest
 {
-    import std.logger.multilogger : MultiLogger;
+    import pham.external.std.logger.multilogger : MultiLogger;
 
     auto tl1 = new TestLogger();
     auto tl2 = new TestLogger();
@@ -3559,8 +3559,8 @@ void testFuncNames(Logger logger) @safe
 // Issue #5
 @safe unittest
 {
-    import std.logger.multilogger : MultiLogger;
     import std.string : indexOf;
+    import pham.external.std.logger.multilogger : MultiLogger;
 
     auto logger = new MultiLogger(LoggerOptions(LogLevel.error, "Multi", defaultOutputPattern));
     auto tl = new TestLogger(LoggerOptions(LogLevel.info, "Test", defaultOutputPattern));
