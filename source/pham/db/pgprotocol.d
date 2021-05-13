@@ -11,11 +11,13 @@
 
 module pham.db.pgprotocol;
 
+import std.algorithm.comparison : max;
 import std.ascii : LetterCase;
 import std.conv : to;
 import std.format : format;
 import std.string : indexOf, lastIndexOf, representation;
 
+version (profile) import pham.utl.utltest : PerfFunction;
 version (unittest) import pham.utl.utltest;
 import pham.utl.enum_set : toName;
 import pham.utl.utlobject : shortClassName;
@@ -25,7 +27,7 @@ import pham.db.type;
 import pham.db.dbobject;
 import pham.db.buffer;
 import pham.db.value;
-import pham.db.database : DbNamedColumn;
+import pham.db.database : DbNameColumn;
 import pham.db.pgoid;
 import pham.db.pgtype;
 import pham.db.pgexception;
@@ -401,7 +403,7 @@ public:
         writer.flush();
     }
 
-    final DbValue readValue(PgCommand command, ref PgReader reader, DbNamedColumn column,
+    final DbValue readValue(PgCommand command, ref PgReader reader, DbNameColumn column,
         const int32 valueLength)
     {
         version (TraceFunction)
@@ -409,6 +411,7 @@ public:
             ", baseTypeId=", column.baseTypeId,
             ", baseSubTypeId=", column.baseSubTypeId,
             ", valueLength=", valueLength);
+        version (profile) auto p = PerfFunction.create();
 
         PgXdrReader checkValueLength(const int32 expectedLength) @safe
         {
@@ -537,7 +540,7 @@ public:
         assert(0);
     }
 
-    protected final T[] readValueArray(T)(PgCommand command, ref PgReader reader, DbNamedColumn column,
+    protected final T[] readValueArray(T)(PgCommand command, ref PgReader reader, DbNameColumn column,
         const int32 valueLength)
     {
         version (TraceFunction) dgFunctionTrace();
@@ -636,7 +639,7 @@ public:
         return result;
     }
 
-    protected final void readValueError(DbNamedColumn column, const int32 valueLength, const int32 expectedLength) @safe
+    protected final void readValueError(DbNameColumn column, const int32 valueLength, const int32 expectedLength) @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -649,17 +652,18 @@ public:
     final DbRowValue readValues(PgCommand command, ref PgReader reader, PgFieldList fields)
     {
         version (TraceFunction) dgFunctionTrace();
+        version (profile) auto p = PerfFunction.create();
 
         const fieldCount = reader.readFieldCount();
 
         version (TraceFunction) dgFunctionTrace("fieldCount=", fieldCount, ", fields.length=", fields.length);
 
-        size_t i;
-        auto result = DbRowValue(fieldCount);
+        size_t i = 0;
+        auto result = DbRowValue(max(fieldCount, fields.length));
         foreach (field; fields)
         {
             const valueLength = i < fieldCount ? reader.readValueLength() : -1;
-            if (valueLength < 0)
+            if (valueLength < 0 || i >= fields.length)
                 result[i++].nullify();
             else
                 result[i++] = readValue(command, reader, field, valueLength);
@@ -863,7 +867,7 @@ protected:
             describeValue(writer, param, param.value);
     }
 
-    final void describeValue(ref PgWriter writer, DbNamedColumn column, DbValue value)
+    final void describeValue(ref PgWriter writer, DbNameColumn column, DbValue value)
     {
         if (value.isNull)
         {
@@ -1020,7 +1024,7 @@ protected:
         assert(0, toName!DbType(column.type));
     }
 
-    final void describeValueArray(T)(ref PgWriter writer, DbNamedColumn column, DbValue value, const int32 elementOid)
+    final void describeValueArray(T)(ref PgWriter writer, DbNameColumn column, DbValue value, const int32 elementOid)
     {
         version (TraceFunction) dgFunctionTrace("elementOid=", elementOid);
 

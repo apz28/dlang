@@ -79,7 +79,7 @@ interface IbReadBuffer
 
     bool readBool();
     ubyte[] readBytes(size_t nBytes);
-    ubyte[] readBytes(return ref ubyte[] value);
+    ubyte[] readBytes(return ubyte[] value);
     char readChar();
     char[] readChars(size_t nBytes);
     float32 readFloat32();
@@ -93,9 +93,9 @@ interface IbReadBuffer
     uint32 readUInt32();
     uint64 readUInt64();
 
-    @property bool empty() const nothrow;
-    @property size_t length() const nothrow;
-    @property size_t offset() const nothrow;
+    @property bool empty() const nothrow pure;
+    @property size_t length() const nothrow pure;
+    @property size_t offset() const nothrow pure;
 }
 
 class DbReadBuffer(Endian EndianKind = Endian.bigEndian) : DbBuffer, IbReadBuffer
@@ -119,7 +119,8 @@ public:
 
     override IbReadBuffer advance(size_t nBytes)
     {
-        ensureAvailable(nBytes);
+        if (length < nBytes)
+            ensureAvailable(nBytes);
         _offset += nBytes;
         return this;
     }
@@ -176,7 +177,7 @@ public:
         return readBytesImpl(nBytes);
     }
 
-    final override ubyte[] readBytes(return ref ubyte[] value)
+    final override ubyte[] readBytes(return ubyte[] value)
     in
     {
         assert(value.length != 0);
@@ -230,24 +231,24 @@ public:
 
     final override uint8 readUInt8()
     {
-        ensureAvailable(uint8.sizeof);
+        if (length < uint8.sizeof)
+            ensureAvailable(uint8.sizeof);
 
         return _data[_offset++];
     }
 
     final override uint16 readUInt16()
     {
-        alias T = typeof(return);
+        if (length < uint16.sizeof)
+            ensureAvailable(uint16.sizeof);
 
-        ensureAvailable(T.sizeof);
-
-        T result = void;
+        uint16 result = void;
         static if (EndianKind == Endian.littleEndian)
-            result = cast(T)_data[_offset++]
-                | (cast(T)_data[_offset++] << 8);
+            result = cast(uint16)_data[_offset++]
+                | (cast(uint16)_data[_offset++] << 8);
         else
-            result = (cast(T)_data[_offset++] << 8)
-                | cast(T)_data[_offset++];
+            result = (cast(uint16)_data[_offset++] << 8)
+                | cast(uint16)_data[_offset++];
 
         version (BigEndian)
         static if (EndianKind == Endian.littleEndian)
@@ -258,21 +259,20 @@ public:
 
     final override uint32 readUInt32()
     {
-        alias T = typeof(return);
+        if (length < uint32.sizeof)
+            ensureAvailable(uint32.sizeof);
 
-        ensureAvailable(T.sizeof);
-
-        T result = void;
+        uint32 result = void;
         static if (EndianKind == Endian.littleEndian)
-            result = cast(T)_data[_offset++]
-                | (cast(T)_data[_offset++] << 8)
-                | (cast(T)_data[_offset++] << 16)
-                | (cast(T)_data[_offset++] << 24);
+            result = cast(uint32)_data[_offset++]
+                | (cast(uint32)_data[_offset++] << 8)
+                | (cast(uint32)_data[_offset++] << 16)
+                | (cast(uint32)_data[_offset++] << 24);
         else
-            result = (cast(T)_data[_offset++] << 24)
-                | (cast(T)_data[_offset++] << 16)
-                | (cast(T)_data[_offset++] << 8)
-                | cast(T)_data[_offset++];
+            result = (cast(uint32)_data[_offset++] << 24)
+                | (cast(uint32)_data[_offset++] << 16)
+                | (cast(uint32)_data[_offset++] << 8)
+                | cast(uint32)_data[_offset++];
 
         version (BigEndian)
         static if (EndianKind == Endian.littleEndian)
@@ -283,29 +283,28 @@ public:
 
     final override uint64 readUInt64()
     {
-        alias T = typeof(return);
+        if (length < uint64.sizeof)
+            ensureAvailable(uint64.sizeof);
 
-        ensureAvailable(T.sizeof);
-
-        T result = void;
+        uint64 result = void;
         static if (EndianKind == Endian.littleEndian)
-            result = cast(T)_data[_offset++]
-                | (cast(T)_data[_offset++] << 8)
-                | (cast(T)_data[_offset++] << 16)
-                | (cast(T)_data[_offset++] << 24)
-                | (cast(T)_data[_offset++] << 32)
-                | (cast(T)_data[_offset++] << 40)
-                | (cast(T)_data[_offset++] << 48)
-                | (cast(T)_data[_offset++] << 56);
+            result = cast(uint64)_data[_offset++]
+                | (cast(uint64)_data[_offset++] << 8)
+                | (cast(uint64)_data[_offset++] << 16)
+                | (cast(uint64)_data[_offset++] << 24)
+                | (cast(uint64)_data[_offset++] << 32)
+                | (cast(uint64)_data[_offset++] << 40)
+                | (cast(uint64)_data[_offset++] << 48)
+                | (cast(uint64)_data[_offset++] << 56);
         else
-            result = (cast(T)_data[_offset++] << 56)
-                | (cast(T)_data[_offset++] << 48)
-                | (cast(T)_data[_offset++] << 40)
-                | (cast(T)_data[_offset++] << 32)
-                | (cast(T)_data[_offset++] << 24)
-                | (cast(T)_data[_offset++] << 16)
-                | (cast(T)_data[_offset++] << 8)
-                | cast(T)_data[_offset++];
+            result = (cast(uint64)_data[_offset++] << 56)
+                | (cast(uint64)_data[_offset++] << 48)
+                | (cast(uint64)_data[_offset++] << 40)
+                | (cast(uint64)_data[_offset++] << 32)
+                | (cast(uint64)_data[_offset++] << 24)
+                | (cast(uint64)_data[_offset++] << 16)
+                | (cast(uint64)_data[_offset++] << 8)
+                | cast(uint64)_data[_offset++];
 
         version (BigEndian)
         static if (EndianKind == Endian.littleEndian)
@@ -314,17 +313,19 @@ public:
         return result;
     }
 
-    @property final override bool empty() const nothrow
+    @property final override bool empty() const nothrow pure
     {
         return _offset >= _maxLength;
     }
 
-    @property final override size_t length() const nothrow
+    pragma(inline, true)
+    @property final override size_t length() const nothrow pure
     {
         return _offset >= _maxLength ? 0 : _maxLength - _offset;
     }
 
-    @property final size_t offset() const nothrow
+    pragma(inline, true)
+    @property final size_t offset() const nothrow pure
     {
         return _offset;
     }
@@ -346,32 +347,36 @@ protected:
     }
 
     final void mergeOffset() nothrow
+    in
     {
-        if (_offset)
-        {
-            //dgWriteln("offset=", _offset, ", length=", length, ", _data.length=", _data.length);
+        assert(_offset != 0);
+    }
+    do
+    {
+        //dgWriteln("offset=", _offset, ", length=", length, ", _data.length=", _data.length);
 
-            const saveLength = length;
-            if (saveLength != 0)
-                inplaceMoveToLeft(_data, _offset, 0, saveLength);
-            _offset = 0;
-            _maxLength = saveLength;
-        }
+        const saveLength = length;
+        if (saveLength != 0)
+            inplaceMoveToLeft(_data, _offset, 0, saveLength);
+        _offset = 0;
+        _maxLength = saveLength;
     }
 
     final ubyte[] readBytesImpl(size_t nBytes)
     {
-        ensureAvailable(nBytes);
+        if (length < nBytes)
+            ensureAvailable(nBytes);
 
         const start = _offset;
         _offset += nBytes;
         return _data[start.._offset].dup;
     }
 
-    final ubyte[] readBytesImpl(return ref ubyte[] value)
+    final ubyte[] readBytesImpl(return ubyte[] value)
     {
         const nBytes = value.length;
-        ensureAvailable(nBytes);
+        if (length < nBytes)
+            ensureAvailable(nBytes);
 
         const start = _offset;
         _offset += nBytes;
@@ -379,6 +384,7 @@ protected:
         return value;
     }
 
+    pragma(inline, true)
     final void reserve(size_t additionalBytes) nothrow @trusted
     {
         const curLength = length;
@@ -633,17 +639,20 @@ public:
         return _offset == 0;
     }
 
+    pragma(inline, true)
     @property final override size_t length() const nothrow @safe
     {
         return _offset;
     }
 
+    pragma(inline, true)
     @property final size_t offset() const nothrow
     {
         return _offset;
     }
 
 protected:
+    pragma(inline, true)
     final void reserve(size_t additionalBytes) nothrow @trusted
     {
         if (_data.length < _offset + additionalBytes)

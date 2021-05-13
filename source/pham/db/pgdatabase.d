@@ -18,6 +18,7 @@ import std.system : Endian;
 
 import pham.external.std.logger.core : Logger, LogTimming;
 
+version (profile) import pham.utl.utltest : PerfFunction;
 version (unittest) import pham.utl.utltest;
 import pham.db.type;
 import pham.db.message;
@@ -549,12 +550,12 @@ public:
         return result.data;
     }
 
-    final override Variant readArray(DbNamedColumn arrayColumn, DbValue arrayValueId) @safe
+    final override Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe
     {
         return Variant.varNull();
     }
 
-    final override ubyte[] readBlob(DbNamedColumn blobColumn, DbValue blobValueId) @safe
+    final override ubyte[] readBlob(DbNameColumn blobColumn, DbValue blobValueId) @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -565,7 +566,7 @@ public:
         return blob.openRead();
     }
 
-    final override DbValue writeBlob(DbNamedColumn blobColumn, scope const(ubyte)[] blobValue,
+    final override DbValue writeBlob(DbNameColumn blobColumn, scope const(ubyte)[] blobValue,
         DbValue optionalBlobValueId = DbValue.init) @safe
     {
         version (TraceFunction) dgFunctionTrace();
@@ -702,6 +703,7 @@ protected:
     do
     {
         version (TraceFunction) dgFunctionTrace("isScalar=", isScalar);
+        version (profile) auto p = PerfFunction.create();
 
         auto protocol = pgConnection.protocol;
         protocol.fetchCommandWrite(this);
@@ -790,6 +792,7 @@ protected:
     final DbRowValue readRow(ref PgReader reader, bool isScalar) @safe
     {
         version (TraceFunction) dgFunctionTrace("isScalar=", isScalar);
+        version (profile) auto p = PerfFunction.create();
 
         auto protocol = pgConnection.protocol;
         return protocol.readValues(this, reader, pgFields);
@@ -1150,6 +1153,8 @@ public:
 
     final override DbFieldIdType isIdType() const nothrow @safe
     {
+        version (profile) auto p = PerfFunction.create();
+
         return PgOIdFieldInfo.isIdType(baseTypeId, baseSubTypeId);
     }
 
@@ -1376,7 +1381,7 @@ shared static this()
     DbDatabaseList.registerDb(db);
 }
 
-void fillNamedColumn(DbNamedColumn namedColumn, const ref PgOIdFieldInfo oidField, bool isNew) nothrow @safe
+void fillNamedColumn(DbNameColumn column, const ref PgOIdFieldInfo oidField, bool isNew) nothrow @safe
 {
     version (TraceFunction)
     dgFunctionTrace("name=", oidField.name,
@@ -1387,18 +1392,18 @@ void fillNamedColumn(DbNamedColumn namedColumn, const ref PgOIdFieldInfo oidFiel
         ", index=", oidField.index,
         ", size=", oidField.size);
 
-    namedColumn.baseName = oidField.name;
-    namedColumn.baseSize = oidField.size;
-    namedColumn.baseTableId = oidField.tableOid;
-    namedColumn.baseTypeId = oidField.type;
-    namedColumn.baseSubTypeId = oidField.modifier;
-    namedColumn.allowNull = oidField.allowNull;
-    namedColumn.ordinal = oidField.index;
+    column.baseName = oidField.name;
+    column.baseSize = oidField.size;
+    column.baseTableId = oidField.tableOid;
+    column.baseTypeId = oidField.type;
+    column.baseSubTypeId = oidField.modifier;
+    column.allowNull = oidField.allowNull;
+    column.ordinal = oidField.index;
 
-    if (isNew || namedColumn.type == DbType.unknown)
+    if (isNew || column.type == DbType.unknown)
     {
-        namedColumn.type = oidField.dbType();
-        namedColumn.size = oidField.dbTypeSize();
+        column.type = oidField.dbType();
+        column.size = oidField.dbTypeSize();
     }
 }
 

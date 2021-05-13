@@ -369,11 +369,6 @@ public:
         return cast(char[])readBytes(nBytes);
     }
 
-    string readString(size_t nBytes) @trusted // @trusted=cast()
-    {
-        return cast(string)readChars(nBytes);
-    }
-
     Date readDate()
     {
         return dateDecode(readInt32());
@@ -453,6 +448,11 @@ public:
                 result.digits[i] = readInt16();
         }
         return numericDecode!D(result);
+    }
+
+    string readString(size_t nBytes) @trusted // @trusted=cast()
+    {
+        return cast(string)readChars(nBytes);
     }
 
     DbTime readTime()

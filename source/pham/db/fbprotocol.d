@@ -18,6 +18,7 @@ import std.format : format;
 import std.range.primitives : isOutputRange, put;
 import std.typecons : Flag, No, Yes;
 
+version (profile) import pham.utl.utltest : PerfFunction;
 version (unittest) import pham.utl.utltest;
 import pham.utl.bit_array : BitArray, hostToNetworkOrder;
 import pham.utl.enum_set : toName;
@@ -34,7 +35,7 @@ import pham.db.buffer_filter;
 import pham.db.buffer_filter_cipher;
 import pham.db.buffer_filter_compressor;
 import pham.db.value;
-import pham.db.database : DbNamedColumn;
+import pham.db.database : DbNameColumn;
 import pham.db.fbisc;
 import pham.db.fbtype;
 import pham.db.fbexception;
@@ -914,13 +915,14 @@ public:
         return readSqlResponseImpl(reader);
     }
 
-    final DbValue readValue(FbCommand command, ref FbXdrReader reader, DbNamedColumn column)
+    final DbValue readValue(FbCommand command, ref FbXdrReader reader, DbNameColumn column)
     {
         version (TraceFunction)
         dgFunctionTrace("column.type=", toName!DbType(column.type),
             ", baseTypeId=", column.baseTypeId,
             ", baseSubtypeId=", column.baseSubTypeId,
             ", baseNumericScale=", column.baseNumericScale);
+        version (profile) auto p = PerfFunction.create();
 
         if (column.isArray)
             return DbValue.entity(reader.readId(), column.type);
@@ -1001,6 +1003,7 @@ public:
     final DbRowValue readValues(FbCommand command, FbFieldList fields)
     {
         version (TraceFunction) dgFunctionTrace();
+        version (profile) auto p = PerfFunction.create();
 
         auto reader = FbXdrReader(connection);
 
@@ -1008,8 +1011,8 @@ public:
 		auto nullBytes = reader.readOpaqueBytes(nullByteCount);
 		auto nullBits = BitArray(nullBytes);
 
+        size_t i = 0;
         auto result = DbRowValue(fields.length);
-        size_t i;
         foreach (field; fields)
         {
             if (nullBits[i])
@@ -1851,7 +1854,7 @@ ubyte[] describeTransactionItems(return ref FbTransactionWriter writer, FbTransa
     return writer.peekBytes();
 }
 
-void describeValue(return ref FbXdrWriter writer, DbNamedColumn column, DbValue value) @safe
+void describeValue(return ref FbXdrWriter writer, DbNameColumn column, DbValue value) @safe
 in
 {
     assert(!value.isNull);

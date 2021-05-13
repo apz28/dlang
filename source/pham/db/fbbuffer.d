@@ -564,11 +564,6 @@ public:
         return cast(char[])readBytes();
     }
 
-    string readString() @trusted // @trusted=cast()
-    {
-        return cast(string)readChars();
-    }
-
     Date readDate()
     {
         return dateDecode(readInt32());
@@ -680,8 +675,8 @@ public:
 
     BigInteger readInt128()
     {
-        auto buffer = new ubyte[int128ByteLength];
-        return int128Decode(_buffer.readBytes(buffer));
+        ubyte[int128ByteLength] buffer = void;
+        return int128Decode(_buffer.readBytes(buffer[]));
     }
 
     ubyte[] readOpaqueBytes(size_t forLength)
@@ -717,6 +712,11 @@ public:
             throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_net_read_err);
         }
         return result;
+    }
+
+    string readString() @trusted // @trusted=cast()
+    {
+        return cast(string)readChars();
     }
 
     FbIscStatues readStatuses() @trusted
@@ -813,9 +813,8 @@ public:
     {
         static assert(UUID.sizeof == 16);
 
-        static ubyte[] buffer; // thread local storage
-        buffer.length = UUID.sizeof;
-        return UUID(_buffer.readBytes(buffer)[0..UUID.sizeof]);
+        ubyte[UUID.sizeof] buffer = void;
+        return UUID(_buffer.readBytes(buffer[])[0..UUID.sizeof]);
     }
 
     @property FbConnection connection() nothrow pure
@@ -823,7 +822,7 @@ public:
         return _connection;
     }
 
-    @property bool empty() const nothrow
+    @property bool empty() const nothrow pure
     {
         return _buffer.empty;
     }

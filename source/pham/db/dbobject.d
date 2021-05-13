@@ -21,6 +21,7 @@ import std.format : format;
 import std.traits : ParameterTypeTuple, Unqual;
 import std.uni : sicmp, toUpper;
 
+version (profile) import pham.utl.utltest : PerfFunction;
 version (unittest) import pham.utl.utltest;
 import pham.utl.utf8 : utf8NextChar;
 import pham.utl.array : UnshrinkArray;
@@ -208,7 +209,7 @@ public:
         return this;
     }
 
-    bool opCast(C: bool)() const
+    bool opCast(B: bool)() const pure
     {
         return _s.length != 0;
     }
@@ -220,32 +221,32 @@ public:
         return this;
     }
 
-    int opCmp(in DbIdentitier other) const
+    int opCmp(in DbIdentitier other) const pure
     {
         return sicmp(_s, other._s);
     }
 
-    int opCmp(scope const(char)[] other) const
+    int opCmp(scope const(char)[] other) const pure
     {
         return sicmp(_s, other);
     }
 
-    bool opEquals(in DbIdentitier other) const
+    bool opEquals(in DbIdentitier other) const pure
     {
         return sicmp(_s, other._s) == 0;
     }
 
-    bool opEquals(scope const(char)[] other) const
+    bool opEquals(scope const(char)[] other) const pure
     {
         return sicmp(_s, other) == 0;
     }
 
-    size_t toHash() const
+    size_t toHash() const pure
     {
         return hashOf(ivalue);
     }
 
-    string toString() const
+    string toString() const pure
     {
         return _s;
     }
@@ -417,6 +418,7 @@ public:
             this._index = 0;
         }
 
+        pragma(inline, true)
         void popFront() pure
         {
             ++_index;
@@ -427,11 +429,13 @@ public:
             return this;
         }
 
+        pragma(inline, true)
         @property bool empty() const pure
         {
             return _index >= _list.length;
         }
 
+        pragma(inline, true)
         @property ref Pair front() pure
         in
         {
@@ -785,20 +789,20 @@ protected:
     bool reIndex;
 }
 
-class DbSimpleNamedObject : DbObject
+class DbNameObject : DbObject
 {
 nothrow @safe:
 
 public:
-    alias List = DbSimpleNamedObjectList!DbSimpleNamedObject;
+    alias List = DbNameObjectList!DbNameObject;
 
 public:
-    int opCmp(in DbIdentitier otherName) const
+    final int opCmp(in DbIdentitier otherName) const pure
     {
         return _name.opCmp(otherName);
     }
 
-    bool opEquals(in DbIdentitier otherName) const
+    final bool opEquals(in DbIdentitier otherName) const pure
     {
         return _name.opEquals(otherName);
     }
@@ -842,8 +846,8 @@ protected:
     DbIdentitier _name;
 }
 
-class DbSimpleNamedObjectList(T) : DbObject
-if(is(T : DbSimpleNamedObject))
+class DbNameObjectList(T) : DbObject
+if(is(T : DbNameObject))
 {
 public:
     /**
@@ -854,7 +858,7 @@ public:
     nothrow @safe:
 
     public:
-        alias List = DbSimpleNamedObjectList!T;
+        alias List = DbNameObjectList!T;
 
     public:
         this(List list) pure
@@ -863,9 +867,10 @@ public:
             this._index = 0;
         }
 
+        pragma(inline, true)
         void popFront()
         {
-            ++_index;
+            _index++;
         }
 
         auto save()
@@ -873,22 +878,24 @@ public:
             return this;
         }
 
-        @property bool empty() const
+        pragma(inline, true)
+        @property bool empty() const pure
         {
             return _index >= _list.length;
         }
 
+        pragma(inline, true)
         @property T front()
         in
         {
-            assert(_index < _list.length);
+            assert(!empty);
         }
         do
         {
             return _list[_index];
         }
 
-        @property size_t index() const
+        @property size_t index() const pure
         {
             return _index;
         }
@@ -936,31 +943,29 @@ public:
     /**
      * Returns item at index
      */
-    T opIndex(size_t index) nothrow @safe
+    final T opIndex(size_t index) nothrow @safe
     in
     {
         assert(index < length);
     }
     do
     {
-        auto name = sequenceNames[index];
-        assert(exist(name));
-        auto e = name in lookupItems;
-        assert(e);
-        return *e;
+        return sequenceItems[index];
     }
 
     /**
      * Returns item with matching name
      */
-    T opIndex(in DbIdentitier name) nothrow @safe
+    final T opIndex(in DbIdentitier name) nothrow @safe
     {
+        version (profile) auto p = PerfFunction.create();
+
         auto e = name in lookupItems;
         return e ? *e : null;
     }
 
     ///
-    T opIndex(string name) nothrow @safe
+    final T opIndex(string name) nothrow @safe
     {
         const id = DbIdentitier(name);
         return opIndex(id);
@@ -978,21 +983,23 @@ public:
         return this;
     }
 
-    typeof(this) clear() nothrow @trusted
+    typeof(this) clear() nothrow pure @trusted
     {
         lookupItems.clear();
-        sequenceNames.clear();
+        sequenceItems.clear();
         flags.reset();
         return this;
     }
 
-    final bool exist(in DbIdentitier name) const nothrow @safe
+    final bool exist(in DbIdentitier name) const nothrow pure @safe
     {
-        auto e = name in lookupItems;
+        version (profile) auto p = PerfFunction.create();
+
+        const e = name in lookupItems;
         return e !is null;
     }
 
-    final bool exist(string name) const nothrow @safe
+    final bool exist(string name) const nothrow pure @safe
     {
         const id = DbIdentitier(name);
         return exist(id);
@@ -1000,6 +1007,8 @@ public:
 
     final bool find(in DbIdentitier name, out T item) nothrow @safe
     {
+        version (profile) auto p = PerfFunction.create();
+
         auto e = name in lookupItems;
         if (e !is null)
         {
@@ -1019,7 +1028,7 @@ public:
         return find(id, item);
     }
 
-    final DbIdentitier generateUniqueName(string prefix) const nothrow @safe
+    final DbIdentitier generateUniqueName(string prefix) const nothrow pure @safe
     {
         DbIdentitier res;
         size_t n = length;
@@ -1034,6 +1043,8 @@ public:
 
     final T get(in DbIdentitier name) @safe
     {
+        version (profile) auto p = PerfFunction.create();
+
         T result;
         if (!find(name, result))
         {
@@ -1049,8 +1060,10 @@ public:
         return get(id);
     }
 
-    final ptrdiff_t indexOf(in DbIdentitier name) nothrow @safe
+    final ptrdiff_t indexOf(in DbIdentitier name) nothrow pure @safe
     {
+        version (profile) auto p = PerfFunction.create();
+
         if (flags.on(Flag.reIndex))
             reIndexItems();
 
@@ -1061,7 +1074,7 @@ public:
             return -1;
     }
 
-    final ptrdiff_t indexOf(string name) nothrow @safe
+    final ptrdiff_t indexOf(string name) nothrow pure @safe
     {
         const id = DbIdentitier(name);
         return indexOf(id);
@@ -1120,34 +1133,36 @@ public:
         auto result = this[index];
         result._list = null;
         lookupItems.remove(result.name);
-        sequenceNames.removeAt(index);
-        if (index < sequenceNames.length)
+        sequenceItems.removeAt(index);
+        if (index < sequenceItems.length)
             flags += Flag.reIndex;
         return result;
     }
 
-    @property final size_t length() const nothrow @safe
+    @property final size_t length() const nothrow pure @safe
     {
-        return sequenceNames.length;
+        return sequenceItems.length;
     }
 
 protected:
-    //alias List = DbSimpleNamedObjectList!DbSimpleNamedObject;
+    //alias List = DbNameObjectList!DbNameObject;
 
     void add(T item) nothrow @trusted
     {
         item._list = cast(void*)this;
         item._name._index = length;
         lookupItems[item.name] = item;
-        sequenceNames ~= item.name;
+        sequenceItems ~= item;
     }
 
     void addOrSet(T item) nothrow @trusted
     {
-        if (exist(item.name))
+        const i = indexOf(item.name);
+        if (i >= 0)
         {
             item._list = cast(void*)this;
             lookupItems[item.name] = item;
+            sequenceItems[i] = item;
         }
         else
             add(item);
@@ -1157,23 +1172,13 @@ protected:
     {
         lookupItems.remove(oldName);
         lookupItems[item.name] = item;
-
-        foreach (i, e; sequenceNames)
-        {
-            if (e == oldName)
-            {
-                sequenceNames[i] = item.name;
-                break;
-            }
-        }
     }
 
-    void reIndexItems() nothrow @safe
+    final void reIndexItems() nothrow pure @safe
     {
-        foreach (i, n; sequenceNames)
+        foreach (i, e; sequenceItems)
         {
-            auto e = n in lookupItems;
-            (*e)._name._index = i;
+            e._name._index = i;
         }
     }
 
@@ -1184,7 +1189,7 @@ protected:
     }
 
     T[DbIdentitier] lookupItems;
-    UnshrinkArray!DbIdentitier sequenceNames;
+    UnshrinkArray!T sequenceItems;
     EnumSet!Flag flags;
 }
 
@@ -1255,13 +1260,13 @@ unittest // DbNameValueList
     assert(!list.exist("a"));
 }
 
-unittest // DbSimpleNamedObjectList
+unittest // DbNameObjectList
 {
     import std.string : indexOf;
     import pham.utl.utltest;
-    traceUnitTest("unittest db.dbobject.DbSimpleNamedObjectList");
+    traceUnitTest("unittest db.dbobject.DbNameObjectList");
 
-    static class DbSimpleNamedObjectTest : DbSimpleNamedObject
+    static class DbNameObjectTest : DbNameObject
     {
     public:
         int value;
@@ -1272,11 +1277,11 @@ unittest // DbSimpleNamedObjectList
         }
     }
 
-    auto list = new DbSimpleNamedObjectList!DbSimpleNamedObjectTest();
+    auto list = new DbNameObjectList!DbNameObjectTest();
 
-    list.put(new DbSimpleNamedObjectTest("a", 1));
-    list.put(new DbSimpleNamedObjectTest("bcd", 2));
-    list.put(new DbSimpleNamedObjectTest("x", 3));
+    list.put(new DbNameObjectTest("a", 1));
+    list.put(new DbNameObjectTest("bcd", 2));
+    list.put(new DbNameObjectTest("x", 3));
 
     assert(list.length == 3);
     assert(list.exist("a") && list.exist("A"));
@@ -1291,7 +1296,7 @@ unittest // DbSimpleNamedObjectList
     assert(list.get("bcd").value == 2 && list.get("BCD").value == 2);
     assert(list.get("x").value == 3 && list.get("X").value == 3);
 
-    list.put(new DbSimpleNamedObjectTest("x", -1));
+    list.put(new DbNameObjectTest("x", -1));
     assert(list.length == 3);
     assert(list.exist("x"));
     assert(list.get("x").value == -1);

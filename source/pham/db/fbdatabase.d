@@ -22,6 +22,7 @@ import std.system : Endian;
 
 import pham.external.std.logger.core : Logger, LogTimming;
 
+version (profile) import pham.utl.utltest : PerfFunction;
 version (unittest) import pham.utl.utltest;
 import pham.utl.enum_set : toName;
 import pham.utl.utlobject : DisposableState, functionName;
@@ -77,7 +78,7 @@ public:
         dispose(false);
     }
 
-    Variant readArray(DbNamedColumn arrayColumn) @safe
+    Variant readArray(DbNameColumn arrayColumn) @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -139,7 +140,7 @@ public:
         assert(0);
     }
 
-    T[] readArrayImpl(T)(DbNamedColumn arrayColumn) @safe
+    T[] readArrayImpl(T)(DbNameColumn arrayColumn) @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -207,7 +208,7 @@ public:
         return result;
     }
 
-    FbIscArrayGetResponse readArrayRaw(DbNamedColumn arrayColumn) @safe
+    FbIscArrayGetResponse readArrayRaw(DbNameColumn arrayColumn) @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -216,7 +217,7 @@ public:
         return protocol.arrayGetRead(this);
     }
 
-    void writeArray(DbNamedColumn arrayColumn, DbValue arrayValue) @safe
+    void writeArray(DbNameColumn arrayColumn, DbValue arrayValue) @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -301,7 +302,7 @@ public:
         _id = protocol.arrayPutRead().id;
     }
 
-    IbWriteBuffer writeArrayImpl(T)(DbNamedColumn arrayColumn, DbValue arrayValue, IbWriteBuffer writerBuffer,
+    IbWriteBuffer writeArrayImpl(T)(DbNameColumn arrayColumn, DbValue arrayValue, IbWriteBuffer writerBuffer,
         out size_t elements) @safe
     {
         version (TraceFunction) dgFunctionTrace();
@@ -781,7 +782,7 @@ public:
         return info.plan;
 	}
 
-    final override Variant readArray(DbNamedColumn arrayColumn, DbValue arrayValueId) @safe
+    final override Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -792,7 +793,7 @@ public:
         return array.readArray(arrayColumn);
     }
 
-    final override ubyte[] readBlob(DbNamedColumn blobColumn, DbValue blobValueId) @safe
+    final override ubyte[] readBlob(DbNameColumn blobColumn, DbValue blobValueId) @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -803,7 +804,7 @@ public:
         return blob.openRead();
     }
 
-    final DbValue writeArray(DbNamedColumn arrayColumn, DbValue arrayValue) @safe
+    final DbValue writeArray(DbNameColumn arrayColumn, DbValue arrayValue) @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -812,7 +813,7 @@ public:
         return DbValue(array.fbId, arrayValue.type);
     }
 
-    final override DbValue writeBlob(DbNamedColumn blobColumn, scope const(ubyte)[] blobValue,
+    final override DbValue writeBlob(DbNameColumn blobColumn, scope const(ubyte)[] blobValue,
         DbValue optionalBlobValueId = DbValue.init) @safe
     {
         version (TraceFunction) dgFunctionTrace();
@@ -987,6 +988,7 @@ protected:
     do
     {
         version (TraceFunction) dgFunctionTrace("isScalar=", isScalar);
+        version (profile) auto p = PerfFunction.create();
 
         auto protocol = fbConnection.protocol;
         protocol.fetchCommandWrite(this);
@@ -1263,6 +1265,7 @@ protected:
     final DbRowValue readRow(bool isScalar) @safe
     {
         version (TraceFunction) dgFunctionTrace("isScalar=", isScalar);
+        version (profile) auto p = PerfFunction.create();
 
         auto protocol = fbConnection.protocol;
         auto result = protocol.readValues(this, fbFields);
@@ -1672,6 +1675,8 @@ public:
 
     final override DbFieldIdType isIdType() const nothrow @safe
     {
+        version (profile) auto p = PerfFunction.create();
+
         return FbIscFieldInfo.isIdType(baseTypeId, baseSubTypeId);
     }
 
@@ -1846,133 +1851,133 @@ private:
 
 version (UnitTestPerfFBDatabase)
 {
-import pham.utl.utltest : PerfTestResult;
+    import pham.utl.utltest : PerfTestResult;
 
-PerfTestResult unitTestPerfFBDatabase()
-{
-    import core.time;
-
-    static struct Data
+    PerfTestResult unitTestPerfFBDatabase()
     {
-        long Foo1;
-        long Foo2;
-        string Foo3;
-        string Foo4;
-        DbDateTime Foo5;
-        DbDateTime Foo6;
-        DbDateTime Foo7;
-        string Foo8;
-        string Foo9;
-        string Foo10;
-        short Foo11;
-        short Foo12;
-        short Foo13;
-        Decimal64 Foo14;
-        Decimal64 Foo15;
-        short Foo16;
-        Decimal64 Foo17;
-        Decimal64 Foo18;
-        long Foo19;
-        long Foo20;
-        long Foo21;
-        long Foo22;
-        string Foo23;
-        string Foo24;
-        string Foo25;
-        string Foo26;
-        long Foo27;
-        string Foo28;
-        long Foo29;
-        string Foo30;
-        long Foo31;
-        Decimal64 Foo32;
-        Decimal64 Foo33;
+        import core.time;
 
-        this(ref DbReader reader)
+        static struct Data
         {
-            readData(reader);
+            long Foo1;
+            long Foo2;
+            string Foo3;
+            string Foo4;
+            DbDateTime Foo5;
+            DbDateTime Foo6;
+            DbDateTime Foo7;
+            string Foo8;
+            string Foo9;
+            string Foo10;
+            short Foo11;
+            short Foo12;
+            short Foo13;
+            Decimal64 Foo14;
+            Decimal64 Foo15;
+            short Foo16;
+            Decimal64 Foo17;
+            Decimal64 Foo18;
+            long Foo19;
+            long Foo20;
+            long Foo21;
+            long Foo22;
+            string Foo23;
+            string Foo24;
+            string Foo25;
+            string Foo26;
+            long Foo27;
+            string Foo28;
+            long Foo29;
+            string Foo30;
+            long Foo31;
+            Decimal64 Foo32;
+            Decimal64 Foo33;
+
+            this(ref DbReader reader)
+            {
+                readData(reader);
+            }
+
+            void readData(ref DbReader reader)
+            {
+                Foo1 = reader.getValue!int64(0); //foo1 BIGINT NOT NULL,
+                Foo2 = reader.getValue!int64(1); //foo2 BIGINT NOT NULL,
+                Foo3 = reader.getValue!string(2); //foo3 VARCHAR(255),
+                Foo4 = reader.getValue!string(3); //foo4 VARCHAR(255),
+                Foo5 = reader.getValue!DbDateTime(4); //foo5 TIMESTAMP,
+                Foo6 = reader.getValue!DbDateTime(5); //foo6 TIMESTAMP NOT NULL,
+                Foo7 = reader.getValue!DbDateTime(6); //foo7 TIMESTAMP,
+                Foo8 = reader.getValue!string(7); //foo8 VARCHAR(255),
+                Foo9 = reader.getValue!string(8); //foo9 VARCHAR(255),
+                Foo10 = reader.getValue!string(9); //foo10 VARCHAR(255),
+                Foo11 = reader.getValue!int16(10); //foo11 SMALLINT NOT NULL,
+                Foo12 = reader.getValue!int16(11); //foo12 SMALLINT NOT NULL,
+                Foo13 = reader.getValue!int16(12); //foo13 SMALLINT NOT NULL,
+                Foo14 = reader.getValue!Decimal64(13); //foo14 DECIMAL(18, 2) NOT NULL,
+                Foo15 = reader.getValue!Decimal64(14); //foo15 DECIMAL(18, 2) NOT NULL,
+                Foo16 = reader.getValue!int16(15); //foo16 SMALLINT NOT NULL,
+                Foo17 = reader.getValue!Decimal64(16); //foo17 DECIMAL(18, 2) NOT NULL,
+                Foo18 = reader.getValue!Decimal64(17); //foo18 DECIMAL(18, 2) NOT NULL,
+                Foo19 = reader.getValue!int64(18); //foo19 BIGINT NOT NULL,
+                Foo20 = reader.getValue!int64(19); //foo20 BIGINT NOT NULL,
+                Foo21 = reader.getValue!int64(20); //foo21 BIGINT NOT NULL,
+                Foo22 = reader.getValue!int64(21); //foo22 BIGINT NOT NULL,
+                Foo23 = reader.getValue!string(22); //foo23 VARCHAR(255),
+                Foo24 = reader.getValue!string(23); //foo24 VARCHAR(255),
+                Foo25 = reader.getValue!string(24); //foo25 VARCHAR(511),
+                Foo26 = reader.getValue!string(25); //foo26 VARCHAR(256),
+                Foo27 = reader.getValue!int64(26); //foo27 BIGINT NOT NULL,
+                Foo28 = reader.getValue!string(27); //foo28 VARCHAR(255),
+                Foo29 = reader.getValue!int64(28); //foo29 BIGINT NOT NULL,
+                Foo30 = reader.getValue!string(29); //foo30 VARCHAR(255),
+                Foo31 = reader.getValue!int64(30); //foo31 BIGINT NOT NULL,
+                Foo32 = reader.getValue!Decimal64(31); //foo32 DECIMAL(18, 2) NOT NULL,
+                Foo33 = reader.getValue!Decimal64(32); //foo33 DECIMAL(18, 2) NOT NULL
+            }
         }
 
-        void readData(ref DbReader reader)
+        bool failed = true;
+        auto connection = createTestPerfConnection();
+        scope (exit)
         {
-            Foo1 = reader.getValue!int64(0); //foo1 BIGINT NOT NULL,
-            Foo2 = reader.getValue!int64(1); //foo2 BIGINT NOT NULL,
-            Foo3 = reader.getValue!string(2); //foo3 VARCHAR(255),
-            Foo4 = reader.getValue!string(3); //foo4 VARCHAR(255),
-            Foo5 = reader.getValue!DbDateTime(4); //foo5 TIMESTAMP,
-            Foo6 = reader.getValue!DbDateTime(5); //foo6 TIMESTAMP NOT NULL,
-            Foo7 = reader.getValue!DbDateTime(6); //foo7 TIMESTAMP,
-            Foo8 = reader.getValue!string(7); //foo8 VARCHAR(255),
-            Foo9 = reader.getValue!string(8); //foo9 VARCHAR(255),
-            Foo10 = reader.getValue!string(9); //foo10 VARCHAR(255),
-            Foo11 = reader.getValue!int16(10); //foo11 SMALLINT NOT NULL,
-            Foo12 = reader.getValue!int16(11); //foo12 SMALLINT NOT NULL,
-            Foo13 = reader.getValue!int16(12); //foo13 SMALLINT NOT NULL,
-            Foo14 = reader.getValue!Decimal64(13); //foo14 DECIMAL(18, 2) NOT NULL,
-            Foo15 = reader.getValue!Decimal64(14); //foo15 DECIMAL(18, 2) NOT NULL,
-            Foo16 = reader.getValue!int16(15); //foo16 SMALLINT NOT NULL,
-            Foo17 = reader.getValue!Decimal64(16); //foo17 DECIMAL(18, 2) NOT NULL,
-            Foo18 = reader.getValue!Decimal64(17); //foo18 DECIMAL(18, 2) NOT NULL,
-            Foo19 = reader.getValue!int64(18); //foo19 BIGINT NOT NULL,
-            Foo20 = reader.getValue!int64(19); //foo20 BIGINT NOT NULL,
-            Foo21 = reader.getValue!int64(20); //foo21 BIGINT NOT NULL,
-            Foo22 = reader.getValue!int64(21); //foo22 BIGINT NOT NULL,
-            Foo23 = reader.getValue!string(22); //foo23 VARCHAR(255),
-            Foo24 = reader.getValue!string(23); //foo24 VARCHAR(255),
-            Foo25 = reader.getValue!string(24); //foo25 VARCHAR(511),
-            Foo26 = reader.getValue!string(25); //foo26 VARCHAR(256),
-            Foo27 = reader.getValue!int64(26); //foo27 BIGINT NOT NULL,
-            Foo28 = reader.getValue!string(27); //foo28 VARCHAR(255),
-            Foo29 = reader.getValue!int64(28); //foo29 BIGINT NOT NULL,
-            Foo30 = reader.getValue!string(29); //foo30 VARCHAR(255),
-            Foo31 = reader.getValue!int64(30); //foo31 BIGINT NOT NULL,
-            Foo32 = reader.getValue!Decimal64(31); //foo32 DECIMAL(18, 2) NOT NULL,
-            Foo33 = reader.getValue!Decimal64(32); //foo33 DECIMAL(18, 2) NOT NULL
+            version (unittest)
+            if (failed)
+                traceUnitTest("failed - exiting and closing connection");
+
+            connection.close();
+            connection.dispose();
+            connection = null;
         }
+        connection.open();
+
+        auto command = connection.createCommand();
+        scope (exit)
+        {
+            command.dispose();
+            command = null;
+        }
+
+        command.commandText = "select * from foo";
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+
+        enum maxRecordCount = 1_000_000;
+        version (UnitTestFBCollectData) auto datas = new Data[](maxRecordCount);
+        else Data data;
+        assert(reader.hasRows());
+
+        auto result = PerfTestResult.create();
+        while (result.count < maxRecordCount && reader.read())
+        {
+            version (UnitTestFBCollectData) datas[result.count++] = Data(reader);
+            else { data.readData(reader); result.count++; }
+        }
+        result.end();
+        assert(result.count > 0);
+        failed = false;
+        return result;
     }
-
-    bool failed = true;
-    auto connection = createTestPerfConnection();
-    scope (exit)
-    {
-        version (unittest)
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
-        connection.close();
-        connection.dispose();
-        connection = null;
-    }
-    connection.open();
-
-    auto command = connection.createCommand();
-    scope (exit)
-    {
-        command.dispose();
-        command = null;
-    }
-
-    command.commandText = "select * from foo";
-    auto reader = command.executeReader();
-    scope (exit)
-        reader.dispose();
-
-    enum maxRecordCount = 1_000_000;
-    version (UnitTestFBCollectData) auto datas = new Data[](maxRecordCount);
-    else Data data;
-    assert(reader.hasRows());
-
-    auto result = PerfTestResult.init();
-    while (result.count < maxRecordCount && reader.read())
-    {
-        version (UnitTestFBCollectData) datas[result.count++] = Data(reader);
-        else { data.readData(reader); result.count++; }
-    }
-    result.mark();
-    assert(result.count > 0);
-    failed = false;
-    return result;
-}
 }
 
 
@@ -1986,7 +1991,7 @@ shared static this()
     DbDatabaseList.registerDb(db);
 }
 
-void fillNamedColumn(DbNamedColumn namedColumn, const ref FbIscFieldInfo iscField, bool isNew) nothrow @safe
+void fillNamedColumn(DbNameColumn column, const ref FbIscFieldInfo iscField, bool isNew) nothrow @safe
 {
     version (TraceFunction)
     dgFunctionTrace("aliasName=", iscField.aliasName,
@@ -1998,19 +2003,19 @@ void fillNamedColumn(DbNamedColumn namedColumn, const ref FbIscFieldInfo iscFiel
         ", subType=", iscField.subType,
         ", type=", iscField.type);
 
-    namedColumn.baseName = iscField.name.idup;
-    namedColumn.baseOwner = iscField.owner.idup;
-    namedColumn.baseNumericScale = iscField.numericScale;
-    namedColumn.baseSize = iscField.size;
-    namedColumn.baseSubTypeId = iscField.subType;
-    namedColumn.baseTableName = iscField.tableName.idup;
-    namedColumn.baseTypeId = iscField.type;
-    namedColumn.allowNull = iscField.allowNull;
+    column.baseName = iscField.name.idup;
+    column.baseOwner = iscField.owner.idup;
+    column.baseNumericScale = iscField.numericScale;
+    column.baseSize = iscField.size;
+    column.baseSubTypeId = iscField.subType;
+    column.baseTableName = iscField.tableName.idup;
+    column.baseTypeId = iscField.type;
+    column.allowNull = iscField.allowNull;
 
-    if (isNew || namedColumn.type == DbType.unknown)
+    if (isNew || column.type == DbType.unknown)
     {
-        namedColumn.type = iscField.dbType();
-        namedColumn.size = iscField.dbTypeSize();
+        column.type = iscField.dbType();
+        column.size = iscField.dbTypeSize();
     }
 }
 
@@ -3278,9 +3283,10 @@ unittest // FbCommand.DML.StoredProcedure
 version (UnitTestPerfFBDatabase)
 unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953
 {
+    import std.format : format;
     import pham.utl.utltest;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
 
     const perfResult = unitTestPerfFBDatabase();
-    dgWriteln(format!"Count: %,3d"(perfResult.count), ", Elapsed in msecs: ", format!"%,3d"(perfResult.elapsedTime.total!"msecs"()));
+    dgWriteln("Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
 }

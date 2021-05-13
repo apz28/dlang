@@ -25,6 +25,7 @@ import std.typecons : Flag, No, Yes;
 
 import pham.external.std.logger.core : Logger, LogTimming;
 
+version (profile) import pham.utl.utltest : PerfFunction;
 version (unittest) import pham.utl.utltest;
 import pham.utl.delegate_list;
 import pham.utl.dlink_list;
@@ -252,10 +253,10 @@ public:
         return this;
     }
 
-    abstract Variant readArray(DbNamedColumn arrayColumn, DbValue arrayValueId) @safe;
-    abstract ubyte[] readBlob(DbNamedColumn blobColumn, DbValue blobValueId) @safe;
+    abstract Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe;
+    abstract ubyte[] readBlob(DbNameColumn blobColumn, DbValue blobValueId) @safe;
 
-    final string readClob(DbNamedColumn clobColumn, DbValue clobValueId) @trusted //@trusted=cast(string)
+    final string readClob(DbNameColumn clobColumn, DbValue clobValueId) @trusted //@trusted=cast(string)
     {
         auto blob = readBlob(clobColumn, clobValueId);
         return blob.length != 0 ? cast(string)blob : null;
@@ -284,10 +285,10 @@ public:
         return this;
     }
 
-    abstract DbValue writeBlob(DbNamedColumn blobColumn, scope const(ubyte)[] blobValue,
+    abstract DbValue writeBlob(DbNameColumn blobColumn, scope const(ubyte)[] blobValue,
         DbValue optionalBlobValueId = DbValue.init) @safe;
 
-    final DbValue writeClob(DbNamedColumn clobColumn, scope const(char)[] clobValue,
+    final DbValue writeClob(DbNameColumn clobColumn, scope const(char)[] clobValue,
         DbValue optionalClobValueId = DbValue.init) @safe
     {
         import std.string : representation;
@@ -2129,7 +2130,7 @@ private:
     bool[string] _validParamNameChecks;
 }
 
-abstract class DbDatabase : DbSimpleNamedObject
+abstract class DbDatabase : DbNameObject
 {
 nothrow @safe:
 
@@ -2189,7 +2190,7 @@ private:
 }
 
 // This instance is initialize at startup hence no need Mutex to have thread-guard
-class DbDatabaseList : DbSimpleNamedObjectList!DbDatabase
+class DbDatabaseList : DbNameObjectList!DbDatabase
 {
 public:
     /**
@@ -2273,7 +2274,7 @@ private:
     __gshared static DbDatabaseList _instance;
 }
 
-class DbNamedColumn : DbSimpleNamedObject
+class DbNameColumn : DbNameObject
 {
 public:
     /*
@@ -2443,6 +2444,7 @@ public:
         return this;
     }
 
+    pragma(inline, true)
     @property bool isArray() const nothrow @safe
     {
         return (_type & DbType.array) != 0;
@@ -2480,6 +2482,7 @@ public:
      * used for array, binary, fixedBinary, utf8String, fixedUtf8String
      * json, and xml types.
      */
+    pragma(inline, true)
     @property final int32 size() const nothrow @safe
     {
         return _size;
@@ -2494,6 +2497,7 @@ public:
     /**
      * Gets or sets the DbType of the parameter
      */
+    pragma(inline, true)
     @property final DbType type() const nothrow @safe
     {
         return _type & ~DbType.array;
@@ -2511,7 +2515,7 @@ public:
     }
 
 protected:
-    void assignTo(DbNamedColumn dest) nothrow @safe
+    void assignTo(DbNameColumn dest) nothrow @safe
     {
         version (none)
         foreach (m; __traits(allMembers, DbNamedColumn))
@@ -2522,7 +2526,7 @@ protected:
                 __traits(getMember, ret, m) = __traits(getMember, this, m);
         }
 
-        foreach (m; FieldNameTuple!DbNamedColumn)
+        foreach (m; FieldNameTuple!DbNameColumn)
         {
             __traits(getMember, dest, m) = __traits(getMember, this, m);
         }
@@ -2547,7 +2551,7 @@ protected:
     //DbCharset _charset;
 }
 
-class DbField : DbNamedColumn
+class DbField : DbNameColumn
 {
 public:
     this(DbCommand command, DbIdentitier name) nothrow @safe
@@ -2635,7 +2639,7 @@ protected:
     DbCommand _command;
 }
 
-class DbFieldList : DbSimpleNamedObjectList!DbField, IDisposable
+class DbFieldList : DbNameObjectList!DbField, IDisposable
 {
 public:
     this(DbCommand command) nothrow @safe
@@ -2720,7 +2724,7 @@ private:
     byte _disposing;
 }
 
-class DbParameter : DbNamedColumn
+class DbParameter : DbNameColumn
 {
 public:
     this(DbDatabase database, DbIdentitier name) nothrow @safe
@@ -2789,7 +2793,7 @@ public:
     }
 
 protected:
-    override void assignTo(DbNamedColumn dest) nothrow @safe
+    override void assignTo(DbNameColumn dest) nothrow @safe
     {
         super.assignTo(dest);
 
@@ -2822,7 +2826,7 @@ protected:
     DbParameterDirection _direction;
 }
 
-class DbParameterList : DbSimpleNamedObjectList!DbParameter, IDisposable
+class DbParameterList : DbNameObjectList!DbParameter, IDisposable
 {
 public:
     this(DbDatabase database) nothrow @safe
@@ -3220,6 +3224,7 @@ public:
     bool read() @safe
     {
         version (TraceFunction) dgFunctionTrace();
+        version (profile) auto p = PerfFunction.create();
 
         if (!_allRowsFetched)
         {
@@ -3314,6 +3319,8 @@ private:
 
     Variant getVariant(const size_t index) @safe
     {
+        version (profile) auto p = PerfFunction.create();
+
         auto field = fields[index];
         final switch (field.isIdType())
         {

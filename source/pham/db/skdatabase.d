@@ -16,6 +16,7 @@ import std.format : format;
 import std.socket : socket_t, Address, AddressFamily, InternetAddress, lastSocketError, Socket, SocketOption, SocketOptionLevel, SocketType;
 import std.system : Endian;
 
+version (profile) import pham.utl.utltest : PerfFunction;
 version (unittest) import pham.utl.utltest;
 version (TraceFunction) import pham.utl.utlobject : bytesToHexs;
 
@@ -43,6 +44,7 @@ public:
     final override DbRowValue fetch(bool isScalar) @safe
     {
         version (TraceFunction) dgFunctionTrace();
+        version (profile) auto p = PerfFunction.create();
 
         checkActive();
 
@@ -168,6 +170,7 @@ package(pham.db):
     final size_t socketReadData(ubyte[] data) @trusted
     {
         version (TraceFunction) dgFunctionTrace();
+        version (profile) auto p = PerfFunction.create();
 
         auto result = socket.receive(data);
         if (result == Socket.ERROR || (result == 0 && data.length != 0))
@@ -503,17 +506,15 @@ public:
     version (TraceFunction) static size_t readCounter = 0;
     final override IbReadBuffer fill(const size_t additionalBytes, bool mustSatisfied)
     {
-        const curLength = length;
+        version (profile) auto p = PerfFunction.create();
 
-        if (_offset && _offset + additionalBytes > _data.length)
+        if (_offset && (_offset + additionalBytes) > _data.length)
             mergeOffset();
 
         reserve(additionalBytes);
+        const nOffset = _offset + length;
 
-        const nOffset = _offset + curLength;
-        assert(nOffset + additionalBytes <= _data.length);
-
-        //dgWriteln("nOffset=", nOffset, ", _data.length=", _data.length, ", additionalBytes=", additionalBytes, ", curLength=", curLength);
+        //dgWriteln("nOffset=", nOffset, ", _data.length=", _data.length, ", additionalBytes=", additionalBytes, ", length=", length);
 
         // n=size_t.max -> no data returned
         const n = connection.socketReadData(_data[nOffset.._data.length]);
@@ -557,8 +558,9 @@ protected:
 
     final override void ensureAvailable(size_t nBytes) @trusted
     {
-        if (length < nBytes)
-            fill(nBytes, false);
+        version (profile) auto p = PerfFunction.create();
+
+        fill(nBytes, false);
         super.ensureAvailable(nBytes);
     }
 

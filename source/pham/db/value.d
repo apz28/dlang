@@ -17,6 +17,7 @@ import std.math : isNaN;
 import std.range.primitives: ElementType;
 import std.traits : isArrayT = isArray, Unqual;
 
+version (profile) import pham.utl.utltest : PerfFunction;
 public import pham.utl.variant;
 import pham.db.type;
 import pham.db.convert;
@@ -26,6 +27,8 @@ struct DbValue
 public:
     this(T)(T value, DbType typeIf = DbType.unknown) nothrow @safe
     {
+        version (profile) auto p = PerfFunction.create();
+
         doAssign!(T, false)(value, typeIf);
     }
 

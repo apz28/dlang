@@ -393,7 +393,7 @@ enum DbTransactionState : byte
  * $(DbType.struct_) A type representing a struct/record
  * $(DbType.array) A type representing an array of value
  */
-enum DbType
+enum DbType : int
 {
     unknown,
     boolean,

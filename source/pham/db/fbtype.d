@@ -642,7 +642,7 @@ struct FbIscFieldInfo
 nothrow @safe:
 
 public:
-    bool opCast(C: bool)() const
+    bool opCast(C: bool)() const @nogc pure
     {
         return type != 0 && name.length != 0;
     }
@@ -654,12 +654,12 @@ public:
         return this;
     }
 
-    DbBaseType baseType() pure
+    DbBaseType baseType() @nogc pure
     {
         return DbBaseType(numericScale, size, subType, type);
     }
 
-	static FbIscType blrTypeToIscType(int32 blrType) pure
+	static FbIscType blrTypeToIscType(int32 blrType) @nogc pure
 	{
 		switch (blrType)
 		{
@@ -716,7 +716,7 @@ public:
 		}
 	}
 
-    void reset()
+    void reset() pure
     {
         aliasName = null;
         name = null;
@@ -728,12 +728,12 @@ public:
         type = 0;
     }
 
-    DbType dbType() const
+    DbType dbType() const @nogc pure
     {
         return dbType(type, subType, numericScale);
     }
 
-    static DbType dbType(int32 iscType, int32 iscSubtype, int32 iscScale) pure
+    static DbType dbType(int32 iscType, int32 iscSubtype, int32 iscScale) @nogc pure
     {
         const t = fbType(iscType);
 
@@ -764,12 +764,12 @@ public:
         return result;
     }
 
-    int32 dbTypeSize() const
+    int32 dbTypeSize() const @nogc pure
     {
         return dbTypeSize(dbType(), size);
     }
 
-    static int32 dbTypeSize(DbType dbType, int32 iscSize) pure
+    static int32 dbTypeSize(DbType dbType, int32 iscSize) @nogc pure
     {
         int32 result = -1;
         if (auto e = dbType in dbTypeToDbTypeInfos)
@@ -777,12 +777,12 @@ public:
         return result != -1 ? result : iscSize;
     }
 
-    int32 dbTypeDisplaySize() const
+    int32 dbTypeDisplaySize() const @nogc pure
     {
         return dbTypeDisplaySize(type, size);
     }
 
-    static int32 dbTypeDisplaySize(int32 iscType, int32 iscSize) pure
+    static int32 dbTypeDisplaySize(int32 iscType, int32 iscSize) @nogc pure
     {
         int32 result = -1;
         if (auto e = fbType(iscType) in fbIscTypeToDbTypeInfos)
@@ -790,22 +790,25 @@ public:
         return result == -1 ? iscSize : result;
     }
 
-    static bool fbAllowNull(int32 iscType) pure
+    pragma(inline, true)
+    static bool fbAllowNull(int32 iscType) @nogc pure
     {
         return (iscType & 0x1) != 0;
     }
 
-    FbIscType fbType() const pure
+    pragma(inline, true)
+    FbIscType fbType() const @nogc pure
     {
         return fbType(type);
     }
 
-    static FbIscType fbType(int32 iscType) pure
+    pragma(inline, true)
+    static FbIscType fbType(int32 iscType) @nogc pure
     {
         return cast(FbIscType)(iscType & ~0x1);
     }
 
-    string fbTypeName() const
+    string fbTypeName() const pure
     {
         return fbTypeName(type);
     }
@@ -818,12 +821,12 @@ public:
             return null;
     }
 
-    int32 fbTypeSize() const
+    int32 fbTypeSize() const @nogc pure
     {
         return fbTypeSize(type, size);
     }
 
-    static int32 fbTypeSize(int32 iscType, int32 iscSize) pure
+    static int32 fbTypeSize(int32 iscType, int32 iscSize) @nogc pure
     {
         int32 result = -1;
         if (auto e = fbType(iscType) in fbIscTypeToDbTypeInfos)
@@ -831,12 +834,12 @@ public:
         return result == -1 ? iscSize : result;
     }
 
-    bool hasNumericScale() const
+    bool hasNumericScale() const @nogc pure
     {
         return hasNumericScale(type, numericScale);
     }
 
-    static bool hasNumericScale(int32 iscType, int32 iscScale) pure
+    static bool hasNumericScale(int32 iscType, int32 iscScale) @nogc pure
     {
         const t = fbType(iscType);
 	    return (iscScale != 0) &&
@@ -850,7 +853,7 @@ public:
             );
     }
 
-    static DbFieldIdType isIdType(int32 iscType, int32 iscSubType) pure
+    static DbFieldIdType isIdType(int32 iscType, int32 iscSubType) @nogc pure
     {
         switch (fbType(iscType))
         {
@@ -863,12 +866,12 @@ public:
         }
     }
 
-    const(char)[] useName() const
+    const(char)[] useName() const pure
     {
         return aliasName.length ? aliasName : name;
     }
 
-    @property bool allowNull() const
+    @property bool allowNull() const pure
     {
         return fbAllowNull(type);
     }
@@ -879,7 +882,6 @@ public:
             type |= 0x1;
         else
             type ^= 0x1;
-
         return this;
     }
 

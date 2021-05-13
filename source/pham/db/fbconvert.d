@@ -33,9 +33,9 @@ nothrow @safe:
 immutable epochDate = Date(1858, 11, 17);
 enum epochDateDayOfGregorianCal = epochDate.dayOfGregorianCal;
 
-bool boolDecode(uint8 data) pure
+bool boolDecode(uint8 fbBool) pure
 {
-    return data != 0;
+    return fbBool != 0;
 }
 
 uint8 boolEncode(bool value) pure
