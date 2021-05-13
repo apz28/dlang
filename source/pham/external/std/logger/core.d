@@ -1595,6 +1595,7 @@ public:
 
         super(options);
         this.fileName_ = fileName;
+        this.fileOpened_ = true;
     }
 
     /**
@@ -1614,14 +1615,18 @@ public:
     {
         super(options);
         this.file_ = file;
+        this.fileOpened_ = false;
     }
 
     ~this() nothrow @safe
     {
         try
         {
+            if (fileOpened_ && file_.isOpen)
+                file_.close();
             file_ = File.init;
             fileName_ = null;
+            fileOpened_ = false;
         }
         catch (Exception)
         {}
@@ -1640,7 +1645,7 @@ public:
      * If the `FileLogger` was constructed with a fileName, this method
      * returns this fileName. Otherwise an empty `string` is returned.
      */
-    @property final string fileName() nothrow pure @safe
+    @property final string fileName() const nothrow pure @safe
     {
         return this.fileName_;
     }
@@ -1666,6 +1671,8 @@ protected:
 
     /** The filename of the `File` log messages are written to. */
     string fileName_;
+
+    bool fileOpened_;
 }
 
 /**
