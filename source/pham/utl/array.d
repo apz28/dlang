@@ -11,9 +11,10 @@
 
 module pham.utl.array;
 
-//import core.memory;
 import std.range.primitives : ElementType;
 import std.traits : isDynamicArray, isStaticArray, lvalueOf;
+
+version (profile) import pham.utl.utltest : PerfFunction;
 
 nothrow:
 
@@ -133,7 +134,7 @@ public:
         return this;
     }
 
-    bool opCast(To: bool)() const nothrow
+    bool opCast(B: bool)() const nothrow pure
     {
         return !empty;
     }
@@ -242,7 +243,7 @@ public:
             return -1;
 
         auto items = this[];
-        for (ptrdiff_t i = 0; i < items.length; ++i)
+        foreach (i; 0..items.length)
         {
             if (items[i] == item)
                 return i;
@@ -317,12 +318,12 @@ public:
         return _dynamicItems.ptr is null;
     }
 
-    @property bool empty() const nothrow
+    @property bool empty() const nothrow pure
     {
         return length == 0;
     }
 
-    @property size_t length() const nothrow
+    @property size_t length() const nothrow pure
     {
         return useStatic() ? _staticLength : _dynamicItems.length;
     }
@@ -414,7 +415,7 @@ public:
         return this;
     }
 
-    bool opCast(To: bool)() const
+    bool opCast(B: bool)() const pure
     {
         return !empty;
     }
@@ -464,10 +465,20 @@ public:
 
     ptrdiff_t indexOf(scope const T item) @trusted
     {
-        for (ptrdiff_t i = 0; i < _items.length; ++i)
+        version (profile) auto p = PerfFunction.create();
+
+        foreach (i; 0.._items.length)
         {
-            if (_items[i] == item)
-                return i;
+            static if (is(T == class))
+            {
+                if (_items[i] is item)
+                    return i;
+            }
+            else
+            {
+                if (_items[i] == item)
+                    return i;
+            }
         }
 
         return -1;
@@ -496,12 +507,12 @@ public:
             return T.init;
     }
 
-    @property bool empty() const nothrow
+    @property bool empty() const pure @safe
     {
         return length == 0;
     }
 
-    @property size_t length() const nothrow
+    @property size_t length() const pure @safe
     {
         return _items.length;
     }

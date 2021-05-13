@@ -692,6 +692,7 @@ public:
      * Returns:
      *  Number of bits in the `BitArray`.
      */
+    pragma(inline, true)
     @property size_t length() const @nogc pure
     {
         return _length;

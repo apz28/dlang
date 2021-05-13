@@ -518,7 +518,7 @@ public:
 							int[][] tl = new int[][](1, 0);
 							int[][] td = new int[][](1, 0);
 							InfTree.inflateTreesFixed(bl, bd, tl, td, _codec);
-							codes.init(bl[0], bd[0], tl[0], 0, td[0], 0);
+							codes.reset(bl[0], bd[0], tl[0], 0, td[0], 0);
 							b >>= 3;
                             k -= 3;
 							mode = InflateBlockMode.CODES;
@@ -885,7 +885,8 @@ public:
 							writeAt = q;
 							return flush(r);
 						}
-						codes.init(bl[0], bd[0], hufts, tl[0], hufts, td[0]);
+
+						codes.reset(bl[0], bd[0], hufts, tl[0], hufts, td[0]);
 					}
 					mode = InflateBlockMode.CODES;
 					goto case InflateBlockMode.CODES;
@@ -1121,10 +1122,7 @@ private class InflateCodes
 nothrow @safe:
 
 public:
-	this()
-	{}
-
-	final void init(int bl, int bd, int[] tl, int tl_index, int[] td, int td_index)
+	final void reset(int bl, int bd, int[] tl, int tl_index, int[] td, int td_index)
 	{
 		mode = InflateCodeMode.START;
 		lbits = cast(ubyte)bl;
