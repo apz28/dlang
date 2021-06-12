@@ -5,9 +5,9 @@
  * Distributed under the Boost Software License, Version 1.0.
  * License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  */
-module std.logger.multilogger;
+module pham.external.std.log.multi_logger;
 
-import std.logger.core;
+import pham.external.std.log.logger;
 
 /**
  * This Element is stored inside the `MultiLogger` and associates a
@@ -31,14 +31,14 @@ struct MultiLoggerEntry
 class MultiLogger : MemLogger
 {
 public:
-    this(LoggerOptions options = defaultOptions()) nothrow @safe
+    this(LoggerOption option = defaultOption()) nothrow @safe
     {
-        super(options);
+        super(option);
     }
 
-    static LoggerOptions defaultOptions() nothrow pure @safe
+    static LoggerOption defaultOption() nothrow pure @safe
     {
-        return LoggerOptions(LogLevel.all, "Multi", defaultOutputPattern);
+        return LoggerOption(lowestLogLevel, "Multi", defaultOutputPattern);
     }
 
     /**
@@ -99,6 +99,9 @@ public:
     }
 
 protected:
+    final override void doFatal() nothrow @safe
+    {}
+
     final override void writeLog(ref Logger.LogEntry payload) nothrow @safe
     {
         foreach (ref loggerEntry; this.loggerEntries)
@@ -121,6 +124,9 @@ protected:
      */
     MultiLoggerEntry[] loggerEntries;
 }
+
+
+private:
 
 @safe unittest
 {
@@ -173,8 +179,8 @@ protected:
         logFileOutput.close();
         remove(logName);
     }
-    auto traceLog = new FileLogger(logFileOutput, LoggerOptions(LogLevel.all, "TestTrace", defaultOutputPattern));
-    auto infoLog = new TestLogger(LoggerOptions(LogLevel.info, "TestInfo", defaultOutputPattern));
+    auto traceLog = new FileLogger(logFileOutput, LoggerOption(defaultUnitTestLogLevel, "TestTrace", defaultOutputPattern));
+    auto infoLog = new TestLogger(LoggerOption(LogLevel.info, "TestInfo", defaultOutputPattern));
 
     auto root = new MultiLogger();
     root.insertLogger("fileLogger", traceLog);

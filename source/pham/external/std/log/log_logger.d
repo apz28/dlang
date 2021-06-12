@@ -10,14 +10,15 @@
  * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
 */
-module pham.external.std.logger.core;
+module pham.external.std.log.logger;
 
 import core.atomic : atomicLoad, atomicStore,  MemoryOrder;
 import core.sync.mutex : Mutex;
 import core.thread : ThreadID;
 public import core.time : Duration, dur, msecs;
 public import std.ascii : newline;
-import std.conv : to;
+import std.array : Appender;
+import std.conv : emplace, to;
 import std.datetime.date : DateTime;
 import std.datetime.systime : Clock, SysTime;
 import std.datetime.timezone : LocalTime, UTC;
@@ -26,15 +27,12 @@ import std.process : thisThreadID;
 import std.range.primitives;
 import std.stdio : File;
 import std.traits;
-import std.typecons : Flag;
+import std.typecons : Flag, Yes;
+import std.utf : encode;
 
 version (DebugLogger) import std.stdio : writeln;
+import pham.external.std.log.date_time_format;
 
-string eValue(E)(E value) nothrow pure
-if (is(E Base == enum))
-{
-    return cast(string)value;
-}
 
 /**
  * There are eight usable logging level. These level are $(I all), $(I trace),
@@ -42,108 +40,21 @@ if (is(E Base == enum))
  */
 enum LogLevel : ubyte
 {
-    all = 1, /** Lowest possible assignable `LogLevel`. */
-    trace = 32, /** `LogLevel` for tracing the execution of the program. */
-    info = 64, /** This level is used to display information about the program. */
-    warn = 96, /** warnings about the program should be displayed with this level. */
-    error = 128, /** Information about errors should be logged with this level.*/
-    critical = 160, /** Messages that inform about critical errors should be logged with this level. */
-    fatal = 192,   /** Log messages that describe fatal errors should use this level. */
-    off = ubyte.max /** Highest possible `LogLevel`. */
+    trace = 0, /** `LogLevel` for tracing the execution of the program. */
+    debug_,
+    info,      /** This level is used to display information about the program. */
+    warn,      /** warnings about the program should be displayed with this level. */
+    error,     /** Information about errors should be logged with this level.*/
+    critical,  /** Messages that inform about critical errors should be logged with this level. */
+    fatal,     /** Log messages that describe fatal errors should use this level. */
+    off        /** Highest possible `LogLevel`. */
 }
+
+enum lowestLogLevel = LogLevel.trace;
 
 enum defaultLogLevel = LogLevel.warn;
-enum defaultSharedLogLevel = LogLevel.all;
-
-/**
- * This template evaluates if the passed `LogLevel` is active.
- * The previously described version statements are used to decide if the
- * `LogLevel` is active. The version statements only influence the compile
- * unit they are used with, therefore this function can only disable logging this
- * specific compile unit.
- */
-template isLoggingActiveAt(LogLevel ll)
-{
-    version (DisableLogger)
-    {
-        enum isLoggingActiveAt = false;
-    }
-    else
-    {
-        static if (ll == LogLevel.trace)
-        {
-            version (DisableLoggerTrace) enum isLoggingActiveAt = false;
-        }
-        else static if (ll == LogLevel.info)
-        {
-            version (DisableLoggerInfo) enum isLoggingActiveAt = false;
-        }
-        else static if (ll == LogLevel.warn)
-        {
-            version (DisableLoggerWarn) enum isLoggingActiveAt = false;
-        }
-        else static if (ll == LogLevel.error)
-        {
-            version (DisableLoggerError) enum isLoggingActiveAt = false;
-        }
-        else static if (ll == LogLevel.critical)
-        {
-            version (DisableLoggerCritical) enum isLoggingActiveAt = false;
-        }
-        else static if (ll == LogLevel.fatal)
-        {
-            version (DisableLoggerFatal) enum isLoggingActiveAt = false;
-        }
-
-        // If `isLoggingActiveAt` didn't get defined above to false,
-        // we default it to true.
-        static if (!is(typeof(isLoggingActiveAt) == bool))
-        {
-            enum isLoggingActiveAt = true;
-        }
-    }
-}
-
-/// This compile-time flag is `true` if logging is not statically disabled.
-enum isLoggingActive = isLoggingActiveAt!(LogLevel.all);
-
-/**
- * This functions is used at runtime to determine if a `LogLevel` is
- * active. The same previously defined version statements are used to disable
- * certain levels. Again the version statements are associated with a compile
- * unit and can therefore not disable logging in other compile units.
- * bool isLoggingEnabled(LogLevel ll) nothrow @nogc pure @safe
- */
-bool isLoggingEnabled(const LogLevel ll, const LogLevel loggerLL, const LogLevel globalLL) @nogc nothrow pure @safe
-{
-    version (DebugLogger) debug writeln("ll=", ll, ", loggerLL=", loggerLL, ", globalLL=", globalLL);
-
-    switch (ll)
-    {
-        case LogLevel.trace:
-            version (DisableLoggerTrace) return false;
-            else break;
-        case LogLevel.info:
-            version (DisableLoggerInfo) return false;
-            else break;
-        case LogLevel.warn:
-            version (DisableLoggerWarn) return false;
-            else break;
-        case LogLevel.error:
-            version (DisableLoggerError) return false;
-            else break;
-        case LogLevel.critical:
-            version (DisableLoggerCritical) return false;
-            else break;
-        case LogLevel.fatal:
-            version (DisableLoggerFatal) return false;
-            else break;
-        default: break;
-    }
-
-    return ll >= loggerLL && ll >= globalLL
-        && ll != LogLevel.off && loggerLL != LogLevel.off && globalLL != LogLevel.off;
-}
+enum defaultStaticLogLevel = lowestLogLevel;
+enum defaultSharedLogLevel = lowestLogLevel;
 
 /**
  * This template returns the `LogLevel` named "logLevel" of type $(D
@@ -157,33 +68,135 @@ bool isLoggingEnabled(const LogLevel ll, const LogLevel loggerLL, const LogLevel
  * "PARENT_MODULE_loggerconfig" module with such a symbol.
  * If this module exists and it contains a `LogLevel` called logLevel this $(D
  * LogLevel) will be used. This parent lookup is continued until there is no
- * parent module. Then the moduleLogLevel is `LogLevel.all`.
+ * parent module. Then the moduleLogLevel is `LogLevel.trace`.
  */
 template moduleLogLevel(string moduleName)
-if (!moduleName.length)
 {
-    // default
-    enum moduleLogLevel = LogLevel.all;
+    static if (moduleName.length == 0)
+    {
+        enum moduleLogLevel = defaultStaticLogLevel;
+    }
+    else
+    {
+        import std.string : format;
+
+        mixin(q{
+            static if (__traits(compiles, {import %1$s : logLevel;}))
+            {
+                import %1$s : logLevel;
+                static assert(is(typeof(logLevel) : LogLevel), "Expect 'logLevel' to be of Type 'LogLevel'.");
+                // don't enforce enum here
+                alias moduleLogLevel = logLevel;
+            }
+            else
+                // use logLevel of package or default
+                alias moduleLogLevel = moduleLogLevel!(parentOf(moduleName));
+        }.format(moduleName ~ "_loggerconfig"));
+    }
 }
 
-/// ditto
-template moduleLogLevel(string moduleName)
-if (moduleName.length)
+/**
+ * This template evaluates if the passed `LogLevel` is active.
+ * The previously described version statements are used to decide if the
+ * `LogLevel` is active. The version statements only influence the compile
+ * unit they are used with, therefore this function can only disable logging this
+ * specific compile unit.
+ */
+template isLoggingActive(LogLevel ll)
 {
-    import std.string : format;
-
-    mixin(q{
-        static if (__traits(compiles, {import %1$s : logLevel;}))
+    version (DisableLogger)
+    {
+        enum isLoggingActive = false;
+    }
+    else
+    {
+        static if (ll == LogLevel.trace)
         {
-            import %1$s : logLevel;
-            static assert(is(typeof(logLevel) : LogLevel), "Expect 'logLevel' to be of Type 'LogLevel'.");
-            // don't enforce enum here
-            alias moduleLogLevel = logLevel;
+            version (DisableLoggerTrace) enum isLoggingActive = false;
         }
-        else
-            // use logLevel of package or default
-            alias moduleLogLevel = moduleLogLevel!(parentOf(moduleName));
-    }.format(moduleName ~ "_loggerconfig"));
+        static if (ll == LogLevel.debug_)
+        {
+            version (DisableLoggerDebug_) enum isLoggingActive = false;
+        }
+        else static if (ll == LogLevel.info)
+        {
+            version (DisableLoggerInfo) enum isLoggingActive = false;
+        }
+        else static if (ll == LogLevel.warn)
+        {
+            version (DisableLoggerWarn) enum isLoggingActive = false;
+        }
+        else static if (ll == LogLevel.error)
+        {
+            version (DisableLoggerError) enum isLoggingActive = false;
+        }
+        else static if (ll == LogLevel.critical)
+        {
+            version (DisableLoggerCritical) enum isLoggingActive = false;
+        }
+        else static if (ll == LogLevel.fatal)
+        {
+            version (DisableLoggerFatal) enum isLoggingActive = false;
+        }
+
+        // If `isLoggingActive` didn't get defined above to false,
+        // we default it to true.
+        static if (!is(typeof(isLoggingActive) == bool))
+        {
+            enum isLoggingActive = true;
+        }
+    }
+}
+
+/// This compile-time flag is `true` if logging is not statically disabled.
+enum isStaticLoggingActive = isLoggingActive!(defaultStaticLogLevel);
+
+template isStaticModuleLoggingActive(LogLevel ll, string moduleName)
+{
+    enum isStaticModuleLoggingActive = isLoggingActive!ll && ll >= moduleLogLevel!moduleName;
+}
+
+/**
+ * This functions is used at runtime to determine if a `LogLevel` is
+ * active. The same previously defined version statements are used to disable
+ * certain levels. Again the version statements are associated with a compile
+ * unit and can therefore not disable logging in other compile units.
+ * bool isLoggingEnabled(LogLevel ll) nothrow @nogc pure @safe
+ */
+bool isLoggingEnabled(const LogLevel ll, const LogLevel moduleLL, const LogLevel loggerLL, const LogLevel sharedLL) @nogc nothrow pure @safe
+{
+    version (DebugLogger) debug writeln("ll=", ll, ", moduleLL=", moduleLL, ", loggerLL=", loggerLL, ", sharedLL=", sharedLL);
+
+    version (DisableLoggerTrace)
+    if (ll == LogLevel.trace)
+        return false;
+
+    version (DisableLoggerDebug_)
+    if (ll == LogLevel.debug_)
+        return false;
+
+    version (DisableLoggerInfo)
+    if (ll == LogLevel.info)
+        return false;
+
+    version (DisableLoggerWarn)
+    if (ll == LogLevel.warn)
+        return false;
+
+    version (DisableLoggerError)
+    if (ll == LogLevel.error)
+        return false;
+
+    version (DisableLoggerCritical)
+    if (ll == LogLevel.critical)
+        return false;
+
+    version (DisableLoggerFatal)
+    if (ll == LogLevel.fatal)
+        return false;
+
+    return (ll != LogLevel.off && moduleLL != LogLevel.off)
+        && ((ll >= loggerLL && ll >= sharedLL) || (ll >= moduleLL && ll >= sharedLL));
 }
 
 enum OutputPatternMarker : char
@@ -239,13 +252,134 @@ immutable string defaultOutputPattern = OutputPattern.date
     ~ OutputPattern.message
     ~ OutputPattern.newLine;
 
-struct LoggerOptions
+struct LoggerOption
 {
-    LogLevel logLevel = defaultLogLevel;
-    string name;
+@nogc nothrow @safe:
+
+    this(LogLevel logLevel, string logName, string outputPattern) pure
+    {
+        this.logLevel = logLevel;
+        this.logName = logName;
+        this.outputPattern = outputPattern;
+    }
+
+    string logName;
     string outputPattern = defaultOutputPattern;
+    LogLevel logLevel = defaultLogLevel;
 }
 
+struct ModuleLoggerOption
+{
+@nogc nothrow @safe:
+
+    this(LogLevel logLevel, string moduleName) pure
+    {
+        this.logLevel = logLevel;
+        this.moduleName = moduleName;
+    }
+
+    string moduleName;
+    LogLevel logLevel = defaultLogLevel;
+}
+
+class ModuleLoggerOptions
+{
+nothrow @safe:
+
+public:
+    this(Mutex mutex)
+    out
+    {
+        assert(this.mutex !is null);
+    }
+    do
+    {
+        this.ownMutex = mutex is null;
+        this.mutex = this.ownMutex ? (new Mutex()) : mutex;
+    }
+
+    ~this()
+    {
+        doDispose(false);
+    }
+
+    final void dispose()
+    {
+        doDispose(true);
+    }
+
+    final LogLevel logLevel(scope string moduleName, const LogLevel notFoundLogLevel) @nogc
+    {
+        auto locked = LogRAIIMutex(mutex);
+        if (values.length == 0)
+            return notFoundLogLevel;
+        else if (const v = moduleName in values)
+            return (*v).logLevel;
+        else
+            return notFoundLogLevel;
+    }
+
+    final ModuleLoggerOption remove(scope string moduleName)
+    {
+        auto locked = LogRAIIMutex(mutex);
+        if (const v = moduleName in values)
+        {
+            auto result = *v;
+            values.remove(moduleName);
+            return result;
+        }
+        else
+            return ModuleLoggerOption.init;
+    }
+
+    void remove(scope string[] moduleNames)
+    {
+        auto locked = LogRAIIMutex(mutex);
+        foreach (moduleName; moduleNames)
+            values.remove(moduleName);
+    }
+
+    final ModuleLoggerOption set(ModuleLoggerOption option)
+    in
+    {
+        assert(option.moduleName.length != 0);
+    }
+    do
+    {
+        auto locked = LogRAIIMutex(mutex);
+        values[option.moduleName] = option;
+        return option;
+    }
+
+    final void set(ModuleLoggerOption[] options)
+    {
+        auto locked = LogRAIIMutex(mutex);
+        foreach (ref option; options)
+        {
+            assert(option.moduleName.length != 0);
+            values[option.moduleName] = option;
+        }
+    }
+
+protected:
+    void doDispose(bool disposing) @trusted
+    {
+        if (disposing)
+            values = null;
+
+        if (mutex !is null)
+        {
+            if (ownMutex)
+                mutex.destroy();
+            mutex = null;
+        }
+    }
+
+private:
+    Mutex mutex;
+    ModuleLoggerOption[string] values;
+    bool ownMutex;
+}
 
 /**
  * This function logs data.
@@ -265,7 +399,7 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(A[0]) : bool) && !is(Unq
 {
     version (DebugLogger) debug writeln("args.line=", line);
 
-    static if (isLoggingActive)
+    static if (isStaticLoggingActive)
     {
         auto logger = threadLog;
         logger.log!(moduleName, A)(logger.logLevel, args, ex, line, fileName, funcName, prettyFuncName);
@@ -291,7 +425,7 @@ void log(string moduleName = __MODULE__, A...)(lazy bool condition, lazy A args,
 {
     version (DebugLogger) debug writeln("condition.args.line=", line);
 
-    static if (isLoggingActive)
+    static if (isStaticLoggingActive)
     {
         auto logger = threadLog;
         logger.log!(moduleName, A)(logger.logLevel, condition, args, ex, line, fileName, funcName, prettyFuncName);
@@ -317,12 +451,9 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(A[0]) : bool)))
 {
     version (DebugLogger) debug writeln("ll.args.line=", line);
 
-    static if (isLoggingActive)
+    static if (isStaticLoggingActive)
     {
-        if (ll >= moduleLogLevel!moduleName)
-        {
-            threadLog.log!(moduleName, A)(ll, args, ex, line, fileName, funcName, prettyFuncName);
-        }
+        threadLog.log!(moduleName, A)(ll, args, ex, line, fileName, funcName, prettyFuncName);
     }
 }
 
@@ -344,12 +475,9 @@ void log(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy bool cond
     in int line = __LINE__, in string fileName = __FILE__,
     in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
 {
-    static if (isLoggingActive)
+    static if (isStaticLoggingActive)
     {
-        if (ll >= moduleLogLevel!moduleName)
-        {
-            threadLog.log!(moduleName, A)(ll, condition, args, ex, line, fileName, funcName, prettyFuncName);
-        }
+        threadLog.log!(moduleName, A)(ll, condition, args, ex, line, fileName, funcName, prettyFuncName);
     }
 }
 
@@ -372,7 +500,7 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(A[0]) : bool) && !is(Unq
 {
     version (DebugLogger) debug writeln("fmt.args.line=", line);
 
-    static if (isLoggingActive)
+    static if (isStaticLoggingActive)
     {
         auto logger = threadLog;
         logger.logf!(moduleName, A)(logger.logLevel, fmt, args, ex, line, fileName, funcName, prettyFuncName);
@@ -399,7 +527,7 @@ void logf(string moduleName = __MODULE__, A...)(lazy bool condition, lazy string
 {
     version (DebugLogger) debug writeln("condition.fmt.args.line=", line);
 
-    static if (isLoggingActive)
+    static if (isStaticLoggingActive)
     {
         auto logger = threadLog;
         logger.logf!(moduleName, A)(logger.logLevel, condition, fmt, args, ex, line, fileName, funcName, prettyFuncName);
@@ -426,12 +554,9 @@ void logf(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy string f
 {
     version (DebugLogger) debug writeln("ll.fmt.args.line=", line);
 
-    static if (isLoggingActive)
+    static if (isStaticLoggingActive)
     {
-        if (ll >= moduleLogLevel!moduleName)
-        {
-            threadLog.logf!(moduleName, A)(ll, fmt, args, ex, line, fileName, funcName, prettyFuncName);
-        }
+        threadLog.logf!(moduleName, A)(ll, fmt, args, ex, line, fileName, funcName, prettyFuncName);
     }
 }
 
@@ -456,12 +581,9 @@ void logf(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy bool con
 {
     version (DebugLogger) debug writeln("ll.condition.fmt.args.line=", line);
 
-    static if (isLoggingActive)
+    static if (isStaticLoggingActive)
     {
-        if (ll >= moduleLogLevel!moduleName)
-        {
-            threadLog.logf!(moduleName, A)(ll, condition, fmt, args, ex, line, fileName, funcName, prettyFuncName);
-        }
+        threadLog.logf!(moduleName, A)(ll, condition, fmt, args, ex, line, fileName, funcName, prettyFuncName);
     }
 }
 
@@ -480,7 +602,7 @@ template defaultLogFunction(LogLevel ll)
     {
         version (DebugLogger) debug writeln("defaultLogFunction.args.line=", line);
 
-        static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
+        static if (isStaticModuleLoggingActive!(ll, moduleName))
         {
             threadLog.logFunction!(ll).logImpl!(moduleName, A)(args, ex, line, fileName, funcName, prettyFuncName);
         }
@@ -492,7 +614,7 @@ template defaultLogFunction(LogLevel ll)
     {
         version (DebugLogger) debug writeln("defaultLogFunction.condition.args.line=", line);
 
-        static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
+        static if (isStaticModuleLoggingActive!(ll, moduleName))
         {
             threadLog.logFunction!(ll).logImpl!(moduleName, A)(condition, args, ex, line, fileName, funcName, prettyFuncName);
         }
@@ -513,29 +635,34 @@ template defaultLogFunction(LogLevel ll)
  *  args = The data that should be logged.
  * Example:
 --------------------
-trace(1337, "is number");
-info(1337, "is number");
-error(1337, "is number");
-critical(1337, "is number");
-fatal(1337, "is number");
-trace(true, 1337, "is number");
-info(false, 1337, "is number");
-error(true, 1337, "is number");
-critical(false, 1337, "is number");
-fatal(true, 1337, "is number");
+logTrace(1337, "is number");
+logDebug_(1337, "is number");
+logInfo(1337, "is number");
+logError(1337, "is number");
+logCritical(1337, "is number");
+logFatal(1337, "is number");
+
+logTrace(true, 1337, "is number");
+logDebug_(false, 1337, "is number");
+logInfo(false, 1337, "is number");
+logError(true, 1337, "is number");
+logCritical(false, 1337, "is number");
+logFatal(true, 1337, "is number");
 --------------------
  */
-alias trace = defaultLogFunction!(LogLevel.trace);
+alias logTrace = defaultLogFunction!(LogLevel.trace);
 /// Ditto
-alias info = defaultLogFunction!(LogLevel.info);
+alias logDebug_ = defaultLogFunction!(LogLevel.debug_);
 /// Ditto
-alias warn = defaultLogFunction!(LogLevel.warn);
+alias logInfo = defaultLogFunction!(LogLevel.info);
 /// Ditto
-alias error = defaultLogFunction!(LogLevel.error);
+alias logWarn = defaultLogFunction!(LogLevel.warn);
 /// Ditto
-alias critical = defaultLogFunction!(LogLevel.critical);
+alias logError = defaultLogFunction!(LogLevel.error);
 /// Ditto
-alias fatal = defaultLogFunction!(LogLevel.fatal);
+alias logCritical = defaultLogFunction!(LogLevel.critical);
+/// Ditto
+alias logFatal = defaultLogFunction!(LogLevel.fatal);
 
 /**
  * This template provides the global `printf`-style log functions with
@@ -552,7 +679,7 @@ template defaultLogFunctionf(LogLevel ll)
     {
         version (DebugLogger) debug writeln("defaultLogFunctionf.fmt.args.line=", line);
 
-        static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
+        static if (isStaticModuleLoggingActive!(ll, moduleName))
         {
             threadLog.logFunction!(ll).logImplf!(moduleName, A)(fmt, args, ex, line, fileName, funcName, prettyFuncName);
         }
@@ -564,7 +691,7 @@ template defaultLogFunctionf(LogLevel ll)
     {
         version (DebugLogger) debug writeln("defaultLogFunctionf.condition.fmt.args.line=", line);
 
-        static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
+        static if (isStaticModuleLoggingActive!(ll, moduleName))
         {
             threadLog.logFunction!(ll).logImplf!(moduleName, A)(condition, fmt, args, ex, line, fileName, funcName, prettyFuncName);
         }
@@ -583,11 +710,12 @@ template defaultLogFunctionf(LogLevel ll)
  *  args = The data that should be logged.
  * Example:
 --------------------
-tracef("is number %d", 1);
-infof("is number %d", 2);
-errorf("is number %d", 3);
-criticalf("is number %d", 4);
-fatalf("is number %d", 5);
+logTracef("is number %d", 1);
+logDebugf_("is number %d", 2);
+logInfof("is number %d", 3);
+logErrorf("is number %d", 4);
+logCriticalf("is number %d", 5);
+logFatalf("is number %d", 6);
 --------------------
  *
  * The second version of the function logs data to the `sharedLog` in a $(D
@@ -603,24 +731,27 @@ fatalf("is number %d", 5);
  *  args = The data that should be logged.
  * Example:
 --------------------
-tracef(false, "is number %d", 1);
-infof(false, "is number %d", 2);
-errorf(true, "is number %d", 3);
-criticalf(true, "is number %d", 4);
-fatalf(someFunct(), "is number %d", 5);
+logTracef(false, "is number %d", 1);
+logDebugf_(false, "is number %d", 2);
+logInfof(false, "is number %d", 3);
+logErrorf(true, "is number %d", 4);
+logCriticalf(true, "is number %d", 5);
+logFatalf(someFunct(), "is number %d", 6);
 --------------------
  */
-alias tracef = defaultLogFunctionf!(LogLevel.trace);
+alias logTracef = defaultLogFunctionf!(LogLevel.trace);
 /// Ditto
-alias infof = defaultLogFunctionf!(LogLevel.info);
+alias logDebugf_ = defaultLogFunctionf!(LogLevel.debug_);
 /// Ditto
-alias warnf = defaultLogFunctionf!(LogLevel.warn);
+alias logInfof = defaultLogFunctionf!(LogLevel.info);
 /// Ditto
-alias errorf = defaultLogFunctionf!(LogLevel.error);
+alias logWarnf = defaultLogFunctionf!(LogLevel.warn);
 /// Ditto
-alias criticalf = defaultLogFunctionf!(LogLevel.critical);
+alias logErrorf = defaultLogFunctionf!(LogLevel.error);
 /// Ditto
-alias fatalf = defaultLogFunctionf!(LogLevel.fatal);
+alias logCriticalf = defaultLogFunctionf!(LogLevel.critical);
+/// Ditto
+alias logFatalf = defaultLogFunctionf!(LogLevel.fatal);
 
 /**
  * This class is the base of every logger. In order to create a new kind of
@@ -635,15 +766,15 @@ abstract class Logger
 public:
     /**
      * Every subclass of `Logger` has to call this constructor from their
-     * constructor. It sets the `LoggerOptions`, and creates a fatal handler. The fatal
+     * constructor. It sets the `LoggerOption`, and creates a fatal handler. The fatal
      * handler will throw an `Error` if a log call is made with level
      * `LogLevel.fatal`.
      * Params:
-     *  options = `LoggerOptions` to use for this `Logger` instance.
+     *  option = `LoggerOption` to use for this `Logger` instance.
      */
-    this(LoggerOptions options = LoggerOptions.init) nothrow @safe
+    this(LoggerOption option = LoggerOption.init) nothrow @safe
     {
-        this.options = options;
+        this.option = option;
         this.userName_ = currentUserName();
         this.mutex = new Mutex();
     }
@@ -666,18 +797,23 @@ public:
      * logging functions is that the `sharedLogLevel` won't be evaluated again
      * since it is assumed that the caller already checked that.
      */
-    void forwardLog(ref LogEntry payload) nothrow @safe
+    void forwardLog(ref LogEntry payload) nothrow @trusted
     {
-        static if (isLoggingActive)
+        static if (isStaticLoggingActive)
         try
         {
-            synchronized (mutex)
+            bool wasLog = false;
+            const llSharedLogLevel = sharedLogLevel;
+            const llLogLevel = this.logLevel;
+            const llModuleLogLevel = (cast()moduleOptions).logLevel(payload.header.moduleName, llLogLevel);
+            if (isLoggingEnabled(payload.header.logLevel, llModuleLogLevel, llLogLevel, llSharedLogLevel))
             {
-                if (isLoggingEnabled(payload.header.logLevel, this.options.logLevel, sharedLogLevel))
-                {
-                    this.writeLog(payload);
-                }
+                auto locked = LogRAIIMutex(mutex);
+                this.writeLog(payload);
+                wasLog = true;
             }
+            if (wasLog && payload.header.logLevel == LogLevel.fatal)
+                doFatal();
         }
         catch (Exception)
         {}
@@ -698,39 +834,39 @@ public:
      */
     @property final LogLevel logLevel() const nothrow pure @safe
     {
-        return sharedLoad(cast(shared)(this.options.logLevel));
+        return sharedLoad(cast(shared)(this.option.logLevel));
     }
 
     /// Ditto
     @property final Logger logLevel(const LogLevel value) nothrow @safe @nogc
     {
-        sharedStore(cast(shared)(this.options.logLevel), value);
+        sharedStore(cast(shared)(this.option.logLevel), value);
         return this;
     }
 
     @property final string name() nothrow @safe @nogc
     {
-        scope (failure) assert(0);
-        synchronized (mutex) return this.options.name;
+        auto locked = LogRAIIMutex(mutex);
+        return this.option.logName;
     }
 
     @property final Logger name(string value) nothrow @safe @nogc
     {
-        scope (failure) assert(0);
-        synchronized (mutex) this.options.name = value;
+        auto locked = LogRAIIMutex(mutex);
+        this.option.logName = value;
         return this;
     }
 
     @property final string outputPattern() nothrow @safe @nogc
     {
-        scope (failure) assert(0);
-        synchronized (mutex) return this.options.outputPattern;
+        auto locked = LogRAIIMutex(mutex);
+        return this.option.outputPattern;
     }
 
     @property final Logger outputPattern(string value) nothrow @safe
     {
-        scope (failure) assert(0);
-        synchronized (mutex) this.options.outputPattern = value;
+        auto locked = LogRAIIMutex(mutex);
+        this.option.outputPattern = value;
         return this;
     }
 
@@ -760,14 +896,24 @@ public:
      */
     template isFunction(LogLevel ll)
     {
-        final bool isImpl(string moduleName = __MODULE__)() nothrow @safe
+        final bool isImpl(string moduleName = __MODULE__)() const nothrow
         {
-            static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
+            LogLevel llModuleLogLevel = void;
+            return isImpl2!(moduleName)(llModuleLogLevel);
+        }
+
+        final bool isImpl2(string moduleName = __MODULE__)(out LogLevel llModuleLogLevel) const nothrow @trusted
+        {
+            static if (isStaticModuleLoggingActive!(ll, moduleName))
             {
-                return isLoggingEnabled(ll, this.logLevel, sharedLogLevel);
+                const llSharedLogLevel = sharedLogLevel;
+                const llLogLevel = this.logLevel;
+                llModuleLogLevel = (cast()moduleOptions).logLevel(moduleName, llLogLevel);
+                return isLoggingEnabled(ll, llModuleLogLevel, llLogLevel, llSharedLogLevel);
             }
             else
             {
+                llModuleLogLevel = LogLevel.off;
                 return false;
             }
         }
@@ -775,29 +921,54 @@ public:
 
     /// Ditto
     alias isTrace = isFunction!(LogLevel.trace).isImpl;
+    alias isTrace2 = isFunction!(LogLevel.trace).isImpl2;
+    /// Ditto
+    alias isDebug_ = isFunction!(LogLevel.debug_).isImpl;
+    alias isDebug2_ = isFunction!(LogLevel.debug_).isImpl2;
     /// Ditto
     alias isInfo = isFunction!(LogLevel.info).isImpl;
+    alias isInfo2 = isFunction!(LogLevel.info).isImpl2;
     /// Ditto
     alias isWarn = isFunction!(LogLevel.warn).isImpl;
+    alias isWarn2 = isFunction!(LogLevel.warn).isImpl2;
     /// Ditto
     alias isError = isFunction!(LogLevel.error).isImpl;
+    alias isError2 = isFunction!(LogLevel.error).isImpl2;
     /// Ditto
     alias isCritical = isFunction!(LogLevel.critical).isImpl;
+    alias isCritical2 = isFunction!(LogLevel.critical).isImpl2;
     /// Ditto
     alias isFatal = isFunction!(LogLevel.fatal).isImpl;
+    alias isFatal2 = isFunction!(LogLevel.fatal).isImpl2;
+
     /// Ditto
-    final bool isLogLevel(const LogLevel ll) nothrow @safe
+    final bool isLogLevel(string moduleName = __MODULE__)(const LogLevel ll) const nothrow @safe
+    {
+        LogLevel llModuleLogLevel = void;
+        return isLogLevel2!(moduleName)(ll, llModuleLogLevel);
+    }
+
+    final bool isLogLevel2(string moduleName = __MODULE__)(const LogLevel ll, out LogLevel llModuleLogLevel) const nothrow @trusted
     {
         final switch (ll)
         {
-            case LogLevel.all: return isInfo();
-            case LogLevel.trace: return isTrace();
-            case LogLevel.info: return isInfo();
-            case LogLevel.warn: return isWarn();
-            case LogLevel.error: return isError();
-            case LogLevel.critical: return isCritical();
-            case LogLevel.fatal: return isFatal();
-            case LogLevel.off: return false;
+            case LogLevel.trace:
+                return isTrace2!(moduleName)(llModuleLogLevel);
+            case LogLevel.debug_:
+                return isDebug2_!(moduleName)(llModuleLogLevel);
+            case LogLevel.info:
+                return isInfo2!(moduleName)(llModuleLogLevel);
+            case LogLevel.warn:
+                return isWarn2!(moduleName)(llModuleLogLevel);
+            case LogLevel.error:
+                return isError2!(moduleName)(llModuleLogLevel);
+            case LogLevel.critical:
+                return isCritical2!(moduleName)(llModuleLogLevel);
+            case LogLevel.fatal:
+                return isFatal2!(moduleName)(llModuleLogLevel);
+            case LogLevel.off:
+                llModuleLogLevel = LogLevel.off;
+                return false;
         }
     }
 
@@ -835,20 +1006,22 @@ public:
         {
             version (DebugLogger) debug writeln("logFunction.args.line=", line);
 
-            static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
+            static if (isStaticModuleLoggingActive!(ll, moduleName))
             try
             {
-                if (isFunction!(ll).isImpl())
+                if (isFunction!(ll).isImpl!(moduleName)())
                 {
                     auto currTime = Clock.currTime;
-                    synchronized (mutex)
                     {
+                        auto locked = LogRAIIMutex(mutex);
                         auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
                         this.beginMsg(header);
                         auto writer = LogArgumentWriter(this);
                         writer.put!(A)(args);
                         this.endMsg();
                     }
+                    if (ll == LogLevel.fatal)
+                        doFatal();
                 }
             }
             catch (Exception)
@@ -881,20 +1054,22 @@ public:
         {
             version (DebugLogger) debug writeln("logFunction.condition.args.line=", line);
 
-            static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
+            static if (isStaticModuleLoggingActive!(ll, moduleName))
             try
             {
-                if (isFunction!(ll).isImpl() && condition)
+                if (isFunction!(ll).isImpl!(moduleName)() && condition)
                 {
                     auto currTime = Clock.currTime;
-                    synchronized (mutex)
                     {
+                        auto locked = LogRAIIMutex(mutex);
                         auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
                         this.beginMsg(header);
                         auto writer = LogArgumentWriter(this);
                         writer.put!(A)(args);
                         this.endMsg();
                     }
+                    if (ll == LogLevel.fatal)
+                        doFatal();
                 }
             }
             catch (Exception)
@@ -927,20 +1102,22 @@ public:
         {
             version (DebugLogger) debug writeln("logFunction.args.line=", line);
 
-            static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
+            static if (isStaticModuleLoggingActive!(ll, moduleName))
             try
             {
-                if (isFunction!(ll).isImpl())
+                if (isFunction!(ll).isImpl!(moduleName)())
                 {
                     auto currTime = Clock.currTime;
-                    synchronized (mutex)
                     {
+                        auto locked = LogRAIIMutex(mutex);
                         auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
                         this.beginMsg(header);
                         auto writer = LogArgumentWriter(this);
                         writer.putf(fmt, args);
                         this.endMsg();
                     }
+                    if (ll == LogLevel.fatal)
+                        doFatal();
                 }
             }
             catch (Exception)
@@ -974,20 +1151,22 @@ public:
         {
             version (DebugLogger) debug writeln("logFunction.condition.fmt.args.line=", line);
 
-            static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
+            static if (isStaticModuleLoggingActive!(ll, moduleName))
             try
             {
-                if (isFunction!(ll).isImpl() && condition)
+                if (isFunction!(ll).isImpl!(moduleName)() && condition)
                 {
                     auto currTime = Clock.currTime;
-                    synchronized (mutex)
                     {
+                        auto locked = LogRAIIMutex(mutex);
                         auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
                         this.beginMsg(header);
                         auto writer = LogArgumentWriter(this);
                         writer.putf(fmt, args);
                         this.endMsg();
                     }
+                    if (ll == LogLevel.fatal)
+                        doFatal();
                 }
             }
             catch (Exception)
@@ -999,22 +1178,32 @@ public:
     alias trace = logFunction!(LogLevel.trace).logImpl;
     /// Ditto
     alias tracef = logFunction!(LogLevel.trace).logImplf;
+
+    /// Ditto
+    alias debug_ = logFunction!(LogLevel.debug_).logImpl;
+    /// Ditto
+    alias debugf_ = logFunction!(LogLevel.debug_).logImplf;
+
     /// Ditto
     alias info = logFunction!(LogLevel.info).logImpl;
     /// Ditto
     alias infof = logFunction!(LogLevel.info).logImplf;
+
     /// Ditto
     alias warn = logFunction!(LogLevel.warn).logImpl;
     /// Ditto
     alias warnf = logFunction!(LogLevel.warn).logImplf;
+
     /// Ditto
     alias error = logFunction!(LogLevel.error).logImpl;
     /// Ditto
     alias errorf = logFunction!(LogLevel.error).logImplf;
+
     /// Ditto
     alias critical = logFunction!(LogLevel.critical).logImpl;
     /// Ditto
     alias criticalf = logFunction!(LogLevel.critical).logImplf;
+
     /// Ditto
     alias fatal = logFunction!(LogLevel.fatal).logImpl;
     /// Ditto
@@ -1045,21 +1234,23 @@ public:
     {
         version (DebugLogger) debug writeln("logger.args.line=", line);
 
-        static if (isLoggingActive)
+        static if (isStaticLoggingActive)
         try
         {
             const ll = this.logLevel;
-            if (isLogLevel(ll))
+            if (isLogLevel!(moduleName)(ll))
             {
                 auto currTime = Clock.currTime;
-                synchronized (mutex)
                 {
+                    auto locked = LogRAIIMutex(mutex);
                     auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.put!(A)(args);
                     this.endMsg();
                 }
+                if (ll == LogLevel.fatal)
+                    doFatal();
             }
         }
         catch (Exception)
@@ -1092,21 +1283,23 @@ public:
     {
         version (DebugLogger) debug writeln("logger.condition.args.line=", line);
 
-        static if (isLoggingActive)
+        static if (isStaticLoggingActive)
         try
         {
             const ll = this.logLevel;
-            if (isLogLevel(ll) && condition)
+            if (isLogLevel!(moduleName)(ll) && condition)
             {
                 auto currTime = Clock.currTime;
-                synchronized (mutex)
                 {
+                    auto locked = LogRAIIMutex(mutex);
                     auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.put!(A)(args);
                     this.endMsg();
                 }
+                if (ll == LogLevel.fatal)
+                    doFatal();
             }
         }
         catch (Exception)
@@ -1139,20 +1332,22 @@ public:
     {
         version (DebugLogger) debug writeln("logger.ll.args.line=", line);
 
-        static if (isLoggingActive)
+        static if (isStaticLoggingActive)
         try
         {
-            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll))
+            if (isLogLevel!(moduleName)(ll))
             {
                 auto currTime = Clock.currTime;
-                synchronized (mutex)
                 {
+                    auto locked = LogRAIIMutex(mutex);
                     auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.put!(A)(args);
                     this.endMsg();
                 }
+                if (ll == LogLevel.fatal)
+                    doFatal();
             }
         }
         catch (Exception)
@@ -1182,20 +1377,22 @@ public:
     {
         version (DebugLogger) debug writeln("logger.ll.condition.args.line=", line);
 
-        static if (isLoggingActive)
+        static if (isStaticLoggingActive)
         try
         {
-            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll) && condition)
+            if (isLogLevel!(moduleName)(ll) && condition)
             {
                 auto currTime = Clock.currTime;
-                synchronized (mutex)
                 {
+                    auto locked = LogRAIIMutex(mutex);
                     auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.put!(A)(args);
                     this.endMsg();
                 }
+                if (ll == LogLevel.fatal)
+                    doFatal();
             }
         }
         catch (Exception)
@@ -1227,21 +1424,23 @@ public:
     {
         version (DebugLogger) debug writeln("logger.fmt.args.line=", line);
 
-        static if (isLoggingActive)
+        static if (isStaticLoggingActive)
         try
         {
             const ll = this.logLevel;
-            if (isLogLevel(ll))
+            if (isLogLevel!(moduleName)(ll))
             {
                 auto currTime = Clock.currTime;
-                synchronized (mutex)
                 {
+                    auto locked = LogRAIIMutex(mutex);
                     auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.putf!(A)(fmt, args);
                     this.endMsg();
                 }
+                if (ll == LogLevel.fatal)
+                    doFatal();
             }
         }
         catch (Exception)
@@ -1275,21 +1474,23 @@ public:
     {
         version (DebugLogger) debug writeln("logger.condition.fmt.args.line=", line);
 
-        static if (isLoggingActive)
+        static if (isStaticLoggingActive)
         try
         {
             const ll = this.logLevel;
-            if (isLogLevel(ll) && condition)
+            if (isLogLevel!(moduleName)(ll) && condition)
             {
                 auto currTime = Clock.currTime;
-                synchronized (mutex)
                 {
+                    auto locked = LogRAIIMutex(mutex);
                     auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.putf!(A)(fmt, args);
                     this.endMsg();
                 }
+                if (ll == LogLevel.fatal)
+                    doFatal();
             }
         }
         catch (Exception)
@@ -1322,20 +1523,22 @@ public:
     {
         version (DebugLogger) debug writeln("logger.ll.fmt.args.line=", line);
 
-        static if (isLoggingActive)
+        static if (isStaticLoggingActive)
         try
         {
-            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll))
+            if (isLogLevel!(moduleName)(ll))
             {
                 auto currTime = Clock.currTime;
-                synchronized (mutex)
                 {
+                    auto locked = LogRAIIMutex(mutex);
                     auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.putf!(A)(fmt, args);
                     this.endMsg();
                 }
+                if (ll == LogLevel.fatal)
+                    doFatal();
             }
         }
         catch (Exception)
@@ -1370,20 +1573,22 @@ public:
     {
         version (DebugLogger) debug writeln("logger.ll.condition.fmt.args.line=", line);
 
-        static if (isLoggingActive)
+        static if (isStaticLoggingActive)
         try
         {
-            if (ll >= moduleLogLevel!moduleName && isLogLevel(ll) && condition)
+            if (isLogLevel!(moduleName)(ll) && condition)
             {
                 auto currTime = Clock.currTime;
-                synchronized (mutex)
                 {
+                    auto locked = LogRAIIMutex(mutex);
                     auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.putf!(A)(fmt, args);
                     this.endMsg();
                 }
+                if (ll == LogLevel.fatal)
+                    doFatal();
             }
         }
         catch (Exception)
@@ -1419,14 +1624,22 @@ public:
 protected:
     void doDispose(bool disposing) nothrow @trusted
     {
-        userName_ = null;
-        userContext_ = null;
-        options.logLevel = LogLevel.off;
+        option.logLevel = LogLevel.off;
+        if (disposing)
+        {
+            userName_ = null;
+            userContext_ = null;
+        }
         if (mutex !is null)
         {
             mutex.destroy();
             mutex = null;
         }
+    }
+
+    void doFatal() nothrow @safe
+    {
+        assert(0);
     }
 
     /** Signals that the log message started. */
@@ -1451,7 +1664,7 @@ protected:
 private:
     Object userContext_;
     string userName_;
-    LoggerOptions options;
+    LoggerOption option;
 }
 
 /**
@@ -1467,9 +1680,9 @@ private:
 ----------------
 class CustomLogger : Logger
 {
-    this(LoggerOptions options = LoggerOptions.init) nothrow @safe
+    this(LoggerOption option = LoggerOption.init) nothrow @safe
     {
-        super(options);
+        super(option);
     }
 
     protected override void beginMsg(ref Logger.LogHeader header) nothrow @safe
@@ -1498,18 +1711,16 @@ class CustomLogger : Logger
  */
 class MemLogger : Logger
 {
-import std.array : Appender;
-
 public:
-    this(LoggerOptions options = LoggerOptions.init) nothrow @safe
+    this(LoggerOption option = LoggerOption.init) nothrow @safe
     {
-        super(options);
+        super(option);
     }
 
 protected:
     override void beginMsg(ref Logger.LogHeader header) nothrow @safe
     {
-        static if (isLoggingActive)
+        static if (isStaticLoggingActive)
         {
             msgBuffer = Appender!string();
             msgBuffer.reserve(1000);
@@ -1519,7 +1730,7 @@ protected:
 
     override void commitMsg(scope const(char)[] msg) nothrow @safe
     {
-        static if (isLoggingActive)
+        static if (isStaticLoggingActive)
         {
             msgBuffer.put(msg);
         }
@@ -1527,7 +1738,7 @@ protected:
 
     override void endMsg() nothrow @safe
     {
-        static if (isLoggingActive)
+        static if (isStaticLoggingActive)
         {
             this.logEntry.message = msgBuffer.data;
             this.writeLog(logEntry);
@@ -1564,18 +1775,18 @@ public:
      *  fileName = The filename of the output file of the `FileLogger`. If that
      *      file can not be opened for writting, logLevel will switch to off.
      *  openMode = file mode open for appending or writing new file, default is appending
-     *  options = default log options
+     *  option = default log option
      *  createFileFolder = if yes and fileName contains a folder name, this
      *      folder will be created.
      *
      * Example:
      *  auto l1 = new FileLogger("logFile.log");
      *  auto l2 = new FileLogger("logFile.log", "w");
-     *  auto l3 = new FileLogger("logFile.log", "a", LoggerOptions(defaultOutputHeaderPatterns, LogLevel.fatal));
-     *  auto l3 = new FileLogger("logFolder/logFile.log", "a", LoggerOptions(defaultOutputHeaderPatterns, LogLevel.fatal), CreateFolder.yes);
+     *  auto l3 = new FileLogger("logFile.log", "a", LoggerOption(defaultOutputHeaderPatterns, LogLevel.fatal));
+     *  auto l3 = new FileLogger("logFolder/logFile.log", "a", LoggerOption(defaultOutputHeaderPatterns, LogLevel.fatal), CreateFolder.yes);
      */
     this(const string fileName, string openMode = "a",
-        LoggerOptions options = LoggerOptions.init,
+        LoggerOption option = LoggerOption.init,
         CreateFolder createFileFolder = CreateFolder.yes) nothrow @safe
     {
         try
@@ -1590,10 +1801,10 @@ public:
         }
         catch (Exception)
         {
-            options.logLevel = LogLevel.off;
+            option.logLevel = LogLevel.off;
         }
 
-        super(options);
+        super(option);
         this.fileName_ = fileName;
         this.fileOpened_ = true;
     }
@@ -1605,15 +1816,15 @@ public:
      * for logging will result in undefined behaviour.
      * Params:
      *  file = The file used for logging.
-     *  options = default log options
+     *  option = default log option
      * Example:
      *  auto file = File("logFile.log", "w");
      *  auto l1 = new FileLogger(file);
-     *  auto l2 = new FileLogger(file, LoggerOptions(defaultOutputHeaderPatterns, LogLevel.fatal));
+     *  auto l2 = new FileLogger(file, LoggerOption(defaultOutputHeaderPatterns, LogLevel.fatal));
      */
-    this(File file, LoggerOptions options = LoggerOptions.init) @safe
+    this(File file, LoggerOption option = LoggerOption.init) @safe
     {
-        super(options);
+        super(option);
         this.file_ = file;
         this.fileOpened_ = false;
     }
@@ -1685,13 +1896,16 @@ class NullLogger : Logger
 public:
     this() nothrow @safe
     {
-        super(LoggerOptions(LogLevel.all, "Null", ""));
+        super(LoggerOption(lowestLogLevel, "Null", ""));
     }
 
     final override void forwardLog(ref Logger.LogEntry payload) nothrow @safe
     {}
 
 protected:
+    final override void doFatal() nothrow @safe
+    {}
+
     final override void beginMsg(ref Logger.LogHeader header) nothrow @safe
     {}
 
@@ -1707,9 +1921,6 @@ protected:
 
 struct LogArgumentWriter
 {
-import std.typecons : Yes;
-import std.utf : encode;
-
 nothrow @safe:
 
 public:
@@ -1807,8 +2018,6 @@ public:
 
 struct LogOutputPatternParser
 {
-import std.array : Appender;
-
 nothrow @safe:
 
 public:
@@ -2032,12 +2241,9 @@ private:
 struct LogOutputWriter
 {
 import std.algorithm.comparison : max, min;
-import std.array : Appender, split;
+import std.array : split;
 import std.format : format;
 import std.string : lastIndexOf;
-
-import pham.utl.fmttime : formatDateTime;
-import pham.utl.utlobject : pad, stringOfChar;
 
 @safe:
 
@@ -2053,6 +2259,9 @@ public:
     {
         this.logger = logger;
     }
+
+    alias pad = pham.external.std.log.date_time_format.pad;
+    alias format = pham.external.std.log.date_time_format.format;
 
     void write(Writer)(auto ref Writer writer, ref Logger.LogEntry payload) @trusted
     {
@@ -2166,8 +2375,8 @@ public:
         try
         {
             auto s = pattern.fmt.length != 0
-                ? formatDateTime(pattern.fmt, timestamp)
-                : formatDateTime("%s", timestamp); // %s=FmtTimeSpecifier.sortableDateTime
+                ? timestamp.format(pattern.fmt)
+                : timestamp.format("%s"); // %s=FmtTimeSpecifier.sortableDateTime
             return pad(pattern, s);
         }
         catch (Exception)
@@ -2437,7 +2646,130 @@ private:
     bool logBeginEnd;
 }
 
+struct LogRAIIMutex
+{
+@nogc nothrow @safe:
+
+public:
+    @disable this();
+    @disable this(ref typeof(this));
+
+    this(Mutex mutex)
+    {
+        this._locked = 0;
+        this._mutex = mutex;
+        lock();
+    }
+
+    ~this()
+    {
+        if (_locked > 0)
+            unlock();
+        _mutex = null;
+    }
+
+    void lock()
+    {
+        if (_locked == 0 && _mutex !is null)
+            _mutex.lock_nothrow();
+        ++_locked;
+    }
+
+    void unlock()
+    in
+    {
+        assert(_locked > 0);
+    }
+    do
+    {
+        if (--_locked == 0 && _mutex !is null)
+            _mutex.unlock_nothrow();
+    }
+
+    @property int locked() const pure
+    {
+        return _locked;
+    }
+
+private:
+    Mutex _mutex;
+    int _locked;
+}
+
+struct LogRestore
+{
+nothrow @safe:
+
+public:
+    this(Logger toSharedLog)
+    in
+    {
+        assert(toSharedLog !is null);
+    }
+    do
+    {
+        this.done = false;
+        this.save();
+
+        sharedLog = toSharedLog;
+    }
+
+    this(Logger toSharedLog, Logger toThreadLog)
+    in
+    {
+        assert(toSharedLog !is null);
+        assert(toThreadLog !is null);
+    }
+    do
+    {
+        this.done = false;
+        this.save();
+
+        sharedLog = toSharedLog;
+        threadLog = toThreadLog;
+    }
+
+    ~this()
+    {
+        if (!done)
+            restore();
+    }
+
+    void restore()
+    {
+        if (!done)
+        {
+            savedThreadLog.logLevel = savedThreadLog_Level;
+            threadLog = savedThreadLog;
+
+            savedSharedLog.logLevel = savedSharedLog_Level;
+            sharedLog = savedSharedLog;
+
+            sharedLogLevel = savedSharedLogLevel;
+
+            done = true;
+        }
+    }
+
+private:
+    void save()
+    {
+        savedSharedLogLevel = sharedLogLevel;
+
+        savedSharedLog = sharedLog;
+        savedSharedLog_Level = savedSharedLog.logLevel;
+
+        savedThreadLog = threadLog;
+        savedThreadLog_Level = savedThreadLog.logLevel;
+    }
+
+    Logger savedSharedLog, savedThreadLog;
+    LogLevel savedSharedLog_Level, savedThreadLog_Level, savedSharedLogLevel;
+    bool done;
+}
+
 immutable SysTime appStartupTimestamp;
+shared ModuleLoggerOptions moduleOptions;
 
 SysTime currTime() nothrow @safe
 {
@@ -2576,42 +2908,42 @@ void sharedStore(T)(ref shared T dst, shared T src) nothrow @safe
     atomicStore!(MemoryOrder.rel)(dst, src);
 }
 
+
 private:
 
 class SharedLogger : FileLogger
 {
 public:
-    this(File file, LoggerOptions options = defaultOptions()) @safe
+    this(File file, LoggerOption option = defaultOption()) @safe
     {
-        super(file, options);
+        super(file, option);
     }
 
-    static LoggerOptions defaultOptions() nothrow @safe
+    static LoggerOption defaultOption() nothrow @safe
     {
-        return LoggerOptions(sharedLogLevel, "Shared", defaultOutputPattern);
+        return LoggerOption(defaultLogLevel, "Shared", defaultOutputPattern);
     }
 }
 
 shared Logger sharedLog_;
-__gshared SharedLogger sharedLogDefault_;
 shared LogLevel sharedLogLevel_ = defaultSharedLogLevel;
 
 /*
- This method returns the global default Logger.
- Marked @trusted because of excessive reliance on __gshared data
+ * This method returns the global default Logger.
+ * Marked @trusted because of excessive reliance on __gshared data
  */
+__gshared SharedLogger sharedLogDefault_;
+__gshared align(SharedLogger.alignof) void[__traits(classInstanceSize, SharedLogger)] sharedLogBuffer_;
 @property Logger sharedLogImpl() nothrow @trusted
 {
     import std.concurrency : initOnce;
-    import std.conv : emplace;
     import std.stdio : stderr;
 
     scope (failure) assert(0);
 
-    __gshared align(SharedLogger.alignof) void[__traits(classInstanceSize, SharedLogger)] _buffer;
-    initOnce!sharedLogDefault_({
-        auto buffer = cast(ubyte[]) _buffer;
-        return emplace!SharedLogger(buffer, stderr, SharedLogger.defaultOptions());
+    initOnce!(sharedLogDefault_)({
+        auto buffer = cast(ubyte[])sharedLogBuffer_;
+        return emplace!SharedLogger(buffer, stderr, SharedLogger.defaultOption());
     }());
     return sharedLogDefault_;
 }
@@ -2624,17 +2956,20 @@ shared LogLevel sharedLogLevel_ = defaultSharedLogLevel;
 class ForwardThreadLogger : MemLogger
 {
 public:
-    this(LoggerOptions options = defaultOptions()) nothrow @safe
+    this(LoggerOption option = defaultOption()) nothrow @safe
     {
-        super(options);
+        super(option);
     }
 
-    static LoggerOptions defaultOptions() nothrow pure @safe
+    static LoggerOption defaultOption() nothrow @safe
     {
-        return LoggerOptions(defaultSharedLogLevel, "Forward", defaultOutputPattern);
+        return LoggerOption(lowestLogLevel, "ForwardThread", defaultOutputPattern);
     }
 
 protected:
+    final override void doFatal() nothrow @safe
+    {}
+
     final override void writeLog(ref Logger.LogEntry payload) nothrow @safe
     {
         sharedLog.forwardLog(payload);
@@ -2647,30 +2982,28 @@ protected:
  * every same way as presented earlier.
  */
 Logger threadLog_;
-ForwardThreadLogger threadLogDefault_;
 
 /*
- This method returns the thread local default Logger.
+ * This method returns the thread local default Logger for sharedLog.
  */
+ForwardThreadLogger threadLogDefault_;
+align(ForwardThreadLogger.alignof) void[__traits(classInstanceSize, ForwardThreadLogger)] threadLogBuffer_;
 @property Logger threadLogImpl() nothrow @trusted
 {
-    import std.conv : emplace;
-
-    static align(ForwardThreadLogger.alignof) void[__traits(classInstanceSize, ForwardThreadLogger)] _buffer;
     if (threadLogDefault_ is null)
     {
-        auto buffer = cast(ubyte[]) _buffer;
-        threadLogDefault_ = emplace!ForwardThreadLogger(buffer, ForwardThreadLogger.defaultOptions());
+        auto buffer = cast(ubyte[])threadLogBuffer_;
+        threadLogDefault_ = emplace!ForwardThreadLogger(buffer, ForwardThreadLogger.defaultOption());
     }
     return threadLogDefault_;
 }
 
-string parentOf(string mod) nothrow @safe
+string parentOf(string moduleName) nothrow @safe
 {
-    foreach_reverse (i, c; mod)
+    foreach_reverse (i, c; moduleName)
     {
         if (c == '.')
-            return mod[0 .. i];
+            return moduleName[0..i];
     }
     return null;
 }
@@ -2678,26 +3011,43 @@ string parentOf(string mod) nothrow @safe
 shared static this()
 {
     appStartupTimestamp = currTime();
+    moduleOptions = cast(shared)(new ModuleLoggerOptions(null));
 }
 
 ///
 @safe unittest // moduleLogLevel
 {
-    static assert(moduleLogLevel!"" == LogLevel.all);
+    static assert(moduleLogLevel!"" == defaultStaticLogLevel);
 }
 
 ///
 @system unittest // moduleLogLevel
 {
-    static assert(moduleLogLevel!"not.amodule.path" == LogLevel.all);
+    static assert(moduleLogLevel!"not.amodule.path" == defaultStaticLogLevel);
 }
 
 @safe unittest // sharedLogLevel
 {
     LogLevel ll = sharedLogLevel;
+    scope (exit)
+        sharedLogLevel = ll;
+
     sharedLogLevel = LogLevel.fatal;
     assert(sharedLogLevel == LogLevel.fatal);
-    sharedLogLevel = ll;
+
+}
+
+@safe unittest
+{
+    assert(sharedLogLevel == defaultSharedLogLevel);
+
+    auto dl = cast(SharedLogger)sharedLog;
+    assert(dl !is null);
+    assert(dl.logLevel == defaultLogLevel, to!string(dl.logLevel));
+
+    auto tl = cast(ForwardThreadLogger)threadLog;
+    assert(tl !is null);
+    assert(tl.logLevel == lowestLogLevel, to!string(tl.logLevel));
 }
 
 ///
@@ -2793,7 +3143,7 @@ shared static this()
     // enum outputPatternPadLeftMarker = 'l'; // Lower case L
     // enum outputPatternPadRightMarker = 'r';
     auto complexPattern = "begin literal - "
-        ~ OutputPatternMarker.terminator ~ "2l3r20m'mm/dd/yyyy'" ~ OutputPatternName.date ~ OutputPatternMarker.terminator
+        ~ OutputPatternMarker.terminator ~ "2l3r20m'%cmm/%cdd/%cyyyy'" ~ OutputPatternName.date ~ OutputPatternMarker.terminator
         ~ " - some literal in between - "
         ~ OutputPatternMarker.terminator ~ "50m" ~ OutputPatternName.filename ~ OutputPatternMarker.terminator
         ~ OutputPatternMarker.terminator ~ "'2'' %s ''2'" ~ OutputPatternName.method ~ OutputPatternMarker.terminator
@@ -2808,11 +3158,11 @@ shared static this()
     assert(!parser.empty);
     kind = parser.next(element);
     assert(kind == LogOutputPatternElement.Kind.pattern);
-    assert(element.pattern == OutputPatternName.date && element.value == OutputPatternMarker.terminator ~ "2l3r20m'mm/dd/yyyy'" ~ OutputPatternName.date ~ OutputPatternMarker.terminator);
+    assert(element.pattern == OutputPatternName.date && element.value == OutputPatternMarker.terminator ~ "2l3r20m'%cmm/%cdd/%cyyyy'" ~ OutputPatternName.date ~ OutputPatternMarker.terminator);
     assert(element.leftPad == 2);
     assert(element.rightPad == 3);
     assert(element.maxWidth == 20);
-    assert(element.fmt == "mm/dd/yyyy");
+    assert(element.fmt == "%cmm/%cdd/%cyyyy");
 
     assert(!parser.empty);
     kind = parser.next(element);
@@ -2916,77 +3266,82 @@ shared static this()
 }
 
 version (unittest)
-package(pham.external.std.logger) class TestLoggerCustomContext
+package(pham.external.std.log)
 {
-    override string toString() nothrow @safe
+    enum defaultUnitTestLogLevel = lowestLogLevel;
+
+    class TestLoggerCustomContext
     {
-        return customContext;
+        override string toString() nothrow @safe
+        {
+            return customContext;
+        }
+
+        static immutable customContext = "Additional context";
     }
 
-    static immutable customContext = "Additional context";
-}
-
-version (unittest)
-package(pham.external.std.logger) class TestLogger : MemLogger
-{
-import std.array : Appender;
-import std.conv : to;
-
-public:
-    this(LoggerOptions options = defaultOptions()) nothrow @safe
+    class TestLogger : MemLogger
     {
-        super(options);
-        this.userContext = new TestLoggerCustomContext();
+    public:
+        this(LoggerOption option = defaultOption()) nothrow @safe
+        {
+            super(option);
+            this.userContext = new TestLoggerCustomContext();
+        }
+
+        final string debugString(int expectedLine) nothrow @safe
+        {
+            scope (failure) assert(0);
+
+            return "lvl=" ~ to!string(lvl) ~ ", line=" ~ to!string(line)
+                ~ " vs expectedline=" ~ to!string(expectedLine)
+                ~ ", msg=" ~ msg;
+        }
+
+        static LoggerOption defaultOption() nothrow pure @safe
+        {
+            return LoggerOption(defaultUnitTestLogLevel, "Test", defaultOutputPattern);
+        }
+
+        final void reset() nothrow pure @safe
+        {
+            lvl = defaultUnitTestLogLevel;
+            line = 0;
+            file = func = outputMessage = prettyFunc = msg = null;
+        }
+
+    protected:
+        // Do not terminated testing process
+        final override void doFatal() nothrow @safe
+        {}
+
+        final override void writeLog(ref Logger.LogEntry payload) nothrow @safe
+        {
+            scope (failure) assert(0);
+
+            this.lvl = payload.header.logLevel;
+            this.line = payload.header.line;
+            this.file = payload.header.fileName;
+            this.func = payload.header.funcName;
+            this.prettyFunc = payload.header.prettyFuncName;
+            this.msg = payload.message;
+
+            auto buffer = Appender!string();
+            buffer.reserve(500);
+            auto writer = LogOutputWriter(this);
+            writer.write(buffer, payload);
+            this.outputMessage = buffer.data;
+        }
+
+    public:
+        LogLevel lvl;
+        int line;
+        string file;
+        string func;
+        string outputMessage;
+        string prettyFunc;
+        string msg;
     }
-
-    final string debugString(int expectedLine) nothrow @safe
-    {
-        scope (failure) assert(0);
-
-        return "lvl=" ~ to!string(lvl) ~ ", line=" ~ to!string(line)
-            ~ " vs expectedline=" ~ to!string(expectedLine)
-            ~ ", msg=" ~ msg;
-    }
-
-    static LoggerOptions defaultOptions() nothrow pure @safe
-    {
-        return LoggerOptions(LogLevel.all, "Test", defaultOutputPattern);
-    }
-
-    final void reset() nothrow pure @safe
-    {
-        lvl = LogLevel.all;
-        line = 0;
-        file = func = outputMessage = prettyFunc = msg = null;
-    }
-
-protected:
-    final override void writeLog(ref Logger.LogEntry payload) nothrow @safe
-    {
-        scope (failure) assert(0);
-
-        this.lvl = payload.header.logLevel;
-        this.line = payload.header.line;
-        this.file = payload.header.fileName;
-        this.func = payload.header.funcName;
-        this.prettyFunc = payload.header.prettyFuncName;
-        this.msg = payload.message;
-
-        auto buffer = Appender!string();
-        buffer.reserve(500);
-        auto writer = LogOutputWriter(this);
-        writer.write(buffer, payload);
-        this.outputMessage = buffer.data;
-    }
-
-public:
-    LogLevel lvl;
-    int line;
-    string file;
-    string func;
-    string outputMessage;
-    string prettyFunc;
-    string msg;
 }
 
 version (unittest)
@@ -3012,8 +3367,8 @@ void testFuncNames(Logger logger) @safe
 {
     auto tl1 = new TestLogger();
     testFuncNames(tl1);
-    assert(tl1.func == "pham.external.std.logger.core.testFuncNames", tl1.func);
-    assert(tl1.prettyFunc == "void pham.external.std.logger.core.testFuncNames(Logger logger) @safe", tl1.prettyFunc);
+    assert(tl1.func == "pham.external.std.log.logger.testFuncNames", tl1.func);
+    assert(tl1.prettyFunc == "void pham.external.std.log.logger.testFuncNames(Logger logger) @safe", tl1.prettyFunc);
     assert(tl1.msg == "I'm here", tl1.msg);
 }
 
@@ -3037,12 +3392,7 @@ void testFuncNames(Logger logger) @safe
     tl1.log(LogLevel.info, false, "");
     assert(tl1.line == __LINE__ - 3);
 
-    auto oldunspecificLogger = sharedLog;
-    scope(exit) {
-        sharedLog = oldunspecificLogger;
-    }
-
-    sharedLog = tl1;
+    auto logRestore = LogRestore(tl1);
 
     log(to!string(__LINE__));
     assert(tl1.line == __LINE__ - 1, tl1.debugString(__LINE__ - 1));
@@ -3056,13 +3406,13 @@ void testFuncNames(Logger logger) @safe
     log(LogLevel.warn, true, to!string(__LINE__));
     assert(tl1.line == __LINE__ - 1, tl1.debugString(__LINE__ - 1));
 
-    trace(to!string(__LINE__));
+    logTrace(to!string(__LINE__));
     assert(tl1.line == __LINE__ - 1, tl1.debugString(__LINE__ - 1));
 }
 
 @safe unittest
 {
-    import pham.external.std.logger.multilogger : MultiLogger;
+    import pham.external.std.log.multi_logger : MultiLogger;
 
     auto tl1 = new TestLogger();
     auto tl2 = new TestLogger();
@@ -3096,55 +3446,50 @@ void testFuncNames(Logger logger) @safe
     int lineNumber = __LINE__ - 1;
     assert(l.msg == msg);
     assert(l.line == lineNumber);
-    assert(l.logLevel == LogLevel.all);
+    assert(l.logLevel == defaultUnitTestLogLevel);
 
     l.log(true, msg);
     lineNumber = __LINE__ - 1;
     assert(l.msg == msg, l.msg);
     assert(l.line == lineNumber);
-    assert(l.logLevel == LogLevel.all);
+    assert(l.logLevel == defaultUnitTestLogLevel);
 
     l.log(false, msg);
     assert(l.msg == msg);
     assert(l.line == lineNumber, to!string(l.line));
-    assert(l.logLevel == LogLevel.all);
+    assert(l.logLevel == defaultUnitTestLogLevel);
 
     msg = "%s Another message";
     l.logf(msg, "Yet");
     lineNumber = __LINE__ - 1;
     assert(l.msg == msg.format("Yet"));
     assert(l.line == lineNumber);
-    assert(l.logLevel == LogLevel.all);
+    assert(l.logLevel == defaultUnitTestLogLevel);
 
     l.logf(true, msg, "Yet");
     lineNumber = __LINE__ - 1;
     assert(l.msg == msg.format("Yet"));
     assert(l.line == lineNumber);
-    assert(l.logLevel == LogLevel.all);
+    assert(l.logLevel == defaultUnitTestLogLevel);
 
     l.logf(false, msg, "Yet");
     assert(l.msg == msg.format("Yet"));
     assert(l.line == lineNumber);
-    assert(l.logLevel == LogLevel.all);
+    assert(l.logLevel == defaultUnitTestLogLevel);
 
-    l.logf(LogLevel.fatal, false, msg, "Yet");
+    l.logf(LogLevel.critical, false, msg, "Yet");
     assert(l.msg == msg.format("Yet"));
     assert(l.line == lineNumber);
-    assert(l.logLevel == LogLevel.all);
+    assert(l.logLevel == defaultUnitTestLogLevel);
 
-    auto oldunspecificLogger = sharedLog;
-    sharedLog = l;
-    scope(exit)
-    {
-        sharedLog = oldunspecificLogger;
-    }
+    auto logRestore = LogRestore(l);
 
-    assert(sharedLog.logLevel == LogLevel.all);
+    assert(sharedLog.logLevel == defaultUnitTestLogLevel);
 
     msg = "Another message";
     log(msg);
     lineNumber = __LINE__ - 1;
-    assert(l.logLevel == LogLevel.all);
+    assert(l.logLevel == defaultUnitTestLogLevel);
     assert(l.line == lineNumber, to!string(l.line));
     assert(l.msg == msg, l.msg);
 
@@ -3152,35 +3497,35 @@ void testFuncNames(Logger logger) @safe
     lineNumber = __LINE__ - 1;
     assert(l.msg == msg);
     assert(l.line == lineNumber);
-    assert(l.logLevel == LogLevel.all);
+    assert(l.logLevel == defaultUnitTestLogLevel);
 
     log(false, msg);
     assert(l.msg == msg);
     assert(l.line == lineNumber);
-    assert(l.logLevel == LogLevel.all);
+    assert(l.logLevel == defaultUnitTestLogLevel);
 
     msg = "%s Another message";
     logf(msg, "Yet");
     lineNumber = __LINE__ - 1;
     assert(l.msg == msg.format("Yet"));
     assert(l.line == lineNumber);
-    assert(l.logLevel == LogLevel.all);
+    assert(l.logLevel == defaultUnitTestLogLevel);
 
     logf(true, msg, "Yet");
     lineNumber = __LINE__ - 1;
     assert(l.msg == msg.format("Yet"));
     assert(l.line == lineNumber);
-    assert(l.logLevel == LogLevel.all);
+    assert(l.logLevel == defaultUnitTestLogLevel);
 
     logf(false, msg, "Yet");
     assert(l.msg == msg.format("Yet"));
     assert(l.line == lineNumber);
-    assert(l.logLevel == LogLevel.all);
+    assert(l.logLevel == defaultUnitTestLogLevel);
 
-    logf(LogLevel.fatal, false, msg, "Yet");
+    logf(LogLevel.critical, false, msg, "Yet");
     assert(l.msg == msg.format("Yet"));
     assert(l.line == lineNumber);
-    assert(l.logLevel == LogLevel.all);
+    assert(l.logLevel == defaultUnitTestLogLevel);
 }
 
 @safe unittest
@@ -3188,11 +3533,13 @@ void testFuncNames(Logger logger) @safe
     import std.conv : to;
 
     auto tl = new TestLogger();
+
     int l = __LINE__;
     tl.info("a");
     assert(tl.line == l+1);
     assert(tl.msg == "a");
-    assert(tl.logLevel == LogLevel.all);
+    assert(tl.logLevel == defaultUnitTestLogLevel);
+
     l = __LINE__;
     tl.trace("b");
     assert(tl.msg == "b", tl.msg);
@@ -3206,21 +3553,11 @@ void testFuncNames(Logger logger) @safe
     import std.format : format;
     import std.string : indexOf;
 
-    auto oldsharedLog = sharedLog;
-    auto oldSharedLogLevel = sharedLogLevel;
-    auto oldThreadLogLevel = threadLog.logLevel;
-
     auto mem = new TestLogger();
     auto memS = new TestLogger();
-    sharedLog = memS;
-    scope(exit)
-    {
-        sharedLog = oldsharedLog;
-        sharedLogLevel = oldSharedLogLevel;
-        threadLog.logLevel = oldThreadLogLevel;
-    }
+    auto logRestore = LogRestore(memS);
 
-    auto levels = [cast(LogLevel) LogLevel.all, LogLevel.trace,
+    const levels = [LogLevel.trace, LogLevel.debug_,
         LogLevel.info, LogLevel.warn, LogLevel.error,
         LogLevel.critical, LogLevel.fatal, LogLevel.off];
 
@@ -3339,33 +3676,19 @@ void testFuncNames(Logger logger) @safe
 @safe unittest
 {
     auto mem = new TestLogger();
+    auto logRestore = LogRestore(mem);
 
-    auto oldSharedLog = sharedLog;
-    auto oldSharedLogLevel = sharedLogLevel;
-    auto oldThreadLogLevel = threadLog.logLevel;
+    const levels = [LogLevel.trace, LogLevel.debug_,
+        LogLevel.info, LogLevel.warn, LogLevel.error,
+        LogLevel.critical, LogLevel.fatal, LogLevel.off];
 
-    threadLog.logLevel = LogLevel.all;
-    sharedLog = mem;
-    scope(exit)
-    {
-        sharedLog = oldSharedLog;
-        sharedLogLevel = oldSharedLogLevel;
-        threadLog.logLevel = oldThreadLogLevel;
-    }
-
-    foreach (gll; [cast(LogLevel) LogLevel.all, LogLevel.trace,
-            LogLevel.info, LogLevel.warn, LogLevel.error,
-            LogLevel.critical, LogLevel.fatal, LogLevel.off])
+    foreach (gll; levels)
     {
         sharedLogLevel = gll;
-        foreach (ll; [cast(LogLevel) LogLevel.all, LogLevel.trace,
-                LogLevel.info, LogLevel.warn, LogLevel.error,
-                LogLevel.critical, LogLevel.fatal, LogLevel.off])
+        foreach (ll; levels)
         {
             mem.logLevel = ll;
-            foreach (tll; [cast(LogLevel) LogLevel.all, LogLevel.trace,
-                    LogLevel.info, LogLevel.warn, LogLevel.error,
-                    LogLevel.critical, LogLevel.fatal, LogLevel.off])
+            foreach (tll; levels)
             {
                 threadLog.logLevel = tll;
                 foreach (cond; [true, false])
@@ -3397,149 +3720,145 @@ void testFuncNames(Logger logger) @safe
                     mem.trace(__LINE__); int line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    trace(__LINE__); line = __LINE__;
+                    logTrace(__LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     mem.trace(cond, __LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    trace(cond, __LINE__); line = __LINE__;
+                    logTrace(cond, __LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     mem.tracef("%d", __LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    tracef("%d", __LINE__); line = __LINE__;
+                    logTracef("%d", __LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     mem.tracef(cond, "%d", __LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    tracef(cond, "%d", __LINE__); line = __LINE__;
+                    logTracef(cond, "%d", __LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     llVSgll = ll >= sharedLogLevel;
                     lVSll = LogLevel.info >= ll;
                     lVSgll = LogLevel.info >= tll;
                     test = llVSgll && gllVSll && lVSll && gllOff && llOff && cond;
-                    testG = gllOff && llOff && tllOff && tllVSll && tllVSgll &&
-                        lVSgll && cond;
+                    testG = gllOff && llOff && tllOff && tllVSll && tllVSgll && lVSgll && cond;
 
                     mem.info(__LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    info(__LINE__); line = __LINE__;
+                    logInfo(__LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     mem.info(cond, __LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    info(cond, __LINE__); line = __LINE__;
+                    logInfo(cond, __LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     mem.infof("%d", __LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    infof("%d", __LINE__); line = __LINE__;
+                    logInfof("%d", __LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     mem.infof(cond, "%d", __LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    infof(cond, "%d", __LINE__); line = __LINE__;
+                    logInfof(cond, "%d", __LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     llVSgll = ll >= sharedLogLevel;
                     lVSll = LogLevel.warn >= ll;
                     lVSgll = LogLevel.warn >= tll;
                     test = llVSgll && gllVSll && lVSll && gllOff && llOff && cond;
-                    testG = gllOff && llOff && tllOff && tllVSll && tllVSgll &&
-                        lVSgll && cond;
+                    testG = gllOff && llOff && tllOff && tllVSll && tllVSgll && lVSgll && cond;
 
                     mem.warn(__LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    warn(__LINE__); line = __LINE__;
+                    logWarn(__LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     mem.warn(cond, __LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    warn(cond, __LINE__); line = __LINE__;
+                    logWarn(cond, __LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     mem.warnf("%d", __LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    warnf("%d", __LINE__); line = __LINE__;
+                    logWarnf("%d", __LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     mem.warnf(cond, "%d", __LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    warnf(cond, "%d", __LINE__); line = __LINE__;
+                    logWarnf(cond, "%d", __LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     llVSgll = ll >= sharedLogLevel;
                     lVSll = LogLevel.critical >= ll;
                     lVSgll = LogLevel.critical >= tll;
                     test = llVSgll && gllVSll && lVSll && gllOff && llOff && cond;
-                    testG = gllOff && llOff && tllOff && tllVSll && tllVSgll &&
-                        lVSgll && cond;
+                    testG = gllOff && llOff && tllOff && tllVSll && tllVSgll && lVSgll && cond;
 
                     mem.critical(__LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    critical(__LINE__); line = __LINE__;
+                    logCritical(__LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     mem.critical(cond, __LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    critical(cond, __LINE__); line = __LINE__;
+                    logCritical(cond, __LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     mem.criticalf("%d", __LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    criticalf("%d", __LINE__); line = __LINE__;
+                    logCriticalf("%d", __LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     mem.criticalf(cond, "%d", __LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    criticalf(cond, "%d", __LINE__); line = __LINE__;
+                    logCriticalf(cond, "%d", __LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     llVSgll = ll >= sharedLogLevel;
                     lVSll = LogLevel.fatal >= ll;
                     lVSgll = LogLevel.fatal >= tll;
                     test = llVSgll && gllVSll && lVSll && gllOff && llOff && cond;
-                    testG = gllOff && llOff && tllOff && tllVSll && tllVSgll &&
-                        lVSgll && cond;
+                    testG = gllOff && llOff && tllOff && tllVSll && tllVSgll && lVSgll && cond;
 
                     mem.fatal(__LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    fatal(__LINE__); line = __LINE__;
+                    logFatal(__LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     mem.fatal(cond, __LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    fatal(cond, __LINE__); line = __LINE__;
+                    logFatal(cond, __LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     mem.fatalf("%d", __LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    fatalf("%d", __LINE__); line = __LINE__;
+                    logFatalf("%d", __LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
 
                     mem.fatalf(cond, "%d", __LINE__); line = __LINE__;
                     assert(test ? mem.line == line : true); line = -1;
 
-                    fatalf(cond, "%d", __LINE__); line = __LINE__;
+                    logFatalf(cond, "%d", __LINE__); line = __LINE__;
                     assert(testG ? mem.line == line : true); line = -1;
                 }
             }
@@ -3552,14 +3871,10 @@ void testFuncNames(Logger logger) @safe
 {
     import std.string : indexOf;
 
-    auto oldunspecificLogger = sharedLog;
+    auto tl = new TestLogger(LoggerOption(LogLevel.info, "Test", defaultOutputPattern));
+    auto logRestore = LogRestore(tl);
 
-    auto tl = new TestLogger(LoggerOptions(LogLevel.info, "Test", defaultOutputPattern));
-    sharedLog = tl;
-    scope(exit)
-        sharedLog = oldunspecificLogger;
-
-    trace("trace");
+    logTrace("trace");
     assert(tl.msg.indexOf("trace") == -1);
 }
 
@@ -3567,30 +3882,19 @@ void testFuncNames(Logger logger) @safe
 @safe unittest
 {
     import std.string : indexOf;
-    import pham.external.std.logger.multilogger : MultiLogger;
+    import pham.external.std.log.multi_logger : MultiLogger;
 
-    auto logger = new MultiLogger(LoggerOptions(LogLevel.error, "Multi", defaultOutputPattern));
-    auto tl = new TestLogger(LoggerOptions(LogLevel.info, "Test", defaultOutputPattern));
+    auto logger = new MultiLogger(LoggerOption(LogLevel.error, "Multi", defaultOutputPattern));
+    auto tl = new TestLogger(LoggerOption(LogLevel.info, "Test", defaultOutputPattern));
     logger.insertLogger("required", tl);
+    auto logRestore = LogRestore(logger);
+    threadLog.logLevel = defaultUnitTestLogLevel;
 
-    auto oldSharedLog = sharedLog;
-    auto oldSharedLogLevel = sharedLogLevel;
-    auto oldThreadLogLevel = threadLog.logLevel;
-
-    sharedLog = logger;
-    threadLog.logLevel = LogLevel.all;
-    scope(exit)
-    {
-        sharedLog = oldSharedLog;
-        sharedLogLevel = oldSharedLogLevel;
-        threadLog.logLevel = oldThreadLogLevel;
-    }
-
-    trace("trace");
+    logTrace("trace");
     assert(tl.msg.indexOf("trace") == -1);
-    info("info");
+    logInfo("info");
     assert(tl.msg.indexOf("info") == -1);
-    error("error");
+    logError("error");
     assert(tl.msg.indexOf("error") == 0);
 }
 
@@ -3623,7 +3927,7 @@ void testFuncNames(Logger logger) @safe
     public:
         this()
         {
-            super(LoggerOptions(LogLevel.trace, "Test", defaultOutputPattern));
+            super(LoggerOption(LogLevel.trace, "Test", defaultOutputPattern));
             this.tid = thisThreadID;
         }
 
@@ -3643,7 +3947,7 @@ void testFuncNames(Logger logger) @safe
     public:
         this() nothrow
         {
-            super(LoggerOptions(LogLevel.trace, "Ignore", defaultOutputPattern));
+            super(LoggerOption(LogLevel.trace, "Ignore", defaultOutputPattern));
         }
 
     protected:
@@ -3653,40 +3957,20 @@ void testFuncNames(Logger logger) @safe
         }
     }
 
-    auto oldSharedLog = sharedLog;
-    sharedLog = new IgnoredLog;
-    scope(exit)
-    {
-        sharedLog = oldSharedLog;
-    }
+    auto logRestore = LogRestore(new IgnoredLog);
 
     Thread[] spawned;
-
     foreach (i; 0 .. 4)
     {
         spawned ~= new Thread({
             threadLog = new TestLog;
-            trace("zzzzzzzzzz");
+            logTrace("zzzzzzzzzz");
         });
         spawned[$-1].start();
     }
-
     foreach (t; spawned)
         t.join();
-
     assert(atomicOp!"=="(logged_count, 4));
-}
-
-@safe unittest
-{
-    auto dl = cast(SharedLogger) sharedLog;
-    assert(dl !is null);
-    assert(dl.logLevel == defaultSharedLogLevel);
-    assert(sharedLogLevel == defaultSharedLogLevel);
-
-    auto tl = cast(ForwardThreadLogger) threadLog;
-    assert(tl !is null);
-    assert(tl.logLevel == defaultSharedLogLevel);
 }
 
 // https://issues.dlang.org/show_bug.cgi?id=14940
@@ -3775,14 +4059,11 @@ void testFuncNames(Logger logger) @safe
             remove(fn);
     }
 
-    auto fl = new FileLogger(fn, "w", LoggerOptions(LogLevel.all, "Test", defaultOutputPattern));
+    auto fl = new FileLogger(fn, "w", LoggerOption(defaultUnitTestLogLevel, "Test", defaultOutputPattern));
     scope (exit)
         fl.file.close();
 
-    auto oldShared = sharedLog;
-    sharedLog = fl;
-    scope (exit)
-        sharedLog = oldShared;
+    auto logRestore = LogRestore(fl);
 
     auto ts = [ "Test log 1", "Test log 2", "Test log 3"];
     foreach (t; ts)
@@ -3809,11 +4090,8 @@ void testFuncNames(Logger logger) @safe
 
     string filename = deleteme ~ __FUNCTION__ ~ ".tempLogFile";
     auto l = new FileLogger(filename);
-
-    scope(exit)
-    {
+    scope (exit)
         remove(filename);
-    }
 
     string notWritten = "this should not be written to file";
     string written = "this should be written to file";
@@ -3840,7 +4118,7 @@ void testFuncNames(Logger logger) @safe
     const string filename = filepath ~ "output.txt";
     assert(!exists(filepath));
 
-    auto f = new FileLogger(filename, "w", LoggerOptions(LogLevel.all, "Test", defaultOutputPattern));
+    auto f = new FileLogger(filename, "w", LoggerOption(defaultUnitTestLogLevel, "Test", defaultOutputPattern));
     scope(exit) () @trusted
     {
         f.file.close();
@@ -3889,18 +4167,11 @@ void testFuncNames(Logger logger) @safe
 
     string filename = deleteme ~ __FUNCTION__ ~ ".tempLogFile";
     FileLogger l = new FileLogger(filename);
-    scope(exit)
+    scope (exit)
         remove(filename);
 
-    auto oldunspecificLogger = sharedLog;
-    auto oldunspecificLogLevel = sharedLogLevel;
-    sharedLog = l;
+    auto logRestore = LogRestore(l);
     sharedLogLevel = LogLevel.critical;
-    scope(exit)
-    {
-        sharedLog = oldunspecificLogger;
-        sharedLogLevel = oldunspecificLogLevel;
-    }
 
     string notWritten = "this should not be written to file";
     string written = "this should be written to file";
@@ -3929,21 +4200,15 @@ void testFuncNames(Logger logger) @safe
     import std.range.primitives;
 
     string filename = deleteme ~ __FUNCTION__ ~ ".tempLogFile";
-    auto oldunspecificLogger = sharedLog;
-    auto oldunspecificLogLevel = oldunspecificLogger.logLevel;
-    scope(exit)
-    {
-        remove(filename);
-        sharedLog = oldunspecificLogger;
-        sharedLog.logLevel = oldunspecificLogLevel;
-    }
 
     string notWritten = "this should not be written to file";
     string written = "this should be written to file";
 
     auto l = new FileLogger(filename);
-    sharedLog = l;
-    sharedLog.logLevel = LogLevel.critical;
+    scope (exit)
+        remove(filename);
+    l.logLevel = LogLevel.critical;
+    auto logRestore = LogRestore(l);
 
     log(LogLevel.error, false, notWritten);
     log(LogLevel.critical, true, written);
@@ -3962,13 +4227,11 @@ void testFuncNames(Logger logger) @safe
 @system unittest
 {
     import std.file : deleteme, remove;
-    auto oldThreadLog = threadLog;
-    threadLog = new FileLogger(deleteme ~ "-someFile.log");
+
+    auto fl = new FileLogger(deleteme ~ "-someFile.log");
     scope(exit)
-    {
         remove(deleteme ~ "-someFile.log");
-        threadLog = oldThreadLog;
-    }
+    auto logRestore = LogRestore(fl, fl);
 
     auto tempLog = threadLog;
     destroy(tempLog);
@@ -3982,10 +4245,12 @@ void testFuncNames(Logger logger) @safe
 
     string testMessage = "message text";
     auto tl = new TestLogger();
-    LogOutputPatternElement blankPattern;
+    LogOutputPatternElement blankPattern, datePattern;
     SysTime atTimestamp;
     string atfileName, atfuncName, atprettyFuncName;
     int atLine;
+
+    datePattern.fmt = "%S";
 
     void setFunctionInfo(in string fileName = __FILE__,
         in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__)
@@ -4002,8 +4267,15 @@ void testFuncNames(Logger logger) @safe
         tl.log(testMessage); atLine = __LINE__;
     }
 
+    tl.outputPattern = OutputPatternMarker.terminator ~ "'%S'" ~ OutputPatternName.date ~ OutputPatternMarker.terminator
+        ~ " [" ~ OutputPattern.level ~ "] "
+        ~ OutputPattern.filename ~ "."
+        ~ OutputPattern.line ~ "."
+        ~ OutputPattern.method ~ ": "
+        ~ OutputPattern.message
+        ~ OutputPattern.newLine;
     callLog();
-    auto expectedOutput = LogOutputWriter.date(blankPattern, atTimestamp)
+    auto expectedOutput = LogOutputWriter.date(datePattern, atTimestamp)
         ~ " [" ~ LogOutputWriter.logLevel(blankPattern, tl.logLevel) ~ "] "
         ~ LogOutputWriter.fileName(blankPattern, atfileName) ~ "."
         ~ LogOutputWriter.integer(blankPattern, atLine) ~ "."
@@ -4014,9 +4286,11 @@ void testFuncNames(Logger logger) @safe
     version (DebugLogger) debug writeln(expectedOutput);
     assert(tl.outputMessage == expectedOutput, tl.outputMessage ~ " vs " ~ expectedOutput);
 
-    tl.outputPattern = OutputPattern.date ~ OutputPattern.userContext ~ OutputPattern.timestamp;
+    tl.outputPattern = OutputPatternMarker.terminator ~ "'%S'" ~ OutputPatternName.date ~ OutputPatternMarker.terminator
+        ~ OutputPattern.userContext
+        ~ OutputPattern.timestamp;
     callLog();
-    expectedOutput = LogOutputWriter.date(blankPattern, atTimestamp)
+    expectedOutput = LogOutputWriter.date(datePattern, atTimestamp)
         ~ LogOutputWriter.text(blankPattern, TestLoggerCustomContext.customContext)
         ~ LogOutputWriter.timestamp(blankPattern, atTimestamp);
     version (DebugLogger) debug writeln(tl.outputMessage);
@@ -4051,13 +4325,13 @@ unittest // LogTimming
     assert(tl.msg == "0,timeLog");
 
     timeLog(true);
-    assert(msg == "0,Begin,timeLog" && tl.msg == "0,End,timeLog");
+    assert(msg == "0,Begin,timeLog" && tl.msg == "0,End,timeLog", msg);
 
     timeLog(false, dur!"msecs"(2));
     assert(msecs() >= 3 && tl.lvl == LogLevel.warn);
 
     timeLog(true, dur!"msecs"(2));
-    assert(msg == "0,Begin,timeLog" && msecs() >= 3 && tl.lvl == LogLevel.warn);
+    assert(msg == "0,Begin,timeLog" && msecs() >= 3 && tl.lvl == LogLevel.warn, msg);
 
     tl.reset();
     timeLog(true, dur!"msecs"(2), false);

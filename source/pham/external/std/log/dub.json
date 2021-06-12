@@ -1,5 +1,5 @@
 {
-	"name": "pham.external.std.logger",
+	"name": "pham.external.std.log",
 	"description": "Logging modules.",
 	"authors": ["An Pham"],
 	"homepage": "",

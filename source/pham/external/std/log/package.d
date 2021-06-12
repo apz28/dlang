@@ -205,7 +205,8 @@ calls to its stored `Logger`. The `NullLogger` does not do anything. It
 will never log a message and will never throw on a log call with `LogLevel`
 `error`.
 */
-module std.logger;
+module pham.external.std.log;
 
-public import std.logger.core;
-public import std.logger.multilogger;
+public import pham.external.std.log.logger;
+public import pham.external.std.log.multi_logger;
+public import pham.external.std.log.date_time_format;
