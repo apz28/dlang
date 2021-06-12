@@ -13,7 +13,7 @@ module pham.db.parser;
 
 import std.array : Appender;
 
-version (unittest) import pham.utl.utltest;
+version (unittest) import pham.utl.test;
 import pham.utl.utf8;
 import pham.db.message;
 import pham.db.exception;
@@ -169,7 +169,7 @@ private:
 
 unittest // parseParameter
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.parser.parseParameter");
 
     static class StringList

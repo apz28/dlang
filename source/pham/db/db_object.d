@@ -21,12 +21,12 @@ import std.format : format;
 import std.traits : ParameterTypeTuple, Unqual;
 import std.uni : sicmp, toUpper;
 
-version (profile) import pham.utl.utltest : PerfFunction;
-version (unittest) import pham.utl.utltest;
+version (profile) import pham.utl.test : PerfFunction;
+version (unittest) import pham.utl.test;
 import pham.utl.utf8 : utf8NextChar;
 import pham.utl.array : UnshrinkArray;
 import pham.utl.enum_set : EnumSet;
-import pham.utl.utlobject : DisposableState, IDisposable, shortClassName;
+import pham.utl.object : DisposableState, IDisposable, shortClassName;
 import pham.db.message;
 import pham.db.util;
 import pham.db.exception;
@@ -1202,7 +1202,7 @@ unittest // DbNameValueList
 {
     import std.conv : to;
     import std.string : indexOf;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.dbobject.DbNameValueList");
 
     auto list = new DbNameValueList!string();
@@ -1263,7 +1263,7 @@ unittest // DbNameValueList
 unittest // DbNameObjectList
 {
     import std.string : indexOf;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.dbobject.DbNameObjectList");
 
     static class DbNameObjectTest : DbNameObject

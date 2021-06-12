@@ -11,8 +11,8 @@
 
 module pham.db.buffer_filter_compressor;
 
-version (unittest) import pham.utl.utltest;
-import pham.utl.utlobject : alignRoundup;
+version (unittest) import pham.utl.test;
+import pham.utl.object : alignRoundup;
 import pham.db.buffer_filter;
 
 nothrow @safe:
@@ -166,7 +166,7 @@ private:
 unittest // DbBufferFilterCompressorZip
 {
     import std.string : representation;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.buffer_filter_compressor.DbBufferFilterCompressorZip");
 
 	auto compress = new DbBufferFilterCompressorZip!(DbBufferFilterKind.write)();

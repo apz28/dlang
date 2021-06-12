@@ -14,31 +14,29 @@ module pham.db.fbconvert;
 import core.time : Duration, dur;
 import std.algorithm.mutation : reverse;
 import std.conv : to;
-import std.datetime.date : TimeOfDay;
-import std.datetime.systime : SysTime;
 import std.exception : assumeWontThrow;
 import std.system : Endian, endian;
 import std.typecons : No;
 
-import pham.external.decimal.codec;
-
-version (unittest) import pham.utl.utltest;
-import pham.utl.biginteger : toBigEndianFlag;
+version (profile) import pham.utl.test : PerfFunction;
+version (unittest) import pham.utl.test;
+import pham.external.dec.codec : DecimalCodec32, DecimalCodec64, DecimalCodec128;
+import pham.utl.datetime.time_zone : TimeZoneInfo, TimeZoneInfoMap;
+import pham.utl.big_integer : toBigEndianFlag;
 import pham.db.type;
-import pham.db.convert;
 import pham.db.fbisc;
+import pham.db.fbtimezone : FbTimeZone;
 
 nothrow @safe:
 
-immutable epochDate = Date(1858, 11, 17);
-enum epochDateDayOfGregorianCal = epochDate.dayOfGregorianCal;
+enum epochDate = Date(1858, 11, 17);
 
-bool boolDecode(uint8 fbBool) pure
+bool boolDecode(uint8 fbBool) @nogc pure
 {
     return fbBool != 0;
 }
 
-uint8 boolEncode(bool value) pure
+uint8 boolEncode(bool value) @nogc pure
 {
     return value ? 1 : 0;
 }
@@ -47,9 +45,11 @@ uint8 boolEncode(bool value) pure
  * Date-part value as number of days elapsed since “date zero” — November 17, 1858 - Modified JD
  * https://en.wikipedia.org/wiki/Julian_day
  */
-Date dateDecode(int32 fbDate)
+Date dateDecode(int32 fbDate) pure
 {
-    return epochDate + dur!"days"(fbDate);
+	scope (failure) assert(0);
+
+    return epochDate.addDays(fbDate);
 
 	version (none)
     {
@@ -91,9 +91,9 @@ Date dateDecode(int32 fbDate)
 	}
 }
 
-int32 dateEncode(in Date value) pure
+int32 dateEncode(scope const Date value) @nogc pure
 {
-    return cast(int32)(value.dayOfGregorianCal - epochDateDayOfGregorianCal);
+    return value.days - epochDate.days;
 
 	version (none)
 	{
@@ -116,30 +116,54 @@ int32 dateEncode(in Date value) pure
 	}
 }
 
-DbDateTime dateTimeDecode(int32 fbDate, int32 fbTime)
+DbDateTime dateTimeDecode(int32 fbDate, int32 fbTime) pure
 {
-	auto convert = SysTime(dateDecode(fbDate), LocalTime()) + timeToDuration(fbTime);
-	return DbDateTime(convert, 0, DbDateTimeKind.local);
+	version (profile) auto p = PerfFunction.create();
+	//dgWriteln("fbDate=", fbDate, ", fbTime=", fbTime);
+
+	auto dt = DateTime(dateDecode(fbDate), Time(timeToDuration(fbTime)));
+	return DbDateTime(dt, 0);
 }
 
-void dateTimeEncode(in DbDateTime value, out int32 fbDate, out int32 fbTime)
+void dateTimeEncode(scope const DbDateTime value, out int32 fbDate, out int32 fbTime) @nogc pure
 {
-	fbDate = dateEncode(value.getDate());
-	fbTime = durationToTime(value.getTimeOfDayDuration());
+	fbDate = dateEncode(value.date);
+	fbTime = durationToTime(value.time.toDuration());
 }
+
+enum notUseZoneOffset = int16.max;
 
 DbDateTime dateTimeDecodeTZ(int32 fbDate, int32 fbTime, uint16 fbZoneId, int16 fbZoneOffset)
 {
-	//todo fbZoneOffset if not zero
-	auto convert = SysTime(dateDecode(fbDate), UTC()) + timeToDuration(fbTime);
-	return DbDateTime(convert, fbZoneId, DbDateTimeKind.utc);
+	scope (failure) assert(0);
+
+	auto fbtzm = FbTimeZone.timeZone(fbZoneId);
+	auto tzm = TimeZoneInfoMap.timeZoneMap(fbtzm.name);
+	auto dt = DateTime(dateDecode(fbDate), Time(timeToDuration(fbTime)));
+	if (fbZoneOffset != notUseZoneOffset)
+    {
+		if (fbZoneOffset != 0)
+			dt = dt.addMinutes(-cast(int)fbZoneOffset);
+		dt = dt.toDateTimeKindUTC();
+    }
+	else if (tzm.isValid())
+    {
+		dt = tzm.info.convertDateTimeToUTC(dt);
+    }
+	return DbDateTime(TimeZoneInfo.convertUtcToLocal(dt), 0);
 }
 
-void dateTimeEncodeTZ(in DbDateTime value, out int32 fbDate, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)
+void dateTimeEncodeTZ(scope const DbDateTime value, out int32 fbDate, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)
 {
-	dateTimeEncode(value.toUTC(), fbDate, fbTime);
 	fbZoneId = FbIsc.GMT_ZONE;
 	fbZoneOffset = 0; // Already in UTC so set it to zero
+	if (value.kind == DateTimeKind.utc)
+		dateTimeEncode(value, fbDate, fbTime);
+	else
+    {
+		auto utc = value.toUTC();
+		dateTimeEncode(utc, fbDate, fbTime);
+    }
 }
 
 size_t decimalByteLength(D)() pure
@@ -227,42 +251,61 @@ bool int128Encode(in BigInteger value, ref ubyte[int128ByteLength] bytes)
 	return true;
 }
 
-DbTime timeDecode(int32 fbTime)
+DbTime timeDecode(int32 fbTime) @nogc pure
 {
 	return DbTime(timeToDuration(fbTime));
 }
 
-int32 timeEncode(in DbTime value)
+int32 timeEncode(scope const DbTime value) @nogc pure
 {
 	return durationToTime(value.toDuration());
 }
 
 DbTime timeDecodeTZ(int32 fbTime, uint16 fbZoneId, int16 fbZoneOffset)
 {
-	//todo fbZoneOffset if not zero
-	auto convert = nullDateTimeTZ + timeToDuration(fbTime);
-	return DbTime(convert, fbZoneId, DbDateTimeKind.utc);
+	scope (failure) assert(0);
+
+	auto fbtzm = FbTimeZone.timeZone(fbZoneId);
+	auto tzm = TimeZoneInfoMap.timeZoneMap(fbtzm.name);
+	auto dt = DateTime(DateTime.utcNow.date, Time(timeToDuration(fbTime)));
+	if (fbZoneOffset != notUseZoneOffset)
+    {
+		if (fbZoneOffset != 0)
+			dt = dt.addMinutes(-cast(int)fbZoneOffset);
+		dt = dt.toDateTimeKindUTC();
+    }
+	else if (tzm.isValid())
+    {
+		dt = tzm.info.convertDateTimeToUTC(dt);
+    }
+	return DbTime(TimeZoneInfo.convertUtcToLocal(dt).time, 0);
 }
 
-void timeEncodeTZ(in DbTime value, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)
+void timeEncodeTZ(scope const DbTime value, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)
 {
-    fbTime = durationToTime(value.toUTC().toDuration());
 	fbZoneId = FbIsc.GMT_ZONE;
 	fbZoneOffset = 0; // Already in UTC so set it to zero
+	if (value.kind == DateTimeKind.utc)
+		fbTime = timeEncode(value);
+	else
+    {
+		auto utct = value.toUTC();
+		fbTime = timeEncode(utct);
+    }
 }
 
 // time-part value as the number of deci-milliseconds (10^-4 second) elapsed since midnight
 // microsecond is 10^-6 second
 pragma(inline, true)
-int32 durationToTime(Duration timeOfDay) pure
+int32 durationToTime(scope const Duration time) @nogc pure
 {
-	return cast(int32)(timeOfDay.total!"usecs" / 100);
+	return cast(int32)(time.total!"usecs" / 100);
 }
 
 // time-part value as the number of deci-milliseconds (10^-4 second) elapsed since midnight
 // microsecond is 10^-6 second
 pragma(inline, true)
-Duration timeToDuration(int32 fbTime) pure
+Duration timeToDuration(int32 fbTime) @nogc pure
 {
 	// cast(int64) = to avoid overflow
 	return dur!"usecs"(cast(int64)fbTime * 100);
@@ -272,10 +315,9 @@ Duration timeToDuration(int32 fbTime) pure
 // Any below codes are private
 private:
 
-
 unittest // dateDecode & dateEncode
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbconvert.dateDecode & dateEncode");
 
 	enum orgFbDate = 58_989;
@@ -291,7 +333,7 @@ unittest // dateDecode & dateEncode
 
 unittest // timeDecode & timeEncode
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbconvert.timeDecode & timeEncode");
 
 	enum orgFbTime = 36_610_000;
@@ -307,8 +349,8 @@ unittest // timeDecode & timeEncode
 
 unittest // int128Decode & int128Encode
 {
-	import pham.utl.utlobject : bytesFromHexs;
-    import pham.utl.utltest;
+	import pham.utl.object : bytesFromHexs;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbconvert.int128Decode & int128Encode");
 
 	static BigInteger safeBigInteger(string value) nothrow pure @safe

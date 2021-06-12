@@ -17,8 +17,8 @@ import std.exception : assumeWontThrow;
 import std.format : format;
 import std.traits : EnumMembers, Unqual;
 
-version (TraceFunction) import pham.utl.utltest;
-import pham.utl.variant;
+version (TraceFunction) import pham.utl.test;
+import pham.utl.variant : Algebraic, Variant, VariantType;
 import pham.db.util : toVersionString;
 import pham.db.message;
 import pham.db.type;
@@ -1736,8 +1736,8 @@ shared static this() nothrow
 
 unittest // FbIscBlobSize
 {
-    import pham.utl.utlobject;
-    import pham.utl.utltest;
+    import pham.utl.object;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbtype.FbIscBlobSize");
 
     auto info = bytesFromHexs("05040004000000040400010000000604000400000001");
@@ -1749,8 +1749,8 @@ unittest // FbIscBlobSize
 
 unittest // FbIscBindInfo
 {
-    import pham.utl.utlobject;
-    import pham.utl.utltest;
+    import pham.utl.object;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbtype.FbIscBindInfo");
 
     FbIscBindInfo[] bindResults;

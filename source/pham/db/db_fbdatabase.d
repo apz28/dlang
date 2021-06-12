@@ -20,12 +20,12 @@ import std.math : abs;
 import std.string : indexOf;
 import std.system : Endian;
 
-import pham.external.std.logger.core : Logger, LogTimming;
+import pham.external.std.log.logger : Logger, LogTimming;
 
-version (profile) import pham.utl.utltest : PerfFunction;
-version (unittest) import pham.utl.utltest;
+version (profile) import pham.utl.test : PerfFunction;
+version (unittest) import pham.utl.test;
 import pham.utl.enum_set : toName;
-import pham.utl.utlobject : DisposableState, functionName;
+import pham.utl.object : DisposableState, functionName;
 import pham.db.message;
 import pham.db.exception : SkException;
 import pham.db.util;
@@ -1392,9 +1392,9 @@ protected:
         return result;
     }
 
-    final override DbBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
+    final override DbReadBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
     {
-        return new SkReadBuffer!(Endian.bigEndian)(this, capacity);
+        return new SkReadBuffer(this, capacity);
     }
 
     final override DbBuffer createSocketWriteBuffer(size_t capacity = DbDefaultSize.socketWriteBufferLength) nothrow @safe
@@ -1851,7 +1851,7 @@ private:
 
 version (UnitTestPerfFBDatabase)
 {
-    import pham.utl.utltest : PerfTestResult;
+    import pham.utl.test : PerfTestResult;
 
     PerfTestResult unitTestPerfFBDatabase()
     {
@@ -1900,6 +1900,8 @@ version (UnitTestPerfFBDatabase)
 
             void readData(ref DbReader reader)
             {
+                Foo5 = reader.getValue!DbDateTime(0);
+                version (none) {
                 Foo1 = reader.getValue!int64(0); //foo1 BIGINT NOT NULL,
                 Foo2 = reader.getValue!int64(1); //foo2 BIGINT NOT NULL,
                 Foo3 = reader.getValue!string(2); //foo3 VARCHAR(255),
@@ -1933,6 +1935,7 @@ version (UnitTestPerfFBDatabase)
                 Foo31 = reader.getValue!int64(30); //foo31 BIGINT NOT NULL,
                 Foo32 = reader.getValue!Decimal64(31); //foo32 DECIMAL(18, 2) NOT NULL,
                 Foo33 = reader.getValue!Decimal64(32); //foo33 DECIMAL(18, 2) NOT NULL
+                }
             }
         }
 
@@ -1957,7 +1960,7 @@ version (UnitTestPerfFBDatabase)
             command = null;
         }
 
-        command.commandText = "select * from foo";
+        command.commandText = "select foo5 from foo";
         auto reader = command.executeReader();
         scope (exit)
             reader.dispose();
@@ -2121,7 +2124,7 @@ WHERE INT_FIELD = @INT_FIELD
 
 unittest // FbConnectionStringBuilder
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbConnectionStringBuilder");
 
     auto db = DbDatabaseList.getDb(DbScheme.fb);
@@ -2141,7 +2144,7 @@ unittest // FbConnectionStringBuilder
 version (UnitTestFBDatabase)
 unittest // FbConnection
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbConnection");
 
     auto connection = createTestConnection();
@@ -2162,7 +2165,7 @@ unittest // FbConnection
 version (UnitTestFBDatabase)
 unittest // FbConnection.encrypt
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbConnection - encrypt");
 
     {
@@ -2203,7 +2206,7 @@ unittest // FbConnection.encrypt
 version (UnitTestFBDatabase)
 unittest // FbConnection.integratedSecurity
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbConnection - integratedSecurity");
 
     version (Windows)
@@ -2227,7 +2230,7 @@ unittest // FbConnection.integratedSecurity
 version (UnitTestFBDatabase)
 unittest // FbConnection.encrypt.compress
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbConnection - encrypt=required, compress=true");
 
     auto connection = createTestConnection(DbEncryptedConnection.required, true);
@@ -2248,7 +2251,7 @@ unittest // FbConnection.encrypt.compress
 version (UnitTestFBDatabase)
 unittest // FbTransaction
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbTransaction");
 
     auto connection = createTestConnection();
@@ -2290,7 +2293,7 @@ unittest // FbTransaction
 version (UnitTestFBDatabase)
 unittest // FbTransaction
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbTransaction - encrypt=enabled, compress=true");
 
     auto connection = createTestConnection(DbEncryptedConnection.enabled, true);
@@ -2311,7 +2314,7 @@ unittest // FbTransaction
 version (UnitTestFBDatabase)
 unittest // FbCommand.DDL
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DDL");
 
     bool failed = true;
@@ -2346,7 +2349,7 @@ unittest // FbCommand.DDL
 version (UnitTestFBDatabase)
 unittest // FbCommand.DDL.encrypt.compress
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DDL - encrypt=enabled, compress=true");
 
     bool failed = true;
@@ -2381,7 +2384,7 @@ unittest // FbCommand.DDL.encrypt.compress
 version (UnitTestFBDatabase)
 unittest // FbCommand.getExecutionPlan
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbCommand.getExecutionPlan");
 
     bool failed = true;
@@ -2429,8 +2432,8 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.DML.Types
 {
     import std.conv;
-    import pham.utl.utlobject;
-    import pham.utl.utltest;
+    import pham.utl.object;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML.Types");
 
     bool failed = true;
@@ -2781,7 +2784,7 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.DML
 {
     import std.math;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Simple select");
 
     bool failed = true;
@@ -2834,14 +2837,14 @@ unittest // FbCommand.DML
         assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
         assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
 
-        assert(reader.getValue(6) == toDate(2020, 5, 20));
-        assert(reader.getValue("DATE_FIELD") == toDate(2020, 5, 20));
+        assert(reader.getValue(6) == Date(2020, 5, 20));
+        assert(reader.getValue("DATE_FIELD") == Date(2020, 5, 20));
 
-        assert(reader.getValue(7) == DbTime(1, 1, 1));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
+        assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
+        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1, 0));
 
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0));
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
+        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0, 0), reader.getValue(8).toString());
+        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
 
         assert(reader.getValue(9) == "ABC       ");
         assert(reader.getValue("CHAR_FIELD") == "ABC       ");
@@ -2867,7 +2870,7 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.DML.Parameter
 {
     import std.math;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Parameter select");
 
     bool failed = true;
@@ -2894,8 +2897,8 @@ unittest // FbCommand.DML.Parameter
     command.parameters.add("INT_FIELD", DbType.int32).value = 1;
     command.parameters.add("DOUBLE_FIELD", DbType.float64).value = 4.20;
     command.parameters.add("DECIMAL_FIELD", DbType.decimal64).value = Decimal64(6.5);
-    command.parameters.add("DATE_FIELD", DbType.date).value = toDate(2020, 5, 20);
-    command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1);
+    command.parameters.add("DATE_FIELD", DbType.date).value = Date(2020, 5, 20);
+    command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1, 0);
     command.parameters.add("CHAR_FIELD", DbType.chars).value = "ABC       ";
     command.parameters.add("VARCHAR_FIELD", DbType.string).value = "XYZ";
     auto reader = command.executeReader();
@@ -2927,14 +2930,14 @@ unittest // FbCommand.DML.Parameter
         assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
         assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
 
-        assert(reader.getValue(6) == toDate(2020, 5, 20));
-        assert(reader.getValue("DATE_FIELD") == toDate(2020, 5, 20));
+        assert(reader.getValue(6) == Date(2020, 5, 20));
+        assert(reader.getValue("DATE_FIELD") == Date(2020, 5, 20));
 
-        assert(reader.getValue(7) == DbTime(1, 1, 1));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
+        assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
+        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1, 0));
 
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0));
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
+        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
+        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
 
         assert(reader.getValue(9) == "ABC       ");
         assert(reader.getValue("CHAR_FIELD") == "ABC       ");
@@ -2960,7 +2963,7 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.DML.encrypt.compress
 {
     import std.math;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Simple select with encrypt=enabled, compress=true");
 
     bool failed = true;
@@ -3013,14 +3016,14 @@ unittest // FbCommand.DML.encrypt.compress
         assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
         assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
 
-        assert(reader.getValue(6) == toDate(2020, 5, 20));
-        assert(reader.getValue("DATE_FIELD") == toDate(2020, 05, 20));
+        assert(reader.getValue(6) == Date(2020, 5, 20));
+        assert(reader.getValue("DATE_FIELD") == Date(2020, 05, 20));
 
-        assert(reader.getValue(7) == DbTime(1, 1, 1));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
+        assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
+        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1, 0));
 
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0));
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
+        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
+        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
 
         assert(reader.getValue(9) == "ABC       ");
         assert(reader.getValue("CHAR_FIELD") == "ABC       ");
@@ -3045,7 +3048,7 @@ unittest // FbCommand.DML.encrypt.compress
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML.FbArrayManager
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML - FbArrayManager");
 
     bool failed = true;
@@ -3077,7 +3080,7 @@ unittest // FbCommand.DML.FbArrayManager
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML.Array
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Array");
 
     static int[] arrayValue() nothrow pure @safe
@@ -3147,7 +3150,7 @@ unittest // FbCommand.DML.Array
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML.Array.Less
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Array.Less");
 
     static int[] selectArrayValue() nothrow pure @safe
@@ -3222,7 +3225,7 @@ unittest // FbCommand.DML.Array.Less
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML.StoredProcedure
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML.StoredProcedure");
 
     bool failed = true;
@@ -3284,7 +3287,7 @@ version (UnitTestPerfFBDatabase)
 unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953
 {
     import std.format : format;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbdatabase.FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
 
     const perfResult = unitTestPerfFBDatabase();

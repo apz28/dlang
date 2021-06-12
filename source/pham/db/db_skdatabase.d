@@ -16,9 +16,9 @@ import std.format : format;
 import std.socket : socket_t, Address, AddressFamily, InternetAddress, lastSocketError, Socket, SocketOption, SocketOptionLevel, SocketType;
 import std.system : Endian;
 
-version (profile) import pham.utl.utltest : PerfFunction;
-version (unittest) import pham.utl.utltest;
-version (TraceFunction) import pham.utl.utlobject : bytesToHexs;
+version (profile) import pham.utl.test : PerfFunction;
+version (unittest) import pham.utl.test;
+version (TraceFunction) import pham.utl.object : bytesToHexs;
 
 import pham.db.dbobject;
 import pham.db.message;
@@ -127,13 +127,13 @@ public:
     }
 
 package(pham.db):
-    final IbReadBuffer acquireSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
+    final DbReadBuffer acquireSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
         if (_socketReadBuffer is null)
             _socketReadBuffer = createSocketReadBuffer(capacity);
-        return _socketReadBuffer.isReadBuffer();
+        return _socketReadBuffer;
     }
 
     final IbWriteBuffer acquireSocketWriteBuffer(size_t capacity = DbDefaultSize.socketWriteBufferLength) nothrow @safe
@@ -414,7 +414,7 @@ protected:
         throw createReadDataError(msg, errorRawCode, null);
     }
 
-    abstract DbBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe;
+    abstract DbReadBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe;
     abstract DbBuffer createSocketWriteBuffer(size_t capacity = DbDefaultSize.socketWriteBufferLength) nothrow @safe;
 
 protected:
@@ -423,7 +423,7 @@ protected:
     DbBufferFilter _socketWriteBufferFilters;
 
 private:
-    DbBuffer _socketReadBuffer;
+    DbReadBuffer _socketReadBuffer;
     DLinkDbBufferTypes.DLinkList _socketWriteBuffers;
 }
 
@@ -491,7 +491,7 @@ protected:
     }
 }
 
-class SkReadBuffer(Endian EndianKind = Endian.bigEndian) : DbReadBuffer!EndianKind
+class SkReadBuffer : DbReadBuffer
 {
 @safe:
 
@@ -504,7 +504,7 @@ public:
     }
 
     version (TraceFunction) static size_t readCounter = 0;
-    final override IbReadBuffer fill(const size_t additionalBytes, bool mustSatisfied)
+    final override void fill(const size_t additionalBytes, bool mustSatisfied)
     {
         version (profile) auto p = PerfFunction.create();
 
@@ -540,8 +540,6 @@ public:
             auto msg = format(DbMessage.eNotEnoughData, additionalBytes, hasReadData ? n : 0);
             connection.throwReadDataError(0, msg);
         }
-
-        return this;
     }
 
     @property final SkConnection connection() nothrow pure
@@ -554,14 +552,6 @@ protected:
     {
         _connection = null;
         super.doDispose(disposing);
-    }
-
-    final override void ensureAvailable(size_t nBytes) @trusted
-    {
-        version (profile) auto p = PerfFunction.create();
-
-        fill(nBytes, false);
-        super.ensureAvailable(nBytes);
     }
 
 protected:

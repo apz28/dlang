@@ -13,20 +13,18 @@
 module pham.db.pgconvert;
 
 import core.time : Duration, dur;
-import std.datetime.date : DateTime, TimeOfDay;
-import std.datetime.systime : SysTime;
-import std.exception : assumeWontThrow;
 
-version (unittest) import pham.utl.utltest;
+version (unittest) import pham.utl.test;
+import pham.utl.datetime.tick : Tick;
+import pham.utl.datetime.time_zone : TimeZoneInfo;
 import pham.db.type;
-import pham.db.convert;
+import pham.db.convert : toDecimal;
 import pham.db.pgtype;
 
 nothrow @safe:
 
-immutable epochDate = Date(2000, 1, 1);
-enum epochDateDayOfGregorianCal = epochDate.dayOfGregorianCal;
-immutable SysTime epochDateTimeLocal, epochDateTimeTZ;
+enum epochDate = Date(2000, 1, 1);
+enum epochDateTime = DateTime(2000, 1, 1);
 
 version (none)
 enum epochDateJulian = dateToJulian(2000, 1, 1); // 2_451_545
@@ -79,41 +77,50 @@ void dateDecode(int32 pgDate, out int year, out int month, out int day) pure
 
 Date dateDecode(int32 pgDate) pure
 {
-    return epochDate + dur!"days"(pgDate);
+	scope (failure) assert(0);
+
+    return epochDate.addDays(pgDate);
 }
 
-int32 dateEncode(in Date value) pure
+int32 dateEncode(scope const Date value) @nogc pure
 {
-    return cast(int32)(value.dayOfGregorianCal - epochDateDayOfGregorianCal);
+    return value.days - epochDate.days;
 }
 
-DbDateTime dateTimeDecode(int64 pgDateTime) @trusted
+DbDateTime dateTimeDecode(int64 pgDateTime) pure
 {
-    auto convert = epochDateTimeLocal + timeToDuration(pgDateTime);
+	scope (failure) assert(0);
 
-	Duration biasDuration;
-	if (isDSTBug(cast(DateTime)convert, biasDuration))
-		convert += biasDuration;
-
-    return DbDateTime(convert, 0, DbDateTimeKind.local);
+    auto dt = epochDateTime + timeToDuration(pgDateTime);
+    return DbDateTime(dt, 0);
 }
 
-int64 dateTimeEncode(in DbDateTime value)
+int64 dateTimeEncode(scope const DbDateTime value) @nogc pure
 {
-    return durationToTime(value.toUTC().value - epochDateTimeTZ);
+	auto d = value.toDuration() - epochDateTime.toDuration();
+    return durationToTime(d);
 }
 
 DbDateTime dateTimeDecodeTZ(int64 pgDateTime, int32 pgZone)
 {
-    auto z = assumeWontThrow(new immutable SimpleTimeZone(dur!"seconds"(pgZone)));
-    auto convert = SysTime(epochDate, z) + timeToDuration(pgDateTime);
-    return DbDateTime(convert, 0, DbDateTimeKind.utc);
+	scope (failure) assert(0);
+
+	auto dt = epochDateTime + timeToDuration(pgDateTime);
+	if (pgZone != 0)
+		dt = dt.addSeconds(-pgZone);
+	return DbDateTime(TimeZoneInfo.convertUtcToLocal(dt.toDateTimeKindUTC()), 0);
 }
 
-void dateTimeEncodeTZ(in DbDateTime value, out int64 pgTime, out int32 pgZone)
+void dateTimeEncodeTZ(scope const DbDateTime value, out int64 pgTime, out int32 pgZone)
 {
-    pgTime = durationToTime(value.toUTC().value - epochDateTimeTZ);
     pgZone = 0;
+	if (value.kind == DateTimeKind.utc)
+		pgTime = dateTimeEncode(value);
+	else
+    {
+		auto utc = value.toUTC();
+		pgTime = dateTimeEncode(utc);
+    }
 }
 
 D numericDecode(D)(in PgOIdNumeric pgNumeric)
@@ -313,40 +320,48 @@ if (isDecimal!D)
     return result;
 }
 
-DbTime timeDecode(int64 pgTime)
+DbTime timeDecode(int64 pgTime) @nogc pure
 {
-    auto convert = nullDateTimeLocal + timeToDuration(pgTime);
-    return DbTime(convert, 0, DbDateTimeKind.local);
+    return DbTime(timeToDuration(pgTime), DateTimeKind.unspecified, 0);
 }
 
-int64 timeEncode(in DbTime value)
+int64 timeEncode(scope const DbTime value) @nogc pure
 {
     return durationToTime(value.toDuration());
 }
 
 DbTime timeDecodeTZ(int64 pgTime, int32 pgZone)
 {
-    auto z = assumeWontThrow(new immutable SimpleTimeZone(dur!"seconds"(pgZone)));
-    auto convert = SysTime(nullDate, z) + timeToDuration(pgTime);
-    return DbTime(convert, 0, DbDateTimeKind.utc);
+	scope (failure) assert(0);
+
+	auto dt = DateTime(DateTime.utcNow.date, Time(timeToDuration(pgTime)));
+	if (pgZone != 0)
+		dt = dt.addSeconds(-pgZone);
+	return DbTime(TimeZoneInfo.convertUtcToLocal(dt.toDateTimeKindUTC()).time, 0);
 }
 
 void timeEncodeTZ(in DbTime value, out int64 pgTime, out int32 pgZone)
 {
-    pgTime = durationToTime(value.toUTC().toDuration());
     pgZone = 0;
+	if (value.kind == DateTimeKind.utc)
+		pgTime = timeEncode(value);
+	else
+    {
+		auto utc = value.toUTC();
+		pgTime = timeEncode(utc);
+    }
 }
 
 // value can have date part
 pragma(inline, true)
-int64 durationToTime(in Duration value) pure
+int64 durationToTime(scope const Duration value) @nogc pure
 {
 	return value.total!"usecs";
 }
 
 // pgTime can have date part
 pragma(inline, true)
-Duration timeToDuration(int64 pgTime) pure
+Duration timeToDuration(int64 pgTime) @nogc pure
 {
 	return dur!"usecs"(pgTime);
 }
@@ -355,16 +370,9 @@ Duration timeToDuration(int64 pgTime) pure
 // Any below codes are private
 private:
 
-
-shared static this()
-{
-    epochDateTimeLocal = SysTime(epochDate, LocalTime());
-    epochDateTimeTZ = SysTime(epochDate, UTC());
-}
-
 unittest // numericDecode
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.pgconvert.numericDecode");
 
 	PgOIdNumeric n5_40 = {ndigits:2, weight:0, sign:0, dscale:2, digits:[5, 4000]};
@@ -376,7 +384,7 @@ unittest // numericDecode
 
 unittest // numericEncode
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.pgconvert.numericEncode");
 
 	// Scale=1 because Decimal.toString will truncate trailing zero

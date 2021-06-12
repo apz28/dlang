@@ -16,7 +16,7 @@ import std.array : split;
 import std.base64 : Base64;
 import std.conv : to;
 
-version (TraceFunction) import pham.utl.utltest;
+version (TraceFunction) import pham.utl.test;
 import pham.db.message;
 import pham.db.type;
 import pham.db.pgoid;
@@ -627,7 +627,7 @@ shared static this()
 
 unittest // canSendParameter
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.pgtype.canSendParameter");
 
     string mappedName;

@@ -23,15 +23,15 @@ import std.format : format;
 import std.traits; // : allMembers, getMember;
 import std.typecons : Flag, No, Yes;
 
-import pham.external.std.logger.core : Logger, LogTimming;
+import pham.external.std.log.logger : Logger, LogTimming;
 
-version (profile) import pham.utl.utltest : PerfFunction;
-version (unittest) import pham.utl.utltest;
+version (profile) import pham.utl.test : PerfFunction;
+version (unittest) import pham.utl.test;
 import pham.utl.delegate_list;
 import pham.utl.dlink_list;
 import pham.utl.enum_set : EnumSet, toEnum, toName;
 import pham.utl.timer;
-import pham.utl.utlobject : DisposableState, IDisposable, RAIIMutex, singleton;
+import pham.utl.object : DisposableState, IDisposable, RAIIMutex, singleton;
 import pham.db.message;
 import pham.db.exception;
 import pham.db.util;
@@ -2444,7 +2444,6 @@ public:
         return this;
     }
 
-    pragma(inline, true)
     @property bool isArray() const nothrow @safe
     {
         return (_type & DbType.array) != 0;
@@ -2506,7 +2505,7 @@ public:
     @property final typeof(this) type(DbType value) nothrow @safe
     {
         // Maintain the array flag
-         _type = isArray ? value | DbType.array : value;
+         _type = isArray ? (value | DbType.array) : value;
 
          if (!isDbTypeHasSize(_type))
              _size = 0;

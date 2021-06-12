@@ -15,7 +15,7 @@ module pham.db.pgbuffer;
 import std.string : representation;
 import std.system : Endian;
 
-version (unittest) import pham.utl.utltest;
+version (unittest) import pham.utl.test;
 import pham.db.message;
 import pham.db.type;
 import pham.db.util;
@@ -33,6 +33,8 @@ struct PgReader
 @safe:
 
 public:
+    @disable this(this);
+
     this(PgConnection connection)
     {
         this._connection = connection;
@@ -40,32 +42,39 @@ public:
     }
 
     this(PgConnection connection, ubyte[] packetData)
+    in
+    {
+        assert(packetData.length < int.max);
+    }
+    do
     {
         this._messageType = 0;
         this._connection = connection;
         this._messageLength = cast(int)packetData.length;
-        this._buffer = new DbReadBuffer!(Endian.bigEndian)(packetData);
+        this._readBuffer = new DbReadBuffer(packetData);
+        this._reader = DbValueReader!(Endian.bigEndian)(this._readBuffer);
     }
 
     void dispose(bool disposing = true)
     {
-        _buffer = null;
+        _readBuffer = null;
         _connection = null;
+        _reader.dispose(disposing);
     }
 
     ubyte[] readBytes(size_t nBytes)
     {
-        return _buffer.readBytes(nBytes);
+        return _reader.readBytes(nBytes);
     }
 
     char readChar()
     {
-        return _buffer.readChar();
+        return _reader.readChar();
     }
 
     char[] readChars(size_t nBytes)
     {
-        return _buffer.readChars(nBytes);
+        return _reader.readChars(nBytes);
     }
 
     string readString(size_t nBytes) @trusted // @trusted=cast()
@@ -75,7 +84,7 @@ public:
 
     char[] readCChars()
     {
-        auto result = readChars(_buffer.search(0));
+        auto result = readChars(_readBuffer.search(0));
         return result[0..$ - 1]; // Excluded null terminated char
     }
 
@@ -86,47 +95,50 @@ public:
 
     int16 readFieldCount()
     {
-        return _buffer.readInt16();
+        return _reader.readInt16();
     }
 
     int16 readInt16()
     {
-        return _buffer.readInt16();
+        return _reader.readInt16();
     }
 
     int32 readInt32()
     {
-        return _buffer.readInt32();
+        return _reader.readInt32();
     }
 
     PgOId readOId()
     {
-        return _buffer.readInt32();
+        assert(PgOId.sizeof == int32.sizeof);
+
+        return _reader.readInt32();
     }
 
     uint8 readUInt8()
     {
-        return _buffer.readUInt8();
+        return _reader.readUInt8();
     }
 
     int32 readValueLength()
     {
-        return _buffer.readInt32();
+        return _reader.readInt32();
     }
 
     void skip(size_t nBytes)
     {
-        _buffer.advance(nBytes);
-    }
-
-    @property IbReadBuffer buffer() nothrow pure
-    {
-        return _buffer;
+        _readBuffer.advance(nBytes);
     }
 
     @property PgConnection connection() nothrow pure
     {
         return _connection;
+    }
+
+    pragma(inline, true)
+    @property bool empty() const nothrow pure
+    {
+        return _readBuffer.empty;
     }
 
     @property int messageLength() const nothrow pure
@@ -139,33 +151,40 @@ public:
         return _messageType;
     }
 
+    @property DbReadBuffer readBuffer() nothrow pure
+    {
+        return _readBuffer;
+    }
+
 private:
     void readPacketData(PgConnection connection)
     {
         auto socketBuffer = connection.acquireSocketReadBuffer();
-        _messageType = socketBuffer.readChar();
-        _messageLength = socketBuffer.readInt32();
+        auto socketReader = DbValueReader!(Endian.bigEndian)(socketBuffer);
+        _messageType = socketReader.readChar();
+        _messageLength = socketReader.readInt32();
         _messageLength -= int32.sizeof; // Substract message length size
 
         // Read message data?
         if (_messageLength > 0)
         {
-            auto packetData = socketBuffer.readBytes(_messageLength);
-            this._buffer = new DbReadBuffer!(Endian.bigEndian)(packetData);
+            auto packetData = socketReader.readBytes(_messageLength);
+            this._readBuffer = new DbReadBuffer(packetData);
         }
         else
         {
-            ubyte[] packetData;
-            this._buffer = new DbReadBuffer!(Endian.bigEndian)(packetData);
+            this._readBuffer = new DbReadBuffer(0);
         }
+        this._reader = DbValueReader!(Endian.bigEndian)(this._readBuffer);
 
         version (TraceFunction)
         dgFunctionTrace("messageType=", _messageType, ", messageLength=", _messageLength);
     }
 
 private:
-    IbReadBuffer _buffer;
     PgConnection _connection;
+    DbReadBuffer _readBuffer;
+    DbValueReader!(Endian.bigEndian) _reader;
     int32 _messageLength;
     char _messageType;
 }
@@ -342,26 +361,28 @@ struct PgXdrReader
 public:
     @disable this(this);
 
-    this(PgConnection connection, IbReadBuffer buffer)
+    this(PgConnection connection, DbReadBuffer readBuffer)
     {
         this._connection = connection;
-        this._buffer = buffer;
+        this._readBuffer = readBuffer;
+        this._reader = DbValueReader!(Endian.bigEndian)(this._readBuffer);
     }
 
     void dispose(bool disposing = true)
     {
-        _buffer = null;
+        _readBuffer = null;
         _connection = null;
+        _reader.dispose(disposing);
     }
 
     bool readBool()
     {
-        return _buffer.readBool();
+        return _reader.readBool();
     }
 
     ubyte[] readBytes(size_t nBytes)
     {
-        return _buffer.readBytes(nBytes);
+        return _reader.readBytes(nBytes);
     }
 
     char[] readChars(size_t nBytes) @trusted // @trusted=cast()
@@ -398,27 +419,27 @@ public:
 
     float readFloat32()
     {
-        return _buffer.readFloat32();
+        return _reader.readFloat32();
     }
 
     double readFloat64()
     {
-        return _buffer.readFloat64();
+        return _reader.readFloat64();
     }
 
     int16 readInt16()
     {
-        return _buffer.readInt16();
+        return _reader.readInt16();
     }
 
     int32 readInt32()
     {
-        return _buffer.readInt32();
+        return _reader.readInt32();
     }
 
     int64 readInt64()
     {
-        return _buffer.readInt64();
+        return _reader.readInt64();
     }
 
     BigInteger readInt128()
@@ -473,9 +494,8 @@ public:
     {
         static assert(UUID.sizeof == 16);
 
-        static ubyte[] buffer; // thread local storage
-        buffer.length = UUID.sizeof;
-        return UUID(_buffer.readBytes(buffer)[0..UUID.sizeof]);
+        ubyte[UUID.sizeof] buffer = void;
+        return UUID(_reader.readBytes(buffer)[0..UUID.sizeof]);
     }
 
     @property PgConnection connection() nothrow pure
@@ -483,17 +503,30 @@ public:
         return _connection;
     }
 
+    pragma(inline, true)
+    @property bool empty() const nothrow pure
+    {
+        return _readBuffer.empty;
+    }
+
+    @property DbReadBuffer readBuffer() nothrow pure
+    {
+        return _readBuffer;
+    }
+
 private:
     version (unittest)
     this(ubyte[] data)
     {
         this._connection = null;
-        this._buffer = new DbReadBuffer!(Endian.bigEndian)(data);
+        this._readBuffer = new DbReadBuffer(data);
+        this._reader = DbValueReader!(Endian.bigEndian)(this._readBuffer);
     }
 
 private:
-    IbReadBuffer _buffer;
     PgConnection _connection;
+    DbReadBuffer _readBuffer;
+    DbValueReader!(Endian.bigEndian) _reader;
 }
 
 struct PgXdrWriter

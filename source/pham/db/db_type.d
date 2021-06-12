@@ -12,23 +12,20 @@
 module pham.db.type;
 
 import core.time : convert;
-import std.datetime.date : DateTime, TimeOfDay;
-import std.datetime.systime : SysTime;
+public import core.time : Duration, dur;
 import std.range.primitives : isOutputRange, put;
 import std.traits : isArray, Unqual;
 import std.uni : sicmp;
-
-public import core.time : Duration, dur;
-public import std.datetime.date : Date;
-public import std.datetime.timezone : LocalTime, SimpleTimeZone, TimeZone, UTC;
 public import std.uuid : UUID;
 
-public import pham.external.decimal.decimal : Decimal32, Decimal64, Decimal128, isDecimal, Precision, RoundingMode;
-
-public import pham.utl.biginteger : BigInteger;
+public import pham.external.dec.decimal : Decimal32, Decimal64, Decimal128, isDecimal, Precision, RoundingMode;
+public import pham.utl.big_integer : BigInteger;
+public import pham.utl.datetime.date : Date, DateTime;
+public import pham.utl.datetime.tick : DateTimeKind;
+public import pham.utl.datetime.time : Time;
+import pham.utl.datetime.time_zone : TimeZoneInfo, TimeZoneInfoMap;
+import pham.utl.datetime.tick : Tick;
 import pham.utl.enum_set : toName;
-import pham.db.convert : removeDate, timeOfDayToDuration, toDate;
-import pham.db.timezone;
 
 alias float32 = float;
 alias float64 = double;
@@ -69,8 +66,7 @@ nothrow @safe:
 
 enum hnsecsPerDay = convert!("hours", "hnsecs")(24);
 //enum hnsecsPerHour = convert!("hours", "hnsecs")(1);
-enum nullDate = Date(0, 1, 1);
-immutable SysTime nullDateTimeLocal, nullDateTimeTZ;
+enum nullDate = Date(1, 1, 1);
 
  /**
   * All possible values for conversion between bool and its' string
@@ -139,13 +135,6 @@ enum DbConnectionState : byte
     open,
     failing,
     failed
-}
-
-enum DbDateTimeKind : byte
-{
-    unspecified,
-    utc,
-    local
 }
 
 enum DbDefaultSize
@@ -445,115 +434,63 @@ public:
     int32 typeId;
 }
 
+alias DbDate = Date;
+
 struct DbDateTime
 {
 nothrow @safe:
 
 public:
-    this(SysTime datetime, uint16 zoneId, DbDateTimeKind kind)
+    this(DateTime datetime, uint16 zoneId = 0) @nogc pure
     {
         this._value = datetime;
-        this._zoneId = zoneId != 0 ? zoneId : DbTime.resolveZoneId(datetime.timezone.name, kind);
-        this._kind = kind;
+        //TODO this._zoneId = zoneId != 0 ? zoneId : DbTime.resolveZoneId(datetime.timezone.name, kind);
     }
 
-    this(DateTime datetime,
-        uint16 zoneId = 0, DbDateTimeKind kind = DbDateTimeKind.local)
+    this(int32 validYear, int32 validMonth, int32 validDay,
+        int32 validHour, int32 validMinute, int32 validSecond, int32 validMillisecond,
+        DateTimeKind kind = DateTimeKind.unspecified,
+        uint16 zoneId = 0) @nogc pure
     {
-        auto convert = SysTime(datetime, timeZone(kind));
-        this(convert, zoneId, kind);
+        this(DateTime(validYear, validMonth, validDay, validHour, validMinute, validSecond, validMillisecond, kind), zoneId);
     }
 
-    this(Date date,
-        uint16 zoneId = 0, DbDateTimeKind kind = DbDateTimeKind.local)
+    int opCmp(scope const DbDateTime rhs) const @nogc pure
     {
-        auto convert = SysTime(date, timeZone(kind));
-        this(convert, zoneId, kind);
+        const result = _value.opCmp(rhs._value);
+        return result == 0
+            ? (_zoneId > rhs._zoneId) - (_zoneId < rhs._zoneId)
+            : result;
     }
 
-    this(int32 validYear, int32 validMonth, int32 validDay, int32 hour, int32 minute, int32 second,
-        int32 tms = 0, int32 tus = 0,
-        uint16 zoneId = 0, DbDateTimeKind kind = DbDateTimeKind.local)
-    {
-        auto convert = SysTime(toDate(validYear, validMonth, validDay), timeZone(kind));
-        if (hour != 0)
-            convert += dur!"hours"(hour);
-        if (minute != 0)
-            convert += dur!"minutes"(minute);
-        if (second != 0)
-            convert += dur!"seconds"(second);
-        if (tms != 0)
-            convert += dur!"msecs"(tms);
-        if (tus != 0)
-            convert += dur!"usecs"(tus);
-        this(convert, zoneId, kind);
-    }
-
-    // Do not use template function to support Variant
-    // Some kind of compiler bug
-    bool opEquals(in DbDateTime rhs) const pure
-    {
-        return zoneId == rhs.zoneId && kind == rhs.kind && _value.opEquals(rhs.value);
-    }
-
-    bool opEquals(in SysTime rhs) const
-    {
-        return this.opEquals(toDbDateTime(rhs));
-    }
-
-    bool opEquals(in DateTime rhs) const
-    {
-        return this.opEquals(DbDateTime(rhs));
-    }
-
-    int opCmp(in DbDateTime rhs) const pure
-    {
-        return _value.opCmp(rhs.value);
-    }
-
-    int opCmp(in SysTime rhs) const
+    int opCmp(scope const DateTime rhs) const @nogc pure
     {
         return this.opCmp(toDbDateTime(rhs));
     }
 
-    int opCmp(in DateTime rhs) const
+    // Do not use template function to support Variant
+    // Some kind of compiler bug
+    bool opEquals(scope const DbDateTime rhs) const @nogc pure
     {
-        return this.opCmp(DbDateTime(rhs));
+        return zoneId == rhs.zoneId && _value.opEquals(rhs._value);
     }
 
-    Date getDate() const
+    bool opEquals(scope const DateTime rhs) const @nogc pure
     {
-        return cast(Date)_value;
+        return this.opEquals(toDbDateTime(rhs));
     }
 
-    TimeOfDay getTimeOfDay() const
+    static DbDateTime toDbDateTime(scope const DateTime value) @nogc pure
     {
-        return cast(TimeOfDay)_value;
+        return DbDateTime(value, 0); //TODO search for zone_id
     }
 
-    Duration getTimeOfDayDuration() const
+    Duration toDuration() const @nogc pure
     {
-        return timeOfDayToDuration(_value);
+        return _value.toDuration();
     }
 
-    static immutable(TimeZone) timeZone(DbDateTimeKind kind) pure
-    {
-        return (kind == DbDateTimeKind.utc) ? UTC() : LocalTime();
-    }
-
-    static DbDateTime toDbDateTime(in SysTime value)
-    {
-        const isLocal = value.timezone is LocalTime(); // DbDateTimeKind.utc for UTC() & SimpleTimeZone()
-        auto kind = isLocal ? DbDateTimeKind.local : DbDateTimeKind.utc;
-        return DbDateTime(value, 0, kind);
-    }
-
-    DateTime toDateTime() const
-    {
-        return cast(DateTime)_value;
-    }
-
-    size_t toHash() const pure
+    size_t toHash() const @nogc pure
     {
         return _value.toHash();
     }
@@ -561,73 +498,85 @@ public:
     string toString() const
     {
         import std.array : appender;
+
         auto writer = appender!string();
-        writer.reserve(64);
+        writer.reserve(60);
         return toString(writer).data;
     }
 
-    ref W toString(W)(return ref W writer) const
-    if (isOutputRange!(W, char))
+    ref Writer toString(Writer, Char = char)(return ref Writer writer) const
+    if (isOutputRange!(Writer, Char))
     {
         scope (failure) assert(0);
 
-        // Date part
-        toString(writer, getDate());
+        _value.toString(writer, "%s");
 
-        // Time part
-        put(writer, ' ');
-        return DbTime.toString(writer, _value, zoneId, kind);
-    }
-
-    static ref W toString(W)(return ref W writer, scope const Date dt)
-    if (isOutputRange!(W, char))
-    {
-        import std.format : formattedWrite;
-
-        scope (failure) assert(0);
-
-        if (dt.year >= 0)
+        /* TODO
+        if (zoneId != 0)
         {
-            if (dt.year < 10_000)
-                formattedWrite(writer, "%04d-%02d-%02d", dt.year, dt.month, dt.day);
+            if (zoneId == timeZoneUtcId)
+                put(writer, 'Z');
             else
-                formattedWrite(writer, "+%05d-%02d-%02d", dt.year, dt.month, dt.day);
+            auto zn = DbTimeZoneList.instance().zone(zoneId);
+            // Valid zone?
+            if (zn.id != 0)
+            {
+                put(writer, ' ');
+                put(writer, zn.name);
+            }
         }
-        else if (dt.year > -10_000)
-            formattedWrite(writer, "%05d-%02d-%02d", dt.year, dt.month, dt.day);
-        else
-            formattedWrite(writer, "%06d-%02d-%02d", dt.year, dt.month, dt.day);
+        */
 
         return writer;
     }
 
     typeof(this) toUTC() const
     {
-        return DbDateTime(_value.toUTC(), timeZoneUtcId, DbDateTimeKind.utc);
-    }
+        if (kind == DateTimeKind.utc)
+            return this;
 
-    immutable(DbTimeZone) zone() const
-    {
-        return DbTimeZoneList.instance().zone(zoneId);
+        if (isTZ)
+        {
+            auto tzm = TimeZoneInfoMap.timeZoneMap(zoneId);
+            if (tzm.isValid())
+            {
+                auto utcDT = tzm.info.convertDateTimeToUTC(_value);
+                return DbDateTime(utcDT, 0);
+            }
+        }
+
+        auto tz = TimeZoneInfo.localTimeZone(_value.year);
+        auto utcDT = tz.convertDateTimeToUTC(_value);
+        return DbDateTime(utcDT, 0);
     }
 
 public:
-    @property bool isTZ() const pure
+    @property Date date() const @nogc pure
+    {
+        return _value.date;
+    }
+
+    @property bool isTZ() const @nogc pure
     {
         return zoneId != 0;
     }
 
-    @property DbDateTimeKind kind() const pure
+    @property DateTimeKind kind() const @nogc pure
     {
-        return _kind;
+        return _value.kind;
     }
 
-    @property SysTime value() const pure
+    @property Time time() const @nogc pure
+    {
+        return _value.time;
+    }
+
+    @property DateTime value() const @nogc pure
     {
         return _value;
     }
 
-    @property uint16 zoneId() const pure
+    @property uint16 zoneId() const @nogc pure
     {
         return _zoneId;
     }
@@ -635,9 +584,8 @@ public:
     alias value this;
 
 private:
-    SysTime _value;
+    DateTime _value;
     uint16 _zoneId;
-    DbDateTimeKind _kind;
 }
 
 struct DbHandle
@@ -882,122 +830,98 @@ struct DbTime
 nothrow @safe:
 
 public:
-    this(SysTime time, uint16 zoneId, DbDateTimeKind kind)
+    this(Time time,
+        uint16 zoneId = 0) @nogc pure
     {
         this._value = time;
-        this._zoneId = zoneId != 0 ? zoneId : resolveZoneId(time.timezone.name, kind);
-        this._kind = kind;
+        //TODO this._zoneId = zoneId != 0 ? zoneId : resolveZoneId(time.timezone.name, kind);
     }
 
-    this(scope const Duration timeOfDay, uint16 zoneId = 0, DbDateTimeKind kind = DbDateTimeKind.local)
+    this(scope const Duration time,
+        DateTimeKind kind = DateTimeKind.unspecified,
+        uint16 zoneId = 0) @nogc pure
     {
-        auto nullDateTime = kind == DbDateTimeKind.utc ? nullDateTimeTZ : nullDateTimeLocal;
-        auto convert = nullDateTime + removeDate(timeOfDay);
-        this(convert, zoneId, kind);
+        this(Time(Tick.durationToTick(time), kind), zoneId);
     }
 
-    this(scope const TimeOfDay timeOfDay, uint16 zoneId = 0, DbDateTimeKind kind = DbDateTimeKind.local)
+    this(int32 validHour, int32 validMinute, int32 validSecond, int32 validMillisecond,
+        DateTimeKind kind = DateTimeKind.unspecified,
+        uint16 zoneId = 0) @nogc pure
     {
-        this(timeOfDayToDuration(timeOfDay), zoneId, kind);
+        auto timeDuration = Duration.zero;
+        if (validHour != 0)
+            timeDuration += dur!"hours"(validHour);
+        if (validMinute != 0)
+            timeDuration += dur!"minutes"(validMinute);
+        if (validSecond != 0)
+            timeDuration += dur!"seconds"(validSecond);
+        if (validMillisecond != 0)
+            timeDuration += dur!"msecs"(validMillisecond);
+        this(timeDuration, kind, zoneId);
     }
 
-    this(int32 h, int32 m, int32 s, int32 ms = 0, int32 us = 0)
+    int opCmp(scope const DbTime rhs) const @nogc pure
     {
-        auto convert = nullDateTimeLocal + dur!"seconds"(0); // Use expression to remove immutable
-        if (h != 0)
-            convert += dur!"hours"(h);
-        if (m != 0)
-            convert += dur!"minutes"(m);
-        if (s != 0)
-            convert += dur!"seconds"(s);
-        if (ms != 0)
-            convert += dur!"msecs"(ms);
-        if (us != 0)
-            convert += dur!"usecs"(us);
-        this(convert, 0, DbDateTimeKind.local);
+        const result = _value.opCmp(rhs._value);
+        return result == 0
+            ? (_zoneId > rhs._zoneId) - (_zoneId < rhs._zoneId)
+            : result;
     }
 
-    // Do not use template function to support Variant
-    // Some kind of compiler bug
-    bool opEquals(in DbTime rhs) const pure
-    {
-        return zoneId == rhs.zoneId && kind == rhs.kind && _value.opEquals(rhs.value);
-    }
-
-    bool opEquals(in TimeOfDay rhs) const
-    {
-        return this.opEquals(DbTime(rhs));
-    }
-
-    int opCmp(in DbTime rhs) const pure
-    {
-        return _value.opCmp(rhs.value);
-    }
-
-    int opCmp(in TimeOfDay rhs) const
+    int opCmp(scope const Time rhs) const @nogc pure
     {
         return this.opCmp(DbTime(rhs));
     }
 
-    static uint16 resolveZoneId(string zoneName, DbDateTimeKind kind)
+    // Do not use template function to support Variant
+    // Some kind of compiler bug
+    bool opEquals(scope const DbTime rhs) const @nogc pure
     {
-        auto result = DbTimeZoneList.instance().id(zoneName);
-        if (result == 0 && kind == DbDateTimeKind.utc)
-            return timeZoneUtcId;
-        else
-            return result;
+        return zoneId == rhs.zoneId && _value == rhs._value;
     }
 
-    Duration toDuration() const
+    bool opEquals(scope const Time rhs) const @nogc pure
     {
-        return timeOfDayToDuration(_value);
+        return this.opEquals(DbTime(rhs));
     }
 
-    size_t toHash() const pure
+    static DbTime toDbTime(scope const Time value) @nogc pure
+    {
+        return DbTime(value, 0); //TODO search for zone_id
+    }
+
+    Duration toDuration() const @nogc pure
+    {
+        return _value.toDuration();
+    }
+
+    size_t toHash() const @nogc pure
     {
         return _value.toHash();
-    }
-
-    TimeOfDay toTimeOfDay() const
-    {
-        return cast(TimeOfDay)_value;
-    }
-
-    int32 toMilliSecond() const
-    {
-        return cast(int32)(toDuration().total!"msecs");
     }
 
     string toString() const
     {
         import std.array : appender;
+
         auto writer = appender!string();
-        writer.reserve(64);
+        writer.reserve(60);
         return toString(writer).data;
     }
 
-    ref W toString(W)(return ref W writer) const
-    if (isOutputRange!(W, char))
+    ref Writer toString(Writer, Char = char)(return ref Writer writer) const
+    if (isOutputRange!(Writer, Char))
     {
-        return toString(writer, _value, zoneId, kind);
-    }
-
-    static ref W toString(W)(return ref W writer, scope const SysTime tm, uint16 zoneId, DbDateTimeKind kind)
-    if (isOutputRange!(W, char))
-    {
-        import std.format : formattedWrite;
-
         scope (failure) assert(0);
 
-        auto t = cast(TimeOfDay)tm;
-        auto ms = cast(int)(tm.fracSecs().total!"msecs");
+        _value.toString(writer, "%s");
 
-        formattedWrite!("%02d:%02d:%02d.%03d")(writer, t.hour, t.minute, t.second, ms);
-
-        if (kind == DbDateTimeKind.utc || zoneId == timeZoneUtcId)
-            put(writer, 'Z');
-        else if (kind == DbDateTimeKind.local && zoneId != 0)
+        /* TODO
+        if (zoneId != 0)
         {
+            if (zoneId == timeZoneUtcId)
+                put(writer, 'Z');
+            else
             auto zn = DbTimeZoneList.instance().zone(zoneId);
             // Valid zone?
             if (zn.id != 0)
@@ -1006,37 +930,50 @@ public:
                 put(writer, zn.name);
             }
         }
+        */
 
         return writer;
     }
 
     typeof(this) toUTC() const
     {
-        return DbTime(_value.toUTC(), timeZoneUtcId, DbDateTimeKind.utc);
-    }
+        if (kind == DateTimeKind.utc)
+            return this;
 
-    immutable(DbTimeZone) zone() const
-    {
-        return DbTimeZoneList.instance().zone(zoneId);
+        if (isTZ)
+        {
+            auto tzm = TimeZoneInfoMap.timeZoneMap(zoneId);
+            if (tzm.isValid())
+            {
+                auto dt = DateTime.utcNow.date + _value;
+                auto utcDT = tzm.info.convertDateTimeToUTC(dt);
+                return DbTime(utcDT.time, 0);
+            }
+        }
+
+        auto dt = DateTime.utcNow.date + _value;
+        auto tz = TimeZoneInfo.localTimeZone(dt.year);
+        auto utcDT = tz.convertDateTimeToUTC(dt);
+        return DbTime(utcDT.time, 0);
     }
 
 public:
-    @property bool isTZ() const pure
+    @property bool isTZ() const @nogc pure
     {
         return zoneId != 0;
     }
 
-    @property DbDateTimeKind kind() const pure
+    @property DateTimeKind kind() const @nogc pure
     {
-        return _kind;
+        return _value.kind;
     }
 
-    @property SysTime value() const pure
+    @property Time value() const @nogc pure
     {
         return _value;
     }
 
-    @property uint16 zoneId() const pure
+    @property uint16 zoneId() const @nogc pure
     {
         return _zoneId;
     }
@@ -1044,9 +981,8 @@ public:
     alias value this;
 
 private:
-    SysTime _value;
+    Time _value;
     uint16 _zoneId;
-    DbDateTimeKind _kind;
 }
 
 struct DbTypeInfo
@@ -1087,9 +1023,7 @@ immutable DbTypeInfo[] dbNativeTypes = [
     {dbName:"", nativeName:"ubyte[]", displaySize:-1, nativeSize:-1, nativeId:0, dbType:DbType.binary},
     {dbName:"", nativeName:"Date", displaySize:10, nativeSize:Date.sizeof, nativeId:0, dbType:DbType.date},
     {dbName:"", nativeName:"DateTime", displaySize:28, nativeSize:DbDateTime.sizeof, nativeId:0, dbType:DbType.datetime},
-    {dbName:"", nativeName:"SysTime", displaySize:28, nativeSize:DbDateTime.sizeof, nativeId:0, dbType:DbType.datetime},
     {dbName:"", nativeName:"Time", displaySize:11, nativeSize:DbTime.sizeof, nativeId:0, dbType:DbType.time},
-    {dbName:"", nativeName:"TimeOfDay", displaySize:11, nativeSize:DbTime.sizeof, nativeId:0, dbType:DbType.time},
     {dbName:"", nativeName:"UUID", displaySize:32, nativeSize:UUID.sizeof, nativeId:0, dbType:DbType.uuid},
 
     // Library
@@ -1118,6 +1052,8 @@ immutable DbTypeInfo[] dbNativeTypes = [
     {dbName:"", nativeName:"float32", displaySize:17, nativeSize:float32.sizeof, nativeId:0, dbType:DbType.float32},
     {dbName:"", nativeName:"float64", displaySize:21, nativeSize:float64.sizeof, nativeId:0, dbType:DbType.float64},
     {dbName:"", nativeName:"DateTimeTZ", displaySize:28, nativeSize:DbDateTime.sizeof, nativeId:0, dbType:DbType.datetimeTZ},
+    {dbName:"", nativeName:"DbDate", displaySize:10, nativeSize:Date.sizeof, nativeId:0, dbType:DbType.date},
+    {dbName:"", nativeName:"TimeOfDay", displaySize:11, nativeSize:DbTime.sizeof, nativeId:0, dbType:DbType.time},
     {dbName:"", nativeName:"TimeTZ", displaySize:11, nativeSize:DbTime.sizeof, nativeId:0, dbType:DbType.timeTZ}
 ];
 
@@ -1209,12 +1145,8 @@ bool isDbTrue(scope const(char)[] s) pure
 // Any below codes are private
 private:
 
-
 shared static this()
 {
-    nullDateTimeLocal = SysTime(nullDate, LocalTime());
-    nullDateTimeTZ = SysTime(nullDate, UTC());
-
     dbDefaultParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(string[string]))[
@@ -1259,9 +1191,15 @@ shared static this()
 
 unittest // dbTypeOf
 {
-    import std.datetime.systime;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.type.dbTypeOf");
+
+    //pragma(msg, "DbDateTime: ", DbDateTime.sizeof); // 24
+    //pragma(msg, "SysTime: ", SysTime.sizeof); // 16
+    //pragma(msg, "DateTime: ", DateTime.sizeof); // 8
+    //pragma(msg, "Decimal128: ", Decimal128.sizeof); // 16
+    //pragma(msg, "TimeOfDay: ", TimeOfDay.sizeof); // 3
+    //pragma(msg, "Date: ", Date.sizeof); // 4
 
     assert(dbTypeOf!bool() == DbType.boolean);
     assert(dbTypeOf!char() == DbType.chars);
@@ -1283,8 +1221,7 @@ unittest // dbTypeOf
     assert(dbTypeOf!dstring() == DbType.string);
     assert(dbTypeOf!Date() == DbType.date);
     assert(dbTypeOf!DateTime() == DbType.datetime);
-    assert(dbTypeOf!SysTime() == DbType.datetime);
-    assert(dbTypeOf!TimeOfDay() == DbType.time);
+    assert(dbTypeOf!Time() == DbType.time);
     assert(dbTypeOf!DbTime() == DbType.time);
     assert(dbTypeOf!DbDateTime() == DbType.datetime);
     assert(dbTypeOf!(ubyte[])() == DbType.binary);

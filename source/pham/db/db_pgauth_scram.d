@@ -15,9 +15,9 @@ import std.algorithm : startsWith;
 import std.base64 : Base64;
 import std.string : representation;
 
-version (unittest) import pham.utl.utltest;
+version (unittest) import pham.utl.test;
 import pham.cp.cipher_digest : DigestId, DigestResult, HMACS, digestOf;
-import pham.utl.utlobject : bytesFromHexs, bytesToHexs, randomCharacters;
+import pham.utl.object : bytesFromHexs, bytesToHexs, randomCharacters;
 import pham.db.type : DbScheme;
 import pham.db.auth;
 import pham.db.pgtype;

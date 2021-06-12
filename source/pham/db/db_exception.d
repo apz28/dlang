@@ -13,7 +13,7 @@ module pham.db.exception;
 
 import std.format : format;
 
-version (TraceFunction) import pham.utl.utltest;
+version (TraceFunction) import pham.utl.test;
 import pham.db.message;
 
 class DbException : Exception

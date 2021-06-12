@@ -11,7 +11,7 @@
 
 module pham.db.buffer_filter;
 
-version (unittest) import pham.utl.utltest;
+version (unittest) import pham.utl.test;
 import pham.utl.enum_set : toName;
 import pham.db.dbobject;
 

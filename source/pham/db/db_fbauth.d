@@ -115,7 +115,7 @@ public:
 
         version (TraceAuth)
         {
-            import pham.utl.utltest;
+            import pham.utl.test;
             dgFunctionTrace("keyLength=", keyLength,
                 ", saltLength=", saltLength,
                 ", serverAuthDataLength=", serverAuthDataOrg.length,
@@ -130,7 +130,7 @@ public:
 
 unittest // FbAuth.normalizeUserName
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.FbAuth.normalizeUserName");
 
     assert(FbAuth.normalizeUserName("sysdba") == "SYSDBA");

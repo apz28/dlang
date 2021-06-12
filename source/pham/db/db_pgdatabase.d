@@ -16,10 +16,10 @@ import std.conv : text, to;
 import std.exception : assumeWontThrow;
 import std.system : Endian;
 
-import pham.external.std.logger.core : Logger, LogTimming;
+import pham.external.std.log.logger : Logger, LogTimming;
 
-version (profile) import pham.utl.utltest : PerfFunction;
-version (unittest) import pham.utl.utltest;
+version (profile) import pham.utl.test : PerfFunction;
+version (unittest) import pham.utl.test;
 import pham.db.type;
 import pham.db.message;
 import pham.db.dbobject;
@@ -851,9 +851,9 @@ public:
     }
 
 protected:
-    final override DbBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
+    final override DbReadBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
     {
-        return new SkReadBuffer!(Endian.bigEndian)(this, capacity);
+        return new SkReadBuffer(this, capacity);
     }
 
     final override DbBuffer createSocketWriteBuffer(size_t capacity = DbDefaultSize.socketWriteBufferLength) nothrow @safe
@@ -1491,7 +1491,7 @@ WHERE INT_FIELD = @INT_FIELD
 version (UnitTestPGDatabase)
 unittest // PgConnection
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.pgdatabase.PgConnection");
 
     auto connection = createTestConnection();
@@ -1512,7 +1512,7 @@ unittest // PgConnection
 version (UnitTestPGDatabase)
 unittest // PgTransaction
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.pgdatabase.PgTransaction");
 
     auto connection = createTestConnection();
@@ -1554,7 +1554,7 @@ unittest // PgTransaction
 version (UnitTestPGDatabase)
 unittest // PgCommand.DDL
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.pgdatabase.PgCommand.DDL");
 
     bool failed = true;
@@ -1590,7 +1590,7 @@ version (UnitTestPGDatabase)
 unittest // PgCommand.DML
 {
     import std.math;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.pgdatabase.PgCommand.DML - Simple select");
 
     bool failed = true;
@@ -1643,14 +1643,14 @@ unittest // PgCommand.DML
         assert(decimalEqual(reader.getValue(5).get!Numeric(), 6.5));
         assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Numeric(), 6.5));
 
-        assert(reader.getValue(6) == toDate(2020, 5, 20));
-        assert(reader.getValue("DATE_FIELD") == toDate(2020, 5, 20));
+        assert(reader.getValue(6) == Date(2020, 5, 20));
+        assert(reader.getValue("DATE_FIELD") == Date(2020, 5, 20));
 
-        assert(reader.getValue(7) == DbTime(1, 1, 1));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
+        assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
+        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1, 0));
 
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0));
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
+        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
+        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
 
         assert(reader.getValue(9) == "ABC       ");
         assert(reader.getValue("CHAR_FIELD") == "ABC       ");
@@ -1676,7 +1676,7 @@ version (UnitTestPGDatabase)
 unittest // PgCommand.DML
 {
     import std.math;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.pgdatabase.PgCommand.DML - Parameter select");
 
     bool failed = true;
@@ -1703,8 +1703,8 @@ unittest // PgCommand.DML
     command.parameters.add("INT_FIELD", DbType.int32).value = 1;
     command.parameters.add("DOUBLE_FIELD", DbType.float64).value = 4.20;
     command.parameters.add("DECIMAL_FIELD", DbType.numeric).value = Numeric(6.5);
-    command.parameters.add("DATE_FIELD", DbType.date).value = toDate(2020, 5, 20);
-    command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1);
+    command.parameters.add("DATE_FIELD", DbType.date).value = Date(2020, 5, 20);
+    command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1, 0);
     command.parameters.add("CHAR_FIELD", DbType.chars).value = "ABC       ";
     command.parameters.add("VARCHAR_FIELD", DbType.string).value = "XYZ";
     auto reader = command.executeReader();
@@ -1736,14 +1736,14 @@ unittest // PgCommand.DML
         assert(decimalEqual(reader.getValue(5).get!Numeric(), 6.5));
         assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Numeric(), 6.5));
 
-        assert(reader.getValue(6) == toDate(2020, 5, 20));
-        assert(reader.getValue("DATE_FIELD") == toDate(2020, 5, 20));
+        assert(reader.getValue(6) == Date(2020, 5, 20));
+        assert(reader.getValue("DATE_FIELD") == Date(2020, 5, 20));
 
-        assert(reader.getValue(7) == DbTime(1, 1, 1));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
+        assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
+        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1, 0));
 
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0));
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
+        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
+        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
 
         assert(reader.getValue(9) == "ABC       ");
         assert(reader.getValue("CHAR_FIELD") == "ABC       ");
@@ -1768,7 +1768,7 @@ unittest // PgCommand.DML
 version (UnitTestPGDatabase)
 unittest // PgCommand.DML.pg_proc
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.pgdatabase.PgCommand.DML - pg_proc");
 
     bool failed = true;
@@ -1822,7 +1822,7 @@ ORDER BY pg_proc.proname
 version (UnitTestPGDatabase)
 unittest // PgLargeBlob
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.pgdatabase.PgLargeBlob");
 
     bool failed = true;
@@ -1881,7 +1881,7 @@ unittest // PgLargeBlob
 version (UnitTestPGDatabase)
 unittest // PgCommand.DML
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.pgdatabase.PgCommand.DML - Array");
 
     static int[] arrayValue() nothrow pure @safe
@@ -1954,7 +1954,7 @@ unittest // PgCommand.getExecutionPlan
     import std.algorithm.searching : startsWith;
     import std.array : split;
     import std.string : indexOf;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.pgdatabase.PgCommand.getExecutionPlan");
 
     static const(char)[] removePText(const(char)[] s)
@@ -2028,7 +2028,7 @@ Execution Time: 0.053 ms}";
 version (UnitTestPGDatabase)
 unittest // PgCommand.DML.Function
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.pgdatabase.PgCommand.DML.Function");
 
     bool failed = true;

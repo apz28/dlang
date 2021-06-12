@@ -17,10 +17,10 @@ import std.conv : to;
 import std.format : format;
 import std.string : indexOf, lastIndexOf, representation;
 
-version (profile) import pham.utl.utltest : PerfFunction;
-version (unittest) import pham.utl.utltest;
+version (profile) import pham.utl.test : PerfFunction;
+version (unittest) import pham.utl.test;
 import pham.utl.enum_set : toName;
-import pham.utl.utlobject : shortClassName;
+import pham.utl.object : shortClassName;
 import pham.db.message;
 import pham.db.convert;
 import pham.db.type;
@@ -417,7 +417,7 @@ public:
         {
             if (expectedLength && expectedLength != valueLength)
                 readValueError(column, valueLength, expectedLength);
-            return PgXdrReader(connection, reader.buffer);
+            return PgXdrReader(connection, reader.readBuffer);
         }
 
         if (column.isArray)
@@ -552,12 +552,12 @@ public:
         {
             if (expectedLength && expectedLength != valueLength)
                 readValueError(column, valueLength, expectedLength);
-            return PgXdrReader(connection, reader.buffer);
+            return PgXdrReader(connection, reader.readBuffer);
         }
 
         int32 readDimensions() @safe
         {
-            auto valueReader = PgXdrReader(connection, reader.buffer);
+            auto valueReader = PgXdrReader(connection, reader.readBuffer);
 
             int32 dims, hasNulls;
             int32[] lowerBounds;

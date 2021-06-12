@@ -15,7 +15,7 @@ import std.ascii : LetterCase;
 import std.digest.md : md5Of;
 import std.string : representation;
 
-import pham.utl.utlobject : bytesToHexs;
+import pham.utl.object : bytesToHexs;
 import pham.db.type : DbScheme;
 import pham.db.auth;
 
@@ -74,8 +74,8 @@ DbAuth createAuthMD5()
 
 unittest // PgAuthMD5
 {
-    import pham.utl.utlobject : bytesFromHexs;
-    import pham.utl.utltest;
+    import pham.utl.object : bytesFromHexs;
+    import pham.utl.test;
     traceUnitTest("unittest pham.db.pgauth_md5.PgAuthMD5");
 
     auto salt = bytesFromHexs("9F170CAC");

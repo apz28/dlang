@@ -16,7 +16,7 @@ import std.exception : assumeWontThrow;
 import std.format : format;
 import std.traits: isFloatingPoint, isIntegral;
 
-import pham.external.decimal.decimal : isEqual;
+import pham.external.dec.decimal : isEqual;
 
 import pham.db.type;
 
@@ -155,7 +155,7 @@ private:
 
 unittest // truncate
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.util.truncate");
 
     assert(truncate("", 2) == "");
@@ -165,7 +165,7 @@ unittest // truncate
 
 unittest // versionString
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.util.versionString");
 
     assert(toVersionString([]) == "");

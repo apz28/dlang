@@ -11,7 +11,7 @@
 
 module pham.db.buffer_filter_cipher;
 
-version (unittest) import pham.utl.utltest;
+version (unittest) import pham.utl.test;
 import pham.cp.cipher;
 import pham.db.buffer_filter;
 
@@ -102,7 +102,7 @@ private:
 unittest // DbBufferFilterCipherRC4
 {
     import std.string : representation;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.buffer_filter_cipher.DbBufferFilterCipherRC4");
 
     auto keyParameters = CipherParameters(cast(ubyte[])("abc0123456789xyz".dup));

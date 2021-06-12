@@ -11,14 +11,12 @@
 
 module pham.db.value;
 
-import std.datetime.date : DateTime, TimeOfDay;
-import std.datetime.systime : SysTime;
 import std.math : isNaN;
 import std.range.primitives: ElementType;
 import std.traits : isArrayT = isArray, Unqual;
 
-version (profile) import pham.utl.utltest : PerfFunction;
-public import pham.utl.variant;
+version (profile) import pham.utl.test : PerfFunction;
+public import pham.utl.variant : Variant;
 import pham.db.type;
 import pham.db.convert;
 
@@ -242,22 +240,13 @@ private:
         else static if (is(UT == DateTime))
         {
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.datetime;
-            this._value = DbDateTime(rhs);
+            this._value = DbDateTime(rhs, 0, rhs.kind);
         }
         // Map to DbTime
-        else static if (is(UT == TimeOfDay))
+        else static if (is(UT == Time))
         {
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.time;
             this._value = DbTime(rhs);
-        }
-        // Map to DbDateTime
-        else static if (is(UT == SysTime))
-        {
-            auto rhsConvert = DbDateTime.toDbDateTime(rhs);
-            this._type = rhsTypeIf != DbType.unknown
-                ? rhsTypeIf
-                : (rhsConvert.isTZ ? DbType.datetimeTZ : DbType.datetime);
-            this._value = rhsConvert;
         }
         else static if (is(UT == UUID))
         {
@@ -567,10 +556,9 @@ public:
 // Any below codes are private
 private:
 
-
 unittest // DbValue
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.value.DbValue");
 
     DbValue vb = DbValue(true);

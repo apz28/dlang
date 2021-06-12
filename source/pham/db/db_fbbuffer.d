@@ -18,7 +18,8 @@ import std.string : representation;
 import std.system : Endian;
 import std.typecons : Flag, No, Yes;
 
-version (unittest) import pham.utl.utltest;
+version (profile) import pham.utl.test : PerfFunction;
+version (unittest) import pham.utl.test;
 import pham.db.message;
 import pham.db.type;
 import pham.db.util;
@@ -523,38 +524,35 @@ struct FbXdrReader
 public:
     @disable this(this);
 
-    this(FbConnection connection,
-        ubyte[] bufferData = null)
+    this(FbConnection connection, ubyte[] bufferData = null)
     {
         this._connection = connection;
-        this._socketBuffer = bufferData.length == 0;
-        this._buffer = this._socketBuffer
+        this._connectionBuffer = bufferData.length == 0;
+        this._readBuffer = this._connectionBuffer
             ? connection.acquireSocketReadBuffer()
-            : new DbReadBuffer!(Endian.bigEndian)(bufferData);
-    }
-
-    ~this()
-    {
-        dispose(false);
+            : new DbReadBuffer(bufferData);
+        this._reader = DbValueReader!(Endian.bigEndian)(this._readBuffer);
     }
 
     void dispose(bool disposing = true)
     {
-        _buffer = null;
+        _readBuffer = null;
         _connection = null;
+        _connectionBuffer = false;
+        _reader.dispose(disposing);
     }
 
     bool readBool()
     {
-        auto result = _buffer.readBool();
+        auto result = _reader.readBool();
         readPad(1);
         return result;
     }
 
     ubyte[] readBytes()
     {
-        const nBytes = _buffer.readUInt32();
-        auto result = _buffer.readBytes(nBytes);
+        const nBytes = _reader.readUInt32();
+        auto result = _reader.readBytes(nBytes);
         readPad(nBytes);
         return result;
     }
@@ -571,9 +569,8 @@ public:
 
     DbDateTime readDateTime()
     {
-        // Do not try to inline function calls, D does not honor right sequence from left to right
-        auto d = readInt32();
-        auto t = readInt32();
+        int32 d = void, t = void;
+        _reader.readTwoInt32(d, t);
         return dateTimeDecode(d, t);
     }
 
@@ -583,7 +580,7 @@ public:
         auto d = readInt32();
         auto t = readInt32();
         auto zId = readUInt16();
-        return dateTimeDecodeTZ(d, t, zId, 0);
+        return dateTimeDecodeTZ(d, t, zId, notUseZoneOffset);
     }
 
     DbDateTime readDateTimeTZEx()
@@ -615,7 +612,7 @@ public:
 				return decimalDecode!(D, float32)(readFloat32(), baseType.numericScale);
             case FbIscType.SQL_DEC64:
             case FbIscType.SQL_DEC128:
-                auto bytes = _buffer.readBytes(decimalByteLength!D());
+                auto bytes = _reader.readBytes(decimalByteLength!D());
                 return decimalDecode!D(bytes);
 			default:
                 assert(0);
@@ -636,52 +633,52 @@ public:
 
     float32 readFloat32()
     {
-        return _buffer.readFloat32();
+        return _reader.readFloat32();
     }
 
     float64 readFloat64()
     {
-        return _buffer.readFloat64();
+        return _reader.readFloat64();
     }
 
     FbHandle readHandle()
     {
         assert(FbHandle.sizeof == uint32.sizeof);
 
-        return _buffer.readUInt32();
+        return _reader.readUInt32();
     }
 
     FbId readId()
     {
         static assert(int64.sizeof == FbId.sizeof);
 
-        return _buffer.readInt64();
+        return _reader.readInt64();
     }
 
     int16 readInt16()
     {
-        return cast(int16)_buffer.readInt32();
+        return cast(int16)_reader.readInt32();
     }
 
     int32 readInt32()
     {
-        return _buffer.readInt32();
+        return _reader.readInt32();
     }
 
     int64 readInt64()
     {
-        return _buffer.readInt64();
+        return _reader.readInt64();
     }
 
     BigInteger readInt128()
     {
         ubyte[int128ByteLength] buffer = void;
-        return int128Decode(_buffer.readBytes(buffer[]));
+        return int128Decode(_reader.readBytes(buffer[]));
     }
 
-    ubyte[] readOpaqueBytes(size_t forLength)
+    ubyte[] readOpaqueBytes(const size_t forLength)
     {
-        auto result = _buffer.readBytes(forLength);
+        auto result = _reader.readBytes(forLength);
         readPad(forLength);
         return result;
     }
@@ -750,19 +747,19 @@ public:
 
 				case FbIsc.isc_arg_string:
                 case FbIsc.isc_arg_cstring:
-                    auto msg = cast(string)readChars();
+                    auto msg = readString();
                     ++numArg;
                     result.put(FbIscError(typeCode, msg, numArg));
                     break;
 
 				case FbIsc.isc_arg_interpreted:
-                    auto msg = cast(string)readChars();
+                    auto msg = readString();
                     result.put(FbIscError(typeCode, msg, -1));
                     break;
 
                 //case FbIsc.isc_arg_warning:
 				case FbIsc.isc_arg_sql_state:
-                    auto msg = cast(string)readChars();
+                    auto msg = readString();
 					result.put(FbIscError(typeCode, msg, -1));
 					break;
 
@@ -791,7 +788,7 @@ public:
         // Do not try to inline function calls, D does not honor right sequence from left to right
         auto t = readInt32();
         auto zId = readUInt16();
-        return timeDecodeTZ(t, zId, 0);
+        return timeDecodeTZ(t, zId, notUseZoneOffset);
     }
 
     DbTime readTimeTZEx()
@@ -805,7 +802,7 @@ public:
 
     uint16 readUInt16()
     {
-        return cast(uint16)_buffer.readUInt32();
+        return cast(uint16)_reader.readUInt32();
     }
 
     // https://stackoverflow.com/questions/246930/is-there-any-difference-between-a-guid-and-a-uuid
@@ -814,7 +811,7 @@ public:
         static assert(UUID.sizeof == 16);
 
         ubyte[UUID.sizeof] buffer = void;
-        return UUID(_buffer.readBytes(buffer[])[0..UUID.sizeof]);
+        return UUID(_reader.readBytes(buffer[])[0..UUID.sizeof]);
     }
 
     @property FbConnection connection() nothrow pure
@@ -822,24 +819,31 @@ public:
         return _connection;
     }
 
+    pragma(inline, true)
     @property bool empty() const nothrow pure
     {
-        return _buffer.empty;
+        return _readBuffer.empty;
+    }
+
+    @property DbReadBuffer readBuffer() nothrow pure
+    {
+        return _readBuffer;
     }
 
 private:
     pragma (inline, true)
-    void readPad(ptrdiff_t nBytes)
+    void readPad(const ptrdiff_t nBytes)
     {
         const paddingNBytes = (4 - nBytes) & 3;
-        if (paddingNBytes != 0)
-            _buffer.advance(paddingNBytes);
+        if (paddingNBytes)
+            _readBuffer.advance(paddingNBytes);
     }
 
 private:
-    IbReadBuffer _buffer;
     FbConnection _connection;
-    bool _socketBuffer;
+    DbReadBuffer _readBuffer;
+    DbValueReader!(Endian.bigEndian) _reader;
+    bool _connectionBuffer;
 }
 
 struct FbXdrWriter
@@ -1182,7 +1186,7 @@ private:
 
 unittest // FbXdrWriter & FbXdrReader
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest db.fbbuffer.FbXdrReader & db.fbbuffer.FbXdrWriter");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";

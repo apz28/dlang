@@ -13,15 +13,13 @@ module pham.db.convert;
 
 import core.time : convert;
 import std.conv : to;
-import std.datetime.date : DateTime, TimeOfDay;
-import std.datetime.systime : SysTime;
 import std.exception : assumeWontThrow;
 import std.math : abs, pow;
 import std.traits: isIntegral, Unqual;
 
-import pham.external.decimal.decimal : scaleFrom, scaleTo;
-
-version (unittest) import pham.utl.utltest;
+version (unittest) import pham.utl.test;
+import pham.external.dec.decimal : scaleFrom, scaleTo;
+import pham.utl.datetime.tick : Tick;
 import pham.db.type;
 
 nothrow @safe:
@@ -48,7 +46,8 @@ Duration minDuration(Duration value, const int64 minSecond = 0) pure
 }
 
 int64 removeUnitsFromHNSecs(string units)(int64 hnsecs) pure
-if (units == "weeks" || units == "days" || units == "hours" || units == "minutes" || units == "seconds"
+if (units == "weeks" || units == "days"
+    || units == "hours" || units == "minutes" || units == "seconds"
     || units == "msecs" || units == "usecs" || units == "hnsecs")
 {
     const value = convert!("hnsecs", units)(hnsecs);
@@ -61,21 +60,6 @@ Duration removeDate(scope const Duration value) pure
     if (hnsecs < 0)
         hnsecs += hnsecsPerDay;
     return dur!"hnsecs"(hnsecs);
-}
-
-Duration timeOfDayToDuration(scope const SysTime value)
-{
-    return removeDate(dur!"hnsecs"(value.timezone.utcToTZ(value.stdTime)));
-}
-
-Duration timeOfDayToDuration(scope const TimeOfDay value) pure
-{
-    return dur!"hours"(value.hour) + dur!"minutes"(value.minute) + dur!"seconds"(value.second);
-}
-
-Date toDate(int32 validYear, int32 validMonth, int32 validDay) pure
-{
-    return assumeWontThrow(Date(validYear, validMonth, validDay));
 }
 
 I toInt(I)(scope const(char)[] validValue, I emptyValue = 0) pure
@@ -121,6 +105,7 @@ Duration secondToDuration(const(char)[] validSecond) pure
     return dur!"seconds"(toInt!int64(validSecond));
 }
 
+version (none)
 bool isDSTBug(in DateTime forDT, ref Duration biasDuration) @trusted
 {
     version (Windows)
@@ -184,11 +169,10 @@ bool isDSTBug(in DateTime forDT, ref Duration biasDuration) @trusted
 // Any below codes are private
 private:
 
-
 unittest // toInt
 {
-    import pham.utl.utltest;
-    traceUnitTest("unittest db.util.toInt");
+    import pham.utl.test;
+    traceUnitTest("unittest pham.db.convert.toInt");
 
     assert(toInt!int("") == 0);
     assert(toInt!int("", int.max) == int.max);
@@ -200,8 +184,8 @@ unittest // toInt
 
 unittest // toString
 {
-    import pham.utl.utltest;
-    traceUnitTest("unittest db.util.toString");
+    import pham.utl.test;
+    traceUnitTest("unittest pham.db.convert.toString");
 
     assert(toString('a') == "a");
     assert(toString(wchar('b')) == "b");
