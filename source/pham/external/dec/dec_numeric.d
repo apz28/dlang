@@ -1,12 +1,12 @@
-module decimal.floats;
+module pham.external.dec.numeric;
 
 /* ****************************************************************************************************************** */
 /* FLOAT UTILITY FUNCTIONS                                                                                            */
 /* ****************************************************************************************************************** */
 
-import decimal.integrals: clz, divrem, uint128;
+import pham.external.dec.integral: clz, divrem, uint128;
 
-package:
+package(pham.external.dec):
 
 enum MAX_FLOAT_COEFFICIENT_34   = uint128("3402823466385288598117041834845169");
 enum MAX_FLOAT_EXPONENT_34      = 5;

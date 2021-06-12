@@ -1,4 +1,4 @@
-module decimal.integrals;
+module pham.external.dec.integral;
 
 import core.bitop : bsf, bsr;
 import core.checkedint: adds, addu, mulu, subs, subu;
@@ -6,7 +6,7 @@ import std.traits: CommonType, isSigned, isSomeChar, isUnsigned, Signed, Unqual,
 
 nothrow @safe:
 
-package:
+package(pham.external.dec):
 
 /* ****************************************************************************************************************** */
 /* n BIT UNSIGNED IMPLEMENTATION                                                                                    */

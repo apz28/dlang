@@ -1,10 +1,11 @@
-module decimal.ranges;
+module pham.external.dec.range;
 
 import std.range.primitives: ElementType, isInputRange;
 import std.traits: isSomeChar, Unqual;
-import decimal.integrals: fma, uint128;
 
-package:
+import pham.external.dec.integral: fma, uint128;
+
+package(pham.external.dec):
 
 //rewrite some range primitives because phobos is performing utf decoding and we are not interested
 //in throwing UTFException and consequentely bring the garbage collector into equation

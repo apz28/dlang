@@ -1,9 +1,9 @@
-module decimal.sinks;
+module pham.external.dec.sink;
 
 import std.format : FormatSpec;
 import std.traits : isSomeChar, Unqual;
 
-import decimal.integrals : divrem, isAnyUnsigned, prec;
+import pham.external.dec.integral : divrem, isAnyUnsigned, prec;
 
 nothrow @safe:
 
@@ -12,7 +12,7 @@ template ToStringSink(C)
     alias ToStringSink = void delegate(scope const(C)[]) nothrow @safe;
 }
 
-package:
+package(pham.external.dec):
 
 //dumps value to buffer right aligned, assumes buffer has enough space
 int dumpUnsigned(C, T)(C[] buffer, auto const ref T value) pure

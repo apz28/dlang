@@ -1,4 +1,4 @@
-module pham.external.decimal.decimal;
+module pham.external.dec.decimal;
 
 import core.checkedint: adds, subs;
 import std.format: FormatException, FormatSpec, singleSpec;
@@ -30,18 +30,17 @@ else
     }
 }
 
-import pham.external.decimal.floats;
-import pham.external.decimal.integrals;
-import pham.external.decimal.ranges;
+import pham.external.dec.numeric;
+import pham.external.dec.integral;
+import pham.external.dec.range;
 
-private alias fma = pham.external.decimal.integrals.fma;
+private alias fma = pham.external.dec.integral.fma;
 
 version(D_BetterC)
-{
-}
+{}
 else
 {
-    import pham.external.decimal.sinks;
+    import pham.external.dec.sink;
 }
 
 version (unittest)
@@ -459,7 +458,7 @@ if (bits == 32 || bits == 64 || bits == 128)
 private:
     alias D = typeof(this);
 
-package(pham.external.decimal):
+package(pham.external.dec):
     alias U = DataType!D;
 
 public:
@@ -1317,7 +1316,7 @@ public:
         return isNeg ? -1 : (isZero ? 0 : 1);
     }
 
-package(pham.external.decimal):
+package(pham.external.dec):
     static D buildin(const U coefficientMask, const U exponentMask, const U signMask) @nogc nothrow pure @safe
     {
         D result = void;
@@ -7133,7 +7132,7 @@ if (isDecimal!D)
 }
 
 
-package(pham.external.decimal):
+package(pham.external.dec):
 
 
 template DataType(D)
@@ -14000,7 +13999,7 @@ ExceptionFlags coefficientSqrt(T)(ref T cx, ref int ex)
     }
 
     ex /= 2;
-    const bool inexact = pham.external.decimal.integrals.sqrt(cxx);
+    const bool inexact = pham.external.dec.integral.sqrt(cxx);
     flags |= coefficientAdjust(cxx, ex, cvt!U(T.max), false, RoundingMode.implicit);
     cx = cast(T)cxx;
     return inexact ? flags | ExceptionFlags.inexact : flags;
@@ -14051,7 +14050,7 @@ ExceptionFlags coefficientCbrt(T)(ref T cx, ref int ex)
     }
 
     ex /= 3;
-    const bool inexact = pham.external.decimal.integrals.cbrt(cxx);
+    const bool inexact = pham.external.dec.integral.cbrt(cxx);
     flags |= coefficientAdjust(cxx, ex, cvt!U(T.max), false, RoundingMode.implicit);
     cx = cast(T)cxx;
     return inexact ? flags | ExceptionFlags.inexact : flags;

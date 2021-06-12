@@ -9,13 +9,13 @@
  *
  */
 
-module decimal.codec;
+module pham.external.dec.codec;
 
 version (TraceFunction)
-import pham.utl.utltest;
+import pham.utl.test;
 
-import decimal.decimal: Decimal, DecimalSubClass, fabs, decimalSubClass;
-import decimal.integrals;
+import pham.external.dec.decimal: Decimal, DecimalSubClass, fabs, decimalSubClass;
+import pham.external.dec.integral;
 
 nothrow @safe:
 
@@ -672,8 +672,8 @@ immutable int[] bin2DPD = [
 unittest // DecimalCodec64
 {
 	//import std.algorithm.mutation : reverse;
-	import pham.utl.utlobject : bytesFromHexs;
-	import pham.utl.utltest;
+	import pham.utl.object : bytesFromHexs;
+	import pham.utl.test;
 	traceUnitTest("unittest decimal.codec.DecimalCodec64");
 
 	DecimalCodec64 codec;
@@ -738,8 +738,8 @@ unittest // DecimalCodec64
 unittest // DecimalCodec128
 {
 	//import std.algorithm.mutation : reverse;
-	import pham.utl.utlobject : bytesFromHexs;
-	import pham.utl.utltest;
+	import pham.utl.object : bytesFromHexs;
+	import pham.utl.test;
 	traceUnitTest("unittest decimal.codec.DecimalCodec128");
 
 	// Decode

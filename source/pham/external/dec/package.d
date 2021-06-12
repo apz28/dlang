@@ -336,6 +336,6 @@ Authors:   Răzvan Ștefănescu
 Source:    $(LINK2 https://github.com/rumbu13/decimal/blob/master/src/package.d, _decimal.d)
 
 */
-module pham.external.decimal;
+module pham.external.dec;
 
-public import pham.external.decimal.decimal;
+public import pham.external.dec.decimal;
