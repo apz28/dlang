@@ -66,26 +66,6 @@ public:
             && _standardDelta == rhs._standardDelta;
     }
 
-    /**
-     * Ensures the daylight delta is within [-12, 12] hours
-     */
-    version (none)
-    static void adjustDaylightDeltaToExpectedRange(ref Duration daylightDelta, ref Duration baseUtcOffsetDelta) @nogc nothrow pure
-    {
-        if (daylightDelta > maxDaylightDelta)
-        {
-            daylightDelta -= daylightDeltaAdjustment;
-            baseUtcOffsetDelta += daylightDeltaAdjustment;
-        }
-        else if (daylightDelta < -maxDaylightDelta)
-        {
-            daylightDelta += daylightDeltaAdjustment;
-            baseUtcOffsetDelta -= daylightDeltaAdjustment;
-        }
-
-        assert(daylightDelta <= maxDaylightDelta && daylightDelta >= -maxDaylightDelta, "daylightDelta should not ever be more than 24h");
-    }
-
     bool hasDaylightSaving() const @nogc nothrow pure scope
     {
         enum minPlus = DateTime.min.addMilliseconds(1);
@@ -928,23 +908,7 @@ private:
                 : daylightTime.endTime.safeAddTicks(invalidAtStart ? -rule.daylightDelta : Duration.zero);
         }
 
-        bool isDst = checkIsDst(startTime, dateTime, endTime, false, rule);
-
-        // If this date was previously converted from a UTC date and we were able to detect that the local
-        // DateTime would be ambiguous, this data is stored in the DateTime to resolve this ambiguity.
-        version (none)
-        if (isDst && dateTime.Kind == DateTimeKind.local)
-        {
-            // For normal time zones, the ambiguous hour is the last hour of daylight saving when you wind the
-            // clock back. It is theoretically possible to have a positive delta, (which would really be daylight
-            // reduction time), where you would have to wind the clock back in the begnning.
-            if (GetIsAmbiguousTime(dateTime, rule, daylightTime))
-            {
-                isDst = dateTime.IsAmbiguousDaylightSavingTime();
-            }
-        }
-
-        return isDst;
+        return checkIsDst(startTime, dateTime, endTime, false, rule);
     }
 
     bool getIsDaylightSavingsFromUtc(scope const DateTime utcDateTime, const int year, scope const Duration utc,
@@ -1026,59 +990,7 @@ private:
             endTime = daylightTime.endTime.safeAddTicks(-dstEndOffset);
         }
 
-        version (none)
-        {
-            DateTime ambiguousStart, ambiguousEnd;
-            if (daylightTime.delta.ticks > 0)
-            {
-                ambiguousStart = endTime - daylightTime.delta;
-                ambiguousEnd = endTime;
-            }
-            else
-            {
-                ambiguousStart = startTime;
-                ambiguousEnd = startTime - daylightTime.delta;
-            }
-        }
-
-        bool isDst = checkIsDst(startTime, utcDateTime, endTime, ignoreYearAdjustment, rule);
-
-        // See if the resulting local time becomes ambiguous. This must be captured here or the
-        // DateTime will not be able to round-trip back to UTC accurately.
-        version (none)
-        if (isDst)
-        {
-            isAmbiguousLocalDst = (utcDateTime >= ambiguousStart && utcDateTime < ambiguousEnd);
-            if (!isAmbiguousLocalDst && ambiguousStart.year != ambiguousEnd.Year)
-            {
-                // there exists an extreme corner case where the start or end period is on a year boundary and
-                // because of this the comparison above might have been performed for a year-early or a year-later
-                // than it should have been.
-                DateTime ambiguousStartModified, ambiguousEndModified;
-                try
-                {
-                    ambiguousStartModified = ambiguousStart.addYears(1);
-                    ambiguousEndModified = ambiguousEnd.addYears(1);
-                    isAmbiguousLocalDst = (utcDateTime >= ambiguousStartModified && utcDateTime < ambiguousEndModified);
-                }
-                catch (ArgumentOutOfRangeException)
-                { }
-
-                if (!isAmbiguousLocalDst)
-                {
-                    try
-                    {
-                        ambiguousStartModified = ambiguousStart.addYears(-1);
-                        ambiguousEndModified = ambiguousEnd.addYears(-1);
-                        isAmbiguousLocalDst = (utcDateTime >= ambiguousStartModified && utcDateTime < ambiguousEndModified);
-                    }
-                    catch (ArgumentOutOfRangeException)
-                    { }
-                }
-            }
-        }
-
-        return isDst;
+        return checkIsDst(startTime, utcDateTime, endTime, ignoreYearAdjustment, rule);
     }
 
     static Duration getUtcOffset(scope const Duration baseUtcOffset, scope const AdjustmentRule rule) @nogc nothrow pure

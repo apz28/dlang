@@ -1261,7 +1261,7 @@ package(pham.utl.datetime):
         this.data = data;
     }
 
-    DateTime errorResult(const ErrorOp error) const @nogc nothrow pure scope
+    DateTime errorDateTime(const ErrorOp error) const @nogc nothrow pure scope
     in
     {
         assert(error != ErrorOp.none);
@@ -1273,12 +1273,18 @@ package(pham.utl.datetime):
             : DateTime(cast(ulong)maxTicks | data.internalKind);
     }
 
+    ErrorOp errorResult(const ErrorOp error, out DateTime newDateTime) const @nogc nothrow pure scope
+    {
+        newDateTime = errorDateTime(error);
+        return error;
+    }
+
     DateTime safeAddTicks(const long ticks) const @nogc nothrow pure
     {
         DateTime result = void;
         long newTicks = void;
         const r = addTicksImpl(ticks, newTicks, result);
-        return r == ErrorOp.none ? result : errorResult(r);
+        return r == ErrorOp.none ? result : errorDateTime(r);
     }
 
     DateTime safeAddTicks(scope const Duration duration) const @nogc nothrow pure
@@ -1294,16 +1300,12 @@ private:
     ErrorOp addImpl(double value, int scale, out long newTicks, out DateTime newDateTime) const @nogc nothrow pure
     {
         const long millisecond = cast(long)(value * scale + (value >= 0 ? 0.5 : -0.5));
-
-        version (none)
-        {
-            if (millisecond <= -maxMillis)
-                return ErrorOp.underflow;
-            if (millisecond >= maxMillis)
-                return ErrorOp.overflow;
-        }
-
-        return addTicksImpl(millisecond * Tick.ticksPerMillisecond, newTicks, newDateTime);
+        const error = millisecond <= -maxMillis
+            ? ErrorOp.underflow
+            : (millisecond >= maxMillis ? ErrorOp.overflow : ErrorOp.none);
+        return error == ErrorOp.none
+            ? addTicksImpl(millisecond * Tick.ticksPerMillisecond, newTicks, newDateTime)
+            : errorResult(error, newDateTime);
     }
 
     ErrorOp addTicksImpl(const long ticks, out long newTicks, out DateTime newDateTime) const @nogc nothrow pure
@@ -1312,7 +1314,7 @@ private:
         const result = isValidTicks(newTicks);
         newDateTime = result == ErrorOp.none
             ? DateTime(cast(ulong)newTicks | data.internalKind)
-            : errorResult(result);
+            : errorDateTime(result);
         return result;
     }
 
@@ -1324,7 +1326,7 @@ private:
         const result = isValidYear(newYears);
         if (result != ErrorOp.none)
         {
-            newDateTime = errorResult(result);
+            newDateTime = errorDateTime(result);
             return result;
         }
         long n = yearToDays(cast(uint)newYears);
@@ -1399,8 +1401,9 @@ private:
 
     void validateLeapSecond() pure
     {
-        //if (!isValidTimeWithLeapSeconds(year, month, day, hour, minute, kind))
-        //    ThrowHelper.ThrowArgumentOutOfRange_BadHourMinuteSecond();
+        version (none)
+        if (!isValidTimeWithLeapSeconds(year, month, day, hour, minute, kind))
+            throwOutOfRange!(ErrorPart.second)(second);
     }
 
     static uint yearToDays(uint year) @nogc nothrow pure
