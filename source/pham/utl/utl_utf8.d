@@ -299,7 +299,7 @@ private:
 
 nothrow @safe unittest // inplaceMoveToLeft
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.utf8.inplaceMoveToLeft");
 
     auto chars = cast(ubyte[])"1234567890".dup;
@@ -310,7 +310,7 @@ nothrow @safe unittest // inplaceMoveToLeft
 nothrow @safe unittest // NumericLexer
 {
     import std.utf : byCodeUnit;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.utf8.NumericLexer");
 
     NumericLexer!(typeof("".byCodeUnit)) r;

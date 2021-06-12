@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.utltest;
+module pham.utl.test;
 
 import core.time : Duration, MonoTime, dur;
 import core.sync.mutex : Mutex;
@@ -101,9 +101,9 @@ public:
             debug PerfFunctionCounter.profile(name, elapsedTime());
     }
 
-    Duration elapsedTime() const @nogc pure
+    Duration elapsedTime() const @nogc
     {
-        debug return MonoTime.currTime - startedTime;
+        return MonoTime.currTime - startedTime;
     }
 
 public:
@@ -141,7 +141,7 @@ public:
     }
     do
     {
-        import pham.utl.utlobject : RAIIMutex;
+        import pham.utl.object : RAIIMutex;
 
         auto raiiMutex = RAIIMutex(countersMutex);
         auto existedCounter = name in counters;
@@ -319,7 +319,7 @@ version (unittest)
 
     string dgToHex(scope const(ubyte)[] b) @nogc nothrow pure @safe
     {
-        import pham.utl.utlobject : bytesToHexs;
+        import pham.utl.object : bytesToHexs;
 
         debug return bytesToHexs(b);
     }
@@ -373,7 +373,7 @@ version (unittest)
 
     void dgWriteln(const(char)[] prefix, scope const(ubyte)[] bytes) nothrow
     {
-        import pham.utl.utlobject : bytesToHexs;
+        import pham.utl.object : bytesToHexs;
 
         try
         {
@@ -423,7 +423,7 @@ shared static this() @trusted
     version (TraceInvalidMemoryOp)
     {
         import core.exception;
-        import pham.utl.utltest;
+        import pham.utl.test;
         dgWriteln("utl.utltest.shared static this()");
 
         assertHandler(null);
@@ -450,7 +450,7 @@ shared static ~this() @trusted
 
 unittest // PerfCpuUsage
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("utl.utltest.PerfCpuUsage");
 
     const cpuTime = PerfCpuUsage.get();

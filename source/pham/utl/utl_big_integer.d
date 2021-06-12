@@ -11,7 +11,7 @@
  * tree/master/src/System.Runtime.Numerics/src/System/Numerics
  */
 
-module pham.utl.biginteger;
+module pham.utl.big_integer;
 
 import std.array : Appender;
 import std.ascii : lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
@@ -23,9 +23,9 @@ import std.traits;
 import std.typecons : Flag, No, Yes;
 
 import pham.utl.array : IndexedArray;
-import pham.utl.utlobject : bytesToHexs, isHex, randomDecimalDigits, randomHexDigits;
-import pham.utl.biginteger_helper;
-import pham.utl.biginteger_calculator;
+import pham.utl.object : bytesToHexs, isHex, randomDecimalDigits, randomHexDigits;
+import pham.utl.big_integer_helper;
+import pham.utl.big_integer_calculator;
 
 @safe:
 
@@ -2450,7 +2450,7 @@ string toStringSafe(const BigInteger n,
 nothrow unittest
 {
     import std.conv : to;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger.BigInteger.toString('%d')");
 
     static void check(T)(T value, string checkedValue,
@@ -2485,7 +2485,7 @@ nothrow unittest
 unittest
 {
     import std.conv : to;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger.BigInteger.toString('%X')");
 
     static void check(T)(T value, string checkedValue,
@@ -2520,7 +2520,7 @@ unittest
 unittest
 {
     import std.conv : to;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger.BigInteger(parse integer)");
 
     static void check(string value,
@@ -2553,7 +2553,7 @@ unittest
 unittest
 {
     import std.conv : to;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger.BigInteger(parse hex)");
 
     static void check(string value,
@@ -2584,7 +2584,7 @@ unittest
 
 unittest
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger.BigInteger(compare)");
 
     auto x = BigInteger("12345");
@@ -2610,7 +2610,7 @@ unittest
 {
     import std.conv : to, ConvException;
     import std.exception : assertThrown;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger.BigInteger(cast)");
 
     // Non-zero values are regarded as true
@@ -2667,7 +2667,7 @@ unittest
 unittest
 {
     import std.conv : to;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger.BigInteger(operator + - ~ )");
 
     static void check(const BigInteger value, string checkedValue,
@@ -2817,7 +2817,7 @@ unittest
 unittest
 {
     import std.conv : to;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger.BigInteger(operator * / %)");
 
     static void check(const BigInteger value, string checkedValue,
@@ -2889,7 +2889,7 @@ unittest
 unittest
 {
     import std.conv : to;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger.BigInteger(operator << >> ^^)");
 
     static void check(const BigInteger value, string checkedValue,
@@ -2919,7 +2919,7 @@ unittest
 
 unittest
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger.randomDecimalDigits");
 
     string s;
@@ -2939,7 +2939,7 @@ unittest
 
 unittest
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger.randomHexDigits");
 
     string s;
@@ -2960,7 +2960,7 @@ unittest
 unittest
 {
     import std.conv : to;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger.BigInteger(multiply)");
 
     static void check(const BigInteger value, string checkedValue,
@@ -2980,7 +2980,7 @@ unittest
 
 unittest
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger.BigInteger.enum");
 
     enum b = BigInteger("0x123");
@@ -2990,7 +2990,7 @@ unittest
 
 unittest
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger.BigInteger.toBytes");
 
     auto b = BigInteger("148607213746748888433115898774488125434956021884951532398437063594981690133657747515764650183781235940657054608881977858196568765979755791042029635107364589767082851027596594595936524517171068826751265581664247659551324634745120309986368437908665195084578221129443657946400665125676458397984792168049771254957");
@@ -3001,7 +3001,7 @@ unittest
 unittest
 {
     import std.conv : to;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger.BigInteger(RSP Calculation)");
 
     static void check(string caseNumber, const BigInteger value, string checkedValue,
@@ -3097,7 +3097,7 @@ unittest
 unittest
 {
     import std.conv : to;
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.biginteger - to!BigInteger('123...')");
 
     const a = to!BigInteger("1234");

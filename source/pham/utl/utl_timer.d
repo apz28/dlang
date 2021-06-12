@@ -15,7 +15,7 @@ import core.sync.mutex : Mutex;
 import core.thread.osthread : Thread;
 public import core.time : Duration, dur;
 
-import pham.utl.utlobject : RAIIMutex;
+import pham.utl.object : RAIIMutex;
 
 alias TimerDelegate = void delegate(TimerEvent event);
 alias TimerFunction = void function(TimerEvent event);

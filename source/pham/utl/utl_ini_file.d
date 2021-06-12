@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.inifile;
+module pham.utl.ini_file;
 
 import std.file : exists;
 import std.format : format;
@@ -928,7 +928,7 @@ private:
 
 unittest // IniFile.parseSection
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.inifile.IniFile.parseSection");
 
     IniFile.Line name;
@@ -978,7 +978,7 @@ unittest // IniFile.parseSection
 
 unittest // IniFile.parseNameValue
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.inifile.IniFile.parseNameValue");
 
     IniFile.Line name, value;
@@ -1053,7 +1053,7 @@ unittest // IniFile.parseNameValue
 
 unittest // IniFile
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.inifile.IniFile");
 
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);
@@ -1128,7 +1128,7 @@ struct Foo
 
 unittest // saveMembers & loadMembers
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.inifile.saveMembers & utl.inifile.loadMembers");
 
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);

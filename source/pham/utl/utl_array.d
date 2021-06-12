@@ -14,7 +14,7 @@ module pham.utl.array;
 import std.range.primitives : ElementType;
 import std.traits : isDynamicArray, isStaticArray, lvalueOf;
 
-version (profile) import pham.utl.utltest : PerfFunction;
+version (profile) import pham.utl.test : PerfFunction;
 
 nothrow:
 
@@ -542,7 +542,7 @@ private:
 
 nothrow @safe unittest
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.array.arrayOfChar");
 
     assert(arrayOfChar!char('0', 0) == []);
@@ -552,7 +552,7 @@ nothrow @safe unittest
 
 nothrow @safe unittest
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.array.IndexedArray");
 
     auto a = IndexedArray!(int, 2)(0);
@@ -654,7 +654,7 @@ nothrow @safe unittest
 
 nothrow @safe unittest
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest utl.array.UnshrinkArray");
 
     auto a = UnshrinkArray!int(0);

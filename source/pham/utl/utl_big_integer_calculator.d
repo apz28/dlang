@@ -11,7 +11,7 @@
  * tree/master/src/System.Runtime.Numerics/src/System/Numerics
  */
 
-module pham.utl.biginteger_calculator;
+module pham.utl.big_integer_calculator;
 
 import std.algorithm : swap;
 
