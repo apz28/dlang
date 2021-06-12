@@ -20,7 +20,7 @@ import pham.xml.type;
 import pham.xml.message;
 import pham.xml.exception;
 import pham.xml.util;
-import pham.xml.xmlobject;
+import pham.xml.object;
 import pham.xml.buffer;
 import pham.xml.string;
 
@@ -934,7 +934,7 @@ protected:
     bool eof;
 }
 
-package struct ParseContext(S)
+package(pham.xml) struct ParseContext(S)
 if (isXmlString!S)
 {
 @safe:

@@ -12,7 +12,7 @@
 module pham.xml.exception;
 
 import pham.xml.message;
-import pham.xml.xmlobject;
+import pham.xml.object;
 
 @safe:
 

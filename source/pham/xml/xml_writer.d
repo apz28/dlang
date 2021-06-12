@@ -18,7 +18,7 @@ import std.typecons : Flag, No, Yes;
 import pham.xml.type;
 import pham.xml.message;
 import pham.xml.util;
-import pham.xml.xmlobject;
+import pham.xml.object;
 import pham.xml.buffer;
 
 @safe:

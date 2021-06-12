@@ -15,13 +15,13 @@ import std.array : Appender, split;
 import std.typecons : Flag, No, Yes;
 
 import pham.utl.dlink_list;
-import pham.utl.enum_set;
-import pham.utl.utlobject;
+import pham.utl.enum_set : EnumSet;
+import pham.utl.object : shortClassName, singleton;
 import pham.xml.type;
 import pham.xml.message;
 import pham.xml.exception;
 import pham.xml.util;
-import pham.xml.xmlobject;
+import pham.xml.object;
 import pham.xml.buffer;
 import pham.xml.string;
 import pham.xml.entity_table;
@@ -4015,7 +4015,7 @@ protected:
 
 unittest  // Display object sizeof
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
 
     dgWriteln("");
     dgWriteln("xml.XmlNodeList.sizeof: ", XmlNodeList!string.sizeof);
@@ -4050,7 +4050,7 @@ unittest  // Display object sizeof
 
 unittest  // XmlDocument
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.XmlDocument");
 
     auto doc = new XmlDocument!string();

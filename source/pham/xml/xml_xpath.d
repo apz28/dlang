@@ -16,13 +16,12 @@ import std.exception : assumeWontThrow;
 import std.math : isNaN;
 import std.typecons : Flag, No, Yes;
 
-import pham.utl.enum_set;
-import pham.utl.utlobject;
+import pham.utl.enum_set : EnumArray;
 import pham.xml.type;
 import pham.xml.message;
 import pham.xml.exception;
 import pham.xml.util;
-import pham.xml.xmlobject;
+import pham.xml.object;
 import pham.xml.buffer;
 import pham.xml.writer;
 import pham.xml.dom;
@@ -291,7 +290,7 @@ XmlNodeType toXmlNodeType(XPathNodeType nodeType) nothrow pure
     return toXmlNodeTypeTable[nodeType];
 }
 
-struct XPathValue(S)
+struct XPathValue(S = string)
 if (isXmlString!S)
 {
 @safe:
@@ -576,7 +575,7 @@ private:
     XPathDataType _type;
 }
 
-struct XPathContext(S)
+struct XPathContext(S = string)
 if (isXmlString!S)
 {
 @safe:
@@ -4403,7 +4402,7 @@ if (isXmlString!S)
 unittest  // XPathParser
 {
     import std.file : write; // write parser tracer info to file
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.xpath.XPathParser");
 
     string[] output;
@@ -4500,7 +4499,7 @@ unittest  // XPathParser
 unittest  // XPathParser.selectNodes
 {
     import pham.xml_test;
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.xpath.XPathParser.selectNodes");
 
     auto doc = new XmlDocument!string().load(xpathXml);

@@ -20,7 +20,7 @@ import pham.xml.type;
 import pham.xml.message;
 import pham.xml.exception;
 import pham.xml.util;
-import pham.xml.xmlobject;
+import pham.xml.object;
 import pham.xml.buffer;
 import pham.xml.string;
 import pham.xml.reader;
@@ -1079,9 +1079,13 @@ private:
     }
 }
 
+
+private:
+
+
 unittest  // XmlParser.invalid construct
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.parser.XmlParser.invalid construct");
 
     void parseError(string xml)
@@ -1107,7 +1111,7 @@ unittest  // XmlParser.invalid construct
 
 unittest  // XmlParser.DOCTYPE
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.parser.XmlParser.DOCTYPE");
 
     static immutable string xml =
@@ -1125,7 +1129,7 @@ XML";
 unittest  // XmlParser
 {
     import pham.xml_test;
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.parser.XmlParser");
 
     auto doc = new XmlDocument!string().load(parserXml);
@@ -1135,7 +1139,7 @@ unittest  // XmlParser.navigation
 {
     import std.conv : to;
     import std.typecons : No, Yes;
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.parser.XmlParser.navigation");
 
     static immutable string xml =
@@ -1570,7 +1574,7 @@ XML";
 unittest  // XmlParser.SAX
 {
     import pham.xml.test;
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.parser.XmlParser.SAX");
 
     version (none)

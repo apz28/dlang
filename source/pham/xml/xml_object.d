@@ -9,19 +9,18 @@
  *
  */
 
-module pham.xml.xmlobject;
+module pham.xml.object;
 
 import std.exception : assumeWontThrow;
 import std.format : format;
 
-import pham.utl.utlobject;
 import pham.xml.message;
 import pham.xml.type;
 
 @safe:
 
-package enum defaultXmlLevels = 400;
-package enum defaultXmlBufferCapacity = 1000;
+package(pham.xml) enum defaultXmlLevels = 400;
+package(pham.xml) enum defaultXmlBufferCapacity = 1000;
 
 struct XmlIdentifierList(S = string)
 if (isXmlString!S)

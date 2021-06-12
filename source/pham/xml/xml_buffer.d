@@ -19,7 +19,7 @@ import pham.xml.type;
 import pham.xml.message;
 import pham.xml.exception;
 import pham.xml.util;
-import pham.xml.xmlobject;
+import pham.xml.object;
 import pham.xml.entity_table;
 
 @safe:
@@ -518,7 +518,7 @@ private:
 unittest  // XmlBuffer.decode
 {
     import std.exception : assertThrown;
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.buffer.XmlBuffer.decode");
 
     const(char)[] s;
@@ -557,7 +557,7 @@ unittest  // XmlBuffer.decode
 
 unittest  // XmlBuffer.encode
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.buffer.XmlBuffer.encode");
 
     const(XmlChar!string)[] s;

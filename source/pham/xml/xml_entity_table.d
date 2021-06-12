@@ -11,11 +11,11 @@
 
 module pham.xml.entity_table;
 
-import pham.utl.utlobject;
+import pham.utl.object : singleton;
 import pham.xml.type;
 import pham.xml.message;
 import pham.xml.util;
-import pham.xml.xmlobject;
+import pham.xml.object;
 
 @safe:
 
@@ -89,9 +89,13 @@ private:
     __gshared static XmlEntityTable!S _defaultEntityTable;
 }
 
+
+private:
+
+
 unittest // XmlEntityTable.defaultEntityTable
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.entity_table.XmlEntityTable.defaultEntityTable");
 
     auto table = XmlEntityTable!string.defaultEntityTable();

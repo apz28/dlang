@@ -224,15 +224,9 @@ if (isXmlString!S)
 {
     import std.uni : sicmp;
 
-    try
-    {
-        return sicmp(s1, s2) == 0;
-    }
-    catch (Exception e)
-    {
-        assert(0);
-        return false;
-    }
+    scope (failure) assert(0);
+    
+    return sicmp(s1, s2) == 0;
 }
 
 /** Returns true if subString is same from the end of s (case-sensitive)
@@ -738,7 +732,7 @@ do
 version (xmlTraceParser)
 {
     import std.traits : isSomeChar;
-    import pham.utl.utltest;
+    import pham.utl.test;
 
     void outputXmlTraceParser(A...)(A args) nothrow
     {
@@ -761,7 +755,7 @@ version (xmlTraceParser)
 version (xmlTraceXPathParser)
 {
     import std.traits : isSomeChar;
-    import pham.utl.utltest;
+    import pham.utl.test;
 
     void outputXmlTraceXPathParser(A...)(A args) nothrow
     {
@@ -777,7 +771,7 @@ version (xmlTraceXPathParser)
 
 version (isXmlTraceProgress)
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
 
     void outputXmlTraceProgress(A...)(A args) nothrow
     {
@@ -953,7 +947,7 @@ do
 
 unittest  // combineName
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.combineName");
 
     assert(combineName!string("", "") == "");
@@ -964,7 +958,7 @@ unittest  // combineName
 
 unittest  // equalCase
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.equalCase");
 
     assert(equalCase!string("", ""));
@@ -980,7 +974,7 @@ unittest  // equalCase
 
 unittest  // equalCaseInsensitive
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.equalCaseInsensitive");
 
     assert(equalCaseInsensitive!string("", ""));
@@ -996,7 +990,7 @@ unittest  // equalCaseInsensitive
 
 unittest  // formatNumber
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.formatNumber");
 
     assert(formatNumber!int(0) == "0");
@@ -1030,7 +1024,7 @@ unittest  // formatNumber
 
 unittest  // formatFloat
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.formatFloat");
 
     assert(formatFloat!double(0.0) == "0.000_000");
@@ -1049,7 +1043,7 @@ unittest  // formatFloat
 
 unittest  // stringOfChar
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.stringOfChar");
 
     assert(stringOfChar!string(' ', 0) == "");
@@ -1059,7 +1053,7 @@ unittest  // stringOfChar
 
 unittest  // isChar
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.isChar");
 
     assert(isChar(cast(dchar)0x9));
@@ -1102,7 +1096,7 @@ unittest  // isChar
 
 unittest  // isDigit
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.isDigit");
 
     assert(isDigit('0'));
@@ -1173,7 +1167,7 @@ unittest  // isDigit
 
 unittest  // isExtender
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.isExtender");
 
     assert(isExtender(cast(dchar)0x00B7));
@@ -1197,7 +1191,7 @@ unittest  // isExtender
 
 unittest  // isIdeographic
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.isIdeographic");
 
     assert(isIdeographic('\u4E00'));
@@ -1217,7 +1211,7 @@ unittest  // isIdeographic
 
 unittest  // all code points for xml_util.isChar, xml_util.isDigit, xml_util.isIdeographic
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
 
     version (none)
     {
@@ -1236,7 +1230,7 @@ unittest  // all code points for xml_util.isChar, xml_util.isDigit, xml_util.isI
 
 unittest  // isSpaces
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.isSpaces");
 
     assert(isSpaces!string(" "));
@@ -1258,7 +1252,7 @@ unittest  // isSpaces
 unittest  // isVersionStr
 {
     import std.typecons : No, Yes;
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.isVersionStr");
 
     assert(isVersionStr!(string, Yes.AllowEmpty)(""));
@@ -1276,7 +1270,7 @@ unittest  // isVersionStr
 
 unittest  // leftString
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.leftString");
 
     assert(leftString!string("", 1) == "");
@@ -1287,7 +1281,7 @@ unittest  // leftString
 
 unittest  // leftStringIndicator
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.leftStringIndicator");
 
     assert(leftStringIndicator!string("", 1) == "");
@@ -1298,7 +1292,7 @@ unittest  // leftStringIndicator
 
 unittest  // rightString
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.rightString");
 
     assert(rightString!string("", 1) == "");
@@ -1309,7 +1303,7 @@ unittest  // rightString
 
 unittest  // splitName
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.splitName");
 
     const(char)[] p, n;
@@ -1329,7 +1323,7 @@ unittest  // splitName
 
 unittest  // splitNameValue
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     dgWriteln("unittest xml.util.splitNameValue");
 
     const(XmlChar!string)[] n, v;
