@@ -13,7 +13,7 @@ module pham.cp.cipher_rc4;
 
 import std.algorithm.mutation : swap;
 
-version (unittest) import pham.utl.utltest;
+version (unittest) import pham.utl.test;
 import pham.cp.cipher;
 
 nothrow @safe:
@@ -133,8 +133,8 @@ private:
 
 unittest // CipherRC4
 {
-    import pham.utl.utlobject : bytesFromHexs;
-    import pham.utl.utltest;
+    import pham.utl.object : bytesFromHexs;
+    import pham.utl.test;
     traceUnitTest("unittest cp.cipher_rc4.CipherRC4");
 
     {

@@ -67,8 +67,8 @@ import std.string : representation;
 import std.typecons : Flag, No, Yes;
 
 import pham.utl.array : arrayOfChar;
-import pham.utl.biginteger;
-import pham.utl.utlobject : DisposableObject, isHex, randomHexDigits;
+import pham.utl.big_integer;
+import pham.utl.object : DisposableObject, isHex, randomHexDigits;
 public import pham.cp.cipher_digest;
 
 nothrow @safe:
@@ -362,7 +362,7 @@ public:
 
         version (TraceAuth)
         {
-            import pham.utl.utltest;
+            import pham.utl.test;
             dgFunctionTrace("A=", A.toString(),
                 ", A.pad=", bytesFromBigIntegerPad(A, padSize).dgToHex(),
                 ", B=", B.toString(),
@@ -512,7 +512,7 @@ protected:
 
         version (TraceAuth)
         {
-            import pham.utl.utltest;
+            import pham.utl.test;
             dgFunctionTrace("N=" ~ N.toString(),
                 ", g=" ~ g.toString(),
                 ", result=", result.toString());
@@ -593,7 +593,7 @@ public:
 
         version (TraceAuth)
         {
-            import pham.utl.utltest;
+            import pham.utl.test;
             dgFunctionTrace("ephemeralPublic=", ephemeralPublic.toString(),
                 ", ephemeralPrivate=", ephemeralPrivate.toString(),
                 ", serverPublicKey=", serverPublicKey.toString(),
@@ -621,7 +621,7 @@ public:
 
         version (TraceAuth)
         {
-            import pham.utl.utltest;
+            import pham.utl.test;
             dgFunctionTrace("ephemeralPublic=", ephemeralPublic.toString(),
                 ", ephemeralPrivate=", ephemeralPrivate.toString(),
                 ", serverPublicKey=", serverPublicKey.toString(),
@@ -914,8 +914,8 @@ shared static this()
 
 nothrow @safe unittest // bytesToBigInteger
 {
-    import pham.utl.utlobject;
-    import pham.utl.utltest;
+    import pham.utl.object;
+    import pham.utl.test;
     traceUnitTest("unittest cp.auth_rsp.bytesToBigInteger");
 
     assert(bytesToBigInteger(bytesFromHexs("BADAD8293C6296A5E190B90189CC983140C933CC")).toString() == "1066752676112117711667100034894519583952173872076");
@@ -925,8 +925,8 @@ nothrow @safe unittest // bytesToBigInteger
 
 nothrow @safe unittest // bigIntegerToBytes
 {
-    import pham.utl.utlobject;
-    import pham.utl.utltest;
+    import pham.utl.object;
+    import pham.utl.test;
     traceUnitTest("unittest cp.auth_rsp.bytesFromBigInteger");
 
     assert(bytesToHexs(bytesFromBigInteger(digitsToBigInteger("58543554083751952442334332707885450963256912723720014361224396835623580320574993412213112731622008780624513837590415042361332636920155374789034615041232473542789648377986158701807740526423554224690384086846078749662234094040670372520229647584994218966915554154095758043112636200250640433313973626261330006062"))) == "535E68E994A09E4C230894A6CC5F2B2485048097578E647222329B71A0AE81A91ADB0130AFEA1137DC1D2E6E22B0344C27C1572EDC5458B467087F05949B06B48F93E24D03A6320DCD07650E427F15F29DCDC90BAE5C81B37F418AB2CD48C27E2B919526A02AF70DC8FC0AED061B44CD3B17FB5042043FD2EDBE81296075102E");

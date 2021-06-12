@@ -434,7 +434,7 @@ struct Crypt3Key
 
 @safe unittest // crypt3
 {
-    import pham.utl.utltest;
+    import pham.utl.test;
     traceUnitTest("unittest cp.auth_crypt3.crypt3");
 
     const(char)[] e;
