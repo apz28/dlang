@@ -15,6 +15,8 @@ import core.time : ClockType, convert;
 public import core.time : dur, Duration, TimeException;
 import std.conv : to;
 
+version = RelaxCompareTime;
+
 @safe:
 
 enum DateTimeKind : byte
@@ -159,22 +161,51 @@ struct TickData
 
     int opCmp(scope const TickData rhs) const pure scope
     {
-        const lhsTicks = uticks;
-        const rhsTicks = rhs.uticks;
-        const result = (lhsTicks > rhsTicks) - (lhsTicks < rhsTicks);
-        if (result == 0)
+        version (RelaxCompareTime)
         {
-            const lhsKind = internalKind;
-            const rhsKind = rhs.internalKind;
-            return (lhsKind > rhsKind) - (lhsKind < rhsKind);
+            return relaxCmp(this, rhs);
         }
         else
-            return result;
+        {
+            const lhsTicks = uticks;
+            const rhsTicks = rhs.uticks;
+            const result = (lhsTicks > rhsTicks) - (lhsTicks < rhsTicks);
+            if (result == 0)
+            {
+                const lhsKind = internalKind;
+                const rhsKind = rhs.internalKind;
+                return (lhsKind > rhsKind) - (lhsKind < rhsKind);
+            }
+            else
+                return result;
+        }
     }
 
     bool opEquals(scope const TickData rhs) const pure scope
     {
-        return this.data == rhs.data;
+        version (RelaxCompareTime)
+            return relaxCmp(this, rhs) == 0;
+        else
+            return this.data == rhs.data;
+    }
+
+    //pragma(inline, true)
+    static int relaxCmp(scope const TickData lhs, scope const TickData rhs) pure
+    {
+        const lhsTicks = lhs.uticks;
+        const rhsTicks = rhs.uticks;
+        const result = (lhsTicks > rhsTicks) - (lhsTicks < rhsTicks);
+        if (result == 0)
+        {
+            const lhsKind = lhs.internalKind;
+            const rhsKind = rhs.internalKind;
+            if (lhsKind == kindUnspecified || rhsKind == kindUnspecified)
+                return result;
+            else
+                return (lhsKind > rhsKind) - (lhsKind < rhsKind);
+        }
+        else
+            return result;
     }
 
     pragma(inline, true)
@@ -237,7 +268,7 @@ struct TickData
     enum ulong kindUnspecified = 0x0000_0000_0000_0000;
     enum ulong kindUtc = 0x4000_0000_0000_0000;
     enum ulong kindLocal = 0x8000_0000_0000_0000;
-    enum ulong kindLocalAmbiguousDst = 0xC000_0000_0000_0000;
+    //enum ulong kindLocalAmbiguousDst = 0xC000_0000_0000_0000;
     enum int kindShift = 62;
 
     ulong data;

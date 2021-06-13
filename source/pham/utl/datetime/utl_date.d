@@ -463,14 +463,15 @@ public:
         this.data = TickData.createDateTimeTick(dateToTicks(year, month, day) + Tick.timeToTicks(hour, minute, 0), kind);
     }
 
-    this(int year, int month, int day) @nogc nothrow pure
+    this(int year, int month, int day,
+        DateTimeKind kind = DateTimeKind.unspecified) @nogc nothrow pure
     in
     {
         assert(isValidDateParts(year, month, day) == ErrorPart.none);
     }
     do
     {
-        this.data = TickData.createDateTimeTick(dateToTicks(year, month, day), DateTimeKind.unspecified);
+        this.data = TickData.createDateTimeTick(dateToTicks(year, month, day), kind);
     }
 
     DateTime opBinary(string op)(scope const Duration duration) const pure scope
@@ -679,7 +680,7 @@ public:
     {
         int y = void, m = void, d = void;
         getDate(y, m, d);
-        return DateTime(y, m, 1);
+        return DateTime(y, m, 1, kind);
     }
 
     static void checkDateParts(int year, int month, int day) pure
@@ -739,10 +740,11 @@ public:
         return DateTime(year, month, day, hour, minute, kind);
     }
 
-    static DateTime createDateTime(int year, int month, int day) pure
+    static DateTime createDateTime(int year, int month, int day,
+        DateTimeKind kind = DateTimeKind.unspecified) pure
     {
         checkDateParts(year, month, day);
-        return DateTime(year, month, day);
+        return DateTime(year, month, day, kind);
     }
 
     static ulong dateToTicks(int year, int month, int day) @nogc nothrow pure
@@ -779,7 +781,7 @@ public:
     {
         int y = void, m = void, d = void;
         getDate(y, m, d);
-        return DateTime(Date(y, m, daysInMonth(y, m)), Time.max);
+        return DateTime(Date(y, m, daysInMonth(y, m)), Time.max.toTimeKind(kind));
     }
 
     void getDate(out int year, out int month, out int day) const @nogc nothrow pure
@@ -1008,7 +1010,9 @@ public:
      * Tries to construct a DateTime from a given year, month, day, hour,
      * minute, second and millisecond.
      */
-    static bool tryCreate(int year, int month, int day, int hour, int minute, int second, int millisecond, out DateTime result) @nogc nothrow pure
+    static bool tryCreate(int year, int month, int day, int hour, int minute, int second, int millisecond,
+        out DateTime result,
+        DateTimeKind kind = DateTimeKind.unspecified) @nogc nothrow pure
     {
         if (isValidDateParts(year, month, day) != ErrorPart.none)
         {
@@ -1044,7 +1048,7 @@ public:
         }
         assert(ticks <= maxTicks);
 
-        result = DateTime(ticks);
+        result = DateTime(ticks, kind);
         return true;
     }
 
