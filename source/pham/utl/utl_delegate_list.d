@@ -19,9 +19,7 @@ public:
     alias DelegateHandler = void delegate(Args args);
 
 public:
-    @disable this(this);
-
-    void opOpAssign(string op)(DelegateHandler handler) nothrow @safe
+    void opOpAssign(string op)(DelegateHandler handler) nothrow pure @safe
     if (op == "~" || op == "+" || op == "-")
     {
         static if (op == "~" || op == "+")
@@ -45,41 +43,45 @@ public:
         }
     }
 
-    bool opCast(B)() nothrow @safe
-    if (is(B == bool))
+    bool opCast(C: bool)() const nothrow pure @safe
     {
         return length != 0;
     }
 
-    /** Removes all the elements from the array
-    */
-    ref typeof(this) clear() nothrow @safe
+    /**
+     * Removes all handlers from this instant
+     */
+    ref typeof(this) clear() nothrow return pure @safe
     {
         items.clear();
         return this;
     }
 
-    /** Appends element, handler, into end of array
-        Params:
-            handler = element to be appended
-    */
-    void putBack(DelegateHandler handler) nothrow @safe
+    /**
+     * Appends element, handler, into end of this instant
+     * Params:
+     *  handler = element to be appended
+     */
+    ref typeof(this) putBack(DelegateHandler handler) nothrow pure return @safe
     {
         if (handler !is null)
             items.putBack(handler);
+        return this;
     }
 
-    /** Removes matched element, handler, from array
-        Params:
-            handler = element to be removed
-    */
-    void remove(DelegateHandler handler) nothrow @safe
+    /**
+     * Removes matched element, handler, from this instant
+     * Params:
+     *  handler = element to be removed
+     */
+    ref typeof(this) remove(DelegateHandler handler) nothrow pure return @safe
     {
         if (handler !is null)
             items.remove(handler);
+        return this;
     }
 
-    @property size_t length() const nothrow @safe
+    @property size_t length() const nothrow pure @safe
     {
         return items.length;
     }
@@ -91,7 +93,6 @@ private:
 
 // Any below codes are private
 private:
-
 
 unittest // DelegateList
 {
