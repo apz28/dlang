@@ -180,13 +180,13 @@ public:
 
         auto result = severity ~ ' ' ~ sqlState ~ ": " ~ message;
 
-        auto detail = PgDiag.messageDetail in typeValues;
-        if (detail)
-            result ~= "\n" ~ DbMessage.eErrorDetail ~ ": " ~ *detail;
+        auto s = detail;
+        if (s.length)
+            result ~= "\n" ~ DbMessage.eErrorDetail ~ ": " ~ s;
 
-        auto hint = PgDiag.messageHint in typeValues;
-        if (hint)
-            result ~= "\n" ~ DbMessage.eErrorHint ~ ": " ~ *hint;
+        s = hint;
+        if (s.length)
+            result ~= "\n" ~ DbMessage.eErrorHint ~ ": " ~ s;
 
         return result;
     }
@@ -195,6 +195,26 @@ public:
     {
         auto p = type in typeValues;
         return p ? *p : null;
+    }
+
+    int getWarn(ref DbNotificationMessage[] messages)
+    {
+        int result = 0;
+
+        void addWarnMessage(string s) nothrow @safe
+        {
+            if (s.length)
+            {
+                messages ~= DbNotificationMessage(s, 0);
+                result++;
+            }
+        }
+
+        addWarnMessage(message);
+        addWarnMessage(detail);
+        addWarnMessage(hint);
+
+        return result;
     }
 
     @property string message() const
@@ -261,6 +281,16 @@ public:
 
 public:
     string[char] typeValues;
+}
+
+struct PgNotificationResponse
+{
+nothrow @safe:
+
+public:
+    string channel;
+    string payload;
+    int32 pid;
 }
 
 struct PgOIdExecuteResult

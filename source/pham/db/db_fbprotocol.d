@@ -29,7 +29,7 @@ import pham.db.message;
 import pham.db.convert;
 import pham.db.util;
 import pham.db.type;
-import pham.db.dbobject : DbDisposableObject;
+import pham.db.object : DbDisposableObject;
 import pham.db.auth : DbAuth;
 import pham.db.buffer_filter;
 import pham.db.buffer_filter_cipher;
@@ -149,12 +149,13 @@ public:
         this._connection = connection;
     }
 
-    final FbIscObject allocateCommandRead()
+    final FbIscObject allocateCommandRead(FbCommand command)
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto response = readGenericResponse();
-        return response.getIscObject();
+        auto r = readGenericResponse();
+        r.statues.getWarn(command.notificationMessages);
+        return r.getIscObject();
     }
 
     final void allocateCommandWrite()
@@ -204,8 +205,9 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto response = readGenericResponse();
-        return response.getIscObject();
+        auto r = readGenericResponse();
+        //r.statues.getWarn(command.notificationMessages);
+        return r.getIscObject();
     }
 
     final void arrayPutWrite(ref FbArray array, size_t elements, scope const(ubyte)[] encodedArrayValue)
@@ -229,8 +231,9 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto response = readGenericResponse();
-        return response.getIscObject();
+        auto r = readGenericResponse();
+        //r.statues.getWarn(command.notificationMessages);
+        return r.getIscObject();
     }
 
     final void blobBeginWrite(ref FbBlob blob, FbOperation createOrOpen)
@@ -248,7 +251,8 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        readGenericResponse();
+        auto r = readGenericResponse();
+        //r.statues.getWarn(command.notificationMessages);
     }
 
     final void blobEndWrite(ref FbBlob blob, FbOperation closeOrCancelOp)
@@ -265,7 +269,9 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        return readGenericResponse();
+        auto r = readGenericResponse();
+        //r.statues.getWarn(command.notificationMessages);
+        return r;
     }
 
     final void blobGetSegmentsWrite(ref FbBlob blob)
@@ -286,7 +292,8 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        readGenericResponse();
+        auto r = readGenericResponse();
+        //r.statues.getWarn(command.notificationMessages);
     }
 
     final void blobPutSegmentsWrite(ref FbBlob blob, scope const(ubyte)[] segment)
@@ -304,9 +311,10 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto response = readGenericResponse();
-		if (response.data.length)
-            return FbIscBlobSize(response.data);
+        auto r = readGenericResponse();
+        //r.statues.getWarn(command.notificationMessages);
+		if (r.data.length)
+            return FbIscBlobSize(r.data);
         else
             return FbIscBlobSize.init;
     }
@@ -333,7 +341,8 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        readGenericResponse();
+        auto r = readGenericResponse();
+        //r.statues.getWarn(command.notificationMessages);
     }
 
     final void closeCursorCommandWrite(FbCommand command)
@@ -361,7 +370,8 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        readGenericResponse();
+        auto r = readGenericResponse();
+        //r.statues.getWarn(connection.notificationMessages);
     }
 
     final void commitTransactionWrite(FbTransaction transaction)
@@ -378,8 +388,9 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto response = readGenericResponse();
-        return response.getIscObject();
+        auto r = readGenericResponse();
+        r.statues.getWarn(connection.notificationMessages);
+        return r.getIscObject();
     }
 
     final void connectAttachmentWrite()
@@ -489,7 +500,8 @@ public:
                     validateRequiredEncryption();
                 return;
             case FbIsc.op_response:
-                readGenericResponseImpl(reader);
+                auto r = readGenericResponseImpl(reader);
+                r.statues.getWarn(connection.notificationMessages);
                 goto default;
             default:
                 auto msg = format(DbMessage.eUnhandleOperation, op);
@@ -531,7 +543,8 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        readGenericResponse();
+        auto r = readGenericResponse();
+        //r.statues.getWarn(command.notificationMessages);
     }
 
     final void deallocateCommandWrite(FbCommand command)
@@ -566,7 +579,8 @@ public:
         version (TraceFunction) dgFunctionTrace();
 
         // Nothing to process - just need acknowledge
-        readGenericResponse();
+        auto r = readGenericResponse();
+        r.statues.getWarn(command.notificationMessages);
     }
 
     final void executeCommandWrite(FbCommand command, DbCommandExecuteType type)
@@ -612,7 +626,7 @@ public:
         writer.flush();
     }
 
-    final FbCommandPlanInfo.Kind executionPlanCommandInfoRead(uint mode, out FbCommandPlanInfo info)
+    final FbCommandPlanInfo.Kind executionPlanCommandInfoRead(FbCommand command, uint mode, out FbCommandPlanInfo info)
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -620,14 +634,15 @@ public:
             ? FbIsc.isc_info_sql_get_plan
             : FbIsc.isc_info_sql_explain_plan;
 
-        auto response = readGenericResponse();
+        auto r = readGenericResponse();
+        r.statues.getWarn(command.notificationMessages);
 
         FbCommandPlanInfo.Kind kind;
-        if (response.data.length == 0)
+        if (r.data.length == 0)
             kind = FbCommandPlanInfo.Kind.noData;
-		else if (response.data[0] == FbIsc.isc_info_end)
+		else if (r.data[0] == FbIsc.isc_info_end)
             kind = FbCommandPlanInfo.Kind.empty;
-        else if (response.data[0] == FbIsc.isc_info_truncated)
+        else if (r.data[0] == FbIsc.isc_info_truncated)
             kind = FbCommandPlanInfo.Kind.truncated;
         else
             kind = FbCommandPlanInfo.Kind.ok;
@@ -644,7 +659,7 @@ public:
                 info = FbCommandPlanInfo(kind, null);
                 return kind;
             case FbCommandPlanInfo.Kind.ok:
-                info = FbCommandPlanInfo(kind, response.data, describeMode);
+                info = FbCommandPlanInfo(kind, r.data, describeMode);
                 return kind;
         }
     }
@@ -668,7 +683,8 @@ public:
         const op = reader.readOperation();
         if (op == FbIsc.op_response)
         {
-            readGenericResponseImpl(reader);
+            auto r = readGenericResponseImpl(reader);
+            r.statues.getWarn(command.notificationMessages);
             return FbIscFetchResponse(0, 0);
         }
         else if (op == FbIsc.op_fetch_response)
@@ -704,13 +720,14 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto response = readGenericResponse();
+        auto r = readGenericResponse();
+        r.statues.getWarn(command.notificationMessages);
 
         FbIscBindInfo[] bindResults;
         ptrdiff_t previousBindIndex = -1; // Start with unknown value
         ptrdiff_t previousFieldIndex = 0;
 
-        while (!FbIscBindInfo.parse(response.data, bindResults, previousBindIndex, previousFieldIndex))
+        while (!FbIscBindInfo.parse(r.data, bindResults, previousBindIndex, previousFieldIndex))
         {
             version (TraceFunction) dgFunctionTrace("previousBindIndex=", previousBindIndex, ", previousFieldIndex=", previousFieldIndex);
 
@@ -743,7 +760,8 @@ public:
             }
 
             commandInfoWrite(command, truncateBindItems, FbIscSize.prepareInfoBufferLength);
-            response = readGenericResponse();
+            r = readGenericResponse();
+            r.statues.getWarn(command.notificationMessages);
         }
 
         return bindResults;
@@ -778,10 +796,11 @@ public:
         version (TraceFunction) dgFunctionTrace();
 
         DbRecordsAffected result;
-        auto response = readGenericResponse();
-		if (response.data.length)
+        auto r = readGenericResponse();
+        //r.statues.getWarn(command.notificationMessages);
+		if (r.data.length)
 		{
-            const counts = parseRecordsAffected(response.data);
+            const counts = parseRecordsAffected(r.data);
             if (counts.deleteCount)
                 result += counts.deleteCount;
             if (counts.insertCount)
@@ -813,7 +832,8 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        readGenericResponse();
+        auto r = readGenericResponse();
+        //r.statues.getWarn(connection.notificationMessages);
     }
 
     final void rollbackTransactionWrite(FbTransaction transaction)
@@ -830,8 +850,9 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto response = readGenericResponse();
-        return response.getIscObject();
+        auto r = readGenericResponse();
+        //r.statues.getWarn(connection.notificationMessages);
+        return r.getIscObject();
     }
 
     final void startTransactionWrite(FbTransaction transaction)
@@ -848,13 +869,14 @@ public:
         writer.flush();
     }
 
-    final int typeCommandRead()
+    final int typeCommandRead(FbCommand command)
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto response = readGenericResponse();
-		if (response.data.length)
-            return parseCommandType(response.data);
+        auto r = readGenericResponse();
+        r.statues.getWarn(command.notificationMessages);
+		if (r.data.length)
+            return parseCommandType(r.data);
         else
             return FbIscCommandType.none;
     }
@@ -1119,8 +1141,9 @@ protected:
         switch (op)
         {
             case FbIsc.op_response:
-                auto gResponse = readGenericResponseImpl(reader);
-                _serverAuthKey = gResponse.data;
+                auto r = readGenericResponseImpl(reader);
+                r.statues.getWarn(connection.notificationMessages);
+                _serverAuthKey = r.data;
                 break;
             case FbIsc.op_trusted_auth:
                 auto tResponse = readTrustedAuthResponseImpl(reader);
@@ -1179,7 +1202,8 @@ protected:
                 readCryptKeyCallbackResponseImpl(reader);
                 break;
             case FbIsc.op_response:
-                readGenericResponseImpl(reader);
+                auto r = readGenericResponseImpl(reader);
+                r.statues.getWarn(connection.notificationMessages);
                 break;
             default:
                 auto msg = format(DbMessage.eUnhandleOperation, op);
@@ -1489,7 +1513,7 @@ protected:
 
             throw new FbException(rStatues);
         }
-        else if (rStatues.isWarning)
+        else if (rStatues.hasWarn)
         {
             //todo check for warning status
         }

@@ -1370,23 +1370,23 @@ public:
 
         errorMessage = "";
         errorCode = 0;
-        foreach (ref i; errors)
+        foreach (ref error; errors)
         {
-            switch (i.type)
+            switch (error.type)
             {
                 case FbIsc.isc_arg_gds:
-                    errorCode = i.code;
-                    errorMessage ~= i.str();
+                    errorCode = error.code;
+                    errorMessage ~= error.str();
                     break;
                 case FbIsc.isc_arg_number:
                 case FbIsc.isc_arg_string:
                 case FbIsc.isc_arg_cstring:
-                    auto marker = "@" ~ to!string(i.argNumber);
-                    errorMessage = errorMessage.replace(marker, i.str());
+                    auto marker = "@" ~ to!string(error.argNumber);
+                    errorMessage = errorMessage.replace(marker, error.str());
                     break;
                 case FbIsc.isc_arg_interpreted:
                 case FbIsc.isc_arg_sql_state:
-                    errorMessage ~= i.str();
+                    errorMessage ~= error.str();
                     break;
                 default:
                     break;
@@ -1394,14 +1394,58 @@ public:
         }
     }
 
-    final int32 errorCode() const pure
+    int getWarn(ref DbNotificationMessage[] messages)
     {
-        foreach (ref i; errors)
+        string warnMessage;
+        int32 warnCode;
+
+        void addWarnMessage() nothrow @safe
         {
-            if (i.type == FbIsc.isc_arg_gds)
-                return i.code;
+            messages ~= DbNotificationMessage(warnMessage, warnCode);
         }
 
+        int result = 0;
+        foreach (ref error; errors)
+        {
+            switch (error.type)
+            {
+                case FbIsc.isc_arg_warning:
+                    if (warnMessage.length != 0)
+                        addWarnMessage();
+                    warnCode = error.code;
+                    warnMessage = error.str();
+                    result++;
+                    break;
+                case FbIsc.isc_arg_number:
+                case FbIsc.isc_arg_string:
+                case FbIsc.isc_arg_cstring:
+                    if (warnMessage.length != 0)
+                    {
+                        auto marker = "@" ~ to!string(error.argNumber);
+                        warnMessage = warnMessage.replace(marker, error.str());
+                    }
+                    break;
+                case FbIsc.isc_arg_interpreted:
+                case FbIsc.isc_arg_sql_state:
+                    if (warnMessage.length != 0)
+                        warnMessage ~= error.str();
+                    break;
+                default:
+                    break;
+            }
+        }
+        if (warnMessage.length != 0)
+            addWarnMessage();
+        return result;
+    }
+
+    int32 errorCode() const pure
+    {
+        foreach (ref error; errors)
+        {
+            if (error.type == FbIsc.isc_arg_gds)
+                return error.code;
+        }
         return 0;
     }
 
@@ -1414,23 +1458,27 @@ public:
 
     string sqlState() const
     {
-        foreach (ref i; errors)
+        foreach (ref error; errors)
         {
-            if (i.type == FbIsc.isc_arg_sql_state)
-                return i.str();
+            if (error.type == FbIsc.isc_arg_sql_state)
+                return error.str();
         }
-
         return FbSqlStates.get(errorCode);
     }
 
-	@property final bool isError() const pure
+	@property bool hasWarn() const pure
 	{
-        return errorCode() != 0;
+        foreach (ref error; errors)
+        {
+            if (error.isWarning)
+                return true;
+        }
+        return false;
 	}
 
-	@property final bool isWarning() const pure
+	@property bool isError() const pure
 	{
-        return errors.length && errors[0].isWarning;
+        return errorCode() != 0;
 	}
 
 public:

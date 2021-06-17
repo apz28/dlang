@@ -30,7 +30,7 @@ import pham.db.message;
 import pham.db.exception : SkException;
 import pham.db.util;
 import pham.db.type;
-import pham.db.dbobject;
+import pham.db.object;
 import pham.db.convert;
 import pham.db.buffer;
 import pham.db.value;
@@ -774,7 +774,7 @@ public:
         while (maxTryCount--)
         {
             protocol.executionPlanCommandInfoWrite(this, vendorMode, bufferLength);
-            if (protocol.executionPlanCommandInfoRead(vendorMode, info) == FbCommandPlanInfo.Kind.truncated)
+            if (protocol.executionPlanCommandInfoRead(this, vendorMode, info) == FbCommandPlanInfo.Kind.truncated)
                 bufferLength *= 2;
             else
                 break;
@@ -865,7 +865,7 @@ protected:
         version (TraceFunction) dgFunctionTrace();
 
         auto protocol = fbConnection.protocol;
-        _handle = protocol.allocateCommandRead().handle;
+        _handle = protocol.allocateCommandRead(this).handle;
     }
 
     final void allocateHandleWrite() @safe
@@ -1119,7 +1119,7 @@ protected:
         version (TraceFunction) dgFunctionTrace();
 
         auto protocol = fbConnection.protocol;
-        _baseCommandType = protocol.typeCommandRead();
+        _baseCommandType = protocol.typeCommandRead(this);
 	}
 
 	final void getStatementTypeWrite() @safe

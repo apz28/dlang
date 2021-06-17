@@ -22,7 +22,7 @@ version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.db.type;
 import pham.db.message;
-import pham.db.dbobject;
+import pham.db.object;
 import pham.db.util;
 import pham.db.convert;
 import pham.db.buffer;

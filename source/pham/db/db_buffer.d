@@ -23,7 +23,7 @@ import pham.utl.utf8 : inplaceMoveToLeft;
 import pham.db.type;
 import pham.db.message;
 import pham.db.exception;
-import pham.db.dbobject;
+import pham.db.object;
 import pham.db.util;
 
 @safe:

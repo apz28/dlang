@@ -24,7 +24,7 @@ import pham.utl.object : shortClassName;
 import pham.db.message;
 import pham.db.convert;
 import pham.db.type;
-import pham.db.dbobject;
+import pham.db.object;
 import pham.db.buffer;
 import pham.db.value;
 import pham.db.database : DbNameColumn;
@@ -41,7 +41,7 @@ class PgProtocol : DbDisposableObject
 @safe:
 
 public:
-    this(PgConnection connection) nothrow pure @safe
+    this(PgConnection connection) nothrow pure
     {
         this._connection = connection;
     }
@@ -58,14 +58,6 @@ public:
             case '3': // CloseComplete
                 goto receiveAgain;
 
-            case 'E': // ErrorResponse
-                auto EResponse = readGenericResponse(reader);
-                writeSignal(PgDescribeType.sync);
-                throw new PgException(EResponse);
-
-            case 'n': // NoData (response to Describe)
-                return null;
-
             case 'T': // RowDescription (response to Describe)
                 const count = reader.readInt16();
                 PgOIdFieldInfo[] result = new PgOIdFieldInfo[](count);
@@ -81,7 +73,26 @@ public:
                 }
                 return result;
 
-            default: // async notice, notification
+            case 'n': // NoData (response to Describe)
+                return null;
+
+            case 'E': // ErrorResponse
+                auto EResponse = readGenericResponse(reader);
+                writeSignal(PgDescribeType.sync);
+                throw new PgException(EResponse);
+
+            case 'N': // NoticeResponse
+                auto NResponse = readGenericResponse(reader);
+                NResponse.getWarn(command.notificationMessages);
+                goto receiveAgain;
+
+            /*
+            case 'A': // NotificationResponse
+                auto AResponse = readNotificationResponse(reader);
+                goto receiveAgain;
+            */
+
+            default:
                 goto receiveAgain;
         }
     }
@@ -115,19 +126,11 @@ public:
         auto reader = PgReader(connection);
         switch (reader.messageType)
         {
-            case 'E': // ErrorResponse
-                auto EResponse = readGenericResponse(reader);
-                throw new PgException(EResponse);
-
             case 'K': // BackendKeyData
                 const serverProcessId = reader.readInt32();
                 const serverSecretKey = reader.readInt32();
                 connection.serverInfo[DbIdentifier.serverProtocolProcessId] = to!string(serverProcessId);
                 connection.serverInfo[DbIdentifier.serverProtocolSecretKey] = to!string(serverSecretKey);
-                goto receiveAgain;
-
-            case 'N': // NotificationResponse
-                readGenericResponse(reader); // TODO notification mechanizm
                 goto receiveAgain;
 
             case 'R': // AuthenticationXXXX
@@ -186,6 +189,21 @@ public:
 
                 // connection is opened and now it's possible to send queries
                 return;
+
+            case 'E': // ErrorResponse
+                auto EResponse = readGenericResponse(reader);
+                throw new PgException(EResponse);
+
+            case 'N': // NoticeResponse
+                auto NResponse = readGenericResponse(reader);
+                NResponse.getWarn(connection.notificationMessages);
+                goto receiveAgain;
+
+            /*
+            case 'A': // NotificationResponse
+                auto AResponse = readNotificationResponse(reader);
+                goto receiveAgain;
+            */
 
             default: // unknown message type, ignore it
                 goto receiveAgain;
@@ -294,10 +312,6 @@ public:
             case 'D': // DataRow - Let the caller to read row result
                 break;
 
-            case 'E': // ErrorResponse
-                auto EResponse = readGenericResponse(reader);
-                throw new PgException(EResponse);
-
             case 'I': // EmptyQueryResponse
                 throw new PgException(DbMessage.eInvalidCommandText, DbErrorCode.read, 0, 0);
 
@@ -307,7 +321,22 @@ public:
             case 's': // PortalSuspended
                 throw new PgException(DbMessage.eInvalidCommandSuspended, DbErrorCode.read, 0, 0);
 
-            default: // async notice, notification
+            case 'E': // ErrorResponse
+                auto EResponse = readGenericResponse(reader);
+                throw new PgException(EResponse);
+
+            case 'N': // NoticeResponse
+                auto NResponse = readGenericResponse(reader);
+                NResponse.getWarn(command.notificationMessages);
+                goto receiveAgain;
+
+            /*
+            case 'A': // NotificationResponse
+                auto AResponse = readNotificationResponse(reader);
+                goto receiveAgain;
+            */
+
+            default:
                 goto receiveAgain;
         }
 
@@ -346,14 +375,25 @@ public:
             case 'D': // DataRow - Let caller to read the row result
                 break;
 
+            case 'Z': // ReadyForQuery - done
+                break;
+
             case 'E': // ErrorResponse
                 auto EResponse = readGenericResponse(reader);
                 throw new PgException(EResponse);
 
-            case 'Z': // ReadyForQuery - done
-                break;
+            case 'N': // NoticeResponse
+                auto NResponse = readGenericResponse(reader);
+                NResponse.getWarn(command.notificationMessages);
+                goto receiveAgain;
 
-            default: // async notice, notification
+            /*
+            case 'A': // NotificationResponse
+                auto AResponse = readNotificationResponse(reader);
+                goto receiveAgain;
+            */
+
+            default:
                 goto receiveAgain;
         }
 
@@ -386,7 +426,18 @@ public:
                 writeSignal(PgDescribeType.sync);
                 throw new PgException(EResponse);
 
-            default: // async notice, notification
+            case 'N': // NoticeResponse
+                auto NResponse = readGenericResponse(reader);
+                NResponse.getWarn(command.notificationMessages);
+                goto receiveAgain;
+
+            /*
+            case 'A': // NotificationResponse
+                auto AResponse = readNotificationResponse(reader);
+                goto receiveAgain;
+            */
+
+            default:
                 goto receiveAgain;
         }
     }
@@ -639,7 +690,7 @@ public:
         return result;
     }
 
-    protected final void readValueError(DbNameColumn column, const int32 valueLength, const int32 expectedLength) @safe
+    protected final void readValueError(DbNameColumn column, const int32 valueLength, const int32 expectedLength)
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -686,7 +737,20 @@ public:
                 auto EResponse = readGenericResponse(reader);
                 throw new PgException(EResponse);
 
-            default: // async notice, notification
+            /* No need to process on shutdown
+            case 'N': // NoticeResponse
+                auto NResponse = readGenericResponse(reader);
+                NResponse.getWarn(command.notificationMessages);
+                goto receiveAgain;
+            */
+
+            /*
+            case 'A': // NotificationResponse
+                auto AResponse = readNotificationResponse(reader);
+                goto receiveAgain;
+            */
+
+            default:
                 goto receiveAgain;
         }
     }
@@ -701,33 +765,42 @@ public:
         writer.flush();
     }
 
-    final PgGenericResponse readGenericResponse(ref PgReader reader) @trusted //@trusted=cast()
+    final PgGenericResponse readGenericResponse(ref PgReader reader)
     {
         version (TraceFunction) dgFunctionTrace();
 
         PgGenericResponse result;
-
         while (true)
         {
-            const type = reader.readUInt8();
+            const type = reader.readChar();
             if (type == 0)
                 break;
 
             auto value = reader.readCString();
-            result.typeValues[cast(char)type] = value;
+            result.typeValues[type] = value;
         }
-
         return result;
     }
 
-    final void writeSignal(PgDescribeType signalType, int32 signalId = 4) @safe
+    final PgNotificationResponse readNotificationResponse(ref PgReader reader)
+    {
+        version (TraceFunction) dgFunctionTrace();
+
+        PgNotificationResponse result;
+        result.pid = reader.readInt32();
+        result.channel = reader.readCString();
+        result.payload = reader.readCString();
+        return result;
+    }
+
+    final void writeSignal(PgDescribeType signalType, int32 signalId = 4)
     {
         auto writer = PgWriter(connection);
 		writeSignal(writer, signalType, signalId);
         writer.flush();
     }
 
-    @property final PgConnection connection() nothrow pure @safe
+    @property final PgConnection connection() nothrow pure
     {
         return _connection;
     }
@@ -817,7 +890,7 @@ protected:
         writer.flush();
     }
 
-    final void connectAuthenticationSendPassword(scope const(char)[] password) @safe
+    final void connectAuthenticationSendPassword(scope const(char)[] password)
     {
         version (TraceFunction) dgFunctionTrace("password.length=", password.length, ", password=", password);
 
@@ -827,7 +900,7 @@ protected:
         writer.flush();
     }
 
-    final string convertConnectionParameter(string name, string value) nothrow @safe
+    final string convertConnectionParameter(string name, string value) nothrow
     {
         return null;
         /*
@@ -1166,7 +1239,7 @@ protected:
         writer.endMessage();
     }
 
-    final void writeSignal(ref PgWriter writer, PgDescribeType signalType, int32 signalId = 4) @safe
+    final void writeSignal(ref PgWriter writer, PgDescribeType signalType, int32 signalId = 4)
     {
         writer.writeSignal(signalType, signalId);
     }

@@ -13,7 +13,7 @@ module pham.db.buffer_filter;
 
 version (unittest) import pham.utl.test;
 import pham.utl.enum_set : toName;
-import pham.db.dbobject;
+import pham.db.object;
 
 nothrow @safe:
 

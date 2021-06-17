@@ -9,7 +9,7 @@
  *
  */
 
-module pham.db.dbobject;
+module pham.db.object;
 
 import std.algorithm : remove;
 import std.algorithm.comparison : min;
@@ -1203,7 +1203,7 @@ unittest // DbNameValueList
     import std.conv : to;
     import std.string : indexOf;
     import pham.utl.test;
-    traceUnitTest("unittest db.dbobject.DbNameValueList");
+    traceUnitTest("unittest db.object.DbNameValueList");
 
     auto list = new DbNameValueList!string();
     list.put("a", "1");
@@ -1264,7 +1264,7 @@ unittest // DbNameObjectList
 {
     import std.string : indexOf;
     import pham.utl.test;
-    traceUnitTest("unittest db.dbobject.DbNameObjectList");
+    traceUnitTest("unittest db.object.DbNameObjectList");
 
     static class DbNameObjectTest : DbNameObject
     {

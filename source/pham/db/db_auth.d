@@ -11,7 +11,7 @@
 
 module pham.db.auth;
 
-import pham.db.dbobject : DbDisposableObject;
+import pham.db.object : DbDisposableObject;
 
 nothrow @safe:
 

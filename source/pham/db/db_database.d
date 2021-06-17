@@ -24,7 +24,6 @@ import std.traits; // : allMembers, getMember;
 import std.typecons : Flag, No, Yes;
 
 import pham.external.std.log.logger : Logger, LogTimming;
-
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.utl.delegate_list;
@@ -36,10 +35,12 @@ import pham.db.message;
 import pham.db.exception;
 import pham.db.util;
 import pham.db.type;
-import pham.db.dbobject;
+import pham.db.object;
 import pham.db.convert;
 import pham.db.value;
 import pham.db.parser;
+
+alias DbNotificationMessageEvent = void delegate(scope DbNotificationMessage[] notificationMessages);
 
 class DbCharset : DbObject
 {
@@ -92,9 +93,9 @@ public:
     this(DbConnection connection, string name = null) nothrow @trusted //@trusted=cast(void*)
     {
         this._connection = connection;
-        //this._name = name.length != 0 ? name : makeCommandName(cast(void*)this, connection.nextCounter);
         this._name = name;
         this._fetchRecordCount = connection.connectionStringBuilder.fetchRecordCount;
+        this.notifyMessage = connection.notifyMessage;
         _flags.set(DbCommandFlag.parametersCheck, true);
         _flags.set(DbCommandFlag.returnRecordsAffected, true);
     }
@@ -148,6 +149,7 @@ public:
             unprepareCalled = true;
             unprepare();
         }
+        doNotifyMessage();
         return result;
     }
 
@@ -167,6 +169,7 @@ public:
                 unprepare();
         }
         doExecuteCommand(DbCommandExecuteType.reader);
+        doNotifyMessage();
         return DbReader(this, implicitTransaction);
     }
 
@@ -199,6 +202,7 @@ public:
             unprepareCalled = true;
             unprepare();
         }
+        doNotifyMessage();
         return values ? values[0] : DbValue.dbNull();
     }
 
@@ -242,6 +246,7 @@ public:
         {
             doPrepare();
             _commandState = DbCommandState.prepared;
+            doNotifyMessage();
         }
         catch (Exception e)
         {
@@ -533,6 +538,11 @@ public:
         return _flags.on(DbCommandFlag.transactionRequired);
     }
 
+public:
+    nothrow @safe DelegateList!(Object, DbNotificationMessage[]) notifyMessage;
+
+    DbNotificationMessage[] notificationMessages;
+
 package(pham.db):
     @property final void allRowsFetched(bool value) nothrow @safe
     {
@@ -745,6 +755,18 @@ protected:
         _handle.reset();
     }
 
+    final void doNotifyMessage() nothrow @trusted
+    {
+        if (notificationMessages.length == 0)
+            return;
+
+        if (notifyMessage)
+        {
+            try { notifyMessage(this, notificationMessages); } catch(Exception) {}
+        }
+        notificationMessages.length = 0;
+    }
+
     final bool needPrepare(DbCommandExecuteType type) nothrow @safe
     {
         version (TraceFunction) dgFunctionTrace("type=", type);
@@ -842,6 +864,7 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace("kind=", kind);
 
+        notificationMessages.length = 0;
         _flags.set(DbCommandFlag.cancelled, false);
         if (kind < ResetStatementKind.execute)
         {
@@ -959,9 +982,11 @@ public:
         version (TraceFunction) dgFunctionTrace();
 
         checkActive();
+        notificationMessages.length = 0;
         if (command !is null)
             command._flags.set(DbCommandFlag.cancelled, true);
         doCancelCommand();
+        doNotifyMessage();
     }
 
     final void close()
@@ -1045,6 +1070,7 @@ public:
 
         _state = DbConnectionState.opening;
         serverInfo.clear();
+        notificationMessages.length = 0;
         doBeginStateChange(DbConnectionState.open);
 
         scope (failure)
@@ -1059,6 +1085,7 @@ public:
         doOpen();
         _state = DbConnectionState.open;
         doEndStateChange(previousState);
+        doNotifyMessage();
 
         return this;
     }
@@ -1225,22 +1252,22 @@ protected:
 
     final void doBeginStateChange(DbConnectionState newState)
     {
-        if (beginStateChanges)
-            beginStateChanges(this, newState);
+        if (beginStateChange)
+            beginStateChange(this, newState);
     }
 
     final void doEndStateChange(DbConnectionState oldState)
     {
-        if (endStateChanges)
-            endStateChanges(this, oldState);
+        if (endStateChange)
+            endStateChange(this, oldState);
     }
 
     override void doDispose(bool disposing) nothrow @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
-        beginStateChanges.clear();
-        endStateChanges.clear();
+        beginStateChange.clear();
+        endStateChange.clear();
         disposeTransactions(disposing);
         disposeCommands(disposing);
         serverInfo = null;
@@ -1249,6 +1276,18 @@ protected:
         _database = null;
         _handle.reset();
         _state = DbConnectionState.closed;
+    }
+
+    final void doNotifyMessage() nothrow @trusted
+    {
+        if (notificationMessages.length == 0)
+            return;
+
+        if (notifyMessage)
+        {
+            try { notifyMessage(this, notificationMessages); } catch(Exception) {}
+        }
+        notificationMessages.length = 0;
     }
 
     void doPool(bool pooling) @safe
@@ -1314,7 +1353,7 @@ public:
      * Params:
      *  newState = new state value
      */
-    nothrow DelegateList!(DbConnection, DbConnectionState) beginStateChanges;
+    nothrow @safe DelegateList!(DbConnection, DbConnectionState) beginStateChange;
 
     /**
      * Delegate to get notify when a state change
@@ -1322,7 +1361,11 @@ public:
      * Params:
      *  oldState = old state value
      */
-    nothrow DelegateList!(DbConnection, DbConnectionState) endStateChanges;
+    nothrow @safe DelegateList!(DbConnection, DbConnectionState) endStateChange;
+
+    nothrow @safe DelegateList!(Object, DbNotificationMessage[]) notifyMessage;
+
+    DbNotificationMessage[] notificationMessages;
 
     /**
      * Populate when connection is established

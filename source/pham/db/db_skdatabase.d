@@ -20,7 +20,7 @@ version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 version (TraceFunction) import pham.utl.object : bytesToHexs;
 
-import pham.db.dbobject;
+import pham.db.object;
 import pham.db.message;
 import pham.db.exception;
 import pham.db.util;

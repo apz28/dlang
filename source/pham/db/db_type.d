@@ -716,6 +716,14 @@ private:
     string _tableName;
 }
 
+struct DbNotificationMessage
+{
+nothrow @safe:
+
+    string message;
+    int code;
+}
+
 struct DbRecordsAffected
 {
 nothrow @safe:
