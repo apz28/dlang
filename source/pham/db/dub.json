@@ -1,13 +1,13 @@
 {
-	"name": "pham.db",
+	"name": "pham_db",
 	"description": "Database drivers.",
 	"authors": ["An Pham"],
 	"homepage": "",
 	"license": "Boost Software License - Version 1.0",
 	"dependencies": {
-    "pham.utl": "~>1.0.0",
-    "pham.cp": "~>1.0.0",
-    "pham.external.std.log": "~>1.0.0",
-    "pham.external.dec": "~>1.0.0"
+    "pham_utl": "~>1.0.0",
+    "pham_cp": "~>1.0.0",
+    "pham_external_std_log": "~>1.0.0",
+    "pham_external_dec": "~>1.0.0"
   }
 }
