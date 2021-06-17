@@ -1,5 +1,5 @@
 {
-	"name": "pham.library",
+	"name": "pham_library",
 	"description": "BigInteger, Date, DateTime, Time, Firebird Database Driver, Postgresql Database Driver, Logger, Variant, XML Implementation.",
 	"authors": ["An Pham"],
 	"homepage": "",
