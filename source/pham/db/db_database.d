@@ -3101,6 +3101,76 @@ private:
     byte _disposing;
 }
 
+struct DbRAIITransaction
+{
+@safe:
+
+public:
+    @disable this();
+    @disable this(ref typeof(this));
+    @disable void opAssign(typeof(this));
+
+    this(DbConnection connection, DbIsolationLevel isolationLevel = DbIsolationLevel.readCommitted, bool autoCommit = true)
+    {
+        if (connection.hasTransactions)
+            this(connection, null, autoCommit);
+        else
+        {
+            auto t = connection.createTransaction(isolationLevel);
+            this(connection, t, autoCommit);
+            t.start();
+        }
+    }
+
+    this(DbConnection connection, DbTransaction transaction, bool autoCommit = true)
+    {
+        this._connection = connection;
+        this._transaction = transaction;
+        this.autoCommit = autoCommit;
+    }
+
+    ~this()
+    {
+        if (autoCommit)
+            commit();
+        else
+            rollback();
+    }
+
+    void commit()
+    {
+        if (_transaction !is null)
+        {
+            _transaction.commit();
+            _transaction = null;
+        }
+    }
+
+    void rollback()
+    {
+        if (_transaction !is null)
+        {
+            _transaction.rollback();
+            _transaction = null;
+        }
+    }
+
+    @property DbConnection connection() nothrow pure
+    {
+        return _connection;
+    }
+
+    @property DbTransaction transaction() nothrow pure
+    {
+        return _transaction;
+    }
+
+private:
+    DbConnection _connection;
+    DbTransaction _transaction;
+    bool autoCommit;
+}
+
 struct DbReader
 {
 public:
