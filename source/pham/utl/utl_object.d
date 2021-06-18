@@ -581,6 +581,7 @@ struct RAIIMutex
 public:
     @disable this();
     @disable this(ref typeof(this));
+    @disable void opAssign(typeof(this));
 
     this(Mutex mutex)
     {
@@ -598,9 +599,8 @@ public:
 
     void lock()
     {
-        if (_locked == 0 && _mutex !is null)
+        if (_locked++ == 0 && _mutex !is null)
             _mutex.lock_nothrow();
-        ++_locked;
     }
 
     void unlock()
