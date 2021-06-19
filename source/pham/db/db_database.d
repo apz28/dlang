@@ -126,7 +126,7 @@ public:
 
         bool implicitTransactionCalled = false;
         bool unprepareCalled = false;
-        checkCommand();
+        checkCommand(-1);
         const wasPrepared = prepared;
         resetNewStatement(ResetStatementKind.execute);
         const implicitTransaction = setImplicitTransactionIf();
@@ -157,7 +157,7 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        checkCommand();
+        checkCommand(DbCommandType.ddl);
         const wasPrepared = prepared;
         resetNewStatement(ResetStatementKind.execute);
         const implicitTransaction = setImplicitTransactionIf();
@@ -179,7 +179,7 @@ public:
 
         bool implicitTransactionCalled = false;
         bool unprepareCalled = false;
-        checkCommand();
+        checkCommand(DbCommandType.ddl);
         const wasPrepared = prepared;
         resetNewStatement(ResetStatementKind.execute);
         const implicitTransaction = setImplicitTransactionIf();
@@ -232,7 +232,7 @@ public:
         if (prepared)
             return this;
 
-        checkCommand();
+        checkCommand(-1);
         resetNewStatement(ResetStatementKind.prepare);
         const implicitTransaction = setImplicitTransactionIf();
         scope (failure)
@@ -678,7 +678,7 @@ protected:
             throw new DbException(DbMessage.eInvalidCommandActiveReader, 0, 0, 0);
     }
 
-    void checkCommand(string callerName = __FUNCTION__) @safe
+    void checkCommand(int excludeCommandType, string callerName = __FUNCTION__) @safe
     {
         version (TraceFunction) dgFunctionTrace("callerName=", callerName);
 
@@ -689,6 +689,12 @@ protected:
 
         if (_commandText.length == 0)
             throw new DbException(DbMessage.eInvalidCommandText, 0, 0, 0);
+
+        if (excludeCommandType != -1 && _commandType == excludeCommandType)
+        {
+            auto msg = format(DbMessage.eInvalidCommandUnfit, callerName);
+            throw new DbException(msg, 0, 0, 0);
+        }
 
         if (_transaction !is null && _transaction.connection !is _connection)
             throw new DbException(DbMessage.eInvalidCommandConnectionDif, 0, 0, 0);
@@ -1166,6 +1172,18 @@ public:
         return _handle;
     }
 
+    @property final DbTransaction lastTransaction(bool excludeDefaultTransaction) nothrow pure @safe
+    {
+        auto result = _transactions.first;
+        while (result !is null)
+        {
+            if (!excludeDefaultTransaction || result !is _defaultTransaction)
+                break;
+            result = _transactions.next(result);
+        }
+        return result;
+    }
+
     @property final DbConnectionList list() nothrow pure @safe
     {
         return _list;
@@ -1230,7 +1248,8 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        return _transactions.insertEnd(database.createTransaction(this, isolationLevel, defaultTransaction));
+        auto result = database.createTransaction(this, isolationLevel, defaultTransaction);
+        return _transactions.insertEnd(result);
     }
 
     void disposeCommands(bool disposing) nothrow @safe
@@ -1316,11 +1335,11 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace();
 
+        if (_defaultTransaction is value)
+            _defaultTransaction = null;
+
         if (!disposingState)
         {
-            if (_defaultTransaction is value)
-                _defaultTransaction = null;
-
             if (value._prev !is null || value._next !is null)
                 _transactions.remove(value);
         }
@@ -3110,49 +3129,62 @@ public:
     @disable this(ref typeof(this));
     @disable void opAssign(typeof(this));
 
-    this(DbConnection connection, DbIsolationLevel isolationLevel = DbIsolationLevel.readCommitted, bool autoCommit = true)
+    this(DbConnection connection,
+        DbIsolationLevel isolationLevel = DbIsolationLevel.readCommitted,
+        bool isAutoCommit = false) // false=since we can not findout when exception is taken placed
     {
-        if (connection.hasTransactions)
-            this(connection, null, autoCommit);
+        auto last = connection.lastTransaction(false);
+        if (last is null)
+        {
+            auto newTransaction = connection.createTransaction(isolationLevel);
+            this(connection, newTransaction, isAutoCommit, true);
+            newTransaction.start();
+        }
         else
         {
-            auto t = connection.createTransaction(isolationLevel);
-            this(connection, t, autoCommit);
-            t.start();
+            this(connection, last, isAutoCommit, false);
         }
     }
 
-    this(DbConnection connection, DbTransaction transaction, bool autoCommit = true)
+    this(DbConnection connection, DbTransaction transaction,
+        bool isAutoCommit = false, // false=since we can not findout when exception is taken placed
+        bool isManage = false)
     {
         this._connection = connection;
         this._transaction = transaction;
-        this.autoCommit = autoCommit;
+        this.isAutoCommit = isAutoCommit;
+        this.isManage = isManage;
     }
 
     ~this()
     {
-        if (autoCommit)
-            commit();
-        else
-            rollback();
+        if (isManage)
+        {
+            if (isAutoCommit)
+                commit();
+            else
+                rollback();
+        }
     }
 
     void commit()
     {
-        if (_transaction !is null)
+        if (isManage && _transaction !is null)
         {
             _transaction.commit();
-            _transaction = null;
+            _transaction.dispose();
         }
+        _transaction = null;
     }
 
     void rollback()
     {
-        if (_transaction !is null)
+        if (isManage && _transaction !is null)
         {
             _transaction.rollback();
-            _transaction = null;
+            _transaction.dispose();
         }
+        _transaction = null;
     }
 
     @property DbConnection connection() nothrow pure
@@ -3168,7 +3200,7 @@ public:
 private:
     DbConnection _connection;
     DbTransaction _transaction;
-    bool autoCommit;
+    bool isAutoCommit, isManage;
 }
 
 struct DbReader
@@ -3760,7 +3792,6 @@ mixin DLinkTypes!(DbTransaction) DLinkDbTransactionTypes;
 
 // Any below codes are private
 private:
-
 
 __gshared static Mutex _poolMutex;
 __gshared static TimerThread _secondTimer;

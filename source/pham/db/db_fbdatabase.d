@@ -2340,7 +2340,7 @@ unittest // FbCommand.DDL
     command.commandDDL = q"{CREATE TABLE create_then_drop (a INT NOT NULL PRIMARY KEY, b VARCHAR(100))}";
     command.executeNonQuery();
 
-    command.commandDDL = q"{DROP TABLE create_then_drop}";
+    command.commandDDL = "DROP TABLE create_then_drop";
     command.executeNonQuery();
 
     failed = false;
@@ -3292,4 +3292,49 @@ unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
 
     const perfResult = unitTestPerfFBDatabase();
     dgWriteln("Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
+}
+
+version (UnitTestFBDatabase)
+unittest // DbRAIITransaction
+{
+    import std.exception : assertThrown;
+    import pham.utl.test;
+    import pham.db.exception : DbException;
+    traceUnitTest("unittest db.database.DbRAIITransaction");
+
+    bool commit = false;
+    auto connection = createTestConnection();
+    scope (exit)
+    {
+        connection.close();
+        connection.dispose();
+        connection = null;
+    }
+    connection.open();
+
+    void testDbRAIITransaction()
+    {
+        auto transactionHolder = DbRAIITransaction(connection);
+
+        auto command = connection.createCommand();
+        command.transaction = transactionHolder.transaction;
+        scope (exit)
+        {
+            command.dispose();
+            command = null;
+        }
+
+        command.commandText = "SELECT 1 FROM RDB$DATABASE";
+        auto v = command.executeScalar();
+        assert(v.get!int32() == 1);
+
+        command.commandDDL = "DROP TABLE unknown_drop_table";
+        command.executeNonQuery();
+
+        transactionHolder.commit();
+        commit = true;
+    }
+
+    assertThrown!DbException(testDbRAIITransaction());
+    assert(commit == false);
 }

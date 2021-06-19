@@ -43,6 +43,7 @@ nothrow @safe:
     static immutable eInvalidCommandActiveReader = "Command-Reader is still active. Must be closed first";
     static immutable eInvalidCommandInactive = "Cannot perform %s when command is closed";
     static immutable eInvalidCommandSuspended = "Command is suspended";
+    static immutable eInvalidCommandUnfit = "Command is unfit for this function call %s";
 
     static immutable eInvalidConnectionActive = "Cannot perform %s when connection '%s.%s' is opened";
     static immutable eInvalidConnectionAuthServerData = "Malform/Invalid authenticated server data for authenticated type: %s.\n%s";

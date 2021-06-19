@@ -88,16 +88,22 @@ int32 toInt32Second(scope const Duration value, const int32 maxSecond = int32.ma
     return result <= maxSecond ? cast(int32)result : maxSecond;
 }
 
-string toString(C)(C c)
+string toString(C)(C c) pure
 if (is(C == char) || is(C == wchar) || is(C == dchar))
 {
     return assumeWontThrow(to!string(c));
 }
 
-string toString(S)(S s)
+string toString(S)(S s) pure
 if (is(S == wstring) || is(S == dstring))
 {
     return assumeWontThrow(to!string(s));
+}
+
+string toString(I)(I i) pure
+if (isIntegral!I)
+{
+    return to!string(i);
 }
 
 Duration secondToDuration(const(char)[] validSecond) pure
