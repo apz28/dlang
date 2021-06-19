@@ -13,9 +13,10 @@ module pham.utl.object;
 
 import core.sync.mutex : Mutex;
 import std.ascii : LetterCase, lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
+import std.conv : to;
 import std.exception : assumeWontThrow;
 import std.math : isPowerOf2;
-import std.traits;
+import std.traits : isArray, isAssociativeArray, isPointer, isSomeChar, isSomeString, Unqual;
 
 version (TraceInvalidMemoryOp) import pham.utl.test;
 
@@ -108,7 +109,6 @@ string currentComputerName() nothrow @trusted
     version (Windows)
     {
         import core.sys.windows.winbase : GetComputerNameW;
-        import std.conv : to;
 
         wchar[256] result = void;
         uint len = result.length - 1;
@@ -120,7 +120,6 @@ string currentComputerName() nothrow @trusted
     else version (Posix)
     {
         import core.sys.posix.unistd : gethostname;
-        import std.conv : to;
 
         char[256] result = void;
         uint len = result.length - 1;
@@ -148,7 +147,6 @@ string currentProcessName() nothrow @trusted
     version (Windows)
     {
         import core.sys.windows.winbase : GetModuleFileNameW;
-        import std.conv : to;
 
         wchar[1024] result = void;
         auto len = GetModuleFileNameW(null, &result[0], result.length - 1);
@@ -175,7 +173,6 @@ string currentUserName() nothrow @trusted
     version (Windows)
     {
         import core.sys.windows.winbase : GetUserNameW;
-        import std.conv : to;
 
         wchar[256] result = void;
         uint len = result.length - 1;
@@ -187,7 +184,6 @@ string currentUserName() nothrow @trusted
     else version (Posix)
     {
         import core.sys.posix.unistd : getlogin_r;
-        import std.conv : to;
 
         char[256] result = void;
         uint len = result.length - 1;
@@ -627,7 +623,6 @@ private:
 struct VersionString
 {
 import std.array : join, split;
-import std.conv : to;
 import std.string : strip;
 
 nothrow @safe:
@@ -723,7 +718,6 @@ public:
 
 // Any below codes are private
 private:
-
 
 version (unittest)
 {

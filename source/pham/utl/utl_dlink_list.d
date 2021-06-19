@@ -163,6 +163,27 @@ if (isDLink!T)
         }
 
         /**
+         * Insert insertingNode at the begin
+         * Params:
+         *  insertingNode = a node to be inserted
+         * Returns:
+         *  Return newly inserted node, insertingNode
+         */
+        T insertBegin(T insertingNode) pure
+        {
+            if (_rootNode is null)
+                return insertFirst(insertingNode);
+            else
+            {
+                insertingNode._next = _rootNode;
+                insertingNode._prev = _rootNode._prev;
+                _rootNode._prev = insertingNode;
+                _rootNode = insertingNode;
+                return insertingNode;
+            }
+        }
+
+        /**
          * Insert insertingNode at the end
          * Params:
          *  insertingNode = a node to be inserted
@@ -172,12 +193,7 @@ if (isDLink!T)
         T insertEnd(T insertingNode) pure
         {
             if (_rootNode is null)
-            {
-                insertingNode._next = insertingNode;
-                insertingNode._prev = insertingNode;
-                _rootNode = insertingNode;
-                return insertingNode;
-            }
+                return insertFirst(insertingNode);
             else
                 return insertAfter(_rootNode, insertingNode);
         }
@@ -257,13 +273,20 @@ if (isDLink!T)
         }
 
     private:
+        T insertFirst(T insertingNode) pure
+        {
+            insertingNode._next = insertingNode;
+            insertingNode._prev = insertingNode;
+            _rootNode = insertingNode;
+            return insertingNode;
+        }
+
         T _rootNode;
     }
 }
 
 
 private:
-
 
 unittest
 {
