@@ -17,7 +17,6 @@ import std.exception : assumeWontThrow;
 import std.system : Endian;
 
 import pham.external.std.log.logger : Logger, LogTimming;
-
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.db.type;
@@ -521,6 +520,11 @@ public:
     this(PgConnection connection, string name = null) nothrow @safe
     {
         super(connection, name);
+    }
+
+    this(PgConnection connection, PgTransaction transaction, string name = null) nothrow @safe
+    {
+        super(connection, transaction, name);
     }
 
 	final override const(char)[] getExecutionPlan(uint vendorMode)
@@ -1070,6 +1074,17 @@ public:
         return new PgCommand(cast(PgConnection)connection, name);
     }
 
+    override DbCommand createCommand(DbConnection connection, DbTransaction transaction, string name = null)
+    in
+    {
+        assert ((cast(PgConnection)connection) !is null);
+        assert ((cast(PgTransaction)transaction) !is null);
+    }
+    do
+    {
+        return new PgCommand(cast(PgConnection)connection, cast(PgTransaction)transaction, name);
+    }
+
     override DbConnection createConnection(string connectionString)
     {
         auto result = new PgConnection(this, connectionString);
@@ -1373,7 +1388,6 @@ private:
 
 // Any below codes are private
 private:
-
 
 shared static this()
 {

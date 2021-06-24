@@ -20,7 +20,7 @@ import std.conv : text, to;
 import std.datetime.systime : SysTime;
 import std.exception : assumeWontThrow;
 import std.format : format;
-import std.traits; // : allMembers, getMember;
+import std.traits : FieldNameTuple;
 import std.typecons : Flag, No, Yes;
 
 import pham.external.std.log.logger : Logger, LogTimming;
@@ -90,14 +90,21 @@ private:
 abstract class DbCommand : DbDisposableObject
 {
 public:
-    this(DbConnection connection, string name = null) nothrow @trusted //@trusted=cast(void*)
+    this(DbConnection connection, string name = null) nothrow @safe
     {
         this._connection = connection;
         this._name = name;
         this._fetchRecordCount = connection.connectionStringBuilder.fetchRecordCount;
         this.notifyMessage = connection.notifyMessage;
-        _flags.set(DbCommandFlag.parametersCheck, true);
-        _flags.set(DbCommandFlag.returnRecordsAffected, true);
+        this._flags.set(DbCommandFlag.parametersCheck, true);
+        this._flags.set(DbCommandFlag.returnRecordsAffected, true);
+    }
+
+    this(DbConnection connection, DbTransaction transaction, string name = null) nothrow @safe
+    {
+        this(connection, name);
+        this._transaction = transaction;
+        this._flags.set(DbCommandFlag.implicitTransaction, false);
     }
 
     final typeof(this) cancel()
@@ -2198,6 +2205,7 @@ nothrow @safe:
 
 public:
     abstract DbCommand createCommand(DbConnection connection, string name = null);
+    abstract DbCommand createCommand(DbConnection connection, DbTransaction transaction, string name = null);
     abstract DbConnection createConnection(string connectionString);
     abstract DbConnection createConnection(DbConnectionStringBuilder connectionStringBuilder);
     abstract DbConnectionStringBuilder createConnectionStringBuilder(string connectionString);

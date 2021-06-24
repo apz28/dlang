@@ -21,7 +21,6 @@ import std.string : indexOf;
 import std.system : Endian;
 
 import pham.external.std.log.logger : Logger, LogTimming;
-
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.utl.enum_set : toName;
@@ -751,6 +750,11 @@ public:
         _flags.set(DbCommandFlag.transactionRequired, true);
         version (DeferredProtocol)
             _handle = DbHandle(cast(FbHandle)fbCommandDeferredHandle);
+    }
+
+    this(FbConnection connection, FbTransaction transaction, string name = null) nothrow @safe
+    {
+        super(connection, transaction, name);
     }
 
 	final override const(char)[] getExecutionPlan(uint vendorMode)
@@ -1591,6 +1595,17 @@ public:
         return new FbCommand(cast(FbConnection)connection, name);
     }
 
+    override DbCommand createCommand(DbConnection connection, DbTransaction transaction, string name = null)
+    in
+    {
+        assert ((cast(FbConnection)connection) !is null);
+        assert ((cast(FbTransaction)transaction) !is null);
+    }
+    do
+    {
+        return new FbCommand(cast(FbConnection)connection, cast(FbTransaction)transaction, name);
+    }
+
     override DbConnection createConnection(string connectionString)
     {
         auto result = new FbConnection(this, connectionString);
@@ -1986,7 +2001,6 @@ version (UnitTestPerfFBDatabase)
 
 // Any below codes are private
 private:
-
 
 shared static this()
 {

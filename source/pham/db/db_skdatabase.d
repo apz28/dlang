@@ -19,7 +19,6 @@ import std.system : Endian;
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 version (TraceFunction) import pham.utl.object : bytesToHexs;
-
 import pham.db.object;
 import pham.db.message;
 import pham.db.exception;
@@ -39,6 +38,11 @@ public:
     this(SkConnection connection, string name = null) nothrow @safe
     {
         super(connection, name);
+    }
+
+    this(SkConnection connection, DbTransaction transaction, string name = null) nothrow @safe
+    {
+        super(connection, transaction, name);
     }
 
     final override DbRowValue fetch(bool isScalar) @safe
@@ -655,7 +659,6 @@ private:
 
 // Any below codes are private
 private:
-
 
 shared static this()
 {
