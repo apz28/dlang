@@ -661,11 +661,25 @@ protected:
         auto protocol = pgConnection.protocol;
         protocol.bindCommandParameterWrite(this);
         processBindResponse(protocol.bindCommandParameterRead(this));
+        doExecuteCommandFetch(type, false);
+    }
+
+    final DbFetchResultStatus doExecuteCommandFetch(DbCommandExecuteType type, bool fetchAgain) @safe
+    {
+        version (TraceFunction) dgFunctionTrace("type=", type, ", fetchAgain=", fetchAgain);
+
+        auto protocol = pgConnection.protocol;
         protocol.executeCommandWrite(this, type);
         PgReader reader;  // Since it is package message, need reader to continue reading row values
         auto response = protocol.executeCommandRead(this, type, reader);
-        _recordsAffected = response.recordsAffected;
-        final switch (response.fetchStatus())
+        if (!fetchAgain)
+        {
+            _recordsAffected = response.recordsAffected;
+            version (TraceFunction) dgFunctionTrace("_recordsAffected=", _recordsAffected);
+        }
+
+        const result = response.fetchStatus();
+        final switch (result)
         {
             // Defer subsequence row for fetch call
             case DbFetchResultStatus.hasData:
@@ -696,10 +710,10 @@ protected:
         }
         */
 
-        version (TraceFunction) dgFunctionTrace("_recordsAffected=", _recordsAffected);
+        return result;
     }
 
-    final override void doFetch(bool isScalar)
+    final override void doFetch(bool isScalar) @safe
     in
     {
         assert(!allRowsFetched);
@@ -710,14 +724,13 @@ protected:
         version (profile) auto p = PerfFunction.create();
 
         auto protocol = pgConnection.protocol;
-        protocol.fetchCommandWrite(this);
-
         auto continueFetchingCount = fetchRecordCount;
         bool continueFetching = true;
+        bool isSuspended = false;
         while (continueFetching && continueFetchingCount)
         {
             PgReader reader; // Since it is package message, need reader to continue reading row values
-            auto response = protocol.fetchCommandRead(this, reader);
+            auto response = protocol.fetchCommandRead(this, isSuspended, reader);
             final switch (response.fetchStatus())
             {
                 case DbFetchResultStatus.hasData:
@@ -729,6 +742,26 @@ protected:
                 case DbFetchResultStatus.completed:
                     allRowsFetched = true;
                     continueFetching = false;
+                    version (none) // Only valid if there is portal name
+                    if (!isScalar && response.needFetchAgain(isSuspended))
+                    {
+                        final switch (doExecuteCommandFetch(DbCommandExecuteType.reader, true))
+                        {
+                            case DbFetchResultStatus.hasData:
+                                continueFetchingCount--;
+                                allRowsFetched = false;
+                                continueFetching = true;
+                                break;
+
+                            case DbFetchResultStatus.completed:
+                                break;
+
+                            case DbFetchResultStatus.ready:
+                                allRowsFetched = false;
+                                break;
+                        }
+                    }
+                    isSuspended = false;
                     break;
 
                 // Wait for next fetch call
@@ -2107,4 +2140,153 @@ unittest // PgCommand.DML.Function
     }
 
     failed = false;
+}
+
+version (UnitTestPerfPGDatabase)
+{
+    import pham.utl.test : PerfTestResult;
+
+    PerfTestResult unitTestPerfPGDatabase()
+    {
+        import core.time;
+
+        static struct Data
+        {
+            long Foo1;
+            long Foo2;
+            string Foo3;
+            string Foo4;
+            DbDateTime Foo5;
+            DbDateTime Foo6;
+            DbDateTime Foo7;
+            string Foo8;
+            string Foo9;
+            string Foo10;
+            short Foo11;
+            short Foo12;
+            short Foo13;
+            Decimal64 Foo14;
+            Decimal64 Foo15;
+            short Foo16;
+            Decimal64 Foo17;
+            Decimal64 Foo18;
+            long Foo19;
+            long Foo20;
+            long Foo21;
+            long Foo22;
+            string Foo23;
+            string Foo24;
+            string Foo25;
+            string Foo26;
+            long Foo27;
+            string Foo28;
+            long Foo29;
+            string Foo30;
+            long Foo31;
+            Decimal64 Foo32;
+            Decimal64 Foo33;
+
+            this(ref DbReader reader)
+            {
+                readData(reader);
+            }
+
+            void readData(ref DbReader reader)
+            {
+                version (all)
+                {
+                    Foo1 = reader.getValue!int64(0); //foo1 BIGINT NOT NULL,
+                    Foo2 = reader.getValue!int64(1); //foo2 BIGINT NOT NULL,
+                    Foo3 = reader.getValue!string(2); //foo3 VARCHAR(255),
+                    Foo4 = reader.getValue!string(3); //foo4 VARCHAR(255),
+                    Foo5 = reader.getValue!DbDateTime(4); //foo5 TIMESTAMP,
+                    Foo6 = reader.getValue!DbDateTime(5); //foo6 TIMESTAMP NOT NULL,
+                    Foo7 = reader.getValue!DbDateTime(6); //foo7 TIMESTAMP,
+                    Foo8 = reader.getValue!string(7); //foo8 VARCHAR(255),
+                    Foo9 = reader.getValue!string(8); //foo9 VARCHAR(255),
+                    Foo10 = reader.getValue!string(9); //foo10 VARCHAR(255),
+                    Foo11 = reader.getValue!int16(10); //foo11 SMALLINT NOT NULL,
+                    Foo12 = reader.getValue!int16(11); //foo12 SMALLINT NOT NULL,
+                    Foo13 = reader.getValue!int16(12); //foo13 SMALLINT NOT NULL,
+                    Foo14 = reader.getValue!Decimal128(13); //foo14 DECIMAL(18, 2) NOT NULL,
+                    Foo15 = reader.getValue!Decimal128(14); //foo15 DECIMAL(18, 2) NOT NULL,
+                    Foo16 = reader.getValue!int16(15); //foo16 SMALLINT NOT NULL,
+                    Foo17 = reader.getValue!Decimal128(16); //foo17 DECIMAL(18, 2) NOT NULL,
+                    Foo18 = reader.getValue!Decimal128(17); //foo18 DECIMAL(18, 2) NOT NULL,
+                    Foo19 = reader.getValue!int64(18); //foo19 BIGINT NOT NULL,
+                    Foo20 = reader.getValue!int64(19); //foo20 BIGINT NOT NULL,
+                    Foo21 = reader.getValue!int64(20); //foo21 BIGINT NOT NULL,
+                    Foo22 = reader.getValue!int64(21); //foo22 BIGINT NOT NULL,
+                    Foo23 = reader.getValue!string(22); //foo23 VARCHAR(255),
+                    Foo24 = reader.getValue!string(23); //foo24 VARCHAR(255),
+                    Foo25 = reader.getValue!string(24); //foo25 VARCHAR(511),
+                    Foo26 = reader.getValue!string(25); //foo26 VARCHAR(256),
+                    Foo27 = reader.getValue!int64(26); //foo27 BIGINT NOT NULL,
+                    Foo28 = reader.getValue!string(27); //foo28 VARCHAR(255),
+                    Foo29 = reader.getValue!int64(28); //foo29 BIGINT NOT NULL,
+                    Foo30 = reader.getValue!string(29); //foo30 VARCHAR(255),
+                    Foo31 = reader.getValue!int64(30); //foo31 BIGINT NOT NULL,
+                    Foo32 = reader.getValue!Decimal128(31); //foo32 DECIMAL(18, 2) NOT NULL,
+                    Foo33 = reader.getValue!Decimal128(32); //foo33 DECIMAL(18, 2) NOT NULL
+                }
+                else
+                {
+                    Foo5 = reader.getValue!DbDateTime(0);
+                }
+            }
+        }
+
+        bool failed = true;
+        auto connection = createTestConnection();
+        scope (exit)
+        {
+            version (unittest)
+            if (failed)
+                traceUnitTest("failed - exiting and closing connection");
+
+            connection.close();
+            connection.dispose();
+            connection = null;
+        }
+        connection.open();
+
+        auto command = connection.createCommand();
+        scope (exit)
+        {
+            command.dispose();
+            command = null;
+        }
+
+        command.commandText = "select * from foo";
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+
+        enum maxRecordCount = 100_000;
+        version (UnitTestPGCollectData) auto datas = new Data[](maxRecordCount);
+        else Data data;
+        assert(reader.hasRows());
+
+        auto result = PerfTestResult.create();
+        while (result.count < maxRecordCount && reader.read())
+        {
+            version (UnitTestPGCollectData) datas[result.count++] = Data(reader);
+            else { data.readData(reader); result.count++; }
+        }
+        result.end();
+        assert(result.count > 0);
+        failed = false;
+        return result;
+    }
+}
+
+version (UnitTestPerfPGDatabase)
+unittest // PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953
+{
+    import std.format : format;
+    import pham.utl.test;
+    traceUnitTest("unittest db.pgdatabase.PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
+
+    const perfResult = unitTestPerfPGDatabase();
+    dgWriteln("PG-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
 }

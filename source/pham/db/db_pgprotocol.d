@@ -348,13 +348,13 @@ public:
         version (TraceFunction) dgFunctionTrace("type=", type);
 
         auto writer = PgWriter(connection);
-        writeExecuteMessage(writer, command);
+        writeExecuteMessage(writer, command, type);
         writeSignal(writer, PgDescribeType.sync);
         writeSignal(writer, PgDescribeType.flush);
         writer.flush();
     }
 
-    final PgOIdFetchResult fetchCommandRead(PgCommand command, out PgReader reader)
+    final PgOIdFetchResult fetchCommandRead(PgCommand command, ref bool isSuspended, out PgReader reader)
     in
     {
         assert(command.hasFields);
@@ -363,7 +363,11 @@ public:
     {
         // Need to return package reader to continue reading row values
 
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction)
+        {
+            static ulong counter;
+            dgFunctionTrace("counter: ", ++counter);
+        }
 
         PgOIdFetchResult result;
 
@@ -377,6 +381,10 @@ public:
 
             case 'Z': // ReadyForQuery - done
                 break;
+
+            case 's': // PortalSuspended
+                isSuspended = true;
+                goto receiveAgain;
 
             case 'E': // ErrorResponse
                 auto EResponse = readGenericResponse(reader);
@@ -398,16 +406,6 @@ public:
         }
 
         return result;
-    }
-
-    final void fetchCommandWrite(PgCommand command)
-    in
-    {
-        assert(command.hasFields);
-    }
-    do
-    {
-        //version (TraceFunction) dgFunctionTrace();
     }
 
     final void prepareCommandRead(PgCommand command)
@@ -1208,13 +1206,13 @@ protected:
         writer.endMessage();
     }
 
-    final void writeExecuteMessage(ref PgWriter writer, PgCommand command)
+    final void writeExecuteMessage(ref PgWriter writer, PgCommand command, DbCommandExecuteType type)
 	{
         version (TraceFunction) dgFunctionTrace();
 
 		writer.startMessage(PgDescribeType.executeStatement);
         writer.writeCChars(command.name);
-        writer.writeInt32(command.fetchRecordCount);
+        writer.writeInt32(type == DbCommandExecuteType.reader ? 0 : command.fetchRecordCount);
         writer.endMessage();
     }
 
@@ -1252,4 +1250,3 @@ private:
 
 // Any below codes are private
 private:
-

@@ -330,6 +330,11 @@ public:
             return DbFetchResultStatus.ready;
     }
 
+    bool needFetchAgain(bool isSuspended) const
+    {
+        return isSuspended && messageType == 'Z';
+    }
+
 public:
     char messageType;
 }

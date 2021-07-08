@@ -1864,140 +1864,6 @@ private:
     ubyte[] _transactionItems;
 }
 
-version (UnitTestPerfFBDatabase)
-{
-    import pham.utl.test : PerfTestResult;
-
-    PerfTestResult unitTestPerfFBDatabase()
-    {
-        import core.time;
-
-        static struct Data
-        {
-            long Foo1;
-            long Foo2;
-            string Foo3;
-            string Foo4;
-            DbDateTime Foo5;
-            DbDateTime Foo6;
-            DbDateTime Foo7;
-            string Foo8;
-            string Foo9;
-            string Foo10;
-            short Foo11;
-            short Foo12;
-            short Foo13;
-            Decimal64 Foo14;
-            Decimal64 Foo15;
-            short Foo16;
-            Decimal64 Foo17;
-            Decimal64 Foo18;
-            long Foo19;
-            long Foo20;
-            long Foo21;
-            long Foo22;
-            string Foo23;
-            string Foo24;
-            string Foo25;
-            string Foo26;
-            long Foo27;
-            string Foo28;
-            long Foo29;
-            string Foo30;
-            long Foo31;
-            Decimal64 Foo32;
-            Decimal64 Foo33;
-
-            this(ref DbReader reader)
-            {
-                readData(reader);
-            }
-
-            void readData(ref DbReader reader)
-            {
-                Foo5 = reader.getValue!DbDateTime(0);
-                version (none) {
-                Foo1 = reader.getValue!int64(0); //foo1 BIGINT NOT NULL,
-                Foo2 = reader.getValue!int64(1); //foo2 BIGINT NOT NULL,
-                Foo3 = reader.getValue!string(2); //foo3 VARCHAR(255),
-                Foo4 = reader.getValue!string(3); //foo4 VARCHAR(255),
-                Foo5 = reader.getValue!DbDateTime(4); //foo5 TIMESTAMP,
-                Foo6 = reader.getValue!DbDateTime(5); //foo6 TIMESTAMP NOT NULL,
-                Foo7 = reader.getValue!DbDateTime(6); //foo7 TIMESTAMP,
-                Foo8 = reader.getValue!string(7); //foo8 VARCHAR(255),
-                Foo9 = reader.getValue!string(8); //foo9 VARCHAR(255),
-                Foo10 = reader.getValue!string(9); //foo10 VARCHAR(255),
-                Foo11 = reader.getValue!int16(10); //foo11 SMALLINT NOT NULL,
-                Foo12 = reader.getValue!int16(11); //foo12 SMALLINT NOT NULL,
-                Foo13 = reader.getValue!int16(12); //foo13 SMALLINT NOT NULL,
-                Foo14 = reader.getValue!Decimal64(13); //foo14 DECIMAL(18, 2) NOT NULL,
-                Foo15 = reader.getValue!Decimal64(14); //foo15 DECIMAL(18, 2) NOT NULL,
-                Foo16 = reader.getValue!int16(15); //foo16 SMALLINT NOT NULL,
-                Foo17 = reader.getValue!Decimal64(16); //foo17 DECIMAL(18, 2) NOT NULL,
-                Foo18 = reader.getValue!Decimal64(17); //foo18 DECIMAL(18, 2) NOT NULL,
-                Foo19 = reader.getValue!int64(18); //foo19 BIGINT NOT NULL,
-                Foo20 = reader.getValue!int64(19); //foo20 BIGINT NOT NULL,
-                Foo21 = reader.getValue!int64(20); //foo21 BIGINT NOT NULL,
-                Foo22 = reader.getValue!int64(21); //foo22 BIGINT NOT NULL,
-                Foo23 = reader.getValue!string(22); //foo23 VARCHAR(255),
-                Foo24 = reader.getValue!string(23); //foo24 VARCHAR(255),
-                Foo25 = reader.getValue!string(24); //foo25 VARCHAR(511),
-                Foo26 = reader.getValue!string(25); //foo26 VARCHAR(256),
-                Foo27 = reader.getValue!int64(26); //foo27 BIGINT NOT NULL,
-                Foo28 = reader.getValue!string(27); //foo28 VARCHAR(255),
-                Foo29 = reader.getValue!int64(28); //foo29 BIGINT NOT NULL,
-                Foo30 = reader.getValue!string(29); //foo30 VARCHAR(255),
-                Foo31 = reader.getValue!int64(30); //foo31 BIGINT NOT NULL,
-                Foo32 = reader.getValue!Decimal64(31); //foo32 DECIMAL(18, 2) NOT NULL,
-                Foo33 = reader.getValue!Decimal64(32); //foo33 DECIMAL(18, 2) NOT NULL
-                }
-            }
-        }
-
-        bool failed = true;
-        auto connection = createTestPerfConnection();
-        scope (exit)
-        {
-            version (unittest)
-            if (failed)
-                traceUnitTest("failed - exiting and closing connection");
-
-            connection.close();
-            connection.dispose();
-            connection = null;
-        }
-        connection.open();
-
-        auto command = connection.createCommand();
-        scope (exit)
-        {
-            command.dispose();
-            command = null;
-        }
-
-        command.commandText = "select foo5 from foo";
-        auto reader = command.executeReader();
-        scope (exit)
-            reader.dispose();
-
-        enum maxRecordCount = 1_000_000;
-        version (UnitTestFBCollectData) auto datas = new Data[](maxRecordCount);
-        else Data data;
-        assert(reader.hasRows());
-
-        auto result = PerfTestResult.create();
-        while (result.count < maxRecordCount && reader.read())
-        {
-            version (UnitTestFBCollectData) datas[result.count++] = Data(reader);
-            else { data.readData(reader); result.count++; }
-        }
-        result.end();
-        assert(result.count > 0);
-        failed = false;
-        return result;
-    }
-}
-
 
 // Any below codes are private
 private:
@@ -2053,24 +1919,6 @@ version (UnitTestFBDatabase)
         result.connectionStringBuilder.encrypt = encrypt;
         result.connectionStringBuilder.compress = compress;
         result.connectionStringBuilder.integratedSecurity = integratedSecurity;
-
-        assert(cast(FbConnection)result !is null);
-
-        return cast(FbConnection)result;
-    }
-
-    FbConnection createTestPerfConnection()
-    {
-        auto db = DbDatabaseList.getDb(DbScheme.fb);
-        assert(cast(FbDatabase)db !is null);
-
-        auto result = db.createConnection("");
-        result.connectionStringBuilder.databaseName = "C:\\Development\\Projects\\DLang\\FirebirdSQL\\TESTPERF.FDB";
-        result.connectionStringBuilder.receiveTimeout = dur!"seconds"(20);
-        result.connectionStringBuilder.sendTimeout = dur!"seconds"(10);
-        result.connectionStringBuilder.encrypt = DbEncryptedConnection.disabled;
-        result.connectionStringBuilder.compress = false;
-        result.connectionStringBuilder.integratedSecurity = DbIntegratedSecurityConnection.srp;
 
         assert(cast(FbConnection)result !is null);
 
@@ -3297,17 +3145,6 @@ unittest // FbCommand.DML.StoredProcedure
     failed = false;
 }
 
-version (UnitTestPerfFBDatabase)
-unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953
-{
-    import std.format : format;
-    import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
-
-    const perfResult = unitTestPerfFBDatabase();
-    dgWriteln("Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
-}
-
 version (UnitTestFBDatabase)
 unittest // DbRAIITransaction
 {
@@ -3351,4 +3188,153 @@ unittest // DbRAIITransaction
 
     assertThrown!DbException(testDbRAIITransaction());
     assert(commit == false);
+}
+
+version (UnitTestPerfFBDatabase)
+{
+    import pham.utl.test : PerfTestResult;
+
+    PerfTestResult unitTestPerfFBDatabase()
+    {
+        import core.time;
+
+        static struct Data
+        {
+            long Foo1;
+            long Foo2;
+            string Foo3;
+            string Foo4;
+            DbDateTime Foo5;
+            DbDateTime Foo6;
+            DbDateTime Foo7;
+            string Foo8;
+            string Foo9;
+            string Foo10;
+            short Foo11;
+            short Foo12;
+            short Foo13;
+            Decimal64 Foo14;
+            Decimal64 Foo15;
+            short Foo16;
+            Decimal64 Foo17;
+            Decimal64 Foo18;
+            long Foo19;
+            long Foo20;
+            long Foo21;
+            long Foo22;
+            string Foo23;
+            string Foo24;
+            string Foo25;
+            string Foo26;
+            long Foo27;
+            string Foo28;
+            long Foo29;
+            string Foo30;
+            long Foo31;
+            Decimal64 Foo32;
+            Decimal64 Foo33;
+
+            this(ref DbReader reader)
+            {
+                readData(reader);
+            }
+
+            void readData(ref DbReader reader)
+            {
+                version (all)
+                {
+                    Foo1 = reader.getValue!int64(0); //foo1 BIGINT NOT NULL,
+                    Foo2 = reader.getValue!int64(1); //foo2 BIGINT NOT NULL,
+                    Foo3 = reader.getValue!string(2); //foo3 VARCHAR(255),
+                    Foo4 = reader.getValue!string(3); //foo4 VARCHAR(255),
+                    Foo5 = reader.getValue!DbDateTime(4); //foo5 TIMESTAMP,
+                    Foo6 = reader.getValue!DbDateTime(5); //foo6 TIMESTAMP NOT NULL,
+                    Foo7 = reader.getValue!DbDateTime(6); //foo7 TIMESTAMP,
+                    Foo8 = reader.getValue!string(7); //foo8 VARCHAR(255),
+                    Foo9 = reader.getValue!string(8); //foo9 VARCHAR(255),
+                    Foo10 = reader.getValue!string(9); //foo10 VARCHAR(255),
+                    Foo11 = reader.getValue!int16(10); //foo11 SMALLINT NOT NULL,
+                    Foo12 = reader.getValue!int16(11); //foo12 SMALLINT NOT NULL,
+                    Foo13 = reader.getValue!int16(12); //foo13 SMALLINT NOT NULL,
+                    Foo14 = reader.getValue!Decimal64(13); //foo14 DECIMAL(18, 2) NOT NULL,
+                    Foo15 = reader.getValue!Decimal64(14); //foo15 DECIMAL(18, 2) NOT NULL,
+                    Foo16 = reader.getValue!int16(15); //foo16 SMALLINT NOT NULL,
+                    Foo17 = reader.getValue!Decimal64(16); //foo17 DECIMAL(18, 2) NOT NULL,
+                    Foo18 = reader.getValue!Decimal64(17); //foo18 DECIMAL(18, 2) NOT NULL,
+                    Foo19 = reader.getValue!int64(18); //foo19 BIGINT NOT NULL,
+                    Foo20 = reader.getValue!int64(19); //foo20 BIGINT NOT NULL,
+                    Foo21 = reader.getValue!int64(20); //foo21 BIGINT NOT NULL,
+                    Foo22 = reader.getValue!int64(21); //foo22 BIGINT NOT NULL,
+                    Foo23 = reader.getValue!string(22); //foo23 VARCHAR(255),
+                    Foo24 = reader.getValue!string(23); //foo24 VARCHAR(255),
+                    Foo25 = reader.getValue!string(24); //foo25 VARCHAR(511),
+                    Foo26 = reader.getValue!string(25); //foo26 VARCHAR(256),
+                    Foo27 = reader.getValue!int64(26); //foo27 BIGINT NOT NULL,
+                    Foo28 = reader.getValue!string(27); //foo28 VARCHAR(255),
+                    Foo29 = reader.getValue!int64(28); //foo29 BIGINT NOT NULL,
+                    Foo30 = reader.getValue!string(29); //foo30 VARCHAR(255),
+                    Foo31 = reader.getValue!int64(30); //foo31 BIGINT NOT NULL,
+                    Foo32 = reader.getValue!Decimal64(31); //foo32 DECIMAL(18, 2) NOT NULL,
+                    Foo33 = reader.getValue!Decimal64(32); //foo33 DECIMAL(18, 2) NOT NULL
+                }
+                else
+                {
+                    Foo5 = reader.getValue!DbDateTime(0);
+                }
+            }
+        }
+
+        bool failed = true;
+        auto connection = createTestConnection();
+        scope (exit)
+        {
+            version (unittest)
+            if (failed)
+                traceUnitTest("failed - exiting and closing connection");
+
+            connection.close();
+            connection.dispose();
+            connection = null;
+        }
+        connection.open();
+
+        auto command = connection.createCommand();
+        scope (exit)
+        {
+            command.dispose();
+            command = null;
+        }
+
+        command.commandText = "select * from foo";
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+
+        enum maxRecordCount = 100_000;
+        version (UnitTestFBCollectData) auto datas = new Data[](maxRecordCount);
+        else Data data;
+        assert(reader.hasRows());
+
+        auto result = PerfTestResult.create();
+        while (result.count < maxRecordCount && reader.read())
+        {
+            version (UnitTestFBCollectData) datas[result.count++] = Data(reader);
+            else { data.readData(reader); result.count++; }
+        }
+        result.end();
+        assert(result.count > 0);
+        failed = false;
+        return result;
+    }
+}
+
+version (UnitTestPerfFBDatabase)
+unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953
+{
+    import std.format : format;
+    import pham.utl.test;
+    traceUnitTest("unittest db.fbdatabase.FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
+
+    const perfResult = unitTestPerfFBDatabase();
+    dgWriteln("FB-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
 }
