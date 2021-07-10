@@ -90,7 +90,7 @@ immutable DbTypeInfo[] pgNativeTypes = [
     {dbName:"XML", nativeName:"xml", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.xml, dbType:DbType.xml},
     {dbName:"FLOAT", nativeName:"real", displaySize:17, nativeSize:4, nativeId:PgOIdType.float4, dbType:DbType.float32},
     {dbName:"DOUBLE", nativeName:"double precision", displaySize:17, nativeSize:8, nativeId:PgOIdType.float8, dbType:DbType.float64},
-    {dbName:"DECIMAL(?)", nativeName:"numeric", displaySize:34, nativeSize:Decimal.sizeof, nativeId:PgOIdType.numeric, dbType:DbType.decimal}, // Prefer numerice over money for generic setting
+    {dbName:"DECIMAL(?)", nativeName:"numeric", displaySize:34, nativeSize:Decimal.sizeof, nativeId:PgOIdType.numeric, dbType:DbType.decimal}, // Prefer numeric over money for generic setting
     {dbName:"MONEY", nativeName:"money", displaySize:34, nativeSize:Decimal64.sizeof, nativeId:PgOIdType.money, dbType:DbType.decimal64},
     {dbName:"DATE", nativeName:"date", displaySize:10, nativeSize:4, nativeId:PgOIdType.date, dbType:DbType.date},
     {dbName:"TIME", nativeName:"time", displaySize:11, nativeSize:8, nativeId:PgOIdType.time, dbType:DbType.time},
@@ -344,7 +344,7 @@ struct PgOIdFieldInfo
 nothrow @safe:
 
 public:
-    bool opCast(C: bool)() const
+    bool opCast(C: bool)() const pure
     {
         return type != 0 && name.length != 0;
     }
@@ -356,7 +356,7 @@ public:
         return this;
     }
 
-    void reset()
+    void reset() pure
     {
         name = null;
         modifier = 0;
@@ -366,15 +366,31 @@ public:
         index = 0;
     }
 
-    DbType dbType() const
+    DbType dbType() const pure
     {
         DbType result = DbType.unknown;
+
+        if (type == PgOIdType.numeric)
+        {
+            const p = numericPrecision;
+            const s = numericScale;
+            if (p != 0 && s != 0)
+            {
+                const d = p - s;
+                if (d > 0)
+                    return d <= 7
+                        ? DbType.decimal32
+                        : (d <= 16 ? DbType.decimal64 : DbType.decimal128);
+            }
+            return DbType.decimal128; // Maximum supported native type
+        }
+
         if (auto e = type in PgOIdTypeToDbTypeInfos)
             result = (*e).dbType;
         return result;
     }
 
-    int32 dbTypeSize() const
+    int32 dbTypeSize() const pure
     {
         int32 result = -1;
         if (auto e = dbType() in dbTypeToDbTypeInfos)
@@ -387,9 +403,27 @@ public:
         return DbFieldIdType.no; //oIdType == PgOIdType.oid;
     }
 
-    @property bool allowNull() const nothrow
+    @property bool allowNull() const pure
     {
         return true;
+    }
+
+    @property int numericPrecision() const pure
+    {
+        // See https://stackoverflow.com/questions/3350148/where-are-numeric-precision-and-scale-for-a-field-found-in-the-pg-catalog-tables
+        if (modifier == -1)
+            return 0;
+        else
+            return ((modifier - 4) >> 16) & 65535;
+    }
+
+    @property int numericScale() const pure
+    {
+        // See https://stackoverflow.com/questions/3350148/where-are-numeric-precision-and-scale-for-a-field-found-in-the-pg-catalog-tables
+        if (modifier == -1)
+            return 0;
+        else
+            return (modifier - 4) & 65535;
     }
 
 public:
@@ -581,9 +615,9 @@ public:
     const(char)[] salt;
 }
 
+
 // Any below codes are private
 private:
-
 
 shared static this()
 {

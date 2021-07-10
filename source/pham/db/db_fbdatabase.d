@@ -1884,7 +1884,8 @@ void fillNamedColumn(DbNameColumn column, const ref FbIscFieldInfo iscField, boo
         ", numericScale=", iscField.numericScale,
         ", size=", iscField.size,
         ", subType=", iscField.subType,
-        ", type=", iscField.type);
+        ", type=", iscField.type,
+        ", dbType=", iscField.dbType);
 
     column.baseName = iscField.name.idup;
     column.baseOwner = iscField.owner.idup;

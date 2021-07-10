@@ -1435,9 +1435,12 @@ void fillNamedColumn(DbNameColumn column, const ref PgOIdFieldInfo oidField, boo
         ", modifier=", oidField.modifier,
         ", tableOid=", oidField.tableOid,
         ", type=", oidField.type,
+        ", numericPrecision=", oidField.numericPrecision,
+        ", numericScale=", oidField.numericScale,
         ", formatCode=", oidField.formatCode,
         ", index=", oidField.index,
-        ", size=", oidField.size);
+        ", size=", oidField.size,
+        ", dbType=", oidField.dbType);
 
     column.baseName = oidField.name;
     column.baseSize = oidField.size;
@@ -1684,11 +1687,11 @@ unittest // PgCommand.DML
         assert(isClose(reader.getValue(3).get!double(), 4.20));
         assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
 
-        assert(decimalEqual(reader.getValue(4).get!Numeric(), 5.4));
-        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Numeric(), 5.4));
+        assert(decimalEqual(reader.getValue(4).get!Decimal64(), 5.4));
+        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal64(), 5.4));
 
-        assert(decimalEqual(reader.getValue(5).get!Numeric(), 6.5));
-        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Numeric(), 6.5));
+        assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
+        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
 
         assert(reader.getValue(6) == Date(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == Date(2020, 5, 20));
@@ -1777,11 +1780,11 @@ unittest // PgCommand.DML
         assert(isClose(reader.getValue(3).get!double(), 4.20));
         assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
 
-        assert(decimalEqual(reader.getValue(4).get!Numeric(), 5.4));
-        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Numeric(), 5.4));
+        assert(decimalEqual(reader.getValue(4).get!Decimal64(), 5.4));
+        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal64(), 5.4));
 
-        assert(decimalEqual(reader.getValue(5).get!Numeric(), 6.5));
-        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Numeric(), 6.5));
+        assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
+        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
 
         assert(reader.getValue(6) == Date(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == Date(2020, 5, 20));
@@ -2208,11 +2211,11 @@ version (UnitTestPerfPGDatabase)
                     Foo11 = reader.getValue!int16(10); //foo11 SMALLINT NOT NULL,
                     Foo12 = reader.getValue!int16(11); //foo12 SMALLINT NOT NULL,
                     Foo13 = reader.getValue!int16(12); //foo13 SMALLINT NOT NULL,
-                    Foo14 = reader.getValue!Decimal128(13); //foo14 DECIMAL(18, 2) NOT NULL,
-                    Foo15 = reader.getValue!Decimal128(14); //foo15 DECIMAL(18, 2) NOT NULL,
+                    Foo14 = reader.getValue!Decimal64(13); //foo14 DECIMAL(18, 2) NOT NULL,
+                    Foo15 = reader.getValue!Decimal64(14); //foo15 DECIMAL(18, 2) NOT NULL,
                     Foo16 = reader.getValue!int16(15); //foo16 SMALLINT NOT NULL,
-                    Foo17 = reader.getValue!Decimal128(16); //foo17 DECIMAL(18, 2) NOT NULL,
-                    Foo18 = reader.getValue!Decimal128(17); //foo18 DECIMAL(18, 2) NOT NULL,
+                    Foo17 = reader.getValue!Decimal64(16); //foo17 DECIMAL(18, 2) NOT NULL,
+                    Foo18 = reader.getValue!Decimal64(17); //foo18 DECIMAL(18, 2) NOT NULL,
                     Foo19 = reader.getValue!int64(18); //foo19 BIGINT NOT NULL,
                     Foo20 = reader.getValue!int64(19); //foo20 BIGINT NOT NULL,
                     Foo21 = reader.getValue!int64(20); //foo21 BIGINT NOT NULL,
@@ -2226,8 +2229,8 @@ version (UnitTestPerfPGDatabase)
                     Foo29 = reader.getValue!int64(28); //foo29 BIGINT NOT NULL,
                     Foo30 = reader.getValue!string(29); //foo30 VARCHAR(255),
                     Foo31 = reader.getValue!int64(30); //foo31 BIGINT NOT NULL,
-                    Foo32 = reader.getValue!Decimal128(31); //foo32 DECIMAL(18, 2) NOT NULL,
-                    Foo33 = reader.getValue!Decimal128(32); //foo33 DECIMAL(18, 2) NOT NULL
+                    Foo32 = reader.getValue!Decimal64(31); //foo32 DECIMAL(18, 2) NOT NULL,
+                    Foo33 = reader.getValue!Decimal64(32); //foo33 DECIMAL(18, 2) NOT NULL
                 }
                 else
                 {
