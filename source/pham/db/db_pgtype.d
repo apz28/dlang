@@ -377,9 +377,9 @@ public:
             {
                 return p <= 9
                     ? DbType.decimal32
-                    : (p <= 18 ? DbType.decimal64 : DbType.decimal128);
+                    : (p <= 18 ? DbType.decimal64 : DbType.decimal);
             }
-            return DbType.decimal128; // Maximum supported native type
+            return DbType.decimal; // Maximum supported native type
         }
 
         if (auto e = type in PgOIdTypeToDbTypeInfos)
@@ -405,22 +405,42 @@ public:
         return true;
     }
 
-    @property int numericPrecision() const pure
+    @property int32 bitLength() const pure
     {
-        // See https://stackoverflow.com/questions/3350148/where-are-numeric-precision-and-scale-for-a-field-found-in-the-pg-catalog-tables
-        if (modifier == -1)
-            return 0;
-        else
-            return ((modifier - 4) >> 16) & 65535;
+        return (type == PgOIdType.bit || type == PgOIdType.varbit)
+            ? modifier
+            : -1; // -1=No limit or unknown
     }
 
-    @property int numericScale() const pure
+    @property int32 characterLength() const pure
+    {
+        // For PgOIdType.varchar, this is a max length
+        return (type == PgOIdType.bpchar || type == PgOIdType.varchar) && modifier != -1
+            ? (modifier - 4)
+            : -1; // -1=No limit or unknown
+    }
+
+    @property int32 numericPrecision() const pure
     {
         // See https://stackoverflow.com/questions/3350148/where-are-numeric-precision-and-scale-for-a-field-found-in-the-pg-catalog-tables
-        if (modifier == -1)
-            return 0;
-        else
-            return (modifier - 4) & 65535;
+        return type == PgOIdType.numeric && modifier != -1
+            ? (((modifier - 4) >> 16) & 0xFFFF)
+            : 0;
+    }
+
+    @property int32 numericScale() const pure
+    {
+        // See https://stackoverflow.com/questions/3350148/where-are-numeric-precision-and-scale-for-a-field-found-in-the-pg-catalog-tables
+        return type == PgOIdType.numeric && modifier != -1
+            ? ((modifier - 4) & 0xFFFF)
+            : 0;
+    }
+
+    @property int32 timezonePrecision() const pure
+    {
+        return (type == PgOIdType.timestamptz || type == PgOIdType.timetz) && modifier != -1
+            ? (modifier & 0xFFFF)
+            : 0;
     }
 
 public:
