@@ -373,14 +373,11 @@ public:
         if (type == PgOIdType.numeric)
         {
             const p = numericPrecision;
-            const s = numericScale;
-            if (p != 0 && s != 0)
+            if (p != 0)
             {
-                const d = p - s;
-                if (d > 0)
-                    return d <= 7
-                        ? DbType.decimal32
-                        : (d <= 16 ? DbType.decimal64 : DbType.decimal128);
+                return p <= 9
+                    ? DbType.decimal32
+                    : (p <= 18 ? DbType.decimal64 : DbType.decimal128);
             }
             return DbType.decimal128; // Maximum supported native type
         }
