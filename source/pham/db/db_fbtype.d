@@ -1751,7 +1751,6 @@ private const(char)[] parseStringImpl(const(ubyte)[] data, ref size_t index, uin
 // Any below codes are private
 private:
 
-
 version (unittest)
 enum countOfFbIscType = EnumMembers!FbIscType.length;
 

@@ -1183,7 +1183,6 @@ private:
 // Any below codes are private
 private:
 
-
 unittest // FbXdrWriter & FbXdrReader
 {
     import pham.utl.test;
