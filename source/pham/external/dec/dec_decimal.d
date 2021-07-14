@@ -6150,7 +6150,10 @@ if (isDecimal!D)
 	if (scale != 0 && result != 0)
     {
 		const UD scaleD = D(pow(10L, cast(int)abs(scale)), 0, roundingMode);
-        decimalDiv(result, scaleD, 0, roundingMode);
+        if (scale < 0)
+            decimalDiv(result, scaleD, 0, roundingMode);
+        else
+            decimalMul(result, scaleD, 0, roundingMode);
     }
     return result;
 }
@@ -6169,7 +6172,10 @@ if (isDecimal!D && (is(T == short) || is(T == int) || is(T == long) || is(T == f
         if (scale != 0 && scaleResult != 0)
         {
             const UD scaleD = D(pow(10L, cast(int)abs(scale)), 0, roundingMode);
-            decimalMul(scaleResult, scaleD, 0, roundingMode);
+            if (scale < 0)
+                decimalMul(scaleResult, scaleD, 0, roundingMode);
+            else
+                decimalDiv(scaleResult, scaleD, 0, roundingMode);
         }
         decimalToSigned(scaleResult, result, roundingMode);
     }
