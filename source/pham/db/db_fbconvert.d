@@ -45,11 +45,9 @@ uint8 boolEncode(bool value) @nogc pure
  * Date-part value as number of days elapsed since “date zero” — November 17, 1858 - Modified JD
  * https://en.wikipedia.org/wiki/Julian_day
  */
-Date dateDecode(int32 fbDate) pure
+Date dateDecode(int32 fbDate) @nogc pure
 {
-	scope (failure) assert(0);
-
-    return epochDate.addDays(fbDate);
+    return epochDate.addDaysSafe(fbDate);
 
 	version (none)
     {
@@ -116,9 +114,9 @@ int32 dateEncode(scope const Date value) @nogc pure
 	}
 }
 
-DbDateTime dateTimeDecode(int32 fbDate, int32 fbTime) pure
+DbDateTime dateTimeDecode(int32 fbDate, int32 fbTime) @nogc pure
 {
-	version (profile) auto p = PerfFunction.create();
+	version (profile) debug auto p = PerfFunction.create();
 	//dgWriteln("fbDate=", fbDate, ", fbTime=", fbTime);
 
 	auto dt = DateTime(dateDecode(fbDate), Time(timeToDuration(fbTime)));
@@ -135,15 +133,13 @@ enum notUseZoneOffset = int16.max;
 
 DbDateTime dateTimeDecodeTZ(int32 fbDate, int32 fbTime, uint16 fbZoneId, int16 fbZoneOffset)
 {
-	scope (failure) assert(0);
-
 	auto fbtzm = FbTimeZone.timeZone(fbZoneId);
 	auto tzm = TimeZoneInfoMap.timeZoneMap(fbtzm.name);
 	auto dt = DateTime(dateDecode(fbDate), Time(timeToDuration(fbTime)));
 	if (fbZoneOffset != notUseZoneOffset)
     {
 		if (fbZoneOffset != 0)
-			dt = dt.addMinutes(-cast(int)fbZoneOffset);
+			dt = dt.addMinutesSafe(-cast(int)fbZoneOffset);
 		dt = dt.toDateTimeKindUTC();
     }
 	else if (tzm.isValid())
@@ -263,15 +259,13 @@ int32 timeEncode(scope const DbTime value) @nogc pure
 
 DbTime timeDecodeTZ(int32 fbTime, uint16 fbZoneId, int16 fbZoneOffset)
 {
-	scope (failure) assert(0);
-
 	auto fbtzm = FbTimeZone.timeZone(fbZoneId);
 	auto tzm = TimeZoneInfoMap.timeZoneMap(fbtzm.name);
 	auto dt = DateTime(DateTime.utcNow.date, Time(timeToDuration(fbTime)));
 	if (fbZoneOffset != notUseZoneOffset)
     {
 		if (fbZoneOffset != 0)
-			dt = dt.addMinutes(-cast(int)fbZoneOffset);
+			dt = dt.addMinutesSafe(-cast(int)fbZoneOffset);
 		dt = dt.toDateTimeKindUTC();
     }
 	else if (tzm.isValid())
