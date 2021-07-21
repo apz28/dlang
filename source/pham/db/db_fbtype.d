@@ -588,15 +588,9 @@ public:
 
     @property final bool isArgument() const pure
 	{
-        switch (type)
-        {
-			case FbIsc.isc_arg_number:
-			case FbIsc.isc_arg_string:
-			case FbIsc.isc_arg_cstring:
-				return true;
-			default:
-				return false;
-		}
+        return type == FbIsc.isc_arg_number
+            || type == FbIsc.isc_arg_string
+            || type == FbIsc.isc_arg_cstring;
 	}
 
 	@property final bool isWarning() const pure
@@ -855,15 +849,10 @@ public:
 
     static DbFieldIdType isIdType(int32 iscType, int32 iscSubType) @nogc pure
     {
-        switch (fbType(iscType))
-        {
-            case FbIscType.SQL_BLOB:
-                return iscSubType != 1 ? DbFieldIdType.blob : DbFieldIdType.clob;
-            case FbIscType.SQL_ARRAY:
-                return DbFieldIdType.array;
-            default:
-                return DbFieldIdType.no;
-        }
+        const t = fbType(iscType);
+        return t == FbIscType.SQL_BLOB
+            ? (iscSubType != 1 ? DbFieldIdType.blob : DbFieldIdType.clob)
+            : (t == FbIscType.SQL_ARRAY ? DbFieldIdType.array : DbFieldIdType.no);
     }
 
     const(char)[] useName() const pure
@@ -1651,15 +1640,10 @@ FbIscCommandType parseCommandType(scope const(ubyte)[] data) pure
             break;
 
 		const len = parseInt32!true(data, pos, 2, typ);
-		switch (typ)
-		{
-			case FbIsc.isc_info_sql_stmt_type:
-				return cast(FbIscCommandType)parseInt32!true(data, pos, len, typ);
-
-			default:
-                pos += len;
-				break;
-		}
+		if (typ == FbIsc.isc_info_sql_stmt_type)
+		    return cast(FbIscCommandType)parseInt32!true(data, pos, len, typ);
+        else
+            pos += len;
 	}
 
 	return FbIscCommandType.none;

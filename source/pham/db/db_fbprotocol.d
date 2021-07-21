@@ -121,19 +121,15 @@ DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
             break;
 
 		const len = parseInt32!true(data, pos, 2, typ);
-		switch (typ)
+		if (typ == FbIsc.isc_info_sql_records)
 		{
-			case FbIsc.isc_info_sql_records:
-                if (pos < endPos)
-                    parseRecordValues();
-                else
-                    goto default;
-				break;
-
-			default:
-				pos += len;
-				break;
-		}
+            if (pos < endPos)
+                parseRecordValues();
+            else
+                break;
+        }
+        else
+		    pos += len;
 	}
 
 	return result;
@@ -944,7 +940,7 @@ public:
             ", baseTypeId=", column.baseTypeId,
             ", baseSubtypeId=", column.baseSubTypeId,
             ", baseNumericScale=", column.baseNumericScale);
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         if (column.isArray)
             return DbValue.entity(reader.readId(), column.type);
@@ -1025,7 +1021,7 @@ public:
     final DbRowValue readValues(FbCommand command, FbFieldList fields)
     {
         version (TraceFunction) dgFunctionTrace();
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         auto reader = FbXdrReader(connection);
 

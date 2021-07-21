@@ -25,7 +25,7 @@ struct DbValue
 public:
     this(T)(T value, DbType typeIf = DbType.unknown) nothrow @safe
     {
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         doAssign!(T, false)(value, typeIf);
     }

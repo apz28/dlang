@@ -460,7 +460,7 @@ public:
             ", baseTypeId=", column.baseTypeId,
             ", baseSubTypeId=", column.baseSubTypeId,
             ", valueLength=", valueLength);
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         PgXdrReader checkValueLength(const int32 expectedLength) @safe
         {
@@ -701,7 +701,7 @@ public:
     final DbRowValue readValues(PgCommand command, ref PgReader reader, PgFieldList fields)
     {
         version (TraceFunction) dgFunctionTrace();
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         const fieldCount = reader.readFieldCount();
 

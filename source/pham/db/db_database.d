@@ -2350,12 +2350,12 @@ public:
     /*
      * Indicates if field value is an external resource id which needs special loading/saving
      */
-    abstract DbFieldIdType isIdType() const nothrow @safe;
+    abstract DbFieldIdType isIdType() const nothrow pure @safe;
 
     /**
      * Gets or sets whether value NULL is allowed
      */
-    @property final bool allowNull() const nothrow @safe
+    @property final bool allowNull() const nothrow pure @safe
     {
         return _flags.on(DbSchemaColumnFlag.allowNull);
     }
@@ -2369,7 +2369,7 @@ public:
     /**
      * Gets or sets the id of the column in the schema table
      */
-    @property final int32 baseId() const nothrow @safe
+    @property final int32 baseId() const nothrow pure @safe
     {
         return _baseId;
     }
@@ -2383,7 +2383,7 @@ public:
     /**
      * Gets or sets the name of the column in the schema table
      */
-    @property final string baseName() const nothrow @safe
+    @property final string baseName() const nothrow pure @safe
     {
         return _baseName.length != 0 ? _baseName : name;
     }
@@ -2397,7 +2397,7 @@ public:
     /**
      * Gets or sets the owner of the column in the schema table
      */
-    @property final string baseOwner() const nothrow @safe
+    @property final string baseOwner() const nothrow pure @safe
     {
         return _baseOwner;
     }
@@ -2411,7 +2411,7 @@ public:
     /**
      * Gets or sets the name of the schema in the schema table
      */
-    @property final string baseSchemaName() const nothrow @safe
+    @property final string baseSchemaName() const nothrow pure @safe
     {
         return _baseSchemaName;
     }
@@ -2425,7 +2425,7 @@ public:
     /**
      * Gets or sets provider-specific numeric scale of the column
      */
-    @property final int32 baseNumericScale() const nothrow @safe
+    @property final int32 baseNumericScale() const nothrow pure @safe
     {
         return _baseType.numericScale;
     }
@@ -2439,7 +2439,7 @@ public:
     /**
      * Gets or sets provider-specific size of the column
      */
-    @property final int32 baseSize() const nothrow @safe
+    @property final int32 baseSize() const nothrow pure @safe
     {
         return _baseType.size;
     }
@@ -2453,7 +2453,7 @@ public:
     /**
      * Gets or sets provider-specific subtype of the column
      */
-    @property final int32 baseSubTypeId() const nothrow @safe
+    @property final int32 baseSubTypeId() const nothrow pure @safe
     {
         return _baseType.subTypeId;
     }
@@ -2467,7 +2467,7 @@ public:
     /**
      * Gets or sets the name of the table in the schema table
      */
-    @property final string baseTableName() const nothrow @safe
+    @property final string baseTableName() const nothrow pure @safe
     {
         return _baseTableName;
     }
@@ -2481,7 +2481,7 @@ public:
     /**
      * Gets or sets the id of the table in the schema table
      */
-    @property final int32 baseTableId() const nothrow @safe
+    @property final int32 baseTableId() const nothrow pure @safe
     {
         return _baseTableId;
     }
@@ -2495,7 +2495,7 @@ public:
     /**
      * Gets or sets provider-specific data type of the column
      */
-    @property final DbBaseType baseType() nothrow pure @safe
+    @property final DbBaseType baseType() const nothrow pure @safe
     {
         return _baseType;
     }
@@ -2503,7 +2503,7 @@ public:
     /**
      * Gets or sets provider-specific data type of the column
      */
-    @property final int32 baseTypeId() const nothrow @safe
+    @property final int32 baseTypeId() const nothrow pure @safe
     {
         return _baseType.typeId;
     }
@@ -2535,7 +2535,7 @@ public:
     /**
      * Gets or sets the ordinal of the column, based 1 value
      */
-    @property final uint32 ordinal() const nothrow @safe
+    @property final uint32 ordinal() const nothrow pure @safe
     {
         return _ordinal;
     }
@@ -2552,7 +2552,7 @@ public:
      * json, and xml types.
      */
     pragma(inline, true)
-    @property final int32 size() const nothrow @safe
+    @property final int32 size() const nothrow pure @safe
     {
         return _size;
     }
@@ -2567,7 +2567,7 @@ public:
      * Gets or sets the DbType of the parameter
      */
     pragma(inline, true)
-    @property final DbType type() const nothrow @safe
+    @property final DbType type() const nothrow pure @safe
     {
         return _type & ~DbType.array;
     }
@@ -3376,7 +3376,7 @@ public:
     bool read() @safe
     {
         version (TraceFunction) dgFunctionTrace();
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         if (!_allRowsFetched)
         {
@@ -3471,7 +3471,7 @@ private:
 
     Variant getVariant(const size_t index) @safe
     {
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         auto field = fields[index];
         final switch (field.isIdType())

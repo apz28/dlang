@@ -123,7 +123,7 @@ public:
 
     final void ensureAvailable(const size_t nBytes) @trusted
     {
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         if ((_offset + nBytes) > _maxLength)
         {

@@ -48,7 +48,7 @@ public:
     final override DbRowValue fetch(bool isScalar) @safe
     {
         version (TraceFunction) dgFunctionTrace();
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         checkActive();
 
@@ -174,7 +174,7 @@ package(pham.db):
     final size_t socketReadData(ubyte[] data) @trusted
     {
         version (TraceFunction) dgFunctionTrace();
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         auto result = socket.receive(data);
         if (result == Socket.ERROR || (result == 0 && data.length != 0))
@@ -510,7 +510,7 @@ public:
     version (TraceFunction) static size_t readCounter = 0;
     final override void fill(const size_t additionalBytes, bool mustSatisfied)
     {
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         if (_offset && (_offset + additionalBytes) > _data.length)
             mergeOffset();

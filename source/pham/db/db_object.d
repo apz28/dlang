@@ -958,7 +958,7 @@ public:
      */
     final T opIndex(in DbIdentitier name) nothrow @safe
     {
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         auto e = name in lookupItems;
         return e ? *e : null;
@@ -993,7 +993,7 @@ public:
 
     final bool exist(in DbIdentitier name) const nothrow pure @safe
     {
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         const e = name in lookupItems;
         return e !is null;
@@ -1007,7 +1007,7 @@ public:
 
     final bool find(in DbIdentitier name, out T item) nothrow @safe
     {
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         auto e = name in lookupItems;
         if (e !is null)
@@ -1043,7 +1043,7 @@ public:
 
     final T get(in DbIdentitier name) @safe
     {
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         T result;
         if (!find(name, result))
@@ -1062,7 +1062,7 @@ public:
 
     final ptrdiff_t indexOf(in DbIdentitier name) nothrow pure @safe
     {
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         if (flags.on(Flag.reIndex))
             reIndexItems();

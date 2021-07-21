@@ -992,7 +992,7 @@ protected:
     do
     {
         version (TraceFunction) dgFunctionTrace("isScalar=", isScalar);
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         auto protocol = fbConnection.protocol;
         protocol.fetchCommandWrite(this);
@@ -1269,7 +1269,7 @@ protected:
     final DbRowValue readRow(bool isScalar) @safe
     {
         version (TraceFunction) dgFunctionTrace("isScalar=", isScalar);
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         auto protocol = fbConnection.protocol;
         auto result = protocol.readValues(this, fbFields);
@@ -1681,16 +1681,16 @@ public:
         super(command, name);
     }
 
-    final override DbField createSelf(DbCommand command) nothrow
+    final override DbField createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
             ? database.createField(cast(FbCommand)command, name)
             : new FbField(cast(FbCommand)command, name);
     }
 
-    final override DbFieldIdType isIdType() const nothrow @safe
+    final override DbFieldIdType isIdType() const nothrow pure @safe
     {
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         return FbIscFieldInfo.isIdType(baseTypeId, baseSubTypeId);
     }
@@ -1737,7 +1737,7 @@ public:
         super(database, name);
     }
 
-    final override DbFieldIdType isIdType() const nothrow @safe
+    final override DbFieldIdType isIdType() const nothrow pure @safe
     {
         return FbIscFieldInfo.isIdType(baseTypeId, baseSubTypeId);
     }

@@ -721,7 +721,7 @@ protected:
     do
     {
         version (TraceFunction) dgFunctionTrace("isScalar=", isScalar);
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         auto protocol = pgConnection.protocol;
         auto continueFetchingCount = fetchRecordCount;
@@ -829,7 +829,7 @@ protected:
     final DbRowValue readRow(ref PgReader reader, bool isScalar) @safe
     {
         version (TraceFunction) dgFunctionTrace("isScalar=", isScalar);
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         auto protocol = pgConnection.protocol;
         return protocol.readValues(this, reader, pgFields);
@@ -1192,16 +1192,16 @@ public:
         super(command, name);
     }
 
-    final override DbField createSelf(DbCommand command) nothrow
+    final override DbField createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
             ? database.createField(cast(PgCommand)command, name)
             : new PgField(cast(PgCommand)command, name);
     }
 
-    final override DbFieldIdType isIdType() const nothrow @safe
+    final override DbFieldIdType isIdType() const nothrow pure @safe
     {
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         return PgOIdFieldInfo.isIdType(baseTypeId, baseSubTypeId);
     }
@@ -1248,7 +1248,7 @@ public:
         super(database, name);
     }
 
-    final override DbFieldIdType isIdType() const nothrow @safe
+    final override DbFieldIdType isIdType() const nothrow pure @safe
     {
         return PgOIdFieldInfo.isIdType(baseTypeId, baseSubTypeId);
     }
