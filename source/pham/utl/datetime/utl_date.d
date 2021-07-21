@@ -105,9 +105,21 @@ public:
     Date addDays(const int days) const pure
     {
         Date result = void;
-        int newDays = void;
+        long newDays = void;
         if (addDaysImpl(days, newDays, result) != ErrorOp.none)
             throwOutOfRange!(ErrorPart.day)(newDays);
+        return result;
+    }
+
+    /**
+     * Same as addDays except it won't raise TimeException when the calculation
+     * is out of bound. The result will be Date.min for underflow and Date.max for overflow
+     */
+    Date addDaysSafe(const int days) const @nogc pure nothrow
+    {
+        Date result = void;
+        long newDays = void;
+        addDaysImpl(days, newDays, result);
         return result;
     }
 
@@ -171,7 +183,7 @@ public:
         toDateTime().getDate(year, month, day);
     }
 
-    static ErrorOp isValidDays(const int days) @nogc nothrow pure
+    static ErrorOp isValidDays(const long days) @nogc nothrow pure
     {
         return days < minDays
             ? ErrorOp.underflow
@@ -227,7 +239,7 @@ public:
 
     ErrorOp tryAddDays(const int days, out Date newDate) const @nogc nothrow pure
     {
-        int newDays = void;
+        long newDays = void;
         return addDaysImpl(days, newDays, newDate);
     }
 
@@ -296,7 +308,7 @@ public:
     pragma(inline, true)
     @property ulong uticks() const @nogc nothrow pure
     {
-        return cast(ulong)data * cast(ulong)Tick.ticksPerDay;
+        return cast(ulong)data * Tick.ticksPerDay;
     }
 
     /**
@@ -365,9 +377,9 @@ package(pham.utl.datetime):
     }
 
 private:
-    ErrorOp addDaysImpl(const int days, out int newDays, out Date newDate) const @nogc nothrow pure
+    ErrorOp addDaysImpl(const int days, out long newDays, out Date newDate) const @nogc nothrow pure
     {
-        newDays = cast(int)data + days;
+        newDays = cast(long)data + days;
         const result = isValidDays(newDays);
         newDate = result == ErrorOp.none ? Date(cast(uint)newDays) : errorResult(result);
         return result;
@@ -522,7 +534,7 @@ public:
     {
         DateTime result = void;
         long newTicks = void;
-        if (addImpl(days, Tick.millisPerDay, newTicks, result) != ErrorOp.none)
+        if (addImpl(toMilliSeconds(days, Tick.millisPerDay), newTicks, result) != ErrorOp.none)
             throwArithmeticOutOfRange!(ErrorPart.tick)(newTicks);
         return result;
     }
@@ -538,7 +550,7 @@ public:
     {
         DateTime result = void;
         long newTicks = void;
-        if (addImpl(hours, Tick.millisPerHour, newTicks, result) != ErrorOp.none)
+        if (addImpl(toMilliSeconds(hours, Tick.millisPerHour), newTicks, result) != ErrorOp.none)
             throwArithmeticOutOfRange!(ErrorPart.tick)(newTicks);
         return result;
     }
@@ -554,7 +566,7 @@ public:
     {
         DateTime result = void;
         long newTicks = void;
-        if (addImpl(milliseconds, 1, newTicks, result) != ErrorOp.none)
+        if (addImpl(toMilliSeconds(milliseconds, 1), newTicks, result) != ErrorOp.none)
             throwArithmeticOutOfRange!(ErrorPart.tick)(newTicks);
         return result;
     }
@@ -570,8 +582,20 @@ public:
     {
         DateTime result = void;
         long newTicks = void;
-        if (addImpl(minutes, Tick.millisPerMinute, newTicks, result) != ErrorOp.none)
+        if (addImpl(toMilliSeconds(minutes, Tick.millisPerMinute), newTicks, result) != ErrorOp.none)
             throwArithmeticOutOfRange!(ErrorPart.tick)(newTicks);
+        return result;
+    }
+
+    /**
+     * Same as addMinutes except it won't raise TimeException when the calculation
+     * is out of bound. The result will be DateTime.min for underflow and DateTime.max for overflow
+     */
+    DateTime addMinutesSafe(const int minutes) const @nogc nothrow pure
+    {
+        DateTime result = void;
+        long newTicks = void;
+        addImpl(toMilliSeconds(minutes, Tick.millisPerMinute), newTicks, result);
         return result;
     }
 
@@ -635,8 +659,20 @@ public:
     {
         DateTime result = void;
         long newTicks = void;
-        if (addImpl(seconds, Tick.millisPerSecond, newTicks, result) != ErrorOp.none)
+        if (addImpl(toMilliSeconds(seconds, Tick.millisPerSecond), newTicks, result) != ErrorOp.none)
             throwArithmeticOutOfRange!(ErrorPart.tick)(newTicks);
+        return result;
+    }
+
+    /**
+     * Same as addSeconds except it won't raise TimeException when the calculation
+     * is out of bound. The result will be DateTime.min for underflow and DateTime.max for overflow
+     */
+    DateTime addSecondsSafe(const int seconds) const @nogc nothrow pure
+    {
+        DateTime result = void;
+        long newTicks = void;
+        addImpl(toMilliSeconds(seconds, Tick.millisPerSecond), newTicks, result);
         return result;
     }
 
@@ -652,6 +688,24 @@ public:
         if (addTicksImpl(ticks, newTicks, result) != ErrorOp.none)
             throwArithmeticOutOfRange!(ErrorPart.tick)(newTicks);
         return result;
+    }
+
+    /**
+     * Same as addTicks except it won't raise TimeException when the calculation
+     * is out of bound. The result will be DateTime.min for underflow and DateTime.max for overflow
+     */
+    DateTime addTicksSafe(const long ticks) const @nogc nothrow pure
+    {
+        DateTime result = void;
+        long newTicks = void;
+        addTicksImpl(ticks, newTicks, result);
+        return result;
+    }
+
+    ///
+    DateTime addTicksSafe(scope const Duration duration) const @nogc nothrow pure
+    {
+        return addTicksSafe(Tick.durationToTick(duration));
     }
 
     /**
@@ -676,7 +730,7 @@ public:
      * Returns the first day in the month that this DateTime is in.
      * The time portion of beginOfMonth is always 0:0:0.0
      */
-    DateTime beginOfMonth() const @safe pure nothrow
+    DateTime beginOfMonth() const pure nothrow
     {
         int y = void, m = void, d = void;
         getDate(y, m, d);
@@ -777,7 +831,7 @@ public:
      * Returns the last day in the month that this DateTime is in.
      * The time portion of endOfMonth is always 23:59:59.9999999
      */
-    DateTime endOfMonth() const @safe pure nothrow
+    DateTime endOfMonth() const pure nothrow
     {
         int y = void, m = void, d = void;
         getDate(y, m, d);
@@ -982,7 +1036,7 @@ public:
     ErrorOp tryAddDays(const double days, out DateTime newDateTime) const @nogc nothrow pure
     {
         long newTicks = void;
-        return addImpl(days, Tick.millisPerDay, newTicks, newDateTime);
+        return addImpl(toMilliSeconds(days, Tick.millisPerDay), newTicks, newDateTime);
     }
 
     /**
@@ -1283,32 +1337,19 @@ package(pham.utl.datetime):
         return error;
     }
 
-    DateTime safeAddTicks(const long ticks) const @nogc nothrow pure
-    {
-        DateTime result = void;
-        long newTicks = void;
-        const r = addTicksImpl(ticks, newTicks, result);
-        return r == ErrorOp.none ? result : errorDateTime(r);
-    }
-
-    DateTime safeAddTicks(scope const Duration duration) const @nogc nothrow pure
-    {
-        return safeAddTicks(Tick.durationToTick(duration));
-    }
-
 private:
     /**
      * Returns the DateTime resulting from adding a fractional number of
      * time units to this DateTime.
      */
-    ErrorOp addImpl(double value, int scale, out long newTicks, out DateTime newDateTime) const @nogc nothrow pure
+    ErrorOp addImpl(const long milliseconds, out long newTicks, out DateTime newDateTime) const @nogc nothrow pure
     {
-        const long millisecond = cast(long)(value * scale + (value >= 0 ? 0.5 : -0.5));
-        const error = millisecond <= -maxMillis
+        //const long milliseconds = cast(long)(value * scale + (value >= 0 ? 0.5 : -0.5));
+        const error = milliseconds <= -maxMillis
             ? ErrorOp.underflow
-            : (millisecond >= maxMillis ? ErrorOp.overflow : ErrorOp.none);
+            : (milliseconds >= maxMillis ? ErrorOp.overflow : ErrorOp.none);
         return error == ErrorOp.none
-            ? addTicksImpl(millisecond * Tick.ticksPerMillisecond, newTicks, newDateTime)
+            ? addTicksImpl(milliseconds * Tick.ticksPerMillisecond, newTicks, newDateTime)
             : errorResult(error, newDateTime);
     }
 
@@ -1401,6 +1442,18 @@ private:
             return cast(int)m;
         // Return 1-based day-of-month
         return cast(int)(n - days[m - 1] + 1);
+    }
+
+    pragma(inline, true)
+    static long toMilliSeconds(const double value, const int scale) @nogc nothrow pure
+    {
+        return cast(long)(value * scale + (value >= 0 ? 0.5 : -0.5));
+    }
+
+    pragma(inline, true)
+    static long toMilliSeconds(const int value, const int scale) @nogc nothrow pure
+    {
+        return cast(long)value * scale;
     }
 
     void validateLeapSecond() pure
@@ -1683,8 +1736,8 @@ unittest // DateTime.day
     immutable idt = DateTime(1999, 7, 6, 12, 30, 33);
     assert(idt.day == 6);
 
-    assert(DateTime(1999, 7, 6, 12, 30, 33).addDays(7) == DateTime(1999, 7, 13, 12, 30, 33));
-    assert(DateTime(1999, 7, 6, 12, 30, 33).addDays(-7) == DateTime(1999, 6, 29, 12, 30, 33));
+    assert(DateTime(1999, 7, 6, 12, 30, 33).addDays(7) == DateTime(1999, 7, 13, 12, 30, 33), DateTime(1999, 7, 6, 12, 30, 33).addDays(7).toString());
+    assert(DateTime(1999, 7, 6, 12, 30, 33).addDays(-7) == DateTime(1999, 6, 29, 12, 30, 33), DateTime(1999, 7, 6, 12, 30, 33).addDays(-7).toString());
 }
 
 unittest // DateTime.hour

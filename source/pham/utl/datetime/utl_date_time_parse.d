@@ -837,7 +837,7 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
                 auto temp = DateTime(parser.year, parser.month, parser.day,
                                     parser.hour, parser.minute, parser.second,
                                     fromKind);
-                result = temp.safeAddTicks(parser.fraction);
+                result = temp.addTicksSafe(parser.fraction);
             }
             else
                 result = DateTime(parser.year, parser.month, parser.day,
@@ -851,7 +851,7 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
             {
                 auto utcDT = bias == Duration.zero
                     ? DateTime(result.sticks, DateTimeKind.utc)
-                    : DateTime(result.safeAddTicks(-bias).sticks, DateTimeKind.utc);
+                    : DateTime(result.addTicksSafe(-bias).sticks, DateTimeKind.utc);
                 result = toKind == DateTimeKind.utc ? utcDT : TimeZoneInfo.convertUtcToLocal(utcDT);
             }
         }
@@ -872,7 +872,7 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
             {
                 auto utcDT = bias == Duration.zero
                     ? DateTime(DateTime.utcNow.date, result.toTimeKind(DateTimeKind.utc))
-                    : DateTime(DateTime.utcNow.date, result.toTimeKind(DateTimeKind.utc)).safeAddTicks(-bias);
+                    : DateTime(DateTime.utcNow.date, result.toTimeKind(DateTimeKind.utc)).addTicksSafe(-bias);
                 result = toKind == DateTimeKind.utc ? utcDT.time : TimeZoneInfo.convertUtcToLocal(utcDT).time;
             }
         }
