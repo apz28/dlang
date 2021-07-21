@@ -465,7 +465,7 @@ public:
 
     ptrdiff_t indexOf(scope const T item) @trusted
     {
-        version (profile) auto p = PerfFunction.create();
+        version (profile) debug auto p = PerfFunction.create();
 
         foreach (i; 0.._items.length)
         {

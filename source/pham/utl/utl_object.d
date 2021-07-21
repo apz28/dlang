@@ -41,16 +41,13 @@ ubyte[] bytesFromHexs(scope const(char)[] validHexChars) nothrow pure @safe
     ubyte b = 0;
     for (auto i = 0; i < validHexChars.length; i++)
     {
-        if (!isHex(validHexChars[i], b))
+        const c = validHexChars[i];
+        if (!isHex(c, b))
         {
-            switch (validHexChars[i])
-            {
-                case ' ':
-                case '_':
-                    continue;
-                default:
-                    assert(0);
-            }
+            if (c == ' ' || c == '_')
+                continue;
+
+            assert(0);
         }
 
         if (shift)
