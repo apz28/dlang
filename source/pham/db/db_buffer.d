@@ -34,12 +34,6 @@ class DbBuffer : DbDisposableObject
 {
 @safe:
 
-public:
-    IbWriteBuffer isWriteBuffer() nothrow pure
-    {
-        return null;
-    }
-
 protected:
     override void doDispose(bool disposing) nothrow
     {
@@ -250,14 +244,14 @@ struct DbValueReader(Endian EndianKind)
 public:
     @disable this(this);
 
-    this(DbReadBuffer readBuffer)
+    this(DbReadBuffer buffer) nothrow pure
     {
-        this._readBuffer = readBuffer;
+        this._buffer = buffer;
     }
 
-    void dispose(bool disposing = true)
+    void dispose(bool disposing = true) nothrow pure
     {
-        _readBuffer = null;
+        _buffer = null;
     }
 
     bool readBool()
@@ -267,7 +261,7 @@ public:
 
     ubyte[] readBytes(size_t nBytes)
     {
-        return _readBuffer.readBytesImpl(nBytes);
+        return _buffer.readBytesImpl(nBytes);
     }
 
     ubyte[] readBytes(return ubyte[] value)
@@ -277,7 +271,7 @@ public:
     }
     do
     {
-        return _readBuffer.readBytesImpl(value);
+        return _buffer.readBytesImpl(value);
     }
 
     char readChar()
@@ -287,7 +281,7 @@ public:
 
     char[] readChars(size_t nBytes) @trusted // @trusted=cast()
     {
-        return cast(char[])_readBuffer.readBytesImpl(nBytes);
+        return cast(char[])_buffer.readBytesImpl(nBytes);
     }
 
     float32 readFloat32() @trusted
@@ -320,8 +314,8 @@ public:
     void readTwoInt32(out int32 i1, out int32 i2)
     {
         enum twoInt32Size = uint32.sizeof + uint32.sizeof;
-        if (_readBuffer.length < twoInt32Size)
-            _readBuffer.ensureAvailable(twoInt32Size);
+        if (_buffer.length < twoInt32Size)
+            _buffer.ensureAvailable(twoInt32Size);
         i1 = cast(int32)readUInt32Impl();
         i2 = cast(int32)readUInt32Impl();
     }
@@ -333,42 +327,42 @@ public:
 
     uint8 readUInt8()
     {
-        if (_readBuffer.length < uint8.sizeof)
-            _readBuffer.ensureAvailable(uint8.sizeof);
+        if (_buffer.length < uint8.sizeof)
+            _buffer.ensureAvailable(uint8.sizeof);
 
-        return _readBuffer._data[_readBuffer._offset++];
+        return _buffer._data[_buffer._offset++];
     }
 
     uint16 readUInt16()
     {
-        if (_readBuffer.length < uint16.sizeof)
-            _readBuffer.ensureAvailable(uint16.sizeof);
+        if (_buffer.length < uint16.sizeof)
+            _buffer.ensureAvailable(uint16.sizeof);
         return readUInt16Impl();
     }
 
     uint32 readUInt32()
     {
-        if (_readBuffer.length < uint32.sizeof)
-            _readBuffer.ensureAvailable(uint32.sizeof);
+        if (_buffer.length < uint32.sizeof)
+            _buffer.ensureAvailable(uint32.sizeof);
         return readUInt32Impl();
     }
 
     uint64 readUInt64()
     {
-        if (_readBuffer.length < uint64.sizeof)
-            _readBuffer.ensureAvailable(uint64.sizeof);
+        if (_buffer.length < uint64.sizeof)
+            _buffer.ensureAvailable(uint64.sizeof);
         return readUInt64Impl();
+    }
+
+    @property DbReadBuffer buffer() nothrow pure
+    {
+        return _buffer;
     }
 
     pragma(inline, true)
     @property bool empty() const nothrow pure
     {
-        return _readBuffer.empty;
-    }
-
-    @property DbReadBuffer readBuffer() nothrow pure
-    {
-        return _readBuffer;
+        return _buffer.empty;
     }
 
 private:
@@ -376,11 +370,11 @@ private:
     uint16 readUInt16Impl() nothrow pure
     {
         static if (EndianKind == Endian.littleEndian)
-            uint16 result = _readBuffer._data[_readBuffer._offset++]
-                | (cast(uint16)_readBuffer._data[_readBuffer._offset++] << 8);
+            uint16 result = _buffer._data[_buffer._offset++]
+                | (cast(uint16)_buffer._data[_buffer._offset++] << 8);
         else
-            uint16 result = (cast(uint16)_readBuffer._data[_readBuffer._offset++] << 8)
-                | _readBuffer._data[_readBuffer._offset++];
+            uint16 result = (cast(uint16)_buffer._data[_buffer._offset++] << 8)
+                | _buffer._data[_buffer._offset++];
 
         version (BigEndian)
         static if (EndianKind == Endian.littleEndian)
@@ -393,15 +387,15 @@ private:
     uint32 readUInt32Impl() nothrow pure
     {
         static if (EndianKind == Endian.littleEndian)
-            uint32 result = _readBuffer._data[_readBuffer._offset++]
-                | (cast(uint32)_readBuffer._data[_readBuffer._offset++] << 8)
-                | (cast(uint32)_readBuffer._data[_readBuffer._offset++] << 16)
-                | (cast(uint32)_readBuffer._data[_readBuffer._offset++] << 24);
+            uint32 result = _buffer._data[_buffer._offset++]
+                | (cast(uint32)_buffer._data[_buffer._offset++] << 8)
+                | (cast(uint32)_buffer._data[_buffer._offset++] << 16)
+                | (cast(uint32)_buffer._data[_buffer._offset++] << 24);
         else
-            uint32 result = (cast(uint32)_readBuffer._data[_readBuffer._offset++] << 24)
-                | (cast(uint32)_readBuffer._data[_readBuffer._offset++] << 16)
-                | (cast(uint32)_readBuffer._data[_readBuffer._offset++] << 8)
-                | _readBuffer._data[_readBuffer._offset++];
+            uint32 result = (cast(uint32)_buffer._data[_buffer._offset++] << 24)
+                | (cast(uint32)_buffer._data[_buffer._offset++] << 16)
+                | (cast(uint32)_buffer._data[_buffer._offset++] << 8)
+                | _buffer._data[_buffer._offset++];
 
         version (BigEndian)
         static if (EndianKind == Endian.littleEndian)
@@ -414,23 +408,23 @@ private:
     uint64 readUInt64Impl() nothrow pure
     {
         static if (EndianKind == Endian.littleEndian)
-            uint64 result = _readBuffer._data[_readBuffer._offset++]
-                | (cast(uint64)_readBuffer._data[_readBuffer._offset++] << 8)
-                | (cast(uint64)_readBuffer._data[_readBuffer._offset++] << 16)
-                | (cast(uint64)_readBuffer._data[_readBuffer._offset++] << 24)
-                | (cast(uint64)_readBuffer._data[_readBuffer._offset++] << 32)
-                | (cast(uint64)_readBuffer._data[_readBuffer._offset++] << 40)
-                | (cast(uint64)_readBuffer._data[_readBuffer._offset++] << 48)
-                | (cast(uint64)_readBuffer._data[_readBuffer._offset++] << 56);
+            uint64 result = _buffer._data[_buffer._offset++]
+                | (cast(uint64)_buffer._data[_buffer._offset++] << 8)
+                | (cast(uint64)_buffer._data[_buffer._offset++] << 16)
+                | (cast(uint64)_buffer._data[_buffer._offset++] << 24)
+                | (cast(uint64)_buffer._data[_buffer._offset++] << 32)
+                | (cast(uint64)_buffer._data[_buffer._offset++] << 40)
+                | (cast(uint64)_buffer._data[_buffer._offset++] << 48)
+                | (cast(uint64)_buffer._data[_buffer._offset++] << 56);
         else
-            uint64 result = (cast(uint64)_readBuffer._data[_readBuffer._offset++] << 56)
-                | (cast(uint64)_readBuffer._data[_readBuffer._offset++] << 48)
-                | (cast(uint64)_readBuffer._data[_readBuffer._offset++] << 40)
-                | (cast(uint64)_readBuffer._data[_readBuffer._offset++] << 32)
-                | (cast(uint64)_readBuffer._data[_readBuffer._offset++] << 24)
-                | (cast(uint64)_readBuffer._data[_readBuffer._offset++] << 16)
-                | (cast(uint64)_readBuffer._data[_readBuffer._offset++] << 8)
-                | cast(uint64)_readBuffer._data[_readBuffer._offset++];
+            uint64 result = (cast(uint64)_buffer._data[_buffer._offset++] << 56)
+                | (cast(uint64)_buffer._data[_buffer._offset++] << 48)
+                | (cast(uint64)_buffer._data[_buffer._offset++] << 40)
+                | (cast(uint64)_buffer._data[_buffer._offset++] << 32)
+                | (cast(uint64)_buffer._data[_buffer._offset++] << 24)
+                | (cast(uint64)_buffer._data[_buffer._offset++] << 16)
+                | (cast(uint64)_buffer._data[_buffer._offset++] << 8)
+                | cast(uint64)_buffer._data[_buffer._offset++];
 
         version (BigEndian)
         static if (EndianKind == Endian.littleEndian)
@@ -440,9 +434,10 @@ private:
     }
 
 private:
-    DbReadBuffer _readBuffer;
+    DbReadBuffer _buffer;
 }
 
+version (none)
 interface IbWriteBuffer
 {
 @safe:
@@ -474,30 +469,25 @@ interface IbWriteBuffer
     @property size_t offset() const nothrow;
 }
 
-class DbWriteBuffer(Endian EndianKind = Endian.bigEndian) : DbBuffer, IbWriteBuffer
+class DbWriteBuffer : DbBuffer
 {
 @safe:
 
 public:
-    this(size_t capacity)
+    this(size_t capacity) nothrow
     {
         this._data = null;
         this._offset = 0;
         reserve(capacity);
     }
 
-    override void flush()
+    void flush()
     {
         reset();
     }
 
-    final override IbWriteBuffer isWriteBuffer() nothrow pure
-    {
-        return this;
-    }
-
     version (TraceFunction)
-    final override string logData() nothrow @trusted
+    final string logData() nothrow @trusted
     {
         import std.conv : to;
         import pham.utl.object : bytesToHexs;
@@ -506,191 +496,30 @@ public:
         return "length=" ~ to!string(bytes.length) ~ ", data=" ~ cast(string)bytesToHexs(bytes);
     }
 
-    final override ubyte[] peekBytes() nothrow
+    final ubyte[] peekBytes() nothrow
     {
         return _data[0..length];
     }
 
-    override IbWriteBuffer reset() nothrow
+    DbWriteBuffer reset() nothrow
     {
         _offset = 0;
         return this;
     }
 
-    final override IbWriteBuffer rewriteInt32(int32 v, size_t rewriteOffset) nothrow
-    in
-    {
-        assert(rewriteOffset <= _offset);
-    }
-    do
-    {
-        const saveOffset = this._offset;
-        this._offset = rewriteOffset;
-        scope (exit)
-            this._offset = saveOffset;
-
-        return writeInt32(v);
-    }
-
-    final override DbBuffer self() nothrow pure
-    {
-        return this;
-    }
-
-    final override IbWriteBuffer writeBool(bool v) nothrow
-    {
-        return writeUInt8(v ? 1 : 0);
-    }
-
-    final override IbWriteBuffer writeBytes(scope const(ubyte)[] v) nothrow
-    {
-        return writeBytesImpl(v);
-    }
-
-    final override IbWriteBuffer writeChar(char v) nothrow
-    {
-        return writeUInt8(cast(ubyte)v);
-    }
-
-    final override IbWriteBuffer writeChars(scope const(char)[] v) nothrow
-    {
-        return writeBytesImpl(v.representation);
-    }
-
-    final override IbWriteBuffer writeFloat32(float32 v) nothrow @trusted
-    {
-        return writeUInt32(*cast(uint32 *)&v);
-    }
-
-    final override IbWriteBuffer writeFloat64(float64 v) nothrow @trusted
-    {
-        return writeUInt64(*cast(uint64 *)&v);
-    }
-
-    final override IbWriteBuffer writeInt8(int8 v) nothrow
-    {
-        return writeUInt8(cast(uint8)v);
-    }
-
-    final override IbWriteBuffer writeInt16(int16 v) nothrow
-    {
-        return writeUInt16(cast(uint16)v);
-    }
-
-    final override IbWriteBuffer writeInt32(int32 v) nothrow
-    {
-        return writeUInt32(cast(uint32)v);
-    }
-
-    final override IbWriteBuffer writeInt64(int64 v) nothrow
-    {
-        return writeUInt64(cast(uint64)v);
-    }
-
-    final override IbWriteBuffer writeUInt8(uint8 v) nothrow
-    {
-        reserve(uint8.sizeof);
-
-        _data[_offset++] = v;
-
-        return this;
-    }
-
-    final override IbWriteBuffer writeUInt16(uint16 v) nothrow
-    {
-        version (BigEndian)
-        static if (EndianKind == Endian.littleEndian)
-            v = swapEndian(v);
-
-        reserve(uint16.sizeof);
-
-        static if (EndianKind == Endian.littleEndian)
-        {
-            _data[_offset++] = v & 0xFF;
-            _data[_offset++] = (v >> 8) & 0xFF;
-        }
-        else
-        {
-            _data[_offset++] = (v >> 8) & 0xFF;
-            _data[_offset++] = v & 0xFF;
-        }
-
-        return this;
-    }
-
-    final override IbWriteBuffer writeUInt32(uint32 v) nothrow
-    {
-        version (BigEndian)
-        static if (EndianKind == Endian.littleEndian)
-            v = swapEndian(v);
-
-        reserve(uint32.sizeof);
-
-        static if (EndianKind == Endian.littleEndian)
-        {
-            _data[_offset++] = v & 0xFF;
-            _data[_offset++] = (v >> 8) & 0xFF;
-            _data[_offset++] = (v >> 16) & 0xFF;
-            _data[_offset++] = (v >> 24) & 0xFF;
-        }
-        else
-        {
-            _data[_offset++] = (v >> 24) & 0xFF;
-            _data[_offset++] = (v >> 16) & 0xFF;
-            _data[_offset++] = (v >> 8) & 0xFF;
-            _data[_offset++] = v & 0xFF;
-        }
-
-        return this;
-    }
-
-    final override IbWriteBuffer writeUInt64(uint64 v) nothrow
-    {
-        version (BigEndian)
-        static if (EndianKind == Endian.littleEndian)
-            v = swapEndian(v);
-
-        reserve(uint64.sizeof);
-
-        static if (EndianKind == Endian.littleEndian)
-        {
-            _data[_offset++] = v & 0xFF;
-            _data[_offset++] = (v >> 8) & 0xFF;
-            _data[_offset++] = (v >> 16) & 0xFF;
-            _data[_offset++] = (v >> 24) & 0xFF;
-            _data[_offset++] = (v >> 32) & 0xFF;
-            _data[_offset++] = (v >> 40) & 0xFF;
-            _data[_offset++] = (v >> 48) & 0xFF;
-            _data[_offset++] = (v >> 56) & 0xFF;
-        }
-        else
-        {
-            _data[_offset++] = (v >> 56) & 0xFF;
-            _data[_offset++] = (v >> 48) & 0xFF;
-            _data[_offset++] = (v >> 40) & 0xFF;
-            _data[_offset++] = (v >> 32) & 0xFF;
-            _data[_offset++] = (v >> 24) & 0xFF;
-            _data[_offset++] = (v >> 16) & 0xFF;
-            _data[_offset++] = (v >> 8) & 0xFF;
-            _data[_offset++] = v & 0xFF;
-        }
-
-        return this;
-    }
-
-    @property final override bool empty() const nothrow @safe
+    @property final bool empty() const nothrow pure
     {
         return _offset == 0;
     }
 
     pragma(inline, true)
-    @property final override size_t length() const nothrow @safe
+    @property final size_t length() const nothrow pure
     {
         return _offset;
     }
 
     pragma(inline, true)
-    @property final size_t offset() const nothrow
+    @property final size_t offset() const nothrow pure
     {
         return _offset;
     }
@@ -708,7 +537,7 @@ protected:
         assert(_data.length >= _offset + additionalBytes);
     }
 
-    final IbWriteBuffer writeBytesImpl(scope const(ubyte)[] v) nothrow
+    final void writeBytesImpl(scope const(ubyte)[] v) nothrow
     {
         const nBytes = v.length;
         if (nBytes)
@@ -718,15 +547,186 @@ protected:
             _data[_offset.._offset + nBytes] = v[];
             _offset += nBytes;
         }
-
-        return this;
     }
+}
+
+struct DbValueWriter(Endian EndianKind)
+{
+@safe:
+
+public:
+    @disable this(this);
+
+    this(DbWriteBuffer buffer) nothrow pure
+    {
+        this._buffer = buffer;
+    }
+
+    void dispose(bool disposing = true) nothrow pure
+    {
+        _buffer = null;
+    }
+
+    void rewriteInt32(int32 v, size_t rewriteOffset) nothrow
+    in
+    {
+        assert(rewriteOffset <= _buffer._offset);
+    }
+    do
+    {
+        const saveOffset = _buffer._offset;
+        _buffer._offset = rewriteOffset;
+        scope (exit)
+            _buffer._offset = saveOffset;
+
+        writeInt32(v);
+    }
+
+    void writeBool(bool v) nothrow
+    {
+        writeUInt8(v ? 1 : 0);
+    }
+
+    void writeBytes(scope const(ubyte)[] v) nothrow
+    {
+        _buffer.writeBytesImpl(v);
+    }
+
+    void writeChar(char v) nothrow
+    {
+        writeUInt8(cast(ubyte)v);
+    }
+
+    void writeChars(scope const(char)[] v) nothrow
+    {
+        return _buffer.writeBytesImpl(v.representation);
+    }
+
+    void writeFloat32(float32 v) nothrow @trusted
+    {
+        writeUInt32(*cast(uint32 *)&v);
+    }
+
+    void writeFloat64(float64 v) nothrow @trusted
+    {
+        writeUInt64(*cast(uint64 *)&v);
+    }
+
+    void writeInt8(int8 v) nothrow
+    {
+        writeUInt8(cast(uint8)v);
+    }
+
+    void writeInt16(int16 v) nothrow
+    {
+        writeUInt16(cast(uint16)v);
+    }
+
+    void writeInt32(int32 v) nothrow
+    {
+        writeUInt32(cast(uint32)v);
+    }
+
+    void writeInt64(int64 v) nothrow
+    {
+        writeUInt64(cast(uint64)v);
+    }
+
+    void writeUInt8(uint8 v) nothrow
+    {
+        _buffer.reserve(uint8.sizeof);
+
+        _buffer._data[_buffer._offset++] = v;
+    }
+
+    void writeUInt16(uint16 v) nothrow
+    {
+        version (BigEndian)
+        static if (EndianKind == Endian.littleEndian)
+            v = swapEndian(v);
+
+        _buffer.reserve(uint16.sizeof);
+
+        static if (EndianKind == Endian.littleEndian)
+        {
+            _buffer._data[_buffer._offset++] = v & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 8) & 0xFF;
+        }
+        else
+        {
+            _buffer._data[_buffer._offset++] = (v >> 8) & 0xFF;
+            _buffer._data[_buffer._offset++] = v & 0xFF;
+        }
+    }
+
+    void writeUInt32(uint32 v) nothrow
+    {
+        version (BigEndian)
+        static if (EndianKind == Endian.littleEndian)
+            v = swapEndian(v);
+
+        _buffer.reserve(uint32.sizeof);
+
+        static if (EndianKind == Endian.littleEndian)
+        {
+            _buffer._data[_buffer._offset++] = v & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 8) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 16) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 24) & 0xFF;
+        }
+        else
+        {
+            _buffer._data[_buffer._offset++] = (v >> 24) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 16) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 8) & 0xFF;
+            _buffer._data[_buffer._offset++] = v & 0xFF;
+        }
+    }
+
+    void writeUInt64(uint64 v) nothrow
+    {
+        version (BigEndian)
+        static if (EndianKind == Endian.littleEndian)
+            v = swapEndian(v);
+
+        _buffer.reserve(uint64.sizeof);
+
+        static if (EndianKind == Endian.littleEndian)
+        {
+            _buffer._data[_buffer._offset++] = v & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 8) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 16) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 24) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 32) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 40) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 48) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 56) & 0xFF;
+        }
+        else
+        {
+            _buffer._data[_buffer._offset++] = (v >> 56) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 48) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 40) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 32) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 24) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 16) & 0xFF;
+            _buffer._data[_buffer._offset++] = (v >> 8) & 0xFF;
+            _buffer._data[_buffer._offset++] = v & 0xFF;
+        }
+    }
+
+    @property DbWriteBuffer buffer() nothrow pure
+    {
+        return _buffer;
+    }
+
+private:
+    DbWriteBuffer _buffer;
 }
 
 
 // Any below codes are private
 private:
-
 
 unittest // DbWriteBuffer & DbReadBuffer
 {
@@ -738,7 +738,8 @@ unittest // DbWriteBuffer & DbReadBuffer
     //pragma(msg, float.min_normal);
     //pragma(msg, double.min_normal);
 
-    auto writer = new DbWriteBuffer!(Endian.littleEndian)(4000);
+    auto writerBuffer = new DbWriteBuffer(4000);
+    auto writer = DbValueWriter!(Endian.littleEndian)(writerBuffer);
     writer.writeInt8(byte.min);
     writer.writeInt8(8);
     writer.writeInt8(byte.max);
@@ -758,10 +759,9 @@ unittest // DbWriteBuffer & DbReadBuffer
     writer.writeFloat64(64.64);
     writer.writeFloat64(double.max);
     writer.writeChars(chars);
-
-    ubyte[] bytes = writer.peekBytes().dup;
-    writer.dispose();
-    writer = null;
+    ubyte[] bytes = writerBuffer.peekBytes().dup;
+    writerBuffer.dispose();
+    writerBuffer = null;
 
     auto readerBuffer = new DbReadBuffer(bytes);
     auto reader = DbValueReader!(Endian.littleEndian)(readerBuffer);

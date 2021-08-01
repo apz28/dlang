@@ -41,7 +41,7 @@ public:
         this.readPacketData(connection);
     }
 
-    this(PgConnection connection, ubyte[] packetData)
+    this(PgConnection connection, ubyte[] packetData) nothrow
     in
     {
         assert(packetData.length < int.max);
@@ -51,13 +51,13 @@ public:
         this._messageType = 0;
         this._connection = connection;
         this._messageLength = cast(int)packetData.length;
-        this._readBuffer = new DbReadBuffer(packetData);
-        this._reader = DbValueReader!(Endian.bigEndian)(this._readBuffer);
+        this._buffer = new DbReadBuffer(packetData);
+        this._reader = DbValueReader!(Endian.bigEndian)(this._buffer);
     }
 
     void dispose(bool disposing = true)
     {
-        _readBuffer = null;
+        _buffer = null;
         _connection = null;
         _reader.dispose(disposing);
     }
@@ -84,7 +84,7 @@ public:
 
     char[] readCChars()
     {
-        auto result = readChars(_readBuffer.search(0));
+        auto result = readChars(_buffer.search(0));
         return result[0..$ - 1]; // Excluded null terminated char
     }
 
@@ -127,7 +127,12 @@ public:
 
     void skip(size_t nBytes)
     {
-        _readBuffer.advance(nBytes);
+        _buffer.advance(nBytes);
+    }
+
+    @property DbReadBuffer buffer() nothrow pure
+    {
+        return _buffer;
     }
 
     @property PgConnection connection() nothrow pure
@@ -138,7 +143,7 @@ public:
     pragma(inline, true)
     @property bool empty() const nothrow pure
     {
-        return _readBuffer.empty;
+        return _buffer.empty;
     }
 
     @property int messageLength() const nothrow pure
@@ -149,11 +154,6 @@ public:
     @property char messageType() const nothrow pure
     {
         return _messageType;
-    }
-
-    @property DbReadBuffer readBuffer() nothrow pure
-    {
-        return _readBuffer;
     }
 
 private:
@@ -169,21 +169,21 @@ private:
         if (_messageLength > 0)
         {
             auto packetData = socketReader.readBytes(_messageLength);
-            this._readBuffer = new DbReadBuffer(packetData);
+            this._buffer = new DbReadBuffer(packetData);
         }
         else
         {
-            this._readBuffer = new DbReadBuffer(0);
+            this._buffer = new DbReadBuffer(0);
         }
-        this._reader = DbValueReader!(Endian.bigEndian)(this._readBuffer);
+        this._reader = DbValueReader!(Endian.bigEndian)(this._buffer);
 
         version (TraceFunction)
         dgFunctionTrace("messageType=", _messageType, ", messageLength=", _messageLength);
     }
 
 private:
+    DbReadBuffer _buffer;
     PgConnection _connection;
-    DbReadBuffer _readBuffer;
     DbValueReader!(Endian.bigEndian) _reader;
     int32 _messageLength;
     char _messageType;
@@ -196,17 +196,22 @@ struct PgWriter
 public:
     @disable this(this);
 
-    this(PgConnection connection,
-        IbWriteBuffer buffer = null)
+    this(PgConnection connection) nothrow
     {
+        this._needBuffer = true;
+        this._reserveLenghtOffset = -1;
+        this._connection = connection;
+        this._buffer = connection.acquireSocketWriteBuffer();
+        this._writer = DbValueWriter!(Endian.bigEndian)(this._buffer);
+    }
+
+    this(PgConnection connection, DbWriteBuffer buffer) nothrow
+    {
+        this._needBuffer = false;
         this._reserveLenghtOffset = -1;
         this._connection = connection;
         this._buffer = buffer;
-        this._needBuffer = buffer is null;
-        if (this._needBuffer)
-            this._buffer = connection.acquireSocketWriteBuffer();
-        else
-            buffer.reset();
+        this._writer = DbValueWriter!(Endian.bigEndian)(buffer.reset());
     }
 
     ~this()
@@ -259,61 +264,61 @@ public:
         }
 
         if (messageCode != '\0')
-            _buffer.writeChar(messageCode);
+            _writer.writeChar(messageCode);
         _reserveLenghtOffset = _buffer.offset;
-        _buffer.writeInt32(0);
+        _writer.writeInt32(0);
     }
 
     void writeBytes(scope const(ubyte)[] v) nothrow
     {
-        _buffer.writeInt32(v.length);
-        _buffer.writeBytes(v);
+        _writer.writeInt32(v.length);
+        _writer.writeBytes(v);
     }
 
     void writeBytesRaw(scope const(ubyte)[] v) nothrow
     {
-        _buffer.writeBytes(v);
+        _writer.writeBytes(v);
     }
 
     void writeChar(char v) nothrow
     {
-        _buffer.writeChar(v);
+        _writer.writeChar(v);
     }
 
     void writeCChars(scope const(char)[] v) nothrow
     {
-        _buffer.writeBytes(v.representation);
-        _buffer.writeUInt8(0);
+        _writer.writeBytes(v.representation);
+        _writer.writeUInt8(0);
     }
 
     void writeInt16(int16 v) nothrow
     {
-        _buffer.writeInt16(v);
+        _writer.writeInt16(v);
     }
 
     void writeInt32(int32 v) nothrow
     {
-        _buffer.writeInt32(v);
+        _writer.writeInt32(v);
     }
 
     void writeSignal(PgDescribeType signalType, int32 signalId) nothrow
     {
-        _buffer.writeChar(signalType);
-        _buffer.writeInt32(signalId);
+        _writer.writeChar(signalType);
+        _writer.writeInt32(signalId);
     }
 
     void writeUInt32(uint32 v) nothrow
     {
-        _buffer.writeUInt32(v);
+        _writer.writeUInt32(v);
     }
 
     static if (size_t.sizeof > uint32.sizeof)
     void writeUInt32(size_t v) nothrow
     {
-        _buffer.writeUInt32(cast(uint32)v);
+        _writer.writeUInt32(cast(uint32)v);
     }
 
-    @property IbWriteBuffer buffer() nothrow pure
+    @property DbWriteBuffer buffer() nothrow pure
     {
         return _buffer;
     }
@@ -330,7 +335,8 @@ private:
         this._connection = null;
         this._reserveLenghtOffset = -1;
         this._needBuffer = false;
-        this._buffer = new DbWriteBuffer!(Endian.bigEndian)(4000);
+        this._buffer = new DbWriteBuffer(4000);
+        this._writer = DbValueWriter!(Endian.bigEndian)(this._buffer);
     }
 
     void writeMessageLength() nothrow
@@ -342,14 +348,15 @@ private:
 
             version (TraceFunction) dgFunctionTrace("_reserveLenghtOffset=", _reserveLenghtOffset, ", len=", len);
 
-            _buffer.rewriteInt32(cast(int32)len, _reserveLenghtOffset);
+            _writer.rewriteInt32(cast(int32)len, _reserveLenghtOffset);
             _reserveLenghtOffset = -1; // Reset after done written the length
         }
     }
 
 private:
-    IbWriteBuffer _buffer;
+    DbWriteBuffer _buffer;
     PgConnection _connection;
+    DbValueWriter!(Endian.bigEndian) _writer;
     ptrdiff_t _reserveLenghtOffset = -1;
     bool _needBuffer;
 }
@@ -361,18 +368,18 @@ struct PgXdrReader
 public:
     @disable this(this);
 
-    this(PgConnection connection, DbReadBuffer readBuffer)
+    this(PgConnection connection, DbReadBuffer buffer)
     {
         this._connection = connection;
-        this._readBuffer = readBuffer;
-        this._reader = DbValueReader!(Endian.bigEndian)(this._readBuffer);
+        this._buffer = buffer;
+        this._reader = DbValueReader!(Endian.bigEndian)(buffer);
     }
 
     void dispose(bool disposing = true)
     {
-        _readBuffer = null;
-        _connection = null;
         _reader.dispose(disposing);
+        _buffer = null;
+        _connection = null;
     }
 
     bool readBool()
@@ -506,12 +513,7 @@ public:
     pragma(inline, true)
     @property bool empty() const nothrow pure
     {
-        return _readBuffer.empty;
-    }
-
-    @property DbReadBuffer readBuffer() nothrow pure
-    {
-        return _readBuffer;
+        return _buffer.empty;
     }
 
 private:
@@ -519,13 +521,13 @@ private:
     this(ubyte[] data)
     {
         this._connection = null;
-        this._readBuffer = new DbReadBuffer(data);
-        this._reader = DbValueReader!(Endian.bigEndian)(this._readBuffer);
+        this._buffer = new DbReadBuffer(data);
+        this._reader = DbValueReader!(Endian.bigEndian)(this._buffer);
     }
 
 private:
+    DbReadBuffer _buffer;
     PgConnection _connection;
-    DbReadBuffer _readBuffer;
     DbValueReader!(Endian.bigEndian) _reader;
 }
 
@@ -536,14 +538,16 @@ struct PgXdrWriter
 public:
     @disable this(this);
 
-    this(PgConnection connection, IbWriteBuffer buffer)
+    this(PgConnection connection, DbWriteBuffer buffer) nothrow
     {
         this._connection = connection;
         this._buffer = buffer;
+        this._writer = DbValueWriter!(Endian.bigEndian)(buffer);
     }
 
     void dispose(bool disposing = true)
     {
+        _writer.dispose(disposing);
         _buffer = null;
         _connection = null;
     }
@@ -560,8 +564,8 @@ public:
 
     void writeBool(bool v) nothrow
     {
-        _buffer.writeInt32(1);
-        _buffer.writeBool(v);
+        _writer.writeInt32(1);
+        _writer.writeBool(v);
     }
 
     void writeBytes(scope const(ubyte)[] v) nothrow
@@ -571,8 +575,8 @@ public:
     }
     do
     {
-        _buffer.writeInt32(cast(int32)v.length);
-        _buffer.writeBytes(v);
+        _writer.writeInt32(cast(int32)v.length);
+        _writer.writeBytes(v);
     }
 
     void writeChars(scope const(char)[] v) nothrow
@@ -596,9 +600,9 @@ public:
         int32 z = void;
         dateTimeEncodeTZ(v, dt, z);
 
-        _buffer.writeInt32(12);
-        _buffer.writeInt64(dt);
-        _buffer.writeInt32(z);
+        _writer.writeInt32(12);
+        _writer.writeInt64(dt);
+        _writer.writeInt32(z);
     }
 
     void writeDecimal(D)(in D v, in DbBaseType baseType) nothrow
@@ -612,32 +616,32 @@ public:
 
     void writeFloat32(float32 v) nothrow
     {
-        _buffer.writeInt32(4);
-        _buffer.writeFloat32(v);
+        _writer.writeInt32(4);
+        _writer.writeFloat32(v);
     }
 
     void writeFloat64(float64 v) nothrow
     {
-        _buffer.writeInt32(8);
-        _buffer.writeFloat64(v);
+        _writer.writeInt32(8);
+        _writer.writeFloat64(v);
     }
 
     void writeInt16(int16 v) nothrow
     {
-        _buffer.writeInt32(2);
-        _buffer.writeInt16(v);
+        _writer.writeInt32(2);
+        _writer.writeInt16(v);
     }
 
     void writeInt32(int32 v) nothrow
     {
-        _buffer.writeInt32(4);
-        _buffer.writeInt32(v);
+        _writer.writeInt32(4);
+        _writer.writeInt32(v);
     }
 
     void writeInt64(int64 v) nothrow
     {
-        _buffer.writeInt32(8);
-        _buffer.writeInt64(v);
+        _writer.writeInt32(8);
+        _writer.writeInt64(v);
     }
 
     void writeInt128(in BigInteger v) nothrow
@@ -656,14 +660,14 @@ public:
         auto n = numericEncode!D(v);
 
         const marker = markBegin();
-        _buffer.writeInt16(n.ndigits);
-        _buffer.writeInt16(n.weight);
-        _buffer.writeInt16(n.sign);
-        _buffer.writeInt16(n.dscale);
+        _writer.writeInt16(n.ndigits);
+        _writer.writeInt16(n.weight);
+        _writer.writeInt16(n.sign);
+        _writer.writeInt16(n.dscale);
         if (n.ndigits > 0)
         {
             foreach (i; 0..n.ndigits)
-                _buffer.writeInt16(n.digits[i]);
+                _writer.writeInt16(n.digits[i]);
         }
         markEnd(marker);
     }
@@ -679,16 +683,16 @@ public:
         int32 z = void;
         timeEncodeTZ(v, t, z);
 
-        _buffer.writeInt32(12);
-        _buffer.writeInt64(t);
-        _buffer.writeInt32(z);
+        _writer.writeInt32(12);
+        _writer.writeInt64(t);
+        _writer.writeInt32(z);
     }
 
     // https://stackoverflow.com/questions/246930/is-there-any-difference-between-a-guid-and-a-uuid
     void writeUUID(in UUID v) nothrow
     {
-        _buffer.writeInt32(16);
-        _buffer.writeBytes(v.data); // v.data is already in big-endian
+        _writer.writeInt32(16);
+        _writer.writeBytes(v.data); // v.data is already in big-endian
     }
 
     @property PgConnection connection() nothrow pure
@@ -701,7 +705,8 @@ private:
     this(ubyte[] dummy)
     {
         this._connection = null;
-        this._buffer = new DbWriteBuffer!(Endian.bigEndian)(4000);
+        this._buffer = new DbWriteBuffer(4000);
+        this._writer = DbValueWriter!(Endian.bigEndian)(this._buffer);
     }
 
     size_t markBegin() nothrow
@@ -709,7 +714,7 @@ private:
         version (TraceFunction) dgFunctionTrace("_buffer.offset=", _buffer.offset);
 
         auto result = _buffer.offset;
-        _buffer.writeInt32(0);
+        _writer.writeInt32(0);
         return result;
     }
 
@@ -718,10 +723,11 @@ private:
         // Value length excludes its length
         const len = _buffer.offset - marker - int32.sizeof;
         version (TraceFunction) dgFunctionTrace("marker=", marker, ", len=", len);
-        _buffer.rewriteInt32(cast(int32)(len), marker);
+        _writer.rewriteInt32(cast(int32)(len), marker);
     }
 
 private:
-    IbWriteBuffer _buffer;
+    DbWriteBuffer _buffer;
     PgConnection _connection;
+    DbValueWriter!(Endian.bigEndian) _writer;
 }

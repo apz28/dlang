@@ -14,7 +14,6 @@ module pham.db.skdatabase;
 import std.exception : assumeWontThrow;
 import std.format : format;
 import std.socket : socket_t, Address, AddressFamily, InternetAddress, lastSocketError, Socket, SocketOption, SocketOptionLevel, SocketType;
-import std.system : Endian;
 
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
@@ -140,22 +139,22 @@ package(pham.db):
         return _socketReadBuffer;
     }
 
-    final IbWriteBuffer acquireSocketWriteBuffer(size_t capacity = DbDefaultSize.socketWriteBufferLength) nothrow @safe
+    final DbWriteBuffer acquireSocketWriteBuffer(size_t capacity = DbDefaultSize.socketWriteBufferLength) nothrow @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
         if (_socketWriteBuffers.empty)
-            return createSocketWriteBuffer(capacity).isWriteBuffer();
+            return createSocketWriteBuffer(capacity);
         else
-            return _socketWriteBuffers.remove(_socketWriteBuffers.last).isWriteBuffer();
+            return cast(DbWriteBuffer)(_socketWriteBuffers.remove(_socketWriteBuffers.last));
     }
 
-    final void releaseSocketWriteBuffer(IbWriteBuffer item) nothrow @safe
+    final void releaseSocketWriteBuffer(DbWriteBuffer item) nothrow @safe
     {
         version (TraceFunction) dgFunctionTrace();
 
         if (!disposingState)
-            _socketWriteBuffers.insertEnd(item.reset().self());
+            _socketWriteBuffers.insertEnd(item.reset());
     }
 
     void setSocketOptions() @safe
@@ -275,6 +274,16 @@ protected:
         if (auto log = logger)
             log.error(forLogInfo(), newline, message, e);
         return new SkException(message, DbErrorCode.write, socketCode, 0, e);
+    }
+
+    DbReadBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
+    {
+        return new SkReadBuffer(this, capacity);
+    }
+
+    DbWriteBuffer createSocketWriteBuffer(size_t capacity = DbDefaultSize.socketWriteBufferLength) nothrow @safe
+    {
+        return new SkWriteBuffer(this, capacity);
     }
 
     final void disposeSocket(bool disposing) nothrow @safe
@@ -418,9 +427,6 @@ protected:
         throw createReadDataError(msg, errorRawCode, null);
     }
 
-    abstract DbReadBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe;
-    abstract DbBuffer createSocketWriteBuffer(size_t capacity = DbDefaultSize.socketWriteBufferLength) nothrow @safe;
-
 protected:
     Socket _socket;
     DbBufferFilter _socketReadBufferFilters;
@@ -562,7 +568,7 @@ protected:
     SkConnection _connection;
 }
 
-class SkWriteBuffer(Endian EndianKind = Endian.bigEndian) : DbWriteBuffer!EndianKind
+class SkWriteBuffer : DbWriteBuffer
 {
 @safe:
 
@@ -605,23 +611,26 @@ protected:
     SkConnection _connection;
 }
 
-struct SkWriteBufferLocal(C: SkConnection)
+struct SkWriteBufferLocal
 {
 @safe:
 
 public:
     @disable this(this);
 
-    this(C connection,
-        IbWriteBuffer buffer = null) nothrow
+    this(SkConnection connection) nothrow
     {
+        this._needBuffer = true;
+        this._connection = connection;
+        this._buffer = connection.acquireSocketWriteBuffer();
+    }
+
+    this(SkConnection connection, SkWriteBuffer buffer) nothrow
+    {
+        this._needBuffer = false;
         this._connection = connection;
         this._buffer = buffer;
-        this._needBuffer = buffer is null;
-        if (this._needBuffer)
-            this._buffer = connection.acquireSocketWriteBuffer();
-        else
-            buffer.reset();
+        buffer.reset();
     }
 
     ~this()
@@ -633,17 +642,16 @@ public:
     {
         if (_needBuffer && _buffer !is null && _connection !is null)
             _connection.releaseSocketWriteBuffer(_buffer);
-
         _buffer = null;
         _connection = null;
     }
 
-    @property B buffer() nothrow
+    @property DbWriteBuffer buffer() nothrow pure
     {
         return _buffer;
     }
 
-    @property C connection() nothrow
+    @property SkConnection connection() nothrow pure
     {
         return _connection;
     }
@@ -651,11 +659,10 @@ public:
     alias buffer this;
 
 private:
-    B _buffer;
-    C _connection;
+    DbWriteBuffer _buffer;
+    SkConnection _connection;
     bool _needBuffer;
 }
-
 
 // Any below codes are private
 private:

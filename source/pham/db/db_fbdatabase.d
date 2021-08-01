@@ -145,7 +145,7 @@ public:
 
         auto baseType = descriptor.fieldInfo.baseType;
         auto response = readArrayRaw(arrayColumn);
-        auto reader = FbXdrReader(null, response.data);
+        auto reader = FbXdrReader(fbConnection, response.data);
         T[] result = new T[](descriptor.calculateElements());
         foreach (i; 0..result.length)
         {
@@ -220,7 +220,7 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        auto writerBuffer = new DbWriteBuffer!(Endian.bigEndian)(4000);
+        auto writerBuffer = new DbWriteBuffer(4000);
         size_t elements;
         ubyte[] encodedArrayValue;
         final switch (descriptor.fieldInfo.dbType)
@@ -301,7 +301,7 @@ public:
         _id = protocol.arrayPutRead().id;
     }
 
-    IbWriteBuffer writeArrayImpl(T)(DbNameColumn arrayColumn, DbValue arrayValue, IbWriteBuffer writerBuffer,
+    DbWriteBuffer writeArrayImpl(T)(DbNameColumn arrayColumn, DbValue arrayValue, DbWriteBuffer writerBuffer,
         out size_t elements) @safe
     {
         version (TraceFunction) dgFunctionTrace();
@@ -309,7 +309,7 @@ public:
         auto baseType = descriptor.fieldInfo.baseType;
         auto values = arrayValue.get!(T[])();
         elements = values.length;
-        auto writer = FbXdrWriter(null, writerBuffer);
+        auto writer = FbXdrWriter(fbConnection, writerBuffer);
         foreach (ref value; values)
         {
             static if (is(T == bool))
@@ -1325,20 +1325,6 @@ public:
         this._arrayManager._connection = this;
     }
 
-    final IbWriteBuffer acquireParameterWriteBuffer(size_t capacity = FbIscSize.parameterBufferLength) nothrow @safe
-    {
-        if (_parameterWriteBuffers.empty)
-            return new FbParameterWriteBuffer(capacity);
-        else
-            return _parameterWriteBuffers.remove(_parameterWriteBuffers.last).isWriteBuffer();
-    }
-
-    final void releaseParameterWriteBuffer(IbWriteBuffer item) nothrow @safe
-    {
-        if (!disposingState)
-            _parameterWriteBuffers.insertEnd(item.reset().self());
-    }
-
     /* Properties */
 
     @property final ref FbArrayManager arrayManager() nothrow @safe
@@ -1374,6 +1360,21 @@ public:
         return DbIdentitier(DbScheme.fb);
     }
 
+package(pham.db):
+    final DbWriteBuffer acquireParameterWriteBuffer(size_t capacity = FbIscSize.parameterBufferLength) nothrow @safe
+    {
+        if (_parameterWriteBuffers.empty)
+            return new SkWriteBuffer(this, capacity);
+        else
+            return cast(DbWriteBuffer)(_parameterWriteBuffers.remove(_parameterWriteBuffers.last));
+    }
+
+    final void releaseParameterWriteBuffer(DbWriteBuffer item) nothrow @safe
+    {
+        if (!disposingState)
+            _parameterWriteBuffers.insertEnd(item.reset());
+    }
+
 protected:
     final override SkException createConnectError(string message, int socketCode, Exception e) @safe
     {
@@ -1394,16 +1395,6 @@ protected:
         auto result = super.createWriteDataError(message, socketCode, e);
         result.vendorCode = FbIscResultCode.isc_net_write_err;
         return result;
-    }
-
-    final override DbReadBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
-    {
-        return new SkReadBuffer(this, capacity);
-    }
-
-    final override DbBuffer createSocketWriteBuffer(size_t capacity = DbDefaultSize.socketWriteBufferLength) nothrow @safe
-    {
-        return new SkWriteBuffer!(Endian.bigEndian)(this, capacity);
     }
 
     override void disposeCommands(bool disposing) nothrow @safe

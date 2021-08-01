@@ -32,16 +32,7 @@ import pham.db.fbexception;
 import pham.db.fbconvert;
 import pham.db.fbdatabase;
 
-class FbParameterWriteBuffer : DbWriteBuffer!(Endian.littleEndian)
-{
-@safe:
-
-public:
-    this(size_t capacity) nothrow
-    {
-        super(capacity);
-    }
-}
+alias FbParameterWriter = DbValueWriter!(Endian.littleEndian);
 
 struct FbArrayWriter
 {
@@ -54,6 +45,7 @@ public:
     {
         this._connection = connection;
         this._buffer = connection.acquireParameterWriteBuffer();
+        this._writer = FbParameterWriter(this._buffer);
     }
 
     ~this() nothrow
@@ -63,9 +55,9 @@ public:
 
     void dispose(bool disposing = true) nothrow
     {
+        _writer.dispose(disposing);
         if (_buffer !is null && _connection !is null)
             _connection.releaseParameterWriteBuffer(_buffer);
-
         _buffer = null;
         _connection = null;
     }
@@ -77,30 +69,30 @@ public:
 
     void writeInt8(int8 v) nothrow
     {
-        _buffer.writeInt8(v);
+        _writer.writeInt8(v);
     }
 
     void writeInt16(int16 v) nothrow
     {
-        _buffer.writeInt16(v);
+        _writer.writeInt16(v);
     }
 
     void writeLiteral(int32 v) nothrow
     {
 		if (v >= int8.min && v <= int8.max)
 		{
-            _buffer.writeUInt8(FbIsc.isc_sdl_tiny_integer);
-            _buffer.writeInt8(cast(int8)v);
+            _writer.writeUInt8(FbIsc.isc_sdl_tiny_integer);
+            _writer.writeInt8(cast(int8)v);
 		}
 		else if (v >= int16.min && v <= int16.max)
 		{
-            _buffer.writeUInt8(FbIsc.isc_sdl_short_integer);
-            _buffer.writeInt16(cast(int16)v);
+            _writer.writeUInt8(FbIsc.isc_sdl_short_integer);
+            _writer.writeInt16(cast(int16)v);
 		}
         else
         {
-            _buffer.writeUInt8(FbIsc.isc_sdl_long_integer);
-            _buffer.writeInt32(v);
+            _writer.writeUInt8(FbIsc.isc_sdl_long_integer);
+            _writer.writeInt32(v);
         }
     }
 
@@ -111,19 +103,20 @@ public:
     }
     do
     {
-        _buffer.writeUInt8(type);
-        _buffer.writeUInt8(cast(uint8)v.length);
-        _buffer.writeChars(v);
+        _writer.writeUInt8(type);
+        _writer.writeUInt8(cast(uint8)v.length);
+        _writer.writeChars(v);
     }
 
     void writeUInt8(uint8 v) nothrow
     {
-        _buffer.writeUInt8(v);
+        _writer.writeUInt8(v);
     }
 
 private:
-    IbWriteBuffer _buffer;
+    DbWriteBuffer _buffer;
     FbConnection _connection;
+    FbParameterWriter _writer;
 }
 
 struct FbBlrWriter
@@ -137,6 +130,7 @@ public:
     {
         this._connection = connection;
         this._buffer = connection.acquireParameterWriteBuffer();
+        this._writer = FbParameterWriter(this._buffer);
     }
 
     ~this() nothrow
@@ -146,9 +140,9 @@ public:
 
     void dispose(bool disposing = true) nothrow
     {
+        _writer.dispose(disposing);
         if (_buffer !is null && _connection !is null)
             _connection.releaseParameterWriteBuffer(_buffer);
-
         _buffer = null;
         _connection = null;
     }
@@ -165,11 +159,11 @@ public:
     }
     do
     {
-	    _buffer.writeUInt8(FbIsc.blr_version);
-	    _buffer.writeUInt8(FbIsc.blr_begin);
-	    _buffer.writeUInt8(FbIsc.blr_message);
-	    _buffer.writeUInt8(0);
-	    _buffer.writeUInt16(cast(ushort)(length * 2));
+	    _writer.writeUInt8(FbIsc.blr_version);
+	    _writer.writeUInt8(FbIsc.blr_begin);
+	    _writer.writeUInt8(FbIsc.blr_message);
+	    _writer.writeUInt8(0);
+	    _writer.writeUInt16(cast(ushort)(length * 2));
     }
 
     void writeColumn(in DbBaseType baseType, int32 size) nothrow
@@ -183,70 +177,70 @@ public:
 	    final switch (FbIscFieldInfo.fbType(baseType.typeId))
 	    {
 		    case FbIscType.SQL_VARYING:
-			    _buffer.writeUInt8(FbBlrType.blr_varying);
-			    _buffer.writeUInt16(cast(ushort)size);
+			    _writer.writeUInt8(FbBlrType.blr_varying);
+			    _writer.writeUInt16(cast(ushort)size);
 			    break;
 		    case FbIscType.SQL_TEXT:
-			    _buffer.writeUInt8(FbBlrType.blr_text);
-			    _buffer.writeUInt16(cast(ushort)size);
+			    _writer.writeUInt8(FbBlrType.blr_text);
+			    _writer.writeUInt16(cast(ushort)size);
 			    break;
 		    case FbIscType.SQL_DOUBLE:
-			    _buffer.writeUInt8(FbBlrType.blr_double);
+			    _writer.writeUInt8(FbBlrType.blr_double);
 			    break;
 		    case FbIscType.SQL_FLOAT:
-			    _buffer.writeUInt8(FbBlrType.blr_float);
+			    _writer.writeUInt8(FbBlrType.blr_float);
 			    break;
 		    case FbIscType.SQL_LONG:
-			    _buffer.writeUInt8(FbBlrType.blr_long);
-			    _buffer.writeUInt8(cast(ubyte)baseType.numericScale);
+			    _writer.writeUInt8(FbBlrType.blr_long);
+			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
 		    case FbIscType.SQL_SHORT:
-			    _buffer.writeUInt8(FbBlrType.blr_short);
-			    _buffer.writeUInt8(cast(ubyte)baseType.numericScale);
+			    _writer.writeUInt8(FbBlrType.blr_short);
+			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
 		    case FbIscType.SQL_TIMESTAMP:
-			    _buffer.writeUInt8(FbBlrType.blr_timestamp);
+			    _writer.writeUInt8(FbBlrType.blr_timestamp);
 			    break;
 		    case FbIscType.SQL_BLOB:
-			    _buffer.writeUInt8(FbBlrType.blr_quad);
-			    _buffer.writeUInt8(0);
+			    _writer.writeUInt8(FbBlrType.blr_quad);
+			    _writer.writeUInt8(0);
 			    break;
 		    case FbIscType.SQL_D_FLOAT:
-			    _buffer.writeUInt8(FbBlrType.blr_d_float);
+			    _writer.writeUInt8(FbBlrType.blr_d_float);
 			    break;
 		    case FbIscType.SQL_ARRAY:
-			    _buffer.writeUInt8(FbBlrType.blr_quad);
-			    _buffer.writeUInt8(0);
+			    _writer.writeUInt8(FbBlrType.blr_quad);
+			    _writer.writeUInt8(0);
 			    break;
 		    case FbIscType.SQL_QUAD:
-			    _buffer.writeUInt8(FbBlrType.blr_quad);
-			    _buffer.writeUInt8(cast(ubyte)baseType.numericScale);
+			    _writer.writeUInt8(FbBlrType.blr_quad);
+			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
 		    case FbIscType.SQL_TIME:
-			    _buffer.writeUInt8(FbBlrType.blr_sql_time);
+			    _writer.writeUInt8(FbBlrType.blr_sql_time);
 			    break;
 		    case FbIscType.SQL_DATE:
-			    _buffer.writeUInt8(FbBlrType.blr_sql_date);
+			    _writer.writeUInt8(FbBlrType.blr_sql_date);
 			    break;
 		    case FbIscType.SQL_INT64:
-			    _buffer.writeUInt8(FbBlrType.blr_int64);
-			    _buffer.writeUInt8(cast(ubyte)baseType.numericScale);
+			    _writer.writeUInt8(FbBlrType.blr_int64);
+			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
 		    case FbIscType.SQL_INT128:
-			    _buffer.writeUInt8(FbBlrType.blr_int128);
-			    _buffer.writeUInt8(cast(ubyte)baseType.numericScale);
+			    _writer.writeUInt8(FbBlrType.blr_int128);
+			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
 		    case FbIscType.SQL_TIMESTAMP_TZ:
-			    _buffer.writeUInt8(FbBlrType.blr_timestamp_tz);
+			    _writer.writeUInt8(FbBlrType.blr_timestamp_tz);
 			    break;
 		    case FbIscType.SQL_TIMESTAMP_TZ_EX:
-			    _buffer.writeUInt8(FbBlrType.blr_ex_timestamp_tz);
+			    _writer.writeUInt8(FbBlrType.blr_ex_timestamp_tz);
 			    break;
 		    case FbIscType.SQL_TIME_TZ:
-			    _buffer.writeUInt8(FbBlrType.blr_sql_time_tz);
+			    _writer.writeUInt8(FbBlrType.blr_sql_time_tz);
 			    break;
 		    case FbIscType.SQL_TIME_TZ_EX:
-			    _buffer.writeUInt8(FbBlrType.blr_ex_time_tz);
+			    _writer.writeUInt8(FbBlrType.blr_ex_time_tz);
 			    break;
 		    /*
             case FbIscType.SQL_DEC_FIXED:
@@ -255,23 +249,23 @@ public:
 			    break;
             */
 		    case FbIscType.SQL_DEC64:
-			    _buffer.writeUInt8(FbBlrType.blr_dec64);
-			    _buffer.writeUInt8(cast(ubyte)baseType.numericScale);
+			    _writer.writeUInt8(FbBlrType.blr_dec64);
+			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
 		    case FbIscType.SQL_DEC128:
-			    _buffer.writeUInt8(FbBlrType.blr_dec128);
-			    _buffer.writeUInt8(cast(ubyte)baseType.numericScale);
+			    _writer.writeUInt8(FbBlrType.blr_dec128);
+			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
 		    case FbIscType.SQL_BOOLEAN:
-			    _buffer.writeUInt8(FbBlrType.blr_bool);
+			    _writer.writeUInt8(FbBlrType.blr_bool);
 			    break;
 		    case FbIscType.SQL_NULL:
-			    _buffer.writeUInt8(FbBlrType.blr_text);
-			    _buffer.writeUInt16(cast(ushort)size);
+			    _writer.writeUInt8(FbBlrType.blr_text);
+			    _writer.writeUInt16(cast(ushort)size);
 			    break;
 	    }
-	    _buffer.writeUInt8(FbBlrType.blr_short);
-	    _buffer.writeUInt8(0);
+	    _writer.writeUInt8(FbBlrType.blr_short);
+	    _writer.writeUInt8(0);
     }
 
     void writeEnd(size_t length) nothrow
@@ -281,13 +275,14 @@ public:
     }
     do
     {
-    	_buffer.writeUInt8(FbIsc.blr_end);
-	    _buffer.writeUInt8(FbIsc.blr_eoc);
+    	_writer.writeUInt8(FbIsc.blr_end);
+	    _writer.writeUInt8(FbIsc.blr_eoc);
     }
 
 private:
-    IbWriteBuffer _buffer;
+    DbWriteBuffer _buffer;
     FbConnection _connection;
+    FbParameterWriter _writer;
 }
 
 struct FbConnectionWriter
@@ -302,6 +297,7 @@ public:
         this._connection = connection;
         this._versionId = versionId;
         this._buffer = connection.acquireParameterWriteBuffer();
+        this._writer = FbParameterWriter(this._buffer);
     }
 
     ~this() nothrow
@@ -311,9 +307,9 @@ public:
 
     void dispose(bool disposing = true) nothrow
     {
+        _writer.dispose(disposing);
         if (_buffer !is null && _connection !is null)
             _connection.releaseParameterWriteBuffer(_buffer);
-
         _buffer = null;
         _connection = null;
     }
@@ -334,10 +330,10 @@ public:
         if (versionId <= FbIsc.isc_dpb_version1)
             v = truncate(v, uint8.max);
 
-		_buffer.writeUInt8(type);
+		_writer.writeUInt8(type);
 		writeLength(v.length);
         if (v.length)
-		    _buffer.writeBytes(v);
+		    _writer.writeBytes(v);
 	}
 
 	void writeChars(uint8 type, scope const(char)[] v) nothrow
@@ -368,23 +364,23 @@ public:
 
 	void writeInt8(uint8 type, int8 v) nothrow
 	{
-		_buffer.writeUInt8(type);
+		_writer.writeUInt8(type);
 		writeLength(1);
-		_buffer.writeInt8(v);
+		_writer.writeInt8(v);
 	}
 
 	void writeInt16(uint8 type, short v) nothrow
 	{
-		_buffer.writeUInt8(type);
+		_writer.writeUInt8(type);
 		writeLength(2);
-		_buffer.writeInt16(v);
+		_writer.writeInt16(v);
 	}
 
 	void writeInt32(uint8 type, int v) nothrow
 	{
-		_buffer.writeUInt8(type);
+		_writer.writeUInt8(type);
         writeLength(4);
-		_buffer.writeInt32(v);
+		_writer.writeInt32(v);
 	}
 
     void writeMultiParts(uint8 type, scope const(ubyte)[] v) nothrow
@@ -398,10 +394,10 @@ public:
             // -1=Reserve 1 byte for sequence
             auto partLength = cast(uint8)min(v.length, uint8.max - 1);
 
-            _buffer.writeUInt8(type);
-            _buffer.writeUInt8(cast(uint8)(partLength + 1)); // +1=Include the sequence
-            _buffer.writeUInt8(partSequence);
-            _buffer.writeBytes(v[0..partLength]);
+            _writer.writeUInt8(type);
+            _writer.writeUInt8(cast(uint8)(partLength + 1)); // +1=Include the sequence
+            _writer.writeUInt8(partSequence);
+            _writer.writeBytes(v[0..partLength]);
 
             v = v[partLength..$];
             partSequence++;
@@ -411,7 +407,7 @@ public:
 
     void writeType(uint8 type) nothrow
     {
-        _buffer.writeUInt8(type);
+        _writer.writeUInt8(type);
     }
 
     @property FbOperation versionId() const nothrow
@@ -424,14 +420,15 @@ private:
     void writeLength(size_t len) nothrow
     {
         if (versionId > FbIsc.isc_dpb_version1)
-            _buffer.writeUInt32(cast(uint32)len);
+            _writer.writeUInt32(cast(uint32)len);
         else
-            _buffer.writeUInt8(cast(uint8)len);
+            _writer.writeUInt8(cast(uint8)len);
     }
 
 private:
-    IbWriteBuffer _buffer;
+    DbWriteBuffer _buffer;
     FbConnection _connection;
+    FbParameterWriter _writer;
     FbOperation _versionId;
 }
 
@@ -446,6 +443,7 @@ public:
     {
         this._connection = connection;
         this._buffer = connection.acquireParameterWriteBuffer();
+        this._writer = FbParameterWriter(this._buffer);
     }
 
     ~this() nothrow
@@ -455,9 +453,9 @@ public:
 
     void dispose(bool disposing = true) nothrow
     {
+        _writer.dispose(disposing);
         if (_buffer !is null && _connection !is null)
             _connection.releaseParameterWriteBuffer(_buffer);
-
         _buffer = null;
         _connection = null;
     }
@@ -477,10 +475,10 @@ public:
         v = truncate(v, uint8.max);
         const vLen = cast(uint8)v.length;
 
-		_buffer.writeUInt8(type);
-		_buffer.writeUInt8(vLen);
+		_writer.writeUInt8(type);
+		_writer.writeUInt8(vLen);
         if (vLen)
-		    _buffer.writeBytes(v);
+		    _writer.writeBytes(v);
 	}
 
 	void writeChars(uint8 type, scope const(char)[] v) nothrow
@@ -495,26 +493,27 @@ public:
 
 	void writeInt16(uint8 type, int16 v) nothrow
 	{
-		_buffer.writeUInt8(type);
-		_buffer.writeUInt8(2);
-		_buffer.writeInt16(v);
+		_writer.writeUInt8(type);
+		_writer.writeUInt8(2);
+		_writer.writeInt16(v);
 	}
 
 	void writeInt32(uint8 type, int32 v) nothrow
 	{
-		_buffer.writeUInt8(type);
-		_buffer.writeUInt8(4);
-		_buffer.writeInt32(v);
+		_writer.writeUInt8(type);
+		_writer.writeUInt8(4);
+		_writer.writeInt32(v);
 	}
 
     void writeType(uint8 type) nothrow
     {
-        _buffer.writeUInt8(type);
+        _writer.writeUInt8(type);
     }
 
 private:
-    IbWriteBuffer _buffer;
+    DbWriteBuffer _buffer;
     FbConnection _connection;
+    FbParameterWriter _writer;
 }
 
 struct FbXdrReader
@@ -524,22 +523,28 @@ struct FbXdrReader
 public:
     @disable this(this);
 
-    this(FbConnection connection, ubyte[] bufferData = null)
+    this(FbConnection connection) nothrow
     {
+        this._connectionBuffer = true;
         this._connection = connection;
-        this._connectionBuffer = bufferData.length == 0;
-        this._readBuffer = this._connectionBuffer
-            ? connection.acquireSocketReadBuffer()
-            : new DbReadBuffer(bufferData);
-        this._reader = DbValueReader!(Endian.bigEndian)(this._readBuffer);
+        this._buffer = connection.acquireSocketReadBuffer();
+        this._reader = DbValueReader!(Endian.bigEndian)(this._buffer);
+    }
+
+    this(FbConnection connection, ubyte[] bufferData) nothrow
+    {
+        this._connectionBuffer = false;
+        this._connection = connection;
+        this._buffer = new DbReadBuffer(bufferData);
+        this._reader = DbValueReader!(Endian.bigEndian)(this._buffer);
     }
 
     void dispose(bool disposing = true)
     {
-        _readBuffer = null;
+        _reader.dispose(disposing);
+        _buffer = null;
         _connection = null;
         _connectionBuffer = false;
-        _reader.dispose(disposing);
     }
 
     bool readBool()
@@ -822,12 +827,7 @@ public:
     pragma(inline, true)
     @property bool empty() const nothrow pure
     {
-        return _readBuffer.empty;
-    }
-
-    @property DbReadBuffer readBuffer() nothrow pure
-    {
-        return _readBuffer;
+        return _buffer.empty;
     }
 
 private:
@@ -836,12 +836,12 @@ private:
     {
         const paddingNBytes = (4 - nBytes) & 3;
         if (paddingNBytes)
-            _readBuffer.advance(paddingNBytes);
+            _buffer.advance(paddingNBytes);
     }
 
 private:
+    DbReadBuffer _buffer;
     FbConnection _connection;
-    DbReadBuffer _readBuffer;
     DbValueReader!(Endian.bigEndian) _reader;
     bool _connectionBuffer;
 }
@@ -853,16 +853,21 @@ struct FbXdrWriter
 public:
     @disable this(this);
 
-    this(FbConnection connection,
-        IbWriteBuffer buffer = null)
+    this(FbConnection connection) nothrow
     {
+        this._socketBuffer = true;
+        this._connection = connection;
+        this._buffer = connection.acquireSocketWriteBuffer();
+        this._writer = DbValueWriter!(Endian.bigEndian)(this._buffer);
+    }
+
+    this(FbConnection connection, DbWriteBuffer buffer) nothrow
+    {
+        buffer.reset();
+        this._socketBuffer = false;
         this._connection = connection;
         this._buffer = buffer;
-        this._socketBuffer = buffer is null;
-        if (this._socketBuffer)
-            this._buffer = connection.acquireSocketWriteBuffer();
-        else
-            buffer.reset();
+        this._writer = DbValueWriter!(Endian.bigEndian)(buffer);
     }
 
     ~this()
@@ -872,6 +877,7 @@ public:
 
     void dispose(bool disposing = true)
     {
+        _writer.dispose(disposing);
         if (_socketBuffer && _buffer !is null && _connection !is null)
             _connection.releaseSocketWriteBuffer(_buffer);
         _buffer = null;
@@ -901,14 +907,14 @@ public:
         // Bizarre with three copies of the length
         writeInt32(len);
         writeInt32(len);
-        _buffer.writeUInt16(len);
-        _buffer.writeBytes(v);
+        _writer.writeUInt16(len);
+        _writer.writeBytes(v);
         writePad(len + 2);
     }
 
     void writeBool(bool v) nothrow
     {
-        _buffer.writeBool(v);
+        _writer.writeBool(v);
         writePad(1);
     }
 
@@ -920,8 +926,8 @@ public:
     do
     {
         const nBytes = cast(int32)v.length;
-        _buffer.writeInt32(nBytes);
-        _buffer.writeBytes(v);
+        _writer.writeInt32(nBytes);
+        _writer.writeBytes(v);
         writePad(nBytes);
     }
 
@@ -990,7 +996,7 @@ public:
 				return writeFloat32(decimalEncode!(D, float32)(v, baseType.numericScale));
             case FbIscType.SQL_DEC64:
             case FbIscType.SQL_DEC128:
-                _buffer.writeBytes(decimalEncode!D(v));
+                _writer.writeBytes(decimalEncode!D(v));
                 return;
 			default:
                 assert(0);
@@ -1005,7 +1011,7 @@ public:
     }
     do
     {
-        _buffer.writeBytes(v.representation);
+        _writer.writeBytes(v.representation);
         if (baseType.size > v.length)
         {
             writeFiller!(Yes.IsSpace)(baseType.size - v.length);
@@ -1017,36 +1023,36 @@ public:
 
     void writeFloat32(float32 v) nothrow
     {
-        _buffer.writeFloat32(v);
+        _writer.writeFloat32(v);
     }
 
     void writeFloat64(float64 v) nothrow
     {
-        _buffer.writeFloat64(v);
+        _writer.writeFloat64(v);
     }
 
     void writeHandle(FbHandle handle) nothrow
     {
         static assert(uint32.sizeof == FbHandle.sizeof);
 
-        _buffer.writeUInt32(cast(uint32)handle);
+        _writer.writeUInt32(cast(uint32)handle);
     }
 
     void writeId(FbId id) nothrow
     {
         static assert(int64.sizeof == FbId.sizeof);
 
-        _buffer.writeInt64(cast(int64)id);
+        _writer.writeInt64(cast(int64)id);
     }
 
     void writeInt16(int16 v) nothrow
     {
-        _buffer.writeInt32(v);
+        _writer.writeInt32(v);
     }
 
     void writeInt32(int32 v) nothrow
     {
-        _buffer.writeInt32(v);
+        _writer.writeInt32(v);
     }
 
     static if (size_t.sizeof > int32.sizeof)
@@ -1062,7 +1068,7 @@ public:
 
     void writeInt64(int64 v) nothrow
     {
-        _buffer.writeInt64(v);
+        _writer.writeInt64(v);
     }
 
     void writeInt128(in BigInteger v) nothrow
@@ -1070,7 +1076,7 @@ public:
         ubyte[int128ByteLength] bytes;
         const e = int128Encode(v, bytes);
         assert(e);
-        _buffer.writeBytes(bytes);
+        _writer.writeBytes(bytes);
     }
 
     void writeOpaqueBytes(scope const(ubyte)[] v, size_t forLength) nothrow
@@ -1081,7 +1087,7 @@ public:
     }
     do
     {
-        _buffer.writeBytes(v);
+        _writer.writeBytes(v);
         if (forLength > v.length)
         {
             writeFiller!(No.IsSpace)(forLength - v.length);
@@ -1126,13 +1132,13 @@ public:
 
     void writeUInt16(uint16 v) nothrow
     {
-        _buffer.writeUInt32(v);
+        _writer.writeUInt32(v);
     }
 
     // https://stackoverflow.com/questions/246930/is-there-any-difference-between-a-guid-and-a-uuid
     void writeUUID(in UUID v) nothrow
     {
-        _buffer.writeBytes(v.data); // v.data is already in big-endian
+        _writer.writeBytes(v.data); // v.data is already in big-endian
         //return writePad(16); // No need filler since alignment to 4
     }
 
@@ -1159,7 +1165,7 @@ private:
         while (nBytes)
         {
             const writeBytes = nBytes > fillerLenght ? fillerLenght : nBytes;
-            _buffer.writeBytes(writeFiller[0..writeBytes]);
+            _writer.writeBytes(writeFiller[0..writeBytes]);
             nBytes -= writeBytes;
         }
     }
@@ -1170,12 +1176,13 @@ private:
 
         const paddingNBytes = (4 - nBytes) & 3;
         if (paddingNBytes != 0)
-            _buffer.writeBytes(filler[0..paddingNBytes]);
+            _writer.writeBytes(filler[0..paddingNBytes]);
     }
 
 private:
-    IbWriteBuffer _buffer;
+    DbWriteBuffer _buffer;
     FbConnection _connection;
+    DbValueWriter!(Endian.bigEndian) _writer;
     bool _socketBuffer;
 }
 
@@ -1193,7 +1200,7 @@ unittest // FbXdrWriter & FbXdrReader
     //pragma(msg, float.min_normal);
     //pragma(msg, double.min_normal);
 
-    auto writerBuffer = new DbWriteBuffer!(Endian.bigEndian)(4000);
+    auto writerBuffer = new DbWriteBuffer(4000);
     auto writer = FbXdrWriter(null, writerBuffer);
     writer.writeBool(true);
     writer.writeInt16(short.min);

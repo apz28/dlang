@@ -466,7 +466,7 @@ public:
         {
             if (expectedLength && expectedLength != valueLength)
                 readValueError(column, valueLength, expectedLength);
-            return PgXdrReader(connection, reader.readBuffer);
+            return PgXdrReader(connection, reader.buffer);
         }
 
         if (column.isArray)
@@ -601,12 +601,12 @@ public:
         {
             if (expectedLength && expectedLength != valueLength)
                 readValueError(column, valueLength, expectedLength);
-            return PgXdrReader(connection, reader.readBuffer);
+            return PgXdrReader(connection, reader.buffer);
         }
 
         int32 readDimensions() @safe
         {
-            auto valueReader = PgXdrReader(connection, reader.readBuffer);
+            auto valueReader = PgXdrReader(connection, reader.buffer);
 
             int32 dims, hasNulls;
             int32[] lowerBounds;

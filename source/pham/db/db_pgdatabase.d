@@ -888,16 +888,6 @@ public:
     }
 
 protected:
-    final override DbReadBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
-    {
-        return new SkReadBuffer(this, capacity);
-    }
-
-    final override DbBuffer createSocketWriteBuffer(size_t capacity = DbDefaultSize.socketWriteBufferLength) nothrow @safe
-    {
-        return new SkWriteBuffer!(Endian.bigEndian)(this, capacity);
-    }
-
     override void disposeCommands(bool disposing) nothrow @safe
     {
         version (TraceFunction) dgFunctionTrace();
