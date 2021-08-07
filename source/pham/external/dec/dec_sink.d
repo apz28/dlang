@@ -70,13 +70,14 @@ if (isSomeChar!C)
     Unqual!C[bufferSize] buffer = value;
     while (count > 0)
     {
-        sink(buffer[0 .. count > bufferSize ? bufferSize : count]);
-        count -= bufferSize;
+        const n = count > bufferSize ? bufferSize : count;
+        sink(buffer[0..n]);
+        count -= n;
     }
 }
 
 //sinks +/-/space
-void sinkSign(C)(auto const ref FormatSpec!C spec, scope ToStringSink!C sink, const bool signed)
+void sinkSign(C)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec, const bool signed)
 if (isSomeChar!C)
 {
     if (!signed && spec.flPlus)
@@ -88,7 +89,7 @@ if (isSomeChar!C)
 }
 
 //pads left according to spec
-void sinkPadLeft(C)(auto const ref FormatSpec!C spec, scope ToStringSink!C sink, ref int pad)
+void sinkPadLeft(C)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec, ref int pad)
 if (isSomeChar!C)
 {
     if (pad > 0 && !spec.flDash && !spec.flZero)
@@ -99,7 +100,7 @@ if (isSomeChar!C)
 }
 
 //zero pads left according to spec
-void sinkPadZero(C)(auto const ref FormatSpec!C spec, scope ToStringSink!C sink, ref int pad)
+void sinkPadZero(C)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec, ref int pad)
 if (isSomeChar!C)
 {
     if (pad > 0 && spec.flZero && !spec.flDash)
@@ -121,11 +122,11 @@ if (isSomeChar!C)
 }
 
 //sinks +/-(s)nan;
-void sinkNaN(C, T)(auto const ref FormatSpec!C spec, scope ToStringSink!C sink, const bool signed,
+void sinkNaN(C, T)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec, const bool signed,
     const bool signaling, T payload, bool hex)
 if (isSomeChar!C)
 {
-    C[200] buffer;
+    C[250] buffer;
     FormatSpec!C nanspec = spec;
     nanspec.flZero = false;
     nanspec.flHash = false;
@@ -148,8 +149,8 @@ if (isSomeChar!C)
     if (nanspec.flPlus || nanspec.flSpace || signed)
         ++w;
     int pad = nanspec.width - w;
-    sinkPadLeft!C(nanspec, sink, pad);
-    sinkSign!C(nanspec, sink, signed);
+    sinkPadLeft!C(sink, nanspec, pad);
+    sinkSign!C(sink, nanspec, signed);
     if (signaling)
         sink(nanspec.spec < 'Z' ? "S" : "s");
     sink(nanspec.spec < 'Z' ? "NAN" : "nan");
@@ -168,7 +169,7 @@ if (isSomeChar!C)
 }
 
 //sinks +/-(s)inf;
-void sinkInfinity(C)(auto const ref FormatSpec!C spec, scope ToStringSink!C sink, const bool signed)
+void sinkInfinity(C)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec, const bool signed)
 if (isSomeChar!C)
 {
     FormatSpec!C infspec = spec;
@@ -176,20 +177,20 @@ if (isSomeChar!C)
     infspec.flHash = false;
     const w = infspec.flPlus || infspec.flSpace || signed ? 4 : 3;
     int pad = infspec.width - w;
-    sinkPadLeft!C(infspec, sink, pad);
-    sinkSign!C(infspec, sink, signed);
+    sinkPadLeft!C(sink, infspec, pad);
+    sinkSign!C(sink, infspec, signed);
     sink(infspec.spec < 'Z' ? "INF" : "inf");
     sinkPadRight!C(sink, pad);
 }
 
 //sinks 0
-void sinkZero(C)(auto const ref FormatSpec!C spec, scope ToStringSink!C sink, const bool signed,
+void sinkZero(C)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec, const bool signed,
     const bool skipTrailingZeros = false)
 if (isSomeChar!C)
 {
     const int requestedDecimals = skipTrailingZeros
         ? 0
-        : spec.precision == spec.UNSPECIFIED || spec.precision < 0 ? 6 : spec.precision;
+        : (spec.precision == spec.UNSPECIFIED || spec.precision < 0 ? 6 : spec.precision);
 
     int w = requestedDecimals == 0 ? 1 : requestedDecimals + 2;
     if (requestedDecimals == 0 && spec.flHash)
@@ -197,9 +198,9 @@ if (isSomeChar!C)
     if (spec.flPlus || spec.flSpace || signed)
         ++w;
     int pad = spec.width - w;
-    sinkPadLeft!C(spec, sink, pad);
-    sinkSign!C(spec, sink, signed);
-    sinkPadZero!C(spec, sink, pad);
+    sinkPadLeft!C(sink, spec, pad);
+    sinkSign!C(sink, spec, signed);
+    sinkPadZero!C(sink, spec, pad);
     sink("0");
     if (requestedDecimals || spec.flHash)
     {

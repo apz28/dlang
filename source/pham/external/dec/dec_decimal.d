@@ -1125,7 +1125,7 @@ public:
     void toString(C)(scope void delegate(const(C)[]) sink) const
     if (isSomeChar!C)
     {
-        sinkDecimal(singleSpec("%g"), sink, this, __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
+        sinkDecimal(sink, singleSpec("%g"), this, __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
     }
 
     ///Converts current value to string in floating point or scientific notation,
@@ -7173,7 +7173,7 @@ mixin template ExceptionConstructors()
 
 
 //sinks %a
-void sinkHexadecimal(C, T)(auto const ref FormatSpec!C spec, scope ToStringSink!C sink,
+void sinkHexadecimal(C, T)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec,
     auto const ref T coefficient, const int exponent, const bool signed) nothrow @safe
 if (isSomeChar!C && isAnyUnsigned!T)
 {
@@ -7203,11 +7203,11 @@ if (isSomeChar!C && isAnyUnsigned!T)
     w += exponentDigits;
 
     int pad = spec.width - w;
-    sinkPadLeft!C(spec, sink, pad);
-    sinkSign!C(spec, sink, signed);
+    sinkPadLeft!C(sink, spec, pad);
+    sinkSign!C(sink, spec, signed);
     sink("0");
     sink(spec.spec <= 'Z' ? "X" : "x");
-    sinkPadZero!C(spec, sink, pad);
+    sinkPadZero!C(sink, spec, pad);
     sink(buffer[$ - digits .. $]);
     sink(spec.spec < 'Z' ? "P" : "p");
     sink(signedExponent ? "-" : "+");
@@ -7216,20 +7216,20 @@ if (isSomeChar!C && isAnyUnsigned!T)
 }
 
 //sinks %f
-void sinkFloat(C, T)(auto const ref FormatSpec!C spec, scope ToStringSink!C sink,
+void sinkFloat(C, T)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec,
     const T coefficient, const int exponent, const bool signed, const RoundingMode mode,
     const bool skipTrailingZeros = false) nothrow @safe
 if (isSomeChar!C)
 {
     if (coefficient == 0U)
-        sinkZero!C(spec, sink, signed, skipTrailingZeros);
+        sinkZero!C(sink, spec, signed, skipTrailingZeros);
     else
     {
         Unqual!T c = coefficient;
         int e = exponent;
         coefficientShrink(c, e);
 
-        Unqual!C[200] buffer;
+        Unqual!C[250] buffer;
         int w = spec.flPlus || spec.flSpace || signed ? 1 : 0;
 
         if (e >= 0) //coefficient[0...].[0...]
@@ -7243,9 +7243,9 @@ if (isSomeChar!C)
             if (requestedDecimals || spec.flHash)
                 w += requestedDecimals + 1;
             int pad = spec.width - w;
-            sinkPadLeft!C(spec, sink, pad);
-            sinkSign!C(spec, sink, signed);
-            sinkPadZero!C(spec, sink, pad);
+            sinkPadLeft!C(sink, spec, pad);
+            sinkSign!C(sink, spec, signed);
+            sinkPadZero!C(sink, spec, pad);
             sink(buffer[$ - digits .. $]);
             sinkRepeat!C(sink, '0', e);
             if (requestedDecimals || spec.flHash)
@@ -7281,9 +7281,9 @@ if (isSomeChar!C)
                 if (requestedDecimals || spec.flHash)
                     w += requestedDecimals + 1;
                 int pad = spec.width - w;
-                sinkPadLeft!C(spec, sink, pad);
-                sinkSign!C(spec, sink, signed);
-                sinkPadZero!C(spec, sink, pad);
+                sinkPadLeft!C(sink, spec, pad);
+                sinkSign!C(sink, spec, signed);
+                sinkPadZero!C(sink, spec, pad);
                 dumpUnsigned(buffer, c);
                 sink(buffer[$ - digits .. $ - fractionalDigits]);
                 if (requestedDecimals || spec.flHash)
@@ -7307,9 +7307,9 @@ if (isSomeChar!C)
                     if (spec.flHash)
                         ++w;
                     int pad = spec.width - w;
-                    sinkPadLeft!C(spec, sink, pad);
-                    sinkSign!C(spec, sink, signed);
-                    sinkPadZero!C(spec, sink, pad);
+                    sinkPadLeft!C(sink, spec, pad);
+                    sinkSign!C(sink, spec, signed);
+                    sinkPadZero!C(sink, spec, pad);
                     sink(c != 0U ? "1": "0");
                     if (spec.flHash)
                         sink(".");
@@ -7330,9 +7330,9 @@ if (isSomeChar!C)
                         }
                     }
                     int pad = spec.width - w;
-                    sinkPadLeft!C(spec, sink, pad);
-                    sinkSign!C(spec, sink, signed);
-                    sinkPadZero!C(spec, sink, pad);
+                    sinkPadLeft!C(sink, spec, pad);
+                    sinkSign!C(sink, spec, signed);
+                    sinkPadZero!C(sink, spec, pad);
                     sink("0.");
                     dumpUnsigned(buffer, c);
                     sink(buffer[$ - digits .. $]);
@@ -7355,9 +7355,9 @@ if (isSomeChar!C)
                     {
                         w += 1;
                         int pad = spec.width - w;
-                        sinkPadLeft!C(spec, sink, pad);
-                        sinkSign!C(spec, sink, signed);
-                        sinkPadZero!C(spec, sink, pad);
+                        sinkPadLeft!C(sink, spec, pad);
+                        sinkSign!C(sink, spec, signed);
+                        sinkPadZero!C(sink, spec, pad);
                         sink(c != 0U ? "1": "0");
                         sinkPadRight!C(sink, pad);
                     }
@@ -7366,9 +7366,9 @@ if (isSomeChar!C)
                         w += 2;
                         w += requestedDecimals;
                         int pad = spec.width - w;
-                        sinkPadLeft!C(spec, sink, pad);
-                        sinkSign!C(spec, sink, signed);
-                        sinkPadZero!C(spec, sink, pad);
+                        sinkPadLeft!C(sink, spec, pad);
+                        sinkSign!C(sink, spec, signed);
+                        sinkPadZero!C(sink, spec, pad);
                         sink("0.");
                         sinkRepeat!C(sink, '0', requestedDecimals - 1);
                         sink(c != 0U ? "1": "0");
@@ -7388,9 +7388,9 @@ if (isSomeChar!C)
                     w += 2;
                     w += requestedDecimals;
                     int pad = spec.width - w;
-                    sinkPadLeft!C(spec, sink, pad);
-                    sinkSign!C(spec, sink, signed);
-                    sinkPadZero!C(spec, sink, pad);
+                    sinkPadLeft!C(sink, spec, pad);
+                    sinkSign!C(sink, spec, signed);
+                    sinkPadZero!C(sink, spec, pad);
                     sink("0.");
                     sinkRepeat!C(sink, '0', zeros);
                     digits = dumpUnsigned(buffer, c);
@@ -7404,7 +7404,7 @@ if (isSomeChar!C)
 }
 
 //sinks %e
-void sinkExponential(C, T)(auto const ref FormatSpec!C spec, scope ToStringSink!C sink,
+void sinkExponential(C, T)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec,
     const T coefficient, const int exponent, const bool signed, const RoundingMode mode,
     const bool skipTrailingZeros = false) nothrow @safe
 if (isSomeChar!C)
@@ -7444,9 +7444,9 @@ if (isSomeChar!C)
         w += requestedDecimals + 1;
 
     int pad = spec.width - w;
-    sinkPadLeft!C(spec, sink, pad);
-    sinkSign!C(spec, sink, signed);
-    sinkPadZero!C(spec, sink, pad);
+    sinkPadLeft!C(sink, spec, pad);
+    sinkSign!C(sink, spec, signed);
+    sinkPadZero!C(sink, spec, pad);
     sink(buffer[$ - digits .. $ - digits + 1]);
     if (requestedDecimals || spec.flHash)
     {
@@ -7464,7 +7464,7 @@ if (isSomeChar!C)
 }
 
 //sinks %g
-void sinkGeneral(C, T)(auto const ref FormatSpec!C spec, scope ToStringSink!C sink,
+void sinkGeneral(C, T)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec,
     const T coefficient, const int exponent, const bool signed, const RoundingMode mode) nothrow @safe
 if (isSomeChar!C)
 {
@@ -7482,18 +7482,18 @@ if (isSomeChar!C)
     {
         FormatSpec!C fspec = spec;
         fspec.precision = precision - 1 - expe;
-        sinkFloat!(C, Unqual!T)(fspec, sink, coefficient, exponent, signed, mode, !fspec.flHash);
+        sinkFloat!(C, Unqual!T)(sink, fspec, coefficient, exponent, signed, mode, !fspec.flHash);
     }
     else
     {
         FormatSpec!C espec = spec;
         espec.precision = precision - 1;
-        sinkExponential!(C, Unqual!T)(espec, sink, coefficient, exponent, signed, mode, !espec.flHash);
+        sinkExponential!(C, Unqual!T)(sink, espec, coefficient, exponent, signed, mode, !espec.flHash);
     }
 }
 
 //sinks a decimal value
-void sinkDecimal(C, D)(auto const ref FormatSpec!C spec, scope ToStringSink!C sink,
+void sinkDecimal(C, D)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec,
     auto const ref D decimal, const RoundingMode mode) nothrow @safe
 if (isSomeChar!C && isDecimal!D)
 {
@@ -7503,32 +7503,32 @@ if (isSomeChar!C && isDecimal!D)
 
     const fx = fastDecode(decimal, coefficient, exponent, isNegative);
     if (fx == FastClass.signalingNaN)
-        sinkNaN!(C, DataType!D)(spec, sink, isNegative, true, coefficient, spec.spec == 'a' || spec.spec == 'A');
+        sinkNaN!(C, DataType!D)(sink, spec, isNegative, true, coefficient, spec.spec == 'a' || spec.spec == 'A');
     else if (fx == FastClass.quietNaN)
-        sinkNaN!(C, DataType!D)(spec, sink, isNegative, false, coefficient, spec.spec == 'a' || spec.spec == 'A');
+        sinkNaN!(C, DataType!D)(sink, spec, isNegative, false, coefficient, spec.spec == 'a' || spec.spec == 'A');
     else if (fx == FastClass.infinite)
-        sinkInfinity!C(spec, sink, decimal.isNeg);
+        sinkInfinity!C(sink, spec, decimal.isNeg);
     else
     {
         switch (spec.spec)
         {
             case 'f':
             case 'F':
-                sinkFloat!(C, DataType!D)(spec, sink, coefficient, exponent, isNegative, mode);
+                sinkFloat!(C, DataType!D)(sink, spec, coefficient, exponent, isNegative, mode);
                 break;
             case 'e':
             case 'E':
-                sinkExponential!(C, DataType!D)(spec, sink, coefficient, exponent, isNegative, mode);
+                sinkExponential!(C, DataType!D)(sink, spec, coefficient, exponent, isNegative, mode);
                 break;
             case 'g':
             case 'G':
             case 's':
             case 'S':
-                sinkGeneral!(C, DataType!D)(spec, sink, coefficient, exponent, isNegative, mode);
+                sinkGeneral!(C, DataType!D)(sink, spec, coefficient, exponent, isNegative, mode);
                 break;
             case 'a':
             case 'A':
-                sinkHexadecimal!(C, DataType!D)(spec, sink, coefficient, exponent, isNegative);
+                sinkHexadecimal!(C, DataType!D)(sink, spec, coefficient, exponent, isNegative);
                 break;
             default:
                 assert(0, "Unsupported format specifier");
@@ -7585,7 +7585,7 @@ if (isSomeChar!C && isDecimal!D)
     }
 
     auto buffer = Buffer(1000);
-    sinkDecimal!(C, D)(spec, &buffer.localSink, decimal, mode);
+    sinkDecimal!(C, D)(&buffer.localSink, spec, decimal, mode);
     return buffer.toResult();
 }
 

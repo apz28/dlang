@@ -412,7 +412,7 @@ private:
 		return biasedExponent - exponentBias;
 	}
 
-	static int usignedRightShift(const int value, const int shift)
+	static int usignedRightShift(const int value, const int shift) @nogc pure
 	{
 		const result = cast(uint)(cast(uint)value >> shift);
 

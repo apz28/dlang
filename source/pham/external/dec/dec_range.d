@@ -13,15 +13,23 @@ package(pham.external.dec):
 
 @safe pure nothrow @nogc
 void popFront(T)(ref T[] s)
+in
 {
     assert(s.length);
+}
+do
+{
     s = s[1 .. $];
 }
 
 @safe pure nothrow @nogc
 @property T front(T)(const T[] s)
+in
 {
     assert(s.length);
+}
+do
+{
     return s[0];
 }
 
@@ -32,6 +40,7 @@ void popFront(T)(ref T[] s)
 }
 
 //returns true and advance range if element is found
+@safe pure nothrow @nogc
 bool expect(R, T)(ref R range, T element)
 if (isInputRange!R && isSomeChar!T)
 {
@@ -54,6 +63,7 @@ unittest
 }
 
 //returns true and advance range if element is found case insensitive
+@safe pure nothrow @nogc
 bool expectInsensitive(R, T)(ref R range, T element)
 if (isInputRange!R && isSomeChar!T)
 {
@@ -80,18 +90,19 @@ unittest
 }
 
 //returns parsed characters count and advance range
-int expect(R, C)(ref R range, const(C)[] s)
+@safe pure nothrow @nogc
+size_t expect(R, C)(ref R range, const(C)[] s)
 if (isInputRange!R && isSomeChar!C)
 {
-    int cnt;
+    size_t result = 0;
     foreach (ch; s)
     {
         if (expect(range, ch))
-            ++cnt;
+            ++result;
         else
             break;
     }
-    return cnt;
+    return result;
 }
 
 unittest
@@ -104,18 +115,19 @@ unittest
 }
 
 //returns parsed characters count and advance range insensitive
-int expectInsensitive(R, C)(ref R range, const(C)[] s)
+@safe pure nothrow @nogc
+size_t expectInsensitive(R, C)(ref R range, const(C)[] s)
 if (isInputRange!R && isSomeChar!C)
 {
-    int cnt;
+    size_t result = 0;
     foreach(ch; s)
     {
         if (expectInsensitive(range, ch))
-            ++cnt;
+            ++result;
         else
             break;
     }
-    return cnt;
+    return result;
 }
 
 unittest
@@ -127,6 +139,7 @@ unittest
     assert(expectInsensitive(s, "TRinG") == 5);
 }
 
+@safe pure nothrow @nogc
 bool parseSign(R)(ref R range, out bool isNegative)
 if (isInputRange!R && isSomeChar!(ElementType!R))
 {
@@ -141,7 +154,10 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
         return true;
     }
     else
+    {
+        isNegative = false;
         return false;
+    }
 }
 
 unittest
@@ -154,12 +170,13 @@ unittest
 }
 
 //returns true and advances range if "inf" or "infinity" is encountered
+@safe pure nothrow @nogc
 bool parseInfinity(R)(ref R range)
 if (isInputRange!R && isSomeChar!(ElementType!R))
 {
     if (expectInsensitive(range, "inf") == 3)
     {
-        auto parsed = expectInsensitive(range, "inity");
+        const parsed = expectInsensitive(range, "inity");
         return parsed == 0 || parsed == 5;
     }
     return false;
@@ -178,6 +195,7 @@ unittest
 }
 
 //returns corresponding bracket and advances range if any of "([{<" is encountered, 0 otherwise
+@safe pure nothrow @nogc
 ElementType!R parseBracket(R)(ref R range)
 if (isInputRange!R && isSomeChar!(ElementType!R))
 {
@@ -204,16 +222,24 @@ unittest
 }
 
 //returns a digit value and advances range if a digit is encountered, -1 otherwise, skips _
+@safe pure nothrow @nogc
 int parseDigit(R)(ref R range)
 if (isInputRange!R && isSomeChar!(ElementType!R))
 {
-    while (expect(range, '_')) { }
-    if (!range.empty && range.front >= '0' && range.front <= '9')
+    while (expect(range, '_'))
+    { }
+
+    if (range.empty)
+        return -1;
+
+    const f = range.front;
+    if (f >= '0' && f <= '9')
     {
-        int result = range.front - '0';
+        const int result = f - '0';
         range.popFront();
         return result;
     }
+
     return -1;
 }
 
@@ -228,31 +254,38 @@ unittest
 }
 
 //returns a digit value and advances range if a hex digit is encountered, -1 otherwise, skips _
+@safe pure nothrow @nogc
 int parseHexDigit(R)(ref R range)
 if (isInputRange!R && isSomeChar!(ElementType!R))
 {
-    while (expect(range, '_')) { }
-    if (!range.empty)
+    while (expect(range, '_'))
+    { }
+
+    if (range.empty)
+        return -1;
+
+    const f = range.front;
+    if (f >= '0' && f <= '9')
     {
-        if (range.front >= '0' && range.front <= '9')
-        {
-            int result = range.front - '0';
-            range.popFront();
-            return result;
-        }
-        if (range.front >= 'A' && range.front <= 'F')
-        {
-            int result = range.front - 'A' + 10;
-            range.popFront();
-            return result;
-        }
-        if (range.front >= 'a' && range.front <= 'f')
-        {
-            int result = range.front - 'a' + 10;
-            range.popFront();
-            return result;
-        }
+        const int result = f - '0';
+        range.popFront();
+        return result;
     }
+
+    if (f >= 'A' && f <= 'F')
+    {
+        const int result = f - 'A' + 10;
+        range.popFront();
+        return result;
+    }
+
+    if (f >= 'a' && f <= 'f')
+    {
+        const int result = f - 'a' + 10;
+        range.popFront();
+        return result;
+    }
+
     return -1;
 }
 
@@ -271,18 +304,19 @@ unittest
 }
 
 //returns how many zeros encountered and advances range, skips _
-int parseZeroes(R)(ref R range)
+@safe pure nothrow @nogc
+size_t parseZeroes(R)(ref R range)
 if (isInputRange!R && isSomeChar!(ElementType!R))
 {
-    int count = 0;
+    size_t result = 0;
     do
     {
         if (expect(range, '0'))
-            ++count;
+            ++result;
         else if (!expect(range, '_'))
             break;
     } while (true);
-    return count;
+    return result;
 }
 
 unittest
@@ -292,6 +326,7 @@ unittest
 }
 
 //returns true if a hex number can be read in value, stops if doesn't fit in value
+@safe pure nothrow @nogc
 bool parseHexNumber(R, T)(ref R range, out T value)
 if (isInputRange!R && isSomeChar!(ElementType!R))
 {
@@ -300,17 +335,14 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
     int width = 0;
     while (width < maxWidth && !range.empty)
     {
-        auto digit = parseHexDigit(range);
-        if (!atLeastOneDigit)
-            atLeastOneDigit = digit >= 0;
+        const digit = parseHexDigit(range);
         if (digit >= 0)
         {
             value <<= 4;
             value |= cast(uint)digit;
+            atLeastOneDigit = true;
             ++width;
         }
-        else if (range.front == '_')
-            range.popFront();
         else
             break;
     }
@@ -346,7 +378,7 @@ unittest
 }
 
 //returns true if a decimal number can be read in value, stops if doesn't fit in value
-@safe
+@safe pure nothrow @nogc
 bool parseNumber(R, T)(ref R range, ref T value)
 if (isInputRange!R && isSomeChar!(ElementType!R))
 {
@@ -354,9 +386,10 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
     bool overflow;
     while (!range.empty)
     {
-        if (range.front >= '0' && range.front <= '9')
+        const f = range.front;
+        if (f >= '0' && f <= '9')
         {
-            uint digit = range.front - '0';
+            const uint digit = f - '0';
             overflow = false;
             Unqual!T v = fma(value, 10U, digit, overflow);
             if (overflow)
@@ -365,7 +398,7 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
             value = v;
             atLeastOneDigit = true;
         }
-        else if (range.front == '_')
+        else if (f == '_')
             range.popFront();
         else
             break;
