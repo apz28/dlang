@@ -225,7 +225,7 @@ if (isXmlString!S)
     import std.uni : sicmp;
 
     scope (failure) assert(0);
-    
+
     return sicmp(s1, s2) == 0;
 }
 
@@ -892,7 +892,7 @@ string formatGroup(const(char)[] v, in FormatGroupSpec spec = FormatGroupSpec.in
     import std.uni : byGrapheme;
     import std.range : Appender, appender, walkLength;
 
-    char[100] buffer;
+    char[250] buffer;
     ptrdiff_t bLen;
     ptrdiff_t cLen = v.length;
     ptrdiff_t c = 2 - (cLen % 3);
