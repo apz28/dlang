@@ -50,7 +50,7 @@ import pham.db.fbdatabase;
     Returns:
         length of blob in bytes
  */
-size_t parseBlob(W)(scope ref W outputSink, scope const(ubyte)[] data) @safe
+size_t parseBlob(W)(scope ref W sink, scope const(ubyte)[] data) @safe
 if (isOutputRange!(W, ubyte))
 {
     size_t result;
@@ -63,7 +63,7 @@ if (isOutputRange!(W, ubyte))
 	while (pos < endPos)
 	{
         const len = parseInt32!true(data, pos, 2, FbIscType.SQL_BLOB);
-        put(outputSink, data[pos..pos + len]);
+        put(sink, data[pos..pos + len]);
         result += len;
         pos += len;
 	}

@@ -499,35 +499,35 @@ public:
     {
         import std.array : appender;
 
-        auto writer = appender!string();
-        writer.reserve(60);
-        return toString(writer).data;
+        auto buffer = appender!string();
+        buffer.reserve(60);
+        return toString(buffer).data;
     }
 
-    ref Writer toString(Writer, Char = char)(return ref Writer writer) const
+    ref Writer toString(Writer, Char = char)(return ref Writer sink) const
     if (isOutputRange!(Writer, Char))
     {
         scope (failure) assert(0);
 
-        _value.toString(writer, "%s");
+        _value.toString(sink, "%s");
 
         /* TODO
         if (zoneId != 0)
         {
             if (zoneId == timeZoneUtcId)
-                put(writer, 'Z');
+                put(sink, 'Z');
             else
             auto zn = DbTimeZoneList.instance().zone(zoneId);
             // Valid zone?
             if (zn.id != 0)
             {
-                put(writer, ' ');
-                put(writer, zn.name);
+                put(sink, ' ');
+                put(sink, zn.name);
             }
         }
         */
 
-        return writer;
+        return sink;
     }
 
     typeof(this) toUTC() const
@@ -912,35 +912,35 @@ public:
     {
         import std.array : appender;
 
-        auto writer = appender!string();
-        writer.reserve(60);
-        return toString(writer).data;
+        auto buffer = appender!string();
+        buffer.reserve(60);
+        return toString(buffer).data;
     }
 
-    ref Writer toString(Writer, Char = char)(return ref Writer writer) const
+    ref Writer toString(Writer, Char = char)(return ref Writer sink) const
     if (isOutputRange!(Writer, Char))
     {
         scope (failure) assert(0);
 
-        _value.toString(writer, "%s");
+        _value.toString(sink, "%s");
 
         /* TODO
         if (zoneId != 0)
         {
             if (zoneId == timeZoneUtcId)
-                put(writer, 'Z');
+                put(sink, 'Z');
             else
             auto zn = DbTimeZoneList.instance().zone(zoneId);
             // Valid zone?
             if (zn.id != 0)
             {
-                put(writer, ' ');
-                put(writer, zn.name);
+                put(sink, ' ');
+                put(sink, zn.name);
             }
         }
         */
 
-        return writer;
+        return sink;
     }
 
     typeof(this) toUTC() const

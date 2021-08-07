@@ -55,39 +55,6 @@ private:
 
 mixin DLinkTypes!(DbBuffer) DLinkDbBufferTypes;
 
-version (none)
-interface IbReadBuffer
-{
-@safe:
-
-    IbReadBuffer advance(const size_t nBytes);
-    IbReadBuffer fill(const size_t additionalBytes, bool mustSatisfied);
-    ubyte[] peekBytes() nothrow;
-    IbReadBuffer reset() nothrow;
-    size_t search(ubyte searchedByte) nothrow;
-    DbBuffer self() nothrow pure;
-
-    bool readBool();
-    ubyte[] readBytes(size_t nBytes);
-    ubyte[] readBytes(return ubyte[] value);
-    char readChar();
-    char[] readChars(size_t nBytes);
-    float32 readFloat32();
-    float64 readFloat64();
-    int8 readInt8();
-    int16 readInt16();
-    int32 readInt32();
-    int64 readInt64();
-    uint8 readUInt8();
-    uint16 readUInt16();
-    uint32 readUInt32();
-    uint64 readUInt64();
-
-    @property bool empty() const nothrow pure;
-    @property size_t length() const nothrow pure;
-    @property size_t offset() const nothrow pure;
-}
-
 class DbReadBuffer : DbBuffer
 {
 @safe:
@@ -435,38 +402,6 @@ private:
 
 private:
     DbReadBuffer _buffer;
-}
-
-version (none)
-interface IbWriteBuffer
-{
-@safe:
-
-    void flush();
-    version (TraceFunction) string logData() nothrow;
-    ubyte[] peekBytes() nothrow;
-    IbWriteBuffer reset() nothrow;
-    IbWriteBuffer rewriteInt32(int32 v, size_t offset) nothrow;
-    DbBuffer self() nothrow pure;
-
-    IbWriteBuffer writeBool(bool v) nothrow;
-    IbWriteBuffer writeBytes(scope const(ubyte)[] v) nothrow;
-    IbWriteBuffer writeChar(char v) nothrow;
-    IbWriteBuffer writeChars(scope const(char)[] v) nothrow;
-    IbWriteBuffer writeFloat32(float32 v) nothrow;
-    IbWriteBuffer writeFloat64(float64 v) nothrow;
-    IbWriteBuffer writeInt8(int8 v) nothrow;
-    IbWriteBuffer writeInt16(int16 v) nothrow;
-    IbWriteBuffer writeInt32(int32 v) nothrow;
-    IbWriteBuffer writeInt64(int64 v) nothrow;
-    IbWriteBuffer writeUInt8(uint8 v) nothrow;
-    IbWriteBuffer writeUInt16(uint16 v) nothrow;
-    IbWriteBuffer writeUInt32(uint32 v) nothrow;
-    IbWriteBuffer writeUInt64(uint64 v) nothrow;
-
-    @property bool empty() const nothrow;
-    @property size_t length() const nothrow;
-    @property size_t offset() const nothrow;
 }
 
 class DbWriteBuffer : DbBuffer
