@@ -301,7 +301,7 @@ public:
      * Throws:
      *  A $(LREF FormatException) when the found format specifier could not be parsed.
      */
-    bool writeUpToNextSpec(Writer)(ref Writer writer) pure scope
+    bool writeUpToNextSpec(Writer)(scope ref Writer sink) pure scope
     {
         if (trailing.empty)
             return false;
@@ -314,7 +314,7 @@ public:
 
             if (i)
             {
-                put(writer, trailing[0..i]);
+                put(sink, trailing[0..i]);
                 trailing = trailing[i..$];
             }
             // at least '%' and spec-char
@@ -333,12 +333,12 @@ public:
         }
 
         // no format spec found
-        put(writer, trailing);
+        put(sink, trailing);
         trailing = null;
         return false;
     }
 
-    bool writeUpToNextCustomSpec(Writer)(ref Writer writer) pure scope
+    bool writeUpToNextCustomSpec(Writer)(scope ref Writer sink) pure scope
     {
         if (customTrailing.empty)
             return false;
@@ -352,7 +352,7 @@ public:
 
             if (i)
             {
-                put(writer, customTrailing[0..i]);
+                put(sink, customTrailing[0..i]);
                 customTrailing = customTrailing[i..$];
             }
             enforceFmt((customTrailing.length > 0) || (customTrailing.length > 1 && customTrailing[0] == '%'), "Unterminated custom format specifier");
@@ -373,7 +373,7 @@ public:
         }
 
         // no format spec found
-        put(writer, customTrailing);
+        put(sink, customTrailing);
         customTrailing = null;
         return false;
     }
@@ -498,7 +498,7 @@ private:
     }
 }
 
-uint formatValue(Writer, Char)(auto ref Writer writer,
+uint formatValue(Writer, Char)(auto scope ref Writer sink,
     scope ref FormatDateTimeValue fmtValue, scope ref FormatDateTimeSpec!Char fmtSpec,
     scope const ref DateTimeSetting setting)
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
@@ -508,14 +508,14 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
         auto s = fmtValue.amPM(setting);
         if (s.length)
         {
-            put(writer, ' ');
-            put(writer, s[]);
+            put(sink, ' ');
+            put(sink, s[]);
         }
     }
 
     void putCustom() @safe
     {
-        while (fmtSpec.writeUpToNextCustomSpec(writer))
+        while (fmtSpec.writeUpToNextCustomSpec(sink))
         {
             switch (fmtSpec.customSpec)
             {
@@ -524,42 +524,42 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     break;
                 case FormatDateTimeSpecifier.customDay:
                     if (fmtSpec.customSpecCount == 3)
-                        put(writer, fmtValue.dayOfWeekName(setting));
+                        put(sink, fmtValue.dayOfWeekName(setting));
                     else
-                        put(writer, pad(to!string(fmtValue.day), fmtSpec.customSpecCount, '0'));
+                        pad(sink, to!string(fmtValue.day), fmtSpec.customSpecCount, '0');
                     break;
                 case FormatDateTimeSpecifier.customFraction: // time fraction, 1..3=msec, 4..7=usec
                     if (fmtSpec.customSpecCount <= Tick.millisMaxPrecision)
-                        put(writer, pad(to!string(fmtValue.millisecond), fmtSpec.customSpecCount, '0'));
+                        pad(sink, to!string(fmtValue.millisecond), fmtSpec.customSpecCount, '0');
                     else
-                        put(writer, pad(to!string(fmtValue.tick), fmtSpec.customSpecCount, '0'));
+                        pad(sink, to!string(fmtValue.tick), fmtSpec.customSpecCount, '0');
                     break;
                 case FormatDateTimeSpecifier.customHour:
-                    put(writer, pad(to!string(fmtValue.hour), fmtSpec.customSpecCount, '0'));
+                    pad(sink, to!string(fmtValue.hour), fmtSpec.customSpecCount, '0');
                     break;
                 case FormatDateTimeSpecifier.customMinute:
-                    put(writer, pad(to!string(fmtValue.minute), fmtSpec.customSpecCount, '0'));
+                    pad(sink, to!string(fmtValue.minute), fmtSpec.customSpecCount, '0');
                     break;
                 case FormatDateTimeSpecifier.customMonth:
                     if (fmtSpec.customSpecCount == 3)
-                        put(writer, fmtValue.monthName(setting));
+                        put(sink, fmtValue.monthName(setting));
                     else
-                        put(writer, pad(to!string(fmtValue.month), fmtSpec.customSpecCount, '0'));
+                        pad(sink, to!string(fmtValue.month), fmtSpec.customSpecCount, '0');
                     break;
                 case FormatDateTimeSpecifier.customSecond:
-                    put(writer, pad(to!string(fmtValue.second), fmtSpec.customSpecCount, '0'));
+                    pad(sink, to!string(fmtValue.second), fmtSpec.customSpecCount, '0');
                     break;
                 case FormatDateTimeSpecifier.customSeparatorDate:
-                    put(writer, setting.dateSeparator);
+                    put(sink, setting.dateSeparator);
                     break;
                 case FormatDateTimeSpecifier.customSeparatorTime:
-                    put(writer, setting.timeSeparator);
+                    put(sink, setting.timeSeparator);
                     break;
                 case FormatDateTimeSpecifier.customYear:
                     if (fmtSpec.customSpecCount <= 2)
-                        put(writer, pad(to!string(fmtValue.shortYear), fmtSpec.customSpecCount, '0'));
+                        pad(sink, to!string(fmtValue.shortYear), fmtSpec.customSpecCount, '0');
                     else
-                        put(writer, pad(to!string(fmtValue.year), fmtSpec.customSpecCount, '0'));
+                        pad(sink, to!string(fmtValue.year), fmtSpec.customSpecCount, '0');
                     break;
                 default:
                     assert(0);
@@ -569,41 +569,41 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 
     void putFullDateTime() nothrow @safe
     {
-        put(writer, fmtValue.dayOfWeekName(setting));
-        put(writer, ", ");
-        put(writer, fmtValue.monthName(setting));
-        put(writer, ' ');
-        put(writer, to!string(fmtValue.day));
-        put(writer, ", ");
-        put(writer, pad(to!string(fmtValue.year), 4, '0'));
-        put(writer, ' ');
-        put(writer, to!string(fmtValue.shortHour));
-        put(writer, setting.timeSeparator);
-        put(writer, pad(to!string(fmtValue.minute), 2, '0'));
+        put(sink, fmtValue.dayOfWeekName(setting));
+        put(sink, ", ");
+        put(sink, fmtValue.monthName(setting));
+        put(sink, ' ');
+        put(sink, to!string(fmtValue.day));
+        put(sink, ", ");
+        pad(sink, to!string(fmtValue.year), 4, '0');
+        put(sink, ' ');
+        put(sink, to!string(fmtValue.shortHour));
+        put(sink, setting.timeSeparator);
+        pad(sink, to!string(fmtValue.minute), 2, '0');
     }
 
     void putGeneralDateTime() nothrow @safe
     {
-        put(writer, to!string(fmtValue.month));
-        put(writer, setting.dateSeparator);
-        put(writer, to!string(fmtValue.day));
-        put(writer, setting.dateSeparator);
-        put(writer, pad(to!string(fmtValue.year), 4, '0'));
-        put(writer, ' ');
-        put(writer, to!string(fmtValue.shortHour));
-        put(writer, setting.timeSeparator);
-        put(writer, pad(to!string(fmtValue.minute), 2, '0'));
+        put(sink, to!string(fmtValue.month));
+        put(sink, setting.dateSeparator);
+        put(sink, to!string(fmtValue.day));
+        put(sink, setting.dateSeparator);
+        pad(sink, to!string(fmtValue.year), 4, '0');
+        put(sink, ' ');
+        put(sink, to!string(fmtValue.shortHour));
+        put(sink, setting.timeSeparator);
+        pad(sink, to!string(fmtValue.minute), 2, '0');
     }
 
     void putTime() nothrow @safe
     {
-        put(writer, to!string(fmtValue.shortHour));
-        put(writer, setting.timeSeparator);
-        put(writer, pad(to!string(fmtValue.minute), 2, '0'));
+        put(sink, to!string(fmtValue.shortHour));
+        put(sink, setting.timeSeparator);
+        pad(sink, to!string(fmtValue.minute), 2, '0');
     }
 
     uint result = 0;
-    while (fmtSpec.writeUpToNextSpec(writer))
+    while (fmtSpec.writeUpToNextSpec(sink))
     {
         switch (fmtSpec.spec)
         {
@@ -616,8 +616,8 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 break;
             case FormatDateTimeSpecifier.fullLongDateTime: // 2009-06-15T13:1:30 -> Monday, June 15, 2009 1:01:30 PM
                 putFullDateTime();
-                put(writer, setting.timeSeparator);
-                put(writer, pad(to!string(fmtValue.second), 2, '0'));
+                put(sink, setting.timeSeparator);
+                pad(sink, to!string(fmtValue.second), 2, '0');
                 putAMorPM();
                 break;
             case FormatDateTimeSpecifier.generalShortDateTime: // 2009-06-15T13:45:30 -> 6/15/2009 1:45 PM
@@ -626,44 +626,44 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 break;
             case FormatDateTimeSpecifier.generalLongDateTime: // 2009-06-15T13:45:30 -> 6/15/2009 1:45:30 PM
                 putGeneralDateTime();
-                put(writer, setting.timeSeparator);
-                put(writer, pad(to!string(fmtValue.second), 2, '0'));
+                put(sink, setting.timeSeparator);
+                pad(sink, to!string(fmtValue.second), 2, '0');
                 putAMorPM();
                 break;
             case FormatDateTimeSpecifier.julianDay:
-                put(writer, to!string(fmtValue.julianDay));
+                put(sink, to!string(fmtValue.julianDay));
                 break;
             case FormatDateTimeSpecifier.longDate: // 2009-06-15T13:45:30 -> Monday, June 15, 2009
-                put(writer, fmtValue.dayOfWeekName(setting));
-                put(writer, ", ");
-                put(writer, fmtValue.monthName(setting));
-                put(writer, ' ');
-                put(writer, to!string(fmtValue.day));
-                put(writer, ", ");
-                put(writer, pad(to!string(fmtValue.year), 4, '0'));
+                put(sink, fmtValue.dayOfWeekName(setting));
+                put(sink, ", ");
+                put(sink, fmtValue.monthName(setting));
+                put(sink, ' ');
+                put(sink, to!string(fmtValue.day));
+                put(sink, ", ");
+                pad(sink, to!string(fmtValue.year), 4, '0');
                 break;
             case FormatDateTimeSpecifier.longTime: // 2009-06-15T13:45:30 -> 1:45:30 PM
                 putTime();
-                put(writer, setting.timeSeparator);
-                put(writer, pad(to!string(fmtValue.second), 2, '0'));
+                put(sink, setting.timeSeparator);
+                pad(sink, to!string(fmtValue.second), 2, '0');
                 putAMorPM();
                 break;
             case FormatDateTimeSpecifier.monthDay: // 2009-06-15T13:45:30 -> June 15
-                put(writer, fmtValue.monthName(setting));
-                put(writer, ' ');
-                put(writer, to!string(fmtValue.day));
+                put(sink, fmtValue.monthName(setting));
+                put(sink, ' ');
+                put(sink, to!string(fmtValue.day));
                 break;
             case FormatDateTimeSpecifier.monthYear: // 2009-06-15T13:45:30 -> June 2009
-                put(writer, fmtValue.monthName(setting));
-                put(writer, ' ');
-                put(writer, pad(to!string(fmtValue.year), 4, '0'));
+                put(sink, fmtValue.monthName(setting));
+                put(sink, ' ');
+                pad(sink, to!string(fmtValue.year), 4, '0');
                 break;
             case FormatDateTimeSpecifier.shortDate: // 2009-06-15T13:45:30 -> 6/15/2009
-                put(writer, to!string(fmtValue.month));
-                put(writer, setting.dateSeparator);
-                put(writer, to!string(fmtValue.day));
-                put(writer, setting.dateSeparator);
-                put(writer, pad(to!string(fmtValue.year), 4, '0'));
+                put(sink, to!string(fmtValue.month));
+                put(sink, setting.dateSeparator);
+                put(sink, to!string(fmtValue.day));
+                put(sink, setting.dateSeparator);
+                pad(sink, to!string(fmtValue.year), 4, '0');
                 break;
             case FormatDateTimeSpecifier.shortTime: // 2009-06-15T13:45:30 -> 1:45 PM
                 putTime();
@@ -673,85 +673,85 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 // Date part
                 if (fmtValue.kind != FormatDateTimeValue.ValueKind.time)
                 {
-                    put(writer, pad(to!string(fmtValue.year), 4, '0'));
-                    put(writer, '-');
-                    put(writer, pad(to!string(fmtValue.month), 2, '0'));
-                    put(writer, '-');
-                    put(writer, pad(to!string(fmtValue.day), 2, '0'));
+                    pad(sink, to!string(fmtValue.year), 4, '0');
+                    put(sink, '-');
+                    pad(sink, to!string(fmtValue.month), 2, '0');
+                    put(sink, '-');
+                    pad(sink, to!string(fmtValue.day), 2, '0');
 
                     // Has time?
                     if (fmtValue.kind != FormatDateTimeValue.ValueKind.date)
-                        put(writer, 'T');
+                        put(sink, 'T');
                 }
 
                 // Time part
                 if (fmtValue.kind != FormatDateTimeValue.ValueKind.date)
                 {
-                    put(writer, pad(to!string(fmtValue.hour), 2, '0'));
-                    put(writer, ':');
-                    put(writer, pad(to!string(fmtValue.minute), 2, '0'));
-                    put(writer, ':');
-                    put(writer, pad(to!string(fmtValue.second), 2, '0'));
-                    put(writer, '.');
-                    put(writer, pad(to!string(fmtValue.tick), Tick.ticksMaxPrecision, '0'));
+                    pad(sink, to!string(fmtValue.hour), 2, '0');
+                    put(sink, ':');
+                    pad(sink, to!string(fmtValue.minute), 2, '0');
+                    put(sink, ':');
+                    pad(sink, to!string(fmtValue.second), 2, '0');
+                    put(sink, '.');
+                    pad(sink, to!string(fmtValue.tick), Tick.ticksMaxPrecision, '0');
                 }
                 break;
             case FormatDateTimeSpecifier.sortableDateTimeLess: // 2009-06-15T13:45:30.000001 -> 2009-06-15T13:45:30
                 // Date part
                 if (fmtValue.kind != FormatDateTimeValue.ValueKind.time)
                 {
-                    put(writer, pad(to!string(fmtValue.year), 4, '0'));
-                    put(writer, '-');
-                    put(writer, pad(to!string(fmtValue.month), 2, '0'));
-                    put(writer, '-');
-                    put(writer, pad(to!string(fmtValue.day), 2, '0'));
+                    pad(sink, to!string(fmtValue.year), 4, '0');
+                    put(sink, '-');
+                    pad(sink, to!string(fmtValue.month), 2, '0');
+                    put(sink, '-');
+                    pad(sink, to!string(fmtValue.day), 2, '0');
 
                     // Has time?
                     if (fmtValue.kind != FormatDateTimeValue.ValueKind.date)
-                        put(writer, 'T');
+                        put(sink, 'T');
                 }
 
                 // Time part
                 if (fmtValue.kind != FormatDateTimeValue.ValueKind.date)
                 {
-                    put(writer, pad(to!string(fmtValue.hour), 2, '0'));
-                    put(writer, ':');
-                    put(writer, pad(to!string(fmtValue.minute), 2, '0'));
-                    put(writer, ':');
-                    put(writer, pad(to!string(fmtValue.second), 2, '0'));
+                    pad(sink, to!string(fmtValue.hour), 2, '0');
+                    put(sink, ':');
+                    pad(sink, to!string(fmtValue.minute), 2, '0');
+                    put(sink, ':');
+                    pad(sink, to!string(fmtValue.second), 2, '0');
                 }
                 break;
             case FormatDateTimeSpecifier.utcFullDateTime: // 2009-06-15T13:45:30 -> Monday, June 15, 2009 1:45:30 PM
-                put(writer, fmtValue.dayOfWeekName(setting));
-                put(writer, ", ");
-                put(writer, fmtValue.monthName(setting));
-                put(writer, ' ');
-                put(writer, to!string(fmtValue.day));
-                put(writer, ", ");
-                put(writer, pad(to!string(fmtValue.year), 4, '0'));
-                put(writer, ' ');
-                put(writer, to!string(fmtValue.shortHour));
-                put(writer, ':');
-                put(writer, pad(to!string(fmtValue.minute), 2, '0'));
-                put(writer, ':');
-                put(writer, pad(to!string(fmtValue.second), 2, '0'));
+                put(sink, fmtValue.dayOfWeekName(setting));
+                put(sink, ", ");
+                put(sink, fmtValue.monthName(setting));
+                put(sink, ' ');
+                put(sink, to!string(fmtValue.day));
+                put(sink, ", ");
+                pad(sink, to!string(fmtValue.year), 4, '0');
+                put(sink, ' ');
+                put(sink, to!string(fmtValue.shortHour));
+                put(sink, ':');
+                pad(sink, to!string(fmtValue.minute), 2, '0');
+                put(sink, ':');
+                pad(sink, to!string(fmtValue.second), 2, '0');
                 putAMorPM();
                 break;
             case FormatDateTimeSpecifier.utcSortableDateTime: // 2009-06-15T13:45:30.0000001 -> 2009-06-15 13:45:30.0000001Z
-                put(writer, pad(to!string(fmtValue.year), 4, '0'));
-                put(writer, '-');
-                put(writer, pad(to!string(fmtValue.month), 2, '0'));
-                put(writer, '-');
-                put(writer, pad(to!string(fmtValue.day), 2, '0'));
-                put(writer, ' ');
-                put(writer, pad(to!string(fmtValue.hour), 2, '0'));
-                put(writer, ':');
-                put(writer, pad(to!string(fmtValue.minute), 2, '0'));
-                put(writer, ':');
-                put(writer, pad(to!string(fmtValue.second), 2, '0'));
-                put(writer, '.');
-                put(writer, pad(to!string(fmtValue.tick), Tick.ticksMaxPrecision, '0'));
-                put(writer, 'Z');
+                pad(sink, to!string(fmtValue.year), 4, '0');
+                put(sink, '-');
+                pad(sink, to!string(fmtValue.month), 2, '0');
+                put(sink, '-');
+                pad(sink, to!string(fmtValue.day), 2, '0');
+                put(sink, ' ');
+                pad(sink, to!string(fmtValue.hour), 2, '0');
+                put(sink, ':');
+                pad(sink, to!string(fmtValue.minute), 2, '0');
+                put(sink, ':');
+                pad(sink, to!string(fmtValue.second), 2, '0');
+                put(sink, '.');
+                pad(sink, to!string(fmtValue.tick), Tick.ticksMaxPrecision, '0');
+                put(sink, 'Z');
                 break;
             default:
                 assert(0);
@@ -761,34 +761,40 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     return result;
 }
 
-uint formatValue(Writer, Char)(auto ref Writer writer, scope ref FormatDateTimeValue fmtValue, scope const(Char)[] fmt)
+uint formatValue(Writer, Char)(auto scope ref Writer sink, scope ref FormatDateTimeValue fmtValue, scope const(Char)[] fmt)
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     auto fmtSpec = FormatDateTimeSpec!Char(fmt);
     auto setting = dateTimeSetting; // Use local var from a thread var for faster use
-    return formatValue(writer, fmtValue, fmtSpec, setting);
+    return formatValue(sink, fmtValue, fmtSpec, setting);
 }
 
-C[] arrayOfChar(C = char)(size_t count, C c) nothrow pure
-if (is(Unqual!C == char) || is(Unqual!C == wchar) || is(Unqual!C == dchar))
-{
-    auto result = new Unqual!C[count];
-    result[] = c;
-    return result;
-}
-
-S pad(S, C)(S value, const(ptrdiff_t) size, C c) nothrow pure
-if (isSomeString!S && isSomeChar!C && is(Unqual!(typeof(S.init[0])) == C))
+void pad(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] value, ptrdiff_t size, Char c) nothrow pure
+if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     import std.math : abs;
 
-    const n = abs(size);
+    auto n = abs(size);
     if (value.length >= n)
-        return value;
+        put(sink, value);
     else
-        return size > 0
-            ? arrayOfChar!C(n - value.length, c) ~ value
-            : value ~ arrayOfChar!C(n - value.length, c);
+    {
+        // Leading pad?
+        if (size > 0)
+        {
+            n -= value.length;
+            while (n--)
+                put(sink, c);
+            put(sink, value);
+        }
+        else
+        {
+            put(sink, value);
+            n -= value.length;
+            while (n--)
+                put(sink, c);
+        }
+    }
 }
 
 

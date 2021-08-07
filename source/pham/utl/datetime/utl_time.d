@@ -301,7 +301,7 @@ public:
         scope (failure) assert(0);
 
         auto buffer = appender!(string);
-        buffer.reserve(20);
+        buffer.reserve(30);
         toString(buffer, "%s");
         return buffer.data;
     }
@@ -316,13 +316,13 @@ public:
         return buffer.data;
     }
 
-    void toString(Writer, Char)(scope ref Writer writer, scope const(Char)[] fmt) const
+    void toString(Writer, Char)(scope ref Writer sink, scope const(Char)[] fmt) const
     if (isOutputRange!(Writer, Char))
     {
         import pham.utl.datetime.date_time_format;
 
         auto fmtValue = FormatDateTimeValue(this);
-        formatValue(writer, fmtValue, fmt);
+        formatValue(sink, fmtValue, fmt);
     }
 
     Time toTimeKind(DateTimeKind kind) const @nogc nothrow pure scope

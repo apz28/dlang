@@ -12,7 +12,6 @@
 module pham.utl.datetime.date_time_parse;
 
 import std.ascii : isPunctuation;
-import std.format : FormatException;
 import std.traits : Unqual;
 import std.uni : sicmp;
 
@@ -407,7 +406,7 @@ struct DateTimeParser
 nothrow @safe:
 
 public:
-    this(ParseType parseType)
+    this(ParseType parseType) @nogc pure
     {
         this.parseType = parseType;
     }

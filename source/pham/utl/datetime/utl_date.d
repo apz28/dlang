@@ -223,18 +223,18 @@ public:
         import std.array : appender;
 
         auto buffer = appender!(string);
-        buffer.reserve(30);
+        buffer.reserve(50);
         toString(buffer, fmt);
         return buffer.data;
     }
 
-    void toString(Writer, Char)(scope ref Writer writer, scope const(Char)[] fmt) const
+    void toString(Writer, Char)(scope ref Writer sink, scope const(Char)[] fmt) const
     if (isOutputRange!(Writer, Char))
     {
         import pham.utl.datetime.date_time_format;
 
         auto fmtValue = FormatDateTimeValue(this);
-        formatValue(writer, fmtValue, fmt);
+        formatValue(sink, fmtValue, fmt);
     }
 
     ErrorOp tryAddDays(const int days, out Date newDate) const @nogc nothrow pure
@@ -1009,7 +1009,7 @@ public:
         scope (failure) assert(0);
 
         auto buffer = appender!(string);
-        buffer.reserve(30);
+        buffer.reserve(50);
         toString(buffer, "%s");
         return buffer.data;
     }
@@ -1019,18 +1019,18 @@ public:
         import std.array : appender;
 
         auto buffer = appender!(string);
-        buffer.reserve(60);
+        buffer.reserve(50);
         toString(buffer, fmt);
         return buffer.data;
     }
 
-    void toString(Writer, Char)(scope ref Writer writer, scope const(Char)[] fmt) const
+    void toString(Writer, Char)(scope ref Writer sink, scope const(Char)[] fmt) const
     if (isOutputRange!(Writer, Char))
     {
         import pham.utl.datetime.date_time_format;
 
         auto fmtValue = FormatDateTimeValue(this);
-        formatValue(writer, fmtValue, fmt);
+        formatValue(sink, fmtValue, fmt);
     }
 
     ErrorOp tryAddDays(const double days, out DateTime newDateTime) const @nogc nothrow pure
