@@ -11,7 +11,7 @@
 
 module pham.utl.utf8;
 
-import std.range.primitives : ElementType, empty, front, isBidirectionalRange, isInfinite, popFront, save;
+import std.range.primitives : ElementType, empty, front, isInfinite, isInputRange, popFront, save;
 import std.traits : isNarrowString, isSomeChar, Unqual;
 
 nothrow @safe:
@@ -146,11 +146,10 @@ enum NumericLexerFlag : byte
     all = allowFloat | allowHex
 }
 
+enum bool isNumericLexerRange(Range) = isInputRange!Range && isSomeChar!(ElementType!Range) && !isInfinite!Range;
+
 struct NumericLexer(Range)
-if (isBidirectionalRange!Range &&
-    isSomeChar!(ElementType!Range) &&
-    !isInfinite!Range &&
-    !isNarrowString!Range)
+if (isNumericLexerRange!Range)
 {
 nothrow @safe:
 
@@ -162,74 +161,24 @@ public:
     {
         this._value = range;
         this._allowFlag = allowFlag;
-        this._decimalSeparator = this._neg = this._hex = false;
+        this._hasDecimalChar = this._neg = this._hex = false;
+        checkHasDigits();
     }
 
     pragma(inline, true)
-    bool allowDecimalChar(const RangeElement c) const pure
+    bool allowDecimalChar(const RangeElement c) const @nogc pure
     {
-        return c == '.' && !_decimalSeparator && (allowFlag & NumericLexerFlag.allowFloat);
-    }
-
-    bool hasDigits() pure
-    {
-        skipSpaces();
-
-        if (!empty)
-        {
-            const c = front;
-            if (c == '-')
-            {
-                _neg = true;
-                popFront();
-            }
-            else if (c == '+')
-                popFront();
-            else if (c == '0' && (allowFlag & NumericLexerFlag.allowHex))
-            {
-                auto s = _value.save();
-                s.popFront();
-                if (!s.empty)
-                {
-                    const n = s.front;
-                    if (n == 'x' || n == 'X')
-                    {
-                        _hex = true;
-                        popFront();
-                        popFront();
-                    }
-                }
-            }
-        }
-
-        if (empty)
-            return false;
-
-        const c = front;
-        return hex ? isHexChar(c) : (isDigitChar(c) | allowDecimalChar(c));
-    }
-
-    void popDecimalChar() pure
-    {
-        _decimalSeparator = true;
-        popFront();
-    }
-
-    void popFront() pure
-    {
-        _value.popFront();
-        while (!_value.empty && _value.front == '_')
-            _value.popFront();
+        return c == decimalChar && !_hasDecimalChar && (allowFlag & NumericLexerFlag.allowFloat);
     }
 
     pragma(inline, true)
-    bool isDigitChar(const RangeElement c) const pure
+    bool isDigitChar(const RangeElement c) const @nogc pure
     {
         return c >= '0' && c <= '9';
     }
 
     pragma(inline, true)
-    bool isHexChar(const RangeElement c) const pure
+    bool isHexChar(const RangeElement c) const @nogc pure
     {
         return (c >= '0' && c <= '9') ||
                 (c >= 'A' && c <= 'F') ||
@@ -237,7 +186,7 @@ public:
     }
 
     pragma(inline, true)
-    bool isSpaceChar(const RangeElement c) const pure
+    bool isSpaceChar(const RangeElement c) const @nogc pure
     {
         return c == ' ' ||
                 c == '\r' ||
@@ -245,7 +194,32 @@ public:
                 c == '\f' ||
                 c == '\t' ||
                 c == '\v' ||
-                c == '_';
+                c == '_' ||
+                c == groupSeparator;
+    }
+
+    void popDecimalChar() pure
+    in
+    {
+        assert(!empty);
+        assert(front == decimalChar);
+    }
+    do
+    {
+        _hasDecimalChar = true;
+        popFront();
+    }
+
+    void popFront() pure
+    {
+        scope (failure) assert(0);
+
+        if (_hasSavedFront)
+            _hasSavedFront = false;
+        else
+            _value.popFront();
+        while (!_value.empty && (_value.front == '_' || _value.front == groupSeparator))
+            _value.popFront();
     }
 
     void skipSpaces() pure
@@ -254,48 +228,122 @@ public:
             popFront();
     }
 
-    RangeElement toUpper(const RangeElement c) const pure
+    RangeElement toUpper(const RangeElement c) const @nogc pure
     {
         return (c >= 'a' && c <= 'z')
             ? cast(RangeElement)(c - ('a' - 'A'))
             : c;
     }
 
-    @property NumericLexerFlag allowFlag() const pure
+    @property NumericLexerFlag allowFlag() const @nogc pure
     {
         return _allowFlag;
     }
 
-    @property bool empty() const pure
+    @property bool empty() const @nogc pure
     {
-        return _value.empty;
+        return _value.empty && !_hasSavedFront;
     }
 
     @property RangeElement front() const pure
     {
-        return _value.front;
+        scope (failure) assert(0);
+
+        return _hasSavedFront ? _savedFront : _value.front;
     }
 
-    @property bool hex() const pure
+    @property bool hasDigits() const @nogc pure
+    {
+        return _hasDigits;
+    }
+
+    @property bool hex() const @nogc pure
     {
         return _hex;
     }
 
-    @property bool neg() const pure
+    @property bool neg() const @nogc pure
     {
         return _neg;
+    }
+
+public:
+    RangeElement decimalChar = '.';
+    RangeElement groupSeparator = ',';
+
+private:
+    void checkHasDigits() pure
+    {
+        scope (failure) assert(0);
+
+        _hasDigits = false;
+        _hasSavedFront = false;
+
+        skipSpacesImpl();
+        if (_value.empty)
+            return;
+
+        const c = _value.front;
+        if (c == '-')
+        {
+            _neg = true;
+            _value.popFront();
+        }
+        else if (c == '+')
+            _value.popFront();
+        else if (c == '0' && (allowFlag & NumericLexerFlag.allowHex))
+        {
+            _savedFront = c;
+            _hasSavedFront = true;
+            _hasDigits = true;
+            _value.popFront();
+            if (_value.empty)
+                return;
+
+            const x = _value.front;
+            if (x == 'x' || x == 'X')
+            {
+                _hex = true;
+                _hasSavedFront = false;
+                _hasDigits = false;
+                popFrontImpl();
+            }
+        }
+
+        if (_value.empty)
+            return;
+
+        const c2 = _value.front;
+        _hasDigits = hex ? isHexChar(c2) : (isDigitChar(c2) | allowDecimalChar(c2));
+    }
+
+    void popFrontImpl() pure
+    {
+        scope (failure) assert(0);
+
+        _value.popFront();
+        while (!_value.empty && (_value.front == '_' || _value.front == groupSeparator))
+            _value.popFront();
+    }
+
+    void skipSpacesImpl() pure
+    {
+        scope (failure) assert(0);
+
+        while (!_value.empty && isSpaceChar(_value.front))
+            popFrontImpl();
     }
 
 private:
     Range _value;
     NumericLexerFlag _allowFlag;
-    bool _hex, _neg, _decimalSeparator;
+    RangeElement _savedFront;
+    bool _hasDigits, _hasSavedFront, _hex, _neg, _hasDecimalChar;
 }
 
 
 // Any below codes are private
 private:
-
 
 nothrow @safe unittest // inplaceMoveToLeft
 {

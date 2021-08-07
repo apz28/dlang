@@ -539,7 +539,6 @@ private:
 // Any below codes are private
 private:
 
-
 nothrow @safe unittest
 {
     import pham.utl.test;

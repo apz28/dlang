@@ -17,7 +17,7 @@ import std.array : Appender;
 import std.ascii : lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
 import std.conv : ConvException;
 import std.format : FormatSpec, formatValue, FormatException;
-import std.range.primitives : isInputRange, ElementType;
+import std.range.primitives : isInputRange, ElementType, put;
 import std.string : indexOf, CaseSensitive;
 import std.traits;
 import std.typecons : Flag, No, Yes;
@@ -1111,49 +1111,49 @@ public:
 
     string toString() const nothrow pure
     {
-        Appender!string writer;
-        writer.reserve(256);
+        Appender!string buffer;
+        buffer.reserve(250);
 
         FormatSpec!char f;
         f.spec = 'd';
-        toString(writer, f);
+        toString(buffer, f);
 
-        return writer.data;
+        return buffer.data;
     }
 
     string toString(string formatString,
         char separatorChar = '\0') const pure
     {
-        Appender!string writer;
-        writer.reserve(256);
+        Appender!string buffer;
+        buffer.reserve(250);
 
         auto f = FormatSpec!char(formatString);
         f.separatorChar = separatorChar;
         if (separatorChar == '\0')
             f.flSeparator = false;
-        f.writeUpToNextSpec(writer);
+        f.writeUpToNextSpec(buffer);
 
         if (f.spec == 'd')
-            toString(writer, f);
+            toString(buffer, f);
         else if (f.spec == 'x' || f.spec == 'X')
-            toHexString(writer, f, Yes.includeSign);
+            toHexString(buffer, f, Yes.includeSign);
        else
             assert(0, "Invalid format specifier: %" ~ f.spec);
 
-        return writer.data;
+        return buffer.data;
     }
 
     string toHexString(const Flag!"includeSign" includeSign = Yes.includeSign,
         const Flag!"isUpper" isUpper = Yes.isUpper) const nothrow pure
     {
-        Appender!string writer;
-        writer.reserve(256);
+        Appender!string buffer;
+        buffer.reserve(250);
 
         FormatSpec!char f;
         f.spec = isUpper ? 'X' : 'x';
-        toHexString(writer, f, includeSign);
+        toHexString(buffer, f, includeSign);
 
-        return writer.data;
+        return buffer.data;
     }
 
     @property bool isEven() const @nogc nothrow pure
@@ -1946,7 +1946,7 @@ private:
         return this;
     }
 
-    void toString(ref Appender!string writer, const ref FormatSpec!char f) const nothrow pure
+    void toString(Writer)(auto scope ref Writer sink, const ref FormatSpec!char f) const nothrow pure
     {
         scope (failure) assert(0);
 
@@ -1954,7 +1954,7 @@ private:
 
         if (cuSrc == 0)
         {
-            formatValue(writer, _sign, f);
+            formatValue(sink, _sign, f);
             return;
         }
 
@@ -1970,19 +1970,19 @@ private:
         {
             uint uCarry = _bits[iuSrc];
             for (size_t iuDst = 0; iuDst < cuDst; iuDst++)
-                {
-                    assert(rguDst[iuDst] < kuBase);
-                    const ulong uuRes = BigIntegerHelper.makeUlong(rguDst[iuDst], uCarry);
-                    rguDst[iuDst] = cast(uint)(uuRes % kuBase);
-                    uCarry = cast(uint)(uuRes / kuBase);
-                }
+            {
+                assert(rguDst[iuDst] < kuBase);
+                const ulong uuRes = BigIntegerHelper.makeUlong(rguDst[iuDst], uCarry);
+                rguDst[iuDst] = cast(uint)(uuRes % kuBase);
+                uCarry = cast(uint)(uuRes / kuBase);
+            }
             if (uCarry != 0)
-                {
-                    rguDst[cuDst++] = uCarry % kuBase;
-                    uCarry /= kuBase;
-                    if (uCarry != 0)
-                        rguDst[cuDst++] = uCarry;
-                }
+            {
+                rguDst[cuDst++] = uCarry % kuBase;
+                uCarry /= kuBase;
+                if (uCarry != 0)
+                    rguDst[cuDst++] = uCarry;
+            }
         }
 
         // Each uint contributes at most 9 digits to the decimal representation.
@@ -1996,10 +1996,10 @@ private:
             uint uDig = rguDst[iuDst];
             assert(uDig < kuBase);
             for (int cch = kcchBase; --cch >= 0;)
-                {
-                    rgch[--ichDst] = cast(char)('0' + uDig % 10);
-                    uDig /= 10;
-                }
+            {
+                rgch[--ichDst] = cast(char)('0' + uDig % 10);
+                uDig /= 10;
+            }
         }
         for (uint uDig = rguDst[cuDst - 1]; uDig != 0;)
         {
@@ -2009,13 +2009,13 @@ private:
 
         ptrdiff_t resultLength = cchMax - ichDst - (signChar != 0 ? 1 : 0);
         while (resultLength < f.width)
-            {
-                writer.put('0');
-                ++resultLength;
-            }
+        {
+            put(sink, '0');
+            ++resultLength;
+        }
 
         if (signChar != 0)
-            writer.put(signChar);
+            put(sink, signChar);
 
         auto digits = rgch[ichDst..rgch.length];
         if (f.flSeparator)
@@ -2023,15 +2023,15 @@ private:
             for (size_t j = 0; j < digits.length; ++j)
             {
                 if (j != 0 && (digits.length - j) % f.separators == 0)
-                    writer.put(f.separatorChar);
-                writer.put(digits[j]);
+                    put(sink, f.separatorChar);
+                put(sink, digits[j]);
             }
         }
         else
-            writer.put(digits);
+            put(sink, digits);
     }
 
-    void toHexString(ref Appender!string writer, const ref FormatSpec!char f, const Flag!"includeSign" includeSign) const nothrow pure
+    void toHexString(Writer)(auto scope ref Writer sink, const ref FormatSpec!char f, const Flag!"includeSign" includeSign) const nothrow pure
     {
         scope (failure) assert(0);
 
@@ -2047,61 +2047,61 @@ private:
         size_t charsPos = 0;
         ptrdiff_t cur = cast(ptrdiff_t)(bytes.length) - 1;
         if (cur >= 0)
+        {
+            // [FF..F8] drop the high F as the two's complement negative number remains clear
+            // [F7..08] retain the high bits as the two's complement number is wrong without it
+            // [07..00] drop the high 0 as the two's complement positive number remains clear
+            bool clearHighF = false;
+            ubyte head = bytes[cur];
+
+            if (head > 0xF7)
             {
-                // [FF..F8] drop the high F as the two's complement negative number remains clear
-                // [F7..08] retain the high bits as the two's complement number is wrong without it
-                // [07..00] drop the high 0 as the two's complement positive number remains clear
-                bool clearHighF = false;
-                ubyte head = bytes[cur];
-
-                if (head > 0xF7)
-                {
-                    head -= 0xF0;
-                    clearHighF = true;
-                }
-
-                if (head < 0x08 || clearHighF)
-                {
-                    // {0xF8-0xFF} print as {8-F}
-                    // {0x00-0x07} print as {0-7}
-                    hexDigits[charsPos++] = head < 10
-                        ? cast(char)(head + '0')
-                        : isUpper
-                            ? cast(char)((head & 0xF) - 10 + 'A')
-                            : cast(char)((head & 0xF) - 10 + 'a');
-                    cur--;
-                }
+                head -= 0xF0;
+                clearHighF = true;
             }
+
+            if (head < 0x08 || clearHighF)
+            {
+                // {0xF8-0xFF} print as {8-F}
+                // {0x00-0x07} print as {0-7}
+                hexDigits[charsPos++] = head < 10
+                    ? cast(char)(head + '0')
+                    : isUpper
+                        ? cast(char)((head & 0xF) - 10 + 'A')
+                        : cast(char)((head & 0xF) - 10 + 'a');
+                cur--;
+            }
+        }
 
         if (cur >= 0)
+        {
+            while (cur >= 0)
             {
-                while (cur >= 0)
-                {
-                    const b = bytes[cur--];
-                    hexDigits[charsPos++] = hexDigitSources[b >> 4];
-                    hexDigits[charsPos++] = hexDigitSources[b & 0xF];
-                }
+                const b = bytes[cur--];
+                hexDigits[charsPos++] = hexDigitSources[b >> 4];
+                hexDigits[charsPos++] = hexDigitSources[b & 0xF];
             }
+        }
 
         ptrdiff_t resultLength = charsPos;
         while (resultLength < f.width)
-            {
-                writer.put('0');
-                ++resultLength;
-            }
+        {
+            put(sink, '0');
+            ++resultLength;
+        }
 
         if (f.flSeparator)
+        {
+            const len = hexDigits.length;
+            for (size_t j = 0; j < len; ++j)
             {
-                const len = hexDigits.length;
-                for (size_t j = 0; j < len; ++j)
-                {
-                    if (j != 0 && (len - j) % f.separators == 0)
-                        writer.put(f.separatorChar);
-                    writer.put(hexDigits[j]);
-                }
+                if (j != 0 && (len - j) % f.separators == 0)
+                    put(sink, f.separatorChar);
+                put(sink, hexDigits[j]);
             }
+        }
         else
-            writer.put(hexDigits[]);
+            put(sink, hexDigits[]);
     }
 
     /// <summary>Mode used to enable sharing <see cref="tryGetUBytes(GetBytesMode, Span{ubyte}, bool, bool, ref int)"/> for multiple purposes.</summary>
@@ -2410,7 +2410,6 @@ BigInteger greatestCommonDivisor(const BigInteger left, const BigInteger right) 
 
 // Any below codes are private
 private:
-
 
 BigInteger greatestCommonDivisor(const(uint)[] leftBits, const(uint)[] rightBits) nothrow pure
 {

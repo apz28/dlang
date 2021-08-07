@@ -16,12 +16,12 @@ import std.algorithm.searching : countUntil;
 import std.conv : ConvException, convTo = to;
 import std.exception : enforce;
 import std.format : format;
-import std.range.primitives : ElementType, isBidirectionalRange, isInfinite;
-import std.traits : isNarrowString, isSomeChar, Unqual;
+import std.range.primitives : ElementType;
+import std.traits : isNarrowString, Unqual;
 import std.utf : byCodeUnit;
 
 version (unittest) import pham.utl.test;
-import pham.utl.utf8 : NumericLexer, NumericLexerFlag;
+import pham.utl.utf8 : isNumericLexerRange, NumericLexer, NumericLexerFlag;
 
 @safe:
 
@@ -52,7 +52,7 @@ public:
         //{"YB", 1L << 80},
     ];
 
-    static ptrdiff_t suffixIndex(string suffix) @nogc nothrow pure
+    static ptrdiff_t suffixIndex(scope const(char)[] suffix) @nogc nothrow pure
     {
         auto result = suffixes.countUntil(suffix);
         if (result < 0 && suffix == "BYTES")
@@ -75,9 +75,12 @@ public:
 
     ref typeof(this) opOpAssign(string op, T)(T value) @nogc pure return
     if (op == "/" && (__traits(isIntegral, T) || __traits(isFloating, T)))
+    in
     {
         assert(value != 0);
-
+    }
+    do
+    {
         _bytes = cast(long)(_bytes / value);
         return this;
     }
@@ -96,9 +99,12 @@ public:
 
     FileSize opBinary(string op, T)(T value) const pure
     if (op == "/" && (__traits(isIntegral, T) || __traits(isFloating, T)))
+    in
     {
         assert(value != 0);
-
+    }
+    do
+    {
         return FileSize(cast(long)(_bytes / value));
     }
 
@@ -143,21 +149,20 @@ public:
     }
 
     static FileSize parse(Range)(Range range) pure
-    if (isBidirectionalRange!Range &&
-        isSomeChar!(ElementType!Range) &&
-        !isInfinite!Range &&
-        !isNarrowString!Range)
+    if (isNumericLexerRange!Range)
     {
         static immutable errorMessage = "Not a valid FileSize string";
         alias RangeElement = Unqual!(ElementType!Range);
-        auto lexer = NumericLexer!(Range)(range, NumericLexerFlag.allowFloat);
 
-        enforce!ConvException(lexer.hasDigits(), errorMessage);
+        auto lexer = NumericLexer!(Range)(range, NumericLexerFlag.allowFloat);
+        enforce!ConvException(lexer.hasDigits, errorMessage);
+
         size_t nNumber = 0;
         RangeElement[30] number;
         while (!lexer.empty && nNumber < number.length)
         {
             const c = lexer.front;
+
             if (lexer.isDigitChar(c))
             {
                 number[nNumber++] = c;
@@ -199,12 +204,6 @@ public:
             v = cast(long)n;
 
         return FileSize(lexer.neg ? -v : v);
-    }
-
-    static FileSize parse(Range)(Range range) pure
-    if (isNarrowString!Range)
-    {
-        return parse(range.byCodeUnit);
     }
 
     long to(string units)() const @nogc nothrow pure
@@ -268,7 +267,6 @@ alias PBytes = FileSize.from!"PB";
 
 
 private:
-
 
 @safe nothrow unittest // FileSize.opCmp
 {
@@ -504,10 +502,10 @@ private:
     assert(f0 == FileSize(0));
 
     auto f1 = FileSize.parse("101"d);
-    assert(f1 == FileSize(101));
+    assert(f1 == FileSize(101), f1.toString!"Bytes"());
 
     auto f2 = FileSize.parse("1_000"c);
-    assert(f2 == FileSize(1_000));
+    assert(f2 == FileSize(1_000), f1.toString!"Bytes"());
 
     auto f3 = FileSize.parse("  1_000  Bytes "c);
     assert(f3 == FileSize(1_000));

@@ -278,7 +278,6 @@ private:
 
 private:
 
-
 struct TimerNotifier
 {
 nothrow @safe:
