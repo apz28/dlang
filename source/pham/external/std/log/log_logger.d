@@ -2263,7 +2263,7 @@ public:
     alias pad = pham.external.std.log.date_time_format.pad;
     alias format = pham.external.std.log.date_time_format.format;
 
-    void write(Writer)(auto ref Writer writer, ref Logger.LogEntry payload) @trusted
+    void write(Writer)(auto scope ref Writer sink, ref Logger.LogEntry payload) @trusted
     {
         auto patternParser = LogOutputPatternParser(logger.outputPattern);
         while (!patternParser.empty)
@@ -2272,7 +2272,7 @@ public:
             final switch (patternParser.next(element)) with (LogOutputPatternElement.Kind)
             {
                 case literal:
-                    writer.put(element.value);
+                    put(sink, element.value);
                     break;
                 case pattern:
                     // Try matching a support pattern
@@ -2321,17 +2321,24 @@ public:
                             break;
                         // Not matching any pattern, output as is
                         default:
-                            writer.put(element.value);
+                            put(sink, element.value);
                             break;
                     }
                     if (patternValue.length)
-                        writer.put(patternValue);
+                        put(sink, patternValue);
                     break;
             }
         }
     }
 
-    static string pad(const ref LogOutputPatternElement pattern, string value) nothrow @safe
+    static string arrayOfChar(size_t count, char c) nothrow pure
+    {
+        auto result = new char[count];
+        result[] = c;
+        return result.idup;
+    }
+
+    static string pad(const ref LogOutputPatternElement pattern, string value) nothrow
     {
         // Truncate
         if (pattern.maxWidth > 0 && value.length > pattern.maxWidth)
@@ -2344,21 +2351,22 @@ public:
         if (pattern.leftPad > 0)
         {
             const p = pattern.maxWidth > 0 ? min(pattern.leftPad, pattern.maxWidth) : pattern.leftPad;
-            value = pad(value, p, ' ');
+            if (value.length < p)
+                value = arrayOfChar(p - value.length, ' ') ~ value;
         }
 
-        // Right pad
         if (pattern.rightPad > 0)
         {
             const p = pattern.maxWidth > 0 ? min(pattern.rightPad, pattern.maxWidth) : pattern.rightPad;
-            value = pad(value, -p, ' ');
+            if (value.length < p)
+                value = value ~ arrayOfChar(p - value.length, ' ');
         }
 
         return value;
     }
 
     // Wrapper of standard split to return null if exception (for nothrow requirement)
-    static string[] safeSplit(string value, char separator) nothrow pure @safe
+    static string[] safeSplit(string value, char separator) nothrow pure
     {
         try
         {
@@ -2385,7 +2393,7 @@ public:
         }
     }
 
-    static string fileName(const ref LogOutputPatternElement pattern, string fileName) nothrow @safe
+    static string fileName(const ref LogOutputPatternElement pattern, string fileName) nothrow
     {
         try
         {
@@ -2417,7 +2425,7 @@ public:
         }
     }
 
-    static string funcName(const ref LogOutputPatternElement pattern, string funcName, string prettyFuncName) nothrow @safe
+    static string funcName(const ref LogOutputPatternElement pattern, string funcName, string prettyFuncName) nothrow
     {
         try
         {
@@ -2450,7 +2458,7 @@ public:
         }
     }
 
-    static string integer(const ref LogOutputPatternElement pattern, int value) nothrow @safe
+    static string integer(const ref LogOutputPatternElement pattern, int value) nothrow
     {
         try
         {
@@ -2464,7 +2472,7 @@ public:
 
     }
 
-    static string integer(const ref LogOutputPatternElement pattern, long value) nothrow @safe
+    static string integer(const ref LogOutputPatternElement pattern, long value) nothrow
     {
         try
         {
@@ -2478,7 +2486,7 @@ public:
 
     }
 
-    static string logLevel(const ref LogOutputPatternElement pattern, LogLevel logLevel) nothrow @safe
+    static string logLevel(const ref LogOutputPatternElement pattern, LogLevel logLevel) nothrow
     {
         try
         {
@@ -2490,12 +2498,12 @@ public:
         }
     }
 
-    static string newLine(const ref LogOutputPatternElement pattern) nothrow @safe
+    static string newLine(const ref LogOutputPatternElement pattern) nothrow
     {
         return newline;
     }
 
-    static string text(const ref LogOutputPatternElement pattern, string value) nothrow @safe
+    static string text(const ref LogOutputPatternElement pattern, string value) nothrow
     {
         try
         {
