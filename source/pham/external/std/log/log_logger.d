@@ -1992,10 +1992,33 @@ public:
     }
 
 public:
+    uint calPadLength(int padLength, const(size_t) valueLength) const pure @nogc
+    {
+        if (padLength <= 0)
+            return 0u;
+
+        if (maxLength > 0 && padLength > maxLength)
+            padLength = maxLength;
+
+        return padLength > valueLength ? padLength - valueLength : 0u;
+    }
+
+    pragma(inline, true)
+    bool isTruncateLeft() const pure @nogc
+    {
+        return leftPad > 0;
+    }
+
+    pragma(inline, true)
+    bool isTruncateLength(size_t valueLength) const pure @nogc
+    {
+        return maxLength > 0 && valueLength > maxLength;
+    }
+
     void resetPattern()
     {
         fmt = pattern = null;
-        detailLevel = maxWidth = leftPad = rightPad = 0;
+        detailLevel = maxLength = leftPad = rightPad = 0;
         // Must leave value & kind members alone
     }
 
@@ -2011,7 +2034,7 @@ public:
     string value;
     uint detailLevel;
     int leftPad;
-    uint maxWidth;
+    int maxLength;
     int rightPad;
     Kind kind;
 }
@@ -2205,7 +2228,7 @@ private:
                         element.setAsLiteral();
                         return;
                     }
-                    element.maxWidth = getPad();
+                    element.maxLength = getPad();
                     break;
                 case OutputPatternMarker.padLeft:
                     // Invalid?
@@ -2240,10 +2263,13 @@ private:
 
 struct LogOutputWriter
 {
+import std.range.primitives : put;
 import std.algorithm.comparison : max, min;
-import std.array : split;
-import std.format : format;
-import std.string : lastIndexOf;
+import std.format : format, formattedWrite;
+
+alias format = pham.external.std.log.date_time_format.format;
+alias formattedWrite = pham.external.std.log.date_time_format.formattedWrite;
+alias pad = pham.external.std.log.date_time_format.pad;
 
 @safe:
 
@@ -2260,9 +2286,6 @@ public:
         this.logger = logger;
     }
 
-    alias pad = pham.external.std.log.date_time_format.pad;
-    alias format = pham.external.std.log.date_time_format.format;
-
     void write(Writer)(auto scope ref Writer sink, ref Logger.LogEntry payload) @trusted
     {
         auto patternParser = LogOutputPatternParser(logger.outputPattern);
@@ -2276,56 +2299,53 @@ public:
                     break;
                 case pattern:
                     // Try matching a support pattern
-                    string patternValue = null;
                     switch (element.pattern)
                     {
                         case OutputPatternName.userContext:
-                            patternValue = userContext(element, payload.logger.userContext);
+                            userContext(sink, element, payload.logger.userContext);
                             break;
                         case OutputPatternName.date:
-                            patternValue = date(element, payload.header.timestamp);
+                            date(sink, element, payload.header.timestamp);
                             break;
                         case OutputPatternName.filename:
-                            patternValue = fileName(element, payload.header.fileName);
+                            fileName(sink, element, payload.header.fileName);
                             break;
                         case OutputPatternName.level:
-                            patternValue = logLevel(element, payload.header.logLevel);
+                            logLevel(sink, element, payload.header.logLevel);
                             break;
                         case OutputPatternName.line:
-                            patternValue = integer(element, payload.header.line);
+                            integer(sink, element, payload.header.line);
                             break;
                         case OutputPatternName.logger:
-                            patternValue = text(element, payload.logger.name);
+                            text(sink, element, payload.logger.name);
                             break;
                         case OutputPatternName.message:
-                            patternValue = text(element, payload.message);
+                            text(sink, element, payload.message);
                             break;
                         case OutputPatternName.method:
-                            patternValue = funcName(element, payload.header.funcName, payload.header.prettyFuncName);
+                            funcName(sink, element, payload.header.funcName, payload.header.prettyFuncName);
                             break;
                         case OutputPatternName.newLine:
-                            patternValue = newLine(element);
+                            newLine(sink, element);
                             break;
                         case OutputPatternName.stacktrace:
                             /// The stack trace of the logging event The stack trace level specifier may be enclosed between braces
                             //TODO
                             break;
                         case OutputPatternName.timestamp:
-                            patternValue = timestamp(element, payload.header.timestamp);
+                            timestamp(sink, element, payload.header.timestamp);
                             break;
                         case OutputPatternName.thread:
-                            patternValue = integer(element, payload.header.threadID);
+                            integer(sink, element, payload.header.threadID);
                             break;
                         case OutputPatternName.username:
-                            patternValue = text(element, payload.logger.userName);
+                            text(sink, element, payload.logger.userName);
                             break;
                         // Not matching any pattern, output as is
                         default:
                             put(sink, element.value);
                             break;
                     }
-                    if (patternValue.length)
-                        put(sink, patternValue);
                     break;
             }
         }
@@ -2338,200 +2358,208 @@ public:
         return result.idup;
     }
 
-    static string pad(const ref LogOutputPatternElement pattern, string value) nothrow
+    static string pad(const ref LogOutputPatternElement element, string value) nothrow
     {
-        // Truncate
-        if (pattern.maxWidth > 0 && value.length > pattern.maxWidth)
+        // No pad - Truncate
+        if (element.isTruncateLength(value.length))
         {
-            return pattern.leftPad > 0 || pattern.rightPad == 0
-                ? value[$ - pattern.maxWidth..$] // Get ending value if left pad
-                : value[0..pattern.maxWidth]; // Get beginning value if right pad
+            return element.isTruncateLeft()
+                ? value[($ - element.maxLength)..$] // Get ending value if left pad
+                : value[0..element.maxLength]; // Get beginning value if right pad
         }
 
-        if (pattern.leftPad > 0)
-        {
-            const p = pattern.maxWidth > 0 ? min(pattern.leftPad, pattern.maxWidth) : pattern.leftPad;
-            if (value.length < p)
-                value = arrayOfChar(p - value.length, ' ') ~ value;
-        }
+        if (const p = element.calPadLength(element.leftPad, value.length))
+            value = arrayOfChar(p, ' ') ~ value;
 
-        if (pattern.rightPad > 0)
-        {
-            const p = pattern.maxWidth > 0 ? min(pattern.rightPad, pattern.maxWidth) : pattern.rightPad;
-            if (value.length < p)
-                value = value ~ arrayOfChar(p - value.length, ' ');
-        }
+        if (const p = element.calPadLength(element.rightPad, value.length))
+            value = value ~ arrayOfChar(p, ' ');
 
         return value;
     }
 
-    // Wrapper of standard split to return null if exception (for nothrow requirement)
-    static string[] safeSplit(string value, char separator) nothrow pure
+    static uint padLeft(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, size_t valueLength) nothrow
     {
-        try
+        scope (failure) return 0u;
+        if (const p = element.calPadLength(element.leftPad, valueLength))
         {
-            return value.split(separator);
+            uint n = p;
+            while (n--)
+                put(sink, ' ');
+            return p;
         }
-        catch(Exception)
-        {
-            return null;
-        }
+        else
+            return 0u;
     }
 
-    static string date(const ref LogOutputPatternElement pattern, in SysTime timestamp) nothrow @trusted
+    static uint padRight(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, size_t valueLength) nothrow
     {
-        try
+        scope (failure) return 0u;
+        if (const p = element.calPadLength(element.rightPad, valueLength))
         {
-            auto s = pattern.fmt.length != 0
-                ? timestamp.format(pattern.fmt)
-                : timestamp.format("%s"); // %s=FmtTimeSpecifier.sortableDateTime
-            return pad(pattern, s);
+            uint n = p;
+            while (n--)
+                put(sink, ' ');
+            return p;
         }
-        catch (Exception)
-        {
-            return null;
-        }
+        else
+            return 0u;
     }
 
-    static string fileName(const ref LogOutputPatternElement pattern, string fileName) nothrow
+    static string date(const ref LogOutputPatternElement element, in SysTime value) nothrow @trusted
     {
-        try
+        scope (failure) return null;
+        // %s=FmtTimeSpecifier.sortableDateTime
+        auto s = element.fmt.length != 0 ? format(element.fmt, value) : format("%s", value);
+        return pad(element, s);
+    }
+
+    static void date(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, in SysTime value) nothrow @trusted
+    {
+        scope (failure) return;
+        // %s=FmtTimeSpecifier.sortableDateTime
+        ShortStringBuffer!char s;
+        if (element.fmt.length)
+            formattedWrite(s, element.fmt, value);
+        else
+            formattedWrite(s, "%s", value);
+        const lp = padLeft(sink, element, s.length);
+        put(sink, s[]);
+        padRight(sink, element, s.length + lp);
+    }
+
+    static string fileName(const ref LogOutputPatternElement element, string fileName) nothrow
+    {
+        return text(element, separatedStringPart(fileName, dirSeparator, element.detailLevel + 1));
+    }
+
+    static void fileName(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, string fileName) nothrow
+    {
+        text(sink, element, separatedStringPart(fileName, dirSeparator, element.detailLevel + 1));
+    }
+
+    static string funcName(const ref LogOutputPatternElement element, string funcName, string prettyFuncName) nothrow
+    {
+        const detailLevel = element.detailLevel;
+        return text(element, detailLevel >= usePrettyFuncNameDetailLevel ? prettyFuncName : separatedStringPart(funcName, '.', detailLevel + 1));
+    }
+
+    static void funcName(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, string funcName, string prettyFuncName) nothrow
+    {
+        const detailLevel = element.detailLevel;
+        text(sink, element, detailLevel >= usePrettyFuncNameDetailLevel ? prettyFuncName : separatedStringPart(funcName, '.', detailLevel + 1));
+    }
+
+    static string integer(I)(const ref LogOutputPatternElement element, I value) nothrow
+    if (isIntegral!I)
+    {
+        scope (failure) return null;
+        auto s = element.fmt.length != 0 ? format(element.fmt, value) : format("%s", value);
+        return pad(element, s);
+    }
+
+    static void integer(Writer, I)(auto ref Writer sink, const ref LogOutputPatternElement element, I value) nothrow
+    if (isIntegral!I)
+    {
+        scope (failure) return;
+        ShortStringBuffer!char s;
+        if (element.fmt.length)
+            formattedWrite(s, element.fmt, value);
+        else
+            formattedWrite(s, "%s", value);
+        const lp = padLeft(sink, element, s.length);
+        put(sink, s[]);
+        padRight(sink, element, s.length + lp);
+    }
+
+    static string logLevel(const ref LogOutputPatternElement element, LogLevel value) nothrow
+    {
+        return text(element, toName!LogLevel(value));
+    }
+
+    static void logLevel(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, LogLevel value) nothrow
+    {
+        text(sink, element, toName!LogLevel(value));
+    }
+
+    static string separatedStringPart(string separatedString, char separator, size_t count) nothrow pure @safe
+    {
+        if (count == 0)
+            return null;
+
+        size_t separatedStringLength = separatedString.length;
+        while (separatedStringLength)
         {
-            string namePart(size_t count) nothrow @safe
+            separatedStringLength--;
+            if (separatedString[separatedStringLength] == separator)
             {
-                string result = null;
-                auto parts = safeSplit(fileName, dirSeparator);
-                auto length = parts.length;
-                while (count > 0 && length > 0)
-                {
-                    count--;
-                    length--;
-                    if (result.length == 0)
-                        result = parts[length];
-                    else
-                        result = parts[length] ~ dirSeparator ~ result;
-                }
-                return result;
+                if (--count == 0)
+                    return separatedString[(separatedStringLength + 1)..$];
             }
-
-            auto name = namePart(pattern.detailLevel + 1);
-            if (pattern.fmt.length)
-                name = format(pattern.fmt, name);
-            return pad(pattern, name);
         }
-        catch (Exception)
-        {
-            return null;
-        }
+        return separatedString;
     }
 
-    static string funcName(const ref LogOutputPatternElement pattern, string funcName, string prettyFuncName) nothrow
-    {
-        try
-        {
-            string namePart(size_t count) nothrow @safe
-            {
-                string result = null;
-                auto parts = safeSplit(funcName, '.');
-                auto length = parts.length;
-                while (count > 0 && length > 0)
-                {
-                    count--;
-                    length--;
-                    if (result.length == 0)
-                        result = parts[length];
-                    else
-                        result = parts[length] ~ '.' ~ result;
-                }
-                return result;
-            }
-
-            const detailLevel = pattern.detailLevel;
-            auto name = detailLevel >= usePrettyFuncNameDetailLevel ? prettyFuncName : namePart(detailLevel + 1);
-            if (pattern.fmt.length)
-                name = format(pattern.fmt, name);
-            return pad(pattern, name);
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
-    static string integer(const ref LogOutputPatternElement pattern, int value) nothrow
-    {
-        try
-        {
-            auto s = pattern.fmt.length != 0 ? format(pattern.fmt, value) : to!string(value);
-            return pad(pattern, s);
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-
-    }
-
-    static string integer(const ref LogOutputPatternElement pattern, long value) nothrow
-    {
-        try
-        {
-            auto s = pattern.fmt.length != 0 ? format(pattern.fmt, value) : to!string(value);
-            return pad(pattern, s);
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-
-    }
-
-    static string logLevel(const ref LogOutputPatternElement pattern, LogLevel logLevel) nothrow
-    {
-        try
-        {
-            return text(pattern, to!string(logLevel));
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
-    static string newLine(const ref LogOutputPatternElement pattern) nothrow
+    static string newLine(const ref LogOutputPatternElement element) nothrow
     {
         return newline;
     }
 
-    static string text(const ref LogOutputPatternElement pattern, string value) nothrow
+    static void newLine(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element) nothrow
     {
-        try
+        scope (failure) return;
+        put(sink, newline);
+    }
+
+    static string text(const ref LogOutputPatternElement element, string value) nothrow
+    {
+        scope (failure) return null;
+        if (element.fmt.length)
+            value = format(element.fmt, value);
+        return pad(element, value);
+    }
+
+    static void text(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, string value) nothrow
+    {
+        scope (failure) return;
+        if (element.fmt.length)
         {
-            if (pattern.fmt.length)
-                value = format(pattern.fmt, value);
-            return pad(pattern, value);
+            ShortStringBuffer!char s;
+            formattedWrite(sink, element.fmt, value);
+            const lp = padLeft(sink, element, s.length);
+            put(sink, s[]);
+            padRight(sink, element, s.length + lp);
         }
-        catch (Exception)
+        else
         {
-            return null;
+            const lp = padLeft(sink, element, value.length);
+            put(sink, value);
+            padRight(sink, element, value.length + lp);
         }
     }
 
-    static string timestamp(const ref LogOutputPatternElement pattern, in SysTime timestamp) nothrow
+    static string timestamp(const ref LogOutputPatternElement element, in SysTime value) nothrow
     {
-        return integer(pattern, (timestamp - appStartupTimestamp).total!"msecs");
+        return integer(element, (value - appStartupTimestamp).total!"msecs");
     }
 
-    static string userContext(const ref LogOutputPatternElement pattern, Object object) nothrow @trusted
+    static void timestamp(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, in SysTime value) nothrow
     {
-        try
-        {
-            return object !is null ? text(pattern, to!string(object)) : text(pattern, null);
-        }
-        catch (Exception)
-        {
-            return null;
-        }
+        integer(sink, element, (value - appStartupTimestamp).total!"msecs");
+    }
+
+    static string userContext(const ref LogOutputPatternElement element, Object value) nothrow @trusted
+    {
+        scope (failure) return null;
+        return value !is null ? text(element, to!string(value)) : text(element, null);
+    }
+
+    static void userContext(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, Object value) nothrow @trusted
+    {
+        scope (failure) return;
+        if (value !is null)
+            text(sink, element, to!string(value));
+        else
+            text(sink, element, null);
     }
 
 private:
@@ -3025,28 +3053,39 @@ shared static this()
 ///
 @safe unittest // moduleLogLevel
 {
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.moduleLogLevel");
+
     static assert(moduleLogLevel!"" == defaultStaticLogLevel);
 }
 
 ///
 @system unittest // moduleLogLevel
 {
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.moduleLogLevel not");
+
     static assert(moduleLogLevel!"not.amodule.path" == defaultStaticLogLevel);
 }
 
 @safe unittest // sharedLogLevel
 {
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.sharedLogLevel");
+
     LogLevel ll = sharedLogLevel;
     scope (exit)
         sharedLogLevel = ll;
 
     sharedLogLevel = LogLevel.fatal;
     assert(sharedLogLevel == LogLevel.fatal);
-
 }
 
 @safe unittest
 {
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.sharedLog");
+
     assert(sharedLogLevel == defaultSharedLogLevel);
 
     auto dl = cast(SharedLogger)sharedLog;
@@ -3061,6 +3100,9 @@ shared static this()
 ///
 @safe unittest // create NullLogger
 {
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.NullLogger");
+
     auto nl1 = new NullLogger();
     nl1.info("You will never read this.");
     nl1.fatal("You will never read this, either and it will not throw");
@@ -3069,12 +3111,17 @@ shared static this()
 ///
 @safe unittest // create ForwardThreadLogger
 {
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.ForwardThreadLogger");
+
     auto nl1 = new ForwardThreadLogger();
 }
 
 @safe unittest // LogOutputPatternParser
 {
     import std.stdio : writeln;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.LogOutputPatternParser");
 
     LogOutputPatternElement element;
     LogOutputPatternElement.Kind kind;
@@ -3169,7 +3216,7 @@ shared static this()
     assert(element.pattern == OutputPatternName.date && element.value == OutputPatternMarker.terminator ~ "2l3r20m'%cmm/%cdd/%cyyyy'" ~ OutputPatternName.date ~ OutputPatternMarker.terminator);
     assert(element.leftPad == 2);
     assert(element.rightPad == 3);
-    assert(element.maxWidth == 20);
+    assert(element.maxLength == 20);
     assert(element.fmt == "%cmm/%cdd/%cyyyy");
 
     assert(!parser.empty);
@@ -3181,7 +3228,7 @@ shared static this()
     kind = parser.next(element);
     assert(kind == LogOutputPatternElement.Kind.pattern);
     assert(element.pattern == OutputPatternName.filename && element.value == OutputPatternMarker.terminator ~ "50m" ~ OutputPatternName.filename ~ OutputPatternMarker.terminator);
-    assert(element.maxWidth == 50);
+    assert(element.maxLength == 50);
 
     assert(!parser.empty);
     kind = parser.next(element);
@@ -3200,29 +3247,34 @@ shared static this()
 @safe unittest // LogOutputWriter.Functions
 {
     import std.stdio : writeln;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.LogOutputWriter.Functions");
 
     // pad
+    traceUnitTest("unittest pham.external.std.log.logger.LogOutputWriter.Functions.pad");
     LogOutputPatternElement padPattern;
-    padPattern.maxWidth = 20;
-    assert(LogOutputWriter.pad(padPattern, "12345678901234567890aB") == "345678901234567890aB"); // truncate from beginning
+    padPattern.maxLength = 20;
+    assert(LogOutputWriter.pad(padPattern, "12345678901234567890aB") == "12345678901234567890"); // truncate from ending - default
     padPattern.rightPad = 2;
     assert(LogOutputWriter.pad(padPattern, "12345678901234567890aB") == "12345678901234567890"); // truncate from ending
     padPattern.leftPad = 2;
     assert(LogOutputWriter.pad(padPattern, "12345678901234567890aB") == "345678901234567890aB");
-    padPattern.maxWidth = padPattern.leftPad = padPattern.rightPad = 0;
+    padPattern.maxLength = padPattern.leftPad = padPattern.rightPad = 0;
     padPattern.leftPad = 22;
     assert(LogOutputWriter.pad(padPattern, "12345678901234567890") == "  12345678901234567890");
-    padPattern.maxWidth = padPattern.leftPad = padPattern.rightPad = 0;
+    padPattern.maxLength = padPattern.leftPad = padPattern.rightPad = 0;
     padPattern.rightPad = 22;
     assert(LogOutputWriter.pad(padPattern, "12345678901234567890") == "12345678901234567890  ");
 
     // date
+    traceUnitTest("unittest pham.external.std.log.logger.LogOutputWriter.Functions.date");
     LogOutputPatternElement datePattern;
     auto timestamp = SysTime(DateTime(1, 1, 1, 1, 1, 1), msecs(1), null);
     version (DebugLogger) debug writeln(LogOutputWriter.date(datePattern, timestamp));
     assert(LogOutputWriter.date(datePattern, timestamp) == "0001-01-01T01:01:01.001000");
 
     // fileName
+    traceUnitTest("unittest pham.external.std.log.logger.LogOutputWriter.Functions.fileName");
     immutable string fileName = "c:"
         ~ LogOutputWriter.dirSeparator ~ "directory"
         ~ LogOutputWriter.dirSeparator ~ "subdir"
@@ -3241,6 +3293,7 @@ shared static this()
     assert(LogOutputWriter.fileName(filePattern, fileName) == fileName);
 
     // funcName
+    traceUnitTest("unittest pham.external.std.log.logger.LogOutputWriter.Functions.funcName");
     immutable string funcName = "core.Point.dot";
     immutable string prettyFuncName = "double core.Point.dot(Point rhs)";
     LogOutputPatternElement funcPattern;
@@ -3253,6 +3306,7 @@ shared static this()
     assert(LogOutputWriter.funcName(funcPattern, funcName, prettyFuncName) == prettyFuncName);
 
     // integer
+    traceUnitTest("unittest pham.external.std.log.logger.LogOutputWriter.Functions.integer");
     LogOutputPatternElement intPattern;
     assert(LogOutputWriter.integer(intPattern, 1) == "1");
     intPattern.fmt = "%,d";
@@ -3260,6 +3314,7 @@ shared static this()
     assert(LogOutputWriter.integer(intPattern, 1_000) == " 1,000");
 
     // text
+    traceUnitTest("unittest pham.external.std.log.logger.LogOutputWriter.Functions.text");
     LogOutputPatternElement textPattern;
     assert(LogOutputWriter.text(textPattern, "a") == "a");
     textPattern.fmt = "Happy %s!";
@@ -3267,6 +3322,7 @@ shared static this()
     assert(LogOutputWriter.text(textPattern, "Tet") == "Happy Tet!     ");
 
     // userContext
+    traceUnitTest("unittest pham.external.std.log.logger.LogOutputWriter.Functions.userContext");
     auto context = new TestLoggerCustomContext();
     LogOutputPatternElement contextPattern;
     assert(LogOutputWriter.userContext(contextPattern, context) == TestLoggerCustomContext.customContext);
@@ -3361,6 +3417,9 @@ void testFuncNames(Logger logger) @safe
 
 @safe unittest
 {
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.LogArgumentWriter");
+
     void dummy() @safe
     {
         auto tl = new TestLogger();
@@ -3373,6 +3432,9 @@ void testFuncNames(Logger logger) @safe
 
 @safe unittest
 {
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.testFuncNames");
+
     auto tl1 = new TestLogger();
     testFuncNames(tl1);
     assert(tl1.func == "pham.external.std.log.logger.testFuncNames", tl1.func);
@@ -3382,6 +3444,9 @@ void testFuncNames(Logger logger) @safe
 
 @safe unittest
 {
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.line");
+
     import std.conv : to;
 
     auto tl1 = new TestLogger();
@@ -3421,6 +3486,8 @@ void testFuncNames(Logger logger) @safe
 @safe unittest
 {
     import pham.external.std.log.multi_logger : MultiLogger;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.MultiLogger");
 
     auto tl1 = new TestLogger();
     auto tl2 = new TestLogger();
@@ -3447,6 +3514,8 @@ void testFuncNames(Logger logger) @safe
 {
     import std.conv : to;
     import std.format : format;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.general");
 
     auto l = new TestLogger();
     string msg = "Hello Logger World";
@@ -3539,19 +3608,19 @@ void testFuncNames(Logger logger) @safe
 @safe unittest
 {
     import std.conv : to;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.general");
 
     auto tl = new TestLogger();
 
-    int l = __LINE__;
-    tl.info("a");
-    assert(tl.line == l+1);
+    tl.info("a"); int l = __LINE__;
+    assert(tl.line == l);
     assert(tl.msg == "a");
     assert(tl.logLevel == defaultUnitTestLogLevel);
 
-    l = __LINE__;
-    tl.trace("b");
+    tl.trace("b"); l = __LINE__;
     assert(tl.msg == "b", tl.msg);
-    assert(tl.line == l+1, to!string(tl.line));
+    assert(tl.line == l, to!string(tl.line));
 }
 
 // testing possible log conditions
@@ -3560,6 +3629,9 @@ void testFuncNames(Logger logger) @safe
     import std.conv : to;
     import std.format : format;
     import std.string : indexOf;
+    import std.conv : to;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.condition");
 
     auto mem = new TestLogger();
     auto memS = new TestLogger();
@@ -3683,6 +3755,9 @@ void testFuncNames(Logger logger) @safe
 // testing more possible log conditions
 @safe unittest
 {
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.condition2");
+
     auto mem = new TestLogger();
     auto logRestore = LogRestore(mem);
 
@@ -3878,6 +3953,8 @@ void testFuncNames(Logger logger) @safe
 @safe unittest
 {
     import std.string : indexOf;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.msg holder");
 
     auto tl = new TestLogger(LoggerOption(LogLevel.info, "Test", defaultOutputPattern));
     auto logRestore = LogRestore(tl);
@@ -3891,6 +3968,8 @@ void testFuncNames(Logger logger) @safe
 {
     import std.string : indexOf;
     import pham.external.std.log.multi_logger : MultiLogger;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.msg holder 2");
 
     auto logger = new MultiLogger(LoggerOption(LogLevel.error, "Multi", defaultOutputPattern));
     auto tl = new TestLogger(LoggerOption(LogLevel.info, "Test", defaultOutputPattern));
@@ -3909,6 +3988,9 @@ void testFuncNames(Logger logger) @safe
 // log objects with non-safe toString
 @system unittest
 {
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.msg holder 3");
+
     struct Test
     {
         string toString() const @system
@@ -3927,6 +4009,8 @@ void testFuncNames(Logger logger) @safe
 @system unittest
 {
     import core.atomic, core.thread, std.concurrency;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.forward");
 
     static shared logged_count = 0;
 
@@ -3985,6 +4069,8 @@ void testFuncNames(Logger logger) @safe
 @safe unittest
 {
     import std.typecons : Nullable;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger - https://issues.dlang.org/show_bug.cgi?id=14940");
 
     Nullable!int a = 1;
     auto l = new TestLogger();
@@ -3995,6 +4081,9 @@ void testFuncNames(Logger logger) @safe
 // Ensure @system toString methods work
 @system unittest
 {
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.logf");
+
     static immutable SystemToStringMsg = "SystemToString";
 
     static struct SystemToString
@@ -4016,6 +4105,8 @@ void testFuncNames(Logger logger) @safe
 @safe unittest
 {
     import std.format : format;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger -  https://issues.dlang.org/show_bug.cgi?id=17328");
 
     ubyte[] data = [0];
     string s = format("%(%02x%)", data); // format 00
@@ -4038,6 +4129,9 @@ void testFuncNames(Logger logger) @safe
 @safe unittest
 {
     import std.conv : to;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger -  https://issues.dlang.org/show_bug.cgi?id=15954");
+
     auto tl = new TestLogger();
     tl.log("123456789".to!wstring);
     assert(tl.msg == "123456789");
@@ -4047,6 +4141,9 @@ void testFuncNames(Logger logger) @safe
 @safe unittest
 {
     import std.conv : to;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger -  https://issues.dlang.org/show_bug.cgi?id=16256");
+
     auto tl = new TestLogger();
     tl.log("123456789"d);
     assert(tl.msg == "123456789");
@@ -4059,6 +4156,8 @@ void testFuncNames(Logger logger) @safe
     import std.path : buildPath;
     import std.stdio : File;
     import std.string : indexOf;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger -  https://issues.dlang.org/show_bug.cgi?id=15517");
 
     string fn = tempDir.buildPath("bug15517.log");
     scope (exit)
@@ -4095,6 +4194,8 @@ void testFuncNames(Logger logger) @safe
     import std.array : empty;
     import std.file : deleteme, remove;
     import std.string : indexOf;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.tofile");
 
     string filename = deleteme ~ __FUNCTION__ ~ ".tempLogFile";
     auto l = new FileLogger(filename);
@@ -4120,6 +4221,8 @@ void testFuncNames(Logger logger) @safe
 {
     import std.file : rmdirRecurse, exists, deleteme;
     import std.path : dirName;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.tofile 2");
 
     const string tmpFolder = dirName(deleteme);
     const string filepath = tmpFolder ~ "/bug15771/minas/oops/";
@@ -4142,6 +4245,8 @@ void testFuncNames(Logger logger) @safe
     import std.array : empty;
     import std.file : deleteme, remove;
     import std.string : indexOf;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.tofile 3");
 
     string filename = deleteme ~ __FUNCTION__ ~ ".tempLogFile";
     auto file = File(filename, "w");
@@ -4172,6 +4277,8 @@ void testFuncNames(Logger logger) @safe
     import std.file : deleteme, exists, remove;
     import std.stdio : File;
     import std.string : indexOf;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.tofile 4");
 
     string filename = deleteme ~ __FUNCTION__ ~ ".tempLogFile";
     FileLogger l = new FileLogger(filename);
@@ -4206,6 +4313,8 @@ void testFuncNames(Logger logger) @safe
     import std.stdio : File;
     import std.string : indexOf;
     import std.range.primitives;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.tofile 5");
 
     string filename = deleteme ~ __FUNCTION__ ~ ".tempLogFile";
 
@@ -4235,6 +4344,8 @@ void testFuncNames(Logger logger) @safe
 @system unittest
 {
     import std.file : deleteme, remove;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.tofile 6");
 
     auto fl = new FileLogger(deleteme ~ "-someFile.log");
     scope(exit)
@@ -4250,6 +4361,8 @@ void testFuncNames(Logger logger) @safe
     import std.array : Appender;
     import std.conv : to;
     import std.stdio : writeln;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.OutputPattern custom");
 
     string testMessage = "message text";
     auto tl = new TestLogger();
@@ -4312,6 +4425,8 @@ unittest // LogTimming
     import std.conv : to;
     import std.stdio : writeln;
     import std.string : indexOf;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.external.std.log.logger.timing");
 
     auto tl = new TestLogger();
     string msg;
