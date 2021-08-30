@@ -674,7 +674,7 @@ unittest // DecimalCodec64
 	//import std.algorithm.mutation : reverse;
 	import pham.utl.object : bytesFromHexs;
 	import pham.utl.test;
-	traceUnitTest("unittest decimal.codec.DecimalCodec64");
+	traceUnitTest("unittest pham.external.dec.codec.DecimalCodec64");
 
 	DecimalCodec64 codec;
 	auto n = Decimal!64.buildin("0");
@@ -740,7 +740,7 @@ unittest // DecimalCodec128
 	//import std.algorithm.mutation : reverse;
 	import pham.utl.object : bytesFromHexs;
 	import pham.utl.test;
-	traceUnitTest("unittest decimal.codec.DecimalCodec128");
+	traceUnitTest("unittest pham.external.dec.codec.DecimalCodec128");
 
 	// Decode
 	DecimalCodec128 codec;
