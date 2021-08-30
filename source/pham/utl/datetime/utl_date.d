@@ -13,6 +13,7 @@ module pham.utl.datetime.date;
 
 import std.range.primitives : isOutputRange;
 
+import pham.utl.utf8 : ShortStringBuffer;
 import pham.utl.datetime.tick;
 import pham.utl.datetime.time : Time;
 import pham.utl.datetime.time_zone : TimeZoneInfo;
@@ -208,24 +209,18 @@ public:
 
     string toString() const nothrow
     {
-        import std.array : appender;
-
         scope (failure) assert(0);
 
-        auto buffer = appender!(string);
-        buffer.reserve(20);
+        ShortStringBuffer!char buffer;
         toString(buffer, "%s");
-        return buffer.data;
+        return buffer.toString();
     }
 
     string toString(scope const(char)[] fmt) const
     {
-        import std.array : appender;
-
-        auto buffer = appender!(string);
-        buffer.reserve(50);
+        ShortStringBuffer!char buffer;
         toString(buffer, fmt);
-        return buffer.data;
+        return buffer.toString();
     }
 
     void toString(Writer, Char)(scope ref Writer sink, scope const(Char)[] fmt) const
@@ -234,7 +229,7 @@ public:
         import pham.utl.datetime.date_time_format;
 
         auto fmtValue = FormatDateTimeValue(this);
-        formatValue(sink, fmtValue, fmt);
+        formattedWrite(sink, fmt, fmtValue);
     }
 
     ErrorOp tryAddDays(const int days, out Date newDate) const @nogc nothrow pure
@@ -1004,33 +999,27 @@ public:
 
     string toString() const nothrow
     {
-        import std.array : appender;
-
         scope (failure) assert(0);
 
-        auto buffer = appender!(string);
-        buffer.reserve(50);
-        toString(buffer, "%s");
-        return buffer.data;
+        ShortStringBuffer!char buffer;
+        return toString(buffer, "%s").toString();
     }
 
     string toString(scope const(char)[] fmt) const
     {
-        import std.array : appender;
-
-        auto buffer = appender!(string);
-        buffer.reserve(50);
-        toString(buffer, fmt);
-        return buffer.data;
+        ShortStringBuffer!char buffer;
+        return toString(buffer, fmt).toString();
     }
 
-    void toString(Writer, Char)(scope ref Writer sink, scope const(Char)[] fmt) const
+    ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt) const
     if (isOutputRange!(Writer, Char))
     {
         import pham.utl.datetime.date_time_format;
 
         auto fmtValue = FormatDateTimeValue(this);
-        formatValue(sink, fmtValue, fmt);
+        formattedWrite(sink, fmt, fmtValue);
+
+        return sink;
     }
 
     ErrorOp tryAddDays(const double days, out DateTime newDateTime) const @nogc nothrow pure
@@ -1815,7 +1804,7 @@ unittest // DateTime.millisecond
 unittest // DateTime.min
 {
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.DateTime.min");
+    traceUnitTest("unittest pham.utl.datetime.date.DateTime.min");
 
     assert(DateTime.min.year == 1);
     assert(DateTime.min.month == 1);
@@ -1829,7 +1818,7 @@ unittest // DateTime.min
 unittest // DateTime.max
 {
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.DateTime.max");
+    traceUnitTest("unittest pham.utl.datetime.date.DateTime.max");
 
     assert(DateTime.max.year == 9999);
     assert(DateTime.max.month == 12);
@@ -1847,7 +1836,7 @@ unittest // DateTime.julianDay
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.DateTime.julianDay");
+    traceUnitTest("unittest pham.utl.datetime.date.DateTime.julianDay");
 
     assert(DateTime.min.julianDay == 0, to!string(DateTime.min.julianDay));
     assert(DateTime.max.julianDay == Date.maxDays + 1, to!string(DateTime.max.julianDay));
@@ -1859,7 +1848,7 @@ unittest // DateTime.opBinary
     import core.time : dur;
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.DateTime.opBinary");
+    traceUnitTest("unittest pham.utl.datetime.date.DateTime.opBinary");
 
     assert(DateTime(1999, 7, 6, 12, 30, 33) + dur!"days"(7) == DateTime(1999, 7, 13, 12, 30, 33));
     assert(DateTime(1999, 7, 6, 12, 30, 33) + dur!"days"(-7) == DateTime(1999, 6, 29, 12, 30, 33));
@@ -1905,7 +1894,7 @@ unittest // DateTime.opBinary
     import core.time : dur;
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.DateTime.opBinary");
+    traceUnitTest("unittest pham.utl.datetime.date.DateTime.opBinary");
 
     assert(DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1998, 7, 6, 12, 30, 33) == dur!"seconds"(31_536_000));
     assert(DateTime(1998, 7, 6, 12, 30, 33) - DateTime(1999, 7, 6, 12, 30, 33) == dur!"seconds"(-31_536_000));
@@ -1939,7 +1928,7 @@ unittest // DateTime.opBinary
 unittest // DateTime.toString
 {
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.DateTime.toString");
+    traceUnitTest("unittest pham.utl.datetime.date.DateTime.toString");
 
     assert(DateTime.max.toString() == "9999-12-31T23:59:59.9999999");
 
@@ -1956,7 +1945,7 @@ unittest // DateTime.toString
 unittest // DateTime.dayOfWeek
 {
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.DateTime.dayOfWeek");
+    traceUnitTest("unittest pham.utl.datetime.date.DateTime.dayOfWeek");
 
     auto dt = DateTime(1999, 7, 6, 12, 30, 33);
     assert(dt.dayOfWeek == DayOfWeek.tuesday);
@@ -1973,7 +1962,7 @@ unittest // DateTime.dayOfWeek
 unittest // DateTime.dayOfYear
 {
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.DateTime.dayOfYear");
+    traceUnitTest("unittest pham.utl.datetime.date.DateTime.dayOfYear");
 
     assert(DateTime(1999, 1, 1, 12, 22, 7).dayOfYear == 1);
     assert(DateTime(1999, 12, 31, 7, 2, 59).dayOfYear == 365);
@@ -1983,7 +1972,7 @@ unittest // DateTime.dayOfYear
 unittest // DateTime.beginOfMonth
 {
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.DateTime.beginOfMonth");
+    traceUnitTest("unittest pham.utl.datetime.date.DateTime.beginOfMonth");
 
     assert(DateTime(1999, 1, 1, 0, 13, 26).beginOfMonth == DateTime(1999, 1, 1, 0, 0, 0, 0));
     assert(DateTime(1999, 2, 2, 1, 14, 27).beginOfMonth == DateTime(1999, 2, 1, 0, 0, 0, 0));
@@ -2003,7 +1992,7 @@ unittest // DateTime.beginOfMonth
 unittest // DateTime.endOfMonth
 {
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.DateTime.endOfMonth");
+    traceUnitTest("unittest pham.utl.datetime.date.DateTime.endOfMonth");
 
     assert(DateTime(1999, 1, 1, 0, 13, 26).endOfMonth == DateTime(Date(1999, 1, 31), Time.max));
     assert(DateTime(1999, 2, 2, 1, 14, 27).endOfMonth == DateTime(Date(1999, 2, 28), Time.max));
@@ -2150,7 +2139,7 @@ unittest // Date.day
 unittest // Date.min
 {
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.Date.min");
+    traceUnitTest("unittest pham.utl.datetime.date.Date.min");
 
     assert(Date.min.year == 1);
     assert(Date.min.month == 1);
@@ -2160,7 +2149,7 @@ unittest // Date.min
 unittest // Date.max
 {
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.Date.max");
+    traceUnitTest("unittest pham.utl.datetime.date.Date.max");
 
     assert(Date.max.year == 9999);
     assert(Date.max.month == 12);
@@ -2174,7 +2163,7 @@ unittest // Date.julianDay
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.Date.julianDay");
+    traceUnitTest("unittest pham.utl.datetime.date.Date.julianDay");
 
     assert(Date.min.julianDay == 0, to!string(Date.min.julianDay));
     assert(Date.max.julianDay == Date.maxDays, to!string(Date.max.julianDay));
@@ -2186,7 +2175,7 @@ unittest // Date.opBinary
     import core.time : dur;
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.Date.opBinary");
+    traceUnitTest("unittest pham.utl.datetime.date.Date.opBinary");
 
     assert(Date(1999, 7, 6) + dur!"days"(7) == Date(1999, 7, 13));
     assert(Date(1999, 7, 6) + dur!"days"(-7) == Date(1999, 6, 29));
@@ -2202,7 +2191,7 @@ unittest // Date.opBinary
     import core.time : dur;
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.Date.opBinary");
+    traceUnitTest("unittest pham.utl.datetime.date.Date.opBinary");
 
     assert(Date(1999, 7, 6) - Date(1998, 7, 6) == dur!"seconds"(31_536_000));
     assert(Date(1998, 7, 6) - Date(1999, 7, 6) == dur!"seconds"(-31_536_000));
@@ -2228,7 +2217,7 @@ unittest // Date.opBinary
 unittest // Date.toString
 {
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.Date.toString");
+    traceUnitTest("unittest pham.utl.datetime.date.Date.toString");
 
     assert(Date.max.toString() == "9999-12-31");
 
@@ -2245,7 +2234,7 @@ unittest // Date.toString
 unittest // Date.dayOfWeek
 {
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.Date.dayOfWeek");
+    traceUnitTest("unittest pham.utl.datetime.date.Date.dayOfWeek");
 
     auto dt = Date(1999, 7, 6);
     assert(dt.dayOfWeek == DayOfWeek.tuesday);
@@ -2262,7 +2251,7 @@ unittest // Date.dayOfWeek
 unittest // Date.dayOfYear
 {
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.Date.dayOfYear");
+    traceUnitTest("unittest pham.utl.datetime.date.Date.dayOfYear");
 
     assert(Date(1999, 1, 1).dayOfYear == 1);
     assert(Date(1999, 12, 31).dayOfYear == 365);
@@ -2272,7 +2261,7 @@ unittest // Date.dayOfYear
 unittest // Date.beginOfMonth
 {
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.Date.beginOfMonth");
+    traceUnitTest("unittest pham.utl.datetime.date.Date.beginOfMonth");
 
     assert(Date(1999, 1, 1).beginOfMonth == Date(1999, 1, 1));
     assert(Date(1999, 2, 2).beginOfMonth == Date(1999, 2, 1));
@@ -2292,7 +2281,7 @@ unittest // Date.beginOfMonth
 unittest // Date.endOfMonth
 {
     import pham.utl.test;
-    traceUnitTest("pham.utl.datetime.date.Date.endOfMonth");
+    traceUnitTest("unittest pham.utl.datetime.date.Date.endOfMonth");
 
     assert(Date(1999, 1, 1).endOfMonth == Date(1999, 1, 31));
     assert(Date(1999, 2, 2).endOfMonth == Date(1999, 2, 28));

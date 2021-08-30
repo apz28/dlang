@@ -498,9 +498,8 @@ private:
     }
 }
 
-uint formatValue(Writer, Char)(auto scope ref Writer sink,
-    scope ref FormatDateTimeValue fmtValue, scope ref FormatDateTimeSpec!Char fmtSpec,
-    scope const ref DateTimeSetting setting)
+uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope ref FormatDateTimeSpec!Char fmtSpec,
+    scope ref FormatDateTimeValue fmtValue, scope const ref DateTimeSetting setting)
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     void putAMorPM() nothrow @safe
@@ -761,12 +760,12 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     return result;
 }
 
-uint formatValue(Writer, Char)(auto scope ref Writer sink, scope ref FormatDateTimeValue fmtValue, scope const(Char)[] fmt)
+uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] fmt, scope ref FormatDateTimeValue fmtValue)
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     auto fmtSpec = FormatDateTimeSpec!Char(fmt);
     auto setting = dateTimeSetting; // Use local var from a thread var for faster use
-    return formatValue(sink, fmtValue, fmtSpec, setting);
+    return formattedWrite(sink, fmtSpec, fmtValue, setting);
 }
 
 void pad(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] value, ptrdiff_t size, Char c) nothrow pure
