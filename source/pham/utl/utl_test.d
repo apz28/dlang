@@ -415,7 +415,6 @@ version (unittest)
 
 private:
 
-
 shared static this() @trusted
 {
     version (profile) PerfFunctionCounter.countersMutex = new Mutex();
@@ -451,7 +450,7 @@ shared static ~this() @trusted
 unittest // PerfCpuUsage
 {
     import pham.utl.test;
-    traceUnitTest("utl.utltest.PerfCpuUsage");
+    traceUnitTest("unittest pham.utl.utltest.PerfCpuUsage");
 
     const cpuTime = PerfCpuUsage.get();
     assert(cpuTime.kernelTime != Duration.max && cpuTime.kernelTime.total!"usecs"() > 0);

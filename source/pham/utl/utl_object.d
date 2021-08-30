@@ -726,7 +726,7 @@ version (unittest)
 nothrow @safe unittest // className
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.object.className");
+    traceUnitTest("unittest pham.utl.object.className");
 
     auto c1 = new ClassName();
     assert(className(c1) == "pham.utl.object.ClassName");
@@ -738,7 +738,7 @@ nothrow @safe unittest // className
 nothrow @safe unittest // currentComputerName
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.object.currentComputerName");
+    traceUnitTest("unittest pham.utl.object.currentComputerName");
 
     assert(currentComputerName().length != 0);
 }
@@ -746,7 +746,7 @@ nothrow @safe unittest // currentComputerName
 nothrow @safe unittest // currentProcessId
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.object.currentProcessId");
+    traceUnitTest("unittest pham.utl.object.currentProcessId");
 
     assert(currentProcessId() != 0);
 }
@@ -754,7 +754,7 @@ nothrow @safe unittest // currentProcessId
 nothrow @safe unittest // currentUserName
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.object.currentUserName");
+    traceUnitTest("unittest pham.utl.object.currentUserName");
 
     assert(currentUserName().length != 0);
 }
@@ -762,7 +762,7 @@ nothrow @safe unittest // currentUserName
 nothrow @safe unittest // pad
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.object.pad");
+    traceUnitTest("unittest pham.utl.object.pad");
 
     assert(pad("", 2, ' ') == "  ");
     assert(pad("12", 2, ' ') == "12");
@@ -773,7 +773,7 @@ nothrow @safe unittest // pad
 nothrow @safe unittest // shortClassName
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.object.shortClassName");
+    traceUnitTest("unittest pham.utl.object.shortClassName");
 
     auto c1 = new ClassName();
     assert(shortClassName(c1) == "pham.utl.object.ClassName");
@@ -785,7 +785,7 @@ nothrow @safe unittest // shortClassName
 unittest // singleton
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.object.singleton");
+    traceUnitTest("unittest pham.utl.object.singleton");
 
     static class A {}
 
@@ -802,7 +802,7 @@ unittest // singleton
 nothrow @safe unittest // stringOfChar
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.object.stringOfChar");
+    traceUnitTest("unittest pham.utl.object.stringOfChar");
 
     assert(stringOfChar(4, ' ') == "    ");
     assert(stringOfChar(0, ' ').length == 0);
@@ -811,7 +811,7 @@ nothrow @safe unittest // stringOfChar
 unittest // InitializedValue
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.object.InitializedValue");
+    traceUnitTest("unittest pham.utl.object.InitializedValue");
 
     InitializedValue!int n;
     assert(!n);
@@ -839,7 +839,7 @@ unittest // InitializedValue
 nothrow @safe unittest // isDigit
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.object.isDigit");
+    traceUnitTest("unittest pham.utl.object.isDigit");
 
     ubyte b;
 
@@ -859,7 +859,7 @@ nothrow @safe unittest // isDigit
 nothrow @safe unittest // isDigits
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.object.isDigits");
+    traceUnitTest("unittest pham.utl.object.isDigits");
 
     assert(isDigits("0"));
     assert(isDigits("0123456789"));
@@ -870,7 +870,7 @@ nothrow @safe unittest // isDigits
 nothrow @safe unittest // isHex
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.object.isHex");
+    traceUnitTest("unittest pham.utl.object.isHex");
 
     ubyte b;
 
@@ -887,7 +887,7 @@ nothrow @safe unittest // isHex
 nothrow @safe unittest // bytesFromHexs & bytesToHexs
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.object.bytesFromHexs & bytesToHexs");
+    traceUnitTest("unittest pham.utl.object.bytesFromHexs & bytesToHexs");
 
     assert(bytesToHexs([0]) == "00");
     assert(bytesToHexs([1]) == "01");
@@ -907,7 +907,7 @@ nothrow @safe unittest // bytesFromHexs & bytesToHexs
 nothrow @safe unittest // VersionString
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.object.VersionString");
+    traceUnitTest("unittest pham.utl.object.VersionString");
 
     const v1Str = "1.2.3.4";
     const v1 = VersionString(v1Str);

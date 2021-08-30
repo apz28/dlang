@@ -925,11 +925,10 @@ size_t saveMembers(T)(IniFile inifile, IniFile.Line sectionName, ref T t)
 // Any below codes are private
 private:
 
-
 unittest // IniFile.parseSection
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.inifile.IniFile.parseSection");
+    traceUnitTest("unittest pham.utl.inifile.IniFile.parseSection");
 
     IniFile.Line name;
 
@@ -979,7 +978,7 @@ unittest // IniFile.parseSection
 unittest // IniFile.parseNameValue
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.inifile.IniFile.parseNameValue");
+    traceUnitTest("unittest pham.utl.inifile.IniFile.parseNameValue");
 
     IniFile.Line name, value;
 
@@ -1054,7 +1053,7 @@ unittest // IniFile.parseNameValue
 unittest // IniFile
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.inifile.IniFile");
+    traceUnitTest("unittest pham.utl.inifile.IniFile");
 
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);
 
@@ -1129,7 +1128,7 @@ struct Foo
 unittest // saveMembers & loadMembers
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.inifile.saveMembers & utl.inifile.loadMembers");
+    traceUnitTest("unittest pham.utl.inifile.saveMembers & utl.inifile.loadMembers");
 
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);
 

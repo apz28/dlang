@@ -2025,7 +2025,7 @@ alias This2Variant(V, T...) = AliasSeq!(ReplaceTypeUnless!(isAlgebraic, This, V,
 nothrow @safe unittest // maxAlignment
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.maxAlignment");
+    traceUnitTest("unittest pham.utl.variant.maxAlignment");
 
     static assert(maxAlignment!(int, long) == long.alignof);
     static assert(maxAlignment!(bool, byte) == 1);
@@ -2037,7 +2037,7 @@ nothrow @safe unittest // maxAlignment
 nothrow @safe unittest // maxSize
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.maxSize");
+    traceUnitTest("unittest pham.utl.variant.maxSize");
 
     static assert(maxSize!(int, long) == long.sizeof);
     static assert(maxSize!(bool, byte) == 1);
@@ -2067,7 +2067,7 @@ nothrow @safe version (unittest)
 nothrow @safe unittest // Handler.getHandler
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Handler.getHandler");
+    traceUnitTest("unittest pham.utl.variant.Handler.getHandler");
 
     auto hVoid = Handler!void.getHandler();
     assert(hVoid is globalHVoid);
@@ -2282,7 +2282,7 @@ nothrow @safe unittest // Handler.getHandler
 nothrow @safe unittest // Variant.typeInfo
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.typeInfo");
+    traceUnitTest("unittest pham.utl.variant.Variant.typeInfo");
 
     //traceUnitTest("Variant.sizeof: ", Variant.sizeof, ", ", Variant.size);
     //32 bits: 24, 20
@@ -2491,7 +2491,7 @@ nothrow @safe unittest // Variant.typeInfo
 nothrow @safe unittest // Variant.length
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.length");
+    traceUnitTest("unittest pham.utl.variant.Variant.length");
 
     Variant vVoid;
     assert(vVoid.length == 0);
@@ -2691,7 +2691,7 @@ nothrow @safe unittest // Variant.length
 nothrow @safe unittest // Variant.isNull & Variant.nullify
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.isNull & nullify");
+    traceUnitTest("unittest pham.utl.variant.Variant.isNull & nullify");
 
     Variant vVoid;
     assert(vVoid.isNull);
@@ -2981,7 +2981,7 @@ nothrow @safe unittest // Variant.isNull & Variant.nullify
 nothrow @safe unittest // Variant.peek
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.peek");
+    traceUnitTest("unittest pham.utl.variant.Variant.peek");
 
     static foreach (T; AliasSeq!(byte, ubyte, short, ushort, int, uint, long, ulong))
     {
@@ -3192,7 +3192,7 @@ nothrow @safe unittest // Variant.peek
 @safe unittest // Variant.get
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.get");
+    traceUnitTest("unittest pham.utl.variant.Variant.get");
 
     static foreach (T; AliasSeq!(byte, ubyte, short, ushort, int, uint, long, ulong))
     {
@@ -3411,7 +3411,7 @@ nothrow @safe unittest // Variant.peek
 @system unittest // Variant.get
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.get");
+    traceUnitTest("unittest pham.utl.variant.Variant.get");
 
     // Primarily test that we can assign a void[] to a Variant.
     void[] elements = cast(void[])[1, 2, 3];
@@ -3423,7 +3423,7 @@ nothrow @safe unittest // Variant.peek
 @safe unittest // Variant.get & peek - conversion
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.get & peek - conversion");
+    traceUnitTest("unittest pham.utl.variant.Variant.get & peek - conversion");
 
     // Automatically convert per language rules
     {
@@ -3738,7 +3738,7 @@ nothrow @safe unittest // Variant.peek
 @system unittest // Variant.get & peek - conversion
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.get & peek - conversion");
+    traceUnitTest("unittest pham.utl.variant.Variant.get & peek - conversion");
 
     {
         static class EmptyClass { }
@@ -3781,7 +3781,7 @@ nothrow @safe unittest // Variant.peek
 {
     import std.exception : assertThrown;
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.get - incompatible conversion");
+    traceUnitTest("unittest pham.utl.variant.Variant.get - incompatible conversion");
 
     assertThrown!VariantException(Variant("a").get!int);
 
@@ -3925,7 +3925,7 @@ nothrow @safe unittest // Variant.peek
 @system unittest // Variant - Aggregate with pointer fit in Variant.size
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant - Aggregate with pointer fit in Variant.size");
+    traceUnitTest("unittest pham.utl.variant.Variant - Aggregate with pointer fit in Variant.size");
 
     static int counter;
 
@@ -4008,7 +4008,7 @@ nothrow @safe unittest // Variant.peek
 nothrow @safe unittest // Variant.canGet
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.canGet");
+    traceUnitTest("unittest pham.utl.variant.Variant.canGet");
 
     Variant v;
 
@@ -4047,7 +4047,7 @@ nothrow @safe unittest // Variant.canGet
 nothrow @safe unittest // Variant.operator - compare
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.operator - compare");
+    traceUnitTest("unittest pham.utl.variant.Variant.operator - compare");
 
     {
         Variant a = 1;
@@ -4160,7 +4160,7 @@ nothrow @safe unittest // Variant.operator - compare
 @safe unittest // Variant.operator(~)
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.operator");
+    traceUnitTest("unittest pham.utl.variant.Variant.operator");
 
     assert(Variant("abc") ~ "def" == "abcdef");
     assert(Variant("abc") ~ Variant("def") == "abcdef");
@@ -4181,7 +4181,7 @@ nothrow @safe unittest // Variant.operator - compare
 @system unittest // Variant.opBinary
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.opBinary");
+    traceUnitTest("unittest pham.utl.variant.opBinary");
 
     // For ubyte & ushort, D will promote it to int after calculation
     static foreach (T; AliasSeq!(byte, ubyte, short, ushort, int, long))
@@ -4239,7 +4239,7 @@ nothrow @safe unittest // Variant.operator - compare
 @system unittest // Variant.opUnary
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.opUnary");
+    traceUnitTest("unittest pham.utl.variant.opUnary");
 
     // For ubyte & ushort, D will promote it to int after calculation
     static foreach (T; AliasSeq!(byte, ubyte, short, ushort, int, long))
@@ -4285,7 +4285,7 @@ nothrow @safe unittest // Variant.operator - compare
 nothrow @safe unittest // Variant.opCast!bool
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.isValue");
+    traceUnitTest("unittest pham.utl.variant.Variant.isValue");
 
     Variant v; assert(!v);
     v = null; assert(!v);
@@ -4321,7 +4321,7 @@ nothrow @safe unittest // Variant.opCast!bool
 @system unittest // Variant.toString
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.toString");
+    traceUnitTest("unittest pham.utl.variant.Variant.toString");
 
     static struct S
     {
@@ -4347,7 +4347,7 @@ nothrow @safe unittest // Variant.opCast!bool
 {
     import std.exception : assertThrown;
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.opIndex & opIndexAssign");
+    traceUnitTest("unittest pham.utl.variant.Variant.opIndex & opIndexAssign");
 
     Variant v;
 
@@ -4432,7 +4432,7 @@ nothrow @safe unittest // Variant.opCast!bool
 {
     import std.exception : assertThrown;
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.opOpAssign(~)");
+    traceUnitTest("unittest pham.utl.variant.Variant.opOpAssign(~)");
 
     auto arr = Variant([1.2].dup);
     auto e = arr[0];
@@ -4446,7 +4446,7 @@ nothrow @safe unittest // Variant.opCast!bool
 @system unittest // Variant.delegate & function
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.delegate & function");
+    traceUnitTest("unittest pham.utl.variant.Variant.delegate & function");
 
     Variant v;
 
@@ -4464,7 +4464,7 @@ nothrow @safe unittest // Variant.opCast!bool
 @system unittest // variantArray
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.variantArray");
+    traceUnitTest("unittest pham.utl.variant.variantArray");
 
     auto a = variantArray(1, 3.14, "Hi!");
     assert(a.length == 3);
@@ -4476,7 +4476,7 @@ nothrow @safe unittest // Variant.opCast!bool
 @system unittest // Variant.opApply - static array
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.opApply - static array");
+    traceUnitTest("unittest pham.utl.variant.Variant.opApply - static array");
 
     // static array - unchange
     {
@@ -4512,7 +4512,7 @@ nothrow @safe unittest // Variant.opCast!bool
 @system unittest // Variant.opApply - dynamic array
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.opApply - dynamic array");
+    traceUnitTest("unittest pham.utl.variant.Variant.opApply - dynamic array");
 
     // dynamic array - unchange
     {
@@ -4547,7 +4547,7 @@ nothrow @safe unittest // Variant.opCast!bool
 @system unittest // Variant.opApply - associative array
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant.opApply - associative array");
+    traceUnitTest("unittest pham.utl.variant.Variant.opApply - associative array");
 
     double[string] aa; // key type is string, value type is double
     aa["a"] = 1;
@@ -4571,7 +4571,7 @@ nothrow @safe unittest // Variant.opCast!bool
 {
     import std.exception : assertThrown;
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Algebraic");
+    traceUnitTest("unittest pham.utl.variant.Algebraic");
 
     {
         Algebraic!(int[]) v = [2, 2];
@@ -4630,7 +4630,7 @@ nothrow @safe unittest // Variant.opCast!bool
 nothrow @safe unittest // Algebraic
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Algebraic");
+    traceUnitTest("unittest pham.utl.variant.Algebraic");
 
     {
         Algebraic!(int, double) a;
@@ -4661,7 +4661,7 @@ nothrow @safe unittest // Algebraic
 @safe unittest // visit
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.visit");
+    traceUnitTest("unittest pham.utl.variant.visit");
 
     {
         // validate that visit can be called with a const type
@@ -4798,7 +4798,7 @@ nothrow @safe unittest // Algebraic
 {
     import std.exception : assertThrown;
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.tryVisit");
+    traceUnitTest("unittest pham.utl.variant.tryVisit");
 
     {
         Algebraic!(int, string) variant;
@@ -4835,7 +4835,7 @@ nothrow @safe unittest // Algebraic
 @system unittest // opCmp & opEquals for unqualified array element
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.opCmp & opEquals for unqualified array element");
+    traceUnitTest("unittest pham.utl.variant.opCmp & opEquals for unqualified array element");
 
     char[] abc = ['a','b','c'];
     char[] xyz = ['x','y','z'];
@@ -4851,7 +4851,7 @@ nothrow @safe unittest // Algebraic
 @safe unittest // https://issues.dlang.org/show_bug.cgi?id=10194
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=10194");
+    traceUnitTest("unittest pham.utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=10194");
 
     // Also test for elaborate copying
     static struct S
@@ -4902,7 +4902,7 @@ nothrow @safe unittest // Algebraic
 @safe unittest // https://issues.dlang.org/show_bug.cgi?id=18934
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=18934");
+    traceUnitTest("unittest pham.utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=18934");
 
     static struct S
     {
@@ -4922,7 +4922,7 @@ nothrow @safe unittest // Algebraic
 @safe unittest // https://issues.dlang.org/show_bug.cgi?id=15940
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=15940");
+    traceUnitTest("unittest pham.utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=15940");
 
     static class C { }
     static struct S
@@ -4937,7 +4937,7 @@ nothrow @safe unittest // Algebraic
 @safe unittest // https://issues.dlang.org/show_bug.cgi?id=20666
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=20666");
+    traceUnitTest("unittest pham.utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=20666");
 
     static struct S(int padding)
     {
@@ -4961,7 +4961,7 @@ nothrow @safe unittest // Algebraic
 @system unittest // https://issues.dlang.org/show_bug.cgi?id=20360
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=20360");
+    traceUnitTest("unittest pham.utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=20360");
 
     static int counter;
 
@@ -5045,7 +5045,7 @@ nothrow @safe unittest // Algebraic
 @system unittest // https://issues.dlang.org/show_bug.cgi?id=13262
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=13262");
+    traceUnitTest("unittest pham.utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=13262");
 
     static void fun(T)(Variant v)
     {
@@ -5099,7 +5099,7 @@ nothrow @safe unittest // Algebraic
 @safe unittest // https://issues.dlang.org/show_bug.cgi?id=19986
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=19986");
+    traceUnitTest("unittest pham.utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=19986");
 
     VariantN!32 v;
     v = const(ubyte[33]).init;
@@ -5116,7 +5116,7 @@ nothrow @safe unittest // Algebraic
 @system unittest // https://issues.dlang.org/show_bug.cgi?id=5424
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=5424");
+    traceUnitTest("unittest pham.utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=5424");
 
     interface A { void func1(); }
 
@@ -5130,7 +5130,7 @@ nothrow @safe unittest // Algebraic
 @system unittest // https://issues.dlang.org/show_bug.cgi?id=15791
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=15791");
+    traceUnitTest("unittest pham.utl.variant.Variant - https://issues.dlang.org/show_bug.cgi?id=15791");
 
     int n = 3;
     struct NS1 { int foo() { return n + 10; } }
@@ -5148,7 +5148,7 @@ nothrow @safe unittest // Algebraic
 @safe unittest // https://issues.dlang.org/show_bug.cgi?id=12071
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=12071");
+    traceUnitTest("unittest pham.utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=12071");
 
     static struct Structure { int data; }
     alias VariantTest = Algebraic!(Structure delegate() pure nothrow @nogc @safe);
@@ -5167,7 +5167,7 @@ nothrow @safe unittest // Algebraic
 @system unittest // https://issues.dlang.org/show_bug.cgi?id=14233
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=14233");
+    traceUnitTest("unittest pham.utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=14233");
 
     alias Atom = Algebraic!(string, This[]);
     Atom[] values = [];
@@ -5177,7 +5177,7 @@ nothrow @safe unittest // Algebraic
 @safe unittest // https://issues.dlang.org/show_bug.cgi?id=14198
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=14198");
+    traceUnitTest("unittest pham.utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=14198");
 
     Variant a = true;
     assert(a.typeInfo is typeid(bool));
@@ -5186,7 +5186,7 @@ nothrow @safe unittest // Algebraic
 @system unittest // https://issues.dlang.org/show_bug.cgi?id=13354
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=13354");
+    traceUnitTest("unittest pham.utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=13354");
 
     {
         alias A = Algebraic!(string[]);
@@ -5210,7 +5210,7 @@ nothrow @safe unittest // Algebraic
 @system unittest // https://issues.dlang.org/show_bug.cgi?id=13352
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=13352");
+    traceUnitTest("unittest pham.utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=13352");
 
     alias TP = Algebraic!(long);
     assert(!TP.allowed!ulong);
@@ -5229,7 +5229,7 @@ nothrow @safe unittest // Algebraic
 {
     import std.array;
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=13300");
+    traceUnitTest("unittest pham.utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=13300");
 
     static struct S
     {
@@ -5260,7 +5260,7 @@ nothrow @safe unittest // Algebraic
 @safe unittest // https://issues.dlang.org/show_bug.cgi?id=13871
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=13871");
+    traceUnitTest("unittest pham.utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=13871");
 
     alias A = Algebraic!(int, typeof(null));
     static struct B { A value; }
@@ -5273,7 +5273,7 @@ nothrow @safe unittest // Algebraic
 @safe unittest // https://issues.dlang.org/show_bug.cgi?id=19994
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=19994");
+    traceUnitTest("unittest pham.utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=19994");
 
     alias Inner = Algebraic!(This*);
     alias Outer = Algebraic!(Inner, This*);
@@ -5284,7 +5284,7 @@ nothrow @safe unittest // Algebraic
 @system unittest // https://issues.dlang.org/show_bug.cgi?id=15615
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=15615");
+    traceUnitTest("unittest pham.utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=15615");
 
     alias Value = Algebraic!(long, double);
 
@@ -5309,7 +5309,7 @@ nothrow @safe unittest // Algebraic
 @safe unittest // https://issues.dlang.org/show_bug.cgi?id=14457
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=14457");
+    traceUnitTest("unittest pham.utl.variant.Algebraic - https://issues.dlang.org/show_bug.cgi?id=14457");
 
     {
         alias A = Algebraic!(int, float, double);
@@ -5328,7 +5328,7 @@ nothrow @safe unittest // Algebraic
 @safe unittest // https://issues.dlang.org/show_bug.cgi?id=16383
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.visit - https://issues.dlang.org/show_bug.cgi?id=16383");
+    traceUnitTest("unittest pham.utl.variant.visit - https://issues.dlang.org/show_bug.cgi?id=16383");
 
     class Foo { this() immutable {} }
     alias V = Algebraic!(immutable Foo);
@@ -5343,7 +5343,7 @@ nothrow @safe unittest // Algebraic
 {
     import std.typecons;
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant.visit - https://issues.dlang.org/show_bug.cgi?id=15039");
+    traceUnitTest("unittest pham.utl.variant.visit - https://issues.dlang.org/show_bug.cgi?id=15039");
 
     alias IntTypedef = Typedef!int;
     alias V = Algebraic!(int, IntTypedef, This[]);
@@ -5359,7 +5359,7 @@ nothrow @safe unittest // Algebraic
 @system unittest // https://issues.dlang.org/show_bug.cgi?id=21021
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant - https://issues.dlang.org/show_bug.cgi?id=21021");
+    traceUnitTest("unittest pham.utl.variant - https://issues.dlang.org/show_bug.cgi?id=21021");
 
     static struct S
     {
@@ -5392,7 +5392,7 @@ nothrow @safe unittest // Algebraic
 @system unittest // https://issues.dlang.org/show_bug.cgi?id=21069
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant - https://issues.dlang.org/show_bug.cgi?id=21069");
+    traceUnitTest("unittest pham.utl.variant - https://issues.dlang.org/show_bug.cgi?id=21069");
 
     Variant v = 1;
     auto y = v.get!Variant; // segfault ?
@@ -5402,7 +5402,7 @@ nothrow @safe unittest // Algebraic
 @system unittest // https://issues.dlang.org/show_bug.cgi?id=21253
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant - https://issues.dlang.org/show_bug.cgi?id=21253");
+    traceUnitTest("unittest pham.utl.variant - https://issues.dlang.org/show_bug.cgi?id=21253");
 
     static struct A { int n; }
     static struct B { }
@@ -5416,7 +5416,7 @@ nothrow @safe unittest // Algebraic
 @safe unittest // Variant.get - class type conversion
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant - class type conversion");
+    traceUnitTest("unittest pham.utl.variant - class type conversion");
 
     static class A {}
     static class B : A {}
@@ -5430,7 +5430,7 @@ version (none)
 @system unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant - class-function type conversion not working");
+    traceUnitTest("unittest pham.utl.variant - class-function type conversion not working");
 
     static class A {}
     static class B : A {}
@@ -5449,7 +5449,7 @@ version (none)
 @system unittest // https://issues.dlang.org/show_bug.cgi?id=21296
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.variant - https://issues.dlang.org/show_bug.cgi?id=21296");
+    traceUnitTest("unittest pham.utl.variant - https://issues.dlang.org/show_bug.cgi?id=21296");
 
     immutable aa = ["0": 0];
     auto v = Variant(aa); // Compile error?

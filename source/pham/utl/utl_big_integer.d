@@ -24,6 +24,7 @@ import std.typecons : Flag, No, Yes;
 
 import pham.utl.array : IndexedArray;
 import pham.utl.object : bytesToHexs, isHex, randomDecimalDigits, randomHexDigits;
+import pham.utl.utf8 : ShortStringBuffer;
 import pham.utl.big_integer_helper;
 import pham.utl.big_integer_calculator;
 
@@ -976,7 +977,7 @@ public:
         return BigIntegerHelper.getDoubleFromParts(_sign, exp, man);
     }
 
-    size_t toHash() const nothrow @nogc
+    size_t toHash() const nothrow @nogc @safe
     {
         debug assertValid();
 
@@ -1069,7 +1070,7 @@ public:
     ///   </item>
     /// </list>
     /// </remarks>
-    ubyte[] toBytes(const Flag!"includeSign" includeSign = Yes.includeSign) const nothrow pure
+    ubyte[] toBytes(const Flag!"includeSign" includeSign = Yes.includeSign) const nothrow pure @safe
     {
         UByteTempArray result;
         getUBytesLittleEndian(includeSign, GetBytesMode.allocateArray, result);
@@ -1082,7 +1083,7 @@ public:
     /// return an array of one uint whose element is 0.
     /// </summary>
     /// <returns></returns>
-    uint[] toInts(const Flag!"includeSign" includeSign = Yes.includeSign) const nothrow
+    uint[] toInts(const Flag!"includeSign" includeSign = Yes.includeSign) const nothrow @safe
     {
         if (isEmpty())
             return [0];
@@ -1109,51 +1110,40 @@ public:
         return result.dup;
     }
 
-    string toString() const nothrow pure
+    string toString() const nothrow pure @safe
     {
-        Appender!string buffer;
-        buffer.reserve(250);
-
         FormatSpec!char f;
         f.spec = 'd';
-        toString(buffer, f);
-
-        return buffer.data;
+        ShortStringBuffer!char buffer;
+        return toString(buffer, f).toString();
     }
 
     string toString(string formatString,
-        char separatorChar = '\0') const pure
+        char separatorChar = '\0') const pure @safe
     {
-        Appender!string buffer;
-        buffer.reserve(250);
+        ShortStringBuffer!char buffer;
 
         auto f = FormatSpec!char(formatString);
         f.separatorChar = separatorChar;
-        if (separatorChar == '\0')
-            f.flSeparator = false;
+        f.flSeparator = separatorChar != '\0';
+
         f.writeUpToNextSpec(buffer);
 
-        if (f.spec == 'd')
-            toString(buffer, f);
+        if (f.spec == 'd' || f.spec == 'D')
+            return toString(buffer, f).toString();
         else if (f.spec == 'x' || f.spec == 'X')
-            toHexString(buffer, f, Yes.includeSign);
+            return toHexString(buffer, f, Yes.includeSign).toString();
        else
             assert(0, "Invalid format specifier: %" ~ f.spec);
-
-        return buffer.data;
     }
 
     string toHexString(const Flag!"includeSign" includeSign = Yes.includeSign,
-        const Flag!"isUpper" isUpper = Yes.isUpper) const nothrow pure
+        const Flag!"isUpper" isUpper = Yes.isUpper) const nothrow pure @safe
     {
-        Appender!string buffer;
-        buffer.reserve(250);
-
         FormatSpec!char f;
         f.spec = isUpper ? 'X' : 'x';
-        toHexString(buffer, f, includeSign);
-
-        return buffer.data;
+        ShortStringBuffer!char buffer;
+        return toHexString(buffer, f, includeSign).toString();
     }
 
     @property bool isEven() const @nogc nothrow pure
@@ -1946,7 +1936,83 @@ private:
         return this;
     }
 
-    void toString(Writer)(auto scope ref Writer sink, const ref FormatSpec!char f) const nothrow pure
+    ref Writer toHexString(Writer)(return ref Writer sink, const ref FormatSpec!char f,
+        const Flag!"includeSign" includeSign) const nothrow pure @safe
+    {
+        scope (failure) assert(0);
+
+        const isUpper = f.spec == 'X';
+        const hexDigitSources = isUpper ? upperHexDigits : lowerHexDigits;
+
+        UByteTempArray bytesHolder;
+        getUBytesLittleEndian(includeSign, GetBytesMode.allocateArray, bytesHolder);
+        auto bytes = bytesHolder[];
+
+        auto hexDigits = CharTempArray(bytes.length * 2);
+
+        size_t charsPos = 0;
+        ptrdiff_t cur = cast(ptrdiff_t)(bytes.length) - 1;
+        if (cur >= 0)
+        {
+            // [FF..F8] drop the high F as the two's complement negative number remains clear
+            // [F7..08] retain the high bits as the two's complement number is wrong without it
+            // [07..00] drop the high 0 as the two's complement positive number remains clear
+            bool clearHighF = false;
+            ubyte head = bytes[cur];
+
+            if (head > 0xF7)
+            {
+                head -= 0xF0;
+                clearHighF = true;
+            }
+
+            if (head < 0x08 || clearHighF)
+            {
+                // {0xF8-0xFF} print as {8-F}
+                // {0x00-0x07} print as {0-7}
+                hexDigits[charsPos++] = head < 10
+                    ? cast(char)(head + '0')
+                    : isUpper
+                        ? cast(char)((head & 0xF) - 10 + 'A')
+                        : cast(char)((head & 0xF) - 10 + 'a');
+                cur--;
+            }
+        }
+
+        if (cur >= 0)
+        {
+            while (cur >= 0)
+            {
+                const b = bytes[cur--];
+                hexDigits[charsPos++] = hexDigitSources[b >> 4];
+                hexDigits[charsPos++] = hexDigitSources[b & 0xF];
+            }
+        }
+
+        ptrdiff_t resultLength = charsPos;
+        while (resultLength < f.width)
+        {
+            put(sink, '0');
+            ++resultLength;
+        }
+
+        if (f.flSeparator)
+        {
+            const len = hexDigits.length;
+            for (size_t j = 0; j < len; ++j)
+            {
+                if (j != 0 && (len - j) % f.separators == 0)
+                    put(sink, f.separatorChar);
+                put(sink, hexDigits[j]);
+            }
+        }
+        else
+            put(sink, hexDigits[]);
+
+        return sink;
+    }
+
+    ref Writer toString(Writer)(return ref Writer sink, const ref FormatSpec!char f) const nothrow pure @safe
     {
         scope (failure) assert(0);
 
@@ -1955,7 +2021,7 @@ private:
         if (cuSrc == 0)
         {
             formatValue(sink, _sign, f);
-            return;
+            return sink;
         }
 
         // First convert to base 10^9.
@@ -2029,79 +2095,8 @@ private:
         }
         else
             put(sink, digits);
-    }
 
-    void toHexString(Writer)(auto scope ref Writer sink, const ref FormatSpec!char f, const Flag!"includeSign" includeSign) const nothrow pure
-    {
-        scope (failure) assert(0);
-
-        const isUpper = f.spec == 'X';
-        const hexDigitSources = isUpper ? upperHexDigits : lowerHexDigits;
-
-        UByteTempArray bytesHolder;
-        getUBytesLittleEndian(includeSign, GetBytesMode.allocateArray, bytesHolder);
-        auto bytes = bytesHolder[];
-
-        auto hexDigits = CharTempArray(bytes.length * 2);
-
-        size_t charsPos = 0;
-        ptrdiff_t cur = cast(ptrdiff_t)(bytes.length) - 1;
-        if (cur >= 0)
-        {
-            // [FF..F8] drop the high F as the two's complement negative number remains clear
-            // [F7..08] retain the high bits as the two's complement number is wrong without it
-            // [07..00] drop the high 0 as the two's complement positive number remains clear
-            bool clearHighF = false;
-            ubyte head = bytes[cur];
-
-            if (head > 0xF7)
-            {
-                head -= 0xF0;
-                clearHighF = true;
-            }
-
-            if (head < 0x08 || clearHighF)
-            {
-                // {0xF8-0xFF} print as {8-F}
-                // {0x00-0x07} print as {0-7}
-                hexDigits[charsPos++] = head < 10
-                    ? cast(char)(head + '0')
-                    : isUpper
-                        ? cast(char)((head & 0xF) - 10 + 'A')
-                        : cast(char)((head & 0xF) - 10 + 'a');
-                cur--;
-            }
-        }
-
-        if (cur >= 0)
-        {
-            while (cur >= 0)
-            {
-                const b = bytes[cur--];
-                hexDigits[charsPos++] = hexDigitSources[b >> 4];
-                hexDigits[charsPos++] = hexDigitSources[b & 0xF];
-            }
-        }
-
-        ptrdiff_t resultLength = charsPos;
-        while (resultLength < f.width)
-        {
-            put(sink, '0');
-            ++resultLength;
-        }
-
-        if (f.flSeparator)
-        {
-            const len = hexDigits.length;
-            for (size_t j = 0; j < len; ++j)
-            {
-                if (j != 0 && (len - j) % f.separators == 0)
-                    put(sink, f.separatorChar);
-                put(sink, hexDigits[j]);
-            }
-        }
-        else
-            put(sink, hexDigits[]);
+        return sink;
     }
 
     /// <summary>Mode used to enable sharing <see cref="tryGetUBytes(GetBytesMode, Span{ubyte}, bool, bool, ref int)"/> for multiple purposes.</summary>
@@ -2450,7 +2445,7 @@ nothrow unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger.BigInteger.toString('%d')");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger.toString('%d')");
 
     static void check(T)(T value, string checkedValue,
         string format = null,
@@ -2485,7 +2480,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger.BigInteger.toString('%X')");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger.toString('%X')");
 
     static void check(T)(T value, string checkedValue,
         string format = "%X",
@@ -2520,7 +2515,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger.BigInteger(parse integer)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(parse integer)");
 
     static void check(string value,
         size_t line = __LINE__) @safe
@@ -2553,7 +2548,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger.BigInteger(parse hex)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(parse hex)");
 
     static void check(string value,
         size_t line = __LINE__)
@@ -2584,7 +2579,7 @@ unittest
 unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger.BigInteger(compare)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(compare)");
 
     auto x = BigInteger("12345");
     auto x2 = BigInteger("12345");
@@ -2610,7 +2605,7 @@ unittest
     import std.conv : to, ConvException;
     import std.exception : assertThrown;
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger.BigInteger(cast)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(cast)");
 
     // Non-zero values are regarded as true
     auto x = BigInteger("1");
@@ -2667,7 +2662,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger.BigInteger(operator + - ~ )");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(operator + - ~ )");
 
     static void check(const BigInteger value, string checkedValue,
         size_t line = __LINE__)
@@ -2817,7 +2812,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger.BigInteger(operator * / %)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(operator * / %)");
 
     static void check(const BigInteger value, string checkedValue,
         size_t line = __LINE__)
@@ -2889,7 +2884,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger.BigInteger(operator << >> ^^)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(operator << >> ^^)");
 
     static void check(const BigInteger value, string checkedValue,
         size_t line = __LINE__)
@@ -2919,7 +2914,7 @@ unittest
 unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger.randomDecimalDigits");
+    traceUnitTest("unittest pham.utl.biginteger.randomDecimalDigits");
 
     string s;
 
@@ -2939,7 +2934,7 @@ unittest
 unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger.randomHexDigits");
+    traceUnitTest("unittest pham.utl.biginteger.randomHexDigits");
 
     string s;
 
@@ -2960,7 +2955,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger.BigInteger(multiply)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(multiply)");
 
     static void check(const BigInteger value, string checkedValue,
         size_t line = __LINE__)
@@ -2980,7 +2975,7 @@ unittest
 unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger.BigInteger.enum");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger.enum");
 
     enum b = BigInteger("0x123");
     enum b2 = BigInteger("291");
@@ -2990,7 +2985,7 @@ unittest
 unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger.BigInteger.toBytes");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger.toBytes");
 
     auto b = BigInteger("148607213746748888433115898774488125434956021884951532398437063594981690133657747515764650183781235940657054608881977858196568765979755791042029635107364589767082851027596594595936524517171068826751265581664247659551324634745120309986368437908665195084578221129443657946400665125676458397984792168049771254957");
 
@@ -3001,7 +2996,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger.BigInteger(RSP Calculation)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(RSP Calculation)");
 
     static void check(string caseNumber, const BigInteger value, string checkedValue,
         size_t line = __LINE__)
@@ -3097,7 +3092,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest utl.biginteger - to!BigInteger('123...')");
+    traceUnitTest("unittest pham.utl.biginteger - to!BigInteger('123...')");
 
     const a = to!BigInteger("1234");
     assert(a == 1234);

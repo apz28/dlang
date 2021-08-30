@@ -14,7 +14,10 @@ module pham.utl.enum_set;
 import std.conv : to;
 import std.exception : assumeWontThrow;
 import std.meta : allSatisfy;
+import std.range.primitives : put;
 import std.traits : EnumMembers, isIntegral, Unqual;
+
+import pham.utl.utf8 : ShortStringBuffer;
 
 nothrow @safe:
 
@@ -231,10 +234,21 @@ if (is(E Base == enum))
  *  enum E {e1 = 1, e2 = 2, e3 = 10, ...}
  *  toName!E(e3) returns "e3"
  */
-string toName(E)(E value) pure
+string toName(E)(const E value) pure
 if (is(E Base == enum))
 {
-    return assumeWontThrow(to!string(value));
+    import pham.utl.utf8 : ShortStringBuffer;
+
+    foreach (i, e; EnumMembers!E)
+    {
+        if (value == e)
+        {
+            ShortStringBuffer!char buffer;
+            buffer.put(__traits(allMembers, E)[i]);
+            return buffer.toString();
+        }
+    }
+    return null;
 }
 
 /**
@@ -492,7 +506,6 @@ public:
     size_t fromString(scope const(char)[] values) pure
     {
         import std.ascii : isWhite;
-        import std.conv : to;
 
         this._values = 0;
 
@@ -568,28 +581,34 @@ public:
     /**
      * Returns the string representation of the set
      */
-    string toString() const
+    string toString() const pure
     {
-        import std.array : Appender;
+        ShortStringBuffer!char buffer;
+        return toString(buffer).toString();
+    }
 
+    ref Writer toString(Writer)(return ref Writer sink) const pure
+    {
         if (empty)
-            return "[]";
+        {
+            put(sink, "[]");
+            return sink;
+        }
 
         size_t count;
-        auto res = Appender!string();
-        res.reserve(500);
-        res.put('[');
+        put(sink, '[');
         foreach(e; EnumMembers!E)
         {
             if (on(e))
             {
                 if (count++ != 0)
-                    res.put(',');
-                res.put(toName(e));
+                    put(sink, ',');
+                put(sink, toName(e));
             }
         }
-        res.put(']');
-        return res.data;
+        put(sink, ']');
+
+        return sink;
     }
 
     @property bool empty() const pure
@@ -663,8 +682,6 @@ public:
      */
     T opDispatch(string enumName)()
     {
-        import std.conv : to;
-
         enum e = enumName.to!E;
         return _values[ord(e)];
     }
@@ -674,8 +691,6 @@ public:
      */
     T opDispatch(string enumName)(T value)
     {
-        import std.conv : to;
-
         enum e = enumName.to!E;
         return _values[ord(e)] = value;
     }
@@ -726,7 +741,6 @@ private:
 // Any below codes are private
 private:
 
-
 size_t maxBits() pure
 {
     return ulong.sizeof * 8;
@@ -735,7 +749,7 @@ size_t maxBits() pure
 nothrow @safe unittest // toEnum
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.enum_set.toEnum");
+    traceUnitTest("unittest pham.utl.enum_set.toEnum");
 
     enum EnumTestOrder
     {
@@ -754,7 +768,7 @@ nothrow @safe unittest // toEnum
 nothrow @safe unittest // toName
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.enum_set.toName");
+    traceUnitTest("unittest pham.utl.enum_set.toName");
 
     enum EnumTestOrder : byte
     {
@@ -766,13 +780,25 @@ nothrow @safe unittest // toName
     assert(toName(EnumTestOrder.one) == "one");
     assert(toName(EnumTestOrder.two) == "two");
     assert(toName(EnumTestOrder.three) == "three");
+
+
+    enum EnumTestOrder2 : byte
+    {
+        one = 3,
+        two = 6,
+        three = 7
+    }
+
+    assert(toName(EnumTestOrder2.one) == "one");
+    assert(toName(EnumTestOrder2.two) == "two");
+    assert(toName(EnumTestOrder2.three) == "three");
 }
 
 nothrow @safe unittest // EnumSet
 {
     import std.traits : OriginalType;
     import pham.utl.test;
-    traceUnitTest("unittest utl.enum_set.EnumSet");
+    traceUnitTest("unittest pham.utl.enum_set.EnumSet");
 
     //pragma(msg, size_t.sizeof * 8, '.', size_t.max);
 
@@ -959,7 +985,7 @@ nothrow @safe unittest // EnumSet
 nothrow @safe unittest // EnumArray
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.enum_set.EnumArray");
+    traceUnitTest("unittest pham.utl.enum_set.EnumArray");
 
     enum EnumTest
     {

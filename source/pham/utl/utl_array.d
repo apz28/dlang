@@ -542,7 +542,7 @@ private:
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.array.arrayOfChar");
+    traceUnitTest("unittest pham.utl.array.arrayOfChar");
 
     assert(arrayOfChar!char('0', 0) == []);
     assert(arrayOfChar!char('0', 1) == "0");
@@ -552,7 +552,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.array.IndexedArray");
+    traceUnitTest("unittest pham.utl.array.IndexedArray");
 
     auto a = IndexedArray!(int, 2)(0);
 
@@ -654,7 +654,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.array.UnshrinkArray");
+    traceUnitTest("unittest pham.utl.array.UnshrinkArray");
 
     auto a = UnshrinkArray!int(0);
 

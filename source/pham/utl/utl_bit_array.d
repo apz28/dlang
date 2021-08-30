@@ -18,6 +18,8 @@ import std.format : FormatSpec;
 import std.range.primitives : isOutputRange, put;
 import std.traits;
 
+import pham.utl.utf8 : ShortStringBuffer;
+
 nothrow @safe:
 
 pragma(inline, true)
@@ -648,12 +650,9 @@ public:
 
     string toString() const
     {
-        import std.array : Appender;
-
-        auto f = FormatSpec!char("%s");
-        Appender!string result;
-        result.reserve(2 + (length * 2));
-        return toString(result, f)[];
+        FormatSpec!char f; // default spec=%s
+        ShortStringBuffer!char buffer;
+        return toString(buffer, f).toString();
     }
 
     /*
@@ -670,8 +669,8 @@ public:
      *     fmt = A $(REF FormatSpec, std,format) which controls how the data
      *     is displayed.
      */
-    ref W toString(W)(return ref W sink, scope const ref FormatSpec!char fmt) const
-    if (isOutputRange!(W, char))
+    ref Writer toString(Writer)(return ref Writer sink, scope const ref FormatSpec!char fmt) const
+    if (isOutputRange!(Writer, char))
     {
         const spec = fmt.spec;
         switch (spec)
@@ -766,7 +765,7 @@ private:
             clearUnusedHighBits();
     }
 
-    ref W toBitArray(W)(return ref W sink) const
+    ref Writer toBitArray(Writer)(return ref Writer sink) const pure
     {
         put(sink, '[');
         foreach (i; 0..length)
@@ -776,10 +775,11 @@ private:
             put(sink, cast(char)(this[i] + '0'));
         }
         put(sink, ']');
+
         return sink;
     }
 
-    ref W toBitString(W)(return ref W sink) const
+    ref Writer toBitString(Writer)(return ref Writer sink) const pure
     {
         if (!length)
             return sink;
@@ -827,7 +827,6 @@ private:
 // Any below codes are private
 private:
 
-
 version (unittest)
 {
     void checkBitArrayRange(ref BitArray b, size_t start, size_t end, bool v,
@@ -863,7 +862,7 @@ version (unittest)
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray");
 
     auto b = BitArray(1, true);
     assert(b.length == 1);
@@ -899,7 +898,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.length");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.length");
 
     BitArray ba;
 
@@ -919,7 +918,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.opIndex");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.opIndex");
 
     static void fun(const BitArray arr)
     {
@@ -936,7 +935,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.opSliceAssign");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.opSliceAssign");
 
     auto b = BitArray(cast(bool[])[1,0,1,0,1,1]);
 
@@ -981,7 +980,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.flip");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.flip");
 
     // positions 0, 2, 4 are set; after flipping, positions 1, 3, 5 are set
     auto b = BitArray(cast(bool[])[1,0,1,0,1,0]);
@@ -1014,7 +1013,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.countBitSet");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.countBitSet");
 
     auto a = BitArray(cast(bool[])[0,1,1,0,0,1,1]);
     assert(a.countBitSet == 4);
@@ -1031,7 +1030,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.opApply");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.opApply");
 
     bool[] ba = [1,0,1];
     auto a = BitArray(ba);
@@ -1065,7 +1064,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.reverse");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.reverse");
 
     bool[5] data = [1,0,1,1,0];
     auto b = BitArray(data);
@@ -1077,7 +1076,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.opEquals");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.opEquals");
 
     bool[] ba = [1,0,1,0,1];
     bool[] bb = [1,0,1];
@@ -1105,7 +1104,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.opCmp");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.opCmp");
 
     {
         bool[] ba = [1,0,1,0,1];
@@ -1172,7 +1171,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.opUnary~");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.opUnary~");
 
     bool[] ba = [1,0,1,0,1];
     auto a = BitArray(ba);
@@ -1188,7 +1187,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.opBinary");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.opBinary");
 
     {
         bool[] ba = [1,0,1,0,1];
@@ -1283,7 +1282,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.opOpAssign");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.opOpAssign");
 
     {
         bool[] ba = [1,0,1,0,1,1,0,1,0,1];
@@ -1521,7 +1520,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.rollRight");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.rollRight");
 
     static if (size_t.sizeof == 8)
     {
@@ -1546,7 +1545,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.rollLeft");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.rollLeft");
 
     static if (size_t.sizeof == 8)
     {
@@ -1571,7 +1570,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.toString(sink)");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.toString(sink)");
 
     auto b = BitArray(cast(const(bool)[])[0,0,0,0,1,1,1,1,0,0,0,0,1,1,1,1]);
 
@@ -1584,7 +1583,7 @@ nothrow @safe unittest
 {
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest("unittest utl.bit_array.BitArray.get");
+    traceUnitTest("unittest pham.utl.bit_array.BitArray.get");
 
 	auto b = BitArray(5, true);
     auto bytes = b.get!ubyte();

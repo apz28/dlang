@@ -11,13 +11,13 @@
 
 module pham.utl.utf8;
 
-import std.range.primitives : ElementType, empty, front, isInfinite, isInputRange, popFront, save;
+import std.range.primitives : ElementType, empty, front, isInfinite, isInputRange, popFront, put, save;
 import std.traits : isNarrowString, isSomeChar, Unqual;
 
 nothrow @safe:
 
 enum unicodeHalfShift = 10;
-enum unicodeHalfBase = 0x00010000;
+enum unicodeHalfBase = 0x0001_0000;
 enum unicodeHalfMask = 0x03FF;
 enum unicodeSurrogateHighBegin = 0xD800;
 enum unicodeSurrogateHighEnd = 0xDBFF;
@@ -341,6 +341,120 @@ private:
     bool _hasDigits, _hasSavedFront, _hex, _neg, _hasDecimalChar;
 }
 
+struct ShortStringBufferSize(size_t Size, Char)
+if (Size > 0 && isSomeChar!Char)
+{
+@safe:
+
+public:
+    this(this) nothrow pure
+    {
+        _longData = _longData.dup;
+    }
+
+    alias opOpAssign(string op : "~") = put;
+    alias opDollar = length;
+
+    Char[] opSlice() nothrow pure return
+    {
+        return _length <= Size ? _shortData[0.._length] : _longData[0.._length];
+    }
+
+    ref typeof(this) clear() nothrow pure
+    {
+        _length = 0;
+        return this;
+    }
+
+    ref typeof(this) put(Char c) nothrow pure
+    {
+        if (_length < Size)
+            _shortData[_length++] = c;
+        else
+        {
+            if (_length == Size)
+                switchToLongData(1);
+            else if (_longData.length <= _length)
+                _longData.length = _length + overReservedLength;
+            _longData[_length++] = c;
+        }
+        return this;
+    }
+
+    ref typeof(this) put(scope const(Char)[] s) nothrow pure
+    {
+        if (!s.length)
+            return this;
+
+        const newLength = _length + s.length;
+        assert(newLength < 1024 * 1024 * 4);
+        if (newLength <= Size)
+        {
+            _shortData[_length..newLength] = s[0..$];
+        }
+        else
+        {
+            if (_length && _length <= Size)
+                switchToLongData(s.length);
+            else if (_longData.length < newLength)
+                _longData.length = newLength + overReservedLength;
+            _longData[_length..newLength] = s[0..$];
+        }
+        _length = newLength;
+        return this;
+    }
+
+    immutable(Char)[] toString() const nothrow pure
+    {
+        return _length != 0
+            ? (_length <= Size ? (_shortData[0.._length]).idup : (_longData[0.._length]).idup)
+            : null;
+    }
+
+    ref Writer toString(Writer)(return ref Writer sink) const pure
+    {
+        if (_length)
+        {
+            if (_length <= Size)
+                put(sink, _shortData[0.._length]);
+            else
+                put(sink, _longData[0.._length]);
+        }
+        return sink;
+    }
+
+    @property bool empty() const @nogc nothrow pure
+    {
+        return _length == 0;
+    }
+
+    @property size_t length() const @nogc nothrow pure
+    {
+        return _length;
+    }
+
+private:
+    void switchToLongData(size_t addtionalLength) nothrow pure
+    {
+        const capacity = _length + addtionalLength + overReservedLength;
+        if (_longData.length < capacity)
+            _longData.length = capacity;
+        _longData[0.._length] = _shortData[0.._length];
+    }
+
+private:
+    enum overReservedLength = 1_000u;
+    size_t _length;
+    Char[] _longData;
+    Char[Size] _shortData;
+}
+
+template ShortStringBuffer(Char)
+{
+    enum overheadSize = ShortStringBufferSize!(1, Char).sizeof;
+    alias ShortStringBuffer = ShortStringBufferSize!(256u - overheadSize, Char);
+}
+
 
 // Any below codes are private
 private:
@@ -348,7 +462,7 @@ private:
 nothrow @safe unittest // inplaceMoveToLeft
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.utf8.inplaceMoveToLeft");
+    traceUnitTest("unittest pham.utl.utf8.inplaceMoveToLeft");
 
     auto chars = cast(ubyte[])"1234567890".dup;
     inplaceMoveToLeft(chars, 5, 0, 5);
@@ -359,7 +473,7 @@ nothrow @safe unittest // NumericLexer
 {
     import std.utf : byCodeUnit;
     import pham.utl.test;
-    traceUnitTest("unittest utl.utf8.NumericLexer");
+    traceUnitTest("unittest pham.utl.utf8.NumericLexer");
 
     NumericLexer!(typeof("".byCodeUnit)) r;
 
@@ -378,4 +492,37 @@ nothrow @safe unittest // NumericLexer
     assert(r.toUpper('A') == 'A');
     assert(r.toUpper('a') == 'A');
     assert(r.toUpper('z') == 'Z');
+}
+
+@safe unittest // ShortStringBufferSize
+{
+    import pham.utl.test;
+    traceUnitTest("unittest pham.utl.utf8.ShortStringBufferSize");
+
+    alias TestFormatString = ShortStringBufferSize!(5, char);
+
+    TestFormatString s;
+    assert(s.length == 0);
+    s.put('1');
+    assert(s.length == 1);
+    s.put("234");
+    assert(s.length == 4);
+    assert(s.toString() == "1234");
+    assert(s[] == "1234");
+    s.clear();
+    assert(s.length == 0);
+    s.put("abc");
+    assert(s.length == 3);
+    assert(s.toString() == "abc");
+    assert(s[] == "abc");
+    s.put("defghijklmnopqrstuvxywz");
+    assert(s.length == 26);
+    assert(s.toString() == "abcdefghijklmnopqrstuvxywz");
+    assert(s[] == "abcdefghijklmnopqrstuvxywz");
+
+    TestFormatString s2;
+    s2 ~= s[];
+    assert(s2.length == 26);
+    assert(s2.toString() == "abcdefghijklmnopqrstuvxywz");
+    assert(s2[] == "abcdefghijklmnopqrstuvxywz");
 }

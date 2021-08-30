@@ -292,7 +292,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest dlink_list");
+    traceUnitTest("unittest pham.utl.dlink_list");
 
     class X
     {

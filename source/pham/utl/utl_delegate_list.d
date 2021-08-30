@@ -97,7 +97,7 @@ private:
 unittest // DelegateList
 {
     import pham.utl.test;
-    traceUnitTest("unittest utl.delegate_list.DelegateList");
+    traceUnitTest("unittest pham.utl.delegate_list.DelegateList");
 
     string eName;
     int eValue;
