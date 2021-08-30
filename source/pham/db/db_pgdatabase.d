@@ -1532,7 +1532,7 @@ version (UnitTestPGDatabase)
 unittest // PgConnection
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.pgdatabase.PgConnection");
+    traceUnitTest("unittest pham.db.pgdatabase.PgConnection");
 
     auto connection = createTestConnection();
     scope (exit)
@@ -1553,7 +1553,7 @@ version (UnitTestPGDatabase)
 unittest // PgTransaction
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.pgdatabase.PgTransaction");
+    traceUnitTest("unittest pham.db.pgdatabase.PgTransaction");
 
     auto connection = createTestConnection();
     scope (exit)
@@ -1595,7 +1595,7 @@ version (UnitTestPGDatabase)
 unittest // PgCommand.DDL
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.pgdatabase.PgCommand.DDL");
+    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DDL");
 
     bool failed = true;
     auto connection = createTestConnection();
@@ -1631,7 +1631,7 @@ unittest // PgCommand.DML
 {
     import std.math;
     import pham.utl.test;
-    traceUnitTest("unittest db.pgdatabase.PgCommand.DML - Simple select");
+    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - Simple select");
 
     bool failed = true;
     auto connection = createTestConnection();
@@ -1663,7 +1663,7 @@ unittest // PgCommand.DML
     while (reader.read())
     {
         count++;
-        traceUnitTest("checking - count: ", count);
+        traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -1717,7 +1717,7 @@ unittest // PgCommand.DML
 {
     import std.math;
     import pham.utl.test;
-    traceUnitTest("unittest db.pgdatabase.PgCommand.DML - Parameter select");
+    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - Parameter select");
 
     bool failed = true;
     auto connection = createTestConnection();
@@ -1756,7 +1756,7 @@ unittest // PgCommand.DML
     while (reader.read())
     {
         count++;
-        traceUnitTest("checking - count: ", count);
+        traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -1809,7 +1809,7 @@ version (UnitTestPGDatabase)
 unittest // PgCommand.DML.pg_proc
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.pgdatabase.PgCommand.DML - pg_proc");
+    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - pg_proc");
 
     bool failed = true;
     auto connection = createTestConnection();
@@ -1846,9 +1846,9 @@ ORDER BY pg_proc.proname
     while (reader.read())
     {
         count++;
-        traceUnitTest("checking - count: ", count);
+        traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
 
-        traceUnitTest("proname=", reader.getValue("proname"),
+        traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.proname=", reader.getValue("proname"),
             ", pronargs=", reader.getValue("pronargs"),
             ", proargnames=", reader.getValue("proargnames"),
             ", proargtypes=", reader.getValue("proargtypes"),
@@ -1863,7 +1863,7 @@ version (UnitTestPGDatabase)
 unittest // PgLargeBlob
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.pgdatabase.PgLargeBlob");
+    traceUnitTest("unittest pham.db.pgdatabase.PgLargeBlob");
 
     bool failed = true;
     auto connection = createTestConnection();
@@ -1922,7 +1922,7 @@ version (UnitTestPGDatabase)
 unittest // PgCommand.DML
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.pgdatabase.PgCommand.DML - Array");
+    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - Array");
 
     static int[] arrayValue() nothrow pure @safe
     {
@@ -1974,7 +1974,7 @@ unittest // PgCommand.DML
         while (reader.read())
         {
             count++;
-            traceUnitTest("checking - count: ", count);
+            traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
 
             assert(reader.getValue(0) == arrayValue());
             assert(reader.getValue("INTEGER_ARRAY") == arrayValue());
@@ -1995,7 +1995,7 @@ unittest // PgCommand.getExecutionPlan
     import std.array : split;
     import std.string : indexOf;
     import pham.utl.test;
-    traceUnitTest("unittest db.pgdatabase.PgCommand.getExecutionPlan");
+    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.getExecutionPlan");
 
     static const(char)[] removePText(const(char)[] s)
     {
@@ -2069,7 +2069,7 @@ version (UnitTestPGDatabase)
 unittest // PgCommand.DML.Function
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.pgdatabase.PgCommand.DML.Function");
+    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.Function");
 
     bool failed = true;
     auto connection = createTestConnection();
@@ -2278,7 +2278,7 @@ unittest // PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
 {
     import std.format : format;
     import pham.utl.test;
-    traceUnitTest("unittest db.pgdatabase.PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
+    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
 
     const perfResult = unitTestPerfPGDatabase();
     dgWriteln("PG-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));

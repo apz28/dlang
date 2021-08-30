@@ -257,7 +257,6 @@ public:
 // Any below codes are private
 private:
 
-
 shared static this()
 {
     DbAuth.registerAuthMap(DbAuthMap(DbScheme.fb ~ FbAuthSrp.getName(DigestId.sha1), &createSrpSHA1));
@@ -303,7 +302,7 @@ shared static this()
 nothrow @safe unittest // PrimeGroup
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbauth_srp.PrimeGroup");
+    traceUnitTest("unittest pham.db.fbauth_srp.PrimeGroup");
 
     assert(fbPrime.N.toString() == FbAuthSrp.N);
     assert(fbPrime.g.toString() == "2");
@@ -352,7 +351,7 @@ version (unittest)
 nothrow @safe unittest // FbAuthSrpSHA1
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbauth_srp.FbAuthSrpSHA1");
+    traceUnitTest("unittest pham.db.fbauth_srp.FbAuthSrpSHA1");
 
     testCheckSHA1(
         /*digitPrivateKey*/ "264905762513559650080771073972109248903",

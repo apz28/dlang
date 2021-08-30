@@ -98,12 +98,11 @@ public:
 // Any below codes are private
 private:
 
-
 unittest // DbBufferFilterCipherRC4
 {
     import std.string : representation;
     import pham.utl.test;
-    traceUnitTest("unittest db.buffer_filter_cipher.DbBufferFilterCipherRC4");
+    traceUnitTest("unittest pham.db.buffer_filter_cipher.DbBufferFilterCipherRC4");
 
     auto keyParameters = CipherParameters(cast(ubyte[])("abc0123456789xyz".dup));
 	auto encryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.write)(keyParameters);

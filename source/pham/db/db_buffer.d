@@ -666,7 +666,7 @@ private:
 unittest // DbWriteBuffer & DbReadBuffer
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.buffer.DbWriteBuffer & db.buffer.DbReadBuffer");
+    traceUnitTest("unittest pham.db.buffer.DbWriteBuffer & db.buffer.DbReadBuffer");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
 

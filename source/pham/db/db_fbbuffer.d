@@ -1193,7 +1193,7 @@ private:
 unittest // FbXdrWriter & FbXdrReader
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbbuffer.FbXdrReader & db.fbbuffer.FbXdrWriter");
+    traceUnitTest("unittest pham.db.fbbuffer.FbXdrReader & db.fbbuffer.FbXdrWriter");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
 

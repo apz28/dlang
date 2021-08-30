@@ -1769,7 +1769,7 @@ unittest // FbIscBlobSize
 {
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest("unittest db.fbtype.FbIscBlobSize");
+    traceUnitTest("unittest pham.db.fbtype.FbIscBlobSize");
 
     auto info = bytesFromHexs("05040004000000040400010000000604000400000001");
     auto parsedSize = FbIscBlobSize(info);
@@ -1782,7 +1782,7 @@ unittest // FbIscBindInfo
 {
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest("unittest db.fbtype.FbIscBindInfo");
+    traceUnitTest("unittest pham.db.fbtype.FbIscBindInfo");
 
     FbIscBindInfo[] bindResults;
     ptrdiff_t previousBindIndex = -1;

@@ -17,7 +17,6 @@ public import core.time : Duration, dur;
 import std.array : Appender;
 public import std.ascii : newline;
 import std.conv : text, to;
-import std.datetime.systime : SysTime;
 import std.exception : assumeWontThrow;
 import std.format : format;
 import std.traits : FieldNameTuple;
@@ -1407,7 +1406,7 @@ protected:
     DbDatabase _database;
     DbConnectionList _list;
     DbTransaction _defaultTransaction;
-    SysTime _inactiveTime;
+    DateTime _inactiveTime;
     DbHandle _handle;
     size_t _nextCounter;
     DbConnectionState _state;
@@ -1491,7 +1490,7 @@ public:
         return null;
     }
 
-    final DbConnection[] removeInactives(in SysTime now, in Duration maxInactiveTime) nothrow @safe
+    final DbConnection[] removeInactives(in DateTime now, in Duration maxInactiveTime) nothrow @safe
     {
         DbConnection[] result;
         result.reserve(length);
@@ -1661,7 +1660,7 @@ public:
             return null;
         }
 
-        item._inactiveTime = currTime();
+        item._inactiveTime = DateTime.utcNow;
         lst.release(item); // release can raise exception
         _acquiredLength--;
         _length++;
@@ -1715,7 +1714,7 @@ protected:
     final DbConnection[] removeInactives() @safe
     {
         auto raiiMutex = () @trusted { return RAIIMutex(_poolMutex); }();
-        const now = currTime();
+        const now = DateTime.utcNow;
         DbConnection[] result;
         result.reserve(_length);
         foreach (_, lst; _schemeConnections)

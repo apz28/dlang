@@ -162,12 +162,11 @@ private:
 // Any below codes are private
 private:
 
-
 unittest // DbBufferFilterCompressorZip
 {
     import std.string : representation;
     import pham.utl.test;
-    traceUnitTest("unittest db.buffer_filter_compressor.DbBufferFilterCompressorZip");
+    traceUnitTest("unittest pham.db.buffer_filter_compressor.DbBufferFilterCompressorZip");
 
 	auto compress = new DbBufferFilterCompressorZip!(DbBufferFilterKind.write)();
 	auto uncompress = new DbBufferFilterCompressorZip!(DbBufferFilterKind.read)();

@@ -166,11 +166,10 @@ do
 // Any below codes are private
 private:
 
-
 unittest // parseParameter
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.parser.parseParameter");
+    traceUnitTest("unittest pham.db.parser.parseParameter");
 
     static class StringList
     {

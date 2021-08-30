@@ -11,21 +11,13 @@
 
 module pham.db.util;
 
-import std.datetime.systime : Clock, SysTime;
-import std.exception : assumeWontThrow;
 import std.format : format;
 import std.traits: isFloatingPoint, isIntegral;
 
 import pham.external.dec.decimal : isEqual;
-
 import pham.db.type;
 
 nothrow @safe:
-
-SysTime currTime()
-{
-    return assumeWontThrow(Clock.currTime);
-}
 
 /*
 * Defines a total order on a decimal value vs other.
@@ -152,11 +144,10 @@ if (is(A == const(ubyte)[]) || is(A == ubyte[]))
 // Any below codes are private
 private:
 
-
 unittest // truncate
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.util.truncate");
+    traceUnitTest("unittest pham.db.util.truncate");
 
     assert(truncate("", 2) == "");
     assert(truncate("123456", 2) == "12");
@@ -166,7 +157,7 @@ unittest // truncate
 unittest // versionString
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.util.versionString");
+    traceUnitTest("unittest pham.db.util.versionString");
 
     assert(toVersionString([]) == "");
     assert(toVersionString([1]) == "1");

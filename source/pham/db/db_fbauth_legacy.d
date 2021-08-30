@@ -54,7 +54,6 @@ private:
 // Any below codes are private
 private:
 
-
 shared static this()
 {
     DbAuth.registerAuthMap(DbAuthMap(DbScheme.fb ~ FbAuthLegacy.authLegacyName, &createAuthLegacy));

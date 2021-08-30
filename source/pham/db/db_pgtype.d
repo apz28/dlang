@@ -714,7 +714,7 @@ shared static this()
 unittest // canSendParameter
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.pgtype.canSendParameter");
+    traceUnitTest("unittest pham.db.pgtype.canSendParameter");
 
     string mappedName;
     assert(canSendParameter(DbParameterName.userPassword, mappedName) == CanSendParameter.no);

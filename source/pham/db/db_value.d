@@ -559,7 +559,7 @@ private:
 unittest // DbValue
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.value.DbValue");
+    traceUnitTest("unittest pham.db.value.DbValue");
 
     DbValue vb = DbValue(true);
     assert(vb.value == true);

@@ -26,6 +26,7 @@ public import pham.utl.datetime.time : Time;
 import pham.utl.datetime.time_zone : TimeZoneInfo, TimeZoneInfoMap;
 import pham.utl.datetime.tick : Tick;
 import pham.utl.enum_set : toName;
+import pham.utl.utf8 : ShortStringBuffer;
 
 alias float32 = float;
 alias float64 = double;
@@ -497,11 +498,8 @@ public:
 
     string toString() const
     {
-        import std.array : appender;
-
-        auto buffer = appender!string();
-        buffer.reserve(60);
-        return toString(buffer).data;
+        ShortStringBuffer!char buffer;
+        return toString(buffer).toString();
     }
 
     ref Writer toString(Writer, Char = char)(return ref Writer sink) const
@@ -910,11 +908,8 @@ public:
 
     string toString() const
     {
-        import std.array : appender;
-
-        auto buffer = appender!string();
-        buffer.reserve(60);
-        return toString(buffer).data;
+        ShortStringBuffer!char buffer;
+        return toString(buffer).toString();
     }
 
     ref Writer toString(Writer, Char = char)(return ref Writer sink) const
@@ -1200,7 +1195,7 @@ shared static this()
 unittest // dbTypeOf
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.type.dbTypeOf");
+    traceUnitTest("unittest pham.db.type.dbTypeOf");
 
     //pragma(msg, "DbDateTime: ", DbDateTime.sizeof); // 24
     //pragma(msg, "SysTime: ", SysTime.sizeof); // 16

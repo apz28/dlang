@@ -1197,13 +1197,12 @@ protected:
 // Any below codes are private
 private:
 
-
 unittest // DbNameValueList
 {
     import std.conv : to;
     import std.string : indexOf;
     import pham.utl.test;
-    traceUnitTest("unittest db.object.DbNameValueList");
+    traceUnitTest("unittest pham.db.object.DbNameValueList");
 
     auto list = new DbNameValueList!string();
     list.put("a", "1");
@@ -1264,7 +1263,7 @@ unittest // DbNameObjectList
 {
     import std.string : indexOf;
     import pham.utl.test;
-    traceUnitTest("unittest db.object.DbNameObjectList");
+    traceUnitTest("unittest pham.db.object.DbNameObjectList");
 
     static class DbNameObjectTest : DbNameObject
     {

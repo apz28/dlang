@@ -131,7 +131,7 @@ public:
 unittest // FbAuth.normalizeUserName
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.FbAuth.normalizeUserName");
+    traceUnitTest("unittest pham.db.FbAuth.normalizeUserName");
 
     assert(FbAuth.normalizeUserName("sysdba") == "SYSDBA");
     assert(FbAuth.normalizeUserName("\"sysdba\"") == "sysdba");

@@ -365,7 +365,7 @@ private:
 unittest // numericDecode
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.pgconvert.numericDecode");
+    traceUnitTest("unittest pham.db.pgconvert.numericDecode");
 
 	PgOIdNumeric n5_40 = {ndigits:2, weight:0, sign:0, dscale:2, digits:[5, 4000]};
 	PgOIdNumeric n6_50 = {ndigits:2, weight:0, sign:0, dscale:2, digits:[6, 5000]};
@@ -377,7 +377,7 @@ unittest // numericDecode
 unittest // numericEncode
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.pgconvert.numericEncode");
+    traceUnitTest("unittest pham.db.pgconvert.numericEncode");
 
 	// Scale=1 because Decimal.toString will truncate trailing zero
 	PgOIdNumeric n5_40 = {ndigits:2, weight:0, sign:0, dscale:1, digits:[5, 4000]};

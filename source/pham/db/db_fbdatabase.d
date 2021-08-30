@@ -1979,7 +1979,7 @@ WHERE INT_FIELD = @INT_FIELD
 unittest // FbConnectionStringBuilder
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbConnectionStringBuilder");
+    traceUnitTest("unittest pham.db.fbdatabase.FbConnectionStringBuilder");
 
     auto db = DbDatabaseList.getDb(DbScheme.fb);
     assert(cast(FbDatabase)db !is null);
@@ -1999,7 +1999,7 @@ version (UnitTestFBDatabase)
 unittest // FbConnection
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbConnection");
+    traceUnitTest("unittest pham.db.fbdatabase.FbConnection");
 
     auto connection = createTestConnection();
     scope (exit)
@@ -2020,7 +2020,7 @@ version (UnitTestFBDatabase)
 unittest // FbConnection.encrypt
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbConnection - encrypt");
+    traceUnitTest("unittest pham.db.fbdatabase.FbConnection - encrypt");
 
     {
         auto connection = createTestConnection(DbEncryptedConnection.enabled);
@@ -2061,7 +2061,7 @@ version (UnitTestFBDatabase)
 unittest // FbConnection.integratedSecurity
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbConnection - integratedSecurity");
+    traceUnitTest("unittest pham.db.fbdatabase.FbConnection - integratedSecurity");
 
     version (Windows)
     {
@@ -2085,7 +2085,7 @@ version (UnitTestFBDatabase)
 unittest // FbConnection.encrypt.compress
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbConnection - encrypt=required, compress=true");
+    traceUnitTest("unittest pham.db.fbdatabase.FbConnection - encrypt=required, compress=true");
 
     auto connection = createTestConnection(DbEncryptedConnection.required, true);
     scope (exit)
@@ -2106,7 +2106,7 @@ version (UnitTestFBDatabase)
 unittest // FbTransaction
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbTransaction");
+    traceUnitTest("unittest pham.db.fbdatabase.FbTransaction");
 
     auto connection = createTestConnection();
     scope (exit)
@@ -2148,7 +2148,7 @@ version (UnitTestFBDatabase)
 unittest // FbTransaction
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbTransaction - encrypt=enabled, compress=true");
+    traceUnitTest("unittest pham.db.fbdatabase.FbTransaction - encrypt=enabled, compress=true");
 
     auto connection = createTestConnection(DbEncryptedConnection.enabled, true);
     scope (exit)
@@ -2169,7 +2169,7 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.DDL
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbCommand.DDL");
+    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DDL");
 
     bool failed = true;
     auto connection = createTestConnection();
@@ -2204,7 +2204,7 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.DDL.encrypt.compress
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbCommand.DDL - encrypt=enabled, compress=true");
+    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DDL - encrypt=enabled, compress=true");
 
     bool failed = true;
     auto connection = createTestConnection(DbEncryptedConnection.enabled, true);
@@ -2239,7 +2239,7 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.getExecutionPlan
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbCommand.getExecutionPlan");
+    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.getExecutionPlan");
 
     bool failed = true;
     auto connection = createTestConnection();
@@ -2288,7 +2288,7 @@ unittest // FbCommand.DML.Types
     import std.conv;
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbCommand.DML.Types");
+    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.Types");
 
     bool failed = true;
     auto connection = createTestConnection();
@@ -2632,6 +2632,8 @@ unittest // FbCommand.DML.Types
         v = command.executeScalar();
         assert(v.get!Decimal128() == Decimal128("-123.000000001E-1"));
     }
+
+    failed = false;
 }
 
 version (UnitTestFBDatabase)
@@ -2639,7 +2641,7 @@ unittest // FbCommand.DML
 {
     import std.math;
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Simple select");
+    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - Simple select");
 
     bool failed = true;
     auto connection = createTestConnection();
@@ -2671,7 +2673,7 @@ unittest // FbCommand.DML
     while (reader.read())
     {
         count++;
-        traceUnitTest("checking - count: ", count);
+        traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -2725,7 +2727,7 @@ unittest // FbCommand.DML.Parameter
 {
     import std.math;
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Parameter select");
+    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - Parameter select");
 
     bool failed = true;
     auto connection = createTestConnection();
@@ -2764,7 +2766,7 @@ unittest // FbCommand.DML.Parameter
     while (reader.read())
     {
         count++;
-        traceUnitTest("checking - count: ", count);
+        traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -2818,7 +2820,7 @@ unittest // FbCommand.DML.encrypt.compress
 {
     import std.math;
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Simple select with encrypt=enabled, compress=true");
+    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - Simple select with encrypt=enabled, compress=true");
 
     bool failed = true;
     auto connection = createTestConnection(DbEncryptedConnection.enabled, true);
@@ -2850,7 +2852,7 @@ unittest // FbCommand.DML.encrypt.compress
     while (reader.read())
     {
         count++;
-        traceUnitTest("checking - count: ", count);
+        traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -2903,7 +2905,7 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.DML.FbArrayManager
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbCommand.DML - FbArrayManager");
+    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - FbArrayManager");
 
     bool failed = true;
     auto connection = createTestConnection();
@@ -2935,7 +2937,7 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.DML.Array
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Array");
+    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - Array");
 
     static int[] arrayValue() nothrow pure @safe
     {
@@ -2987,7 +2989,7 @@ unittest // FbCommand.DML.Array
         while (reader.read())
         {
             count++;
-            traceUnitTest("checking - count: ", count);
+            traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
 
             assert(reader.getValue(0) == arrayValue());
             assert(reader.getValue("INTEGER_ARRAY") == arrayValue());
@@ -3005,7 +3007,7 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.DML.Array.Less
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbCommand.DML - Array.Less");
+    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - Array.Less");
 
     static int[] selectArrayValue() nothrow pure @safe
     {
@@ -3062,7 +3064,7 @@ unittest // FbCommand.DML.Array.Less
         while (reader.read())
         {
             count++;
-            traceUnitTest("checking - count: ", count);
+            traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
 
             assert(reader.getValue(0) == selectArrayValue());
             assert(reader.getValue("INTEGER_ARRAY") == selectArrayValue());
@@ -3080,7 +3082,7 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.DML.StoredProcedure
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbCommand.DML.StoredProcedure");
+    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.StoredProcedure");
 
     bool failed = true;
     auto connection = createTestConnection();
@@ -3143,7 +3145,7 @@ unittest // DbRAIITransaction
     import std.exception : assertThrown;
     import pham.utl.test;
     import pham.db.exception : DbException;
-    traceUnitTest("unittest db.database.DbRAIITransaction");
+    traceUnitTest("unittest pham.db.database.DbRAIITransaction");
 
     bool commit = false;
     auto connection = createTestConnection();
@@ -3325,7 +3327,7 @@ unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
 {
     import std.format : format;
     import pham.utl.test;
-    traceUnitTest("unittest db.fbdatabase.FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
+    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
 
     const perfResult = unitTestPerfFBDatabase();
     dgWriteln("FB-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));

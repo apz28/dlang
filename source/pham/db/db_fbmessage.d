@@ -2615,11 +2615,10 @@ private:
 // Any below codes are private
 private:
 
-
 @safe unittest // FbMessages
 {
     import pham.utl.test;
-    traceUnitTest("unittest db.fbmessage.FbMessages");
+    traceUnitTest("unittest pham.db.fbmessage.FbMessages");
 
     assert(FbMessages.get(335544321).length != 0);
     assert(FbMessages.get(337182760).length != 0);
