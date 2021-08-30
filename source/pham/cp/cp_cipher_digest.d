@@ -249,13 +249,12 @@ private:
 
 private:
 
-
 nothrow @safe unittest // digestOf
 {
     import std.string : representation;
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest("unittest cp.cipher_digest.digestOf");
+    traceUnitTest("unittest pham.cp.cipher_digest.digestOf");
 
     ubyte[] hash;
 
@@ -280,7 +279,7 @@ nothrow @safe unittest // digestOf - for Firebird database engine
     import std.string : representation;
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest("unittest cp.cipher_digest.digestOf - for Firebird database engine");
+    traceUnitTest("unittest pham.cp.cipher_digest.digestOf - for Firebird database engine");
 
     ubyte[] hash;
 
@@ -297,7 +296,7 @@ nothrow @safe unittest // HMACS
     import std.string : representation;
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest("unittest cp.cipher_digest.HMACS");
+    traceUnitTest("unittest pham.cp.cipher_digest.HMACS");
 
     DigestResult rBuffer = void;
     ubyte[] r;
