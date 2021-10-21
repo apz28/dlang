@@ -70,7 +70,7 @@ public:
      * Returns:
      *  The removed `Logger`.
      */
-    Logger removeLogger(scope const(char)[] toRemove, const bool all = true) nothrow @safe
+    Logger removeLogger(scope const(char)[] toRemove, const(bool) all = true) nothrow @safe
     {
         import std.algorithm : remove;
 

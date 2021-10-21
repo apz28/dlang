@@ -163,7 +163,7 @@ template isStaticModuleLoggingActive(LogLevel ll, string moduleName)
  * unit and can therefore not disable logging in other compile units.
  * bool isLoggingEnabled(LogLevel ll) nothrow @nogc pure @safe
  */
-bool isLoggingEnabled(const LogLevel ll, const LogLevel moduleLL, const LogLevel loggerLL, const LogLevel sharedLL) @nogc nothrow pure @safe
+bool isLoggingEnabled(const(LogLevel) ll, const(LogLevel) moduleLL, const(LogLevel) loggerLL, const(LogLevel) sharedLL) @nogc nothrow pure @safe
 {
     version (DebugLogger) debug writeln("ll=", ll, ", moduleLL=", moduleLL, ", loggerLL=", loggerLL, ", sharedLL=", sharedLL);
 
@@ -308,7 +308,7 @@ public:
         doDispose(true);
     }
 
-    final LogLevel logLevel(scope string moduleName, const LogLevel notFoundLogLevel) @nogc
+    final LogLevel logLevel(scope string moduleName, const(LogLevel) notFoundLogLevel) @nogc
     {
         auto locked = LogRAIIMutex(mutex);
         if (values.length == 0)
@@ -444,7 +444,7 @@ void log(string moduleName = __MODULE__, A...)(lazy bool condition, lazy A args,
 log(LogLevel.warn, "Hello World", 3.1415);
 --------------------
 */
-void log(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy A args, Exception ex = null,
+void log(string moduleName = __MODULE__, A...)(const(LogLevel) ll, lazy A args, Exception ex = null,
     in int line = __LINE__, in string fileName = __FILE__,
     in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
 if (args.length == 0 || (args.length > 0 && !is(Unqual!(A[0]) : bool)))
@@ -471,7 +471,7 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(A[0]) : bool)))
 log(LogLevel.warn, true, "Hello World", 3.1415);
 --------------------
  */
-void log(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy bool condition, lazy A args, Exception ex = null,
+void log(string moduleName = __MODULE__, A...)(const(LogLevel) ll, lazy bool condition, lazy A args, Exception ex = null,
     in int line = __LINE__, in string fileName = __FILE__,
     in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
 {
@@ -548,7 +548,7 @@ void logf(string moduleName = __MODULE__, A...)(lazy bool condition, lazy string
 logf(LogLevel.warn, "Hello World %f", 3.1415);
 --------------------
  */
-void logf(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy string fmt, lazy A args, Exception ex = null,
+void logf(string moduleName = __MODULE__, A...)(const(LogLevel) ll, lazy string fmt, lazy A args, Exception ex = null,
     in int line = __LINE__, in string fileName = __FILE__,
     in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
 {
@@ -575,7 +575,7 @@ void logf(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy string f
 logf(LogLevel.warn, true, "Hello World %f", 3.1415);
 --------------------
  */
-void logf(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy bool condition, lazy string fmt, lazy A args, Exception ex = null,
+void logf(string moduleName = __MODULE__, A...)(const(LogLevel) ll, lazy bool condition, lazy string fmt, lazy A args, Exception ex = null,
     in int line = __LINE__, in string fileName = __FILE__,
     in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
 {
@@ -838,7 +838,7 @@ public:
     }
 
     /// Ditto
-    @property final Logger logLevel(const LogLevel value) nothrow @safe @nogc
+    @property final Logger logLevel(const(LogLevel) value) nothrow @safe @nogc
     {
         sharedStore(cast(shared)(this.option.logLevel), value);
         return this;
@@ -942,13 +942,13 @@ public:
     alias isFatal2 = isFunction!(LogLevel.fatal).isImpl2;
 
     /// Ditto
-    final bool isLogLevel(string moduleName = __MODULE__)(const LogLevel ll) const nothrow @safe
+    final bool isLogLevel(string moduleName = __MODULE__)(const(LogLevel) ll) const nothrow @safe
     {
         LogLevel llModuleLogLevel = void;
         return isLogLevel2!(moduleName)(ll, llModuleLogLevel);
     }
 
-    final bool isLogLevel2(string moduleName = __MODULE__)(const LogLevel ll, out LogLevel llModuleLogLevel) const nothrow @trusted
+    final bool isLogLevel2(string moduleName = __MODULE__)(const(LogLevel) ll, out LogLevel llModuleLogLevel) const nothrow @trusted
     {
         final switch (ll)
         {
@@ -1325,7 +1325,7 @@ public:
     s.log(LogLevel.fatal, 1337, "is number");
     --------------------
      */
-    final void log(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy A args, Exception ex = null,
+    final void log(string moduleName = __MODULE__, A...)(const(LogLevel) ll, lazy A args, Exception ex = null,
         in int line = __LINE__, in string fileName = __FILE__,
         in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(A[0]) : bool)))
@@ -1371,7 +1371,7 @@ public:
     l.log(1337);
     --------------------
      */
-    final void log(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy bool condition, lazy A args, Exception ex = null,
+    final void log(string moduleName = __MODULE__, A...)(const(LogLevel) ll, lazy bool condition, lazy A args, Exception ex = null,
         in int line = __LINE__, in string fileName = __FILE__,
         in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
     {
@@ -1517,7 +1517,7 @@ public:
     s.logf(LogLevel.fatal, "%d %s", 1337, "is number");
     --------------------
      */
-    final void logf(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy string fmt, lazy A args, Exception ex = null,
+    final void logf(string moduleName = __MODULE__, A...)(const(LogLevel) ll, lazy string fmt, lazy A args, Exception ex = null,
         in int line = __LINE__, in string fileName = __FILE__,
         in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
     {
@@ -1567,7 +1567,7 @@ public:
     s.logf(LogLevel.fatal, true ,"%d %s", 1337, "is number");
     --------------------
      */
-    final void logf(string moduleName = __MODULE__, A...)(const LogLevel ll, lazy bool condition, lazy string fmt, lazy A args, Exception ex = null,
+    final void logf(string moduleName = __MODULE__, A...)(const(LogLevel) ll, lazy bool condition, lazy string fmt, lazy A args, Exception ex = null,
         in int line = __LINE__, in string fileName = __FILE__,
         in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
     {
@@ -2662,7 +2662,7 @@ public:
     }
 
 private:
-    string logMessage(const ulong msecs, bool beginLog)
+    string logMessage(const(ulong) msecs, bool beginLog)
     {
         if (logBeginEnd)
         {

@@ -97,49 +97,49 @@ nothrow @safe:
         time
     }
 
-    this(scope const Date date) @nogc pure
+    this(scope const(Date) date) @nogc pure
     {
         this._kind = ValueKind.date;
         this.initYMD(date);
         this.initHMS(date);
     }
 
-    this(scope const DateTime dateTime) @nogc pure
+    this(scope const(DateTime) dateTime) @nogc pure
     {
         this._kind = ValueKind.dateTime;
         this.initYMD(dateTime);
         this.initHMS(dateTime);
     }
 
-    this(scope const SysTime sysTime) @trusted
+    this(scope const(SysTime) sysTime) @trusted
     {
         this._kind = ValueKind.sysTime;
         this.initYMD(sysTime);
         this.initHMS(sysTime);
     }
 
-    this(scope const Time time) @nogc pure
+    this(scope const(Time) time) @nogc pure
     {
         this._kind = ValueKind.time;
         this.initYMD(time);
         this.initHMS(time);
     }
 
-    string amPM(scope const FormatDateTimeContext context) const @nogc pure
+    string amPM(scope const(FormatDateTimeContext) context) const @nogc pure
     {
         return kind != ValueKind.date && context.amPmTexts !is null
             ? (*context.amPmTexts)[hour >= 12]
             : null;
     }
 
-    string dayOfWeekName(scope const FormatDateTimeContext context) const @nogc pure
+    string dayOfWeekName(scope const(FormatDateTimeContext) context) const @nogc pure
     {
         return kind != ValueKind.time
             ? (*context.dayOfWeekNames)[dayOfWeek - firstDayOfWeek]
             : null;
     }
 
-    string monthName(scope const FormatDateTimeContext context) const @nogc pure
+    string monthName(scope const(FormatDateTimeContext) context) const @nogc pure
     {
         return kind != ValueKind.time
             ? (*context.monthNames)[month - firstDayOfMonth]
@@ -217,7 +217,7 @@ nothrow @safe:
     }
 
 private:
-    void initYMD(scope const Date date) @nogc pure
+    void initYMD(scope const(Date) date) @nogc pure
     {
         _year = date.year;
         _month = date.month;
@@ -226,7 +226,7 @@ private:
         _dayOfWeek = date.dayOfWeek;
     }
 
-    void initYMD(scope const DateTime dateTime) @nogc pure
+    void initYMD(scope const(DateTime) dateTime) @nogc pure
     {
         _year = dateTime.year;
         _month = dateTime.month;
@@ -235,7 +235,7 @@ private:
         _dayOfWeek = dateTime.dayOfWeek;
     }
 
-    void initYMD(scope const SysTime sysTime) @trusted
+    void initYMD(scope const(SysTime) sysTime) @trusted
     {
         const sd = cast(DateTime)sysTime;
         _year = sd.year;
@@ -245,19 +245,19 @@ private:
         _dayOfWeek = sysTime.dayOfWeek;
     }
 
-    void initYMD(scope const Time time) @nogc pure
+    void initYMD(scope const(Time) time) @nogc pure
     {
         _year = _month = _day = 0;
         _julianDay = time.hour >= 12 ? 1 : 0;
         _dayOfWeek = firstDayOfWeek;
     }
 
-    void initHMS(scope const Date date) @nogc pure
+    void initHMS(scope const(Date) date) @nogc pure
     {
         _hour = _minute = _second = _millisecond = 0;
     }
 
-    void initHMS(scope const DateTime dateTime) @nogc pure
+    void initHMS(scope const(DateTime) dateTime) @nogc pure
     {
         _hour = dateTime.hour;
         _minute = dateTime.minute;
@@ -265,7 +265,7 @@ private:
         _millisecond = _tick = 0;
     }
 
-    void initHMS(scope const SysTime sysTime) @trusted
+    void initHMS(scope const(SysTime) sysTime) @trusted
     {
         const st = cast(TimeOfDay)sysTime;
         const sf = sysTime.fracSecs;
@@ -276,7 +276,7 @@ private:
         _tick = cast(int)sf.total!"usecs"(); // Total fracSecs in usecs
     }
 
-    void initHMS(scope const Time time) @nogc pure
+    void initHMS(scope const(Time) time) @nogc pure
     {
         _hour = time.hour;
         _minute = time.minute;
@@ -384,7 +384,7 @@ public:
     }
 
 private:
-    void switchToLongData(size_t addtionalLength) nothrow pure
+    void switchToLongData(const(size_t) addtionalLength) nothrow pure
     {
         const capacity = _length + addtionalLength + overReservedLength;
         if (_longData.length < capacity)
@@ -516,7 +516,7 @@ public:
         return false;
     }
 
-    static bool isCustomModifierChar(const Char c) @nogc nothrow pure
+    static bool isCustomModifierChar(const(Char) c) @nogc nothrow pure
     {
         return c == FormatTimeSpecifier.customAMPM
             || c == FormatTimeSpecifier.customDay
@@ -887,7 +887,7 @@ if (isSomeChar!Char)
     return result;
 }
 
-uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] fmt, scope const Date date)
+uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] fmt, scope const(Date) date)
 if (isSomeChar!Char)
 {
     auto fmtSpec = FormatDateTimeSpec!Char(fmt);
@@ -895,7 +895,7 @@ if (isSomeChar!Char)
     return formattedWrite(sink, fmtSpec, fmtValue);
 }
 
-uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] fmt, scope const DateTime dateTime)
+uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] fmt, scope const(DateTime) dateTime)
 if (isSomeChar!Char)
 {
     auto fmtSpec = FormatDateTimeSpec!Char(fmt);
@@ -903,7 +903,7 @@ if (isSomeChar!Char)
     return formattedWrite(sink, fmtSpec, fmtValue);
 }
 
-uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] fmt, scope const SysTime sysTime)
+uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] fmt, scope const(SysTime) sysTime)
 if (isSomeChar!Char)
 {
     auto fmtSpec = FormatDateTimeSpec!Char(fmt);
@@ -911,7 +911,7 @@ if (isSomeChar!Char)
     return formattedWrite(sink, fmtSpec, fmtValue);
 }
 
-uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] fmt, scope const Time time)
+uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] fmt, scope const(Time) time)
 if (isSomeChar!Char)
 {
     auto fmtSpec = FormatDateTimeSpec!Char(fmt);
@@ -919,7 +919,7 @@ if (isSomeChar!Char)
     return formattedWrite(sink, fmtSpec, fmtValue);
 }
 
-Fmt format(Fmt)(Fmt fmt, scope const Date date)
+Fmt format(Fmt)(Fmt fmt, scope const(Date) date)
 if (isSomeString!Fmt)
 {
     alias Char = Unqual!(ElementEncodingType!Fmt);
@@ -928,7 +928,7 @@ if (isSomeString!Fmt)
     return buffer.toString();
 }
 
-Fmt format(Fmt)(Fmt fmt, scope const DateTime dateTime)
+Fmt format(Fmt)(Fmt fmt, scope const(DateTime) dateTime)
 if (isSomeString!Fmt)
 {
     alias Char = Unqual!(ElementEncodingType!Fmt);
@@ -937,7 +937,7 @@ if (isSomeString!Fmt)
     return buffer.toString();
 }
 
-Fmt format(Fmt)(Fmt fmt, scope const SysTime sysTime)
+Fmt format(Fmt)(Fmt fmt, scope const(SysTime) sysTime)
 if (isSomeString!Fmt)
 {
     alias Char = Unqual!(ElementEncodingType!Fmt);
@@ -946,7 +946,7 @@ if (isSomeString!Fmt)
     return buffer.toString();
 }
 
-Fmt format(Fmt)(Fmt fmt, scope const Time time)
+Fmt format(Fmt)(Fmt fmt, scope const(Time) time)
 if (isSomeString!Fmt)
 {
     alias Char = Unqual!(ElementEncodingType!Fmt);
@@ -993,7 +993,7 @@ if (isSomeChar!Char)
  *  enum E {e1 = 1, e2 = 2, e3 = 10, ...}
  *  toName!E(e3) returns "e3"
  */
-string toName(E)(const E value) nothrow pure @safe
+string toName(E)(const(E) value) nothrow pure @safe
 if (is(E Base == enum))
 {
     foreach (i, e; EnumMembers!E)
@@ -1008,22 +1008,22 @@ if (is(E Base == enum))
     return null;
 }
 
-string toString(scope const Date date, string fmt = "%s")
+string toString(scope const(Date) date, string fmt = "%s")
 {
     return format(fmt, date);
 }
 
-string toString(scope const DateTime dateTime, string fmt = "%s")
+string toString(scope const(DateTime) dateTime, string fmt = "%s")
 {
     return format(fmt, dateTime);
 }
 
-string toString(scope const SysTime sysTime, string fmt = "%s")
+string toString(scope const(SysTime) sysTime, string fmt = "%s")
 {
     return format(fmt, sysTime);
 }
 
-string toString(scope const Time time, string fmt = "%s")
+string toString(scope const(Time) time, string fmt = "%s")
 {
     return format(fmt, time);
 }
