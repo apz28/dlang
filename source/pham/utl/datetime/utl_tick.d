@@ -30,10 +30,10 @@ struct Tick
 {
 @nogc nothrow @safe:
 
-public:
     enum bool s_systemSupportsLeapSeconds = false;
 
     // Number of 100ns ticks per time unit
+    enum long ticksPerMicrosecond = 10;
     enum long ticksPerMillisecond = 10_000; // hnsecs
     enum long ticksPerSecond = ticksPerMillisecond * 1_000; //      10_000_000
     enum long ticksPerMinute = ticksPerSecond * 60;         //     600_000_000
@@ -87,21 +87,15 @@ public:
     }
 
     pragma(inline, true)
-    static Duration durationFromTick(long ticks) pure
+    static Duration durationFromTicks(long ticks) pure
     {
         return dur!"hnsecs"(ticks);
     }
 
     pragma(inline, true)
-    static long durationToTick(scope const Duration duration) pure
+    static long durationToTicks(scope const(Duration) duration) pure
     {
-        return duration.total!"hnsecs";
-    }
-
-    pragma(inline, true)
-    static int tickToMillisecond(int ticks) pure
-    {
-        return cast(int)(dur!"hnsecs"(ticks).total!"msecs");
+        return duration.total!"hnsecs"();
     }
 
     pragma(inline, true)
@@ -112,7 +106,7 @@ public:
     }
     do
     {
-        const ulong totalSeconds = cast(ulong)hour * 3600 + minute * 60 + second;
+        const ulong totalSeconds = (cast(ulong)hour * 3600) + (minute * 60) + second;
         return totalSeconds * ticksPerSecond;
     }
 
@@ -159,20 +153,30 @@ struct TickData
 {
 @nogc nothrow @safe:
 
-    int opCmp(scope const TickData rhs) const pure scope
+    int opCmp(scope const(TickData) rhs) const pure scope
     {
         version (RelaxCompareTime)
         {
-            return relaxCmp(this, rhs);
-        }
-        else
-        {
-            const lhsTicks = uticks;
+            const lhsTicks = this.uticks;
             const rhsTicks = rhs.uticks;
             const result = (lhsTicks > rhsTicks) - (lhsTicks < rhsTicks);
             if (result == 0)
             {
-                const lhsKind = internalKind;
+                const lhsKind = this.internalKind;
+                const rhsKind = rhs.internalKind;
+                if (!isCompatibleKind(lhsKind, rhsKind))
+                    return (lhsKind > rhsKind) - (lhsKind < rhsKind);
+            }
+            return result;
+        }
+        else
+        {
+            const lhsTicks = this.uticks;
+            const rhsTicks = rhs.uticks;
+            const result = (lhsTicks > rhsTicks) - (lhsTicks < rhsTicks);
+            if (result == 0)
+            {
+                const lhsKind = this.internalKind;
                 const rhsKind = rhs.internalKind;
                 return (lhsKind > rhsKind) - (lhsKind < rhsKind);
             }
@@ -181,31 +185,12 @@ struct TickData
         }
     }
 
-    bool opEquals(scope const TickData rhs) const pure scope
+    bool opEquals(scope const(TickData) rhs) const pure scope
     {
         version (RelaxCompareTime)
-            return relaxCmp(this, rhs) == 0;
+            return opCmp(rhs) == 0;
         else
             return this.data == rhs.data;
-    }
-
-    //pragma(inline, true)
-    static int relaxCmp(scope const TickData lhs, scope const TickData rhs) pure
-    {
-        const lhsTicks = lhs.uticks;
-        const rhsTicks = rhs.uticks;
-        const result = (lhsTicks > rhsTicks) - (lhsTicks < rhsTicks);
-        if (result == 0)
-        {
-            const lhsKind = lhs.internalKind;
-            const rhsKind = rhs.internalKind;
-            if (lhsKind == kindUnspecified || rhsKind == kindUnspecified)
-                return result;
-            else
-                return (lhsKind > rhsKind) - (lhsKind < rhsKind);
-        }
-        else
-            return result;
     }
 
     pragma(inline, true)
@@ -218,6 +203,26 @@ struct TickData
     static TickData createTimeTick(ulong ticks, DateTimeKind kind) pure
     {
         return TickData((ticks & timeTicksMask) | (cast(ulong)kind << kindShift));
+    }
+
+    pragma(inline, true)
+    static bool isCompatibleKind(const(DateTimeKind) lhs, const(DateTimeKind) rhs) pure
+    {
+        // Unspecified ~ Local
+        // UTC != Local
+        // UTC != Unspecified
+        return (lhs == rhs)
+            || (lhs != DateTimeKind.utc && rhs != DateTimeKind.utc);
+    }
+
+    pragma(inline, true)
+    static bool isCompatibleKind(const(ulong) lhsInternalKind, const(ulong) rhsInternalKind) pure
+    {
+        // Unspecified ~ Local
+        // UTC != Local
+        // UTC != Unspecified
+        return (lhsInternalKind == rhsInternalKind)
+            || (lhsInternalKind != kindUtc && rhsInternalKind != kindUtc);
     }
 
     pragma(inline, true)
@@ -258,11 +263,9 @@ struct TickData
         return data & ticksMask;
     }
 
-    enum ulong dateTimeTicksMask = 0x3FFF_FFFF_FFFF_FFFF;
     //enum long dateTimeTicksCeiling = 0x4000_0000_0000_0000;
-
-    enum ulong timeTicksMask = 0xFF_FFFF_FFFF;
-
+    enum ulong dateTimeTicksMask = 0x3FFF_FFFF_FFFF_FFFF;
+    enum ulong timeTicksMask = 0x00FF_FFFF_FFFF;
     enum ulong ticksMask = dateTimeTicksMask;
     enum ulong flagsMask = 0xC000_0000_0000_0000;
     enum ulong kindUnspecified = 0x0000_0000_0000_0000;
@@ -272,6 +275,66 @@ struct TickData
     enum int kindShift = 62;
 
     ulong data;
+}
+
+struct TickPart
+{
+@nogc nothrow @safe:
+
+    pragma(inline, true)
+    static int microsecondToTick(int microsecond) pure
+    in
+    {
+        assert(microsecond >= -999_999 && microsecond <= 999_999);
+    }
+    do
+    {
+        return cast(int)(microsecond * Tick.ticksPerMicrosecond);
+    }
+
+    pragma(inline, true)
+    static int millisecondToMicrosecond(int millisecond) pure
+    in
+    {
+        assert(millisecond >= -999 && millisecond <= 999);
+    }
+    do
+    {
+        return millisecond * 1_000;
+    }
+
+    pragma(inline, true)
+    static int millisecondToTick(int millisecond) pure
+    in
+    {
+        assert(millisecond >= -999 && millisecond <= 999);
+    }
+    do
+    {
+        return cast(int)(millisecond * Tick.ticksPerMillisecond);
+    }
+
+    pragma(inline, true)
+    static int tickToMicrosecond(int tick) pure
+    in
+    {
+        assert(tick >= -9_999_999 && tick <= 9_999_999);
+    }
+    do
+    {
+        return tick / Tick.ticksPerMicrosecond;
+    }
+
+    pragma(inline, true)
+    static int tickToMillisecond(int tick) pure
+    in
+    {
+        assert(tick >= -9_999_999 && tick <= 9_999_999);
+    }
+    do
+    {
+        return tick / Tick.ticksPerMillisecond;
+    }
 }
 
 enum CustomFormatSpecifier : char
@@ -370,7 +433,7 @@ void checkTimeParts(int hour, int minute, int second, int millisecond) pure
 }
 
 //pragma(inline, true)
-ErrorPart isValidTimeParts(const int hour, const int minute, const int second, const int millisecond) @nogc nothrow pure
+ErrorPart isValidTimeParts(const(int) hour, const(int) minute, const(int) second, const(int) millisecond) @nogc nothrow pure
 {
     if (hour < 0 || hour >= 24)
         return ErrorPart.hour;
@@ -649,4 +712,21 @@ private:
 static this() @trusted
 {
     dateTimeSetting = sharedDateTimeSetting;
+}
+
+version (none)
+unittest // Show duration precision
+{
+    import pham.utl.test;
+
+    auto d = dur!"seconds"(1);
+    dgWriteln("1 second in msecs:  ", d.total!"msecs"().dgToStr());  //         1_000
+    dgWriteln("1 second in usecs:  ", d.total!"usecs"().dgToStr());  //     1_000_000
+    dgWriteln("1 second in hnsecs: ", d.total!"hnsecs"().dgToStr()); //    10_000_000
+    dgWriteln("1 second in nsecs:  ", d.total!"nsecs"().dgToStr());  // 1_000_000_000
+
+    d = dur!"msecs"(999);
+    dgWriteln("999 msecs in usecs:  ", d.total!"usecs"().dgToStr());  //     999_000
+    dgWriteln("999 msecs in hnsecs: ", d.total!"hnsecs"().dgToStr()); //   9_990_000
+    dgWriteln("999 msecs in nsecs:  ", d.total!"nsecs"().dgToStr());  // 999_000_000
 }

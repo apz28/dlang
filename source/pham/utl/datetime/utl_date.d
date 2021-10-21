@@ -12,6 +12,7 @@
 module pham.utl.datetime.date;
 
 import std.range.primitives : isOutputRange;
+import std.traits : isSomeChar;
 
 import pham.utl.utf8 : ShortStringBuffer;
 import pham.utl.datetime.tick;
@@ -66,14 +67,14 @@ public:
         this.data = DateTime(year, month, day).totalDays;
     }
 
-    Date opBinary(string op)(scope const Duration duration) const pure scope
+    Date opBinary(string op)(scope const(Duration) duration) const pure scope
     if (op == "+" || op == "-")
     {
         const dt = toDateTime().opBinary!op(duration);
         return Date(dt.totalDays);
     }
 
-    DateTime opBinary(string op)(scope const Time time) const @nogc nothrow pure
+    DateTime opBinary(string op)(scope const(Time) time) const @nogc nothrow pure
     if (op == "+")
     {
         static if (op == "+")
@@ -82,18 +83,18 @@ public:
             static assert(0);
     }
 
-    Duration opBinary(string op)(scope const Date rhs) const @nogc nothrow pure scope
+    Duration opBinary(string op)(scope const(Date) rhs) const @nogc nothrow pure scope
     if (op == "-")
     {
-        return Tick.durationFromTick((cast(int)data - cast(int)(rhs.data)) * Tick.ticksPerDay);
+        return Tick.durationFromTicks((cast(int)data - cast(int)(rhs.data)) * Tick.ticksPerDay);
     }
 
-    int opCmp(scope const Date rhs) const @nogc nothrow pure scope
+    int opCmp(scope const(Date) rhs) const @nogc nothrow pure scope
     {
         return (data > rhs.data) - (data < rhs.data);
     }
 
-    bool opEquals(scope const Date rhs) const @nogc nothrow pure scope
+    bool opEquals(scope const(Date) rhs) const @nogc nothrow pure scope
     {
         return data == rhs.data;
     }
@@ -103,7 +104,7 @@ public:
      * and returns instance whose value is the sum of the date represented by this instance
      * and days.
      */
-    Date addDays(const int days) const pure
+    Date addDays(const(int) days) const pure
     {
         Date result = void;
         long newDays = void;
@@ -116,7 +117,7 @@ public:
      * Same as addDays except it won't raise TimeException when the calculation
      * is out of bound. The result will be Date.min for underflow and Date.max for overflow
      */
-    Date addDaysSafe(const int days) const @nogc pure nothrow
+    Date addDaysSafe(const(int) days) const @nogc pure nothrow
     {
         Date result = void;
         long newDays = void;
@@ -129,7 +130,7 @@ public:
      * and returns instance whose value is the sum of the date represented by this instance
      * and months.
      */
-    Date addMonths(const int months) const pure
+    Date addMonths(const(int) months) const pure
     {
         const dt = toDateTime().addMonths(months);
         return Date(dt.totalDays);
@@ -140,7 +141,7 @@ public:
      * and returns instance whose value is the sum of the date represented by this instance
      * and years.
      */
-    Date addYears(const int years) const pure
+    Date addYears(const(int) years) const pure
     {
         const dt = toDateTime().addYears(years);
         return Date(dt.totalDays);
@@ -184,7 +185,7 @@ public:
         toDateTime().getDate(year, month, day);
     }
 
-    static ErrorOp isValidDays(const long days) @nogc nothrow pure
+    static ErrorOp isValidDays(const(long) days) @nogc nothrow pure
     {
         return days < minDays
             ? ErrorOp.underflow
@@ -212,27 +213,26 @@ public:
         scope (failure) assert(0);
 
         ShortStringBuffer!char buffer;
-        toString(buffer, "%s");
-        return buffer.toString();
+        return toString(buffer, "%s").toString();
     }
 
     string toString(scope const(char)[] fmt) const
     {
         ShortStringBuffer!char buffer;
-        toString(buffer, fmt);
-        return buffer.toString();
+        return toString(buffer, fmt).toString();
     }
 
-    void toString(Writer, Char)(scope ref Writer sink, scope const(Char)[] fmt) const
-    if (isOutputRange!(Writer, Char))
+    ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt) const
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
         import pham.utl.datetime.date_time_format;
 
         auto fmtValue = FormatDateTimeValue(this);
         formattedWrite(sink, fmt, fmtValue);
+        return sink;
     }
 
-    ErrorOp tryAddDays(const int days, out Date newDate) const @nogc nothrow pure
+    ErrorOp tryAddDays(const(int) days, out Date newDate) const @nogc nothrow pure
     {
         long newDays = void;
         return addDaysImpl(days, newDays, newDate);
@@ -275,14 +275,14 @@ public:
     /**
      * Returns the number of days since January 1, 0001 in the Proleptic Gregorian calendar represented by this instance.
      */
-    @property uint days() const @nogc nothrow pure
+    @property int days() const @nogc nothrow pure
     {
-        return data;
+        return cast(int)data;
     }
 
-    @property uint julianDay() const @nogc nothrow pure
+    @property int julianDay() const @nogc nothrow pure
     {
-        return data;
+        return cast(int)data;
     }
 
     /**
@@ -351,7 +351,7 @@ package(pham.utl.datetime):
         this.data = data;
     }
 
-    static Date errorResult(const ErrorOp error) @nogc nothrow pure
+    static Date errorResult(const(ErrorOp) error) @nogc nothrow pure
     in
     {
         assert(error != ErrorOp.none);
@@ -372,7 +372,7 @@ package(pham.utl.datetime):
     }
 
 private:
-    ErrorOp addDaysImpl(const int days, out long newDays, out Date newDate) const @nogc nothrow pure
+    ErrorOp addDaysImpl(const(int) days, out long newDays, out Date newDate) const @nogc nothrow pure
     {
         newDays = cast(long)data + days;
         const result = isValidDays(newDays);
@@ -405,7 +405,7 @@ public:
         this.data = TickData.createDateTimeTick(cast(ulong)ticks, kind);
     }
 
-    this(scope const Date date, scope const Time time) @nogc nothrow pure
+    this(scope const(Date) date, scope const(Time) time) @nogc nothrow pure
     {
         this.data = TickData.createDateTimeTick(date.uticks + time.uticks, time.kind);
     }
@@ -481,10 +481,10 @@ public:
         this.data = TickData.createDateTimeTick(dateToTicks(year, month, day), kind);
     }
 
-    DateTime opBinary(string op)(scope const Duration duration) const pure scope
+    DateTime opBinary(string op)(scope const(Duration) duration) const pure scope
     if (op == "+" || op == "-")
     {
-        const long ticks = Tick.durationToTick(duration);
+        const long ticks = Tick.durationToTicks(duration);
         static if (op == "+")
             return addTicks(ticks);
         else static if (op == "-")
@@ -493,7 +493,7 @@ public:
             static assert(0);
     }
 
-    DateTime opBinary(string op)(scope const Time time) const pure scope
+    DateTime opBinary(string op)(scope const(Time) time) const pure scope
     if (op == "+")
     {
         static if (op == "+")
@@ -502,18 +502,18 @@ public:
             static assert(0);
     }
 
-    Duration opBinary(string op)(scope const DateTime rhs) const @nogc nothrow pure scope
+    Duration opBinary(string op)(scope const(DateTime) rhs) const @nogc nothrow pure scope
     if (op == "-")
     {
-        return Tick.durationFromTick(data.sticks - rhs.data.sticks);
+        return Tick.durationFromTicks(this.sticks - rhs.sticks);
     }
 
-    int opCmp(scope const DateTime rhs) const @nogc nothrow pure scope
+    int opCmp(scope const(DateTime) rhs) const @nogc nothrow pure scope
     {
         return data.opCmp(rhs.data);
     }
 
-    bool opEquals(scope const DateTime rhs) const @nogc nothrow pure scope
+    bool opEquals(scope const(DateTime) rhs) const @nogc nothrow pure scope
     {
         return data.opEquals(rhs.data);
     }
@@ -525,10 +525,10 @@ public:
      * millisecond, and adding that interval to this DateTime. The
      * value argument is permitted to be negative.
      */
-    DateTime addDays(const double days) const pure
+    DateTime addDays(const(double) days) const pure
     {
-        DateTime result = void;
         long newTicks = void;
+        DateTime result = void;
         if (addImpl(toMilliSeconds(days, Tick.millisPerDay), newTicks, result) != ErrorOp.none)
             throwArithmeticOutOfRange!(ErrorPart.tick)(newTicks);
         return result;
@@ -541,10 +541,10 @@ public:
      * millisecond, and adding that interval to this DateTime. The
      * value argument is permitted to be negative.
      */
-    DateTime addHours(const double hours) const pure
+    DateTime addHours(const(double) hours) const pure
     {
-        DateTime result = void;
         long newTicks = void;
+        DateTime result = void;
         if (addImpl(toMilliSeconds(hours, Tick.millisPerHour), newTicks, result) != ErrorOp.none)
             throwArithmeticOutOfRange!(ErrorPart.tick)(newTicks);
         return result;
@@ -557,10 +557,10 @@ public:
      * and adding that interval to this DateTime. The value
      * argument is permitted to be negative.
      */
-    DateTime addMilliseconds(const double milliseconds) const pure
+    DateTime addMilliseconds(const(double) milliseconds) const pure
     {
-        DateTime result = void;
         long newTicks = void;
+        DateTime result = void;
         if (addImpl(toMilliSeconds(milliseconds, 1), newTicks, result) != ErrorOp.none)
             throwArithmeticOutOfRange!(ErrorPart.tick)(newTicks);
         return result;
@@ -573,10 +573,10 @@ public:
      * millisecond, and adding that interval to this DateTime. The
      * value argument is permitted to be negative.
      */
-    DateTime addMinutes(const double minutes) const pure
+    DateTime addMinutes(const(double) minutes) const pure
     {
-        DateTime result = void;
         long newTicks = void;
+        DateTime result = void;
         if (addImpl(toMilliSeconds(minutes, Tick.millisPerMinute), newTicks, result) != ErrorOp.none)
             throwArithmeticOutOfRange!(ErrorPart.tick)(newTicks);
         return result;
@@ -586,10 +586,10 @@ public:
      * Same as addMinutes except it won't raise TimeException when the calculation
      * is out of bound. The result will be DateTime.min for underflow and DateTime.max for overflow
      */
-    DateTime addMinutesSafe(const int minutes) const @nogc nothrow pure
+    DateTime addMinutesSafe(const(int) minutes) const @nogc nothrow pure
     {
-        DateTime result = void;
         long newTicks = void;
+        DateTime result = void;
         addImpl(toMilliSeconds(minutes, Tick.millisPerMinute), newTicks, result);
         return result;
     }
@@ -611,9 +611,9 @@ public:
      * to y and m, and d1 is the largest value less than
      * or equal to d that denotes a valid day in month m1 of year y1.
      */
-    DateTime addMonths(const int months) const pure
+    DateTime addMonths(const(int) months) const pure
     {
-        if (months < -120000 || months > 120000)
+        if (months < -120_000 || months > 120_000)
             throwOutOfRange!(ErrorPart.month)(months);
 
         int year = void, month = void, day = void;
@@ -639,7 +639,7 @@ public:
         if (d > days)
             d = days;
         const long n = yearToDays(cast(uint)y) + daysToMonth + cast(uint)d - 1;
-        const newTicks = n * Tick.ticksPerDay + sticks % Tick.ticksPerDay;
+        const newTicks = n * Tick.ticksPerDay + data.sticks % Tick.ticksPerDay;
         return DateTime(cast(ulong)newTicks | data.internalKind);
     }
 
@@ -650,10 +650,10 @@ public:
      * millisecond, and adding that interval to this DateTime. The
      * value argument is permitted to be negative.
      */
-    DateTime addSeconds(const double seconds) const pure
+    DateTime addSeconds(const(double) seconds) const pure
     {
-        DateTime result = void;
         long newTicks = void;
+        DateTime result = void;
         if (addImpl(toMilliSeconds(seconds, Tick.millisPerSecond), newTicks, result) != ErrorOp.none)
             throwArithmeticOutOfRange!(ErrorPart.tick)(newTicks);
         return result;
@@ -663,10 +663,10 @@ public:
      * Same as addSeconds except it won't raise TimeException when the calculation
      * is out of bound. The result will be DateTime.min for underflow and DateTime.max for overflow
      */
-    DateTime addSecondsSafe(const int seconds) const @nogc nothrow pure
+    DateTime addSecondsSafe(const(int) seconds) const @nogc nothrow pure
     {
-        DateTime result = void;
         long newTicks = void;
+        DateTime result = void;
         addImpl(toMilliSeconds(seconds, Tick.millisPerSecond), newTicks, result);
         return result;
     }
@@ -676,10 +676,10 @@ public:
      * 100-nanosecond ticks to this DateTime. The value argument
      * is permitted to be negative.
      */
-    DateTime addTicks(const long ticks) const pure
+    DateTime addTicks(const(long) ticks) const pure
     {
-        DateTime result = void;
         long newTicks = void;
+        DateTime result = void;
         if (addTicksImpl(ticks, newTicks, result) != ErrorOp.none)
             throwArithmeticOutOfRange!(ErrorPart.tick)(newTicks);
         return result;
@@ -689,18 +689,18 @@ public:
      * Same as addTicks except it won't raise TimeException when the calculation
      * is out of bound. The result will be DateTime.min for underflow and DateTime.max for overflow
      */
-    DateTime addTicksSafe(const long ticks) const @nogc nothrow pure
+    DateTime addTicksSafe(const(long) ticks) const @nogc nothrow pure
     {
-        DateTime result = void;
         long newTicks = void;
+        DateTime result = void;
         addTicksImpl(ticks, newTicks, result);
         return result;
     }
 
     ///
-    DateTime addTicksSafe(scope const Duration duration) const @nogc nothrow pure
+    DateTime addTicksSafe(scope const(Duration) duration) const @nogc nothrow pure
     {
-        return addTicksSafe(Tick.durationToTick(duration));
+        return addTicksSafe(Tick.durationToTicks(duration));
     }
 
     /**
@@ -712,10 +712,10 @@ public:
      * DateTime becomes 2/28. Otherwise, the month, day, and time-of-day
      * parts of the result are the same as those of this DateTime.
      */
-    DateTime addYears(const int years) const pure
+    DateTime addYears(const(int) years) const pure
     {
-        DateTime result = void;
         int newYears = void;
+        DateTime result = void;
         if (addYearsImpl(years, newYears, result) != ErrorOp.none)
             throwArithmeticOutOfRange!(ErrorPart.year)(newYears);
         return result;
@@ -796,7 +796,7 @@ public:
         return DateTime(year, month, day, kind);
     }
 
-    static ulong dateToTicks(int year, int month, int day) @nogc nothrow pure
+    static long dateToTicks(int year, int month, int day) @nogc nothrow pure
     in
     {
         assert(isValidDateParts(year, month, day) == ErrorPart.none);
@@ -804,7 +804,7 @@ public:
     do
     {
         const days = isLeapYear(year) ? s_daysToMonth366 : s_daysToMonth365;
-        const ulong totalDays = cast(ulong)yearToDays(cast(uint)year) + days[month - 1] + day - 1;
+        const totalDays = cast(long)yearToDays(cast(uint)year) + days[month - 1] + day - 1;
         return totalDays * Tick.ticksPerDay;
     }
 
@@ -812,7 +812,7 @@ public:
      * Returns the number of days in the month given by the year and
      * month arguments.
      */
-    static int daysInMonth(const int year, const int month) @nogc nothrow pure
+    static int daysInMonth(const(int) year, const(int) month) @nogc nothrow pure
     in
     {
         assert(isValidDateParts(year, month, 1) == ErrorPart.none);
@@ -830,13 +830,13 @@ public:
     {
         int y = void, m = void, d = void;
         getDate(y, m, d);
-        return DateTime(Date(y, m, daysInMonth(y, m)), Time.max.toTimeKind(kind));
+        return DateTime(Date(y, m, daysInMonth(y, m)), Time.max.asKind(kind));
     }
 
     void getDate(out int year, out int month, out int day) const @nogc nothrow pure
     {
         // n = number of days since 1/1/0001
-        uint n = cast(uint)(sticks / Tick.ticksPerDay);
+        uint n = cast(uint)(data.sticks / Tick.ticksPerDay);
         // y400 = number of whole 400-year periods since 1/1/0001
         const uint y400 = n / Tick.daysPer400Years;
         // n = day number within 400-year period
@@ -878,7 +878,7 @@ public:
 
     void getTime(out int hour, out int minute, out int second) const @nogc nothrow pure
     {
-        const long seconds = sticks / Tick.ticksPerSecond;
+        const long seconds = data.sticks / Tick.ticksPerSecond;
         const long minutes = seconds / 60;
         second = cast(int)(seconds - (minutes * 60));
         const long hours = minutes / 60;
@@ -888,7 +888,7 @@ public:
 
     void getTime(out int hour, out int minute, out int second, out int millisecond) const @nogc nothrow pure
     {
-        const long milliseconds = sticks / Tick.ticksPerMillisecond;
+        const long milliseconds = data.sticks / Tick.ticksPerMillisecond;
         const long seconds = milliseconds / 1000;
         millisecond = cast(int)(milliseconds - (seconds * 1000));
         const long minutes = seconds / 60;
@@ -900,7 +900,7 @@ public:
 
     void getTimePrecise(out int hour, out int minute, out int second, out int tick) const @nogc nothrow pure
     {
-        const t = sticks;
+        const t = data.sticks;
         const long totalSeconds = t / Tick.ticksPerSecond;
         tick = cast(int)(t - (totalSeconds * Tick.ticksPerSecond));
         const long totalMinutes = totalSeconds / 60;
@@ -922,7 +922,7 @@ public:
     }
 
     //pragma(inline, true)
-    static bool isLeapYear(const int year) @nogc nothrow pure
+    static bool isLeapYear(const(int) year) @nogc nothrow pure
     in
     {
         assert(isValidYear(year) == ErrorOp.none);
@@ -938,7 +938,7 @@ public:
     }
 
     //pragma(inline, true)
-    static ErrorPart isValidDateParts(const int year, const int month, const int day) @nogc nothrow pure
+    static ErrorPart isValidDateParts(const(int) year, const(int) month, const(int) day) @nogc nothrow pure
     {
         if (isValidYear(year) != ErrorOp.none)
             return ErrorPart.year;
@@ -951,14 +951,14 @@ public:
             return ErrorPart.none;
     }
 
-    static ErrorOp isValidMonth(const int month) @nogc nothrow pure
+    static ErrorOp isValidMonth(const(int) month) @nogc nothrow pure
     {
         return month < 1
             ? ErrorOp.underflow
             : (month > 12 ? ErrorOp.overflow : ErrorOp.none);
     }
 
-    static ErrorOp isValidTicks(const long ticks) @nogc nothrow pure
+    static ErrorOp isValidTicks(const(long) ticks) @nogc nothrow pure
     {
         return ticks < minTicks
             ? ErrorOp.underflow
@@ -970,26 +970,16 @@ public:
         return ErrorOp.none; //todo
     }
 
-    static ErrorOp isValidYear(const int year) @nogc nothrow pure
+    static ErrorOp isValidYear(const(int) year) @nogc nothrow pure
     {
         return year < minYear
             ? ErrorOp.underflow
             : (year > maxYear ? ErrorOp.overflow : ErrorOp.none);
     }
 
-    DateTime toDateTimeKind(DateTimeKind kind) const @nogc nothrow pure
-    {
-        return DateTime(data.toTickKind(kind));
-    }
-
-    DateTime toDateTimeKindUTC() const @nogc nothrow pure
-    {
-        return toDateTimeKind(DateTimeKind.utc);
-    }
-
     Duration toDuration() const @nogc nothrow pure
     {
-        return Tick.durationFromTick(data.sticks);
+        return Tick.durationFromTicks(data.sticks);
     }
 
     size_t toHash() const @nogc nothrow pure scope
@@ -1012,7 +1002,7 @@ public:
     }
 
     ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt) const
-    if (isOutputRange!(Writer, Char))
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
         import pham.utl.datetime.date_time_format;
 
@@ -1022,7 +1012,7 @@ public:
         return sink;
     }
 
-    ErrorOp tryAddDays(const double days, out DateTime newDateTime) const @nogc nothrow pure
+    ErrorOp tryAddDays(const(double) days, out DateTime newDateTime) const @nogc nothrow pure
     {
         long newTicks = void;
         return addImpl(toMilliSeconds(days, Tick.millisPerDay), newTicks, newDateTime);
@@ -1031,19 +1021,19 @@ public:
     /**
      * tryAddTicks is exact as addTicks except it doesn't throw
      */
-    ErrorOp tryAddTicks(const long ticks, out DateTime newDateTime) const @nogc nothrow pure
+    ErrorOp tryAddTicks(const(long) ticks, out DateTime newDateTime) const @nogc nothrow pure
     {
         long newTicks = void;
         return addTicksImpl(ticks, newTicks, newDateTime);
     }
 
-    ErrorOp tryAddTicks(scope const Duration duration, out DateTime newDateTime) const @nogc nothrow pure
+    ErrorOp tryAddTicks(scope const(Duration) duration, out DateTime newDateTime) const @nogc nothrow pure
     {
         long newTicks = void;
-        return addTicksImpl(Tick.durationToTick(duration), newTicks, newDateTime);
+        return addTicksImpl(Tick.durationToTicks(duration), newTicks, newDateTime);
     }
 
-    ErrorOp tryAddYears(const int years, out DateTime newDateTime) const @nogc nothrow pure
+    ErrorOp tryAddYears(const(int) years, out DateTime newDateTime) const @nogc nothrow pure
     {
         int newYears = void;
         return addYearsImpl(years, newYears, newDateTime);
@@ -1095,6 +1085,22 @@ public:
         return true;
     }
 
+    /**
+     * Returns DateTime as requested parameter, kind, without any conversion/adjustment
+     */
+    DateTime asKind(DateTimeKind kind) const @nogc nothrow pure
+    {
+        return DateTime(data.toTickKind(kind));
+    }
+
+    /**
+     * Returns DateTime as UTC kind without any conversion/adjustment
+     */
+    @property DateTime asUTC() const @nogc nothrow pure
+    {
+        return DateTime(data.toTickKind(DateTimeKind.utc));
+    }
+
     @property int century() const @nogc nothrow pure
     {
         return year / 100;
@@ -1106,7 +1112,7 @@ public:
      */
     @property Date date() const @nogc nothrow pure
     {
-        return Date(totalDays);
+        return Date(cast(uint)totalDays);
     }
 
     /**
@@ -1116,7 +1122,7 @@ public:
      */
     @property DateTime dateOnly() const @nogc nothrow pure
     {
-        const t = sticks;
+        const t = data.sticks;
         return DateTime(cast(ulong)(t - t % Tick.ticksPerDay) | data.internalKind);
     }
 
@@ -1137,7 +1143,7 @@ public:
      */
     @property DayOfWeek dayOfWeek() const @nogc nothrow pure
     {
-        return cast(DayOfWeek)((cast(uint)(sticks / Tick.ticksPerDay) + 1) % 7);
+        return cast(DayOfWeek)((cast(uint)(data.sticks / Tick.ticksPerDay) + 1) % 7);
     }
 
     /**
@@ -1151,11 +1157,11 @@ public:
 
     /**
      * Returns the tick component of this instance. The returned value
-     * is an integer between 0 and 9999999.
+     * is an integer between 0 and 9_999_999.
      */
     @property int fraction() const @nogc nothrow pure
     {
-        const t = sticks;
+        const t = data.sticks;
         const long totalSeconds = t / Tick.ticksPerSecond;
         return cast(int)(t - (totalSeconds * Tick.ticksPerSecond));
     }
@@ -1166,10 +1172,10 @@ public:
      */
     @property int hour() const @nogc nothrow pure
     {
-        return cast(int)(cast(uint)(sticks / Tick.ticksPerHour) % 24);
+        return cast(int)(cast(uint)(data.sticks / Tick.ticksPerHour) % 24);
     }
 
-    @property uint julianDay() const @nogc nothrow pure
+    @property int julianDay() const @nogc nothrow pure
     {
         return totalDays + (hour >= 12 ? 1 : 0);
     }
@@ -1180,12 +1186,21 @@ public:
     }
 
     /**
+     * Gets the microsecond component of the time represented by this instance.
+     * The returned value is an integer between 0 and 999_999.
+     */
+    @property int microsecond() const @nogc nothrow pure
+    {
+        return TickPart.tickToMicrosecond(fraction);
+    }
+
+    /**
      * Returns the millisecond component of this instance. The returned value
      * is an integer between 0 and 999.
      */
     @property int millisecond() const @nogc nothrow pure
     {
-        return cast(int)((sticks / Tick.ticksPerMillisecond) % 1000);
+        return TickPart.tickToMillisecond(fraction);
     }
 
     /**
@@ -1194,7 +1209,7 @@ public:
      */
     @property int minute() const @nogc nothrow pure
     {
-        return cast(int)((sticks / Tick.ticksPerMinute) % 60);
+        return cast(int)((data.sticks / Tick.ticksPerMinute) % 60);
     }
 
     /**
@@ -1212,7 +1227,7 @@ public:
      */
     @property int second() const @nogc nothrow pure
     {
-        return cast(int)((sticks / Tick.ticksPerSecond) % 60);
+        return cast(int)((data.sticks / Tick.ticksPerSecond) % 60);
     }
 
     /**
@@ -1221,13 +1236,13 @@ public:
      */
     @property Time time() const @nogc nothrow pure
     {
-        return Time(cast(ulong)(sticks % Tick.ticksPerDay) | data.internalKind);
+        return Time(cast(ulong)(data.sticks % Tick.ticksPerDay) | data.internalKind);
     }
 
     pragma(inline, true)
-    @property uint totalDays() const @nogc nothrow pure
+    @property int totalDays() const @nogc nothrow pure
     {
-        return cast(uint)(sticks / Tick.ticksPerDay);
+        return cast(int)(data.sticks / Tick.ticksPerDay);
     }
 
     pragma(inline, true)
@@ -1308,7 +1323,7 @@ package(pham.utl.datetime):
         this.data = data;
     }
 
-    DateTime errorDateTime(const ErrorOp error) const @nogc nothrow pure scope
+    DateTime errorDateTime(const(ErrorOp) error) const @nogc nothrow pure scope
     in
     {
         assert(error != ErrorOp.none);
@@ -1320,7 +1335,7 @@ package(pham.utl.datetime):
             : DateTime(cast(ulong)maxTicks | data.internalKind);
     }
 
-    ErrorOp errorResult(const ErrorOp error, out DateTime newDateTime) const @nogc nothrow pure scope
+    ErrorOp errorResult(const(ErrorOp) error, out DateTime newDateTime) const @nogc nothrow pure scope
     {
         newDateTime = errorDateTime(error);
         return error;
@@ -1331,7 +1346,7 @@ private:
      * Returns the DateTime resulting from adding a fractional number of
      * time units to this DateTime.
      */
-    ErrorOp addImpl(const long milliseconds, out long newTicks, out DateTime newDateTime) const @nogc nothrow pure
+    ErrorOp addImpl(const(long) milliseconds, out long newTicks, out DateTime newDateTime) const @nogc nothrow pure
     {
         //const long milliseconds = cast(long)(value * scale + (value >= 0 ? 0.5 : -0.5));
         const error = milliseconds <= -maxMillis
@@ -1342,9 +1357,9 @@ private:
             : errorResult(error, newDateTime);
     }
 
-    ErrorOp addTicksImpl(const long ticks, out long newTicks, out DateTime newDateTime) const @nogc nothrow pure
+    ErrorOp addTicksImpl(const(long) ticks, out long newTicks, out DateTime newDateTime) const @nogc nothrow pure
     {
-        newTicks = this.sticks + ticks;
+        newTicks = data.sticks + ticks;
         const result = isValidTicks(newTicks);
         newDateTime = result == ErrorOp.none
             ? DateTime(cast(ulong)newTicks | data.internalKind)
@@ -1352,7 +1367,7 @@ private:
         return result;
     }
 
-    ErrorOp addYearsImpl(const int years, out int newYears, out DateTime newDateTime) const @nogc nothrow pure
+    ErrorOp addYearsImpl(const(int) years, out int newYears, out DateTime newDateTime) const @nogc nothrow pure
     {
         int year = void, month = void, day = void;
         getDate(year, month, day);
@@ -1376,7 +1391,7 @@ private:
             n += s_daysToMonth365[m];
         }
         n += d;
-        const newTicks = n * Tick.ticksPerDay + sticks % Tick.ticksPerDay;
+        const newTicks = n * Tick.ticksPerDay + data.sticks % Tick.ticksPerDay;
         newDateTime = DateTime(cast(ulong)newTicks | data.internalKind);
         return ErrorOp.none;
     }
@@ -1385,10 +1400,10 @@ private:
      * Returns a given date part of this DateTime. This method is used
      * to compute the year, day-of-year, month, or day part.
      */
-    int getDatePart(const DatePart part) const @nogc nothrow pure
+    int getDatePart(const(DatePart) part) const @nogc nothrow pure
     {
         // n = number of days since 1/1/0001
-        uint n = cast(uint)(sticks / Tick.ticksPerDay);
+        uint n = cast(uint)(data.sticks / Tick.ticksPerDay);
         // y400 = number of whole 400-year periods since 1/1/0001
         const uint y400 = n / Tick.daysPer400Years;
         // n = day number within 400-year period
@@ -1434,13 +1449,13 @@ private:
     }
 
     pragma(inline, true)
-    static long toMilliSeconds(const double value, const int scale) @nogc nothrow pure
+    static long toMilliSeconds(const(double) value, const(int) scale) @nogc nothrow pure
     {
         return cast(long)(value * scale + (value >= 0 ? 0.5 : -0.5));
     }
 
     pragma(inline, true)
-    static long toMilliSeconds(const int value, const int scale) @nogc nothrow pure
+    static long toMilliSeconds(const(int) value, const(int) scale) @nogc nothrow pure
     {
         return cast(long)value * scale;
     }

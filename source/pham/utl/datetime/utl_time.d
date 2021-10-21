@@ -12,6 +12,7 @@
 module pham.utl.datetime.time;
 
 import std.range.primitives : isOutputRange;
+import std.traits : isSomeChar;
 
 import pham.utl.utf8 : ShortStringBuffer;
 import pham.utl.datetime.date : DateTime, DayOfWeek;
@@ -27,7 +28,7 @@ public:
     /**
      * Initializes a new instance of the Time structure from a tick count. The ticks
      * argument specifies the date as the number of 100-nanosecond intervals
-     * that have elapsed since 00:00:00.0000000.
+     * that have elapsed since 00:00:00.0_000_000.
      */
     this(long ticks,
         DateTimeKind kind = DateTimeKind.unspecified) @nogc nothrow pure
@@ -40,15 +41,15 @@ public:
         this.data = TickData.createTimeTick(cast(ulong)ticks, kind);
     }
 
-    this(scope const Duration time,
+    this(scope const(Duration) time,
         DateTimeKind kind = DateTimeKind.unspecified) @nogc nothrow pure
     in
     {
-        assert(isValidTicks(Tick.durationToTick(time)) == ErrorOp.none);
+        assert(isValidTicks(Tick.durationToTicks(time)) == ErrorOp.none);
     }
     do
     {
-        this(Tick.durationToTick(time), kind);
+        this(Tick.durationToTicks(time), kind);
     }
 
     /**
@@ -93,10 +94,10 @@ public:
         this.data = TickData.createTimeTick(Tick.timeToTicks(hour, minute, 0), kind);
     }
 
-    Time opBinary(string op)(scope const Duration duration) const @nogc nothrow pure scope
+    Time opBinary(string op)(scope const(Duration) duration) const @nogc nothrow pure scope
     if (op == "+" || op == "-")
     {
-        const long ticks = Tick.durationToTick(duration);
+        const long ticks = Tick.durationToTicks(duration);
         static if (op == "+")
             return addTicks(ticks);
         else static if (op == "-")
@@ -105,18 +106,18 @@ public:
             static assert(0);
     }
 
-    Duration opBinary(string op)(scope const Time rhs) const @nogc nothrow pure scope
+    Duration opBinary(string op)(scope const(Time) rhs) const @nogc nothrow pure scope
     if (op == "-")
     {
-        return Tick.durationFromTick(data.sticks - rhs.data.sticks);
+        return Tick.durationFromTicks(data.sticks - rhs.data.sticks);
     }
 
-    int opCmp(scope const Time rhs) const @nogc nothrow pure scope
+    int opCmp(scope const(Time) rhs) const @nogc nothrow pure scope
     {
         return data.opCmp(rhs.data);
     }
 
-    bool opEquals(scope const Time rhs) const @nogc nothrow pure scope
+    bool opEquals(scope const(Time) rhs) const @nogc nothrow pure scope
     {
         return data.opEquals(rhs.data);
     }
@@ -137,7 +138,7 @@ public:
      * the number of hours represented by value.
      * If the added value circulate though the day, this method will out the number of the circulated days.
      */
-    Time addHours(const double value, out int wrappedDays) const @nogc nothrow pure
+    Time addHours(const(double) value, out int wrappedDays) const @nogc nothrow pure
     {
         return addTicks(cast(long)(value * Tick.ticksPerHour), wrappedDays);
     }
@@ -147,7 +148,7 @@ public:
      * and returns instance whose value is the sum of the time represented by this instance and
      * the number of milliseconds represented by value.
      */
-    Time addMilliseconds(const double value) const @nogc nothrow pure
+    Time addMilliseconds(const(double) value) const @nogc nothrow pure
     {
         return addTicks(cast(long)(value * Tick.ticksPerMillisecond));
     }
@@ -158,7 +159,7 @@ public:
      * the number of milliseconds represented by value.
      * If the added value circulate though the day, this method will out the number of the circulated days.
      */
-    Time addMilliseconds(const double value, out int wrappedDays) const @nogc nothrow pure
+    Time addMilliseconds(const(double) value, out int wrappedDays) const @nogc nothrow pure
     {
         return addTicks(cast(long)(value * Tick.ticksPerMillisecond), wrappedDays);
     }
@@ -168,7 +169,7 @@ public:
      * and returns instance whose value is the sum of the time represented by this instance and
      * the number of minutes represented by value.
      */
-    Time addMinutes(const double value) const @nogc nothrow pure
+    Time addMinutes(const(double) value) const @nogc nothrow pure
     {
         return addTicks(cast(long)(value * Tick.ticksPerMinute));
     }
@@ -179,7 +180,7 @@ public:
      * the number of minutes represented by value.
      * If the added value circulate though the day, this method will out the number of the circulated days.
      */
-    Time addMinutes(const double value, out int wrappedDays) const @nogc nothrow pure
+    Time addMinutes(const(double) value, out int wrappedDays) const @nogc nothrow pure
     {
         return addTicks(cast(long)(value * Tick.ticksPerMinute), wrappedDays);
     }
@@ -189,7 +190,7 @@ public:
      * and returns instance whose value is the sum of the time represented by this instance and
      * the number of seconds represented by value.
      */
-    Time addSeconds(const double value) const @nogc nothrow pure
+    Time addSeconds(const(double) value) const @nogc nothrow pure
     {
         return addTicks(cast(long)(value * Tick.ticksPerSecond));
     }
@@ -200,18 +201,18 @@ public:
      * the number of seconds represented by value.
      * If the added value circulate though the day, this method will out the number of the circulated days.
      */
-    Time addSeconds(const double value, out int wrappedDays) const @nogc nothrow pure
+    Time addSeconds(const(double) value, out int wrappedDays) const @nogc nothrow pure
     {
         return addTicks(cast(long)(value * Tick.ticksPerSecond), wrappedDays);
     }
 
-    Time addTicks(const long ticks) const @nogc nothrow pure
+    Time addTicks(const(long) ticks) const @nogc nothrow pure
     {
         const long newTicks = (data.sticks + Tick.ticksPerDay + (ticks % Tick.ticksPerDay)) % Tick.ticksPerDay;
         return Time(cast(ulong)newTicks | data.internalKind);
     }
 
-    Time addTicks(const long ticks, out int wrappedDays) const @nogc nothrow pure
+    Time addTicks(const(long) ticks, out int wrappedDays) const @nogc nothrow pure
     {
         wrappedDays = cast(int)(ticks / Tick.ticksPerDay);
         long newTicks = data.sticks + ticks % Tick.ticksPerDay;
@@ -267,7 +268,7 @@ public:
         toDateTime().getTimePrecise(hour, minute, second, tick);
     }
 
-    static ErrorOp isValidTicks(const long ticks) @nogc nothrow pure
+    static ErrorOp isValidTicks(const(long) ticks) @nogc nothrow pure
     {
         return ticks < minTicks
             ? ErrorOp.underflow
@@ -287,7 +288,7 @@ public:
 
     Duration toDuration() const @nogc nothrow pure
     {
-        return Tick.durationFromTick(data.sticks);
+        return Tick.durationFromTicks(data.sticks);
     }
 
     size_t toHash() const @nogc nothrow pure scope
@@ -310,7 +311,7 @@ public:
     }
 
     ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt) const
-    if (isOutputRange!(Writer, Char))
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
         import pham.utl.datetime.date_time_format;
 
@@ -320,24 +321,30 @@ public:
         return sink;
     }
 
-    Time toTimeKind(DateTimeKind kind) const @nogc nothrow pure scope
+    /**
+     * Returns Time as requested parameter, kind, without any conversion/adjustment
+     */
+    Time asKind(DateTimeKind kind) const @nogc nothrow pure scope
     {
         return Time(data.toTickKind(kind));
     }
 
-    Time toTimeKindUTC() const @nogc nothrow pure scope
+    /**
+     * Returns Time as UTC kind without any conversion/adjustment
+     */
+    @property Time asUTC() const @nogc nothrow pure scope
     {
         return Time(data.toTickKind(DateTimeKind.utc));
     }
 
     /**
      * Returns the tick component of this instance. The returned value
-     * is an integer between 0 and 9999999.
+     * is an integer between 0 and 9_999_999.
      */
     @property int fraction() const @nogc nothrow pure
     {
-        const t = data.uticks;
-        const ulong totalSeconds = t / Tick.ticksPerSecond;
+        const t = data.sticks;
+        const long totalSeconds = t / Tick.ticksPerSecond;
         return cast(int)(t - (totalSeconds * Tick.ticksPerSecond));
     }
 
@@ -346,7 +353,7 @@ public:
      */
     @property int hour() const @nogc nothrow pure
     {
-        return cast(int)((data.uticks / Tick.ticksPerHour) % 24);
+        return cast(int)((data.sticks / Tick.ticksPerHour) % 24);
     }
 
     @property uint julianDay() const @nogc nothrow pure
@@ -359,12 +366,30 @@ public:
         return data.kind;
     }
 
+    /**
+     * Gets the microsecond component of the time represented by this instance.
+     * The returned value is an integer between 0 and 999_999.
+     */
+    @property int microsecond() const @nogc nothrow pure
+    {
+        return TickPart.tickToMicrosecond(fraction);
+    }
+
+    /**
+     * Gets the millisecond component of the time represented by this instance.
+     * The returned value is an integer between 0 and 999.
+     */
+    @property int millisecond() const @nogc nothrow pure
+    {
+        return TickPart.tickToMillisecond(fraction);
+    }
+
     /*
      * Gets the minute component of the time represented by this instance.
      */
     @property int minute() const @nogc nothrow pure
     {
-        return cast(int)((data.uticks / Tick.ticksPerMinute) % 60);
+        return cast(int)((data.sticks / Tick.ticksPerMinute) % 60);
     }
 
     /**
@@ -372,15 +397,7 @@ public:
      */
     @property int second() const @nogc nothrow pure
     {
-        return cast(int)((data.uticks / Tick.ticksPerSecond) % 60);
-    }
-
-    /**
-     * Gets the millisecond component of the time represented by this instance.
-     */
-    @property int millisecond() const @nogc nothrow pure
-    {
-        return cast(int)((data.uticks / Tick.ticksPerMillisecond) % 1000);
+        return cast(int)((data.sticks / Tick.ticksPerSecond) % 60);
     }
 
     pragma(inline, true)

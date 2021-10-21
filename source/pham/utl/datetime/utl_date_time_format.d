@@ -378,7 +378,7 @@ public:
         return false;
     }
 
-    static bool isCustomModifierChar(const Char c) @nogc nothrow pure
+    static bool isCustomModifierChar(const(Char) c) @nogc nothrow pure
     {
         return c == FormatDateTimeSpecifier.customAmPm
             || c == FormatDateTimeSpecifier.customDay

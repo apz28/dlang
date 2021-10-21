@@ -345,37 +345,37 @@ public:
         Done:
     }
 
-    size_t dayDigitLimit(const size_t length) const @nogc pure
+    size_t dayDigitLimit(const(size_t) length) const @nogc pure
     {
         return datePartDigitLimit(length, 2);
     }
 
-    size_t fractionDigitLimit(const size_t length) const @nogc pure
+    size_t fractionDigitLimit(const(size_t) length) const @nogc pure
     {
         return length == Tick.millisMaxPrecision || separatorTimeCount < 2 ? length : Tick.ticksMaxPrecision;
     }
 
-    size_t hourDigitLimit(const size_t length) const @nogc pure
+    size_t hourDigitLimit(const(size_t) length) const @nogc pure
     {
         return timePartDigitLimit(length, 1);
     }
 
-    size_t minuteDigitLimit(const size_t length) const @nogc pure
+    size_t minuteDigitLimit(const(size_t) length) const @nogc pure
     {
         return timePartDigitLimit(length, 1);
     }
 
-    size_t monthDigitLimit(const size_t length) const @nogc pure
+    size_t monthDigitLimit(const(size_t) length) const @nogc pure
     {
         return datePartDigitLimit(length, 1);
     }
 
-    size_t secondDigitLimit(const size_t length) const @nogc pure
+    size_t secondDigitLimit(const(size_t) length) const @nogc pure
     {
         return timePartDigitLimit(length, 2);
     }
 
-    size_t yearDigitLimit(const size_t length) const @nogc pure
+    size_t yearDigitLimit(const(size_t) length) const @nogc pure
     {
         return length <= 2 && separatorDateCount >= 1 ? 4 : length;
     }
@@ -389,13 +389,13 @@ public:
 
 private:
     pragma(inline, true)
-    size_t datePartDigitLimit(const size_t length, const size_t leastSeparatorCount) const @nogc pure
+    size_t datePartDigitLimit(const(size_t) length, const(size_t) leastSeparatorCount) const @nogc pure
     {
         return (length == 3) || (length == 1 && separatorDateCount >= leastSeparatorCount) ? 2 : length;
     }
 
     pragma(inline, true)
-    size_t timePartDigitLimit(const size_t length, const size_t leastSeparatorCount) const @nogc pure
+    size_t timePartDigitLimit(const(size_t) length, const(size_t) leastSeparatorCount) const @nogc pure
     {
         return length == 1 && separatorTimeCount >= leastSeparatorCount ? 2 : length;
     }
@@ -441,25 +441,25 @@ public:
     }
 
     pragma(inline, true)
-    static bool isAlphaChar(const char c) @nogc pure
+    static bool isAlphaChar(const(char) c) @nogc pure
     {
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
     }
 
     pragma(inline, true)
-    static bool isNumberChar(const char c) @nogc pure
+    static bool isNumberChar(const(char) c) @nogc pure
     {
         return (c >= '0' && c <= '9');
     }
 
     pragma(inline, true)
-    static bool isSpaceChar(const char c) @nogc pure
+    static bool isSpaceChar(const(char) c) @nogc pure
     {
         return c == ' ' || c == '\f' || c == '\t' || c == '\v';
     }
 
     pragma(inline, true)
-    bool isSymbolChar(scope const ref DateTimePattern pattern, const char c) @nogc pure
+    bool isSymbolChar(scope const ref DateTimePattern pattern, const(char) c) @nogc pure
     {
         return isPunctuation(c)
             && c != '-' && c != '+'
@@ -714,7 +714,7 @@ public:
     }
 
     bool scanNumber(scope const(char)[] dateTimeText, scope const ref DateTimePattern pattern,
-        const size_t charLimit, out size_t charCount, out int result) @nogc pure
+        const(size_t) charLimit, out size_t charCount, out int result) @nogc pure
     {
         if (pattern.skipBlanks & SkipBlank.inner)
             skipLeadingBlank(dateTimeText);
@@ -783,7 +783,7 @@ public:
 
     @property int millisecond() const @nogc pure
     {
-        return isFraction ? Tick.tickToMillisecond(fraction) : fraction;
+        return isFraction ? TickPart.tickToMillisecond(fraction) : fraction;
     }
 
     @property Duration zoneAdjustmentBias() const @nogc pure
@@ -870,8 +870,8 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
             if (toKind != DateTimeKind.unspecified && toKind != parser.constructTimeKind(pattern))
             {
                 auto utcDT = bias == Duration.zero
-                    ? DateTime(DateTime.utcNow.date, result.toTimeKind(DateTimeKind.utc))
-                    : DateTime(DateTime.utcNow.date, result.toTimeKind(DateTimeKind.utc)).addTicksSafe(-bias);
+                    ? DateTime(DateTime.utcNow.date, result.asUTC)
+                    : DateTime(DateTime.utcNow.date, result.asUTC).addTicksSafe(-bias);
                 result = toKind == DateTimeKind.utc ? utcDT.time : TimeZoneInfo.convertUtcToLocal(utcDT).time;
             }
         }
@@ -883,7 +883,7 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
     return parseResult;
 }
 
-ptrdiff_t tryParse(T)(scope const(char)[] dateTimeText, scope const DateTimePattern[] patterns, out T result) nothrow
+ptrdiff_t tryParse(T)(scope const(char)[] dateTimeText, scope const(DateTimePattern)[] patterns, out T result) nothrow
 if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
 {
     if (dateTimeText.length == 0)
@@ -923,7 +923,7 @@ nothrow @safe:
         this.patternText = patternText;
     }
 
-    bool opEquals(scope const CacheDateTimePatternInfoKey rhs) const @nogc pure scope
+    bool opEquals(scope const(CacheDateTimePatternInfoKey) rhs) const @nogc pure scope
     {
         return parseType == rhs.parseType && patternText == rhs.patternText;
     }
