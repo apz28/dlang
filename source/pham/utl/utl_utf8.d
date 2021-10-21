@@ -11,8 +11,9 @@
 
 module pham.utl.utf8;
 
+import std.algorithm.mutation : swapAt;
 import std.range.primitives : ElementType, empty, front, isInfinite, isInputRange, popFront, put, save;
-import std.traits : isNarrowString, isSomeChar, Unqual;
+import std.traits : isIntegral, isNarrowString, isSomeChar, Unqual;
 
 nothrow @safe:
 
@@ -166,19 +167,19 @@ public:
     }
 
     pragma(inline, true)
-    bool allowDecimalChar(const RangeElement c) const @nogc pure
+    bool allowDecimalChar(const(RangeElement) c) const @nogc pure
     {
         return c == decimalChar && !_hasDecimalChar && (allowFlag & NumericLexerFlag.allowFloat);
     }
 
     pragma(inline, true)
-    bool isDigitChar(const RangeElement c) const @nogc pure
+    bool isDigitChar(const(RangeElement) c) const @nogc pure
     {
         return c >= '0' && c <= '9';
     }
 
     pragma(inline, true)
-    bool isHexChar(const RangeElement c) const @nogc pure
+    bool isHexChar(const(RangeElement) c) const @nogc pure
     {
         return (c >= '0' && c <= '9') ||
                 (c >= 'A' && c <= 'F') ||
@@ -186,7 +187,7 @@ public:
     }
 
     pragma(inline, true)
-    bool isSpaceChar(const RangeElement c) const @nogc pure
+    bool isSpaceChar(const(RangeElement) c) const @nogc pure
     {
         return c == ' ' ||
                 c == '\r' ||
@@ -228,7 +229,7 @@ public:
             popFront();
     }
 
-    RangeElement toUpper(const RangeElement c) const @nogc pure
+    RangeElement toUpper(const(RangeElement) c) const @nogc pure
     {
         return (c >= 'a' && c <= 'z')
             ? cast(RangeElement)(c - ('a' - 'A'))
@@ -341,8 +342,8 @@ private:
     bool _hasDigits, _hasSavedFront, _hex, _neg, _hasDecimalChar;
 }
 
-struct ShortStringBufferSize(size_t Size, Char)
-if (Size > 0 && isSomeChar!Char)
+struct ShortStringBufferSize(Char, ushort Size)
+if (Size > 0 && (isSomeChar!Char || isIntegral!Char))
 {
 @safe:
 
@@ -352,21 +353,89 @@ public:
         _longData = _longData.dup;
     }
 
+    this(bool setSize)
+    {
+        if (setSize)
+            this._length = Size;
+    }
+
+    ref typeof(this) opAssign(scope const(Char)[] values) nothrow return
+    {
+        clear();
+        _length = values.length;
+        if (_length)
+        {
+            if (_length <= Size)
+            {
+                _shortData[0.._length] = values[0.._length];
+            }
+            else
+            {
+                if (_longData.length < _length)
+                    _longData.length = _length;
+                _longData[0.._length] = values[0.._length];
+            }
+        }
+        return this;
+    }
+
     alias opOpAssign(string op : "~") = put;
-    alias opDollar = length;
+
+    size_t opDollar() const @nogc nothrow pure
+    {
+        return _length;
+    }
+
+    Char opIndex(size_t i) const @nogc nothrow pure
+    in
+    {
+        assert(i < length);
+    }
+    do
+    {
+        return _length <= Size ? _shortData[i] : _longData[i];
+    }
+
+    ref typeof(this) opIndexAssign(Char c, size_t i) return
+    in
+    {
+        assert(i < length);
+    }
+    do
+    {
+        if (_length <= Size)
+            _shortData[i] = c;
+        else
+            _longData[i] = c;
+        return this;
+    }
 
     Char[] opSlice() nothrow pure return
     {
         return _length <= Size ? _shortData[0.._length] : _longData[0.._length];
     }
 
-    ref typeof(this) clear() nothrow pure
+    ref typeof(this) clear(bool setSize = false)() nothrow pure
     {
         _length = 0;
+        static if (setSize)
+        {
+            _shortData[] = 0;
+            _longData[] = 0;
+            _length = Size;
+        }
         return this;
     }
 
-    ref typeof(this) put(Char c) nothrow pure
+    Char[] left(size_t len) nothrow pure return
+    {
+        if (len >= _length)
+            return opSlice();
+        else
+            return opSlice()[0..len];
+    }
+
+    ref typeof(this) put(Char c) nothrow pure return
     {
         if (_length < Size)
             _shortData[_length++] = c;
@@ -381,13 +450,16 @@ public:
         return this;
     }
 
-    ref typeof(this) put(scope const(Char)[] s) nothrow pure
+    ref typeof(this) put(scope const(Char)[] s) nothrow pure return
     {
         if (!s.length)
             return this;
 
         const newLength = _length + s.length;
-        assert(newLength < 1024 * 1024 * 4);
+
+        enum bugChecklimit = 1024 * 1024 * 4; // 4MB
+        assert(newLength <= bugChecklimit);
+
         if (newLength <= Size)
         {
             _shortData[_length..newLength] = s[0..$];
@@ -404,22 +476,51 @@ public:
         return this;
     }
 
+    ref typeof(this) reverse() @nogc nothrow pure
+    {
+        if (const len = length)
+        {
+            const last = len - 1;
+            const steps = len / 2;
+            if (_length <= Size)
+            {
+                for (size_t i = 0; i < steps; i++)
+                {
+                    _shortData.swapAt(i, last - i);
+                }
+            }
+            else
+            {
+                for (size_t i = 0; i < steps; i++)
+                {
+                    _longData.swapAt(i, last - i);
+                }
+            }
+        }
+        return this;
+    }
+
+    Char[] right(size_t len) nothrow pure return
+    {
+        if (len >= _length)
+            return opSlice();
+        else
+            return opSlice()[_length - len.._length];
+    }
+
+    static if (isSomeChar!Char)
     immutable(Char)[] toString() const nothrow pure
     {
         return _length != 0
-            ? (_length <= Size ? (_shortData[0.._length]).idup : (_longData[0.._length]).idup)
+            ? (_length <= Size ? _shortData[0.._length].idup : _longData[0.._length].idup)
             : null;
     }
 
+    static if (isSomeChar!Char)
     ref Writer toString(Writer)(return ref Writer sink) const pure
     {
         if (_length)
-        {
-            if (_length <= Size)
-                put(sink, _shortData[0.._length]);
-            else
-                put(sink, _longData[0.._length]);
-        }
+            put(sink, opSlice());
         return sink;
     }
 
@@ -433,8 +534,14 @@ public:
         return _length;
     }
 
+    pragma(inline, true)
+    @property static size_t shortSize() @nogc nothrow pure
+    {
+        return Size;
+    }
+
 private:
-    void switchToLongData(size_t addtionalLength) nothrow pure
+    void switchToLongData(const(size_t) addtionalLength) nothrow pure
     {
         const capacity = _length + addtionalLength + overReservedLength;
         if (_longData.length < capacity)
@@ -446,13 +553,14 @@ private:
     enum overReservedLength = 1_000u;
     size_t _length;
     Char[] _longData;
-    Char[Size] _shortData;
+    Char[Size] _shortData = 0;
 }
 
 template ShortStringBuffer(Char)
+if (isSomeChar!Char || isIntegral!Char)
 {
-    enum overheadSize = ShortStringBufferSize!(1, Char).sizeof;
-    alias ShortStringBuffer = ShortStringBufferSize!(256u - overheadSize, Char);
+    enum overheadSize = ShortStringBufferSize!(Char, 1).sizeof;
+    alias ShortStringBuffer = ShortStringBufferSize!(Char, 256u - overheadSize);
 }
 
 
@@ -499,9 +607,9 @@ nothrow @safe unittest // NumericLexer
     import pham.utl.test;
     traceUnitTest("unittest pham.utl.utf8.ShortStringBufferSize");
 
-    alias TestFormatString = ShortStringBufferSize!(5, char);
+    alias TestBuffer = ShortStringBufferSize!(char, 5);
 
-    TestFormatString s;
+    TestBuffer s;
     assert(s.length == 0);
     s.put('1');
     assert(s.length == 1);
@@ -515,14 +623,36 @@ nothrow @safe unittest // NumericLexer
     assert(s.length == 3);
     assert(s.toString() == "abc");
     assert(s[] == "abc");
+    assert(s.left(1) == "a");
+    assert(s.left(10) == "abc");
+    assert(s.right(2) == "bc");
+    assert(s.right(10) == "abc");
     s.put("defghijklmnopqrstuvxywz");
     assert(s.length == 26);
     assert(s.toString() == "abcdefghijklmnopqrstuvxywz");
     assert(s[] == "abcdefghijklmnopqrstuvxywz");
+    assert(s.left(5) == "abcde");
+    assert(s.left(20) == "abcdefghijklmnopqrst");
+    assert(s.right(5) == "vxywz");
+    assert(s.right(20) == "ghijklmnopqrstuvxywz");
 
-    TestFormatString s2;
+    TestBuffer s2;
     s2 ~= s[];
     assert(s2.length == 26);
     assert(s2.toString() == "abcdefghijklmnopqrstuvxywz");
     assert(s2[] == "abcdefghijklmnopqrstuvxywz");
+}
+
+nothrow @safe unittest // ShortStringBufferSize.reverse
+{
+    import pham.utl.test;
+    traceUnitTest("unittest pham.utl.utf8.ShortStringBufferSize.reverse");
+
+    ShortStringBufferSize!(int, 3) a;
+
+    a.clear().put([1, 2]);
+    assert(a.reverse()[] == [2, 1]);
+
+    a.clear().put([1, 2, 3, 4, 5]);
+    assert(a.reverse()[] == [5, 4, 3, 2, 1]);
 }

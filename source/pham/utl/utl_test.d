@@ -41,7 +41,7 @@ public:
 		    if (GetProcessTimes(currentProcess, &creationTime, &exitTime, &kernelTime, &userTime) == 0)
 			    return errorResult();
 
-		    static Duration toMicroSeconds(in FILETIME ft) pure
+		    static Duration toMicroSeconds(scope const(FILETIME) ft) pure
             {
 			    return dur!"usecs"((cast(long)ft.dwHighDateTime << 32 | ft.dwLowDateTime) / 10);
 		    }
@@ -128,6 +128,11 @@ public:
         return elapsedTime.total!"msecs"();
     }
 
+    double elapsedTimePercent() const pure
+    {
+        return _count != 0 ? cast(double)elapsedTimeUsecs() / cast(double)_count * 100.0 : 0.0;
+    }
+
     long elapsedTimeUsecs() const pure
     {
         return elapsedTime.total!"usecs"();
@@ -191,13 +196,11 @@ private:
         file.writeln("function,msecs,usecs,count,%");
         foreach (ref value; counterValues)
         {
-            const msecs = value.elapsedTimeMsecs();
-            const usecs = value.elapsedTimeUsecs();
             file.writeln(value.name,
-                ",", format!"%,3?d"('_', msecs),
-                ",", format!"%,3?d"('_', usecs),
+                ",", format!"%,3?d"('_', value.elapsedTimeMsecs()),
+                ",", format!"%,3?d"('_', value.elapsedTimeUsecs()),
                 ",", format!"%,3?d"('_', value.count),
-                ",", format!"%.2f"((usecs / cast(double)value.count) * 100.0));
+                ",", format!"%,3?.2f"('_', value.elapsedTimePercent()));
         }
     }
 
@@ -324,14 +327,29 @@ version (unittest)
         debug return bytesToHexs(b);
     }
 
+    string dgToStr(bool b) @nogc nothrow pure @safe
+    {
+        return b ? "true" : "false";
+    }
+
     string dgToStr(int n) @nogc nothrow pure @safe
     {
-        debug return format!"%d"(n);
+        debug return format!"%,3?d"('_', n);
+    }
+
+    string dgToStr(uint n) @nogc nothrow pure @safe
+    {
+        debug return format!"%,3?d"('_', n);
     }
 
     string dgToStr(long n) @nogc nothrow pure @safe
     {
-        debug return format!"%d"(n);
+        debug return format!"%,3?d"('_', n);
+    }
+
+    string dgToStr(ulong n) @nogc nothrow pure @safe
+    {
+        debug return format!"%,3?d"('_', n);
     }
 
     void dgWrite(A...)(A args) nothrow

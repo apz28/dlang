@@ -129,7 +129,7 @@ public:
         doAssign!(T, false)(value);
     }
 
-    /// Allows assignment from a subset algebraic type
+    /// Allows construct from a subset algebraic type
     this(T : VariantN!(TypeSize, Types), size_t TypeSize, Types...)(T value) nothrow
     if (!is(T : VariantN) && Types.length > 0 && allSatisfy!(allowed, Types))
     {
@@ -351,7 +351,11 @@ public:
 
     bool opCast(C: bool)() const nothrow pure @safe
     {
-        return handler.boolCast(size, pointer);
+        bool result;
+        if (handler.boolCast(size, pointer, result))
+            return result;
+        else
+            return false;
     }
 
     // Temporary hack until bug http://d.puremagic.com/issues/show_bug.cgi?id=5747 is fixed.
@@ -568,8 +572,8 @@ public:
      * explicitly converted (coerced) to the requested type $(D T).
      * If `T` is a string type, the value is formatted as
      * a string. If the `VariantN` object is a string, a
-     * parse of the string to type `T` is attempted. If a
-     * conversion is not possible, application terminated.
+     * parse of the string to type `T` is attempted. If an
+     * implicit conversion is not possible, throws a `VariantException`.
      */
     T coerce(T)() @trusted
     {
@@ -577,56 +581,38 @@ public:
         if (auto pv = peek!T())
             return *pv;
 
-        static if (isNumeric!T || isBoolean!T)
-        {
-            static if (is(typeof(Unqual!T.max) : int))
-            if (canGet!int())
-                return to!T(doGet!int());
-
-            static if (is(typeof(Unqual!T.max) : uint))
-            if (canGet!uint())
-                return to!T(doGet!uint());
-
-            static if (is(typeof(Unqual!T.max) : long))
-            if (canGet!long())
-                return to!T(doGet!long());
-
-            static if (is(typeof(Unqual!T.max) : ulong))
-            if (canGet!ulong())
-                return to!T(doGet!ulong());
-
-            static if (is(Unqual!T : float))
-            if (canGet!float())
-                return to!T(doGet!float());
-
-            static if (is(Unqual!T : double))
-            if (canGet!double())
-                return to!T(doGet!double());
-
-            static if (is(Unqual!T : real))
-            if (canGet!real())
-                return to!T(doGet!real());
-
-            if (canGet!int())
-                return to!T(doGet!int());
-            else if (canGet!(const(char)[])())
-                return to!T(doGet!(const(char)[])());
-            // I'm not sure why this doesn't convert to const(char),
-            // but apparently it doesn't (probably a deeper bug).
-            // Until that is fixed, this quick addition keeps a common
-            // function working. "10".coerce!int ought to work.
-            else if (canGet!(immutable(char)[])())
-                return to!T(doGet!(immutable(char)[])());
-            else
-                assert(0, "Unsupported type for coerce: " ~ T.stringof);
-        }
-        else static if (is(T : Object))
-            return to!T(doGet!Object());
-        else static if (isSomeString!T)
-            return to!T(toString());
-        // Fix for bug 1649
+        static if (is(T == void) || typeid(T) is typeid(null))
+            throw new VariantException(typeInfo, typeid(T), "coerce()");
         else
-            static assert(0, "Unsupported type for coerce: " ~ T.stringof);
+        {
+            static if (is(T : Object))
+            {
+                if (variantType == VariantType.class_)
+                    return cast(T)(doGet!Object());
+            }
+            else static if (isSomeString!T)
+            {
+                string sResult;
+                if (handler.toString(size, pointer, sResult))
+                {
+                    enum es = coerceSizeof!T();
+                    static if (es == 1)
+                        return sResult;
+                    else static if (es == 2)
+                        return to!wstring(sResult);
+                    else static if (es == 4)
+                        return to!dstring(sResult);
+                }
+            }
+            else
+            {
+                T tResult;
+                if (handler.coerce(size, pointer, coerceSizeof!T(), &tResult, variantTypeOf!T(), typeid(Unqual!T)))
+                    return tResult;
+            }
+
+            throw new VariantException(typeInfo, typeid(T), "coerce()");
+        }
     }
 
     /**
@@ -719,7 +705,11 @@ public:
      */
     string toString()
     {
-        return handler.toString(size, pointer);
+        string result;
+        if (handler.toString(size, pointer, result))
+            return result;
+        else
+            return null;
     }
 
     /**
@@ -794,6 +784,14 @@ public:
     }
 
     /**
+     * Returns the `sizeof` of the currently held value.
+     */
+    @property size_t typeSize() const nothrow pure @safe
+    {
+        return handler.typeSize();
+    }
+
+    /**
      * Returns the `VariantType` of the currently held value.
      */
     @property VariantType variantType() const nothrow pure @safe
@@ -802,7 +800,7 @@ public:
     }
 
 private:
-    VariantN doArithmetic(string op, T)(T other) nothrow @safe
+    VariantN doArithmetic(string op, T)(T rhs) nothrow @safe
     {
         static if (isInstanceOf!(.VariantN, T))
         {
@@ -811,8 +809,8 @@ private:
                 import std.format : format;
                 return q{
                     static if (allowed!(%1$s) && T.allowed!(%1$s))
-                    if (canGet!(%1$s)() && other.canGet!(%1$s)())
-                        return VariantN(doGet!(%1$s)() %2$s other.doGet!(%1$s)());
+                    if (canGet!(%1$s)() && rhs.canGet!(%1$s)())
+                        return VariantN(doGet!(%1$s)() %2$s rhs.doGet!(%1$s)());
                 }.format(tp, op);
             }
 
@@ -828,37 +826,37 @@ private:
         {
             static if (allowed!T)
             if (auto pv = peek!T())
-                return VariantN(mixin("*pv " ~ op ~ " other"));
+                return VariantN(mixin("*pv " ~ op ~ " rhs"));
 
             static if (allowed!int && is(typeof(T.max) : int) && !isUnsigned!T)
             if (canGet!int)
-                return VariantN(mixin("doGet!int() " ~ op ~ " other"));
+                return VariantN(mixin("doGet!int() " ~ op ~ " rhs"));
 
             static if (allowed!uint && is(typeof(T.max) : uint) && isUnsigned!T)
             if (canGet!uint)
-                return VariantN(mixin("doGet!uint() " ~ op ~ " other"));
+                return VariantN(mixin("doGet!uint() " ~ op ~ " rhs"));
 
             static if (allowed!long && is(typeof(T.max) : long))
             if (canGet!long)
-                return VariantN(mixin("doGet!long() " ~ op ~ " other"));
+                return VariantN(mixin("doGet!long() " ~ op ~ " rhs"));
 
             static if (allowed!ulong && is(typeof(T.max) : ulong))
             if (canGet!ulong)
-                return VariantN(mixin("doGet!ulong() " ~ op ~ " other"));
+                return VariantN(mixin("doGet!ulong() " ~ op ~ " rhs"));
 
             static if (allowed!float && is(T : float) && T.sizeof <= 4)
             if (canGet!float)
-                return VariantN(mixin("doGet!float() " ~ op ~ " other"));
+                return VariantN(mixin("doGet!float() " ~ op ~ " rhs"));
 
             // is(T : real) = T can be implicitly converted to double
             static if (allowed!double && is(T : double))
             if (canGet!double)
-                return VariantN(mixin("doGet!double() " ~ op ~ " other"));
+                return VariantN(mixin("doGet!double() " ~ op ~ " rhs"));
 
             // is(T : real) = T can be implicitly converted to real
             static if (allowed!real && is(T : real))
             if (canGet!real)
-                return VariantN(mixin("doGet!real() " ~ op ~ " other"));
+                return VariantN(mixin("doGet!real() " ~ op ~ " rhs"));
         }
 
         assert(0, "Cannot do VariantN(" ~ AllowedTypes.stringof ~ ") " ~ op ~ " " ~ T.stringof);
@@ -966,29 +964,29 @@ private:
         return result;
     }
 
-    VariantN doLogic(string op, T)(T other) nothrow @safe
+    VariantN doLogic(string op, T)(T rhs) nothrow @safe
     {
         static if (is(T == VariantN))
         {
-            if (canGet!uint() && other.canGet!uint())
-                return VariantN(mixin("doGet!uint() " ~ op ~ " other.doGet!uint()"));
-            else if (canGet!int() && other.canGet!int())
-                return VariantN(mixin("doGet!int() " ~ op ~ " other.doGet!int()"));
-            else if (canGet!ulong() && other.canGet!ulong())
-                return VariantN(mixin("doGet!ulong() " ~ op ~ " other.doGet!ulong()"));
-            else if (canGet!long() && other.canGet!long())
-                return VariantN(mixin("doGet!long() " ~ op ~ " other.doGet!long()"));
+            if (canGet!uint() && rhs.canGet!uint())
+                return VariantN(mixin("doGet!uint() " ~ op ~ " rhs.doGet!uint()"));
+            else if (canGet!int() && rhs.canGet!int())
+                return VariantN(mixin("doGet!int() " ~ op ~ " rhs.doGet!int()"));
+            else if (canGet!ulong() && rhs.canGet!ulong())
+                return VariantN(mixin("doGet!ulong() " ~ op ~ " rhs.doGet!ulong()"));
+            else if (canGet!long() && rhs.canGet!long())
+                return VariantN(mixin("doGet!long() " ~ op ~ " rhs.doGet!long()"));
         }
         else
         {
             if (is(typeof(T.max) : uint) && T.min == 0 && canGet!uint())
-                return VariantN(mixin("doGet!uint() " ~ op ~ " other"));
+                return VariantN(mixin("doGet!uint() " ~ op ~ " rhs"));
             else if (is(typeof(T.max) : int) && T.min < 0 && canGet!int())
-                return VariantN(mixin("doGet!int() " ~ op ~ " other"));
+                return VariantN(mixin("doGet!int() " ~ op ~ " rhs"));
             else if (is(typeof(T.max) : ulong) && T.min == 0 && canGet!ulong())
-                return VariantN(mixin("doGet!ulong() " ~ op ~ " other"));
+                return VariantN(mixin("doGet!ulong() " ~ op ~ " rhs"));
             else if (canGet!long())
-                return VariantN(mixin("doGet!long() " ~ op ~ " other"));
+                return VariantN(mixin("doGet!long() " ~ op ~ " rhs"));
         }
 
         assert(0, "Cannot do VariantN(" ~ AllowedTypes.stringof ~ ") " ~ op ~ " " ~ T.stringof);
@@ -1112,7 +1110,7 @@ private:
     }
 
 private:
-    // Compute the largest practical size from MaxDataSize
+    // Compute the largest practical storage size from MaxDataSize
     struct SizeChecker
     {
         void* handler;
@@ -1130,6 +1128,47 @@ private:
     }
 
     Handler!void* handler = &voidHandler;
+}
+
+pragma(inline, true)
+VariantType variantTypeOf(T)() @nogc nothrow pure @safe
+{
+    static if (is(T == void) || typeid(T) is typeid(null))
+        return VariantType.null_;
+    else static if (is(T == enum))
+        return VariantType.enum_;
+    else static if (is(T == class))
+        return VariantType.class_;
+    else static if (is(T == interface))
+        return VariantType.interface_;
+    else static if (is(T == struct))
+        return VariantType.struct_;
+    else static if (is(T == union))
+        return VariantType.union_;
+    else static if (isFloatingPoint!T)
+        return VariantType.float_;
+    else static if (isIntegral!T)
+        return VariantType.integer;
+    else static if (isSomeChar!T)
+        return VariantType.character;
+    else static if (isBoolean!T)
+        return VariantType.boolean;
+    else static if (isSomeString!T)
+        return VariantType.string;
+    else static if (isAssociativeArray!T)
+        return VariantType.associativeArray;
+    else static if (isStaticArray!T)
+        return VariantType.staticArray;
+    else static if (isDynamicArray!T)
+        return VariantType.dynamicArray;
+    else static if (isDelegate!T)
+        return VariantType.delegate_;
+    else static if (isFunctionPointer!T)
+        return VariantType.function_;
+    else static if (isPointer!T) // Generic check must be last
+        return VariantType.pointer;
+    else
+        return VariantType.unknown;
 }
 
 /**
@@ -1305,14 +1344,35 @@ enum NullType : byte
     nullType
 }
 
+pragma(inline, true)
+ptrdiff_t coerceSizeof(T)() @nogc nothrow pure @safe
+{
+    static if (isUnsigned!T || isFloatingPoint!T)
+        return T.sizeof;
+    else static if (isIntegral!T)
+        return -T.sizeof;
+    else static if (isSomeString!T)
+        return T.init[0].sizeof;
+    else
+        return T.sizeof;
+}
+
+T* valuePointerOf(T)(size_t size, return void* store) nothrow @trusted
+{
+    if (store)
+    {
+        if (T.sizeof <= size)
+            return cast(T*)store;
+        else
+            return (cast(RefCounted!(T*)*)store).refCountedPayload;
+    }
+    else
+        return null;
+}
+
 struct Handler(T)
 {
 public:
-    static if (is(T == shared))
-        alias R = shared Unqual!T;
-    else
-        alias R = Unqual!T;
-
     static Handler* getHandler() nothrow @trusted
     {
         static if (is(T == void))
@@ -1323,36 +1383,52 @@ public:
     private static shared Handler hHandler;
 
 public:
-    bool function(size_t size, scope void* store, scope void* value) @trusted append = &hAppend;
-    void function(size_t srcSize, scope void* srcStore,
-        size_t dstSize, scope void* dstStore) nothrow @safe assignSelf = &hAssignSelf;
-    bool function(size_t size, scope void* store) nothrow pure @safe boolCast = &hBoolCast;
-    int function(size_t size, scope void* store,
-        size_t pLength, scope void* pValues, scope void* result) @trusted call = &hCall;
-    float function(size_t lhsSize, scope void* lhsStore,
-        size_t rhsSize, scope void* rhsStore) nothrow @safe cmp = &hCmp;
-    void function(size_t size, scope void* store) nothrow @safe construct = &hConstruct;
-    void function(size_t size, scope void* store) nothrow @safe destruct = &hDestruct;
-    bool function(size_t lhsSize, scope void* lhsStore,
-        size_t rhsSize, scope void* rhsStore) nothrow @safe equals = &hEquals;
-    bool function(size_t size, scope void* store, scope void* key, scope TypeInfo keyTypeInfo,
-        void* value) nothrow @trusted indexAA = &hIndexAA;
-    bool function(size_t size, scope void* store, size_t index,
-        void* value) nothrow @trusted indexAR = &hIndexAR;
-    bool function(size_t size, scope void* store,
-        scope void* value, scope void* key) @trusted indexAssignAA = &hIndexAssignAA;
-    bool function(size_t size, scope void* store,
-        scope void* value, size_t index) @trusted indexAssignAR = &hIndexAssignAR;
-    bool function(TypeInfo unqualifiedRhsValue) nothrow pure @safe isCompatibleArrayComparison = &hIsCompatibleArrayComparison;
-    size_t function(size_t size, scope void* store) nothrow pure @safe length = &hLength;
-    NullType function() nothrow pure @safe nullType = &hNullType;
-    size_t function(size_t size, scope void* store) nothrow @safe toHash = &hToHash;
-    string function(size_t size, scope void* store) toString = &hToString;
-    bool function(size_t srcSize, scope void* srcStore,
-        size_t dstSize, scope void* dst, scope TypeInfo dstTypeInfo) nothrow @safe tryGet = &hTryGet;
-    TypeInfo function(bool asIs) nothrow pure @safe typeInfo = &hTypeInfo;
-    T* function(size_t size, return void* store) nothrow pure @trusted valuePointer = &hValuePointer;
-    VariantType function() nothrow pure @safe variantType = &hVariantType;
+    bool function(size_t size, scope void* store, scope void* value) @trusted
+        append = &hAppend;
+    void function(size_t srcSize, scope void* srcStore, size_t dstSize, scope void* dstStore) nothrow @safe
+        assignSelf = &hAssignSelf;
+    bool function(size_t size, scope void* store, ref bool result) nothrow pure @safe
+        boolCast = &hBoolCast;
+    int function(size_t size, scope void* store, size_t pLength, scope void* pValues, scope void* result) @trusted
+        call = &hCall;
+    float function(size_t lhsSize, scope void* lhsStore, size_t rhsSize, scope void* rhsStore) nothrow @safe
+        cmp = &hCmp;
+    bool function(size_t srcSize, scope void* srcStore, ptrdiff_t dstSize, scope void* dstStore, const(VariantType) dstVariantType, scope TypeInfo dstTypeInfo)
+        coerce = &hCoerce;
+    void function(size_t size, scope void* store) nothrow @safe
+        construct = &hConstruct;
+    void function(size_t size, scope void* store) nothrow @safe
+        destruct = &hDestruct;
+    bool function(size_t lhsSize, scope void* lhsStore, size_t rhsSize, scope void* rhsStore) nothrow @safe
+        equals = &hEquals;
+    bool function(size_t size, scope void* store, scope void* key, scope TypeInfo keyTypeInfo, void* value) nothrow @trusted
+        indexAA = &hIndexAA;
+    bool function(size_t size, scope void* store, size_t index, void* value) nothrow @trusted
+        indexAR = &hIndexAR;
+    bool function(size_t size, scope void* store, scope void* value, scope void* key) @trusted
+        indexAssignAA = &hIndexAssignAA;
+    bool function(size_t size, scope void* store, scope void* value, size_t index) @trusted
+        indexAssignAR = &hIndexAssignAR;
+    bool function(TypeInfo unqualifiedRhsValue) nothrow pure @safe
+        isCompatibleArrayComparison = &hIsCompatibleArrayComparison;
+    size_t function(size_t size, scope void* store) @nogc nothrow pure @safe
+        length = &hLength;
+    NullType function() @nogc nothrow pure @safe
+        nullType = &hNullType;
+    size_t function(size_t size, scope void* store) nothrow @safe
+        toHash = &hToHash;
+    bool function(size_t size, scope void* store, ref string result)
+        toString = &hToString;
+    bool function(size_t srcSize, scope void* srcStore, size_t dstSize, scope void* dstStore, scope TypeInfo dstTypeInfo) nothrow @safe
+        tryGet = &hTryGet;
+    TypeInfo function(bool asIs) nothrow pure @safe
+        typeInfo = &hTypeInfo;
+    size_t function() @nogc nothrow pure @safe
+        typeSize = &hTypeSize;
+    T* function(size_t size, return void* store) @nogc nothrow pure @trusted
+        valuePointer = &hValuePointer;
+    VariantType function() @nogc nothrow pure @safe
+        variantType = &hVariantType;
 
 private:
     static bool hAppend(size_t size, scope void* store, scope void* value) @trusted
@@ -1392,29 +1468,65 @@ private:
         }
     }
 
-    static bool hBoolCast(size_t size, scope void* store) nothrow pure @trusted
+    static bool canBoolCast() @nogc nothrow pure @safe
     {
         static if (is(T == void) || typeid(T) is typeid(null))
+        {
             return false;
-        else static if (isArray!T || isAssociativeArray!T)
-            return hValuePointer(size, store).length != 0;
-        else static if (isIntegral!T)
-            return *hValuePointer(size, store) != 0;
-        else static if (isFloatingPoint!T)
-            return *hValuePointer(size, store) != 0.0;
-        else static if (is(T == bool))
-            return *hValuePointer(size, store);
-        else static if (isSomeChar!T)
+        }
+        else
+        {
+            static if (is(T == bool) || isIntegral!T || isFloatingPoint!T
+                       || isSomeChar!T || isSomeString!T
+                       || isPointer!T || isArray!T || isAssociativeArray!T)
+                return true;
+            else static if (__traits(compiles, { bool _ = (*v).opCast!bool(); }))
+                return true;
+            else
+                return false;
+        }
+    }
+
+    static bool hBoolCast(size_t size, scope void* store, ref bool result) nothrow pure @trusted
+    {
+        static if (is(T == void) || typeid(T) is typeid(null))
+        {
+            return false;
+        }
+        else
         {
             auto v = hValuePointer(size, store);
-            return !(*v == 0 || *v == T.init); // T.init = 0xFF... which is invalid
+            bool vConverted = true;
+            static if (is(T == bool))
+                result = *v;
+            else static if (isIntegral!T)
+                result = *v != 0;
+            else static if (isFloatingPoint!T)
+                result = *v != 0.0;
+            else static if (isSomeChar!T)
+                result = !(*v == 0 || *v == T.init); // T.init = 0xFF... which is invalid
+            else static if (isSomeString!T)
+            {
+                if (*v == "false" || *v == "FALSE" || *v == "False" || *v == "0")
+                    result = false;
+                else if (*v == "true" || *v == "TRUE" || *v == "True" || *v == "1")
+                    result = true;
+                else
+                    result = v.length != 0;
+            }
+            else static if (isPointer!T)
+                result = *v != null;
+            else static if (isArray!T || isAssociativeArray!T)
+                result = v.length != 0;
+            else static if (__traits(compiles, { bool _ = (*v).opCast!bool(); }))
+                result = (*v).opCast!bool();
+            else
+            {
+                //pragma(msg, typeid(T).stringof ~ ".opCast!bool()?");
+                vConverted = false;
+            }
+            return vConverted;
         }
-        else static if (isPointer!T)
-            return *hValuePointer(size, store) != null;
-        else static if (__traits(compiles, { bool c = (*hValuePointer(size, store)).opCast!bool(); }))
-            return (*hValuePointer(size, store)).opCast!bool();
-        else
-            return true;
     }
 
     static int hCall(size_t size, scope void* store,
@@ -1482,6 +1594,187 @@ private:
             else
                 return float.nan;
         }
+    }
+
+    static bool hCoerce(size_t srcSize, scope void* srcStore, ptrdiff_t dstSize, scope void* dstStore, const(VariantType) dstVariantType, scope TypeInfo dstTypeInfo)
+    {
+        import std.math : abs;
+        import pham.external.dec.decimal : coerce; // For converting short/int/long/float/double to Decimal...
+
+        static if (is(T == void))
+            return false;
+        else
+        {
+            const vt = hVariantType();
+            if (vt == VariantType.null_)
+            {
+                if (dstVariantType == VariantType.null_
+                    || dstVariantType == VariantType.class_
+                    || dstVariantType == VariantType.pointer)
+                {
+                    srcStore = null;
+                    return true;
+                }
+                return false;
+            }
+
+            auto v = hValuePointer(srcSize, srcStore);
+            final switch (dstVariantType)
+            {
+                // Numeric result
+                case VariantType.character:
+                    static if (isSomeChar!T || isIntegral!T)
+                    {
+                        if (dstSize == T.sizeof)
+                            *valuePointerOf!(Unqual!T)(dstSize, dstStore) = *v;
+                        else
+                        {
+                            if (dstSize == 1)
+                                *valuePointerOf!char(dstSize, dstStore) = to!char(*v);
+                            else if (dstSize == 2)
+                                *valuePointerOf!wchar(dstSize, dstStore) = to!wchar(*v);
+                            else if (dstSize == 4)
+                                *valuePointerOf!dchar(dstSize, dstStore) = to!dchar(*v);
+                            else
+                                return false;
+                        }
+                        return true;
+                    }
+                    else
+                        return false;
+                case VariantType.integer:
+                    static if (isIntegral!T || isFloatingPoint!T || isSomeChar!T || isBoolean!T)
+                    {
+                        if (abs(dstSize) >= T.sizeof)
+                        {
+                            if (dstSize == -byte.sizeof)
+                                *valuePointerOf!byte(dstSize, dstStore) = cast(byte)*v;
+                            else if (dstSize == ubyte.sizeof)
+                                *valuePointerOf!ubyte(dstSize, dstStore) = cast(ubyte)*v;
+                            else if (dstSize == -short.sizeof)
+                                *valuePointerOf!short(dstSize, dstStore) = cast(short)*v;
+                            else if (dstSize == ushort.sizeof)
+                                *valuePointerOf!ushort(dstSize, dstStore) = cast(ushort)*v;
+                            else if (dstSize == -int.sizeof)
+                                *valuePointerOf!int(dstSize, dstStore) = cast(int)*v;
+                            else if (dstSize == uint.sizeof)
+                                *valuePointerOf!uint(dstSize, dstStore) = cast(uint)*v;
+                            else if (dstSize == -long.sizeof)
+                                *valuePointerOf!long(dstSize, dstStore) = cast(long)*v;
+                            else if (dstSize == ulong.sizeof)
+                                *valuePointerOf!ulong(dstSize, dstStore) = cast(ulong)*v;
+                            else
+                                return false;
+                        }
+                        else
+                        {
+                            if (dstSize == -byte.sizeof)
+                                *valuePointerOf!byte(dstSize, dstStore) = to!byte(*v);
+                            else if (dstSize == ubyte.sizeof)
+                                *valuePointerOf!ubyte(dstSize, dstStore) = to!ubyte(*v);
+                            else if (dstSize == -short.sizeof)
+                                *valuePointerOf!short(dstSize, dstStore) = to!short(*v);
+                            else if (dstSize == ushort.sizeof)
+                                *valuePointerOf!ushort(dstSize, dstStore) = to!ushort(*v);
+                            else if (dstSize == -int.sizeof)
+                                *valuePointerOf!int(dstSize, dstStore) = to!int(*v);
+                            else if (dstSize == uint.sizeof)
+                                *valuePointerOf!uint(dstSize, dstStore) = to!uint(*v);
+                            else if (dstSize == -long.sizeof)
+                                *valuePointerOf!long(dstSize, dstStore) = to!long(*v);
+                            else if (dstSize == ulong.sizeof)
+                                *valuePointerOf!ulong(dstSize, dstStore) = to!ulong(*v);
+                            else
+                                return false;
+                        }
+                        return true;
+                    }
+                    else static if (__traits(compiles, { bool _ = T.init.coerce(dstSize, dstStore, dstTypeInfo); }))
+                        return (*v).coerce(dstSize, dstStore, dstTypeInfo);
+                    else
+                        return false;
+                case VariantType.float_:
+                    static if (isFloatingPoint!T || isIntegral!T || isSomeChar!T || isBoolean!T)
+                    {
+                        if (dstSize >= T.sizeof)
+                        {
+                            if (dstSize == float.sizeof)
+                                *valuePointerOf!float(dstSize, dstStore) = *v;
+                            else if (dstSize == double.sizeof)
+                                *valuePointerOf!double(dstSize, dstStore) = *v;
+                            else if (dstSize == real.sizeof)
+                                *valuePointerOf!real(dstSize, dstStore) = *v;
+                            else
+                                return false;
+                        }
+                        else
+                        {
+                            if (dstSize == float.sizeof)
+                                *valuePointerOf!float(dstSize, dstStore) = to!float(*v);
+                            else if (dstSize == double.sizeof)
+                                *valuePointerOf!double(dstSize, dstStore) = to!double(*v);
+                            else if (dstSize == real.sizeof)
+                                *valuePointerOf!real(dstSize, dstStore) = to!real(*v);
+                            else
+                                return false;
+                        }
+                        return true;
+                    }
+                    else static if (__traits(compiles, { bool _ = T.init.coerce(dstSize, dstStore, dstTypeInfo); }))
+                        return (*v).coerce(dstSize, dstStore, dstTypeInfo);
+                    else
+                        return false;
+                case VariantType.boolean:
+                    bool bResult;
+                    if (hBoolCast(srcSize, srcStore, bResult))
+                    {
+                        *valuePointerOf!bool(dstSize, dstStore) = bResult;
+                        return true;
+                    }
+                    else
+                        return false;
+                /*
+                case VariantType.string:
+                    string sResult;
+                    if (hToString(srcSize, srcStore, sResult))
+                    {
+                        if (dstSize == 1)
+                            *valuePointerOf!(string*)(dstSize, dstStore) = sResult;
+                        else if (dstSize == 2)
+                            *valuePointerOf!(wstring*)(dstSize, dstStore) = to!wstring(sResult);
+                        else if (dstSize == 4)
+                            *valuePointerOf!(dstring*)(dstSize, dstStore) = to!dstring(sResult);
+                        else
+                            return false;
+                        return true;
+                    }
+                    else
+                        return false;
+                */
+                case VariantType.struct_:
+                    static if (__traits(compiles, { bool _ = T.init.coerce(dstSize, dstStore, dstTypeInfo); }))
+                        return (*v).coerce(dstSize, dstStore, dstTypeInfo);
+                    else static if (__traits(compiles, { bool _ = coerce(T.init, dstSize, dstStore, dstTypeInfo); }))
+                        return coerce(*v, dstSize, dstStore, dstTypeInfo);
+                    else
+                        return false;
+                case VariantType.null_:
+                case VariantType.enum_:
+                case VariantType.string:
+                case VariantType.staticArray:
+                case VariantType.dynamicArray:
+                case VariantType.associativeArray:
+                case VariantType.class_:
+                case VariantType.interface_:
+                case VariantType.union_:
+                case VariantType.delegate_:
+                case VariantType.function_:
+                case VariantType.pointer:
+                case VariantType.unknown:
+                    return false;
+            }
+        }
+        assert(0);
     }
 
     static void hConstruct(size_t size, scope void* store) nothrow @trusted
@@ -1602,7 +1895,7 @@ private:
             return false;
     }
 
-    static size_t hLength(size_t size, scope void* store) nothrow pure @safe
+    static size_t hLength(size_t size, scope void* store) @nogc nothrow pure @safe
     {
         static if (isArray!T || isAssociativeArray!T)
             return hValuePointer(size, store).length;
@@ -1610,7 +1903,7 @@ private:
             return 0;
     }
 
-    static NullType hNullType() nothrow pure @safe
+    static NullType hNullType() @nogc nothrow pure @safe
     {
         static if (is(T == void))
             return NullType.voidType;
@@ -1628,100 +1921,81 @@ private:
         {
             auto v = hValuePointer(size, store);
 
-            static if (__traits(compiles, { size_t h = (*v).toHash(); }))
+            static if (__traits(compiles, { size_t _ = (*v).toHash(); }))
                 return (*v).toHash();
             else
                 return typeid(T).getHash(store);
         }
     }
 
-    static string hToString(size_t size, scope void* store)
+    version (none)
+    static bool canToString() @nogc nothrow pure @safe
     {
         static if (is(T == void) || typeid(T) is typeid(null))
-            return null;
+            return false;
+        else
+        {
+            static if (__traits(compiles, { string _ = T.init.toString(); }))
+                return true;
+            else static if (is(typeof(to!string(T.init))))
+                return true;
+            else
+                return false;
+        }
+    }
+
+    static bool hToString(size_t size, scope void* store, ref string result)
+    {
+        static if (is(T == void) || typeid(T) is typeid(null))
+            return false;
         else
         {
             auto v = hValuePointer(size, store);
-
-            static if (__traits(compiles, { string s = (*v).toString(); }))
-                return (*v).toString();
+            bool vConverted = true;
+            static if (__traits(compiles, { string _ = (*v).toString(); }))
+                result = (*v).toString();
             else static if (is(typeof(to!string(*v))))
-                return to!string(*v);
+                result = to!string(*v);
             else
             {
-                version (assert)
-                    assert(0, typeid(T).toString() ~ ".toString()?");
-
-                return null;
+                //pragma(msg, typeid(T).stringof ~ ".toString()?");
+                vConverted = false;
             }
+            return vConverted;
         }
     }
 
     static bool hTryGet(size_t srcSize, scope void* srcStore,
-        size_t dstSize, scope void* dst, scope TypeInfo dstTypeInfo) nothrow @trusted
+        size_t dstSize, scope void* dstStore, scope TypeInfo dstTypeInfo) nothrow @trusted
     {
         static if (is(T == void))
             return false;
         else
-            return tryPut(hValuePointer(srcSize, srcStore), dstSize, dst, dstTypeInfo);
+            return tryPut(hValuePointer(srcSize, srcStore), dstSize, dstStore, dstTypeInfo);
     }
 
+    pragma(inline, true)
     static TypeInfo hTypeInfo(bool asIs) nothrow pure @safe
     {
         return asIs ? typeid(T) : typeid(Unqual!T);
     }
 
-    static T* hValuePointer(size_t size, return void* store) nothrow pure @trusted
+    pragma(inline, true)
+    static size_t hTypeSize() @nogc nothrow pure @safe
     {
-        if (store)
-        {
-            if (T.sizeof <= size)
-                return cast(T*)store;
-            else
-                return (cast(RefCounted!(T*)*)store).refCountedPayload;
-        }
-        else
-            return null;
+        return T.sizeof;
     }
 
-    static VariantType hVariantType() nothrow pure @safe
+    pragma(inline, true)
+    static T* hValuePointer(size_t size, return void* store) @nogc nothrow pure @trusted
     {
-        static if (is(T == void) || typeid(T) is typeid(null))
-            return VariantType.null_;
-        else static if (is(T == enum))
-            return VariantType.enum_;
-        else static if (is(T == class))
-            return VariantType.class_;
-        else static if (is(T == interface))
-            return VariantType.interface_;
-        else static if (is(T == struct))
-            return VariantType.struct_;
-        else static if (is(T == union))
-            return VariantType.union_;
-        else static if (isFloatingPoint!T)
-            return VariantType.float_;
-        else static if (isIntegral!T)
-            return VariantType.integer;
-        else static if (isSomeChar!T)
-            return VariantType.character;
-        else static if (isBoolean!T)
-            return VariantType.boolean;
-        else static if (isSomeString!T)
-            return VariantType.string;
-        else static if (isAssociativeArray!T)
-            return VariantType.associativeArray;
-        else static if (isStaticArray!T)
-            return VariantType.staticArray;
-        else static if (isDynamicArray!T)
-            return VariantType.dynamicArray;
-        else static if (isDelegate!T)
-            return VariantType.delegate_;
-        else static if (isFunctionPointer!T)
-            return VariantType.function_;
-        else static if (isPointer!T) // Generic check must be last
-            return VariantType.pointer;
-        else
-            return VariantType.unknown;
+        return valuePointerOf!T(size, store);
+    }
+
+    pragma(inline, true)
+    static VariantType hVariantType() @nogc nothrow pure @safe
+    {
+        return variantTypeOf!T();
     }
 
 private:
@@ -1763,6 +2037,8 @@ private:
 
     static bool tryPut(scope T* src, size_t dstSize, scope void* dst, scope TypeInfo dstTypeInfo) nothrow
     {
+        scope (failure) return false;
+
         alias UT = Unqual!T;
         alias AllTypes = AssignableTypes!T;
 
@@ -4341,6 +4617,91 @@ nothrow @safe unittest // Variant.opCast!bool
     v = new C(); assert(v.toString() == "Hello World!");
     v = 'c'; assert(v.toString() == "c");
     v = true; assert(v.toString() == "true");
+}
+
+unittest // Variant.coerce
+{
+    import std.algorithm.searching : startsWith;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.utl.variant.Variant.coerce");
+
+    Variant v;
+
+    v = 42;
+    assert(v.coerce!int() == 42);
+    assert(v.coerce!uint() == 42u);
+    assert(v.coerce!long() == 42);
+    assert(v.coerce!ulong() == 42uL);
+    assert(v.coerce!float() == 42.0);
+    assert(v.coerce!double() == 42.0);
+    assert(v.coerce!bool());
+    assert(v.coerce!string() == "42");
+
+    v = 101L;
+    assert(v.coerce!int() == 101);
+    assert(v.coerce!uint() == 101u);
+    assert(v.coerce!long() == 101);
+    assert(v.coerce!ulong() == 101uL);
+    assert(v.coerce!float() == 101.0);
+    assert(v.coerce!double() == 101.0);
+    assert(v.coerce!bool());
+    assert(v.coerce!string() == "101");
+
+    v = float(100);
+    assert(v.coerce!float() == 100.0);
+    assert(v.coerce!double() == 100.0);
+    assert(v.coerce!bool());
+    assert(v.coerce!string() == "100", v.coerce!string());
+
+    v = true;
+    assert(v.coerce!bool());
+    assert(v.coerce!int() == 1);
+    assert(v.coerce!string() == "true");
+
+    v = "true";
+    assert(v.coerce!bool());
+    assert(v.coerce!string() == "true");
+
+    v = "false";
+    assert(!v.coerce!bool());
+    assert(v.coerce!string() == "false");
+}
+
+unittest // Variant.coerce
+{
+    import pham.external.dec.decimal;
+    import pham.utl.test;
+    traceUnitTest("unittest pham.utl.variant.Variant.coerce");
+
+    Variant v;
+
+    v = Decimal32(100);
+    assert(v.coerce!Decimal32() == 100.0);
+    assert(v.coerce!Decimal64() == 100.0);
+    assert(v.coerce!Decimal128() == 100.0);
+    assert(v.coerce!float() == 100.0);
+    assert(v.coerce!double() == 100.0);
+
+    v = Decimal64(1000);
+    assert(v.coerce!Decimal32() == 1000.0);
+    assert(v.coerce!Decimal64() == 1000.0);
+    assert(v.coerce!Decimal128() == 1000.0);
+    assert(v.coerce!float() == 1000.0);
+    assert(v.coerce!double() == 1000.0);
+
+    v = Decimal128(11000);
+    assert(v.coerce!Decimal32() == 11000.0);
+    assert(v.coerce!Decimal64() == 11000.0);
+    assert(v.coerce!Decimal128() == 11000.0);
+    assert(v.coerce!float() == 11000.0);
+    assert(v.coerce!double() == 11000.0);
+
+    v = float(100);
+    assert(v.coerce!Decimal32() == 100.0);
+    assert(v.coerce!Decimal64() == 100.0);
+    assert(v.coerce!Decimal128() == 100.0);
+    assert(v.coerce!float() == 100.0);
+    assert(v.coerce!double() == 100.0);
 }
 
 @system unittest // Variant.opIndex & opIndexAssign

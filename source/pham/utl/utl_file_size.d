@@ -85,7 +85,7 @@ public:
         return this;
     }
 
-    FileSize opBinary(string op)(in FileSize rhs) const @nogc nothrow pure
+    FileSize opBinary(string op)(scope const(FileSize) rhs) const @nogc nothrow pure
     if (op == "+" || op == "-")
     {
         return FileSize(mixin("_bytes " ~ op ~ " rhs._bytes"));
@@ -120,12 +120,12 @@ public:
         return this;
     }
 
-    int opCmp(in FileSize rhs) const @nogc nothrow pure
+    int opCmp(scope const(FileSize) rhs) const @nogc nothrow pure
     {
         return (_bytes > rhs._bytes) - (_bytes < rhs._bytes);
     }
 
-    bool opEquals(in FileSize rhs) const @nogc nothrow pure
+    bool opEquals(scope const(FileSize) rhs) const @nogc nothrow pure
     {
         return _bytes == rhs._bytes;
     }

@@ -633,7 +633,7 @@ public:
         this.parts = parse(versionString);
     }
 
-    int opCmp(T)(const T rhs) const pure
+    int opCmp(T)(const(T) rhs) const pure
     if (is(T == string) || is(Unqual!T == VersionString))
     {
         static if (is(Unqual!T == VersionString))
@@ -648,13 +648,13 @@ public:
         return compare(this.parts, rhsVersion.parts);
     }
 
-    bool opEquals(T)(const T rhs) const pure
+    bool opEquals(T)(const(T) rhs) const pure
     if (is(T == string) || is(Unqual!T == VersionString))
     {
         return opCmp(rhs) == 0;
     }
 
-    static int compare(scope const Parts lhs, scope const Parts rhs) pure
+    static int compare(scope const(Parts) lhs, scope const(Parts) rhs) pure
     {
         int result = compare(lhs[0], rhs[0]);
         if (result == 0)

@@ -234,7 +234,7 @@ if (is(E Base == enum))
  *  enum E {e1 = 1, e2 = 2, e3 = 10, ...}
  *  toName!E(e3) returns "e3"
  */
-string toName(E)(const E value) pure
+string toName(E)(const(E) value) pure
 if (is(E Base == enum))
 {
     import pham.utl.utf8 : ShortStringBuffer;

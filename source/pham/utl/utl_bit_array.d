@@ -23,7 +23,7 @@ import pham.utl.utf8 : ShortStringBuffer;
 nothrow @safe:
 
 pragma(inline, true)
-T hostToNetworkOrder(T)(const T host) @nogc pure
+T hostToNetworkOrder(T)(const(T) host) @nogc pure
 if (isIntegral!T || isSomeChar!T)
 {
     version (BigEndian)
@@ -369,21 +369,21 @@ public:
     /*
      * Supports comparison operators for `BitArray`.
      */
-    int opCmp(const ref BitArray other) const @nogc pure @trusted
+    int opCmp(scope const(BitArray) rhs) const @nogc pure @trusted
     {
-        const lesser = length < other.length ? &this : &other;
+        const lesser = length < rhs.length ? &this : &rhs;
         const f = lesser.fullWords;
         const e = lesser.endBits;
 
         foreach (i; 0..f)
         {
-            if (values[i] != other.values[i])
-                return values[i] & (size_t(1) << bsf(values[i] ^ other.values[i])) ? 1 : -1;
+            if (values[i] != rhs.values[i])
+                return values[i] & (size_t(1) << bsf(values[i] ^ rhs.values[i])) ? 1 : -1;
         }
 
         if (endBits)
         {
-            const diff = values[f] ^ other.values[f];
+            const diff = values[f] ^ rhs.values[f];
             if (diff)
             {
                 const i = bsf(diff);
@@ -395,19 +395,19 @@ public:
         // Standard:
         // A bool value can be implicitly converted to any integral type,
         // with false becoming 0 and true becoming 1
-        return (length > other.length) - (length < other.length);
+        return (length > rhs.length) - (length < rhs.length);
     }
 
     /*
      * Support for operators == and != for `BitArray`.
      */
-    bool opEquals(const ref BitArray other) const @nogc pure
+    bool opEquals(const const(BitArray) rhs) const @nogc pure
     {
-        if (length != other.length)
+        if (length != rhs.length)
             return false;
 
         const f = fullWords;
-        if (values[0..f] != other.values[0..f])
+        if (values[0..f] != rhs.values[0..f])
             return false;
 
         const e = endBits;
@@ -415,7 +415,7 @@ public:
             return true;
 
         const m = endMask(e);
-        return (values[f] & m) == (other.values[f] & m);
+        return (values[f] & m) == (rhs.values[f] & m);
     }
 
     bool opIndex(size_t index) const @nogc pure @trusted
@@ -920,7 +920,7 @@ nothrow @safe unittest
     import pham.utl.test;
     traceUnitTest("unittest pham.utl.bit_array.BitArray.opIndex");
 
-    static void fun(const BitArray arr)
+    static void fun(const(BitArray) arr)
     {
         auto x = arr[0];
         assert(x == 1);

@@ -11,7 +11,7 @@
 
 module pham.utl.delegate_list;
 
-import pham.utl.array : UnshrinkArray;
+import pham.utl.array : IndexedArray;
 
 struct DelegateList(Args...)
 {
@@ -43,7 +43,7 @@ public:
         }
     }
 
-    bool opCast(C: bool)() const nothrow pure @safe
+    bool opCast(C: bool)() const @nogc nothrow pure @safe
     {
         return length != 0;
     }
@@ -56,6 +56,8 @@ public:
         items.clear();
         return this;
     }
+
+    alias put = putBack;
 
     /**
      * Appends element, handler, into end of this instant
@@ -81,13 +83,13 @@ public:
         return this;
     }
 
-    @property size_t length() const nothrow pure @safe
+    @property size_t length() const @nogc nothrow pure @safe
     {
         return items.length;
     }
 
 private:
-    UnshrinkArray!DelegateHandler items;
+    IndexedArray!(DelegateHandler, 10) items;
 }
 
 

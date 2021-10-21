@@ -1111,17 +1111,17 @@ struct Foo
 	@Ini("Foo int array")
     int[] ints;
 
-	bool opEquals(Foo other)
+	bool opEquals(scope const(Foo) rhs)
     {
 		import std.math : isClose, isNaN;
         import std.algorithm.comparison : equal;
 
-		return this.name == other.name
-            && this.age == other.age
-            && this.alive == other.alive
-            && equal(this.words, other.words)
-            && equal(this.ints, other.ints)
-			&& (isClose(this.weight, other.weight) || (isNaN(this.weight) && isNaN(other.weight)));
+		return this.name == rhs.name
+            && this.age == rhs.age
+            && this.alive == rhs.alive
+            && equal(this.words, rhs.words)
+            && equal(this.ints, rhs.ints)
+			&& (isClose(this.weight, rhs.weight) || (isNaN(this.weight) && isNaN(rhs.weight)));
 	}
 }
 

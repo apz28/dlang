@@ -13,20 +13,19 @@
 
 module pham.utl.big_integer;
 
-import std.array : Appender;
 import std.ascii : lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
 import std.conv : ConvException;
-import std.format : FormatSpec, formatValue, FormatException;
-import std.range.primitives : isInputRange, ElementType, put;
-import std.string : indexOf, CaseSensitive;
-import std.traits;
+import std.format : FormatException, FormatSpec, formatValue;
+import std.range.primitives : ElementType, isInputRange, isOutputRange, put;
+import std.string : CaseSensitive, indexOf;
+import std.traits : isFloatingPoint, isIntegral, isSigned, isSomeChar, Unqual;
 import std.typecons : Flag, No, Yes;
 
-import pham.utl.array : IndexedArray;
 import pham.utl.object : bytesToHexs, isHex, randomDecimalDigits, randomHexDigits;
 import pham.utl.utf8 : ShortStringBuffer;
 import pham.utl.big_integer_helper;
 import pham.utl.big_integer_calculator;
+public import pham.utl.big_integer_calculator : UByteTempArray, UIntTempArray;
 
 @safe:
 
@@ -99,25 +98,34 @@ public:
         setSignInts(value._bits, value._sign);
     }
 
+    /*
+     * Creates a BigInteger from an integer type value
+     */
     this(T)(T value) nothrow pure
     if (isIntegral!T)
     {
         setInt(value);
     }
 
+    /*
+     * Creates a BigInteger from a float type value
+     */
     this(T)(T value) nothrow pure
     if (isFloatingPoint!T)
     {
         setFloat(value);
     }
 
-    /// <summary>
-    /// Creates a BigInteger from a little-endian twos-complement ubyte array.
-    /// </summary>
-    /// <param name="value"></param>
+    /**
+     * Creates a BigInteger from a little-endian twos-complement ubyte array
+     * Params:
+     *  value = Contains BigInteger bits
+     *  unsigned = The bool flag indicating the value bits is an unsigned value regardless of sign bit
+     *  bigEndian = The bool flag indicating the value bits is in big endian format
+     */
     this(scope const(ubyte)[] value,
-        const Flag!"unsigned" unsigned = No.unsigned,
-        const Flag!"bigEndian" bigEndian = No.bigEndian) nothrow pure
+        const(Flag!"unsigned") unsigned = No.unsigned,
+        const(Flag!"bigEndian") bigEndian = No.bigEndian) nothrow pure
     {
         setBytes(value, unsigned, bigEndian);
     }
@@ -127,30 +135,30 @@ public:
         setSignInts(bits, sign);
     }
 
-    /// <summary>
-    /// Constructor used during bit manipulation and arithmetic.
-    /// When possible the uint[] will be packed into  _sign to conserve space.
-    /// </summary>
-    /// <param name="value">The absolute value of the number</param>
-    /// <param name="negative">The bool indicating the sign of the value.</param>
-    this(scope const(uint)[] value, const Flag!"negative" negative) nothrow pure
+    /*
+     * Constructor used during bit manipulation and arithmetic.
+     * When possible the uint[] will be packed into  _sign to conserve space.
+     * Params:
+     *  value = The absolute value of the number
+     *  negative = The bool flag indicating the sign of the value
+     */
+    this(scope const(uint)[] value, const(Flag!"negative") negative) nothrow pure
     {
         setNegativeInts(negative, value);
     }
 
-    /// <summary>
-    /// Create a BigInteger from a little-endian twos-complement UInt32 array.
-    /// When possible, value is assigned directly to this._bits without an array copy
-    /// so use this ctor with care.
-    /// </summary>
-    /// <param name="value"></param>
+    /**
+     * Create a BigInteger from a little-endian twos-complement UInt32 array.
+     * When possible, value is assigned directly to this._bits without an array copy
+     * so use this ctor with care.
+     */
     private this(scope const(uint)[] value) nothrow pure
     {
         setInts(value);
     }
 
     this(scope const(char)[] hexOrDecimals,
-        const ParseFormat format = ParseFormat.init) pure
+        const(ParseFormat) format = ParseFormat.init) pure
     {
         import std.conv : ConvException;
         import std.exception : enforce;
@@ -253,63 +261,63 @@ public:
         return this;
     }
 
-    BigInteger opOpAssign(string op, T)(const T right) nothrow pure
+    BigInteger opOpAssign(string op, T)(const(T) rhs) nothrow pure
     if ((op == "+" || op == "-" || op == "*" || op == "/" || op == "%") && is(T: BigInteger))
     {
         static if (op == "+")
         {
             debug assertValid();
-            debug right.assertValid();
+            debug rhs.assertValid();
 
-            if ((_sign < 0) != (right._sign < 0))
-                return subtractOpAssign(right._bits, -1 * right._sign);
+            if ((_sign < 0) != (rhs._sign < 0))
+                return subtractOpAssign(rhs._bits, -1 * rhs._sign);
             else
-                return addOpAssign(right._bits, right._sign);
+                return addOpAssign(rhs._bits, rhs._sign);
         }
         else static if (op == "-")
         {
             debug assertValid();
-            debug right.assertValid();
+            debug rhs.assertValid();
 
-            if ((_sign < 0) != (right._sign < 0))
-                return addOpAssign(right._bits, -1 * right._sign);
+            if ((_sign < 0) != (rhs._sign < 0))
+                return addOpAssign(rhs._bits, -1 * rhs._sign);
             else
-                return subtractOpAssign(right._bits, right._sign);
+                return subtractOpAssign(rhs._bits, rhs._sign);
         }
         else static if (op == "*")
         {
             debug assertValid();
-            debug right.assertValid();
+            debug rhs.assertValid();
 
             const trivialLeft = _bits.length == 0;
-            const trivialRight = right._bits.length == 0;
+            const trivialRight = rhs._bits.length == 0;
 
             if (trivialLeft && trivialRight)
-                setInt(cast(long)_sign * right._sign);
+                setInt(cast(long)_sign * rhs._sign);
             else if (trivialLeft)
             {
-                auto resultBits = BigIntegerCalculator.multiply(right._bits, BigIntegerHelper.abs(_sign));
-                setNegativeInts(toNegativeFlag((_sign < 0) ^ (right._sign < 0)), resultBits[]);
+                auto resultBits = BigIntegerCalculator.multiply(rhs._bits, BigIntegerHelper.abs(_sign));
+                setNegativeInts(toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)), resultBits[]);
             }
             else if (trivialRight)
             {
-                auto resultBits = BigIntegerCalculator.multiply(_bits, BigIntegerHelper.abs(right._sign));
-                setNegativeInts(toNegativeFlag((_sign < 0) ^ (right._sign < 0)), resultBits[]);
+                auto resultBits = BigIntegerCalculator.multiply(_bits, BigIntegerHelper.abs(rhs._sign));
+                setNegativeInts(toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)), resultBits[]);
             }
-            else if (_bits == right._bits)
+            else if (_bits == rhs._bits)
             {
                 auto resultBits = BigIntegerCalculator.square(_bits);
-                setNegativeInts(toNegativeFlag((_sign < 0) ^ (right._sign < 0)), resultBits[]);
+                setNegativeInts(toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)), resultBits[]);
             }
-            else if (_bits.length < right._bits.length)
+            else if (_bits.length < rhs._bits.length)
             {
-                auto resultBits = BigIntegerCalculator.multiply(right._bits, _bits);
-                setNegativeInts(toNegativeFlag((_sign < 0) ^ (right._sign < 0)), resultBits[]);
+                auto resultBits = BigIntegerCalculator.multiply(rhs._bits, _bits);
+                setNegativeInts(toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)), resultBits[]);
             }
             else
             {
-                auto resultBits = BigIntegerCalculator.multiply(_bits, right._bits);
-                setNegativeInts(toNegativeFlag((_sign < 0) ^ (right._sign < 0)), resultBits[]);
+                auto resultBits = BigIntegerCalculator.multiply(_bits, rhs._bits);
+                setNegativeInts(toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)), resultBits[]);
             }
 
             return this;
@@ -317,27 +325,27 @@ public:
         else static if (op == "/")
         {
             debug assertValid();
-            debug right.assertValid();
+            debug rhs.assertValid();
 
             const trivialDividend = _bits.length == 0;
-            const trivialDivisor = right._bits.length == 0;
+            const trivialDivisor = rhs._bits.length == 0;
 
             if (trivialDividend && trivialDivisor)
-                setInt(_sign / right._sign);
+                setInt(_sign / rhs._sign);
             // The divisor is non-trivial and therefore the bigger one
             else if (trivialDividend)
                 setZero();
             else if (trivialDivisor)
             {
-                auto resultBits = BigIntegerCalculator.divide(_bits, BigIntegerHelper.abs(right._sign));
-                setNegativeInts(toNegativeFlag((_sign < 0) ^ (right._sign < 0)), resultBits[]);
+                auto resultBits = BigIntegerCalculator.divide(_bits, BigIntegerHelper.abs(rhs._sign));
+                setNegativeInts(toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)), resultBits[]);
             }
-            else if (_bits.length < right._bits.length)
+            else if (_bits.length < rhs._bits.length)
                 setZero();
             else
             {
-                auto resultBits = BigIntegerCalculator.divide(_bits, right._bits);
-                setNegativeInts(toNegativeFlag((_sign < 0) ^ (right._sign < 0)), resultBits[]);
+                auto resultBits = BigIntegerCalculator.divide(_bits, rhs._bits);
+                setNegativeInts(toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)), resultBits[]);
             }
 
             return this;
@@ -345,31 +353,31 @@ public:
         else static if (op == "%")
         {
             debug assertValid();
-            debug right.assertValid();
+            debug rhs.assertValid();
 
             const trivialDividend = _bits.length == 0;
-            const trivialDivisor = right._bits.length == 0;
+            const trivialDivisor = rhs._bits.length == 0;
 
             if (trivialDividend && trivialDivisor)
-                setInt(_sign % right._sign);
+                setInt(_sign % rhs._sign);
             // The divisor is non-trivial and therefore the bigger one
             else if (trivialDividend)
                 setSignInts(_bits, _sign);
             else if (trivialDivisor)
             {
-                uint remainder = BigIntegerCalculator.remainder(_bits, BigIntegerHelper.abs(right._sign));
+                uint remainder = BigIntegerCalculator.remainder(_bits, BigIntegerHelper.abs(rhs._sign));
                 if (_sign < 0)
                     setInt(-1 * remainder);
                 else
                     setInt(remainder);
             }
-            else if (_bits.length < right._bits.length)
+            else if (_bits.length < rhs._bits.length)
             {
                 //setSignInts(_bits, _sign);
             }
             else
             {
-                auto resultBits = BigIntegerCalculator.remainder(_bits, right._bits);
+                auto resultBits = BigIntegerCalculator.remainder(_bits, rhs._bits);
                 setNegativeInts(toNegativeFlag(_sign < 0), resultBits[]);
             }
 
@@ -379,25 +387,25 @@ public:
             static assert(0, typeof(this).stringof ~ " " ~ op ~ "= " ~ T.stringof ~ " is not supported");
     }
 
-    BigInteger opOpAssign(string op, T)(const T right) nothrow pure
+    BigInteger opOpAssign(string op, T)(const(T) rhs) nothrow pure
     if ((op == "+" || op == "-" || op == "*" || op == "/" || op == "%") && isIntegral!T)
     {
-        return this.opOpAssign!op(BigInteger(right));
+        return this.opOpAssign!op(BigInteger(rhs));
     }
 
-    BigInteger opOpAssign(string op, T)(const T right) nothrow pure
+    BigInteger opOpAssign(string op, T)(const(T) rhs) nothrow pure
     if ((op == "&" || op == "|" || op == "^") && is(T: BigInteger))
     {
         static if (op == "&")
         {
-            if (isZero || right.isZero)
+            if (isZero || rhs.isZero)
             {
                 setZero();
                 return this;
             }
-            else if (_bits.length == 0 && right._bits.length == 0)
+            else if (_bits.length == 0 && rhs._bits.length == 0)
             {
-                setInt(_sign & right._sign);
+                setInt(_sign & rhs._sign);
                 return this;
             }
         }
@@ -405,22 +413,22 @@ public:
         {
             if (isZero)
             {
-                setSignInts(right._bits, right._sign);
+                setSignInts(rhs._bits, rhs._sign);
                 return this;
             }
-            else if (right.isZero)
+            else if (rhs.isZero)
                 return this;
-            else if (_bits.length == 0 && right._bits.length == 0)
+            else if (_bits.length == 0 && rhs._bits.length == 0)
             {
-                setInt(_sign | right._sign);
+                setInt(_sign | rhs._sign);
                 return this;
             }
         }
         else static if (op == "^")
         {
-            if (_bits.length == 0 && right._bits.length == 0)
+            if (_bits.length == 0 && rhs._bits.length == 0)
             {
-                setInt(_sign ^ right._sign);
+                setInt(_sign ^ rhs._sign);
                 return this;
             }
         }
@@ -428,16 +436,16 @@ public:
             static assert(0, typeof(this).stringof ~ " " ~ op ~ "= " ~ T.stringof ~ " is not supported");
 
         auto x = toUIntArray();
-        auto y = right.toUIntArray();
+        auto y = rhs.toUIntArray();
         auto z = UIntTempArray(0);
         z.length = Math.Max(x.Length, y.Length);
-        const uint xExtend = (_sign < 0) ? uint.MaxValue : 0;
-        const uint yExtend = (right._sign < 0) ? uint.MaxValue : 0;
+        const uint xExtend = _sign < 0 ? uint.MaxValue : 0;
+        const uint yExtend = rhs._sign < 0 ? uint.MaxValue : 0;
 
         for (size_t i = 0; i < z.Length; i++)
         {
-            const uint xu = (i < x.Length) ? x[i] : xExtend;
-            const uint yu = (i < y.Length) ? y[i] : yExtend;
+            const uint xu = i < x.Length ? x[i] : xExtend;
+            const uint yu = i < y.Length ? y[i] : yExtend;
             mixin("z[i] = xu " ~ op ~ " yu");
         }
 
@@ -446,19 +454,19 @@ public:
         return this;
     }
 
-    BigInteger opOpAssign(string op, T)(const T right) nothrow pure
+    BigInteger opOpAssign(string op, T)(const(T) rhs) nothrow pure
     if ((op == "&" || op == "|" || op == "^") && isIntegral!T)
     {
         static if (op == "&")
         {
-            if (isZero || right == 0)
+            if (isZero || rhs == 0)
             {
                 setZero();
                 return this;
             }
             else if (_bits.length == 0)
             {
-                setInt(_sign & right);
+                setInt(_sign & rhs);
                 return this;
             }
         }
@@ -466,14 +474,14 @@ public:
         {
             if (isZero)
             {
-                setInt(right);
+                setInt(rhs);
                 return this;
             }
-            else if (right == 0)
+            else if (rhs == 0)
                 return this;
             else if (_bits.length == 0)
             {
-                setInt(_sign | right);
+                setInt(_sign | rhs);
                 return this;
             }
         }
@@ -481,7 +489,7 @@ public:
         {
             if (_bits.length == 0)
             {
-                setInt(_sign ^ right);
+                setInt(_sign ^ rhs);
                 return this;
             }
         }
@@ -491,12 +499,12 @@ public:
         return this.opOpAssign!op(BigInteger(rigth));
     }
 
-    BigInteger opOpAssign(string op)(const int right) nothrow pure
+    BigInteger opOpAssign(string op)(const(int) rhs) nothrow pure
     if (op == "<<" || op == ">>" || op == "^^")
     {
         static if (op == "<<")
         {
-            const shift = right;
+            const shift = rhs;
 
             if (shift == 0)
                 return this;
@@ -546,7 +554,7 @@ public:
         }
         else static if (op == ">>")
         {
-            const shift = right;
+            const shift = rhs;
 
             if (shift == 0)
                 return this;
@@ -612,7 +620,7 @@ public:
         {
             debug assertValid();
 
-            const exponent = right;
+            const exponent = rhs;
 
             // x^(-p) == 1/(x^(p))
             if (exponent < 0)
@@ -654,37 +662,40 @@ public:
             static assert(0, typeof(this).stringof ~ " " ~ op ~ "= " ~ int.stringof ~ " is not supported");
     }
 
-    BigInteger opBinary(string op, T)(const T right) const nothrow pure
+    BigInteger opBinary(string op, T)(const(T) rhs) const nothrow pure
     if (((op == "+" || op == "-" || op == "*" || op == "/" || op == "%") && is(T: BigInteger)) ||
         ((op == "&" || op == "|" || op == "^") && is(T: BigInteger)))
     {
         auto result = BigInteger(_bits, _sign);
-        return result.opOpAssign!op(right);
+        return result.opOpAssign!op(rhs);
     }
 
-    BigInteger opBinary(string op, T)(const T right) const nothrow pure
+    BigInteger opBinary(string op, T)(const(T) rhs) const nothrow pure
     if (((op == "+" || op == "-" || op == "*" || op == "/" || op == "%") && isIntegral!T) ||
         ((op == "&" || op == "|" || op == "^") && isIntegral!T))
     {
         auto result = BigInteger(_bits, _sign);
-        return result.opOpAssign!op(BigInteger(right));
+        return result.opOpAssign!op(BigInteger(rhs));
     }
 
-    BigInteger opBinary(string op)(const int right) const nothrow pure
+    BigInteger opBinary(string op)(const(int) rhs) const nothrow pure
     if (op == "<<" || op == ">>" || op == "^^")
     {
         auto result = BigInteger(_bits, _sign);
-        return result.opOpAssign!op(right);
+        return result.opOpAssign!op(rhs);
     }
 
-    BigInteger opBinaryRight(string op, T)(const T left) const nothrow pure
+    BigInteger opBinaryRight(string op, T)(const(T) lhs) const nothrow pure
     if (((op == "+" || op == "-" || op == "*" || op == "/" || op == "%") && isIntegral!T) ||
         ((op == "&" || op == "|" || op == "^") && isIntegral!T))
     {
-        auto result = BigInteger(left);
+        auto result = BigInteger(lhs);
         return result.opOpAssign!op(this);
     }
 
+    /**
+     * A bool cast which return True if this BigInteger instance is not zero
+     */
     T opCast(T: bool)() const @nogc nothrow pure
     {
         return !isZero();
@@ -727,33 +738,33 @@ public:
         return cast(T)toFloat();
     }
 
-    int opCmp(int other) const @nogc nothrow pure
+    int opCmp(const(int) rhs) const @nogc nothrow pure
     {
-        return opCmp(cast(long)other);
+        return opCmp(cast(long)rhs);
     }
 
-    int opCmp(uint other) const @nogc nothrow pure
+    int opCmp(const(uint) rhs) const @nogc nothrow pure
     {
-        return opCmp(cast(ulong)other);
+        return opCmp(cast(ulong)rhs);
     }
 
-    int opCmp(long other) const @nogc nothrow pure
+    int opCmp(const(long) rhs) const @nogc nothrow pure
     {
         debug assertValid();
 
         if (_bits.length == 0)
-            return BigIntegerHelper.compare(cast(long)_sign, other);
+            return BigIntegerHelper.compare(cast(long)_sign, rhs);
 
         ptrdiff_t cu;
-        if ((_sign ^ other) < 0 || (cu = _bits.length) > 2)
+        if ((_sign ^ rhs) < 0 || (cu = _bits.length) > 2)
             return _sign;
 
-        ulong uu = other < 0 ? cast(ulong)(-other) : cast(ulong)other;
+        ulong uu = rhs < 0 ? cast(ulong)(-rhs) : cast(ulong)rhs;
         ulong uuTmp = cu == 2 ? BigIntegerHelper.makeUlong(_bits[1], _bits[0]) : _bits[0];
         return _sign * BigIntegerHelper.compare(uuTmp, uu);
     }
 
-    int opCmp(ulong other) const @nogc nothrow pure
+    int opCmp(const(ulong) rhs) const @nogc nothrow pure
     {
         debug assertValid();
 
@@ -761,22 +772,22 @@ public:
             return -1;
 
         if (_bits.length == 0)
-            return BigIntegerHelper.compare(cast(ulong)_sign, other);
+            return BigIntegerHelper.compare(cast(ulong)_sign, rhs);
 
         const cu = _bits.length;
         if (cu > 2)
             return +1;
 
         ulong uuTmp = cu == 2 ? BigIntegerHelper.makeUlong(_bits[1], _bits[0]) : _bits[0];
-        return BigIntegerHelper.compare(uuTmp, other);
+        return BigIntegerHelper.compare(uuTmp, rhs);
     }
 
-    int opCmp(const BigInteger other) const @nogc nothrow pure
+    int opCmp(scope const(BigInteger) rhs) const @nogc nothrow pure
     {
         debug assertValid();
-        debug other.assertValid();
+        debug rhs.assertValid();
 
-        if ((_sign ^ other._sign) < 0)
+        if ((_sign ^ rhs._sign) < 0)
         {
             // Different signs, so the comparison is easy.
             return _sign < 0 ? -1 : +1;
@@ -785,55 +796,55 @@ public:
         // Same signs
         if (_bits.length == 0)
         {
-            if (other._bits.length == 0)
-                return _sign < other._sign ? -1 : _sign > other._sign ? +1 : 0;
+            if (rhs._bits.length == 0)
+                return _sign < rhs._sign ? -1 : (_sign > rhs._sign ? +1 : 0);
             else
-                return -other._sign;
+                return -rhs._sign;
         }
 
         ptrdiff_t cuThis, cuOther;
-        if (other._bits.length == 0 || (cuThis = _bits.length) > (cuOther = other._bits.length))
+        if (rhs._bits.length == 0 || (cuThis = _bits.length) > (cuOther = rhs._bits.length))
             return _sign;
 
         if (cuThis < cuOther)
             return -_sign;
 
-        auto cuDiff = getDiffLength(_bits, other._bits, cuThis);
+        auto cuDiff = getDiffLength(_bits, rhs._bits, cuThis);
         if (cuDiff == 0)
             return 0;
 
-        return _bits[cuDiff - 1] < other._bits[cuDiff - 1] ? -_sign : _sign;
+        return _bits[cuDiff - 1] < rhs._bits[cuDiff - 1] ? -_sign : _sign;
     }
 
-    bool opEquals(int other) const @nogc nothrow pure
+    bool opEquals(const(int) rhs) const @nogc nothrow pure
     {
-        return opEquals(cast(long)other);
+        return opEquals(cast(long)rhs);
     }
 
-    bool opEquals(uint other) const @nogc nothrow pure
+    bool opEquals(const(uint) rhs) const @nogc nothrow pure
     {
-        return opEquals(cast(ulong)other);
+        return opEquals(cast(ulong)rhs);
     }
 
-    bool opEquals(long other) const @nogc nothrow pure
+    bool opEquals(const(long) rhs) const @nogc nothrow pure
     {
         debug assertValid();
 
         if (_bits.length == 0)
-            return _sign == other;
+            return _sign == rhs;
 
         long cu;
-        if ((_sign ^ other) < 0 || (cu = _bits.length) > 2)
+        if ((_sign ^ rhs) < 0 || (cu = _bits.length) > 2)
             return false;
 
-        const ulong uu = other < 0 ? cast(ulong)(-other) : cast(ulong)other;
+        const ulong uu = rhs < 0 ? cast(ulong)(-rhs) : cast(ulong)rhs;
         if (cu == 1)
             return _bits[0] == uu;
 
         return BigIntegerHelper.makeUlong(_bits[1], _bits[0]) == uu;
     }
 
-    bool opEquals(ulong other) const @nogc nothrow pure
+    bool opEquals(const(ulong) rhs) const @nogc nothrow pure
     {
         debug assertValid();
 
@@ -841,38 +852,38 @@ public:
             return false;
 
         if (_bits.length == 0)
-            return cast(ulong)_sign == other;
+            return cast(ulong)_sign == rhs;
 
         const size_t cu = _bits.length;
         if (cu > 2)
             return false;
 
         if (cu == 1)
-            return _bits[0] == other;
+            return _bits[0] == rhs;
 
-        return BigIntegerHelper.makeUlong(_bits[1], _bits[0]) == other;
+        return BigIntegerHelper.makeUlong(_bits[1], _bits[0]) == rhs;
     }
 
-    bool opEquals(const BigInteger other) const @nogc nothrow pure
+    bool opEquals(scope const(BigInteger) rhs) const @nogc nothrow pure
     {
         debug assertValid();
-        debug other.assertValid();
+        debug rhs.assertValid();
 
-        if (_sign != other._sign)
+        if (_sign != rhs._sign)
             return false;
 
-        if (_bits == other._bits)
-            // _sign == other._sign && _bits.length == 0 && other._bits.length == 0
+        if (_bits == rhs._bits)
+            // _sign == rhs._sign && _bits.length == 0 && rhs._bits.length == 0
             return true;
 
-        if (_bits.length == 0 || other._bits.length == 0)
+        if (_bits.length == 0 || rhs._bits.length == 0)
             return false;
 
         const ptrdiff_t cu = _bits.length;
-        if (cu != other._bits.length)
+        if (cu != rhs._bits.length)
             return false;
 
-        return getDiffLength(_bits, other._bits, cu) == 0;
+        return getDiffLength(_bits, rhs._bits, cu) == 0;
     }
 
     BigInteger opUnary(string op)() nothrow
@@ -907,44 +918,64 @@ public:
         return this;
     }
 
-    // For security reason, need a way clear the secrete information
+    /**
+     * For security reason, need a way clear the internal data
+     */
     void dispose(bool disposing) @nogc nothrow pure
     {
         _sign = 0;
         _bits[] = 0;
     }
 
-    /// <summary>Gets the number of bytes that will be output by <see cref="toUByteArray(bool, bool)"/> and <see cref="TryWriteBytes(Span{ubyte}, out int, bool, bool)"/>.</summary>
-    /// <returns>The number of bytes.</returns>
-    size_t getByteCount(const Flag!"includeSign" includeSign = Yes.includeSign) const nothrow
+    /**
+     * Gets the number of bytes that will be output by <see cref="toBytes()"/>
+     * Returns:
+     *  The number of bytes
+     */
+    size_t getByteCount(const(Flag!"includeSign") includeSign = Yes.includeSign) const nothrow
     {
         // Big or Little Endian doesn't matter for the byte count.
         UByteTempArray bytes;
-        return getUBytesLittleEndian(includeSign, GetBytesMode.count, bytes);
+        return getUBytesLittleEndian(bytes, includeSign);
     }
 
+    /**
+     * Set this BigInteger as zero value
+     */
     void setZero() nothrow pure
     {
         _sign = 0;
         _bits = null;
     }
 
+    /**
+     * Return a BigInteger as -1 value
+     */
     static BigInteger negOne() nothrow pure
     {
         return BigInteger(-1);
     }
 
+    /**
+     * Return a BigInteger as 1 value
+     */
     static BigInteger one() nothrow pure
     {
         return BigInteger(1);
     }
 
+    /**
+     * Return a BigInteger as 0 value
+     */
     static BigInteger zero() nothrow pure
     {
         return BigInteger(0);
     }
 
-    double toFloat() const @nogc nothrow pure
+    /**
+     * Return this BigInteger as a double value
+     */
+    double toFloat() const @nogc nothrow pure scope
     {
         debug assertValid();
 
@@ -977,7 +1008,7 @@ public:
         return BigIntegerHelper.getDoubleFromParts(_sign, exp, man);
     }
 
-    size_t toHash() const nothrow @nogc @safe
+    size_t toHash() const nothrow @nogc @safe scope
     {
         debug assertValid();
 
@@ -991,7 +1022,10 @@ public:
         return hash;
     }
 
-    long toLong() const pure
+    /**
+     * Return this BigInteger as a long value (64 bits)
+     */
+    long toLong() const pure scope
     {
         debug assertValid();
 
@@ -1017,7 +1051,10 @@ public:
         return 0; // Fix warning
     }
 
-    ulong toULong() const pure
+    /**
+     * Return this BigInteger as a ulong value (64 bits)
+     */
+    ulong toULong() const pure scope
     {
         debug assertValid();
 
@@ -1034,62 +1071,66 @@ public:
             return _bits[0];
     }
 
-    /// <summary>
-    /// Returns the value of this BigInteger as a ubyte array using the fewest number of bytes possible.
-    /// If the value is zero, returns an array of one ubyte whose element is 0x00.
-    /// </summary>
-    /// <param name="isUnsigned">Whether or not an unsigned encoding is to be used</param>
-    /// <param name="isBigEndian">Whether or not to write the bytes in a big-endian byte order</param>
-    /// <returns></returns>
-    /// <exception cref="OverflowException">
-    ///   If <paramref name="isUnsigned"/> is <c>true</c> and <see cref="sign"/> is negative.
-    /// </exception>
-    /// <remarks>
-    /// The integer value <c>33022</c> can be exported as four different arrays.
-    ///
-    /// <list type="bullet">
-    ///   <item>
-    ///     <description>
-    ///       <c>(isUnsigned: false, isBigEndian: false)</c> => <c>new ubyte[] { 0xFE, 0x80, 0x00 }</c>
-    ///     </description>
-    ///   </item>
-    ///   <item>
-    ///     <description>
-    ///       <c>(isUnsigned: false, isBigEndian: true)</c> => <c>new ubyte[] { 0x00, 0x80, 0xFE }</c>
-    ///     </description>
-    ///   </item>
-    ///   <item>
-    ///     <description>
-    ///       <c>(isUnsigned: true, isBigEndian: false)</c> => <c>new ubyte[] { 0xFE, 0x80 }</c>
-    ///     </description>
-    ///   </item>
-    ///   <item>
-    ///     <description>
-    ///       <c>(isUnsigned: true, isBigEndian: true)</c> => <c>new ubyte[] { 0x80, 0xFE }</c>
-    ///     </description>
-    ///   </item>
-    /// </list>
-    /// </remarks>
-    ubyte[] toBytes(const Flag!"includeSign" includeSign = Yes.includeSign) const nothrow pure @safe
+    /**
+     * Returns the value of this BigInteger as a ubyte array in little endian format using the fewest number of bytes possible.
+     * If the value is zero, returns an array of one ubyte whose element is 0x00.
+     * Params:
+     *  includeSign = Whether or not an unsigned encoding is to be used
+     * Returns:
+     *  This BigInteger value as ubyte[]
+     */
+    ubyte[] toBytes(const(Flag!"includeSign") includeSign = Yes.includeSign) const nothrow pure @safe scope
     {
         UByteTempArray result;
-        getUBytesLittleEndian(includeSign, GetBytesMode.allocateArray, result);
+        toBytes(result, includeSign);
         return result.dup;
     }
 
-    /// <summary>
-    /// Return the value of this BigInteger as a little-endian twos-complement
-    /// uint array, using the fewest number of uints possible. If the value is zero,
-    /// return an array of one uint whose element is 0.
-    /// </summary>
-    /// <returns></returns>
-    uint[] toInts(const Flag!"includeSign" includeSign = Yes.includeSign) const nothrow @safe
+    /**
+     * Returns the number of ubytes of this BigInteger
+     * Params:
+     *  result = UByteTempArray contains as a ubyte array in little endian format
+     *           using the fewest number of ubytes possible.
+     *           If the value is zero, returns an UByteTempArray of one ubyte whose element is 0x00.
+     *  includeSign = Whether or not an unsigned encoding is to be used
+     * Returns:
+     *  This BigInteger value as UByteTempArray
+     */
+    size_t toBytes(ref UByteTempArray result, const(Flag!"includeSign") includeSign = Yes.includeSign) const nothrow pure @safe scope
     {
-        if (isEmpty())
-            return [0];
+        return getUBytesLittleEndian(result, includeSign);
+    }
 
+    /**
+     * Return the value of this BigInteger as a little-endian twos-complement
+     * uint array, using the fewest number of uints possible. If the value is zero,
+     * return an array of one uint whose element is 0.
+     * Params:
+     *  includeSign = Whether or not an unsigned encoding is to be used
+     * Returns:
+     *  This BigInteger value as uint[]
+     */
+    uint[] toInts(const(Flag!"includeSign") includeSign = Yes.includeSign) const nothrow @safe scope
+    {
+        UIntTempArray result;
+        toInts(result, includeSign);
+        return result.dup;
+    }
+
+    /**
+     * Returns the number of uints of this BigInteger
+     * Params:
+     *  result = UByteTempArray contains as a uint array in little endian format
+     *           using the fewest number of uints possible.
+     *           If the value is zero, returns an UByteTempArray of one uint whose element is 0x00.
+     *  includeSign = Whether or not an unsigned encoding is to be used
+     * Returns:
+     *  This BigInteger value as UIntTempArray
+     */
+    size_t toInts(ref UIntTempArray result, const(Flag!"includeSign") includeSign = Yes.includeSign) const nothrow @safe scope
+    {
         uint highDWord;
-        auto result = cloneForConvert!uint(highDWord);
+        cloneForConvert!uint(result, highDWord);
 
         // Find highest significant byte
         auto msb = result.length - 1;
@@ -1106,39 +1147,104 @@ public:
         result.length = resultLength;
         if (needExtraByte)
             result[resultLength - 1] = highDWord;
-
-        return result.dup;
+        return resultLength;
     }
 
-    string toString() const nothrow pure @safe
+    ref Writer toDigitString(Writer, Char)(return ref Writer sink, scope const ref FormatSpec!Char f) const nothrow pure @safe
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+    in
     {
-        FormatSpec!char f;
-        f.spec = 'd';
-        ShortStringBuffer!char buffer;
-        return toString(buffer, f).toString();
+        assert(f.spec == 'd' || f.spec == 'D');
     }
-
-    string toString(string formatString,
-        char separatorChar = '\0') const pure @safe
+    do
     {
-        ShortStringBuffer!char buffer;
+        scope (failure) assert(0);
 
-        auto f = FormatSpec!char(formatString);
-        f.separatorChar = separatorChar;
-        f.flSeparator = separatorChar != '\0';
+        const ptrdiff_t cuSrc = _bits.length;
 
-        f.writeUpToNextSpec(buffer);
+        if (cuSrc == 0)
+        {
+            formatValue(sink, _sign, f);
+            return sink;
+        }
 
-        if (f.spec == 'd' || f.spec == 'D')
-            return toString(buffer, f).toString();
-        else if (f.spec == 'x' || f.spec == 'X')
-            return toHexString(buffer, f, Yes.includeSign).toString();
-       else
-            assert(0, "Invalid format specifier: %" ~ f.spec);
+        // First convert to base 10^9.
+        const uint kuBase = 1_000_000_000; // 10^9
+        const int kcchBase = 9;
+
+        const size_t cuMax = cuSrc * 10 / 9 + 2;
+        auto rguDst = UIntTempArray(cuMax);
+        ptrdiff_t cuDst = 0;
+
+        for (ptrdiff_t iuSrc = cuSrc; --iuSrc >= 0;)
+        {
+            uint uCarry = _bits[iuSrc];
+            for (size_t iuDst = 0; iuDst < cuDst; iuDst++)
+            {
+                assert(rguDst[iuDst] < kuBase);
+                const ulong uuRes = BigIntegerHelper.makeUlong(rguDst[iuDst], uCarry);
+                rguDst[iuDst] = cast(uint)(uuRes % kuBase);
+                uCarry = cast(uint)(uuRes / kuBase);
+            }
+            if (uCarry != 0)
+            {
+                rguDst[cuDst++] = uCarry % kuBase;
+                uCarry /= kuBase;
+                if (uCarry != 0)
+                    rguDst[cuDst++] = uCarry;
+            }
+        }
+
+        // Each uint contributes at most 9 digits to the decimal representation.
+        // Leave an extra slot for a minus sign.
+        const char signChar = _sign < 0 ? '-' : (f.flPlus ? '+' : 0);
+        const size_t cchMax = cuDst * kcchBase + (signChar != 0 ? 1 : 0);
+        ptrdiff_t ichDst = cchMax;
+        auto rgch = CharTempArray(cchMax);
+        for (ptrdiff_t iuDst = 0; iuDst < cuDst - 1; iuDst++)
+        {
+            uint uDig = rguDst[iuDst];
+            assert(uDig < kuBase);
+            for (int cch = kcchBase; --cch >= 0;)
+            {
+                rgch[--ichDst] = cast(char)('0' + uDig % 10);
+                uDig /= 10;
+            }
+        }
+        for (uint uDig = rguDst[cuDst - 1]; uDig != 0;)
+        {
+            rgch[--ichDst] = cast(char)('0' + uDig % 10);
+            uDig /= 10;
+        }
+
+        ptrdiff_t resultLength = cchMax - ichDst - (signChar != 0 ? 1 : 0);
+        while (resultLength < f.width)
+        {
+            put(sink, '0');
+            ++resultLength;
+        }
+
+        if (signChar != 0)
+            put(sink, signChar);
+
+        auto digits = rgch[ichDst..rgch.length];
+        if (f.flSeparator)
+        {
+            for (size_t j = 0; j < digits.length; ++j)
+            {
+                if (j != 0 && (digits.length - j) % f.separators == 0)
+                    put(sink, f.separatorChar);
+                put(sink, digits[j]);
+            }
+        }
+        else
+            put(sink, digits);
+
+        return sink;
     }
 
-    string toHexString(const Flag!"includeSign" includeSign = Yes.includeSign,
-        const Flag!"isUpper" isUpper = Yes.isUpper) const nothrow pure @safe
+    string toHexString(const(Flag!"includeSign") includeSign = Yes.includeSign,
+        const(Flag!"isUpper") isUpper = Yes.isUpper) const nothrow pure @safe scope
     {
         FormatSpec!char f;
         f.spec = isUpper ? 'X' : 'x';
@@ -1146,21 +1252,152 @@ public:
         return toHexString(buffer, f, includeSign).toString();
     }
 
-    @property bool isEven() const @nogc nothrow pure
+    ref Writer toHexString(Writer, Char)(return ref Writer sink, scope const ref FormatSpec!Char f,
+        const(Flag!"includeSign") includeSign) const nothrow pure @safe
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+    in
+    {
+        assert(f.spec == 'x' || f.spec == 'X');
+    }
+    do
+    {
+        scope (failure) assert(0);
+
+        const isUpper = f.spec == 'X';
+        const hexDigitSources = isUpper ? upperHexDigits : lowerHexDigits;
+
+        UByteTempArray bytesHolder;
+        getUBytesLittleEndian(bytesHolder, includeSign);
+        auto bytes = bytesHolder[];
+
+        auto hexDigits = CharTempArray(bytes.length * 2);
+
+        size_t charsPos = 0;
+        ptrdiff_t cur = cast(ptrdiff_t)(bytes.length) - 1;
+        if (cur >= 0)
+        {
+            // [FF..F8] drop the high F as the two's complement negative number remains clear
+            // [F7..08] retain the high bits as the two's complement number is wrong without it
+            // [07..00] drop the high 0 as the two's complement positive number remains clear
+            bool clearHighF = false;
+            ubyte head = bytes[cur];
+
+            if (head > 0xF7)
+            {
+                head -= 0xF0;
+                clearHighF = true;
+            }
+
+            if (head < 0x08 || clearHighF)
+            {
+                // {0xF8-0xFF} print as {8-F}
+                // {0x00-0x07} print as {0-7}
+                hexDigits[charsPos++] = head < 10
+                    ? cast(char)(head + '0')
+                    : (isUpper
+                        ? cast(char)((head & 0xF) - 10 + 'A')
+                        : cast(char)((head & 0xF) - 10 + 'a'));
+                cur--;
+            }
+        }
+
+        while (cur >= 0)
+        {
+            const b = bytes[cur--];
+            hexDigits[charsPos++] = hexDigitSources[b >> 4];
+            hexDigits[charsPos++] = hexDigitSources[b & 0xF];
+        }
+
+        ptrdiff_t resultLength = charsPos;
+        while (resultLength < f.width)
+        {
+            put(sink, '0');
+            ++resultLength;
+        }
+
+        if (f.flSeparator)
+        {
+            const len = hexDigits.length;
+            for (size_t j = 0; j < len; ++j)
+            {
+                if (j != 0 && (len - j) % f.separators == 0)
+                    put(sink, f.separatorChar);
+                put(sink, hexDigits[j]);
+            }
+        }
+        else
+            put(sink, hexDigits[]);
+
+        return sink;
+    }
+
+    string toString() const nothrow pure @safe scope
+    {
+        ShortStringBuffer!char buffer;
+
+        FormatSpec!char f;
+        f.spec = 'd';
+
+        return toString(buffer, f).toString();
+    }
+
+    string toString(scope const(char)[] fmt) const pure @safe scope
+    {
+        ShortStringBuffer!char buffer;
+        return toString!(ShortStringBuffer!char, char)(buffer, fmt).toString();
+    }
+
+    string toString(scope const(char)[] fmt, char separatorChar) const pure @safe scope
+    {
+        ShortStringBuffer!char buffer;
+
+        auto f = FormatSpec!char(fmt);
+        f.separatorChar = separatorChar;
+        f.flSeparator = separatorChar != '\0';
+        f.writeUpToNextSpec(buffer);
+
+        return toString(buffer, f).toString();
+    }
+
+    ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt) const pure @safe
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+    {
+        auto f = FormatSpec!Char(fmt);
+        f.writeUpToNextSpec(sink);
+        return toString(sink, f);
+    }
+
+    ref Writer toString(Writer, Char)(return ref Writer sink, scope const ref FormatSpec!Char f) const nothrow pure @safe
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+    in
+    {
+        assert(f.spec == 'd' || f.spec == 'D' || f.spec == 'x' || f.spec == 'X');
+    }
+    do
+    {
+        if (f.spec == 'd' || f.spec == 'D')
+            return toDigitString(sink, f);
+        else if (f.spec == 'x' || f.spec == 'X')
+            return toHexString(sink, f, Yes.includeSign);
+       else
+            assert(0, "Invalid format specifier: %" ~ f.spec);
+    }
+
+    @property bool isEven() const @nogc nothrow pure scope
     {
         debug assertValid();
 
-        return _bits.length == 0 ? (_sign & 1) == 0 : (_bits[0] & 1) == 0;
+        return _bits.length == 0 ? ((_sign & 1) == 0) : ((_bits[0] & 1) == 0);
     }
 
-    @property bool isOne() const @nogc nothrow pure
+    @property bool isOne() const @nogc nothrow pure scope
     {
         debug assertValid();
 
         return _sign == 1 && _bits.length == 0;
     }
 
-    @property bool isPowerOfTwo() const @nogc nothrow pure
+    @property bool isPowerOfTwo() const @nogc nothrow pure scope
     {
         debug assertValid();
 
@@ -1183,7 +1420,7 @@ public:
         return true;
     }
 
-    @property bool isZero() const @nogc nothrow pure
+    @property bool isZero() const @nogc nothrow pure scope
     {
         debug assertValid();
 
@@ -1197,7 +1434,7 @@ public:
      *  0   The value is 0 (zero).
      *  1 	The value is positive.
      */
-    @property int sign() const @nogc nothrow pure
+    @property int sign() const @nogc nothrow pure scope
     {
         debug assertValid();
 
@@ -1236,7 +1473,7 @@ private:
         return this;
     }
 
-    debug void assertValid() const nothrow
+    debug void assertValid() const nothrow pure scope
     {
         if (_bits.ptr !is null)
         {
@@ -1259,7 +1496,7 @@ private:
         }
     }
 
-    void convertError(string toT) const pure
+    void convertError(string toT) const pure scope
     {
         import std.conv : ConvException;
 
@@ -1267,25 +1504,24 @@ private:
         throw new ConvException(msg);
     }
 
-    UIntTempArray cloneForConvert(I)(out I highMark) const
+    void cloneForConvert(I)(ref UIntTempArray result, out I highMark) const
     {
         if (_bits.length == 0)
         {
             highMark = _sign < 0 ? I.max : 0;
-            auto result = UIntTempArray(1);
+            result.clear(1);
             result[0] = cast(uint)_sign;
-            return result;
         }
         else if (_sign < 0)
         {
             highMark = I.max;
-            auto result = UIntTempArray(_bits);
-            return BigIntegerCalculator.makeTwosComplement(result);
+            result = _bits;
+            BigIntegerCalculator.makeTwosComplement(result);
         }
         else
         {
             highMark = 0;
-            return UIntTempArray(_bits);
+            result = _bits;
         }
     }
 
@@ -1299,20 +1535,20 @@ private:
         return 0;
     }
 
-    /// <summary>
-    /// Encapsulate the logic of normalizing the "small" and "large" forms of BigInteger
-    /// into the "large" form so that Bit Manipulation algorithms can be simplified.
-    /// </summary>
-    /// <param name="x"></param>
-    /// <param name="xd">
-    /// The UInt32 array containing the entire big integer in "large" (denormalized) form.
-    /// E.g., the number one (1) and negative one (-1) are both stored as 0x00000001
-    /// BigInteger values Int32.MinValue &lt; x &lt;= Int32.MaxValue are converted to this
-    /// format for convenience.
-    /// </param>
-    /// <param name="xl">The length of xd.</param>
-    /// <returns>True for negative numbers.</returns>
-    static bool getPartsForBitManipulation(const BigInteger x, out UIntTempArray xd, out int xl) nothrow pure
+    /**
+     * Encapsulate the logic of normalizing the "small" and "large" forms of BigInteger
+     * into the "large" form so that Bit Manipulation algorithms can be simplified
+     * Params:
+     *  x = BigInteger instance
+     *  xd = The UInt32 array containing the entire big integer in "large" (denormalized) form.
+     *       E.g., the number one (1) and negative one (-1) are both stored as 0x00000001
+     *       BigInteger values Int32.MinValue< x >= Int32.MaxValue are converted to this
+     *       format for convenience
+     *  xl = The length of xd
+     * Returns:
+     *  True for negative numbers
+     */
+    static bool getPartsForBitManipulation(const(BigInteger) x, out UIntTempArray xd, out int xl) nothrow pure
     {
         const len = x._bits.length;
 
@@ -1334,14 +1570,46 @@ private:
         return x._sign < 0;
     }
 
-    bool isEmpty() const nothrow pure
+    size_t getUBytesLittleEndian(ref UByteTempArray bytes, const(Flag!"includeSign") includeSign) const nothrow pure scope
     {
-        return _sign == 0 && _bits.length == 0;
+        // We could probably make this more efficient by eliminating one of the passes.
+        // The current code does one pass for uint array -> byte array conversion,
+        // and then another pass to remove unneeded bytes at the top of the array.
+        ubyte highByte;
+        UIntTempArray dwords;
+        cloneForConvert!ubyte(dwords, highByte);
+        bytes.clear(4 * dwords.length);
+        size_t curByte = 0;
+        foreach (dword; dwords)
+        {
+            for (int j = 0; j < 4; j++)
+            {
+                bytes[curByte++] = cast(ubyte)(dword & 0xff);
+                dword >>= 8;
+            }
+        }
+
+        // find highest significant byte
+        auto msb = bytes.length - 1;
+        for (; msb > 0; msb--)
+        {
+            if (bytes[msb] != highByte)
+                break;
+        }
+
+        // ensure high bit is 0 if positive, 1 if negative
+        const needExtraByte = includeSign && (bytes[msb] & 0x80) != (highByte & 0x80) ? 1 : 0;
+
+        const resultLength = msb + 1 + needExtraByte;
+        bytes.length = resultLength;
+        if (needExtraByte)
+            bytes[resultLength - 1] = highByte;
+        return resultLength;
     }
 
     void setBytes(scope const(ubyte)[] value,
-        const Flag!"unsigned" unsigned = No.unsigned,
-        const Flag!"bigEndian" bigEndian = No.bigEndian) nothrow pure
+        const(Flag!"unsigned") unsigned = No.unsigned,
+        const(Flag!"bigEndian") bigEndian = No.bigEndian) nothrow pure
     {
         bool isNegative;
         ptrdiff_t byteCount = cast(ptrdiff_t)(value.length);
@@ -1616,7 +1884,7 @@ private:
     }
 
     // digits[0] must be a valid decimal digit
-    void setDecimals(scope const(char)[] digits, const ParseFormat format, ref size_t errorAt) nothrow pure
+    void setDecimals(scope const(char)[] digits, const(ParseFormat) format, ref size_t errorAt) nothrow pure
     {
         const ten = BigInteger(10);
 
@@ -1711,10 +1979,10 @@ private:
     }
 
     // digits[0] must be a valid hex character
-    void setHexs(scope const(char)[] digits, const ParseFormat format, ref size_t errorAt) nothrow pure
+    void setHexs(scope const(char)[] digits, const(ParseFormat) format, ref size_t errorAt) nothrow pure
     {
         const length = (digits.length / 2) + (digits.length % 2);
-        auto resultBits = IndexedArray!(ubyte, allocationThreshold * uint.sizeof)(length);
+        auto resultBits = UByteTempArray(length);
 
         size_t bitIndex = 0;
         bool shift = false;
@@ -1862,7 +2130,7 @@ private:
         _sign = -1;
     }
 
-    void setNegativeInts(const Flag!"negative" negative, scope const(uint)[] value) nothrow pure
+    void setNegativeInts(const(Flag!"negative") negative, scope const(uint)[] value) nothrow pure
     {
         size_t len = value.length;
 
@@ -1936,223 +2204,9 @@ private:
         return this;
     }
 
-    ref Writer toHexString(Writer)(return ref Writer sink, const ref FormatSpec!char f,
-        const Flag!"includeSign" includeSign) const nothrow pure @safe
+    @property bool isEmpty() const nothrow pure scope
     {
-        scope (failure) assert(0);
-
-        const isUpper = f.spec == 'X';
-        const hexDigitSources = isUpper ? upperHexDigits : lowerHexDigits;
-
-        UByteTempArray bytesHolder;
-        getUBytesLittleEndian(includeSign, GetBytesMode.allocateArray, bytesHolder);
-        auto bytes = bytesHolder[];
-
-        auto hexDigits = CharTempArray(bytes.length * 2);
-
-        size_t charsPos = 0;
-        ptrdiff_t cur = cast(ptrdiff_t)(bytes.length) - 1;
-        if (cur >= 0)
-        {
-            // [FF..F8] drop the high F as the two's complement negative number remains clear
-            // [F7..08] retain the high bits as the two's complement number is wrong without it
-            // [07..00] drop the high 0 as the two's complement positive number remains clear
-            bool clearHighF = false;
-            ubyte head = bytes[cur];
-
-            if (head > 0xF7)
-            {
-                head -= 0xF0;
-                clearHighF = true;
-            }
-
-            if (head < 0x08 || clearHighF)
-            {
-                // {0xF8-0xFF} print as {8-F}
-                // {0x00-0x07} print as {0-7}
-                hexDigits[charsPos++] = head < 10
-                    ? cast(char)(head + '0')
-                    : isUpper
-                        ? cast(char)((head & 0xF) - 10 + 'A')
-                        : cast(char)((head & 0xF) - 10 + 'a');
-                cur--;
-            }
-        }
-
-        if (cur >= 0)
-        {
-            while (cur >= 0)
-            {
-                const b = bytes[cur--];
-                hexDigits[charsPos++] = hexDigitSources[b >> 4];
-                hexDigits[charsPos++] = hexDigitSources[b & 0xF];
-            }
-        }
-
-        ptrdiff_t resultLength = charsPos;
-        while (resultLength < f.width)
-        {
-            put(sink, '0');
-            ++resultLength;
-        }
-
-        if (f.flSeparator)
-        {
-            const len = hexDigits.length;
-            for (size_t j = 0; j < len; ++j)
-            {
-                if (j != 0 && (len - j) % f.separators == 0)
-                    put(sink, f.separatorChar);
-                put(sink, hexDigits[j]);
-            }
-        }
-        else
-            put(sink, hexDigits[]);
-
-        return sink;
-    }
-
-    ref Writer toString(Writer)(return ref Writer sink, const ref FormatSpec!char f) const nothrow pure @safe
-    {
-        scope (failure) assert(0);
-
-        const ptrdiff_t cuSrc = _bits.length;
-
-        if (cuSrc == 0)
-        {
-            formatValue(sink, _sign, f);
-            return sink;
-        }
-
-        // First convert to base 10^9.
-        const uint kuBase = 1_000_000_000; // 10^9
-        const int kcchBase = 9;
-
-        const size_t cuMax = cuSrc * 10 / 9 + 2;
-        auto rguDst = UIntTempArray(cuMax);
-        ptrdiff_t cuDst = 0;
-
-        for (ptrdiff_t iuSrc = cuSrc; --iuSrc >= 0;)
-        {
-            uint uCarry = _bits[iuSrc];
-            for (size_t iuDst = 0; iuDst < cuDst; iuDst++)
-            {
-                assert(rguDst[iuDst] < kuBase);
-                const ulong uuRes = BigIntegerHelper.makeUlong(rguDst[iuDst], uCarry);
-                rguDst[iuDst] = cast(uint)(uuRes % kuBase);
-                uCarry = cast(uint)(uuRes / kuBase);
-            }
-            if (uCarry != 0)
-            {
-                rguDst[cuDst++] = uCarry % kuBase;
-                uCarry /= kuBase;
-                if (uCarry != 0)
-                    rguDst[cuDst++] = uCarry;
-            }
-        }
-
-        // Each uint contributes at most 9 digits to the decimal representation.
-            // Leave an extra slot for a minus sign.
-        const char signChar = _sign < 0 ? '-' : (f.flPlus ? '+' : 0);
-        const size_t cchMax = cuDst * kcchBase + (signChar != 0 ? 1 : 0);
-        ptrdiff_t ichDst = cchMax;
-        auto rgch = CharTempArray(cchMax);
-        for (ptrdiff_t iuDst = 0; iuDst < cuDst - 1; iuDst++)
-        {
-            uint uDig = rguDst[iuDst];
-            assert(uDig < kuBase);
-            for (int cch = kcchBase; --cch >= 0;)
-            {
-                rgch[--ichDst] = cast(char)('0' + uDig % 10);
-                uDig /= 10;
-            }
-        }
-        for (uint uDig = rguDst[cuDst - 1]; uDig != 0;)
-        {
-            rgch[--ichDst] = cast(char)('0' + uDig % 10);
-            uDig /= 10;
-        }
-
-        ptrdiff_t resultLength = cchMax - ichDst - (signChar != 0 ? 1 : 0);
-        while (resultLength < f.width)
-        {
-            put(sink, '0');
-            ++resultLength;
-        }
-
-        if (signChar != 0)
-            put(sink, signChar);
-
-        auto digits = rgch[ichDst..rgch.length];
-        if (f.flSeparator)
-        {
-            for (size_t j = 0; j < digits.length; ++j)
-            {
-                if (j != 0 && (digits.length - j) % f.separators == 0)
-                    put(sink, f.separatorChar);
-                put(sink, digits[j]);
-            }
-        }
-        else
-            put(sink, digits);
-
-        return sink;
-    }
-
-    /// <summary>Mode used to enable sharing <see cref="tryGetUBytes(GetBytesMode, Span{ubyte}, bool, bool, ref int)"/> for multiple purposes.</summary>
-    enum GetBytesMode : byte
-    {
-        allocateArray,
-        count
-    }
-
-    size_t getUBytesLittleEndian(const Flag!"includeSign" includeSign, GetBytesMode mode, ref UByteTempArray bytes) const nothrow pure
-    {
-        if (isEmpty())
-        {
-            if (mode == GetBytesMode.allocateArray)
-            {
-                bytes.clear(1);
-                bytes[0] = 0;
-            }
-            return 1;
-        }
-
-        // We could probably make this more efficient by eliminating one of the passes.
-        // The current code does one pass for uint array -> byte array conversion,
-        // and then another pass to remove unneeded bytes at the top of the array.
-        ubyte highByte;
-        auto dwords = cloneForConvert!ubyte(highByte);
-        bytes = UByteTempArray(4 * dwords.length);
-        size_t curByte = 0;
-        foreach (dword; dwords)
-        {
-            for (int j = 0; j < 4; j++)
-            {
-                bytes[curByte++] = cast(ubyte)(dword & 0xff);
-                dword >>= 8;
-            }
-        }
-
-        // find highest significant byte
-        auto msb = bytes.length - 1;
-        for (; msb > 0; msb--)
-        {
-            if (bytes[msb] != highByte)
-                break;
-        }
-
-        // ensure high bit is 0 if positive, 1 if negative
-        const needExtraByte = includeSign && (bytes[msb] & 0x80) != (highByte & 0x80) ? 1 : 0;
-
-        const resultLength = msb + 1 + needExtraByte;
-        if (mode == GetBytesMode.allocateArray)
-        {
-            bytes.length = resultLength;
-            if (needExtraByte)
-                bytes[resultLength - 1] = highByte;
-        }
-        return resultLength;
+        return _sign == 0 && _bits.length == 0;
     }
 
 private:
@@ -2162,44 +2216,44 @@ private:
     int _sign;
 }
 
-int compare(const BigInteger left, const BigInteger right) @nogc nothrow pure
+int compare(const(BigInteger) lhs, const(BigInteger) rhs) @nogc nothrow pure
 {
-    return left.opCmp(right);
+    return lhs.opCmp(rhs);
 }
 
-BigInteger add(const BigInteger left, const BigInteger right) nothrow pure
+BigInteger add(const(BigInteger) lhs, const(BigInteger) rhs) nothrow pure
 {
-    return left + right;
+    return lhs + rhs;
 }
 
-BigInteger subtract(const BigInteger left, const BigInteger right) nothrow pure
+BigInteger subtract(const(BigInteger) lhs, const(BigInteger) rhs) nothrow pure
 {
-    debug left.assertValid();
-    debug right.assertValid();
+    debug lhs.assertValid();
+    debug rhs.assertValid();
 
-    auto result = BigInteger(left._bits, left._sign);
-    if ((left._sign < 0) != (right._sign < 0))
-        return result.addOpAssign(right._bits, -1 * right._sign);
+    auto result = BigInteger(lhs._bits, lhs._sign);
+    if ((lhs._sign < 0) != (rhs._sign < 0))
+        return result.addOpAssign(rhs._bits, -1 * rhs._sign);
     else
-        return result.subtractOpAssign(right._bits, right._sign);
+        return result.subtractOpAssign(rhs._bits, rhs._sign);
 }
 
-BigInteger multiply(const BigInteger left, const BigInteger right) nothrow pure
+BigInteger multiply(const(BigInteger) lhs, const(BigInteger) rhs) nothrow pure
 {
-    return left * right;
+    return lhs * rhs;
 }
 
-BigInteger divide(const BigInteger dividend, const BigInteger divisor) nothrow pure
+BigInteger divide(const(BigInteger) dividend, const(BigInteger) divisor) nothrow pure
 {
     return dividend / divisor;
 }
 
-BigInteger remainder(const BigInteger dividend, const BigInteger divisor) nothrow pure
+BigInteger remainder(const(BigInteger) dividend, const(BigInteger) divisor) nothrow pure
 {
     return dividend % divisor;
 }
 
-BigInteger divRem(const BigInteger dividend, const BigInteger divisor, out BigInteger remainder) nothrow pure
+BigInteger divRem(const(BigInteger) dividend, const(BigInteger) divisor, out BigInteger remainder) nothrow pure
 {
     debug dividend.assertValid();
     debug divisor.assertValid();
@@ -2244,7 +2298,7 @@ BigInteger divRem(const BigInteger dividend, const BigInteger divisor, out BigIn
     }
 }
 
-BigInteger abs(const BigInteger value) nothrow pure
+BigInteger abs(const(BigInteger) value) nothrow pure
 {
     auto result = BigInteger(value._bits, value._sign);
     if (result < BigInteger.zero)
@@ -2253,7 +2307,7 @@ BigInteger abs(const BigInteger value) nothrow pure
         return result;
 }
 
-double log(const BigInteger value, double baseValue) nothrow pure
+double log(const(BigInteger) value, double baseValue) nothrow pure
 {
     import std.math : isInfinity, log;
 
@@ -2288,25 +2342,25 @@ double log(const BigInteger value, double baseValue) nothrow pure
     return BigIntegerCalculator.logBase(x, baseValue) + (b - 64) / BigIntegerCalculator.logBase(baseValue, 2);
 }
 
-double log(const BigInteger value) nothrow pure
+double log(const(BigInteger) value) nothrow pure
 {
     import std.math : E;
 
     return log(value, E);
 }
 
-double log10(const BigInteger value) nothrow pure
+double log10(const(BigInteger) value) nothrow pure
 {
     return log(value, 10);
 }
 
-BigInteger negate(const BigInteger value) nothrow pure
+BigInteger negate(const(BigInteger) value) nothrow pure
 {
     auto result = BigInteger(value._bits, value._sign);
     return -result;
 }
 
-BigInteger modPow(const BigInteger value, const BigInteger exponent, const BigInteger modulus) nothrow pure
+BigInteger modPow(const(BigInteger) value, const(BigInteger) exponent, const(BigInteger) modulus) nothrow pure
 in
 {
     assert(exponent.sign >= 0);
@@ -2323,83 +2377,85 @@ do
 
     if (trivialModulus)
     {
-        auto resultBits = trivialValue && trivialExponent ?
-            BigIntegerCalculator.pow(BigIntegerHelper.abs(value._sign), BigIntegerHelper.abs(exponent._sign), BigIntegerHelper.abs(modulus._sign)) :
-            trivialValue ?
-                BigIntegerCalculator.pow(BigIntegerHelper.abs(value._sign), exponent._bits, BigIntegerHelper.abs(modulus._sign)) :
-                trivialExponent ?
-                    BigIntegerCalculator.pow(value._bits, BigIntegerHelper.abs(exponent._sign), BigIntegerHelper.abs(modulus._sign)) :
-                    BigIntegerCalculator.pow(value._bits, exponent._bits, BigIntegerHelper.abs(modulus._sign));
+        auto resultBits = trivialValue && trivialExponent
+            ? BigIntegerCalculator.pow(BigIntegerHelper.abs(value._sign), BigIntegerHelper.abs(exponent._sign), BigIntegerHelper.abs(modulus._sign))
+            : (trivialValue
+               ? BigIntegerCalculator.pow(BigIntegerHelper.abs(value._sign), exponent._bits, BigIntegerHelper.abs(modulus._sign))
+               : (trivialExponent
+                  ? BigIntegerCalculator.pow(value._bits, BigIntegerHelper.abs(exponent._sign), BigIntegerHelper.abs(modulus._sign))
+                  : BigIntegerCalculator.pow(value._bits, exponent._bits, BigIntegerHelper.abs(modulus._sign))));
 
-        return value._sign < 0 && !exponent.isEven ? BigInteger.negOne() * BigInteger(resultBits) : BigInteger(resultBits);
+        return value._sign < 0 && !exponent.isEven
+            ? BigInteger.negOne() * BigInteger(resultBits)
+            : BigInteger(resultBits);
     }
     else
     {
-        auto resultBits = trivialValue && trivialExponent ?
-            BigIntegerCalculator.pow(BigIntegerHelper.abs(value._sign), BigIntegerHelper.abs(exponent._sign), modulus._bits) :
-            trivialValue ?
-                BigIntegerCalculator.pow(BigIntegerHelper.abs(value._sign), exponent._bits, modulus._bits) :
-                trivialExponent ?
-                    BigIntegerCalculator.pow(value._bits, BigIntegerHelper.abs(exponent._sign), modulus._bits) :
-                    BigIntegerCalculator.pow(value._bits, exponent._bits, modulus._bits);
+        auto resultBits = trivialValue && trivialExponent
+            ? BigIntegerCalculator.pow(BigIntegerHelper.abs(value._sign), BigIntegerHelper.abs(exponent._sign), modulus._bits)
+            : (trivialValue
+               ? BigIntegerCalculator.pow(BigIntegerHelper.abs(value._sign), exponent._bits, modulus._bits)
+               : (trivialExponent
+                  ? BigIntegerCalculator.pow(value._bits, BigIntegerHelper.abs(exponent._sign), modulus._bits)
+                  : BigIntegerCalculator.pow(value._bits, exponent._bits, modulus._bits)));
 
         return BigInteger(resultBits[], toNegativeFlag(value._sign < 0 && !exponent.isEven));
     }
 }
 
-BigInteger pow(const BigInteger value, int exponent) nothrow pure
+BigInteger pow(const(BigInteger) value, int exponent) nothrow pure
 {
     auto result = BigInteger(value._bits, value._sign);
     return result ^^ exponent;
 }
 
-inout(BigInteger) max(inout(BigInteger) left, inout(BigInteger) right) nothrow pure
+inout(BigInteger) max(inout(BigInteger) lhs, inout(BigInteger) rhs) nothrow pure
 {
-    if (left < right)
-        return right;
+    if (lhs < rhs)
+        return rhs;
     else
-        return left;
+        return lhs;
 }
 
-inout(BigInteger) min(inout(BigInteger) left, inout(BigInteger) right) nothrow pure
+inout(BigInteger) min(inout(BigInteger) lhs, inout(BigInteger) rhs) nothrow pure
 {
-    if (left <= right)
-        return left;
+    if (lhs <= rhs)
+        return lhs;
     else
-        return right;
+        return rhs;
 }
 
-BigInteger greatestCommonDivisor(const BigInteger left, const BigInteger right) nothrow pure
+BigInteger greatestCommonDivisor(const(BigInteger) lhs, const(BigInteger) rhs) nothrow pure
 {
-    debug left.assertValid();
-    debug right.assertValid();
+    debug lhs.assertValid();
+    debug rhs.assertValid();
 
-    const trivialLeft = left._bits.length == 0;
-    const trivialRight = right._bits.length == 0;
+    const trivialLeft = lhs._bits.length == 0;
+    const trivialRight = rhs._bits.length == 0;
 
     if (trivialLeft && trivialRight)
     {
-        return BigInteger(BigIntegerCalculator.gcd(BigIntegerHelper.abs(left._sign), BigIntegerHelper.abs(right._sign)));
+        return BigInteger(BigIntegerCalculator.gcd(BigIntegerHelper.abs(lhs._sign), BigIntegerHelper.abs(rhs._sign)));
     }
 
     if (trivialLeft)
     {
-        return left._sign != 0
-            ? BigInteger(BigIntegerCalculator.gcd(right._bits, BigIntegerHelper.abs(left._sign)))
-            : BigInteger(right._bits, No.negative);
+        return lhs._sign != 0
+            ? BigInteger(BigIntegerCalculator.gcd(rhs._bits, BigIntegerHelper.abs(lhs._sign)))
+            : BigInteger(rhs._bits, No.negative);
     }
 
     if (trivialRight)
     {
-        return right._sign != 0
-            ? BigInteger(BigIntegerCalculator.gcd(left._bits, BigIntegerHelper.abs(right._sign)))
-            : BigInteger(left._bits, No.negative);
+        return rhs._sign != 0
+            ? BigInteger(BigIntegerCalculator.gcd(lhs._bits, BigIntegerHelper.abs(rhs._sign)))
+            : BigInteger(lhs._bits, No.negative);
     }
 
-    if (BigIntegerCalculator.compare(left._bits, right._bits) < 0)
-        return greatestCommonDivisor(right._bits, left._bits);
+    if (BigIntegerCalculator.compare(lhs._bits, rhs._bits) < 0)
+        return greatestCommonDivisor(rhs._bits, lhs._bits);
     else
-        return greatestCommonDivisor(left._bits, right._bits);
+        return greatestCommonDivisor(lhs._bits, rhs._bits);
 }
 
 
@@ -2421,10 +2477,10 @@ BigInteger greatestCommonDivisor(const(uint)[] leftBits, const(uint)[] rightBits
     {
         auto tempBits = BigIntegerCalculator.remainder(leftBits, rightBits);
 
-        ulong left = (cast(ulong)rightBits[1] << 32) | rightBits[0];
-        ulong right = (cast(ulong)tempBits[1] << 32) | tempBits[0];
+        ulong lhs = (cast(ulong)rightBits[1] << 32) | rightBits[0];
+        ulong rhs = (cast(ulong)tempBits[1] << 32) | tempBits[0];
 
-        return BigInteger(BigIntegerCalculator.gcd(left, right));
+        return BigInteger(BigIntegerCalculator.gcd(lhs, rhs));
     }
 
     auto resultBits = BigIntegerCalculator.gcd(leftBits, rightBits);
@@ -2432,7 +2488,7 @@ BigInteger greatestCommonDivisor(const(uint)[] leftBits, const(uint)[] rightBits
 }
 
 version (unittest)
-string toStringSafe(const BigInteger n,
+string toStringSafe(const(BigInteger) n,
     string format = null,
     char separator = '_') nothrow @safe
 {
@@ -2664,7 +2720,7 @@ unittest
     import pham.utl.test;
     traceUnitTest("unittest pham.utl.biginteger.BigInteger(operator + - ~ )");
 
-    static void check(const BigInteger value, string checkedValue,
+    static void check(const(BigInteger) value, string checkedValue,
         size_t line = __LINE__)
     {
         auto s = toStringSafe(value, "%,3d", '_');
@@ -2814,7 +2870,7 @@ unittest
     import pham.utl.test;
     traceUnitTest("unittest pham.utl.biginteger.BigInteger(operator * / %)");
 
-    static void check(const BigInteger value, string checkedValue,
+    static void check(const(BigInteger) value, string checkedValue,
         size_t line = __LINE__)
     {
         auto s = toStringSafe(value, "%,3d", '_');
@@ -2886,7 +2942,7 @@ unittest
     import pham.utl.test;
     traceUnitTest("unittest pham.utl.biginteger.BigInteger(operator << >> ^^)");
 
-    static void check(const BigInteger value, string checkedValue,
+    static void check(const(BigInteger) value, string checkedValue,
         size_t line = __LINE__)
     {
         auto s = toStringSafe(value, "%,3d", '_');
@@ -2957,7 +3013,7 @@ unittest
     import pham.utl.test;
     traceUnitTest("unittest pham.utl.biginteger.BigInteger(multiply)");
 
-    static void check(const BigInteger value, string checkedValue,
+    static void check(const(BigInteger) value, string checkedValue,
         size_t line = __LINE__)
     {
         auto s = toStringSafe(value);
@@ -2998,7 +3054,7 @@ unittest
     import pham.utl.test;
     traceUnitTest("unittest pham.utl.biginteger.BigInteger(RSP Calculation)");
 
-    static void check(string caseNumber, const BigInteger value, string checkedValue,
+    static void check(string caseNumber, const(BigInteger) value, string checkedValue,
         size_t line = __LINE__)
     {
         auto s = toStringSafe(value);

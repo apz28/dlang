@@ -20,7 +20,7 @@ import pham.utl.array : IndexedArray;
 nothrow @safe:
 
 // Threadhold if we can use stack memory for speed
-enum allocationThreshold = 256;
+enum allocationThreshold = 250;
 
 alias CharTempArray = IndexedArray!(char, allocationThreshold * uint.sizeof);
 alias UByteTempArray = IndexedArray!(ubyte, allocationThreshold * uint.sizeof);
@@ -59,7 +59,7 @@ public:
         _bits.length = size;
         _length = BigIntegerCalculator.actualLength(value, value.length);
         if (_length)
-            _bits[0] = value[0.._length];
+            _bits.put(value[0.._length], 0);
     }
 
     this(size_t size, UIntTempArray value) pure
@@ -169,7 +169,7 @@ public:
 
         _bits[0] = lo;
         _bits[1] = hi;
-        _length = hi != 0 ? 2 : lo != 0 ? 1 : 0;
+        _length = hi != 0 ? 2 : (lo != 0 ? 1 : 0);
     }
 
     void overwrite(uint value) pure
@@ -1012,7 +1012,7 @@ nothrow @safe:
     }
 
     private static void square(const(uint)* value, size_t valueLength,
-        uint* bits, const size_t bitsLength) pure @trusted
+        uint* bits, const(size_t) bitsLength) pure @trusted
     in
     {
         assert(valueLength >= 0);
@@ -1156,9 +1156,9 @@ nothrow @safe:
         return result;
     }
 
-    private static void multiply(const(uint)* left, const size_t leftLength,
-        const(uint)* right, const size_t rightLength,
-        uint* bits, const size_t bitsLength) pure @trusted
+    private static void multiply(const(uint)* left, const(size_t) leftLength,
+        const(uint)* right, const(size_t) rightLength,
+        uint* bits, const(size_t) bitsLength) pure @trusted
     in
     {
         assert(leftLength >= 0);
@@ -1271,9 +1271,9 @@ nothrow @safe:
         }
     }
 
-    private static void subtractCore(const(uint)* left, const size_t leftLength,
-        const(uint)* right, const size_t rightLength,
-        uint* core, const size_t coreLength) pure @trusted
+    private static void subtractCore(const(uint)* left, const(size_t) leftLength,
+        const(uint)* right, const(size_t) rightLength,
+        uint* core, const(size_t) coreLength) pure @trusted
     in
     {
         assert(leftLength >= rightLength);
