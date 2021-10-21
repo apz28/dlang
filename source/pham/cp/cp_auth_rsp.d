@@ -80,7 +80,7 @@ enum minGroupSize = 2048;
 // minExponentSize (in bytes) for generating ephemeral private keys.
 enum minExponentSize = 32;
 
-ubyte[] bytesFromBigInteger(in BigInteger n) pure
+ubyte[] bytesFromBigInteger(scope const(BigInteger) n) pure
 {
     auto result = reverse(n.toBytes(No.includeSign));
     while (result.length > 1 && result[0] == 0)
@@ -88,7 +88,7 @@ ubyte[] bytesFromBigInteger(in BigInteger n) pure
     return result;
 }
 
-ubyte[] bytesFromBigIntegerPad(in BigInteger n, size_t padSize) pure
+ubyte[] bytesFromBigIntegerPad(scope const(BigInteger) n, const(size_t) padSize) pure
 {
     auto result = bytesFromBigInteger(n);
 
@@ -119,7 +119,7 @@ BigInteger digitsToBigInteger(scope const(char)[] validDigitChars) pure
     return assumeWontThrow(BigInteger(validDigitChars, format));
 }
 
-ubyte[] hexCharsFromBigInteger(in BigInteger n) pure @trusted //@trusted=cast()
+ubyte[] hexCharsFromBigInteger(scope const(BigInteger) n) pure @trusted //@trusted=cast()
 {
     return cast(ubyte[])(n.toHexString(No.includeSign));
 }
@@ -231,13 +231,13 @@ public:
         this(digestId, proofDigestId, prime2048, separator);
     }
 
-    this(DigestId digestId, DigestId proofDigestId, const PrimeGroup group,
+    this(DigestId digestId, DigestId proofDigestId, const(PrimeGroup) group,
          char separator = ':')
     {
         this(digestId, proofDigestId, group, &randomHexDigits, separator);
     }
 
-    this(DigestId digestId, DigestId proofDigestId, const PrimeGroup group, Generator hexGenerator,
+    this(DigestId digestId, DigestId proofDigestId, const(PrimeGroup) group, Generator hexGenerator,
          char separator = ':')
     {
         this._hasher = Digester(digestId);
@@ -323,7 +323,7 @@ public:
     }
 
 private:
-    const PrimeGroup _group;
+    const(PrimeGroup) _group;
     Digester _proofHasher;
     Digester _hasher;
     Generator _hexGenerator;
@@ -345,7 +345,7 @@ public:
     }
 
     // u = H(PAD(A), PAD(B))
-    final BigInteger calculateU(const BigInteger A, const BigInteger B)
+    final BigInteger calculateU(const(BigInteger) A, const(BigInteger) B)
     {
         // error?
 	    //if (!isPublicValid(A) || !isPublicValid(B))
@@ -411,7 +411,7 @@ public:
         return digest(v.representation);
     }
 
-    final ubyte[] digest(const BigInteger v)
+    final ubyte[] digest(const(BigInteger) v)
     {
         auto hasher = _parameters.hasher;
 
@@ -421,7 +421,7 @@ public:
             .finish(hashTemp).dup;
     }
 
-    final ubyte[] digestPad(const BigInteger v)
+    final ubyte[] digestPad(const(BigInteger) v)
     {
         auto hasher = _parameters.hasher;
 
@@ -440,7 +440,7 @@ public:
 	// 1. If we aren't checking with respect to a valid group
 	// 2. If public paramater zero or a multiple of M
 	// 3. If public parameter is not relatively prime to N (a bad group?)
-    final bool isPublicValid(const BigInteger AorB)
+    final bool isPublicValid(const(BigInteger) AorB)
     {
         auto r = remainder(AorB, N);
         if (r != 0 && r.sign == 0)
