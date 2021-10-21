@@ -20,7 +20,7 @@ enum FbIsc
 	ptype_batch_send = 3, // Batch sends, no asynchrony
 	ptype_out_of_band = 4, // Batch sends w/ out of band notification
 	ptype_lazy_send = 5, // Deferred packets delivery
-	ptype_compress_flag = 0x100, // Set on max type - start on protocol_version13
+	ptype_compress_flag = 0x0100, // Set on max type - start on protocol_version13
 
     // Connection Version
 	//connect_version2 = 2, // Obsolete
@@ -38,16 +38,16 @@ enum FbIsc
 	protocol_version13 = protocol_flag | 13,
     protocol_version = protocol_version13,
 
-	CNCT_user = 1,
-	//CNCT_passwd = 2,
-	CNCT_host = 4,
-	CNCT_group = 5,
-	CNCT_user_verification = 6,
-	CNCT_specific_data = 7,
-	CNCT_plugin_name = 8,
-	CNCT_login = 9,
-	CNCT_plugin_list = 10,
-	CNCT_client_crypt = 11,
+	cnct_user = 1,
+	//cnct_passwd = 2,
+	cnct_host = 4,
+	cnct_group = 5,
+	cnct_user_verification = 6,
+	cnct_specific_data = 7,
+	cnct_plugin_name = 8,
+	cnct_login = 9,
+	cnct_plugin_list = 10,
+	cnct_client_crypt = 11,
 
     connect_crypt_disabled = 0,
     connect_crypt_enabled = 1,
@@ -351,8 +351,8 @@ enum FbIsc
 	isc_action_svc_display_user_adm = 29,
 	isc_action_svc_last = 30,
 
-	DSQL_close = 1,
-	DSQL_drop = 2,
+	dsql_close = 1,
+	dsql_drop = 2,
 
 	// SQL information items
 	isc_info_sql_select = 4,
@@ -481,7 +481,7 @@ enum FbIsc
 	// Array operations
 	op_get_slice = 58,
 	op_put_slice = 59,
-	op_slice = 60, // Successful response to public const int op_get_slice
+	op_slice = 60, // Successful response to op_get_slice
 
 	op_info_database = 40,
 	op_que_events = 48,
@@ -516,17 +516,15 @@ enum FbIsc
 	op_crypt = 96, // FB3
 	op_crypt_key_callback = 97, // FB3
 	op_cond_accept = 98, // FB3
+	op_cancel = 91, // Cancel operator - FB3
 
-	// Cancel operators
-	op_cancel = 91, // FB3
-
-	// Cancel types
+	// Cancel operator types
 	fb_cancel_disable = 1,
 	fb_cancel_enable = 2,
 	fb_cancel_raise = 3,
 	fb_cancel_abort = 4,
 
-	GMT_ZONE = 65_535,
+	gmt_zone = 65_535,
 	defaultDialect = 3,
 }
 
@@ -548,15 +546,15 @@ enum FbIscSize
 
 enum FbIscResultCode
 {
-	isc_net_connect_err = 335544722,
-    isc_dsql_sqlda_err = 335544583,
-    isc_except = 335544517,
-    isc_except2 = 335544848,
-    isc_net_read_err = 335544726,
-    isc_net_write_err = 335544727,
-    isc_stack_trace = 335544842,
-	isc_auth_data = 335545069,
-	isc_wirecrypt_incompatible = 335545064,
+	isc_net_connect_err = 335_544_722,
+    isc_dsql_sqlda_err = 335_544_583,
+    isc_except = 335_544_517,
+    isc_except2 = 335_544_848,
+    isc_net_read_err = 335_544_726,
+    isc_net_write_err = 335_544_727,
+    isc_stack_trace = 335_544_842,
+	isc_auth_data = 335_545_069,
+	isc_wirecrypt_incompatible = 335_545_064,
 }
 
 enum FbIscText
@@ -602,28 +600,28 @@ enum FbBlrType
 
 enum FbIscType
 {
-	SQL_VARYING = 448, // varchar
-	SQL_TEXT = 452, // fixed length char[]
-	SQL_DOUBLE = 480, // 64 bits
-	SQL_FLOAT = 482, // 32 bits
-	SQL_LONG = 496, // 32 bits
-	SQL_SHORT = 500, // 16 bits
-	SQL_TIMESTAMP = 510,
-	SQL_BLOB = 520, // unlimit ubyte[] & char[]=BLOB SUB_TYPE TEXT
-	SQL_D_FLOAT = 530,
-	SQL_ARRAY = 540,
-	SQL_QUAD = 550, // similar to SQL_INT64
-	SQL_TIME = 560,
-	SQL_DATE = 570,
-	SQL_INT64 = 580,
-	SQL_INT128 = 32752,
-	SQL_TIMESTAMP_TZ = 32754,
-	SQL_TIMESTAMP_TZ_EX = 32748,
-	SQL_TIME_TZ = 32756,
-	SQL_TIME_TZ_EX = 32750,
-	//SQL_DEC_FIXED = 32758,
-	SQL_DEC64 = 32760,
-	SQL_DEC128 = 32762,
-	SQL_BOOLEAN = 32764,
-	SQL_NULL = 32766
+	sql_varying = 448, // varchar
+	sql_text = 452, // fixed length char[]
+	sql_double = 480, // 64 bits
+	sql_float = 482, // 32 bits
+	sql_long = 496, // 32 bits
+	sql_short = 500, // 16 bits
+	sql_timestamp = 510,
+	sql_blob = 520, // unlimit ubyte[] & char[]=blob sub_type text
+	sql_d_float = 530,
+	sql_array = 540,
+	sql_quad = 550, // similar to sql_int64
+	sql_time = 560,
+	sql_date = 570,
+	sql_int64 = 580,
+	sql_int128 = 32_752,
+	sql_timestamp_tz = 32_754,
+	sql_timestamp_tz_ex = 32_748,
+	sql_time_tz = 32_756,
+	sql_time_tz_ex = 32_750,
+	//sql_dec_fixed = 32_758,
+	sql_dec64 = 32_760,
+	sql_dec128 = 32_762,
+	sql_boolean = 32_764,
+	sql_null = 32_766
 }

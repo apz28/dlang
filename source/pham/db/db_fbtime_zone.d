@@ -27,7 +27,7 @@ public:
         this._id = id;
     }
 
-    bool opEquals(scope const FbTimeZone rhs) const @nogc pure
+    bool opEquals(scope const(FbTimeZone) rhs) const @nogc pure
     {
         return this._id == rhs._id || this._name == rhs._name;
     }

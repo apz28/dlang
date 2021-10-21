@@ -12,7 +12,6 @@
 module pham.db.fbconvert;
 
 import core.time : Duration, dur;
-import std.algorithm.mutation : reverse;
 import std.conv : to;
 import std.exception : assumeWontThrow;
 import std.system : Endian, endian;
@@ -22,7 +21,8 @@ version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.external.dec.codec : DecimalCodec32, DecimalCodec64, DecimalCodec128;
 import pham.utl.datetime.time_zone : TimeZoneInfo, TimeZoneInfoMap;
-import pham.utl.big_integer : toBigEndianFlag;
+import pham.utl.big_integer : toBigEndianFlag, UByteTempArray;
+import pham.utl.utf8 : ShortStringBuffer;
 import pham.db.type;
 import pham.db.fbisc;
 import pham.db.fbtimezone : FbTimeZone;
@@ -45,7 +45,7 @@ uint8 boolEncode(bool value) @nogc pure
  * Date-part value as number of days elapsed since “date zero” — November 17, 1858 - Modified JD
  * https://en.wikipedia.org/wiki/Julian_day
  */
-Date dateDecode(int32 fbDate) @nogc pure
+DbDate dateDecode(int32 fbDate) @nogc pure
 {
     return epochDate.addDaysSafe(fbDate);
 
@@ -89,7 +89,7 @@ Date dateDecode(int32 fbDate) @nogc pure
 	}
 }
 
-int32 dateEncode(scope const Date value) @nogc pure
+int32 dateEncode(scope const(DbDate) value) @nogc pure
 {
     return value.days - epochDate.days;
 
@@ -123,7 +123,7 @@ DbDateTime dateTimeDecode(int32 fbDate, int32 fbTime) @nogc pure
 	return DbDateTime(dt, 0);
 }
 
-void dateTimeEncode(scope const DbDateTime value, out int32 fbDate, out int32 fbTime) @nogc pure
+void dateTimeEncode(scope const(DbDateTime) value, out int32 fbDate, out int32 fbTime) @nogc pure
 {
 	fbDate = dateEncode(value.date);
 	fbTime = durationToTime(value.time.toDuration());
@@ -140,7 +140,7 @@ DbDateTime dateTimeDecodeTZ(int32 fbDate, int32 fbTime, uint16 fbZoneId, int16 f
     {
 		if (fbZoneOffset != 0)
 			dt = dt.addMinutesSafe(-cast(int)fbZoneOffset);
-		dt = dt.toDateTimeKindUTC();
+		dt = dt.asUTC();
     }
 	else if (tzm.isValid())
     {
@@ -149,9 +149,9 @@ DbDateTime dateTimeDecodeTZ(int32 fbDate, int32 fbTime, uint16 fbZoneId, int16 f
 	return DbDateTime(TimeZoneInfo.convertUtcToLocal(dt), 0);
 }
 
-void dateTimeEncodeTZ(scope const DbDateTime value, out int32 fbDate, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)
+void dateTimeEncodeTZ(scope const(DbDateTime) value, out int32 fbDate, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)
 {
-	fbZoneId = FbIsc.GMT_ZONE;
+	fbZoneId = FbIsc.gmt_zone;
 	fbZoneOffset = 0; // Already in UTC so set it to zero
 	if (value.kind == DateTimeKind.utc)
 		dateTimeEncode(value, fbDate, fbTime);
@@ -165,50 +165,52 @@ void dateTimeEncodeTZ(scope const DbDateTime value, out int32 fbDate, out int32 
 size_t decimalByteLength(D)() pure
 if (isDecimal!D)
 {
-	static if (D.bitLength == 32)
+	static if (D.sizeofData == 4)
 		return DecimalCodec32.formatByteLength;
-	else static if (D.bitLength == 64)
+	else static if (D.sizeofData == 8)
 		return DecimalCodec64.formatByteLength;
-	else static if (D.bitLength == 128)
+	else static if (D.sizeofData == 16)
 		return DecimalCodec128.formatByteLength;
 	else
 		static assert(0);
 }
 
-D decimalDecode(D)(scope ubyte[] bytes)
+D decimalDecode(D)(scope const(ubyte)[] bytes)
 if (isDecimal!D)
 {
-	static ubyte[] endianValue(scope ubyte[] value) nothrow pure @safe
-    {
-		return endian == Endian.bigEndian ? value : reverse(value);
-    }
+	ShortStringBuffer!ubyte endianBytes;
+	endianBytes.put(bytes);
+	if (endian == Endian.littleEndian)
+		endianBytes.reverse();
 
-	static if (D.bitLength == 32)
-		return DecimalCodec32.decode(endianValue(bytes));
-	else static if (D.bitLength == 64)
-		return DecimalCodec64.decode(endianValue(bytes));
-	else static if (D.bitLength == 128)
-		return DecimalCodec128.decode(endianValue(bytes));
+	static if (D.sizeofData == 4)
+		return DecimalCodec32.decode(endianBytes[]);
+	else static if (D.sizeofData == 8)
+		return DecimalCodec64.decode(endianBytes[]);
+	else static if (D.sizeofData == 16)
+		return DecimalCodec128.decode(endianBytes[]);
 	else
 		static assert(0);
 }
 
-ubyte[] decimalEncode(D)(in D value)
+ref ShortStringBuffer!ubyte decimalEncode(D)(return ref ShortStringBuffer!ubyte result, scope const(D) value)
 if (isDecimal!D)
 {
-	static ubyte[] endianResult(ubyte[] bytes) nothrow pure @safe
-    {
-		return endian == Endian.bigEndian ? bytes : reverse(bytes);
-    }
+	result.clear();
 
-	static if (D.bitLength == 32)
-		return endianResult(DecimalCodec32.encode(value).dup);
-	else static if (D.bitLength == 64)
-		return endianResult(DecimalCodec64.encode(value).dup);
-	else static if (D.bitLength == 128)
-		return endianResult(DecimalCodec128.encode(value).dup);
+	static if (D.sizeofData == 4)
+		result.put(DecimalCodec32.encode(value));
+	else static if (D.sizeofData == 8)
+		result.put(DecimalCodec64.encode(value));
+	else static if (D.sizeofData == 16)
+		result.put(DecimalCodec128.encode(value));
 	else
 		static assert(0);
+
+	if (endian == Endian.littleEndian)
+		result.reverse();
+
+	return result;
 }
 
 enum int128ByteLength = 16;
@@ -223,9 +225,10 @@ do
 	return BigInteger(bytes, No.unsigned, toBigEndianFlag(endian == Endian.bigEndian));
 }
 
-bool int128Encode(in BigInteger value, ref ubyte[int128ByteLength] bytes)
+bool int128Encode(ref ubyte[int128ByteLength] bytes, scope const(BigInteger) value)
 {
-	auto b = value.toBytes();
+	UByteTempArray b;
+	value.toBytes(b);
 
     // Too big?
 	if (b.length > int128ByteLength)
@@ -237,11 +240,11 @@ bool int128Encode(in BigInteger value, ref ubyte[int128ByteLength] bytes)
 		const ubyte padValue = value.sign == -1 ? 255u : 0u;
 		const oldLength = b.length;
 		b.length = int128ByteLength;
-		b[oldLength..$] = padValue;
+		b.fill(padValue, oldLength);
     }
 
 	if (endian == Endian.bigEndian)
-		b = b.reverse();
+		b.reverse();
 
 	bytes[] = b[0..int128ByteLength];
 	return true;
@@ -252,7 +255,7 @@ DbTime timeDecode(int32 fbTime) @nogc pure
 	return DbTime(timeToDuration(fbTime));
 }
 
-int32 timeEncode(scope const DbTime value) @nogc pure
+int32 timeEncode(scope const(DbTime) value) @nogc pure
 {
 	return durationToTime(value.toDuration());
 }
@@ -266,7 +269,7 @@ DbTime timeDecodeTZ(int32 fbTime, uint16 fbZoneId, int16 fbZoneOffset)
     {
 		if (fbZoneOffset != 0)
 			dt = dt.addMinutesSafe(-cast(int)fbZoneOffset);
-		dt = dt.toDateTimeKindUTC();
+		dt = dt.asUTC;
     }
 	else if (tzm.isValid())
     {
@@ -275,9 +278,9 @@ DbTime timeDecodeTZ(int32 fbTime, uint16 fbZoneId, int16 fbZoneOffset)
 	return DbTime(TimeZoneInfo.convertUtcToLocal(dt).time, 0);
 }
 
-void timeEncodeTZ(scope const DbTime value, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)
+void timeEncodeTZ(scope const(DbTime) value, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)
 {
-	fbZoneId = FbIsc.GMT_ZONE;
+	fbZoneId = FbIsc.gmt_zone;
 	fbZoneOffset = 0; // Already in UTC so set it to zero
 	if (value.kind == DateTimeKind.utc)
 		fbTime = timeEncode(value);
@@ -291,9 +294,9 @@ void timeEncodeTZ(scope const DbTime value, out int32 fbTime, out uint16 fbZoneI
 // time-part value as the number of deci-milliseconds (10^-4 second) elapsed since midnight
 // microsecond is 10^-6 second
 pragma(inline, true)
-int32 durationToTime(scope const Duration time) @nogc pure
+int32 durationToTime(scope const(Duration) time) @nogc pure
 {
-	return cast(int32)(time.total!"usecs" / 100);
+	return cast(int32)(time.total!"usecs"() / 100);
 }
 
 // time-part value as the number of deci-milliseconds (10^-4 second) elapsed since midnight
@@ -358,28 +361,28 @@ unittest // int128Decode & int128Encode
 	bool c;
 
 	v = BigInteger(1234);
-	c = int128Encode(v, b);
+	c = int128Encode(b, v);
 	assert(c);
 	assert(b == bytesFromHexs("D2040000000000000000000000000000"));
 	v2 = int128Decode(b);
 	assert(v2 == v);
 
 	v = safeBigInteger("1234567890123456789012345678901234");
-	c = int128Encode(v, b);
+	c = int128Encode(b, v);
 	assert(c);
 	assert(b == bytesFromHexs("F2AF967ED05C82DE3297FF6FDE3C0000"));
 	v2 = int128Decode(b);
 	assert(v2 == v);
 
 	v = BigInteger(-1234);
-	c = int128Encode(v, b);
+	c = int128Encode(b, v);
 	assert(c);
 	assert(b == bytesFromHexs("2EFBFFFFFFFFFFFFFFFFFFFFFFFFFFFF"));
 	v2 = int128Decode(b);
 	assert(v2 == v);
 
 	v = safeBigInteger("-1234567890123456789012345678901234");
-	c = int128Encode(v, b);
+	c = int128Encode(b, v);
 	assert(c);
 	assert(b == bytesFromHexs("0E5069812FA37D21CD68009021C3FFFF"));
 	v2 = int128Decode(b);

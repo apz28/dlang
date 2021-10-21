@@ -15,7 +15,6 @@ import std.algorithm.comparison : max;
 import std.array : Appender;
 import std.conv : text, to;
 import std.exception : assumeWontThrow;
-import std.format : format;
 import std.math : abs;
 import std.string : indexOf;
 import std.system : Endian;
@@ -131,7 +130,7 @@ public:
             case DbType.record:
             case DbType.array:
             case DbType.unknown:
-                auto msg = format(DbMessage.eUnsupportDataType, functionName!(typeof(this))(), toName!DbType(descriptor.fieldInfo.dbType));
+                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName!(typeof(this))(), toName!DbType(descriptor.fieldInfo.dbType));
                 throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_net_read_err);
         }
 
@@ -174,18 +173,18 @@ public:
                 result[i] = reader.readDate();
             else static if (is(T == DbDateTime))
             {
-                if (baseType.typeId == FbIscType.SQL_TIMESTAMP_TZ)
+                if (baseType.typeId == FbIscType.sql_timestamp_tz)
                     result[i] = reader.readDateTimeTZ();
-                else if (baseType.typeId == FbIscType.SQL_TIMESTAMP_TZ_EX)
+                else if (baseType.typeId == FbIscType.sql_timestamp_tz_ex)
                     result[i] = reader.readDateTimeTZEx();
                 else
                     result[i] = reader.readDateTime();
             }
             else static if (is(T == DbTime))
             {
-                if (baseType.typeId == FbIscType.SQL_TIME_TZ)
+                if (baseType.typeId == FbIscType.sql_time_tz)
                     result[i] = reader.readTimeTZ();
-                else if (baseType.typeId == FbIscType.SQL_TIME_TZ_EX)
+                else if (baseType.typeId == FbIscType.sql_time_tz_ex)
                     result[i] = reader.readTimeTZEx();
                 else
                     result[i] = reader.readTime();
@@ -194,7 +193,7 @@ public:
                 result[i] = reader.readUUID();
             else static if (is(T == string))
             {
-                if (baseType.typeId == FbIscType.SQL_TEXT)
+                if (baseType.typeId == FbIscType.sql_text)
                     result[i] = reader.readFixedString(baseType);
                 else
                     result[i] = reader.readString();
@@ -292,7 +291,7 @@ public:
             case DbType.record:
             case DbType.array:
             case DbType.unknown:
-                auto msg = format(DbMessage.eUnsupportDataType, functionName!(typeof(this))(), toName!DbType(descriptor.fieldInfo.dbType));
+                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName!(typeof(this))(), toName!DbType(descriptor.fieldInfo.dbType));
                 throw new FbException(msg, DbErrorCode.write, 0, FbIscResultCode.isc_net_write_err);
         }
 
@@ -334,18 +333,18 @@ public:
                 writer.writeDate(value);
             else static if (is(T == DbDateTime))
             {
-                if (baseType.typeId == FbIscType.SQL_TIMESTAMP_TZ)
+                if (baseType.typeId == FbIscType.sql_timestamp_tz)
                     writer.writeDateTimeTZ(value);
-                else if (baseType.typeId == FbIscType.SQL_TIMESTAMP_TZ_EX)
+                else if (baseType.typeId == FbIscType.sql_timestamp_tz_ex)
                     writer.writeDateTimeTZEx(value);
                 else
                     writer.writeDateTime(value);
             }
             else static if (is(T == DbTime))
             {
-                if (baseType.typeId == FbIscType.SQL_TIME_TZ)
+                if (baseType.typeId == FbIscType.sql_time_tz)
                     writer.writeTimeTZ(value);
-                else if (baseType.typeId == FbIscType.SQL_TIME_TZ_EX)
+                else if (baseType.typeId == FbIscType.sql_time_tz_ex)
                     writer.writeTimeTZEx(value);
                 else
                     writer.writeTime(value);
@@ -354,7 +353,7 @@ public:
                 writer.writeUUID(value);
             else static if (is(T == string))
             {
-                if (baseType.typeId == FbIscType.SQL_TEXT)
+                if (baseType.typeId == FbIscType.sql_text)
                     writer.writeFixedChars(value, baseType);
                 else
                     writer.writeChars(value);
@@ -1479,6 +1478,8 @@ protected:
 
     final override string getServerVersion() @safe
     {
+        version (TraceFunction) dgFunctionTrace();
+
         auto command = createCommand();
         scope (exit)
         {
@@ -1514,7 +1515,7 @@ public:
 
     @property final uint32 cachePages() nothrow @safe
     {
-        return toInt!uint32(getString(DbParameterName.fbCachePage));
+        return toInteger!uint32(getString(DbParameterName.fbCachePage));
     }
 
     @property final bool databaseTrigger() nothrow @safe
@@ -1524,7 +1525,7 @@ public:
 
     @property final int16 dialect() nothrow @safe
     {
-        return toInt!int16(getString(DbParameterName.fbDialect), FbIsc.defaultDialect);
+        return toInteger!int16(getString(DbParameterName.fbDialect), FbIsc.defaultDialect);
     }
 
     @property final Duration dummyPackageInterval() nothrow @safe
@@ -2687,11 +2688,11 @@ unittest // FbCommand.DML
         assert(isClose(reader.getValue(3).get!double(), 4.20));
         assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
 
-        assert(decimalEqual(reader.getValue(4).get!Decimal64(), 5.4));
-        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal64(), 5.4));
+        assert(reader.getValue(4).get!Decimal64() == Decimal64.money(5.4, 2));
+        assert(reader.getValue("NUMERIC_FIELD").get!Decimal64() == Decimal64.money(5.4, 2));
 
-        assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
-        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
+        assert(reader.getValue(5).get!Decimal64() == Decimal64.money(6.5, 2));
+        assert(reader.getValue("DECIMAL_FIELD").get!Decimal64() == Decimal64.money(6.5, 2));
 
         assert(reader.getValue(6) == Date(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == Date(2020, 5, 20));
@@ -2780,11 +2781,11 @@ unittest // FbCommand.DML.Parameter
         assert(isClose(reader.getValue(3).get!double(), 4.20));
         assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
 
-        assert(decimalEqual(reader.getValue(4).get!Decimal64(), 5.4));
-        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal64(), 5.4));
+        assert(reader.getValue(4).get!Decimal64() == Decimal64.money(5.4, 2));
+        assert(reader.getValue("NUMERIC_FIELD").get!Decimal64() == Decimal64.money(5.4, 2));
 
-        assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
-        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
+        assert(reader.getValue(5).get!Decimal64() == Decimal64.money(6.5, 2));
+        assert(reader.getValue("DECIMAL_FIELD").get!Decimal64() == Decimal64.money(6.5, 2));
 
         assert(reader.getValue(6) == Date(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == Date(2020, 5, 20));
@@ -2866,11 +2867,11 @@ unittest // FbCommand.DML.encrypt.compress
         assert(isClose(reader.getValue(3).get!double(), 4.20));
         assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
 
-        assert(decimalEqual(reader.getValue(4).get!Decimal64(), 5.4));
-        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal64(), 5.4));
+        assert(reader.getValue(4).get!Decimal64() == Decimal64.money(5.4, 2));
+        assert(reader.getValue("NUMERIC_FIELD").get!Decimal64() == Decimal64.money(5.4, 2));
 
-        assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
-        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
+        assert(reader.getValue(5).get!Decimal64() == Decimal64.money(6.5, 2));
+        assert(reader.getValue("DECIMAL_FIELD").get!Decimal64() == Decimal64.money(6.5, 2));
 
         assert(reader.getValue(6) == Date(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == Date(2020, 05, 20));

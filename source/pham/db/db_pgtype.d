@@ -219,64 +219,64 @@ public:
 
     @property string message() const
     {
-        return typeValues[PgDiag.messagePrimary];
+        return typeValues[PgOIdDiag.messagePrimary];
     }
 
     @property string severity() const
     {
-        return typeValues[PgDiag.severity];
+        return typeValues[PgOIdDiag.severity];
     }
 
     @property string sqlState() const
     {
-        return typeValues[PgDiag.sqlState];
+        return typeValues[PgOIdDiag.sqlState];
     }
 
     /* Optional Values */
 
     @property string detail() const
     {
-        return getOptional(PgDiag.messageDetail);
+        return getOptional(PgOIdDiag.messageDetail);
     }
 
     @property string file() const
     {
-        return getOptional(PgDiag.sourceFile);
+        return getOptional(PgOIdDiag.sourceFile);
     }
 
     @property string hint() const
     {
-        return getOptional(PgDiag.messageHint);
+        return getOptional(PgOIdDiag.messageHint);
     }
 
     @property string internalPosition() const
     {
-        return getOptional(PgDiag.internalPosition);
+        return getOptional(PgOIdDiag.internalPosition);
     }
 
     @property string internalQuery() const
     {
-        return getOptional(PgDiag.internalQuery);
+        return getOptional(PgOIdDiag.internalQuery);
     }
 
     @property string line() const
     {
-        return getOptional(PgDiag.sourceLine);
+        return getOptional(PgOIdDiag.sourceLine);
     }
 
     @property string position() const
     {
-        return getOptional(PgDiag.statementPosition);
+        return getOptional(PgOIdDiag.statementPosition);
     }
 
     @property string routine() const
     {
-        return getOptional(PgDiag.sourceFunction);
+        return getOptional(PgOIdDiag.sourceFunction);
     }
 
     @property string where() const
     {
-        return getOptional(PgDiag.context);
+        return getOptional(PgOIdDiag.context);
     }
 
 public:
@@ -463,13 +463,13 @@ struct PgOIdNumeric
 nothrow @safe:
 
 public:
-    enum nbase = 10000;
+    enum nbase = 10_000;
     enum digitPerBase = 4; /* decimal digits per NBASE digit */
     enum signNaN = 0xC000;
     enum signNeg = 0x4000;
 
     // Exclude null terminated
-    size_t digitLength() const
+    size_t digitLength() const pure scope
     {
 	    auto i = (weight + 1) * digitPerBase;
 	    if (i <= 0)
@@ -484,27 +484,27 @@ public:
         return result;
     }
 
-    void setSign(uint16 value)
+    void setSign(uint16 value) pure
     {
         this.sign = cast(int16)value;
     }
 
-    @property bool isNaN() const
+    @property bool isNaN() const pure scope
     {
         return sign == signNaN;
     }
 
-    @property bool isNeg() const
+    @property bool isNeg() const pure scope
     {
         return sign == signNeg;
     }
 
 public:
+	int16[] digits;		/* base-NBASE digits */
 	int16 ndigits;		/* # of digits in digits[] - can be 0! */
 	int16 weight;		/* weight of first digit */
 	int16 sign;			/* NUMERIC_POS=0x0000, NUMERIC_NEG=0x4000, or NUMERIC_NAN=0xC000 */
 	int16 dscale;		/* display scale */
-	int16[] digits;		/* base-NBASE digits */
 }
 
 struct PgOIdScramSHA256FinalMessage
@@ -595,7 +595,7 @@ public:
         }
     }
 
-    int32 getIteration() const pure
+    int32 getIteration() const pure scope
     {
         if (iteration.length == 0)
             return -1;
@@ -606,12 +606,12 @@ public:
         return to!int32(iteration);
     }
 
-    const(char)[] getMessage() const pure
+    const(char)[] getMessage() const pure scope
     {
         return "r=" ~ nonce ~ ",s=" ~ salt ~ ",i=" ~ iteration;
     }
 
-    const(ubyte)[] getSalt() const pure
+    const(ubyte)[] getSalt() const pure scope
     {
         scope (failure)
             return null;
@@ -619,7 +619,7 @@ public:
         return Base64.decode(salt);
     }
 
-    bool isValid() const pure
+    bool isValid() const pure scope
     {
         return nonce.length != 0
             && salt.length != 0

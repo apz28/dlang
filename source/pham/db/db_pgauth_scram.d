@@ -43,17 +43,17 @@ public:
         return cast(const(ubyte)[])calculateProof(userPassword, firstMessage);
     }
 
-    const(char)[] finalRequestWithoutProof(scope const(char)[] serverNonce) const pure
+    const(char)[] finalRequestWithoutProof(scope const(char)[] serverNonce) const pure scope
     {
         return "c=" ~ _cbind ~ ",r=" ~ serverNonce;
     }
 
-    const(char)[] initialRequest() const pure
+    const(char)[] initialRequest() const pure scope
     {
         return _cbindFlag ~ ",,n=,r=" ~ _nonce;
     }
 
-    const(char)[] initialRequestBare() const pure
+    const(char)[] initialRequestBare() const pure scope
     {
         return "n=,r=" ~ _nonce;
     }
@@ -92,7 +92,7 @@ public:
     static immutable string authScram256Name = "scram-sha-256";
 
 protected:
-    final const(char)[] calculateProof(scope const(char)[] userPassword, in PgOIdScramSHA256FirstMessage firstMessage)
+    final const(char)[] calculateProof(scope const(char)[] userPassword, const(PgOIdScramSHA256FirstMessage) firstMessage)
     {
         const clientInitialRequestBare = initialRequestBare();
         const clientFinalMessageWithoutProof = finalRequestWithoutProof(firstMessage.nonce);
@@ -168,7 +168,7 @@ private:
         return result;
     }
 
-    static DigestResult computeScramSHA256HashPassword(scope const(char)[] userPassword, scope const(ubyte)[] serverSalt, int iteration)
+    static DigestResult computeScramSHA256HashPassword(scope const(char)[] userPassword, scope const(ubyte)[] serverSalt, const(int) iteration)
     {
         enum ubyte[4] one = [0, 0, 0, 1]; // uint=1 in BigEndian
 
@@ -197,7 +197,7 @@ private:
     }
 
     pragma(inline, true)
-    static void computeScramSHA256XOr(ref DigestResult holder, in DigestResult other) pure
+    static void computeScramSHA256XOr(ref DigestResult holder, scope const(DigestResult) other) pure
     in
     {
         assert(holder.length == other.length);
@@ -220,7 +220,6 @@ private:
 
 // Any below codes are private
 private:
-
 
 shared static this()
 {

@@ -946,6 +946,8 @@ protected:
 
     final override string getServerVersion() @safe
     {
+        version (TraceFunction) dgFunctionTrace();
+
         auto command = createCommand();
         scope (exit)
         {
@@ -1677,11 +1679,11 @@ unittest // PgCommand.DML
         assert(isClose(reader.getValue(3).get!double(), 4.20));
         assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
 
-        assert(decimalEqual(reader.getValue(4).get!Decimal64(), 5.4));
-        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal64(), 5.4));
+        assert(reader.getValue(4).get!Decimal64() == Decimal64.money(5.4, 2));
+        assert(reader.getValue("NUMERIC_FIELD").get!Decimal64() == Decimal64.money(5.4, 2));
 
-        assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
-        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
+        assert(reader.getValue(5).get!Decimal64() == Decimal64.money(6.5, 2));
+        assert(reader.getValue("DECIMAL_FIELD").get!Decimal64() == Decimal64.money(6.5, 2));
 
         assert(reader.getValue(6) == Date(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == Date(2020, 5, 20));
@@ -1770,11 +1772,11 @@ unittest // PgCommand.DML
         assert(isClose(reader.getValue(3).get!double(), 4.20));
         assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
 
-        assert(decimalEqual(reader.getValue(4).get!Decimal64(), 5.4));
-        assert(decimalEqual(reader.getValue("NUMERIC_FIELD").get!Decimal64(), 5.4));
+        assert(reader.getValue(4).get!Decimal64() == Decimal64.money(5.4, 2));
+        assert(reader.getValue("NUMERIC_FIELD").get!Decimal64() == Decimal64.money(5.4, 2));
 
-        assert(decimalEqual(reader.getValue(5).get!Decimal64(), 6.5));
-        assert(decimalEqual(reader.getValue("DECIMAL_FIELD").get!Decimal64(), 6.5));
+        assert(reader.getValue(5).get!Decimal64() == Decimal64.money(6.5, 2));
+        assert(reader.getValue("DECIMAL_FIELD").get!Decimal64() == Decimal64.money(6.5, 2));
 
         assert(reader.getValue(6) == Date(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == Date(2020, 5, 20));

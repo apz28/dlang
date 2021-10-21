@@ -24,7 +24,7 @@ public import pham.utl.datetime.date : Date, DateTime;
 public import pham.utl.datetime.tick : DateTimeKind;
 public import pham.utl.datetime.time : Time;
 import pham.utl.datetime.time_zone : TimeZoneInfo, TimeZoneInfoMap;
-import pham.utl.datetime.tick : Tick;
+import pham.utl.datetime.tick : ErrorOp, Tick;
 import pham.utl.enum_set : toName;
 import pham.utl.utf8 : ShortStringBuffer;
 
@@ -317,8 +317,8 @@ enum DbScheme : string
 {
     fb = "firebird",
     //lt = "sqlite",
-    //my = "mysql",
-    pg = "postgresql"
+    my = "mysql",
+    pg = "postgresql",
 }
 
 enum DbSchemaColumnFlag : byte
@@ -415,6 +415,8 @@ enum DbType : int
     array = 1 << 31
 }
 
+enum DbTypeMask = 0x7FFF_FFFF; // Exclude array marker
+
 struct DbArrayBound
 {
 nothrow @safe:
@@ -456,7 +458,7 @@ public:
         this(DateTime(validYear, validMonth, validDay, validHour, validMinute, validSecond, validMillisecond, kind), zoneId);
     }
 
-    int opCmp(scope const DbDateTime rhs) const @nogc pure
+    int opCmp(scope const(DbDateTime) rhs) const @nogc pure
     {
         const result = _value.opCmp(rhs._value);
         return result == 0
@@ -464,24 +466,24 @@ public:
             : result;
     }
 
-    int opCmp(scope const DateTime rhs) const @nogc pure
+    int opCmp(scope const(DateTime) rhs) const @nogc pure
     {
         return this.opCmp(toDbDateTime(rhs));
     }
 
     // Do not use template function to support Variant
     // Some kind of compiler bug
-    bool opEquals(scope const DbDateTime rhs) const @nogc pure
+    bool opEquals(scope const(DbDateTime) rhs) const @nogc pure
     {
         return zoneId == rhs.zoneId && _value.opEquals(rhs._value);
     }
 
-    bool opEquals(scope const DateTime rhs) const @nogc pure
+    bool opEquals(scope const(DateTime) rhs) const @nogc pure
     {
         return this.opEquals(toDbDateTime(rhs));
     }
 
-    static DbDateTime toDbDateTime(scope const DateTime value) @nogc pure
+    static DbDateTime toDbDateTime(scope const(DateTime) value) @nogc pure
     {
         return DbDateTime(value, 0); //TODO search for zone_id
     }
@@ -548,7 +550,6 @@ public:
         return DbDateTime(utcDT, 0);
     }
 
-public:
     @property Date date() const @nogc pure
     {
         return _value.date;
@@ -562,6 +563,11 @@ public:
     @property DateTimeKind kind() const @nogc pure
     {
         return _value.kind;
+    }
+
+    @property static DbDateTime min() @nogc nothrow pure
+    {
+        return DbDateTime(DateTime.min);
     }
 
     @property Time time() const @nogc pure
@@ -599,7 +605,7 @@ public:
         int i32;
     }
 
-    static void set(T)(ref DbHandleStorage storage, const T value) pure
+    static void set(T)(ref DbHandleStorage storage, const(T) value) pure
     if (is(T == ulong) || is(T == long) || is(T == uint) || is(T == int))
     {
         static if (is(T == ulong))
@@ -621,14 +627,14 @@ public:
     }
 
 public:
-    this(T)(const T notSetValue)
+    this(T)(const(T) notSetValue)
     if (is(T == ulong) || is(T == long) || is(T == uint) || is(T == int))
     {
         set(this.notSetValue, notSetValue);
         this.value = this.notSetValue;
     }
 
-    ref typeof(this) opAssign(T)(const T rhs) return
+    ref typeof(this) opAssign(T)(const(T) rhs) return
     if (is(T == ulong) || is(T == long) || is(T == uint) || is(T == int))
     {
         set(this.value, rhs);
@@ -847,7 +853,7 @@ public:
         DateTimeKind kind = DateTimeKind.unspecified,
         uint16 zoneId = 0) @nogc pure
     {
-        this(Time(Tick.durationToTick(time), kind), zoneId);
+        this(Time(Tick.durationToTicks(time), kind), zoneId);
     }
 
     this(int32 validHour, int32 validMinute, int32 validSecond, int32 validMillisecond,
@@ -866,7 +872,7 @@ public:
         this(timeDuration, kind, zoneId);
     }
 
-    int opCmp(scope const DbTime rhs) const @nogc pure
+    int opCmp(scope const(DbTime) rhs) const @nogc pure
     {
         const result = _value.opCmp(rhs._value);
         return result == 0
@@ -874,24 +880,24 @@ public:
             : result;
     }
 
-    int opCmp(scope const Time rhs) const @nogc pure
+    int opCmp(scope const(Time) rhs) const @nogc pure
     {
         return this.opCmp(DbTime(rhs));
     }
 
     // Do not use template function to support Variant
     // Some kind of compiler bug
-    bool opEquals(scope const DbTime rhs) const @nogc pure
+    bool opEquals(scope const(DbTime) rhs) const @nogc pure
     {
         return zoneId == rhs.zoneId && _value == rhs._value;
     }
 
-    bool opEquals(scope const Time rhs) const @nogc pure
+    bool opEquals(scope const(Time) rhs) const @nogc pure
     {
         return this.opEquals(DbTime(rhs));
     }
 
-    static DbTime toDbTime(scope const Time value) @nogc pure
+    static DbTime toDbTime(scope const(Time) value) @nogc pure
     {
         return DbTime(value, 0); //TODO search for zone_id
     }
@@ -960,7 +966,6 @@ public:
         return DbTime(utcDT.time, 0);
     }
 
-public:
     @property bool isTZ() const @nogc pure
     {
         return zoneId != 0;
@@ -969,6 +974,11 @@ public:
     @property DateTimeKind kind() const @nogc pure
     {
         return _value.kind;
+    }
+
+    @property static DbTime min() @nogc nothrow pure
+    {
+        return DbTime(Time.min);
     }
 
     @property Time value() const @nogc pure
@@ -986,6 +996,108 @@ public:
 private:
     Time _value;
     uint16 _zoneId;
+}
+
+struct DbTimeSpan
+{
+nothrow @safe:
+
+public:
+    this(Duration timeSpan) @nogc pure
+    {
+        this._value = timeSpan;
+    }
+
+    this(scope const(DateTime) dateTime) @nogc pure
+    {
+        this._value = dateTime.toDuration();
+    }
+
+    this(scope const(Time) time) @nogc pure
+    {
+        this._value = time.toDuration();
+    }
+
+    int opCmp(scope const(DbTimeSpan) rhs) const @nogc pure
+    {
+        const lt = this.ticks;
+        const rt = rhs.ticks;
+        return (lt > rt) - (lt < rt);
+    }
+
+    int opCmp(scope const(Duration) rhs) const @nogc pure
+    {
+        return opCmp(DbTimeSpan(rhs));
+    }
+
+    bool opEquals(scope const(DbTimeSpan) rhs) const @nogc pure
+    {
+        return this.ticks == rhs.ticks;
+    }
+
+    bool opEquals(scope const(Duration) rhs) const @nogc pure
+    {
+        return opEquals(DbTimeSpan(rhs));
+    }
+
+    size_t toHash() const @nogc pure
+    {
+        return hashOf(ticks);
+    }
+
+    pragma(inline, true)
+    static long toTicks(scope const(Duration) v) @nogc pure
+    {
+        return v.total!"nsecs"();
+    }
+
+    @property DateTime dateTime() const @nogc pure
+    {
+        const ticks = Tick.durationToTicks(_value);
+        final switch (DateTime.isValidTicks(ticks))
+        {
+            case ErrorOp.none: return DateTime(ticks);
+            case ErrorOp.underflow: return DateTime.min;
+            case ErrorOp.overflow: return DateTime.max;
+        }
+    }
+
+    pragma(inline, true)
+    @property isNegative() const @nogc pure
+    {
+        return _value.isNegative;
+    }
+
+    pragma(inline, true)
+    @property isZero() const @nogc pure
+    {
+        return _value == Duration.zero;
+    }
+
+    @property long ticks() const @nogc pure
+    {
+        return toTicks(_value);
+    }
+
+    @property Time time() const @nogc pure
+    {
+        return dateTime.time;
+    }
+
+    @property Duration value() const @nogc pure
+    {
+        return _value;
+    }
+
+    @property static DbTimeSpan zero() @nogc pure
+    {
+        return DbTimeSpan(Duration.zero);
+    }
+
+    alias value this;
+
+private:
+    Duration _value;
 }
 
 struct DbTypeInfo

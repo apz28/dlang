@@ -13,19 +13,19 @@ module pham.db.fbbuffer;
 
 import std.algorithm.comparison : max, min;
 import std.array : replicate;
-import std.format : format;
 import std.string : representation;
 import std.system : Endian;
 import std.typecons : Flag, No, Yes;
 
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
+import pham.external.dec.decimal : scaleFrom, scaleTo;
+import pham.utl.utf8 : ShortStringBuffer;
 import pham.db.message;
 import pham.db.type;
 import pham.db.util;
 import pham.db.convert;
 import pham.db.buffer;
-import pham.db.value;
 import pham.db.fbisc;
 import pham.db.fbtype;
 import pham.db.fbexception;
@@ -166,7 +166,7 @@ public:
 	    _writer.writeUInt16(cast(ushort)(length * 2));
     }
 
-    void writeColumn(in DbBaseType baseType, int32 size) nothrow
+    void writeColumn(scope const(DbBaseType) baseType, int32 size) nothrow
     in
     {
         assert(size >= -1 && size <= uint16.max);
@@ -176,70 +176,70 @@ public:
     {
 	    final switch (FbIscFieldInfo.fbType(baseType.typeId))
 	    {
-		    case FbIscType.SQL_VARYING:
+		    case FbIscType.sql_varying:
 			    _writer.writeUInt8(FbBlrType.blr_varying);
 			    _writer.writeUInt16(cast(ushort)size);
 			    break;
-		    case FbIscType.SQL_TEXT:
+		    case FbIscType.sql_text:
 			    _writer.writeUInt8(FbBlrType.blr_text);
 			    _writer.writeUInt16(cast(ushort)size);
 			    break;
-		    case FbIscType.SQL_DOUBLE:
+		    case FbIscType.sql_double:
 			    _writer.writeUInt8(FbBlrType.blr_double);
 			    break;
-		    case FbIscType.SQL_FLOAT:
+		    case FbIscType.sql_float:
 			    _writer.writeUInt8(FbBlrType.blr_float);
 			    break;
-		    case FbIscType.SQL_LONG:
+		    case FbIscType.sql_long:
 			    _writer.writeUInt8(FbBlrType.blr_long);
 			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
-		    case FbIscType.SQL_SHORT:
+		    case FbIscType.sql_short:
 			    _writer.writeUInt8(FbBlrType.blr_short);
 			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
-		    case FbIscType.SQL_TIMESTAMP:
+		    case FbIscType.sql_timestamp:
 			    _writer.writeUInt8(FbBlrType.blr_timestamp);
 			    break;
-		    case FbIscType.SQL_BLOB:
+		    case FbIscType.sql_blob:
 			    _writer.writeUInt8(FbBlrType.blr_quad);
 			    _writer.writeUInt8(0);
 			    break;
-		    case FbIscType.SQL_D_FLOAT:
+		    case FbIscType.sql_d_float:
 			    _writer.writeUInt8(FbBlrType.blr_d_float);
 			    break;
-		    case FbIscType.SQL_ARRAY:
+		    case FbIscType.sql_array:
 			    _writer.writeUInt8(FbBlrType.blr_quad);
 			    _writer.writeUInt8(0);
 			    break;
-		    case FbIscType.SQL_QUAD:
+		    case FbIscType.sql_quad:
 			    _writer.writeUInt8(FbBlrType.blr_quad);
 			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
-		    case FbIscType.SQL_TIME:
+		    case FbIscType.sql_time:
 			    _writer.writeUInt8(FbBlrType.blr_sql_time);
 			    break;
-		    case FbIscType.SQL_DATE:
+		    case FbIscType.sql_date:
 			    _writer.writeUInt8(FbBlrType.blr_sql_date);
 			    break;
-		    case FbIscType.SQL_INT64:
+		    case FbIscType.sql_int64:
 			    _writer.writeUInt8(FbBlrType.blr_int64);
 			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
-		    case FbIscType.SQL_INT128:
+		    case FbIscType.sql_int128:
 			    _writer.writeUInt8(FbBlrType.blr_int128);
 			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
-		    case FbIscType.SQL_TIMESTAMP_TZ:
+		    case FbIscType.sql_timestamp_tz:
 			    _writer.writeUInt8(FbBlrType.blr_timestamp_tz);
 			    break;
-		    case FbIscType.SQL_TIMESTAMP_TZ_EX:
+		    case FbIscType.sql_timestamp_tz_ex:
 			    _writer.writeUInt8(FbBlrType.blr_ex_timestamp_tz);
 			    break;
-		    case FbIscType.SQL_TIME_TZ:
+		    case FbIscType.sql_time_tz:
 			    _writer.writeUInt8(FbBlrType.blr_sql_time_tz);
 			    break;
-		    case FbIscType.SQL_TIME_TZ_EX:
+		    case FbIscType.sql_time_tz_ex:
 			    _writer.writeUInt8(FbBlrType.blr_ex_time_tz);
 			    break;
 		    /*
@@ -248,18 +248,18 @@ public:
 			    _buffer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
             */
-		    case FbIscType.SQL_DEC64:
+		    case FbIscType.sql_dec64:
 			    _writer.writeUInt8(FbBlrType.blr_dec64);
 			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
-		    case FbIscType.SQL_DEC128:
+		    case FbIscType.sql_dec128:
 			    _writer.writeUInt8(FbBlrType.blr_dec128);
 			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
 			    break;
-		    case FbIscType.SQL_BOOLEAN:
+		    case FbIscType.sql_boolean:
 			    _writer.writeUInt8(FbBlrType.blr_bool);
 			    break;
-		    case FbIscType.SQL_NULL:
+		    case FbIscType.sql_null:
 			    _writer.writeUInt8(FbBlrType.blr_text);
 			    _writer.writeUInt16(cast(ushort)size);
 			    break;
@@ -562,12 +562,13 @@ public:
         return result;
     }
 
+    pragma(inline, true)
     char[] readChars() @trusted // @trusted=cast()
     {
         return cast(char[])readBytes();
     }
 
-    Date readDate()
+    DbDate readDate()
     {
         return dateDecode(readInt32());
     }
@@ -598,25 +599,25 @@ public:
         return dateTimeDecodeTZ(d, t, zId, zOffset);
     }
 
-    D readDecimal(D)(in DbBaseType baseType)
+    D readDecimal(D)(scope const(DbBaseType) baseType)
     if (isDecimal!D)
     {
 		switch (FbIscFieldInfo.fbType(baseType.typeId))
 		{
-			case FbIscType.SQL_SHORT:
-				return decimalDecode!(D, int16)(readInt16(), baseType.numericScale);
-			case FbIscType.SQL_LONG:
-				return decimalDecode!(D, int32)(readInt32(), baseType.numericScale);
-			case FbIscType.SQL_QUAD:
-			case FbIscType.SQL_INT64:
-				return decimalDecode!(D, int64)(readInt64(), baseType.numericScale);
-			case FbIscType.SQL_DOUBLE:
-			case FbIscType.SQL_D_FLOAT:
-				return decimalDecode!(D, float64)(readFloat64(), baseType.numericScale);
-    		case FbIscType.SQL_FLOAT:
-				return decimalDecode!(D, float32)(readFloat32(), baseType.numericScale);
-            case FbIscType.SQL_DEC64:
-            case FbIscType.SQL_DEC128:
+			case FbIscType.sql_short:
+				return scaleFrom!(int16, D)(readInt16(), baseType.numericScale);
+			case FbIscType.sql_long:
+				return scaleFrom!(int32, D)(readInt32(), baseType.numericScale);
+			case FbIscType.sql_quad:
+			case FbIscType.sql_int64:
+				return scaleFrom!(int64, D)(readInt64(), baseType.numericScale);
+			case FbIscType.sql_double:
+			case FbIscType.sql_d_float:
+				return D(readFloat64());
+    		case FbIscType.sql_float:
+				return D(readFloat32());
+            case FbIscType.sql_dec64:
+            case FbIscType.sql_dec128:
                 auto bytes = _reader.readBytes(decimalByteLength!D());
                 return decimalDecode!D(bytes);
 			default:
@@ -624,35 +625,39 @@ public:
 		}
     }
 
-    char[] readFixedChars(in DbBaseType baseType) @trusted // @trusted=cast()
+    char[] readFixedChars(scope const(DbBaseType) baseType) @trusted // @trusted=cast()
     {
         const charsCount = baseType.size / 4; // UTF8 to char
         auto result = cast(char[])readOpaqueBytes(baseType.size);
         return truncateEndIf(result, charsCount, ' ');
     }
 
-    string readFixedString(in DbBaseType baseType) @trusted // @trusted=cast()
+    string readFixedString(scope const(DbBaseType) baseType) @trusted // @trusted=cast()
     {
         return cast(string)readFixedChars(baseType);
     }
 
+    pragma(inline, true)
     float32 readFloat32()
     {
         return _reader.readFloat32();
     }
 
+    pragma(inline, true)
     float64 readFloat64()
     {
         return _reader.readFloat64();
     }
 
+    pragma(inline, true)
     FbHandle readHandle()
     {
-        assert(FbHandle.sizeof == uint32.sizeof);
+        static assert(FbHandle.sizeof == uint32.sizeof);
 
         return _reader.readUInt32();
     }
 
+    pragma(inline, true)
     FbId readId()
     {
         static assert(int64.sizeof == FbId.sizeof);
@@ -660,16 +665,19 @@ public:
         return _reader.readInt64();
     }
 
+    pragma(inline, true)
     int16 readInt16()
     {
         return cast(int16)_reader.readInt32();
     }
 
+    pragma(inline, true)
     int32 readInt32()
     {
         return _reader.readInt32();
     }
 
+    pragma(inline, true)
     int64 readInt64()
     {
         return _reader.readInt64();
@@ -681,7 +689,7 @@ public:
         return int128Decode(_reader.readBytes(buffer[]));
     }
 
-    ubyte[] readOpaqueBytes(const size_t forLength)
+    ubyte[] readOpaqueBytes(const(size_t) forLength)
     {
         auto result = _reader.readBytes(forLength);
         readPad(forLength);
@@ -710,7 +718,7 @@ public:
         auto result = readOperation();
         if (result != expectedOperation)
         {
-            auto msg = format(DbMessage.eUnexpectReadOperation, result, expectedOperation);
+            auto msg = DbMessage.eUnexpectReadOperation.fmtMessage(result, expectedOperation);
             throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_net_read_err);
         }
         return result;
@@ -805,6 +813,7 @@ public:
         return timeDecodeTZ(t, zId, zOffset);
     }
 
+    pragma(inline, true)
     uint16 readUInt16()
     {
         return cast(uint16)_reader.readUInt32();
@@ -817,6 +826,11 @@ public:
 
         ubyte[UUID.sizeof] buffer = void;
         return UUID(_reader.readBytes(buffer[])[0..UUID.sizeof]);
+    }
+
+    @property DbReadBuffer buffer() nothrow pure
+    {
+        return _buffer;
     }
 
     @property FbConnection connection() nothrow pure
@@ -832,7 +846,7 @@ public:
 
 private:
     pragma (inline, true)
-    void readPad(const ptrdiff_t nBytes)
+    void readPad(const(ptrdiff_t) nBytes)
     {
         const paddingNBytes = (4 - nBytes) & 3;
         if (paddingNBytes)
@@ -891,6 +905,7 @@ public:
         _buffer.flush();
     }
 
+    pragma(inline, true)
     ubyte[] peekBytes() nothrow return
     {
         return _buffer.peekBytes();
@@ -912,6 +927,7 @@ public:
         writePad(len + 2);
     }
 
+    pragma(inline, true)
     void writeBool(bool v) nothrow
     {
         _writer.writeBool(v);
@@ -931,6 +947,7 @@ public:
         writePad(nBytes);
     }
 
+    pragma(inline, true)
     void writeChars(scope const(char)[] v) nothrow
     in
     {
@@ -941,12 +958,12 @@ public:
         writeBytes(v.representation);
     }
 
-    void writeDate(in Date v) nothrow
+    void writeDate(scope const(DbDate) v) nothrow
     {
         writeInt32(dateEncode(v));
     }
 
-    void writeDateTime(in DbDateTime v) nothrow
+    void writeDateTime(scope const(DbDateTime) v) nothrow
     {
         int32 d, t = void;
         dateTimeEncode(v, d, t);
@@ -954,7 +971,7 @@ public:
         writeInt32(t);
     }
 
-    void writeDateTimeTZ(in DbDateTime v) nothrow
+    void writeDateTimeTZ(scope const(DbDateTime) v) nothrow
     {
         int32 d, t = void;
         uint16 zId = void;
@@ -965,7 +982,7 @@ public:
         writeUInt16(zId);
     }
 
-    void writeDateTimeTZEx(in DbDateTime v) nothrow
+    void writeDateTimeTZEx(scope const(DbDateTime) v) nothrow
     {
         int32 d, t = void;
         uint16 zId = void;
@@ -977,33 +994,34 @@ public:
         writeInt16(zOffset);
     }
 
-    void writeDecimal(D)(in D v, in DbBaseType baseType)
+    void writeDecimal(D)(scope const(D) v, scope const(DbBaseType) baseType)
     if (isDecimal!D)
     {
 		switch (FbIscFieldInfo.fbType(baseType.typeId))
 		{
-			case FbIscType.SQL_SHORT:
-				return writeInt16(decimalEncode!(D, int16)(v, baseType.numericScale));
-			case FbIscType.SQL_LONG:
-				return writeInt32(decimalEncode!(D, int32)(v, baseType.numericScale));
-			case FbIscType.SQL_QUAD:
-			case FbIscType.SQL_INT64:
-				return writeInt64(decimalEncode!(D, int64)(v, baseType.numericScale));
-			case FbIscType.SQL_DOUBLE:
-			case FbIscType.SQL_D_FLOAT:
-				return writeFloat64(decimalEncode!(D, float64)(v, baseType.numericScale));
-    		case FbIscType.SQL_FLOAT:
-				return writeFloat32(decimalEncode!(D, float32)(v, baseType.numericScale));
-            case FbIscType.SQL_DEC64:
-            case FbIscType.SQL_DEC128:
-                _writer.writeBytes(decimalEncode!D(v));
+			case FbIscType.sql_short:
+				return writeInt16(scaleTo!(D, int16)(v, baseType.numericScale));
+			case FbIscType.sql_long:
+				return writeInt32(scaleTo!(D, int32)(v, baseType.numericScale));
+			case FbIscType.sql_quad:
+			case FbIscType.sql_int64:
+				return writeInt64(scaleTo!(D, int64)(v, baseType.numericScale));
+			case FbIscType.sql_double:
+			case FbIscType.sql_d_float:
+				return writeFloat64(cast(float64)v);
+    		case FbIscType.sql_float:
+				return writeFloat32(cast(float32)v);
+            case FbIscType.sql_dec64:
+            case FbIscType.sql_dec128:
+                ShortStringBuffer!ubyte buffer;
+                _writer.writeBytes(decimalEncode!D(buffer, v)[]);
                 return;
 			default:
                 assert(0);
 		}
     }
 
-    void writeFixedChars(scope const(char)[] v, in DbBaseType baseType) nothrow
+    void writeFixedChars(scope const(char)[] v, scope const(DbBaseType) baseType) nothrow
     in
     {
         assert(v.length < fbMaxPackageSize);
@@ -1021,16 +1039,19 @@ public:
             writePad(v.length);
     }
 
+    pragma(inline, true)
     void writeFloat32(float32 v) nothrow
     {
         _writer.writeFloat32(v);
     }
 
+    pragma(inline, true)
     void writeFloat64(float64 v) nothrow
     {
         _writer.writeFloat64(v);
     }
 
+    pragma(inline, true)
     void writeHandle(FbHandle handle) nothrow
     {
         static assert(uint32.sizeof == FbHandle.sizeof);
@@ -1038,6 +1059,7 @@ public:
         _writer.writeUInt32(cast(uint32)handle);
     }
 
+    pragma(inline, true)
     void writeId(FbId id) nothrow
     {
         static assert(int64.sizeof == FbId.sizeof);
@@ -1045,17 +1067,20 @@ public:
         _writer.writeInt64(cast(int64)id);
     }
 
+    pragma(inline, true)
     void writeInt16(int16 v) nothrow
     {
         _writer.writeInt32(v);
     }
 
+    pragma(inline, true)
     void writeInt32(int32 v) nothrow
     {
         _writer.writeInt32(v);
     }
 
     static if (size_t.sizeof > int32.sizeof)
+    pragma(inline, true)
     void writeInt32(size_t v) nothrow
     in
     {
@@ -1066,15 +1091,16 @@ public:
         _buffer.writeInt32(cast(int32)v);
     }
 
+    pragma(inline, true)
     void writeInt64(int64 v) nothrow
     {
         _writer.writeInt64(v);
     }
 
-    void writeInt128(in BigInteger v) nothrow
+    void writeInt128(scope const(BigInteger) v) nothrow
     {
         ubyte[int128ByteLength] bytes;
-        const e = int128Encode(v, bytes);
+        const e = int128Encode(bytes, v);
         assert(e);
         _writer.writeBytes(bytes);
     }
@@ -1097,6 +1123,7 @@ public:
             writePad(v.length);
     }
 
+    pragma(inline, true)
     void writeOperation(FbOperation operation) nothrow
     {
         static assert(int32.sizeof == FbOperation.sizeof);
@@ -1104,12 +1131,12 @@ public:
         writeInt32(cast(int32)operation);
     }
 
-    void writeTime(in DbTime v) nothrow
+    void writeTime(scope const(DbTime) v) nothrow
     {
         writeInt32(timeEncode(v));
     }
 
-    void writeTimeTZ(in DbTime v) nothrow
+    void writeTimeTZ(scope const(DbTime) v) nothrow
     {
         int32 t = void;
         uint16 zId = void;
@@ -1119,7 +1146,7 @@ public:
         writeUInt16(zId);
     }
 
-    void writeTimeTZEx(in DbTime v) nothrow
+    void writeTimeTZEx(scope const(DbTime) v) nothrow
     {
         int32 t = void;
         uint16 zId = void;
@@ -1130,19 +1157,25 @@ public:
         writeInt16(zOffset);
     }
 
+    pragma(inline, true)
     void writeUInt16(uint16 v) nothrow
     {
         _writer.writeUInt32(v);
     }
 
     // https://stackoverflow.com/questions/246930/is-there-any-difference-between-a-guid-and-a-uuid
-    void writeUUID(in UUID v) nothrow
+    void writeUUID(scope const(UUID) v) nothrow
     {
         _writer.writeBytes(v.data); // v.data is already in big-endian
         //return writePad(16); // No need filler since alignment to 4
     }
 
-    @property FbConnection connection() nothrow
+    @property DbWriteBuffer buffer() nothrow pure
+    {
+        return _buffer;
+    }
+
+    @property FbConnection connection() nothrow pure
     {
         return _connection;
     }
@@ -1172,7 +1205,7 @@ private:
 
     void writePad(ptrdiff_t nBytes) nothrow
     {
-        immutable ubyte[4] filler = [0, 0, 0, 0];
+        static immutable ubyte[4] filler = [0, 0, 0, 0];
 
         const paddingNBytes = (4 - nBytes) & 3;
         if (paddingNBytes != 0)
@@ -1196,13 +1229,32 @@ unittest // FbXdrWriter & FbXdrReader
     traceUnitTest("unittest pham.db.fbbuffer.FbXdrReader & db.fbbuffer.FbXdrWriter");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
+    const(ubyte)[] bytes = [1,2,5,101];
+    const(UUID) uuid = UUID(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15);
 
     //pragma(msg, float.min_normal);
     //pragma(msg, double.min_normal);
 
     auto writerBuffer = new DbWriteBuffer(4000);
     auto writer = FbXdrWriter(null, writerBuffer);
+    //writer.writeBlob(bytes);
     writer.writeBool(true);
+    writer.writeBytes(bytes);
+    writer.writeChars(chars);
+    writer.writeDate(DbDate(1, 2, 3));
+    writer.writeDateTime(DbDateTime(DateTime(1,2,3,4,5,6), 0));
+    writer.writeDateTimeTZ(DbDateTime(DateTime(1,2,3,4,5,6), 0));
+    writer.writeDateTimeTZEx(DbDateTime(DateTime(1,2,3,4,5,6), 0));
+    //writer.writeDecimal();
+    //writer.writeFixedChars();
+    writer.writeFloat32(float.min_normal);
+    writer.writeFloat32(32.32);
+    writer.writeFloat32(float.max);
+    writer.writeFloat64(double.min_normal);
+    writer.writeFloat64(64.64);
+    writer.writeFloat64(double.max);
+    writer.writeHandle(1);
+    writer.writeId(3);
     writer.writeInt16(short.min);
     writer.writeInt16(16);
     writer.writeInt16(short.max);
@@ -1212,17 +1264,33 @@ unittest // FbXdrWriter & FbXdrReader
     writer.writeInt64(long.min);
     writer.writeInt64(64);
     writer.writeInt64(long.max);
-    writer.writeFloat32(float.min_normal);
-    writer.writeFloat32(32.32);
-    writer.writeFloat32(float.max);
-    writer.writeFloat64(double.min_normal);
-    writer.writeFloat64(64.64);
-    writer.writeFloat64(double.max);
-    writer.writeChars(chars);
+    writer.writeOpaqueBytes(bytes, bytes.length);
+    writer.writeOperation(5);
+    writer.writeTime(DbTime(Time(1,2,3)));
+    writer.writeTimeTZ(DbTime(Time(1,2,3)));
+    writer.writeTimeTZEx(DbTime(Time(1,2,3)));
+    writer.writeUInt16(100);
+    writer.writeUUID(uuid);
 
-    ubyte[] bytes = writer.peekBytes();
-    auto reader = FbXdrReader(null, bytes);
+    ubyte[] writerBytes = writer.peekBytes();
+    auto reader = FbXdrReader(null, writerBytes);
     assert(reader.readBool());
+    assert(reader.readBytes() == bytes);
+    assert(reader.readChars() == chars);
+    assert(reader.readDate() == DbDate(1, 2, 3));
+    assert(reader.readDateTime() == DbDateTime(DateTime(1,2,3,4,5,6), 0));
+    assert(reader.readDateTimeTZ() == DbDateTime(DateTime(1,2,3,4,5,6), 0));
+    assert(reader.readDateTimeTZEx() == DbDateTime(DateTime(1,2,3,4,5,6), 0));
+    //assert(reader.readDecimal() == );
+    //assert(reader.readFixedChars() == );
+    assert(reader.readFloat32() == float.min_normal);
+    assert(reader.readFloat32() == cast(float)32.32);
+    assert(reader.readFloat32() == float.max);
+    assert(reader.readFloat64() == double.min_normal);
+    assert(reader.readFloat64() == cast(double)64.64);
+    assert(reader.readFloat64() == double.max);
+    assert(reader.readHandle() == 1);
+    assert(reader.readId() == 3);
     assert(reader.readInt16() == short.min);
     assert(reader.readInt16() == 16);
     assert(reader.readInt16() == short.max);
@@ -1232,11 +1300,11 @@ unittest // FbXdrWriter & FbXdrReader
     assert(reader.readInt64() == long.min);
     assert(reader.readInt64() == 64);
     assert(reader.readInt64() == long.max);
-    assert(reader.readFloat32() == float.min_normal);
-    assert(reader.readFloat32() == cast(float)32.32);
-    assert(reader.readFloat32() == float.max);
-    assert(reader.readFloat64() == double.min_normal);
-    assert(reader.readFloat64() == cast(double)64.64);
-    assert(reader.readFloat64() == double.max);
-    assert(reader.readChars() == chars);
+    assert(reader.readOpaqueBytes(bytes.length) == bytes);
+    assert(reader.readOperation() == 5);
+    assert(reader.readTime() == DbTime(Time(1,2,3)));
+    assert(reader.readTimeTZ() == DbTime(Time(1,2,3)));
+    assert(reader.readTimeTZEx() == DbTime(Time(1,2,3)));
+    assert(reader.readUInt16() == 100);
+    assert(reader.readUUID() == uuid);
 }

@@ -11,8 +11,6 @@
 
 module pham.db.exception;
 
-import std.format : format;
-
 version (TraceFunction) import pham.utl.test;
 import pham.db.message;
 
@@ -26,7 +24,7 @@ public:
         version (TraceFunction) dgFunctionTrace();
 
         if (code)
-            message ~= "\n" ~ format(DbMessage.eErrorCode, code);
+            message ~= "\n" ~ DbMessage.eErrorCode.fmtMessage(code);
 
         super(message, next);
         this.code = code;

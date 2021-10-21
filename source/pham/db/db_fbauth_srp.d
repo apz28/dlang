@@ -155,7 +155,7 @@ protected:
 
 private:
     final ubyte[] calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] salt, const BigInteger serverPublicKey)
+        scope const(ubyte)[] salt, const(BigInteger) serverPublicKey)
 	{
         auto parameters = _authClient.parameters;
         auto proofHasher = parameters.proofHasher;

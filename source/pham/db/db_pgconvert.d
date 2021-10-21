@@ -17,6 +17,7 @@ import core.time : Duration, dur;
 version (unittest) import pham.utl.test;
 import pham.utl.datetime.tick : Tick;
 import pham.utl.datetime.time_zone : TimeZoneInfo;
+import pham.utl.utf8 : ShortStringBuffer, ShortStringBufferSize;
 import pham.db.type;
 import pham.db.convert : toDecimal;
 import pham.db.pgtype;
@@ -52,7 +53,7 @@ int32 dateToJulian(int y, int m, int d) pure
 }
 
 version (none)
-void julianToDateParts(in int32 jd, out int year, out int month, out int day) pure
+void julianToDateParts(int32 jd, out int year, out int month, out int day) pure
 {
     uint julian = jd + 32_044;
     uint quad = julian / 146_097;
@@ -75,12 +76,12 @@ void dateDecode(int32 pgDate, out int year, out int month, out int day) pure
     julianToDateParts(pgDate + epochDateJulian, year, month, day);
 }
 
-Date dateDecode(int32 pgDate) @nogc pure
+DbDate dateDecode(int32 pgDate) @nogc pure
 {
     return epochDate.addDaysSafe(pgDate);
 }
 
-int32 dateEncode(scope const Date value) @nogc pure
+int32 dateEncode(scope const(DbDate) value) @nogc pure
 {
     return value.days - epochDate.days;
 }
@@ -91,7 +92,7 @@ DbDateTime dateTimeDecode(int64 pgDateTime) @nogc pure
     return DbDateTime(dt, 0);
 }
 
-int64 dateTimeEncode(scope const DbDateTime value) @nogc pure
+int64 dateTimeEncode(scope const(DbDateTime) value) @nogc pure
 {
 	auto d = value.toDuration() - epochDateTime.toDuration();
     return durationToTime(d);
@@ -102,10 +103,10 @@ DbDateTime dateTimeDecodeTZ(int64 pgDateTime, int32 pgZone)
 	auto dt = epochDateTime.addTicksSafe(timeToDuration(pgDateTime));
 	if (pgZone != 0)
 		dt = dt.addSecondsSafe(-pgZone);
-	return DbDateTime(TimeZoneInfo.convertUtcToLocal(dt.toDateTimeKindUTC()), 0);
+	return DbDateTime(TimeZoneInfo.convertUtcToLocal(dt.asUTC), 0);
 }
 
-void dateTimeEncodeTZ(scope const DbDateTime value, out int64 pgTime, out int32 pgZone)
+void dateTimeEncodeTZ(scope const(DbDateTime) value, out int64 pgTime, out int32 pgZone)
 {
     pgZone = 0;
 	if (value.kind == DateTimeKind.utc)
@@ -117,7 +118,7 @@ void dateTimeEncodeTZ(scope const DbDateTime value, out int64 pgTime, out int32 
     }
 }
 
-D numericDecode(D)(in PgOIdNumeric pgNumeric)
+D numericDecode(D)(scope const(PgOIdNumeric) pgNumeric)
 if (isDecimal!D)
 {
 	scope (failure) assert(0);
@@ -132,12 +133,11 @@ if (isDecimal!D)
     if (pgNumeric.isNaN)
         return D.nan;
 
-    size_t vInd;
-    char[] value = new char[](pgNumeric.digitLength());
+	ShortStringBuffer!char value;
 
     // Negative sign
     if (pgNumeric.isNeg)
-        value[vInd++] = '-';
+        value.put('-');
 
     int32 d;
 	int16 d1;
@@ -147,7 +147,7 @@ if (isDecimal!D)
 	if (pgNumeric.weight < 0)
 	{
 		d = pgNumeric.weight + 1;
-		value[vInd++] = '0';
+		value.put('0');
 	}
 	else
 	{
@@ -160,21 +160,21 @@ if (isDecimal!D)
 			dig -= d1 * 1000;
 			putit |= d1 > 0;
 			if (putit)
-				value[vInd++] = cast(char)(d1 + '0');
+				value.put(cast(char)(d1 + '0'));
 
 			d1 = dig / 100;
 			dig -= d1 * 100;
 			putit |= d1 > 0;
 			if (putit)
-				value[vInd++] = cast(char)(d1 + '0');
+				value.put(cast(char)(d1 + '0'));
 
 			d1 = dig / 10;
 			dig -= d1 * 10;
 			putit |= d1 > 0;
 			if (putit)
-				value[vInd++] = cast(char)(d1 + '0');
+				value.put(cast(char)(d1 + '0'));
 
-			value[vInd++] = cast(char)(dig + '0');
+			value.put(cast(char)(dig + '0'));
 		}
 	}
 
@@ -185,67 +185,75 @@ if (isDecimal!D)
 	 */
 	if (pgNumeric.dscale > 0)
 	{
+		value.put('.');
 		int16 vScale = pgNumeric.dscale;
-		value[vInd++] = '.';
 		for (int i = 0; i < pgNumeric.dscale; d++, i += PgOIdNumeric.digitPerBase)
 		{
 			dig = (d >= 0 && d < pgNumeric.ndigits) ? pgNumeric.digits[d] : 0;
 			d1 = dig / 1000;
 			dig -= d1 * 1000;
-			value[vInd++] = cast(char)(d1 + '0');
+			value.put(cast(char)(d1 + '0'));
 			if (--vScale == 0)
 				break;
 
 			d1 = dig / 100;
 			dig -= d1 * 100;
-			value[vInd++] = cast(char)(d1 + '0');
+			value.put(cast(char)(d1 + '0'));
 			if (--vScale == 0)
 				break;
 
 			d1 = dig / 10;
 			dig -= d1 * 10;
-			value[vInd++] = cast(char)(d1 + '0');
+			value.put(cast(char)(d1 + '0'));
 			if (--vScale == 0)
 				break;
 
-			value[vInd++] = cast(char)(dig + '0');
+			value.put(cast(char)(dig + '0'));
 			if (--vScale == 0)
 				break;
 		}
 	}
 
     version (TraceFunction)
-    dgFunctionTrace("vInd=", vInd, ", value.length=", value.length, ", value=", value[0..vInd]);
+    dgFunctionTrace("value=", value[]);
 
-	return D(value[0..vInd]);
+	if (pgNumeric.dscale > 0)
+		return D(value[], RoundingMode.banking);
+	else
+		return D(value[]);
 }
 
-PgOIdNumeric numericEncode(D)(in D value)
+PgOIdNumeric numericEncode(D)(scope const(D) value)
 if (isDecimal!D)
 {
+	enum maxDigits = 6_500; // max value of Decimal128
+
 	if (value.isNaN)
 		return PgOIdNumeric.NaN;
 
-	size_t sInd = 0;
-	auto sVal = value.toString();
+	ShortStringBufferSize!(char, maxDigits) sBuffer;
+	value.toString!(ShortStringBufferSize!(char, maxDigits), char)(sBuffer);
+	auto sValue = sBuffer[];
+	size_t sLength = sValue.length;
+	while (sLength > 1 && sValue[sLength - 1] == '0')
+		sLength--;
 
     PgOIdNumeric result;
 
-	if (sVal[0] == '-')
-    {
-		sInd++;
+	size_t sIndex = sValue[0] == '-' ? 1 : 0;
+	if (sIndex)
 		result.setSign(PgOIdNumeric.signNeg);
-    }
 
+	//ubyte[] ddigits = new ubyte[]((sLength - sIndex) + PgOIdNumeric.digitPerBase * 2);
+	//ddigits[] = 0; // Set all to zero
+	auto ddigits = ShortStringBufferSize!(ubyte, maxDigits)(true);
 	int dInd = PgOIdNumeric.digitPerBase;
 	int dweight = -1;
 	bool haveDP = false;
-	ubyte[] ddigits = new ubyte[]((sVal.length - sInd) + PgOIdNumeric.digitPerBase * 2);
-	ddigits[] = 0; // Set all to zero
 
-	for (; sInd < sVal.length; sInd++)
+	for (; sIndex < sLength; sIndex++)
     {
-		const char d = sVal[sInd];
+		const char d = sValue[sIndex];
 		if (d == '.')
 			haveDP = true;
 		else
@@ -307,7 +315,9 @@ if (isDecimal!D)
 
 	if (nInd != 0 || result.ndigits != ndigits)
     {
-		result.digits[] = result.digits[nInd..nInd + ndigits];
+		assert(nInd + ndigits <= result.digits.length);
+
+		result.digits = result.digits[nInd..nInd + ndigits];
 		result.ndigits = cast(int16)ndigits;
     }
 
@@ -319,7 +329,7 @@ DbTime timeDecode(int64 pgTime) @nogc pure
     return DbTime(timeToDuration(pgTime), DateTimeKind.unspecified, 0);
 }
 
-int64 timeEncode(scope const DbTime value) @nogc pure
+int64 timeEncode(scope const(DbTime) value) @nogc pure
 {
     return durationToTime(value.toDuration());
 }
@@ -329,10 +339,10 @@ DbTime timeDecodeTZ(int64 pgTime, int32 pgZone)
 	auto dt = DateTime(DateTime.utcNow.date, Time(timeToDuration(pgTime)));
 	if (pgZone != 0)
 		dt = dt.addSecondsSafe(-pgZone);
-	return DbTime(TimeZoneInfo.convertUtcToLocal(dt.toDateTimeKindUTC()).time, 0);
+	return DbTime(TimeZoneInfo.convertUtcToLocal(dt.asUTC).time, 0);
 }
 
-void timeEncodeTZ(in DbTime value, out int64 pgTime, out int32 pgZone)
+void timeEncodeTZ(scope const(DbTime) value, out int64 pgTime, out int32 pgZone)
 {
     pgZone = 0;
 	if (value.kind == DateTimeKind.utc)
@@ -346,9 +356,9 @@ void timeEncodeTZ(in DbTime value, out int64 pgTime, out int32 pgZone)
 
 // value can have date part
 pragma(inline, true)
-int64 durationToTime(scope const Duration value) @nogc pure
+int64 durationToTime(scope const(Duration) value) @nogc pure
 {
-	return value.total!"usecs";
+	return value.total!"usecs"();
 }
 
 // pgTime can have date part

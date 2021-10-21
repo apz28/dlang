@@ -14,7 +14,6 @@ module pham.db.fbprotocol;
 import std.algorithm.comparison : max, min;
 import std.array : Appender;
 import std.conv : to;
-import std.format : format;
 import std.range.primitives : isOutputRange, put;
 import std.typecons : Flag, No, Yes;
 
@@ -62,7 +61,7 @@ if (isOutputRange!(W, ubyte))
 	size_t pos = 0;
 	while (pos < endPos)
 	{
-        const len = parseInt32!true(data, pos, 2, FbIscType.SQL_BLOB);
+        const len = parseInt32!true(data, pos, 2, FbIscType.sql_blob);
         put(sink, data[pos..pos + len]);
         result += len;
         pos += len;
@@ -348,7 +347,7 @@ public:
         auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_free_statement);
 		writer.writeHandle(command.fbHandle);
-		writer.writeInt32(FbIsc.DSQL_close);
+		writer.writeInt32(FbIsc.dsql_close);
         writer.flush();
     }
 
@@ -435,7 +434,7 @@ public:
         {
 			if (getCryptedConnectionCode() == FbIsc.connect_crypt_required)
             {
-                auto msg = format(DbMessage.eInvalidConnectionRequiredEncryption, connection.connectionStringBuilder.forErrorInfo);
+                auto msg = DbMessage.eInvalidConnectionRequiredEncryption.fmtMessage(connection.connectionStringBuilder.forErrorInfo);
                 throw new FbException(msg, DbErrorCode.connect, 0, FbIscResultCode.isc_wirecrypt_incompatible);
             }
         }
@@ -470,7 +469,7 @@ public:
 				{
 					if (_auth is null || adResponse.authName != _auth.name)
                     {
-                        auto msg = format(DbMessage.eInvalidConnectionAuthUnsupportedName, adResponse.authName);
+                        auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(adResponse.authName);
                         throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_auth_data);
                     }
 
@@ -478,7 +477,7 @@ public:
                     _authData = _auth.getAuthData(useCSB.userName, useCSB.userPassword, adResponse.authData);
                     if (_authData.length == 0)
                     {
-                        auto msg = format(DbMessage.eInvalidConnectionAuthServerData, adResponse.authName, _auth.errorMessage);
+                        auto msg = DbMessage.eInvalidConnectionAuthServerData.fmtMessage(adResponse.authName, _auth.errorMessage);
                         throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_auth_data);
                     }
 				}
@@ -500,7 +499,7 @@ public:
                 r.statues.getWarn(connection.notificationMessages);
                 goto default;
             default:
-                auto msg = format(DbMessage.eUnhandleOperation, op);
+                auto msg = DbMessage.eUnhandleOperation.fmtMessage(op);
                 throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_auth_data);
         }
     }
@@ -550,7 +549,7 @@ public:
         auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_free_statement);
 		writer.writeHandle(command.fbHandle);
-		writer.writeInt32(FbIsc.DSQL_drop);
+		writer.writeInt32(FbIsc.dsql_drop);
         writer.flush();
     }
 
@@ -687,7 +686,7 @@ public:
             return readFetchResponseImpl(reader);
         else
         {
-            auto msg = format(DbMessage.eUnexpectReadOperation, op, FbIsc.op_response);
+            auto msg = DbMessage.eUnexpectReadOperation.fmtMessage(op, FbIsc.op_response);
             throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_net_read_err);
         }
     }
@@ -921,7 +920,7 @@ public:
                 auto rCryptKeyCallback = readCryptKeyCallbackResponseImpl(reader);
                 return new FbResponse(op, rCryptKeyCallback);
             default:
-                auto msg = format(DbMessage.eUnexpectReadOperation, op, mainOp);
+                auto msg = DbMessage.eUnexpectReadOperation.fmtMessage(op, mainOp);
                 throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_net_read_err);
         }
     }
@@ -998,7 +997,7 @@ public:
             case DbType.record:
             case DbType.array:
             case DbType.unknown:
-                auto msg = format(DbMessage.eUnsupportDataType, functionName!(typeof(this))(), toName!DbType(column.type));
+                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName!(typeof(this))(), toName!DbType(column.type));
                 throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_net_read_err);
         }
 
@@ -1154,7 +1153,7 @@ protected:
                     auto authMap = FbAuth.findAuthMap(DbScheme.fb ~ cResponse.name);
                     if (!authMap.isValid())
                     {
-                        auto msg = format(DbMessage.eInvalidConnectionAuthUnsupportedName, cResponse.name);
+                        auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(cResponse.name);
                         throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_auth_data);
                     }
                     _auth = authMap.createAuth();
@@ -1162,13 +1161,13 @@ protected:
                     _authData = _auth.getAuthData(useCSB.userName, useCSB.userPassword, cResponse.data);
                     if (_authData.length == 0)
                     {
-                        auto msg = format(DbMessage.eInvalidConnectionAuthServerData, cResponse.name, _auth.errorMessage);
+                        auto msg = DbMessage.eInvalidConnectionAuthServerData.fmtMessage(cResponse.name, _auth.errorMessage);
                         throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_auth_data);
                     }
                 }
                 break;
             default:
-                auto msg = format(DbMessage.eUnhandleOperation, op);
+                auto msg = DbMessage.eUnhandleOperation.fmtMessage(op);
                 throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_auth_data);
         }
     }
@@ -1202,7 +1201,7 @@ protected:
                 r.statues.getWarn(connection.notificationMessages);
                 break;
             default:
-                auto msg = format(DbMessage.eUnhandleOperation, op);
+                auto msg = DbMessage.eUnhandleOperation.fmtMessage(op);
                 throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_auth_data);
         }
     }
@@ -1254,12 +1253,12 @@ protected:
         }
 
 		writer.writeType(FbIsc.isc_dpb_version);
-		writer.writeInt32(FbIsc.isc_dpb_dummy_packet_interval, useCSB.dummyPackageInterval.toInt32Second());
+		writer.writeInt32(FbIsc.isc_dpb_dummy_packet_interval, useCSB.dummyPackageInterval.toRangeSecond32());
 		writer.writeInt32(FbIsc.isc_dpb_sql_dialect, useCSB.dialect);
 		writer.writeChars(FbIsc.isc_dpb_lc_ctype, useCSB.charset);
         writer.writeCharsIf(FbIsc.isc_dpb_user_name, useCSB.userName);
 	    writer.writeCharsIf(FbIsc.isc_dpb_sql_role_name, useCSB.roleName);
-		writer.writeInt32(FbIsc.isc_dpb_connect_timeout, useCSB.connectionTimeout.toInt32Second());
+		writer.writeInt32(FbIsc.isc_dpb_connect_timeout, useCSB.connectionTimeout.toRangeSecond32());
 		writer.writeInt32(FbIsc.isc_dpb_process_id, currentProcessId());
 		writer.writeChars(FbIsc.isc_dpb_process_name, currentProcessName());
 		writer.writeCharsIf(FbIsc.isc_dpb_client_version, useCSB.applicationVersion);
@@ -1286,20 +1285,20 @@ protected:
 
         version (TraceFunction) dgFunctionTrace("userName=", useCSB.userName, ", userPassword=", useCSB.userPassword);
 
-        writer.writeChars(FbIsc.CNCT_user, currentUserName());
-        writer.writeChars(FbIsc.CNCT_host, currentComputerName());
-        writer.writeInt8(FbIsc.CNCT_user_verification, 0);
+        writer.writeChars(FbIsc.cnct_user, currentUserName());
+        writer.writeChars(FbIsc.cnct_host, currentComputerName());
+        writer.writeInt8(FbIsc.cnct_user_verification, 0);
 
         final switch (useCSB.integratedSecurity)
         {
             case DbIntegratedSecurityConnection.srp:
                 _auth = new FbAuthSrpSHA1();
 
-                writer.writeChars(FbIsc.CNCT_login, useCSB.userName);
-                writer.writeChars(FbIsc.CNCT_plugin_name, _auth.name);
-                writer.writeChars(FbIsc.CNCT_plugin_list, _auth.name);
-                writer.writeMultiParts(FbIsc.CNCT_specific_data, _auth.publicKey());
-                writer.writeInt32(FbIsc.CNCT_client_crypt, hostToNetworkOrder!int(getCryptedConnectionCode()));
+                writer.writeChars(FbIsc.cnct_login, useCSB.userName);
+                writer.writeChars(FbIsc.cnct_plugin_name, _auth.name);
+                writer.writeChars(FbIsc.cnct_plugin_list, _auth.name);
+                writer.writeMultiParts(FbIsc.cnct_specific_data, _auth.publicKey());
+                writer.writeInt32(FbIsc.cnct_client_crypt, hostToNetworkOrder!int(getCryptedConnectionCode()));
 
                 version (TraceFunction) dgFunctionTrace("specificData=", _auth.publicKey());
                 break;
@@ -1307,11 +1306,11 @@ protected:
             case DbIntegratedSecurityConnection.srp256:
                 _auth = new FbAuthSrpSHA256();
 
-                writer.writeChars(FbIsc.CNCT_login, useCSB.userName);
-                writer.writeChars(FbIsc.CNCT_plugin_name, _auth.name);
-                writer.writeChars(FbIsc.CNCT_plugin_list, _auth.name);
-                writer.writeMultiParts(FbIsc.CNCT_specific_data, _auth.publicKey());
-                writer.writeInt32(FbIsc.CNCT_client_crypt, hostToNetworkOrder!int(getCryptedConnectionCode()));
+                writer.writeChars(FbIsc.cnct_login, useCSB.userName);
+                writer.writeChars(FbIsc.cnct_plugin_name, _auth.name);
+                writer.writeChars(FbIsc.cnct_plugin_list, _auth.name);
+                writer.writeMultiParts(FbIsc.cnct_specific_data, _auth.publicKey());
+                writer.writeInt32(FbIsc.cnct_client_crypt, hostToNetworkOrder!int(getCryptedConnectionCode()));
 
                 version (TraceFunction) dgFunctionTrace("specificData=", _auth.publicKey());
                 break;
@@ -1323,11 +1322,11 @@ protected:
                     if (_auth.errorCode != 0)
                         throw new FbException(_auth.errorMessage, DbErrorCode.write, 0, FbIscResultCode.isc_auth_data);
 
-                    writer.writeChars(FbIsc.CNCT_login, useCSB.userName);
-                    writer.writeChars(FbIsc.CNCT_plugin_name, _auth.name);
-                    writer.writeChars(FbIsc.CNCT_plugin_list, _auth.name);
-                    writer.writeMultiParts(FbIsc.CNCT_specific_data, _auth.publicKey());
-                    writer.writeInt32(FbIsc.CNCT_client_crypt, hostToNetworkOrder!int(getCryptedConnectionCode()));
+                    writer.writeChars(FbIsc.cnct_login, useCSB.userName);
+                    writer.writeChars(FbIsc.cnct_plugin_name, _auth.name);
+                    writer.writeChars(FbIsc.cnct_plugin_list, _auth.name);
+                    writer.writeMultiParts(FbIsc.cnct_specific_data, _auth.publicKey());
+                    writer.writeInt32(FbIsc.cnct_client_crypt, hostToNetworkOrder!int(getCryptedConnectionCode()));
 
                     version (TraceFunction) dgFunctionTrace("specificData=", _auth.publicKey());
                 }
@@ -1338,9 +1337,9 @@ protected:
             case DbIntegratedSecurityConnection.legacy:
                 _auth = new FbAuthLegacy();
 
-                writer.writeChars(FbIsc.CNCT_login, useCSB.userName);
-                writer.writeChars(FbIsc.CNCT_plugin_name, _auth.name);
-                writer.writeChars(FbIsc.CNCT_plugin_list, _auth.name);
+                writer.writeChars(FbIsc.cnct_login, useCSB.userName);
+                writer.writeChars(FbIsc.cnct_plugin_name, _auth.name);
+                writer.writeChars(FbIsc.cnct_plugin_list, _auth.name);
                 break;
         }
 
@@ -1419,7 +1418,7 @@ protected:
         return FbIscAcceptDataResponse(version_, architecture, acceptType, authData, authName, authenticated, authKey);
     }
 
-    final FbIscArrayGetResponse readArrayGetResponseImpl(ref FbXdrReader reader, in FbIscArrayDescriptor descriptor)
+    final FbIscArrayGetResponse readArrayGetResponseImpl(ref FbXdrReader reader, scope const(FbIscArrayDescriptor) descriptor)
     {
         version (TraceFunction) dgFunctionTrace();
 
@@ -1867,7 +1866,7 @@ ubyte[] describeTransactionItems(return ref FbTransactionWriter writer, FbTransa
     writer.writeType(readOrWriteMode());
     writer.writeType(waitMode);
     if (waitMode != FbIsc.isc_tpb_nowait && transaction.lockTimeout)
-        writer.writeInt32(FbIsc.isc_tpb_lock_timeout, toInt32Second(transaction.lockTimeout));
+        writer.writeInt32(FbIsc.isc_tpb_lock_timeout, toRangeSecond32(transaction.lockTimeout));
     if (transaction.autoCommit)
         writer.writeType(FbIsc.isc_tpb_autocommit);
 
@@ -1963,7 +1962,7 @@ do
         case DbType.record:
         case DbType.array:
         case DbType.unknown:
-            auto msg = format(DbMessage.eUnsupportDataType, functionName(), toName!DbType(column.type));
+            auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(column.type));
             throw new FbException(msg, DbErrorCode.write, 0, FbIscResultCode.isc_net_write_err);
     }
 }

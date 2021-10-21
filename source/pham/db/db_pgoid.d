@@ -11,65 +11,7 @@
 
 module pham.db.pgoid;
 
-enum PgId : int
-{
-    protocolVersion = 0x0003_0000, // version number 3
-    undefined = 0,
-
-    /*
-    typeCatalog = 71,
-    attributeCatalog = 75,
-    procCatalog = 81,
-    classCatalog = 83,
-
-    nodeTree = 194,
-    storageManager = 210,
-
-    absTime = 702,
-    relTime = 703,
-    interval = 704,
-
-    absTimeArray = 1023,
-    relTimeArray = 1024,
-    intervalArray = 1025,
-    accessControlList = 1033,
-    accessControlListArray = 1034,
-
-    cstringArray = 1263,
-
-    cstring = 2275,
-    anyVoid = 2276,
-    anyArray = 2277,
-    trigger = 2279,
-    languageHandler = 2280,
-    internal = 2281,
-    opaque = 2282,
-    anyElement = 2283,
-    anyNoArray = 2776,
-
-    txidSnapshotArray = 2949,
-    txidSnapshot = 2970,
-
-    fdwHandler = 3115,
-    anyEnum = 3500,
-
-    tsVector = 3614,
-    tsQuery = 3615,
-    gtsVector = 3642,
-    tsVectorArray = 3643,
-    gtsVectorArray = 3644,
-    tsQueryArray = 3645,
-    regConfig = 3734,
-    regConfigArray = 3735,
-    regDictionary = 3769,
-    regDictionaryArray = 3770,
-
-    anyRange = 3831,
-    eventTrigger = 3838,
-    */
-}
-
-enum PgDiag : char
+enum PgOIdDiag : char
 {
     columnName = 'c',
     constraintName = 'n',
@@ -91,7 +33,7 @@ enum PgDiag : char
     tableName = 't',
 }
 
-enum PgDescribeType : char
+enum PgOIdDescribeType : char
 {
     bindStatement = 'B',
     close = 'C',
@@ -103,6 +45,12 @@ enum PgDescribeType : char
     portal = 'P',
     statement = 'S',
     sync = 'S',
+}
+
+enum PgOIdOther : int
+{
+    protocolVersion = 0x0003_0000, // version number 3
+    undefined = 0,
 }
 
 enum PgOIdType : int

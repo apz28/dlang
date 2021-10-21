@@ -18,7 +18,6 @@ import std.array : Appender;
 public import std.ascii : newline;
 import std.conv : text, to;
 import std.exception : assumeWontThrow;
-import std.format : format;
 import std.traits : FieldNameTuple;
 import std.typecons : Flag, No, Yes;
 
@@ -372,7 +371,7 @@ public:
 
     @property final typeof(this) commandTimeout(Duration value) nothrow @safe
     {
-        _commandTimeout = minDuration(value);
+        _commandTimeout = rangeDuration(value);
         return this;
     }
 
@@ -665,13 +664,13 @@ protected:
 
         if (!handle)
         {
-            auto msg = format(DbMessage.eInvalidCommandInactive, callerName);
+            auto msg = DbMessage.eInvalidCommandInactive.fmtMessage(callerName);
             throw new DbException(msg, DbErrorCode.connect, 0, 0);
         }
 
         if (_connection is null || _connection.state != DbConnectionState.open)
         {
-            auto msg = format(DbMessage.eInvalidCommandConnection, callerName);
+            auto msg = DbMessage.eInvalidCommandConnection.fmtMessage(callerName);
             throw new DbException(msg, DbErrorCode.connect, 0, 0);
         }
     }
@@ -698,7 +697,7 @@ protected:
 
         if (excludeCommandType != -1 && _commandType == excludeCommandType)
         {
-            auto msg = format(DbMessage.eInvalidCommandUnfit, callerName);
+            auto msg = DbMessage.eInvalidCommandUnfit.fmtMessage(callerName);
             throw new DbException(msg, 0, 0, 0);
         }
 
@@ -715,7 +714,7 @@ protected:
 
         if (handle)
         {
-            auto msg = format(DbMessage.eInvalidCommandActive, callerName);
+            auto msg = DbMessage.eInvalidCommandActive.fmtMessage(callerName);
             throw new DbException(msg, DbErrorCode.connect, 0, 0);
         }
     }
@@ -1234,7 +1233,7 @@ protected:
 
         if (state != DbConnectionState.open)
         {
-            auto msg = format(DbMessage.eInvalidConnectionInactive, callerName, connectionStringBuilder.forErrorInfo());
+            auto msg = DbMessage.eInvalidConnectionInactive.fmtMessage(callerName, connectionStringBuilder.forErrorInfo());
             throw new DbException(msg, DbErrorCode.connect, 0, 0);
         }
     }
@@ -1245,7 +1244,7 @@ protected:
 
         if (state == DbConnectionState.open)
         {
-            auto msg = format(DbMessage.eInvalidConnectionActive, callerName, connectionStringBuilder.forErrorInfo());
+            auto msg = DbMessage.eInvalidConnectionActive.fmtMessage(callerName, connectionStringBuilder.forErrorInfo());
             throw new DbException(msg, DbErrorCode.connect, 0, 0);
         }
     }
@@ -1490,7 +1489,7 @@ public:
         return null;
     }
 
-    final DbConnection[] removeInactives(in DateTime now, in Duration maxInactiveTime) nothrow @safe
+    final DbConnection[] removeInactives(scope const(DateTime) now, scope const(Duration) maxInactiveTime) nothrow @safe
     {
         DbConnection[] result;
         result.reserve(length);
@@ -1581,7 +1580,7 @@ public:
 
         if (_acquiredLength >= localMaxLength)
         {
-            auto msg = format(DbMessage.eInvalidConnectionPoolMaxUsed, _acquiredLength, localMaxLength);
+            auto msg = DbMessage.eInvalidConnectionPoolMaxUsed.fmtMessage(_acquiredLength, localMaxLength);
             throw new DbException(msg, DbErrorCode.connect, 0, 0);
         }
 
@@ -1898,10 +1897,10 @@ public:
         return secondToDuration(getString(DbParameterName.connectionTimeout));
     }
 
-    @property final typeof(this) connectionTimeout(in Duration value) nothrow
+    @property final typeof(this) connectionTimeout(scope const(Duration) value) nothrow
     {
-        const setSecond = value.toMinSecond();
-        auto setValue = setSecond != 0 ? to!string(setSecond) : getDefault(DbParameterName.connectionTimeout);
+        const convertingSecond = value.toRangeSecond32();
+        auto setValue = convertingSecond != 0 ? to!string(convertingSecond) : getDefault(DbParameterName.connectionTimeout);
         put(DbParameterName.connectionTimeout, setValue);
         return this;
     }
@@ -1956,7 +1955,7 @@ public:
      */
     @property final uint32 fetchRecordCount() const nothrow @safe
     {
-        return toInt!uint32(getString(DbParameterName.fetchRecordCount));
+        return toInteger!uint32(getString(DbParameterName.fetchRecordCount));
     }
 
     @property final typeof(this) fetchRecordCount(uint32 value) nothrow
@@ -1979,7 +1978,7 @@ public:
 
     @property final uint32 maxPoolCount() const nothrow @safe
     {
-        return toInt!uint32(getString(DbParameterName.maxPoolCount));
+        return toInteger!uint32(getString(DbParameterName.maxPoolCount));
     }
 
     @property final typeof(this) maxPoolCount(uint32 value) nothrow
@@ -1990,7 +1989,7 @@ public:
 
     @property final uint32 minPoolCount() const nothrow @safe
     {
-        return toInt!uint32(getString(DbParameterName.minPoolCount));
+        return toInteger!uint32(getString(DbParameterName.minPoolCount));
     }
 
     @property final typeof(this) minPoolCount(uint32 value) nothrow
@@ -2001,7 +2000,7 @@ public:
 
     @property final uint32 packageSize() const nothrow @safe
     {
-        return toInt!uint32(getString(DbParameterName.packageSize));
+        return toInteger!uint32(getString(DbParameterName.packageSize));
     }
 
     @property final typeof(this) packageSize(uint32 value) nothrow
@@ -2028,17 +2027,17 @@ public:
         return secondToDuration(getString(DbParameterName.poolTimeout));
     }
 
-    @property final typeof(this) poolTimeout(in Duration value) nothrow
+    @property final typeof(this) poolTimeout(scope const(Duration) value) nothrow
     {
-        const setSecond = value.toMinSecond();
-        auto setValue = setSecond != 0 ? to!string(setSecond) : getDefault(DbParameterName.poolTimeout);
+        const convertingSecond = value.toRangeSecond32();
+        auto setValue = convertingSecond != 0 ? to!string(convertingSecond) : getDefault(DbParameterName.poolTimeout);
         put(DbParameterName.poolTimeout, setValue);
         return this;
     }
 
     @property final uint16 port() const nothrow @safe
     {
-        return toInt!uint16(getString(DbParameterName.port));
+        return toInteger!uint16(getString(DbParameterName.port));
     }
 
     @property final typeof(this) port(uint16 value) nothrow
@@ -2058,10 +2057,10 @@ public:
         return secondToDuration(getString(DbParameterName.receiveTimeout));
     }
 
-    @property final typeof(this) receiveTimeout(in Duration value) nothrow
+    @property final typeof(this) receiveTimeout(scope const(Duration) value) nothrow
     {
-        const setSecond = value.toMinSecond();
-        auto setValue = setSecond != 0 ? to!string(setSecond) : getDefault(DbParameterName.receiveTimeout);
+        const convertingSecond = value.toRangeSecond32();
+        auto setValue = convertingSecond != 0 ? to!string(convertingSecond) : getDefault(DbParameterName.receiveTimeout);
         put(DbParameterName.receiveTimeout, setValue);
         return this;
     }
@@ -2089,10 +2088,10 @@ public:
         return secondToDuration(getString(DbParameterName.sendTimeout));
     }
 
-    @property final typeof(this) sendTimeout(in Duration value) nothrow
+    @property final typeof(this) sendTimeout(scope const(Duration) value) nothrow
     {
-        const setSecond = value.toMinSecond();
-        auto setValue = setSecond != 0 ? to!string(setSecond) : getDefault(DbParameterName.sendTimeout);
+        const convertingSecond = value.toRangeSecond32();
+        auto setValue = convertingSecond != 0 ? to!string(convertingSecond) : getDefault(DbParameterName.sendTimeout);
         put(DbParameterName.sendTimeout, setValue);
         return this;
     }
@@ -2303,7 +2302,7 @@ public:
         if (findDb(scheme, result))
             return result;
 
-        auto msg = format(DbMessage.eInvalidSchemeName, scheme);
+        auto msg = DbMessage.eInvalidSchemeName.fmtMessage(scheme);
         throw new DbException(msg, 0, 0, 0);
     }
 
@@ -3294,7 +3293,7 @@ public:
     /**
      * Gets the column index given the name of the column
      */
-    ptrdiff_t getIndex(in DbIdentitier name) nothrow @safe
+    ptrdiff_t getIndex(scope const(DbIdentitier) name) nothrow @safe
     {
         return fields.indexOf(name);
     }
@@ -3468,7 +3467,7 @@ private:
         version (TraceFunction) dgFunctionTrace("_fetchedCount=", _fetchedCount, ", _allRowsFetched=", _allRowsFetched, ", _hasRows=", _hasRows);
     }
 
-    Variant getVariant(const size_t index) @safe
+    Variant getVariant(const(size_t) index) @safe
     {
         version (profile) debug auto p = PerfFunction.create();
 
@@ -3736,13 +3735,13 @@ protected:
 
         if (_state != checkingState)
         {
-            auto msg = format(DbMessage.eInvalidTransactionState, callerName, toName!DbTransactionState(_state), toName!DbTransactionState(checkingState));
+            auto msg = DbMessage.eInvalidTransactionState.fmtMessage(callerName, toName!DbTransactionState(_state), toName!DbTransactionState(checkingState));
             throw new DbException(msg, DbErrorCode.connect, 0, 0);
         }
 
         if (_connection is null)
         {
-            auto msg = format(DbMessage.eCompletedTransaction, callerName);
+            auto msg = DbMessage.eCompletedTransaction.fmtMessage(callerName);
             throw new DbException(msg, 0, 0, 0);
         }
     }

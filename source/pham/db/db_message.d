@@ -11,7 +11,7 @@
 
 module pham.db.message;
 
-nothrow @safe:
+@safe:
 
 enum DbErrorCode : byte
 {
@@ -22,7 +22,7 @@ enum DbErrorCode : byte
 
 struct DbMessage
 {
-nothrow @safe:
+@safe:
 
     static immutable eErrorCode = "Error code: %d";
     static immutable eErrorDetail = "Detail";
@@ -66,4 +66,10 @@ nothrow @safe:
 
     static immutable eInvalidName = "Name '%s' is not found for '%s'";
     static immutable eInvalidSchemeName = "Database scheme name '%s' is not found";
+}
+
+string fmtMessage(Args...)(string fmt, Args args)
+{
+    import std.format : format;
+    return format(fmt, args);
 }

@@ -17,14 +17,13 @@ import std.array : Appender;
 import std.ascii : isWhite;
 import std.conv : to;
 import std.exception : assumeWontThrow;
-import std.format : format;
 import std.traits : ParameterTypeTuple, Unqual;
 import std.uni : sicmp, toUpper;
 
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.utl.utf8 : utf8NextChar;
-import pham.utl.array : UnshrinkArray;
+import pham.utl.array : IndexedArray;
 import pham.utl.enum_set : EnumSet;
 import pham.utl.object : DisposableState, IDisposable, shortClassName;
 import pham.db.message;
@@ -221,24 +220,24 @@ public:
         return this;
     }
 
-    int opCmp(in DbIdentitier other) const pure
+    int opCmp(scope const(DbIdentitier) rhs) const pure
     {
-        return sicmp(_s, other._s);
+        return sicmp(_s, rhs._s);
     }
 
-    int opCmp(scope const(char)[] other) const pure
+    int opCmp(scope const(char)[] rhs) const pure
     {
-        return sicmp(_s, other);
+        return sicmp(_s, rhs);
     }
 
-    bool opEquals(in DbIdentitier other) const pure
+    bool opEquals(scope const(DbIdentitier) rhs) const pure
     {
-        return sicmp(_s, other._s) == 0;
+        return sicmp(_s, rhs._s) == 0;
     }
 
-    bool opEquals(scope const(char)[] other) const pure
+    bool opEquals(scope const(char)[] rhs) const pure
     {
-        return sicmp(_s, other) == 0;
+        return sicmp(_s, rhs) == 0;
     }
 
     size_t toHash() const pure
@@ -358,12 +357,12 @@ public:
         this(id, value);
     }
 
-    int opCmp(in DbIdentitier otherName) const
+    int opCmp(scope const(DbIdentitier) otherName) const
     {
         return _name.opCmp(otherName);
     }
 
-    bool opEquals(in DbIdentitier otherName) const
+    bool opEquals(scope const(DbIdentitier) otherName) const
     {
         return _name.opEquals(otherName);
     }
@@ -542,7 +541,7 @@ public:
         return exist(id);
     }
 
-    final bool find(in DbIdentitier name, out T item) const nothrow
+    final bool find(scope const(DbIdentitier) name, out T item) const nothrow
     {
         if (auto e = name in lookupItems)
         {
@@ -582,12 +581,12 @@ public:
      *  Returns:
      *      string value of name
      */
-    final T get(in DbIdentitier name)
+    final T get(scope const(DbIdentitier) name)
     {
         T result;
         if (!find(name, result))
         {
-            auto msg = format(DbMessage.eInvalidName, name, shortClassName(this));
+            auto msg = DbMessage.eInvalidName.fmtMessage(name, shortClassName(this));
             throw new DbException(msg, 0, 0, 0);
         }
         return result;
@@ -599,7 +598,7 @@ public:
         return get(id);
     }
 
-    final ptrdiff_t indexOf(in DbIdentitier name) nothrow
+    final ptrdiff_t indexOf(scope const(DbIdentitier) name) nothrow
     {
         if (reIndex)
         {
@@ -714,7 +713,7 @@ public:
     /**
      * Returns value of name
      */
-    @property final T value(in DbIdentitier name)
+    @property final T value(scope const(DbIdentitier) name)
     {
         return get(name);
     }
@@ -759,7 +758,7 @@ protected:
             add(item);
     }
 
-    void nameChanged(ref Pair item, in DbIdentitier oldName) nothrow
+    void nameChanged(ref Pair item, scope const(DbIdentitier) oldName) nothrow
     {
         lookupItems.remove(oldName);
         lookupItems[item.name] = item;
@@ -785,7 +784,7 @@ protected:
 
 protected:
     Pair[DbIdentitier] lookupItems;
-    UnshrinkArray!DbIdentitier sequenceNames;
+    IndexedArray!(DbIdentitier, 30) sequenceNames;
     bool reIndex;
 }
 
@@ -797,12 +796,12 @@ public:
     alias List = DbNameObjectList!DbNameObject;
 
 public:
-    final int opCmp(in DbIdentitier otherName) const pure
+    final int opCmp(scope const(DbIdentitier) otherName) const pure
     {
         return _name.opCmp(otherName);
     }
 
-    final bool opEquals(in DbIdentitier otherName) const pure
+    final bool opEquals(scope const(DbIdentitier) otherName) const pure
     {
         return _name.opEquals(otherName);
     }
@@ -823,7 +822,7 @@ public:
     }
 
 protected:
-    final void updateName(in DbIdentitier newName)
+    final void updateName(DbIdentitier newName)
     {
         if (this._name != newName)
         {
@@ -956,7 +955,7 @@ public:
     /**
      * Returns item with matching name
      */
-    final T opIndex(in DbIdentitier name) nothrow @safe
+    final T opIndex(scope const(DbIdentitier) name) nothrow @safe
     {
         version (profile) debug auto p = PerfFunction.create();
 
@@ -991,7 +990,7 @@ public:
         return this;
     }
 
-    final bool exist(in DbIdentitier name) const nothrow pure @safe
+    final bool exist(scope const(DbIdentitier) name) const nothrow pure @safe
     {
         version (profile) debug auto p = PerfFunction.create();
 
@@ -1005,7 +1004,7 @@ public:
         return exist(id);
     }
 
-    final bool find(in DbIdentitier name, out T item) nothrow @safe
+    final bool find(scope const(DbIdentitier) name, out T item) nothrow @safe
     {
         version (profile) debug auto p = PerfFunction.create();
 
@@ -1041,14 +1040,14 @@ public:
         return res;
     }
 
-    final T get(in DbIdentitier name) @safe
+    final T get(scope const(DbIdentitier) name) @safe
     {
         version (profile) debug auto p = PerfFunction.create();
 
         T result;
         if (!find(name, result))
         {
-            auto msg = format(DbMessage.eInvalidName, name, shortClassName(this));
+            auto msg = DbMessage.eInvalidName.fmtMessage(name, shortClassName(this));
             throw new DbException(msg, 0, 0, 0);
         }
         return result;
@@ -1060,7 +1059,7 @@ public:
         return get(id);
     }
 
-    final ptrdiff_t indexOf(in DbIdentitier name) nothrow pure @safe
+    final ptrdiff_t indexOf(scope const(DbIdentitier) name) nothrow pure @safe
     {
         version (profile) debug auto p = PerfFunction.create();
 
@@ -1080,12 +1079,12 @@ public:
         return indexOf(id);
     }
 
-    final ptrdiff_t indexOfSafe(in DbIdentitier name) @safe
+    final ptrdiff_t indexOfSafe(scope const(DbIdentitier) name) @safe
     {
         const result = indexOf(name);
         if (result < 0)
         {
-            auto msg = format(DbMessage.eInvalidName, name, shortClassName(this));
+            auto msg = DbMessage.eInvalidName.fmtMessage(name, shortClassName(this));
             throw new DbException(msg, 0, 0, 0);
         }
         return result;
@@ -1108,7 +1107,7 @@ public:
         return this;
     }
 
-    final T remove(in DbIdentitier name) nothrow @safe
+    final T remove(scope const(DbIdentitier) name) nothrow @safe
     {
         const i = indexOf(name);
         if (i >= 0)
@@ -1168,7 +1167,7 @@ protected:
             add(item);
     }
 
-    void nameChanged(T item, in DbIdentitier oldName) nothrow @safe
+    void nameChanged(T item, scope const(DbIdentitier) oldName) nothrow @safe
     {
         lookupItems.remove(oldName);
         lookupItems[item.name] = item;
@@ -1189,7 +1188,7 @@ protected:
     }
 
     T[DbIdentitier] lookupItems;
-    UnshrinkArray!T sequenceItems;
+    IndexedArray!(T, 30) sequenceItems;
     EnumSet!Flag flags;
 }
 

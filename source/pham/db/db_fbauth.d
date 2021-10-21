@@ -12,7 +12,6 @@
 module pham.db.fbauth;
 
 import std.exception : assumeWontThrow;
-import std.format : format;
 
 import pham.db.message;
 import pham.db.auth;
@@ -78,7 +77,7 @@ public:
         size_t maxSaltLength;
         if (serverAuthData.length < minLength || serverAuthData.length > maxSizeServerAuthData(maxSaltLength))
         {
-            auto msg = assumeWontThrow(format(DbMessage.eInvalidConnectionAuthServerData, name));
+            auto msg = assumeWontThrow(DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name));
             setError(DbErrorCode.connect, msg);
             return false;
         }
@@ -87,7 +86,7 @@ public:
         serverAuthData = serverAuthData[2..$]; // Skip the length data
         if (saltLength > maxSaltLength || saltLength > serverAuthData.length)
         {
-            auto msg = assumeWontThrow(format(DbMessage.eInvalidConnectionAuthServerData, name));
+            auto msg = assumeWontThrow(DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name));
             setError(DbErrorCode.connect, msg);
             return false;
         }
@@ -95,7 +94,7 @@ public:
         serverAuthData = serverAuthData[saltLength..$]; // Skip salt data
         if (serverAuthData.length < minLength)
         {
-            auto msg = assumeWontThrow(format(DbMessage.eInvalidConnectionAuthServerData, name));
+            auto msg = assumeWontThrow(DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name));
             setError(DbErrorCode.connect, msg);
             return false;
         }
@@ -103,7 +102,7 @@ public:
 		const keyLength = serverAuthData[0] + (cast(size_t)serverAuthData[1] << 8);
         if (keyLength + 2 > serverAuthData.length)
         {
-            auto msg = assumeWontThrow(format(DbMessage.eInvalidConnectionAuthServerData, name));
+            auto msg = assumeWontThrow(DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name));
             setError(DbErrorCode.connect, msg);
             return false;
         }

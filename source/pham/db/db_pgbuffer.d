@@ -16,15 +16,12 @@ import std.string : representation;
 import std.system : Endian;
 
 version (unittest) import pham.utl.test;
-import pham.db.message;
+import pham.external.dec.decimal : scaleFrom, scaleTo;
 import pham.db.type;
-import pham.db.util;
 import pham.db.convert;
 import pham.db.buffer;
-import pham.db.value;
 import pham.db.pgoid;
 import pham.db.pgtype;
-import pham.db.pgexception;
 import pham.db.pgconvert;
 import pham.db.pgdatabase;
 
@@ -62,24 +59,22 @@ public:
         _reader.dispose(disposing);
     }
 
+    pragma(inline, true)
     ubyte[] readBytes(size_t nBytes)
     {
         return _reader.readBytes(nBytes);
     }
 
+    pragma(inline, true)
     char readChar()
     {
         return _reader.readChar();
     }
 
+    pragma(inline, true)
     char[] readChars(size_t nBytes)
     {
         return _reader.readChars(nBytes);
-    }
-
-    string readString(size_t nBytes) @trusted // @trusted=cast()
-    {
-        return cast(string)readChars(nBytes);
     }
 
     char[] readCChars()
@@ -88,43 +83,57 @@ public:
         return result[0..$ - 1]; // Excluded null terminated char
     }
 
+    pragma(inline, true)
     string readCString() @trusted // @trusted=cast()
     {
         return cast(string)readCChars();
     }
 
+    pragma(inline, true)
     int16 readFieldCount()
     {
         return _reader.readInt16();
     }
 
+    pragma(inline, true)
     int16 readInt16()
     {
         return _reader.readInt16();
     }
 
+    pragma(inline, true)
     int32 readInt32()
     {
         return _reader.readInt32();
     }
 
+    pragma(inline, true)
     PgOId readOId()
     {
-        assert(PgOId.sizeof == int32.sizeof);
+        static assert(PgOId.sizeof == int32.sizeof);
 
         return _reader.readInt32();
     }
 
+    pragma(inline, true)
+    string readString(size_t nBytes) @trusted // @trusted=cast()
+    {
+        return cast(string)readChars(nBytes);
+    }
+
+    pragma(inline, true)
     uint8 readUInt8()
     {
         return _reader.readUInt8();
     }
 
+    pragma(inline, true)
     int32 readValueLength()
     {
         return _reader.readInt32();
     }
 
+    pragma(inline, true)
     void skip(size_t nBytes)
     {
         _buffer.advance(nBytes);
@@ -146,11 +155,13 @@ public:
         return _buffer.empty;
     }
 
+    pragma(inline, true)
     @property int messageLength() const nothrow pure
     {
         return _messageLength;
     }
 
+    pragma(inline, true)
     @property char messageType() const nothrow pure
     {
         return _messageType;
@@ -230,6 +241,7 @@ public:
         _reserveLenghtOffset = -1;
     }
 
+    pragma(inline, true)
     void endMessage() nothrow
     {
         writeMessageLength();
@@ -243,6 +255,7 @@ public:
         _buffer.flush();
     }
 
+    pragma(inline, true)
     ubyte[] peekBytes() nothrow return
     {
         return _buffer.peekBytes();
@@ -275,11 +288,13 @@ public:
         _writer.writeBytes(v);
     }
 
+    pragma(inline, true)
     void writeBytesRaw(scope const(ubyte)[] v) nothrow
     {
         _writer.writeBytes(v);
     }
 
+    pragma(inline, true)
     void writeChar(char v) nothrow
     {
         _writer.writeChar(v);
@@ -291,28 +306,32 @@ public:
         _writer.writeUInt8(0);
     }
 
+    pragma(inline, true)
     void writeInt16(int16 v) nothrow
     {
         _writer.writeInt16(v);
     }
 
+    pragma(inline, true)
     void writeInt32(int32 v) nothrow
     {
         _writer.writeInt32(v);
     }
 
-    void writeSignal(PgDescribeType signalType, int32 signalId) nothrow
+    void writeSignal(PgOIdDescribeType signalType, int32 signalId) nothrow
     {
         _writer.writeChar(signalType);
         _writer.writeInt32(signalId);
     }
 
+    pragma(inline, true)
     void writeUInt32(uint32 v) nothrow
     {
         _writer.writeUInt32(v);
     }
 
     static if (size_t.sizeof > uint32.sizeof)
+    pragma(inline, true)
     void writeUInt32(size_t v) nothrow
     {
         _writer.writeUInt32(cast(uint32)v);
@@ -382,22 +401,39 @@ public:
         _connection = null;
     }
 
+    pragma(inline, true)
     bool readBool()
     {
         return _reader.readBool();
     }
 
+    version (none)
+    ubyte[] readBytes()
+    {
+        const len = readInt32();
+        return readBytes(len);
+    }
+
+    pragma(inline, true)
     ubyte[] readBytes(size_t nBytes)
     {
         return _reader.readBytes(nBytes);
     }
 
+    version (none)
+    char[] readChars() @trusted // @trusted=cast()
+    {
+        const len = readInt32();
+        return cast(char[])readBytes(len);
+    }
+
+    pragma(inline, true)
     char[] readChars(size_t nBytes) @trusted // @trusted=cast()
     {
         return cast(char[])readBytes(nBytes);
     }
 
-    Date readDate()
+    DbDate readDate()
     {
         return dateDecode(readInt32());
     }
@@ -411,11 +447,11 @@ public:
     {
         // Do not try to inline function calls, D does not honor right sequence from left to right
         auto dt = readInt64();
-        auto z = readInt16();
+        auto z = readInt32();
         return dateTimeDecodeTZ(dt, z);
     }
 
-    D readDecimal(D)(in DbBaseType baseType)
+    D readDecimal(D)(scope const(DbBaseType) baseType)
     if (isDecimal!D)
     {
         if (baseType.typeId == PgOIdType.money)
@@ -424,26 +460,31 @@ public:
             return readNumeric!D();
     }
 
-    float readFloat32()
+    pragma(inline, true)
+    float32 readFloat32()
     {
         return _reader.readFloat32();
     }
 
-    double readFloat64()
+    pragma(inline, true)
+    float64 readFloat64()
     {
         return _reader.readFloat64();
     }
 
+    pragma(inline, true)
     int16 readInt16()
     {
         return _reader.readInt16();
     }
 
+    pragma(inline, true)
     int32 readInt32()
     {
         return _reader.readInt32();
     }
 
+    pragma(inline, true)
     int64 readInt64()
     {
         return _reader.readInt64();
@@ -451,14 +492,13 @@ public:
 
     BigInteger readInt128()
     {
-        assert(0, "database does not support");
-        //TODO return _buffer.readInt64();
-        //return BigInteger(0);
+        assert(0, "database does not support Int128");
+        //TODO
     }
 
     Decimal64 readMoney()
     {
-        return decimalDecode!(Decimal64, int64)(readInt64(), -2);
+        return scaleFrom!(int64, Decimal64)(readInt64(), -2);
     }
 
     D readNumeric(D)()
@@ -478,6 +518,7 @@ public:
         return numericDecode!D(result);
     }
 
+    pragma(inline, true)
     string readString(size_t nBytes) @trusted // @trusted=cast()
     {
         return cast(string)readChars(nBytes);
@@ -492,7 +533,7 @@ public:
     {
         // Do not try to inline function calls, D does not honor right sequence from left to right
         auto t = readInt64();
-        auto z = readInt16();
+        auto z = readInt32();
         return timeDecodeTZ(t, z);
     }
 
@@ -503,6 +544,11 @@ public:
 
         ubyte[UUID.sizeof] buffer = void;
         return UUID(_reader.readBytes(buffer)[0..UUID.sizeof]);
+    }
+
+    @property DbReadBuffer buffer() nothrow pure
+    {
+        return _buffer;
     }
 
     @property PgConnection connection() nothrow pure
@@ -584,17 +630,17 @@ public:
         writeBytes(v.representation);
     }
 
-    void writeDate(in Date v) nothrow
+    void writeDate(scope const(DbDate) v) nothrow
     {
         writeInt32(dateEncode(v));
     }
 
-    void writeDateTime(in DbDateTime v) nothrow
+    void writeDateTime(scope const(DbDateTime) v) nothrow
     {
         writeInt64(dateTimeEncode(v));
     }
 
-    void writeDateTimeTZ(in DbDateTime v) nothrow
+    void writeDateTimeTZ(scope const(DbDateTime) v) nothrow
     {
         int64 dt = void;
         int32 z = void;
@@ -605,7 +651,7 @@ public:
         _writer.writeInt32(z);
     }
 
-    void writeDecimal(D)(in D v, in DbBaseType baseType) nothrow
+    void writeDecimal(D)(scope const(D) v, scope const(DbBaseType) baseType) nothrow
     if (isDecimal!D)
     {
         if (baseType.typeId == PgOIdType.money)
@@ -644,17 +690,19 @@ public:
         _writer.writeInt64(v);
     }
 
-    void writeInt128(in BigInteger v) nothrow
+    //TODO
+    void writeInt128(scope const(BigInteger) v) nothrow
     {
+        assert(0, "database does not support Int128");
         //TODO
     }
 
-    void writeMoney(in Decimal64 v) nothrow
+    void writeMoney(scope const(Decimal64) v) nothrow
     {
-        writeInt64(decimalEncode!(Decimal64, int64)(v, -2));
+        writeInt64(scaleTo!(Decimal64, int64)(v, -2));
     }
 
-    void writeNumeric(D)(in D v) nothrow
+    void writeNumeric(D)(scope const(D) v) nothrow
     if (isDecimal!D)
     {
         auto n = numericEncode!D(v);
@@ -672,12 +720,12 @@ public:
         markEnd(marker);
     }
 
-    void writeTime(in DbTime v) nothrow
+    void writeTime(scope const(DbTime) v) nothrow
     {
         writeInt64(timeEncode(v));
     }
 
-    void writeTimeTZ(in DbTime v) nothrow
+    void writeTimeTZ(scope const(DbTime) v) nothrow
     {
         int64 t = void;
         int32 z = void;
@@ -689,10 +737,15 @@ public:
     }
 
     // https://stackoverflow.com/questions/246930/is-there-any-difference-between-a-guid-and-a-uuid
-    void writeUUID(in UUID v) nothrow
+    void writeUUID(scope const(UUID) v) nothrow
     {
         _writer.writeInt32(16);
         _writer.writeBytes(v.data); // v.data is already in big-endian
+    }
+
+    @property DbWriteBuffer buffer() nothrow pure
+    {
+        return _buffer;
     }
 
     @property PgConnection connection() nothrow pure
@@ -730,4 +783,122 @@ private:
     DbWriteBuffer _buffer;
     PgConnection _connection;
     DbValueWriter!(Endian.bigEndian) _writer;
+}
+
+unittest // PgXdrReader & PgXdrWriter
+{
+    import pham.utl.test;
+    traceUnitTest("unittest pham.db.pgbuffer.PgXdrReader & db.fbbuffer.PgXdrWriter");
+
+    const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
+    const(ubyte)[] bytes = [1,2,5,101];
+    const(UUID) uuid = UUID(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15);
+
+    //pragma(msg, float.min_normal);
+    //pragma(msg, double.min_normal);
+
+    auto writerBuffer = new DbWriteBuffer(4000);
+    auto writer = PgXdrWriter(null, writerBuffer);
+    writer.writeBool(true);
+    writer.writeBytes(bytes);
+    writer.writeChars(chars);
+    writer.writeDate(DbDate(1, 2, 3));
+    writer.writeDateTime(DbDateTime(DateTime(1,2,3,4,5,6), 0));
+    writer.writeDateTimeTZ(DbDateTime(DateTime(1,2,3,4,5,6), 0));
+    //writer.writeDecimal();
+    writer.writeFloat32(float.min_normal);
+    writer.writeFloat32(32.32);
+    writer.writeFloat32(float.max);
+    writer.writeFloat64(double.min_normal);
+    writer.writeFloat64(64.64);
+    writer.writeFloat64(double.max);
+    writer.writeInt16(short.min);
+    writer.writeInt16(16);
+    writer.writeInt16(short.max);
+    writer.writeInt32(int.min);
+    writer.writeInt32(32);
+    writer.writeInt32(int.max);
+    writer.writeInt64(long.min);
+    writer.writeInt64(64);
+    writer.writeInt64(long.max);
+
+    writer.writeMoney(Decimal64("-92_000_000_000_000_000.00"));
+    writer.writeMoney(Decimal64(0));
+    writer.writeMoney(Decimal64.money(23456.78, 2));
+    writer.writeMoney(Decimal64("9_200_000_000_000_000.00"));
+
+    writer.writeNumeric!Decimal32(Decimal32.min);
+    writer.writeNumeric!Decimal32(Decimal32(0));
+    writer.writeNumeric!Decimal32(Decimal32.money(12345.67, 2));
+    writer.writeNumeric!Decimal32(Decimal32.max);
+
+    writer.writeNumeric!Decimal64(Decimal64.min);
+    writer.writeNumeric!Decimal64(Decimal64(0));
+    writer.writeNumeric!Decimal64(Decimal64.money(23456.78, 2));
+    writer.writeNumeric!Decimal64(Decimal64.max);
+
+    writer.writeNumeric!Decimal128(Decimal128.min);
+    writer.writeNumeric!Decimal128(Decimal128(0));
+    writer.writeNumeric!Decimal128(Decimal128.money(34567.89, 2));
+    writer.writeNumeric!Decimal128(Decimal128.max);
+
+    writer.writeTime(DbTime(Time(1,2,3)));
+    writer.writeTimeTZ(DbTime(Time(1,2,3)));
+    writer.writeUUID(uuid);
+
+    ubyte[] writerBytes = writer.buffer.peekBytes();
+    auto reader = PgXdrReader(writerBytes);
+    int32 valueLength;
+    int32 readLength(int line = __LINE__)
+    {
+        valueLength = reader.readInt32();
+        return valueLength;
+    }
+
+    assert(readLength() == 1); assert(reader.readBool());
+    assert(readLength() == bytes.length); assert(reader.readBytes(valueLength) == bytes);
+    assert(readLength() == chars.length); assert(reader.readChars(valueLength) == chars);
+    assert(readLength() == 4); assert(reader.readDate() == DbDate(1, 2, 3));
+    assert(readLength() == 8); assert(reader.readDateTime() == DbDateTime(DateTime(1,2,3,4,5,6), 0));
+    assert(readLength() == 12); assert(reader.readDateTimeTZ() == DbDateTime(DateTime(1,2,3,4,5,6), 0));
+    //assert(reader.readDecimal() == );
+    assert(readLength() == 4); assert(reader.readFloat32() == float.min_normal);
+    assert(readLength() == 4); assert(reader.readFloat32() == cast(float)32.32);
+    assert(readLength() == 4); assert(reader.readFloat32() == float.max);
+    assert(readLength() == 8); assert(reader.readFloat64() == double.min_normal);
+    assert(readLength() == 8); assert(reader.readFloat64() == cast(double)64.64);
+    assert(readLength() == 8); assert(reader.readFloat64() == double.max);
+    assert(readLength() == 2); assert(reader.readInt16() == short.min);
+    assert(readLength() == 2); assert(reader.readInt16() == 16);
+    assert(readLength() == 2); assert(reader.readInt16() == short.max);
+    assert(readLength() == 4); assert(reader.readInt32() == int.min);
+    assert(readLength() == 4); assert(reader.readInt32() == 32);
+    assert(readLength() == 4); assert(reader.readInt32() == int.max);
+    assert(readLength() == 8); assert(reader.readInt64() == long.min);
+    assert(readLength() == 8); assert(reader.readInt64() == 64);
+    assert(readLength() == 8); assert(reader.readInt64() == long.max);
+
+    assert(readLength() == 8); assert(reader.readMoney() == Decimal64("-92_000_000_000_000_000.00"));
+    assert(readLength() == 8); assert(reader.readMoney() == Decimal64(0));
+    assert(readLength() == 8); assert(reader.readMoney() == Decimal64.money(23456.78, 2));
+    assert(readLength() == 8); assert(reader.readMoney() == Decimal64("9_200_000_000_000_000.00"));
+
+    assert(readLength() >= 1); assert(reader.readNumeric!Decimal32() == Decimal32.min);
+    assert(readLength() >= 1); assert(reader.readNumeric!Decimal32() == Decimal32(0));
+    assert(readLength() >= 1); assert(reader.readNumeric!Decimal32() == Decimal32.money(12345.67, 2));
+    assert(readLength() >= 1); assert(reader.readNumeric!Decimal32() == Decimal32.max);
+
+    assert(readLength() >= 1); assert(reader.readNumeric!Decimal64() == Decimal64.min);
+    assert(readLength() >= 1); assert(reader.readNumeric!Decimal64() == Decimal64(0));
+    assert(readLength() >= 1); assert(reader.readNumeric!Decimal64() == Decimal64.money(23456.78, 2));
+    assert(readLength() >= 1); assert(reader.readNumeric!Decimal64() == Decimal64.max);
+
+    assert(readLength() >= 1); assert(reader.readNumeric!Decimal128() == Decimal128.min);
+    assert(readLength() >= 1); assert(reader.readNumeric!Decimal128() == Decimal128(0));
+    assert(readLength() >= 1); assert(reader.readNumeric!Decimal128() == Decimal128.money(34567.89, 2));
+    assert(readLength() >= 1); assert(reader.readNumeric!Decimal128() == Decimal128.max);
+
+    assert(readLength() == 8); assert(reader.readTime() == DbTime(Time(1,2,3)));
+    assert(readLength() == 12); assert(reader.readTimeTZ() == DbTime(Time(1,2,3)));
+    assert(readLength() == 16); assert(reader.readUUID() == uuid);
 }

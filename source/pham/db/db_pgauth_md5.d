@@ -39,7 +39,7 @@ public:
     final override const(ubyte)[] getAuthData(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData)
     {
         //char[32]
-        static char[] MD5toHex(T...)(in T data) nothrow @safe
+        static char[] MD5toHex(T...)(scope const(T) data) nothrow @safe
         {
             return md5Of(data).bytesToHexs!(LetterCase.lower);
         }

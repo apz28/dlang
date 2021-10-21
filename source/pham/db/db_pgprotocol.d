@@ -14,7 +14,6 @@ module pham.db.pgprotocol;
 import std.algorithm.comparison : max;
 import std.ascii : LetterCase;
 import std.conv : to;
-import std.format : format;
 import std.string : indexOf, lastIndexOf, representation;
 
 version (profile) import pham.utl.test : PerfFunction;
@@ -78,7 +77,7 @@ public:
 
             case 'E': // ErrorResponse
                 auto EResponse = readGenericResponse(reader);
-                writeSignal(PgDescribeType.sync);
+                writeSignal(PgOIdDescribeType.sync);
                 throw new PgException(EResponse);
 
             case 'N': // NoticeResponse
@@ -106,10 +105,10 @@ public:
         auto writer = PgWriter(connection);
         // Close previous cursor
         if (command.executedCount > 1)
-            writeCloseMessage(writer, PgDescribeType.portal, command.name);
+            writeCloseMessage(writer, PgOIdDescribeType.portal, command.name);
         writeBindMessage(writer, command, inputParameters);
         writeDescribeMessage(writer, command);
-        writeSignal(writer, PgDescribeType.flush);
+        writeSignal(writer, PgOIdDescribeType.flush);
         writer.flush();
     }
 
@@ -162,7 +161,7 @@ public:
                         goto receiveAgain;
 
                     default: // non supported authentication type, close connection
-                        auto msg = format(DbMessage.eInvalidConnectionAuthUnsupportedName, to!string(authType));
+                        auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(to!string(authType));
                         throw new PgException(msg, DbErrorCode.read, 0, 0);
                 }
 
@@ -183,7 +182,7 @@ public:
                         break;
 
                     default:
-                        auto msg = format(DbMessage.eInvalidConnectionStatus, to!string(trStatus));
+                        auto msg = DbMessage.eInvalidConnectionStatus.fmtMessage(to!string(trStatus));
                         throw new PgException(msg, DbErrorCode.read, 0, 0);
                 }
 
@@ -220,7 +219,7 @@ public:
 
         auto writer = PgWriter(connection);
         writer.startMessage('\0'); // \0=No type indicator
-        writer.writeUInt32(PgId.protocolVersion);
+        writer.writeUInt32(PgOIdOther.protocolVersion);
         foreach (n; useCSB.parameterNames)
         {
             string mappedName;
@@ -258,7 +257,7 @@ public:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        writeSignal(PgDescribeType.disconnect);
+        writeSignal(PgOIdDescribeType.disconnect);
         clearServerInfo();
     }
 
@@ -349,8 +348,8 @@ public:
 
         auto writer = PgWriter(connection);
         writeExecuteMessage(writer, command, type);
-        writeSignal(writer, PgDescribeType.sync);
-        writeSignal(writer, PgDescribeType.flush);
+        writeSignal(writer, PgOIdDescribeType.sync);
+        writeSignal(writer, PgOIdDescribeType.flush);
         writer.flush();
     }
 
@@ -421,7 +420,7 @@ public:
 
             case 'E': // ErrorResponse
                 auto EResponse = readGenericResponse(reader);
-                writeSignal(PgDescribeType.sync);
+                writeSignal(PgOIdDescribeType.sync);
                 throw new PgException(EResponse);
 
             case 'N': // NoticeResponse
@@ -448,7 +447,7 @@ public:
 
         auto writer = PgWriter(connection);
         writeParseMessage(writer, command, sql, inputParameters);
-        writeSignal(writer, PgDescribeType.flush);
+        writeSignal(writer, PgOIdDescribeType.flush);
         writer.flush();
     }
 
@@ -462,7 +461,7 @@ public:
             ", valueLength=", valueLength);
         version (profile) debug auto p = PerfFunction.create();
 
-        PgXdrReader checkValueLength(const int32 expectedLength) @safe
+        PgXdrReader checkValueLength(const(int32) expectedLength) @safe
         {
             if (expectedLength && expectedLength != valueLength)
                 readValueError(column, valueLength, expectedLength);
@@ -597,7 +596,7 @@ public:
         int32[] lengths;
         int32 elementOid;
 
-        PgXdrReader checkValueLength(const int32 valueLength, const int32 expectedLength) @safe
+        PgXdrReader checkValueLength(const(int32) valueLength, const(int32) expectedLength) @safe
         {
             if (expectedLength && expectedLength != valueLength)
                 readValueError(column, valueLength, expectedLength);
@@ -688,13 +687,13 @@ public:
         return result;
     }
 
-    protected final void readValueError(DbNameColumn column, const int32 valueLength, const int32 expectedLength)
+    protected final void readValueError(DbNameColumn column, const(int32) valueLength, const(int32) expectedLength)
     {
         version (TraceFunction) dgFunctionTrace();
 
         auto msg = expectedLength > 0
-            ? format(DbMessage.eUnexpectReadValue, shortClassName(this) ~ ".readValue", toName!DbType(column.type), valueLength, expectedLength)
-            : format(DbMessage.eUnsupportDataType, shortClassName(this) ~ ".readValue", toName!DbType(column.type));
+            ? DbMessage.eUnexpectReadValue.fmtMessage(shortClassName(this) ~ ".readValue", toName!DbType(column.type), valueLength, expectedLength)
+            : DbMessage.eUnsupportDataType.fmtMessage(shortClassName(this) ~ ".readValue", toName!DbType(column.type));
         throw new PgException(msg, DbErrorCode.read, 0, 0);
     }
 
@@ -758,8 +757,8 @@ public:
         version (TraceFunction) dgFunctionTrace();
 
         auto writer = PgWriter(connection);
-        writeCloseMessage(writer, PgDescribeType.statement, command.name);
-        writeSignal(writer, PgDescribeType.flush);
+        writeCloseMessage(writer, PgOIdDescribeType.statement, command.name);
+        writeSignal(writer, PgOIdDescribeType.flush);
         writer.flush();
     }
 
@@ -791,7 +790,7 @@ public:
         return result;
     }
 
-    final void writeSignal(PgDescribeType signalType, int32 signalId = 4)
+    final void writeSignal(PgOIdDescribeType signalType, int32 signalId = 4)
     {
         auto writer = PgWriter(connection);
 		writeSignal(writer, signalType, signalId);
@@ -849,7 +848,7 @@ protected:
             : null;
         if (proof.length == 0)
         {
-            auto msg = format(DbMessage.eInvalidConnectionAuthServerData, PgAuthScram256.authScram256Name);
+            auto msg = DbMessage.eInvalidConnectionAuthServerData.fmtMessage(PgAuthScram256.authScram256Name);
             throw new PgException(msg, DbErrorCode.read, 0, 0);
         }
 
@@ -866,7 +865,7 @@ protected:
         const payload = reader.readBytes(reader.messageLength - int32.sizeof); // Exclude type type indicator size
         if (_authScramSHA256 is null || !_authScramSHA256.verifyServerSignature(payload))
         {
-            auto msg = format(DbMessage.eInvalidConnectionAuthVerificationFailed, PgAuthScram256.authScram256Name);
+            auto msg = DbMessage.eInvalidConnectionAuthVerificationFailed.fmtMessage(PgAuthScram256.authScram256Name);
             throw new PgException(msg, DbErrorCode.read, 0, 0);
         }
 
@@ -1004,7 +1003,7 @@ protected:
                 case DbType.record:
                 case DbType.array:
                 case DbType.unknown:
-                    auto msg = format(DbMessage.eUnsupportDataType, shortClassName(this) ~ ".describeValue", toName!DbType(column.type));
+                    auto msg = DbMessage.eUnsupportDataType.fmtMessage(shortClassName(this) ~ ".describeValue", toName!DbType(column.type));
                     throw new PgException(msg, DbErrorCode.write, 0, 0);
             }
 
@@ -1087,7 +1086,7 @@ protected:
             case DbType.record:
             case DbType.array:
             case DbType.unknown:
-                auto msg = format(DbMessage.eUnsupportDataType, shortClassName(this) ~ ".describeValue", toName!DbType(column.type));
+                auto msg = DbMessage.eUnsupportDataType.fmtMessage(shortClassName(this) ~ ".describeValue", toName!DbType(column.type));
                 throw new PgException(msg, DbErrorCode.write, 0, 0);
         }
 
@@ -1095,11 +1094,9 @@ protected:
         assert(0, toName!DbType(column.type));
     }
 
-    final void describeValueArray(T)(ref PgWriter writer, DbNameColumn column, DbValue value, const int32 elementOid)
+    final void describeValueArray(T)(ref PgWriter writer, DbNameColumn column, DbValue value, const(int32) elementOid)
     {
         version (TraceFunction) dgFunctionTrace("elementOid=", elementOid);
-
-        assert(value.isArray);
 
         auto values = value.get!(T[])();
         const int32 length = cast(int32)values.length;
@@ -1171,7 +1168,7 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace();
 
-        writer.startMessage(PgDescribeType.bindStatement);
+        writer.startMessage(PgOIdDescribeType.bindStatement);
         writer.writeCChars(command.name); // portalName
         writer.writeCChars(command.name); // statementName
         writer.writeInt16(1); // only one parameter format code
@@ -1186,11 +1183,11 @@ protected:
         writer.endMessage();
     }
 
-    final void writeCloseMessage(ref PgWriter writer, PgDescribeType type, scope const(char)[] name)
+    final void writeCloseMessage(ref PgWriter writer, PgOIdDescribeType type, scope const(char)[] name)
 	{
         version (TraceFunction) dgFunctionTrace();
 
-		writer.startMessage(PgDescribeType.close);
+		writer.startMessage(PgOIdDescribeType.close);
         writer.writeChar(type);
         writer.writeCChars(name);
         writer.endMessage();
@@ -1200,8 +1197,8 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace();
 
-		writer.startMessage(PgDescribeType.describeStatement);
-        writer.writeChar(PgDescribeType.portal);
+		writer.startMessage(PgOIdDescribeType.describeStatement);
+        writer.writeChar(PgOIdDescribeType.portal);
         writer.writeCChars(command.name);
         writer.endMessage();
     }
@@ -1210,7 +1207,7 @@ protected:
 	{
         version (TraceFunction) dgFunctionTrace();
 
-		writer.startMessage(PgDescribeType.executeStatement);
+		writer.startMessage(PgOIdDescribeType.executeStatement);
         writer.writeCChars(command.name);
         writer.writeInt32(type == DbCommandExecuteType.reader ? 0 : command.fetchRecordCount);
         writer.endMessage();
@@ -1220,7 +1217,7 @@ protected:
     {
         version (TraceFunction) dgFunctionTrace();
 
-		writer.startMessage(PgDescribeType.parseStatement);
+		writer.startMessage(PgOIdDescribeType.parseStatement);
         writer.writeCChars(command.name);
         writer.writeCChars(sql);
         if (inputParameters.length)
@@ -1237,7 +1234,7 @@ protected:
         writer.endMessage();
     }
 
-    final void writeSignal(ref PgWriter writer, PgDescribeType signalType, int32 signalId = 4)
+    final void writeSignal(ref PgWriter writer, PgOIdDescribeType signalType, int32 signalId = 4)
     {
         writer.writeSignal(signalType, signalId);
     }

@@ -12,60 +12,27 @@
 module pham.db.util;
 
 import std.format : format;
-import std.traits: isFloatingPoint, isIntegral;
+import std.traits: isFloatingPoint, isIntegral, isUnsigned;
 
 import pham.external.dec.decimal : isEqual;
 import pham.db.type;
 
 nothrow @safe:
 
-/*
-* Defines a total order on a decimal value vs other.
-* Params:
-*   lhs = a decimal value
-*   rhs = a decimal/integer/float value
-* Returns:
-*   -1 if x precedes y, 0 if x is equal to y, +1 if x follows y
-*   float.nan if any operands is a NaN
-*/
-float decimalCompare(D, T)(auto const ref D lhs, auto const ref T rhs) @nogc
-if (isDecimal!D && (isIntegral!T || isDecimal!T))
+pragma(inline, true)
+F asFloatBit(I, F)(I v) @nogc pure
+if (F.sizeof == I.sizeof && isFloatingPoint!F && isUnsigned!I)
 {
-    import decimal.decimal : cmp;
-
-    return cmp(lhs, rhs);
+    // Use bit cast to avoid any funny float/interger promotion
+    return *cast(F*)&v;
 }
 
-///
-float decimalCompare(D, T)(auto const ref D lhs, auto const ref T rhs,
-    const int precision = Precision.banking,
-    const RoundingMode mode = RoundingMode.banking) @nogc
-if (isDecimal!D && isFloatingPoint!T)
+pragma(inline, true)
+I asIntegerBit(F, I)(F v) @nogc pure
+if (F.sizeof == I.sizeof && isFloatingPoint!F && isUnsigned!I)
 {
-    import decimal.decimal : cmp;
-
-    return cmp(lhs, rhs, precision, mode);
-}
-
-/**
-* Compares two _decimal operands for equality
-* Returns:
-*   true if the specified condition is satisfied, false otherwise or if any of the operands is NaN.
-*/
-bool decimalEqual(D, T)(auto const ref D lhs, auto const ref T rhs) @nogc
-if (isDecimal!D && (isIntegral!T || isDecimal!T))
-{
-    import decimal.decimal : isEqual;
-
-    return isEqual(lhs, rhs);
-}
-
-bool decimalEqual(D, T)(auto const ref D lhs, auto const ref T rhs,
-    const int precision = Precision.banking,
-    const RoundingMode mode = RoundingMode.banking) @nogc
-if (isDecimal!D && isFloatingPoint!T)
-{
-   return isEqual(lhs, rhs, precision, mode);
+    // Use bit cast to avoid any funny float/interger promotion
+    return *cast(I*)&v;
 }
 
 string makeCommandName(void* command, uint counter)
@@ -83,7 +50,7 @@ string makeCommandName(void* command, uint counter)
     Returns:
         its' string presentation
 */
-string toSeparatedString(scope const int[] values, string separator) pure
+string toSeparatedString(scope const(int)[] values, const(char)[] separator) pure
 {
     import std.array : Appender;
     import std.conv : to;
@@ -109,7 +76,7 @@ string toSeparatedString(scope const int[] values, string separator) pure
     Returns:
         its' string presentation in v.v.v ...
 */
-string toVersionString(scope const int[] values) pure
+string toVersionString(scope const(int)[] values) pure
 {
     return toSeparatedString(values, ".");
 }

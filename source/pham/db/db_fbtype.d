@@ -14,7 +14,6 @@ module pham.db.fbtype;
 import std.array : Appender, replace;
 import std.conv : to;
 import std.exception : assumeWontThrow;
-import std.format : format;
 import std.traits : EnumMembers, Unqual;
 
 version (TraceFunction) import pham.utl.test;
@@ -89,30 +88,30 @@ immutable string[] fbValidParameterNames = [
 ];
 
 immutable DbTypeInfo[] fbNativeTypes = [
-    {dbName:"VARCHAR[?]", nativeName:"VARCHAR", displaySize:-1, nativeSize:-1, nativeId:FbIscType.SQL_VARYING, dbType:DbType.string}, //varchar
-    {dbName:"CHAR[?]", nativeName:"CHAR", displaySize:-1, nativeSize:-1, nativeId:FbIscType.SQL_TEXT, dbType:DbType.chars}, //char[]
-    {dbName:"DOUBLE", nativeName:"DOUBLE PRECISION", displaySize:17, nativeSize:8, nativeId:FbIscType.SQL_DOUBLE, dbType:DbType.float64},
-    {dbName:"FLOAT", nativeName:"FLOAT", displaySize:17, nativeSize:4, nativeId:FbIscType.SQL_FLOAT, dbType:DbType.float32},
-    {dbName:"INTEGER", nativeName:"INTEGER", displaySize:11, nativeSize:4, nativeId:FbIscType.SQL_LONG, dbType:DbType.int32},
-    {dbName:"SMALLINT", nativeName:"SMALLINT", displaySize:6, nativeSize:2, nativeId:FbIscType.SQL_SHORT, dbType:DbType.int16},
-    {dbName:"TIMESTAMP", nativeName:"TIMESTAMP", displaySize:22, nativeSize:8, nativeId:FbIscType.SQL_TIMESTAMP, dbType:DbType.datetime},
-    {dbName:"BLOB", nativeName:"BLOB", displaySize:-1, nativeSize:-1, nativeId:FbIscType.SQL_BLOB, dbType:DbType.binary},
-    {dbName:"DOUBLE", nativeName:"DOUBLE PRECISION", displaySize:17, nativeSize:8, nativeId:FbIscType.SQL_D_FLOAT, dbType:DbType.float64},
-    {dbName:"ARRAY[?,?]", nativeName:"ARRAY", displaySize:-1, nativeSize:-1, nativeId:FbIscType.SQL_ARRAY, dbType:DbType.array},
-    {dbName:"BIGINT", nativeName:"QUAD", displaySize:20, nativeSize:8, nativeId:FbIscType.SQL_QUAD, dbType:DbType.int64},
-    {dbName:"TIME", nativeName:"TIME", displaySize:11, nativeSize:4, nativeId:FbIscType.SQL_TIME, dbType:DbType.time},
-    {dbName:"DATE", nativeName:"DATE", displaySize:10, nativeSize:4, nativeId:FbIscType.SQL_DATE, dbType:DbType.date},
-    {dbName:"BIGINT", nativeName:"BIGINT", displaySize:20, nativeSize:8, nativeId:FbIscType.SQL_INT64, dbType:DbType.int64},
-    {dbName:"BOOLEAN", nativeName:"BOOLEAN", displaySize:5, nativeSize:1, nativeId:FbIscType.SQL_BOOLEAN, dbType:DbType.boolean}, // fb3
-    {dbName:"INT128", nativeName:"INT128", displaySize:40, nativeSize:16, nativeId:FbIscType.SQL_INT128, dbType:DbType.int128}, // fb4
-    {dbName:"TIMESTAMPTZ", nativeName:"TIMESTAMP WITH TIMEZONE", displaySize:28, nativeSize:10, nativeId:FbIscType.SQL_TIMESTAMP_TZ, dbType:DbType.datetimeTZ}, // fb4
-    {dbName:"TIMESTAMPTZ", nativeName:"TIMESTAMP WITH OFFSET TIMEZONE", displaySize:28, nativeSize:10, nativeId:FbIscType.SQL_TIMESTAMP_TZ_EX, dbType:DbType.datetimeTZ}, // fb4
-    {dbName:"TIMETZ", nativeName:"TIME WITH TIMEZONE", displaySize:17, nativeSize:6, nativeId:FbIscType.SQL_TIME_TZ, dbType:DbType.timeTZ}, // fb4
-    {dbName:"TIMETZ", nativeName:"TIME WITH OFFSET TIMEZONE", displaySize:17, nativeSize:6, nativeId:FbIscType.SQL_TIME_TZ_EX, dbType:DbType.timeTZ}, // fb4
-    {dbName:"DECIMAL(16)", nativeName:"DECFLOAT(16)", displaySize:16, nativeSize:8, nativeId:FbIscType.SQL_DEC64, dbType:DbType.decimal64}, // fb4
-    {dbName:"DECIMAL(34)", nativeName:"DECFLOAT(34)", displaySize:34, nativeSize:16, nativeId:FbIscType.SQL_DEC128, dbType:DbType.decimal128}, // fb4
-    {dbName:"DECIMAL(34)", nativeName:"DECFLOAT", displaySize:34, nativeSize:16, nativeId:FbIscType.SQL_DEC128, dbType:DbType.decimal128}, // fb4 - Map to DECFLOAT(34) as document
-    {dbName:"", nativeName:"NULL", displaySize:4, nativeSize:0, nativeId:FbIscType.SQL_NULL, dbType:DbType.unknown}
+    {dbName:"VARCHAR[?]", nativeName:"VARCHAR", displaySize:-1, nativeSize:-1, nativeId:FbIscType.sql_varying, dbType:DbType.string}, //varchar
+    {dbName:"CHAR[?]", nativeName:"CHAR", displaySize:-1, nativeSize:-1, nativeId:FbIscType.sql_text, dbType:DbType.chars}, //char[]
+    {dbName:"DOUBLE", nativeName:"DOUBLE PRECISION", displaySize:17, nativeSize:8, nativeId:FbIscType.sql_double, dbType:DbType.float64},
+    {dbName:"FLOAT", nativeName:"FLOAT", displaySize:17, nativeSize:4, nativeId:FbIscType.sql_float, dbType:DbType.float32},
+    {dbName:"INTEGER", nativeName:"INTEGER", displaySize:11, nativeSize:4, nativeId:FbIscType.sql_long, dbType:DbType.int32},
+    {dbName:"SMALLINT", nativeName:"SMALLINT", displaySize:6, nativeSize:2, nativeId:FbIscType.sql_short, dbType:DbType.int16},
+    {dbName:"TIMESTAMP", nativeName:"TIMESTAMP", displaySize:22, nativeSize:8, nativeId:FbIscType.sql_timestamp, dbType:DbType.datetime},
+    {dbName:"BLOB", nativeName:"BLOB", displaySize:-1, nativeSize:-1, nativeId:FbIscType.sql_blob, dbType:DbType.binary},
+    {dbName:"DOUBLE", nativeName:"DOUBLE PRECISION", displaySize:17, nativeSize:8, nativeId:FbIscType.sql_d_float, dbType:DbType.float64},
+    {dbName:"ARRAY[?,?]", nativeName:"ARRAY", displaySize:-1, nativeSize:-1, nativeId:FbIscType.sql_array, dbType:DbType.array},
+    {dbName:"BIGINT", nativeName:"QUAD", displaySize:20, nativeSize:8, nativeId:FbIscType.sql_quad, dbType:DbType.int64},
+    {dbName:"TIME", nativeName:"TIME", displaySize:11, nativeSize:4, nativeId:FbIscType.sql_time, dbType:DbType.time},
+    {dbName:"DATE", nativeName:"DATE", displaySize:10, nativeSize:4, nativeId:FbIscType.sql_date, dbType:DbType.date},
+    {dbName:"BIGINT", nativeName:"BIGINT", displaySize:20, nativeSize:8, nativeId:FbIscType.sql_int64, dbType:DbType.int64},
+    {dbName:"BOOLEAN", nativeName:"BOOLEAN", displaySize:5, nativeSize:1, nativeId:FbIscType.sql_boolean, dbType:DbType.boolean}, // fb3
+    {dbName:"INT128", nativeName:"INT128", displaySize:40, nativeSize:16, nativeId:FbIscType.sql_int128, dbType:DbType.int128}, // fb4
+    {dbName:"TIMESTAMPTZ", nativeName:"TIMESTAMP WITH TIMEZONE", displaySize:28, nativeSize:10, nativeId:FbIscType.sql_timestamp_tz, dbType:DbType.datetimeTZ}, // fb4
+    {dbName:"TIMESTAMPTZ", nativeName:"TIMESTAMP WITH OFFSET TIMEZONE", displaySize:28, nativeSize:10, nativeId:FbIscType.sql_timestamp_tz_ex, dbType:DbType.datetimeTZ}, // fb4
+    {dbName:"TIMETZ", nativeName:"TIME WITH TIMEZONE", displaySize:17, nativeSize:6, nativeId:FbIscType.sql_time_tz, dbType:DbType.timeTZ}, // fb4
+    {dbName:"TIMETZ", nativeName:"TIME WITH OFFSET TIMEZONE", displaySize:17, nativeSize:6, nativeId:FbIscType.sql_time_tz_ex, dbType:DbType.timeTZ}, // fb4
+    {dbName:"DECIMAL(16)", nativeName:"DECFLOAT(16)", displaySize:16, nativeSize:8, nativeId:FbIscType.sql_dec64, dbType:DbType.decimal64}, // fb4
+    {dbName:"DECIMAL(34)", nativeName:"DECFLOAT(34)", displaySize:34, nativeSize:16, nativeId:FbIscType.sql_dec128, dbType:DbType.decimal128}, // fb4
+    {dbName:"DECIMAL(34)", nativeName:"DECFLOAT", displaySize:34, nativeSize:16, nativeId:FbIscType.sql_dec128, dbType:DbType.decimal128}, // fb4 - Map to DECFLOAT(34) as document
+    {dbName:"", nativeName:"NULL", displaySize:4, nativeSize:0, nativeId:FbIscType.sql_null, dbType:DbType.unknown}
 ];
 
 immutable DbTypeInfo*[int32] fbIscTypeToDbTypeInfos;
@@ -204,7 +203,7 @@ public:
         if (elements == 0)
             elements = calculateElements();
 		auto result = elements * fieldInfo.size;
-	    if (fieldInfo.fbType() == FbIscType.SQL_VARYING)
+	    if (fieldInfo.fbType() == FbIscType.sql_varying)
             result += (elements * 2);
         return result;
 	}
@@ -257,7 +256,7 @@ public:
         {
             if (fieldIndex < 0)
             {
-                auto msg = format(DbMessage.eInvalidSQLDAFieldIndex, typ, fieldIndex);
+                auto msg = DbMessage.eInvalidSQLDAFieldIndex.fmtMessage(typ, fieldIndex);
                 throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
             }
             return fieldIndex;
@@ -267,7 +266,7 @@ public:
         {
             if (bindIndex < 0)
             {
-                auto msg = format(DbMessage.eInvalidSQLDAIndex, typ);
+                auto msg = DbMessage.eInvalidSQLDAIndex.fmtMessage(typ);
                 throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
             }
             return bindIndex;
@@ -314,7 +313,7 @@ public:
 
                         if (checkFieldIndex(typ) >= bindResults[checkBindIndex(typ)].length)
                         {
-                            auto msg = format(DbMessage.eInvalidSQLDAFieldIndex, typ, fieldIndex);
+                            auto msg = DbMessage.eInvalidSQLDAFieldIndex.fmtMessage(typ, fieldIndex);
                             throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
                         }
 
@@ -374,7 +373,7 @@ public:
                         return false;
 
 			        default:
-                        auto msg = format(DbMessage.eInvalidSQLDAType, typ);
+                        auto msg = DbMessage.eInvalidSQLDAType.fmtMessage(typ);
                         throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
 		        }
             }
@@ -658,55 +657,55 @@ public:
 		switch (blrType)
 		{
 			case FbBlrType.blr_short:
-				return FbIscType.SQL_SHORT;
+				return FbIscType.sql_short;
 			case FbBlrType.blr_long:
-				return FbIscType.SQL_LONG;
+				return FbIscType.sql_long;
 			case FbBlrType.blr_quad:
-				return FbIscType.SQL_QUAD;
+				return FbIscType.sql_quad;
 			case FbBlrType.blr_float:
-				return FbIscType.SQL_FLOAT;
+				return FbIscType.sql_float;
 			case FbBlrType.blr_d_float:
-				return FbIscType.SQL_D_FLOAT;
+				return FbIscType.sql_d_float;
 			case FbBlrType.blr_sql_date:
-				return FbIscType.SQL_DATE;
+				return FbIscType.sql_date;
 			case FbBlrType.blr_sql_time:
-				return FbIscType.SQL_TIME;
+				return FbIscType.sql_time;
 			case FbBlrType.blr_text:
 			case FbBlrType.blr_text2:
 			case FbBlrType.blr_cstring:
 			case FbBlrType.blr_cstring2:
-				return FbIscType.SQL_TEXT;
+				return FbIscType.sql_text;
 			case FbBlrType.blr_int64:
 			case FbBlrType.blr_blob_id:
-				return FbIscType.SQL_INT64;
+				return FbIscType.sql_int64;
 			case FbBlrType.blr_blob2:
 			case FbBlrType.blr_blob:
-				return FbIscType.SQL_BLOB;
+				return FbIscType.sql_blob;
 			case FbBlrType.blr_bool:
-				return FbIscType.SQL_BOOLEAN;
+				return FbIscType.sql_boolean;
 			case FbBlrType.blr_dec64:
-				return FbIscType.SQL_DEC64;
+				return FbIscType.sql_dec64;
 			case FbBlrType.blr_dec128:
-				return FbIscType.SQL_DEC128;
+				return FbIscType.sql_dec128;
 			case FbBlrType.blr_int128:
-				return FbIscType.SQL_INT128;
+				return FbIscType.sql_int128;
 			case FbBlrType.blr_double:
-				return FbIscType.SQL_DOUBLE;
+				return FbIscType.sql_double;
             case FbBlrType.blr_sql_time_tz:
-				return FbIscType.SQL_TIME_TZ;
+				return FbIscType.sql_time_tz;
 	        case FbBlrType.blr_timestamp_tz:
-				return FbIscType.SQL_TIMESTAMP_TZ;
+				return FbIscType.sql_timestamp_tz;
 	        case FbBlrType.blr_ex_time_tz:
-				return FbIscType.SQL_TIME_TZ_EX;
+				return FbIscType.sql_time_tz_ex;
 	        case FbBlrType.blr_ex_timestamp_tz:
-				return FbIscType.SQL_TIMESTAMP_TZ_EX;
+				return FbIscType.sql_timestamp_tz_ex;
 			case FbBlrType.blr_timestamp:
-				return FbIscType.SQL_TIMESTAMP;
+				return FbIscType.sql_timestamp;
 			case FbBlrType.blr_varying:
 			case FbBlrType.blr_varying2:
-				return FbIscType.SQL_VARYING;
+				return FbIscType.sql_varying;
 			default:
-                return FbIscType.SQL_NULL; // Unknown
+                return FbIscType.sql_null; // Unknown
 		}
 	}
 
@@ -735,19 +734,19 @@ public:
         if (auto e = t in fbIscTypeToDbTypeInfos)
             result = (*e).dbType;
 
-        if (iscSubtype == 1 && t == FbIscType.SQL_BLOB)
+        if (iscSubtype == 1 && t == FbIscType.sql_blob)
             result = DbType.text;
 
         if (iscScale != 0)
         {
             switch (t)
             {
-		        case FbIscType.SQL_SHORT:
-		        case FbIscType.SQL_LONG:
+		        case FbIscType.sql_short:
+		        case FbIscType.sql_long:
                     result = DbType.decimal32;
                     break;
-		        case FbIscType.SQL_QUAD:
-		        case FbIscType.SQL_INT64:
+		        case FbIscType.sql_quad:
+		        case FbIscType.sql_int64:
                     result = DbType.decimal64;
                     break;
                 default:
@@ -837,22 +836,22 @@ public:
     {
         const t = fbType(iscType);
 	    return (iscScale != 0) &&
-            (t == FbIscType.SQL_SHORT ||
-             t == FbIscType.SQL_LONG ||
-             t == FbIscType.SQL_QUAD ||
-             t == FbIscType.SQL_INT64 ||
-             //t == FbIscType.SQL_DEC_FIXED ||
-             t == FbIscType.SQL_DEC64 ||
-             t == FbIscType.SQL_DEC128
+            (t == FbIscType.sql_short ||
+             t == FbIscType.sql_long ||
+             t == FbIscType.sql_quad ||
+             t == FbIscType.sql_int64 ||
+             //t == FbIscType.sql_dec_fixed ||
+             t == FbIscType.sql_dec64 ||
+             t == FbIscType.sql_dec128
             );
     }
 
     static DbFieldIdType isIdType(int32 iscType, int32 iscSubType) @nogc pure
     {
         const t = fbType(iscType);
-        return t == FbIscType.SQL_BLOB
+        return t == FbIscType.sql_blob
             ? (iscSubType != 1 ? DbFieldIdType.blob : DbFieldIdType.clob)
-            : (t == FbIscType.SQL_ARRAY ? DbFieldIdType.array : DbFieldIdType.no);
+            : (t == FbIscType.sql_array ? DbFieldIdType.array : DbFieldIdType.no);
     }
 
     const(char)[] useName() const pure
@@ -1312,7 +1311,7 @@ public:
         return _handleStorage.get!FbHandle();
     }
 
-    @property ref FbIscObject handle(const FbHandle newValue) pure return
+    @property ref FbIscObject handle(const(FbHandle) newValue) pure return
     {
         _handleStorage = newValue;
         return this;
@@ -1323,7 +1322,7 @@ public:
         return _idStorage.get!FbId();
     }
 
-    @property ref FbIscObject id(const FbId newValue) pure return
+    @property ref FbIscObject id(const(FbId) newValue) pure return
     {
         _idStorage = newValue;
         return this;
@@ -1621,7 +1620,7 @@ void parseCheckLength(scope const(ubyte)[] data, size_t index, uint length, int 
 {
     if (index + length > data.length)
     {
-        auto msg = format(DbMessage.eInvalidSQLDANotEnoughData, type, length);
+        auto msg = DbMessage.eInvalidSQLDANotEnoughData.fmtMessage(type, length);
         throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
     }
 }

@@ -12,7 +12,6 @@
 module pham.db.skdatabase;
 
 import std.exception : assumeWontThrow;
-import std.format : format;
 import std.socket : socket_t, Address, AddressFamily, InternetAddress, lastSocketError, Socket, SocketOption, SocketOptionLevel, SocketType;
 
 version (profile) import pham.utl.test : PerfFunction;
@@ -211,7 +210,7 @@ package(pham.db):
 
         void throwError(uint errorRawCode, string errorRawMessage)
         {
-            auto msg = format(DbMessage.eWriteData, connectionStringBuilder.forErrorInfo(), errorRawMessage);
+            auto msg = DbMessage.eWriteData.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
             throw createWriteDataError(msg, errorRawCode, null);
         }
 
@@ -423,7 +422,7 @@ protected:
 
     final void throwReadDataError(uint errorRawCode, string errorRawMessage) @safe
     {
-        auto msg = format(DbMessage.eReadData, connectionStringBuilder.forErrorInfo(), errorRawMessage);
+        auto msg = DbMessage.eReadData.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
         throw createReadDataError(msg, errorRawCode, null);
     }
 
@@ -514,7 +513,7 @@ public:
     }
 
     version (TraceFunction) static size_t readCounter = 0;
-    final override void fill(const size_t additionalBytes, bool mustSatisfied)
+    final override void fill(const(size_t) additionalBytes, bool mustSatisfied)
     {
         version (profile) debug auto p = PerfFunction.create();
 
@@ -547,7 +546,7 @@ public:
 
         if (mustSatisfied && (!hasReadData || n < additionalBytes))
         {
-            auto msg = format(DbMessage.eNotEnoughData, additionalBytes, hasReadData ? n : 0);
+            auto msg = DbMessage.eNotEnoughData.fmtMessage(additionalBytes, hasReadData ? n : 0);
             connection.throwReadDataError(0, msg);
         }
     }
