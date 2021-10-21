@@ -74,7 +74,7 @@ float fpack(const bool sign, int exp, uint mantissa)
 }
 
 @safe pure nothrow @nogc
-bool funpack(const float f, out int exp, out uint mantissa, out bool inf, out bool nan)
+bool funpack(const(float) f, out int exp, out uint mantissa, out bool inf, out bool nan)
 {
     FU fu;
     fu.f = f;
@@ -109,7 +109,7 @@ union DU
 }
 
 @safe pure nothrow @nogc
-double dpack(const bool sign, int exp, ulong mantissa)
+double dpack(const(bool) sign, int exp, ulong mantissa)
 {
     if (mantissa == 0)
         return sign ? -0.0 : +0.0;
@@ -154,7 +154,7 @@ double dpack(const bool sign, int exp, ulong mantissa)
 }
 
 @safe pure nothrow @nogc
-bool dunpack(const double d, out int exp, out ulong mantissa, out bool inf, out bool nan)
+bool dunpack(const(double) d, out int exp, out ulong mantissa, out bool inf, out bool nan)
 {
     DU du;
     du.d = d;
@@ -202,7 +202,7 @@ union RU
 }
 
 @safe pure nothrow @nogc
-real rpack(const bool sign, int exp, ulong mantissa)
+real rpack(const(bool) sign, int exp, ulong mantissa)
 {
     if (mantissa == 0)
         return sign ? -0.0L : +0.0L;
@@ -238,7 +238,7 @@ real rpack(const bool sign, int exp, ulong mantissa)
 }
 
 @safe pure nothrow @nogc
-bool runpack(const real r, out int exp, out ulong mantissa, out bool inf, out bool nan)
+bool runpack(const(real) r, out int exp, out ulong mantissa, out bool inf, out bool nan)
 {
     RU ru;
     ru.r = r;
@@ -323,7 +323,6 @@ bool exp2to10(ref uint coefficient, ref int exponent)
     return inexact;
 }
 
-public
 @nogc @safe pure nothrow
 bool exp2to10(ref ulong coefficient, ref int exponent)
 {

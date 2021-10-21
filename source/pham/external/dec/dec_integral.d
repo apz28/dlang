@@ -4,79 +4,73 @@ import core.bitop : bsf, bsr;
 import core.checkedint: adds, addu, mulu, subs, subu;
 import std.traits: CommonType, isSigned, isSomeChar, isUnsigned, Signed, Unqual, Unsigned;
 
-nothrow @safe:
+import pham.external.dec.sink : ShortStringBuffer;
 
+nothrow @safe:
 package(pham.external.dec):
 
 /* ****************************************************************************************************************** */
 /* n BIT UNSIGNED IMPLEMENTATION                                                                                    */
 /* ****************************************************************************************************************** */
 
-template MakeUnsigned(int bits)
-{
-    static if (bits == 8)
-        alias MakeUnsigned = ubyte;
-    else static if (bits == 16)
-        alias MakeUnsigned = ushort;
-    else static if (bits == 32)
-        alias MakeUnsigned = uint;
-    else static if (bits == 64)
-        alias MakeUnsigned = ulong;
-    else static if (bits >= 128)
-        alias MakeUnsigned = unsigned!bits;
-    else
-        static assert(0);
-}
-
-template isCustomUnsigned(T)
+template isCustomUnsignedBit(T)
 {
     alias UT = Unqual!T;
-    enum isCustomUnsigned = is(UT: unsigned!bits, int bits);
+    enum isCustomUnsignedBit = is(UT: UnsignedBit!bits, int bits);
 }
 
-template isAnyUnsigned(T)
+template isAnyUnsignedBit(T)
 {
     alias UT = Unqual!T;
-    enum isAnyUnsigned = isUnsigned!UT || isCustomUnsigned!UT;
+    enum isAnyUnsignedBit = isUnsigned!UT || isCustomUnsignedBit!UT;
 }
 
-template isUnsignedAssignable(T, U)
+template isUnsignedAssignableBit(T, U)
 {
-    enum isUnsignedAssignable = isAnyUnsigned!T && isAnyUnsigned!U && T.sizeof >= U.sizeof;
+    enum isUnsignedAssignableBit = isAnyUnsignedBit!T && isAnyUnsignedBit!U && T.sizeof >= U.sizeof;
 }
 
-bool isHexString(string s) @nogc pure
+bool isHexString(scope const(char)[] s) @nogc pure
 {
     return s.length >= 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X');
 }
 
-struct unsigned(int bits)
+struct UnsignedBit(int bits)
 if (bits >= 128 && (bits & (bits - 1)) == 0)
 {
 @nogc nothrow @safe:
 
-    alias HALF = MakeUnsigned!(bits / 2);
+    alias HALF = makeUnsignedBit!(bits / 2);
     alias THIS = typeof(this);
 
-    version (LittleEndian) { HALF lo; HALF hi; } else { HALF hi; HALF lo; }
+    version (LittleEndian)
+    {
+        HALF lo;
+        HALF hi;
+    }
+    else
+    {
+        HALF hi;
+        HALF lo;
+    }
 
-    enum min  = THIS();
+    enum min = THIS();
     enum max = THIS(HALF.max, HALF.max);
 
     this(T, U)(auto const ref T hi, auto const ref U lo)
-    if (isUnsignedAssignable!(HALF, T) && isUnsignedAssignable!(HALF, U))
+    if (isUnsignedAssignableBit!(HALF, T) && isUnsignedAssignableBit!(HALF, U))
     {
         this.hi = hi;
         this.lo = lo;
     }
 
     this(T)(auto const ref T x)
-    if (isUnsignedAssignable!(HALF, T))
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         this.lo = x;
     }
 
-    this(string s)
+    this(scope const(char)[] s)
     in
     {
         assert (s.length, "Empty string");
@@ -91,7 +85,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
             while (i < s.length && (s[i] == '0' || s[i] == '_'))
                 ++i;
             int width = 0;
-            int maxWidth = THIS.sizeof * 8;
+            enum int maxWidth = THIS.sizeof * 8;
             while (i < s.length)
             {
                 assert (width < maxWidth, "Overflow");
@@ -125,7 +119,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
                 char c = s[i++];
                 if (c >= '0' && c <= '9')
                 {
-                    bool ovf;
+                    bool ovf = void;
                     auto r = fma(this, 10U, cast(uint)(c - '0'), ovf);
                     assert(!ovf, "Overflow");
                     this = r;
@@ -137,7 +131,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
     }
 
     auto ref opAssign(T)(auto const ref  T x)
-    if (isUnsignedAssignable!(HALF, T))
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         this.lo = x;
         this.hi = 0U;
@@ -175,8 +169,8 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return this;
     }
 
-    bool opEquals(T)(const T value) const
-    if (isUnsignedAssignable!(HALF, T))
+    bool opEquals(T)(const(T) value) const
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         return hi == 0U && lo == value;
     }
@@ -186,8 +180,8 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return hi == value.hi && lo == value.lo;
     }
 
-    int opCmp(T)(const T value) const
-    if (isUnsignedAssignable!(HALF, T))
+    int opCmp(T)(const(T) value) const
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         if (hi)
             return 1;
@@ -219,7 +213,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
     }
 
     auto opBinary(string op: "|", T)(auto const ref T value) const
-    if (isUnsignedAssignable!(HALF, T))
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         return THIS(this.hi, this.lo | value);
     }
@@ -232,7 +226,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
     }
 
     auto ref opOpAssign(string op: "|", T)(auto const ref T value)
-    if (isUnsignedAssignable!(HALF, T))
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         this.lo |= value;
         return this;
@@ -244,7 +238,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
     }
 
     auto opBinary(string op: "&", T)(auto const ref T value) const
-    if (isUnsignedAssignable!(HALF, T))
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         return THIS(0U, this.lo & value);
     }
@@ -257,7 +251,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
     }
 
     auto ref opOpAssign(string op: "&", T)(auto const ref T value)
-    if (isUnsignedAssignable!(HALF, T))
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         this.hi = 0U;
         this.lo &= value;
@@ -270,7 +264,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
     }
 
     auto opBinary(string op: "^", T)(auto const ref T value) const
-    if (isUnsignedAssignable!(HALF, T))
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         return THIS(this.hi ^ 0UL, this.lo ^ value);
     }
@@ -283,14 +277,14 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
     }
 
     auto ref opOpAssign(string op: "^", T)(auto const ref T value)
-    if (isUnsignedAssignable!(HALF, T))
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         this.hi ^= 0U;
         this.lo ^= value;
         return this;
     }
 
-    auto opBinary(string op)(const int shift) const
+    auto opBinary(string op)(const(int) shift) const
     if (op == ">>" || op == ">>>")
     in
     {
@@ -321,7 +315,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return ret;
     }
 
-    auto ref opOpAssign(string op)(const int shift)
+    auto ref opOpAssign(string op)(const(int) shift)
     if (op == ">>" || op == ">>>")
     in
     {
@@ -348,7 +342,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return this;
     }
 
-    auto opBinary(string op)(const int shift) const
+    auto opBinary(string op)(const(int) shift) const
     if (op == "<<")
     in
     {
@@ -379,7 +373,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return ret;
     }
 
-    auto ref opOpAssign(string op)(const int shift)
+    auto ref opOpAssign(string op)(const(int) shift)
     if (op == "<<")
     in
     {
@@ -407,22 +401,22 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return this;
     }
 
-    auto opBinary(string op :"+", T)(const T value) const
-    if (isUnsignedAssignable!(HALF, T))
+    auto opBinary(string op :"+", T)(const(T) value) const
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         THIS ret = this;
         ret.hi += xadd(ret.lo, value);
         return ret;
     }
 
-    auto ref opOpAssign(string op :"+", T)(const T value)
-    if (isUnsignedAssignable!(HALF, T))
+    auto ref opOpAssign(string op :"+", T)(const(T) value)
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         hi += xadd(lo, value);
         return this;
     }
 
-    auto opBinary(string op :"+", T: THIS)(const T value) const
+    auto opBinary(string op :"+", T: THIS)(const(T) value) const
     {
         THIS ret = this;
         ret.hi += xadd(ret.lo, value.lo);
@@ -437,22 +431,22 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return this;
     }
 
-    auto opBinary(string op :"-", T)(const T value) const
-    if (isUnsignedAssignable!(HALF, T))
+    auto opBinary(string op :"-", T)(const(T) value) const
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         THIS ret = this;
         ret.hi -= xsub(ret.lo, value);
         return ret;
     }
 
-    auto ref opOpAssign(string op :"-", T)(const T value)
-    if (isUnsignedAssignable!(HALF, T))
+    auto ref opOpAssign(string op :"-", T)(const(T) value)
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         hi -= xsub(lo, value);
         return this;
     }
 
-    auto opBinary(string op :"-", T: THIS)(const T value) const
+    auto opBinary(string op :"-", T: THIS)(const(T) value) const
     {
         THIS ret = this;
         ret.hi -= xsub(ret.lo, value.lo);
@@ -467,85 +461,85 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return this;
     }
 
-    auto opBinary(string op :"*", T)(const T value) const
-    if (isUnsignedAssignable!(HALF, T))
+    auto opBinary(string op :"*", T)(const(T) value) const
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         THIS ret = xmul(this.lo, value);
         ret.hi += this.hi * value;
         return ret;
     }
 
-    auto ref opOpAssign(string op :"*", T)(const T value)
-    if (isUnsignedAssignable!(HALF, T))
+    auto ref opOpAssign(string op :"*", T)(const(T) value)
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         THIS ret = xmul(this.lo, value);
         ret.hi += this.hi * value;
         return this = ret;
     }
 
-    auto opBinary(string op :"*", T: THIS)(const T value) const
+    auto opBinary(string op :"*", T: THIS)(const(T) value) const
     {
         auto ret = xmul(lo, value.lo);
         ret.hi += this.hi * value.lo + this.lo * value.hi;
         return ret;
     }
 
-    auto ref opOpAssign(string op :"*", T: THIS)(const T value)
+    auto ref opOpAssign(string op :"*", T: THIS)(const(T) value)
     {
         auto ret = xmul(lo, value.lo);
         ret.hi += this.hi * value.lo + this.lo * value.hi;
         return this = ret;
     }
 
-    auto opBinary(string op :"/", T)(const T value) const
-    if (isUnsignedAssignable!(HALF, T))
+    auto opBinary(string op :"/", T)(const(T) value) const
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         THIS q = this;
         divrem(q, value);
         return q;
     }
 
-    auto ref opOpAssign(string op :"/", T)(const T value)
-    if (isUnsignedAssignable!(HALF, T))
+    auto ref opOpAssign(string op :"/", T)(const(T) value)
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         divrem(this, value);
         return this;
     }
 
-    auto opBinary(string op :"/", T: THIS)(const T value) const
+    auto opBinary(string op :"/", T: THIS)(const(T) value) const
     {
         THIS q = this;
         divrem(q, value);
         return q;
     }
 
-    auto ref opOpAssign(string op :"/", T: THIS)(const T value)
+    auto ref opOpAssign(string op :"/", T: THIS)(const(T) value)
     {
         divrem(this, value);
         return this;
     }
 
-    auto opBinary(string op :"%", T)(const T value) const
-    if (isUnsignedAssignable!(HALF, T))
+    auto opBinary(string op :"%", T)(const(T) value) const
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         THIS q = this;
         return divrem(q, value);
     }
 
-    auto ref opOpAssign(string op :"%", T)(const T value)
-    if (isUnsignedAssignable!(HALF, T))
+    auto ref opOpAssign(string op :"%", T)(const(T) value)
+    if (isUnsignedAssignableBit!(HALF, T))
     {
         THIS q = this;
         return this = divrem(q, value);
     }
 
-    auto opBinary(string op :"%", T: THIS)(const T value) const
+    auto opBinary(string op :"%", T: THIS)(const(T) value) const
     {
         THIS q = this;
         return divrem(q, value);
     }
 
-    auto ref opOpAssign(string op :"%", T: THIS)(const T value)
+    auto ref opOpAssign(string op :"%", T: THIS)(const(T) value)
     {
         THIS q = this;
         return this = divrem(q, value);
@@ -559,7 +553,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
             return cast(T)lo;
         else static if (isUnsigned!T)
             return cast(T)lo;
-        else static if (isUnsignedAssignable!(HALF, T))
+        else static if (isUnsignedAssignableBit!(HALF, T))
             return cast(T)lo;
         else static if (is(T: THIS))
             return this;
@@ -567,44 +561,134 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
             static assert("Cannot cast '" ~ Unqual!THIS.stringof ~ "' to '" ~ Unqual!T.stringof ~ "'");
     }
 
-    @property size_t bitCount() const pure
+    /// Return this instance data size in bytes
+    @property static size_t sizeofData() pure
     {
-        return bits;
+        return bits / 8;
     }
 }
 
-alias uint128 = unsigned!128;
-alias uint256 = unsigned!256;
-alias uint512 = unsigned!512;
+alias uint128 = UnsignedBit!128;
+alias uint256 = UnsignedBit!256;
+alias uint512 = UnsignedBit!512;
 
-///Returns true if all specified types are unsigned... types.
-template isUnsigned(T...)
+///Returns true if all specified types are UnsignedBit... types.
+template isUnsignedBit(T...)
 {
-    enum isUnsigned =
+    enum isUnsignedBit =
     {
         bool result = T.length > 0;
         static foreach (t; T)
         {
-            if (!(is(t == uint128) || is(t == uint256) || is(t == uint512)))
+            alias ut = Unqual!t;
+            if (!(is(ut == uint128) || is(ut == uint256) || is(ut == uint512)))
                 result = false;
         }
         return result;
     }();
 }
 
-//for debugging purposes
-string toString(T)(auto const ref U value) const
-if (isUnsigned!T)
+template makeUnsignedBit(int bits)
 {
-    char[T.sizeof * 8 / 3 + 1] buffer;
-    size_t i = buffer.length;
+    static if (bits == 8)
+        alias makeUnsignedBit = ubyte;
+    else static if (bits == 16)
+        alias makeUnsignedBit = ushort;
+    else static if (bits == 32)
+        alias makeUnsignedBit = uint;
+    else static if (bits == 64)
+        alias makeUnsignedBit = ulong;
+    else static if (bits >= 128)
+        alias makeUnsignedBit = UnsignedBit!bits;
+    else
+        static assert(0, "Unsupport bits");
+}
+
+T toUnsign(T)(scope const(char)[] s) @nogc nothrow pure @safe
+if (T.sizeof >= 4 && isAnyUnsignedBit!T)
+{
+    alias UT = Unqual!T;
+
+    static if (is(UT == uint) || is(UT == ulong))
+    {
+        UT result = 0;
+        size_t i = 0;
+        if (isHexString(s))
+        {
+            i += 2;
+            while (i < s.length && (s[i] == '0' || s[i] == '_'))
+                ++i;
+            int width = 0;
+            enum maxWidth = UT.sizeof * 8;
+            while (i < s.length)
+            {
+                assert (width < maxWidth, "Overflow");
+                char c = s[i++];
+                if (c >= '0' && c <= '9')
+                {
+                    result = (result << 4) | cast(uint)(c - '0');
+                    width += 4;
+                }
+                else if (c >= 'A' && c <= 'F')
+                {
+                    result = (result << 4) | cast(uint)(c - 'A' + 10);
+                    width += 4;
+                }
+                else if (c >= 'a' && c <= 'f')
+                {
+                    result = (result << 4) | cast(uint)(c - 'a' + 10);
+                    width += 4;
+                }
+                else
+                    assert(c == '_', "Invalid character in input string");
+            }
+        }
+        else
+        {
+            while (i < s.length)
+            {
+                char c = s[i++];
+                if (c >= '0' && c <= '9')
+                {
+                    bool ovf1 = void, ovf2 = void;
+                    result = addu(mulu(result, 10U, ovf1), cast(uint)(c - '0'), ovf2);
+                    assert(!ovf1 && !ovf2, "Overflow");
+                }
+                else
+                    assert(c == '_', "Invalid character in input string");
+            }
+        }
+        return result;
+    }
+    else
+        return UT(s);
+}
+
+char[] dataTypeToString(T)(return ref ShortStringBuffer!char buffer, auto const ref T value) @nogc nothrow pure @safe
+if (isUnsignedBit!T)
+{
+    size_t i = buffer.clear!true().length;
     T.THIS v = value;
     do
     {
-        auto r = divrem(v, 10U);
+        const r = divrem(v, 10U);
         buffer[--i] = cast(char)('0' + cast(uint)r);
     } while (v != 0U);
-    return buffer[i .. $].dup;
+    return buffer.right(buffer.length - i);
+}
+
+char[] dataTypeToString(T)(return ref ShortStringBuffer!char buffer, auto const ref T value) @nogc nothrow pure @safe
+if (is(Unqual!T == ushort) || is(Unqual!T == uint) || is(Unqual!T == ulong))
+{
+    size_t i = buffer.clear!true().length;
+    Unqual!T v = value;
+    do
+    {
+        const r = v % 10U;
+        buffer[--i] = cast(char)('0' + cast(uint)r);
+        v /= 10U;
+    } while (v != 0U);
+    return buffer.right(buffer.length - i);
 }
 
 unittest
@@ -626,7 +710,7 @@ unittest
             return T(rnd!(T.HALF)(), rnd!(T.HALF)());
     }
 
-    foreach (T; TypeTuple!(unsigned!128, unsigned!256, unsigned!512))
+    foreach (T; TypeTuple!(UnsignedBit!128, UnsignedBit!256, UnsignedBit!512))
     {
         enum zero = T(0U);
         enum one = T(1U);
@@ -991,45 +1075,42 @@ unittest
 /* INTEGRAL UTILITY FUNCTIONS                                                                                         */
 /* ****************************************************************************************************************** */
 
-@safe pure nothrow @nogc
-uint xadd(ref uint x, const uint y)
+uint xadd(ref uint x, const(uint) y) @safe pure nothrow @nogc
 {
     bool ovf;
     x = addu(x, y, ovf);
     return ovf ? 1 : 0;
 }
 
-@safe pure nothrow @nogc
-uint xadd(ref ulong x, const ulong y)
+uint xadd(ref ulong x, const(ulong) y) @safe pure nothrow @nogc
 {
     bool ovf;
     x = addu(x, y, ovf);
     return ovf ? 1 : 0;
 }
 
-@safe pure nothrow @nogc
-uint xadd(ref ulong x, const uint y)
+uint xadd(ref ulong x, const(uint) y) @safe pure nothrow @nogc
 {
     return xadd(x, cast(ulong)y);
 }
 
-uint xadd(T)(ref T x, auto const ref T y)
-if (isCustomUnsigned!T)
+uint xadd(T)(ref T x, auto const ref T y) @safe pure nothrow @nogc
+if (isCustomUnsignedBit!T)
 {
     auto carry = xadd(x.lo, y.lo);
     carry = xadd(x.hi, carry);
     return xadd(x.hi, y.hi) + carry;
 }
 
-uint xadd(T, U)(ref T x, auto const ref U y)
-if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
+uint xadd(T, U)(ref T x, auto const ref U y) @safe pure nothrow @nogc
+if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
 {
     const carry = xadd(x.lo, y);
     return xadd(x.hi, carry);
 }
 
 @safe pure nothrow @nogc
-uint xsub(ref uint x, const uint y)
+uint xsub(ref uint x, const(uint) y)
 {
     bool ovf;
     x = subu(x, y, ovf);
@@ -1037,7 +1118,7 @@ uint xsub(ref uint x, const uint y)
 }
 
 @safe pure nothrow @nogc
-uint xsub(ref ulong x, const ulong y)
+uint xsub(ref ulong x, const(ulong) y)
 {
     bool ovf;
     x = subu(x, y, ovf);
@@ -1045,14 +1126,14 @@ uint xsub(ref ulong x, const ulong y)
 }
 
 @safe pure nothrow @nogc
-uint xsub(ref ulong x, const uint y)
+uint xsub(ref ulong x, const(uint) y)
 {
     return xsub(x, cast(ulong)y);
 }
 
 @safe pure nothrow @nogc
 uint xsub(T)(ref T x, auto const ref T y)
-if (isCustomUnsigned!T)
+if (isCustomUnsignedBit!T)
 {
     auto carry = xsub(x.lo, y.lo);
     carry = xsub(x.hi, carry);
@@ -1061,36 +1142,41 @@ if (isCustomUnsigned!T)
 
 @safe pure nothrow @nogc
 uint xsub(T, U)(ref T x, auto const ref U y)
-if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
+if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
 {
     const carry = xsub(x.lo, y);
     return xsub(x.hi, carry);
 }
 
-@safe pure nothrow @nogc
-uint fma(const uint x, const uint y, const uint z, out bool overflow)
+uint fma(const(uint) x, const(uint) y, const(uint) z, out bool overflow) @safe pure nothrow @nogc
 {
     const result = mulu(x, y, overflow);
     return addu(result, z, overflow);
 }
 
-@safe pure nothrow @nogc
-ulong fma(const ulong x, const ulong y, const ulong z, ref bool overflow)
+ulong fma(const(ulong) x, const(ulong) y, const(ulong) z, out bool overflow) @safe pure nothrow @nogc
 {
     const result = mulu(x, y, overflow);
     return addu(result, z, overflow);
 }
 
-@safe pure nothrow @nogc
-ulong fma(const ulong x, const uint y, const uint z, ref bool overflow)
+ulong fma(const(ulong) x, const(uint) y, const(uint) z, out bool overflow) @safe pure nothrow @nogc
 {
     const result = mulu(x, cast(ulong)y, overflow);
     return addu(result, cast(ulong)z, overflow);
 }
 
-@safe pure nothrow @nogc
-T fma(T)(auto const ref T x, auto const ref T y, auto const ref T z, ref bool overflow)
-if (isCustomUnsigned!T)
+T fma(T)(auto const ref T x, auto const ref T y, auto const ref T z, out bool overflow) @safe pure nothrow @nogc
+if (isCustomUnsignedBit!T)
+{
+    auto result = mulu(x, y, overflow);
+    if (xadd(result, z))
+        overflow = true;
+    return result;
+}
+
+T fma(T, U)(auto const ref T x, auto const ref U y, auto const ref U z, out bool overflow) @safe pure nothrow @nogc
+if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
 {
     auto result = mulu(x, y, overflow);
     if (xadd(result, z))
@@ -1099,29 +1185,19 @@ if (isCustomUnsigned!T)
 }
 
 @safe pure nothrow @nogc
-T fma(T, U)(auto const ref T x, auto const ref U y, auto const ref U z, ref bool overflow)
-if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
-{
-    auto result = mulu(x, y, overflow);
-    if (xadd(result, z))
-        overflow = true;
-    return result;
-}
-
-@safe pure nothrow @nogc
-ulong xmul(const uint x, const uint y)
+ulong xmul(const(uint) x, const(uint) y)
 {
     return cast(ulong)x * y;
 }
 
 @safe pure nothrow @nogc
-ulong xsqr(const uint x)
+ulong xsqr(const(uint) x)
 {
     return cast(ulong)x * x;
 }
 
 @safe pure nothrow @nogc
-uint128 xmul(const ulong x, const ulong y)
+uint128 xmul(const(ulong) x, const(ulong) y)
 {
     if (x == 0 || y == 0)
         return uint128.min;
@@ -1156,7 +1232,7 @@ uint128 xmul(const ulong x, const ulong y)
 }
 
 @safe pure nothrow @nogc
-uint128 xsqr(const ulong x)
+uint128 xsqr(const(ulong) x)
 {
     const xlo = cast(uint)x;
     const xhi = cast(uint)(x >>> 32);
@@ -1177,7 +1253,7 @@ uint128 xsqr(const ulong x)
 }
 
 @safe pure nothrow @nogc
-uint128 xmul(const ulong x, const uint y)
+uint128 xmul(const(ulong) x, const(uint) y)
 {
     if (x == 0 || y == 0)
         return uint128.min;
@@ -1205,11 +1281,11 @@ uint128 xmul(const ulong x, const uint y)
 }
 
 auto xmul(T)(auto const ref T x, auto const ref T y)
-if (isCustomUnsigned!T)
+if (isCustomUnsignedBit!T)
 {
     enum bits = T.sizeof * 8;
     enum rbits = bits * 2;
-    alias R = unsigned!rbits;
+    alias R = UnsignedBit!rbits;
 
     if (x == 0U || y == 0U)
         return R.min;
@@ -1237,7 +1313,7 @@ if (isCustomUnsigned!T)
 }
 
 T mulu(T)(auto const ref T x, auto const ref T y, ref bool overflow)
-if (isCustomUnsigned!T)
+if (isCustomUnsignedBit!T)
 {
     enum bits = T.sizeof * 8;
 
@@ -1284,11 +1360,11 @@ if (isCustomUnsigned!T)
 }
 
 auto xsqr(T)(auto const ref T x)
-if (isCustomUnsigned!T)
+if (isCustomUnsignedBit!T)
 {
     enum bits = T.sizeof * 8;
     enum rbits = bits * 2;
-    alias R = unsigned!rbits;
+    alias R = UnsignedBit!rbits;
 
     const hilo = xmul(x.lo, x.hi);
 
@@ -1305,7 +1381,7 @@ if (isCustomUnsigned!T)
 }
 
 T sqru(T)(auto const ref T x, ref bool overflow)
-if (isCustomUnsigned!T)
+if (isCustomUnsignedBit!T)
 {
     enum bits = T.sizeof * 8;
 
@@ -1328,11 +1404,11 @@ if (isCustomUnsigned!T)
 }
 
 auto xmul(T, U)(auto const ref T x, auto const ref U y)
-if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
+if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
 {
     enum bits = T.sizeof * 8;
     enum rbits = bits * 2;
-    alias R = unsigned!rbits;
+    alias R = UnsignedBit!rbits;
 
     if (x == 0U || y == 0U)
         return R.min;
@@ -1358,7 +1434,7 @@ if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
 }
 
 T mulu(T, U)(auto const ref T x, auto const ref U y, ref bool overflow)
-if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
+if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
 {
     enum bits = T.sizeof * 8;
 
@@ -1401,13 +1477,13 @@ if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
 }
 
 @safe pure nothrow @nogc
-auto clz(const uint x)
+auto clz(const(uint) x)
 {
     return x ? 31 - bsr(x) : 0;
 }
 
 @safe pure nothrow @nogc
-auto clz(const ulong x)
+auto clz(const(ulong) x)
 {
     if (!x)
         return 64;
@@ -1426,7 +1502,7 @@ auto clz(const ulong x)
 }
 
 auto clz(T)(auto const ref T x)
-if (isCustomUnsigned!T)
+if (isCustomUnsignedBit!T)
 {
     enum bits = T.sizeof * 8;
     auto ret = clz(x.hi);
@@ -1434,13 +1510,13 @@ if (isCustomUnsigned!T)
 }
 
 @safe pure nothrow @nogc
-auto ctz(const uint x)
+auto ctz(const(uint) x)
 {
     return x ? bsf(x) : 0;
 }
 
 @safe pure nothrow @nogc
-auto ctz(const ulong x)
+auto ctz(const(ulong) x)
 {
     if (!x)
         return 64;
@@ -1459,7 +1535,7 @@ auto ctz(const ulong x)
 }
 
 auto ctz(T)(auto const ref T x)
-if (isCustomUnsigned!T)
+if (isCustomUnsignedBit!T)
 {
     enum bits = T.sizeof * 8;
     auto ret = ctz(x.lo);
@@ -1467,13 +1543,13 @@ if (isCustomUnsigned!T)
 }
 
 bool ispow2(T)(auto const ref T x)
-if (isAnyUnsigned!T)
+if (isAnyUnsignedBit!T)
 {
     return x != 0U && (x & (x - 1U)) == 0;
 }
 
 bool ispow10(T)(auto const ref T x)
-if (isAnyUnsigned!T)
+if (isAnyUnsignedBit!T)
 {
     if (x == 0U)
         return false;
@@ -1489,7 +1565,7 @@ if (isAnyUnsigned!T)
 }
 
 @safe pure nothrow @nogc
-uint divrem(ref uint x, const uint y)
+uint divrem(ref uint x, const(uint) y)
 {
     uint ret = x % y;
     x /= y;
@@ -1497,7 +1573,7 @@ uint divrem(ref uint x, const uint y)
 }
 
 @safe pure nothrow @nogc
-ulong divrem(ref ulong x, const ulong y)
+ulong divrem(ref ulong x, const(ulong) y)
 {
     ulong ret = x % y;
     x /= y;
@@ -1505,7 +1581,7 @@ ulong divrem(ref ulong x, const ulong y)
 }
 
 @safe pure nothrow @nogc
-ulong divrem(ref ulong x, const uint y)
+ulong divrem(ref ulong x, const(uint) y)
 {
     ulong ret = x % y;
     x /= y;
@@ -1513,7 +1589,7 @@ ulong divrem(ref ulong x, const uint y)
 }
 
 T divrem(T)(ref T x, auto const ref T y)
-if (isCustomUnsigned!T)
+if (isCustomUnsignedBit!T)
 {
     alias UT = Unqual!T;
     UT r;
@@ -1604,7 +1680,7 @@ if (isCustomUnsigned!T)
 }
 
 T divrem(T, U)(ref T x, auto const ref U y)
-if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
+if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
 {
     alias UT = Unqual!T;
     UT r;
@@ -1648,7 +1724,7 @@ if (isCustomUnsigned!T && isUnsignedAssignable!(T.HALF, U))
     return r;
 }
 
-int prec(T)(const T x)
+int prec(T)(const(T) x)
 if (isUnsigned!T || is(T : uint128) || is(T : uint256) || is(T : uint512))
 {
     static foreach_reverse(i, p; pow10!T)
@@ -1675,7 +1751,7 @@ if (isUnsigned!T || is(T : uint128) || is(T : uint256))
 }
 
 T cvt(T, U)(auto const ref U value)
-if (isAnyUnsigned!T && isAnyUnsigned!U)
+if (isAnyUnsignedBit!T && isAnyUnsignedBit!U)
 {
     static if (T.sizeof > U.sizeof)
         return (T(value));
@@ -1685,7 +1761,7 @@ if (isAnyUnsigned!T && isAnyUnsigned!U)
         return value;
 }
 
-auto sign(S, U)(const U u, const bool isNegative)
+auto sign(S, U)(const(U) u, const(bool) isNegative)
 if (isUnsigned!U && isSigned!S)
 {
     static if (is(U: ubyte) || is(U: ushort))
@@ -1719,13 +1795,13 @@ unittest
     static assert (sign!long(ulong(9223372036854775808UL), true) == long.min);
 }
 
-auto sign(S, U)(const U u, const bool isNegative)
-if (isCustomUnsigned!U && isSigned!S)
+auto sign(S, U)(const(U) u, const(bool) isNegative)
+if (isCustomUnsignedBit!U && isSigned!S)
 {
     return isNegative ? cast(S)-cast(ulong)u : cast(S)cast(ulong)u;
 }
 
-auto unsign(U, S)(const S s, out bool isNegative)
+auto unsign(U, S)(const(S) s, out bool isNegative)
 if (isUnsigned!U && isSigned!S)
 {
     isNegative = s < 0;
@@ -1760,21 +1836,21 @@ unittest
     static assert (unsign!ulong(long.min) == 9223372036854775808UL);
 }
 
-auto unsign(U, V)(const V v, out bool isNegative)
+auto unsign(U, V)(const(V) v, out bool isNegative)
 if (isUnsigned!U && isUnsigned!V)
 {
     isNegative = false;
     return cast(U)v;
 }
 
-auto unsign(U, V)(const V v, out bool isNegative)
-if (isCustomUnsigned!U && isUnsigned!V)
+auto unsign(U, V)(const(V) v, out bool isNegative)
+if (isCustomUnsignedBit!U && isUnsigned!V)
 {
     isNegative = false;
     return U(v);
 }
 
-auto unsign(U, S)(const S s)
+auto unsign(U, S)(const(S) s)
 if (isUnsigned!U && isSigned!S)
 {
     static if (is(S: byte) || is(S: short))
@@ -1785,8 +1861,8 @@ if (isUnsigned!U && isSigned!S)
         return s < 0 ? -cast(U)s: cast(U)s;
 }
 
-auto unsign(U, S)(const S s, out bool isNegative)
-if (isCustomUnsigned!U && isSigned!S)
+auto unsign(U, S)(const(S) s, out bool isNegative)
+if (isCustomUnsignedBit!U && isSigned!S)
 {
     isNegative = s < 0;
     static if (is(S: byte) || is(S: short))
@@ -1797,8 +1873,8 @@ if (isCustomUnsigned!U && isSigned!S)
         return isNegative ? U(cast(ulong)-s) : U(cast(ulong)s);
 }
 
-auto unsign(U, S)(const S s)
-if (isCustomUnsigned!U && isSigned!S)
+auto unsign(U, S)(const(S) s)
+if (isCustomUnsignedBit!U && isSigned!S)
 {
     static if (is(S: byte) || is(S: short))
         return s < 0 ? U(cast(uint)-cast(int)s) : U(cast(uint)s);
@@ -1808,36 +1884,7 @@ if (isCustomUnsigned!U && isSigned!S)
         return s < 0 ? U(cast(ulong)-s) : U(cast(ulong)s);
 }
 
-pure @safe nothrow @nogc
-int cappedSub(ref int target, const int value)
-{
-    bool ovf;
-    int result = subs(target, value, ovf);
-    if (ovf)
-    {
-        if (value > 0)
-        {
-            //target was negative
-            result = target - int.min;
-            target = int.min;
-        }
-        else
-        {
-            //target was positive
-            result = target - int.max;
-            target = int.max;
-        }
-        return result;
-    }
-    else
-    {
-        target -= value;
-        return value;
-    }
-}
-
-pure @safe nothrow @nogc
-int cappedAdd(ref int target, const int value)
+int cappedAdd(ref int target, const(int) value) pure @safe nothrow @nogc
 {
     bool ovf;
     int result = adds(target, value, ovf);
@@ -1860,6 +1907,33 @@ int cappedAdd(ref int target, const int value)
     else
     {
         target += value;
+        return value;
+    }
+}
+
+int cappedSub(ref int target, const(int) value) pure @safe nothrow @nogc
+{
+    bool ovf;
+    int result = subs(target, value, ovf);
+    if (ovf)
+    {
+        if (value > 0)
+        {
+            //target was negative
+            result = target - int.min;
+            target = int.min;
+        }
+        else
+        {
+            //target was positive
+            result = target - int.max;
+            target = int.max;
+        }
+        return result;
+    }
+    else
+    {
+        target -= value;
         return value;
     }
 }
@@ -2250,6 +2324,367 @@ template pow10(T)
         static assert(0);
 }
 
+immutable ubyte[3] pow10RoundEven_8 =
+[
+    5U,
+    50U,
+    100U,
+];
+
+immutable ushort[5] pow10RoundEven_16 =
+[
+    5U,
+    50U,
+    500U,
+    5000U,
+    50000U,
+];
+
+//pragma(msg, uint.max); // 4294967295u
+immutable uint[10] pow10RoundEven_32 =
+[
+    5U,
+    50U,
+    500U,
+    5000U,
+    50000U,
+    500000U,
+    5000000U,
+    50000000U,
+    500000000U,
+    1000000000U,
+];
+
+//pragma(msg, ulong.max); // 18446744073709551615LU
+immutable ulong[20] pow10RoundEven_64 =
+[
+    5UL,
+    50UL,
+    500UL,
+    5000UL,
+    50000UL,
+    500000UL,
+    5000000UL,
+    50000000UL,
+    500000000UL,
+    5000000000UL,
+    50000000000UL,
+    500000000000UL,
+    5000000000000UL,
+    50000000000000UL,
+    500000000000000UL,
+    5000000000000000UL,
+    50000000000000000UL,
+    500000000000000000UL,
+    5000000000000000000UL,
+    10000000000000000000UL,
+];
+
+immutable uint128[39] pow10RoundEven_128 =
+[
+    uint128(5UL),
+    uint128(50UL),
+    uint128(500UL),
+    uint128(5000UL),
+    uint128(50000UL),
+    uint128(500000UL),
+    uint128(5000000UL),
+    uint128(50000000UL),
+    uint128(500000000UL),
+    uint128(5000000000UL),
+    uint128(50000000000UL),
+    uint128(500000000000UL),
+    uint128(5000000000000UL),
+    uint128(50000000000000UL),
+    uint128(500000000000000UL),
+    uint128(5000000000000000UL),
+    uint128(50000000000000000UL),
+    uint128(500000000000000000UL),
+    uint128(5000000000000000000UL),
+    uint128("50000000000000000000"),
+    uint128("500000000000000000000"),
+    uint128("5000000000000000000000"),
+    uint128("50000000000000000000000"),
+    uint128("500000000000000000000000"),
+    uint128("5000000000000000000000000"),
+    uint128("50000000000000000000000000"),
+    uint128("500000000000000000000000000"),
+    uint128("5000000000000000000000000000"),
+    uint128("50000000000000000000000000000"),
+    uint128("500000000000000000000000000000"),
+    uint128("5000000000000000000000000000000"),
+    uint128("50000000000000000000000000000000"),
+    uint128("500000000000000000000000000000000"),
+    uint128("5000000000000000000000000000000000"),
+    uint128("50000000000000000000000000000000000"),
+    uint128("500000000000000000000000000000000000"),
+    uint128("5000000000000000000000000000000000000"),
+    uint128("50000000000000000000000000000000000000"),
+    uint128("100000000000000000000000000000000000000"),
+];
+
+immutable uint256[78] pow10RoundEven_256 =
+[
+    uint256(5UL),
+    uint256(50UL),
+    uint256(500UL),
+    uint256(5000UL),
+    uint256(50000UL),
+    uint256(500000UL),
+    uint256(5000000UL),
+    uint256(50000000UL),
+    uint256(500000000UL),
+    uint256(5000000000UL),
+    uint256(50000000000UL),
+    uint256(500000000000UL),
+    uint256(5000000000000UL),
+    uint256(50000000000000UL),
+    uint256(500000000000000UL),
+    uint256(5000000000000000UL),
+    uint256(50000000000000000UL),
+    uint256(500000000000000000UL),
+    uint256(5000000000000000000UL),
+    uint256("50000000000000000000"),
+    uint256("500000000000000000000"),
+    uint256("5000000000000000000000"),
+    uint256("50000000000000000000000"),
+    uint256("500000000000000000000000"),
+    uint256("5000000000000000000000000"),
+    uint256("50000000000000000000000000"),
+    uint256("500000000000000000000000000"),
+    uint256("5000000000000000000000000000"),
+    uint256("50000000000000000000000000000"),
+    uint256("500000000000000000000000000000"),
+    uint256("5000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000"),
+    uint256("500000000000000000000000000000000"),
+    uint256("5000000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000000"),
+    uint256("500000000000000000000000000000000000"),
+    uint256("5000000000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000000000"),
+    uint256("500000000000000000000000000000000000000"),
+    uint256("5000000000000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000000000000"),
+    uint256("500000000000000000000000000000000000000000"),
+    uint256("5000000000000000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000000000000000"),
+    uint256("500000000000000000000000000000000000000000000"),
+    uint256("5000000000000000000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000000000000000000"),
+    uint256("500000000000000000000000000000000000000000000000"),
+    uint256("5000000000000000000000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000000000000000000000"),
+    uint256("500000000000000000000000000000000000000000000000000"),
+    uint256("5000000000000000000000000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000000000000000000000000"),
+    uint256("500000000000000000000000000000000000000000000000000000"),
+    uint256("5000000000000000000000000000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000000000000000000000000000"),
+    uint256("500000000000000000000000000000000000000000000000000000000"),
+    uint256("5000000000000000000000000000000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000000000000000000000000000000"),
+    uint256("500000000000000000000000000000000000000000000000000000000000"),
+    uint256("5000000000000000000000000000000000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000000000000000000000000000000000"),
+    uint256("500000000000000000000000000000000000000000000000000000000000000"),
+    uint256("5000000000000000000000000000000000000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000000000000000000000000000000000000"),
+    uint256("500000000000000000000000000000000000000000000000000000000000000000"),
+    uint256("5000000000000000000000000000000000000000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000000000000000000000000000000000000000"),
+    uint256("500000000000000000000000000000000000000000000000000000000000000000000"),
+    uint256("5000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint256("500000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint256("5000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint256("500000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint256("5000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint256("50000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint256("100000000000000000000000000000000000000000000000000000000000000000000000000000"),
+];
+
+immutable uint512[155] pow10RoundEven_512 =
+[
+    uint512(5UL),  //0  - 2074
+    uint512(50UL),  //1  - 2075
+    uint512(500UL),
+    uint512(5000UL),
+    uint512(50000UL),
+    uint512(500000UL),
+    uint512(5000000UL),
+    uint512(50000000UL),
+    uint512(500000000UL),
+    uint512(5000000000UL),
+    uint512(50000000000UL),
+    uint512(500000000000UL),
+    uint512(5000000000000UL),
+    uint512(50000000000000UL),
+    uint512(500000000000000UL),
+    uint512(5000000000000000UL),
+    uint512(50000000000000000UL),
+    uint512(500000000000000000UL),
+    uint512(5000000000000000000UL),
+    uint512("50000000000000000000"),
+    uint512("500000000000000000000"),
+    uint512("5000000000000000000000"),
+    uint512("50000000000000000000000"),
+    uint512("500000000000000000000000"),
+    uint512("5000000000000000000000000"),
+    uint512("50000000000000000000000000"),
+    uint512("500000000000000000000000000"),
+    uint512("5000000000000000000000000000"),
+    uint512("50000000000000000000000000000"),
+    uint512("500000000000000000000000000000"),
+    uint512("5000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+    uint512("10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+];
+
+template pow10RoundEven(T)
+{
+    alias UT = Unqual!T;
+    static if (is(UT == uint))
+        alias pow10RoundEven = pow10RoundEven_32;
+    else static if (is(UT == ulong))
+        alias pow10RoundEven = pow10RoundEven_64;
+    else static if (is(UT == uint128))
+        alias pow10RoundEven = pow10RoundEven_128;
+    else static if (is(UT == uint256))
+        alias pow10RoundEven = pow10RoundEven_256;
+    else static if (is(UT == uint512))
+        alias pow10RoundEven = pow10RoundEven_512;
+    else static if (is(UT == ushort))
+        alias pow10RoundEven = pow10RoundEven_16;
+    else static if (is(UT == ubyte))
+        alias pow10RoundEven = pow10RoundEven_8;
+    else
+        static assert(0);
+}
+
 /* ****************************************************************************************************************** */
 /* MAXIMUM COEFFICIENTS THAT CAN BE MULTIPLIED BY 10-POWERS                                                                                                */
 /* ****************************************************************************************************************** */
@@ -2454,7 +2889,7 @@ template maxmul10(T)
 
 //true on inexact
 bool sqrt(U)(ref U x)
-if (isAnyUnsigned!U)
+if (isAnyUnsignedBit!U)
 {
     // Newton-Raphson: x = (x + n/x) / 2;
     //x
@@ -2484,7 +2919,7 @@ if (isAnyUnsigned!U)
 
 //true on inexact
 bool cbrt(U)(ref U x)
-if (isAnyUnsigned!U)
+if (isAnyUnsignedBit!U)
 {
     // Newton-Raphson: x = (2x + N/x2)/3
     if (x <= 1U)
@@ -2571,9 +3006,25 @@ do
     return result;
 }
 
-unittest
+unittest // uparse
 {
     uint512 x = uparse!uint512("1234567890123456789012345678901234567890");
     uint512 x2 = uparse!uint512("0x1234567890123456789012345678901234567890");
     uint512 x3 = uparse!uint512("0X1234567890123456789012345678901234567890");
+}
+
+unittest // dataTypeToString
+{
+    ShortStringBuffer!char buffer;
+
+    assert(dataTypeToString(buffer, 12345U) == "12345");
+    assert(dataTypeToString(buffer, 0U) == "0");
+    assert(dataTypeToString(buffer, uint128("10000000000000000000000000")) == "10000000000000000000000000");
+}
+
+unittest // unUnsign
+{
+    assert(toUnsign!uint("0") == 0U);
+    assert(toUnsign!uint("12345") == 12345U);
+    assert(toUnsign!ulong("123456789012") == 123456789012LU);
 }

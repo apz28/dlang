@@ -1,26 +1,724 @@
 module pham.external.dec.sink;
 
+import std.algorithm.mutation : swapAt;
 import std.format : FormatSpec;
-import std.traits : isSomeChar, Unqual;
+import std.range.primitives : isOutputRange, put;
+import std.traits : isIntegral, isSomeChar, Unqual;
 
-import pham.external.dec.integral : divrem, isAnyUnsigned, prec;
+import pham.external.dec.decimal : DataType, DecimalControl, FastClass, RoundingMode, fastDecode, isDecimal;
+import pham.external.dec.integral : divrem, isAnyUnsignedBit, prec;
+import pham.external.dec.math : coefficientAdjust, coefficientShrink, divpow10;
 
 nothrow @safe:
 
-template ToStringSink(C)
+struct ShortStringBufferSize(Char, ushort Size)
+if (Size > 0 && (isSomeChar!Char || isIntegral!Char))
 {
-    alias ToStringSink = void delegate(scope const(C)[]) nothrow @safe;
+@safe:
+
+public:
+    this(this) nothrow pure
+    {
+        _longData = _longData.dup;
+    }
+
+    this(bool setSize)
+    {
+        if (setSize)
+            this._length = Size;
+    }
+
+    ref typeof(this) opAssign(scope const(Char)[] values) nothrow return
+    {
+        clear();
+        _length = values.length;
+        if (_length)
+        {
+            if (_length <= Size)
+            {
+                _shortData[0.._length] = values[0.._length];
+            }
+            else
+            {
+                if (_longData.length < _length)
+                    _longData.length = _length;
+                _longData[0.._length] = values[0.._length];
+            }
+        }
+        return this;
+    }
+
+    alias opOpAssign(string op : "~") = put;
+
+    size_t opDollar() const @nogc nothrow pure
+    {
+        return _length;
+    }
+
+    Char opIndex(size_t i) const @nogc nothrow pure
+    in
+    {
+        assert(i < length);
+    }
+    do
+    {
+        return _length <= Size ? _shortData[i] : _longData[i];
+    }
+
+    ref typeof(this) opIndexAssign(Char c, size_t i) return
+    in
+    {
+        assert(i < length);
+    }
+    do
+    {
+        if (_length <= Size)
+            _shortData[i] = c;
+        else
+            _longData[i] = c;
+        return this;
+    }
+
+    Char[] opSlice() nothrow pure return
+    {
+        return _length <= Size ? _shortData[0.._length] : _longData[0.._length];
+    }
+
+    ref typeof(this) clear(bool setSize = false)() nothrow pure
+    {
+        _length = 0;
+        static if (setSize)
+        {
+            _shortData[] = 0;
+            _longData[] = 0;
+            _length = Size;
+        }
+        return this;
+    }
+
+    Char[] left(size_t len) nothrow pure return
+    {
+        if (len >= _length)
+            return opSlice();
+        else
+            return opSlice()[0..len];
+    }
+
+    ref typeof(this) put(Char c) nothrow pure return
+    {
+        if (_length < Size)
+            _shortData[_length++] = c;
+        else
+        {
+            if (_length == Size)
+                switchToLongData(1);
+            else if (_longData.length <= _length)
+                _longData.length = _length + overReservedLength;
+            _longData[_length++] = c;
+        }
+        return this;
+    }
+
+    ref typeof(this) put(scope const(Char)[] s) nothrow pure return
+    {
+        if (!s.length)
+            return this;
+
+        const newLength = _length + s.length;
+
+        enum bugChecklimit = 1024 * 1024 * 4; // 4MB
+        assert(newLength <= bugChecklimit);
+
+        if (newLength <= Size)
+        {
+            _shortData[_length..newLength] = s[0..$];
+        }
+        else
+        {
+            if (_length && _length <= Size)
+                switchToLongData(s.length);
+            else if (_longData.length < newLength)
+                _longData.length = newLength + overReservedLength;
+            _longData[_length..newLength] = s[0..$];
+        }
+        _length = newLength;
+        return this;
+    }
+
+    ref typeof(this) reverse() @nogc nothrow pure
+    {
+        if (const len = length)
+        {
+            const last = len - 1;
+            const steps = len / 2;
+            if (_length <= Size)
+            {
+                for (size_t i = 0; i < steps; i++)
+                {
+                    _shortData.swapAt(i, last - i);
+                }
+            }
+            else
+            {
+                for (size_t i = 0; i < steps; i++)
+                {
+                    _longData.swapAt(i, last - i);
+                }
+            }
+        }
+        return this;
+    }
+
+    Char[] right(size_t len) nothrow pure return
+    {
+        if (len >= _length)
+            return opSlice();
+        else
+            return opSlice()[_length - len.._length];
+    }
+
+    static if (isSomeChar!Char)
+    immutable(Char)[] toString() const nothrow pure
+    {
+        return _length != 0
+            ? (_length <= Size ? _shortData[0.._length].idup : _longData[0.._length].idup)
+            : null;
+    }
+
+    static if (isSomeChar!Char)
+    ref Writer toString(Writer)(return ref Writer sink) const pure
+    {
+        if (_length)
+            put(sink, opSlice());
+        return sink;
+    }
+
+    @property bool empty() const @nogc nothrow pure
+    {
+        return _length == 0;
+    }
+
+    pragma(inline, true)
+    @property size_t length() const @nogc nothrow pure
+    {
+        return _length;
+    }
+
+    pragma(inline, true)
+    @property static size_t shortSize() @nogc nothrow pure
+    {
+        return Size;
+    }
+
+private:
+    void switchToLongData(const(size_t) addtionalLength) nothrow pure
+    {
+        const capacity = _length + addtionalLength + overReservedLength;
+        if (_longData.length < capacity)
+            _longData.length = capacity;
+        _longData[0.._length] = _shortData[0.._length];
+    }
+
+private:
+    enum overReservedLength = 1_000u;
+    size_t _length;
+    Char[] _longData;
+    Char[Size] _shortData = 0;
+}
+
+template ShortStringBuffer(Char)
+if (isSomeChar!Char || isIntegral!Char)
+{
+    enum overheadSize = ShortStringBufferSize!(Char, 1).sizeof;
+    alias ShortStringBuffer = ShortStringBufferSize!(Char, 256u - overheadSize);
+}
+
+pragma(inline, true)
+bool hasPrecision(Char)(scope const ref FormatSpec!Char spec) @nogc pure
+if (isSomeChar!Char)
+{
+    const precision = spec.precision;
+    return precision != spec.UNSPECIFIED && precision != spec.DYNAMIC && precision >= 0;
+}
+
+pragma(inline, true)
+int isSize(Char)(scope const ref FormatSpec!Char spec, const(int) n, int defaultSize) @nogc pure
+if (isSomeChar!Char)
+{
+    return n == spec.UNSPECIFIED || n == spec.DYNAMIC
+        ? defaultSize
+        : n;
+}
+
+/**
+ * Return true if specifier is supported by Decimal format
+ * Params:
+ *  spec = Format specification that being tested for
+ */
+bool isValidDecimalSpec(Char)(scope const ref FormatSpec!Char spec) @nogc nothrow pure @safe
+{
+    const s = spec.spec;
+    return s == 'f' || s == 'F' || s == 'e' || s == 'E' || s == 'g' || s == 'G'
+        || s == 'a' || s == 'A' || s == 's' || s == 'S';
+}
+
+/**
+ * Repeats sinking of value count times
+ * Params:
+ *  sink = Output range
+ *  value = The repeating character to output range
+ *  count = Indicate how many times the value for count > 0
+ */
+void sinkRepeat(Writer, Char)(auto scope ref Writer sink, const(Char) value, int count)
+if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+{
+    if (count <= 0)
+        return;
+
+    enum bufferSize = 30;
+    Unqual!Char[bufferSize] buffer = value;
+    while (count > 0)
+    {
+        const n = count > bufferSize ? bufferSize : count;
+        put(sink, buffer[0..n]);
+        count -= n;
+    }
 }
 
 package(pham.external.dec):
 
+//sinks a decimal value
+void sinkDecimal(Writer, Char, D)(ref Writer sink, scope const ref FormatSpec!Char spec,
+    auto const ref D decimal, const(RoundingMode) mode) @safe
+if (isOutputRange!(Writer, Char) && isSomeChar!Char && isDecimal!D)
+in
+{
+    assert(isValidDecimalSpec(spec));
+}
+do
+{
+    DataType!D coefficient;
+    int exponent;
+    bool isNegative;
+
+    const fx = fastDecode(decimal, coefficient, exponent, isNegative);
+    if (fx == FastClass.signalingNaN)
+        sinkNaN!(Writer, Char, DataType!D)(sink, spec, isNegative, true, coefficient, spec.spec == 'a' || spec.spec == 'A');
+    else if (fx == FastClass.quietNaN)
+        sinkNaN!(Writer, Char, DataType!D)(sink, spec, isNegative, false, coefficient, spec.spec == 'a' || spec.spec == 'A');
+    else if (fx == FastClass.infinite)
+        sinkInfinity!(Writer, Char)(sink, spec, decimal.isNeg);
+    else
+    {
+        switch (spec.spec)
+        {
+            case 'f':
+            case 'F':
+            case 's':
+            case 'S':
+                return sinkFloat!(Writer, Char, DataType!D)(sink, spec, coefficient, exponent, isNegative, mode);
+            case 'e':
+            case 'E':
+                return sinkExponential!(Writer, Char, DataType!D)(sink, spec, coefficient, exponent, isNegative, mode);
+            case 'g':
+            case 'G':
+                return sinkGeneral!(Writer, Char, DataType!D)(sink, spec, coefficient, exponent, isNegative, mode);
+            case 'a':
+            case 'A':
+                return sinkHexadecimal!(Writer, Char, DataType!D)(sink, spec, coefficient, exponent, isNegative);
+            default:
+                assert(0, "Unsupported format specifier: " ~ spec.spec);
+        }
+    }
+}
+
+//sinks %e
+void sinkExponential(Writer, Char, T)(ref Writer sink, scope const ref FormatSpec!Char spec,
+    const(T) coefficient, const(int) exponent, const(bool) signed, const(RoundingMode) mode,
+    const(bool) skipTrailingZeros = false) nothrow @safe
+if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+{
+    int w = 3; /// N e +/-
+    if (spec.flPlus || spec.flSpace || signed)
+        ++w;
+
+    Unqual!T c = coefficient;
+    int ex = exponent;
+    coefficientShrink(c, ex);
+    int digits = prec(c);
+    const int e = digits == 0 ? 0 : ex + (digits - 1);
+    int requestedDecimals = floatFractionPrecision!Char(spec);
+    const targetPrecision = requestedDecimals + 1;
+
+    if (digits > targetPrecision)
+    {
+        divpow10(c, digits - targetPrecision, signed, mode);
+        digits = prec(c);
+        if (digits > targetPrecision)
+            c /= 10U;
+        --digits;
+    }
+
+    const bool signedExponent = e < 0;
+    const uint ue = signedExponent ? -e : e;
+    Unqual!Char[50] exponentBuffer;
+    const exponentDigits = dumpUnsigned(exponentBuffer, ue, false);
+    w += exponentDigits <= 2 ? 2 : exponentDigits;
+
+    Unqual!Char[(T.sizeof * 8 / 3) + 1] digitsBuffer;
+    digits = dumpUnsigned(digitsBuffer, c, false);
+
+    if (requestedDecimals > digits - 1 && skipTrailingZeros)
+        requestedDecimals = digits - 1;
+
+    if (requestedDecimals || spec.flHash)
+        w += requestedDecimals + 1;
+    int pad = isSize!Char(spec, spec.width, w) - w;
+
+    sinkPadLeft(sink, spec, pad);
+    sinkSign(sink, spec, signed);
+    sinkPadZero(sink, spec, pad);
+    put(sink, digitsBuffer[$ - digits .. $ - digits + 1]);
+    if (requestedDecimals || spec.flHash)
+    {
+        put(sink, decimalChar);
+        if (digits > 1)
+            put(sink, digitsBuffer[$ - digits + 1 .. $]);
+        sinkRepeat(sink, '0', requestedDecimals - (digits - 1));
+    }
+    put(sink, spec.spec <= 'Z' ? "E" : "e");
+    put(sink, signedExponent ? "-" : "+");
+    if (exponentDigits < 2)
+        put(sink, "0");
+    put(sink, exponentBuffer[$ - exponentDigits .. $]);
+    sinkPadRight!(Writer, Char)(sink, pad);
+}
+
+//sinks %f
+void sinkFloat(Writer, Char, T)(ref Writer sink, scope const ref FormatSpec!Char spec,
+    const(T) coefficient, const(int) exponent, const(bool) signed, const(RoundingMode) mode,
+    const(bool) skipTrailingZeros = false) nothrow @safe
+if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+{
+    if (coefficient == 0U)
+    {
+        sinkZero!(Writer, Char)(sink, spec, signed, skipTrailingZeros);
+        return;
+    }
+
+    Unqual!T c = coefficient;
+    int e = exponent;
+    coefficientShrink(c, e);
+    int w = spec.flPlus || spec.flSpace || signed ? 1 : 0;
+
+    Unqual!Char[250] digitsBuffer;
+    Unqual!Char[50] fractionalsBuffer;
+
+    if (e >= 0) //coefficient[0...].[0...]
+    {
+        const digits = dumpUnsigned(digitsBuffer, c, false);
+        w += digits;
+        w += e;
+        const requestedDecimals = skipTrailingZeros ? 0 : floatFractionPrecision!Char(spec, 1);
+
+        if (requestedDecimals || spec.flHash)
+            w += requestedDecimals + 1;
+        int pad = isSize!Char(spec, spec.width, w) - w;
+
+        sinkPadLeft(sink, spec, pad);
+        sinkSign(sink, spec, signed);
+        sinkPadZero(sink, spec, pad);
+        put(sink, digitsBuffer[$ - digits .. $]);
+        sinkRepeat(sink, '0', e);
+        if (requestedDecimals || spec.flHash)
+        {
+            put(sink, decimalChar);
+            sinkRepeat(sink, '0', requestedDecimals);
+        }
+        sinkPadRight!(Writer, Char)(sink, pad);
+
+        return;
+    }
+
+    int digits = prec(c);
+    int requestedDecimals = floatFractionPrecision!Char(spec);
+
+    if (-e < digits) //coef.ficient[0...]
+    {
+        const int integralDigits = digits + e;
+        int fractionalDigits = digits - integralDigits;
+
+        if (fractionalDigits > requestedDecimals)
+        {
+            divpow10(c, fractionalDigits - requestedDecimals, signed, mode);
+            digits = prec(c);
+            fractionalDigits = digits - integralDigits;
+            if (fractionalDigits > requestedDecimals)
+            {
+                c /= 10U;
+                --fractionalDigits;
+            }
+        }
+
+        dumpUnsigned(digitsBuffer, c, false);
+        const integralBuffer = digitsBuffer[$ - digits .. $ - fractionalDigits];
+        auto fractionalBuffer = fractionalDigits ? digitsBuffer[$ - fractionalDigits .. $] : null;
+        if (fractionalDigits > 1 && (skipTrailingZeros || !hasPrecision!Char(spec)))
+        {
+            auto n = fractionalDigits;
+            while (n > 1 && fractionalBuffer[n - 1] == '0')
+                n--;
+            if (n != fractionalDigits)
+            {
+                fractionalDigits = n;
+                fractionalBuffer = fractionalBuffer[0..n];
+            }
+        }
+
+        if (requestedDecimals > fractionalDigits && (skipTrailingZeros || !hasPrecision!Char(spec)))
+            requestedDecimals = fractionalDigits;
+
+        w += integralDigits;
+        if (requestedDecimals || spec.flHash)
+            w += requestedDecimals + 1;
+        int pad = isSize!Char(spec, spec.width, w) - w;
+
+        sinkPadLeft(sink, spec, pad);
+        sinkSign(sink, spec, signed);
+        sinkPadZero(sink, spec, pad);
+        put(sink, integralBuffer);
+        if (requestedDecimals || spec.flHash)
+        {
+            put(sink, decimalChar);
+            if (fractionalDigits)
+                put(sink, fractionalBuffer);
+            sinkRepeat(sink, '0', requestedDecimals - fractionalDigits);
+        }
+        sinkPadRight!(Writer, Char)(sink, pad);
+    }
+    else if (-e == digits) //0.coefficient[0...]
+    {
+        if (requestedDecimals > digits && (skipTrailingZeros || !hasPrecision!Char(spec)))
+            requestedDecimals = digits;
+
+        if (requestedDecimals == 0) //special case, no decimals, round
+        {
+            divpow10(c, digits - 1, signed, mode);
+            divpow10(c, 1, signed, mode);
+            w += 1;
+            if (spec.flHash)
+                ++w;
+            int pad = isSize!Char(spec, spec.width, w) - w;
+
+            sinkPadLeft(sink, spec, pad);
+            sinkSign(sink, spec, signed);
+            sinkPadZero(sink, spec, pad);
+            put(sink, c != 0U ? "1": "0");
+            if (spec.flHash)
+                put(sink, decimalChar);
+            sinkPadRight!(Writer, Char)(sink, pad);
+        }
+        else
+        {
+            w += 2;
+            w += requestedDecimals;
+            if (digits > requestedDecimals)
+            {
+                divpow10(c, digits - requestedDecimals, signed, mode);
+                digits = prec(c);
+                if (digits > requestedDecimals)
+                {
+                    c /= 10U;
+                    --digits;
+                }
+            }
+            int pad = isSize!Char(spec, spec.width, w) - w;
+
+            sinkPadLeft(sink, spec, pad);
+            sinkSign(sink, spec, signed);
+            sinkPadZero(sink, spec, pad);
+            put(sink, "0");
+            put(sink, decimalChar);
+            dumpUnsigned(digitsBuffer, c, skipTrailingZeros);
+            put(sink, digitsBuffer[$ - digits .. $]);
+            sinkRepeat(sink, '0', requestedDecimals - digits);
+            sinkPadRight!(Writer, Char)(sink, pad);
+        }
+    }
+    else //-e > 0.[0...][coefficient]
+    {
+        int zeros = -e - digits;
+
+        if (requestedDecimals > digits - e && (skipTrailingZeros || !hasPrecision!Char(spec)))
+            requestedDecimals = digits - e - 1;
+
+        if (requestedDecimals <= zeros) //special case, coefficient does not fit
+        {
+            divpow10(c, digits - 1, signed, mode);
+            divpow10(c, 1, signed, mode);
+            if (requestedDecimals == 0)  //special case, 0 or 1
+            {
+                w += 1;
+                int pad = isSize!Char(spec, spec.width, w) - w;
+
+                sinkPadLeft(sink, spec, pad);
+                sinkSign(sink, spec, signed);
+                sinkPadZero(sink, spec, pad);
+                put(sink, c != 0U ? "1": "0");
+                sinkPadRight!(Writer, Char)(sink, pad);
+            }
+            else  //special case 0.[0..][0/1]
+            {
+                if (!hasPrecision!Char(spec))
+                    requestedDecimals = 1;
+
+                w += 2;
+                w += requestedDecimals;
+                int pad = isSize!Char(spec, spec.width, w) - w;
+
+                sinkPadLeft(sink, spec, pad);
+                sinkSign(sink, spec, signed);
+                sinkPadZero(sink, spec, pad);
+                put(sink, "0");
+                put(sink, decimalChar);
+                sinkRepeat(sink, '0', requestedDecimals - 1);
+                put(sink, c != 0U ? "1": "0");
+                sinkPadRight!(Writer, Char)(sink, pad);
+            }
+        }
+        else //0.[0...]coef
+        {
+            if (digits > requestedDecimals - zeros)
+            {
+                divpow10(c, digits - (requestedDecimals - zeros), signed, mode);
+                digits = prec(c);
+                if (digits > requestedDecimals - zeros)
+                    c /= 10U;
+                digits = prec(c);
+            }
+
+            const fractionals = dumpUnsigned(fractionalsBuffer, c, skipTrailingZeros || !hasPrecision!Char(spec));
+            requestedDecimals = fractionals;
+
+            w += 2;
+            w += requestedDecimals;
+            int pad = isSize!Char(spec, spec.width, w) - w - zeros;
+
+            sinkPadLeft(sink, spec, pad);
+            sinkSign(sink, spec, signed);
+            sinkPadZero(sink, spec, pad);
+            put(sink, "0");
+            put(sink, decimalChar);
+            sinkRepeat(sink, '0', zeros);
+            put(sink, fractionalsBuffer[$ - fractionals .. $]);
+            sinkPadRight!(Writer, Char)(sink, pad);
+        }
+    }
+}
+
+//sinks %g
+void sinkGeneral(Writer, Char, T)(ref Writer sink, scope const ref FormatSpec!Char spec,
+    const(T) coefficient, const(int) exponent, const(bool) signed, const(RoundingMode) mode) nothrow @safe
+if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+{
+    const precision = generalFractionPrecision!Char(spec);
+    Unqual!T c = coefficient;
+    int e = exponent;
+    coefficientShrink(c, e);
+    coefficientAdjust(c, e, precision, signed, mode);
+    if (c == 0U)
+        e = 0;
+    const int cp = prec(c);
+    const int expe = cp > 0 ? e + cp - 1 : 0;
+
+    if (precision > expe && expe >= -4)
+    {
+        FormatSpec!Char fspec = spec;
+        fspec.precision = precision - 1 - expe;
+        return sinkFloat!(Writer, Char, Unqual!T)(sink, fspec, coefficient, exponent, signed, mode, !fspec.flHash);
+    }
+    else
+    {
+        FormatSpec!Char espec = spec;
+        espec.precision = precision - 1;
+        return sinkExponential!(Writer, Char, Unqual!T)(sink, espec, coefficient, exponent, signed, mode, !espec.flHash);
+    }
+}
+
+//sinks %a
+void sinkHexadecimal(Writer, Char, T)(ref Writer sink, scope const ref FormatSpec!Char spec,
+    auto const ref T coefficient, const(int) exponent, const(bool) signed) nothrow @safe
+if (isOutputRange!(Writer, Char) && isSomeChar!Char && isAnyUnsignedBit!T)
+{
+    int w = 4; //0x, p, exponent sign
+    if (spec.flPlus || spec.flSpace || signed)
+        ++w;
+
+    int p = prec(coefficient);
+    if (p == 0)
+        p = 1;
+
+    const precision = floatFractionPrecision!Char(spec, p);
+    Unqual!T c = coefficient;
+    int e = exponent;
+
+    coefficientAdjust(c, e, precision, signed, __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
+
+    Unqual!Char[(T.sizeof / 2) + 1] digitsBuffer;
+    const digits = dumpUnsignedHex(digitsBuffer, c, spec.spec <= 'Z');
+
+    const bool signedExponent = e < 0;
+    const uint ex = signedExponent ? -e : e;
+    Unqual!Char[prec(uint.max)] exponentBuffer;
+    const exponentDigits = dumpUnsigned(exponentBuffer, ex, !hasPrecision!Char(spec));
+
+    w += digits;
+    w += exponentDigits;
+
+    int pad = isSize!Char(spec, spec.width, w) - w;
+    sinkPadLeft(sink, spec, pad);
+    sinkSign(sink, spec, signed);
+    put(sink, "0");
+    put(sink, spec.spec <= 'Z' ? "X" : "x");
+    sinkPadZero(sink, spec, pad);
+    put(sink, digitsBuffer[$ - digits .. $]);
+    put(sink, spec.spec < 'Z' ? "P" : "p");
+    put(sink, signedExponent ? "-" : "+");
+    put(sink, exponentBuffer[$ - exponentDigits .. $]);
+    sinkPadRight!(Writer, Char)(sink, pad);
+}
+
+immutable string decimalChar = ".";
+enum defaultFractionPrecision = 6;
+
+pragma(inline, true)
+int floatFractionPrecision(C)(scope const ref FormatSpec!C spec,
+    const(int) defaultPrecision = defaultFractionPrecision) @nogc pure
+if (isSomeChar!C)
+{
+    const precision = spec.precision;
+    return precision == spec.UNSPECIFIED || precision == spec.DYNAMIC || precision < 0
+        ? defaultPrecision
+        : precision;
+}
+
+pragma(inline, true)
+int generalFractionPrecision(C)(scope const ref FormatSpec!C spec) @nogc pure
+if (isSomeChar!C)
+{
+    const precision = spec.precision;
+    return precision == spec.UNSPECIFIED || precision == spec.DYNAMIC
+        ? defaultFractionPrecision
+        : (precision <= 0 ? 1 : precision);
+}
+
 //dumps value to buffer right aligned, assumes buffer has enough space
-int dumpUnsigned(C, T)(C[] buffer, auto const ref T value) pure
-if (isSomeChar!C && isAnyUnsigned!T)
+int dumpUnsigned(C, T)(C[] buffer, auto const ref T value, bool skipTrailingZeros) @nogc pure
+if (isSomeChar!C && isAnyUnsignedBit!T)
 in
 {
     assert(buffer.length < int.max);
-    assert(buffer.length >  0 && buffer.length >= prec(value));
+    assert(buffer.length > 0 && buffer.length >= prec(value));
 }
 do
 {
@@ -31,6 +729,37 @@ do
         auto r = divrem(v, 10U);
         buffer[--i] = cast(C)(r + cast(uint)'0');
     } while (v);
+
+    if (skipTrailingZeros && buffer.length - i > 1 && buffer[buffer.length - 1] == '0')
+    {
+        ptrdiff_t j = buffer.length - 1;
+        while (j >= i && buffer[j] == '0')
+            j--;
+        if (j != buffer.length - 1)
+        {
+            // all zero?
+            if (j < i)
+                return 1;
+            // one digit left?
+            else if (j == i)
+            {
+                buffer[buffer.length - 1] = buffer[i];
+                return 1;
+            }
+            else
+            {
+                // move digits to the right
+                auto p = buffer.length;
+                while (j >= i)
+                {
+                    buffer[--p] = buffer[j];
+                    j--;
+                }
+                i = p;
+            }
+        }
+    }
+
     return cast(int)(buffer.length - i);
 }
 
@@ -38,8 +767,8 @@ immutable char[] loHexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
 immutable char[] upHexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'];
 
 //dumps value to buffer right aligned, assumes buffer has enough space
-int dumpUnsignedHex(C, T)(C[] buffer, auto const ref T value, const bool uppercase = true) pure
-if (isSomeChar!C && isAnyUnsigned!T)
+int dumpUnsignedHex(C, T)(C[] buffer, auto const ref T value, const(bool) uppercase = true) @nogc pure
+if (isSomeChar!C && isAnyUnsignedBit!T)
 in
 {
     assert(buffer.length < int.max);
@@ -59,84 +788,67 @@ do
     return cast(int)(buffer.length - i);
 }
 
-//repeats sinking of value count times using a default buffer size of 16
-void sinkRepeat(C)(scope ToStringSink!C sink, const C value, int count)
-if (isSomeChar!C)
-{
-    if (count <= 0)
-        return;
-
-    enum bufferSize = 16;
-    Unqual!C[bufferSize] buffer = value;
-    while (count > 0)
-    {
-        const n = count > bufferSize ? bufferSize : count;
-        sink(buffer[0..n]);
-        count -= n;
-    }
-}
-
 //sinks +/-/space
-void sinkSign(C)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec, const bool signed)
-if (isSomeChar!C)
+void sinkSign(Writer, Char)(auto scope ref Writer sink, scope const ref FormatSpec!Char spec, const(bool) signed)
+if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     if (!signed && spec.flPlus)
-        sink("+");
+        put(sink, "+");
     else if (!signed && spec.flSpace)
-        sink(" ");
+        put(sink, " ");
     else if (signed)
-        sink("-");
+        put(sink, "-");
 }
 
 //pads left according to spec
-void sinkPadLeft(C)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec, ref int pad)
-if (isSomeChar!C)
+void sinkPadLeft(Writer, Char)(auto scope ref Writer sink, scope const ref FormatSpec!Char spec, ref int pad)
+if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     if (pad > 0 && !spec.flDash && !spec.flZero)
     {
-        sinkRepeat!C(sink, ' ', pad);
+        sinkRepeat(sink, ' ', pad);
         pad = 0;
     }
 }
 
 //zero pads left according to spec
-void sinkPadZero(C)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec, ref int pad)
-if (isSomeChar!C)
+void sinkPadZero(Writer, Char)(auto scope ref Writer sink, scope const ref FormatSpec!Char spec, ref int pad)
+if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     if (pad > 0 && spec.flZero && !spec.flDash)
     {
-        sinkRepeat!C(sink, '0', pad);
+        sinkRepeat(sink, '0', pad);
         pad = 0;
     }
 }
 
 //pads right according to spec
-void sinkPadRight(C)(scope ToStringSink!C sink, ref int pad)
-if (isSomeChar!C)
+void sinkPadRight(Writer, Char)(auto scope ref Writer sink, ref int pad)
+if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     if (pad > 0)
     {
-        sinkRepeat!C(sink, ' ', pad);
+        sinkRepeat(sink, ' ', pad);
         pad = 0;
     }
 }
 
 //sinks +/-(s)nan;
-void sinkNaN(C, T)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec, const bool signed,
-    const bool signaling, T payload, bool hex)
-if (isSomeChar!C)
+void sinkNaN(Writer, Char, T)(auto scope ref Writer sink, scope const ref FormatSpec!Char spec, const(bool) signed,
+    const(bool) signaling, T payload, bool hex)
+if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
-    C[250] buffer;
-    FormatSpec!C nanspec = spec;
+    FormatSpec!Char nanspec = spec;
     nanspec.flZero = false;
     nanspec.flHash = false;
+    Char[100] digitsBuffer;
     ptrdiff_t digits;
     if (payload)
     {
         if (hex)
-            digits = dumpUnsignedHex(buffer, payload, nanspec.spec < 'Z');
+            digits = dumpUnsignedHex(digitsBuffer, payload, nanspec.spec < 'Z');
         else
-            digits = dumpUnsigned(buffer, payload);
+            digits = dumpUnsigned(digitsBuffer, payload, false);
     }
     int w = signaling ? 4 : 3;
     if (payload)
@@ -148,64 +860,149 @@ if (isSomeChar!C)
     }
     if (nanspec.flPlus || nanspec.flSpace || signed)
         ++w;
-    int pad = nanspec.width - w;
-    sinkPadLeft!C(sink, nanspec, pad);
-    sinkSign!C(sink, nanspec, signed);
+    int pad = isSize!Char(nanspec, nanspec.width, w) - w;
+    sinkPadLeft!(Writer, Char)(sink, nanspec, pad);
+    sinkSign!(Writer, Char)(sink, nanspec, signed);
     if (signaling)
-        sink(nanspec.spec < 'Z' ? "S" : "s");
-    sink(nanspec.spec < 'Z' ? "NAN" : "nan");
+        put(sink, nanspec.spec < 'Z' ? "S" : "s");
+    put(sink, nanspec.spec < 'Z' ? "NAN" : "nan");
     if (payload)
     {
-        sink("[");
+        put(sink, "[");
         if (hex)
         {
-            sink("0");
-            sink(nanspec.spec < 'Z' ? "X" : "x");
+            put(sink, "0");
+            put(sink, nanspec.spec < 'Z' ? "X" : "x");
         }
-        sink(buffer[$ - digits .. $ - 1]);
-        sink("]");
+        put(sink, digitsBuffer[$ - digits .. $ - 1]);
+        put(sink, "]");
     }
-    sinkPadRight!C(sink, pad);
+    sinkPadRight!(Writer, Char)(sink, pad);
 }
 
 //sinks +/-(s)inf;
-void sinkInfinity(C)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec, const bool signed)
-if (isSomeChar!C)
+void sinkInfinity(Writer, Char)(auto scope ref Writer sink, scope const ref FormatSpec!Char spec, const(bool) signed)
+if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
-    FormatSpec!C infspec = spec;
+    FormatSpec!Char infspec = spec;
     infspec.flZero = false;
     infspec.flHash = false;
     const w = infspec.flPlus || infspec.flSpace || signed ? 4 : 3;
-    int pad = infspec.width - w;
-    sinkPadLeft!C(sink, infspec, pad);
-    sinkSign!C(sink, infspec, signed);
-    sink(infspec.spec < 'Z' ? "INF" : "inf");
-    sinkPadRight!C(sink, pad);
+    int pad = isSize!Char(infspec, infspec.width, w) - w;
+    sinkPadLeft!(Writer, Char)(sink, infspec, pad);
+    sinkSign!(Writer, Char)(sink, infspec, signed);
+    put(sink, infspec.spec < 'Z' ? "INF" : "inf");
+    sinkPadRight!(Writer, Char)(sink, pad);
 }
 
 //sinks 0
-void sinkZero(C)(scope ToStringSink!C sink, auto const ref FormatSpec!C spec, const bool signed,
-    const bool skipTrailingZeros = false)
-if (isSomeChar!C)
+void sinkZero(Writer, Char)(auto scope ref Writer sink, scope const ref FormatSpec!Char spec, const(bool) signed,
+    const(bool) skipTrailingZeros)
+if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
-    const int requestedDecimals = skipTrailingZeros
-        ? 0
-        : (spec.precision == spec.UNSPECIFIED || spec.precision < 0 ? 6 : spec.precision);
+    const requestedDecimals = skipTrailingZeros ? 0 : floatFractionPrecision!Char(spec, 1);
 
     int w = requestedDecimals == 0 ? 1 : requestedDecimals + 2;
     if (requestedDecimals == 0 && spec.flHash)
         ++w;
     if (spec.flPlus || spec.flSpace || signed)
         ++w;
-    int pad = spec.width - w;
-    sinkPadLeft!C(sink, spec, pad);
-    sinkSign!C(sink, spec, signed);
-    sinkPadZero!C(sink, spec, pad);
-    sink("0");
+    int pad = isSize!Char(spec, spec.width, w) - w;
+    sinkPadLeft!(Writer, Char)(sink, spec, pad);
+    sinkSign!(Writer, Char)(sink, spec, signed);
+    sinkPadZero!(Writer, Char)(sink, spec, pad);
+    put(sink, "0");
     if (requestedDecimals || spec.flHash)
     {
-        sink(".");
-        sinkRepeat!C(sink, '0', requestedDecimals);
+        put(sink, decimalChar);
+        sinkRepeat(sink, '0', requestedDecimals);
     }
-    sinkPadRight!C(sink, pad);
+    sinkPadRight!(Writer, Char)(sink, pad);
+}
+
+unittest // dumpUnsigned
+{
+    char[] buffer;
+    buffer.length = 100;
+
+    auto n = dumpUnsigned!(char, uint)(buffer, 1u, false);
+    assert(n == 1);
+    assert(buffer[$-n..$] == "1");
+
+    n = dumpUnsigned!(char, uint)(buffer, 1234567u, false);
+    assert(n == 7);
+    assert(buffer[$-n..$] == "1234567");
+
+    n = dumpUnsigned!(char, uint)(buffer, 0u, false);
+    assert(n == 1);
+    assert(buffer[$-n..$] == "0");
+
+    n = dumpUnsigned!(char, uint)(buffer, 12345000u, false);
+    assert(n == 8);
+    assert(buffer[$-n..$] == "12345000");
+
+    n = dumpUnsigned!(char, uint)(buffer, 1u, true);
+    assert(n == 1);
+    assert(buffer[$-n..$] == "1");
+
+    n = dumpUnsigned!(char, uint)(buffer, 1234567u, true);
+    assert(n == 7);
+    assert(buffer[$-n..$] == "1234567");
+
+    n = dumpUnsigned!(char, uint)(buffer, 0u, true);
+    assert(n == 1);
+    assert(buffer[$-n..$] == "0");
+
+    n = dumpUnsigned!(char, uint)(buffer, 12345000u, true);
+    assert(n == 5);
+    assert(buffer[$-n..$] == "12345");
+}
+
+@safe unittest // ShortStringBufferSize
+{
+    alias TestBuffer = ShortStringBufferSize!(char, 5);
+
+    TestBuffer s;
+    assert(s.length == 0);
+    s.put('1');
+    assert(s.length == 1);
+    s.put("234");
+    assert(s.length == 4);
+    assert(s.toString() == "1234");
+    assert(s[] == "1234");
+    s.clear();
+    assert(s.length == 0);
+    s.put("abc");
+    assert(s.length == 3);
+    assert(s.toString() == "abc");
+    assert(s[] == "abc");
+    assert(s.left(1) == "a");
+    assert(s.left(10) == "abc");
+    assert(s.right(2) == "bc");
+    assert(s.right(10) == "abc");
+    s.put("defghijklmnopqrstuvxywz");
+    assert(s.length == 26);
+    assert(s.toString() == "abcdefghijklmnopqrstuvxywz");
+    assert(s[] == "abcdefghijklmnopqrstuvxywz");
+    assert(s.left(5) == "abcde");
+    assert(s.left(20) == "abcdefghijklmnopqrst");
+    assert(s.right(5) == "vxywz");
+    assert(s.right(20) == "ghijklmnopqrstuvxywz");
+
+    TestBuffer s2;
+    s2 ~= s[];
+    assert(s2.length == 26);
+    assert(s2.toString() == "abcdefghijklmnopqrstuvxywz");
+    assert(s2[] == "abcdefghijklmnopqrstuvxywz");
+}
+
+nothrow @safe unittest // ShortStringBufferSize.reverse
+{
+    ShortStringBufferSize!(int, 3) a;
+
+    a.clear().put([1, 2]);
+    assert(a.reverse()[] == [2, 1]);
+
+    a.clear().put([1, 2, 3, 4, 5]);
+    assert(a.reverse()[] == [5, 4, 3, 2, 1]);
 }

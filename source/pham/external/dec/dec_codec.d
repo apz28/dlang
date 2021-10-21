@@ -15,7 +15,7 @@ version (TraceFunction)
 import pham.utl.test;
 
 import pham.external.dec.decimal: Decimal, DecimalSubClass, fabs, decimalSubClass;
-import pham.external.dec.integral;
+import pham.external.dec.integral : divrem;
 
 nothrow @safe:
 
@@ -39,7 +39,7 @@ public:
 	alias EncodedResult = ubyte[formatByteLength];
 
 public:
-	static D decode(scope const(ubyte)[] decBytes) @nogc pure
+	static D decode(scope const(ubyte)[] decBytes) pure
 	in
     {
 		assert(decBytes.length == formatByteLength);
@@ -87,7 +87,7 @@ public:
 		}
     }
 
-	static EncodedResult encode(in D value) @nogc
+	static EncodedResult encode(scope const(D) value) @nogc
     {
 		version (TraceFunction)
 		dgFunctionTrace("formatBitLength=", formatBitLength,
@@ -119,7 +119,7 @@ public:
     }
 
 private:
-	static DecimalSubClass decimalClassFromFirstByte(const ubyte firstByte) @nogc pure
+	static DecimalSubClass decimalClassFromFirstByte(const(ubyte) firstByte) @nogc pure
 	{
 		switch (firstByte & typeMask)
         {
@@ -136,7 +136,7 @@ private:
 	}
 
 	/// Decodes a densely packed decimal from a ubyte array to a _decimal.
-	static D.U decodeCoefficient(const bool isNeg, const int firstDigit, scope const(ubyte)[] decBytes) @nogc pure
+	static D.U decodeCoefficient(const(bool) isNeg, const(int) firstDigit, scope const(ubyte)[] decBytes) pure
 	in
     {
 		assert(0 <= firstDigit && firstDigit <= 9);
@@ -149,7 +149,7 @@ private:
 
 	///dito
 	/// Digits are read from `lsbIndex` of the array to the front.
-	static D.U decodeCoefficient(const bool isNeg, const int firstDigit, size_t lsbIndex, scope const(ubyte)[] decBytes) @nogc pure
+	static D.U decodeCoefficient(const(bool) isNeg, const(int) firstDigit, size_t lsbIndex, scope const(ubyte)[] decBytes) pure
 	in
     {
 		assert(0 <= firstDigit && firstDigit <= 9);
@@ -212,7 +212,7 @@ private:
 		return decodeCoefficient(D.buildin(digitChars[digitCharIndex..$]));
 	}
 
-	static D.U decodeCoefficient(in D coeffient) @nogc pure
+	static D.U decodeCoefficient(scope const(D) coeffient) @nogc pure
     {
 		D.U coefficientU;
 		int exponentU;
@@ -220,7 +220,7 @@ private:
 		return coefficientU;
     }
 
-	static uint decodeExponent(const int exponentMSB, int exponentBitsRemaining, scope const(ubyte)[] decBytes) @nogc pure
+	static uint decodeExponent(const(int) exponentMSB, int exponentBitsRemaining, scope const(ubyte)[] decBytes) @nogc pure
 	{
 		int exponent = exponentMSB;
 		size_t byteIndex = 1;
@@ -252,7 +252,7 @@ private:
 	// Encodes a postive _decimal to a densely packed decimal in a byte array.
 	// Digits are written from the end of the array to the front. The most significant digit is not encoded
 	// into the array, but instead returned to the caller.
-	static int encodeCoefficient(in D.U coefficient, ref EncodedResult decBytes) @nogc
+	static int encodeCoefficient(scope const(D.U) coefficient, ref EncodedResult decBytes) @nogc
     {
 		return encodeCoefficient(coefficient, decBytes.length - 1, decBytes);
     }
@@ -260,7 +260,7 @@ private:
 	// Encodes a postive _decimal to a densely packed decimal in a byte array.
 	// Digits are written from `lsbIndex` of the array to the front. The most significant digit is not encoded
 	// into the array, but instead returned to the caller.
-	static int encodeCoefficient(in D.U coefficient, size_t lsbIndex, ref EncodedResult decBytes) @nogc
+	static int encodeCoefficient(scope const(D.U) coefficient, size_t lsbIndex, ref EncodedResult decBytes) @nogc
 	in
     {
 		assert(isValidLsbIndex(lsbIndex, decBytes.length));
@@ -323,7 +323,7 @@ private:
 		}
 	}
 
-	static void encodeFinite(in D value, ref EncodedResult decBytes) @nogc
+	static void encodeFinite(scope const(D) value, ref EncodedResult decBytes) @nogc
     {
 		const isNeg = value.isNeg;
 		const absValue = isNeg ? fabs(value) : value;
@@ -373,7 +373,7 @@ private:
 		return -1;
 	}
 
-	static bool isValidLsbIndex(const size_t lsbIndex, const size_t decBytesLength) @nogc pure
+	static bool isValidLsbIndex(const(size_t) lsbIndex, const(size_t) decBytesLength) @nogc pure
 	{
 		// Index out of bound
 		if (lsbIndex >= decBytesLength)
@@ -386,7 +386,7 @@ private:
 		return true;
 	}
 
-	static ubyte specialBits(in D decimal) @nogc pure
+	static ubyte specialBits(scope const(D) decimal) @nogc pure
 	{
 		final switch (decimalSubClass(decimal))
         {
@@ -402,17 +402,17 @@ private:
 		}
 	}
 
-	static int biasedExponent(const int unbiasedExponent) @nogc pure
+	static int biasedExponent(const(int) unbiasedExponent) @nogc pure
 	{
 		return unbiasedExponent + exponentBias;
 	}
 
-	static int unbiasedExponent(const int biasedExponent) @nogc pure
+	static int unbiasedExponent(const(int) biasedExponent) @nogc pure
 	{
 		return biasedExponent - exponentBias;
 	}
 
-	static int usignedRightShift(const int value, const int shift) @nogc pure
+	static int usignedRightShift(const(int) value, const(int) shift) @nogc pure
 	{
 		const result = cast(uint)(cast(uint)value >> shift);
 
@@ -671,7 +671,6 @@ immutable int[] bin2DPD = [
 
 unittest // DecimalCodec64
 {
-	//import std.algorithm.mutation : reverse;
 	import pham.utl.object : bytesFromHexs;
 	import pham.utl.test;
 	traceUnitTest("unittest pham.external.dec.codec.DecimalCodec64");
@@ -737,7 +736,6 @@ unittest // DecimalCodec64
 
 unittest // DecimalCodec128
 {
-	//import std.algorithm.mutation : reverse;
 	import pham.utl.object : bytesFromHexs;
 	import pham.utl.test;
 	traceUnitTest("unittest pham.external.dec.codec.DecimalCodec128");
