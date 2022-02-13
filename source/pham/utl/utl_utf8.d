@@ -12,8 +12,8 @@
 module pham.utl.utf8;
 
 import std.algorithm.mutation : swapAt;
-import std.range.primitives : ElementType, empty, front, isInfinite, isInputRange, popFront, put, save;
-import std.traits : isIntegral, isNarrowString, isSomeChar, Unqual;
+import std.range.primitives : ElementType, empty, front, isInfinite, isInputRange, isOutputRange, popFront, put, save;
+import std.traits : isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned, Unqual;
 
 nothrow @safe:
 
@@ -25,6 +25,10 @@ enum unicodeSurrogateHighEnd = 0xDBFF;
 enum unicodeSurrogateLowBegin = 0xDC00;
 enum unicodeSurrogateLowEnd = 0xDFFF;
 
+immutable uint[] unicodeOffsetsFromUTF8 = [
+    0x0000_0000, 0x0000_3080, 0x000E_2080, 0x03C8_2080, 0xFA08_2080, 0x8208_2080,
+    ];
+
 immutable ubyte[] unicodeTrailingBytesForUTF8 = [
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -33,12 +37,8 @@ immutable ubyte[] unicodeTrailingBytesForUTF8 = [
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, 3,3,3,3,3,3,3,3,4,4,4,4,5,5,5,5
-];
-
-immutable uint[] unicodeOffsetsFromUTF8 = [
-    0x00000000, 0x00003080, 0x000E2080, 0x03C82080, 0xFA082080, 0x82082080
-];
+    2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, 3,3,3,3,3,3,3,3,4,4,4,4,5,5,5,5,
+    ];
 
 void inplaceMoveToLeft(ref ubyte[] data, size_t fromIndex, size_t toIndex, size_t nBytes) pure
 in
@@ -55,7 +55,50 @@ do
     (() @trusted => memmove(data.ptr + toIndex, data.ptr + fromIndex, nBytes))();
 }
 
-dchar utf8NextChar(const(char)[] str, ref size_t pos, out size_t cnt)
+/**
+ * Check and convert a 'c' from digit to byte
+ * Params:
+ *  c = a charater to be checked and converted
+ *  b = byte presentation of c's value if valid
+ * Returns:
+ *  true if c is a valid digit characters, false otherwise
+ */
+pragma(inline, true)
+bool isDigit(dchar c, ref ubyte b) @nogc nothrow pure @safe
+{
+    if (c >= '0' && c <= '9')
+    {
+        b = cast(ubyte)(c - '0');
+        return true;
+    }
+    else
+        return false;
+}
+
+/**
+ * Check and convert a 'c' from hex to byte
+ * Params:
+ *  c = a charater to be checked and converted
+ *  b = byte presentation of c's value if valid
+ * Returns:
+ *  true if c is a valid hex characters, false otherwise
+ */
+//pragma(inline, true)
+bool isHexDigit(dchar c, ref ubyte b) @nogc nothrow pure @safe
+{
+    if (c >= '0' && c <= '9')
+        b = cast(ubyte)(c - '0');
+    else if (c >= 'A' && c <= 'F')
+        b = cast(ubyte)((c - 'A') + 10);
+    else if (c >= 'a' && c <= 'f')
+        b = cast(ubyte)((c - 'a') + 10);
+    else
+        return false;
+
+    return true;
+}
+
+dchar utf8NextChar(const(char)[] str, ref size_t pos, out size_t cnt) @nogc nothrow pure @safe
 {
     cnt = 0;
     if (pos >= str.length)
@@ -139,12 +182,89 @@ dchar utf8NextChar(const(char)[] str, ref size_t pos, out size_t cnt)
     }
 }
 
-enum NumericLexerFlag : byte
+enum NumericLexerFlag : int
 {
-    none = 0,
-    allowFloat = 1,
-    allowHex = 2,
-    all = allowFloat | allowHex
+    skipLeadingBlank = 1 << 0, /// Skip leading space chars
+    skipTrailingBlank = 1 << 1, /// Skip trailing space chars
+    skipInnerBlank = 1 << 2, /// Skip inner space chars
+    allowFloat = 1 << 3, /// Allow input to be a float
+    allowHexDigit = 1 << 4, /// Allow input to be hex digits
+    hexDigit = 1 << 5, /// Consider input as hex digits
+    unsigned = 1 << 6, /// Consider input as unsigned value
+}
+
+struct NumericLexerOptions(Char)
+{
+nothrow @safe:
+
+    /// Skip these characters, set to null to if not used
+    Char[] groupSeparators = ['_'];
+    NumericLexerFlag flags = NumericLexerFlag.skipLeadingBlank | NumericLexerFlag.skipTrailingBlank;
+    Char decimalChar = '.';
+
+    pragma(inline, true)
+    bool canContinueSkippingSpaces() const @nogc pure
+    {
+        return (flags & (NumericLexerFlag.skipTrailingBlank | NumericLexerFlag.skipInnerBlank)) != 0;
+    }
+
+    pragma(inline, true)
+    bool isContinueSkippingChar(Char c) const @nogc pure
+    {
+        return isGroupSeparator(c) || (isSkippingInnerBlank() && isSpaceChar(c));
+    }
+
+    pragma(inline, true)
+    bool isDecimalChar(Char c) const @nogc pure
+    {
+        return c == decimalChar;
+    }
+
+    //pragma(inline, true)
+    bool isGroupSeparator(Char c) const @nogc pure
+    {
+        foreach (Char s; groupSeparators)
+        {
+            if (c == s)
+                return true;
+        }
+        return false;
+    }
+
+    static bool isHexDigitPrefix(scope const(Char)[] hexDigits) @nogc pure
+    {
+        return hexDigits.length >= 2 && hexDigits[0] == '0' && (hexDigits[1] == 'x' || hexDigits[1] == 'X');
+    }
+
+    pragma(inline, true)
+    bool isSkippingLeadingBlank() const @nogc pure
+    {
+        return (flags & NumericLexerFlag.skipLeadingBlank) != 0;
+    }
+
+    pragma(inline, true)
+    bool isSkippingInnerBlank() const @nogc pure
+    {
+        return (flags & NumericLexerFlag.skipInnerBlank) != 0;
+    }
+
+    pragma(inline, true)
+    bool isSkippingTrailingBlank() const @nogc pure
+    {
+        return (flags & NumericLexerFlag.skipTrailingBlank) != 0;
+    }
+
+    pragma (inline, true)
+    bool isSpaceChar(Char c) const @nogc pure
+    {
+        return c == ' '
+                || c == '\r'
+                || c == '\n'
+                || c == '\f'
+                || c == '\t'
+                || c == '\v'
+                || isGroupSeparator(c);
+    }
 }
 
 enum bool isNumericLexerRange(Range) = isInputRange!Range && isSomeChar!(ElementType!Range) && !isInfinite!Range;
@@ -158,52 +278,50 @@ public:
     alias RangeElement = Unqual!(ElementType!Range);
 
 public:
-    this(Range range, NumericLexerFlag allowFlag) pure
+    @disable this(this);
+
+    this(Range value, NumericLexerOptions!(ElementType!Range) options) pure
     {
-        this._value = range;
-        this._allowFlag = allowFlag;
-        this._hasDecimalChar = this._neg = this._hex = false;
-        checkHasDigits();
+        this.value = value;
+        this.options = options;
+        this._hasDecimalChar = this._hasNumericChar = this._hasHexDigitPrefix = this._neg = false;
+        checkHasNumericChar();
     }
 
     pragma(inline, true)
-    bool allowDecimalChar(const(RangeElement) c) const @nogc pure
+    bool allowDecimalChar() const @nogc pure
     {
-        return c == decimalChar && !_hasDecimalChar && (allowFlag & NumericLexerFlag.allowFloat);
+        return !_hasDecimalChar && (options.flags & NumericLexerFlag.allowFloat);
     }
 
     pragma(inline, true)
-    bool isDigitChar(const(RangeElement) c) const @nogc pure
+    bool canContinueSkippingSpaces() const @nogc pure
     {
-        return c >= '0' && c <= '9';
+        return options.canContinueSkippingSpaces();
     }
 
     pragma(inline, true)
-    bool isHexChar(const(RangeElement) c) const @nogc pure
+    bool isInvalidAfterContinueSkippingSpaces() const @nogc pure
     {
-        return (c >= '0' && c <= '9') ||
-                (c >= 'A' && c <= 'F') ||
-                (c >= 'a' && c <= 'f');
+        return options.isSkippingTrailingBlank && !empty;
     }
 
     pragma(inline, true)
-    bool isSpaceChar(const(RangeElement) c) const @nogc pure
+    bool isNumericFront(ref ubyte b) const pure
+    in
     {
-        return c == ' ' ||
-                c == '\r' ||
-                c == '\n' ||
-                c == '\f' ||
-                c == '\t' ||
-                c == '\v' ||
-                c == '_' ||
-                c == groupSeparator;
+        assert(!empty);
+    }
+    do
+    {
+        return isNumericFrontFct(front, b);
     }
 
     void popDecimalChar() pure
     in
     {
         assert(!empty);
-        assert(front == decimalChar);
+        assert(front == options.decimalChar);
     }
     do
     {
@@ -211,6 +329,7 @@ public:
         popFront();
     }
 
+    //pragma(inline, true)
     void popFront() pure
     {
         scope (failure) assert(0);
@@ -218,49 +337,61 @@ public:
         if (_hasSavedFront)
             _hasSavedFront = false;
         else
-            _value.popFront();
-        while (!_value.empty && (_value.front == '_' || _value.front == groupSeparator))
-            _value.popFront();
+            value.popFront();
+        _count++;
+
+        while (!value.empty && options.isGroupSeparator(value.front))
+        {
+            value.popFront();
+            _count++;
+        }
     }
 
     void skipSpaces() pure
     {
-        while (!empty && isSpaceChar(front))
+        while (!empty && options.isSpaceChar(front))
             popFront();
     }
 
-    RangeElement toUpper(const(RangeElement) c) const @nogc pure
+    static RangeElement toUpper(RangeElement c) @nogc pure
     {
         return (c >= 'a' && c <= 'z')
             ? cast(RangeElement)(c - ('a' - 'A'))
             : c;
     }
 
-    @property NumericLexerFlag allowFlag() const @nogc pure
+    @property size_t count() const @nogc pure
     {
-        return _allowFlag;
+        return _count;
     }
 
+    pragma(inline, true)
     @property bool empty() const @nogc pure
     {
-        return _value.empty && !_hasSavedFront;
+        return value.empty && !_hasSavedFront;
     }
 
+    //pragma(inline, true)
     @property RangeElement front() const pure
+    in
+    {
+        assert(!empty);
+    }
+    do
     {
         scope (failure) assert(0);
 
-        return _hasSavedFront ? _savedFront : _value.front;
+        return _hasSavedFront ? _savedFront : value.front;
     }
 
-    @property bool hasDigits() const @nogc pure
+    @property bool hasHexDigitPrefix() const @nogc pure
     {
-        return _hasDigits;
+        return _hasHexDigitPrefix;
     }
 
-    @property bool hex() const @nogc pure
+    @property bool hasNumericChar() const @nogc pure
     {
-        return _hex;
+        return _hasNumericChar;
     }
 
     @property bool neg() const @nogc pure
@@ -269,81 +400,368 @@ public:
     }
 
 public:
-    RangeElement decimalChar = '.';
-    RangeElement groupSeparator = ',';
+    Range value;
+    NumericLexerOptions!(ElementType!Range) options;
+    bool function(dchar c, ref ubyte b) @nogc nothrow pure @safe isNumericFrontFct;
 
 private:
-    void checkHasDigits() pure
+    void checkHasNumericChar() pure
     {
         scope (failure) assert(0);
 
-        _hasDigits = false;
         _hasSavedFront = false;
+        isNumericFrontFct = (options.flags & NumericLexerFlag.hexDigit) != 0 ? &isHexDigit : &isDigit;
 
-        skipSpacesImpl();
-        if (_value.empty)
-            return;
+        if (options.isSkippingLeadingBlank)
+        {
+            skipSpaces();
+            if (value.empty)
+                return;
+        }
 
-        const c = _value.front;
+        const c = value.front;
         if (c == '-')
         {
             _neg = true;
-            _value.popFront();
+            _count++;
+            value.popFront();
         }
         else if (c == '+')
-            _value.popFront();
-        else if (c == '0' && (allowFlag & NumericLexerFlag.allowHex))
+        {
+            _count++;
+            value.popFront();
+        }
+        else if (c == '0' && (options.flags & NumericLexerFlag.allowHexDigit))
         {
             _savedFront = c;
             _hasSavedFront = true;
-            _hasDigits = true;
-            _value.popFront();
-            if (_value.empty)
+            _hasNumericChar = true;
+            value.popFront(); // No increment _count because of _hasSavedFront
+            if (value.empty)
                 return;
 
-            const x = _value.front;
+            const x = value.front;
             if (x == 'x' || x == 'X')
             {
-                _hex = true;
+                isNumericFrontFct = &isHexDigit;
+                _hasHexDigitPrefix = true;
                 _hasSavedFront = false;
-                _hasDigits = false;
-                popFrontImpl();
+                _hasNumericChar = false;
+                _count++; // Skip _hasSavedFront
+                popFront(); // Pop x
             }
+            else
+                return;
         }
 
-        if (_value.empty)
+        if (value.empty)
             return;
 
-        const c2 = _value.front;
-        _hasDigits = hex ? isHexChar(c2) : (isDigitChar(c2) | allowDecimalChar(c2));
-    }
-
-    void popFrontImpl() pure
-    {
-        scope (failure) assert(0);
-
-        _value.popFront();
-        while (!_value.empty && (_value.front == '_' || _value.front == groupSeparator))
-            _value.popFront();
-    }
-
-    void skipSpacesImpl() pure
-    {
-        scope (failure) assert(0);
-
-        while (!_value.empty && isSpaceChar(_value.front))
-            popFrontImpl();
+        ubyte b = void;
+        const c2 = value.front;
+        _hasNumericChar = isNumericFrontFct(c2, b) || (isDigit(c2, b) | (allowDecimalChar() && options.isDecimalChar(c2)));
     }
 
 private:
-    Range _value;
-    NumericLexerFlag _allowFlag;
+    size_t _count;
     RangeElement _savedFront;
-    bool _hasDigits, _hasSavedFront, _hex, _neg, _hasDecimalChar;
+    bool _hasDecimalChar, _hasNumericChar, _hasHexDigitPrefix, _hasSavedFront, _neg;
 }
 
-struct ShortStringBufferSize(Char, ushort Size)
-if (Size > 0 && (isSomeChar!Char || isIntegral!Char))
+struct NumericStringRange(S)
+if (isSomeString!S)
+{
+@nogc nothrow pure @safe:
+
+public:
+    this(S str)
+    {
+        this.i = 0;
+        this.str = str;
+    }
+
+    pragma(inline, true)
+    void popFront()
+    in
+    {
+        assert(!empty);
+    }
+    do
+    {
+        i++;
+    }
+
+    typeof(this) save() const
+    {
+        typeof(this) result = this;
+        return result;
+    }
+
+    pragma(inline, true)
+    @property bool empty() const
+    {
+        return i >= str.length;
+    }
+
+    pragma(inline, true)
+    @property ElementType!S front() const
+    in
+    {
+        assert(!empty);
+    }
+    do
+    {
+        return str[i];
+    }
+
+    pragma(inline, true)
+    @property size_t length() const
+    {
+        return str.length - i;
+    }
+
+private:
+    size_t i;
+    S str;
+}
+
+enum NumericParsedKind : byte
+{
+    ok,
+    invalid,
+    overflow,
+}
+
+NumericLexerOptions!Char defaultParseDecimalOptions(Char)() nothrow pure @safe
+{
+    NumericLexerOptions!Char result;
+    result.flags |= NumericLexerFlag.allowFloat;
+    return result;
+}
+
+NumericLexerOptions!Char defaultParseHexDigitOptions(Char)() nothrow pure @safe
+{
+    NumericLexerOptions!Char result;
+    result.flags |= NumericLexerFlag.hexDigit | NumericLexerFlag.allowHexDigit;
+    return result;
+}
+
+NumericLexerOptions!Char defaultParseIntegralOptions(Char)() nothrow pure @safe
+{
+    NumericLexerOptions!Char result;
+    result.flags |= NumericLexerFlag.allowHexDigit;
+    return result;
+}
+
+/**
+ * Parse 'hexText' to integral value
+ * Params:
+ *  hexText = character range to be converted
+ *  v = integral presentation of hexText
+ * Returns:
+ *  NumericParsedKind
+ */
+NumericParsedKind parseHexDigits(Range, Target)(ref Range hexText, out Target v) nothrow pure @safe
+if (isNumericLexerRange!Range && isIntegral!Target)
+{
+    v = 0;
+
+    auto lexer = NumericLexer!Range(hexText, defaultParseHexDigitOptions!(ElementType!Range)());
+    if (!lexer.hasNumericChar)
+        return NumericParsedKind.invalid;
+
+    size_t count = 0;
+    while (!lexer.empty)
+    {
+        ubyte b = void;
+        const c = lexer.front;
+        if (isHexDigit(c, b))
+        {
+            if (count == Target.sizeof*2)
+                return NumericParsedKind.overflow;
+
+            v = cast(Target)((v << 4) | b);
+            count++;
+            lexer.popFront();
+        }
+        else if (lexer.options.isSpaceChar(c) && lexer.canContinueSkippingSpaces())
+        {
+            lexer.skipSpaces();
+            if (lexer.isInvalidAfterContinueSkippingSpaces())
+                return NumericParsedKind.invalid;
+        }
+        else
+            return NumericParsedKind.invalid;
+    }
+
+    return NumericParsedKind.ok;
+}
+
+///dito
+NumericParsedKind parseHexDigits(S, Target)(scope S hexText, out Target v) nothrow pure @safe
+if (isSomeString!S && isIntegral!Target)
+{
+    auto range = NumericStringRange!S(hexText);
+    return parseHexDigits(range, v);
+}
+
+/**
+ * Parse 'hexText' to ubyte[] sink
+ * Params:
+ *  hexText = character range to be converted
+ *  sink = sink to hold ubytes
+ * Returns:
+ *  NumericParsedKind
+ */
+NumericParsedKind parseHexDigits(Range, Writer)(ref Range hexDigitText, ref Writer sink) nothrow pure @safe
+if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
+{
+    auto lexer = NumericLexer!Range(hexDigitText, defaultParseHexDigitOptions!(ElementType!Range)());
+    if (!lexer.hasNumericChar)
+        return NumericParsedKind.invalid;
+
+    bool bc = false;
+    ubyte bv = 0;
+    while (!lexer.empty)
+    {
+        ubyte b = void;
+        const c = lexer.front;
+        if (isHexDigit(c, b))
+        {
+            bv = cast(ubyte)((bv << 4) | b);
+            if (bc)
+            {
+                put(sink, bv);
+                bv = 0;
+                bc = false;
+            }
+            else
+                bc = true;
+            lexer.popFront();
+        }
+        else if (lexer.options.isSpaceChar(c) && lexer.canContinueSkippingSpaces())
+        {
+            lexer.skipSpaces();
+            if (lexer.isInvalidAfterContinueSkippingSpaces())
+                return NumericParsedKind.invalid;
+        }
+        else
+            return NumericParsedKind.invalid;
+    }
+    if (bc)
+        put(sink, bv);
+    return NumericParsedKind.ok;
+}
+
+///dito
+NumericParsedKind parseHexDigits(S, Writer)(scope S hexDigitText, ref Writer sink) nothrow pure @safe
+if (isSomeString!S && isOutputRange!(Writer, ubyte))
+{
+    auto range = NumericStringRange!S(hexDigitText);
+    return parseHexDigits(range, v);
+}
+
+/**
+ * Parse 'integralText' to integral value
+ * Params:
+ *  integralText = character range to be converted
+ *  v = integral presentation of integralText
+ * Returns:
+ *  NumericParsedKind
+ */
+NumericParsedKind parseIntegral(Range, Target)(ref Range integralText, out Target v) nothrow pure @safe
+if (isNumericLexerRange!Range && isIntegral!Target)
+{
+    v = 0;
+
+    auto lexer = NumericLexer!Range(integralText, defaultParseIntegralOptions!(ElementType!Range)());
+    if (!lexer.hasNumericChar)
+        return NumericParsedKind.invalid;
+
+    static if (isUnsigned!Target)
+    if (lexer.neg)
+        return NumericParsedKind.invalid;
+
+    if (lexer.hasHexDigitPrefix)
+    {
+        size_t count = 0;
+        while (!lexer.empty)
+        {
+            ubyte b = void;
+            const c = lexer.front;
+            if (isHexDigit(c, b))
+            {
+                if (count == Target.sizeof*2)
+                    return NumericParsedKind.overflow;
+
+                count++;
+                v = cast(Target)((v << 4) | b);
+                lexer.popFront();
+            }
+            else if (lexer.options.isSpaceChar(c) && lexer.canContinueSkippingSpaces())
+            {
+                lexer.skipSpaces();
+                if (lexer.isInvalidAfterContinueSkippingSpaces())
+                    return NumericParsedKind.invalid;
+            }
+            else
+                return NumericParsedKind.invalid;
+        }
+    }
+    else
+    {
+        const maxLastDigit = (Target.min < 0 ? 7 : 5) + lexer.neg;
+
+        static if (Target.sizeof <= int.sizeof)
+            int vTemp = 0;
+        else
+            long vTemp = 0;
+
+        while (!lexer.empty)
+        {
+            ubyte b = void;
+            const c = lexer.front;
+            if (isDigit(c, b))
+            {
+                enum maxDiv10 = Target.max/10;
+                if (vTemp >= 0 && (vTemp < maxDiv10 || (vTemp == maxDiv10 && b <= maxLastDigit)))
+                {
+                    vTemp = (vTemp * 10) + b;
+                    lexer.popFront();
+                }
+                else
+                    return NumericParsedKind.overflow;
+            }
+            else if (lexer.options.isSpaceChar(c) && lexer.canContinueSkippingSpaces())
+            {
+                lexer.skipSpaces();
+                if (lexer.isInvalidAfterContinueSkippingSpaces())
+                    return NumericParsedKind.invalid;
+            }
+            else
+                return NumericParsedKind.invalid;
+        }
+
+        static if (isSigned!Target)
+        if (lexer.neg)
+            vTemp = -vTemp;
+
+        v = cast(Target)vTemp;
+    }
+
+    return NumericParsedKind.ok;
+}
+
+///dito
+NumericParsedKind parseIntegral(S, Target)(scope S integralText, out Target v) nothrow pure @safe
+if (isSomeString!S && isIntegral!Target)
+{
+    auto range = NumericStringRange!S(integralText);
+    return parseIntegral(range, v);
+}
+
+struct ShortStringBufferSize(T, ushort ShortSize)
+if (ShortSize > 0 && (isSomeChar!T || isIntegral!T))
 {
 @safe:
 
@@ -353,104 +771,205 @@ public:
         _longData = _longData.dup;
     }
 
-    this(bool setSize)
+    this(bool setShortSize) nothrow pure
     {
-        if (setSize)
-            this._length = Size;
+        if (setShortSize)
+            this._length = ShortSize;
     }
 
-    ref typeof(this) opAssign(scope const(Char)[] values) nothrow return
+    this(ushort shortLength) nothrow pure
     {
-        clear();
-        _length = values.length;
-        if (_length)
+        if (shortLength)
         {
-            if (_length <= Size)
-            {
-                _shortData[0.._length] = values[0.._length];
-            }
-            else
-            {
-                if (_longData.length < _length)
-                    _longData.length = _length;
-                _longData[0.._length] = values[0.._length];
-            }
+            this._length = shortLength;
+            if (shortLength > ShortSize)
+                this._longData.length = shortLength;
         }
+    }
+
+    this(scope const(T)[] values) nothrow pure
+    {
+        setData(values);
+    }
+
+    ref typeof(this) opAssign(scope const(T)[] values) nothrow return
+    {
+        setData(values);
         return this;
     }
 
     alias opOpAssign(string op : "~") = put;
+
+    static if (isIntegral!T)
+    ref typeof(this) opOpAssign(string op)(scope const(T)[] rhs) @nogc nothrow pure
+    if (op == "&" || op == "|" || op == "^")
+    {
+        const len = _length > rhs.length ? rhs.length : _length;
+        if (useShortSize)
+        {
+            foreach (i; 0..len)
+                mixin("_shortData[i] " ~ op ~ "= rhs[i];");
+
+            static if (op == "&")
+            if (len < _length)
+                _shortData[len.._length] = 0;
+        }
+        else
+        {
+            foreach (i; 0..len)
+                mixin("_longData[i] " ~ op ~ "= rhs[i];");
+
+            static if (op == "&")
+            if (len < _length)
+                _longData[len.._length] = 0;
+        }
+        return this;
+    }
 
     size_t opDollar() const @nogc nothrow pure
     {
         return _length;
     }
 
-    Char opIndex(size_t i) const @nogc nothrow pure
-    in
+    inout(T)[] opIndex() inout nothrow pure return
     {
-        assert(i < length);
-    }
-    do
-    {
-        return _length <= Size ? _shortData[i] : _longData[i];
+        return useShortSize ? _shortData[0.._length] : _longData[0.._length];
     }
 
-    ref typeof(this) opIndexAssign(Char c, size_t i) return
+    T opIndex(const(size_t) i) const @nogc nothrow pure
     in
     {
         assert(i < length);
     }
     do
     {
-        if (_length <= Size)
+        return useShortSize ? _shortData[i] : _longData[i];
+    }
+
+    inout(T)[] opSlice(const(size_t) beginIndex, const(size_t) endIndex) inout nothrow pure return
+    in
+    {
+        assert(beginIndex <= endIndex);
+    }
+    do
+    {
+        if (beginIndex >= _length)
+            return [];
+        else
+            return endIndex > _length
+                ? (useShortSize ? _shortData[beginIndex.._length] : _longData[beginIndex.._length])
+                : (useShortSize ? _shortData[beginIndex..endIndex] : _longData[beginIndex..endIndex]);
+    }
+
+    ref typeof(this) opIndexAssign(T c, const(size_t) i) @nogc nothrow return
+    in
+    {
+        assert(i < length);
+    }
+    do
+    {
+        if (useShortSize)
             _shortData[i] = c;
         else
             _longData[i] = c;
         return this;
     }
 
-    Char[] opSlice() nothrow pure return
+    static if (isIntegral!T)
+    ref typeof(this) opIndexOpAssign(string op)(T c, const(size_t) i) @nogc nothrow pure
+    if (op == "&" || op == "|" || op == "^")
+    in
     {
-        return _length <= Size ? _shortData[0.._length] : _longData[0.._length];
+        assert(i < length);
+    }
+    do
+    {
+        if (useShortSize)
+            mixin("_shortData[i] " ~ op ~ "= c;");
+        else
+            mixin("_longData[i] " ~ op ~ "= c;");
+        return this;
     }
 
-    ref typeof(this) clear(bool setSize = false)() nothrow pure
+    ref typeof(this) chopFront(const(size_t) chopLength) nothrow pure return
+    {
+        if (chopLength >= _length)
+            return clear();
+
+        const newLength = _length - chopLength;
+        if (useShortSize)
+            _shortData[0..newLength] = _shortData[chopLength.._length];
+        else
+        {
+            // Switch from long to short?
+            if (useShortSize(newLength))
+                _shortData[0..newLength] = _longData[chopLength.._length];
+            else
+                _longData[0..newLength] = _longData[chopLength.._length];
+        }
+        _length = newLength;
+        return this;
+    }
+
+    ref typeof(this) chopTail(const(size_t) chopLength) nothrow pure return
+    {
+        if (chopLength >= _length)
+            return clear();
+
+        const newLength = _length - chopLength;
+        // Switch from long to short?
+        if (!useShortSize && useShortSize(newLength))
+            _shortData[0..newLength] = _longData[chopLength.._length];
+        _length = newLength;
+        return this;
+    }
+
+    ref typeof(this) clear(bool setShortSize = false)() nothrow pure
     {
         _length = 0;
-        static if (setSize)
+        static if (setShortSize)
         {
             _shortData[] = 0;
             _longData[] = 0;
-            _length = Size;
+            _length = ShortSize;
         }
         return this;
     }
 
-    Char[] left(size_t len) nothrow pure return
+    void dispose(bool disposing) nothrow pure
     {
-        if (len >= _length)
-            return opSlice();
-        else
-            return opSlice()[0..len];
+        _shortData[] = 0;
+        _longData[] = 0;
+        _length = 0;
     }
 
-    ref typeof(this) put(Char c) nothrow pure return
+    inout(T)[] left(size_t len) inout nothrow pure return
     {
-        if (_length < Size)
+        if (len >= _length)
+            return opIndex();
+        else
+            return opIndex()[0..len];
+    }
+
+    ref typeof(this) put(T c) nothrow pure return
+    {
+         const newLength = _length + 1;
+
+        // Still in short?
+        if (useShortSize(newLength))
             _shortData[_length++] = c;
         else
         {
-            if (_length == Size)
+            if (useShortSize)
                 switchToLongData(1);
-            else if (_longData.length <= _length)
-                _longData.length = _length + overReservedLength;
+            else if (_longData.length < newLength)
+                _longData.length = alignAddtionalLength(newLength);
             _longData[_length++] = c;
         }
         return this;
     }
 
-    ref typeof(this) put(scope const(Char)[] s) nothrow pure return
+    ref typeof(this) put(scope const(T)[] s) nothrow pure return
     {
         if (!s.length)
             return this;
@@ -460,16 +979,17 @@ public:
         enum bugChecklimit = 1024 * 1024 * 4; // 4MB
         assert(newLength <= bugChecklimit);
 
-        if (newLength <= Size)
+        // Still in short?
+        if (useShortSize(newLength))
         {
             _shortData[_length..newLength] = s[0..$];
         }
         else
         {
-            if (_length && _length <= Size)
+            if (useShortSize)
                 switchToLongData(s.length);
             else if (_longData.length < newLength)
-                _longData.length = newLength + overReservedLength;
+                _longData.length = alignAddtionalLength(newLength);
             _longData[_length..newLength] = s[0..$];
         }
         _length = newLength;
@@ -482,53 +1002,51 @@ public:
         {
             const last = len - 1;
             const steps = len / 2;
-            if (_length <= Size)
+            if (useShortSize)
             {
                 for (size_t i = 0; i < steps; i++)
-                {
                     _shortData.swapAt(i, last - i);
-                }
             }
             else
             {
                 for (size_t i = 0; i < steps; i++)
-                {
                     _longData.swapAt(i, last - i);
-                }
             }
         }
         return this;
     }
 
-    Char[] right(size_t len) nothrow pure return
+    inout(T)[] right(size_t len) inout nothrow pure return
     {
         if (len >= _length)
-            return opSlice();
+            return opIndex();
         else
-            return opSlice()[_length - len.._length];
+            return opIndex()[_length - len.._length];
     }
 
-    static if (isSomeChar!Char)
-    immutable(Char)[] toString() const nothrow pure
+    static if (isSomeChar!T)
+    immutable(T)[] toString() const nothrow pure
     {
         return _length != 0
-            ? (_length <= Size ? _shortData[0.._length].idup : _longData[0.._length].idup)
-            : null;
+            ? (useShortSize ? _shortData[0.._length].idup : _longData[0.._length].idup)
+            : [];
     }
 
-    static if (isSomeChar!Char)
+    static if (isSomeChar!T)
     ref Writer toString(Writer)(return ref Writer sink) const pure
     {
         if (_length)
-            put(sink, opSlice());
+            put(sink, opIndex());
         return sink;
     }
 
+    pragma (inline, true)
     @property bool empty() const @nogc nothrow pure
     {
         return _length == 0;
     }
 
+    pragma(inline, true)
     @property size_t length() const @nogc nothrow pure
     {
         return _length;
@@ -537,30 +1055,69 @@ public:
     pragma(inline, true)
     @property static size_t shortSize() @nogc nothrow pure
     {
-        return Size;
+        return ShortSize;
+    }
+
+    pragma (inline, true)
+    @property bool useShortSize() const @nogc nothrow pure
+    {
+        return _length <= ShortSize;
+    }
+
+    pragma(inline, true)
+    @property bool useShortSize(const(size_t) checkLength) const @nogc nothrow pure
+    {
+        return checkLength <= ShortSize;
     }
 
 private:
+    size_t alignAddtionalLength(const(size_t) addtionalLength) @nogc nothrow pure
+    {
+        if (addtionalLength <= overReservedLength)
+            return overReservedLength;
+        else
+            return ((addtionalLength + overReservedLength - 1) / overReservedLength) * overReservedLength;
+    }
+
+    void setData(scope const(T)[] values) nothrow pure
+    {
+        _length = values.length;
+        if (_length)
+        {
+            if (useShortSize)
+            {
+                _shortData[0.._length] = values[0.._length];
+            }
+            else
+            {
+                if (_longData.length < _length)
+                    _longData.length = _length;
+                _longData[0.._length] = values[0.._length];
+            }
+        }
+    }
+
     void switchToLongData(const(size_t) addtionalLength) nothrow pure
     {
-        const capacity = _length + addtionalLength + overReservedLength;
+        const capacity = alignAddtionalLength(_length + addtionalLength);
         if (_longData.length < capacity)
             _longData.length = capacity;
-        _longData[0.._length] = _shortData[0.._length];
+        if (_length)
+            _longData[0.._length] = _shortData[0.._length];
     }
 
 private:
     enum overReservedLength = 1_000u;
     size_t _length;
-    Char[] _longData;
-    Char[Size] _shortData = 0;
+    T[] _longData;
+    T[ShortSize] _shortData = 0;
 }
 
-template ShortStringBuffer(Char)
-if (isSomeChar!Char || isIntegral!Char)
+template ShortStringBuffer(T)
+if (isSomeChar!T || isIntegral!T)
 {
-    enum overheadSize = ShortStringBufferSize!(Char, 1).sizeof;
-    alias ShortStringBuffer = ShortStringBufferSize!(Char, 256u - overheadSize);
+    enum overheadSize = ShortStringBufferSize!(T, 1).sizeof;
+    alias ShortStringBuffer = ShortStringBufferSize!(T, 256u - overheadSize);
 }
 
 
@@ -570,42 +1127,232 @@ private:
 nothrow @safe unittest // inplaceMoveToLeft
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.utf8.inplaceMoveToLeft");
+    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.inplaceMoveToLeft");
 
     auto chars = cast(ubyte[])"1234567890".dup;
     inplaceMoveToLeft(chars, 5, 0, 5);
     assert(chars == "6789067890");
 }
 
+nothrow @safe unittest // isDigit
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.isDigit");
+
+    ubyte b;
+
+    assert(isDigit('0', b));
+    assert(b == 0);
+
+    assert(isDigit('1', b));
+    assert(b == 1);
+
+    assert(isDigit('9', b));
+    assert(b == 9);
+
+    assert(!isDigit('a', b));
+}
+
+nothrow @safe unittest // isHexDigit
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.isHexDigit");
+
+    ubyte b;
+
+    assert(isHexDigit('0', b));
+    assert(b == 0);
+
+    assert(isHexDigit('9', b));
+    assert(b == 9);
+
+    assert(isHexDigit('a', b));
+    assert(b == 10);
+
+    assert(isHexDigit('F', b));
+    assert(b == 15);
+
+    assert(!isHexDigit('z', b));
+}
+
+nothrow @safe unittest // NumericLexerOptions.isHexDigitPrefix
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.NumericLexerOptions.isHexDigitPrefix");
+
+    enum t1 = NumericLexerOptions!char.isHexDigitPrefix("0x0");
+    enum t2 = NumericLexerOptions!char.isHexDigitPrefix("0X0");
+
+    assert(!NumericLexerOptions!char.isHexDigitPrefix("x0"));
+    assert(!NumericLexerOptions!char.isHexDigitPrefix("0"));
+    assert(!NumericLexerOptions!char.isHexDigitPrefix("012"));
+}
+
 nothrow @safe unittest // NumericLexer
 {
     import std.utf : byCodeUnit;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.utf8.NumericLexer");
+    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.NumericLexer");
 
     NumericLexer!(typeof("".byCodeUnit)) r;
-
-    assert(r.isDigitChar('0'));
-    assert(r.isDigitChar('9'));
-    assert(!r.isDigitChar('a'));
-
-    assert(r.isHexChar('0'));
-    assert(r.isHexChar('9'));
-    assert(r.isHexChar('a'));
-    assert(r.isHexChar('A'));
-    assert(r.isHexChar('f'));
-    assert(r.isHexChar('F'));
-    assert(!r.isHexChar('g'));
 
     assert(r.toUpper('A') == 'A');
     assert(r.toUpper('a') == 'A');
     assert(r.toUpper('z') == 'Z');
 }
 
+nothrow @safe unittest // parseIntegral, parseHexDigits
+{
+    import std.conv : to;
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.parseIntegral, parseHexDigits");
+
+    int i;
+
+    assert(parseIntegral("0", i) == NumericParsedKind.ok); assert(i == 0);
+    assert(parseIntegral("0123456789", i) == NumericParsedKind.ok); assert(i == 123456789);
+
+    assert(parseIntegral("0x01fAc764", i) == NumericParsedKind.ok); assert(i == 0x1fAc764);
+    assert(parseHexDigits("0x01fAc764", i) == NumericParsedKind.ok); assert(i == 0x1fAc764);
+    assert(parseHexDigits("01fAc764", i) == NumericParsedKind.ok); assert(i == 0x1fAc764);
+
+    assert(parseIntegral("", i) == NumericParsedKind.invalid);
+    assert(parseIntegral("0ab", i) == NumericParsedKind.invalid);
+    assert(parseIntegral("123 456", i) == NumericParsedKind.invalid);
+    assert(parseHexDigits("", i) == NumericParsedKind.invalid);
+    assert(parseHexDigits("0x0abxyz", i) == NumericParsedKind.invalid);
+    assert(parseHexDigits("0x0 abc", i) == NumericParsedKind.invalid);
+
+    assert(parseIntegral(to!string(long.max), i) == NumericParsedKind.overflow);
+    assert(parseIntegral(to!string(long.min), i) == NumericParsedKind.overflow);
+    assert(parseIntegral("0x1234567890", i) == NumericParsedKind.overflow);
+    assert(parseHexDigits("0x1234567890", i) == NumericParsedKind.overflow);
+}
+
+nothrow @safe unittest // parseIntegral
+{
+    import std.conv : to;
+    import std.meta : AliasSeq;
+    import std.traits : isSigned, isUnsigned;
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.parseIntegral");
+
+    static foreach (I; AliasSeq!(byte, ubyte, short, ushort, int, uint, long, ulong))
+    {
+        {
+            I i1;
+
+            assert(parseIntegral("0", i1) == NumericParsedKind.ok); assert(i1 == 0);
+            assert(parseIntegral(to!string(I.min), i1) == NumericParsedKind.ok); assert(i1 == I.min);
+            assert(parseIntegral(to!string(I.max), i1) == NumericParsedKind.ok); assert(i1 == I.max);
+
+            static if (isSigned!I)
+            {
+                assert(parseIntegral("+0", i1) == NumericParsedKind.ok); assert(i1 == 0);
+                assert(parseIntegral("-0", i1) == NumericParsedKind.ok); assert(i1 == 0);
+            }
+        }
+
+        static if (I.sizeof >= byte.sizeof)
+        {{
+            I i2;
+
+            assert(parseIntegral("6", i2) == NumericParsedKind.ok); assert(i2 == 6);
+            assert(parseIntegral("23", i2) == NumericParsedKind.ok); assert(i2 == 23);
+            assert(parseIntegral("68", i2) == NumericParsedKind.ok); assert(i2 == 68);
+            assert(parseIntegral("127", i2) == NumericParsedKind.ok); assert(i2 == 127);
+
+            static if (isUnsigned!I)
+            {
+                assert(parseIntegral("255", i2) == NumericParsedKind.ok); assert(i2 == 0xFF);
+                assert(parseIntegral("0xfF", i2) == NumericParsedKind.ok); assert(i2 == 0xFF);
+            }
+
+            static if (isSigned!I)
+            {
+                assert(parseIntegral("+6", i2) == NumericParsedKind.ok); assert(i2 == 6);
+                assert(parseIntegral("+23", i2) == NumericParsedKind.ok); assert(i2 == 23);
+                assert(parseIntegral("+68", i2) == NumericParsedKind.ok); assert(i2 == 68);
+                assert(parseIntegral("+127", i2) == NumericParsedKind.ok); assert(i2 == 127);
+
+                assert(parseIntegral("-6", i2) == NumericParsedKind.ok); assert(i2 == -6);
+                assert(parseIntegral("-23", i2) == NumericParsedKind.ok); assert(i2 == -23);
+                assert(parseIntegral("-68", i2) == NumericParsedKind.ok); assert(i2 == -68);
+                assert(parseIntegral("-128", i2) == NumericParsedKind.ok); assert(i2 == -128);
+            }
+        }}
+
+        static if (I.sizeof >= short.sizeof)
+        {{
+            I i3;
+
+            assert(parseIntegral("468", i3) == NumericParsedKind.ok); assert(i3 == 468);
+            assert(parseIntegral("32767", i3) == NumericParsedKind.ok); assert(i3 == 32767);
+
+            static if (isUnsigned!I)
+            {
+                assert(parseIntegral("65535", i3) == NumericParsedKind.ok); assert(i3 == 0xFFFF);
+                assert(parseIntegral("0xFFFF", i3) == NumericParsedKind.ok); assert(i3 == 0xFFFF);
+            }
+
+            static if (isSigned!I)
+            {
+                assert(parseIntegral("+468", i3) == NumericParsedKind.ok); assert(i3 == 468);
+                assert(parseIntegral("+32767", i3) == NumericParsedKind.ok); assert(i3 == 32767);
+
+                assert(parseIntegral("-468", i3) == NumericParsedKind.ok); assert(i3 == -468);
+                assert(parseIntegral("-32768", i3) == NumericParsedKind.ok); assert(i3 == -32768);
+            }
+        }}
+
+        static if (I.sizeof >= int.sizeof)
+        {{
+            I i4;
+
+            assert(parseIntegral("2147483647", i4) == NumericParsedKind.ok); assert(i4 == 2147483647);
+
+            static if (isUnsigned!I)
+            {
+                assert(parseIntegral("4294967295", i4) == NumericParsedKind.ok); assert(i4 == 0xFFFFFFFF);
+                assert(parseIntegral("0xFFFFFFFF", i4) == NumericParsedKind.ok); assert(i4 == 0xFFFFFFFF);
+            }
+
+            static if (isSigned!I)
+            {
+                assert(parseIntegral("+2147483647", i4) == NumericParsedKind.ok); assert(i4 == 2147483647);
+                assert(parseIntegral("-2147483648", i4) == NumericParsedKind.ok); assert(i4 == -2147483648);
+            }
+        }}
+
+        static if (I.sizeof >= long.sizeof)
+        {{
+            I i5;
+
+            assert(parseIntegral("9223372036854775807", i5) == NumericParsedKind.ok); assert(i5 == 0x7FFFFFFFFFFFFFFF);
+            assert(parseIntegral("0x7FFFFFFFFFFFFFFF", i5) == NumericParsedKind.ok); assert(i5 == 0x7FFFFFFFFFFFFFFF);
+
+            static if (isUnsigned!I)
+            {
+                assert(parseIntegral("18446744073709551615", i5) == NumericParsedKind.ok); assert(i5 == 0xFFFFFFFFFFFFFFFF);
+                assert(parseIntegral("0xFFFFFFFFFFFFFFFF", i5) == NumericParsedKind.ok); assert(i5 == 0xFFFFFFFFFFFFFFFF);
+            }
+
+            static if (isSigned!I)
+            {
+                assert(parseIntegral("+9223372036854775807", i5) == NumericParsedKind.ok); assert(i5 == 0x7FFFFFFFFFFFFFFF);
+                assert(parseIntegral("-9223372036854775808", i5) == NumericParsedKind.ok); assert(i5 == 0x8000000000000000);
+
+                assert(parseIntegral("0x7FFFFFFFFFFFFFFF", i5) == NumericParsedKind.ok); assert(i5 == 0x7FFFFFFFFFFFFFFF);
+                assert(parseIntegral("0x8000000000000000", i5) == NumericParsedKind.ok); assert(i5 == 0x8000000000000000);
+            }
+        }}
+    }
+}
+
 @safe unittest // ShortStringBufferSize
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.utf8.ShortStringBufferSize");
+    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.ShortStringBufferSize");
 
     alias TestBuffer = ShortStringBufferSize!(char, 5);
 
@@ -646,7 +1393,7 @@ nothrow @safe unittest // NumericLexer
 nothrow @safe unittest // ShortStringBufferSize.reverse
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.utf8.ShortStringBufferSize.reverse");
+    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.ShortStringBufferSize.reverse");
 
     ShortStringBufferSize!(int, 3) a;
 

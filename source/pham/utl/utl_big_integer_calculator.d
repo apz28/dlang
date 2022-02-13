@@ -67,7 +67,7 @@ public:
         this(size, value[]);
     }
 
-    uint[] opSlice() pure return
+    uint[] opIndex() pure return
     {
         return _bits[];
     }
@@ -90,15 +90,9 @@ public:
 
         const dLength = length + value.length;
         if (length < value.length)
-        {
-            BigIntegerCalculator.multiply(value.ptr(), value.length, ptr(), length,
-                temp.ptr(), dLength);
-        }
+            BigIntegerCalculator.multiply(value.ptr(0), value.length, ptr(0), length, temp.ptr(0), dLength);
         else
-        {
-            BigIntegerCalculator.multiply(ptr(), length, value.ptr(), value.length,
-                temp.ptr(), dLength);
-        }
+            BigIntegerCalculator.multiply(ptr(0), length, value.ptr(0), value.length, temp.ptr(0), dLength);
 
         apply(temp, dLength);
     }
@@ -115,7 +109,7 @@ public:
         // Switches this and temp arrays afterwards.
 
         const dLength = length + length;
-        BigIntegerCalculator.square(ptr(), length, temp.ptr(), dLength);
+        BigIntegerCalculator.square(ptr(0), length, temp.ptr(0), dLength);
         apply(temp, dLength);
     }
 
@@ -134,8 +128,7 @@ public:
 
         if (_length >= modulus.length)
         {
-            BigIntegerCalculator.divide(ptr(), _length, &modulus[0], modulus.length, null, 0);
-
+            BigIntegerCalculator.divide(ptr(0), _length, &modulus[0], modulus.length, null, 0);
             _length = BigIntegerCalculator.actualLength(_bits, modulus.length);
         }
     }
@@ -147,8 +140,7 @@ public:
 
         if (length >= modulus.length)
         {
-            BigIntegerCalculator.divide(ptr(), length, modulus.ptr(), modulus.length, null, 0);
-
+            BigIntegerCalculator.divide(ptr(0), length, modulus.ptr(0), modulus.length, null, 0);
             _length = BigIntegerCalculator.actualLength(_bits, modulus.length);
         }
     }
@@ -187,9 +179,10 @@ public:
         _length = value != 0 ? 1 : 0;
     }
 
-    uint* ptr(size_t startIndex = 0) pure return
+    pragma(inline, true)
+    uint* ptr(size_t index) pure return
     {
-        return _bits.ptr(startIndex);
+        return _bits.ptr(index);
     }
 
     void refresh(size_t maxLength) pure
@@ -222,12 +215,14 @@ public:
         _length = BigIntegerCalculator.actualLength(_bits, maxLength);
     }
 
-    @property size_t length() const pure
+    pragma(inline, true)
+    @property size_t length() const @nogc pure
     {
         return _length;
     }
 
-    @property size_t size() const pure
+    pragma(inline, true)
+    @property size_t size() const @nogc pure
     {
         return _bits.length;
     }
@@ -312,15 +307,15 @@ private:
 
             if (leftLength < rightLength)
             {
-                BigIntegerCalculator.multiply(right.ptr(), rightLength,
+                BigIntegerCalculator.multiply(right.ptr(0), rightLength,
                     left.ptr(k), leftLength,
-                    bits.ptr(), leftLength + rightLength);
+                    bits.ptr(0), leftLength + rightLength);
             }
             else
             {
                 BigIntegerCalculator.multiply(left.ptr(k), leftLength,
-                    right.ptr(), rightLength,
-                    bits.ptr(), leftLength + rightLength);
+                    right.ptr(0), rightLength,
+                    bits.ptr(0), leftLength + rightLength);
             }
 
             return BigIntegerCalculator.actualLength(bits, leftLength + rightLength);
@@ -349,12 +344,12 @@ private:
         if (rightLength > k)
             rightLength = k;
 
-        BigIntegerCalculator.subtractSelf(left.ptr(), leftLength, right.ptr(), rightLength);
+        BigIntegerCalculator.subtractSelf(left.ptr(0), leftLength, right.ptr(0), rightLength);
         leftLength = BigIntegerCalculator.actualLength(left, leftLength);
 
-        while (BigIntegerCalculator.compare(left.ptr(), leftLength, modulus.ptr(), modulus.length) >= 0)
+        while (BigIntegerCalculator.compare(left.ptr(0), leftLength, modulus.ptr(0), modulus.length) >= 0)
         {
-            BigIntegerCalculator.subtractSelf(left.ptr(), leftLength, modulus.ptr(), modulus.length);
+            BigIntegerCalculator.subtractSelf(left.ptr(0), leftLength, modulus.ptr(0), modulus.length);
             leftLength = BigIntegerCalculator.actualLength(left, leftLength);
         }
 
@@ -460,7 +455,7 @@ nothrow @safe:
 
         auto result = UIntTempArray(0);
         result.length = left.length + 1;
-        add(&left[0], left.length, &right[0], right.length, result.ptr(), result.length);
+        add(&left[0], left.length, &right[0], right.length, result.ptr(0), result.length);
         return result;
     }
 
@@ -572,7 +567,7 @@ nothrow @safe:
 
         auto result = UIntTempArray(0);
         result.length = left.length;
-        subtract(&left[0], left.length, &right[0], right.length, result.ptr(), result.length);
+        subtract(&left[0], left.length, &right[0], right.length, result.ptr(0), result.length);
         return result;
     }
 
@@ -739,7 +734,7 @@ nothrow @safe:
         remainder = UIntTempArray(left);
         auto quotient = UIntTempArray(0);
         quotient.length = left.length - right.length + 1;
-        divide(remainder.ptr(), remainder.length, &right[0], right.length, quotient.ptr(), quotient.length);
+        divide(remainder.ptr(0), remainder.length, &right[0], right.length, quotient.ptr(0), quotient.length);
         return quotient;
     }
 
@@ -878,7 +873,7 @@ nothrow @safe:
         // NOTE: left will get overwritten, we need a local copy
 
         auto result = UIntTempArray(left);
-        divide(result.ptr(), result.length, &right[0], right.length, null, 0);
+        divide(result.ptr(0), result.length, &right[0], right.length, null, 0);
         return result;
     }
 
@@ -1007,7 +1002,7 @@ nothrow @safe:
 
         auto result = UIntTempArray(0);
         result.length = value.length + value.length;
-        square(&value[0], value.length, result.ptr(), result.length);
+        square(&value[0], value.length, result.ptr(0), result.length);
         return result;
     }
 
@@ -1098,12 +1093,12 @@ nothrow @safe:
             const foldLength = valueHighLength + 1;
             auto foldMem = UIntTempArray(0);
             foldMem.length = foldLength;
-            auto fold = foldMem.ptr();
+            auto fold = foldMem.ptr(0);
 
             const coreLength = foldLength + foldLength;
             auto coreMem = UIntTempArray(0);
             coreMem.length = coreLength;
-            auto core = coreMem.ptr();
+            auto core = coreMem.ptr(0);
 
             // ... compute z_a = a_1 + a_0 (call it fold...)
             add(valueHigh, valueHighLength, valueLow, valueLowLength, fold, foldLength);
@@ -1152,7 +1147,7 @@ nothrow @safe:
 
         auto result = UIntTempArray(0);
         result.length = left.length + right.length;
-        multiply(&left[0], left.length, &right[0], right.length, result.ptr(), result.length);
+        multiply(&left[0], left.length, &right[0], right.length, result.ptr(0), result.length);
         return result;
     }
 
@@ -1244,17 +1239,17 @@ nothrow @safe:
             const leftFoldLength = leftHighLength + 1;
             auto leftFoldMem = UIntTempArray(0);
             leftFoldMem.length = leftFoldLength;
-            auto leftFold = leftFoldMem.ptr();
+            auto leftFold = leftFoldMem.ptr(0);
 
             const rightFoldLength = rightHighLength + 1;
             auto rightFoldMem = UIntTempArray(0);
             rightFoldMem.length = rightFoldLength;
-            auto rightFold = rightFoldMem.ptr();
+            auto rightFold = rightFoldMem.ptr(0);
 
             const coreLength = leftFoldLength + rightFoldLength;
             auto coreMem = UIntTempArray(0);
             coreMem.length = coreLength;
-            auto core = coreMem.ptr();
+            auto core = coreMem.ptr(0);
 
             // ... compute z_a = a_1 + a_0 (call it fold...)
             add(leftHigh, leftHighLength, leftLow, leftLowLength, leftFold, leftFoldLength);
@@ -1932,7 +1927,7 @@ nothrow @safe:
         return length;
     }
 
-    package(pham.utl) static size_t actualLength(const(uint)[] value, size_t length) pure
+    package(pham.utl) static size_t actualLength(scope const(uint)[] value, size_t length) pure
     in
     {
         assert(length <= value.length);

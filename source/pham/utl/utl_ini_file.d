@@ -77,7 +77,7 @@ public:
 
 string getIni(T)() @trusted
 {
-	foreach(it; __traits(getAttributes, T))
+	foreach (it; __traits(getAttributes, T))
     {
 		if (hasUDA!(T, Ini))
 			return it.msg;
@@ -881,7 +881,7 @@ string saveMember(T)(T t)
     else static if (isArray!T && (isBasicType!(ElementType!T) || isSomeString!(ElementType!T)))
     {
         string value;
-		foreach(it; t)
+		foreach (it; t)
         {
             if (value.length != 0)
                 value ~= format(",%s", it);
@@ -928,7 +928,7 @@ private:
 unittest // IniFile.parseSection
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.inifile.IniFile.parseSection");
+    traceUnitTest!("pham.utl.ini")("unittest pham.utl.inifile.IniFile.parseSection");
 
     IniFile.Line name;
 
@@ -978,7 +978,7 @@ unittest // IniFile.parseSection
 unittest // IniFile.parseNameValue
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.inifile.IniFile.parseNameValue");
+    traceUnitTest!("pham.utl.ini")("unittest pham.utl.inifile.IniFile.parseNameValue");
 
     IniFile.Line name, value;
 
@@ -1053,7 +1053,7 @@ unittest // IniFile.parseNameValue
 unittest // IniFile
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.inifile.IniFile");
+    traceUnitTest!("pham.utl.ini")("unittest pham.utl.inifile.IniFile");
 
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);
 
@@ -1128,7 +1128,7 @@ struct Foo
 unittest // saveMembers & loadMembers
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.inifile.saveMembers & utl.inifile.loadMembers");
+    traceUnitTest!("pham.utl.ini")("unittest pham.utl.inifile.saveMembers & utl.inifile.loadMembers");
 
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);
 

@@ -106,7 +106,7 @@ if (isDLink!T)
     nothrow @safe:
 
     public:
-        DLinkRange opSlice()
+        DLinkRange opIndex()
         {
             return DLinkRange(_rootNode);
         }
@@ -292,7 +292,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.dlink_list");
+    traceUnitTest!("pham.utl")("unittest pham.utl.dlink_list");
 
     class X
     {

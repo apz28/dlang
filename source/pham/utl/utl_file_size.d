@@ -13,6 +13,7 @@
 module pham.utl.file_size;
 
 import std.algorithm.searching : countUntil;
+import std.ascii : isDigit;
 import std.conv : ConvException, convTo = to;
 import std.exception : enforce;
 import std.format : format;
@@ -21,7 +22,8 @@ import std.traits : isNarrowString, Unqual;
 import std.utf : byCodeUnit;
 
 version (unittest) import pham.utl.test;
-import pham.utl.utf8 : isNumericLexerRange, NumericLexer, NumericLexerFlag;
+import pham.utl.object : cmpIntegral;
+import pham.utl.utf8 : defaultParseDecimalOptions, isNumericLexerRange, NumericLexer, NumericLexerFlag;
 
 @safe:
 
@@ -122,7 +124,7 @@ public:
 
     int opCmp(scope const(FileSize) rhs) const @nogc nothrow pure
     {
-        return (_bytes > rhs._bytes) - (_bytes < rhs._bytes);
+        return cmpIntegral(_bytes, rhs._bytes);
     }
 
     bool opEquals(scope const(FileSize) rhs) const @nogc nothrow pure
@@ -154,8 +156,8 @@ public:
         static immutable errorMessage = "Not a valid FileSize string";
         alias RangeElement = Unqual!(ElementType!Range);
 
-        auto lexer = NumericLexer!(Range)(range, NumericLexerFlag.allowFloat);
-        enforce!ConvException(lexer.hasDigits, errorMessage);
+        auto lexer = NumericLexer!(Range)(range, defaultParseDecimalOptions!(ElementType!Range)());
+        enforce!ConvException(lexer.hasNumericChar, errorMessage);
 
         size_t nNumber = 0;
         RangeElement[30] number;
@@ -163,12 +165,12 @@ public:
         {
             const c = lexer.front;
 
-            if (lexer.isDigitChar(c))
+            if (isDigit(c))
             {
                 number[nNumber++] = c;
                 lexer.popFront();
             }
-            else if (lexer.allowDecimalChar(c))
+            else if (lexer.allowDecimalChar && lexer.options.isDecimalChar(c))
             {
                 number[nNumber++] = c;
                 lexer.popDecimalChar();
@@ -183,7 +185,7 @@ public:
         while (!lexer.empty && nSuffix < suffix.length)
         {
             const c = lexer.front;
-            if (lexer.isSpaceChar(c))
+            if (lexer.options.isSpaceChar(c))
                 break;
             suffix[nSuffix++] = lexer.toUpper(c);
             lexer.popFront();
@@ -271,7 +273,7 @@ private:
 @safe nothrow unittest // FileSize.opCmp
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.filesize.FileSize.opCmp");
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.opCmp");
 
     assert(FileSize(12).opCmp(FileSize(12)) == 0);
     assert(FileSize(10).opCmp(FileSize(12)) < 0);
@@ -282,7 +284,7 @@ private:
 @safe nothrow unittest // FileSize.opCast
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.filesize.FileSize.opCast");
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.opCast");
 
     auto bytes = 10.Bytes;
     assert(bytes);
@@ -293,7 +295,7 @@ private:
 @safe nothrow unittest // FileSize.opEquals
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.filesize.FileSize.opEquals");
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.opEquals");
 
     assert(FileSize(0).opEquals(FileSize.zero));
     assert(FileSize(12).opEquals(FileSize(12)));
@@ -304,7 +306,7 @@ private:
 @safe nothrow unittest // FileSize.opOpAssign
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.filesize.FileSize.opOpAssign");
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.opOpAssign");
 
     assert((FileSize(5) *= 7) == FileSize(35));
     assert((FileSize(7) *= 5) == FileSize(35));
@@ -319,7 +321,7 @@ private:
 @safe nothrow unittest // FileSize.opOpAssign
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.filesize.FileSize.opOpAssign");
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.opOpAssign");
 
     assert((FileSize(5) /= 7) == FileSize(0));
     assert((FileSize(7) /= 5) == FileSize(1));
@@ -334,7 +336,7 @@ private:
 @safe nothrow unittest // FileSize.opBinary
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.filesize.FileSize.opBinary");
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.opBinary");
 
     assert(FileSize(5) + FileSize(7) == FileSize(12));
     assert(FileSize(7) + FileSize(5) == FileSize(12));
@@ -343,7 +345,7 @@ private:
 @safe nothrow unittest // FileSize.opBinary
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.filesize.FileSize.opBinary");
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.opBinary");
 
     assert(FileSize(5) - FileSize(7) == FileSize(-2));
     assert(FileSize(7) - FileSize(5) == FileSize(2));
@@ -352,7 +354,7 @@ private:
 @safe nothrow unittest // FileSize.opBinary
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.filesize.FileSize.opBinary");
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.opBinary");
 
     assert(FileSize(5) * 7 == FileSize(35));
     assert(FileSize(7) * 5 == FileSize(35));
@@ -361,7 +363,7 @@ private:
 @safe nothrow unittest // FileSize.opBinary
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.filesize.FileSize.opBinary");
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.opBinary");
 
     assert(FileSize(5) / 7 == FileSize(0));
     assert(FileSize(7) / 5 == FileSize(1));
@@ -371,7 +373,7 @@ private:
 @safe nothrow unittest // FileSize.opUnary
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.filesize.FileSize.opUnary");
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.opUnary");
 
     assert(-FileSize(7) == FileSize(-7));
     assert(-FileSize(-7) == FileSize(7));
@@ -381,7 +383,7 @@ private:
 @safe nothrow unittest // FileSize.abs
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.filesize.FileSize.abs");
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.abs");
 
     assert(FileSize(17).abs() == FileSize(17));
     assert(FileSize(-17).abs() == FileSize(17));
@@ -390,7 +392,7 @@ private:
 @safe nothrow unittest // FileSize.to
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.filesize.FileSize.to");
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.to");
 
     assert(FileSize(0).to!"Bytes"() == 0);
     assert(FileSize(0).to!"KB"() == 0);
@@ -428,7 +430,7 @@ private:
 @safe nothrow unittest // FileSize.from
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.filesize.FileSize.from");
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.from");
 
     assert(FileSize.from!"Bytes"(1).bytes == 1);
     assert(1.Bytes == FileSize(1));
@@ -457,7 +459,7 @@ private:
 @safe nothrow unittest // FileSize.toString
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.filesize.FileSize.toString");
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.toString");
 
     assert(FileSize(0).toString!"Bytes"() == "0 Bytes");
     assert(FileSize(0).toString!"KB"() == "0 KB");
@@ -496,7 +498,7 @@ private:
 {
     import std.exception : assertThrown;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.filesize.FileSize.parse");
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.parse");
 
     auto f0 = FileSize.parse("0"d);
     assert(f0 == FileSize(0));

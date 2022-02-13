@@ -13,7 +13,7 @@ module pham.utl.array;
 
 import std.algorithm.mutation : swapAt;
 import std.range.primitives : ElementType;
-import std.traits : isDynamicArray, isStaticArray, lvalueOf;
+import std.traits : isDynamicArray, isIntegral, isStaticArray, lvalueOf;
 
 version (profile) import pham.utl.test : PerfFunction;
 
@@ -93,14 +93,14 @@ do
     --length;
 }
 
-struct IndexedArray(T, ushort staticSize)
+struct IndexedArray(T, ushort StaticSize)
 {
 //nothrow:
 
 public:
     this(size_t capacity) nothrow pure @safe
     {
-        if (capacity > staticSize)
+        if (capacity > StaticSize)
             _dynamicItems.reserve(capacity);
     }
 
@@ -110,7 +110,7 @@ public:
         this(valueLength);
         if (valueLength)
         {
-            if (valueLength <= staticSize)
+            if (useStatic(valueLength))
             {
                 _staticLength = valueLength;
                 _staticItems[0..valueLength] = values[0..valueLength];
@@ -129,7 +129,7 @@ public:
         clear(valueLength);
         if (valueLength)
         {
-            if (valueLength <= staticSize)
+            if (useStatic(valueLength))
             {
                 _staticLength = valueLength;
                 _staticItems[0..valueLength] = values[0..valueLength];
@@ -165,6 +165,14 @@ public:
         return !empty;
     }
 
+    /** Returns range interface
+    */
+    inout(T)[] opIndex() inout nothrow pure return
+    {
+        const len = length;
+        return len != 0 ? (useStatic ? _staticItems[0..len] : _dynamicItems) : [];
+    }
+
     T opIndex(const(size_t) index) nothrow
     in
     {
@@ -172,64 +180,71 @@ public:
     }
     do
     {
-        return useStatic() ? _staticItems[index] : _dynamicItems[index];
+        return useStatic ? _staticItems[index] : _dynamicItems[index];
     }
 
     ref typeof(this) opIndexAssign(T item, const(size_t) index) nothrow return
     {
         const atLength = index + 1;
-        if (atLength > staticSize || !useStatic())
+        if (!useStatic(atLength) || !useStatic)
         {
             switchToDynamicItems(atLength, atLength > length);
             _dynamicItems[index] = item;
         }
         else
         {
+            assert(useStatic(atLength));
             _staticItems[index] = item;
             if (_staticLength < atLength)
                 _staticLength = atLength;
-            assert(_staticLength <= staticSize);
         }
         assert(atLength <= length);
         return this;
     }
 
-    /** Returns range interface
-    */
-    T[] opSlice() nothrow return
+    static if (isIntegral!T)
+    ref typeof(this) opIndexOpAssign(string op)(T item, const(size_t) index) @nogc nothrow pure
+    if (op == "&" || op == "|" || op == "^")
+    in
     {
-        const len = length;
-        return len != 0 ? (useStatic() ? _staticItems[0..len] : _dynamicItems) : null;
+        assert(index < length);
+    }
+    do
+    {
+        if (useStatic)
+            mixin("_staticItems[index] " ~ op ~ "= item;");
+        else
+            mixin("_dynamicItems[index] " ~ op ~ "= item;");
+        return this;
     }
 
     /** Returns range interface
     */
-    T[] opSlice(const(size_t) begin = 0, size_t end = size_t.max) nothrow pure return
+    inout(T)[] opSlice(const(size_t) beginIndex, const(size_t) endIndex) inout nothrow pure return
     in
     {
-        assert(begin < end);
-        assert(begin < length);
+        assert(beginIndex <= endIndex);
     }
     do
     {
         const len = length;
-        if (end > len)
-            end = len;
+        if (beginIndex >= len)
+            return [];
 
-        return end - begin > 0 ? (useStatic() ? _staticItems[begin..end] : _dynamicItems[begin..end]) : null;
+        return endIndex > len
+            ? (useStatic ? _staticItems[beginIndex..len] : _dynamicItems[beginIndex..len])
+            : (useStatic ? _staticItems[beginIndex..endIndex] : _dynamicItems[beginIndex..endIndex]);
     }
 
     ref typeof(this) clear(const(size_t) capacity = 0) nothrow pure return
     {
-        assert(_staticLength <= staticSize);
-
         if (_staticLength)
         {
             _staticItems[0.._staticLength] = T.init;
             _staticLength = 0;
         }
 
-        if (capacity > staticSize)
+        if (capacity > StaticSize)
         {
             _dynamicItems.length = 0;
             _dynamicItems.reserve(capacity);
@@ -245,17 +260,17 @@ public:
         return this[].dup;
     }
 
-    ref typeof(this) fill(T item, const(size_t) startIndex = 0) nothrow return
+    ref typeof(this) fill(T item, const(size_t) beginIndex = 0) nothrow return
     in
     {
-        assert(startIndex < length);
+        assert(beginIndex < length);
     }
     do
     {
-        if (useStatic())
-            _staticItems[startIndex..length] = item;
+        if (useStatic)
+            _staticItems[beginIndex..length] = item;
         else
-            _dynamicItems[startIndex..length] = item;
+            _dynamicItems[beginIndex..length] = item;
         return this;
     }
 
@@ -273,32 +288,33 @@ public:
         return -1;
     }
 
-    T* ptr(const(size_t) startIndex = 0) nothrow pure return
+    pragma(inline, true)
+    T* ptr(const(size_t) index) nothrow pure return
     in
     {
-        assert(startIndex < length);
+        assert(index < length);
     }
     do
     {
-        return useStatic() ? &_staticItems[startIndex] : &_dynamicItems[startIndex];
+        return useStatic ? &_staticItems[index] : &_dynamicItems[index];
     }
 
     alias put = putBack;
 
-    ref typeof(this) put()(inout(T)[] items, const(size_t) startIndex) nothrow return
+    ref typeof(this) put()(inout(T)[] items, const(size_t) beginIndex) nothrow return
     {
-        const atLength = startIndex + items.length;
-        if (atLength > staticSize || !useStatic())
+        const atLength = beginIndex + items.length;
+        if (!useStatic(atLength) || !useStatic)
         {
             switchToDynamicItems(atLength, atLength > length);
-            _dynamicItems[startIndex..startIndex + items.length] = items[0..items.length];
+            _dynamicItems[beginIndex..beginIndex + items.length] = items[0..items.length];
         }
         else
         {
-            _staticItems[startIndex..startIndex + items.length] = items[0..items.length];
+            assert(useStatic(atLength));
+            _staticItems[beginIndex..beginIndex + items.length] = items[0..items.length];
             if (_staticLength < atLength)
                 _staticLength = atLength;
-            assert(_staticLength <= staticSize);
         }
         assert(atLength <= length);
         return this;
@@ -307,15 +323,15 @@ public:
     T putBack(T item) nothrow
     {
         const newLength = length + 1;
-        if (newLength > staticSize || !useStatic())
+        if (!useStatic(newLength) || !useStatic)
         {
             switchToDynamicItems(newLength, true);
             _dynamicItems[newLength - 1] = item;
         }
         else
         {
+            assert(useStatic(newLength));
             _staticItems[_staticLength++] = item;
-            assert(_staticLength <= staticSize);
         }
         assert(length == newLength);
 
@@ -345,28 +361,18 @@ public:
         {
             const last = len - 1;
             const steps = len / 2;
-            if (useStatic())
+            if (useStatic)
             {
                 for (size_t i = 0; i < steps; i++)
-                {
                     _staticItems.swapAt(i, last - i);
-                }
             }
             else
             {
                 for (size_t i = 0; i < steps; i++)
-                {
                     _dynamicItems.swapAt(i, last - i);
-                }
             }
         }
         return this;
-    }
-
-    pragma (inline, true)
-    bool useStatic() const @nogc nothrow pure
-    {
-        return _dynamicItems.ptr is null;
     }
 
     pragma (inline, true)
@@ -375,21 +381,42 @@ public:
         return length == 0;
     }
 
+    pragma(inline, true)
     @property size_t length() const @nogc nothrow pure
     {
-        return useStatic() ? _staticLength : _dynamicItems.length;
+        return useStatic ? _staticLength : _dynamicItems.length;
     }
 
     @property size_t length(const(size_t) newLength) nothrow pure
     {
         if (length != newLength)
         {
-            if (newLength <= staticSize && useStatic())
+            if (useStatic(newLength) && useStatic)
                 _staticLength = newLength;
             else
                 switchToDynamicItems(newLength, true);
         }
         return newLength;
+    }
+
+    pragma(inline, true)
+    @property static size_t staticSize() @nogc nothrow pure
+    {
+        return StaticSize;
+    }
+
+    pragma (inline, true)
+    @property bool useStatic() const @nogc nothrow pure
+    {
+        assert(_dynamicItems.ptr !is null || useStatic(_staticLength));
+
+        return _dynamicItems.ptr is null;
+    }
+
+    pragma (inline, true)
+    @property bool useStatic(const(size_t) checkLength) const @nogc nothrow pure
+    {
+        return checkLength <= StaticSize;
     }
 
 private:
@@ -400,9 +427,8 @@ private:
     }
     do
     {
-        if (useStatic())
+        if (useStatic)
         {
-            assert(_staticLength > 0 && _staticLength <= staticSize);
             auto res = _staticItems[index];
             .removeAt(_staticItems, index, _staticLength);
             return res;
@@ -417,7 +443,7 @@ private:
 
     void switchToDynamicItems(const(size_t) newLength, bool mustSet) nothrow pure @trusted
     {
-        if (useStatic())
+        if (useStatic)
         {
             const setLength = mustSet ? newLength : _staticLength;
             const copyLength = _staticLength > setLength ? setLength : _staticLength;
@@ -441,7 +467,7 @@ private:
 private:
     size_t _staticLength;
     T[] _dynamicItems;
-    T[staticSize] _staticItems;
+    T[StaticSize] _staticItems;
 }
 
 
@@ -451,7 +477,7 @@ private:
 nothrow @safe unittest // array.arrayOfChar
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.array.arrayOfChar");
+    traceUnitTest!("pham.utl")("unittest pham.utl.array.arrayOfChar");
 
     assert(arrayOfChar!char('0', 0) == []);
     assert(arrayOfChar!char('0', 1) == "0");
@@ -461,7 +487,7 @@ nothrow @safe unittest // array.arrayOfChar
 nothrow @safe unittest // array.IndexedArray
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.array.IndexedArray");
+    traceUnitTest!("pham.utl")("unittest pham.utl.array.IndexedArray");
 
     auto a = IndexedArray!(int, 2)(0);
 
@@ -470,7 +496,7 @@ nothrow @safe unittest // array.IndexedArray
     assert(a.length == 0);
     assert(a.remove(1) == 0);
     assert(a.removeAt(1) == 0);
-    assert(a.useStatic());
+    assert(a.useStatic);
 
     // Append element
     a.putBack(1);
@@ -478,28 +504,28 @@ nothrow @safe unittest // array.IndexedArray
     assert(a.length == 1);
     assert(a.indexOf(1) == 0);
     assert(a[0] == 1);
-    assert(a.useStatic());
+    assert(a.useStatic);
 
     // Append second element
     a += 2;
     assert(a.length == 2);
     assert(a.indexOf(2) == 1);
     assert(a[1] == 2);
-    assert(a.useStatic());
+    assert(a.useStatic);
 
     // Append element & remove
     a += 10;
     assert(a.length == 3);
     assert(a.indexOf(10) == 2);
     assert(a[2] == 10);
-    assert(!a.useStatic());
+    assert(!a.useStatic);
 
     a -= 10;
     assert(a.indexOf(10) == -1);
     assert(a.length == 2);
     assert(a.indexOf(2) == 1);
     assert(a[1] == 2);
-    assert(!a.useStatic());
+    assert(!a.useStatic);
 
     // Check duplicate
     assert(a.dup == [1, 2]);
@@ -524,7 +550,7 @@ nothrow @safe unittest // array.IndexedArray
     assert(r == -1);
     assert(a.length == 2);
     assert(a.indexOf(-1) == -1);
-    assert(!a.useStatic());
+    assert(!a.useStatic);
 
     // Remove element at
     r = a.removeAt(0);
@@ -532,7 +558,7 @@ nothrow @safe unittest // array.IndexedArray
     assert(a.length == 1);
     assert(a.indexOf(1) == -1);
     assert(a[0] == 3);
-    assert(!a.useStatic());
+    assert(!a.useStatic);
 
     // Clear all elements
     a.clear();
@@ -540,19 +566,19 @@ nothrow @safe unittest // array.IndexedArray
     assert(a.length == 0);
     assert(a.remove(1) == 0);
     assert(a.removeAt(1) == 0);
-    assert(a.useStatic());
+    assert(a.useStatic);
 
     a[0] = 1;
     assert(!a.empty);
     assert(a.length == 1);
-    assert(a.useStatic());
+    assert(a.useStatic);
 
     a.clear();
     assert(a.empty);
     assert(a.length == 0);
     assert(a.remove(1) == 0);
     assert(a.removeAt(1) == 0);
-    assert(a.useStatic());
+    assert(a.useStatic);
 
     a.putBack(1);
     a.fill(10);
@@ -563,7 +589,7 @@ nothrow @safe unittest // array.IndexedArray
 nothrow unittest // IndexedArray.reverse
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.array.IndexedArray.reverse");
+    traceUnitTest!("pham.utl")("unittest pham.utl.array.IndexedArray.reverse");
 
     auto a = IndexedArray!(int, 3)(0);
 

@@ -7,8 +7,7 @@
  * Distributed under the Boost Software License, Version 1.0.
  * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
- * A clone from https://github.com/dotnet/corefx
- * tree/master/src/System.Runtime.Numerics/src/System/Numerics
+ * A clone from https://github.com/dotnet/runtime/blob/main/src/libraries/System.Runtime.Numerics/src/System/Numerics
  */
 
 module pham.utl.big_integer;
@@ -17,74 +16,44 @@ import std.ascii : lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digit
 import std.conv : ConvException;
 import std.format : FormatException, FormatSpec, formatValue;
 import std.range.primitives : ElementType, isInputRange, isOutputRange, put;
-import std.string : CaseSensitive, indexOf;
+import std.string : indexOf;
 import std.traits : isFloatingPoint, isIntegral, isSigned, isSomeChar, Unqual;
-import std.typecons : Flag, No, Yes;
+import std.typecons : Flag;
+public import std.typecons : No, Yes;
 
-import pham.utl.object : bytesToHexs, isHex, randomDecimalDigits, randomHexDigits;
-import pham.utl.utf8 : ShortStringBuffer;
-import pham.utl.big_integer_helper;
+version (profile) import pham.utl.test : PerfFunction;
+import pham.utl.object : bytesToHexs, simpleIntegerFmt;
+public import pham.utl.utf8 : NumericLexerFlag, NumericLexerOptions;
+import pham.utl.utf8 : isDigit, isHexDigit, ShortStringBuffer;
 import pham.utl.big_integer_calculator;
 public import pham.utl.big_integer_calculator : UByteTempArray, UIntTempArray;
+import pham.utl.big_integer_helper;
 
 @safe:
 
-enum ParseStyle
-{
-    allowLeadingWhite = 1 << 0,
-    trailingWhite = 1 << 1,
-    allowThousand = 1 << 2,
-    isHexs = 1 << 3,
-    isUnsigned = 1 << 4
-}
-
-struct ParseFormat
-{
-nothrow @safe:
-
-    // Any chars is less or equal to ' ' will be consider space and thousand chars
-    string thousandChars = ",_";
-
-    ParseStyle styles = ParseStyle.allowLeadingWhite
-        | ParseStyle.trailingWhite
-        | ParseStyle.allowThousand;
-
-    bool isAllowThousandChar(char c) const pure
-    {
-        return (styles & ParseStyle.allowThousand) != 0 && isThousandChar(c);
-    }
-
-    static bool isHexPrefix(const(char)[] hexs) pure
-    {
-        return hexs.length >= 2 && hexs[0] == '0' && (hexs[1] == 'x' || hexs[1] == 'X');
-    }
-
-    pragma (inline, true)
-    bool isSpaceChar(char c) const pure
-    {
-        return c <= ' ';
-    }
-
-    pragma (inline, true)
-    bool isThousandChar(char c) const pure
-    {
-        return isSpaceChar(c) || thousandChars.indexOf(c, Yes.caseSensitive) >= 0;
-    }
-}
-
+pragma(inline, true)
 Flag!"bigEndian" toBigEndianFlag(bool value) @nogc nothrow pure
 {
     return value ? Yes.bigEndian : No.bigEndian;
 }
 
+pragma(inline, true)
 Flag!"negative" toNegativeFlag(bool value) @nogc nothrow pure
 {
     return value ? Yes.negative : No.negative;
 }
 
+pragma(inline, true)
 Flag!"unsigned" toUnsignedFlag(bool value) @nogc nothrow pure
 {
     return value ? Yes.unsigned : No.unsigned;
+}
+
+NumericLexerOptions!char defaultParseBigIntegerOptions() nothrow pure @safe
+{
+    NumericLexerOptions!char result;
+    result.flags |= NumericLexerFlag.allowHexDigit;
+    return result;
 }
 
 struct BigInteger
@@ -92,7 +61,13 @@ struct BigInteger
 @safe:
 
 public:
-    this(T)(T value) nothrow pure
+    version (none)
+    this(this) nothrow pure
+    {
+        _bits = _bits.dup;
+    }
+
+    this(T)(auto ref T value) nothrow pure
     if (is(Unqual!T == BigInteger))
     {
         setSignInts(value._bits, value._sign);
@@ -104,7 +79,15 @@ public:
     this(T)(T value) nothrow pure
     if (isIntegral!T)
     {
-        setInt(value);
+        static if (T.sizeof < int.sizeof)
+        {
+            static if (isSigned!T)
+                setInt(cast(int)value);
+            else
+                setInt(cast(uint)value);
+        }
+        else
+            setInt(value);
     }
 
     /*
@@ -144,7 +127,7 @@ public:
      */
     this(scope const(uint)[] value, const(Flag!"negative") negative) nothrow pure
     {
-        setNegativeInts(negative, value);
+        setNegInts(value, negative);
     }
 
     /**
@@ -158,110 +141,87 @@ public:
     }
 
     this(scope const(char)[] hexOrDecimals,
-        const(ParseFormat) format = ParseFormat.init) pure
+        const(NumericLexerOptions!char) parseOptions = defaultParseBigIntegerOptions()) pure
     {
-        import std.conv : ConvException;
-        import std.exception : enforce;
-
         setZero();
 
-        bool anyDigits, negative;
-        size_t errorIndex = size_t.max;
-        size_t l = 0;
-        size_t r = hexOrDecimals.length;
-
-        // Trim trailings so that some check codes can be out of loop when calling
-        // setHexs or setDecimals
-        if (format.styles & ParseStyle.allowThousand)
-        {
-            while (r > 0 && format.isThousandChar(hexOrDecimals[r - 1]))
-                --r;
-        }
-        else if (format.styles & ParseStyle.trailingWhite)
-        {
-            while (r > 0 && format.isSpaceChar(hexOrDecimals[r - 1]))
-                --r;
-        }
+        size_t i = 0;
+        size_t len = hexOrDecimals.length;
 
         // Trim leadings so that some check codes can be out of loop when calling
         // setHexs or setDecimals
-        void trimLeadingChars()
+        if (parseOptions.isSkippingLeadingBlank)
         {
-            if (format.styles & ParseStyle.allowThousand)
-            {
-                while (l < r && format.isThousandChar(hexOrDecimals[l]))
-                    ++l;
-            }
-            else if (format.styles & ParseStyle.allowLeadingWhite)
-            {
-                while (l < r && format.isSpaceChar(hexOrDecimals[l]))
-                    ++l;
-            }
+            while (i < len && parseOptions.isSpaceChar(hexOrDecimals[i]))
+                i++;
         }
 
-        trimLeadingChars();
+        // Trim trailings so that some check codes can be out of loop when calling
+        // setHexs or setDecimals
+        if (parseOptions.isSkippingTrailingBlank)
+        {
+            while (len > i && parseOptions.isSpaceChar(hexOrDecimals[len - 1]))
+                len--;
+        }
 
         // Check leading sign char
-        if (l < r)
+        bool negative = false;
+        if (i < len)
         {
-            if (hexOrDecimals[l] == '+')
+            if (hexOrDecimals[i] == '+')
+                i++;
+            else if (hexOrDecimals[i] == '-')
             {
-                ++l;
-                trimLeadingChars();
-            }
-            else if (hexOrDecimals[l] == '-')
-            {
-                ++l;
+                i++;
                 negative = true;
-                trimLeadingChars();
             }
         }
 
-        bool isHexs = (format.styles & ParseStyle.isHexs) != 0;
-        if (l < r && ParseFormat.isHexPrefix(hexOrDecimals[l..r]))
+        bool isHexDigits = (parseOptions.flags & NumericLexerFlag.hexDigit) != 0;
+
+        // Check for leading hex indicator '0x'
+        if (i < len
+            && (parseOptions.flags & NumericLexerFlag.allowHexDigit) != 0
+            && parseOptions.isHexDigitPrefix(hexOrDecimals[i..len]))
         {
-            l += 2;
-            isHexs = true;
-            trimLeadingChars();
+            i += 2;
+            isHexDigits = true;
         }
 
-        if (l < r)
-        {
-            anyDigits = true;
-            if (isHexs)
-                setHexs(hexOrDecimals[l..r], format, errorIndex);
-            else
-                setDecimals(hexOrDecimals[l..r], format, errorIndex);
-        }
-
-        enforce!ConvException(anyDigits && errorIndex == size_t.max, "Not a valid numerical string");
+        const isValid = i < len
+            ? (isHexDigits
+               ? setHexDigits(hexOrDecimals[i..len], parseOptions)
+               : setDecimalDigits(hexOrDecimals[i..len], parseOptions))
+            : false;
+        if (!isValid)
+            throw new ConvException("Not a valid numerical string");
 
         if (negative)
             this.opUnary!"-"();
     }
 
-    BigInteger opAssign(T)(T x) nothrow pure
+    ref BigInteger opAssign(T)(auto ref T x) nothrow pure return
     if (is(Unqual!T == BigInteger))
     {
         setSignInts(x._bits, x._sign);
         return this;
     }
 
-    BigInteger opAssign(T)(T x) nothrow pure
+    ref BigInteger opAssign(T)(T x) nothrow pure return
     if (isIntegral!T)
     {
         setInt(x);
         return this;
     }
 
-    BigInteger opAssign(T)(T x) nothrow pure
+    ref BigInteger opAssign(T)(T x) nothrow pure return
     if (isFloatingPoint!T)
     {
         setFloat(x);
         return this;
     }
 
-    BigInteger opOpAssign(string op, T)(const(T) rhs) nothrow pure
+    ref BigInteger opOpAssign(string op, T)(const(T) rhs) nothrow pure return
     if ((op == "+" || op == "-" || op == "*" || op == "/" || op == "%") && is(T: BigInteger))
     {
         static if (op == "+")
@@ -297,27 +257,27 @@ public:
             else if (trivialLeft)
             {
                 auto resultBits = BigIntegerCalculator.multiply(rhs._bits, BigIntegerHelper.abs(_sign));
-                setNegativeInts(toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)), resultBits[]);
+                setNegInts(resultBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
             }
             else if (trivialRight)
             {
                 auto resultBits = BigIntegerCalculator.multiply(_bits, BigIntegerHelper.abs(rhs._sign));
-                setNegativeInts(toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)), resultBits[]);
+                setNegInts(resultBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
             }
             else if (_bits == rhs._bits)
             {
                 auto resultBits = BigIntegerCalculator.square(_bits);
-                setNegativeInts(toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)), resultBits[]);
+                setNegInts(resultBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
             }
             else if (_bits.length < rhs._bits.length)
             {
                 auto resultBits = BigIntegerCalculator.multiply(rhs._bits, _bits);
-                setNegativeInts(toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)), resultBits[]);
+                setNegInts(resultBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
             }
             else
             {
                 auto resultBits = BigIntegerCalculator.multiply(_bits, rhs._bits);
-                setNegativeInts(toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)), resultBits[]);
+                setNegInts(resultBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
             }
 
             return this;
@@ -338,14 +298,14 @@ public:
             else if (trivialDivisor)
             {
                 auto resultBits = BigIntegerCalculator.divide(_bits, BigIntegerHelper.abs(rhs._sign));
-                setNegativeInts(toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)), resultBits[]);
+                setNegInts(resultBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
             }
             else if (_bits.length < rhs._bits.length)
                 setZero();
             else
             {
                 auto resultBits = BigIntegerCalculator.divide(_bits, rhs._bits);
-                setNegativeInts(toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)), resultBits[]);
+                setNegInts(resultBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
             }
 
             return this;
@@ -378,7 +338,7 @@ public:
             else
             {
                 auto resultBits = BigIntegerCalculator.remainder(_bits, rhs._bits);
-                setNegativeInts(toNegativeFlag(_sign < 0), resultBits[]);
+                setNegInts(resultBits[], toNegativeFlag(_sign < 0));
             }
 
             return this;
@@ -387,13 +347,13 @@ public:
             static assert(0, typeof(this).stringof ~ " " ~ op ~ "= " ~ T.stringof ~ " is not supported");
     }
 
-    BigInteger opOpAssign(string op, T)(const(T) rhs) nothrow pure
+    ref BigInteger opOpAssign(string op, T)(const(T) rhs) nothrow pure return
     if ((op == "+" || op == "-" || op == "*" || op == "/" || op == "%") && isIntegral!T)
     {
         return this.opOpAssign!op(BigInteger(rhs));
     }
 
-    BigInteger opOpAssign(string op, T)(const(T) rhs) nothrow pure
+    ref BigInteger opOpAssign(string op, T)(const(T) rhs) nothrow pure return
     if ((op == "&" || op == "|" || op == "^") && is(T: BigInteger))
     {
         static if (op == "&")
@@ -454,7 +414,7 @@ public:
         return this;
     }
 
-    BigInteger opOpAssign(string op, T)(const(T) rhs) nothrow pure
+    ref BigInteger opOpAssign(string op, T)(const(T) rhs) nothrow pure return
     if ((op == "&" || op == "|" || op == "^") && isIntegral!T)
     {
         static if (op == "&")
@@ -499,7 +459,7 @@ public:
         return this.opOpAssign!op(BigInteger(rigth));
     }
 
-    BigInteger opOpAssign(string op)(const(int) rhs) nothrow pure
+    ref BigInteger opOpAssign(string op)(const(int) rhs) nothrow pure return
     if (op == "<<" || op == ">>" || op == "^^")
     {
         static if (op == "<<")
@@ -547,7 +507,7 @@ public:
                     }
                     zd[i + digitShift] = carry;
                 }
-                setNegativeInts(toNegativeFlag(negx), zd[]);
+                setNegInts(zd[], toNegativeFlag(negx));
 
                 return this;
             }
@@ -578,7 +538,10 @@ public:
                 if (negx)
                 {
                     if (shift >= (kcbitUint * xl))
-                        return negOne();
+                    {
+                        setNegOne();
+                        return this;
+                    }
 
                     BigIntegerCalculator.makeTwosComplement(xd); // Mutates xd
                 }
@@ -611,7 +574,7 @@ public:
                 }
                 if (negx)
                     BigIntegerCalculator.makeTwosComplement(zd);
-                setNegativeInts(toNegativeFlag(negx), zd[]);
+                setNegInts(zd[], toNegativeFlag(negx));
 
                 return this;
             }
@@ -653,7 +616,7 @@ public:
                     ? BigIntegerCalculator.pow(BigIntegerHelper.abs(_sign), BigIntegerHelper.abs(exponent))
                     : BigIntegerCalculator.pow(_bits, BigIntegerHelper.abs(exponent));
 
-                setNegativeInts(toNegativeFlag(_sign < 0 && (exponent & 1) != 0), resultBits[]);
+                setNegInts(resultBits[], toNegativeFlag(_sign < 0 && (exponent & 1) != 0));
             }
 
             return this;
@@ -886,7 +849,7 @@ public:
         return getDiffLength(_bits, rhs._bits, cu) == 0;
     }
 
-    BigInteger opUnary(string op)() nothrow
+    ref BigInteger opUnary(string op)() nothrow return
     if (op == "+" || op == "-" || op == "~" || op == "++" || op == "--")
     {
         static if (op == "+")
@@ -927,6 +890,13 @@ public:
         _bits[] = 0;
     }
 
+    BigInteger dup() const nothrow pure
+    {
+        BigInteger result;
+        result.setSignInts(this._bits, this._sign);
+        return result;
+    }
+
     /**
      * Gets the number of bytes that will be output by <see cref="toBytes()"/>
      * Returns:
@@ -940,12 +910,25 @@ public:
     }
 
     /**
+     * Set this BigInteger as odd value
+     */
+    ref BigInteger setOdd() nothrow pure return
+    {
+        if (_bits.length == 0)
+            setOne();
+        else
+            _bits[0] |= 1;
+        return this;
+    }
+
+    /**
      * Set this BigInteger as zero value
      */
-    void setZero() nothrow pure
+    ref BigInteger setZero() nothrow pure return
     {
         _sign = 0;
         _bits = null;
+        return this;
     }
 
     /**
@@ -987,7 +970,7 @@ public:
         // The maximum exponent for doubles is 1023, which corresponds to a uint bit length of 32.
         // All BigIntegers with bits[] longer than 32 evaluate to Double.Infinity (or NegativeInfinity).
         // Cases where the exponent is between 1024 and 1035 are handled in BigIntegerHelper.GetDoubleFromParts.
-        enum infinityLength = 1024 / kcbitUint;
+        enum infinityLength = 1_024 / kcbitUint;
 
         if (len > infinityLength)
         {
@@ -1081,24 +1064,18 @@ public:
      */
     ubyte[] toBytes(const(Flag!"includeSign") includeSign = Yes.includeSign) const nothrow pure @safe scope
     {
-        UByteTempArray result;
-        toBytes(result, includeSign);
-        return result.dup;
+        UByteTempArray tempResult;
+        getUBytesLittleEndian(tempResult, includeSign);
+        return tempResult.dup;
     }
 
-    /**
-     * Returns the number of ubytes of this BigInteger
-     * Params:
-     *  result = UByteTempArray contains as a ubyte array in little endian format
-     *           using the fewest number of ubytes possible.
-     *           If the value is zero, returns an UByteTempArray of one ubyte whose element is 0x00.
-     *  includeSign = Whether or not an unsigned encoding is to be used
-     * Returns:
-     *  This BigInteger value as UByteTempArray
-     */
-    size_t toBytes(ref UByteTempArray result, const(Flag!"includeSign") includeSign = Yes.includeSign) const nothrow pure @safe scope
+    ref Writer toBytes(Writer)(return ref Writer sink, const(Flag!"includeSign") includeSign = Yes.includeSign) const nothrow pure @safe scope
+    if (isOutputRange!(Writer, ubyte))
     {
-        return getUBytesLittleEndian(result, includeSign);
+        UByteTempArray tempResult;
+        getUBytesLittleEndian(tempResult, includeSign);
+        put(sink, tempResult[]);
+        return sink;
     }
 
     /**
@@ -1249,7 +1226,16 @@ public:
         FormatSpec!char f;
         f.spec = isUpper ? 'X' : 'x';
         ShortStringBuffer!char buffer;
-        return toHexString(buffer, f, includeSign).toString();
+        return toHexString!(ShortStringBuffer!char, char)(buffer, f, includeSign).toString();
+    }
+
+    ref Writer toHexString(Writer, Char)(return ref Writer sink, const(Flag!"includeSign") includeSign = Yes.includeSign,
+        const(Flag!"isUpper") isUpper = Yes.isUpper) const nothrow pure @safe scope
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+    {
+        FormatSpec!Char f;
+        f.spec = isUpper ? 'X' : 'x';
+        return toHexString(sink, f, includeSign);
     }
 
     ref Writer toHexString(Writer, Char)(return ref Writer sink, scope const ref FormatSpec!Char f,
@@ -1334,11 +1320,8 @@ public:
     string toString() const nothrow pure @safe scope
     {
         ShortStringBuffer!char buffer;
-
-        FormatSpec!char f;
-        f.spec = 'd';
-
-        return toString(buffer, f).toString();
+        auto fmtSpec = simpleIntegerFmt();
+        return toString(buffer, fmtSpec).toString();
     }
 
     string toString(scope const(char)[] fmt) const pure @safe scope
@@ -1383,6 +1366,57 @@ public:
             assert(0, "Invalid format specifier: %" ~ f.spec);
     }
 
+    // Length in bits
+    @property size_t bitLength() const @nogc nothrow pure scope
+    {
+        import std.math : abs;
+        import pham.utl.bit_array : bitLength;
+
+        return _bits.length == 0
+            ? bitLength(cast(uint)abs(_sign))
+            : (_bits.length - 1) * kcbitUint + bitLength(_bits[$ - 1]);
+    }
+
+    /// Returns the value of the i'th bit, with lsb == bit 0.
+    @property bool bitSet(size_t index) const @nogc nothrow pure scope
+    {
+        const uint bp = 1u << (index % kcbitUint);
+        const size_t bs = index / kcbitUint;
+        const size_t count = _bits.length != 0 ? _bits.length : 1;
+        if (bs >= count)
+            return false;
+
+        const uint bits = _bits.length != 0 ? _bits[bs] : cast(uint)_sign;
+        return (bits & bp) != 0;
+    }
+
+    @property ref BigInteger bitSet(size_t index, bool value) nothrow pure return
+    {
+        const uint bp = 1u << (index % kcbitUint);
+        const size_t bs = index / kcbitUint;
+        const size_t count = _bits.length != 0 ? _bits.length : 1;
+        if (bs >= count)
+            return this;
+
+        uint* bits = _bits.length != 0 ? &_bits[bs] : cast(uint*)&_sign;
+        if (value)
+            *bits |= bp;
+        else
+            *bits ^= bp;
+        // Normalize special value
+        if (_bits.length == 0 && _sign == -1)
+            setMinInt();
+
+        return this;
+    }
+
+    @property uint bitSets(size_t index) const @nogc nothrow pure scope
+    {
+        return _bits.length != 0
+            ? (index < _bits.length ? _bits[index] : 0)
+            : (index == 0 ? cast(uint)_sign : 0);
+    }
+
     @property bool isEven() const @nogc nothrow pure scope
     {
         debug assertValid();
@@ -1424,7 +1458,7 @@ public:
     {
         debug assertValid();
 
-        return _sign == 0;
+        return _sign == 0 && _bits.length == 0;
     }
 
     /**
@@ -1441,8 +1475,29 @@ public:
         return (_sign >> (kcbitUint - 1)) - (-_sign >> (kcbitUint - 1));
     }
 
+    /// Returns the number of consecutive least significant zero
+    @property size_t trailingZeroBits() const @nogc nothrow pure scope
+    {
+        import std.math : abs;
+        import pham.utl.bit_array : trailingZeroBits;
+
+        if (_bits.length == 0)
+            return isZero ? 0 : trailingZeroBits(cast(uint)abs(_sign));
+
+        size_t i;
+        foreach (b; _bits)
+        {
+            if (b == 0)
+                i++;
+            else
+                break;
+        }
+    	// x[i] != 0
+	    return i*kcbitUint + trailingZeroBits(_bits[i]);
+    }
+
 private:
-    BigInteger addOpAssign(const(uint)[] rightBits, int rightSign) nothrow pure
+    ref BigInteger addOpAssign(const(uint)[] rightBits, int rightSign) nothrow pure return
     {
         const trivialLeft = _bits.length == 0;
         const trivialRight = rightBits.length == 0;
@@ -1452,22 +1507,22 @@ private:
         else if (trivialLeft)
         {
             auto resultBits = BigIntegerCalculator.add(rightBits, BigIntegerHelper.abs(_sign));
-            setNegativeInts(toNegativeFlag(_sign < 0), resultBits[]);
+            setNegInts(resultBits[], toNegativeFlag(_sign < 0));
         }
         else if (trivialRight)
         {
             auto resultBits = BigIntegerCalculator.add(_bits, BigIntegerHelper.abs(rightSign));
-            setNegativeInts(toNegativeFlag(_sign < 0), resultBits[]);
+            setNegInts(resultBits[], toNegativeFlag(_sign < 0));
         }
         else if (_bits.length < rightBits.length)
         {
             auto resultBits = BigIntegerCalculator.add(rightBits, _bits);
-            setNegativeInts(toNegativeFlag(_sign < 0), resultBits[]);
+            setNegInts(resultBits[], toNegativeFlag(_sign < 0));
         }
         else
         {
             auto resultBits = BigIntegerCalculator.add(_bits, rightBits);
-            setNegativeInts(toNegativeFlag(_sign < 0), resultBits[]);
+            setNegInts(resultBits[], toNegativeFlag(_sign < 0));
         }
 
         return this;
@@ -1767,7 +1822,7 @@ private:
                     switch (val[0])
                     {
                         case 1: // abs(-1)
-                            setMinusOne();
+                            setNegOne();
                             return;
 
                         case kuMaskHighBit: // abs(int.min)
@@ -1863,7 +1918,7 @@ private:
         if (len == 1 && cast(int)valueAtZero > 0)
         {
             if (valueAtZero == 1) // == abs(-1)
-                setMinusOne();
+                setNegOne();
             else if (valueAtZero == kuMaskHighBit) // == abs(int.min)
                 setMinInt();
             else
@@ -1883,29 +1938,31 @@ private:
         debug assertValid();
     }
 
-    // digits[0] must be a valid decimal digit
-    void setDecimals(scope const(char)[] digits, const(ParseFormat) format, ref size_t errorAt) nothrow pure
+    bool setDecimalDigits(scope const(char)[] digits, const(NumericLexerOptions!char) parseOptions) nothrow pure
+    in
+    {
+        assert(digits.length != 0);
+    }
+    do
     {
         const ten = BigInteger(10);
-
-        foreach (i, c; digits)
+        size_t count = 0;
+        ubyte b;
+        foreach (char c; digits)
         {
-            if (c >= '0' && c <= '9')
+            if (!isDigit(c, b))
             {
-                this.opOpAssign!"*"(ten);
-                this.opOpAssign!"+"(BigInteger(c - '0'));
-            }
-            else
-            {
-                if (format.isAllowThousandChar(c))
+                if (parseOptions.isContinueSkippingChar(c))
                     continue;
-                else
-                {
-                    errorAt = i;
-                    return;
-                }
+
+                return false;
             }
+
+            this.opOpAssign!"*"(ten);
+            this.opOpAssign!"+"(BigInteger(b));
+            count++;
         }
+        return count != 0;
     }
 
     void setFloat(float value) nothrow pure
@@ -1978,10 +2035,14 @@ private:
         debug assertValid();
     }
 
-    // digits[0] must be a valid hex character
-    void setHexs(scope const(char)[] digits, const(ParseFormat) format, ref size_t errorAt) nothrow pure
+    bool setHexDigits(scope const(char)[] hexDigits, const(NumericLexerOptions!char) parseOptions) nothrow pure
+    in
     {
-        const length = (digits.length / 2) + (digits.length % 2);
+        assert(hexDigits.length != 0);
+    }
+    do
+    {
+        const length = (hexDigits.length / 2) + (hexDigits.length % 2);
         auto resultBits = UByteTempArray(length);
 
         size_t bitIndex = 0;
@@ -1992,22 +2053,14 @@ private:
         // string value     : O F E B 7 \0
         // string index (i) : 0 1 2 3 4 5 <--
         // byte[] (bitIndex): 2 1 1 0 0 <--
-        //
-
-        isHex(digits[0], b);
-        const isNegative = (format.styles & ParseStyle.isUnsigned) == 0 && (b & 0x08) == 0x08;
-
-        for (auto i = digits.length - 1; i > 0; i--)
+        for (auto i = hexDigits.length - 1; i > 0; i--)
         {
-            if (!isHex(digits[i], b))
+            if (!isHexDigit(hexDigits[i], b))
             {
-                if (format.isAllowThousandChar(digits[i]))
+                if (parseOptions.isContinueSkippingChar(hexDigits[i]))
                     continue;
-                else
-                {
-                    errorAt = i;
-                    return;
-                }
+
+                return false;
             }
 
             if (shift)
@@ -2022,13 +2075,16 @@ private:
             shift = !shift;
         }
 
-        isHex(digits[0], b);
+        if (!isHexDigit(hexDigits[0], b))
+            return false;
+        const isNegative = (parseOptions.flags & NumericLexerFlag.unsigned) == 0 && (b & 0x08) == 0x08;
         if (shift)
             resultBits[bitIndex] = cast(ubyte)(resultBits[bitIndex] | (b << 4));
         else
             resultBits[bitIndex] = isNegative ? cast(ubyte)(b | 0xF0) : b;
 
         setBytes(resultBits[], isNegative ? No.unsigned : Yes.unsigned);
+        return true;
     }
 
     void setInt(int value) nothrow pure
@@ -2124,13 +2180,13 @@ private:
         _sign = -1;
     }
 
-    void setMinusOne() nothrow pure
+    void setNegOne() nothrow pure
     {
         _bits = null;
         _sign = -1;
     }
 
-    void setNegativeInts(const(Flag!"negative") negative, scope const(uint)[] value) nothrow pure
+    void setNegInts(scope const(uint)[] value, const(Flag!"negative") negative) nothrow pure
     {
         size_t len = value.length;
 
@@ -2144,8 +2200,8 @@ private:
         // Values like (Int32.MaxValue+1) are stored as "0x80000000" and as such cannot be packed into _sign
         else if (len == 1 && value[0] < kuMaskHighBit)
         {
-            this._sign = (negative ? -cast(int)value[0] : cast(int)value[0]);
             this._bits = null;
+            this._sign = negative ? -cast(int)value[0] : cast(int)value[0];
             // Although Int32.MinValue fits in _sign, we represent this case differently for negate
             if (this._sign == int.min)
                 setMinInt();
@@ -2173,7 +2229,7 @@ private:
         debug assertValid();
     }
 
-    BigInteger subtractOpAssign(const(uint)[] rightBits, int rightSign) nothrow pure
+    ref BigInteger subtractOpAssign(const(uint)[] rightBits, int rightSign) nothrow pure return
     {
         const trivialLeft = _bits.length == 0;
         const trivialRight = rightBits.length == 0;
@@ -2183,30 +2239,25 @@ private:
         else if (trivialLeft)
         {
             auto resultBits = BigIntegerCalculator.subtract(rightBits, BigIntegerHelper.abs(_sign));
-            setNegativeInts(toNegativeFlag(_sign >= 0), resultBits[]);
+            setNegInts(resultBits[], toNegativeFlag(_sign >= 0));
         }
         else if (trivialRight)
         {
             auto resultBits = BigIntegerCalculator.subtract(_bits, BigIntegerHelper.abs(rightSign));
-            setNegativeInts(toNegativeFlag(_sign < 0), resultBits[]);
+            setNegInts(resultBits[], toNegativeFlag(_sign < 0));
         }
         else if (BigIntegerCalculator.compare(_bits, rightBits) < 0)
         {
             auto resultBits = BigIntegerCalculator.subtract(rightBits, _bits);
-            setNegativeInts(toNegativeFlag(_sign >= 0), resultBits[]);
+            setNegInts(resultBits[], toNegativeFlag(_sign >= 0));
         }
         else
         {
             auto resultBits = BigIntegerCalculator.subtract(_bits, rightBits);
-            setNegativeInts(toNegativeFlag(_sign < 0), resultBits[]);
+            setNegInts(resultBits[], toNegativeFlag(_sign < 0));
         }
 
         return this;
-    }
-
-    @property bool isEmpty() const nothrow pure scope
-    {
-        return _sign == 0 && _bits.length == 0;
     }
 
 private:
@@ -2219,6 +2270,15 @@ private:
 int compare(const(BigInteger) lhs, const(BigInteger) rhs) @nogc nothrow pure
 {
     return lhs.opCmp(rhs);
+}
+
+BigInteger abs(const(BigInteger) value) nothrow pure
+{
+    auto result = BigInteger(value._bits, value._sign);
+    if (result < BigInteger.zero)
+        return -result;
+    else
+        return result;
 }
 
 BigInteger add(const(BigInteger) lhs, const(BigInteger) rhs) nothrow pure
@@ -2248,13 +2308,10 @@ BigInteger divide(const(BigInteger) dividend, const(BigInteger) divisor) nothrow
     return dividend / divisor;
 }
 
-BigInteger remainder(const(BigInteger) dividend, const(BigInteger) divisor) nothrow pure
-{
-    return dividend % divisor;
-}
-
 BigInteger divRem(const(BigInteger) dividend, const(BigInteger) divisor, out BigInteger remainder) nothrow pure
 {
+    // remainder can be an alias to divident or divisor, so care to be taken when setting remainder value
+
     debug dividend.assertValid();
     debug divisor.assertValid();
 
@@ -2263,8 +2320,9 @@ BigInteger divRem(const(BigInteger) dividend, const(BigInteger) divisor, out Big
 
     if (trivialDividend && trivialDivisor)
     {
+        auto quotient = BigInteger(dividend._sign / divisor._sign);
         remainder = BigInteger(dividend._sign % divisor._sign);
-        return BigInteger(dividend._sign / divisor._sign);
+        return quotient;
     }
 
     if (trivialDividend)
@@ -2278,9 +2336,9 @@ BigInteger divRem(const(BigInteger) dividend, const(BigInteger) divisor, out Big
     {
         uint rest;
         auto resultBits = BigIntegerCalculator.divide(dividend._bits, BigIntegerHelper.abs(divisor._sign), rest);
-
+        auto quotient = BigInteger(resultBits[], toNegativeFlag((dividend._sign < 0) ^ (divisor._sign < 0)));
         remainder = BigInteger(dividend._sign < 0 ? -1 * rest : rest);
-        return BigInteger(resultBits[], toNegativeFlag((dividend._sign < 0) ^ (divisor._sign < 0)));
+        return quotient;
     }
 
     if (dividend._bits.length < divisor._bits.length)
@@ -2292,19 +2350,15 @@ BigInteger divRem(const(BigInteger) dividend, const(BigInteger) divisor, out Big
     {
         UIntTempArray rest;
         auto resultBits = BigIntegerCalculator.divide(dividend._bits, divisor._bits, rest);
-
+        auto quotient = BigInteger(resultBits[], toNegativeFlag((dividend._sign < 0) ^ (divisor._sign < 0)));
         remainder = BigInteger(rest[], toNegativeFlag(dividend._sign < 0));
-        return BigInteger(resultBits[], toNegativeFlag((dividend._sign < 0) ^ (divisor._sign < 0)));
+        return quotient;
     }
 }
 
-BigInteger abs(const(BigInteger) value) nothrow pure
+BigInteger remainder(const(BigInteger) dividend, const(BigInteger) divisor) nothrow pure
 {
-    auto result = BigInteger(value._bits, value._sign);
-    if (result < BigInteger.zero)
-        return -result;
-    else
-        return result;
+    return dividend % divisor;
 }
 
 double log(const(BigInteger) value, double baseValue) nothrow pure
@@ -2354,10 +2408,17 @@ double log10(const(BigInteger) value) nothrow pure
     return log(value, 10);
 }
 
-BigInteger negate(const(BigInteger) value) nothrow pure
+bool modInverse(const(BigInteger) a, const(BigInteger) m, ref BigInteger d) nothrow pure @safe
 {
-    auto result = BigInteger(value._bits, value._sign);
-    return -result;
+    BigInteger x, y, gcd;
+    extendedEuclid(a, m, x, y, gcd);
+    if (gcd.isOne)
+    {
+        d = x.sign == -1 ? (m + x) % m : x % m;
+        return true;
+    }
+    else
+        return false;
 }
 
 BigInteger modPow(const(BigInteger) value, const(BigInteger) exponent, const(BigInteger) modulus) nothrow pure
@@ -2403,10 +2464,39 @@ do
     }
 }
 
+BigInteger negate(const(BigInteger) value) nothrow pure
+{
+    auto result = BigInteger(value._bits, value._sign);
+    return -result;
+}
+
 BigInteger pow(const(BigInteger) value, int exponent) nothrow pure
 {
     auto result = BigInteger(value._bits, value._sign);
     return result ^^ exponent;
+}
+
+BigInteger sqrt(const(BigInteger) value) nothrow pure
+{
+    if (value <= 1)
+        return value.dup;
+
+	// Start with value known to be too large and repeat "z = ⌊(z + ⌊x/z⌋)/2⌋" until it stops getting smaller.
+	// See Brent and Zimmermann, Modern Computer Arithmetic, Algorithm 1.13 (SqrtInt).
+	// https://members.loria.fr/PZimmermann/mca/pub226.html
+	// If x is one less than a perfect square, the sequence oscillates between the correct z and z+1;
+	// otherwise it converges to the correct z and stays there.
+	BigInteger z1 = 1, z2;
+	z1 <<= (value.bitLength + 1) / 2; // must be ≥ √x
+	while (true)
+    {
+		z2 = divide(value, z1);
+		z2 += z1;
+		z2 >>= 1;
+		if (z2 >= z1)
+			return z1; // z1 is answer.
+        swap(z1, z2);
+	}
 }
 
 inout(BigInteger) max(inout(BigInteger) lhs, inout(BigInteger) rhs) nothrow pure
@@ -2423,6 +2513,13 @@ inout(BigInteger) min(inout(BigInteger) lhs, inout(BigInteger) rhs) nothrow pure
         return lhs;
     else
         return rhs;
+}
+
+void swap(ref BigInteger a, ref BigInteger b) nothrow pure
+{
+    BigInteger t = a;
+    a = b;
+    b = t;
 }
 
 BigInteger greatestCommonDivisor(const(BigInteger) lhs, const(BigInteger) rhs) nothrow pure
@@ -2458,9 +2555,81 @@ BigInteger greatestCommonDivisor(const(BigInteger) lhs, const(BigInteger) rhs) n
         return greatestCommonDivisor(lhs._bits, rhs._bits);
 }
 
+alias ProbablyPrimeTestRandomGen = BigInteger delegate(BigInteger /*limit*/) nothrow @safe;
+enum ushort probablyPrimeTestIterations = 20;
+
+bool isProbablyPrime(const(BigInteger) x, ProbablyPrimeTestRandomGen testRandomGen, const(ushort) testIterations = probablyPrimeTestIterations) nothrow
+{
+    version (profile) debug auto p = PerfFunction.create();
+
+    if (x.sign == -1 || x.isZero || x.isOne)
+        return false;
+
+    if (x.isEven)
+        return x == 2;
+
+    // Check small prime number list
+    static immutable ubyte[] ubytePrimes = [
+        2, 3, 5, 7, 11, 13, 17, 19, 23, 29,
+        31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
+        73, 79, 83, 89, 97, 101, 103, 107, 109, 113,
+        127, 131, 137, 139, 149, 151, 157, 163, 167, 173,
+        179, 181, 191, 193, 197, 199, 211, 223, 227, 229,
+        233, 239, 241, 251,
+        ];
+
+    if (x < 255)
+    {
+        foreach (sp; ubytePrimes)
+        {
+            if (x == cast(uint)sp)
+                return true;
+        }
+    }
+
+	enum uint primesA = 3 * 5 * 7 * 11 * 13 * 17 * 19 * 23 * 37;
+	enum uint primesB = 29 * 31 * 41 * 43 * 47 * 53;
+	const rA = x % primesA;
+	const rB = x % primesB;
+	if (rA%3 == 0 || rA%5 == 0 || rA%7 == 0 || rA%11 == 0 || rA%13 == 0 || rA%17 == 0 || rA%19 == 0 || rA%23 == 0 || rA%37 == 0
+		|| rB%29 == 0 || rB%31 == 0 || rB%41 == 0 || rB%43 == 0 || rB%47 == 0 || rB%53 == 0)
+		return false;
+
+	return isProbablyPrimeMillerRabin(x, testRandomGen, testIterations, false) && isProbablyPrimeLucas(x);
+}
+
 
 // Any below codes are private
 private:
+
+void extendedEuclid(const(BigInteger) a, const(BigInteger) b,
+    out BigInteger x, out BigInteger y, out BigInteger gcd) nothrow pure
+{
+    version (profile) debug auto p = PerfFunction.create();
+
+    BigInteger s = BigInteger.zero, oldS = BigInteger.one;
+    BigInteger t = BigInteger.one, oldT = BigInteger.zero;
+    BigInteger r = b.dup, oldR = a.dup;
+    while (!r.isZero)
+    {
+        const quotient = oldR / r;
+
+        auto old = oldR;
+        oldR = r;
+        r = old - quotient * r;
+
+        old = oldS;
+        oldS = s;
+        s = old - quotient * s;
+
+        old = oldT;
+        oldT = t;
+        t = old - quotient * t;
+    }
+    gcd = oldR;
+    x = oldS;
+    y = oldT;
+}
 
 BigInteger greatestCommonDivisor(const(uint)[] leftBits, const(uint)[] rightBits) nothrow pure
 {
@@ -2487,6 +2656,295 @@ BigInteger greatestCommonDivisor(const(uint)[] leftBits, const(uint)[] rightBits
     return BigInteger(resultBits[], No.negative);
 }
 
+// probablyPrimeMillerRabin reports whether n passes testIterations rounds of the
+// Miller-Rabin primality test, using pseudo-randomly chosen bases.
+// If isForced is true, one of the rounds is forced to use base 2.
+// See Handbook of Applied Cryptography, p. 139, Algorithm 4.24.
+// The number n is known to be non-zero.
+bool isProbablyPrimeMillerRabin(const(BigInteger) n, ProbablyPrimeTestRandomGen testRandomGen, const(ushort) testIterations,
+    const(bool) isForced) nothrow
+{
+    version (profile) debug auto p = PerfFunction.create();
+
+	auto nm1 = n - 1;
+
+	// determine q, k such that nm1 = q << k
+	const k = nm1.trailingZeroBits();
+	const q = nm1 >> k;
+
+	auto nm3 = nm1 - 2;
+
+	BigInteger x, y, quotient;
+
+	foreach (i; 0..testIterations)
+    {
+        bool nextRandom = false;
+		if (i == testIterations-1 && isForced)
+			x = 2;
+        else
+			x = testRandomGen(nm3) + 2;
+
+		y = modPow(x, q, n);
+		if (y.isOne || y == nm1)
+			continue;
+
+		foreach (_; 1..k)
+        {
+            y *= y;
+            quotient = divRem(y, n, y);
+			if (y == nm1)
+            {
+                nextRandom = true;
+                break;
+            }
+			if (y.isOne)
+				return false;
+		}
+
+        if (!nextRandom)
+		    return false;
+	}
+
+	return true;
+}
+
+bool isProbablyPrimeLucas(const(BigInteger) n) nothrow pure
+{
+    version (profile) debug auto pf = PerfFunction.create();
+
+/* Already checked by caller -> no need
+	// Discard 0 & 1
+	if (n.isZero || n.isOne)
+		return false;
+
+	// Two is the only even prime.
+	if (n.isEven)
+        return n == 2;
+*/
+
+	// Baillie-OEIS "method C" for choosing D, P, Q,
+	// as in https://oeis.org/A217719/a217719.txt:
+	// try increasing P ≥ 3 such that D = P² - 4 (so Q = 1)
+	// until Jacobi(D, n) = -1.
+	// The search is expected to succeed for non-square n after just a few trials.
+	// After more than expected failures, check whether n is square
+	// (which would cause Jacobi(D, n) = 1 for all D not dividing n).
+	uint p = 3;
+	BigInteger d = BigInteger.one;
+	BigInteger t1; // temp
+	for (; ; p++)
+    {
+		if (p > 10_000)
+        {
+			// This is widely believed to be impossible.
+			// If we get a report, we'll want the exact number n.
+			// panic("math/big: internal error: cannot find (D/n) = -1 for " + intN.String())
+            return false;
+		}
+
+		d = p*p - 4;
+		const j = jacobi(d, n);
+		if (j == -1)
+			break;
+
+		if (j == 0)
+        {
+			// d = p²-4 = (p-2)(p+2).
+			// If (d/n) == 0 then d shares a prime factor with n.
+			// Since the loop proceeds in increasing p and starts with p-2==1,
+			// the shared prime factor must be p+2.
+			// If p+2 == n, then n is prime; otherwise p+2 is a proper factor of n.
+			return n == p+2;
+		}
+
+		if (p == 40)
+        {
+			// We'll never find (d/n) = -1 if n is a square.
+			// If n is a non-square we expect to find a d in just a few attempts on average.
+			// After 40 attempts, take a moment to check if n is indeed a square.
+			t1 = sqrt(n);
+			t1 = t1 * t1;
+			if (t1 == n)
+				return false;
+		}
+	}
+
+	// Grantham definition of "extra strong Lucas pseudoprime", after Thm 2.3 on p. 876
+	// (D, P, Q above have become Δ, b, 1):
+	//
+	// Let U_n = U_n(b, 1), V_n = V_n(b, 1), and Δ = b²-4.
+	// An extra strong Lucas pseudoprime to base b is a composite n = 2^r s + Jacobi(Δ, n),
+	// where s is odd and gcd(n, 2*Δ) = 1, such that either (i) U_s ≡ 0 mod n and V_s ≡ ±2 mod n,
+	// or (ii) V_{2^t s} ≡ 0 mod n for some 0 ≤ t < r-1.
+	//
+	// We know gcd(n, Δ) = 1 or else we'd have found Jacobi(d, n) == 0 above.
+	// We know gcd(n, 2) = 1 because n is odd.
+	//
+	// Arrange s = (n - Jacobi(Δ, n)) / 2^r = (n+1) / 2^r.
+	BigInteger s = n + 1;
+	const r = s.trailingZeroBits;
+	s >>= r;
+	BigInteger nm2 = n - 2; // n-2
+
+	// We apply the "almost extra strong" test, which checks the above conditions
+	// except for U_s ≡ 0 mod n, which allows us to avoid computing any U_k values.
+	// Jacobsen points out that maybe we should just do the full extra strong test:
+	// "It is also possible to recover U_n using Crandall and Pomerance equation 3.13:
+	// U_n = D^-1 (2V_{n+1} - PV_n) allowing us to run the full extra-strong test
+	// at the cost of a single modular inversion. This computation is easy and fast in GMP,
+	// so we can get the full extra-strong test at essentially the same performance as the
+	// almost extra strong test."
+
+	// Compute Lucas sequence V_s(b, 1), where:
+	//
+	//	V(0) = 2
+	//	V(1) = P
+	//	V(k) = P V(k-1) - Q V(k-2).
+	//
+	// (Remember that due to method C above, P = b, Q = 1.)
+	//
+	// In general V(k) = α^k + β^k, where α and β are roots of x² - Px + Q.
+	// Crandall and Pomerance (p.147) observe that for 0 ≤ j ≤ k,
+	//
+	//	V(j+k) = V(j)V(k) - V(k-j).
+	//
+	// So in particular, to quickly double the subscript:
+	//
+	//	V(2k) = V(k)² - 2
+	//	V(2k+1) = V(k) V(k+1) - P
+	//
+	// We can therefore start with k=0 and build up to k=s in log₂(s) steps.
+	BigInteger natP = p;
+	BigInteger vk1 = p;
+	BigInteger vk = 2;
+	BigInteger t2; // temp
+	for (int i = s.bitLength; i >= 0; i--)
+    {
+		if (s.bitSet(i))
+        {
+			// k' = 2k+1
+			// V(k') = V(2k+1) = V(k) V(k+1) - P.
+			t1 = vk * vk1;
+			t1 += n;
+			t1 -= natP;
+			t2 = divRem(t1, n, vk);
+			// V(k'+1) = V(2k+2) = V(k+1)² - 2.
+			t1 = vk1 * vk1;
+			t1 += nm2;
+            t2 = divRem(t1, n, vk1);
+		}
+        else
+        {
+			// k' = 2k
+			// V(k'+1) = V(2k+1) = V(k) V(k+1) - P.
+			t1 = vk * vk1;
+			t1 += n;
+			t1 -= natP;
+            t2 = divRem(t1, n, vk1);
+			// V(k') = V(2k) = V(k)² - 2
+			t1 = vk * vk;
+			t1 += nm2;
+            t2 = divRem(t1, n, vk);
+		}
+	}
+
+	// Now k=s, so vk = V(s). Check V(s) ≡ ±2 (mod n).
+	if (vk == 2 || vk == nm2)
+    {
+		// Check U(s) ≡ 0.
+		// As suggested by Jacobsen, apply Crandall and Pomerance equation 3.13:
+		//
+		//	U(k) = D⁻¹ (2 V(k+1) - P V(k))
+		//
+		// Since we are checking for U(k) == 0 it suffices to check 2 V(k+1) == P V(k) mod n,
+		// or P V(k) - 2 V(k+1) == 0 mod n.
+		t1 = vk * natP;
+		t2 = vk1 << 1;
+		if (t1 < t2)
+            swap(t1, t2);
+		t1 -= t2;
+		BigInteger t3 = vk1; // steal vk1, no longer needed below
+		vk1 = 0;
+		//_ = vk1
+        t2 = divRem(t1, n, t3);
+		if (t3 == 0)
+			return true;
+	}
+
+	// Check V(2^t s) ≡ 0 mod n for some 0 ≤ t < r-1.
+	for (int t = 0; t < r-1; t++)
+    {
+		if (vk == 0) // vk == 0
+			return true;
+		// Optimization: V(k) = 2 is a fixed point for V(k') = V(k)² - 2,
+		// so if V(k) = 2, we can stop: we will never find a future V(k) == 0.
+		if (vk == 2) // vk == 2
+			return false;
+		// k' = 2k
+		// V(k') = V(2k) = V(k)² - 2
+		t1 = vk * vk;
+		t1 -= 2;
+        t2 = divRem(t1, n, vk);
+	}
+
+	return false;
+}
+
+// Jacobi returns the Jacobi symbol (x/y), either +1, -1, or 0.
+int jacobi(const(BigInteger) x, const(BigInteger) y) nothrow pure
+in
+{
+    assert(x != 0);
+    assert(!y.isEven);
+}
+do
+{
+    version (profile) debug auto p = PerfFunction.create();
+
+	// We use the formulation described in chapter 2, section 2.4,
+	// "The Yacas Book of Algorithms":
+	// http://yacas.sourceforge.net/Algo.book.pdf
+
+	BigInteger a = x.dup, b = y.dup;
+	int j = 1;
+	if (b.sign == -1)
+    {
+		if (a.sign == -1)
+			j = -1;
+		b = abs(b);
+	}
+
+	while (true)
+    {
+		if (b == 1)
+			return j;
+
+		if (a == 0)
+			return 0;
+
+        a %= b;
+		if (a == 0)
+			return 0;
+
+		// a > 0
+		// handle factors of 2 in 'a'
+		const s = a.trailingZeroBits;
+		if ((s&1) != 0)
+        {
+			const bmod8 = b.bitSets(0) & 7;
+			if (bmod8 == 3 || bmod8 == 5)
+				j = -j;
+		}
+		const c = a >> s; // a = 2^s*c
+
+		// swap numerator and denominator
+		if ((b.bitSets(0)&3) == 3 && (c.bitSets(0)&3) == 3)
+			j = -j;
+        a = b;
+        b = c;
+	}
+}
+
 version (unittest)
 string toStringSafe(const(BigInteger) n,
     string format = null,
@@ -2501,7 +2959,7 @@ nothrow unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger.BigInteger.toString('%d')");
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger.toString('%d')");
 
     static void check(T)(T value, string checkedValue,
         string format = null,
@@ -2536,7 +2994,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger.BigInteger.toString('%X')");
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger.toString('%X')");
 
     static void check(T)(T value, string checkedValue,
         string format = "%X",
@@ -2571,7 +3029,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger.BigInteger(parse integer)");
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(parse integer)");
 
     static void check(string value,
         size_t line = __LINE__) @safe
@@ -2604,7 +3062,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger.BigInteger(parse hex)");
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(parse hex)");
 
     static void check(string value,
         size_t line = __LINE__)
@@ -2632,10 +3090,22 @@ unittest
     check("F439EB2");
 }
 
+unittest // Parse failed
+{
+    import std.exception : assertThrown;
+    import pham.utl.test;
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger() failed");
+
+    assertThrown!ConvException(BigInteger(""));
+    assertThrown!ConvException(BigInteger("123 456"));
+    assertThrown!ConvException(BigInteger("0x"));
+    assertThrown!ConvException(BigInteger("0x0  abc"));
+}
+
 unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger.BigInteger(compare)");
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(compare)");
 
     auto x = BigInteger("12345");
     auto x2 = BigInteger("12345");
@@ -2661,7 +3131,7 @@ unittest
     import std.conv : to, ConvException;
     import std.exception : assertThrown;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger.BigInteger(cast)");
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(cast)");
 
     // Non-zero values are regarded as true
     auto x = BigInteger("1");
@@ -2718,7 +3188,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger.BigInteger(operator + - ~ )");
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(operator + - ~ )");
 
     static void check(const(BigInteger) value, string checkedValue,
         size_t line = __LINE__)
@@ -2868,7 +3338,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger.BigInteger(operator * / %)");
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(operator * / %)");
 
     static void check(const(BigInteger) value, string checkedValue,
         size_t line = __LINE__)
@@ -2940,7 +3410,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger.BigInteger(operator << >> ^^)");
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(operator << >> ^^)");
 
     static void check(const(BigInteger) value, string checkedValue,
         size_t line = __LINE__)
@@ -2969,49 +3439,9 @@ unittest
 
 unittest
 {
-    import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger.randomDecimalDigits");
-
-    string s;
-
-    s = randomDecimalDigits(0);
-    assert(BigInteger(s) == 0, s ~ " ? " ~ BigInteger(s).toString());
-
-    s = randomDecimalDigits(1);
-    assert(BigInteger(s) > 0, s ~ " ? " ~ BigInteger(s).toString());
-
-    s = randomDecimalDigits(10);
-    assert(BigInteger(s) > 0, s ~ " ? " ~ BigInteger(s).toString());
-
-    s = randomDecimalDigits(33);
-    assert(BigInteger(s) > 0, s ~ " ? " ~ BigInteger(s).toString());
-}
-
-unittest
-{
-    import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger.randomHexDigits");
-
-    string s;
-
-    s = randomHexDigits(0);
-    assert(BigInteger(s) == 0, s ~ " ? " ~ BigInteger(s).toString());
-
-    s = randomHexDigits(1);
-    assert(BigInteger(s) > 0, s ~ " ? " ~ BigInteger(s).toString());
-
-    s = randomHexDigits(10);
-    assert(BigInteger(s) > 0, s ~ " ? " ~ BigInteger(s).toString());
-
-    s = randomHexDigits(33);
-    assert(BigInteger(s) > 0, s ~ " ? " ~ BigInteger(s).toString());
-}
-
-unittest
-{
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger.BigInteger(multiply)");
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(multiply)");
 
     static void check(const(BigInteger) value, string checkedValue,
         size_t line = __LINE__)
@@ -3031,7 +3461,7 @@ unittest
 unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger.BigInteger.enum");
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger.enum");
 
     enum b = BigInteger("0x123");
     enum b2 = BigInteger("291");
@@ -3041,7 +3471,7 @@ unittest
 unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger.BigInteger.toBytes");
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger.toBytes");
 
     auto b = BigInteger("148607213746748888433115898774488125434956021884951532398437063594981690133657747515764650183781235940657054608881977858196568765979755791042029635107364589767082851027596594595936524517171068826751265581664247659551324634745120309986368437908665195084578221129443657946400665125676458397984792168049771254957");
 
@@ -3052,7 +3482,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger.BigInteger(RSP Calculation)");
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(RSP Calculation)");
 
     static void check(string caseNumber, const(BigInteger) value, string checkedValue,
         size_t line = __LINE__)
@@ -3148,8 +3578,93 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.biginteger - to!BigInteger('123...')");
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger - to!BigInteger('123...')");
 
     const a = to!BigInteger("1234");
     assert(a == 1234);
+}
+
+unittest // modInverse
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.big_integer.modInverse");
+
+    BigInteger d;
+
+    assert(modInverse(BigInteger(65537), BigInteger("57896044618658097711785492504343953926634992332820282019728792003956564819949"), d));
+    assert(d == BigInteger("34424722930556307912062759539027956675055501185976482746308063640541669864409"));
+
+    assert(modInverse(BigInteger(53), BigInteger(120), d));
+    assert(d == BigInteger(77));
+
+    assert(modInverse(BigInteger(65537), BigInteger("1034776851837418226012406113933120080"), d));
+    assert(d == BigInteger("568411228254986589811047501435713"));
+
+    //assert(modInverse(BigInteger(), BigInteger(), d));
+    //assert(d == BigInteger());
+}
+
+unittest // BigInteger.bitLength
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.big_integer.BigInteger.bitLength");
+
+    assert(BigInteger(0).bitLength == 0);
+    assert(BigInteger(1).bitLength == 1);
+    assert(BigInteger(-1).bitLength == 1);
+    assert(BigInteger(2).bitLength == 2);
+    assert(BigInteger(4).bitLength == 3);
+
+    auto options = defaultParseBigIntegerOptions();
+    options.flags |= NumericLexerFlag.unsigned;
+
+    assert(BigInteger("0xabc", options).bitLength == 12);
+    assert(BigInteger("0x8000", options).bitLength == 16);
+    assert(BigInteger("0x8000_0000", options).bitLength == 32);
+    assert(BigInteger("0x8000_0000_0000", options).bitLength == 48);
+    assert(BigInteger("0x8000_0000_0000_0000", options).bitLength == 64);
+    assert(BigInteger("0x8000_0000_0000_0000_0000", options).bitLength == 80);
+    assert(BigInteger("-0x40_0000_0000_0000_0000_0000", options).bitLength == 87);
+}
+
+unittest // BigInteger.trailingZeroBits
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.big_integer.BigInteger.trailingZeroBits");
+
+    assert(BigInteger(0).trailingZeroBits == 0);
+    assert(BigInteger(1).trailingZeroBits == 0);
+    assert(BigInteger(-1).trailingZeroBits == 0);
+    assert(BigInteger(2).trailingZeroBits == 1);
+    assert(BigInteger(4).trailingZeroBits == 2);
+
+    auto options = defaultParseBigIntegerOptions();
+    options.flags |= NumericLexerFlag.unsigned;
+
+    assert(BigInteger("0xabc", options).trailingZeroBits == 2);
+    assert(BigInteger("0x8000", options).trailingZeroBits == 15);
+    assert(BigInteger("0x8000_0000", options).trailingZeroBits == 31);
+    assert(BigInteger("0x8000_0000_0000", options).trailingZeroBits == 47);
+    assert(BigInteger("0x8000_0000_0000_0000", options).trailingZeroBits == 63);
+    assert(BigInteger("0x8000_0000_0000_0000_0000", options).trailingZeroBits == 79);
+    assert(BigInteger("-0x40_0000_0000_0000_0000_0000", options).trailingZeroBits == 86);
+}
+
+unittest // BigInteger.sqrt
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.big_integer.BigInteger.sqrt");
+
+    auto options = defaultParseBigIntegerOptions();
+    options.flags |= NumericLexerFlag.unsigned;
+
+    const x1 = BigInteger("0x92fcad4b5c0d52f451aec609b15da8e5e5626c4eaa88723bdeac9d25ca9b961269400410ca208a16af9c2fb07d799c32fe2f3cc5422f9711078d51a3797eb18e691295293284d8f5e69caf6decddfe1df6", options);
+    const r1 = BigInteger("25896323039101168858705535065253312412509632832011338487216516809677871643438699011042899929132115", options);
+    assert(x1.sqrt == r1);
+
+    const x2 = BigInteger("0x5c0d52f451aec609b15da8e5e5626c4eaa88723bdeac9d25ca9b961269400410ca208a16af9c2fb07d7a11c7772cba02c22f9711078d51a3797eb18e691295293284d988e349fa6deba46b25a4ecd9f715", options);
+    const r2 = BigInteger("20493462331187228687772903530600462842384761584767303313899474124009959815839275652338762739419510", options);
+    assert(x2.sqrt == r2);
+
+    assert(BigInteger("653987632134").sqrt == BigInteger("808695"));
 }

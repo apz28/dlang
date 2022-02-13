@@ -11,16 +11,251 @@
 
 module pham.utl.bit_array;
 
-import core.bitop : bsf, bt, btc, btr, bts, popcnt;
+import core.bitop : bsf, popcnt;
 import std.algorithm.comparison : min;
-import std.bitmanip : swapEndian;
+import std.bitmanip : bigEndianToNative, littleEndianToNative, nativeToBigEndian, nativeToLittleEndian, swapEndian;
 import std.format : FormatSpec;
 import std.range.primitives : isOutputRange, put;
-import std.traits;
+import std.system : Endian;
+import std.traits : isIntegral, isNumeric, isSomeChar, isUnsigned, Unqual;
 
+import pham.utl.object : cmpIntegral;
 import pham.utl.utf8 : ShortStringBuffer;
 
 nothrow @safe:
+
+union Map16Bit
+{
+    ushort u; // Make this first to have zero initialized value
+    short i;
+    ubyte[2] lh;
+    ubyte[ushort.sizeof] a;
+}
+static assert(Map16Bit.sizeof == 2);
+
+union Map32Bit
+{
+    uint u; // Make this first to have zero initialized value
+    int i;
+    float f;
+    ushort[2] lh;
+    ubyte[uint.sizeof] a;
+}
+static assert(Map32Bit.sizeof == 4);
+
+union Map64Bit
+{
+    ulong u; // Make this first to have zero initialized value
+    long i;
+    double f;
+    uint[2] lh;
+    ubyte[ulong.sizeof] a;
+}
+static assert(Map64Bit.sizeof == 8);
+
+pragma(inline, true)
+private size_t bAt(T)(const(size_t) index) @nogc pure
+if (isUnsigned!T && T.sizeof <= 8)
+{
+    return index & (T.sizeof * 8 - 1);
+}
+
+pragma(inline, true)
+private size_t pAt(T)(const(size_t) index) @nogc pure
+if (isUnsigned!T && T.sizeof <= 8)
+{
+    return index / (T.sizeof * 8);
+}
+
+pragma(inline, true)
+bool bt(T)(const scope T* p, const(size_t) index) @nogc pure @system
+if (isUnsigned!T && T.sizeof <= 8)
+{
+    return (p[pAt!T(index)] & (T(1) << bAt!T(index))) != 0;
+}
+
+pragma(inline, true)
+bool btc(T)(scope T* p, const(size_t) index) @nogc pure @system
+if (isUnsigned!T && T.sizeof <= 8)
+{
+    const pat = pAt!T(index);
+    const bat = bAt!T(index);
+    const result = (p[pat] & (T(1) << bat)) != 0;
+    if (result)
+        p[pat] &= flip(cast(T)(T(1) << bat));
+    else
+        p[pat] |= cast(T)(T(1) << bat);
+    return result;
+}
+
+pragma(inline, true)
+bool btr(T)(scope T* p, const(size_t) index) @nogc pure @system
+if (isUnsigned!T && T.sizeof <= 8)
+{
+    const pat = pAt!T(index);
+    const bat = bAt!T(index);
+    const result = (p[pat] & (T(1) << bat)) != 0;
+    p[pat] &= flip(cast(T)(T(1) << bat));
+    return result;
+}
+
+pragma(inline, true)
+bool bts(T)(scope T* p, const(size_t) index) @nogc pure @system
+if (isUnsigned!T && T.sizeof <= 8)
+{
+    const pat = pAt!T(index);
+    const bat = bAt!T(index);
+    const result = (p[pat] & (T(1) << bat)) != 0;
+    p[pat] |= cast(T)(T(1) << bat);
+    return result;
+}
+
+/// Returns the minimum number of bits required to represent x; the result is 0 for x == 0.
+pragma(inline, true)
+size_t bitLength(T)(const(T) x) @nogc pure
+if (isUnsigned!T && T.sizeof <= 8)
+{
+    size_t n = 0;
+    Unqual!T ux = x;
+
+    static if (T.sizeof >= 8)
+    if (ux >= 1UL<<32)
+    {
+	    ux >>= 32;
+	    n += 32;
+    }
+
+    static if (T.sizeof >= 4)
+    if (ux >= 1U<<16)
+    {
+	    ux >>= 16;
+	    n += 16;
+    }
+
+    static if (T.sizeof >= 2)
+    if (ux >= 1U<<8)
+    {
+	    ux >>= 8;
+	    n += 8;
+    }
+
+    assert(ux <= 0xFF);
+
+    return n + len8Table[cast(ubyte)ux];
+}
+
+pragma(inline, true)
+T bytesToNative(T)(scope const(ubyte)[] bytes) @nogc pure
+if (isIntegral!T)
+in
+{
+    assert(bytes.length >= T.sizeof);
+}
+do
+{
+    ubyte[T.sizeof] convertingBytes = bytes[0..T.sizeof];
+    version (LittleEndian)
+        return littleEndianToNative!T(convertingBytes);
+    else
+        return bigEndianToNative!T(convertingBytes);
+}
+
+pragma(inline, true)
+T bytesToNative(T)(scope const(ubyte)[] bytes, Endian endianness) @nogc pure
+if (isIntegral!T)
+in
+{
+    assert(bytes.length >= T.sizeof);
+}
+do
+{
+    ubyte[T.sizeof] convertingBytes = bytes[0..T.sizeof];
+    return endianness == Endian.littleEndian
+        ? littleEndianToNative!T(convertingBytes)
+        : bigEndianToNative!T(convertingBytes);
+}
+
+pragma(inline, true)
+T flip(T)(T v) @nogc pure
+if (isUnsigned!T)
+{
+    static if (T.sizeof < size_t.sizeof)
+        return cast(T)(~(cast(size_t)v));
+    else
+        return ~v;
+}
+
+/**
+ * Returns the byte of x at byteIndex
+ * Params:
+ *  x = the value to extract from
+ *  byteIndex = which ubyte to extract; ubyte at 0 is highest ubyte
+ */
+pragma(inline, true)
+ubyte getByteAt(T)(const(T) x, size_t byteIndex) @nogc pure
+if (isUnsigned!T)
+in
+{
+    assert(byteIndex < T.sizeof);
+}
+do
+{
+    return cast(ubyte)(x >> (byteIndex << 3));
+}
+
+/// Return the position of the highest set bit in x
+pragma(inline, true)
+size_t highestBit(T)(const(T) x) @nogc pure
+if (isUnsigned!T && T.sizeof <= 8)
+{
+    if (x == 0)
+        return 0;
+    else
+    {
+        size_t n = 0;
+        Unqual!T ux = x;
+
+        static if (T.sizeof >= 8)
+        if (ux >= 1UL<<32)
+        {
+	        ux >>= 32;
+	        n += 32;
+        }
+
+        static if (T.sizeof >= 4)
+        if (ux >= 1U<<16)
+        {
+	        ux >>= 16;
+	        n += 16;
+        }
+
+        static if (T.sizeof >= 2)
+        if (ux >= 1U<<8)
+        {
+	        ux >>= 8;
+	        n += 8;
+        }
+
+        assert(ux <= 0xFF);
+
+        return n + hbt8Table[cast(ubyte)ux];
+    }
+
+    version (none)
+    {
+        if (x != 0)
+        {
+            enum bits = T.sizeof * 8;
+            foreach (i; 0..bits)
+            {
+                const j = bits - i - 1;
+                if ((x >> j) & 0x01)
+                    return j + 1;
+            }
+        }
+        return 0;
+    }
+}
 
 pragma(inline, true)
 T hostToNetworkOrder(T)(const(T) host) @nogc pure
@@ -32,27 +267,164 @@ if (isIntegral!T || isSomeChar!T)
         return swapEndian(host);
 }
 
-struct BitArray
+/// Return the position of the lowest set bit in x
+pragma(inline, true)
+size_t lowestBit(T)(const(T) x) @nogc pure
+if (isUnsigned!T)
+{
+    if (x == 0)
+        return 0;
+    else
+    {
+        size_t n = 0;
+        Unqual!T ux = x;
+
+        static if (T.sizeof >= 8)
+        if ((ux & 0xFFFF_FFFF) == 0)
+        {
+	        ux >>= 32;
+	        n += 32;
+        }
+
+        static if (T.sizeof >= 4)
+        if ((ux & 0xFFFF) == 0)
+        {
+	        ux >>= 16;
+	        n += 16;
+        }
+
+        static if (T.sizeof >= 2)
+        if ((ux & 0xFF) == 0)
+        {
+	        ux >>= 8;
+	        n += 8;
+        }
+
+        assert(ux <= 0xFF);
+
+        return n + lbt8Table[cast(ubyte)ux];
+    }
+
+    version (none)
+    {
+        if (x != 0)
+        {
+            enum bits = T.sizeof * 8;
+            foreach (i; 0..bits)
+            {
+                if ((x >> i) & 0x01)
+                    return i + 1;
+            }
+        }
+        return 0;
+    }
+}
+
+pragma(inline, true)
+auto nativeToBytes(T)(const(T) value) @nogc pure
+if (isIntegral!T)
+{
+    version (LittleEndian)
+        return nativeToLittleEndian!T(value);
+    else
+        return nativeToBigEndian!T(value);
+}
+
+pragma(inline, true)
+auto nativeToBytes(T)(const(T) value, const(Endian) endianness) @nogc pure
+if (isIntegral!T)
+{
+    return endianness == Endian.littleEndian
+        ? nativeToLittleEndian!T(value)
+        : nativeToBigEndian!T(value);
+}
+
+/// Bit cast without any float/interger conversion/promotion
+pragma(inline, true)
+To numericBitCast(To, From)(const(From) from) @nogc pure @trusted
+if (From.sizeof == To.sizeof && isNumeric!From && isNumeric!To)
+{
+    return *cast(To*)(&from);
+}
+
+/// Return the number of significant bytes in x; the result is 0 for x == 0.
+size_t significantByteLength(T)(const(T) x) @nogc pure
+if (isUnsigned!T && T.sizeof <= 8)
+{
+    static if (T.sizeof >= 8)
+    {
+        if ((x & 0xFF00_0000_0000_0000) != 0)
+            return 8;
+        else if ((x & 0x00FF_0000_0000_0000) != 0)
+            return 7;
+        else if ((x & 0x0000_FF00_0000_0000) != 0)
+            return 6;
+        else if ((x & 0x0000_00FF_0000_0000) != 0)
+            return 5;
+    }
+
+    static if (T.sizeof >= 4)
+    {
+        if ((x & 0xFF00_0000) != 0)
+            return 4;
+        else if ((x & 0x00FF_0000) != 0)
+            return 3;
+    }
+
+    static if (T.sizeof >= 2)
+    {
+        if ((x & 0xFF00) != 0)
+            return 2;
+    }
+
+    return x != 0 ? 1 : 0;
+}
+
+/// Returns the number of trailing zero bits in x; the result is T.sizeof*8 for x == 0
+pragma(inline, true)
+size_t trailingZeroBits(T)(const(T) x) @nogc pure
+if (isUnsigned!T && T.sizeof <= 8)
+{
+    static if (T.sizeof == 8)
+        return x == 0 ? 64 : deBruijn64tab[(x&-x) * deBruijn64>>(64-6)];
+    else static if (T.sizeof == 4)
+        return x == 0 ? 32 : deBruijn32tab[(x&-x) * deBruijn32>>(32-5)];
+    else static if (T.sizeof == 2)
+    {
+        const uint x2 = x;
+        return x2 == 0 ? 16 : deBruijn32tab[(x2&-x2) * deBruijn32>>(32-5)];
+    }
+    else static if (T.sizeof == 1)
+        return ntz8Table[x];
+    else
+        static assert(0, "Unsupport unsigned type");
+}
+
+pragma(inline, true)
+size_t bitLengthToElement(T)(size_t length) @nogc pure
+if (isUnsigned!T)
+{
+    //return length > 0 ? (((length - 1) / BitsPerElement) + 1) : 0; // Safer for overflow
+    static if (T.sizeof == 8)
+        return (length + 63) >> 6; // "x >> 6" is "x / 64"
+    else static if (T.sizeof == 4)
+        return (length + 31) >> 5; // "x >> 5" is "x / 32"
+    else static if (T.sizeof == 2)
+        return (length + 15) >> 4; // "x >> 4" is "x / 16"
+    else static if (T.sizeof == 1)
+        return (length + 7) >> 3; // "x >> 3" is "x / 8"
+    else
+        static assert(0);
+}
+
+struct BitArrayImpl(T)
+if (isUnsigned!T)
 {
 nothrow @safe:
 
 public:
     enum bitsPerByte = 8;
-    enum bitsPerElement = size_t.sizeof * bitsPerByte;
-
-    static size_t lengthToElement(size_t Bits)(size_t length) pure
-    if (Bits == 8 || Bits == 16 || Bits == 32 || Bits == 64)
-    {
-        //return length > 0 ? (((length - 1) / Bits) + 1) : 0; // Safer for overflow
-        static if (Bits == 64)
-            return (length + 63) >> 6; // "x >> 6" is "x / 64"
-        else static if (Bits == 32)
-            return (length + 31) >> 5; // "x >> 5" is "x / 32"
-        else static if (Bits == 16)
-            return (length + 15) >> 4; // "x >> 4" is "x / 16"
-        else
-            return (length + 7) >> 3; // "x >> 3" is "x / 8"
-    }
+    enum bitsPerElement = T.sizeof * bitsPerByte;
 
 public:
     /*
@@ -71,20 +443,20 @@ public:
     this(size_t length, bool bit) pure
     {
         this._length = length;
-        this.values.length = lengthToElement!bitsPerElement(length);
+        this.values.length = bitLengthToElement!T(length);
         if (length)
             setAll(bit);
     }
 
     this(scope const(bool)[] bits) pure
     {
-        const length = bits.length;
-        this._length = length;
-        this.values.length = lengthToElement!bitsPerElement(length);
+        const bitLength = bits.length;
+        this._length = bitLength;
+        this.values.length = bitLengthToElement!T(bitLength);
         foreach (i, bit; bits)
         {
             if (bit)
-                this.values[i / bitsPerElement] |= (cast(size_t)1 << (i % bitsPerElement));
+                this.values[i / bitsPerElement] |= (cast(T)1 << (i % bitsPerElement));
         }
     }
 
@@ -95,64 +467,74 @@ public:
      * ubytes[0] & 2 represents bit 1, ubytes[0] & 4 represents bit 2, etc.
      *
      */
+    static if (!is(T == ubyte))
     this(scope const(ubyte)[] bytes) pure
     {
-        const length = bytes.length * bitsPerByte;
-        this._length = length;
-        this.values.length = lengthToElement!bitsPerElement(length);
+        const bitLength = bytes.length * bitsPerByte;
+        this._length = bitLength;
+        this.values.length = bitLengthToElement!T(bitLength);
 
-        if (length)
+        if (bitLength)
         {
             size_t i, j;
-            while (j + size_t.sizeof <= bytes.length)
+            while (j + T.sizeof <= bytes.length)
             {
-                static if (size_t.sizeof == 4)
+                static if (T.sizeof == 2)
                 {
                     values[i++] = bytes[j]
-                        | (cast(size_t)(bytes[j + 1]) << 8)
-                        | (cast(size_t)(bytes[j + 2]) << 16)
-                        | (cast(size_t)(bytes[j + 3]) << 24);
+                        | (cast(T)(bytes[j + 1]) << 8);
+                }
+                else static if (T.sizeof == 4)
+                {
+                    values[i++] = bytes[j]
+                        | (cast(T)(bytes[j + 1]) << 8)
+                        | (cast(T)(bytes[j + 2]) << 16)
+                        | (cast(T)(bytes[j + 3]) << 24);
                 }
                 else
                 {
                     values[i++] = bytes[j]
-                        | (cast(size_t)(bytes[j + 1]) << 8)
-                        | (cast(size_t)(bytes[j + 2]) << 16)
-                        | (cast(size_t)(bytes[j + 3]) << 24)
-                        | (cast(size_t)(bytes[j + 4]) << 32)
-                        | (cast(size_t)(bytes[j + 5]) << 40)
-                        | (cast(size_t)(bytes[j + 6]) << 48)
-                        | (cast(size_t)(bytes[j + 7]) << 56);
+                        | (cast(T)(bytes[j + 1]) << 8)
+                        | (cast(T)(bytes[j + 2]) << 16)
+                        | (cast(T)(bytes[j + 3]) << 24)
+                        | (cast(T)(bytes[j + 4]) << 32)
+                        | (cast(T)(bytes[j + 5]) << 40)
+                        | (cast(T)(bytes[j + 6]) << 48)
+                        | (cast(T)(bytes[j + 7]) << 56);
                 }
 
-                j += size_t.sizeof;
+                j += T.sizeof;
             }
 
             // Remaining bytes
             switch (bytes.length - j)
             {
-                static if (size_t.sizeof == 8)
+                static if (T.sizeof >= 8)
                 {
                 case 7:
-                    values[i] = (cast(size_t)(bytes[j + 2]) << 48);
+                    values[i] = (cast(T)(bytes[j + 2]) << 48);
                     goto case 6;
                 case 6:
-                    values[i] = (cast(size_t)(bytes[j + 2]) << 40);
+                    values[i] = (cast(T)(bytes[j + 2]) << 40);
                     goto case 5;
                 case 5:
-                    values[i] = (cast(size_t)(bytes[j + 2]) << 32);
+                    values[i] = (cast(T)(bytes[j + 2]) << 32);
                     goto case 4;
                 case 4:
-                    values[i] = (cast(size_t)(bytes[j + 2]) << 24);
+                    values[i] = (cast(T)(bytes[j + 2]) << 24);
                     goto case 3;
                 }
 
+                static if (T.sizeof >= 4)
+                {
                 case 3:
-                    values[i] = (cast(size_t)(bytes[j + 2]) << 16);
+                    values[i] = (cast(T)(bytes[j + 2]) << 16);
                     goto case 2;
                 case 2:
-                    values[i] |= (cast(size_t)(bytes[j + 1]) << 8);
+                    values[i] |= (cast(T)(bytes[j + 1]) << 8);
                     goto case 1;
+                }
+
                 case 1:
                     values[i] |= bytes[j];
                     break;
@@ -162,7 +544,7 @@ public:
         }
     }
 
-    this(scope const(size_t)[] values) pure
+    this(scope const(T)[] values) pure
     {
         this._length = values.length * bitsPerElement;
         this.values = values.dup;
@@ -197,7 +579,7 @@ public:
         return 0;
     }
 
-    ref typeof(this) opOpAssign(string op)(const ref BitArray other) @nogc pure return
+    ref typeof(this) opOpAssign(string op)(const ref typeof(this) other) @nogc pure return
     if (op == "-" || op == "&" || op == "|" || op == "^")
     in
     {
@@ -253,7 +635,7 @@ public:
     {
         if (length)
         {
-            const dim = lengthToElement!bitsPerElement(length);
+            const dim = bitLengthToElement!T(length);
             const size_t wordsToShift = nBits / bitsPerElement;
             const size_t bitsToShift = nBits % bitsPerElement;
 
@@ -287,7 +669,7 @@ public:
     {
         if (length)
         {
-            const dim = lengthToElement!bitsPerElement(length);
+            const dim = bitLengthToElement!T(length);
             const size_t wordsToShift = nBits / bitsPerElement;
             const size_t bitsToShift = nBits % bitsPerElement;
 
@@ -309,7 +691,7 @@ public:
                 {
                     // Special case: if endBits == 0, then also endMask == 0.
                     const e = endBits;
-                    const size_t lastWord = e
+                    const T lastWord = e
                         ? (values[fullWords] & endMask(e))
                         : values[fullWords - 1];
                     values[dim - wordsToShift - 1] = rollRight(0, lastWord, bitsToShift);
@@ -326,7 +708,7 @@ public:
     /*
      * Support for binary bitwise operators for `BitArray`.
      */
-    BitArray opBinary(string op)(const ref BitArray other) const pure
+    typeof(this) opBinary(string op)(const ref BitArray other) const pure
     if (op == "-" || op == "&" || op == "|" || op == "^")
     in
     {
@@ -338,14 +720,14 @@ public:
         return result.opOpAssign!op(other);
     }
 
-    BitArray opBinary(string op)(const ref BitArray value) const pure
+    typeof(this) opBinary(string op)(const ref typeof(this) value) const pure
     if (op == "~")
     {
         auto result = this.dup();
         return result.opOpAssign!op(value);
     }
 
-    BitArray opBinary(string op)(bool bit) const pure
+    typeof(this) opBinary(string op)(bool bit) const pure
     if (op == "~")
     {
         auto result = this.dup();
@@ -354,7 +736,7 @@ public:
         return result;
     }
 
-    BitArray opBinaryRight(string op)(bool bit) const pure
+    typeof(this) opBinaryRight(string op)(bool bit) const pure
     if (op == "~")
     {
         //TODO optimize fullword assignment
@@ -369,7 +751,7 @@ public:
     /*
      * Supports comparison operators for `BitArray`.
      */
-    int opCmp(scope const(BitArray) rhs) const @nogc pure @trusted
+    int opCmp(scope const(typeof(this)) rhs) const @nogc pure @trusted
     {
         const lesser = length < rhs.length ? &this : &rhs;
         const f = lesser.fullWords;
@@ -378,7 +760,7 @@ public:
         foreach (i; 0..f)
         {
             if (values[i] != rhs.values[i])
-                return values[i] & (size_t(1) << bsf(values[i] ^ rhs.values[i])) ? 1 : -1;
+                return values[i] & (T(1) << bsf(values[i] ^ rhs.values[i])) ? 1 : -1;
         }
 
         if (endBits)
@@ -388,20 +770,20 @@ public:
             {
                 const i = bsf(diff);
                 if (i < e)
-                    return values[f] & (size_t(1) << i) ? 1 : -1;
+                    return values[f] & (T(1) << i) ? 1 : -1;
             }
         }
 
         // Standard:
         // A bool value can be implicitly converted to any integral type,
         // with false becoming 0 and true becoming 1
-        return (length > rhs.length) - (length < rhs.length);
+        return cmpIntegral(length, rhs.length);
     }
 
     /*
      * Support for operators == and != for `BitArray`.
      */
-    bool opEquals(const const(BitArray) rhs) const @nogc pure
+    bool opEquals(scope const(typeof(this)) rhs) const @nogc pure
     {
         if (length != rhs.length)
             return false;
@@ -425,7 +807,7 @@ public:
     }
     do
     {
-        return cast(bool)bt(values.ptr, index);
+        return bt(values.ptr, index);
     }
 
     bool opIndexAssign(bool bit, size_t index) @nogc pure @trusted
@@ -435,11 +817,18 @@ public:
     }
     do
     {
+        // cast(void) to fix warning
         if (bit)
-            bts(values.ptr, index);
+            cast(void)bts(values.ptr, index);
         else
-            btr(values.ptr, index);
+            cast(void)btr(values.ptr, index);
         return bit;
+    }
+
+    static if (is(T == ubyte))
+    T[] opSlice() @nogc pure return
+    {
+        return values;
     }
 
     /*
@@ -472,36 +861,36 @@ public:
 
         if (startBlock == endBlock)
         {
-            const size_t startBlockMask = ~((size_t(1) << startOffset) - 1);
-            const size_t endBlockMask = (size_t(1) << endOffset) - 1;
-            const size_t joinMask = startBlockMask & endBlockMask;
+            const T startBlockMask = cast(T)(~((T(1) << startOffset) - 1));
+            const T endBlockMask = cast(T)((T(1) << endOffset) - 1);
+            const T joinMask = startBlockMask & endBlockMask;
             if (bit)
                 values[startBlock] |= joinMask;
             else
-                values[startBlock] &= ~joinMask;
+                values[startBlock] &= joinMask.flip();
             return this;
         }
 
         if (startOffset != 0)
         {
-            const size_t startBlockMask = ~((size_t(1) << startOffset) - 1);
+            const T startBlockMask = cast(T)(~((T(1) << startOffset) - 1));
             if (bit)
                 values[startBlock] |= startBlockMask;
             else
-                values[startBlock] &= ~startBlockMask;
+                values[startBlock] &= startBlockMask.flip();
             ++startBlock;
         }
 
         if (endOffset != 0)
         {
-            const size_t endBlockMask = (size_t(1) << endOffset) - 1;
+            const T endBlockMask = (T(1) << endOffset) - 1;
             if (bit)
                 values[endBlock] |= endBlockMask;
             else
-                values[endBlock] &= ~endBlockMask;
+                values[endBlock] &= endBlockMask.flip();
         }
 
-        values[startBlock..endBlock] = size_t(0) - size_t(bit);
+        values[startBlock..endBlock] = cast(T)(T(0) - T(bit));
 
         return this;
     }
@@ -554,7 +943,7 @@ public:
         if (length)
         {
             foreach (ref e; values)
-                e = ~e;
+                e = e.flip();
             clearUnusedHighBits();
         }
     }
@@ -569,34 +958,35 @@ public:
     }
     do
     {
-        auto result = cast(bool)bt(values.ptr, index);
+        auto result = bt(values.ptr, index);
+        // cast(void) to fix warning
         if (result)
-            btr(values.ptr, index);
+            cast(void)btr(values.ptr, index);
         else
-            bts(values.ptr, index);
+            cast(void)bts(values.ptr, index);
         return result;
     }
 
-    T[] get(T)() const pure @trusted
-    if (is(T == bool) || is(T == ubyte) || is(T == size_t))
+    U[] get(U)() const pure @trusted
+    if (is(U == bool) || is(U == ubyte) || is(Unqual!U == T))
     {
-        static if (is(T == bool))
+        static if (is(U == bool))
         {
             bool[] result = new bool[](length);
             foreach (i; 0..length)
-                result[i] = cast(bool)bt(values.ptr, i);
+                result[i] = bt(values.ptr, i);
             return result;
         }
-        else static if (is(T == ubyte))
+        else static if (is(Unqual!U == T))
+            return values.dup;
+        else //static if (is(T == ubyte))
         {
-            ubyte[] result = new ubyte[](lengthToElement!bitsPerByte(length));
+            ubyte[] result = new ubyte[](bitLengthToElement!ubyte(length));
             foreach (i; 0..result.length)
                 // Shift to bring the required byte to LSB, then mask
-                result[i] = cast(ubyte)((values[i / size_t.sizeof] >> ((i % size_t.sizeof) * 8)) & 0xff);
+                result[i] = cast(ubyte)((values[i / T.sizeof] >> ((i % T.sizeof) * 8)) & 0xff);
             return result;
         }
-        else
-            return values.dup;
     }
 
     void not() @nogc pure
@@ -609,16 +999,16 @@ public:
      */
     void reverse() @nogc pure
     {
-        if (length >= 2)
+        if (length < 2)
+            return;
+
+        size_t lo = 0;
+        size_t hi = length - 1;
+        for (; lo < hi; lo++, hi--)
         {
-            size_t lo = 0;
-            size_t hi = length - 1;
-            for (; lo < hi; lo++, hi--)
-            {
-                const bool t = this[lo];
-                this[lo] = this[hi];
-                this[hi] = t;
-            }
+            const bool t = this[lo];
+            this[lo] = this[hi];
+            this[hi] = t;
         }
     }
 
@@ -669,8 +1059,8 @@ public:
      *     fmt = A $(REF FormatSpec, std,format) which controls how the data
      *     is displayed.
      */
-    ref Writer toString(Writer)(return ref Writer sink, scope const ref FormatSpec!char fmt) const
-    if (isOutputRange!(Writer, char))
+    ref Writer toString(Writer, Char)(return ref Writer sink, scope const ref FormatSpec!Char fmt) const
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
         const spec = fmt.spec;
         switch (spec)
@@ -692,7 +1082,7 @@ public:
      *  Number of bits in the `BitArray`.
      */
     pragma(inline, true)
-    @property size_t length() const @nogc pure
+    @property size_t length() const @nogc pure scope
     {
         return _length;
     }
@@ -704,8 +1094,8 @@ public:
     {
         if (_length != newLength)
         {
-            const oldSize = lengthToElement!bitsPerElement(length);
-            const newSize = lengthToElement!bitsPerElement(newLength);
+            const oldSize = bitLengthToElement!T(length);
+            const newSize = bitLengthToElement!T(newLength);
             if (oldSize != newSize)
             {
                 values.length = newSize;
@@ -735,32 +1125,32 @@ private:
 
     // Bit mask to extract the bits after the last full word
     pragma(inline, true);
-    static size_t endMask(size_t endBits) @nogc pure
+    static T endMask(size_t endBits) @nogc pure
     {
-        return (size_t(1) << endBits) - 1;
+        return cast(T)((T(1) << endBits) - 1);
     }
 
     // Rolls double word (upper, lower) to the left by nBits and returns the
     // upper word of the result.
-    static size_t rollLeft(size_t upper, size_t lower, size_t nBits) @nogc pure
+    static T rollLeft(T upper, T lower, size_t nBits) @nogc pure
     {
         return nBits == 0
             ? upper
-            : (upper << nBits) | (lower >> (bitsPerElement - nBits));
+            : cast(T)(upper << nBits) | cast(T)(lower >> (bitsPerElement - nBits));
     }
 
     // Rolls double word (upper, lower) to the right by nBits and returns the
     // lower word of the result.
-    static size_t rollRight(size_t upper, size_t lower, size_t nBits) @nogc pure
+    static T rollRight(T upper, T lower, size_t nBits) @nogc pure
     {
         return nBits == 0
             ? lower
-            : (upper << (bitsPerElement - nBits)) | (lower >> nBits);
+            : cast(T)(upper << (bitsPerElement - nBits)) | cast(T)(lower >> nBits);
     }
 
     void setAll(bool value) @nogc pure
     {
-        values[] = value ? ~size_t(0) : 0;
+        values[] = value ? T.max : 0u;
         if (value)
             clearUnusedHighBits();
     }
@@ -807,25 +1197,116 @@ private:
     }
 
     // Number of bits after the last full word
+    pragma(inline, true)
     @property size_t endBits() const @nogc pure
     {
-        return length % bitsPerElement;
+        return _length % bitsPerElement;
     }
 
     // The result can cause out of bound if endBits returns 0
+    pragma(inline, true)
     @property size_t fullWords() const @nogc pure
     {
-        return length / bitsPerElement;
+        return _length / bitsPerElement;
     }
 
 private:
-    size_t[] values;
     size_t _length;
+    T[] values;
 }
 
+alias BitArray = BitArrayImpl!size_t;
 
 // Any below codes are private
 private:
+
+enum deBruijn32 = 0x077CB531;
+
+immutable ubyte[] deBruijn32tab = [
+	0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8,
+	31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9,
+    ];
+
+const deBruijn64 = 0x03f79d71b4ca8b09;
+
+immutable ubyte[] deBruijn64tab = [
+	0, 1, 56, 2, 57, 49, 28, 3, 61, 58, 42, 50, 38, 29, 17, 4,
+	62, 47, 59, 36, 45, 43, 51, 22, 53, 39, 33, 30, 24, 18, 12, 5,
+	63, 55, 48, 27, 60, 41, 37, 16, 46, 35, 44, 21, 52, 32, 23, 11,
+	54, 26, 40, 15, 34, 20, 31, 10, 25, 14, 19, 9, 13, 8, 7, 6,
+    ];
+
+immutable char[] len8Table =
+	"\x00\x01\x02\x02\x03\x03\x03\x03\x04\x04\x04\x04\x04\x04\x04\x04" ~  // 16 items per line
+	"\x05\x05\x05\x05\x05\x05\x05\x05\x05\x05\x05\x05\x05\x05\x05\x05" ~
+	"\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06" ~
+	"\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06" ~
+	"\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07" ~
+	"\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07" ~
+	"\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07" ~
+	"\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07" ~
+	"\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08" ~
+	"\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08" ~
+	"\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08" ~
+	"\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08" ~
+	"\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08" ~
+	"\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08" ~
+	"\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08" ~
+	"\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08";
+
+immutable char[] hbt8Table =
+    "\x00\x01\x02\x02\x03\x03\x03\x03\x04\x04\x04\x04\x04\x04\x04\x04" ~ // 16 items per line
+    "\x05\x05\x05\x05\x05\x05\x05\x05\x05\x05\x05\x05\x05\x05\x05\x05" ~
+    "\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06" ~
+    "\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06\x06" ~
+    "\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07" ~
+    "\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07" ~
+    "\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07" ~
+    "\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07\x07" ~
+    "\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08" ~
+    "\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08" ~
+    "\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08" ~
+    "\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08" ~
+    "\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08" ~
+    "\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08" ~
+    "\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08" ~
+    "\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08";
+
+immutable char[] lbt8Table =
+    "\x00\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01" ~ // 16 items per line
+    "\x05\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01" ~
+    "\x06\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01" ~
+    "\x05\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01" ~
+    "\x07\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01" ~
+    "\x05\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01" ~
+    "\x06\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01" ~
+    "\x05\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01" ~
+    "\x08\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01" ~
+    "\x05\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01" ~
+    "\x06\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01" ~
+    "\x05\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01" ~
+    "\x07\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01" ~
+    "\x05\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01" ~
+    "\x06\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01" ~
+    "\x05\x01\x02\x01\x03\x01\x02\x01\x04\x01\x02\x01\x03\x01\x02\x01";
+
+immutable char[] ntz8Table =
+	"\x08\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00" ~ // 16 items per line
+	"\x04\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00" ~
+	"\x05\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00" ~
+	"\x04\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00" ~
+	"\x06\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00" ~
+	"\x04\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00" ~
+	"\x05\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00" ~
+	"\x04\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00" ~
+	"\x07\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00" ~
+	"\x04\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00" ~
+	"\x05\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00" ~
+	"\x04\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00" ~
+	"\x06\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00" ~
+	"\x04\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00" ~
+	"\x05\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00" ~
+	"\x04\x00\x01\x00\x02\x00\x01\x00\x03\x00\x01\x00\x02\x00\x01\x00";
 
 version (unittest)
 {
@@ -859,10 +1340,104 @@ version (unittest)
     }
 }
 
+@safe unittest // flip
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.flip");
+
+    assert(flip!ubyte(0) == ubyte.max);
+    assert(flip!ubyte(ubyte.max) == 0);
+    assert(flip!ubyte(1) == 0xFE);
+
+    assert(flip!ushort(0) == ushort.max);
+    assert(flip!ushort(ushort.max) == 0);
+    assert(flip!ushort(1) == 0xFFFE);
+
+    assert(flip!uint(0) == uint.max);
+    assert(flip!uint(uint.max) == 0);
+    assert(flip!uint(1) == 0xFFFF_FFFE);
+
+    assert(flip!ulong(0) == ulong.max);
+    assert(flip!ulong(ulong.max) == 0);
+    assert(flip!ulong(1) == 0xFFFFFFFF_FFFFFFFE);
+}
+
+@system unittest // bt
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.bt");
+
+    {
+        size_t[2] array;
+        array[0] = 0x2;
+        array[1] = 0x0100;
+
+        assert(bt(array.ptr, 1));
+        assert(array[0] == 0x2);
+        assert(array[1] == 0x0100);
+    }
+}
+
+@system unittest // btc
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.btc");
+
+    {
+        size_t[2] array;
+        array[0] = 0x2;
+        array[1] = 0x0100;
+
+        assert(btc(array.ptr, 35) == 0);
+        if (size_t.sizeof == 8)
+        {
+            assert(array[0] == 0x0008_0000_0002);
+            assert(array[1] == 0x0100);
+        }
+        else
+        {
+            assert(array[0] == 0x2);
+            assert(array[1] == 0x0108);
+        }
+
+        assert(btc(array.ptr, 35));
+        assert(array[0] == 0x2);
+        assert(array[1] == 0x0100);
+    }
+}
+
+@system unittest // btr
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.btr & bts");
+
+    {
+        size_t[2] array;
+        array[0] = 0x2;
+        array[1] = 0x0100;
+
+        assert(bts(array.ptr, 35) == 0);
+        if (size_t.sizeof == 8)
+        {
+            assert(array[0] == 0x0008_0000_0002);
+            assert(array[1] == 0x0100);
+        }
+        else
+        {
+            assert(array[0] == 2);
+            assert(array[1] == 0x0108);
+        }
+
+        assert(btr(array.ptr, 35));
+        assert(array[0] == 2);
+        assert(array[1] == 0x0100);
+    }
+}
+
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray");
 
     auto b = BitArray(1, true);
     assert(b.length == 1);
@@ -898,7 +1473,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.length");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.length");
 
     BitArray ba;
 
@@ -918,7 +1493,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opIndex");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.opIndex");
 
     static void fun(const(BitArray) arr)
     {
@@ -935,7 +1510,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opSliceAssign");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.opSliceAssign");
 
     auto b = BitArray(cast(bool[])[1,0,1,0,1,1]);
 
@@ -980,7 +1555,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.flip");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.flip");
 
     // positions 0, 2, 4 are set; after flipping, positions 1, 3, 5 are set
     auto b = BitArray(cast(bool[])[1,0,1,0,1,0]);
@@ -1013,7 +1588,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.countBitSet");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.countBitSet");
 
     auto a = BitArray(cast(bool[])[0,1,1,0,0,1,1]);
     assert(a.countBitSet == 4);
@@ -1030,7 +1605,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opApply");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.opApply");
 
     bool[] ba = [1,0,1];
     auto a = BitArray(ba);
@@ -1064,7 +1639,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.reverse");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.reverse");
 
     bool[5] data = [1,0,1,1,0];
     auto b = BitArray(data);
@@ -1076,7 +1651,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opEquals");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.opEquals");
 
     bool[] ba = [1,0,1,0,1];
     bool[] bb = [1,0,1];
@@ -1104,7 +1679,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opCmp");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.opCmp");
 
     {
         bool[] ba = [1,0,1,0,1];
@@ -1171,7 +1746,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opUnary~");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.opUnary~");
 
     bool[] ba = [1,0,1,0,1];
     auto a = BitArray(ba);
@@ -1187,7 +1762,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opBinary");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.opBinary");
 
     {
         bool[] ba = [1,0,1,0,1];
@@ -1282,7 +1857,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opOpAssign");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.opOpAssign");
 
     {
         bool[] ba = [1,0,1,0,1,1,0,1,0,1];
@@ -1520,7 +2095,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.rollRight");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.rollRight");
 
     static if (size_t.sizeof == 8)
     {
@@ -1545,7 +2120,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.rollLeft");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.rollLeft");
 
     static if (size_t.sizeof == 8)
     {
@@ -1570,7 +2145,7 @@ nothrow @safe unittest
 nothrow @safe unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.toString(sink)");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.toString(sink)");
 
     auto b = BitArray(cast(const(bool)[])[0,0,0,0,1,1,1,1,0,0,0,0,1,1,1,1]);
 
@@ -1583,7 +2158,7 @@ nothrow @safe unittest
 {
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.get");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray.get");
 
 	auto b = BitArray(5, true);
     auto bytes = b.get!ubyte();
@@ -1596,4 +2171,165 @@ nothrow @safe unittest
     bytes = b.get!ubyte();
     assert(bytes.length == 2);
     assert(bytes.bytesToHexs() == "FF03");
+}
+
+nothrow @safe unittest // bitLength
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.bitLength");
+
+    assert(bitLength(cast(ubyte)0) == 0);
+    assert(bitLength(cast(ushort)0) == 0);
+    assert(bitLength(cast(uint)0) == 0);
+    assert(bitLength(cast(ulong)0) == 0);
+
+    assert(bitLength(cast(ubyte)8) == 4);
+    assert(bitLength(cast(ushort)8) == 4);
+    assert(bitLength(cast(uint)8) == 4);
+    assert(bitLength(cast(ulong)8) == 4);
+
+    assert(bitLength(ubyte.max) == 8);
+    assert(bitLength(ushort.max) == 16);
+    assert(bitLength(uint.max) == 32);
+    assert(bitLength(ulong.max) == 64);
+
+    assert(bitLength(cast(ubyte)0x80) == 8);
+    assert(bitLength(cast(ushort)0x8000) == 16);
+    assert(bitLength(cast(uint)0x80000000) == 32);
+    assert(bitLength(cast(ulong)0x8000000000000000) == 64);
+}
+
+nothrow @safe unittest // trailingZeroBits
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.trailingZeroBits");
+
+    assert(trailingZeroBits(cast(ubyte)0) == 8);
+    assert(trailingZeroBits(cast(ushort)0) == 16);
+    assert(trailingZeroBits(cast(uint)0) == 32);
+    assert(trailingZeroBits(cast(ulong)0) == 64);
+
+    assert(trailingZeroBits(cast(ubyte)1) == 0);
+    assert(trailingZeroBits(cast(ushort)1) == 0);
+    assert(trailingZeroBits(cast(uint)1) == 0);
+    assert(trailingZeroBits(cast(ulong)1) == 0);
+
+    assert(trailingZeroBits(cast(ubyte)ubyte.max) == 0);
+    assert(trailingZeroBits(cast(ushort)ushort.max) == 0);
+    assert(trailingZeroBits(cast(uint)uint.max) == 0);
+    assert(trailingZeroBits(cast(ulong)ulong.max) == 0);
+
+    assert(trailingZeroBits(cast(ubyte)120) == 3);
+    assert(trailingZeroBits(cast(ushort)7600) == 4);
+    assert(trailingZeroBits(cast(uint)8_7625_4900) == 2);
+    assert(trailingZeroBits(cast(ulong)9_2751_8464_8599_8600) == 3);
+}
+
+nothrow @safe unittest // highestBit
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.highestBit");
+
+    assert(highestBit(cast(ubyte)0) == 0);
+    assert(highestBit(cast(ushort)0) == 0);
+    assert(highestBit(cast(uint)0) == 0);
+    assert(highestBit(cast(ulong)0) == 0);
+
+    assert(highestBit(cast(ubyte)1) == 1);
+    assert(highestBit(cast(ushort)1) == 1);
+    assert(highestBit(cast(uint)1) == 1);
+    assert(highestBit(cast(ulong)1) == 1);
+
+    assert(highestBit(cast(ubyte)0x40) == 7);
+    assert(highestBit(cast(ushort)0x4000) == 15);
+    assert(highestBit(cast(uint)0x4000_0000) == 31);
+    assert(highestBit(cast(ulong)0x4000_0000_0000_0000) == 63);
+
+    assert(highestBit(cast(ubyte)0x80) == 8);
+    assert(highestBit(cast(ushort)0x8000) == 16);
+    assert(highestBit(cast(uint)0x8000_0000) == 32);
+    assert(highestBit(cast(ulong)0x8000_0000_0000_0000) == 64);
+}
+
+nothrow @safe unittest // lowestBit
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.lowestBit");
+
+    assert(lowestBit(cast(ubyte)0) == 0);
+    assert(lowestBit(cast(ushort)0) == 0);
+    assert(lowestBit(cast(uint)0) == 0);
+    assert(lowestBit(cast(ulong)0) == 0);
+
+    assert(lowestBit(cast(ubyte)1) == 1);
+    assert(lowestBit(cast(ushort)1) == 1);
+    assert(lowestBit(cast(uint)1) == 1);
+    assert(lowestBit(cast(ulong)1) == 1);
+
+    assert(lowestBit(cast(ubyte)0x2) == 2);
+    assert(lowestBit(cast(ushort)0x2) == 2);
+    assert(lowestBit(cast(uint)0x2) == 2);
+    assert(lowestBit(cast(ulong)0x2) == 2);
+
+    assert(lowestBit(cast(ubyte)0x80) == 8);
+    assert(lowestBit(cast(ushort)0x8000) == 16);
+    assert(lowestBit(cast(uint)0x8000_0000) == 32);
+    assert(lowestBit(cast(ulong)0x8000_0000_0000_0000) == 64);
+}
+
+nothrow @safe unittest // getByteAt
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.getByteAt");
+
+    assert(getByteAt(cast(ubyte)0x0, 0) == 0x0);
+    assert(getByteAt(cast(ubyte)0x01, 0) == 0x01);
+    assert(getByteAt(cast(ushort)0x23FF, 0) == 0xFF);
+    assert(getByteAt(cast(ushort)0x23FF, 1) == 0x23);
+    assert(getByteAt(cast(uint)0x23AB_1234, 2) == 0xAB);
+    assert(getByteAt(cast(uint)0x23AB_1234, 3) == 0x23);
+    assert(getByteAt(cast(ulong)0x23AB_1234_5678_1234, 6) == 0xAB);
+    assert(getByteAt(cast(ulong)0x23AB_1234_5678_1234, 7) == 0x23);
+}
+
+nothrow @safe unittest // significantByteLength
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.significantByteLength");
+
+    assert(significantByteLength(cast(ubyte)0x0) == 0);
+    assert(significantByteLength(cast(ushort)0x0) == 0);
+    assert(significantByteLength(cast(uint)0x0) == 0);
+    assert(significantByteLength(cast(ulong)0x0) == 0);
+
+    assert(significantByteLength(cast(ubyte)0x1) == 1);
+    assert(significantByteLength(cast(ushort)0x1) == 1);
+    assert(significantByteLength(cast(uint)0x1) == 1);
+    assert(significantByteLength(cast(ulong)0x1) == 1);
+
+    assert(significantByteLength(cast(ushort)0x0100) == 2);
+    assert(significantByteLength(cast(uint)0x0100_0000) == 4);
+    assert(significantByteLength(cast(ulong)0x0100_0000_0000) == 6);
+}
+
+unittest // numericBitCast
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.numericBitCast");
+
+    float f;
+    int i;
+    uint u;
+
+    i = -1;
+    u = numericBitCast!uint(i);
+    assert(numericBitCast!int(u) == i);
+
+    u = 2_147_483_648U;
+    i = numericBitCast!int(u);
+    assert(numericBitCast!uint(i) == u);
+
+    f = 23_820.654;
+    u = numericBitCast!uint(f);
+    assert(numericBitCast!float(u) == f);
 }

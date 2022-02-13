@@ -15,10 +15,14 @@ import core.sync.mutex : Mutex;
 import std.ascii : LetterCase, lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
 import std.conv : to;
 import std.exception : assumeWontThrow;
+import std.format : FormatSpec;
 import std.math : isPowerOf2;
-import std.traits : isArray, isAssociativeArray, isPointer, isSomeChar, isSomeString, Unqual;
+import std.traits : isArray, isAssociativeArray, isFloatingPoint, isIntegral, isPointer,
+    isSomeChar, isSomeString, Unqual;
 
 version (TraceInvalidMemoryOp) import pham.utl.test;
+import pham.utl.utf8 : isHexDigit, NumericParsedKind, parseHexDigits,
+    parseIntegral, ShortStringBuffer;
 
 pragma(inline, true);
 size_t alignRoundup(size_t n, size_t powerOf2AlignmentSize) @nogc nothrow pure @safe
@@ -32,36 +36,33 @@ do
     return (n + powerOf2AlignmentSize - 1) & ~(powerOf2AlignmentSize - 1);
 }
 
-ubyte[] bytesFromHexs(scope const(char)[] validHexChars) nothrow pure @safe
+ubyte[] bytesFromHexs(scope const(char)[] validHexDigits) nothrow pure @safe
 {
-    const resultLength = (validHexChars.length / 2) + (validHexChars.length % 2);
-    auto result = new ubyte[resultLength];
-    size_t bitIndex = 0;
-    bool shift = false;
-    ubyte b = 0;
-    for (auto i = 0; i < validHexChars.length; i++)
+    struct R
     {
-        const c = validHexChars[i];
-        if (!isHex(c, b))
+    @nogc nothrow pure @safe:
+        @property bool empty() const
         {
-            if (c == ' ' || c == '_')
-                continue;
-
-            assert(0);
+            return i >= length;
         }
 
-        if (shift)
+        char front() const
         {
-            result[bitIndex] = cast(ubyte)((result[bitIndex] << 4) | b);
-            bitIndex++;
+            return validHexDigits[i];
         }
-        else
+
+        void popFront()
         {
-            result[bitIndex] = b;
+            i++;
         }
-        shift = !shift;
+
+        size_t i, length;
     }
-    return result;
+
+    auto r = R(0, validHexDigits.length);
+    ShortStringBuffer!ubyte buffer;
+    parseHexDigits(r, buffer);
+    return buffer[].dup;
 }
 
 /**
@@ -99,6 +100,25 @@ string className(Object object) nothrow pure @safe
         return "null";
     else
         return typeid(object).name;
+}
+
+pragma(inline, true)
+int cmpIntegral(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
+if (isIntegral!T)
+{
+    return (lhs > rhs) - (lhs < rhs);
+}
+
+pragma(inline, true)
+float cmpFloat(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
+if (isFloatingPoint!T)
+{
+    import std.math : isNaN;
+
+    if (isNaN(lhs) || isNaN(rhs))
+        return float.nan;
+    else
+        return (lhs > rhs) - (lhs < rhs);
 }
 
 string currentComputerName() nothrow @trusted
@@ -207,70 +227,6 @@ if (is(T == class) || is(T == struct))
     return shortenTypeName(T.stringof) ~ "." ~ name;
 }
 
-/**
- * Check and convert a 'c' from digit to byte
- * Params:
- *  c = a charater to be checked and converted
- *  b = byte presentation of c's value
- * Returns:
- *  true if c is a valid digit characters, false otherwise
- */
-bool isDigit(char c, out ubyte b) @nogc nothrow pure @safe
-{
-    if (c >= '0' && c <= '9')
-    {
-        b = cast(ubyte)(c - '0');
-        return true;
-    }
-    else
-    {
-        b = 0;
-        return false;
-    }
-}
-
-/**
- * Check 'value' is all digits
- * Params:
- *  value = charaters to be checked
- * Returns:
- *  true if value is a valid digit characters, false otherwise
- */
-bool isDigits(const(char)[] value) @nogc nothrow pure @safe
-{
-    foreach (c; value)
-    {
-        if (c < '0' || c > '9')
-            return false;
-    }
-    return value.length != 0;
-}
-
-/**
- * Check and convert a 'c' from hex to byte
- * Params:
- *  c = a charater to be checked and converted
- *  b = byte presentation of c's value
- * Returns:
- *  true if c is a valid hex characters, false otherwise
- */
-bool isHex(char c, out ubyte b) @nogc nothrow pure @safe
-{
-    if (c >= '0' && c <= '9')
-        b = cast(ubyte)(c - '0');
-    else if (c >= 'A' && c <= 'F')
-        b = cast(ubyte)((c - 'A') + 10);
-    else if (c >= 'a' && c <= 'f')
-        b = cast(ubyte)((c - 'a') + 10);
-    else
-    {
-        b = 0;
-        return false;
-    }
-
-    return true;
-}
-
 S pad(S, C)(S value, const(ptrdiff_t) size, C c) nothrow pure @safe
 if (isSomeString!S && isSomeChar!C && is(Unqual!(typeof(S.init[0])) == C))
 {
@@ -283,98 +239,6 @@ if (isSomeString!S && isSomeChar!C && is(Unqual!(typeof(S.init[0])) == C))
         return size > 0
             ? stringOfChar!C(n - value.length, c) ~ value
             : value ~ stringOfChar!C(n - value.length, c);
-}
-
-char[] randomCharacters(size_t numCharacters) nothrow pure @safe
-{
-    import std.range : Appender;
-    import std.random;
-
-    if (numCharacters == 0)
-        return null;
-
-    Appender!(char[]) result;
-    result.reserve(numCharacters);
-    auto rnd = Random();
-    size_t l = 0;
-    while (l < numCharacters)
-    {
-        auto i = assumeWontThrow(uniform(0, 127, rnd));
-        if (i != 0)
-        {
-            result.put(cast(char)i);
-            ++l;
-        }
-    }
-    return result.data;
-}
-
-/**
- * Generate array of digit characters
- * Params:
- *  numDigits = number of digit characters
- *  leadingIndicator = not being used, for same function signature with randomHexDigits
- */
-char[] randomDecimalDigits(size_t numDigits,
-    bool leadingIndicator = true) nothrow pure @safe
-{
-    import std.range : Appender;
-    import std.random;
-
-    if (numDigits == 0)
-        return ['0'];
-
-    Appender!(char[]) result;
-    result.reserve(numDigits);
-    auto rnd = Random();
-    size_t l = 0;
-    while (l < numDigits)
-    {
-        auto i = assumeWontThrow(uniform(0, decimalDigits.length, rnd));
-        auto c = decimalDigits[i];
-        // Can not generate leading zero
-        if (l != 0 || c != '0')
-        {
-            result.put(c);
-            ++l;
-        }
-    }
-    return result.data;
-}
-
-/**
- * Generate array of hex characters
- * Params:
- *  numDigits = number of hex characters
- *  leadingIndicator = should "0x0" be added to be leading characters?
- */
-char[] randomHexDigits(size_t numDigits,
-    bool leadingIndicator = true) nothrow pure @safe
-{
-    import std.range : Appender;
-    import std.random;
-
-    if (numDigits == 0)
-        return leadingIndicator ? ['0','x','0','0'] : ['0'];
-
-    Appender!(char[]) result;
-    result.reserve(numDigits + (leadingIndicator ? 3 : 0));
-    if (leadingIndicator)
-        result.put("0x0"); // Leading zero to indicate positive number
-    auto rnd = Random();
-    size_t l = 0;
-    while (l < numDigits)
-    {
-        auto i = assumeWontThrow(uniform(0, upperHexDigits.length, rnd));
-        auto c = upperHexDigits[i];
-        // Can not generate leading zero
-        if (l != 0 || c != '0')
-        {
-            result.put(c);
-            ++l;
-        }
-    }
-    return result.data;
 }
 
 /**
@@ -403,6 +267,21 @@ string shortTypeName(T)() nothrow pure @safe
 if (is(T == class) || is(T == struct))
 {
     return shortenTypeName(T.stringof);
+}
+
+FormatSpec!char simpleFloatFmt() nothrow pure @safe
+{
+    FormatSpec!char result;
+    result.spec = 'f';
+    return result;
+}
+
+FormatSpec!char simpleIntegerFmt(int width = 0) nothrow pure @safe
+{
+    FormatSpec!char result;
+    result.spec = 'd';
+    result.width = width;
+    return result;
 }
 
 /**
@@ -467,22 +346,14 @@ nothrow @safe:
 public:
     final void disposal(bool disposing)
     {
-        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
-
         _disposing++;
         doDispose(disposing);
-
-        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
     }
 
     final void dispose()
     {
-        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
-
         _disposing++;
         doDispose(true);
-
-        version (TraceInvalidMemoryOp) dgFunctionTrace(className(this));
     }
 
     @property final DisposableState disposingState() const
@@ -699,8 +570,9 @@ public:
 
     static string part(string partString) pure
     {
+        uint n;
         auto result = strip(partString);
-        return (result.length <= 9 && isDigits(result)) ? result : "0";
+        return parseIntegral(result, n) == NumericParsedKind.ok ? result : "0";
     }
 
     string toString() const pure
@@ -726,7 +598,7 @@ version (unittest)
 nothrow @safe unittest // className
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.object.className");
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.className");
 
     auto c1 = new ClassName();
     assert(className(c1) == "pham.utl.object.ClassName");
@@ -738,7 +610,7 @@ nothrow @safe unittest // className
 nothrow @safe unittest // currentComputerName
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.object.currentComputerName");
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.currentComputerName");
 
     assert(currentComputerName().length != 0);
 }
@@ -746,7 +618,7 @@ nothrow @safe unittest // currentComputerName
 nothrow @safe unittest // currentProcessId
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.object.currentProcessId");
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.currentProcessId");
 
     assert(currentProcessId() != 0);
 }
@@ -754,7 +626,7 @@ nothrow @safe unittest // currentProcessId
 nothrow @safe unittest // currentUserName
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.object.currentUserName");
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.currentUserName");
 
     assert(currentUserName().length != 0);
 }
@@ -762,7 +634,7 @@ nothrow @safe unittest // currentUserName
 nothrow @safe unittest // pad
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.object.pad");
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.pad");
 
     assert(pad("", 2, ' ') == "  ");
     assert(pad("12", 2, ' ') == "12");
@@ -773,7 +645,7 @@ nothrow @safe unittest // pad
 nothrow @safe unittest // shortClassName
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.object.shortClassName");
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.shortClassName");
 
     auto c1 = new ClassName();
     assert(shortClassName(c1) == "pham.utl.object.ClassName");
@@ -785,7 +657,7 @@ nothrow @safe unittest // shortClassName
 unittest // singleton
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.object.singleton");
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.singleton");
 
     static class A {}
 
@@ -802,7 +674,7 @@ unittest // singleton
 nothrow @safe unittest // stringOfChar
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.object.stringOfChar");
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.stringOfChar");
 
     assert(stringOfChar(4, ' ') == "    ");
     assert(stringOfChar(0, ' ').length == 0);
@@ -811,7 +683,7 @@ nothrow @safe unittest // stringOfChar
 unittest // InitializedValue
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.object.InitializedValue");
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.InitializedValue");
 
     InitializedValue!int n;
     assert(!n);
@@ -836,68 +708,25 @@ unittest // InitializedValue
     assert(c !is null);
 }
 
-nothrow @safe unittest // isDigit
-{
-    import pham.utl.test;
-    traceUnitTest("unittest pham.utl.object.isDigit");
-
-    ubyte b;
-
-    assert(isDigit('0', b));
-    assert(b == 0);
-
-    assert(isDigit('1', b));
-    assert(b == 1);
-
-    assert(isDigit('9', b));
-    assert(b == 9);
-
-    assert(!isDigit('a', b));
-    assert(b == 0);
-}
-
-nothrow @safe unittest // isDigits
-{
-    import pham.utl.test;
-    traceUnitTest("unittest pham.utl.object.isDigits");
-
-    assert(isDigits("0"));
-    assert(isDigits("0123456789"));
-    assert(!isDigits(""));
-    assert(!isDigits("0ab"));
-}
-
-nothrow @safe unittest // isHex
-{
-    import pham.utl.test;
-    traceUnitTest("unittest pham.utl.object.isHex");
-
-    ubyte b;
-
-    assert(isHex('0', b));
-    assert(b == 0);
-
-    assert(isHex('a', b));
-    assert(b == 10);
-
-    assert(!isHex('z', b));
-    assert(b == 0);
-}
-
 nothrow @safe unittest // bytesFromHexs & bytesToHexs
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.object.bytesFromHexs & bytesToHexs");
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.bytesFromHexs & bytesToHexs");
 
     assert(bytesToHexs([0]) == "00");
     assert(bytesToHexs([1]) == "01");
     assert(bytesToHexs([15]) == "0F");
     assert(bytesToHexs([255]) == "FF");
 
-    assert(bytesFromHexs("00") == [0]);
-    assert(bytesFromHexs("01") == [1]);
-    assert(bytesFromHexs("0F") == [15]);
-    assert(bytesFromHexs("FF") == [255]);
+    ubyte[] r;
+    r = bytesFromHexs("00");
+    assert(r == [0]);
+    r = bytesFromHexs("01");
+    assert(r == [1]);
+    r = bytesFromHexs("0F");
+    assert(r == [15]);
+    r = bytesFromHexs("FF");
+    assert(r == [255]);
 
     enum testHexs = "43414137364546413943383943443734433130363737303145434232424332363635393136423946384145383143353537453543333044383939463236434443";
     auto bytes = bytesFromHexs(testHexs);
@@ -907,7 +736,7 @@ nothrow @safe unittest // bytesFromHexs & bytesToHexs
 nothrow @safe unittest // VersionString
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.object.VersionString");
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.VersionString");
 
     const v1Str = "1.2.3.4";
     const v1 = VersionString(v1Str);

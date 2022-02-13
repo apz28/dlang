@@ -123,21 +123,6 @@ public:
         this._elapsedTime = elapsedTime;
     }
 
-    long elapsedTimeMsecs() const pure
-    {
-        return elapsedTime.total!"msecs"();
-    }
-
-    double elapsedTimePercent() const pure
-    {
-        return _count != 0 ? cast(double)elapsedTimeUsecs() / cast(double)_count * 100.0 : 0.0;
-    }
-
-    long elapsedTimeUsecs() const pure
-    {
-        return elapsedTime.total!"usecs"();
-    }
-
     version (profile)
     static void profile(in string name, in Duration elapsedTime) @trusted
     in
@@ -169,6 +154,21 @@ public:
     @property Duration elapsedTime() const @nogc pure
     {
         return _elapsedTime;
+    }
+
+    @property long elapsedTimeMsecs() const @nogc pure
+    {
+        return _elapsedTime.total!"msecs"();
+    }
+
+    @property double elapsedTimePercent() const @nogc pure
+    {
+        return _count != 0 ? cast(double)elapsedTimeUsecs / cast(double)_count * 100.0 : 0.0;
+    }
+
+    @property long elapsedTimeUsecs() const @nogc pure
+    {
+        return _elapsedTime.total!"usecs"();
     }
 
     @property string name() const @nogc pure
@@ -230,26 +230,28 @@ struct PerfTestResult
         return result;
     }
 
-    long elapsedTimeMsecs() const pure
-    {
-        return elapsedTime.total!"msecs"();
-    }
-
-    long elapsedTimeUsecs() const pure
-    {
-        return elapsedTime.total!"usecs"();
-    }
-
-    void end() pure
+    ref typeof(this) end() pure return
     {
         debug elapsedTime = MonoTime.currTime - startedTime;
+        return this;
     }
 
-    void reset() pure
+    ref typeof(this) reset() pure return
     {
         count = 0;
         elapsedTime = Duration.zero;
         debug startedTime = MonoTime.currTime;
+        return this;
+    }
+
+    @property long elapsedTimeMsecs() const pure
+    {
+        return elapsedTime.total!"msecs"();
+    }
+
+    @property long elapsedTimeUsecs() const pure
+    {
+        return elapsedTime.total!"usecs"();
     }
 }
 
@@ -258,25 +260,8 @@ version (unittest)
     import std.conv : to;
     import std.format : format;
     import std.traits : isSomeChar;
-
-    void dgFunctionTrace(A...)(A args,
-        int line = __LINE__,
-        string functionName = __FUNCTION__)
-    {
-        try
-        {
-            debug dgWrite(functionName, "(", line, ")");
-            if (args.length)
-            {
-                debug dgWrite(": ");
-                debug dgWriteln(args);
-            }
-            else
-                debug dgWriteln("");
-        }
-        catch (Exception)
-        {}
-    }
+    import pham.external.std.log.logger : FileLogger, lastModuleSeparatorIndex, LoggerOption, LogLevel, moduleParentOf, OutputPattern;
+    public import pham.utl.object : bytesFromHexs, bytesToHexs;
 
 	static ubyte[] dgReadAllBinary(string fileName) nothrow @trusted
     {
@@ -322,8 +307,6 @@ version (unittest)
 
     string dgToHex(scope const(ubyte)[] b) @nogc nothrow pure @safe
     {
-        import pham.utl.object : bytesToHexs;
-
         debug return bytesToHexs(b);
     }
 
@@ -414,20 +397,39 @@ version (unittest)
         {}
     }
 
-    void traceUnitTest(A...)(A args) nothrow
+    void traceFunction(string moduleName = __MODULE__, A...)(A args,
+        int line = __LINE__, string functionName = __FUNCTION__) @nogc nothrow pure @trusted
     {
-        version (TraceUnitTest)
-        {
-            import std.stdio : writeln;
 
-            try
+        version (TraceFunction)
+        {
+            debug const prefix = functionName ~ "(" ~ to!string(line) ~ ")";
+            if (args.length)
             {
-                debug writeln(args);
+                debug traceLogger.trace!(moduleName)(prefix, ": ", args);
             }
-            catch (Exception)
-            {}
+            else
+            {
+                debug traceLogger.trace!(moduleName)(prefix);
+            }
         }
     }
+
+    void traceUnitTest(string moduleName = __MODULE__, A...)(A args) @nogc nothrow pure @trusted
+    {
+        version (TraceUnitTest) debug traceLogger.trace!(moduleName, A)(args);
+    }
+
+    private void createTraceLogger() nothrow @trusted
+    {
+        if (traceLogger is null)
+        {
+            static immutable string pattern = OutputPattern.message ~ OutputPattern.newLine;
+            traceLogger = new FileLogger("trace.log", "w", LoggerOption(LogLevel.error, "unittestTrace", pattern, 10));
+        }
+    }
+
+    private static __gshared FileLogger traceLogger;
 }
 
 
@@ -436,6 +438,12 @@ private:
 shared static this() @trusted
 {
     version (profile) PerfFunctionCounter.countersMutex = new Mutex();
+
+    version (unittest)
+    {
+        version (TraceFunction) createTraceLogger();
+        version (TraceUnitTest) createTraceLogger();
+    }
 
     version (TraceInvalidMemoryOp)
     {
@@ -463,12 +471,21 @@ shared static ~this() @trusted
             PerfFunctionCounter.counters = null;
         }
     }
+
+    version (unittest)
+    {
+        if (traceLogger !is null)
+        {
+            traceLogger.destroy();
+            traceLogger = null;
+        }
+    }
 }
 
 unittest // PerfCpuUsage
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.utltest.PerfCpuUsage");
+    traceUnitTest!("pham.utl")("unittest pham.utl.utltest.PerfCpuUsage");
 
     const cpuTime = PerfCpuUsage.get();
     assert(cpuTime.kernelTime != Duration.max && cpuTime.kernelTime.total!"usecs"() > 0);

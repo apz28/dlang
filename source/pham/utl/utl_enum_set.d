@@ -31,7 +31,7 @@ nothrow @safe:
  *  enum E {e1, e2, e3}
  *  count!E() returns 3
  */
-size_t count(E)() pure
+size_t count(E)() @nogc pure
 if (is(E == enum))
 {
     size_t result;
@@ -160,7 +160,7 @@ if (isEnumSet!E)
  *  enum E {e1 = 1, e2 = 2, e3 = 10, ...}
  *  bit!E(e3) returns 4
  */
-auto bit(E)(E value) pure
+auto bit(E)(E value) @nogc pure
 if (isEnumSet!E)
 {
     static if (isBitEnum!E)
@@ -186,7 +186,7 @@ if (isEnumSet!E)
  *  enum E {e1 = 1, e2 = 2, e3 = 10, ...}
  *  ord!E(e3) returns 2
  */
-size_t ord(E)(E value) pure
+size_t ord(E)(E value) @nogc pure
 if (isEnumSet!E)
 {
     static if (isSequenceEnum!E)
@@ -433,7 +433,7 @@ public:
         return _values == source.values;
     }
 
-    EnumSetRange opSlice() return
+    EnumSetRange opIndex() return
     {
         return EnumSetRange(this);
     }
@@ -597,7 +597,7 @@ public:
 
         size_t count;
         put(sink, '[');
-        foreach(e; EnumMembers!E)
+        foreach (e; EnumMembers!E)
         {
             if (on(e))
             {
@@ -611,7 +611,7 @@ public:
         return sink;
     }
 
-    @property bool empty() const pure
+    @property bool empty() const @nogc pure
     {
         return _values == 0;
     }
@@ -727,7 +727,7 @@ public:
     /**
      * Length of this enum array
      */
-    @property size_t length() const pure
+    @property size_t length() const @nogc pure
     {
         return size;
     }
@@ -741,7 +741,7 @@ private:
 // Any below codes are private
 private:
 
-size_t maxBits() pure
+size_t maxBits() @nogc pure
 {
     return ulong.sizeof * 8;
 }
@@ -749,7 +749,7 @@ size_t maxBits() pure
 nothrow @safe unittest // toEnum
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.enum_set.toEnum");
+    traceUnitTest!("pham.utl")("unittest pham.utl.enum_set.toEnum");
 
     enum EnumTestOrder
     {
@@ -768,7 +768,7 @@ nothrow @safe unittest // toEnum
 nothrow @safe unittest // toName
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.enum_set.toName");
+    traceUnitTest!("pham.utl")("unittest pham.utl.enum_set.toName");
 
     enum EnumTestOrder : byte
     {
@@ -798,7 +798,7 @@ nothrow @safe unittest // EnumSet
 {
     import std.traits : OriginalType;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.enum_set.EnumSet");
+    traceUnitTest!("pham.utl")("unittest pham.utl.enum_set.EnumSet");
 
     //pragma(msg, size_t.sizeof * 8, '.', size_t.max);
 
@@ -985,7 +985,7 @@ nothrow @safe unittest // EnumSet
 nothrow @safe unittest // EnumArray
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.enum_set.EnumArray");
+    traceUnitTest!("pham.utl")("unittest pham.utl.enum_set.EnumArray");
 
     enum EnumTest
     {
