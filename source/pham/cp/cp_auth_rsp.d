@@ -62,14 +62,17 @@ module pham.cp.auth_rsp;
 
 import std.algorithm.mutation : reverse;
 import std.conv : to;
-import std.exception : assumeWontThrow;
 import std.string : representation;
 import std.typecons : Flag, No, Yes;
 
+version (TraceFunction) import pham.utl.test;
 import pham.utl.array : arrayOfChar;
 import pham.utl.big_integer;
-import pham.utl.object : DisposableObject, isHex, randomHexDigits;
+import pham.utl.object : DisposableObject;
+import pham.utl.utf8 : isHexDigit, ShortStringBuffer;
+public import pham.cp.cipher : CipherKey;
 public import pham.cp.cipher_digest;
+public import pham.cp.random : CipherRandomGenerator;
 
 nothrow @safe:
 
@@ -82,7 +85,7 @@ enum minExponentSize = 32;
 
 ubyte[] bytesFromBigInteger(scope const(BigInteger) n) pure
 {
-    auto result = reverse(n.toBytes(No.includeSign));
+    auto result = reverse(CipherKey.bytesFromBigInteger(n));
     while (result.length > 1 && result[0] == 0)
         result = result[1..$];
     return result;
@@ -103,45 +106,7 @@ ubyte[] bytesFromBigIntegerPad(scope const(BigInteger) n, const(size_t) padSize)
 
 BigInteger bytesToBigInteger(scope const(ubyte)[] bytes) pure
 {
-    return BigInteger(reverse(bytes.dup) ~ cast(ubyte[])[0], Yes.unsigned);
-}
-
-BigInteger digitsToBigInteger(scope const(char)[] validDigitChars) pure
-{
-    enum ParseFormat format =
-    {
-        ",_",
-        ParseStyle.allowLeadingWhite
-            | ParseStyle.trailingWhite
-            | ParseStyle.allowThousand
-    };
-
-    return assumeWontThrow(BigInteger(validDigitChars, format));
-}
-
-ubyte[] hexCharsFromBigInteger(scope const(BigInteger) n) pure @trusted //@trusted=cast()
-{
-    return cast(ubyte[])(n.toHexString(No.includeSign));
-}
-
-BigInteger hexCharsToBigInteger(scope const(ubyte)[] validHexChars) pure
-{
-    return hexCharsToBigInteger(cast(const(char)[])validHexChars);
-}
-
-BigInteger hexCharsToBigInteger(scope const(char)[] validHexChars) pure
-{
-    enum ParseFormat format =
-    {
-        ",_",
-        ParseStyle.allowLeadingWhite
-            | ParseStyle.trailingWhite
-            | ParseStyle.allowThousand
-            | ParseStyle.isHexs
-            | ParseStyle.isUnsigned
-    };
-
-    return assumeWontThrow(BigInteger(validHexChars, format));
+    return CipherKey.bytesToBigInteger(reverse(bytes.dup) ~ cast(ubyte[])[0]);
 }
 
 struct PrimeGroup
@@ -154,19 +119,19 @@ public:
     {
         uint getPadSize()
         {
-            auto N2 = ParseFormat.isHexPrefix(N) ? N[2..$] : N;
+            auto N2 = NumericLexerOptions!char.isHexDigitPrefix(N) ? N[2..$] : N;
 
             uint result = 0;
             foreach (c; N2)
             {
                 ubyte b = void;
-                if (isHex(c, b))
+                if (isHexDigit(c, b))
                     ++result;
             }
             return result;
         }
 
-        this(BigInteger(g), hexCharsToBigInteger(N), exponentSize, padSize != 0 ? padSize : getPadSize());
+        this(BigInteger(g), CipherKey.hexDigitsToBigInteger(N), exponentSize, padSize != 0 ? padSize : getPadSize());
     }
 
     this(BigInteger g, BigInteger N, uint exponentSize, uint padSize) pure
@@ -222,9 +187,6 @@ struct AuthParameters
 nothrow @safe:
 
 public:
-    alias Generator = char[] function(size_t numDigits, bool leadingIndicator) nothrow;
-
-public:
     this(DigestId digestId, DigestId proofDigestId,
          char separator = ':')
     {
@@ -234,33 +196,17 @@ public:
     this(DigestId digestId, DigestId proofDigestId, const(PrimeGroup) group,
          char separator = ':')
     {
-        this(digestId, proofDigestId, group, &randomHexDigits, separator);
-    }
-
-    this(DigestId digestId, DigestId proofDigestId, const(PrimeGroup) group, Generator hexGenerator,
-         char separator = ':')
-    {
         this._hasher = Digester(digestId);
         this._proofHasher = Digester(proofDigestId);
-        this._hexGenerator = hexGenerator;
         this._group = group;
         this._separator = separator;
     }
 
-    char[] generateRandom(size_t nBytes)
-    {
-        return _hexGenerator(nBytes * 2, true);
-    }
-
-    ubyte[] generateSalt() @trusted
-    {
-        return cast(ubyte[])generateRandom(maxExponentSize);
-    }
-
     BigInteger generateSecret()
     {
-        auto hexs = generateRandom(exponentSize);
-        return assumeWontThrow(hexCharsToBigInteger(hexs));
+        CipherRandomGenerator rnd;
+        ShortStringBuffer!char buffer;
+        return CipherKey.hexDigitsToBigInteger(rnd.nextHexDigits(buffer, exponentSize * 2)[]);
     }
 
     ubyte[] hash(BigInteger n, Flag!"pad" pad)
@@ -275,11 +221,6 @@ public:
     @property uint exponentSize() const pure
     {
         return _group.exponentSize;
-    }
-
-    @property Generator hexGenerator()
-    {
-        return _hexGenerator;
     }
 
     @property ref const(PrimeGroup) group() const pure return
@@ -326,7 +267,6 @@ private:
     const(PrimeGroup) _group;
     Digester _proofHasher;
     Digester _hasher;
-    Generator _hexGenerator;
     char _separator;
 }
 
@@ -360,15 +300,15 @@ public:
             .finish(kTemp);
         auto result = bytesToBigInteger(rHash);
 
-        version (TraceAuth)
+        version (TraceFunction)
         {
             import pham.utl.test;
-            dgFunctionTrace("A=", A.toString(),
-                ", A.pad=", bytesFromBigIntegerPad(A, padSize).dgToHex(),
+            traceFunction!("pham.cp")("A=", A.toString(),
+                ", A.pad=", bytesFromBigIntegerPad(A, padSize),
                 ", B=", B.toString(),
-                ", B.pad=", bytesFromBigIntegerPad(B, padSize).dgToHex(),
-                ", rHash=", rHash.dgToHex(),
-                ", result=", result.dgToHex());
+                ", B.pad=", bytesFromBigIntegerPad(B, padSize),
+                ", rHash=", rHash,
+                ", result=", result);
         }
 
         return result;
@@ -452,6 +392,16 @@ public:
     	return true;
     }
 
+    version (TraceFunction)
+    string traceString() const nothrow
+    {
+        return "Auth.N=" ~ _parameters.group.N.toString()
+		    ~ ", g=" ~ _parameters.group.g.toString()
+		    ~ ", k=" ~ _k.toString()
+		    ~ ", ephemeralPrivate=" ~ _ephemeralPrivate.toString()
+		    ~ ", ephemeralPublic=" ~ _ephemeralPublic.toString();
+    }
+
     @property final BigInteger ephemeralPrivate() pure
     {
         return _ephemeralPrivate;
@@ -459,7 +409,7 @@ public:
 
     @property final ubyte[] ephemeralPrivateKey() const pure
     {
-        return hexCharsFromBigInteger(_ephemeralPrivate);
+        return CipherKey.hexDigitsFromBigInteger(_ephemeralPrivate).representation;
     }
 
     @property final BigInteger ephemeralPublic() pure
@@ -469,7 +419,7 @@ public:
 
     @property final ubyte[] ephemeralPublicKey() const pure
     {
-        return hexCharsFromBigInteger(_ephemeralPublic);
+        return CipherKey.hexDigitsFromBigInteger(_ephemeralPublic).representation;
     }
 
     @property final BigInteger g()
@@ -510,10 +460,10 @@ protected:
             .finish(kTemp);
         auto result = bytesToBigInteger(rHash);
 
-        version (TraceAuth)
+        version (TraceFunction)
         {
             import pham.utl.test;
-            dgFunctionTrace("N=" ~ N.toString(),
+            traceFunction!("pham.cp")("N=" ~ N.toString(),
                 ", g=" ~ g.toString(),
                 ", result=", result.toString());
         }
@@ -591,10 +541,10 @@ public:
         divRem(ephemeralPrivate + ux, N, aux);
         auto result = modPow(diff, aux, N);
 
-        version (TraceAuth)
+        version (TraceFunction)
         {
             import pham.utl.test;
-            dgFunctionTrace("ephemeralPublic=", ephemeralPublic.toString(),
+            traceFunction!("pham.cp")("ephemeralPublic=", ephemeralPublic.toString(),
                 ", ephemeralPrivate=", ephemeralPrivate.toString(),
                 ", serverPublicKey=", serverPublicKey.toString(),
                 ", u=", u.toString(),
@@ -619,10 +569,10 @@ public:
         auto exponent = (ephemeralPrivate + ux) % N;
 		auto result = modPow(base, exponent, N);
 
-        version (TraceAuth)
+        version (TraceFunction)
         {
             import pham.utl.test;
-            dgFunctionTrace("ephemeralPublic=", ephemeralPublic.toString(),
+            traceFunction!("pham.cp")("ephemeralPublic=", ephemeralPublic.toString(),
                 ", ephemeralPrivate=", ephemeralPrivate.toString(),
                 ", serverPublicKey=", serverPublicKey.toString(),
                 ", u=", u.toString(),
@@ -916,7 +866,7 @@ nothrow @safe unittest // bytesToBigInteger
 {
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest("unittest pham.cp.auth_rsp.bytesToBigInteger");
+    traceUnitTest!("pham.cp")("unittest pham.cp.auth_rsp.bytesToBigInteger");
 
     assert(bytesToBigInteger(bytesFromHexs("BADAD8293C6296A5E190B90189CC983140C933CC")).toString() == "1066752676112117711667100034894519583952173872076");
     assert(bytesToBigInteger(bytesFromHexs("C4EA21BB365BBEEAF5F2C654883E56D11E43C44E")).toString() == "1124183503868421757928291737012660252296180122702");
@@ -927,10 +877,10 @@ nothrow @safe unittest // bigIntegerToBytes
 {
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest("unittest pham.cp.auth_rsp.bytesFromBigInteger");
+    traceUnitTest!("pham.cp")("unittest pham.cp.auth_rsp.bytesFromBigInteger");
 
-    assert(bytesToHexs(bytesFromBigInteger(digitsToBigInteger("58543554083751952442334332707885450963256912723720014361224396835623580320574993412213112731622008780624513837590415042361332636920155374789034615041232473542789648377986158701807740526423554224690384086846078749662234094040670372520229647584994218966915554154095758043112636200250640433313973626261330006062"))) == "535E68E994A09E4C230894A6CC5F2B2485048097578E647222329B71A0AE81A91ADB0130AFEA1137DC1D2E6E22B0344C27C1572EDC5458B467087F05949B06B48F93E24D03A6320DCD07650E427F15F29DCDC90BAE5C81B37F418AB2CD48C27E2B919526A02AF70DC8FC0AED061B44CD3B17FB5042043FD2EDBE81296075102E");
-    assert(bytesToHexs(bytesFromBigInteger(digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
-    assert(bytesToHexs(bytesFromBigInteger(digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
-    assert(bytesToHexs(bytesFromBigInteger(digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
+    assert(bytesToHexs(bytesFromBigInteger(CipherKey.digitsToBigInteger("58543554083751952442334332707885450963256912723720014361224396835623580320574993412213112731622008780624513837590415042361332636920155374789034615041232473542789648377986158701807740526423554224690384086846078749662234094040670372520229647584994218966915554154095758043112636200250640433313973626261330006062"))) == "535E68E994A09E4C230894A6CC5F2B2485048097578E647222329B71A0AE81A91ADB0130AFEA1137DC1D2E6E22B0344C27C1572EDC5458B467087F05949B06B48F93E24D03A6320DCD07650E427F15F29DCDC90BAE5C81B37F418AB2CD48C27E2B919526A02AF70DC8FC0AED061B44CD3B17FB5042043FD2EDBE81296075102E");
+    assert(bytesToHexs(bytesFromBigInteger(CipherKey.digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
+    assert(bytesToHexs(bytesFromBigInteger(CipherKey.digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
+    assert(bytesToHexs(bytesFromBigInteger(CipherKey.digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
 }

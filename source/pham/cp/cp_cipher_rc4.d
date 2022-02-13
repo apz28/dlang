@@ -23,50 +23,33 @@ class CipherRC4 : Cipher
 nothrow @safe:
 
 public:
-    this(CipherParameters parameters)
+    this(CipherKey privateKey)
     in
     {
-        assert(parameters.privateKey.length != 0);
+        assert(CipherKey.isValidKey(privateKey.key));
     }
     do
     {
-        this._parameters = parameters;
+        this._parameters = CipherParameters(privateKey);
         initKey();
     }
 
     final override ubyte[] decrypt(scope const(ubyte)[] input, return ref ubyte[] output)
     {
-        if (input.length)
-            return process(input, output);
-        else
-            return null;
+        return input.length != 0 ? process(input, output) : null;
     }
 
     final override ubyte[] encrypt(scope const(ubyte)[] input, return ref ubyte[] output)
     {
-        if (input.length)
-            return process(input, output);
-        else
-            return null;
+        return input.length != 0 ? process(input, output) : null;
     }
 
-    final override Cipher reInit()
-    in
-    {
-        assert(_parameters.privateKey.length != 0);
-    }
-    do
-    {
-        initKey();
-        return this;
-    }
-
-    @property final override bool isSymantic() const
+    @property final override bool isSymantic() const @nogc pure
     {
         return false;
     }
 
-    @property final override string name() const
+    @property final override string name() const pure
     {
         return "RC4";
     }
@@ -87,11 +70,12 @@ private:
             _stateData[i] = cast(ubyte)i;
 
         int iKey, i2;
+        const key = _parameters.privateKey.key;
         foreach (i; 0..stateLength)
         {
-            i2 = (_parameters.privateKey[iKey] + _stateData[i] + i2) & 0xff;
+            i2 = (key[iKey] + _stateData[i] + i2) & 0xff;
             swap(_stateData[i], _stateData[i2]);
-            if (++iKey >= _parameters.privateKey.length)
+            if (++iKey >= key.length)
                 iKey = 0;
         }
     }
@@ -134,7 +118,7 @@ unittest // CipherRC4
 {
     import pham.utl.object : bytesFromHexs;
     import pham.utl.test;
-    traceUnitTest("unittest pham.cp.cipher_rc4.CipherRC4");
+    traceUnitTest!("pham.cp")("unittest pham.cp.cipher_rc4.CipherRC4");
 
     {
         ubyte[] key = [ 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef ];
@@ -142,21 +126,24 @@ unittest // CipherRC4
         ubyte[] testEncrypted = [ 0x75, 0xb7, 0x87, 0x80, 0x99, 0xe0, 0xc5, 0x96 ];
         ubyte[] testResult;
 
-        auto cipherRC4 = new CipherRC4(CipherParameters(key));
+        auto cipherRC4E = new CipherRC4(CipherKey(0, key));
+        auto cipherRC4D = new CipherRC4(CipherKey(0, key));
 
-        assert(cipherRC4.encrypt(test, testResult) == testEncrypted);
-        assert(cipherRC4.reInit().decrypt(testEncrypted, testResult) == test);
+        assert(cipherRC4E.encrypt(test, testResult) == testEncrypted);
+        assert(cipherRC4D.decrypt(testEncrypted, testResult) == test);
 
-        cipherRC4.dispose();
-        cipherRC4 = null;
+        cipherRC4E.dispose();
+        cipherRC4E = null;
+        cipherRC4D.dispose();
+        cipherRC4D = null;
     }
 
     {
         auto key = bytesFromHexs("1234ABCD43211234ABCD432112345678");
-        auto cipherRC4 = new CipherRC4(CipherParameters(key));
-
-        auto input = key;
+        auto input = key.dup;
         ubyte[] output;
+
+        auto cipherRC4 = new CipherRC4(CipherKey(0, key));
         assert(cipherRC4.encrypt(input, output) == bytesFromHexs("4B8E9F295B071B7239ABC838B3E4DC9B"));
 
         cipherRC4.dispose();

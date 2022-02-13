@@ -11,8 +11,10 @@
 
 module pham.cp.cipher_digest;
 
+import std.algorithm.mutation : swapAt;
 import std.digest.md : MD5Digest;
 import std.digest.sha : Digest, SHA1Digest, SHA256Digest, SHA384Digest, SHA512Digest;
+import std.string : representation;
 
 nothrow @safe:
 
@@ -27,26 +29,95 @@ enum DigestId : string
 
 struct DigestResult
 {
-nothrow @safe:
+@nogc nothrow @safe:
 
 public:
-    enum maxHashSize = Digester.maxDigestLength * 2; // bits / bits-per-byte * 2 hex-chars-per-byte
+    // bits / bits-per-byte * 2 hex-chars-per-byte
+    enum maxBufferSize = (Digester.maxDigestLength * 2) + ulong.sizeof; // Allow extra for cipher salt calculation
 
 public:
+    ~this() pure
+    {
+        dispose(false);
+    }
+
+    ref typeof(this) opOpAssign(string op)(scope const(ubyte)[] rhs) pure return
+    if (op == "&" || op == "|" || op == "^")
+    {
+        const len = length > rhs.length ? rhs.length : length;
+        static if (op == "&")
+        {
+            foreach (i; 0..len)
+                buffer[i] &= rhs[i];
+            if (len < length)
+                buffer[len..length] = 0;
+            return this;
+        }
+        else static if (op == "|")
+        {
+            foreach (i; 0..len)
+                buffer[i] |= rhs[i];
+            return this;
+        }
+        else static if (op == "^")
+        {
+            foreach (i; 0..len)
+                buffer[i] ^= rhs[i];
+            return this;
+        }
+        else
+            static assert(0);
+    }
+
+    size_t opDollar() const pure
+    {
+        return length;
+    }
+
+    inout(ubyte)[] opIndex() inout pure return
+    {
+        return buffer[0..length];
+    }
+
     void dispose(bool disposing = true) pure
     {
         buffer[] = 0;
         length = 0;
     }
 
-    const(ubyte)[] value() const pure return
+    ref typeof(this) reset() pure return
     {
-        return buffer[0..length];
+        length = 0;
+        return this;
+    }
+
+    ref typeof(this) reverse() pure return
+    {
+        if (const len = length)
+        {
+            const last = len - 1;
+            const steps = len / 2;
+            for (size_t i = 0; i < steps; i++)
+            {
+                buffer.swapAt(i, last - i);
+            }
+        }
+        return this;
+    }
+
+    inout(ubyte)[] slice(uint beginIndex, uint forLength) inout pure return
+    {
+        return buffer[beginIndex..beginIndex + forLength];
+    }
+
+    @property bool empty() const pure
+    {
+        return length == 0;
     }
 
 public:
-    ubyte[maxHashSize] buffer;
-    uint length;
+    ubyte[maxBufferSize] buffer;
+    size_t length;
 }
 
 struct Digester
@@ -100,10 +171,16 @@ public:
         return this;
     }
 
-    ref typeof(this) digest(scope const(ubyte)[] data...) return @trusted
+    ref typeof(this) digest(scope const(ubyte)[] data...) return
     {
         foreach (d; data)
             _digester.put(d);
+        return this;
+    }
+
+    ref typeof(this) digest(scope const(char)[] data) return
+    {
+        _digester.put(data.representation);
         return this;
     }
 
@@ -158,6 +235,11 @@ public:
         this._key = checkKey(key);
     }
 
+    ~this() pure
+    {
+        dispose(false);
+    }
+
     ref typeof(this) begin() return
     {
         // Setup key pad
@@ -169,8 +251,7 @@ public:
         }
 
         // Start with inner pad
-        _hasher.begin()
-            .digest(_iPad[0..blockSize]);
+        _hasher.begin().digest(_iPad[0..blockSize]);
 
         return this;
     }
@@ -179,6 +260,20 @@ public:
     {
         _hasher.digest(data);
         return this;
+    }
+
+    ref typeof(this) digest(scope const(char)[] data) return
+    {
+        _hasher.digest(data);
+        return this;
+    }
+
+    void dispose(bool disposing = true) pure
+    {
+        _key[] = 0;
+        _iPad[] = 0;
+        _oPad[] = 0;
+        _blockSize = 0;
     }
 
     ubyte[] finish(return ref DigestResult outBuffer)
@@ -254,7 +349,7 @@ nothrow @safe unittest // digestOf
     import std.string : representation;
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest("unittest pham.cp.cipher_digest.digestOf");
+    traceUnitTest!("pham.cp")("unittest pham.cp.cipher_digest.digestOf");
 
     ubyte[] hash;
 
@@ -279,7 +374,7 @@ nothrow @safe unittest // digestOf - for Firebird database engine
     import std.string : representation;
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest("unittest pham.cp.cipher_digest.digestOf - for Firebird database engine");
+    traceUnitTest!("pham.cp")("unittest pham.cp.cipher_digest.digestOf - for Firebird database engine");
 
     ubyte[] hash;
 
@@ -287,7 +382,6 @@ nothrow @safe unittest // digestOf - for Firebird database engine
     assert(hash == bytesFromHexs("E395799C5652AAA4536273A20AA740E246835CC4"));
 
     hash = digestOf!(DigestId.sha1)("DAVIDS:aaa123".representation);
-    //traceUnitTest("testHash=", hash.dgToHex());
     assert(hash == bytesFromHexs("DF2ACDCF3828998D9ED023AB1F54464220F0D17C"));
 }
 
@@ -296,7 +390,7 @@ nothrow @safe unittest // HMACS
     import std.string : representation;
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest("unittest pham.cp.cipher_digest.HMACS");
+    traceUnitTest!("pham.cp")("unittest pham.cp.cipher_digest.HMACS");
 
     DigestResult rBuffer = void;
     ubyte[] r;
