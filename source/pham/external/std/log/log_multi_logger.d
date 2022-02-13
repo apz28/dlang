@@ -38,7 +38,7 @@ public:
 
     static LoggerOption defaultOption() nothrow pure @safe
     {
-        return LoggerOption(lowestLogLevel, "Multi", defaultOutputPattern);
+        return LoggerOption(lowestLogLevel, "MultiLogger", defaultOutputPattern, 0);
     }
 
     /**
@@ -157,8 +157,7 @@ private:
     a.insertLogger("zero", n0);
     a.insertLogger("one", n1);
 
-    a.log("Hello TestLogger");
-    int line = __LINE__ - 1;
+    a.log("Hello TestLogger"); int line = __LINE__;
     assert(n0.msg == "Hello TestLogger");
     assert(n0.line == line);
     assert(n1.msg == "Hello TestLogger");
@@ -179,8 +178,8 @@ private:
         logFileOutput.close();
         remove(logName);
     }
-    auto traceLog = new FileLogger(logFileOutput, LoggerOption(defaultUnitTestLogLevel, "TestTrace", defaultOutputPattern));
-    auto infoLog = new TestLogger(LoggerOption(LogLevel.info, "TestInfo", defaultOutputPattern));
+    auto traceLog = new FileLogger(logFileOutput, LoggerOption(defaultUnitTestLogLevel, "TestTrace", defaultOutputPattern, 0));
+    auto infoLog = new TestLogger(LoggerOption(LogLevel.info, "TestInfo", defaultOutputPattern, 0));
 
     auto root = new MultiLogger();
     root.insertLogger("fileLogger", traceLog);

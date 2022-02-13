@@ -306,7 +306,7 @@ public:
     alias opOpAssign(string op : "~") = put;
     alias opDollar = length;
 
-    Char[] opSlice() nothrow pure return
+    Char[] opIndex() nothrow pure return
     {
         return _length <= Size ? _shortData[0.._length] : _longData[0.._length];
     }
@@ -1069,9 +1069,6 @@ static this() @trusted
 
 @safe unittest // ShortStringBufferSize
 {
-    import pham.utl.test;
-    traceUnitTest("unittest pham.external.std.log.date_time_format.ShortStringBufferSize");
-
     alias TestFormatString = ShortStringBufferSize!(5, char);
 
     TestFormatString s;
