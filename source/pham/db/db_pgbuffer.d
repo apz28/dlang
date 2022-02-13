@@ -17,13 +17,14 @@ import std.system : Endian;
 
 version (unittest) import pham.utl.test;
 import pham.external.dec.decimal : scaleFrom, scaleTo;
-import pham.db.type;
-import pham.db.convert;
+//import pham.utl.bit_array : numericBitCast;
 import pham.db.buffer;
+import pham.db.convert;
+import pham.db.type;
+import pham.db.pgdatabase;
+import pham.db.pgconvert;
 import pham.db.pgoid;
 import pham.db.pgtype;
-import pham.db.pgconvert;
-import pham.db.pgdatabase;
 
 struct PgReader
 {
@@ -38,22 +39,30 @@ public:
         this.readPacketData(connection);
     }
 
-    this(PgConnection connection, ubyte[] packetData) nothrow
+    this(ubyte[] packetData) nothrow
     in
     {
-        assert(packetData.length < int.max);
+        assert(packetData.length < int32.max);
     }
     do
     {
+        this._connection = null;
         this._messageType = 0;
-        this._connection = connection;
-        this._messageLength = cast(int)packetData.length;
+        this._messageLength = cast(int32)packetData.length;
         this._buffer = new DbReadBuffer(packetData);
         this._reader = DbValueReader!(Endian.bigEndian)(this._buffer);
     }
 
-    void dispose(bool disposing = true)
+    ~this() nothrow
     {
+        dispose(false);
+    }
+
+    void dispose(bool disposing = true) nothrow
+    {
+        if (_buffer !is null && _connection !is null)
+            _connection.releaseMessageReadBuffer(_buffer);
+
         _buffer = null;
         _connection = null;
         _reader.dispose(disposing);
@@ -71,16 +80,18 @@ public:
         return _reader.readChar();
     }
 
+    version (none)
     pragma(inline, true)
     char[] readChars(size_t nBytes)
     {
         return _reader.readChars(nBytes);
     }
 
+    pragma(inline, true)
     char[] readCChars()
     {
-        auto result = readChars(_buffer.search(0));
-        return result[0..$ - 1]; // Excluded null terminated char
+        auto result = _reader.readChars(_buffer.search(0));
+        return result.length ? result[0..$ - 1] : null; // -1=excluded null terminated char
     }
 
     pragma(inline, true)
@@ -118,7 +129,7 @@ public:
     pragma(inline, true)
     string readString(size_t nBytes) @trusted // @trusted=cast()
     {
-        return cast(string)readChars(nBytes);
+        return cast(string)_reader.readChars(nBytes);
     }
 
     pragma(inline, true)
@@ -156,7 +167,7 @@ public:
     }
 
     pragma(inline, true)
-    @property int messageLength() const nothrow pure
+    @property int32 messageLength() const nothrow pure
     {
         return _messageLength;
     }
@@ -176,20 +187,16 @@ private:
         _messageLength = socketReader.readInt32();
         _messageLength -= int32.sizeof; // Substract message length size
 
+        this._buffer = connection.acquireMessageReadBuffer();
         // Read message data?
         if (_messageLength > 0)
         {
-            auto packetData = socketReader.readBytes(_messageLength);
-            this._buffer = new DbReadBuffer(packetData);
-        }
-        else
-        {
-            this._buffer = new DbReadBuffer(0);
+            auto bufferData = this._buffer.expand(_messageLength);
+            socketReader.readBytes(bufferData);
         }
         this._reader = DbValueReader!(Endian.bigEndian)(this._buffer);
 
-        version (TraceFunction)
-        dgFunctionTrace("messageType=", _messageType, ", messageLength=", _messageLength);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("messageType=", _messageType, ", messageLength=", _messageLength);
     }
 
 private:
@@ -230,6 +237,21 @@ public:
         dispose(false);
     }
 
+    void beginMessage(char messageCode) nothrow
+    in
+    {
+        assert(_reserveLenghtOffset < 0);
+    }
+    do
+    {
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")(traceString(messageCode));
+
+        if (messageCode != '\0')
+            _writer.writeChar(messageCode);
+        _reserveLenghtOffset = _buffer.offset;
+        _writer.writeInt32(0);
+    }
+
     void dispose(bool disposing = true)
     {
         if (_needBuffer && _buffer !is null && _connection !is null)
@@ -249,7 +271,7 @@ public:
 
     void flush()
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_buffer.length=", _buffer.length);
 
         writeMessageLength();
         _buffer.flush();
@@ -261,25 +283,16 @@ public:
         return _buffer.peekBytes();
     }
 
-    void startMessage(char messageCode) nothrow
-    in
+    version (TraceFunction)
+    string traceString(char messageCode) const nothrow pure @trusted
     {
-        assert(_reserveLenghtOffset < 0);
-    }
-    do
-    {
-        version (TraceFunction)
-        {
-            if (messageCode != '\0')
-                dgFunctionTrace("_buffer.offset=", _buffer.offset, ", messageCode=", messageCode);
-            else
-                dgFunctionTrace("_buffer.offset=", _buffer.offset);
-        }
+        import std.conv : to;
 
         if (messageCode != '\0')
-            _writer.writeChar(messageCode);
-        _reserveLenghtOffset = _buffer.offset;
-        _writer.writeInt32(0);
+            return "_buffer.offset=" ~ to!string(_buffer.offset)
+                ~ ", messageCode=" ~ messageCode;
+        else
+            return "_buffer.offset=" ~ to!string(_buffer.offset);
     }
 
     void writeBytes(scope const(ubyte)[] v) nothrow
@@ -365,7 +378,7 @@ private:
             // Package length includes the length itself but exclude the package code
             const len = _buffer.length - _reserveLenghtOffset;
 
-            version (TraceFunction) dgFunctionTrace("_reserveLenghtOffset=", _reserveLenghtOffset, ", len=", len);
+            version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_reserveLenghtOffset=", _reserveLenghtOffset, ", len=", len);
 
             _writer.rewriteInt32(cast(int32)len, _reserveLenghtOffset);
             _reserveLenghtOffset = -1; // Reset after done written the length
@@ -376,7 +389,7 @@ private:
     DbWriteBuffer _buffer;
     PgConnection _connection;
     DbValueWriter!(Endian.bigEndian) _writer;
-    ptrdiff_t _reserveLenghtOffset = -1;
+    ptrdiff_t _reserveLenghtOffset;
     bool _needBuffer;
 }
 
@@ -396,9 +409,9 @@ public:
 
     void dispose(bool disposing = true)
     {
-        _reader.dispose(disposing);
         _buffer = null;
         _connection = null;
+        _reader.dispose(disposing);
     }
 
     pragma(inline, true)
@@ -446,8 +459,8 @@ public:
     DbDateTime readDateTimeTZ()
     {
         // Do not try to inline function calls, D does not honor right sequence from left to right
-        auto dt = readInt64();
-        auto z = readInt32();
+        auto dt = _reader.readInt64();
+        auto z = _reader.readInt32();
         return dateTimeDecodeTZ(dt, z);
     }
 
@@ -472,6 +485,66 @@ public:
         return _reader.readFloat64();
     }
 
+    DbGeoBox readGeoBox()
+    {
+        DbGeoBox result = void;
+        result.right = _reader.readFloat64();
+        result.top = _reader.readFloat64();
+        result.left = _reader.readFloat64();
+        result.bottom = _reader.readFloat64();
+        return result;
+    }
+
+    DbGeoCircle readGeoCircle()
+    {
+        DbGeoCircle result = void;
+        result.x = _reader.readFloat64();
+        result.y = _reader.readFloat64();
+        result.r = _reader.readFloat64();
+        return result;
+    }
+
+    DbGeoPath readGeoPath()
+    {
+        DbGeoPath result;
+        result.open = _reader.readBool();
+        const numPoints = _reader.readInt32();
+        if (numPoints)
+        {
+            result.points.length = numPoints;
+            foreach (i; 0..numPoints)
+            {
+                result.points[i].x = _reader.readFloat64();
+                result.points[i].y = _reader.readFloat64();
+            }
+        }
+        return result;
+    }
+
+    DbGeoPolygon readGeoPolygon()
+    {
+        DbGeoPolygon result;
+        const numPoints = _reader.readInt32();
+        if (numPoints)
+        {
+            result.points.length = numPoints;
+            foreach (i; 0..numPoints)
+            {
+                result.points[i].x = _reader.readFloat64();
+                result.points[i].y = _reader.readFloat64();
+            }
+        }
+        return result;
+    }
+
+    DbGeoPoint readGeoPoint()
+    {
+        DbGeoPoint result = void;
+        result.x = _reader.readFloat64();
+        result.y = _reader.readFloat64();
+        return result;
+    }
+
     pragma(inline, true)
     int16 readInt16()
     {
@@ -494,6 +567,15 @@ public:
     {
         assert(0, "database does not support Int128");
         //TODO
+    }
+
+    PgOIdInterval readInterval()
+    {
+        PgOIdInterval result = void;
+        result.microseconds = _reader.readInt64();
+        result.days = _reader.readInt32();
+        result.months = _reader.readInt32();
+        return result;
     }
 
     Decimal64 readMoney()
@@ -532,8 +614,8 @@ public:
     DbTime readTimeTZ()
     {
         // Do not try to inline function calls, D does not honor right sequence from left to right
-        auto t = readInt64();
-        auto z = readInt32();
+        auto t = _reader.readInt64();
+        auto z = _reader.readInt32();
         return timeDecodeTZ(t, z);
     }
 
@@ -593,9 +675,9 @@ public:
 
     void dispose(bool disposing = true)
     {
-        _writer.dispose(disposing);
         _buffer = null;
         _connection = null;
+        _writer.dispose(disposing);
     }
 
     size_t writeArrayBegin() nothrow
@@ -672,6 +754,65 @@ public:
         _writer.writeFloat64(v);
     }
 
+    void writeGeoBox(scope const(DbGeoBox) v) nothrow
+    {
+        _writer.writeInt32(8 * 4);
+        _writer.writeFloat64(v.right);
+        _writer.writeFloat64(v.top);
+        _writer.writeFloat64(v.left);
+        _writer.writeFloat64(v.bottom);
+    }
+
+    void writeGeoCircle(scope const(DbGeoCircle) v) nothrow
+    {
+        _writer.writeInt32(8 * 3);
+        _writer.writeFloat64(v.x);
+        _writer.writeFloat64(v.y);
+        _writer.writeFloat64(v.r);
+    }
+
+    void writeGeoPath(scope const(DbGeoPath) v) nothrow
+    in
+    {
+        assert(v.points.length <= int32.max);
+    }
+    do
+    {
+        const numPoints = cast(int32)v.points.length;
+        _writer.writeInt32(1 + 4 + numPoints * 16);
+        _writer.writeBool(v.open);
+        _writer.writeInt32(numPoints);
+        foreach (ref p; v.points)
+        {
+            _writer.writeFloat64(p.x);
+            _writer.writeFloat64(p.y);
+        }
+    }
+
+    void writeGeoPolygon(scope const(DbGeoPolygon) v) nothrow
+    in
+    {
+        assert(v.points.length <= int32.max);
+    }
+    do
+    {
+        const numPoints = cast(int32)v.points.length;
+        _writer.writeInt32(4 + numPoints * 16);
+        _writer.writeInt32(numPoints);
+        foreach (ref p; v.points)
+        {
+            _writer.writeFloat64(p.x);
+            _writer.writeFloat64(p.y);
+        }
+    }
+
+    void writeGeoPoint(scope const(DbGeoPoint) v) nothrow
+    {
+        _writer.writeInt32(8 * 2);
+        _writer.writeFloat64(v.x);
+        _writer.writeFloat64(v.y);
+    }
+
     void writeInt16(int16 v) nothrow
     {
         _writer.writeInt32(2);
@@ -695,6 +836,14 @@ public:
     {
         assert(0, "database does not support Int128");
         //TODO
+    }
+
+    void writeInterval(scope const(PgOIdInterval) v) nothrow
+    {
+        _writer.writeInt32(16);
+        _writer.writeInt64(v.microseconds);
+        _writer.writeInt32(v.days);
+        _writer.writeInt32(v.months);
     }
 
     void writeMoney(scope const(Decimal64) v) nothrow
@@ -764,7 +913,7 @@ private:
 
     size_t markBegin() nothrow
     {
-        version (TraceFunction) dgFunctionTrace("_buffer.offset=", _buffer.offset);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_buffer.offset=", _buffer.offset);
 
         auto result = _buffer.offset;
         _writer.writeInt32(0);
@@ -775,7 +924,7 @@ private:
     {
         // Value length excludes its length
         const len = _buffer.offset - marker - int32.sizeof;
-        version (TraceFunction) dgFunctionTrace("marker=", marker, ", len=", len);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("marker=", marker, ", len=", len);
         _writer.rewriteInt32(cast(int32)(len), marker);
     }
 
@@ -788,7 +937,7 @@ private:
 unittest // PgXdrReader & PgXdrWriter
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.pgbuffer.PgXdrReader & db.fbbuffer.PgXdrWriter");
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgbuffer.PgXdrReader & db.fbbuffer.PgXdrWriter");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
     const(ubyte)[] bytes = [1,2,5,101];

@@ -11,6 +11,14 @@
 
 module pham.db.pgoid;
 
+enum PgDefaultSize
+{
+    /**
+     * Sizes in bytes
+     */
+	messageReadBufferLength = 65_000,
+}
+
 enum PgOIdDiag : char
 {
     columnName = 'c',

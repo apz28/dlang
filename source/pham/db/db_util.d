@@ -11,32 +11,43 @@
 
 module pham.db.util;
 
-import std.format : format;
-import std.traits: isFloatingPoint, isIntegral, isUnsigned;
-
-import pham.external.dec.decimal : isEqual;
 import pham.db.type;
 
 nothrow @safe:
 
-pragma(inline, true)
-F asFloatBit(I, F)(I v) @nogc pure
-if (F.sizeof == I.sizeof && isFloatingPoint!F && isUnsigned!I)
+version (none)
+string dictionaryGet(ref const(string[string]) values, string name, string notFoundValue) pure
+in
 {
-    // Use bit cast to avoid any funny float/interger promotion
-    return *cast(F*)&v;
+    assert(name.length != 0);
+}
+do
+{
+    if (auto e = name in values)
+        return *e;
+    else
+        return notFoundValue;
 }
 
-pragma(inline, true)
-I asIntegerBit(F, I)(F v) @nogc pure
-if (F.sizeof == I.sizeof && isFloatingPoint!F && isUnsigned!I)
+version (none)
+string dictionaryPut(ref string[string] values, string name, string value) pure
+in
 {
-    // Use bit cast to avoid any funny float/interger promotion
-    return *cast(I*)&v;
+    assert(name.length != 0);
+}
+do
+{
+    if (value.length != 0)
+        values[name] = value;
+    else
+        values.remove(name);
+    return value;
 }
 
 string makeCommandName(void* command, uint counter)
 {
+import std.format : format;
+
     scope (failure) assert(0);
 
     return format("%X_%u", command, counter);
@@ -81,7 +92,14 @@ string toVersionString(scope const(int)[] values) pure
     return toSeparatedString(values, ".");
 }
 
-string truncate(return string value, size_t maxLength) pure
+pragma(inline, true)
+size_t truncate(size_t value, size_t max) @nogc pure
+{
+    return value <= max ? value : max;
+}
+
+pragma(inline, true)
+string truncate(return string value, size_t maxLength) @nogc pure
 {
     return value.length <= maxLength ? value : value[0..maxLength];
 }
@@ -114,7 +132,7 @@ private:
 unittest // truncate
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.util.truncate");
+    traceUnitTest!("pham.db.database")("unittest pham.db.util.truncate");
 
     assert(truncate("", 2) == "");
     assert(truncate("123456", 2) == "12");
@@ -124,7 +142,7 @@ unittest // truncate
 unittest // versionString
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.util.versionString");
+    traceUnitTest!("pham.db.database")("unittest pham.db.util.versionString");
 
     assert(toVersionString([]) == "");
     assert(toVersionString([1]) == "1");

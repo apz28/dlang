@@ -13,74 +13,102 @@ module pham.db.pgauth_scram;
 
 import std.algorithm : startsWith;
 import std.base64 : Base64;
+import std.conv : to;
 import std.string : representation;
 
 version (unittest) import pham.utl.test;
 import pham.cp.cipher_digest : DigestId, DigestResult, HMACS, digestOf;
-import pham.utl.object : bytesFromHexs, bytesToHexs, randomCharacters;
-import pham.db.type : DbScheme;
+import pham.cp.random : CipherRandomGenerator;
+import pham.utl.object : bytesFromHexs, bytesToHexs;
+import pham.utl.utf8 : ShortStringBuffer;
 import pham.db.auth;
-import pham.db.pgtype;
+import pham.db.message;
+import pham.db.type : DbScheme;
+import pham.db.pgauth;
+import pham.db.pgtype : pgAuthScram256Name, PgOIdScramSHA256FinalMessage, PgOIdScramSHA256FirstMessage;
 
 nothrow @safe:
 
-class PgAuthScram256 : DbAuth
+class PgAuthScram256 : PgAuth
 {
 nothrow @safe:
 
 public:
-    this() pure
+    this()
     {
         reset();
     }
 
-    final override const(ubyte)[] getAuthData(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData)
+    final const(ubyte)[] calculateProof(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData)
     {
-        auto firstMessage = PgOIdScramSHA256FirstMessage(serverAuthData);
-        if (!firstMessage.isValid() || !firstMessage.nonce.startsWith(this.nonce))
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("userName=", userName, ", serverAuthData=", serverAuthData);
+
+         auto firstMessage = PgOIdScramSHA256FirstMessage(serverAuthData);
+         if (!firstMessage.isValid() || !firstMessage.nonce.startsWith(this.nonce))
+         {
+             setError(_nextState + 1, to!string(_nextState), DbMessage.eInvalidConnectionAuthServerData);
+             return null;
+         }
+         return calculateProof(userName, userPassword, firstMessage).representation();
+    }
+
+    final override const(ubyte)[] getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
+        const(ubyte)[] serverAuthData)
+    {
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData);
+
+        if (state != _nextState || state > 2)
+        {
+            setError(state + 1, to!string(state), DbMessage.eInvalidConnectionAuthServerData);
             return null;
+        }
 
-        return cast(const(ubyte)[])calculateProof(userPassword, firstMessage);
+        _nextState++;
+        if (state == 0)
+            return initialRequest().representation();
+        else if (state == 1)
+            return calculateProof(userName, userPassword, serverAuthData);
+        else if (state == 2)
+        {
+            if (!verifyServerSignature(serverAuthData))
+                setError(state + 1, null, DbMessage.eInvalidConnectionAuthVerificationFailed);
+            return null;
+        }
+        else
+            assert(0);
     }
 
-    const(char)[] finalRequestWithoutProof(scope const(char)[] serverNonce) const pure scope
-    {
-        return "c=" ~ _cbind ~ ",r=" ~ serverNonce;
-    }
-
-    const(char)[] initialRequest() const pure scope
+    final const(char)[] initialRequest() const pure scope
     {
         return _cbindFlag ~ ",,n=,r=" ~ _nonce;
     }
 
-    const(char)[] initialRequestBare() const pure scope
+    final typeof(this) reset()
     {
-        return "n=,r=" ~ _nonce;
-    }
+        CipherRandomGenerator generator;
+        ShortStringBuffer!ubyte buffer;
 
-    typeof(this) reset() pure
-    {
+        _nextState = 0;
         _cbind = ['b', 'i', 'w', 's'];
         _cbindFlag = ['n'];
-        _mechanism = ['S', 'C', 'R', 'A', 'M', '-', 'S', 'H', 'A', '-', '2', '5', '6'];
-        _nonce = Base64.encode(randomCharacters(18).representation);
+        _nonce = Base64.encode(generator.nextBytes(buffer, 18)[]);
         return this;
     }
 
     final bool verifyServerSignature(const(ubyte)[] serverAuthData) const pure
     {
         auto finalMessage = PgOIdScramSHA256FinalMessage(serverAuthData);
-        return finalMessage.signature == Base64.encode(_serverSignature.value());
+        return finalMessage.signature == Base64.encode(_serverSignature[]);
     }
 
-    @property final const(char)[] mechanism() const pure
+    @property final override int multiSteps() const @nogc pure
     {
-        return _mechanism;
+        return 3;
     }
 
-    @property final override string name() const
+    @property final override string name() const pure
     {
-        return authScram256Name;
+        return pgAuthScram256Name;
     }
 
     @property final const(char)[] nonce() const pure
@@ -88,20 +116,19 @@ public:
         return _nonce;
     }
 
-public:
-    static immutable string authScram256Name = "scram-sha-256";
-
 protected:
-    final const(char)[] calculateProof(scope const(char)[] userPassword, const(PgOIdScramSHA256FirstMessage) firstMessage)
+    final const(char)[] calculateProof(scope const(char)[] userName, scope const(char)[] userPassword, const(PgOIdScramSHA256FirstMessage) firstMessage)
     {
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+
         const clientInitialRequestBare = initialRequestBare();
         const clientFinalMessageWithoutProof = finalRequestWithoutProof(firstMessage.nonce);
         const serverMessage = firstMessage.getMessage();
         const serverSalt = firstMessage.getSalt();
         _saltedPassword = computeScramSHA256HashPassword(userPassword, serverSalt, firstMessage.getIteration());
 
-        auto clientKey = computeScramSHA256Hash(_saltedPassword.value(), "Client Key".representation);
-        const storedKey = digestOf!(DigestId.sha256)(clientKey.value());
+        auto clientKey = computeScramSHA256Hash(_saltedPassword[], "Client Key".representation);
+        const storedKey = digestOf!(DigestId.sha256)(clientKey[]);
         DigestResult clientSignature;
         auto hmac = HMACS(DigestId.sha256, storedKey);
         hmac.begin()
@@ -114,10 +141,10 @@ protected:
 
         auto clientProofBytes = clientKey;
         computeScramSHA256XOr(clientProofBytes, clientSignature);
-        const clientProof = Base64.encode(clientProofBytes.value());
+        const clientProof = Base64.encode(clientProofBytes[]);
 
-        const serverKey = computeScramSHA256Hash(_saltedPassword.value(), "Server Key".representation);
-        hmac = HMACS(DigestId.sha256, serverKey.value());
+        const serverKey = computeScramSHA256Hash(_saltedPassword[], "Server Key".representation);
+        hmac = HMACS(DigestId.sha256, serverKey[]);
         hmac.begin()
             .digest(clientInitialRequestBare.representation)
             .digest(",".representation)
@@ -129,8 +156,8 @@ protected:
         const result = clientFinalMessageWithoutProof ~ ",p=" ~ clientProof;
 
         version (TraceFunction)
-        dgFunctionTrace("clientKey=", bytesToHexs(clientKey.value()),
-            ", clientProofBytes=", bytesToHexs(clientProofBytes.value()),
+        traceFunction!("pham.db.pgdatabase")("clientKey=", clientKey[],
+            ", clientProofBytes=", clientProofBytes[],
             ", clientProofBytes.length=", clientProofBytes.length,
             ", result.length=", result.length, ", result=", result);
 
@@ -141,7 +168,6 @@ protected:
     {
         _cbind[] = 0;
         _cbindFlag[] = 0;
-        _mechanism[] = 0;
         _nonce[] = 0;
         _saltedPassword.dispose(disposing);
         _serverSignature.dispose(disposing);
@@ -150,11 +176,20 @@ protected:
         {
             _cbind = null;
             _cbindFlag = null;
-            _mechanism = null;
             _nonce = null;
         }
 
         super.doDispose(disposing);
+    }
+
+    final const(char)[] finalRequestWithoutProof(scope const(char)[] serverNonce) const pure scope
+    {
+        return "c=" ~ _cbind ~ ",r=" ~ serverNonce;
+    }
+
+    final const(char)[] initialRequestBare() const pure scope
+    {
+        return "n=,r=" ~ _nonce;
     }
 
 private:
@@ -185,9 +220,7 @@ private:
             foreach (_; 1..iteration)
             {
                 DigestResult temp;
-                hmac.begin()
-                    .digest(iterationTemp.value())
-                    .finish(temp);
+                hmac.begin().digest(iterationTemp[]).finish(temp);
                 computeScramSHA256XOr(result, temp);
                 iterationTemp = temp;
             }
@@ -211,7 +244,6 @@ private:
 private:
     char[] _cbind;
     char[] _cbindFlag;
-    char[] _mechanism;
     char[] _nonce;
     DigestResult _saltedPassword;
     DigestResult _serverSignature;
@@ -223,7 +255,7 @@ private:
 
 shared static this()
 {
-    DbAuth.registerAuthMap(DbAuthMap(DbScheme.pg ~ PgAuthScram256.authScram256Name, &createAuthScram256));
+    DbAuth.registerAuthMap(DbAuthMap(pgAuthScram256Name, DbScheme.pg, &createAuthScram256));
 }
 
 DbAuth createAuthScram256()

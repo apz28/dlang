@@ -17,6 +17,8 @@ import std.exception : assumeWontThrow;
 import std.traits : EnumMembers, Unqual;
 
 version (TraceFunction) import pham.utl.test;
+import pham.utl.enum_set : toName;
+import pham.utl.utf8 : ShortStringBuffer;
 import pham.utl.variant : Algebraic, Variant, VariantType;
 import pham.db.util : toVersionString;
 import pham.db.message;
@@ -37,7 +39,14 @@ enum fbMaxVarChars = fbMaxChars - 2; // -2 for size place holder
 enum fbNullIndicator = -1;
 
 version (DeferredProtocol)
-enum fbCommandDeferredHandle = 65535;
+enum fbCommandDeferredHandle = 65_535;
+
+immutable string fbAuthLegacyName = "Legacy_Auth";
+immutable string fbAuthSrp1Name = "Srp";
+immutable string fbAuthSrp256Name = "Srp256";
+immutable string fbAuthSrp384Name = "Srp384";
+immutable string fbAuthSrp512Name = "Srp512";
+immutable string fbAuthSSPIName = "Win_Sspi";
 
 enum FbIscCommandType : int32
 {
@@ -55,49 +64,49 @@ enum FbIscCommandType : int32
 	rollback = FbIsc.isc_info_sql_stmt_rollback,
 	selectForUpdate = FbIsc.isc_info_sql_stmt_select_for_upd,
 	setGenerator = FbIsc.isc_info_sql_stmt_set_generator,
-	savePoint = FbIsc.isc_info_sql_stmt_savepoint
+	savePoint = FbIsc.isc_info_sql_stmt_savepoint,
 }
 
 immutable string[string] fbDefaultParameterValues;
 
 immutable string[] fbValidParameterNames = [
     // Primary
-    DbParameterName.server,
-    DbParameterName.port,
-    DbParameterName.database,
-    DbParameterName.userName,
-    DbParameterName.userPassword,
-    DbParameterName.encrypt,
-    DbParameterName.compress,
-    DbParameterName.charset,
+    DbConnectionParameterIdentifier.server,
+    DbConnectionParameterIdentifier.port,
+    DbConnectionParameterIdentifier.database,
+    DbConnectionParameterIdentifier.userName,
+    DbConnectionParameterIdentifier.userPassword,
+    DbConnectionParameterIdentifier.encrypt,
+    DbConnectionParameterIdentifier.compress,
+    DbConnectionParameterIdentifier.charset,
 
     // Other
-    DbParameterName.connectionTimeout,
-    DbParameterName.fetchRecordCount,
-    DbParameterName.pooling,
-    DbParameterName.packageSize,
-    DbParameterName.receiveTimeout,
-    DbParameterName.sendTimeout,
-    DbParameterName.socketBlocking,
+    DbConnectionParameterIdentifier.connectionTimeout,
+    DbConnectionParameterIdentifier.fetchRecordCount,
+    DbConnectionParameterIdentifier.pooling,
+    DbConnectionParameterIdentifier.packageSize,
+    DbConnectionParameterIdentifier.receiveTimeout,
+    DbConnectionParameterIdentifier.sendTimeout,
+    DbConnectionParameterIdentifier.socketBlocking,
 
-    DbParameterName.fbCachePage,
-    DbParameterName.fbDatabaseTrigger,
-    DbParameterName.fbDialect,
-    DbParameterName.fbDummyPacketInterval,
-    DbParameterName.fbGarbageCollect
-];
+    DbConnectionParameterIdentifier.fbCachePage,
+    DbConnectionParameterIdentifier.fbDatabaseTrigger,
+    DbConnectionParameterIdentifier.fbDialect,
+    DbConnectionParameterIdentifier.fbDummyPacketInterval,
+    DbConnectionParameterIdentifier.fbGarbageCollect,
+    ];
 
 immutable DbTypeInfo[] fbNativeTypes = [
-    {dbName:"VARCHAR[?]", nativeName:"VARCHAR", displaySize:-1, nativeSize:-1, nativeId:FbIscType.sql_varying, dbType:DbType.string}, //varchar
-    {dbName:"CHAR[?]", nativeName:"CHAR", displaySize:-1, nativeSize:-1, nativeId:FbIscType.sql_text, dbType:DbType.chars}, //char[]
+    {dbName:"VARCHAR[?]", nativeName:"VARCHAR", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:FbIscType.sql_varying, dbType:DbType.string}, //varchar
+    {dbName:"CHAR[?]", nativeName:"CHAR", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:FbIscType.sql_text, dbType:DbType.fixedString}, //char[]
     {dbName:"DOUBLE", nativeName:"DOUBLE PRECISION", displaySize:17, nativeSize:8, nativeId:FbIscType.sql_double, dbType:DbType.float64},
     {dbName:"FLOAT", nativeName:"FLOAT", displaySize:17, nativeSize:4, nativeId:FbIscType.sql_float, dbType:DbType.float32},
     {dbName:"INTEGER", nativeName:"INTEGER", displaySize:11, nativeSize:4, nativeId:FbIscType.sql_long, dbType:DbType.int32},
     {dbName:"SMALLINT", nativeName:"SMALLINT", displaySize:6, nativeSize:2, nativeId:FbIscType.sql_short, dbType:DbType.int16},
     {dbName:"TIMESTAMP", nativeName:"TIMESTAMP", displaySize:22, nativeSize:8, nativeId:FbIscType.sql_timestamp, dbType:DbType.datetime},
-    {dbName:"BLOB", nativeName:"BLOB", displaySize:-1, nativeSize:-1, nativeId:FbIscType.sql_blob, dbType:DbType.binary},
+    {dbName:"BLOB", nativeName:"BLOB", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:FbIscType.sql_blob, dbType:DbType.binary},
     {dbName:"DOUBLE", nativeName:"DOUBLE PRECISION", displaySize:17, nativeSize:8, nativeId:FbIscType.sql_d_float, dbType:DbType.float64},
-    {dbName:"ARRAY[?,?]", nativeName:"ARRAY", displaySize:-1, nativeSize:-1, nativeId:FbIscType.sql_array, dbType:DbType.array},
+    {dbName:"ARRAY[?,?]", nativeName:"ARRAY", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:FbIscType.sql_array, dbType:DbType.array},
     {dbName:"BIGINT", nativeName:"QUAD", displaySize:20, nativeSize:8, nativeId:FbIscType.sql_quad, dbType:DbType.int64},
     {dbName:"TIME", nativeName:"TIME", displaySize:11, nativeSize:4, nativeId:FbIscType.sql_time, dbType:DbType.time},
     {dbName:"DATE", nativeName:"DATE", displaySize:10, nativeSize:4, nativeId:FbIscType.sql_date, dbType:DbType.date},
@@ -111,40 +120,10 @@ immutable DbTypeInfo[] fbNativeTypes = [
     {dbName:"DECIMAL(16)", nativeName:"DECFLOAT(16)", displaySize:16, nativeSize:8, nativeId:FbIscType.sql_dec64, dbType:DbType.decimal64}, // fb4
     {dbName:"DECIMAL(34)", nativeName:"DECFLOAT(34)", displaySize:34, nativeSize:16, nativeId:FbIscType.sql_dec128, dbType:DbType.decimal128}, // fb4
     {dbName:"DECIMAL(34)", nativeName:"DECFLOAT", displaySize:34, nativeSize:16, nativeId:FbIscType.sql_dec128, dbType:DbType.decimal128}, // fb4 - Map to DECFLOAT(34) as document
-    {dbName:"", nativeName:"NULL", displaySize:4, nativeSize:0, nativeId:FbIscType.sql_null, dbType:DbType.unknown}
-];
+    {dbName:"", nativeName:"NULL", displaySize:4, nativeSize:0, nativeId:FbIscType.sql_null, dbType:DbType.unknown},
+    ];
 
 immutable DbTypeInfo*[int32] fbIscTypeToDbTypeInfos;
-
-struct FbIscAcceptResponse
-{
-nothrow @safe:
-
-public:
-    this(int32 version_, int32 architecture, int32 acceptType)
-    {
-        this.version_ = version_;
-        this.architecture = architecture;
-        this.acceptType = acceptType;
-    }
-
-    bool canCompress() const
-    {
-        return (acceptType & FbIsc.ptype_compress_flag) != 0;
-    }
-
-    static int32 normalizeVersion(int32 version_) pure
-    {
-        return (version_ < 0)
-		    ? FbIsc.protocol_flag | cast(ushort)(version_ & FbIsc.protocol_mask)
-            : version_;
-    }
-
-public:
-    int32 acceptType;
-    int32 architecture;
-    int32 version_;
-}
 
 struct FbIscAcceptDataResponse
 {
@@ -180,6 +159,36 @@ public:
     int32 acceptType;
     int32 architecture;
     int32 authenticated;
+    int32 version_;
+}
+
+struct FbIscAcceptResponse
+{
+nothrow @safe:
+
+public:
+    this(int32 version_, int32 architecture, int32 acceptType)
+    {
+        this.version_ = version_;
+        this.architecture = architecture;
+        this.acceptType = acceptType;
+    }
+
+    bool canCompress() const
+    {
+        return (acceptType & FbIsc.ptype_compress_flag) != 0;
+    }
+
+    static int32 normalizeVersion(int32 version_) pure
+    {
+        return (version_ < 0)
+		    ? FbIsc.protocol_flag | cast(ushort)(version_ & FbIsc.protocol_mask)
+            : version_;
+    }
+
+public:
+    int32 acceptType;
+    int32 architecture;
     int32 version_;
 }
 
@@ -246,7 +255,7 @@ public:
     static bool parse(const(ubyte)[] payload, ref FbIscBindInfo[] bindResults,
         ref ptrdiff_t previousBindIndex, ref ptrdiff_t previousFieldIndex)
     {
-        version (TraceFunction) dgFunctionTrace("payload.length=", payload.length);
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("payload.length=", payload.length);
 
         size_t posData;
         ptrdiff_t fieldIndex = previousFieldIndex;
@@ -257,7 +266,7 @@ public:
             if (fieldIndex < 0)
             {
                 auto msg = DbMessage.eInvalidSQLDAFieldIndex.fmtMessage(typ, fieldIndex);
-                throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
+                throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
             }
             return fieldIndex;
         }
@@ -267,7 +276,7 @@ public:
             if (bindIndex < 0)
             {
                 auto msg = DbMessage.eInvalidSQLDAIndex.fmtMessage(typ);
-                throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
+                throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
             }
             return bindIndex;
         }
@@ -314,7 +323,7 @@ public:
                         if (checkFieldIndex(typ) >= bindResults[checkBindIndex(typ)].length)
                         {
                             auto msg = DbMessage.eInvalidSQLDAFieldIndex.fmtMessage(typ, fieldIndex);
-                            throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
+                            throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
                         }
 
 			            break;
@@ -374,7 +383,7 @@ public:
 
 			        default:
                         auto msg = DbMessage.eInvalidSQLDAType.fmtMessage(typ);
-                        throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
+                        throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
 		        }
             }
 
@@ -383,18 +392,9 @@ public:
 
         version (TraceFunction)
         {
-            dgFunctionTrace("rowDescs.length=", bindResults.length);
+            traceFunction!("pham.db.fbdatabase")("bindResults.length=", bindResults.length);
             foreach (i, ref desc; bindResults)
-            {
-                dgFunctionTrace("desc=", i, ", count=", desc.length, ", selectOrBind=", desc.selectOrBind);
-                foreach (ref field; desc.fields)
-                {
-                    dgFunctionTrace("field-name=", field.name,
-                        ", type=", field.type, ", subtype=", field.subType,
-                        ", numericScale=", field.numericScale, ", size=", field.size,
-                        ", tableName=", field.tableName, ", field.aliasName=", field.aliasName);
-                }
-            }
+                traceFunction!("pham.db.fbdatabase")(desc.traceString(i));
         }
 
         return true;
@@ -405,6 +405,23 @@ public:
         selectOrBind = 0;
         _fields = null;
         return this;
+    }
+
+    version (TraceFunction)
+    string traceString(size_t index) const nothrow @trusted
+    {
+        import std.conv : to;
+
+        string fieldsTraceString;
+        foreach (ref field; _fields)
+        {
+            fieldsTraceString ~= "\n" ~ field.traceString();
+        }
+
+        return "bindResult=" ~ to!string(index)
+            ~ ", length=" ~ to!string(length)
+            ~ ", selectOrBind=" ~ to!string(selectOrBind)
+            ~ fieldsTraceString;
     }
 
     @property ref FbIscFieldInfo field(size_t index) nothrow return
@@ -475,7 +492,7 @@ public:
             }
         }
 
-        version (TraceFunction) dgFunctionTrace("maxSegment=", maxSegment, ", segmentCount=", segmentCount, ", length=", length);
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("maxSegment=", maxSegment, ", segmentCount=", segmentCount, ", length=", length);
     }
 
     ref typeof(this) reset() nothrow pure return
@@ -647,7 +664,8 @@ public:
         return this;
     }
 
-    DbBaseType baseType() @nogc pure
+    pragma(inline, true)
+    DbBaseType baseType() const @nogc pure
     {
         return DbBaseType(numericScale, size, subType, type);
     }
@@ -721,6 +739,7 @@ public:
         type = 0;
     }
 
+    pragma(inline, true)
     DbType dbType() const @nogc pure
     {
         return dbType(type, subType, numericScale);
@@ -730,33 +749,31 @@ public:
     {
         const t = fbType(iscType);
 
-        DbType result = DbType.unknown;
-        if (auto e = t in fbIscTypeToDbTypeInfos)
-            result = (*e).dbType;
-
-        if (iscSubtype == 1 && t == FbIscType.sql_blob)
-            result = DbType.text;
+        if (t == FbIscType.sql_blob && iscSubtype == textBlob)
+            return DbType.text;
 
         if (iscScale != 0)
         {
-            switch (t)
+            switch (t) with (FbIscType)
             {
-		        case FbIscType.sql_short:
-		        case FbIscType.sql_long:
-                    result = DbType.decimal32;
-                    break;
-		        case FbIscType.sql_quad:
-		        case FbIscType.sql_int64:
-                    result = DbType.decimal64;
-                    break;
+		        case sql_short:
+		        case sql_long:
+                    return DbType.decimal32;
+		        case sql_quad:
+		        case sql_int64:
+                    return DbType.decimal64;
                 default:
                     break;
             }
         }
 
-        return result;
+        if (auto e = t in fbIscTypeToDbTypeInfos)
+            return (*e).dbType;
+
+        return DbType.unknown;
     }
 
+    pragma(inline, true)
     int32 dbTypeSize() const @nogc pure
     {
         return dbTypeSize(dbType(), size);
@@ -764,10 +781,12 @@ public:
 
     static int32 dbTypeSize(DbType dbType, int32 iscSize) @nogc pure
     {
-        int32 result = -1;
         if (auto e = dbType in dbTypeToDbTypeInfos)
-            result = (*e).nativeSize;
-        return result != -1 ? result : iscSize;
+        {
+            const ns = (*e).nativeSize;
+            return ns > 0 ? ns : iscSize;
+        }
+        return dynamicTypeSize;
     }
 
     int32 dbTypeDisplaySize() const @nogc pure
@@ -777,10 +796,12 @@ public:
 
     static int32 dbTypeDisplaySize(int32 iscType, int32 iscSize) @nogc pure
     {
-        int32 result = -1;
         if (auto e = fbType(iscType) in fbIscTypeToDbTypeInfos)
-            result = (*e).displaySize;
-        return result == -1 ? iscSize : result;
+        {
+            const ds = (*e).displaySize;
+            return ds > 0 ? ds : iscSize;
+        }
+        return dynamicTypeSize;
     }
 
     pragma(inline, true)
@@ -798,7 +819,7 @@ public:
     pragma(inline, true)
     static FbIscType fbType(int32 iscType) @nogc pure
     {
-        return cast(FbIscType)(iscType & ~0x1);
+        return cast(FbIscType)(iscType & ~0x1); // Exclude allow null indicator
     }
 
     string fbTypeName() const pure
@@ -814,6 +835,7 @@ public:
             return null;
     }
 
+    pragma(inline, true)
     int32 fbTypeSize() const @nogc pure
     {
         return fbTypeSize(type, size);
@@ -821,12 +843,15 @@ public:
 
     static int32 fbTypeSize(int32 iscType, int32 iscSize) @nogc pure
     {
-        int32 result = -1;
         if (auto e = fbType(iscType) in fbIscTypeToDbTypeInfos)
-            result = (*e).nativeSize;
-        return result == -1 ? iscSize : result;
+        {
+            const ns = (*e).nativeSize;
+            return ns > 0 ? ns : iscSize;
+        }
+        return dynamicTypeSize;
     }
 
+    pragma(inline, true)
     bool hasNumericScale() const @nogc pure
     {
         return hasNumericScale(type, numericScale);
@@ -846,12 +871,29 @@ public:
             );
     }
 
-    static DbFieldIdType isIdType(int32 iscType, int32 iscSubType) @nogc pure
+    static DbFieldIdType isValueIdType(int32 iscType, int32 iscSubType) @nogc pure
     {
         const t = fbType(iscType);
         return t == FbIscType.sql_blob
-            ? (iscSubType != 1 ? DbFieldIdType.blob : DbFieldIdType.clob)
+            ? (iscSubType != textBlob ? DbFieldIdType.blob : DbFieldIdType.clob)
             : (t == FbIscType.sql_array ? DbFieldIdType.array : DbFieldIdType.no);
+    }
+
+    version (TraceFunction)
+    string traceString() const nothrow @trusted
+    {
+        import std.conv : to;
+        import pham.utl.enum_set : toName;
+
+        return "aliasName=" ~ to!string(aliasName)
+            ~ ", name=" ~ to!string(name)
+            ~ ", tableName=" ~ to!string(tableName)
+            ~ ", dbType=" ~ toName!DbType(dbType)
+            ~ ", type=" ~ to!string(type)
+            ~ ", subType=" ~ to!string(subType)
+            ~ ", size=" ~ to!string(size)
+            ~ ", numericScale=" ~ to!string(numericScale)
+            ~ ", owner=" ~ to!string(owner);
     }
 
     const(char)[] useName() const pure
@@ -859,12 +901,13 @@ public:
         return aliasName.length ? aliasName : name;
     }
 
-    @property bool allowNull() const pure
+    pragma(inline, true)
+    @property bool allowNull() const @nogc pure
     {
         return fbAllowNull(type);
     }
 
-    @property ref typeof(this) allowNull(bool value) return
+    @property ref typeof(this) allowNull(bool value) @nogc pure return
     {
         if (value)
             type |= 0x1;
@@ -874,6 +917,8 @@ public:
     }
 
 public:
+    enum textBlob = 1;
+
     const(char)[] aliasName;
     const(char)[] name;
     const(char)[] owner;
@@ -1301,6 +1346,11 @@ public:
         _handleStorage.reset();
     }
 
+    void resetId() pure
+    {
+        _idStorage.reset();
+    }
+
     @property bool hasHandle() const pure
     {
         return _handleStorage.isValid;
@@ -1330,7 +1380,7 @@ public:
 
 private:
     DbHandle _handleStorage;
-    DbHandle _idStorage = DbHandle(0);
+    DbId _idStorage;
 }
 
 struct FbIscSqlResponse
@@ -1352,29 +1402,31 @@ struct FbIscStatues
 nothrow @safe:
 
 public:
-    void buildMessage(out string errorMessage, out int32 errorCode)
+    void buildMessage(out string message, out int code, out string state)
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
-        errorMessage = "";
-        errorCode = 0;
+        message = state = null;
+        code = 0;
         foreach (ref error; errors)
         {
             switch (error.type)
             {
                 case FbIsc.isc_arg_gds:
-                    errorCode = error.code;
-                    errorMessage ~= error.str();
+                    code = error.code;
+                    message ~= error.str();
                     break;
                 case FbIsc.isc_arg_number:
                 case FbIsc.isc_arg_string:
                 case FbIsc.isc_arg_cstring:
                     auto marker = "@" ~ to!string(error.argNumber);
-                    errorMessage = errorMessage.replace(marker, error.str());
+                    message = message.replace(marker, error.str());
                     break;
                 case FbIsc.isc_arg_interpreted:
+                    message ~= error.str();
+                    break;
                 case FbIsc.isc_arg_sql_state:
-                    errorMessage ~= error.str();
+                    state = error.str();
                     break;
                 default:
                     break;
@@ -1621,7 +1673,7 @@ void parseCheckLength(scope const(ubyte)[] data, size_t index, uint length, int 
     if (index + length > data.length)
     {
         auto msg = DbMessage.eInvalidSQLDANotEnoughData.fmtMessage(type, length);
-        throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_dsql_sqlda_err);
+        throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
     }
 }
 
@@ -1734,22 +1786,20 @@ private const(char)[] parseStringImpl(const(ubyte)[] data, ref size_t index, uin
 // Any below codes are private
 private:
 
-version (unittest)
-enum countOfFbIscType = EnumMembers!FbIscType.length;
-
 shared static this() nothrow
 {
     fbDefaultParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(string[string]))[
-            DbParameterName.port : "3050",
-            DbParameterName.userName : "SYSDBA",
-            DbParameterName.userPassword : "masterkey",
-            DbParameterName.fbCachePage : "0", // 0=Not used/set
-            DbParameterName.fbDialect : "3",
-            DbParameterName.fbDatabaseTrigger : dbBoolTrue,
-            DbParameterName.fbDummyPacketInterval : "300",  // In seconds, 5 minutes
-            DbParameterName.fbGarbageCollect : dbBoolTrue
+            DbConnectionParameterIdentifier.port : "3050",
+            DbConnectionParameterIdentifier.userName : "SYSDBA",
+            DbConnectionParameterIdentifier.userPassword : "masterkey",
+            DbConnectionParameterIdentifier.integratedSecurity : toName(DbIntegratedSecurityConnection.srp256),
+            DbConnectionParameterIdentifier.fbCachePage : "0", // 0=Not used/set
+            DbConnectionParameterIdentifier.fbDialect : "3",
+            DbConnectionParameterIdentifier.fbDatabaseTrigger : dbBoolTrue,
+            DbConnectionParameterIdentifier.fbDummyPacketInterval : "300",  // In seconds, 5 minutes
+            DbConnectionParameterIdentifier.fbGarbageCollect : dbBoolTrue,
         ];
     }();
 
@@ -1764,11 +1814,14 @@ shared static this() nothrow
     }();
 }
 
+version (unittest)
+enum countOfFbIscType = EnumMembers!FbIscType.length;
+
 unittest // FbIscBlobSize
 {
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.fbtype.FbIscBlobSize");
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbtype.FbIscBlobSize");
 
     auto info = bytesFromHexs("05040004000000040400010000000604000400000001");
     auto parsedSize = FbIscBlobSize(info);
@@ -1781,7 +1834,7 @@ unittest // FbIscBindInfo
 {
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.fbtype.FbIscBindInfo");
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbtype.FbIscBindInfo");
 
     FbIscBindInfo[] bindResults;
     ptrdiff_t previousBindIndex = -1;

@@ -12,7 +12,7 @@
 module pham.db.buffer_filter_cipher;
 
 version (unittest) import pham.utl.test;
-import pham.cp.cipher;
+import pham.cp.cipher : Cipher, CipherKey;
 import pham.db.buffer_filter;
 
 nothrow @safe:
@@ -56,12 +56,12 @@ public
         return _cipher;
     }
 
-    @property final override DbBufferFilterKind kind() const
+    @property final override DbBufferFilterKind kind() const pure
     {
         return Kind;
     }
 
-    @property final override string name() const
+    @property final override string name() const pure
     {
         return _cipher.name;
     }
@@ -83,14 +83,14 @@ private:
 
 class DbBufferFilterCipherRC4(DbBufferFilterKind Kind) : DbBufferFilterCipher!Kind
 {
-import pham.cp.cipher_rc4;
+import pham.cp.cipher_rc4 : CipherRC4;
 
 nothrow @safe:
 
 public:
-    this(CipherParameters keyParameters)
+    this(CipherKey privateKey)
     {
-        super(new CipherRC4(keyParameters));
+        super(new CipherRC4(privateKey));
     }
 }
 
@@ -102,13 +102,13 @@ unittest // DbBufferFilterCipherRC4
 {
     import std.string : representation;
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.buffer_filter_cipher.DbBufferFilterCipherRC4");
+    traceUnitTest!("pham.db.database")("unittest pham.db.buffer_filter_cipher.DbBufferFilterCipherRC4");
 
-    auto keyParameters = CipherParameters(cast(ubyte[])("abc0123456789xyz".dup));
-	auto encryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.write)(keyParameters);
-	auto decryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.read)(keyParameters);
+    auto privateKey = CipherKey(0, "abc0123456789xyz".representation);
+	auto encryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.write)(privateKey);
+	auto decryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.read)(privateKey);
 
-    enum const(ubyte)[] original = "the quick brown fox jumps over the lazy dog\r".representation;
+    static immutable const(ubyte)[] original = "the quick brown fox jumps over the lazy dog\r".representation;
     ubyte[] encrypted, decrypted;
     encryptor.process(original, encrypted);
     decryptor.process(encrypted, decrypted);

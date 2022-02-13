@@ -12,24 +12,25 @@
 module pham.db.fbexception;
 
 import pham.db.exception;
-import pham.db.fbtype;
+import pham.db.fbtype : FbIscStatues;
 
 class FbException : SkException
 {
 @safe:
 
 public:
-    this(string message, int code, int socketCode, int vendorCode, Exception next = null) pure
+    this(string message, int code, string state,
+         int socketCode = 0, int vendorCode = 0, Exception next = null) pure
     {
-        super(message, code, socketCode, vendorCode, next);
+        super(message, code, state, socketCode, vendorCode, next);
     }
 
     this(FbIscStatues statues, Exception next = null)
     {
-        string statusMsg;
+        string statusMessage, statusState;
         int statusCode;
-        statues.buildMessage(statusMsg, statusCode);
-        super(statusMsg, statusCode, 0, statusCode, next);
+        statues.buildMessage(statusMessage, statusCode, statusState);
+        super(statusMessage, statusCode, statusState, 0, statusCode, next);
         this.statues = statues;
     }
 

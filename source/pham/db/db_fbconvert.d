@@ -315,7 +315,7 @@ private:
 unittest // dateDecode & dateEncode
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.fbconvert.dateDecode & dateEncode");
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbconvert.dateDecode & dateEncode");
 
 	enum orgFbDate = 58_989;
 
@@ -331,7 +331,7 @@ unittest // dateDecode & dateEncode
 unittest // timeDecode & timeEncode
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.fbconvert.timeDecode & timeEncode");
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbconvert.timeDecode & timeEncode");
 
 	enum orgFbTime = 36_610_000;
 
@@ -348,7 +348,7 @@ unittest // int128Decode & int128Encode
 {
 	import pham.utl.object : bytesFromHexs;
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.fbconvert.int128Decode & int128Encode");
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbconvert.int128Decode & int128Encode");
 
 	static BigInteger safeBigInteger(string value) nothrow pure @safe
     {

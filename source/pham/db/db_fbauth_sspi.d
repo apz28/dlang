@@ -16,11 +16,13 @@ version (Windows):
 import std.conv : to;
 import std.string : toStringz;
 
+version (unittest) import pham.utl.test;
 import pham.external.std.windows.sspi;
-
-import pham.db.type : DbScheme;
 import pham.db.auth;
+import pham.db.message;
+import pham.db.type : DbScheme;
 import pham.db.fbauth;
+import pham.db.fbtype : fbAuthSSPIName;
 
 nothrow @safe:
 
@@ -37,14 +39,10 @@ public:
             initClientContext();
     }
 
-    final override const(ubyte)[] getAuthData(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData)
-    in
+    final const(ubyte)[] calculateProof(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData)
     {
-        assert(errorCode == 0);
-        assert(isValid(_clientContext));
-    }
-    do
-    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("userName=", userName, ", serverAuthData=", serverAuthData);
+
         ULONG contextAttributes;
         RequestSecBufferDesc requestSecBufferDesc, serverSecBufferDesc;
         scope (exit)
@@ -53,18 +51,37 @@ public:
             serverSecBufferDesc.dispose();
         }
 
-		errorCode = InitializeSecurityContextA(&_clientCredentials, &_clientContext, remotePrincipalz(),
+		const r = InitializeSecurityContextA(&_clientCredentials, &_clientContext, remotePrincipalz(),
             ISC_REQ_STANDARD_CONTEXT_ATTRIBUTES, 0, SECURITY_NATIVE_DREP, serverSecBufferDesc.initServerContext(serverAuthData), 0,
 			&_clientContext, requestSecBufferDesc.initClientContext(), &contextAttributes, &_clientContextTimestamp);
-		if (errorCode != 0 && errorCode != SEC_I_CONTINUE_NEEDED)
+		if (r != 0 && r != SEC_I_CONTINUE_NEEDED)
         {
-            this.errorMessage = "InitializeSecurityContextA failed: " ~ to!string(errorCode);
+            setError(r, "InitializeSecurityContextA failed: " ~ to!string(r), DbMessage.eInvalidConnectionAuthServerData);
             return null;
         }
 
-        errorCode = 0;
         _proof = requestSecBufferDesc.getSecBytes();
         return _proof;
+    }
+
+    final override const(ubyte)[] getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
+        const(ubyte)[] serverAuthData)
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData);
+
+        if (state != _nextState || state > 1)
+        {
+            setError(state + 1, to!string(state), DbMessage.eInvalidConnectionAuthServerData);
+            return null;
+        }
+
+        _nextState++;
+        if (state == 0)
+            return publicKey();
+        else if (state == 1)
+            return calculateProof(userName, userPassword, serverAuthData);
+        else
+            assert(0);
     }
 
     final override size_t maxSizeServerAuthData(out size_t maxSaltLength) const nothrow pure
@@ -78,9 +95,14 @@ public:
         return _publicKey;
     }
 
-    @property final override string name() const
+    @property final override int multiSteps() const @nogc pure
     {
-        return authSSPIName;
+        return 2;
+    }
+
+    @property final override string name() const pure
+    {
+        return fbAuthSSPIName;
     }
 
     @property final string remotePrincipal() const pure
@@ -92,9 +114,6 @@ public:
     {
         return _secPackage;
     }
-
-public:
-    static immutable string authSSPIName = "Win_Sspi";
 
 protected:
     final void disposeClientContext()
@@ -131,27 +150,26 @@ protected:
         scope (exit)
             requestSecBufferDesc.dispose();
 
-        errorCode = InitializeSecurityContextA(&_clientCredentials, null, remotePrincipalz(),
+        const r = InitializeSecurityContextA(&_clientCredentials, null, remotePrincipalz(),
             ISC_REQ_STANDARD_CONTEXT_ATTRIBUTES, 0, SECURITY_NATIVE_DREP, null, 0,
             &_clientContext, requestSecBufferDesc.initClientContext(), &contextAttributes, &_clientContextTimestamp);
-		if (errorCode != 0 && errorCode != SEC_I_CONTINUE_NEEDED)
+		if (r != 0 && r != SEC_I_CONTINUE_NEEDED)
         {
-            this.errorMessage = "InitializeSecurityContextA failed: " ~ to!string(errorCode);
+            setError(r, "InitializeSecurityContextA failed: " ~ to!string(r), DbMessage.eInvalidConnectionAuthServerData);
             return false;
         }
 
-        errorCode = 0;
         _publicKey = requestSecBufferDesc.getSecBytes();
         return true;
     }
 
     final bool initClientCredentials()
     {
-		errorCode = AcquireCredentialsHandleA(null, secPackagez(), SECPKG_CRED_OUTBOUND,
+		const r = AcquireCredentialsHandleA(null, secPackagez(), SECPKG_CRED_OUTBOUND,
             null, null, null, null, &_clientCredentials, &_clientCredentialsTimestamp);
-		if (errorCode != 0)
+		if (r != 0)
         {
-            this.errorMessage = "AcquireCredentialsHandleA failed: %d" ~ to!string(errorCode);
+            setError(r, "AcquireCredentialsHandleA failed: " ~ to!string(r), DbMessage.eInvalidConnectionAuthServerData);
             return false;
         }
 
@@ -186,10 +204,9 @@ private:
 // Any below codes are private
 private:
 
-
 shared static this()
 {
-    DbAuth.registerAuthMap(DbAuthMap(DbScheme.fb ~ FbAuthSspi.authSSPIName, &createAuthSSPI));
+    DbAuth.registerAuthMap(DbAuthMap(fbAuthSSPIName, DbScheme.fb, &createAuthSSPI));
 }
 
 DbAuth createAuthSSPI()

@@ -105,66 +105,6 @@ if (isIntegral!I)
     return to!string(i);
 }
 
-version (none)
-bool isDSTBug(scope const(DateTime) forDT, ref Duration biasDuration) @trusted
-{
-    version (Windows)
-    {
-		import core.sys.windows.winbase : TIME_ZONE_INFORMATION, GetTimeZoneInformation;
-
-        TIME_ZONE_INFORMATION tzInfo;
-		GetTimeZoneInformation(&tzInfo);
-
-		version (TraceFunction)
-        dgFunctionTrace("DaylightBias=", tzInfo.DaylightBias,
-			", DaylightDate.wYear=", tzInfo.DaylightDate.wYear,
-            ", DaylightDate.wMonth=", tzInfo.DaylightDate.wMonth,
-            ", DaylightDate.wDay=", tzInfo.DaylightDate.wDay,
-            ", DaylightDate.wHour=", tzInfo.DaylightDate.wHour,
-			", StandardBias=", tzInfo.StandardBias,
-			", StandardDate.wYear=", tzInfo.StandardDate.wYear,
-            ", StandardDate.wMonth=", tzInfo.StandardDate.wMonth,
-            ", StandardDate.wDay=", tzInfo.StandardDate.wDay,
-            ", StandardDate.wHour=", tzInfo.StandardDate.wHour);
-
-		if (tzInfo.DaylightDate.wMonth == 0 || tzInfo.DaylightBias == 0)
-            return false;
-
-        bool dstObserved() nothrow
-        {
-            biasDuration = dur!"minutes"(tzInfo.DaylightBias);
-            return true;
-        }
-
-        if (tzInfo.DaylightDate.wYear == 0)
-        {
-            const forDtMonth = forDT.month;
-            if (forDtMonth > tzInfo.DaylightDate.wMonth && forDtMonth < tzInfo.StandardDate.wMonth)
-                return dstObserved();
-            else if (forDtMonth == tzInfo.DaylightDate.wMonth)
-            {
-                const forDtDay = forDT.day;
-                if (forDtDay > tzInfo.DaylightDate.wDay)
-                    return dstObserved();
-                else if (forDtDay == tzInfo.DaylightDate.wDay && forDT.hour >= tzInfo.DaylightDate.wHour)
-                    return dstObserved();
-            }
-            else if (forDtMonth == tzInfo.StandardDate.wMonth)
-            {
-                const forDtDay = forDT.day;
-                if (forDtDay < tzInfo.StandardDate.wDay)
-                    return dstObserved();
-                else if (forDtDay == tzInfo.StandardDate.wDay && forDT.hour < tzInfo.StandardDate.wHour)
-                    return dstObserved();
-            }
-        }
-        else if (forDT.year >= tzInfo.DaylightDate.wYear)
-            return dstObserved();
-    }
-
-    return false;
-}
-
 pragma(inline, true)
 T uintDecode(T, Endian EndianKind)(scope const(ubyte)[] v)
 if (isUnsigned!T && T.sizeof > 1)
@@ -312,7 +252,7 @@ private:
 unittest // toInteger
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.convert.toInteger");
+    traceUnitTest!("pham.db.database")("unittest pham.db.convert.toInteger");
 
     assert(toInteger!int("") == 0);
     assert(toInteger!int("", int.max) == int.max);
@@ -325,7 +265,7 @@ unittest // toInteger
 unittest // toString
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.convert.toString");
+    traceUnitTest!("pham.db.database")("unittest pham.db.convert.toString");
 
     assert(toString('a') == "a");
     assert(toString(wchar('b')) == "b");
@@ -338,7 +278,7 @@ unittest // toString
 unittest // uintEncode & uintDecode
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.convert.uintEncode & uintDecode");
+    traceUnitTest!("pham.db.database")("unittest pham.db.convert.uintEncode & uintDecode");
 
     // 16 bits
     auto b16 = uintEncode!(ushort, Endian.littleEndian)(ushort.min);

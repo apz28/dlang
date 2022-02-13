@@ -22,9 +22,14 @@ class DbBufferFilterCompressor(DbBufferFilterKind Kind) : DbBufferFilter
 nothrow @safe:
 
 public:
-    @property final override DbBufferFilterKind kind() const
+    @property final override DbBufferFilterKind kind() const pure
     {
         return Kind;
+    }
+
+    @property override string name() const pure
+    {
+        return "Compressor";
     }
 }
 
@@ -72,7 +77,7 @@ public:
             errorMessage = codec.errorMessage.length != 0 ? codec.errorMessage : ZlibException.codeMessage(errorNumber);
             codec.resetBuffers(null, null);
 
-            version (TraceFunction) dgFunctionTrace("errorNumber=", errorNumber, ", errorMessage=", errorMessage);
+            version (TraceFunction) traceFunction!("pham.db.database")("errorNumber=", errorNumber, ", errorMessage=", errorMessage);
 
             return false;
         }
@@ -149,7 +154,7 @@ public:
         }
     }
 
-    @property final override string name() const
+    @property final override string name() const pure
     {
         return "ZIP";
     }
@@ -166,12 +171,12 @@ unittest // DbBufferFilterCompressorZip
 {
     import std.string : representation;
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.buffer_filter_compressor.DbBufferFilterCompressorZip");
+    traceUnitTest!("pham.db.database")("unittest pham.db.buffer_filter_compressor.DbBufferFilterCompressorZip");
 
 	auto compress = new DbBufferFilterCompressorZip!(DbBufferFilterKind.write)();
 	auto uncompress = new DbBufferFilterCompressorZip!(DbBufferFilterKind.read)();
 
-    enum const(ubyte)[] original = "the quick brown fox jumps over the lazy dog\r".representation;
+    static immutable const(ubyte)[] original = "the quick brown fox jumps over the lazy dog\r".representation;
     ubyte[] compressed, uncompressed;
     compress.process(original, compressed);
     uncompress.process(compressed, uncompressed);

@@ -12,16 +12,30 @@
 module pham.db.myexception;
 
 import pham.db.exception;
+import pham.db.mytype : MyErrorResult;
 
 class MyException : SkException
 {
 @safe:
 
 public:
-    this(string message, int code, int socketCode, int vendorCode, Exception next = null)
+    this(string message, int code, string sqlState,
+        int socketCode = 0, int vendorCode = 0, Exception next = null) pure
     {
-        super(message, code, socketCode, vendorCode, next);
+        super(message, code, sqlState, socketCode, vendorCode, next);
+    }
+
+    this(MyErrorResult errorResult, Exception next = null) pure
+    {
+        super(errorResult.message, errorResult.code, errorResult.sqlState, 0, errorResult.code, next);
+        this.errorResult = errorResult;
+    }
+
+    @property final bool isFatal() const @nogc nothrow pure
+    {
+        return vendorCode == 4_031;
     }
 
 public:
+    MyErrorResult errorResult;
 }

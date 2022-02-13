@@ -12,20 +12,23 @@
 module pham.db.pgauth_md5;
 
 import std.ascii : LetterCase;
+import std.conv : to;
 import std.digest.md : md5Of;
 import std.string : representation;
 
+version (unittest) import pham.utl.test;
 import pham.utl.object : bytesToHexs;
-import pham.db.type : DbScheme;
 import pham.db.auth;
+import pham.db.message;
+import pham.db.type : DbScheme;
+import pham.db.pgauth;
+import pham.db.pgtype : pgAuthMD5Name;
 
 nothrow @safe:
 
-class PgAuthMD5 : DbAuth
+class PgAuthMD5 : PgAuth
 {
 nothrow @safe:
-
-    static immutable string authMD5Name = "md5";
 
 public:
     /**
@@ -36,14 +39,24 @@ public:
      * Params:
      *  serverAuthData = is server salt
      */
-    final override const(ubyte)[] getAuthData(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData)
+    final override const(ubyte)[] getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
+        const(ubyte)[] serverAuthData)
     {
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData);
+
+        if (state != _nextState || state != 0)
+        {
+            setError(state + 1, to!string(state), DbMessage.eInvalidConnectionAuthServerData);
+            return null;
+        }
+
         //char[32]
         static char[] MD5toHex(T...)(scope const(T) data) nothrow @safe
         {
             return md5Of(data).bytesToHexs!(LetterCase.lower);
         }
 
+        _nextState++;
         const md5Password = MD5toHex(userPassword, userName);
         auto result = new char[3 + 32];
         result[0..3] = "md5";
@@ -51,9 +64,14 @@ public:
         return result.representation;
     }
 
-    @property final override string name() const
+    @property final override int multiSteps() const @nogc pure
     {
-        return authMD5Name;
+        return 1;
+    }
+
+    @property final override string name() const pure
+    {
+        return pgAuthMD5Name;
     }
 }
 
@@ -61,10 +79,9 @@ public:
 // Any below codes are private
 private:
 
-
 shared static this()
 {
-    DbAuth.registerAuthMap(DbAuthMap(DbScheme.pg ~ PgAuthMD5.authMD5Name, &createAuthMD5));
+    DbAuth.registerAuthMap(DbAuthMap(pgAuthMD5Name, DbScheme.pg, &createAuthMD5));
 }
 
 DbAuth createAuthMD5()
@@ -76,10 +93,10 @@ unittest // PgAuthMD5
 {
     import pham.utl.object : bytesFromHexs;
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.pgauth_md5.PgAuthMD5");
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgauth_md5.PgAuthMD5");
 
     auto salt = bytesFromHexs("9F170CAC");
     auto auth = new PgAuthMD5();
-    auto encp = cast(const(char)[])auth.getAuthData("postgres", "masterkey", salt);
+    auto encp = cast(const(char)[])auth.getAuthData(0, "postgres", "masterkey", salt);
     assert(encp == "md549f0896152ed83ec298a6c09b270be02", encp);
 }

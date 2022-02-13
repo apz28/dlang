@@ -27,9 +27,12 @@ struct DbMessage
     static immutable eErrorCode = "Error code: %d";
     static immutable eErrorDetail = "Detail";
     static immutable eErrorHint = "Hint";
+    static immutable eErrorSqlState = "SQL state: %s";
 
     static immutable eNotEnoughData = "Not enough data for reading %d bytes; remainding %d bytes";
+
     static immutable eReadData = "Unable to receive data from '%s'\n%s";
+    static immutable eReadInvalidData = "Unable to convert data from '%s' to type '%s'";
     static immutable eWriteData = "Unable to send data to '%s'\n%s";
     static immutable eUnexpectReadOperation = "Unexpected received operation code %d; expecting %d";
     static immutable eUnexpectReadValue = "Unexpected %s for datatype %s with length %d; expecting %d";
@@ -46,9 +49,10 @@ struct DbMessage
     static immutable eInvalidCommandUnfit = "Command is unfit for this function call %s";
 
     static immutable eInvalidConnectionActive = "Cannot perform %s when connection '%s.%s' is opened";
+    static immutable eInvalidConnectionActiveReader = "Connection-Reader is still active. Must be closed first";
     static immutable eInvalidConnectionAuthServerData = "Malform/Invalid authenticated server data for authenticated type: %s.\n%s";
     static immutable eInvalidConnectionAuthUnsupportedName = "Unsupported authenticated type: %s";
-    static immutable eInvalidConnectionAuthVerificationFailed = "Unable to verify server signature for type: %s";
+    static immutable eInvalidConnectionAuthVerificationFailed = "Unable to verify authenticated server signature for type: %s";
     static immutable eInvalidConnectionHostName = "Unable to resolve host '%s'";
     static immutable eInvalidConnectionInactive = "Cannot perform %s when connection to '%s' is closed";
     static immutable eInvalidConnectionName = "Connection element name '%s' is invalid";

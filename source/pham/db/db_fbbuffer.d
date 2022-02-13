@@ -21,16 +21,14 @@ version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.external.dec.decimal : scaleFrom, scaleTo;
 import pham.utl.utf8 : ShortStringBuffer;
-import pham.db.message;
+import pham.db.buffer;
+import pham.db.convert;
 import pham.db.type;
 import pham.db.util;
-import pham.db.convert;
-import pham.db.buffer;
-import pham.db.fbisc;
-import pham.db.fbtype;
-import pham.db.fbexception;
 import pham.db.fbconvert;
 import pham.db.fbdatabase;
+import pham.db.fbisc;
+import pham.db.fbtype;
 
 alias FbParameterWriter = DbValueWriter!(Endian.littleEndian);
 
@@ -698,7 +696,7 @@ public:
 
     FbOperation readOperation()
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
         static assert(int32.sizeof == FbOperation.sizeof);
 
@@ -706,22 +704,11 @@ public:
         {
             auto result = readInt32();
 
-            version (TraceFunction) dgFunctionTrace("code=", result);
+            version (TraceFunction) traceFunction!("pham.db.fbdatabase")("code=", result);
 
             if (result != FbIsc.op_dummy)
                 return result;
         }
-    }
-
-    FbOperation readOperation(FbOperation expectedOperation) @trusted
-    {
-        auto result = readOperation();
-        if (result != expectedOperation)
-        {
-            auto msg = DbMessage.eUnexpectReadOperation.fmtMessage(result, expectedOperation);
-            throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_net_read_err);
-        }
-        return result;
     }
 
     string readString() @trusted // @trusted=cast()
@@ -731,7 +718,7 @@ public:
 
     FbIscStatues readStatuses() @trusted
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
         FbIscStatues result;
         int gdsCode;
@@ -742,7 +729,7 @@ public:
         {
 			auto typeCode = readInt32();
 
-            version (TraceFunction) dgFunctionTrace("typeCode=", typeCode);
+            version (TraceFunction) traceFunction!("pham.db.fbdatabase")("typeCode=", typeCode);
 
 			switch (typeCode)
 			{
@@ -900,7 +887,7 @@ public:
 
     void flush()
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
         _buffer.flush();
     }
@@ -1105,7 +1092,7 @@ public:
         _writer.writeBytes(bytes);
     }
 
-    void writeOpaqueBytes(scope const(ubyte)[] v, size_t forLength) nothrow
+    void writeOpaqueBytes(scope const(ubyte)[] v, const(size_t) forLength) nothrow
     in
     {
         assert(v.length < fbMaxPackageSize);
@@ -1226,7 +1213,7 @@ private:
 unittest // FbXdrWriter & FbXdrReader
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.fbbuffer.FbXdrReader & db.fbbuffer.FbXdrWriter");
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbbuffer.FbXdrReader & db.fbbuffer.FbXdrWriter");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
     const(ubyte)[] bytes = [1,2,5,101];

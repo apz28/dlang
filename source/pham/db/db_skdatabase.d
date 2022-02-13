@@ -16,8 +16,7 @@ import std.socket : socket_t, Address, AddressFamily, InternetAddress, lastSocke
 
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
-version (TraceFunction) import pham.utl.object : bytesToHexs;
-import pham.db.object;
+import pham.db.object : DbIdentitier;
 import pham.db.message;
 import pham.db.exception;
 import pham.db.util;
@@ -43,9 +42,9 @@ public:
         super(connection, transaction, name);
     }
 
-    final override DbRowValue fetch(bool isScalar) @safe
+    final override DbRowValue fetch(const(bool) isScalar) @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.database")();
         version (profile) debug auto p = PerfFunction.create();
 
         checkActive();
@@ -60,13 +59,13 @@ public:
     }
 
 protected:
-    override void prepareExecute(DbCommandExecuteType type) @safe
+    override void prepareExecuting(const(DbCommandExecuteType) type) @safe
     {
-        super.prepareExecute(type);
         fetchedRows.clear();
+        super.prepareExecuting(type);
     }
 
-    abstract void doFetch(bool isScalar) @safe;
+    abstract void doFetch(const(bool) isScalar) @safe;
 
 protected:
 	DbRowValueQueue fetchedRows;
@@ -131,7 +130,7 @@ public:
 package(pham.db):
     final DbReadBuffer acquireSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.database")();
 
         if (_socketReadBuffer is null)
             _socketReadBuffer = createSocketReadBuffer(capacity);
@@ -140,7 +139,7 @@ package(pham.db):
 
     final DbWriteBuffer acquireSocketWriteBuffer(size_t capacity = DbDefaultSize.socketWriteBufferLength) nothrow @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.database")();
 
         if (_socketWriteBuffers.empty)
             return createSocketWriteBuffer(capacity);
@@ -150,7 +149,7 @@ package(pham.db):
 
     final void releaseSocketWriteBuffer(DbWriteBuffer item) nothrow @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.database")();
 
         if (!disposingState)
             _socketWriteBuffers.insertEnd(item.reset());
@@ -158,7 +157,7 @@ package(pham.db):
 
     void setSocketOptions() @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.database")();
 
         auto useCSB = skConnectionStringBuilder;
         socket.blocking = useCSB.blocking;
@@ -171,7 +170,7 @@ package(pham.db):
 
     final size_t socketReadData(ubyte[] data) @trusted
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.database")();
         version (profile) debug auto p = PerfFunction.create();
 
         auto result = socket.receive(data);
@@ -189,16 +188,18 @@ package(pham.db):
             ubyte[] filteredData = data[0..result];
             for (auto nextFilter = _socketReadBufferFilters; nextFilter !is null; nextFilter = nextFilter.next)
             {
-                version (TraceFunction) dgFunctionTrace("filter=", nextFilter.processName, ", length=", filteredData.length, ", data=", bytesToHexs(filteredData));
+                version (TraceFunction) traceFunction!("pham.db.database")("filter=", nextFilter.processName, ", length=", filteredData.length, ", data=", filteredData.dgToHex());
 
                 if (!nextFilter.process(filteredData, filteredData))
                     throwReadDataError(nextFilter.errorCode, nextFilter.errorMessage);
 
-                version (TraceFunction) dgFunctionTrace("filter=", nextFilter.processName, ", length=", filteredData.length, ", data=", bytesToHexs(filteredData));
+                version (TraceFunction) traceFunction!("pham.db.database")("filter=", nextFilter.processName, ", length=", filteredData.length, ", data=", filteredData.dgToHex());
             }
             // TODO check for data.length - expand it?
             result = filteredData.length;
             data[0..result] = filteredData[0..result];
+
+            version (TraceFunction) traceFunction!("pham.db.database")("data=", data[0..result].dgToHex());
         }
 
         return result;
@@ -206,7 +207,7 @@ package(pham.db):
 
     final size_t socketWriteData(scope const(ubyte)[] data) @trusted
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.database")("data=", data.dgToHex());
 
         void throwError(uint errorRawCode, string errorRawMessage)
         {
@@ -225,13 +226,13 @@ package(pham.db):
                 version (TraceFunction)
                 {
                     const(ubyte)[] logData = firstFilter ? data : filteredData;
-                    dgFunctionTrace("filter=", nextFilter.processName, ", length=", logData.length, ", data=", bytesToHexs(logData));
+                    traceFunction!("pham.db.database")("filter=", nextFilter.processName, ", length=", logData.length, ", data=", logData.dgToHex());
                 }
 
                 if (!nextFilter.process(firstFilter ? data : filteredData, filteredData))
                     throwError(nextFilter.errorCode, nextFilter.errorMessage);
 
-                version (TraceFunction) dgFunctionTrace("filter=", nextFilter.processName, ", length=", filteredData.length, ", data=", bytesToHexs(filteredData));
+                version (TraceFunction) traceFunction!("pham.db.database")("filter=", nextFilter.processName, ", length=", filteredData.length, ", data=", filteredData.dgToHex());
 
                 firstFilter = false;
             }
@@ -258,21 +259,21 @@ protected:
     {
         if (auto log = logger)
             log.error(forLogInfo(), newline, message, e);
-        return new SkException(e.msg, DbErrorCode.connect, socketCode, 0, e);
+        return new SkException(e.msg, DbErrorCode.connect, null, socketCode, 0, e);
     }
 
     SkException createReadDataError(string message, int socketCode, Exception e) @safe
     {
         if (auto log = logger)
             log.error(forLogInfo(), newline, message, e);
-        return new SkException(message, DbErrorCode.read, socketCode, 0, e);
+        return new SkException(message, DbErrorCode.read, null, socketCode, 0, e);
     }
 
     SkException createWriteDataError(string message, int socketCode, Exception e) @safe
     {
         if (auto log = logger)
             log.error(forLogInfo(), newline, message, e);
-        return new SkException(message, DbErrorCode.write, socketCode, 0, e);
+        return new SkException(message, DbErrorCode.write, null, socketCode, 0, e);
     }
 
     DbReadBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
@@ -287,9 +288,7 @@ protected:
 
     final void disposeSocket(bool disposing) nothrow @safe
     {
-        version (TraceFunction)
-        if (disposing)
-            dgFunctionTrace();
+        version (TraceFunction) if (disposing) traceFunction!("pham.db.database")();
 
         scope (exit)
         {
@@ -305,7 +304,7 @@ protected:
 
     final void disposeSocketBufferFilters(bool disposing) nothrow @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.database")();
 
         while (_socketReadBufferFilters !is null)
         {
@@ -324,7 +323,7 @@ protected:
 
     final void disposeSocketReadBuffer(bool disposing) nothrow @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.database")();
 
         if (_socketReadBuffer !is null)
         {
@@ -335,15 +334,15 @@ protected:
 
     final void disposeSocketWriteBuffers(bool disposing) nothrow @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.database")();
 
         while (!_socketWriteBuffers.empty)
             _socketWriteBuffers.remove(_socketWriteBuffers.last).disposal(disposing);
     }
 
-    override void doClose() @safe
+    override void doClose(bool failedOpen) @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.database")();
 
         disposeSocketBufferFilters(false);
         doCloseSocket();
@@ -351,7 +350,7 @@ protected:
 
     final void doCloseSocket() @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.database")();
 
         if (state != DbConnectionState.opening)
             disposeSocket(true);
@@ -361,7 +360,7 @@ protected:
 
     override void doDispose(bool disposing) nothrow @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.database")();
 
         super.doDispose(disposing);
         disposeSocket(disposing);
@@ -372,7 +371,7 @@ protected:
 
     final void doOpenSocket() @trusted
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.database")();
 
         auto useCSB = skConnectionStringBuilder;
 
@@ -401,7 +400,7 @@ protected:
 
     final int lastSocketErrorCode()
     {
-        //version (TraceFunction) dgFunctionTrace();
+        //version (TraceFunction) traceFunction!("pham.db.database")();
 
         version (Windows)
         {
@@ -458,25 +457,25 @@ public:
 
     @property final bool blocking() const nothrow @safe
     {
-        return isDbTrue(getString(DbParameterName.socketBlocking));
+        return isDbTrue(getString(DbConnectionParameterIdentifier.socketBlocking));
     }
 
     @property final typeof(this) blocking(bool value) nothrow
     {
         auto setValue = value ? dbBoolTrue : dbBoolFalse;
-        put(DbParameterName.socketBlocking, setValue);
+        put(DbConnectionParameterIdentifier.socketBlocking, setValue);
         return this;
     }
 
     @property final bool noDelay() const nothrow @safe
     {
-        return isDbTrue(getString(DbParameterName.socketNoDelay));
+        return isDbTrue(getString(DbConnectionParameterIdentifier.socketNoDelay));
     }
 
     @property final typeof(this) noDelay(bool value) nothrow
     {
         auto setValue = value ? dbBoolTrue : dbBoolFalse;
-        put(DbParameterName.socketNoDelay, setValue);
+        put(DbConnectionParameterIdentifier.socketNoDelay, setValue);
         return this;
     }
 
@@ -495,8 +494,8 @@ protected:
     override void setDefaultIfs()
     {
         super.setDefaultIfs();
-        putIf(DbParameterName.socketBlocking, getDefault(DbParameterName.socketBlocking));
-        putIf(DbParameterName.socketNoDelay, getDefault(DbParameterName.socketNoDelay));
+        putIf(DbConnectionParameterIdentifier.socketBlocking, getDefault(DbConnectionParameterIdentifier.socketBlocking));
+        putIf(DbConnectionParameterIdentifier.socketNoDelay, getDefault(DbConnectionParameterIdentifier.socketNoDelay));
     }
 }
 
@@ -523,7 +522,7 @@ public:
         reserve(additionalBytes);
         const nOffset = _offset + length;
 
-        //dgWriteln("nOffset=", nOffset, ", _data.length=", _data.length, ", additionalBytes=", additionalBytes, ", length=", length);
+        //dgWriteln("nOffset=", nOffset, ", _data.length=", _data.length, ", additionalBytes=", additionalBytes.dgToHex(), ", length=", length);
 
         // n=size_t.max -> no data returned
         const n = connection.socketReadData(_data[nOffset.._data.length]);
@@ -534,13 +533,9 @@ public:
 
             version (TraceFunction)
             {
-                auto readBytes = _data[nOffset..nOffset + n];
                 readCounter++;
-                dgFunctionTrace("counter=", readCounter,
-                    ", read_length=", n,
-                    ", read_data=", bytesToHexs(readBytes),
-                    ", _offset=", _offset,
-                    ", _maxlength=", _maxLength);
+                auto readBytes = _data[nOffset..nOffset + n];
+                traceFunction!("pham.db.database")("counter=", readCounter, ", read_length=", n, ", read_data=", readBytes.dgToHex(), ", _offset=", _offset, ", _maxlength=", _maxLength);
             }
         }
 
@@ -587,7 +582,7 @@ public:
         version (TraceFunction)
         {
             flushCounter++;
-            dgFunctionTrace("counter=", flushCounter, ", length=", flushBytes.length, ", data=", bytesToHexs(flushBytes));
+            traceFunction!("pham.db.database")("counter=", flushCounter, ", length=", flushBytes.length, ", data=", flushBytes.dgToHex());
         }
 
         connection.socketWriteData(flushBytes);
@@ -663,6 +658,7 @@ private:
     bool _needBuffer;
 }
 
+
 // Any below codes are private
 private:
 
@@ -671,9 +667,9 @@ shared static this()
     skDefaultParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(string[string]))[
-            DbParameterName.packageSize : "‭16383‬", // In bytes - do not add underscore, to!... does not work
-            DbParameterName.socketBlocking : dbBoolTrue,
-            DbParameterName.socketNoDelay : dbBoolTrue
+            DbConnectionParameterIdentifier.packageSize : "‭16383‬", // In bytes - do not add underscore, to!... does not work
+            DbConnectionParameterIdentifier.socketBlocking : dbBoolTrue,
+            DbConnectionParameterIdentifier.socketNoDelay : dbBoolTrue
         ];
     }();
 }

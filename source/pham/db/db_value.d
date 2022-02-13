@@ -59,9 +59,9 @@ public:
         return type == rhs.type && value == rhs.value;
     }
 
-    static DbValue dbNull() nothrow @safe
+    static DbValue dbNull(DbType dbType = DbType.unknown) nothrow @safe
     {
-        return DbValue(DbType.unknown);
+        return DbValue(dbType);
     }
 
     void dispose(bool disposing = true) nothrow @safe
@@ -99,12 +99,12 @@ public:
         return this;
     }
 
-    @property bool isArray() const nothrow @safe
+    @property bool isArray() const nothrow pure @safe
     {
         return (_type & DbType.array) != 0;
     }
 
-    @property bool isNull() const nothrow @safe
+    @property bool isNull() const nothrow pure @safe
     {
         return _value.isNull;
     }
@@ -435,6 +435,11 @@ public:
         return length;
     }
 
+    DbValue[] opIndex() nothrow return @safe
+    {
+        return columns;
+    }
+
     ref DbValue opIndex(size_t index) nothrow return @safe
     in
     {
@@ -454,11 +459,6 @@ public:
     {
         columns[index] = value;
         return this;
-    }
-
-    DbValue[] opSlice() nothrow return @safe
-    {
-        return columns;
     }
 
     void dispose(bool disposing = true) nothrow @safe
@@ -643,7 +643,7 @@ private:
 unittest // DbValue
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.value.DbValue");
+    traceUnitTest!("pham.db.database")("unittest pham.db.value.DbValue");
 
     DbValue vb = DbValue(true);
     assert(vb.value == true);

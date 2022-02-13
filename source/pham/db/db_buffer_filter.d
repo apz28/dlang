@@ -77,16 +77,16 @@ public:
         return errorCode != 0 || errorMessage.length != 0;
     }
 
-    @property abstract DbBufferFilterKind kind() const;
+    @property abstract DbBufferFilterKind kind() const pure;
 
-    @property abstract string name() const;
+    @property abstract string name() const pure;
 
     @property DbBufferFilter next() pure
     {
         return _next;
     }
 
-    @property final string processName() const
+    @property final string processName() const pure
     {
         return name ~ "." ~ toName!DbBufferFilterKind(kind);
     }
@@ -97,7 +97,7 @@ public:
 
 protected:
     pragma(inline, true)
-    final void clearError()
+    final void clearError() pure
     {
         errorMessage = null;
         errorCode = 0;

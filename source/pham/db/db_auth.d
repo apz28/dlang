@@ -11,85 +11,106 @@
 
 module pham.db.auth;
 
+import pham.db.message : fmtMessage;
 import pham.db.object : DbDisposableObject;
+import pham.db.type : DbScheme;
 
 nothrow @safe:
 
 abstract class DbAuth : DbDisposableObject
 {
-nothrow @safe:
+@safe:
 
 public:
-    bool canCryptedConnection() const pure
+    bool canCryptedConnection() const nothrow pure
     {
         return false;
     }
 
-    final typeof(this) clearError()
+    final typeof(this) clearError() nothrow
     {
         errorMessage = null;
+        errorMessageFormat = null;
         errorCode = 0;
         return this;
     }
 
-    final typeof(this) setError(int errorCode, string errorMessage)
+    final string getErrorMessage(scope const(char)[] authName) pure
+    {
+        return errorMessageFormat.length != 0
+            ? errorMessageFormat.fmtMessage(authName, errorMessage)
+            : errorMessage;
+    }
+
+    final typeof(this) setError(int errorCode, string errorMessage, string errorMessageFormat) nothrow
     {
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
+        this.errorMessageFormat = errorMessageFormat;
         return this;
     }
 
-    const(ubyte)[] getAuthData(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData);
+    const(ubyte)[] getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
+        const(ubyte)[] serverAuthData) nothrow;
 
-    const(ubyte)[] privateKey() const
+    const(ubyte)[] privateKey() const nothrow
     {
         return null;
     }
 
-    const(ubyte)[] publicKey() const
+    const(ubyte)[] publicKey() const nothrow
     {
         return null;
     }
 
-    final const(ubyte)[] serverPublicKey() const pure
+    final const(ubyte)[] serverPublicKey() const nothrow pure
     {
         return _serverPublicKey;
     }
 
-    final const(ubyte)[] serverSalt() const pure
+    final const(ubyte)[] serverSalt() const nothrow pure
     {
         return _serverSalt;
     }
 
-    const(ubyte)[] sessionKey() const
+    const(ubyte)[] sessionKey() const nothrow
     {
         return null;
     }
 
-    @property bool isSymantic() const
+    @property bool isError() const @nogc nothrow pure
+    {
+        return errorCode != 0;
+    }
+
+    @property int multiSteps() const @nogc nothrow pure;
+
+    @property bool isSymantic() const @nogc nothrow pure
     {
         return false;
     }
 
-    @property string name() const;
+    @property string name() const nothrow pure;
 
-    @property string sessionKeyName() const
+    @property DbScheme scheme() const nothrow pure;
+
+    @property string sessionKeyName() const nothrow pure
     {
         return null;
     }
 
 public:
-    static DbAuthMap findAuthMap(scope const(char)[] name) @trusted //@trusted=__gshared
+    static DbAuthMap findAuthMap(scope const(char)[] name, scope const(DbScheme) scheme) nothrow @trusted //@trusted=__gshared
     {
         foreach (ref m; _authMaps)
         {
-            if (m.name == name)
+            if (m.isEqual(name, scheme))
                 return m;
         }
         return DbAuthMap.init;
     }
 
-    static void registerAuthMap(DbAuthMap authMap) @trusted //@trusted=__gshared
+    static void registerAuthMap(DbAuthMap authMap) nothrow @trusted //@trusted=__gshared
     in
     {
         assert(authMap.isValid());
@@ -98,7 +119,7 @@ public:
     {
         foreach (i, ref m; _authMaps)
         {
-            if (m.name == authMap.name)
+            if (m.isEqual(authMap.name, authMap.scheme))
             {
                 _authMaps[i].createAuth = authMap.createAuth;
                 return;
@@ -122,11 +143,13 @@ protected:
 
 public:
     string errorMessage;
+    string errorMessageFormat;
     int errorCode;
 
 protected:
     ubyte[] _serverPublicKey;
     ubyte[] _serverSalt;
+    int _nextState;
 
 private:
     __gshared static DbAuthMap[] _authMaps;
@@ -137,12 +160,18 @@ struct DbAuthMap
 nothrow @safe:
 
 public:
+    bool isEqual(scope const(char)[] otherName, scope const(DbScheme) otherScheme) const pure
+    {
+        return name == otherName && scheme == otherScheme;
+    }
+
     bool isValid() const pure
     {
-        return name.length != 0 && createAuth !is null;
+        return name.length != 0 && scheme.length != 0 && createAuth !is null;
     }
 
 public:
     string name;
+    DbScheme scheme;
     DbAuth function() nothrow @safe createAuth;
 }

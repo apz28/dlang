@@ -16,15 +16,15 @@ import std.string : representation;
 import std.system : Endian;
 
 version (unittest) import pham.utl.test;
+import pham.utl.bit_array : numericBitCast;
 import pham.utl.dlink_list;
 import pham.utl.object : alignRoundup;
 import pham.utl.utf8 : inplaceMoveToLeft;
-import pham.db.type;
-import pham.db.message;
-import pham.db.exception;
-import pham.db.object;
-import pham.db.util : asFloatBit, asIntegerBit;
 import pham.db.convert;
+import pham.db.exception;
+import pham.db.message;
+import pham.db.object;
+import pham.db.type;
 
 @safe:
 
@@ -91,6 +91,11 @@ public:
         return result;
     }
 
+    final ubyte[] consumeAll()
+    {
+        return consume(length);
+    }
+
     final void ensureAvailable(const(size_t) nBytes) @trusted
     {
         version (profile) debug auto p = PerfFunction.create();
@@ -101,7 +106,7 @@ public:
             if ((_offset + nBytes) > _maxLength)
             {
                 auto msg = DbMessage.eNotEnoughData.fmtMessage(nBytes, length);
-                throw new DbException(msg, DbErrorCode.read, 0, 0);
+                throw new DbException(msg, DbErrorCode.read, null);
             }
         }
     }
@@ -113,33 +118,66 @@ public:
             ensureAvailable(nBytes);
     }
 
+    final ubyte[] expand(const(size_t) nBytes) nothrow
+    {
+        reserve(nBytes);
+        const bLength = length;
+        const endOffset = _offset + bLength;
+        _maxLength += nBytes;
+        return _data[endOffset..endOffset + nBytes];
+    }
+
     void fill(const(size_t) additionalBytes, bool mustSatisfied)
     {}
 
-    final ubyte[] peekBytes() nothrow pure
+    final void fill(ubyte[] additionalBytes) nothrow
     {
-        return _data[_offset.._offset + length];
+        const nBytes = additionalBytes.length;
+        reserve(nBytes);
+        const endOffset = _offset + length;
+        _maxLength += nBytes;
+        _data[endOffset..endOffset + nBytes] = additionalBytes[0..$];
     }
 
-    final void reset() nothrow pure
+    final ubyte[] peekBytes(size_t forLength = size_t.max) nothrow pure
     {
-        _offset = 0;
+        const bLength = this.length;
+        if (forLength > bLength)
+            forLength = bLength;
+        return _data[_offset.._offset + forLength];
     }
 
+    final DbReadBuffer reset() nothrow pure
+    {
+        _offset = _maxLength = 0;
+        return this;
+    }
+
+    /** Return n bytes if searchedByte found, 0 otherwise
+     */
     final size_t search(const(ubyte) searchedByte) nothrow pure
     {
-        auto endOffset = _offset;
+        size_t endOffset = _offset;
         while (endOffset < _maxLength)
         {
-            if (_data[endOffset] == searchedByte)
-            {
-                endOffset++;
-                break;
-            }
-            else
-                endOffset++;
+            if (_data[endOffset++] == searchedByte)
+                return endOffset - _offset;
         }
-        return endOffset - _offset;
+        return 0;
+    }
+
+    /** Return n bytes if searchedByte1 or searchedByte2 found, 0 otherwise
+     */
+    final size_t search(const(ubyte) searchedByte1, const(ubyte) searchedByte2) nothrow pure
+    {
+        size_t endOffset = _offset;
+        while (endOffset < _maxLength)
+        {
+            const b = _data[endOffset++];
+            if (b == searchedByte1 || b == searchedByte2)
+                return endOffset - _offset;
+        }
+        return 0;
     }
 
     pragma(inline, true)
@@ -185,11 +223,8 @@ protected:
 
     final ubyte[] readBytesImpl(const(size_t) nBytes)
     {
-        ensureAvailableIf(nBytes);
-
-        const start = _offset;
-        _offset += nBytes;
-        return _data[start.._offset].dup;
+        ubyte[] result = new ubyte[nBytes];
+        return readBytesImpl(result);
     }
 
     final ubyte[] readBytesImpl(return ubyte[] value)
@@ -197,20 +232,18 @@ protected:
         const nBytes = value.length;
         ensureAvailableIf(nBytes);
 
-        const start = _offset;
+        value[0..nBytes] = _data[_offset.._offset + nBytes];
         _offset += nBytes;
-        value[0..nBytes] = _data[start.._offset];
         return value;
     }
 
-    pragma(inline, true)
     final void reserve(const(size_t) additionalBytes) nothrow @trusted
     {
         const curLength = length;
         if (_data.length < (_offset + curLength + additionalBytes))
         {
-            _data.assumeSafeAppend();
             _data.length = alignRoundup((_offset << 1) + curLength + additionalBytes, alignValue);
+            _data.assumeSafeAppend();
         }
     }
 
@@ -239,6 +272,12 @@ public:
     void advance(const(size_t) nBytes)
     {
         _buffer.advance(nBytes);
+    }
+
+    pragma(inline, true)
+    ubyte[] consume(const(size_t) nBytes)
+    {
+        return _buffer.consume(nBytes);
     }
 
     pragma(inline, true)
@@ -285,35 +324,31 @@ public:
     pragma(inline, true)
     float32 readFloat32() @trusted
     {
-        static assert(uint32.sizeof == float32.sizeof);
-
-        return asFloatBit!(uint32, float32)(readUInt32());
+        return numericBitCast!float32(readUInt32());
     }
 
     pragma(inline, true)
     float64 readFloat64() @trusted
     {
-        static assert(uint64.sizeof == float64.sizeof);
-
-        return asFloatBit!(uint64, float64)(readUInt64());
+        return numericBitCast!float64(readUInt64());
     }
 
     pragma(inline, true)
     int8 readInt8()
     {
-        return cast(int8)readUInt8();
+        return numericBitCast!int8(readUInt8());
     }
 
     pragma(inline, true)
     int16 readInt16()
     {
-        return cast(int16)readUInt16();
+        return numericBitCast!int16(readUInt16());
     }
 
     pragma(inline, true)
     int32 readInt32()
     {
-        return cast(int32)readUInt32();
+        return numericBitCast!int32(readUInt32());
     }
 
     void readTwoInt32(out int32 i1, out int32 i2)
@@ -326,13 +361,12 @@ public:
     pragma(inline, true)
     int64 readInt64()
     {
-        return cast(int64)readUInt64();
+        return numericBitCast!int64(readUInt64());
     }
 
     uint8 readUInt8()
     {
         _buffer.ensureAvailableIf(uint8.sizeof);
-
         return _buffer._data[_buffer._offset++];
     }
 
@@ -386,16 +420,6 @@ public:
         reset();
     }
 
-    version (TraceFunction)
-    final string logData() nothrow @trusted
-    {
-        import std.conv : to;
-        import pham.utl.object : bytesToHexs;
-
-        const bytes = peekBytes();
-        return "length=" ~ to!string(bytes.length) ~ ", data=" ~ cast(string)bytesToHexs(bytes);
-    }
-
     final ubyte[] peekBytes() nothrow
     {
         return _data[0..length];
@@ -405,6 +429,17 @@ public:
     {
         _offset = 0;
         return this;
+    }
+
+    version (TraceFunction)
+    final string traceString() const nothrow @trusted
+    {
+        import std.conv : to;
+        import pham.utl.object : bytesToHexs;
+
+        const bytes = _data[0..length];
+        return "length=" ~ to!string(bytes.length)
+            ~ ", data=" ~ cast(string)bytesToHexs(bytes);
     }
 
     @property final bool empty() const nothrow pure
@@ -430,8 +465,8 @@ protected:
     {
         if (_data.length < _offset + additionalBytes)
         {
-            _data.assumeSafeAppend();
             _data.length = alignRoundup((_offset << 1) + additionalBytes, alignValue);
+            _data.assumeSafeAppend();
         }
 
         assert(_data.length >= _offset + additionalBytes);
@@ -482,6 +517,21 @@ public:
         writeInt32(v);
     }
 
+    void rewriteUInt32(uint32 v, size_t rewriteOffset) nothrow
+    in
+    {
+        assert(rewriteOffset <= _buffer._offset);
+    }
+    do
+    {
+        const saveOffset = _buffer._offset;
+        _buffer._offset = rewriteOffset;
+        scope (exit)
+            _buffer._offset = saveOffset;
+
+        writeUInt32(v);
+    }
+
     pragma(inline, true)
     void writeBool(bool v) nothrow
     {
@@ -509,47 +559,42 @@ public:
     pragma(inline, true)
     void writeFloat32(float32 v) nothrow @trusted
     {
-        static assert(float32.sizeof == uint32.sizeof);
-
-        writeUInt32(asIntegerBit!(float32, uint32)(v));
+        writeUInt32(numericBitCast!uint32(v));
     }
 
     pragma(inline, true)
     void writeFloat64(float64 v) nothrow @trusted
     {
-        static assert(float64.sizeof == uint64.sizeof);
-
-        writeUInt64(asIntegerBit!(float64, uint64)(v));
+        writeUInt64(numericBitCast!uint64(v));
     }
 
     pragma(inline, true)
     void writeInt8(int8 v) nothrow
     {
-        writeUInt8(cast(uint8)v);
+        writeUInt8(numericBitCast!uint8(v));
     }
 
     pragma(inline, true)
     void writeInt16(int16 v) nothrow
     {
-        writeUInt16(cast(uint16)v);
+        writeUInt16(numericBitCast!uint16(v));
     }
 
     pragma(inline, true)
     void writeInt32(int32 v) nothrow
     {
-        writeUInt32(cast(uint32)v);
+        writeUInt32(numericBitCast!uint32(v));
     }
 
     pragma(inline, true)
     void writeInt64(int64 v) nothrow
     {
-        writeUInt64(cast(uint64)v);
+        writeUInt64(numericBitCast!uint64(v));
     }
 
     void writeUInt8(uint8 v) nothrow
     {
         _buffer.reserve(uint8.sizeof);
-
         _buffer._data[_buffer._offset++] = v;
     }
 
@@ -587,7 +632,7 @@ private:
 unittest // DbWriteBuffer & DbReadBuffer
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.buffer.DbWriteBuffer & db.buffer.DbReadBuffer");
+    traceUnitTest!("pham.db.database")("unittest pham.db.buffer.DbWriteBuffer & db.buffer.DbReadBuffer");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
 

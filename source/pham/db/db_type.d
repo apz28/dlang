@@ -11,10 +11,12 @@
 
 module pham.db.type;
 
+import core.internal.hash : hashOf;
+import std.format: FormatSpec, formatValue;
 import core.time : convert;
 public import core.time : Duration, dur;
 import std.range.primitives : isOutputRange, put;
-import std.traits : isArray, Unqual;
+import std.traits : isArray, isSomeChar, Unqual;
 import std.uni : sicmp;
 public import std.uuid : UUID;
 
@@ -23,9 +25,10 @@ public import pham.utl.big_integer : BigInteger;
 public import pham.utl.datetime.date : Date, DateTime;
 public import pham.utl.datetime.tick : DateTimeKind;
 public import pham.utl.datetime.time : Time;
-import pham.utl.datetime.time_zone : TimeZoneInfo, TimeZoneInfoMap;
 import pham.utl.datetime.tick : ErrorOp, Tick;
+import pham.utl.datetime.time_zone : TimeZoneInfo, TimeZoneInfoMap;
 import pham.utl.enum_set : toName;
+import pham.utl.object : cmpFloat, cmpIntegral;
 import pham.utl.utf8 : ShortStringBuffer;
 
 alias float32 = float;
@@ -43,27 +46,10 @@ alias int128 = BigInteger;
 alias Decimal = Decimal128;
 alias Numeric = Decimal128;
 
-union Map16Bit
-{
-    uint16 u;
-    int16 i;
-}
-
-union Map32Bit
-{
-    uint32 u; // Make this first to have zero initialized value
-    int32 i;
-    float32 f;
-}
-
-union Map64Bit
-{
-    uint64 u; // Make this first to have zero initialized value
-    int64 i;
-    float64 f;
-}
-
 nothrow @safe:
+
+immutable string anonymousParameterNameFmt = "_parameter%d";
+immutable string returnParameterName = "return";
 
 enum hnsecsPerDay = convert!("hours", "hnsecs")(24);
 //enum hnsecsPerHour = convert!("hours", "hnsecs")(1);
@@ -90,6 +76,7 @@ enum DbCommandFlag : byte
     implicitTransaction,
     implicitTransactionStarted,
     parametersCheck,
+    prepared,
     returnRecordsAffected,
     transactionRequired,
     cancelled
@@ -187,21 +174,22 @@ enum DbFieldIdType : byte
     no,
     array,
     blob,
-    clob
+    clob,
 }
 
 /**
  * Describes how to client send authenticated data to server
- * $(DbIntegratedSecurityConnection.srp)
- * $(DbIntegratedSecurityConnection.sspi)
  * $(DbIntegratedSecurityConnection.legacy) name and password
+ * $(DbIntegratedSecurityConnection.srp)
+ * $(DbIntegratedSecurityConnection.srp256)
+ * $(DbIntegratedSecurityConnection.sspi)
  */
 enum DbIntegratedSecurityConnection : byte
 {
+    legacy,
     srp,
     srp256,
     sspi,
-    legacy
 }
 
 /**
@@ -220,20 +208,20 @@ enum DbIsolationLevel : byte
     readCommitted,
     repeatableRead,
     serializable,
-    snapshot
+    snapshot,
 }
 
 enum DbLockBehavior : byte
 {
     shared_,
     protected_,
-    exclusive
+    exclusive,
 }
 
 enum DbLockType : byte
 {
     read,
-    write
+    write,
 }
 
 /**
@@ -248,18 +236,19 @@ enum DbParameterDirection : byte
     input,
     inputOutput,
     output,
-    returnValue
+    returnValue,
 }
 
 /**
  * Default connection builder element names
  */
-enum DbParameterName
+enum DbConnectionParameterIdentifier : string
 {
-    applicationVersion = "applicationVersion",
+    allowBatch = "allowBatch", /// When true, multiple SQL statements can be sent with one command execution. Batch statements should be separated by the server-defined separator character.
     charset = "charset",
     compress = "compress",
-    connectionTimeout = "connectionTimeout",
+    commandTimeout = "commandTimeout", /// In seconds - Sets the default value of the command timeout to be used.
+    connectionTimeout = "connectionTimeout", /// In seconds -
     database = "database",
     databaseFile = "databaseFile",
     encrypt = "encrypt",
@@ -270,10 +259,10 @@ enum DbParameterName
     packageSize = "packageSize",
     port = "port",
     pooling = "pooling",
-    poolTimeout = "poolTimeout",
-    receiveTimeout = "receiveTimeout",
+    poolTimeout = "poolTimeout", /// In seconds -
+    receiveTimeout = "receiveTimeout", /// In seconds -
     roleName = "role",
-    sendTimeout = "sendTimeout",
+    sendTimeout = "sendTimeout", /// In seconds -
     server = "server",
     userName = "user",
     userPassword = "password",
@@ -286,8 +275,11 @@ enum DbParameterName
     fbCachePage = "cachePage",
     fbDatabaseTrigger = "databaseTrigger",
     fbDialect = "dialect",
-    fbDummyPacketInterval = "dummyPacketInterval",
+    fbDummyPacketInterval = "dummyPacketInterval", /// In seconds -
     fbGarbageCollect = "garbageCollect",
+
+    // Specific to mysql
+    myAllowUserVariables = "allowUserVariables", /// Setting this to true indicates that the provider expects user variables in the SQL.
 
     // Specific to postgresql
     pgOptions = "options",
@@ -313,6 +305,12 @@ enum DbParameterName
     */
 }
 
+enum DbConnectionCustomIdentifier : string
+{
+    applicationName = "applicationName",
+    applicationVersion = "applicationVersion",
+}
+
 enum DbScheme : string
 {
     fb = "firebird",
@@ -327,20 +325,21 @@ enum DbSchemaColumnFlag : byte
     isAlias,
     isKey,
     isUnique,
-    isExpression
+    isExpression,
 }
 
-enum DbIdentifier
+enum DbServerIdentifier : string
 {
-    serverProtocolAcceptType = "serverProtocolAcceptType", // firebird
-    serverProtocolArchitect = "serverProtocolArchitect",   // firebird
-	serverProtocolCompressed = "serverProtocolCompressed", // firebird
-	serverProtocolEncrypted = "serverProtocolEncrypted",   // firebird
-    serverProtocolProcessId = "serverProtocolProcessId",   // postgresql
-    serverProtocolSecretKey = "serverProtocolSecretKey",   // postgresql
-    serverProtocolTrStatus = "serverProtocolTrStatus",     // postgresql
-    serverProtocolVersion = "serverProtocolVersion",       // firebird
-    serverVersion = "serverVersion",                       // firebird, postgresql
+    capabilityFlag = "serverCapabilityFlag",         // mysql
+    dbVersion = "serverVersion",                       // firebird, postgresql
+    protocolAcceptType = "serverProtocolAcceptType", // firebird
+    protocolArchitect = "serverProtocolArchitect",   // firebird
+	protocolCompressed = "serverProtocolCompressed", // firebird
+	protocolEncrypted = "serverProtocolEncrypted",   // firebird
+    protocolProcessId = "serverProtocolProcessId",   // postgresql, mysql-threadid
+    protocolSecretKey = "serverProtocolSecretKey",   // postgresql
+    protocolTrStatus = "serverProtocolTrStatus",     // postgresql
+    protocolVersion = "serverProtocolVersion",       // firebird, mysql
 }
 
 /**
@@ -355,7 +354,7 @@ enum DbTransactionState : byte
     inactive,
     active,
     error,
-    disposed
+    disposed,
 }
 
 /**
@@ -405,14 +404,15 @@ enum DbType : int
     time,
     timeTZ,
     uuid,
-    chars,  // fixed length string - char[] (static length)
+    fixedString,  // fixed length string - char[] (static length)
     string, // variable length string - string (has length limit)
     text,   // similar to string type but with special construct for each database (no length limit) - string
     json,   // string with json format - ubyte[]
     xml,    // string with xml format - ubyte[]
+    fixedBinary,
     binary,
     record,     // struct is reserved keyword
-    array = 1 << 31
+    array = 1 << 31,
 }
 
 enum DbTypeMask = 0x7FFF_FFFF; // Exclude array marker
@@ -461,9 +461,7 @@ public:
     int opCmp(scope const(DbDateTime) rhs) const @nogc pure
     {
         const result = _value.opCmp(rhs._value);
-        return result == 0
-            ? (_zoneId > rhs._zoneId) - (_zoneId < rhs._zoneId)
-            : result;
+        return result == 0 ? cmpIntegral(_zoneId, rhs._zoneId) : result;
     }
 
     int opCmp(scope const(DateTime) rhs) const @nogc pure
@@ -580,6 +578,11 @@ public:
         return _value;
     }
 
+    @property static DbDateTime zero() @nogc nothrow pure
+    {
+        return DbDateTime(DateTime.zero);
+    }
+
     @property uint16 zoneId() const @nogc pure
     {
         return _zoneId;
@@ -592,21 +595,418 @@ private:
     uint16 _zoneId;
 }
 
-struct DbHandle
+struct DbGeoBox
 {
 nothrow @safe:
 
 public:
+    this(float64 left, float64 top, float64 right, float64 bottom) @nogc pure
+    {
+        this.leftTop.x = left;
+        this.leftTop.y = top;
+        this.rightBottom.x = right;
+        this.rightBottom.y = bottom;
+    }
+
+    this(scope const(DbGeoPoint) leftTop, scope const(DbGeoPoint) rightBottom) @nogc pure
+    {
+        this.leftTop.x = leftTop.x;
+        this.leftTop.y = leftTop.y;
+        this.rightBottom.x = rightBottom.x;
+        this.rightBottom.y = rightBottom.y;
+    }
+
+    float opCmp(scope const(DbGeoBox) rhs) const @nogc pure
+    {
+        const result = leftTop.opCmp(rhs.leftTop);
+        return result == 0 ? rightBottom.opCmp(rhs.rightBottom) : result;
+    }
+
+    bool opEquals(scope const(DbGeoBox) rhs) const @nogc pure
+    {
+        return leftTop.opEquals(rhs.leftTop) && rightBottom.opEquals(rhs.rightBottom);
+    }
+
+    size_t toHash() const @nogc pure
+    {
+        return hashOf(rightBottom.y, hashOf(rightBottom.x, hashOf(leftTop.y, hashOf(leftTop.x))));
+    }
+
+    string toString() const
+    {
+        ShortStringBuffer!char buffer;
+        return toString!(ShortStringBuffer!char, char)(buffer).toString();
+    }
+
+    ref Writer toString(Writer, Char)(return ref Writer sink) const
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+    {
+        scope (failure) assert(0);
+
+        put(sink, '(');
+        leftTop.toString!(Writer, Char)(sink);
+        put(sink, ',');
+        rightBottom.toString!(Writer, Char)(sink);
+        put(sink, ')');
+        return sink;
+    }
+
+    pragma(inline, true)
+    @property float64 bottom() const @nogc pure
+    {
+        return rightBottom.y;
+    }
+
+    @property ref typeof(this) bottom(float64 value) @nogc pure return
+    {
+        rightBottom.y = value;
+        return this;
+    }
+
+    @property float64 height() const @nogc pure
+    {
+        return bottom - top;
+    }
+
+    @property bool isEmpty() @nogc pure return
+    {
+        return height == 0.0 && width == 0.0;
+    }
+
+    pragma(inline, true)
+    @property float64 left() const @nogc pure
+    {
+        return leftTop.x;
+    }
+
+    @property ref typeof(this) left(float64 value) @nogc pure return
+    {
+        leftTop.x = value;
+        return this;
+    }
+
+    pragma(inline, true)
+    @property float64 right() const @nogc pure
+    {
+        return rightBottom.x;
+    }
+
+    @property ref typeof(this) right(float64 value) @nogc pure return
+    {
+        rightBottom.x = value;
+        return this;
+    }
+
+    pragma(inline, true)
+    @property float64 top() const @nogc pure
+    {
+        return leftTop.y;
+    }
+
+    @property ref typeof(this) top(float64 value) @nogc pure return
+    {
+        leftTop.y = value;
+        return this;
+    }
+
+    @property float64 width() const @nogc pure
+    {
+        return right - left;
+    }
+
+public:
+    DbGeoPoint leftTop; // left/top
+    DbGeoPoint rightBottom; // right/bottom
+}
+
+struct DbGeoCircle
+{
+nothrow @safe:
+
+public:
+    this(float64 x, float64 y, float64 r) @nogc pure
+    {
+        this.x = x;
+        this.y = y;
+        this.r = r;
+    }
+
+    this(scope const(DbGeoPoint) center, float64 radius) @nogc pure
+    {
+        this.x = center.x;
+        this.y = center.y;
+        this.r = radius;
+    }
+
+    float opCmp(scope const(DbGeoCircle) rhs) const @nogc pure
+    {
+        auto result = cmpFloat(x, rhs.x);
+        if (result == 0)
+        {
+            result = cmpFloat(y, rhs.y);
+            if (result == 0)
+                result = cmpFloat(r, rhs.r);
+        }
+        return result;
+    }
+
+    bool opEquals(scope const(DbGeoCircle) rhs) const @nogc pure
+    {
+        return x == rhs.x && y == rhs.y && r == rhs.r;
+    }
+
+    size_t toHash() const @nogc pure
+    {
+        return hashOf(r, hashOf(y, hashOf(x)));
+    }
+
+    string toString() const
+    {
+        ShortStringBuffer!char buffer;
+        return toString!(ShortStringBuffer!char, char)(buffer).toString();
+    }
+
+    ref Writer toString(Writer, Char)(return ref Writer sink) const
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+    {
+        scope (failure) assert(0);
+
+        FormatSpec!Char spec;
+        spec.spec = 'f';
+
+        put(sink, "<(");
+        formatValue(sink, x, spec);
+        put(sink, ',');
+        formatValue(sink, y, spec);
+        put(sink, "),");
+        formatValue(sink, r, spec);
+        put(sink, '>');
+        return sink;
+    }
+
+public:
+    float64 x = 0.0;
+    float64 y = 0.0;
+    float64 r = 0.0; // Radius
+}
+
+struct DbGeoPath
+{
+nothrow @safe:
+
+public:
+    this(this) pure
+    {
+        this.points = points.dup;
+    }
+
+    float opCmp(scope const(DbGeoPath) rhs) const @nogc pure
+    {
+        const m = points.length < rhs.points.length ? points.length : rhs.points.length;
+        foreach (i; 0..m)
+        {
+            const c = points[i].opCmp(rhs.points[i]);
+            if (c != 0)
+                return c;
+        }
+
+        const c = cmpIntegral(points.length, rhs.points.length);
+        return c == 0 ? cmpIntegral(cast(byte)open, cast(byte)rhs.open) : c;
+    }
+
+    bool opEquals(scope const(DbGeoPath) rhs) const @nogc pure
+    {
+        if (open == rhs.open && points.length == rhs.points.length)
+        {
+            foreach (i; 0..points.length)
+            {
+                if (!points[i].opEquals(rhs.points[i]))
+                    return false;
+            }
+            return true;
+        }
+        else
+            return false;
+    }
+
+    size_t toHash() const @nogc pure
+    {
+        size_t result = open;
+        foreach (i; 0..points.length)
+            result = hashOf(points[i].hashOf(), result);
+        return result;
+    }
+
+    string toString() const
+    {
+        ShortStringBuffer!char buffer;
+        return toString!(ShortStringBuffer!char, char)(buffer).toString();
+    }
+
+    ref Writer toString(Writer, Char)(return ref Writer sink) const
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+    {
+        scope (failure) assert(0);
+
+        put(sink, open ? '[' : '(');
+        foreach (i; 0..points.length)
+        {
+            if (i != 0)
+                put(sink, ',');
+            points[i].toString!(Writer, Char)(sink);
+        }
+        put(sink, open ? ']' : ')');
+        return sink;
+    }
+
+public:
+    DbGeoPoint[] points;
+    bool open;
+}
+
+struct DbGeoPolygon
+{
+nothrow @safe:
+
+public:
+    this(this) pure
+    {
+        this.points = points.dup;
+    }
+
+    float opCmp(scope const(DbGeoPolygon) rhs) const @nogc pure
+    {
+        const m = points.length < rhs.points.length ? points.length : rhs.points.length;
+        foreach (i; 0..m)
+        {
+            const c = points[i].opCmp(rhs.points[i]);
+            if (c != 0)
+                return c;
+        }
+
+        return cmpIntegral(points.length, rhs.points.length);
+    }
+
+    bool opEquals(scope const(DbGeoPolygon) rhs) const @nogc pure
+    {
+        if (points.length == rhs.points.length)
+        {
+            foreach (i; 0..points.length)
+            {
+                if (!points[i].opEquals(rhs.points[i]))
+                    return false;
+            }
+            return true;
+        }
+        else
+            return false;
+    }
+
+    size_t toHash() const @nogc pure
+    {
+        if (points.length == 0)
+            return 0;
+
+        auto result = points[0].hashOf();
+        foreach (i; 1..points.length)
+            result = hashOf(points[i].hashOf(), result);
+        return result;
+    }
+
+    string toString() const
+    {
+        ShortStringBuffer!char buffer;
+        return toString!(ShortStringBuffer!char, char)(buffer).toString();
+    }
+
+    ref Writer toString(Writer, Char)(return ref Writer sink) const
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+    {
+        scope (failure) assert(0);
+
+        put(sink, '(');
+        foreach (i; 0..points.length)
+        {
+            if (i != 0)
+                put(sink, ',');
+            points[i].toString!(Writer, Char)(sink);
+        }
+        put(sink, ')');
+        return sink;
+    }
+
+public:
+    DbGeoPoint[] points;
+}
+
+struct DbGeoPoint
+{
+nothrow @safe:
+
+public:
+    float opCmp(scope const(DbGeoPoint) rhs) const @nogc pure
+    {
+        const result = cmpFloat(x, rhs.x);
+        return result == 0 ? cmpFloat(y, rhs.y) : result;
+    }
+
+    bool opEquals(scope const(DbGeoPoint) rhs) const @nogc pure
+    {
+        return x == rhs.x && y == rhs.y;
+    }
+
+    size_t toHash() const @nogc pure
+    {
+        return hashOf(y, hashOf(x));
+    }
+
+    string toString() const
+    {
+        ShortStringBuffer!char buffer;
+        return toString!(ShortStringBuffer!char, char)(buffer).toString();
+    }
+
+    ref Writer toString(Writer, Char)(return ref Writer sink) const
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+    {
+        scope (failure) assert(0);
+
+        FormatSpec!Char spec;
+        spec.spec = 'f';
+
+        put(sink, '(');
+        formatValue(sink, x, spec);
+        put(sink, ',');
+        formatValue(sink, y, spec);
+        put(sink, ')');
+        return sink;
+    }
+
+public:
+    float64 x = 0.0;
+    float64 y = 0.0;
+}
+
+struct DbHandle
+{
+@nogc nothrow @safe:
+
+public:
+    enum notSetValue = ulong.max;
+    enum dummyValue = ulong.max - 1;
+
+    enum bool isHandleValue(T) = is(T == ulong) || is(T == long) || is(T == uint) || is(T == int);
+
     static union DbHandleStorage
     {
-        ulong u64 = 0xFFFF_FFFF_FFFF_FFFF;
+        ulong u64 = notSetValue;
         long i64;
         uint u32;
         int i32;
     }
 
     static void set(T)(ref DbHandleStorage storage, const(T) value) pure
-    if (is(T == ulong) || is(T == long) || is(T == uint) || is(T == int))
+    if (isHandleValue!T)
     {
         static if (is(T == ulong))
             storage.u64 = value;
@@ -614,12 +1014,12 @@ public:
             storage.i64 = value;
         else static if (is(T == uint))
         {
-            storage.u64 = 0u;
+            storage.u64 = 0U; // Must clear it first
             storage.u32 = value;
         }
         else static if (is(T == int))
         {
-            storage.u64 = 0u;
+            storage.u64 = 0U; // Must clear it first
             storage.i32 = value;
         }
         else
@@ -627,21 +1027,20 @@ public:
     }
 
 public:
-    this(T)(const(T) notSetValue)
-    if (is(T == ulong) || is(T == long) || is(T == uint) || is(T == int))
+    this(T)(const(T) v) pure
+    if (isHandleValue!T)
     {
-        set(this.notSetValue, notSetValue);
-        this.value = this.notSetValue;
+        set(this.value, v);
     }
 
-    ref typeof(this) opAssign(T)(const(T) rhs) return
-    if (is(T == ulong) || is(T == long) || is(T == uint) || is(T == int))
+    ref typeof(this) opAssign(T)(const(T) rhs) pure return
+    if (isHandleValue!T)
     {
         set(this.value, rhs);
         return this;
     }
 
-    bool opCast(C: bool)() const
+    bool opCast(C: bool)() const pure
     {
         return isValid;
     }
@@ -653,14 +1052,15 @@ public:
         return this;
     }
 
-    T opCast(T)() const
-    if (is(T == ulong) || is(T == long) || is(T == uint) || is(T == int))
+    T opCast(T)() const pure
+    if (isHandleValue!T)
     {
         return get!T();
     }
 
+    pragma(inline, true)
     T get(T)() const pure
-    if (is(T == ulong) || is(T == long) || is(T == uint) || is(T == int))
+    if (isHandleValue!T)
     {
         static if (is(T == ulong))
             return value.u64;
@@ -676,19 +1076,134 @@ public:
 
     void reset() pure
     {
-        value.u64 = notSetValue.u64;
+        value.u64 = notSetValue;
     }
 
+    void setDummy() pure
+    {
+        value.u64 = dummyValue;
+    }
+
+    @property bool isDummy() const pure
+    {
+        return value.u64 == dummyValue;
+    }
+
+    pragma(inline, true)
     @property bool isValid() const pure
     {
-        return value.u64 != notSetValue.u64;
+        return value.u64 != notSetValue;
+    }
+
+private:
+    DbHandleStorage value;
+}
+
+struct DbId
+{
+@nogc nothrow @safe:
+
+public:
+    enum notSetValue = ulong(0U);
+    enum dummyValue = ulong.max;
+
+    enum bool isIdValue(T) = is(T == ulong) || is(T == long) || is(T == uint) || is(T == int);
+
+    static union DbIdStorage
+    {
+        ulong u64 = notSetValue;
+        long i64;
+        uint u32;
+        int i32;
+    }
+
+    static void set(T)(ref DbIdStorage storage, const(T) value) pure
+    if (isIdValue!T)
+    {
+        static if (is(T == ulong))
+            storage.u64 = value;
+        else static if (is(T == long))
+            storage.i64 = value;
+        else static if (is(T == uint))
+        {
+            storage.u64 = 0U; // Must clear it first
+            storage.u32 = value;
+        }
+        else static if (is(T == int))
+        {
+            storage.u64 = 0U; // Must clear it first
+            storage.i32 = value;
+        }
+        else
+            static assert(0);
     }
 
 public:
-    DbHandleStorage value;
+    this(T)(const(T) v) pure
+    if (isIdValue!T)
+    {
+        set(this.value, v);
+    }
+
+    ref typeof(this) opAssign(T)(const(T) rhs) pure return
+    if (isIdValue!T)
+    {
+        set(this.value, rhs);
+        return this;
+    }
+
+    bool opCast(C: bool)() const pure
+    {
+        return isValid;
+    }
+
+    // Temporary hack until bug http://d.puremagic.com/issues/show_bug.cgi?id=5747 is fixed.
+    DbId opCast(T)() const
+    if (is(Unqual!T == DbId))
+    {
+        return this;
+    }
+
+    T opCast(T)() const pure
+    if (isIdValue!T)
+    {
+        return get!T();
+    }
+
+    pragma(inline, true)
+    T get(T)() const pure
+    if (isIdValue!T)
+    {
+        static if (is(T == ulong))
+            return value.u64;
+        else static if (is(T == long))
+            return value.i64;
+        else static if (is(T == uint))
+            return value.u32;
+        else static if (is(T == int))
+            return value.i32;
+        else
+            static assert(0);
+    }
+
+    void reset() pure
+    {
+        value.u64 = notSetValue;
+    }
+
+    void setDummy() pure
+    {
+        value.u64 = dummyValue;
+    }
+
+    pragma(inline, true)
+    @property bool isValid() const pure
+    {
+        return value.u64 != notSetValue;
+    }
 
 private:
-    DbHandleStorage notSetValue;
+    DbIdStorage value;
 }
 
 struct DbLockTable
@@ -730,13 +1245,13 @@ nothrow @safe:
 
 struct DbRecordsAffected
 {
-nothrow @safe:
+@nogc nothrow @safe:
 
 public:
     enum notSetValue = -1;
 
 public:
-    ref typeof(this) opAssign(T)(T rhs) return
+    ref typeof(this) opAssign(T)(T rhs) pure return
     if (is(T == int) || is(T == long) || is(Unqual!T == DbRecordsAffected))
     {
         static if (is(T == int) || is(T == long))
@@ -746,7 +1261,7 @@ public:
         return this;
     }
 
-    ref typeof(this) opOpAssign(string op, T)(T rhs) return
+    ref typeof(this) opOpAssign(string op, T)(T rhs) pure return
     if (op == "+" && (is(T == int) || is(T == long) || is(Unqual!T == DbRecordsAffected)))
     {
         static if (is(T == int) || is(T == long))
@@ -772,7 +1287,7 @@ public:
         return this;
     }
 
-    bool opCast(C: bool)() const
+    bool opCast(C: bool)() const pure
     {
         return hasCount;
     }
@@ -784,12 +1299,12 @@ public:
         return this;
     }
 
-    void reset()
+    void reset() pure
     {
         value = notSetValue;
     }
 
-    @property bool hasCount() const
+    @property bool hasCount() const pure
     {
         return value >= 0;
     }
@@ -797,15 +1312,15 @@ public:
     alias value this;
 
 public:
-    long value = notSetValue;
+    int64 value = notSetValue;
 }
 
 struct DbRecordsAffectedAggregate
 {
-nothrow @safe:
+@nogc nothrow @safe:
 
 public:
-    bool opCast(C: bool)() const
+    bool opCast(C: bool)() const pure
     {
         return hasCounts;
     }
@@ -817,15 +1332,16 @@ public:
         return this;
     }
 
-    void reset()
+    void reset() pure
     {
         deleteCount.reset();
         insertCount.reset();
+        lastInsertedId.reset();
         selectCount.reset();
         updateCount.reset();
     }
 
-    @property bool hasCounts() const
+    @property bool hasCounts() const pure
     {
         return deleteCount || insertCount || selectCount || updateCount;
     }
@@ -833,6 +1349,7 @@ public:
 public:
 	DbRecordsAffected deleteCount;
 	DbRecordsAffected insertCount;
+    DbRecordsAffected lastInsertedId;
 	DbRecordsAffected selectCount;
 	DbRecordsAffected updateCount;
 }
@@ -875,9 +1392,7 @@ public:
     int opCmp(scope const(DbTime) rhs) const @nogc pure
     {
         const result = _value.opCmp(rhs._value);
-        return result == 0
-            ? (_zoneId > rhs._zoneId) - (_zoneId < rhs._zoneId)
-            : result;
+        return result == 0 ? cmpIntegral(_zoneId, rhs._zoneId) : result;
     }
 
     int opCmp(scope const(Time) rhs) const @nogc pure
@@ -986,6 +1501,11 @@ public:
         return _value;
     }
 
+    @property static DbTime zero() @nogc nothrow pure
+    {
+        return DbTime(Time.zero);
+    }
+
     @property uint16 zoneId() const @nogc pure
     {
         return _zoneId;
@@ -1020,9 +1540,7 @@ public:
 
     int opCmp(scope const(DbTimeSpan) rhs) const @nogc pure
     {
-        const lt = this.ticks;
-        const rt = rhs.ticks;
-        return (lt > rt) - (lt < rt);
+        return cmpIntegral(this.ticks, rhs.ticks);
     }
 
     int opCmp(scope const(Duration) rhs) const @nogc pure
@@ -1038,6 +1556,17 @@ public:
     bool opEquals(scope const(Duration) rhs) const @nogc pure
     {
         return opEquals(DbTimeSpan(rhs));
+    }
+
+    void getTime(out bool isNeg, out int day, out int hour, out int minute, out int second, out int microsecond) const @nogc pure
+    {
+        isNeg = isNegative;
+        if (isNeg)
+            (-_value).split!("days", "hours", "minutes", "seconds", "usecs")(day, hour, minute, second, microsecond);
+        else
+            _value.split!("days", "hours", "minutes", "seconds", "usecs")(day, hour, minute, second, microsecond);
+        while (microsecond > 1_000_000)
+            microsecond /= 10;
     }
 
     size_t toHash() const @nogc pure
@@ -1072,6 +1601,11 @@ public:
     @property isZero() const @nogc pure
     {
         return _value == Duration.zero;
+    }
+
+    @property static DbTimeSpan min() @nogc pure
+    {
+        return DbTimeSpan(Duration.zero);
     }
 
     @property long ticks() const @nogc pure
@@ -1115,6 +1649,10 @@ public:
 
 immutable string[string] dbDefaultParameterValues;
 
+enum dynamicTypeSize = -1; // blob/text - no limit
+enum runtimeTypeSize = -2; // fixed/vary length string/array - limit
+enum unknownTypeSize = -3; // unknown or unsupport
+
 immutable DbTypeInfo[] dbNativeTypes = [
     // Native & Standard
     {dbName:"", nativeName:"bool", displaySize:5, nativeSize:bool.sizeof, nativeId:0, dbType:DbType.boolean},
@@ -1129,13 +1667,13 @@ immutable DbTypeInfo[] dbNativeTypes = [
     {dbName:"", nativeName:"float", displaySize:17, nativeSize:float32.sizeof, nativeId:0, dbType:DbType.float32},
     {dbName:"", nativeName:"double", displaySize:21, nativeSize:float64.sizeof, nativeId:0, dbType:DbType.float64},
     {dbName:"", nativeName:"real", displaySize:21, nativeSize:float64.sizeof, nativeId:0, dbType:DbType.float64},
-    {dbName:"", nativeName:"char", displaySize:1, nativeSize:1, nativeId:0, dbType:DbType.chars},
-    {dbName:"", nativeName:"wchar", displaySize:1, nativeSize:2, nativeId:0, dbType:DbType.chars},
-    {dbName:"", nativeName:"dchar", displaySize:1, nativeSize:4, nativeId:0, dbType:DbType.chars},
-    {dbName:"", nativeName:"string", displaySize:-1, nativeSize:-1, nativeId:0, dbType:DbType.string},
-    {dbName:"", nativeName:"wstring", displaySize:-1, nativeSize:-1, nativeId:0, dbType:DbType.string},
-    {dbName:"", nativeName:"dstring", displaySize:-1, nativeSize:-1, nativeId:0, dbType:DbType.string},
-    {dbName:"", nativeName:"ubyte[]", displaySize:-1, nativeSize:-1, nativeId:0, dbType:DbType.binary},
+    {dbName:"", nativeName:"char", displaySize:1, nativeSize:1, nativeId:0, dbType:DbType.fixedString},
+    {dbName:"", nativeName:"wchar", displaySize:1, nativeSize:2, nativeId:0, dbType:DbType.fixedString},
+    {dbName:"", nativeName:"dchar", displaySize:1, nativeSize:4, nativeId:0, dbType:DbType.fixedString},
+    {dbName:"", nativeName:"string", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:0, dbType:DbType.string},
+    {dbName:"", nativeName:"wstring", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:0, dbType:DbType.string},
+    {dbName:"", nativeName:"dstring", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:0, dbType:DbType.string},
+    {dbName:"", nativeName:"ubyte[]", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:0, dbType:DbType.binary},
     {dbName:"", nativeName:"Date", displaySize:10, nativeSize:Date.sizeof, nativeId:0, dbType:DbType.date},
     {dbName:"", nativeName:"DateTime", displaySize:28, nativeSize:DbDateTime.sizeof, nativeId:0, dbType:DbType.datetime},
     {dbName:"", nativeName:"Time", displaySize:11, nativeSize:DbTime.sizeof, nativeId:0, dbType:DbType.time},
@@ -1169,8 +1707,8 @@ immutable DbTypeInfo[] dbNativeTypes = [
     {dbName:"", nativeName:"DateTimeTZ", displaySize:28, nativeSize:DbDateTime.sizeof, nativeId:0, dbType:DbType.datetimeTZ},
     {dbName:"", nativeName:"DbDate", displaySize:10, nativeSize:Date.sizeof, nativeId:0, dbType:DbType.date},
     {dbName:"", nativeName:"TimeOfDay", displaySize:11, nativeSize:DbTime.sizeof, nativeId:0, dbType:DbType.time},
-    {dbName:"", nativeName:"TimeTZ", displaySize:11, nativeSize:DbTime.sizeof, nativeId:0, dbType:DbType.timeTZ}
-];
+    {dbName:"", nativeName:"TimeTZ", displaySize:11, nativeSize:DbTime.sizeof, nativeId:0, dbType:DbType.timeTZ},
+    ];
 
 immutable DbTypeInfo*[DbType] dbTypeToDbTypeInfos;
 immutable DbTypeInfo*[string] nativeNameToDbTypeInfos;
@@ -1206,7 +1744,7 @@ bool isDbTypeHasSize(DbType rawType) pure
 {
     switch (rawType)
     {
-        case DbType.chars:
+        case DbType.fixedString:
         case DbType.string:
         case DbType.text:
         case DbType.json:
@@ -1256,6 +1794,17 @@ bool isDbTrue(scope const(char)[] s) pure
     return false;
 }
 
+DbParameterDirection parameterModeToDirection(scope const(char)[] mode)
+{
+    return mode == "IN"
+        ? DbParameterDirection.input
+        : (mode == "OUT"
+            ? DbParameterDirection.output
+            : (mode == "INOUT"
+                ? DbParameterDirection.inputOutput
+                : DbParameterDirection.input));
+}
+
 
 // Any below codes are private
 private:
@@ -1265,19 +1814,19 @@ shared static this()
     dbDefaultParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(string[string]))[
-            DbParameterName.charset : "UTF8",
-            DbParameterName.compress : dbBoolFalse,
-            DbParameterName.connectionTimeout : "10", // In seconds
-            DbParameterName.encrypt : toName(DbEncryptedConnection.disabled),
-            DbParameterName.fetchRecordCount : "200",
-            DbParameterName.integratedSecurity : toName(DbIntegratedSecurityConnection.srp),
-            DbParameterName.maxPoolCount : "100",
-            DbParameterName.minPoolCount : "0",
-            DbParameterName.pooling : dbBoolTrue,
-            DbParameterName.poolTimeout : "30", // In seconds
-            DbParameterName.receiveTimeout : "3600", // In seconds - do not add underscore, to!... does not work
-            DbParameterName.sendTimeout : "60", // In seconds
-            DbParameterName.server : "localhost"
+            DbConnectionParameterIdentifier.charset : "UTF8",
+            DbConnectionParameterIdentifier.compress : dbBoolFalse,
+            DbConnectionParameterIdentifier.connectionTimeout : "10", // In seconds
+            DbConnectionParameterIdentifier.encrypt : toName(DbEncryptedConnection.disabled),
+            DbConnectionParameterIdentifier.fetchRecordCount : "200",
+            DbConnectionParameterIdentifier.integratedSecurity : toName(DbIntegratedSecurityConnection.srp),
+            DbConnectionParameterIdentifier.maxPoolCount : "100",
+            DbConnectionParameterIdentifier.minPoolCount : "0",
+            DbConnectionParameterIdentifier.pooling : dbBoolTrue,
+            DbConnectionParameterIdentifier.poolTimeout : "30", // In seconds
+            DbConnectionParameterIdentifier.receiveTimeout : "3600", // In seconds - do not add underscore, to!... does not work
+            DbConnectionParameterIdentifier.sendTimeout : "60", // In seconds
+            DbConnectionParameterIdentifier.server : "localhost"
         ];
     }();
 
@@ -1307,7 +1856,7 @@ shared static this()
 unittest // dbTypeOf
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.type.dbTypeOf");
+    traceUnitTest!("pham.db.database")("unittest pham.db.type.dbTypeOf");
 
     //pragma(msg, "DbDateTime: ", DbDateTime.sizeof); // 24
     //pragma(msg, "SysTime: ", SysTime.sizeof); // 16
@@ -1317,9 +1866,9 @@ unittest // dbTypeOf
     //pragma(msg, "Date: ", Date.sizeof); // 4
 
     assert(dbTypeOf!bool() == DbType.boolean);
-    assert(dbTypeOf!char() == DbType.chars);
-    assert(dbTypeOf!wchar() == DbType.chars);
-    assert(dbTypeOf!dchar() == DbType.chars);
+    assert(dbTypeOf!char() == DbType.fixedString);
+    assert(dbTypeOf!wchar() == DbType.fixedString);
+    assert(dbTypeOf!dchar() == DbType.fixedString);
     assert(dbTypeOf!byte() == DbType.int8);
     assert(dbTypeOf!ubyte() == DbType.int16);
     assert(dbTypeOf!short() == DbType.int16);

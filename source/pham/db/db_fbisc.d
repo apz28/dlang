@@ -22,6 +22,10 @@ enum FbIsc
 	ptype_lazy_send = 5, // Deferred packets delivery
 	ptype_compress_flag = 0x0100, // Set on max type - start on protocol_version13
 
+	//version (DeferredProtocol)
+    //ptypeSend = ptype_lazy_send,
+    ptypeSend = ptype_batch_send,
+
     // Connection Version
 	//connect_version2 = 2, // Obsolete
 	connect_version3 = 3,

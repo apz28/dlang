@@ -19,14 +19,19 @@ class DbException : Exception
 @safe:
 
 public:
-    this(string message, int code, int socketCode, int vendorCode, Exception next = null) pure
+    this(string message, int code, string sqlState,
+         int socketCode = 0, int vendorCode = 0, Exception next = null) pure
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) debug traceFunction!("pham.db.database")();
 
         if (code)
             message ~= "\n" ~ DbMessage.eErrorCode.fmtMessage(code);
 
+        if (sqlState.length)
+            message ~= "\n" ~ DbMessage.eErrorSqlState.fmtMessage(sqlState);
+
         super(message, next);
+        this.sqlState = sqlState;
         this.code = code;
         this.socketCode = socketCode;
         this.vendorCode = vendorCode;
@@ -34,7 +39,7 @@ public:
 
     override string toString() @trusted
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.database")();
 
         auto result = super.toString();
 
@@ -49,6 +54,7 @@ public:
     }
 
 public:
+    string sqlState;
     int code;
     int socketCode;
     int vendorCode;
@@ -59,8 +65,9 @@ class SkException : DbException
 @safe:
 
 public:
-    this(string message, int code, int socketCode, int vendorCode, Exception next = null) pure
+    this(string message, int code, string sqlState,
+         int socketCode = 0, int vendorCode = 0, Exception next = null) pure
     {
-        super(message, code, socketCode, vendorCode, next);
+        super(message, code, sqlState, socketCode, vendorCode, next);
     }
 }

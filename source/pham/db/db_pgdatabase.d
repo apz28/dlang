@@ -16,24 +16,23 @@ import std.conv : text, to;
 import std.exception : assumeWontThrow;
 import std.system : Endian;
 
-import pham.external.std.log.logger : Logger, LogTimming;
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
-import pham.db.type;
+import pham.external.std.log.logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
+import pham.db.buffer;
+import pham.db.convert;
+import pham.db.database;
 import pham.db.message;
 import pham.db.object;
-import pham.db.util;
-import pham.db.convert;
-import pham.db.buffer;
-import pham.db.value;
-import pham.db.database;
 import pham.db.skdatabase;
-import pham.db.pgoid;
-import pham.db.pgtype;
-import pham.db.pgexception;
+import pham.db.type;
+import pham.db.util;
+import pham.db.value;
 import pham.db.pgbuffer;
+import pham.db.pgexception;
+import pham.db.pgoid;
 import pham.db.pgprotocol;
-
+import pham.db.pgtype;
 
 // Require in active transaction block
 struct PgLargeBlob
@@ -76,7 +75,7 @@ public:
 
     bool opCast(C: bool)() const nothrow @safe
     {
-        return pgId != 0;
+        return pgId.isValid();
     }
 
     // Temporary hack until bug http://d.puremagic.com/issues/show_bug.cgi?id=5747 is fixed.
@@ -94,7 +93,7 @@ public:
     }
     do
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         scope (exit)
             resetClose();
@@ -109,7 +108,7 @@ public:
     }
     do
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         _id = pgConnection.largeBlobManager.createPreferred(preferredId);
     }
@@ -122,8 +121,11 @@ public:
             {
                 close();
             }
-            catch (Exception)
-            {} //todo just log
+            catch (Exception e)
+            {
+                if (logger !is null)
+                    logger.error(e.msg, e);
+            }
         }
 
         _connection = null;
@@ -138,7 +140,7 @@ public:
     }
     do
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         if (_length < 0)
         {
@@ -153,11 +155,11 @@ public:
     {
         assert(pgConnection !is null);
         assert(!isOpen);
-        assert(pgId != 0);
+        assert(_id.isValid());
     }
     do
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         this._mode = mode;
         this._descriptorId = pgConnection.largeBlobManager.open(pgId, mode);
@@ -170,7 +172,7 @@ public:
     }
     do
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         open(OpenMode.read);
         scope (exit)
@@ -198,9 +200,9 @@ public:
     }
     do
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
-        if (pgId == 0)
+        if (!_id.isValid())
             create();
         open(OpenMode.write);
         scope (exit)
@@ -217,7 +219,7 @@ public:
     }
     do
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         size_t result = 0;
         while (result < data.length)
@@ -238,11 +240,11 @@ public:
     in
     {
         assert(pgConnection !is null);
-        assert(pgId != 0);
+        assert(_id.isValid());
     }
     do
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         if (isOpen)
             close();
@@ -259,7 +261,7 @@ public:
     }
     do
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         _length = -1; // Need to reset the length
         size_t result = 0;
@@ -283,27 +285,32 @@ public:
         return _connection;
     }
 
-    @property PgDescriptorId pgDescriptorId() const nothrow @safe
+    @property PgDescriptorId pgDescriptorId() const nothrow pure @safe
     {
-        return _descriptorId;
+        return _descriptorId.get!PgDescriptorId();
     }
 
-    @property PgOId pgId() const nothrow @safe
+    @property PgOId pgId() const nothrow pure @safe
     {
-        return _id;
+        return _id.get!PgOId();
     }
 
-    @property bool isOpen() const nothrow @safe
+    @property bool isOpen() const nothrow pure @safe
     {
-        return pgDescriptorId != pgInvalidDescriptorId;
+        return _descriptorId.isValid();
     }
 
-    @property OpenMode mode() const nothrow @safe
+    @property final Logger logger() nothrow pure @safe
+    {
+        return _connection !is null ? _connection.logger : null;
+    }
+
+    @property OpenMode mode() const nothrow pure @safe
     {
         return _mode;
     }
 
-    @property int64 offset() const nothrow @safe
+    @property int64 offset() const nothrow pure @safe
     {
         return _offset;
     }
@@ -321,35 +328,36 @@ public:
     }
 
 package(pham.db):
-    void reset() nothrow @safe
+    void reset() nothrow pure @safe
     {
         resetClose();
-        _id = 0;
+        _id.reset();
     }
 
-    void resetClose() nothrow @safe
+    void resetClose() nothrow pure @safe
     {
-        _descriptorId = pgInvalidDescriptorId;
+        _descriptorId.reset();
         _length = -1;
         _offset = 0;
     }
 
     int64 seek(int64 offset, SeekOrigin origin) @safe
     {
-        version (TraceFunction) dgFunctionTrace("offset=", offset, ", origin=", origin);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("offset=", offset, ", origin=", origin);
 
         return pgConnection.largeBlobManager.seek(pgDescriptorId, offset, origin);
     }
 
 package(pham.db):
     PgConnection _connection;
+    DbHandle _descriptorId;
+    DbId _id;
     int64 _length = -1;
     int64 _offset;
-    PgDescriptorId _descriptorId = pgInvalidDescriptorId;
-    PgOId _id;
     OpenMode _mode;
 }
 
+// https://www.postgresql.org/docs/9.2/lo-interfaces.html
 struct PgLargeBlobManager
 {
 public:
@@ -378,40 +386,40 @@ public:
 
     int32 close(PgDescriptorId descriptorId) @safe
     {
-        version (TraceFunction) dgFunctionTrace("descriptorId=", descriptorId);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("descriptorId=", descriptorId);
 
         if (!_close)
-            _close = createStoredProcedure("lo_close", [Argument("descriptorId", PgOIdType.int4)]);
+            _close = createFunction("lo_close", [Argument("descriptorId", PgOIdType.int4)]);
         _close.parameters.get("descriptorId").value = descriptorId;
         return _close.executeScalar().get!int32();
     }
 
     PgOId createNew() @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         if (!_createNew)
-            _createNew = createStoredProcedure("lo_creat", [Argument("blobId", PgOIdType.int4)]);
+            _createNew = createFunction("lo_creat", [Argument("blobId", PgOIdType.int4)]);
         _createNew.parameters.get("blobId").value = -1;
         return _createNew.executeScalar().get!PgOId();
     }
 
     PgOId createPreferred(PgOId preferredId) @safe
     {
-        version (TraceFunction) dgFunctionTrace("preferredId=", preferredId);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("preferredId=", preferredId);
 
         if (!_createPreferred)
-            _createPreferred = createStoredProcedure("lo_create", [Argument("blobId", PgOIdType.oid)]);
+            _createPreferred = createFunction("lo_create", [Argument("blobId", PgOIdType.oid)]);
         _createPreferred.parameters.get("blobId").value = preferredId;
         return _createPreferred.executeScalar().get!PgOId();
     }
 
     PgDescriptorId open(PgOId blobId, int32 mode) @safe
     {
-        version (TraceFunction) dgFunctionTrace("blobId=", blobId, ", mode=", mode);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("blobId=", blobId, ", mode=", mode);
 
         if (!_open)
-            _open = createStoredProcedure("lo_open", [Argument("blobId", PgOIdType.oid), Argument("mode", PgOIdType.int4)]);
+            _open = createFunction("lo_open", [Argument("blobId", PgOIdType.oid), Argument("mode", PgOIdType.int4)]);
         _open.parameters.get("blobId").value = blobId;
         _open.parameters.get("mode").value = mode;
         return _open.executeScalar().get!PgDescriptorId();
@@ -419,10 +427,10 @@ public:
 
     ubyte[] read(PgDescriptorId descriptorId, int32 nBytes) @safe
     {
-        version (TraceFunction) dgFunctionTrace("descriptorId=", descriptorId, ", nBytes=", nBytes);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("descriptorId=", descriptorId, ", nBytes=", nBytes);
 
         if (!_read)
-            _read = createStoredProcedure("loread", [Argument("descriptorId", PgOIdType.int4), Argument("nBytes", PgOIdType.int4)]);
+            _read = createFunction("loread", [Argument("descriptorId", PgOIdType.int4), Argument("nBytes", PgOIdType.int4)]);
         _read.parameters.get("descriptorId").value = descriptorId;
         _read.parameters.get("nBytes").value = nBytes;
         auto result = _read.executeScalar();
@@ -431,10 +439,10 @@ public:
 
     int64 seek(PgDescriptorId descriptorId, int64 offset, int32 origin) @safe
     {
-        version (TraceFunction) dgFunctionTrace("descriptorId=", descriptorId, ", offset=", offset, ", origin=", origin);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("descriptorId=", descriptorId, ", offset=", offset, ", origin=", origin);
 
         if (!_seek)
-            _seek = createStoredProcedure("lo_lseek64", [Argument("descriptorId", PgOIdType.int4), Argument("offset", PgOIdType.int8), Argument("origin", PgOIdType.int4)]);
+            _seek = createFunction("lo_lseek64", [Argument("descriptorId", PgOIdType.int4), Argument("offset", PgOIdType.int8), Argument("origin", PgOIdType.int4)]);
         _seek.parameters.get("descriptorId").value = descriptorId;
         _seek.parameters.get("offset").value = offset;
         _seek.parameters.get("origin").value = origin;
@@ -443,10 +451,10 @@ public:
 
     int32 write(PgDescriptorId descriptorId, scope const(ubyte)[] bytes) @safe
     {
-        version (TraceFunction) dgFunctionTrace("descriptorId=", descriptorId);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("descriptorId=", descriptorId);
 
         if (!_write)
-            _write = createStoredProcedure("lowrite", [Argument("descriptorId", PgOIdType.int4), Argument("bytes", PgOIdType.bytea)]);
+            _write = createFunction("lowrite", [Argument("descriptorId", PgOIdType.int4), Argument("bytes", PgOIdType.bytea)]);
         _write.parameters.get("descriptorId").value = descriptorId;
         _write.parameters.get("bytes").value = bytes.dup;
         return _write.executeScalar().get!int32();
@@ -454,10 +462,10 @@ public:
 
     int32 unlink(PgOId blobId) @safe
     {
-        version (TraceFunction) dgFunctionTrace("blobId=", blobId);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("blobId=", blobId);
 
         if (!_unlink)
-            _unlink = createStoredProcedure("lo_unlink", [Argument("blobId", PgOIdType.oid)]);
+            _unlink = createFunction("lo_unlink", [Argument("blobId", PgOIdType.oid)]);
         _unlink.parameters.get("blobId").value = blobId;
         return _unlink.executeScalar().get!int32();
     }
@@ -478,9 +486,38 @@ private:
         PgOId type;
     }
 
+    PgCommand createFunction(string functionName, scope Argument[] arguments) @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("functionName=", functionName);
+
+        auto commandText = Appender!string();
+        commandText.reserve(500);
+        commandText.put("SELECT * FROM ");
+        commandText.put(functionName);
+        commandText.put('(');
+        foreach (i, ref argument; arguments)
+        {
+            if (i)
+                commandText.put(',');
+            commandText.put('@');
+			commandText.put(argument.name);
+        }
+        commandText.put(')');
+
+        auto result = pgConnection.createCommand();
+        result.commandText = commandText.data;
+        PgOIdFieldInfo info;
+        foreach (ref argument; arguments)
+        {
+            info.type = argument.type;
+            result.parameters.add(argument.name, info.dbType(), 0, DbParameterDirection.input).baseTypeId = argument.type;
+        }
+        return cast(PgCommand)result.prepare();
+    }
+
     PgCommand createStoredProcedure(string storedProcedureName, scope Argument[] arguments) @safe
     {
-        version (TraceFunction) dgFunctionTrace("storedProcedureName=", storedProcedureName);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("storedProcedureName=", storedProcedureName);
 
         auto result = pgConnection.createCommand(storedProcedureName);
         result.commandStoredProcedure = storedProcedureName;
@@ -514,6 +551,14 @@ package(pham.db):
     PgCommand _unlink;
 }
 
+class PgCancelCommandData: DbCancelCommandData
+{
+@safe:
+
+    int32 serverProcessId;
+    int32 serverSecretKey;
+}
+
 class PgCommand : SkCommand
 {
 public:
@@ -529,14 +574,15 @@ public:
 
 	final override const(char)[] getExecutionPlan(uint vendorMode)
 	{
-        version (TraceFunction) dgFunctionTrace("vendorMode=", vendorMode);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("vendorMode=", vendorMode);
 
-        auto explainQuery = new PgCommand(pgConnection);
+        auto explainQuery = pgConnection.createCommand();
         scope (exit)
             explainQuery.dispose();
+
         explainQuery.commandText = vendorMode == 0
-            ? "EXPLAIN " ~ buildExecuteCommandText()
-            : "EXPLAIN (ANALYZE, BUFFERS) " ~ buildExecuteCommandText();
+            ? "EXPLAIN " ~ buildExecuteCommandText(BuildCommandTextState.executingPlan)
+            : "EXPLAIN (ANALYZE, BUFFERS) " ~ buildExecuteCommandText(BuildCommandTextState.executingPlan);
         auto explainReader = explainQuery.executeReader();
         scope (exit)
             explainReader.dispose();
@@ -548,7 +594,7 @@ public:
         {
             if (lines)
                 result.put('\n');
-            result.put(explainReader.getValue(0).get!string());
+            result.put(explainReader.getValue!string(0));
             lines++;
         }
         return result.data;
@@ -556,12 +602,14 @@ public:
 
     final override Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe
     {
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+
         return Variant.varNull();
     }
 
     final override ubyte[] readBlob(DbNameColumn blobColumn, DbValue blobValueId) @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         if (blobValueId.isNull)
             return null;
@@ -573,7 +621,7 @@ public:
     final override DbValue writeBlob(DbNameColumn blobColumn, scope const(ubyte)[] blobValue,
         DbValue optionalBlobValueId = DbValue.init) @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         auto blob = optionalBlobValueId.isNull
                     ? PgLargeBlob(pgConnection)
@@ -602,7 +650,7 @@ public:
 package(pham.db):
     final PgParameter[] pgInputParameters() nothrow @trusted //@trusted=cast()
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         return cast(PgParameter[])inputParameters();
     }
@@ -613,26 +661,27 @@ protected:
         return "$" ~ to!string(ordinal);
     }
 
-    override string buildStoredProcedureSql(string storedProcedureName) nothrow @safe
+    override string buildStoredProcedureSql(string storedProcedureName, const(BuildCommandTextState) state) @safe
     {
-        version (TraceFunction) dgFunctionTrace("storedProcedureName=", storedProcedureName);
-
-        scope (failure) assert(0);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("storedProcedureName=", storedProcedureName, ", state=", state);
 
         if (storedProcedureName.length == 0)
-            return storedProcedureName;
+            return null;
 
-        if (!hasParameters)
+        if (!hasParameters && parametersCheck)
         {
             auto info = pgConnection.getStoredProcedureInfo(storedProcedureName);
-            foreach (src; info.argumentTypes)
-                parameters.addClone(src);
+            if (info !is null)
+            {
+                foreach (src; info.argumentTypes)
+                    parameters.addClone(src);
+            }
         }
 
         auto params = inputParameters();
         auto result = Appender!string();
         result.reserve(500);
-        result.put("SELECT * FROM ");
+        result.put("CALL ");
         result.put(storedProcedureName);
         result.put('(');
         foreach (i, param; params)
@@ -642,31 +691,69 @@ protected:
 			result.put(buildParameterPlaceholder(param.name, i + 1));
         }
         result.put(')');
+
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("storedProcedureName=", storedProcedureName, ", result=", result.data);
+
         return result.data;
     }
 
-    final override void doExecuteCommand(DbCommandExecuteType type) @safe
+    final void deallocateHandle() @safe
     {
-        version (TraceFunction) dgFunctionTrace("type=", type);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+
+        // Must reset regardless if error taken place
+        // to avoid double errors when connection is shutting down
+        scope (exit)
+            _handle.reset();
+
+        try
+        {
+            auto protocol = pgConnection.protocol;
+            protocol.deallocateCommandWrite(this);
+            protocol.deallocateCommandRead();
+        }
+        catch (Exception e)
+        {
+            if (auto log = logger)
+                log.error(forLogInfo(), newline, e.msg, e);
+        }
+    }
+
+    final override void doExecuteCommand(const(DbCommandExecuteType) type) @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("type=", type);
+        version (profile) debug auto p = PerfFunction.create();
 
         if (!prepared)
             prepare();
 
-        auto logTimming = logger !is null
-            ? LogTimming(logger, text(forLogInfo(), newline, executeCommandText), false, dur!"seconds"(10))
-            : LogTimming.init;
+        prepareExecuting(type);
 
-        prepareExecute(type);
+        auto logTimming = logger !is null
+            ? LogTimming(logger, text(forLogInfo(), newline, _executeCommandText), false, logTimmingWarningDur)
+            : LogTimming.init;
 
         auto protocol = pgConnection.protocol;
         protocol.bindCommandParameterWrite(this);
         processBindResponse(protocol.bindCommandParameterRead(this));
-        doExecuteCommandFetch(type, false);
+        const fcs = doExecuteCommandFetch(type, false);
+
+        if (isStoredProcedure)
+        {
+            if (fcs == DbFetchResultStatus.ready && fetchedRows.empty)
+                doFetch(true);
+
+            if (fetchedRows && hasParameters)
+            {
+                auto row = fetchedRows.front;
+                mergeOutputParams(row);
+            }
+        }
     }
 
-    final DbFetchResultStatus doExecuteCommandFetch(DbCommandExecuteType type, bool fetchAgain) @safe
+    final DbFetchResultStatus doExecuteCommandFetch(const(DbCommandExecuteType) type, const(bool) fetchAgain) @safe
     {
-        version (TraceFunction) dgFunctionTrace("type=", type, ", fetchAgain=", fetchAgain);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("type=", type, ", fetchAgain=", fetchAgain);
 
         auto protocol = pgConnection.protocol;
         protocol.executeCommandWrite(this, type);
@@ -675,7 +762,7 @@ protected:
         if (!fetchAgain)
         {
             _recordsAffected = response.recordsAffected;
-            version (TraceFunction) dgFunctionTrace("_recordsAffected=", _recordsAffected);
+            version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_recordsAffected=", _recordsAffected);
         }
 
         const result = response.fetchStatus();
@@ -688,6 +775,7 @@ protected:
                 break;
 
             case DbFetchResultStatus.completed:
+                version (TraceFunction) traceFunction!("pham.db.pgdatabase")("allRowsFetched=true");
                 allRowsFetched = true;
                 break;
 
@@ -696,35 +784,21 @@ protected:
                 break;
         }
 
-        /*
-        if (isStoredProcedure)
-        {
-            auto response = protocol.readSqlResponse();
-            if (response.count > 0)
-            {
-                auto row = readRow();
-                fetchedOutputParams.enqueue(row);
-                if (hasParameters)
-                    mergeOutputParams(row);
-            }
-        }
-        */
-
         return result;
     }
 
-    final override void doFetch(bool isScalar) @safe
+    final override void doFetch(const(bool) isScalar) @safe
     in
     {
         assert(!allRowsFetched);
     }
     do
     {
-        version (TraceFunction) dgFunctionTrace("isScalar=", isScalar);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("isScalar=", isScalar);
         version (profile) debug auto p = PerfFunction.create();
 
         auto protocol = pgConnection.protocol;
-        auto continueFetchingCount = fetchRecordCount;
+        uint continueFetchingCount = isScalar ? 1 : fetchRecordCount;
         bool continueFetching = true;
         bool isSuspended = false;
         while (continueFetching && continueFetchingCount)
@@ -740,8 +814,10 @@ protected:
                     break;
 
                 case DbFetchResultStatus.completed:
+                    version (TraceFunction) traceFunction!("pham.db.pgdatabase")("allRowsFetched=true");
                     allRowsFetched = true;
                     continueFetching = false;
+
                     version (none) // Only valid if there is portal name
                     if (!isScalar && response.needFetchAgain(isSuspended))
                     {
@@ -761,6 +837,7 @@ protected:
                                 break;
                         }
                     }
+
                     isSuspended = false;
                     break;
 
@@ -774,65 +851,91 @@ protected:
 
     final override void doPrepare() @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (profile) debug auto p = PerfFunction.create();
 
-        auto sql = executeCommandText; // Make sure statement is constructed before doing other tasks
+        auto sql = executeCommandText(BuildCommandTextState.prepare); // Make sure statement is constructed before doing other tasks
 
         auto logTimming = logger !is null
-            ? LogTimming(logger, text(forLogInfo(), newline, sql), false, dur!"seconds"(1))
+            ? LogTimming(logger, text(forLogInfo(), newline, sql), false, logTimmingWarningDur)
             : LogTimming.init;
 
         auto protocol = pgConnection.protocol;
         protocol.prepareCommandWrite(this, sql);
         protocol.prepareCommandRead(this);
-        _handle = pgCommandPreparedHandle;
+        _handle.setDummy();
     }
 
     final override void doUnprepare() @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         if (_handle)
-        {
-            // Must reset regardless if error taken place
-            // to avoid double errors when connection is shutting down
-            scope (exit)
-                _handle.reset();
-
-            auto protocol = pgConnection.protocol;
-            protocol.unprepareCommandWrite(this);
-            protocol.unprepareCommandRead();
-        }
+            deallocateHandle();
     }
 
-    final override bool isSelectCommandType() const nothrow @safe
+    static void fillNamedColumn(DbNameColumn column, const ref PgOIdFieldInfo oidField, const(bool) isNew) nothrow @safe
     {
-        return hasFields;
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")(oidField.traceString());
+
+        column.baseName = oidField.name;
+        column.baseSize = oidField.size;
+        column.baseTableId = oidField.tableOid;
+        column.baseTypeId = oidField.type;
+        column.baseSubTypeId = oidField.modifier;
+        column.allowNull = oidField.allowNull;
+        column.ordinal = oidField.index;
+
+        if (isNew || column.type == DbType.unknown)
+        {
+            column.type = oidField.dbType();
+            column.size = oidField.dbTypeSize();
+        }
     }
 
     final void processBindResponse(scope PgOIdFieldInfo[] oidFieldInfos) @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         if (oidFieldInfos.length == 0)
             return;
 
+        const localIsStoredProcedure = isStoredProcedure;
+        auto localParameters = localIsStoredProcedure ? parameters : null;
         auto localFields = fields;
-        foreach (ref oidFieldInfo; oidFieldInfos)
+        foreach (i, ref oidField; oidFieldInfos)
         {
-            auto localField = localFields.createField(this, oidFieldInfo.name);
-            localField.fillNamedColumn(oidFieldInfo, true);
-            localFields.put(localField);
+            auto newField = localFields.createField(this, oidField.name);
+            fillNamedColumn(newField, oidField, true);
+            localFields.put(newField);
+
+            if (localIsStoredProcedure)
+            {
+                auto foundParameter = localParameters.hasOutputParameter(newField.name, i);
+                if (foundParameter is null)
+                {
+                    auto newParameter = localParameters.createParameter(newField.name);
+                    newParameter.direction = DbParameterDirection.output;
+                    fillNamedColumn(newParameter, oidField, true);
+                    localParameters.put(newParameter);
+                }
+                else
+                {
+                    if (foundParameter.name.length == 0 && newField.name.length != 0)
+                        foundParameter.updateEmptyName(newField.name);
+                    fillNamedColumn(foundParameter, oidField, false);
+                }
+            }
         }
     }
 
-    final DbRowValue readRow(ref PgReader reader, bool isScalar) @safe
+    final DbRowValue readRow(ref PgReader reader, const(bool) isScalar) @safe
     {
-        version (TraceFunction) dgFunctionTrace("isScalar=", isScalar);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("isScalar=", isScalar);
         version (profile) debug auto p = PerfFunction.create();
 
         auto protocol = pgConnection.protocol;
-        return protocol.readValues(this, reader, pgFields);
+        return protocol.readValues(reader, this, pgFields);
     }
 }
 
@@ -862,7 +965,13 @@ public:
         this._largeBlobManager._connection = this;
     }
 
-    /* Properties */
+    final override DbCancelCommandData createCancelCommandData(DbCommand command = null)
+    {
+        auto result = new PgCancelCommandData();
+        result.serverProcessId = to!int32(serverInfo[DbServerIdentifier.protocolProcessId]);
+        result.serverSecretKey = to!int32(serverInfo[DbServerIdentifier.protocolSecretKey]);
+        return result;
+    }
 
     @property final ref PgLargeBlobManager largeBlobManager() nothrow @safe
     {
@@ -882,23 +991,51 @@ public:
         return _protocol;
     }
 
-    @property final override DbIdentitier scheme() const nothrow pure @safe
+    @property final override DbScheme scheme() const nothrow pure @safe
     {
-        return DbIdentitier(DbScheme.pg);
+        return DbScheme.pg;
+    }
+
+    @property final override bool supportMultiReaders() const nothrow pure @safe
+    {
+        return false;
+    }
+
+package(pham.db):
+    final DbReadBuffer acquireMessageReadBuffer(size_t capacity = PgDefaultSize.messageReadBufferLength) nothrow @safe
+    {
+        if (_messageReadBuffers.empty)
+            return new DbReadBuffer(capacity);
+        else
+            return cast(DbReadBuffer)(_messageReadBuffers.remove(_messageReadBuffers.last));
+    }
+
+    final void releaseMessageReadBuffer(DbReadBuffer item) nothrow @safe
+    {
+        if (!disposingState)
+            _messageReadBuffers.insertEnd(item.reset());
     }
 
 protected:
     override void disposeCommands(bool disposing) nothrow @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         _largeBlobManager.dispose(disposing);
         super.disposeCommands(disposing);
     }
 
+    final void disposeMessageReadBuffers(bool disposing) nothrow @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+
+        while (!_messageReadBuffers.empty)
+            _messageReadBuffers.remove(_messageReadBuffers.last).disposal(disposing);
+    }
+
     final void disposeProtocol(bool disposing) nothrow @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         if (_protocol !is null)
         {
@@ -907,56 +1044,76 @@ protected:
         }
     }
 
-    final override void doCancelCommand() @safe
+    final override void doCancelCommand(DbCancelCommandData data) @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
-        auto serverProcessId = to!int32(serverInfo[DbIdentifier.serverProtocolProcessId]);
-        auto serverSecretKey = to!int32(serverInfo[DbIdentifier.serverProtocolSecretKey]);
-        _protocol.cancelRequestWrite(serverProcessId, serverSecretKey);
+        auto pgData = cast(PgCancelCommandData)data;
+        _protocol.cancelRequestWrite(pgData.serverProcessId, pgData.serverSecretKey);
     }
 
-    final override void doClose() @safe
+    final override void doClose(bool failedOpen) @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("failedOpen=", failedOpen, ", socketActive=", socketActive);
 
-        _largeBlobManager.dispose(false);
-        if (_protocol !is null && state == DbConnectionState.open && socketActive)
-            _protocol.disconnectWrite();
-        disposeProtocol(false);
-        super.doClose();
+        scope (exit)
+            disposeProtocol(false);
+
+        try
+        {
+            _largeBlobManager.dispose(false);
+            if (!failedOpen && _protocol !is null && socketActive)
+                _protocol.disconnectWrite();
+        }
+        catch (Exception e)
+        {
+            if (logger !is null)
+                logger.error(e.msg, e);
+        }
+
+        super.doClose(failedOpen);
+    }
+
+    override void doDispose(bool disposing) nothrow @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+
+        super.doDispose(disposing);
+        disposeMessageReadBuffers(disposing);
+        disposeProtocol(disposing);
     }
 
     final override void doOpen() @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+
+        PgConnectingStateInfo stateInfo;
 
         doOpenSocket();
-        doOpenAuthentication();
+        doOpenAuthentication(stateInfo);
+        _handle.setDummy();
     }
 
-    final void doOpenAuthentication() @safe
+    final void doOpenAuthentication(ref PgConnectingStateInfo stateInfo) @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         _protocol = new PgProtocol(this);
-        _protocol.connectAuthenticationWrite();
-        _protocol.connectAuthenticationRead();
+        _protocol.connectAuthenticationWrite(stateInfo);
+        _protocol.connectAuthenticationRead(stateInfo);
     }
 
     final override string getServerVersion() @safe
     {
-        version (TraceFunction) dgFunctionTrace();
-
-        auto command = createCommand();
-        scope (exit)
-        {
-            command.dispose();
-            command = null;
-        }
         // Ex: SELECT version()="PostgreSQL 12.4, compiled by Visual C++ build 1914, 64-bit"
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+
+        auto command = createNonTransactionCommand();
+        scope (exit)
+            command.dispose();
+
         // Ex: 12.4
-        command.commandText = "SHOW server_version as VARCHAR(60)";
+        command.commandText = "SHOW server_version as VARCHAR(120)";
         auto v = command.executeScalar();
         return v.isNull() ? null : v.get!string();
     }
@@ -964,20 +1121,20 @@ protected:
     final PgStoredProcedureInfo getStoredProcedureInfo(string storedProcedureName) @safe
     in
     {
-        assert(storedProcedureName.length > 0);
+        assert(storedProcedureName.length != 0);
     }
     do
     {
         //TODO cache this result
-        version (TraceFunction) dgFunctionTrace("storedProcedureName=", storedProcedureName);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("storedProcedureName=", storedProcedureName);
 
-        auto command = createCommand(null);
+        auto command = createNonTransactionCommand();
         scope (exit)
             command.dispose();
 
         PgStoredProcedureInfo result;
 
-        command.transactionRequired = false;
+        command.parametersCheck = true;
         command.commandText = q"{
 SELECT pronargs, prorettype, proargtypes, proargmodes, proargnames
 FROM pg_proc
@@ -1006,18 +1163,10 @@ WHERE proname = @proname
                     break;
                 }
 
-                auto paramType = typeArgs[i];
-                auto paramName = i < nameArgs.length ? nameArgs[i] : null;
-                auto mode = i < modeArgs.length ? modeArgs[i] : "i";
-                auto paramDirection = DbParameterDirection.input;
-                if (mode == "i")
-                    paramDirection = DbParameterDirection.input;
-                else if (mode == "o" || mode == "t")
-                    paramDirection = DbParameterDirection.output;
-                else if (mode == "b")
-                    paramDirection = DbParameterDirection.inputOutput;
-                else
-                {} //todo throw error
+                const paramType = typeArgs[i];
+                const paramName = i < nameArgs.length ? nameArgs[i] : null;
+                const mode = i < modeArgs.length ? modeArgs[i] : null;
+                const paramDirection = pgParameterModeToDirection(mode);
 
                 info.type = paramType;
                 result.argumentTypes.add(
@@ -1039,6 +1188,9 @@ WHERE proname = @proname
 protected:
     PgLargeBlobManager _largeBlobManager;
     PgProtocol _protocol;
+
+private:
+    DLinkDbBufferTypes.DLinkList _messageReadBuffers;
 }
 
 class PgConnectionStringBuilder : SkConnectionStringBuilder
@@ -1049,14 +1201,28 @@ public:
         super(connectionString);
     }
 
+    final string integratedSecurityName() const nothrow @safe
+    {
+        final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
+        {
+            case srp:
+            case srp256:
+                return pgAuthScram256Name;
+            case sspi:
+                return "Not supported SSPI";
+            case legacy:
+                return pgAuthMD5Name;
+        }
+    }
+
     final override const(string[]) parameterNames() const nothrow @safe
     {
         return pgValidParameterNames;
     }
 
-    @property final override DbIdentitier scheme() const nothrow pure @safe
+    @property final override DbScheme scheme() const nothrow pure @safe
     {
-        return DbIdentitier(DbScheme.pg);
+        return DbScheme.pg;
     }
 
 protected:
@@ -1074,8 +1240,8 @@ protected:
     final override void setDefaultIfs() nothrow @safe
     {
         super.setDefaultIfs();
-        putIf(DbParameterName.port, getDefault(DbParameterName.port));
-        putIf(DbParameterName.userName, getDefault(DbParameterName.userName));
+        putIf(DbConnectionParameterIdentifier.port, getDefault(DbConnectionParameterIdentifier.port));
+        putIf(DbConnectionParameterIdentifier.userName, getDefault(DbConnectionParameterIdentifier.userName));
     }
 }
 
@@ -1084,15 +1250,22 @@ class PgDatabase : DbDatabase
 nothrow @safe:
 
 public:
-    this()
+    this() pure
     {
         this._name = DbIdentitier(DbScheme.pg);
+        this._identifierQuoteChar = '"';
+        this._stringQuoteChar = '\'';
+
+        charClasses['"'] = CharClass.quote;
+        charClasses['\''] = CharClass.quote;
+
+        charClasses['\\'] = CharClass.backslash;
     }
 
     override DbCommand createCommand(DbConnection connection, string name = null)
     in
     {
-        assert ((cast(PgConnection)connection) !is null);
+        assert((cast(PgConnection)connection) !is null);
     }
     do
     {
@@ -1102,8 +1275,8 @@ public:
     override DbCommand createCommand(DbConnection connection, DbTransaction transaction, string name = null)
     in
     {
-        assert ((cast(PgConnection)connection) !is null);
-        assert ((cast(PgTransaction)transaction) !is null);
+        assert((cast(PgConnection)connection) !is null);
+        assert((cast(PgTransaction)transaction) !is null);
     }
     do
     {
@@ -1138,7 +1311,7 @@ public:
     override DbField createField(DbCommand command, DbIdentitier name)
     in
     {
-        assert ((cast(PgCommand)command) !is null);
+        assert((cast(PgCommand)command) !is null);
     }
     do
     {
@@ -1148,7 +1321,7 @@ public:
     override DbFieldList createFieldList(DbCommand command)
     in
     {
-        assert (cast(PgCommand)command !is null);
+        assert(cast(PgCommand)command !is null);
     }
     do
     {
@@ -1168,18 +1341,23 @@ public:
     override DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel, bool defaultTransaction)
     in
     {
-        assert ((cast(PgConnection)connection) !is null);
+        assert((cast(PgConnection)connection) !is null);
     }
     do
     {
         return new PgTransaction(cast(PgConnection)connection, isolationLevel);
+    }
+
+    @property final override DbScheme scheme() const pure
+    {
+        return DbScheme.pg;
     }
 }
 
 class PgField : DbField
 {
 public:
-    this(PgCommand command, DbIdentitier name) nothrow @safe
+    this(PgCommand command, DbIdentitier name) nothrow pure @safe
     {
         super(command, name);
     }
@@ -1191,11 +1369,9 @@ public:
             : new PgField(cast(PgCommand)command, name);
     }
 
-    final override DbFieldIdType isIdType() const nothrow pure @safe
+    final override DbFieldIdType isValueIdType() const nothrow pure @safe
     {
-        version (profile) debug auto p = PerfFunction.create();
-
-        return PgOIdFieldInfo.isIdType(baseTypeId, baseSubTypeId);
+        return PgOIdFieldInfo.isValueIdType(baseTypeId, baseSubTypeId);
     }
 
     @property final PgCommand pgCommand() nothrow pure @safe
@@ -1207,7 +1383,7 @@ public:
 class PgFieldList: DbFieldList
 {
 public:
-    this(PgCommand command) nothrow @safe
+    this(PgCommand command) nothrow pure @safe
     {
         super(command);
     }
@@ -1235,14 +1411,14 @@ public:
 class PgParameter : DbParameter
 {
 public:
-    this(PgDatabase database, DbIdentitier name) nothrow @safe
+    this(PgDatabase database, DbIdentitier name) nothrow pure @safe
     {
         super(database, name);
     }
 
-    final override DbFieldIdType isIdType() const nothrow pure @safe
+    final override DbFieldIdType isValueIdType() const nothrow pure @safe
     {
-        return PgOIdFieldInfo.isIdType(baseTypeId, baseSubTypeId);
+        return PgOIdFieldInfo.isValueIdType(baseTypeId, baseSubTypeId);
     }
 
 protected:
@@ -1264,7 +1440,7 @@ protected:
 class PgParameterList : DbParameterList
 {
 public:
-    this(PgDatabase database) nothrow @safe
+    this(PgDatabase database) nothrow pure @safe
     {
         super(database);
     }
@@ -1273,30 +1449,30 @@ public:
 class PgStoredProcedureInfo
 {
 public:
-    this(PgDatabase database, string name) nothrow @safe
+    this(PgDatabase database, string name) nothrow pure @safe
     {
         this._name = name;
         this._argumentTypes = new PgParameterList(database);
-        this._returnType = new PgParameter(database, DbIdentitier("return"));
+        this._returnType = new PgParameter(database, DbIdentitier(returnParameterName));
         this._returnType.direction = DbParameterDirection.returnValue;
     }
 
-    @property final PgParameterList argumentTypes() nothrow @safe
+    @property final PgParameterList argumentTypes() nothrow pure @safe
     {
         return _argumentTypes;
     }
 
-    @property final bool hasReturnType() nothrow @safe
+    @property final bool hasReturnType() const nothrow pure @safe
     {
         return _returnType.type != DbType.unknown;
     }
 
-    @property final string name() nothrow @safe
+    @property final string name() const nothrow pure @safe
     {
         return _name;
     }
 
-    @property final PgParameter returnType() nothrow @safe
+    @property final PgParameter returnType() nothrow pure @safe
     {
         return _returnType;
     }
@@ -1313,7 +1489,6 @@ public:
     this(PgConnection connection, DbIsolationLevel isolationLevel) nothrow @safe
     {
         super(connection, isolationLevel);
-        this._transactionMode = buildTransactionMode();
     }
 
     @property final PgConnection pgConnection() nothrow pure @safe
@@ -1324,90 +1499,84 @@ public:
     /**
      * Allows application to customize the transaction request
      */
-    @property final string transactionMode() nothrow @safe
+    @property final string transactionCommandText() nothrow pure @safe
     {
-        return _transactionMode;
+        return _transactionCommandText;
     }
 
-    @property final typeof(this) transactionMode(string value) nothrow @safe
+    @property final typeof(this) transactionCommandText(string value) nothrow pure @safe
     in
     {
         assert(state == DbTransactionState.inactive);
     }
     do
     {
-        _transactionMode = value;
+        this._transactionCommandText = value;
         return this;
     }
 
 protected:
-    final string buildTransactionMode() nothrow @safe
+    final string buildTransactionCommandText() nothrow @safe
     {
-        string isolationLevelMode() nothrow @safe
-        {
-            final switch (isolationLevel)
-            {
-                case DbIsolationLevel.readCommitted:
-                    return "READ COMMITTED";
-                case DbIsolationLevel.serializable:
-                    return "SERIALIZABLE";
-                case DbIsolationLevel.readUncommitted:
-                    return "READ UNCOMMITTED";
-                case DbIsolationLevel.repeatableRead:
-                    return "REPEATABLE READ";
-                case DbIsolationLevel.snapshot:
-                    return "SERIALIZABLE";
-            }
-        }
-
         string writeOrReadMode() nothrow @safe
         {
             return readOnly ? "READ ONLY" : "READ WRITE";
         }
 
-        return "ISOLATION LEVEL " ~ isolationLevelMode() ~ " " ~ writeOrReadMode();
+        final switch (isolationLevel) with (DbIsolationLevel)
+        {
+            case readUncommitted:
+                return "START TRANSACTION ISOLATION LEVEL READ UNCOMMITTED " ~ writeOrReadMode();
+            case readCommitted:
+                return "START TRANSACTION ISOLATION LEVEL READ COMMITTED " ~ writeOrReadMode();
+            case repeatableRead:
+                return "START TRANSACTION ISOLATION LEVEL REPEATABLE READ " ~ writeOrReadMode();
+            case serializable:
+                return "START TRANSACTION ISOLATION LEVEL SERIALIZABLE " ~ writeOrReadMode();
+            case snapshot:
+                return "START TRANSACTION ISOLATION LEVEL SERIALIZABLE " ~ writeOrReadMode();
+        }
     }
 
     final override void doCommit(bool disposing) @safe
     {
-        version (TraceFunction) dgFunctionTrace("disposing=", disposing);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("disposing=", disposing);
 
         transactionCommand("COMMIT");
     }
 
     final override void doRollback(bool disposing) @safe
     {
-        version (TraceFunction) dgFunctionTrace("disposing=", disposing);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("disposing=", disposing);
 
         transactionCommand("ROLLBACK");
     }
 
     final override void doStart() @safe
     {
-        version (TraceFunction) dgFunctionTrace();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
-        auto mode = transactionMode;
-        if (mode.length)
-            transactionCommand("START TRANSACTION " ~ mode);
-        else
-            transactionCommand("START TRANSACTION");
+        auto tmText = _transactionCommandText;
+        if (tmText.length == 0)
+            tmText = buildTransactionCommandText();
+
+        transactionCommand(tmText);
     }
 
-    final void transactionCommand(string transactionCommandText) @safe
+    final void transactionCommand(string tmText) @safe
     {
-        auto command = pgConnection.createCommand(null);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("tmText=", tmText);
+
+        auto command = pgConnection.createNonTransactionCommand();
         scope (exit)
             command.dispose();
 
-        command.parametersCheck = false;
-        command.returnRecordsAffected = false;
-        command.transactionRequired = false;
-        command.commandText = transactionCommandText;
+        command.commandText = tmText;
         command.executeNonQuery();
     }
 
 private:
-    string _transactionMode;
+    string _transactionCommandText;
 }
 
 
@@ -1416,37 +1585,10 @@ private:
 
 shared static this()
 {
+    version (TraceFunctionPGDatabase) ModuleLoggerOptions.setModule(ModuleLoggerOption(LogLevel.trace, "pham.db.pgdatabase"));
+
     auto db = new PgDatabase();
     DbDatabaseList.registerDb(db);
-}
-
-void fillNamedColumn(DbNameColumn column, const ref PgOIdFieldInfo oidField, bool isNew) nothrow @safe
-{
-    version (TraceFunction)
-    dgFunctionTrace("name=", oidField.name,
-        ", modifier=", oidField.modifier,
-        ", tableOid=", oidField.tableOid,
-        ", type=", oidField.type,
-        ", numericPrecision=", oidField.numericPrecision,
-        ", numericScale=", oidField.numericScale,
-        ", formatCode=", oidField.formatCode,
-        ", index=", oidField.index,
-        ", size=", oidField.size,
-        ", dbType=", oidField.dbType);
-
-    column.baseName = oidField.name;
-    column.baseSize = oidField.size;
-    column.baseTableId = oidField.tableOid;
-    column.baseTypeId = oidField.type;
-    column.baseSubTypeId = oidField.modifier;
-    column.allowNull = oidField.allowNull;
-    column.ordinal = oidField.index;
-
-    if (isNew || column.type == DbType.unknown)
-    {
-        column.type = oidField.dbType();
-        column.size = oidField.dbTypeSize();
-    }
 }
 
 version (UnitTestPGDatabase)
@@ -1489,8 +1631,8 @@ CREATE TABLE public.test_select (
   blob_field BYTEA,
   text_field TEXT,
   integer_array INTEGER[],
-  bigint_field BIGINT
-)}";
+  bigint_field BIGINT)
+}";
     }
 
     string testTableData() nothrow pure @safe
@@ -1534,7 +1676,7 @@ version (UnitTestPGDatabase)
 unittest // PgConnection
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgConnection");
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgConnection");
 
     auto connection = createTestConnection();
     scope (exit)
@@ -1555,7 +1697,7 @@ version (UnitTestPGDatabase)
 unittest // PgTransaction
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgTransaction");
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgTransaction");
 
     auto connection = createTestConnection();
     scope (exit)
@@ -1597,14 +1739,14 @@ version (UnitTestPGDatabase)
 unittest // PgCommand.DDL
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DDL");
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgCommand.DDL");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            traceUnitTest("failed - exiting and closing connection");
+            traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -1633,14 +1775,14 @@ unittest // PgCommand.DML
 {
     import std.math;
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - Simple select");
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgCommand.DML - Simple select");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            traceUnitTest("failed - exiting and closing connection");
+            traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -1665,7 +1807,7 @@ unittest // PgCommand.DML
     while (reader.read())
     {
         count++;
-        traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
+        traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -1686,7 +1828,7 @@ unittest // PgCommand.DML
         assert(reader.getValue("DECIMAL_FIELD").get!Decimal64() == Decimal64.money(6.5, 2));
 
         assert(reader.getValue(6) == Date(2020, 5, 20));
-        assert(reader.getValue("DATE_FIELD") == Date(2020, 5, 20));
+        assert(reader.getValue("DATE_FIELD") == DbDate(2020, 5, 20));
 
         assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
         assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1, 0));
@@ -1719,14 +1861,14 @@ unittest // PgCommand.DML
 {
     import std.math;
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - Parameter select");
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgCommand.DML - Parameter select");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            traceUnitTest("failed - exiting and closing connection");
+            traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -1745,9 +1887,9 @@ unittest // PgCommand.DML
     command.parameters.add("INT_FIELD", DbType.int32).value = 1;
     command.parameters.add("DOUBLE_FIELD", DbType.float64).value = 4.20;
     command.parameters.add("DECIMAL_FIELD", DbType.numeric).value = Numeric(6.5);
-    command.parameters.add("DATE_FIELD", DbType.date).value = Date(2020, 5, 20);
+    command.parameters.add("DATE_FIELD", DbType.date).value = DbDate(2020, 5, 20);
     command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1, 0);
-    command.parameters.add("CHAR_FIELD", DbType.chars).value = "ABC       ";
+    command.parameters.add("CHAR_FIELD", DbType.fixedString).value = "ABC       ";
     command.parameters.add("VARCHAR_FIELD", DbType.string).value = "XYZ";
     auto reader = command.executeReader();
     scope (exit)
@@ -1758,7 +1900,7 @@ unittest // PgCommand.DML
     while (reader.read())
     {
         count++;
-        traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
+        traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -1778,8 +1920,8 @@ unittest // PgCommand.DML
         assert(reader.getValue(5).get!Decimal64() == Decimal64.money(6.5, 2));
         assert(reader.getValue("DECIMAL_FIELD").get!Decimal64() == Decimal64.money(6.5, 2));
 
-        assert(reader.getValue(6) == Date(2020, 5, 20));
-        assert(reader.getValue("DATE_FIELD") == Date(2020, 5, 20));
+        assert(reader.getValue(6) == DbDate(2020, 5, 20));
+        assert(reader.getValue("DATE_FIELD") == DbDate(2020, 5, 20));
 
         assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
         assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1, 0));
@@ -1811,14 +1953,14 @@ version (UnitTestPGDatabase)
 unittest // PgCommand.DML.pg_proc
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - pg_proc");
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgCommand.DML - pg_proc");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            traceUnitTest("failed - exiting and closing connection");
+            traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -1848,14 +1990,17 @@ ORDER BY pg_proc.proname
     while (reader.read())
     {
         count++;
-        traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
+        traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
 
-        traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.proname=", reader.getValue("proname"),
-            ", pronargs=", reader.getValue("pronargs"),
-            ", proargnames=", reader.getValue("proargnames"),
-            ", proargtypes=", reader.getValue("proargtypes"),
-            ", proargmodes=", reader.getValue("proargmodes"),
-            ", prorettype=", reader.getValue("prorettype"));
+        auto proname = reader.getValue("proname").toString();
+        auto pronargs = reader.getValue("pronargs").toString();
+        auto proargnames = reader.getValue("proargnames").toString();
+        auto proargtypes = reader.getValue("proargtypes").toString();
+        auto proargmodes = reader.getValue("proargmodes").toString();
+        auto prorettype = reader.getValue("prorettype").toString();
+        traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgCommand.DML.proname=", proname,
+            ", pronargs=", pronargs, ", proargnames=", proargnames, ", proargtypes=", proargtypes,
+            ", proargmodes=", proargmodes, ", prorettype=", prorettype);
     }
 
     failed = false;
@@ -1865,14 +2010,14 @@ version (UnitTestPGDatabase)
 unittest // PgLargeBlob
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgLargeBlob");
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgLargeBlob");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            traceUnitTest("failed - exiting and closing connection");
+            traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -1924,7 +2069,7 @@ version (UnitTestPGDatabase)
 unittest // PgCommand.DML
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - Array");
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgCommand.DML - Array");
 
     static int[] arrayValue() nothrow pure @safe
     {
@@ -1936,7 +2081,7 @@ unittest // PgCommand.DML
     scope (exit)
     {
         if (failed)
-            traceUnitTest("failed - exiting and closing connection");
+            traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -1976,7 +2121,7 @@ unittest // PgCommand.DML
         while (reader.read())
         {
             count++;
-            traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
+            traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
 
             assert(reader.getValue(0) == arrayValue());
             assert(reader.getValue("INTEGER_ARRAY") == arrayValue());
@@ -1997,7 +2142,7 @@ unittest // PgCommand.getExecutionPlan
     import std.array : split;
     import std.string : indexOf;
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.getExecutionPlan");
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgCommand.getExecutionPlan");
 
     static const(char)[] removePText(const(char)[] s)
     {
@@ -2024,7 +2169,7 @@ unittest // PgCommand.getExecutionPlan
     scope (exit)
     {
         if (failed)
-            traceUnitTest("failed - exiting and closing connection");
+            traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -2045,7 +2190,7 @@ unittest // PgCommand.getExecutionPlan
 q"{Seq Scan on test_select  (cost=0.00..13.50 rows=1 width=260)
   Filter: (int_field = 1)}";
     auto planDefault = command.getExecutionPlan();
-    //traceUnitTest("'", removePText(planDefault), "' vs ", "'", removePText(expectedDefault), "'");
+    //traceUnitTest!("pham.db.pgdatabase")("'", removePText(planDefault), "' vs ", "'", removePText(expectedDefault), "'");
     assert(removePText(planDefault) == removePText(expectedDefault));
 
     auto expectedDetail =
@@ -2055,8 +2200,8 @@ q"{Seq Scan on test_select  (cost=0.00..13.50 rows=1 width=260) (actual time=0.0
 Planning Time: 0.062 ms
 Execution Time: 0.053 ms}";
     auto planDetail = command.getExecutionPlan(1);
-    //traceUnitTest("'", planDetail, "'");
-    //traceUnitTest("'", expectedDetail, "'");
+    //traceUnitTest!("pham.db.pgdatabase")("'", planDetail, "'");
+    //traceUnitTest!("pham.db.pgdatabase")("'", expectedDetail, "'");
     // Can't check for exact because time change for each run
     auto lines = planDetail.split("\n");
     assert(lines.length == 5);
@@ -2068,17 +2213,17 @@ Execution Time: 0.053 ms}";
 }
 
 version (UnitTestPGDatabase)
-unittest // PgCommand.DML.Function
+unittest // PgCommand.DML.StoredProcedure
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.Function");
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgCommand.DML.StoredProcedure");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            traceUnitTest("failed - exiting and closing connection");
+            traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
         connection.close();
         connection.dispose();
@@ -2087,27 +2232,11 @@ unittest // PgCommand.DML.Function
     connection.open();
 
     {
-        auto command = connection.createCommand();
-        scope (exit)
-        {
-            command.dispose();
-            command = null;
-        }
-
-        command.commandText = "select * from multiple_by2(2)";
-        auto reader = command.executeReader();
-        scope (exit)
-            reader.dispose();
-
-        int count;
-        assert(reader.hasRows());
-        while (reader.read())
-        {
-            count++;
-
-            assert(reader.getValue(0) == 4);
-        }
-        assert(count == 1);
+        traceUnitTest!("pham.db.pgdatabase")("Get information");
+        auto info = connection.getStoredProcedureInfo("multiple_by2");
+        assert(info !is null);
+        assert(info.argumentTypes.length == 1);
+        assert(info.argumentTypes[0].name == "X");
     }
 
     {
@@ -2118,20 +2247,10 @@ unittest // PgCommand.DML.Function
             command = null;
         }
 
-        command.commandText = "select multiple_by2(2)";
-        auto reader = command.executeReader();
-        scope (exit)
-            reader.dispose();
-
-        int count;
-        assert(reader.hasRows());
-        while (reader.read())
-        {
-            count++;
-
-            assert(reader.getValue(0) == 4);
-        }
-        assert(count == 1);
+        command.commandStoredProcedure = "multiple_by2";
+        command.parameters.add("X", DbType.int32, DbParameterDirection.inputOutput).value = 2;
+        command.executeNonQuery();
+        assert(command.parameters.get("X").variant == 4);
     }
 
     failed = false;
@@ -2237,7 +2356,7 @@ version (UnitTestPerfPGDatabase)
         {
             version (unittest)
             if (failed)
-                traceUnitTest("failed - exiting and closing connection");
+                traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
             connection.close();
             connection.dispose();
@@ -2252,12 +2371,12 @@ version (UnitTestPerfPGDatabase)
             command = null;
         }
 
-        command.commandText = "select * from foo";
+        enum maxRecordCount = 100_000;
+        command.commandText = "select * from foo limit 100000";
         auto reader = command.executeReader();
         scope (exit)
             reader.dispose();
 
-        enum maxRecordCount = 100_000;
         version (UnitTestPGCollectData) auto datas = new Data[](maxRecordCount);
         else Data data;
         assert(reader.hasRows());
@@ -2280,7 +2399,7 @@ unittest // PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
 {
     import std.format : format;
     import pham.utl.test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
 
     const perfResult = unitTestPerfPGDatabase();
     dgWriteln("PG-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));

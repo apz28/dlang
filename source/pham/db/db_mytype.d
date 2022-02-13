@@ -12,110 +12,506 @@
 module pham.db.mytype;
 
 version (TraceFunction) import pham.utl.test;
+import pham.utl.bit_array : Map32Bit;
+import pham.utl.enum_set : toName;
+import pham.utl.utf8 : ShortStringBuffer;
 import pham.db.message;
 import pham.db.type;
 import pham.db.myoid;
 
 nothrow @safe:
 
-version (none) immutable string[string] pgDefaultParameterValues;
+alias MyCommandId = int32;
 
-version (none)
-immutable string[] pgValidParameterNames = [
+immutable string myAuthDefault = myAuthNativeName;
+immutable string myAuthNativeName = "mysql_native_password";
+immutable string myAuthScramSha1Name = "SCRAM-SHA-1";
+immutable string myAuthScramSha256Name = "SCRAM-SHA-256";
+
+immutable string[string] myDefaultParameterValues;
+
+immutable string[] myValidParameterNames = [
     // Primary
-    DbParameterName.server,
-    DbParameterName.port,
-    DbParameterName.database,
-    DbParameterName.userName,
-    DbParameterName.userPassword,
-    //DbParameterName.encrypt,
-    //DbParameterName.compress,
-    DbParameterName.charset,
+    DbConnectionParameterIdentifier.server,
+    DbConnectionParameterIdentifier.port,
+    DbConnectionParameterIdentifier.database,
+    DbConnectionParameterIdentifier.userName,
+    DbConnectionParameterIdentifier.userPassword,
+    DbConnectionParameterIdentifier.allowBatch,
+    DbConnectionParameterIdentifier.charset,
+    DbConnectionParameterIdentifier.compress,
+    DbConnectionParameterIdentifier.encrypt,
 
     // Other
-    DbParameterName.connectionTimeout,
-    DbParameterName.pooling,
-    DbParameterName.receiveTimeout,
-    DbParameterName.sendTimeout,
-    DbParameterName.socketBlocking,
+    DbConnectionParameterIdentifier.commandTimeout,
+    DbConnectionParameterIdentifier.connectionTimeout,
+    DbConnectionParameterIdentifier.pooling,
+    DbConnectionParameterIdentifier.receiveTimeout,
+    DbConnectionParameterIdentifier.sendTimeout,
+    DbConnectionParameterIdentifier.socketBlocking,
 
-    DbParameterName.pgOptions,
-    /*
-    DbParameterName.pgPassFile,
-    DbParameterName.pgFallbackApplicationName,
-    DbParameterName.pgKeepAlives,
-    DbParameterName.pgKeepalivesIdle,
-    DbParameterName.pgKeepalivesInterval,
-    DbParameterName.pgKeepalivesCount,
-    DbParameterName.pgTty,
-    DbParameterName.pgReplication,
-    DbParameterName.pgGSSEncMode,
-    DbParameterName.pgSSLCert,
-    DbParameterName.pgSSLKey,
-    DbParameterName.pgSSLRootCert,
-    DbParameterName.pgSSLCrl,
-    DbParameterName.pgRequirePeer,
-    DbParameterName.pgKRBSrvName,
-    DbParameterName.pgGSSLibib,
-    DbParameterName.pgService,
-    DbParameterName.pgTargetSessionAttrs
-    */
-];
+    // MySQL
+    DbConnectionParameterIdentifier.myAllowUserVariables,
+    ];
 
-version (none)
-immutable DbTypeInfo[] pgNativeTypes = [
-    {dbName:"BOOLEAN", nativeName:"bool", displaySize:5, nativeSize:1, nativeId:PgOIdType.bool_, dbType:DbType.boolean},
-    {dbName:"BLOB", nativeName:"bytea", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.bytea, dbType:DbType.binary},
-    {dbName:"CHAR[?]", nativeName:"bpchar", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.bpchar, dbType:DbType.chars}, // Prefer multi chars[] over 1 char type
-    {dbName:"CHAR[1]", nativeName:"char", displaySize:1, nativeSize:1, nativeId:PgOIdType.char_, dbType:DbType.chars}, // Native 1 char
-    {dbName:"VARCHAR[?]", nativeName:"varchar", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.varchar, dbType:DbType.string}, // Prefer vary chars[] over name
-    {dbName:"VARCHAR[64]", nativeName:"name", displaySize:64, nativeSize:64, nativeId:PgOIdType.name, dbType:DbType.string},
-    {dbName:"BIGINT", nativeName:"bigint", displaySize:20, nativeSize:8, nativeId:PgOIdType.int8, dbType:DbType.int64},
-    {dbName:"SMALLINT", nativeName:"smallint", displaySize:6, nativeSize:2, nativeId:PgOIdType.int2, dbType:DbType.int16},
-    {dbName:"INTEGER", nativeName:"integer", displaySize:11, nativeSize:4, nativeId:PgOIdType.int4, dbType:DbType.int32},
-    {dbName:"TEXT", nativeName:"text", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.text, dbType:DbType.text},
-    {dbName:"INTEGER", nativeName:"oid", displaySize:11, nativeSize:4, nativeId:PgOIdType.oid, dbType:DbType.int32},
-    {dbName:"XML", nativeName:"xml", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.xml, dbType:DbType.xml},
-    {dbName:"FLOAT", nativeName:"real", displaySize:17, nativeSize:4, nativeId:PgOIdType.float4, dbType:DbType.float32},
-    {dbName:"DOUBLE", nativeName:"double precision", displaySize:17, nativeSize:8, nativeId:PgOIdType.float8, dbType:DbType.float64},
-    {dbName:"DECIMAL(?)", nativeName:"numeric", displaySize:34, nativeSize:Decimal.sizeof, nativeId:PgOIdType.numeric, dbType:DbType.decimal}, // Prefer numeric over money for generic setting
-    {dbName:"MONEY", nativeName:"money", displaySize:34, nativeSize:Decimal64.sizeof, nativeId:PgOIdType.money, dbType:DbType.decimal64},
-    {dbName:"DATE", nativeName:"date", displaySize:10, nativeSize:4, nativeId:PgOIdType.date, dbType:DbType.date},
-    {dbName:"TIME", nativeName:"time", displaySize:11, nativeSize:8, nativeId:PgOIdType.time, dbType:DbType.time},
-    {dbName:"TIMESTAMP", nativeName:"timestamp", displaySize:22, nativeSize:8, nativeId:PgOIdType.timestamp, dbType:DbType.datetime},
-    {dbName:"TIMESTAMPTZ", nativeName:"timestamp with time zone", displaySize:28, nativeSize:12, nativeId:PgOIdType.timestamptz, dbType:DbType.datetimeTZ},
-    {dbName:"TIMETZ", nativeName:"time with time zone", displaySize:17, nativeSize:12, nativeId:PgOIdType.timetz, dbType:DbType.timeTZ},
-    {dbName:"UUID", nativeName:"uuid", displaySize:32, nativeSize:16, nativeId:PgOIdType.uuid, dbType:DbType.uuid},
-    {dbName:"JSON", nativeName:"json", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.json, dbType:DbType.json},
-    {dbName:"", nativeName:"void", displaySize:4, nativeSize:0, nativeId:PgOIdType.void_, dbType:DbType.unknown},
-    {dbName:"ARRAY[SMALLINT,?]", nativeName:"array_int2", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_int2, dbType:DbType.int16 | DbType.array}, // Prefer native array over vector
-    {dbName:"ARRAY[SMALLINT,?]", nativeName:"int2vector", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.int2vector, dbType:DbType.int16 | DbType.array},
-    {dbName:"ARRAY[INTEGER,?]", nativeName:"array_int4", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_int4, dbType:DbType.int32 | DbType.array}, // Prefer native array over vector
-    {dbName:"ARRAY[INTEGER,?]", nativeName:"array_oid", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_oid, dbType:DbType.int32 | DbType.array},
-    {dbName:"ARRAY[INTEGER,?]", nativeName:"oidvector", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.oidvector, dbType:DbType.int32 | DbType.array},
-    {dbName:"ARRAY[XML,?]", nativeName:"array_xml", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_xml, dbType:DbType.string | DbType.array},
-    {dbName:"ARRAY[JSON,?]", nativeName:"array_json", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_json, dbType:DbType.string | DbType.array},
-    {dbName:"ARRAY[DECIMAL(?),?]", nativeName:"array_numeric", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_numeric, dbType:DbType.decimal | DbType.array}, // Prefer numerice over money for generic setting
-    {dbName:"ARRAY[MONEY,?]", nativeName:"array_money", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_money, dbType:DbType.decimal | DbType.array},
-    {dbName:"ARRAY[BOOLEAN,?]", nativeName:"array_bool", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_bool, dbType:DbType.boolean | DbType.array},
-    {dbName:"ARRAY[BLOB,?]", nativeName:"array_bytea", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_bytea, dbType:DbType.binary | DbType.array},
-    {dbName:"ARRAY[CHAR[?],?]", nativeName:"array_bpchar", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_bpchar, dbType:DbType.chars | DbType.array}, // Prefer multi chars[] over 1 char type
-    {dbName:"ARRAY[CHAR[1],?]", nativeName:"array_char", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_char, dbType:DbType.chars | DbType.array},
-    {dbName:"ARRAY[VARCHAR[?],?]", nativeName:"array_varchar", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_varchar, dbType:DbType.string | DbType.array}, // Prefer vary chars[] over name
-    {dbName:"ARRAY[VARCHAR[64],?]", nativeName:"array_name", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_name, dbType:DbType.string | DbType.array},
-    {dbName:"ARRAY[TEXT,?]", nativeName:"array_text", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_text, dbType:DbType.text | DbType.array},
-    {dbName:"ARRAY[BIGINT,?]", nativeName:"array_int8", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_int8, dbType:DbType.int64 | DbType.array},
-    {dbName:"ARRAY[FLOAT,?]", nativeName:"array_float4", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_float4, dbType:DbType.float32 | DbType.array},
-    {dbName:"ARRAY[DOUBLE,?]", nativeName:"array_float8", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_float8, dbType:DbType.float64 | DbType.array},
-    {dbName:"ARRAY[TIMESTAMP,?]", nativeName:"array_timestamp", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_timestamp, dbType:DbType.datetime | DbType.array},
-    {dbName:"ARRAY[DATE,?]", nativeName:"array_date", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_date, dbType:DbType.date | DbType.array},
-    {dbName:"ARRAY[TIME,?]", nativeName:"array_time", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_time, dbType:DbType.time | DbType.array},
-    {dbName:"ARRAY[TIMESTAMPTZ,?]", nativeName:"array_timestamptz", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_timestamptz, dbType:DbType.datetimeTZ | DbType.array},
-    {dbName:"ARRAY[TIMETZ,?]", nativeName:"array_timetz", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_timetz, dbType:DbType.timeTZ | DbType.array},
-    {dbName:"ARRAY[UUID,?]", nativeName:"array_uuid", displaySize:-1, nativeSize:-1, nativeId:PgOIdType.array_uuid, dbType:DbType.uuid | DbType.array}
-    //{dbName:"", nativeName:"", displaySize:-1, nativeSize:-1, nativeId:PgOIdType., dbType:DbType.},
-];
+immutable DbTypeInfo[] myNativeTypes = [
+    {dbName:"DECIMAL", nativeName:"decimal", displaySize:34, nativeSize:Decimal.sizeof, nativeId:MyTypeId.decimal, dbType:DbType.decimal},
+    {dbName:"BYTE", nativeName:"tinyint", displaySize:4, nativeSize:1, nativeId:MyTypeId.int8, dbType:DbType.int8},
+    {dbName:"SMALLINT", nativeName:"smallint", displaySize:6, nativeSize:2, nativeId:MyTypeId.int16, dbType:DbType.int16},
+    {dbName:"INTEGER", nativeName:"int", displaySize:11, nativeSize:4, nativeId:MyTypeId.int32, dbType:DbType.int32},
+    {dbName:"INTEGER", nativeName:"int24", displaySize:11, nativeSize:4, nativeId:MyTypeId.int24, dbType:DbType.int32},
+    {dbName:"BIGINT", nativeName:"bigint", displaySize:20, nativeSize:8, nativeId:MyTypeId.int64, dbType:DbType.int64},
+    {dbName:"FLOAT", nativeName:"float", displaySize:17, nativeSize:4, nativeId:MyTypeId.float32, dbType:DbType.float32},
+    {dbName:"DOUBLE", nativeName:"double", displaySize:17, nativeSize:8, nativeId:MyTypeId.float64, dbType:DbType.float64},
+    {dbName:"TIMESTAMP", nativeName:"timestamp", displaySize:22, nativeSize:8, nativeId:MyTypeId.timestamp, dbType:DbType.datetime},
+    {dbName:"DATE", nativeName:"date", displaySize:10, nativeSize:4, nativeId:MyTypeId.date, dbType:DbType.date},
+    {dbName:"TIME", nativeName:"time", displaySize:11, nativeSize:8, nativeId:MyTypeId.time, dbType:DbType.time},
+    {dbName:"DATETIME", nativeName:"datetime", displaySize:22, nativeSize:8, nativeId:MyTypeId.datetime, dbType:DbType.datetime},
+    {dbName:"YEAR", nativeName:"year", displaySize:4, nativeSize:2, nativeId:MyTypeId.year, dbType:DbType.int16},
+    {dbName:"DATETIME", nativeName:"newdate", displaySize:22, nativeSize:8, nativeId:MyTypeId.newDate, dbType:DbType.datetime},
+    {dbName:"VARCHAR(?)", nativeName:"varchar(?)", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:MyTypeId.varChar, dbType:DbType.string},
+    {dbName:"BIT", nativeName:"bit", displaySize:dynamicTypeSize, nativeSize:8, nativeId:MyTypeId.bit, dbType:DbType.int64},
+    {dbName:"JSON", nativeName:"json", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:MyTypeId.json, dbType:DbType.json},
+    {dbName:"DECIMAL", nativeName:"decimal", displaySize:34, nativeSize:Decimal.sizeof, nativeId:MyTypeId.newDecimal, dbType:DbType.decimal},
+    {dbName:"ENUM", nativeName:"enum", displaySize:dynamicTypeSize, nativeSize:2, nativeId:MyTypeId.enum_, dbType:DbType.int16},
+    {dbName:"SET", nativeName:"set", displaySize:dynamicTypeSize, nativeSize:8, nativeId:MyTypeId.set, dbType:DbType.int64},
+    {dbName:"TINYBLOB,", nativeName:"tinyblob", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:MyTypeId.tinyBlob, dbType:DbType.binary},
+    {dbName:"MEDIUMBLOB", nativeName:"mediumblob", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:MyTypeId.mediumBlob, dbType:DbType.binary},
+    {dbName:"BLOB", nativeName:"longblob", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:MyTypeId.longBlob, dbType:DbType.binary},
+    {dbName:"VARBINARY(?)", nativeName:"varbinary(?)", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:MyTypeId.varBinary, dbType:DbType.binary},
+    {dbName:"VARCHAR(?)", nativeName:"tinyvarchar(?)", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:MyTypeId.tinyVarChar, dbType:DbType.string},
+    {dbName:"CHAR(?)", nativeName:"char(?)", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:MyTypeId.fixedVarChar, dbType:DbType.fixedString},
+    {dbName:"GEOMETRY", nativeName:"geometry", displaySize:dynamicTypeSize, nativeSize:runtimeTypeSize, nativeId:MyTypeId.geometry, dbType:DbType.record},
 
-version (none)
-immutable DbTypeInfo*[int32] PgOIdTypeToDbTypeInfos;
+    // Extra for dbType name
+    //{dbName:"BOOLEAN", nativeName:"TINYINT", displaySize:5, nativeSize:1, nativeId:MyTypeIdEx.boolean, dbType:DbType.boolean},
+    {dbName:"BINARY(?)", nativeName:"binary(?)", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:MyTypeIdEx.fixedBinary, dbType:DbType.binary},
+    {dbName:"TINYTEXT", nativeName:"tinytext", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:MyTypeIdEx.tinyText, dbType:DbType.text},
+    {dbName:"MEDIUMTEXT", nativeName:"mediumtext", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:MyTypeIdEx.mediumText, dbType:DbType.text},
+    {dbName:"TEXT", nativeName:"longtext", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:MyTypeIdEx.longText, dbType:DbType.text},
+    {dbName:"UUID", nativeName:"char(36)", displaySize:32, nativeSize:36, nativeId:MyTypeIdEx.uuid, dbType:DbType.uuid},
+    //{dbName:"", nativeName:"", displaySize:-1, nativeSize:-1, nativeId:MyTypeIdEx., dbType:DbType.},
+    ];
 
+immutable DbType[string] mySimpleTypes;
+
+immutable DbTypeInfo*[int32] myOIdTypeToDbTypeInfos;
+
+alias MyBlockHeader = Map32Bit;
+
+struct MyCommandPreparedResponse
+{
+nothrow @safe:
+
+    MyFieldInfo[] fields;
+    MyFieldInfo[] parameters;
+    MyCommandId id;
+    int16 fieldCount;
+    int16 parameterCount;
+}
+
+struct MyCommandResultResponse
+{
+nothrow @safe:
+
+    MyFieldInfo[] fields;
+    MyOkResponse okResponse;
+    int32 fieldCount;
+}
+
+struct MyEOFResponse
+{
+nothrow @safe:
+
+    int16 warningCount;
+    MyStatusFlags statusFlags;
+}
+
+struct MyErrorResult
+{
+@safe:
+
+    string message;
+    string sqlState;
+    int code;
+}
+
+struct MyFieldInfo
+{
+nothrow @safe:
+
+public:
+    DbType calculateDbType() const @nogc pure
+    {
+        DbType result = DbType.unknown;
+        if (auto e = typeId in myOIdTypeToDbTypeInfos)
+        {
+            result = (*e).dbType;
+            if (result == DbType.decimal || result == DbType.numeric)
+                result = decimalDbType(result, precision);
+            else if ((result == DbType.binary || typeId == MyTypeId.enum_ || typeId == MyTypeId.set) && isText)
+                result = DbType.text;
+        }
+        return result;
+    }
+
+    void calculateOtherInfo(const ref MyFieldTypeMap fieldTypeMaps) pure
+    {
+        if (typeId == MyTypeId.decimal || typeId == MyTypeId.newDecimal)
+        {
+            precision = isUnsigned ? columnLength : columnLength - 1;
+            if (scale != 0)
+                precision--;
+        }
+
+        version (none) //We do not support unsigned
+        if (isUnsigned)
+        {
+            switch (typeId) with (MyTypeId)
+            {
+                case byte_:
+                    typeId = ubyte_;
+                    return;
+                case int16:
+                    typeId = uint16;
+                    return;
+                case int24:
+                    typeId = uint24;
+                    return;
+                case int32:
+                    typeId = uint32;
+                    return;
+                case int64:
+                    typeId = uint64;
+                    return;
+                default:
+                    break;
+            }
+        }
+
+        if (typeId == MyTypeId.json && isBlob)
+        {
+            characterSetIndex = -1;
+            characterSetLength = 4;
+        }
+
+        const kind = fieldTypeMaps.get(useName);
+        if (kind != MyFieldTypeMapKind.unknown)
+        {
+            final switch (kind) with (MyFieldTypeMapKind)
+            {
+                case unknown:
+                    assert(0);
+                case boolean:
+                    _dbType = DbType.boolean;
+                    break;
+                case tinyText:
+                case mediumText:
+                case longText:
+                    _dbType = DbType.text;
+                    break;
+                case uuid:
+                    _dbType = DbType.uuid;
+                    break;
+            }
+        }
+        else
+        {
+            _dbType = calculateDbType();
+        }
+    }
+
+    DbType dbType() const @nogc pure
+    {
+        return _dbType != DbType.unknown ? _dbType : calculateDbType();
+    }
+
+    int32 dbTypeSize() const @nogc pure
+    {
+        if (auto e = dbType() in dbTypeToDbTypeInfos)
+        {
+            const ns = (*e).nativeSize;
+            return ns > 0 ? ns : columnLength;
+        }
+        return dynamicTypeSize;
+    }
+
+    static DbType decimalDbType(const(DbType) decimalType, const(int32) precision) @nogc pure
+    in
+    {
+        assert(decimalType == DbType.decimal || decimalType == DbType.numeric);
+    }
+    do
+    {
+        if (precision > 0)
+        {
+            if (precision <= Decimal32.PRECISION)
+                return DbType.decimal32;
+            else if (precision <= Decimal64.PRECISION)
+                return DbType.decimal64;
+        }
+        return decimalType;
+    }
+
+    version (TraceFunction)
+    string traceString() const nothrow @trusted
+    {
+        import std.conv : to;
+
+        return "columnName=" ~ columnName
+            ~ ", originalColumnName=" ~ originalColumnName
+            ~ ", tableName=" ~ tableName
+            ~ ", realTableName=" ~ realTableName
+            ~ ", catalogName=" ~ catalogName
+            ~ ", databaseName=" ~ databaseName
+            ~ ", columnLength=" ~ columnLength.to!string()
+            ~ ", precision=" ~ precision.to!string()
+            ~ ", scale=" ~ scale.to!string()
+            ~ ", dbType=" ~ toName!DbType(dbType())
+            ~ ", characterSetIndex=" ~ characterSetIndex.to!string()
+            ~ ", typeFlags=" ~ typeFlags.dgToHex()
+            ~ ", typeId=" ~ typeId.to!string()
+            ~ ", isBlob=" ~ isBlob.to!string()
+            ~ ", isText=" ~ isText.to!string();
+    }
+
+    static DbFieldIdType isValueIdType(int32 mIdType, int32 mIdSubType) @nogc pure
+    {
+        return DbFieldIdType.no;
+    }
+
+    pragma(inline, true)
+    string useName() const pure
+    {
+        return columnName.length != 0 ? columnName : originalColumnName;
+    }
+
+    pragma(inline, true)
+    string useTableName() const pure
+    {
+        return tableName.length != 0 ? tableName : realTableName;
+    }
+
+    pragma(inline, true)
+    @property bool allowNull() const @nogc pure
+    {
+        return (typeFlags & MyTypeFlag.notNull) == 0;
+    }
+
+    @property int characterLength() const @nogc pure
+    {
+        return columnLength / characterSetLength;
+    }
+
+    @property bool isAlias() const @nogc pure
+    {
+        return originalColumnName.length != 0
+            && columnName.length != 0
+            && originalColumnName != columnName;
+    }
+
+    @property bool isAutoIncrement() const @nogc pure
+    {
+        return (typeFlags & MyTypeFlag.autoIncrement) != 0;
+    }
+
+    @property bool isNumeric() const @nogc pure
+    {
+        return (typeFlags & MyTypeFlag.number) != 0;
+    }
+
+    @property bool isUnique() const @nogc pure
+    {
+        return (typeFlags & MyTypeFlag.uniqueKey) != 0;
+    }
+
+    @property bool isPrimaryKey() const @nogc pure
+    {
+        return (typeFlags & MyTypeFlag.primaryKey) != 0;
+    }
+
+    @property bool isBlob() const @nogc pure
+    {
+        return (typeFlags & MyTypeFlag.blob) != 0
+            && ((typeFlags & MyTypeFlag.binary) != 0 || characterSetIndex == 63);
+    }
+
+    @property bool isText() const @nogc pure
+    {
+        return (typeFlags & (MyTypeFlag.blob | MyTypeFlag.binary)) != 0
+            && (characterSetIndex == 33);
+    }
+
+    @property bool isUnsigned() const @nogc pure
+    {
+        return (typeFlags & MyTypeFlag.unsigned) != 0;
+    }
+
+public:
+    string catalogName;
+    string columnName;
+    string databaseName;
+    string originalColumnName;
+    string realTableName;
+    string tableName;
+    DbType _dbType = DbType.unknown;
+    int32 columnLength;
+    int32 precision;
+    int16 characterSetIndex;
+    uint16 typeFlags;
+    uint8 typeId;
+    int8 characterSetLength = 4; // Our default charset is UTF-8
+    int8 scale;
+}
+
+struct MyOkResponse
+{
+nothrow @safe:
+
+    MySessionTrackerInfo[] sessionTrackers;
+    string info;
+    int64 affectedRows = -1;
+    int64 lastInsertId = -1;
+    int16 warningCount;
+    MyStatusFlags statusFlags;
+
+    ref typeof(this) addTracker(MySessionTrackType trackType, string name, string value) return
+    {
+        sessionTrackers ~= MySessionTrackerInfo(name, value, trackType);
+        return this;
+    }
+}
+
+struct MySessionTrackerInfo
+{
+nothrow @safe:
+
+    string name;
+    string value;
+    MySessionTrackType trackType;
+}
+
+enum MyFieldTypeMapKind : byte
+{
+    unknown,
+    boolean,
+    tinyText,
+    mediumText,
+    longText,
+    uuid,
+}
+
+struct MyFieldTypeMap
+{
+nothrow @safe:
+
+public:
+    MyFieldTypeMapKind get(string fieldName) const @nogc pure
+    {
+        if (auto e = fieldName in fieldNames)
+            return *e;
+        else
+            return MyFieldTypeMapKind.unknown;
+    }
+
+    void set(string fieldName, MyFieldTypeMapKind kind) pure
+    {
+        fieldNames[fieldName] = kind;
+    }
+
+public:
+    MyFieldTypeMapKind[string] fieldNames;
+}
+
+struct MyGeometry
+{
+nothrow @safe:
+
+public:
+    DbGeoPoint point;
+    int32 srid;
+}
+
+DbType myParameterTypeToDbType(scope const(char)[] myTypeName, const(int32) precision) pure
+{
+    if (auto e = myTypeName in mySimpleTypes)
+    {
+        DbType result = *e;
+        return result != DbType.decimal
+            ? result
+            : MyFieldInfo.decimalDbType(result, precision);
+    }
+    else
+        return DbType.unknown;
+}
+
+
+// Any below codes are private
+private:
+
+shared static this() nothrow
+{
+    myDefaultParameterValues = () nothrow pure @trusted // @trusted=cast()
+    {
+        return cast(immutable(string[string]))[
+            DbConnectionParameterIdentifier.port : "3306", // x_protocol=33060
+            DbConnectionParameterIdentifier.userName : "root",
+            DbConnectionParameterIdentifier.integratedSecurity : toName(DbIntegratedSecurityConnection.legacy),
+            DbConnectionParameterIdentifier.allowBatch : dbBoolTrue,
+            DbConnectionParameterIdentifier.myAllowUserVariables : dbBoolTrue,
+        ];
+    }();
+
+    myOIdTypeToDbTypeInfos = () nothrow pure
+    {
+        immutable(DbTypeInfo)*[int32] result;
+        foreach (ref e; myNativeTypes)
+        {
+            result[e.nativeId] = &e;
+        }
+        return result;
+    }();
+
+    mySimpleTypes = () nothrow pure
+    {
+        DbType[string] result;
+        result["tinyint"] = DbType.int8;
+        result["mediumint"] = DbType.int16;
+        result["int"] = DbType.int32;
+        result["bigint"] = DbType.int64;
+        result["decimal"] = DbType.decimal;
+        result["float"] = DbType.float32;
+        result["double"] = DbType.float64;
+        result["bit"] = DbType.int64;
+        result["char"] = DbType.fixedString;
+        result["varchar"] = DbType.string;
+        result["binary"] = DbType.fixedBinary;
+        result["varbinary"] = DbType.binary;
+        result["blob"] = DbType.binary;
+        result["tinyblob"] = DbType.binary;
+        result["mediumblob"] = DbType.binary;
+        result["longblob"] = DbType.binary;
+        result["text"] = DbType.text;
+        result["tinytext"] = DbType.text;
+        result["mediumtext"] = DbType.text;
+        result["longtext"] = DbType.text;
+        //result["enum"] = DbType.int32;
+        //result["set"] = DbType.;
+        result["date"] = DbType.date;
+        result["time"] = DbType.time;
+        result["datetime"] = DbType.datetime;
+        result["timestamp"] = DbType.datetime;
+        result["year"] = DbType.int32;
+        //result["geometry"] = DbType.;
+        //result["point"] = DbType.;
+        //result["linestring"] = DbType.;
+        //result["polygon"] = DbType.;
+        //result["geometrycollection"] = DbType.;
+        //result["multilinestring"] = DbType.;
+        //result["multipoint"] = DbType.;
+        //result["multipolygon"] = DbType.;
+        result["json"] = DbType.json;
+        //result[""] = DbType.;
+        return result;
+    }();
+}

@@ -13,22 +13,25 @@ module pham.db.pgexception;
 
 import pham.db.exception;
 import pham.db.message : DbErrorCode;
-import pham.db.pgtype;
+import pham.db.pgtype : PgGenericResponse;
 
 class PgException : SkException
 {
 @safe:
 
 public:
-    this(string message, int code, int socketCode, int vendorCode, Exception next = null)
+    this(string message, int code, string sqlState,
+        int socketCode = 0, int vendorCode = 0, Exception next = null) pure
     {
-        super(message, code, socketCode, vendorCode, next);
+        super(message, code, sqlState, socketCode, vendorCode, next);
     }
 
-    //TODO code & vendorCode?
     this(PgGenericResponse statues, Exception next = null)
     {
-        super(statues.errorString(), DbErrorCode.read, 0, statues.errorCode(), next);
+        auto statusMessage = statues.errorString();
+        auto statusSqlState = statues.sqlState();
+        auto statusCode = statues.errorCode();
+        super(statusMessage, statusCode, statusSqlState, 0, statusCode, next);
         this.statues = statues;
     }
 
