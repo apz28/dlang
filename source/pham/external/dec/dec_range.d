@@ -111,7 +111,7 @@ size_t expectInsensitive(R, C)(ref R range, const(C)[] s) @safe pure nothrow @no
 if (isInputRange!R && isSomeChar!C)
 {
     size_t result = 0;
-    foreach(ch; s)
+    foreach (ch; s)
     {
         if (expectInsensitive(range, ch))
             ++result;

@@ -70,11 +70,11 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         this.lo = x;
     }
 
-    this(scope const(char)[] s)
+    this(const(char)[] s) // TODO scope
     in
     {
-        assert (s.length, "Empty string");
-        assert (!isHexString(s) || s.length > 2, "Empty hexadecimal string");
+        assert(s.length, "Empty string");
+        assert(!isHexString(s) || s.length > 2, "Empty hexadecimal string");
     }
     do
     {
@@ -85,11 +85,11 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
             while (i < s.length && (s[i] == '0' || s[i] == '_'))
                 ++i;
             int width = 0;
-            enum int maxWidth = THIS.sizeof * 8;
+            enum maxWidth = THIS.sizeof * 8;
             while (i < s.length)
             {
-                assert (width < maxWidth, "Overflow");
-                char c = s[i++];
+                assert(width < maxWidth, s); //"Overflow"
+                const char c = s[i++];
                 if (c >= '0' && c <= '9')
                 {
                     this <<= 4;
@@ -109,23 +109,23 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
                     width += 4;
                 }
                 else
-                    assert(c == '_', "Invalid character in input string");
+                    assert(c == '_', s); //"Invalid character in input string"
             }
         }
         else
         {
             while (i < s.length)
             {
-                char c = s[i++];
+                const char c = s[i++];
                 if (c >= '0' && c <= '9')
                 {
-                    bool ovf = void;
-                    auto r = fma(this, 10U, cast(uint)(c - '0'), ovf);
-                    assert(!ovf, "Overflow");
+                    bool overflow;
+                    auto r = fma(this, 10U, cast(uint)(c - '0'), overflow);
+                    assert(!overflow, s); //Overflow
                     this = r;
                 }
                 else
-                    assert(c == '_', "Invalid character in input string");
+                    assert(c == '_', s); //"Invalid character in input string"
             }
         }
     }
@@ -604,7 +604,7 @@ template makeUnsignedBit(int bits)
         static assert(0, "Unsupport bits");
 }
 
-T toUnsign(T)(scope const(char)[] s) @nogc nothrow pure @safe
+T toUnsign(T)(const(char)[] s, ref bool overflow) @nogc nothrow pure @safe // TODO scope
 if (T.sizeof >= 4 && isAnyUnsignedBit!T)
 {
     alias UT = Unqual!T;
@@ -622,8 +622,13 @@ if (T.sizeof >= 4 && isAnyUnsignedBit!T)
             enum maxWidth = UT.sizeof * 8;
             while (i < s.length)
             {
-                assert (width < maxWidth, "Overflow");
-                char c = s[i++];
+                if (width >= maxWidth)
+                {
+                    overflow = true;
+                    return result;
+                }
+
+                const char c = s[i++];
                 if (c >= '0' && c <= '9')
                 {
                     result = (result << 4) | cast(uint)(c - '0');
@@ -640,22 +645,26 @@ if (T.sizeof >= 4 && isAnyUnsignedBit!T)
                     width += 4;
                 }
                 else
-                    assert(c == '_', "Invalid character in input string");
+                    assert(c == '_', s); //"Invalid character in input string"
             }
         }
         else
         {
             while (i < s.length)
             {
-                char c = s[i++];
+                const char c = s[i++];
                 if (c >= '0' && c <= '9')
                 {
-                    bool ovf1 = void, ovf2 = void;
-                    result = addu(mulu(result, 10U, ovf1), cast(uint)(c - '0'), ovf2);
-                    assert(!ovf1 && !ovf2, "Overflow");
+                    bool overflow1, overflow2;
+                    result = addu(mulu(result, 10U, overflow1), cast(uint)(c - '0'), overflow2);
+                    if (overflow1 || overflow2)
+                    {
+                        overflow = true;
+                        return result;
+                    }
                 }
                 else
-                    assert(c == '_', "Invalid character in input string");
+                    assert(c == '_', s); //"Invalid character in input string";
             }
         }
         return result;
@@ -720,148 +729,148 @@ unittest
         enum next = T(1U, 0U);
         enum previous = T(0U, T.HALF.max);
 
-        assert (zero == zero);
-        assert (zero <= zero);
-        assert (zero >= zero);
-        assert (zero < one);
-        assert (zero < two);
-        assert (zero < three);
-        assert (zero < big);
-        assert (zero < next);
-        assert (zero < previous);
+        assert(zero == zero);
+        assert(zero <= zero);
+        assert(zero >= zero);
+        assert(zero < one);
+        assert(zero < two);
+        assert(zero < three);
+        assert(zero < big);
+        assert(zero < next);
+        assert(zero < previous);
 
-        assert (one > zero);
-        assert (one >= zero);
-        assert (one >= one);
-        assert (one == one);
-        assert (one < two);
-        assert (one < three);
-        assert (one < big);
-        assert (one < next);
-        assert (one < previous);
+        assert(one > zero);
+        assert(one >= zero);
+        assert(one >= one);
+        assert(one == one);
+        assert(one < two);
+        assert(one < three);
+        assert(one < big);
+        assert(one < next);
+        assert(one < previous);
 
-        assert (two > zero);
-        assert (two >= zero);
-        assert (two >= one);
-        assert (two > one);
-        assert (two == two);
-        assert (two < three);
-        assert (two < big);
-        assert (two < next);
-        assert (two < previous);
+        assert(two > zero);
+        assert(two >= zero);
+        assert(two >= one);
+        assert(two > one);
+        assert(two == two);
+        assert(two < three);
+        assert(two < big);
+        assert(two < next);
+        assert(two < previous);
 
-        assert (three > zero);
-        assert (three >= zero);
-        assert (three >= one);
-        assert (three > one);
-        assert (three >= two);
-        assert (three == three);
-        assert (three < big);
-        assert (three < next);
-        assert (three < previous);
+        assert(three > zero);
+        assert(three >= zero);
+        assert(three >= one);
+        assert(three > one);
+        assert(three >= two);
+        assert(three == three);
+        assert(three < big);
+        assert(three < next);
+        assert(three < previous);
 
-        assert (big > zero);
-        assert (big >= zero);
-        assert (big >= one);
-        assert (big > one);
-        assert (big >= two);
-        assert (big >= three);
-        assert (big == big);
-        assert (big > next);
-        assert (big > previous);
+        assert(big > zero);
+        assert(big >= zero);
+        assert(big >= one);
+        assert(big > one);
+        assert(big >= two);
+        assert(big >= three);
+        assert(big == big);
+        assert(big > next);
+        assert(big > previous);
 
-        assert (next > zero);
-        assert (next >= zero);
-        assert (next >= one);
-        assert (next > one);
-        assert (next >= two);
-        assert (next >= three);
-        assert (next <= big);
-        assert (next == next);
-        assert (next > previous);
+        assert(next > zero);
+        assert(next >= zero);
+        assert(next >= one);
+        assert(next > one);
+        assert(next >= two);
+        assert(next >= three);
+        assert(next <= big);
+        assert(next == next);
+        assert(next > previous);
 
-        assert (previous > zero);
-        assert (previous >= zero);
-        assert (previous >= one);
-        assert (previous > one);
-        assert (previous >= two);
-        assert (previous >= three);
-        assert (previous <= big);
-        assert (previous <= next);
-        assert (previous == previous);
+        assert(previous > zero);
+        assert(previous >= zero);
+        assert(previous >= one);
+        assert(previous > one);
+        assert(previous >= two);
+        assert(previous >= three);
+        assert(previous <= big);
+        assert(previous <= next);
+        assert(previous == previous);
 
-        assert (zero == 0U);
-        assert (zero <= 0U);
-        assert (zero >= 0U);
-        assert (zero < 1U);
-        assert (zero < 2U);
-        assert (zero < 3U);
-        assert (zero < ulong.max);
+        assert(zero == 0U);
+        assert(zero <= 0U);
+        assert(zero >= 0U);
+        assert(zero < 1U);
+        assert(zero < 2U);
+        assert(zero < 3U);
+        assert(zero < ulong.max);
 
-        assert (one > 0U);
-        assert (one >= 0U);
-        assert (one >= 1U);
-        assert (one == 1U);
-        assert (one < 2U);
-        assert (one < 3U);
-        assert (one < ulong.max);
+        assert(one > 0U);
+        assert(one >= 0U);
+        assert(one >= 1U);
+        assert(one == 1U);
+        assert(one < 2U);
+        assert(one < 3U);
+        assert(one < ulong.max);
 
-        assert (two > 0U);
-        assert (two >= 0U);
-        assert (two >= 1U);
-        assert (two > 1U);
-        assert (two == 2U);
-        assert (two < 3U);
-        assert (two < ulong.max);
+        assert(two > 0U);
+        assert(two >= 0U);
+        assert(two >= 1U);
+        assert(two > 1U);
+        assert(two == 2U);
+        assert(two < 3U);
+        assert(two < ulong.max);
 
-        assert (three > 0U);
-        assert (three >= 0U);
-        assert (three >= 1U);
-        assert (three > 1U);
-        assert (three >= 2U);
-        assert (three == 3U);
-        assert (three < ulong.max);
+        assert(three > 0U);
+        assert(three >= 0U);
+        assert(three >= 1U);
+        assert(three > 1U);
+        assert(three >= 2U);
+        assert(three == 3U);
+        assert(three < ulong.max);
 
-        assert (big > 0U);
-        assert (big >= 0U);
-        assert (big >= 1U);
-        assert (big > 1U);
-        assert (big >= 2U);
-        assert (big >= 3U);
-        assert (big > ulong.max);
+        assert(big > 0U);
+        assert(big >= 0U);
+        assert(big >= 1U);
+        assert(big > 1U);
+        assert(big >= 2U);
+        assert(big >= 3U);
+        assert(big > ulong.max);
 
-        assert (next > 0U);
-        assert (next >= 0U);
-        assert (next >= 1U);
-        assert (next > 1U);
-        assert (next >= 2U);
-        assert (next >= 3U);
-        assert (next > ulong.max);
+        assert(next > 0U);
+        assert(next >= 0U);
+        assert(next >= 1U);
+        assert(next > 1U);
+        assert(next >= 2U);
+        assert(next >= 3U);
+        assert(next > ulong.max);
 
-        assert (previous > 0U);
-        assert (previous >= 0U);
-        assert (previous >= 1U);
-        assert (previous > 1U);
-        assert (previous >= 2U);
-        assert (previous >= 3U);
-        assert (previous == previous);
+        assert(previous > 0U);
+        assert(previous >= 0U);
+        assert(previous >= 1U);
+        assert(previous > 1U);
+        assert(previous >= 2U);
+        assert(previous >= 3U);
+        assert(previous == previous);
 
-        assert (~~zero == zero);
-        assert (~~one == one);
-        assert (~~two == two);
-        assert (~~three == three);
-        assert (~~big == big);
-        assert (~~previous == previous);
-        assert (~~next == next);
+        assert(~~zero == zero);
+        assert(~~one == one);
+        assert(~~two == two);
+        assert(~~three == three);
+        assert(~~big == big);
+        assert(~~previous == previous);
+        assert(~~next == next);
 
-        assert ((one | one) == one);
-        assert ((one | zero) == one);
-        assert ((one & one) == one);
-        assert ((one & zero) == zero);
-        assert ((big & ~big) == zero);
-        assert ((one ^ one) == zero);
-        assert ((big ^ big) == zero);
-        assert ((one ^ zero) == one);
+        assert((one | one) == one);
+        assert((one | zero) == one);
+        assert((one & one) == one);
+        assert((one & zero) == zero);
+        assert((big & ~big) == zero);
+        assert((one ^ one) == zero);
+        assert((big ^ big) == zero);
+        assert((one ^ zero) == one);
 
         assert(big >> 0 == big);
         assert(big << 0 == big);
@@ -875,169 +884,169 @@ unittest
         assert((one << 127) >> 127 == one);
         assert((one << 64) >> 64 == one);
 
-        assert (zero + zero == zero);
-        assert (zero + one == one);
-        assert (zero + two == two);
-        assert (zero + three == three);
-        assert (zero + big == big);
-        assert (zero + previous == previous);
-        assert (zero + next == next);
+        assert(zero + zero == zero);
+        assert(zero + one == one);
+        assert(zero + two == two);
+        assert(zero + three == three);
+        assert(zero + big == big);
+        assert(zero + previous == previous);
+        assert(zero + next == next);
 
-        assert (one + zero == one);
-        assert (one + one == two);
-        assert (one + two == three);
-        assert (one + three > three);
-        assert (one + big > big);
-        assert (one + previous == next);
-        assert (one + next > next);
+        assert(one + zero == one);
+        assert(one + one == two);
+        assert(one + two == three);
+        assert(one + three > three);
+        assert(one + big > big);
+        assert(one + previous == next);
+        assert(one + next > next);
 
-        assert (two + zero == two);
-        assert (two + one == three);
-        assert (two + two > three);
-        assert (two + three > three);
-        assert (two + big > big);
-        assert (two + previous > next);
-        assert (two + next > next);
+        assert(two + zero == two);
+        assert(two + one == three);
+        assert(two + two > three);
+        assert(two + three > three);
+        assert(two + big > big);
+        assert(two + previous > next);
+        assert(two + next > next);
 
-        assert (three + zero == three);
-        assert (three + one > three);
-        assert (three + two > three);
-        assert (three + three > three);
-        assert (three + big > big);
-        assert (three + previous > next);
-        assert (three + next > next);
+        assert(three + zero == three);
+        assert(three + one > three);
+        assert(three + two > three);
+        assert(three + three > three);
+        assert(three + big > big);
+        assert(three + previous > next);
+        assert(three + next > next);
 
-        assert (big + zero == big);
-        assert (big + one > big);
-        assert (big + two > big + one);
-        assert (big + three > big + two);
-        assert (big + big > big);
-        assert (big + previous > next);
-        assert (big + next > next);
+        assert(big + zero == big);
+        assert(big + one > big);
+        assert(big + two > big + one);
+        assert(big + three > big + two);
+        assert(big + big > big);
+        assert(big + previous > next);
+        assert(big + next > next);
 
-        assert (previous + zero == previous);
-        assert (previous + one == next);
-        assert (previous + two > next);
-        assert (previous + three == next + two);
-        assert (previous + big > big);
-        assert (previous + previous > previous);
-        assert (previous + next > previous);
+        assert(previous + zero == previous);
+        assert(previous + one == next);
+        assert(previous + two > next);
+        assert(previous + three == next + two);
+        assert(previous + big > big);
+        assert(previous + previous > previous);
+        assert(previous + next > previous);
 
-        assert (next + zero == next);
-        assert (next + one > next);
-        assert (next + two > next);
-        assert (next + three >= next + two);
-        assert (next + big > big);
-        assert (next + previous > next);
-        assert (next + next > next);
+        assert(next + zero == next);
+        assert(next + one > next);
+        assert(next + two > next);
+        assert(next + three >= next + two);
+        assert(next + big > big);
+        assert(next + previous > next);
+        assert(next + next > next);
 
-        assert (zero + 0U == zero);
-        assert (zero + 1U == one);
-        assert (zero + 2U == two);
-        assert (zero + 3U == three);
+        assert(zero + 0U == zero);
+        assert(zero + 1U == one);
+        assert(zero + 2U == two);
+        assert(zero + 3U == three);
 
-        assert (one + 0U == one);
-        assert (one + 1U == two);
-        assert (one + 2U == three);
-        assert (one + 3U > three);
+        assert(one + 0U == one);
+        assert(one + 1U == two);
+        assert(one + 2U == three);
+        assert(one + 3U > three);
 
-        assert (two + 0U == two);
-        assert (two + 1U == three);
-        assert (two + 2U > three);
-        assert (two + 3U > three);
+        assert(two + 0U == two);
+        assert(two + 1U == three);
+        assert(two + 2U > three);
+        assert(two + 3U > three);
 
-        assert (three + 0U == three);
-        assert (three + 1U > three);
-        assert (three + 2U > three);
-        assert (three + 3U > three);
+        assert(three + 0U == three);
+        assert(three + 1U > three);
+        assert(three + 2U > three);
+        assert(three + 3U > three);
 
-        assert (big + 0U == big);
-        assert (big + 1U > big);
-        assert (big + 2U > big + 1U);
-        assert (big + 3U > big + 2U);
+        assert(big + 0U == big);
+        assert(big + 1U > big);
+        assert(big + 2U > big + 1U);
+        assert(big + 3U > big + 2U);
 
-        assert (previous + 0U == previous);
-        assert (previous + 1U == next);
-        assert (previous + 2U > next);
-        assert (previous + 3U == next + 2U);
+        assert(previous + 0U == previous);
+        assert(previous + 1U == next);
+        assert(previous + 2U > next);
+        assert(previous + 3U == next + 2U);
 
-        assert (next + 0U == next);
-        assert (next + 1U > next);
-        assert (next + 2U > next);
-        assert (next + 3U >= next + two);
+        assert(next + 0U == next);
+        assert(next + 1U > next);
+        assert(next + 2U > next);
+        assert(next + 3U >= next + two);
 
-        assert (zero - zero == zero);
-        assert (one - zero == one);
-        assert (two - zero == two);
-        assert (three - zero == three);
-        assert (big - zero == big);
-        assert (previous - zero == previous);
-        assert (next - zero == next);
+        assert(zero - zero == zero);
+        assert(one - zero == one);
+        assert(two - zero == two);
+        assert(three - zero == three);
+        assert(big - zero == big);
+        assert(previous - zero == previous);
+        assert(next - zero == next);
 
-        assert (one - one == zero);
-        assert (two - one == one);
-        assert (three - one == two);
-        assert (big - one < big);
-        assert (previous - one < previous);
-        assert (next - one == previous);
+        assert(one - one == zero);
+        assert(two - one == one);
+        assert(three - one == two);
+        assert(big - one < big);
+        assert(previous - one < previous);
+        assert(next - one == previous);
 
-        assert (two - two == zero);
-        assert (three - two == one);
-        assert (big - two < big);
-        assert (previous - two < previous);
-        assert (next - two < previous);
+        assert(two - two == zero);
+        assert(three - two == one);
+        assert(big - two < big);
+        assert(previous - two < previous);
+        assert(next - two < previous);
 
-        assert (three - three == zero);
-        assert (big - three < big);
-        assert (previous - three < previous);
-        assert (next - three < previous);
+        assert(three - three == zero);
+        assert(big - three < big);
+        assert(previous - three < previous);
+        assert(next - three < previous);
 
-        assert (big - big == zero);
-        assert (next - previous == one);
+        assert(big - big == zero);
+        assert(next - previous == one);
 
-        assert (one - 1U == zero);
-        assert (two - 1U == one);
-        assert (three - 1U == two);
-        assert (big - 1U < big);
-        assert (previous - 1U < previous);
-        assert (next - 1U == previous);
+        assert(one - 1U == zero);
+        assert(two - 1U == one);
+        assert(three - 1U == two);
+        assert(big - 1U < big);
+        assert(previous - 1U < previous);
+        assert(next - 1U == previous);
 
-        assert (two - 2U == zero);
-        assert (three - 2U == one);
-        assert (big - 2U < big);
-        assert (previous - 2U < previous);
-        assert (next - 2U < previous);
+        assert(two - 2U == zero);
+        assert(three - 2U == one);
+        assert(big - 2U < big);
+        assert(previous - 2U < previous);
+        assert(next - 2U < previous);
 
-        assert (three - 3U == zero);
-        assert (big - 3U < big);
-        assert (previous - 3U < previous);
-        assert (next - 3U < previous);
+        assert(three - 3U == zero);
+        assert(big - 3U < big);
+        assert(previous - 3U < previous);
+        assert(next - 3U < previous);
 
         T test = zero;
-        assert (++test == one);
-        assert (++test == two);
-        assert (++test == three);
+        assert(++test == one);
+        assert(++test == two);
+        assert(++test == three);
         test = big;
-        assert (++test > big);
+        assert(++test > big);
         test = previous;
-        assert (++test == next);
+        assert(++test == next);
         test = three;
-        assert (--test == two);
-        assert (--test == one);
-        assert (--test == zero);
+        assert(--test == two);
+        assert(--test == one);
+        assert(--test == zero);
         test = big;
-        assert (--test < big);
+        assert(--test < big);
         test = next;
-        assert (--test == previous);
+        assert(--test == previous);
 
-        assert (-zero == zero);
-        assert (-(-zero) == zero);
-        assert (-(-one) == one);
-        assert (-(-two) == two);
-        assert (-(-three) == three);
-        assert (-(-big) == big);
-        assert (-(-previous) == previous);
-        assert (-(-next) == next);
+        assert(-zero == zero);
+        assert(-(-zero) == zero);
+        assert(-(-one) == one);
+        assert(-(-two) == two);
+        assert(-(-three) == three);
+        assert(-(-big) == big);
+        assert(-(-previous) == previous);
+        assert(-(-next) == next);
 
         for(auto i = 0; i < 10; ++i)
         {
@@ -1050,22 +1059,22 @@ unittest
             T result = a / b;
             T remainder = a % b;
 
-            assert (result * b + remainder == a);
+            assert(result * b + remainder == a);
 
             result = a / c;
             remainder = a % c;
 
-            assert (result * c + remainder == a);
+            assert(result * c + remainder == a);
 
             result = a / d;
             remainder = a % d;
 
-            assert (result * d + remainder == a);
+            assert(result * d + remainder == a);
 
             result = a / e;
             remainder = a % e;
 
-            assert (result * e + remainder == a);
+            assert(result * e + remainder == a);
         }
     }
 
@@ -1148,25 +1157,25 @@ if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
     return xsub(x.hi, carry);
 }
 
-uint fma(const(uint) x, const(uint) y, const(uint) z, out bool overflow) @safe pure nothrow @nogc
+uint fma(const(uint) x, const(uint) y, const(uint) z, ref bool overflow) @safe pure nothrow @nogc
 {
     const result = mulu(x, y, overflow);
     return addu(result, z, overflow);
 }
 
-ulong fma(const(ulong) x, const(ulong) y, const(ulong) z, out bool overflow) @safe pure nothrow @nogc
+ulong fma(const(ulong) x, const(ulong) y, const(ulong) z, ref bool overflow) @safe pure nothrow @nogc
 {
     const result = mulu(x, y, overflow);
     return addu(result, z, overflow);
 }
 
-ulong fma(const(ulong) x, const(uint) y, const(uint) z, out bool overflow) @safe pure nothrow @nogc
+ulong fma(const(ulong) x, const(uint) y, const(uint) z, ref bool overflow) @safe pure nothrow @nogc
 {
     const result = mulu(x, cast(ulong)y, overflow);
     return addu(result, cast(ulong)z, overflow);
 }
 
-T fma(T)(auto const ref T x, auto const ref T y, auto const ref T z, out bool overflow) @safe pure nothrow @nogc
+T fma(T)(auto const ref T x, auto const ref T y, auto const ref T z, ref bool overflow) @safe pure nothrow @nogc
 if (isCustomUnsignedBit!T)
 {
     auto result = mulu(x, y, overflow);
@@ -1175,7 +1184,7 @@ if (isCustomUnsignedBit!T)
     return result;
 }
 
-T fma(T, U)(auto const ref T x, auto const ref U y, auto const ref U z, out bool overflow) @safe pure nothrow @nogc
+T fma(T, U)(auto const ref T x, auto const ref U y, auto const ref U z, ref bool overflow) @safe pure nothrow @nogc
 if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
 {
     auto result = mulu(x, y, overflow);
@@ -1774,25 +1783,25 @@ if (isUnsigned!U && isSigned!S)
 
 unittest
 {
-    static assert (sign!byte(ubyte(128), true) == byte.min);
-    static assert (sign!byte(ushort(128), true) == byte.min);
-    static assert (sign!byte(uint(128), true) == byte.min);
-    static assert (sign!byte(ulong(128), true) == byte.min);
+    static assert(sign!byte(ubyte(128), true) == byte.min);
+    static assert(sign!byte(ushort(128), true) == byte.min);
+    static assert(sign!byte(uint(128), true) == byte.min);
+    static assert(sign!byte(ulong(128), true) == byte.min);
 
-    static assert (sign!short(ubyte(128), true) == byte.min);
-    static assert (sign!short(ushort(32768), true) == short.min);
-    static assert (sign!short(uint(32768), true) == short.min);
-    static assert (sign!short(ulong(32768), true) == short.min);
+    static assert(sign!short(ubyte(128), true) == byte.min);
+    static assert(sign!short(ushort(32768), true) == short.min);
+    static assert(sign!short(uint(32768), true) == short.min);
+    static assert(sign!short(ulong(32768), true) == short.min);
 
-    static assert (sign!int(ubyte(128), true) == byte.min);
-    static assert (sign!int(ushort(32768), true) == short.min);
-    static assert (sign!int(uint(2147483648), true) == int.min);
-    static assert (sign!int(ulong(2147483648), true) == int.min);
+    static assert(sign!int(ubyte(128), true) == byte.min);
+    static assert(sign!int(ushort(32768), true) == short.min);
+    static assert(sign!int(uint(2147483648), true) == int.min);
+    static assert(sign!int(ulong(2147483648), true) == int.min);
 
-    static assert (sign!long(ubyte(128), true) == byte.min);
-    static assert (sign!long(ushort(32768), true) == short.min);
-    static assert (sign!long(uint(2147483648), true) == int.min);
-    static assert (sign!long(ulong(9223372036854775808UL), true) == long.min);
+    static assert(sign!long(ubyte(128), true) == byte.min);
+    static assert(sign!long(ushort(32768), true) == short.min);
+    static assert(sign!long(uint(2147483648), true) == int.min);
+    static assert(sign!long(ulong(9223372036854775808UL), true) == long.min);
 }
 
 auto sign(S, U)(const(U) u, const(bool) isNegative)
@@ -1815,25 +1824,25 @@ if (isUnsigned!U && isSigned!S)
 
 unittest
 {
-    static assert (unsign!ubyte(byte.min) == 128);
-    static assert (unsign!ubyte(short(-128)) == 128);
-    static assert (unsign!ubyte(int(-128)) == 128);
-    static assert (unsign!ubyte(long(-128)) == 128);
+    static assert(unsign!ubyte(byte.min) == 128);
+    static assert(unsign!ubyte(short(-128)) == 128);
+    static assert(unsign!ubyte(int(-128)) == 128);
+    static assert(unsign!ubyte(long(-128)) == 128);
 
-    static assert (unsign!ushort(byte.min) == 128);
-    static assert (unsign!ushort(short.min) == 32768);
-    static assert (unsign!ushort(int(short.min)) == 32768);
-    static assert (unsign!ushort(long(short.min)) == 32768);
+    static assert(unsign!ushort(byte.min) == 128);
+    static assert(unsign!ushort(short.min) == 32768);
+    static assert(unsign!ushort(int(short.min)) == 32768);
+    static assert(unsign!ushort(long(short.min)) == 32768);
 
-    static assert (unsign!uint(byte.min) == 128);
-    static assert (unsign!uint(short.min) == 32768);
-    static assert (unsign!uint(int.min) == 2147483648);
-    static assert (unsign!uint(long(int.min)) == 2147483648);
+    static assert(unsign!uint(byte.min) == 128);
+    static assert(unsign!uint(short.min) == 32768);
+    static assert(unsign!uint(int.min) == 2147483648);
+    static assert(unsign!uint(long(int.min)) == 2147483648);
 
-    static assert (unsign!ulong(byte.min) == 128);
-    static assert (unsign!ulong(short.min) == 32768);
-    static assert (unsign!ulong(int.min) == 2147483648);
-    static assert (unsign!ulong(long.min) == 9223372036854775808UL);
+    static assert(unsign!ulong(byte.min) == 128);
+    static assert(unsign!ulong(short.min) == 32768);
+    static assert(unsign!ulong(int.min) == 2147483648);
+    static assert(unsign!ulong(long.min) == 9223372036854775808UL);
 }
 
 auto unsign(U, V)(const(V) v, out bool isNegative)
@@ -1942,22 +1951,22 @@ unittest
 {
     int ex = int.min + 1;
     int px = cappedSub(ex, 3);
-    assert (ex == int.min);
-    assert (px == 1);
+    assert(ex == int.min);
+    assert(px == 1);
 
     ex = int.min + 3;
     px = cappedSub(ex, 2);
-    assert (ex == int.min + 1);
-    assert (px == 2);
+    assert(ex == int.min + 1);
+    assert(px == 2);
 
     ex = int.max - 1;
     px = cappedSub(ex, -2);
-    assert (ex == int.max);
-    assert (px == -1);
+    assert(ex == int.max);
+    assert(px == -1);
 
     ex = int.max - 3;
     px = cappedSub(ex, -2);
-    assert (ex == int.max - 1);
+    assert(ex == int.max - 1);
     assert(px == -2);
 }
 
@@ -2943,11 +2952,11 @@ if (isAnyUnsignedBit!U)
     return x * x * x != n;
 }
 
-U uparse(U)(string s)
+U uparse(U)(string s, ref bool overflow)
 in
 {
-    assert (s.length, "Empty string");
-    assert (!isHexString(s) || s.length > 2, "Empty hexadecimal string");
+    assert(s.length, "Empty string");
+    assert(!isHexString(s) || s.length > 2, "Empty hexadecimal string");
 }
 do
 {
@@ -2959,11 +2968,16 @@ do
         while (i < s.length && (s[i] == '0' || s[i] == '_'))
             ++i;
         int width = 0;
-        int maxWidth = U.sizeof * 8;
+        enum maxWidth = U.sizeof * 8;
         while (i < s.length)
         {
-            assert (width < maxWidth, "Overflow");
-            char c = s[i++];
+            if (width >= maxWidth)
+            {
+                overflow = true;
+                return result;
+            }
+
+            const char c = s[i++];
             if (c >= '0' && c <= '9')
             {
                 result <<= 4;
@@ -2983,23 +2997,23 @@ do
                 width += 4;
             }
             else
-                assert(c == '_', "Invalid character in input string");
+                assert(c == '_', s); //"Invalid character in input string"
         }
     }
     else
     {
         while (i < s.length)
         {
-            char c = s[i++];
+            const char c = s[i++];
             if (c >= '0' && c <= '9')
             {
-                bool ovf;
-                auto r = fma(result, 10U, cast(uint)(c - '0'), ovf);
-                assert(!ovf, "Overflow");
+                auto r = fma(result, 10U, cast(uint)(c - '0'), overflow);
+                if (overflow)
+                    return result;
                 result = r;
             }
             else
-                assert(c == '_', "Invalid character in input string");
+                assert(c == '_', s); //"Invalid character in input string"
         }
     }
 
@@ -3008,23 +3022,27 @@ do
 
 unittest // uparse
 {
-    uint512 x = uparse!uint512("1234567890123456789012345678901234567890");
-    uint512 x2 = uparse!uint512("0x1234567890123456789012345678901234567890");
-    uint512 x3 = uparse!uint512("0X1234567890123456789012345678901234567890");
+    bool overflow;
+    uint512 x0 = uparse!uint512("0", overflow); assert(!overflow);
+    uint512 x1 = uparse!uint512("1_234_567_890_123_456_789_012_345_678_901_234_567_890", overflow); assert(!overflow);
+    uint512 x2 = uparse!uint512("0x1234_5678_9012_3456_7890_1234_5678_9012_3456_7890", overflow); assert(!overflow);
 }
 
 unittest // dataTypeToString
 {
     ShortStringBuffer!char buffer;
 
-    assert(dataTypeToString(buffer, 12345U) == "12345");
     assert(dataTypeToString(buffer, 0U) == "0");
+    assert(dataTypeToString(buffer, 12345U) == "12345");
     assert(dataTypeToString(buffer, uint128("10000000000000000000000000")) == "10000000000000000000000000");
 }
 
 unittest // unUnsign
 {
-    assert(toUnsign!uint("0") == 0U);
-    assert(toUnsign!uint("12345") == 12345U);
-    assert(toUnsign!ulong("123456789012") == 123456789012LU);
+    bool overflow;
+    assert(toUnsign!uint("0", overflow) == 0U); assert(!overflow);
+    assert(toUnsign!uint("12_345", overflow) == 12_345U); assert(!overflow);
+    assert(toUnsign!uint("0x1_2345", overflow) == 0x1_2345); assert(!overflow);
+    assert(toUnsign!ulong("123_456_789_012", overflow) == 123_456_789_012LU); assert(!overflow);
+    assert(toUnsign!ulong("0x1234_5678_9012", overflow) == 0x1234_5678_9012); assert(!overflow);
 }

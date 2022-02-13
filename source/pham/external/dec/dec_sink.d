@@ -11,8 +11,8 @@ import pham.external.dec.math : coefficientAdjust, coefficientShrink, divpow10;
 
 nothrow @safe:
 
-struct ShortStringBufferSize(Char, ushort Size)
-if (Size > 0 && (isSomeChar!Char || isIntegral!Char))
+struct ShortStringBufferSize(T, ushort ShortSize)
+if (ShortSize > 0 && (isSomeChar!T || isIntegral!T))
 {
 @safe:
 
@@ -22,19 +22,19 @@ public:
         _longData = _longData.dup;
     }
 
-    this(bool setSize)
+    this(bool setShortSize)
     {
-        if (setSize)
-            this._length = Size;
+        if (setShortSize)
+            this._length = ShortSize;
     }
 
-    ref typeof(this) opAssign(scope const(Char)[] values) nothrow return
+    ref typeof(this) opAssign(scope const(T)[] values) nothrow return
     {
         clear();
         _length = values.length;
         if (_length)
         {
-            if (_length <= Size)
+            if (useShortSize)
             {
                 _shortData[0.._length] = values[0.._length];
             }
@@ -55,71 +55,74 @@ public:
         return _length;
     }
 
-    Char opIndex(size_t i) const @nogc nothrow pure
-    in
+    inout(T)[] opIndex() inout nothrow pure return
     {
-        assert(i < length);
-    }
-    do
-    {
-        return _length <= Size ? _shortData[i] : _longData[i];
+        return useShortSize ? _shortData[0.._length] : _longData[0.._length];
     }
 
-    ref typeof(this) opIndexAssign(Char c, size_t i) return
+    T opIndex(size_t i) const @nogc nothrow pure
     in
     {
         assert(i < length);
     }
     do
     {
-        if (_length <= Size)
+        return useShortSize ? _shortData[i] : _longData[i];
+    }
+
+    ref typeof(this) opIndexAssign(T c, size_t i) return
+    in
+    {
+        assert(i < length);
+    }
+    do
+    {
+        if (useShortSize)
             _shortData[i] = c;
         else
             _longData[i] = c;
         return this;
     }
 
-    Char[] opSlice() nothrow pure return
-    {
-        return _length <= Size ? _shortData[0.._length] : _longData[0.._length];
-    }
-
-    ref typeof(this) clear(bool setSize = false)() nothrow pure
+    ref typeof(this) clear(bool setShortSize = false)() nothrow pure
     {
         _length = 0;
-        static if (setSize)
+        static if (setShortSize)
         {
             _shortData[] = 0;
             _longData[] = 0;
-            _length = Size;
+            _length = ShortSize;
         }
         return this;
     }
 
-    Char[] left(size_t len) nothrow pure return
+    inout(T)[] left(size_t len) inout nothrow pure return
     {
         if (len >= _length)
-            return opSlice();
+            return opIndex();
         else
-            return opSlice()[0..len];
+            return opIndex()[0..len];
     }
 
-    ref typeof(this) put(Char c) nothrow pure return
+    ref typeof(this) put(T c) nothrow pure return
     {
-        if (_length < Size)
+        const newLength = _length + 1;
+
+        // Still in short?
+        if (useShortSize(newLength))
             _shortData[_length++] = c;
         else
         {
-            if (_length == Size)
+            if (useShortSize)
                 switchToLongData(1);
-            else if (_longData.length <= _length)
-                _longData.length = _length + overReservedLength;
+            else if (_longData.length < newLength)
+                _longData.length = alignAddtionalLength(newLength);
             _longData[_length++] = c;
         }
         return this;
     }
 
-    ref typeof(this) put(scope const(Char)[] s) nothrow pure return
+    ref typeof(this) put(scope const(T)[] s) nothrow pure return
     {
         if (!s.length)
             return this;
@@ -129,16 +132,17 @@ public:
         enum bugChecklimit = 1024 * 1024 * 4; // 4MB
         assert(newLength <= bugChecklimit);
 
-        if (newLength <= Size)
+        // Still in short?
+        if (useShortSize(newLength))
         {
             _shortData[_length..newLength] = s[0..$];
         }
         else
         {
-            if (_length && _length <= Size)
+            if (useShortSize)
                 switchToLongData(s.length);
             else if (_longData.length < newLength)
-                _longData.length = newLength + overReservedLength;
+                _longData.length = alignAddtionalLength(newLength);
             _longData[_length..newLength] = s[0..$];
         }
         _length = newLength;
@@ -151,48 +155,45 @@ public:
         {
             const last = len - 1;
             const steps = len / 2;
-            if (_length <= Size)
+            if (useShortSize)
             {
                 for (size_t i = 0; i < steps; i++)
-                {
                     _shortData.swapAt(i, last - i);
-                }
             }
             else
             {
                 for (size_t i = 0; i < steps; i++)
-                {
                     _longData.swapAt(i, last - i);
-                }
             }
         }
         return this;
     }
 
-    Char[] right(size_t len) nothrow pure return
+    inout(T)[] right(size_t len) inout nothrow pure return
     {
         if (len >= _length)
-            return opSlice();
+            return opIndex();
         else
-            return opSlice()[_length - len.._length];
+            return opIndex()[_length - len.._length];
     }
 
-    static if (isSomeChar!Char)
-    immutable(Char)[] toString() const nothrow pure
+    static if (isSomeChar!T)
+    immutable(T)[] toString() const nothrow pure
     {
         return _length != 0
-            ? (_length <= Size ? _shortData[0.._length].idup : _longData[0.._length].idup)
-            : null;
+            ? (useShortSize ? _shortData[0.._length].idup : _longData[0.._length].idup)
+            : [];
     }
 
-    static if (isSomeChar!Char)
+    static if (isSomeChar!T)
     ref Writer toString(Writer)(return ref Writer sink) const pure
     {
         if (_length)
-            put(sink, opSlice());
+            put(sink, opIndex());
         return sink;
     }
 
+    pragma (inline, true)
     @property bool empty() const @nogc nothrow pure
     {
         return _length == 0;
@@ -207,30 +208,51 @@ public:
     pragma(inline, true)
     @property static size_t shortSize() @nogc nothrow pure
     {
-        return Size;
+        return ShortSize;
+    }
+
+    pragma(inline, true)
+    @property bool useShortSize() const @nogc nothrow pure
+    {
+        return _length <= ShortSize;
+    }
+
+    pragma(inline, true)
+    @property bool useShortSize(const(size_t) checkLength) const @nogc nothrow pure
+    {
+        return checkLength <= ShortSize;
     }
 
 private:
+    size_t alignAddtionalLength(const(size_t) addtionalLength) @nogc nothrow pure
+    {
+        if (addtionalLength <= overReservedLength)
+            return overReservedLength;
+        else
+            return ((addtionalLength + overReservedLength - 1) / overReservedLength) * overReservedLength;
+    }
+
     void switchToLongData(const(size_t) addtionalLength) nothrow pure
     {
-        const capacity = _length + addtionalLength + overReservedLength;
+        const capacity = alignAddtionalLength(_length + addtionalLength);
         if (_longData.length < capacity)
             _longData.length = capacity;
-        _longData[0.._length] = _shortData[0.._length];
+        if (_length)
+            _longData[0.._length] = _shortData[0.._length];
     }
 
 private:
     enum overReservedLength = 1_000u;
     size_t _length;
-    Char[] _longData;
-    Char[Size] _shortData = 0;
+    T[] _longData;
+    T[ShortSize] _shortData = 0;
 }
 
-template ShortStringBuffer(Char)
-if (isSomeChar!Char || isIntegral!Char)
+template ShortStringBuffer(T)
+if (isSomeChar!T || isIntegral!T)
 {
-    enum overheadSize = ShortStringBufferSize!(Char, 1).sizeof;
-    alias ShortStringBuffer = ShortStringBufferSize!(Char, 256u - overheadSize);
+    enum overheadSize = ShortStringBufferSize!(T, 1).sizeof;
+    alias ShortStringBuffer = ShortStringBufferSize!(T, 256u - overheadSize);
 }
 
 pragma(inline, true)

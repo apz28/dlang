@@ -11,8 +11,7 @@
 
 module pham.external.dec.codec;
 
-version (TraceFunction)
-import pham.utl.test;
+version (TraceFunction) import pham.utl.test;
 
 import pham.external.dec.decimal: Decimal, DecimalSubClass, fabs, decimalSubClass;
 import pham.external.dec.integral : divrem;
@@ -46,8 +45,7 @@ public:
     }
 	do
     {
-		version (TraceFunction)
-		dgFunctionTrace("firstByte=", decBytes[0], ", decBytes=", dgToHex(decBytes));
+		version (TraceFunction) traceFunction!("pham.external.dec")("firstByte=", decBytes[0], ", decBytes=", decBytes);
 
 		const firstByte = decBytes[0];
 		const isNeg = (firstByte & negativeBit) == negativeBit;
@@ -72,14 +70,12 @@ public:
 					: 0b01000 | (usignedRightShift(firstByteAsInt, 2) & 0b01);
 				const exponentBitsRemaining = exponentContinuationBits - 2;
 
-				version (TraceFunction)
-				dgFunctionTrace("exponentMSB=", exponentMSB, ", firstDigit=", firstDigit);
+				version (TraceFunction) traceFunction!("pham.external.dec")("exponentMSB=", exponentMSB, ", firstDigit=", firstDigit);
 
 				const exponent = unbiasedExponent(decodeExponent(exponentMSB, exponentBitsRemaining, decBytes));
 				const coefficient = decodeCoefficient(isNeg, firstDigit, decBytes);
 
-				version (TraceFunction)
-				dgFunctionTrace("exponent=", exponent, ", coefficient=", coefficient);
+				version (TraceFunction) traceFunction!("pham.external.dec")("exponent=", exponent, ", coefficient=", coefficient);
 
 				D result = void;
 				result.pack(coefficient, exponent, isNeg);
@@ -89,17 +85,7 @@ public:
 
 	static EncodedResult encode(scope const(D) value) @nogc
     {
-		version (TraceFunction)
-		dgFunctionTrace("formatBitLength=", formatBitLength,
-                  ", coefficientDigits=", coefficientDigits,
-                  ", formatByteLength=", formatByteLength,
-                  ", coefficientContinuationBits=", coefficientContinuationBits,
-                  ", exponentContinuationBits=", exponentContinuationBits,
-                  ", eLimit=", eLimit,
-                  ", eMin=", eMin,
-				  ", exponentBias=", exponentBias,
-                  ", digitGroups=", digitGroups,
-                  ", eMax=", eMax);
+		version (TraceFunction) debug traceFunction!("pham.external.dec")(traceString());
 
 		EncodedResult decBytes;
 
@@ -112,10 +98,26 @@ public:
 		else
 			decBytes[0] |= s;
 
-		version (TraceFunction)
-		dgFunctionTrace("firstByte=", decBytes[0], ", decBytes=", dgToHex(decBytes));
+		version (TraceFunction) traceFunction!("pham.external.dec")("firstByte=", decBytes[0], ", decBytes=", decBytes);
 
 		return decBytes;
+    }
+
+	version (TraceFunction)
+	static string traceString() nothrow @trusted
+    {
+		import std.conv : to;
+
+		return "formatBitLength=" ~ to!string(formatBitLength)
+            ~ ", coefficientDigits=" ~ to!string(coefficientDigits)
+            ~ ", formatByteLength=" ~ to!string(formatByteLength)
+            ~ ", coefficientContinuationBits=" ~ to!string(coefficientContinuationBits)
+            ~ ", exponentContinuationBits=" ~ to!string(exponentContinuationBits)
+            ~ ", eLimit=" ~ to!string(eLimit)
+            ~ ", eMin=" ~ to!string(eMin)
+			~ ", exponentBias=" ~ to!string(exponentBias)
+            ~ ", digitGroups=" ~ to!string(digitGroups)
+            ~ ", eMax=" ~ to!string(eMax);
     }
 
 private:
@@ -174,9 +176,9 @@ private:
                      | (cast(int)decBytes[firstByteIndex - 1] << (bitsPerByte - firstByteBitOffset)));
 
 			version (TraceFunction)
-			dgFunctionTrace("firstByteIndex=", firstByteIndex,
-                      ", decBytes[firstByteIndex]=", dgToHex(decBytes[firstByteIndex]),
-                      ", decBytes[firstByteIndex - 1]=", dgToHex(decBytes[firstByteIndex - 1]),
+			traceFunction!("pham.external.dec")("firstByteIndex=", firstByteIndex,
+                      ", decBytes[firstByteIndex]=", decBytes[firstByteIndex],
+                      ", decBytes[firstByteIndex - 1]=", decBytes[firstByteIndex - 1],
                       ", dpdGroupBits=", dpdGroupBits);
 
             if (dpdGroupBits != 0)
@@ -186,7 +188,7 @@ private:
 				digitChars[dstIndex..dstIndex + digitsPerGroup] = dpdGroupBits2Digits[srcIndex..srcIndex + digitsPerGroup];
 
 				version (TraceFunction)
-				dgFunctionTrace("srcIndex=", srcIndex,
+				traceFunction!("pham.external.dec")("srcIndex=", srcIndex,
 						  ", dstIndex=", dstIndex,
                           ", digitChars[dstIndex..dstIndex + digitsPerGroup]=", digitChars[dstIndex..dstIndex + digitsPerGroup]);
             }
@@ -206,8 +208,7 @@ private:
 		if (isNeg)
 			digitChars[--digitCharIndex] = '-';
 
-		version (TraceFunction)
-		dgFunctionTrace("digitChars=", digitChars);
+		version (TraceFunction) traceFunction!("pham.external.dec")("digitChars=", digitChars);
 
 		return decodeCoefficient(D.buildin(digitChars[digitCharIndex..$]));
 	}
@@ -225,8 +226,7 @@ private:
 		int exponent = exponentMSB;
 		size_t byteIndex = 1;
 
-		version (TraceFunction)
-		dgFunctionTrace("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining, ", decBytes=", dgToHex(decBytes));
+		version (TraceFunction) traceFunction!("pham.external.dec")("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining, ", decBytes=", decBytes);
 
 		while (exponentBitsRemaining > 8)
 		{
@@ -234,16 +234,14 @@ private:
 			byteIndex += 1;
 			exponentBitsRemaining -= 8;
 
-			version (TraceFunction)
-			dgFunctionTrace("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining);
+			version (TraceFunction) traceFunction!("pham.external.dec")("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining);
 		}
 
 		if (exponentBitsRemaining > 0)
 		{
 			exponent = (exponent << exponentBitsRemaining) | (usignedRightShift(decBytes[byteIndex] & 0xFF, 8 - exponentBitsRemaining));
 
-			version (TraceFunction)
-			dgFunctionTrace("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining);
+			version (TraceFunction) traceFunction!("pham.external.dec")("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining);
 		}
 
 		return exponent;
@@ -267,8 +265,7 @@ private:
     }
 	do
     {
-		version (TraceFunction)
-		dgFunctionTrace("value=", coefficient);
+		version (TraceFunction) traceFunction!("pham.external.dec")("coefficient=", coefficient);
 
 		D.U remainingValue = coefficient;
 		foreach (digitGroup; 0..digitGroups)
@@ -288,7 +285,7 @@ private:
 			decBytes[firstByteIndex - 1] = cast(ubyte)(decBytes[firstByteIndex - 1] | preByte);
 
 			version (TraceFunction)
-			dgFunctionTrace("remainingValue=", remainingValue,
+			traceFunction!("pham.external.dec")("remainingValue=", remainingValue,
 				", remainder=", remainder, ", currentGroup=", currentGroup,
 				", curByte=", curByte, ", preByte=", preByte,
 				", decBytes[firstByteIndex]=", decBytes[firstByteIndex],
@@ -301,8 +298,7 @@ private:
 
 	static void encodeExponentContinuation(int biasedExponent, int expBitsRemaining, ref EncodedResult decBytes) @nogc
 	{
-		version (TraceFunction)
-		dgFunctionTrace("biasedExponent=", biasedExponent, ", expBitsRemaining=", expBitsRemaining, ", decBytes=", dgToHex(decBytes));
+		version (TraceFunction) traceFunction!("pham.external.dec")("biasedExponent=", biasedExponent, ", expBitsRemaining=", expBitsRemaining, ", decBytes=", decBytes);
 
 		size_t expByteIndex = 1;
 		while (expBitsRemaining > 8)
@@ -310,16 +306,14 @@ private:
 			decBytes[expByteIndex++] = cast(ubyte)usignedRightShift(biasedExponent, expBitsRemaining - 8);
 			expBitsRemaining -= 8;
 
-			version (TraceFunction)
-			dgFunctionTrace("decBytes[expByteIndex]=", decBytes[expByteIndex - 1], ", expByteIndex=", expByteIndex - 1);
+			version (TraceFunction) traceFunction!("pham.external.dec")("decBytes[expByteIndex]=", decBytes[expByteIndex - 1], ", expByteIndex=", expByteIndex - 1);
 		}
 
 		if (expBitsRemaining > 0)
 		{
 			decBytes[expByteIndex] |= cast(ubyte)(biasedExponent << 8 - expBitsRemaining);
 
-			version (TraceFunction)
-			dgFunctionTrace("decBytes[expByteIndex]=", decBytes[expByteIndex], ", expByteIndex=", expByteIndex);
+			version (TraceFunction) traceFunction!("pham.external.dec")("decBytes[expByteIndex]=", decBytes[expByteIndex], ", expByteIndex=", expByteIndex);
 		}
 	}
 
@@ -332,11 +326,10 @@ private:
 		absValue.unpack(coefficient, unbiasedExponent);
 		const biasedExponent = biasedExponent(unbiasedExponent);
 
-		version (TraceFunction)
-		dgFunctionTrace("unbiasedExponent=", unbiasedExponent,
-                  ", biasedExponent=", biasedExponent,
-                  ", coefficient=", coefficient,
-                  ", isNeg=", isNeg);
+		version (TraceFunction) traceFunction!("pham.external.dec")("unbiasedExponent=", unbiasedExponent,
+            ", biasedExponent=", biasedExponent,
+            ", coefficient=", coefficient,
+            ", isNeg=", isNeg);
 
 		const mostSignificantDigit = encodeCoefficient(coefficient, decBytes);
 		const expMSB = usignedRightShift(biasedExponent, exponentContinuationBits);
@@ -356,9 +349,9 @@ private:
 		}
 
 		version (TraceFunction)
-		dgFunctionTrace("expMSB=", expMSB, ", expTwoBitCont =", expTwoBitCont,
+		traceFunction!("pham.external.dec")("expMSB=", expMSB, ", expTwoBitCont =", expTwoBitCont,
 			", mostSignificantDigit=", mostSignificantDigit, ", decBytes[0]=", decBytes[0],
-			", decBytes=", dgToHex(decBytes));
+			", decBytes=", decBytes);
 
 		encodeExponentContinuation(biasedExponent, exponentContinuationBits - 2, decBytes);
     }
@@ -416,8 +409,7 @@ private:
 	{
 		const result = cast(uint)(cast(uint)value >> shift);
 
-		version (TraceFunction)
-		dgFunctionTrace("value=", value, ", shift=", shift, ", result=", result);
+		version (TraceFunction) traceFunction!("pham.external.dec")("value=", value, ", shift=", shift, ", result=", result);
 
 		return result;
 	}
@@ -673,7 +665,7 @@ unittest // DecimalCodec64
 {
 	import pham.utl.object : bytesFromHexs;
 	import pham.utl.test;
-	traceUnitTest("unittest pham.external.dec.codec.DecimalCodec64");
+	traceUnitTest!("pham.external.dec")("unittest pham.external.dec.codec.DecimalCodec64");
 
 	DecimalCodec64 codec;
 	auto n = Decimal!64.buildin("0");
@@ -738,7 +730,7 @@ unittest // DecimalCodec128
 {
 	import pham.utl.object : bytesFromHexs;
 	import pham.utl.test;
-	traceUnitTest("unittest pham.external.dec.codec.DecimalCodec128");
+	traceUnitTest!("pham.external.dec")("unittest pham.external.dec.codec.DecimalCodec128");
 
 	// Decode
 	DecimalCodec128 codec;

@@ -237,8 +237,8 @@ public:
     Sets specified error flags. Multiple errors may be ORed together.
     ---
     DecimalControl.raiseFlags(ExceptionFlags.overflow | ExceptionFlags.underflow);
-    assert (DecimalControl.overflow);
-    assert (DecimalControl.underflow);
+    assert(DecimalControl.overflow);
+    assert(DecimalControl.underflow);
     ---
 	*/
     @IEEECompliant("raiseFlags", 26)
@@ -278,7 +278,7 @@ public:
     Enables specified error flags (group) without throwing corresponding exceptions.
     ---
     DecimalControl.restoreFlags(ExceptionFlags.underflow | ExceptionsFlags.inexact);
-    assert (DecimalControl.testFlags(ExceptionFlags.underflow | ExceptionFlags.inexact));
+    assert(DecimalControl.testFlags(ExceptionFlags.underflow | ExceptionFlags.inexact));
     ---
 	*/
     @IEEECompliant("restoreFlags", 26)
@@ -291,7 +291,7 @@ public:
     Checks if the specified error flags are set. Multiple exceptions may be ORed together.
     ---
     DecimalControl.raiseFlags(ExceptionFlags.overflow | ExceptionFlags.underflow | ExceptionFlags.inexact);
-    assert (DecimalControl.hasFlags(ExceptionFlags.overflow | ExceptionFlags.inexact));
+    assert(DecimalControl.hasFlags(ExceptionFlags.overflow | ExceptionFlags.inexact));
     ---
 	*/
     @IEEECompliant("testFlags", 26)
@@ -305,7 +305,7 @@ public:
     Returns the current set flags.
     ---
     DecimalControl.restoreFlags(ExceptionFlags.inexact);
-    assert (DecimalControl.saveFlags() & ExceptionFlags.inexact);
+    assert(DecimalControl.saveFlags() & ExceptionFlags.inexact);
     ---
 	*/
     @IEEECompliant("saveAllFlags", 26)
@@ -329,8 +329,8 @@ public:
     ---
     DecimalControl.disableExceptions(ExceptionFlags.overflow);
     auto d = Decimal64.max * Decimal64.max;
-    assert (DecimalControl.overflow);
-    assert (d.isInfinity);
+    assert(DecimalControl.overflow);
+    assert(d.isInfinity);
     ---
 	*/
 	static void disableExceptions(const(ExceptionFlags) group) @nogc @safe nothrow
@@ -392,15 +392,21 @@ public:
     assert(DecimalControl.invalidOperation);
     ---
     */
-	static @property bool invalidOperation() @nogc nothrow @safe
-	{
-		return (flags & ExceptionFlags.invalidOperation) != 0;
-	}
-
-    ///ditto
 	static @property bool divisionByZero() @nogc nothrow @safe
 	{
 		return (flags & ExceptionFlags.divisionByZero) != 0;
+	}
+
+    ///ditto
+	static @property bool inexact() @nogc nothrow @safe
+	{
+		return (flags & ExceptionFlags.inexact) != 0;
+	}
+
+    ///ditto
+	static @property bool invalidOperation() @nogc nothrow @safe
+	{
+		return (flags & ExceptionFlags.invalidOperation) != 0;
 	}
 
     ///ditto
@@ -413,12 +419,6 @@ public:
 	static @property bool underflow() @nogc nothrow @safe
 	{
 		return (flags & ExceptionFlags.underflow) != 0;
-	}
-
-    ///ditto
-	static @property bool inexact() @nogc nothrow @safe
-	{
-		return (flags & ExceptionFlags.inexact) != 0;
 	}
 
     ///true if this programming environment conforms to IEEE 754-1985
@@ -555,7 +555,7 @@ public:
             ---
             auto d1 = Decimal64("0x00003p+21");
             auto d2 = Decimal64("3e+21");
-            assert (d1 == d2);
+            assert(d1 == d2);
             ---
             $(LI the hexadecimal notation doesn't have any _decimal point,
                 because there is no leading 1 as for binary floating point values;)
@@ -683,7 +683,7 @@ public:
         else static if (is(T: bool))
             this.data = value ? one.data : zero.data;
         else
-            static assert (0, "Cannot convert expression of type '" ~ T.stringof ~ "' to '" ~ D.stringof ~ "'");
+            static assert(0, "Cannot convert expression of type '" ~ T.stringof ~ "' to '" ~ D.stringof ~ "'");
     }
 
     /** ditto
@@ -901,7 +901,7 @@ public:
         else static if (isSomeChar!T)
             return opEquals(cast(uint)value);
         else
-            static assert (0, "Cannot compare values of type '" ~
+            static assert(0, "Cannot compare values of type '" ~
                                 Unqual!D.stringof ~ "' and '" ~
                                 Unqual!T.stringof ~ "'");
     }
@@ -940,7 +940,7 @@ public:
         else static if (isSomeChar!T)
             return cmp(this, cast(uint)value);
         else
-            static assert (0, "Cannot compare values of type '" ~
+            static assert(0, "Cannot compare values of type '" ~
                                Unqual!D.stringof ~ "' and '" ~
                                Unqual!T.stringof ~ "'");
     }
@@ -1024,7 +1024,7 @@ public:
                             __ctfe ? 0 : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
         else
-            static assert (0, "Cannot perform binary operation: '" ~
+            static assert(0, "Cannot perform binary operation: '" ~
                                 Unqual!D.stringof ~ "' " ~ op ~" '" ~
                                 Unqual!T.stringof ~ "'");
         if (!__ctfe)
@@ -1069,7 +1069,7 @@ public:
                             __ctfe ? 0 : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
         else
-            static assert (0, "Cannot perform binary operation: '" ~
+            static assert(0, "Cannot perform binary operation: '" ~
                                 Unqual!T.stringof ~ "' " ~ op ~" '" ~
                                 Unqual!D.stringof ~ "'");
         if (!__ctfe)
@@ -1105,7 +1105,7 @@ public:
                             __ctfe ? 0 : DecimalControl.precision,
                            __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
         else
-            static assert (0, "Cannot perform assignment operation: '" ~
+            static assert(0, "Cannot perform assignment operation: '" ~
                                 Unqual!D.stringof ~ "' " ~ op ~"= '" ~
                                 Unqual!T.stringof ~ "'");
 
@@ -1534,12 +1534,12 @@ package(pham.external.dec):
     void pack(const(U) coefficient, const(int) biasedExponent, const(bool) isNegative) @nogc nothrow pure @safe
     in
     {
-        assert (coefficient <= COEF_MAX_RAW);
-        assert (biasedExponent >= EXP_MIN && biasedExponent <= EXP_MAX);
+        assert(coefficient <= COEF_MAX_RAW);
+        assert(biasedExponent >= EXP_MIN && biasedExponent <= EXP_MAX);
     }
     out
     {
-        assert ((this.data & MASK_INF) != MASK_INF);
+        assert((this.data & MASK_INF) != MASK_INF);
     }
     do
     {
@@ -1585,10 +1585,12 @@ package(pham.external.dec):
                             : pow10!(DataType!D)[exAbs - maxFractionalDigits - 1];
                         xadd(cx, roundValue);
                         // Clear subsequence fractional digits to be zero
+                        bool overflow;
                         ShortStringBuffer!char buffer;
                         auto cxDigits = dataTypeToString(buffer, cx);
                         cxDigits[$ - exAbs + maxFractionalDigits..$] = '0';
-                        cx = toUnsign!(DataType!D)(cxDigits);
+                        cx = toUnsign!(DataType!D)(cxDigits, overflow);
+                        assert(!overflow, "Overflow");
                     }
                 }
 
@@ -1645,8 +1647,8 @@ package(pham.external.dec):
     bool unpack(out U coefficient, out int biasedExponent) const @nogc nothrow pure @safe
     out
     {
-        assert (coefficient <= (MASK_COE2 | MASK_COEX));
-        assert (biasedExponent >= EXP_MIN && biasedExponent <= EXP_MAX);
+        assert(coefficient <= (MASK_COE2 | MASK_COEX));
+        assert(biasedExponent >= EXP_MIN && biasedExponent <= EXP_MAX);
     }
     do
     {
@@ -1999,32 +2001,32 @@ unittest
     foreach (D; DecimalTypes)
     {
         foreach (T; DecimalTypes)
-            static assert (is(typeof(D(T.init)) == D));
+            static assert(is(typeof(D(T.init)) == D));
         foreach (T; IntegralTypes)
-            static assert (is(typeof(D(T.init)) == D));
+            static assert(is(typeof(D(T.init)) == D));
         foreach (T; FloatTypes)
-            static assert (is(typeof(D(T.init)) == D));
+            static assert(is(typeof(D(T.init)) == D));
         foreach (T; CharTypes)
-            static assert (is(typeof(D(T.init)) == D));
+            static assert(is(typeof(D(T.init)) == D));
         foreach (T; StringTypes)
-            static assert (is(typeof(D(T.init)) == D));
-        static assert (is(typeof(D(true)) == D));
+            static assert(is(typeof(D(T.init)) == D));
+        static assert(is(typeof(D(true)) == D));
     }
 
     //assignment
     foreach (D; DecimalTypes)
     {
         foreach (T; DecimalTypes)
-            static assert (__traits(compiles, { D d = T.init; }));
+            static assert(__traits(compiles, { D d = T.init; }));
         foreach (T; IntegralTypes)
-            static assert (__traits(compiles, { D d = T.init; }));
+            static assert(__traits(compiles, { D d = T.init; }));
         foreach (T; FloatTypes)
-            static assert (__traits(compiles, { D d = T.init; }));
+            static assert(__traits(compiles, { D d = T.init; }));
         foreach (T; CharTypes)
-            static assert (__traits(compiles, { D d = T.init; }));
+            static assert(__traits(compiles, { D d = T.init; }));
         foreach (T; StringTypes)
-            static assert (__traits(compiles, { D d = T.init; }));
-        static assert (__traits(compiles, { D d = true; }));
+            static assert(__traits(compiles, { D d = T.init; }));
+        static assert(__traits(compiles, { D d = true; }));
     }
 
     auto b = cast(float)Decimal32();
@@ -2032,14 +2034,14 @@ unittest
     foreach (D; DecimalTypes)
     {
         foreach (T; DecimalTypes)
-            static assert (is(typeof(cast(T)(D.init)) == T));
+            static assert(is(typeof(cast(T)(D.init)) == T));
         foreach (T; IntegralTypes)
-            static assert (is(typeof(cast(T)(D.init)) == T));
+            static assert(is(typeof(cast(T)(D.init)) == T));
         foreach (T; FloatTypes)
-            static assert (is(typeof(cast(T)(D.init)) == T));
+            static assert(is(typeof(cast(T)(D.init)) == T));
         foreach (T; CharTypes)
-            static assert (is(typeof(cast(T)(D.init)) == T));
-        static assert (is(typeof(cast(bool)(D.init)) == bool));
+            static assert(is(typeof(cast(T)(D.init)) == T));
+        static assert(is(typeof(cast(bool)(D.init)) == bool));
     }
 
     //unary ops
@@ -2056,13 +2058,13 @@ unittest
     foreach (D; DecimalTypes)
     {
         foreach (T; DecimalTypes)
-            static assert (is(typeof(D.init == T.init) == bool));
+            static assert(is(typeof(D.init == T.init) == bool));
         foreach (T; IntegralTypes)
-            static assert (is(typeof(D.init == T.init) == bool));
+            static assert(is(typeof(D.init == T.init) == bool));
         foreach (T; FloatTypes)
-            static assert (is(typeof(D.init == cast(T)0.0) == bool));
+            static assert(is(typeof(D.init == cast(T)0.0) == bool));
         foreach (T; CharTypes)
-            static assert (is(typeof(D.init == T.init) == bool));
+            static assert(is(typeof(D.init == T.init) == bool));
     }
 
     auto c = Decimal128() > 0.0;
@@ -2071,13 +2073,13 @@ unittest
     foreach (D; DecimalTypes)
     {
         foreach (T; DecimalTypes)
-            static assert (is(typeof(D.init > T.init) == bool));
+            static assert(is(typeof(D.init > T.init) == bool));
         foreach (T; IntegralTypes)
-            static assert (is(typeof(D.init > T.init) == bool));
+            static assert(is(typeof(D.init > T.init) == bool));
         foreach (T; FloatTypes)
-            static assert (is(typeof(D.init > cast(T)0.0) == bool));
+            static assert(is(typeof(D.init > cast(T)0.0) == bool));
         foreach (T; CharTypes)
-            static assert (is(typeof(D.init > T.init) == bool));
+            static assert(is(typeof(D.init > T.init) == bool));
     }
 
     //binary left
@@ -2086,45 +2088,45 @@ unittest
         foreach (T; DecimalTypes)
         {
             //pragma(msg, typeof(D.init ^^ T.init).stringof);
-            static assert (is(typeof(D.init + T.init) == CommonDecimal!(D, T)));
-            static assert (is(typeof(D.init - T.init) == CommonDecimal!(D, T)));
-            static assert (is(typeof(D.init * T.init) == CommonDecimal!(D, T)));
-            static assert (is(typeof(D.init / T.init) == CommonDecimal!(D, T)));
-            static assert (is(typeof(D.init % T.init) == CommonDecimal!(D, T)));
-            static assert (is(typeof(D.init ^^ T.init) == CommonDecimal!(D, T)));
+            static assert(is(typeof(D.init + T.init) == CommonDecimal!(D, T)));
+            static assert(is(typeof(D.init - T.init) == CommonDecimal!(D, T)));
+            static assert(is(typeof(D.init * T.init) == CommonDecimal!(D, T)));
+            static assert(is(typeof(D.init / T.init) == CommonDecimal!(D, T)));
+            static assert(is(typeof(D.init % T.init) == CommonDecimal!(D, T)));
+            static assert(is(typeof(D.init ^^ T.init) == CommonDecimal!(D, T)));
         }
 
         foreach (T; IntegralTypes)
         {
             //pragma(msg, typeof(D.init / T.init).stringof);
-            static assert (is(typeof(D.init + T.init) == D));
-            static assert (is(typeof(D.init - T.init) == D));
-            static assert (is(typeof(D.init * T.init) == D));
-            static assert (is(typeof(D.init / T.init) == D));
-            static assert (is(typeof(D.init % T.init) == D));
-            static assert (is(typeof(D.init ^^ T.init) == D));
+            static assert(is(typeof(D.init + T.init) == D));
+            static assert(is(typeof(D.init - T.init) == D));
+            static assert(is(typeof(D.init * T.init) == D));
+            static assert(is(typeof(D.init / T.init) == D));
+            static assert(is(typeof(D.init % T.init) == D));
+            static assert(is(typeof(D.init ^^ T.init) == D));
         }
 
         auto z = Decimal32.nan + float.nan;
 
         foreach (T; FloatTypes)
         {
-            static assert (is(typeof(D.init + T.init) == D));
-            static assert (is(typeof(D.init - T.init) == D));
-            static assert (is(typeof(D.init * T.init) == D));
-            static assert (is(typeof(D.init / T.init) == D));
-            static assert (is(typeof(D.init % T.init) == D));
-            static assert (is(typeof(D.init ^^ T.init) == D));
+            static assert(is(typeof(D.init + T.init) == D));
+            static assert(is(typeof(D.init - T.init) == D));
+            static assert(is(typeof(D.init * T.init) == D));
+            static assert(is(typeof(D.init / T.init) == D));
+            static assert(is(typeof(D.init % T.init) == D));
+            static assert(is(typeof(D.init ^^ T.init) == D));
         }
 
         foreach (T; CharTypes)
         {
-            static assert (is(typeof(D.init + T.init) == D));
-            static assert (is(typeof(D.init - T.init) == D));
-            static assert (is(typeof(D.init * T.init) == D));
-            static assert (is(typeof(D.init / T.init) == D));
-            static assert (is(typeof(D.init % T.init) == D));
-            static assert (is(typeof(D.init ^^ T.init) == D));
+            static assert(is(typeof(D.init + T.init) == D));
+            static assert(is(typeof(D.init - T.init) == D));
+            static assert(is(typeof(D.init * T.init) == D));
+            static assert(is(typeof(D.init / T.init) == D));
+            static assert(is(typeof(D.init % T.init) == D));
+            static assert(is(typeof(D.init ^^ T.init) == D));
         }
     }
 
@@ -2133,45 +2135,45 @@ unittest
     {
         foreach (T; DecimalTypes)
         {
-            static assert (is(typeof(T.init + D.init) == CommonDecimal!(D, T)));
-            static assert (is(typeof(T.init - D.init) == CommonDecimal!(D, T)));
-            static assert (is(typeof(T.init * D.init) == CommonDecimal!(D, T)));
-            static assert (is(typeof(T.init / D.init) == CommonDecimal!(D, T)));
-            static assert (is(typeof(T.init % D.init) == CommonDecimal!(D, T)));
-            static assert (is(typeof(T.init ^^ D.init) == CommonDecimal!(D, T)));
+            static assert(is(typeof(T.init + D.init) == CommonDecimal!(D, T)));
+            static assert(is(typeof(T.init - D.init) == CommonDecimal!(D, T)));
+            static assert(is(typeof(T.init * D.init) == CommonDecimal!(D, T)));
+            static assert(is(typeof(T.init / D.init) == CommonDecimal!(D, T)));
+            static assert(is(typeof(T.init % D.init) == CommonDecimal!(D, T)));
+            static assert(is(typeof(T.init ^^ D.init) == CommonDecimal!(D, T)));
         }
 
 
         foreach (T; IntegralTypes)
         {
             //pragma(msg, typeof(T.init ^^ D.init).stringof);
-            static assert (is(typeof(T.init + D.init) == D));
-            static assert (is(typeof(T.init - D.init) == D));
-            static assert (is(typeof(T.init * D.init) == D));
-            static assert (is(typeof(T.init / D.init) == D));
-            static assert (is(typeof(T.init % D.init) == D));
-            static assert (is(typeof(T.init ^^ D.init) == D));
+            static assert(is(typeof(T.init + D.init) == D));
+            static assert(is(typeof(T.init - D.init) == D));
+            static assert(is(typeof(T.init * D.init) == D));
+            static assert(is(typeof(T.init / D.init) == D));
+            static assert(is(typeof(T.init % D.init) == D));
+            static assert(is(typeof(T.init ^^ D.init) == D));
         }
 
         foreach (T; FloatTypes)
         {
             //pragma(msg, typeof(T.init ^^ D.init).stringof);
-            static assert (is(typeof(T.init + D.init) == D));
-            static assert (is(typeof(T.init - D.init) == D));
-            static assert (is(typeof(T.init * D.init) == D));
-            static assert (is(typeof(T.init / D.init) == D));
-            static assert (is(typeof(T.init % D.init) == D));
-            static assert (is(typeof(T.init ^^ D.init) == D));
+            static assert(is(typeof(T.init + D.init) == D));
+            static assert(is(typeof(T.init - D.init) == D));
+            static assert(is(typeof(T.init * D.init) == D));
+            static assert(is(typeof(T.init / D.init) == D));
+            static assert(is(typeof(T.init % D.init) == D));
+            static assert(is(typeof(T.init ^^ D.init) == D));
         }
 
         foreach (T; CharTypes)
         {
-            static assert (is(typeof(T.init + D.init) == D));
-            static assert (is(typeof(T.init - D.init) == D));
-            static assert (is(typeof(T.init * D.init) == D));
-            static assert (is(typeof(T.init / D.init) == D));
-            static assert (is(typeof(T.init % D.init) == D));
-            static assert (is(typeof(T.init ^^ D.init) == D));
+            static assert(is(typeof(T.init + D.init) == D));
+            static assert(is(typeof(T.init - D.init) == D));
+            static assert(is(typeof(T.init * D.init) == D));
+            static assert(is(typeof(T.init / D.init) == D));
+            static assert(is(typeof(T.init % D.init) == D));
+            static assert(is(typeof(T.init ^^ D.init) == D));
         }
     }
 
@@ -2180,83 +2182,83 @@ unittest
     {
         foreach (T; DecimalTypes)
         {
-            static assert (is(typeof(D.init += T.init) == D));
-            static assert (is(typeof(D.init -= T.init) == D));
-            static assert (is(typeof(D.init *= T.init) == D));
-            static assert (is(typeof(D.init /= T.init) == D));
-            static assert (is(typeof(D.init %= T.init) == D));
-            static assert (is(typeof(D.init ^^= T.init) == D));
+            static assert(is(typeof(D.init += T.init) == D));
+            static assert(is(typeof(D.init -= T.init) == D));
+            static assert(is(typeof(D.init *= T.init) == D));
+            static assert(is(typeof(D.init /= T.init) == D));
+            static assert(is(typeof(D.init %= T.init) == D));
+            static assert(is(typeof(D.init ^^= T.init) == D));
         }
 
         foreach (T; IntegralTypes)
         {
-            static assert (is(typeof(D.init += T.init) == D));
-            static assert (is(typeof(D.init -= T.init) == D));
-            static assert (is(typeof(D.init *= T.init) == D));
-            static assert (is(typeof(D.init /= T.init) == D));
-            static assert (is(typeof(D.init %= T.init) == D));
-            static assert (is(typeof(D.init ^^= T.init) == D));
+            static assert(is(typeof(D.init += T.init) == D));
+            static assert(is(typeof(D.init -= T.init) == D));
+            static assert(is(typeof(D.init *= T.init) == D));
+            static assert(is(typeof(D.init /= T.init) == D));
+            static assert(is(typeof(D.init %= T.init) == D));
+            static assert(is(typeof(D.init ^^= T.init) == D));
         }
 
         foreach (T; FloatTypes)
         {
-            static assert (is(typeof(D.init += T.init) == D));
-            static assert (is(typeof(D.init -= T.init) == D));
-            static assert (is(typeof(D.init *= T.init) == D));
-            static assert (is(typeof(D.init /= T.init) == D));
-            static assert (is(typeof(D.init %= T.init) == D));
-            static assert (is(typeof(D.init ^^= T.init) == D));
+            static assert(is(typeof(D.init += T.init) == D));
+            static assert(is(typeof(D.init -= T.init) == D));
+            static assert(is(typeof(D.init *= T.init) == D));
+            static assert(is(typeof(D.init /= T.init) == D));
+            static assert(is(typeof(D.init %= T.init) == D));
+            static assert(is(typeof(D.init ^^= T.init) == D));
         }
 
         foreach (T; CharTypes)
         {
-            static assert (is(typeof(D.init += T.init) == D));
-            static assert (is(typeof(D.init -= T.init) == D));
-            static assert (is(typeof(D.init *= T.init) == D));
-            static assert (is(typeof(D.init /= T.init) == D));
-            static assert (is(typeof(D.init %= T.init) == D));
-            static assert (is(typeof(D.init ^^= T.init) == D));
+            static assert(is(typeof(D.init += T.init) == D));
+            static assert(is(typeof(D.init -= T.init) == D));
+            static assert(is(typeof(D.init *= T.init) == D));
+            static assert(is(typeof(D.init /= T.init) == D));
+            static assert(is(typeof(D.init %= T.init) == D));
+            static assert(is(typeof(D.init ^^= T.init) == D));
         }
     }
 
     //expected constants
     foreach (D; DecimalTypes)
     {
-        static assert (is(typeof(D.init) == D));
-        static assert (is(typeof(D.nan) == D));
-        static assert (is(typeof(D.infinity) == D));
-        static assert (is(typeof(D.max) == D));
-        static assert (is(typeof(D.min_normal) == D));
-        static assert (is(typeof(D.epsilon) == D));
-        static assert (is(typeof(D.dig) == int));
-        static assert (is(typeof(D.mant_dig) == int));
-        static assert (is(typeof(D.min_10_exp) == int));
-        static assert (is(typeof(D.max_10_exp) == int));
-        static assert (is(typeof(D.min_exp) == int));
-        static assert (is(typeof(D.max_exp) == int));
+        static assert(is(typeof(D.init) == D));
+        static assert(is(typeof(D.nan) == D));
+        static assert(is(typeof(D.infinity) == D));
+        static assert(is(typeof(D.max) == D));
+        static assert(is(typeof(D.min_normal) == D));
+        static assert(is(typeof(D.epsilon) == D));
+        static assert(is(typeof(D.dig) == int));
+        static assert(is(typeof(D.mant_dig) == int));
+        static assert(is(typeof(D.min_10_exp) == int));
+        static assert(is(typeof(D.max_10_exp) == int));
+        static assert(is(typeof(D.min_exp) == int));
+        static assert(is(typeof(D.max_exp) == int));
 
-        static assert (is(typeof(D.E) == D));
-        static assert (is(typeof(D.PI) == D));
-        static assert (is(typeof(D.PI_2) == D));
-        static assert (is(typeof(D.PI_4) == D));
-        static assert (is(typeof(D.M_1_PI) == D));
-        static assert (is(typeof(D.M_2_PI) == D));
-        static assert (is(typeof(D.M_2_SQRTPI) == D));
-        static assert (is(typeof(D.LN10) == D));
-        static assert (is(typeof(D.LN2) == D));
-        static assert (is(typeof(D.LOG2) == D));
-        static assert (is(typeof(D.LOG2E) == D));
-        static assert (is(typeof(D.LOG2T) == D));
-        static assert (is(typeof(D.LOG10E) == D));
-        static assert (is(typeof(D.SQRT2) == D));
-        static assert (is(typeof(D.SQRT1_2) == D));
+        static assert(is(typeof(D.E) == D));
+        static assert(is(typeof(D.PI) == D));
+        static assert(is(typeof(D.PI_2) == D));
+        static assert(is(typeof(D.PI_4) == D));
+        static assert(is(typeof(D.M_1_PI) == D));
+        static assert(is(typeof(D.M_2_PI) == D));
+        static assert(is(typeof(D.M_2_SQRTPI) == D));
+        static assert(is(typeof(D.LN10) == D));
+        static assert(is(typeof(D.LN2) == D));
+        static assert(is(typeof(D.LOG2) == D));
+        static assert(is(typeof(D.LOG2E) == D));
+        static assert(is(typeof(D.LOG2T) == D));
+        static assert(is(typeof(D.LOG10E) == D));
+        static assert(is(typeof(D.SQRT2) == D));
+        static assert(is(typeof(D.SQRT1_2) == D));
     }
 
     //expected members
     foreach (D; DecimalTypes)
     {
-        static assert (is(typeof(D.init.toHash()) == size_t));
-        static assert (is(typeof(D.init.toString()) == string));
+        static assert(is(typeof(D.init.toHash()) == size_t));
+        static assert(is(typeof(D.init.toString()) == string));
     }
 }
 
@@ -2419,14 +2421,20 @@ static if (!isBetterC)
         mixin ExceptionConstructors;
     }
 
-    ///Thrown if any operand of a _decimal operation is not a number or si not finite
-    class InvalidOperationException : DecimalException
+    ///Thrown if the denominator of a _decimal division operation is zero.
+    class DivisionByZeroException : DecimalException
     {
 	    mixin ExceptionConstructors;
     }
 
-    ///Thrown if the denominator of a _decimal division operation is zero.
-    class DivisionByZeroException : DecimalException
+    ///Thrown if the result of a _decimal operation was rounded to fit in the destination format.
+    class InexactException : DecimalException
+    {
+	    mixin ExceptionConstructors;
+    }
+
+    ///Thrown if any operand of a _decimal operation is not a number or si not finite
+    class InvalidOperationException : DecimalException
     {
 	    mixin ExceptionConstructors;
     }
@@ -2443,17 +2451,11 @@ static if (!isBetterC)
 	    mixin ExceptionConstructors;
     }
 
-    ///Thrown if the result of a _decimal operation was rounded to fit in the destination format.
-    class InexactException : DecimalException
-    {
-	    mixin ExceptionConstructors;
-    }
-
-    static immutable EInvalidOperationException = new InvalidOperationException("Invalid operation");
     static immutable EDivisionByZeroException = new DivisionByZeroException("Division by zero");
+    static immutable EInexactException = new InexactException("Inexact");
+    static immutable EInvalidOperationException = new InvalidOperationException("Invalid operation");
     static immutable EOverflowException = new OverflowException("Overflow");
     static immutable EUnderflowException = new UnderflowException("Underflow");
-    static immutable EInexactException = new InexactException("Inexact");
 }
 
 ///IEEE-754-2008 floating point categories
@@ -2564,7 +2566,7 @@ unittest
 
 unittest
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(decimalClass(T.sNaN) == DecimalClass.signalingNaN);
         assert(decimalClass(T.qNaN) == DecimalClass.quietNaN);
@@ -2717,9 +2719,9 @@ if (isDecimal!D1 && isDecimal!D2)
 ///
 unittest
 {
-    assert (isNaN(cmp(-Decimal32.nan, Decimal64.max)));
-    assert (cmp(Decimal32.max, Decimal128.min_normal) == 1);
-    assert (cmp(Decimal64(0), -Decimal64(0)) == 0);
+    assert(isNaN(cmp(-Decimal32.nan, Decimal64.max)));
+    assert(cmp(Decimal32.max, Decimal128.min_normal) == 1);
+    assert(cmp(Decimal64(0), -Decimal64(0)) == 0);
 
     static Decimal64 toFloatDecimal(long scaleNumber)
     {
@@ -2763,7 +2765,7 @@ if (isDecimal!D && isIntegral!I)
 ///
 unittest
 {
-    assert (cmp(Decimal32(540), 540) == 0);
+    assert(cmp(Decimal32(540), 540) == 0);
 }
 
 /**
@@ -2795,9 +2797,9 @@ if (isDecimal!D1 && isDecimal!D2)
 ///
 unittest
 {
-    assert (isEqual(Decimal32.max, Decimal32.max));
-    assert (isEqual(Decimal64.min, Decimal64.min));
-    assert (isEqual(Decimal64(0), -Decimal64(0)));
+    assert(isEqual(Decimal32.max, Decimal32.max));
+    assert(isEqual(Decimal64.min, Decimal64.min));
+    assert(isEqual(Decimal64(0), -Decimal64(0)));
 
     static Decimal64 toFloatDecimal(long scaleNumber)
     {
@@ -2843,7 +2845,7 @@ if (isDecimal!D && isIntegral!I)
 ///
 unittest
 {
-    assert (isEqual(Decimal32(540), 540));
+    assert(isEqual(Decimal32(540), 540));
 }
 
 ///ditto
@@ -2867,8 +2869,8 @@ if (isDecimal!D1 && isDecimal!D2)
 ///
 unittest
 {
-    assert (isNotEqual(Decimal32.max, Decimal32.min));
-    assert (isNotEqual(Decimal32.max, Decimal32.min_normal));
+    assert(isNotEqual(Decimal32.max, Decimal32.min));
+    assert(isNotEqual(Decimal32.max, Decimal32.min_normal));
 }
 
 /**
@@ -3005,7 +3007,7 @@ unittest
 
 unittest
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(isUnordered(T.nan, T.one));
         assert(isUnordered(T.one, T.nan));
@@ -3066,14 +3068,14 @@ if (isDecimal!D)
 
 unittest
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert (compound(T.ten, 0) == 1);
-        assert (compound(T.infinity, 0) == 1);
-        assert (compound(-T.one, 0) == 1);
-        assert (compound(T.zero, 0) == 1);
-        assert (compound(-T.one, 5) == 0);
-        assert (compound(T.infinity, 5) == T.infinity);
+        assert(compound(T.ten, 0) == 1);
+        assert(compound(T.infinity, 0) == 1);
+        assert(compound(-T.one, 0) == 1);
+        assert(compound(T.zero, 0) == 1);
+        assert(compound(-T.one, 5) == 0);
+        assert(compound(T.infinity, 5) == T.infinity);
     }
 }
 
@@ -3081,7 +3083,7 @@ unittest
 unittest
 {
     Decimal32 x = "0.2";
-    assert (compound(x, 2) == Decimal32("1.44"));
+    assert(compound(x, 2) == Decimal32("1.44"));
 }
 
 /**
@@ -3170,12 +3172,12 @@ unittest
 
 unittest
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert (acos(-T.one) == T.PI);
-        assert (acos(T.one) == 0);
-        assert (acos(T.zero) == T.PI_2);
-        assert (acos(T.nan).isNaN);
+        assert(acos(-T.one) == T.PI);
+        assert(acos(T.one) == 0);
+        assert(acos(T.zero) == T.PI_2);
+        assert(acos(T.nan).isNaN);
     }
 }
 
@@ -3214,16 +3216,16 @@ if (isDecimal!D)
 unittest
 {
     Decimal32 x = 1;
-    assert (acosh(x) == 0);
+    assert(acosh(x) == 0);
 }
 
 unittest
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert (acosh(T.one) == T.zero);
-        assert (acosh(T.infinity) == T.infinity);
-        assert (acosh(T.nan).isNaN);
+        assert(acosh(T.one) == T.zero);
+        assert(acosh(T.infinity) == T.infinity);
+        assert(acosh(T.nan).isNaN);
     }
 }
 
@@ -3388,12 +3390,12 @@ unittest
 
 unittest
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert (asin(-T.one) == -T.PI_2);
-        assert (asin(T.zero) == 0);
-        assert (asin(T.one) == T.PI_2);
-        assert (asin(T.nan).isNaN);
+        assert(asin(-T.one) == -T.PI_2);
+        assert(asin(T.zero) == 0);
+        assert(asin(T.one) == T.PI_2);
+        assert(asin(T.nan).isNaN);
     }
 }
 
@@ -3433,16 +3435,16 @@ if (isDecimal!D)
 unittest
 {
     Decimal32 x = 0;
-    assert (asinh(x) == 0);
+    assert(asinh(x) == 0);
 }
 
 unittest
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert (asinh(T.zero) == T.zero);
-        assert (asinh(T.infinity) == T.infinity);
-        assert (asinh(T.nan).isNaN);
+        assert(asinh(T.zero) == T.zero);
+        assert(asinh(T.infinity) == T.infinity);
+        assert(asinh(T.nan).isNaN);
     }
 }
 
@@ -3487,13 +3489,13 @@ unittest
 
 unittest
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert (isIdentical(atan(T.zero), T.zero));
-        assert (isIdentical(atan(-T.zero), -T.zero));
-        assert (isIdentical(atan(T.infinity), T.PI_2));
-        assert (isIdentical(atan(-T.infinity), -T.PI_2));
-        assert (atan(T.nan).isNaN);
+        assert(isIdentical(atan(T.zero), T.zero));
+        assert(isIdentical(atan(-T.zero), -T.zero));
+        assert(isIdentical(atan(T.infinity), T.PI_2));
+        assert(isIdentical(atan(-T.infinity), -T.PI_2));
+        assert(atan(T.nan).isNaN);
     }
 }
 
@@ -3543,35 +3545,35 @@ unittest
 {
     Decimal32 y = 10;
     Decimal32 x = 0;
-    assert (atan2(y, x) == Decimal32.PI_2);
+    assert(atan2(y, x) == Decimal32.PI_2);
 }
 
 unittest
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert (atan2(T.nan, T.zero).isNaN);
-        assert (atan2(T.one, T.nan).isNaN);
-        assert (atan2(T.zero, -T.zero) == T.PI);
-        assert (atan2(-T.zero, -T.zero) == -T.PI);
-        assert (atan2(T.zero, T.zero) == T.zero);
-        assert (atan2(-T.zero, T.zero) == -T.zero);
-        assert (atan2(T.zero, -T.one) == T.PI);
-        assert (atan2(-T.zero, -T.one) == -T.PI);
-        assert (atan2(T.zero, T.one) == T.zero);
-        assert (atan2(-T.zero, T.one) == -T.zero);
-        assert (atan2(-T.one, T.zero) == -T.PI_2);
-        assert (atan2(T.one, T.zero) == T.PI_2);
-        assert (atan2(T.one, -T.infinity) == T.PI);
-        assert (atan2(-T.one, -T.infinity) == -T.PI);
-        assert (atan2(T.one, T.infinity) == T.zero);
-        assert (atan2(-T.one, T.infinity) == -T.zero);
-        assert (atan2(-T.infinity, T.one) == -T.PI_2);
-        assert (atan2(T.infinity, T.one) == T.PI_2);
-        assert (atan2(-T.infinity, -T.infinity) == -T._3PI_4);
-        assert (atan2(T.infinity, -T.infinity) == T._3PI_4);
-        assert (atan2(-T.infinity, T.infinity) == -T.PI_4);
-        assert (atan2(T.infinity, T.infinity) == T.PI_4);
+        assert(atan2(T.nan, T.zero).isNaN);
+        assert(atan2(T.one, T.nan).isNaN);
+        assert(atan2(T.zero, -T.zero) == T.PI);
+        assert(atan2(-T.zero, -T.zero) == -T.PI);
+        assert(atan2(T.zero, T.zero) == T.zero);
+        assert(atan2(-T.zero, T.zero) == -T.zero);
+        assert(atan2(T.zero, -T.one) == T.PI);
+        assert(atan2(-T.zero, -T.one) == -T.PI);
+        assert(atan2(T.zero, T.one) == T.zero);
+        assert(atan2(-T.zero, T.one) == -T.zero);
+        assert(atan2(-T.one, T.zero) == -T.PI_2);
+        assert(atan2(T.one, T.zero) == T.PI_2);
+        assert(atan2(T.one, -T.infinity) == T.PI);
+        assert(atan2(-T.one, -T.infinity) == -T.PI);
+        assert(atan2(T.one, T.infinity) == T.zero);
+        assert(atan2(-T.one, T.infinity) == -T.zero);
+        assert(atan2(-T.infinity, T.one) == -T.PI_2);
+        assert(atan2(T.infinity, T.one) == T.PI_2);
+        assert(atan2(-T.infinity, -T.infinity) == -T._3PI_4);
+        assert(atan2(T.infinity, -T.infinity) == T._3PI_4);
+        assert(atan2(-T.infinity, T.infinity) == -T.PI_4);
+        assert(atan2(T.infinity, T.infinity) == T.PI_4);
     }
 }
 
@@ -3621,35 +3623,35 @@ unittest
 {
     Decimal32 y = 10;
     Decimal32 x = 0;
-    assert (atan2pi(y, x) == Decimal32("0.5"));
+    assert(atan2pi(y, x) == Decimal32("0.5"));
 }
 
 unittest
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert (atan2(T.nan, T.zero).isNaN);
-        assert (atan2(T.one, T.nan).isNaN);
-        assert (atan2pi(T.zero, -T.zero) == T.one);
-        assert (atan2pi(-T.zero, -T.zero) == -T.one);
-        assert (atan2pi(T.zero, T.zero) == T.zero);
-        assert (atan2pi(-T.zero, T.zero) == -T.zero);
-        assert (atan2pi(T.zero, -T.one) == T.one);
-        assert (atan2pi(-T.zero, -T.one) == -T.one);
-        assert (atan2pi(T.zero, T.one) == T.zero);
-        assert (atan2pi(-T.zero, T.one) == -T.zero);
-        assert (atan2pi(-T.one, T.zero) == -T.half);
-        assert (atan2pi(T.one, T.zero) == T.half);
-        assert (atan2pi(T.one, -T.infinity) == T.one);
-        assert (atan2pi(-T.one, -T.infinity) == -T.one);
-        assert (atan2pi(T.one, T.infinity) == T.zero);
-        assert (atan2pi(-T.one, T.infinity) == -T.zero);
-        assert (atan2pi(-T.infinity, T.one) == -T.half);
-        assert (atan2pi(T.infinity, T.one) == T.half);
-        assert (atan2pi(-T.infinity, -T.infinity) == -T.threequarters);
-        assert (atan2pi(T.infinity, -T.infinity) == T.threequarters);
-        assert (atan2pi(-T.infinity, T.infinity) == -T.quarter);
-        assert (atan2pi(T.infinity, T.infinity) == T.quarter);
+        assert(atan2(T.nan, T.zero).isNaN);
+        assert(atan2(T.one, T.nan).isNaN);
+        assert(atan2pi(T.zero, -T.zero) == T.one);
+        assert(atan2pi(-T.zero, -T.zero) == -T.one);
+        assert(atan2pi(T.zero, T.zero) == T.zero);
+        assert(atan2pi(-T.zero, T.zero) == -T.zero);
+        assert(atan2pi(T.zero, -T.one) == T.one);
+        assert(atan2pi(-T.zero, -T.one) == -T.one);
+        assert(atan2pi(T.zero, T.one) == T.zero);
+        assert(atan2pi(-T.zero, T.one) == -T.zero);
+        assert(atan2pi(-T.one, T.zero) == -T.half);
+        assert(atan2pi(T.one, T.zero) == T.half);
+        assert(atan2pi(T.one, -T.infinity) == T.one);
+        assert(atan2pi(-T.one, -T.infinity) == -T.one);
+        assert(atan2pi(T.one, T.infinity) == T.zero);
+        assert(atan2pi(-T.one, T.infinity) == -T.zero);
+        assert(atan2pi(-T.infinity, T.one) == -T.half);
+        assert(atan2pi(T.infinity, T.one) == T.half);
+        assert(atan2pi(-T.infinity, -T.infinity) == -T.threequarters);
+        assert(atan2pi(T.infinity, -T.infinity) == T.threequarters);
+        assert(atan2pi(-T.infinity, T.infinity) == -T.quarter);
+        assert(atan2pi(T.infinity, T.infinity) == T.quarter);
     }
 }
 
@@ -3694,7 +3696,7 @@ if (isDecimal!D)
 unittest
 {
     Decimal32 x = 0;
-    assert (atanh(x) == 0);
+    assert(atanh(x) == 0);
 }
 
 /**
@@ -3733,18 +3735,18 @@ if (isDecimal!D)
 unittest
 {
     Decimal32 radians = 1;
-    assert (atanpi(radians) == Decimal32("0.25"));
+    assert(atanpi(radians) == Decimal32("0.25"));
 }
 
 unittest
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert (isIdentical(atanpi(T.zero), T.zero));
-        assert (isIdentical(atanpi(-T.zero), -T.zero));
-        assert (isIdentical(atanpi(T.infinity), T.half));
-        assert (isIdentical(atanpi(-T.infinity), -T.half));
-        assert (atanpi(T.nan).isNaN);
+        assert(isIdentical(atanpi(T.zero), T.zero));
+        assert(isIdentical(atanpi(-T.zero), -T.zero));
+        assert(isIdentical(atanpi(T.infinity), T.half));
+        assert(isIdentical(atanpi(-T.infinity), -T.half));
+        assert(atanpi(T.nan).isNaN);
     }
 }
 
@@ -3782,7 +3784,7 @@ if (isDecimal!D)
 unittest
 {
     Decimal32 x = 27;
-    assert (cbrt(x) == 3);
+    assert(cbrt(x) == 3);
 }
 
 /**
@@ -3807,8 +3809,8 @@ if (isDecimal!D)
 ///
 unittest
 {
-    assert (ceil(Decimal32("123.456")) == 124);
-    assert (ceil(Decimal32("-123.456")) == -123);
+    assert(ceil(Decimal32("123.456")) == 124);
+    assert(ceil(Decimal32("-123.456")) == -123);
 }
 
 /**
@@ -3887,17 +3889,17 @@ if (isDecimal!D)
 unittest
 {
     Decimal32 power = 1;
-    assert (exp(power) == Decimal32.E);
+    assert(exp(power) == Decimal32.E);
 }
 
 unittest
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
-        assert (exp(T.zero) == T.one);
-        assert (exp(-T.infinity) == T.zero);
-        assert (exp(T.infinity) == T.infinity);
-        assert (exp(T.nan).isNaN);
+        assert(exp(T.zero) == T.one);
+        assert(exp(-T.infinity) == T.zero);
+        assert(exp(T.infinity) == T.infinity);
+        assert(exp(T.nan).isNaN);
     }
 }
 
@@ -4183,8 +4185,8 @@ unittest
     Decimal32 x = "10.4";
     Decimal32 y = "7.3";
 
-    assert (fdim(x, y) == Decimal32("3.1"));
-    assert (fdim(y, x) == 0);
+    assert(fdim(x, y) == Decimal32("3.1"));
+    assert(fdim(y, x) == 0);
 }
 
 /**
@@ -4209,8 +4211,8 @@ if (isDecimal!D)
 ///
 unittest
 {
-    assert (floor(Decimal32("123.456")) == 123);
-    assert (floor(Decimal32("-123.456")) == -124);
+    assert(floor(Decimal32("123.456")) == 123);
+    assert(floor(Decimal32("-123.456")) == -124);
 }
 
 /**
@@ -4291,7 +4293,7 @@ unittest
     Decimal32 x = 2;
     Decimal64 y = 3;
     Decimal128 z = 5;
-    assert (fma(x, y, z) == 11);
+    assert(fma(x, y, z) == 11);
 }
 
 /**
@@ -4320,7 +4322,7 @@ unittest
 {
     Decimal32 x = 3;
     Decimal64 y = -4;
-    assert (fmax(x, y) == 3);
+    assert(fmax(x, y) == 3);
 }
 
 /**
@@ -4349,7 +4351,7 @@ unittest
 {
     Decimal32 x = 3;
     Decimal64 y = -4;
-    assert (fmaxAbs(x, y) == -4);
+    assert(fmaxAbs(x, y) == -4);
 }
 
 /**
@@ -4378,7 +4380,7 @@ unittest
 {
     Decimal32 x = 3;
     Decimal64 y = -4;
-    assert (fmin(x, y) == -4);
+    assert(fmin(x, y) == -4);
 }
 
 /**
@@ -4407,7 +4409,7 @@ unittest
 {
     Decimal32 x = 3;
     Decimal64 y = -4;
-    assert (fminAbs(x, y) == 3);
+    assert(fminAbs(x, y) == 3);
 }
 
 /**
@@ -4454,7 +4456,7 @@ unittest
 {
     Decimal32 x = "18.5";
     Decimal32 y = "4.2";
-    assert (fmod(x, y) == Decimal32("1.7"));
+    assert(fmod(x, y) == Decimal32("1.7"));
 }
 
 /**
@@ -4536,10 +4538,10 @@ unittest
     Decimal64 y = Decimal64("nan(456)");
     Decimal128 z = Decimal128("nan(789)");
 
-    assert (getNaNPayload(x) == 123);
-    assert (getNaNPayload(y) == 456);
+    assert(getNaNPayload(x) == 123);
+    assert(getNaNPayload(y) == 456);
     ulong hi;
-    assert (getNaNPayload(z, hi) == 789 && hi == 0);
+    assert(getNaNPayload(z, hi) == 789 && hi == 0);
 
 }
 
@@ -4586,7 +4588,7 @@ unittest
 {
     Decimal32 x = 3;
     Decimal32 y = 4;
-    assert (hypot(x, y) == 5);
+    assert(hypot(x, y) == 5);
 }
 
 /**
@@ -4615,7 +4617,7 @@ if (isDecimal!D)
 ///
 unittest
 {
-    assert (ilogb(Decimal32(1234)) == 3);
+    assert(ilogb(Decimal32(1234)) == 3);
 }
 
 /**
@@ -4671,7 +4673,7 @@ unittest
 unittest
 {
 
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(isCanonical(T.zero));
         assert(isCanonical(T.max));
@@ -4691,7 +4693,7 @@ unittest // isFinite
 
 unittest // isFinite
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.max.isFinite);
         assert(!T.infinity.isFinite);
@@ -4725,8 +4727,8 @@ if (isDecimal!D)
 ///
 unittest
 {
-    assert (isIdentical(Decimal32.min_normal, Decimal32.min_normal));
-    assert (!isIdentical(Decimal64("nan"), Decimal64("nan<200>")));
+    assert(isIdentical(Decimal32.min_normal, Decimal32.min_normal));
+    assert(!isIdentical(Decimal64("nan"), Decimal64("nan<200>")));
 }
 
 ///isInfinity
@@ -4739,7 +4741,7 @@ unittest // isInfinity
 
 unittest // isInfinity
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.infinity.isInfinity);
         assert(T.negInfinity.isInfinity);
@@ -4760,7 +4762,7 @@ unittest // isNaN
 
 unittest // isNaN
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.sNaN.isNaN);
         assert(T().isNaN);
@@ -4849,7 +4851,7 @@ unittest
 unittest
 {
 
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(!isNormal(T.zero));
         assert(isNormal(T.ten));
@@ -4883,8 +4885,8 @@ if (isDecimal!D)
 ///
 unittest
 {
-    assert (isPowerOf10(Decimal32("1000")));
-    assert (isPowerOf10(Decimal32("0.001")));
+    assert(isPowerOf10(Decimal32("1000")));
+    assert(isPowerOf10(Decimal32("0.001")));
 }
 
 ///isSignalingNaN
@@ -4897,7 +4899,7 @@ unittest // isSignalingNaN
 
 unittest // isSignalingNaN
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.sNaN.isSignalNaN);
         assert(T().isSignalNaN);
@@ -4970,7 +4972,7 @@ unittest
 
 unittest
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(!isSubnormal(T.zero));
         assert(!isSubnormal(T.ten));
@@ -4991,7 +4993,7 @@ unittest // isZero
 
 unittest // isZero
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.zero.isZero);
         assert(T.negZero.isZero);
@@ -5036,7 +5038,7 @@ if (isDecimal!D)
 unittest
 {
     Decimal32 d = "1.0";
-    assert (ldexp(d, 3) == 8);
+    assert(ldexp(d, 3) == 8);
 }
 
 /**
@@ -5079,7 +5081,7 @@ if (isDecimal!D)
 ///
 unittest
 {
-    assert (log(Decimal32.E) == 1);
+    assert(log(Decimal32.E) == 1);
 }
 
 /**
@@ -5829,12 +5831,12 @@ unittest
     //d is 0.1 * 10^^13
     frexp(d, calculatedExponent);
     rawExponent = quantexp(d);
-    assert (calculatedExponent == 13  && rawExponent == 12);
+    assert(calculatedExponent == 13  && rawExponent == 12);
 
     //z is 0.0
     frexp(z, calculatedExponent);
     rawExponent = quantexp(z);
-    assert (calculatedExponent == 0  && rawExponent == -3);
+    assert(calculatedExponent == 0  && rawExponent == -3);
 }
 
 /**
@@ -6376,7 +6378,7 @@ unittest
 
 unittest
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(sgn(T.nan) == 1);
         assert(sgn(T.infinity) == 1);
@@ -6396,7 +6398,7 @@ unittest // sign
 
 unittest // sign
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.sNaN.sign == 1);
         assert(T.negInfinity.sign == -1);
@@ -6438,7 +6440,7 @@ unittest
 
 unittest
 {
-    foreach(T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(signbit(T.sNaN) == 0);
         assert(signbit(T.negInfinity) == 1);
@@ -7222,10 +7224,10 @@ if (isDecimal!D1 && isDecimal!D2)
 ///
 unittest
 {
-    assert (totalOrder(Decimal32.min_normal, Decimal64.max));
-    assert (!totalOrder(Decimal32.max, Decimal128.min_normal));
-    assert (totalOrder(-Decimal64(0), Decimal64(0)));
-    assert (totalOrderAbs(Decimal64(0), -Decimal64(0)));
+    assert(totalOrder(Decimal32.min_normal, Decimal64.max));
+    assert(!totalOrder(Decimal32.max, Decimal128.min_normal));
+    assert(totalOrder(-Decimal64(0), Decimal64(0)));
+    assert(totalOrderAbs(Decimal64(0), -Decimal64(0)));
 }
 
 /**
@@ -7970,7 +7972,7 @@ enum FastClass : byte
 FastClass fastDecode(D, T)(auto const ref D x, out T cx, out int ex, out bool sx)
 if ((is(D: Decimal32) || is(D: Decimal64)) && isAnyUnsignedBit!T)
 {
-    static assert (T.sizeof >= D.sizeof);
+    static assert(T.sizeof >= D.sizeof);
 
     sx = cast(bool)(x.data & D.MASK_SGN);
 
@@ -8010,7 +8012,7 @@ if ((is(D: Decimal32) || is(D: Decimal64)) && isAnyUnsignedBit!T)
 FastClass fastDecode(D, T)(auto const ref D x, out T cx, out int ex, out bool sx)
 if (is(D: Decimal128) && isAnyUnsignedBit!T)
 {
-    static assert (T.sizeof >= D.sizeof);
+    static assert(T.sizeof >= D.sizeof);
 
     sx = cast(bool)(x.data.hi & D.MASK_SGN.hi);
 
@@ -8372,7 +8374,7 @@ U get_mod2pi(U)(ref int power)
     else static if (is(U: uint256))
         enum digits = 77;
     else
-        static assert (0, "Unsupported" ~ U.stringof);
+        static assert(0, "Unsupported" ~ U.stringof);
 
     if (power >= 0)
     {

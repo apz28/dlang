@@ -751,8 +751,8 @@ ExceptionFlags coefficientAtanh(T)(ref T cx, ref int ex, ref bool sx) @safe pure
 {
     //1/2*ln[(1 + x)/(1 - x)]
 
-    assert (coefficientCmp(cx, ex, sx, T(1U), 0, true) > 0);
-    assert (coefficientCmp(cx, ex, sx, T(1U), 0, false) < 0);
+    assert(coefficientCmp(cx, ex, sx, T(1U), 0, true) > 0);
+    assert(coefficientCmp(cx, ex, sx, T(1U), 0, false) < 0);
 
     //1/2*ln[(1 + x)/(1 - x)]
 
@@ -4916,7 +4916,7 @@ ExceptionFlags divpow10(T)(ref T coefficient, const(int) power, const(bool) isNe
 if (isAnyUnsignedBit!T)
 in
 {
-    assert (power >= 0);
+    assert(power >= 0);
 }
 do
 {
@@ -5037,8 +5037,8 @@ unittest
     foreach (ref s; test)
     {
         auto flags = divpow10(s.c, s.p, s.n, s.r);
-        assert (s.c == s.outc);
-        assert (flags == ExceptionFlags.inexact ? s.inexact : !s.inexact);
+        assert(s.c == s.outc);
+        assert(flags == ExceptionFlags.inexact ? s.inexact : !s.inexact);
     }
 }
 
@@ -5047,7 +5047,7 @@ ExceptionFlags mulpow10(T)(ref T coefficient, const(int) power) @safe pure nothr
 if (isAnyUnsignedBit!T)
 in
 {
-    assert (power >= 0);
+    assert(power >= 0);
 }
 do
 {
@@ -5063,7 +5063,7 @@ do
 ExceptionFlags exponentAlign(T)(ref T cx, ref int ex, const(bool) sx, ref T cy, ref int ey, const(bool) sy, const(RoundingMode) mode) @safe pure nothrow @nogc
 out
 {
-    assert (ex == ey);
+    assert(ex == ey);
 }
 do
 {
@@ -5109,8 +5109,8 @@ ExceptionFlags coefficientAdjust(T)(ref T coefficient, ref int exponent, const(i
 if (isAnyUnsignedBit!T)
 in
 {
-    assert (minExponent <= maxExponent);
-    assert (maxCoefficient >= 1U);
+    assert(minExponent <= maxExponent);
+    assert(maxCoefficient >= 1U);
 }
 do
 {
@@ -5193,7 +5193,7 @@ ExceptionFlags coefficientAdjust(T)(ref T coefficient, ref int exponent, const(i
 if (isAnyUnsignedBit!T)
 in
 {
-    assert (minExponent <= maxExponent);
+    assert(minExponent <= maxExponent);
 }
 do
 {
@@ -5207,7 +5207,7 @@ ExceptionFlags coefficientAdjust(T)(ref T coefficient, ref int exponent, const(T
 if (isAnyUnsignedBit!T)
 in
 {
-    assert (maxCoefficient >= 1U);
+    assert(maxCoefficient >= 1U);
 }
 do
 {
@@ -5221,8 +5221,8 @@ ExceptionFlags coefficientAdjust(T)(ref T coefficient, ref int exponent, const(i
 if (isAnyUnsignedBit!T)
 in
 {
-    assert (precision >= 1);
-    assert (minExponent <= maxExponent);
+    assert(precision >= 1);
+    assert(minExponent <= maxExponent);
 }
 do
 {
@@ -5262,7 +5262,7 @@ ExceptionFlags coefficientAdjust(T)(ref T coefficient, ref int exponent,
 if (isAnyUnsignedBit!T)
 in
 {
-    assert (precision >= 1);
+    assert(precision >= 1);
 }
 do
 {
@@ -5317,8 +5317,8 @@ ExceptionFlags coefficientCapAngle(T)(ref T cx, ref int ex, ref bool sx, out int
 void coefficientExpand(T)(ref T cx, ref int ex, ref int target) @safe pure nothrow @nogc
 in
 {
-    assert (cx);
-    assert (target > 0);
+    assert(cx);
+    assert(target > 0);
 }
 do
 {
@@ -5368,12 +5368,12 @@ unittest
         S(42949672, 0, 3, 4294967200, -2, 1),
     ];
 
-    foreach( s; tests)
+    foreach ( s; tests)
     {
         coefficientExpand(s.x1, s.ex1, s.target1);
-        assert (s.x1 == s.x2);
-        assert (s.ex1 == s.ex2);
-        assert (s.target1 == s.target2);
+        assert(s.x1 == s.x2);
+        assert(s.ex1 == s.ex2);
+        assert(s.target1 == s.target2);
     }
 }
 
@@ -5417,8 +5417,8 @@ void coefficientShrink(T)(ref T coefficient, ref int exponent) @safe pure nothro
 ExceptionFlags coefficientShrink(T)(ref T cx, ref int ex, const(bool) sx, ref int target, const(RoundingMode) mode) @safe pure nothrow @nogc
 in
 {
-    assert (cx);
-    assert (target > 0);
+    assert(cx);
+    assert(target > 0);
 }
 do
 {

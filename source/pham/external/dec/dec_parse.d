@@ -141,7 +141,9 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
             parseSign(range, signedExponent);
             uint ue;
             if (!parseNumber(range, ue))
+            {
                 flags |= ExceptionFlags.invalidOperation;
+            }
             else
             {
                 bool overflow;
@@ -223,11 +225,11 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
 unittest
 {
     auto s = "([{<a";
-    assert (parseBracket(s) == ')');
-    assert (parseBracket(s) == ']');
-    assert (parseBracket(s) == '}');
-    assert (parseBracket(s) == '>');
-    assert (parseBracket(s) == 0);
+    assert(parseBracket(s) == ')');
+    assert(parseBracket(s) == ']');
+    assert(parseBracket(s) == '}');
+    assert(parseBracket(s) == '>');
+    assert(parseBracket(s) == 0);
 }
 
 //returns a digit value and advances range if a digit is encountered, -1 otherwise, skips _
@@ -254,11 +256,11 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
 unittest
 {
     auto s = "0123a";
-    assert (parseDigit(s) == 0);
-    assert (parseDigit(s) == 1);
-    assert (parseDigit(s) == 2);
-    assert (parseDigit(s) == 3);
-    assert (parseDigit(s) == -1);
+    assert(parseDigit(s) == 0);
+    assert(parseDigit(s) == 1);
+    assert(parseDigit(s) == 2);
+    assert(parseDigit(s) == 3);
+    assert(parseDigit(s) == -1);
 }
 
 //returns a digit value and advances range if a hex digit is encountered, -1 otherwise, skips _
@@ -299,14 +301,14 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
 unittest
 {
     auto s = "0123aBcg";
-    assert (parseHexDigit(s) == 0);
-    assert (parseHexDigit(s) == 1);
-    assert (parseHexDigit(s) == 2);
-    assert (parseHexDigit(s) == 3);
-    assert (parseHexDigit(s) == 10);
-    assert (parseHexDigit(s) == 11);
-    assert (parseHexDigit(s) == 12);
-    assert (parseHexDigit(s) == -1);
+    assert(parseHexDigit(s) == 0);
+    assert(parseHexDigit(s) == 1);
+    assert(parseHexDigit(s) == 2);
+    assert(parseHexDigit(s) == 3);
+    assert(parseHexDigit(s) == 10);
+    assert(parseHexDigit(s) == 11);
+    assert(parseHexDigit(s) == 12);
+    assert(parseHexDigit(s) == -1);
 
 }
 
@@ -397,13 +399,13 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
 unittest
 {
     auto s = "inf/infinity/InF/iNfInITY/in/infinit/infig";
-    assert (parseInfinity(s)); s.popFront;
-    assert (parseInfinity(s)); s.popFront;
-    assert (parseInfinity(s)); s.popFront;
-    assert (parseInfinity(s)); s.popFront;
-    assert (!parseInfinity(s)); s.popFront;
-    assert (!parseInfinity(s)); s.popFront;
-    assert (!parseInfinity(s));
+    assert(parseInfinity(s)); s.popFront;
+    assert(parseInfinity(s)); s.popFront;
+    assert(parseInfinity(s)); s.popFront;
+    assert(parseInfinity(s)); s.popFront;
+    assert(!parseInfinity(s)); s.popFront;
+    assert(!parseInfinity(s)); s.popFront;
+    assert(!parseInfinity(s));
 }
 
 //returns true if a decimal number can be read in value, stops if doesn't fit in value
@@ -418,7 +420,6 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
         if (f >= '0' && f <= '9')
         {
             const uint digit = f - '0';
-            overflow = false;
             Unqual!T v = fma(value, 10U, digit, overflow);
             if (overflow)
                 break;
@@ -452,7 +453,7 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
         if (range.front >= '0' && range.front <= '9')
         {
             const uint digit = range.front - '0';
-            bool overflow = false;
+            bool overflow;
             Unqual!T v = fma(value, 10U, digit, overflow);
             if (overflow)
             {
@@ -565,9 +566,9 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
 
     if (afterDecimalPoint)
         return flags;
-        //return atLeastOneFractionalDigit ? flags : flags | ExceptionFlags.invalidOperation;
+        //return atLeastOneFractionalDigit ? flags : (flags | ExceptionFlags.invalidOperation);
     else
-        return atLeastOneDigit ? flags : flags | ExceptionFlags.invalidOperation;
+        return atLeastOneDigit ? flags : (flags | ExceptionFlags.invalidOperation);
 }
 
 //parses $(B NaN) and optional payload, expect payload as number in optional (), [], {}, <>. invalidOperation on failure
@@ -614,9 +615,9 @@ unittest
 {
     bool isNegative;
     auto s = "+-s";
-    assert (parseSign(s, isNegative) && !isNegative);
-    assert (parseSign(s, isNegative) && isNegative);
-    assert (!parseSign(s, isNegative));
+    assert(parseSign(s, isNegative) && !isNegative);
+    assert(parseSign(s, isNegative) && isNegative);
+    assert(!parseSign(s, isNegative));
 }
 
 //returns how many zeros encountered and advances range, skips _
