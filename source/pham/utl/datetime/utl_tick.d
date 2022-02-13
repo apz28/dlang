@@ -11,9 +11,11 @@
 
 module pham.utl.datetime.tick;
 
+import core.sync.mutex : Mutex;
 import core.time : ClockType, convert;
 public import core.time : dur, Duration, TimeException;
 import std.conv : to;
+import std.traits : isIntegral;
 
 version = RelaxCompareTime;
 
@@ -157,31 +159,20 @@ struct TickData
     {
         version (RelaxCompareTime)
         {
-            const lhsTicks = this.uticks;
-            const rhsTicks = rhs.uticks;
-            const result = (lhsTicks > rhsTicks) - (lhsTicks < rhsTicks);
+            const result = cmpIntegral(this.uticks, rhs.uticks);
             if (result == 0)
             {
                 const lhsKind = this.internalKind;
                 const rhsKind = rhs.internalKind;
                 if (!isCompatibleKind(lhsKind, rhsKind))
-                    return (lhsKind > rhsKind) - (lhsKind < rhsKind);
+                    return cmpIntegral(lhsKind, rhsKind);
             }
             return result;
         }
         else
         {
-            const lhsTicks = this.uticks;
-            const rhsTicks = rhs.uticks;
-            const result = (lhsTicks > rhsTicks) - (lhsTicks < rhsTicks);
-            if (result == 0)
-            {
-                const lhsKind = this.internalKind;
-                const rhsKind = rhs.internalKind;
-                return (lhsKind > rhsKind) - (lhsKind < rhsKind);
-            }
-            else
-                return result;
+            const result = cmpIntegral(this.uticks, rhs.uticks);
+            return result == 0 ? cmpIntegral(this.internalKind, rhs.internalKind) : result;
         }
     }
 
@@ -415,6 +406,13 @@ enum ErrorPart : byte
     year,
     week,
     kind,
+}
+
+pragma(inline, true)
+int cmpIntegral(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
+if (isIntegral!T)
+{
+    return (lhs > rhs) - (lhs < rhs);
 }
 
 void checkTimeParts(int hour, int minute, int second, int millisecond) pure
@@ -706,8 +704,23 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
         static assert(0, "Unsupported OS");
 }
 
+__gshared static Mutex tdMutex;
 
 private:
+
+shared static this() @trusted
+{
+    tdMutex = new Mutex();
+}
+
+shared static ~this() @trusted
+{
+    if (tdMutex !is null)
+    {
+        tdMutex.destroy();
+        tdMutex = null;
+    }
+}
 
 static this() @trusted
 {

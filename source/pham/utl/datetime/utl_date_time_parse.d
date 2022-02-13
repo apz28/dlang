@@ -15,6 +15,7 @@ import std.ascii : isPunctuation;
 import std.traits : Unqual;
 import std.uni : sicmp;
 
+import pham.utl.object : RAIIMutex;
 import pham.utl.datetime.tick;
 import pham.utl.datetime.date : Date, DateTime;
 import pham.utl.datetime.time : Time;
@@ -427,16 +428,23 @@ public:
         return zoneAdjustment ? pattern.defaultKind : DateTimeKind.unspecified;
     }
 
-    static DateTimePatternInfo getPatternInfo(ParseType parseType, string patternText)
+    static DateTimePatternInfo getPatternInfo(ParseType parseType, string patternText) @trusted
     {
-        auto key = CacheDateTimePatternInfoKey(parseType, patternText);
-        if (auto found = key in cacheDateTimePatternInfos)
-            return *found;
+        if (__ctfe)
+            return DateTimePatternInfo(parseType, patternText);
         else
         {
-            auto result = DateTimePatternInfo(parseType, patternText);
-            cacheDateTimePatternInfos[key] = result;
-            return result;
+            auto lock = RAIIMutex(tdMutex);
+
+            auto key = CacheDateTimePatternInfoKey(parseType, patternText);
+            if (auto found = key in cacheDateTimePatternInfos)
+                return *found;
+            else
+            {
+                auto result = DateTimePatternInfo(parseType, patternText);
+                cacheDateTimePatternInfos[key] = result;
+                return result;
+            }
         }
     }
 
@@ -466,13 +474,13 @@ public:
             && c != pattern.dateSeparator && c != pattern.timeSeparator;
     }
 
-    ptrdiff_t parse(scope const(char)[] dateTimeText, scope const ref DateTimePattern pattern)
+    ptrdiff_t parse(scope const(char)[] dateTimeText, const ref DateTimePattern pattern)
     {
         scope (failure) assert(0);
 
         reset();
         endP = dateTimeText.length;
-        patternInfo = getPatternInfo(parseType, pattern.patternText.dup);
+        patternInfo = getPatternInfo(parseType, pattern.patternText);
 
         if (pattern.skipBlanks & SkipBlank.trailing && skipTrailingBlank(dateTimeText))
             return emptyText;
@@ -806,10 +814,10 @@ public:
     bool hasTime;
 }
 
-ptrdiff_t tryParse(T)(scope const(char)[] dateTimeText, scope const ref DateTimePattern pattern, out T result) nothrow
+ptrdiff_t tryParse(T)(scope const(char)[] dateTimeText, const ref DateTimePattern pattern, out T result) nothrow
 if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
 {
-    ParseType getParseType() nothrow pure
+    ParseType getParseType() @nogc nothrow pure
     {
         static if (is(Unqual!T == Date))
             return ParseType.date;
@@ -942,7 +950,7 @@ DateTimePatternInfo[CacheDateTimePatternInfoKey] cacheDateTimePatternInfos;
 unittest // DateTimePatternInfo
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.date_time_parse.DateTimePatternInfo");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_parse.DateTimePatternInfo");
 
     DateTimePatternInfo p;
 
@@ -1014,7 +1022,7 @@ unittest // DateTimePatternInfo
 unittest // tryParse
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.date_time_parse.tryParse");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_parse.tryParse");
 
     ptrdiff_t r;
     auto p = DateTimePattern.usDateTime;

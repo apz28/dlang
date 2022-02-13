@@ -476,7 +476,7 @@ private:
 unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.contructor");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.contructor");
 
     assert(Time(0L) == Time.init);
     assert(Time(0, 0, 0, 0) == Time.init);
@@ -525,7 +525,7 @@ unittest
 unittest // Time.opCmp
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.Time.opCmp");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.opCmp");
 
     assert(Time(0, 0, 0).opCmp(Time.init) == 0);
 
@@ -564,7 +564,7 @@ unittest // Time.opCmp
 unittest // Time.opEquals
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.Time.opEquals");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.opEquals");
 
     assert(Time(12, 30, 33, 1).opEquals(Time(12, 30, 33, 1)));
     assert(Time(12, 30, 33).opEquals(Time(12, 30, 33)));
@@ -577,7 +577,7 @@ unittest // Time.opEquals
 unittest // Time.hour
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.Time.hour");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.hour");
 
     assert(Time.init.hour == 0);
     assert(Time(12, 0, 0).hour == 12);
@@ -600,7 +600,7 @@ unittest // Time.hour
 unittest // Time.minute
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.Time.minute");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.minute");
 
     assert(Time.init.minute == 0);
     assert(Time(0, 30, 0).minute == 30);
@@ -623,7 +623,7 @@ unittest // Time.minute
 unittest // Time.second
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.Time.second");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.second");
 
     assert(Time.init.second == 0);
     assert(Time(0, 0, 33).second == 33);
@@ -646,7 +646,7 @@ unittest // Time.second
 unittest // Time.millisecond
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.Time.millisecond");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.millisecond");
 
     assert(Time.init.millisecond == 0);
     assert(Time(0, 0, 0, 83).millisecond == 83);
@@ -670,7 +670,7 @@ unittest // Time.opBinary
 {
     import core.time : dur, hours, minutes, seconds, msecs;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.Time.opBinary");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.opBinary");
 
     assert(Time(12, 12, 12, 0) + hours(1) == Time(13, 12, 12, 0));
     assert(Time(12, 12, 12, 0) + minutes(1) == Time(12, 13, 12, 0));
@@ -729,7 +729,7 @@ unittest // Time.opBinary
 {
     import core.time : dur, hours, minutes, seconds, msecs;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.Time.opBinary");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.opBinary");
 
     assert(Time(7, 12, 52) - Time(12, 30, 33) == dur!"seconds"(-19_061));
     assert(Time(12, 30, 33) - Time(7, 12, 52) == dur!"seconds"(19_061));
@@ -760,7 +760,7 @@ unittest // Time.opBinary
 unittest // Time.min
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.Time.min");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.min");
 
     assert(Time.min.hour == 0);
     assert(Time.min.minute == 0);
@@ -771,7 +771,7 @@ unittest // Time.min
 unittest // Time.max
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.Time.max");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.max");
 
     assert(Time.max.hour == 23);
     assert(Time.max.minute == 59);
@@ -785,7 +785,7 @@ unittest // Time.max
 unittest // Time.toString
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.Time.toString");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.toString");
 
     assert(Time.max.toString() == "23:59:59.9999999");
 
@@ -806,7 +806,7 @@ unittest // Time.createTime
 {
     import std.exception : assertThrown;
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.Time.createTime");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.createTime");
 
     auto t1 = Time.createTime(0);
     auto t2 = Time.createTime(0, 0, 0, 100);
@@ -825,7 +825,7 @@ unittest // Time.createTime
 unittest // Time.julianDay
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.Time.julianDay");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.julianDay");
 
     assert(Time(0, 0, 0, 0).julianDay == 0);
     assert(Time(11, 59, 59, 999).julianDay == 0);
@@ -836,7 +836,7 @@ unittest // Time.julianDay
 unittest // Time.getTime
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.Time.getTime");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.getTime");
 
     int h, m, s, ms;
 
@@ -868,7 +868,7 @@ unittest // Time.getTime
 unittest // Time.getTimePrecise
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time.Time.getTimePrecise");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.getTimePrecise");
 
     int h, m, s, t;
 

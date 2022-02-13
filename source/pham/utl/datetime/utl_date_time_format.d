@@ -802,7 +802,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.fullShortDateTime, fullLongDateTime
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.date_time_format - %f %F");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %f %F");
 
     string s;
 
@@ -815,7 +815,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.generalShortDateTime, generalLongDateTime
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.date_time_format - %g");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %g");
 
     string s;
 
@@ -828,7 +828,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.julianDay
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.date_time_format - %j");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %j");
 
     string s;
 
@@ -857,7 +857,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.longDate, shortDate
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.date_time_format - %d %D");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %d %D");
 
     string s;
 
@@ -875,7 +875,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.longTime, shortTime
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.date_time_format - %t %T");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %t %T");
 
     string s;
 
@@ -893,7 +893,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.monthDay, monthYear
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.date_time_format - %M %Y");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %M %Y");
 
     string s;
 
@@ -906,7 +906,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.sortableDateTime
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.date_time_format - %s");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %s");
 
     string s;
 
@@ -927,7 +927,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.sortableDateTimeLess
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.date_time_format - %S");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %S");
 
     string s;
 
@@ -942,7 +942,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.utcFullDateTime
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.date_time_format - %U");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %U");
 
     string s;
 
@@ -953,7 +953,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.utcSortableDateTime
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.date_time_format - %u");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %u");
 
     string s;
 
@@ -964,7 +964,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.custom, FormatDateTimeSpecifier.dateSeparator, FormatDateTimeSpecifier.timeSeparator
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.date_time_format - %custom....");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %custom....");
 
     string s;
 

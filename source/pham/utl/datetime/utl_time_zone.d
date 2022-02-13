@@ -1380,7 +1380,7 @@ TimeZoneInfo notFoundLocalTimeZone(string useId) @nogc nothrow pure
 
 private:
 
-static shared TimeZoneInfoMapList defaultTimeZoneInfoMaps;
+static immutable TimeZoneInfoMapList defaultTimeZoneInfoMaps;
 
 version (Windows)
 {
@@ -1655,16 +1655,16 @@ version (Posix)
 
     // Converts an array of bytes into an int
     // always using standard byte order (Big Endian) per TZif file standard
-    int TZif_ToInt32(scope const(ubyte)[] value, size_t startIndex)
+    int TZif_ToInt32(scope const(ubyte)[] value, size_t beginIndex)
     {
-        //todo => BinaryPrimitives.ReadInt32BigEndian(value.AsSpan(startIndex));
+        //todo => BinaryPrimitives.ReadInt32BigEndian(value.AsSpan(beginIndex));
     }
 
     // Converts an array of bytes into a long
     // always using standard byte order (Big Endian) per TZif file standard
-    long TZif_ToInt64(scope const(ubyte)[] value, size_t startIndex)
+    long TZif_ToInt64(scope const(ubyte)[] value, size_t beginIndex)
     {
-        //todo => BinaryPrimitives.ReadInt64BigEndian(value.AsSpan(startIndex));
+        //todo => BinaryPrimitives.ReadInt64BigEndian(value.AsSpan(beginIndex));
     }
 
     struct TZifType
@@ -1766,7 +1766,7 @@ shared static this() @trusted
 unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.utl.datetime.time_zone.localTimeZone");
+    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time_zone.localTimeZone");
 
     auto ltz = TimeZoneInfo.localTimeZone();
 
