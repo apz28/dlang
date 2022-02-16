@@ -3668,3 +3668,21 @@ unittest // BigInteger.sqrt
 
     assert(BigInteger("653987632134").sqrt == BigInteger("808695"));
 }
+
+unittest // BigInteger.divRem
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.big_integer.divRem");
+
+    BigInteger divident = BigInteger(-50);
+    BigInteger divisor = BigInteger(1);
+    BigInteger remainder = BigInteger(1);
+    auto quotient = divRem(divident, divisor, remainder);
+    assert(remainder == 0);
+
+    divident = BigInteger(50);
+    divisor = BigInteger(-1);
+    remainder = BigInteger(1);
+    quotient = divRem(divident, divisor, remainder);
+    assert(remainder == 0);
+}

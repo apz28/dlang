@@ -18,11 +18,10 @@ import std.exception : assumeWontThrow;
 import std.format : FormatSpec;
 import std.math : isPowerOf2;
 import std.traits : isArray, isAssociativeArray, isFloatingPoint, isIntegral, isPointer,
-    isSomeChar, isSomeString, Unqual;
+    isSomeChar, isSomeString, isUnsigned, Unqual;
 
 version (TraceInvalidMemoryOp) import pham.utl.test;
-import pham.utl.utf8 : isHexDigit, NumericParsedKind, parseHexDigits,
-    parseIntegral, ShortStringBuffer;
+import pham.utl.utf8 : isHexDigit, NumericParsedKind, parseHexDigits, parseIntegral, ShortStringBuffer;
 
 pragma(inline, true);
 size_t alignRoundup(size_t n, size_t powerOf2AlignmentSize) @nogc nothrow pure @safe
@@ -104,7 +103,7 @@ string className(Object object) nothrow pure @safe
 
 pragma(inline, true)
 int cmpIntegral(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
-if (isIntegral!T)
+if (isIntegral!T || isUnsigned!T)
 {
     return (lhs > rhs) - (lhs < rhs);
 }
