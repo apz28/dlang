@@ -146,6 +146,8 @@ nothrow @safe:
     int nextAuthState;
 }
 
+alias FbDeferredResponse = void delegate() @safe;
+
 class FbProtocol : DbDisposableObject
 {
 @safe:
@@ -186,7 +188,7 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
-        auto reader = FbXdrReader(connection);
+        FbXdrReader reader;
         const op = readOperation(reader, FbIsc.op_slice);
         return readArrayGetResponseImpl(reader, array.descriptor);
     }
@@ -267,9 +269,16 @@ public:
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
         auto writer = FbXdrWriter(connection);
+        blobEndWrite(writer, blob, closeOrCancelOp);
+        writer.flush();
+    }
+
+    final void blobEndWrite(ref FbXdrWriter writer, ref FbBlob blob, FbOperation closeOrCancelOp) nothrow
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+
 	    writer.writeOperation(closeOrCancelOp);
 		writer.writeHandle(blob.fbHandle);
-        writer.flush();
     }
 
     final FbIscGenericResponse blobGetSegmentsRead()
@@ -442,9 +451,8 @@ public:
                 return false;
         }
 
-        auto reader = FbXdrReader(connection);
-
-        const op = reader.readOperation();
+        FbXdrReader reader;
+        const op = readOperation(reader, 0);
         switch (op)
         {
             case FbIsc.op_accept:
@@ -557,10 +565,17 @@ public:
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
         auto writer = FbXdrWriter(connection);
+        deallocateCommandWrite(writer, command);
+        writer.flush();
+    }
+
+    final void deallocateCommandWrite(ref FbXdrWriter writer, FbCommand command) nothrow
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+
 		writer.writeOperation(FbIsc.op_free_statement);
 		writer.writeHandle(command.fbHandle);
 		writer.writeInt32(FbIsc.dsql_drop);
-        writer.flush();
     }
 
     final void disconnectWrite()
@@ -684,9 +699,8 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
-        auto reader = FbXdrReader(connection);
-
-        const op = reader.readOperation();
+        FbXdrReader reader;
+        const op = readOperation(reader, 0);
         if (op == FbIsc.op_response)
         {
             auto r = readGenericResponseImpl(reader);
@@ -905,7 +919,7 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
-        auto reader = FbXdrReader(connection);
+        FbXdrReader reader;
         const op = readOperation(reader, FbIsc.op_response);
         return readGenericResponseImpl(reader);
     }
@@ -915,8 +929,8 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
-        auto reader = FbXdrReader(connection);
-        const op = reader.readOperation();
+        FbXdrReader reader;
+        const op = readOperation(reader, 0);
         switch (op)
         {
             case FbIsc.op_response:
@@ -944,7 +958,7 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
-        auto reader = FbXdrReader(connection);
+        FbXdrReader reader;
         const op = readOperation(reader, FbIsc.op_sql_response);
         return readSqlResponseImpl(reader);
     }
@@ -1135,8 +1149,8 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
-        auto reader = FbXdrReader(connection);
-        const op = reader.readOperation();
+        FbXdrReader reader;
+        const op = readOperation(reader, 0);
         switch (op)
         {
             case FbIsc.op_response:
@@ -1214,8 +1228,8 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
-        auto reader = FbXdrReader(connection);
-        const op = reader.readOperation();
+        FbXdrReader reader;
+        const op = readOperation(reader, 0);
         switch (op)
         {
             case FbIsc.op_crypt_key_callback:
@@ -1235,7 +1249,7 @@ protected:
 
     final void cryptSetupBufferFilter(ref FbConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("sessionKey=", stateInfo.auth.sessionKey());
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("sessionKey=", stateInfo.auth.sessionKey().dgToHex());
 
         auto privateKey = CipherKey(0, stateInfo.auth.sessionKey());
 		auto encryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.write)(privateKey);
@@ -1349,14 +1363,14 @@ protected:
 
     final ubyte[] describeAttachmentInformation(return ref FbConnectionWriter writer, ref FbConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("stateInfo.authData=", stateInfo.authData);
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("stateInfo.authData=", stateInfo.authData.dgToHex());
 
         auto useCSB = connection.fbConnectionStringBuilder;
 
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("connectionTimeout=", useCSB.connectionTimeout.toRangeSecond32());
 
         version (none)
-        bool needSendPassword()
+        bool needSendPassword() nothrow pure @safe
         {
             if (stateInfo.authData.length)
                 return false;
@@ -1394,7 +1408,7 @@ protected:
 
         auto result = writer.peekBytes();
 
-        //version (TraceFunction) traceFunction!("pham.db.fbdatabase")("dpbValue.length=", result.length, ", dpbValue=", result);
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("dpbValue.length=", result.length, ", dpbValue=", result.dgToHex());
 
         return result;
     }
@@ -1415,7 +1429,7 @@ protected:
         writer.writeEnd(fields.length);
 
         auto result = writer.peekBytes();
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("result=", result);
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("result=", result.dgToHex());
         return result;
     }
 
@@ -1592,12 +1606,12 @@ protected:
             writer.writeInt32(FbIsc.cnct_client_crypt, hostToNetworkOrder!int32(getCryptedConnectionCode()));
             stateInfo.nextAuthState++;
 
-            version (TraceFunction) traceFunction!("pham.db.fbdatabase")("specificData=", stateInfo.authData);
+            version (TraceFunction) traceFunction!("pham.db.fbdatabase")("specificData=", stateInfo.authData.dgToHex());
         }
 
         auto result = writer.peekBytes();
 
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("result=", result);
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("result=", result.dgToHex());
 
         return result;
     }
@@ -1810,7 +1824,7 @@ protected:
         auto rData = reader.readBytes();
         auto rStatues = reader.readStatuses();
 
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("rHandle=", rHandle, ", rId=", rId, ", rData=", rData);
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("rHandle=", rHandle, ", rId=", rId, ", rData=", rData.dgToHex());
 
         if (rStatues.isError)
         {
@@ -1826,10 +1840,21 @@ protected:
         return FbIscGenericResponse(rHandle, rId, rData, rStatues);
     }
 
-    final FbOperation readOperation(ref FbXdrReader reader, const(FbOperation) expectedOperation) @trusted
+    final FbOperation readOperation(out FbXdrReader reader, const(FbOperation) expectedOperation) @trusted
     {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("deferredResponses.length=", deferredResponses.length);
+
+        if (deferredResponses.length != 0)
+        {
+            auto responses = deferredResponses;
+            deferredResponses = [];
+            foreach (response; responses)
+                response();
+        }
+
+        reader = FbXdrReader(connection);
         auto result = reader.readOperation();
-        if (result != expectedOperation)
+        if (expectedOperation != 0 && expectedOperation != result)
         {
             auto msg = DbMessage.eUnexpectReadOperation.fmtMessage(result, expectedOperation);
             throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_net_read_err);
@@ -1864,6 +1889,9 @@ protected:
         }
     }
 
+public:
+    FbDeferredResponse[] deferredResponses;
+
 private:
     FbConnection _connection;
     int32 _serverVersion;
@@ -1881,11 +1909,21 @@ immutable ubyte[] describeServerVersionInfoItems = [
 ];
 
 // Codes only support v13 and above
+static if (fbDeferredProtocol)
+{
+    alias protocolMinType = FbIsc.ptype_lazy_send;
+    alias protocolMaxType = FbIsc.ptype_lazy_send;
+}
+else
+{
+    alias protocolMinType = FbIsc.ptype_batch_send;
+    alias protocolMaxType = FbIsc.ptype_batch_send;
+}
 immutable FbProtocolInfo[] describeProtocolItems = [
     //FbProtocolInfo(FbIsc.protocol_version10, FbIsc.connect_generic_achitecture_client, FbIsc.ptype_rpc, FbIsc.ptype_batch_send, 1),
-    //FbProtocolInfo(FbIsc.protocol_version11, FbIsc.connect_generic_achitecture_client, FbIsc.ptype_rpc, ptype, 2),
-    //FbProtocolInfo(FbIsc.protocol_version12, FbIsc.connect_generic_achitecture_client, FbIsc.ptype_rpc, ptype, 3),
-    FbProtocolInfo(FbIsc.protocol_version13, FbIsc.connect_generic_achitecture_client, FbIsc.ptype_rpc, FbIsc.ptypeSend, 4)
+    //FbProtocolInfo(FbIsc.protocol_version11, FbIsc.connect_generic_achitecture_client, protocolMinType, protocolMaxType, 2),
+    //FbProtocolInfo(FbIsc.protocol_version12, FbIsc.connect_generic_achitecture_client, protocolMinType, protocolMaxType, 3),
+    FbProtocolInfo(FbIsc.protocol_version13, FbIsc.connect_generic_achitecture_client, protocolMinType, protocolMaxType, 4),
 ];
 
 immutable ubyte[] describeStatementExplaindPlanInfoItems = [

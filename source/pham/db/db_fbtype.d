@@ -33,13 +33,15 @@ alias FbId = int64;
 alias FbHandle = uint32;
 alias FbOperation = int32;
 
+enum fbDeferredProtocol = true;
+
 enum fbMaxChars = 32_767;
 enum fbMaxPackageSize = 32_767;
 enum fbMaxVarChars = fbMaxChars - 2; // -2 for size place holder
 enum fbNullIndicator = -1;
 
-version (DeferredProtocol)
-enum fbCommandDeferredHandle = 65_535;
+static if (fbDeferredProtocol)
+enum fbCommandDeferredHandle = FbHandle(0xFFFF_FFFF);
 
 immutable string fbAuthLegacyName = "Legacy_Auth";
 immutable string fbAuthSrp1Name = "Srp";

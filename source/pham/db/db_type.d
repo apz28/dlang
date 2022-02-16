@@ -309,14 +309,19 @@ enum DbConnectionCustomIdentifier : string
 {
     applicationName = "applicationName",
     applicationVersion = "applicationVersion",
+
+    currentComputerName = "currentComputerName",
+    currentProcessId = "currentProcessId",
+    currentProcessName = "currentProcessName",
+    currentUserName = "currentUserName",
 }
 
 enum DbScheme : string
 {
     fb = "firebird",
-    //lt = "sqlite",
     my = "mysql",
     pg = "postgresql",
+    //sq = "sqlite",
 }
 
 enum DbSchemaColumnFlag : byte
@@ -1058,6 +1063,16 @@ public:
         return get!T();
     }
 
+    int opCmp(scope const(DbHandle) rhs) const pure
+    {
+        return cmpIntegral(value.i64, rhs.value.i64);
+    }
+
+    bool opEquals(scope const(DbHandle) rhs) const pure
+    {
+        return value.i64 == rhs.value.i64;
+    }
+
     pragma(inline, true)
     T get(T)() const pure
     if (isHandleValue!T)
@@ -1168,6 +1183,16 @@ public:
     if (isIdValue!T)
     {
         return get!T();
+    }
+
+    int opCmp(scope const(DbId) rhs) const pure
+    {
+        return cmpIntegral(value.i64, rhs.value.i64);
+    }
+
+    bool opEquals(scope const(DbId) rhs) const pure
+    {
+        return value.i64 == rhs.value.i64;
     }
 
     pragma(inline, true)

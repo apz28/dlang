@@ -28,17 +28,18 @@ import pham.external.std.log.logger : Logger, LogLevel, LogTimming, ModuleLogger
 import pham.utl.delegate_list;
 import pham.utl.dlink_list;
 import pham.utl.enum_set : EnumSet, toEnum, toName;
-import pham.utl.object : DisposableState, IDisposable, RAIIMutex, singleton;
+import pham.utl.object : currentComputerName, currentProcessId, currentProcessName, currentUserName,
+    DisposableState, IDisposable, RAIIMutex, singleton;
 import pham.utl.timer;
 import pham.utl.utf8 : utf8NextChar;
 import pham.db.convert;
-import pham.db.exception;
+public import pham.db.exception;
 import pham.db.message;
 import pham.db.object;
 import pham.db.parser;
 import pham.db.type;
 import pham.db.util;
-import pham.db.value;
+public import pham.db.value;
 
 alias DbNotificationMessageEvent = void delegate(scope DbNotificationMessage[] notificationMessages);
 
@@ -1866,6 +1867,7 @@ abstract class DbConnectionStringBuilder : DbNameValueList!string
 public:
     this(string connectionString) nothrow @safe
     {
+        setDefaultCustomAttributes();
         parseConnectionString(connectionString);
     }
 
@@ -2329,6 +2331,14 @@ protected:
         return _validParamNameChecks;
     }
 
+    final void setDefaultCustomAttributes() nothrow @safe
+    {
+        customAttributes.put(DbConnectionCustomIdentifier.currentComputerName, currentComputerName());
+        customAttributes.put(DbConnectionCustomIdentifier.currentProcessId, to!string(currentProcessId()));
+        customAttributes.put(DbConnectionCustomIdentifier.currentProcessName, currentProcessName());
+        customAttributes.put(DbConnectionCustomIdentifier.currentUserName, currentUserName());
+    }
+
     void setDefaultIfs() nothrow @safe
     {
         putIf(DbConnectionParameterIdentifier.connectionTimeout, getDefault(DbConnectionParameterIdentifier.connectionTimeout));
@@ -2393,7 +2403,6 @@ public:
         return createParameter(id);
     }
 
-    pragma(inline, true)
     final CharClass charClass(const(dchar) c) const @nogc nothrow pure
     {
         if (auto e = c in charClasses)

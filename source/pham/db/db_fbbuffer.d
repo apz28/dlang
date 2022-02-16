@@ -1042,6 +1042,7 @@ public:
     void writeHandle(FbHandle handle) nothrow
     {
         static assert(uint32.sizeof == FbHandle.sizeof);
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("handle=", handle);
 
         _writer.writeUInt32(cast(uint32)handle);
     }
@@ -1050,6 +1051,7 @@ public:
     void writeId(FbId id) nothrow
     {
         static assert(int64.sizeof == FbId.sizeof);
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("id=", id);
 
         _writer.writeInt64(cast(int64)id);
     }
@@ -1114,6 +1116,7 @@ public:
     void writeOperation(FbOperation operation) nothrow
     {
         static assert(int32.sizeof == FbOperation.sizeof);
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("operation=", operation);
 
         writeInt32(cast(int32)operation);
     }

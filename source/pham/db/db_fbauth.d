@@ -120,9 +120,9 @@ public:
             traceFunction!("pham.db.fbdatabase")("keyLength=", keyLength,
                 ", saltLength=", saltLength,
                 ", serverAuthDataLength=", serverAuthDataOrg.length,
-                ", serverPublicKey=", serverPublicKey,
-                ", serverSalt=", serverSalt,
-                ", serverAuthData=", serverAuthDataOrg);
+                ", serverPublicKey=", serverPublicKey.dgToHex(),
+                ", serverSalt=", serverSalt.dgToHex(),
+                ", serverAuthData=", serverAuthDataOrg.dgToHex());
         }
 
         return true;

@@ -541,7 +541,29 @@ public:
 
         auto protocol = fbConnection.protocol;
         protocol.blobEndWrite(this, FbIsc.op_cancel_blob);
-        protocol.blobEndRead();
+        static if (fbDeferredProtocol)
+            protocol.deferredResponses ~= &protocol.blobEndRead;
+        else
+            protocol.blobEndRead();
+    }
+
+    static if (fbDeferredProtocol)
+    FbDeferredResponse cancel(ref FbXdrWriter writer) nothrow
+    in
+    {
+        assert(fbConnection !is null);
+        assert(_info.hasHandle);
+    }
+    do
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+
+        scope (exit)
+            _info.resetHandle();
+
+        auto protocol = fbConnection.protocol;
+        protocol.blobEndWrite(writer, this, FbIsc.op_cancel_blob);
+        return &protocol.blobEndRead;
     }
 
     void close()
@@ -559,7 +581,29 @@ public:
 
         auto protocol = fbConnection.protocol;
         protocol.blobEndWrite(this, FbIsc.op_close_blob);
-        protocol.blobEndRead();
+        static if (fbDeferredProtocol)
+            protocol.deferredResponses ~= &protocol.blobEndRead;
+        else
+            protocol.blobEndRead();
+    }
+
+    static if (fbDeferredProtocol)
+    FbDeferredResponse close(ref FbXdrWriter writer) nothrow
+    in
+    {
+        assert(fbConnection !is null);
+        assert(_info.hasHandle);
+    }
+    do
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+
+        scope (exit)
+            _info.resetHandle();
+
+        auto protocol = fbConnection.protocol;
+        protocol.blobEndWrite(writer, this, FbIsc.op_close_blob);
+        return &protocol.blobEndRead;
     }
 
     void create()
@@ -763,14 +807,16 @@ public:
     this(FbConnection connection, string name = null) nothrow @safe
     {
         super(connection, name);
-        _flags.set(DbCommandFlag.transactionRequired, true);
-        version (DeferredProtocol)
-            _handle = DbHandle(cast(FbHandle)fbCommandDeferredHandle);
+        this._flags.set(DbCommandFlag.transactionRequired, true);
+        static if (fbDeferredProtocol)
+            this._handle = DbHandle(fbCommandDeferredHandle);
     }
 
     this(FbConnection connection, FbTransaction transaction, string name = null) nothrow @safe
     {
         super(connection, transaction, name);
+        static if (fbDeferredProtocol)
+            this._handle = DbHandle(fbCommandDeferredHandle);
     }
 
 	final override const(char)[] getExecutionPlan(uint vendorMode)
@@ -879,6 +925,18 @@ package(pham.db):
         return cast(FbParameter[])inputParameters();
     }
 
+    pragma(inline, true)
+    final @property bool isFbHandle() const nothrow pure @safe
+    {
+        static if (fbDeferredProtocol)
+        {
+            enum fbdh = DbHandle(fbCommandDeferredHandle);
+            return _handle.isValid && _handle != fbdh;
+        }
+        else
+            return _handle.isValid;
+    }
+
 protected:
     final void allocateHandleRead() @safe
     {
@@ -896,13 +954,14 @@ protected:
         protocol.allocateCommandWrite();
     }
 
-    version (DeferredProtocol)
-    final void allocateHandleWrite(ref FbXdrWriter writer) nothrow @safe
+    static if (fbDeferredProtocol)
+    final FbDeferredResponse allocateHandleWrite(ref FbXdrWriter writer) nothrow @safe
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
         auto protocol = fbConnection.protocol;
         protocol.allocateCommandWrite(writer);
+        return &allocateHandleRead;
     }
 
     final bool canBundleOperations() nothrow @safe
@@ -934,29 +993,43 @@ protected:
 
     final void deallocateHandle() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("fbHandle=", fbHandle);
 
         // Must reset regardless if error taken place
         // to avoid double errors when connection is shutting down
         scope (exit)
-            _handle.reset();
+        {
+            static if (fbDeferredProtocol)
+                _handle = fbCommandDeferredHandle;
+            else
+                _handle.reset();
+            version (TraceFunction) traceFunction!("pham.db.fbdatabase")("fbHandle=", fbHandle);
+        }
 
         try
         {
             auto protocol = fbConnection.protocol;
             protocol.deallocateCommandWrite(this);
-            version (DeferredProtocol)
-            {}
+            static if (fbDeferredProtocol)
+                protocol.deferredResponses ~= &protocol.deallocateCommandRead;
             else
-            {
                 protocol.deallocateCommandRead();
-            }
         }
         catch (Exception e)
         {
             if (auto log = logger)
                 log.error(forLogInfo(), newline, e.msg, e);
         }
+    }
+
+    static if (fbDeferredProtocol)
+    final FbDeferredResponse deallocateHandleWrite(ref FbXdrWriter writer) nothrow @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+
+        auto protocol = fbConnection.protocol;
+        protocol.deallocateCommandWrite(writer, this);
+        return &protocol.deallocateCommandRead;
     }
 
     final override void doExecuteCommand(const(DbCommandExecuteType) type) @safe
@@ -983,7 +1056,10 @@ protected:
         if (executedCount > 1 && type != DbCommandExecuteType.nonQuery)
         {
             protocol.closeCursorCommandWrite(this);
-            protocol.closeCursorCommandRead();
+            static if (fbDeferredProtocol)
+                protocol.deferredResponses ~= &protocol.closeCursorCommandRead;
+            else
+                protocol.closeCursorCommandRead();
         }
 
         protocol.executeCommandWrite(this, type);
@@ -1059,31 +1135,28 @@ protected:
             ? LogTimming(logger, text(forLogInfo(), newline, sql), false, logTimmingWarningDur)
             : LogTimming.init;
 
-        version (DeferredProtocol)
+        static if (fbDeferredProtocol)
         {
-            alias RequestReader = void delegate() @safe;
-            RequestReader[] requestReaders;
-            auto writer = FbXdrWriter(fbConnection);
-
-            if (!_handle)
+            FbDeferredResponse[] requestResponses;
             {
-                allocateHandleWrite(writer);
-                requestReaders ~= &allocateHandleRead;
+                auto writer = FbXdrWriter(fbConnection);
+
+                if (!isFbHandle)
+                    requestResponses ~= allocateHandleWrite(writer);
+
+                requestResponses ~= doPrepareWrite(writer, sql);
+
+                if (commandType != DbCommandType.ddl)
+                    requestResponses ~= getStatementTypeWrite(writer);
+
+                writer.flush();
             }
-
-            doPrepareWrite(writer, sql);
-            requestReaders ~= &doPrepareRead;
-
-            getStatementTypeWrite(writer);
-            requestReaders ~= &getStatementTypeRead;
-
-            writer.flush();
-            foreach (ref requestReader; requestReaders)
-                requestReader();
+            foreach (ref requestResponse; requestResponses)
+                requestResponse();
         }
         else
         {
-            if (!_handle)
+            if (!isFbHandle)
             {
                 allocateHandleWrite();
                 allocateHandleRead();
@@ -1099,7 +1172,7 @@ protected:
             }
         }
 
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("handle=", _handle, ", baseCommandType=", _baseCommandType);
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("fbHandle=", fbHandle, ", baseCommandType=", _baseCommandType);
     }
 
     final void doPrepareRead() @safe
@@ -1118,20 +1191,21 @@ protected:
         protocol.prepareCommandWrite(this, sql);
     }
 
-    version (DeferredProtocol)
-    final void doPrepareWrite(ref FbXdrWriter writer, scope const(char)[] sql) nothrow @safe
+    static if (fbDeferredProtocol)
+    final FbDeferredResponse doPrepareWrite(ref FbXdrWriter writer, scope const(char)[] sql) nothrow @safe
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
         auto protocol = fbConnection.protocol;
-        protocol.prepareCommandWrite(this, sql, writer);
+        protocol.prepareCommandWrite(writer, this, sql);
+        return &doPrepareRead;
     }
 
     final override void doUnprepare() @safe
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
-        if (_handle)
+        if (isFbHandle)
             deallocateHandle();
     }
 
@@ -1180,13 +1254,14 @@ protected:
         protocol.typeCommandWrite(this);
 	}
 
-    version (DeferredProtocol)
-	final void getStatementTypeWrite(ref FbXdrWriter writer) nothrow @safe
+    static if (fbDeferredProtocol)
+	final FbDeferredResponse getStatementTypeWrite(ref FbXdrWriter writer) nothrow @safe
 	{
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
         auto protocol = fbConnection.protocol;
-        protocol.typeCommandWrite(this, writer);
+        protocol.typeCommandWrite(writer, this);
+        return &getStatementTypeRead;
 	}
 
     final override bool isSelectCommandType() const nothrow @safe
@@ -2242,9 +2317,11 @@ unittest // FbCommand.DDL
         command = null;
     }
 
+    version (TraceFunction) traceFunction!("pham.db.fbdatabase")("CREATE TABLE");
     command.commandDDL = q"{CREATE TABLE create_then_drop (a INT NOT NULL PRIMARY KEY, b VARCHAR(100))}";
     command.executeNonQuery();
 
+    version (TraceFunction) traceFunction!("pham.db.fbdatabase")("DROP TABLE");
     command.commandDDL = "DROP TABLE create_then_drop";
     command.executeNonQuery();
 
