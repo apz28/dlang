@@ -23,7 +23,17 @@ class CipherRC4 : Cipher
 nothrow @safe:
 
 public:
-    this(CipherKey privateKey)
+	this(scope const(ubyte)[] key) pure
+    in
+    {
+        assert(CipherKey.isValidKey(key));
+    }
+    do
+    {
+		this(CipherKey(key.length * 8, key));
+    }
+
+    this(CipherKey privateKey) pure
     in
     {
         assert(CipherKey.isValidKey(privateKey.key));
@@ -36,12 +46,20 @@ public:
 
     final override ubyte[] decrypt(scope const(ubyte)[] input, return ref ubyte[] output)
     {
-        return input.length != 0 ? process(input, output) : null;
+        const resultLength = input.length;
+        if (output.length < resultLength)
+            output.length = resultLength;
+
+        return resultLength != 0 ? process(input, output) : null;
     }
 
     final override ubyte[] encrypt(scope const(ubyte)[] input, return ref ubyte[] output)
     {
-        return input.length != 0 ? process(input, output) : null;
+        const resultLength = input.length;
+        if (output.length < resultLength)
+            output.length = resultLength;
+
+        return resultLength != 0 ? process(input, output) : null;
     }
 
     @property final override bool isSymantic() const @nogc pure
@@ -63,7 +81,7 @@ protected:
     }
 
 private:
-    final void initKey()
+    final void initKey() @nogc pure
     {
         x = y = 0;
         foreach (i; 0..stateLength)
@@ -80,20 +98,21 @@ private:
         }
     }
 
-    final ubyte[] process(scope const(ubyte)[] input, return ref ubyte[] output)
+    final ubyte[] process(scope const(ubyte)[] input, return ref ubyte[] output) @nogc pure
+    in
     {
-        const resultLength = input.length;
-        if (output.length < resultLength)
-            output.length = resultLength;
-
+        assert(input.length != 0);
+    }
+    do
+    {
         foreach (i, p; input)
             output[i] = processImpl(p);
 
-        return output[0..resultLength];
+        return output[0..input.length];
     }
 
     pragma(inline, true)
-    final ubyte processImpl(const(ubyte) input)
+    final ubyte processImpl(const(ubyte) input) @nogc pure
     {
         x = (x + 1) & 0xff;
         y = (_stateData[x] + y) & 0xff;
@@ -126,8 +145,8 @@ unittest // CipherRC4
         ubyte[] testEncrypted = [ 0x75, 0xb7, 0x87, 0x80, 0x99, 0xe0, 0xc5, 0x96 ];
         ubyte[] testResult;
 
-        auto cipherRC4E = new CipherRC4(CipherKey(0, key));
-        auto cipherRC4D = new CipherRC4(CipherKey(0, key));
+        auto cipherRC4E = new CipherRC4(key);
+        auto cipherRC4D = new CipherRC4(key);
 
         assert(cipherRC4E.encrypt(test, testResult) == testEncrypted);
         assert(cipherRC4D.decrypt(testEncrypted, testResult) == test);
@@ -143,7 +162,7 @@ unittest // CipherRC4
         auto input = key.dup;
         ubyte[] output;
 
-        auto cipherRC4 = new CipherRC4(CipherKey(0, key));
+        auto cipherRC4 = new CipherRC4(key);
         assert(cipherRC4.encrypt(input, output) == bytesFromHexs("4B8E9F295B071B7239ABC838B3E4DC9B"));
 
         cipherRC4.dispose();

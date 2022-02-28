@@ -12,8 +12,12 @@
 module pham.cp.codec_asn1;
 
 import std.traits : isIntegral, Unqual;
+import std.string : representation;
 
 import pham.utl.big_integer : BigInteger;
+import pham.utl.datetime.date : DateTime;
+import pham.utl.object : toString;
+import pham.utl.utf8 : ShortStringBuffer;
 import pham.cp.cipher : CipherBuffer;
 
 nothrow @safe:
@@ -27,6 +31,7 @@ enum ASN1Class : ubyte
 	application     = 1,
 	contextSpecific = 2,
 	private_        = 3,
+    eoc             = 4,
 }
 
 /**
@@ -53,8 +58,8 @@ enum ASN1Tag : ubyte
     iA5String            = 0x16,
     utcTime              = 0x17,
     generalizedTime      = 0x18,
+    visibleString        = 0x1A,
     generalString        = 0x1B,
-    //visibleString        = 0x1A,
     bmpString            = 0x1E,
     date                 = 0x1F,
     dateTime             = 0x21,
@@ -424,6 +429,109 @@ struct ASN1DerEncoder
 nothrow @safe:
 
 public:
+    static void writeBoolean(ref CipherBuffer destination, const(bool) x,
+        const(ASN1Tag) tag = ASN1Tag.boolean) pure
+    {
+        destination.put(tag);
+        destination.put(0x01);
+        destination.put(x ? 0xff : 0x00);
+    }
+
+    static void writeGeneralizedTime(ref CipherBuffer destination, const(DateTime) x,
+        const(ASN1Tag) tag = ASN1Tag.generalizedTime) pure
+    {
+        int y, m, d, h, n, s;
+        x.getDate(y, m, d);
+        x.getTime(h, n, s);
+
+        ShortStringBuffer!char buffer;
+        toString(buffer, y, 4);
+        toString(buffer, m, 2);
+        toString(buffer, d, 2);
+        toString(buffer, h, 2);
+        toString(buffer, n, 2);
+        toString(buffer, s, 2);
+        buffer.put('Z');
+
+        writeTagString(destination, tag, buffer[]);
+    }
+
+    static void writeInteger(T)(ref CipherBuffer destination, const(T) x,
+        const(ASN1Tag) tag = ASN1Tag.integer) pure
+    if (isIntegral!T)
+    {
+        destination.put(tag);
+	    const n = x.lengthInteger();
+	    foreach (j; 0..n)
+		    destination.put(cast(ubyte)(x >> ((n - 1 - j) * 8)));
+    }
+
+    static void writeNull(ref CipherBuffer destination,
+        const(ASN1Tag) tag = ASN1Tag.null_) pure
+    {
+        destination.put(tag);
+        destination.put(0x00);
+    }
+
+    static void writeOctetString(ref CipherBuffer destination, scope const(char)[] x,
+        const(ASN1Tag) tag = ASN1Tag.octetString) pure
+    {
+        writeTagString(destination, tag, x);
+    }
+
+    static void writePrintableString(ref CipherBuffer destination, scope const(char)[] x,
+        const(ASN1Tag) tag = ASN1Tag.printableString) pure
+    {
+        writeTagString(destination, tag, x);
+    }
+
+    static void writeSequence(ref CipherBuffer destination, scope const(char)[][] x,
+        const(ASN1Tag) tag = ASN1Tag.sequence) pure
+    {
+        writeTagStrings(destination, tag, x);
+    }
+
+    static void writeSet(ref CipherBuffer destination, scope const(char)[][] x,
+        const(ASN1Tag) tag = ASN1Tag.set) pure
+    {
+        writeTagStrings(destination, tag, x);
+    }
+
+    static void writeTagString(ref CipherBuffer destination, const(ASN1Tag) tag, scope const(char)[] x) pure
+    {
+        destination.put(tag);
+        writeLength(destination, x.length);
+        destination.put(x.representation);
+    }
+
+    static void writeTagStrings(ref CipherBuffer destination, const(ASN1Tag) tag, scope const(char)[][] x) pure
+    {
+        size_t totalLength = 0;
+        foreach (s; x)
+            totalLength += s.length;
+
+        destination.put(tag);
+        writeLength(destination, totalLength);
+        foreach (s; x)
+            destination.put(s.representation);
+    }
+
+    static void writeUTFString(ref CipherBuffer destination, scope const(char)[] x,
+        const(ASN1Tag) tag = ASN1Tag.utf8String) pure
+    {
+        writeTagString(destination, tag, x);
+    }
+
+    static void writeVisibleString(ref CipherBuffer destination, scope const(char)[] x,
+        const(ASN1Tag) tag = ASN1Tag.visibleString) pure
+    {
+        destination.put(tag);
+        writeLength(destination, x.length + 1);
+        destination.put(x.representation);
+        destination.put(' ');
+    }
+
+private:
     static ubyte lengthBase128Int64(long x) @nogc pure
     {
 	    if (x == 0)
@@ -444,7 +552,7 @@ public:
         return x.length + 1;
     }
 
-    static ubyte lengthIntegral(T)(const(T) x) @nogc pure
+    static ubyte lengthInteger(T)(const(T) x) @nogc pure
     if (isIntegral!T)
     {
         Unqual!T ux = x;
@@ -478,7 +586,7 @@ public:
         return result;
     }
 
-    static void  writeBase128Int64(ref CipherBuffer destination, long x)
+    static void writeBase128Int64(ref CipherBuffer destination, const(long) x)
     {
 	    const n = lengthBase128Int64(x);
 	    for (int i = n - 1; i >= 0; i--)
@@ -490,15 +598,7 @@ public:
     	}
     }
 
-    static void writeIntegral(T)(ref CipherBuffer destination, const(T) x) pure
-    if (isIntegral!T)
-    {
-	    const n = x.lengthIntegral();
-	    foreach (j; 0..n)
-		    destination.put(cast(ubyte)(x >> ((n - 1 - j) * 8)));
-    }
-
-    static void writeLength(ref CipherBuffer destination, size_t n) pure
+    static void writeLength(ref CipherBuffer destination, const(size_t) n) pure
     {
         if (n >= 128)
         {
@@ -510,9 +610,6 @@ public:
         else
             destination.put(cast(ubyte)n);
     }
-
-private:
-
 }
 
 

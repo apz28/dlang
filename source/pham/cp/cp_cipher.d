@@ -38,17 +38,17 @@ public:
         _modulus = _modulus.dup;
     }
 
-    this(size_t keyBitLength, const(ubyte)[] key) pure
+    this(size_t keyBitLength, scope const(ubyte)[] key) pure
     {
         this._keyBitLength = keyBitLength;
-        this._exponent = key.dup;
+        this._modulus = key.dup;
     }
 
-    this(size_t keyBitLength, const(ubyte)[] modulus, const(ubyte)[] exponent) pure
+    this(size_t keyBitLength, scope const(ubyte)[] modulus, scope const(ubyte)[] exponent) pure
     {
         this._keyBitLength = keyBitLength;
-        this._exponent = exponent.dup;
         this._modulus = modulus.dup;
+        this._exponent = exponent.dup;
     }
 
     ~this() pure
@@ -61,6 +61,7 @@ public:
     {
         _exponent[] = 0;
         _modulus[] = 0;
+        _keyBitLength = 0;
     }
 
     static ubyte[] bytesFromBigInteger(const(BigInteger) n) pure
@@ -147,7 +148,7 @@ public:
 
     @property const(ubyte)[] key() const @nogc pure
     {
-        return _exponent;
+        return _modulus;
     }
 
     /**
