@@ -91,7 +91,7 @@ public:
 
     int opCmp(scope const(Date) rhs) const @nogc nothrow pure scope
     {
-        return cmpIntegral(data, rhs.data);
+        return cmpInteger(data, rhs.data);
     }
 
     bool opEquals(scope const(Date) rhs) const @nogc nothrow pure scope

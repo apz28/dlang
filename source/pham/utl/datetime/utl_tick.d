@@ -159,20 +159,20 @@ struct TickData
     {
         version (RelaxCompareTime)
         {
-            const result = cmpIntegral(this.uticks, rhs.uticks);
+            const result = cmpInteger(this.uticks, rhs.uticks);
             if (result == 0)
             {
                 const lhsKind = this.internalKind;
                 const rhsKind = rhs.internalKind;
                 if (!isCompatibleKind(lhsKind, rhsKind))
-                    return cmpIntegral(lhsKind, rhsKind);
+                    return cmpInteger(lhsKind, rhsKind);
             }
             return result;
         }
         else
         {
-            const result = cmpIntegral(this.uticks, rhs.uticks);
-            return result == 0 ? cmpIntegral(this.internalKind, rhs.internalKind) : result;
+            const result = cmpInteger(this.uticks, rhs.uticks);
+            return result == 0 ? cmpInteger(this.internalKind, rhs.internalKind) : result;
         }
     }
 
@@ -409,7 +409,7 @@ enum ErrorPart : byte
 }
 
 pragma(inline, true)
-int cmpIntegral(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
+int cmpInteger(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
 if (isIntegral!T)
 {
     return (lhs > rhs) - (lhs < rhs);
