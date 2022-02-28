@@ -11,6 +11,7 @@
 
 module pham.db.myconvert;
 
+import core.time : dur;
 import std.format : FormatSpec, formatValue;
 import std.traits: isUnsigned, Unqual;
 

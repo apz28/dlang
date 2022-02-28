@@ -13,8 +13,8 @@ module pham.db.type;
 
 import core.internal.hash : hashOf;
 import std.format: FormatSpec, formatValue;
-import core.time : convert;
-public import core.time : Duration, dur;
+import core.time : convert, dur;
+public import core.time : Duration;
 import std.range.primitives : isOutputRange, put;
 import std.traits : isArray, isSomeChar, Unqual;
 import std.uni : sicmp;
@@ -28,7 +28,7 @@ public import pham.utl.datetime.time : Time;
 import pham.utl.datetime.tick : ErrorOp, Tick;
 import pham.utl.datetime.time_zone : TimeZoneInfo, TimeZoneInfoMap;
 import pham.utl.enum_set : toName;
-import pham.utl.object : cmpFloat, cmpIntegral;
+import pham.utl.object : cmpFloat, cmpInteger;
 import pham.utl.utf8 : ShortStringBuffer;
 
 alias float32 = float;
@@ -466,7 +466,7 @@ public:
     int opCmp(scope const(DbDateTime) rhs) const @nogc pure
     {
         const result = _value.opCmp(rhs._value);
-        return result == 0 ? cmpIntegral(_zoneId, rhs._zoneId) : result;
+        return result == 0 ? cmpInteger(_zoneId, rhs._zoneId) : result;
     }
 
     int opCmp(scope const(DateTime) rhs) const @nogc pure
@@ -815,8 +815,8 @@ public:
                 return c;
         }
 
-        const c = cmpIntegral(points.length, rhs.points.length);
-        return c == 0 ? cmpIntegral(cast(byte)open, cast(byte)rhs.open) : c;
+        const c = cmpInteger(points.length, rhs.points.length);
+        return c == 0 ? cmpInteger(cast(byte)open, cast(byte)rhs.open) : c;
     }
 
     bool opEquals(scope const(DbGeoPath) rhs) const @nogc pure
@@ -889,7 +889,7 @@ public:
                 return c;
         }
 
-        return cmpIntegral(points.length, rhs.points.length);
+        return cmpInteger(points.length, rhs.points.length);
     }
 
     bool opEquals(scope const(DbGeoPolygon) rhs) const @nogc pure
@@ -1065,7 +1065,7 @@ public:
 
     int opCmp(scope const(DbHandle) rhs) const pure
     {
-        return cmpIntegral(value.i64, rhs.value.i64);
+        return cmpInteger(value.i64, rhs.value.i64);
     }
 
     bool opEquals(scope const(DbHandle) rhs) const pure
@@ -1187,7 +1187,7 @@ public:
 
     int opCmp(scope const(DbId) rhs) const pure
     {
-        return cmpIntegral(value.i64, rhs.value.i64);
+        return cmpInteger(value.i64, rhs.value.i64);
     }
 
     bool opEquals(scope const(DbId) rhs) const pure
@@ -1417,7 +1417,7 @@ public:
     int opCmp(scope const(DbTime) rhs) const @nogc pure
     {
         const result = _value.opCmp(rhs._value);
-        return result == 0 ? cmpIntegral(_zoneId, rhs._zoneId) : result;
+        return result == 0 ? cmpInteger(_zoneId, rhs._zoneId) : result;
     }
 
     int opCmp(scope const(Time) rhs) const @nogc pure
@@ -1565,7 +1565,7 @@ public:
 
     int opCmp(scope const(DbTimeSpan) rhs) const @nogc pure
     {
-        return cmpIntegral(this.ticks, rhs.ticks);
+        return cmpInteger(this.ticks, rhs.ticks);
     }
 
     int opCmp(scope const(Duration) rhs) const @nogc pure

@@ -53,7 +53,7 @@ public:
         //char[32]
         static char[] MD5toHex(T...)(scope const(T) data) nothrow @safe
         {
-            return md5Of(data).bytesToHexs!(LetterCase.lower);
+            return md5Of(data).bytesToHexs(LetterCase.lower);
         }
 
         _nextState++;

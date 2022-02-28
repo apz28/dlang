@@ -11,6 +11,7 @@
 
 module pham.db.pgtype;
 
+import core.time : dur;
 import std.algorithm : startsWith;
 import std.array : split;
 import std.base64 : Base64;
@@ -18,7 +19,7 @@ import std.conv : to;
 
 version (TraceFunction) import pham.utl.test;
 import pham.utl.enum_set : toName;
-import pham.utl.object : cmpIntegral;
+import pham.utl.object : cmpInteger;
 import pham.db.message;
 import pham.db.type;
 import pham.db.pgoid;
@@ -488,12 +489,12 @@ public:
 
     int opCmp(scope const(PgOIdInterval) rhs) const @nogc pure
     {
-        auto result = cmpIntegral(months, rhs.months);
+        auto result = cmpInteger(months, rhs.months);
         if (result == 0)
         {
-            result = cmpIntegral(days, rhs.days);
+            result = cmpInteger(days, rhs.days);
             if (result == 0)
-                result = cmpIntegral(microseconds, rhs.microseconds);
+                result = cmpInteger(microseconds, rhs.microseconds);
         }
         return result;
     }

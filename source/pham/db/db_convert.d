@@ -11,7 +11,7 @@
 
 module pham.db.convert;
 
-import core.time : convert;
+import core.time : convert, dur;
 import std.conv : to;
 import std.exception : assumeWontThrow;
 import std.math : abs, pow;

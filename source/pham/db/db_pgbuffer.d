@@ -17,7 +17,6 @@ import std.system : Endian;
 
 version (unittest) import pham.utl.test;
 import pham.external.dec.decimal : scaleFrom, scaleTo;
-//import pham.utl.bit_array : numericBitCast;
 import pham.db.buffer;
 import pham.db.convert;
 import pham.db.type;

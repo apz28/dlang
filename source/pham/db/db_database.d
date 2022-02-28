@@ -37,7 +37,7 @@ public import pham.db.exception;
 import pham.db.message;
 import pham.db.object;
 import pham.db.parser;
-import pham.db.type;
+public import pham.db.type;
 import pham.db.util;
 public import pham.db.value;
 
