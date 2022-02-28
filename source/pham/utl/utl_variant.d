@@ -11,7 +11,7 @@
 
 module pham.utl.variant;
 
-import core.lifetime : emplace;
+import core.lifetime : copyEmplace, emplace;
 import core.stdc.string : memcpy, memset;
 import std.algorithm.comparison : max;
 import std.conv : to;
@@ -23,9 +23,9 @@ import std.traits : ConstOf,
     isArray, isAssociativeArray, isBasicType, isBoolean, isDelegate, isDynamicArray,
     isFloatingPoint, isFunctionPointer, isInstanceOf, isIntegral, isPointer, isSomeChar, isSomeFunction, isSomeString,
     isStaticArray, isUnsigned, Parameters, staticMap, SharedConstOf, SharedOf, Unqual;
-import std.typecons : RefCounted, ReplaceTypeUnless, Tuple;
+import std.typecons : ReplaceTypeUnless, Tuple;
 
-import pham.utl.object : cmpIntegral, cmpFloat;
+import pham.utl.object : cmpInteger, cmpFloat;
 
 struct This;
 
@@ -146,7 +146,11 @@ public:
     static if (elaborateConstructor)
     this(this) nothrow @safe
     {
-        handler.construct(size, pointer);
+        if (handler)
+        {
+            ubyte[size] tempStore;
+            handler.postblit(size, pointer, &tempStore);
+        }
     }
 
     static if (elaborateDestructor)
@@ -911,48 +915,28 @@ private:
 
             static if (T.sizeof <= size)
             {
-                // rhs has already been copied onto the stack, so even if T is
-                // shared, it's not really shared. Therefore, we can safely
-                // remove the shared qualifier when copying, as we are only
-                // copying from the unshared stack.
-                //
-                // In addition, the storage location is not accessible outside
-                // the Variant, so even if shared data is stored there, it's
-                // not really shared, as it's copied out as well.
-                memcpy(pointer, cast(const(void*))&rhs, T.sizeof);
-
-                // PostBlit after copy
-                static if (hasElaborateCopyConstructor!T)
-                (cast(T*)pointer).__xpostblit();
+                copyEmplace(rhs, *cast(T*)pointer);
             }
             else
             {
-                alias UT = Unqual!T;
-
                 // Exclude compiler generated constructor
                 // https://issues.dlang.org/show_bug.cgi?id=21021
                 static if (hasMember!(T, "__ctor") && __traits(compiles, { T* _ = new T(T.init); }))
                 {
                     T* prhs = new T(rhs);
-                    auto rrhs = RefCounted!(T*)(prhs);
                 }
                 else static if (is(T == U[n], U, size_t n))
                 {
-                    UT* prhs = cast(UT*)(new U[n]).ptr;
-                    *prhs = cast(UT)rhs;
-                    auto rrhs = RefCounted!(UT*)(prhs);
+                    T* prhs = cast(T*)(new U[n]).ptr;
+                    copyEmplace(rhs, *prhs);
                 }
                 else
                 {
-                    UT* prhs = new UT;
-                    *prhs = cast(UT)rhs;
-                    auto rrhs = RefCounted!(UT*)(prhs);
+                    T* prhs = new T;
+                    copyEmplace(rhs, *prhs);
                 }
 
-                memcpy(pointer, &rrhs, rrhs.sizeof);
-
-                // PostBlit after copy to increase refcount
-                (cast(RefCounted!(T*)*)pointer).__xpostblit();
+                *(cast(T**)pointer) = prhs;
             }
 
             handler = cast(Handler!void*)(Handler!T.getHandler());
@@ -1215,13 +1199,13 @@ template maxSize(Ts...)
 
 /**
  * Alias for $(LREF VariantN) instantiated with the largest size of `long`, `real`,
- * `char[]`, `double[2]`, `void delegate()`, and `RefCounted!(void*)`.
+ * `char[]`, `double[2]`, `void delegate()`.
  * This ensures that `Variant` is large enough to hold all of D's predefined types unboxed,
  * including all numeric types, pointers, delegates, and class references. You may want to use
  * `VariantN` directly with a different maximum size either for
  * storing larger types unboxed, or for saving memory.
  */
-alias Variant = VariantN!(maxSize!(long, real, char[], void delegate(), RefCounted!(void*), double[2]));
+alias Variant = VariantN!(maxSize!(long, real, char[], void delegate(), double[2]));
 
 /**
  * Algebraic data type restricted to a closed set of possible
@@ -1364,17 +1348,12 @@ ptrdiff_t coerceSizeof(T)() @nogc nothrow pure @safe
         return T.sizeof;
 }
 
-T* valuePointerOf(T)(size_t size, return void* store) nothrow @trusted
+pragma(inline, true)
+T* valuePointerOf(T)(size_t storedSize, return void* storedPointer) nothrow @trusted
 {
-    if (store)
-    {
-        if (T.sizeof <= size)
-            return cast(T*)store;
-        else
-            return (cast(RefCounted!(T*)*)store).refCountedPayload;
-    }
-    else
-        return null;
+    return storedPointer
+        ? (T.sizeof <= storedSize ? cast(T*)storedPointer : *cast(T**)storedPointer)
+        : null;
 }
 
 struct Handler(T)
@@ -1422,6 +1401,8 @@ public:
         length = &hLength;
     NullType function() @nogc nothrow pure @safe
         nullType = &hNullType;
+    void function(size_t size, scope void* store, scope void* tempStore) nothrow @safe
+        postblit = &hPostblit;
     size_t function(size_t size, scope void* store) nothrow @safe
         toHash = &hToHash;
     bool function(size_t size, scope void* store, ref string result)
@@ -1584,7 +1565,7 @@ private:
 
             static if (isIntegral!T)
             {
-                return cmpIntegral(*vlhs, *vrhs);
+                return cmpInteger(*vlhs, *vrhs);
             }
             else static if (isFloatingPoint!T)
             {
@@ -1802,22 +1783,14 @@ private:
     static void hConstruct(size_t size, scope void* store) nothrow @trusted
     {
         static if (hasElaborateCopyConstructor!T)
-        {
-            if (T.sizeof > size)
-                (cast(RefCounted!(T*)*)store).__xpostblit();
-            else
-                hValuePointer(size, store).__xpostblit();
-        }
+        hValuePointer(size, store).__xpostblit();
     }
 
     static void hDestruct(size_t size, scope void* store) nothrow @trusted
     {
         static if (hasElaborateDestructor!T)
         {
-            if (T.sizeof > size)
-                (cast(RefCounted!(T*)*)store).__xdtor();
-            else
-                hValuePointer(size, store).__xdtor();
+            hValuePointer(size, store).__xdtor();
 
             // Prevent double calls with dangling data/pointer
             memset(store, 0, size);
@@ -1935,6 +1908,20 @@ private:
             return NullType.no;
     }
 
+    static void hPostblit(size_t size, scope void* store, scope void* tempStore) nothrow @trusted
+    {
+        static if (hasElaborateCopyConstructor!T)
+        {
+            if (T.sizeof > size)
+            {
+                hAssignSelf(size, store, size, tempStore);
+                memcpy(store, tempStore, size);
+            }
+            else
+                hConstruct(size, store);
+        }
+    }
+
     static size_t hToHash(size_t size, scope void* store) nothrow @safe
     {
         static if (is(T == void) || typeid(T) is typeid(null))
@@ -2023,38 +2010,20 @@ private:
 private:
     static void allocate(scope void* dstStore) nothrow
     {
-        //alias UT = Unqual!T;
-
-        /*
-        static if (__traits(compiles, { T* _ = new T(T.init); }))
-        {
-            T* prhs = new T(T.init);
-            auto rrhs = RefCounted!(T*)(prhs);
-        }
-        else */
         static if (is(T == U[n], U, size_t n))
         {
             T* prhs = cast(T*)(new U[n]).ptr;
-            auto rrhs = RefCounted!(T*)(prhs);
         }
         else static if (__traits(compiles, { T* _ = new T; }))
         {
             T* prhs = new T;
-            auto rrhs = RefCounted!(T*)(prhs);
         }
         else
         {
             T* prhs = null;
-            auto rrhs = null;
         }
 
-        if (prhs !is null)
-        {
-            memcpy(dstStore, &rrhs, rrhs.sizeof);
-
-            // PostBlit after copy to increase refcount
-            (cast(RefCounted!(T*)*)dstStore).__xpostblit();
-        }
+        *(cast(T**)dstStore) = prhs;
     }
 
     static bool tryPut(scope T* src, size_t dstSize, scope void* dst, scope TypeInfo dstTypeInfo) nothrow
@@ -2088,25 +2057,25 @@ private:
                     if (dst is null)
                         return true;
 
-                    auto emplaceDst = dst;
-                    if (T.sizeof > dstSize)
-                    {
-                        allocate(dst);
-                        emplaceDst = cast(void*)hValuePointer(dstSize, dst);
-                    }
-
+                    alias UDT = Unqual!dstT;
                     static if (isStaticArray!T && isDynamicArray!dstT)
-                        emplace(cast(Unqual!dstT*)emplaceDst, cast(Unqual!dstT)((*src)[]));
+                    {
+                        auto src2 = (*src)[];
+                        emplace(cast(UDT*)dst, cast(UDT)src2);
+                    }
                     else static if (!is(Unqual!dstT == void))
-                        emplace(cast(Unqual!dstT*)emplaceDst, *cast(UT*)src);
+                    {
+                        emplace(cast(UDT*)dst, *cast(UT*)src);
+                    }
+                    else
+                        assert(0, dstT.stringof); // type T is not constructible from src
                 }
 
                 return true;
             }
             else
             {
-                // type T is not constructible from src
-                assert(0, dstT.stringof);
+                assert(0, dstT.stringof); // type T is not constructible from src
             }
         }
 
@@ -5405,17 +5374,17 @@ nothrow @safe unittest // Algebraic
     refCheck(v);
     copyCheck(v);
 
+    Variant vAssign;
+    {
+        vAssign = v;
+        refCheck(vAssign);
+        copyCheck(vAssign);
+    }
+
     {
         Variant v2 = v;
         refCheck(v2);
         copyCheck(v2);
-    }
-
-    {
-        Variant v3;
-        v3 = v;
-        refCheck(v3);
-        copyCheck(v3);
     }
 
     {

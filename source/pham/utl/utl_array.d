@@ -95,8 +95,6 @@ do
 
 struct IndexedArray(T, ushort StaticSize)
 {
-//nothrow:
-
 public:
     this(size_t capacity) nothrow pure @safe
     {

@@ -19,7 +19,7 @@ import std.range.primitives : isOutputRange, put;
 import std.system : Endian;
 import std.traits : isIntegral, isNumeric, isSomeChar, isUnsigned, Unqual;
 
-import pham.utl.object : cmpIntegral;
+import pham.utl.object : cmpInteger;
 import pham.utl.utf8 : ShortStringBuffer;
 
 nothrow @safe:
@@ -161,7 +161,7 @@ do
 }
 
 pragma(inline, true)
-T bytesToNative(T)(scope const(ubyte)[] bytes, Endian endianness) @nogc pure
+T bytesToNative(T)(scope const(ubyte)[] bytes, const(Endian) endianness) @nogc pure
 if (isIntegral!T)
 in
 {
@@ -777,7 +777,7 @@ public:
         // Standard:
         // A bool value can be implicitly converted to any integral type,
         // with false becoming 0 and true becoming 1
-        return cmpIntegral(length, rhs.length);
+        return cmpInteger(length, rhs.length);
     }
 
     /*

@@ -22,7 +22,7 @@ import std.traits : isNarrowString, Unqual;
 import std.utf : byCodeUnit;
 
 version (unittest) import pham.utl.test;
-import pham.utl.object : cmpIntegral;
+import pham.utl.object : cmpInteger;
 import pham.utl.utf8 : defaultParseDecimalOptions, isNumericLexerRange, NumericLexer, NumericLexerFlag;
 
 @safe:
@@ -124,7 +124,7 @@ public:
 
     int opCmp(scope const(FileSize) rhs) const @nogc nothrow pure
     {
-        return cmpIntegral(_bytes, rhs._bytes);
+        return cmpInteger(_bytes, rhs._bytes);
     }
 
     bool opEquals(scope const(FileSize) rhs) const @nogc nothrow pure

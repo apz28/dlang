@@ -12,11 +12,13 @@
 module pham.utl.object;
 
 import core.sync.mutex : Mutex;
-import std.ascii : LetterCase, lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
+public import std.ascii : LetterCase;
+import std.ascii : lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
 import std.conv : to;
 import std.exception : assumeWontThrow;
 import std.format : FormatSpec;
 import std.math : isPowerOf2;
+import std.range.primitives : put;
 import std.traits : isArray, isAssociativeArray, isFloatingPoint, isIntegral, isPointer,
     isSomeChar, isSomeString, isUnsigned, Unqual;
 
@@ -71,18 +73,19 @@ ubyte[] bytesFromHexs(scope const(char)[] validHexDigits) nothrow pure @safe
  * Returns:
  *  array of characters
  */
-char[] bytesToHexs(LetterCase letterCase = LetterCase.upper)(scope const(ubyte)[] bytes) nothrow pure @safe
+char[] bytesToHexs(scope const(ubyte)[] bytes,
+    const(LetterCase) letterCase = LetterCase.upper) nothrow pure @safe
 {
     char[] result;
     if (bytes.length)
     {
-        enum hexDigitSources = letterCase == LetterCase.upper ? upperHexDigits : lowerHexDigits;
+        const hexDigits = letterCase == LetterCase.upper ? upperHexDigits : lowerHexDigits;
         result.length = bytes.length * 2;
         size_t i;
         foreach (b; bytes)
         {
-            result[i++] = hexDigitSources[(b >> 4) & 0xF];
-            result[i++] = hexDigitSources[b & 0xF];
+            result[i++] = hexDigits[(b >> 4) & 0xF];
+            result[i++] = hexDigits[b & 0xF];
         }
     }
     return result;
@@ -102,8 +105,8 @@ string className(Object object) nothrow pure @safe
 }
 
 pragma(inline, true)
-int cmpIntegral(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
-if (isIntegral!T || isUnsigned!T)
+int cmpInteger(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
+if (isIntegral!T)
 {
     return (lhs > rhs) - (lhs < rhs);
 }
@@ -126,7 +129,7 @@ string currentComputerName() nothrow @trusted
     {
         import core.sys.windows.winbase : GetComputerNameW;
 
-        wchar[256] result = void;
+        wchar[1000] result = void;
         uint len = result.length - 1;
         if (GetComputerNameW(&result[0], &len))
             return assumeWontThrow(to!string(result[0..len]));
@@ -137,7 +140,7 @@ string currentComputerName() nothrow @trusted
     {
         import core.sys.posix.unistd : gethostname;
 
-        char[256] result = void;
+        char[1000] result = void;
         uint len = result.length - 1;
         if (gethostname(&result[0], len) == 0)
             return assumeWontThrow(to!string(result.ptr));
@@ -164,7 +167,7 @@ string currentProcessName() nothrow @trusted
     {
         import core.sys.windows.winbase : GetModuleFileNameW;
 
-        wchar[1024] result = void;
+        wchar[1000] result = void;
         auto len = GetModuleFileNameW(null, &result[0], result.length - 1);
         return assumeWontThrow(to!string(result[0..len]));
     }
@@ -172,7 +175,7 @@ string currentProcessName() nothrow @trusted
     {
         import core.sys.posix.unistd : readlink;
 
-        char[1024] result = void;
+        char[1000] result = void;
         uint len = result.length - 1;
         len = readlink("/proc/self/exe".ptr, &result[0], len);
         return result[0..len].idup;
@@ -190,7 +193,7 @@ string currentUserName() nothrow @trusted
     {
         import core.sys.windows.winbase : GetUserNameW;
 
-        wchar[256] result = void;
+        wchar[1000] result = void;
         uint len = result.length - 1;
         if (GetUserNameW(&result[0], &len))
             return assumeWontThrow(to!string(result[0..len]));
@@ -201,7 +204,7 @@ string currentUserName() nothrow @trusted
     {
         import core.sys.posix.unistd : getlogin_r;
 
-        char[256] result = void;
+        char[1000] result = void;
         uint len = result.length - 1;
         if (getlogin_r(&result[0], len) == 0)
             return assumeWontThrow(to!string(&result[0]));
@@ -321,6 +324,74 @@ if (is(Unqual!C == char) || is(Unqual!C == wchar) || is(Unqual!C == dchar))
         return cast(wstring)result;
     else
         return cast(dstring)result;
+}
+
+ref Writer toString(uint radix = 10, N, Writer)(return ref Writer sink, N n,
+    const(ubyte) pad = 0,
+    const(LetterCase) letterCase = LetterCase.upper) nothrow pure @safe
+if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
+{
+    alias UN = Unqual!N;
+    enum bufSize = 300;
+
+    char[bufSize] bufDigits;
+    size_t bufIndex = bufSize;
+    const isNeg = radix == 10 && n < 0;
+
+    static if (radix == 10)
+    {
+        UN un = isNeg ? -n : n;
+        while (un >= 10)
+        {
+            bufDigits[--bufIndex] = decimalDigits[un % 10];
+            un /= 10;
+        }
+        bufDigits[--bufIndex] = decimalDigits[un];
+    }
+    else
+    {
+        static if (radix == 2)
+        {
+            enum mask = 0x1;
+            enum shift = 1;
+        }
+        else static if (radix == 8)
+        {
+            enum mask = 0x7;
+            enum shift = 3;
+        }
+        else static if (radix == 16)
+        {
+            enum mask = 0xf;
+            enum shift = 4;
+        }
+        else
+            static assert(false);
+
+        const radixDigits = letterCase == LetterCase.upper ? upperHexDigits : lowerHexDigits;
+        UN un = n;
+        do
+        {
+            bufDigits[--bufIndex] = radixDigits[un & mask];
+        }
+        while (un >>>= shift);
+    }
+
+    if (pad)
+    {
+        size_t cn = isNeg ? (bufSize - bufIndex + 1) : (bufSize - bufIndex);
+        while (pad > cn)
+        {
+            bufDigits[--bufIndex] = '0';
+            cn++;
+        }
+    }
+
+    if (isNeg)
+        bufDigits[--bufIndex] = '-';
+
+    put(sink, bufDigits[bufIndex..bufSize]);
+    return sink;
 }
 
 enum DisposableState : byte
@@ -526,27 +597,24 @@ public:
 
     static int compare(scope const(Parts) lhs, scope const(Parts) rhs) pure
     {
-        int result = compare(lhs[0], rhs[0]);
-        if (result == 0)
+        foreach (i; 0..4)
         {
-            result = compare(lhs[1], rhs[1]);
-            if (result == 0)
-            {
-                result = compare(lhs[2], rhs[2]);
-                if (result == 0)
-                    result = compare(lhs[3], rhs[3]);
-            }
+            const result = compare(lhs[i], rhs[i]);
+            if (result != 0)
+                return result;
         }
-        return result;
+        return 0;
     }
 
     static int compare(scope const(char)[] lhsPart, scope const(char)[] rhsPart) pure
     {
-        scope (failure) assert(0);
+        uint lhs, rhs;
+        if (parseIntegral(lhsPart, lhs) != NumericParsedKind.ok)
+            return 2;
+        if (parseIntegral(rhsPart, rhs) != NumericParsedKind.ok)
+            return -2;
 
-        const lhs = to!int(lhsPart);
-        const rhs = to!int(rhsPart);
-        return lhs == rhs ? 0 : (lhs > rhs ? 1 : -1);
+        return cmpInteger(lhs, rhs);
     }
 
     static Parts parse(string versionString) pure
@@ -763,4 +831,43 @@ nothrow @safe unittest // VersionString
     assert(vNull.toString() == "0.0.0.0");
     assert(vNull < "1.2.3.4");
     assert("1.2.3.4" > vNull);
+}
+
+@safe unittest // toString
+{
+    import std.array : Appender;
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.toString");
+
+    void testCheck(uint radix = 10, N)(N n, const(ubyte) pad, string expected,
+        size_t line = __LINE__)
+    {
+        Appender!string buffer;
+        toString!(radix, N)(buffer, n, pad);
+        assert(buffer.data == expected, to!string(line) ~ ": " ~ buffer.data ~ " vs " ~ expected);
+    }
+
+    testCheck(0, 0, "0");
+    testCheck(0, 3, "000");
+
+    testCheck(1, 0, "1");
+    testCheck(1, 2, "01");
+
+    testCheck(-1, 0, "-1");
+    testCheck(-1, 4, "-001");
+
+    testCheck(1_000_000, 0, "1000000");
+    testCheck(1_000_000, 9, "001000000");
+    testCheck(-8_000_000, 0, "-8000000");
+    testCheck(-8_000_000, 9, "-08000000");
+
+    testCheck!(2)(2U, 0, "10");
+    testCheck!(2)(2U, 4, "0010");
+
+    testCheck!(16)(255U, 0, "FF");
+    testCheck!(16)(255U, 4, "00FF");
+
+    // Test default call
+    Appender!string buffer;
+    assert(toString(buffer, 10).data == "10");
 }

@@ -12,6 +12,7 @@
 
 module pham.utl.big_integer;
 
+public import std.ascii : LetterCase;
 import std.ascii : lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
 import std.conv : ConvException;
 import std.format : FormatException, FormatSpec, formatValue;
@@ -1221,20 +1222,20 @@ public:
     }
 
     string toHexString(const(Flag!"includeSign") includeSign = Yes.includeSign,
-        const(Flag!"isUpper") isUpper = Yes.isUpper) const nothrow pure @safe scope
+        const(LetterCase) letterCase = LetterCase.upper) const nothrow pure @safe scope
     {
         FormatSpec!char f;
-        f.spec = isUpper ? 'X' : 'x';
+        f.spec = letterCase == LetterCase.upper ? 'X' : 'x';
         ShortStringBuffer!char buffer;
         return toHexString!(ShortStringBuffer!char, char)(buffer, f, includeSign).toString();
     }
 
     ref Writer toHexString(Writer, Char)(return ref Writer sink, const(Flag!"includeSign") includeSign = Yes.includeSign,
-        const(Flag!"isUpper") isUpper = Yes.isUpper) const nothrow pure @safe scope
+        const(LetterCase) letterCase = LetterCase.upper) const nothrow pure @safe scope
     if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
         FormatSpec!Char f;
-        f.spec = isUpper ? 'X' : 'x';
+        f.spec = letterCase == LetterCase.upper ? 'X' : 'x';
         return toHexString(sink, f, includeSign);
     }
 

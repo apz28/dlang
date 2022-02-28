@@ -798,7 +798,17 @@ public:
         return this;
     }
 
-    alias opOpAssign(string op : "~") = put;
+    ref typeof(this) opOpAssign(string op)(T c) nothrow pure return
+    if (op == "~" || op == "+")
+    {
+        return put(c);
+    }
+
+    ref typeof(this) opOpAssign(string op)(scope const(T)[] s) nothrow pure return
+    if (op == "~" || op == "+")
+    {
+        return put(s);
+    }
 
     static if (isIntegral!T)
     ref typeof(this) opOpAssign(string op)(scope const(T)[] rhs) @nogc nothrow pure
