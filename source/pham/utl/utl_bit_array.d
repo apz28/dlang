@@ -421,7 +421,7 @@ struct BitArrayImpl(T)
 if (isUnsigned!T)
 {
 nothrow @safe:
-    alias This = Unqual!(BitArrayImpl!T);
+    alias UnqualThis = Unqual!(BitArrayImpl!T);
 
 public:
     enum bitsPerByte = 8;
@@ -709,7 +709,7 @@ public:
     /*
      * Support for binary bitwise operators for `BitArray`.
      */
-    This opBinary(string op)(const ref typeof(this) other) const pure
+    UnqualThis opBinary(string op)(const ref typeof(this) other) const pure
     if (op == "-" || op == "&" || op == "|" || op == "^")
     in
     {
@@ -717,31 +717,31 @@ public:
     }
     do
     {
-        This result = this.dup();
+        UnqualThis result = this.dup();
         return result.opOpAssign!op(other);
     }
 
-    This opBinary(string op)(const ref typeof(this) value) const pure
+    UnqualThis opBinary(string op)(const ref typeof(this) value) const pure
     if (op == "~" || op == "+")
     {
-        This result = this.dup();
+        UnqualThis result = this.dup();
         return result.opOpAssign!op(value);
     }
 
-    This opBinary(string op)(bool bit) const pure
+    UnqualThis opBinary(string op)(bool bit) const pure
     if (op == "~" || op == "+")
     {
-        This result = this.dup();
+        UnqualThis result = this.dup();
         result.length = length + 1;
         result[length] = bit;
         return result;
     }
 
-    This opBinaryRight(string op)(bool bit) const pure
+    UnqualThis opBinaryRight(string op)(bool bit) const pure
     if (op == "~" || op == "+")
     {
         //TODO optimize fullword assignment
-        This result = This(length + 1);
+        UnqualThis result = UnqualThis(length + 1);
         result[0] = bit;
         foreach (i; 0..length)
             result[1 + i] = this[i];
@@ -898,10 +898,10 @@ public:
     /*
      * Support for unary operator ~ for `BitArray`.
      */
-    This opUnary(string op)() const pure
+    UnqualThis opUnary(string op)() const pure
     if (op == "~")
     {
-        This result = This(length);
+        UnqualThis result = UnqualThis(length);
         if (length)
         {
             foreach (i, e; values)
@@ -928,9 +928,9 @@ public:
         return result;
     }
 
-    This dup() const pure
+    UnqualThis dup() const pure
     {
-        This result = This(this.values);
+        UnqualThis result = UnqualThis(this.values);
         result._length = length; // Should be OK because we maintain this.values
         return result;
     }
