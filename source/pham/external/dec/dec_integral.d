@@ -57,20 +57,20 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
     enum min = THIS();
     enum max = THIS(HALF.max, HALF.max);
 
-    this(T, U)(auto const ref T hi, auto const ref U lo)
+    this(T, U)(auto const ref T hi, auto const ref U lo) pure
     if (isUnsignedAssignableBit!(HALF, T) && isUnsignedAssignableBit!(HALF, U))
     {
         this.hi = hi;
         this.lo = lo;
     }
 
-    this(T)(auto const ref T x)
+    this(T)(auto const ref T x) pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         this.lo = x;
     }
 
-    this(const(char)[] s) // TODO scope
+    this(const(char)[] s) pure // TODO scope
     in
     {
         assert(s.length, "Empty string");
@@ -130,7 +130,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         }
     }
 
-    auto ref opAssign(T)(auto const ref  T x)
+    auto ref opAssign(T)(auto const ref T x) pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         this.lo = x;
@@ -138,22 +138,22 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return this;
     }
 
-    auto opUnary(string op: "+")() const
+    auto opUnary(string op: "+")() const pure
     {
         return this;
     }
 
-    auto opUnary(string op: "-")() const
+    auto opUnary(string op: "-")() const pure
     {
         return ++(~this);
     }
 
-    auto opUnary(string op: "~")() const
+    auto opUnary(string op: "~")() const pure
     {
         return THIS(~hi, ~lo);
     }
 
-    auto ref opUnary(string op:"++")()
+    auto ref opUnary(string op:"++")() pure
     {
         ++lo;
         if (!lo)
@@ -161,7 +161,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return this;
     }
 
-    auto ref opUnary(string op:"--")()
+    auto ref opUnary(string op:"--")() pure
     {
         --lo;
         if (lo == HALF.max)
@@ -169,18 +169,18 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return this;
     }
 
-    bool opEquals(T)(const(T) value) const
+    bool opEquals(T)(const(T) value) const pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         return hi == 0U && lo == value;
     }
 
-    bool opEquals(T: THIS)(auto const ref T value) const
+    bool opEquals(T: THIS)(auto const ref T value) const pure
     {
         return hi == value.hi && lo == value.lo;
     }
 
-    int opCmp(T)(const(T) value) const
+    int opCmp(T)(const(T) value) const pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         if (hi)
@@ -193,7 +193,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
             return 0;
     }
 
-    int opCmp(T: THIS)(auto const ref T value) const
+    int opCmp(T: THIS)(auto const ref T value) const pure
     {
         if (hi > value.hi)
             return 1;
@@ -207,50 +207,50 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
             return 0;
     }
 
-    auto opBinary(string op: "|", T: THIS)(auto const ref T value) const
+    auto opBinary(string op: "|", T: THIS)(auto const ref T value) const pure
     {
         return THIS(this.hi | value.hi, this.lo | value.lo);
     }
 
-    auto opBinary(string op: "|", T)(auto const ref T value) const
+    auto opBinary(string op: "|", T)(auto const ref T value) const pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         return THIS(this.hi, this.lo | value);
     }
 
-    auto ref opOpAssign(string op: "|", T: THIS)(auto const ref T value)
+    auto ref opOpAssign(string op: "|", T: THIS)(auto const ref T value) pure
     {
         this.hi |= value.hi;
         this.lo |= value.lo;
         return this;
     }
 
-    auto ref opOpAssign(string op: "|", T)(auto const ref T value)
+    auto ref opOpAssign(string op: "|", T)(auto const ref T value) pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         this.lo |= value;
         return this;
     }
 
-    auto opBinary(string op: "&", T: THIS)(auto const ref T value) const
+    auto opBinary(string op: "&", T: THIS)(auto const ref T value) const pure
     {
         return THIS(this.hi & value.hi, this.lo & value.lo);
     }
 
-    auto opBinary(string op: "&", T)(auto const ref T value) const
+    auto opBinary(string op: "&", T)(auto const ref T value) const pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         return THIS(0U, this.lo & value);
     }
 
-    auto ref opOpAssign(string op: "&", T: THIS)(auto const ref T value)
+    auto ref opOpAssign(string op: "&", T: THIS)(auto const ref T value) pure
     {
         this.hi &= value.hi;
         this.lo &= value.lo;
         return this;
     }
 
-    auto ref opOpAssign(string op: "&", T)(auto const ref T value)
+    auto ref opOpAssign(string op: "&", T)(auto const ref T value) pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         this.hi = 0U;
@@ -258,25 +258,25 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return this;
     }
 
-    auto opBinary(string op: "^", T: THIS)(auto const ref T value) const
+    auto opBinary(string op: "^", T: THIS)(auto const ref T value) const pure
     {
         return THIS(this.hi ^ value.hi, this.lo ^ value.lo);
     }
 
-    auto opBinary(string op: "^", T)(auto const ref T value) const
+    auto opBinary(string op: "^", T)(auto const ref T value) const pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         return THIS(this.hi ^ 0UL, this.lo ^ value);
     }
 
-    auto ref opOpAssign(string op: "^", T: THIS)(auto const ref T value)
+    auto ref opOpAssign(string op: "^", T: THIS)(auto const ref T value) pure
     {
         this.hi ^= value.hi;
         this.lo ^= value.lo;
         return this;
     }
 
-    auto ref opOpAssign(string op: "^", T)(auto const ref T value)
+    auto ref opOpAssign(string op: "^", T)(auto const ref T value) pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         this.hi ^= 0U;
@@ -284,7 +284,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return this;
     }
 
-    auto opBinary(string op)(const(int) shift) const
+    auto opBinary(string op)(const(int) shift) const pure
     if (op == ">>" || op == ">>>")
     in
     {
@@ -315,7 +315,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return ret;
     }
 
-    auto ref opOpAssign(string op)(const(int) shift)
+    auto ref opOpAssign(string op)(const(int) shift) pure
     if (op == ">>" || op == ">>>")
     in
     {
@@ -342,7 +342,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return this;
     }
 
-    auto opBinary(string op)(const(int) shift) const
+    auto opBinary(string op)(const(int) shift) const pure
     if (op == "<<")
     in
     {
@@ -373,7 +373,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return ret;
     }
 
-    auto ref opOpAssign(string op)(const(int) shift)
+    auto ref opOpAssign(string op)(const(int) shift) pure
     if (op == "<<")
     in
     {
@@ -401,7 +401,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return this;
     }
 
-    auto opBinary(string op :"+", T)(const(T) value) const
+    auto opBinary(string op :"+", T)(const(T) value) const pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         THIS ret = this;
@@ -409,14 +409,14 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return ret;
     }
 
-    auto ref opOpAssign(string op :"+", T)(const(T) value)
+    auto ref opOpAssign(string op :"+", T)(const(T) value) pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         hi += xadd(lo, value);
         return this;
     }
 
-    auto opBinary(string op :"+", T: THIS)(const(T) value) const
+    auto opBinary(string op :"+", T: THIS)(const(T) value) const pure
     {
         THIS ret = this;
         ret.hi += xadd(ret.lo, value.lo);
@@ -424,14 +424,14 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return ret;
     }
 
-    auto ref opOpAssign(string op :"+", T: THIS)(auto const ref T value)
+    auto ref opOpAssign(string op :"+", T: THIS)(auto const ref T value) pure
     {
         hi += xadd(this.lo, value.lo);
         hi += value.hi;
         return this;
     }
 
-    auto opBinary(string op :"-", T)(const(T) value) const
+    auto opBinary(string op :"-", T)(const(T) value) const pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         THIS ret = this;
@@ -439,14 +439,14 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return ret;
     }
 
-    auto ref opOpAssign(string op :"-", T)(const(T) value)
+    auto ref opOpAssign(string op :"-", T)(const(T) value) pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         hi -= xsub(lo, value);
         return this;
     }
 
-    auto opBinary(string op :"-", T: THIS)(const(T) value) const
+    auto opBinary(string op :"-", T: THIS)(const(T) value) const pure
     {
         THIS ret = this;
         ret.hi -= xsub(ret.lo, value.lo);
@@ -454,14 +454,14 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return ret;
     }
 
-    auto ref opOpAssign(string op :"-", T: THIS)(auto const ref T value)
+    auto ref opOpAssign(string op :"-", T: THIS)(auto const ref T value) pure
     {
         this.hi -= xsub(this.lo, value.lo);
         this.hi -= value.hi;
         return this;
     }
 
-    auto opBinary(string op :"*", T)(const(T) value) const
+    auto opBinary(string op :"*", T)(const(T) value) const pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         THIS ret = xmul(this.lo, value);
@@ -469,7 +469,7 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return ret;
     }
 
-    auto ref opOpAssign(string op :"*", T)(const(T) value)
+    auto ref opOpAssign(string op :"*", T)(const(T) value) pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         THIS ret = xmul(this.lo, value);
@@ -477,21 +477,21 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return this = ret;
     }
 
-    auto opBinary(string op :"*", T: THIS)(const(T) value) const
+    auto opBinary(string op :"*", T: THIS)(const(T) value) const pure
     {
         auto ret = xmul(lo, value.lo);
         ret.hi += this.hi * value.lo + this.lo * value.hi;
         return ret;
     }
 
-    auto ref opOpAssign(string op :"*", T: THIS)(const(T) value)
+    auto ref opOpAssign(string op :"*", T: THIS)(const(T) value) pure
     {
         auto ret = xmul(lo, value.lo);
         ret.hi += this.hi * value.lo + this.lo * value.hi;
         return this = ret;
     }
 
-    auto opBinary(string op :"/", T)(const(T) value) const
+    auto opBinary(string op :"/", T)(const(T) value) const pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         THIS q = this;
@@ -499,53 +499,53 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
         return q;
     }
 
-    auto ref opOpAssign(string op :"/", T)(const(T) value)
+    auto ref opOpAssign(string op :"/", T)(const(T) value) pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         divrem(this, value);
         return this;
     }
 
-    auto opBinary(string op :"/", T: THIS)(const(T) value) const
+    auto opBinary(string op :"/", T: THIS)(const(T) value) const pure
     {
         THIS q = this;
         divrem(q, value);
         return q;
     }
 
-    auto ref opOpAssign(string op :"/", T: THIS)(const(T) value)
+    auto ref opOpAssign(string op :"/", T: THIS)(const(T) value) pure
     {
         divrem(this, value);
         return this;
     }
 
-    auto opBinary(string op :"%", T)(const(T) value) const
+    auto opBinary(string op :"%", T)(const(T) value) const pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         THIS q = this;
         return divrem(q, value);
     }
 
-    auto ref opOpAssign(string op :"%", T)(const(T) value)
+    auto ref opOpAssign(string op :"%", T)(const(T) value) pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         THIS q = this;
         return this = divrem(q, value);
     }
 
-    auto opBinary(string op :"%", T: THIS)(const(T) value) const
+    auto opBinary(string op :"%", T: THIS)(const(T) value) const pure
     {
         THIS q = this;
         return divrem(q, value);
     }
 
-    auto ref opOpAssign(string op :"%", T: THIS)(const(T) value)
+    auto ref opOpAssign(string op :"%", T: THIS)(const(T) value) pure
     {
         THIS q = this;
         return this = divrem(q, value);
     }
 
-    auto opCast(T)() const
+    auto opCast(T)() const pure
     {
         static if (is(T: bool))
             return cast(T)(lo | hi);
