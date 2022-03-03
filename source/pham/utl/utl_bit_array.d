@@ -421,6 +421,7 @@ struct BitArrayImpl(T)
 if (isUnsigned!T)
 {
 nothrow @safe:
+    alias This = Unqual!(BitArrayImpl!T);
 
 public:
     enum bitsPerByte = 8;
@@ -599,8 +600,8 @@ public:
         return this;
     }
 
-    ref typeof(this) opOpAssign(string op)(const ref BitArray other) pure return
-    if (op == "~")
+    ref typeof(this) opOpAssign(string op)(const ref typeof(this) other) pure return
+    if (op == "~" || op == "+")
     {
         // TODO optimize using fullword assignment
         const oldLength = length;
@@ -611,7 +612,7 @@ public:
     }
 
     ref typeof(this) opOpAssign(string op)(bool bit) pure return
-    if (op == "~")
+    if (op == "~" || op == "+")
     {
         const oldLength = length;
         length = oldLength + 1;
@@ -708,7 +709,7 @@ public:
     /*
      * Support for binary bitwise operators for `BitArray`.
      */
-    typeof(this) opBinary(string op)(const ref BitArray other) const pure
+    This opBinary(string op)(const ref typeof(this) other) const pure
     if (op == "-" || op == "&" || op == "|" || op == "^")
     in
     {
@@ -716,32 +717,31 @@ public:
     }
     do
     {
-        auto result = this.dup();
+        This result = this.dup();
         return result.opOpAssign!op(other);
     }
 
-    typeof(this) opBinary(string op)(const ref typeof(this) value) const pure
-    if (op == "~")
+    This opBinary(string op)(const ref typeof(this) value) const pure
+    if (op == "~" || op == "+")
     {
-        auto result = this.dup();
+        This result = this.dup();
         return result.opOpAssign!op(value);
     }
 
-    typeof(this) opBinary(string op)(bool bit) const pure
-    if (op == "~")
+    This opBinary(string op)(bool bit) const pure
+    if (op == "~" || op == "+")
     {
-        auto result = this.dup();
+        This result = this.dup();
         result.length = length + 1;
         result[length] = bit;
         return result;
     }
 
-    typeof(this) opBinaryRight(string op)(bool bit) const pure
-    if (op == "~")
+    This opBinaryRight(string op)(bool bit) const pure
+    if (op == "~" || op == "+")
     {
         //TODO optimize fullword assignment
-        BitArray result;
-        result.length = length + 1;
+        This result = This(length + 1);
         result[0] = bit;
         foreach (i; 0..length)
             result[1 + i] = this[i];
@@ -898,10 +898,10 @@ public:
     /*
      * Support for unary operator ~ for `BitArray`.
      */
-    BitArray opUnary(string op)() const pure
+    This opUnary(string op)() const pure
     if (op == "~")
     {
-        auto result = BitArray(length);
+        This result = This(length);
         if (length)
         {
             foreach (i, e; values)
@@ -928,9 +928,9 @@ public:
         return result;
     }
 
-    BitArray dup() const pure
+    This dup() const pure
     {
-        auto result = BitArray(this.values);
+        This result = This(this.values);
         result._length = length; // Should be OK because we maintain this.values
         return result;
     }
@@ -938,7 +938,7 @@ public:
     /*
      * Flips all the bits in the `BitArray`
      */
-    void flip() @nogc pure
+    ref typeof(this) flip() @nogc pure return
     {
         if (length)
         {
@@ -946,6 +946,7 @@ public:
                 e = e.flip();
             clearUnusedHighBits();
         }
+        return this;
     }
 
     /**
@@ -989,18 +990,18 @@ public:
         }
     }
 
-    void not() @nogc pure
+    ref typeof(this) not() @nogc pure return
     {
-        flip();
+        return flip();
     }
 
     /*
      * Reverses the bits of the `BitArray`.
      */
-    void reverse() @nogc pure
+    ref typeof(this) reverse() @nogc pure return
     {
         if (length < 2)
-            return;
+            return this;
 
         size_t lo = 0;
         size_t hi = length - 1;
@@ -1010,6 +1011,8 @@ public:
             this[lo] = this[hi];
             this[hi] = t;
         }
+
+        return this;
     }
 
     size_t toHash() const @nogc pure @trusted
@@ -1090,7 +1093,7 @@ public:
     /*
      * Sets the amount of bits in the `BitArray`.
      */
-    @property size_t length(size_t newLength) pure
+    @property size_t length(const(size_t) newLength) pure
     {
         if (_length != newLength)
         {

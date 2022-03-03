@@ -25,7 +25,7 @@ import std.traits : ConstOf,
     isStaticArray, isUnsigned, Parameters, staticMap, SharedConstOf, SharedOf, Unqual;
 import std.typecons : ReplaceTypeUnless, Tuple;
 
-import pham.utl.object : cmpInteger, cmpFloat;
+import pham.utl.object : cmpFloat, cmpInteger;
 
 struct This;
 
@@ -48,7 +48,7 @@ enum VariantType : byte
     delegate_,
     function_,
     pointer,
-    unknown
+    unknown,
 }
 
 /**
@@ -423,6 +423,17 @@ public:
                 return handler.cmp(size, pointer, prhs.size, prhs.pointer);
         }
 
+        // if T is typeof(null), then we're comparing with 'null'
+        // this takes into account 'opEquals' and 'opCmp'
+        // all types that can compare with null have to following properties:
+        // if it's 'null' then it's equal to null, otherwise it's always greater
+        // than 'null'
+        const nullLhs = !isNull ? 1 : 0;
+        const nullRhs = nullTypeOf!T() == NullType.no ? 1 : 0;
+
+        if (nullLhs == 0 || nullRhs == 0)
+            return cmpInteger!int(nullLhs, nullRhs);
+
         version (assert)
             assert(0, "Cannot do VariantN(" ~ typeInfo.toString() ~ ") opCmp() with " ~ T.stringof);
         else
@@ -474,6 +485,17 @@ public:
             if (handler.isCompatibleArrayComparison(typeid(Unqual!(ElementType!T))))
                 return handler.equals(size, pointer, prhs.size, prhs.pointer);
         }
+
+        // if T is typeof(null), then we're comparing with 'null'
+        // this takes into account 'opEquals' and 'opCmp'
+        // all types that can compare with null have to following properties:
+        // if it's 'null' then it's equal to null, otherwise it's always greater
+        // than 'null'
+        const nullLhs = !isNull ? 1 : 0;
+        const nullRhs = nullTypeOf!T() == NullType.no ? 1 : 0;
+
+        if (nullLhs == 0 || nullRhs == 0)
+            return nullLhs == nullRhs;
 
         version (assert)
             assert(0, "Cannot do VariantN(" ~ typeInfo.toString() ~ ") opEquals() with " ~ T.stringof);
@@ -766,7 +788,7 @@ public:
     */
     @property bool isNull() const nothrow pure @safe
     {
-        return variantType == VariantType.null_;
+        return  handler.nullType(size, pointer) != NullType.no;
     }
 
     /**
@@ -774,7 +796,7 @@ public:
      */
     @property bool isVoid() const nothrow pure @safe
     {
-        return handler.nullType() == NullType.voidType;
+        return handler.nullType(size, pointer) == NullType.void_;
     }
 
     /**
@@ -1331,8 +1353,8 @@ private:
 enum NullType : byte
 {
     no,
-    voidType,
-    nullType
+    void_,
+    null_,
 }
 
 pragma(inline, true)
@@ -1346,6 +1368,17 @@ ptrdiff_t coerceSizeof(T)() @nogc nothrow pure @safe
         return T.init[0].sizeof;
     else
         return T.sizeof;
+}
+
+pragma(inline, true)
+NullType nullTypeOf(T)() @nogc nothrow pure @safe
+{
+    static if (is(T == void))
+        return NullType.void_;
+    else static if (typeid(T) is typeid(null))
+        return NullType.null_;
+    else
+        return NullType.no;
 }
 
 pragma(inline, true)
@@ -1399,7 +1432,7 @@ public:
         isCompatibleArrayComparison = &hIsCompatibleArrayComparison;
     size_t function(size_t size, scope void* store) @nogc nothrow pure @safe
         length = &hLength;
-    NullType function() @nogc nothrow pure @safe
+    NullType function(size_t size, scope void* store) @nogc nothrow pure @safe
         nullType = &hNullType;
     void function(size_t size, scope void* store, scope void* tempStore) nothrow @safe
         postblit = &hPostblit;
@@ -1898,14 +1931,20 @@ private:
             return 0;
     }
 
-    static NullType hNullType() @nogc nothrow pure @safe
+    static NullType hNullType(size_t size, scope void* store) @nogc nothrow pure @safe
     {
-        static if (is(T == void))
-            return NullType.voidType;
-        else static if (typeid(T) is typeid(null))
-            return NullType.nullType;
-        else
-            return NullType.no;
+        auto result = nullTypeOf!T();
+        static if (__traits(compiles, () => T.init == null))
+        {
+            if (result == NullType.no && *hValuePointer(size, store) == null)
+                result = NullType.null_;
+        }
+        else static if (__traits(compiles, () => T.init is null))
+        {
+            if (result == NullType.no && *hValuePointer(size, store) is null)
+                result = NullType.null_;
+        }
+        return result;
     }
 
     static void hPostblit(size_t size, scope void* store, scope void* tempStore) nothrow @trusted
@@ -3093,7 +3132,7 @@ nothrow @safe unittest // Variant.isNull & Variant.nullify
     {
         {
             Variant vt = T.init;
-            assert(!vt.isNull);
+            assert(vt.isNull);
 
             vt.nullify();
             assert(vt.isNull);
@@ -3219,13 +3258,13 @@ nothrow @safe unittest // Variant.isNull & Variant.nullify
     interface I { void f(); }
     I i;
     Variant vI = i;
-    assert(!vI.isNull);
+    assert(vI.isNull);
 
     vI.nullify();
     assert(vI.isNull);
 
     Variant vP = cast(void*)null;
-    assert(!vP.isNull);
+    assert(vP.isNull);
 
     vP.nullify();
     assert(vP.isNull);
@@ -5805,4 +5844,44 @@ version (none)
 
     immutable aa = ["0": 0];
     auto v = Variant(aa); // Compile error?
+}
+
+@system unittest // https://issues.dlang.org/show_bug.cgi?id=22647
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl.variant")("unittest pham.utl.variant - https://issues.dlang.org/show_bug.cgi?id=22647");
+
+    static struct Bar
+    {
+        int* ptr;
+        alias ptr this;
+    }
+
+    static class Foo
+    {}
+
+    int* iptr = null;
+    int[] arr;
+    Variant v;
+
+    v = Foo.init; // 'null'
+    assert(v == null); // Relax the rule so it is complete null check - can only compare objects with 'null' by using 'is'
+
+    v = iptr;
+    assert(v == null); // pointers can be compared with 'null'
+
+    v = arr;
+    assert(v == null); // arrays can be compared with 'null'
+
+    v = "";
+    assert(v == null); // strings are arrays, an empty string is considered 'null'
+
+    v = Bar.init;
+    assert(v == null); // works with alias this
+
+    v = [3];
+    assert(v != null);
+    assert(v > null);
+    assert(v >= null);
+    assert(!(v < null));
 }
