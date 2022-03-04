@@ -151,7 +151,7 @@ private:
 
 	///dito
 	/// Digits are read from `lsbIndex` of the array to the front.
-	static D.U decodeCoefficient(const(bool) isNeg, const(int) firstDigit, size_t lsbIndex, scope const(ubyte)[] decBytes) pure
+	static D.U decodeCoefficient(const(bool) isNeg, const(ptrdiff_t) firstDigit, size_t lsbIndex, scope const(ubyte)[] decBytes) pure
 	in
     {
 		assert(0 <= firstDigit && firstDigit <= 9);
@@ -170,7 +170,7 @@ private:
             // the second byte becomes the first byte of the next group.
             const int digitBitsFromEnd = digitGroup * bitsPerGroup;
             const int firstByteBitOffset = digitBitsFromEnd % bitsPerByte;
-            const int firstByteIndex = lsbIndex - digitBitsFromEnd / bitsPerByte;
+            const int firstByteIndex = cast(int)(lsbIndex - digitBitsFromEnd / bitsPerByte);
             const int dpdGroupBits = 0x3FF & (
                     (cast(int)decBytes[firstByteIndex] >>> firstByteBitOffset)
                      | (cast(int)decBytes[firstByteIndex - 1] << (bitsPerByte - firstByteBitOffset)));
