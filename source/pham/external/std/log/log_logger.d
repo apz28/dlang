@@ -2115,7 +2115,7 @@ public:
     }
 
 public:
-    uint calPadLength(int padLength, const(size_t) valueLength) const pure @nogc
+    size_t calPadLength(ptrdiff_t padLength, const(size_t) valueLength) const pure @nogc
     {
         if (padLength <= 0)
             return 0u;
@@ -2529,12 +2529,13 @@ public:
         return value;
     }
 
-    static uint padLeft(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, size_t valueLength) nothrow
+    static size_t padLeft(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, size_t valueLength) nothrow
     {
         scope (failure) return 0u;
+
         if (const p = element.calPadLength(element.leftPad, valueLength))
         {
-            uint n = p;
+            size_t n = p;
             while (n--)
                 put(sink, ' ');
             return p;
@@ -2543,12 +2544,13 @@ public:
             return 0u;
     }
 
-    static uint padRight(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, size_t valueLength) nothrow
+    static size_t padRight(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, size_t valueLength) nothrow
     {
         scope (failure) return 0u;
+
         if (const p = element.calPadLength(element.rightPad, valueLength))
         {
-            uint n = p;
+            size_t n = p;
             while (n--)
                 put(sink, ' ');
             return p;
@@ -2586,6 +2588,7 @@ public:
     static void text(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, string value) nothrow
     {
         scope (failure) return;
+
         if (element.fmt.length)
         {
             ShortStringBuffer!char s;
