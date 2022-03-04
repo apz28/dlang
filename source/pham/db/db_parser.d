@@ -15,7 +15,8 @@ import std.array : Appender;
 import std.uni : isAlphaNum, isSpace;
 
 version (unittest) import pham.utl.test;
-import pham.utl.utf8 : utf8NextChar;
+import pham.utl.utf8 : nextUTF8Char;
+import pham.db.type : uint32;
 
 nothrow @safe:
 
@@ -45,7 +46,7 @@ public:
             this.popFront();
     }
 
-    static S parseParameter(S sql, void delegate(ref Appender!S result, S parameterName, size_t parameterNumber) nothrow @safe parameterCallBack)
+    static S parseParameter(S sql, void delegate(ref Appender!S result, S parameterName, uint32 parameterNumber) nothrow @safe parameterCallBack)
     in
     {
         assert(parameterCallBack !is null);
@@ -58,7 +59,7 @@ public:
             return sql;
 
         size_t prevP = 0, beginP = 0;
-        size_t parameterNumber = 0; // Based 1 value
+        uint32 parameterNumber = 0; // Based 1 value
         auto result = Appender!S();
         auto tokenizer = DbTokenizer!S(sql);
         while (!tokenizer.empty)
@@ -135,7 +136,7 @@ public:
         }
 
         size_t cCount = void;
-        const c = utf8NextChar(_sql, _p, cCount);
+        const c = nextUTF8Char(_sql, _p, cCount);
         final switch (charKind(c))
         {
             case CharKind.space:
@@ -154,7 +155,7 @@ public:
                 if (_p < _sql.length)
                 {
                     const parameter2P = _p;
-                    if (isNameChar(utf8NextChar(_sql, _p, cCount)))
+                    if (isNameChar(nextUTF8Char(_sql, _p, cCount)))
                     {
                         _beginP = parameter2P;
                         _currentToken = readName();
@@ -188,7 +189,7 @@ public:
                 if (_p < _sql.length)
                 {
                     const commentSingleP = _p;
-                    if (c == utf8NextChar(_sql, _p, cCount))
+                    if (c == nextUTF8Char(_sql, _p, cCount))
                     {
                         _currentToken = readCommentSingle();
                         _kind = DbTokenKind.comment;
@@ -203,7 +204,7 @@ public:
                 if (_p < _sql.length)
                 {
                     const commentMultiP = _p;
-                    if (utf8NextChar(_sql, _p, cCount) == '*')
+                    if (nextUTF8Char(_sql, _p, cCount) == '*')
                     {
                         _currentToken = readCommentMulti();
                         _kind = DbTokenKind.comment;
@@ -326,7 +327,7 @@ private:
         dchar prevC = 0;
         while (_p < _sql.length)
         {
-            const c = utf8NextChar(_sql, _p, cCount);
+            const c = nextUTF8Char(_sql, _p, cCount);
             if (c == '/' && prevC == '*')
                 return _sql[_beginP.._p];
             prevC = c;
@@ -341,7 +342,7 @@ private:
         size_t cCount = void;
         while (_p < _sql.length)
         {
-            const c = utf8NextChar(_sql, _p, cCount);
+            const c = nextUTF8Char(_sql, _p, cCount);
             if (c == 0x0A)
                 return _sql[_beginP.._p];
             else if (c == 0x0D)
@@ -350,7 +351,7 @@ private:
                 if (_p < _sql.length)
                 {
                     const saveP = _p;
-                    if (utf8NextChar(_sql, _p, cCount) != 0x0A)
+                    if (nextUTF8Char(_sql, _p, cCount) != 0x0A)
                         _p = saveP;
                 }
                 return _sql[_beginP.._p];
@@ -365,7 +366,7 @@ private:
         while (_p < _sql.length)
         {
             const saveP = _p;
-            if (charKind(utf8NextChar(_sql, _p, cCount)) != CharKind.literal)
+            if (charKind(nextUTF8Char(_sql, _p, cCount)) != CharKind.literal)
             {
                 _p = saveP;
                 break;
@@ -382,7 +383,7 @@ private:
         while (_p < _sql.length)
         {
             const saveP = _p;
-            if (!isNameChar(utf8NextChar(_sql, _p, cCount)))
+            if (!isNameChar(nextUTF8Char(_sql, _p, cCount)))
             {
                 _p = saveP;
                 break;
@@ -397,7 +398,7 @@ private:
         bool escaped;
         while (_p < _sql.length)
         {
-            const c = utf8NextChar(_sql, _p, cCount);
+            const c = nextUTF8Char(_sql, _p, cCount);
             if (c == endQuotedChar && !escaped)
                 return _sql[_beginP.._p];
 
@@ -417,7 +418,7 @@ private:
         while (_p < _sql.length)
         {
             const saveP = _p;
-            if (charKind(utf8NextChar(_sql, _p, cCount)) != CharKind.space)
+            if (charKind(nextUTF8Char(_sql, _p, cCount)) != CharKind.space)
             {
                 _p = saveP;
                 break;
@@ -913,7 +914,7 @@ unittest // DbTokenizer.parseParameter
             return this;
         }
 
-        void saveParameter(ref Appender!string result, string prmName, size_t prmNo)
+        void saveParameter(ref Appender!string result, string prmName, uint32 prmNo)
         {
             result.put('?');
             if (prmName.length)

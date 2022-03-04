@@ -221,7 +221,7 @@ public:
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
         auto writerBuffer = new DbWriteBuffer(4000);
-        size_t elements;
+        uint elements;
         ubyte[] encodedArrayValue;
         final switch (descriptor.fieldInfo.dbType)
         {
@@ -303,13 +303,13 @@ public:
     }
 
     DbWriteBuffer writeArrayImpl(T)(DbWriteBuffer writerBuffer, DbNameColumn arrayColumn, ref DbValue arrayValue,
-        out size_t elements) @safe
+        out uint elements) @safe
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
         auto baseType = descriptor.fieldInfo.baseType;
         auto values = arrayValue.get!(T[])();
-        elements = values.length;
+        elements = cast(uint)values.length;
         auto writer = FbXdrWriter(fbConnection, writerBuffer);
         foreach (ref value; values)
         {

@@ -31,7 +31,7 @@ import pham.utl.enum_set : EnumSet, toEnum, toName;
 import pham.utl.object : currentComputerName, currentProcessId, currentProcessName, currentUserName,
     DisposableState, IDisposable, RAIIMutex, singleton;
 import pham.utl.timer;
-import pham.utl.utf8 : utf8NextChar;
+import pham.utl.utf8 : nextUTF8Char;
 import pham.db.convert;
 public import pham.db.exception;
 import pham.db.message;
@@ -630,7 +630,7 @@ protected:
         return result;
     }
 
-    final void buildParameterNameCallback(ref Appender!string result, string parameterName, size_t ordinal) nothrow @safe
+    final void buildParameterNameCallback(ref Appender!string result, string parameterName, uint32 ordinal) nothrow @safe
     {
         version (TraceFunction) traceFunction!("pham.db.database")("parameterName=", parameterName, ", ordinal=", ordinal);
         scope (failure) assert(0);
@@ -647,7 +647,7 @@ protected:
         found.ordinal = ordinal;
     }
 
-    string buildParameterPlaceholder(string parameterName, size_t ordinal) nothrow @safe
+    string buildParameterPlaceholder(string parameterName, uint32 ordinal) nothrow @safe
     {
         return "?";
     }
@@ -669,7 +669,7 @@ protected:
         {
             if (i)
                 result.put(',');
-			result.put(buildParameterPlaceholder(param.name, i + 1));
+			result.put(buildParameterPlaceholder(param.name, cast(uint32)(i + 1)));
         }
         result.put(')');
 
@@ -2421,7 +2421,7 @@ public:
         // Find the first quote char
         while (p < value.length)
         {
-            const c = utf8NextChar(value, p, cCount);
+            const c = nextUTF8Char(value, p, cCount);
             if (charClass(c) != CharClass.any)
                 break;
             lastP = p;
@@ -2438,7 +2438,7 @@ public:
         p = lastP;
         while (p < value.length)
         {
-            const c = utf8NextChar(value, p, cCount);
+            const c = nextUTF8Char(value, p, cCount);
             const cc = charClass(c);
             if (cc == CharClass.quote)
                 result.put(c);
@@ -2459,7 +2459,7 @@ public:
         // Find the first quote char
         while (p < value.length)
         {
-            const c = utf8NextChar(value, p, cCount);
+            const c = nextUTF8Char(value, p, cCount);
             if (charClass(c) != CharClass.any)
                 break;
             lastP = p;
@@ -2476,7 +2476,7 @@ public:
         p = lastP;
         while (p < value.length)
         {
-            const c = utf8NextChar(value, p, cCount);
+            const c = nextUTF8Char(value, p, cCount);
             if (charClass(c) != CharClass.any)
                 result.put('\\');
             result.put(c);

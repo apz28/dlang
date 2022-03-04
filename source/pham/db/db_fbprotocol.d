@@ -219,7 +219,7 @@ public:
         return r.getIscObject();
     }
 
-    final void arrayPutWrite(ref FbArray array, size_t elements, scope const(ubyte)[] encodedArrayValue)
+    final void arrayPutWrite(ref FbArray array, uint32 elements, scope const(ubyte)[] encodedArrayValue)
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
@@ -1348,7 +1348,7 @@ protected:
                 writer.writeUInt8(0);
                 writer.writeLiteral(bound.lower);
             }
-            writer.writeLiteral(bound.lower + elements - 1);
+            writer.writeLiteral(cast(int32)(bound.lower + elements - 1));
             writer.writeUInt8(FbIsc.isc_sdl_element);
             writer.writeUInt8(1);
             writer.writeUInt8(FbIsc.isc_sdl_scalar);

@@ -199,9 +199,9 @@ struct FbIscArrayDescriptor
 nothrow @safe:
 
 public:
-    size_t calculateElements() const pure
+    uint32 calculateElements() const pure
     {
-		size_t result = 1;
+		uint32 result = 1;
 		foreach (ref bound; bounds)
 		{
 			result *= bound.upper - bound.lower + 1;
@@ -209,11 +209,11 @@ public:
         return result;
     }
 
-	size_t calculateSliceLength(size_t elements = 0) const pure
+	uint32 calculateSliceLength(uint32 elements = 0) const pure
 	{
         if (elements == 0)
             elements = calculateElements();
-		auto result = elements * fieldInfo.size;
+		uint32 result = elements * fieldInfo.size;
 	    if (fieldInfo.fbType() == FbIscType.sql_varying)
             result += (elements * 2);
         return result;

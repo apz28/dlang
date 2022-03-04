@@ -905,10 +905,10 @@ public:
     }
     do
     {
-        const len = cast(ushort)v.length;
+        const len = cast(uint16)v.length;
         // Bizarre with three copies of the length
-        writeInt32(len);
-        writeInt32(len);
+        writeInt32(cast(int32)len);
+        writeInt32(cast(int32)len);
         _writer.writeUInt16(len);
         _writer.writeBytes(v);
         writePad(len + 2);
@@ -1059,7 +1059,7 @@ public:
     pragma(inline, true)
     void writeInt16(int16 v) nothrow
     {
-        _writer.writeInt32(v);
+        _writer.writeInt32(cast(int32)v);
     }
 
     pragma(inline, true)
@@ -1068,8 +1068,8 @@ public:
         _writer.writeInt32(v);
     }
 
-    static if (size_t.sizeof > int32.sizeof)
     pragma(inline, true)
+    static if (size_t.sizeof > int32.sizeof)
     void writeInt32(size_t v) nothrow
     in
     {
@@ -1077,7 +1077,7 @@ public:
     }
     do
     {
-        _buffer.writeInt32(cast(int32)v);
+        _writer.writeInt32(v);
     }
 
     pragma(inline, true)

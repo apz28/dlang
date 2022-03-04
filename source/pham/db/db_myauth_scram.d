@@ -18,7 +18,8 @@ import std.conv : to;
 import std.string : assumeUTF, representation;
 
 version (unittest) import pham.utl.test;
-import pham.cp.cipher_digest;
+import pham.cp.cipher : CipherHelper;
+import pham.cp.cipher_digest : Digester, DigestId, DigestResult, HMACS;
 import pham.cp.random : CipherRandomGenerator;
 import pham.utl.utf8 : NumericParsedKind, parseHexDigits, parseIntegral, ShortStringBuffer;
 import pham.db.auth;
@@ -66,7 +67,9 @@ public:
         auto ckey = hmacOf(salted, "Client Key".representation);
         ckey ^= hmacOf(hashOf(ckey[])[], auth)[];
 
-        return (withoutProof ~ ",p=" ~ Base64NoPadding.encode(ckey[])).representation;
+        enum padding = false;
+        auto result = withoutProof ~ ",p=" ~ CipherHelper.base64Encode!padding(ckey[]);
+        return result.representation;
     }
 
     final override const(ubyte)[] getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
@@ -116,13 +119,13 @@ public:
         scope (failure)
             return setError(1, "challenge is not valid", DbMessage.eInvalidConnectionAuthServerData).errorCode;
 
-        const response = serverAuthData.assumeUTF;
+        const scope response = cast(const(char)[])serverAuthData;
 
         if (!response.startsWith("v="))
             return setError(2, "challenge did not start with a signature", DbMessage.eInvalidConnectionAuthServerData).errorCode;
 
-        alias Base64NoPadding = Base64Impl!('!', '=', Base64.NoPadding);
-        const signature = Base64NoPadding.decode(response[2..$]);
+        enum padding = false;
+        const signature = CipherHelper.base64Decode!padding(response[2..$]);
         const skey = hmacOf(this.salted, "Server Key".representation);
         const calculated = hmacOf(skey[], this.auth);
 

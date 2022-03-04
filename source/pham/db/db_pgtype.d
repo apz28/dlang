@@ -14,10 +14,10 @@ module pham.db.pgtype;
 import core.time : dur;
 import std.algorithm : startsWith;
 import std.array : split;
-import std.base64 : Base64;
 import std.conv : to;
 
 version (TraceFunction) import pham.utl.test;
+import pham.cp.cipher : CipherHelper;
 import pham.utl.enum_set : toName;
 import pham.utl.object : cmpInteger;
 import pham.db.message;
@@ -698,7 +698,8 @@ public:
         scope (failure)
             return null;
 
-        return Base64.decode(salt);
+        enum padding = true;
+        return CipherHelper.base64Decode!padding(salt);
     }
 
     bool isValid() const pure scope

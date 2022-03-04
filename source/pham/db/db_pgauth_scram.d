@@ -12,11 +12,11 @@
 module pham.db.pgauth_scram;
 
 import std.algorithm : startsWith;
-import std.base64 : Base64;
 import std.conv : to;
 import std.string : representation;
 
 version (unittest) import pham.utl.test;
+import pham.cp.cipher : CipherHelper;
 import pham.cp.cipher_digest : DigestId, DigestResult, HMACS, digestOf;
 import pham.cp.random : CipherRandomGenerator;
 import pham.utl.object : bytesFromHexs, bytesToHexs;
@@ -91,14 +91,19 @@ public:
         _nextState = 0;
         _cbind = ['b', 'i', 'w', 's'];
         _cbindFlag = ['n'];
-        _nonce = Base64.encode(generator.nextBytes(buffer, 18)[]);
+
+        enum padding = true;
+        _nonce = CipherHelper.base64Encode!padding(generator.nextBytes(buffer, 18)[]);
+
         return this;
     }
 
     final bool verifyServerSignature(const(ubyte)[] serverAuthData) const pure
     {
+        enum padding = true;
+
         auto finalMessage = PgOIdScramSHA256FinalMessage(serverAuthData);
-        return finalMessage.signature == Base64.encode(_serverSignature[]);
+        return finalMessage.signature == CipherHelper.base64Encode!padding(_serverSignature[]);
     }
 
     @property final override int multiSteps() const @nogc pure
@@ -139,9 +144,10 @@ protected:
             .digest(clientFinalMessageWithoutProof.representation)
             .finish(clientSignature);
 
+        enum padding = true;
         auto clientProofBytes = clientKey;
         computeScramSHA256XOr(clientProofBytes, clientSignature);
-        const clientProof = Base64.encode(clientProofBytes[]);
+        const clientProof = CipherHelper.base64Encode!padding(clientProofBytes[]);
 
         const serverKey = computeScramSHA256Hash(_saltedPassword[], "Server Key".representation);
         hmac = HMACS(DigestId.sha256, serverKey[]);

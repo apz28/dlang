@@ -237,7 +237,7 @@ public:
         const len = readFieldLength ? readLength() : -1;
         if (len == -1)
         {
-            const nBytes = readUInt8();
+            const nBytes = cast(size_t)readUInt8();
             const bytes = consumeBytes(nBytes);
             return bytes.length != 0 ? dateDecode(bytes) : DbDate.zero;
         }
@@ -261,7 +261,7 @@ public:
         const len = readFieldLength ? readLength() : -1;
         if (len == -1)
         {
-            const nBytes = readUInt8();
+            const nBytes = cast(size_t)readUInt8();
             const bytes = consumeBytes(nBytes);
             return bytes.length != 0 ? dateTimeDecode(bytes) : DbDateTime.zero;
         }
@@ -485,7 +485,7 @@ public:
         const len = readFieldLength ? readLength() : -1;
         if (len == -1)
         {
-            const nBytes = readUInt8();
+            const nBytes = cast(size_t)readUInt8();
             const bytes = consumeBytes(nBytes);
             return bytes.length != 0 ? timeSpanDecode(bytes) : DbTimeSpan.zero;
         }

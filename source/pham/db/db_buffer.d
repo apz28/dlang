@@ -587,6 +587,18 @@ public:
     }
 
     pragma(inline, true)
+    static if (size_t.sizeof > int32.sizeof)
+    void writeInt32(size_t v) nothrow
+    in
+    {
+        assert(v < int32.max);
+    }
+    do
+    {
+        writeInt32(cast(int32)v);
+    }
+
+    pragma(inline, true)
     void writeInt64(int64 v) nothrow
     {
         writeUInt64(numericBitCast!uint64(v));

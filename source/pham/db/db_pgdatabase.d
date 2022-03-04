@@ -225,7 +225,7 @@ public:
         while (result < data.length)
         {
             const leftLength = data.length - result;
-            const readLength = leftLength > maxBlockLength ? maxBlockLength : leftLength;
+            const readLength = leftLength > maxBlockLength ? maxBlockLength : cast(int32)leftLength;
             auto readData = pgConnection.largeBlobManager.read(pgDescriptorId, readLength);
             if (readData.length == 0)
                 break;
@@ -268,7 +268,7 @@ public:
         while (result < data.length)
         {
             const leftLength = data.length - result;
-            auto writeLength = leftLength > maxBlockLength ? maxBlockLength : leftLength;
+            auto writeLength = leftLength > maxBlockLength ? maxBlockLength : cast(int32)leftLength;
             writeLength = pgConnection.largeBlobManager.write(pgDescriptorId, data[result..result + writeLength]);
             if (writeLength == 0)
                 break;
@@ -656,7 +656,7 @@ package(pham.db):
     }
 
 protected:
-    final override string buildParameterPlaceholder(string parameterName, size_t ordinal) nothrow @safe
+    final override string buildParameterPlaceholder(string parameterName, uint32 ordinal) nothrow @safe
     {
         return "$" ~ to!string(ordinal);
     }
@@ -688,7 +688,7 @@ protected:
         {
             if (i)
                 result.put(',');
-			result.put(buildParameterPlaceholder(param.name, i + 1));
+			result.put(buildParameterPlaceholder(param.name, cast(uint32)(i + 1)));
         }
         result.put(')');
 

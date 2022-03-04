@@ -11,9 +11,9 @@
 
 module pham.db.fbauth;
 
-import std.exception : assumeWontThrow;
-
 version (TraceFunction) import pham.utl.test;
+import pham.cp.cipher : CipherHelper;
+import pham.utl.utf8 : ShortStringBuffer, UTF8CharRange;
 import pham.db.auth;
 import pham.db.message;
 import pham.db.type : DbScheme;
@@ -34,43 +34,47 @@ public:
 
     static const(char)[] normalizeUserName(scope const(char)[] userName) pure
     {
-        import std.range : Appender;
-	    import std.uni : toUpper;
-
         if (userName.length == 0)
             return null;
 
         if (userName.length > 2 && userName[0] == '"' && userName[userName.length - 1] == '"')
         {
-            Appender!string quotedS;
-            quotedS.reserve(userName.length);
-            int i = 1;
-            for (; i < (userName.length - 1); i++)
+            ShortStringBuffer!char quotedUserName;
+            auto chars = UTF8CharRange(userName);
+            chars.popFront(); // Skip first quote
+            while (!chars.empty)
             {
-                auto c = userName[i];
-                if (c == '"')
+                if (chars.front == '"')
                 {
                     // Strip double quote escape
-                    i++;
-                    if (i < (userName.length - 1))
-                    {
-                        // Retain escaped double quote?
-                        if ('"' == userName[i])
-                            quotedS.put('"');
-                        else
-        					// The character after escape is not a double quote,
-                            // we terminate the conversion and truncate.
-		    				// Firebird does this as well (see common/utils.cpp#dpbItemUpper)
-                            break;
-                    }
+                    chars.popFront();
+                    // Last quote?
+                    if (chars.isLast)
+                        break;
+
+                    // Retain escaped double quote?
+                    if (chars.front == '"')
+                        quotedUserName.put('"');
+                    else
+        				// The character after escape is not a double quote,
+                        // we terminate the conversion and truncate.
+		    			// Firebird does this as well (see common/utils.cpp#dpbItemUpper)
+                        break;
                 }
                 else
-                    quotedS.put(c);
+                {
+                    quotedUserName.put(userName[chars.previousPosition..chars.position]);
+                }
+
+                chars.popFront();
+                // Last quote?
+                if (chars.isLast)
+                    break;
             }
-            return quotedS.data;
+            return quotedUserName.consumeUnique();
         }
         else
-            return assumeWontThrow(toUpper(userName));
+            return CipherHelper.toUpper(userName);
     }
 
     bool parseServerAuthData(const(ubyte)[] serverAuthData, ref const(ubyte)[] serverSalt, ref const(ubyte)[] serverPublicKey)
@@ -139,6 +143,7 @@ unittest // FbAuth.normalizeUserName
     import pham.utl.test;
     traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.FbAuth.normalizeUserName");
 
-    assert(FbAuth.normalizeUserName("sysdba") == "SYSDBA");
+    assert(FbAuth.normalizeUserName("sysDba") == "SYSDBA");
     assert(FbAuth.normalizeUserName("\"sysdba\"") == "sysdba");
+    assert(FbAuth.normalizeUserName("\"\"\"a\"\"\"") == "\"a\"");
 }

@@ -22,7 +22,7 @@ import std.uni : sicmp, toUpper;
 
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
-import pham.utl.utf8 : utf8NextChar;
+import pham.utl.utf8 : nextUTF8Char;
 import pham.utl.array : IndexedArray;
 import pham.utl.enum_set : EnumSet;
 import pham.utl.object : DisposableState, IDisposable, shortClassName;
@@ -97,7 +97,7 @@ do
         while (p < values.length)
         {
             const prev = p;
-            c = utf8NextChar(values, p, cnt);
+            c = nextUTF8Char(values, p, cnt);
             if (!isWhite(c))
             {
                 p = prev;
@@ -115,7 +115,7 @@ do
         while (p < values.length)
         {
             const prev = p;
-            c = utf8NextChar(values, p, cnt);
+            c = nextUTF8Char(values, p, cnt);
             if (c == elementSeparator || c == valueSeparator)
             {
                 end = prev;
@@ -140,7 +140,7 @@ do
         while (p < values.length)
         {
             const prev = p;
-            c = utf8NextChar(values, p, cnt);
+            c = nextUTF8Char(values, p, cnt);
             if (c == elementSeparator)
             {
                 end = prev;
@@ -638,7 +638,7 @@ public:
         return res;
     }
 
-    final T get(scope const(DbIdentitier) name) @safe
+    final T get(const(DbIdentitier) name) @safe
     {
         version (profile) debug auto p = PerfFunction.create();
 
@@ -677,7 +677,7 @@ public:
         return indexOf(id);
     }
 
-    final ptrdiff_t indexOfSafe(scope const(DbIdentitier) name) @safe
+    final ptrdiff_t indexOfSafe(const(DbIdentitier) name) @safe
     {
         const result = indexOf(name);
         if (result < 0)
@@ -1045,7 +1045,7 @@ public:
      *  Returns:
      *      string value of name
      */
-    final T get(scope const(DbIdentitier) name)
+    final T get(const(DbIdentitier) name)
     {
         T result;
         if (!find(name, result))
@@ -1177,7 +1177,7 @@ public:
     /**
      * Returns value of name
      */
-    @property final T value(scope const(DbIdentitier) name)
+    @property final T value(const(DbIdentitier) name)
     {
         return get(name);
     }
