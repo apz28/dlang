@@ -102,7 +102,7 @@ public:
             _dynamicItems.reserve(capacity);
     }
 
-    this()(inout(T)[] values) nothrow
+    this()(scope inout(T)[] values) nothrow
     {
         const valueLength = values.length;
         this(valueLength);
@@ -299,7 +299,7 @@ public:
 
     alias put = putBack;
 
-    ref typeof(this) put()(inout(T)[] items, const(size_t) beginIndex) nothrow return
+    ref typeof(this) put()(scope inout(T)[] items, const(size_t) beginIndex) nothrow return
     {
         const atLength = beginIndex + items.length;
         if (!useStatic(atLength) || !useStatic)

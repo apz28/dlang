@@ -1368,14 +1368,14 @@ public:
     }
 
     // Length in bits
-    @property size_t bitLength() const @nogc nothrow pure scope
+    @property uint bitLength() const @nogc nothrow pure scope
     {
         import std.math : abs;
         import pham.utl.bit_array : bitLength;
 
         return _bits.length == 0
             ? bitLength(cast(uint)abs(_sign))
-            : (_bits.length - 1) * kcbitUint + bitLength(_bits[$ - 1]);
+            : cast(uint)(_bits.length - 1) * kcbitUint + bitLength(_bits[$ - 1]);
     }
 
     /// Returns the value of the i'th bit, with lsb == bit 0.
@@ -1477,7 +1477,7 @@ public:
     }
 
     /// Returns the number of consecutive least significant zero
-    @property size_t trailingZeroBits() const @nogc nothrow pure scope
+    @property uint trailingZeroBits() const @nogc nothrow pure scope
     {
         import std.math : abs;
         import pham.utl.bit_array : trailingZeroBits;
@@ -1485,7 +1485,7 @@ public:
         if (_bits.length == 0)
             return isZero ? 0 : trailingZeroBits(cast(uint)abs(_sign));
 
-        size_t i;
+        uint i;
         foreach (b; _bits)
         {
             if (b == 0)
@@ -2819,7 +2819,7 @@ bool isProbablyPrimeLucas(const(BigInteger) n) nothrow pure
 	BigInteger vk1 = p;
 	BigInteger vk = 2;
 	BigInteger t2; // temp
-	for (int i = s.bitLength; i >= 0; i--)
+	for (ptrdiff_t i = s.bitLength; i >= 0; i--)
     {
 		if (s.bitSet(i))
         {

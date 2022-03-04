@@ -121,7 +121,7 @@ public:
         _length = reducer.reduce(_bits, _length);
     }
 
-    void reduce(const(uint)[] modulus) pure
+    void reduce(scope const(uint)[] modulus) pure
     {
         // Executes a modulo operation using the divide operation.
         // Thus, no need of any switching here, happens in-line.
@@ -241,7 +241,7 @@ struct FastReducer
 nothrow @safe:
 
 public:
-    this(const(uint)[] modulus) pure
+    this(scope const(uint)[] modulus) pure
     {
         const dModulusLen = modulus.length * 2;
 
@@ -414,7 +414,7 @@ nothrow @safe:
         return log(number) / log(logBase);
     }
 
-    static UIntTempArray add(const(uint)[] left, uint right) pure
+    static UIntTempArray add(scope const(uint)[] left, uint right) pure
     in
     {
         assert(left.length >= 1);
@@ -443,7 +443,7 @@ nothrow @safe:
         return result;
     }
 
-    static UIntTempArray add(const(uint)[] left, const(uint)[] right) pure
+    static UIntTempArray add(scope const(uint)[] left, const(uint)[] right) pure
     in
     {
         assert(left.length >= right.length);
@@ -459,8 +459,8 @@ nothrow @safe:
         return result;
     }
 
-    private static void add(const(uint)* left, size_t leftLength,
-        const(uint)* right, size_t rightLength,
+    private static void add(scope const(uint)* left, size_t leftLength,
+        scope const(uint)* right, size_t rightLength,
         uint* bits, size_t bitsLength) pure @trusted
     in
     {
@@ -492,8 +492,8 @@ nothrow @safe:
         bits[i] = cast(uint)carry;
     }
 
-    private static void addSelf(uint* left, size_t leftLength,
-        uint* right, size_t rightLength) pure @trusted
+    private static void addSelf(scope uint* left, size_t leftLength,
+        scope uint* right, size_t rightLength) pure @trusted
     in
     {
         assert(leftLength >= 0);
@@ -525,7 +525,7 @@ nothrow @safe:
         assert(carry == 0);
     }
 
-    static UIntTempArray subtract(const(uint)[] left, uint right) pure
+    static UIntTempArray subtract(scope const(uint)[] left, uint right) pure
     in
     {
         assert(left.length >= 1);
@@ -554,7 +554,7 @@ nothrow @safe:
         return result;
     }
 
-    static UIntTempArray subtract(const(uint)[] left, const(uint)[] right) pure
+    static UIntTempArray subtract(scope const(uint)[] left, scope const(uint)[] right) pure
     in
     {
         assert(left.length >= right.length);
@@ -571,8 +571,8 @@ nothrow @safe:
         return result;
     }
 
-    private static void subtract(const(uint)* left, size_t leftLength,
-        const(uint)* right, size_t rightLength,
+    private static void subtract(scope const(uint)* left, size_t leftLength,
+        scope const(uint)* right, size_t rightLength,
         uint* bits, size_t bitsLength) pure @trusted
     in
     {
@@ -606,8 +606,8 @@ nothrow @safe:
         assert(carry == 0);
     }
 
-    private static void subtractSelf(uint* left, size_t leftLength,
-        uint* right, size_t rightLength) pure @trusted
+    private static void subtractSelf(scope uint* left, size_t leftLength,
+        scope uint* right, size_t rightLength) pure @trusted
     in
     {
         assert(leftLength >= rightLength);
@@ -638,7 +638,7 @@ nothrow @safe:
         assert(carry == 0);
     }
 
-    static int compare(const(uint)[] left, const(uint)[] right) pure
+    static int compare(scope const(uint)[] left, scope const(uint)[] right) pure
     {
         if (left.length < right.length)
             return -1;
@@ -657,8 +657,8 @@ nothrow @safe:
         return 0;
     }
 
-    private static int compare(const(uint)* left, size_t leftLength,
-        const(uint)* right, size_t rightLength) pure @trusted
+    private static int compare(scope const(uint)* left, size_t leftLength,
+        scope const(uint)* right, size_t rightLength) pure @trusted
     {
         if (leftLength < rightLength)
             return -1;
@@ -677,7 +677,7 @@ nothrow @safe:
         return 0;
     }
 
-    static UIntTempArray divide(const(uint)[] left, uint right, out uint remainder) pure
+    static UIntTempArray divide(scope const(uint)[] left, uint right, out uint remainder) pure
     in
     {
         assert(left.length >= 1);
@@ -704,7 +704,7 @@ nothrow @safe:
         return quotient;
     }
 
-    static UIntTempArray divide(const(uint)[] left, uint right) pure
+    static UIntTempArray divide(scope const(uint)[] left, uint right) pure
     in
     {
         assert(left.length >= 1);
@@ -717,7 +717,7 @@ nothrow @safe:
         return divide(left, right, remainder);
     }
 
-    static UIntTempArray divide(const(uint)[] left, const(uint)[] right, out UIntTempArray remainder) pure
+    static UIntTempArray divide(scope const(uint)[] left, scope const(uint)[] right, out UIntTempArray remainder) pure
     in
     {
         assert(left.length >= 1);
@@ -738,7 +738,7 @@ nothrow @safe:
         return quotient;
     }
 
-    static UIntTempArray divide(const(uint)[] left, const(uint)[] right) pure
+    static UIntTempArray divide(scope const(uint)[] left, scope const(uint)[] right) pure
     in
     {
         assert(left.length >= 1);
@@ -753,8 +753,8 @@ nothrow @safe:
         return divide(left, right, remainder);
     }
 
-    private static void divide(uint* left, size_t leftLength,
-        const(uint)* right, size_t rightLength,
+    private static void divide(scope uint* left, size_t leftLength,
+        scope const(uint)* right, size_t rightLength,
         uint* bits, size_t bitsLength) pure @trusted
     in
     {
@@ -840,7 +840,7 @@ nothrow @safe:
         }
     }
 
-    static uint remainder(const(uint)[] left, uint right) pure
+    static uint remainder(scope const(uint)[] left, uint right) pure
     in
     {
         assert(left.length >= 1);
@@ -859,7 +859,7 @@ nothrow @safe:
         return cast(uint)carry;
     }
 
-    static UIntTempArray remainder(const(uint)[] left, const(uint)[] right) pure
+    static UIntTempArray remainder(scope const(uint)[] left, scope const(uint)[] right) pure
     in
     {
         assert(left.length >= 1);
@@ -877,8 +877,8 @@ nothrow @safe:
         return result;
     }
 
-    private static uint addDivisor(uint* left, size_t leftLength,
-        const(uint)* right, size_t rightLength) pure @trusted
+    private static uint addDivisor(scope uint* left, size_t leftLength,
+        scope const(uint)* right, size_t rightLength) pure @trusted
     in
     {
         assert(leftLength >= 0);
@@ -901,8 +901,8 @@ nothrow @safe:
         return cast(uint)carry;
     }
 
-    private static uint subtractDivisor(uint* left, size_t leftLength,
-        const(uint)* right, size_t rightLength,
+    private static uint subtractDivisor(scope uint* left, size_t leftLength,
+        scope const(uint)* right, size_t rightLength,
         ulong q) pure @trusted
     in
     {
@@ -995,7 +995,7 @@ nothrow @safe:
         return count;
     }
 
-    static UIntTempArray square(const(uint)[] value) pure
+    static UIntTempArray square(scope const(uint)[] value) pure
     {
         // Switching to unsafe pointers helps sparing
         // some nasty index calculations...
@@ -1006,7 +1006,7 @@ nothrow @safe:
         return result;
     }
 
-    private static void square(const(uint)* value, size_t valueLength,
+    private static void square(scope const(uint)* value, size_t valueLength,
         uint* bits, const(size_t) bitsLength) pure @trusted
     in
     {
@@ -1112,7 +1112,7 @@ nothrow @safe:
         }
     }
 
-    static UIntTempArray multiply(const(uint)[] left, uint right) pure
+    static UIntTempArray multiply(scope const(uint)[] left, uint right) pure
     {
         // Executes the multiplication for one big and one 32-bit integer.
         // Since every step holds the already slightly familiar equation
@@ -1135,7 +1135,7 @@ nothrow @safe:
         return result;
     }
 
-    static UIntTempArray multiply(const(uint)[] left, const(uint)[] right) pure
+    static UIntTempArray multiply(scope const(uint)[] left, scope const(uint)[] right) pure
     in
     {
         assert(left.length >= right.length);
@@ -1151,8 +1151,8 @@ nothrow @safe:
         return result;
     }
 
-    private static void multiply(const(uint)* left, const(size_t) leftLength,
-        const(uint)* right, const(size_t) rightLength,
+    private static void multiply(scope const(uint)* left, const(size_t) leftLength,
+        scope const(uint)* right, const(size_t) rightLength,
         uint* bits, const(size_t) bitsLength) pure @trusted
     in
     {
@@ -1266,8 +1266,8 @@ nothrow @safe:
         }
     }
 
-    private static void subtractCore(const(uint)* left, const(size_t) leftLength,
-        const(uint)* right, const(size_t) rightLength,
+    private static void subtractCore(scope const(uint)* left, const(size_t) leftLength,
+        scope const(uint)* right, const(size_t) rightLength,
         uint* core, const(size_t) coreLength) pure @trusted
     in
     {
@@ -1338,7 +1338,7 @@ nothrow @safe:
         return left;
     }
 
-    static uint gcd(const(uint)[] left, uint right) pure
+    static uint gcd(scope const(uint)[] left, uint right) pure
     in
     {
         assert(left.length >= 1);
@@ -1353,7 +1353,7 @@ nothrow @safe:
         return gcd(right, temp);
     }
 
-    static UIntTempArray gcd(const(uint)[] left, const(uint)[] right) pure
+    static UIntTempArray gcd(scope const(uint)[] left, scope const(uint)[] right) pure
     in
     {
         assert(left.length >= 2);
@@ -1589,7 +1589,7 @@ nothrow @safe:
         return powCore(power, v);
     }
 
-    static UIntTempArray pow(const(uint)[] value, uint power) pure
+    static UIntTempArray pow(scope const(uint)[] value, uint power) pure
     {
         // The basic pow method for a big integer.
         // To spare memory allocations we first roughly
@@ -1655,7 +1655,7 @@ nothrow @safe:
         return powCore(power, modulus, value, 1);
     }
 
-    static uint pow(const(uint)[] value, uint power, uint modulus) pure
+    static uint pow(scope const(uint)[] value, uint power, uint modulus) pure
     {
         // The 32-bit modulus pow method for a big integer
         // raised by a 32-bit integer...
@@ -1664,7 +1664,7 @@ nothrow @safe:
         return powCore(power, modulus, v, 1);
     }
 
-    static uint pow(uint value, const(uint)[] power, uint modulus) pure
+    static uint pow(uint value, scope const(uint)[] power, uint modulus) pure
     {
         // The 32-bit modulus pow method for a 32-bit integer
         // raised by a big integer...
@@ -1672,7 +1672,7 @@ nothrow @safe:
         return powCore(power, modulus, value, 1);
     }
 
-    static uint pow(const(uint)[] value, const(uint)[] power, uint modulus) pure
+    static uint pow(scope const(uint)[] value, scope const(uint)[] power, uint modulus) pure
     {
         // The 32-bit modulus pow method for a big integer
         // raised by a big integer...
@@ -1681,7 +1681,7 @@ nothrow @safe:
         return powCore(power, modulus, v, 1);
     }
 
-    private static uint powCore(const(uint)[] power, uint modulus, ulong value, ulong result) pure
+    private static uint powCore(scope const(uint)[] power, uint modulus, ulong value, ulong result) pure
     {
         // The 32-bit modulus pow algorithm for all but
         // the last power limb using square-and-multiply.
@@ -1718,7 +1718,7 @@ nothrow @safe:
         return cast(uint)(result % modulus);
     }
 
-    static UIntTempArray pow(uint value, uint power, const(uint)[] modulus) pure
+    static UIntTempArray pow(uint value, uint power, scope const(uint)[] modulus) pure
     {
         // The big modulus pow method for a 32-bit integer
         // raised by a 32-bit integer...
@@ -1728,7 +1728,7 @@ nothrow @safe:
         return powCore(power, modulus, v);
     }
 
-    static UIntTempArray pow(const(uint)[] value, uint power, const(uint)[] modulus) pure
+    static UIntTempArray pow(scope const(uint)[] value, uint power, scope const(uint)[] modulus) pure
     {
         // The big modulus pow method for a big integer
         // raised by a 32-bit integer...
@@ -1740,7 +1740,7 @@ nothrow @safe:
         return powCore(power, modulus, v);
     }
 
-    static UIntTempArray pow(uint value, const(uint)[] power, const(uint)[] modulus) pure
+    static UIntTempArray pow(uint value, scope const(uint)[] power, scope const(uint)[] modulus) pure
     {
         // The big modulus pow method for a 32-bit integer
         // raised by a big integer...
@@ -1750,7 +1750,7 @@ nothrow @safe:
         return powCore(power, modulus, v);
     }
 
-    static UIntTempArray pow(const(uint)[] value, const(uint)[] power, const(uint)[] modulus) pure
+    static UIntTempArray pow(scope const(uint)[] value, scope const(uint)[] power, scope const(uint)[] modulus) pure
     {
         // The big modulus pow method for a big integer
         // raised by a big integer...
@@ -1765,7 +1765,7 @@ nothrow @safe:
     // Mutable for unit testing...
     private static enum reducerThreshold = 32;
 
-    private static UIntTempArray powCore(const(uint)[] power, const(uint)[] modulus, ref BitsBuffer value) pure
+    private static UIntTempArray powCore(scope const(uint)[] power, scope const(uint)[] modulus, ref BitsBuffer value) pure
     {
         // Executes the big pow algorithm.
 
@@ -1786,7 +1786,7 @@ nothrow @safe:
         return UIntTempArray(result[]);
     }
 
-    private static UIntTempArray powCore(uint power, const(uint)[] modulus, ref BitsBuffer value) pure
+    private static UIntTempArray powCore(uint power, scope const(uint)[] modulus, ref BitsBuffer value) pure
     {
         // Executes the big pow algorithm.
 
@@ -1807,7 +1807,7 @@ nothrow @safe:
         return UIntTempArray(result[]);
     }
 
-    private static void powCore(const(uint)[] power, const(uint)[] modulus,
+    private static void powCore(scope const(uint)[] power, scope const(uint)[] modulus,
         ref BitsBuffer value, ref BitsBuffer result, ref BitsBuffer temp) pure
     {
         // The big modulus pow algorithm for all but
@@ -1835,7 +1835,7 @@ nothrow @safe:
         powCore(power[power.length - 1], modulus, value, result, temp);
     }
 
-    private static void powCore(uint power, const(uint)[] modulus,
+    private static void powCore(uint power, scope const(uint)[] modulus,
         ref BitsBuffer value, ref BitsBuffer result, ref BitsBuffer temp) pure
     {
         // The big modulus pow algorithm for the last or
@@ -1860,7 +1860,7 @@ nothrow @safe:
         }
     }
 
-    private static void powCore(const(uint)[] power, ref FastReducer reducer,
+    private static void powCore(scope const(uint)[] power, ref FastReducer reducer,
         ref BitsBuffer value, ref BitsBuffer result, ref BitsBuffer temp) pure
     {
         // The big modulus pow algorithm for all but

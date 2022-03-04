@@ -112,10 +112,10 @@ if (isUnsigned!T && T.sizeof <= 8)
 
 /// Returns the minimum number of bits required to represent x; the result is 0 for x == 0.
 pragma(inline, true)
-size_t bitLength(T)(const(T) x) @nogc pure
+uint bitLength(T)(const(T) x) @nogc pure
 if (isUnsigned!T && T.sizeof <= 8)
 {
-    size_t n = 0;
+    uint n = 0;
     Unqual!T ux = x;
 
     static if (T.sizeof >= 8)
@@ -205,14 +205,14 @@ do
 
 /// Return the position of the highest set bit in x
 pragma(inline, true)
-size_t highestBit(T)(const(T) x) @nogc pure
+uint highestBit(T)(const(T) x) @nogc pure
 if (isUnsigned!T && T.sizeof <= 8)
 {
     if (x == 0)
         return 0;
     else
     {
-        size_t n = 0;
+        uint n = 0;
         Unqual!T ux = x;
 
         static if (T.sizeof >= 8)
@@ -269,14 +269,14 @@ if (isIntegral!T || isSomeChar!T)
 
 /// Return the position of the lowest set bit in x
 pragma(inline, true)
-size_t lowestBit(T)(const(T) x) @nogc pure
+uint lowestBit(T)(const(T) x) @nogc pure
 if (isUnsigned!T)
 {
     if (x == 0)
         return 0;
     else
     {
-        size_t n = 0;
+        uint n = 0;
         Unqual!T ux = x;
 
         static if (T.sizeof >= 8)
@@ -348,7 +348,7 @@ if (From.sizeof == To.sizeof && isNumeric!From && isNumeric!To)
 }
 
 /// Return the number of significant bytes in x; the result is 0 for x == 0.
-size_t significantByteLength(T)(const(T) x) @nogc pure
+uint significantByteLength(T)(const(T) x) @nogc pure
 if (isUnsigned!T && T.sizeof <= 8)
 {
     static if (T.sizeof >= 8)
@@ -382,7 +382,7 @@ if (isUnsigned!T && T.sizeof <= 8)
 
 /// Returns the number of trailing zero bits in x; the result is T.sizeof*8 for x == 0
 pragma(inline, true)
-size_t trailingZeroBits(T)(const(T) x) @nogc pure
+uint trailingZeroBits(T)(const(T) x) @nogc pure
 if (isUnsigned!T && T.sizeof <= 8)
 {
     static if (T.sizeof == 8)

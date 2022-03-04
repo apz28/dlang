@@ -98,7 +98,8 @@ bool isHexDigit(dchar c, ref ubyte b) @nogc nothrow pure @safe
     return true;
 }
 
-dchar utf8NextChar(const(char)[] str, ref size_t pos, out size_t cnt) @nogc nothrow pure @safe
+enum invalidDChar = dchar.max;
+dchar nextUTF8Char(scope const(char)[] str, ref size_t pos, out size_t cnt) @nogc nothrow pure @safe
 {
     cnt = 0;
     if (pos >= str.length)
@@ -119,7 +120,7 @@ dchar utf8NextChar(const(char)[] str, ref size_t pos, out size_t cnt) @nogc noth
         const extraBytesToRead = unicodeTrailingBytesForUTF8[c];
 
         if (extraBytesToRead + pos > str.length)
-            return dchar.max;
+            return invalidDChar;
 
         dchar res = 0;
 
@@ -132,7 +133,7 @@ dchar utf8NextChar(const(char)[] str, ref size_t pos, out size_t cnt) @nogc noth
                 goto case 4;
             case 4:
                 if (extraBytesToRead != 4 && (c & 0xC0) != 0x80)
-                    return dchar.max;
+                    return invalidDChar;
 
                 res += c;
                 res <<= 6;
@@ -140,7 +141,7 @@ dchar utf8NextChar(const(char)[] str, ref size_t pos, out size_t cnt) @nogc noth
                 goto case 3;
             case 3:
                 if (extraBytesToRead != 3 && (c & 0xC0) != 0x80)
-                    return dchar.max;
+                    return invalidDChar;
 
                 res += c;
                 res <<= 6;
@@ -148,7 +149,7 @@ dchar utf8NextChar(const(char)[] str, ref size_t pos, out size_t cnt) @nogc noth
                 goto case 2;
             case 2:
                 if (extraBytesToRead != 2 && (c & 0xC0) != 0x80)
-                    return dchar.max;
+                    return invalidDChar;
 
                 res += c;
                 res <<= 6;
@@ -156,7 +157,7 @@ dchar utf8NextChar(const(char)[] str, ref size_t pos, out size_t cnt) @nogc noth
                 goto case 1;
             case 1:
                 if (extraBytesToRead != 1 && (c & 0xC0) != 0x80)
-                    return dchar.max;
+                    return invalidDChar;
 
                 res += c;
                 res <<= 6;
@@ -164,7 +165,7 @@ dchar utf8NextChar(const(char)[] str, ref size_t pos, out size_t cnt) @nogc noth
                 goto case 0;
             case 0:
                 if (extraBytesToRead != 0 && (c & 0xC0) != 0x80)
-                    return dchar.max;
+                    return invalidDChar;
 
                 res += c;
                 break;
@@ -180,6 +181,95 @@ dchar utf8NextChar(const(char)[] str, ref size_t pos, out size_t cnt) @nogc noth
         cnt = 1;
         return c;
     }
+}
+
+struct UTF8CharRange
+{
+@nogc nothrow @safe:
+
+public:
+    this(scope return const(char)[] source) pure
+    {
+        this._source = source;
+        this._p = this._previousP = this._dcount = this._current = this._previousChar = 0;
+        this._empty = source.length == 0;
+        if (!this._empty)
+            popFront();
+    }
+
+    pragma(inline, true)
+    void popFront() pure scope
+    in
+    {
+        assert(!empty);
+    }
+    do
+    {
+        _previousChar = _current;
+        _previousP = _p;
+
+        if (_p >= _source.length)
+        {
+            _empty = true;
+            _current = _dcount = 0;
+        }
+        else
+            _current = nextUTF8Char(_source, _p, _dcount);
+    }
+
+    pragma(inline, true)
+    @property size_t dcount() const pure scope
+    {
+        return _dcount;
+    }
+
+    pragma(inline, true)
+    @property bool empty() const pure scope
+    {
+        return _empty;
+    }
+
+    pragma(inline, true)
+    @property dchar front() const pure scope
+    {
+        return _current;
+    }
+
+    pragma(inline, true)
+    @property bool isLast() const pure scope
+    {
+        return _p >= _source.length && !_empty;
+    }
+
+    pragma(inline, true)
+    @property size_t length() const pure scope
+    {
+        return _source.length - _previousP;
+    }
+
+    pragma(inline, true)
+    @property size_t position() const pure scope
+    {
+        return _p;
+    }
+
+    pragma(inline, true)
+    @property dchar previousChar() const pure scope
+    {
+        return _previousChar;
+    }
+
+    pragma(inline, true)
+    @property size_t previousPosition() const pure scope
+    {
+        return _previousP;
+    }
+
+private:
+    const(char)[] _source;
+    size_t _dcount, _p, _previousP;
+    dchar _current, _previousChar;
+    bool _empty;
 }
 
 enum NumericLexerFlag : int
@@ -946,6 +1036,32 @@ public:
         return this;
     }
 
+    T[] consume() nothrow pure
+    {
+        T[] result = _length != 0
+            ? (useShortSize ? _shortData[0.._length].dup : _longData[0.._length])
+            : [];
+
+        _shortData[] = 0;
+        _longData = null;
+        _length = 0;
+
+        return result;
+    }
+
+    immutable(T)[] consumeUnique() nothrow pure @trusted
+    {
+        T[] result = _length != 0
+            ? (useShortSize ? _shortData[0.._length].dup : _longData[0.._length])
+            : [];
+
+        _shortData[] = 0;
+        _longData = null;
+        _length = 0;
+
+        return cast(immutable(T)[])(result);
+    }
+
     void dispose(bool disposing) nothrow pure
     {
         _shortData[] = 0;
@@ -1004,6 +1120,17 @@ public:
         }
         _length = newLength;
         return this;
+    }
+
+    static if (is(T == char))
+    ref typeof(this) put(dchar c) nothrow pure return
+    {
+        import std.typecons : Yes;
+        import std.utf : encode, UseReplacementDchar;
+
+        char[4] buffer;
+        const len = encode!(Yes.useReplacementDchar)(buffer, c);
+        return put(buffer[0..len]);
     }
 
     ref typeof(this) reverse() @nogc nothrow pure
@@ -1081,6 +1208,7 @@ public:
     }
 
 private:
+    pragma(inline, true)
     size_t alignAddtionalLength(const(size_t) addtionalLength) @nogc nothrow pure
     {
         if (addtionalLength <= overReservedLength)
