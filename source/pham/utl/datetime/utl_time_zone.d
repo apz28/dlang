@@ -1473,8 +1473,7 @@ version (Windows)
         return tzInfo.DaylightDate.wMonth != 0 && !(transitionBegin == transitionEnd);
     }
 }
-
-version (Posix)
+else version (Posix)
 {
     import std.algorithm.searching : canFind, startsWith;
     import std.file : dirEntries, exists, read, readLink, SpanMode;
@@ -1515,7 +1514,7 @@ version (Posix)
                 }
             }
         }
-        catch
+        catch (Exception)
         {}
         return TimeZoneInfo.localId;
     }
@@ -1648,7 +1647,7 @@ version (Posix)
             }
             return rawData.length != 0;
         }
-        catch
+        catch (Exception)
         {}
         return false;
     }
@@ -1757,6 +1756,8 @@ version (Posix)
         string daylightAbbrevName;
     }
 }
+else
+    static assert(0, "Unsupport target");
 
 shared static this() @trusted
 {

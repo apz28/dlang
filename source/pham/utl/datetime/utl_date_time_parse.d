@@ -511,7 +511,7 @@ public:
                             const iMonth = pattern.indexOfMonth(monthMarker.slice(dateTimeText));
                             if (iMonth < 0)
                                 return currentP;
-                            month = iMonth + 1;
+                            month = cast(int)(iMonth + 1);
                             //scanSymbol(dateTimeText, pattern, monthMarker);
                         }
                         else if (!scanNumber(dateTimeText, pattern, patternInfo.monthDigitLimit(e.length), dummyCount, month))
