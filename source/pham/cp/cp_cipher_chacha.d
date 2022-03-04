@@ -454,7 +454,7 @@ private:
 	// XORKeyStream invocation. The size of buf depends on how many blocks are
 	// computed at a time by xorKeyStreamBlocks.
 	ubyte[blockSize] leftBuf;
-	uint leftLen;
+	size_t leftLen;
 
 	// overflow is set when the counter overflowed, no more blocks can be
 	// generated, and the next XORKeyStream call should panic.

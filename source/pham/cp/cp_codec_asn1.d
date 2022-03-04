@@ -453,7 +453,7 @@ public:
         toString(buffer, s, 2);
         buffer.put('Z');
 
-        writeTagString(destination, tag, buffer[]);
+        writeTagValue(destination, tag, buffer[].representation);
     }
 
     static void writeInteger(T)(ref CipherBuffer destination, const(T) x,
@@ -476,13 +476,13 @@ public:
     static void writeOctetString(ref CipherBuffer destination, scope const(char)[] x,
         const(ASN1Tag) tag = ASN1Tag.octetString) pure
     {
-        writeTagString(destination, tag, x);
+        writeTagValue(destination, tag, x.representation);
     }
 
     static void writePrintableString(ref CipherBuffer destination, scope const(char)[] x,
         const(ASN1Tag) tag = ASN1Tag.printableString) pure
     {
-        writeTagString(destination, tag, x);
+        writeTagValue(destination, tag, x.representation);
     }
 
     static void writeSequence(ref CipherBuffer destination, scope const(char)[][] x,
@@ -497,29 +497,29 @@ public:
         writeTagStrings(destination, tag, x);
     }
 
-    static void writeTagString(ref CipherBuffer destination, const(ASN1Tag) tag, scope const(char)[] x) pure
-    {
-        destination.put(tag);
-        writeLength(destination, x.length);
-        destination.put(x.representation);
-    }
-
-    static void writeTagStrings(ref CipherBuffer destination, const(ASN1Tag) tag, scope const(char)[][] x) pure
+    static void writeTagStrings(ref CipherBuffer destination, const(ASN1Tag) tag, scope const(char)[][] xs) pure
     {
         size_t totalLength = 0;
-        foreach (s; x)
-            totalLength += s.length;
+        foreach (x; xs)
+            totalLength += x.length;
 
         destination.put(tag);
         writeLength(destination, totalLength);
-        foreach (s; x)
-            destination.put(s.representation);
+        foreach (x; xs)
+            destination.put(x.representation);
     }
 
     static void writeUTFString(ref CipherBuffer destination, scope const(char)[] x,
         const(ASN1Tag) tag = ASN1Tag.utf8String) pure
     {
-        writeTagString(destination, tag, x);
+        writeTagValue(destination, tag, x.representation);
+    }
+
+    static void writeTagValue(ref CipherBuffer destination, const(ASN1Tag) tag, scope const(ubyte)[] x) pure
+    {
+        destination.put(tag);
+        writeLength(destination, x.length);
+        destination.put(x);
     }
 
     static void writeVisibleString(ref CipherBuffer destination, scope const(char)[] x,

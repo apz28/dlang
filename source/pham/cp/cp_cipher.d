@@ -19,7 +19,7 @@ import std.typecons : No, Yes;
 version (profile) import pham.utl.test : PerfFunction;
 import pham.utl.big_integer : BigInteger, defaultParseBigIntegerOptions;
 import pham.utl.object : DisposableObject;
-import pham.utl.utf8 : NumericLexerFlag, NumericLexerOptions, ShortStringBuffer, ShortStringBufferSize;
+import pham.utl.utf8 : NumericLexerFlag, NumericLexerOptions, ShortStringBuffer, ShortStringBufferSize, UTF8CharRange;
 import pham.cp.cipher_digest : DigestId;
 //import pham.cp.cipher_prime_number;
 
@@ -64,12 +64,12 @@ public:
         _keyBitLength = 0;
     }
 
-    static ubyte[] bytesFromBigInteger(const(BigInteger) n) pure
+    static ubyte[] bytesFromBigInteger(scope const(BigInteger) n) pure
     {
         return n.toBytes(No.includeSign);
     }
 
-    static ref Writer bytesFromBigInteger(Writer)(const(BigInteger) n, return ref Writer sink) pure
+    static ref Writer bytesFromBigInteger(Writer)(scope const(BigInteger) n, return ref Writer sink) pure
     if (isOutputRange!(Writer, ubyte))
     {
         return n.toBytes(sink, No.includeSign);
@@ -89,7 +89,7 @@ public:
         return BigInteger(validDigits, parseOptions);
     }
 
-    static char[] hexDigitsFromBigInteger(const(BigInteger) n) pure
+    static char[] hexDigitsFromBigInteger(scope const(BigInteger) n) pure
     {
         ShortStringBuffer!char buffer;
         return n.toHexString!(ShortStringBuffer!char, char)(buffer, No.includeSign)[].dup;
@@ -372,13 +372,137 @@ public:
 
 struct CipherHelper
 {
-import std.range : Appender;
+import std.base64 : Base64Impl;
+import std.uni : toUpperChar = toUpper;
 
-nothrow @safe:
+@safe:
+
+    alias Base64Padding = Base64Impl!('+', '/', '=');
+    alias Base64PaddingNo = Base64Impl!('+', '/', Base64Padding.NoPadding);
+
+    static ubyte[] base64Decode(bool padding)(scope const(char)[] value)
+    {
+        ubyte[] result;
+
+        struct ValueInputRange
+        {
+        @nogc nothrow @safe:
+
+            @property bool empty() const pure
+            {
+                return i >= value.length;
+            }
+
+            @property size_t length() const pure
+            {
+                return value.length - i;
+            }
+
+            char front()
+            {
+                return value[i];
+            }
+
+            void popFront() pure
+            {
+                i++;
+            }
+
+            size_t i;
+        }
+
+        struct ResultOutputRange
+        {
+        @nogc nothrow @safe:
+
+            void put(ubyte c)
+            {
+                result[i++] = c;
+            }
+
+            size_t i;
+        }
+
+        ValueInputRange inputRange;
+        ResultOutputRange outputRange;
+
+        static if (padding)
+        {
+            result = new ubyte[Base64Padding.decodeLength(value.length)];
+            Base64Padding.decode(inputRange, outputRange);
+        }
+        else
+        {
+            result = new ubyte[Base64PaddingNo.decodeLength(value.length)];
+            Base64PaddingNo.decode(inputRange, outputRange);
+        }
+
+        return result;
+    }
+
+    static char[] base64Encode(bool padding)(scope const(ubyte)[] value) nothrow
+    {
+        char[] result;
+
+        struct ValueInputRange
+        {
+        @nogc nothrow @safe:
+
+            @property bool empty() const pure
+            {
+                return i >= value.length;
+            }
+
+            @property size_t length() const pure
+            {
+                return value.length - i;
+            }
+
+            ubyte front()
+            {
+                return value[i];
+            }
+
+            void popFront() pure
+            {
+                i++;
+            }
+
+            size_t i;
+        }
+
+        struct ResultOutputRange
+        {
+        @nogc nothrow @safe:
+
+            void put(char c)
+            {
+                result[i++] = c;
+            }
+
+            size_t i;
+        }
+
+        ValueInputRange inputRange;
+        ResultOutputRange outputRange;
+
+        static if (padding)
+        {
+            result = new char[Base64Padding.encodeLength(value.length)];
+            Base64Padding.encode(inputRange, outputRange);
+        }
+        else
+        {
+            result = new char[Base64PaddingNo.encodeLength(value.length)];
+            Base64PaddingNo.encode(inputRange, outputRange);
+        }
+
+        return result;
+    }
 
     // This list was obtained from http://tools.ietf.org/html/rfc3454#appendix-B.1
     pragma(inline, true)
-    static bool isCommonlyMappedToNothing(const(dchar) c) @nogc pure
+    static bool isCommonlyMappedToNothing(const(dchar) c) @nogc nothrow pure
     {
         return c == '\u00AD'
             || c == '\u034F'
@@ -392,91 +516,101 @@ nothrow @safe:
 
     // This list was obtained from http://tools.ietf.org/html/rfc3454#appendix-C.1.2
     pragma(inline, true)
-    static bool isNonAsciiSpace(const(dchar) c) @nogc pure
+    static bool isNonAsciiSpace(const(dchar) c) @nogc nothrow pure
     {
-        switch (c)
-        {
-            case '\u00A0': // NO-BREAK SPACE
-            case '\u1680': // OGHAM SPACE MARK
-            case '\u2000': // EN QUAD
-            case '\u2001': // EM QUAD
-            case '\u2002': // EN SPACE
-            case '\u2003': // EM SPACE
-            case '\u2004': // THREE-PER-EM SPACE
-            case '\u2005': // FOUR-PER-EM SPACE
-            case '\u2006': // SIX-PER-EM SPACE
-            case '\u2007': // FIGURE SPACE
-            case '\u2008': // PUNCTUATION SPACE
-            case '\u2009': // THIN SPACE
-            case '\u200A': // HAIR SPACE
-            case '\u200B': // ZERO WIDTH SPACE
-            case '\u202F': // NARROW NO-BREAK SPACE
-            case '\u205F': // MEDIUM MATHEMATICAL SPACE
-            case '\u3000': // IDEOGRAPHIC SPACE
-                return true;
-            default:
-                return false;
-        }
+        return c == '\u00A0' // NO-BREAK SPACE
+            || c == '\u1680' // OGHAM SPACE MARK
+            || c == '\u2000' // EN QUAD
+            || c == '\u2001' // EM QUAD
+            || c == '\u2002' // EN SPACE
+            || c == '\u2003' // EM SPACE
+            || c == '\u2004' // THREE-PER-EM SPACE
+            || c == '\u2005' // FOUR-PER-EM SPACE
+            || c == '\u2006' // SIX-PER-EM SPACE
+            || c == '\u2007' // FIGURE SPACE
+            || c == '\u2008' // PUNCTUATION SPACE
+            || c == '\u2009' // THIN SPACE
+            || c == '\u200A' // HAIR SPACE
+            || c == '\u200B' // ZERO WIDTH SPACE
+            || c == '\u202F' // NARROW NO-BREAK SPACE
+            || c == '\u205F' // MEDIUM MATHEMATICAL SPACE
+            || c == '\u3000';// IDEOGRAPHIC SPACE
     }
 
-    static string saslNormalize(string s) pure
+    static string saslNormalize(string s) nothrow pure
     {
-        scope (failure) assert(0);
-
-        bool useOriginal = true;
-        foreach (const(dchar) c; s)
+        auto chars = UTF8CharRange(s);
+        while (!chars.empty)
         {
+            const c = chars.front;
             if (isNonAsciiSpace(c) || isCommonlyMappedToNothing(c))
-            {
-                useOriginal = false;
                 break;
-            }
+            chars.popFront();
         }
-        if (useOriginal)
+        if (chars.empty)
             return s;
 
-        Appender!string result;
-        result.reserve(s.length);
-        foreach (const(dchar) c; s)
+        ShortStringBuffer!char result;
+        if (chars.previousPosition)
+            result.put(s[0..chars.previousPosition]);
+
+        while (!chars.empty)
         {
+            const c = chars.front;
             if (isNonAsciiSpace(c))
                 result.put(' ');
             else if (!isCommonlyMappedToNothing(c))
-                result.put(c);
+                result.put(s[chars.previousPosition..chars.position]);
+            chars.popFront();
         }
-        return result.data;
+
+        return result.consumeUnique();
     }
 
-    static string srpNormalize(string s) pure
+    static string srpNormalize(string s) nothrow pure
     {
-        scope (failure) assert(0);
-
         s = saslNormalize(s);
 
-        bool useOriginal = true;
-        foreach (const(dchar) c; s)
+        auto chars = UTF8CharRange(s);
+        while (!chars.empty)
         {
+            const c = chars.front;
             if (c == ',' || c == '=')
-            {
-                useOriginal = false;
                 break;
-            }
+            chars.popFront();
         }
-        if (useOriginal)
+        if (chars.empty)
             return s;
 
-        Appender!string result;
-        result.reserve(s.length);
-        foreach (const(dchar) c; s)
+        ShortStringBuffer!char result;
+        if (chars.previousPosition)
+            result.put(s[0..chars.previousPosition]);
+
+        while (!chars.empty)
         {
+            const c = chars.front;
             if (c == ',')
                 result.put("=2C");
             else if (c == '=')
                 result.put("=3D");
             else
-                result.put(c);
+                result.put(s[chars.previousPosition..chars.position]);
+            chars.popFront();
         }
-        return result.data;
+
+        return result.consumeUnique();
+    }
+
+    static const(char)[] toUpper(scope const(char)[] s) nothrow pure
+    {
+        ShortStringBuffer!char result;
+        auto chars = UTF8CharRange(s);
+        while (!chars.empty)
+        {
+            result.put(toUpperChar(chars.front));
+            chars.popFront();
+        }
+        return result.consumeUnique();
     }
 }
 
