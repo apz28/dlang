@@ -7,7 +7,7 @@
  * License: $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source: $(DRUNTIMESRC src/core/sys/windows/_sspi.d)
  */
-module core.sys.windows.sspi;
+module pham.external.std.windows.sspi;
 
 version (Windows):
 nothrow @trusted:
@@ -154,11 +154,11 @@ nothrow @safe:
         return secBufferData[0..secBuffer.cbBuffer].dup;
     }
 
-    PSecBufferDesc initServerContext(const(ubyte)[] secBytes) pure return @trusted
+    PSecBufferDesc initServerContext(scope const(ubyte)[] secBytes) pure return @trusted
     {
         secBufferData = secBytes.dup;
 
-        secBuffer.cbBuffer = secBufferData.length;
+        secBuffer.cbBuffer = cast(uint)secBufferData.length;
         secBuffer.BufferType = SECBUFFER_TOKEN;
         secBuffer.pvBuffer = secBufferData.length != 0 ? &secBufferData[0] : null;
 
