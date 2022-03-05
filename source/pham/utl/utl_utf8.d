@@ -17,9 +17,9 @@ import std.traits : isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned, 
 
 nothrow @safe:
 
-enum unicodeHalfShift = 10;
 enum unicodeHalfBase = 0x0001_0000;
 enum unicodeHalfMask = 0x03FF;
+enum unicodeHalfShift = 10;
 enum unicodeSurrogateHighBegin = 0xD800;
 enum unicodeSurrogateHighEnd = 0xDBFF;
 enum unicodeSurrogateLowBegin = 0xDC00;
@@ -64,7 +64,19 @@ do
  *  true if c is a valid digit characters, false otherwise
  */
 pragma(inline, true)
-bool isDigit(dchar c, ref ubyte b) @nogc nothrow pure @safe
+bool isDigit(const(dchar) c, ref ubyte b) @nogc nothrow pure @safe
+{
+    if (c >= '0' && c <= '9')
+    {
+        b = cast(ubyte)(c - '0');
+        return true;
+    }
+    else
+        return false;
+}
+
+version (none)
+bool isDigit(const(char) c, ref ubyte b) @nogc nothrow pure @safe
 {
     if (c >= '0' && c <= '9')
     {
@@ -84,7 +96,22 @@ bool isDigit(dchar c, ref ubyte b) @nogc nothrow pure @safe
  *  true if c is a valid hex characters, false otherwise
  */
 //pragma(inline, true)
-bool isHexDigit(dchar c, ref ubyte b) @nogc nothrow pure @safe
+bool isHexDigit(const(dchar) c, ref ubyte b) @nogc nothrow pure @safe
+{
+    if (c >= '0' && c <= '9')
+        b = cast(ubyte)(c - '0');
+    else if (c >= 'A' && c <= 'F')
+        b = cast(ubyte)((c - 'A') + 10);
+    else if (c >= 'a' && c <= 'f')
+        b = cast(ubyte)((c - 'a') + 10);
+    else
+        return false;
+
+    return true;
+}
+
+version (none)
+bool isHexDigit(const(char) c, ref ubyte b) @nogc nothrow pure @safe
 {
     if (c >= '0' && c <= '9')
         b = cast(ubyte)(c - '0');
@@ -492,7 +519,7 @@ public:
 public:
     Range value;
     NumericLexerOptions!(ElementType!Range) options;
-    bool function(dchar c, ref ubyte b) @nogc nothrow pure @safe isNumericFrontFct;
+    bool function(const(dchar) c, ref ubyte b) @nogc nothrow pure @safe isNumericFrontFct;
 
 private:
     void checkHasNumericChar() pure
@@ -566,8 +593,8 @@ if (isSomeString!S)
 public:
     this(S str)
     {
-        this.i = 0;
         this.str = str;
+        this.i = 0;
     }
 
     pragma(inline, true)
@@ -605,7 +632,7 @@ public:
     }
 
     pragma(inline, true)
-    @property size_t length() const
+  @property size_t length() const
     {
         return str.length - i;
     }

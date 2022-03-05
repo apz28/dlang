@@ -739,8 +739,8 @@ unittest // ZlibCodec.Deflate
     import pham.utl.test;
     traceUnitTest!("pham.utl.zip")("unittest pham.utl.zip.ZlibCodec.Deflate.BigFile");
 
-	auto bigData = dgReadAllBinary("F:\\DLang\\std\\utl\\test\\zip_test_expressionsem.d");
-	auto expectZipBigData = dgReadAllBinary("F:\\DLang\\std\\utl\\test\\zip_test_expressionsem.zip");
+	auto bigData = dgReadAllBinary("zip_test_expressionsem.d");
+	auto expectZipBigData = dgReadAllBinary("zip_test_expressionsem.zip");
 
 	auto zipper = new ZlibCodec(CompressionMode.compress);
 	zipper.resetBuffers(bigData, 1024 * 1024);
@@ -748,7 +748,7 @@ unittest // ZlibCodec.Deflate
 	assert(r == ZipResult.Z_OK);
 	assert(zipper.availableBytesIn == 0);
 	assert(zipper.nextOut != 0);
-	assert(zipper.adler32 == 460074401);
+	assert(zipper.adler32 == 460_074_401);
 	auto zipData = zipper.peekOutput().dup;
 	assert(zipData == expectZipBigData);
 
@@ -758,6 +758,6 @@ unittest // ZlibCodec.Deflate
 	assert(r == ZipResult.Z_OK);
 	assert(zipper2.availableBytesIn == 0);
 	assert(zipper2.nextOut != 0);
-	assert(zipper2.adler32 == 460074401);
+	assert(zipper2.adler32 == 460_074_401);
 	assert(zipper2.peekOutput() == bigData);
 }
