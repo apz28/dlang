@@ -16,15 +16,15 @@ import std.range.primitives : back, empty, front, popFront, popBack;
 import std.string : indexOf;
 import std.typecons : Flag, No, Yes;
 
-import pham.xml.type;
-import pham.xml.message;
-import pham.xml.exception;
-import pham.xml.util;
-import pham.xml.object;
 import pham.xml.buffer;
-import pham.xml.string;
-import pham.xml.reader;
 import pham.xml.dom;
+import pham.xml.exception;
+import pham.xml.message;
+import pham.xml.object;
+import pham.xml.reader;
+import pham.xml.string;
+import pham.xml.type;
+import pham.xml.util;
 
 @safe:
 
@@ -1128,7 +1128,7 @@ XML";
 
 unittest  // XmlParser
 {
-    import pham.xml_test;
+    import pham.xml.test;
     import pham.utl.test;
     dgWriteln("unittest xml.parser.XmlParser");
 
@@ -1395,6 +1395,7 @@ XML";
 
     assert(L.empty);
 
+    version (isXmlTraceProgress)
     outputXmlTraceProgress("check doc.documentElement.childNodes()");
 
     L = doc.documentElement.childNodes();

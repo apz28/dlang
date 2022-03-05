@@ -15,12 +15,12 @@ import std.array : Appender;
 import std.typecons : Flag, No, Yes;
 
 import pham.utl.dlink_list;
-import pham.xml.type;
-import pham.xml.message;
-import pham.xml.exception;
-import pham.xml.util;
-import pham.xml.object;
 import pham.xml.entity_table;
+import pham.xml.exception;
+import pham.xml.message;
+import pham.xml.object;
+import pham.xml.type;
+import pham.xml.util;
 
 @safe:
 

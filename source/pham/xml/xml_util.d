@@ -14,9 +14,9 @@ module pham.xml.util;
 import std.traits : isFloatingPoint, isIntegral;
 import std.typecons : Flag;
 
-import pham.xml.type;
-import pham.xml.message;
 import pham.xml.exception;
+import pham.xml.message;
+import pham.xml.type;
 
 @safe:
 
@@ -35,7 +35,7 @@ enum XmlEncodedMarker : byte
     utf16be,
     utf16le,
     utf32be,
-    utf32le
+    utf32le,
 }
 
 /** Determine XmlEncodedMarker of an array of bytes
@@ -49,7 +49,7 @@ enum XmlEncodedMarker : byte
         XmlEncodedMarker.utf32be if s starts with 0x00 0x00 0xFE 0xFF
         XmlEncodedMarker.utf32le if s starts with 0xFF 0xFE 0x00 0x00
 */
-XmlEncodedMarker getEncodedMarker(const(ubyte)[] s) nothrow pure
+XmlEncodedMarker getEncodedMarker(scope const(ubyte)[] s) nothrow pure
 {
     if (s.length >= 2)
     {
@@ -125,7 +125,7 @@ if (isXmlString!S)
         s = encoded char sequences (digit or hex form) to be converted
         c = the character to be returned
 */
-bool convertToChar(S)(const(XmlChar!S)[] s, out dchar c) nothrow pure
+bool convertToChar(S)(scope const(XmlChar!S)[] s, out dchar c) nothrow pure
 if (isXmlString!S)
 {
     c = 0;
@@ -140,62 +140,28 @@ if (isXmlString!S)
 
         foreach (d; s)
         {
-            switch (d)
-            {
-                case 'a':
-                case 'b':
-                case 'c':
-                case 'd':
-                case 'e':
-                case 'f':
-                    c = (c * 16) + (d - 'a' + 10);
-                    break;
-                case 'A':
-                case 'B':
-                case 'C':
-                case 'D':
-                case 'E':
-                case 'F':
-                    c = (c * 16) + (d - 'A' + 10);
-                    break;
-                case '0':
-                case '1':
-                case '2':
-                case '3':
-                case '4':
-                case '5':
-                case '6':
-                case '7':
-                case '8':
-                case '9':
-                    c = (c * 16) + (d - '0');
-                    break;
-                default:
-                    return false;
-            }
+            if (d >= 'a' && d <= 'f')
+                c = (c * 16) + (d - 'a' + 10);
+            else if (d >= 'A' && d <= 'F')
+                c = (c * 16) + (d - 'A' + 10);
+            else if (d >= '0' && d <= '9')
+                c = (c * 16) + (d - '0');
+            else if (d == ';')
+                break;
+            else
+                return false;
         }
     }
     else
     {
         foreach (d; s)
         {
-            switch (d)
-            {
-                case '0':
-                case '1':
-                case '2':
-                case '3':
-                case '4':
-                case '5':
-                case '6':
-                case '7':
-                case '8':
-                case '9':
-                    c = (c * 10) + (d - '0');
-                    break;
-                default:
-                    return false;
-            }
+            if (d >= '0' && d <= '9')
+                c = (c * 10) + (d - '0');
+            else if (d == ';')
+                break;
+            else
+                return false;
         }
     }
 
@@ -207,7 +173,7 @@ if (isXmlString!S)
         s1 = one of D string type
         s2 = one of D string type
 */
-bool equalCase(S)(const(XmlChar!S)[] s1, const(XmlChar!S)[] s2) nothrow pure
+bool equalCase(S)(scope const(XmlChar!S)[] s1, scope const(XmlChar!S)[] s2) nothrow pure
 if (isXmlString!S)
 {
     return s1 == s2;
@@ -219,7 +185,7 @@ if (isXmlString!S)
         s1 = one of D string type
         s2 = one of D string type
 */
-bool equalCaseInsensitive(S)(const(XmlChar!S)[] s1, const(XmlChar!S)[] s2) nothrow pure
+bool equalCaseInsensitive(S)(scope const(XmlChar!S)[] s1, scope const(XmlChar!S)[] s2) nothrow pure
 if (isXmlString!S)
 {
     import std.uni : sicmp;
@@ -234,7 +200,7 @@ if (isXmlString!S)
         s = one of D string type
         subString = one of D string type
 */
-bool equalRight(S)(const(XmlChar!S)[] s, const(XmlChar!S)[] subString) nothrow pure
+bool equalRight(S)(scope const(XmlChar!S)[] s, scope const(XmlChar!S)[] subString) nothrow pure
 if (isXmlString!S)
 {
     auto i = s.length;
@@ -278,8 +244,7 @@ if (isFloatingPoint!N)
     if (decimalIndex >= 0)
     {
         if (decimalIndex + 1 < v.length)
-            return formatGroup(v[0..decimalIndex], spec.fmtg) ~ spec.decimalChar ~
-                formatGroup(v[decimalIndex + 1..$], spec.fmtg);
+            return formatGroup(v[0..decimalIndex], spec.fmtg) ~ spec.decimalChar ~ formatGroup(v[decimalIndex + 1..$], spec.fmtg);
         else
             return formatGroup(v[0..decimalIndex], spec.fmtg) ~ spec.decimalChar;
     }
@@ -311,7 +276,7 @@ if (isIntegral!N)
         c = the character to be tested
 */
 pragma (inline, true)
-bool isBaseChar(dchar c) nothrow pure
+bool isBaseChar(const(dchar) c) nothrow pure
 {
     return lookup(baseCharTable, c);
 }
@@ -324,11 +289,11 @@ bool isBaseChar(dchar c) nothrow pure
         c = the character to be tested
 */
 pragma (inline, true)
-bool isChar(dchar c) nothrow pure
+bool isChar(const(dchar) c) nothrow pure
 {
-    return (c >= 0x20 && c <= 0xD7FF) ||
-        (c >= 0xE000 && c <= 0x10FFFF && (c & 0x1FFFFE) != 0xFFFE) || // U+FFFE and U+FFFF
-        isSpace(c);
+    return (c >= 0x20 && c <= 0xD7FF)
+        || (c >= 0xE000 && c <= 0x10FFFF && (c & 0x1FFFFE) != 0xFFFE) // U+FFFE and U+FFFF
+        || isSpace(c);
 }
 
 /** Returns true if the character is a combining character according to the XML standard
@@ -339,7 +304,7 @@ bool isChar(dchar c) nothrow pure
         c = the character to be tested
 */
 pragma (inline, true)
-bool isCombiningChar(dchar c) nothrow pure
+bool isCombiningChar(const(dchar) c) nothrow pure
 {
     return lookup(combiningCharTable, c);
 }
@@ -352,7 +317,7 @@ bool isCombiningChar(dchar c) nothrow pure
         c = the character to be tested
 */
 pragma (inline, true)
-bool isDigit(dchar c) nothrow pure
+bool isDigit(const(dchar) c) nothrow pure
 {
     return (c >= 0x30 && c <= 0x39) || lookup(digitTable, c);
 }
@@ -360,7 +325,7 @@ bool isDigit(dchar c) nothrow pure
 /** A overloaded isDigit
 */
 pragma (inline, true)
-bool isDigit(char c) nothrow pure
+bool isDigit(const(char) c) nothrow pure
 {
     return c >= 0x30 && c <= 0x39;
 }
@@ -373,7 +338,7 @@ bool isDigit(char c) nothrow pure
         c = the character to be tested
 */
 pragma (inline, true)
-bool isExtender(dchar c) nothrow pure
+bool isExtender(const(dchar) c) nothrow pure
 {
     return lookup(extenderTable, c);
 }
@@ -386,7 +351,7 @@ bool isExtender(dchar c) nothrow pure
         c = the character to be tested
 */
 pragma (inline, true)
-bool isIdeographic(dchar c) nothrow pure
+bool isIdeographic(const(dchar) c) nothrow pure
 {
     return (c == 0x3007) || (c >= 0x3021 && c <= 0x3029) || (c >= 0x4E00 && c <= 0x9FA5);
 }
@@ -399,7 +364,7 @@ bool isIdeographic(dchar c) nothrow pure
         c = the character to be tested
 */
 pragma (inline, true)
-bool isLetter(dchar c) nothrow pure
+bool isLetter(const(dchar) c) nothrow pure
 {
     return isIdeographic(c) || isBaseChar(c);
 }
@@ -412,7 +377,7 @@ bool isLetter(dchar c) nothrow pure
         c = the character to be tested
 */
 pragma (inline, true)
-bool isNameStartC(dchar c) nothrow pure
+bool isNameStartC(const(dchar) c) nothrow pure
 {
     return c == '_' || c == ':' || isLetter(c);
 }
@@ -425,7 +390,7 @@ bool isNameStartC(dchar c) nothrow pure
         c = the character to be tested
 */
 pragma (inline, true)
-bool isNameInC(dchar c) nothrow pure
+bool isNameInC(const(dchar) c) nothrow pure
 {
     return c == '_' || c == ':' || c == '-' || c == '.' ||
         isLetter(c) || isDigit(c) || isCombiningChar(c) || isExtender(c);
@@ -440,7 +405,7 @@ bool isNameInC(dchar c) nothrow pure
     Params:
         name = the string to be tested
 */
-bool isName(S, Flag!"AllowEmpty" AllowEmpty)(const(XmlChar!S)[] name) nothrow pure
+bool isName(S, Flag!"AllowEmpty" AllowEmpty)(scope const(XmlChar!S)[] name) nothrow pure
 if (isXmlString!S)
 {
     if (name.length == 0)
@@ -470,7 +435,7 @@ if (isXmlString!S)
         c = the character to be tested
 */
 pragma (inline, true)
-bool isSpace(dchar c) nothrow pure
+bool isSpace(const(dchar) c) nothrow pure
 {
     return c == 0x09 || c == 0x0A || c == 0x0D || c == 0x20;
 }
@@ -480,7 +445,7 @@ bool isSpace(dchar c) nothrow pure
     Params:
         s = the string to be tested
 */
-bool isSpaces(S)(const(XmlChar!S)[] s) nothrow pure
+bool isSpaces(S)(scope const(XmlChar!S)[] s) nothrow pure
 if (isXmlString!S)
 {
     foreach (c; s)
@@ -540,7 +505,7 @@ if (isXmlString!S)
         count = how many characters that the function returns
 */
 pragma (inline, true)
-const(XmlChar!S)[] leftString(S)(const(XmlChar!S)[] s, size_t count) nothrow pure
+const(XmlChar!S)[] leftString(S)(return const(XmlChar!S)[] s, size_t count) nothrow pure
 if (isXmlString!S)
 {
     if (count >= s.length)
@@ -555,7 +520,7 @@ if (isXmlString!S)
         s = the string to be sliced
         count = how many characters that the function returns
 */
-const(XmlChar!S)[] leftStringIndicator(S)(const(XmlChar!S)[] s, size_t count) nothrow pure
+const(XmlChar!S)[] leftStringIndicator(S)(return const(XmlChar!S)[] s, size_t count) nothrow pure
 if (isXmlString!S)
 {
     if (count >= s.length)
@@ -602,7 +567,7 @@ if (isXmlString!fromS && isXmlString!toS)
         count = how many characters that the function returns
 */
 pragma (inline, true)
-const(XmlChar!S)[] rightString(S)(const(XmlChar!S)[] s, size_t count) nothrow pure
+const(XmlChar!S)[] rightString(S)(return const(XmlChar!S)[] s, size_t count) nothrow pure
 if (isXmlString!S)
 {
     if (count >= s.length)
@@ -611,7 +576,7 @@ if (isXmlString!S)
         return s[$ - count..$];
 }
 
-void splitName(S)(in const(XmlChar!S)[] name,
+void splitName(S)(const(XmlChar!S)[] name,
     out const(XmlChar!S)[] prefix, out const(XmlChar!S)[] localName) nothrow pure
 if (isXmlString!S)
 in
@@ -649,7 +614,7 @@ do
         name = string part before the aDelimiter
         value = string part after the aDelimiter
 */
-int splitNameValueD(S)(in const(XmlChar!S)[] s, in dchar delimiter,
+int splitNameValueD(S)(const(XmlChar!S)[] s, in dchar delimiter,
     out const(XmlChar!S)[] name, out const(XmlChar!S)[] value) nothrow pure
 if (isXmlString!S)
 {
@@ -675,7 +640,7 @@ if (isXmlString!S)
         value = string part after the aIndex
 */
 pragma (inline, true)
-int splitNameValueI(S)(in const(XmlChar!S)[] s, in ptrdiff_t index,
+int splitNameValueI(S)(const(XmlChar!S)[] s, in ptrdiff_t index,
     out const(XmlChar!S)[] name, out const(XmlChar!S)[] value) nothrow pure
 if (isXmlString!S)
 in
@@ -923,7 +888,7 @@ string formatGroup(const(char)[] v, in FormatGroupSpec spec = FormatGroupSpec.in
     return result;
 }
 
-bool lookup(const(int[][]) pairTable, int c) nothrow pure
+bool lookup(scope const(int[][]) pairTable, int c) nothrow pure
 in
 {
     assert(pairTable.length != 0);

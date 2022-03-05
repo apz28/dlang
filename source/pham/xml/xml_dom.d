@@ -17,17 +17,17 @@ import std.typecons : Flag, No, Yes;
 import pham.utl.dlink_list;
 import pham.utl.enum_set : EnumSet;
 import pham.utl.object : shortClassName, singleton;
-import pham.xml.type;
-import pham.xml.message;
-import pham.xml.exception;
-import pham.xml.util;
-import pham.xml.object;
 import pham.xml.buffer;
-import pham.xml.string;
 import pham.xml.entity_table;
-import pham.xml.reader;
-import pham.xml.writer;
+import pham.xml.exception;
+import pham.xml.message;
+import pham.xml.object;
 import pham.xml.parser;
+import pham.xml.reader;
+import pham.xml.string;
+import pham.xml.type;
+import pham.xml.util;
+import pham.xml.writer;
 
 @safe:
 
@@ -35,7 +35,7 @@ enum XmlParseOptionFlag : byte
 {
     none = 0,
     preserveWhitespace = 1 << 0,
-    validate = 1 << 1
+    validate = 1 << 1,
 }
 
 struct XmlParseOptions(S = string)
@@ -116,7 +116,7 @@ enum XmlNodeType : byte
     significantWhitespace = 14,
     declaration = 17,
     documentTypeAttributeList = 20,
-    documentTypeElement = 21
+    documentTypeElement = 21,
 }
 
 /** A state of a XmlNodeList struct
@@ -130,7 +130,7 @@ enum XmlNodeListType : byte
     attributes,
     childNodes,
     childNodesDeep,
-    flat
+    flat,
 }
 
 class XmlNodeFilterContext(S = string) : XmlObject!S
@@ -880,7 +880,7 @@ public:
 
     /** Returns its' document node
     */
-    @property XmlDocument!S document() nothrow
+    @property XmlDocument!S document() nothrow pure
     {
         XmlDocument!S d;
 
@@ -1085,14 +1085,14 @@ public:
 
     /** Return node's document owner if any, null otherwise
     */
-    @property final XmlDocument!S ownerDocument() nothrow
+    @property final XmlDocument!S ownerDocument() nothrow pure
     {
         return _ownerDocument;
     }
 
     /** Returns its' parent node if any, null otherwise
     */
-    @property final XmlNode!S parent() nothrow
+    @property final XmlNode!S parent() nothrow pure
     {
         return _parent;
     }
@@ -1287,14 +1287,23 @@ protected:
         return null;
     }
 
-    bool hasValueImpl() const nothrow
+    bool hasValueImpl() const nothrow pure
     {
         return false;
     }
 
-    bool isLoading() nothrow
+    bool isLoading() nothrow pure
     {
         return selfOwnerDocument().isLoading();
+    }
+
+    /**
+     * Returns true if this node is a Text type node
+     * CData, comment, significantWhitespace, text & whitespace
+     */
+    bool isText() const nothrow pure
+    {
+        return false;
     }
 
     final XmlAttribute!S removeAttributeImpl(XmlAttribute!S removedAttribute) nothrow
@@ -1305,15 +1314,7 @@ protected:
         return _attributes.remove(removedAttribute);
     }
 
-    /** Returns true if this node is a Text type node
-    CData, comment, significantWhitespace, text & whitespace
-    */
-    bool isText() const nothrow
-    {
-        return false;
-    }
-
-    XmlDocument!S selfOwnerDocument() nothrow
+    XmlDocument!S selfOwnerDocument() nothrow pure
     {
         return _ownerDocument;
     }
@@ -1909,6 +1910,8 @@ private:
 */
 class XmlAttribute(S = string) : XmlNode!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, XmlName!S name) nothrow
     in
@@ -2018,7 +2021,7 @@ package:
     }
 
 protected:
-    final override bool hasValueImpl() const nothrow
+    final override bool hasValueImpl() const nothrow pure
     {
         return _text.length != 0;
     }
@@ -2031,6 +2034,8 @@ protected:
 */
 class XmlCData(S = string) : XmlCharacterDataCustom!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, const(C)[] data) nothrow @trusted
     {
@@ -2063,6 +2068,8 @@ private:
 */
 class XmlComment(S = string) : XmlCharacterDataCustom!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, const(C)[] text) nothrow @trusted
     {
@@ -2102,6 +2109,8 @@ private:
 */
 class XmlDeclaration(S = string) : XmlNode!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument) nothrow @trusted
     {
@@ -2311,7 +2320,7 @@ protected:
         return new XmlName!S(XmlConst!S.declarationTagName);
     }
 
-    final override bool hasValueImpl() const nothrow
+    final override bool hasValueImpl() const nothrow pure
     {
         return _innerText.length != 0;
     }
@@ -2332,6 +2341,8 @@ private:
 */
 class XmlDocument(S = string) : XmlNode!S
 {
+@safe:
+
 public:
     alias EqualName = bool function(const(C)[] s1, const(C)[] s2) nothrow pure @safe;
 
@@ -2582,7 +2593,7 @@ public:
         return writer;
     }
 
-    @property final override XmlDocument!S document() nothrow
+    @property final override XmlDocument!S document() nothrow pure
     {
         return this;
     }
@@ -2783,18 +2794,18 @@ protected:
             return s.rawValue();
     }
 
+    final override bool isLoading() nothrow pure
+    {
+        return _loading != 0;
+    }
+
     pragma (inline, true)
     final void releaseBuffer(XmlBuffer!(S, No.CheckEncoded) b) nothrow
     {
         _buffers.release(b);
     }
 
-    final override bool isLoading() nothrow
-    {
-        return _loading != 0;
-    }
-
-    final override XmlDocument!S selfOwnerDocument() nothrow
+    final override XmlDocument!S selfOwnerDocument() nothrow pure
     {
         return this;
     }
@@ -2813,6 +2824,8 @@ private:
 */
 class XmlDocumentFragment(S = string) : XmlNode!S
 {
+@safe:
+
 public:
     final override bool allowChild() const nothrow
     {
@@ -2864,6 +2877,8 @@ protected:
 */
 class XmlDocumentType(S = string) : XmlNode!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, const(C)[] name) nothrow
     {
@@ -2972,7 +2987,7 @@ public:
     }
 
 protected:
-    final override bool hasValueImpl() const nothrow
+    final override bool hasValueImpl() const nothrow pure
     {
         return _text.length != 0;
     }
@@ -2985,6 +3000,8 @@ protected:
 
 class XmlDocumentTypeAttributeList(S = string) : XmlNode!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, const(C)[] name)
     {
@@ -3052,7 +3069,7 @@ public:
         return _defaultDeclareType;
     }
 
-    @property final XmlDocument!S ownerDocument() nothrow
+    @property final XmlDocument!S ownerDocument() nothrow pure
     {
         return _ownerDocument;
     }
@@ -3115,7 +3132,7 @@ public:
         return _name;
     }
 
-    @property final XmlDocument!S ownerDocument() nothrow
+    @property final XmlDocument!S ownerDocument() nothrow pure
     {
         return _ownerDocument;
     }
@@ -3129,6 +3146,8 @@ protected:
 
 class XmlDocumentTypeElement(S = string) : XmlNode!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, const(C)[] name)
     {
@@ -3235,12 +3254,12 @@ public:
         return _multiIndicator = newValue;
     }
 
-    @property final XmlDocument!S ownerDocument() nothrow
+    @property final XmlDocument!S ownerDocument() nothrow pure
     {
         return _ownerDocument;
     }
 
-    @property final XmlNode!S parent() nothrow
+    @property final XmlNode!S parent() nothrow pure
     {
         return _parent;
     }
@@ -3262,6 +3281,8 @@ protected:
 */
 class XmlElement(S = string) : XmlNode!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, XmlName!S name) nothrow
     in
@@ -3383,6 +3404,8 @@ public:
 */
 class XmlEntity(S = string) : XmlEntityCustom!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, const(C)[] name, const(C)[] value)
     {
@@ -3425,6 +3448,8 @@ package:
 */
 class XmlEntityReference(S = string) : XmlEntityCustom!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, const(C)[] name, const(C)[] value)
     {
@@ -3466,6 +3491,8 @@ package:
 */
 class XmlNotation(S = string) : XmlNode!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, const(C)[] name, const(C)[] publicOrSystem,
         const(C)[] publicId, const(C)[] text) nothrow
@@ -3527,7 +3554,7 @@ protected:
         this._qualifiedName = new XmlName!S(name);
     }
 
-    final override bool hasValueImpl() const nothrow
+    final override bool hasValueImpl() const nothrow pure
     {
         return _text.length != 0;
     }
@@ -3542,6 +3569,8 @@ protected:
 */
 class XmlProcessingInstruction(S = string) : XmlNode!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, const(C)[] target, const(C)[] text) nothrow
     {
@@ -3601,7 +3630,7 @@ protected:
         this._qualifiedName = new XmlName!S(target);
     }
 
-    final override bool hasValueImpl() const nothrow
+    final override bool hasValueImpl() const nothrow pure
     {
         return _text.length != 0;
     }
@@ -3614,6 +3643,8 @@ protected:
 */
 class XmlSignificantWhitespace(S = string) : XmlCharacterWhitespace!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, const(C)[] text) nothrow @trusted
     {
@@ -3640,6 +3671,8 @@ private:
 */
 class XmlText(S = string) : XmlCharacterDataCustom!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, const(C)[] text) nothrow @trusted
     {
@@ -3688,6 +3721,8 @@ private:
 */
 class XmlWhitespace(S = string) : XmlCharacterWhitespace!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, const(C)[] text) nothrow @trusted
     {
@@ -3714,6 +3749,8 @@ private:
 */
 class XmlCharacterDataCustom(S = string) : XmlNode!S
 {
+@safe:
+
 public:
     @property final override const(C)[] innerText()
     {
@@ -3753,12 +3790,12 @@ protected:
         this._text = text;
     }
 
-    final override bool hasValueImpl() const nothrow
+    final override bool hasValueImpl() const nothrow pure
     {
         return _text.length != 0;
     }
 
-    final override bool isText() const nothrow
+    final override bool isText() const nothrow pure
     {
         return true;
     }
@@ -3771,6 +3808,8 @@ protected:
 */
 class XmlCharacterWhitespace(S = string) : XmlCharacterDataCustom!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, const(C)[] text) nothrow
     in
@@ -3827,6 +3866,8 @@ public:
 */
 class XmlEntityCustom(S = string) : XmlNode!S
 {
+@safe:
+
 public:
     this(XmlDocument!S ownerDocument, const(C)[] name, const(C)[] text) nothrow
     {
@@ -3893,7 +3934,7 @@ protected:
         this._notationName = notationName;
     }
 
-    final override bool hasValueImpl() const nothrow
+    final override bool hasValueImpl() const nothrow pure
     {
         return _text.length != 0;
     }

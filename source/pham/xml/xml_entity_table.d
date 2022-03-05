@@ -12,10 +12,10 @@
 module pham.xml.entity_table;
 
 import pham.utl.object : singleton;
-import pham.xml.type;
 import pham.xml.message;
-import pham.xml.util;
 import pham.xml.object;
+import pham.xml.type;
+import pham.xml.util;
 
 @safe:
 

@@ -15,14 +15,14 @@ import std.range.primitives : back, empty, front, popFront;
 import std.traits : hasMember;
 import std.typecons : Flag, No, Yes;
 
-import pham.utl.utf8;
-import pham.xml.type;
-import pham.xml.message;
-import pham.xml.exception;
-import pham.xml.util;
-import pham.xml.object;
+import pham.utl.utf8 : unicodeOffsetsFromUTF8, unicodeSurrogateHighBegin, unicodeSurrogateLowEnd, unicodeTrailingBytesForUTF8;
 import pham.xml.buffer;
+import pham.xml.exception;
+import pham.xml.message;
+import pham.xml.object;
 import pham.xml.string;
+import pham.xml.type;
+import pham.xml.util;
 
 @safe:
 

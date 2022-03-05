@@ -13,11 +13,11 @@ module pham.xml.string;
 
 import std.typecons : Flag, No, Yes;
 
-import pham.xml.type;
-import pham.xml.message;
-import pham.xml.util;
-import pham.xml.entity_table;
 import pham.xml.buffer;
+import pham.xml.entity_table;
+import pham.xml.message;
+import pham.xml.type;
+import pham.xml.util;
 
 @safe:
 

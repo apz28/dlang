@@ -16,15 +16,16 @@ import std.exception : assumeWontThrow;
 import std.math : isNaN;
 import std.typecons : Flag, No, Yes;
 
+import pham.utl.object : className, shortClassName, singleton;
 import pham.utl.enum_set : EnumArray;
-import pham.xml.type;
-import pham.xml.message;
-import pham.xml.exception;
-import pham.xml.util;
-import pham.xml.object;
 import pham.xml.buffer;
-import pham.xml.writer;
 import pham.xml.dom;
+import pham.xml.exception;
+import pham.xml.message;
+import pham.xml.object;
+import pham.xml.type;
+import pham.xml.util;
+import pham.xml.writer;
 
 @safe:
 
@@ -511,7 +512,7 @@ public:
                 break;
         }
         _type = XPathDataType.empty;
-        dummy = 0;
+        _ = 0;
     }
 
     S toString() const nothrow
@@ -1599,7 +1600,7 @@ public:
     }
 
 protected:
-    final void setEvaluateFct() nothrow
+    final void setEvaluateFct()
     {
         if (functionType != XPathFunctionType.userDefined)
         {
@@ -2269,6 +2270,8 @@ public:
 
     final const(XPathParamInfo!S) find(const(C)[] name) const nothrow
     {
+        scope (failure) assert(0);
+
         return data.get(name, null);
     }
 
@@ -4498,7 +4501,7 @@ unittest  // XPathParser
 
 unittest  // XPathParser.selectNodes
 {
-    import pham.xml_test;
+    import pham.xml.test;
     import pham.utl.test;
     dgWriteln("unittest xml.xpath.XPathParser.selectNodes");
 
