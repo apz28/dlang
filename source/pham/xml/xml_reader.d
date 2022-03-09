@@ -15,7 +15,7 @@ import std.range.primitives : back, empty, front, popFront;
 import std.traits : hasMember;
 import std.typecons : Flag, No, Yes;
 
-import pham.utl.utf8 : unicodeOffsetsFromUTF8, unicodeSurrogateHighBegin, unicodeSurrogateLowEnd, unicodeTrailingBytesForUTF8;
+import pham.utl.utf8 : nextUTF8Char, nextUTF16Char;
 import pham.xml.buffer;
 import pham.xml.exception;
 import pham.xml.message;
@@ -29,7 +29,7 @@ import pham.xml.util;
 enum UnicodeErrorKind : byte
 {
     eos = 1,
-    invalidCode = 2
+    invalidCode = 2,
 }
 
 abstract class XmlReader(S = string) : XmlObject!S
@@ -40,43 +40,48 @@ public:
     enum isBlockReader = hasMember!(typeof(this), "nextBlock");
 
 public:
-    pragma (inline, true)
     final dchar moveFront()
+    in
     {
-        const f = current;
+        assert(!empty);
+    }
+    do
+    {
+        const f = front;
         popFront();
         return f;
     }
 
-    /** InputRange method to bring the next character to front.
-    Checks internal stack first, and if empty uses primary buffer.
-    */
+    /**
+     * InputRange method to bring the next character to front.
+     * Checks internal stack first, and if empty uses primary buffer.
+     */
     final void popFront()
+    in
+    {
+        assert(!empty);
+    }
+    do
     {
         updateLoc();
-        current = 0;
-        static if (!is(XmlChar!S == dchar) && !isBlockReader)
-            currentCodes = null;
-
-        empty; // Advance to next char
+        sPos += currentCount;
+        decode();
     }
 
     final const(C)[] readSpaces()
     {
         static if (isBlockReader)
         {
-            while (isSpace(current))
+            while (isSpace(front))
                 nameBuffer.put(moveFront());
-
             return nameBuffer.valueAndClear();
         }
         else
         {
-            const pStart = pPos;
-            while (isSpace(current))
+            const pStart = sPos;
+            while (isSpace(front))
                 popFront();
-
-            return s[pStart..pPos];
+            return s[pStart..sPos];
         }
     }
 
@@ -91,7 +96,7 @@ public:
             {
                 while (!empty)
                 {
-                    if (current == c)
+                    if (front == c)
                     {
                         readCurrent(nameBuffer);
                         popFront();
@@ -122,7 +127,7 @@ public:
             {
                 while (!empty)
                 {
-                    if (current == c)
+                    if (front == c)
                     {
                         popFront();
                         return true;
@@ -134,12 +139,12 @@ public:
                 return false;
             }
 
-            const pStart = pPos;
+            const pStart = sPos;
             while (readUntilChar())
             {
-                if (equalRight!S(s[pStart..pPos], untilMarker))
+                if (equalRight!S(s[pStart..sPos], untilMarker))
                 {
-                    data = s[pStart..pPos - untilMarker.length];
+                    data = s[pStart..sPos - untilMarker.length];
                     return true;
                 }
             }
@@ -159,7 +164,7 @@ public:
             {
                 while (!empty)
                 {
-                    if (current == c)
+                    if (front == c)
                     {
                         readCurrent(textBuffer);
                         popFront();
@@ -168,7 +173,7 @@ public:
 
                     static if (checkReservedChar)
                     {
-                        if (current == '<' || current == '>')
+                        if (front == '<' || front == '>')
                             return false;
                     }
 
@@ -189,7 +194,7 @@ public:
 
                 static if (checkReservedChar)
                 {
-                    if (current == '<' || current == '>')
+                    if (front == '<' || front == '>')
                     {
                         textBuffer.clear();
                         return false;
@@ -201,12 +206,12 @@ public:
         }
         else
         {
-            XmlEncodeMode encodedMode = XmlEncodeMode.checked;
+            auto encodedMode = XmlEncodeMode.checked;
             bool readUntilChar()
             {
                 while (!empty)
                 {
-                    if (current == c)
+                    if (front == c)
                     {
                         popFront();
                         return true;
@@ -214,11 +219,11 @@ public:
 
                     static if (checkReservedChar)
                     {
-                        if (current == '<' || current == '>')
+                        if (front == '<' || front == '>')
                             return false;
                     }
 
-                    if (encodedMode == XmlEncodeMode.checked && current == '&')
+                    if (encodedMode == XmlEncodeMode.checked && front == '&')
                         encodedMode = XmlEncodeMode.encoded;
 
                     popFront();
@@ -227,18 +232,18 @@ public:
                 return false;
             }
 
-            const pStart = pPos;
+            const pStart = sPos;
             while (readUntilChar())
             {
-                if (equalRight!S(s[pStart..pPos], untilMarker))
+                if (equalRight!S(s[pStart..sPos], untilMarker))
                 {
-                    data = XmlString!S(s[pStart..pPos - untilMarker.length], encodedMode);
+                    data = XmlString!S(s[pStart..sPos - untilMarker.length], encodedMode);
                     return true;
                 }
 
                 static if (checkReservedChar)
                 {
-                    if (current == '<' || current == '>')
+                    if (front == '<' || front == '>')
                         return false;
                 }
             }
@@ -249,60 +254,67 @@ public:
 
     final typeof(this) skipSpaces()
     {
-        while (isSpace(current))
+        while (isSpace(front))
             popFront();
 
         return this;
     }
 
-    /** empty property of InputRange
-    */
-    @property abstract bool empty();
-
-    /* front property of InputRange
-    */
+    /**
+     * empty property of InputRange
+     */
     pragma (inline, true)
-    @property final dchar front() const nothrow
+    @property final bool empty() const @nogc nothrow pure
     {
-        return current;
+        return _empty;
     }
 
-    /* Returns current position (line & column) of processing input
-    */
+    /*
+     * front property of InputRange
+     */
     pragma (inline, true)
-    @property final XmlLoc sourceLoc() const nothrow
+    @property final dchar front() const @nogc nothrow pure
+    {
+        return currentChar;
+    }
+
+    /*
+     * Returns current position (line & column) of processing input
+     */
+    pragma (inline, true)
+    @property final XmlLoc sourceLoc() const @nogc nothrow pure
     {
         return loc;
     }
 
 package:
     pragma (inline, true)
-    final bool isAnyFrontBut(dchar c) nothrow
+    final bool isAnyFrontBut(const(dchar) c) const nothrow pure
     {
-        return current != 0 && current != c;
+        return !empty && front != c;
     }
 
     pragma (inline, true)
-    final bool isDeclarationNameStart() nothrow
+    final bool isDeclarationNameStart() const nothrow pure
     {
-        return !isDeclarationAttributeNameSeparator(current) && isNameStartC(current);
+        return !isDeclarationAttributeNameSeparator(front) && isNameStartC(front);
     }
 
     pragma (inline, true)
-    final bool isElementAttributeNameStart() nothrow
+    final bool isElementAttributeNameStart() const nothrow pure
     {
-        return !isElementAttributeNameSeparator(current) && isNameStartC(current);
+        return !isElementAttributeNameSeparator(front) && isNameStartC(front);
     }
 
     pragma (inline, true)
-    final bool isElementTextStart() nothrow
+    final bool isElementTextStart() const nothrow pure
     {
-        return !isElementSeparator(current);
+        return !isElementSeparator(front);
     }
 
-    final dchar moveFrontIf(dchar checkNonSpaceChar)
+    final dchar moveFrontIf(const(dchar) checkNonSpaceChar)
     {
-        const f = front();
+        const f = front;
         if (f == checkNonSpaceChar)
         {
             popFrontColumn();
@@ -317,7 +329,7 @@ package:
         name.loc = loc;
         static if (isBlockReader)
         {
-            while (!stopChar(current))
+            while (!stopChar(front))
             {
                 readCurrent(nameBuffer);
                 popFrontColumn();
@@ -326,10 +338,10 @@ package:
         }
         else
         {
-            const pStart = pPos;
-            while (!stopChar(current))
+            const pStart = sPos;
+            while (!stopChar(front))
                 popFrontColumn();
-            name.s = s[pStart..pPos];
+            name.s = s[pStart..sPos];
         }
 
         if (name.s.length == 0)
@@ -351,13 +363,14 @@ package:
     final void readCurrent(Buffer)(Buffer buffer)
     {
         static if (is(C == dchar))
-            buffer.put(current);
+            buffer.put(front);
         else
         {
-            if (currentCodes.length == 1)
-                buffer.put(cast(C)current);
+            auto codes = currentCodes();
+            if (codes.length == 1)
+                buffer.put(codes[0]);
             else
-                buffer.put(currentCodes);
+                buffer.put(codes);
         }
     }
 
@@ -379,7 +392,7 @@ package:
     final const(C)[] readElementEName(out ParseContext!S name)
     {
         name.loc = loc;
-        immutable first = current;
+        const first = front;
         static if (isBlockReader)
         {
             // Potential comment or cdata section
@@ -389,21 +402,21 @@ package:
                 popFrontColumn();
             }
 
-            if (current == '-')
+            if (front == '-')
             {
                 readCurrent(nameBuffer);
                 popFrontColumn();
             }
             else
             {
-                while (!isElementENameSeparator(current))
+                while (!isElementENameSeparator(front))
                 {
                     readCurrent(nameBuffer);
                     popFrontColumn();
                 }
 
                 // Potential cdata section?
-                if (first == '[' && current == '[')
+                if (first == '[' && front == '[')
                 {
                     readCurrent(nameBuffer);
                     popFrontColumn();
@@ -414,25 +427,25 @@ package:
         }
         else
         {
-            auto pStart = pPos;
+            auto pStart = sPos;
 
             // Potential comment or cdata section
             if (first == '-' || first == '[')
                 popFrontColumn();
 
-            if (current == '-')
+            if (front == '-')
                 popFrontColumn();
             else
             {
-                while (!isElementENameSeparator(current))
+                while (!isElementENameSeparator(front))
                     popFrontColumn();
 
                 // Potential cdata section?
-                if (first == '[' && current == '[')
+                if (first == '[' && front == '[')
                     popFrontColumn();
             }
 
-            name.s = s[pStart..pPos];
+            name.s = s[pStart..sPos];
         }
 
         if (name.s.length == 0)
@@ -466,9 +479,9 @@ package:
 
         static if (isBlockReader)
         {
-            while (!isElementTextSeparator(current))
+            while (!isElementTextSeparator(front))
             {
-                if (allWhitespaces && !isSpace(current))
+                if (allWhitespaces && !isSpace(front))
                     allWhitespaces = false;
                 // encodedMode is checked when put char into buffer
                 readCurrent(textBuffer);
@@ -480,289 +493,120 @@ package:
         else
         {
             auto encodedMode = XmlEncodeMode.checked;
-            const pStart = pPos;
-            while (!isElementTextSeparator(current))
+            const pStart = sPos;
+            while (!isElementTextSeparator(front))
             {
-                if (allWhitespaces && !isSpace(current))
+                if (allWhitespaces && !isSpace(front))
                     allWhitespaces = false;
-                if (encodedMode == XmlEncodeMode.checked && current == '&')
+                if (encodedMode == XmlEncodeMode.checked && front == '&')
                     encodedMode = XmlEncodeMode.encoded;
                 popFront();
             }
-
-            text = XmlString!S(s[pStart..pPos], encodedMode);
+            text = XmlString!S(s[pStart..sPos], encodedMode);
         }
     }
 
 protected:
-    static if (isBlockReader)
-    {
-        final void initBuffers()
-        {
-            nameBuffer = new XmlBuffer!(S, No.CheckEncoded);
-            textBuffer = new XmlBuffer!(S, Yes.CheckEncoded);
-        }
-    }
-
-    final void decode()
+    final const(C)[] currentCodes() nothrow pure
     in
     {
-        assert(sPos < sLen);
+        assert(!empty);
     }
     do
     {
+        return s[sPos..sPos + currentCount];
+    }
+
+    final void decode()
+    {
+        void emptyDecode()
+        {
+            currentChar = 0;
+            currentCount = 0;
+            _empty = true;
+            /*
+            static if (is(C == dchar))
+                throw new XmlConvertException(XmlMessage.eInvalidUtf32SequenceEos);
+            else static if (is(C == wchar))
+                throw new XmlConvertException(XmlMessage.eInvalidUtf16SequenceEos);
+            else
+                throw new XmlConvertException(XmlMessage.eInvalidUtf8SequenceEos);
+            */
+        }
+
+        static if (isBlockReader)
+        {
+            if (needNextBlock() && !nextBlock())
+                return emptyDecode();
+        }
+
+        if (sPos >= sLen)
+            return emptyDecode();
+
         static if (is(C == dchar))
         {
-            current = s[sPos++];
+            currentChar = s[sPos];
+            currentCount = 1;
         }
         else static if (is(C == wchar))
         {
-            void errorUtf16(UnicodeErrorKind errorKind, uint errorCode)
-            {
-                current = 0;
-                static if (!isBlockReader)
-                    currentCodes = null;
-
-                if (errorKind == UnicodeErrorKind.eos)
-                    throw new XmlConvertException(XmlMessage.eInvalidUtf16SequenceEos);
-                else
-                    throw new XmlConvertException(XmlMessage.eInvalidUtf16SequenceCode, errorCode);
-            }
-
-            void nextBlockUtf16()
-            {
-                static if (isBlockReader)
-                {
-                    if (!nextBlock())
-                        errorUtf16(UnicodeErrorKind.eos, 0);
-                }
-                else
-                    errorUtf16(UnicodeErrorKind.eos, 0);
-            }
-
-            ushort u = s[sPos++];
-
-            if (u >= unicodeSurrogateHighBegin && u <= unicodeSurrogateHighEnd)
-            {
-                if (sPos >= sLen)
-                    nextBlockUtf16();
-
-                current = u;
-                static if (!isBlockReader)
-                    currentCodeBuffer[0] = u;
-
-                u = s[sPos++];
-                static if (!isBlockReader)
-                    currentCodeBuffer[1] = u;
-
-                if (u >= unicodeSurrogateLowBegin && u <= unicodeSurrogateLowEnd)
-                {
-                    current = ((current - unicodeSurrogateHighBegin) << unicodeHalfShift) +
-                        (u - unicodeSurrogateLowBegin) + unicodeHalfBase;
-                    static if (!isBlockReader)
-                        currentCodes = currentCodeBuffer[0..2];
-                }
-                else
-                    errorUtf16(UnicodeErrorKind.invalidCode, u);
-            }
-            else
-            {
-                if (u >= unicodeSurrogateLowBegin && u <= unicodeSurrogateLowEnd)
-                    errorUtf16(UnicodeErrorKind.invalidCode, u);
-
-                current = u;
-                static if (!isBlockReader)
-                    currentCodes = s[sPos - 1..sPos];
-            }
+            if (!nextUTF16Char(s, sPos, currentChar, currentCount))
+                throw new XmlConvertException(XmlMessage.eInvalidUtf16SequenceCode);
         }
         else
         {
-            /* The following encodings are valid utf8 combinations:
-            *  0xxxxxxx
-            *  110xxxxx 10xxxxxx
-            *  1110xxxx 10xxxxxx 10xxxxxx
-            *  11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-            *  111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
-            *  1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
-            */
-
-            void errorUtf8(UnicodeErrorKind errorKind, uint errorCode)
-            {
-                current = 0;
-                static if (!isBlockReader)
-                    currentCodes = null;
-
-                if (errorKind == UnicodeErrorKind.eos)
-                    throw new XmlConvertException(XmlMessage.eInvalidUtf8SequenceEos);
-                else
-                    throw new XmlConvertException(XmlMessage.eInvalidUtf8SequenceCode, errorCode);
-            }
-
-            void nextBlockUtf8()
-            {
-                static if (isBlockReader)
-                {
-                    if (!nextBlock())
-                        errorUtf8(UnicodeErrorKind.eos, 0);
-                }
-                else
-                    errorUtf8(UnicodeErrorKind.eos, 0);
-            }
-
-            ubyte u = s[sPos++];
-
-            if (u & 0x80)
-            {
-                const extraBytesToRead = unicodeTrailingBytesForUTF8[u];
-
-                if (extraBytesToRead + sPos > sLen)
-                {
-                    static if (!isBlockReader)
-                        errorUtf8(UnicodeErrorKind.eos, 0);
-                }
-
-                static if (!isBlockReader)
-                    ubyte currentCodeBufferCount = 0;
-
-                switch (extraBytesToRead)
-                {
-                    case 5:
-                        current += u;
-                        current <<= 6;
-                        static if (!isBlockReader)
-                            currentCodeBuffer[currentCodeBufferCount++] = u;
-
-                        if (sPos >= sLen)
-                            nextBlockUtf8();
-
-                        u = s[sPos++];
-                        goto case 4;
-                    case 4:
-                        if (extraBytesToRead != 4 && (u & 0xC0) != 0x80)
-                            errorUtf8(UnicodeErrorKind.invalidCode, u);
-
-                        current += u;
-                        current <<= 6;
-                        static if (!isBlockReader)
-                            currentCodeBuffer[currentCodeBufferCount++] = u;
-
-                        if (sPos >= sLen)
-                            nextBlockUtf8();
-
-                        u = s[sPos++];
-                        goto case 3;
-                    case 3:
-                        if (extraBytesToRead != 3 && (u & 0xC0) != 0x80)
-                            errorUtf8(UnicodeErrorKind.invalidCode, u);
-
-                        current += u;
-                        current <<= 6;
-                        static if (!isBlockReader)
-                            currentCodeBuffer[currentCodeBufferCount++] = u;
-
-                        if (sPos >= sLen)
-                            nextBlockUtf8();
-
-                        u = s[sPos++];
-                        goto case 2;
-                    case 2:
-                        if (extraBytesToRead != 2 && (u & 0xC0) != 0x80)
-                            errorUtf8(UnicodeErrorKind.invalidCode, u);
-
-                        current += u;
-                        current <<= 6;
-                        static if (!isBlockReader)
-                            currentCodeBuffer[currentCodeBufferCount++] = u;
-
-                        if (sPos >= sLen)
-                            nextBlockUtf8();
-
-                        u = s[sPos++];
-                        goto case 1;
-                    case 1:
-                        if (extraBytesToRead != 1 && (u & 0xC0) != 0x80)
-                            errorUtf8(UnicodeErrorKind.invalidCode, u);
-
-                        current += u;
-                        current <<= 6;
-                        static if (!isBlockReader)
-                            currentCodeBuffer[currentCodeBufferCount++] = u;
-
-                        if (sPos >= sLen)
-                            nextBlockUtf8();
-
-                        u = s[sPos++];
-                        goto case 0;
-                    case 0:
-                        if (extraBytesToRead != 0 && (u & 0xC0) != 0x80)
-                            errorUtf8(UnicodeErrorKind.invalidCode, u);
-
-                        current += u;
-                        static if (!isBlockReader)
-                            currentCodeBuffer[currentCodeBufferCount++] = u;
-                        break;
-                    default:
-                        assert(0);
-                }
-
-                current -= unicodeOffsetsFromUTF8[extraBytesToRead];
-                static if (!isBlockReader)
-                    currentCodes = currentCodeBuffer[0..currentCodeBufferCount];
-
-                if (current <= dchar.max)
-                {
-                    if (current >= unicodeSurrogateHighBegin && current <= unicodeSurrogateLowEnd)
-                        errorUtf8(UnicodeErrorKind.invalidCode, current);
-                }
-                else
-                    errorUtf8(UnicodeErrorKind.invalidCode, current);
-            }
-            else
-            {
-                current = u;
-                static if (!isBlockReader)
-                    currentCodes = s[sPos - 1..sPos];
-            }
+            if (!nextUTF8Char(s, sPos, currentChar, currentCount))
+                throw new XmlConvertException(XmlMessage.eInvalidUtf8SequenceCode);
         }
     }
 
-    final void popFrontColumn()
+    static if (isBlockReader)
+    final void initBuffers()
     {
-        loc.column += 1;
-        current = 0;
-        static if (!is(XmlChar!S == dchar) && !isBlockReader)
-            currentCodes = null;
-
-        empty; // Advance to next char
+        nameBuffer = new XmlBuffer!(S, No.CheckEncoded);
+        textBuffer = new XmlBuffer!(S, Yes.CheckEncoded);
     }
 
-    final void updateLoc() nothrow
+    final void popFrontColumn()
+    in
     {
-        if (current == 0xD) // '\n'
+        assert(!empty);
+    }
+    do
+    {
+        loc.column += 1;
+        sPos += currentCount;
+        decode();
+    }
+
+    final void updateLoc() nothrow pure
+    {
+        const f = front;
+        if (f == 0xD) // '\n'
         {
             loc.column = 0;
             loc.line += 1;
         }
-        else if (current != 0xA)
+        else if (f != 0xA)
             loc.column += 1;
     }
 
     pragma (inline, true)
-    static bool isDocumentTypeAttributeListChoice(dchar c) nothrow pure
+    static bool isDocumentTypeAttributeListChoice(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>' || c == '|' || c == '(' || c == ')'
             || isSpace(c);
     }
 
     pragma (inline, true)
-    static bool isDeclarationAttributeNameSeparator(dchar c) nothrow pure
+    static bool isDeclarationAttributeNameSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>' || c == '?' || c == '='
             || isSpace(c);
     }
 
     pragma (inline, true)
-    static bool isDocumentTypeElementChoice(dchar c) nothrow pure
+    static bool isDocumentTypeElementChoice(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>' || c == ']' || c == '*' || c == '+'
             || c == '|' || c == ',' || c == '(' || c == ')'
@@ -770,47 +614,47 @@ protected:
     }
 
     pragma (inline, true)
-    static bool isElementAttributeNameSeparator(dchar c) nothrow pure
+    static bool isElementAttributeNameSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>' || c == '/' || c == '='
             || isSpace(c);
     }
 
     pragma (inline, true)
-    static bool isElementENameSeparator(dchar c) nothrow pure
+    static bool isElementENameSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>' || c == '!' || c == '['
             || isSpace(c);
     }
 
     pragma (inline, true)
-    static bool isElementPNameSeparator(dchar c) nothrow pure
+    static bool isElementPNameSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>' || c == '?'
             || isSpace(c);
     }
 
     pragma (inline, true)
-    static bool isElementXNameSeparator(dchar c) nothrow pure
+    static bool isElementXNameSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>' || c == '/'
             || isSpace(c);
     }
 
     pragma (inline, true)
-    static bool isElementSeparator(dchar c) nothrow pure
+    static bool isElementSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>';
     }
 
     pragma (inline, true)
-    static bool isElementTextSeparator(dchar c) nothrow pure
+    static bool isElementTextSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<';
     }
 
     pragma (inline, true)
-    static bool isNameSeparator(dchar c) nothrow pure
+    static bool isNameSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>'
             || isSpace(c);
@@ -818,19 +662,16 @@ protected:
 
 protected:
     const(C)[] s;
-    size_t sLen, sPos, pPos;
-    dchar current = 0;
+    size_t sLen, sPos;
     XmlLoc loc;
-    static if (!is(C == dchar) && !isBlockReader)
-    {
-        C[6] currentCodeBuffer;
-        const(C)[] currentCodes;
-    }
     static if (isBlockReader)
     {
         XmlBuffer!(S, No.CheckEncoded) nameBuffer;
         XmlBuffer!(S, Yes.CheckEncoded) textBuffer;
     }
+    dchar currentChar = 0;
+    ubyte currentCount;
+    bool _empty;
 }
 
 class XmlStringReader(S = string) : XmlReader!S
@@ -840,23 +681,12 @@ class XmlStringReader(S = string) : XmlReader!S
 public:
     this(const(XmlChar!S)[] str)
     {
-        this.sPos = this.pPos = 0;
-        this.sLen = str.length;
         this.s = str;
+        this.sLen = str.length;
+        this._empty = str.length == 0;
 
-        // Setup the first char to avoid duplicated check
-        empty;
-    }
-
-    @property final override bool empty()
-    {
-        if (current == 0 && sPos < sLen)
-        {
-            pPos = sPos;
+        if (!this._empty)
             decode();
-        }
-
-        return current == 0 && sPos >= sLen;
     }
 }
 
@@ -871,15 +701,14 @@ import std.algorithm.comparison : max;
 public:
     this(string fileName, ushort bufferKSize = 64)
     {
-        this.eof = false;
-        this.sLen = this.sPos = this.pPos = 0;
-        this.sBuffer.length = 1_024 * max(bufferKSize, 8);
         this._fileName = fileName;
         fileHandle.open(fileName);
+        this.sBuffer.length = 1_024 * max(bufferKSize, 8);
         static if (isBlockReader)
             initBuffers();
 
-        empty; // Setup the first char to avoid duplicated check
+        if (nextBlock())
+            decode();
     }
 
     ~this()
@@ -891,22 +720,10 @@ public:
     {
         if (fileHandle.isOpen())
             fileHandle.close();
-        eof = true;
-        sLen = sPos = pPos = 0;
-    }
 
-    @property final override bool empty()
-    {
-        if (current == 0 && !eof)
-        {
-            if (sPos >= sLen && !nextBlock())
-                return true;
-
-            pPos = sPos;
-            decode();
-        }
-
-        return current == 0 && eof;
+        sLen = sPos = currentCount = 0;
+        currentChar = 0;
+        _empty = true;
     }
 
     @property final string fileName() const nothrow
@@ -915,23 +732,39 @@ public:
     }
 
 protected:
+    pragma(inline, true)
+    final bool needNextBlock() const @nogc nothrow pure
+    {
+        return sPos + 6 >= sLen;
+    }
+
     final bool nextBlock()
     {
-        if (sLen == s.length)
+        // Full buffer read?
+        if (sLen == 0 || sPos >= sLen)
+        {
             s = (() @trusted => fileHandle.rawRead(sBuffer))();
+            sPos = 0;
+            sLen = s.length;
+        }
+        // Partial buffer read?
         else
-            s = [];
-        sPos = pPos = 0;
-        sLen = s.length;
-        eof = sLen == 0;
-        return !eof;
+        {
+            const left = sLen - sPos;
+            sBuffer[0..left] = sBuffer[sPos..sLen];
+            auto s2 = (() @trusted => fileHandle.rawRead(sBuffer[left..$]))();
+            sPos = 0;
+            sLen = left + s2.length;
+        }
+
+        _empty = sLen == 0;
+        return !_empty;
     }
 
 protected:
     File fileHandle;
     string _fileName;
     C[] sBuffer;
-    bool eof;
 }
 
 package(pham.xml) struct ParseContext(S)

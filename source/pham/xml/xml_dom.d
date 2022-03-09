@@ -197,10 +197,6 @@ abstract class XmlNode(S = string) : XmlObject!S
 @safe:
 
 public:
-    mixin DLinkTypes!(XmlNode!S) DLinkXmlNodeTypes;
-    mixin DLinkTypes!(XmlAttribute!S) DLinkXmlAttributeTypes;
-
-public:
     /** Returns attribute list of this node
         If node does not have any attribute or not applicable, returns an empty list
         Returns:
@@ -1375,6 +1371,10 @@ protected:
         return writer;
     }
 
+public:
+    mixin DLinkTypes!(XmlNode!S) DLinkXmlNodeTypes;
+    mixin DLinkTypes!(XmlAttribute!S) DLinkXmlAttributeTypes;
+
 protected:
     XmlDocument!S _ownerDocument;
     DLinkXmlAttributeTypes.DLinkList _attributes;
@@ -1914,6 +1914,7 @@ class XmlAttribute(S = string) : XmlNode!S
 
 public:
     this(XmlDocument!S ownerDocument, XmlName!S name) nothrow
+    /* Crash DMD compiler
     in
     {
         if (!ownerDocument.isLoading())
@@ -1923,6 +1924,7 @@ public:
         }
     }
     do
+    */
     {
         this._ownerDocument = ownerDocument;
         this._qualifiedName = name;
@@ -2005,6 +2007,7 @@ public:
 
 package:
     this(XmlDocument!S ownerDocument, XmlName!S name, XmlString!S text) nothrow
+    /* Crash DMD compiler
     in
     {
         if (!ownerDocument.isLoading())
@@ -2014,6 +2017,7 @@ package:
         }
     }
     do
+    */
     {
         this._ownerDocument = ownerDocument;
         this._qualifiedName = name;
