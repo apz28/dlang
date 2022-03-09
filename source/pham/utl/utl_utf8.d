@@ -17,29 +17,6 @@ import std.traits : isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned, 
 
 nothrow @safe:
 
-enum unicodeHalfBase = 0x0001_0000;
-enum unicodeHalfMask = 0x03FF;
-enum unicodeHalfShift = 10;
-enum unicodeSurrogateHighBegin = 0xD800;
-enum unicodeSurrogateHighEnd = 0xDBFF;
-enum unicodeSurrogateLowBegin = 0xDC00;
-enum unicodeSurrogateLowEnd = 0xDFFF;
-
-immutable uint[] unicodeOffsetsFromUTF8 = [
-    0x0000_0000, 0x0000_3080, 0x000E_2080, 0x03C8_2080, 0xFA08_2080, 0x8208_2080,
-    ];
-
-immutable ubyte[] unicodeTrailingBytesForUTF8 = [
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, 3,3,3,3,3,3,3,3,4,4,4,4,5,5,5,5,
-    ];
-
 void inplaceMoveToLeft(ref ubyte[] data, size_t fromIndex, size_t toIndex, size_t nBytes) pure
 in
 {
@@ -125,12 +102,14 @@ bool isHexDigit(const(char) c, ref ubyte b) @nogc nothrow pure @safe
     return true;
 }
 
-enum invalidDChar = dchar.max;
-dchar nextUTF8Char(scope const(char)[] str, ref size_t pos, out size_t cnt) @nogc nothrow pure @safe
+bool nextUTF8Char(scope const(char)[] str, size_t pos, out dchar cCode, out ubyte cCount) @nogc nothrow pure @safe
 {
-    cnt = 0;
     if (pos >= str.length)
-        return 0;
+    {
+        cCount = 0;
+        cCode = 0;
+        return false;
+    }
 
     ubyte c = str[pos++];
 
@@ -145,11 +124,19 @@ dchar nextUTF8Char(scope const(char)[] str, ref size_t pos, out size_t cnt) @nog
     if (c & 0x80)
     {
         const extraBytesToRead = unicodeTrailingBytesForUTF8[c];
+        cCount = cast(ubyte)(extraBytesToRead + 1);
 
-        if (extraBytesToRead + pos > str.length)
-            return invalidDChar;
+        if (cCount + pos - 1 > str.length)
+        {
+            // Return max count to avoid buffer overrun
+            while (cCount + pos - 1 > str.length)
+                cCount--;
 
-        dchar res = 0;
+            cCode = 0;
+            return false;
+        }
+
+        uint res = 0;
 
         switch (extraBytesToRead)
         {
@@ -158,55 +145,138 @@ dchar nextUTF8Char(scope const(char)[] str, ref size_t pos, out size_t cnt) @nog
                 res <<= 6;
                 c = str[pos++];
                 goto case 4;
+
             case 4:
                 if (extraBytesToRead != 4 && (c & 0xC0) != 0x80)
-                    return invalidDChar;
+                {
+                    cCode = 0;
+                    return false;
+                }
 
                 res += c;
                 res <<= 6;
                 c = str[pos++];
                 goto case 3;
+
             case 3:
                 if (extraBytesToRead != 3 && (c & 0xC0) != 0x80)
-                    return invalidDChar;
+                {
+                    cCode = 0;
+                    return false;
+                }
 
                 res += c;
                 res <<= 6;
                 c = str[pos++];
                 goto case 2;
+
             case 2:
                 if (extraBytesToRead != 2 && (c & 0xC0) != 0x80)
-                    return invalidDChar;
+                {
+                    cCode = 0;
+                    return false;
+                }
 
                 res += c;
                 res <<= 6;
                 c = str[pos++];
                 goto case 1;
+
             case 1:
                 if (extraBytesToRead != 1 && (c & 0xC0) != 0x80)
-                    return invalidDChar;
+                {
+                    cCode = 0;
+                    return false;
+                }
 
                 res += c;
                 res <<= 6;
                 c = str[pos++];
                 goto case 0;
+
             case 0:
                 if (extraBytesToRead != 0 && (c & 0xC0) != 0x80)
-                    return invalidDChar;
+                {
+                    cCode = 0;
+                    return false;
+                }
 
                 res += c;
                 break;
+
             default:
                 assert(0);
         }
 
-        cnt = extraBytesToRead + 1;
-        return res - unicodeOffsetsFromUTF8[extraBytesToRead];
+        cCode = res - unicodeOffsetsFromUTF8[extraBytesToRead];
+        return true;
     }
     else
     {
-        cnt = 1;
-        return c;
+        cCount = 1;
+        cCode = c;
+        return true;
+    }
+}
+
+version (none)
+pragma(inline, true)
+bool isUTF16SurrogateHigh(const(wchar) c) @nogc nothrow pure @safe
+{
+    enum unicodeSurrogateHighBegin = 0xD800;
+    enum unicodeSurrogateHighEnd = 0xDBFF;
+    return c >= unicodeSurrogateHighBegin && c <= unicodeSurrogateHighEnd;
+}
+
+version (none)
+pragma(inline, true)
+bool isUTF16SurrogateLow(const(wchar) c) @nogc nothrow pure @safe
+{
+    enum unicodeSurrogateLowBegin = 0xDC00;
+    enum unicodeSurrogateLowEnd = 0xDFFF;
+    return c >= unicodeSurrogateLowBegin && c <= unicodeSurrogateLowEnd;
+}
+
+bool nextUTF16Char(scope const(wchar)[] str, size_t pos, out dchar cCode, out ubyte cCount) @nogc nothrow pure @safe
+{
+    if (pos >= str.length)
+    {
+        cCount = 0;
+        cCode = 0;
+        return false;
+    }
+
+    const ushort c1 = str[pos++];
+
+    // normal
+	if (c1 < unicodeSurr1UTF16 && unicodeSurr3UTF16 <= c1)
+    {
+        cCount = 1;
+        cCode = c1;
+        return true;
+    }
+    // surrogate sequence
+	else if (unicodeSurr1UTF16 <= c1 && c1 < unicodeSurr2UTF16 && pos < str.length)
+    {
+        const ushort c2 = str[pos];
+        if (unicodeSurr2UTF16 <= c2 && c2 < unicodeSurr3UTF16)
+        {
+            cCount = 2;
+            cCode = ((c1 - unicodeSurr1UTF16) << 10 | (c2 - unicodeSurr2UTF16)) + unicodeSurrSelfUTF16;
+            return true;
+        }
+        else
+        {
+            cCount = 1;
+            cCode = 0;
+            return false;
+        }
+    }
+    else
+    {
+        cCount = 1;
+        cCode = 0;
+        return false;
     }
 }
 
@@ -215,16 +285,15 @@ struct UTF8CharRange
 @nogc nothrow @safe:
 
 public:
+    dchar replacementChar = dchar.max;
+
+public:
     this(scope return const(char)[] source) pure
     {
         this._source = source;
-        this._p = this._previousP = this._dcount = this._current = this._previousChar = 0;
-        this._empty = source.length == 0;
-        if (!this._empty)
-            popFront();
+        this.reset();
     }
 
-    pragma(inline, true)
     void popFront() pure scope
     in
     {
@@ -232,20 +301,34 @@ public:
     }
     do
     {
-        _previousChar = _current;
+        _previousChar = _currentChar;
         _previousP = _p;
 
         if (_p >= _source.length)
         {
             _empty = true;
-            _current = _dcount = 0;
+            _dcount = 0;
+            _currentChar = 0;
+            return;
         }
-        else
-            _current = nextUTF8Char(_source, _p, _dcount);
+
+        if (!nextUTF8Char(_source, _p, _currentChar, _dcount))
+            _currentChar = replacementChar;
+        _p += _dcount;
+    }
+
+    void reset() pure scope
+    {
+        _currentChar = _previousChar = 0;
+        _p = _previousP = 0;
+        _dcount = 0;
+        _empty = _source.length == 0;
+        if (!_empty)
+            popFront();
     }
 
     pragma(inline, true)
-    @property size_t dcount() const pure scope
+    @property ubyte dcount() const pure scope
     {
         return _dcount;
     }
@@ -259,7 +342,7 @@ public:
     pragma(inline, true)
     @property dchar front() const pure scope
     {
-        return _current;
+        return _currentChar;
     }
 
     pragma(inline, true)
@@ -294,8 +377,9 @@ public:
 
 private:
     const(char)[] _source;
-    size_t _dcount, _p, _previousP;
-    dchar _current, _previousChar;
+    size_t _p, _previousP;
+    dchar _currentChar = 0, _previousChar = 0;
+    ubyte _dcount;
     bool _empty;
 }
 
@@ -311,6 +395,7 @@ enum NumericLexerFlag : int
 }
 
 struct NumericLexerOptions(Char)
+if (isSomeChar!Char)
 {
 nothrow @safe:
 
@@ -326,23 +411,40 @@ nothrow @safe:
     }
 
     pragma(inline, true)
-    bool isContinueSkippingChar(Char c) const @nogc pure
+    bool canSkippingLeadingBlank() const @nogc pure
     {
-        return isGroupSeparator(c) || (isSkippingInnerBlank() && isSpaceChar(c));
+        return (flags & NumericLexerFlag.skipLeadingBlank) != 0;
     }
 
     pragma(inline, true)
-    bool isDecimalChar(Char c) const @nogc pure
+    bool canSkippingInnerBlank() const @nogc pure
+    {
+        return (flags & NumericLexerFlag.skipInnerBlank) != 0;
+    }
+
+    pragma(inline, true)
+    bool canSkippingTrailingBlank() const @nogc pure
+    {
+        return (flags & NumericLexerFlag.skipTrailingBlank) != 0;
+    }
+
+    pragma(inline, true)
+    bool isContinueSkippingChar(const(Char) c) const @nogc pure
+    {
+        return isGroupSeparator(c) || (canSkippingInnerBlank() && isSpaceChar(c));
+    }
+
+    pragma(inline, true)
+    bool isDecimalChar(const(Char) c) const @nogc pure
     {
         return c == decimalChar;
     }
 
-    //pragma(inline, true)
-    bool isGroupSeparator(Char c) const @nogc pure
+    bool isGroupSeparator(const(Char) c) const @nogc pure
     {
-        foreach (Char s; groupSeparators)
+        foreach (i; 0..groupSeparators.length)
         {
-            if (c == s)
+            if (c == groupSeparators[i])
                 return true;
         }
         return false;
@@ -353,26 +455,8 @@ nothrow @safe:
         return hexDigits.length >= 2 && hexDigits[0] == '0' && (hexDigits[1] == 'x' || hexDigits[1] == 'X');
     }
 
-    pragma(inline, true)
-    bool isSkippingLeadingBlank() const @nogc pure
-    {
-        return (flags & NumericLexerFlag.skipLeadingBlank) != 0;
-    }
-
-    pragma(inline, true)
-    bool isSkippingInnerBlank() const @nogc pure
-    {
-        return (flags & NumericLexerFlag.skipInnerBlank) != 0;
-    }
-
-    pragma(inline, true)
-    bool isSkippingTrailingBlank() const @nogc pure
-    {
-        return (flags & NumericLexerFlag.skipTrailingBlank) != 0;
-    }
-
     pragma (inline, true)
-    bool isSpaceChar(Char c) const @nogc pure
+    bool isSpaceChar(const(Char) c) const @nogc pure
     {
         return c == ' '
                 || c == '\r'
@@ -420,7 +504,7 @@ public:
     pragma(inline, true)
     bool isInvalidAfterContinueSkippingSpaces() const @nogc pure
     {
-        return options.isSkippingTrailingBlank && !empty;
+        return options.canSkippingTrailingBlank && !empty;
     }
 
     pragma(inline, true)
@@ -529,7 +613,7 @@ private:
         _hasSavedFront = false;
         isNumericFrontFct = (options.flags & NumericLexerFlag.hexDigit) != 0 ? &isHexDigit : &isDigit;
 
-        if (options.isSkippingLeadingBlank)
+        if (options.canSkippingLeadingBlank)
         {
             skipSpaces();
             if (value.empty)
@@ -581,7 +665,7 @@ private:
 
 private:
     size_t _count;
-    RangeElement _savedFront;
+    RangeElement _savedFront = 0;
     bool _hasDecimalChar, _hasNumericChar, _hasHexDigitPrefix, _hasSavedFront, _neg;
 }
 
@@ -594,7 +678,6 @@ public:
     this(S str)
     {
         this.str = str;
-        this.i = 0;
     }
 
     pragma(inline, true)
@@ -632,7 +715,7 @@ public:
     }
 
     pragma(inline, true)
-  @property size_t length() const
+    @property size_t length() const
     {
         return str.length - i;
     }
@@ -1288,6 +1371,29 @@ if (isSomeChar!T || isIntegral!T)
 
 // Any below codes are private
 private:
+
+// 0xd800-0xdc00 encodes the high 10 bits of a pair.
+// 0xdc00-0xe000 encodes the low 10 bits of a pair.
+// the value is those 20 bits plus 0x10000.
+enum unicodeSurr1UTF16 = 0xD800;
+enum unicodeSurr2UTF16 = 0xDC00;
+enum unicodeSurr3UTF16 = 0xE000;
+enum unicodeSurrSelfUTF16 = 0x1_0000;
+
+immutable uint[] unicodeOffsetsFromUTF8 = [
+    0x0000_0000, 0x0000_3080, 0x000E_2080, 0x03C8_2080, 0xFA08_2080, 0x8208_2080,
+    ];
+
+immutable ubyte[] unicodeTrailingBytesForUTF8 = [
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, 3,3,3,3,3,3,3,3,4,4,4,4,5,5,5,5,
+    ];
 
 nothrow @safe unittest // inplaceMoveToLeft
 {

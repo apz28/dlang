@@ -151,7 +151,7 @@ public:
 
         // Trim leadings so that some check codes can be out of loop when calling
         // setHexs or setDecimals
-        if (parseOptions.isSkippingLeadingBlank)
+        if (parseOptions.canSkippingLeadingBlank)
         {
             while (i < len && parseOptions.isSpaceChar(hexOrDecimals[i]))
                 i++;
@@ -159,7 +159,7 @@ public:
 
         // Trim trailings so that some check codes can be out of loop when calling
         // setHexs or setDecimals
-        if (parseOptions.isSkippingTrailingBlank)
+        if (parseOptions.canSkippingTrailingBlank)
         {
             while (len > i && parseOptions.isSpaceChar(hexOrDecimals[len - 1]))
                 len--;

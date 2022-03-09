@@ -239,8 +239,8 @@ if (isSomeString!S && isSomeChar!C && is(Unqual!(typeof(S.init[0])) == C))
         return value;
     else
         return size > 0
-            ? stringOfChar!C(n - value.length, c) ~ value
-            : value ~ stringOfChar!C(n - value.length, c);
+            ? (stringOfChar!C(n - value.length, c) ~ value)
+            : (value ~ stringOfChar!C(n - value.length, c));
 }
 
 /**
@@ -327,7 +327,7 @@ if (is(Unqual!C == char) || is(Unqual!C == wchar) || is(Unqual!C == dchar))
 }
 
 ref Writer toString(uint radix = 10, N, Writer)(return ref Writer sink, N n,
-    const(ubyte) pad = 0,
+    const(ubyte) padSize = 0, const(char) padChar = '0',
     const(LetterCase) letterCase = LetterCase.upper) nothrow pure @safe
 if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
 {
@@ -377,12 +377,12 @@ if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
         while (un >>>= shift);
     }
 
-    if (pad)
+    if (padSize)
     {
         size_t cn = isNeg ? (bufSize - bufIndex + 1) : (bufSize - bufIndex);
-        while (pad > cn)
+        while (padSize > cn)
         {
-            bufDigits[--bufIndex] = '0';
+            bufDigits[--bufIndex] = padChar;
             cn++;
         }
     }
