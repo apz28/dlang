@@ -210,10 +210,19 @@ public:
 
     string toString() const nothrow
     {
-        scope (failure) assert(0);
-
         ShortStringBuffer!char buffer;
-        return toString(buffer, "%s").toString();
+        return toString(buffer).toString();
+    }
+
+    ref Writer toString(Writer, Char = char)(return ref Writer sink) const nothrow
+    if (isOutputRange!(Writer, Char))
+    {
+        import pham.utl.datetime.date_time_format;
+
+        auto fmtSpec = FormatDateTimeSpec!Char("%s");
+        auto fmtValue = FormatDateTimeValue(this);
+        formattedWrite(sink, fmtSpec, fmtValue);
+        return sink;
     }
 
     string toString(scope const(char)[] fmt) const
@@ -227,8 +236,10 @@ public:
     {
         import pham.utl.datetime.date_time_format;
 
+        auto fmtSpec = FormatDateTimeSpec!Char(fmt);
         auto fmtValue = FormatDateTimeValue(this);
-        formattedWrite(sink, fmt, fmtValue);
+        if (formattedWrite(sink, fmtSpec, fmtValue) == formatedWriteError)
+            throw new FormatException(fmtSpec.errorMessage.idup);
         return sink;
     }
 
@@ -888,14 +899,14 @@ public:
 
     void getTime(out int hour, out int minute, out int second, out int millisecond) const @nogc nothrow pure
     {
-        const long milliseconds = data.sticks / Tick.ticksPerMillisecond;
-        const long seconds = milliseconds / 1000;
-        millisecond = cast(int)(milliseconds - (seconds * 1000));
-        const long minutes = seconds / 60;
-        second = cast(int)(seconds - (minutes * 60));
-        const long hours = minutes / 60;
-        minute = cast(int)(minutes - (hours * 60));
-        hour = cast(int)(cast(uint)hours % 24);
+        const long totalMilliseconds = data.sticks / Tick.ticksPerMillisecond;
+        const long totalSeconds = totalMilliseconds / 1_000;
+        millisecond = cast(int)(totalMilliseconds - (totalSeconds * 1_000));
+        const long totalMinutes = totalSeconds / 60;
+        second = cast(int)(totalSeconds - (totalMinutes * 60));
+        const long totalHours = totalMinutes / 60;
+        minute = cast(int)(totalMinutes - (totalHours * 60));
+        hour = cast(int)(totalHours % 24);
     }
 
     void getTimePrecise(out int hour, out int minute, out int second, out int tick) const @nogc nothrow pure
@@ -989,10 +1000,19 @@ public:
 
     string toString() const nothrow
     {
-        scope (failure) assert(0);
-
         ShortStringBuffer!char buffer;
-        return toString(buffer, "%s").toString();
+        return toString(buffer).toString();
+    }
+
+    ref Writer toString(Writer, Char = char)(return ref Writer sink) const nothrow
+    if (isOutputRange!(Writer, Char))
+    {
+        import pham.utl.datetime.date_time_format;
+
+        auto fmtSpec = FormatDateTimeSpec!Char("%s");
+        auto fmtValue = FormatDateTimeValue(this);
+        formattedWrite(sink, fmtSpec, fmtValue);
+        return sink;
     }
 
     string toString(scope const(char)[] fmt) const
@@ -1006,9 +1026,10 @@ public:
     {
         import pham.utl.datetime.date_time_format;
 
+        auto fmtSpec = FormatDateTimeSpec!Char(fmt);
         auto fmtValue = FormatDateTimeValue(this);
-        formattedWrite(sink, fmt, fmtValue);
-
+        if (formattedWrite(sink, fmtSpec, fmtValue) == formatedWriteError)
+            throw new FormatException(fmtSpec.errorMessage.idup);
         return sink;
     }
 

@@ -79,7 +79,7 @@ struct Tick
         else version (Posix)
             return currentSystemTicksPosix!clockType();
         else
-            static assert(0, "Unsupported OS");
+            static assert(0, "Unsupported target");
     }
 
     pragma(inline, true)
@@ -108,7 +108,7 @@ struct Tick
     }
     do
     {
-        const ulong totalSeconds = (cast(ulong)hour * 3600) + (minute * 60) + second;
+        const ulong totalSeconds = (cast(ulong)hour * 3_600) + (minute * 60) + second;
         return totalSeconds * ticksPerSecond;
     }
 
@@ -133,7 +133,7 @@ struct Tick
         else
         {
             // MurmurHash2
-            enum ulong m = 0xc6a4a7935bd1e995UL;
+            enum ulong m = 0xC6A4_A793_5BD1_E995UL;
             enum ulong n = m * 16;
             enum uint r = 47;
 

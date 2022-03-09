@@ -298,10 +298,19 @@ public:
 
     string toString() const nothrow
     {
-        scope (failure) assert(0);
-
         ShortStringBuffer!char buffer;
-        return toString(buffer, "%s").toString();
+        return toString(buffer).toString();
+    }
+
+    ref Writer toString(Writer, Char = char)(return ref Writer sink) const nothrow
+    if (isOutputRange!(Writer, Char))
+    {
+        import pham.utl.datetime.date_time_format;
+
+        auto fmtSpec = FormatDateTimeSpec!Char("%s");
+        auto fmtValue = FormatDateTimeValue(this);
+        formattedWrite(sink, fmtSpec, fmtValue);
+        return sink;
     }
 
     string toString(scope const(char)[] fmt) const
@@ -315,9 +324,10 @@ public:
     {
         import pham.utl.datetime.date_time_format;
 
+        auto fmtSpec = FormatDateTimeSpec!Char(fmt);
         auto fmtValue = FormatDateTimeValue(this);
-        formattedWrite(sink, fmt, fmtValue);
-
+        if (formattedWrite(sink, fmtSpec, fmtValue) == formatedWriteError)
+            throw new FormatException(fmtSpec.errorMessage.idup);
         return sink;
     }
 

@@ -11,12 +11,11 @@
 
 module pham.utl.datetime.date_time_format;
 
-import std.conv : to;
-import std.exception : enforce;
-import std.format : FormatException;
-import std.range.primitives : empty, isOutputRange, put;
+public import std.format : FormatException;
+import std.range.primitives : isOutputRange, put;
 import std.traits : isSomeChar, isSomeString, Unqual;
 
+import pham.utl.object : toString;
 import pham.utl.datetime.tick;
 import pham.utl.datetime.date : Date, DateTime, DayOfWeek, firstDayOfMonth, firstDayOfWeek;
 import pham.utl.datetime.time : Time;
@@ -57,32 +56,40 @@ struct FormatDateTimeValue
 {
 nothrow @safe:
 
+public:
     enum ValueKind : byte
     {
         date,
         dateTime,
-        time
+        time,
     }
 
+public:
     this(in Date date) @nogc pure
     {
         this._kind = ValueKind.date;
         this.date = date;
+        date.getDate(_year, _month, _day);
     }
 
     this(in DateTime dateTime) @nogc pure
     {
         this._kind = ValueKind.dateTime;
         this.dateTime = dateTime;
+        dateTime.getDate(_year, _month, _day);
+        dateTime.getTimePrecise(_hour, _minute, _second, _tick);
+        this._millisecond = TickPart.tickToMillisecond(_tick);
     }
 
     this(in Time time) @nogc pure
     {
         this._kind = ValueKind.time;
         this.time = time;
+        time.getTimePrecise(_hour, _minute, _second, _tick);
+        this._millisecond = TickPart.tickToMillisecond(_tick);
     }
 
-    string amPM(scope const ref DateTimeSetting setting) pure
+    string amPM(scope const ref DateTimeSetting setting) const pure
     {
         return kind != ValueKind.date && setting.amPmTexts !is null
             ? (*setting.amPmTexts)[hour >= 12]
@@ -96,22 +103,20 @@ nothrow @safe:
             : null;
     }
 
-    string monthName(scope const ref DateTimeSetting setting) pure
+    string monthName(scope const ref DateTimeSetting setting) const pure
     {
         return kind != ValueKind.time
             ? (*setting.monthNames)[month - firstDayOfMonth]
             : null;
     }
 
-    @property int century() @nogc pure
+    @property int century() const @nogc pure
     {
         return year / 100;
     }
 
-    @property int day() @nogc pure
+    @property int day() const @nogc pure
     {
-        if (_day == nan)
-            initYMD();
         return _day;
     }
 
@@ -133,10 +138,8 @@ nothrow @safe:
         return _kind;
     }
 
-    @property int hour() @nogc pure
+    @property int hour() const @nogc pure
     {
-        if (_hour == nan)
-            initHMSM();
         return _hour;
     }
 
@@ -153,105 +156,44 @@ nothrow @safe:
         }
     }
 
-    @property int millisecond() @nogc pure
+    @property int millisecond() const @nogc pure
     {
-        if (_millisecond == nan)
-            initHMSM();
         return _millisecond;
     }
 
-    @property int minute() @nogc pure
+    @property int minute() const @nogc pure
     {
-        if (_minute == nan)
-            initHMSM();
         return _minute;
     }
 
-    @property int month() @nogc pure
+    @property int month() const @nogc pure
     {
-        if (_month == nan)
-            initYMD();
         return _month;
     }
 
-    @property int second() @nogc pure
+    @property int second() const @nogc pure
     {
-        if (_second == nan)
-            initHMSM();
         return _second;
     }
 
-    @property int shortHour() @nogc pure
+    @property int shortHour() const @nogc pure
     {
         return hour <= 12 ? hour : hour - 12;
     }
 
-    @property int shortYear() @nogc pure
+    @property int shortYear() const @nogc pure
     {
         return year - (century * 100);
     }
 
-    @property int tick() @nogc pure
+    @property int tick() const @nogc pure
     {
-        if (_tick == nan)
-            initHMST();
         return _tick;
     }
 
-    @property int year() @nogc pure
+    @property int year() const @nogc pure
     {
-        if (_year == nan)
-            initYMD();
         return _year;
-    }
-
-private:
-    void initYMD() @nogc pure
-    {
-        final switch (kind)
-        {
-            case ValueKind.date:
-                date.getDate(_year, _month, _day);
-                break;
-            case ValueKind.dateTime:
-                dateTime.getDate(_year, _month, _day);
-                break;
-            case ValueKind.time:
-                time.getDate(_year, _month, _day);
-                break;
-        }
-    }
-
-    void initHMSM() @nogc pure
-    {
-        final switch (kind)
-        {
-            case ValueKind.date:
-                date.getTime(_hour, _minute, _second, _millisecond);
-                break;
-            case ValueKind.dateTime:
-                dateTime.getTime(_hour, _minute, _second, _millisecond);
-                break;
-            case ValueKind.time:
-                time.getTime(_hour, _minute, _second, _millisecond);
-                break;
-        }
-    }
-
-    void initHMST() @nogc pure
-    {
-        final switch (kind)
-        {
-            case ValueKind.date:
-                date.getTimePrecise(_hour, _minute, _second, _tick);
-                break;
-            case ValueKind.dateTime:
-                dateTime.getTimePrecise(_hour, _minute, _second, _tick);
-                break;
-            case ValueKind.time:
-                time.getTimePrecise(_hour, _minute, _second, _tick);
-                break;
-        }
     }
 
 private:
@@ -261,13 +203,16 @@ private:
         DateTime dateTime;
         Time time;
     }
-    enum nan = -1;
-    int _year = nan, _month = nan, _day = nan;
-    int _hour = nan, _minute = nan, _second = nan, _millisecond = nan, _tick = nan;
+    int _year, _month, _day, _hour, _minute, _second, _millisecond, _tick;
     ValueKind _kind;
 }
 
-alias enforceFmt = enforce!FormatException;
+enum FormatWriteResult : byte
+{
+    ok,
+    done,
+    error,
+}
 
 struct FormatDateTimeSpec(Char)
 if (is(Unqual!Char == Char))
@@ -276,10 +221,11 @@ if (is(Unqual!Char == Char))
 
 public:
     const(Char)[] trailing; /// contains the rest of the format string.
+    Char spec = 0; /// The actual/current format specifier
     const(Char)[] customTrailing; /// contains custom format string
-    size_t customSpecCount;
-    Char customSpec;
-    Char spec = FormatDateTimeSpecifier.sortableDateTime; /// The actual/current format specifier
+    Char customSpec = 0;
+    ubyte customSpecCount;
+    string errorMessage;
 
     /**
      * Construct a new `FormatDateTimeSpec` using the format string `fmt`, no
@@ -301,10 +247,10 @@ public:
      * Throws:
      *  A $(LREF FormatException) when the found format specifier could not be parsed.
      */
-    bool writeUpToNextSpec(Writer)(scope ref Writer sink) pure scope
+    FormatWriteResult writeUpToNextSpec(Writer)(scope ref Writer sink) nothrow pure scope
     {
-        if (trailing.empty)
-            return false;
+        if (trailing.length == 0)
+            return FormatWriteResult.done;
 
         size_t i = 0;
         for (; i < trailing.length; ++i)
@@ -318,15 +264,13 @@ public:
                 trailing = trailing[i..$];
             }
             // at least '%' and spec-char
-            enforceFmt(trailing.length >= 2, "Unterminated format specifier: " ~ to!string(trailing));
+            if (trailing.length <= 1)
+                return errorWriteUp("Unterminated format specifier: " ~ toString(trailing));
             trailing = trailing[1..$]; // Skip '%'
 
-            // Spec found. Fill up the spec, and bailout
+            // Spec found. Fill up the spec and bailout
             if (trailing[0] != '%')
-            {
-                fillWriteUpToNextSpec();
-                return true;
-            }
+                return fillWriteUpToNextSpec();
 
             // Reset and keep going
             i = 0;
@@ -335,13 +279,13 @@ public:
         // no format spec found
         put(sink, trailing);
         trailing = null;
-        return false;
+        return FormatWriteResult.done;
     }
 
-    bool writeUpToNextCustomSpec(Writer)(scope ref Writer sink) pure scope
+    FormatWriteResult writeUpToNextCustomSpec(Writer)(scope ref Writer sink) nothrow pure scope
     {
-        if (customTrailing.empty)
-            return false;
+        if (customTrailing.length == 0)
+            return FormatWriteResult.done;
 
         size_t i = 0;
         for (; i < customTrailing.length; ++i)
@@ -355,18 +299,17 @@ public:
                 put(sink, customTrailing[0..i]);
                 customTrailing = customTrailing[i..$];
             }
-            enforceFmt((customTrailing.length > 0) || (customTrailing.length > 1 && customTrailing[0] == '%'), "Unterminated custom format specifier");
+
+            if (customTrailing.length == 0 || (customTrailing.length == 1 && customTrailing[0] == '%'))
+                return errorWriteUp("Unterminated custom format specifier: " ~ toString(customTrailing));
 
             // Skip '%'?
             if (customTrailing[0] == '%')
                 customTrailing = customTrailing[1..$];
 
-            // Spec found. Fill up the spec, and bailout
+            // Spec found. Fill up the spec and bailout
             if (customTrailing[0] != '%')
-            {
-                fillWriteUpToNextCustomSpec();
-                return true;
-            }
+                return fillWriteUpToNextCustomSpec();
 
             // Reset and keep going
             i = 0;
@@ -375,7 +318,7 @@ public:
         // no format spec found
         put(sink, customTrailing);
         customTrailing = null;
-        return false;
+        return FormatWriteResult.done;
     }
 
     static bool isCustomModifierChar(const(Char) c) @nogc nothrow pure
@@ -393,20 +336,26 @@ public:
     }
 
 private:
-    void fillWriteUpToNextSpec() pure
+    FormatWriteResult errorWriteUp(string errorMessage) nothrow pure
+    {
+        this.errorMessage = errorMessage;
+        return FormatWriteResult.error;
+    }
+
+    FormatWriteResult fillWriteUpToNextSpec() nothrow pure
     {
         customTrailing = null;
         customSpecCount = 0;
-        customSpec = '\0';
+        customSpec = 0;
         spec = trailing[0];
         trailing = trailing[1..$];
 
         switch (spec)
         {
             case FormatDateTimeSpecifier.custom:
-                enforceFmt(trailing.length > 0, "Missing custom format modifier: " ~ to!string(trailing));
-                fillWriteUpToNextSpecCustom();
-                return;
+                if (trailing.length == 0)
+                    return errorWriteUp("Missing custom format modifier");
+                return fillWriteUpToNextSpecCustom();
             case FormatDateTimeSpecifier.fullShortDateTime:
             case FormatDateTimeSpecifier.fullLongDateTime:
             case FormatDateTimeSpecifier.generalShortDateTime:
@@ -422,13 +371,13 @@ private:
             case FormatDateTimeSpecifier.sortableDateTimeLess:
             case FormatDateTimeSpecifier.utcFullDateTime:
             case FormatDateTimeSpecifier.utcSortableDateTime:
-                return;
+                return FormatWriteResult.ok;
             default:
-                enforceFmt(false, "Incorrect format specifier: " ~ to!string(spec));
+                return errorWriteUp("Incorrect format specifier: " ~ toString(spec));
         }
     }
 
-    void fillWriteUpToNextSpecCustom() pure
+    FormatWriteResult fillWriteUpToNextSpecCustom() nothrow pure
     {
         size_t i = 0, found = 0;
         for (; i < trailing.length; ++i)
@@ -450,12 +399,14 @@ private:
                     found++;
             }
         }
-        enforceFmt(i > 0 && found > 0, "Missing custom format modifier: " ~ to!string(trailing));
+        if (i == 0 || found == 0)
+            return errorWriteUp("Missing custom format modifier: " ~ toString(trailing));
         customTrailing = trailing[0..i];
         trailing = trailing[i..$];
+        return FormatWriteResult.ok;
     }
 
-    void fillWriteUpToNextCustomSpec() pure
+    FormatWriteResult fillWriteUpToNextCustomSpec() nothrow pure
     {
         size_t limit = 0;
         customSpecCount = 0;
@@ -491,15 +442,39 @@ private:
             default:
                 assert(0);
         }
+
+        size_t count;
         for (size_t i = 0; i < customTrailing.length && customSpec == customTrailing[i]; i++)
-            customSpecCount++;
-        enforceFmt(customSpecCount <= limit, "Invalid custom format modifier: " ~ to!string(customTrailing[0..customSpecCount]));
-        customTrailing = customTrailing[customSpecCount..$];
+            count++;
+        if (count > limit)
+            return errorWriteUp("Invalid custom format modifier: " ~ toString(customTrailing[0..count]));
+
+        customSpecCount = cast(ubyte)count;
+        customTrailing = customTrailing[count..$];
+        return FormatWriteResult.ok;
+    }
+
+    static string toString(const(Char) c) nothrow pure
+    {
+        import std.conv : to;
+        scope (failure) assert(0);
+
+        return c != 0 ? to!string(c) : null;
+    }
+
+    static string toString(const(Char)[] c) nothrow pure
+    {
+        import std.conv : to;
+        scope (failure) assert(0);
+
+        return c.length != 0 ? to!string(c) : null;
     }
 }
 
+enum formatedWriteError = uint.max;
+
 uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope ref FormatDateTimeSpec!Char fmtSpec,
-    scope ref FormatDateTimeValue fmtValue, scope const ref DateTimeSetting setting)
+    scope ref FormatDateTimeValue fmtValue, scope const ref DateTimeSetting setting) nothrow
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     void putAMorPM() nothrow @safe
@@ -512,9 +487,10 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
         }
     }
 
-    void putCustom() @safe
+    FormatWriteResult putCustom() nothrow @safe
     {
-        while (fmtSpec.writeUpToNextCustomSpec(sink))
+        FormatWriteResult wr = fmtSpec.writeUpToNextCustomSpec(sink);
+        while (wr == FormatWriteResult.ok)
         {
             switch (fmtSpec.customSpec)
             {
@@ -525,28 +501,28 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     if (fmtSpec.customSpecCount == 3)
                         put(sink, fmtValue.dayOfWeekName(setting));
                     else
-                        pad(sink, to!string(fmtValue.day), fmtSpec.customSpecCount, '0');
+                        toString(sink, fmtValue.day, fmtSpec.customSpecCount);
                     break;
                 case FormatDateTimeSpecifier.customFraction: // time fraction, 1..3=msec, 4..7=usec
                     if (fmtSpec.customSpecCount <= Tick.millisMaxPrecision)
-                        pad(sink, to!string(fmtValue.millisecond), fmtSpec.customSpecCount, '0');
+                        toString(sink, fmtValue.millisecond, fmtSpec.customSpecCount);
                     else
-                        pad(sink, to!string(fmtValue.tick), fmtSpec.customSpecCount, '0');
+                        toString(sink, fmtValue.tick, fmtSpec.customSpecCount);
                     break;
                 case FormatDateTimeSpecifier.customHour:
-                    pad(sink, to!string(fmtValue.hour), fmtSpec.customSpecCount, '0');
+                    toString(sink, fmtValue.hour, fmtSpec.customSpecCount);
                     break;
                 case FormatDateTimeSpecifier.customMinute:
-                    pad(sink, to!string(fmtValue.minute), fmtSpec.customSpecCount, '0');
+                    toString(sink, fmtValue.minute, fmtSpec.customSpecCount);
                     break;
                 case FormatDateTimeSpecifier.customMonth:
                     if (fmtSpec.customSpecCount == 3)
                         put(sink, fmtValue.monthName(setting));
                     else
-                        pad(sink, to!string(fmtValue.month), fmtSpec.customSpecCount, '0');
+                        toString(sink, fmtValue.month, fmtSpec.customSpecCount);
                     break;
                 case FormatDateTimeSpecifier.customSecond:
-                    pad(sink, to!string(fmtValue.second), fmtSpec.customSpecCount, '0');
+                    toString(sink, fmtValue.second, fmtSpec.customSpecCount);
                     break;
                 case FormatDateTimeSpecifier.customSeparatorDate:
                     put(sink, setting.dateSeparator);
@@ -556,14 +532,16 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     break;
                 case FormatDateTimeSpecifier.customYear:
                     if (fmtSpec.customSpecCount <= 2)
-                        pad(sink, to!string(fmtValue.shortYear), fmtSpec.customSpecCount, '0');
+                        toString(sink, fmtValue.shortYear, fmtSpec.customSpecCount);
                     else
-                        pad(sink, to!string(fmtValue.year), fmtSpec.customSpecCount, '0');
+                        toString(sink, fmtValue.year, fmtSpec.customSpecCount);
                     break;
                 default:
                     assert(0);
             }
+            wr = fmtSpec.writeUpToNextCustomSpec(sink);
         }
+        return wr;
     }
 
     void putFullDateTime() nothrow @safe
@@ -572,42 +550,44 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
         put(sink, ", ");
         put(sink, fmtValue.monthName(setting));
         put(sink, ' ');
-        put(sink, to!string(fmtValue.day));
+        toString(sink, fmtValue.day);
         put(sink, ", ");
-        pad(sink, to!string(fmtValue.year), 4, '0');
+        toString(sink, fmtValue.year, 4);
         put(sink, ' ');
-        put(sink, to!string(fmtValue.shortHour));
+        toString(sink, fmtValue.shortHour);
         put(sink, setting.timeSeparator);
-        pad(sink, to!string(fmtValue.minute), 2, '0');
+        toString(sink, fmtValue.minute, 2);
     }
 
     void putGeneralDateTime() nothrow @safe
     {
-        put(sink, to!string(fmtValue.month));
+        toString(sink, fmtValue.month);
         put(sink, setting.dateSeparator);
-        put(sink, to!string(fmtValue.day));
+        toString(sink, fmtValue.day);
         put(sink, setting.dateSeparator);
-        pad(sink, to!string(fmtValue.year), 4, '0');
+        toString(sink, fmtValue.year, 4);
         put(sink, ' ');
-        put(sink, to!string(fmtValue.shortHour));
+        toString(sink, fmtValue.shortHour);
         put(sink, setting.timeSeparator);
-        pad(sink, to!string(fmtValue.minute), 2, '0');
+        toString(sink, fmtValue.minute, 2);
     }
 
     void putTime() nothrow @safe
     {
-        put(sink, to!string(fmtValue.shortHour));
+        toString(sink, fmtValue.shortHour);
         put(sink, setting.timeSeparator);
-        pad(sink, to!string(fmtValue.minute), 2, '0');
+        toString(sink, fmtValue.minute, 2);
     }
 
     uint result = 0;
-    while (fmtSpec.writeUpToNextSpec(sink))
+    FormatWriteResult wr = fmtSpec.writeUpToNextSpec(sink);
+    while (wr == FormatWriteResult.ok)
     {
         switch (fmtSpec.spec)
         {
             case FormatDateTimeSpecifier.custom:
-                putCustom();
+                if (putCustom() == FormatWriteResult.error)
+                    return formatedWriteError;
                 break;
             case FormatDateTimeSpecifier.fullShortDateTime: // 2009-06-15T13:1:30 -> Monday, June 15, 2009 1:01 PM
                 putFullDateTime();
@@ -616,7 +596,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
             case FormatDateTimeSpecifier.fullLongDateTime: // 2009-06-15T13:1:30 -> Monday, June 15, 2009 1:01:30 PM
                 putFullDateTime();
                 put(sink, setting.timeSeparator);
-                pad(sink, to!string(fmtValue.second), 2, '0');
+                toString(sink, fmtValue.second, 2);
                 putAMorPM();
                 break;
             case FormatDateTimeSpecifier.generalShortDateTime: // 2009-06-15T13:45:30 -> 6/15/2009 1:45 PM
@@ -626,43 +606,43 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
             case FormatDateTimeSpecifier.generalLongDateTime: // 2009-06-15T13:45:30 -> 6/15/2009 1:45:30 PM
                 putGeneralDateTime();
                 put(sink, setting.timeSeparator);
-                pad(sink, to!string(fmtValue.second), 2, '0');
+                toString(sink, fmtValue.second, 2);
                 putAMorPM();
                 break;
             case FormatDateTimeSpecifier.julianDay:
-                put(sink, to!string(fmtValue.julianDay));
+                toString(sink, fmtValue.julianDay);
                 break;
             case FormatDateTimeSpecifier.longDate: // 2009-06-15T13:45:30 -> Monday, June 15, 2009
                 put(sink, fmtValue.dayOfWeekName(setting));
                 put(sink, ", ");
                 put(sink, fmtValue.monthName(setting));
                 put(sink, ' ');
-                put(sink, to!string(fmtValue.day));
+                toString(sink, fmtValue.day);
                 put(sink, ", ");
-                pad(sink, to!string(fmtValue.year), 4, '0');
+                toString(sink, fmtValue.year, 4);
                 break;
             case FormatDateTimeSpecifier.longTime: // 2009-06-15T13:45:30 -> 1:45:30 PM
                 putTime();
                 put(sink, setting.timeSeparator);
-                pad(sink, to!string(fmtValue.second), 2, '0');
+                toString(sink, fmtValue.second, 2);
                 putAMorPM();
                 break;
             case FormatDateTimeSpecifier.monthDay: // 2009-06-15T13:45:30 -> June 15
                 put(sink, fmtValue.monthName(setting));
                 put(sink, ' ');
-                put(sink, to!string(fmtValue.day));
+                toString(sink, fmtValue.day);
                 break;
             case FormatDateTimeSpecifier.monthYear: // 2009-06-15T13:45:30 -> June 2009
                 put(sink, fmtValue.monthName(setting));
                 put(sink, ' ');
-                pad(sink, to!string(fmtValue.year), 4, '0');
+                toString(sink, fmtValue.year, 4);
                 break;
             case FormatDateTimeSpecifier.shortDate: // 2009-06-15T13:45:30 -> 6/15/2009
-                put(sink, to!string(fmtValue.month));
+                toString(sink, fmtValue.month);
                 put(sink, setting.dateSeparator);
-                put(sink, to!string(fmtValue.day));
+                toString(sink, fmtValue.day);
                 put(sink, setting.dateSeparator);
-                pad(sink, to!string(fmtValue.year), 4, '0');
+                toString(sink, fmtValue.year, 4);
                 break;
             case FormatDateTimeSpecifier.shortTime: // 2009-06-15T13:45:30 -> 1:45 PM
                 putTime();
@@ -672,11 +652,11 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 // Date part
                 if (fmtValue.kind != FormatDateTimeValue.ValueKind.time)
                 {
-                    pad(sink, to!string(fmtValue.year), 4, '0');
+                    toString(sink, fmtValue.year, 4);
                     put(sink, '-');
-                    pad(sink, to!string(fmtValue.month), 2, '0');
+                    toString(sink, fmtValue.month, 2);
                     put(sink, '-');
-                    pad(sink, to!string(fmtValue.day), 2, '0');
+                    toString(sink, fmtValue.day, 2);
 
                     // Has time?
                     if (fmtValue.kind != FormatDateTimeValue.ValueKind.date)
@@ -686,24 +666,24 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 // Time part
                 if (fmtValue.kind != FormatDateTimeValue.ValueKind.date)
                 {
-                    pad(sink, to!string(fmtValue.hour), 2, '0');
+                    toString(sink, fmtValue.hour, 2);
                     put(sink, ':');
-                    pad(sink, to!string(fmtValue.minute), 2, '0');
+                    toString(sink, fmtValue.minute, 2);
                     put(sink, ':');
-                    pad(sink, to!string(fmtValue.second), 2, '0');
+                    toString(sink, fmtValue.second, 2);
                     put(sink, '.');
-                    pad(sink, to!string(fmtValue.tick), Tick.ticksMaxPrecision, '0');
+                    toString(sink, fmtValue.tick, Tick.ticksMaxPrecision);
                 }
                 break;
             case FormatDateTimeSpecifier.sortableDateTimeLess: // 2009-06-15T13:45:30.000001 -> 2009-06-15T13:45:30
                 // Date part
                 if (fmtValue.kind != FormatDateTimeValue.ValueKind.time)
                 {
-                    pad(sink, to!string(fmtValue.year), 4, '0');
+                    toString(sink, fmtValue.year, 4);
                     put(sink, '-');
-                    pad(sink, to!string(fmtValue.month), 2, '0');
+                    toString(sink, fmtValue.month, 2);
                     put(sink, '-');
-                    pad(sink, to!string(fmtValue.day), 2, '0');
+                    toString(sink, fmtValue.day, 2);
 
                     // Has time?
                     if (fmtValue.kind != FormatDateTimeValue.ValueKind.date)
@@ -713,11 +693,11 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 // Time part
                 if (fmtValue.kind != FormatDateTimeValue.ValueKind.date)
                 {
-                    pad(sink, to!string(fmtValue.hour), 2, '0');
+                    toString(sink, fmtValue.hour, 2);
                     put(sink, ':');
-                    pad(sink, to!string(fmtValue.minute), 2, '0');
+                    toString(sink, fmtValue.minute, 2);
                     put(sink, ':');
-                    pad(sink, to!string(fmtValue.second), 2, '0');
+                    toString(sink, fmtValue.second, 2);
                 }
                 break;
             case FormatDateTimeSpecifier.utcFullDateTime: // 2009-06-15T13:45:30 -> Monday, June 15, 2009 1:45:30 PM
@@ -725,49 +705,52 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 put(sink, ", ");
                 put(sink, fmtValue.monthName(setting));
                 put(sink, ' ');
-                put(sink, to!string(fmtValue.day));
+                toString(sink, fmtValue.day);
                 put(sink, ", ");
-                pad(sink, to!string(fmtValue.year), 4, '0');
+                toString(sink, fmtValue.year, 4);
                 put(sink, ' ');
-                put(sink, to!string(fmtValue.shortHour));
+                toString(sink, fmtValue.shortHour);
                 put(sink, ':');
-                pad(sink, to!string(fmtValue.minute), 2, '0');
+                toString(sink, fmtValue.minute, 2);
                 put(sink, ':');
-                pad(sink, to!string(fmtValue.second), 2, '0');
+                toString(sink, fmtValue.second, 2);
                 putAMorPM();
                 break;
             case FormatDateTimeSpecifier.utcSortableDateTime: // 2009-06-15T13:45:30.0000001 -> 2009-06-15 13:45:30.0000001Z
-                pad(sink, to!string(fmtValue.year), 4, '0');
+                toString(sink, fmtValue.year, 4);
                 put(sink, '-');
-                pad(sink, to!string(fmtValue.month), 2, '0');
+                toString(sink, fmtValue.month, 2);
                 put(sink, '-');
-                pad(sink, to!string(fmtValue.day), 2, '0');
+                toString(sink, fmtValue.day, 2);
                 put(sink, ' ');
-                pad(sink, to!string(fmtValue.hour), 2, '0');
+                toString(sink, fmtValue.hour, 2);
                 put(sink, ':');
-                pad(sink, to!string(fmtValue.minute), 2, '0');
+                toString(sink, fmtValue.minute, 2);
                 put(sink, ':');
-                pad(sink, to!string(fmtValue.second), 2, '0');
+                toString(sink, fmtValue.second, 2);
                 put(sink, '.');
-                pad(sink, to!string(fmtValue.tick), Tick.ticksMaxPrecision, '0');
+                toString(sink, fmtValue.tick, Tick.ticksMaxPrecision);
                 put(sink, 'Z');
                 break;
             default:
                 assert(0);
         }
         result++;
+        wr = fmtSpec.writeUpToNextSpec(sink);
     }
-    return result;
+
+    return wr != FormatWriteResult.error ? result : formatedWriteError;
 }
 
-uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] fmt, scope ref FormatDateTimeValue fmtValue)
+uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope ref FormatDateTimeSpec!Char fmtSpec,
+    scope ref FormatDateTimeValue fmtValue) nothrow
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
-    auto fmtSpec = FormatDateTimeSpec!Char(fmt);
     auto setting = dateTimeSetting; // Use local var from a thread var for faster use
     return formattedWrite(sink, fmtSpec, fmtValue, setting);
 }
 
+version (none)
 void pad(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] value, ptrdiff_t size, Char c) nothrow pure
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
