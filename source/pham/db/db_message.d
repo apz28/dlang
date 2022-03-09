@@ -50,6 +50,7 @@ struct DbMessage
 
     static immutable eInvalidConnectionActive = "Cannot perform %s when connection '%s.%s' is opened";
     static immutable eInvalidConnectionActiveReader = "Connection-Reader is still active. Must be closed first";
+    static immutable eInvalidConnectionAuthClientData = "Unable to initialize authenticated type: %s.\n%s";
     static immutable eInvalidConnectionAuthServerData = "Malform/Invalid authenticated server data for authenticated type: %s.\n%s";
     static immutable eInvalidConnectionAuthUnsupportedName = "Unsupported authenticated type: %s";
     static immutable eInvalidConnectionAuthVerificationFailed = "Unable to verify authenticated server signature for type: %s";

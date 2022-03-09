@@ -38,6 +38,9 @@ struct DbTokenizer(S)
 nothrow @safe:
 
 public:
+    dchar replacementChar = dchar.max;
+
+public:
     this(S sql) pure
     {
         this._sql = sql;
@@ -58,8 +61,8 @@ public:
         if (sql.length == 0)
             return sql;
 
-        size_t prevP = 0, beginP = 0;
-        uint32 parameterNumber = 0; // Based 1 value
+        size_t prevP, beginP;
+        uint32 parameterNumber; // Based 1 value
         auto result = Appender!S();
         auto tokenizer = DbTokenizer!S(sql);
         while (!tokenizer.empty)
@@ -135,8 +138,7 @@ public:
             _kind = DbTokenKind.literal;
         }
 
-        size_t cCount = void;
-        const c = nextUTF8Char(_sql, _p, cCount);
+        const c = readChar();
         final switch (charKind(c))
         {
             case CharKind.space:
@@ -155,7 +157,7 @@ public:
                 if (_p < _sql.length)
                 {
                     const parameter2P = _p;
-                    if (isNameChar(nextUTF8Char(_sql, _p, cCount)))
+                    if (isNameChar(readChar()))
                     {
                         _beginP = parameter2P;
                         _currentToken = readName();
@@ -189,7 +191,7 @@ public:
                 if (_p < _sql.length)
                 {
                     const commentSingleP = _p;
-                    if (c == nextUTF8Char(_sql, _p, cCount))
+                    if (readChar() == c)
                     {
                         _currentToken = readCommentSingle();
                         _kind = DbTokenKind.comment;
@@ -204,7 +206,7 @@ public:
                 if (_p < _sql.length)
                 {
                     const commentMultiP = _p;
-                    if (nextUTF8Char(_sql, _p, cCount) == '*')
+                    if (readChar() == '*')
                     {
                         _currentToken = readCommentMulti();
                         _kind = DbTokenKind.comment;
@@ -321,13 +323,23 @@ private:
         return c == '\n' || c == '\r' || c == '\t' || isSpace(c);
     }
 
+    pragma(inline, true)
+    dchar readChar() @nogc pure
+    {
+        dchar cCode;
+        ubyte cCount;
+        if (!nextUTF8Char(_sql, _p, cCode, cCount))
+            cCode = replacementChar;
+        _p += cCount;
+        return cCode;
+    }
+
     S readCommentMulti() pure
     {
-        size_t cCount = void;
         dchar prevC = 0;
         while (_p < _sql.length)
         {
-            const c = nextUTF8Char(_sql, _p, cCount);
+            const c = readChar();
             if (c == '/' && prevC == '*')
                 return _sql[_beginP.._p];
             prevC = c;
@@ -339,10 +351,9 @@ private:
 
     S readCommentSingle() pure
     {
-        size_t cCount = void;
         while (_p < _sql.length)
         {
-            const c = nextUTF8Char(_sql, _p, cCount);
+            const c = readChar();
             if (c == 0x0A)
                 return _sql[_beginP.._p];
             else if (c == 0x0D)
@@ -351,7 +362,7 @@ private:
                 if (_p < _sql.length)
                 {
                     const saveP = _p;
-                    if (nextUTF8Char(_sql, _p, cCount) != 0x0A)
+                    if (readChar() != 0x0A)
                         _p = saveP;
                 }
                 return _sql[_beginP.._p];
@@ -362,11 +373,10 @@ private:
 
     S readLiteral() pure
     {
-        size_t cCount = void;
         while (_p < _sql.length)
         {
             const saveP = _p;
-            if (charKind(nextUTF8Char(_sql, _p, cCount)) != CharKind.literal)
+            if (charKind(readChar()) != CharKind.literal)
             {
                 _p = saveP;
                 break;
@@ -379,11 +389,10 @@ private:
     {
         //import pham.utl.test; dgWriteln("_beginP=", _beginP, ", _sql=", _sql[_beginP.._p]);
 
-        size_t cCount = void;
         while (_p < _sql.length)
         {
             const saveP = _p;
-            if (!isNameChar(nextUTF8Char(_sql, _p, cCount)))
+            if (!isNameChar(readChar()))
             {
                 _p = saveP;
                 break;
@@ -394,11 +403,10 @@ private:
 
     S readQuoted(const(dchar) endQuotedChar) pure
     {
-        size_t cCount = void;
         bool escaped;
         while (_p < _sql.length)
         {
-            const c = nextUTF8Char(_sql, _p, cCount);
+            const c = readChar();
             if (c == endQuotedChar && !escaped)
                 return _sql[_beginP.._p];
 
@@ -414,11 +422,10 @@ private:
 
     S readSpace() pure
     {
-        size_t cCount = void;
         while (_p < _sql.length)
         {
             const saveP = _p;
-            if (charKind(nextUTF8Char(_sql, _p, cCount)) != CharKind.space)
+            if (charKind(readChar()) != CharKind.space)
             {
                 _p = saveP;
                 break;

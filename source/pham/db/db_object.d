@@ -51,7 +51,7 @@ if (is(T == const(char)[]) || is(T == string))
         return "";
 
     auto buffer = Appender!string();
-    buffer.reserve(min(list.length * 50, 16000));
+    buffer.reserve(min(list.length * 50, 16_000));
     size_t i;
     foreach (ref e; list[])
     {
@@ -88,73 +88,66 @@ do
 {
     list.clear();
 
-    size_t p = 0;
-    size_t cnt;
-    dchar c;
-
-    bool skipSpaces()
-    {
-        while (p < values.length)
-        {
-            const prev = p;
-            c = nextUTF8Char(values, p, cnt);
-            if (!isWhite(c))
-            {
-                p = prev;
-                return true;
-            }
-        }
-        return false;
-    }
+    size_t p;
+    dchar cCode;
+    ubyte cCount;
 
     string readName()
     {
         const begin = p;
-        size_t end = values.length;
-        size_t lastSpace = 0;
-        while (p < values.length)
+        size_t end = values.length, lastSpace;
+        while (p < values.length && nextUTF8Char(values, p, cCode, cCount))
         {
-            const prev = p;
-            c = nextUTF8Char(values, p, cnt);
-            if (c == elementSeparator || c == valueSeparator)
+            if (cCode == elementSeparator || cCode == valueSeparator)
             {
-                end = prev;
+                end = p;
+                p += cCount;
                 break;
             }
-            else if (isWhite(c))
-                lastSpace = prev;
+            else if (isWhite(cCode))
+                lastSpace = p;
             else
                 lastSpace = 0;
+            p += cCount;
         }
-        if (lastSpace != 0)
-            return values[begin..lastSpace];
-        else
-            return values[begin..end];
+
+        return lastSpace != 0 ? values[begin..lastSpace] : values[begin..end];
     }
 
     string readValue()
     {
         const begin = p;
-        size_t end = values.length;
-        size_t lastSpace = 0;
-        while (p < values.length)
+        size_t end = values.length, lastSpace;
+        while (p < values.length && nextUTF8Char(values, p, cCode, cCount))
         {
-            const prev = p;
-            c = nextUTF8Char(values, p, cnt);
-            if (c == elementSeparator)
+            if (cCode == elementSeparator)
             {
-                end = prev;
+                end = p;
+                p += cCount;
                 break;
             }
-            else if (isWhite(c))
-                lastSpace = prev;
+            else if (isWhite(cCode))
+                lastSpace = p;
             else
                 lastSpace = 0;
+            p += cCount;
         }
-        if (lastSpace != 0)
-            return values[begin..lastSpace];
-        else
-            return values[begin..end];
+
+        return lastSpace != 0 ? values[begin..lastSpace] : values[begin..end];
+    }
+
+    bool skipSpaces()
+    {
+        while (p < values.length)
+        {
+            if (nextUTF8Char(values, p, cCode, cCount))
+            {
+                if (!isWhite(cCode))
+                    break;
+            }
+            p += cCount;
+        }
+        return p < values.length;
     }
 
     while (skipSpaces())

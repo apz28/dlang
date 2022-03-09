@@ -510,9 +510,7 @@ public:
     ref Writer toString(Writer, Char = char)(return ref Writer sink) const
     if (isOutputRange!(Writer, Char))
     {
-        scope (failure) assert(0);
-
-        _value.toString(sink, "%s");
+        _value.toString(sink);
 
         /* TODO
         if (zoneId != 0)

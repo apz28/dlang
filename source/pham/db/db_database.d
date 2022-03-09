@@ -2372,6 +2372,8 @@ abstract class DbDatabase : DbNameObject
 @safe:
 
 public:
+    dchar replacementChar = dchar.max;
+
     enum CharClass : byte
     {
         any,
@@ -2416,35 +2418,39 @@ public:
         if (value.length == 0)
             return value;
 
-        size_t p, lastP, cCount;
+        size_t p;
+        dchar cCode;
+        ubyte cCount;
 
         // Find the first quote char
-        while (p < value.length)
+        while (p < value.length && nextUTF8Char(value, p, cCode, cCount))
         {
-            const c = nextUTF8Char(value, p, cCount);
-            if (charClass(c) != CharClass.any)
+            if (charClass(cCode) != CharClass.any)
                 break;
-            lastP = p;
+            p += cCount;
         }
 
         // No quote char found?
-        if (lastP >= value.length)
+        if (p >= value.length)
             return value;
 
         auto result = Appender!string();
         result.reserve(value.length + 100);
-        if (lastP)
-            result.put(value[0..lastP]);
-        p = lastP;
+        if (p)
+            result.put(value[0..p]);
         while (p < value.length)
         {
-            const c = nextUTF8Char(value, p, cCount);
-            const cc = charClass(c);
+            if (!nextUTF8Char(value, p, cCode, cCount))
+                cCode = replacementChar;
+
+            const cc = charClass(cCode);
             if (cc == CharClass.quote)
-                result.put(c);
+                result.put(cCode);
             else if (cc == CharClass.backslash)
                 result.put('\\');
-            result.put(c);
+            result.put(cCode);
+
+            p += cCount;
         }
         return result.data;
     }
@@ -2454,32 +2460,36 @@ public:
         if (value.length == 0)
             return value;
 
-        size_t p, lastP, cCount;
+        size_t p;
+        dchar cCode;
+        ubyte cCount;
 
         // Find the first quote char
-        while (p < value.length)
+        while (p < value.length && nextUTF8Char(value, p, cCode, cCount))
         {
-            const c = nextUTF8Char(value, p, cCount);
-            if (charClass(c) != CharClass.any)
+            if (charClass(cCode) != CharClass.any)
                 break;
-            lastP = p;
+            p += cCount;
         }
 
         // No quote char found?
-        if (lastP >= value.length)
+        if (p >= value.length)
             return value;
 
         auto result = Appender!string();
         result.reserve(value.length + 100);
-        if (lastP)
-            result.put(value[0..lastP]);
-        p = lastP;
+        if (p)
+            result.put(value[0..p]);
         while (p < value.length)
         {
-            const c = nextUTF8Char(value, p, cCount);
-            if (charClass(c) != CharClass.any)
+            if (!nextUTF8Char(value, p, cCode, cCount))
+                cCode = replacementChar;
+
+            if (charClass(cCode) != CharClass.any)
                 result.put('\\');
-            result.put(c);
+            result.put(cCode);
+
+            p += cCount;
         }
         return result.data;
     }
