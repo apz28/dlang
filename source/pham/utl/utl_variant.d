@@ -114,7 +114,8 @@ public:
     }
 
     enum bool elaborateConstructor = !AllowedTypes.length
-        || anySatisfy!(hasElaborateCopyConstructor, AllowedTypes);
+        || anySatisfy!(hasElaborateCopyConstructor, AllowedTypes)
+        || MaxDataSize < maxSize!(AllowedTypes);
 
     enum bool elaborateDestructor = !AllowedTypes.length
         || anySatisfy!(hasElaborateDestructor, AllowedTypes);
@@ -1490,25 +1491,6 @@ private:
         }
     }
 
-    static bool canBoolCast() @nogc nothrow pure @safe
-    {
-        static if (is(T == void) || typeid(T) is typeid(null))
-        {
-            return false;
-        }
-        else
-        {
-            static if (is(T == bool) || isIntegral!T || isFloatingPoint!T
-                       || isSomeChar!T || isSomeString!T
-                       || isPointer!T || isArray!T || isAssociativeArray!T)
-                return true;
-            else static if (__traits(compiles, { bool _ = (*v).opCast!bool(); }))
-                return true;
-            else
-                return false;
-        }
-    }
-
     static bool hBoolCast(size_t size, scope void* store, ref bool result) nothrow pure @trusted
     {
         static if (is(T == void) || typeid(T) is typeid(null))
@@ -1950,16 +1932,14 @@ private:
 
     static void hPostblit(size_t size, scope void* store, scope void* tempStore) nothrow @trusted
     {
-        static if (hasElaborateCopyConstructor!T)
+        if (T.sizeof > size)
         {
-            if (T.sizeof > size)
-            {
-                hAssignSelf(size, store, size, tempStore);
-                memcpy(store, tempStore, size);
-            }
-            else
-                hConstruct(size, store);
+            hAssignSelf(size, store, size, tempStore);
+            memcpy(store, tempStore, size);
         }
+
+        static if (hasElaborateCopyConstructor!T)
+        hConstruct(size, store);
     }
 
     static size_t hToHash(size_t size, scope void* store) nothrow @safe
@@ -2048,6 +2028,26 @@ private:
         }
 
         *(cast(T**)dstStore) = prhs;
+    }
+
+    pragma(inline, true)
+    static bool canBoolCast() @nogc nothrow pure @safe
+    {
+        static if (is(T == void) || typeid(T) is typeid(null))
+        {
+            return false;
+        }
+        else
+        {
+            static if (is(T == bool) || isIntegral!T || isFloatingPoint!T
+                       || isSomeChar!T || isSomeString!T
+                       || isPointer!T || isArray!T || isAssociativeArray!T)
+                return true;
+            else static if (__traits(compiles, { bool _ = (*v).opCast!bool(); }))
+                return true;
+            else
+                return false;
+        }
     }
 
     version (none)
