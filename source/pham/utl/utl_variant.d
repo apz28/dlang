@@ -431,7 +431,7 @@ public:
         // if it's 'null' then it's equal to null, otherwise it's always greater
         // than 'null'
         const nullLhs = !isNull ? 1 : 0;
-        const nullRhs = nullTypeOf!T() == NullType.no ? 1 : 0;
+        const nullRhs = nullTypeOf!T() == NullType.value ? 1 : 0;
 
         if (nullLhs == 0 || nullRhs == 0)
             return cmpInteger!int(nullLhs, nullRhs);
@@ -494,7 +494,7 @@ public:
         // if it's 'null' then it's equal to null, otherwise it's always greater
         // than 'null'
         const nullLhs = !isNull ? 1 : 0;
-        const nullRhs = nullTypeOf!T() == NullType.no ? 1 : 0;
+        const nullRhs = nullTypeOf!T() == NullType.value ? 1 : 0;
 
         if (nullLhs == 0 || nullRhs == 0)
             return nullLhs == nullRhs;
@@ -790,7 +790,7 @@ public:
     */
     @property bool isNull() const nothrow pure @safe
     {
-        return  handler.nullType(size, pointer) != NullType.no;
+        return handler.nullType(size, pointer) != NullType.value;
     }
 
     /**
@@ -1354,9 +1354,9 @@ private:
 
 enum NullType : byte
 {
-    no,
     void_,
     null_,
+    value,
 }
 
 pragma(inline, true)
@@ -1380,7 +1380,7 @@ NullType nullTypeOf(T)() @nogc nothrow pure @safe
     else static if (typeid(T) is typeid(null))
         return NullType.null_;
     else
-        return NullType.no;
+        return NullType.value;
 }
 
 pragma(inline, true)
@@ -1919,13 +1919,13 @@ private:
         auto result = nullTypeOf!T();
         static if (__traits(compiles, () => T.init == null))
         {
-            if (result == NullType.no && *hValuePointer(size, store) == null)
-                result = NullType.null_;
+            if (result == NullType.value && *hValuePointer(size, store) == null)
+                return NullType.null_;
         }
         else static if (__traits(compiles, () => T.init is null))
         {
-            if (result == NullType.no && *hValuePointer(size, store) is null)
-                result = NullType.null_;
+            if (result == NullType.value && *hValuePointer(size, store) is null)
+                return NullType.null_;
         }
         return result;
     }
@@ -1963,18 +1963,24 @@ private:
             return false;
         else
         {
-            auto v = hValuePointer(size, store);
-            bool vConverted = true;
-            static if (__traits(compiles, { string _ = (*v).toString(); }))
-                result = (*v).toString();
-            else static if (is(typeof(to!string(*v))))
-                result = to!string(*v);
+            if (hNullType(size, store) != NullType.value)
+                return false;
+
+            static if (__traits(compiles, { T v; string _ = v.toString(); }))
+            {
+                result = (*hValuePointer(size, store)).toString();
+                return true;
+            }
+            else static if (is(typeof((T v) { return to!string(v); }(T.init))))
+            {
+                result = to!string(*hValuePointer(size, store));
+                return true;
+            }
             else
             {
                 //pragma(msg, typeid(T).stringof ~ ".toString()?");
-                vConverted = false;
+                return false;
             }
-            return vConverted;
         }
     }
 
@@ -2030,6 +2036,7 @@ private:
         *(cast(T**)dstStore) = prhs;
     }
 
+    version (none)
     pragma(inline, true)
     static bool canBoolCast() @nogc nothrow pure @safe
     {
@@ -2039,11 +2046,12 @@ private:
         }
         else
         {
-            static if (is(T == bool) || isIntegral!T || isFloatingPoint!T
+            static if (is(T == bool)
+                       || isIntegral!T || isFloatingPoint!T
                        || isSomeChar!T || isSomeString!T
                        || isPointer!T || isArray!T || isAssociativeArray!T)
                 return true;
-            else static if (__traits(compiles, { bool _ = (*v).opCast!bool(); }))
+            else static if (__traits(compiles, { bool _ = (T.init).opCast!bool(); }))
                 return true;
             else
                 return false;
@@ -4643,6 +4651,8 @@ nothrow @safe unittest // Variant.opCast!bool
     }
 
     Variant v; assert(v.toString() is null);
+    v = null; assert(v.toString() is null);
+    v = C.init; assert(v.toString() is null);
     v = Variant(42); assert(v.toString() == "42");
     v = Variant(42.22); assert(v.toString() == "42.22");
     v = "Hello World!"; assert(v.toString() == "Hello World!");
