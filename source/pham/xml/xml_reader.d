@@ -360,18 +360,13 @@ package:
     }
 
     static if (!isBlockReader)
+    pragma(inline, true)
     final void readCurrent(Buffer)(Buffer buffer)
     {
         static if (is(C == dchar))
             buffer.put(front);
         else
-        {
-            auto codes = currentCodes();
-            if (codes.length == 1)
-                buffer.put(codes[0]);
-            else
-                buffer.put(codes);
-        }
+            buffer.put(currentCodes());
     }
 
     final const(C)[] readDeclarationAttributeName(out ParseContext!S name)
