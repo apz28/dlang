@@ -336,7 +336,7 @@ DbAuth createAuthSrpSHA512()
     return new FbAuthSrpSHA512();
 }
 
-immutable PrimeGroup fbPrime;
+static immutable PrimeGroup fbPrime;
 
 shared static this()
 {

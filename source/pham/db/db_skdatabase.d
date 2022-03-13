@@ -27,7 +27,7 @@ import pham.db.type;
 import pham.db.util;
 import pham.db.value;
 
-immutable string[string] skDefaultParameterValues;
+static immutable string[string] skDefaultParameterValues;
 
 class SkCommand : DbCommand
 {

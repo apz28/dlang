@@ -1284,7 +1284,7 @@ unittest // DbNameValueList
     assert(list.exist("x"));
     assert(list.get("x") is null);
 
-    immutable delimiterText = "a=1,bcd=2, user id = 3, x=4 ";
+    static immutable delimiterText = "a=1,bcd=2, user id = 3, x=4 ";
     list.setDelimiterText(delimiterText, ',', '=');
     assert(list.length == 4, list.getDelimiterText(',', '='));
     assert(list.get("a") == "1", list.get("a"));

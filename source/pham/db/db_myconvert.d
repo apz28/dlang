@@ -83,7 +83,7 @@ uint8 dateEncode(ref ubyte[maxDateBufferSize] myDateBytes, scope const(Date) dat
 	return maxDateBufferSize;
 }
 
-immutable DateTimePattern[] datePatterns;
+static immutable DateTimePattern[] datePatterns;
 bool dateDecodeString(scope const(char)[] myDateString, ref DbDate dbDate)
 {
 	version (TraceFunction) traceFunction!("pham.db.mydatabase")("myDateString=", myDateString);
@@ -167,7 +167,7 @@ uint8 dateTimeEncode(ref ubyte[maxDateTimeBufferSize] myDateTimeBytes, scope con
 	return 8;
 }
 
-immutable DateTimePattern[] dateTimePatterns;
+static immutable DateTimePattern[] dateTimePatterns;
 bool dateTimeDecodeString(scope const(char)[] myDateTimeString, ref DbDateTime dbDateTime)
 {
 	version (TraceFunction) traceFunction!("pham.db.mydatabase")("myDateTimeString=", myDateTimeString);
@@ -311,7 +311,7 @@ uint8 timeSpanEncode(ref ubyte[maxTimeSpanBufferSize] myTimeSpanBytes, scope con
     }
 }
 
-immutable DateTimePattern[] timePatterns;
+static immutable DateTimePattern[] timePatterns;
 bool timeSpanDecodeString(scope const(char)[] myTimeString, ref DbTimeSpan dbTimeSpan)
 {
 	version (TraceFunction) traceFunction!("pham.db.mydatabase")("myTimeString=", myTimeString);

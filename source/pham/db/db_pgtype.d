@@ -31,13 +31,13 @@ alias PgDescriptorId = int32;
 
 enum pgNullValueLength = -1;
 
-immutable string pgAuthClearTextName = "ClearText";
-immutable string pgAuthMD5Name = "MD5";
-immutable string pgAuthScram256Name = "SCRAM-SHA-256";
+static immutable string pgAuthClearTextName = "ClearText";
+static immutable string pgAuthMD5Name = "MD5";
+static immutable string pgAuthScram256Name = "SCRAM-SHA-256";
 
-immutable string[string] pgDefaultParameterValues;
+static immutable string[string] pgDefaultParameterValues;
 
-immutable string[] pgValidParameterNames = [
+static immutable string[] pgValidParameterNames = [
     // Primary
     DbConnectionParameterIdentifier.server,
     DbConnectionParameterIdentifier.port,
@@ -79,9 +79,9 @@ immutable string[] pgValidParameterNames = [
     ];
 
 // https://www.postgresql.org/docs/12/libpq-connect.html#LIBPQ-PARAMKEYWORDS
-immutable string[string] pgMappedParameterNames;
+static immutable string[string] pgMappedParameterNames;
 
-immutable DbTypeInfo[] pgNativeTypes = [
+static immutable DbTypeInfo[] pgNativeTypes = [
     {dbName:"BOOLEAN", nativeName:"bool", displaySize:5, nativeSize:1, nativeId:PgOIdType.bool_, dbType:DbType.boolean},
     {dbName:"BLOB", nativeName:"bytea", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:PgOIdType.bytea, dbType:DbType.binary},
     {dbName:"CHAR(?)", nativeName:"char(?)", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:PgOIdType.bpchar, dbType:DbType.fixedString}, // Prefer multi chars[] over 1 char type
@@ -135,7 +135,7 @@ immutable DbTypeInfo[] pgNativeTypes = [
     //{dbName:"", nativeName:"", displaySize:, nativeSize:, nativeId:PgOIdType., dbType:DbType.},
     ];
 
-immutable DbTypeInfo*[int32] PgOIdTypeToDbTypeInfos;
+static immutable DbTypeInfo*[int32] PgOIdTypeToDbTypeInfos;
 
 enum CanSendParameter
 {

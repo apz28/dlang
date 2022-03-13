@@ -48,8 +48,8 @@ alias Numeric = Decimal128;
 
 nothrow @safe:
 
-immutable string anonymousParameterNameFmt = "_parameter%d";
-immutable string returnParameterName = "return";
+static immutable string anonymousParameterNameFmt = "_parameter%d";
+static immutable string returnParameterName = "return";
 
 enum hnsecsPerDay = convert!("hours", "hnsecs")(24);
 //enum hnsecsPerHour = convert!("hours", "hnsecs")(1);
@@ -58,10 +58,10 @@ enum nullDate = Date(1, 1, 1);
  /**
   * All possible values for conversion between bool and its' string
   */
-immutable string[] boolFalses = ["0", "False", "F", "No", "N"];
-immutable string[] boolTrues = ["1", "True", "T", "Yes", "Y"];
-immutable string dbBoolFalse = "False";
-immutable string dbBoolTrue = "True";
+static immutable string[] boolFalses = ["0", "False", "F", "No", "N"];
+static immutable string[] boolTrues = ["1", "True", "T", "Yes", "Y"];
+static immutable string dbBoolFalse = "False";
+static immutable string dbBoolTrue = "True";
 
 enum DbCommandExecuteType : ubyte
 {
@@ -1670,13 +1670,13 @@ public:
     DbType dbType;
 }
 
-immutable string[string] dbDefaultParameterValues;
+static immutable string[string] dbDefaultParameterValues;
 
 enum dynamicTypeSize = -1; // blob/text - no limit
 enum runtimeTypeSize = -2; // fixed/vary length string/array - limit
 enum unknownTypeSize = -3; // unknown or unsupport
 
-immutable DbTypeInfo[] dbNativeTypes = [
+static immutable DbTypeInfo[] dbNativeTypes = [
     // Native & Standard
     {dbName:"", nativeName:"bool", displaySize:5, nativeSize:bool.sizeof, nativeId:0, dbType:DbType.boolean},
     {dbName:"", nativeName:"byte", displaySize:4, nativeSize:int8.sizeof, nativeId:0, dbType:DbType.int8},
@@ -1733,10 +1733,10 @@ immutable DbTypeInfo[] dbNativeTypes = [
     {dbName:"", nativeName:"TimeTZ", displaySize:11, nativeSize:DbTime.sizeof, nativeId:0, dbType:DbType.timeTZ},
     ];
 
-immutable DbTypeInfo*[DbType] dbTypeToDbTypeInfos;
-immutable DbTypeInfo*[string] nativeNameToDbTypeInfos;
+static immutable DbTypeInfo*[DbType] dbTypeToDbTypeInfos;
+static immutable DbTypeInfo*[string] nativeNameToDbTypeInfos;
 
-immutable char dbSchemeSeparator = ':';
+static immutable char dbSchemeSeparator = ':';
 
 DbType dbArrayOf(DbType elementType) pure
 in

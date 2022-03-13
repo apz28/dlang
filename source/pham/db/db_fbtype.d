@@ -43,12 +43,12 @@ enum fbNullIndicator = -1;
 static if (fbDeferredProtocol)
 enum fbCommandDeferredHandle = FbHandle(0xFFFF_FFFF);
 
-immutable string fbAuthLegacyName = "Legacy_Auth";
-immutable string fbAuthSrp1Name = "Srp";
-immutable string fbAuthSrp256Name = "Srp256";
-immutable string fbAuthSrp384Name = "Srp384";
-immutable string fbAuthSrp512Name = "Srp512";
-immutable string fbAuthSSPIName = "Win_Sspi";
+static immutable string fbAuthLegacyName = "Legacy_Auth";
+static immutable string fbAuthSrp1Name = "Srp";
+static immutable string fbAuthSrp256Name = "Srp256";
+static immutable string fbAuthSrp384Name = "Srp384";
+static immutable string fbAuthSrp512Name = "Srp512";
+static immutable string fbAuthSSPIName = "Win_Sspi";
 
 enum FbIscCommandType : int32
 {
@@ -69,9 +69,9 @@ enum FbIscCommandType : int32
 	savePoint = FbIsc.isc_info_sql_stmt_savepoint,
 }
 
-immutable string[string] fbDefaultParameterValues;
+static immutable string[string] fbDefaultParameterValues;
 
-immutable string[] fbValidParameterNames = [
+static immutable string[] fbValidParameterNames = [
     // Primary
     DbConnectionParameterIdentifier.server,
     DbConnectionParameterIdentifier.port,
@@ -98,7 +98,7 @@ immutable string[] fbValidParameterNames = [
     DbConnectionParameterIdentifier.fbGarbageCollect,
     ];
 
-immutable DbTypeInfo[] fbNativeTypes = [
+static immutable DbTypeInfo[] fbNativeTypes = [
     {dbName:"VARCHAR[?]", nativeName:"VARCHAR", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:FbIscType.sql_varying, dbType:DbType.string}, //varchar
     {dbName:"CHAR[?]", nativeName:"CHAR", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:FbIscType.sql_text, dbType:DbType.fixedString}, //char[]
     {dbName:"DOUBLE", nativeName:"DOUBLE PRECISION", displaySize:17, nativeSize:8, nativeId:FbIscType.sql_double, dbType:DbType.float64},
@@ -125,7 +125,7 @@ immutable DbTypeInfo[] fbNativeTypes = [
     {dbName:"", nativeName:"NULL", displaySize:4, nativeSize:0, nativeId:FbIscType.sql_null, dbType:DbType.unknown},
     ];
 
-immutable DbTypeInfo*[int32] fbIscTypeToDbTypeInfos;
+static immutable DbTypeInfo*[int32] fbIscTypeToDbTypeInfos;
 
 struct FbIscAcceptDataResponse
 {

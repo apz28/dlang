@@ -53,10 +53,10 @@ enum MyCapabilityFlags : uint
     rememberOptions = 1u << 31, // Don't reset the options after an unsuccessful connect
 }
 
-immutable MyCharSet[] myCharSet = [
+static immutable MyCharSet[] myCharSet = [
     {name:"utf8", collation:"utf8_general_ci", id:33},
     {name:"utf8mb4", collation:"utf8mb4_0900_ai_ci", id:255}
-];
+    ];
 
 /// DB Operations Code
 enum MyCmdId : byte

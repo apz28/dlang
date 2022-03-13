@@ -1897,16 +1897,16 @@ private:
     int32 _serverVersion;
 }
 
-immutable ubyte[] describeBlobSizeInfoItems = [
+static immutable ubyte[] describeBlobSizeInfoItems = [
     FbIsc.isc_info_blob_max_segment,
     FbIsc.isc_info_blob_num_segments,
     FbIsc.isc_info_blob_total_length
-];
+    ];
 
-immutable ubyte[] describeServerVersionInfoItems = [
+static immutable ubyte[] describeServerVersionInfoItems = [
     FbIsc.isc_info_firebird_version,
     FbIsc.isc_info_end
-];
+    ];
 
 // Codes only support v13 and above
 static if (fbDeferredProtocol)
@@ -1919,20 +1919,21 @@ else
     alias protocolMinType = FbIsc.ptype_batch_send;
     alias protocolMaxType = FbIsc.ptype_batch_send;
 }
-immutable FbProtocolInfo[] describeProtocolItems = [
+
+static immutable FbProtocolInfo[] describeProtocolItems = [
     //FbProtocolInfo(FbIsc.protocol_version10, FbIsc.connect_generic_achitecture_client, FbIsc.ptype_rpc, FbIsc.ptype_batch_send, 1),
     //FbProtocolInfo(FbIsc.protocol_version11, FbIsc.connect_generic_achitecture_client, protocolMinType, protocolMaxType, 2),
     //FbProtocolInfo(FbIsc.protocol_version12, FbIsc.connect_generic_achitecture_client, protocolMinType, protocolMaxType, 3),
     FbProtocolInfo(FbIsc.protocol_version13, FbIsc.connect_generic_achitecture_client, protocolMinType, protocolMaxType, 4),
-];
+    ];
 
-immutable ubyte[] describeStatementExplaindPlanInfoItems = [
+static immutable ubyte[] describeStatementExplaindPlanInfoItems = [
     FbIsc.isc_info_sql_explain_plan
-];
+    ];
 
 // SQL information
 // If adding new block, update prepareCommandRead() with proper count
-immutable ubyte[] describeStatementInfoAndBindInfoItems = [
+static immutable ubyte[] describeStatementInfoAndBindInfoItems = [
     // Select block
     FbIsc.isc_info_sql_select,
     FbIsc.isc_info_sql_describe_vars,
@@ -1960,22 +1961,22 @@ immutable ubyte[] describeStatementInfoAndBindInfoItems = [
     //FbIsc.isc_info_sql_owner,
     FbIsc.isc_info_sql_alias,
     FbIsc.isc_info_sql_describe_end
-];
+    ];
 
 // SQL plan	information
-immutable ubyte[] describeStatementPlanInfoItems = [
+static immutable ubyte[] describeStatementPlanInfoItems = [
     FbIsc.isc_info_sql_get_plan
-];
+    ];
 
 // SQL records affected
-immutable ubyte[] describeStatementRowsAffectedInfoItems = [
+static immutable ubyte[] describeStatementRowsAffectedInfoItems = [
     FbIsc.isc_info_sql_records
-];
+    ];
 
 // SQL type
-immutable ubyte[] describeStatementTypeInfoItems = [
+static immutable ubyte[] describeStatementTypeInfoItems = [
     FbIsc.isc_info_sql_stmt_type
-];
+    ];
 
 
 // Any below codes are private

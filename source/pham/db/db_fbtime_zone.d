@@ -773,4 +773,4 @@ static immutable FbTimeZone[] timeZones = [
 	FbTimeZone("Zulu", 64904),
 	FbTimeZone("America/Nuuk", 64903),
 	FbTimeZone("Asia/Qostanay", 64902)
-];
+	];

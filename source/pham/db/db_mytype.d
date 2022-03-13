@@ -23,14 +23,14 @@ nothrow @safe:
 
 alias MyCommandId = int32;
 
-immutable string myAuthDefault = myAuthNativeName;
-immutable string myAuthNativeName = "mysql_native_password";
-immutable string myAuthScramSha1Name = "SCRAM-SHA-1";
-immutable string myAuthScramSha256Name = "SCRAM-SHA-256";
+static immutable string myAuthDefault = myAuthNativeName;
+static immutable string myAuthNativeName = "mysql_native_password";
+static immutable string myAuthScramSha1Name = "SCRAM-SHA-1";
+static immutable string myAuthScramSha256Name = "SCRAM-SHA-256";
 
-immutable string[string] myDefaultParameterValues;
+static immutable string[string] myDefaultParameterValues;
 
-immutable string[] myValidParameterNames = [
+static immutable string[] myValidParameterNames = [
     // Primary
     DbConnectionParameterIdentifier.server,
     DbConnectionParameterIdentifier.port,
@@ -54,7 +54,7 @@ immutable string[] myValidParameterNames = [
     DbConnectionParameterIdentifier.myAllowUserVariables,
     ];
 
-immutable DbTypeInfo[] myNativeTypes = [
+static immutable DbTypeInfo[] myNativeTypes = [
     {dbName:"DECIMAL", nativeName:"decimal", displaySize:34, nativeSize:Decimal.sizeof, nativeId:MyTypeId.decimal, dbType:DbType.decimal},
     {dbName:"BYTE", nativeName:"tinyint", displaySize:4, nativeSize:1, nativeId:MyTypeId.int8, dbType:DbType.int8},
     {dbName:"SMALLINT", nativeName:"smallint", displaySize:6, nativeSize:2, nativeId:MyTypeId.int16, dbType:DbType.int16},
@@ -93,9 +93,9 @@ immutable DbTypeInfo[] myNativeTypes = [
     //{dbName:"", nativeName:"", displaySize:-1, nativeSize:-1, nativeId:MyTypeIdEx., dbType:DbType.},
     ];
 
-immutable DbType[string] mySimpleTypes;
+static immutable DbType[string] mySimpleTypes;
 
-immutable DbTypeInfo*[int32] myOIdTypeToDbTypeInfos;
+static immutable DbTypeInfo*[int32] myOIdTypeToDbTypeInfos;
 
 alias MyBlockHeader = Map32Bit;
 
