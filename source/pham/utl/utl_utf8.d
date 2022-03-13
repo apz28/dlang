@@ -1380,11 +1380,11 @@ enum unicodeSurr2UTF16 = 0xDC00;
 enum unicodeSurr3UTF16 = 0xE000;
 enum unicodeSurrSelfUTF16 = 0x1_0000;
 
-immutable uint[] unicodeOffsetsFromUTF8 = [
+static immutable uint[] unicodeOffsetsFromUTF8 = [
     0x0000_0000, 0x0000_3080, 0x000E_2080, 0x03C8_2080, 0xFA08_2080, 0x8208_2080,
     ];
 
-immutable ubyte[] unicodeTrailingBytesForUTF8 = [
+static immutable ubyte[] unicodeTrailingBytesForUTF8 = [
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,

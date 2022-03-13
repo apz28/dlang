@@ -1582,8 +1582,8 @@ private:
 		"insufficient memory",
 		"buffer error",
 		"incompatible version",
-		""
-	];
+		"",
+		];
 
 	// preset dictionary flag in zlib header
 	enum int PRESET_DICT = 0x20;

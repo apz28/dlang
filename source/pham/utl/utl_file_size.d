@@ -52,7 +52,7 @@ public:
         //{"EB", 1L << 60},
         //{"ZB", 1L << 70},
         //{"YB", 1L << 80},
-    ];
+        ];
 
     static ptrdiff_t suffixIndex(scope const(char)[] suffix) @nogc nothrow pure
     {
