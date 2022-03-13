@@ -502,31 +502,31 @@ void throwOutOfRange(ErrorPart error)(long outOfRangeValue) pure
         static assert(0);
 }
 
-immutable AmPmTexts usAmPmTexts = ["AM", "PM"];
+static immutable AmPmTexts usAmPmTexts = ["AM", "PM"];
 
 // Must match order of DayOfWeek
-immutable DayOfWeekNames usDayOfWeekNames = [
+static immutable DayOfWeekNames usDayOfWeekNames = [
     "Sunday",
     "Monday",
     "Tuesday",
     "Wednesday",
     "Thursday",
     "Friday",
-    "Saturday"
+    "Saturday",
     ];
 
-immutable DayOfWeekNames usShortDayOfWeekNames = [
+static immutable DayOfWeekNames usShortDayOfWeekNames = [
     "Sun",
     "Mon",
     "Tue",
     "Wed",
     "Thu",
     "Fri",
-    "Sat"
+    "Sat",
     ];
 
 // Must match order of Month
-immutable MonthNames usMonthNames = [
+static immutable MonthNames usMonthNames = [
     "January",
     "February",
     "March",
@@ -538,10 +538,10 @@ immutable MonthNames usMonthNames = [
     "September",
     "October",
     "November",
-    "December"
+    "December",
     ];
 
-immutable MonthNames usShortMonthNames = [
+static immutable MonthNames usShortMonthNames = [
     "Jan",
     "Feb",
     "Mar",
@@ -553,7 +553,7 @@ immutable MonthNames usShortMonthNames = [
     "Sep",
     "Oct",
     "Nov",
-    "Dec"
+    "Dec",
     ];
 
 DateTimeSetting dateTimeSetting;
