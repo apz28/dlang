@@ -21,7 +21,14 @@ version = RelaxCompareTime;
 
 @safe:
 
-enum DateTimeKind : byte
+enum DateTimeKind : ubyte
+{
+    date,
+    dateTime,
+    time,
+}
+
+enum DateTimeZoneKind : ubyte
 {
     unspecified = 0,
     utc = 1,
@@ -185,25 +192,25 @@ struct TickData
     }
 
     pragma(inline, true)
-    static TickData createDateTimeTick(ulong ticks, DateTimeKind kind) pure
+    static TickData createDateTimeTick(ulong ticks, DateTimeZoneKind kind) pure
     {
         return TickData((ticks & dateTimeTicksMask) | (cast(ulong)kind << kindShift));
     }
 
     pragma(inline, true)
-    static TickData createTimeTick(ulong ticks, DateTimeKind kind) pure
+    static TickData createTimeTick(ulong ticks, DateTimeZoneKind kind) pure
     {
         return TickData((ticks & timeTicksMask) | (cast(ulong)kind << kindShift));
     }
 
     pragma(inline, true)
-    static bool isCompatibleKind(const(DateTimeKind) lhs, const(DateTimeKind) rhs) pure
+    static bool isCompatibleKind(const(DateTimeZoneKind) lhs, const(DateTimeZoneKind) rhs) pure
     {
         // Unspecified ~ Local
         // UTC != Local
         // UTC != Unspecified
         return (lhs == rhs)
-            || (lhs != DateTimeKind.utc && rhs != DateTimeKind.utc);
+            || (lhs != DateTimeZoneKind.utc && rhs != DateTimeZoneKind.utc);
     }
 
     pragma(inline, true)
@@ -222,7 +229,7 @@ struct TickData
         return Tick.toHash(data);
     }
 
-    TickData toTickKind(DateTimeKind kind) const pure scope
+    TickData toTickKind(DateTimeZoneKind kind) const pure scope
     {
         return TickData(uticks | (cast(ulong)kind << kindShift));
     }
@@ -234,12 +241,12 @@ struct TickData
     }
 
     pragma(inline, true)
-    @property DateTimeKind kind() const pure scope
+    @property DateTimeZoneKind kind() const pure scope
     {
         const ik = internalKind;
         return ik == kindUnspecified
-            ? DateTimeKind.unspecified
-            : (ik == kindUtc ? DateTimeKind.utc : DateTimeKind.local);
+            ? DateTimeZoneKind.unspecified
+            : (ik == kindUtc ? DateTimeZoneKind.utc : DateTimeZoneKind.local);
     }
 
     pragma(inline, true)
@@ -386,14 +393,14 @@ nothrow @safe:
     char timeSeparator = ':';
 }
 
-enum ErrorOp : byte
+enum ErrorOp : ubyte
 {
     none,
     underflow,
     overflow,
 }
 
-enum ErrorPart : byte
+enum ErrorPart : ubyte
 {
     none,
     tick,

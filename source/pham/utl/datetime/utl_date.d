@@ -21,15 +21,15 @@ import pham.utl.datetime.time_zone : TimeZoneInfo;
 
 @safe:
 
-enum DayOfWeek : byte
+enum DayOfWeek : ubyte
 {
-    sunday = 0, ///
-    monday,     ///
-    tuesday,    ///
-    wednesday,  ///
-    thursday,   ///
-    friday,     ///
-    saturday,   ///
+    sunday = 0,
+    monday,
+    tuesday,
+    wednesday,
+    thursday,
+    friday,
+    saturday,
 }
 
 enum firstDayOfMonth = 1;
@@ -406,7 +406,7 @@ public:
      * that have elapsed since 1/1/0001 12:00am.
      */
     this(long ticks,
-        DateTimeKind kind = DateTimeKind.unspecified) @nogc nothrow pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) @nogc nothrow pure
     in
     {
         assert(isValidTicks(ticks) == ErrorOp.none);
@@ -422,7 +422,7 @@ public:
     }
 
     this(int year, int month, int day, int hour, int minute, int second, int millisecond,
-        DateTimeKind kind = DateTimeKind.unspecified) @nogc nothrow pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) @nogc nothrow pure
     in
     {
         assert(isValidDateParts(year, month, day) == ErrorPart.none);
@@ -447,7 +447,7 @@ public:
     }
 
     this(int year, int month, int day, int hour, int minute, int second,
-        DateTimeKind kind = DateTimeKind.unspecified) @nogc nothrow pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) @nogc nothrow pure
     in
     {
         assert(isValidDateParts(year, month, day) == ErrorPart.none);
@@ -470,7 +470,7 @@ public:
     }
 
     this(int year, int month, int day, int hour, int minute,
-        DateTimeKind kind = DateTimeKind.unspecified) @nogc nothrow pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) @nogc nothrow pure
     in
     {
         assert(isValidDateParts(year, month, day) == ErrorPart.none);
@@ -482,7 +482,7 @@ public:
     }
 
     this(int year, int month, int day,
-        DateTimeKind kind = DateTimeKind.unspecified) @nogc nothrow pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) @nogc nothrow pure
     in
     {
         assert(isValidDateParts(year, month, day) == ErrorPart.none);
@@ -757,7 +757,7 @@ public:
     }
 
     static DateTime createDateTime(long ticks,
-        DateTimeKind kind = DateTimeKind.unspecified) pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) pure
     {
         if (isValidTicks(ticks) != ErrorOp.none)
             throwOutOfRange!(ErrorPart.tick)(ticks);
@@ -765,7 +765,7 @@ public:
     }
 
     static DateTime createDateTime(int year, int month, int day, int hour, int minute, int second, int millisecond,
-        DateTimeKind kind = DateTimeKind.unspecified) pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) pure
     {
         checkDateParts(year, month, day);
         checkTimeParts(hour, minute, second, millisecond);
@@ -779,7 +779,7 @@ public:
     }
 
     static DateTime createDateTime(int year, int month, int day, int hour, int minute, int second,
-        DateTimeKind kind = DateTimeKind.unspecified) pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) pure
     {
         checkDateParts(year, month, day);
         checkTimeParts(hour, minute, second, 0);
@@ -793,7 +793,7 @@ public:
     }
 
     static DateTime createDateTime(int year, int month, int day, int hour, int minute,
-        DateTimeKind kind = DateTimeKind.unspecified) pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) pure
     {
         checkDateParts(year, month, day);
         checkTimeParts(hour, minute, 0, 0);
@@ -801,7 +801,7 @@ public:
     }
 
     static DateTime createDateTime(int year, int month, int day,
-        DateTimeKind kind = DateTimeKind.unspecified) pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) pure
     {
         checkDateParts(year, month, day);
         return DateTime(year, month, day, kind);
@@ -976,7 +976,7 @@ public:
             : (ticks > maxTicks ? ErrorOp.overflow : ErrorOp.none);
     }
 
-    static ErrorOp isValidTimeWithLeapSeconds(int year, int month, int day, int hour, int minute, DateTimeKind kind) @nogc nothrow pure
+    static ErrorOp isValidTimeWithLeapSeconds(int year, int month, int day, int hour, int minute, DateTimeZoneKind kind) @nogc nothrow pure
     {
         return ErrorOp.none; //todo
     }
@@ -1066,7 +1066,7 @@ public:
      */
     static bool tryCreate(int year, int month, int day, int hour, int minute, int second, int millisecond,
         out DateTime result,
-        DateTimeKind kind = DateTimeKind.unspecified) @nogc nothrow pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) @nogc nothrow pure
     {
         if (isValidDateParts(year, month, day) != ErrorPart.none)
         {
@@ -1086,7 +1086,7 @@ public:
         {
             ticks += Tick.timeToTicks(hour, minute, second) + (cast(uint)millisecond * cast(uint)Tick.ticksPerMillisecond);
         }
-        else if (second == 60 && Tick.s_systemSupportsLeapSeconds && isValidTimeWithLeapSeconds(year, month, day, hour, minute, DateTimeKind.unspecified))
+        else if (second == 60 && Tick.s_systemSupportsLeapSeconds && isValidTimeWithLeapSeconds(year, month, day, hour, minute, DateTimeZoneKind.unspecified))
         {
             // if we have leap second (second = 60) then we'll need to check if it is valid time.
             // if it is valid, then we adjust the second to 59 so DateTime will consider this second is last second
@@ -1109,7 +1109,7 @@ public:
     /**
      * Returns DateTime as requested parameter, kind, without any conversion/adjustment
      */
-    DateTime asKind(DateTimeKind kind) const @nogc nothrow pure
+    DateTime asKind(DateTimeZoneKind kind) const @nogc nothrow pure
     {
         return DateTime(data.toTickKind(kind));
     }
@@ -1119,7 +1119,7 @@ public:
      */
     @property DateTime asUTC() const @nogc nothrow pure
     {
-        return DateTime(data.toTickKind(DateTimeKind.utc));
+        return DateTime(data.toTickKind(DateTimeZoneKind.utc));
     }
 
     @property int century() const @nogc nothrow pure
@@ -1201,7 +1201,7 @@ public:
         return totalDays + (hour >= 12 ? 1 : 0);
     }
 
-    @property DateTimeKind kind() const @nogc nothrow pure
+    @property DateTimeZoneKind kind() const @nogc nothrow pure
     {
         return data.kind;
     }
@@ -1499,7 +1499,7 @@ private:
     static immutable int[] s_daysToMonth365 = [ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365 ];
     static immutable int[] s_daysToMonth366 = [ 0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366 ];
 
-    enum DatePart : byte
+    enum DatePart : ubyte
     {
         year,
         dayOfYear,

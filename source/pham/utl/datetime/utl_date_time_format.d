@@ -57,24 +57,16 @@ struct FormatDateTimeValue
 nothrow @safe:
 
 public:
-    enum ValueKind : byte
-    {
-        date,
-        dateTime,
-        time,
-    }
-
-public:
     this(in Date date) @nogc pure
     {
-        this._kind = ValueKind.date;
+        this._kind = DateTimeKind.date;
         this.date = date;
         date.getDate(_year, _month, _day);
     }
 
     this(in DateTime dateTime) @nogc pure
     {
-        this._kind = ValueKind.dateTime;
+        this._kind = DateTimeKind.dateTime;
         this.dateTime = dateTime;
         dateTime.getDate(_year, _month, _day);
         dateTime.getTimePrecise(_hour, _minute, _second, _tick);
@@ -83,7 +75,7 @@ public:
 
     this(in Time time) @nogc pure
     {
-        this._kind = ValueKind.time;
+        this._kind = DateTimeKind.time;
         this.time = time;
         time.getTimePrecise(_hour, _minute, _second, _tick);
         this._millisecond = TickPart.tickToMillisecond(_tick);
@@ -91,21 +83,21 @@ public:
 
     string amPM(scope const ref DateTimeSetting setting) const pure
     {
-        return kind != ValueKind.date && setting.amPmTexts !is null
+        return kind != DateTimeKind.date && setting.amPmTexts !is null
             ? (*setting.amPmTexts)[hour >= 12]
             : null;
     }
 
     string dayOfWeekName(scope const ref DateTimeSetting setting) const pure
     {
-        return kind != ValueKind.time
+        return kind != DateTimeKind.time
             ? (*setting.dayOfWeekNames)[dayOfWeek - firstDayOfWeek]
             : null;
     }
 
     string monthName(scope const ref DateTimeSetting setting) const pure
     {
-        return kind != ValueKind.time
+        return kind != DateTimeKind.time
             ? (*setting.monthNames)[month - firstDayOfMonth]
             : null;
     }
@@ -124,16 +116,16 @@ public:
     {
         final switch (kind)
         {
-            case ValueKind.date:
+            case DateTimeKind.date:
                 return date.dayOfWeek;
-            case ValueKind.dateTime:
+            case DateTimeKind.dateTime:
                 return dateTime.dayOfWeek;
-            case ValueKind.time:
+            case DateTimeKind.time:
                 return firstDayOfWeek;
         }
     }
 
-    @property ValueKind kind() const @nogc pure
+    @property DateTimeKind kind() const @nogc pure
     {
         return _kind;
     }
@@ -147,11 +139,11 @@ public:
     {
         final switch (kind)
         {
-            case ValueKind.date:
+            case DateTimeKind.date:
                 return date.julianDay;
-            case ValueKind.dateTime:
+            case DateTimeKind.dateTime:
                 return dateTime.julianDay;
-            case ValueKind.time:
+            case DateTimeKind.time:
                 return time.julianDay;
         }
     }
@@ -204,10 +196,10 @@ private:
         Time time;
     }
     int _year, _month, _day, _hour, _minute, _second, _millisecond, _tick;
-    ValueKind _kind;
+    DateTimeKind _kind;
 }
 
-enum FormatWriteResult : byte
+enum FormatWriteResult : ubyte
 {
     ok,
     done,
@@ -650,7 +642,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 break;
             case FormatDateTimeSpecifier.sortableDateTime: // 2009-06-15T13:45:30.0000001 -> 2009-06-15T13:45:30.0000001
                 // Date part
-                if (fmtValue.kind != FormatDateTimeValue.ValueKind.time)
+                if (fmtValue.kind != DateTimeKind.time)
                 {
                     toString(sink, fmtValue.year, 4);
                     put(sink, '-');
@@ -659,12 +651,12 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     toString(sink, fmtValue.day, 2);
 
                     // Has time?
-                    if (fmtValue.kind != FormatDateTimeValue.ValueKind.date)
+                    if (fmtValue.kind != DateTimeKind.date)
                         put(sink, 'T');
                 }
 
                 // Time part
-                if (fmtValue.kind != FormatDateTimeValue.ValueKind.date)
+                if (fmtValue.kind != DateTimeKind.date)
                 {
                     toString(sink, fmtValue.hour, 2);
                     put(sink, ':');
@@ -677,7 +669,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 break;
             case FormatDateTimeSpecifier.sortableDateTimeLess: // 2009-06-15T13:45:30.000001 -> 2009-06-15T13:45:30
                 // Date part
-                if (fmtValue.kind != FormatDateTimeValue.ValueKind.time)
+                if (fmtValue.kind != DateTimeKind.time)
                 {
                     toString(sink, fmtValue.year, 4);
                     put(sink, '-');
@@ -686,12 +678,12 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     toString(sink, fmtValue.day, 2);
 
                     // Has time?
-                    if (fmtValue.kind != FormatDateTimeValue.ValueKind.date)
+                    if (fmtValue.kind != DateTimeKind.date)
                         put(sink, 'T');
                 }
 
                 // Time part
-                if (fmtValue.kind != FormatDateTimeValue.ValueKind.date)
+                if (fmtValue.kind != DateTimeKind.date)
                 {
                     toString(sink, fmtValue.hour, 2);
                     put(sink, ':');

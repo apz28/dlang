@@ -23,21 +23,14 @@ import pham.utl.datetime.time_zone : TimeZoneInfo;
 
 @safe:
 
-enum DateOrder : byte
+enum DateOrder : ubyte
 {
-    ymd = 0,  /// Year-Month-Day
-    dmy = 1,  /// Day-Month-Year
-    mdy = 2,  /// Month-Day-Year
+    ymd,  /// Year-Month-Day
+    dmy,  /// Day-Month-Year
+    mdy,  /// Month-Day-Year
 }
 
-enum ParseType : byte
-{
-    date,
-    dateTime,
-    time,
-}
-
-enum PatternKind : byte
+enum PatternKind : ubyte
 {
     year,
     month,
@@ -53,11 +46,12 @@ enum PatternKind : byte
     literal,
 }
 
-enum SkipBlank : byte
+enum SkipBlank : ubyte
 {
-    leading = 1,
-    inner = 2,
-    trailing = 4,
+    none,
+    leading,
+    inner,
+    trailing,
 }
 
 struct PatternMarker
@@ -219,7 +213,7 @@ nothrow @safe:
     char dateSeparator = '/';
     char timeSeparator = ':';
     SkipBlank skipBlanks = cast(SkipBlank)(SkipBlank.leading | SkipBlank.inner | SkipBlank.trailing);
-    DateTimeKind defaultKind = DateTimeKind.local;
+    DateTimeZoneKind defaultKind = DateTimeZoneKind.local;
 }
 
 struct DateTimePatternInfo
@@ -227,7 +221,7 @@ struct DateTimePatternInfo
 nothrow @safe:
 
 public:
-    this(ParseType parseType, scope const(char)[] pattern) @nogc pure
+    this(DateTimeKind parseType, scope const(char)[] pattern) @nogc pure
     in
     {
         assert(pattern.length != 0);
@@ -386,7 +380,7 @@ public:
     size_t elementl, separatorDateCount, separatorTimeCount;
     PatternElement[maxElementLength] elements;
     DateOrder dateOrder;
-    ParseType parseType;
+    DateTimeKind parseType;
 
 private:
     pragma(inline, true)
@@ -407,28 +401,28 @@ struct DateTimeParser
 nothrow @safe:
 
 public:
-    this(ParseType parseType) @nogc pure
+    this(DateTimeKind parseType) @nogc pure
     {
         this.parseType = parseType;
     }
 
-    DateTimeKind constructTimeKind(scope const ref DateTimePattern pattern) const @nogc pure
+    DateTimeZoneKind constructTimeKind(scope const ref DateTimePattern pattern) const @nogc pure
     {
         return zoneAdjustment
-            ? (zoneAdjustmentBias ? DateTimeKind.unspecified : DateTimeKind.utc)
+            ? (zoneAdjustmentBias ? DateTimeZoneKind.unspecified : DateTimeZoneKind.utc)
             : pattern.defaultKind;
     }
 
-    DateTimeKind convertTimeKind(scope const ref DateTimePattern pattern, ref Duration bias) const @nogc pure
+    DateTimeZoneKind convertTimeKind(scope const ref DateTimePattern pattern, ref Duration bias) const @nogc pure
     {
-        if (pattern.defaultKind == DateTimeKind.unspecified)
-            return DateTimeKind.unspecified;
+        if (pattern.defaultKind == DateTimeZoneKind.unspecified)
+            return DateTimeZoneKind.unspecified;
 
         bias = zoneAdjustmentBias;
-        return zoneAdjustment ? pattern.defaultKind : DateTimeKind.unspecified;
+        return zoneAdjustment ? pattern.defaultKind : DateTimeZoneKind.unspecified;
     }
 
-    static DateTimePatternInfo getPatternInfo(ParseType parseType, string patternText) @trusted
+    static DateTimePatternInfo getPatternInfo(DateTimeKind parseType, string patternText) @trusted
     {
         if (__ctfe)
             return DateTimePatternInfo(parseType, patternText);
@@ -627,12 +621,12 @@ public:
         // Check for missing data error
         final switch (parseType)
         {
-            case ParseType.date:
-            case ParseType.dateTime:
+            case DateTimeKind.date:
+            case DateTimeKind.dateTime:
                 if (!hasDate)
                     return 0; // First position as error
                 break;
-            case ParseType.time:
+            case DateTimeKind.time:
                 if (!hasTime)
                     return 0; // First position as error
                 break;
@@ -810,21 +804,21 @@ public:
     size_t p, endP, fractionDigitCount, hourDigitCount, yearDigitCount;
     int year, month, day;
     int hour, minute, second, fraction, hourAdjustment, zoneAdjustment, zoneAdjustmentHour, zoneAdjustmentMinute;
-    ParseType parseType;
+    DateTimeKind parseType;
     bool hasTime;
 }
 
 ptrdiff_t tryParse(T)(scope const(char)[] dateTimeText, const ref DateTimePattern pattern, out T result) nothrow
 if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
 {
-    ParseType getParseType() @nogc nothrow pure
+    DateTimeKind getParseType() @nogc nothrow pure
     {
         static if (is(Unqual!T == Date))
-            return ParseType.date;
+            return DateTimeKind.date;
         else static if (is(Unqual!T == DateTime))
-            return ParseType.dateTime;
+            return DateTimeKind.dateTime;
         else static if (is(Unqual!T == Time))
-            return ParseType.time;
+            return DateTimeKind.time;
         else
             static assert(0);
     }
@@ -834,9 +828,9 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
     const parseResult = parser.parse(dateTimeText, pattern);
     if (parseResult == DateTimeParser.noError)
     {
-        static if (parseType == ParseType.date)
+        static if (parseType == DateTimeKind.date)
             result = Date(parser.year, parser.month, parser.day);
-        else static if (parseType == ParseType.dateTime)
+        else static if (parseType == DateTimeKind.dateTime)
         {
             const fromKind = parser.constructTimeKind(pattern);
             if (parser.isFraction)
@@ -854,15 +848,15 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
             // Convert to expected timezone?
             Duration bias;
             const toKind = parser.convertTimeKind(pattern, bias);
-            if (toKind != DateTimeKind.unspecified && toKind != fromKind)
+            if (toKind != DateTimeZoneKind.unspecified && toKind != fromKind)
             {
                 auto utcDT = bias == Duration.zero
-                    ? DateTime(result.sticks, DateTimeKind.utc)
-                    : DateTime(result.addTicksSafe(-bias).sticks, DateTimeKind.utc);
-                result = toKind == DateTimeKind.utc ? utcDT : TimeZoneInfo.convertUtcToLocal(utcDT);
+                    ? DateTime(result.sticks, DateTimeZoneKind.utc)
+                    : DateTime(result.addTicksSafe(-bias).sticks, DateTimeZoneKind.utc);
+                result = toKind == DateTimeZoneKind.utc ? utcDT : TimeZoneInfo.convertUtcToLocal(utcDT);
             }
         }
-        else static if (parseType == ParseType.time)
+        else static if (parseType == DateTimeKind.time)
         {
             if (parser.isFraction)
             {
@@ -875,12 +869,12 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
             // Convert to expected timezone?
             Duration bias;
             const toKind = parser.convertTimeKind(pattern, bias);
-            if (toKind != DateTimeKind.unspecified && toKind != parser.constructTimeKind(pattern))
+            if (toKind != DateTimeZoneKind.unspecified && toKind != parser.constructTimeKind(pattern))
             {
                 auto utcDT = bias == Duration.zero
                     ? DateTime(DateTime.utcNow.date, result.asUTC)
                     : DateTime(DateTime.utcNow.date, result.asUTC).addTicksSafe(-bias);
-                result = toKind == DateTimeKind.utc ? utcDT.time : TimeZoneInfo.convertUtcToLocal(utcDT).time;
+                result = toKind == DateTimeZoneKind.utc ? utcDT.time : TimeZoneInfo.convertUtcToLocal(utcDT).time;
             }
         }
         else
@@ -925,7 +919,7 @@ struct CacheDateTimePatternInfoKey
 {
 nothrow @safe:
 
-    this(ParseType parseType, string patternText) pure
+    this(DateTimeKind parseType, string patternText) pure
     {
         this.parseType = parseType;
         this.patternText = patternText;
@@ -942,7 +936,7 @@ nothrow @safe:
     }
 
     string patternText;
-    ParseType parseType;
+    DateTimeKind parseType;
 }
 
 DateTimePatternInfo[CacheDateTimePatternInfoKey] cacheDateTimePatternInfos;
@@ -954,7 +948,7 @@ unittest // DateTimePatternInfo
 
     DateTimePatternInfo p;
 
-    p = DateTimePatternInfo(ParseType.dateTime, "yyyy/mm/ddThh:nn:ss.zzzzzzz");
+    p = DateTimePatternInfo(DateTimeKind.dateTime, "yyyy/mm/ddThh:nn:ss.zzzzzzz");
     assert(p.dateOrder == DateOrder.ymd);
     assert(p.elementl == 13);
     assert(p.elements[0].kind == PatternKind.year);
@@ -978,7 +972,7 @@ unittest // DateTimePatternInfo
     assert(p.elements[12].kind == PatternKind.fraction);
     assert(p.elements[12].length == 7);
 
-    p = DateTimePatternInfo(ParseType.date, "dd/mm/yy");
+    p = DateTimePatternInfo(DateTimeKind.date, "dd/mm/yy");
     assert(p.dateOrder == DateOrder.dmy);
     assert(p.elementl == 5);
     assert(p.elements[0].kind == PatternKind.day);
@@ -990,7 +984,7 @@ unittest // DateTimePatternInfo
     assert(p.elements[4].kind == PatternKind.year);
     assert(p.elements[4].length == 2);
 
-    p = DateTimePatternInfo(ParseType.date, "mm/dd/yyyy");
+    p = DateTimePatternInfo(DateTimeKind.date, "mm/dd/yyyy");
     assert(p.dateOrder == DateOrder.mdy);
     assert(p.elementl == 5);
     assert(p.elements[0].kind == PatternKind.month);
@@ -1002,7 +996,7 @@ unittest // DateTimePatternInfo
     assert(p.elements[4].kind == PatternKind.year);
     assert(p.elements[4].length == 4);
 
-    p = DateTimePatternInfo(ParseType.date, "ddd, d/m/yy");
+    p = DateTimePatternInfo(DateTimeKind.date, "ddd, d/m/yy");
     assert(p.dateOrder == DateOrder.dmy);
     assert(p.elementl == 7);
     assert(p.elements[0].kind == PatternKind.day);
@@ -1096,7 +1090,7 @@ unittest // tryParse
     auto ltz = TimeZoneInfo.localTimeZone;
     if (ltz.baseUtcOffset == dur!"minutes"(-5))
     {
-        p.defaultKind = DateTimeKind.local;
+        p.defaultKind = DateTimeZoneKind.local;
         p.patternText = "yyyy/mm/ddThh:nn:ss-hh:nn";
         r = tryParse!DateTime("2021/06/09T11:00:00-04:00", p, dt);
         assert(r == DateTimeParser.noError);
@@ -1107,7 +1101,7 @@ unittest // tryParse
         assert(dt.minute == 0);
         assert(dt.second == 0);
 
-        p.defaultKind = DateTimeKind.utc;
+        p.defaultKind = DateTimeZoneKind.utc;
         p.patternText = "yyyy/mm/ddThh:nn:ss-hh:nn";
         r = tryParse!DateTime("2021/06/09T11:00:00-04:00", p, dt);
         assert(r == DateTimeParser.noError);

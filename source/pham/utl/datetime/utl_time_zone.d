@@ -97,7 +97,7 @@ public:
             && daylightTransitionEnd.timeOfDay.time.sticks < Tick.ticksPerSecond; // < 12:00:01 AM
     }
 
-    enum AdjustmentRuleError : byte
+    enum AdjustmentRuleError : ubyte
     {
         none,
         beginKind,
@@ -120,10 +120,10 @@ public:
         scope const(TransitionTime) daylightTransitionEnd,
         bool noDaylightTransitions) @nogc nothrow pure
     {
-        if (dateBegin.kind != DateTimeKind.unspecified && dateBegin.kind != DateTimeKind.utc)
+        if (dateBegin.kind != DateTimeZoneKind.unspecified && dateBegin.kind != DateTimeZoneKind.utc)
             return AdjustmentRuleError.beginKind;
 
-        if (dateBegin != DateTime.min && dateBegin.kind == DateTimeKind.unspecified && dateBegin.time != Time.zero)
+        if (dateBegin != DateTime.min && dateBegin.kind == DateTimeZoneKind.unspecified && dateBegin.time != Time.zero)
             return AdjustmentRuleError.beginTimeOfDay;
 
         if (dateBegin > dateEnd)
@@ -132,10 +132,10 @@ public:
         if (daylightTransitionBegin == daylightTransitionEnd && !noDaylightTransitions)
             return AdjustmentRuleError.beginSame;
 
-        if (dateEnd.kind != DateTimeKind.unspecified && dateEnd.kind != DateTimeKind.utc)
+        if (dateEnd.kind != DateTimeZoneKind.unspecified && dateEnd.kind != DateTimeZoneKind.utc)
             return AdjustmentRuleError.endKind;
 
-        if (dateEnd != DateTime.max && dateEnd.kind == DateTimeKind.unspecified && dateEnd.time != Time.zero)
+        if (dateEnd != DateTime.max && dateEnd.kind == DateTimeZoneKind.unspecified && dateEnd.time != Time.zero)
             return AdjustmentRuleError.endTimeOfDay;
 
         if (Tick.durationToTicks(daylightDelta) % Tick.ticksPerMinute != 0)
@@ -170,7 +170,7 @@ public:
             case AdjustmentRuleError.none:
                 return;
             case AdjustmentRuleError.beginKind:
-                throw new TimeException("dateBegin.kind must be either DateTimeKind.unspecified or DateTimeKind.utc");
+                throw new TimeException("dateBegin.kind must be either DateTimeZoneKind.unspecified or DateTimeZoneKind.utc");
             case AdjustmentRuleError.beginTimeOfDay:
                 throw new TimeException("dateBegin has timeOfDay");
             case AdjustmentRuleError.beginGreater:
@@ -178,7 +178,7 @@ public:
             case AdjustmentRuleError.beginSame:
                 throw new TimeException("Transition times are identical");
             case AdjustmentRuleError.endKind:
-                throw new TimeException("dateEnd.kind must be either DateTimeKind.unspecified or DateTimeKind.utc");
+                throw new TimeException("dateEnd.kind must be either DateTimeZoneKind.unspecified or DateTimeZoneKind.utc");
             case AdjustmentRuleError.endTimeOfDay:
                 throw new TimeException("dateEnd has timeOfDay");
             case AdjustmentRuleError.daylightDelta:
@@ -317,7 +317,7 @@ public:
 
     DateTime convertDateTimeToTimeZone(scope const(DateTime) dateTime, scope const ref TimeZoneInfo destinationTimeZone) const @nogc nothrow pure scope
     {
-        const DateTimeKind sourceKind = kind();
+        const DateTimeZoneKind sourceKind = kind();
 
         //
         // check to see if the DateTime is in an invalid time range.  This check
@@ -343,10 +343,10 @@ public:
             }
         }
 
-        const DateTimeKind targetKind = destinationTimeZone.kind();
+        const DateTimeZoneKind targetKind = destinationTimeZone.kind();
 
         // handle the special case of Loss-less Local->Local and UTC->UTC)
-        if (dateTime.kind != DateTimeKind.unspecified && sourceKind != DateTimeKind.unspecified && sourceKind == targetKind)
+        if (dateTime.kind != DateTimeZoneKind.unspecified && sourceKind != DateTimeZoneKind.unspecified && sourceKind == targetKind)
             return dateTime;
 
         const long utcTicks = dateTime.sticks - Tick.durationToTicks(sourceOffset);
@@ -364,7 +364,7 @@ public:
     static DateTime convertUtcToLocal(scope const(DateTime) utcDateTime) nothrow
     in
     {
-        assert(utcDateTime.kind == DateTimeKind.utc);
+        assert(utcDateTime.kind == DateTimeZoneKind.utc);
     }
     do
     {
@@ -375,7 +375,7 @@ public:
     static DateTime convertUtcToLocal(scope const(DateTime) utcDateTime, scope const ref TimeZoneInfo localTimeZone) @nogc nothrow pure
     in
     {
-        assert(utcDateTime.kind == DateTimeKind.utc);
+        assert(utcDateTime.kind == DateTimeZoneKind.utc);
     }
     do
     {
@@ -383,8 +383,8 @@ public:
         const loffset = localTimeZone.getUtcOffsetFromUtc(utcDateTime, isDaylightSavings);
         const lticks = utcDateTime.sticks + Tick.durationToTicks(loffset);
         return lticks < DateTime.minTicks
-            ? DateTime(DateTime.minTicks, DateTimeKind.local)
-            : (lticks > DateTime.maxTicks ? DateTime(DateTime.maxTicks, DateTimeKind.local) : DateTime(lticks, DateTimeKind.local));
+            ? DateTime(DateTime.minTicks, DateTimeZoneKind.local)
+            : (lticks > DateTime.maxTicks ? DateTime(DateTime.maxTicks, DateTimeZoneKind.local) : DateTime(lticks, DateTimeZoneKind.local));
     }
 
     bool findAdjustmentRule(scope const(DateTime) dateTime, bool dateTimeIsUtc,
@@ -397,7 +397,7 @@ public:
             return false;
         }
 
-        // Only check the whole-date portion of the dateTime for DateTimeKind.Unspecified rules -
+        // Only check the whole-date portion of the dateTime for DateTimeZoneKind.Unspecified rules -
         // This is because the AdjustmentRule DateStart & DateEnd are stored as
         // Date-only values {4/2/2006 - 10/28/2006} but actually represent the
         // time span {4/2/2006@00:00:00.00000 - 10/28/2006@23:59:59.99999}
@@ -481,14 +481,14 @@ public:
         //
         // handle any local/utc special cases...
         //
-        if (dateTime.kind == DateTimeKind.local)
+        if (dateTime.kind == DateTimeZoneKind.local)
         {
             auto ltz = localTimeZone(0); // Use default local
             adjustedTime = ltz.convertDateTimeToTimeZone(dateTime, this);
         }
-        else if (dateTime.kind == DateTimeKind.utc)
+        else if (dateTime.kind == DateTimeZoneKind.utc)
         {
-            if (this.kind == DateTimeKind.utc)
+            if (this.kind == DateTimeZoneKind.utc)
             {
                 // simple always false case: TimeZoneInfo.utc.isDaylightSavingTime(dateTime);
                 return false;
@@ -532,11 +532,11 @@ public:
         return offset < minOffset || offset > maxOffset;
     }
 
-    DateTimeKind kind() const @nogc nothrow pure scope
+    DateTimeZoneKind kind() const @nogc nothrow pure scope
     {
         return _id == localId
-            ? DateTimeKind.local
-            : (_id == utcId || _id == utcId2 ? DateTimeKind.utc : DateTimeKind.unspecified);
+            ? DateTimeZoneKind.local
+            : (_id == utcId || _id == utcId2 ? DateTimeZoneKind.utc : DateTimeZoneKind.unspecified);
     }
 
     size_t toHash() const @nogc nothrow pure scope
@@ -544,14 +544,14 @@ public:
         return hashOf(_id);
     }
 
-    enum ValidatedTimeZoneError : byte
+    enum ValidatedTimeZoneError : ubyte
     {
         none,
         id,
         offsetRange,
         offsetTick,
         ruleDelta,
-        ruleOrder
+        ruleOrder,
     }
 
     static ValidatedTimeZoneError isValidTimeZoneInfo(string id, scope const(Duration) baseUtcOffset, scope const(AdjustmentRule)[] adjustmentRules) @nogc nothrow pure
@@ -748,7 +748,7 @@ private:
         scope const(DateTime) dateTime, scope const(DateTime) dateOnly, const(bool) dateTimeIsUtc) const @nogc nothrow pure scope
     {
         bool isAfterBegin;
-        if (rule.dateBegin.kind == DateTimeKind.utc)
+        if (rule.dateBegin.kind == DateTimeZoneKind.utc)
         {
             const dateTimeToCompare = dateTimeIsUtc
                 ? dateTime
@@ -766,7 +766,7 @@ private:
             return 1;
 
         bool isBeforeEnd;
-        if (rule.dateEnd.kind == DateTimeKind.utc)
+        if (rule.dateEnd.kind == DateTimeZoneKind.utc)
         {
             const dateTimeToCompare = dateTimeIsUtc
                 ? dateTime
@@ -866,7 +866,7 @@ private:
     static bool getIsDaylightSavings(scope const(DateTime) dateTime, scope const(AdjustmentRule) rule, scope const(DaylightTimeInfo) daylightTime) @nogc nothrow pure
     {
         DateTime startTime = void, endTime = void;
-        if (dateTime.kind == DateTimeKind.local)
+        if (dateTime.kind == DateTimeZoneKind.local)
         {
             // startTime and endTime represent the period from either the start of
             // DST to the end and ***includes*** the potentially overlapped times
@@ -1271,7 +1271,7 @@ public:
         if (week < 1 || week > 5)
             return ErrorPart.week;
 
-        if (timeOfDay.kind != DateTimeKind.unspecified)
+        if (timeOfDay.kind != DateTimeZoneKind.unspecified)
             return ErrorPart.kind;
 
         int timeOfDayYear = void, timeOfDayMonth = void, timeOfDayDay = void;
@@ -1288,7 +1288,7 @@ public:
         if (e == ErrorPart.none)
             return;
         else if (e == ErrorPart.kind)
-            throw new TimeException("timeOfDay.kind is not DateTimeKind.unspecified");
+            throw new TimeException("timeOfDay.kind is not DateTimeZoneKind.unspecified");
         else if (e == ErrorPart.tick)
             throw new TimeException("timeOfDay has tick precision");
         else if (e == ErrorPart.month)
@@ -1735,7 +1735,7 @@ else version (Posix)
         }
     }
 
-    enum TZVersion : byte
+    enum TZVersion : ubyte
     {
         V1,
         V2,

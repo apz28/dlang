@@ -31,7 +31,7 @@ public:
      * that have elapsed since 00:00:00.0_000_000.
      */
     this(long ticks,
-        DateTimeKind kind = DateTimeKind.unspecified) @nogc nothrow pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) @nogc nothrow pure
     in
     {
         assert(isValidTicks(ticks) == ErrorOp.none);
@@ -42,7 +42,7 @@ public:
     }
 
     this(scope const(Duration) time,
-        DateTimeKind kind = DateTimeKind.unspecified) @nogc nothrow pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) @nogc nothrow pure
     in
     {
         assert(isValidTicks(Tick.durationToTicks(time)) == ErrorOp.none);
@@ -56,7 +56,7 @@ public:
      * Initializes a new instance of the Time structure to the specified hour, minute, second, and millisecond.
      */
     this(int hour, int minute, int second, int millisecond,
-        DateTimeKind kind = DateTimeKind.unspecified) @nogc nothrow pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) @nogc nothrow pure
     in
     {
         assert(isValidTimeParts(hour, minute, second, millisecond) == ErrorPart.none);
@@ -70,7 +70,7 @@ public:
      * Initializes a new instance of the Time structure to the specified hour, minute, second.
      */
     this(int hour, int minute, int second,
-        DateTimeKind kind = DateTimeKind.unspecified) @nogc nothrow pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) @nogc nothrow pure
     in
     {
         assert(isValidTimeParts(hour, minute, second, 0) == ErrorPart.none);
@@ -84,7 +84,7 @@ public:
      * Initializes a new instance of the Time structure to the specified hour, minute.
      */
     this(int hour, int minute,
-        DateTimeKind kind = DateTimeKind.unspecified) @nogc nothrow pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) @nogc nothrow pure
     in
     {
         assert(isValidTimeParts(hour, minute, 0, 0) == ErrorPart.none);
@@ -230,7 +230,7 @@ public:
     }
 
     static Time createTime(long ticks,
-        DateTimeKind kind = DateTimeKind.unspecified) pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) pure
     {
         if (isValidTicks(ticks) != ErrorOp.none)
             throwOutOfRange!(ErrorPart.tick)(ticks);
@@ -238,21 +238,21 @@ public:
     }
 
     static Time createTime(int hour, int minute, int second, int millisecond,
-        DateTimeKind kind = DateTimeKind.unspecified) pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) pure
     {
         checkTimeParts(hour, minute, second, millisecond);
         return Time(hour, minute, second, millisecond, kind);
     }
 
     static Time createTime(int hour, int minute, int second,
-        DateTimeKind kind = DateTimeKind.unspecified) pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) pure
     {
         checkTimeParts(hour, minute, second, 0);
         return Time(hour, minute, second, kind);
     }
 
     static Time createTime(int hour, int minute,
-        DateTimeKind kind = DateTimeKind.unspecified) pure
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified) pure
     {
         checkTimeParts(hour, minute, 0, 0);
         return Time(hour, minute, 0, kind);
@@ -334,7 +334,7 @@ public:
     /**
      * Returns Time as requested parameter, kind, without any conversion/adjustment
      */
-    Time asKind(DateTimeKind kind) const @nogc nothrow pure scope
+    Time asKind(DateTimeZoneKind kind) const @nogc nothrow pure scope
     {
         return Time(data.toTickKind(kind));
     }
@@ -344,7 +344,7 @@ public:
      */
     @property Time asUTC() const @nogc nothrow pure scope
     {
-        return Time(data.toTickKind(DateTimeKind.utc));
+        return Time(data.toTickKind(DateTimeZoneKind.utc));
     }
 
     /**
@@ -371,7 +371,7 @@ public:
         return hour >= 12 ? 1 : 0;
     }
 
-    @property DateTimeKind kind() const @nogc nothrow pure
+    @property DateTimeZoneKind kind() const @nogc nothrow pure
     {
         return data.kind;
     }
