@@ -3,7 +3,7 @@
  * License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * Authors: An Pham
  *
- * Copyright An Pham 2021 - xxxx.
+ * Copyright An Pham 2022 - xxxx.
  * Distributed under the Boost Software License, Version 1.0.
  * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
@@ -16,7 +16,7 @@ import std.string : representation;
 
 import pham.utl.big_integer : BigInteger;
 import pham.utl.datetime.date : DateTime;
-import pham.utl.object : toString;
+import pham.utl.object : cmpInteger, toString;
 import pham.utl.utf8 : ShortStringBuffer;
 import pham.cp.cipher : CipherBuffer;
 
@@ -32,6 +32,7 @@ enum ASN1Class : ubyte
 	contextSpecific = 2,
 	private_        = 3,
     eoc             = 4,
+    undefined       = 0xFF, // Only used while decoding
 }
 
 /**
@@ -64,25 +65,509 @@ enum ASN1Tag : ubyte
     date                 = 0x1F,
     dateTime             = 0x21,
     duration             = 0x22,
+    undefined            = 0xFF, // Only used while decoding
 }
 
-// Returns the bit-length of bitString by considering the
-// most-significant bit in a byte to be the "first" bit. This convention
-// matches ASN.1, but differs from almost everything else.
-size_t calBitLength(scope const(ubyte)[] x) @nogc pure
+struct ASN1BitString
 {
-	size_t result = x.length * 8;
-    foreach (i; 0..x.length)
-	{
-		const b = x[x.length - i - 1];
-		foreach (bit; 0..8)
+nothrow @safe:
+
+public:
+    this(ubyte[] bytes) pure
+    {
+        this._bytes = bytes;
+        this._bitLength = calBitLength(bytes);
+    }
+
+    // Returns the bit-length of bitString by considering the
+    // most-significant bit in a byte to be the "first" bit. This convention
+    // matches ASN.1, but differs from almost everything else.
+    static size_t calBitLength(scope const(ubyte)[] x) @nogc pure
+    {
+	    size_t result = x.length * 8;
+        foreach (i; 0..x.length)
+	    {
+		    const b = x[x.length - i - 1];
+		    foreach (bit; 0..8)
+            {
+			    if (((b >> bit) & 1) == 1)
+				    return result;
+			    result--;
+		    }
+	    }
+	    return 0;
+    }
+
+    // RightAlign returns a slice where the padding bits are at the beginning. The
+    // slice may share memory with the BitString.
+    const(ubyte)[] rightAlign() const pure
+    {
+	    const shift = 8 - (bitLength % 8);
+	    if (shift == 8 || _bytes.length == 0)
+		    return _bytes;
+
+    	ubyte[] result = new ubyte[](_bytes.length);
+	    result[0] = _bytes[0] >> shift;
+	    foreach (i; 1.._bytes.length)
         {
-			if (((b>>bit)&1) == 1)
-				return result;
-			result--;
-		}
-	}
-	return 0;
+		    result[i] = cast(ubyte)(_bytes[i-1] << (8 - shift));
+		    result[i] |= _bytes[i] >> shift;
+	    }
+	    return result;
+    }
+
+    @property const(ubyte)[] bytes() const pure
+    {
+        return _bytes;
+    }
+
+    @property size_t bitLength() const @nogc pure
+    {
+        return _bitLength;
+    }
+
+private:
+    ubyte[] _bytes;
+    size_t _bitLength;
+}
+
+struct ASN1BerDecoder
+{
+nothrow @safe:
+
+public:
+    this(ubyte[] data) pure
+    {
+        this._data = data;
+        //this._error = false;
+        //this._errorMessage = null;
+        this._currentTag = ASN1Tag.undefined;
+        this._currentTagClass = ASN1Class.undefined;
+        //this._currentTagId = 0;
+        //this._p = this._dataSize = this._headerSize = 0;
+        this._empty = data.length == 0;
+        if (!this._empty)
+        {
+            this._currentDataBuffer = new ubyte[1000];
+            popFront();
+        }
+    }
+
+    void popFront() pure
+    in
+    {
+        assert(!empty);
+    }
+    do
+    {
+        _currentData = null;
+        _dataSize = _headerSize = 0;
+        _currentTagClass = ASN1Class.undefined;
+        if (_p >= _data.length)
+        {
+            _currentTag = ASN1Tag.undefined;
+            _currentTagId = 0;
+            _empty = true;
+            return;
+        }
+
+        _currentTagId = _data[_p++];
+        if (_currentTagId == 0)
+        {
+            _currentTag = ASN1Tag.eoc;
+            _empty = _p >= _data.length;
+            const tl = _empty ? 0xFF : _data[_p++];
+            if (tl != 0)
+            {
+                _error = true;
+                _errorMessage = "Invalid ASN1 sequence";
+            }
+            return;
+        }
+
+        _currentTag = cast(ASN1Tag)(_currentTagId & 0x1F);
+        _currentTagClass = cast(ASN1Class)((_currentTagId >> 6) + ASN1Class.universal);
+        const constrained = (_currentTagId & 0x20) != 0;
+        if (_currentTag < 0x1F)
+        {
+            _currentDataBuffer[0] = _currentTag;
+            _currentData = _currentDataBuffer[0..1];
+        }
+        else
+        {
+            //ReadRepackedBits(lTag, lTagSize, asn1MaxTagSize, asn1RevertTagBytes);
+        }
+    }
+
+    pragma(inline, true)
+    @property bool empty() const @nogc pure
+    {
+        return _empty;
+    }
+
+    pragma(inline, true)
+    @property bool error() const @nogc pure
+    {
+        return _error;
+    }
+
+    pragma(inline, true)
+    @property ASN1Tag tag() const @nogc pure
+    {
+        return _currentTag;
+    }
+
+    pragma(inline, true)
+    @property ASN1Class tagClass() const @nogc pure
+    {
+        return _currentTagClass;
+    }
+
+    pragma(inline, true)
+    @property size_t tagDataSize() const @nogc pure
+    {
+        return _dataSize;
+    }
+
+    pragma(inline, true)
+    @property size_t tagHeaderSize() const @nogc pure
+    {
+        return _headerSize;
+    }
+
+    pragma(inline, true)
+    @property ubyte tagId() const @nogc pure
+    {
+        return _currentTagId;
+    }
+
+private:
+    bool readDataSize() @nogc pure
+    {
+        bool invalidDataSize() @nogc pure
+        {
+            _empty = _p >= _data.length;
+            _error = true;
+            _errorMessage = "Invalid ASN1 length";
+            return false;
+        }
+
+        if (_p >= _data.length)
+            return invalidDataSize();
+
+        ubyte f = _data[_p++];
+        if (f > 0x80)
+        {
+            f &= 0x7F; // Count
+
+            if (f > size_t.sizeof)
+                return invalidDataSize();
+
+            _headerSize = f + 2;
+            _dataSize = 0;
+            int shift = 0;
+            while (f-- != 0 && _p < _data.length)
+            {
+                _dataSize = (_dataSize << shift) | _data[_p++];
+                shift += 8;
+            }
+            // Not enough data?
+            if (f)
+                return invalidDataSize();
+        }
+        else if (f == 0x80)
+        {
+            _dataSize = size_t.max; // Undefined length
+            _headerSize = 2;
+        }
+        else
+        {
+            _dataSize = f;
+            _headerSize = 2;
+        }
+
+        return true;
+    }
+
+public:
+    bool revertTagBytes = true;
+
+private:
+    string _errorMessage;
+    ubyte[] _data, _currentData, _currentDataBuffer;
+    size_t _dataSize, _headerSize, _p;
+    ASN1Tag _currentTag;
+    ASN1Class _currentTagClass;
+    ubyte _currentTagId;
+    bool _empty, _error;
+}
+
+struct ASN1DerEncoder
+{
+nothrow @safe:
+
+public:
+    static void writeBoolean(ref CipherBuffer destination, const(bool) x,
+        const(ASN1Tag) tag = ASN1Tag.boolean) pure
+    {
+        destination.put(tag);
+        destination.put(0x01);
+        destination.put(x ? 0xff : 0x00);
+    }
+
+    static void writeGeneralizedTime(ref CipherBuffer destination, const(DateTime) x,
+        const(ASN1Tag) tag = ASN1Tag.generalizedTime) pure
+    {
+        int y, m, d, h, n, s;
+        x.getDate(y, m, d);
+        x.getTime(h, n, s);
+
+        ShortStringBuffer!char buffer;
+        toString(buffer, y, 4);
+        toString(buffer, m, 2);
+        toString(buffer, d, 2);
+        toString(buffer, h, 2);
+        toString(buffer, n, 2);
+        toString(buffer, s, 2);
+        buffer.put('Z');
+
+        writeTagValue(destination, tag, buffer[].representation);
+    }
+
+    static void writeInteger(T)(ref CipherBuffer destination, const(T) x,
+        const(ASN1Tag) tag = ASN1Tag.integer) pure
+    if (isIntegral!T)
+    {
+        destination.put(tag);
+	    const n = x.lengthInteger();
+	    foreach (j; 0..n)
+		    destination.put(cast(ubyte)(x >> ((n - 1 - j) * 8)));
+    }
+
+    static void writeNull(ref CipherBuffer destination,
+        const(ASN1Tag) tag = ASN1Tag.null_) pure
+    {
+        destination.put(tag);
+        destination.put(0x00);
+    }
+
+    static void writeOctetString(ref CipherBuffer destination, scope const(char)[] x,
+        const(ASN1Tag) tag = ASN1Tag.octetString) pure
+    {
+        writeTagValue(destination, tag, x.representation);
+    }
+
+    static void writePrintableString(ref CipherBuffer destination, scope const(char)[] x,
+        const(ASN1Tag) tag = ASN1Tag.printableString) pure
+    {
+        writeTagValue(destination, tag, x.representation);
+    }
+
+    static void writeSequence(ref CipherBuffer destination, scope const(char)[][] x,
+        const(ASN1Tag) tag = ASN1Tag.sequence) pure
+    {
+        writeTagStrings(destination, tag, x);
+    }
+
+    static void writeSet(ref CipherBuffer destination, scope const(char)[][] x,
+        const(ASN1Tag) tag = ASN1Tag.set) pure
+    {
+        writeTagStrings(destination, tag, x);
+    }
+
+    static void writeTagStrings(ref CipherBuffer destination, const(ASN1Tag) tag, scope const(char)[][] xs) pure
+    {
+        size_t totalLength = 0;
+        foreach (x; xs)
+            totalLength += x.length;
+
+        destination.put(tag);
+        writeLength(destination, totalLength);
+        foreach (x; xs)
+            destination.put(x.representation);
+    }
+
+    static void writeUTFString(ref CipherBuffer destination, scope const(char)[] x,
+        const(ASN1Tag) tag = ASN1Tag.utf8String) pure
+    {
+        writeTagValue(destination, tag, x.representation);
+    }
+
+    static void writeTagValue(ref CipherBuffer destination, const(ASN1Tag) tag, scope const(ubyte)[] x) pure
+    {
+        destination.put(tag);
+        writeLength(destination, x.length);
+        destination.put(x);
+    }
+
+    static void writeVisibleString(ref CipherBuffer destination, scope const(char)[] x,
+        const(ASN1Tag) tag = ASN1Tag.visibleString) pure
+    {
+        destination.put(tag);
+        writeLength(destination, x.length + 1);
+        destination.put(x.representation);
+        destination.put(' ');
+    }
+
+private:
+    static ubyte lengthBase128Int64(long x) @nogc pure
+    {
+	    if (x == 0)
+		    return 1;
+
+	    ubyte result = 0;
+        while (x > 0)
+        {
+            result++;
+            x >>= 7;
+        }
+
+	    return result;
+    }
+
+    static size_t lengthBitString(scope const(ubyte)[] x) @nogc pure
+    {
+        return x.length + 1;
+    }
+
+    static ubyte lengthInteger(T)(const(T) x) @nogc pure
+    if (isIntegral!T)
+    {
+        Unqual!T ux = x;
+
+	    ubyte result = 1;
+
+	    while (ux > 127)
+        {
+		    result++;
+		    ux >>= 8;
+	    }
+
+        static if (isSigned!T)
+	    while (ux < -128)
+        {
+		    result++;
+		    ux >>= 8;
+	    }
+
+	    return result;
+    }
+
+    static ubyte lengthLength(size_t n) @nogc pure
+    {
+        // Unspecified length
+        if (n == size_t.max)
+            return 0;
+
+        ubyte result = 1;
+	    while (n > 0xFF)
+        {
+		    result++;
+		    n >>= 8;
+	    }
+        return result;
+    }
+
+    static void writeBase128Int64(ref CipherBuffer destination, const(long) x)
+    {
+	    const n = lengthBase128Int64(x);
+	    for (int i = n - 1; i >= 0; i--)
+        {
+		    ubyte b = cast(ubyte)((x >> (i*7)) & 0x7F);
+		    if (i != 0)
+			    b |= 0x80;
+            destination.put(b);
+    	}
+    }
+
+    static void writeLength(ref CipherBuffer destination, const(size_t) n) pure
+    {
+        if (n >= 0x80)
+        {
+		    ubyte count = lengthLength(n);
+            destination.put(cast(ubyte)(0x80 | count));
+            while (count--)
+            {
+                destination.put(cast(ubyte)(n >> (count * 8)));
+            }
+        }
+        else
+            destination.put(cast(ubyte)n);
+    }
+}
+
+struct ASN1ObjectIdentifier
+{
+nothrow @safe:
+
+public:
+    this(int[] value) pure
+    {
+        this.value = value;
+    }
+
+    int opCmp(scope const(int)[] rhs) const pure
+    {
+        const cmpLen = rhs.length > value.length ? value.length : rhs.length;
+        foreach (i; 0..cmpLen)
+        {
+            const c = cmpInteger(value[i], rhs[i]);
+            if (c != 0)
+                return c;
+        }
+
+        return cmpInteger(value.length, rhs.length);
+    }
+
+    int opCmp(scope const(ASN1ObjectIdentifier) rhs) const pure
+    {
+        return opCmp(rhs.value);
+    }
+
+    bool opEquals(scope const(int)[] rhs) const pure
+    {
+        if (value.length != rhs.length)
+            return false;
+
+        foreach (i; 0..rhs.length)
+        {
+            if (value[i] != rhs[i])
+                return false;
+        }
+
+        return true;
+    }
+
+    bool opEquals(scope const(ASN1ObjectIdentifier) rhs) const pure
+    {
+        return opEquals(rhs.value);
+    }
+
+    string toString() const pure
+    {
+        if (value.length == 0)
+            return null;
+
+        ShortStringBuffer!char buffer;
+        .toString(buffer, value[0]);
+        foreach (i; 1..value.length)
+        {
+            buffer.put('.');
+            .toString(buffer, value[i]);
+        }
+        return buffer.toString();
+    }
+
+public:
+    int[] value;
+}
+
+struct ASN1OIdInfo
+{
+nothrow @safe:
+
+    string id; // Same as ASN1ObjectIdentifier in string form
+    string name;
 }
 
 class ASN1OId
@@ -92,8 +577,13 @@ nothrow @safe:
 public:
     this(string id, string name) pure
     {
-        this._id = id;
-        this._name = name;
+        this.value.id = id;
+        this.value.name = name;
+    }
+
+    this(ASN1OIdInfo value) pure
+    {
+        this.value = value;
     }
 
     static ASN1OId add(string id, string name) @trusted
@@ -128,12 +618,12 @@ public:
 
     @property string id() const pure @nogc
     {
-        return _id;
+        return value.id;
     }
 
     @property string name() const pure @nogc
     {
-        return _name;
+        return value.name;
     }
 
 private:
@@ -369,247 +859,27 @@ private:
     }
 
 private:
-    string _id;
-    string _name;
+    ASN1OIdInfo value;
 
     __gshared static ASN1OId[string] _idMaps, _nameMaps;
 }
 
-struct ASN1BitString
+struct ASN1RawValue
 {
 nothrow @safe:
 
 public:
-    this(ubyte[] bytes) pure
+    static ASN1RawValue nullValue() pure
     {
-        this._bytes = bytes;
-        this._bitLength = calBitLength(bytes);
+        return ASN1RawValue(ASN1Class.universal, ASN1Tag.null_, false, null, null);
     }
-
-    // RightAlign returns a slice where the padding bits are at the beginning. The
-    // slice may share memory with the BitString.
-    const(ubyte)[] rightAlign() const pure
-    {
-	    const shift = 8 - (bitLength % 8);
-	    if (shift == 8 || _bytes.length == 0)
-		    return _bytes;
-
-    	ubyte[] result = new ubyte[](_bytes.length);
-	    result[0] = _bytes[0] >> shift;
-	    foreach (i; 1.._bytes.length)
-        {
-		    result[i] = cast(ubyte)(_bytes[i-1] << (8 - shift));
-		    result[i] |= _bytes[i] >> shift;
-	    }
-	    return result;
-    }
-
-    @property const(ubyte)[] bytes() const pure
-    {
-        return _bytes;
-    }
-
-    @property size_t bitLength() const @nogc pure
-    {
-        return _bitLength;
-    }
-
-private:
-    ubyte[] _bytes;
-    size_t _bitLength;
-}
-
-struct ASN1BerDecoder
-{
-
-}
-
-struct ASN1DerEncoder
-{
-nothrow @safe:
 
 public:
-    static void writeBoolean(ref CipherBuffer destination, const(bool) x,
-        const(ASN1Tag) tag = ASN1Tag.boolean) pure
-    {
-        destination.put(tag);
-        destination.put(0x01);
-        destination.put(x ? 0xff : 0x00);
-    }
-
-    static void writeGeneralizedTime(ref CipherBuffer destination, const(DateTime) x,
-        const(ASN1Tag) tag = ASN1Tag.generalizedTime) pure
-    {
-        int y, m, d, h, n, s;
-        x.getDate(y, m, d);
-        x.getTime(h, n, s);
-
-        ShortStringBuffer!char buffer;
-        toString(buffer, y, 4);
-        toString(buffer, m, 2);
-        toString(buffer, d, 2);
-        toString(buffer, h, 2);
-        toString(buffer, n, 2);
-        toString(buffer, s, 2);
-        buffer.put('Z');
-
-        writeTagValue(destination, tag, buffer[].representation);
-    }
-
-    static void writeInteger(T)(ref CipherBuffer destination, const(T) x,
-        const(ASN1Tag) tag = ASN1Tag.integer) pure
-    if (isIntegral!T)
-    {
-        destination.put(tag);
-	    const n = x.lengthInteger();
-	    foreach (j; 0..n)
-		    destination.put(cast(ubyte)(x >> ((n - 1 - j) * 8)));
-    }
-
-    static void writeNull(ref CipherBuffer destination,
-        const(ASN1Tag) tag = ASN1Tag.null_) pure
-    {
-        destination.put(tag);
-        destination.put(0x00);
-    }
-
-    static void writeOctetString(ref CipherBuffer destination, scope const(char)[] x,
-        const(ASN1Tag) tag = ASN1Tag.octetString) pure
-    {
-        writeTagValue(destination, tag, x.representation);
-    }
-
-    static void writePrintableString(ref CipherBuffer destination, scope const(char)[] x,
-        const(ASN1Tag) tag = ASN1Tag.printableString) pure
-    {
-        writeTagValue(destination, tag, x.representation);
-    }
-
-    static void writeSequence(ref CipherBuffer destination, scope const(char)[][] x,
-        const(ASN1Tag) tag = ASN1Tag.sequence) pure
-    {
-        writeTagStrings(destination, tag, x);
-    }
-
-    static void writeSet(ref CipherBuffer destination, scope const(char)[][] x,
-        const(ASN1Tag) tag = ASN1Tag.set) pure
-    {
-        writeTagStrings(destination, tag, x);
-    }
-
-    static void writeTagStrings(ref CipherBuffer destination, const(ASN1Tag) tag, scope const(char)[][] xs) pure
-    {
-        size_t totalLength = 0;
-        foreach (x; xs)
-            totalLength += x.length;
-
-        destination.put(tag);
-        writeLength(destination, totalLength);
-        foreach (x; xs)
-            destination.put(x.representation);
-    }
-
-    static void writeUTFString(ref CipherBuffer destination, scope const(char)[] x,
-        const(ASN1Tag) tag = ASN1Tag.utf8String) pure
-    {
-        writeTagValue(destination, tag, x.representation);
-    }
-
-    static void writeTagValue(ref CipherBuffer destination, const(ASN1Tag) tag, scope const(ubyte)[] x) pure
-    {
-        destination.put(tag);
-        writeLength(destination, x.length);
-        destination.put(x);
-    }
-
-    static void writeVisibleString(ref CipherBuffer destination, scope const(char)[] x,
-        const(ASN1Tag) tag = ASN1Tag.visibleString) pure
-    {
-        destination.put(tag);
-        writeLength(destination, x.length + 1);
-        destination.put(x.representation);
-        destination.put(' ');
-    }
-
-private:
-    static ubyte lengthBase128Int64(long x) @nogc pure
-    {
-	    if (x == 0)
-		    return 1;
-
-	    ubyte result = 0;
-        while (x > 0)
-        {
-            result++;
-            x >>= 7;
-        }
-
-	    return result;
-    }
-
-    static size_t lengthBitString(scope const(ubyte)[] x) @nogc pure
-    {
-        return x.length + 1;
-    }
-
-    static ubyte lengthInteger(T)(const(T) x) @nogc pure
-    if (isIntegral!T)
-    {
-        Unqual!T ux = x;
-
-	    ubyte result = 1;
-
-	    while (ux > 127)
-        {
-		    result++;
-		    ux >>= 8;
-	    }
-
-        static if (isSigned!T)
-	    while (ux < -128)
-        {
-		    result++;
-		    ux >>= 8;
-	    }
-
-	    return result;
-    }
-
-    static ubyte lengthLength(size_t n) @nogc pure
-    {
-        ubyte result = 1;
-	    while (n > 255)
-        {
-		    result++;
-		    n >>= 8;
-	    }
-        return result;
-    }
-
-    static void writeBase128Int64(ref CipherBuffer destination, const(long) x)
-    {
-	    const n = lengthBase128Int64(x);
-	    for (int i = n - 1; i >= 0; i--)
-        {
-		    ubyte b = cast(ubyte)((x >> (i*7)) & 0x7F);
-		    if (i != 0)
-			    b |= 0x80;
-            destination.put(b);
-    	}
-    }
-
-    static void writeLength(ref CipherBuffer destination, const(size_t) n) pure
-    {
-        if (n >= 128)
-        {
-		    const count = lengthLength(n);
-            destination.put(cast(ubyte)(0x80 | count));
-            foreach (i; 0..count)
-                destination.put(cast(ubyte)(n >> (i * 8)));
-        }
-        else
-            destination.put(cast(ubyte)n);
-    }
+    ASN1Class class_;
+    ASN1Tag tag;
+	bool isCompound;
+    ubyte[] valueBytes;
+    ubyte[] fullBytes; // includes the tag and length
 }
 
 

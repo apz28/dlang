@@ -18,7 +18,7 @@ import pham.cp.random;
 
 nothrow @safe:
 
-enum CipherPaddingMode : byte
+enum CipherPaddingMode : ubyte
 {
     none,
     ansiX923,        // 00 00 00 08 (zero + size)
@@ -30,7 +30,7 @@ enum CipherPaddingMode : byte
     orgSize,         // 00 00 00 00 + (00 00 00 99) (zero + Original-size)
 }
 
-enum CipherPaddingModeKind : byte
+enum CipherPaddingModeKind : ubyte
 {
     none,
     zero,

@@ -15,10 +15,63 @@ import std.typecons : No;
 
 import pham.utl.big_integer : BigInteger, modInverse, modPow;
 import pham.cp.cipher;
+import pham.cp.codec_asn1;
 import pham.cp.pad;
 import pham.cp.random;
 
 nothrow @safe:
+
+struct CipherRSAAlgorithmIdentifier
+{
+	ASN1ObjectIdentifier algorithm;
+	ASN1RawValue parameters; // asn1.RawValue `asn1:"optional"`
+}
+
+enum CipherRSAValidState
+{
+    ok,
+    missModulus,
+    smallExponent,
+    largeExponent,
+}
+
+struct CipherRSAPrivateKey
+{
+	CipherRSAPublicKey publicKey; // public part.
+	BigInteger d;   // private exponent
+	BigInteger[] primes; // prime factors of N, has >= 2 elements.
+}
+
+struct CipherRSAPublicKey
+{
+    BigInteger N; // modulus
+    int E; // public exponent
+
+    @property CipherRSAValidState isValidState() const @nogc pure
+    {
+        if (N.isZero || N.sign < 0)
+            return CipherRSAValidState.missModulus;
+        else if (E < 2)
+            return CipherRSAValidState.smallExponent;
+        else if (E > 1U<<31-1)
+            return CipherRSAValidState.largeExponent;
+        else
+            return CipherRSAValidState.ok;
+    }
+
+    pragma(inline, true)
+    @property size_t keyByteLength() const @nogc pure
+    {
+        return (N.bitLength + 7) / 8;
+    }
+}
+
+struct CipherRSAPublicKeyInfo
+{
+    ubyte[] rawContent;
+	CipherRSAAlgorithmIdentifier algorithm;
+	ASN1BitString publicKey;
+}
 
 class CipherRSA : Cipher
 {

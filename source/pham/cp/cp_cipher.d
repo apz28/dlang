@@ -166,7 +166,7 @@ public:
     pragma(inline, true)
     @property size_t keyByteLength() const @nogc pure
     {
-        return _keyBitLength / 8;
+        return (_keyBitLength + 7) / 8;
     }
 
     @property const(ubyte)[] modulus() const @nogc pure
