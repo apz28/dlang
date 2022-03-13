@@ -20,7 +20,7 @@ import pham.db.type : uint32;
 
 nothrow @safe:
 
-enum DbTokenKind : byte
+enum DbTokenKind : ubyte
 {
     space,
     comment,
@@ -272,7 +272,7 @@ public:
     }
 
 private:
-    enum CharKind : byte
+    enum CharKind : ubyte
     {
         space,
         parameterUnnamed,

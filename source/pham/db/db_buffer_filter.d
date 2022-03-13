@@ -17,10 +17,10 @@ import pham.db.object;
 
 nothrow @safe:
 
-enum DbBufferFilterKind : byte
+enum DbBufferFilterKind : ubyte
 {
     read,
-    write
+    write,
 }
 
 abstract class DbBufferFilter : DbDisposableObject

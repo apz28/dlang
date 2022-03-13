@@ -23,7 +23,7 @@ public import std.uuid : UUID;
 public import pham.external.dec.decimal : Decimal32, Decimal64, Decimal128, isDecimal, Precision, RoundingMode;
 public import pham.utl.big_integer : BigInteger;
 public import pham.utl.datetime.date : Date, DateTime;
-public import pham.utl.datetime.tick : DateTimeKind;
+public import pham.utl.datetime.tick : DateTimeZoneKind;
 public import pham.utl.datetime.time : Time;
 import pham.utl.datetime.tick : ErrorOp, Tick;
 import pham.utl.datetime.time_zone : TimeZoneInfo, TimeZoneInfoMap;
@@ -63,14 +63,14 @@ immutable string[] boolTrues = ["1", "True", "T", "Yes", "Y"];
 immutable string dbBoolFalse = "False";
 immutable string dbBoolTrue = "True";
 
-enum DbCommandExecuteType : byte
+enum DbCommandExecuteType : ubyte
 {
     nonQuery,
     reader,
-    scalar
+    scalar,
 }
 
-enum DbCommandFlag : byte
+enum DbCommandFlag : ubyte
 {
     allRowsFetched,
     implicitTransaction,
@@ -79,16 +79,16 @@ enum DbCommandFlag : byte
     prepared,
     returnRecordsAffected,
     transactionRequired,
-    cancelled
+    cancelled,
 }
 
-enum DbCommandState : byte
+enum DbCommandState : ubyte
 {
 	closed,
     unprepared,
     prepared,
 	executed,
-	error
+	error,
 }
 
 /**
@@ -98,12 +98,12 @@ enum DbCommandState : byte
  * $(DbCommandType.table) The name of a table or view
  * $(DbCommandType.ddl) The data definition command: ALTER, CREATE, DROP...
  */
-enum DbCommandType : byte
+enum DbCommandType : ubyte
 {
     text,
     storedProcedure,
     table,
-    ddl
+    ddl,
 }
 
 /**
@@ -115,14 +115,14 @@ enum DbCommandType : byte
  * $(DbConnectionState.failing) The transition state to fail
  * $(DbConnectionState.failed) The connection to the data source is not able to open. A connection in this state may be closed and then re-opened
  */
-enum DbConnectionState : byte
+enum DbConnectionState : ubyte
 {
     closed,  // Make this state first as default value
     closing,
     opening,
     open,
     failing,
-    failed
+    failed,
 }
 
 enum DbDefaultSize
@@ -155,21 +155,21 @@ enum DbDefaultSize
  * $(DbEncryptedConnection.enabled) The connection is open with available encryption
  * $(DbEncryptedConnection.required) The connection must support encryption otherwise error if not
  */
-enum DbEncryptedConnection : byte
+enum DbEncryptedConnection : ubyte
 {
     disabled,
     enabled,
-    required
+    required,
 }
 
-enum DbFetchResultStatus : byte
+enum DbFetchResultStatus : ubyte
 {
     ready,
     hasData,
-    completed
+    completed,
 }
 
-enum DbFieldIdType : byte
+enum DbFieldIdType : ubyte
 {
     no,
     array,
@@ -184,7 +184,7 @@ enum DbFieldIdType : byte
  * $(DbIntegratedSecurityConnection.srp256)
  * $(DbIntegratedSecurityConnection.sspi)
  */
-enum DbIntegratedSecurityConnection : byte
+enum DbIntegratedSecurityConnection : ubyte
 {
     legacy,
     srp,
@@ -201,7 +201,7 @@ enum DbIntegratedSecurityConnection : byte
  * $(DbIsolationLevel.serializable) Locks are placed on all data that is used in a query, preventing other users from updating/inserting the data
  * $(DbIsolationLevel.snapshot) Indicates that from one transaction you cannot see changes made in other transactions, even if you requery (Reduces blocking)
  */
-enum DbIsolationLevel : byte
+enum DbIsolationLevel : ubyte
 {
     //unspecified,
     readUncommitted,
@@ -211,14 +211,14 @@ enum DbIsolationLevel : byte
     snapshot,
 }
 
-enum DbLockBehavior : byte
+enum DbLockBehavior : ubyte
 {
     shared_,
     protected_,
     exclusive,
 }
 
-enum DbLockType : byte
+enum DbLockType : ubyte
 {
     read,
     write,
@@ -231,7 +231,7 @@ enum DbLockType : byte
  * $(DbParameterDirection.inputOutput) is both input and output parameter
  * $(DbParameterDirection.returnValue) is a return value from an operation such as a stored procedure...
  */
-enum DbParameterDirection : byte
+enum DbParameterDirection : ubyte
 {
     input,
     inputOutput,
@@ -324,7 +324,7 @@ enum DbScheme : string
     //sq = "sqlite",
 }
 
-enum DbSchemaColumnFlag : byte
+enum DbSchemaColumnFlag : ubyte
 {
     allowNull,
     isAlias,
@@ -354,7 +354,7 @@ enum DbServerIdentifier : string
  * $(DbTransactionState.error) The transaction was committed/rollbacked but failed
  * $(DbTransactionState.disposed) The transaction instance is no longer usable
  */
-enum DbTransactionState : byte
+enum DbTransactionState : ubyte
 {
     inactive,
     active,
@@ -457,7 +457,7 @@ public:
 
     this(int32 validYear, int32 validMonth, int32 validDay,
         int32 validHour, int32 validMinute, int32 validSecond, int32 validMillisecond,
-        DateTimeKind kind = DateTimeKind.unspecified,
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified,
         uint16 zoneId = 0) @nogc pure
     {
         this(DateTime(validYear, validMonth, validDay, validHour, validMinute, validSecond, validMillisecond, kind), zoneId);
@@ -533,7 +533,7 @@ public:
 
     typeof(this) toUTC() const
     {
-        if (kind == DateTimeKind.utc)
+        if (kind == DateTimeZoneKind.utc)
             return this;
 
         if (isTZ)
@@ -561,7 +561,7 @@ public:
         return zoneId != 0;
     }
 
-    @property DateTimeKind kind() const @nogc pure
+    @property DateTimeZoneKind kind() const @nogc pure
     {
         return _value.kind;
     }
@@ -1390,14 +1390,14 @@ public:
     }
 
     this(scope const Duration time,
-        DateTimeKind kind = DateTimeKind.unspecified,
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified,
         uint16 zoneId = 0) @nogc pure
     {
         this(Time(Tick.durationToTicks(time), kind), zoneId);
     }
 
     this(int32 validHour, int32 validMinute, int32 validSecond, int32 validMillisecond,
-        DateTimeKind kind = DateTimeKind.unspecified,
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified,
         uint16 zoneId = 0) @nogc pure
     {
         auto timeDuration = Duration.zero;
@@ -1484,7 +1484,7 @@ public:
 
     typeof(this) toUTC() const
     {
-        if (kind == DateTimeKind.utc)
+        if (kind == DateTimeZoneKind.utc)
             return this;
 
         if (isTZ)
@@ -1509,7 +1509,7 @@ public:
         return zoneId != 0;
     }
 
-    @property DateTimeKind kind() const @nogc pure
+    @property DateTimeZoneKind kind() const @nogc pure
     {
         return _value.kind;
     }

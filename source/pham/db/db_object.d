@@ -773,7 +773,7 @@ protected:
     }
 
 protected:
-    enum Flag : byte
+    enum Flag : ubyte
     {
         reIndex
     }

@@ -596,7 +596,7 @@ package(pham.db):
     }
 
 protected:
-    enum BuildCommandTextState : byte
+    enum BuildCommandTextState : ubyte
     {
         execute,
         executingPlan,
@@ -907,11 +907,11 @@ protected:
         }
     }
 
-    enum ResetImplicitTransactiontFlag : byte
+    enum ResetImplicitTransactiontFlag : ubyte
     {
-        none = 0,
-        error = 1,
-        nonQuery = 2
+        none,
+        error,
+        nonQuery,
     }
 
     final void resetImplicitTransactionIf(const(ResetImplicitTransactiontFlag) flags)  @safe
@@ -948,11 +948,11 @@ protected:
         }
     }
 
-    enum ResetStatementKind : byte
+    enum ResetStatementKind : ubyte
     {
         unprepare,
         prepare,
-        execute
+        execute,
     }
 
     void resetNewStatement(const(ResetStatementKind) kind) @safe
@@ -2374,7 +2374,7 @@ abstract class DbDatabase : DbNameObject
 public:
     dchar replacementChar = dchar.max;
 
-    enum CharClass : byte
+    enum CharClass : ubyte
     {
         any,
         quote,
@@ -3777,7 +3777,7 @@ public:
     }
 
 private:
-    enum Flag : byte
+    enum Flag : ubyte
     {
         allRowsFetched,
         cacheResult,
@@ -3785,11 +3785,11 @@ private:
         skipFetchNext,
     }
 
-    enum HasRows : byte
+    enum HasRows : ubyte
     {
         unknown,
         no,
-        yes
+        yes,
     }
 
     void doDetach(bool disposing) nothrow @safe
@@ -4096,11 +4096,11 @@ public:
     }
 
 protected:
-    enum DbTransactionFlag : byte
+    enum DbTransactionFlag : ubyte
     {
         autoCommit,
         readOnly,
-        retaining
+        retaining,
     }
 
     final bool canRetain() const nothrow @safe

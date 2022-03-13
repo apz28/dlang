@@ -1548,12 +1548,12 @@ struct FbCommandPlanInfo
 @safe:
 
 public:
-    enum Kind : byte
+    enum Kind : ubyte
     {
         noData,
         empty,
         truncated,
-        ok
+        ok,
     }
 
 public:

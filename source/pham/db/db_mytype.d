@@ -391,7 +391,7 @@ nothrow @safe:
     MySessionTrackType trackType;
 }
 
-enum MyFieldTypeMapKind : byte
+enum MyFieldTypeMapKind : ubyte
 {
     unknown,
     boolean,

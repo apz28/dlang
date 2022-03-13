@@ -109,7 +109,7 @@ DbDateTime dateTimeDecodeTZ(int64 pgDateTime, int32 pgZone)
 void dateTimeEncodeTZ(scope const(DbDateTime) value, out int64 pgTime, out int32 pgZone)
 {
     pgZone = 0;
-	if (value.kind == DateTimeKind.utc)
+	if (value.kind == DateTimeZoneKind.utc)
 		pgTime = dateTimeEncode(value);
 	else
     {
@@ -320,7 +320,7 @@ if (isDecimal!D)
 
 DbTime timeDecode(int64 pgTime) @nogc pure
 {
-    return DbTime(timeToDuration(pgTime), DateTimeKind.unspecified, 0);
+    return DbTime(timeToDuration(pgTime), DateTimeZoneKind.unspecified, 0);
 }
 
 int64 timeEncode(scope const(DbTime) value) @nogc pure
@@ -339,7 +339,7 @@ DbTime timeDecodeTZ(int64 pgTime, int32 pgZone)
 void timeEncodeTZ(scope const(DbTime) value, out int64 pgTime, out int32 pgZone)
 {
     pgZone = 0;
-	if (value.kind == DateTimeKind.utc)
+	if (value.kind == DateTimeZoneKind.utc)
 		pgTime = timeEncode(value);
 	else
     {

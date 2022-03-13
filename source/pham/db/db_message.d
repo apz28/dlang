@@ -13,7 +13,7 @@ module pham.db.message;
 
 @safe:
 
-enum DbErrorCode : byte
+enum DbErrorCode : int
 {
     connect = 1,
     read = 2,
