@@ -31,7 +31,7 @@ import pham.xml.writer;
 
 @safe:
 
-enum XmlParseOptionFlag : byte
+enum XmlParseOptionFlag : ubyte
 {
     none = 0,
     preserveWhitespace = 1 << 0,
@@ -97,7 +97,7 @@ if (isXmlString!S)
     $(XmlNodeType.documentTypeAttributeList) An attribute-list declaration. For example: <!ATTLIST...>
     $(XmlNodeType.documentTypeElement) An element declaration. For example: <!ELEMENT...>
 */
-enum XmlNodeType : byte
+enum XmlNodeType : ubyte
 {
     unknown = 0,
     element = 1,
@@ -125,7 +125,7 @@ enum XmlNodeType : byte
     $(XmlNodeListType.childNodesDeep) Similar to childNodes but it includes all sub-nodes
     $(XmlNodeListType.flat) A simple copy array of nodes
 */
-enum XmlNodeListType : byte
+enum XmlNodeListType : ubyte
 {
     attributes,
     childNodes,

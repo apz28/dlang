@@ -71,7 +71,7 @@ if (isXmlString!S)
     return outputContext.resNodes;
 }
 
-enum XPathAxisType : byte
+enum XPathAxisType : ubyte
 {
     error,
     ancestor,
@@ -86,10 +86,10 @@ enum XPathAxisType : byte
     parent,
     preceding,
     precedingSibling,
-    self
+    self,
 }
 
-enum XPathAstType : byte
+enum XPathAstType : ubyte
 {
     error,
     axis,
@@ -99,25 +99,25 @@ enum XPathAstType : byte
     group,
     operator,
     root,
-    variable
+    variable,
 }
 
-enum XPathCaseOrder : byte
+enum XPathCaseOrder : ubyte
 {
     none,
     upperFirst,
-    lowerFirst
+    lowerFirst,
 }
 
-enum XPathDataType : byte
+enum XPathDataType : ubyte
 {
     empty,
     boolean,
     number,
-    text
+    text,
 }
 
-enum XPathFunctionType : byte
+enum XPathFunctionType : ubyte
 {
     boolean,
     ceiling,
@@ -146,10 +146,10 @@ enum XPathFunctionType : byte
     sum,
     text,
     translate,
-    userDefined
+    userDefined,
 }
 
-enum XPathNodeType : byte
+enum XPathNodeType : ubyte
 {
     all,
     attribute,
@@ -160,10 +160,10 @@ enum XPathNodeType : byte
     root,
     significantWhitespace,
     text,
-    whitespace
+    whitespace,
 }
 
-enum XPathOp : byte
+enum XPathOp : ubyte
 {
     error,
     // Logical
@@ -184,25 +184,25 @@ enum XPathOp : byte
     divide,
     mod,
     // Union
-    union_
+    union_,
 }
 
-enum XPathResultType : byte
+enum XPathResultType : ubyte
 {
     error,
     any,
     boolean,
     nodeSet,
     number,
-    text
+    text,
 }
 
 enum navigator = XPathResultType.text;
 
-enum XPathSortOrder : byte
+enum XPathSortOrder : ubyte
 {
     ascending,
-    descending
+    descending,
 }
 
 alias ToResultTypeTable = EnumArray!(XPathFunctionType, XPathResultType);

@@ -28,7 +28,7 @@ import pham.xml.type;
     $(XmlEncodedMarker utf32be) utf32be encoded marker
     $(XmlEncodedMarker utf32le) utf32le encoded marker
 */
-enum XmlEncodedMarker : byte
+enum XmlEncodedMarker : ubyte
 {
     none,
     utf8,

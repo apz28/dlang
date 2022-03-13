@@ -26,7 +26,7 @@ import pham.xml.util;
 
 @safe:
 
-enum UnicodeErrorKind : byte
+enum UnicodeErrorKind : ubyte
 {
     eos = 1,
     invalidCode = 2,

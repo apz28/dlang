@@ -29,10 +29,10 @@ import pham.xml.util;
  * $(XmlDecodeMode.loose) Decode but ignore on error (if not able to substitute the entity text, leave it as is)
  * $(XmlDecodeMode.strict) Decode and throw exception on error (if not able to substitute the entity text)
  */
-enum XmlDecodeMode : byte
+enum XmlDecodeMode : ubyte
 {
     loose,
-    strict
+    strict,
 }
 
 /**
@@ -43,13 +43,13 @@ enum XmlDecodeMode : byte
  * $(XmlEncodeMode.encoded) A text has reserved char in encoded form
  * $(XmlEncodeMode.none) A text should be left as-is and no need to do encode or decode check
  */
-enum XmlEncodeMode : byte
+enum XmlEncodeMode : ubyte
 {
     check,
     checked,
     decoded,
     encoded,
-    none
+    none,
 }
 
 class XmlBuffer(S = string, Flag!"CheckEncoded" CheckEncoded = No.CheckEncoded) : XmlObject!S
