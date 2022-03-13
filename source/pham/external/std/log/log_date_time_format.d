@@ -89,12 +89,12 @@ nothrow @safe:
     enum firstDayOfWeek = DayOfWeek.sun;
     enum firstDayOfMonth = Month.jan;
 
-    enum ValueKind : byte
+    enum ValueKind : ubyte
     {
         date,
         dateTime,
         sysTime,
-        time
+        time,
     }
 
     this(scope const(Date) date) @nogc pure

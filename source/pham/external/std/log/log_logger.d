@@ -2108,10 +2108,10 @@ struct LogOutputPatternElement
 nothrow @safe:
 
 public:
-    enum Kind : byte
+    enum Kind : ubyte
     {
         literal,
-        pattern
+        pattern,
     }
 
 public:
