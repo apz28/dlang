@@ -15,9 +15,11 @@ nothrow @trusted:
 version (ANSI)
 {}
 else
+{
     version = Unicode;
+}
 
-public import core.sys.windows.windef;
+import core.sys.windows.windef;
 import core.sys.windows.ntdef;
 import core.sys.windows.w32api;
 import core.sys.windows.security;
@@ -130,12 +132,10 @@ struct RequestSecBufferDesc
 {
 nothrow @safe:
 
+public
     enum secBufferSize = 16_000;
 
-    SecBuffer secBuffer;
-    SecBufferDesc secBufferDesc;
-    ubyte[] secBufferData;
-
+public:
     void dispose(bool disposing = true) pure
     {
         secBuffer.cbBuffer = 0;
@@ -183,17 +183,121 @@ nothrow @safe:
 
         return &secBufferDesc;
     }
+
+public:
+    SecBuffer secBuffer;
+    SecBufferDesc secBufferDesc;
+    ubyte[] secBufferData;
 }
 
-bool isValid(in SecHandle h) pure
+struct RequestSecClient
 {
-    return h.dwLower != 0 || h.dwUpper != 0;
-}
+import std.conv : to;
+import std.string : toStringz;
 
-void reset(ref SecHandle h) pure
-{
-    h.dwLower = 0;
-    h.dwUpper = 0;
+nothrow @safe:
+
+public:
+    ~this()
+    {
+        dispose(false);
+    }
+
+    void dispose(bool disposing)
+    {
+        disposeClientContext(disposing);
+        disposeClientCredentials(disposing);
+    }
+
+    void disposeClientContext(bool disposing)
+    {
+        if (clientContext.isValid())
+        {
+            DeleteSecurityContext(&clientContext);
+            clientContext.reset();
+        }
+    }
+
+    void disposeClientCredentials(bool disposing)
+    {
+        if (clientCredentials.isValid())
+        {
+            FreeCredentialsHandle(&clientCredentials);
+            clientCredentials.reset();
+        }
+    }
+
+    ubyte[] authenticate(string remotePrincipal, const(ubyte)[] authData, ref int status, ref string message)
+    {
+        ULONG contextAttributes;
+        RequestSecBufferDesc requestSecBufferDesc, serverSecBufferDesc;
+        scope (exit)
+        {
+            requestSecBufferDesc.dispose();
+            serverSecBufferDesc.dispose();
+        }
+
+        auto remotePrincipalz = remotePrincipal.length != 0 ? remotePrincipal.toStringz() : null;
+		status = InitializeSecurityContextA(&clientCredentials, &clientContext, remotePrincipalz,
+            ISC_REQ_STANDARD_CONTEXT_ATTRIBUTES, 0, SECURITY_NATIVE_DREP, serverSecBufferDesc.initServerContext(authData), 0,
+			&clientContext, requestSecBufferDesc.initClientContext(), &contextAttributes, &clientContextTimestamp);
+		if (status != 0)
+        {
+            message = "InitializeSecurityContextA() failed: " ~ to!string(status);
+            return null;
+        }
+
+        return requestSecBufferDesc.getSecBytes();
+    }
+
+    ubyte[] init(string secPackage, string remotePrincipal, ref int status, ref string message)
+    in
+    {
+        assert(secPackage.length != 0);
+    }
+    do
+    {
+        if (!initClientCredentials(secPackage, status, message))
+            return [];
+
+        return initClientContext(remotePrincipal, status, message);
+    }
+
+private:
+    ubyte[] initClientContext(string remotePrincipal, ref int status, ref string message)
+    {
+        ULONG contextAttributes;
+        RequestSecBufferDesc requestSecBufferDesc;
+        scope (exit)
+            requestSecBufferDesc.dispose();
+
+        auto remotePrincipalz = remotePrincipal.length != 0 ? remotePrincipal.toStringz() : null;
+        status = InitializeSecurityContextA(&clientCredentials, null, remotePrincipalz,
+            ISC_REQ_STANDARD_CONTEXT_ATTRIBUTES, 0, SECURITY_NATIVE_DREP, null, 0,
+            &clientContext, requestSecBufferDesc.initClientContext(), &contextAttributes, &clientContextTimestamp);
+		if (status != 0 && status != SEC_I_CONTINUE_NEEDED)
+        {
+            message = "InitializeSecurityContextA() failed: " ~ to!string(status);
+            return [];
+        }
+
+        return requestSecBufferDesc.getSecBytes();
+    }
+
+    bool initClientCredentials(string secPackage, ref int status, ref string message)
+    {
+        auto secPackagez = secPackage.length != 0 ? secPackage.toStringz() : null;
+		status = AcquireCredentialsHandleA(null, secPackagez, SECPKG_CRED_OUTBOUND,
+            null, null, null, null, &clientCredentials, &clientCredentialsTimestamp);
+		if (status != 0)
+            message = "AcquireCredentialsHandleA() failed: " ~ to!string(status);
+        return status == 0;
+    }
+
+public:
+	CtxtHandle clientContext;
+	SecHandle clientCredentials;
+    TimeStamp clientCredentialsTimestamp, clientContextTimestamp;
 }
 
 extern (Windows):
@@ -202,6 +306,16 @@ struct SecHandle
 {
     ULONG_PTR dwLower;
     ULONG_PTR dwUpper;
+
+    bool isValid() @nogc nothrow pure @safe
+    {
+        return dwLower != 0 || dwUpper != 0;
+    }
+
+    void reset() @nogc nothrow pure @safe
+    {
+        dwLower = dwUpper = 0;
+    }
 }
 alias PSecHandle = SecHandle*;
 
