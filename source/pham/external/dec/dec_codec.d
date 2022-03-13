@@ -449,7 +449,7 @@ alias DecimalCodec128 = DecimalCodec!128;
 private:
 
 // Generated using org.firebirdsql.decimal.generator.GenerateLookupTable
-immutable dpdGroupBits2Digits =
+static immutable dpdGroupBits2Digits =
 	"000" ~ "001" ~ "002" ~ "003" ~ "004" ~ "005" ~ "006" ~ "007" ~
 	"008" ~ "009" ~ "080" ~ "081" ~ "800" ~ "801" ~ "880" ~ "881" ~
 	"010" ~ "011" ~ "012" ~ "013" ~ "014" ~ "015" ~ "016" ~ "017" ~
@@ -580,7 +580,7 @@ immutable dpdGroupBits2Digits =
 	"778" ~ "779" ~ "796" ~ "797" ~ "976" ~ "977" ~ "998" ~ "999";
 
 // from ICU decNumber decDPD.h
-immutable int[] bin2DPD = [
+static immutable int[] bin2DPD = [
 	0,      1,    2,    3,    4,    5,    6,    7,
 	8,      9,   16,   17,   18,   19,   20,   21,   22,   23,   24,   25,   32,
 	33,    34,   35,   36,   37,   38,   39,   40,   41,   48,   49,   50,   51,

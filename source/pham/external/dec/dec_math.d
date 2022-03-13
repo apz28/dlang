@@ -2247,24 +2247,24 @@ do
 
     static if (is(T:uint))
     {
-        immutable uint ce = 2718281828U;
-        immutable int ee = -9;
-        immutable uint cl = 2302585093U;
-        immutable int el = -9;
+        static immutable uint ce = 2718281828U;
+        static immutable int ee = -9;
+        static immutable uint cl = 2302585093U;
+        static immutable int el = -9;
     }
     else static if (is(T:ulong))
     {
-        immutable ulong ce = 2718281828459045235UL;
-        immutable int ee = -18;
-        immutable ulong cl = 2302585092994045684UL;
-        immutable int el = -18;
+        static immutable ulong ce = 2718281828459045235UL;
+        static immutable int ee = -18;
+        static immutable ulong cl = 2302585092994045684UL;
+        static immutable int el = -18;
     }
     else static if (is(T:uint128))
     {
-        immutable uint128 ce = uint128("271828182845904523536028747135266249776");
-        immutable int ee = -38;
-        immutable uint128 cl = uint128("230258509299404568401799145468436420760");
-        immutable int el = -38;
+        static immutable uint128 ce = uint128("271828182845904523536028747135266249776");
+        static immutable int ee = -38;
+        static immutable uint128 cl = uint128("230258509299404568401799145468436420760");
+        static immutable int el = -38;
     }
     else
         static assert(0);

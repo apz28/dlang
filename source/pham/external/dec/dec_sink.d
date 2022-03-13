@@ -720,7 +720,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char && isAnyUnsignedBit!T)
     sinkPadRight!(Writer, Char)(sink, pad);
 }
 
-immutable string decimalChar = ".";
+static immutable string decimalChar = ".";
 enum defaultFractionPrecision = 6;
 
 pragma(inline, true)
@@ -795,8 +795,8 @@ do
     return cast(int)(buffer.length - i);
 }
 
-immutable char[] loHexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
-immutable char[] upHexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'];
+static immutable char[] loHexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
+static immutable char[] upHexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'];
 
 //dumps value to buffer right aligned, assumes buffer has enough space
 int dumpUnsignedHex(C, T)(C[] buffer, auto const ref T value, const(bool) uppercase = true) @nogc pure

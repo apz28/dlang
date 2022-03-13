@@ -1974,24 +1974,21 @@ unittest
 /* 10-POWER CONSTANTS                                                                                                 */
 /* ****************************************************************************************************************** */
 
-immutable ubyte[3] pow10_8 =
-[
+static immutable ubyte[3] pow10_8 = [
     1U,
     10U,
     100U,
-];
+    ];
 
-immutable ushort[5] pow10_16 =
-[
+static immutable ushort[5] pow10_16 = [
     1U,
     10U,
     100U,
     1000U,
     10000U,
-];
+    ];
 
-immutable uint[10] pow10_32 =
-[
+static immutable uint[10] pow10_32 = [
     1U,
     10U,
     100U,
@@ -2001,11 +1998,10 @@ immutable uint[10] pow10_32 =
     1000000U,
     10000000U,
     100000000U,
-    1000000000U
-];
+    1000000000U,
+    ];
 
-immutable ulong[20] pow10_64 =
-[
+static immutable ulong[20] pow10_64 = [
     1UL,
     10UL,
     100UL,
@@ -2026,10 +2022,9 @@ immutable ulong[20] pow10_64 =
     100000000000000000UL,
     1000000000000000000UL,
     10000000000000000000UL,
-];
+    ];
 
-immutable uint128[39] pow10_128 =
-[
+static immutable uint128[39] pow10_128 = [
     uint128(1UL),
     uint128(10UL),
     uint128(100UL),
@@ -2069,10 +2064,9 @@ immutable uint128[39] pow10_128 =
     uint128("1000000000000000000000000000000000000"),
     uint128("10000000000000000000000000000000000000"),
     uint128("100000000000000000000000000000000000000"),
-];
+    ];
 
-immutable uint256[78] pow10_256 =
-[
+static immutable uint256[78] pow10_256 = [
     uint256(1UL),
     uint256(10UL),
     uint256(100UL),
@@ -2151,10 +2145,9 @@ immutable uint256[78] pow10_256 =
     uint256("1000000000000000000000000000000000000000000000000000000000000000000000000000"),
     uint256("10000000000000000000000000000000000000000000000000000000000000000000000000000"),
     uint256("100000000000000000000000000000000000000000000000000000000000000000000000000000"),
-];
+    ];
 
-immutable uint512[155] pow10_512 =
-[
+static immutable uint512[155] pow10_512 = [
     uint512(1UL),  //0  - 2074
     uint512(10UL),  //1  - 2075
     uint512(100UL),
@@ -2310,11 +2303,12 @@ immutable uint512[155] pow10_512 =
     uint512("100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
     uint512("1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
     uint512("10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-];
+    ];
 
 template pow10(T)
 {
     alias UT = Unqual!T;
+
     static if (is(UT == uint))
         alias pow10 = pow10_32;
     else static if (is(UT == ulong))
@@ -2333,25 +2327,22 @@ template pow10(T)
         static assert(0);
 }
 
-immutable ubyte[3] pow10RoundEven_8 =
-[
+static immutable ubyte[3] pow10RoundEven_8 = [
     5U,
     50U,
     100U,
-];
+    ];
 
-immutable ushort[5] pow10RoundEven_16 =
-[
+static immutable ushort[5] pow10RoundEven_16 = [
     5U,
     50U,
     500U,
     5000U,
     50000U,
-];
+    ];
 
 //pragma(msg, uint.max); // 4294967295u
-immutable uint[10] pow10RoundEven_32 =
-[
+static immutable uint[10] pow10RoundEven_32 = [
     5U,
     50U,
     500U,
@@ -2362,11 +2353,10 @@ immutable uint[10] pow10RoundEven_32 =
     50000000U,
     500000000U,
     1000000000U,
-];
+    ];
 
 //pragma(msg, ulong.max); // 18446744073709551615LU
-immutable ulong[20] pow10RoundEven_64 =
-[
+static immutable ulong[20] pow10RoundEven_64 = [
     5UL,
     50UL,
     500UL,
@@ -2387,10 +2377,9 @@ immutable ulong[20] pow10RoundEven_64 =
     500000000000000000UL,
     5000000000000000000UL,
     10000000000000000000UL,
-];
+    ];
 
-immutable uint128[39] pow10RoundEven_128 =
-[
+static immutable uint128[39] pow10RoundEven_128 = [
     uint128(5UL),
     uint128(50UL),
     uint128(500UL),
@@ -2430,10 +2419,9 @@ immutable uint128[39] pow10RoundEven_128 =
     uint128("5000000000000000000000000000000000000"),
     uint128("50000000000000000000000000000000000000"),
     uint128("100000000000000000000000000000000000000"),
-];
+    ];
 
-immutable uint256[78] pow10RoundEven_256 =
-[
+static immutable uint256[78] pow10RoundEven_256 = [
     uint256(5UL),
     uint256(50UL),
     uint256(500UL),
@@ -2512,10 +2500,9 @@ immutable uint256[78] pow10RoundEven_256 =
     uint256("5000000000000000000000000000000000000000000000000000000000000000000000000000"),
     uint256("50000000000000000000000000000000000000000000000000000000000000000000000000000"),
     uint256("100000000000000000000000000000000000000000000000000000000000000000000000000000"),
-];
+    ];
 
-immutable uint512[155] pow10RoundEven_512 =
-[
+static immutable uint512[155] pow10RoundEven_512 = [
     uint512(5UL),  //0  - 2074
     uint512(50UL),  //1  - 2075
     uint512(500UL),
@@ -2671,11 +2658,12 @@ immutable uint512[155] pow10RoundEven_512 =
     uint512("500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
     uint512("5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
     uint512("10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-];
+    ];
 
 template pow10RoundEven(T)
 {
     alias UT = Unqual!T;
+
     static if (is(UT == uint))
         alias pow10RoundEven = pow10RoundEven_32;
     else static if (is(UT == ulong))
@@ -2698,24 +2686,21 @@ template pow10RoundEven(T)
 /* MAXIMUM COEFFICIENTS THAT CAN BE MULTIPLIED BY 10-POWERS                                                                                                */
 /* ****************************************************************************************************************** */
 
-immutable ubyte[3] maxmul10_8 =
-[
+static immutable ubyte[3] maxmul10_8 = [
     255U,
     25U,
     2U,
-];
+    ];
 
-immutable ushort[5] maxmul10_16 =
-[
+static immutable ushort[5] maxmul10_16 = [
     65535U,
     6553U,
     655U,
     65U,
     6U,
-];
+    ];
 
-immutable uint[10] maxmul10_32 =
-[
+static immutable uint[10] maxmul10_32 = [
     4294967295U,
     429496729U,
     42949672U,
@@ -2726,10 +2711,9 @@ immutable uint[10] maxmul10_32 =
     429U,
     42U,
     4U,
-];
+    ];
 
-immutable ulong[20] maxmul10_64 =
-[
+static immutable ulong[20] maxmul10_64 = [
     18446744073709551615UL,
     1844674407370955161UL,
     184467440737095516UL,
@@ -2750,10 +2734,9 @@ immutable ulong[20] maxmul10_64 =
     184UL,
     18UL,
     1UL,
-];
+    ];
 
-immutable uint128[39] maxmul10_128 =
-[
+static immutable uint128[39] maxmul10_128 = [
     uint128("340282366920938463463374607431768211455"),
     uint128("34028236692093846346337460743176821145"),
     uint128("3402823669209384634633746074317682114"),
@@ -2793,10 +2776,9 @@ immutable uint128[39] maxmul10_128 =
     uint128(340UL),
     uint128(34UL),
     uint128(3UL),
-];
+    ];
 
-immutable uint256[78] maxmul10_256 =
-[
+static immutable uint256[78] maxmul10_256 = [
     uint256("115792089237316195423570985008687907853269984665640564039457584007913129639935"),
     uint256("11579208923731619542357098500868790785326998466564056403945758400791312963993"),
     uint256("1157920892373161954235709850086879078532699846656405640394575840079131296399"),
@@ -2875,11 +2857,12 @@ immutable uint256[78] maxmul10_256 =
     uint256(115UL),
     uint256(11UL),
     uint256(1UL),
-];
+    ];
 
 template maxmul10(T)
 {
     alias UT = Unqual!T;
+
     static if (is(UT == uint))
         alias maxmul10 = maxmul10_32;
     else static if (is(UT == ulong))
