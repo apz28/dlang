@@ -62,7 +62,7 @@ enum CheckInfinity : byte
 {
     no = 0,         /// The value is $(B NaN) (quiet or signaling) or any finite value
     yes = 1,        /// The value is infinite
-    negative = -1   /// The value is negative infinite
+    negative = -1,  /// The value is negative infinite
 }
 
 enum CheckNaN : byte
@@ -71,7 +71,7 @@ enum CheckNaN : byte
     qNaN = 1,       /// The value is $(B NaN) quiet
     sNaN = 2,       /// The value is $(B NaN) signaling
     negQNaN = -1,   /// The value is negative $(B NaN) quiet
-    negSNaN = -2    /// The value is negative $(B NaN) signaling
+    negSNaN = -2,   /// The value is negative $(B NaN) signaling
 }
 
 /**
@@ -121,7 +121,7 @@ enum ExceptionFlags : uint
 *  $(TR $(TD -2.8)  $(TD -3)         $(TD -3)         $(TD -2)             $(TD -3)             $(TD -2))
 * )
 */
-enum RoundingMode : byte
+enum RoundingMode : ubyte
 {
     ///rounded away from zero; halfs are rounded to the nearest even number
 	tiesToEven,
@@ -2459,7 +2459,7 @@ static if (!isBetterC)
 }
 
 ///IEEE-754-2008 floating point categories
-enum DecimalClass : byte
+enum DecimalClass : ubyte
 {
     ///a signalling $(B NaN) represents most of the time an uninitialized variable;
     ///a quiet $(B NaN) represents the result of an invalid operation
@@ -2586,7 +2586,7 @@ unittest
 }
 
 ///IEEE-754-2008 subset of floating point categories
-enum DecimalSubClass : byte
+enum DecimalSubClass : ubyte
 {
     signalingNaN,
     quietNaN,
@@ -7959,7 +7959,7 @@ if (isDecimal!D && is(T: DataType!D))
     return sx ? DecimalClass.negativeNormal : DecimalClass.positiveNormal;
 }
 
-enum FastClass : byte
+enum FastClass : ubyte
 {
     signalingNaN,
     quietNaN,
