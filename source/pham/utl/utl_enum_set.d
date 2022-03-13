@@ -770,11 +770,11 @@ nothrow @safe unittest // toName
     import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.enum_set.toName");
 
-    enum EnumTestOrder : byte
+    enum EnumTestOrder : ubyte
     {
         one,
         two,
-        three
+        three,
     }
 
     assert(toName(EnumTestOrder.one) == "one");
@@ -782,11 +782,11 @@ nothrow @safe unittest // toName
     assert(toName(EnumTestOrder.three) == "three");
 
 
-    enum EnumTestOrder2 : byte
+    enum EnumTestOrder2 : ubyte
     {
         one = 3,
         two = 6,
-        three = 7
+        three = 7,
     }
 
     assert(toName(EnumTestOrder2.one) == "one");

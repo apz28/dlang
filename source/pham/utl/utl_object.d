@@ -394,11 +394,11 @@ if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
     return sink;
 }
 
-enum DisposableState : byte
+enum DisposableState : ubyte
 {
     none,
     disposing,
-    destructing
+    destructing,
 }
 
 interface IDisposable

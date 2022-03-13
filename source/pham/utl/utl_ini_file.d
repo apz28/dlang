@@ -22,14 +22,14 @@ import std.uni : sicmp;
 import pham.utl.array : removeAt;
 import pham.utl.delegate_list;
 
-enum IniFileOpenMode : byte
+enum IniFileOpenMode : ubyte
 {
     read,
     write,
-    readWrite
+    readWrite,
 }
 
-enum IniFileLineKind : byte
+enum IniFileLineKind : ubyte
 {
     empty,
     comment,
@@ -38,7 +38,7 @@ enum IniFileLineKind : byte
     notSection,
     noValue,
     invalidSection,
-    invalidName
+    invalidName,
 }
 
 struct IniFileMessage

@@ -30,7 +30,7 @@ import pham.utl.object : cmpFloat, cmpInteger;
 
 struct This;
 
-enum VariantType : byte
+enum VariantType : ubyte
 {
     null_,
     boolean,
@@ -1352,7 +1352,7 @@ public:
 // All implement after this point must be private
 private:
 
-enum NullType : byte
+enum NullType : ubyte
 {
     void_,
     null_,

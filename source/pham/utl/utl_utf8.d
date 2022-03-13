@@ -725,7 +725,7 @@ private:
     S str;
 }
 
-enum NumericParsedKind : byte
+enum NumericParsedKind : ubyte
 {
     ok,
     invalid,

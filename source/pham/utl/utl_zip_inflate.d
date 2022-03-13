@@ -368,7 +368,7 @@ private:
 
 	enum int Z_DEFLATED = 8;
 
-	enum InflateManagerMode : byte
+	enum InflateManagerMode : ubyte
 	{
 		METHOD = 0,  // waiting for method byte
 		FLAG = 1,  // waiting for flag byte
@@ -1074,7 +1074,7 @@ private:
 		16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
     ];
 
-	enum InflateBlockMode : byte
+	enum InflateBlockMode : ubyte
 	{
 		TYPE = 0,                     // get type bits (3, including end bit)
 		LENS = 1,                     // get lengths for stored
@@ -1824,7 +1824,7 @@ private:
 	// waiting for "i:"=input,
 	//             "o:"=output,
 	//             "x:"=nothing
-	enum InflateCodeMode : byte
+	enum InflateCodeMode : ubyte
     {
         START = 0, // x: set up for LEN
 		LEN = 1, // i: get length/literal/eob next

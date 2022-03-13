@@ -1733,12 +1733,12 @@ private:
 	bool Rfc1950BytesEmitted;
 }
 
-private enum BlockState : byte
+private enum BlockState : ubyte
 {
-	needMore = 0,       // block not completed, need more input or more output
+	needMore,           // block not completed, need more input or more output
 	blockDone,          // block flush performed
-	finishStarted,              // finish started, need only more output at next deflate
-	finishDone          // finish done, accept no more input or output
+	finishStarted,      // finish started, need only more output at next deflate
+	finishDone,         // finish done, accept no more input or output
 }
 
 private class Config
