@@ -207,7 +207,7 @@ enum XPathSortOrder : ubyte
 
 alias ToResultTypeTable = EnumArray!(XPathFunctionType, XPathResultType);
 
-immutable ToResultTypeTable toResultTypeTable = ToResultTypeTable(
+static immutable ToResultTypeTable toResultTypeTable = ToResultTypeTable(
     ToResultTypeTable.EnumArrayEntry(XPathFunctionType.boolean, XPathResultType.boolean),
     ToResultTypeTable.EnumArrayEntry(XPathFunctionType.ceiling, XPathResultType.number),
     ToResultTypeTable.EnumArrayEntry(XPathFunctionType.concat, XPathResultType.text),
@@ -236,7 +236,7 @@ immutable ToResultTypeTable toResultTypeTable = ToResultTypeTable(
     ToResultTypeTable.EnumArrayEntry(XPathFunctionType.sum, XPathResultType.number),
     ToResultTypeTable.EnumArrayEntry(XPathFunctionType.translate, XPathResultType.text),
     ToResultTypeTable.EnumArrayEntry(XPathFunctionType.userDefined, XPathResultType.any)
-);
+    );
 
 pragma (inline, true)
 XPathResultType toResultType(XPathFunctionType functionType) nothrow pure
@@ -246,7 +246,7 @@ XPathResultType toResultType(XPathFunctionType functionType) nothrow pure
 
 alias InvertedOpTable = EnumArray!(XPathOp, XPathOp);
 
-immutable InvertedOpTable invertedOpTable = InvertedOpTable(
+static immutable InvertedOpTable invertedOpTable = InvertedOpTable(
     InvertedOpTable.EnumArrayEntry(XPathOp.error, XPathOp.error),
     InvertedOpTable.EnumArrayEntry(XPathOp.and, XPathOp.or),
     InvertedOpTable.EnumArrayEntry(XPathOp.or, XPathOp.and),
@@ -262,7 +262,7 @@ immutable InvertedOpTable invertedOpTable = InvertedOpTable(
     InvertedOpTable.EnumArrayEntry(XPathOp.divide, XPathOp.multiply),
     InvertedOpTable.EnumArrayEntry(XPathOp.mod, XPathOp.error),
     InvertedOpTable.EnumArrayEntry(XPathOp.union_, XPathOp.error)
-);
+    );
 
 pragma (inline, true)
 XPathOp invertedOp(XPathOp op) nothrow pure
@@ -272,7 +272,7 @@ XPathOp invertedOp(XPathOp op) nothrow pure
 
 alias ToXmlNodeTypeTable = EnumArray!(XPathNodeType, XmlNodeType);
 
-immutable ToXmlNodeTypeTable toXmlNodeTypeTable = ToXmlNodeTypeTable(
+static immutable ToXmlNodeTypeTable toXmlNodeTypeTable = ToXmlNodeTypeTable(
     ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.all, XmlNodeType.unknown),
     ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.attribute, XmlNodeType.attribute),
     ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.comment, XmlNodeType.comment),
@@ -283,7 +283,7 @@ immutable ToXmlNodeTypeTable toXmlNodeTypeTable = ToXmlNodeTypeTable(
     ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.significantWhitespace, XmlNodeType.significantWhitespace),
     ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.text, XmlNodeType.text),
     ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.whitespace, XmlNodeType.whitespace)
-);
+    );
 
 pragma (inline, true)
 XmlNodeType toXmlNodeType(XPathNodeType nodeType) nothrow pure

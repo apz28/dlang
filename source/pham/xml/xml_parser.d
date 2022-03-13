@@ -364,7 +364,7 @@ private:
 
             while (true)
             {
-                immutable f = reader.skipSpaces().front;
+                const f = reader.skipSpaces().front;
                 if (f == '<')
                 {
                     reader.popFront();

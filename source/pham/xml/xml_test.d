@@ -98,7 +98,7 @@ static immutable string parserSaxXml = q"XML
 XML";
 
 // 4604 characters
-immutable string profileXml = q"XML
+static immutable string profileXml = q"XML
 <?xml version="1.0"?>
 <catalog>
     <book id="bk101">
