@@ -119,7 +119,7 @@ private:
 
 
 /* Initial permutation */
-immutable byte[] IP = [
+static immutable byte[] IP = [
     58, 50, 42, 34, 26, 18, 10, 2,
     60, 52, 44, 36, 28, 20, 12, 4,
     62, 54, 46, 38, 30, 22, 14, 6,
@@ -131,7 +131,7 @@ immutable byte[] IP = [
     ];
 
 /* Final permutation, FP = IP^(-1) */
-immutable byte[] FP = [
+static immutable byte[] FP = [
     40, 8, 48, 16, 56, 24, 64, 32,
     39, 7, 47, 15, 55, 23, 63, 31,
     38, 6, 46, 14, 54, 22, 62, 30,
@@ -147,14 +147,14 @@ immutable byte[] FP = [
 * Note that bits 8,16... are left out:
 * They are intended for a parity check.
 **************************************************************************/
-immutable byte[] PC1_C = [
+static immutable byte[] PC1_C = [
     57, 49, 41, 33, 25, 17,  9,
      1, 58, 50, 42, 34, 26, 18,
     10,  2, 59, 51, 43, 35, 27,
     19, 11,  3, 60, 52, 44, 36,
     ];
 
-immutable byte[] PC1_D = [
+static immutable byte[] PC1_D = [
     63, 55, 47, 39, 31, 23, 15,
      7, 62, 54, 46, 38, 30, 22,
     14,  6, 61, 53, 45, 37, 29,
@@ -162,7 +162,7 @@ immutable byte[] PC1_D = [
     ];
 
 /* Sequence of shifts used for the key schedule. */
-immutable byte[] shifts = [
+static immutable byte[] shifts = [
     1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1
     ];
 
@@ -170,14 +170,14 @@ immutable byte[] shifts = [
 * Permuted-choice 2, to pick out the bits from the CD array that generate
 * the key schedule.
 **************************************************************************/
-immutable byte[] PC2_C = [
+static immutable byte[] PC2_C = [
     14, 17, 11, 24,  1,  5,
      3, 28, 15,  6, 21, 10,
     23, 19, 12,  4, 26,  8,
     16,  7, 27, 20, 13,  2,
     ];
 
-immutable byte[] PC2_D = [
+static immutable byte[] PC2_D = [
     41, 52, 31, 37, 47, 55,
     30, 40, 51, 45, 33, 48,
     44, 49, 39, 56, 34, 53,
@@ -185,7 +185,7 @@ immutable byte[] PC2_D = [
     ];
 
 /* The E bit-selection table. */
-immutable byte[] e2 = [
+static immutable byte[] e2 = [
     32,  1,  2,  3,  4,  5,
      4,  5,  6,  7,  8,  9,
      8,  9, 10, 11, 12, 13,
@@ -200,7 +200,7 @@ immutable byte[] e2 = [
 * The 8 selection functions. For some reason, they give a 0-origin
 * index, unlike everything else.
 **************************************************************************/
-immutable byte[64][8] S = [
+static immutable byte[64][8] S = [
     [
         14,  4, 13,  1,  2, 15, 11,  8,  3, 10,  6, 12,  5,  9,  0,  7,
          0, 15,  7,  4, 14,  2, 13,  1, 10,  6, 12, 11,  9,  5,  3,  8,
@@ -254,7 +254,7 @@ immutable byte[64][8] S = [
 /**************************************************************************
 * P is a permutation on the selected combination of the current L and key.
 **************************************************************************/
-immutable byte[] P = [
+static immutable byte[] P = [
     16,  7, 20, 21,
     29, 12, 28, 17,
      1, 15, 23, 26,

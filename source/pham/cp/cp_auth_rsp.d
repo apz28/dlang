@@ -174,13 +174,13 @@ private:
     uint _padSize;
 }
 
-version(none) immutable PrimeGroup prime1024; // Insecured one
-version(none) immutable PrimeGroup prime1536; // Insecured one
-immutable PrimeGroup prime2048;
-immutable PrimeGroup prime3072;
-immutable PrimeGroup prime4096;
-immutable PrimeGroup prime6144;
-immutable PrimeGroup prime8192;
+version(none) static immutable PrimeGroup prime1024; // Insecured one
+version(none) static immutable PrimeGroup prime1536; // Insecured one
+static immutable PrimeGroup prime2048;
+static immutable PrimeGroup prime3072;
+static immutable PrimeGroup prime4096;
+static immutable PrimeGroup prime6144;
+static immutable PrimeGroup prime8192;
 
 struct AuthParameters
 {

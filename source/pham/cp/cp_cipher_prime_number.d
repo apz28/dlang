@@ -15,7 +15,7 @@ nothrow @safe:
 
 // Generator source - http://compoasso.free.fr/primelistweb/page/prime/liste_online_en.php
 // Excluse 2
-immutable ushort[] ushortPrimes = [
+static immutable ushort[] ushortPrimes = [
     /*
     3, 5, 7, 11, 13, 17, 19, 23, 29,
     31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
@@ -672,4 +672,4 @@ immutable ushort[] ushortPrimes = [
     65167, 65171, 65173, 65179, 65183, 65203, 65213, 65239, 65257, 65267,
     65269, 65287, 65293, 65309, 65323, 65327, 65353, 65357, 65371, 65381,
     65393, 65407, 65413, 65419, 65423, 65437, 65447, 65449, 65479, 65497,
-];
+    ];

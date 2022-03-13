@@ -208,7 +208,7 @@ public:
 	            3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
                 ];
 
-            static immutable smallPrimesProduct = BigInteger(1629_4579_2385_9502_2365UL);
+            static immutable smallPrimesProduct = BigInteger(16_294_579_238_595_022_365UL);
 
             auto tryResult = BigInteger(buffer[], Yes.unsigned);
 		    const mod = (tryResult % smallPrimesProduct).toULong;
