@@ -1028,23 +1028,23 @@ string toString(scope const(Time) time, string fmt = "%s")
     return format(fmt, time);
 }
 
-immutable AmPmTexts usAmPmTexts = ["AM", "PM"];
-immutable char usDateSeparator = '/';
-immutable char usTimeSeparator = ':';
+static immutable AmPmTexts usAmPmTexts = ["AM", "PM"];
+static immutable char usDateSeparator = '/';
+static immutable char usTimeSeparator = ':';
 
 // Must match order of DayOfWeek
-immutable DayOfWeekNames usDayOfWeekNames = [
+static immutable DayOfWeekNames usDayOfWeekNames = [
     "Sunday",
     "Monday",
     "Tuesday",
     "Wednesday",
     "Thursday",
     "Friday",
-    "Saturday"
+    "Saturday",
     ];
 
 // Must match order of Month
-immutable MonthNames usMonthNames = [
+static immutable MonthNames usMonthNames = [
     "January",
     "February",
     "March",
@@ -1056,7 +1056,7 @@ immutable MonthNames usMonthNames = [
     "September",
     "October",
     "November",
-    "December"
+    "December",
     ];
 
 

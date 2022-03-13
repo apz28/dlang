@@ -271,7 +271,7 @@ enum OutputPattern : string
     userContext = OutputPatternMarker.terminator ~ OutputPatternName.userContext ~ OutputPatternMarker.terminator,
 }
 
-immutable string defaultOutputPattern = OutputPattern.date
+static immutable string defaultOutputPattern = OutputPattern.date
     ~ " [" ~ OutputPattern.level ~ "] "
     ~ OutputPattern.filename ~ "."
     ~ OutputPattern.line ~ "."
@@ -2937,7 +2937,7 @@ private:
     bool done;
 }
 
-immutable SysTime appStartupTimestamp;
+static immutable SysTime appStartupTimestamp;
 
 SysTime currTime() nothrow @safe
 {
