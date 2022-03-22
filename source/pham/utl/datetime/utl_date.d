@@ -16,7 +16,8 @@ import std.traits : isSomeChar;
 
 import pham.utl.utf8 : ShortStringBuffer;
 import pham.utl.datetime.tick;
-import pham.utl.datetime.time : Time;
+public import pham.utl.datetime.tick : CustomFormatSpecifier, DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind;
+public import pham.utl.datetime.time : Time;
 import pham.utl.datetime.time_zone : TimeZoneInfo;
 
 @safe:
@@ -529,6 +530,17 @@ public:
         return data.opEquals(rhs.data);
     }
 
+    DateTime addBias(const(int) biasSign, const(int) biasHour, const(int) biasMinute) const @nogc nothrow pure
+    in
+    {
+        assert(biasSign == +1 || biasSign == -1);
+        assert(isValidTimeParts(biasHour, biasMinute, 0, 0) == ErrorPart.none);
+    }
+    do
+    {
+        return addMinutesSafe(-biasSign * (biasHour * 60 + biasMinute));
+    }
+
     /**
      * Returns the DateTime resulting from adding a fractional number of
      * days to this DateTime. The result is computed by rounding the
@@ -732,6 +744,21 @@ public:
         return result;
     }
 
+    static int adjustTwoDigitYear(int twoDigitYear, const(int) twoDigitYearCenturyWindow) @nogc nothrow
+    in
+    {
+        assert(twoDigitYear >= 0 && twoDigitYear < 100);
+        assert(twoDigitYearCenturyWindow >= 0 && twoDigitYearCenturyWindow < 100);
+    }
+    do
+    {
+        const centuryBase = utcNow.year - twoDigitYearCenturyWindow;
+        twoDigitYear += (centuryBase / 100) * 100;
+        if (twoDigitYearCenturyWindow > 0 && twoDigitYear < centuryBase)
+            twoDigitYear += 100;
+        return twoDigitYear;
+    }
+
     /**
      * Returns the first day in the month that this DateTime is in.
      * The time portion of beginOfMonth is always 0:0:0.0
@@ -754,6 +781,13 @@ public:
             throwOutOfRange!(ErrorPart.month)(month);
         else if (e == ErrorPart.day)
             throwOutOfRange!(ErrorPart.day)(day);
+    }
+
+    pragma(inline, true)
+    static void checkTimeParts(int hour, int minute, int second, int millisecond) pure
+    {
+        // Forward call to tick.checkTimeParts
+        .checkTimeParts(hour, minute, second, millisecond);
     }
 
     static DateTime createDateTime(long ticks,
@@ -974,6 +1008,13 @@ public:
         return ticks < minTicks
             ? ErrorOp.underflow
             : (ticks > maxTicks ? ErrorOp.overflow : ErrorOp.none);
+    }
+
+    pragma(inline, true)
+    static ErrorPart isValidTimeParts(const(int) hour, const(int) minute, const(int) second, const(int) millisecond) @nogc nothrow pure
+    {
+        // Forward call to tick.isValidTimeParts
+        return .isValidTimeParts(hour, minute, second, millisecond);
     }
 
     static ErrorOp isValidTimeWithLeapSeconds(int year, int month, int day, int hour, int minute, DateTimeZoneKind kind) @nogc nothrow pure

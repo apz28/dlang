@@ -17,11 +17,14 @@ import std.uni : sicmp;
 
 import pham.utl.object : RAIIMutex;
 import pham.utl.datetime.tick;
+public import pham.utl.datetime.tick : DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind, CustomFormatSpecifier;
 import pham.utl.datetime.date : Date, DateTime;
 import pham.utl.datetime.time : Time;
 import pham.utl.datetime.time_zone : TimeZoneInfo;
 
 @safe:
+
+enum twoDigitYearCenturyWindowDefault = 50;
 
 enum DateOrder : ubyte
 {
@@ -158,7 +161,7 @@ nothrow @safe:
             && dateSeparator != 0 && timeSeparator != 0;
     }
 
-    static DateTimePattern usDate() @nogc
+    static DateTimePattern usDate() @nogc pure
     {
         auto usSetting = DateTimeSetting.us;
         DateTimePattern result;
@@ -173,7 +176,7 @@ nothrow @safe:
         return result;
     }
 
-    static DateTimePattern usDateTime() @nogc
+    static DateTimePattern usDateTime() @nogc pure
     {
         auto usSetting = DateTimeSetting.us;
         DateTimePattern result;
@@ -188,7 +191,7 @@ nothrow @safe:
         return result;
     }
 
-    static DateTimePattern usTime() @nogc
+    static DateTimePattern usTime() @nogc pure
     {
         auto usSetting = DateTimeSetting.us;
         DateTimePattern result;
@@ -209,7 +212,7 @@ nothrow @safe:
     const(MonthNames)* monthFullNames;
     const(MonthNames)* monthShortNames;
     const(AmPmTexts)* amPmTexts;
-    int twoDigitYearCenturyWindow = 50; /// Set to -1 to skip interpreting the value
+    int twoDigitYearCenturyWindow = twoDigitYearCenturyWindowDefault; /// Set to -1 to skip interpreting the value
     char dateSeparator = '/';
     char timeSeparator = ':';
     SkipBlank skipBlanks = cast(SkipBlank)(SkipBlank.leading | SkipBlank.inner | SkipBlank.trailing);
@@ -611,25 +614,40 @@ public:
             hour += hourAdjustment;
 
         if (yearDigitCount && yearDigitCount <= 2 && pattern.twoDigitYearCenturyWindow >= 0)
-        {
-            const centuryBase = DateTime.utcNow.year - pattern.twoDigitYearCenturyWindow;
-            year += (centuryBase / 100) * 100;
-            if (pattern.twoDigitYearCenturyWindow > 0 && year < centuryBase)
-                year += 100;
-        }
+            year = DateTime.adjustTwoDigitYear(year, pattern.twoDigitYearCenturyWindow);
 
         // Check for missing data error
         final switch (parseType)
         {
             case DateTimeKind.date:
+                if (!hasDate
+                    || DateTime.isValidDateParts(year, month, day) != ErrorPart.none)
+                    return invalidText;
+                break;
             case DateTimeKind.dateTime:
-                if (!hasDate)
-                    return 0; // First position as error
+                if (!hasDate
+                    || DateTime.isValidDateParts(year, month, day) != ErrorPart.none
+                    || isValidTimeParts(hour, minute, second, millisecond) != ErrorPart.none)
+                    return invalidText;
+                if (zoneAdjustment && isValidTimeParts(zoneAdjustmentHour, zoneAdjustmentMinute, 0, 0) != ErrorPart.none)
+                    return invalidText;
                 break;
             case DateTimeKind.time:
-                if (!hasTime)
-                    return 0; // First position as error
+                if (!hasTime
+                    || isValidTimeParts(hour, minute, second, millisecond) != ErrorPart.none)
+                    return invalidText;
+                if (zoneAdjustment && isValidTimeParts(zoneAdjustmentHour, zoneAdjustmentMinute, 0, 0) != ErrorPart.none)
+                    return invalidText;
                 break;
+        }
+
+        version (none)
+        {
+            import pham.utl.test;
+            dgWriteln("year=", year, ", month=", month, ", day=", day
+                      , ", hour=", hour, ", minute=", minute, ", second=", second
+                      , ", zoneAdjustment=", zoneAdjustment, ", zoneAdjustmentHour=", zoneAdjustmentHour, ", zoneAdjustmentMinute=", zoneAdjustmentMinute
+                      , ", dateTimeText=", dateTimeText, ", patternText=", pattern.patternText);
         }
 
         return noError;
@@ -797,13 +815,16 @@ public:
 
 public:
     enum ptrdiff_t noError = -1;
-    enum ptrdiff_t emptyText = -2;
-    enum ptrdiff_t emptyPattern = -3;
+    enum ptrdiff_t emptyPattern = -2;
+    enum ptrdiff_t emptyText = -3;
+    enum ptrdiff_t invalidText = -4;
 
     DateTimePatternInfo patternInfo;
     size_t p, endP, fractionDigitCount, hourDigitCount, yearDigitCount;
     int year, month, day;
-    int hour, minute, second, fraction, hourAdjustment, zoneAdjustment, zoneAdjustmentHour, zoneAdjustmentMinute;
+    int hour, minute, second, fraction, hourAdjustment;
+    // Available zoneAdjustment value: -1, 0, 1
+    int zoneAdjustment, zoneAdjustmentHour, zoneAdjustmentMinute;
     DateTimeKind parseType;
     bool hasTime;
 }
@@ -853,7 +874,9 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
                 auto utcDT = bias == Duration.zero
                     ? DateTime(result.sticks, DateTimeZoneKind.utc)
                     : DateTime(result.addTicksSafe(-bias).sticks, DateTimeZoneKind.utc);
-                result = toKind == DateTimeZoneKind.utc ? utcDT : TimeZoneInfo.convertUtcToLocal(utcDT);
+                result = toKind == DateTimeZoneKind.utc
+                    ? utcDT
+                    : TimeZoneInfo.convertUtcToLocal(utcDT);
             }
         }
         else static if (parseType == DateTimeKind.time)
@@ -874,7 +897,9 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
                 auto utcDT = bias == Duration.zero
                     ? DateTime(DateTime.utcNow.date, result.asUTC)
                     : DateTime(DateTime.utcNow.date, result.asUTC).addTicksSafe(-bias);
-                result = toKind == DateTimeZoneKind.utc ? utcDT.time : TimeZoneInfo.convertUtcToLocal(utcDT).time;
+                result = toKind == DateTimeZoneKind.utc
+                    ? utcDT.time
+                    : TimeZoneInfo.convertUtcToLocal(utcDT).time;
             }
         }
         else
@@ -900,13 +925,13 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
         return DateTimeParser.emptyPattern;
     }
 
-    auto firstError = ptrdiff_t.min;
+    auto firstError = DateTimeParser.emptyPattern;
     foreach (ref pattern; patterns)
     {
         const parseResult = tryParse!T(dateTimeText, pattern, result);
-        if (parseResult == DateTimeParser.noError)
-            return DateTimeParser.noError;
-        if (firstError == ptrdiff_t.min)
+        if (parseResult == DateTimeParser.noError || parseResult == DateTimeParser.emptyText)
+            return parseResult;
+        if (firstError == DateTimeParser.emptyPattern)
             firstError = parseResult;
     }
     return firstError;

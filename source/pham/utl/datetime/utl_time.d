@@ -17,6 +17,7 @@ import std.traits : isSomeChar;
 import pham.utl.utf8 : ShortStringBuffer;
 import pham.utl.datetime.date : DateTime, DayOfWeek;
 import pham.utl.datetime.tick;
+public import pham.utl.datetime.tick : CustomFormatSpecifier, DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind;
 
 @safe:
 
@@ -120,6 +121,17 @@ public:
     bool opEquals(scope const(Time) rhs) const @nogc nothrow pure scope
     {
         return data.opEquals(rhs.data);
+    }
+
+    Time addBias(const(int) biasSign, const(int) biasHour, const(int) biasMinute) const @nogc nothrow pure
+    in
+    {
+        assert(biasSign == +1 || biasSign == -1);
+        assert(isValidTimeParts(biasHour, biasMinute, 0, 0) == ErrorPart.none);
+    }
+    do
+    {
+        return addMinutes(-biasSign * (biasHour * 60 + biasMinute));
     }
 
     /**

@@ -362,7 +362,7 @@ nothrow @safe:
         return (dayOfWeekNames !is null) && (monthNames !is null) && dateSeparator != 0 && timeSeparator != 0;
     }
 
-    static DateTimeSetting us() @nogc
+    static DateTimeSetting us() @nogc pure
     {
         DateTimeSetting result;
         result.longDateFormat = "ddd, mmm dd, yyyy";
