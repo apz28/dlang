@@ -54,37 +54,37 @@ union Map64Bit
 static assert(Map64Bit.sizeof == 8);
 
 pragma(inline, true)
-private size_t bAt(T)(const(size_t) index) @nogc pure
+private size_t bitAt(T)(const(size_t) index) @nogc pure
 if (isUnsigned!T && T.sizeof <= 8)
 {
     return index & (T.sizeof * 8 - 1);
 }
 
 pragma(inline, true)
-private size_t pAt(T)(const(size_t) index) @nogc pure
+private size_t elementAt(T)(const(size_t) index) @nogc pure
 if (isUnsigned!T && T.sizeof <= 8)
 {
     return index / (T.sizeof * 8);
 }
 
 pragma(inline, true)
-bool bt(T)(const scope T* p, const(size_t) index) @nogc pure @system
+bool bt(T)(scope const(T)[] p, const(size_t) index) @nogc pure
 if (isUnsigned!T && T.sizeof <= 8)
 {
-    return (p[pAt!T(index)] & (T(1) << bAt!T(index))) != 0;
+    return (p[elementAt!T(index)] >> bitAt!T(index)) & 1u;
 }
 
 pragma(inline, true)
 bool btc(T)(scope T* p, const(size_t) index) @nogc pure @system
 if (isUnsigned!T && T.sizeof <= 8)
 {
-    const pat = pAt!T(index);
-    const bat = bAt!T(index);
-    const result = (p[pat] & (T(1) << bat)) != 0;
+    const eat = elementAt!T(index);
+    const bat = bitAt!T(index);
+    const result = (p[eat] >> bat) & 1u;
     if (result)
-        p[pat] &= flip(cast(T)(T(1) << bat));
+        p[eat] &= flip!T(cast(T)(T(1u) << bat));
     else
-        p[pat] |= cast(T)(T(1) << bat);
+        p[eat] |= cast(T)(T(1u) << bat);
     return result;
 }
 
@@ -92,10 +92,10 @@ pragma(inline, true)
 bool btr(T)(scope T* p, const(size_t) index) @nogc pure @system
 if (isUnsigned!T && T.sizeof <= 8)
 {
-    const pat = pAt!T(index);
-    const bat = bAt!T(index);
-    const result = (p[pat] & (T(1) << bat)) != 0;
-    p[pat] &= flip(cast(T)(T(1) << bat));
+    const eat = elementAt!T(index);
+    const bat = bitAt!T(index);
+    const result = (p[eat] >> bat) & 1u;
+    p[eat] &= flip!T(cast(T)(T(1u) << bat));
     return result;
 }
 
@@ -103,10 +103,10 @@ pragma(inline, true)
 bool bts(T)(scope T* p, const(size_t) index) @nogc pure @system
 if (isUnsigned!T && T.sizeof <= 8)
 {
-    const pat = pAt!T(index);
-    const bat = bAt!T(index);
-    const result = (p[pat] & (T(1) << bat)) != 0;
-    p[pat] |= cast(T)(T(1) << bat);
+    const eat = elementAt!T(index);
+    const bat = bitAt!T(index);
+    const result = (p[eat] >> bat) & 1u;
+    p[eat] |= cast(T)(T(1u) << bat);
     return result;
 }
 
@@ -444,7 +444,7 @@ public:
     this(size_t length, bool bit) pure
     {
         this._length = length;
-        this.values.length = bitLengthToElement!T(length);
+        this._values.length = bitLengthToElement!T(length);
         if (length)
             setAll(bit);
     }
@@ -453,12 +453,18 @@ public:
     {
         const bitLength = bits.length;
         this._length = bitLength;
-        this.values.length = bitLengthToElement!T(bitLength);
+        this._values.length = bitLengthToElement!T(bitLength);
         foreach (i, bit; bits)
         {
             if (bit)
-                this.values[i / bitsPerElement] |= (cast(T)1 << (i % bitsPerElement));
+                this._values[i / bitsPerElement] |= (cast(T)1 << (i % bitsPerElement));
         }
+    }
+
+    this(scope const(T)[] values) pure
+    {
+        this._length = values.length * bitsPerElement;
+        this._values = values.dup;
     }
 
     /*
@@ -466,14 +472,13 @@ public:
      * bits 0 - 7, ubytes[1] represents bits 8 - 15, etc. The LSB of each ubyte
      * represents the lowest index value; ubytes[0] & 1 represents bit 0,
      * ubytes[0] & 2 represents bit 1, ubytes[0] & 4 represents bit 2, etc.
-     *
      */
     static if (!is(T == ubyte))
     this(scope const(ubyte)[] bytes) pure
     {
         const bitLength = bytes.length * bitsPerByte;
         this._length = bitLength;
-        this.values.length = bitLengthToElement!T(bitLength);
+        this._values.length = bitLengthToElement!T(bitLength);
 
         if (bitLength)
         {
@@ -482,19 +487,18 @@ public:
             {
                 static if (T.sizeof == 2)
                 {
-                    values[i++] = bytes[j]
-                        | (cast(T)(bytes[j + 1]) << 8);
+                    _values[i++] = bytes[j] | (cast(T)(bytes[j + 1]) << 8);
                 }
                 else static if (T.sizeof == 4)
                 {
-                    values[i++] = bytes[j]
+                    _values[i++] = bytes[j]
                         | (cast(T)(bytes[j + 1]) << 8)
                         | (cast(T)(bytes[j + 2]) << 16)
                         | (cast(T)(bytes[j + 3]) << 24);
                 }
                 else
                 {
-                    values[i++] = bytes[j]
+                    _values[i++] = bytes[j]
                         | (cast(T)(bytes[j + 1]) << 8)
                         | (cast(T)(bytes[j + 2]) << 16)
                         | (cast(T)(bytes[j + 3]) << 24)
@@ -513,31 +517,31 @@ public:
                 static if (T.sizeof >= 8)
                 {
                 case 7:
-                    values[i] = (cast(T)(bytes[j + 2]) << 48);
+                    _values[i] = (cast(T)(bytes[j + 2]) << 48);
                     goto case 6;
                 case 6:
-                    values[i] = (cast(T)(bytes[j + 2]) << 40);
+                    _values[i] = (cast(T)(bytes[j + 2]) << 40);
                     goto case 5;
                 case 5:
-                    values[i] = (cast(T)(bytes[j + 2]) << 32);
+                    _values[i] = (cast(T)(bytes[j + 2]) << 32);
                     goto case 4;
                 case 4:
-                    values[i] = (cast(T)(bytes[j + 2]) << 24);
+                    _values[i] = (cast(T)(bytes[j + 2]) << 24);
                     goto case 3;
                 }
 
                 static if (T.sizeof >= 4)
                 {
                 case 3:
-                    values[i] = (cast(T)(bytes[j + 2]) << 16);
+                    _values[i] = (cast(T)(bytes[j + 2]) << 16);
                     goto case 2;
                 case 2:
-                    values[i] |= (cast(T)(bytes[j + 1]) << 8);
+                    _values[i] |= (cast(T)(bytes[j + 1]) << 8);
                     goto case 1;
                 }
 
                 case 1:
-                    values[i] |= bytes[j];
+                    _values[i] |= bytes[j];
                     break;
                 default:
                     break;
@@ -545,15 +549,9 @@ public:
         }
     }
 
-    this(scope const(T)[] values) pure
-    {
-        this._length = values.length * bitsPerElement;
-        this.values = values.dup;
-    }
-
     this(this) pure
     {
-        this.values = values.dup;
+        this._values = _values.dup;
     }
 
     /*
@@ -588,12 +586,12 @@ public:
     }
     do
     {
-        foreach (i, ref e; values)
+        foreach (i, ref e; _values)
         {
             static if (op == "-")
-                e &= ~other.values[i];
+                e &= ~other._values[i];
             else
-                mixin("e " ~ op ~ "= other.values[i];");
+                mixin("e " ~ op ~ "= other._values[i];");
         }
         clearUnusedHighBits();
 
@@ -643,12 +641,12 @@ public:
             if (wordsToShift < dim)
             {
                 foreach_reverse (i; 1..dim - wordsToShift)
-                    values[i + wordsToShift] = rollLeft(values[i], values[i - 1], bitsToShift);
-                values[wordsToShift] = rollLeft(values[0], 0, bitsToShift);
+                    _values[i + wordsToShift] = rollLeft(_values[i], _values[i - 1], bitsToShift);
+                _values[wordsToShift] = rollLeft(_values[0], 0, bitsToShift);
             }
 
             foreach (i; 0..min(wordsToShift, dim))
-                values[i] = 0;
+                _values[i] = 0;
         }
 
         return this;
@@ -677,8 +675,8 @@ public:
             if (wordsToShift + 1 < dim)
             {
                 foreach (i; 0..dim - wordsToShift - 1)
-                    values[i] = rollRight(values[i + wordsToShift + 1],
-                                          values[i + wordsToShift],
+                    _values[i] = rollRight(_values[i + wordsToShift + 1],
+                                          _values[i + wordsToShift],
                                           bitsToShift);
             }
 
@@ -687,20 +685,20 @@ public:
             if (wordsToShift < dim)
             {
                 if (bitsToShift == 0)
-                    values[dim - wordsToShift - 1] = values[dim - 1];
+                    _values[dim - wordsToShift - 1] = _values[dim - 1];
                 else
                 {
                     // Special case: if endBits == 0, then also endMask == 0.
                     const e = endBits;
                     const T lastWord = e
-                        ? (values[fullWords] & endMask(e))
-                        : values[fullWords - 1];
-                    values[dim - wordsToShift - 1] = rollRight(0, lastWord, bitsToShift);
+                        ? (_values[fullWords] & endMask(e))
+                        : _values[fullWords - 1];
+                    _values[dim - wordsToShift - 1] = rollRight(0, lastWord, bitsToShift);
                 }
             }
 
             foreach (i; 0..min(wordsToShift, dim))
-                values[dim - i - 1] = 0;
+                _values[dim - i - 1] = 0;
         }
 
         return this;
@@ -759,18 +757,18 @@ public:
 
         foreach (i; 0..f)
         {
-            if (values[i] != rhs.values[i])
-                return values[i] & (T(1) << bsf(values[i] ^ rhs.values[i])) ? 1 : -1;
+            if (_values[i] != rhs._values[i])
+                return _values[i] & (T(1) << bsf(_values[i] ^ rhs._values[i])) ? 1 : -1;
         }
 
         if (endBits)
         {
-            const diff = values[f] ^ rhs.values[f];
+            const diff = _values[f] ^ rhs._values[f];
             if (diff)
             {
                 const i = bsf(diff);
                 if (i < e)
-                    return values[f] & (T(1) << i) ? 1 : -1;
+                    return _values[f] & (T(1) << i) ? 1 : -1;
             }
         }
 
@@ -789,7 +787,7 @@ public:
             return false;
 
         const f = fullWords;
-        if (values[0..f] != rhs.values[0..f])
+        if (_values[0..f] != rhs._values[0..f])
             return false;
 
         const e = endBits;
@@ -797,17 +795,20 @@ public:
             return true;
 
         const m = endMask(e);
-        return (values[f] & m) == (rhs.values[f] & m);
+        return (_values[f] & m) == (rhs._values[f] & m);
     }
 
-    bool opIndex(size_t index) const @nogc pure @trusted
+    /**
+     * Returns the bit at the given index.
+     */
+    bool opIndex(size_t index) const @nogc pure
     in
     {
         assert(index < length);
     }
     do
     {
-        return bt(values.ptr, index);
+        return bt(_values, index);
     }
 
     bool opIndexAssign(bool bit, size_t index) @nogc pure @trusted
@@ -817,18 +818,17 @@ public:
     }
     do
     {
-        // cast(void) to fix warning
         if (bit)
-            cast(void)bts(values.ptr, index);
+            bts(_values.ptr, index);
         else
-            cast(void)btr(values.ptr, index);
+            btr(_values.ptr, index);
         return bit;
     }
 
     static if (is(T == ubyte))
     T[] opSlice() @nogc pure return
     {
-        return values;
+        return _values;
     }
 
     /*
@@ -865,9 +865,9 @@ public:
             const T endBlockMask = cast(T)((T(1) << endOffset) - 1);
             const T joinMask = startBlockMask & endBlockMask;
             if (bit)
-                values[startBlock] |= joinMask;
+                _values[startBlock] |= joinMask;
             else
-                values[startBlock] &= joinMask.flip();
+                _values[startBlock] &= joinMask.flip();
             return this;
         }
 
@@ -875,9 +875,9 @@ public:
         {
             const T startBlockMask = cast(T)(~((T(1) << startOffset) - 1));
             if (bit)
-                values[startBlock] |= startBlockMask;
+                _values[startBlock] |= startBlockMask;
             else
-                values[startBlock] &= startBlockMask.flip();
+                _values[startBlock] &= startBlockMask.flip();
             ++startBlock;
         }
 
@@ -885,12 +885,12 @@ public:
         {
             const T endBlockMask = (T(1) << endOffset) - 1;
             if (bit)
-                values[endBlock] |= endBlockMask;
+                _values[endBlock] |= endBlockMask;
             else
-                values[endBlock] &= endBlockMask.flip();
+                _values[endBlock] &= endBlockMask.flip();
         }
 
-        values[startBlock..endBlock] = cast(T)(T(0) - T(bit));
+        _values[startBlock..endBlock] = cast(T)(T(0) - T(bit));
 
         return this;
     }
@@ -904,8 +904,8 @@ public:
         UnqualThis result = UnqualThis(length);
         if (length)
         {
-            foreach (i, e; values)
-                result.values[i] = ~e;
+            foreach (i, e; _values)
+                result._values[i] = ~e;
             result.clearUnusedHighBits();
         }
         return result;
@@ -921,16 +921,16 @@ public:
         {
             const f = fullWords;
             foreach (i; 0..f)
-                result += popcnt(values[i]);
+                result += popcnt(_values[i]);
             if (const e = endBits)
-                result += popcnt(values[f] & endMask(e));
+                result += popcnt(_values[f] & endMask(e));
         }
         return result;
     }
 
     UnqualThis dup() const pure
     {
-        UnqualThis result = UnqualThis(this.values);
+        UnqualThis result = UnqualThis(this._values);
         result._length = length; // Should be OK because we maintain this.values
         return result;
     }
@@ -942,7 +942,7 @@ public:
     {
         if (length)
         {
-            foreach (ref e; values)
+            foreach (ref e; _values)
                 e = e.flip();
             clearUnusedHighBits();
         }
@@ -959,12 +959,11 @@ public:
     }
     do
     {
-        auto result = bt(values.ptr, index);
-        // cast(void) to fix warning
+        auto result = bt(_values, index);
         if (result)
-            cast(void)btr(values.ptr, index);
+            btr(_values.ptr, index);
         else
-            cast(void)bts(values.ptr, index);
+            bts(_values.ptr, index);
         return result;
     }
 
@@ -975,17 +974,17 @@ public:
         {
             bool[] result = new bool[](length);
             foreach (i; 0..length)
-                result[i] = bt(values.ptr, i);
+                result[i] = bt(_values.ptr, i);
             return result;
         }
         else static if (is(Unqual!U == T))
-            return values.dup;
+            return _values.dup;
         else //static if (is(T == ubyte))
         {
             ubyte[] result = new ubyte[](bitLengthToElement!ubyte(length));
             foreach (i; 0..result.length)
                 // Shift to bring the required byte to LSB, then mask
-                result[i] = cast(ubyte)((values[i / T.sizeof] >> ((i % T.sizeof) * 8)) & 0xff);
+                result[i] = cast(ubyte)((_values[i / T.sizeof] >> ((i % T.sizeof) * 8)) & 0xff);
             return result;
         }
     }
@@ -1026,7 +1025,7 @@ public:
             foreach (i; 0..fullBytes)
             {
                 result *= 3559;
-                result += (cast(ubyte*)values.ptr)[i];
+                result += (cast(ubyte*)_values.ptr)[i];
             }
 
             foreach (i; (8 * fullBytes)..length)
@@ -1101,11 +1100,11 @@ public:
             const newSize = bitLengthToElement!T(newLength);
             if (oldSize != newSize)
             {
-                values.length = newSize;
+                _values.length = newSize;
                 // assumeSafeAppend does not support pure
                 //() @trusted { values.assumeSafeAppend(); } ();
                 if (newSize > oldSize)
-                    values[oldSize..newSize] = 0;
+                    _values[oldSize..newSize] = 0;
             }
 
             if (_length < newLength)
@@ -1123,7 +1122,7 @@ private:
     void clearUnusedHighBits() @nogc pure
     {
         if (const e = endBits)
-            values[fullWords] &= endMask(e);
+            _values[fullWords] &= endMask(e);
     }
 
     // Bit mask to extract the bits after the last full word
@@ -1153,7 +1152,7 @@ private:
 
     void setAll(bool value) @nogc pure
     {
-        values[] = value ? T.max : 0u;
+        _values[] = value ? T.max : 0u;
         if (value)
             clearUnusedHighBits();
     }
@@ -1215,7 +1214,7 @@ private:
 
 private:
     size_t _length;
-    T[] values;
+    T[] _values;
 }
 
 alias BitArray = BitArrayImpl!size_t;
@@ -1343,10 +1342,49 @@ version (unittest)
     }
 }
 
+@safe unittest // bitAt & elementAt
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.bitAt & elementAt");
+
+    assert(bitAt!ubyte(0) == 0);
+    assert(bitAt!ubyte(1) == 1);
+    assert(bitAt!ubyte(7) == 7);
+    assert(bitAt!ubyte(8) == 0);
+    assert(bitAt!ubyte(15) == 7);
+    assert(elementAt!ubyte(0) == 0);
+    assert(elementAt!ubyte(1) == 0);
+    assert(elementAt!ubyte(7) == 0);
+    assert(elementAt!ubyte(8) == 1);
+    assert(elementAt!ubyte(15) == 1);
+
+    assert(bitAt!uint(0) == 0);
+    assert(bitAt!uint(1) == 1);
+    assert(bitAt!uint(31) == 31);
+    assert(bitAt!uint(32) == 0);
+    assert(bitAt!uint(63) == 31);
+    assert(elementAt!uint(0) == 0);
+    assert(elementAt!uint(1) == 0);
+    assert(elementAt!uint(31) == 0);
+    assert(elementAt!uint(32) == 1);
+    assert(elementAt!uint(63) == 1);
+
+    assert(bitAt!ulong(0) == 0);
+    assert(bitAt!ulong(1) == 1);
+    assert(bitAt!ulong(63) == 63);
+    assert(bitAt!ulong(64) == 0);
+    assert(bitAt!ulong(127) == 63);
+    assert(elementAt!ulong(0) == 0);
+    assert(elementAt!ulong(1) == 0);
+    assert(elementAt!ulong(63) == 0);
+    assert(elementAt!ulong(64) == 1);
+    assert(elementAt!ulong(127) == 1);
+}
+
 @safe unittest // flip
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.flip");
+    traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.flip");
 
     assert(flip!ubyte(0) == ubyte.max);
     assert(flip!ubyte(ubyte.max) == 0);
@@ -1375,7 +1413,7 @@ version (unittest)
         array[0] = 0x2;
         array[1] = 0x0100;
 
-        assert(bt(array.ptr, 1));
+        assert(bt(array, 1));
         assert(array[0] == 0x2);
         assert(array[1] == 0x0100);
     }

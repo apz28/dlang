@@ -13,6 +13,7 @@ module pham.utl.utf8;
 
 import std.algorithm.mutation : swapAt;
 import std.range.primitives : ElementType, empty, front, isInfinite, isInputRange, isOutputRange, popFront, put, save;
+import std.string : representation;
 import std.traits : isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned, Unqual;
 
 nothrow @safe:
@@ -41,7 +42,7 @@ do
  *  true if c is a valid digit characters, false otherwise
  */
 pragma(inline, true)
-bool isDigit(const(dchar) c, ref ubyte b) @nogc nothrow pure @safe
+bool isDigit(const(dchar) c, ref ubyte b) @nogc pure
 {
     if (c >= '0' && c <= '9')
     {
@@ -53,7 +54,7 @@ bool isDigit(const(dchar) c, ref ubyte b) @nogc nothrow pure @safe
 }
 
 version (none)
-bool isDigit(const(char) c, ref ubyte b) @nogc nothrow pure @safe
+bool isDigit(const(char) c, ref ubyte b) @nogc pure
 {
     if (c >= '0' && c <= '9')
     {
@@ -73,7 +74,7 @@ bool isDigit(const(char) c, ref ubyte b) @nogc nothrow pure @safe
  *  true if c is a valid hex characters, false otherwise
  */
 //pragma(inline, true)
-bool isHexDigit(const(dchar) c, ref ubyte b) @nogc nothrow pure @safe
+bool isHexDigit(const(dchar) c, ref ubyte b) @nogc pure
 {
     if (c >= '0' && c <= '9')
         b = cast(ubyte)(c - '0');
@@ -88,7 +89,7 @@ bool isHexDigit(const(dchar) c, ref ubyte b) @nogc nothrow pure @safe
 }
 
 version (none)
-bool isHexDigit(const(char) c, ref ubyte b) @nogc nothrow pure @safe
+bool isHexDigit(const(char) c, ref ubyte b) @nogc pure
 {
     if (c >= '0' && c <= '9')
         b = cast(ubyte)(c - '0');
@@ -102,7 +103,7 @@ bool isHexDigit(const(char) c, ref ubyte b) @nogc nothrow pure @safe
     return true;
 }
 
-bool nextUTF8Char(scope const(char)[] str, size_t pos, out dchar cCode, out ubyte cCount) @nogc nothrow pure @safe
+bool nextUTF8Char(scope const(ubyte)[] str, size_t pos, out dchar cCode, out ubyte cCount) @nogc pure
 {
     if (pos >= str.length)
     {
@@ -128,9 +129,9 @@ bool nextUTF8Char(scope const(char)[] str, size_t pos, out dchar cCode, out ubyt
 
         if (cCount + pos - 1 > str.length)
         {
-            // Return max count to avoid buffer overrun
-            while (cCount + pos - 1 > str.length)
-                cCount--;
+            // Return max count to avoid buffer overrun?
+            //while (cCount + pos - 1 > str.length)
+            //    cCount--;
 
             cCode = 0;
             return false;
@@ -219,9 +220,15 @@ bool nextUTF8Char(scope const(char)[] str, size_t pos, out dchar cCode, out ubyt
     }
 }
 
+pragma(inline, true)
+bool nextUTF8Char(scope const(char)[] str, size_t pos, out dchar cCode, out ubyte cCount) @nogc pure
+{
+    return nextUTF8Char(str.representation, pos, cCode, cCount);
+}
+
 version (none)
 pragma(inline, true)
-bool isUTF16SurrogateHigh(const(wchar) c) @nogc nothrow pure @safe
+bool isUTF16SurrogateHigh(const(wchar) c) @nogc pure
 {
     enum unicodeSurrogateHighBegin = 0xD800;
     enum unicodeSurrogateHighEnd = 0xDBFF;
@@ -230,14 +237,14 @@ bool isUTF16SurrogateHigh(const(wchar) c) @nogc nothrow pure @safe
 
 version (none)
 pragma(inline, true)
-bool isUTF16SurrogateLow(const(wchar) c) @nogc nothrow pure @safe
+bool isUTF16SurrogateLow(const(wchar) c) @nogc pure
 {
     enum unicodeSurrogateLowBegin = 0xDC00;
     enum unicodeSurrogateLowEnd = 0xDFFF;
     return c >= unicodeSurrogateLowBegin && c <= unicodeSurrogateLowEnd;
 }
 
-bool nextUTF16Char(scope const(wchar)[] str, size_t pos, out dchar cCode, out ubyte cCount) @nogc nothrow pure @safe
+bool nextUTF16Char(scope const(ushort)[] str, size_t pos, out dchar cCode, out ubyte cCount) @nogc pure
 {
     if (pos >= str.length)
     {
@@ -278,6 +285,12 @@ bool nextUTF16Char(scope const(wchar)[] str, size_t pos, out dchar cCode, out ub
         cCode = 0;
         return false;
     }
+}
+
+pragma(inline, true)
+bool nextUTF16Char(scope const(wchar)[] str, size_t pos, out dchar cCode, out ubyte cCount) @nogc pure
+{
+    return nextUTF16Char(str.representation, pos, cCode, cCount);
 }
 
 struct UTF8CharRange
@@ -732,21 +745,21 @@ enum NumericParsedKind : ubyte
     overflow,
 }
 
-NumericLexerOptions!Char defaultParseDecimalOptions(Char)() nothrow pure @safe
+NumericLexerOptions!Char defaultParseDecimalOptions(Char)() pure
 {
     NumericLexerOptions!Char result;
     result.flags |= NumericLexerFlag.allowFloat;
     return result;
 }
 
-NumericLexerOptions!Char defaultParseHexDigitOptions(Char)() nothrow pure @safe
+NumericLexerOptions!Char defaultParseHexDigitOptions(Char)() pure
 {
     NumericLexerOptions!Char result;
     result.flags |= NumericLexerFlag.hexDigit | NumericLexerFlag.allowHexDigit;
     return result;
 }
 
-NumericLexerOptions!Char defaultParseIntegralOptions(Char)() nothrow pure @safe
+NumericLexerOptions!Char defaultParseIntegralOptions(Char)() pure
 {
     NumericLexerOptions!Char result;
     result.flags |= NumericLexerFlag.allowHexDigit;
@@ -761,7 +774,7 @@ NumericLexerOptions!Char defaultParseIntegralOptions(Char)() nothrow pure @safe
  * Returns:
  *  NumericParsedKind
  */
-NumericParsedKind parseHexDigits(Range, Target)(ref Range hexText, out Target v) nothrow pure @safe
+NumericParsedKind parseHexDigits(Range, Target)(ref Range hexText, out Target v) pure
 if (isNumericLexerRange!Range && isIntegral!Target)
 {
     v = 0;
@@ -798,7 +811,7 @@ if (isNumericLexerRange!Range && isIntegral!Target)
 }
 
 ///dito
-NumericParsedKind parseHexDigits(S, Target)(scope S hexText, out Target v) nothrow pure @safe
+NumericParsedKind parseHexDigits(S, Target)(scope S hexText, out Target v) pure
 if (isSomeString!S && isIntegral!Target)
 {
     auto range = NumericStringRange!S(hexText);
@@ -813,7 +826,7 @@ if (isSomeString!S && isIntegral!Target)
  * Returns:
  *  NumericParsedKind
  */
-NumericParsedKind parseHexDigits(Range, Writer)(ref Range hexDigitText, ref Writer sink) nothrow pure @safe
+NumericParsedKind parseHexDigits(Range, Writer)(ref Range hexDigitText, ref Writer sink) pure
 if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 {
     auto lexer = NumericLexer!Range(hexDigitText, defaultParseHexDigitOptions!(ElementType!Range)());
@@ -854,7 +867,7 @@ if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 }
 
 ///dito
-NumericParsedKind parseHexDigits(S, Writer)(scope S hexDigitText, ref Writer sink) nothrow pure @safe
+NumericParsedKind parseHexDigits(S, Writer)(scope S hexDigitText, ref Writer sink) pure
 if (isSomeString!S && isOutputRange!(Writer, ubyte))
 {
     auto range = NumericStringRange!S(hexDigitText);
@@ -869,7 +882,7 @@ if (isSomeString!S && isOutputRange!(Writer, ubyte))
  * Returns:
  *  NumericParsedKind
  */
-NumericParsedKind parseIntegral(Range, Target)(ref Range integralText, out Target v) nothrow pure @safe
+NumericParsedKind parseIntegral(Range, Target)(ref Range integralText, out Target v) pure
 if (isNumericLexerRange!Range && isIntegral!Target)
 {
     v = 0;
@@ -953,7 +966,7 @@ if (isNumericLexerRange!Range && isIntegral!Target)
 }
 
 ///dito
-NumericParsedKind parseIntegral(S, Target)(scope S integralText, out Target v) nothrow pure @safe
+NumericParsedKind parseIntegral(S, Target)(scope S integralText, out Target v) pure
 if (isSomeString!S && isIntegral!Target)
 {
     auto range = NumericStringRange!S(integralText);

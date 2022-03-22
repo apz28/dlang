@@ -1394,14 +1394,14 @@ T* valuePointerOf(T)(size_t storedSize, return void* storedPointer) nothrow @tru
 struct Handler(T)
 {
 public:
-    static Handler* getHandler() nothrow @trusted
+    static Handler!T* getHandler() nothrow @trusted
     {
         static if (is(T == void))
             return &voidHandler;
         else
-            return cast(Handler*)&hHandler;
+            return cast(Handler!T*)&hHandler;
     }
-    private static shared Handler hHandler;
+    private static shared Handler!T hHandler;
 
 public:
     bool function(size_t size, scope void* store, scope void* value) @trusted
@@ -5288,20 +5288,20 @@ nothrow @safe unittest // Algebraic
         Variant v;
         {
             v = S(0);
-            assert(S.cnt == 1);
+            assert(S.cnt == 1, S.cnt.dgToStr());
         }
-        assert(S.cnt == 1);
+        assert(S.cnt == 1, S.cnt.dgToStr());
 
         // assigning a new value should destroy the existing one
         v = 0;
-        assert(S.cnt == 0);
+        assert(S.cnt == 0, S.cnt.dgToStr());
 
         // destroying the variant should destroy it's current value
         v = S(0);
-        assert(S.cnt == 1);
+        assert(S.cnt == 1, S.cnt.dgToStr());
     }
 
-    assert(S.cnt == 0);
+    assert(S.cnt == 0, S.cnt.dgToStr());
 }
 
 @safe unittest // https://issues.dlang.org/show_bug.cgi?id=18934

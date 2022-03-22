@@ -26,7 +26,7 @@ version (TraceInvalidMemoryOp) import pham.utl.test;
 import pham.utl.utf8 : isHexDigit, NumericParsedKind, parseHexDigits, parseIntegral, ShortStringBuffer;
 
 pragma(inline, true);
-size_t alignRoundup(size_t n, size_t powerOf2AlignmentSize) @nogc nothrow pure @safe
+size_t alignRoundup(const(size_t) n, const(size_t) powerOf2AlignmentSize) @nogc nothrow pure @safe
 in
 {
     assert(powerOf2AlignmentSize > 1);
@@ -556,6 +556,41 @@ public:
 private:
     Mutex _mutex;
     int _locked;
+}
+
+struct ResultStatus
+{
+nothrow @safe:
+
+public:
+    this(bool okStatus, int errorCode, string errorMessage) @nogc pure
+    {
+        this.okStatus = okStatus;
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+    }
+
+    bool opCast(C: bool)() const @nogc pure
+    {
+        return okStatus;
+    }
+
+    pragma(inline, true)
+    static typeof(this) error(int errorCode, string errorMessage) @nogc pure
+    {
+        return ResultStatus(false, errorCode, errorMessage);
+    }
+
+    pragma(inline, true)
+    static typeof(this) ok() @nogc pure
+    {
+        return ResultStatus(true, 0, null);
+    }
+
+public:
+    bool okStatus;
+    int errorCode;
+    string errorMessage;
 }
 
 struct VersionString

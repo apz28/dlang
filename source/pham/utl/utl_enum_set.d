@@ -43,23 +43,29 @@ if (is(E == enum))
 /**
  * Detect whether an enum is of integral type and has distinct bit flag values
  * Ex:
- *  enum E {e1 = 1 << 0, e2 = 1 << 1, ...}
+ *  enum E
+ *  {
+ *      e1 = 1 << 0,
+ *      e2 = 1 << 1,
+ *      ...
+ *  }
  */
 template isBitEnum(E)
 {
     static if (is(E Base == enum) && isIntegral!Base)
     {
         enum isBitEnum = (E.min > 0) &&
-        {
-            ulong values;
-            foreach (i; EnumMembers!E)
             {
-                if ((values & i) != 0)
-                    return false;
-                values |= i;
-            }
-            return count!E <= maxBits();
-        }();
+                ulong values;
+                foreach (e; EnumMembers!E)
+                {
+                    // Found with previous value?
+                    if (e < 0 || (values & e) != 0)
+                        return false;
+                    values |= e;
+                }
+                return count!E <= maxBits();
+            }();
     }
     else
     {
@@ -70,23 +76,29 @@ template isBitEnum(E)
 /**
  * Detect whether an enum is of integral type and has increasing values
  * Ex:
- *  enum E {e1 = 1, e2 = 2, e3 = 10, ...}
+ *  enum E
+ *  {
+ *      e1 = 1,
+ *      e2 = 2,
+ *      e3 = 10,
+ *      ...
+ *  }
  */
 template isOrderedEnum(E)
 {
     static if (is(E Base == enum) && isIntegral!Base)
     {
         enum isOrderedEnum =
-        {
-            auto prev = E.min;
-            foreach (i; EnumMembers!E)
             {
-                if (i != E.min && i <= prev)
-                    return false;
-                prev = i;
-            }
-            return count!E <= maxBits();
-        }();
+                auto prev = E.min;
+                foreach (i, e; EnumMembers!E)
+                {
+                    if (i != 0 && e <= prev)
+                        return false;
+                    prev = e;
+                }
+                return count!E <= maxBits();
+            }();
     }
     else
     {
@@ -97,27 +109,33 @@ template isOrderedEnum(E)
 /**
  * Detect whether an enum is of integral type and has increasing sequence values
  * Ex:
- *  enum E {e1 = 0, e2 = 1, e3 = 2, ...}
+ *  enum E
+ *  {
+ *      e1 = 0,
+ *      e2 = 1,
+ *      e3 = 2,
+ *      ...
+ *  }
  */
-template isSequenceEnum(E)
+template isSequencedEnum(E)
 {
     static if (is(E Base == enum) && isIntegral!Base)
     {
-        enum isSequenceEnum = (E.min >= 0) &&
-        {
-            auto prev = E.min;
-            foreach (i; EnumMembers!E)
+        enum isSequencedEnum = (E.min >= 0) &&
             {
-                if (i != E.min && i != prev + 1)
-                    return false;
-                prev = i;
-            }
-            return E.max < maxBits() && count!E <= maxBits();
-        }();
+                auto prev = E.min;
+                foreach (i, e; EnumMembers!E)
+                {
+                    if (i != 0 && e != prev + 1)
+                        return false;
+                    prev = e;
+                }
+                return E.max < maxBits() && count!E <= maxBits();
+            }();
     }
     else
     {
-        enum isSequenceEnum = false;
+        enum isSequencedEnum = false;
     }
 }
 
@@ -128,29 +146,29 @@ template isEnumSet(E)
 {
     enum isEnumSet =
     {
-        return isBitEnum!E || isOrderedEnum!E || isSequenceEnum!E;
+        return isBitEnum!E || isOrderedEnum!E || isSequencedEnum!E;
     }();
 }
 
 /**
  * Define a simple enum set fit in 32/64 bit integral
  */
-template EnumSetType(E)
+template EnumSetStorage(E)
 if (isEnumSet!E)
 {
     static if (isBitEnum!E)
     {
         static if (E.max <= uint.max)
-            alias EnumSetType = uint;
+            alias EnumSetStorage = uint;
         else
-            alias EnumSetType = ulong;
+            alias EnumSetStorage = ulong;
     }
     else
     {
         static if (count!E() <= uint.sizeof * 8)
-            alias EnumSetType = uint;
+            alias EnumSetStorage = uint;
         else
-            alias EnumSetType = ulong;
+            alias EnumSetStorage = ulong;
     }
 }
 
@@ -165,15 +183,15 @@ if (isEnumSet!E)
 {
     static if (isBitEnum!E)
         return value;
-    else static if (isSequenceEnum!E)
-        return cast(EnumSetType!E)1 << value;
+    else static if (isSequencedEnum!E)
+        return cast(EnumSetStorage!E)1 << value;
     else
     {
         size_t at;
         foreach (e; EnumMembers!E)
         {
             if (e == value)
-                return cast(EnumSetType!E)1 << at;
+                return cast(EnumSetStorage!E)1 << at;
             at++;
         }
         assert(0);
@@ -189,7 +207,7 @@ if (isEnumSet!E)
 size_t ord(E)(E value) @nogc pure
 if (isEnumSet!E)
 {
-    static if (isSequenceEnum!E)
+    static if (isSequencedEnum!E)
         return value;
     else
     {
@@ -573,9 +591,9 @@ public:
         return fails;
     }
 
-    ulong toHash() const pure
+    size_t toHash() const pure
     {
-        return _values;
+        return hashof(_values);
     }
 
     /**
@@ -616,13 +634,13 @@ public:
         return _values == 0;
     }
 
-    @property EnumSetType!E values() const pure
+    @property EnumSetStorage!E values() const pure
     {
         return _values;
     }
 
 private:
-    EnumSetType!E _values;
+    EnumSetStorage!E _values;
 }
 
 /**
@@ -884,7 +902,7 @@ nothrow @safe unittest // EnumSet
 
     /*
     pragma(msg,
-        "EnumTestSkip ", EnumSetType!EnumTestOrder,
+        "EnumTestSkip ", EnumSetStorage!EnumTestOrder,
         ", min: ", EnumTestOrder.min + 0,
         ", max: ", EnumTestOrder.max + 0,
         ", count: ", count!EnumTestOrder(),
@@ -893,7 +911,7 @@ nothrow @safe unittest // EnumSet
     */
 
     static assert(!isBitEnum!EnumTestOrder);
-    static assert(!isSequenceEnum!EnumTestOrder);
+    static assert(!isSequencedEnum!EnumTestOrder);
     Test!EnumTestOrder("[one,two,three]");
 
 
@@ -906,7 +924,7 @@ nothrow @safe unittest // EnumSet
 
     /*
     pragma(msg,
-        "EnumTestSequence ", EnumSetType!EnumTestSequence,
+        "EnumTestSequence ", EnumSetStorage!EnumTestSequence,
         ", min: ", EnumTestSequence.min + 0,
         ", max: ", EnumTestSequence.max + 0,
         ", count: ", count!EnumTestSequence(),
@@ -925,7 +943,7 @@ nothrow @safe unittest // EnumSet
 
     /*
     pragma(msg,
-        "EnumTestBit ", EnumSetType!EnumTestBit,
+        "EnumTestBit ", EnumSetStorage!EnumTestBit,
         ", min: ", EnumTestBit.min + 0,
         ", max: ", EnumTestBit.max + 0,
         ", count: ", count!EnumTestBit(),
@@ -944,7 +962,7 @@ nothrow @safe unittest // EnumSet
         b31, b32
     }
     static assert(isEnumSet!EnumTestLimit1);
-    static assert(is(EnumSetType!EnumTestLimit1 == uint));
+    static assert(is(EnumSetStorage!EnumTestLimit1 == uint));
 
     enum EnumTestLimit2
     {
@@ -957,7 +975,7 @@ nothrow @safe unittest // EnumSet
         b61, b62, b63, b64
     }
     static assert(isEnumSet!EnumTestLimit2);
-    static assert(is(EnumSetType!EnumTestLimit2 == ulong));
+    static assert(is(EnumSetStorage!EnumTestLimit2 == ulong));
 
     enum EnumTestFailOverSequence
     {
@@ -967,7 +985,7 @@ nothrow @safe unittest // EnumSet
         b4=63,
         b5=64
     }
-    static assert(!isSequenceEnum!EnumTestFailOverSequence);
+    static assert(!isSequencedEnum!EnumTestFailOverSequence);
 
     enum EnumTestFailOverElement
     {
