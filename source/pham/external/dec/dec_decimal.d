@@ -1,9 +1,9 @@
 module pham.external.dec.decimal;
 
-import std.format: FormatException, FormatSpec;
-import std.math: FloatingPointControl, getNaNPayload, ieeeFlags, isNaN, isInfinity, ldexp, resetIeeeFlags, signStd = signbit;
-import std.range.primitives: ElementType, isInputRange, isOutputRange, put;
-import std.traits: isFloatingPoint, isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned, Unqual, Unsigned;
+import std.format : FormatException, FormatSpec;
+import std.math : FloatingPointControl, getNaNPayload, ieeeFlags, isNaN, isInfinity, ldexp, resetIeeeFlags, signStd = signbit;
+import std.range.primitives : ElementType, isInputRange, isOutputRange, put;
+import std.traits : isFloatingPoint, isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned, Unqual, Unsigned;
 
 version (D_BetterC)
     enum isBetterC = true;
@@ -248,8 +248,9 @@ public:
             checkFlags(group, ExceptionFlags.severe);
         else
         {
-            const newFlags = flags ^ (group & ExceptionFlags.all);
-            flags |= group & ExceptionFlags.all;
+            const validFlags = group & ExceptionFlags.all;
+            const newFlags = flags ^ validFlags;
+            flags |= validFlags;
 		    checkFlags(newFlags, traps);
         }
 	}
@@ -262,16 +263,18 @@ public:
     ---
 	*/
     @IEEECompliant("lowerFlags", 26)
-	static void resetFlags(const(ExceptionFlags) group) @nogc @safe nothrow
+	static ExceptionFlags resetFlags(const(ExceptionFlags) group) @nogc @safe nothrow
 	{
-		flags &= ~(group & ExceptionFlags.all);
+        auto result = flags;
+        flags &= ~(group & ExceptionFlags.all);
+        return result;
 	}
 
     ///ditto
     @IEEECompliant("lowerFlags", 26)
-	static void resetFlags() @nogc @safe nothrow
+	static ExceptionFlags resetFlags() @nogc @safe nothrow
 	{
-		flags = ExceptionFlags.none;
+        return resetFlags(ExceptionFlags.all);
 	}
 
     /**
@@ -298,8 +301,13 @@ public:
     @IEEECompliant("testSavedFlags", 26)
 	static bool hasFlags(const(ExceptionFlags) group) @nogc nothrow @safe
 	{
-		return (flags & (group & ExceptionFlags.all)) != 0;
+		return (flags & group) != 0;
 	}
+
+    static bool isOverUnderFlow(const(ExceptionFlags) flags) @nogc nothrow pure @safe
+    {
+        return (flags & (ExceptionFlags.overflow || ExceptionFlags.underflow)) != 0;
+    }
 
      /**
     Returns the current set flags.
@@ -320,7 +328,7 @@ public:
         {}
         else
         {
-            flags |= group & ExceptionFlags.all;
+            flags |= (group & ExceptionFlags.all);
         }
 	}
 
@@ -362,11 +370,6 @@ public:
 	{
 		traps |= group & ExceptionFlags.all;
 	}
-
-    static bool isOverUnderFlow(const(ExceptionFlags) flags) @nogc nothrow pure @safe
-    {
-        return flags & (ExceptionFlags.overflow || ExceptionFlags.underflow);
-    }
 
     /**
     Extracts current enabled exceptions.
@@ -413,6 +416,12 @@ public:
 	static @property bool overflow() @nogc nothrow @safe
 	{
 		return (flags & ExceptionFlags.overflow) != 0;
+	}
+
+    ///ditto
+	static @property bool severe() @nogc nothrow @safe
+	{
+		return (flags & ExceptionFlags.severe) != 0;
 	}
 
     ///ditto
@@ -654,8 +663,8 @@ public:
         {
             const flags = packFloatingPoint(value,
                             __ctfe ? PRECISION : DecimalControl.precision,
-                            0,
-                            __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
+                            __ctfe ? RoundingMode.implicit : DecimalControl.rounding,
+                            0);
             static if (D.sizeofData <= T.sizeof)
             if (!__ctfe)
                 DecimalControl.raiseFlags(flags);
@@ -727,10 +736,10 @@ public:
      *                             Decimal64("34567.89") vs Decimal64(34567.89, 2) => matched
      *  mode = Rounding mode
      */
-    this(T)(auto const ref T value, const(int) maxFractionalDigits, const(RoundingMode) mode) @nogc pure @safe
+    this(T)(auto const ref T value, const(RoundingMode) mode, const(int) maxFractionalDigits) @nogc pure @safe
     if (isFloatingPoint!T)
     {
-        const flags = packFloatingPoint(value, PRECISION, maxFractionalDigits, mode);
+        const flags = packFloatingPoint(value, PRECISION, mode, maxFractionalDigits);
         static if (D.sizeofData <= T.sizeof)
         if (!__ctfe)
             DecimalControl.checkFlags(explicitModeTraps, flags);
@@ -895,8 +904,8 @@ public:
             const decPrecision = __ctfe ? PRECISION : DecimalControl.precision;
             return isEqual(this, value,
                     decPrecision > fltPrecision ? fltPrecision : decPrecision,
-                    0,
-                    __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
+                    __ctfe ? RoundingMode.implicit : DecimalControl.rounding,
+                     0);
         }
         else static if (isSomeChar!T)
             return opEquals(cast(uint)value);
@@ -934,15 +943,13 @@ public:
             const decPrecision = __ctfe ? PRECISION : DecimalControl.precision;
             return cmp(this, value,
                     decPrecision > fltPrecision ? fltPrecision : decPrecision,
-                    0,
-                    __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
+                    __ctfe ? RoundingMode.implicit : DecimalControl.rounding,
+                    0);
         }
         else static if (isSomeChar!T)
             return cmp(this, cast(uint)value);
         else
-            static assert(0, "Cannot compare values of type '" ~
-                               Unqual!D.stringof ~ "' and '" ~
-                               Unqual!T.stringof ~ "'");
+            static assert(0, "Cannot compare values of type '" ~ Unqual!D.stringof ~ "' and '" ~ Unqual!T.stringof ~ "'");
     }
 
     /**
@@ -1024,9 +1031,7 @@ public:
                             __ctfe ? 0 : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
         else
-            static assert(0, "Cannot perform binary operation: '" ~
-                                Unqual!D.stringof ~ "' " ~ op ~" '" ~
-                                Unqual!T.stringof ~ "'");
+            static assert(0, "Cannot perform binary operation: '" ~ Unqual!D.stringof ~ "' " ~ op ~" '" ~ Unqual!T.stringof ~ "'");
         if (!__ctfe)
             DecimalControl.raiseFlags(flags);
         return result;
@@ -1069,9 +1074,7 @@ public:
                             __ctfe ? 0 : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
         else
-            static assert(0, "Cannot perform binary operation: '" ~
-                                Unqual!T.stringof ~ "' " ~ op ~" '" ~
-                                Unqual!D.stringof ~ "'");
+            static assert(0, "Cannot perform binary operation: '" ~ Unqual!T.stringof ~ "' " ~ op ~" '" ~ Unqual!D.stringof ~ "'");
         if (!__ctfe)
             DecimalControl.raiseFlags(flags);
         return result;
@@ -1137,7 +1140,7 @@ public:
     static typeof(this) money(T)(auto const ref T value, const(int) maxFractionalDigits = Precision.bankingScale) @nogc pure @safe
     if (isFloatingPoint!T)
     {
-        return D(value, maxFractionalDigits, RoundingMode.banking);
+        return D(value, RoundingMode.banking, maxFractionalDigits);
     }
 
     /**
@@ -1168,28 +1171,6 @@ public:
 
     static if (!isBetterC)
     {
-        // Support Variant.coerce
-        bool coerce(ptrdiff_t dstSize, scope void* dstStore, scope TypeInfo dstTypeInfo)
-        {
-            if (dstTypeInfo is typeid(Decimal128))
-                *cast(Decimal128*)dstStore = opCast!Decimal128();
-            else if (dstTypeInfo is typeid(Decimal64))
-                *cast(Decimal64*)dstStore = opCast!Decimal64();
-            else if (dstTypeInfo is typeid(Decimal32))
-                *cast(Decimal32*)dstStore = opCast!Decimal32();
-            else if (dstTypeInfo is typeid(double))
-                *cast(double*)dstStore = opCast!double();
-            else if (dstTypeInfo is typeid(float))
-                *cast(float*)dstStore = opCast!float();
-            else if (dstTypeInfo is typeid(long))
-                *cast(long*)dstStore = opCast!long();
-            else if (dstTypeInfo is typeid(int))
-                *cast(int*)dstStore = opCast!int();
-            else
-                return false;
-            return true;
-        }
-
         static immutable char defaultFmtSpec = 'f';
         static immutable string defaultFmt = "%f";
         static immutable string defaultMoneyFmt =
@@ -1552,7 +1533,7 @@ package(pham.external.dec):
             this.data = sgnMask | (expMask << SHIFT_EXP2) | (coefficient & MASK_COE2) | MASK_EXT;
     }
 
-    ExceptionFlags packFloatingPoint(T)(const(T) value, const(int) precision, const(int) maxFractionalDigits, const(RoundingMode) mode) @nogc nothrow pure @safe
+    ExceptionFlags packFloatingPoint(T)(const(T) value, const(int) precision, const(RoundingMode) mode, const(int) maxFractionalDigits) @nogc nothrow pure @safe
     if (isFloatingPoint!T)
     {
         import std.math : abs;
@@ -2111,6 +2092,7 @@ unittest
 
         foreach (T; FloatTypes)
         {
+            //pragma(msg, typeof(D.init ^^ T.init).stringof);
             static assert(is(typeof(D.init + T.init) == D));
             static assert(is(typeof(D.init - T.init) == D));
             static assert(is(typeof(D.init * T.init) == D));
@@ -2135,6 +2117,7 @@ unittest
     {
         foreach (T; DecimalTypes)
         {
+            //pragma(msg, typeof(T.init ^^ D.init).stringof);
             static assert(is(typeof(T.init + D.init) == CommonDecimal!(D, T)));
             static assert(is(typeof(T.init - D.init) == CommonDecimal!(D, T)));
             static assert(is(typeof(T.init * D.init) == CommonDecimal!(D, T)));
@@ -2142,7 +2125,6 @@ unittest
             static assert(is(typeof(T.init % D.init) == CommonDecimal!(D, T)));
             static assert(is(typeof(T.init ^^ D.init) == CommonDecimal!(D, T)));
         }
-
 
         foreach (T; IntegralTypes)
         {
@@ -2168,6 +2150,7 @@ unittest
 
         foreach (T; CharTypes)
         {
+            //pragma(msg, typeof(T.init ^^ D.init).stringof);
             static assert(is(typeof(T.init + D.init) == D));
             static assert(is(typeof(T.init - D.init) == D));
             static assert(is(typeof(T.init * D.init) == D));
@@ -2737,10 +2720,10 @@ unittest
 }
 
 ///
-float cmp(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(int) yMaxFractionalDigits, const(RoundingMode) yMode) @nogc nothrow pure @safe
+float cmp(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @nogc nothrow pure @safe
 if (isDecimal!D && isFloatingPoint!F)
 {
-    const c = decimalCmp(x, y, yPrecision, yMaxFractionalDigits, yMode);
+    const c = decimalCmp(x, y, yPrecision, yMode, yMaxFractionalDigits);
 
     version (none)
     if (c < -1)
@@ -2815,10 +2798,10 @@ unittest
 }
 
 @IEEECompliant("compareSignalingEqual", 24)
-bool isEqual(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(int) yMaxFractionalDigits, const(RoundingMode) yMode) @nogc nothrow pure @safe
+bool isEqual(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @nogc nothrow pure @safe
 if (isDecimal!D && isFloatingPoint!F)
 {
-    const c = decimalEqu(x, y, yPrecision, yMaxFractionalDigits, yMode);
+    const c = decimalEqu(x, y, yPrecision, yMode, yMaxFractionalDigits);
 
     // Not accept NaN?
     version (none)
@@ -7307,80 +7290,6 @@ if (isDecimal!D)
     return result;
 }
 
-// Support Variant.coerce
-static if (!isBetterC)
-{
-    bool coerce(double source, ptrdiff_t dstSize, scope void* dstStore, scope TypeInfo dstTypeInfo)
-    {
-        if (dstTypeInfo is typeid(Decimal128))
-            *cast(Decimal128*)dstStore = Decimal128(source);
-        else if (dstTypeInfo is typeid(Decimal64))
-            *cast(Decimal64*)dstStore = Decimal64(source);
-        else if (dstTypeInfo is typeid(Decimal32))
-            *cast(Decimal32*)dstStore = Decimal32(source);
-        else
-            return false;
-
-        return true;
-    }
-
-    bool coerce(float source, ptrdiff_t dstSize, scope void* dstStore, scope TypeInfo dstTypeInfo)
-    {
-        if (dstTypeInfo is typeid(Decimal128))
-            *cast(Decimal128*)dstStore = Decimal128(source);
-        else if (dstTypeInfo is typeid(Decimal64))
-            *cast(Decimal64*)dstStore = Decimal64(source);
-        else if (dstTypeInfo is typeid(Decimal32))
-            *cast(Decimal32*)dstStore = Decimal32(source);
-        else
-            return false;
-
-        return true;
-    }
-
-    bool coerce(long source, ptrdiff_t dstSize, scope void* dstStore, scope TypeInfo dstTypeInfo)
-    {
-        if (dstTypeInfo is typeid(Decimal128))
-            *cast(Decimal128*)dstStore = Decimal128(source);
-        else if (dstTypeInfo is typeid(Decimal64))
-            *cast(Decimal64*)dstStore = Decimal64(source);
-        else if (dstTypeInfo is typeid(Decimal32))
-            *cast(Decimal32*)dstStore = Decimal32(source);
-        else
-            return false;
-
-        return true;
-    }
-
-    bool coerce(int source, ptrdiff_t dstSize, scope void* dstStore, scope TypeInfo dstTypeInfo)
-    {
-        if (dstTypeInfo is typeid(Decimal128))
-            *cast(Decimal128*)dstStore = Decimal128(source);
-        else if (dstTypeInfo is typeid(Decimal64))
-            *cast(Decimal64*)dstStore = Decimal64(source);
-        else if (dstTypeInfo is typeid(Decimal32))
-            *cast(Decimal32*)dstStore = Decimal32(source);
-        else
-            return false;
-
-        return true;
-    }
-
-    bool coerce(short source, ptrdiff_t dstSize, scope void* dstStore, scope TypeInfo dstTypeInfo)
-    {
-        if (dstTypeInfo is typeid(Decimal128))
-            *cast(Decimal128*)dstStore = Decimal128(source);
-        else if (dstTypeInfo is typeid(Decimal64))
-            *cast(Decimal64*)dstStore = Decimal64(source);
-        else if (dstTypeInfo is typeid(Decimal32))
-            *cast(Decimal32*)dstStore = Decimal32(source);
-        else
-            return false;
-
-        return true;
-    }
-}
-
 package(pham.external.dec):
 
 template DataType(D)
@@ -8479,4 +8388,86 @@ unittest // Decimal.opCast - up cast
 
     assert(to!Decimal64(Decimal32(1234)) == Decimal64(1234));
     assert(to!Decimal128(Decimal64(12345678)) == Decimal128(12345678));
+}
+
+
+// All implement after this point must be private
+private:
+
+static if (!isBetterC)
+{
+import std.meta : AliasSeq;
+import pham.utl.coerce;
+
+    // Support Variant.coerce
+    bool doCoerceDecimal(S, D)(scope void* srcPtr, scope void* dstPtr) nothrow
+    if ((isFloatingPoint!S || isIntegral!S || isSomeChar!S || isDecimal!S) && isDecimal!D)
+    {
+        const flags = DecimalControl.resetFlags();
+        scope (exit)
+            DecimalControl.setFlags(flags);
+        scope (failure)
+                return false;
+
+        static if (isIntegral!S || isDecimal!S || isSomeChar!S)
+        {
+            auto r = D(*cast(S*)srcPtr, RoundingMode.banking);
+            if (DecimalControl.severe)
+                return false;
+
+            *cast(D*)dstPtr = r;
+            return true;
+        }
+        else static if (isFloatingPoint!S)
+        {
+            auto r = D(*cast(S*)srcPtr, RoundingMode.banking, D.PRECISION);
+            if (DecimalControl.severe)
+                return false;
+
+            *cast(D*)dstPtr = r;
+            return true;
+        }
+        else
+            return false;
+    }
+
+    // Support Variant.coerce
+    bool doCoerceDecimalToNumeric(S, D)(scope void* srcPtr, scope void* dstPtr) nothrow
+    if (isDecimal!S && (isFloatingPoint!D || isIntegral!D || isSomeChar!D))
+    {
+        const flags = DecimalControl.resetFlags();
+        scope (exit)
+            DecimalControl.setFlags(flags);
+        scope (failure)
+                return false;
+
+        auto r = (*cast(S*)srcPtr).opCast!D();
+        if (DecimalControl.severe)
+            return false;
+
+        *cast(D*)dstPtr = r;
+        return true;
+    }
+
+    shared static this()
+    {
+        // Support Variant.coerce
+        ConvertHandler handler;
+        static foreach (S; AliasSeq!(byte, ubyte, short, ushort, int, uint, long, ulong, float, double, real, char, wchar, dchar, Decimal32, Decimal64, Decimal128))
+        {
+            static foreach (D; AliasSeq!(Decimal32, Decimal64, Decimal128))
+            {
+                handler.doCast = null;
+                handler.doCoerce = &doCoerceDecimal!(S, D);
+                ConvertHandler.add!(S, D)(handler);
+
+                static if (!isDecimal!S)
+                {
+                    handler.doCast = null;
+                    handler.doCoerce = &doCoerceDecimalToNumeric!(D, S);
+                    ConvertHandler.add!(D, S)(handler);
+                }
+            }
+        }
+    }
 }

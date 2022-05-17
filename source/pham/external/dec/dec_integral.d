@@ -676,7 +676,7 @@ if (T.sizeof >= 4 && isAnyUnsignedBit!T)
 char[] dataTypeToString(T)(return ref ShortStringBuffer!char buffer, auto const ref T value) @nogc nothrow pure @safe
 if (isUnsignedBit!T)
 {
-    size_t i = buffer.clear!true().length;
+    size_t i = buffer.clear(true).length;
     T.THIS v = value;
     do
     {
@@ -689,7 +689,7 @@ if (isUnsignedBit!T)
 char[] dataTypeToString(T)(return ref ShortStringBuffer!char buffer, auto const ref T value) @nogc nothrow pure @safe
 if (is(Unqual!T == ushort) || is(Unqual!T == uint) || is(Unqual!T == ulong))
 {
-    size_t i = buffer.clear!true().length;
+    size_t i = buffer.clear(true).length;
     Unqual!T v = value;
     do
     {

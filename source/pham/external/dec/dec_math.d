@@ -1,6 +1,6 @@
 module pham.external.dec.math;
 
-import std.traits: isFloatingPoint, isIntegral, isSigned, Unqual, Unsigned;
+import std.traits : isFloatingPoint, isIntegral, isSigned, Unqual, Unsigned;
 
 import pham.external.dec.compare : coefficientApproxEqu, coefficientCmp;
 import pham.external.dec.decimal : CommonDecimal, CommonStorage, DataType,
@@ -3423,7 +3423,7 @@ ExceptionFlags decimalPow(D, F)(ref D x, auto const ref F y, const(int) precisio
 if (isDecimal!D && isFloatingPoint!F)
 {
     Unqual!D z;
-    auto flags = z.packFloatingPoint(y, precision, 0, mode);
+    auto flags = z.packFloatingPoint(y, precision, mode, 0);
     flags |= decimalPow(x, z, precision, mode);
     return flags;
 }
@@ -3440,7 +3440,7 @@ if (isDecimal!D && isIntegral!T)
 ExceptionFlags decimalPow(F, D)(auto const ref F x, auto const ref D y, out D result, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D && isFloatingPoint!F)
 {
-    auto r = Decimal128(x, 0, mode);
+    auto r = Decimal128(x, mode, 0);
     auto flags = decimalPow(r, y, precision, mode);
     flags |= decimalToDecimal(r, result, precision, mode);
     return flags;

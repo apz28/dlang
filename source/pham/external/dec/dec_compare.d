@@ -78,7 +78,7 @@ if (isDecimal!D && isIntegral!T)
     }
 }
 
-int decimalCmp(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(int) yMaxFractionalDigits, const(RoundingMode) yMode) @safe pure nothrow @nogc
+int decimalCmp(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     if (x.isSignalNaN)
@@ -113,7 +113,7 @@ if (isDecimal!D && isFloatingPoint!F)
         return sx ? 1 : -1;
 
     Unqual!D v = void;
-    const flags = v.packFloatingPoint(y, yPrecision, yMaxFractionalDigits, yMode);
+    const flags = v.packFloatingPoint(y, yPrecision, yMode, yMaxFractionalDigits);
     if (flags & ExceptionFlags.overflow)
     {
         //floating point is too big
@@ -276,7 +276,7 @@ if (isDecimal!D && isIntegral!T)
     }
 }
 
-int decimalEqu(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(int) yMaxFractionalDigits, const(RoundingMode) yMode) @safe pure nothrow @nogc
+int decimalEqu(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     if (x.isSignalNaN)
@@ -299,7 +299,7 @@ if (isDecimal!D && isFloatingPoint!F)
         return 0;
 
     Unqual!D v = void;
-    const flags = v.packFloatingPoint(y, yPrecision, yMaxFractionalDigits, yMode);
+    const flags = v.packFloatingPoint(y, yPrecision, yMode, yMaxFractionalDigits);
     if (flags)
         return 0;
     else

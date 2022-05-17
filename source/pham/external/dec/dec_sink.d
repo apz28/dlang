@@ -22,9 +22,9 @@ public:
         _longData = _longData.dup;
     }
 
-    this(bool setShortSize)
+    this(bool setShortLength)
     {
-        if (setShortSize)
+        if (setShortLength)
             this._length = ShortSize;
     }
 
@@ -94,15 +94,17 @@ public:
         return this;
     }
 
-    ref typeof(this) clear(bool setShortSize = false)() nothrow pure
+    ref typeof(this) clear(bool setShortLength = false) nothrow pure
     {
-        _length = 0;
-        static if (setShortSize)
+        if (setShortLength)
         {
             _shortData[] = 0;
             _longData[] = 0;
             _length = ShortSize;
         }
+        else
+            _length = 0;
+
         return this;
     }
 
@@ -138,10 +140,6 @@ public:
             return this;
 
         const newLength = _length + s.length;
-
-        enum bugChecklimit = 1024 * 1024 * 4; // 4MB
-        assert(newLength <= bugChecklimit);
-
         // Still in short?
         if (useShortSize(newLength))
         {
@@ -234,17 +232,17 @@ public:
     }
 
 private:
-    size_t alignAddtionalLength(const(size_t) addtionalLength) @nogc nothrow pure
+    size_t alignAddtionalLength(const(size_t) additionalLength) @nogc nothrow pure
     {
-        if (addtionalLength <= overReservedLength)
+        if (additionalLength <= overReservedLength)
             return overReservedLength;
         else
-            return ((addtionalLength + overReservedLength - 1) / overReservedLength) * overReservedLength;
+            return ((additionalLength + overReservedLength - 1) / overReservedLength) * overReservedLength;
     }
 
-    void switchToLongData(const(size_t) addtionalLength) nothrow pure
+    void switchToLongData(const(size_t) additionalLength) nothrow pure
     {
-        const capacity = alignAddtionalLength(_length + addtionalLength);
+        const capacity = alignAddtionalLength(_length + additionalLength);
         if (_longData.length < capacity)
             _longData.length = capacity;
         if (_length)
@@ -261,7 +259,7 @@ private:
 template ShortStringBuffer(T)
 if (isSomeChar!T || isIntegral!T)
 {
-    enum overheadSize = ShortStringBufferSize!(T, 1).sizeof;
+    private enum overheadSize = ShortStringBufferSize!(T, 1u).sizeof;
     alias ShortStringBuffer = ShortStringBufferSize!(T, 256u - overheadSize);
 }
 
