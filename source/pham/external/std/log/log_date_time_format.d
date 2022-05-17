@@ -292,8 +292,8 @@ private:
     ValueKind _kind;
 }
 
-struct ShortStringBufferSize(size_t Size, Char)
-if (Size > 0 && isSomeChar!Char)
+struct ShortStringBufferSize(Char, ushort ShortSize)
+if (ShortSize > 0 && isSomeChar!Char)
 {
 @safe:
 
@@ -308,7 +308,7 @@ public:
 
     Char[] opIndex() nothrow pure return
     {
-        return _length <= Size ? _shortData[0.._length] : _longData[0.._length];
+        return _length <= ShortSize ? _shortData[0.._length] : _longData[0.._length];
     }
 
     ref typeof(this) clear() nothrow pure
@@ -319,11 +319,11 @@ public:
 
     ref typeof(this) put(Char c) nothrow pure
     {
-        if (_length < Size)
+        if (_length < ShortSize)
             _shortData[_length++] = c;
         else
         {
-            if (_length == Size)
+            if (_length == ShortSize)
                 switchToLongData(1);
             else if (_longData.length <= _length)
                 _longData.length = _length + overReservedLength;
@@ -338,14 +338,13 @@ public:
             return this;
 
         const newLength = _length + s.length;
-        assert(newLength < 1024 * 1024 * 4);
-        if (newLength <= Size)
+        if (newLength <= ShortSize)
         {
             _shortData[_length..newLength] = s[0..$];
         }
         else
         {
-            if (_length && _length <= Size)
+            if (_length && _length <= ShortSize)
                 switchToLongData(s.length);
             else if (_longData.length < newLength)
                 _longData.length = newLength + overReservedLength;
@@ -358,7 +357,7 @@ public:
     immutable(Char)[] toString() const nothrow pure
     {
         return _length != 0
-            ? (_length <= Size ? (_shortData[0.._length]).idup : (_longData[0.._length]).idup)
+            ? (_length <= ShortSize ? (_shortData[0.._length]).idup : (_longData[0.._length]).idup)
             : null;
     }
 
@@ -384,9 +383,9 @@ public:
     }
 
 private:
-    void switchToLongData(const(size_t) addtionalLength) nothrow pure
+    void switchToLongData(const(size_t) additionalLength) nothrow pure
     {
-        const capacity = _length + addtionalLength + overReservedLength;
+        const capacity = _length + additionalLength + overReservedLength;
         if (_longData.length < capacity)
             _longData.length = capacity;
         _longData[0.._length] = _shortData[0.._length];
@@ -396,13 +395,13 @@ private:
     enum overReservedLength = 1_000u;
     size_t _length;
     Char[] _longData;
-    Char[Size] _shortData;
+    Char[ShortSize] _shortData;
 }
 
 template ShortStringBuffer(Char)
 {
-    enum overheadSize = ShortStringBufferSize!(1, Char).sizeof;
-    alias ShortStringBuffer = ShortStringBufferSize!(256u - overheadSize, Char);
+    private enum overheadSize = ShortStringBufferSize!(Char, 1u).sizeof;
+    alias ShortStringBuffer = ShortStringBufferSize!(Char, 256u - overheadSize);
 }
 
 alias enforceFormat = enforce!FormatException;
@@ -1069,7 +1068,7 @@ static this() @trusted
 
 @safe unittest // ShortStringBufferSize
 {
-    alias TestFormatString = ShortStringBufferSize!(5, char);
+    alias TestFormatString = ShortStringBufferSize!(char, 5);
 
     TestFormatString s;
     assert(s.length == 0);

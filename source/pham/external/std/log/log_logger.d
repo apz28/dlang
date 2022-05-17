@@ -4490,7 +4490,7 @@ unittest // LogTimming
         auto timing = logIt ? LogTimming(tl, "timeLog", logBeginEnd, warnMsecs) : LogTimming.init;
         msg = tl.msg;
         if (warnMsecs > Duration.zero)
-            Thread.sleep(warnMsecs + dur!"msecs"(1));
+            Thread.sleep(warnMsecs + dur!"msecs"(2));
     }
 
     int msecs()
@@ -4500,20 +4500,20 @@ unittest // LogTimming
     }
 
     timeLog();
-    assert(tl.msg == "0,timeLog");
+    assert(tl.msg == "0,timeLog", msg);
 
     timeLog(true);
     assert(msg == "0,Begin,timeLog" && tl.msg == "0,End,timeLog", msg);
 
     timeLog(false, dur!"msecs"(2));
-    assert(msecs() >= 3 && tl.lvl == LogLevel.warn);
+    assert(msecs() >= 3 && tl.lvl == LogLevel.warn, msg);
 
     timeLog(true, dur!"msecs"(2));
     assert(msg == "0,Begin,timeLog" && msecs() >= 3 && tl.lvl == LogLevel.warn, msg);
 
     tl.reset();
     timeLog(true, dur!"msecs"(2), false);
-    assert(tl.msg.length == 0);
+    assert(tl.msg.length == 0, msg);
 }
 
 /* Sample D predefined variable
