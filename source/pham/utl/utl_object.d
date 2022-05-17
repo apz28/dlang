@@ -14,7 +14,6 @@ module pham.utl.object;
 import core.sync.mutex : Mutex;
 public import std.ascii : LetterCase;
 import std.ascii : lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
-import std.conv : to;
 import std.exception : assumeWontThrow;
 import std.format : FormatSpec;
 import std.math : isPowerOf2;
@@ -23,7 +22,6 @@ import std.traits : isArray, isAssociativeArray, isFloatingPoint, isIntegral, is
     isSomeChar, isSomeString, isUnsigned, Unqual;
 
 version (TraceInvalidMemoryOp) import pham.utl.test;
-import pham.utl.utf8 : isHexDigit, NumericParsedKind, parseHexDigits, parseIntegral, ShortStringBuffer;
 
 pragma(inline, true);
 size_t alignRoundup(const(size_t) n, const(size_t) powerOf2AlignmentSize) @nogc nothrow pure @safe
@@ -37,33 +35,26 @@ do
     return (n + powerOf2AlignmentSize - 1) & ~(powerOf2AlignmentSize - 1);
 }
 
+ubyte[] bytesFromBase64s(scope const(char)[] validBase64Text) nothrow pure @safe
+{
+import pham.utl.utf8 : NoDecodeInputRange, NumericParsedKind, parseBase64, ShortStringBuffer;
+
+    NoDecodeInputRange!(validBase64Text, char) inputRange;
+    ShortStringBuffer!ubyte result;
+    if (parseBase64(inputRange, result) != NumericParsedKind.ok)
+        return null;
+    return result[].dup;
+}
+
 ubyte[] bytesFromHexs(scope const(char)[] validHexDigits) nothrow pure @safe
 {
-    struct R
-    {
-    @nogc nothrow pure @safe:
-        @property bool empty() const
-        {
-            return i >= length;
-        }
+import pham.utl.utf8 : NoDecodeInputRange, NumericParsedKind, parseHexDigits, ShortStringBuffer;
 
-        char front() const
-        {
-            return validHexDigits[i];
-        }
-
-        void popFront()
-        {
-            i++;
-        }
-
-        size_t i, length;
-    }
-
-    auto r = R(0, validHexDigits.length);
-    ShortStringBuffer!ubyte buffer;
-    parseHexDigits(r, buffer);
-    return buffer[].dup;
+    NoDecodeInputRange!(validHexDigits, char) inputRange;
+    ShortStringBuffer!ubyte result;
+    if (parseHexDigits(inputRange, result) != NumericParsedKind.ok)
+        return null;
+    return result[].dup;
 }
 
 /**
@@ -115,7 +106,7 @@ pragma(inline, true)
 float cmpFloat(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
 if (isFloatingPoint!T)
 {
-    import std.math : isNaN;
+import std.math : isNaN;
 
     if (isNaN(lhs) || isNaN(rhs))
         return float.nan;
@@ -127,7 +118,8 @@ string currentComputerName() nothrow @trusted
 {
     version (Windows)
     {
-        import core.sys.windows.winbase : GetComputerNameW;
+    import core.sys.windows.winbase : GetComputerNameW;
+    import std.conv : to;
 
         wchar[1000] result = void;
         uint len = result.length - 1;
@@ -138,7 +130,8 @@ string currentComputerName() nothrow @trusted
     }
     else version (Posix)
     {
-        import core.sys.posix.unistd : gethostname;
+    import core.sys.posix.unistd : gethostname;
+    import std.conv : to;
 
         char[1000] result = void;
         uint len = result.length - 1;
@@ -156,7 +149,7 @@ string currentComputerName() nothrow @trusted
 
 uint currentProcessId() nothrow @safe
 {
-    import std.process : thisProcessID;
+import std.process : thisProcessID;
 
     return thisProcessID;
 }
@@ -165,7 +158,8 @@ string currentProcessName() nothrow @trusted
 {
     version (Windows)
     {
-        import core.sys.windows.winbase : GetModuleFileNameW;
+    import core.sys.windows.winbase : GetModuleFileNameW;
+    import std.conv : to;
 
         wchar[1000] result = void;
         auto len = GetModuleFileNameW(null, &result[0], result.length - 1);
@@ -173,7 +167,7 @@ string currentProcessName() nothrow @trusted
     }
     else version (Posix)
     {
-        import core.sys.posix.unistd : readlink;
+    import core.sys.posix.unistd : readlink;
 
         char[1000] result = void;
         uint len = result.length - 1;
@@ -191,7 +185,8 @@ string currentUserName() nothrow @trusted
 {
     version (Windows)
     {
-        import core.sys.windows.winbase : GetUserNameW;
+    import core.sys.windows.winbase : GetUserNameW;
+    import std.conv : to;
 
         wchar[1000] result = void;
         uint len = result.length - 1;
@@ -202,7 +197,8 @@ string currentUserName() nothrow @trusted
     }
     else version (Posix)
     {
-        import core.sys.posix.unistd : getlogin_r;
+    import core.sys.posix.unistd : getlogin_r;
+    import std.conv : to;
 
         char[1000] result = void;
         uint len = result.length - 1;
@@ -232,7 +228,7 @@ if (is(T == class) || is(T == struct))
 S pad(S, C)(S value, const(ptrdiff_t) size, C c) nothrow pure @safe
 if (isSomeString!S && isSomeChar!C && is(Unqual!(typeof(S.init[0])) == C))
 {
-    import std.math : abs;
+import std.math : abs;
 
     const n = abs(size);
     if (value.length >= n)
@@ -258,9 +254,9 @@ string shortClassName(Object object) nothrow pure @safe
 
 string shortenTypeName(string fullName) nothrow pure @safe
 {
-    import std.algorithm.iteration : filter;
-    import std.array : join, split;
-    import std.string : indexOf;
+import std.algorithm.iteration : filter;
+import std.array : join, split;
+import std.string : indexOf;
 
     return split(fullName, ".").filter!(e => e.indexOf('!') < 0).join(".");
 }
@@ -297,8 +293,8 @@ FormatSpec!char simpleIntegerFmt(int width = 0) nothrow pure @safe
 T singleton(T)(ref T v, T function() nothrow pure @safe initiate) nothrow pure @trusted //@trusted=cast(T)null
 if (is(T == class))
 {
-    import core.atomic : cas;
-    import std.traits : hasElaborateDestructor;
+import core.atomic : cas;
+import std.traits : hasElaborateDestructor;
 
     if (v is null)
     {
@@ -327,7 +323,7 @@ if (is(Unqual!C == char) || is(Unqual!C == wchar) || is(Unqual!C == dchar))
 }
 
 ref Writer toString(uint radix = 10, N, Writer)(return ref Writer sink, N n,
-    const(ubyte) padSize = 0, const(char) padChar = '0',
+    const(ubyte) paddingSize = 0, const(char) paddingChar = '0',
     const(LetterCase) letterCase = LetterCase.upper) nothrow pure @safe
 if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
 {
@@ -377,12 +373,12 @@ if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
         while (un >>>= shift);
     }
 
-    if (padSize)
+    if (paddingSize)
     {
         size_t cn = isNeg ? (bufSize - bufIndex + 1) : (bufSize - bufIndex);
-        while (padSize > cn)
+        while (paddingSize > cn)
         {
-            bufDigits[--bufIndex] = padChar;
+            bufDigits[--bufIndex] = paddingChar;
             cn++;
         }
     }
@@ -563,45 +559,163 @@ struct ResultStatus
 nothrow @safe:
 
 public:
-    this(bool okStatus, int errorCode, string errorMessage) @nogc pure
+    this(bool errorStatus, int errorCode, string errorMessage, string errorFormat = null) @nogc pure
     {
-        this.okStatus = okStatus;
+        this.errorStatus = errorStatus;
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
+        this.errorFormat = errorFormat;
     }
 
     bool opCast(C: bool)() const @nogc pure
     {
-        return okStatus;
+        return isOK;
     }
 
     pragma(inline, true)
-    static typeof(this) error(int errorCode, string errorMessage) @nogc pure
+    static typeof(this) error(int errorCode, string errorMessage, string errorFormat = null) @nogc pure
     {
-        return ResultStatus(false, errorCode, errorMessage);
+        return ResultStatus(true, errorCode, errorMessage, errorFormat);
     }
 
     pragma(inline, true)
     static typeof(this) ok() @nogc pure
     {
-        return ResultStatus(true, 0, null);
+        return ResultStatus(false, 0, null);
+    }
+
+    string toString() const pure
+    {
+    import std.conv : to;
+
+        scope (failure) assert(0);
+
+        return isOK
+            ? "Status: " ~ to!string(errorStatus)
+            : "Status: " ~ to!string(errorStatus)
+                ~ "\nCode: " ~ to!string(errorCode)
+                ~ "\nMessage: " ~ errorMessage;
+    }
+
+    pragma(inline, true)
+    @property bool isError() const @nogc pure
+    {
+        return !isOK;
+    }
+
+    pragma(inline, true)
+    @property bool isOK() const @nogc pure
+    {
+        return !errorStatus;
     }
 
 public:
-    bool okStatus;
+    bool errorStatus;
     int errorCode;
     string errorMessage;
+    string errorFormat;
 }
 
 struct VersionString
 {
 import std.array : join, split;
+import std.algorithm.iteration;
+import std.conv : to;
 import std.string : strip;
+import pham.utl.utf8 : NumericParsedKind, parseIntegral, ShortStringBuffer;
 
 nothrow @safe:
 
 public:
-    alias Parts = string[4];
+    enum maxPartLength = 4;
+
+    static struct Parti
+    {
+    nothrow @safe:
+
+        uint[maxPartLength] data;
+        size_t length;
+
+        int opCmp(scope const(Parti) rhs) const @nogc pure
+        {
+            if (rhs.length == 0)
+                return empty ? 0 : 1;
+            else if (empty)
+                return -1;
+
+            const len = rhs.length > length ? length : rhs.length;
+            foreach (i; 0..len)
+            {
+                const result = cmpInteger(data[i], rhs.data[i]);
+                if (result != 0)
+                    return result;
+            }
+            return 0;
+        }
+
+        static Parti parti(scope const(uint)[] parti) @nogc pure
+        {
+            Parti result;
+            result.length = parti.length > maxPartLength ? maxPartLength : parti.length;
+            if (parti.length > 0)
+                result.data[0] = parti[0];
+            if (parti.length > 1)
+                result.data[1] = parti[1];
+            if (parti.length > 2)
+                result.data[2] = parti[2];
+            if (parti.length > 3)
+                result.data[3] = parti[3];
+            return result;
+        }
+
+        static Parti parti(const(uint) major, const(uint) minor, const(uint) release, const(uint) build) @nogc pure
+        {
+            Parti result;
+            result.length = 4;
+            result.data[0] = major;
+            result.data[1] = minor;
+            result.data[2] = release;
+            result.data[3] = build;
+            return result;
+        }
+
+        static Parti parti(const(uint) major, const(uint) minor) @nogc pure
+        {
+            Parti result;
+            result.length = 2;
+            result.data[0] = major;
+            result.data[1] = minor;
+            return result;
+        }
+
+        @property bool empty() const @nogc pure
+        {
+            return length == 0;
+        }
+
+        string toString() const pure
+        {
+            return empty ? "" : data[0..length].map!(v => to!string(v)).join(".");
+        }
+    }
+
+    static struct Parts
+    {
+    nothrow @safe:
+
+        string[maxPartLength] data;
+        size_t length;
+
+        @property bool empty() const @nogc pure
+        {
+            return length == 0;
+        }
+
+        string toString() const pure
+        {
+            return empty ? "" : data[0..length].join(".");
+        }
+    }
 
 public:
     this(string versionString) pure
@@ -609,77 +723,140 @@ public:
         this.parts = parse(versionString);
     }
 
-    int opCmp(T)(const(T) rhs) const pure
-    if (is(T == string) || is(Unqual!T == VersionString))
+    this(scope const(uint)[] parts) pure
     {
-        static if (is(Unqual!T == VersionString))
-        {
-            alias rhsVersion = rhs;
-        }
-        else
-        {
-            const tmpVersion = VersionString(rhs);
-            alias rhsVersion = tmpVersion;
-        }
-        return compare(this.parts, rhsVersion.parts);
+        ShortStringBuffer!char tempBuffer;
+        this.parts.length = parts.length > maxPartLength ? maxPartLength : parts.length;
+        if (parts.length > 0)
+            this.parts.data[0] = .toString(tempBuffer.clear(), parts[0]).toString();
+        if (parts.length > 1)
+            this.parts.data[1] = .toString(tempBuffer.clear(), parts[1]).toString();
+        if (parts.length > 2)
+            this.parts.data[2] = .toString(tempBuffer.clear(), parts[2]).toString();
+        if (parts.length > 3)
+            this.parts.data[3] = .toString(tempBuffer.clear(), parts[3]).toString();
     }
 
-    bool opEquals(T)(const(T) rhs) const pure
-    if (is(T == string) || is(Unqual!T == VersionString))
+    this(const(uint) major, const(uint) minor, const(uint) release, const(uint) build) pure
+    {
+        this([major, minor, release, build]);
+    }
+
+    this(const(uint) major, const(uint) minor) pure
+    {
+        this([major, minor]);
+    }
+
+    int opCmp(scope const(VersionString) rhs) const @nogc pure
+    {
+        return opCmp(toParti(rhs.parts));
+    }
+
+    int opCmp(string rhs) const pure
+    {
+        return opCmp(toParti(VersionString(rhs).parts));
+    }
+
+    int opCmp(scope const(uint)[] rhs) const @nogc pure
+    {
+        return opCmp(Parti.parti(rhs));
+    }
+
+    int opCmp(const(uint) major, const(uint) minor, const(uint) release, const(uint) build) const @nogc pure
+    {
+        return opCmp(Parti.parti(major, minor, release, build));
+    }
+
+    int opCmp(const(uint) major, const(uint) minor) const @nogc pure
+    {
+        return opCmp(Parti.parti(major, minor));
+    }
+
+    int opCmp(scope const(Parti) rhs) const @nogc pure
+    {
+        return toParti(parts).opCmp(rhs);
+    }
+
+    bool opEquals(scope const(VersionString) rhs) const @nogc pure
     {
         return opCmp(rhs) == 0;
     }
 
-    static int compare(scope const(Parts) lhs, scope const(Parts) rhs) pure
+    bool opEquals(string rhs) const pure
     {
-        foreach (i; 0..4)
-        {
-            const result = compare(lhs[i], rhs[i]);
-            if (result != 0)
-                return result;
-        }
-        return 0;
+        return opCmp(rhs) == 0;
     }
 
-    static int compare(scope const(char)[] lhsPart, scope const(char)[] rhsPart) pure
+    bool opEquals(scope const(uint)[] rhs) const @nogc pure
     {
-        uint lhs, rhs;
-        if (parseIntegral(lhsPart, lhs) != NumericParsedKind.ok)
-            return 2;
-        if (parseIntegral(rhsPart, rhs) != NumericParsedKind.ok)
-            return -2;
+        return opCmp(Parti.parti(rhs)) == 0;
+    }
 
-        return cmpInteger(lhs, rhs);
+    bool opEquals(const(uint) major, const(uint) minor, const(uint) release, const(uint) build) const @nogc pure
+    {
+        return opCmp(Parti.parti(major, minor, release, build)) == 0;
+    }
+
+    bool opEquals(const(uint) major, const(uint) minor) const @nogc pure
+    {
+        return opCmp(Parti.parti(major, minor)) == 0;
     }
 
     static Parts parse(string versionString) pure
     {
-        Parts result = ["0", "0", "0", "0"];
+        Parts result;
         if (versionString.length != 0)
         {
             auto versions = split(versionString, ".");
             if (versions.length > 0)
-                result[0] = part(versions[0]);
+            {
+                result.data[0] = versions[0].strip();
+                result.length++;
+            }
             if (versions.length > 1)
-                result[1] = part(versions[1]);
+            {
+                result.data[1] = versions[1].strip();
+                result.length++;
+            }
             if (versions.length > 2)
-                result[2] = part(versions[2]);
+            {
+                result.data[2] = versions[2].strip();
+                result.length++;
+            }
             if (versions.length > 3)
-                result[3] = part(versions[3]);
+            {
+                result.data[3] = versions[3].strip();
+                result.length++;
+            }
         }
         return result;
     }
 
-    static string part(string partString) pure
+    static Parti toParti(scope const(Parts) parts) @nogc pure
+    in
     {
-        uint n;
-        auto result = strip(partString);
-        return parseIntegral(result, n) == NumericParsedKind.ok ? result : "0";
+        assert(parts.length <= maxPartLength);
+    }
+    do
+    {
+        Parti result;
+        result.length = parts.length;
+        foreach (i; 0..parts.length)
+        {
+            if (parseIntegral(parts.data[i], result.data[i]) != NumericParsedKind.ok)
+                result.data[i] = 0;
+        }
+        return result;
     }
 
     string toString() const pure
     {
-        return parts[].join(".");
+        return parts.toString();
+    }
+
+    @property bool empty() const @nogc pure
+    {
+        return parts.length == 0;
     }
 
 public:
@@ -829,10 +1006,21 @@ nothrow @safe unittest // bytesFromHexs & bytesToHexs
     assert(r == [15]);
     r = bytesFromHexs("FF");
     assert(r == [255]);
+    r = bytesFromHexs("FFXY");
+    assert(r == []);
 
     enum testHexs = "43414137364546413943383943443734433130363737303145434232424332363635393136423946384145383143353537453543333044383939463236434443";
     auto bytes = bytesFromHexs(testHexs);
     assert(bytesToHexs(bytes) == testHexs);
+}
+
+nothrow @safe unittest // bytesFromBase64s
+{
+    import std.string : representation;
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.bytesFromBase64s");
+
+    assert(bytesFromBase64s("QUIx") == "AB1".representation());
 }
 
 nothrow @safe unittest // VersionString
@@ -842,18 +1030,18 @@ nothrow @safe unittest // VersionString
 
     const v1Str = "1.2.3.4";
     const v1 = VersionString(v1Str);
-    assert(v1.parts[0] == "1");
-    assert(v1.parts[1] == "2");
-    assert(v1.parts[2] == "3");
-    assert(v1.parts[3] == "4");
+    assert(v1.parts.data[0] == "1");
+    assert(v1.parts.data[1] == "2");
+    assert(v1.parts.data[2] == "3");
+    assert(v1.parts.data[3] == "4");
     assert(v1.toString() == v1Str);
 
     const v2Str = "1.2.0.0";
-    const v2 = VersionString("1.2");
-    assert(v2.parts[0] == "1");
-    assert(v2.parts[1] == "2");
-    assert(v2.parts[2] == "0");
-    assert(v2.parts[3] == "0");
+    const v2 = VersionString(v2Str);
+    assert(v2.parts.data[0] == "1");
+    assert(v2.parts.data[1] == "2");
+    assert(v2.parts.data[2] == "0");
+    assert(v2.parts.data[3] == "0");
     assert(v2.toString() == v2Str);
 
     assert(v1 > v2);
@@ -863,7 +1051,7 @@ nothrow @safe unittest // VersionString
     assert(v2 == VersionString(v2Str));
 
     auto vNull = VersionString("");
-    assert(vNull.toString() == "0.0.0.0");
+    assert(vNull.toString() == "");
     assert(vNull < "1.2.3.4");
     assert("1.2.3.4" > vNull);
 }
@@ -871,6 +1059,7 @@ nothrow @safe unittest // VersionString
 @safe unittest // toString
 {
     import std.array : Appender;
+    import std.conv : to;
     import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.toString");
 
@@ -905,4 +1094,22 @@ nothrow @safe unittest // VersionString
     // Test default call
     Appender!string buffer;
     assert(toString(buffer, 10).data == "10");
+}
+
+unittest // ResultStatus
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.ResultStatus");
+
+    auto r = ResultStatus.error(1, "Error");
+    assert(!r.isOK);
+    assert(r.isError);
+    assert(r.errorCode == 1);
+    assert(r.errorMessage == "Error");
+
+    r = ResultStatus.ok();
+    assert(!r.isError);
+    assert(r.isOK);
+    assert(r.errorCode == 0);
+    assert(r.errorMessage is null);
 }

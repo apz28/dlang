@@ -885,7 +885,7 @@ public:
     /**
      * For security reason, need a way clear the internal data
      */
-    void dispose(bool disposing) @nogc nothrow pure
+    void dispose(bool disposing = true) @nogc nothrow pure
     {
         _sign = 0;
         _bits[] = 0;

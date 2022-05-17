@@ -293,6 +293,91 @@ bool nextUTF16Char(scope const(wchar)[] str, size_t pos, out dchar cCode, out ub
     return nextUTF16Char(str.representation, pos, cCode, cCount);
 }
 
+struct NoDecodeInputRange(alias s, V)
+if (isSomeChar!V || is(V == ubyte))
+{
+@nogc nothrow pure @safe:
+
+public:
+    V opIndex(size_t i) const
+    in
+    {
+        assert(i < s.length);
+    }
+    do
+    {
+        return s[i];
+    }
+
+    pragma(inline, true)
+    void popFront()
+    {
+        p++;
+    }
+
+    pragma(inline, true)
+    @property bool empty() const
+    {
+        return p >= s.length;
+    }
+
+    pragma(inline, true)
+    @property V front() const
+    {
+        return s[p];
+    }
+
+    @property size_t length() const
+    {
+        return s.length;
+    }
+
+    @property size_t offset() const
+    {
+        return p;
+    }
+
+private:
+    size_t p;
+}
+
+struct NoDecodeOutputRange(alias s, V)
+if (isSomeChar!V || is(V == ubyte))
+{
+@nogc nothrow pure @safe:
+
+public:
+    V opIndexAssign(V v, size_t i)
+    in
+    {
+        assert(i < s.length);
+    }
+    do
+    {
+        s[i] = v;
+        return v;
+    }
+
+    pragma(inline, true)
+    void put(V v)
+    {
+        s[p++] = v;
+    }
+
+    @property size_t length() const
+    {
+        return s.length;
+    }
+
+    @property size_t offset() const
+    {
+        return p;
+    }
+
+private:
+    size_t p;
+}
+
 struct UTF8CharRange
 {
 @nogc nothrow @safe:
@@ -396,7 +481,7 @@ private:
     bool _empty;
 }
 
-enum NumericLexerFlag : int
+enum NumericLexerFlag : uint
 {
     skipLeadingBlank = 1 << 0, /// Skip leading space chars
     skipTrailingBlank = 1 << 1, /// Skip trailing space chars
@@ -483,6 +568,184 @@ nothrow @safe:
 
 enum bool isNumericLexerRange(Range) = isInputRange!Range && isSomeChar!(ElementType!Range) && !isInfinite!Range;
 
+struct Base64Lexer(char Map62th, char Map63th, Range)
+if (isNumericLexerRange!Range)
+{
+nothrow @safe:
+
+public:
+    enum paddingChar = '=';
+    alias RangeElement = Unqual!(ElementType!Range);
+
+public:
+    @disable this(this);
+
+    this(Range value, NumericLexerOptions!(ElementType!Range) options) pure
+    {
+        this.value = value;
+        this.options = options;
+        this._hasBase64Char = false;
+        checkHasBase64Char();
+    }
+
+    pragma(inline, true)
+    bool canContinueSkippingSpaces() const @nogc pure
+    {
+        return options.canContinueSkippingSpaces();
+    }
+
+    size_t conditionSkipSpaces() pure
+    {
+        return options.canContinueSkippingSpaces() ? skipSpaces() : 0;
+    }
+
+    /**
+     * Check and convert a 'c' from base64 char to byte
+     * Params:
+     *  c = a charater to be checked and converted
+     *  b = byte presentation of c's value if valid
+     * Returns:
+     *  true if c is a valid base64 characters, false otherwise
+     */
+    pragma(inline, true)
+    static bool isBase64Char(const(dchar) c, ref int b) @nogc pure
+    {
+        if (c <= 0x7F)
+        {
+            b = decodeMaps[cast(char)c];
+            return b != 0 || (cast(char)c == 'A');
+        }
+        else
+            return false;
+    }
+
+    pragma(inline, true)
+    bool isBase64Front(ref int b) const pure
+    in
+    {
+        assert(!empty);
+    }
+    do
+    {
+        return !empty && isBase64Char(front, b);
+    }
+
+    pragma(inline, true)
+    bool isEndingCondition()
+    {
+        return empty || front == paddingChar;
+    }
+
+    pragma(inline, true)
+    bool isInvalidAfterContinueSkippingSpaces() const @nogc pure
+    {
+        return !options.canSkippingInnerBlank && !empty;
+    }
+
+    void popFront() pure
+    {
+        scope (failure) assert(0);
+
+        value.popFront();
+        _count++;
+
+        while (!value.empty && options.isGroupSeparator(value.front))
+        {
+            value.popFront();
+            _count++;
+        }
+    }
+
+    size_t skipPaddingChars() pure
+    {
+        size_t result;
+        while (!empty && front == paddingChar)
+        {
+            result++;
+            popFront();
+        }
+        return result;
+    }
+
+    size_t skipSpaces() pure
+    {
+        size_t result;
+        while (!empty && options.isSpaceChar(front))
+        {
+            result++;
+            popFront();
+        }
+        return result;
+    }
+
+    @property size_t count() const @nogc pure
+    {
+        return _count;
+    }
+
+    @property bool empty() const @nogc pure
+    {
+        return value.empty;
+    }
+
+    @property RangeElement front() const pure
+    in
+    {
+        assert(!empty);
+    }
+    do
+    {
+        scope (failure) assert(0);
+
+        return value.front;
+    }
+
+    @property bool hasBase64Char() const @nogc pure
+    {
+        return _hasBase64Char;
+    }
+
+public:
+    Range value;
+    NumericLexerOptions!(ElementType!Range) options;
+
+private:
+    void checkHasBase64Char() pure
+    {
+        scope (failure) assert(0);
+
+        if (options.canSkippingLeadingBlank)
+            skipSpaces();
+
+        if (value.empty)
+            return;
+
+        int b = void;
+        const c = value.front;
+        _hasBase64Char = isBase64Char(c, b);
+    }
+
+private:
+    static immutable int[char.max + 1] decodeMaps = [
+        'A':0b000000, 'B':0b000001, 'C':0b000010, 'D':0b000011, 'E':0b000100,
+        'F':0b000101, 'G':0b000110, 'H':0b000111, 'I':0b001000, 'J':0b001001,
+        'K':0b001010, 'L':0b001011, 'M':0b001100, 'N':0b001101, 'O':0b001110,
+        'P':0b001111, 'Q':0b010000, 'R':0b010001, 'S':0b010010, 'T':0b010011,
+        'U':0b010100, 'V':0b010101, 'W':0b010110, 'X':0b010111, 'Y':0b011000,
+        'Z':0b011001, 'a':0b011010, 'b':0b011011, 'c':0b011100, 'd':0b011101,
+        'e':0b011110, 'f':0b011111, 'g':0b100000, 'h':0b100001, 'i':0b100010,
+        'j':0b100011, 'k':0b100100, 'l':0b100101, 'm':0b100110, 'n':0b100111,
+        'o':0b101000, 'p':0b101001, 'q':0b101010, 'r':0b101011, 's':0b101100,
+        't':0b101101, 'u':0b101110, 'v':0b101111, 'w':0b110000, 'x':0b110001,
+        'y':0b110010, 'z':0b110011, '0':0b110100, '1':0b110101, '2':0b110110,
+        '3':0b110111, '4':0b111000, '5':0b111001, '6':0b111010, '7':0b111011,
+        '8':0b111100, '9':0b111101, Map62th:0b111110, Map63th:0b111111,
+        ];
+
+    size_t _count;
+    bool _hasBase64Char;
+}
+
 struct NumericLexer(Range)
 if (isNumericLexerRange!Range)
 {
@@ -498,7 +761,7 @@ public:
     {
         this.value = value;
         this.options = options;
-        this._hasDecimalChar = this._hasNumericChar = this._hasHexDigitPrefix = this._neg = false;
+        this._hasDecimalChar = this._hasNumericChar = this._hasHexDigitPrefix = this._hasSavedFront = this._neg = false;
         checkHasNumericChar();
     }
 
@@ -514,10 +777,15 @@ public:
         return options.canContinueSkippingSpaces();
     }
 
+    size_t conditionSkipSpaces() pure
+    {
+        return options.canContinueSkippingSpaces() ? skipSpaces() : 0;
+    }
+
     pragma(inline, true)
     bool isInvalidAfterContinueSkippingSpaces() const @nogc pure
     {
-        return options.canSkippingTrailingBlank && !empty;
+        return !options.canSkippingInnerBlank && !empty;
     }
 
     pragma(inline, true)
@@ -561,10 +829,15 @@ public:
         }
     }
 
-    void skipSpaces() pure
+    size_t skipSpaces() pure
     {
+        size_t result;
         while (!empty && options.isSpaceChar(front))
+        {
+            result++;
             popFront();
+        }
+        return result;
     }
 
     static RangeElement toUpper(RangeElement c) @nogc pure
@@ -579,7 +852,6 @@ public:
         return _count;
     }
 
-    pragma(inline, true)
     @property bool empty() const @nogc pure
     {
         return value.empty && !_hasSavedFront;
@@ -623,7 +895,6 @@ private:
     {
         scope (failure) assert(0);
 
-        _hasSavedFront = false;
         isNumericFrontFct = (options.flags & NumericLexerFlag.hexDigit) != 0 ? &isHexDigit : &isDigit;
 
         if (options.canSkippingLeadingBlank)
@@ -745,6 +1016,15 @@ enum NumericParsedKind : ubyte
     overflow,
 }
 
+NumericLexerOptions!Char defaultParseBase64Options(Char)() pure
+{
+    NumericLexerOptions!Char result;
+    result.decimalChar = 0;
+    result.groupSeparators = null;
+    result.flags |= NumericLexerFlag.skipInnerBlank;
+    return result;
+}
+
 NumericLexerOptions!Char defaultParseDecimalOptions(Char)() pure
 {
     NumericLexerOptions!Char result;
@@ -767,6 +1047,82 @@ NumericLexerOptions!Char defaultParseIntegralOptions(Char)() pure
 }
 
 /**
+ * Parse 'base64Text' to ubyte[] sink
+ * Params:
+ *  base64Text = character range to be converted
+ *  sink = sink to hold ubytes
+ * Returns:
+ *  NumericParsedKind
+ */
+NumericParsedKind parseBase64(Range, Writer)(scope ref Range base64Text, ref Writer sink) pure
+if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
+{
+    auto lexer = Base64Lexer!('+', '/', Range)(base64Text, defaultParseBase64Options!(ElementType!Range)());
+    if (!lexer.hasBase64Char)
+        return NumericParsedKind.invalid;
+
+    int p, cb1, cb2;
+    while (!lexer.empty)
+    {
+        if (lexer.isBase64Char(lexer.front, cb1))
+        {
+            lexer.popFront();
+
+            if (lexer.conditionSkipSpaces() && lexer.isInvalidAfterContinueSkippingSpaces())
+                return NumericParsedKind.invalid;
+
+            if (p != 0 && lexer.skipPaddingChars() != 0)
+            {
+                lexer.conditionSkipSpaces();
+                if (lexer.empty)
+                    return NumericParsedKind.ok;
+            }
+
+            if (!lexer.isBase64Front(cb2))
+                return NumericParsedKind.invalid;
+
+            final switch (p)
+            {
+                case 0:
+                    put(sink, cast(ubyte)((cb1 << 2) | (cb2 >> 4)));
+                    break;
+
+                case 1:
+                    put(sink, cast(ubyte)(((cb1 & 0b1111) << 4)  | (cb2 >> 2)));
+                    break;
+
+                case 2:
+                    put(sink, cast(ubyte)(((cb1 & 0b11) << 6) | cb2));
+                    lexer.popFront();
+                    break;
+            }
+
+            ++p %= 3;
+        }
+        else if (lexer.conditionSkipSpaces())
+        {
+            if (lexer.isInvalidAfterContinueSkippingSpaces())
+                return NumericParsedKind.invalid;
+        }
+        else
+        {
+            lexer.skipPaddingChars();
+            if (!lexer.empty)
+                return NumericParsedKind.invalid;
+        }
+    }
+    return NumericParsedKind.ok;
+}
+
+///dito
+NumericParsedKind parseBase64(S, Writer)(scope S base64Text, ref Writer sink) pure
+if (isSomeString!S && isOutputRange!(Writer, ubyte))
+{
+    auto range = NumericStringRange!S(base64Text);
+    return parseBase64(range, sink);
+}
+
+/**
  * Parse 'hexText' to integral value
  * Params:
  *  hexText = character range to be converted
@@ -774,7 +1130,7 @@ NumericLexerOptions!Char defaultParseIntegralOptions(Char)() pure
  * Returns:
  *  NumericParsedKind
  */
-NumericParsedKind parseHexDigits(Range, Target)(ref Range hexText, out Target v) pure
+NumericParsedKind parseHexDigits(Range, Target)(scope ref Range hexText, out Target v) pure
 if (isNumericLexerRange!Range && isIntegral!Target)
 {
     v = 0;
@@ -783,12 +1139,11 @@ if (isNumericLexerRange!Range && isIntegral!Target)
     if (!lexer.hasNumericChar)
         return NumericParsedKind.invalid;
 
-    size_t count = 0;
+    size_t count;
+    ubyte b;
     while (!lexer.empty)
     {
-        ubyte b = void;
-        const c = lexer.front;
-        if (isHexDigit(c, b))
+        if (isHexDigit(lexer.front, b))
         {
             if (count == Target.sizeof*2)
                 return NumericParsedKind.overflow;
@@ -797,9 +1152,8 @@ if (isNumericLexerRange!Range && isIntegral!Target)
             count++;
             lexer.popFront();
         }
-        else if (lexer.options.isSpaceChar(c) && lexer.canContinueSkippingSpaces())
+        else if (lexer.conditionSkipSpaces())
         {
-            lexer.skipSpaces();
             if (lexer.isInvalidAfterContinueSkippingSpaces())
                 return NumericParsedKind.invalid;
         }
@@ -826,20 +1180,18 @@ if (isSomeString!S && isIntegral!Target)
  * Returns:
  *  NumericParsedKind
  */
-NumericParsedKind parseHexDigits(Range, Writer)(ref Range hexDigitText, ref Writer sink) pure
+NumericParsedKind parseHexDigits(Range, Writer)(scope ref Range hexDigitText, ref Writer sink) pure
 if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 {
     auto lexer = NumericLexer!Range(hexDigitText, defaultParseHexDigitOptions!(ElementType!Range)());
     if (!lexer.hasNumericChar)
         return NumericParsedKind.invalid;
 
-    bool bc = false;
-    ubyte bv = 0;
+    bool bc;
+    ubyte b, bv;
     while (!lexer.empty)
     {
-        ubyte b = void;
-        const c = lexer.front;
-        if (isHexDigit(c, b))
+        if (isHexDigit(lexer.front, b))
         {
             bv = cast(ubyte)((bv << 4) | b);
             if (bc)
@@ -852,9 +1204,8 @@ if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
                 bc = true;
             lexer.popFront();
         }
-        else if (lexer.options.isSpaceChar(c) && lexer.canContinueSkippingSpaces())
+        else if (lexer.conditionSkipSpaces())
         {
-            lexer.skipSpaces();
             if (lexer.isInvalidAfterContinueSkippingSpaces())
                 return NumericParsedKind.invalid;
         }
@@ -871,7 +1222,7 @@ NumericParsedKind parseHexDigits(S, Writer)(scope S hexDigitText, ref Writer sin
 if (isSomeString!S && isOutputRange!(Writer, ubyte))
 {
     auto range = NumericStringRange!S(hexDigitText);
-    return parseHexDigits(range, v);
+    return parseHexDigits(range, sink);
 }
 
 /**
@@ -882,7 +1233,7 @@ if (isSomeString!S && isOutputRange!(Writer, ubyte))
  * Returns:
  *  NumericParsedKind
  */
-NumericParsedKind parseIntegral(Range, Target)(ref Range integralText, out Target v) pure
+NumericParsedKind parseIntegral(Range, Target)(scope ref Range integralText, out Target v) pure
 if (isNumericLexerRange!Range && isIntegral!Target)
 {
     v = 0;
@@ -897,23 +1248,21 @@ if (isNumericLexerRange!Range && isIntegral!Target)
 
     if (lexer.hasHexDigitPrefix)
     {
-        size_t count = 0;
+        size_t count;
+        ubyte b;
         while (!lexer.empty)
         {
-            ubyte b = void;
-            const c = lexer.front;
-            if (isHexDigit(c, b))
+            if (isHexDigit(lexer.front, b))
             {
                 if (count == Target.sizeof*2)
                     return NumericParsedKind.overflow;
 
-                count++;
                 v = cast(Target)((v << 4) | b);
+                count++;
                 lexer.popFront();
             }
-            else if (lexer.options.isSpaceChar(c) && lexer.canContinueSkippingSpaces())
+            else if (lexer.conditionSkipSpaces())
             {
-                lexer.skipSpaces();
                 if (lexer.isInvalidAfterContinueSkippingSpaces())
                     return NumericParsedKind.invalid;
             }
@@ -930,11 +1279,10 @@ if (isNumericLexerRange!Range && isIntegral!Target)
         else
             long vTemp = 0;
 
+        ubyte b;
         while (!lexer.empty)
         {
-            ubyte b = void;
-            const c = lexer.front;
-            if (isDigit(c, b))
+            if (isDigit(lexer.front, b))
             {
                 enum maxDiv10 = Target.max/10;
                 if (vTemp >= 0 && (vTemp < maxDiv10 || (vTemp == maxDiv10 && b <= maxLastDigit)))
@@ -945,9 +1293,8 @@ if (isNumericLexerRange!Range && isIntegral!Target)
                 else
                     return NumericParsedKind.overflow;
             }
-            else if (lexer.options.isSpaceChar(c) && lexer.canContinueSkippingSpaces())
+            else if (lexer.conditionSkipSpaces())
             {
-                lexer.skipSpaces();
                 if (lexer.isInvalidAfterContinueSkippingSpaces())
                     return NumericParsedKind.invalid;
             }
@@ -984,9 +1331,9 @@ public:
         _longData = _longData.dup;
     }
 
-    this(bool setShortSize) nothrow pure
+    this(bool setShortLength) nothrow pure
     {
-        if (setShortSize)
+        if (setShortLength)
             this._length = ShortSize;
     }
 
@@ -1052,6 +1399,17 @@ public:
     size_t opDollar() const @nogc nothrow pure
     {
         return _length;
+    }
+
+    bool opEquals(scope const(typeof(this)) rhs) const @nogc nothrow pure
+    {
+        scope const rhsd = rhs.useShortSize ? rhs._shortData[0..rhs._length] : rhs._longData[0..rhs._length];
+        return useShortSize ? (_shortData[0.._length] == rhsd) : (_longData[0.._length] == rhsd);
+    }
+
+    bool opEquals(scope const(T)[] rhs) const @nogc nothrow pure
+    {
+        return useShortSize ? (_shortData[0.._length] == rhs) : (_longData[0.._length] == rhs);
     }
 
     inout(T)[] opIndex() inout nothrow pure return
@@ -1147,15 +1505,14 @@ public:
         return this;
     }
 
-    ref typeof(this) clear(bool setShortSize = false)() nothrow pure
+    ref typeof(this) clear(bool setShortLength = false, bool disposing = false) nothrow pure return
     {
-        _length = 0;
-        static if (setShortSize)
+        if (setShortLength || disposing)
         {
             _shortData[] = 0;
             _longData[] = 0;
-            _length = ShortSize;
         }
+        _length = setShortLength ? ShortSize : 0;
         return this;
     }
 
@@ -1189,6 +1546,7 @@ public:
     {
         _shortData[] = 0;
         _longData[] = 0;
+        _longData = null;
         _length = 0;
     }
 
@@ -1203,7 +1561,6 @@ public:
     ref typeof(this) put(T c) nothrow pure return
     {
          const newLength = _length + 1;
-
         // Still in short?
         if (useShortSize(newLength))
             _shortData[_length++] = c;
@@ -1224,10 +1581,6 @@ public:
             return this;
 
         const newLength = _length + s.length;
-
-        enum bugChecklimit = 1024 * 1024 * 4; // 4MB
-        assert(newLength <= bugChecklimit);
-
         // Still in short?
         if (useShortSize(newLength))
         {
@@ -1332,12 +1685,12 @@ public:
 
 private:
     pragma(inline, true)
-    size_t alignAddtionalLength(const(size_t) addtionalLength) @nogc nothrow pure
+    size_t alignAddtionalLength(const(size_t) additionalLength) @nogc nothrow pure
     {
-        if (addtionalLength <= overReservedLength)
+        if (additionalLength <= overReservedLength)
             return overReservedLength;
         else
-            return ((addtionalLength + overReservedLength - 1) / overReservedLength) * overReservedLength;
+            return ((additionalLength + overReservedLength - 1) / overReservedLength) * overReservedLength;
     }
 
     void setData(scope const(T)[] values) nothrow pure
@@ -1358,9 +1711,9 @@ private:
         }
     }
 
-    void switchToLongData(const(size_t) addtionalLength) nothrow pure
+    void switchToLongData(const(size_t) additionalLength) nothrow pure
     {
-        const capacity = alignAddtionalLength(_length + addtionalLength);
+        const capacity = alignAddtionalLength(_length + additionalLength);
         if (_longData.length < capacity)
             _longData.length = capacity;
         if (_length)
@@ -1377,7 +1730,7 @@ private:
 template ShortStringBuffer(T)
 if (isSomeChar!T || isIntegral!T)
 {
-    enum overheadSize = ShortStringBufferSize!(T, 1).sizeof;
+    private enum overheadSize = ShortStringBufferSize!(T, 1u).sizeof;
     alias ShortStringBuffer = ShortStringBufferSize!(T, 256u - overheadSize);
 }
 
@@ -1483,6 +1836,31 @@ nothrow @safe unittest // NumericLexer
     assert(r.toUpper('A') == 'A');
     assert(r.toUpper('a') == 'A');
     assert(r.toUpper('z') == 'Z');
+}
+
+nothrow @safe unittest // parseBase64
+{
+    import std.conv : to;
+    import std.string : representation;
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.parseBase64");
+
+    static test(string base64Text, NumericParsedKind expectedCondition, string expectedText,
+        int line = __LINE__)
+    {
+        ShortStringBuffer!ubyte buffer;
+        assert(parseBase64(base64Text, buffer) == expectedCondition, "parseBase64 failed from line#: " ~ to!string(line));
+        assert(expectedCondition != NumericParsedKind.ok || buffer[] == expectedText.representation(), "parseBase64 failed from line#: " ~ to!string(line));
+    }
+
+    test("QUIx", NumericParsedKind.ok, "AB1");
+    test("VGhvdSBzaGFsdCBuZXZlciBjb250aW51ZSBhZnRlciBhc3NlcnRpbmcgbnVsbA==", NumericParsedKind.ok, "Thou shalt never continue after asserting null");
+    test("\n  VGhvdSBzaGFsdCBuZXZlciBjb250aW51  \n  ZSBhZnRlciBhc3NlcnRpbmcgbnVsbA==  \n",  NumericParsedKind.ok, "Thou shalt never continue after asserting null");
+    test("", NumericParsedKind.invalid, null);
+    test(" ??? ", NumericParsedKind.invalid, null);
+    test("QUIx?", NumericParsedKind.invalid, null);
+    test("VGhvdSBzaGFsdC???", NumericParsedKind.invalid, null);
+    test("VGhvdSBzaGFsdCBuZXZlciBjb250aW51ZSBhZnRlciBhc3NlcnRpbmcgbnVsbA==???", NumericParsedKind.invalid, null);
 }
 
 nothrow @safe unittest // parseIntegral, parseHexDigits

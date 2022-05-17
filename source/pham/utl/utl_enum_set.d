@@ -593,7 +593,7 @@ public:
 
     size_t toHash() const pure
     {
-        return hashof(_values);
+        return hashOf(_values);
     }
 
     /**
