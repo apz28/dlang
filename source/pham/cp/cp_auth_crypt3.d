@@ -11,6 +11,8 @@
 
 module pham.cp.auth_crypt3;
 
+public import pham.cp.cipher : CipherBuffer;
+
 nothrow @safe:
 
 /**************************************************************************
@@ -26,7 +28,7 @@ nothrow @safe:
 * Returns:     string containing the salt concatenated
 *              on to the encrypted results. Same as stored in passwd file.
 **************************************************************************/
-ubyte[] crypt3(scope const(char)[] pw, scope const(char)[2] salt)
+CipherBuffer crypt3(scope const(char)[] pw, scope const(char)[2] salt)
 in
 {
     assert(pw.length > 0);
@@ -109,7 +111,7 @@ do
             iobuf[i + 2] = c;
         }
 
-        return iobuf[0..i + 2].dup;
+        return CipherBuffer(iobuf[0..i + 2]);
     }
 }
 
@@ -434,17 +436,16 @@ struct Crypt3Key
 
 @safe unittest // crypt3
 {
+    import std.string : representation;
     import pham.utl.test;
     traceUnitTest!("pham.cp")("unittest pham.cp.auth_crypt3.crypt3");
 
-    const(char)[] e;
+    auto e = crypt3("test", "PQ");
+    assert(e == "PQl1.p7BcJRuM".representation(), "PQl1.p7BcJRuM ? '" ~ cast(const(char)[])(e[]) ~ "'");
 
-    e = cast(const(char)[])crypt3("test", "PQ");
-    assert(e == "PQl1.p7BcJRuM", "PQl1.p7BcJRuM ? '" ~ e ~ "'");
+    e = crypt3("much longer password here", "xx");
+    assert(e == "xxtHrOGVa3182".representation(), "xxtHrOGVa3182 ? '" ~ cast(const(char)[])(e[]) ~ "'");
 
-    e = cast(const(char)[])crypt3("much longer password here", "xx");
-    assert(e == "xxtHrOGVa3182", "xxtHrOGVa3182 ? '" ~ e ~ "'");
-
-    e = cast(const(char)[])crypt3("testtest", "es");
-    assert(e == "esDRYJnY4VaGM", "esDRYJnY4VaGM ? '" ~ e ~ "'");
+    e = crypt3("testtest", "es");
+    assert(e == "esDRYJnY4VaGM".representation(), "esDRYJnY4VaGM ? '" ~ cast(const(char)[])(e[]) ~ "'");
 }

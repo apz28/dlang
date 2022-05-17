@@ -11,16 +11,22 @@
 
 module pham.cp.codec_asn1;
 
-import std.traits : isIntegral, Unqual;
 import std.string : representation;
+import std.traits : isIntegral, isSigned, Unqual;
 
 import pham.utl.big_integer : BigInteger;
-import pham.utl.datetime.date : DateTime;
-import pham.utl.object : cmpInteger, toString;
+import pham.utl.datetime.date : Date, DateTime;
+import pham.utl.datetime.time : Time;
+import pham.utl.object : cmpInteger, ResultStatus, toString;
 import pham.utl.utf8 : ShortStringBuffer;
+import pham.utl.variant : Variant;
 import pham.cp.cipher : CipherBuffer;
 
 nothrow @safe:
+
+enum emptyError = 1;
+enum truncatedError = 2;
+enum invalidError = 3;
 
 /**
  * ASN.1 Class Tags
@@ -38,7 +44,7 @@ enum ASN1Class : ubyte
 /**
  * ASN.1 Type Tags
  */
-enum ASN1Tag : ubyte
+enum ASN1Tag : int
 {
     eoc                  = 0x00,
     boolean              = 0x01,
@@ -47,7 +53,7 @@ enum ASN1Tag : ubyte
     octetString          = 0x04,
     null_                = 0x05,
     oid                  = 0x06,
-    float_               = 0x09,
+    //float_               = 0x09,
     enum_                = 0x0A,
     time                 = 0x0E,
     utf8String           = 0x0C,
@@ -59,13 +65,133 @@ enum ASN1Tag : ubyte
     iA5String            = 0x16,
     utcTime              = 0x17,
     generalizedTime      = 0x18,
-    visibleString        = 0x1A,
+    //visibleString        = 0x1A,
     generalString        = 0x1B,
     bmpString            = 0x1E,
     date                 = 0x1F,
-    dateTime             = 0x21,
-    duration             = 0x22,
-    undefined            = 0xFF, // Only used while decoding
+    //dateTime             = 0x21,
+    //duration             = 0x22,
+    undefined            = int.max, // Only used while decoding
+}
+
+ResultStatus ASN1IsBMPString(scope const(ubyte)[] x) @nogc pure
+{
+    import pham.utl.utf8 : nextUTF16Char;
+
+    if (x.length == 0)
+        return ResultStatus.ok();
+    else if (x.length % 2 != 0)
+        return ResultStatus.error(truncatedError, "BMP-string is truncated");
+
+    auto x2 = cast(const(ushort)[])x;
+
+    // Truncate trailing zero
+    while (x2.length && x2[$ - 1] == 0)
+        x2 = x2[0..$ - 1];
+
+    size_t p;
+    dchar cCode;
+    ubyte cCount;
+    while (p < x2.length)
+    {
+        if (!nextUTF16Char(x2, p, cCode, cCount))
+            return p + cCount > x2.length
+                ? ResultStatus.error(truncatedError, "BMP-string is truncated")
+                : ResultStatus.error(invalidError, "Invalid BMP-string");
+        p += cCount;
+    }
+    return ResultStatus.ok();
+}
+
+pragma(inline, true)
+bool ASN1IsIA5Char(const(ubyte) x) @nogc pure
+{
+    return x < 128;
+}
+
+ResultStatus ASN1IsIA5String(scope const(ubyte)[] x) @nogc pure
+{
+    foreach (b; x)
+    {
+        if (!ASN1IsIA5Char(b))
+            return ResultStatus.error(invalidError, "Invalid IA5-string");
+    }
+    return ResultStatus.ok();
+}
+
+pragma(inline, true)
+bool ASN1IsNumericChar(const(ubyte) x) @nogc pure
+{
+    return ('0' <= x && x <= '9') || x == ' ';
+}
+
+ResultStatus ASN1IsNumericString(scope const(ubyte)[] x) @nogc pure
+{
+    foreach (b; x)
+    {
+        if (!ASN1IsNumericChar(b))
+            return ResultStatus.error(invalidError, "Invalid Numeric-string");
+    }
+    return ResultStatus.ok();
+}
+
+ResultStatus ASN1IsOctetString(scope const(ubyte)[] x) @nogc pure
+{
+    if (x.length % 2 != 0)
+        return ResultStatus.error(truncatedError, "Octet-string is truncated");
+    else
+        return ResultStatus.ok();
+}
+
+pragma(inline, true)
+bool ASN1IsPrintableChar(const(ubyte) x) @nogc pure
+{
+	return ('a' <= x && x <= 'z')
+        || ('A' <= x && x <= 'Z')
+        || ('0' <= x && x <= '9')
+        || ('\'' <= x && x <= ')')
+        || ('+' <= x && x <= '/')
+        || x == ' '
+        || x == ':'
+        || x == '='
+        || x == '?'
+		// This is technically not allowed in a PrintableString.
+		// However, x509 certificates with wildcard strings don't
+		// always use the correct string type so we permit it.
+        || x == '*'
+		// This is not technically allowed either. However, not
+		// only is it relatively common, but there are also a
+		// handful of CA certificates that contain it. At least
+		// one of which will not expire until 2027.
+		|| x == '&';
+}
+
+ResultStatus ASN1IsPrintableString(scope const(ubyte)[] x) @nogc pure
+{
+    foreach (b; x)
+    {
+        if (!ASN1IsPrintableChar(b))
+            return ResultStatus.error(invalidError, "Invalid Printable-string");
+    }
+    return ResultStatus.ok();
+}
+
+ResultStatus ASN1IsUTF8String(scope const(ubyte)[] x) @nogc pure
+{
+    import pham.utl.utf8 : nextUTF8Char;
+
+    size_t p;
+    dchar cCode;
+    ubyte cCount;
+    while (p < x.length)
+    {
+        if (!nextUTF8Char(x, p, cCode, cCount))
+            return p + cCount > x.length
+                ? ResultStatus.error(truncatedError, "UTF8-string is truncated")
+                : ResultStatus.error(invalidError, "Invalid UTF8-string");
+        p += cCount;
+    }
+    return ResultStatus.ok();
 }
 
 struct ASN1BitString
@@ -75,8 +201,52 @@ nothrow @safe:
 public:
     this(ubyte[] bytes) pure
     {
-        this._bytes = bytes;
-        this._bitLength = calBitLength(bytes);
+        this(bytes, calBitLength(bytes));
+    }
+
+    this(ubyte[] bytes, size_t bitLength) pure
+    in
+    {
+        assert(bitLength <= bytes.length * 8);
+    }
+    do
+    {
+        this._bitBytes = bytes;
+        this._bitLength = bitLength;
+    }
+
+    int opCmp(scope const(ASN1BitString) rhs) const @nogc pure
+    {
+        const rhsBytes = rhs._bitBytes;
+        const cmpLen = rhsBytes.length > _bitBytes.length ? _bitBytes.length : rhsBytes.length;
+        foreach (i; 0..cmpLen)
+        {
+            const c = cmpInteger(_bitBytes[i], rhsBytes[i]);
+            if (c != 0)
+                return c;
+        }
+
+        const c = cmpInteger(_bitBytes.length, rhsBytes.length);
+        return c != 0 ? c : cmpInteger(_bitLength, rhs._bitLength);
+    }
+
+    bool opEquals(scope const(ASN1BitString) rhs) const @nogc pure
+    {
+        return opCmp(rhs) == 0;
+    }
+
+    /**
+     * Returns the bit at the given index.
+     * If the index is out of range it returns false.
+     */
+    bool opIndex(size_t index) const @nogc pure
+    {
+        if (index > _bitLength)
+            return false;
+
+        const e = index / 8;
+        const b = (8 - 1) - (index % 8);
+        return (_bitBytes[e] >> b) & 1u;
     }
 
     // Returns the bit-length of bitString by considering the
@@ -100,35 +270,58 @@ public:
 
     // RightAlign returns a slice where the padding bits are at the beginning. The
     // slice may share memory with the BitString.
-    const(ubyte)[] rightAlign() const pure
+    const(ubyte)[] rightAlign() const pure return scope
     {
-	    const shift = 8 - (bitLength % 8);
-	    if (shift == 8 || _bytes.length == 0)
-		    return _bytes;
+	    const shift = 8 - (_bitLength % 8);
+	    if (shift == 8 || _bitBytes.length == 0)
+		    return _bitBytes;
 
-    	ubyte[] result = new ubyte[](_bytes.length);
-	    result[0] = _bytes[0] >> shift;
-	    foreach (i; 1.._bytes.length)
+    	ubyte[] result = new ubyte[](_bitBytes.length);
+	    result[0] = _bitBytes[0] >> shift;
+	    foreach (i; 1.._bitBytes.length)
         {
-		    result[i] = cast(ubyte)(_bytes[i-1] << (8 - shift));
-		    result[i] |= _bytes[i] >> shift;
+		    result[i] = cast(ubyte)(_bitBytes[i - 1] << (8 - shift));
+		    result[i] |= _bitBytes[i] >> shift;
 	    }
 	    return result;
     }
 
-    @property const(ubyte)[] bytes() const pure
+    size_t toHash() const @nogc pure
     {
-        return _bytes;
+        size_t result = _bitLength;
+        foreach (v; _bitBytes)
+        {
+            result = hashOf(v, result);
+        }
+        return result;
     }
 
+    string toString() const pure
+    {
+        ShortStringBuffer!char buffer;
+        buffer.put('[');
+        foreach (i; 0..bitLength)
+        {
+            buffer.put(opIndex(i) ? '1' : '0');
+        }
+        buffer.put(']');
+        return buffer.toString();
+    }
+
+    pragma(inline, true)
     @property size_t bitLength() const @nogc pure
     {
         return _bitLength;
     }
 
+    @property const(ubyte)[] bytes() const pure
+    {
+        return _bitBytes;
+    }
+
 private:
-    ubyte[] _bytes;
     size_t _bitLength;
+    ubyte[] _bitBytes;
 }
 
 struct ASN1BerDecoder
@@ -149,10 +342,11 @@ public:
         if (!this._empty)
         {
             this._currentDataBuffer = new ubyte[1000];
-            popFront();
+            //popFront();
         }
     }
 
+    version (none)
     void popFront() pure
     in
     {
@@ -199,6 +393,747 @@ public:
         }
     }
 
+    /**
+     * Parses a base-128 encoded int from the given offset in the
+     * given byte slice.
+     */
+    static ResultStatus parseBase128Integer(scope const(ubyte)[] bytes, ref int rResult, out size_t nBytes) pure
+    {
+        nBytes = 0;
+        if (bytes.length == 0)
+            return ResultStatus.error(emptyError, "Base-128-integer is truncated");
+
+        long tempResult = 0;
+        while (bytes.length)
+        {
+		    // 5 * 7 bits per byte == 35 bits of data
+		    // Thus the representation is either non-minimal or too large for an int32
+            if (nBytes == 5)
+                return ResultStatus.error(invalidError, "Base-128-integer is too large");
+
+		    tempResult <<= 7;
+		    const b = bytes[0];
+		    // integers should be minimally encoded, so the leading octet should
+		    // never be 0x80
+		    if (nBytes == 0 && b == 0x80)
+                return ResultStatus.error(invalidError, "Base-128-integer is not minimally encoded");
+
+		    tempResult |= (b & 0x7F);
+		    nBytes++;
+            bytes = bytes[1..$];
+
+		    if ((b & 0x80) == 0)
+            {
+			    // Ensure that the returned value fits in an int on all platforms
+                // base 128 integer too large?
+                if (tempResult > int.max)
+                    return ResultStatus.error(invalidError, "Base-128-integer is too large");
+
+                rResult = cast(int)tempResult;
+			    return ResultStatus.ok();
+		    }
+        }
+
+	    // truncated base 128 integer
+	    return ResultStatus.error(truncatedError, "Invalid Base-128-integer");
+    }
+
+    /// parseBigInteger treats the given bytes as a big-endian
+    static ResultStatus parseBigInteger(scope const(ubyte)[] bytes, ref BigInteger result) pure
+    {
+        import std.typecons : No, Yes;
+
+        auto checkStatus = checkInteger(bytes);
+        if (!checkStatus)
+            return checkStatus;
+
+        result = BigInteger(bytes, No.unsigned, Yes.bigEndian);
+        return ResultStatus.ok();
+    }
+
+    static ResultStatus parseBitString(scope const(ubyte)[] bytes, ref ASN1BitString result) pure
+    {
+        if (bytes.length == 0)
+            return ResultStatus.error(emptyError, "Bit-string is truncated");
+
+	    const paddingBits = bytes[0];
+
+        // invalid padding bits?
+	    if (paddingBits > 7
+            || (paddingBits > 0 && bytes.length == 1)
+            || ((bytes[$ - 1] & ((1 << bytes[0]) - 1)) != 0))
+            return ResultStatus.error(emptyError, "Invalid padding bits in Bit-string");
+
+        result._bitLength = (bytes.length - 1) * 8 - paddingBits;
+	    result._bitBytes = bytes[1..$].dup;
+
+        return ResultStatus.ok();
+    }
+
+    static ResultStatus parseBMPString(scope const(ubyte)[] bytes, ref string result) pure
+    {
+        import pham.utl.utf8 : nextUTF16Char;
+
+        if (bytes.length == 0)
+        {
+            result = null;
+            return ResultStatus.ok();
+        }
+        else if (bytes.length % 2 != 0)
+            return ResultStatus.error(truncatedError, "BMP-string is truncated");
+
+        auto x2 = cast(const(ushort)[])bytes;
+
+        // Truncate trailing zero
+        while (x2.length && x2[$ - 1] == 0)
+            x2 = x2[0..$ - 1];
+
+        ShortStringBuffer!char tempResult;
+        size_t p;
+        dchar cCode;
+        ubyte cCount;
+        while (p < x2.length)
+        {
+            if (!nextUTF16Char(x2, p, cCode, cCount))
+                return p + cCount > x2.length
+                    ? ResultStatus.error(truncatedError, "BMP-string is truncated")
+                    : ResultStatus.error(truncatedError, "Invalid BMP-string");
+            tempResult.put(cCode);
+            p += cCount;
+        }
+        result = tempResult.toString();
+        return ResultStatus.ok();
+    }
+
+    static ResultStatus parseBoolean(scope const(ubyte)[] bytes, ref bool result) pure
+    {
+        if (bytes.length != 1)
+            return bytes.length == 0
+                ? ResultStatus.error(emptyError, "Boolean is truncated")
+                : ResultStatus.error(invalidError, "Invalid Boolean");
+
+        const b = bytes[0];
+        if (b == 0 || b == 0xFF)
+        {
+            result = b == 0xFF;
+            return ResultStatus.ok();
+        }
+        else
+            return ResultStatus.error(invalidError, "Invalid Boolean");
+    }
+
+    /**
+     * YYMMDD
+     * YYYYMMDD
+     */
+    static ResultStatus parseDate(scope const(ubyte)[] bytes, ref Date result) @trusted
+    {
+        import pham.utl.datetime.date_time_parse : DateTimeParser, DateTimePattern, tryParse;
+        import pham.utl.datetime.tick : DateTimeZoneKind;
+
+        // Minimum length - YYMMDD?
+        if (bytes.length < 6)
+            return ResultStatus.error(bytes.length == 0 ? emptyError : truncatedError, "Date is truncated");
+
+        static DateTimePattern utcPattern(string patternText) nothrow pure @safe
+        {
+            // Use DateTimePattern.usDateTime
+            // Any text month format is fine since it only use digits format
+            DateTimePattern result = DateTimePattern.usDateTime;
+            result.defaultKind = DateTimeZoneKind.local;
+            result.patternText = patternText;
+            return result;
+        }
+
+        static immutable DateTimePattern[] patterns = [
+            utcPattern("yyyymmdd"),
+            utcPattern("yymmdd"),
+            ];
+
+        return tryParse!Date(cast(const(char)[])bytes, patterns, result) == DateTimeParser.noError
+            ? ResultStatus.ok()
+            : ResultStatus.error(invalidError, "Invalid Date");
+    }
+
+    /**
+     * YYYYMMDDHH[MM[SS[.fff]]] --Local time only
+     * YYYYMMDDHH[MM[SS[.fff]]]Z --Universal time (UTC time).
+     * YYYYMMDDHH[MM[SS[.fff]]]+-HHMM
+     */
+    static ResultStatus parseGeneralizedTime(scope const(ubyte)[] bytes, ref DateTime result) @trusted
+    {
+        import pham.utl.datetime.date_time_parse : DateTimeParser, DateTimePattern, tryParse;
+        import pham.utl.datetime.tick : DateTimeZoneKind;
+
+        // Minimum length - YYYYMMDDHH?
+        if (bytes.length < 10)
+            return ResultStatus.error(bytes.length == 0 ? emptyError : truncatedError, "Generalized-time is truncated");
+
+        static DateTimePattern utcPattern(string patternText, DateTimeZoneKind kind) nothrow pure @safe
+        {
+            // Use DateTimePattern.usDateTime
+            // Any text month format is fine since it only use digits format
+            DateTimePattern result = DateTimePattern.usDateTime;
+            result.defaultKind = kind;
+            result.patternText = patternText;
+            return result;
+        }
+
+        static immutable DateTimePattern[] patterns = [
+            // Try these 4 likely formats first
+            utcPattern("yyyymmddhhnnss", DateTimeZoneKind.local),
+            utcPattern("yyyymmddhhnnssZ", DateTimeZoneKind.utc),
+            utcPattern("yyyymmddhhnnss+hhnn", DateTimeZoneKind.utc), utcPattern("yyyymmddhhnnss-hhnn", DateTimeZoneKind.utc),
+
+            utcPattern("yyyymmddhh", DateTimeZoneKind.local),
+            utcPattern("yyyymmddhhnn", DateTimeZoneKind.local),
+            utcPattern("yyyymmddhhnnss.zzz", DateTimeZoneKind.local),
+
+            utcPattern("yyyymmddhhZ", DateTimeZoneKind.utc),
+            utcPattern("yyyymmddhhnnZ", DateTimeZoneKind.utc),
+            utcPattern("yyyymmddhhnnss.zzzZ", DateTimeZoneKind.utc),
+
+            utcPattern("yyyymmddhh+hhnn", DateTimeZoneKind.utc), utcPattern("yyyymmddhh-hhnn", DateTimeZoneKind.utc),
+            utcPattern("yyyymmddhhnn+hhnn", DateTimeZoneKind.utc), utcPattern("yyyymmddhhnn-hhnn", DateTimeZoneKind.utc),
+            utcPattern("yyyymmddhhnnss.zzz+hhnn", DateTimeZoneKind.utc), utcPattern("yyyymmddhhnnss.zzz-hhnn", DateTimeZoneKind.utc),
+            ];
+
+        return tryParse!DateTime(cast(const(char)[])bytes, patterns, result) == DateTimeParser.noError
+            ? ResultStatus.ok()
+            : ResultStatus.error(invalidError, "Invalid Generalized-time");
+    }
+
+    static ResultStatus parseIA5String(scope const(ubyte)[] bytes, ref string result) pure
+    {
+        auto checkStatus = ASN1IsIA5String(bytes);
+        if (!checkStatus)
+            return checkStatus;
+
+        result = (cast(const(char)[])bytes).idup;
+        return ResultStatus.ok();
+    }
+
+    /// parseInteger treats the given bytes as a big-endian
+    static ResultStatus parseInteger(T)(scope const(ubyte)[] bytes, ref T result) pure
+    if (isIntegral!T && (T.sizeof == 8 || T.sizeof == 4))
+    {
+        // Too large?
+        if (bytes.length > T.sizeof)
+            return ResultStatus.error(invalidError, "Integer is too large");
+
+        auto checkStatus = checkInteger(bytes);
+        if (!checkStatus)
+            return checkStatus;
+
+        result = 0;
+        foreach (i; 0..bytes.length)
+        {
+            result = (result << 8) | bytes[i];
+        }
+
+        // Shift up and down in order to sign extend the result.
+        static if (isSigned!T)
+        {
+	        result <<= (T.sizeof * 8) - (cast(ubyte)bytes.length * 8);
+	        result >>= (T.sizeof * 8) - (cast(ubyte)bytes.length * 8);
+        }
+
+        return ResultStatus.ok();
+    }
+
+    static ResultStatus parseNumericString(scope const(ubyte)[] bytes, ref string result) pure
+    {
+        auto checkStatus = ASN1IsNumericString(bytes);
+        if (!checkStatus)
+            return checkStatus;
+
+        result = (cast(const(char)[])bytes).idup;
+        return ResultStatus.ok();
+    }
+
+    static ResultStatus parseObjectIdentifier(scope const(ubyte)[] bytes, ref ASN1ObjectIdentifier result) pure
+    {
+        if (bytes.length == 0)
+            return ResultStatus.error(emptyError, "Object-identifier is truncated");
+
+        size_t len = 2;
+        size_t fCount;
+        int fValue;
+
+        auto checkStatus = parseBase128Integer(bytes, fValue, fCount);
+        if (!checkStatus)
+            return checkStatus;
+
+        int[] tempValue = new int[bytes.length + 1];
+    	if (fValue < 80)
+        {
+		    tempValue[0] = fValue / 40;
+		    tempValue[1] = fValue % 40;
+	    }
+        else
+        {
+		    tempValue[0] = 2;
+		    tempValue[1] = fValue - 80;
+	    }
+        bytes = bytes[fCount..$];
+
+        while (bytes.length)
+        {
+            auto checkStatus2 = parseBase128Integer(bytes, fValue, fCount);
+            if (!checkStatus2)
+                return checkStatus2;
+
+            tempValue[len++] = fValue;
+            bytes = bytes[fCount..$];
+        }
+
+        result._value = tempValue[0..len];
+        return ResultStatus.ok();
+    }
+
+    static ResultStatus parseOctetString(scope const(ubyte)[] bytes, ref ubyte[] result) pure
+    {
+        auto checkStatus = ASN1IsOctetString(bytes);
+        if (!checkStatus)
+            return checkStatus;
+
+        result = bytes.dup;
+        return ResultStatus.ok();
+    }
+
+    static ResultStatus parsePrintableString(scope const(ubyte)[] bytes, ref string result) pure
+    {
+        auto checkStatus = ASN1IsPrintableString(bytes);
+        if (!checkStatus)
+            return checkStatus;
+
+        result = (cast(const(char)[])bytes).idup;
+        return ResultStatus.ok();
+    }
+
+    static ResultStatus parseSequenceOf(scope const(ubyte)[] bytes, ref ASN1Value[] result)
+    {
+        if (bytes.length == 0)
+        {
+            result.length = 0;
+            return ResultStatus.ok();
+        }
+
+        size_t count, offset, nBytes;
+        ASN1TagAndLength tagLength;
+        ASN1Tag tag = ASN1Tag.undefined;
+        while (offset < bytes.length)
+        {
+            auto checkTag = parseTagAndLength(bytes[offset..$], tagLength, nBytes);
+            if (!checkTag)
+                return checkTag;
+
+            count++;
+            if (tag == ASN1Tag.undefined)
+                tag = cast(ASN1Tag)tagLength.tagId;
+            offset += nBytes + tagLength.length;
+        }
+
+        result.length = count;
+        offset = 0;
+        ASN1FieldParameters parameters;
+        parameters.tag = tag;
+        foreach (i; 0..count)
+        {
+            auto checkValue = parseValue(bytes[offset..$], parameters, result[i], nBytes);
+            if (!checkValue)
+                return checkValue;
+            offset += nBytes;
+        }
+        return ResultStatus.ok();
+    }
+
+    static ResultStatus parseTagAndLength(scope const(ubyte)[] bytes, ref ASN1TagAndLength result, out size_t nBytes) pure
+    {
+        nBytes = 0;
+        if (bytes.length == 0)
+            return ResultStatus.error(emptyError, "Tag & length is truncated");
+
+        ubyte b = bytes[0];
+	    result.classId = b >> 6;
+	    result.tagId = b & 0x1F;
+    	result.isCompound = (b & 0x20) == 0x20;
+        result.length = 0;
+        nBytes += 1;
+        bytes = bytes[1..$];
+
+	    // If the bottom five bits are set, then the tag number is actually base 128
+	    // encoded afterwards
+	    if (result.tagId == 0x1F)
+        {
+            size_t newTagSize;
+            auto checkTag = parseBase128Integer(bytes, result.tagId, newTagSize);
+            if (!checkTag)
+            {
+                nBytes += newTagSize;
+                return checkTag;
+            }
+            nBytes += newTagSize;
+            bytes = bytes[newTagSize..$];
+
+		    // Tags should be encoded in minimal form.
+            // non-minimal tag
+		    if (result.tagId < 0x1F)
+                return ResultStatus.error(invalidError, "Tag is not minimally encoded");
+	    }
+
+        // truncated tag or length?
+        if (bytes.length == 0)
+            return ResultStatus.error(truncatedError, "Tag & length is truncated");
+
+	    b = bytes[0];
+        nBytes += 1;
+        bytes = bytes[1..$];
+
+        // The length is encoded in the bottom 7 bits?
+    	if ((b & 0x80) == 0)
+        {
+		    result.length = b & 0x7F;
+            return ResultStatus.ok();
+	    }
+
+		// Bottom 7 bits give the number of length bytes to follow.
+		const numBytes = b & 0x7F;
+
+        // indefinite length found (not DER)?
+		if (numBytes == 0)
+            return ResultStatus.error(invalidError, "Indefinite length");
+
+        foreach (i; 0..numBytes)
+		{
+            // truncated tag or length?
+            if (bytes.length == 0)
+                return ResultStatus.error(truncatedError, "Tag & length is truncated");
+
+			b = bytes[0];
+            nBytes += 1;
+            bytes = bytes[1..$];
+
+			// We can't shift ret.length up without overflowing.
+            // length too large
+			if (result.length >= 1 << 23)
+                return ResultStatus.error(invalidError, "Length is too large");
+
+			result.length <<= 8;
+			result.length |= b;
+
+            // DER requires that lengths be minimal.
+            // superfluous leading zeros in length?
+			if (result.length == 0)
+                return ResultStatus.error(invalidError, "Superfluous leading zeros in length");
+		}
+
+		// Short lengths must be encoded in short form.
+        // non-minimal length?
+		if (result.length < 0x80)
+			return ResultStatus.error(invalidError, "Length is not minimally encoded");
+
+        return ResultStatus.ok();
+	}
+
+    static ResultStatus parseT61String(scope const(ubyte)[] bytes, ref ubyte[] result) pure
+    {
+        result = bytes.dup;
+        return ResultStatus.ok();
+    }
+
+    /*
+     * hhmm
+     * hhmmss
+     * hhmmssZ
+     * hhmmss+hh[mm]
+     * hhmmss-hh[mm]
+     */
+    static ResultStatus parseTime(scope const(ubyte)[] bytes, ref Time result) @trusted
+    {
+        import pham.utl.datetime.date_time_parse : DateTimeParser, DateTimePattern, tryParse;
+        import pham.utl.datetime.tick : DateTimeZoneKind;
+
+        // Minimum length - hhmm?
+        if (bytes.length < 4)
+            return ResultStatus.error(bytes.length == 0 ? emptyError : truncatedError, "Time is truncated");
+
+        static DateTimePattern utcPattern(string patternText, DateTimeZoneKind kind) nothrow pure @safe
+        {
+            // Use DateTimePattern.usDateTime
+            // Any text month format is fine since it only use digits format
+            DateTimePattern result = DateTimePattern.usDateTime;
+            result.defaultKind = kind;
+            result.patternText = patternText;
+            return result;
+        }
+
+        static immutable DateTimePattern[] patterns = [
+            // Try these three likely formats first
+            utcPattern("hhmmss", DateTimeZoneKind.local),
+            utcPattern("hhmmssZ", DateTimeZoneKind.utc),
+
+            utcPattern("hhmm", DateTimeZoneKind.local),
+            utcPattern("hhmmss+hh", DateTimeZoneKind.utc), utcPattern("hhmmss-hh", DateTimeZoneKind.utc),
+            utcPattern("hhmmss+hhnn", DateTimeZoneKind.utc), utcPattern("hhmmss-hhnn", DateTimeZoneKind.utc),
+            ];
+
+        return tryParse!Time(cast(const(char)[])bytes, patterns, result) == DateTimeParser.noError
+            ? ResultStatus.ok()
+            : ResultStatus.error(invalidError, "Invalid Time");
+    }
+
+    /*
+     * YYMMDDhhmmZ
+     * YYMMDDhhmm+hh[mm]
+     * YYMMDDhhmm-hh[mm]
+     * YYMMDDhhmmssZ
+     * YYMMDDhhmmss+hh[mm]
+     * YYMMDDhhmmss-hh[mm]
+     */
+    static ResultStatus parseUTCTime(scope const(ubyte)[] bytes, ref DateTime result) @trusted
+    {
+        import pham.utl.datetime.date_time_parse : DateTimeParser, DateTimePattern, tryParse;
+        import pham.utl.datetime.tick : DateTimeZoneKind;
+
+        // Minimum length - YYMMDDhhmmZ?
+        if (bytes.length < 11)
+            return ResultStatus.error(bytes.length == 0 ? emptyError : truncatedError, "UTC-time is truncated");
+
+        static DateTimePattern utcPattern(string patternText) nothrow pure @safe
+        {
+            // Use DateTimePattern.usDateTime
+            // Any text month format is fine since it only use digits format
+            DateTimePattern result = DateTimePattern.usDateTime;
+            result.defaultKind = DateTimeZoneKind.utc;
+            result.patternText = patternText;
+            return result;
+        }
+
+        static immutable DateTimePattern[] patterns = [
+            // Try these three likely formats first
+            utcPattern("yymmddhhnnssZ"),
+            utcPattern("yymmddhhnnss+hhnn"), utcPattern("yymmddhhnnss-hhnn"),
+
+            utcPattern("yymmddhhnnZ"),
+            utcPattern("yymmddhhnn+hh"), utcPattern("yymmddhhnn-hh"),
+            utcPattern("yymmddhhnn+hhnn"), utcPattern("yymmddhhnn-hhnn"),
+            utcPattern("yymmddhhnnss+hh"), utcPattern("yymmddhhnnss-hh"),
+            ];
+
+        return tryParse!DateTime(cast(const(char)[])bytes, patterns, result) == DateTimeParser.noError
+            ? ResultStatus.ok()
+            : ResultStatus.error(invalidError, "Invalid UTC-time");
+    }
+
+    static ResultStatus parseUTF8String(scope const(ubyte)[] bytes, ref string result) pure
+    {
+        auto checkStatus = ASN1IsUTF8String(bytes);
+        if (!checkStatus)
+            return checkStatus;
+
+        result = (cast(const(char)[])bytes).idup;
+        return ResultStatus.ok();
+    }
+
+    static ResultStatus parseValue(scope const(ubyte)[] bytes, scope const(ASN1FieldParameters) parameters, ref ASN1Value result, out size_t nBytes)
+    {
+        import pham.utl.enum_set : toName;
+
+        nBytes = 0;
+        if (bytes.length == 0)
+        {
+            if (result.setDefaultValue(parameters))
+                return ResultStatus.ok();
+            else
+                return ResultStatus.error(emptyError, "Field is truncated");
+        }
+
+        ASN1TagAndLength tagLength;
+        auto checkTagLengh = parseTagAndLength(bytes, tagLength, nBytes);
+        if (!checkTagLengh)
+        {
+            nBytes += tagLength.length;
+            return checkTagLengh;
+        }
+
+        bytes = bytes[nBytes..$];
+        nBytes += tagLength.length;
+
+        final switch (parameters.tag)
+        {
+            case ASN1Tag.boolean:
+                bool bV;
+                auto bS = parseBoolean(bytes, bV);
+                if (!bS)
+                    return bS;
+                result.kind = ASN1Tag.boolean;
+                result.value = bV;
+                return ResultStatus.ok();
+
+            case ASN1Tag.integer:
+                long iV;
+                auto iS = parseInteger!long(bytes, iV);
+                if (!iS)
+                    return iS;
+                result.kind = ASN1Tag.integer;
+                result.setInteger(iV);
+                return ResultStatus.ok();
+
+            case ASN1Tag.bitString:
+                ASN1BitString bsV;
+                auto bsS = parseBitString(bytes, bsV);
+                if (!bsS)
+                    return bsS;
+                result.kind = ASN1Tag.bitString;
+                result.value = bsV;
+                return ResultStatus.ok();
+
+            case ASN1Tag.octetString:
+                ubyte[] ocV;
+                auto ocS = parseOctetString(bytes, ocV);
+                if (!ocS)
+                    return ocS;
+                result.kind = ASN1Tag.octetString;
+                result.value = ocV;
+                return ResultStatus.ok();
+
+            case ASN1Tag.oid:
+                ASN1ObjectIdentifier oiV;
+                auto oiS = parseObjectIdentifier(bytes, oiV);
+                if (!oiS)
+                    return oiS;
+                result.kind = ASN1Tag.oid;
+                result.value = oiV;
+                return ResultStatus.ok();
+
+            case ASN1Tag.enum_:
+                int eV;
+                auto eS = parseInteger!int(bytes, eV);
+                if (!eS)
+                    return eS;
+                result.kind = ASN1Tag.enum_;
+                result.value = eV;
+                return ResultStatus.ok();
+
+            case ASN1Tag.time:
+                Time tV;
+                auto tS = parseTime(bytes, tV);
+                if (!tS)
+                    return tS;
+                result.kind = ASN1Tag.time;
+                result.value = tV;
+                return ResultStatus.ok();
+
+            case ASN1Tag.null_:
+                result.reset();
+                return ResultStatus.ok();
+
+            case ASN1Tag.utf8String:
+                string utf8V;
+                auto utf8S = parseUTF8String(bytes, utf8V);
+                if (!utf8S)
+                    return utf8S;
+                result.kind = ASN1Tag.utf8String;
+                result.value = utf8V;
+                return ResultStatus.ok();
+
+            //TODO case ASNITag.sequence:
+            //TODO case ASNITag.set:
+
+            case ASN1Tag.numericString:
+                string numV;
+                auto numS = parseNumericString(bytes, numV);
+                if (!numS)
+                    return numS;
+                result.kind = ASN1Tag.numericString;
+                result.value = numV;
+                return ResultStatus.ok();
+
+            case ASN1Tag.printableString:
+                string prtV;
+                auto prtS = parsePrintableString(bytes, prtV);
+                if (!prtS)
+                    return prtS;
+                result.kind = ASN1Tag.printableString;
+                result.value = prtV;
+                return ResultStatus.ok();
+
+            case ASN1Tag.t61String:
+                ubyte[] t61V;
+                auto t61S = parseT61String(bytes, t61V);
+                if (!t61S)
+                    return t61S;
+                result.kind = ASN1Tag.t61String;
+                result.value = t61V;
+                return ResultStatus.ok();
+
+            case ASN1Tag.iA5String:
+                string ia5V;
+                auto ia5S = parseIA5String(bytes, ia5V);
+                if (!ia5S)
+                    return ia5S;
+                result.kind = ASN1Tag.iA5String;
+                result.value = ia5V;
+                return ResultStatus.ok();
+
+            case ASN1Tag.utcTime:
+                DateTime utcV;
+                auto utcS = parseUTCTime(bytes, utcV);
+                if (!utcS)
+                    return utcS;
+                result.kind = ASN1Tag.utcTime;
+                result.value = utcV;
+                return ResultStatus.ok();
+
+            case ASN1Tag.generalizedTime:
+                DateTime gtV;
+                auto gtS = parseGeneralizedTime(bytes, gtV);
+                if (!gtS)
+                    return gtS;
+                result.kind = ASN1Tag.generalizedTime;
+                result.value = gtV;
+                return ResultStatus.ok();
+
+            case ASN1Tag.generalString:
+                ubyte[] gsV;
+                auto gsS = parseT61String(bytes, gsV);
+                if (!gsS)
+                    return gsS;
+                result.kind = ASN1Tag.generalString;
+                result.value = gsV;
+                return ResultStatus.ok();
+
+            case ASN1Tag.bmpString:
+                string bmpV;
+                auto bmpS = parseBMPString(bytes, bmpV);
+                if (!bmpS)
+                    return bmpS;
+                result.kind = ASN1Tag.bmpString;
+                result.value = bmpV;
+                return ResultStatus.ok();
+
+            case ASN1Tag.date:
+                Date dtV;
+                auto dtS = parseDate(bytes, dtV);
+                if (!dtS)
+                    return dtS;
+                result.kind = ASN1Tag.date;
+                result.value = dtV;
+                return ResultStatus.ok();
+
+            case ASN1Tag.eoc:
+            //case ASN1Tag.float_:
+            case ASN1Tag.sequence:
+            case ASN1Tag.set:
+            //case ASN1Tag.visibleString:
+            //case ASN1Tag.dateTime:
+            //case ASN1Tag.duration:
+            case ASN1Tag.undefined:
+                return ResultStatus.error(invalidError, "Field of tag is not supported: " ~ toName!ASN1Tag(parameters.tag));
+        }
+    }
+
     pragma(inline, true)
     @property bool empty() const @nogc pure
     {
@@ -242,6 +1177,21 @@ public:
     }
 
 private:
+    static ResultStatus checkInteger(scope const(ubyte)[] bytes) @nogc pure
+    {
+        // Empty?
+        if (bytes.length == 0)
+            return ResultStatus.error(emptyError, "Integer is empty");
+        else if (bytes.length == 1)
+            return ResultStatus.ok();
+        // Not minimally-encoded?
+	    else if ((bytes[0] == 0 && (bytes[1] & 0x80) == 0)
+            || (bytes[0] == 0xFF && (bytes[1] & 0x80) == 0x80))
+            return ResultStatus.error(invalidError, "Integer is not minimally encoded");
+        else
+	        return ResultStatus.ok();
+    }
+
     bool readDataSize() @nogc pure
     {
         bool invalidDataSize() @nogc pure
@@ -310,7 +1260,7 @@ public:
     static void writeBoolean(ref CipherBuffer destination, const(bool) x,
         const(ASN1Tag) tag = ASN1Tag.boolean) pure
     {
-        destination.put(tag);
+        //todo destination.put(tag);
         destination.put(0x01);
         destination.put(x ? 0xff : 0x00);
     }
@@ -347,7 +1297,7 @@ public:
     static void writeNull(ref CipherBuffer destination,
         const(ASN1Tag) tag = ASN1Tag.null_) pure
     {
-        destination.put(tag);
+        //todo destination.put(tag);
         destination.put(0x00);
     }
 
@@ -381,7 +1331,7 @@ public:
         foreach (x; xs)
             totalLength += x.length;
 
-        destination.put(tag);
+        //todo destination.put(tag);
         writeLength(destination, totalLength);
         foreach (x; xs)
             destination.put(x.representation);
@@ -395,15 +1345,16 @@ public:
 
     static void writeTagValue(ref CipherBuffer destination, const(ASN1Tag) tag, scope const(ubyte)[] x) pure
     {
-        destination.put(tag);
+        //todo destination.put(tag);
         writeLength(destination, x.length);
         destination.put(x);
     }
 
+    version (none)
     static void writeVisibleString(ref CipherBuffer destination, scope const(char)[] x,
         const(ASN1Tag) tag = ASN1Tag.visibleString) pure
     {
-        destination.put(tag);
+        //todo destination.put(tag);
         writeLength(destination, x.length + 1);
         destination.put(x.representation);
         destination.put(' ');
@@ -496,6 +1447,29 @@ private:
     }
 }
 
+struct ASN1FieldParameters
+{
+nothrow @safe:
+
+	long* defaultValue;   // a default value for INTEGER typed fields (maybe nil).
+	ASN1Tag stringType;   // the string tag to use when marshaling.
+	ASN1Tag tag;          // the EXPLICIT or IMPLICIT tag.
+	ASN1Tag timeType;     // the time tag to use when marshaling.
+	bool application;     // true iff an APPLICATION tag is in use.
+	bool explicit;        // true iff an EXPLICIT tag is in use.
+	bool omitEmpty;       // true iff this should be omitted if empty when marshaling.
+	bool optional;        // true iff the field is OPTIONAL
+	bool private_;        // true iff a PRIVATE tag is in use.
+	bool set;             // true iff this should be encoded as a SET
+
+    bool canSetDefaultValue() const @nogc pure scope
+    {
+        return defaultValue == null
+            ? false
+            : (tag == ASN1Tag.boolean || tag == ASN1Tag.integer || tag == ASN1Tag.enum_);
+    }
+}
+
 struct ASN1ObjectIdentifier
 {
 nothrow @safe:
@@ -503,63 +1477,78 @@ nothrow @safe:
 public:
     this(int[] value) pure
     {
-        this.value = value;
+        this._value = value;
     }
 
-    int opCmp(scope const(int)[] rhs) const pure
+    int opCmp(scope const(int)[] rhs) const @nogc pure
     {
-        const cmpLen = rhs.length > value.length ? value.length : rhs.length;
+        const cmpLen = rhs.length > _value.length ? _value.length : rhs.length;
         foreach (i; 0..cmpLen)
         {
-            const c = cmpInteger(value[i], rhs[i]);
+            const c = cmpInteger(_value[i], rhs[i]);
             if (c != 0)
                 return c;
         }
 
-        return cmpInteger(value.length, rhs.length);
+        return cmpInteger(_value.length, rhs.length);
     }
 
-    int opCmp(scope const(ASN1ObjectIdentifier) rhs) const pure
+    int opCmp(scope const(ASN1ObjectIdentifier) rhs) const @nogc pure
     {
-        return opCmp(rhs.value);
+        return opCmp(rhs._value);
     }
 
-    bool opEquals(scope const(int)[] rhs) const pure
+    bool opEquals(scope const(int)[] rhs) const @nogc pure
     {
-        if (value.length != rhs.length)
+        if (_value.length != rhs.length)
             return false;
 
         foreach (i; 0..rhs.length)
         {
-            if (value[i] != rhs[i])
+            if (_value[i] != rhs[i])
                 return false;
         }
 
         return true;
     }
 
-    bool opEquals(scope const(ASN1ObjectIdentifier) rhs) const pure
+    bool opEquals(scope const(ASN1ObjectIdentifier) rhs) const @nogc pure
     {
-        return opEquals(rhs.value);
+        return opEquals(rhs._value);
+    }
+
+    size_t toHash() const @nogc pure
+    {
+        size_t result = 0;
+        foreach (v; _value)
+        {
+            result = hashOf(v, result);
+        }
+        return result;
     }
 
     string toString() const pure
     {
-        if (value.length == 0)
+        if (_value.length == 0)
             return null;
 
         ShortStringBuffer!char buffer;
-        .toString(buffer, value[0]);
-        foreach (i; 1..value.length)
+        .toString(buffer, _value[0]);
+        foreach (i; 1.._value.length)
         {
             buffer.put('.');
-            .toString(buffer, value[i]);
+            .toString(buffer, _value[i]);
         }
         return buffer.toString();
     }
 
-public:
-    int[] value;
+    @property const(int)[] value() const @nogc pure
+    {
+        return _value;
+    }
+
+private:
+    int[] _value;
 }
 
 struct ASN1OIdInfo
@@ -875,11 +1864,58 @@ public:
     }
 
 public:
-    ASN1Class class_;
-    ASN1Tag tag;
+    int classId;
+    int tagId;
 	bool isCompound;
     ubyte[] valueBytes;
     ubyte[] fullBytes; // includes the tag and length
+}
+
+struct ASN1TagAndLength
+{
+    int classId, tagId, length;
+	bool isCompound;
+}
+
+struct ASN1Value
+{
+    Variant value;
+    ASN1Tag kind = ASN1Tag.null_;
+
+    void reset() nothrow
+    {
+        value.nullify();
+        kind = ASN1Tag.null_;
+    }
+
+    void setInteger(long iV) nothrow
+    {
+        if (iV >= int.min && iV <= int.max)
+            value = cast(int)iV;
+        else
+            value = iV;
+    }
+
+    bool setDefaultValue(scope const(ASN1FieldParameters) parameters) nothrow
+    {
+        if (!parameters.optional)
+            return false;
+
+        this.kind = kind;
+        if (parameters.canSetDefaultValue())
+        {
+            const dfv = *parameters.defaultValue;
+            if (kind == ASN1Tag.boolean)
+                value = dfv != 0;
+            else if (kind == ASN1Tag.integer)
+                setInteger(dfv);
+            else if (kind == ASN1Tag.enum_)
+                value = cast(int)dfv;
+            else
+                assert(0);
+        }
+        return true;
+    }
 }
 
 
@@ -888,6 +1924,239 @@ private:
 shared static this()
 {
     ASN1OId.initializeDefaults();
+}
+
+unittest // ASN1BitString.opIndex
+{
+    import std.conv : to;
+    import pham.utl.test;
+    traceUnitTest!("pham.cp")("unittest pham.cp.codec_asn1.ASN1BitString.opIndex");
+
+    static void test(size_t index, bool expectedValue, int line = __LINE__)
+    {
+        enum v = ASN1BitString([0x82, 0x40], 16);
+        assert(v[index] == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ to!string(v[index]) ~ " vs " ~ to!string(expectedValue));
+    }
+
+    test(0, true);
+    test(1, false);
+    test(6, true);
+    test(9, true);
+    test(17, false);
+}
+
+unittest // ASN1BitString.rightAlign
+{
+    import std.conv : to;
+    import pham.utl.test;
+    traceUnitTest!("pham.cp")("unittest pham.cp.codec_asn1.ASN1BitString.rightAlign");
+
+    static void test(scope const(ASN1BitString) v, scope const(ubyte)[] expectedValue, int line = __LINE__) @safe
+    {
+        assert(v.rightAlign() == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.rightAlign().dgToHex() ~ " vs " ~ expectedValue.dgToHex());
+    }
+
+    test(ASN1BitString([0x80]), [0x01]);
+    test(ASN1BitString([0x80, 0x80], 9), [0x01, 0x01]);
+    test(ASN1BitString([], 0), []);
+    test(ASN1BitString([0xce], 8), [0xce]);
+    test(ASN1BitString([0xce, 0x47], 16), [0xce, 0x47]);
+    test(ASN1BitString([0x34, 0x50], 12), [0x03, 0x45]);
+}
+
+unittest // ASN1BerDecoder.parseBoolean
+{
+    import std.conv : to;
+    import pham.utl.test;
+    traceUnitTest!("pham.cp")("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseBoolean");
+
+    static void test(scope const(ubyte)[] bytes, bool parsedResult, bool expectedValue, int line = __LINE__)
+    {
+        bool v;
+        assert(ASN1BerDecoder.parseBoolean(bytes, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ to!string(v) ~ " vs " ~ to!string(expectedValue));
+    }
+
+    test([0x00], true, false);
+    test([0xff], true, true);
+    test([0x00, 0x00], false, false);
+    test([0xff, 0xff], false, false);
+    test([0x01], false, false);
+}
+
+unittest // ASN1BerDecoder.parseInteger.int
+{
+    import std.conv : to;
+    import pham.utl.test;
+    traceUnitTest!("pham.cp")("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseInteger.int");
+
+    static void test(scope const(ubyte)[] bytes, bool parsedResult, int expectedValue, int line = __LINE__)
+    {
+        int v;
+        assert(ASN1BerDecoder.parseInteger!int(bytes, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ to!string(v) ~ " vs " ~ to!string(expectedValue));
+    }
+
+    test([0x00], true, 0);
+    test([0x7f], true, 127);
+    test([0x00, 0x80], true, 128);
+    test([0x01, 0x00], true, 256);
+    test([0x80], true, -128);
+    test([0xff, 0x7f], true, -129);
+    test([0xff], true, -1);
+    test([0x80, 0x00, 0x00, 0x00], true, -2_147_483_648);
+    test([0x80, 0x00, 0x00, 0x00, 0x00], false, 0);
+    test([], false, 0);
+    test([0x00, 0x7f], false, 0);
+    test([0xff, 0xf0], false, 0);
+}
+
+unittest // ASN1BerDecoder.parseInteger.long
+{
+    import std.conv : to;
+    import pham.utl.test;
+    traceUnitTest!("pham.cp")("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseInteger.long");
+
+    static void test(scope const(ubyte)[] bytes, bool parsedResult, long expectedValue, int line = __LINE__)
+    {
+        long v;
+        assert(ASN1BerDecoder.parseInteger!long(bytes, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ to!string(v) ~ " vs " ~ to!string(expectedValue));
+    }
+
+    test([0x00], true, 0);
+    test([0x7f], true, 127);
+    test([0x00, 0x80], true, 128);
+    test([0x01, 0x00], true, 256);
+    test([0x80], true, -128);
+    test([0xff, 0x7f], true, -129);
+    test([0xff], true, -1);
+    test([0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], true, -9_223_372_036_854_775_808);
+    test([0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], false, 0);
+    test([], false, 0);
+    test([0x00, 0x7f], false, 0);
+    test([0xff, 0xf0], false, 0);
+}
+
+unittest // ASN1BerDecoder.parseBigInteger
+{
+    import std.conv : to;
+    import pham.utl.test;
+    traceUnitTest!("pham.cp")("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseBigInteger");
+
+    static void test(scope const(ubyte)[] bytes, bool parsedResult, long expectedValue, int line = __LINE__) nothrow
+    {
+        BigInteger v;
+        assert(ASN1BerDecoder.parseBigInteger(bytes, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.toString() ~ " vs " ~ to!string(expectedValue));
+    }
+
+    test([0xff], true, -1);
+    test([0x00], true, 0);
+    test([0x01], true, 1);
+    test([0x00, 0xff], true, 255);
+    test([0xff, 0x00], true, -256);
+    test([0x01, 0x00], true, 256);
+    test([], false, 0);
+    test([0x00, 0x7f], false, 0);
+    test([0xff, 0xf0], false, 0);
+}
+
+unittest // ASN1BerDecoder.parseBitString
+{
+    import std.conv : to;
+    import pham.utl.test;
+    traceUnitTest!("pham.cp")("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseBitString");
+
+    static void test(scope const(ubyte)[] bytes, bool parsedResult, const(ASN1BitString) expectedValue, int line = __LINE__) @safe
+    {
+        ASN1BitString v;
+        assert(ASN1BerDecoder.parseBitString(bytes, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.toString() ~ " vs " ~ expectedValue.toString());
+    }
+
+    test([], false, ASN1BitString.init);
+    test([0x00], true, ASN1BitString.init);
+    test([0x07, 0x00], true, ASN1BitString([0x00], 1));
+    test([0x07, 0x01], false, ASN1BitString.init);
+    test([0x07, 0x40], false, ASN1BitString.init);
+    test([0x08, 0x00], false, ASN1BitString.init);
+}
+
+unittest // ASN1BerDecoder.parseObjectIdentifier
+{
+    import std.conv : to;
+    import pham.utl.test;
+    traceUnitTest!("pham.cp")("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseObjectIdentifier");
+
+    static void test(scope const(ubyte)[] bytes, bool parsedResult, int[] expectedValue, int line = __LINE__)
+    {
+        ASN1ObjectIdentifier v;
+        assert(ASN1BerDecoder.parseObjectIdentifier(bytes, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.toString() ~ " vs " ~ ASN1ObjectIdentifier(expectedValue).toString());
+    }
+
+    test([], false, []);
+    test([0x55], true, [2, 5]);
+    test([0x55, 0x02], true, [2, 5, 2]);
+    test([0x55, 0x02, 0xc0, 0x00], true, [2, 5, 2, 0x2000]);
+    test([0x81, 0x34, 0x03], true, [2, 100, 3]);
+    test([0x55, 0x02, 0xc0, 0x80, 0x80, 0x80, 0x80], false, []);
+}
+
+unittest // ASN1BerDecoder.parseUTCTime
+{
+    import pham.utl.datetime.tick : DateTimeZoneKind;
+    import pham.utl.datetime.date_time_parse : twoDigitYearCenturyWindowDefault;
+    import std.conv : to;
+    import pham.utl.test;
+    traceUnitTest!("pham.cp")("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseUTCTime");
+
+    static void test(string bytes, bool parsedResult, scope const(DateTime) expectedValue, int line = __LINE__)
+    {
+        DateTime v;
+        assert(ASN1BerDecoder.parseUTCTime(bytes.representation, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.toString() ~ " vs " ~ expectedValue.toString());
+    }
+
+    static int year(int twoDigitYear) nothrow
+    {
+        return DateTime.adjustTwoDigitYear(twoDigitYear, twoDigitYearCenturyWindowDefault);
+    }
+
+	test("910506164540+0730", true, DateTime(year(91), 05, 06, 16, 45, 40, 0, DateTimeZoneKind.utc).addBias(1, 07, 30));
+	test("910506164540-0700", true, DateTime(year(91), 05, 06, 16, 45, 40, 0, DateTimeZoneKind.utc).addBias(-1, 07, 00));
+	test("910506234540Z", true, DateTime(year(91), 05, 06, 23, 45, 40, 0, DateTimeZoneKind.utc));
+	test("9105062345Z", true, DateTime(year(91), 05, 06, 23, 45, 0, 0, DateTimeZoneKind.utc));
+	test("5105062345Z", true, DateTime(year(51), 05, 06, 23, 45, 0, 0, DateTimeZoneKind.utc));
+	test("a10506234540Z", false, DateTime.init);
+	test("91a506234540Z", false, DateTime.init);
+	test("9105a6234540Z", false, DateTime.init);
+	test("910506a34540Z", false, DateTime.init);
+	test("910506334a40Z", false, DateTime.init);
+	test("91050633444aZ", false, DateTime.init);
+	test("910506334461Z", false, DateTime.init);
+	test("910506334400Za", false, DateTime.init);
+}
+
+unittest // ASN1BerDecoder.parseGeneralizedTime
+{
+    import pham.utl.datetime.tick : DateTimeZoneKind;
+    import std.conv : to;
+    import pham.utl.test;
+    traceUnitTest!("pham.cp")("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseGeneralizedTime");
+
+    static void test(string bytes, bool parsedResult, scope const(DateTime) expectedValue, int line = __LINE__)
+    {
+        DateTime v;
+        assert(ASN1BerDecoder.parseGeneralizedTime(bytes.representation, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.toString() ~ " vs " ~ expectedValue.toString());
+    }
+
+	test("20100102030405Z", true, DateTime(2010, 01, 02, 03, 04, 05, 0, DateTimeZoneKind.utc));
+	test("20100102030405+0607", true, DateTime(2010, 01, 02, 03, 04, 05, 0, DateTimeZoneKind.utc).addBias(1, 06, 07));
+	test("20100102030405-0607", true, DateTime(2010, 01, 02, 03, 04, 05, 0, DateTimeZoneKind.utc).addBias(-1, 06, 07));
+	test("20100102030405", true, DateTime(2010, 01, 02, 03, 04, 05, 0, DateTimeZoneKind.local));
 }
 
 unittest // ASN1OId.initializeDefaults, ASN1OId.idOf, ASN1OId.nameOf

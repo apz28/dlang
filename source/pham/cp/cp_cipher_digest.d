@@ -190,7 +190,7 @@ public:
         return _digester.finish(outBuffer.buffer[]);
     }
 
-    @property uint digestBits() const pure
+    @property uint digestBits() const @nogc pure
     {
         return _digestBits;
     }
@@ -200,9 +200,9 @@ public:
         return _digestId;
     }
 
-    @property uint digestLength() const pure
+    @property uint digestLength() const @nogc pure
     {
-        return _digestBits / 8;
+        return (_digestBits + 7) / 8;
     }
 
 private:

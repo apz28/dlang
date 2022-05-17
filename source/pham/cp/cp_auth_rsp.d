@@ -78,7 +78,7 @@ nothrow @safe:
 
 // minGroupSize (in bits) sets a lower bound on the size of DH groups
 // that will pass certain internal checks. Defaults to 2048
-enum minGroupSize = 2048;
+enum minGroupSize = 2_048;
 
 // minExponentSize (in bytes) for generating ephemeral private keys.
 enum minExponentSize = 32;
@@ -91,15 +91,15 @@ ubyte[] bytesFromBigInteger(scope const(BigInteger) n) pure
     return result;
 }
 
-ubyte[] bytesFromBigIntegerPad(scope const(BigInteger) n, const(size_t) padSize) pure
+ubyte[] bytesFromBigIntegerPad(scope const(BigInteger) n, const(size_t) paddingSize) pure
 {
     auto result = bytesFromBigInteger(n);
 
-    if (result.length > padSize)
-        return result[result.length - padSize..$];
+    if (result.length > paddingSize)
+        return result[result.length - paddingSize..$];
 
-    //if (padSize > result.length)
-    //    return arrayOfChar(0, padSize - result.length) ~ result;
+    //if (paddingSize > result.length)
+    //    return arrayOfChar(0, paddingSize - result.length) ~ result;
 
     return result;
 }
@@ -114,10 +114,16 @@ struct PrimeGroup
 nothrow @safe:
 
 public:
-    this(uint g, scope const(char)[] N, uint exponentSize,
-         uint padSize = 0) pure
+    this(this) nothrow pure
     {
-        uint getPadSize()
+        _g = _g.dup;
+        _N = _N.dup;
+    }
+
+    this(uint g, scope const(char)[] N, uint exponentSize,
+         uint paddingSize = 0) pure
+    {
+        uint getPaddingSize()
         {
             auto N2 = NumericLexerOptions!char.isHexDigitPrefix(N) ? N[2..$] : N;
 
@@ -131,23 +137,39 @@ public:
             return result;
         }
 
-        this(BigInteger(g), CipherKey.hexDigitsToBigInteger(N), exponentSize, padSize != 0 ? padSize : getPadSize());
-    }
-
-    this(BigInteger g, BigInteger N, uint exponentSize, uint padSize) pure
-    {
-        this._g = g;
-        this._N = N;
+        this._g = BigInteger(g);
+        this._N = CipherKey.hexDigitsToBigInteger(N);
         this._exponentSize = exponentSize;
-        this._padSize = padSize;
+        this._paddingSize = paddingSize != 0 ? paddingSize : getPaddingSize();
     }
 
-    uint maxExponentSize() const nothrow pure
+    this(const(BigInteger) g, const(BigInteger) N, uint exponentSize, uint paddingSize) pure
+    {
+        this._g = g.dup;
+        this._N = N.dup;
+        this._exponentSize = exponentSize;
+        this._paddingSize = paddingSize;
+    }
+
+    ~this() nothrow pure
+    {
+        dispose(false);
+    }
+
+    // For security reason, need to clear the secrete information
+    void dispose(bool disposing = true) nothrow pure
+    {
+        _g.dispose(disposing);
+        _N.dispose(disposing);
+        _exponentSize = _paddingSize = 0;
+    }
+
+    uint maxExponentSize() const @nogc nothrow pure
     {
         return exponentSize > minExponentSize ? exponentSize : minExponentSize;
     }
 
-    @property uint exponentSize() const pure
+    @property uint exponentSize() const @nogc pure
     {
         return _exponentSize;
     }
@@ -157,9 +179,9 @@ public:
         return _g;
     }
 
-    @property uint padSize() const pure
+    @property uint paddingSize() const @nogc pure
     {
-        return _padSize;
+        return _paddingSize;
     }
 
     @property const(BigInteger) N() const pure
@@ -171,7 +193,7 @@ private:
     BigInteger _g;
     BigInteger _N;
     uint _exponentSize;
-    uint _padSize;
+    uint _paddingSize;
 }
 
 version(none) static immutable PrimeGroup prime1024; // Insecured one
@@ -188,7 +210,7 @@ nothrow @safe:
 
 public:
     this(DigestId digestId, DigestId proofDigestId,
-         char separator = ':')
+        char separator = ':')
     {
         this(digestId, proofDigestId, prime2048, separator);
     }
@@ -212,13 +234,13 @@ public:
     ubyte[] hash(BigInteger n, Flag!"pad" pad)
     {
         DigestResult rTemp = void;
-        auto bytes = pad ? bytesFromBigIntegerPad(n, padSize) : bytesFromBigInteger(n);
+        auto bytes = pad ? bytesFromBigIntegerPad(n, paddingSize) : bytesFromBigInteger(n);
         return _hasher.begin()
             .digest(bytes)
             .finish(rTemp).dup;
     }
 
-    @property uint exponentSize() const pure
+    @property uint exponentSize() const @nogc pure
     {
         return _group.exponentSize;
     }
@@ -238,27 +260,27 @@ public:
         return _hasher;
     }
 
-    @property uint hasherBits() const pure
+    @property uint hasherBits() const @nogc pure
     {
         return _hasher.digestBits;
     }
 
-    @property uint hasherLength() const pure
+    @property uint hasherLength() const @nogc pure
     {
         return _hasher.digestLength;
     }
 
-    @property uint maxExponentSize() const pure
+    @property uint maxExponentSize() const @nogc pure
     {
         return _group.maxExponentSize;
     }
 
-    @property uint padSize() const pure
+    @property uint paddingSize() const @nogc pure
     {
-        return _group.padSize;
+        return _group.paddingSize;
     }
 
-    @property char separator() const pure
+    @property char separator() const @nogc pure
     {
         return _separator;
     }
@@ -295,8 +317,8 @@ public:
 
         DigestResult kTemp = void;
         auto rHash = hasher.begin()
-            .digest(bytesFromBigIntegerPad(A, padSize))
-            .digest(bytesFromBigIntegerPad(B, padSize))
+            .digest(bytesFromBigIntegerPad(A, paddingSize))
+            .digest(bytesFromBigIntegerPad(B, paddingSize))
             .finish(kTemp);
         auto result = bytesToBigInteger(rHash);
 
@@ -304,9 +326,9 @@ public:
         {
             import pham.utl.test;
             traceFunction!("pham.cp")("A=", A.toString(),
-                ", A.pad=", bytesFromBigIntegerPad(A, padSize),
+                ", A.pad=", bytesFromBigIntegerPad(A, paddingSize),
                 ", B=", B.toString(),
-                ", B.pad=", bytesFromBigIntegerPad(B, padSize),
+                ", B.pad=", bytesFromBigIntegerPad(B, paddingSize),
                 ", rHash=", rHash,
                 ", result=", result);
         }
@@ -367,7 +389,7 @@ public:
 
         DigestResult hashTemp = void;
         return hasher.begin()
-            .digest(bytesFromBigIntegerPad(v, padSize))
+            .digest(bytesFromBigIntegerPad(v, paddingSize))
             .finish(hashTemp).dup;
     }
 
@@ -437,9 +459,9 @@ public:
         return (() @trusted => cast()_parameters.group.N)();
     }
 
-    @property uint padSize() const pure
+    @property uint paddingSize() const @nogc pure
     {
-        return _parameters.padSize;
+        return _parameters.paddingSize;
     }
 
     @property final ref AuthParameters parameters() pure
@@ -455,8 +477,8 @@ protected:
 
         DigestResult kTemp = void;
         auto rHash = hasher.begin()
-            .digest(bytesFromBigIntegerPad(N, padSize))
-            .digest(bytesFromBigIntegerPad(g, padSize))
+            .digest(bytesFromBigIntegerPad(N, paddingSize))
+            .digest(bytesFromBigIntegerPad(g, paddingSize))
             .finish(kTemp);
         auto result = bytesToBigInteger(rHash);
 

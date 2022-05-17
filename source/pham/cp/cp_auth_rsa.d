@@ -15,17 +15,10 @@ import std.typecons : No;
 
 import pham.utl.big_integer : BigInteger, modInverse, modPow;
 import pham.cp.cipher;
-import pham.cp.codec_asn1;
+import pham.cp.openssl;
 import pham.cp.pad;
-import pham.cp.random;
 
 nothrow @safe:
-
-struct CipherRSAAlgorithmIdentifier
-{
-	ASN1ObjectIdentifier algorithm;
-	ASN1RawValue parameters; // asn1.RawValue `asn1:"optional"`
-}
 
 enum CipherRSAValidState
 {
@@ -37,6 +30,22 @@ enum CipherRSAValidState
 
 struct CipherRSAPrivateKey
 {
+public:
+    ~this() nothrow pure
+    {
+        dispose(false);
+    }
+
+    // For security reason, need to clear the secrete information
+    void dispose(bool disposing = true) nothrow pure
+    {
+        publicKey.dispose(disposing);
+        d.dispose(disposing);
+        foreach (ref prime; primes)
+             prime.dispose(disposing);
+    }
+
+public:
 	CipherRSAPublicKey publicKey; // public part.
 	BigInteger d;   // private exponent
 	BigInteger[] primes; // prime factors of N, has >= 2 elements.
@@ -44,8 +53,18 @@ struct CipherRSAPrivateKey
 
 struct CipherRSAPublicKey
 {
-    BigInteger N; // modulus
-    int E; // public exponent
+public:
+    ~this() nothrow pure
+    {
+        dispose(false);
+    }
+
+    // For security reason, need to clear the secrete information
+    void dispose(bool disposing = true) nothrow pure
+    {
+        N.dispose(disposing);
+        E = 0;
+    }
 
     @property CipherRSAValidState isValidState() const @nogc pure
     {
@@ -64,13 +83,10 @@ struct CipherRSAPublicKey
     {
         return (N.bitLength + 7) / 8;
     }
-}
 
-struct CipherRSAPublicKeyInfo
-{
-    ubyte[] rawContent;
-	CipherRSAAlgorithmIdentifier algorithm;
-	ASN1BitString publicKey;
+public:
+    BigInteger N; // modulus
+    int E; // public exponent
 }
 
 class CipherRSA : Cipher
@@ -199,44 +215,10 @@ public:
     }
     do
     {
-        CipherRandomGenerator rnd;
-        BigInteger n, e, d;
-        bool found;
-        while (!found)
-        {
-            // Get two distinct prime numbers
-            BigInteger p, q;
-            while (true)
-            {
-                p = rnd.nextBigIntegerPrime(keySize, primeTestIterations);
-                q = rnd.nextBigIntegerPrime(keySize, primeTestIterations);
-                if (p != q)
-                    break;
-            }
-
-            // n = pq
-            n = p * q;
-
-            // p1q1 = (p-1)(q-1)
-            BigInteger p1q1 = (p - 1) * (q - 1);
-
-            // e = randomly chosen simple prime >= 1019
-            foreach (_; 0..2300)
-            {
-                e = BigInteger(rnd.nextSmallPrime(108, 0xFFFF));
-
-                // d = inverse(e) mod (p-1)(q-1)
-                if (modInverse(e, p1q1, d))
-                {
-                    found = true;
-                    break;
-                }
-            }
-        }
-
-        const nBytes = CipherKey.bytesFromBigInteger(n);
-        privateKey = CipherKey(keySize, nBytes, CipherKey.bytesFromBigInteger(d));
-        publicKey = CipherKey(keySize, nBytes, CipherKey.bytesFromBigInteger(e));
+        //TODO
+        //const nBytes = CipherKey.bytesFromBigInteger(n);
+        //privateKey = CipherKey(keySize, nBytes, CipherKey.bytesFromBigInteger(d));
+        //publicKey = CipherKey(keySize, nBytes, CipherKey.bytesFromBigInteger(e));
     }
 
     final ref CipherBuffer padPKCS1_5(return ref CipherBuffer dataBlock)
@@ -292,9 +274,10 @@ protected:
 private:
     CipherPaddingPKCS1_5 pkcs1_5Pad;
     CipherBuffer tempBlock;
-    CipherRandomGenerator rnd;
+//    CipherRandomGenerator rnd;
 }
 
+version (none)
 class CipherRSA128 : CipherRSA
 {
 nothrow @safe:
@@ -316,6 +299,7 @@ public:
     }
 }
 
+version (none)
 class CipherRSA256 : CipherRSA
 {
 nothrow @safe:
@@ -337,6 +321,7 @@ public:
     }
 }
 
+version (none)
 class CipherRSA512 : CipherRSA
 {
 nothrow @safe:

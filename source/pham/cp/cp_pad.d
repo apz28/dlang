@@ -168,17 +168,17 @@ public:
             if (!isValidPaddedDataSize(dataLength, blockSize))
                 return [];
 
-            const padSize = data[dataLength - 1];
+            const paddingSize = data[dataLength - 1];
 
             // Invalid padding size?
-            if (padSize == 0 || padSize > blockSize)
+            if (paddingSize == 0 || paddingSize > blockSize)
                 return [];
 
             // Invalid padding mode?
-            if (!data[dataLength - padSize..$ - 1].all!((a) => (a == 0)))
+            if (!data[dataLength - paddingSize..$ - 1].all!((a) => (a == 0)))
                 return [];
 
-            return data[0..dataLength - padSize];
+            return data[0..dataLength - paddingSize];
         }
         else static if (fill == CipherPaddingModeKind.random && suffix == CipherPaddingModeKind.size)
         {
@@ -186,13 +186,13 @@ public:
             if (!isValidPaddedDataSize(dataLength, blockSize))
                 return [];
 
-            const padSize = data[dataLength - 1];
+            const paddingSize = data[dataLength - 1];
 
             // Invalid padding size?
-            if (padSize == 0 || padSize > blockSize)
+            if (paddingSize == 0 || paddingSize > blockSize)
                 return [];
 
-            return data[0..dataLength - padSize];
+            return data[0..dataLength - paddingSize];
         }
         else static if (fill == CipherPaddingModeKind.size && suffix == CipherPaddingModeKind.size)
         {
@@ -200,17 +200,17 @@ public:
             if (!isValidPaddedDataSize(dataLength, blockSize))
                 return [];
 
-            const padSize = data[dataLength - 1];
+            const paddingSize = data[dataLength - 1];
 
             // Invalid padding size?
-            if (padSize == 0 || padSize > blockSize)
+            if (paddingSize == 0 || paddingSize > blockSize)
                 return [];
 
             // Invalid padding mode?
-            if (!data[dataLength - padSize..dataLength - 1].all!((a) => (a == padSize)))
+            if (!data[dataLength - paddingSize..dataLength - 1].all!((a) => (a == paddingSize)))
                 return [];
 
-            return data[0..dataLength - padSize];
+            return data[0..dataLength - paddingSize];
         }
         else static if (fill == CipherPaddingModeKind.zero && suffix == CipherPaddingModeKind.zero)
         {
@@ -273,17 +273,17 @@ public:
             if (!isValidPaddedDataSize(dataLength, blockSize))
                 return data.clear();
 
-            const padSize = data[dataLength - 1];
+            const paddingSize = data[dataLength - 1];
 
             // Invalid padding size?
-            if (padSize == 0 || padSize > blockSize)
+            if (paddingSize == 0 || paddingSize > blockSize)
                 return data.clear();
 
             // Invalid padding mode?
-            if (!data[dataLength - padSize..$ - 1].all!((a) => (a == 0)))
+            if (!data[dataLength - paddingSize..$ - 1].all!((a) => (a == 0)))
                 return data.clear();
 
-            return data.chopTail(padSize);
+            return data.chopTail(paddingSize);
         }
         else static if (fill == CipherPaddingModeKind.random && suffix == CipherPaddingModeKind.size)
         {
@@ -291,13 +291,13 @@ public:
             if (!isValidPaddedDataSize(dataLength, blockSize))
                 return data.clear();
 
-            const padSize = data[dataLength - 1];
+            const paddingSize = data[dataLength - 1];
 
             // Invalid padding size?
-            if (padSize == 0 || padSize > blockSize)
+            if (paddingSize == 0 || paddingSize > blockSize)
                 return data.clear();
 
-            return data.chopTail(padSize);
+            return data.chopTail(paddingSize);
         }
         else static if (fill == CipherPaddingModeKind.size && suffix == CipherPaddingModeKind.size)
         {
@@ -305,17 +305,17 @@ public:
             if (!isValidPaddedDataSize(dataLength, blockSize))
                 return data.clear();
 
-            const padSize = data[dataLength - 1];
+            const paddingSize = data[dataLength - 1];
 
             // Invalid padding size?
-            if (padSize == 0 || padSize > blockSize)
+            if (paddingSize == 0 || paddingSize > blockSize)
                 return data.clear();
 
             // Invalid padding mode?
-            if (!data[dataLength - padSize..dataLength - 1].all!((a) => (a == padSize)))
+            if (!data[dataLength - paddingSize..dataLength - 1].all!((a) => (a == paddingSize)))
                 return data.clear();
 
-            return data.chopTail(padSize);
+            return data.chopTail(paddingSize);
         }
         else static if (fill == CipherPaddingModeKind.zero && suffix == CipherPaddingModeKind.zero)
         {
@@ -412,7 +412,8 @@ public:
         tempBlock.put(0);
         tempBlock.put(data[]);
 
-        return data.clear().put(tempBlock[]);
+        data.clear().put(tempBlock[]);
+        return data;
     }
 
     static ubyte[] unpad(ubyte[] data, const(size_t) blockSize) pure

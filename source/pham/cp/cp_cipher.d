@@ -18,14 +18,70 @@ import std.typecons : No, Yes;
 
 version (profile) import pham.utl.test : PerfFunction;
 import pham.utl.big_integer : BigInteger, defaultParseBigIntegerOptions;
-import pham.utl.object : DisposableObject;
-import pham.utl.utf8 : NumericLexerFlag, NumericLexerOptions, ShortStringBuffer, ShortStringBufferSize, UTF8CharRange;
+import pham.utl.object : bytesToHexs, DisposableObject;
+import pham.utl.utf8 : NoDecodeInputRange, NoDecodeOutputRange, NumericLexerFlag, NumericLexerOptions,
+    ShortStringBuffer, ShortStringBufferSize, UTF8CharRange;
 import pham.cp.cipher_digest : DigestId;
-//import pham.cp.cipher_prime_number;
 
 nothrow @safe:
 
-alias CipherBuffer = ShortStringBufferSize!(ubyte, 2000);
+struct CipherBuffer
+{
+@safe:
+
+public:
+    this(scope const(ubyte)[] values) nothrow pure
+    {
+        this.data.opAssign(values);
+    }
+
+    ~this() nothrow pure
+    {
+        dispose(false);
+    }
+
+    ref typeof(this) opAssign(scope const(ubyte)[] values) nothrow pure return
+    {
+        data.opAssign(values);
+        return this;
+    }
+
+    pragma(inline, true)
+    ref typeof(this) chopFront(const(size_t) chopLength) nothrow pure return
+    {
+        data.chopFront(chopLength);
+        return this;
+    }
+
+    pragma(inline, true)
+    ref typeof(this) chopTail(const(size_t) chopLength) nothrow pure return
+    {
+        data.chopTail(chopLength);
+        return this;
+    }
+
+    ref typeof(this) clear(bool setShortLength = false, bool disposing = false) nothrow pure return
+    {
+        data.clear(setShortLength, disposing);
+        return this;
+    }
+
+    // For security reason, need to clear the secrete information
+    void dispose(bool disposing = true) nothrow pure
+    {
+        data.dispose(disposing);
+    }
+
+    string toString() const nothrow pure @trusted
+    {
+        return cast(string)bytesToHexs(data[]);
+    }
+
+public:
+    private enum overheadSize = ShortStringBufferSize!(ubyte, 1u).sizeof;
+    ShortStringBufferSize!(ubyte, 1_024u - overheadSize) data;
+    alias data this;
+}
 
 struct CipherKey
 {
@@ -36,19 +92,40 @@ public:
     {
         _exponent = _exponent.dup;
         _modulus = _modulus.dup;
+        _d = _d.dup;
+        _p = _p.dup;
+        _q = _q.dup;
+        _dp = _dp.dup;
+        _dq = _dq.dup;
+        _inversedq = _inversedq.dup;
     }
 
-    this(size_t keyBitLength, scope const(ubyte)[] key) pure
+    this(uint keyBitLength, scope const(ubyte)[] key) pure
     {
         this._keyBitLength = keyBitLength;
         this._modulus = key.dup;
     }
 
-    this(size_t keyBitLength, scope const(ubyte)[] modulus, scope const(ubyte)[] exponent) pure
+    this(uint keyBitLength, scope const(ubyte)[] modulus, scope const(ubyte)[] exponent) pure
     {
         this._keyBitLength = keyBitLength;
         this._modulus = modulus.dup;
         this._exponent = exponent.dup;
+    }
+
+    this(uint keyBitLength, scope const(ubyte)[] modulus, scope const(ubyte)[] exponent,
+        scope const(ubyte)[] d, scope const(ubyte)[] p, scope const(ubyte)[] q,
+        scope const(ubyte)[] dp, scope const(ubyte)[] dq, scope const(ubyte)[] inversedq) pure
+    {
+        this._keyBitLength = keyBitLength;
+        this._modulus = modulus.dup;
+        this._exponent = exponent.dup;
+        this._d = d.dup;
+        this._p = p.dup;
+        this._q = q.dup;
+        this._dp = dp.dup;
+        this._dq = dq.dup;
+        this._inversedq = inversedq.dup;
     }
 
     ~this() pure
@@ -60,7 +137,21 @@ public:
     void dispose(bool disposing = true) pure
     {
         _exponent[] = 0;
+        _exponent = null;
         _modulus[] = 0;
+        _modulus = null;
+        _d[] = 0;
+        _d = null;
+        _p[] = 0;
+        _p = null;
+        _q[] = 0;
+        _q = null;
+        _dp[] = 0;
+        _dp = null;
+        _dq[] = 0;
+        _dq = null;
+        _inversedq[] = 0;
+        _inversedq = null;
         _keyBitLength = 0;
     }
 
@@ -135,11 +226,17 @@ public:
         return !v.all!((a) => (a == 0));
     }
 
+    @property isValidRSAPublicKey() const @nogc pure
+    {
+        return isValidKey(_modulus) && isValidKey(_exponent);
+    }
+
     @property const(ubyte)[] exponent() const @nogc pure
     {
         return _exponent;
     }
 
+    //TODO remove
     pragma(inline, true)
     @property bool isRSA() const @nogc pure
     {
@@ -155,7 +252,7 @@ public:
      * Key length in bits
      */
     pragma(inline, true)
-    @property size_t keyBitLength() const @nogc pure
+    @property uint keyBitLength() const @nogc pure
     {
         return _keyBitLength;
     }
@@ -164,7 +261,7 @@ public:
      * Key length in bytes
      */
     pragma(inline, true)
-    @property size_t keyByteLength() const @nogc pure
+    @property uint keyByteLength() const @nogc pure
     {
         return (_keyBitLength + 7) / 8;
     }
@@ -174,10 +271,40 @@ public:
         return _modulus;
     }
 
+    @property const(ubyte)[] d() const @nogc pure
+    {
+        return _d;
+    }
+
+    @property const(ubyte)[] p() const @nogc pure
+    {
+        return _p;
+    }
+
+    @property const(ubyte)[] q() const @nogc pure
+    {
+        return _q;
+    }
+
+    @property const(ubyte)[] dp() const @nogc pure
+    {
+        return _dp;
+    }
+
+    @property const(ubyte)[] dq() const @nogc pure
+    {
+        return _dq;
+    }
+
+    @property const(ubyte)[] inversedq() const @nogc pure
+    {
+        return _inversedq;
+    }
+
 private:
-    ubyte[] _exponent;
-    ubyte[] _modulus;
-    size_t _keyBitLength;
+    ubyte[] _exponent, _modulus;
+    ubyte[] _d, _p, _q, _dp, _dq, _inversedq;
+    uint _keyBitLength;
 }
 
 struct CipherParameters
@@ -197,7 +324,7 @@ public:
         this._privateKey = privateKey;
     }
 
-    this(DigestId digestId, CipherKey privateKey, CipherKey publicKey, const(ubyte)[] salt) pure
+    this(DigestId digestId, CipherKey privateKey, CipherKey publicKey, scope const(ubyte)[] salt) pure
     {
         // Keys will be cleared on destructor,
         // so need to make copy because D Slice is a reference value
@@ -218,6 +345,7 @@ public:
         _privateKey.dispose(disposing);
         _publicKey.dispose(disposing);
         _salt[] = 0;
+        _salt = null;
     }
 
     @property DigestId digestId() const @nogc pure
@@ -226,7 +354,7 @@ public:
     }
 
     pragma(inline, true)
-    @property size_t keyBitLength() const @nogc pure
+    @property uint keyBitLength() const @nogc pure
     {
         return _privateKey.keyBitLength;
     }
@@ -384,47 +512,8 @@ import std.uni : toUpperChar = toUpper;
     {
         ubyte[] result;
 
-        struct ValueInputRange
-        {
-        @nogc nothrow @safe:
-
-            @property bool empty() const pure
-            {
-                return i >= value.length;
-            }
-
-            @property size_t length() const pure
-            {
-                return value.length - i;
-            }
-
-            char front()
-            {
-                return value[i];
-            }
-
-            void popFront() pure
-            {
-                i++;
-            }
-
-            size_t i;
-        }
-
-        struct ResultOutputRange
-        {
-        @nogc nothrow @safe:
-
-            void put(ubyte c)
-            {
-                result[i++] = c;
-            }
-
-            size_t i;
-        }
-
-        ValueInputRange inputRange;
-        ResultOutputRange outputRange;
+        NoDecodeInputRange!(value, char) inputRange;
+        NoDecodeOutputRange!(result, ubyte) outputRange;
 
         static if (padding)
         {
@@ -437,54 +526,15 @@ import std.uni : toUpperChar = toUpper;
             Base64PaddingNo.decode(inputRange, outputRange);
         }
 
-        return result;
+        return result[0..outputRange.offset];
     }
 
     static char[] base64Encode(bool padding)(scope const(ubyte)[] value) nothrow
     {
         char[] result;
 
-        struct ValueInputRange
-        {
-        @nogc nothrow @safe:
-
-            @property bool empty() const pure
-            {
-                return i >= value.length;
-            }
-
-            @property size_t length() const pure
-            {
-                return value.length - i;
-            }
-
-            ubyte front()
-            {
-                return value[i];
-            }
-
-            void popFront() pure
-            {
-                i++;
-            }
-
-            size_t i;
-        }
-
-        struct ResultOutputRange
-        {
-        @nogc nothrow @safe:
-
-            void put(char c)
-            {
-                result[i++] = c;
-            }
-
-            size_t i;
-        }
-
-        ValueInputRange inputRange;
-        ResultOutputRange outputRange;
+        NoDecodeInputRange!(value, ubyte) inputRange;
+        NoDecodeOutputRange!(result, char) outputRange;
 
         static if (padding)
         {
@@ -497,7 +547,7 @@ import std.uni : toUpperChar = toUpper;
             Base64PaddingNo.encode(inputRange, outputRange);
         }
 
-        return result;
+        return result[0..outputRange.offset];
     }
 
     // This list was obtained from http://tools.ietf.org/html/rfc3454#appendix-B.1
@@ -614,6 +664,16 @@ import std.uni : toUpperChar = toUpper;
     }
 }
 
+pragma(inline, true);
+size_t calculateBufferLength(const(size_t) n, const(size_t) blockLength, const(size_t) paddingSize) @nogc nothrow pure @safe
+in
+{
+    assert(blockLength != 0);
+}
+do
+{
+    return ((n + (blockLength - 1) + paddingSize) / blockLength) * blockLength;
+}
 
 // Any below codes are private
 private:
@@ -666,4 +726,19 @@ unittest // CipherPrimeCheck.isProbablePrime
     // 1024
     //assert(CipherPrimeCheck.isProbablePrime(toBigInteger("")));
     //assert(CipherPrimeCheck.isProbablePrime(toBigInteger("")));
+}
+
+unittest // CipherHelper.base64Decode & base64Encode
+{
+    import std.string : representation;
+    import pham.utl.test;
+    traceUnitTest!("pham.cp")("unittest pham.cp.cipher.CipherHelper.base64Decode & base64Encode");
+
+    scope (failure) assert(0);
+
+    assert(CipherHelper.base64Decode!true("VGhvdSBzaGFsdCBuZXZlciBjb250aW51ZSBhZnRlciBhc3NlcnRpbmcgbnVsbA==") == "Thou shalt never continue after asserting null".representation());
+    assert(CipherHelper.base64Encode!true("Thou shalt never continue after asserting null".representation()) == "VGhvdSBzaGFsdCBuZXZlciBjb250aW51ZSBhZnRlciBhc3NlcnRpbmcgbnVsbA==");
+
+    assert(CipherHelper.base64Decode!false("Zm9v") == "foo".representation());
+    assert(CipherHelper.base64Encode!false("foo".representation()) == "Zm9v");
 }

@@ -97,13 +97,15 @@ protected:
     override void doDispose(bool disposing)
     {
         key[] = 0;
+		//key = null;
         nonce[] = 0;
+		//nonce = null;
 		leftBuf[] = 0;
+		//leftBuf = null;
 		leftLen = 0;
-		precompDone = false;
 		p1 = p2 = p3 = p5 = p6 = p7 = p9 = p10 = p11 = p13 = p14 = p15 = 0;
         _counter = 0;
-		_overflow = false;
+		_overflow = precompDone = false;
         super.doDispose(disposing);
     }
 

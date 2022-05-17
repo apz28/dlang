@@ -30,7 +30,7 @@ public:
     }
     do
     {
-		this(CipherKey(key.length * 8, key));
+		this(CipherKey(cast(uint)(key.length * 8), key));
     }
 
     this(CipherKey privateKey) pure
