@@ -38,7 +38,7 @@ struct PgConnectingStateInfo
 nothrow @safe:
 
     PgAuth auth;
-    const(ubyte)[] authData;
+    CipherBuffer authData;
     const(char)[] authMethod;
     int32 authType;
     int32 serverProcessId;
@@ -783,7 +783,7 @@ protected:
 
     final void connectAuthenticationProcess(ref PgConnectingStateInfo stateInfo, const(ubyte)[] serverAuthData)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("stateInfo.nextAuthState=", stateInfo.nextAuthState, ", stateInfo.authMethod=", stateInfo.authMethod);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("stateInfo.nextAuthState=", stateInfo.nextAuthState, ", stateInfo.authMethod=", stateInfo.authMethod, ", serverAuthData=", serverAuthData.dgToHex());
 
         auto useCSB = connection.pgConnectionStringBuilder;
 
@@ -795,10 +795,11 @@ protected:
             throw new PgException(msg, DbErrorCode.read, null);
         }
 
-        stateInfo.authData = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword, serverAuthData);
-        if (stateInfo.auth.isError)
+        auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword,
+            serverAuthData, stateInfo.authData);
+        if (status.isError)
         {
-            auto msg = stateInfo.auth.getErrorMessage(stateInfo.authMethod);
+            auto msg = stateInfo.auth.getErrorMessage(status, stateInfo.authMethod);
             throw new PgException(msg, DbErrorCode.read, null);
         }
 
@@ -808,16 +809,16 @@ protected:
             writer.beginMessage('p');
             if (stateInfo.nextAuthState == 0)
             {
-                if (stateInfo.auth.multiSteps == 1)
-                    writer.writeCChars(cast(const(char)[])stateInfo.authData);
+                if (stateInfo.auth.multiStates == 1)
+                    writer.writeCChars(cast(const(char)[])stateInfo.authData[]);
                 else
                 {
                     writer.writeCChars(stateInfo.authMethod);
-                    writer.writeBytes(stateInfo.authData);
+                    writer.writeBytes(stateInfo.authData[]);
                 }
             }
             else
-                writer.writeBytesRaw(stateInfo.authData);
+                writer.writeBytesRaw(stateInfo.authData[]);
             stateInfo.nextAuthState++;
             writer.flush();
         }
@@ -863,13 +864,7 @@ protected:
             throw new PgException(msg, DbErrorCode.read, null);
         }
 
-        auto result = cast(PgAuth)authMap.createAuth();
-        if (result.isError)
-        {
-            auto msg = result.getErrorMessage(authMethod);
-            throw new PgException(msg, DbErrorCode.write, null);
-        }
-        return result;
+        return cast(PgAuth)authMap.createAuth();
     }
 
     final void describeParameters(ref PgWriter writer, scope PgParameter[] inputParameters)

@@ -11,6 +11,7 @@
 
 module pham.db.pgauth;
 
+public import pham.cp.cipher : CipherBuffer;
 import pham.db.auth;
 import pham.db.type : DbScheme;
 

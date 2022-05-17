@@ -3,13 +3,13 @@
 * License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
 * Authors: An Pham
 *
-* Copyright An Pham 2019 - xxxx.
+* Copyright An Pham 2022 - xxxx.
 * Distributed under the Boost Software License, Version 1.0.
 * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 *
 */
 
-module pham.db.fbauth_sspi;
+module pham.db.myauth_sspi;
 
 version (Windows):
 
@@ -18,12 +18,12 @@ import pham.external.std.windows.sspi : RequestSecClient, RequestSecResult;
 import pham.db.auth;
 import pham.db.message;
 import pham.db.type : DbScheme;
-import pham.db.fbauth;
-import pham.db.fbtype : fbAuthSSPIName;
+import pham.db.myauth;
+import pham.db.mytype : myAuthSSPIName;
 
 nothrow @safe:
 
-class FbAuthSspi : FbAuth
+class MyAuthSspi : MyAuth
 {
 nothrow @safe:
 
@@ -52,7 +52,7 @@ public:
     final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        version (TraceFunction) traceFunction!("pham.db.mydatabase")("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
         ubyte[] result;
         RequestSecResult errorStatus;
@@ -65,7 +65,7 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        version (TraceFunction) traceFunction!("pham.db.mydatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
         auto status = checkAdvanceState(state);
         if (status.isError)
@@ -79,12 +79,6 @@ public:
             assert(0);
     }
 
-    final override size_t maxSizeServerAuthData(out size_t maxSaltLength) const nothrow pure
-    {
-        maxSaltLength = 0;
-        return size_t.max;
-    }
-
     @property final override int multiStates() const @nogc pure
     {
         return 2;
@@ -92,7 +86,7 @@ public:
 
     @property final override string name() const pure
     {
-        return fbAuthSSPIName;
+        return myAuthSSPIName;
     }
 
     @property final string remotePrincipal() const pure
@@ -125,10 +119,10 @@ private:
 
 shared static this()
 {
-    DbAuth.registerAuthMap(DbAuthMap(fbAuthSSPIName, DbScheme.fb, &createAuthSSPI));
+    DbAuth.registerAuthMap(DbAuthMap(myAuthSSPIName, DbScheme.my, &createAuthSSPI));
 }
 
 DbAuth createAuthSSPI()
 {
-    return new FbAuthSspi();
+    return new MyAuthSspi();
 }

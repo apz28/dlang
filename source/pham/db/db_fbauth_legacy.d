@@ -28,19 +28,17 @@ class FbAuthLegacy : FbAuth
 nothrow @safe:
 
 public:
-    final override const(ubyte)[] getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        const(ubyte)[] serverAuthData)
+    final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData);
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
-        if (state != _nextState || state != 0)
-        {
-            setError(state + 1, to!string(state), DbMessage.eInvalidConnectionAuthServerData);
-            return null;
-        }
+        auto status = checkAdvanceState(state);
+        if (status.isError)
+            return status;
 
-        _nextState++;
-        return crypt3(userPassword, salt)[2..$]; // Exclude the 2 leading salt chars
+        authData = crypt3(userPassword, salt).chopFront(2); // Exclude the 2 leading salt chars
+        return ResultStatus.ok();
     }
 
     final override size_t maxSizeServerAuthData(out size_t maxSaltLength) const pure
@@ -50,7 +48,7 @@ public:
         return (saltLength + keyLength + 2) * 2;  //+2 for leading size data
     }
 
-    @property final override int multiSteps() const @nogc pure
+    @property final override int multiStates() const @nogc pure
     {
         return 1;
     }

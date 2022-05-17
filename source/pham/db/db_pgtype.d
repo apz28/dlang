@@ -20,6 +20,7 @@ version (TraceFunction) import pham.utl.test;
 import pham.cp.cipher : CipherHelper;
 import pham.utl.enum_set : toName;
 import pham.utl.object : cmpInteger;
+import pham.db.convert : toInteger;
 import pham.db.message;
 import pham.db.type;
 import pham.db.pgoid;
@@ -594,24 +595,26 @@ struct PgOIdScramSHA256FinalMessage
 nothrow @safe:
 
 public:
-    this(const(char)[] signature) pure
+    this(scope const(char)[] signature) pure
     {
-        this.signature = signature;
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("signature=", signature);
+
+        this.signature = signature.dup;
     }
 
-    this(const(ubyte)[] payload) pure
+    this(scope const(ubyte)[] payload) pure @trusted
     {
-        auto charsPayload = cast(const(char)[])payload;
-        auto parts = charsPayload.split(",");
-        foreach (part; parts)
+        foreach (scope part; (cast(string)payload).split(","))
         {
             if (part.startsWith("v="))
-                this.signature = part[2..$];
+                this.signature = part[2..$].dup;
             else
             {
                 version (TraceFunction) traceFunction!("pham.db.pgdatabase")("Unknown part: ", part);
             }
         }
+
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("signature=", signature);
     }
 
     ~this() pure
@@ -621,14 +624,12 @@ public:
 
     void dispose(bool disposing) pure
     {
-        if (disposing)
-        {
-            signature = null;
-        }
+        signature[] = 0;
+        signature = null;
     }
 
 public:
-    const(char)[] signature;
+    char[] signature;
 }
 
 struct PgOIdScramSHA256FirstMessage
@@ -636,30 +637,32 @@ struct PgOIdScramSHA256FirstMessage
 nothrow @safe:
 
 public:
-    this(const(char)[] nonce, const(char)[] salt, uint iteration) pure
+    this(scope const(char)[] nonce, scope const(char)[] salt, int32 iteration) pure
     {
-        this.nonce = nonce;
-        this.salt = salt;
-        this.iteration = to!(const(char)[])(iteration);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("nonce=", nonce, ", salt=", salt, ", iteration=", iteration);
+
+        this.nonce = nonce.dup;
+        this.salt = salt.dup;
+        this._iteration = iteration;
     }
 
-    this(const(ubyte)[] payload) pure
+    this(scope const(ubyte)[] payload) pure @trusted
     {
-        auto charsPayload = cast(const(char)[])payload;
-        auto parts = charsPayload.split(",");
-        foreach (part; parts)
+        foreach (scope part; (cast(string)payload).split(","))
         {
             if (part.startsWith("r="))
-                this.nonce = part[2..$];
+                this.nonce = part[2..$].dup;
             else if (part.startsWith("s="))
-                this.salt = part[2..$];
+                this.salt = part[2..$].dup;
             else if (part.startsWith("i="))
-                this.iteration = part[2..$];
+                this._iteration = toInteger!int32(part[2..$], -1);
             else
             {
                 version (TraceFunction) traceFunction!("pham.db.pgdatabase")("Unknown part: ", part);
             }
         }
+
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("nonce=", nonce, ", salt=", salt, ", _iteration=", _iteration);
     }
 
     ~this() pure
@@ -669,31 +672,19 @@ public:
 
     void dispose(bool disposing) pure
     {
-        if (disposing)
-        {
-            iteration = null;
-            nonce = null;
-            salt = null;
-        }
+        nonce[] = 0;
+        nonce = null;
+        salt[] = 0;
+        salt = null;
+        _iteration = 0;
     }
 
-    int32 getIteration() const pure scope
+    const(char)[] getMessage() const pure
     {
-        if (iteration.length == 0)
-            return -1;
-
-        scope (failure)
-            return -1;
-
-        return to!int32(iteration);
+        return "r=" ~ nonce ~ ",s=" ~ salt ~ ",i=" ~ to!string(iteration);
     }
 
-    const(char)[] getMessage() const pure scope
-    {
-        return "r=" ~ nonce ~ ",s=" ~ salt ~ ",i=" ~ iteration;
-    }
-
-    const(ubyte)[] getSalt() const pure scope
+    const(ubyte)[] getSalt() const pure
     {
         scope (failure)
             return null;
@@ -706,13 +697,18 @@ public:
     {
         return nonce.length != 0
             && salt.length != 0
-            && getIteration() > 0; // Counter start number is 1
+            && iteration > 0; // Counter start number is 1
+    }
+
+    int32 iteration() const pure scope
+    {
+        return this._iteration;
     }
 
 public:
-    const(char)[] iteration;
-    const(char)[] nonce;
-    const(char)[] salt;
+    char[] nonce;
+    char[] salt;
+    int32 _iteration;
 }
 
 CanSendParameter canSendParameter(string name, ref string mappedName) pure
@@ -987,4 +983,16 @@ unittest // canSendParameter
     assert(canSendParameter(DbConnectionParameterIdentifier.pgPassFile, mappedName) == CanSendParameter.yes);
     assert(DbConnectionParameterIdentifier.pgPassFile == mappedName);
     */
+}
+
+unittest // PgOIdScramSHA256FirstMessage
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgtype.PgOIdScramSHA256FirstMessage");
+
+    auto r = PgOIdScramSHA256FirstMessage(bytesFromHexs("723D307131356635454831642F682F313258634E4F485A2B3731524F4149563643492F322B35786344516B56534E317A6E6C2C733D456E5261337A47685830462F464A62616279685655513D3D2C693D34303936"));
+    assert(r.iteration == 4096);
+    assert(r.nonce == "0q15f5EH1d/h/12XcNOHZ+71ROAIV6CI/2+5xcDQkVSN1znl");
+    assert(r.salt == "EnRa3zGhX0F/FJbabyhVUQ==");
+    assert(r.getSalt() == bytesFromHexs("12745ADF31A15F417F1496DA6F285551"), r.getSalt().dgToHex());
 }

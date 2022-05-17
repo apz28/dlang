@@ -23,7 +23,6 @@ import pham.utl.bit_array : BitArrayImpl, bitLengthToElement, hostToNetworkOrder
 import pham.utl.enum_set : toName;
 import pham.utl.object : InitializedValue, bytesFromHexs, bytesToHexs, functionName,
     currentComputerName, currentProcessId, currentProcessName, currentUserName;
-import pham.cp.cipher : CipherKey;
 import pham.db.buffer_filter;
 import pham.db.buffer_filter_cipher;
 import pham.db.buffer_filter_compressor;
@@ -135,10 +134,10 @@ struct FbConnectingStateInfo
 nothrow @safe:
 
     FbAuth auth;
-    const(ubyte)[] authData;
+    CipherBuffer authData;
     const(char)[] authMethod;
-    const(ubyte)[] serverAuthData;
-    const(ubyte)[] serverAuthKey;
+    CipherBuffer serverAuthData;
+    CipherBuffer serverAuthKey;
     const(char)[] serverAuthMethod;
     int32 serverAcceptType;
     int32 serverArchitecture;
@@ -491,10 +490,10 @@ public:
                     }
 
                     auto useCSB = connection.connectionStringBuilder;
-                    stateInfo.authData = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword, stateInfo.serverAuthData);
-                    if (stateInfo.auth.isError)
+                    auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword, stateInfo.serverAuthData[], stateInfo.authData);
+                    if (status.isError)
                     {
-                        auto msg = stateInfo.auth.getErrorMessage(stateInfo.authMethod);
+                        auto msg = stateInfo.auth.getErrorMessage(status, stateInfo.authMethod);
                         throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_auth_data);
                     }
 				}
@@ -1177,10 +1176,10 @@ protected:
                         stateInfo.auth = createAuth(stateInfo.authMethod);
                     }
                     auto useCSB = connection.connectionStringBuilder;
-                    stateInfo.authData = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword, cResponse.data);
-                    if (stateInfo.auth.isError)
+                    auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword, cResponse.data, stateInfo.authData);
+                    if (status.isError)
                     {
-                        auto msg = stateInfo.auth.getErrorMessage(stateInfo.authMethod);
+                        auto msg = stateInfo.auth.getErrorMessage(status, stateInfo.authMethod);
                         throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_auth_data);
                     }
                 }
@@ -1198,10 +1197,10 @@ protected:
 
         auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_cont_auth);
-		writer.writeBytes(stateInfo.authData);
+		writer.writeBytes(stateInfo.authData[]);
 		writer.writeChars(stateInfo.auth.name); // like CNCT_plugin_name
 		writer.writeChars(stateInfo.auth.name); // like CNCT_plugin_list
-		writer.writeBytes(stateInfo.serverAuthKey);
+		writer.writeBytes(stateInfo.serverAuthKey[]);
         stateInfo.nextAuthState++;
 		writer.flush();
     }
@@ -1215,13 +1214,7 @@ protected:
             throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_auth_data);
         }
 
-        auto result = cast(FbAuth)authMap.createAuth();
-        if (result.isError)
-        {
-            auto msg = result.getErrorMessage(authMethod);
-            throw new FbException(msg, DbErrorCode.write, null, 0, FbIscResultCode.isc_auth_data);
-        }
-        return result;
+        return cast(FbAuth)authMap.createAuth();
     }
 
     final void cryptRead(ref FbConnectingStateInfo stateInfo)
@@ -1363,7 +1356,7 @@ protected:
 
     final ubyte[] describeAttachmentInformation(return ref FbConnectionWriter writer, ref FbConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("stateInfo.authData=", stateInfo.authData.dgToHex());
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("stateInfo.authData=", stateInfo.authData.toString());
 
         auto useCSB = connection.fbConnectionStringBuilder;
 
@@ -1397,7 +1390,7 @@ protected:
 		writer.writeChars(FbIsc.isc_dpb_process_name, currentProcessName());
 		writer.writeCharsIf(FbIsc.isc_dpb_client_version, useCSB.applicationVersion);
 		if (stateInfo.authData.length)
-		    writer.writeBytes(FbIsc.isc_dpb_specific_auth_data, stateInfo.authData);
+		    writer.writeBytes(FbIsc.isc_dpb_specific_auth_data, stateInfo.authData[]);
 		if (useCSB.cachePages)
 			writer.writeInt32(FbIsc.isc_dpb_num_buffers, useCSB.cachePages);
 		if (!useCSB.databaseTrigger)
@@ -1593,20 +1586,20 @@ protected:
         writer.writeChars(FbIsc.cnct_plugin_name, stateInfo.authMethod);
         writer.writeChars(FbIsc.cnct_plugin_list, stateInfo.authMethod);
 
-        if (stateInfo.auth.multiSteps > 1)
+        if (stateInfo.auth.multiStates > 1)
         {
-            stateInfo.authData = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword, null);
-            if (stateInfo.auth.isError)
+            auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword, null, stateInfo.authData);
+            if (status.isError)
             {
-                auto msg = stateInfo.auth.getErrorMessage(stateInfo.authMethod);
+                auto msg = stateInfo.auth.getErrorMessage(status, stateInfo.authMethod);
                 throw new FbException(msg, DbErrorCode.write, null, 0, FbIscResultCode.isc_auth_data);
             }
 
-            writer.writeMultiParts(FbIsc.cnct_specific_data, stateInfo.authData);
+            writer.writeMultiParts(FbIsc.cnct_specific_data, stateInfo.authData[]);
             writer.writeInt32(FbIsc.cnct_client_crypt, hostToNetworkOrder!int32(getCryptedConnectionCode()));
             stateInfo.nextAuthState++;
 
-            version (TraceFunction) traceFunction!("pham.db.fbdatabase")("specificData=", stateInfo.authData.dgToHex());
+            version (TraceFunction) traceFunction!("pham.db.fbdatabase")("specificData=", stateInfo.authData.toString());
         }
 
         auto result = writer.peekBytes();
@@ -1701,11 +1694,11 @@ protected:
         // Check security settting that supports encryption regardless of encrypt setting
         final switch (useCSB.integratedSecurity) with (DbIntegratedSecurityConnection)
         {
-            case srp:
+            case srp1:
             case srp256:
                 break;
-            case sspi:
             case legacy:
+            case sspi:
                 return FbIsc.connect_crypt_disabled;
         }
 

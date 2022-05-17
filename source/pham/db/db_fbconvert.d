@@ -117,7 +117,7 @@ int32 dateEncode(scope const(DbDate) value) @nogc pure
 DbDateTime dateTimeDecode(int32 fbDate, int32 fbTime) @nogc pure
 {
 	version (profile) debug auto p = PerfFunction.create();
-	//dgWriteln("fbDate=", fbDate, ", fbTime=", fbTime);
+	//import pham.utl.test; dgWriteln("fbDate=", fbDate, ", fbTime=", fbTime);
 
 	auto dt = DateTime(dateDecode(fbDate), Time(timeToDuration(fbTime)));
 	return DbDateTime(dt, 0);

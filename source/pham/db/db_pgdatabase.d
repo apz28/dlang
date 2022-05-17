@@ -1205,13 +1205,13 @@ public:
     {
         final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
         {
-            case srp:
+            case legacy:
+                return pgAuthMD5Name;
+            case srp1:
             case srp256:
                 return pgAuthScram256Name;
             case sspi:
                 return "Not supported SSPI";
-            case legacy:
-                return pgAuthMD5Name;
         }
     }
 
@@ -1228,20 +1228,18 @@ public:
 protected:
     final override string getDefault(string name) const nothrow @safe
     {
-        auto result = super.getDefault(name);
+        auto n = DbIdentitier(name);
+        auto result = assumeWontThrow(pgDefaultParameterValues.get(n, null));
         if (result.ptr is null)
-        {
-            auto n = DbIdentitier(name);
-            result = assumeWontThrow(pgDefaultParameterValues.get(n, null));
-        }
+            result = super.getDefault(name);
         return result;
     }
 
     final override void setDefaultIfs() nothrow @safe
     {
+        foreach (dpv; pgDefaultParameterValues.byKeyValue)
+            putIf(dpv.key, dpv.value);
         super.setDefaultIfs();
-        putIf(DbConnectionParameterIdentifier.port, getDefault(DbConnectionParameterIdentifier.port));
-        putIf(DbConnectionParameterIdentifier.userName, getDefault(DbConnectionParameterIdentifier.userName));
     }
 }
 
@@ -1601,14 +1599,14 @@ version (UnitTestPGDatabase)
         assert(cast(PgDatabase)db !is null);
 
         auto result = db.createConnection("");
+        assert(cast(PgConnection)result !is null);
+
         result.connectionStringBuilder.databaseName = "test";
         result.connectionStringBuilder.userPassword = "masterkey";
         result.connectionStringBuilder.receiveTimeout = dur!"seconds"(20);
         result.connectionStringBuilder.sendTimeout = dur!"seconds"(10);
         result.connectionStringBuilder.encrypt = encrypt;
         result.connectionStringBuilder.compress = compress;
-
-        assert(cast(PgConnection)result !is null);
 
         return cast(PgConnection)result;
     }

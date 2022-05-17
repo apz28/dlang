@@ -33,7 +33,7 @@ Duration rangeDuration(Duration value,
         : (totalSeconds < minSecond ? dur!"seconds"(minSecond) : dur!"seconds"(maxSecond));
 }
 
-int64 removeUnitsFromHNSecs(string units)(int64 hnsecs) pure
+int64 removeUnitsFromHNSecs(string units)(const(int64) hnsecs) pure
 if (units == "weeks" || units == "days"
     || units == "hours" || units == "minutes" || units == "seconds"
     || units == "msecs" || units == "usecs" || units == "hnsecs")
@@ -50,23 +50,27 @@ Duration removeDatePart(scope const(Duration) value) pure
     return dur!"hnsecs"(hnsecs);
 }
 
-Duration secondToDuration(const(char)[] validSecondStr) pure
+Duration secondToDuration(scope const(char)[] validSecondStr) pure
 {
-    return dur!"seconds"(toInteger!int64(validSecondStr));
+    return dur!"seconds"(toInteger!int64(validSecondStr, -1));
 }
 
-D toDecimal(D)(const(char)[] validDecimalStr)
+D toDecimal(D)(scope const(char)[] validDecimalStr, D failedValue, D emptyValue = D.init)
 if (isDecimal!D)
 {
-    return assumeWontThrow(D(validDecimalStr));
+    scope (failure)
+        return failedValue;
+    return validDecimalStr.length ? D(validDecimalStr) : emptyValue;
 }
 
-I toInteger(I)(scope const(char)[] validIntegerStr, I emptyIntegerValue = 0) pure
+I toInteger(I)(scope const(char)[] validIntegerStr, I failedValue, I emptyValue = 0) pure
 if (is(I == int) || is(I == uint)
     || is(I == long) || is(I == ulong)
     || is(I == short) || is(I == ushort))
 {
-    return validIntegerStr.length != 0 ? assumeWontThrow(to!I(validIntegerStr)) : emptyIntegerValue;
+    scope (failure)
+        return failedValue;
+    return validIntegerStr.length ? to!I(validIntegerStr) : emptyValue;
 }
 
 int64 toRangeSecond64(scope const(Duration) value,
@@ -254,12 +258,12 @@ unittest // toInteger
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.convert.toInteger");
 
-    assert(toInteger!int("") == 0);
-    assert(toInteger!int("", int.max) == int.max);
-    assert(toInteger!int("1") == 1);
-    assert(toInteger!int("98765432") == 98_765_432);
-    assert(toInteger!int("-1") == -1);
-    assert(toInteger!int("-8765324") == -8_765_324);
+    assert(toInteger!int("", -1) == 0);
+    assert(toInteger!int("", -1, int.max) == int.max);
+    assert(toInteger!int("1", -1) == 1);
+    assert(toInteger!int("98765432", -1) == 98_765_432);
+    assert(toInteger!int("-1", 0) == -1);
+    assert(toInteger!int("-8765324", -1) == -8_765_324);
 }
 
 unittest // toString

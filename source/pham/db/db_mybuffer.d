@@ -65,6 +65,11 @@ public:
         _connection = null;
     }
 
+    bool isAuthSha2Caching(string authMethod) nothrow pure
+    {
+        return _buffer.length && _buffer.peekBytes(1)[0] == 0x01 && authMethod == myAuthSha2Caching;
+    }
+
     pragma(inline, true)
     bool isAuthSwitch() nothrow pure
     {
@@ -219,17 +224,22 @@ public:
         return result.length ? result[0..$ - 1] : null; // -1=excluded terminated byte
     }
 
-    pragma(inline, true)
-    char[] readCChars()
+    char[] readCChars(bool allIfNotTerminated = false)
     {
-        auto result = _reader.readChars(_buffer.search(0, 0xFF));
-        return result.length ? result[0..$ - 1] : null; // -1=excluded terminated char
+        auto len = _buffer.search(0, 0xFF);
+        if (len == 0 && allIfNotTerminated)
+            len = _buffer.length;
+        auto result = _reader.readChars(len);
+        // excluded terminated char ?
+        while (result.length && result[$ - 1] == '\0')
+            result = result[0..$ - 1];
+        return result;
     }
 
     pragma(inline, true)
-    string readCString() @trusted // @trusted=cast()
+    string readCString(bool allIfNotTerminated = false) @trusted // @trusted=cast()
     {
-        return cast(string)readCChars();
+        return cast(string)readCChars(allIfNotTerminated);
     }
 
     DbDate readDateValue(const(bool) readFieldLength)
@@ -293,14 +303,14 @@ public:
 
         MyErrorResult result;
         result.code = readInt16();
-        result.message = readString();
+        result.message = readCString(true);
 
         // Start with SQL_STATE?
-        if (result.message.length >= 6)
+        if (result.message.length >= 6 && result.message[0] == '#')
         {
-            const offset = result.message[0] == '#' ? 1 : 0;
+            enum offset = 1; //result.message[0] == '#' ? 1 : 0;
             result.sqlState = result.message[offset..5 + offset];
-            result.message = result.message[5 + offset..$];
+            result.message = result.message[offset + 5..$];
         }
 
         return result;
@@ -612,20 +622,22 @@ struct MyXdrWriter
 public:
     @disable this(this);
 
-    this(MyConnection connection) nothrow
+    this(MyConnection connection, uint maxSinglePackage) nothrow
     {
         this._socketBuffer = true;
         this._reserveLenghtOffset = -1;
+        this._maxSinglePackage = maxSinglePackage;
         this._connection = connection;
         this._buffer = connection.acquireSocketWriteBuffer();
         this._writer = DbValueWriter!(Endian.littleEndian)(this._buffer);
     }
 
-    this(MyConnection connection, DbWriteBuffer buffer) nothrow
+    this(MyConnection connection, uint maxSinglePackage, DbWriteBuffer buffer) nothrow
     {
         buffer.reset();
         this._socketBuffer = false;
         this._reserveLenghtOffset = -1;
+        this._maxSinglePackage = maxSinglePackage;
         this._connection = connection;
         this._buffer = buffer;
         this._writer = DbValueWriter!(Endian.littleEndian)(buffer);
@@ -1047,6 +1059,11 @@ public:
         return _connection;
     }
 
+    @property uint maxSinglePackage() const nothrow pure
+    {
+        return _maxSinglePackage;
+    }
+
 private:
     void writePackageLength() nothrow
     {
@@ -1068,6 +1085,7 @@ private:
     MyConnection _connection;
     DbValueWriter!(Endian.littleEndian) _writer;
     ptrdiff_t _reserveLenghtOffset;
+    uint _maxSinglePackage;
     ubyte _sequenceByte;
     bool _socketBuffer;
 }
@@ -1090,7 +1108,7 @@ unittest // MyXdrWriter & MyXdrReader
     //pragma(msg, double.min_normal);
 
     auto writerBuffer = new DbWriteBuffer(4000);
-    auto writer = MyXdrWriter(null, writerBuffer);
+    auto writer = MyXdrWriter(null, 0, writerBuffer);
     writer.writeBit(103uL);
     writer.writeBytes(bytes);
     writer.writeDate(DbDate(1, 2, 3));

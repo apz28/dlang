@@ -13,6 +13,7 @@ module pham.db.fbauth;
 
 version (TraceFunction) import pham.utl.test;
 import pham.cp.cipher : CipherHelper;
+public import pham.cp.cipher : CipherBuffer, CipherKey;
 import pham.utl.utf8 : ShortStringBuffer, UTF8CharRange;
 import pham.db.auth;
 import pham.db.message;
@@ -77,7 +78,7 @@ public:
             return CipherHelper.toUpper(userName);
     }
 
-    bool parseServerAuthData(const(ubyte)[] serverAuthData, ref const(ubyte)[] serverSalt, ref const(ubyte)[] serverPublicKey)
+    ResultStatus parseServerAuthData(scope const(ubyte)[] serverAuthData)
     {
         version (TraceFunction)
         const serverAuthDataOrg = serverAuthData;
@@ -87,49 +88,33 @@ public:
         // Min & Max length?
         size_t maxSaltLength;
         if (serverAuthData.length < minLength || serverAuthData.length > maxSizeServerAuthData(maxSaltLength))
-        {
-            setError(DbErrorCode.connect, "invalid length", DbMessage.eInvalidConnectionAuthServerData);
-            return false;
-        }
+            return ResultStatus.error(DbErrorCode.connect, "invalid length", DbMessage.eInvalidConnectionAuthServerData);
 
 		const saltLength = serverAuthData[0] + (cast(size_t)serverAuthData[1] << 8);
         serverAuthData = serverAuthData[2..$]; // Skip the length data
         if (saltLength > maxSaltLength || saltLength > serverAuthData.length)
-        {
-            setError(DbErrorCode.connect, "invalid length", DbMessage.eInvalidConnectionAuthServerData);
-            return false;
-        }
-        serverSalt = serverAuthData[0..saltLength];
+            return ResultStatus.error(DbErrorCode.connect, "invalid length", DbMessage.eInvalidConnectionAuthServerData);
+        _serverSalt = serverAuthData[0..saltLength].dup;
+
         serverAuthData = serverAuthData[saltLength..$]; // Skip salt data
         if (serverAuthData.length < minLength)
-        {
-            setError(DbErrorCode.connect, "invalid length", DbMessage.eInvalidConnectionAuthServerData);
-            return false;
-        }
-
+            return ResultStatus.error(DbErrorCode.connect, "invalid length", DbMessage.eInvalidConnectionAuthServerData);
 		const keyLength = serverAuthData[0] + (cast(size_t)serverAuthData[1] << 8);
         if (keyLength + 2 > serverAuthData.length)
-        {
-            setError(DbErrorCode.connect, "invalid length", DbMessage.eInvalidConnectionAuthServerData);
-            return false;
-        }
-
-        serverPublicKey = serverAuthData[2..keyLength + 2];
-
-        this._serverPublicKey = serverPublicKey.dup;
-        this._serverSalt = serverSalt.dup;
+            return ResultStatus.error(DbErrorCode.connect, "invalid length", DbMessage.eInvalidConnectionAuthServerData);
+        _serverPublicKey = serverAuthData[2..keyLength + 2].dup;
 
         version (TraceFunction)
         {
             traceFunction!("pham.db.fbdatabase")("keyLength=", keyLength,
                 ", saltLength=", saltLength,
                 ", serverAuthDataLength=", serverAuthDataOrg.length,
-                ", serverPublicKey=", serverPublicKey.dgToHex(),
-                ", serverSalt=", serverSalt.dgToHex(),
+                ", serverPublicKey=", _serverPublicKey.dgToHex(),
+                ", serverSalt=", _serverSalt.dgToHex(),
                 ", serverAuthData=", serverAuthDataOrg.dgToHex());
         }
 
-        return true;
+        return ResultStatus.ok();
     }
 
     @property final override DbScheme scheme() const pure

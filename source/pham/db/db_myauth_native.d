@@ -14,7 +14,7 @@ module pham.db.myauth_native;
 import std.conv : to;
 
 version (unittest) import pham.utl.test;
-import pham.cp.cipher_digest;
+import pham.cp.cipher_digest : Digester, DigestId, DigestResult;
 import pham.db.auth;
 import pham.db.message;
 import pham.db.type : DbScheme;
@@ -28,30 +28,34 @@ class MyAuthNative : MyAuth
 nothrow @safe:
 
 public:
-    final override const(ubyte)[] getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        const(ubyte)[] serverAuthData)
+    final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData);
+        version (TraceFunction) traceFunction!("pham.db.mydatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
-        if (state != _nextState || state != 0)
+        if (state == 0)
         {
-            setError(state + 1, to!string(state), DbMessage.eInvalidConnectionAuthServerData);
-            return null;
+            if (serverAuthData.length)
+                setServerSalt(serverAuthData);
+            return getPassword(userName, userPassword, authData);
         }
-
-        _nextState++;
-        return getPassword(userName, userPassword, serverAuthData);
+        else
+        {
+            authData = CipherBuffer.init;
+            return ResultStatus.ok();
+        }
     }
 
-    final override const(ubyte)[] getPassword(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData)
+    final override ResultStatus getPassword(scope const(char)[] userName, scope const(char)[] userPassword,
+        ref CipherBuffer authData)
     {
-        if (userPassword.length == 0)
-            return null;
+        version (TraceFunction) traceFunction!("pham.db.mydatabase")("userName=", userName);
 
-        // if the data given to us is a null terminated string, we need to trim off the trailing zero
-        size_t seedLength = serverAuthData.length;
-        while (seedLength && serverAuthData[seedLength - 1] == 0)
-            seedLength--;
+        if (userPassword.length == 0)
+        {
+            authData = CipherBuffer.init;
+            return ResultStatus.ok();
+        }
 
         Digester digester = Digester(DigestId.sha1);
 
@@ -62,7 +66,7 @@ public:
         digester.begin().digest(firstHash[]).finish(secondHash);
 
         DigestResult thirdHash;
-        digester.begin().digest(serverAuthData[0..seedLength]).digest(secondHash[]).finish(thirdHash);
+        digester.begin().digest(serverSalt).digest(secondHash[]).finish(thirdHash);
 
         DigestResult finalHash;
         finalHash.length = thirdHash.length + 1;
@@ -70,10 +74,20 @@ public:
         finalHash.buffer[1..finalHash.length] = thirdHash[];
         foreach (i; 1..finalHash.length)
             finalHash.buffer[i] = cast(ubyte)(finalHash.buffer[i] ^ firstHash.buffer[i - 1]);
-        return finalHash[].dup;
+        authData = CipherBuffer(finalHash[]);
+        return ResultStatus.ok();
     }
 
-    @property final override int multiSteps() const @nogc pure
+    final override DbAuth setServerSalt(scope const(ubyte)[] serverSalt) pure
+    {
+        // if the data given to us is a null terminated string,
+        // we need to trim off the trailing zero
+        if (serverSalt.length && serverSalt[$ - 1] == 0)
+            serverSalt = serverSalt[0..$ - 1];
+        return super.setServerSalt(serverSalt);
+    }
+
+    @property final override int multiStates() const @nogc pure
     {
         return 1;
     }
@@ -104,6 +118,8 @@ unittest
     traceUnitTest!("pham.db.mydatabase")("unittest pham.db.myauth_native.MyAuthNative.getPassword");
 
     auto auth = new MyAuthNative();
-    auto proof = auth.getPassword("root", "masterkey", bytesFromHexs("625A1C30712F1F333E6A732543335E6A5C252613"));
-    assert(proof == bytesFromHexs("14578C3E295CC566EBD151EB8FB708A21972E80A6C"), bytesToHexs(proof));
+    auth.setServerSalt(bytesFromHexs("625A1C30712F1F333E6A732543335E6A5C252613"));
+    CipherBuffer proof;
+    assert(auth.getPassword("root", "masterkey", proof).isOK());
+    assert(proof == bytesFromHexs("14578C3E295CC566EBD151EB8FB708A21972E80A6C"), proof.toString());
 }

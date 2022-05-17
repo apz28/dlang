@@ -28,8 +28,6 @@ import pham.db.object;
 import pham.db.skdatabase;
 import pham.db.type;
 import pham.db.util;
-//import pham.db.buffer_filter;
-//import pham.db.buffer_filter_cipher;
 import pham.db.value;
 import pham.db.mybuffer;
 import pham.db.myexception;
@@ -129,8 +127,6 @@ public:
     {
         return cast(MyParameterList)parameters;
     }
-
-//package(pham.db):
 
 protected:
     override string buildStoredProcedureSql(string storedProcedureName, const(BuildCommandTextState) state) @safe
@@ -622,7 +618,7 @@ public:
 
     @property final uint32 serverCapabilities() const nothrow pure @safe
     {
-        return _serverCapabilities;
+        return _protocol !is null ? _protocol.connectionFlags : 0u;
     }
 
     @property final override bool supportMultiReaders() const nothrow pure @safe
@@ -703,7 +699,6 @@ protected:
 
         scope (exit)
         {
-            _serverCapabilities = 0;
             disposeProtocol(false);
         }
 
@@ -747,7 +742,6 @@ protected:
 
         _protocol = new MyProtocol(this);
         _protocol.connectGreetingRead(stateInfo);
-        _serverCapabilities = stateInfo.serverCapabilities; // Available after greeting read
         _protocol.connectAuthenticationWrite(stateInfo);
         _protocol.connectAuthenticationRead(stateInfo);
     }
@@ -838,12 +832,19 @@ ORDER BY ORDINAL_POSITION
         return result;
     }
 
+    override void setSSLSocketOptions()
+    {
+        super.setSSLSocketOptions();
+        _sslSocket.dhp = myDH2048_p;
+        _sslSocket.dhg = myDH2048_g;
+        _sslSocket.ciphers = myCiphers;
+    }
+
 public:
     MyFieldTypeMap fieldTypeMaps;
 
 protected:
     MyProtocol _protocol;
-    uint32 _serverCapabilities;
 
 private:
     DLinkDbBufferTypes.DLinkList _packageReadBuffers;
@@ -862,14 +863,14 @@ public:
     {
         final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
         {
-            case srp:
-                return myAuthScramSha1Name;
-            case srp256:
-                return myAuthScramSha256Name;
-            case sspi:
-                return "Not supported SSPI";
             case legacy:
                 return myAuthNativeName;
+            case srp1:
+                return myAuthScramSha1Name;
+            case srp256:
+                return myAuthSha2Caching; //myAuthScramSha256Name;
+            case sspi:
+                return myAuthSSPIName;
         }
     }
 
@@ -898,22 +899,18 @@ public:
 protected:
     final override string getDefault(string name) const nothrow @safe
     {
-        auto result = super.getDefault(name);
+        auto n = DbIdentitier(name);
+        auto result = assumeWontThrow(myDefaultParameterValues.get(n, null));
         if (result.ptr is null)
-        {
-            auto n = DbIdentitier(name);
-            result = assumeWontThrow(myDefaultParameterValues.get(n, null));
-        }
+            result = super.getDefault(name);
         return result;
     }
 
     final override void setDefaultIfs() nothrow @safe
     {
+        foreach (dpv; myDefaultParameterValues.byKeyValue)
+            putIf(dpv.key, dpv.value);
         super.setDefaultIfs();
-        putIf(DbConnectionParameterIdentifier.port, getDefault(DbConnectionParameterIdentifier.port));
-        putIf(DbConnectionParameterIdentifier.userName, getDefault(DbConnectionParameterIdentifier.userName));
-        putIf(DbConnectionParameterIdentifier.allowBatch, getDefault(DbConnectionParameterIdentifier.allowBatch));
-        putIf(DbConnectionParameterIdentifier.myAllowUserVariables, getDefault(DbConnectionParameterIdentifier.myAllowUserVariables));
     }
 }
 
@@ -1276,18 +1273,25 @@ version (UnitTestMYDatabase)
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
         bool compress = false)
     {
+    import std.file : thisExePath;
+
         auto db = DbDatabaseList.getDb(DbScheme.my);
         assert(cast(MyDatabase)db !is null);
 
         auto result = db.createConnection("");
-        result.connectionStringBuilder.databaseName = "test";
-        result.connectionStringBuilder.userPassword = "masterkey";
-        result.connectionStringBuilder.receiveTimeout = dur!"seconds"(20);
-        result.connectionStringBuilder.sendTimeout = dur!"seconds"(10);
-        result.connectionStringBuilder.encrypt = encrypt;
-        result.connectionStringBuilder.compress = compress;
-
         assert(cast(MyConnection)result !is null);
+
+        auto csb = (cast(MyConnection)result).myConnectionStringBuilder;
+        csb.databaseName = "test";
+        csb.userPassword = "masterkey";
+        csb.receiveTimeout = dur!"seconds"(20);
+        csb.sendTimeout = dur!"seconds"(10);
+        csb.encrypt = encrypt;
+        csb.compress = compress;
+        csb.sslCa = "my_ca.pem";
+        csb.sslCaDir = thisExePath();
+        csb.sslCert = "my_client-cert.pem";
+        csb.sslKey = "my_client-key.pem";
 
         return cast(MyConnection)result;
     }
@@ -1348,6 +1352,9 @@ WHERE INT_FIELD = @INT_FIELD
 	AND VARCHAR_FIELD = @VARCHAR_FIELD
 }";
     }
+
+    // Sample SQL to create user with special authenticated type
+    // CREATE USER 'sha256user'@'localhost' IDENTIFIED WITH sha256_password BY 'password';
 }
 
 version (UnitTestMYDatabase)
@@ -1358,12 +1365,39 @@ unittest // MyConnection
 
     auto connection = createTestConnection();
     scope (exit)
-    {
         connection.dispose();
-        connection = null;
-    }
     assert(connection.state == DbConnectionState.closed);
 
+    connection.open();
+    assert(connection.state == DbConnectionState.open);
+
+    connection.close();
+    assert(connection.state == DbConnectionState.closed);
+}
+
+version (UnitTestMYDatabase)
+unittest // MyConnection(myAuthSha2Caching)
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.mydatabase.MyConnection(myAuthSha2Caching)");
+
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    assert(connection.state == DbConnectionState.closed);
+
+    auto csb = connection.myConnectionStringBuilder;
+    csb.userName = "caching_sha2_password";
+    csb.userPassword = "masterkey";
+    csb.integratedSecurity = DbIntegratedSecurityConnection.srp256;
+    connection.open();
+    assert(connection.state == DbConnectionState.open);
+
+    connection.close();
+    assert(connection.state == DbConnectionState.closed);
+
+    // Not matching with server to check for authentication change
+    csb.integratedSecurity = DbIntegratedSecurityConnection.legacy;
     connection.open();
     assert(connection.state == DbConnectionState.open);
 
@@ -1752,6 +1786,30 @@ unittest // MyCommand.DML.Abort reader
     }
 
     failed = false;
+}
+
+version (UnitTestMYDatabase)
+unittest // MyConnection(SSL)
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.mydatabase.MyConnection(SSL)");
+
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    assert(connection.state == DbConnectionState.closed);
+
+    auto csb = connection.myConnectionStringBuilder;
+    csb.userName = "caching_sha2_password";
+    csb.userPassword = "masterkey";
+    csb.integratedSecurity = DbIntegratedSecurityConnection.srp256;
+
+    csb.encrypt = DbEncryptedConnection.enabled;
+    connection.open();
+    assert(connection.state == DbConnectionState.open);
+
+    connection.close();
+    assert(connection.state == DbConnectionState.closed);
 }
 
 version (UnitTestPerfMYDatabase)

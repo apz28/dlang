@@ -11,14 +11,18 @@
 
 module pham.db.skdatabase;
 
+import std.conv : to;
 import std.exception : assumeWontThrow;
-import std.socket : socket_t, Address, AddressFamily, InternetAddress, lastSocketError, Socket, SocketOption, SocketOptionLevel, SocketType;
+import std.socket : Address, AddressFamily, InternetAddress, ProtocolType, Socket, socket_t, SocketOption, SocketOptionLevel, SocketType;
 
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
+import pham.cp.openssl;
+import pham.utl.system : lastSocketError, lastSocketErrorCode;
 import pham.db.buffer;
 import pham.db.buffer_filter;
 import pham.db.buffer_filter_cipher;
+import pham.db.convert;
 import pham.db.database;
 import pham.db.exception;
 import pham.db.message;
@@ -110,8 +114,6 @@ public:
         DbBufferFilter.chainTail(_socketWriteBufferFilters, writeFilter);
     }
 
-    /* Properties */
-
     @property final SkConnectionStringBuilder skConnectionStringBuilder() nothrow pure @safe
     {
         return cast(SkConnectionStringBuilder)connectionStringBuilder;
@@ -122,9 +124,14 @@ public:
         return _socket;
     }
 
-    @property final bool socketActive() const nothrow @safe
+    @property final bool socketActive() const nothrow pure @safe
     {
         return _socket !is null && _socket.handle != socket_t.init;
+    }
+
+    @property final bool socketSSLActive() const nothrow pure @safe
+    {
+        return _sslSocket.isConnected && socketActive;
     }
 
 package(pham.db):
@@ -147,6 +154,22 @@ package(pham.db):
             return cast(DbWriteBuffer)(_socketWriteBuffers.remove(_socketWriteBuffers.last));
     }
 
+    final ResultStatus doOpenSSL() @safe
+    {
+        auto rs = _sslSocket.initialize();
+        if (rs.isError)
+            return rs;
+
+        rs = _sslSocket.connect(_socket.handle);
+        if (rs.isError)
+        {
+            _sslSocket.uninitialize();
+            return rs;
+        }
+
+        return ResultStatus.ok();
+    }
+
     final void releaseSocketWriteBuffer(DbWriteBuffer item) nothrow @safe
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
@@ -160,6 +183,7 @@ package(pham.db):
         version (TraceFunction) traceFunction!("pham.db.database")();
 
         auto useCSB = skConnectionStringBuilder;
+
         socket.blocking = useCSB.blocking;
         socket.setOption(SocketOptionLevel.SOCKET, SocketOption.TCP_NODELAY, useCSB.noDelay ? 1 : 0);
         if (auto n = useCSB.receiveTimeout)
@@ -170,20 +194,30 @@ package(pham.db):
 
     final size_t socketReadData(ubyte[] data) @trusted
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction!("pham.db.database")("_sslSocket.isConnected=", _sslSocket.isConnected);
         version (profile) debug auto p = PerfFunction.create();
 
-        auto result = socket.receive(data);
-        if (result == Socket.ERROR || (result == 0 && data.length != 0))
+        size_t result;
+        if (_sslSocket.isConnected)
         {
-            if (result == Socket.ERROR)
-                result = size_t.max;
-
-            auto socketMessage = lastSocketError();
-            auto socketCode = lastSocketErrorCode();
-            throwReadDataError(socketCode, socketMessage);
+            const rs = _sslSocket.receive(data, result);
+            if (rs.isError)
+                throwReadDataError(rs.errorCode, rs.errorMessage);
         }
-        else if (result > 0 && _socketReadBufferFilters !is null)
+        else
+        {
+            result = socket.receive(data);
+            if (result == Socket.ERROR || (result == 0 && data.length != 0))
+            {
+                if (result == Socket.ERROR)
+                    result = size_t.max;
+
+                auto status = lastSocketError("receive");
+                throwReadDataError(status.errorCode, status.errorMessage);
+            }
+        }
+
+        if (result > 0 && _socketReadBufferFilters !is null)
         {
             ubyte[] filteredData = data[0..result];
             for (auto nextFilter = _socketReadBufferFilters; nextFilter !is null; nextFilter = nextFilter.next)
@@ -207,13 +241,7 @@ package(pham.db):
 
     final size_t socketWriteData(scope const(ubyte)[] data) @trusted
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("data=", data.dgToHex());
-
-        void throwError(uint errorRawCode, string errorRawMessage)
-        {
-            auto msg = DbMessage.eWriteData.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
-            throw createWriteDataError(msg, errorRawCode, null);
-        }
+        version (TraceFunction) traceFunction!("pham.db.database")("_sslSocket.isConnected=", _sslSocket.isConnected, ", data=", data.dgToHex());
 
         const(ubyte)[] sendingData;
 
@@ -230,7 +258,7 @@ package(pham.db):
                 }
 
                 if (!nextFilter.process(firstFilter ? data : filteredData, filteredData))
-                    throwError(nextFilter.errorCode, nextFilter.errorMessage);
+                    throwWriteDataError(nextFilter.errorCode, nextFilter.errorMessage);
 
                 version (TraceFunction) traceFunction!("pham.db.database")("filter=", nextFilter.processName, ", length=", filteredData.length, ", data=", filteredData.dgToHex());
 
@@ -241,39 +269,75 @@ package(pham.db):
         else
             sendingData = data;
 
-        auto result = socket.send(sendingData);
-        if (result == Socket.ERROR || result != sendingData.length)
+        size_t result;
+        if (_sslSocket.isConnected)
         {
-            if (result == Socket.ERROR)
-                result = size_t.max;
-
-            auto socketMessage = lastSocketError();
-            auto socketCode = lastSocketErrorCode();
-            throwError(socketCode, socketMessage);
+            const rs = _sslSocket.send(sendingData, result);
+            if (rs.isError)
+                throwWriteDataError(rs.errorCode, rs.errorMessage);
         }
+        else
+        {
+            result = _socket.send(sendingData);
+            if (result == Socket.ERROR || result != sendingData.length)
+            {
+                if (result == Socket.ERROR)
+                    result = size_t.max;
+
+                auto status = lastSocketError("send");
+                throwWriteDataError(status.errorCode, status.errorMessage);
+            }
+        }
+
+        version (TraceFunction) traceFunction!("pham.db.database")("_sslSocket.isConnected=", _sslSocket.isConnected, ", result=", result);
+
         return result;
     }
 
+    final void throwConnectError(int errorRawCode, string errorRawMessage) @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.database")("errorRawCode=", errorRawCode, ", errorRawMessage=", errorRawMessage);
+
+        auto msg = DbMessage.eConnect.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
+        throw createConnectError(errorRawCode, msg, null);
+    }
+
+    final void throwReadDataError(int errorRawCode, string errorRawMessage) @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.database")("errorRawCode=", errorRawCode, ", errorRawMessage=", errorRawMessage);
+
+        auto msg = DbMessage.eReadData.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
+        throw createReadDataError(errorRawCode, msg, null);
+    }
+
+    final void throwWriteDataError(int errorRawCode, string errorRawMessage) @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.database")("errorRawCode=", errorRawCode, ", errorRawMessage=", errorRawMessage);
+
+        auto msg = DbMessage.eWriteData.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
+        throw createWriteDataError(errorRawCode, msg, null);
+    }
+
 protected:
-    SkException createConnectError(string message, int socketCode, Exception e) @safe
+    SkException createConnectError(int errorCode, string errorMessage, Exception e) @safe
     {
         if (auto log = logger)
-            log.error(forLogInfo(), newline, message, e);
-        return new SkException(e.msg, DbErrorCode.connect, null, socketCode, 0, e);
+            log.error(forLogInfo(), newline, errorMessage, e);
+        return new SkException(errorMessage, DbErrorCode.connect, null, errorCode, 0, e);
     }
 
-    SkException createReadDataError(string message, int socketCode, Exception e) @safe
+    SkException createReadDataError(int errorCode, string errorMessage, Exception e) @safe
     {
         if (auto log = logger)
-            log.error(forLogInfo(), newline, message, e);
-        return new SkException(message, DbErrorCode.read, null, socketCode, 0, e);
+            log.error(forLogInfo(), newline, errorMessage, e);
+        return new SkException(errorMessage, DbErrorCode.read, null, errorCode, 0, e);
     }
 
-    SkException createWriteDataError(string message, int socketCode, Exception e) @safe
+    SkException createWriteDataError(int errorCode, string errorMessage, Exception e) @safe
     {
         if (auto log = logger)
-            log.error(forLogInfo(), newline, message, e);
-        return new SkException(message, DbErrorCode.write, null, socketCode, 0, e);
+            log.error(forLogInfo(), newline, errorMessage, e);
+        return new SkException(errorMessage, DbErrorCode.write, null, errorCode, 0, e);
     }
 
     DbReadBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
@@ -290,16 +354,13 @@ protected:
     {
         version (TraceFunction) if (disposing) traceFunction!("pham.db.database")();
 
-        scope (exit)
-        {
-            disposeSocketBufferFilters(disposing);
-            disposeSocketReadBuffer(disposing);
-            disposeSocketWriteBuffers(disposing);
-            _socket = null;
-        }
-
+        _sslSocket.dispose(disposing);
+        disposeSocketBufferFilters(disposing);
+        disposeSocketReadBuffer(disposing);
+        disposeSocketWriteBuffers(disposing);
         if (socketActive)
             _socket.close();
+        _socket = null;
     }
 
     final void disposeSocketBufferFilters(bool disposing) nothrow @safe
@@ -344,29 +405,15 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
-        disposeSocketBufferFilters(false);
-        doCloseSocket();
-    }
-
-    final void doCloseSocket() @safe
-    {
-        version (TraceFunction) traceFunction!("pham.db.database")();
-
-        if (state != DbConnectionState.opening)
-            disposeSocket(true);
-        else if (socketActive)
-            _socket.close();
+        disposeSocket(false);
     }
 
     override void doDispose(bool disposing) nothrow @safe
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
-        super.doDispose(disposing);
         disposeSocket(disposing);
-        disposeSocketBufferFilters(disposing);
-        disposeSocketReadBuffer(disposing);
-        disposeSocketReadBuffer(disposing);
+        super.doDispose(disposing);
     }
 
     final void doOpenSocket() @trusted
@@ -376,13 +423,13 @@ protected:
         auto useCSB = skConnectionStringBuilder;
 
         if (_socket !is null && _socket.addressFamily != useCSB.toAddressFamily())
-            doCloseSocket();
+            disposeSocket(false);
+
+        if (useCSB.encrypt != DbEncryptedConnection.disabled)
+            setSSLSocketOptions();
 
         if (_socket is null)
-        {
-            _socket = new Socket(useCSB.toAddressFamily(), SocketType.STREAM);
-            _socket.blocking = useCSB.blocking;
-        }
+            _socket = new Socket(useCSB.toAddressFamily(), SocketType.STREAM, ProtocolType.TCP);
 
         try
         {
@@ -394,41 +441,28 @@ protected:
         {
             auto socketErrorMsg = e.msg;
             auto socketErrorCode = lastSocketErrorCode();
-            throw createConnectError(socketErrorMsg, socketErrorCode, e);
+            throw createConnectError(socketErrorCode, socketErrorMsg, e);
         }
     }
 
-    final int lastSocketErrorCode()
+    void setSSLSocketOptions()
     {
-        //version (TraceFunction) traceFunction!("pham.db.database")();
+        auto useCSB = skConnectionStringBuilder;
 
-        version (Windows)
-        {
-            import core.sys.windows.winsock2;
-            return WSAGetLastError();
-        }
-        else version (Posix)
-        {
-            import core.stdc.errno;
-            return errno;
-        }
-        else
-        {
-            pragma(msg, "No socket error code for this platform.");
-            return 0;
-        }
-    }
-
-    final void throwReadDataError(uint errorRawCode, string errorRawMessage) @safe
-    {
-        auto msg = DbMessage.eReadData.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
-        throw createReadDataError(msg, errorRawCode, null);
+        _sslSocket.sslCa = useCSB.sslCa;
+        _sslSocket.sslCaDir = useCSB.sslCaDir;
+        _sslSocket.sslCert = useCSB.sslCert;
+        _sslSocket.sslKey = useCSB.sslKey;
+        _sslSocket.sslKeyPassword = useCSB.sslKeyPassword;
+        _sslSocket.verificationMode = useCSB.sslVerificationMode;
+        _sslSocket.verificationHost = useCSB.sslVerificationHost ? useCSB.serverName : null;
     }
 
 protected:
     Socket _socket;
     DbBufferFilter _socketReadBufferFilters;
     DbBufferFilter _socketWriteBufferFilters;
+    OpenSSLClientSocket _sslSocket;
 
 private:
     DbReadBuffer _socketReadBuffer;
@@ -443,16 +477,21 @@ public:
         super(connectionString);
     }
 
-    final AddressFamily toAddressFamily() nothrow
+    final bool hasSSL() const nothrow @safe
     {
-        // todo for iv6 AddressFamily.INET6
-        return AddressFamily.INET;
+        return (sslCert.length || sslKey.length) && (sslCa.length || sslCaDir.length);
     }
 
     final Address toAddress()
     {
         // todo for iv6
         return new InternetAddress(serverName, port);
+    }
+
+    final AddressFamily toAddressFamily() nothrow
+    {
+        // todo for iv6 AddressFamily.INET6
+        return AddressFamily.INET;
     }
 
     @property final bool blocking() const nothrow @safe
@@ -479,6 +518,85 @@ public:
         return this;
     }
 
+    @property final string sslCa() const nothrow @safe
+    {
+        return getString(DbConnectionParameterIdentifier.socketSslCa);
+    }
+
+    @property final typeof(this) sslCa(string value) nothrow
+    {
+        put(DbConnectionParameterIdentifier.socketSslCa, value);
+        return this;
+    }
+
+    @property final string sslCaDir() const nothrow @safe
+    {
+        return getString(DbConnectionParameterIdentifier.socketSslCaDir);
+    }
+
+    @property final typeof(this) sslCaDir(string value) nothrow
+    {
+        put(DbConnectionParameterIdentifier.socketSslCaDir, value);
+        return this;
+    }
+
+    @property final string sslCert() const nothrow @safe
+    {
+        return getString(DbConnectionParameterIdentifier.socketSslCert);
+    }
+
+    @property final typeof(this) sslCert(string value) nothrow
+    {
+        put(DbConnectionParameterIdentifier.socketSslCert, value);
+        return this;
+    }
+
+    @property final string sslKey() const nothrow @safe
+    {
+        return getString(DbConnectionParameterIdentifier.socketSslKey);
+    }
+
+    @property final typeof(this) sslKey(string value) nothrow
+    {
+        put(DbConnectionParameterIdentifier.socketSslKey, value);
+        return this;
+    }
+
+    @property final string sslKeyPassword() const nothrow @safe
+    {
+        return getString(DbConnectionParameterIdentifier.socketSslKeyPassword);
+    }
+
+    @property final typeof(this) sslKeyPassword(string value) nothrow
+    {
+        put(DbConnectionParameterIdentifier.socketSslKeyPassword, value);
+        return this;
+    }
+
+    @property final bool sslVerificationHost() const nothrow @safe
+    {
+        return isDbTrue(getString(DbConnectionParameterIdentifier.socketSslVerificationHost));
+    }
+
+    @property final typeof(this) sslVerificationHost(bool value) nothrow
+    {
+        auto setValue = value ? dbBoolTrue : dbBoolFalse;
+        put(DbConnectionParameterIdentifier.socketSslVerificationHost, setValue);
+        return this;
+    }
+
+    @property final int sslVerificationMode() const nothrow @safe
+    {
+        return toInteger!int(getString(DbConnectionParameterIdentifier.socketSslVerificationMode), -1);
+    }
+
+    @property final typeof(this) sslVerificationMode(int value) nothrow
+    {
+        auto setValue = value >= -1 ? to!string(value) : getDefault(DbConnectionParameterIdentifier.socketSslVerificationMode);
+        put(DbConnectionParameterIdentifier.socketSslVerificationMode, setValue);
+        return this;
+    }
+
 protected:
     override string getDefault(string name) const nothrow @safe
     {
@@ -496,6 +614,7 @@ protected:
         super.setDefaultIfs();
         putIf(DbConnectionParameterIdentifier.socketBlocking, getDefault(DbConnectionParameterIdentifier.socketBlocking));
         putIf(DbConnectionParameterIdentifier.socketNoDelay, getDefault(DbConnectionParameterIdentifier.socketNoDelay));
+        putIf(DbConnectionParameterIdentifier.socketSslVerificationMode, getDefault(DbConnectionParameterIdentifier.socketSslVerificationMode));
     }
 }
 
@@ -522,7 +641,7 @@ public:
         reserve(additionalBytes);
         const nOffset = _offset + length;
 
-        //dgWriteln("nOffset=", nOffset, ", _data.length=", _data.length, ", additionalBytes=", additionalBytes.dgToHex(), ", length=", length);
+        //import pham.utl.test; dgWriteln("nOffset=", nOffset, ", _data.length=", _data.length, ", additionalBytes=", additionalBytes.dgToHex(), ", length=", length);
 
         // n=size_t.max -> no data returned
         const n = connection.socketReadData(_data[nOffset.._data.length]);
@@ -669,7 +788,9 @@ shared static this()
         return cast(immutable(string[string]))[
             DbConnectionParameterIdentifier.packageSize : "‭16383‬", // In bytes - do not add underscore, to!... does not work
             DbConnectionParameterIdentifier.socketBlocking : dbBoolTrue,
-            DbConnectionParameterIdentifier.socketNoDelay : dbBoolTrue
+            DbConnectionParameterIdentifier.socketNoDelay : dbBoolTrue,
+            DbConnectionParameterIdentifier.socketSslVerificationHost : dbBoolFalse,
+            DbConnectionParameterIdentifier.socketSslVerificationMode : "-1", // Ignore
         ];
     }();
 }

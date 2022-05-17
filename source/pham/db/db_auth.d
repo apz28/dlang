@@ -11,7 +11,13 @@
 
 module pham.db.auth;
 
-import pham.db.message : fmtMessage;
+import std.conv : to;
+
+version (unittest) import pham.utl.test;
+public import pham.cp.cipher : CipherBuffer;
+import pham.utl.object : VersionString;
+public import pham.utl.object : ResultStatus;
+import pham.db.message : DbMessage, fmtMessage;
 import pham.db.object : DbDisposableObject;
 import pham.db.type : DbScheme;
 
@@ -22,68 +28,40 @@ abstract class DbAuth : DbDisposableObject
 @safe:
 
 public:
-    bool canCryptedConnection() const nothrow pure
+    ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData) nothrow;
+
+    static string getErrorMessage(ResultStatus errorStatus, scope const(char)[] authName) pure
+    {
+        return errorStatus.errorFormat.length != 0
+            ? errorStatus.errorFormat.fmtMessage(authName, errorStatus.errorMessage)
+            : errorStatus.errorMessage;
+    }
+
+    DbAuth setServerPublicKey(scope const(ubyte)[] serverPublicKey) nothrow pure
+    {
+        version (TraceFunction) traceFunction!("pham.db.database")("serverPublicKey=", serverPublicKey.dgToHex());
+
+        this._serverPublicKey[] = 0; // Clear previous value for security reason
+        this._serverPublicKey = serverPublicKey.dup;
+        return this;
+    }
+
+    DbAuth setServerSalt(scope const(ubyte)[] serverSalt) nothrow pure
+    {
+        version (TraceFunction) traceFunction!("pham.db.database")("serverSalt=", serverSalt.dgToHex());
+
+        this._serverSalt[] = 0; // Clear previous value for security reason
+        this._serverSalt = serverSalt.dup;
+        return this;
+    }
+
+    @property bool canCryptedConnection() const nothrow pure
     {
         return false;
     }
 
-    final typeof(this) clearError() nothrow
-    {
-        errorMessage = null;
-        errorMessageFormat = null;
-        errorCode = 0;
-        return this;
-    }
-
-    final string getErrorMessage(scope const(char)[] authName) pure
-    {
-        return errorMessageFormat.length != 0
-            ? errorMessageFormat.fmtMessage(authName, errorMessage)
-            : errorMessage;
-    }
-
-    final typeof(this) setError(int errorCode, string errorMessage, string errorMessageFormat) nothrow
-    {
-        this.errorCode = errorCode;
-        this.errorMessage = errorMessage;
-        this.errorMessageFormat = errorMessageFormat;
-        return this;
-    }
-
-    const(ubyte)[] getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        const(ubyte)[] serverAuthData) nothrow;
-
-    const(ubyte)[] privateKey() const nothrow
-    {
-        return null;
-    }
-
-    const(ubyte)[] publicKey() const nothrow
-    {
-        return null;
-    }
-
-    final const(ubyte)[] serverPublicKey() const nothrow pure
-    {
-        return _serverPublicKey;
-    }
-
-    final const(ubyte)[] serverSalt() const nothrow pure
-    {
-        return _serverSalt;
-    }
-
-    const(ubyte)[] sessionKey() const nothrow
-    {
-        return null;
-    }
-
-    @property bool isError() const @nogc nothrow pure
-    {
-        return errorCode != 0;
-    }
-
-    @property int multiSteps() const @nogc nothrow pure;
+    @property int multiStates() const @nogc nothrow pure;
 
     @property bool isSymantic() const @nogc nothrow pure
     {
@@ -92,7 +70,32 @@ public:
 
     @property string name() const nothrow pure;
 
+    @property const(ubyte)[] privateKey() const nothrow
+    {
+        return null;
+    }
+
+    @property const(ubyte)[] publicKey() const nothrow
+    {
+        return null;
+    }
+
     @property DbScheme scheme() const nothrow pure;
+
+    @property final const(ubyte)[] serverPublicKey() const nothrow pure
+    {
+        return _serverPublicKey;
+    }
+
+    @property final const(ubyte)[] serverSalt() const nothrow pure
+    {
+        return _serverSalt;
+    }
+
+    @property const(ubyte)[] sessionKey() const nothrow
+    {
+        return null;
+    }
 
     @property string sessionKeyName() const nothrow pure
     {
@@ -129,22 +132,29 @@ public:
     }
 
 protected:
-    override void doDispose(bool disposing) nothrow
+    final ResultStatus checkAdvanceState(const(int) state) nothrow pure
     {
-        _serverPublicKey[] = 0;
-        _serverSalt[] = 0;
-
-        if (disposing)
+        if (state != _nextState || state >= multiStates)
+            return ResultStatus.error(state + 1, to!string(state), DbMessage.eInvalidConnectionAuthServerData);
+        else
         {
-            _serverPublicKey = null;
-            _serverSalt = null;
+            _nextState++;
+            return ResultStatus.ok();
         }
     }
 
+    override void doDispose(bool disposing) nothrow
+    {
+        _serverPublicKey[] = 0;
+        _serverPublicKey = null;
+        _serverSalt[] = 0;
+        _serverSalt = null;
+        _nextState = 0;
+    }
+
 public:
-    string errorMessage;
-    string errorMessageFormat;
-    int errorCode;
+    VersionString serverVersion;
+    bool isSSLConnection;
 
 protected:
     ubyte[] _serverPublicKey;

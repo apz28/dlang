@@ -11,6 +11,8 @@
 
 module pham.db.myauth;
 
+version (unittest) import pham.utl.test;
+public import pham.cp.cipher : CipherBuffer;
 import pham.db.auth;
 import pham.db.type : DbScheme;
 
@@ -26,7 +28,14 @@ public:
         return DbAuth.findAuthMap(name, DbScheme.my);
     }
 
-    abstract const(ubyte)[] getPassword(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData);
+    ResultStatus getPassword(scope const(char)[] userName, scope const(char)[] userPassword,
+        ref CipherBuffer authData)
+    {
+        version (TraceFunction) traceFunction!("pham.db.mydatabase")("userName=", userName);
+
+        authData = CipherBuffer.init;
+        return ResultStatus.ok();
+    }
 
     @property final override DbScheme scheme() const pure
     {

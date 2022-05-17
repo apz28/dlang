@@ -1487,23 +1487,23 @@ package(pham.db):
     }
 
 protected:
-    final override SkException createConnectError(string message, int socketCode, Exception e) @safe
+    final override SkException createConnectError(int errorCode, string errorMessage, Exception e) @safe
     {
-        auto result = super.createConnectError(message, socketCode, e);
+        auto result = super.createConnectError(errorCode, errorMessage, e);
         result.vendorCode = FbIscResultCode.isc_net_connect_err;
         return result;
     }
 
-    final override SkException createReadDataError(string message, int socketCode, Exception e) @safe
+    final override SkException createReadDataError(int errorCode, string errorMessage, Exception e) @safe
     {
-        auto result = super.createReadDataError(message, socketCode, e);
+        auto result = super.createReadDataError(errorCode, errorMessage, e);
         result.vendorCode = FbIscResultCode.isc_net_read_err;
         return result;
     }
 
-    final override SkException createWriteDataError(string message, int socketCode, Exception e) @safe
+    final override SkException createWriteDataError(int errorCode, string errorMessage, Exception e) @safe
     {
-        auto result = super.createWriteDataError(message, socketCode, e);
+        auto result = super.createWriteDataError(errorCode, errorMessage, e);
         result.vendorCode = FbIscResultCode.isc_net_write_err;
         return result;
     }
@@ -1639,14 +1639,14 @@ public:
     {
         final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
         {
-            case srp:
+            case legacy:
+                return fbAuthLegacyName;
+            case srp1:
                 return fbAuthSrp1Name;
             case srp256:
                 return fbAuthSrp256Name;
             case sspi:
                 return fbAuthSSPIName;
-            case legacy:
-                return fbAuthLegacyName;
         }
     }
 
@@ -1657,7 +1657,7 @@ public:
 
     @property final uint32 cachePages() nothrow @safe
     {
-        return toInteger!uint32(getString(DbConnectionParameterIdentifier.fbCachePage));
+        return toInteger!uint32(getString(DbConnectionParameterIdentifier.fbCachePage), uint16.max);
     }
 
     @property final bool databaseTrigger() nothrow @safe
@@ -1688,24 +1688,18 @@ public:
 protected:
     final override string getDefault(string name) const nothrow @safe
     {
-        auto result = super.getDefault(name);
+        auto n = DbIdentitier(name);
+        auto result = assumeWontThrow(fbDefaultParameterValues.get(n, null));
         if (result.ptr is null)
-        {
-            auto n = DbIdentitier(name);
-            result = assumeWontThrow(fbDefaultParameterValues.get(n, null));
-        }
+            result = super.getDefault(name);
         return result;
     }
 
     final override void setDefaultIfs() nothrow @safe
     {
+        foreach (dpv; fbDefaultParameterValues.byKeyValue)
+            putIf(dpv.key, dpv.value);
         super.setDefaultIfs();
-        putIf(DbConnectionParameterIdentifier.port, getDefault(DbConnectionParameterIdentifier.port));
-        putIf(DbConnectionParameterIdentifier.userName, getDefault(DbConnectionParameterIdentifier.userName));
-        putIf(DbConnectionParameterIdentifier.userPassword, getDefault(DbConnectionParameterIdentifier.userPassword));
-        putIf(DbConnectionParameterIdentifier.fbDialect, getDefault(DbConnectionParameterIdentifier.fbDialect));
-        putIf(DbConnectionParameterIdentifier.fbDatabaseTrigger, getDefault(DbConnectionParameterIdentifier.fbDatabaseTrigger));
-        putIf(DbConnectionParameterIdentifier.fbGarbageCollect, getDefault(DbConnectionParameterIdentifier.fbGarbageCollect));
     }
 }
 
@@ -2025,20 +2019,20 @@ version (UnitTestFBDatabase)
     FbConnection createTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
         bool compress = false,
-        DbIntegratedSecurityConnection integratedSecurity = DbIntegratedSecurityConnection.srp)
+        DbIntegratedSecurityConnection integratedSecurity = DbIntegratedSecurityConnection.srp1)
     {
         auto db = DbDatabaseList.getDb(DbScheme.fb);
         assert(cast(FbDatabase)db !is null);
 
         auto result = db.createConnection("");
+        assert(cast(FbConnection)result !is null);
+
         result.connectionStringBuilder.databaseName = "C:\\Development\\Projects\\DLang\\FirebirdSQL\\TEST.FDB";
         result.connectionStringBuilder.receiveTimeout = dur!"seconds"(20);
         result.connectionStringBuilder.sendTimeout = dur!"seconds"(10);
         result.connectionStringBuilder.encrypt = encrypt;
         result.connectionStringBuilder.compress = compress;
         result.connectionStringBuilder.integratedSecurity = integratedSecurity;
-
-        assert(cast(FbConnection)result !is null);
 
         return cast(FbConnection)result;
     }

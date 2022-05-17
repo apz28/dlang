@@ -2111,7 +2111,7 @@ public:
      */
     @property final uint32 fetchRecordCount() const nothrow @safe
     {
-        return toInteger!uint32(getString(DbConnectionParameterIdentifier.fetchRecordCount));
+        return toInteger!uint32(getString(DbConnectionParameterIdentifier.fetchRecordCount), uint8.max);
     }
 
     @property final typeof(this) fetchRecordCount(uint32 value) nothrow
@@ -2135,7 +2135,7 @@ public:
 
     @property final uint32 maxPoolCount() const nothrow @safe
     {
-        return toInteger!uint32(getString(DbConnectionParameterIdentifier.maxPoolCount));
+        return toInteger!uint32(getString(DbConnectionParameterIdentifier.maxPoolCount), uint8.max);
     }
 
     @property final typeof(this) maxPoolCount(uint32 value) nothrow
@@ -2146,7 +2146,7 @@ public:
 
     @property final uint32 minPoolCount() const nothrow @safe
     {
-        return toInteger!uint32(getString(DbConnectionParameterIdentifier.minPoolCount));
+        return toInteger!uint32(getString(DbConnectionParameterIdentifier.minPoolCount), 0);
     }
 
     @property final typeof(this) minPoolCount(uint32 value) nothrow
@@ -2157,7 +2157,7 @@ public:
 
     @property final uint32 packageSize() const nothrow @safe
     {
-        return toInteger!uint32(getString(DbConnectionParameterIdentifier.packageSize));
+        return toInteger!uint32(getString(DbConnectionParameterIdentifier.packageSize), uint16.max);
     }
 
     @property final typeof(this) packageSize(uint32 value) nothrow
@@ -2196,7 +2196,7 @@ public:
 
     @property final uint16 port() const nothrow @safe
     {
-        return toInteger!uint16(getString(DbConnectionParameterIdentifier.port));
+        return toInteger!uint16(getString(DbConnectionParameterIdentifier.port), 0);
     }
 
     @property final typeof(this) port(uint16 value) nothrow
@@ -2341,17 +2341,8 @@ protected:
 
     void setDefaultIfs() nothrow @safe
     {
-        putIf(DbConnectionParameterIdentifier.connectionTimeout, getDefault(DbConnectionParameterIdentifier.connectionTimeout));
-        putIf(DbConnectionParameterIdentifier.encrypt, getDefault(DbConnectionParameterIdentifier.encrypt));
-        putIf(DbConnectionParameterIdentifier.fetchRecordCount, getDefault(DbConnectionParameterIdentifier.fetchRecordCount));
-        putIf(DbConnectionParameterIdentifier.maxPoolCount, getDefault(DbConnectionParameterIdentifier.maxPoolCount));
-        putIf(DbConnectionParameterIdentifier.minPoolCount, getDefault(DbConnectionParameterIdentifier.minPoolCount));
-        putIf(DbConnectionParameterIdentifier.packageSize, getDefault(DbConnectionParameterIdentifier.packageSize));
-        putIf(DbConnectionParameterIdentifier.poolTimeout, getDefault(DbConnectionParameterIdentifier.poolTimeout));
-        putIf(DbConnectionParameterIdentifier.receiveTimeout, getDefault(DbConnectionParameterIdentifier.receiveTimeout));
-        putIf(DbConnectionParameterIdentifier.sendTimeout, getDefault(DbConnectionParameterIdentifier.sendTimeout));
-        putIf(DbConnectionParameterIdentifier.pooling, getDefault(DbConnectionParameterIdentifier.pooling));
-        //putIf(, getDefault());
+        foreach (dpv; dbDefaultParameterValues.byKeyValue)
+            putIf(dpv.key, dpv.value);
     }
 
 public:

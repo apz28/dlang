@@ -11,6 +11,8 @@
 
 module pham.db.myoid;
 
+enum myUTF8CharSetId = 33;
+
 struct MyCharSet
 {
 nothrow @safe:
@@ -19,6 +21,11 @@ nothrow @safe:
     string collation;
     int id;
 }
+
+static immutable MyCharSet[] myCharSet = [
+    {name:"utf8", collation:"utf8_general_ci", id:myUTF8CharSetId},
+    {name:"utf8mb4", collation:"utf8mb4_0900_ai_ci", id:255}
+    ];
 
 /// https://dev.mysql.com/doc/internals/en/capability-flags.html
 enum MyCapabilityFlags : uint
@@ -46,17 +53,12 @@ enum MyCapabilityFlags : uint
     pluginAuth = 1u << 19, // Client supports plugin authentication
     connectAttrs = 1u << 20, // Allows client connection attributes
     canHandleExpiredPassword = 1u << 22, // Support for password expiration > 5.6.6
-    sessionTrack = 1u << 23, // Support fo sending session tracker vars
+    sessionTrack = 1u << 23, // Support for sending session tracker vars
     deprecateEof = 1u << 24, // Can send OK after a Text Resultset
     queryAttributes = 1u << 27, // Support for query attributes
     sslVerifyServerCert = 1u << 30, // Verify server certificate
     rememberOptions = 1u << 31, // Don't reset the options after an unsuccessful connect
 }
-
-static immutable MyCharSet[] myCharSet = [
-    {name:"utf8", collation:"utf8_general_ci", id:33},
-    {name:"utf8mb4", collation:"utf8mb4_0900_ai_ci", id:255}
-    ];
 
 /// DB Operations Code
 enum MyCmdId : byte

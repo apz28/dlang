@@ -15,7 +15,7 @@ import std.algorithm.searching : startsWith;
 import std.array : Appender, split;
 import std.base64 : Base64, Base64Impl;
 import std.conv : to;
-import std.string : assumeUTF, representation;
+import std.string : representation;
 
 version (unittest) import pham.utl.test;
 import pham.cp.cipher : CipherHelper;
@@ -35,7 +35,7 @@ abstract class MyAuthScram : MyAuth
 nothrow @safe:
 
 public:
-    this(DigestId digestId)
+    this(DigestId digestId) pure
     in
     {
         assert(digestId == DigestId.sha1
@@ -48,56 +48,59 @@ public:
         this.digestId = digestId;
     }
 
-    final const(ubyte)[] calculateProof(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData)
+    final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("_nextState=", _nextState, ", userName=", userName, ", serverAuthData=", serverAuthData);
+        version (TraceFunction) traceFunction!("pham.db.mydatabase")("_nextState=", _nextState, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
         ShortStringBuffer!ubyte serverSalt;
         const(char)[] serverNonce;
         uint serverCount;
         auto parsedServerAuthData = parseServerAuthData(serverAuthData);
-        if (isInvalidServerAuthData(parsedServerAuthData, serverSalt, serverNonce, serverCount))
-            return null;
+        auto status = isInvalidServerAuthData(parsedServerAuthData, serverSalt, serverNonce, serverCount);
+        if (status.isError)
+            return status;
 
-        this.salted = hi(userPassword.representation, serverSalt[], serverCount);
+        this.salted = hi(userPassword.representation(), serverSalt[], serverCount);
         alias Base64NoPadding = Base64Impl!('!', '=', Base64.NoPadding);
-        const userProof = Base64NoPadding.encode(("n,a=" ~ userName ~ ",").representation);
+        const userProof = Base64NoPadding.encode(("n,a=" ~ userName ~ ",").representation());
         const withoutProof = "c=" ~ userProof ~ ",r=" ~ serverNonce;
-        this.auth = (this.client ~ "," ~ serverAuthData.assumeUTF ~ "," ~ withoutProof).representation;
-        auto ckey = hmacOf(salted, "Client Key".representation);
+        this.auth = (this.client ~ "," ~ cast(const(char)[])serverAuthData ~ "," ~ withoutProof).representation();
+        auto ckey = hmacOf(salted, "Client Key".representation());
         ckey ^= hmacOf(hashOf(ckey[])[], auth)[];
 
         enum padding = false;
         auto result = withoutProof ~ ",p=" ~ CipherHelper.base64Encode!padding(ckey[]);
-        return result.representation;
+        authData = CipherBuffer(result.representation());
+        return ResultStatus.ok();
     }
 
-    final override const(ubyte)[] getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        const(ubyte)[] serverAuthData)
+    final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData);
+        version (TraceFunction) traceFunction!("pham.db.mydatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
-        if (state != _nextState || state > 2)
-        {
-            setError(state + 1, to!string(state), DbMessage.eInvalidConnectionAuthServerData);
-            return null;
-        }
+        auto status = checkAdvanceState(state);
+        if (status.isError)
+            return status;
 
-        _nextState++;
         if (state == 0)
-            return getInitial(userName, userPassword);
+        {
+            authData = getInitial(userName, userPassword);
+            return ResultStatus.ok();
+        }
         else if (state == 1)
-            return calculateProof(userName, userPassword, serverAuthData);
+            return calculateProof(userName, userPassword, serverAuthData, authData);
         else if (state == 2)
         {
-            isValidSignature(serverAuthData);
-            return null;
+            authData = CipherBuffer.init;
+            return isValidSignature(serverAuthData);
         }
         else
             assert(0);
     }
 
-    final const(ubyte)[] getInitial(scope const(char)[] userName, scope const(char)[] userPassword)
+    final CipherBuffer getInitial(scope const(char)[] userName, scope const(char)[] userPassword)
     {
         if (this.cnonce.length == 0)
         {
@@ -106,35 +109,30 @@ public:
             this.cnonce = generator.nextAlphaNumCharacters(buffer, 32)[].dup;
         }
         this.client = "n=" ~ normalize(userName) ~ ",r=" ~ this.cnonce;
-        return ("n,a=" ~ normalize(userName) ~ "," ~ this.client).representation;
+        return CipherBuffer(("n,a=" ~ normalize(userName) ~ "," ~ this.client).representation());
     }
 
-    final override const(ubyte)[] getPassword(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData)
-    {
-        return null;
-    }
-
-    final int isValidSignature(scope const(ubyte)[] serverAuthData)
+    final ResultStatus isValidSignature(scope const(ubyte)[] serverAuthData)
     {
         scope (failure)
-            return setError(1, "challenge is not valid", DbMessage.eInvalidConnectionAuthServerData).errorCode;
+            return ResultStatus.error(1, "challenge is not valid", DbMessage.eInvalidConnectionAuthServerData);
 
         const scope response = cast(const(char)[])serverAuthData;
 
         if (!response.startsWith("v="))
-            return setError(2, "challenge did not start with a signature", DbMessage.eInvalidConnectionAuthServerData).errorCode;
+            return ResultStatus.error(2, "challenge did not start with a signature", DbMessage.eInvalidConnectionAuthServerData);
 
         enum padding = false;
         const signature = CipherHelper.base64Decode!padding(response[2..$]);
-        const skey = hmacOf(this.salted, "Server Key".representation);
+        const skey = hmacOf(this.salted, "Server Key".representation());
         const calculated = hmacOf(skey[], this.auth);
 
         if (signature.length != calculated.length)
-            return setError(3, "challenge contained a signature with an invalid length", DbMessage.eInvalidConnectionAuthServerData).errorCode;
+            return ResultStatus.error(3, "challenge contained a signature with an invalid length", DbMessage.eInvalidConnectionAuthServerData);
         if (signature != calculated[])
-            return setError(3, "challenge contained an invalid signature", DbMessage.eInvalidConnectionAuthServerData).errorCode;
+            return ResultStatus.error(3, "challenge contained an invalid signature", DbMessage.eInvalidConnectionAuthServerData);
 
-        return 0;
+        return ResultStatus.ok();
     }
 
     static string normalize(scope const(char)[] str)
@@ -161,21 +159,19 @@ public:
         return buffer.data;
     }
 
-    static const(char)[][char] parseServerAuthData(const(ubyte)[] serverAuthData)
+    static const(char)[][char] parseServerAuthData(scope const(ubyte)[] serverAuthData) @trusted
     {
-        auto buffer = Appender!string();
         const(char)[][char] result;
-
-        foreach (part; serverAuthData.assumeUTF.split(","))
+        foreach (scope part; (cast(string)serverAuthData).split(","))
         {
             if (part.length >= 2 && part[1] == '=')
-                result[part[0]] = part[2..$];
+                result[part[0]] = part[2..$].dup;
         }
 
         return result;
     }
 
-    @property final override int multiSteps() const @nogc pure
+    @property final override int multiStates() const @nogc pure
     {
         return 3;
     }
@@ -184,16 +180,13 @@ protected:
     override void doDispose(bool disposing)
     {
         client[] = 0;
+        client = null;
         cnonce[] = 0;
+        cnonce = null;
         auth[] = 0;
+        auth = null;
         salted[] = 0;
-        if (disposing)
-        {
-            client = null;
-            cnonce = null;
-            auth = null;
-            salted = null;
-        }
+        salted = null;
         super.doDispose(disposing);
     }
 
@@ -253,7 +246,7 @@ protected:
         return result;
     }
 
-    final int isInvalidServerAuthData(const(char)[][char] serverAuthData,
+    final ResultStatus isInvalidServerAuthData(const(char)[][char] serverAuthData,
         ref ShortStringBuffer!ubyte salt, ref const(char)[] nonce, ref uint count)
     {
         // salt is missing?
@@ -261,10 +254,10 @@ protected:
         {
             auto s = *val;
             if (parseHexDigits(s, salt) == 0)
-                return setError(1, "salt is invalid", DbMessage.eInvalidConnectionAuthServerData).errorCode;
+                return ResultStatus.error(1, "salt is invalid", DbMessage.eInvalidConnectionAuthServerData);
         }
         else
-            return setError(1, "salt is missing", DbMessage.eInvalidConnectionAuthServerData).errorCode;
+            return ResultStatus.error(1, "salt is missing", DbMessage.eInvalidConnectionAuthServerData);
 
         // nonce is missing?
         if (auto val = 'r' in serverAuthData)
@@ -272,10 +265,10 @@ protected:
             nonce = *val;
             // invalid nonce?
             if (!nonce.startsWith(this.cnonce))
-                return setError(3, "nonce is invalid", DbMessage.eInvalidConnectionAuthServerData).errorCode;
+                return ResultStatus.error(3, "nonce is invalid", DbMessage.eInvalidConnectionAuthServerData);
         }
         else
-            return setError(2, "nonce is missing", DbMessage.eInvalidConnectionAuthServerData).errorCode;
+            return ResultStatus.error(2, "nonce is missing", DbMessage.eInvalidConnectionAuthServerData);
 
         // iteration count is missing?
         if (auto val = 'i' in serverAuthData)
@@ -283,12 +276,12 @@ protected:
             auto s = *val;
             // invalid iteration count?
             if (parseIntegral(s, count) != NumericParsedKind.ok)
-                return setError(5, "iteration count is invalid", DbMessage.eInvalidConnectionAuthServerData).errorCode;
+                return ResultStatus.error(5, "iteration count is invalid", DbMessage.eInvalidConnectionAuthServerData);
         }
         else
-            return setError(4, "iteration count is missing", DbMessage.eInvalidConnectionAuthServerData).errorCode;
+            return ResultStatus.error(4, "iteration count is missing", DbMessage.eInvalidConnectionAuthServerData);
 
-        return 0;
+        return ResultStatus.ok();
     }
 
 private:
@@ -347,4 +340,21 @@ DbAuth createAuthScramSha1()
 DbAuth createAuthScramSha256()
 {
     return new MyAuthScramSha256();
+}
+
+
+private:
+
+unittest // MyAuthScramSha1
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.myauth_scram.MyAuthScramSha1");
+
+}
+
+unittest // MyAuthScramSha256
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.myauth_scram.MyAuthScramSha256");
+
 }

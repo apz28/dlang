@@ -39,48 +39,48 @@ public:
         reset();
     }
 
-    final const(ubyte)[] calculateProof(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData)
+    final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("userName=", userName, ", serverAuthData=", serverAuthData);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
-         auto firstMessage = PgOIdScramSHA256FirstMessage(serverAuthData);
-         if (!firstMessage.isValid() || !firstMessage.nonce.startsWith(this.nonce))
-         {
-             setError(_nextState + 1, to!string(_nextState), DbMessage.eInvalidConnectionAuthServerData);
-             return null;
-         }
-         return calculateProof(userName, userPassword, firstMessage).representation();
+        auto firstMessage = PgOIdScramSHA256FirstMessage(serverAuthData);
+        if (!firstMessage.isValid() || !firstMessage.nonce.startsWith(this.nonce))
+            return ResultStatus.error(_nextState + 1, to!string(_nextState), DbMessage.eInvalidConnectionAuthServerData);
+        authData = calculateProof(userName, userPassword, firstMessage);
+        return ResultStatus.ok();
     }
 
-    final override const(ubyte)[] getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        const(ubyte)[] serverAuthData)
+    final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
-        if (state != _nextState || state > 2)
-        {
-            setError(state + 1, to!string(state), DbMessage.eInvalidConnectionAuthServerData);
-            return null;
-        }
+        auto status = checkAdvanceState(state);
+        if (status.isError)
+            return status;
 
-        _nextState++;
         if (state == 0)
-            return initialRequest().representation();
+        {
+            authData = initialRequest();
+            return ResultStatus.ok();
+        }
         else if (state == 1)
-            return calculateProof(userName, userPassword, serverAuthData);
+            return calculateProof(userName, userPassword, serverAuthData, authData);
         else if (state == 2)
         {
             if (!verifyServerSignature(serverAuthData))
-                setError(state + 1, null, DbMessage.eInvalidConnectionAuthVerificationFailed);
-            return null;
+                return ResultStatus.error(state + 1, null, DbMessage.eInvalidConnectionAuthVerificationFailed);
+            authData = CipherBuffer.init;
+            return ResultStatus.ok();
         }
         else
             assert(0);
     }
 
-    final const(char)[] initialRequest() const pure scope
+    final CipherBuffer initialRequest() const pure scope
     {
-        return _cbindFlag ~ ",,n=,r=" ~ _nonce;
+        return CipherBuffer((_cbindFlag ~ ",,n=,r=" ~ _nonce).representation());
     }
 
     final typeof(this) reset()
@@ -98,7 +98,7 @@ public:
         return this;
     }
 
-    final bool verifyServerSignature(const(ubyte)[] serverAuthData) const pure
+    final bool verifyServerSignature(scope const(ubyte)[] serverAuthData) const pure
     {
         enum padding = true;
 
@@ -106,7 +106,7 @@ public:
         return finalMessage.signature == CipherHelper.base64Encode!padding(_serverSignature[]);
     }
 
-    @property final override int multiSteps() const @nogc pure
+    @property final override int multiStates() const @nogc pure
     {
         return 3;
     }
@@ -122,15 +122,17 @@ public:
     }
 
 protected:
-    final const(char)[] calculateProof(scope const(char)[] userName, scope const(char)[] userPassword, const(PgOIdScramSHA256FirstMessage) firstMessage)
+    final CipherBuffer calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
+        const ref PgOIdScramSHA256FirstMessage firstMessage)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("userName=", userName);
 
         const clientInitialRequestBare = initialRequestBare();
         const clientFinalMessageWithoutProof = finalRequestWithoutProof(firstMessage.nonce);
-        const serverMessage = firstMessage.getMessage();
-        const serverSalt = firstMessage.getSalt();
-        _saltedPassword = computeScramSHA256HashPassword(userPassword, serverSalt, firstMessage.getIteration());
+        scope const serverMessage = firstMessage.getMessage();
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("userName=", userName);
+        setServerSalt(firstMessage.getSalt());
+        _saltedPassword = computeScramSHA256HashPassword(userPassword, serverSalt, firstMessage.iteration);
 
         auto clientKey = computeScramSHA256Hash(_saltedPassword[], "Client Key".representation);
         const storedKey = digestOf!(DigestId.sha256)(clientKey[]);
@@ -152,20 +154,20 @@ protected:
         const serverKey = computeScramSHA256Hash(_saltedPassword[], "Server Key".representation);
         hmac = HMACS(DigestId.sha256, serverKey[]);
         hmac.begin()
-            .digest(clientInitialRequestBare.representation)
-            .digest(",".representation)
-            .digest(serverMessage.representation)
-            .digest(",".representation)
-            .digest(clientFinalMessageWithoutProof.representation)
+            .digest(clientInitialRequestBare.representation())
+            .digest(",".representation())
+            .digest(serverMessage.representation())
+            .digest(",".representation())
+            .digest(clientFinalMessageWithoutProof.representation())
             .finish(_serverSignature);
 
-        const result = clientFinalMessageWithoutProof ~ ",p=" ~ clientProof;
+        auto result = CipherBuffer((clientFinalMessageWithoutProof ~ ",p=" ~ clientProof).representation());
 
         version (TraceFunction)
-        traceFunction!("pham.db.pgdatabase")("clientKey=", clientKey[],
+        traceFunction!("pham.db.pgdatabase")("clientKey=", clientKey[].dgToHex(),
             ", clientProofBytes=", clientProofBytes[],
             ", clientProofBytes.length=", clientProofBytes.length,
-            ", result.length=", result.length, ", result=", result);
+            ", result.length=", result.length, ", result=", cast(const(char)[])(result[]));
 
         return result;
     }
@@ -173,18 +175,13 @@ protected:
     override void doDispose(bool disposing) nothrow
     {
         _cbind[] = 0;
+        _cbind = null;
         _cbindFlag[] = 0;
+        _cbindFlag = null;
         _nonce[] = 0;
+        _nonce = null;
         _saltedPassword.dispose(disposing);
         _serverSignature.dispose(disposing);
-
-        if (disposing)
-        {
-            _cbind = null;
-            _cbindFlag = null;
-            _nonce = null;
-        }
-
         super.doDispose(disposing);
     }
 
@@ -211,28 +208,40 @@ private:
 
     static DigestResult computeScramSHA256HashPassword(scope const(char)[] userPassword, scope const(ubyte)[] serverSalt, const(int) iteration)
     {
+        DigestResult result;
+        computeScramSHA256HashPasswordInitial(result, userPassword, serverSalt);
+        if (iteration > 1)
+            computeScramSHA256HashPasswordIteration(result, userPassword, iteration);
+
+        return result;
+    }
+
+    static void computeScramSHA256HashPasswordInitial(ref DigestResult result, scope const(char)[] userPassword, scope const(ubyte)[] serverSalt)
+    {
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("serverSalt=", serverSalt.dgToHex());
+
         enum ubyte[4] one = [0, 0, 0, 1]; // uint=1 in BigEndian
 
-        DigestResult result;
-        auto hmac = HMACS(DigestId.sha256, userPassword.representation);
+        auto hmac = HMACS(DigestId.sha256, userPassword.representation());
         hmac.begin()
             .digest(serverSalt)
             .digest(one)
             .finish(result);
+    }
 
-        if (iteration > 1)
+    static void computeScramSHA256HashPasswordIteration(ref DigestResult result, scope const(char)[] userPassword, const(int) iteration)
+    {
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("iteration=", iteration, ", result=", result[].dgToHex());
+
+        auto hmac = HMACS(DigestId.sha256, userPassword.representation());
+        DigestResult hmacResult;
+        DigestResult iterationTemp = result;
+        foreach (_; 1..iteration)
         {
-            DigestResult iterationTemp = result;
-            foreach (_; 1..iteration)
-            {
-                DigestResult temp;
-                hmac.begin().digest(iterationTemp[]).finish(temp);
-                computeScramSHA256XOr(result, temp);
-                iterationTemp = temp;
-            }
+            hmac.begin().digest(iterationTemp[]).finish(hmacResult);
+            computeScramSHA256XOr(result, hmacResult);
+            iterationTemp = hmacResult;
         }
-
-        return result;
     }
 
     pragma(inline, true)
@@ -267,4 +276,13 @@ shared static this()
 DbAuth createAuthScram256()
 {
     return new PgAuthScram256();
+}
+
+unittest // PgAuthScram256.computeScramSHA256HashPassword
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgauth_scram.PgAuthScram256.computeScramSHA256HashPassword");
+
+    auto r = PgAuthScram256.computeScramSHA256HashPassword("masterkey", bytesFromHexs("12745ADF31A15F417F1496DA6F285551"), 4096);
+    assert(r[] == bytesFromHexs("C7025D14F64AFCD68B504E933FEF597BAAD89F35E7F7167FC0F5809B21018C05"));
 }

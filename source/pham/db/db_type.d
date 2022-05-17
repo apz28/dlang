@@ -180,14 +180,14 @@ enum DbFieldIdType : ubyte
 /**
  * Describes how to client send authenticated data to server
  * $(DbIntegratedSecurityConnection.legacy) name and password
- * $(DbIntegratedSecurityConnection.srp)
+ * $(DbIntegratedSecurityConnection.srp1)
  * $(DbIntegratedSecurityConnection.srp256)
  * $(DbIntegratedSecurityConnection.sspi)
  */
 enum DbIntegratedSecurityConnection : ubyte
 {
     legacy,
-    srp,
+    srp1,
     srp256,
     sspi,
 }
@@ -248,7 +248,7 @@ enum DbConnectionParameterIdentifier : string
     charset = "charset",
     compress = "compress",
     commandTimeout = "commandTimeout", /// In seconds - Sets the default value of the command timeout to be used.
-    connectionTimeout = "connectionTimeout", /// In seconds -
+    connectionTimeout = "connectionTimeout", /// In seconds
     database = "database",
     databaseFile = "databaseFile",
     encrypt = "encrypt",
@@ -259,10 +259,10 @@ enum DbConnectionParameterIdentifier : string
     packageSize = "packageSize",
     port = "port",
     pooling = "pooling",
-    poolTimeout = "poolTimeout", /// In seconds -
-    receiveTimeout = "receiveTimeout", /// In seconds -
+    poolTimeout = "poolTimeout", /// In seconds
+    receiveTimeout = "receiveTimeout", /// In seconds
     roleName = "role",
-    sendTimeout = "sendTimeout", /// In seconds -
+    sendTimeout = "sendTimeout", /// In seconds
     server = "server",
     userName = "user",
     userPassword = "password",
@@ -270,12 +270,19 @@ enum DbConnectionParameterIdentifier : string
     // For socket
     socketBlocking = "blocking",
     socketNoDelay = "noDelay",
+    socketSslCa = "sslCa",
+    socketSslCaDir = "sslCaDir",
+    socketSslCert = "sslCert",
+    socketSslKey = "sslKey",
+    socketSslKeyPassword = "sslKeyPassword",
+    socketSslVerificationHost = "sslVerificationHost",
+    socketSslVerificationMode = "sslVerificationMode", // SSL_VERIFY_NONE, SSL_VERIFY_PEER, SSL_VERIFY_FAIL_IF_NO_PEER_CERT, SSL_VERIFY_CLIENT_ONCE, ...
 
     // Specific to firebird
     fbCachePage = "cachePage",
     fbDatabaseTrigger = "databaseTrigger",
     fbDialect = "dialect",
-    fbDummyPacketInterval = "dummyPacketInterval", /// In seconds -
+    fbDummyPacketInterval = "dummyPacketInterval", /// In seconds
     fbGarbageCollect = "garbageCollect",
 
     // Specific to mysql
@@ -1842,7 +1849,7 @@ shared static this()
             DbConnectionParameterIdentifier.connectionTimeout : "10", // In seconds
             DbConnectionParameterIdentifier.encrypt : toName(DbEncryptedConnection.disabled),
             DbConnectionParameterIdentifier.fetchRecordCount : "200",
-            DbConnectionParameterIdentifier.integratedSecurity : toName(DbIntegratedSecurityConnection.srp),
+            DbConnectionParameterIdentifier.integratedSecurity : toName(DbIntegratedSecurityConnection.srp256),
             DbConnectionParameterIdentifier.maxPoolCount : "100",
             DbConnectionParameterIdentifier.minPoolCount : "0",
             DbConnectionParameterIdentifier.pooling : dbBoolTrue,

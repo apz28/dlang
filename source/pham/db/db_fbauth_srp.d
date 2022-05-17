@@ -51,49 +51,44 @@ public:
         this._authClient = new AuthClient(AuthParameters(digestId, proofDigestId, fbPrime), CipherKey.digitsToBigInteger(K));
     }
 
-    final const(ubyte)[] calculateProof(scope const(char)[] userName, scope const(char)[] userPassword, const(ubyte)[] serverAuthData)
+    final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
-        const(ubyte)[] serverAuthSalt, serverAuthPublicKey;
-        if (!parseServerAuthData(serverAuthData, serverAuthSalt, serverAuthPublicKey))
-            return null;
+        auto status = parseServerAuthData(serverAuthData);
+        if (status.isError)
+            return status;
 
         auto normalizedUserName = normalizeUserName(userName);
-        auto serverPublicKey = getServerAuthPublicKey(serverAuthPublicKey);
-        _premasterKey = _authClient.calculatePremasterKey(normalizedUserName, userPassword, serverAuthSalt, serverPublicKey);
-        _proof = calculateProof(normalizedUserName, userPassword, serverAuthSalt, serverPublicKey);
-        return bytesToHexs(_proof).representation();
+        auto serverPublicKeyInt = serverPublicKeyAsBigInteger;
+        scope (exit)
+            serverPublicKeyInt.dispose();
+
+        _premasterKey = _authClient.calculatePremasterKey(normalizedUserName, userPassword, serverSalt, serverPublicKeyInt);
+        _proof = calculateProof(normalizedUserName, userPassword, serverSalt, serverPublicKeyInt);
+        authData = CipherBuffer(bytesToHexs(_proof).representation());
+        return ResultStatus.ok();
     }
 
-    final override bool canCryptedConnection() const pure
-    {
-        return true;
-    }
-
-    final override const(ubyte)[] getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        const(ubyte)[] serverAuthData)
+    final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
-        if (state != _nextState || state > 1)
-        {
-            setError(state + 1, to!string(state), DbMessage.eInvalidConnectionAuthServerData);
-            return null;
-        }
+        auto status = checkAdvanceState(state);
+        if (status.isError)
+            return status;
 
-        _nextState++;
         if (state == 0)
-            return publicKey();
+        {
+            authData = CipherBuffer(publicKey());
+            return ResultStatus.ok();
+        }
         else if (state == 1)
-            return calculateProof(userName, userPassword, serverAuthData);
+            return calculateProof(userName, userPassword, serverAuthData, authData);
         else
             assert(0);
-    }
-
-    static BigInteger getServerAuthPublicKey(scope const(ubyte)[] serverAuthPublicKey) pure
-    {
-        return CipherKey.hexDigitsToBigInteger(serverAuthPublicKey);
     }
 
     final override size_t maxSizeServerAuthData(out size_t maxSaltLength) const pure
@@ -103,19 +98,9 @@ public:
         return (saltLength + keyLength + 2) * 2;  //+2 for leading size data
     }
 
-    final override const(ubyte)[] privateKey() const
+    @property final override bool canCryptedConnection() const pure
     {
-        return _authClient.ephemeralPrivateKey();
-    }
-
-    final override const(ubyte)[] publicKey() const
-    {
-        return _authClient.ephemeralPublicKey();
-    }
-
-    final override const(ubyte)[] sessionKey() const
-    {
-        return _sessionKey;
+        return true;
     }
 
     @property final override bool isSymantic() const @nogc pure
@@ -123,9 +108,29 @@ public:
         return true;
     }
 
-    @property final override int multiSteps() const @nogc pure
+    @property final override int multiStates() const @nogc pure
     {
         return 2; // No verification
+    }
+
+    @property final override const(ubyte)[] privateKey() const
+    {
+        return _authClient.ephemeralPrivateKey();
+    }
+
+    @property final override const(ubyte)[] publicKey() const
+    {
+        return _authClient.ephemeralPublicKey();
+    }
+
+    @property final BigInteger serverPublicKeyAsBigInteger() const pure
+    {
+        return CipherKey.hexDigitsToBigInteger(serverPublicKey);
+    }
+
+    @property final override const(ubyte)[] sessionKey() const
+    {
+        return _sessionKey;
     }
 
     @property final override string sessionKeyName() const pure
@@ -191,12 +196,9 @@ protected:
         }
         _premasterKey.dispose(disposing);
         _proof[] = 0;
+        _proof = null;
         _sessionKey[] = 0;
-        if (disposing)
-        {
-            _proof = null;
-            _sessionKey = null;
-        }
+        _sessionKey = null;
         super.doDispose(disposing);
     }
 
@@ -357,11 +359,12 @@ nothrow @safe unittest // PrimeGroup
 
     assert(fbPrime.N.toString() == FbAuthSrp.N);
     assert(fbPrime.g.toString() == "2");
-    assert(fbPrime.padSize == FbAuthSrp.keyLength);
+    assert(fbPrime.paddingSize == FbAuthSrp.keyLength);
 }
 
 version (unittest)
 {
+    import std.string : representation;
     import std.conv : to;
     import pham.utl.test;
 
@@ -380,19 +383,19 @@ version (unittest)
         auto privateKey = CipherKey.digitsToBigInteger(digitPrivateKey);
         auto serverAuthData = bytesFromHexs(serverHexAuthData);
         auto client = new FbAuthSrpSHA1(privateKey);
-        auto proof = client.calculateProof(testUserName, testUserPassword, serverAuthData);
-
+        CipherBuffer proof;
+        assert(client.calculateProof(testUserName, testUserPassword, serverAuthData, proof).isOK);
         assert(client._authClient.ephemeralPublic.toString() == digitExpectedPublicKey,
             "digitExpectedPublicKey(" ~ to!string(line) ~ "): " ~ client._authClient.ephemeralPublic.toString() ~ " ? " ~ digitExpectedPublicKey);
         assert(bytesToHexs(client.serverPublicKey) == expectedHexServerPublicKey,
             "expectedHexServerPublicKey(" ~ to!string(line) ~ "): " ~ bytesToHexs(client.serverPublicKey) ~ " ? " ~ expectedHexServerPublicKey);
         assert(bytesToHexs(client.serverSalt) == expectedHexServerSalt,
             "expectedHexServerSalt(" ~ to!string(line) ~ "): " ~ bytesToHexs(client.serverSalt) ~ " ? " ~ expectedHexServerSalt);
-        auto serverPublicKey = FbAuthSrpSHA1.getServerAuthPublicKey(client.serverPublicKey);
+        auto serverPublicKey = client.serverPublicKeyAsBigInteger;
         assert(serverPublicKey.toString() == expectedDigitServerPublicKey,
             "expectedDigitServerPublicKey(" ~ to!string(line) ~ "): " ~ serverPublicKey.toString() ~ " ? " ~ expectedDigitServerPublicKey);
-        assert(cast(const(char)[])proof == expectedHexProof,
-            "expectedHexProof(" ~ to!string(line) ~ "): " ~ cast(const(char)[])proof ~ " ? " ~ expectedHexProof);
+        assert(proof == expectedHexProof.representation(),
+            "expectedHexProof(" ~ to!string(line) ~ "): " ~ cast(const(char)[])(proof[]) ~ " ? " ~ expectedHexProof);
 
         client.dispose();
         client = null;

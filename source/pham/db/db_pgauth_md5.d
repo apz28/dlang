@@ -39,32 +39,24 @@ public:
      * Params:
      *  serverAuthData = is server salt
      */
-    final override const(ubyte)[] getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        const(ubyte)[] serverAuthData)
+    final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData);
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
-        if (state != _nextState || state != 0)
-        {
-            setError(state + 1, to!string(state), DbMessage.eInvalidConnectionAuthServerData);
-            return null;
-        }
+        auto status = checkAdvanceState(state);
+        if (status.isError)
+            return status;
 
-        //char[32]
-        static char[] MD5toHex(T...)(scope const(T) data) nothrow @safe
-        {
-            return md5Of(data).bytesToHexs(LetterCase.lower);
-        }
-
-        _nextState++;
         const md5Password = MD5toHex(userPassword, userName);
         auto result = new char[3 + 32];
         result[0..3] = "md5";
         result[3..$] = MD5toHex(md5Password, serverAuthData);
-        return result.representation;
+        authData = CipherBuffer(result.representation());
+        return ResultStatus.ok();
     }
 
-    @property final override int multiSteps() const @nogc pure
+    @property final override int multiStates() const @nogc pure
     {
         return 1;
     }
@@ -72,6 +64,13 @@ public:
     @property final override string name() const pure
     {
         return pgAuthMD5Name;
+    }
+
+private:
+    //char[32]
+    static char[] MD5toHex(T...)(scope const(T) data) nothrow @safe
+    {
+        return md5Of(data).bytesToHexs(LetterCase.lower);
     }
 }
 
@@ -91,12 +90,14 @@ DbAuth createAuthMD5()
 
 unittest // PgAuthMD5
 {
+    import std.string : representation;
     import pham.utl.object : bytesFromHexs;
     import pham.utl.test;
     traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgauth_md5.PgAuthMD5");
 
     auto salt = bytesFromHexs("9F170CAC");
     auto auth = new PgAuthMD5();
-    auto encp = cast(const(char)[])auth.getAuthData(0, "postgres", "masterkey", salt);
-    assert(encp == "md549f0896152ed83ec298a6c09b270be02", encp);
+    CipherBuffer encp;
+    assert(auth.getAuthData(0, "postgres", "masterkey", salt, encp).isOK);
+    assert(encp == "md549f0896152ed83ec298a6c09b270be02".representation(), encp.toString());
 }

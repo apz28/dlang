@@ -19,7 +19,7 @@ version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.utl.bit_array : BitArrayImpl, bitLengthToElement;
 import pham.utl.enum_set : toName;
-import pham.utl.object : shortClassName;
+import pham.utl.object : shortClassName, VersionString;
 import pham.db.buffer;
 import pham.db.database : DbNameColumn;
 import pham.db.message;
@@ -41,8 +41,8 @@ struct MyConnectingStateInfo
 nothrow @safe:
 
     MyAuth auth;
-    const(ubyte)[] authData;
-    const(ubyte)[] serverAuthData;
+    CipherBuffer authData;
+    CipherBuffer serverAuthData;
     string authMethod;
     string serverVersion;
     uint32 connectionFlags;
@@ -51,6 +51,7 @@ nothrow @safe:
     uint32 serverCapabilities;
     uint32 serverStatus;
     uint8 serverCharSetIndex;
+    bool isSSLConnection;
 }
 
 class MyProtocol : DbDisposableObject
@@ -67,62 +68,93 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.mydatabase")();
 
-        auto packageData = readPackageData();
-        auto reader = MyXdrReader(connection, packageData.buffer);
+        enum AuthKind : ubyte { ok, cont, change, }
+        AuthKind kind;
 
-        if (packageData.isAuthSwitch())
         {
-            if (packageData.isLastPacket())
+            auto packageData = readPackageData();
+            kind = packageData.isAuthSha2Caching(stateInfo.authMethod)
+                ? AuthKind.cont
+                : (packageData.isAuthSwitch() ? AuthKind.change : AuthKind.ok);
+            auto reader = MyXdrReader(connection, packageData.buffer);
+            final switch(kind)
             {
-                auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage("Old password");
-                throw new MyException(msg, DbErrorCode.connect, null);
+                case AuthKind.ok:
+                    return readOkResponse(reader);
+
+                case AuthKind.cont:
+                    auto allData = reader.buffer.consumeAll();
+                    stateInfo.serverAuthData = allData[1..$];
+                    break;
+
+                case AuthKind.change:
+                    if (packageData.isLastPacket())
+                    {
+                        auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage("Old password");
+                        throw new MyException(msg, DbErrorCode.connect, null);
+                    }
+                    const indicator = reader.readUInt8();
+                    assert(indicator == 0xfe);
+                    const newAuthMethod = reader.readCString();
+                    stateInfo.serverAuthData = reader.buffer.consumeAll();
+                    version (TraceFunction) traceFunction!("pham.db.mydatabase")("newAuthMethod=", newAuthMethod, ", stateInfo.authMethod=", stateInfo.authMethod);
+                    if (stateInfo.authMethod != newAuthMethod)
+                    {
+                        stateInfo.authMethod = newAuthMethod;
+                        stateInfo.auth = createAuth(stateInfo);
+                    }
+                    break;
             }
 
-            handleAuthenticationChallenge(reader, stateInfo);
+            return handleAuthenticationChallenge(stateInfo, kind == AuthKind.change);
         }
-
-        // React to the authentication type set by server: FAST, FULL.
-        //if (PluginName == "caching_sha2_password" && b[0] == 0x01)
-        //    ContinueAuthentication(new byte[] { b[1] });
-
-        return readOkResponse(reader);
     }
 
     final void connectAuthenticationWrite(ref MyConnectingStateInfo stateInfo)
     {
         version (TraceFunction) traceFunction!("pham.db.mydatabase")("stateInfo.connectionFlags=", stateInfo.connectionFlags);
 
-        ubyte[23] fillers;
         auto useCSB = connection.myConnectionStringBuilder;
-        auto writer = MyXdrWriter(connection);
+
+        ubyte[23] fillers;
+        auto writer = MyXdrWriter(connection, maxSinglePackage);
 
         if (stateInfo.authMethod.length != 0)
         {
-            stateInfo.auth = createAuth(stateInfo.authMethod);
-            stateInfo.authData = stateInfo.auth.getPassword(useCSB.userName, useCSB.userPassword, stateInfo.serverAuthData);
+            stateInfo.auth = createAuth(stateInfo);
+            stateInfo.auth.getPassword(useCSB.userName, useCSB.userPassword, stateInfo.authData);
         }
 
         writer.beginPackage(++sequenceByte);
         writer.writeUInt32(stateInfo.connectionFlags);
         writer.writeUInt32(maxSinglePackage);
-        writer.writeInt8(33); //character set utf-8
+        writer.writeInt8(myUTF8CharSetId);
         writer.writeOpaqueBytes(fillers[]);
 
         // SSL?
-        version (none)
-        if (useCSB.useSSL)
+        if (stateInfo.isSSLConnection)
         {
             writer.flush();
+
+            version (TraceFunction) traceFunction!("pham.db.mydatabase")("SSL?");
+            auto rs = connection.doOpenSSL();
+            if (rs.isError)
+            {
+                version (TraceFunction) traceFunction!("pham.db.mydatabase")("SSL failed code=", rs.errorCode, ", message=", rs.errorMessage);
+                connection.throwConnectError(rs.errorCode, rs.errorMessage);
+            }
+
+            writer.beginPackage(++sequenceByte);
             writer.writeUInt32(stateInfo.connectionFlags);
-            writer.writeUInt32(maxSinglePacket);
-            writer.writeInt8(33); //character set utf-8
+            writer.writeUInt32(maxSinglePackage);
+            writer.writeInt8(myUTF8CharSetId);
             writer.writeOpaqueBytes(fillers[]);
         }
 
         writer.writeCString(useCSB.userName);
 
         if (stateInfo.authData.length)
-            writer.writeOpaqueBytes(stateInfo.authData);
+            writer.writeOpaqueBytes(stateInfo.authData[]);
         else
             writer.writeInt8(0);
 
@@ -136,7 +168,7 @@ public:
         if ((stateInfo.connectionFlags & MyCapabilityFlags.connectAttrs) != 0)
         {
             Appender!string connectionAttrs;
-            connectionAttrs.reserve(1000);
+            connectionAttrs.reserve(1_000);
             foreach (name, value; useCSB.customAttributes.values)
             {
                 connectionAttrs.put(cast(char)truncate(name.length, ubyte.max));
@@ -163,7 +195,7 @@ public:
         stateInfo.protocolProcessId = reader.readInt32();
         this._protocolVersion = stateInfo.protocolVersion;
         connection.serverInfo[DbServerIdentifier.protocolVersion] = to!string(stateInfo.protocolVersion);
-        connection.serverInfo[DbServerIdentifier.dbVersion] = stateInfo.serverVersion;
+        connection.serverInfo[DbServerIdentifier.dbVersion] = stateInfo.serverVersion.idup;
         connection.serverInfo[DbServerIdentifier.protocolProcessId] = to!string(stateInfo.protocolProcessId);
 
         ubyte[] seedPart1 = reader.readCBytes();
@@ -186,9 +218,11 @@ public:
         ubyte[] seedPart2 = reader.readCBytes();
         stateInfo.serverAuthData = seedPart1 ~ seedPart2;
 
-        stateInfo.authMethod = (stateInfo.serverCapabilities & MyCapabilityFlags.pluginAuth) != 0
+        auto serverAuthMethod = (stateInfo.serverCapabilities & MyCapabilityFlags.pluginAuth) != 0
             ? reader.readCString()
-            : useCSB.integratedSecurityName();
+            : null;
+        auto settingAuthMethod = useCSB.integratedSecurityName();
+        stateInfo.authMethod = settingAuthMethod.length ? settingAuthMethod : serverAuthMethod;
 
         calculateConnectionFlags(stateInfo);
     }
@@ -197,7 +231,7 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.mydatabase")();
 
-        auto writer = MyXdrWriter(connection);
+        auto writer = MyXdrWriter(connection, maxSinglePackage);
         writer.beginPackage(0);
         writer.writeCommand(MyCmdId.closeStmt);
         writer.writeInt32(command.myHandle);
@@ -208,7 +242,7 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.mydatabase")();
 
-        auto writer = MyXdrWriter(connection);
+        auto writer = MyXdrWriter(connection, maxSinglePackage);
         writer.beginPackage(0);
         writer.writeCommand(MyCmdId.quit);
         writer.flush();
@@ -236,7 +270,7 @@ public:
         const hasCustomAttributes = lisQueryAttributes && command !is null ? command.customAttributes.length : 0;
         const hasParameters = command !is null ? command.hasParameters : 0;
 
-        auto writer = MyXdrWriter(connection);
+        auto writer = MyXdrWriter(connection, maxSinglePackage);
         writer.beginPackage(0);
         writer.writeCommand(MyCmdId.query);
 
@@ -257,8 +291,8 @@ public:
             }
 
             auto nullBitmap = BitArrayImpl!ubyte(hasParameters);
-            auto typeWriter = MyXdrWriter(null, types);
-            auto valueWriter = MyXdrWriter(null, values);
+            auto typeWriter = MyXdrWriter(null, maxSinglePackage, types);
+            auto valueWriter = MyXdrWriter(null, maxSinglePackage, values);
 
             if (hasParameters)
                 describeParameters(typeWriter, valueWriter, nullBitmap, cast(MyParameterList)command.parameters, lisQueryAttributes);
@@ -344,7 +378,7 @@ public:
         const lisQueryAttributes = isQueryAttributes;
         const hasCustomAttributes = lisQueryAttributes ? command.customAttributes.length : 0;
 
-        auto writer = MyXdrWriter(connection);
+        auto writer = MyXdrWriter(connection, maxSinglePackage);
         writer.beginPackage(0);
         writer.writeCommand(MyCmdId.execute);
         writer.writeInt32(command.myHandle);
@@ -365,8 +399,8 @@ public:
             }
 
             auto nullBitmap = BitArrayImpl!ubyte(command.hasParameters);
-            auto typeWriter = MyXdrWriter(null, types);
-            auto valueWriter = MyXdrWriter(null, values);
+            auto typeWriter = MyXdrWriter(null, maxSinglePackage, types);
+            auto valueWriter = MyXdrWriter(null, maxSinglePackage, values);
 
             if (command.hasParameters)
                 describeParameters(typeWriter, valueWriter, nullBitmap, cast(MyParameterList)command.parameters, lisQueryAttributes);
@@ -396,7 +430,7 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.mydatabase")();
 
-        auto writer = MyXdrWriter(connection);
+        auto writer = MyXdrWriter(connection, maxSinglePackage);
         writer.beginPackage(0);
         writer.writeCommand(MyCmdId.ping);
         writer.flush();
@@ -419,7 +453,7 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.mydatabase")();
 
-        auto writer = MyXdrWriter(connection);
+        auto writer = MyXdrWriter(connection, maxSinglePackage);
         writer.beginPackage(0);
         writer.writeCommand(MyCmdId.prepare);
         writer.writeOpaqueChars(sql);
@@ -457,7 +491,7 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.mydatabase")("databaseName=", databaseName);
 
-        auto writer = MyXdrWriter(connection);
+        auto writer = MyXdrWriter(connection, maxSinglePackage);
         writer.beginPackage(0);
         writer.writeCommand(MyCmdId.initDb);
         writer.writeOpaqueChars(databaseName);
@@ -686,6 +720,11 @@ public:
         return _connection;
     }
 
+    @property final uint32 connectionFlags() const @nogc nothrow pure
+    {
+        return _connectionFlags;
+    }
+
     @property final int32 protocolVersion() const @nogc nothrow pure
     {
         return _protocolVersion;
@@ -719,13 +758,14 @@ protected:
 
         // if the server allows it, tell it that we want long column info
         if ((stateInfo.serverCapabilities & MyCapabilityFlags.longFlag) != 0)
-          stateInfo.connectionFlags |= MyCapabilityFlags.longFlag;
+            stateInfo.connectionFlags |= MyCapabilityFlags.longFlag;
 
         // if the server supports it and it was requested, then turn on compression
         if ((stateInfo.serverCapabilities & MyCapabilityFlags.compress) != 0 && useCSB.compress)
           stateInfo.connectionFlags |= MyCapabilityFlags.compress;
 
-        stateInfo.connectionFlags |= MyCapabilityFlags.longPassword; // for long passwords
+        // for long passwords
+        stateInfo.connectionFlags |= MyCapabilityFlags.longPassword;
 
         // did the user request an interactive session?
         //if (useCSB.InteractiveSession)
@@ -734,37 +774,38 @@ protected:
         // if the server allows it and a database was specified, then indicate
         // that we will connect with a database name
         if ((stateInfo.serverCapabilities & MyCapabilityFlags.connectWithDb) != 0 && useCSB.databaseName.length != 0)
-          stateInfo.connectionFlags |= MyCapabilityFlags.connectWithDb;
+            stateInfo.connectionFlags |= MyCapabilityFlags.connectWithDb;
 
         // if the server is requesting a secure connection, then we oblige
         if ((stateInfo.serverCapabilities & MyCapabilityFlags.secureConnection) != 0)
-          stateInfo.connectionFlags |= MyCapabilityFlags.secureConnection;
-
-        // if the server is capable of SSL and the user is requesting SSL
-        //if ((stateInfo.serverCapabilities & MyCapabilityFlags.ssl) != 0 && useCSB.sslMode != ???)
-        //  stateInfo.connectionFlags |= MyCapabilityFlags.ssl;
+            stateInfo.connectionFlags |= MyCapabilityFlags.secureConnection;
 
         // if the server supports output parameters, then we do too
         if ((stateInfo.serverCapabilities & MyCapabilityFlags.psMutiResults) != 0)
-          stateInfo.connectionFlags |= MyCapabilityFlags.psMutiResults;
+            stateInfo.connectionFlags |= MyCapabilityFlags.psMutiResults;
 
-        if ((stateInfo.serverCapabilities & MyCapabilityFlags.pluginAuth) != 0 && stateInfo.authMethod.length != 0)
-          stateInfo.connectionFlags |= MyCapabilityFlags.pluginAuth;
+        if ((stateInfo.serverCapabilities & MyCapabilityFlags.pluginAuth) != 0)
+            stateInfo.connectionFlags |= MyCapabilityFlags.pluginAuth;
 
         // if the server supports connection attributes
         if ((stateInfo.serverCapabilities & MyCapabilityFlags.connectAttrs) != 0)
-          stateInfo.connectionFlags |= MyCapabilityFlags.connectAttrs;
+            stateInfo.connectionFlags |= MyCapabilityFlags.connectAttrs;
 
         version (none) // Not yet implementation
         if ((stateInfo.serverCapabilities & MyCapabilityFlags.canHandleExpiredPassword) != 0)
-          stateInfo.connectionFlags |= MyCapabilityFlags.canHandleExpiredPassword;
+            stateInfo.connectionFlags |= MyCapabilityFlags.canHandleExpiredPassword;
 
         // if the server supports query attributes
         if ((stateInfo.serverCapabilities & MyCapabilityFlags.queryAttributes) != 0)
-          stateInfo.connectionFlags |= MyCapabilityFlags.queryAttributes;
+            stateInfo.connectionFlags |= MyCapabilityFlags.queryAttributes;
 
         // need this to get server session trackers
         stateInfo.connectionFlags |= MyCapabilityFlags.sessionTrack;
+
+        // if the server is capable of SSL and the user is requesting SSL
+        stateInfo.isSSLConnection = isSSLConnection(stateInfo);
+        if (stateInfo.isSSLConnection)
+            stateInfo.connectionFlags |= MyCapabilityFlags.ssl; // | MyCapabilityFlags.sessionTrack;
 
         _connectionFlags = stateInfo.connectionFlags;
     }
@@ -775,19 +816,20 @@ protected:
         _protocolVersion = 0;
     }
 
-    final MyAuth createAuth(const(char)[] authMethod)
+    final MyAuth createAuth(ref MyConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) traceFunction!("pham.db.mydatabase")("stateInfo.authMethod=", stateInfo.authMethod);
 
-        auto authMap = MyAuth.findAuthMap(authMethod);
+        auto authMap = MyAuth.findAuthMap(stateInfo.authMethod);
         if (!authMap.isValid())
         {
-            auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(authMethod);
+            auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(stateInfo.authMethod);
             throw new MyException(msg, DbErrorCode.read, null);
         }
         auto result = cast(MyAuth)authMap.createAuth();
-        if (result.errorCode != 0)
-            throw new MyException(result.errorMessage, DbErrorCode.write, null);
+        result.isSSLConnection = stateInfo.isSSLConnection;
+        result.serverVersion = VersionString(stateInfo.serverVersion);
+        result.setServerSalt(stateInfo.serverAuthData[]);
         return result;
     }
 
@@ -1058,23 +1100,83 @@ protected:
         _connection = null;
     }
 
-    final void handleAuthenticationChallenge(ref MyXdrReader reader, ref MyConnectingStateInfo stateInfo)
+    final MyOkResponse handleAuthenticationChallenge(ref MyConnectingStateInfo stateInfo, bool authMethodChanged)
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) traceFunction!("pham.db.mydatabase")("authMethodChanged=", authMethodChanged, ", stateInfo.authMethod=", stateInfo.authMethod);
 
-        const indicator = reader.readUInt8();
-        assert(indicator == 0xfe);
+        auto useCSB = connection.myConnectionStringBuilder;
+        auto useUserName = useCSB.userName;
+        auto useUserPassword = useCSB.userPassword;
+        int authState = authMethodChanged ? 0 : 1;
 
-        const authMethod = reader.readString();
-		if (stateInfo.auth is null || authMethod != stateInfo.authMethod)
+		if (stateInfo.auth is null)
         {
-            auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(authMethod);
+            auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(stateInfo.authMethod);
             throw new MyException(msg, DbErrorCode.read, null);
         }
 
-        auto authData = reader.buffer.consumeAll();
+        {
+            auto status = stateInfo.auth.getAuthData(authState, useUserName, useUserPassword, stateInfo.serverAuthData[], stateInfo.authData);
+            if (status.isError)
+            {
+                auto msg = stateInfo.auth.getErrorMessage(status, stateInfo.authMethod);
+                throw new MyException(msg, DbErrorCode.read, null);
+            }
+            if (authMethodChanged && stateInfo.authData.length == 0)
+                stateInfo.authData.put(0x00);
+        }
 
-        //plugin.ContinueAuthentication();
+        while (stateInfo.authData.length)
+        {
+            // Create writer scope
+            {
+                auto writer = MyXdrWriter(connection, maxSinglePackage);
+                writer.beginPackage(++sequenceByte);
+                writer.writeOpaqueBytes(stateInfo.authData[]);
+                writer.flush();
+            }
+
+            // Create reader scope
+            {
+                auto packageData = readPackageData();
+                if (packageData.empty)
+                    return MyOkResponse.init;
+
+                auto allData = packageData.buffer.consumeAll();
+                if (allData[0] != 1)
+                    return MyOkResponse.init;
+
+                authState++;
+                stateInfo.serverAuthData = allData[1..$];
+                auto status = stateInfo.auth.getAuthData(authState, useUserName, useUserPassword,
+                    stateInfo.serverAuthData[], stateInfo.authData);
+                if (status.isError)
+                {
+                    auto msg = stateInfo.auth.getErrorMessage(status, stateInfo.authMethod);
+                    throw new MyException(msg, DbErrorCode.read, null);
+                }
+            }
+        }
+
+        auto ignoredData = readPackageData();
+        return MyOkResponse.init;
+    }
+
+    final bool isSSLConnection(ref MyConnectingStateInfo stateInfo) nothrow
+    {
+        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+
+        auto useCSB = connection.myConnectionStringBuilder;
+
+        final switch (useCSB.encrypt)
+        {
+            case DbEncryptedConnection.disabled:
+                return false;
+            case DbEncryptedConnection.enabled:
+                return (stateInfo.serverCapabilities & MyCapabilityFlags.ssl) != 0 && useCSB.hasSSL();
+            case DbEncryptedConnection.required:
+                return true;
+        }
     }
 
     final void prepareCommandReadFields(MyCommand command, ref MyCommandPreparedResponse info)
@@ -1181,6 +1283,15 @@ protected:
             throw new MyException(errorResult);
         }
         return result;
+    }
+
+    version (none)
+    final bool skipPackageData()
+    {
+        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+
+        auto result = MyReader(connection);
+        return !result.empty;
     }
 
     final void validateRequiredEncryption(ref MyConnectingStateInfo stateInfo, bool wasEncryptedSetup)
