@@ -1405,10 +1405,7 @@ version (Windows)
         TIME_ZONE_INFORMATION tzInfo;
         if (GetTimeZoneInformation(&tzInfo) != TIME_ZONE_ID_INVALID)
         {
-            version (none)
-            dgWriteln("tzInfo.Bias=", tzInfo.Bias
-                , ", tzInfo.DaylightBias=", tzInfo.DaylightBias
-                , ", tzInfo.StandardBias=", tzInfo.StandardBias);
+            //import pham.utl.test; dgWriteln("tzInfo.Bias=", tzInfo.Bias, ", tzInfo.DaylightBias=", tzInfo.DaylightBias, ", tzInfo.StandardBias=", tzInfo.StandardBias);
 
             const standardName = toName(tzInfo.StandardName);
             const daylightName = toName(tzInfo.DaylightName);

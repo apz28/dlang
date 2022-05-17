@@ -268,11 +268,7 @@ public:
                     this.separatorTimeCount++;
             }
 
-            version (none)
-            {
-                import pham.utl.test;
-                dgWriteln("elementl=", elementl, ", p=", p);
-            }
+            //import pham.utl.test; dgWriteln("elementl=", elementl, ", p=", p);
 
             this.elements[this.elementl - 1].incLength();
             lastPatternKind = toKind;
@@ -667,11 +663,7 @@ public:
         if (pattern.skipBlanks & SkipBlank.inner)
             skipLeadingBlank(dateTimeText);
 
-        version (none)
-        {
-            import pham.utl.test;
-            dgWriteln("scanAlpha: p=", p, ", dateTimeText=", dateTimeText[p..endP]);
-        }
+        //import pham.utl.test; dgWriteln("scanAlpha: p=", p, ", dateTimeText=", dateTimeText[p..endP]);
 
         result.begin = p;
         while (p < endP && isAlphaChar(dateTimeText[p]))
@@ -686,11 +678,7 @@ public:
         if (pattern.skipBlanks & SkipBlank.inner)
             skipLeadingBlank(dateTimeText);
 
-        version (none)
-        {
-            import pham.utl.test;
-            dgWriteln("scanChar: p=", p, ", dateTimeText=", dateTimeText[p..endP], ", c=", c);
-        }
+        //import pham.utl.test; dgWriteln("scanChar: p=", p, ", dateTimeText=", dateTimeText[p..endP], ", c=", c);
 
         const result = p < endP && dateTimeText[p] == c;
         if (result)
@@ -701,11 +689,7 @@ public:
     bool scanLiteral(return scope const(char)[] dateTimeText, scope const ref DateTimePattern pattern,
         scope const ref PatternMarker marker, out PatternMarker result) @nogc pure
     {
-        version (none)
-        {
-            import pham.utl.test;
-            dgWriteln("scanLiteral: p=", p, ", dateTimeText=", dateTimeText[p..endP], ", length=", marker.end - marker.begin);
-        }
+        //import pham.utl.test; dgWriteln("scanLiteral: p=", p, ", dateTimeText=", dateTimeText[p..endP], ", length=", marker.end - marker.begin);
 
         result.begin = p;
         size_t m = marker.begin;
@@ -739,11 +723,7 @@ public:
         if (pattern.skipBlanks & SkipBlank.inner)
             skipLeadingBlank(dateTimeText);
 
-        version (none)
-        {
-            import pham.utl.test;
-            dgWriteln("scanNumber: p=", p, ", dateTimeText=", dateTimeText[p..endP], ", charLimit=", charLimit);
-        }
+        //import pham.utl.test; dgWriteln("scanNumber: p=", p, ", dateTimeText=", dateTimeText[p..endP], ", charLimit=", charLimit);
 
         charCount = 0;
         result = 0;
@@ -762,11 +742,7 @@ public:
         if (pattern.skipBlanks & SkipBlank.inner)
             skipLeadingBlank(dateTimeText);
 
-        version (none)
-        {
-            import pham.utl.test;
-            dgWriteln("scanSymbol: p=", p, ", dateTimeText=", dateTimeText[p..endP]);
-        }
+        //import pham.utl.test; dgWriteln("scanSymbol: p=", p, ", dateTimeText=", dateTimeText[p..endP]);
 
         result.begin = p;
         while (p < endP && isSymbolChar(pattern, dateTimeText[p]))
