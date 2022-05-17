@@ -10,7 +10,7 @@
 module pham.external.std.windows.sspi;
 
 version (Windows):
-nothrow @trusted:
+nothrow:
 
 version (ANSI)
 {}
@@ -19,15 +19,14 @@ else
     version = Unicode;
 }
 
-import core.sys.windows.windef;
-import core.sys.windows.ntdef;
-import core.sys.windows.w32api;
-import core.sys.windows.security;
-import core.sys.windows.ntsecapi;
-import core.sys.windows.subauth;
-
-enum SEC_E_OK = 0;
-enum SEC_I_CONTINUE_NEEDED = 0x90312;
+import core.sys.windows.windef : HANDLE, LUID, PLUID, PVOID, ULONG, PULONG, ULONG_PTR, USHORT;
+import core.sys.windows.ntdef : UNICODE_STRING;
+import core.sys.windows.w32api : _WIN32_WINNT;
+import core.sys.windows.security : SEC_CHAR, SEC_WCHAR,
+    SEC_E_OK, SEC_I_CONTINUE_NEEDED, SEC_I_COMPLETE_NEEDED, SEC_I_COMPLETE_AND_CONTINUE;
+public import core.sys.windows.security : SECURITY_STATUS;
+//import core.sys.windows.ntsecapi;
+//import core.sys.windows.subauth;
 
 enum : ULONG
 {
@@ -190,6 +189,14 @@ public:
     ubyte[] secBufferData;
 }
 
+struct RequestSecResult
+{
+nothrow @safe:
+
+    SECURITY_STATUS status;
+    string message;
+}
+
 struct RequestSecClient
 {
 import std.conv : to;
@@ -227,7 +234,7 @@ public:
         }
     }
 
-    ubyte[] authenticate(string remotePrincipal, const(ubyte)[] authData, ref int status, ref string message)
+    bool authenticate(string remotePrincipal, scope const(ubyte)[] serverAuthData, ref RequestSecResult errorStatus, ref ubyte[] authData) @trusted
     {
         ULONG contextAttributes;
         RequestSecBufferDesc requestSecBufferDesc, serverSecBufferDesc;
@@ -238,33 +245,47 @@ public:
         }
 
         auto remotePrincipalz = remotePrincipal.length != 0 ? remotePrincipal.toStringz() : null;
-		status = InitializeSecurityContextA(&clientCredentials, &clientContext, remotePrincipalz,
-            ISC_REQ_STANDARD_CONTEXT_ATTRIBUTES, 0, SECURITY_NATIVE_DREP, serverSecBufferDesc.initServerContext(authData), 0,
+		errorStatus.status = InitializeSecurityContextA(&clientCredentials, &clientContext, remotePrincipalz,
+            ISC_REQ_STANDARD_CONTEXT_ATTRIBUTES, 0, SECURITY_NATIVE_DREP, serverSecBufferDesc.initServerContext(serverAuthData), 0,
 			&clientContext, requestSecBufferDesc.initClientContext(), &contextAttributes, &clientContextTimestamp);
-		if (status != 0)
+
+        if (errorStatus.status == SEC_I_COMPLETE_NEEDED || errorStatus.status == SEC_I_COMPLETE_AND_CONTINUE)
         {
-            message = "InitializeSecurityContextA() failed: " ~ to!string(status);
-            return null;
+            errorStatus.status = CompleteAuthToken(&clientContext, requestSecBufferDesc.initClientContext());
+            if (errorStatus.status != SEC_E_OK)
+            {
+                errorStatus.message = "CompleteAuthToken() failed: " ~ to!string(errorStatus.status);
+                return false;
+            }
         }
 
-        return requestSecBufferDesc.getSecBytes();
+		if (errorStatus.status == SEC_E_OK || errorStatus.status == SEC_I_CONTINUE_NEEDED)
+        {
+            authData = requestSecBufferDesc.getSecBytes();
+            return true;
+        }
+        else
+        {
+            errorStatus.message = "InitializeSecurityContextA() failed: " ~ to!string(errorStatus.status);
+            return false;
+        }
     }
 
-    ubyte[] init(string secPackage, string remotePrincipal, ref int status, ref string message)
+    bool init(string secPackage, string remotePrincipal, ref RequestSecResult errorStatus, ref ubyte[] authData)
     in
     {
         assert(secPackage.length != 0);
     }
     do
     {
-        if (!initClientCredentials(secPackage, status, message))
-            return [];
-
-        return initClientContext(remotePrincipal, status, message);
+        if (initClientCredentials(secPackage, errorStatus))
+            return initClientContext(remotePrincipal, errorStatus, authData);
+        else
+            return false;
     }
 
 private:
-    ubyte[] initClientContext(string remotePrincipal, ref int status, ref string message)
+    bool initClientContext(string remotePrincipal, ref RequestSecResult errorStatus, ref ubyte[] authData) @trusted
     {
         ULONG contextAttributes;
         RequestSecBufferDesc requestSecBufferDesc;
@@ -272,26 +293,44 @@ private:
             requestSecBufferDesc.dispose();
 
         auto remotePrincipalz = remotePrincipal.length != 0 ? remotePrincipal.toStringz() : null;
-        status = InitializeSecurityContextA(&clientCredentials, null, remotePrincipalz,
+        errorStatus.status = InitializeSecurityContextA(&clientCredentials, null, remotePrincipalz,
             ISC_REQ_STANDARD_CONTEXT_ATTRIBUTES, 0, SECURITY_NATIVE_DREP, null, 0,
             &clientContext, requestSecBufferDesc.initClientContext(), &contextAttributes, &clientContextTimestamp);
-		if (status != 0 && status != SEC_I_CONTINUE_NEEDED)
+
+        if (errorStatus.status == SEC_I_COMPLETE_NEEDED || errorStatus.status == SEC_I_COMPLETE_AND_CONTINUE)
         {
-            message = "InitializeSecurityContextA() failed: " ~ to!string(status);
-            return [];
+            errorStatus.status = CompleteAuthToken(&clientContext, requestSecBufferDesc.initClientContext());
+            if (errorStatus.status != SEC_E_OK)
+            {
+                errorStatus.message = "CompleteAuthToken() failed: " ~ to!string(errorStatus.status);
+                return false;
+            }
         }
 
-        return requestSecBufferDesc.getSecBytes();
+		if (errorStatus.status == SEC_E_OK || errorStatus.status == SEC_I_CONTINUE_NEEDED)
+        {
+            authData = requestSecBufferDesc.getSecBytes();
+            return true;
+        }
+        else
+        {
+            errorStatus.message = "InitializeSecurityContextA() failed: " ~ to!string(errorStatus.status);
+            return false;
+        }
     }
 
-    bool initClientCredentials(string secPackage, ref int status, ref string message)
+    bool initClientCredentials(string secPackage, ref RequestSecResult errorStatus)
     {
         auto secPackagez = secPackage.length != 0 ? secPackage.toStringz() : null;
-		status = AcquireCredentialsHandleA(null, secPackagez, SECPKG_CRED_OUTBOUND,
+		errorStatus.status = AcquireCredentialsHandleA(null, secPackagez, SECPKG_CRED_OUTBOUND,
             null, null, null, null, &clientCredentials, &clientCredentialsTimestamp);
-		if (status != 0)
-            message = "AcquireCredentialsHandleA() failed: " ~ to!string(status);
-        return status == 0;
+		if (errorStatus.status != SEC_E_OK)
+        {
+            errorStatus.message = "AcquireCredentialsHandleA() failed: " ~ to!string(errorStatus.status);
+            return false;
+        }
+        else
+            return true;
     }
 
 public:
@@ -301,6 +340,7 @@ public:
 }
 
 extern (Windows):
+@trusted:
 
 struct SecHandle
 {
