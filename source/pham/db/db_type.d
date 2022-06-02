@@ -106,6 +106,12 @@ enum DbCommandType : ubyte
     ddl,
 }
 
+enum DbCompressConnection : ubyte
+{
+    disabled,
+    zip,
+}
+
 /**
  * Describes state of the connection
  * $(DbConnectionState.closed) The connection is closed
@@ -1677,7 +1683,7 @@ public:
     DbType dbType;
 }
 
-static immutable string[string] dbDefaultParameterValues;
+static immutable string[string] dbDefaultConnectionValues;
 
 enum dynamicTypeSize = -1; // blob/text - no limit
 enum runtimeTypeSize = -2; // fixed/vary length string/array - limit
@@ -1841,11 +1847,11 @@ private:
 
 shared static this()
 {
-    dbDefaultParameterValues = () nothrow pure @trusted // @trusted=cast()
+    dbDefaultConnectionValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(string[string]))[
             DbConnectionParameterIdentifier.charset : "UTF8",
-            DbConnectionParameterIdentifier.compress : dbBoolFalse,
+            DbConnectionParameterIdentifier.compress : toName(DbCompressConnection.disabled),
             DbConnectionParameterIdentifier.connectionTimeout : "10", // In seconds
             DbConnectionParameterIdentifier.encrypt : toName(DbEncryptedConnection.disabled),
             DbConnectionParameterIdentifier.fetchRecordCount : "200",

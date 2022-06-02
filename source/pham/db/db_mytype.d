@@ -142,9 +142,9 @@ static immutable ubyte[] myDH2048_g = [
     0x05,
     ];
 
-static immutable string[string] myDefaultParameterValues;
+static immutable string[string] myDefaultConnectionParameterValues;
 
-static immutable string[] myValidParameterNames = [
+static immutable string[] myValidConnectionParameterNames = [
     // Primary
     DbConnectionParameterIdentifier.server,
     DbConnectionParameterIdentifier.port,
@@ -565,7 +565,7 @@ private:
 
 shared static this() nothrow
 {
-    myDefaultParameterValues = () nothrow pure @trusted // @trusted=cast()
+    myDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(string[string]))[
             DbConnectionParameterIdentifier.port : "3306", // x_protocol=33060

@@ -31,7 +31,7 @@ import pham.db.type;
 import pham.db.util;
 import pham.db.value;
 
-static immutable string[string] skDefaultParameterValues;
+static immutable string[string] skDefaultConnectionParameterValues;
 
 class SkCommand : DbCommand
 {
@@ -604,7 +604,7 @@ protected:
         if (result.length == 0)
         {
             auto n = DbIdentitier(name);
-            result = assumeWontThrow(skDefaultParameterValues.get(n, null));
+            result = assumeWontThrow(skDefaultConnectionParameterValues.get(n, null));
         }
         return result;
     }
@@ -783,7 +783,7 @@ private:
 
 shared static this()
 {
-    skDefaultParameterValues = () nothrow pure @trusted // @trusted=cast()
+    skDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(string[string]))[
             DbConnectionParameterIdentifier.packageSize : "‭16383‬", // In bytes - do not add underscore, to!... does not work

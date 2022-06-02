@@ -1652,7 +1652,7 @@ public:
 
     final override const(string[]) parameterNames() const nothrow @safe
     {
-        return fbValidParameterNames;
+        return fbValidConnectionParameterNames;
     }
 
     @property final uint32 cachePages() nothrow @safe
@@ -1689,7 +1689,7 @@ protected:
     final override string getDefault(string name) const nothrow @safe
     {
         auto n = DbIdentitier(name);
-        auto result = assumeWontThrow(fbDefaultParameterValues.get(n, null));
+        auto result = assumeWontThrow(fbDefaultConnectionParameterValues.get(n, null));
         if (result.ptr is null)
             result = super.getDefault(name);
         return result;
@@ -1697,7 +1697,7 @@ protected:
 
     final override void setDefaultIfs() nothrow @safe
     {
-        foreach (dpv; fbDefaultParameterValues.byKeyValue)
+        foreach (dpv; fbDefaultConnectionParameterValues.byKeyValue)
             putIf(dpv.key, dpv.value);
         super.setDefaultIfs();
     }
@@ -2018,7 +2018,7 @@ version (UnitTestFBDatabase)
 {
     FbConnection createTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
-        bool compress = false,
+        DbCompressConnection compress = DbCompressConnection.disabled,
         DbIntegratedSecurityConnection integratedSecurity = DbIntegratedSecurityConnection.srp1)
     {
         auto db = DbDatabaseList.getDb(DbScheme.fb);
@@ -2185,7 +2185,7 @@ unittest // FbConnection.integratedSecurity
 
     version (Windows)
     {
-        auto connection = createTestConnection(DbEncryptedConnection.enabled, false, DbIntegratedSecurityConnection.srp256);
+        auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.disabled, DbIntegratedSecurityConnection.srp256);
         scope (exit)
         {
             connection.dispose();
@@ -2205,9 +2205,9 @@ version (UnitTestFBDatabase)
 unittest // FbConnection.encrypt.compress
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbdatabase.FbConnection - encrypt=required, compress=true");
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbdatabase.FbConnection - encrypt=required, compress=zip");
 
-    auto connection = createTestConnection(DbEncryptedConnection.required, true);
+    auto connection = createTestConnection(DbEncryptedConnection.required, DbCompressConnection.zip);
     scope (exit)
     {
         connection.dispose();
@@ -2265,12 +2265,12 @@ unittest // FbTransaction
 }
 
 version (UnitTestFBDatabase)
-unittest // FbTransaction
+unittest // FbTransaction.encrypt.compress
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbdatabase.FbTransaction - encrypt=enabled, compress=true");
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbdatabase.FbTransaction - encrypt=enabled, compress=zip");
 
-    auto connection = createTestConnection(DbEncryptedConnection.enabled, true);
+    auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
     scope (exit)
     {
         connection.close();
@@ -2326,10 +2326,10 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.DDL.encrypt.compress
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbdatabase.FbCommand.DDL - encrypt=enabled, compress=true");
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbdatabase.FbCommand.DDL - encrypt=enabled, compress=zip");
 
     bool failed = true;
-    auto connection = createTestConnection(DbEncryptedConnection.enabled, true);
+    auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
     scope (exit)
     {
         if (failed)
@@ -2942,10 +2942,10 @@ unittest // FbCommand.DML.encrypt.compress
 {
     import std.math;
     import pham.utl.test;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbdatabase.FbCommand.DML - Simple select with encrypt=enabled, compress=true");
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbdatabase.FbCommand.DML - Simple select with encrypt=enabled, compress=zip");
 
     bool failed = true;
-    auto connection = createTestConnection(DbEncryptedConnection.enabled, true);
+    auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
     scope (exit)
     {
         if (failed)

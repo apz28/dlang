@@ -876,7 +876,7 @@ public:
 
     final override const(string[]) parameterNames() const nothrow @safe
     {
-        return myValidParameterNames;
+        return myValidConnectionParameterNames;
     }
 
     @property final bool allowUserVariables() const nothrow @safe
@@ -900,7 +900,7 @@ protected:
     final override string getDefault(string name) const nothrow @safe
     {
         auto n = DbIdentitier(name);
-        auto result = assumeWontThrow(myDefaultParameterValues.get(n, null));
+        auto result = assumeWontThrow(myDefaultConnectionParameterValues.get(n, null));
         if (result.ptr is null)
             result = super.getDefault(name);
         return result;
@@ -908,7 +908,7 @@ protected:
 
     final override void setDefaultIfs() nothrow @safe
     {
-        foreach (dpv; myDefaultParameterValues.byKeyValue)
+        foreach (dpv; myDefaultConnectionParameterValues.byKeyValue)
             putIf(dpv.key, dpv.value);
         super.setDefaultIfs();
     }
@@ -1271,7 +1271,7 @@ version (UnitTestMYDatabase)
 {
     MyConnection createTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
-        bool compress = false)
+        DbCompressConnection compress = DbCompressConnection.disabled)
     {
     import std.file : thisExePath;
 

@@ -429,18 +429,20 @@ public:
 
         void setupCompression()
         {
-			if (canCompressConnection(stateInfo))
+            const compress = canCompressConnection(stateInfo);
+			if (compress == DbCompressConnection.zip)
             {
-                connection.serverInfo[DbServerIdentifier.protocolCompressed] = dbBoolTrue;
+                connection.serverInfo[DbServerIdentifier.protocolCompressed] = toName(compress);
                 compressSetupBufferFilter();
             }
         }
 
         bool setupEncryption()
         {
-            if (canCryptedConnection(stateInfo))
+            const encrypted = canCryptedConnection(stateInfo);
+            if (encrypted != DbEncryptedConnection.disabled)
             {
-                connection.serverInfo[DbServerIdentifier.protocolEncrypted] = dbBoolTrue;
+                connection.serverInfo[DbServerIdentifier.protocolEncrypted] = toName(encrypted);
                 cryptWrite(stateInfo);
                 cryptSetupBufferFilter(stateInfo); // after writing before reading
                 cryptRead(stateInfo);
@@ -1090,23 +1092,27 @@ protected:
 		writer.flush();
     }
 
-    final bool canCompressConnection(ref FbConnectingStateInfo stateInfo) nothrow
+    final DbCompressConnection canCompressConnection(ref FbConnectingStateInfo stateInfo) nothrow
     {
         if (stateInfo.serverVersion < FbIsc.protocol_version13)
-            return false;
+            return DbCompressConnection.disabled;
 
         if ((stateInfo.serverAcceptType & FbIsc.ptype_compress_flag) == 0)
-			return false;
+			return DbCompressConnection.disabled;
 
         return connection.fbConnectionStringBuilder.compress;
     }
 
-    final bool canCryptedConnection(ref FbConnectingStateInfo stateInfo) nothrow
+    final DbEncryptedConnection canCryptedConnection(ref FbConnectingStateInfo stateInfo) nothrow
     {
         if (stateInfo.serverVersion < FbIsc.protocol_version13)
-            return false;
+            return DbEncryptedConnection.disabled;
 
-        return stateInfo.auth !is null && stateInfo.auth.canCryptedConnection() && getCryptedConnectionCode() != FbIsc.connect_crypt_disabled;
+        return stateInfo.auth !is null
+                && stateInfo.auth.canCryptedConnection()
+                && getCryptedConnectionCode() != FbIsc.connect_crypt_disabled
+            ? DbEncryptedConnection.enabled
+            : DbEncryptedConnection.disabled;
     }
 
     final void clearServerInfo()

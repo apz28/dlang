@@ -36,9 +36,9 @@ static immutable string pgAuthClearTextName = "ClearText";
 static immutable string pgAuthMD5Name = "MD5";
 static immutable string pgAuthScram256Name = "SCRAM-SHA-256";
 
-static immutable string[string] pgDefaultParameterValues;
+static immutable string[string] pgDefaultConnectionParameterValues;
 
-static immutable string[] pgValidParameterNames = [
+static immutable string[] pgValidConnectionParameterNames = [
     // Primary
     DbConnectionParameterIdentifier.server,
     DbConnectionParameterIdentifier.port,
@@ -900,7 +900,7 @@ private:
 
 shared static this()
 {
-    pgDefaultParameterValues = () nothrow pure @trusted // @trusted=cast()
+    pgDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(string[string]))[
             DbConnectionParameterIdentifier.port : "5432",

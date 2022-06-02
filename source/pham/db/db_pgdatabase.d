@@ -1217,7 +1217,7 @@ public:
 
     final override const(string[]) parameterNames() const nothrow @safe
     {
-        return pgValidParameterNames;
+        return pgValidConnectionParameterNames;
     }
 
     @property final override DbScheme scheme() const nothrow pure @safe
@@ -1229,7 +1229,7 @@ protected:
     final override string getDefault(string name) const nothrow @safe
     {
         auto n = DbIdentitier(name);
-        auto result = assumeWontThrow(pgDefaultParameterValues.get(n, null));
+        auto result = assumeWontThrow(pgDefaultConnectionParameterValues.get(n, null));
         if (result.ptr is null)
             result = super.getDefault(name);
         return result;
@@ -1237,7 +1237,7 @@ protected:
 
     final override void setDefaultIfs() nothrow @safe
     {
-        foreach (dpv; pgDefaultParameterValues.byKeyValue)
+        foreach (dpv; pgDefaultConnectionParameterValues.byKeyValue)
             putIf(dpv.key, dpv.value);
         super.setDefaultIfs();
     }
@@ -1593,7 +1593,7 @@ version (UnitTestPGDatabase)
 {
     PgConnection createTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
-        bool compress = false)
+        DbCompressConnection compress = DbCompressConnection.disabled)
     {
         auto db = DbDatabaseList.getDb(DbScheme.pg);
         assert(cast(PgDatabase)db !is null);

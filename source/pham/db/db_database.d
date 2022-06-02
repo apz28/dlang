@@ -2023,15 +2023,21 @@ public:
         return this;
     }
 
-    @property final bool compress() const nothrow @safe
+    @property final DbCompressConnection compress() const nothrow @safe
     {
-        return isDbTrue(getString(DbConnectionParameterIdentifier.compress));
+        // Backward compatible with previous version (bool value)
+        const s = getString(DbConnectionParameterIdentifier.compress);
+        if (s == dbBoolFalse)
+            return DbCompressConnection.disabled;
+        else if (s == dbBoolTrue)
+            return DbCompressConnection.zip;
+        else
+            return toEnum!DbCompressConnection(s);
     }
 
-    @property final typeof(this) compress(bool value) nothrow
+    @property final typeof(this) compress(DbCompressConnection value) nothrow
     {
-        auto setValue = value ? dbBoolTrue : dbBoolFalse;
-        put(DbConnectionParameterIdentifier.compress, setValue);
+        put(DbConnectionParameterIdentifier.compress, toName(value));
         return this;
     }
 
@@ -2308,7 +2314,7 @@ protected:
     string getDefault(string name) const nothrow @safe
     {
         auto n = DbIdentitier(name);
-        return assumeWontThrow(dbDefaultParameterValues.get(n, null));
+        return assumeWontThrow(dbDefaultConnectionValues.get(n, null));
     }
 
     final string getString(string name) const nothrow @safe
@@ -2341,7 +2347,7 @@ protected:
 
     void setDefaultIfs() nothrow @safe
     {
-        foreach (dpv; dbDefaultParameterValues.byKeyValue)
+        foreach (dpv; dbDefaultConnectionValues.byKeyValue)
             putIf(dpv.key, dpv.value);
     }
 

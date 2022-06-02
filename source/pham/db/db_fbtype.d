@@ -69,9 +69,9 @@ enum FbIscCommandType : int32
 	savePoint = FbIsc.isc_info_sql_stmt_savepoint,
 }
 
-static immutable string[string] fbDefaultParameterValues;
+static immutable string[string] fbDefaultConnectionParameterValues;
 
-static immutable string[] fbValidParameterNames = [
+static immutable string[] fbValidConnectionParameterNames = [
     // Primary
     DbConnectionParameterIdentifier.server,
     DbConnectionParameterIdentifier.port,
@@ -1790,7 +1790,7 @@ private:
 
 shared static this() nothrow
 {
-    fbDefaultParameterValues = () nothrow pure @trusted // @trusted=cast()
+    fbDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(string[string]))[
             DbConnectionParameterIdentifier.port : "3050",

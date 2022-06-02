@@ -51,7 +51,7 @@ nothrow @safe:
     uint32 serverCapabilities;
     uint32 serverStatus;
     uint8 serverCharSetIndex;
-    bool isSSLConnection;
+    DbEncryptedConnection canCryptedConnection;
 }
 
 class MyProtocol : DbDisposableObject
@@ -132,7 +132,7 @@ public:
         writer.writeOpaqueBytes(fillers[]);
 
         // SSL?
-        if (stateInfo.isSSLConnection)
+        if (stateInfo.canCryptedConnection != DbEncryptedConnection.disabled)
         {
             writer.flush();
 
@@ -143,6 +143,8 @@ public:
                 version (TraceFunction) traceFunction!("pham.db.mydatabase")("SSL failed code=", rs.errorCode, ", message=", rs.errorMessage);
                 connection.throwConnectError(rs.errorCode, rs.errorMessage);
             }
+
+            connection.serverInfo[DbServerIdentifier.protocolEncrypted] = toName(stateInfo.canCryptedConnection);
 
             writer.beginPackage(++sequenceByte);
             writer.writeUInt32(stateInfo.connectionFlags);
@@ -803,11 +805,30 @@ protected:
         stateInfo.connectionFlags |= MyCapabilityFlags.sessionTrack;
 
         // if the server is capable of SSL and the user is requesting SSL
-        stateInfo.isSSLConnection = isSSLConnection(stateInfo);
-        if (stateInfo.isSSLConnection)
+        stateInfo.canCryptedConnection = canCryptedConnection(stateInfo);
+        if (stateInfo.canCryptedConnection != DbEncryptedConnection.disabled)
             stateInfo.connectionFlags |= MyCapabilityFlags.ssl; // | MyCapabilityFlags.sessionTrack;
 
         _connectionFlags = stateInfo.connectionFlags;
+    }
+
+    final DbEncryptedConnection canCryptedConnection(ref MyConnectingStateInfo stateInfo) nothrow
+    {
+        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+
+        auto useCSB = connection.myConnectionStringBuilder;
+
+        final switch (useCSB.encrypt)
+        {
+            case DbEncryptedConnection.disabled:
+                return DbEncryptedConnection.disabled;
+            case DbEncryptedConnection.enabled:
+                return (stateInfo.serverCapabilities & MyCapabilityFlags.ssl) != 0 && useCSB.hasSSL()
+                    ? DbEncryptedConnection.enabled
+                    : DbEncryptedConnection.disabled;
+            case DbEncryptedConnection.required:
+                return DbEncryptedConnection.required;
+        }
     }
 
     final void clearServerInfo()
@@ -827,7 +848,7 @@ protected:
             throw new MyException(msg, DbErrorCode.read, null);
         }
         auto result = cast(MyAuth)authMap.createAuth();
-        result.isSSLConnection = stateInfo.isSSLConnection;
+        result.isSSLConnection = stateInfo.canCryptedConnection != DbEncryptedConnection.disabled;
         result.serverVersion = VersionString(stateInfo.serverVersion);
         result.setServerSalt(stateInfo.serverAuthData[]);
         return result;
@@ -1160,23 +1181,6 @@ protected:
 
         auto ignoredData = readPackageData();
         return MyOkResponse.init;
-    }
-
-    final bool isSSLConnection(ref MyConnectingStateInfo stateInfo) nothrow
-    {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
-
-        auto useCSB = connection.myConnectionStringBuilder;
-
-        final switch (useCSB.encrypt)
-        {
-            case DbEncryptedConnection.disabled:
-                return false;
-            case DbEncryptedConnection.enabled:
-                return (stateInfo.serverCapabilities & MyCapabilityFlags.ssl) != 0 && useCSB.hasSSL();
-            case DbEncryptedConnection.required:
-                return true;
-        }
     }
 
     final void prepareCommandReadFields(MyCommand command, ref MyCommandPreparedResponse info)
