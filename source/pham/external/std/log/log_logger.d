@@ -15,7 +15,8 @@ module pham.external.std.log.logger;
 import core.atomic : atomicLoad, atomicStore,  MemoryOrder;
 import core.sync.mutex : Mutex;
 import core.thread : ThreadID;
-public import core.time : Duration, dur, msecs;
+import core.time : dur, msecs;
+public import core.time : Duration;
 import std.array : Appender;
 import std.conv : emplace, to;
 import std.datetime.date : DateTime;
@@ -26,7 +27,8 @@ import std.process : thisThreadID;
 import std.range.primitives : empty, front, popFront;
 import std.stdio : File;
 import std.traits : isDynamicArray, isIntegral, isSomeString, Unqual;
-import std.typecons : Flag, Yes;
+import std.typecons : Flag;
+public import std.typecons : No, Yes;
 import std.utf : encode;
 
 version (DebugLogger) import std.stdio : writeln;
@@ -110,65 +112,9 @@ template moduleLogLevel(string moduleName)
     }
 }
 
-/**
- * This template evaluates if the passed `LogLevel` is active.
- * The previously described version statements are used to decide if the
- * `LogLevel` is active. The version statements only influence the compile
- * unit they are used with, therefore this function can only disable logging this
- * specific compile unit.
- */
-template isLoggingActive(LogLevel ll)
-{
-    version (DisableLogger)
-    {
-        enum isLoggingActive = false;
-    }
-    else
-    {
-        static if (ll == LogLevel.trace)
-        {
-            version (DisableLoggerTrace) enum isLoggingActive = false;
-        }
-        static if (ll == LogLevel.debug_)
-        {
-            version (DisableLoggerDebug_) enum isLoggingActive = false;
-        }
-        else static if (ll == LogLevel.info)
-        {
-            version (DisableLoggerInfo) enum isLoggingActive = false;
-        }
-        else static if (ll == LogLevel.warn)
-        {
-            version (DisableLoggerWarn) enum isLoggingActive = false;
-        }
-        else static if (ll == LogLevel.error)
-        {
-            version (DisableLoggerError) enum isLoggingActive = false;
-        }
-        else static if (ll == LogLevel.critical)
-        {
-            version (DisableLoggerCritical) enum isLoggingActive = false;
-        }
-        else static if (ll == LogLevel.fatal)
-        {
-            version (DisableLoggerFatal) enum isLoggingActive = false;
-        }
-
-        // If `isLoggingActive` didn't get defined above to false,
-        // we default it to true.
-        static if (!is(typeof(isLoggingActive) == bool))
-        {
-            enum isLoggingActive = true;
-        }
-    }
-}
-
-/// This compile-time flag is `true` if logging is not statically disabled.
-enum isStaticLoggingActive = isLoggingActive!(defaultStaticLogLevel);
-
 template isStaticModuleLoggingActive(LogLevel ll, string moduleName)
 {
-    enum isStaticModuleLoggingActive = isLoggingActive!ll && ll >= moduleLogLevel!moduleName;
+    enum isStaticModuleLoggingActive = ll >= moduleLogLevel!moduleName;
 }
 
 /**
@@ -182,47 +128,12 @@ bool isLoggingEnabled(const(LogLevel) ll, const(LogLevel) moduleLL, const(LogLev
 {
     version (DebugLogger) debug writeln("isLoggingEnabled().ll=", ll, ", moduleLL=", moduleLL, ", loggerLL=", loggerLL, ", globalLL=", globalLL);
 
-    static if (!isStaticLoggingActive)
-    {
+    version (DisableLogger)
         return false;
-    }
     else
     {
-        version (DisableLogger)
-            return false;
-        else
-        {
-            version (DisableLoggerTrace)
-            if (ll == LogLevel.trace)
-                return false;
-
-            version (DisableLoggerDebug_)
-            if (ll == LogLevel.debug_)
-                return false;
-
-            version (DisableLoggerInfo)
-            if (ll == LogLevel.info)
-                return false;
-
-            version (DisableLoggerWarn)
-            if (ll == LogLevel.warn)
-                return false;
-
-            version (DisableLoggerError)
-            if (ll == LogLevel.error)
-                return false;
-
-            version (DisableLoggerCritical)
-            if (ll == LogLevel.critical)
-                return false;
-
-            version (DisableLoggerFatal)
-            if (ll == LogLevel.fatal)
-                return false;
-
-            return ll != LogLevel.off
-                && ((ll >= loggerLL && ll >= globalLL) || (ll >= moduleLL && ll >= globalLL));
-        }
+        return ll != LogLevel.off
+            && ((ll >= loggerLL && ll >= globalLL) || (ll >= moduleLL && ll >= globalLL));
     }
 }
 
@@ -437,11 +348,8 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(
 {
     version (DebugLogger) debug writeln("args.line=", line);
 
-    static if (isStaticLoggingActive)
-    {
-        auto logger = threadLog;
-        logger.log!(moduleName, Args)(logger.logLevel, args, ex, line, fileName, funcName, prettyFuncName);
-    }
+    auto logger = threadLog;
+    logger.log!(moduleName, Args)(logger.logLevel, args, ex, line, fileName, funcName, prettyFuncName);
 }
 
 /**
@@ -463,11 +371,8 @@ void log(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy Args
 {
     version (DebugLogger) debug writeln("condition.args.line=", line);
 
-    static if (isStaticLoggingActive)
-    {
-        auto logger = threadLog;
-        logger.log!(moduleName, Args)(logger.logLevel, condition, args, ex, line, fileName, funcName, prettyFuncName);
-    }
+    auto logger = threadLog;
+    logger.log!(moduleName, Args)(logger.logLevel, condition, args, ex, line, fileName, funcName, prettyFuncName);
 }
 
 /**
@@ -489,10 +394,7 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
 {
     version (DebugLogger) debug writeln("ll.args.line=", line);
 
-    static if (isStaticLoggingActive)
-    {
-        threadLog.log!(moduleName, Args)(ll, args, ex, line, fileName, funcName, prettyFuncName);
-    }
+    threadLog.log!(moduleName, Args)(ll, args, ex, line, fileName, funcName, prettyFuncName);
 }
 
 /**
@@ -513,10 +415,7 @@ void log(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy bool 
     in int line = __LINE__, in string fileName = __FILE__,
     in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
 {
-    static if (isStaticLoggingActive)
-    {
-        threadLog.log!(moduleName, Args)(ll, condition, args, ex, line, fileName, funcName, prettyFuncName);
-    }
+    threadLog.log!(moduleName, Args)(ll, condition, args, ex, line, fileName, funcName, prettyFuncName);
 }
 
 /**
@@ -538,11 +437,8 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(
 {
     version (DebugLogger) debug writeln("fmt.args.line=", line);
 
-    static if (isStaticLoggingActive)
-    {
-        auto logger = threadLog;
-        logger.logf!(moduleName, Args)(logger.logLevel, fmt, args, ex, line, fileName, funcName, prettyFuncName);
-    }
+    auto logger = threadLog;
+    logger.logf!(moduleName, Args)(logger.logLevel, fmt, args, ex, line, fileName, funcName, prettyFuncName);
 }
 
 /**
@@ -565,11 +461,8 @@ void logf(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy str
 {
     version (DebugLogger) debug writeln("condition.fmt.args.line=", line);
 
-    static if (isStaticLoggingActive)
-    {
-        auto logger = threadLog;
-        logger.logf!(moduleName, Args)(logger.logLevel, condition, fmt, args, ex, line, fileName, funcName, prettyFuncName);
-    }
+    auto logger = threadLog;
+    logger.logf!(moduleName, Args)(logger.logLevel, condition, fmt, args, ex, line, fileName, funcName, prettyFuncName);
 }
 
 /**
@@ -592,10 +485,7 @@ void logf(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy stri
 {
     version (DebugLogger) debug writeln("ll.fmt.args.line=", line);
 
-    static if (isStaticLoggingActive)
-    {
-        threadLog.logf!(moduleName, Args)(ll, fmt, args, ex, line, fileName, funcName, prettyFuncName);
-    }
+    threadLog.logf!(moduleName, Args)(ll, fmt, args, ex, line, fileName, funcName, prettyFuncName);
 }
 
 /**
@@ -619,10 +509,7 @@ void logf(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy bool
 {
     version (DebugLogger) debug writeln("ll.condition.fmt.args.line=", line);
 
-    static if (isStaticLoggingActive)
-    {
-        threadLog.logf!(moduleName, Args)(ll, condition, fmt, args, ex, line, fileName, funcName, prettyFuncName);
-    }
+    threadLog.logf!(moduleName, Args)(ll, condition, fmt, args, ex, line, fileName, funcName, prettyFuncName);
 }
 
 /**
@@ -837,7 +724,6 @@ public:
      */
     void forwardLog(ref LogEntry payload) nothrow @trusted
     {
-        static if (isStaticLoggingActive)
         try
         {
             version (DebugLogger) debug writeln("Logger.forwardLog()");
@@ -1280,7 +1166,6 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.log().line=", line, ", funcName=", funcName);
 
-        static if (isStaticLoggingActive)
         try
         {
             const ll = this.logLevel;
@@ -1329,7 +1214,6 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.log().line=", line, ", funcName=", funcName);
 
-        static if (isStaticLoggingActive)
         try
         {
             const ll = this.logLevel;
@@ -1378,7 +1262,6 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.log().line=", line, ", funcName=", funcName, ", ll=", ll);
 
-        static if (isStaticLoggingActive)
         try
         {
             if (isLogLevel!(moduleName)(ll))
@@ -1423,7 +1306,6 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.log().line=", line, ", funcName=", funcName, ", ll=", ll);
 
-        static if (isStaticLoggingActive)
         try
         {
             if (isLogLevel!(moduleName)(ll) && condition)
@@ -1470,7 +1352,6 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.logf().line=", line, ", funcName=", funcName);
 
-        static if (isStaticLoggingActive)
         try
         {
             const ll = this.logLevel;
@@ -1520,7 +1401,6 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.logf().line=", line, ", funcName=", funcName);
 
-        static if (isStaticLoggingActive)
         try
         {
             const ll = this.logLevel;
@@ -1569,7 +1449,6 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.logf().line=", line, ", funcName=", funcName, ", ll=", ll);
 
-        static if (isStaticLoggingActive)
         try
         {
             if (isLogLevel!(moduleName)(ll))
@@ -1619,7 +1498,6 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.logf().line=", line, ", funcName=", funcName, ", ll=", ll);
 
-        static if (isStaticLoggingActive)
         try
         {
             if (isLogLevel!(moduleName)(ll) && condition)
@@ -1770,36 +1648,27 @@ protected:
     {
         version (DebugLogger) debug writeln("MemLogger.beginMsg()");
 
-        static if (isStaticLoggingActive)
-        {
-            msgBuffer = Appender!string();
-            msgBuffer.reserve(1000);
-            logEntry = Logger.LogEntry(this, header, null);
-        }
+        msgBuffer = Appender!string();
+        msgBuffer.reserve(1000);
+        logEntry = Logger.LogEntry(this, header, null);
     }
 
     override void commitMsg(scope const(char)[] msg) nothrow
     {
         version (DebugLogger) debug writeln("MemLogger.commitMsg()");
 
-        static if (isStaticLoggingActive)
-        {
-            msgBuffer.put(msg);
-        }
+        msgBuffer.put(msg);
     }
 
     override void endMsg() nothrow
     {
         version (DebugLogger) debug writeln("MemLogger.endMsg()");
 
-        static if (isStaticLoggingActive)
-        {
-            this.logEntry.message = msgBuffer.data;
-            this.writeLog(logEntry);
-            // Reset to release its memory
-            this.logEntry = Logger.LogEntry.init;
-            this.msgBuffer = Appender!string();
-        }
+        this.logEntry.message = msgBuffer.data;
+        this.writeLog(logEntry);
+        // Reset to release its memory
+        this.logEntry = Logger.LogEntry.init;
+        this.msgBuffer = Appender!string();
     }
 
     override void writeLog(ref Logger.LogEntry payload) nothrow

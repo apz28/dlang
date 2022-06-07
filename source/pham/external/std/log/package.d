@@ -20,7 +20,7 @@ program. Logging should be easy, but also flexible and powerful, therefore
 
 The easiest way to create a log message is to write:
 -------------
-import std.logger;
+import pham.external.std.log.logger;
 
 void main()
 {
@@ -119,7 +119,7 @@ type `ForwardThreadLogger` processes the log call and then, by default, forwards
 the created `Logger.LogEntry` to the `sharedLog` `Logger`.
 The thread local `Logger` is accessible by the `threadLog`
 property. This property allows to assign user defined `Logger`. The default
-`LogLevel` of the `threadLog` `Logger` is `LogLevel.all`
+`LogLevel` of the `threadLog` `Logger` is `LogLevel.trace`
 and it will therefore forward all messages to the `sharedLog` `Logger`.
 The `LogLevel` of the `threadLog` can be used to filter log
 calls before they reach the `sharedLog` `Logger`.
@@ -177,21 +177,6 @@ $(H3 Compile Time Disabling of `Logger`)
 In order to disable logging at compile time, pass `DisableLogger...` as a
 version argument to the `D` compiler when compiling your program code.
 This will disable all logging functionality.
-Specific `LogLevel` can be disabled at compile time as well.
-In order to disable logging with the `trace` `LogLevel` pass
-`DisableLoggerTrace` as a version.
-The following table shows which version statement disables which
-`LogLevel`.
-$(TABLE
-    $(TR $(TD `LogLevel.trace` ) $(TD DisableLoggerTrace))
-    $(TR $(TD `LogLevel.info` ) $(TD DisableLoggerInfo))
-    $(TR $(TD `LogLevel.warn` ) $(TD DisableLoggerWarn))
-    $(TR $(TD `LogLevel.error` ) $(TD DisableLoggerError))
-    $(TR $(TD `LogLevel.critical` ) $(TD DisableLoggerCritical))
-    $(TR $(TD `LogLevel.fatal` ) $(TD DisableLoggerFatal))
-)
-Such a version statement will only disable logging in the associated compile
-unit.
 
 $(H3 Provided Logger)
 By default four `Logger` implementations are given. The `FileLogger`

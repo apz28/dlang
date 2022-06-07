@@ -130,7 +130,7 @@ private:
 
 @safe unittest
 {
-    import std.exception : assertThrown;
+import std.exception : assertThrown;
 
     auto a = new MultiLogger;
     auto n0 = new NullLogger();
@@ -167,9 +167,9 @@ private:
 // Issue #16
 @system unittest
 {
-    import std.file : deleteme, remove;
-    import std.stdio : File;
-    import std.string : indexOf;
+import std.file : deleteme, remove;
+import std.stdio : File;
+import std.string : indexOf;
 
     string logName = deleteme ~ __FUNCTION__ ~ ".log";
     auto logFileOutput = File(logName, "w");

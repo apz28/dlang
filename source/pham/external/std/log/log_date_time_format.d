@@ -17,7 +17,7 @@ import std.array : Appender, appender;
 import std.datetime.date : Date, DateTime, DayOfWeek, Month, TimeOfDay;
 import std.datetime.systime : SysTime;
 import std.exception : enforce;
-import std.format : FormatException;
+public import std.format : FormatException;
 import std.range.primitives : ElementEncodingType, empty, put;
 import std.traits : EnumMembers, isIntegral, isSomeChar, isSomeString, Unqual;
 
