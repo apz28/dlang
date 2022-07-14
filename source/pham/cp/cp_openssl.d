@@ -11,12 +11,9 @@
 
 module pham.cp.openssl;
 
-import std.array : join;
-import std.socket : socket_t;
 import std.string : fromStringz, toStringz;
 
 public import pham.utl.object : ResultStatus;
-import pham.utl.system : lastSocketError;
 import pham.cp.cipher : calculateBufferLength;
 import pham.cp.openssl_binding;
 
@@ -173,6 +170,11 @@ public:
 
 struct OpenSSLClientSocket
 {
+import std.array : join;
+import std.socket : socket_t;
+
+import pham.utl.system : lastSocketError;
+
 nothrow @safe:
 
 public:
@@ -914,8 +916,6 @@ struct OpenSSLExt
 {
 nothrow @safe:
 
-import pham.utl.test;
-
 public:
     static DH* createDH(scope const(ubyte)[] pData, scope const(ubyte)[] qData, scope const(ubyte)[] gData) @trusted
     {
@@ -999,6 +999,62 @@ public:
         if (rs.isError)
             return rs;
 
+        return ResultStatus.ok();
+    }
+
+    static ResultStatus generatePrimNumber(uint bitLength, const(ubyte)[] randomSeed,
+        ref char[] hexPrim,
+        const(char)[] hexAdd = null,
+        bool safe = false) @trusted
+    {
+        auto apiStatus = opensslApi.status();
+        if (apiStatus.isError)
+            return apiStatus;
+
+        if (randomSeed.length)
+            opensslApi.RAND_seed(&randomSeed[0], cast(int)randomSeed.length);
+
+        BIGNUM* bn = null;
+        BIGNUM* bnAdd = null;
+        char* bnHex = null;
+        scope (exit)
+        {
+            if (bnHex !is null)
+                opensslApi.OPENSSL_free(bnHex);
+
+            if (bnAdd !is null)
+                opensslApi.BN_free(bnAdd);
+
+            if (bn !is null)
+                opensslApi.BN_free(bn);
+        }
+
+        if (hexAdd.length)
+        {
+            auto hexAddz = toStringz(hexAdd);
+            if (0 == opensslApi.BN_hex2bn(&bnAdd, hexAddz))
+                return currentError("BN_hex2bn");
+        }
+
+	    bn = opensslApi.BN_new();
+        if (bn is null)
+            return currentError("BN_new");
+
+        if (1 != opensslApi.BN_generate_prime_ex(bn, cast(int)bitLength, safe ? 1 : 0, bnAdd, null, null))
+            return currentError("BN_generate_prime_ex");
+
+        bnHex = opensslApi.BN_bn2hex(bn);
+        if (bnHex is null)
+            return currentError("BN_bn2hex");
+
+        char* bnDec = opensslApi.BN_bn2dec(bn);
+        auto d = fromStringz(bnDec);
+        auto h = fromStringz(bnHex);
+        import pham.utl.test; dgWriteln("hex ", h.length, ": ", h);
+        import pham.utl.test; dgWriteln("dec ", d.length, ": ", d);
+        opensslApi.OPENSSL_free(bnDec);
+
+        hexPrim = fromStringz(bnHex);
         return ResultStatus.ok();
     }
 
@@ -1574,5 +1630,20 @@ unittest // OpenSSLRSACrypt
         status = privateRSA.decrypt(cryptedData[0..cryptedLength], uncryptedData, uncryptedLength);
         assert(status.isOK, status.toString());
         assert(uncryptedLength == 0);
+    }
+}
+
+unittest // OpenSSLExt.generatePrimNumber
+{
+    import std.string : representation;
+    import pham.utl.test;
+    traceUnitTest!("pham.cp")("unittest pham.cp.openssl.OpenSSLExt.generatePrimNumber");
+
+    if (isOpenSSLIntalled())
+    {
+        char[] hexPrim;
+        auto status = OpenSSLExt.generatePrimNumber(2048, "generatePrimNumber".representation(), hexPrim);
+        assert(status.isOK, status.toString());
+        assert(hexPrim.length == 2048 / 4);
     }
 }

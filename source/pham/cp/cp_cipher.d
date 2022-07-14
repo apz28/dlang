@@ -402,6 +402,7 @@ protected:
     CipherParameters _parameters;
 }
 
+version (none)
 struct CipherPrimeCheck
 {
 import std.algorithm.iteration : each;
@@ -675,6 +676,7 @@ do
     return ((n + (blockLength - 1) + paddingSize) / blockLength) * blockLength;
 }
 
+
 // Any below codes are private
 private:
 
@@ -692,7 +694,7 @@ unittest // CipherParameters.isValidKey
     assert(!CipherKey.isValidKey([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
 }
 
-version (none) //TODO
+version (none)
 unittest // CipherPrimeCheck.isProbablePrime
 {
     import pham.utl.test;

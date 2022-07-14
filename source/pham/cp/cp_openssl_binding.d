@@ -169,6 +169,7 @@ struct EVP_PKEY {}
 struct BIGNUM {}
 struct BIO {}
 struct BIO_METHOD {}
+struct BN_GENCB {}
 struct CRYPTO_EX_DATA{}
 struct DH{}
 struct OPENSSL_INIT_SETTINGS {}
@@ -270,6 +271,27 @@ public:
         adapter_BN_free(n);
     }
 
+    char* BN_bn2dec(BIGNUM* n) const
+    {
+        return adapter_BN_bn2dec(n);
+    }
+
+    char* BN_bn2hex(BIGNUM* n) const
+    {
+        return adapter_BN_bn2hex(n);
+    }
+
+    int BN_generate_prime_ex(BIGNUM* ret, int bits, int safe, BIGNUM* add, BIGNUM* rem,
+        BN_GENCB* cb) const
+    {
+        return adapter_BN_generate_prime_ex(ret, bits, safe, add, rem, cb);
+    }
+
+    int BN_hex2bn(BIGNUM** n, const(char)* hex) const
+    {
+        return adapter_BN_hex2bn(n, hex);
+    }
+
     BIGNUM* BN_new() const
     {
         return adapter_BN_new();
@@ -283,6 +305,11 @@ public:
     void CONF_modules_unload() const
     {
         return adapter_CONF_modules_unload();
+    }
+
+    void CRYPTO_free(void* p, char* file = null, int line = 0) const
+    {
+        adapter_CRYPTO_free(p, file, line);
     }
 
     int CRYPTO_get_ex_new_index(int classIdx, c_long argl, void* argp, CRYPTOExNew newFunc, CRYPTOExDup dupFunc, CRYPTOExFree freeFunc) const
@@ -492,7 +519,17 @@ public:
 
     void EVP_PKEY_free(EVP_PKEY* key) const @nogc
     {
-        return adapter_EVP_PKEY_free(key);
+        adapter_EVP_PKEY_free(key);
+    }
+
+    EVP_PKEY* EVP_PKEY_new() const
+    {
+        return adapter_EVP_PKEY_new();
+    }
+
+    void OPENSSL_free(void* p) const
+    {
+        CRYPTO_free(p);
     }
 
     EVP_PKEY* PEM_read_bio_PrivateKey(BIO* bio, EVP_PKEY** x, OpenSSLPemPasswordCallback cb, void* cbu) const
@@ -524,6 +561,11 @@ public:
     int PEM_write_bio_RSA_PUBKEY(BIO* bio, RSA* rsa) const
     {
         return adapter_PEM_write_bio_RSA_PUBKEY(bio, rsa);
+    }
+
+    void RAND_seed(const(void)* buf, int bufSize) const
+    {
+        adapter_RAND_seed(buf, bufSize);
     }
 
     void RSA_free(RSA* rsa) const @nogc
@@ -947,12 +989,17 @@ private:
     mixin(Function_decl!("BIO_write", int, BIO*, const(void)*, int));
 
     mixin(Function_decl!("BN_bin2bn", BIGNUM*, const(ubyte)*, int, BIGNUM*));
+    mixin(Function_decl!("BN_bn2dec", char*, BIGNUM*));
+    mixin(Function_decl!("BN_bn2hex", char*, BIGNUM*));
     mixin(Function_decl!("BN_free", void, BIGNUM*));
+    mixin(Function_decl!("BN_generate_prime_ex", int, BIGNUM*, int, int, BIGNUM*, BIGNUM*, void*));
+    mixin(Function_decl!("BN_hex2bn", int, BIGNUM**, const(char)*));
     mixin(Function_decl!("BN_new", BIGNUM*));
     mixin(Function_decl!("BN_set_word", int, BIGNUM*, c_ulong));
 
     mixin(Function_decl!("CONF_modules_unload", void));
 
+    mixin(Function_decl!("CRYPTO_free", void, void*, char*, int));
     mixin(Function_decl!("CRYPTO_get_ex_new_index", int, int, c_long, void*, void*, void*, void*));
 
     mixin(Function_decl!("DH_free", void, DH*));
@@ -1000,7 +1047,9 @@ private:
     mixin(Function_decl!("EVP_EncryptFinal_ex", int, EVP_CIPHER_CTX*, ubyte*, int*));
     mixin(Function_decl!("EVP_EncryptInit_ex", int, EVP_CIPHER_CTX*, EVP_CIPHER*, void*, const(ubyte)*, const(ubyte)*));
     mixin(Function_decl!("EVP_EncryptUpdate", int, EVP_CIPHER_CTX*, ubyte*, int*, const(ubyte)*, int));
+
     mixin(Function_decl!("EVP_PKEY_free", void, EVP_PKEY*));
+    mixin(Function_decl!("EVP_PKEY_new", EVP_PKEY*));
 
     mixin(Function_decl!("PEM_read_bio_PrivateKey", EVP_PKEY*, BIO*, EVP_PKEY**, void*, void*));
     mixin(Function_decl!("PEM_read_bio_PUBKEY", EVP_PKEY*, BIO*, EVP_PKEY**, void*, void*));
@@ -1008,6 +1057,8 @@ private:
     mixin(Function_decl!("PEM_read_bio_RSA_PUBKEY", RSA*, BIO*, RSA**, void*, void*));
     mixin(Function_decl!("PEM_write_bio_RSAPrivateKey", int, BIO*, RSA*, EVP_CIPHER*, const(ubyte)*, int, void*, void*));
     mixin(Function_decl!("PEM_write_bio_RSA_PUBKEY", int, BIO*, RSA*));
+
+    mixin(Function_decl!("RAND_seed", void, const(void)*, int));
 
     mixin(Function_decl!("RSA_free", void, RSA*));
     mixin(Function_decl!("RSA_generate_key_ex", int, RSA*, int, BIGNUM*, void*));
@@ -1131,12 +1182,17 @@ shared static this()
     mixin(CRYPTO_Function_set!("BIO_write", int, BIO*, const(void)*, int));
 
     mixin(CRYPTO_Function_set!("BN_bin2bn", BIGNUM*, const(ubyte)*, int, BIGNUM*));
+    mixin(CRYPTO_Function_set!("BN_bn2dec", char*, BIGNUM*));
+    mixin(CRYPTO_Function_set!("BN_bn2hex", char*, BIGNUM*));
     mixin(CRYPTO_Function_set!("BN_free", void, BIGNUM*));
+    mixin(CRYPTO_Function_set!("BN_generate_prime_ex", int, BIGNUM*, int, int, BIGNUM*, BIGNUM*, void*));
+    mixin(CRYPTO_Function_set!("BN_hex2bn", int, BIGNUM**, char*));
     mixin(CRYPTO_Function_set!("BN_new", BIGNUM*));
     mixin(CRYPTO_Function_set!("BN_set_word", int, BIGNUM*, c_ulong));
 
     mixin(CRYPTO_Function_set!("CONF_modules_unload", void));
 
+    mixin(CRYPTO_Function_set!("CRYPTO_free", void, void*, char*, int));
     mixin(CRYPTO_Function_set!("CRYPTO_get_ex_new_index", int, int, c_long, void*, void*, void*, void*));
 
     mixin(CRYPTO_Function_set!("DH_free", void, DH*));
@@ -1184,7 +1240,9 @@ shared static this()
     mixin(CRYPTO_Function_set!("EVP_EncryptFinal_ex", int, EVP_CIPHER_CTX*, ubyte*, int*));
     mixin(CRYPTO_Function_set!("EVP_EncryptInit_ex", int, EVP_CIPHER_CTX*, EVP_CIPHER*, void*, const(ubyte)*, const(ubyte)*));
     mixin(CRYPTO_Function_set!("EVP_EncryptUpdate", int, EVP_CIPHER_CTX*, ubyte*, int*, const(ubyte)*, int));
+
     mixin(CRYPTO_Function_set!("EVP_PKEY_free", void, EVP_PKEY*));
+    mixin(CRYPTO_Function_set!("EVP_PKEY_new", EVP_PKEY*));
 
     mixin(CRYPTO_Function_set!("PEM_read_bio_PrivateKey", EVP_PKEY*, BIO*, EVP_PKEY**, void*, void*));
     mixin(CRYPTO_Function_set!("PEM_read_bio_PUBKEY", EVP_PKEY*, BIO*, EVP_PKEY**, void*, void*));
@@ -1192,6 +1250,8 @@ shared static this()
     mixin(CRYPTO_Function_set!("PEM_read_bio_RSA_PUBKEY", RSA*, BIO*, RSA**, void*, void*));
     mixin(CRYPTO_Function_set!("PEM_write_bio_RSAPrivateKey", int, BIO*, RSA*, EVP_CIPHER*, const(ubyte)*, int, void*, void*));
     mixin(CRYPTO_Function_set!("PEM_write_bio_RSA_PUBKEY", int, BIO*, RSA*));
+
+    mixin(CRYPTO_Function_set!("RAND_seed", void, void*, int));
 
     mixin(CRYPTO_Function_set!("RSA_free", void, RSA*));
     mixin(CRYPTO_Function_set!("RSA_generate_key_ex", int, RSA*, int, BIGNUM*, void*));
