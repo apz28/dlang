@@ -4554,6 +4554,31 @@ import pham.utl.test;
     assert(v.coerce!double() == 100.0);
 }
 
+unittest // Variant.coerce(object)
+{
+import pham.external.dec.decimal;
+import pham.utl.test;
+    traceUnitTest!("pham.utl.variant")("unittest pham.utl.variant.Variant.coerce(object)");
+
+    static class A
+    {
+        int foo() { return 1; }
+    }
+
+    static class B : A
+    {
+        override int foo() { return 2; }
+    }
+
+    A a = new B();
+    Variant v = a;
+    auto a2 = v.get!A();
+    assert(a2.foo() == 2);
+    auto b = v.coerce!B();
+    assert(b !is null);
+    assert(b.foo() == 2);
+}
+
 @system unittest // Variant.opIndex & opIndexAssign
 {
 import std.exception : assertThrown;
