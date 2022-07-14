@@ -1,11 +1,13 @@
 module pham.external.dec.sink;
 
 import std.algorithm.mutation : swapAt;
+import std.ascii : upHexChars = hexDigits, loHexChars = lowerHexDigits;
 import std.format : FormatSpec;
 import std.range.primitives : isOutputRange, put;
 import std.traits : isIntegral, isSomeChar, Unqual;
 
-import pham.external.dec.decimal : DataType, DecimalControl, FastClass, RoundingMode, fastDecode, isDecimal;
+import pham.external.dec.decimal : DataType, DecimalControl, FastClass,
+    RoundingMode, fastDecode, isDecimal;
 import pham.external.dec.integral : divrem, isAnyUnsignedBit, prec;
 import pham.external.dec.math : coefficientAdjust, coefficientShrink, divpow10;
 
@@ -793,8 +795,8 @@ do
     return cast(int)(buffer.length - i);
 }
 
-static immutable char[] loHexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
-static immutable char[] upHexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'];
+//static immutable char[] loHexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
+//static immutable char[] upHexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'];
 
 //dumps value to buffer right aligned, assumes buffer has enough space
 int dumpUnsignedHex(C, T)(C[] buffer, auto const ref T value, const(bool) uppercase = true) @nogc pure

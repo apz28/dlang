@@ -1,14 +1,17 @@
 module pham.external.dec.decimal;
 
-import std.format : FormatException, FormatSpec;
-import std.math : FloatingPointControl, getNaNPayload, ieeeFlags, isNaN, isInfinity, ldexp, resetIeeeFlags, signStd = signbit;
+import std.math : FloatingPointControl, getNaNPayload, ieeeFlags, isNaN, isInfinity,
+    ldexp, resetIeeeFlags, signStd = signbit;
 import std.range.primitives : ElementType, isInputRange, isOutputRange, put;
-import std.traits : isFloatingPoint, isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned, Unqual, Unsigned;
+import std.traits : isFloatingPoint, isIntegral, isSigned, isSomeChar, isSomeString,
+    isUnsigned, Unqual, Unsigned;
 
-version (D_BetterC)
-    enum isBetterC = true;
-else
-    enum isBetterC = false;
+import pham.external.dec.integral;
+import pham.external.dec.numeric;
+import pham.external.dec.math;
+import pham.external.dec.compare;
+import pham.external.dec.range;
+import pham.external.dec.parse;
 
 version (Windows)
 {
@@ -38,25 +41,14 @@ else
     }
 }
 
-import pham.external.dec.numeric;
-import pham.external.dec.integral;
-import pham.external.dec.range;
-import pham.external.dec.parse;
-import pham.external.dec.compare;
-import pham.external.dec.math;
-static if (!isBetterC)
+version (D_BetterC) {}
+else
 {
-    import pham.external.dec.sink;
+public import std.format : FormatSpec;
+import pham.external.dec.sink;
 }
 
 private alias fma = pham.external.dec.integral.fma;
-
-version (unittest)
-{
-    import std.format;
-    import std.stdio;
-    import std.typetuple;
-}
 
 enum CheckInfinity : byte
 {
@@ -1169,7 +1161,8 @@ public:
         }
     }
 
-    static if (!isBetterC)
+    version (D_BetterC) {}
+    else
     {
         static immutable char defaultFmtSpec = 'f';
         static immutable string defaultFmt = "%f";
@@ -1962,6 +1955,8 @@ unittest
 @("Compilation tests")
 unittest
 {
+import std.typetuple;
+
     struct DumbRange(C)
     {
         bool empty;
@@ -2396,7 +2391,8 @@ unittest
     static assert(is(CommonDecimal!(Decimal128, Decimal128) == Decimal128));
 }
 
-static if (!isBetterC)
+version (D_BetterC) {}
+else
 {
     ///Root object for all _decimal exceptions
     abstract class DecimalException : Exception
@@ -2549,6 +2545,8 @@ unittest
 
 unittest
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(decimalClass(T.sNaN) == DecimalClass.signalingNaN);
@@ -2990,6 +2988,8 @@ unittest
 
 unittest
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(isUnordered(T.nan, T.one));
@@ -3051,6 +3051,8 @@ if (isDecimal!D)
 
 unittest
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(compound(T.ten, 0) == 1);
@@ -3155,6 +3157,8 @@ unittest
 
 unittest
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(acos(-T.one) == T.PI);
@@ -3204,6 +3208,8 @@ unittest
 
 unittest
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(acosh(T.one) == T.zero);
@@ -3373,6 +3379,8 @@ unittest
 
 unittest
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(asin(-T.one) == -T.PI_2);
@@ -3423,6 +3431,8 @@ unittest
 
 unittest
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(asinh(T.zero) == T.zero);
@@ -3472,6 +3482,8 @@ unittest
 
 unittest
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(isIdentical(atan(T.zero), T.zero));
@@ -3533,6 +3545,8 @@ unittest
 
 unittest
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(atan2(T.nan, T.zero).isNaN);
@@ -3611,6 +3625,8 @@ unittest
 
 unittest
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(atan2(T.nan, T.zero).isNaN);
@@ -3723,6 +3739,8 @@ unittest
 
 unittest
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(isIdentical(atanpi(T.zero), T.zero));
@@ -3877,6 +3895,8 @@ unittest
 
 unittest
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(exp(T.zero) == T.one);
@@ -4655,6 +4675,7 @@ unittest
 
 unittest
 {
+import std.typetuple;
 
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
@@ -4676,6 +4697,8 @@ unittest // isFinite
 
 unittest // isFinite
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.max.isFinite);
@@ -4724,6 +4747,8 @@ unittest // isInfinity
 
 unittest // isInfinity
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.infinity.isInfinity);
@@ -4745,6 +4770,8 @@ unittest // isNaN
 
 unittest // isNaN
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.sNaN.isNaN);
@@ -4833,6 +4860,7 @@ unittest
 
 unittest
 {
+import std.typetuple;
 
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
@@ -4882,6 +4910,8 @@ unittest // isSignalingNaN
 
 unittest // isSignalingNaN
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.sNaN.isSignalNaN);
@@ -4955,6 +4985,8 @@ unittest
 
 unittest
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(!isSubnormal(T.zero));
@@ -4976,6 +5008,8 @@ unittest // isZero
 
 unittest // isZero
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.zero.isZero);
@@ -6361,6 +6395,8 @@ unittest
 
 unittest
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(sgn(T.nan) == 1);
@@ -6381,6 +6417,8 @@ unittest // sign
 
 unittest // sign
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.sNaN.sign == 1);
@@ -6423,6 +6461,8 @@ unittest
 
 unittest
 {
+import std.typetuple;
+
     foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
     {
         assert(signbit(T.sNaN) == 0);
@@ -7319,197 +7359,200 @@ mixin template ExceptionConstructors()
 }
 
 /// format, toString()
-static if (!isBetterC)
-unittest
+version (D_BetterC) {}
+else
 {
-    static struct S
+    unittest
     {
-        string fmt;
-        string v;
-        string expected;
-        string line;
-    }
+        static struct S
+        {
+            string fmt;
+            string v;
+            string expected;
+            string line;
+        }
 
-    import std.format : format;
-    import std.conv : to;
+        import std.format : format;
+        import std.conv : to;
 
-    static string callerLine(int line = __LINE__) nothrow pure @safe
-    {
-        return to!string(line);
-    }
+        static string callerLine(int line = __LINE__) nothrow pure @safe
+        {
+            return to!string(line);
+        }
 
-    static double toDouble(const(char)[] s)
-    {
-        scope (failure) return double.nan;
+        static double toDouble(const(char)[] s)
+        {
+            scope (failure) return double.nan;
 
-        return to!double(s);
-    }
+            return to!double(s);
+        }
 
-    static void checkResult(const ref S s, string result)
-    {
-        string resultStd = format(s.fmt, toDouble(s.v));
-        assert(result == s.expected,
-            "fmt: '" ~ s.fmt ~ "', value: '" ~ s.v ~ "', case-line: " ~ s.line ~
-            "\nresult: '" ~ result ~ "'" ~
-            "\nexpect: '" ~ s.expected ~ "'" ~
-            "\nstandd: '" ~ resultStd ~ "'");
-    }
+        static void checkResult(const ref S s, string result)
+        {
+            string resultStd = format(s.fmt, toDouble(s.v));
+            assert(result == s.expected,
+                "fmt: '" ~ s.fmt ~ "', value: '" ~ s.v ~ "', case-line: " ~ s.line ~
+                "\nresult: '" ~ result ~ "'" ~
+                "\nexpect: '" ~ s.expected ~ "'" ~
+                "\nstandd: '" ~ resultStd ~ "'");
+        }
 
-    S[] testf = [
-        S("%0.7f", "1.234567", "1.2345670", callerLine),
-        S("%0.6f", "1.234567", "1.234567", callerLine),
-        S("%0.5f", "1.234567", "1.23457", callerLine),
-        S("%0.4f", "1.234567", "1.2346", callerLine),
-        S("%0.3f", "1.234567", "1.235", callerLine),
-        S("%0.2f", "1.234567", "1.23", callerLine),
-        S("%0.1f", "1.234567", "1.2", callerLine),
-        S("%0.0f", "1.234567", "1", callerLine),
-        S("%+0.1f", "1.234567", "+1.2", callerLine),
-        S("% 0.1f", "1.234567", " 1.2", callerLine),
-        S("%8.2f", "1.234567", "    1.23", callerLine),
-        S("%+8.2f", "1.234567", "   +1.23", callerLine),
-        S("% 8.2f", "1.234567", "    1.23", callerLine),
-        S("%-8.2f", "1.234567", "1.23    ", callerLine),
-        S("%+0.1f", "-1.234567", "-1.2", callerLine),
-        S("% 0.1f", "-1.234567", "-1.2", callerLine),
-        S("%+8.2f", "-1.234567", "   -1.23", callerLine),
-        S("%-8.2f", "-1.234567", "-1.23   ", callerLine),
-    ];
+        S[] testf = [
+            S("%0.7f", "1.234567", "1.2345670", callerLine),
+            S("%0.6f", "1.234567", "1.234567", callerLine),
+            S("%0.5f", "1.234567", "1.23457", callerLine),
+            S("%0.4f", "1.234567", "1.2346", callerLine),
+            S("%0.3f", "1.234567", "1.235", callerLine),
+            S("%0.2f", "1.234567", "1.23", callerLine),
+            S("%0.1f", "1.234567", "1.2", callerLine),
+            S("%0.0f", "1.234567", "1", callerLine),
+            S("%+0.1f", "1.234567", "+1.2", callerLine),
+            S("% 0.1f", "1.234567", " 1.2", callerLine),
+            S("%8.2f", "1.234567", "    1.23", callerLine),
+            S("%+8.2f", "1.234567", "   +1.23", callerLine),
+            S("% 8.2f", "1.234567", "    1.23", callerLine),
+            S("%-8.2f", "1.234567", "1.23    ", callerLine),
+            S("%+0.1f", "-1.234567", "-1.2", callerLine),
+            S("% 0.1f", "-1.234567", "-1.2", callerLine),
+            S("%+8.2f", "-1.234567", "   -1.23", callerLine),
+            S("%-8.2f", "-1.234567", "-1.23   ", callerLine),
+        ];
 
-    foreach (f; testf)
-    {
-        string result = format(f.fmt, Decimal32(f.v));
-        checkResult(f, result);
-    }
+        foreach (f; testf)
+        {
+            string result = format(f.fmt, Decimal32(f.v));
+            checkResult(f, result);
+        }
 
-    S[] tests = [
-        S("%+.3e", "0.0", "+0.000e+00", callerLine),
-  	    S("%+.3e", "1.0", "+1.000e+00", callerLine),
-  	    S("%+.3f", "-1.0", "-1.000", callerLine),
-  	    S("%+.3F", "-1.0", "-1.000", callerLine),
-  	    S("%+07.2f", "1.0", "+001.00", callerLine),
-  	    S("%+07.2f", "-1.0", "-001.00", callerLine),
-  	    S("%-07.2f", "1.0", "1.00   ", callerLine),
-  	    S("%-07.2f", "-1.0", "-1.00  ", callerLine),
-  	    S("%+-07.2f", "1.0", "+1.00  ", callerLine),
-  	    S("%+-07.2f", "-1.0", "-1.00  ", callerLine),
-  	    S("%-+07.2f", "1.0", "+1.00  ", callerLine),
-  	    S("%-+07.2f", "-1.0", "-1.00  ", callerLine),
-  	    S("%+10.2f", "+1.0", "     +1.00", callerLine),
-  	    S("%+10.2f", "-1.0", "     -1.00", callerLine),
-  	    S("% .3E", "-1.0", "-1.000E+00", callerLine),
-  	    S("% .3e", "1.0", " 1.000e+00", callerLine),
-  	    S("%+.3g", "0.0", "+0", callerLine),
-  	    S("%+.3g", "1.0", "+1", callerLine),
-  	    S("%+.3g", "-1.0", "-1", callerLine),
-  	    S("% .3g", "-1.0", "-1", callerLine),
-  	    S("% .3g", "1.0", " 1", callerLine),
-  	    S("%a", "1", "0x1p+0", callerLine),
-  	    S("%#g", "1e-32", "1.00000e-32", callerLine),
-  	    S("%#g", "-1.0", "-1.00000", callerLine),
-  	    S("%#g", "1.1", "1.10000", callerLine),
-  	    S("%#g", "123456.0", "123456.", callerLine),
-  	    S("%#g", "1234567.0", "1.23457e+06", callerLine),
-  	    S("%#g", "1230000.0", "1.23000e+06", callerLine),
-  	    S("%#g", "1000000.0", "1.00000e+06", callerLine),
-  	    S("%#.0f", "1.0", "1.", callerLine),
-  	    S("%#.0e", "1.0", "1.e+00", callerLine),
-  	    S("%#.0g", "1.0", "1.", callerLine),
-  	    S("%#.0g", "1100000.0", "1.e+06", callerLine),
-  	    S("%#.4f", "1.0", "1.0000", callerLine),
-  	    S("%#.4e", "1.0", "1.0000e+00", callerLine),
-  	    S("%#.4g", "1.0", "1.000", callerLine),
-  	    S("%#.4g", "100000.0", "1.000e+05", callerLine),
-  	    S("%#.0f", "123.0", "123.", callerLine),
-  	    S("%#.0e", "123.0", "1.e+02", callerLine),
-  	    S("%#.0g", "123.0", "1.e+02", callerLine),
-  	    S("%#.4f", "123.0", "123.0000", callerLine),
-  	    S("%#.4e", "123.0", "1.2300e+02", callerLine),
-  	    S("%#.4g", "123.0", "123.0", callerLine),
-  	    S("%#.4g", "123000.0", "1.230e+05", callerLine),
-  	    S("%#9.4g", "1.0", "    1.000", callerLine),
-  	    S("%.4a", "1", "0x1p+0", callerLine),
-  	    S("%.4a", "-1", "-0x1p+0", callerLine),
-  	    S("%f", "+inf", "inf", callerLine),
-  	    S("%.1f", "-inf", "-inf", callerLine),
-  	    S("% f", "$(B NaN)", " nan", callerLine),
-  	    S("%20f", "+inf", "                 inf", callerLine),
-  	    S("% 20F", "+inf", "                 INF", callerLine),
-  	    S("% 20e", "-inf", "                -inf", callerLine),
-  	    S("%+20E", "-inf", "                -INF", callerLine),
-  	    S("% +20g", "-Inf", "                -inf", callerLine),
-  	    S("%+-20G", "+inf", "+INF                ", callerLine),
-  	    S("%20e", "$(B NaN)", "                 nan", callerLine),
-  	    S("% +20E", "$(B NaN)", "                +NAN", callerLine),
-  	    S("% -20g", "$(B NaN)", " nan                ", callerLine),
-  	    S("%+-20G", "$(B NaN)", "+NAN                ", callerLine),
-  	    S("%+020e", "+inf", "                +inf", callerLine),
-  	    S("%-020f", "-inf", "-inf                ", callerLine),
-  	    S("%-020E", "$(B NaN)", "NAN                 ", callerLine),
-        S("%e", "1.0", "1.000000e+00", callerLine),
-  	    S("%e", "1234.5678e3", "1.234568e+06", callerLine),
-  	    S("%e", "1234.5678e-8", "1.234568e-05", callerLine),
-  	    S("%e", "-7.0", "-7.000000e+00", callerLine),
-  	    S("%e", "-1e-9", "-1.000000e-09", callerLine),
-  	    S("%f", "1234.567e2", "123456.7", callerLine),
-  	    S("%f", "1234.5678e-8", "0.000012", callerLine),
-  	    S("%f", "-7.0", "-7.0", callerLine),
-  	    S("%f", "-1e-9", "-0.0", callerLine),
-  	    S("%g", "1234.5678e3", "1.23457e+06", callerLine),
-  	    S("%g", "1234.5678e-8", "1.23457e-05", callerLine),
-  	    S("%g", "-7.0", "-7", callerLine),
-  	    S("%g", "-1e-9", "-1e-09", callerLine),
-  	    S("%E", "1.0", "1.000000E+00", callerLine),
-  	    S("%E", "1234.5678e3", "1.234568E+06", callerLine),
-  	    S("%E", "1234.5678e-8", "1.234568E-05", callerLine),
-  	    S("%E", "-7.0", "-7.000000E+00", callerLine),
-  	    S("%E", "-1e-9", "-1.000000E-09", callerLine),
-  	    S("%G", "1234.5678e3", "1.23457E+06", callerLine),
-  	    S("%G", "1234.5678e-8", "1.23457E-05", callerLine),
-  	    S("%G", "-7.0", "-7", callerLine),
-  	    S("%G", "-1e-9", "-1E-09", callerLine),
-  	    S("%20.6e", "1.2345e3", "        1.234500e+03", callerLine),
-  	    S("%20.6e", "1.2345e-3", "        1.234500e-03", callerLine),
-  	    S("%20e", "1.2345e3", "        1.234500e+03", callerLine),
-  	    S("%20e", "1.2345e-3", "        1.234500e-03", callerLine),
-  	    S("%20.8e", "1.2345e3", "      1.23450000e+03", callerLine),
-  	    S("%20f", "1.23456789e3", "            1234.568", callerLine),
-  	    S("%20f", "1.23456789e-3", "            0.001235", callerLine),
-  	    S("%20f", "12345678901.23456789", "       12345680000.0", callerLine),
-  	    S("%-20f", "1.23456789e3", "1234.568            ", callerLine),
-        S("%20.8f", "1.23456789e3", "       1234.56800000", callerLine),
-        S("%20.8f", "1.23456789e-3", "          0.00123457", callerLine),
-        S("%g", "1.23456789e3", "1234.57", callerLine),
-        S("%g", "1.23456789e-3", "0.00123457", callerLine),
-        S("%g", "1.23456789e20", "1.23457e+20", callerLine),
-        S("%.2f", "1.0", "1.00", callerLine),
-  	    S("%.2f", "-1.0", "-1.00", callerLine),
-  	    S("% .2f", "1.0", " 1.00", callerLine),
-  	    S("% .2f", "-1.0", "-1.00", callerLine),
-  	    S("%+.2f", "1.0", "+1.00", callerLine),
-  	    S("%+.2f", "-1.0", "-1.00", callerLine),
-  	    S("%7.2f", "1.0", "   1.00", callerLine),
-  	    S("%7.2f", "-1.0", "  -1.00", callerLine),
-  	    S("% 7.2f", "1.0", "   1.00", callerLine),
-  	    S("% 7.2f", "-1.0", "  -1.00", callerLine),
-  	    S("%+7.2f", "1.0", "  +1.00", callerLine),
-  	    S("%+7.2f", "-1.0", "  -1.00", callerLine),
-  	    S("% +7.2f", "1.0", "  +1.00", callerLine),
-  	    S("% +7.2f", "-1.0", "  -1.00", callerLine),
-  	    S("%07.2f", "1.0", "0001.00", callerLine),
-  	    S("%07.2f", "-1.0", "-001.00", callerLine),
-  	    S("% 07.2f", "1.0", " 001.00", callerLine),
-  	    S("% 07.2f", "-1.0", "-001.00", callerLine),
-  	    S("%+07.2f", "1.0", "+001.00", callerLine),
-  	    S("%+07.2f", "-1.0", "-001.00", callerLine),
-  	    S("% +07.2f", "1.0", "+001.00", callerLine),
-  	    S("% +07.2f", "-1.0", "-001.00", callerLine),
-    ];
+        S[] tests = [
+            S("%+.3e", "0.0", "+0.000e+00", callerLine),
+  	        S("%+.3e", "1.0", "+1.000e+00", callerLine),
+  	        S("%+.3f", "-1.0", "-1.000", callerLine),
+  	        S("%+.3F", "-1.0", "-1.000", callerLine),
+  	        S("%+07.2f", "1.0", "+001.00", callerLine),
+  	        S("%+07.2f", "-1.0", "-001.00", callerLine),
+  	        S("%-07.2f", "1.0", "1.00   ", callerLine),
+  	        S("%-07.2f", "-1.0", "-1.00  ", callerLine),
+  	        S("%+-07.2f", "1.0", "+1.00  ", callerLine),
+  	        S("%+-07.2f", "-1.0", "-1.00  ", callerLine),
+  	        S("%-+07.2f", "1.0", "+1.00  ", callerLine),
+  	        S("%-+07.2f", "-1.0", "-1.00  ", callerLine),
+  	        S("%+10.2f", "+1.0", "     +1.00", callerLine),
+  	        S("%+10.2f", "-1.0", "     -1.00", callerLine),
+  	        S("% .3E", "-1.0", "-1.000E+00", callerLine),
+  	        S("% .3e", "1.0", " 1.000e+00", callerLine),
+  	        S("%+.3g", "0.0", "+0", callerLine),
+  	        S("%+.3g", "1.0", "+1", callerLine),
+  	        S("%+.3g", "-1.0", "-1", callerLine),
+  	        S("% .3g", "-1.0", "-1", callerLine),
+  	        S("% .3g", "1.0", " 1", callerLine),
+  	        S("%a", "1", "0x1p+0", callerLine),
+  	        S("%#g", "1e-32", "1.00000e-32", callerLine),
+  	        S("%#g", "-1.0", "-1.00000", callerLine),
+  	        S("%#g", "1.1", "1.10000", callerLine),
+  	        S("%#g", "123456.0", "123456.", callerLine),
+  	        S("%#g", "1234567.0", "1.23457e+06", callerLine),
+  	        S("%#g", "1230000.0", "1.23000e+06", callerLine),
+  	        S("%#g", "1000000.0", "1.00000e+06", callerLine),
+  	        S("%#.0f", "1.0", "1.", callerLine),
+  	        S("%#.0e", "1.0", "1.e+00", callerLine),
+  	        S("%#.0g", "1.0", "1.", callerLine),
+  	        S("%#.0g", "1100000.0", "1.e+06", callerLine),
+  	        S("%#.4f", "1.0", "1.0000", callerLine),
+  	        S("%#.4e", "1.0", "1.0000e+00", callerLine),
+  	        S("%#.4g", "1.0", "1.000", callerLine),
+  	        S("%#.4g", "100000.0", "1.000e+05", callerLine),
+  	        S("%#.0f", "123.0", "123.", callerLine),
+  	        S("%#.0e", "123.0", "1.e+02", callerLine),
+  	        S("%#.0g", "123.0", "1.e+02", callerLine),
+  	        S("%#.4f", "123.0", "123.0000", callerLine),
+  	        S("%#.4e", "123.0", "1.2300e+02", callerLine),
+  	        S("%#.4g", "123.0", "123.0", callerLine),
+  	        S("%#.4g", "123000.0", "1.230e+05", callerLine),
+  	        S("%#9.4g", "1.0", "    1.000", callerLine),
+  	        S("%.4a", "1", "0x1p+0", callerLine),
+  	        S("%.4a", "-1", "-0x1p+0", callerLine),
+  	        S("%f", "+inf", "inf", callerLine),
+  	        S("%.1f", "-inf", "-inf", callerLine),
+  	        S("% f", "$(B NaN)", " nan", callerLine),
+  	        S("%20f", "+inf", "                 inf", callerLine),
+  	        S("% 20F", "+inf", "                 INF", callerLine),
+  	        S("% 20e", "-inf", "                -inf", callerLine),
+  	        S("%+20E", "-inf", "                -INF", callerLine),
+  	        S("% +20g", "-Inf", "                -inf", callerLine),
+  	        S("%+-20G", "+inf", "+INF                ", callerLine),
+  	        S("%20e", "$(B NaN)", "                 nan", callerLine),
+  	        S("% +20E", "$(B NaN)", "                +NAN", callerLine),
+  	        S("% -20g", "$(B NaN)", " nan                ", callerLine),
+  	        S("%+-20G", "$(B NaN)", "+NAN                ", callerLine),
+  	        S("%+020e", "+inf", "                +inf", callerLine),
+  	        S("%-020f", "-inf", "-inf                ", callerLine),
+  	        S("%-020E", "$(B NaN)", "NAN                 ", callerLine),
+            S("%e", "1.0", "1.000000e+00", callerLine),
+  	        S("%e", "1234.5678e3", "1.234568e+06", callerLine),
+  	        S("%e", "1234.5678e-8", "1.234568e-05", callerLine),
+  	        S("%e", "-7.0", "-7.000000e+00", callerLine),
+  	        S("%e", "-1e-9", "-1.000000e-09", callerLine),
+  	        S("%f", "1234.567e2", "123456.7", callerLine),
+  	        S("%f", "1234.5678e-8", "0.000012", callerLine),
+  	        S("%f", "-7.0", "-7.0", callerLine),
+  	        S("%f", "-1e-9", "-0.0", callerLine),
+  	        S("%g", "1234.5678e3", "1.23457e+06", callerLine),
+  	        S("%g", "1234.5678e-8", "1.23457e-05", callerLine),
+  	        S("%g", "-7.0", "-7", callerLine),
+  	        S("%g", "-1e-9", "-1e-09", callerLine),
+  	        S("%E", "1.0", "1.000000E+00", callerLine),
+  	        S("%E", "1234.5678e3", "1.234568E+06", callerLine),
+  	        S("%E", "1234.5678e-8", "1.234568E-05", callerLine),
+  	        S("%E", "-7.0", "-7.000000E+00", callerLine),
+  	        S("%E", "-1e-9", "-1.000000E-09", callerLine),
+  	        S("%G", "1234.5678e3", "1.23457E+06", callerLine),
+  	        S("%G", "1234.5678e-8", "1.23457E-05", callerLine),
+  	        S("%G", "-7.0", "-7", callerLine),
+  	        S("%G", "-1e-9", "-1E-09", callerLine),
+  	        S("%20.6e", "1.2345e3", "        1.234500e+03", callerLine),
+  	        S("%20.6e", "1.2345e-3", "        1.234500e-03", callerLine),
+  	        S("%20e", "1.2345e3", "        1.234500e+03", callerLine),
+  	        S("%20e", "1.2345e-3", "        1.234500e-03", callerLine),
+  	        S("%20.8e", "1.2345e3", "      1.23450000e+03", callerLine),
+  	        S("%20f", "1.23456789e3", "            1234.568", callerLine),
+  	        S("%20f", "1.23456789e-3", "            0.001235", callerLine),
+  	        S("%20f", "12345678901.23456789", "       12345680000.0", callerLine),
+  	        S("%-20f", "1.23456789e3", "1234.568            ", callerLine),
+            S("%20.8f", "1.23456789e3", "       1234.56800000", callerLine),
+            S("%20.8f", "1.23456789e-3", "          0.00123457", callerLine),
+            S("%g", "1.23456789e3", "1234.57", callerLine),
+            S("%g", "1.23456789e-3", "0.00123457", callerLine),
+            S("%g", "1.23456789e20", "1.23457e+20", callerLine),
+            S("%.2f", "1.0", "1.00", callerLine),
+  	        S("%.2f", "-1.0", "-1.00", callerLine),
+  	        S("% .2f", "1.0", " 1.00", callerLine),
+  	        S("% .2f", "-1.0", "-1.00", callerLine),
+  	        S("%+.2f", "1.0", "+1.00", callerLine),
+  	        S("%+.2f", "-1.0", "-1.00", callerLine),
+  	        S("%7.2f", "1.0", "   1.00", callerLine),
+  	        S("%7.2f", "-1.0", "  -1.00", callerLine),
+  	        S("% 7.2f", "1.0", "   1.00", callerLine),
+  	        S("% 7.2f", "-1.0", "  -1.00", callerLine),
+  	        S("%+7.2f", "1.0", "  +1.00", callerLine),
+  	        S("%+7.2f", "-1.0", "  -1.00", callerLine),
+  	        S("% +7.2f", "1.0", "  +1.00", callerLine),
+  	        S("% +7.2f", "-1.0", "  -1.00", callerLine),
+  	        S("%07.2f", "1.0", "0001.00", callerLine),
+  	        S("%07.2f", "-1.0", "-001.00", callerLine),
+  	        S("% 07.2f", "1.0", " 001.00", callerLine),
+  	        S("% 07.2f", "-1.0", "-001.00", callerLine),
+  	        S("%+07.2f", "1.0", "+001.00", callerLine),
+  	        S("%+07.2f", "-1.0", "-001.00", callerLine),
+  	        S("% +07.2f", "1.0", "+001.00", callerLine),
+  	        S("% +07.2f", "-1.0", "-001.00", callerLine),
+        ];
 
-    foreach (s; tests)
-    {
-        string result = Decimal32(s.v).toString(s.fmt);
-        checkResult(s, result);
+        foreach (s; tests)
+        {
+            string result = Decimal32(s.v).toString(s.fmt);
+            checkResult(s, result);
+        }
     }
 }
 
@@ -8394,7 +8437,8 @@ unittest // Decimal.opCast - up cast
 // All implement after this point must be private
 private:
 
-static if (!isBetterC)
+version (D_BetterC) {}
+else
 {
 import std.meta : AliasSeq;
 import pham.utl.coerce;

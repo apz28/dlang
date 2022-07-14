@@ -7,9 +7,11 @@ import pham.external.dec.decimal : CommonDecimal, CommonStorage, DataType,
     Decimal, Decimal32, Decimal64, Decimal128,
     ExceptionFlags, FastClass, RoundingMode,
     decimalToDecimal, decimalToSigned,
-    copysign, fabs, fastDecode, isDecimal, isLess, isGreater, realFloatPrecision, signbit, unsignalize;
-import pham.external.dec.integral : cappedAdd, cappedSub, clz, ctz, cvt, divrem, isAnyUnsignedBit, makeUnsignedBit, maxmul10,
-    pow10, prec, uint128, unsign, xadd, xmul, xsqr, xsub;
+    copysign, fabs, fastDecode, isDecimal, isLess, isGreater, realFloatPrecision,
+    signbit, unsignalize;
+import pham.external.dec.integral : cappedAdd, cappedSub, clz, ctz, cvt, divrem,
+    isAnyUnsignedBit, makeUnsignedBit, maxmul10, pow10, prec, uint128, unsign,
+    xadd, xmul, xsqr, xsub;
 
  @safe nothrow:
 package(pham.external.dec):
