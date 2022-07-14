@@ -2027,12 +2027,13 @@ version (UnitTestFBDatabase)
         auto result = db.createConnection("");
         assert(cast(FbConnection)result !is null);
 
-        result.connectionStringBuilder.databaseName = "C:\\Development\\Projects\\DLang\\FirebirdSQL\\TEST.FDB";
-        result.connectionStringBuilder.receiveTimeout = dur!"seconds"(20);
-        result.connectionStringBuilder.sendTimeout = dur!"seconds"(10);
-        result.connectionStringBuilder.encrypt = encrypt;
-        result.connectionStringBuilder.compress = compress;
-        result.connectionStringBuilder.integratedSecurity = integratedSecurity;
+        auto csb = (cast(FbConnection)result).fbConnectionStringBuilder;
+        csb.databaseName = "C:\\Development\\Projects\\DLang\\FirebirdSQL\\TEST.FDB";
+        csb.receiveTimeout = dur!"seconds"(20);
+        csb.sendTimeout = dur!"seconds"(10);
+        csb.encrypt = encrypt;
+        csb.compress = compress;
+        csb.integratedSecurity = integratedSecurity;
 
         return cast(FbConnection)result;
     }

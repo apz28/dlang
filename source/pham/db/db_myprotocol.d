@@ -136,7 +136,7 @@ public:
         {
             writer.flush();
 
-            version (TraceFunction) traceFunction!("pham.db.mydatabase")("SSL?");
+            version (TraceFunction) traceFunction!("pham.db.mydatabase")("Bind SSL");
             auto rs = connection.doOpenSSL();
             if (rs.isError)
             {

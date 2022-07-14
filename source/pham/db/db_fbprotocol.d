@@ -518,7 +518,7 @@ public:
                 goto default;
 
             default:
-                auto msg = DbMessage.eUnhandleOperation.fmtMessage(op);
+                auto msg = DbMessage.eUnhandleIntOperation.fmtMessage(op, "authentication");
                 throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_auth_data);
         }
     }
@@ -1192,7 +1192,7 @@ protected:
                 break;
 
             default:
-                auto msg = DbMessage.eUnhandleOperation.fmtMessage(op);
+                auto msg = DbMessage.eUnhandleIntOperation.fmtMessage(op, "authentication");
                 throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_auth_data);
         }
     }
@@ -1241,7 +1241,7 @@ protected:
                 break;
 
             default:
-                auto msg = DbMessage.eUnhandleOperation.fmtMessage(op);
+                auto msg = DbMessage.eUnhandleIntOperation.fmtMessage(op, "encryption");
                 throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_auth_data);
         }
     }

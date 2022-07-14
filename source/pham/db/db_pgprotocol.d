@@ -15,6 +15,7 @@ import std.algorithm.comparison : max, min;
 import std.ascii : LetterCase;
 import std.conv : to;
 import std.string : indexOf, lastIndexOf, representation;
+import std.system : Endian;
 
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
@@ -44,6 +45,7 @@ nothrow @safe:
     int32 serverProcessId;
     int32 serverSecretKey;
     int nextAuthState;
+    DbEncryptedConnection canCryptedConnection;
     char trStatus;
 }
 
@@ -242,7 +244,7 @@ public:
         auto useCSB = connection.pgConnectionStringBuilder;
 
         auto writer = PgWriter(connection);
-        writer.beginMessage('\0'); // \0=No type indicator
+        writer.beginUntypeMessage();
         writer.writeUInt32(PgOIdOther.protocolVersion);
         foreach (n; useCSB.parameterNames)
         {
@@ -274,6 +276,62 @@ public:
             }
         }
 		writer.writeChar('\0');
+        writer.flush();
+    }
+
+    final void connectCheckingSSL(ref PgConnectingStateInfo stateInfo)
+    {
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+
+        stateInfo.canCryptedConnection = canCryptedConnection(stateInfo);
+        if (stateInfo.canCryptedConnection != DbEncryptedConnection.disabled)
+        {
+            connectSSLWrite(stateInfo);
+            connectSSLRead(stateInfo);
+        }
+    }
+
+    final void connectSSLRead(ref PgConnectingStateInfo stateInfo)
+    {
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+
+        auto socketBuffer = connection.acquireSocketReadBuffer();
+        auto socketReader = DbValueReader!(Endian.bigEndian)(socketBuffer);
+        const messageType = socketReader.readChar();
+        switch (messageType)
+        {
+            case 'N':
+                if (stateInfo.canCryptedConnection == DbEncryptedConnection.required)
+                {
+                    auto msg = DbMessage.eInvalidConnectionRequiredEncryption.fmtMessage(connection.connectionStringBuilder.forErrorInfo);
+                    throw new PgException(msg, DbErrorCode.connect, null);
+                }
+                break;
+            case 'S':
+                version (TraceFunction) traceFunction!("pham.db.pgdatabase")("Bind SSL");
+                auto rs = connection.doOpenSSL();
+                if (rs.isError)
+                {
+                    version (TraceFunction) traceFunction!("pham.db.pgdatabase")("SSL failed code=", rs.errorCode, ", message=", rs.errorMessage);
+                    connection.throwConnectError(rs.errorCode, rs.errorMessage);
+                }
+
+                connection.serverInfo[DbServerIdentifier.protocolEncrypted] = toName(stateInfo.canCryptedConnection);
+                socketBuffer.reset(); // Reset to empty after reading single SSL char
+                break;
+            default:
+                auto msg = DbMessage.eUnhandleStrOperation.fmtMessage(to!string(messageType), "SSLRequest (N or S)");
+                throw new PgException(msg, DbErrorCode.connect, null);
+        }
+    }
+
+    final void connectSSLWrite(ref PgConnectingStateInfo stateInfo)
+    {
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+
+        auto writer = PgWriter(connection);
+        writer.beginUntypeMessage();
+        writer.writeInt32(80877103);
         writer.flush();
     }
 
@@ -779,6 +837,25 @@ protected:
         writer.writeInt32(serverProcessId);
         writer.writeInt32(serverSecretKey);
         writer.flush();
+    }
+
+    final DbEncryptedConnection canCryptedConnection(ref PgConnectingStateInfo stateInfo) nothrow
+    {
+        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+
+        auto useCSB = connection.pgConnectionStringBuilder;
+
+        final switch (useCSB.encrypt)
+        {
+            case DbEncryptedConnection.disabled:
+                return DbEncryptedConnection.disabled;
+            case DbEncryptedConnection.enabled:
+                return useCSB.hasSSL()
+                    ? DbEncryptedConnection.enabled
+                    : DbEncryptedConnection.disabled;
+            case DbEncryptedConnection.required:
+                return DbEncryptedConnection.required;
+        }
     }
 
     final void connectAuthenticationProcess(ref PgConnectingStateInfo stateInfo, const(ubyte)[] serverAuthData)

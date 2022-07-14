@@ -37,7 +37,8 @@ struct DbMessage
     static immutable eWriteData = "Unable to send data to '%s'\n%s";
     static immutable eUnexpectReadOperation = "Unexpected received operation code %d; expecting %d";
     static immutable eUnexpectReadValue = "Unexpected %s for datatype %s with length %d; expecting %d";
-    static immutable eUnhandleOperation = "Unable to process operation %d";
+    static immutable eUnhandleIntOperation = "Unable to process operation %d for %s";
+    static immutable eUnhandleStrOperation = "Unable to process operation %s for %s";
     static immutable eUnsupportDataType = "Unsupport %s for datatype %s";
 
     static immutable eInvalidCommandText = "Command text is not set/empty";

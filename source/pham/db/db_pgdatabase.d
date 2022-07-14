@@ -1099,6 +1099,7 @@ protected:
         version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
         _protocol = new PgProtocol(this);
+        _protocol.connectCheckingSSL(stateInfo);
         _protocol.connectAuthenticationWrite(stateInfo);
         _protocol.connectAuthenticationRead(stateInfo);
     }
@@ -1595,18 +1596,25 @@ version (UnitTestPGDatabase)
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
         DbCompressConnection compress = DbCompressConnection.disabled)
     {
+    import std.file : thisExePath;
+
         auto db = DbDatabaseList.getDb(DbScheme.pg);
         assert(cast(PgDatabase)db !is null);
 
         auto result = db.createConnection("");
         assert(cast(PgConnection)result !is null);
 
-        result.connectionStringBuilder.databaseName = "test";
-        result.connectionStringBuilder.userPassword = "masterkey";
-        result.connectionStringBuilder.receiveTimeout = dur!"seconds"(20);
-        result.connectionStringBuilder.sendTimeout = dur!"seconds"(10);
-        result.connectionStringBuilder.encrypt = encrypt;
-        result.connectionStringBuilder.compress = compress;
+        auto csb = (cast(PgConnection)result).pgConnectionStringBuilder;
+        csb.databaseName = "test";
+        csb.userPassword = "masterkey";
+        csb.receiveTimeout = dur!"seconds"(20);
+        csb.sendTimeout = dur!"seconds"(10);
+        csb.encrypt = encrypt;
+        csb.compress = compress;
+        csb.sslCa = "pg_ca.pem";
+        csb.sslCaDir = thisExePath();
+        csb.sslCert = "pg_client-cert.pem";
+        csb.sslKey = "pg_client-key.pem";
 
         return cast(PgConnection)result;
     }
@@ -1678,10 +1686,7 @@ unittest // PgConnection
 
     auto connection = createTestConnection();
     scope (exit)
-    {
         connection.dispose();
-        connection = null;
-    }
     assert(connection.state == DbConnectionState.closed);
 
     connection.open();
@@ -2252,6 +2257,27 @@ unittest // PgCommand.DML.StoredProcedure
     }
 
     failed = false;
+}
+
+version (UnitTestPGDatabase)
+unittest // PgConnection(SSL)
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgdatabase.PgConnection(SSL)");
+
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    assert(connection.state == DbConnectionState.closed);
+
+    auto csb = connection.pgConnectionStringBuilder;
+    csb.encrypt = DbEncryptedConnection.enabled;
+
+    connection.open();
+    assert(connection.state == DbConnectionState.open);
+
+    connection.close();
+    assert(connection.state == DbConnectionState.closed);
 }
 
 version (UnitTestPerfPGDatabase)

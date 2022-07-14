@@ -1803,8 +1803,8 @@ unittest // MyConnection(SSL)
     csb.userName = "caching_sha2_password";
     csb.userPassword = "masterkey";
     csb.integratedSecurity = DbIntegratedSecurityConnection.srp256;
-
     csb.encrypt = DbEncryptedConnection.enabled;
+
     connection.open();
     assert(connection.state == DbConnectionState.open);
 

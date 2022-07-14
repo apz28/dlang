@@ -248,7 +248,12 @@ public:
         if (messageCode != '\0')
             _writer.writeChar(messageCode);
         _reserveLenghtOffset = _buffer.offset;
-        _writer.writeInt32(0);
+        _writer.writeInt32(0); // Reserve length value slot
+    }
+
+    void beginUntypeMessage() nothrow
+    {
+        beginMessage('\0');
     }
 
     void dispose(bool disposing = true)
