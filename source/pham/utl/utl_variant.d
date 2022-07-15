@@ -148,7 +148,7 @@ public:
     }
 
     static if (elaborateConstructor)
-    this(this) nothrow @safe
+    this(this) nothrow @trusted
     {
         if (handler)
         {
