@@ -285,29 +285,49 @@ version (unittest)
         }
     }
 
-    string dgToHex(ubyte n) @nogc nothrow pure @safe
+    string dgToHex(ubyte n) nothrow pure @safe
     {
-        debug return format!"%.2X"(n);
+        try
+        {
+            return format!"%.2X"(n);
+        }
+        catch (Exception) { return null; }
     }
 
-    string dgToHex(ushort n) @nogc nothrow pure @safe
+    string dgToHex(ushort n) nothrow pure @safe
     {
-        debug return format!"%.4X"(n);
+        try
+        {
+            return format!"%.4X"(n);
+        }
+        catch (Exception) { return null; }
     }
 
-    string dgToHex(uint n) @nogc nothrow pure @safe
+    string dgToHex(uint n) nothrow pure @safe
     {
-        debug return format!"%.8X"(n);
+        try
+        {
+            return format!"%.8X"(n);
+        }
+        catch (Exception) { return null; }
     }
 
-    string dgToHex(ulong n) @nogc nothrow pure @safe
+    string dgToHex(ulong n) nothrow pure @safe
     {
-        debug return format!"%.16X"(n);
+        try
+        {
+            return format!"%.16X"(n);
+        }
+        catch (Exception) { return null; }
     }
 
-    string dgToHex(scope const(ubyte)[] b) @nogc nothrow pure @safe
+    string dgToHex(scope const(ubyte)[] b) nothrow pure @safe
     {
-        debug return bytesToHexs(b);
+        try
+        {
+            return bytesToHexs(b);
+        }
+        catch (Exception) { return null; }
     }
 
     string dgToStr(bool b) @nogc nothrow pure @safe
@@ -315,24 +335,40 @@ version (unittest)
         return b ? "true" : "false";
     }
 
-    string dgToStr(int n) @nogc nothrow pure @safe
+    string dgToStr(int n) nothrow pure @safe
     {
-        debug return format!"%,3?d"('_', n);
+        try
+        {
+            return format!"%,3?d"('_', n);
+        }
+        catch (Exception) { return null; }
     }
 
-    string dgToStr(uint n) @nogc nothrow pure @safe
+    string dgToStr(uint n) nothrow pure @safe
     {
-        debug return format!"%,3?d"('_', n);
+        try
+        {
+            return format!"%,3?d"('_', n);
+        }
+        catch (Exception) { return null; }
     }
 
-    string dgToStr(long n) @nogc nothrow pure @safe
+    string dgToStr(long n) nothrow pure @safe
     {
-        debug return format!"%,3?d"('_', n);
+        try
+        {
+            return format!"%,3?d"('_', n);
+        }
+        catch (Exception) { return null; }
     }
 
-    string dgToStr(ulong n) @nogc nothrow pure @safe
+    string dgToStr(ulong n) nothrow pure @safe
     {
-        debug return format!"%,3?d"('_', n);
+        try
+        {
+            return format!"%,3?d"('_', n);
+        }
+        catch (Exception) { return null; }
     }
 
     void dgWrite(A...)(A args) nothrow
@@ -343,8 +379,7 @@ version (unittest)
         {
             debug write(args);
         }
-        catch (Exception)
-        {}
+        catch (Exception) {}
     }
 
     void dgWritef(Char, A...)(in Char[] fmt, A args) nothrow
@@ -356,8 +391,7 @@ version (unittest)
         {
             debug writef(fmt, args);
         }
-        catch (Exception)
-        {}
+        catch (Exception) {}
     }
 
     void dgWriteln(A...)(A args) nothrow
@@ -368,8 +402,7 @@ version (unittest)
         {
             debug writeln(args);
         }
-        catch (Exception)
-        {}
+        catch (Exception) {}
     }
 
     void dgWriteln(const(char)[] prefix, scope const(ubyte)[] bytes) nothrow
@@ -393,14 +426,12 @@ version (unittest)
         {
             debug writefln(fmt, args);
         }
-        catch (Exception)
-        {}
+        catch (Exception) {}
     }
 
     void traceFunction(string moduleName = __MODULE__, A...)(A args,
         int line = __LINE__, string functionName = __FUNCTION__) @nogc nothrow pure @trusted
     {
-
         version (TraceFunction)
         {
             debug const prefix = functionName ~ "(" ~ to!string(line) ~ ")";

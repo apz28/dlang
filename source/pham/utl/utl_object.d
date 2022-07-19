@@ -876,7 +876,7 @@ version (unittest)
 
 nothrow @safe unittest // className
 {
-    import pham.utl.test;
+import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.className");
 
     auto c1 = new ClassName();
@@ -886,9 +886,43 @@ nothrow @safe unittest // className
     assert(className(c2) == "pham.utl.object.ClassTemplate!int.ClassTemplate");
 }
 
+nothrow @safe unittest // cmpInteger
+{
+import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.cmpInteger");
+
+    assert(cmpInteger(0, 0) == 0);
+    assert(cmpInteger(1, 2) == -1);
+    assert(cmpInteger(1, 1) == 0);
+    assert(cmpInteger(2, 1) == 1);
+    assert(cmpInteger(int.min, int.min) == 0);
+    assert(cmpInteger(int.max, int.max) == 0);
+    assert(cmpInteger(int.min, int.max) == -1);
+    assert(cmpInteger(int.max, int.min) == 1);
+}
+
+nothrow @safe unittest // cmpFloat
+{
+import std.math : isNaN;
+import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.cmpFloat");
+
+    assert(cmpFloat(0.0, 0.0) == 0);
+    assert(cmpFloat(1.0, 2.0) == -1);
+    assert(cmpFloat(1.0, 1.0) == 0);
+    assert(cmpFloat(2.0, 1.0) == 1);
+    assert(cmpFloat(-double.max, -double.max) == 0);
+    assert(cmpFloat(double.max, double.max) == 0);
+    assert(cmpFloat(-double.max, double.max) == -1);
+    assert(cmpFloat(double.max, -double.max) == 1);
+    assert(isNaN(cmpFloat(double.nan, 2.0)));
+    assert(isNaN(cmpFloat(1.0, double.nan)));
+    assert(isNaN(cmpFloat(double.nan, double.nan)));
+}
+
 nothrow @safe unittest // currentComputerName
 {
-    import pham.utl.test;
+import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.currentComputerName");
 
     assert(currentComputerName().length != 0);
@@ -896,7 +930,7 @@ nothrow @safe unittest // currentComputerName
 
 nothrow @safe unittest // currentProcessId
 {
-    import pham.utl.test;
+import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.currentProcessId");
 
     assert(currentProcessId() != 0);
@@ -904,7 +938,7 @@ nothrow @safe unittest // currentProcessId
 
 nothrow @safe unittest // currentUserName
 {
-    import pham.utl.test;
+import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.currentUserName");
 
     assert(currentUserName().length != 0);
@@ -912,7 +946,7 @@ nothrow @safe unittest // currentUserName
 
 nothrow @safe unittest // pad
 {
-    import pham.utl.test;
+import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.pad");
 
     assert(pad("", 2, ' ') == "  ");
@@ -923,7 +957,7 @@ nothrow @safe unittest // pad
 
 nothrow @safe unittest // shortClassName
 {
-    import pham.utl.test;
+import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.shortClassName");
 
     auto c1 = new ClassName();
@@ -935,7 +969,7 @@ nothrow @safe unittest // shortClassName
 
 unittest // singleton
 {
-    import pham.utl.test;
+import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.singleton");
 
     static class A {}
@@ -952,7 +986,7 @@ unittest // singleton
 
 nothrow @safe unittest // stringOfChar
 {
-    import pham.utl.test;
+import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.stringOfChar");
 
     assert(stringOfChar(4, ' ') == "    ");
@@ -961,7 +995,7 @@ nothrow @safe unittest // stringOfChar
 
 unittest // InitializedValue
 {
-    import pham.utl.test;
+import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.InitializedValue");
 
     InitializedValue!int n;
@@ -989,7 +1023,7 @@ unittest // InitializedValue
 
 nothrow @safe unittest // bytesFromHexs & bytesToHexs
 {
-    import pham.utl.test;
+import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.bytesFromHexs & bytesToHexs");
 
     assert(bytesToHexs([0]) == "00");
@@ -1016,8 +1050,8 @@ nothrow @safe unittest // bytesFromHexs & bytesToHexs
 
 nothrow @safe unittest // bytesFromBase64s
 {
-    import std.string : representation;
-    import pham.utl.test;
+import std.string : representation;
+import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.bytesFromBase64s");
 
     assert(bytesFromBase64s("QUIx") == "AB1".representation());
@@ -1025,7 +1059,7 @@ nothrow @safe unittest // bytesFromBase64s
 
 nothrow @safe unittest // VersionString
 {
-    import pham.utl.test;
+import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.VersionString");
 
     const v1Str = "1.2.3.4";
@@ -1058,9 +1092,9 @@ nothrow @safe unittest // VersionString
 
 @safe unittest // toString
 {
-    import std.array : Appender;
-    import std.conv : to;
-    import pham.utl.test;
+import std.array : Appender;
+import std.conv : to;
+import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.toString");
 
     void testCheck(uint radix = 10, N)(N n, const(ubyte) pad, string expected,
@@ -1098,7 +1132,7 @@ nothrow @safe unittest // VersionString
 
 unittest // ResultStatus
 {
-    import pham.utl.test;
+import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.ResultStatus");
 
     auto r = ResultStatus.error(1, "Error");
