@@ -443,7 +443,7 @@ nothrow @safe:
         return result;
     }
 
-    static UIntTempArray add(scope const(uint)[] left, const(uint)[] right) pure
+    static UIntTempArray add(scope const(uint)[] left, scope const(uint)[] right) pure
     in
     {
         assert(left.length >= right.length);
@@ -717,7 +717,8 @@ nothrow @safe:
         return divide(left, right, remainder);
     }
 
-    static UIntTempArray divide(scope const(uint)[] left, scope const(uint)[] right, out UIntTempArray remainder) pure
+    static UIntTempArray divide(scope const(uint)[] left, scope const(uint)[] right,
+        out UIntTempArray remainder) pure
     in
     {
         assert(left.length >= 1);
@@ -1481,8 +1482,7 @@ nothrow @safe:
         }
     }
 
-    private static void extractDigits(ref BitsBuffer xBuffer,
-        ref BitsBuffer yBuffer,
+    private static void extractDigits(ref BitsBuffer xBuffer, ref BitsBuffer yBuffer,
         out ulong x, out ulong y) pure
     in
     {

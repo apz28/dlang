@@ -13,17 +13,16 @@
 module pham.utl.file_size;
 
 import std.algorithm.searching : countUntil;
-import std.ascii : isDigit;
 import std.conv : ConvException, convTo = to;
 import std.exception : enforce;
 import std.format : format;
 import std.range.primitives : ElementType;
-import std.traits : isNarrowString, Unqual;
-import std.utf : byCodeUnit;
+import std.traits : Unqual;
 
 version (unittest) import pham.utl.test;
+import pham.utl.numeric_parser : defaultParseDecimalOptions, isDigit, isNumericLexerRange, NumericLexer,
+    NumericLexerFlag;
 import pham.utl.object : cmpInteger;
-import pham.utl.utf8 : defaultParseDecimalOptions, isNumericLexerRange, NumericLexer, NumericLexerFlag;
 
 @safe:
 
@@ -156,7 +155,7 @@ public:
         static immutable errorMessage = "Not a valid FileSize string";
         alias RangeElement = Unqual!(ElementType!Range);
 
-        auto lexer = NumericLexer!(Range)(range, defaultParseDecimalOptions!(ElementType!Range)());
+        auto lexer = NumericLexer!(Range)(range, defaultParseDecimalOptions!RangeElement());
         enforce!ConvException(lexer.hasNumericChar, errorMessage);
 
         size_t nNumber = 0;
@@ -181,7 +180,7 @@ public:
 
         lexer.skipSpaces();
         size_t nSuffix = 0;
-        RangeElement[10] suffix;
+        RangeElement[20] suffix;
         while (!lexer.empty && nSuffix < suffix.length)
         {
             const c = lexer.front;

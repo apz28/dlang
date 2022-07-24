@@ -23,9 +23,10 @@ import std.typecons : Flag;
 public import std.typecons : No, Yes;
 
 version (profile) import pham.utl.test : PerfFunction;
+public import pham.utl.numeric_parser : NumericLexerFlag, NumericLexerOptions;
+import pham.utl.numeric_parser : cvtDigit, cvtHexDigit2, isHexDigit, isNumericLexerRange, NumericLexer, NumericStringRange;
 import pham.utl.object : bytesToHexs, simpleIntegerFmt;
-public import pham.utl.utf8 : NumericLexerFlag, NumericLexerOptions;
-import pham.utl.utf8 : isDigit, isHexDigit, ShortStringBuffer;
+import pham.utl.utf8 : ShortStringBuffer;
 import pham.utl.big_integer_calculator;
 public import pham.utl.big_integer_calculator : UByteTempArray, UIntTempArray;
 import pham.utl.big_integer_helper;
@@ -50,9 +51,9 @@ Flag!"unsigned" toUnsignedFlag(bool value) @nogc nothrow pure
     return value ? Yes.unsigned : No.unsigned;
 }
 
-NumericLexerOptions!char defaultParseBigIntegerOptions() nothrow pure @safe
+NumericLexerOptions!(const(Char)) defaultParseBigIntegerOptions(Char)() nothrow pure @safe
 {
-    NumericLexerOptions!char result;
+    NumericLexerOptions!(const(Char)) result;
     result.flags |= NumericLexerFlag.allowHexDigit;
     return result;
 }
@@ -115,6 +116,11 @@ public:
     }
 
     this(scope const(uint)[] bits, int sign) nothrow pure
+    in
+    {
+        assert(isValid(bits, sign) == 0);
+    }
+    do
     {
         setSignInts(bits, sign);
     }
@@ -141,63 +147,106 @@ public:
         setInts(value);
     }
 
-    this(scope const(char)[] hexOrDecimals,
-        const(NumericLexerOptions!char) parseOptions = defaultParseBigIntegerOptions()) pure
+    this(scope const(char)[] hexOrDecimals, NumericLexerOptions!(const(char)) parseOptions = defaultParseBigIntegerOptions!char()) pure
     {
-        setZero();
+        auto range = NumericStringRange!(const(char)[])(hexOrDecimals);
+        this(range, parseOptions);
+    }
 
-        size_t i = 0;
-        size_t len = hexOrDecimals.length;
+    this(Range, Char)(scope ref Range hexOrDecimals, NumericLexerOptions!Char parseOptions) pure
+    if (isNumericLexerRange!Range && isSomeChar!Char && Char.sizeof == ElementType!Range.sizeof)
+    {
+        auto lexer = NumericLexer!Range(hexOrDecimals, parseOptions);
 
-        // Trim leadings so that some check codes can be out of loop when calling
-        // setHexs or setDecimals
-        if (parseOptions.canSkippingLeadingBlank)
+        void throwError()
         {
-            while (i < len && parseOptions.isSpaceChar(hexOrDecimals[i]))
-                i++;
+            import std.conv;
+        
+            throw new ConvException("Not a valid numerical string at " ~ to!string(lexer.count));
         }
 
-        // Trim trailings so that some check codes can be out of loop when calling
-        // setHexs or setDecimals
-        if (parseOptions.canSkippingTrailingBlank)
-        {
-            while (len > i && parseOptions.isSpaceChar(hexOrDecimals[len - 1]))
-                len--;
-        }
+        if (!lexer.hasNumericChar)
+            throwError();
 
-        // Check leading sign char
-        bool negative = false;
-        if (i < len)
+        if (lexer.isHex)
         {
-            if (hexOrDecimals[i] == '+')
-                i++;
-            else if (hexOrDecimals[i] == '-')
+            CharTempArray hexDigits;
+            while (!lexer.empty)
             {
-                i++;
-                negative = true;
+                auto f = lexer.front;
+                if (isHexDigit(f))
+                {
+                    hexDigits.put(f);
+                    
+                    lexer.popFront();
+                }
+                else if (lexer.conditionSkipSpaces())
+                {
+                    if (lexer.isInvalidAfterContinueSkippingSpaces())
+                        throwError();
+                }
+                else
+                    throwError();
+            }
+        
+            const resultLength = (hexDigits.length / 2) + (hexDigits.length % 2);
+            auto resultBits = UByteTempArray(resultLength);
+            size_t bitIndex = 0;
+            bool shift = false;
+
+            // Parse the string into a little-endian two's complement byte array
+            // string value     : O F E B 7 \0
+            // string index (i) : 0 1 2 3 4 5 <--
+            // byte[] (bitIndex): 2 1 1 0 0 <--
+            for (auto i = hexDigits.length - 1; i > 0; i--)
+            {
+                if (shift)
+                {
+                    resultBits[bitIndex] = cast(ubyte)(resultBits[bitIndex] | (cvtHexDigit2(hexDigits[i]) << 4));
+                    bitIndex++;
+                }
+                else
+                {
+                    resultBits[bitIndex] = cvtHexDigit2(hexDigits[i]);
+                }
+                shift = !shift;
+            }
+
+            const b = cvtHexDigit2(hexDigits[0]);
+            const isNegative = (parseOptions.flags & NumericLexerFlag.unsigned) == 0 && (b & 0x08) == 0x08;
+            if (shift)
+                resultBits[bitIndex] = cast(ubyte)(resultBits[bitIndex] | (b << 4));
+            else
+                resultBits[bitIndex] = isNegative ? cast(ubyte)(b | 0xF0) : b;
+
+            setBytes(resultBits[], isNegative ? No.unsigned : Yes.unsigned);
+        }
+        else
+        {
+            setZero();
+            const ten = BigInteger(10);
+            ubyte b;
+            while (!lexer.empty)
+            {
+                const f = lexer.front;
+                if (cvtDigit(f, b))
+                {
+                    this.opOpAssign!"*"(ten);
+                    this.opOpAssign!"+"(BigInteger(b));
+
+                    lexer.popFront();
+                }
+                else if (lexer.conditionSkipSpaces())
+                {
+                    if (lexer.isInvalidAfterContinueSkippingSpaces())
+                        throwError();
+                }
+                else
+                    throwError();
             }
         }
 
-        bool isHexDigits = (parseOptions.flags & NumericLexerFlag.hexDigit) != 0;
-
-        // Check for leading hex indicator '0x'
-        if (i < len
-            && (parseOptions.flags & NumericLexerFlag.allowHexDigit) != 0
-            && parseOptions.isHexDigitPrefix(hexOrDecimals[i..len]))
-        {
-            i += 2;
-            isHexDigits = true;
-        }
-
-        const isValid = i < len
-            ? (isHexDigits
-               ? setHexDigits(hexOrDecimals[i..len], parseOptions)
-               : setDecimalDigits(hexOrDecimals[i..len], parseOptions))
-            : false;
-        if (!isValid)
-            throw new ConvException("Not a valid numerical string");
-
-        if (negative)
+        if (lexer.neg)
             this.opUnary!"-"();
     }
 
@@ -224,11 +273,15 @@ public:
 
     ref BigInteger opOpAssign(string op, T)(const(T) rhs) nothrow pure return
     if ((op == "+" || op == "-" || op == "*" || op == "/" || op == "%") && is(T: BigInteger))
+    in
+    {
+        assert(rhs.isValid() == 0);
+    }
+    do
     {
         static if (op == "+")
         {
-            debug assertValid();
-            debug rhs.assertValid();
+            assert(isValid() == 0);
 
             if ((_sign < 0) != (rhs._sign < 0))
                 return subtractOpAssign(rhs._bits, -1 * rhs._sign);
@@ -237,8 +290,7 @@ public:
         }
         else static if (op == "-")
         {
-            debug assertValid();
-            debug rhs.assertValid();
+            assert(isValid() == 0);
 
             if ((_sign < 0) != (rhs._sign < 0))
                 return addOpAssign(rhs._bits, -1 * rhs._sign);
@@ -247,8 +299,7 @@ public:
         }
         else static if (op == "*")
         {
-            debug assertValid();
-            debug rhs.assertValid();
+            assert(isValid() == 0);
 
             const trivialLeft = _bits.length == 0;
             const trivialRight = rhs._bits.length == 0;
@@ -285,8 +336,7 @@ public:
         }
         else static if (op == "/")
         {
-            debug assertValid();
-            debug rhs.assertValid();
+            assert(isValid() == 0);
 
             const trivialDividend = _bits.length == 0;
             const trivialDivisor = rhs._bits.length == 0;
@@ -313,8 +363,7 @@ public:
         }
         else static if (op == "%")
         {
-            debug assertValid();
-            debug rhs.assertValid();
+            assert(isValid() == 0);
 
             const trivialDividend = _bits.length == 0;
             const trivialDivisor = rhs._bits.length == 0;
@@ -582,7 +631,7 @@ public:
         }
         else static if (op == "^^")
         {
-            debug assertValid();
+            assert(isValid() == 0);
 
             const exponent = rhs;
 
@@ -714,7 +763,7 @@ public:
 
     int opCmp(const(long) rhs) const @nogc nothrow pure
     {
-        debug assertValid();
+        assert(isValid() == 0);
 
         if (_bits.length == 0)
             return BigIntegerHelper.compare(cast(long)_sign, rhs);
@@ -730,7 +779,7 @@ public:
 
     int opCmp(const(ulong) rhs) const @nogc nothrow pure
     {
-        debug assertValid();
+        assert(isValid() == 0);
 
         if (_sign < 0)
             return -1;
@@ -747,9 +796,13 @@ public:
     }
 
     int opCmp(scope const(BigInteger) rhs) const @nogc nothrow pure
+    in
     {
-        debug assertValid();
-        debug rhs.assertValid();
+        assert(rhs.isValid() == 0);
+    }
+    do
+    {
+        assert(isValid() == 0);
 
         if ((_sign ^ rhs._sign) < 0)
         {
@@ -792,7 +845,7 @@ public:
 
     bool opEquals(const(long) rhs) const @nogc nothrow pure
     {
-        debug assertValid();
+        assert(isValid() == 0);
 
         if (_bits.length == 0)
             return _sign == rhs;
@@ -810,7 +863,7 @@ public:
 
     bool opEquals(const(ulong) rhs) const @nogc nothrow pure
     {
-        debug assertValid();
+        assert(isValid() == 0);
 
         if (_sign < 0)
             return false;
@@ -829,9 +882,13 @@ public:
     }
 
     bool opEquals(scope const(BigInteger) rhs) const @nogc nothrow pure
+    in
     {
-        debug assertValid();
-        debug rhs.assertValid();
+        assert(rhs.isValid() == 0);
+    }
+    do
+    {
+        assert(isValid() == 0);
 
         if (_sign != rhs._sign)
             return false;
@@ -855,11 +912,12 @@ public:
     {
         static if (op == "+")
         {
-            debug assertValid();
+            assert(isValid() == 0);
         }
         else static if (op == "-")
         {
-            debug assertValid();
+            assert(isValid() == 0);
+
             setSignInts(_bits, -_sign);
         }
         else static if (op == "~")
@@ -961,7 +1019,7 @@ public:
      */
     double toFloat() const @nogc nothrow pure scope
     {
-        debug assertValid();
+        assert(isValid() == 0);
 
         const len = cast(int)_bits.length;
 
@@ -994,7 +1052,7 @@ public:
 
     size_t toHash() const nothrow @nogc @safe scope
     {
-        debug assertValid();
+        assert(isValid() == 0);
 
         if (_bits.length == 0)
             return cast(size_t)_sign;
@@ -1011,7 +1069,7 @@ public:
      */
     long toLong() const pure scope
     {
-        debug assertValid();
+        assert(isValid() == 0);
 
         const len = _bits.length;
 
@@ -1040,7 +1098,7 @@ public:
      */
     ulong toULong() const pure scope
     {
-        debug assertValid();
+        assert(isValid() == 0);
 
         const len = _bits.length;
 
@@ -1420,21 +1478,21 @@ public:
 
     @property bool isEven() const @nogc nothrow pure scope
     {
-        debug assertValid();
+        assert(isValid() == 0);
 
         return _bits.length == 0 ? ((_sign & 1) == 0) : ((_bits[0] & 1) == 0);
     }
 
     @property bool isOne() const @nogc nothrow pure scope
     {
-        debug assertValid();
+        assert(isValid() == 0);
 
         return _sign == 1 && _bits.length == 0;
     }
 
     @property bool isPowerOfTwo() const @nogc nothrow pure scope
     {
-        debug assertValid();
+        assert(isValid() == 0);
 
         if (_bits.length == 0)
             return (_sign & (_sign - 1)) == 0 && _sign != 0;
@@ -1457,7 +1515,7 @@ public:
 
     @property bool isZero() const @nogc nothrow pure scope
     {
-        debug assertValid();
+        assert(isValid() == 0);
 
         return _sign == 0 && _bits.length == 0;
     }
@@ -1471,7 +1529,7 @@ public:
      */
     @property int sign() const @nogc nothrow pure scope
     {
-        debug assertValid();
+        assert(isValid() == 0);
 
         return (_sign >> (kcbitUint - 1)) - (-_sign >> (kcbitUint - 1));
     }
@@ -1498,7 +1556,7 @@ public:
     }
 
 private:
-    ref BigInteger addOpAssign(const(uint)[] rightBits, int rightSign) nothrow pure return
+    ref BigInteger addOpAssign(scope const(uint)[] rightBits, int rightSign) nothrow pure return
     {
         const trivialLeft = _bits.length == 0;
         const trivialRight = rightBits.length == 0;
@@ -1527,29 +1585,6 @@ private:
         }
 
         return this;
-    }
-
-    debug void assertValid() const nothrow pure scope
-    {
-        if (_bits.ptr !is null)
-        {
-            // _sign must be +1 or -1 when _bits is non-null
-            assert(_sign == 1 || _sign == -1);
-
-            // _bits must contain at least 1 element or be null
-            assert(_bits.length > 0);
-
-            // Wasted space: _bits[0] could have been packed into _sign
-            assert(_bits.length > 1 || _bits[0] >= kuMaskHighBit);
-
-            // Wasted space: leading zeros could have been truncated
-            assert(_bits[_bits.length - 1] != 0);
-        }
-        else
-        {
-            // Int32.MinValue should not be stored in the _sign field
-            assert(_sign > int.min);
-        }
     }
 
     void convertError(string toT) const pure scope
@@ -1581,7 +1616,33 @@ private:
         }
     }
 
-    static ptrdiff_t getDiffLength(const(uint)[] rgu1, const(uint)[] rgu2, ptrdiff_t cu) @nogc nothrow pure
+    int isValid() const @nogc nothrow pure scope
+    {
+        return isValid(_bits, _sign);
+    }
+
+    static int isValid(scope const(uint)[] bits, const(int) sign) @nogc nothrow pure
+    {
+        // int.min should not be stored in the sign field
+        if (bits.length == 0)
+            return sign > int.min ? 0 : 1;
+
+        // sign must be +1 or -1 when bits is non-empty
+        if (!(sign == 1 || sign == -1))
+            return 2;
+
+        // Wasted space: bits[0] could have been packed into sign
+        if (!(bits.length > 1 || bits[0] >= kuMaskHighBit))
+            return 3;
+
+        // Wasted space: leading zeros could have been truncated
+        if (!(bits[$ - 1] != 0))
+            return 4;
+
+        return 0;
+    }
+
+    static ptrdiff_t getDiffLength(scope const(uint)[] rgu1, scope const(uint)[] rgu2, ptrdiff_t cu) @nogc nothrow pure
     {
         for (ptrdiff_t iv = cu; --iv >= 0;)
         {
@@ -1706,7 +1767,6 @@ private:
             _sign = 0;
             _bits = null;
 
-            debug assertValid();
             return;
         }
 
@@ -1835,8 +1895,8 @@ private:
                             {
                                 _sign = (-1) * (cast(int)val[0]);
                                 _bits = null;
+                                assert(isValid() == 0);
 
-                                debug assertValid();
                                 return;
                             }
                             break;
@@ -1853,7 +1913,7 @@ private:
             }
         }
 
-        debug assertValid();
+        assert(isValid() == 0);
     }
 
     void setInts(scope const(uint)[] value) nothrow pure
@@ -1868,8 +1928,6 @@ private:
         if (dwordCount == 0)
         {
             setZero();
-
-            debug assertValid();
             return;
         }
 
@@ -1891,7 +1949,8 @@ private:
                 _bits = null;
             }
 
-            debug assertValid();
+            assert(isValid() == 0);
+
             return;
         }
 
@@ -1901,7 +1960,8 @@ private:
             _sign = +1;
             _bits = value[0..dwordCount].dup;
 
-            debug assertValid();
+            assert(isValid() == 0);
+
             return;
         }
 
@@ -1936,34 +1996,7 @@ private:
             _bits = clonedValue[0..len].dup;
         }
 
-        debug assertValid();
-    }
-
-    bool setDecimalDigits(scope const(char)[] digits, const(NumericLexerOptions!char) parseOptions) nothrow pure
-    in
-    {
-        assert(digits.length != 0);
-    }
-    do
-    {
-        const ten = BigInteger(10);
-        size_t count = 0;
-        ubyte b;
-        foreach (char c; digits)
-        {
-            if (!isDigit(c, b))
-            {
-                if (parseOptions.isContinueSkippingChar(c))
-                    continue;
-
-                return false;
-            }
-
-            this.opOpAssign!"*"(ten);
-            this.opOpAssign!"+"(BigInteger(b));
-            count++;
-        }
-        return count != 0;
+        assert(isValid() == 0);
     }
 
     void setFloat(float value) nothrow pure
@@ -2033,59 +2066,7 @@ private:
             _sign = sign;
         }
 
-        debug assertValid();
-    }
-
-    bool setHexDigits(scope const(char)[] hexDigits, const(NumericLexerOptions!char) parseOptions) nothrow pure
-    in
-    {
-        assert(hexDigits.length != 0);
-    }
-    do
-    {
-        const length = (hexDigits.length / 2) + (hexDigits.length % 2);
-        auto resultBits = UByteTempArray(length);
-
-        size_t bitIndex = 0;
-        bool shift = false;
-        ubyte b;
-
-        // Parse the string into a little-endian two's complement byte array
-        // string value     : O F E B 7 \0
-        // string index (i) : 0 1 2 3 4 5 <--
-        // byte[] (bitIndex): 2 1 1 0 0 <--
-        for (auto i = hexDigits.length - 1; i > 0; i--)
-        {
-            if (!isHexDigit(hexDigits[i], b))
-            {
-                if (parseOptions.isContinueSkippingChar(hexDigits[i]))
-                    continue;
-
-                return false;
-            }
-
-            if (shift)
-            {
-                resultBits[bitIndex] = cast(ubyte)(resultBits[bitIndex] | (b << 4));
-                bitIndex++;
-            }
-            else
-            {
-                resultBits[bitIndex] = b;
-            }
-            shift = !shift;
-        }
-
-        if (!isHexDigit(hexDigits[0], b))
-            return false;
-        const isNegative = (parseOptions.flags & NumericLexerFlag.unsigned) == 0 && (b & 0x08) == 0x08;
-        if (shift)
-            resultBits[bitIndex] = cast(ubyte)(resultBits[bitIndex] | (b << 4));
-        else
-            resultBits[bitIndex] = isNegative ? cast(ubyte)(b | 0xF0) : b;
-
-        setBytes(resultBits[], isNegative ? No.unsigned : Yes.unsigned);
-        return true;
+        assert(isValid() == 0);
     }
 
     void setInt(int value) nothrow pure
@@ -2098,7 +2079,7 @@ private:
             _bits = null;
         }
 
-        debug assertValid();
+        assert(isValid() == 0);
     }
 
     void setInt(uint value) nothrow pure
@@ -2114,7 +2095,7 @@ private:
             _bits = [value];
         }
 
-        debug assertValid();
+        assert(isValid() == 0);
     }
 
     void setInt(long value) nothrow pure
@@ -2148,7 +2129,7 @@ private:
                 _bits = [cast(uint)x, cast(uint)(x >> kcbitUint)];
         }
 
-        debug assertValid();
+        assert(isValid() == 0);
     }
 
     void setInt(ulong value) nothrow pure
@@ -2169,7 +2150,7 @@ private:
             _bits = [cast(uint)value, cast(uint)(value >> kcbitUint)];
         }
 
-        debug assertValid();
+        assert(isValid() == 0);
     }
 
     // We have to make a choice of how to represent int.MinValue. This is the one
@@ -2213,7 +2194,7 @@ private:
             this._bits = value[0..len].dup;
         }
 
-        debug assertValid();
+        assert(isValid() == 0);
     }
 
     void setOne() nothrow pure
@@ -2227,10 +2208,10 @@ private:
         this._sign = sign;
         this._bits = bits.dup;
 
-        debug assertValid();
+        assert(isValid() == 0);
     }
 
-    ref BigInteger subtractOpAssign(const(uint)[] rightBits, int rightSign) nothrow pure return
+    ref BigInteger subtractOpAssign(scope const(uint)[] rightBits, int rightSign) nothrow pure return
     {
         const trivialLeft = _bits.length == 0;
         const trivialRight = rightBits.length == 0;
@@ -2288,10 +2269,13 @@ BigInteger add(const(BigInteger) lhs, const(BigInteger) rhs) nothrow pure
 }
 
 BigInteger subtract(const(BigInteger) lhs, const(BigInteger) rhs) nothrow pure
+in
 {
-    debug lhs.assertValid();
-    debug rhs.assertValid();
-
+    assert(lhs.isValid() == 0);
+    assert(rhs.isValid() == 0);
+}
+do
+{
     auto result = BigInteger(lhs._bits, lhs._sign);
     if ((lhs._sign < 0) != (rhs._sign < 0))
         return result.addOpAssign(rhs._bits, -1 * rhs._sign);
@@ -2310,11 +2294,15 @@ BigInteger divide(const(BigInteger) dividend, const(BigInteger) divisor) nothrow
 }
 
 BigInteger divRem(const(BigInteger) dividend, const(BigInteger) divisor, out BigInteger remainder) nothrow pure
+in
 {
-    // remainder can be an alias to divident or divisor, so care to be taken when setting remainder value
-
-    debug dividend.assertValid();
-    debug divisor.assertValid();
+    assert(dividend.isValid() == 0);
+    assert(divisor.isValid() == 0);
+}
+do
+{
+    // remainder can be an alias to divident or divisor, so care to be taken
+    // when setting remainder value
 
     const trivialDividend = dividend._bits.length == 0;
     const trivialDivisor = divisor._bits.length == 0;
@@ -2426,13 +2414,12 @@ BigInteger modPow(const(BigInteger) value, const(BigInteger) exponent, const(Big
 in
 {
     assert(exponent.sign >= 0);
+    assert(value.isValid() == 0);
+    assert(exponent.isValid() == 0);
+    assert(modulus.isValid() == 0);
 }
 do
 {
-    debug value.assertValid();
-    debug exponent.assertValid();
-    debug modulus.assertValid();
-
     const trivialValue = value._bits.length == 0;
     const trivialExponent = exponent._bits.length == 0;
     const trivialModulus = modulus._bits.length == 0;
@@ -2524,10 +2511,13 @@ void swap(ref BigInteger a, ref BigInteger b) nothrow pure
 }
 
 BigInteger greatestCommonDivisor(const(BigInteger) lhs, const(BigInteger) rhs) nothrow pure
+in
 {
-    debug lhs.assertValid();
-    debug rhs.assertValid();
-
+    assert(lhs.isValid() == 0);
+    assert(rhs.isValid() == 0);
+}
+do
+{
     const trivialLeft = lhs._bits.length == 0;
     const trivialRight = rhs._bits.length == 0;
 
@@ -3585,6 +3575,20 @@ unittest
     assert(a == 1234);
 }
 
+unittest
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger");
+
+    auto a = BigInteger("-903145792771643190182");
+    auto b = BigInteger("0xCF0A55968BB1A7545A");
+    assert(a == b);
+
+    a = BigInteger("3145792771643190182");
+    b = BigInteger("0x2BA819DBD2C8ABA6");
+    assert(a == b);
+}
+
 unittest // modInverse
 {
     import pham.utl.test;
@@ -3616,7 +3620,7 @@ unittest // BigInteger.bitLength
     assert(BigInteger(2).bitLength == 2);
     assert(BigInteger(4).bitLength == 3);
 
-    auto options = defaultParseBigIntegerOptions();
+    auto options = defaultParseBigIntegerOptions!char();
     options.flags |= NumericLexerFlag.unsigned;
 
     assert(BigInteger("0xabc", options).bitLength == 12);
@@ -3639,7 +3643,7 @@ unittest // BigInteger.trailingZeroBits
     assert(BigInteger(2).trailingZeroBits == 1);
     assert(BigInteger(4).trailingZeroBits == 2);
 
-    auto options = defaultParseBigIntegerOptions();
+    auto options = defaultParseBigIntegerOptions!char();
     options.flags |= NumericLexerFlag.unsigned;
 
     assert(BigInteger("0xabc", options).trailingZeroBits == 2);
@@ -3656,7 +3660,7 @@ unittest // BigInteger.sqrt
     import pham.utl.test;
     traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.big_integer.BigInteger.sqrt");
 
-    auto options = defaultParseBigIntegerOptions();
+    auto options = defaultParseBigIntegerOptions!char();
     options.flags |= NumericLexerFlag.unsigned;
 
     const x1 = BigInteger("0x92fcad4b5c0d52f451aec609b15da8e5e5626c4eaa88723bdeac9d25ca9b961269400410ca208a16af9c2fb07d799c32fe2f3cc5422f9711078d51a3797eb18e691295293284d8f5e69caf6decddfe1df6", options);

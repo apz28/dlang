@@ -37,7 +37,8 @@ do
 
 ubyte[] bytesFromBase64s(scope const(char)[] validBase64Text) nothrow pure @safe
 {
-import pham.utl.utf8 : NoDecodeInputRange, NumericParsedKind, parseBase64, ShortStringBuffer;
+import pham.utl.numeric_parser : NumericParsedKind, parseBase64;
+import pham.utl.utf8 : NoDecodeInputRange, ShortStringBuffer;
 
     NoDecodeInputRange!(validBase64Text, char) inputRange;
     ShortStringBuffer!ubyte result;
@@ -48,7 +49,8 @@ import pham.utl.utf8 : NoDecodeInputRange, NumericParsedKind, parseBase64, Short
 
 ubyte[] bytesFromHexs(scope const(char)[] validHexDigits) nothrow pure @safe
 {
-import pham.utl.utf8 : NoDecodeInputRange, NumericParsedKind, parseHexDigits, ShortStringBuffer;
+import pham.utl.numeric_parser : NumericParsedKind, parseHexDigits;
+import pham.utl.utf8 : NoDecodeInputRange, ShortStringBuffer;
 
     NoDecodeInputRange!(validHexDigits, char) inputRange;
     ShortStringBuffer!ubyte result;
@@ -622,7 +624,8 @@ import std.array : join, split;
 import std.algorithm.iteration;
 import std.conv : to;
 import std.string : strip;
-import pham.utl.utf8 : NumericParsedKind, parseIntegral, ShortStringBuffer;
+import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+import pham.utl.utf8 : ShortStringBuffer;
 
 nothrow @safe:
 
