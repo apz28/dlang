@@ -68,8 +68,9 @@ import std.typecons : Flag, No, Yes;
 version (TraceFunction) import pham.utl.test;
 import pham.utl.array : arrayOfChar;
 import pham.utl.big_integer;
+import pham.utl.numeric_parser : isHexDigit;
 import pham.utl.object : DisposableObject;
-import pham.utl.utf8 : isHexDigit, ShortStringBuffer;
+import pham.utl.utf8 : ShortStringBuffer;
 public import pham.cp.cipher : CipherKey;
 public import pham.cp.cipher_digest;
 public import pham.cp.random : CipherRandomGenerator;
@@ -130,8 +131,7 @@ public:
             uint result = 0;
             foreach (c; N2)
             {
-                ubyte b = void;
-                if (isHexDigit(c, b))
+                if (isHexDigit(c))
                     ++result;
             }
             return result;

@@ -18,9 +18,10 @@ import std.typecons : No, Yes;
 
 version (profile) import pham.utl.test : PerfFunction;
 import pham.utl.big_integer : BigInteger, defaultParseBigIntegerOptions;
+import pham.utl.numeric_parser : NumericLexerFlag, NumericLexerOptions;
 import pham.utl.object : bytesToHexs, DisposableObject;
-import pham.utl.utf8 : NoDecodeInputRange, NoDecodeOutputRange, NumericLexerFlag, NumericLexerOptions,
-    ShortStringBuffer, ShortStringBufferSize, UTF8CharRange;
+import pham.utl.utf8 : NoDecodeInputRange, NoDecodeOutputRange, ShortStringBuffer,
+    ShortStringBufferSize, UTF8CharRange;
 import pham.cp.cipher_digest : DigestId;
 
 nothrow @safe:
@@ -175,7 +176,7 @@ public:
     {
         scope (failure) assert(0);
 
-        NumericLexerOptions!char parseOptions = defaultParseBigIntegerOptions();
+        auto parseOptions = defaultParseBigIntegerOptions!char();
         parseOptions.flags |= NumericLexerFlag.skipInnerBlank;
         return BigInteger(validDigits, parseOptions);
     }
@@ -195,7 +196,7 @@ public:
     {
         scope (failure) assert(0);
 
-        NumericLexerOptions!char parseOptions = defaultParseBigIntegerOptions();
+        auto parseOptions = defaultParseBigIntegerOptions!char();
         parseOptions.flags |= NumericLexerFlag.skipInnerBlank
             | NumericLexerFlag.hexDigit
             | NumericLexerFlag.unsigned;
