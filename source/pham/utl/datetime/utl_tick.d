@@ -341,6 +341,7 @@ enum CustomFormatSpecifier : char
     month = 'm',
     day = 'd',
     hour = 'h',
+    shortHour = 'H',
     minute = 'n',
     second = 's',
     fraction = 'z',
@@ -366,11 +367,11 @@ nothrow @safe:
     {
         DateTimeSetting result;
         result.longDateFormat = "ddd, mmm dd, yyyy";
-        result.longDateTimeFormat = "ddd, mmm dd, yyyy h:nn:ss a";
-        result.longTimeFormat = "h:nn:ss a";
+        result.longDateTimeFormat = "ddd, mmm dd, yyyy H:nn:ss a";
+        result.longTimeFormat = "H:nn:ss a";
         result.shortDateFormat = "m/d/yyyy";
-        result.shortDateTimeFormat = "m/d/yyyy h:nn a";
-        result.shortTimeFormat = "h:nn a";
+        result.shortDateTimeFormat = "m/d/yyyy H:nn a";
+        result.shortTimeFormat = "H:nn a";
         result.dayOfWeekNames = &usDayOfWeekNames;
         result.monthNames = &usMonthNames;
         result.amPmTexts = &usAmPmTexts;
