@@ -29,7 +29,8 @@ enum FormatTimeSpecifier : char
     customAMPM = 'a', /// Time part indicator AM or PM - %ca - 2009-06-15T13:45:30 -> PM
     customDay = 'd', /// Custom day part - %cd, %cdd, %cddd - 2009-06-01T01:02:03 -> 1, 01, Saturday
     customFaction = 'z', /// Custom fraction of second part - %cz, %czzz, %czzzzzz - 2009-06-01T01:02:03.4 -> 4, 004, 004000
-    customHour = 'h', /// Custom hour part - %ch, %chh - 2009-06-01T01:02:03 -> 1, 01
+    customHour = 'h', /// Custom hour part - %ch, %chh - 2009-06-01T01:02:03 -> 1, 01; 2009-06-01T13:02:03 -> 13, 13
+    customShortHour = 'H', /// Custom hour part - %ch, %chh - 2009-06-01T13:02:03 -> 1, 01
     customMinute = 'n', /// Custom minute part - %cn, %cnn - 2009-06-01T01:02:03 -> 2, 02
     customMonth = 'm', /// Custom month part - %cm, %cmm, %cmmm - 2009-06-01T01:02:03 -> 6, 06, June
     customSecond = 's', /// Custom second part - %cs, %css - 2009-06-01T01:02:03 -> 3, 03
@@ -521,6 +522,7 @@ public:
             || c == FormatTimeSpecifier.customDay
             || c == FormatTimeSpecifier.customFaction
             || c == FormatTimeSpecifier.customHour
+            || c == FormatTimeSpecifier.customShortHour
             || c == FormatTimeSpecifier.customMinute
             || c == FormatTimeSpecifier.customMonth
             || c == FormatTimeSpecifier.customSecond
@@ -609,6 +611,7 @@ private:
                 limit = 6;
                 break;
             case FormatTimeSpecifier.customHour:
+            case FormatTimeSpecifier.customShortHour:
             case FormatTimeSpecifier.customMinute:
                 limit = 2;
                 break;
@@ -673,6 +676,9 @@ if (isSomeChar!Char)
                     break;
                 case FormatTimeSpecifier.customHour:
                     pad(sink, to!string(fmtValue.hour), fmtSpec.customSpecCount, '0');
+                    break;
+                case FormatTimeSpecifier.customShortHour:
+                    pad(sink, to!string(fmtValue.shortHour), fmtSpec.customSpecCount, '0');
                     break;
                 case FormatTimeSpecifier.customMinute:
                     pad(sink, to!string(fmtValue.minute), fmtSpec.customSpecCount, '0');
@@ -1257,6 +1263,15 @@ static this() @trusted
 
     s = format("%ch:n:s", Time(13, 45, 30));
     assert(s == "13:45:30", s);
+
+    s = format("%chh:n:s", Time(1, 45, 30));
+    assert(s == "01:45:30", s);
+
+    s = format("%cH:n:s", Time(13, 45, 30));
+    assert(s == "1:45:30", s);
+
+    s = format("%cHH:n:s", Time(13, 45, 30));
+    assert(s == "01:45:30", s);
 
     // Escape % weird character format
     s = format("%cdd-%%?mm'%%-yyyy", Date(2009, 06, 15));
