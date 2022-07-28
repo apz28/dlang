@@ -14,7 +14,7 @@ module pham.db.myauth_sspi;
 version (Windows):
 
 version (unittest) import pham.utl.test;
-import pham.external.std.windows.sspi : RequestSecClient, RequestSecResult;
+import pham.external.std.windows.sspi_ex : RequestSecClient, RequestSecResult;
 import pham.db.auth;
 import pham.db.message;
 import pham.db.type : DbScheme;
