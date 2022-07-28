@@ -164,7 +164,7 @@ public:
 	    _writer.writeUInt16(cast(ushort)(length * 2));
     }
 
-    void writeColumn(scope const(DbBaseType) baseType, int32 size) nothrow
+    void writeColumn(scope const(DbBaseType) baseType, int32 subType, int32 size) nothrow
     in
     {
         assert(size >= -1 && size <= uint16.max);
@@ -175,12 +175,14 @@ public:
 	    final switch (FbIscFieldInfo.fbType(baseType.typeId))
 	    {
 		    case FbIscType.sql_varying:
-			    _writer.writeUInt8(FbBlrType.blr_varying);
-			    _writer.writeUInt16(cast(ushort)size);
+			    _writer.writeUInt8(FbBlrType.blr_varying2);
+			    _writer.writeInt16(cast(int16)subType);
+			    _writer.writeInt16(cast(int16)size);
 			    break;
 		    case FbIscType.sql_text:
-			    _writer.writeUInt8(FbBlrType.blr_text);
-			    _writer.writeUInt16(cast(ushort)size);
+			    _writer.writeUInt8(FbBlrType.blr_text2);
+			    _writer.writeInt16(cast(int16)subType);
+			    _writer.writeInt16(cast(int16)size);
 			    break;
 		    case FbIscType.sql_double:
 			    _writer.writeUInt8(FbBlrType.blr_double);
@@ -190,11 +192,11 @@ public:
 			    break;
 		    case FbIscType.sql_long:
 			    _writer.writeUInt8(FbBlrType.blr_long);
-			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
+			    _writer.writeInt8(cast(int8)baseType.numericScale);
 			    break;
 		    case FbIscType.sql_short:
 			    _writer.writeUInt8(FbBlrType.blr_short);
-			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
+			    _writer.writeInt8(cast(int8)baseType.numericScale);
 			    break;
 		    case FbIscType.sql_timestamp:
 			    _writer.writeUInt8(FbBlrType.blr_timestamp);
@@ -212,7 +214,7 @@ public:
 			    break;
 		    case FbIscType.sql_quad:
 			    _writer.writeUInt8(FbBlrType.blr_quad);
-			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
+			    _writer.writeInt8(cast(int8)baseType.numericScale);
 			    break;
 		    case FbIscType.sql_time:
 			    _writer.writeUInt8(FbBlrType.blr_sql_time);
@@ -222,11 +224,11 @@ public:
 			    break;
 		    case FbIscType.sql_int64:
 			    _writer.writeUInt8(FbBlrType.blr_int64);
-			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
+			    _writer.writeInt8(cast(int8)baseType.numericScale);
 			    break;
 		    case FbIscType.sql_int128:
 			    _writer.writeUInt8(FbBlrType.blr_int128);
-			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
+			    _writer.writeInt8(cast(int8)baseType.numericScale);
 			    break;
 		    case FbIscType.sql_timestamp_tz:
 			    _writer.writeUInt8(FbBlrType.blr_timestamp_tz);
@@ -243,23 +245,23 @@ public:
 		    /*
             case FbIscType.SQL_DEC_FIXED:
 			    _buffer.writeUInt8(FbBlrType.blr_int128);
-			    _buffer.writeUInt8(cast(ubyte)baseType.numericScale);
+			    _buffer.writeInt8(cast(int8)baseType.numericScale);
 			    break;
             */
 		    case FbIscType.sql_dec64:
 			    _writer.writeUInt8(FbBlrType.blr_dec64);
-			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
+			    _writer.writeInt8(cast(int8)baseType.numericScale);
 			    break;
 		    case FbIscType.sql_dec128:
 			    _writer.writeUInt8(FbBlrType.blr_dec128);
-			    _writer.writeUInt8(cast(ubyte)baseType.numericScale);
+			    _writer.writeInt8(cast(int8)baseType.numericScale);
 			    break;
 		    case FbIscType.sql_boolean:
 			    _writer.writeUInt8(FbBlrType.blr_bool);
 			    break;
 		    case FbIscType.sql_null:
 			    _writer.writeUInt8(FbBlrType.blr_text);
-			    _writer.writeUInt16(cast(ushort)size);
+			    _writer.writeInt16(cast(int16)size);
 			    break;
 	    }
 	    _writer.writeUInt8(FbBlrType.blr_short);

@@ -1282,7 +1282,20 @@ protected:
         writer.writeUInt8(FbIsc.isc_sdl_version1);
         writer.writeUInt8(FbIsc.isc_sdl_struct);
         writer.writeUInt8(1);
-        writer.writeUInt8(cast(uint8)array.descriptor.blrType);
+        
+        switch (array.descriptor.blrType)
+        {            
+		    case FbBlrType.blr_text: // Map blr_text to blr_text2
+                writer.writeUInt8(cast(uint8)FbBlrType.blr_text2);
+                break;
+		    case FbBlrType.blr_varying: // Map blr_varying to blr_varying2
+                writer.writeUInt8(cast(uint8)FbBlrType.blr_varying2);
+                break;
+            default:
+                writer.writeUInt8(cast(uint8)array.descriptor.blrType);
+                break;
+        }
+        
 	    switch (array.descriptor.blrType)
 	    {
 		    case FbBlrType.blr_short:
@@ -1292,12 +1305,15 @@ protected:
 		    case FbBlrType.blr_int128:
 			    writer.writeInt8(cast(int8)array.descriptor.fieldInfo.numericScale);
 			    break;
-		    case FbBlrType.blr_text:
-		    case FbBlrType.blr_text2:
-		    case FbBlrType.blr_varying:
-		    case FbBlrType.blr_varying2:
 		    case FbBlrType.blr_cstring:
 		    case FbBlrType.blr_cstring2:
+			    writer.writeInt16(cast(int16)array.descriptor.fieldInfo.size);
+			    break;
+		    case FbBlrType.blr_text: // Map blr_text to blr_text2
+		    case FbBlrType.blr_text2:
+		    case FbBlrType.blr_varying: // Map blr_varying to blr_varying2
+		    case FbBlrType.blr_varying2:
+			    writer.writeInt16(cast(int16)array.descriptor.fieldInfo.subType);            
 			    writer.writeInt16(cast(int16)array.descriptor.fieldInfo.size);
 			    break;
             default:
@@ -1423,7 +1439,7 @@ protected:
         writer.writeBegin(fields.length);
         foreach (field; fields)
         {
-            writer.writeColumn(field.baseType, field.baseSize);
+            writer.writeColumn(field.baseType, field.baseSubTypeId, field.baseSize);
         }
         writer.writeEnd(fields.length);
 
@@ -1443,7 +1459,7 @@ protected:
         writer.writeBegin(parameters.length);
         foreach (parameter; parameters)
         {
-            writer.writeColumn(parameter.baseType, parameter.baseSize);
+            writer.writeColumn(parameter.baseType, parameter.baseSubTypeId, parameter.baseSize);
         }
         writer.writeEnd(parameters.length);
         return writer.peekBytes();

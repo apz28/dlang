@@ -576,7 +576,7 @@ enum FbBlrType
 	blr_d_float = 11,
 	blr_sql_date = 12,
 	blr_sql_time = 13,
-	blr_text = 14,
+	blr_text = 14, // Should use blr_text2 to avoid utf8 truncation
 	blr_text2 = 15,
 	blr_int64 = 16,
 	blr_blob2 = 17,
@@ -590,7 +590,7 @@ enum FbBlrType
 	blr_ex_time_tz = 30,
 	blr_ex_timestamp_tz = 31,
 	blr_timestamp = 35,
-	blr_varying = 37,
+	blr_varying = 37, // Should use blr_varying2
 	blr_varying2 = 38,
 	blr_cstring = 40,
 	blr_cstring2 = 41,
