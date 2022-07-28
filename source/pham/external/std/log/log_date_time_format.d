@@ -29,8 +29,8 @@ enum FormatTimeSpecifier : char
     customAMPM = 'a', /// Time part indicator AM or PM - %ca - 2009-06-15T13:45:30 -> PM
     customDay = 'd', /// Custom day part - %cd, %cdd, %cddd - 2009-06-01T01:02:03 -> 1, 01, Saturday
     customFaction = 'z', /// Custom fraction of second part - %cz, %czzz, %czzzzzz - 2009-06-01T01:02:03.4 -> 4, 004, 004000
-    customHour = 'h', /// Custom hour part - %ch, %chh - 2009-06-01T01:02:03 -> 1, 01; 2009-06-01T13:02:03 -> 13, 13
-    customShortHour = 'H', /// Custom hour part - %ch, %chh - 2009-06-01T13:02:03 -> 1, 01
+    customLongHour = 'H', /// Custom hour part - %cH, %cHH - 2009-06-01T01:02:03 -> 1, 01; 2009-06-01T13:02:03 -> 13, 13
+    customShortHour = 'h', /// Custom hour part - %ch, %chh - 2009-06-01T13:02:03 -> 1, 01
     customMinute = 'n', /// Custom minute part - %cn, %cnn - 2009-06-01T01:02:03 -> 2, 02
     customMonth = 'm', /// Custom month part - %cm, %cmm, %cmmm - 2009-06-01T01:02:03 -> 6, 06, June
     customSecond = 's', /// Custom second part - %cs, %css - 2009-06-01T01:02:03 -> 3, 03
@@ -521,7 +521,7 @@ public:
         return c == FormatTimeSpecifier.customAMPM
             || c == FormatTimeSpecifier.customDay
             || c == FormatTimeSpecifier.customFaction
-            || c == FormatTimeSpecifier.customHour
+            || c == FormatTimeSpecifier.customLongHour
             || c == FormatTimeSpecifier.customShortHour
             || c == FormatTimeSpecifier.customMinute
             || c == FormatTimeSpecifier.customMonth
@@ -610,7 +610,7 @@ private:
             case FormatTimeSpecifier.customFaction: // time fraction, 1..3=msec, 4..6=usec
                 limit = 6;
                 break;
-            case FormatTimeSpecifier.customHour:
+            case FormatTimeSpecifier.customLongHour:
             case FormatTimeSpecifier.customShortHour:
             case FormatTimeSpecifier.customMinute:
                 limit = 2;
@@ -674,7 +674,7 @@ if (isSomeChar!Char)
                     else
                         pad(sink, to!string(fmtValue.tick), fmtSpec.customSpecCount, '0');
                     break;
-                case FormatTimeSpecifier.customHour:
+                case FormatTimeSpecifier.customLongHour:
                     pad(sink, to!string(fmtValue.hour), fmtSpec.customSpecCount, '0');
                     break;
                 case FormatTimeSpecifier.customShortHour:
@@ -1238,11 +1238,11 @@ static this() @trusted
 {
     string s;
 
-    s = format("%cmm/dd/yyyy hh:nn:ss", DateTime(2009, 06, 15, 13, 45, 30));
+    s = format("%cmm/dd/yyyy HH:nn:ss", DateTime(2009, 06, 15, 13, 45, 30));
     assert(s == "06/15/2009 13:45:30", s);
     s = format("%cm/dd/yyyy h:nn:ss", DateTime(2009, 06, 15, 3, 45, 30));
     assert(s == "6/15/2009 3:45:30", s);
-    s = format("%cm/dd/yy h:nn:ss", DateTime(2009, 06, 15, 3, 45, 30));
+    s = format("%cm/dd/yy H:nn:ss", DateTime(2009, 06, 15, 3, 45, 30));
     assert(s == "6/15/09 3:45:30", s);
 
     s = format("%cdd/mm/yyyy", Date(2009, 06, 15));
@@ -1256,21 +1256,21 @@ static this() @trusted
     s = format("%cddd, mmm d, yyyy", Date(2009, 06, 1));
     assert(s == "Monday, June 1, 2009", s);
 
-    s = format("%cyyyymmdd hhnnsszzz", SysTime(DateTime(2009, 06, 15, 13, 45, 30), usecs(1), null));
+    s = format("%cyyyymmdd HHnnsszzz", SysTime(DateTime(2009, 06, 15, 13, 45, 30), usecs(1), null));
     assert(s == "20090615 134530000", s);
-    s = format("%cyyyymmdd hhnnsszzzzzz", SysTime(DateTime(2009, 06, 15, 13, 45, 30), usecs(1), null));
+    s = format("%cyyyymmdd HHnnsszzzzzz", SysTime(DateTime(2009, 06, 15, 13, 45, 30), usecs(1), null));
     assert(s == "20090615 134530000001", s);
 
-    s = format("%ch:n:s", Time(13, 45, 30));
+    s = format("%cH:n:s", Time(13, 45, 30));
     assert(s == "13:45:30", s);
 
     s = format("%chh:n:s", Time(1, 45, 30));
     assert(s == "01:45:30", s);
 
-    s = format("%cH:n:s", Time(13, 45, 30));
+    s = format("%ch:n:s", Time(13, 45, 30));
     assert(s == "1:45:30", s);
 
-    s = format("%cHH:n:s", Time(13, 45, 30));
+    s = format("%chh:n:s", Time(13, 45, 30));
     assert(s == "01:45:30", s);
 
     // Escape % weird character format
