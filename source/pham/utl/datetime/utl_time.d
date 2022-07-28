@@ -319,7 +319,7 @@ public:
     {
         import pham.utl.datetime.date_time_format;
 
-        auto fmtSpec = FormatDateTimeSpec!Char("%s");
+        auto fmtSpec = FormatDateTimeSpec!Char("%G");
         auto fmtValue = FormatDateTimeValue(this);
         formattedWrite(sink, fmtSpec, fmtValue);
         return sink;
@@ -809,19 +809,19 @@ unittest // Time.toString
     import pham.utl.test;
     traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time.Time.toString");
 
-    assert(Time.max.toString() == "23:59:59.9999999");
+    assert(Time.max.toString() == "11:59:59 PM", Time.max.toString());
 
-    assert(Time(0, 0, 0).toString() == "00:00:00.0000000");
-    assert(Time(12, 30, 33).toString() == "12:30:33.0000000");
+    assert(Time(0, 0, 0).toString() == "0:00:00 AM", Time(0, 0, 0).toString());
+    assert(Time(12, 30, 33).toString() == "12:30:33 PM", Time(12, 30, 33).toString());
 
     auto tod = Time(12, 30, 33);
-    assert(tod.toString() == "12:30:33.0000000");
+    assert(tod.toString() == "12:30:33 PM", tod.toString());
 
     const ctod = Time(12, 30, 33);
-    assert(ctod.toString() == "12:30:33.0000000");
+    assert(ctod.toString() == "12:30:33 PM", ctod.toString());
 
     immutable itod = Time(12, 30, 33);
-    assert(itod.toString() == "12:30:33.0000000");
+    assert(itod.toString() == "12:30:33 PM", itod.toString());
 }
 
 unittest // Time.createTime

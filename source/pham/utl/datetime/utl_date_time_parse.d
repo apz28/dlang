@@ -165,7 +165,7 @@ nothrow @safe:
     {
         auto usSetting = DateTimeSetting.us;
         DateTimePattern result;
-        result.patternText = usSetting.shortDateFormat;
+        result.patternText = usSetting.shortFormat.date;
         result.dayOfWeekFullNames = &usDayOfWeekNames;
         result.dayOfWeekShortNames = &usShortDayOfWeekNames;
         result.monthFullNames = &usMonthNames;
@@ -180,7 +180,7 @@ nothrow @safe:
     {
         auto usSetting = DateTimeSetting.us;
         DateTimePattern result;
-        result.patternText = usSetting.shortDateTimeFormat;
+        result.patternText = usSetting.shortFormat.dateTime;
         result.dayOfWeekFullNames = &usDayOfWeekNames;
         result.dayOfWeekShortNames = &usShortDayOfWeekNames;
         result.monthFullNames = &usMonthNames;
@@ -195,7 +195,7 @@ nothrow @safe:
     {
         auto usSetting = DateTimeSetting.us;
         DateTimePattern result;
-        result.patternText = usSetting.shortTimeFormat;
+        result.patternText = usSetting.shortFormat.time;
         result.dayOfWeekFullNames = &usDayOfWeekNames;
         result.dayOfWeekShortNames = &usShortDayOfWeekNames;
         result.monthFullNames = &usMonthNames;
@@ -299,7 +299,8 @@ public:
                     if (!setCurrentPatternKind(i, PatternKind.separatorDate))
                         goto Done;
                     break;
-                case CustomFormatSpecifier.hour:
+                case CustomFormatSpecifier.longHour:
+                case CustomFormatSpecifier.shortHour:
                     if (!setCurrentPatternKind(i, PatternKind.hour))
                         goto Done;
                     break;

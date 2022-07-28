@@ -28,8 +28,8 @@ enum FormatDateTimeSpecifier : char
     customAmPm = CustomFormatSpecifier.amPm, /// Time part indicator AM or PM - %ca - 2009-06-15T13:45:30 -> PM
     customDay = CustomFormatSpecifier.day, /// Custom day part - %cd, %cdd, %cddd - 2009-06-01T01:02:03 -> 1, 01, Saturday
     customFraction = CustomFormatSpecifier.fraction, /// Custom fraction of second part - %cz, %czzz, %czzzzzzz - 2009-06-01T01:02:03.4 -> 4, 004, 0040000
-    customHour = CustomFormatSpecifier.hour, /// Custom hour part - %ch, %chh - 2009-06-01T1:02:03 -> 1, 01, 2009-06-01T13:02:03 -> 13, 13
-    customShortHour = CustomFormatSpecifier.shortHour, /// Custom hour part - %cH, %cHH - 2009-06-01T13:02:03 -> 1, 01
+    customLongHour = CustomFormatSpecifier.longHour, /// Custom hour part - %cH, %cHH - 2009-06-01T1:02:03 -> 1, 01; 2009-06-01T13:02:03 -> 13, 13
+    customShortHour = CustomFormatSpecifier.shortHour, /// Custom hour part - %ch, %chh - 2009-06-01T13:02:03 -> 1, 01
     customMinute = CustomFormatSpecifier.minute, /// Custom minute part - %cn, %cnn - 2009-06-01T01:02:03 -> 2, 02
     customMonth = CustomFormatSpecifier.month, /// Custom month part - %cm, %cmm, %cmmm - 2009-06-01T01:02:03 -> 6, 06, June
     customSecond = CustomFormatSpecifier.second, /// Custom second part - %cs, %css - 2009-06-01T01:02:03 -> 3, 03
@@ -319,7 +319,7 @@ public:
         return c == FormatDateTimeSpecifier.customAmPm
             || c == FormatDateTimeSpecifier.customDay
             || c == FormatDateTimeSpecifier.customFraction
-            || c == FormatDateTimeSpecifier.customHour
+            || c == FormatDateTimeSpecifier.customLongHour
             || c == FormatDateTimeSpecifier.customShortHour
             || c == FormatDateTimeSpecifier.customMinute
             || c == FormatDateTimeSpecifier.customMonth
@@ -416,7 +416,7 @@ private:
             case FormatDateTimeSpecifier.customFraction: // time fraction, 1..3=msec, 4..7=usec
                 limit = Tick.ticksMaxPrecision; // 999 * 10_000 (ticksPerMillisecond) or 9_999_999 (precision);
                 break;
-            case FormatDateTimeSpecifier.customHour:
+            case FormatDateTimeSpecifier.customLongHour:
             case FormatDateTimeSpecifier.customShortHour:
             case FormatDateTimeSpecifier.customMinute:
                 limit = 2;
@@ -505,7 +505,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     else
                         toString(sink, fmtValue.tick, fmtSpec.customSpecCount);
                     break;
-                case FormatDateTimeSpecifier.customHour:
+                case FormatDateTimeSpecifier.customLongHour:
                     toString(sink, fmtValue.hour, fmtSpec.customSpecCount);
                     break;
                 case FormatDateTimeSpecifier.customShortHour:
@@ -551,6 +551,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
         return putCustom();
     }
 
+    version (none)
     void putFullDateTime() nothrow @safe
     {
         put(sink, fmtValue.dayOfWeekName(setting));
@@ -566,6 +567,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
         toString(sink, fmtValue.minute, 2);
     }
 
+    version (none)
     void putGeneralDateTime() nothrow @safe
     {
         toString(sink, fmtValue.month);
@@ -579,6 +581,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
         toString(sink, fmtValue.minute, 2);
     }
 
+    version (none)
     void putTime() nothrow @safe
     {
         toString(sink, fmtValue.shortHour);
@@ -596,24 +599,47 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 if (putCustom() == FormatWriteResult.error)
                     return formatedWriteError;
                 break;
-            case FormatDateTimeSpecifier.generalShortDateTime: // 2009-06-15T13:45:30 -> 6/15/2009 1:45 PM
-                putGeneralDateTime();
-                putAMorPM(true);
+            case FormatDateTimeSpecifier.generalShortDateTime:
+                auto fmt = fmtValue.kind == DateTimeKind.date
+                            ? setting.generalShortFormat.date
+                            : (fmtValue.kind == DateTimeKind.dateTime
+                                ? setting.generalShortFormat.dateTime
+                                : setting.generalShortFormat.time);
+                if (putCustomFor(fmt) == FormatWriteResult.error)
+                    return formatedWriteError;
+                version (none)
+                {
+                    // 2009-06-15T13:45:30 -> 6/15/2009 1:45 PM
+                    putGeneralDateTime();
+                    putAMorPM(true);
+                }
                 break;
-            case FormatDateTimeSpecifier.generalLongDateTime: // 2009-06-15T13:45:30 -> 6/15/2009 1:45:30 PM
-                putGeneralDateTime();
-                put(sink, setting.timeSeparator);
-                toString(sink, fmtValue.second, 2);
-                putAMorPM(true);
+            case FormatDateTimeSpecifier.generalLongDateTime:
+                auto fmt = fmtValue.kind == DateTimeKind.date
+                            ? setting.generalLongFormat.date
+                            : (fmtValue.kind == DateTimeKind.dateTime
+                                ? setting.generalLongFormat.dateTime
+                                : setting.generalLongFormat.time);
+                if (putCustomFor(fmt) == FormatWriteResult.error)
+                    return formatedWriteError;
+                version (none)
+                {
+                    // 2009-06-15T13:45:30 -> 6/15/2009 1:45:30 PM
+                    putGeneralDateTime();
+                    put(sink, setting.timeSeparator);
+                    toString(sink, fmtValue.second, 2);
+                    putAMorPM(true);
+                }
                 break;
             case FormatDateTimeSpecifier.julianDay:
                 toString(sink, fmtValue.julianDay);
                 break;
-            case FormatDateTimeSpecifier.longDate: // 2009-06-15T13:45:30 -> Monday, June 15, 2009
-                if (putCustomFor(setting.longDateFormat) == FormatWriteResult.error)
+            case FormatDateTimeSpecifier.longDate:
+                if (putCustomFor(setting.longFormat.date) == FormatWriteResult.error)
                     return formatedWriteError;
                 version (none)
                 {
+                    // 2009-06-15T13:45:30 -> Monday, June 15, 2009
                     put(sink, fmtValue.dayOfWeekName(setting));
                     put(sink, ", ");
                     put(sink, fmtValue.monthName(setting));
@@ -623,22 +649,24 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     toString(sink, fmtValue.year, 4);
                 }
                 break;
-            case FormatDateTimeSpecifier.longDateTime: // 2009-06-15T13:1:30 -> Monday, June 15, 2009 1:01:30 PM
-                if (putCustomFor(setting.longDateTimeFormat) == FormatWriteResult.error)
+            case FormatDateTimeSpecifier.longDateTime:
+                if (putCustomFor(setting.longFormat.dateTime) == FormatWriteResult.error)
                     return formatedWriteError;
                 version (none)
                 {
+                    // 2009-06-15T13:1:30 -> Monday, June 15, 2009 1:01:30 PM
                     putFullDateTime();
                     put(sink, setting.timeSeparator);
                     toString(sink, fmtValue.second, 2);
                     putAMorPM(true);
                 }
                 break;
-            case FormatDateTimeSpecifier.longTime: // 2009-06-15T13:45:30 -> 1:45:30 PM
-                if (putCustomFor(setting.longTimeFormat) == FormatWriteResult.error)
+            case FormatDateTimeSpecifier.longTime:
+                if (putCustomFor(setting.longFormat.time) == FormatWriteResult.error)
                     return formatedWriteError;
                 version (none)
                 {
+                    // 2009-06-15T13:45:30 -> 1:45:30 PM
                     putTime();
                     put(sink, setting.timeSeparator);
                     toString(sink, fmtValue.second, 2);
@@ -655,11 +683,12 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 put(sink, ' ');
                 toString(sink, fmtValue.year, 4);
                 break;
-            case FormatDateTimeSpecifier.shortDate: // 2009-06-15T13:45:30 -> 6/15/2009
-                if (putCustomFor(setting.shortDateFormat) == FormatWriteResult.error)
+            case FormatDateTimeSpecifier.shortDate:
+                if (putCustomFor(setting.shortFormat.date) == FormatWriteResult.error)
                     return formatedWriteError;
                 version (none)
                 {
+                    // 2009-06-15T13:45:30 -> 6/15/2009
                     toString(sink, fmtValue.month);
                     put(sink, setting.dateSeparator);
                     toString(sink, fmtValue.day);
@@ -667,20 +696,22 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     toString(sink, fmtValue.year, 4);
                 }
                 break;
-            case FormatDateTimeSpecifier.shortDateTime: // 2009-06-15T13:1:30 -> Monday, June 15, 2009 1:01 PM
-                if (putCustomFor(setting.shortDateTimeFormat) == FormatWriteResult.error)
+            case FormatDateTimeSpecifier.shortDateTime:
+                if (putCustomFor(setting.shortFormat.dateTime) == FormatWriteResult.error)
                     return formatedWriteError;
                 version (none)
                 {
+                    // 2009-06-15T13:1:30 -> Monday, June 15, 2009 1:01 PM
                     putFullDateTime();
                     putAMorPM(true);
                 }
                 break;
-            case FormatDateTimeSpecifier.shortTime: // 2009-06-15T13:45:30 -> 1:45 PM
-                if (putCustomFor(setting.shortTimeFormat) == FormatWriteResult.error)
+            case FormatDateTimeSpecifier.shortTime:
+                if (putCustomFor(setting.shortFormat.time) == FormatWriteResult.error)
                     return formatedWriteError;
                 version (none)
                 {
+                    // 2009-06-15T13:45:30 -> 1:45 PM
                     putTime();
                     putAMorPM(true);
                 }
@@ -842,7 +873,7 @@ private:
     s = DateTime(2009, 06, 15, 13, 45, 30).toString("%g");
     assert(s == "6/15/2009 1:45 PM", s);
     s = DateTime(2009, 06, 15, 13, 45, 30).toString("%G");
-    assert(s == "6/15/2009 1:45:30 PM", s);
+    assert(s == "06/15/2009 1:45:30 PM", s);
 }
 
 @safe unittest // FormatDateTimeSpecifier.julianDay
@@ -988,11 +1019,11 @@ private:
 
     string s;
 
-    s = DateTime(2009, 06, 15, 13, 45, 30).toString("%cmm/dd/yyyy hh:nn:ss");
+    s = DateTime(2009, 06, 15, 13, 45, 30).toString("%cmm/dd/yyyy HH:nn:ss");
     assert(s == "06/15/2009 13:45:30", s);
-    s = DateTime(2009, 06, 15, 3, 45, 30).toString("%cm/dd/yyyy h:nn:ss");
+    s = DateTime(2009, 06, 15, 3, 45, 30).toString("%cm/dd/yyyy H:nn:ss");
     assert(s == "6/15/2009 3:45:30", s);
-    s = DateTime(2009, 06, 15, 3, 45, 30).toString("%cm/dd/yy h:nn:ss");
+    s = DateTime(2009, 06, 15, 3, 45, 30).toString("%cm/dd/yy H:nn:ss");
     assert(s == "6/15/09 3:45:30", s);
 
     s = Date(2009, 06, 15).toString("%cdd/mm/yyyy");
@@ -1006,21 +1037,21 @@ private:
     s = Date(2009, 06, 1).toString("%cddd, mmm d, yyyy");
     assert(s == "Monday, June 1, 2009", s);
 
-    s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%cyyyymmdd hhnnsszzz");
+    s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%cyyyymmdd HHnnsszzz");
     assert(s == "20090615 134530000", s);
-    s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%cyyyymmdd hhnnsszzzzzzz");
+    s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%cyyyymmdd HHnnsszzzzzzz");
     assert(s == "20090615 1345300000001", s);
 
-    s = Time(13, 45, 30).toString("%ch:n:s");
+    s = Time(13, 45, 30).toString("%cH:n:s");
     assert(s == "13:45:30", s);
 
-    s = Time(1, 45, 30).toString("%chh:n:s");
+    s = Time(1, 45, 30).toString("%cHH:n:s");
     assert(s == "01:45:30", s);
 
-    s = Time(13, 45, 30).toString("%cH:n:s");
+    s = Time(13, 45, 30).toString("%ch:n:s");
     assert(s == "1:45:30", s);
 
-    s = Time(13, 45, 30).toString("%cHH:n:s");
+    s = Time(13, 45, 30).toString("%chh:n:s");
     assert(s == "01:45:30", s);
 
     // Escape % weird character format

@@ -340,8 +340,8 @@ enum CustomFormatSpecifier : char
     year = 'y',
     month = 'm',
     day = 'd',
-    hour = 'h',
-    shortHour = 'H',
+    longHour = 'H',
+    shortHour = 'h',
     minute = 'n',
     second = 's',
     fraction = 'z',
@@ -354,11 +354,20 @@ alias AmPmTexts = string[2];
 alias DayOfWeekNames = string[7];
 alias MonthNames = string[12];
 
+struct DateTimeKindFormat
+{
+nothrow @safe:
+
+    string date;
+    string dateTime;
+    string time;
+}
+
 struct DateTimeSetting
 {
 nothrow @safe:
 
-    bool isValid() const @nogc pure
+    bool isValid() const @nogc pure scope
     {
         return (dayOfWeekNames !is null) && (monthNames !is null) && dateSeparator != 0 && timeSeparator != 0;
     }
@@ -366,12 +375,23 @@ nothrow @safe:
     static DateTimeSetting us() @nogc pure
     {
         DateTimeSetting result;
-        result.longDateFormat = "ddd, mmm dd, yyyy";
-        result.longDateTimeFormat = "ddd, mmm dd, yyyy H:nn:ss a";
-        result.longTimeFormat = "H:nn:ss a";
-        result.shortDateFormat = "m/d/yyyy";
-        result.shortDateTimeFormat = "m/d/yyyy H:nn a";
-        result.shortTimeFormat = "H:nn a";
+        
+        result.generalLongFormat.date = "mm/dd/yyyy"; 
+        result.generalLongFormat.dateTime = "mm/dd/yyyy h:nn:ss a"; 
+        result.generalLongFormat.time = "h:nn:ss a"; 
+        
+        result.generalShortFormat.date = "m/d/yyyy";
+        result.generalShortFormat.dateTime = "m/d/yyyy h:nn a";
+        result.generalShortFormat.time = "h:nn a";
+        
+        result.longFormat.date = "ddd, mmm dd, yyyy";
+        result.longFormat.dateTime = "ddd, mmm dd, yyyy h:nn:ss a";
+        result.longFormat.time = "h:nn:ss a";
+                
+        result.shortFormat.date = "m/d/yyyy";
+        result.shortFormat.dateTime = "m/d/yyyy h:nn a";
+        result.shortFormat.time = "h:nn a";
+        
         result.dayOfWeekNames = &usDayOfWeekNames;
         result.monthNames = &usMonthNames;
         result.amPmTexts = &usAmPmTexts;
@@ -380,12 +400,10 @@ nothrow @safe:
         return result;
     }
 
-    string longDateFormat;
-    string longDateTimeFormat;
-    string longTimeFormat;
-    string shortDateFormat;
-    string shortDateTimeFormat;
-    string shortTimeFormat;
+    DateTimeKindFormat generalLongFormat;
+    DateTimeKindFormat generalShortFormat;
+    DateTimeKindFormat longFormat;
+    DateTimeKindFormat shortFormat;
 
     const(DayOfWeekNames)* dayOfWeekNames;
     const(MonthNames)* monthNames;

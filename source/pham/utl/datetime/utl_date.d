@@ -220,7 +220,7 @@ public:
     {
         import pham.utl.datetime.date_time_format;
 
-        auto fmtSpec = FormatDateTimeSpec!Char("%s");
+        auto fmtSpec = FormatDateTimeSpec!Char("%G");
         auto fmtValue = FormatDateTimeValue(this);
         formattedWrite(sink, fmtSpec, fmtValue);
         return sink;
@@ -1050,7 +1050,7 @@ public:
     {
         import pham.utl.datetime.date_time_format;
 
-        auto fmtSpec = FormatDateTimeSpec!Char("%s");
+        auto fmtSpec = FormatDateTimeSpec!Char("%G");
         auto fmtValue = FormatDateTimeValue(this);
         formattedWrite(sink, fmtSpec, fmtValue);
         return sink;
@@ -2007,16 +2007,16 @@ unittest // DateTime.toString
     import pham.utl.test;
     traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date.DateTime.toString");
 
-    assert(DateTime.max.toString() == "9999-12-31T23:59:59.9999999");
+    assert(DateTime.max.toString() == "12/31/9999 11:59:59 PM", DateTime.max.toString());
 
     auto dt = DateTime(1999, 7, 6, 12, 30, 33, 1);
-    assert(dt.toString() == "1999-07-06T12:30:33.0010000");
+    assert(dt.toString() == "07/06/1999 12:30:33 PM", dt.toString());
 
     const cdt = DateTime(1999, 7, 6, 12, 30, 33);
-    assert(cdt.toString() == "1999-07-06T12:30:33.0000000");
+    assert(cdt.toString() == "07/06/1999 12:30:33 PM", cdt.toString());
 
     immutable idt = DateTime(1999, 7, 6, 12, 30, 33);
-    assert(idt.toString() == "1999-07-06T12:30:33.0000000");
+    assert(idt.toString() == "07/06/1999 12:30:33 PM", idt.toString());
 }
 
 unittest // DateTime.dayOfWeek
@@ -2084,7 +2084,7 @@ unittest // DateTime.endOfMonth
     assert(DateTime(1999, 10, 22, 10, 23, 36).endOfMonth == DateTime(Date(1999, 10, 31), Time.max));
     assert(DateTime(1999, 11, 23, 11, 24, 37).endOfMonth == DateTime(Date(1999, 11, 30), Time.max));
     assert(DateTime(1999, 12, 24, 12, 25, 38).endOfMonth == DateTime(Date(1999, 12, 31), Time.max));
-    assert(DateTime(1999, 12, 25, 12, 25, 38).endOfMonth.toString() == "1999-12-31T23:59:59.9999999");
+    assert(DateTime(1999, 12, 25, 12, 25, 38).endOfMonth.toString() == "12/31/1999 11:59:59 PM", DateTime(1999, 12, 25, 12, 25, 38).endOfMonth.toString());
 }
 
 unittest // Date.constructor
@@ -2296,16 +2296,16 @@ unittest // Date.toString
     import pham.utl.test;
     traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date.Date.toString");
 
-    assert(Date.max.toString() == "9999-12-31");
+    assert(Date.max.toString() == "12/31/9999", Date.max.toString());
 
     auto dt = Date(1999, 7, 6);
-    assert(dt.toString() == "1999-07-06");
+    assert(dt.toString() == "07/06/1999", dt.toString());
 
     const cdt = Date(1999, 7, 6);
-    assert(cdt.toString() == "1999-07-06");
+    assert(cdt.toString() == "07/06/1999", cdt.toString());
 
     immutable idt = Date(1999, 7, 6);
-    assert(idt.toString() == "1999-07-06");
+    assert(idt.toString() == "07/06/1999", idt.toString());
 }
 
 unittest // Date.dayOfWeek
