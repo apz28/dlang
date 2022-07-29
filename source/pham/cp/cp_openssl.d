@@ -1047,14 +1047,14 @@ public:
         if (bnHex is null)
             return currentError("BN_bn2hex");
 
-        char* bnDec = opensslApi.BN_bn2dec(bn);
-        auto d = fromStringz(bnDec);
-        auto h = fromStringz(bnHex);
-        import pham.utl.test; dgWriteln("hex ", h.length, ": ", h);
-        import pham.utl.test; dgWriteln("dec ", d.length, ": ", d);
-        opensslApi.OPENSSL_free(bnDec);
+        //char* bnDec = opensslApi.BN_bn2dec(bn);
+        //auto decPrim = fromStringz(bnDec);
+        //opensslApi.OPENSSL_free(bnDec);
+        //import pham.utl.test; dgWriteln("dec ", decPrim.length, ": ", decPrim);
 
         hexPrim = fromStringz(bnHex);
+        //import pham.utl.test; dgWriteln("hex ", hexPrim.length, ": ", hexPrim);
+
         return ResultStatus.ok();
     }
 
