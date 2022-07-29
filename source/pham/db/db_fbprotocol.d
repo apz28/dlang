@@ -1291,6 +1291,9 @@ protected:
 		    case FbBlrType.blr_varying: // Map blr_varying to blr_varying2
                 writer.writeUInt8(cast(uint8)FbBlrType.blr_varying2);
                 break;
+		    case FbBlrType.blr_cstring: // Map blr_cstring to blr_cstring2
+                writer.writeUInt8(cast(uint8)FbBlrType.blr_cstring2);
+                break;            
             default:
                 writer.writeUInt8(cast(uint8)array.descriptor.blrType);
                 break;
@@ -1305,14 +1308,12 @@ protected:
 		    case FbBlrType.blr_int128:
 			    writer.writeInt8(cast(int8)array.descriptor.fieldInfo.numericScale);
 			    break;
-		    case FbBlrType.blr_cstring:
-		    case FbBlrType.blr_cstring2:
-			    writer.writeInt16(cast(int16)array.descriptor.fieldInfo.size);
-			    break;
 		    case FbBlrType.blr_text: // Map blr_text to blr_text2
 		    case FbBlrType.blr_text2:
 		    case FbBlrType.blr_varying: // Map blr_varying to blr_varying2
 		    case FbBlrType.blr_varying2:
+		    case FbBlrType.blr_cstring:
+		    case FbBlrType.blr_cstring2: // Map blr_cstring to blr_cstring2
 			    writer.writeInt16(cast(int16)array.descriptor.fieldInfo.subType);            
 			    writer.writeInt16(cast(int16)array.descriptor.fieldInfo.size);
 			    break;

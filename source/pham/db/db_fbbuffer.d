@@ -153,7 +153,7 @@ public:
     void writeBegin(size_t length) nothrow
     in
     {
-        assert(length <= ushort.max / 2);
+        assert(length <= ushort.max / 2); // Max number of columns
     }
     do
     {
@@ -176,13 +176,13 @@ public:
 	    {
 		    case FbIscType.sql_varying:
 			    _writer.writeUInt8(FbBlrType.blr_varying2);
-			    _writer.writeInt16(cast(int16)subType);
-			    _writer.writeInt16(cast(int16)size);
+			    _writer.writeInt16(cast(int16)subType); // charset
+			    _writer.writeInt16(cast(int16)size); // length
 			    break;
 		    case FbIscType.sql_text:
 			    _writer.writeUInt8(FbBlrType.blr_text2);
-			    _writer.writeInt16(cast(int16)subType);
-			    _writer.writeInt16(cast(int16)size);
+			    _writer.writeInt16(cast(int16)subType); // charset
+			    _writer.writeInt16(cast(int16)size); // length
 			    break;
 		    case FbIscType.sql_double:
 			    _writer.writeUInt8(FbBlrType.blr_double);
@@ -202,8 +202,11 @@ public:
 			    _writer.writeUInt8(FbBlrType.blr_timestamp);
 			    break;
 		    case FbIscType.sql_blob:
-			    _writer.writeUInt8(FbBlrType.blr_quad);
-			    _writer.writeUInt8(0);
+			    //_writer.writeUInt8(FbBlrType.blr_quad);
+			    //_writer.writeUInt8(0);
+                _writer.writeUInt8(FbBlrType.blr_blob2);
+			    _writer.writeInt16(cast(int16)subType);
+			    _writer.writeInt16(0); // charset
 			    break;
 		    case FbIscType.sql_d_float:
 			    _writer.writeUInt8(FbBlrType.blr_d_float);
@@ -271,7 +274,7 @@ public:
     void writeEnd(size_t length) nothrow
     in
     {
-        assert(length <= ushort.max / 2);
+        assert(length <= ushort.max / 2); // Max number of columns
     }
     do
     {
