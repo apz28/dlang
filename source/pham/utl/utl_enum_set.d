@@ -12,7 +12,6 @@
 module pham.utl.enum_set;
 
 import std.conv : to;
-import std.exception : assumeWontThrow;
 import std.meta : allSatisfy;
 import std.range.primitives : put;
 import std.traits : EnumMembers, isIntegral, Unqual;
@@ -151,24 +150,36 @@ template isEnumSet(E)
 }
 
 /**
- * Define a simple enum set fit in 32/64 bit integral
+ * Define a simple enum set fit in 8/16/32/64 bit integral
  */
 template EnumSetStorage(E)
 if (isEnumSet!E)
 {
     static if (isBitEnum!E)
     {
-        static if (E.max <= uint.max)
+        static if (E.max <= ubyte.max)
+            alias EnumSetStorage = ubyte;
+        else static if (E.max <= ushort.max)
+            alias EnumSetStorage = ushort;
+        else static if (E.max <= uint.max)
             alias EnumSetStorage = uint;
-        else
+        else static if (E.max <= ulong.max)
             alias EnumSetStorage = ulong;
+        else
+            static assert(0, "Overflow storage");
     }
     else
     {
-        static if (count!E() <= uint.sizeof * 8)
+        static if (count!E() <= ubyte.sizeof * 8)
+            alias EnumSetStorage = ubyte;
+        else static if (count!E() <= ushort.sizeof * 8)
+            alias EnumSetStorage = ushort;
+        else static if (count!E() <= uint.sizeof * 8)
             alias EnumSetStorage = uint;
-        else
+        else static if (count!E() <= ulong.sizeof * 8)
             alias EnumSetStorage = ulong;
+        else
+            static assert(0, "Overflow storage");
     }
 }
 
@@ -178,21 +189,21 @@ if (isEnumSet!E)
  *  enum E {e1 = 1, e2 = 2, e3 = 10, ...}
  *  bit!E(e3) returns 4
  */
-auto bit(E)(E value) @nogc pure
+EnumSetStorage!E bit(E)(E value) @nogc pure
 if (isEnumSet!E)
 {
     static if (isBitEnum!E)
-        return value;
+        return cast(EnumSetStorage!E)value;
     else static if (isSequencedEnum!E)
-        return cast(EnumSetStorage!E)1 << value;
+        return cast(EnumSetStorage!E)(cast(EnumSetStorage!E)1 << value);
     else
     {
-        size_t at;
+        size_t shift;
         foreach (e; EnumMembers!E)
         {
             if (e == value)
-                return cast(EnumSetStorage!E)1 << at;
-            at++;
+                return cast(EnumSetStorage!E)(cast(EnumSetStorage!E)1 << shift);
+            shift++;
         }
         assert(0);
     }
@@ -226,8 +237,8 @@ if (isEnumSet!E)
  * Convert a string, value, to it E enum presentation
  * Assume that value is a valid/matching value
  * Params:
- *  value = a string to be converted
- *  emptyValue = a result if value is empty
+ *  validEnumName = a valid enum name to be converted
+ *  emptyValue = a result if validEnumName is empty
  * Returns:
  *  if value is empty, return enum emptyValue
  *  otherwise return the enum that matches value
@@ -236,10 +247,12 @@ if (isEnumSet!E)
  *  toEnum!E("e3") returns e3
  *  toEnum!E("", e2) returns e2
  */
-E toEnum(E)(string value, E emptyValue = E.init) pure
+E toEnum(E)(string validEnumName, E emptyValue = E.init) pure
 if (is(E Base == enum))
 {
-    return value.length != 0 ? assumeWontThrow(to!E(value)) : emptyValue;
+import std.exception : assumeWontThrow;
+
+    return validEnumName.length != 0 ? assumeWontThrow(to!E(validEnumName)) : emptyValue;
 }
 
 /**
@@ -255,8 +268,6 @@ if (is(E Base == enum))
 string toName(E)(const(E) value) pure
 if (is(E Base == enum))
 {
-    import pham.utl.utf8 : ShortStringBuffer;
-
     foreach (i, e; EnumMembers!E)
     {
         if (value == e)
@@ -270,7 +281,7 @@ if (is(E Base == enum))
 }
 
 /**
- * Define a simple enum set struct that fit in 32/64 bit integral
+ * Define a simple enum set struct that fit in 8/16/32/64 bit integral
  */
 struct EnumSet(E)
 if (isEnumSet!E)
@@ -283,7 +294,7 @@ public:
 public:
     static struct EnumSetRange
     {
-    nothrow @safe:
+    @nogc nothrow @safe:
 
     public:
         this(EnumSet!E values) pure
@@ -323,12 +334,12 @@ public:
             return _values[_length - 1];
         }
 
-        @property bool empty() const
+        @property bool empty() const pure
         {
             return _index >= _length;
         }
 
-        @property E front()
+        @property E front() const pure
         in
         {
             assert(!empty);
@@ -344,19 +355,19 @@ public:
     }
 
 public:
-    this(E value) pure
+    this(E value) @nogc pure
     {
         this._values = bit(value);
     }
 
-    this(scope const(E)[] values) pure
+    this(scope const(E)[] values) @nogc pure
     {
         this._values = 0;
         foreach (e; values)
             this._values |= bit(e);
     }
 
-    this(V...)(scope V values) pure
+    this(V...)(scope V values) @nogc pure
     if (allSatisfy!(isEnumSet, V))
     {
         this._values = 0;
@@ -364,25 +375,25 @@ public:
             this._values |= bit(e);
     }
 
-    bool opCast(C: bool)() const pure
+    bool opCast(C: bool)() const @nogc pure
     {
         return _values != 0;
     }
 
     // Temporary hack until bug http://d.puremagic.com/issues/show_bug.cgi?id=5747 is fixed.
-    EnumSet!E opCast(T)() const
+    EnumSet!E opCast(T)() const @nogc
     if (is(Unqual!T == EnumSet!E))
     {
         return this;
     }
 
-    ref typeof(this) opAssign(E value) pure return
+    ref typeof(this) opAssign(E value) @nogc pure return
     {
         this._values = bit(value);
         return this;
     }
 
-    ref typeof(this) opAssign(const(E)[] values) pure return
+    ref typeof(this) opAssign(const(E)[] values) @nogc pure return
     {
         this._values = 0;
         foreach (e; values)
@@ -390,7 +401,7 @@ public:
         return this;
     }
 
-    ref typeof(this) opAssign(V...)(V values) pure return
+    ref typeof(this) opAssign(V...)(V values) @nogc pure return
     if (allSatisfy!(isEnumSet, V))
     {
         this._values = 0;
@@ -399,7 +410,7 @@ public:
         return this;
     }
 
-    ref typeof(this) opOpAssign(string op)(E value) pure return
+    ref typeof(this) opOpAssign(string op)(E value) @nogc pure return
     if (op == "^" || op == "-" || op == "|" || op == "+")
     {
         static if (op == "^" || op == "-")
@@ -412,7 +423,7 @@ public:
         return this;
     }
 
-    ref typeof(this) opOpAssign(string op)(EnumSet!E source) pure return
+    ref typeof(this) opOpAssign(string op)(EnumSet!E source) @nogc pure return
     if (op == "^" || op == "-" || op == "|" || op == "+" || op == "&" || op == "*")
     {
         static if (op == "^" || op == "-")
@@ -427,47 +438,47 @@ public:
         return this;
     }
 
-    typeof(this) opBinary(string op)(E value) const pure
+    typeof(this) opBinary(string op)(E value) const @nogc pure
     if (op == "^" || op == "-" || op == "|" || op == "+")
     {
         EnumSet!E res = this;
         return res.opOpAssign!op(value);
     }
 
-    typeof(this) opBinary(string op)(EnumSet!E source) const pure
+    typeof(this) opBinary(string op)(EnumSet!E source) const @nogc pure
     if (op == "^" || op == "-" || op == "|" || op == "+" || op == "&" || op == "*")
     {
         EnumSet!E res = this;
         return res.opOpAssign!op(source);
     }
 
-    bool opBinaryRight(string op : "in")(E value) const pure
+    bool opBinaryRight(string op : "in")(E value) const @nogc pure
     {
         return on(value);
     }
 
-    bool opEquals()(auto const ref EnumSet!E source) const pure
+    bool opEquals()(auto const ref EnumSet!E source) const @nogc pure
     {
         return _values == source.values;
     }
 
-    EnumSetRange opIndex() return
+    EnumSetRange opIndex() @nogc return
     {
         return EnumSetRange(this);
     }
 
-    ref typeof(this) exclude(E value) pure return
+    ref typeof(this) exclude(E value) @nogc pure return
     {
         return opOpAssign!"-"(value);
     }
 
-    ref typeof(this) include(E value) pure return
+    ref typeof(this) include(E value) @nogc pure return
     {
         return opOpAssign!"+"(value);
     }
 
     pragma (inline, true)
-    bool any(scope const(E)[] source) const pure
+    bool any(scope const(E)[] source) const @nogc pure
     {
         foreach (i; source)
         {
@@ -477,7 +488,7 @@ public:
         return false;
     }
 
-    bool any(V...)(scope V source) const pure
+    bool any(V...)(scope V source) const @nogc pure
     if (allSatisfy!(isEnumSet, V))
     {
         foreach (e; source)
@@ -489,24 +500,24 @@ public:
     }
 
     pragma (inline, true)
-    bool off(E value) const pure
+    bool off(E value) const @nogc pure
     {
         return _values == 0 || (_values & bit(value)) == 0;
     }
 
     pragma (inline, true)
-    bool on(E value) const pure
+    bool on(E value) const @nogc pure
     {
         return _values != 0 && (_values & bit(value)) != 0;
     }
 
-    ref typeof(this) reset() pure return
+    ref typeof(this) reset() @nogc pure return
     {
         _values = 0;
         return this;
     }
 
-    ref typeof(this) set(E value, bool isSet) pure return
+    ref typeof(this) set(E value, bool isSet) @nogc pure return
     {
         if (isSet)
             return opOpAssign!"+"(value);
@@ -591,7 +602,7 @@ public:
         return fails;
     }
 
-    size_t toHash() const pure
+    size_t toHash() const @nogc pure
     {
         return hashOf(_values);
     }
@@ -629,12 +640,23 @@ public:
         return sink;
     }
 
+    bool opDispatch(string name)() const @nogc pure
+    {
+        return on(__traits(getMember, E, name));
+    }
+        
+    bool opDispatch(string name)(bool v) @nogc pure
+    {
+        set(__traits(getMember, E, name), v);
+        return v;
+    }
+        
     @property bool empty() const @nogc pure
     {
         return _values == 0;
     }
 
-    @property EnumSetStorage!E values() const pure
+    @property EnumSetStorage!E values() const @nogc pure
     {
         return _values;
     }
@@ -775,7 +797,6 @@ nothrow @safe unittest // toEnum
         two,
         three
     }
-
     assert(toEnum!EnumTestOrder("") == EnumTestOrder.one);
     assert(toEnum!EnumTestOrder("", EnumTestOrder.two) == EnumTestOrder.two);
     assert(toEnum!EnumTestOrder("one") == EnumTestOrder.one);
@@ -794,7 +815,6 @@ nothrow @safe unittest // toName
         two,
         three,
     }
-
     assert(toName(EnumTestOrder.one) == "one");
     assert(toName(EnumTestOrder.two) == "two");
     assert(toName(EnumTestOrder.three) == "three");
@@ -806,7 +826,6 @@ nothrow @safe unittest // toName
         two = 6,
         three = 7,
     }
-
     assert(toName(EnumTestOrder2.one) == "one");
     assert(toName(EnumTestOrder2.two) == "two");
     assert(toName(EnumTestOrder2.three) == "three");
@@ -857,8 +876,11 @@ nothrow @safe unittest // EnumSet
 
         testFlags.exclude(E.one);
         assert(testFlags.off(E.one));
+        assert(!testFlags.one);
         assert(testFlags.on(E.two));
+        assert(testFlags.two);
         assert(testFlags.on(E.three));
+        assert(testFlags.three);
 
         testFlags.exclude(E.two);
         assert(testFlags.off(E.two));
@@ -899,7 +921,6 @@ nothrow @safe unittest // EnumSet
         two = 3,
         three = 32
     }
-
     /*
     pragma(msg,
         "EnumTestSkip ", EnumSetStorage!EnumTestOrder,
@@ -909,7 +930,6 @@ nothrow @safe unittest // EnumSet
         ", isEnumSet: ", isEnumSet!(EnumTestOrder),
         ", OriginalType: ", OriginalType!EnumTestOrder);
     */
-
     static assert(!isBitEnum!EnumTestOrder);
     static assert(!isSequencedEnum!EnumTestOrder);
     Test!EnumTestOrder("[one,two,three]");
@@ -921,7 +941,6 @@ nothrow @safe unittest // EnumSet
         two,
         three
     }
-
     /*
     pragma(msg,
         "EnumTestSequence ", EnumSetStorage!EnumTestSequence,
@@ -931,7 +950,8 @@ nothrow @safe unittest // EnumSet
         ", isEnumSet: ", isEnumSet!(EnumTestSequence),
         ", OriginalType: ", OriginalType!EnumTestSequence);
     */
-
+    static assert(isEnumSet!EnumTestSequence);
+    static assert(is(EnumSetStorage!EnumTestSequence == ubyte));
     Test!EnumTestSequence("[one,two,three]");
 
     enum EnumTestBit
@@ -940,7 +960,6 @@ nothrow @safe unittest // EnumSet
         two = 1 << 1,
         three = 1 << 2
     }
-
     /*
     pragma(msg,
         "EnumTestBit ", EnumSetStorage!EnumTestBit,
@@ -950,21 +969,31 @@ nothrow @safe unittest // EnumSet
         ", isEnumSet: ", isEnumSet!(EnumTestBit),
         ", OriginalType: ", OriginalType!EnumTestBit);
     */
-
+    static assert(isEnumSet!EnumTestBit);
+    static assert(is(EnumSetStorage!EnumTestBit == ubyte));
     Test!EnumTestBit("[one,two,three]");
 
 
-    enum EnumTestLimit1
+    enum EnumTestLimit16
+    {
+        b1, b2, b3, b4, b5, b6, b7, b8, b9, b0,
+        b11, b12, b13, b14, b15, b16
+    }
+    static assert(isEnumSet!EnumTestLimit16);
+    static assert(is(EnumSetStorage!EnumTestLimit16 == ushort));
+
+    
+    enum EnumTestLimit32
     {
         b1, b2, b3, b4, b5, b6, b7, b8, b9, b0,
         b11, b12, b13, b14, b15, b16, b17, b18, b19, b20,
         b21, b22, b23, b24, b25, b26, b27, b28, b29, b30,
         b31, b32
     }
-    static assert(isEnumSet!EnumTestLimit1);
-    static assert(is(EnumSetStorage!EnumTestLimit1 == uint));
+    static assert(isEnumSet!EnumTestLimit32);
+    static assert(is(EnumSetStorage!EnumTestLimit32 == uint));
 
-    enum EnumTestLimit2
+    enum EnumTestLimit64
     {
         b1, b2, b3, b4, b5, b6, b7, b8, b9, b0,
         b11, b12, b13, b14, b15, b16, b17, b18, b19, b20,
@@ -974,8 +1003,8 @@ nothrow @safe unittest // EnumSet
         b51, b52, b53, b54, b55, b56, b57, b58, b59, b60,
         b61, b62, b63, b64
     }
-    static assert(isEnumSet!EnumTestLimit2);
-    static assert(is(EnumSetStorage!EnumTestLimit2 == ulong));
+    static assert(isEnumSet!EnumTestLimit64);
+    static assert(is(EnumSetStorage!EnumTestLimit64 == ulong));
 
     enum EnumTestFailOverSequence
     {
