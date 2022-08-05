@@ -672,7 +672,7 @@ public:
         return DbBaseType(numericScale, size, subType, type);
     }
 
-	static FbIscType blrTypeToIscType(int32 blrType) @nogc pure
+	static FbIscType blrTypeToFbType(int32 blrType) @nogc pure
 	{
 		switch (blrType)
 		{
@@ -824,6 +824,63 @@ public:
         return cast(FbIscType)(iscType & ~0x1); // Exclude allow null indicator
     }
 
+    static FbBlrType fbTypeToBlrType(const(FbIscType) fbType) @nogc pure
+    {
+	    final switch (fbType)
+	    {
+		    case FbIscType.sql_varying:
+			    return FbBlrType.blr_varying2; // FbBlrType.blr_varying;
+		    case FbIscType.sql_text:
+			    return FbBlrType.blr_text2; // FbBlrType.blr_text;
+		    case FbIscType.sql_double:
+			    return FbBlrType.blr_double;
+		    case FbIscType.sql_float:
+			    return FbBlrType.blr_float;
+		    case FbIscType.sql_long:
+			    return FbBlrType.blr_long;
+		    case FbIscType.sql_short:
+			    return FbBlrType.blr_short;
+		    case FbIscType.sql_timestamp:
+			    return FbBlrType.blr_timestamp;
+		    case FbIscType.sql_blob:
+                return FbBlrType.blr_blob2; // FbBlrType.blr_quad;
+		    case FbIscType.sql_d_float:
+			    return FbBlrType.blr_d_float;
+		    case FbIscType.sql_array:
+			    return FbBlrType.blr_quad;
+		    case FbIscType.sql_quad:
+			    return FbBlrType.blr_quad;
+		    case FbIscType.sql_time:
+			    return FbBlrType.blr_sql_time;
+		    case FbIscType.sql_date:
+			    return FbBlrType.blr_sql_date;
+		    case FbIscType.sql_int64:
+			    return FbBlrType.blr_int64;
+		    case FbIscType.sql_int128:
+			    return FbBlrType.blr_int128;
+		    case FbIscType.sql_timestamp_tz:
+			    return FbBlrType.blr_timestamp_tz;
+		    case FbIscType.sql_timestamp_tz_ex:
+			    return FbBlrType.blr_ex_timestamp_tz;
+		    case FbIscType.sql_time_tz:
+			    return FbBlrType.blr_sql_time_tz;
+		    case FbIscType.sql_time_tz_ex:
+			    return FbBlrType.blr_ex_time_tz;
+		    /*
+            case FbIscType.SQL_DEC_FIXED:
+			    return FbBlrType.blr_int128;
+            */
+		    case FbIscType.sql_dec64:
+			    return FbBlrType.blr_dec64;
+		    case FbIscType.sql_dec128:
+			    return FbBlrType.blr_dec128;
+		    case FbIscType.sql_boolean:
+			    return FbBlrType.blr_bool;
+		    case FbIscType.sql_null:
+			    return FbBlrType.blr_text;
+	    }    
+    }
+    
     string fbTypeName() const pure
     {
         return fbTypeName(type);

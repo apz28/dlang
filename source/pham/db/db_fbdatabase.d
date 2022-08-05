@@ -441,7 +441,7 @@ public:
         if (reader.read())
         {
             result.blrType = reader.getValue("RDB$FIELD_TYPE").get!int16();
-            result.fieldInfo.type = FbIscFieldInfo.blrTypeToIscType(result.blrType);
+            result.fieldInfo.type = FbIscFieldInfo.blrTypeToFbType(result.blrType);
             result.fieldInfo.numericScale = reader.getValue("RDB$FIELD_SCALE").get!int16();
             result.fieldInfo.size = reader.getValue("RDB$FIELD_LENGTH").get!int16();
             result.fieldInfo.subType = reader.getValue("RDB$FIELD_SUB_TYPE").get!int16();

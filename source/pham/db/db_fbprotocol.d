@@ -1283,45 +1283,14 @@ protected:
         writer.writeUInt8(FbIsc.isc_sdl_struct);
         writer.writeUInt8(1);
         
-        switch (array.descriptor.blrType)
-        {            
-		    case FbBlrType.blr_text: // Map blr_text to blr_text2
-                writer.writeUInt8(cast(uint8)FbBlrType.blr_text2);
-                break;
-		    case FbBlrType.blr_varying: // Map blr_varying to blr_varying2
-                writer.writeUInt8(cast(uint8)FbBlrType.blr_varying2);
-                break;
-		    case FbBlrType.blr_cstring: // Map blr_cstring to blr_cstring2
-                writer.writeUInt8(cast(uint8)FbBlrType.blr_cstring2);
-                break;            
-            default:
-                writer.writeUInt8(cast(uint8)array.descriptor.blrType);
-                break;
+        { // Type
+            auto typeWriter = FbBlrWriter(writer.buffer);
+            typeWriter.writeType(cast(FbBlrType)array.descriptor.blrType, array.descriptor.fieldInfo.baseType(), FbBlrWriteType.base);
         }
         
-	    switch (array.descriptor.blrType)
-	    {
-		    case FbBlrType.blr_short:
-		    case FbBlrType.blr_long:
-		    case FbBlrType.blr_quad:
-		    case FbBlrType.blr_int64:
-		    case FbBlrType.blr_int128:
-			    writer.writeInt8(cast(int8)array.descriptor.fieldInfo.numericScale);
-			    break;
-		    case FbBlrType.blr_text: // Map blr_text to blr_text2
-		    case FbBlrType.blr_text2:
-		    case FbBlrType.blr_varying: // Map blr_varying to blr_varying2
-		    case FbBlrType.blr_varying2:
-		    case FbBlrType.blr_cstring:
-		    case FbBlrType.blr_cstring2: // Map blr_cstring to blr_cstring2
-			    writer.writeInt16(cast(int16)array.descriptor.fieldInfo.subType);            
-			    writer.writeInt16(cast(int16)array.descriptor.fieldInfo.size);
-			    break;
-            default:
-                break;
-	    }
         writer.writeName(FbIsc.isc_sdl_relation, array.descriptor.fieldInfo.tableName);
         writer.writeName(FbIsc.isc_sdl_field, array.descriptor.fieldInfo.name);
+        
         version (FbMultiDimensions)
         {
             foreach (i, ref bound; array.descriptor.bounds)
@@ -1440,7 +1409,7 @@ protected:
         writer.writeBegin(fields.length);
         foreach (field; fields)
         {
-            writer.writeColumn(field.baseType, field.baseSubTypeId, field.baseSize);
+            writer.writeColumn(field.baseType);
         }
         writer.writeEnd(fields.length);
 
@@ -1460,7 +1429,7 @@ protected:
         writer.writeBegin(parameters.length);
         foreach (parameter; parameters)
         {
-            writer.writeColumn(parameter.baseType, parameter.baseSubTypeId, parameter.baseSize);
+            writer.writeColumn(parameter.baseType);
         }
         writer.writeEnd(parameters.length);
         return writer.peekBytes();

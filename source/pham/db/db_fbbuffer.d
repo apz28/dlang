@@ -111,10 +111,22 @@ public:
         _writer.writeUInt8(v);
     }
 
+    @property DbWriteBuffer buffer() nothrow pure return
+    {
+        return _buffer;
+    }
+    
 private:
     DbWriteBuffer _buffer;
     FbConnection _connection;
     FbParameterWriter _writer;
+}
+
+enum FbBlrWriteType
+{
+    base,
+    null_,
+    array,
 }
 
 struct FbBlrWriter
@@ -124,11 +136,19 @@ struct FbBlrWriter
 public:
     @disable this(this);
 
+    this(DbWriteBuffer buffer) nothrow
+    {
+        this._connection = null;
+        this._buffer = buffer;
+        this._writer = FbParameterWriter(buffer);
+    }
+    
     this(FbConnection connection) nothrow
     {
+        DbWriteBuffer conBuffer = connection.acquireParameterWriteBuffer();        
         this._connection = connection;
-        this._buffer = connection.acquireParameterWriteBuffer();
-        this._writer = FbParameterWriter(this._buffer);
+        this._buffer = conBuffer;
+        this._writer = FbParameterWriter(conBuffer);
     }
 
     ~this() nothrow
@@ -164,109 +184,19 @@ public:
 	    _writer.writeUInt16(cast(ushort)(length * 2));
     }
 
-    void writeColumn(scope const(DbBaseType) baseType, int32 subType, int32 size) nothrow
+    void writeColumn(scope const(DbBaseType) baseType) nothrow
     in
     {
-        assert(size >= -1 && size <= uint16.max);
-        assert(baseType.numericScale >= int8.min && baseType.numericScale <= uint8.max);
+        assert(baseType.size >= -1 && baseType.size <= uint16.max);
+        assert(baseType.numericScale >= int8.min && baseType.numericScale <= int8.max);
     }
     do
     {
-	    final switch (FbIscFieldInfo.fbType(baseType.typeId))
-	    {
-		    case FbIscType.sql_varying:
-			    _writer.writeUInt8(FbBlrType.blr_varying2);
-			    _writer.writeInt16(cast(int16)subType); // charset
-			    _writer.writeInt16(cast(int16)size); // length
-			    break;
-		    case FbIscType.sql_text:
-			    _writer.writeUInt8(FbBlrType.blr_text2);
-			    _writer.writeInt16(cast(int16)subType); // charset
-			    _writer.writeInt16(cast(int16)size); // length
-			    break;
-		    case FbIscType.sql_double:
-			    _writer.writeUInt8(FbBlrType.blr_double);
-			    break;
-		    case FbIscType.sql_float:
-			    _writer.writeUInt8(FbBlrType.blr_float);
-			    break;
-		    case FbIscType.sql_long:
-			    _writer.writeUInt8(FbBlrType.blr_long);
-			    _writer.writeInt8(cast(int8)baseType.numericScale);
-			    break;
-		    case FbIscType.sql_short:
-			    _writer.writeUInt8(FbBlrType.blr_short);
-			    _writer.writeInt8(cast(int8)baseType.numericScale);
-			    break;
-		    case FbIscType.sql_timestamp:
-			    _writer.writeUInt8(FbBlrType.blr_timestamp);
-			    break;
-		    case FbIscType.sql_blob:
-			    //_writer.writeUInt8(FbBlrType.blr_quad);
-			    //_writer.writeUInt8(0);
-                _writer.writeUInt8(FbBlrType.blr_blob2);
-			    _writer.writeInt16(cast(int16)subType);
-			    _writer.writeInt16(0); // charset
-			    break;
-		    case FbIscType.sql_d_float:
-			    _writer.writeUInt8(FbBlrType.blr_d_float);
-			    break;
-		    case FbIscType.sql_array:
-			    _writer.writeUInt8(FbBlrType.blr_quad);
-			    _writer.writeUInt8(0);
-			    break;
-		    case FbIscType.sql_quad:
-			    _writer.writeUInt8(FbBlrType.blr_quad);
-			    _writer.writeInt8(cast(int8)baseType.numericScale);
-			    break;
-		    case FbIscType.sql_time:
-			    _writer.writeUInt8(FbBlrType.blr_sql_time);
-			    break;
-		    case FbIscType.sql_date:
-			    _writer.writeUInt8(FbBlrType.blr_sql_date);
-			    break;
-		    case FbIscType.sql_int64:
-			    _writer.writeUInt8(FbBlrType.blr_int64);
-			    _writer.writeInt8(cast(int8)baseType.numericScale);
-			    break;
-		    case FbIscType.sql_int128:
-			    _writer.writeUInt8(FbBlrType.blr_int128);
-			    _writer.writeInt8(cast(int8)baseType.numericScale);
-			    break;
-		    case FbIscType.sql_timestamp_tz:
-			    _writer.writeUInt8(FbBlrType.blr_timestamp_tz);
-			    break;
-		    case FbIscType.sql_timestamp_tz_ex:
-			    _writer.writeUInt8(FbBlrType.blr_ex_timestamp_tz);
-			    break;
-		    case FbIscType.sql_time_tz:
-			    _writer.writeUInt8(FbBlrType.blr_sql_time_tz);
-			    break;
-		    case FbIscType.sql_time_tz_ex:
-			    _writer.writeUInt8(FbBlrType.blr_ex_time_tz);
-			    break;
-		    /*
-            case FbIscType.SQL_DEC_FIXED:
-			    _buffer.writeUInt8(FbBlrType.blr_int128);
-			    _buffer.writeInt8(cast(int8)baseType.numericScale);
-			    break;
-            */
-		    case FbIscType.sql_dec64:
-			    _writer.writeUInt8(FbBlrType.blr_dec64);
-			    _writer.writeInt8(cast(int8)baseType.numericScale);
-			    break;
-		    case FbIscType.sql_dec128:
-			    _writer.writeUInt8(FbBlrType.blr_dec128);
-			    _writer.writeInt8(cast(int8)baseType.numericScale);
-			    break;
-		    case FbIscType.sql_boolean:
-			    _writer.writeUInt8(FbBlrType.blr_bool);
-			    break;
-		    case FbIscType.sql_null:
-			    _writer.writeUInt8(FbBlrType.blr_text);
-			    _writer.writeInt16(cast(int16)size);
-			    break;
-	    }
+        const fbType = FbIscFieldInfo.fbType(baseType.typeId);
+        const writeTypeFor = fbType == FbIscType.sql_null
+            ? FbBlrWriteType.null_
+            : (fbType == FbIscType.sql_array ? FbBlrWriteType.array : FbBlrWriteType.base);
+        writeType(FbIscFieldInfo.fbTypeToBlrType(fbType), baseType, writeTypeFor);
 	    _writer.writeUInt8(FbBlrType.blr_short);
 	    _writer.writeUInt8(0);
     }
@@ -282,6 +212,90 @@ public:
 	    _writer.writeUInt8(FbIsc.blr_eoc);
     }
 
+    void writeType(FbBlrType blrType, scope const(DbBaseType) baseType, const(FbBlrWriteType) writeTypeFor) nothrow
+    in
+    {
+        assert(baseType.size >= -1 && baseType.size <= uint16.max);
+        assert(baseType.numericScale >= int8.min && baseType.numericScale <= int8.max);
+    }
+    do
+    {
+        if (writeTypeFor == FbBlrWriteType.null_)
+        {
+			_writer.writeUInt8(FbBlrType.blr_text);
+			_writer.writeInt16(0); // (cast(int16)baseType.size);
+            return;
+        }
+        else if (writeTypeFor == FbBlrWriteType.array)
+        {
+			_writer.writeUInt8(FbBlrType.blr_quad);
+			_writer.writeInt8(0);
+            return;
+        }
+        
+        assert(writeTypeFor == FbBlrWriteType.base);
+	    final switch (blrType) with (FbBlrType)
+	    {
+            case blr_short:
+            case blr_long:
+            case blr_quad:
+            case blr_int64:
+            case blr_dec64:
+            case blr_dec128:
+            case blr_int128:
+			    _writer.writeUInt8(cast(uint8)blrType);
+			    _writer.writeInt8(cast(int8)baseType.numericScale);
+			    break;
+                
+            case blr_float:
+            case blr_d_float:
+            case blr_sql_date:
+            case blr_sql_time:
+            case blr_bool:            
+            case blr_double:
+            case blr_sql_time_tz:
+            case blr_timestamp_tz:
+            case blr_ex_time_tz:
+            case blr_ex_timestamp_tz:
+            case blr_timestamp:
+			    _writer.writeUInt8(cast(uint8)blrType);              
+			    break;
+                
+            case blr_text:
+            case blr_text2:
+			    _writer.writeUInt8(blr_text2);
+			    _writer.writeInt16(cast(int16)baseType.subTypeId); // charset
+			    _writer.writeInt16(cast(int16)baseType.size); // length
+			    break;
+                
+            case blr_blob: // Mapped to blr_blob2
+            case blr_blob2:
+			    //_writer.writeUInt8(blr_quad);
+			    //_writer.writeInt8(0);
+                _writer.writeUInt8(blr_blob2);
+			    _writer.writeInt16(cast(int16)baseType.subTypeId);
+			    _writer.writeInt16(0); // charset
+			    break;
+            
+            case blr_varying: // Mapped to blr_varying2
+            case blr_varying2:
+			    _writer.writeUInt8(blr_varying2);
+			    _writer.writeInt16(cast(int16)baseType.subTypeId); // charset
+			    _writer.writeInt16(cast(int16)baseType.size); // length
+			    break;
+                
+            case blr_cstring: // Mapped to blr_cstring2
+            case blr_cstring2:
+                _writer.writeUInt8(blr_cstring2);
+			    _writer.writeInt16(cast(int16)baseType.subTypeId);            
+			    _writer.writeInt16(cast(int16)baseType.size);  
+                break;
+            
+            case blr_blob_id:
+                assert(0, "blr_blob_id [45] not supported");
+	    }        
+    }
+    
 private:
     DbWriteBuffer _buffer;
     FbConnection _connection;
