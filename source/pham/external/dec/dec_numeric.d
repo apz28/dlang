@@ -34,6 +34,7 @@ float fpack(const bool sign, int exp, uint mantissa)
 {
     if (mantissa == 0)
         return sign ? -0.0f : +0.0f;
+        
     const shift = clz(mantissa) - 8;
     if (shift < 0)
     {
@@ -66,24 +67,24 @@ float fpack(const bool sign, int exp, uint mantissa)
         exp = 0;
     }
 
-    FU fu;
-    fu.u = (mantissa & 0x7FFFFF) | (exp << 23);
+    FU fu = void;
+    fu.u = (mantissa & 0x7F_FFFF) | (exp << 23);
     if (sign)
-        fu.u |= 0x80000000U;
+        fu.u |= 0x8000_0000U;
     return fu.f;
 }
 
 @safe pure nothrow @nogc
 bool funpack(const(float) f, out int exp, out uint mantissa, out bool inf, out bool nan)
-{
-    FU fu;
+{    
+    FU fu = void;
     fu.f = f;
 
     exp = (fu.u >> 23) & 0xFF;
-    mantissa = fu.u & 0x7FFFFFU;
+    mantissa = fu.u & 0x7F_FFFFU;
     if (exp == 0)
     {
-        inf = false; nan = false;
+        inf = nan = false;
         if (mantissa)
             exp -= 149;
     }
@@ -94,12 +95,12 @@ bool funpack(const(float) f, out int exp, out uint mantissa, out bool inf, out b
     }
     else
     {
-        inf = false; nan = false;
-        mantissa |= 0x00800000;
+        inf = nan = false;
+        mantissa |= 0x0080_0000;
         exp -= 150;
     }
 
-    return (fu.u & 0x80000000U) != 0;
+    return (fu.u & 0x8000_0000U) != 0;
 }
 
 union DU
@@ -146,25 +147,25 @@ double dpack(const(bool) sign, int exp, ulong mantissa)
         exp = 0;
     }
 
-    DU du;
-    du.u = (mantissa & 0x000FFFFFFFFFFFFFUL) | (cast(ulong)exp << 52);
+    DU du = void;
+    du.u = (mantissa & 0x000F_FFFF_FFFF_FFFFUL) | (cast(ulong)exp << 52);
     if (sign)
-        du.u |= 0x8000000000000000UL;
+        du.u |= 0x8000_0000_0000_0000UL;
     return du.d;
 }
 
 @safe pure nothrow @nogc
 bool dunpack(const(double) d, out int exp, out ulong mantissa, out bool inf, out bool nan)
 {
-    DU du;
+    DU du = void;
     du.d = d;
 
-    exp = (du.u >> 52) & 0x7FF;
-    mantissa = du.u & 0xFFFFFFFFFFFFF;
+    exp = (du.u >> 52) & 0x07FF;
+    mantissa = du.u & 0x0F_FFFF_FFFF_FFFF;
 
     if (exp == 0)
     {
-        inf = false; nan = false;
+        inf = nan = false;
         if (mantissa)
             exp -= 1074;
     }
@@ -175,19 +176,18 @@ bool dunpack(const(double) d, out int exp, out ulong mantissa, out bool inf, out
     }
     else
     {
-        inf = false; nan = false;
-        mantissa |= 0x10000000000000;
+        inf = nan = false;
+        mantissa |= 0x10_0000_0000_0000;
         exp -= 1075;
     }
 
-    return (du.u & 0x8000000000000000UL) != 0;
+    return (du.u & 0x8000_0000_0000_0000UL) != 0;
 }
 
 union RU
 {
-    real r;
     struct
-    {   //align(1):
+    {   align(1):
         version(LittleEndian)
         {
             ulong m;
@@ -199,7 +199,9 @@ union RU
             ulong m;
         }
     }
+    real r;
 }
+static assert(RU.sizeof == 10);
 
 @safe pure nothrow @nogc
 real rpack(const(bool) sign, int exp, ulong mantissa)
@@ -229,7 +231,7 @@ real rpack(const(bool) sign, int exp, ulong mantissa)
         exp = 0;
     }
 
-    RU ru;
+    RU ru = void;
     ru.m = mantissa;
     ru.e = cast(ushort)exp;
     if (sign)
@@ -240,7 +242,7 @@ real rpack(const(bool) sign, int exp, ulong mantissa)
 @safe pure nothrow @nogc
 bool runpack(const(real) r, out int exp, out ulong mantissa, out bool inf, out bool nan)
 {
-    RU ru;
+    RU ru = void;
     ru.r = r;
 
     exp = ru.e & 0x7FFF;
@@ -248,7 +250,7 @@ bool runpack(const(real) r, out int exp, out ulong mantissa, out bool inf, out b
 
     if (exp == 0)
     {
-        inf = false; nan = false;
+        inf = nan = false;
         if (mantissa)
             exp -= 16445;
     }
@@ -259,7 +261,7 @@ bool runpack(const(real) r, out int exp, out ulong mantissa, out bool inf, out b
     }
     else
     {
-        inf = false; nan = false;
+        inf = nan = false;
         exp -= 16446;
     }
 
@@ -305,7 +307,7 @@ bool exp2to10(ref uint coefficient, ref int exponent)
 
     while (e5 < 0)
     {
-        if ((coefficient & 0x80000000U) != 0x80000000U)
+        if ((coefficient & 0x8000_0000U) != 0x8000_0000U)
         {
             --exponent;
             ++e5;
@@ -356,7 +358,7 @@ bool exp2to10(ref ulong coefficient, ref int exponent)
 
     while (e5 < 0)
     {
-        if ((coefficient & 0x8000000000000000UL) != 0x8000000000000000UL)
+        if ((coefficient & 0x8000_0000_0000_0000UL) != 0x8000_0000_0000_0000UL)
         {
             --exponent;
             ++e5;
@@ -407,7 +409,7 @@ bool exp2to10(ref uint128 coefficient, ref int exponent)
 
     while (e5 < 0)
     {
-        if ((coefficient.hi & 0x8000000000000000UL) != 0x8000000000000000UL)
+        if ((coefficient.hi & 0x8000_0000_0000_0000UL) != 0x8000_0000_0000_0000UL)
         {
             --exponent;
             ++e5;

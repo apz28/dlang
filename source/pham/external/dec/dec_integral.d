@@ -27,7 +27,7 @@ template isAnyUnsignedBit(T)
 
 template isUnsignedAssignableBit(T, U)
 {
-    enum isUnsignedAssignableBit = isAnyUnsignedBit!T && isAnyUnsignedBit!U && T.sizeof >= U.sizeof;
+    enum isUnsignedAssignableBit = T.sizeof >= U.sizeof && isAnyUnsignedBit!T && isAnyUnsignedBit!U;
 }
 
 bool isHexString(scope const(char)[] s) @nogc pure
@@ -573,15 +573,14 @@ alias uint256 = UnsignedBit!256;
 alias uint512 = UnsignedBit!512;
 
 ///Returns true if all specified types are UnsignedBit... types.
-template isUnsignedBit(T...)
+template isUnsignedBit(Ts...)
 {
     enum isUnsignedBit =
     {
-        bool result = T.length > 0;
-        static foreach (t; T)
+        bool result = Ts.length > 0;
+        static foreach (t; Ts)
         {
-            alias ut = Unqual!t;
-            if (!(is(ut == uint128) || is(ut == uint256) || is(ut == uint512)))
+            if (!(is(Unqual!t == uint128) || is(Unqual!t == uint256) || is(Unqual!t == uint512)))
                 result = false;
         }
         return result;
@@ -1551,13 +1550,13 @@ if (isCustomUnsignedBit!T)
     return ret == bits / 2 ? ret + ctz(x.hi) : ret;
 }
 
-bool ispow2(T)(auto const ref T x)
+bool isPow2(T)(auto const ref T x)
 if (isAnyUnsignedBit!T)
 {
     return x != 0U && (x & (x - 1U)) == 0;
 }
 
-bool ispow10(T)(auto const ref T x)
+bool isPow10(T)(auto const ref T x)
 if (isAnyUnsignedBit!T)
 {
     if (x == 0U)
@@ -2327,6 +2326,12 @@ template pow10(T)
         static assert(0);
 }
 
+int pow10Index(T)(int index)
+{
+    alias table = pow10!T;
+    return index < 0 ? 0 : (index >= table.length ? table.length - 1 : index);
+}
+
 static immutable ubyte[3] pow10RoundEven_8 = [
     5U,
     50U,
@@ -2680,6 +2685,12 @@ template pow10RoundEven(T)
         alias pow10RoundEven = pow10RoundEven_8;
     else
         static assert(0);
+}
+
+int pow10RoundEvenIndex(T)(int index)
+{
+    alias table = pow10RoundEven!T;
+    return index < 0 ? 0 : (index >= table.length ? table.length - 1 : index);
 }
 
 /* ****************************************************************************************************************** */

@@ -16,7 +16,7 @@ alias signbit = signDec;
 alias signbit = signStd;
 
 int decimalCmp(D1, D2)(auto const ref D1 x, auto const ref D2 y) @safe pure nothrow @nogc
-if (isDecimal!D1 && isDecimal!D2)
+if (isDecimal!(D1, D2))
 {
     //-3 signan
     //-2 nan
@@ -219,7 +219,7 @@ int coefficientCmp(T)(const T cx, const(int) ex, const(T) cy, const(int) ey) @sa
 }
 
 int decimalEqu(D1, D2)(auto const ref D1 x, auto const ref D2 y) @safe pure nothrow @nogc
-if (isDecimal!D1 && isDecimal!D2)
+if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
     DataType!D cx, cy; int ex, ey; bool sx, sy;

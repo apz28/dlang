@@ -3,7 +3,7 @@
  * License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * Authors: An Pham
  *
- * Copyright An Pham 2017 - xxxx.
+ * Copyright An Pham 2020 - xxxx.
  * Distributed under the Boost Software License, Version 1.0.
  * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
@@ -12,7 +12,6 @@
 module pham.external.dec.codec;
 
 version (TraceFunction) import pham.utl.test;
-
 import pham.external.dec.decimal: Decimal, DecimalSubClass, fabs, decimalSubClass;
 import pham.external.dec.integral : divrem;
 

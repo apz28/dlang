@@ -34,7 +34,7 @@ package(pham.external.dec):
 //coefficientSqr    - inexact, overflow, underflow
 
 ExceptionFlags decimalAdd(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
-if (isDecimal!D1 && isDecimal!D2)
+if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
     alias T = DataType!D;
@@ -1207,7 +1207,7 @@ ExceptionFlags decimalDec(D)(ref D x, const(int) precision, const(RoundingMode) 
 }
 
 ExceptionFlags decimalDiv(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
-if (isDecimal!D1 && isDecimal!D2)
+if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
     alias T = DataType!D;
@@ -2749,7 +2749,7 @@ if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 }
 
 ExceptionFlags decimalMod(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
-if (isDecimal!D1 && isDecimal!D2)
+if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
     alias T = DataType!D;
@@ -3000,7 +3000,7 @@ ExceptionFlags coefficientMod2PI(T)(ref T cx, ref int ex)
 }
 
 ExceptionFlags decimalMul(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
-if (isDecimal!D1 && isDecimal!D2)
+if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
     alias T = DataType!D;
@@ -3408,7 +3408,7 @@ if (isDecimal!D & isIntegral!T)
 }
 
 ExceptionFlags decimalPow(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode)
-if (isDecimal!D1 && isDecimal!D2)
+if (isDecimal!(D1, D2))
 {
     long ip;
     auto flags = decimalToSigned(y, ip, mode);
@@ -3829,7 +3829,7 @@ if (isDecimal!D)
 }
 
 ExceptionFlags decimalQuantize(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
-if (isDecimal!D1 && isDecimal!D2)
+if (isDecimal!(D1, D2))
 {
     alias U = CommonStorage!(D1, D2);
     U cx, cy; int ex, ey; bool sx, sy;
@@ -4588,7 +4588,7 @@ if (isDecimal!D)
 }
 
 ExceptionFlags decimalSub(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
-if (isDecimal!D1 && isDecimal!D2)
+if (isDecimal!(D1, D2))
 {
    return decimalAdd(x, -y, precision, mode);
 }
