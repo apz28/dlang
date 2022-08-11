@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.datetime.date;
+module pham.dtm.date;
 
 import std.range.primitives : isOutputRange;
 import std.traits : isSomeChar;
