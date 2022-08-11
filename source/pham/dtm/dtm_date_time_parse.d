@@ -9,18 +9,18 @@
  *
  */
 
-module pham.utl.datetime.date_time_parse;
+module pham.dtm.date_time_parse;
 
 import std.ascii : isPunctuation;
 import std.traits : Unqual;
 import std.uni : sicmp;
 
 import pham.utl.object : RAIIMutex;
-import pham.utl.datetime.tick;
-public import pham.utl.datetime.tick : DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind, CustomFormatSpecifier;
-import pham.utl.datetime.date : Date, DateTime;
-import pham.utl.datetime.time : Time;
-import pham.utl.datetime.time_zone : TimeZoneInfo;
+import pham.dtm.tick;
+public import pham.dtm.tick : DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind, CustomFormatSpecifier;
+import pham.dtm.date : Date, DateTime;
+import pham.dtm.time : Time;
+import pham.dtm.time_zone : TimeZoneInfo;
 
 @safe:
 
@@ -139,15 +139,34 @@ nothrow @safe:
     {
         scope (failure) assert(0);
 
-        foreach (i, m; *monthFullNames)
+        foreach (i, n; *fullMonthNames)
         {
-            if (sicmp(m, text) == 0)
+            if (sicmp(n, text) == 0)
                 return i;
         }
 
-        foreach (i, m; *monthShortNames)
+        foreach (i, n; *shortMonthNames)
         {
-            if (sicmp(m, text) == 0)
+            if (sicmp(n, text) == 0)
+                return i;
+        }
+
+        return -1;
+    }
+
+    ptrdiff_t indexOfWeek(scope const(char)[] text) const @nogc pure scope
+    {
+        scope (failure) assert(0);
+
+        foreach (i, n; *fullDayOfWeekNames)
+        {
+            if (sicmp(n, text) == 0)
+                return i;
+        }
+
+        foreach (i, n; *shortDayOfWeekNames)
+        {
+            if (sicmp(n, text) == 0)
                 return i;
         }
 
@@ -156,61 +175,48 @@ nothrow @safe:
 
     bool isValid() const @nogc pure
     {
-        return (dayOfWeekFullNames !is null) && (dayOfWeekShortNames !is null)
-            && (monthFullNames !is null) && (monthShortNames !is null)
+        return fullDayOfWeekNames !is null && shortDayOfWeekNames !is null
+            && fullMonthNames !is null && shortMonthNames !is null
             && dateSeparator != 0 && timeSeparator != 0;
     }
 
-    static DateTimePattern usDate() @nogc pure
+    static DateTimePattern fromSetting(const(DateTimeSetting) setting, string patternText) @nogc pure
     {
-        auto usSetting = DateTimeSetting.us;
         DateTimePattern result;
-        result.patternText = usSetting.shortFormat.date;
-        result.dayOfWeekFullNames = &usDayOfWeekNames;
-        result.dayOfWeekShortNames = &usShortDayOfWeekNames;
-        result.monthFullNames = &usMonthNames;
-        result.monthShortNames = &usShortMonthNames;
-        result.amPmTexts = &usAmPmTexts;
-        result.dateSeparator = usSetting.dateSeparator;
-        result.timeSeparator = usSetting.timeSeparator;
+        result.fullDayOfWeekNames = setting.fullDayOfWeekNames;
+        result.shortDayOfWeekNames = setting.shortDayOfWeekNames;
+        result.fullMonthNames = setting.fullMonthNames;
+        result.shortMonthNames = setting.shortMonthNames;
+        result.amPmTexts = setting.amPmTexts;
+        result.dateSeparator = setting.dateSeparator;
+        result.timeSeparator = setting.timeSeparator;
+        result.patternText = patternText;
         return result;
     }
 
-    static DateTimePattern usDateTime() @nogc pure
+    static DateTimePattern usShortDate() @nogc pure
     {
-        auto usSetting = DateTimeSetting.us;
-        DateTimePattern result;
-        result.patternText = usSetting.shortFormat.dateTime;
-        result.dayOfWeekFullNames = &usDayOfWeekNames;
-        result.dayOfWeekShortNames = &usShortDayOfWeekNames;
-        result.monthFullNames = &usMonthNames;
-        result.monthShortNames = &usShortMonthNames;
-        result.amPmTexts = &usAmPmTexts;
-        result.dateSeparator = usSetting.dateSeparator;
-        result.timeSeparator = usSetting.timeSeparator;
-        return result;
+        auto setting = DateTimeSetting.us;
+        return fromSetting(setting, setting.shortFormat.date);
     }
 
-    static DateTimePattern usTime() @nogc pure
+    static DateTimePattern usShortDateTime() @nogc pure
     {
-        auto usSetting = DateTimeSetting.us;
-        DateTimePattern result;
-        result.patternText = usSetting.shortFormat.time;
-        result.dayOfWeekFullNames = &usDayOfWeekNames;
-        result.dayOfWeekShortNames = &usShortDayOfWeekNames;
-        result.monthFullNames = &usMonthNames;
-        result.monthShortNames = &usShortMonthNames;
-        result.amPmTexts = &usAmPmTexts;
-        result.dateSeparator = usSetting.dateSeparator;
-        result.timeSeparator = usSetting.timeSeparator;
-        return result;
+        auto setting = DateTimeSetting.us;
+        return fromSetting(setting, setting.shortFormat.dateTime);
+    }
+
+    static DateTimePattern usShortTime() @nogc pure
+    {
+        auto setting = DateTimeSetting.us;
+        return fromSetting(setting, setting.shortFormat.time);
     }
 
     string patternText;
-    const(DayOfWeekNames)* dayOfWeekFullNames;
-    const(DayOfWeekNames)* dayOfWeekShortNames;
-    const(MonthNames)* monthFullNames;
-    const(MonthNames)* monthShortNames;
+    const(DayOfWeekNames)* fullDayOfWeekNames;
+    const(DayOfWeekNames)* shortDayOfWeekNames;
+    const(MonthNames)* fullMonthNames;
+    const(MonthNames)* shortMonthNames;
     const(AmPmTexts)* amPmTexts;
     int twoDigitYearCenturyWindow = twoDigitYearCenturyWindowDefault; /// Set to -1 to skip interpreting the value
     char dateSeparator = '/';
@@ -946,7 +952,7 @@ DateTimePatternInfo[CacheDateTimePatternInfoKey] cacheDateTimePatternInfos;
 unittest // DateTimePatternInfo
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_parse.DateTimePatternInfo");
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_parse.DateTimePatternInfo");
 
     DateTimePatternInfo p;
 
@@ -1018,10 +1024,10 @@ unittest // DateTimePatternInfo
 unittest // tryParse
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_parse.tryParse");
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_parse.tryParse");
 
     ptrdiff_t r;
-    auto p = DateTimePattern.usDateTime;
+    auto p = DateTimePattern.usShortDateTime;
 
     // DateTime type
     DateTime dt;
@@ -1115,7 +1121,7 @@ unittest // tryParse
         assert(dt.second == 0);
     }
 
-    auto isop = DateTimePattern.usDateTime;
+    auto isop = DateTimePattern.usShortDateTime;
     isop.dateSeparator = '-';
     isop.timeSeparator = ':';
     isop.patternText = "yyyy/mm/ddThh:nn:ss.zzzzzzz";

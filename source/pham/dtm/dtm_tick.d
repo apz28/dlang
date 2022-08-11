@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.datetime.tick;
+module pham.dtm.tick;
 
 import core.sync.mutex : Mutex;
 import core.time : ClockType, convert;
@@ -369,34 +369,41 @@ nothrow @safe:
 
     bool isValid() const @nogc pure scope
     {
-        return (dayOfWeekNames !is null) && (monthNames !is null) && dateSeparator != 0 && timeSeparator != 0;
+        return fullDayOfWeekNames !is null && shortDayOfWeekNames !is null
+            && fullMonthNames !is null && shortMonthNames !is null
+            && dateSeparator != 0 && timeSeparator != 0;
     }
 
     static DateTimeSetting us() @nogc pure
     {
         DateTimeSetting result;
-        
-        result.generalLongFormat.date = "mm/dd/yyyy"; 
-        result.generalLongFormat.dateTime = "mm/dd/yyyy h:nn:ss a"; 
-        result.generalLongFormat.time = "h:nn:ss a"; 
-        
+
+        result.generalLongFormat.date = "mm/dd/yyyy";
+        result.generalLongFormat.dateTime = "mm/dd/yyyy h:nn:ss a";
+        result.generalLongFormat.time = "h:nn:ss a";
+
         result.generalShortFormat.date = "m/d/yyyy";
         result.generalShortFormat.dateTime = "m/d/yyyy h:nn a";
         result.generalShortFormat.time = "h:nn a";
-        
+
         result.longFormat.date = "ddd, mmm dd, yyyy";
         result.longFormat.dateTime = "ddd, mmm dd, yyyy h:nn:ss a";
         result.longFormat.time = "h:nn:ss a";
-                
+
         result.shortFormat.date = "m/d/yyyy";
         result.shortFormat.dateTime = "m/d/yyyy h:nn a";
         result.shortFormat.time = "h:nn a";
-        
-        result.dayOfWeekNames = &usDayOfWeekNames;
-        result.monthNames = &usMonthNames;
+
+        result.fullDayOfWeekNames = &usFullDayOfWeekNames;
+        result.shortDayOfWeekNames = &usShortDayOfWeekNames;
+
+        result.fullMonthNames = &usFullMonthNames;
+        result.shortMonthNames = &usShortMonthNames;
+
         result.amPmTexts = &usAmPmTexts;
         result.dateSeparator = '/';
         result.timeSeparator = ':';
+
         return result;
     }
 
@@ -404,9 +411,10 @@ nothrow @safe:
     DateTimeKindFormat generalShortFormat;
     DateTimeKindFormat longFormat;
     DateTimeKindFormat shortFormat;
-
-    const(DayOfWeekNames)* dayOfWeekNames;
-    const(MonthNames)* monthNames;
+    const(DayOfWeekNames)* fullDayOfWeekNames;
+    const(DayOfWeekNames)* shortDayOfWeekNames;
+    const(MonthNames)* fullMonthNames;
+    const(MonthNames)* shortMonthNames;
     const(AmPmTexts)* amPmTexts; /// Optional
     char dateSeparator = '/';
     char timeSeparator = ':';
@@ -524,7 +532,7 @@ void throwOutOfRange(ErrorPart error)(long outOfRangeValue) pure
 static immutable AmPmTexts usAmPmTexts = ["AM", "PM"];
 
 // Must match order of DayOfWeek
-static immutable DayOfWeekNames usDayOfWeekNames = [
+static immutable DayOfWeekNames usFullDayOfWeekNames = [
     "Sunday",
     "Monday",
     "Tuesday",
@@ -545,7 +553,7 @@ static immutable DayOfWeekNames usShortDayOfWeekNames = [
     ];
 
 // Must match order of Month
-static immutable MonthNames usMonthNames = [
+static immutable MonthNames usFullMonthNames = [
     "January",
     "February",
     "March",
@@ -578,7 +586,7 @@ static immutable MonthNames usShortMonthNames = [
 DateTimeSetting dateTimeSetting;
 __gshared DateTimeSetting sharedDateTimeSetting = DateTimeSetting.us();
 
-package(pham.utl.datetime):
+package(pham.dtm):
 
 version (Windows)
 long currentSystemTicksWindows(ClockType clockType = ClockType.normal)() @trusted

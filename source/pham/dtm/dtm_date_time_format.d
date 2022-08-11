@@ -9,16 +9,16 @@
  *
  */
 
-module pham.utl.datetime.date_time_format;
+module pham.dtm.date_time_format;
 
 public import std.format : FormatException;
 import std.range.primitives : isOutputRange, put;
 import std.traits : isSomeChar, isSomeString, Unqual;
 
 import pham.utl.object : toString;
-import pham.utl.datetime.tick;
-import pham.utl.datetime.date : Date, DateTime, DayOfWeek, firstDayOfMonth, firstDayOfWeek;
-import pham.utl.datetime.time : Time;
+import pham.dtm.tick;
+import pham.dtm.date : Date, DateTime, DayOfWeek, firstDayOfMonth, firstDayOfWeek;
+import pham.dtm.time : Time;
 
 @safe:
 
@@ -89,17 +89,19 @@ public:
             : null;
     }
 
-    string dayOfWeekName(scope const ref DateTimeSetting setting) const pure
+    string dayOfWeekName(scope const ref DateTimeSetting setting, const(bool) useShort) const pure
     {
+        auto dayOfWeekNames = useShort ? setting.shortDayOfWeekNames : setting.fullDayOfWeekNames;
         return kind != DateTimeKind.time
-            ? (*setting.dayOfWeekNames)[dayOfWeek - firstDayOfWeek]
+            ? (*dayOfWeekNames)[dayOfWeek - firstDayOfWeek]
             : null;
     }
 
-    string monthName(scope const ref DateTimeSetting setting) const pure
+    string monthName(scope const ref DateTimeSetting setting, const(bool) useShort) const pure
     {
+        auto monthNames = useShort ? setting.shortMonthNames : setting.fullMonthNames;
         return kind != DateTimeKind.time
-            ? (*setting.monthNames)[month - firstDayOfMonth]
+            ? (*monthNames)[month - firstDayOfMonth]
             : null;
     }
 
@@ -483,7 +485,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
         }
     }
 
-    FormatWriteResult putCustom() nothrow @safe
+    FormatWriteResult putCustom(const(bool) useShort) nothrow @safe
     {
         FormatWriteResult wr = fmtSpec.writeUpToNextCustomSpec(sink);
         while (wr == FormatWriteResult.ok)
@@ -495,7 +497,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     break;
                 case FormatDateTimeSpecifier.customDay:
                     if (fmtSpec.customSpecCount == 3)
-                        put(sink, fmtValue.dayOfWeekName(setting));
+                        put(sink, fmtValue.dayOfWeekName(setting, useShort));
                     else
                         toString(sink, fmtValue.day, fmtSpec.customSpecCount);
                     break;
@@ -516,7 +518,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     break;
                 case FormatDateTimeSpecifier.customMonth:
                     if (fmtSpec.customSpecCount == 3)
-                        put(sink, fmtValue.monthName(setting));
+                        put(sink, fmtValue.monthName(setting, useShort));
                     else
                         toString(sink, fmtValue.month, fmtSpec.customSpecCount);
                     break;
@@ -543,20 +545,20 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
         return wr;
     }
 
-    FormatWriteResult putCustomFor(string customFormat) nothrow @safe
+    FormatWriteResult putCustomFor(string customFormat, const(bool) useShort) nothrow @safe
     {
         fmtSpec.customSpec = 0;
         fmtSpec.customSpecCount = 0;
         fmtSpec.customTrailing = customFormat;
-        return putCustom();
+        return putCustom(useShort);
     }
 
     version (none)
     void putFullDateTime() nothrow @safe
     {
-        put(sink, fmtValue.dayOfWeekName(setting));
+        put(sink, fmtValue.dayOfWeekName(setting, false));
         put(sink, ", ");
-        put(sink, fmtValue.monthName(setting));
+        put(sink, fmtValue.monthName(setting, false));
         put(sink, ' ');
         toString(sink, fmtValue.day);
         put(sink, ", ");
@@ -596,7 +598,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
         switch (fmtSpec.spec)
         {
             case FormatDateTimeSpecifier.custom:
-                if (putCustom() == FormatWriteResult.error)
+                if (putCustom(false) == FormatWriteResult.error)
                     return formatedWriteError;
                 break;
             case FormatDateTimeSpecifier.generalShortDateTime:
@@ -605,7 +607,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                             : (fmtValue.kind == DateTimeKind.dateTime
                                 ? setting.generalShortFormat.dateTime
                                 : setting.generalShortFormat.time);
-                if (putCustomFor(fmt) == FormatWriteResult.error)
+                if (putCustomFor(fmt, true) == FormatWriteResult.error)
                     return formatedWriteError;
                 version (none)
                 {
@@ -620,7 +622,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                             : (fmtValue.kind == DateTimeKind.dateTime
                                 ? setting.generalLongFormat.dateTime
                                 : setting.generalLongFormat.time);
-                if (putCustomFor(fmt) == FormatWriteResult.error)
+                if (putCustomFor(fmt, false) == FormatWriteResult.error)
                     return formatedWriteError;
                 version (none)
                 {
@@ -635,14 +637,14 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 toString(sink, fmtValue.julianDay);
                 break;
             case FormatDateTimeSpecifier.longDate:
-                if (putCustomFor(setting.longFormat.date) == FormatWriteResult.error)
+                if (putCustomFor(setting.longFormat.date, false) == FormatWriteResult.error)
                     return formatedWriteError;
                 version (none)
                 {
                     // 2009-06-15T13:45:30 -> Monday, June 15, 2009
-                    put(sink, fmtValue.dayOfWeekName(setting));
+                    put(sink, fmtValue.dayOfWeekName(setting, false));
                     put(sink, ", ");
-                    put(sink, fmtValue.monthName(setting));
+                    put(sink, fmtValue.monthName(setting, false));
                     put(sink, ' ');
                     toString(sink, fmtValue.day);
                     put(sink, ", ");
@@ -650,7 +652,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 }
                 break;
             case FormatDateTimeSpecifier.longDateTime:
-                if (putCustomFor(setting.longFormat.dateTime) == FormatWriteResult.error)
+                if (putCustomFor(setting.longFormat.dateTime, false) == FormatWriteResult.error)
                     return formatedWriteError;
                 version (none)
                 {
@@ -662,7 +664,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 }
                 break;
             case FormatDateTimeSpecifier.longTime:
-                if (putCustomFor(setting.longFormat.time) == FormatWriteResult.error)
+                if (putCustomFor(setting.longFormat.time, false) == FormatWriteResult.error)
                     return formatedWriteError;
                 version (none)
                 {
@@ -674,17 +676,17 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 }
                 break;
             case FormatDateTimeSpecifier.monthDay: // 2009-06-15T13:45:30 -> June 15
-                put(sink, fmtValue.monthName(setting));
+                put(sink, fmtValue.monthName(setting, false));
                 put(sink, ' ');
                 toString(sink, fmtValue.day);
                 break;
             case FormatDateTimeSpecifier.monthYear: // 2009-06-15T13:45:30 -> June 2009
-                put(sink, fmtValue.monthName(setting));
+                put(sink, fmtValue.monthName(setting, false));
                 put(sink, ' ');
                 toString(sink, fmtValue.year, 4);
                 break;
             case FormatDateTimeSpecifier.shortDate:
-                if (putCustomFor(setting.shortFormat.date) == FormatWriteResult.error)
+                if (putCustomFor(setting.shortFormat.date, true) == FormatWriteResult.error)
                     return formatedWriteError;
                 version (none)
                 {
@@ -697,7 +699,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 }
                 break;
             case FormatDateTimeSpecifier.shortDateTime:
-                if (putCustomFor(setting.shortFormat.dateTime) == FormatWriteResult.error)
+                if (putCustomFor(setting.shortFormat.dateTime, true) == FormatWriteResult.error)
                     return formatedWriteError;
                 version (none)
                 {
@@ -707,7 +709,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 }
                 break;
             case FormatDateTimeSpecifier.shortTime:
-                if (putCustomFor(setting.shortFormat.time) == FormatWriteResult.error)
+                if (putCustomFor(setting.shortFormat.time, true) == FormatWriteResult.error)
                     return formatedWriteError;
                 version (none)
                 {
@@ -769,9 +771,9 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 }
                 break;
             case FormatDateTimeSpecifier.utcFullDateTime: // 2009-06-15T13:45:30 -> Monday, June 15, 2009 1:45:30 PM
-                put(sink, fmtValue.dayOfWeekName(setting));
+                put(sink, fmtValue.dayOfWeekName(setting, false));
                 put(sink, ", ");
-                put(sink, fmtValue.monthName(setting));
+                put(sink, fmtValue.monthName(setting, false));
                 put(sink, ' ');
                 toString(sink, fmtValue.day);
                 put(sink, ", ");
@@ -853,7 +855,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.shortDateTime, longDateTime
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %f %F");
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %f %F");
 
     string s;
 
@@ -866,7 +868,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.generalShortDateTime, generalLongDateTime
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %g");
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %g");
 
     string s;
 
@@ -879,7 +881,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.julianDay
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %j");
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %j");
 
     string s;
 
@@ -908,7 +910,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.longDate, shortDate
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %d %D");
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %d %D");
 
     string s;
 
@@ -926,7 +928,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.longTime, shortTime
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %t %T");
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %t %T");
 
     string s;
 
@@ -944,7 +946,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.monthDay, monthYear
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %M %Y");
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %M %Y");
 
     string s;
 
@@ -957,7 +959,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.sortableDateTime
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %s");
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %s");
 
     string s;
 
@@ -978,7 +980,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.sortableDateTimeLess
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %S");
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %S");
 
     string s;
 
@@ -993,7 +995,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.utcFullDateTime
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %U");
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %U");
 
     string s;
 
@@ -1004,7 +1006,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.utcSortableDateTime
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %u");
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %u");
 
     string s;
 
@@ -1015,7 +1017,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.custom, FormatDateTimeSpecifier.dateSeparator, FormatDateTimeSpecifier.timeSeparator
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.date_time_format - %custom....");
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %custom....");
 
     string s;
 

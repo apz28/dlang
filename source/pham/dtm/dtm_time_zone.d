@@ -9,16 +9,16 @@
  *
  */
 
-module pham.utl.datetime.time_zone;
+module pham.dtm.time_zone;
 
 import std.conv : to;
 import std.uni : sicmp;
 
 version (unittest) import pham.utl.test;
-import pham.utl.datetime.date;
-import pham.utl.datetime.tick;
-import pham.utl.datetime.time;
-import pham.utl.datetime.time_zone_default;
+import pham.dtm.date;
+import pham.dtm.tick;
+import pham.dtm.time;
+import pham.dtm.time_zone_default;
 
 @safe:
 
@@ -683,7 +683,7 @@ public:
     enum Duration maxOffset = dur!"hours"(14);
     enum Duration minOffset = -maxOffset;
 
-package(pham.utl.datetime):
+package(pham.dtm):
     void addRule(AdjustmentRule rule) nothrow pure
     {
         _adjustmentRules ~= rule;
@@ -1341,7 +1341,7 @@ private:
 }
 
 
-package(pham.utl.datetime):
+package(pham.dtm):
 
 struct CacheTimeZoneInfo
 {
@@ -1764,7 +1764,7 @@ shared static this() @trusted
 unittest
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.datetime")("unittest pham.utl.datetime.time_zone.localTimeZone");
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.time_zone.localTimeZone");
 
     auto ltz = TimeZoneInfo.localTimeZone();
 

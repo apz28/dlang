@@ -9,13 +9,13 @@
  *
  */
 
-module pham.utl.datetime.time_zone_default;
+module pham.dtm.time_zone_default;
 
 import core.time : dur, Duration;
 
-import pham.utl.datetime.date : DayOfWeek, DateTime;
-import pham.utl.datetime.time_zone : AdjustmentRule, MapId, TimeZoneInfo, TimeZoneInfoMapList, TransitionTime;
-import pham.utl.datetime.tick : DateTimeZoneKind;
+import pham.dtm.date : DayOfWeek, DateTime;
+import pham.dtm.time_zone : AdjustmentRule, MapId, TimeZoneInfo, TimeZoneInfoMapList, TransitionTime;
+import pham.dtm.tick : DateTimeZoneKind;
 
 nothrow @safe:
 
