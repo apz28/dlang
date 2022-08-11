@@ -15,8 +15,8 @@ module pham.db.pgconvert;
 import core.time : Duration, dur;
 
 version (unittest) import pham.utl.test;
-import pham.utl.datetime.tick : Tick;
-import pham.utl.datetime.time_zone : TimeZoneInfo;
+import pham.dtm.tick : Tick;
+import pham.dtm.time_zone : TimeZoneInfo;
 import pham.utl.utf8 : ShortStringBuffer, ShortStringBufferSize;
 import pham.db.convert : toDecimal;
 import pham.db.type;

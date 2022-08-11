@@ -16,7 +16,10 @@ import std.range.primitives: ElementType;
 import std.traits : isArrayT = isArray, Unqual;
 
 version (profile) import pham.utl.test : PerfFunction;
+import pham.dtm.variant_coerce;
+import pham.external.dec.variant_coerce;
 public import pham.utl.variant : Variant, VariantType;
+import pham.utl.variant_coerce;
 import pham.db.type;
 import pham.db.convert;
 

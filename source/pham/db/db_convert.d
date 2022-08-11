@@ -19,7 +19,7 @@ import std.system : Endian;
 import std.traits: isIntegral, isUnsigned, Unqual;
 
 version (unittest) import pham.utl.test;
-import pham.utl.datetime.tick : Tick;
+import pham.dtm.tick : Tick;
 import pham.db.type;
 
 nothrow @safe:

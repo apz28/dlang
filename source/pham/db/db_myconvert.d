@@ -17,9 +17,9 @@ import std.traits: isUnsigned, Unqual;
 
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
+import pham.dtm.date_time_parse;
+import pham.dtm.tick : Tick, TickPart;
 import pham.utl.bit_array : numericBitCast;
-import pham.utl.datetime.tick : Tick, TickPart;
-import pham.utl.datetime.date_time_parse;
 import pham.utl.object : simpleIntegerFmt;
 import pham.utl.utf8 : ShortStringBuffer;
 import pham.db.type;
@@ -479,7 +479,7 @@ shared static this()
 {
 	static DateTimePattern dtPattern(string patternText, char dateSeparator, char timeSeparator) nothrow
     {
-		auto result = DateTimePattern.usDateTime;
+		auto result = DateTimePattern.usShortDateTime;
 		result.patternText = patternText;
 		result.dateSeparator = dateSeparator;
 		result.timeSeparator = timeSeparator;
