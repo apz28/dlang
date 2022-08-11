@@ -27,7 +27,7 @@ import std.traits : ConstOf, fullyQualifiedName,
     ImplicitConversionTargets = AllImplicitConversionTargets;
 import std.typecons : ReplaceTypeUnless, Tuple;
 
-import pham.utl.coerce;
+import pham.utl.variant_coerce;
 import pham.utl.object : cmpFloat, cmpInteger;
 
 struct This;
@@ -4517,47 +4517,9 @@ import pham.utl.test;
     //assert(v.coerce!(char[])() == "string"); // Not support it yet
 }
 
-unittest // Variant.coerce(dec.decimal)
-{
-import pham.external.dec.decimal;
-import pham.utl.test;
-    traceUnitTest!("pham.utl.variant")("unittest pham.utl.variant.Variant.coerce(dec.decimal)");
-
-    Variant v;
-
-    v = Decimal32(100);
-    assert(v.coerce!Decimal32() == 100.0);
-    assert(v.coerce!Decimal64() == 100.0);
-    assert(v.coerce!Decimal128() == 100.0);
-    assert(v.coerce!float() == 100.0);
-    assert(v.coerce!double() == 100.0);
-
-    v = Decimal64(1000);
-    assert(v.coerce!Decimal32() == 1000.0);
-    assert(v.coerce!Decimal64() == 1000.0);
-    assert(v.coerce!Decimal128() == 1000.0);
-    assert(v.coerce!float() == 1000.0);
-    assert(v.coerce!double() == 1000.0);
-
-    v = Decimal128(11000);
-    assert(v.coerce!Decimal32() == 11000.0);
-    assert(v.coerce!Decimal64() == 11000.0);
-    assert(v.coerce!Decimal128() == 11000.0);
-    assert(v.coerce!float() == 11000.0);
-    assert(v.coerce!double() == 11000.0);
-
-    v = float(100);
-    assert(v.coerce!Decimal32() == 100.0);
-    assert(v.coerce!Decimal64() == 100.0);
-    assert(v.coerce!Decimal128() == 100.0);
-    assert(v.coerce!float() == 100.0);
-    assert(v.coerce!double() == 100.0);
-}
-
 unittest // Variant.coerce(object)
 {
-import pham.external.dec.decimal;
-import pham.utl.test;
+    import pham.utl.test;
     traceUnitTest!("pham.utl.variant")("unittest pham.utl.variant.Variant.coerce(object)");
 
     static class A

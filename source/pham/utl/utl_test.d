@@ -515,9 +515,17 @@ shared static ~this() @trusted
 
 unittest // PerfCpuUsage
 {
+    import core.time : dur;
+    import core.thread.osthread : Thread;
     import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.utltest.PerfCpuUsage");
 
+    void delay() nothrow @trusted
+    {
+        Thread.sleep(dur!("msecs")(1));
+    }
+    
+    delay();
     const cpuTime = PerfCpuUsage.get();
     assert(cpuTime.kernelTime != Duration.max && cpuTime.kernelTime.total!"usecs"() > 0);
     assert(cpuTime.userTime != Duration.max && cpuTime.userTime.total!"usecs"() > 0);
