@@ -13,10 +13,12 @@ module pham.cp.codec_asn1;
 
 import std.string : representation;
 import std.traits : isIntegral, isSigned, Unqual;
-
+        
+import pham.dtm.date : Date, DateTime;
+import pham.dtm.date_time_parse : DateTimeParser, DateTimePattern, tryParse;
+import pham.dtm.tick : DateTimeZoneKind;
+import pham.dtm.time : Time;
 import pham.utl.big_integer : BigInteger;
-import pham.utl.datetime.date : Date, DateTime;
-import pham.utl.datetime.time : Time;
 import pham.utl.object : cmpInteger, ResultStatus, toString;
 import pham.utl.utf8 : ShortStringBuffer;
 import pham.utl.variant : Variant;
@@ -528,9 +530,6 @@ public:
      */
     static ResultStatus parseDate(scope const(ubyte)[] bytes, ref Date result) @trusted
     {
-        import pham.utl.datetime.date_time_parse : DateTimeParser, DateTimePattern, tryParse;
-        import pham.utl.datetime.tick : DateTimeZoneKind;
-
         // Minimum length - YYMMDD?
         if (bytes.length < 6)
             return ResultStatus.error(bytes.length == 0 ? emptyError : truncatedError, "Date is truncated");
@@ -562,9 +561,6 @@ public:
      */
     static ResultStatus parseGeneralizedTime(scope const(ubyte)[] bytes, ref DateTime result) @trusted
     {
-        import pham.utl.datetime.date_time_parse : DateTimeParser, DateTimePattern, tryParse;
-        import pham.utl.datetime.tick : DateTimeZoneKind;
-
         // Minimum length - YYYYMMDDHH?
         if (bytes.length < 10)
             return ResultStatus.error(bytes.length == 0 ? emptyError : truncatedError, "Generalized-time is truncated");
@@ -851,9 +847,6 @@ public:
      */
     static ResultStatus parseTime(scope const(ubyte)[] bytes, ref Time result) @trusted
     {
-        import pham.utl.datetime.date_time_parse : DateTimeParser, DateTimePattern, tryParse;
-        import pham.utl.datetime.tick : DateTimeZoneKind;
-
         // Minimum length - hhmm?
         if (bytes.length < 4)
             return ResultStatus.error(bytes.length == 0 ? emptyError : truncatedError, "Time is truncated");
@@ -893,9 +886,6 @@ public:
      */
     static ResultStatus parseUTCTime(scope const(ubyte)[] bytes, ref DateTime result) @trusted
     {
-        import pham.utl.datetime.date_time_parse : DateTimeParser, DateTimePattern, tryParse;
-        import pham.utl.datetime.tick : DateTimeZoneKind;
-
         // Minimum length - YYMMDDhhmmZ?
         if (bytes.length < 11)
             return ResultStatus.error(bytes.length == 0 ? emptyError : truncatedError, "UTC-time is truncated");
@@ -2106,8 +2096,8 @@ unittest // ASN1BerDecoder.parseObjectIdentifier
 
 unittest // ASN1BerDecoder.parseUTCTime
 {
-    import pham.utl.datetime.tick : DateTimeZoneKind;
-    import pham.utl.datetime.date_time_parse : twoDigitYearCenturyWindowDefault;
+    import pham.dtm.tick : DateTimeZoneKind;
+    import pham.dtm.date_time_parse : twoDigitYearCenturyWindowDefault;
     import std.conv : to;
     import pham.utl.test;
     traceUnitTest!("pham.cp")("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseUTCTime");
@@ -2141,8 +2131,8 @@ unittest // ASN1BerDecoder.parseUTCTime
 
 unittest // ASN1BerDecoder.parseGeneralizedTime
 {
-    import pham.utl.datetime.tick : DateTimeZoneKind;
     import std.conv : to;
+    import pham.dtm.tick : DateTimeZoneKind;
     import pham.utl.test;
     traceUnitTest!("pham.cp")("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseGeneralizedTime");
 
