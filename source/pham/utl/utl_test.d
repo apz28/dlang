@@ -522,11 +522,12 @@ unittest // PerfCpuUsage
 
     void delay() nothrow @trusted
     {
-        Thread.sleep(dur!("msecs")(1));
+        Thread.sleep(dur!("msecs")(20));
     }
     
     delay();
+    delay();
     const cpuTime = PerfCpuUsage.get();
-    assert(cpuTime.kernelTime != Duration.max && cpuTime.kernelTime.total!"usecs"() > 0);
+    assert(cpuTime.kernelTime != Duration.max && cpuTime.kernelTime.total!"usecs"() >= 0);
     assert(cpuTime.userTime != Duration.max && cpuTime.userTime.total!"usecs"() > 0);
 }

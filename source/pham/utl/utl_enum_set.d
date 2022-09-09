@@ -641,11 +641,13 @@ public:
     }
 
     bool opDispatch(string name)() const @nogc pure
+    if (is(typeof(__traits(getMember, E, name))))
     {
         return on(__traits(getMember, E, name));
     }
         
     bool opDispatch(string name)(bool v) @nogc pure
+    if (is(typeof(__traits(getMember, E, name))))
     {
         set(__traits(getMember, E, name), v);
         return v;

@@ -37,8 +37,8 @@ do
 
 ubyte[] bytesFromBase64s(scope const(char)[] validBase64Text) nothrow pure @safe
 {
-import pham.utl.numeric_parser : NumericParsedKind, parseBase64;
-import pham.utl.utf8 : NoDecodeInputRange, ShortStringBuffer;
+    import pham.utl.numeric_parser : NumericParsedKind, parseBase64;
+    import pham.utl.utf8 : NoDecodeInputRange, ShortStringBuffer;
 
     NoDecodeInputRange!(validBase64Text, char) inputRange;
     ShortStringBuffer!ubyte result;
@@ -49,8 +49,8 @@ import pham.utl.utf8 : NoDecodeInputRange, ShortStringBuffer;
 
 ubyte[] bytesFromHexs(scope const(char)[] validHexDigits) nothrow pure @safe
 {
-import pham.utl.numeric_parser : NumericParsedKind, parseHexDigits;
-import pham.utl.utf8 : NoDecodeInputRange, ShortStringBuffer;
+    import pham.utl.numeric_parser : NumericParsedKind, parseHexDigits;
+    import pham.utl.utf8 : NoDecodeInputRange, ShortStringBuffer;
 
     NoDecodeInputRange!(validHexDigits, char) inputRange;
     ShortStringBuffer!ubyte result;
@@ -108,7 +108,7 @@ pragma(inline, true)
 float cmpFloat(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
 if (isFloatingPoint!T)
 {
-import std.math : isNaN;
+    import std.math : isNaN;
 
     if (isNaN(lhs) || isNaN(rhs))
         return float.nan;
@@ -116,60 +116,69 @@ import std.math : isNaN;
         return (lhs > rhs) - (lhs < rhs);
 }
 
+/**
+ * Returns current computer-name of running process
+ */
 string currentComputerName() nothrow @trusted
 {
     version (Windows)
     {
-    import core.sys.windows.winbase : GetComputerNameW;
-    import std.conv : to;
+        import core.sys.windows.winbase : GetComputerNameW;
+        import std.conv : to;
 
         wchar[1000] result = void;
         uint len = result.length - 1;
         if (GetComputerNameW(&result[0], &len))
             return assumeWontThrow(to!string(result[0..len]));
         else
-            return "";
+            return null;
     }
     else version (Posix)
     {
-    import core.sys.posix.unistd : gethostname;
-    import std.conv : to;
+        import core.sys.posix.unistd : gethostname;
+        import std.conv : to;
 
         char[1000] result = void;
         uint len = result.length - 1;
         if (gethostname(&result[0], len) == 0)
             return assumeWontThrow(to!string(result.ptr));
         else
-            return "";
+            return null;
     }
     else
     {
         pragma(msg, "currentComputerName() not supported");
-        return "";
+        return null;
     }
 }
 
+/**
+ * Returns current process-id of running process
+ */
 uint currentProcessId() nothrow @safe
 {
-import std.process : thisProcessID;
+    import std.process : thisProcessID;
 
     return thisProcessID;
 }
 
+/**
+ * Returns current process-name of running process
+ */
 string currentProcessName() nothrow @trusted
 {
     version (Windows)
     {
-    import core.sys.windows.winbase : GetModuleFileNameW;
-    import std.conv : to;
+        import core.sys.windows.winbase : GetModuleFileNameW;
+        import std.conv : to;
 
         wchar[1000] result = void;
-        auto len = GetModuleFileNameW(null, &result[0], result.length - 1);
+        const len = GetModuleFileNameW(null, &result[0], result.length - 1);
         return assumeWontThrow(to!string(result[0..len]));
     }
     else version (Posix)
     {
-    import core.sys.posix.unistd : readlink;
+        import core.sys.posix.unistd : readlink;
 
         char[1000] result = void;
         uint len = result.length - 1;
@@ -179,16 +188,19 @@ string currentProcessName() nothrow @trusted
     else
     {
         pragma(msg, "currentProcessName() not supported");
-        return "";
+        return null;
     }
 }
 
+/**
+ * Returns current os-account-name of running process
+ */
 string currentUserName() nothrow @trusted
 {
     version (Windows)
     {
-    import core.sys.windows.winbase : GetUserNameW;
-    import std.conv : to;
+        import core.sys.windows.winbase : GetUserNameW;
+        import std.conv : to;
 
         wchar[1000] result = void;
         uint len = result.length - 1;
@@ -199,8 +211,8 @@ string currentUserName() nothrow @trusted
     }
     else version (Posix)
     {
-    import core.sys.posix.unistd : getlogin_r;
-    import std.conv : to;
+        import core.sys.posix.unistd : getlogin_r;
+        import std.conv : to;
 
         char[1000] result = void;
         uint len = result.length - 1;
@@ -216,21 +228,55 @@ string currentUserName() nothrow @trusted
     }
 }
 
+/**
+ * Returns the caller function name
+ */
 string functionName(string name = __FUNCTION__) nothrow pure @safe
 {
     return name;
 }
 
-string functionName(T)(string name = __FUNCTION__) nothrow pure @safe
-if (is(T == class) || is(T == struct))
+/**
+ * Check and return `value` within `min` and `max` inclusive
+ * Params:
+ *   value = a value to be checked
+ *   min = inclusive minimum value
+ *   max = inclusive maximum value
+ * Returns:
+ *   `min` if `value` is less than `min`
+ *   `max` if `value` is greater than `max`
+ *   otherwise `value`
+ */
+T limitRangeValue(T)(T value, T min, T max) nothrow pure @safe
 {
-    return shortenTypeName(T.stringof) ~ "." ~ name;
+    static if (__traits(compiles, T.init < T.init && T.init > T.init))
+    {
+        if (value < min)
+            return min;
+        else if (value > max)
+            return max;
+        else
+            return value;
+    }
+    else
+        static assert(0, "T must be a type with comparison operators '<' and '>'");
 }
 
+/**
+ * Pads the left of string `value` with character `c` if `value.length` is shorter than `size`
+ * Params:
+ *   value = the string value to be checked and padded
+ *   size = max length to be checked against value.length
+ *          a positive value will do a left padding
+ *          a negative value will do a right padding
+ *   c = a character used for padding
+ * Returns:
+ *   a string with proper padded character(s)
+ */
 S pad(S, C)(S value, const(ptrdiff_t) size, C c) nothrow pure @safe
 if (isSomeString!S && isSomeChar!C && is(Unqual!(typeof(S.init[0])) == C))
 {
-import std.math : abs;
+    import std.math : abs;
 
     const n = abs(size);
     if (value.length >= n)
@@ -242,33 +288,41 @@ import std.math : abs;
 }
 
 /**
- * Returns the short class-name of object without template type. If it is null, returns "null"
+ * Returns the complete class-name of 'object' without template type if any. If `object` is null, returns "null"
  * Params:
  *   object = the object to get the class-name from
  */
 string shortClassName(Object object) nothrow pure @safe
 {
-    if (object is null)
-        return "null";
-    else
-        return shortenTypeName(typeid(object).name);
+    return object is null ? "null" : shortenTypeName(typeid(object).name);
 }
 
+/**
+ * Returns the complete aggregate-name of a class/struct without template type
+ */
+string shortTypeName(T)() nothrow @safe
+if (is(T == class) || is(T == struct))
+{
+    return shortenTypeName(typeid(T).name);
+}
+
+/**
+ * Strip out the template type if any and returns it
+ * Params:
+ *   fullName = the complete type name
+ */
 string shortenTypeName(string fullName) nothrow pure @safe
 {
-import std.algorithm.iteration : filter;
-import std.array : join, split;
-import std.string : indexOf;
+    import std.algorithm.iteration : filter;
+    import std.array : join, split;
+    import std.string : indexOf;
 
     return split(fullName, ".").filter!(e => e.indexOf('!') < 0).join(".");
 }
 
-string shortTypeName(T)() nothrow pure @safe
-if (is(T == class) || is(T == struct))
-{
-    return shortenTypeName(T.stringof);
-}
-
+/**
+ * Returns FormatSpec!char with `f` format specifier
+ */
 FormatSpec!char simpleFloatFmt() nothrow pure @safe
 {
     FormatSpec!char result;
@@ -276,6 +330,11 @@ FormatSpec!char simpleFloatFmt() nothrow pure @safe
     return result;
 }
 
+/**
+ * Returns FormatSpec!char with `d` format specifier
+ * Params:
+ *   width = optional width of formated string
+ */
 FormatSpec!char simpleIntegerFmt(int width = 0) nothrow pure @safe
 {
     FormatSpec!char result;
@@ -285,18 +344,18 @@ FormatSpec!char simpleIntegerFmt(int width = 0) nothrow pure @safe
 }
 
 /**
- * Initialize parameter v if it is null in thread safe manner using pass in initiate function
+ * Initialize parameter `v` if `v` is null in thread safe manner using pass-in 'initiate' function
  * Params:
  *   v = variable to be initialized to object T if it is null
  *   initiate = a function that returns the newly created object as of T
  * Returns:
- *   parameter v
+ *   parameter `v`
  */
 T singleton(T)(ref T v, T function() nothrow pure @safe initiate) nothrow pure @trusted //@trusted=cast(T)null
 if (is(T == class))
 {
-import core.atomic : cas;
-import std.traits : hasElaborateDestructor;
+    import core.atomic : cas;
+    import std.traits : hasElaborateDestructor;
 
     if (v is null)
     {
@@ -311,6 +370,12 @@ import std.traits : hasElaborateDestructor;
     return v;
 }
 
+/**
+ * Returns a string with length `count` with specified character `c`
+ * Params:
+ *   count = number of characters
+ *   c = expected string of character
+ */
 auto stringOfChar(C = char)(size_t count, C c) nothrow pure @trusted
 if (is(Unqual!C == char) || is(Unqual!C == wchar) || is(Unqual!C == dchar))
 {
@@ -324,6 +389,17 @@ if (is(Unqual!C == char) || is(Unqual!C == wchar) || is(Unqual!C == dchar))
         return cast(dstring)result;
 }
 
+/**
+ * Converts an integral value into character output-range and returns its' output-range
+ * Params:
+ *   sink = character output-range
+ *   n = an integral value to be converted
+ *   paddingSize = optional padding length
+ *   paddingChar = optional padding character; used only if paddingSize is not zero
+ *   letterCase = specified upper-case or lower-case characters for radix 16 conversion
+ * Returns:
+ *   passed in paramter `sink`
+ */
 ref Writer toString(uint radix = 10, N, Writer)(return ref Writer sink, N n,
     const(ubyte) paddingSize = 0, const(char) paddingChar = '0',
     const(LetterCase) letterCase = LetterCase.upper) nothrow pure @safe
@@ -588,7 +664,7 @@ public:
 
     string toString() const pure
     {
-    import std.conv : to;
+        import std.conv : to;
 
         scope (failure) assert(0);
 
@@ -620,12 +696,12 @@ public:
 
 struct VersionString
 {
-import std.array : join, split;
-import std.algorithm.iteration;
-import std.conv : to;
-import std.string : strip;
-import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
-import pham.utl.utf8 : ShortStringBuffer;
+    import std.array : join, split;
+    import std.algorithm.iteration;
+    import std.conv : to;
+    import std.string : strip;
+    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    import pham.utl.utf8 : ShortStringBuffer;
 
 nothrow @safe:
 
@@ -872,26 +948,45 @@ private:
 
 version (unittest)
 {
-    class ClassName {}
+    class TestClassName 
+    {
+        string testFN() nothrow @safe
+        {
+            return functionName();
+        }
+    }
 
-    class ClassTemplate(T) {}
+    class TestClassTemplate(T) {}
+    
+    struct TestStructName
+    {
+        string testFN() nothrow @safe
+        {
+            return functionName();
+        }
+    }
+    
+    string testFN() nothrow @safe
+    {
+        return functionName();
+    }
 }
 
 nothrow @safe unittest // className
 {
-import pham.utl.test;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.className");
 
-    auto c1 = new ClassName();
-    assert(className(c1) == "pham.utl.object.ClassName");
+    auto c1 = new TestClassName();
+    assert(className(c1) == "pham.utl.object.TestClassName");
 
-    auto c2 = new ClassTemplate!int();
-    assert(className(c2) == "pham.utl.object.ClassTemplate!int.ClassTemplate");
+    auto c2 = new TestClassTemplate!int();
+    assert(className(c2) == "pham.utl.object.TestClassTemplate!int.TestClassTemplate");
 }
 
 nothrow @safe unittest // cmpInteger
 {
-import pham.utl.test;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.cmpInteger");
 
     assert(cmpInteger(0, 0) == 0);
@@ -906,8 +1001,8 @@ import pham.utl.test;
 
 nothrow @safe unittest // cmpFloat
 {
-import std.math : isNaN;
-import pham.utl.test;
+    import std.math : isNaN;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.cmpFloat");
 
     assert(cmpFloat(0.0, 0.0) == 0);
@@ -925,7 +1020,7 @@ import pham.utl.test;
 
 nothrow @safe unittest // currentComputerName
 {
-import pham.utl.test;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.currentComputerName");
 
     assert(currentComputerName().length != 0);
@@ -933,7 +1028,7 @@ import pham.utl.test;
 
 nothrow @safe unittest // currentProcessId
 {
-import pham.utl.test;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.currentProcessId");
 
     assert(currentProcessId() != 0);
@@ -941,15 +1036,41 @@ import pham.utl.test;
 
 nothrow @safe unittest // currentUserName
 {
-import pham.utl.test;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.currentUserName");
 
     assert(currentUserName().length != 0);
 }
 
+nothrow @safe unittest // functionName
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.functionName");
+
+    auto c1 = new TestClassName();
+    assert(c1.testFN() == "pham.utl.object.TestClassName.testFN", c1.testFN());
+
+    TestStructName s1;
+    assert(s1.testFN() == "pham.utl.object.TestStructName.testFN", s1.testFN());
+    
+    assert(testFN() == "pham.utl.object.testFN", testFN());
+}
+
+nothrow @safe unittest // limitRangeValue
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.limitRangeValue");
+    
+    assert(limitRangeValue(0, 0, 101) == 0);
+    assert(limitRangeValue(101, 0, 101) == 101);
+    assert(limitRangeValue(1, 0, 101) == 1);
+    assert(limitRangeValue(-1, 0, 101) == 0);
+    assert(limitRangeValue(102, 0, 101) == 101);
+}
+
 nothrow @safe unittest // pad
 {
-import pham.utl.test;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.pad");
 
     assert(pad("", 2, ' ') == "  ");
@@ -960,19 +1081,29 @@ import pham.utl.test;
 
 nothrow @safe unittest // shortClassName
 {
-import pham.utl.test;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.shortClassName");
 
-    auto c1 = new ClassName();
-    assert(shortClassName(c1) == "pham.utl.object.ClassName");
+    auto c1 = new TestClassName();
+    assert(shortClassName(c1) == "pham.utl.object.TestClassName");
 
-    auto c2 = new ClassTemplate!int();
-    assert(shortClassName(c2) == "pham.utl.object.ClassTemplate");
+    auto c2 = new TestClassTemplate!int();
+    assert(shortClassName(c2) == "pham.utl.object.TestClassTemplate");
+}
+
+nothrow @safe unittest // shortTypeName
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.shortTypeName");
+
+    assert(shortTypeName!TestClassName() == "pham.utl.object.TestClassName", shortTypeName!TestClassName());
+    assert(shortTypeName!(TestClassTemplate!int)() == "pham.utl.object.TestClassTemplate", shortTypeName!(TestClassTemplate!int)());
+    assert(shortTypeName!TestStructName() == "pham.utl.object.TestStructName", shortTypeName!TestStructName());
 }
 
 unittest // singleton
 {
-import pham.utl.test;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.singleton");
 
     static class A {}
@@ -989,7 +1120,7 @@ import pham.utl.test;
 
 nothrow @safe unittest // stringOfChar
 {
-import pham.utl.test;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.stringOfChar");
 
     assert(stringOfChar(4, ' ') == "    ");
@@ -998,7 +1129,7 @@ import pham.utl.test;
 
 unittest // InitializedValue
 {
-import pham.utl.test;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.InitializedValue");
 
     InitializedValue!int n;
@@ -1010,7 +1141,7 @@ import pham.utl.test;
     assert(n.inited);
     assert(n == 0);
 
-    InitializedValue!ClassName c;
+    InitializedValue!TestClassName c;
     assert(!c);
     assert(!c.inited);
 
@@ -1018,7 +1149,7 @@ import pham.utl.test;
     assert(!c);
     assert(c.inited);
 
-    c = new ClassName();
+    c = new TestClassName();
     assert(c);
     assert(c.inited);
     assert(c !is null);
@@ -1026,7 +1157,7 @@ import pham.utl.test;
 
 nothrow @safe unittest // bytesFromHexs & bytesToHexs
 {
-import pham.utl.test;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.bytesFromHexs & bytesToHexs");
 
     assert(bytesToHexs([0]) == "00");
@@ -1053,8 +1184,8 @@ import pham.utl.test;
 
 nothrow @safe unittest // bytesFromBase64s
 {
-import std.string : representation;
-import pham.utl.test;
+    import std.string : representation;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.bytesFromBase64s");
 
     assert(bytesFromBase64s("QUIx") == "AB1".representation());
@@ -1062,7 +1193,7 @@ import pham.utl.test;
 
 nothrow @safe unittest // VersionString
 {
-import pham.utl.test;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.VersionString");
 
     const v1Str = "1.2.3.4";
@@ -1095,9 +1226,9 @@ import pham.utl.test;
 
 @safe unittest // toString
 {
-import std.array : Appender;
-import std.conv : to;
-import pham.utl.test;
+    import std.array : Appender;
+    import std.conv : to;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.toString");
 
     void testCheck(uint radix = 10, N)(N n, const(ubyte) pad, string expected,
@@ -1135,7 +1266,7 @@ import pham.utl.test;
 
 unittest // ResultStatus
 {
-import pham.utl.test;
+    import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.ResultStatus");
 
     auto r = ResultStatus.error(1, "Error");

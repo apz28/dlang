@@ -364,6 +364,10 @@ public:
         throw new VariantException(typeInfo, errorMessage);
     }
 
+    /**
+     * Implements casting to bool type if VariantN contains a value or not
+     * For class/pointer type, return true if it is not null
+     */
     bool opCast(C: bool)() const nothrow pure @safe
     {
         bool result;
@@ -691,6 +695,9 @@ public:
         assert(0);
     }
 
+    /**
+     * Clear this instance to null value
+     */
     ref VariantN nullify() nothrow return @safe
     {
         handler.destruct(size, pointer);
@@ -770,6 +777,9 @@ public:
         }
     }
 
+    /**
+     * Constructs and returns instance Variant with null value
+     */
     static Variant varNull() nothrow @safe
     {
         return Variant.init;
@@ -777,7 +787,7 @@ public:
 
     /**
      * Returns true if VariantN held value of type void or null
-    */
+     */
     @property bool isNull() const nothrow pure @safe
     {
         return handler.nullType(size, pointer) != NullType.value;
@@ -1337,6 +1347,7 @@ public:
         super(s, next);
     }
 }
+
 
 // All implement after this point must be private
 private:
