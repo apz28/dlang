@@ -131,7 +131,7 @@ public:
             case DbType.record:
             case DbType.array:
             case DbType.unknown:
-                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName!(typeof(this))(), toName!DbType(descriptor.fieldInfo.dbType));
+                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(descriptor.fieldInfo.dbType));
                 throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_net_read_err);
         }
 
@@ -293,7 +293,7 @@ public:
             case DbType.record:
             case DbType.array:
             case DbType.unknown:
-                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName!(typeof(this))(), toName!DbType(descriptor.fieldInfo.dbType));
+                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(descriptor.fieldInfo.dbType));
                 throw new FbException(msg, DbErrorCode.write, null, 0, FbIscResultCode.isc_net_write_err);
         }
 

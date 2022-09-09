@@ -165,11 +165,11 @@ void dateTimeEncodeTZ(scope const(DbDateTime) value, out int32 fbDate, out int32
 size_t decimalByteLength(D)() pure
 if (isDecimal!D)
 {
-	static if (D.sizeofData == 4)
+	static if (D.sizeof == 4)
 		return DecimalCodec32.formatByteLength;
-	else static if (D.sizeofData == 8)
+	else static if (D.sizeof == 8)
 		return DecimalCodec64.formatByteLength;
-	else static if (D.sizeofData == 16)
+	else static if (D.sizeof == 16)
 		return DecimalCodec128.formatByteLength;
 	else
 		static assert(0);
@@ -183,11 +183,11 @@ if (isDecimal!D)
 	if (endian == Endian.littleEndian)
 		endianBytes.reverse();
 
-	static if (D.sizeofData == 4)
+	static if (D.sizeof == 4)
 		return DecimalCodec32.decode(endianBytes[]);
-	else static if (D.sizeofData == 8)
+	else static if (D.sizeof == 8)
 		return DecimalCodec64.decode(endianBytes[]);
-	else static if (D.sizeofData == 16)
+	else static if (D.sizeof == 16)
 		return DecimalCodec128.decode(endianBytes[]);
 	else
 		static assert(0);
@@ -198,11 +198,11 @@ if (isDecimal!D)
 {
 	result.clear();
 
-	static if (D.sizeofData == 4)
+	static if (D.sizeof == 4)
 		result.put(DecimalCodec32.encode(value));
-	else static if (D.sizeofData == 8)
+	else static if (D.sizeof == 8)
 		result.put(DecimalCodec64.encode(value));
-	else static if (D.sizeofData == 16)
+	else static if (D.sizeof == 16)
 		result.put(DecimalCodec128.encode(value));
 	else
 		static assert(0);

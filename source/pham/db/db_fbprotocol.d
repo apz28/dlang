@@ -1028,7 +1028,7 @@ public:
             case DbType.record:
             case DbType.array:
             case DbType.unknown:
-                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName!(typeof(this))(), toName!DbType(dbType));
+                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(dbType));
                 throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_net_read_err);
         }
 
