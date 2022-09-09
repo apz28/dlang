@@ -29,6 +29,8 @@ public import core.sys.windows.security : SEC_E_OK, SEC_I_CONTINUE_NEEDED, SEC_I
 //import core.sys.windows.ntsecapi;
 //import core.sys.windows.subauth;
 
+pragma(lib, "Secur32.lib");
+
 enum : ULONG
 {
     SECPKG_CRED_INBOUND = 1,
@@ -359,6 +361,7 @@ struct SecurityFunctionTableW
     DECRYPT_MESSAGE_FN DecryptMessage;
 }
 alias PSecurityFunctionTableW = SecurityFunctionTableW*;
+alias INIT_SECURITY_INTERFACE_W = PSecurityFunctionTableW function();
 
 struct SecurityFunctionTableA
 {
@@ -391,8 +394,6 @@ struct SecurityFunctionTableA
     DECRYPT_MESSAGE_FN DecryptMessage;
 }
 alias PSecurityFunctionTableA = SecurityFunctionTableA*;
-
-alias INIT_SECURITY_INTERFACE_W = PSecurityFunctionTableW function();
 alias INIT_SECURITY_INTERFACE_A = PSecurityFunctionTableA function();
 
 SECURITY_STATUS FreeCredentialsHandle(PCredHandle);
