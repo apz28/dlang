@@ -727,8 +727,8 @@ ExceptionFlags decimalAtanh(D)(ref D x, const(int) precision, const(RoundingMode
         return ExceptionFlags.none;
 
     alias T = DataType!D;
-    T cx;
-    int ex;
+    T cx = void;
+    int ex = void;
     bool sx = x.unpack(cx, ex);
 
     const cmp = coefficientCmp(cx, ex, false, T(1U), 0, false);
@@ -1772,8 +1772,8 @@ if (isDecimal!D)
         return ExceptionFlags.overflow | ExceptionFlags.inexact;
     }
 
-    DataType!D cx;
-    int ex;
+    DataType!D cx = void;
+    int ex = void;
     bool sx = x.unpack(cx, ex);
     const flags2 = coefficientExp(cx, ex, sx);
     return x.adjustedPack(cx, ex, sx, precision, mode, flags2);
@@ -2230,8 +2230,8 @@ if (isDecimal!D)
         return ExceptionFlags.divisionByZero;
     }
 
-    DataType!D cx;
-    int ex;
+    DataType!D cx = void;
+    int ex = void;
     bool sx = x.unpack(cx, ex);
     const flags = coefficientLog(cx, ex, sx);
     return x.adjustedPack(cx, ex, sx, precision, mode, flags);
@@ -2393,8 +2393,8 @@ if (isDecimal!D)
         return ExceptionFlags.divisionByZero;
     }
 
-    DataType!D c;
-    int e;
+    DataType!D c = void;
+    int e = void;
     x.unpack(c, e);
     coefficientShrink(c, e);
 
@@ -5125,7 +5125,6 @@ do
         return ExceptionFlags.none;
     }
 
-    bool overflow;
     ExceptionFlags flags;
 
     if (exponent < minExponent)

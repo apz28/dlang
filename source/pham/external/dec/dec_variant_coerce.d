@@ -31,32 +31,25 @@ if ((isFloatingPoint!S || isIntegral!S || isSomeChar!S || isDecimal!S) && isDeci
     
     try
     {
-        static if (isIntegral!S || isDecimal!S || isSomeChar!S)
+        auto r = D(*cast(S*)srcPtr);
+        
+        static if (isFloatingPoint!S)
         {
-            auto r = D(*cast(S*)srcPtr, RoundingMode.banking);
+            // Ignore the ExceptionFlags.inexact for float
             if (DecimalControl.severe)
                 return false;
-
-            *cast(D*)dstPtr = r;
-            return true;
-        }
-        else static if (isFloatingPoint!S)
-        {
-            auto r = D(*cast(S*)srcPtr, RoundingMode.banking, D.PRECISION);
-            if (DecimalControl.severe)
-                return false;
-
-            *cast(D*)dstPtr = r;
-            return true;
         }
         else
         {
-            static assert(0);
+            if (DecimalControl.flags)
+                return false;
         }
+
+        *cast(D*)dstPtr = r;
+        return true;
     }
     catch (Exception ex)
     {
-    import pham.utl.test; dgWriteln(ex.msg, " ? doCoerceDecimal failed.flags=", DecimalControl.flags);
         return false;
     }
 }
@@ -72,15 +65,24 @@ if (isDecimal!S && (isFloatingPoint!D || isIntegral!D || isSomeChar!D))
     try
     {
         auto r = (*cast(S*)srcPtr).opCast!D();
-        if (DecimalControl.severe)
-            return false;
+        
+        static if (isFloatingPoint!D)
+        {
+            // Ignore the ExceptionFlags.inexact for float
+            if (DecimalControl.severe)
+                return false;
+        }
+        else
+        {
+            if (DecimalControl.flags)
+                return false;
+        }
 
         *cast(D*)dstPtr = r;
         return true;
     }
     catch (Exception ex)
     {
-    import pham.utl.test; dgWriteln(ex.msg, " ? doCoerceDecimalToNumeric failed.flags=", DecimalControl.flags);
         return false;
     }
 }
@@ -144,6 +146,7 @@ unittest
     import std.conv : to;
     import std.format : format;
     import std.math.operations : isClose;
+    import std.traits : isSigned, isUnsigned;
     import pham.utl.test;
     traceUnitTest!("pham.external.dec")("unittest pham.external.dec.variant_coerce");
 
@@ -168,23 +171,35 @@ unittest
                     enum S checkMin = S.min;
                     enum S checkMax = S.max;
                 }
-                else
+                else static if (D.sizeof == 8)
                 {
-                    enum S checkMin = S.min / 10_000;
-                    enum S checkMax = S.max / 10_000;
+                    enum S checkMax = 9999_9999_9999_9999L;
+                    static if (isUnsigned!S)
+                        enum S checkMin = 0L;
+                    else
+                        enum S checkMin = -9999_9999_9999_9999L;
                 }
+                else //static if (D.sizeof == 4)
+                {
+                    enum S checkMax = 999_9999;
+                    static if (isUnsigned!S)
+                        enum S checkMin = 0;
+                    else
+                        enum S checkMin = -999_9999;
+                }
+                
                 D d = 1;
                 S s = checkMin;
                 f = handler.doCoerce(&s, &d);
                 assert(f, S.stringof ~ " to " ~ D.stringof);
-                assert(d == checkMin, d.toString() ~ " vs " ~ to!string(checkMin)); // S.stringof ~ " to " ~ D.stringof);
+                assert(d == checkMin, S.stringof ~ " to " ~ D.stringof ~ " : " ~ d.toString() ~ " vs " ~ to!string(checkMin)); // S.stringof ~ " to " ~ D.stringof);
 
                 // Inverse
                 s = 1;
                 d = checkMin;
                 f = invHandler.doCoerce(&d, &s);
                 assert(f, D.stringof ~ " to " ~ S.stringof);
-                assert(s == checkMin, D.stringof ~ " to " ~ S.stringof);
+                assert(s == checkMin, S.stringof ~ " to " ~ D.stringof ~ " : " ~ D.stringof ~ " to " ~ S.stringof);
 
                 d = 1;
                 s = 0;
@@ -196,7 +211,7 @@ unittest
                 s = checkMax;
                 f = handler.doCoerce(&s, &d);
                 assert(f, S.stringof ~ " to " ~ D.stringof);
-                assert(d == checkMax, d.toString() ~ " vs " ~ to!string(checkMax)); // S.stringof ~ " to " ~ D.stringof);
+                assert(d == checkMax, S.stringof ~ " to " ~ D.stringof ~ " : " ~ d.toString() ~ " vs " ~ to!string(checkMax)); // S.stringof ~ " to " ~ D.stringof);
 
                 // Inverse
                 s = 1;
@@ -204,6 +219,24 @@ unittest
                 f = invHandler.doCoerce(&d, &s);
                 assert(f, D.stringof ~ " to " ~ S.stringof);
                 assert(s == checkMax, D.stringof ~ " to " ~ S.stringof);
+            }}
+            
+            // Not convertable
+            static if (S.sizeof >= D.sizeof)
+            {{
+                f = ConvertHandler.find!(S, D)(handler);
+                assert(f);
+                assert(handler.doCoerce !is null);
+
+                D d;
+                S s = S.max;
+                assert(!handler.doCoerce(&s, &d));
+                
+                static if (isSigned!S)
+                {
+                    s = S.min;
+                    assert(!handler.doCoerce(&s, &d));
+                }
             }}
         }
     }
@@ -255,6 +288,21 @@ unittest
                 f = invHandler.doCoerce(&d, &s);
                 assert(f, D.stringof ~ " to " ~ S.stringof);
                 assert(isClose(s, checkMax), D.stringof ~ " to " ~ S.stringof ~ " for " ~ format("%f", s) ~ " vs " ~ format("%f", checkMax));
+            }}
+            
+            // Not convertable
+            static if (S.sizeof > D.sizeof)
+            {{
+                f = ConvertHandler.find!(S, D)(handler);
+                assert(f);
+                assert(handler.doCoerce !is null);
+
+                D d;
+                S s = S.max;
+                assert(!handler.doCoerce(&s, &d));
+                
+                s = -S.max;
+                assert(!handler.doCoerce(&s, &d));
             }}
         }
     }

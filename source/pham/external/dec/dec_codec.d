@@ -12,7 +12,8 @@
 module pham.external.dec.codec;
 
 version (TraceFunction) import pham.utl.test;
-import pham.external.dec.decimal: Decimal, DecimalSubClass, fabs, decimalSubClass;
+import pham.external.dec.decimal: Decimal32, Decimal64, Decimal128, DecimalSubClass,
+    decimalSubClass, fabs;
 import pham.external.dec.integral : divrem;
 
 nothrow @safe:
@@ -28,11 +29,11 @@ public:
 	enum formatByteLength = bits / 8;
 
 	static if (bits == 32)
-		alias D = Decimal!32;
+		alias D = Decimal32;
 	else static if (bits == 64)
-		alias D = Decimal!64;
+		alias D = Decimal64;
 	else
-		alias D = Decimal!128;
+		alias D = Decimal128;
 
 	alias EncodedResult = ubyte[formatByteLength];
 
@@ -62,11 +63,11 @@ public:
 				const notCombination = (firstByte & combination2) != combination2;
 				const firstByteAsInt = cast(int)firstByte;
 				const int exponentMSB = notCombination
-					? usignedRightShift(firstByteAsInt, 3) & 0b01100 | (firstByteAsInt & 0b011)
-					: usignedRightShift(firstByteAsInt, 1) & 0b01100 | (firstByteAsInt & 0b011);
+					? usignedRightShift(firstByteAsInt, 3) & 0b1100 | (firstByteAsInt & 0b0011)
+					: usignedRightShift(firstByteAsInt, 1) & 0b1100 | (firstByteAsInt & 0b0011);
 				const int firstDigit = notCombination
 					? usignedRightShift(firstByteAsInt, 2) & 0b0111
-					: 0b01000 | (usignedRightShift(firstByteAsInt, 2) & 0b01);
+					: 0b1000 | (usignedRightShift(firstByteAsInt, 2) & 0b01);
 				const exponentBitsRemaining = exponentContinuationBits - 2;
 
 				version (TraceFunction) traceFunction!("pham.external.dec")("exponentMSB=", exponentMSB, ", firstDigit=", firstDigit);
@@ -150,7 +151,8 @@ private:
 
 	///dito
 	/// Digits are read from `lsbIndex` of the array to the front.
-	static D.U decodeCoefficient(const(bool) isNeg, const(ptrdiff_t) firstDigit, size_t lsbIndex, scope const(ubyte)[] decBytes) pure
+	static D.U decodeCoefficient(const(bool) isNeg, const(ptrdiff_t) firstDigit,
+        size_t lsbIndex, scope const(ubyte)[] decBytes) pure
 	in
     {
 		assert(0 <= firstDigit && firstDigit <= 9);
@@ -159,8 +161,7 @@ private:
     }
 	do
 	{
-		char[coefficientDigits + 1] digitChars;
-		digitChars[] = '0';
+		char[coefficientDigits + 1] digitChars = '0';
 
 		foreach (digitGroup; 0..digitGroups)
 		{
@@ -170,7 +171,7 @@ private:
             const int digitBitsFromEnd = digitGroup * bitsPerGroup;
             const int firstByteBitOffset = digitBitsFromEnd % bitsPerByte;
             const int firstByteIndex = cast(int)(lsbIndex - digitBitsFromEnd / bitsPerByte);
-            const int dpdGroupBits = 0x3FF & (
+            const int dpdGroupBits = 0x03FF & (
                     (cast(int)decBytes[firstByteIndex] >>> firstByteBitOffset)
                      | (cast(int)decBytes[firstByteIndex - 1] << (bitsPerByte - firstByteBitOffset)));
 
@@ -214,8 +215,8 @@ private:
 
 	static D.U decodeCoefficient(scope const(D) coeffient) @nogc pure
     {
-		D.U coefficientU;
-		int exponentU;
+		D.U coefficientU = void;
+		int exponentU = void;
 		coeffient.unpack(coefficientU, exponentU);
 		return coefficientU;
     }
@@ -238,7 +239,8 @@ private:
 
 		if (exponentBitsRemaining > 0)
 		{
-			exponent = (exponent << exponentBitsRemaining) | (usignedRightShift(decBytes[byteIndex] & 0xFF, 8 - exponentBitsRemaining));
+			exponent = (exponent << exponentBitsRemaining)
+                | (usignedRightShift(decBytes[byteIndex] & 0xFF, 8 - exponentBitsRemaining));
 
 			version (TraceFunction) traceFunction!("pham.external.dec")("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining);
 		}
@@ -320,8 +322,8 @@ private:
     {
 		const isNeg = value.isNeg;
 		const absValue = isNeg ? fabs(value) : value;
-		D.U coefficient;
-		int unbiasedExponent;
+		D.U coefficient = void;
+		int unbiasedExponent = void;
 		absValue.unpack(coefficient, unbiasedExponent);
 		const biasedExponent = biasedExponent(unbiasedExponent);
 
@@ -444,6 +446,7 @@ private:
 alias DecimalCodec32 = DecimalCodec!32;
 alias DecimalCodec64 = DecimalCodec!64;
 alias DecimalCodec128 = DecimalCodec!128;
+
 
 private:
 
@@ -667,59 +670,59 @@ unittest // DecimalCodec64
 	traceUnitTest!("pham.external.dec")("unittest pham.external.dec.codec.DecimalCodec64");
 
 	DecimalCodec64 codec;
-	auto n = Decimal!64.buildin("0");
+	auto n = Decimal64.buildin("0");
     auto nBytes = codec.encode(n);
 	assert(n == codec.decode(nBytes));
 
-	n = Decimal!64.buildin("1");
+	n = Decimal64.buildin("1");
     nBytes = codec.encode(n);
 	assert(n == codec.decode(nBytes));
 
-	n = Decimal!64.buildin("-1");
+	n = Decimal64.buildin("-1");
     nBytes = codec.encode(n);
 	assert(n == codec.decode(nBytes));
 
-	n = Decimal!64.qNaN;
+	n = Decimal64.qNaN;
     nBytes = codec.encode(n);
 	assert(n.isNaN == codec.decode(nBytes).isNaN);
 
-	n = Decimal!64.negQNaN;
+	n = Decimal64.negQNaN;
     nBytes = codec.encode(n);
 	assert(n.isNaN == codec.decode(nBytes).isNaN);
 
-	n = Decimal!64.sNaN;
+	n = Decimal64.sNaN;
     nBytes = codec.encode(n);
 	assert(n.isNaN == codec.decode(nBytes).isNaN);
 
-	n = Decimal!64.negSNaN;
+	n = Decimal64.negSNaN;
     nBytes = codec.encode(n);
 	assert(n.isNaN == codec.decode(nBytes).isNaN);
 
-	n = Decimal!64.infinity;
+	n = Decimal64.infinity;
     nBytes = codec.encode(n);
 	assert(n.isInfinity == codec.decode(nBytes).isInfinity);
 
-	n = Decimal!64.negInfinity;
+	n = Decimal64.negInfinity;
     nBytes = codec.encode(n);
 	assert(n.isInfinity == codec.decode(nBytes).isInfinity);
 
-	n = Decimal!64.buildin("106");
+	n = Decimal64.buildin("106");
     nBytes = codec.encode(n);
 	assert(n == codec.decode(nBytes));
 
-	n = Decimal!64.buildin("-106");
+	n = Decimal64.buildin("-106");
     nBytes = codec.encode(n);
 	assert(n == codec.decode(nBytes));
 
-	n = Decimal!64.buildin("123.000000001E-1");
+	n = Decimal64.buildin("123.000000001E-1");
     nBytes = codec.encode(n);
 	assert(n == codec.decode(nBytes));
 
-	n = Decimal!64.buildin("-123.000000001E-1");
+	n = Decimal64.buildin("-123.000000001E-1");
     nBytes = codec.encode(n);
 	assert(n == codec.decode(nBytes));
 
-	n = Decimal!64.buildin("1.234567890123456");
+	n = Decimal64.buildin("1.234567890123456");
     nBytes = codec.encode(n);
 	assert(nBytes == bytesFromHexs("25FD34B9C1E28E56"));
 	assert(n == codec.decode(nBytes));
@@ -733,59 +736,59 @@ unittest // DecimalCodec128
 
 	// Decode
 	DecimalCodec128 codec;
-	auto n = Decimal!128.buildin("0");
+	auto n = Decimal128.buildin("0");
     auto nBytes = codec.encode(n);
 	assert(n == codec.decode(nBytes));
 
-	n = Decimal!128.buildin("1");
+	n = Decimal128.buildin("1");
     nBytes = codec.encode(n);
 	assert(n == codec.decode(nBytes));
 
-	n = Decimal!128.buildin("-1");
+	n = Decimal128.buildin("-1");
     nBytes = codec.encode(n);
 	assert(n == codec.decode(nBytes));
 
-	n = Decimal!128.qNaN;
+	n = Decimal128.qNaN;
     nBytes = codec.encode(n);
 	assert(n.isNaN == codec.decode(nBytes).isNaN);
 
-	n = Decimal!128.negQNaN;
+	n = Decimal128.negQNaN;
     nBytes = codec.encode(n);
 	assert(n.isNaN == codec.decode(nBytes).isNaN);
 
-	n = Decimal!128.sNaN;
+	n = Decimal128.sNaN;
     nBytes = codec.encode(n);
 	assert(n.isNaN == codec.decode(nBytes).isNaN);
 
-	n = Decimal!128.negSNaN;
+	n = Decimal128.negSNaN;
     nBytes = codec.encode(n);
 	assert(n.isNaN == codec.decode(nBytes).isNaN);
 
-	n = Decimal!128.infinity;
+	n = Decimal128.infinity;
     nBytes = codec.encode(n);
 	assert(n.isInfinity == codec.decode(nBytes).isInfinity);
 
-	n = Decimal!128.negInfinity;
+	n = Decimal128.negInfinity;
     nBytes = codec.encode(n);
 	assert(n.isInfinity == codec.decode(nBytes).isInfinity);
 
-	n = Decimal!128.buildin("106");
+	n = Decimal128.buildin("106");
     nBytes = codec.encode(n);
 	assert(n == codec.decode(nBytes));
 
-	n = Decimal!128.buildin("-106");
+	n = Decimal128.buildin("-106");
     nBytes = codec.encode(n);
 	assert(n == codec.decode(nBytes));
 
-	n = Decimal!128.buildin("123.000000001E-1");
+	n = Decimal128.buildin("123.000000001E-1");
     nBytes = codec.encode(n);
 	assert(n == codec.decode(nBytes));
 
-	n = Decimal!128.buildin("-123.000000001E-1");
+	n = Decimal128.buildin("-123.000000001E-1");
     nBytes = codec.encode(n);
 	assert(n == codec.decode(nBytes));
 
-	n = Decimal!128.buildin("1.234567890123456789012345678901234");
+	n = Decimal128.buildin("1.234567890123456789012345678901234");
     nBytes = codec.encode(n);
 	assert(nBytes == bytesFromHexs("25FFD34B9C1E28E56F3C127177823534"));
 	assert(n == codec.decode(nBytes));

@@ -13,6 +13,15 @@ import pham.external.dec.compare;
 import pham.external.dec.range;
 import pham.external.dec.parse;
 
+version (D_BetterC) {}
+else
+{
+  public import std.format : FormatSpec;
+  import pham.external.dec.sink;
+}
+
+private alias fma = pham.external.dec.integral.fma;
+
 version (Windows)
 {
     public import core.sys.windows.wtypes: DECIMAL;
@@ -41,15 +50,6 @@ else
     }
 }
 
-version (D_BetterC) {}
-else
-{
-public import std.format : FormatSpec;
-import pham.external.dec.sink;
-}
-
-private alias fma = pham.external.dec.integral.fma;
-
 enum CheckInfinity : byte
 {
     no = 0,         /// The value is $(B NaN) (quiet or signaling) or any finite value
@@ -67,13 +67,12 @@ enum CheckNaN : byte
 }
 
 /**
-These flags indicate that an error has occurred. They indicate that a 0, $(B NaN) or an infinity value has been generated,
-that a result is inexact, or that a signalling $(B NaN) has been encountered.
-If the corresponding traps are set using $(MYREF DecimalControl),
-an exception will be thrown after setting these error flags.
-
-By default the context will have all error flags lowered and exceptions are thrown only for severe errors.
-*/
+ * These flags indicate that an error has occurred. They indicate that a 0, $(B NaN) or an infinity value has been generated,
+ * that a result is inexact, or that a signalling $(B NaN) has been encountered.
+ * If the corresponding traps are set using $(MYREF DecimalControl),
+ * an exception will be thrown after setting these error flags.
+ * By default the context will have all error flags lowered and exceptions are thrown only for severe errors.
+ */
 enum ExceptionFlags : uint
 {
     ///no error
@@ -95,24 +94,24 @@ enum ExceptionFlags : uint
 }
 
 /**
-* Rounding modes. To better understand how rounding is performed, consult the table below.
-*
-* $(BOOKTABLE,
-*  $(TR $(TH Value) $(TH tiesToEven) $(TH tiesToAway) $(TH towardPositive) $(TH towardNegative) $(TH towardZero))
-*  $(TR $(TD +1.3)  $(TD +1)         $(TD +1)         $(TD +2)             $(TD +1)             $(TD +1))
-*  $(TR $(TD +1.5)  $(TD +2)         $(TD +2)         $(TD +2)             $(TD +1)             $(TD +1))
-*  $(TR $(TD +1.8)  $(TD +2)         $(TD +2)         $(TD +2)             $(TD +1)             $(TD +1))
-*  $(TR $(TD -1.3)  $(TD -1)         $(TD -1)         $(TD -1)             $(TD -2)             $(TD -1))
-*  $(TR $(TD -1.5)  $(TD -2)         $(TD -2)         $(TD -1)             $(TD -2)             $(TD -1))
-*  $(TR $(TD -1.8)  $(TD -2)         $(TD -2)         $(TD -1)             $(TD -2)             $(TD -1))
-*  $(TR $(TD +2.3)  $(TD +2)         $(TD +2)         $(TD +3)             $(TD +2)             $(TD +2))
-*  $(TR $(TD +2.5)  $(TD +2)         $(TD +3)         $(TD +3)             $(TD +2)             $(TD +2))
-*  $(TR $(TD +2.8)  $(TD +3)         $(TD +3)         $(TD +3)             $(TD +2)             $(TD +2))
-*  $(TR $(TD -2.3)  $(TD -2)         $(TD -2)         $(TD -2)             $(TD -3)             $(TD -2))
-*  $(TR $(TD -2.5)  $(TD -2)         $(TD -3)         $(TD -2)             $(TD -3)             $(TD -2))
-*  $(TR $(TD -2.8)  $(TD -3)         $(TD -3)         $(TD -2)             $(TD -3)             $(TD -2))
-* )
-*/
+ * Rounding modes. To better understand how rounding is performed, consult the table below.
+ *
+ * $(BOOKTABLE,
+ *  $(TR $(TH Value) $(TH tiesToEven) $(TH tiesToAway) $(TH towardPositive) $(TH towardNegative) $(TH towardZero))
+ *  $(TR $(TD +1.3)  $(TD +1)         $(TD +1)         $(TD +2)             $(TD +1)             $(TD +1))
+ *  $(TR $(TD +1.5)  $(TD +2)         $(TD +2)         $(TD +2)             $(TD +1)             $(TD +1))
+ *  $(TR $(TD +1.8)  $(TD +2)         $(TD +2)         $(TD +2)             $(TD +1)             $(TD +1))
+ *  $(TR $(TD -1.3)  $(TD -1)         $(TD -1)         $(TD -1)             $(TD -2)             $(TD -1))
+ *  $(TR $(TD -1.5)  $(TD -2)         $(TD -2)         $(TD -1)             $(TD -2)             $(TD -1))
+ *  $(TR $(TD -1.8)  $(TD -2)         $(TD -2)         $(TD -1)             $(TD -2)             $(TD -1))
+ *  $(TR $(TD +2.3)  $(TD +2)         $(TD +2)         $(TD +3)             $(TD +2)             $(TD +2))
+ *  $(TR $(TD +2.5)  $(TD +2)         $(TD +3)         $(TD +3)             $(TD +2)             $(TD +2))
+ *  $(TR $(TD +2.8)  $(TD +3)         $(TD +3)         $(TD +3)             $(TD +2)             $(TD +2))
+ *  $(TR $(TD -2.3)  $(TD -2)         $(TD -2)         $(TD -2)             $(TD -3)             $(TD -2))
+ *  $(TR $(TD -2.5)  $(TD -2)         $(TD -3)         $(TD -2)             $(TD -3)             $(TD -2))
+ *  $(TR $(TD -2.8)  $(TD -3)         $(TD -3)         $(TD -2)             $(TD -3)             $(TD -2))
+ * )
+ */
 enum RoundingMode : ubyte
 {
     ///rounded away from zero; halfs are rounded to the nearest even number
@@ -131,10 +130,10 @@ enum RoundingMode : ubyte
 }
 
 /**
-_Precision used to round _decimal operation results. Every result will be adjusted
-to fit the specified precision. Use $(MYREF DecimalControl) to query or set the
-context precision
-*/
+ * Precision used to round decimal operation results. Every result will be adjusted
+ * to fit the specified precision. Use $(MYREF DecimalControl) to query or set the
+ * context precision
+ */
 enum Precision : int
 {
     ///use the default precision of the current type
@@ -146,6 +145,7 @@ enum Precision : int
 	precision64 = Decimal!64.PRECISION,
     ////use 128 bits precision (34 digits)
     precision128 = Decimal!128.PRECISION,
+
     ////
     bankingScale = 4,
 }
@@ -167,18 +167,18 @@ private:
 
 public:
     /**
-    Gets or sets the rounding mode used when the result of an operation exceeds the _decimal precision.
-    See $(MYREF RoundingMode) for details.
-    ---
-    DecimalControl.rounding = RoundingMode.tiesToEven;
-    Decimal32 d1 = 123456789;
-    assert(d1 == 123456800);
+     * Gets or sets the rounding mode used when the result of an operation exceeds the _decimal precision.
+     * See $(MYREF RoundingMode) for details.
+     * ---
+     * DecimalControl.rounding = RoundingMode.tiesToEven;
+     * Decimal32 d1 = 123456789;
+     * assert(d1 == 123456800);
 
-    DecimalControl.rounding = RoundingMode.towardNegative;
-    Decimal32 d2 = 123456789;
-    assert(d2 == 123456700);
-    ---
-    */
+     * DecimalControl.rounding = RoundingMode.towardNegative;
+     * Decimal32 d2 = 123456789;
+     * assert(d2 == 123456700);
+     * ---
+     */
     @IEEECompliant("defaultModes", 46)
     @IEEECompliant("getDecimalRoundingDirection", 46)
     @IEEECompliant("restoreModes", 46)
@@ -187,23 +187,40 @@ public:
     static RoundingMode rounding;
 
     /**
-    Gets or sets the precision applied to peration results.
-    See $(MYREF Precision) for details.
-    ---
-    DecimalControl.precision = precisionDefault;
-    Decimal32 d1 = 12345;
-    assert(d1 == 12345);
+     * Gets or sets the precision applied to peration results.
+     * See $(MYREF Precision) for details.
+     * ---
+     * DecimalControl.precision = precisionDefault;
+     * Decimal32 d1 = 12345;
+     * assert(d1 == 12345);
 
-    DecimalControl.precision = 4;
-    Decimal32 d2 = 12345;
-    assert(d2 == 12350);
-    ---
-    */
+     * DecimalControl.precision = 4;
+     * Decimal32 d2 = 12345;
+     * assert(d2 == 12350);
+     * ---
+     */
     static int precision;
 
+    /**
+     * Check flags for traps value and raise exception if set
+     * Order of flag to be checked:
+     *  invalidOperation, divisionByZero, overflow, underflow and inexact
+     * ---
+     * DecimalControl.enableTraps();
+     * try
+     * {
+     *     const flags = ExceptionFlags.divisionByZero | ExceptionFlags.overflow;
+     *     const traps = ExceptionFlags.severe;
+     *     checkFlags(flags, traps);
+     * }
+     * catch (DivisionByZeroException)
+     * {
+     * }
+     * ---
+     */
     static void checkFlags(const(ExceptionFlags) flags, const(ExceptionFlags) traps) @nogc pure @safe
     {
-        version(D_BetterC)
+        version (D_BetterC)
         {
             if (__ctfe)
             {
@@ -213,6 +230,10 @@ public:
                     assert(0, "Division by zero");
                 if ((flags & ExceptionFlags.overflow) && (traps & ExceptionFlags.overflow))
                     assert(0, "Overflow");
+                if ((flags & ExceptionFlags.underflow) && (traps & ExceptionFlags.underflow))
+                    assert(0, "Underflow");
+                if ((flags & ExceptionFlags.inexact) && (traps & ExceptionFlags.inexact))
+                    assert(0, "Inexact");
             }
         }
         else
@@ -230,11 +251,17 @@ public:
         }
     }
 
+    /**
+     * Return true if flags contain overflow or underflow value
+     */
     static bool isOverUnderFlow(const(ExceptionFlags) flags) @nogc nothrow pure @safe
     {
         return (flags & (ExceptionFlags.overflow || ExceptionFlags.underflow)) != 0;
     }
 
+    /**
+     * Clear current traps & flags to none state and return its' previous state
+     */
     static DecimalControlFlags clearState() @nogc nothrow @safe
     {
         const result = _state;
@@ -242,21 +269,24 @@ public:
         return result;
     }
 
+    /**
+     * Set the traps & flags to 'state' value and return its's previous state
+     */
     static DecimalControlFlags restoreState(const(DecimalControlFlags) state) @nogc nothrow @safe
     {
         const result = _state;
         _state = state;
         return result;
     }
-    
+
     /**
-    Sets specified error flags. Multiple errors may be ORed together.
-    ---
-    DecimalControl.raiseFlags(ExceptionFlags.overflow | ExceptionFlags.underflow);
-    assert(DecimalControl.overflow);
-    assert(DecimalControl.underflow);
-    ---
-	*/
+     * Sets specified error flags. Multiple errors may be ORed together.
+     * ---
+     * DecimalControl.raiseFlags(ExceptionFlags.overflow | ExceptionFlags.underflow);
+     * assert(DecimalControl.overflow);
+     * assert(DecimalControl.underflow);
+     * ---
+	 */
     @IEEECompliant("raiseFlags", 26)
 	static void raiseFlags(const(ExceptionFlags) raisingFlags) @nogc @safe
 	{
@@ -272,12 +302,12 @@ public:
 	}
 
     /**
-    Unsets specified error flags. Multiple errors may be ORed together.
-    ---
-    DecimalControl.resetFlags(ExceptionFlags.inexact);
-    assert(!DecimalControl.inexact);
-    ---
-	*/
+     * Unsets specified error flags. Multiple errors may be ORed together.
+     * ---
+     * DecimalControl.resetFlags(ExceptionFlags.inexact);
+     * assert(!DecimalControl.inexact);
+     * ---
+	 */
     @IEEECompliant("lowerFlags", 26)
 	static ExceptionFlags resetFlags(const(ExceptionFlags) resetingFlags) @nogc @safe nothrow
 	{
@@ -287,27 +317,34 @@ public:
 	}
 
     /**
-    Enables specified error flags (group) without throwing corresponding exceptions.
-    ---
-    DecimalControl.restoreFlags(ExceptionFlags.underflow | ExceptionsFlags.inexact);
-    assert(DecimalControl.testFlags(ExceptionFlags.underflow | ExceptionFlags.inexact));
-    ---
-	*/
+     * Enables specified error flags (group) without throwing corresponding exceptions.
+     * ---
+     * DecimalControl.restoreFlags(ExceptionFlags.underflow | ExceptionsFlags.inexact);
+     * assert(DecimalControl.testFlags(ExceptionFlags.underflow | ExceptionFlags.inexact));
+     * ---
+	 */
     @IEEECompliant("restoreFlags", 26)
 	static ExceptionFlags restoreFlags(const(ExceptionFlags) restoringFlags) @nogc @safe nothrow
 	{
-        const result = _state.flags;
-		_state.flags |= restoringFlags & ExceptionFlags.all;
-        return result;
+        if (__ctfe)
+        {
+            return ExceptionFlags.none;
+        }
+        else
+        {
+            const result = _state.flags;
+            _state.flags |= restoringFlags & ExceptionFlags.all;
+            return result;
+        }
 	}
 
     /**
-    Checks if the specified error flags are set. Multiple exceptions may be ORed together.
-    ---
-    DecimalControl.raiseFlags(ExceptionFlags.overflow | ExceptionFlags.underflow | ExceptionFlags.inexact);
-    assert(DecimalControl.hasFlags(ExceptionFlags.overflow | ExceptionFlags.inexact));
-    ---
-	*/
+     * Checks if the specified error flags are set. Multiple exceptions may be ORed together.
+     * ---
+     * DecimalControl.raiseFlags(ExceptionFlags.overflow | ExceptionFlags.underflow | ExceptionFlags.inexact);
+     * assert(DecimalControl.hasFlags(ExceptionFlags.overflow | ExceptionFlags.inexact));
+     * ---
+	 */
     @IEEECompliant("testFlags", 26)
     @IEEECompliant("testSavedFlags", 26)
 	static bool hasFlags(const(ExceptionFlags) checkingFlags) @nogc nothrow @safe
@@ -330,14 +367,14 @@ public:
 	}
 
     /**
-    Disables specified exceptions. Multiple exceptions may be ORed together.
-    ---
-    DecimalControl.disableExceptions(ExceptionFlags.overflow);
-    auto d = Decimal64.max * Decimal64.max;
-    assert(DecimalControl.overflow);
-    assert(d.isInfinity);
-    ---
-	*/
+     * Disables specified exceptions. Multiple exceptions may be ORed together.
+     * ---
+     * DecimalControl.disableExceptions(ExceptionFlags.overflow);
+     * auto d = Decimal64.max * Decimal64.max;
+     * assert(DecimalControl.overflow);
+     * assert(d.isInfinity);
+     * ---
+	 */
 	static ExceptionFlags disableTraps(const(ExceptionFlags) disablingTraps) @nogc @safe nothrow
 	{
         const result = _state.traps;
@@ -346,19 +383,18 @@ public:
 	}
 
     /**
-    Enables specified exceptions. Multiple exceptions may be ORed together.
-    ---
-    DecimalControl.enableTraps(ExceptionFlags.overflow);
-    try
-    {
-        auto d = Decimal64.max * 2;
-    }
-    catch (OverflowException)
-    {
-        writeln("Overflow error")
-    }
-    ---
-	*/
+     * Enables specified exceptions. Multiple exceptions may be ORed together.
+     * ---
+     * DecimalControl.enableTraps(ExceptionFlags.overflow);
+     * try
+     * {
+     *     auto d = Decimal64.max * 2;
+     * }
+     * catch (OverflowException)
+     * {
+     * }
+     * ---
+	 */
 	static ExceptionFlags enableTraps(const(ExceptionFlags) enablingTraps) @nogc @safe nothrow
 	{
         const result = _state.traps;
@@ -367,32 +403,25 @@ public:
 	}
 
     /**
-    Extracts current enabled exceptions.
-    ---
-    auto saved = DecimalControl.enabledExceptions;
-    DecimalControl.disableExceptions(ExceptionFlags.all);
-    DecimalControl.enableExceptions(saved);
-    ---
-	*/
+     * Extracts current enabled exceptions.
+     * ---
+     * auto saved = DecimalControl.traps;
+     * DecimalControl.disableExceptions(ExceptionFlags.all);
+     * DecimalControl.enableExceptions(saved);
+     * ---
+	 */
 	static @property ExceptionFlags traps() @nogc nothrow @safe
 	{
         return _state.traps;
 	}
 
-	static @property ExceptionFlags traps(const(ExceptionFlags) traps) @nogc nothrow @safe
-	{
-        const result = _state.traps;
-        _state.traps = traps & ExceptionFlags.all;
-        return result;
-	}
-
     /**
-    Returns the current set flags.
-    ---
-    DecimalControl.restoreFlags(ExceptionFlags.inexact);
-    assert(DecimalControl.flags & ExceptionFlags.inexact);
-    ---
-	*/
+     * Returns the current set flags.
+     * ---
+     * DecimalControl.restoreFlags(ExceptionFlags.inexact);
+     * assert(DecimalControl.flags & ExceptionFlags.inexact);
+     * ---
+	 */
     @IEEECompliant("saveAllFlags", 26)
 	static @property ExceptionFlags flags() @nogc nothrow @safe
 	{
@@ -402,31 +431,17 @@ public:
             return _state.flags;
 	}
 
-	static @property ExceptionFlags flags(const(ExceptionFlags) flags) @nogc nothrow @safe
-	{
-        if (__ctfe)
-        {
-            return ExceptionFlags.none;
-        }
-        else
-        {
-            const result = _state.flags;
-            _state.flags = flags & ExceptionFlags.all;
-            return result;
-        }
-	}
-
     /**
-    IEEE _decimal context errors. By default, no error is set.
-    ---
-    DecimalControl.disableExceptions(ExceptionFlags.all);
-    Decimal32 uninitialized;
-    Decimal64 d = Decimal64.max * 2;
-    Decimal32 e = uninitialized + 5.0;
-    assert(DecimalControl.overflow);
-    assert(DecimalControl.invalidOperation);
-    ---
-    */
+     * IEEE _decimal context errors. By default, no error is set.
+     * ---
+     * DecimalControl.disableExceptions(ExceptionFlags.all);
+     * Decimal32 uninitialized;
+     * Decimal64 d = Decimal64.max * 2;
+     * Decimal32 e = uninitialized + 5.0;
+     * assert(DecimalControl.overflow);
+     * assert(DecimalControl.invalidOperation);
+     * ---
+     */
 	static @property bool divisionByZero() @nogc nothrow @safe
 	{
 		return (_state.flags & ExceptionFlags.divisionByZero) != 0;
@@ -687,7 +702,7 @@ public:
             const flags = packIntegral(value,
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
-            static if (D.sizeofData <= T.sizeof)
+            static if (D.sizeof <= T.sizeof)
             if (!__ctfe)
                 DecimalControl.raiseFlags(flags);
         }
@@ -697,7 +712,7 @@ public:
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding,
                             0);
-            static if (D.sizeofData <= T.sizeof)
+            static if (D.sizeof <= T.sizeof)
             if (!__ctfe)
                 DecimalControl.raiseFlags(flags);
         }
@@ -706,7 +721,7 @@ public:
             const flags = decimalToDecimal(value, this,
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
-            static if (D.sizeofData <= T.sizeofData)
+            static if (D.sizeof <= T.sizeof)
             if (!__ctfe)
                 DecimalControl.raiseFlags(flags);
         }
@@ -715,7 +730,7 @@ public:
             const flags = packIntegral(cast(uint)value,
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
-            static if (D.sizeofData <= uint.sizeof)
+            static if (D.sizeof <= uint.sizeof)
             if (!__ctfe)
                 DecimalControl.raiseFlags(flags);
         }
@@ -738,21 +753,21 @@ public:
         static if (isIntegral!T)
         {
             const flags = packIntegral(value, PRECISION, mode);
-            static if (D.sizeofData <= T.sizeof)
+            static if (D.sizeof <= T.sizeof)
             if (!__ctfe)
                 DecimalControl.checkFlags(explicitModeTraps, flags);
         }
         else static if (isDecimal!T)
         {
             const flags = decimalToDecimal(value, this, PRECISION, mode);
-            static if (D.sizeofData <= T.sizeofData)
+            static if (D.sizeof <= T.sizeof)
             if (!__ctfe)
                 DecimalControl.checkFlags(explicitModeTraps, flags);
         }
-        else
+        else // isSomeChar!T
         {
             const flags = packIntegral(cast(uint)value, PRECISION, mode);
-            static if (D.sizeofData <= uint.sizeof)
+            static if (D.sizeof <= uint.sizeof)
             if (!__ctfe)
                 DecimalControl.checkFlags(explicitModeTraps, flags);
         }
@@ -772,7 +787,7 @@ public:
     if (isFloatingPoint!T)
     {
         const flags = packFloatingPoint(value, PRECISION, mode, maxFractionalDigits);
-        static if (D.sizeofData <= T.sizeof)
+        static if (D.sizeof <= T.sizeof)
         if (!__ctfe)
             DecimalControl.checkFlags(explicitModeTraps, flags);
     }
@@ -784,7 +799,7 @@ public:
     auto ref opAssign(T)(auto const ref T value)
     {
         // Allow @nogc/nothrow/pure assignment
-        static if (isDecimal!T && D.sizeofData == T.sizeofData)
+        static if (isDecimal!T && D.sizeof == T.sizeof)
             this.data = value.data;
         else
         {
@@ -828,7 +843,7 @@ public:
         {
             const flags = decimalToFloat(this, result,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
-            static if (D.sizeofData > T.sizeof)
+            static if (D.sizeof > T.sizeof)
             if (!__ctfe)
                 DecimalControl.setFlags(flags);
         }
@@ -836,7 +851,7 @@ public:
         {
             const flags = decimalToUnsigned(this, result,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
-            static if (D.sizeofData > T.sizeof)
+            static if (D.sizeof > T.sizeof)
             if (!__ctfe)
                 DecimalControl.setFlags(flags);
         }
@@ -844,7 +859,7 @@ public:
         {
             const flags = decimalToSigned(this, result,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
-            static if (D.sizeofData > T.sizeof)
+            static if (D.sizeof > T.sizeof)
             if (!__ctfe)
                 DecimalControl.setFlags(flags);
         }
@@ -919,9 +934,9 @@ public:
     }
 
     /**
-    Implementation of == operator. This operation is silent, no exceptions are thrown.
-    Supported types : _decimal, floating point, integral, char
-    */
+     * Implementation of == operator. This operation is silent, no exceptions are thrown.
+     * Supported types : decimal, floating point, integral, char
+     */
     @IEEECompliant("compareQuietEqual", 24)
     @IEEECompliant("compareQuietNotEqual", 24)
     bool opEquals(T)(auto const ref T value) const @nogc nothrow @safe
@@ -942,9 +957,7 @@ public:
         else static if (isSomeChar!T)
             return opEquals(cast(uint)value);
         else
-            static assert(0, "Cannot compare values of type '" ~
-                                Unqual!D.stringof ~ "' and '" ~
-                                Unqual!T.stringof ~ "'");
+            static assert(0, "Cannot compare values of type '" ~ Unqual!D.stringof ~ "' and '" ~ Unqual!T.stringof ~ "'");
     }
 
     /**
@@ -1140,9 +1153,7 @@ public:
                             __ctfe ? 0 : DecimalControl.precision,
                            __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
         else
-            static assert(0, "Cannot perform assignment operation: '" ~
-                                Unqual!D.stringof ~ "' " ~ op ~"= '" ~
-                                Unqual!T.stringof ~ "'");
+            static assert(0, "Cannot perform assignment operation: '" ~ Unqual!D.stringof ~ "' " ~ op ~"= '" ~ Unqual!T.stringof ~ "'");
 
         if (!__ctfe)
             DecimalControl.raiseFlags(flags);
@@ -1482,12 +1493,6 @@ public:
         return isNeg ? -1 : (isZero ? 0 : 1);
     }
 
-    /// Return this instance data size in bytes
-    @property static size_t sizeofData() pure
-    {
-        return bits / 8;
-    }
-
 package(pham.external.dec):
     static D buildin(const(U) coefficientMask, const(U) exponentMask, const(U) signMask) @nogc nothrow pure @safe
     {
@@ -1595,24 +1600,24 @@ package(pham.external.dec):
                     {
                         const clearFractions = exAbs - maxFractionalDigits;
                         const roundDigits = pow10Index!(DataType!D)(clearFractions - 1);
-                        
+
                         // Round it up/down first
                         const roundValue = mode == RoundingMode.tiesToEven
                             ? pow10RoundEven!(DataType!D)[roundDigits]
-                            : pow10!(DataType!D)[roundDigits];                            
+                            : pow10!(DataType!D)[roundDigits];
                         xadd(cx, roundValue);
-                        
-                        // Clear subsequence fractional digits to be zero                        
+
+                        // Clear subsequence fractional digits to be zero
                         bool overflow;
                         ShortStringBuffer!char buffer;
                         auto cxDigits = dataTypeToString(buffer, cx);
                         if (cxDigits.length > clearFractions)
-                            cxDigits[$ - clearFractions..$] = '0';                        
+                            cxDigits[$ - clearFractions..$] = '0';
                         cx = toUnsign!(DataType!D)(cxDigits, overflow);
                         assert(!overflow, "Overflow");
                     }
                 }
-                
+
                 flags |= coefficientAdjust(cx, ex, targetPrecision, sx, mode);
                 flags = adjustedPack(cx, ex, sx, precision, mode, flags);
                 // We want less precision?
@@ -1646,8 +1651,8 @@ package(pham.external.dec):
                 V coefficient = value;
             }
             int exponent = 0;
-            const flags = coefficientAdjust(coefficient, exponent, cvt!V(COEF_MAX), isNegative, mode);
-            return adjustedPack(cvt!U(coefficient), exponent, isNegative, precision, mode, flags);
+            const flags1 = coefficientAdjust(coefficient, exponent, cvt!V(COEF_MAX), isNegative, mode);
+            return adjustedPack(cvt!U(coefficient), exponent, isNegative, precision, mode, flags1);
         }
     }
 
@@ -1729,8 +1734,6 @@ package(pham.external.dec):
     enum PI2            = buildin(s_pi2);
 
 private:
-    U data = MASK_SNAN;
-
     enum expBits        = bits / 16 + 6;                 //8, 10, 14
     enum trailingBits   = bits - expBits - 1;            //23, 53, 113
 
@@ -1755,6 +1758,8 @@ private:
     enum PAYL_MAX       = pow10!U[PRECISION - 1] - 1U;
 
     enum LOG10_2        = 0.30102999566398119521L;
+
+    U data; //MASK_SNAN;
 
     //packs components, but checks the limits before
     @nogc nothrow pure @safe
@@ -1810,15 +1815,15 @@ private:
         if (p >= PRECISION)
         {
             data |= max.data;
-            return ExceptionFlags.none;
+            return ExceptionFlags.overflow | ExceptionFlags.inexact;
         }
         else
         {
             const U coefficient = (COEF_MAX / pow10!U[PRECISION - p]) * pow10!U[PRECISION - p];
             const int exponent = EXP_MAX;
             pack(coefficient, exponent, isNegative);
-            return ExceptionFlags.inexact;
-        }        
+            return ExceptionFlags.overflow;
+        }
     }
 
     @nogc nothrow pure @safe
@@ -1835,14 +1840,14 @@ private:
         switch (mode)
         {
             case RoundingMode.towardZero:
-                return maxPack(isNegative, precision) | ExceptionFlags.overflow;
+                return maxPack(isNegative, precision);
             case RoundingMode.towardNegative:
                 if (!isNegative)
-                    return maxPack(false, precision) | ExceptionFlags.overflow;
+                    return maxPack(false, precision);
                 goto default;
             case RoundingMode.towardPositive:
                 if (isNegative)
-                    return maxPack(true, precision) | ExceptionFlags.overflow;
+                    return maxPack(true, precision);
                 goto default;
             default:
                 data = isNegative ? (MASK_INF | MASK_SGN) : MASK_INF;
@@ -1883,7 +1888,7 @@ private:
     pragma(inline, true)
     static int realPrecision(const(int) precision, const(int) maxPrecision = PRECISION) @nogc nothrow pure @safe
     {
-        return precision <= 0 || precision > maxPrecision ? maxPrecision : precision;
+        return (precision <= 0 || precision > maxPrecision) ? maxPrecision : precision;
     }
 
     ExceptionFlags packString(C)(scope const(C)[] value, const(int) precision, const(RoundingMode) mode) nothrow pure @safe
@@ -2001,73 +2006,72 @@ unittest
 @("Compilation tests")
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    struct DumbRange(C)
+    static struct DumbRange(C)
     {
         bool empty;
         C front;
         void popFront() {}
     }
 
-    alias DecimalTypes = TypeTuple!(Decimal32, Decimal64, Decimal128);
-    alias IntegralTypes = TypeTuple!(byte, short, int, long, ubyte, ushort, uint, ulong);
-    alias FloatTypes = TypeTuple!(float, double, real);
-    alias CharTypes = TypeTuple!(char, wchar, dchar);
-    alias StringTypes = TypeTuple!(string, wstring, dstring);
-    alias RangeTypes = TypeTuple!(DumbRange!char, DumbRange!wchar, DumbRange!dchar);
-
-    auto x = Decimal32(double.nan);
+    alias DecimalTypes = AliasSeq!(Decimal32, Decimal64, Decimal128);
+    alias IntegralTypes = AliasSeq!(byte, short, int, long, ubyte, ushort, uint, ulong);
+    alias FloatTypes = AliasSeq!(float, double, real);
+    alias CharTypes = AliasSeq!(char, wchar, dchar);
+    alias StringTypes = AliasSeq!(string, wstring, dstring);
+    alias RangeTypes = AliasSeq!(DumbRange!char, DumbRange!wchar, DumbRange!dchar);
 
     //constructors
-    foreach (D; DecimalTypes)
+    auto x = Decimal32(double.nan);
+    static foreach (D; DecimalTypes)
     {
-        foreach (T; DecimalTypes)
+        static foreach (T; DecimalTypes)
             static assert(is(typeof(D(T.init)) == D));
-        foreach (T; IntegralTypes)
+        static foreach (T; IntegralTypes)
             static assert(is(typeof(D(T.init)) == D));
-        foreach (T; FloatTypes)
+        static foreach (T; FloatTypes)
             static assert(is(typeof(D(T.init)) == D));
-        foreach (T; CharTypes)
+        static foreach (T; CharTypes)
             static assert(is(typeof(D(T.init)) == D));
-        foreach (T; StringTypes)
+        static foreach (T; StringTypes)
             static assert(is(typeof(D(T.init)) == D));
         static assert(is(typeof(D(true)) == D));
     }
 
     //assignment
-    foreach (D; DecimalTypes)
+    static foreach (D; DecimalTypes)
     {
-        foreach (T; DecimalTypes)
+        static foreach (T; DecimalTypes)
             static assert(__traits(compiles, { D d = T.init; }));
-        foreach (T; IntegralTypes)
+        static foreach (T; IntegralTypes)
             static assert(__traits(compiles, { D d = T.init; }));
-        foreach (T; FloatTypes)
+        static foreach (T; FloatTypes)
             static assert(__traits(compiles, { D d = T.init; }));
-        foreach (T; CharTypes)
+        static foreach (T; CharTypes)
             static assert(__traits(compiles, { D d = T.init; }));
-        foreach (T; StringTypes)
+        static foreach (T; StringTypes)
             static assert(__traits(compiles, { D d = T.init; }));
         static assert(__traits(compiles, { D d = true; }));
     }
 
-    auto b = cast(float)Decimal32();
     //cast
-    foreach (D; DecimalTypes)
+    auto b = cast(float)Decimal32();
+    static foreach (D; DecimalTypes)
     {
-        foreach (T; DecimalTypes)
+        static foreach (T; DecimalTypes)
             static assert(is(typeof(cast(T)(D.init)) == T));
-        foreach (T; IntegralTypes)
+        static foreach (T; IntegralTypes)
             static assert(is(typeof(cast(T)(D.init)) == T));
-        foreach (T; FloatTypes)
+        static foreach (T; FloatTypes)
             static assert(is(typeof(cast(T)(D.init)) == T));
-        foreach (T; CharTypes)
+        static foreach (T; CharTypes)
             static assert(is(typeof(cast(T)(D.init)) == T));
         static assert(is(typeof(cast(bool)(D.init)) == bool));
     }
 
     //unary ops
-    foreach (D; DecimalTypes)
+    static foreach (D; DecimalTypes)
     {
         //pragma(msg, typeof(++D.init).stringof);
         static assert(is(typeof(+D.init) == const D));
@@ -2077,37 +2081,36 @@ import std.typetuple;
     }
 
     //equality
-    foreach (D; DecimalTypes)
+    static foreach (D; DecimalTypes)
     {
-        foreach (T; DecimalTypes)
+        static foreach (T; DecimalTypes)
             static assert(is(typeof(D.init == T.init) == bool));
-        foreach (T; IntegralTypes)
+        static foreach (T; IntegralTypes)
             static assert(is(typeof(D.init == T.init) == bool));
-        foreach (T; FloatTypes)
+        static foreach (T; FloatTypes)
             static assert(is(typeof(D.init == cast(T)0.0) == bool));
-        foreach (T; CharTypes)
+        static foreach (T; CharTypes)
             static assert(is(typeof(D.init == T.init) == bool));
     }
 
-    auto c = Decimal128() > 0.0;
-
     //comparison
-    foreach (D; DecimalTypes)
+    auto c = Decimal128() > 0.0;
+    static foreach (D; DecimalTypes)
     {
-        foreach (T; DecimalTypes)
+        static foreach (T; DecimalTypes)
             static assert(is(typeof(D.init > T.init) == bool));
-        foreach (T; IntegralTypes)
+        static foreach (T; IntegralTypes)
             static assert(is(typeof(D.init > T.init) == bool));
-        foreach (T; FloatTypes)
+        static foreach (T; FloatTypes)
             static assert(is(typeof(D.init > cast(T)0.0) == bool));
-        foreach (T; CharTypes)
+        static foreach (T; CharTypes)
             static assert(is(typeof(D.init > T.init) == bool));
     }
 
     //binary left
-    foreach (D; DecimalTypes)
+    static foreach (D; DecimalTypes)
     {
-        foreach (T; DecimalTypes)
+        static foreach (T; DecimalTypes)
         {
             //pragma(msg, typeof(D.init ^^ T.init).stringof);
             static assert(is(typeof(D.init + T.init) == CommonDecimal!(D, T)));
@@ -2118,7 +2121,7 @@ import std.typetuple;
             static assert(is(typeof(D.init ^^ T.init) == CommonDecimal!(D, T)));
         }
 
-        foreach (T; IntegralTypes)
+        static foreach (T; IntegralTypes)
         {
             //pragma(msg, typeof(D.init / T.init).stringof);
             static assert(is(typeof(D.init + T.init) == D));
@@ -2129,9 +2132,11 @@ import std.typetuple;
             static assert(is(typeof(D.init ^^ T.init) == D));
         }
 
-        auto z = Decimal32.nan + float.nan;
+        {
+            auto z = Decimal32.nan + float.nan;
+        }
 
-        foreach (T; FloatTypes)
+        static foreach (T; FloatTypes)
         {
             //pragma(msg, typeof(D.init ^^ T.init).stringof);
             static assert(is(typeof(D.init + T.init) == D));
@@ -2142,7 +2147,7 @@ import std.typetuple;
             static assert(is(typeof(D.init ^^ T.init) == D));
         }
 
-        foreach (T; CharTypes)
+        static foreach (T; CharTypes)
         {
             static assert(is(typeof(D.init + T.init) == D));
             static assert(is(typeof(D.init - T.init) == D));
@@ -2154,9 +2159,9 @@ import std.typetuple;
     }
 
     //binary right
-    foreach (D; DecimalTypes)
+    static foreach (D; DecimalTypes)
     {
-        foreach (T; DecimalTypes)
+        static foreach (T; DecimalTypes)
         {
             //pragma(msg, typeof(T.init ^^ D.init).stringof);
             static assert(is(typeof(T.init + D.init) == CommonDecimal!(D, T)));
@@ -2167,7 +2172,7 @@ import std.typetuple;
             static assert(is(typeof(T.init ^^ D.init) == CommonDecimal!(D, T)));
         }
 
-        foreach (T; IntegralTypes)
+        static foreach (T; IntegralTypes)
         {
             //pragma(msg, typeof(T.init ^^ D.init).stringof);
             static assert(is(typeof(T.init + D.init) == D));
@@ -2178,7 +2183,7 @@ import std.typetuple;
             static assert(is(typeof(T.init ^^ D.init) == D));
         }
 
-        foreach (T; FloatTypes)
+        static foreach (T; FloatTypes)
         {
             //pragma(msg, typeof(T.init ^^ D.init).stringof);
             static assert(is(typeof(T.init + D.init) == D));
@@ -2189,7 +2194,7 @@ import std.typetuple;
             static assert(is(typeof(T.init ^^ D.init) == D));
         }
 
-        foreach (T; CharTypes)
+        static foreach (T; CharTypes)
         {
             //pragma(msg, typeof(T.init ^^ D.init).stringof);
             static assert(is(typeof(T.init + D.init) == D));
@@ -2202,9 +2207,9 @@ import std.typetuple;
     }
 
     //op assignment
-    foreach (D; DecimalTypes)
+    static foreach (D; DecimalTypes)
     {
-        foreach (T; DecimalTypes)
+        static foreach (T; DecimalTypes)
         {
             static assert(is(typeof(D.init += T.init) == D));
             static assert(is(typeof(D.init -= T.init) == D));
@@ -2214,7 +2219,7 @@ import std.typetuple;
             static assert(is(typeof(D.init ^^= T.init) == D));
         }
 
-        foreach (T; IntegralTypes)
+        static foreach (T; IntegralTypes)
         {
             static assert(is(typeof(D.init += T.init) == D));
             static assert(is(typeof(D.init -= T.init) == D));
@@ -2224,7 +2229,7 @@ import std.typetuple;
             static assert(is(typeof(D.init ^^= T.init) == D));
         }
 
-        foreach (T; FloatTypes)
+        static foreach (T; FloatTypes)
         {
             static assert(is(typeof(D.init += T.init) == D));
             static assert(is(typeof(D.init -= T.init) == D));
@@ -2234,7 +2239,7 @@ import std.typetuple;
             static assert(is(typeof(D.init ^^= T.init) == D));
         }
 
-        foreach (T; CharTypes)
+        static foreach (T; CharTypes)
         {
             static assert(is(typeof(D.init += T.init) == D));
             static assert(is(typeof(D.init -= T.init) == D));
@@ -2246,7 +2251,7 @@ import std.typetuple;
     }
 
     //expected constants
-    foreach (D; DecimalTypes)
+    static foreach (D; DecimalTypes)
     {
         static assert(is(typeof(D.init) == D));
         static assert(is(typeof(D.nan) == D));
@@ -2279,132 +2284,125 @@ import std.typetuple;
     }
 
     //expected members
-    foreach (D; DecimalTypes)
+    static foreach (D; DecimalTypes)
     {
         static assert(is(typeof(D.init.toHash()) == size_t));
         static assert(is(typeof(D.init.toString()) == string));
     }
 }
 
+unittest // Default value
+{
+    import std.meta : AliasSeq;
+
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
+    {
+        assert(T().isZero);
+        assert(T.init.isZero);
+    }
+
+    static assert(Decimal32.sizeof == 4);
+    static assert(Decimal64.sizeof == 8);
+    static assert(Decimal128.sizeof == 16);
+}
+
 @("Decimal should support decimal + float")
 unittest
 {
-    immutable expected = Decimal128("2");
-
     auto sut = Decimal128("1");
     auto result = sut + 1.0f;
 
-    assert(expected == result);
+    assert(result == Decimal128("2"));
 }
 
 @("Decimal should support decimal - float")
 unittest
 {
-    immutable expected = Decimal128("5");
-
     auto sut = Decimal128("9");
     auto result = sut - 4.0f;
 
-    assert(expected == result);
+    assert(result == Decimal128("5"));
 }
 
 @("Decimal should support decimal * float")
 unittest
 {
-    immutable expected = Decimal128("13.3");
-
     auto sut = Decimal128("1.33");
     auto result = sut * 10.0f;
 
-    assert(expected == result);
+    assert(result == Decimal128("13.3"));
 }
 
 @("Decimal should support decimal / float")
 unittest
 {
-    immutable expected = Decimal128("0.5");
-
     auto sut = Decimal128("1");
     auto result = sut / 2.0f;
 
-    assert(expected == result);
+    assert(result == Decimal128("0.5"), result.toString());
 }
 
 @("Decimal should support decimal % float")
 unittest
 {
-    immutable expected = Decimal128("1");
-
     auto sut = Decimal128("10");
     auto result = sut % 3.0f;
 
-    assert(expected == result);
+    assert(result == Decimal128("1"), result.toString());
 }
 
 @("Decimal should support decimal + integral")
 unittest
 {
-    immutable expected = Decimal128("3");
-
     auto sut = Decimal128("2");
     auto result = sut + 1;
 
-    assert(expected == result);
+    assert(result == Decimal128("3"));
 }
 
 @("Decimal should support decimal - integral")
 unittest
 {
-    immutable expected = Decimal128("1");
-
     auto sut = Decimal128("3");
     auto result = sut - 2;
 
-    assert(expected == result);
+    assert(result == Decimal128("1"));
 }
 
 @("Decimal should support decimal * integral")
 unittest
 {
-    immutable expected = Decimal128("123.4");
-
     auto sut = Decimal128("12.34");
     auto result = sut * 10;
 
-    assert(expected == result);
+    assert(result == Decimal128("123.4"));
 }
 
 @("Decimal should support decimal / integral")
 unittest
 {
-    immutable expected = Decimal128("0.5");
-
     auto sut = Decimal128("1");
     auto result = sut / 2;
 
-    assert(expected == result);
+    assert(result == Decimal128("0.5"), result.toString());
 }
 
 @("Decimal should support decimal % integral")
 unittest
 {
-    immutable expected = Decimal128("1");
-
     auto sut = Decimal128("10");
     auto result = sut % 3;
 
-    assert(expected == result);
+    assert(result == Decimal128("1"), result.toString());
 }
 
 @("Decimal should support decimal % unsigned integral")
 unittest
 {
-    immutable expected = Decimal128("1");
-
     auto sut = Decimal128("10");
     auto result = sut % 3u;
 
-    assert(expected == result);
+    assert(result == Decimal128("1"), result.toString());
 }
 
 ///Returns the most wide Decimal... type among the specified types
@@ -2591,9 +2589,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(decimalClass(T.sNaN) == DecimalClass.signalingNaN);
         assert(decimalClass(T.qNaN) == DecimalClass.quietNaN);
@@ -2752,25 +2750,30 @@ unittest
 
     static Decimal64 toFloatDecimal(long scaleNumber)
     {
-        Decimal64 result = scaleNumber;
-        result = result / 100L;
+        auto result = Decimal64(scaleNumber);
+        result /= 100L;
+
+        Decimal64 result2 = scaleNumber;
+        result2 /= 100L;
+        assert(result ==  result2);
+
         return result;
     }
 
     string s1, s2;
-    
+
     s1 = toFloatDecimal(540).toString();
     assert(s1 == "5.40" || s1 == "5.4", s1);
     s2 = Decimal64.money(5.40, 2).toString();
     assert(s2 == "5.40" || s2 == "5.4", s2);
     assert(cmp(toFloatDecimal(540), Decimal64.money(5.40, 2)) == 0, s1 ~ " vs " ~ s2);
-    
+
     s1 = toFloatDecimal(640).toString();
     assert(s1 == "6.40" || s1 == "6.4", s1);
     s2 = Decimal64.money(6.40, 2).toString();
     assert(s2 == "6.40" || s2 == "6.4", s2);
     assert(cmp(toFloatDecimal(640), Decimal64.money(6.40, 2)) == 0, s1 ~ " vs " ~ s2);
-    
+
     assert(cmp(Decimal64("5.40"), Decimal64.money(5.40, 2)) == 0);
     assert(cmp(Decimal64("6.40"), Decimal64.money(6.40, 2)) == 0);
 }
@@ -3046,9 +3049,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(isUnordered(T.nan, T.one));
         assert(isUnordered(T.one, T.nan));
@@ -3109,9 +3112,9 @@ if (isDecimal!D)
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(compound(T.ten, 0) == 1);
         assert(compound(T.infinity, 0) == 1);
@@ -3215,9 +3218,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(acos(-T.one) == T.PI);
         assert(acos(T.one) == 0);
@@ -3266,9 +3269,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(acosh(T.one) == T.zero);
         assert(acosh(T.infinity) == T.infinity);
@@ -3437,9 +3440,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(asin(-T.one) == -T.PI_2);
         assert(asin(T.zero) == 0);
@@ -3489,9 +3492,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(asinh(T.zero) == T.zero);
         assert(asinh(T.infinity) == T.infinity);
@@ -3540,9 +3543,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(isIdentical(atan(T.zero), T.zero));
         assert(isIdentical(atan(-T.zero), -T.zero));
@@ -3603,9 +3606,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(atan2(T.nan, T.zero).isNaN);
         assert(atan2(T.one, T.nan).isNaN);
@@ -3683,9 +3686,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(atan2(T.nan, T.zero).isNaN);
         assert(atan2(T.one, T.nan).isNaN);
@@ -3797,9 +3800,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(isIdentical(atanpi(T.zero), T.zero));
         assert(isIdentical(atanpi(-T.zero), -T.zero));
@@ -3953,9 +3956,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(exp(T.zero) == T.one);
         assert(exp(-T.infinity) == T.zero);
@@ -4733,9 +4736,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(isCanonical(T.zero));
         assert(isCanonical(T.max));
@@ -4755,9 +4758,9 @@ unittest // isFinite
 
 unittest // isFinite
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.max.isFinite);
         assert(!T.infinity.isFinite);
@@ -4795,24 +4798,17 @@ unittest
     assert(!isIdentical(Decimal64("nan"), Decimal64("nan<200>")));
 }
 
-///isInfinity
 unittest // isInfinity
 {
-    assert(Decimal32.infinity.isInfinity);
-    assert(Decimal32.negInfinity.isInfinity);
-    assert(!Decimal128.nan.isInfinity);
-}
+    import std.meta : AliasSeq;
 
-unittest // isInfinity
-{
-import std.typetuple;
-
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.infinity.isInfinity);
         assert(T.negInfinity.isInfinity);
         assert((-T.infinity).isInfinity);
         assert(!T.ten.isInfinity);
+        assert(!T.nan.isInfinity);
         assert(!T.sNaN.isInfinity);
         assert(!T.qNaN.isInfinity);
     }
@@ -4821,21 +4817,15 @@ import std.typetuple;
 ///isNaN
 unittest // isNaN
 {
-    assert(Decimal32().isNaN);
-    assert(Decimal64.nan.isNaN);
-    assert(!Decimal128.max.isNaN);
-}
+    import std.meta : AliasSeq;
 
-unittest // isNaN
-{
-import std.typetuple;
-
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
+        assert(T.nan.isNaN);
         assert(T.sNaN.isNaN);
-        assert(T().isNaN);
         assert(T.qNaN.isNaN);
         assert(!T.ten.isNaN);
+        assert(!T.max.isNaN);
         assert(!T.min_normal.isSignalNaN);
     }
 }
@@ -4843,17 +4833,34 @@ import std.typetuple;
 ///isNeg
 unittest // isNeg
 {
-    assert(Decimal32(-1).isNeg);
-    assert(Decimal64(-2).isNeg);
-    assert(Decimal128(-3).isNeg);
+    import std.meta : AliasSeq;
 
-    assert(!Decimal32(0).isNeg);
-    assert(!Decimal64(0).isNeg);
-    assert(!Decimal128(0).isNeg);
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
+    {
+        assert(T(-1).isNeg);
+        assert(T(-3).isNeg);
 
-    assert(!Decimal32(1).isNeg);
-    assert(!Decimal64(2).isNeg);
-    assert(!Decimal128(3).isNeg);
+        assert(!T(0).isNeg);
+        assert(!T(1).isNeg);
+        assert(!T(3).isNeg);
+    }
+}
+
+///isZero
+unittest // isZero
+{
+    import std.meta : AliasSeq;
+
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
+    {
+        assert(T(0).isZero);
+        assert(T(0.0).isZero);
+
+        assert(!T(-1).isZero);
+        assert(!T(-3).isZero);
+        assert(!T(1).isZero);
+        assert(!T(3).isZero);
+    }
 }
 
 /**
@@ -4918,9 +4925,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(!isNormal(T.zero));
         assert(isNormal(T.ten));
@@ -4945,7 +4952,8 @@ if (isDecimal!D)
         return false;
 
     alias U = DataType!D;
-    U c; int e;
+    U c = void;
+    int e = void;
     x.unpack(c, e);
     coefficientShrink(c, e);
     return c == 1U;
@@ -4958,25 +4966,19 @@ unittest
     assert(isPowerOf10(Decimal32("0.001")));
 }
 
-///isSignalingNaN
 unittest // isSignalingNaN
 {
-    assert(Decimal32().isSignalNaN);
-    assert(!Decimal64.nan.isSignalNaN);
-    assert(!Decimal128.max.isSignalNaN);
-}
+    import std.meta : AliasSeq;
 
-unittest // isSignalingNaN
-{
-import std.typetuple;
-
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
+        //assert(T().isSignalNaN); // Default value
+        assert(!T.nan.isSignalNaN);
         assert(T.sNaN.isSignalNaN);
-        assert(T().isSignalNaN);
-        assert(!T.ten.isSignalNaN);
-        assert(!T.min_normal.isSignalNaN);
         assert(!T.qNaN.isSignalNaN);
+        assert(!T.ten.isSignalNaN);
+        assert(!T.max.isSignalNaN);
+        assert(!T.min_normal.isSignalNaN);
     }
 }
 
@@ -5043,9 +5045,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(!isSubnormal(T.zero));
         assert(!isSubnormal(T.ten));
@@ -5066,9 +5068,9 @@ unittest // isZero
 
 unittest // isZero
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.zero.isZero);
         assert(T.negZero.isZero);
@@ -5592,9 +5594,9 @@ if (isDecimal!D)
     else
     {
         alias U = DataType!D;
-        U c;
-        int e;
-        bool s = x.unpack(c, e);
+        U c = void;
+        int e = void;
+        const bool s = x.unpack(c, e);
         for (size_t i = 0; i < pow10!U.length; ++i)
         {
             if (c == pow10!U[i])
@@ -6453,9 +6455,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(sgn(T.nan) == 1);
         assert(sgn(T.infinity) == 1);
@@ -6475,9 +6477,9 @@ unittest // sign
 
 unittest // sign
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(T.sNaN.sign == 1);
         assert(T.negInfinity.sign == -1);
@@ -6519,9 +6521,9 @@ unittest
 
 unittest
 {
-import std.typetuple;
+    import std.meta : AliasSeq;
 
-    foreach (T; TypeTuple!(Decimal32, Decimal64, Decimal128))
+    foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
         assert(signbit(T.sNaN) == 0);
         assert(signbit(T.negInfinity) == 1);
@@ -6893,9 +6895,9 @@ Decimal32 toDPD(const(Decimal32) x)
     if (x.isNaN || x.isInfinity || x.isZero)
         return canonical(x);
 
-    uint cx;
-    int ex;
-    bool sx = x.unpack(cx, ex);
+    uint cx = void;
+    int ex = void;
+    const bool sx = x.unpack(cx, ex);
 
     uint[7] digits;
     size_t index = digits.length;
@@ -6919,9 +6921,9 @@ Decimal64 toDPD(const(Decimal64) x)
     if (x.isNaN || x.isInfinity || x.isZero)
         return canonical(x);
 
-    ulong cx;
-    int ex;
-    bool sx = x.unpack(cx, ex);
+    ulong cx = void;
+    int ex = void;
+    const bool sx = x.unpack(cx, ex);
 
     uint[16] digits;
     size_t index = digits.length;
@@ -6948,9 +6950,9 @@ Decimal128 toDPD(const(Decimal128) x)
     if (x.isNaN || x.isInfinity || x.isZero)
         return canonical(x);
 
-    uint128 cx;
-    int ex;
-    bool sx = x.unpack(cx, ex);
+    uint128 cx = void;
+    int ex = void;
+    const bool sx = x.unpack(cx, ex);
 
     uint[34] digits;
     size_t index = digits.length;
@@ -6984,9 +6986,9 @@ Decimal32 fromDPD(const(Decimal32) x)
         return canonical(x);
 
     uint[7] digits;
-    uint cx;
-    int ex;
-    bool sx = x.unpack(cx, ex);
+    uint cx = void;
+    int ex = void;
+    const bool sx = x.unpack(cx, ex);
 
     unpackDPD(cx & 1023, digits[$ - 1], digits[$ - 2], digits[$ - 3]);
     unpackDPD((cx >>> 10) & 1023, digits[$ - 4], digits[$ - 5], digits[$ - 6]);
@@ -7010,9 +7012,9 @@ Decimal64 fromDPD(const(Decimal64) x)
         return canonical(x);
 
     uint[16] digits;
-    ulong cx;
-    int ex;
-    bool sx = x.unpack(cx, ex);
+    ulong cx = void;
+    int ex = void;
+    const bool sx = x.unpack(cx, ex);
 
     unpackDPD(cast(uint)cx & 1023, digits[$ - 1], digits[$ - 2], digits[$ - 3]);
     unpackDPD(cast(uint)(cx >>> 10) & 1023, digits[$ - 4], digits[$ - 5], digits[$ - 6]);
@@ -7039,9 +7041,9 @@ Decimal128 fromDPD(const(Decimal128) x)
         return canonical(x);
 
     uint[34] digits;
-    uint128 cx;
-    int ex;
-    bool sx = x.unpack(cx, ex);
+    uint128 cx = void;
+    int ex = void;
+    const bool sx = x.unpack(cx, ex);
 
     unpackDPD(cast(uint)cx & 1023U, digits[$ - 1], digits[$ - 2], digits[$ - 3]);
     unpackDPD(cast(uint)(cx >>> 10) & 1023, digits[$ - 4], digits[$ - 5], digits[$ - 6]);
@@ -7162,7 +7164,7 @@ D fromMsCurrency(D)(const(ulong) x)
 if (isDecimal!D)
 {
     Unqual!D result;
-    auto flags = result.packIntegral(result, D.PRECISION, RoundingMode.implicit);
+    auto flags = result.packIntegral(x, D.PRECISION, RoundingMode.implicit);
     flags |= decimalDiv(result, 100,
                         __ctfe ? D.PRECISION : DecimalControl.precision,
                         __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
@@ -7216,9 +7218,9 @@ DECIMAL toMsDecimal(D)(auto const ref D x)
     if (x.isZero)
         return result;
 
-    DataType!D cx;
-    int ex;
-    bool sx = x.unpack(cx, ex);
+    DataType!D cx = void;
+    int ex = void;
+    const bool sx = x.unpack(cx, ex);
 
     static if (is(D == Decimal128))
         alias cxx = cx;
@@ -7362,9 +7364,9 @@ if (isDecimal!D)
     else
     {
         alias U = DataType!D;
-        U c;
-        int e;
-        bool s = x.unpack(c, e);
+        U c = void;
+        int e = void;
+        const bool s = x.unpack(c, e);
         for (size_t i = 0; i < pow10!U.length; ++i)
         {
             if (c == pow10!U[i])
@@ -7405,12 +7407,13 @@ template DataType(D)
 
 mixin template ExceptionConstructors()
 {
-    @nogc @safe pure nothrow this(string msg, string file = __FILE__, size_t line = __LINE__, Throwable next = null)
+    this(string msg, string file = __FILE__, size_t line = __LINE__,
+        Throwable next = null) @nogc nothrow pure @safe
     {
         super(msg, file, line, next);
     }
 
-    @nogc @safe pure nothrow this(string msg, Throwable next, string file = __FILE__, size_t line = __LINE__)
+    this(string msg, Throwable next, string file = __FILE__, size_t line = __LINE__) @nogc nothrow pure @safe
     {
         super(msg, file, line, next);
     }
@@ -8490,4 +8493,86 @@ unittest // Decimal.opCast - up cast
 
     assert(to!Decimal64(Decimal32(1234)) == Decimal64(1234));
     assert(to!Decimal128(Decimal64(12345678)) == Decimal128(12345678));
+}
+
+version (none)
+unittest
+{
+    import std.meta : AliasSeq;
+    import pham.utl.test;
+    dgWriteln("Decimal32.min=", Decimal32.min.toString());
+    dgWriteln("Decimal32.max=", Decimal32.max.toString());
+    dgWriteln("Decimal64.min=", Decimal64.min.toString());
+    dgWriteln("Decimal64.max=", Decimal64.max.toString());
+    dgWriteln("Decimal128.min=", Decimal128.min.toString());
+    dgWriteln("Decimal128.max=", Decimal128.max.toString());
+
+    static foreach (S; AliasSeq!(int, uint, long, ulong))
+    {
+        static foreach (D; AliasSeq!(Decimal32, Decimal64, Decimal128))
+        {
+            dgWriteln(D.stringof, "(", S.stringof, ".min)", D(S.min).toString());
+            dgWriteln(D.stringof, "(", S.stringof, ".max)", D(S.max).toString());
+        }
+    }
+
+    static foreach (S; AliasSeq!(float, double, real))
+    {
+        static foreach (D; AliasSeq!(Decimal32, Decimal64, Decimal128))
+        {
+            dgWriteln(D.stringof, "(-", S.stringof, ".max)", D(-S.max).toString());
+            dgWriteln(D.stringof, "(", S.stringof, ".max)", D(S.max).toString());
+        }
+    }
+
+/*
+Decimal32.min=-9999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0
+Decimal32.max= 9999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0
+Decimal64.min=-9999999999999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0
+Decimal64.max= 9999999999999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0
+Decimal128.min=-9999999999999999999999999999999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0
+Decimal128.max= 9999999999999999999999999999999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0
+Decimal!32(int.min)-2147484000.0
+Decimal!32(int.max) 2147484000.0
+Decimal!64(int.min)-2147483648.0
+Decimal!64(int.max) 2147483647.0
+Decimal!128(int.min)-2147483648.0
+Decimal!128(int.max) 2147483647.0
+Decimal!32(uint.min)0.0
+Decimal!32(uint.max)4294967000.0
+Decimal!64(uint.min)0.0
+Decimal!64(uint.max)4294967295.0
+Decimal!128(uint.min)0.0
+Decimal!128(uint.max)4294967295.0
+Decimal!32(long.min)-9223372000000000000.0
+Decimal!32(long.max) 9223372000000000000.0
+Decimal!64(long.min)-9223372036854776000.0
+Decimal!64(long.max) 9223372036854776000.0
+Decimal!128(long.min)-9223372036854775808.0
+Decimal!128(long.max) 9223372036854775807.0
+Decimal!32(ulong.min)0.0
+Decimal!32(ulong.max)18446740000000000000.0
+Decimal!64(ulong.min)0.0
+Decimal!64(ulong.max)18446744073709550000.0
+Decimal!128(ulong.min)0.0
+Decimal!128(ulong.max)18446744073709551615.0
+Decimal!32(-float.max)-340282300000000000000000000000000000000.0
+Decimal!32(float.max)340282300000000000000000000000000000000.0
+Decimal!64(-float.max)-340282346000000000000000000000000000000.0
+Decimal!64(float.max)340282346000000000000000000000000000000.0
+Decimal!128(-float.max)-340282346000000000000000000000000000000.0
+Decimal!128(float.max)340282346000000000000000000000000000000.0
+Decimal!32(-double.max)-inf
+Decimal!32(double.max)inf
+Decimal!64(-double.max)-179769313486231600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0
+Decimal!64(double.max)179769313486231600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0
+Decimal!128(-double.max)-179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0
+Decimal!128(double.max)179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0
+Decimal!32(-real.max)-inf
+Decimal!32(real.max)inf
+Decimal!64(-real.max)-inf
+Decimal!64(real.max)inf
+Decimal!128(-real.max)-1189731495357231765020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0
+Decimal!128(real.max)1189731495357231765020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0
+*/
 }
