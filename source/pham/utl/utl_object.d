@@ -23,6 +23,14 @@ import std.traits : isArray, isAssociativeArray, isFloatingPoint, isIntegral, is
 
 version (TraceInvalidMemoryOp) import pham.utl.test;
 
+/**
+ * Roundups and returns value, `n`, to the power of 2 modular value, `powerOf2AlignmentSize`
+ * Params:
+ *   n = value to be roundup
+ *   powerOf2AlignmentSize = power of 2 modular value
+ * Returns:
+ *   roundup value
+ */
 pragma(inline, true);
 size_t alignRoundup(const(size_t) n, const(size_t) powerOf2AlignmentSize) @nogc nothrow pure @safe
 in
@@ -35,6 +43,14 @@ do
     return (n + powerOf2AlignmentSize - 1) & ~(powerOf2AlignmentSize - 1);
 }
 
+/**
+ * Converts string of base-64 characters into ubyte array
+ * Params:
+ *   validBase64Text = base-64 characters to be converted
+ * Returns:
+ *   ubyte[] if `validBase64Text` is a valid base-64 characters
+ *   null/empty if `validBase64Text` is invalid
+ */
 ubyte[] bytesFromBase64s(scope const(char)[] validBase64Text) nothrow pure @safe
 {
     import pham.utl.numeric_parser : NumericParsedKind, parseBase64;
@@ -47,6 +63,14 @@ ubyte[] bytesFromBase64s(scope const(char)[] validBase64Text) nothrow pure @safe
     return result[].dup;
 }
 
+/**
+ * Converts string of hex-digits into ubyte array
+ * Params:
+ *   validHexDigits = hex-digits to be converted
+ * Returns:
+ *   ubyte[] if `validHexDigits` is a valid hex-digits
+ *   null/empty if `validHexDigits` is invalid
+ */
 ubyte[] bytesFromHexs(scope const(char)[] validHexDigits) nothrow pure @safe
 {
     import pham.utl.numeric_parser : NumericParsedKind, parseHexDigits;
@@ -97,6 +121,16 @@ string className(Object object) nothrow pure @safe
         return typeid(object).name;
 }
 
+/**
+ * Compares and returns logical order of integer type values
+ * Params:
+ *   lhs = left hand side of float value
+ *   rhs = right hand side of float value
+ * Retruns:
+ *   -1 if `lhs` is less than `rhs`
+ *   1 if `lhs` is greater than `rhs`
+ *   0 otherwise
+ */
 pragma(inline, true)
 int cmpInteger(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
 if (isIntegral!T)
@@ -104,6 +138,17 @@ if (isIntegral!T)
     return (lhs > rhs) - (lhs < rhs);
 }
 
+/**
+ * Compares and returns logical order of float type values
+ * Params:
+ *   lhs = left hand side of float value
+ *   rhs = right hand side of float value
+ * Retruns:
+ *   float.nan if either `lhs` or `rhs` is a NaN value
+ *   -1 if `lhs` is less than `rhs`
+ *   1 if `lhs` is greater than `rhs`
+ *   0 otherwise
+ */
 pragma(inline, true)
 float cmpFloat(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
 if (isFloatingPoint!T)
@@ -237,7 +282,7 @@ string functionName(string name = __FUNCTION__) nothrow pure @safe
 }
 
 /**
- * Check and return `value` within `min` and `max` inclusive
+ * Checks and returns `value` within `min` and `max` inclusive
  * Params:
  *   value = a value to be checked
  *   min = inclusive minimum value
@@ -247,6 +292,7 @@ string functionName(string name = __FUNCTION__) nothrow pure @safe
  *   `max` if `value` is greater than `max`
  *   otherwise `value`
  */
+pragma(inline, true)
 T limitRangeValue(T)(T value, T min, T max) nothrow pure @safe
 {
     static if (__traits(compiles, T.init < T.init && T.init > T.init))
@@ -468,55 +514,93 @@ if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
     return sink;
 }
 
-enum DisposableState : ubyte
-{
-    none,
-    disposing,
-    destructing,
-}
-
+/**
+ * Generic interface to implement disposable class
+ * Sample object implementation of this interface, `DisposableObject`
+ */
 interface IDisposable
 {
 nothrow @safe:
 
+    /**
+     * The actual function to perform disposing logic
+     * Params:
+     *   disposing = indicate if it is called from `dispose` or object destructor
+     *               true = called from `dispose`
+     *               false = called from object destructor
+     */
     void disposal(bool disposing);
+
+    /*
+     * Should just make call to `disposal` with parameter, `disposing` = true
+     */
     void dispose();
 }
 
+/**
+ * State of disposable class
+ */
+enum DisposableState : ubyte
+{
+    none,         /// dispose or destructor has not been called
+    disposing,    /// in disposing state
+    disposed,     /// already disposed
+    destructing,  /// in destructing state
+    destructed,   /// already destructed
+}
+
+/**
+ * An abstract class to implement `IDisposable` interface
+ */
 abstract class DisposableObject : IDisposable
 {
 nothrow @safe:
 
 public:
-    final void disposal(bool disposing)
+    /**
+     * Implement IDisposable.disposal
+     */
+    final override void disposal(bool disposing)
     {
-        _disposing++;
-        doDispose(disposing);
+        if ((_disposingState == DisposableState.none) || (!disposing && _disposingState == DisposableState.disposed))
+        {
+            _disposingState = disposing ? DisposableState.disposing : DisposableState.destructing;
+            doDispose(disposing);
+            _disposingState = disposing ? DisposableState.disposed : DisposableState.destructed;
+        }
     }
 
-    final void dispose()
+    /**
+     * Implement IDisposable.dispose
+     * Will do nothing if called more than one
+     */
+    final override void dispose()
     {
-        _disposing++;
-        doDispose(true);
+        disposal(true);
     }
 
-    @property final DisposableState disposingState() const
+    /**
+     * Returns current disposing state of current object
+     */
+    @property final DisposableState disposingState() const @nogc pure
     {
-        if (_disposing == 0)
-            return DisposableState.none;
-        else if (_disposing > 0)
-            return DisposableState.disposing;
-        else
-            return DisposableState.destructing;
+        return _disposingState;
     }
 
 protected:
+    /**
+     * Abstract function of this class to perform disposing logic
+     */
     abstract void doDispose(bool disposing);
 
 private:
-    byte _disposing;
+    DisposableState _disposingState;
 }
 
+/**
+ * Boxer type to have indicator that its' value has been set or not-set regardless of if the setting value
+ * is a default one
+ */
 struct InitializedValue(T)
 {
 nothrow @safe:
@@ -535,7 +619,7 @@ public:
         return this;
     }
 
-    C opCast(C: bool)() const
+    C opCast(C: bool)() const @nogc pure
     {
         if (_inited)
         {
@@ -550,6 +634,9 @@ public:
             return false;
     }
 
+    /**
+     * Resets this instance to initial state
+     */
     ref typeof(this) reset() return
     {
         if (_inited)
@@ -560,17 +647,19 @@ public:
         return this;
     }
 
-    @property bool inited() const pure
+
+    /**
+     * Indicates if value had been set or not-set
+     */
+    @property bool inited() const @nogc pure
     {
         return _inited;
     }
 
+    /**
+     * Returns current holding value
+     */
     @property inout(T) value() inout pure
-    in
-    {
-        assert(_inited, "value must be set before using!");
-    }
-    do
     {
         return _value;
     }
@@ -582,6 +671,10 @@ private:
     bool _inited;
 }
 
+/**
+ * Wrapper for Mutex to handle locking & unlocking automatically using
+ * Resource Acquisition Is Initialization or RAII technique
+ */
 struct RAIIMutex
 {
 @nogc nothrow @safe:
@@ -591,45 +684,65 @@ public:
     @disable this(ref typeof(this));
     @disable void opAssign(typeof(this));
 
+    /**
+     * Get holding of `mutex` and call `lock` function
+     */
     this(Mutex mutex)
     {
-        this._locked = 0;
+        this._lockedCounter = 0;
         this._mutex = mutex;
         lock();
     }
 
+    /**
+     * Release holding of `mutex` and call `unlock` function if is `isLocked`
+     */
     ~this()
     {
-        if (_locked > 0)
+        if (isLocked)
             unlock();
         _mutex = null;
     }
 
+    /**
+     * Increase `lockedCounter` and call `mutex.lock_nothrow` if `lockedCounter` = 1
+     * You must call its corresponding `unlock` to release the mutex
+     */
     void lock()
     {
-        if (_locked++ == 0 && _mutex !is null)
+        if (_lockedCounter++ == 0 && _mutex !is null)
             _mutex.lock_nothrow();
     }
 
+    /**
+     * Decrease `lockedCounter` and call `mutex.unlock_nothrow` if `lockedCounter` = 0
+     */
     void unlock()
-    in
     {
-        assert(_locked > 0);
-    }
-    do
-    {
-        if (--_locked == 0 && _mutex !is null)
+        if (--_lockedCounter == 0 && _mutex !is null)
             _mutex.unlock_nothrow();
     }
 
-    @property int locked() const pure
+    /**
+     * Returns true if `lockedCounter` is greater than zero
+     */
+    pragma(inline, true)
+    @property bool isLocked() const pure
     {
-        return _locked;
+        return _lockedCounter > 0;
+    }
+
+    /**
+     * Returns counter of function `lock` had been called
+     */
+    @property int lockedCounter() const pure
+    {
+        return _lockedCounter;
     }
 
 private:
     Mutex _mutex;
-    int _locked;
+    int _lockedCounter;
 }
 
 struct ResultStatus
@@ -717,19 +830,19 @@ public:
 
         int opCmp(scope const(Parti) rhs) const @nogc pure
         {
-            if (rhs.length == 0)
-                return empty ? 0 : 1;
-            else if (empty)
-                return -1;
-
-            const len = rhs.length > length ? length : rhs.length;
+            const len = rhs.length > this.length ? this.length : rhs.length;
             foreach (i; 0..len)
             {
                 const result = cmpInteger(data[i], rhs.data[i]);
                 if (result != 0)
                     return result;
             }
-            return 0;
+            return cmpInteger(this.length, rhs.length);
+        }
+
+        bool opEquals(scope const(Parti) rhs) const @nogc pure
+        {
+            return opCmp(rhs) == 0;
         }
 
         static Parti parti(scope const(uint)[] parti) @nogc pure
@@ -767,14 +880,14 @@ public:
             return result;
         }
 
+        string toString() const pure
+        {
+            return empty ? null : data[0..length].map!(v => to!string(v)).join(".");
+        }
+
         @property bool empty() const @nogc pure
         {
             return length == 0;
-        }
-
-        string toString() const pure
-        {
-            return empty ? "" : data[0..length].map!(v => to!string(v)).join(".");
         }
     }
 
@@ -785,14 +898,28 @@ public:
         string[maxPartLength] data;
         size_t length;
 
-        @property bool empty() const @nogc pure
+        bool opEquals(scope const(Parts) rhs) const @nogc pure
         {
-            return length == 0;
+            const sameLength = this.length == rhs.length;
+            if (sameLength)
+            {
+                foreach (i; 0..this.length)
+                {
+                    if (data[i] != rhs.data[i])
+                        return false;
+                }
+            }
+            return sameLength;
         }
 
         string toString() const pure
         {
-            return empty ? "" : data[0..length].join(".");
+            return empty ? null : data[0..length].join(".");
+        }
+
+        @property bool empty() const @nogc pure
+        {
+            return length == 0;
         }
     }
 
@@ -948,7 +1075,7 @@ private:
 
 version (unittest)
 {
-    class TestClassName 
+    class TestClassName
     {
         string testFN() nothrow @safe
         {
@@ -957,7 +1084,7 @@ version (unittest)
     }
 
     class TestClassTemplate(T) {}
-    
+
     struct TestStructName
     {
         string testFN() nothrow @safe
@@ -965,11 +1092,58 @@ version (unittest)
             return functionName();
         }
     }
-    
+
     string testFN() nothrow @safe
     {
         return functionName();
     }
+}
+
+unittest // alignRoundup
+{
+    assert(alignRoundup(0, 4) == 0);
+    assert(alignRoundup(1, 4) == 4);
+    assert(alignRoundup(4, 4) == 4);
+
+    assert(alignRoundup(1, 16) == 16);
+    assert(alignRoundup(15, 16) == 16);
+    assert(alignRoundup(16, 16) == 16);
+}
+
+nothrow @safe unittest // bytesFromHexs & bytesToHexs
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.bytesFromHexs & bytesToHexs");
+
+    assert(bytesToHexs([0]) == "00");
+    assert(bytesToHexs([1]) == "01");
+    assert(bytesToHexs([15]) == "0F");
+    assert(bytesToHexs([255]) == "FF");
+
+    ubyte[] r;
+    r = bytesFromHexs("00");
+    assert(r == [0]);
+    r = bytesFromHexs("01");
+    assert(r == [1]);
+    r = bytesFromHexs("0F");
+    assert(r == [15]);
+    r = bytesFromHexs("FF");
+    assert(r == [255]);
+    r = bytesFromHexs("FFXY");
+    assert(r == []);
+
+    enum testHexs = "43414137364546413943383943443734433130363737303145434232424332363635393136423946384145383143353537453543333044383939463236434443";
+    auto bytes = bytesFromHexs(testHexs);
+    assert(bytesToHexs(bytes) == testHexs);
+}
+
+nothrow @safe unittest // bytesFromBase64s
+{
+    import std.string : representation;
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.bytesFromBase64s");
+
+    assert(bytesFromBase64s("QUIx") == "AB1".representation());
 }
 
 nothrow @safe unittest // className
@@ -982,21 +1156,6 @@ nothrow @safe unittest // className
 
     auto c2 = new TestClassTemplate!int();
     assert(className(c2) == "pham.utl.object.TestClassTemplate!int.TestClassTemplate");
-}
-
-nothrow @safe unittest // cmpInteger
-{
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.object.cmpInteger");
-
-    assert(cmpInteger(0, 0) == 0);
-    assert(cmpInteger(1, 2) == -1);
-    assert(cmpInteger(1, 1) == 0);
-    assert(cmpInteger(2, 1) == 1);
-    assert(cmpInteger(int.min, int.min) == 0);
-    assert(cmpInteger(int.max, int.max) == 0);
-    assert(cmpInteger(int.min, int.max) == -1);
-    assert(cmpInteger(int.max, int.min) == 1);
 }
 
 nothrow @safe unittest // cmpFloat
@@ -1016,6 +1175,21 @@ nothrow @safe unittest // cmpFloat
     assert(isNaN(cmpFloat(double.nan, 2.0)));
     assert(isNaN(cmpFloat(1.0, double.nan)));
     assert(isNaN(cmpFloat(double.nan, double.nan)));
+}
+
+nothrow @safe unittest // cmpInteger
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.cmpInteger");
+
+    assert(cmpInteger(0, 0) == 0);
+    assert(cmpInteger(1, 2) == -1);
+    assert(cmpInteger(1, 1) == 0);
+    assert(cmpInteger(2, 1) == 1);
+    assert(cmpInteger(int.min, int.min) == 0);
+    assert(cmpInteger(int.max, int.max) == 0);
+    assert(cmpInteger(int.min, int.max) == -1);
+    assert(cmpInteger(int.max, int.min) == 1);
 }
 
 nothrow @safe unittest // currentComputerName
@@ -1052,7 +1226,7 @@ nothrow @safe unittest // functionName
 
     TestStructName s1;
     assert(s1.testFN() == "pham.utl.object.TestStructName.testFN", s1.testFN());
-    
+
     assert(testFN() == "pham.utl.object.testFN", testFN());
 }
 
@@ -1060,7 +1234,7 @@ nothrow @safe unittest // limitRangeValue
 {
     import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.limitRangeValue");
-    
+
     assert(limitRangeValue(0, 0, 101) == 0);
     assert(limitRangeValue(101, 0, 101) == 101);
     assert(limitRangeValue(1, 0, 101) == 1);
@@ -1127,103 +1301,6 @@ nothrow @safe unittest // stringOfChar
     assert(stringOfChar(0, ' ').length == 0);
 }
 
-unittest // InitializedValue
-{
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.object.InitializedValue");
-
-    InitializedValue!int n;
-    assert(!n);
-    assert(!n.inited);
-
-    n = 0;
-    assert(n);
-    assert(n.inited);
-    assert(n == 0);
-
-    InitializedValue!TestClassName c;
-    assert(!c);
-    assert(!c.inited);
-
-    c = null;
-    assert(!c);
-    assert(c.inited);
-
-    c = new TestClassName();
-    assert(c);
-    assert(c.inited);
-    assert(c !is null);
-}
-
-nothrow @safe unittest // bytesFromHexs & bytesToHexs
-{
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.object.bytesFromHexs & bytesToHexs");
-
-    assert(bytesToHexs([0]) == "00");
-    assert(bytesToHexs([1]) == "01");
-    assert(bytesToHexs([15]) == "0F");
-    assert(bytesToHexs([255]) == "FF");
-
-    ubyte[] r;
-    r = bytesFromHexs("00");
-    assert(r == [0]);
-    r = bytesFromHexs("01");
-    assert(r == [1]);
-    r = bytesFromHexs("0F");
-    assert(r == [15]);
-    r = bytesFromHexs("FF");
-    assert(r == [255]);
-    r = bytesFromHexs("FFXY");
-    assert(r == []);
-
-    enum testHexs = "43414137364546413943383943443734433130363737303145434232424332363635393136423946384145383143353537453543333044383939463236434443";
-    auto bytes = bytesFromHexs(testHexs);
-    assert(bytesToHexs(bytes) == testHexs);
-}
-
-nothrow @safe unittest // bytesFromBase64s
-{
-    import std.string : representation;
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.object.bytesFromBase64s");
-
-    assert(bytesFromBase64s("QUIx") == "AB1".representation());
-}
-
-nothrow @safe unittest // VersionString
-{
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.object.VersionString");
-
-    const v1Str = "1.2.3.4";
-    const v1 = VersionString(v1Str);
-    assert(v1.parts.data[0] == "1");
-    assert(v1.parts.data[1] == "2");
-    assert(v1.parts.data[2] == "3");
-    assert(v1.parts.data[3] == "4");
-    assert(v1.toString() == v1Str);
-
-    const v2Str = "1.2.0.0";
-    const v2 = VersionString(v2Str);
-    assert(v2.parts.data[0] == "1");
-    assert(v2.parts.data[1] == "2");
-    assert(v2.parts.data[2] == "0");
-    assert(v2.parts.data[3] == "0");
-    assert(v2.toString() == v2Str);
-
-    assert(v1 > v2);
-    assert(v1 == VersionString(v1Str));
-    assert(v1 == v1Str);
-    assert(v2 == v2Str);
-    assert(v2 == VersionString(v2Str));
-
-    auto vNull = VersionString("");
-    assert(vNull.toString() == "");
-    assert(vNull < "1.2.3.4");
-    assert("1.2.3.4" > vNull);
-}
-
 @safe unittest // toString
 {
     import std.array : Appender;
@@ -1264,6 +1341,100 @@ nothrow @safe unittest // VersionString
     assert(toString(buffer, 10).data == "10");
 }
 
+unittest // DisposableObject
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.DisposableObject");
+
+    static int stateCounter;
+
+    static class TestDisposableObject : DisposableObject
+    {
+    public:
+        ~this()
+        {
+            disposal(false);
+            assert(disposingState == DisposableState.destructed);
+        }
+
+    protected:
+        override void doDispose(bool disposing)
+        {
+            if (disposing)
+                assert(disposingState == DisposableState.disposing);
+            else
+                assert(disposingState == DisposableState.destructing);
+
+            stateCounter++;
+        }
+    }
+
+    auto c = new TestDisposableObject();
+    assert(c.disposingState == DisposableState.none);
+
+    c.dispose();
+    assert(c.disposingState == DisposableState.disposed);
+    assert(stateCounter == 1);
+    c.dispose(); // Do nothing if call second time (or subsequece dispose calls)
+    assert(c.disposingState == DisposableState.disposed);
+    assert(stateCounter == 1);
+
+    destroy(c);
+    assert(stateCounter == 2);
+}
+
+unittest // InitializedValue
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.InitializedValue");
+
+    InitializedValue!int n;
+    assert(!n);
+    assert(!n.inited);
+
+    n = 0;
+    assert(n);
+    assert(n.inited);
+    assert(n == 0);
+
+    InitializedValue!TestClassName c;
+    assert(!c);
+    assert(!c.inited);
+
+    c = null;
+    assert(!c);
+    assert(c.inited);
+
+    c = new TestClassName();
+    assert(c);
+    assert(c.inited);
+    assert(c !is null);
+}
+
+unittest // RAIIMutex
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.RAIIMutex");
+
+    auto mutex = new Mutex();
+    
+    {
+        auto locker = RAIIMutex(mutex);
+        assert(locker.isLocked);
+        assert(locker.lockedCounter == 1);
+        
+        locker.lock();
+        assert(locker.isLocked);
+        assert(locker.lockedCounter == 2);
+
+        locker.unlock();
+        assert(locker.isLocked);
+        assert(locker.lockedCounter == 1);
+    }
+    
+    destroy(mutex);
+}
+
 unittest // ResultStatus
 {
     import pham.utl.test;
@@ -1280,4 +1451,37 @@ unittest // ResultStatus
     assert(r.isOK);
     assert(r.errorCode == 0);
     assert(r.errorMessage is null);
+}
+
+nothrow @safe unittest // VersionString
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.VersionString");
+
+    const v1Str = "1.2.3.4";
+    const v1 = VersionString(v1Str);
+    assert(v1.parts.data[0] == "1");
+    assert(v1.parts.data[1] == "2");
+    assert(v1.parts.data[2] == "3");
+    assert(v1.parts.data[3] == "4");
+    assert(v1.toString() == v1Str);
+
+    const v2Str = "1.2.0.0";
+    const v2 = VersionString(v2Str);
+    assert(v2.parts.data[0] == "1");
+    assert(v2.parts.data[1] == "2");
+    assert(v2.parts.data[2] == "0");
+    assert(v2.parts.data[3] == "0");
+    assert(v2.toString() == v2Str);
+
+    assert(v1 > v2);
+    assert(v1 == VersionString(v1Str));
+    assert(v1 == v1Str);
+    assert(v2 == v2Str);
+    assert(v2 == VersionString(v2Str));
+
+    auto vNull = VersionString("");
+    assert(vNull.toString() == "");
+    assert(vNull < "1.2.3.4");
+    assert("1.2.3.4" > vNull);
 }
