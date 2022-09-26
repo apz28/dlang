@@ -1352,8 +1352,6 @@ protected:
 
         auto useCSB = connection.fbConnectionStringBuilder;
 
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("connectionTimeout=", useCSB.connectionTimeout.toRangeSecond32());
-
         version (none)
         bool needSendPassword() nothrow pure @safe
         {
@@ -1372,12 +1370,12 @@ protected:
         }
 
 		writer.writeType(FbIsc.isc_dpb_version);
-		writer.writeInt32(FbIsc.isc_dpb_dummy_packet_interval, useCSB.dummyPackageInterval.toRangeSecond32());
+		writer.writeInt32(FbIsc.isc_dpb_dummy_packet_interval, useCSB.dummyPackageInterval.limitRangeTimeoutAsSecond());
 		writer.writeInt32(FbIsc.isc_dpb_sql_dialect, useCSB.dialect);
 		writer.writeChars(FbIsc.isc_dpb_lc_ctype, useCSB.charset);
         writer.writeCharsIf(FbIsc.isc_dpb_user_name, useCSB.userName);
 	    writer.writeCharsIf(FbIsc.isc_dpb_sql_role_name, useCSB.roleName);
-		writer.writeInt32(FbIsc.isc_dpb_connect_timeout, useCSB.connectionTimeout.toRangeSecond32());
+		writer.writeInt32(FbIsc.isc_dpb_connect_timeout, useCSB.connectionTimeout.limitRangeTimeoutAsSecond());
 		writer.writeInt32(FbIsc.isc_dpb_process_id, currentProcessId());
 		writer.writeChars(FbIsc.isc_dpb_process_name, currentProcessName());
 		writer.writeCharsIf(FbIsc.isc_dpb_client_version, useCSB.applicationVersion);
@@ -1553,7 +1551,7 @@ protected:
         writer.writeType(readOrWriteMode());
         writer.writeType(waitMode);
         if (waitMode != FbIsc.isc_tpb_nowait && transaction.lockTimeout)
-            writer.writeInt32(FbIsc.isc_tpb_lock_timeout, toRangeSecond32(transaction.lockTimeout));
+            writer.writeInt32(FbIsc.isc_tpb_lock_timeout, transaction.lockTimeout.limitRangeTimeoutAsSecond);
         if (transaction.autoCommit)
             writer.writeType(FbIsc.isc_tpb_autocommit);
 

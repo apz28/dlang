@@ -587,7 +587,7 @@ public:
 
     @property final int sslVerificationMode() const nothrow @safe
     {
-        return toInteger!int(getString(DbConnectionParameterIdentifier.socketSslVerificationMode), -1);
+        return toIntegerSafe!int(getString(DbConnectionParameterIdentifier.socketSslVerificationMode), -1);
     }
 
     @property final typeof(this) sslVerificationMode(int value) nothrow

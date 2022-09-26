@@ -18,7 +18,7 @@ version (unittest) import pham.utl.test;
 import pham.dtm.tick : Tick;
 import pham.dtm.time_zone : TimeZoneInfo;
 import pham.utl.utf8 : ShortStringBuffer, ShortStringBufferSize;
-import pham.db.convert : toDecimal;
+import pham.db.convert : toDecimalSafe;
 import pham.db.type;
 import pham.db.pgtype;
 
@@ -374,8 +374,8 @@ unittest // numericDecode
 	PgOIdNumeric n5_40 = {ndigits:2, weight:0, sign:0, dscale:2, digits:[5, 4000]};
 	PgOIdNumeric n6_50 = {ndigits:2, weight:0, sign:0, dscale:2, digits:[6, 5000]};
 
-	assert(numericDecode!Decimal64(n5_40) == toDecimal!Decimal64("5.40", Decimal64.init));
-	assert(numericDecode!Decimal64(n6_50) == toDecimal!Decimal64("6.50", Decimal64.init));
+	assert(numericDecode!Decimal64(n5_40) == toDecimalSafe!Decimal64("5.40", Decimal64.nan));
+	assert(numericDecode!Decimal64(n6_50) == toDecimalSafe!Decimal64("6.50", Decimal64.nan));
 }
 
 unittest // numericEncode
@@ -393,14 +393,14 @@ unittest // numericEncode
 		traceUnitTest!("pham.db.pgdatabase")(pgNumeric.traceString());
     }
 
-	auto dec5_40 = toDecimal!Decimal64("5.40", Decimal64.init);
+	auto dec5_40 = toDecimalSafe!Decimal64("5.40", Decimal64.nan);
 	auto num5_40 = numericEncode!Decimal64(dec5_40);
 	//traceUnitTest!("pham.db.pgdatabase")(dec5_40.toString());
 	//traceNumeric(num5_40);
 	//traceNumeric(n5_40);
 	assert(num5_40 == n5_40);
 
-	auto dec6_50 = toDecimal!Decimal64("6.50", Decimal64.init);
+	auto dec6_50 = toDecimalSafe!Decimal64("6.50", Decimal64.nan);
 	auto num6_50 = numericEncode!Decimal64(dec6_50);
 	assert(num6_50 == n6_50);
 }

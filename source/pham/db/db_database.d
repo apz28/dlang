@@ -387,7 +387,7 @@ public:
 
     @property final typeof(this) commandTimeout(Duration value) nothrow @safe
     {
-        _commandTimeout = rangeDuration(value);
+        _commandTimeout = limitRangeTimeout(value);
         return this;
     }
 
@@ -2011,15 +2011,14 @@ public:
      */
     @property final Duration commandTimeout() const nothrow @safe
     {
-        return secondToDuration(getString(DbConnectionParameterIdentifier.commandTimeout));
+        return secondDigitsToDurationSafe(getString(DbConnectionParameterIdentifier.commandTimeout), Duration.zero);
     }
 
     @property final typeof(this) commandTimeout(scope const(Duration) value) nothrow
     {
         // Optional value
-        const convertingSecond = value.toRangeSecond32();
-        auto setValue = to!string(convertingSecond);
-        put(DbConnectionParameterIdentifier.commandTimeout, setValue);
+        auto secondValue = to!string(limitRangeTimeoutAsSecond(value));
+        put(DbConnectionParameterIdentifier.commandTimeout, secondValue);
         return this;
     }
 
@@ -2055,13 +2054,13 @@ public:
      */
     @property final Duration connectionTimeout() const nothrow @safe
     {
-        return secondToDuration(getString(DbConnectionParameterIdentifier.connectionTimeout));
+        return secondDigitsToDurationSafe(getString(DbConnectionParameterIdentifier.connectionTimeout), Duration.zero);
     }
 
     @property final typeof(this) connectionTimeout(scope const(Duration) value) nothrow
     {
         // Required value
-        const convertingSecond = value.toRangeSecond32();
+        const convertingSecond = limitRangeTimeoutAsSecond(value);
         auto setValue = convertingSecond != 0 ? to!string(convertingSecond) : getDefault(DbConnectionParameterIdentifier.connectionTimeout);
         put(DbConnectionParameterIdentifier.connectionTimeout, setValue);
         return this;
@@ -2117,7 +2116,7 @@ public:
      */
     @property final uint32 fetchRecordCount() const nothrow @safe
     {
-        return toInteger!uint32(getString(DbConnectionParameterIdentifier.fetchRecordCount), uint8.max);
+        return toIntegerSafe!uint32(getString(DbConnectionParameterIdentifier.fetchRecordCount), uint8.max);
     }
 
     @property final typeof(this) fetchRecordCount(uint32 value) nothrow
@@ -2141,7 +2140,7 @@ public:
 
     @property final uint32 maxPoolCount() const nothrow @safe
     {
-        return toInteger!uint32(getString(DbConnectionParameterIdentifier.maxPoolCount), uint8.max);
+        return toIntegerSafe!uint32(getString(DbConnectionParameterIdentifier.maxPoolCount), uint8.max);
     }
 
     @property final typeof(this) maxPoolCount(uint32 value) nothrow
@@ -2152,7 +2151,7 @@ public:
 
     @property final uint32 minPoolCount() const nothrow @safe
     {
-        return toInteger!uint32(getString(DbConnectionParameterIdentifier.minPoolCount), 0);
+        return toIntegerSafe!uint32(getString(DbConnectionParameterIdentifier.minPoolCount), 0);
     }
 
     @property final typeof(this) minPoolCount(uint32 value) nothrow
@@ -2163,7 +2162,7 @@ public:
 
     @property final uint32 packageSize() const nothrow @safe
     {
-        return toInteger!uint32(getString(DbConnectionParameterIdentifier.packageSize), uint16.max);
+        return toIntegerSafe!uint32(getString(DbConnectionParameterIdentifier.packageSize), uint16.max);
     }
 
     @property final typeof(this) packageSize(uint32 value) nothrow
@@ -2188,13 +2187,13 @@ public:
 
     @property final Duration poolTimeout() const nothrow @safe
     {
-        return secondToDuration(getString(DbConnectionParameterIdentifier.poolTimeout));
+        return secondDigitsToDurationSafe(getString(DbConnectionParameterIdentifier.poolTimeout), Duration.zero);
     }
 
     @property final typeof(this) poolTimeout(scope const(Duration) value) nothrow
     {
         // Required value
-        const convertingSecond = value.toRangeSecond32();
+        const convertingSecond = limitRangeTimeoutAsSecond(value);
         auto setValue = convertingSecond != 0 ? to!string(convertingSecond) : getDefault(DbConnectionParameterIdentifier.poolTimeout);
         put(DbConnectionParameterIdentifier.poolTimeout, setValue);
         return this;
@@ -2202,7 +2201,8 @@ public:
 
     @property final uint16 port() const nothrow @safe
     {
-        return toInteger!uint16(getString(DbConnectionParameterIdentifier.port), 0);
+        const result = toIntegerSafe!uint16(getString(DbConnectionParameterIdentifier.port), 0);
+        return result != 0 ? result : toIntegerSafe!uint16(getDefault(DbConnectionParameterIdentifier.port), 0);
     }
 
     @property final typeof(this) port(uint16 value) nothrow
@@ -2219,13 +2219,13 @@ public:
      */
     @property final Duration receiveTimeout() const nothrow @safe
     {
-        return secondToDuration(getString(DbConnectionParameterIdentifier.receiveTimeout));
+        return secondDigitsToDurationSafe(getString(DbConnectionParameterIdentifier.receiveTimeout), Duration.zero);
     }
 
     @property final typeof(this) receiveTimeout(scope const(Duration) value) nothrow
     {
         // Required value
-        const convertingSecond = value.toRangeSecond32();
+        const convertingSecond = limitRangeTimeoutAsSecond(value);
         auto setValue = convertingSecond != 0 ? to!string(convertingSecond) : getDefault(DbConnectionParameterIdentifier.receiveTimeout);
         put(DbConnectionParameterIdentifier.receiveTimeout, setValue);
         return this;
@@ -2251,13 +2251,13 @@ public:
      */
     @property final Duration sendTimeout() const nothrow @safe
     {
-        return secondToDuration(getString(DbConnectionParameterIdentifier.sendTimeout));
+        return secondDigitsToDurationSafe(getString(DbConnectionParameterIdentifier.sendTimeout), Duration.zero);
     }
 
     @property final typeof(this) sendTimeout(scope const(Duration) value) nothrow
     {
         // Required value
-        const convertingSecond = value.toRangeSecond32();
+        const convertingSecond = limitRangeTimeoutAsSecond(value);
         auto setValue = convertingSecond != 0 ? to!string(convertingSecond) : getDefault(DbConnectionParameterIdentifier.sendTimeout);
         put(DbConnectionParameterIdentifier.sendTimeout, setValue);
         return this;

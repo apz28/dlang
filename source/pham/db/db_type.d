@@ -1857,10 +1857,10 @@ shared static this()
             DbConnectionParameterIdentifier.fetchRecordCount : "200",
             DbConnectionParameterIdentifier.integratedSecurity : toName(DbIntegratedSecurityConnection.srp256),
             DbConnectionParameterIdentifier.maxPoolCount : "100",
-            DbConnectionParameterIdentifier.minPoolCount : "0",
+            DbConnectionParameterIdentifier.minPoolCount : "3",
             DbConnectionParameterIdentifier.pooling : dbBoolTrue,
             DbConnectionParameterIdentifier.poolTimeout : "30", // In seconds
-            DbConnectionParameterIdentifier.receiveTimeout : "3600", // In seconds - do not add underscore, to!... does not work
+            DbConnectionParameterIdentifier.receiveTimeout : "0", // In seconds - no limit
             DbConnectionParameterIdentifier.sendTimeout : "60", // In seconds
             DbConnectionParameterIdentifier.server : "localhost"
         ];

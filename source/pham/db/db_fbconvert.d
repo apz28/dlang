@@ -31,17 +31,34 @@ nothrow @safe:
 
 enum epochDate = Date(1858, 11, 17);
 
+/**
+ * Translates Firebird native bool-integer into native bool type
+ * Params:
+ *   fbBool = native Firebird bool-integer
+ * Returns:
+ *   bool represents `fbBool`
+ */
 bool boolDecode(uint8 fbBool) @nogc pure
 {
     return fbBool != 0;
 }
 
+/**
+ * Translates native bool type into Firebird native bool-integer
+ * Params:
+ *   value = native bool value
+ * Returns:
+ *   Firebird native bool-integer represents `value`
+ */
 uint8 boolEncode(bool value) @nogc pure
 {
     return value ? 1 : 0;
 }
 
 /**
+ * Translates Firebird native integer value into native date type
+ * Params:
+ *   fbDate = native Firebird integer value
  * Date-part value as number of days elapsed since “date zero” — November 17, 1858 - Modified JD
  * https://en.wikipedia.org/wiki/Julian_day
  */
@@ -89,6 +106,9 @@ DbDate dateDecode(int32 fbDate) @nogc pure
 	}
 }
 
+/**
+ * Translates native date type into Firebird native integer
+ */
 int32 dateEncode(scope const(DbDate) value) @nogc pure
 {
     return value.days - epochDate.days;
@@ -114,11 +134,11 @@ int32 dateEncode(scope const(DbDate) value) @nogc pure
 	}
 }
 
+/**
+ * Translates Firebird native integer value into native date type
+ */
 DbDateTime dateTimeDecode(int32 fbDate, int32 fbTime) @nogc pure
 {
-	version (profile) debug auto p = PerfFunction.create();
-	//import pham.utl.test; dgWriteln("fbDate=", fbDate, ", fbTime=", fbTime);
-
 	auto dt = DateTime(dateDecode(fbDate), Time(timeToDuration(fbTime)));
 	return DbDateTime(dt, 0);
 }

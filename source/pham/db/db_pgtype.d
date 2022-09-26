@@ -20,7 +20,7 @@ version (TraceFunction) import pham.utl.test;
 import pham.cp.cipher : CipherHelper;
 import pham.utl.enum_set : toName;
 import pham.utl.object : cmpInteger;
-import pham.db.convert : toInteger;
+import pham.db.convert : toIntegerSafe;
 import pham.db.message;
 import pham.db.type;
 import pham.db.pgoid;
@@ -655,7 +655,7 @@ public:
             else if (part.startsWith("s="))
                 this.salt = part[2..$].dup;
             else if (part.startsWith("i="))
-                this._iteration = toInteger!int32(part[2..$], -1);
+                this._iteration = toIntegerSafe!int32(part[2..$], -1);
             else
             {
                 version (TraceFunction) traceFunction!("pham.db.pgdatabase")("Unknown part: ", part);

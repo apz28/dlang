@@ -12,6 +12,7 @@
 module pham.db.value;
 
 import std.math : isNaN;
+import std.conv : to;
 import std.range.primitives: ElementType;
 import std.traits : isArrayT = isArray, Unqual;
 
@@ -31,7 +32,7 @@ public:
         this._type = type;
     }
 
-    this(T)(T value, DbType type = DbType.unknown) nothrow @safe
+    this(T)(T value, DbType type = DbType.unknown) @safe
     {
         version (profile) debug auto p = PerfFunction.create();
 
@@ -39,7 +40,7 @@ public:
         doAssign!(T, false)(value);
     }
 
-    ref typeof(this) opAssign(T)(T rhs) nothrow return @safe
+    ref typeof(this) opAssign(T)(T rhs) return @safe
     {
         doAssign!(T, true)(rhs);
         return this;
@@ -57,9 +58,9 @@ public:
         return this;
     }
 
-    bool opEquals(ref DbValue rhs)
+    bool opEquals(const DbValue rhs) @safe
     {
-        return type == rhs.type && value == rhs.value;
+        return _type == rhs._type && _value == rhs._value;
     }
 
     static DbValue dbNull(DbType dbType = DbType.unknown) nothrow @safe
@@ -94,12 +95,28 @@ public:
     }
 
     /**
-     * Set value as array of a DbType value
+     * Gets element DbType of an array value
+     */
+    @property DbType elementType() const nothrow pure @safe
+    {
+        return cast(DbType)(_type & DbTypeMask);
+    }
+
+    /**
+     * Set element DbType of an array value
      */
     @property ref typeof(this) elementType(DbType value) nothrow return @safe
     {
         _type = DbType.array | value;
         return this;
+    }
+
+    /**
+     * Returns indicator if value can return its' size
+     */
+    @property bool hasSize() const nothrow pure @safe
+    {
+        return isDbTypeHasSize(type) || isArray;
     }
 
     @property bool isArray() const nothrow pure @safe
@@ -113,33 +130,26 @@ public:
     }
 
     /**
-     * Returns indicator if value can return its' size
-     */
-    @property bool hasSize() const nothrow @safe
-    {
-        return isDbTypeHasSize(type) || isArray;
-    }
-
-    /**
-     * Gets maximum size, in bytes of the value
+     * Gets size, in bytes of the value
      * used for chars, string, json, xml, binary, struct and array types.
+     * If instance does not have size, return -1
      */
-    @property int32 size() @safe
+    @property ptrdiff_t size() const nothrow pure @safe
     {
-        return hasSize ? cast(int32)value.length : 0;
+        return hasSize ? cast(ptrdiff_t)_value.length : -1;
     }
 
     /**
      * Gets the DbType of the value
      */
-    @property DbType type() const nothrow @safe
+    @property DbType type() const nothrow pure @safe
     {
-        return cast(DbType)(_type & DbTypeMask);
+        return _type;
     }
 
-    @property ref typeof(this) type(DbType value) nothrow return @safe
+    @property ref typeof(this) type(DbType value) nothrow pure return @safe
     {
-        _type = isArray ? (value | DbType.array) : value;
+        _type = value;
         return this;
     }
 
@@ -148,7 +158,7 @@ public:
         return _value;
     }
 
-    @property void value(Variant value) nothrow @safe
+    @property void value(Variant value) @safe
     {
         doAssignVariant(value);
     }
@@ -161,7 +171,7 @@ package(pham.db):
     DbType _type;
 
 private:
-    void doAssign(T, bool Assign)(T rhs) nothrow @safe
+    void doAssign(T, bool Assign)(T rhs) @safe
     {
         alias UT = Unqual!T;
 
@@ -229,7 +239,7 @@ private:
             version (DbValueTypeSet)
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.float64;
         }
-        else static if (is(UT == Date))
+        else static if (is(UT == DbDate))
         {
             this._value = rhs;
             version (DbValueTypeSet)
@@ -269,7 +279,7 @@ private:
         }
         else static if (is(UT == char) || is(UT == wchar) || is(UT == dchar))
         {
-            this._value = toString(rhs);
+            this._value = to!string(rhs);
             version (DbValueTypeSet)
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.chars;
         }
@@ -281,7 +291,7 @@ private:
         }
         else static if (is(T == wstring) || is(T == dstring))
         {
-            this._value = toString(rhs);
+            this._value = to!string(rhs);
             version (DbValueTypeSet)
             this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.string;
         }
@@ -352,7 +362,7 @@ private:
             static assert(0, "Not supported type: " ~ T.stringof);
     }
 
-    void doAssignVariant(Variant rhs) nothrow @safe
+    void doAssignVariant(Variant rhs) @safe
     {
         this._value = rhs;
         version (DbValueTypeSet)

@@ -16,105 +16,187 @@ import std.conv : to;
 import std.exception : assumeWontThrow;
 import std.math : abs, pow;
 import std.system : Endian;
-import std.traits: isIntegral, isUnsigned, Unqual;
+import std.traits: isIntegral, isSomeChar, isUnsigned, Unqual;
+import std.utf : isValidCodepoint;
 
 version (unittest) import pham.utl.test;
 import pham.dtm.tick : Tick;
+import pham.utl.object : limitRangeValue;
 import pham.db.type;
 
 nothrow @safe:
 
-Duration rangeDuration(Duration value,
-    const(int64) minSecond = 0, const(int64) maxSecond = int32.max) pure
+enum minTimeoutDuration = Duration.zero;
+enum maxTimeoutDuration = dur!"msecs"(int32.max);
+
+/**
+ * Checks and returns `value` within `min` and `max` inclusive
+ * Params:
+ *   value = a value to be checked
+ *   min = inclusive minimum value
+ *   max = inclusive maximum value
+ * Returns:
+ *   `min` if `value` is less than `min`
+ *   `max` if `value` is greater than `max`
+ *   otherwise `value`
+ */
+pragma(inline, true)
+Duration limitRangeTimeout(Duration value,
+    Duration min = minTimeoutDuration, Duration max = maxTimeoutDuration) @nogc pure
 {
-    const totalSeconds = value.total!"seconds"();
-    return totalSeconds >= minSecond && totalSeconds <= maxSecond
-        ? value
-        : (totalSeconds < minSecond ? dur!"seconds"(minSecond) : dur!"seconds"(maxSecond));
+    return limitRangeValue(value, min, max);
 }
 
-int64 removeUnitsFromHNSecs(string units)(const(int64) hnsecs) pure
-if (units == "weeks" || units == "days"
-    || units == "hours" || units == "minutes" || units == "seconds"
-    || units == "msecs" || units == "usecs" || units == "hnsecs")
+/**
+ * Checks and returns `value` within `min` and `max` inclusive as second unit
+ * Params:
+ *   value = a value to be checked
+ *   min = inclusive minimum value
+ *   max = inclusive maximum value
+ * Returns:
+ *   `min` if `value` is less than `min`
+ *   `max` if `value` is greater than `max`
+ *   otherwise `value`
+ */
+pragma(inline, true)
+int32 limitRangeTimeoutAsSecond(scope const(Duration) value,
+    scope const(Duration) min = minTimeoutDuration, scope const(Duration) max = maxTimeoutDuration) @nogc pure
 {
-    const value = convert!("hnsecs", units)(hnsecs);
-    return hnsecs - convert!(units, "hnsecs")(value);
+    return cast(int32)limitRangeValue(value.total!"seconds", min.total!"seconds"(), max.total!"seconds"());
 }
 
-Duration removeDatePart(scope const(Duration) value) pure
+/**
+ * Removes date part from a hecto-nanoseconds 
+ * Params:
+ *   hnsecs = a hecto-nanoseconds
+ * Returns:
+ *   a hecto-nanoseconds date part units to be removed
+ */
+int64 removeDateUnitFromHNSecs(const(int64) hnsecs) @nogc pure
 {
-    auto hnsecs = removeUnitsFromHNSecs!"days"(value.total!"hnsecs");
-    if (hnsecs < 0)
-        hnsecs += hnsecsPerDay;
-    return dur!"hnsecs"(hnsecs);
+    const hnsecsAsDays = convert!("hnsecs", "days")(hnsecs);
+    const result = hnsecs - convert!("days", "hnsecs")(hnsecsAsDays);
+    return result < 0 ? result + hnsecsPerDay : result;
 }
 
-Duration secondToDuration(scope const(char)[] validSecondStr) pure
+/**
+ * Removes time part from a hecto-nanoseconds 
+ * Params:
+ *   hnsecs = a hecto-nanoseconds
+ * Returns:
+ *   a hecto-nanoseconds time part units to be removed
+ */
+int64 removeTimeUnitFromHNSecs(const(int64) hnsecs) @nogc pure
 {
-    return dur!"seconds"(toInteger!int64(validSecondStr, -1));
+    const hnsecsAsDays = convert!("hnsecs", "days")(hnsecs);
+    return convert!("days", "hnsecs")(hnsecsAsDays);
 }
 
-D toDecimal(D)(scope const(char)[] validDecimalStr, D failedValue, D emptyValue = D.init)
+/**
+ * Safely converts a string/array of digits, `validSecondStr`, to Duration type value
+ * Params:
+ *   validSecondStr = a string/array of digits to be converted
+ *   failedValue = returns this value if `validSecondStr` is not a valid digits
+ *   emptyValue = returns this value if `validSecondStr` is empty (length = 0)
+ * Returns:
+ *   a Duration value represented by `validSecondStr`
+ */
+Duration secondDigitsToDurationSafe(scope const(char)[] validSecondStr, Duration failedValue,
+    Duration emptyValue = Duration.zero) pure
+{
+    scope (failure)
+        return failedValue;
+    return validSecondStr.length == 0 ? emptyValue : dur!"seconds"(to!int64(validSecondStr));
+}
+
+/**
+ * Safely converts a string/array of digits, `validDecimalStr`, to a Decimal type value
+ * Params:
+ *   validDecimalStr = a string/array of digits to be converted
+ *   failedValue = returns this value if `validDecimalStr` is not a valid digits
+ *   emptyValue = returns this value if `validDecimalStr` is empty (length = 0)
+ * Returns:
+ *   a Decimal value represented by `validDecimalStr`
+ */
+D toDecimalSafe(D)(scope const(char)[] validDecimalStr, D failedValue,
+    D emptyValue = D.zero)
 if (isDecimal!D)
 {
     scope (failure)
         return failedValue;
-    return validDecimalStr.length ? D(validDecimalStr) : emptyValue;
+    return validDecimalStr.length == 0 ? emptyValue : D(validDecimalStr);
 }
 
-I toInteger(I)(scope const(char)[] validIntegerStr, I failedValue, I emptyValue = 0) pure
+/**
+ * Safely converts a string/array of digits, `validIntegerStr`, to an integer type value
+ * Params:
+ *   validIntegerStr = a string/array of digits to be converted
+ *   failedValue = returns this value if `validIntegerStr` is not a valid digits
+ *   emptyValue = returns this value if `validIntegerStr` is empty (length = 0)
+ * Returns:
+ *   an integer value represented by `validIntegerStr`
+ */
+I toIntegerSafe(I)(scope const(char)[] validIntegerStr, const(I) failedValue,
+    const(I) emptyValue = 0) pure
 if (is(I == int) || is(I == uint)
     || is(I == long) || is(I == ulong)
     || is(I == short) || is(I == ushort))
 {
     scope (failure)
         return failedValue;
-    return validIntegerStr.length ? to!I(validIntegerStr) : emptyValue;
+    return validIntegerStr.length == 0 ? emptyValue : to!I(validIntegerStr);
 }
 
-int64 toRangeSecond64(scope const(Duration) value,
-    const(int64) minSecond = 0, const(int64) maxSecond = int32.max) pure
+enum failedConvertedString = "?";
+
+/**
+ * Convert a valid character, `validChar`, to string
+ * Params:
+ *   validChar = a valid character to be converted
+ *   failedValue = a returned value if `validChar` is not valid
+ * Returns:
+ *   string represents `validChar`
+ *   empty string if `validChar` is null terminated character ('\0')
+ */
+string toStringSafe(C)(C validChar, string failedValue) pure
+if (isSomeChar!C)
 {
-    const totalSeconds = value.total!"seconds"();
-    return totalSeconds >= minSecond && totalSeconds <= maxSecond
-        ? totalSeconds
-        : (totalSeconds < minSecond ? minSecond : maxSecond);
+    scope (failure) assert(0);
+        
+    return cast(int)validChar == 0 
+        ? null
+        : (isValidCodepoint!C(validChar) ? to!string(validChar) : failedValue);
 }
 
-int32 toRangeSecond32(scope const(Duration) value,
-    const(int32) minSecond = 0, const(int32) maxSecond = int32.max) pure
-{
-    const totalSeconds = value.total!"seconds"();
-    return totalSeconds >= minSecond && totalSeconds <= maxSecond
-        ? cast(int32)totalSeconds
-        : (totalSeconds < minSecond ? minSecond : maxSecond);
-}
-
-string toString(C)(C c) pure
-if (is(C == char) || is(C == wchar) || is(C == dchar))
-{
-    return assumeWontThrow(to!string(c));
-}
-
-string toString(S)(S s) pure
+/**
+ * Convert a valid wide string, `validWideString`, to string
+ * Params:
+ *   validWideString = a valid wide string to be converted
+ *   failedValue = a returned value if `validWideString` is not valid
+ * Returns:
+ *   string represents `validWideString`
+ */
+string toStringSafe(S)(S validWideString, string failedValue) pure
 if (is(S == wstring) || is(S == dstring))
 {
-    return assumeWontThrow(to!string(s));
+    scope (failure)
+        return failedValue;
+    return validWideString.length == 0 ? null : to!string(validWideString);
 }
 
-string toString(I)(I i) pure
-if (isIntegral!I)
-{
-    return to!string(i);
-}
-
+/**
+ * Convert an array of ubytes, `v`, into a native unsigned integer value for template type `EndianKind`
+ * Params:
+ *   v = an array of ubyte to be converted
+ * Returns:
+ *   native unsigned integer represented the value, `v`
+ */
 pragma(inline, true)
-T uintDecode(T, Endian EndianKind)(scope const(ubyte)[] v)
+T uintDecode(T, Endian EndianKind)(scope const(ubyte)[] v) @nogc pure
 if (isUnsigned!T && T.sizeof > 1)
 in
 {
-    assert(v.length == T.sizeof);
+    assert(v.length >= T.sizeof);
 }
 do
 {
@@ -175,8 +257,15 @@ do
     return result;
 }
 
+/**
+ * Convert a native unsigned integer value, `v`, into an array of ubytes for template type `EndianKind`
+ * Params:
+ *   v = an unsigned integer to be converted
+ * Returns:
+ *   static array of ubytes represented the value, `v`
+ */
 pragma(inline, true)
-ubyte[T.sizeof] uintEncode(T, Endian EndianKind)(T v)
+ubyte[T.sizeof] uintEncode(T, Endian EndianKind)(T v) @nogc pure
 if (isUnsigned!T && T.sizeof > 1)
 {
     ubyte[T.sizeof] result = void;
@@ -253,36 +342,128 @@ if (isUnsigned!T && T.sizeof > 1)
 // Any below codes are private
 private:
 
-unittest // toInteger
+unittest // limitRangeTimeout
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.convert.toInteger");
-
-    assert(toInteger!int("", -1) == 0);
-    assert(toInteger!int("", -1, int.max) == int.max);
-    assert(toInteger!int("1", -1) == 1);
-    assert(toInteger!int("98765432", -1) == 98_765_432);
-    assert(toInteger!int("-1", 0) == -1);
-    assert(toInteger!int("-8765324", -1) == -8_765_324);
+    traceUnitTest!("pham.db.database")("unittest pham.db.convert.limitRangeTimeout");
+    
+    assert(limitRangeTimeout(dur!"seconds"(-1)) == minTimeoutDuration);
+    assert(limitRangeTimeout(dur!"seconds"(1)) == dur!"seconds"(1));
+    assert(limitRangeTimeout(Duration.max) == maxTimeoutDuration);
 }
 
-unittest // toString
+unittest // limitRangeTimeoutAsSecond
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.convert.toString");
-
-    assert(toString('a') == "a");
-    assert(toString(wchar('b')) == "b");
-    assert(toString(dchar('c')) == "c");
-
-    assert(toString("b"w) == "b");
-    assert(toString("c"d) == "c");
+    traceUnitTest!("pham.db.database")("unittest pham.db.convert.limitRangeTimeoutAsSecond");
+    
+    assert(limitRangeTimeoutAsSecond(dur!"seconds"(-1)) == minTimeoutDuration.total!"seconds"());
+    assert(limitRangeTimeoutAsSecond(dur!"seconds"(1)) == 1);
+    assert(limitRangeTimeoutAsSecond(Duration.max) == maxTimeoutDuration.total!"seconds"());
 }
 
-unittest // uintEncode & uintDecode
+unittest // removeDateUnitFromHNSecs
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.convert.uintEncode & uintDecode");
+    traceUnitTest!("pham.db.database")("unittest pham.db.convert.removeDateUnitFromHNSecs");
+
+    const t = dur!"hours"(1) + dur!"minutes"(59);
+    const h = dur!"days"(1_000) + t;
+    assert(removeDateUnitFromHNSecs(h.total!"hnsecs"()) == t.total!"hnsecs"());
+}
+
+unittest // removeTimeUnitFromHNSecs
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.database")("unittest pham.db.convert.removeTimeUnitFromHNSecs");
+
+    const d = dur!"days"(1_000);
+    const h = d + dur!"hours"(1) + dur!"minutes"(59);
+    assert(removeTimeUnitFromHNSecs(h.total!"hnsecs"()) == d.total!"hnsecs"());
+}
+
+unittest // secondDigitsToDurationSafe
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.database")("unittest pham.db.convert.secondDigitsToDurationSafe");
+    
+    assert(secondDigitsToDurationSafe("123", Duration.zero) == dur!"seconds"(123));
+    assert(secondDigitsToDurationSafe("abc", Duration.zero) == Duration.zero);
+    assert(secondDigitsToDurationSafe("", Duration.max) == Duration.zero);
+}
+
+unittest // toDecimalSafe
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.database")("unittest pham.db.convert.toDecimalSafe");
+
+    assert(toDecimalSafe!Decimal64("", Decimal64(-1)) == Decimal64(0));
+    assert(toDecimalSafe!Decimal64("", Decimal64(-1), Decimal64.max) == Decimal64.max);
+    assert(toDecimalSafe!Decimal64("98765432", Decimal64(-1)) == Decimal64(98_765_432));
+    assert(toDecimalSafe!Decimal64("-1", Decimal64(0)) == -1);
+    assert(toDecimalSafe!Decimal64("-8765324", Decimal64(-1)) == Decimal64(-8_765_324));
+}
+
+unittest // toIntegerSafe
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.database")("unittest pham.db.convert.toIntegerSafe");
+
+    assert(toIntegerSafe!int("", -1) == 0);
+    assert(toIntegerSafe!int("", -1, int.max) == int.max);
+    assert(toIntegerSafe!int("1", -1) == 1);
+    assert(toIntegerSafe!int("98765432", -1) == 98_765_432);
+    assert(toIntegerSafe!int("-1", 0) == -1);
+    assert(toIntegerSafe!int("-8765324", -1) == -8_765_324);
+}
+
+unittest // toStringSafe
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.database")("unittest pham.db.convert.toStringSafe");
+
+    static int invalidUTF8()
+    {
+        return 0xFF;
+    }
+
+    static int invalidUTF16()
+    {
+        return 0xDFFF;
+    }
+
+    static int invalidUTF32()
+    {
+        return 0xFFFFFF;
+    }
+    
+    assert(toStringSafe(char('\0'), failedConvertedString) is null);
+    assert(toStringSafe(wchar('\0'), failedConvertedString) is null);
+    assert(toStringSafe(dchar('\0'), failedConvertedString) is null);
+    assert(toStringSafe(cast(char)invalidUTF8(), failedConvertedString) == failedConvertedString);
+    assert(toStringSafe(cast(wchar)invalidUTF16(), failedConvertedString) == failedConvertedString);
+    assert(toStringSafe(cast(dchar)invalidUTF32(), failedConvertedString) == failedConvertedString);
+    assert(toStringSafe(char('a'), null) == "a");
+    assert(toStringSafe(wchar('b'), null) == "b");
+    assert(toStringSafe(dchar('c'), null) == "c");
+}
+
+unittest // toStringSafe
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.database")("unittest pham.db.convert.toStringSafe");
+
+    // Need a way to test failure state. D not allow to have invalid string literal
+    //assert(toStringSafe("b\uFFFF\uFFFF"w, failedConvertedString) == failedConvertedString);
+    //assert(toStringSafe("c\uFFFF\uFFFF"d, failedConvertedString) == failedConvertedString);
+    assert(toStringSafe("b"w, null) == "b");
+    assert(toStringSafe("c"d, null) == "c");
+}
+
+unittest // uintDecode & uintEncode
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.database")("unittest pham.db.convert.uintDecode & uintEncode");
 
     // 16 bits
     auto b16 = uintEncode!(ushort, Endian.littleEndian)(ushort.min);

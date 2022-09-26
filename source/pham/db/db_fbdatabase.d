@@ -1657,7 +1657,7 @@ public:
 
     @property final uint32 cachePages() nothrow @safe
     {
-        return toInteger!uint32(getString(DbConnectionParameterIdentifier.fbCachePage), uint16.max);
+        return toIntegerSafe!uint32(getString(DbConnectionParameterIdentifier.fbCachePage), uint16.max);
     }
 
     @property final bool databaseTrigger() nothrow @safe
@@ -1667,12 +1667,12 @@ public:
 
     @property final int16 dialect() nothrow @safe
     {
-        return toInteger!int16(getString(DbConnectionParameterIdentifier.fbDialect), FbIsc.defaultDialect);
+        return toIntegerSafe!int16(getString(DbConnectionParameterIdentifier.fbDialect), FbIsc.defaultDialect);
     }
 
     @property final Duration dummyPackageInterval() nothrow @safe
     {
-        return secondToDuration(getString(DbConnectionParameterIdentifier.fbDummyPacketInterval));
+        return secondDigitsToDurationSafe(getString(DbConnectionParameterIdentifier.fbDummyPacketInterval), Duration.zero);
     }
 
     @property final bool garbageCollect() nothrow @safe
