@@ -12,7 +12,8 @@
 module pham.xml.dom;
 
 import std.array : Appender, split;
-import std.typecons : Flag, No, Yes;
+import std.typecons : Flag;
+public import std.typecons : No, Yes;
 
 import pham.utl.dlink_list;
 import pham.utl.enum_set : EnumSet;
@@ -1392,36 +1393,44 @@ private:
     XmlNode!S _prev;
 }
 
-/** A struct type for holding various xml node objects
-    It implements range base api
-*/
+/** 
+ * A struct type for holding various xml node objects
+ * It implements range base api
+ */
 struct XmlNodeList(S = string)
 if (isXmlString!S)
 {
 @safe:
 
 public:
+    alias This = typeof(this);
     alias XmlNodeListFilterEvent = bool delegate(Object context, XmlNode!S node);
 
 public:
     this(this) nothrow
     {
-        version (xmlTraceParser)
-        outputXmlTraceParser("XmlNodeList.this(this)");
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.this(this)");
 
         if (_listType == XmlNodeListType.childNodesDeep)
             _walkNodes = _walkNodes.dup;
     }
 
     /**
-     * Create a XmlNodeList with listType = XmlNodeListType.flat
+     * Create a XmlNodeList with listType is XmlNodeListType.flat
      */
     this(Object context) nothrow
     {
-        this._context = context;
+        this._orgParent = null;
         this._listType = XmlNodeListType.flat;
+        this._onFilter = null;
+        this._context = context;
+        
+        reset2();
     }
 
+    /**
+     * Create a XmlNodeList with listType is not XmlNodeListType.flat
+     */
     this(XmlNode!S parent, XmlNodeListType listType, XmlNodeListFilterEvent onFilter, Object context)
     in
     {
@@ -1429,8 +1438,7 @@ public:
     }
     do
     {
-        version (xmlTraceParser)
-        outputXmlTraceParser("XmlNodeList.this(...)");
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.this(...)");
 
         if (listType == XmlNodeListType.flat)
             throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, "XmlNodeList", "this(listType = XmlNodeListType.flat)");
@@ -1446,25 +1454,29 @@ public:
         reset();
     }
 
-    /** Returns the last item in the list
-        Returns:
-            xml node object
-    */
+    /** 
+     * Returns the last item in the list
+     * Returns:
+     *   xml node object
+     */
     XmlNode!S back()
+    in
     {
-        if (_listType == XmlNodeListType.flat)
-            return _flatList[$ - 1];
-        else
-            return item(length() - 1);
+        assert(!empty);
+    }
+    do
+    {
+        return item(length() - 1);
     }
 
-    /** Insert xml node, node, to the end
-        Valid only if list-type is XmlNodeListType.flat
-        Params:
-            node = a xml node to be inserted
-        Returns:
-            node
-    */
+    /** 
+     * Insert a xml node, node, to the end
+     * Valid only if listType is XmlNodeListType.flat
+     * Params:
+     *   node = a xml node to be inserted
+     * Returns:
+     *   node if allowed, otherwise null
+     */
     XmlNode!S insertBack(XmlNode!S node) nothrow
     in
     {
@@ -1472,126 +1484,112 @@ public:
     }
     do
     {
-        _flatList ~= node;
-        return node;
-    }
-
-    /** Returns the item in the list at index, index
-        Params:
-            index = where a xml node to be returned
-        Returns:
-            xml node object
-    */
-    XmlNode!S item(size_t index)
-    {
-        version (xmlTraceParser)
-        outputXmlTraceParser("XmlNodeList.item()");
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.insertBack()");
 
         if (_listType == XmlNodeListType.flat)
         {
-            const i = index + _currentIndex;
-            return (i < _flatList.length) ? _flatList[i] : null;
+            _flatList ~= node;
+            return node;
         }
-        else
-        {
-            debug (PhamXml) checkVersionChanged();
-
-            if (empty)
-                return null;
-
-            if (_listType == XmlNodeListType.childNodesDeep)
-                return getItemDeep(index);
-            else
-                return getItemSibling(index);
-        }
+        
+        return null;
     }
 
-    /** Returns the count of xml nodes
-        It can be expensive operation if listType != XmlNodeListType.flat
-        Returns:
-            count of xml nodes
-    */
+    /** 
+     * Returns the item in the list at index, index
+     * Params:
+     *   index = where a xml node to be returned
+     * Returns:
+     *   xml node object at index if existed, otherwise null
+     */
+    XmlNode!S item(size_t index)
+    {
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.item()");
+
+        return empty ? null : _doGetItem(this, index);
+    }
+
+    /** 
+     * Returns the count of xml nodes
+     * It can be expensive operation if listType != XmlNodeListType.flat
+     * Returns:
+     *   count of xml nodes
+     */
     size_t length()
     {
-        version (xmlTraceParser)
-        outputXmlTraceParser("XmlNodeList.length()");
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.length()");
 
         if (empty)
             return 0;
 
         if (_listType == XmlNodeListType.flat)
-            return _flatList.length - _currentIndex;
-        else
+            return _flatList.length - _currentOffset;
+
+        debug (PhamXml) checkVersionChanged();
+
+        if (_length == unknownLength)
         {
-            debug (PhamXml) checkVersionChanged();
+            auto restore = this;
 
-            if (_length == size_t.max)
+            size_t tempLength = 0;
+            while (_current !is null)
             {
-                size_t tempLength = 0;
-                auto restore = this;
-
-                while (_current !is null)
-                {
-                    ++tempLength;
-                    popFront();
-                }
-
-                this = restore;
-                _length = tempLength;
+                tempLength++;
+                popFront();
             }
 
-            return _length;
+            this = restore;
+            _length = tempLength;
         }
+
+        return _length;
     }
 
-    /** A range based operation by moving current position to the next item
-        and returns the current node object
-        Returns:
-            Current xml node object before the call
-    */
+    /** 
+     * A range based operation by moving current position to the next item
+     * and returns the current node object
+     * Returns:
+     *   Current xml node object before the call
+     */
     XmlNode!S moveFront()
+    in
+    {
+        assert(!empty);
+    }
+    do
     {
         auto f = front;
         popFront();
         return f;
     }
 
-    /** A range based operation by moving current position to the next item
-    */
+    /** 
+     * A range based operation by moving current position to the next item
+     */
     void popFront()
+    in
     {
-        version (xmlTraceParser)
-        outputXmlTraceParser("XmlNodeList.popFront()");
+        assert(!empty);
+    }
+    do
+    {
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.popFront()");
 
-        if (_listType == XmlNodeListType.flat)
-            ++_currentIndex;
-        else
-        {
-            debug (PhamXml) checkVersionChanged();
-
-            if (_listType == XmlNodeListType.childNodesDeep)
-                popFrontDeep();
-            else
-                popFrontSibling();
-            _length = size_t.max;
-        }
+        _doPopFront(this);
     }
 
-    /** Returns the index of node in this node-list
-        if node is not in the list, returns -1
-        Based 1 value
-
-        Params:
-            node = a xml node to be calculated
-
-        Returns:
-            A index in the list if found
-            otherwise -1
-    */
+    /** 
+     * Returns the index of node in this node-list
+     * if node is not in the list, returns -1
+     * Based 1 value
+     * Params:
+     *   node = a xml node to be calculated
+     * Returns:
+     *   A index of node in the list if found, otherwise -1
+     */
     ptrdiff_t indexOf(XmlNode!S node)
     {
-        const lLength = length;
-        for (ptrdiff_t i = 0; i < lLength; ++i)
+        foreach (i; 0..length())
         {
             if (node is item(i))
                 return i;
@@ -1622,41 +1620,22 @@ public:
 
     void reset()
     {
-        version (xmlTraceParser)
-        outputXmlTraceParser("XmlNodeList.reset()");
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.reset()");
 
-        if (_listType == XmlNodeListType.flat)
-            _currentIndex = 0;
-        else
+        reset2();
+
+        debug (PhamXml)
         {
-            _parent = _orgParent;
-            final switch (_listType)
-            {
-                case XmlNodeListType.attributes:
-                    _current = _parent.firstAttribute;
-                    break;
-                case XmlNodeListType.childNodes:
-                case XmlNodeListType.childNodesDeep:
-                    _current = _parent.firstChild;
-                    break;
-                case XmlNodeListType.flat:
-                    assert(0);
-            }
-
-            debug (PhamXml)
-            {
-                if (_listType == XmlNodeListType.Attributes)
-                    _parentVersion = getVersionAttrb();
-                else
-                    _parentVersion = getVersionChild();
-            }
-
-            if (_onFilter !is null)
-                checkFilter(&popFront);
-
-            _emptyList = _current is null;
-            _length = empty ? 0 : size_t.max;
+            if (_listType == XmlNodeListType.Attributes)
+                _parentVersion = getVersionAttrb();
+            else
+                _parentVersion = getVersionChild();
         }
+
+        if (canDoFilter())
+            checkFilter(&popFront);
+
+        _length = _current is null ? 0 : unknownLength;
     }
 
     typeof(this) save()
@@ -1669,24 +1648,34 @@ public:
         return _context;
     }
 
+    pragma(inline, true)
     @property bool empty() const nothrow pure
     {
-        if (_listType == XmlNodeListType.flat)
-            return _currentIndex >= _flatList.length;
-        else
-            return _emptyList || _current is null;
+        return _listType == XmlNodeListType.flat
+            ? _currentOffset >= _flatList.length
+            : _current is null;
     }
 
+    pragma(inline, true)
     @property XmlNode!S front() nothrow pure
+    in
     {
-        return (_listType == XmlNodeListType.flat) ? _flatList[_currentIndex] : _current;
+        assert(!empty);
+    }
+    do
+    {
+        return _listType == XmlNodeListType.flat
+            ? _flatList[_currentOffset]
+            : _current;
     }
 
+    pragma(inline, true)
     @property XmlNodeListType listType() const nothrow pure
     {
         return _listType;
     }
 
+    pragma(inline, true)
     @property XmlNode!S parent() nothrow pure
     {
         return _orgParent;
@@ -1700,149 +1689,234 @@ private:
     }
     do
     {
-        version (xmlTraceParser)
-        outputXmlTraceParser("XmlNodeList.checkFilter()");
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.checkFilter()");
 
-        ++_inFilter;
+        _inFilter++;
         scope (exit)
-            --_inFilter;
+            _inFilter--;
 
         while (_current !is null && !_onFilter(_context, _current))
             advance();
     }
 
-    void popFrontSibling()
+    static void checkFilter(ref This list, void function(ref This) @safe advance)
     in
     {
-        assert(_listType != XmlNodeListType.flat);
-        assert(_current !is null);
+        assert(list._listType != XmlNodeListType.flat);
     }
     do
     {
-        version (xmlTraceParser)
-        outputXmlTraceParser("XmlNodeList.popFrontSibling()");
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.checkFilter()");
 
-        _current = _current.nextSibling;
+        list._inFilter++;
+        scope (exit)
+            list._inFilter--;
 
-        if (_inFilter == 0 && _onFilter !is null)
-            checkFilter(&popFrontSibling);
+        while (list._current !is null && !list._onFilter(list._context, list._current))
+            advance(list);
     }
 
-    void popFrontDeep()
+    pragma(inline, true)
+    bool canDoFilter() const nothrow pure
+    {
+        return _current !is null && _inFilter == 0 && _onFilter !is null;
+    }
+    
+    static XmlNode!S getItemDeep(ref This list, size_t index)
     in
     {
-        assert(_listType != XmlNodeListType.flat);
-        assert(_current !is null);
+        assert(list._listType == XmlNodeListType.childNodesDeep);
     }
     do
     {
-        version (xmlTraceParser)
-        outputXmlTraceParserF("XmlNodeList.popFrontDeep(current(%s.%s))", _parent.name, _current.name);
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getItemDeep()");
+        debug (PhamXml) list.checkVersionChanged();
 
-        if (_current.hasChildNodes)
+        if (index == 0 || list._current is null)
+            return list._current;
+
+        auto restore = list;
+
+        while (index != 0 && list._current !is null)
         {
-            if (_current.nextSibling !is null)
-            {
-                version (xmlTraceParser)
-                outputXmlTraceParserF("XmlNodeList.popFrontDeep(push(%s.%s))", _parent.name, _current.nextSibling.name);
+            popFrontDeep(list);
+            index--;
+        }
 
-                _walkNodes ~= WalkNode(_parent, _current.nextSibling);
+        auto result = list._current;
+        list = restore;
+
+        return index == 0 ? result : null;
+    }
+
+    static XmlNode!S getItemFlat(ref This list, size_t index)
+    in
+    {
+        assert(list._listType == XmlNodeListType.flat);
+    }
+    do
+    {
+        const i = index + list._currentOffset;
+        return i < list._flatList.length ? list._flatList[i] : null;
+    }
+
+    static XmlNode!S getItemSibling(ref This list, size_t index)
+    in
+    {
+        assert(list._listType != XmlNodeListType.flat && list._listType != XmlNodeListType.childNodesDeep);
+    }
+    do
+    {
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getItemSibling()");
+        debug (PhamXml) list.checkVersionChanged();
+
+        if (index == 0 || list._current is null)
+            return list._current;
+
+        auto restore = list;
+
+        while (index != 0 && list._current !is null)
+        {
+            popFrontSibling(list);
+            index--;
+        }
+
+        auto result = list._current;
+        list = restore;
+
+        return index == 0 ? result : null;
+    }
+    
+    static void popFrontDeep(ref This list)
+    in
+    {
+        assert(list._listType == XmlNodeListType.childNodesDeep);
+        assert(list._current !is null);
+    }
+    do
+    {
+        version (xmlTraceParser) outputXmlTraceParserF("XmlNodeList.popFrontDeep(current(%s.%s))", list._parent.name, list._current.name);
+        debug (PhamXml) list.checkVersionChanged();
+        
+        popFrontDeepImpl(list);
+
+        if (list.canDoFilter())
+            checkFilter(list, &popFrontDeepImpl);
+            
+        list._length = list._current is null ? 0 : unknownLength;
+    }
+    
+    static void popFrontDeepImpl(ref This list)
+    in
+    {
+        assert(list._listType == XmlNodeListType.childNodesDeep);
+        assert(list._current !is null);
+    }
+    do
+    {
+        version (xmlTraceParser) outputXmlTraceParserF("XmlNodeList.popFrontDeepImpl(current(%s.%s))", list._parent.name, list._current.name);
+        debug (PhamXml) list.checkVersionChanged();
+
+        if (list._current.hasChildNodes)
+        {
+            if (list._current.nextSibling !is null)
+            {
+                version (xmlTraceParser) outputXmlTraceParserF("XmlNodeList.popFrontDeep(push(%s.%s))", list._parent.name, list._current.nextSibling.name);
+
+                list._walkNodes ~= WalkNode(list._parent, list._current.nextSibling);
             }
 
-            _parent = _current;
-            _current = _current.firstChild;
-            debug (PhamXml) _parentVersion = getVersionChild();
+            list._parent = list._current;
+            list._current = list._current.firstChild;
+            debug (PhamXml) list._parentVersion = list.getVersionChild();
         }
         else
         {
-            _current = _current.nextSibling;
-            while (_current is null && _walkNodes.length != 0)
+            list._current = list._current.nextSibling;
+            while (list._current is null && list._walkNodes.length != 0)
             {
-                const index = _walkNodes.length - 1;
-                _parent = _walkNodes[index].parent;
-                _current = _walkNodes[index].next;
-                debug (PhamXml) _parentVersion = _walkNodes[index].parentVersion;
-
-                _walkNodes.length = index;
+                const lastIndex = list._walkNodes.length - 1;
+                list._parent = list._walkNodes[lastIndex].parent;
+                list._current = list._walkNodes[lastIndex].next;
+                debug (PhamXml) list._parentVersion = list._walkNodes[lastIndex].parentVersion;
+                list._walkNodes.length = lastIndex;
             }
         }
-
-        if (_inFilter == 0 && _onFilter !is null)
-            checkFilter(&popFrontDeep);
     }
 
-    XmlNode!S getItemSibling(size_t index)
+    static void popFrontFlat(ref This list)
     in
     {
-        assert(_listType != XmlNodeListType.flat);
+        assert(list._listType == XmlNodeListType.flat);
     }
     do
     {
-        version (xmlTraceParser)
-        outputXmlTraceParser("XmlNodeList.getItem()");
+        list._currentOffset++;           
+    }
+    
+    static void popFrontSibling(ref This list)
+    in
+    {
+        assert(list._listType != XmlNodeListType.flat && list._listType != XmlNodeListType.childNodesDeep);
+        assert(list._current !is null);
+    }
+    do
+    {
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.popFrontSibling()");
+        debug (PhamXml) list.checkVersionChanged();
 
-        if (_current is null || index == 0)
-            return _current;
+        popFrontSiblingImpl(list);
+        
+        if (list.canDoFilter())
+            checkFilter(list, &popFrontSiblingImpl);
+            
+        list._length = list._current is null ? 0 : unknownLength;
+    }
+    
+    static void popFrontSiblingImpl(ref This list)
+    in
+    {
+        assert(list._listType != XmlNodeListType.flat && list._listType != XmlNodeListType.childNodesDeep);
+        assert(list._current !is null);
+    }
+    do
+    {
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.popFrontSiblingImpl()");
+        debug (PhamXml) list.checkVersionChanged();
 
-        auto restore = this;
+        list._current = list._current.nextSibling;        
+    }
 
-        while (index != 0 && _current !is null)
+    void reset2() nothrow
+    {
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.reset2()");
+
+        _parent = _orgParent;
+        final switch (_listType)
         {
-            popFrontSibling();
-            --index;
+            case XmlNodeListType.attributes:
+                _current = _parent.firstAttribute;
+                _doGetItem = &getItemSibling;
+                _doPopFront = &popFrontSibling;
+                break;
+            case XmlNodeListType.childNodes:
+                _current = _parent.firstChild;
+                _doGetItem = &getItemSibling;
+                _doPopFront = &popFrontSibling;
+                break;            
+            case XmlNodeListType.childNodesDeep:
+                _current = _parent.firstChild;
+                _doGetItem = &getItemDeep;
+                _doPopFront = &popFrontDeep;
+                break;
+            case XmlNodeListType.flat:
+                _currentOffset = 0;
+                _doGetItem = &getItemFlat;
+                _doPopFront = &popFrontFlat;
+                break;
         }
-
-        auto result = _current;
-        this = restore;
-
-        return (index == 0) ? result : null;
     }
-
-    XmlNode!S getItemDeep(size_t index)
-    in
-    {
-        assert(_listType != XmlNodeListType.flat);
-    }
-    do
-    {
-        version (xmlTraceParser)
-        outputXmlTraceParser("XmlNodeList.getItemDeep()");
-
-        if (_current is null || index == 0)
-            return _current;
-
-        auto restore = this;
-
-        while (index != 0 && _current !is null)
-        {
-            popFrontDeep();
-            --index;
-        }
-
-        auto result = _current;
-        this = restore;
-
-        return (index == 0) ? result : null;
-    }
-
-    version (none)
-    void moveBackSibling()
-    in
-    {
-        assert(_listType != XmlNodeListType.flat);
-        assert(_current !is null);
-    }
-    do
-    {
-        version (xmlTraceParser)
-        outputXmlTraceParser("XmlNodeList.moveBackSibling()");
-
-        _current = _current.previousSibling;
-
-        if (_inFilter == 0 && _onFilter !is null)
-            checkFilter(&moveBackSibling);
-    }
-
+    
     debug (PhamXml)
     {
         pragma (inline, true)
@@ -1893,17 +1967,20 @@ private:
         }
     }
 
+    enum unknownLength = size_t.max;
+    
+    XmlNode!S function(ref This, size_t) @safe _doGetItem;
+    void function(ref This) @safe _doPopFront;
     Object _context;
     XmlNode!S _orgParent, _parent, _current;
     XmlNode!S[] _flatList;
     WalkNode[] _walkNodes;
     XmlNodeListFilterEvent _onFilter;
-    size_t _currentIndex;
-    size_t _length = size_t.max;
+    size_t _currentOffset;
+    size_t _length = unknownLength;
     debug (PhamXml) size_t _parentVersion;
     int _inFilter;
     XmlNodeListType _listType;
-    bool _emptyList;
 }
 
 /** A xml attribute node object
@@ -4095,6 +4172,7 @@ unittest  // Display object sizeof
 
 unittest  // XmlDocument
 {
+    import std.conv : to;
     import pham.utl.test;
     dgWriteln("unittest xml.XmlDocument");
 
@@ -4124,7 +4202,7 @@ unittest  // XmlDocument
     root.appendChild(doc.createCData("data &<>"));
 
     static immutable string res =
-    "<?xml version=\"1.2\" encoding=\"utf8\" standalone=\"true\"?>" ~
+    "<?xml version=\"1.2\" encoding=\"utf8\" standalone=\"yes\"?>" ~
     "<root>" ~
         "<prefix_e:localname a0=\"\"/>" ~
         "<a1 a1=\"value\"/>" ~
@@ -4141,25 +4219,25 @@ unittest  // XmlDocument
         "<![CDATA[data &<>]]>" ~
     "</root>";
 
-    dgWriteln("unittest XmlDocument - outerXml()");
-    assert(doc.outerXml() == res, doc.outerXml());
+    string dgOutputFailure()
+    {
+        return "\n" ~ to!string(doc.outerXml()) ~ "\n" ~ res;
+    }
+    
+    assert(doc.outerXml() == res, dgOutputFailure());
 
-    dgWriteln("unittest XmlDocument - load()");
     doc = XmlDocument!string(res);
-
-    dgWriteln("unittest XmlDocument - load()+outerXml()");
-    assert(doc.outerXml() == res, doc.outerXml());
-
     assert(doc.documentElement !is null);
+    assert(doc.outerXml() == res, dgOutputFailure());
 
     XmlElement!string e = doc.findElementById("123");
     assert(e);
     assert(e.name == "a4");
-    assert(e.getAttribute("id") == "123");
+    assert(e.getAttribute("id") == "123", e.getAttribute("id"));
 
     e = doc.documentElement.findElement("t");
     assert(e !is null);
-    assert(e.innerText == "text");
+    assert(e.innerText == "text", e.innerText);
 
     e = doc.documentElement.findElement("xyz", Yes.deep);
     assert(e is null);

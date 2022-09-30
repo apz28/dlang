@@ -14,7 +14,8 @@ module pham.xml.parser;
 import std.conv : to;
 import std.range.primitives : back, empty, front, popFront, popBack;
 import std.string : indexOf;
-import std.typecons : Flag, No, Yes;
+import std.typecons : Flag;
+public import std.typecons : No, Yes;
 
 import pham.xml.buffer;
 import pham.xml.dom;
