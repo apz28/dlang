@@ -138,33 +138,51 @@ class XmlNodeFilterContext(S = string) : XmlObject!S
 {
 nothrow @safe:
 
-public:
-    @disable this();
-
-    this(XmlDocument!S document, const(C)[] name) pure
+public:    
+    enum WildMatch : ubyte
     {
+        name,
+        localName,
+        namespaceUri,
+    }
+    
+    static immutable S wildMatchText = "*";
+
+public:
+    this(XmlDocument!S document, XmlNodeType nodeType, const(C)[] name, Object context) pure
+    {
+        this._nodeType = nodeType;
         this._name = name;
+        this._localName = null;
+        this._namespaceUri = null;
+        this.context = context;
         this.equalName = document.equalName;
+        this._wildMatches.set(WildMatch.name, name == wildMatchText);
     }
 
-    this(XmlDocument!S document, const(C)[] localName, const(C)[] namespaceUri) pure
+    this(XmlDocument!S document, XmlNodeType nodeType, const(C)[] localName, const(C)[] namespaceUri, Object context) pure
     {
+        this._nodeType = nodeType;
+        this._name = null;
         this._localName = localName;
         this._namespaceUri = namespaceUri;
+        this.context = context;
         this.equalName = document.equalName;
+        this._wildMatches.set(WildMatch.localName, localName == wildMatchText);
+        this._wildMatches.set(WildMatch.namespaceUri, namespaceUri == wildMatchText);
     }
 
-    final bool matchElementByName(Object context, XmlNode!S node) const
+    final bool matchByLocalNameUri(Object context, XmlNode!S node) const
     {
-        return (node.nodeType == XmlNodeType.element) &&
-            ((name == "*") || equalName(name, node.name));
+        return (_nodeType == node.nodeType) &&
+            (_wildMatches.on(WildMatch.localName) || equalName(_localName, node.localName)) &&
+            (_wildMatches.on(WildMatch.namespaceUri) || equalName(_namespaceUri, node.namespaceUri));
     }
 
-    final bool matchElementByLocalNameUri(Object context, XmlNode!S node) const
+    final bool matchByName(Object context, XmlNode!S node) const
     {
-        return (node.nodeType == XmlNodeType.element) &&
-            ((localName == "*") || equalName(localName, node.localName)) &&
-            ((namespaceUri == "*") || equalName(namespaceUri, node.namespaceUri));
+        return (_nodeType == node.nodeType) &&
+            (_wildMatches.on(WildMatch.name) || equalName(_name, node.name));
     }
 
     @property final const(C)[] localName() const pure
@@ -182,13 +200,26 @@ public:
         return _namespaceUri;
     }
 
+    @property final XmlNodeType nodeType() const pure
+    {
+        return _nodeType;
+    }
+
+    @property final EnumSet!WildMatch wildMatches() const pure
+    {
+        return _wildMatches;
+    }
+
 public:
+    Object context;
     XmlDocument!S.EqualName equalName;
 
 protected:
     const(C)[] _localName;
     const(C)[] _name;
     const(C)[] _namespaceUri;
+    EnumSet!WildMatch _wildMatches; 
+    XmlNodeType _nodeType;
 }
 
 /** A root xml node for all xml node objects
@@ -198,42 +229,36 @@ abstract class XmlNode(S = string) : XmlObject!S
 @safe:
 
 public:
-    /** Returns attribute list of this node
-        If node does not have any attribute or not applicable, returns an empty list
-        Returns:
-            Its' attribute list
-    */
-    final XmlNodeList!S getAttributes()
-    {
-        return getAttributes(null);
-    }
-
-    /** Returns attribute list of this node
-        If node does not have any attribute or not applicable, returns an empty list
-        Returns:
-            Its' attribute list
-    */
+    /** 
+     * Returns attributes of this node
+     * If node does not have any attributes, returns an empty node list
+     * Params:
+     *   context = caller context info; can be null
+     * Returns:
+     *   XmlNodeList with all its attributes
+     */
     final XmlNodeList!S getAttributes(Object context)
     {
         return XmlNodeList!S(this, XmlNodeListType.attributes, null, context);
     }
 
-    /** Returns child node list of this node
-        If node does not have any child or not applicable, returns an empty node list
-        Returns:
-            Its' child node list
-    */
-    final XmlNodeList!S getChildNodes()
+    /** 
+     * Same as getAttributes with parameter context=null
+     */
+    final XmlNodeList!S getAttributes()
     {
-        return getChildNodes(null, No.deep);
+        return getAttributes(null);
     }
 
-    /** Returns child node list of this node
-        If node does not have any child or not applicable, returns an empty node list
-        If deep is true, it will return all sub-children
-        Returns:
-            Its' child node list
-    */
+    /** 
+     * Returns child-nodes/subchild-nodes of this node
+     * If node does not have any child-nodes, returns an empty node list
+     * Params:
+     *   context = caller context info; can be null
+     *   deep = if true, it will also return all subchild-nodes
+     * Returns:
+     *   XmlNodeList with all its child-nodes and all subchild-nodes if requested
+     */
     final XmlNodeList!S getChildNodes(Object context,
         Flag!"deep" deep = No.deep)
     {
@@ -243,62 +268,72 @@ public:
             return XmlNodeList!S(this, XmlNodeListType.childNodes, null, context);
     }
 
-    /** Returns element node list of this node
-        If node does not have any element node or not applicable, returns an empty node list
-        Returns:
-            Its' element node list
-    */
+    /** 
+     * Same as getChildNodes with parameters context=null and deep=No
+     */
+    final XmlNodeList!S getChildNodes()
+    {
+        return getChildNodes(null, No.deep);
+    }
+
+    /** 
+     * Returns child-elements/subchild-elements of this node
+     * If node does not have any child-elements, returns an empty node list
+     * Params:
+     *   context = caller context info; can be null
+     *   deep = if true, it will also return all subchild-elements
+     * Returns:
+     *   XmlNodeList with all its child-elements and all subchild-elements if requested
+     */
+    final XmlNodeList!S getElements(Object context,
+        Flag!"deep" deep = No.deep)
+    {
+        return getElementsByTagName(XmlNodeFilterContext!S.wildMatchText, context, deep);
+    }
+
+    /** 
+     * Same as getElements with parameters context=null and deep=No
+     */
     final XmlNodeList!S getElements()
     {
         return getElements(null, No.deep);
     }
 
-    /** Returns element node list of this node
-        If node does not have any element node or not applicable, returns an empty node list
-        If deep is true, it will return all sub-elements
-        Returns:
-            Its' element node list
-    */
-    final XmlNodeList!S getElements(Object context,
-        Flag!"deep" deep = No.deep)
+    /** 
+     * Same as getElements except that the elements must be matched with filtered parameter name
+     * Params:
+     *   name = a name to be filtered
+     *   context = caller context info; can be null
+     *   deep = if true, it will also include all subchild-elements
+     */
+    final XmlNodeList!S getElementsByTagName(const(C)[] name,
+        Object context = null,
+        Flag!"deep" deep = Yes.deep)
     {
+        auto filterContext = new XmlNodeFilterContext!S(document, XmlNodeType.element, name, context);
         if (deep)
-            return XmlNodeList!S(this, XmlNodeListType.childNodesDeep, &matchElement, context);
+            return XmlNodeList!S(this, XmlNodeListType.childNodesDeep, &filterContext.matchByName, filterContext);
         else
-            return XmlNodeList!S(this, XmlNodeListType.childNodes, &matchElement, context);
+            return XmlNodeList!S(this, XmlNodeListType.childNodes, &filterContext.matchByName, filterContext);
     }
 
-    /** Returns element node list of this node that matches the passing parameter name
-        If node does not have any matched element node or not applicable, returns an empty list
-        If name is "*", it will return all sub-elements
-        Params:
-            name = a name to be checked
-        Returns:
-            Its' element node list
-    */
-    final XmlNodeList!S getElementsByTagName(const(C)[] name)
+    /** 
+     * Same as getElements except that the elements must be matched with filtered parameters localName and namespaceUri
+     * Params:
+     *   localName = a localName to be filtered
+     *   namespaceUri = a namespaceUri to be filtered
+     *   context = caller context info; can be null
+     *   deep = if true, it will also include all subchild-elements
+     */
+    final XmlNodeList!S getElementsByTagName(const(C)[] localName, const(C)[] namespaceUri,
+        Object context = null,
+        Flag!"deep" deep = Yes.deep)
     {
-        if (name == "*")
-            return getElements(null, Yes.deep);
+        auto filterContext = new XmlNodeFilterContext!S(document, XmlNodeType.element, localName, namespaceUri, context);
+        if (deep)        
+            return XmlNodeList!S(this, XmlNodeListType.childNodesDeep, &filterContext.matchByLocalNameUri, filterContext);
         else
-        {
-            auto filterContext = new XmlNodeFilterContext!S(document, name);
-            return XmlNodeList!S(this, XmlNodeListType.childNodesDeep, &filterContext.matchElementByName, filterContext);
-        }
-    }
-
-    /** Returns element node list of this node that matches the passing parameter localName and namespaceUri
-        If node does not have any matched element node or not applicable, returns an empty list
-        Params:
-            localName = a localName to be checked
-            namespaceUri = a namespaceUri to be checked
-        Returns:
-            Its' element node list
-    */
-    final XmlNodeList!S getElementsByTagName(const(C)[] localName, const(C)[] namespaceUri)
-    {
-        auto filterContext = new XmlNodeFilterContext!S(document, localName, namespaceUri);
-        return XmlNodeList!S(this, XmlNodeListType.childNodesDeep, &filterContext.matchElementByLocalNameUri, filterContext);
+            return XmlNodeList!S(this, XmlNodeListType.childNodes, &filterContext.matchByLocalNameUri, filterContext);
     }
 
     /** Returns true if node is an ancestor of this node; false otherwise
@@ -737,23 +772,23 @@ public:
     final XmlAttribute!S removeAttribute(const(C)[] name) nothrow
     {
         auto r = findAttribute(name);
-        return (r is null) ? null : removeAttributeImpl(r);
+        return r is null ? null : removeAttributeImpl(r);
     }
 
     /** Remove all its' attribute nodes
     */
     void removeAttributes()
     {
-        if (!_attributes.empty)
-        {
-            debug (PhamXml) ++attrbVersion;
+        if (_attributes.empty)
+            return;
+        
+        debug (PhamXml) ++attrbVersion;
 
-            while (!_attributes.empty)
-            {
-                auto last = _attributes.last;
-                last._parent = null;
-                _attributes.remove(last);
-            }
+        while (!_attributes.empty)
+        {
+            auto last = _attributes.last;
+            last._parent = null;
+            _attributes.remove(last);
         }
     }
 
@@ -763,18 +798,18 @@ public:
     */
     void removeChildNodes(Flag!"deep" deep = No.deep)
     {
-        if (!_children.empty)
-        {
-            debug (PhamXml) ++childVersion;
+        if (_children.empty)
+            return;
+        
+        debug (PhamXml) ++childVersion;
 
-            while (!_children.empty)
-            {
-                auto last = _children.last;
-                if (deep)
-                    last.removeChildNodes(Yes.deep);
-                last._parent = null;
-                _children.remove(last);
-            }
+        while (!_children.empty)
+        {
+            auto last = _children.last;
+            if (deep)
+                last.removeChildNodes(Yes.deep);
+            last._parent = null;
+            _children.remove(last);
         }
     }
 
@@ -946,7 +981,7 @@ public:
             case XmlNodeType.declaration:
                 return !checkContent || hasValueImpl();
             default:
-                return false;
+                return hasValueImpl();
         }
     }
 
@@ -1172,8 +1207,7 @@ package:
     final XmlAttribute!S appendAttribute(XmlAttribute!S newAttribute) nothrow
     in
     {
-        if (!isLoading())
-            assert(isAllowAttribute(newAttribute) == 0);
+        assert(!isLoading() || isAllowAttribute(newAttribute) == 0);
     }
     do
     {
@@ -1217,11 +1251,6 @@ package:
             if (child is this || isAncestorNode(child))
                 throw new XmlInvalidOperationException(XmlMessage.eNotAllowAppendSelf);
         }
-    }
-
-    final bool matchElement(Object context, XmlNode!S node)
-    {
-        return node.nodeType == XmlNodeType.element;
     }
 
     final int isAllowAttribute(XmlNode!S attribute) nothrow
@@ -1403,6 +1432,7 @@ if (isXmlString!S)
 @safe:
 
 public:
+    alias C = XmlChar!S;
     alias This = typeof(this);
     alias XmlNodeListFilterEvent = bool delegate(Object context, XmlNode!S node);
 
@@ -1420,10 +1450,14 @@ public:
      */
     this(Object context) nothrow
     {
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.this(flat)");
+
+        auto filterContext = cast(XmlNodeFilterContext!S)context;
+        
         this._orgParent = null;
         this._listType = XmlNodeListType.flat;
         this._onFilter = null;
-        this._context = context;
+        this._context = filterContext !is null ? filterContext.context : context;
         
         reset2();
     }
@@ -1443,15 +1477,31 @@ public:
         if (listType == XmlNodeListType.flat)
             throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, "XmlNodeList", "this(listType = XmlNodeListType.flat)");
 
+        auto filterContext = cast(XmlNodeFilterContext!S)context;
+
         this._orgParent = parent;
         this._listType = listType;
         this._onFilter = onFilter;
-        this._context = context;
+        this._context = filterContext !is null ? filterContext.context : context;
 
         if (listType == XmlNodeListType.childNodesDeep)
             _walkNodes.reserve(defaultXmlLevels);
 
         reset();
+    }
+
+    /**
+     * Notes:
+     *   this slow,  O(n), access, better use front & popFront
+     */
+    XmlNode!S opIndex(size_t index)
+    {
+        return item(index);
+    }
+
+    XmlNode!S opIndex(scope const(C)[] name)
+    {
+        return item(name);
     }
 
     /** 
@@ -1498,17 +1548,28 @@ public:
     /** 
      * Returns the item in the list at index, index
      * Params:
-     *   index = where a xml node to be returned
+     *   index = index where a xml node to be returned
      * Returns:
-     *   xml node object at index if existed, otherwise null
+     *   xml node at index if existed, otherwise null
+     * Notes:
+     *   this slow, O(n), access, better use front & popFront
      */
+    pragma(inline, true)
     XmlNode!S item(size_t index)
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.item()");
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.item(size_t)");
 
-        return empty ? null : _doGetItem(this, index);
+        return empty ? null : _doGetIndexedItem(this, index);
     }
 
+    pragma(inline, true)
+    XmlNode!S item(scope const(C)[] name)
+    {
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.item(const(C)[])");
+
+        return empty ? null : _doGetNamedItem(this, name);
+    }
+    
     /** 
      * Returns the count of xml nodes
      * It can be expensive operation if listType != XmlNodeListType.flat
@@ -1538,7 +1599,7 @@ public:
                 popFront();
             }
 
-            this = restore;
+            this = restore; // Restore before setting _length
             _length = tempLength;
         }
 
@@ -1546,10 +1607,10 @@ public:
     }
 
     /** 
-     * A range based operation by moving current position to the next item
+     * An input range operation by moving front to the next node
      * and returns the current node object
      * Returns:
-     *   Current xml node object before the call
+     *   Current front node before the call
      */
     XmlNode!S moveFront()
     in
@@ -1564,8 +1625,9 @@ public:
     }
 
     /** 
-     * A range based operation by moving current position to the next item
+     * An input range operation by moving front to the next node
      */
+    pragma(inline, true)
     void popFront()
     in
     {
@@ -1648,6 +1710,9 @@ public:
         return _context;
     }
 
+    /** 
+     * An input range operation to return if there is any node left in this instance
+     */
     pragma(inline, true)
     @property bool empty() const nothrow pure
     {
@@ -1656,6 +1721,9 @@ public:
             : _current is null;
     }
 
+    /** 
+     * An input range operation to return current node if any
+     */
     pragma(inline, true)
     @property XmlNode!S front() nothrow pure
     in
@@ -1719,23 +1787,25 @@ private:
     pragma(inline, true)
     bool canDoFilter() const nothrow pure
     {
-        return _current !is null && _inFilter == 0 && _onFilter !is null;
+        return _inFilter == 0 && _current !is null && _onFilter !is null;
     }
     
-    static XmlNode!S getItemDeep(ref This list, size_t index)
+    static XmlNode!S getIndexedItemDeep(ref This list, size_t index)
     in
     {
         assert(list._listType == XmlNodeListType.childNodesDeep);
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getItemDeep()");
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getIndexedItemDeep()");
         debug (PhamXml) list.checkVersionChanged();
 
         if (index == 0 || list._current is null)
             return list._current;
 
         auto restore = list;
+        scope (exit)
+            list = restore;
 
         while (index != 0 && list._current !is null)
         {
@@ -1743,37 +1813,38 @@ private:
             index--;
         }
 
-        auto result = list._current;
-        list = restore;
-
-        return index == 0 ? result : null;
+        return index == 0 ? list._current : null;
     }
 
-    static XmlNode!S getItemFlat(ref This list, size_t index)
+    static XmlNode!S getIndexedItemFlat(ref This list, size_t index)
     in
     {
         assert(list._listType == XmlNodeListType.flat);
     }
     do
     {
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getIndexedItemFlat()");
+
         const i = index + list._currentOffset;
         return i < list._flatList.length ? list._flatList[i] : null;
     }
 
-    static XmlNode!S getItemSibling(ref This list, size_t index)
+    static XmlNode!S getIndexedItemSibling(ref This list, size_t index)
     in
     {
         assert(list._listType != XmlNodeListType.flat && list._listType != XmlNodeListType.childNodesDeep);
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getItemSibling()");
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getIndexedItemSibling()");
         debug (PhamXml) list.checkVersionChanged();
 
         if (index == 0 || list._current is null)
             return list._current;
 
         auto restore = list;
+        scope (exit)
+            list = restore;
 
         while (index != 0 && list._current !is null)
         {
@@ -1781,10 +1852,88 @@ private:
             index--;
         }
 
-        auto result = list._current;
-        list = restore;
+        return index == 0 ? list._current : null;
+    }
+    
+    static XmlNode!S getNamedItemDeep(ref This list, scope const(C)[] name)
+    in
+    {
+        assert(list._listType == XmlNodeListType.childNodesDeep);
+    }
+    do
+    {
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getNamedItemDeep()");
+        debug (PhamXml) list.checkVersionChanged();
 
-        return index == 0 ? result : null;
+        if (list._current is null)
+            return null;
+
+        auto restore = list;
+        scope (exit)
+            list = restore;
+
+        const equalName = list._current.document.equalName;
+        while (list._current !is null)
+        {
+            auto nodeName = list._current.name;
+            if (nodeName.length != 0 && equalName(nodeName, name))
+                return list._current;
+            popFrontDeep(list);
+        }
+        
+        return null;
+    }
+
+    static XmlNode!S getNamedItemFlat(ref This list, scope const(C)[] name)
+    in
+    {
+        assert(list._listType == XmlNodeListType.flat);
+    }
+    do
+    {
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getNamedItemFlat()");
+
+        if (list._currentOffset >= list._flatList.length)
+            return null;
+            
+        const equalName = list._flatList[list._currentOffset].document.equalName;
+        foreach (i; list._currentOffset..list._flatList.length)
+        {
+            auto nodeName = list._flatList[i].name;
+            if (nodeName.length != 0 && equalName(nodeName, name))
+                return list._flatList[i];
+        }
+        
+        return null;
+    }
+
+    static XmlNode!S getNamedItemSibling(ref This list, scope const(C)[] name)
+    in
+    {
+        assert(list._listType != XmlNodeListType.flat && list._listType != XmlNodeListType.childNodesDeep);
+    }
+    do
+    {
+        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getNamedItemSibling()");
+        debug (PhamXml) list.checkVersionChanged();
+
+        if (list._current is null)
+            return null;
+
+        auto restore = list;
+        scope (exit)
+            list = restore;
+
+        const equalName = list._current.document.equalName;
+        while (list._current !is null)
+        {
+            auto nodeName = list._current.name;
+            if (nodeName.length != 0 && equalName(nodeName, name))
+                return list._current;
+            popFrontSibling(list);
+        }
+
+        return null;
     }
     
     static void popFrontDeep(ref This list)
@@ -1896,22 +2045,26 @@ private:
         {
             case XmlNodeListType.attributes:
                 _current = _parent.firstAttribute;
-                _doGetItem = &getItemSibling;
+                _doGetIndexedItem = &getIndexedItemSibling;
+                _doGetNamedItem = &getNamedItemSibling;
                 _doPopFront = &popFrontSibling;
                 break;
             case XmlNodeListType.childNodes:
                 _current = _parent.firstChild;
-                _doGetItem = &getItemSibling;
+                _doGetIndexedItem = &getIndexedItemSibling;
+                _doGetNamedItem = &getNamedItemSibling;
                 _doPopFront = &popFrontSibling;
                 break;            
             case XmlNodeListType.childNodesDeep:
                 _current = _parent.firstChild;
-                _doGetItem = &getItemDeep;
+                _doGetIndexedItem = &getIndexedItemDeep;
+                _doGetNamedItem = &getNamedItemDeep;
                 _doPopFront = &popFrontDeep;
                 break;
             case XmlNodeListType.flat:
                 _currentOffset = 0;
-                _doGetItem = &getItemFlat;
+                _doGetIndexedItem = &getIndexedItemFlat;
+                _doGetNamedItem = &getNamedItemFlat;
                 _doPopFront = &popFrontFlat;
                 break;
         }
@@ -1969,7 +2122,8 @@ private:
 
     enum unknownLength = size_t.max;
     
-    XmlNode!S function(ref This, size_t) @safe _doGetItem;
+    XmlNode!S function(ref This, size_t) @safe _doGetIndexedItem;
+    XmlNode!S function(ref This, scope const(C)[]) @safe _doGetNamedItem;
     void function(ref This) @safe _doPopFront;
     Object _context;
     XmlNode!S _orgParent, _parent, _current;
@@ -1991,7 +2145,7 @@ class XmlAttribute(S = string) : XmlNode!S
 
 public:
     this(XmlDocument!S ownerDocument, XmlName!S name) nothrow
-    /* Crash DMD compiler
+    /* TODO Crash DMD compiler
     in
     {
         if (!ownerDocument.isLoading())
@@ -2031,7 +2185,7 @@ public:
 
     @property final override size_t level() nothrow
     {
-        return (parent is null) ? 0 : parent.level;
+        return parent is null ? 0 : parent.level;
     }
 
     alias localName = typeof(super).localName;
@@ -2084,7 +2238,7 @@ public:
 
 package:
     this(XmlDocument!S ownerDocument, XmlName!S name, XmlString!S text) nothrow
-    /* Crash DMD compiler
+    /* TODO Crash DMD compiler
     in
     {
         if (!ownerDocument.isLoading())
@@ -3770,10 +3924,7 @@ public:
 
     @property final override size_t level() nothrow
     {
-        if (parent is null)
-            return 0;
-        else
-            return parent.level;
+        return parent is null ? 0 : parent.level;
     }
 
     @property final override XmlNodeType nodeType() const nothrow pure
@@ -4170,6 +4321,27 @@ unittest  // Display object sizeof
     dgWriteln("");
 }
 
+version (unittest)
+{
+    private static immutable string sampleXml =
+    "<?xml version=\"1.2\" encoding=\"utf8\" standalone=\"yes\"?>" ~
+    "<root>" ~
+        "<prefix_e:localname a0=\"\">withPrefix</prefix_e:localname>" ~
+        "<a1 a1=\"value\"/>" ~
+        "<a2 a2=\"&amp;&lt;&gt;&apos;&quot;\"/>" ~
+        "<a3 prefix_a:a3=\"value\"/>" ~
+        "<a4 id=\"123\"/>" ~
+        "<c>" ~
+            "<!----comment---->" ~
+            "<cc/>" ~
+        "</c>" ~
+        "<t>text</t>" ~
+        "<t>text2</t>" ~
+        "<?target what to do with this processing instruction?>" ~
+        "<![CDATA[data &<>]]>" ~
+    "</root>";
+}
+
 unittest  // XmlDocument
 {
     import std.conv : to;
@@ -4181,7 +4353,7 @@ unittest  // XmlDocument
     doc.appendChild(doc.createDeclaration("1.2", "utf8", true));
 
     auto root = doc.appendChild(doc.createElement("root"));
-    root.appendChild(doc.createElement("prefix_e", "localname", null))
+    root.appendChild(doc.createElement("prefix_e", "localname", null).innerText("withPrefix"))
         .appendAttribute(doc.createAttribute("a0"));
     root.appendChild(doc.createElement("a1"))
         .appendAttribute(doc.createAttribute("a1", "value"));
@@ -4201,34 +4373,16 @@ unittest  // XmlDocument
     root.appendChild(doc.createProcessingInstruction("target", "what to do with this processing instruction"));
     root.appendChild(doc.createCData("data &<>"));
 
-    static immutable string res =
-    "<?xml version=\"1.2\" encoding=\"utf8\" standalone=\"yes\"?>" ~
-    "<root>" ~
-        "<prefix_e:localname a0=\"\"/>" ~
-        "<a1 a1=\"value\"/>" ~
-        "<a2 a2=\"&amp;&lt;&gt;&apos;&quot;\"/>" ~
-        "<a3 prefix_a:a3=\"value\"/>" ~
-        "<a4 id=\"123\"/>" ~
-        "<c>" ~
-            "<!----comment---->" ~
-            "<cc/>" ~
-        "</c>" ~
-        "<t>text</t>" ~
-        "<t>text2</t>" ~
-        "<?target what to do with this processing instruction?>" ~
-        "<![CDATA[data &<>]]>" ~
-    "</root>";
-
     string dgOutputFailure()
     {
-        return "\n" ~ to!string(doc.outerXml()) ~ "\n" ~ res;
+        return "\n" ~ to!string(doc.outerXml()) ~ "\n" ~ sampleXml;
     }
     
-    assert(doc.outerXml() == res, dgOutputFailure());
+    assert(doc.outerXml() == sampleXml, dgOutputFailure());
 
-    doc = XmlDocument!string(res);
+    doc = XmlDocument!string(sampleXml);
     assert(doc.documentElement !is null);
-    assert(doc.outerXml() == res, dgOutputFailure());
+    assert(doc.outerXml() == sampleXml, dgOutputFailure());
 
     XmlElement!string e = doc.findElementById("123");
     assert(e);
@@ -4244,4 +4398,61 @@ unittest  // XmlDocument
 
     e = doc.documentElement.findElement("cc", Yes.deep);
     assert(e !is null);
+}
+
+unittest // XmlNodeList
+{
+    import std.conv : to;
+    import pham.utl.test;
+    dgWriteln("unittest xml.XmlNodeList");
+    
+    auto doc = XmlDocument!string(sampleXml);
+    
+    size_t elementsLength, attributesLength;
+
+    auto rootAttributes = doc.documentElement.getAttributes();
+    assert(rootAttributes.empty);
+    
+    auto rootElements = doc.documentElement.getElements();
+    assert(!rootElements.empty);
+    assert(rootElements.length == 8);
+    elementsLength = 0;
+    while (!rootElements.empty)
+    {
+        elementsLength++;
+        rootElements.popFront();
+    }
+    assert(elementsLength == 8);
+    assert(rootElements.length == 0);
+    assert(rootElements.empty);
+    
+    auto rootElementTags = doc.documentElement.getElementsByTagName("t");
+    assert(!rootElementTags.empty);
+    assert(rootElementTags.length == 2);
+    elementsLength = 0;
+    while (!rootElementTags.empty)
+    {
+        elementsLength++;
+        rootElementTags.popFront();
+    }
+    assert(elementsLength == 2);
+    assert(rootElementTags.length == 0, to!string(rootElementTags.length));
+    assert(rootElementTags.empty);
+    
+    auto rootElementTags2 = doc.documentElement.getElementsByTagName("localname", "*");
+    assert(!rootElementTags2.empty);
+    assert(rootElementTags2.length == 1);
+    assert(rootElementTags2[0] !is null);
+    assert(rootElementTags2[0].innerText == "withPrefix");
+    assert(rootElementTags2["prefix_e:localname"] !is null);
+    assert(rootElementTags2["prefix_e:localname"].innerText == "withPrefix");
+    elementsLength = 0;
+    while (!rootElementTags2.empty)
+    {
+        elementsLength++;
+        rootElementTags2.popFront();
+    }
+    assert(elementsLength == 1);
+    assert(rootElementTags2.length == 0);
+    assert(rootElementTags2.empty);
 }
