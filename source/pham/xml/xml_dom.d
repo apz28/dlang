@@ -83,7 +83,7 @@ if (isXmlString!S)
     $(XmlNodeType.element) An element. For example: <item></item> or <item/>
     $(XmlNodeType.attribute) An attribute. For example: id='123'
     $(XmlNodeType.text) The text content of a node
-    $(XmlNodeType.CData) A CDATA section. For example: <![CDATA[my escaped text]]>
+    $(XmlNodeType.cdata) A CDATA section. For example: <![CDATA[my escaped text]]>
     $(XmlNodeType.entityReference) A reference to an entity. For example: &num;
     $(XmlNodeType.entity) An entity declaration. For example: <!ENTITY...>
     $(XmlNodeType.processingInstruction) A processing instruction. For example: <?pi test?>
@@ -104,7 +104,7 @@ enum XmlNodeType : ubyte
     element = 1,
     attribute = 2,
     text = 3,
-    CData = 4,
+    cdata = 4,
     entityReference = 5,
     entity = 6,
     processingInstruction = 7,
@@ -972,7 +972,7 @@ public:
         switch (nodeType)
         {
             case XmlNodeType.attribute:
-            case XmlNodeType.CData:
+            case XmlNodeType.cdata:
             case XmlNodeType.comment:
             case XmlNodeType.processingInstruction:
             case XmlNodeType.text:
@@ -1279,7 +1279,7 @@ protected:
             {
                 switch (i.nodeType)
                 {
-                    case XmlNodeType.CData:
+                    case XmlNodeType.cdata:
                     case XmlNodeType.significantWhitespace:
                     case XmlNodeType.text:
                     case XmlNodeType.whitespace:
@@ -1325,7 +1325,7 @@ protected:
 
     /**
      * Returns true if this node is a Text type node
-     * CData, comment, significantWhitespace, text & whitespace
+     * cdata, comment, significantWhitespace, text & whitespace
      */
     bool isText() const nothrow pure
     {
@@ -1494,6 +1494,8 @@ public:
      * Notes:
      *   this slow,  O(n), access, better use front & popFront
      */
+    // Not implement because it is not obviously slow, use item() instead
+    version (none)
     XmlNode!S opIndex(size_t index)
     {
         return item(index);
@@ -1948,11 +1950,9 @@ private:
         debug (PhamXml) list.checkVersionChanged();
         
         popFrontDeepImpl(list);
-
         if (list.canDoFilter())
-            checkFilter(list, &popFrontDeepImpl);
-            
-        list._length = list._current is null ? 0 : unknownLength;
+            checkFilter(list, &popFrontDeepImpl);            
+        list.popFrontLength();
     }
     
     static void popFrontDeepImpl(ref This list)
@@ -2003,6 +2003,18 @@ private:
         list._currentOffset++;           
     }
     
+    pragma(inline, true)
+    void popFrontLength()
+    {
+        if (_current is null)
+            _length = 0;
+        else if (_length != unknownLength)
+        {
+            assert(_length != 0);
+            _length--;
+        }
+    }
+    
     static void popFrontSibling(ref This list)
     in
     {
@@ -2014,12 +2026,10 @@ private:
         version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.popFrontSibling()");
         debug (PhamXml) list.checkVersionChanged();
 
-        popFrontSiblingImpl(list);
-        
+        popFrontSiblingImpl(list);        
         if (list.canDoFilter())
             checkFilter(list, &popFrontSiblingImpl);
-            
-        list._length = list._current is null ? 0 : unknownLength;
+        list.popFrontLength();
     }
     
     static void popFrontSiblingImpl(ref This list)
@@ -2040,6 +2050,8 @@ private:
     {
         version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.reset2()");
 
+        _currentOffset = 0;
+        //_length = unknownLength; // Set in reset
         _parent = _orgParent;
         final switch (_listType)
         {
@@ -2061,8 +2073,7 @@ private:
                 _doGetNamedItem = &getNamedItemDeep;
                 _doPopFront = &popFrontDeep;
                 break;
-            case XmlNodeListType.flat:
-                _currentOffset = 0;
+            case XmlNodeListType.flat:                
                 _doGetIndexedItem = &getIndexedItemFlat;
                 _doGetNamedItem = &getNamedItemFlat;
                 _doPopFront = &popFrontFlat;
@@ -2265,7 +2276,7 @@ protected:
     XmlString!S _text;
 }
 
-/** A xml CData node object
+/** A xml cdata node object
 */
 class XmlCData(S = string) : XmlCharacterDataCustom!S
 {
@@ -2286,7 +2297,7 @@ public:
 
     @property final override XmlNodeType nodeType() const nothrow pure
     {
-        return XmlNodeType.CData;
+        return XmlNodeType.cdata;
     }
 
 protected:
@@ -3071,16 +3082,16 @@ public:
     {
         switch (nodeType)
         {
-            case XmlNodeType.CData:
-            case XmlNodeType.Comment:
-            case XmlNodeType.Element:
-            case XmlNodeType.Entity:
-            case XmlNodeType.EntityReference:
-            case XmlNodeType.Notation:
-            case XmlNodeType.ProcessingInstruction:
-            case XmlNodeType.SignificantWhitespace:
-            case XmlNodeType.Text:
-            case XmlNodeType.Whitespace:
+            case XmlNodeType.cdata:
+            case XmlNodeType.comment:
+            case XmlNodeType.element:
+            case XmlNodeType.entity:
+            case XmlNodeType.entityReference:
+            case XmlNodeType.notation:
+            case XmlNodeType.processingInstruction:
+            case XmlNodeType.significantWhitespace:
+            case XmlNodeType.text:
+            case XmlNodeType.whitespace:
                 return true;
             default:
                 return false;
@@ -3089,14 +3100,14 @@ public:
 
     final override XmlWriter!S write(XmlWriter!S writer)
     {
-        throw new XmlInvalidOperationException(Message.eInvalidOpDelegate, shortClassName(this), "write()");
+        throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), "write()");
         //todo
         //return writer;
     }
 
     @property final override XmlNodeType nodeType() const nothrow pure
     {
-        return XmlNodeType.DocumentFragment;
+        return XmlNodeType.documentFragment;
     }
 
 protected:
@@ -3104,7 +3115,7 @@ protected:
 
     static XmlName!S createQualifiedName()
     {
-        return new XmlName!S(null, XmlConst.documentFragmentTagName);
+        return new XmlName!S(null, XmlConst!S.documentFragmentTagName);
     }
 }
 
@@ -3548,7 +3559,7 @@ public:
     {
         switch (nodeType)
         {
-            case XmlNodeType.CData:
+            case XmlNodeType.cdata:
             case XmlNodeType.comment:
             case XmlNodeType.element:
             case XmlNodeType.entityReference:
@@ -4297,7 +4308,7 @@ unittest  // Display object sizeof
     dgWriteln("xml.XmlComment.sizeof: ", XmlComment!string.classinfo.initializer.length);
     dgWriteln("xml.XmlDeclaration.sizeof: ", XmlDeclaration!string.classinfo.initializer.length);
     dgWriteln("xml.XmlDocument.sizeof: ", XmlDocument!string.classinfo.initializer.length);
-    //dgWriteln("xml.XmlDocumentFragment.sizeof: ", XmlDocumentFragment!string.classinfo.initializer.length);
+    dgWriteln("xml.XmlDocumentFragment.sizeof: ", XmlDocumentFragment!string.classinfo.initializer.length);
     dgWriteln("xml.XmlDocumentType.sizeof: ", XmlDocumentType!string.classinfo.initializer.length);
     dgWriteln("xml.XmlDocumentTypeAttributeList.sizeof: ", XmlDocumentTypeAttributeList!string.classinfo.initializer.length);
     dgWriteln("xml.XmlDocumentTypeAttributeListDef.sizeof: ", XmlDocumentTypeAttributeListDef!string.classinfo.initializer.length);
@@ -4430,20 +4441,17 @@ unittest // XmlNodeList
     assert(!rootElementTags.empty);
     assert(rootElementTags.length == 2);
     elementsLength = 0;
-    while (!rootElementTags.empty)
-    {
+    foreach (n; rootElementTags)
         elementsLength++;
-        rootElementTags.popFront();
-    }
     assert(elementsLength == 2);
-    assert(rootElementTags.length == 0, to!string(rootElementTags.length));
-    assert(rootElementTags.empty);
+    assert(rootElementTags.length == elementsLength, to!string(rootElementTags.length));
+    assert(!rootElementTags.empty);
     
     auto rootElementTags2 = doc.documentElement.getElementsByTagName("localname", "*");
     assert(!rootElementTags2.empty);
     assert(rootElementTags2.length == 1);
-    assert(rootElementTags2[0] !is null);
-    assert(rootElementTags2[0].innerText == "withPrefix");
+    assert(rootElementTags2.item(0) !is null);
+    assert(rootElementTags2.item(0).innerText == "withPrefix");
     assert(rootElementTags2["prefix_e:localname"] !is null);
     assert(rootElementTags2["prefix_e:localname"].innerText == "withPrefix");
     elementsLength = 0;

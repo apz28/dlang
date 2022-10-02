@@ -1380,7 +1380,7 @@ XML";
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.CData, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.cdata, to!string(L.front.nodeType));
     assert(!L.front.hasAttributes);
     assert(!L.front.hasChildNodes);
     assert(L.front.value = " dataSection! ", L.front.value);
@@ -1556,7 +1556,7 @@ XML";
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.CData, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.cdata, to!string(L.front.nodeType));
     assert(!L.front.hasAttributes);
     assert(!L.front.hasChildNodes);
     assert(L.front.value = " dataSection! ", L.front.value);
