@@ -13,7 +13,8 @@ module pham.cp.openssl_binding;
 
 public import core.stdc.config : c_long, c_ulong;
 
-import pham.utl.object : ResultStatus, VersionString;
+import pham.utl.object : VersionString;
+import pham.utl.result : ResultStatus;
 
 nothrow:
 

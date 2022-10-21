@@ -13,7 +13,7 @@ module pham.cp.openssl;
 
 import std.string : fromStringz, toStringz;
 
-public import pham.utl.object : ResultStatus;
+public import pham.utl.result : ResultStatus;
 import pham.cp.cipher : calculateBufferLength;
 import pham.cp.openssl_binding;
 
@@ -170,10 +170,10 @@ public:
 
 struct OpenSSLClientSocket
 {
-import std.array : join;
-import std.socket : socket_t;
+    import std.array : join;
+    import std.socket : socket_t;
 
-import pham.utl.system : lastSocketError;
+    import pham.utl.system : lastSocketError;
 
 nothrow @safe:
 
