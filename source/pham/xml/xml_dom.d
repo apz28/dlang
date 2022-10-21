@@ -1385,7 +1385,8 @@ protected:
     {
         assert(hasChildNodes == true);
 
-        if (nodeType != XmlNodeType.document)
+        const canIndent = nodeType != XmlNodeType.document && nodeType != XmlNodeType.documentFragment;
+        if (canIndent)
             writer.incNodeLevel();
 
         auto node = firstChild;
@@ -1395,7 +1396,7 @@ protected:
             node = node.nextSibling;
         }
 
-        if (nodeType != XmlNodeType.document)
+        if (canIndent)
             writer.decNodeLevel();
 
         return writer;
@@ -2367,8 +2368,7 @@ public:
     this(XmlDocument!S ownerDocument, const(C)[] versionStr, const(C)[] encoding, bool standalone) nothrow
     in
     {
-        if (!ownerDocument.isLoading())
-            assert(isVersionStr!(S, Yes.AllowEmpty)(versionStr));
+        assert(ownerDocument.isLoading() || isVersionStr!(S, Yes.AllowEmpty)(versionStr));
     }
     do
     {
@@ -3100,9 +3100,10 @@ public:
 
     final override XmlWriter!S write(XmlWriter!S writer)
     {
-        throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), "write()");
-        //todo
-        //return writer;
+        if (hasChildNodes)
+            writeChildren(writer);
+
+        return writer;
     }
 
     @property final override XmlNodeType nodeType() const nothrow pure
@@ -4057,8 +4058,7 @@ public:
     this(XmlDocument!S ownerDocument, const(C)[] text) nothrow
     in
     {
-        if (!ownerDocument.isLoading())
-            assert(isSpaces!S(text));
+        assert(ownerDocument.isLoading() || isSpaces!S(text));
     }
     do
     {
@@ -4075,7 +4075,7 @@ public:
 
     @property final override size_t level() nothrow
     {
-        return (parent is null) ? 0 : parent.level;
+        return parent is null ? 0 : parent.level;
     }
 
     @property final override const(C)[] value() nothrow
