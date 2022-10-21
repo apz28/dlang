@@ -297,12 +297,7 @@ T limitRangeValue(T)(T value, T min, T max) nothrow pure @safe
 {
     static if (__traits(compiles, T.init < T.init && T.init > T.init))
     {
-        if (value < min)
-            return min;
-        else if (value > max)
-            return max;
-        else
-            return value;
+        return value < min ? min : (value > max ? max : value);
     }
     else
         static assert(0, "T must be a type with comparison operators '<' and '>'");
@@ -743,68 +738,6 @@ public:
 private:
     Mutex _mutex;
     int _lockedCounter;
-}
-
-struct ResultStatus
-{
-nothrow @safe:
-
-public:
-    this(bool errorStatus, int errorCode, string errorMessage, string errorFormat = null) @nogc pure
-    {
-        this.errorStatus = errorStatus;
-        this.errorCode = errorCode;
-        this.errorMessage = errorMessage;
-        this.errorFormat = errorFormat;
-    }
-
-    bool opCast(C: bool)() const @nogc pure
-    {
-        return isOK;
-    }
-
-    pragma(inline, true)
-    static typeof(this) error(int errorCode, string errorMessage, string errorFormat = null) @nogc pure
-    {
-        return ResultStatus(true, errorCode, errorMessage, errorFormat);
-    }
-
-    pragma(inline, true)
-    static typeof(this) ok() @nogc pure
-    {
-        return ResultStatus(false, 0, null);
-    }
-
-    string toString() const pure
-    {
-        import std.conv : to;
-
-        scope (failure) assert(0);
-
-        return isOK
-            ? "Status: " ~ to!string(errorStatus)
-            : "Status: " ~ to!string(errorStatus)
-                ~ "\nCode: " ~ to!string(errorCode)
-                ~ "\nMessage: " ~ errorMessage;
-    }
-
-    pragma(inline, true)
-    @property bool isError() const @nogc pure
-    {
-        return !isOK;
-    }
-
-    pragma(inline, true)
-    @property bool isOK() const @nogc pure
-    {
-        return !errorStatus;
-    }
-
-public:
-    bool errorStatus;
-    int errorCode;
-    string errorMessage;
-    string errorFormat;
 }
 
 struct VersionString
@@ -1417,12 +1350,12 @@ unittest // RAIIMutex
     traceUnitTest!("pham.utl")("unittest pham.utl.object.RAIIMutex");
 
     auto mutex = new Mutex();
-    
+
     {
         auto locker = RAIIMutex(mutex);
         assert(locker.isLocked);
         assert(locker.lockedCounter == 1);
-        
+
         locker.lock();
         assert(locker.isLocked);
         assert(locker.lockedCounter == 2);
@@ -1431,26 +1364,8 @@ unittest // RAIIMutex
         assert(locker.isLocked);
         assert(locker.lockedCounter == 1);
     }
-    
+
     destroy(mutex);
-}
-
-unittest // ResultStatus
-{
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.object.ResultStatus");
-
-    auto r = ResultStatus.error(1, "Error");
-    assert(!r.isOK);
-    assert(r.isError);
-    assert(r.errorCode == 1);
-    assert(r.errorMessage == "Error");
-
-    r = ResultStatus.ok();
-    assert(!r.isError);
-    assert(r.isOK);
-    assert(r.errorCode == 0);
-    assert(r.errorMessage is null);
 }
 
 nothrow @safe unittest // VersionString

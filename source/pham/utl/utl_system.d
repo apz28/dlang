@@ -11,7 +11,7 @@
 
 module pham.utl.system;
 
-public import pham.utl.object : ResultStatus;
+public import pham.utl.result : ResultStatus;
 
 string genericErrorMessage(string apiName, int errorCode) nothrow @trusted
 {
@@ -38,13 +38,13 @@ int lastSocketErrorCode() @nogc nothrow @trusted
 {
     version (Windows)
     {
-    import core.sys.windows.winsock2 : WSAGetLastError;
+        import core.sys.windows.winsock2 : WSAGetLastError;
 
         return WSAGetLastError();
     }
     else version (Posix)
     {
-    import core.stdc.errno : errno;
+        import core.stdc.errno : errno;
 
         return errno;
     }
@@ -76,11 +76,11 @@ string systemErrorString(string apiName, int errorCode) nothrow @trusted
 
 version (Windows)
 {
-import core.sys.windows.winbase : FormatMessageW, LocalFree,
-    FORMAT_MESSAGE_ALLOCATE_BUFFER, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS;
-import core.sys.windows.windef : DWORD;
-import core.sys.windows.winnt : LANG_NEUTRAL, SUBLANG_DEFAULT, LPWSTR;
-import std.conv : to;
+    import core.sys.windows.winbase : FormatMessageW, LocalFree,
+        FORMAT_MESSAGE_ALLOCATE_BUFFER, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS;
+    import core.sys.windows.windef : DWORD;
+    import core.sys.windows.winnt : LANG_NEUTRAL, SUBLANG_DEFAULT, LPWSTR;
+    import std.conv : to;
 
     string windowErrorString(DWORD errorCode,
         int langId = LANG_NEUTRAL, int subLangId = SUBLANG_DEFAULT) nothrow @trusted
@@ -117,7 +117,7 @@ else version (Posix)
 {
     string posixErrorString(int errorCode) nothrow @trusted
     {
-        char[500] buf = '\0';
+        char[1000] buf = '\0';
         const(char)* bufPtr;
 
         version (GNU_STRERROR)
