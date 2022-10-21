@@ -17,10 +17,127 @@ public import core.time : dur, Duration, TimeException;
 import std.conv : to;
 import std.traits : isIntegral;
 
+import pham.utl.result : ResultIf;
+
 version = RelaxCompareTime;
 
 @safe:
 
+/**
+ * Custom format specifiers for Date, DateTime & Time
+ */
+enum CustomFormatSpecifier : char
+{
+    year = 'y',
+    month = 'm',
+    day = 'd',
+    longHour = 'H', // 0..23
+    shortHour = 'h', // 0..11
+    minute = 'n',
+    second = 's',
+    fraction = 'z', // Millisecond [zzz], 100-nanosecond [zzzzzzz]
+    amPm = 'a', // For US, they are AM or PM used with short hour format
+    separatorDate = '/',
+    separatorTime = ':',
+}
+
+alias AmPmTexts = string[2];
+alias DayOfWeekNames = string[7];
+alias MonthNames = string[12];
+
+enum DayOfWeek : ubyte
+{
+    sunday = 0,
+    monday,
+    tuesday,
+    wednesday,
+    thursday,
+    friday,
+    saturday,
+}
+
+enum firstDayOfMonth = 1;
+
+enum firstDayOfWeek = DayOfWeek.sunday;
+
+/**
+ * Aggregate format settings for Date, DateTime & Time object
+ */
+struct DateTimeKindFormat
+{
+nothrow @safe:
+
+    string date;
+    string dateTime;
+    string time;
+}
+
+struct DateTimeSetting
+{
+nothrow @safe:
+
+    /**
+     * Returns true if this DateTimeSetting is in valid state
+     */
+    bool isValid() const @nogc pure scope
+    {
+        return fullDayOfWeekNames !is null && shortDayOfWeekNames !is null
+            && fullMonthNames !is null && shortMonthNames !is null
+            && dateSeparator != 0 && timeSeparator != 0;
+    }
+
+    /**
+     * Default DateTimeSetting for US
+     */
+    static DateTimeSetting us() @nogc pure
+    {
+        DateTimeSetting result;
+
+        result.generalLongFormat.date = "mm/dd/yyyy";
+        result.generalLongFormat.dateTime = "mm/dd/yyyy h:nn:ss a";
+        result.generalLongFormat.time = "h:nn:ss a";
+
+        result.generalShortFormat.date = "m/d/yyyy";
+        result.generalShortFormat.dateTime = "m/d/yyyy h:nn a";
+        result.generalShortFormat.time = "h:nn a";
+
+        result.longFormat.date = "ddd, mmm dd, yyyy";
+        result.longFormat.dateTime = "ddd, mmm dd, yyyy h:nn:ss a";
+        result.longFormat.time = "h:nn:ss a";
+
+        result.shortFormat.date = "m/d/yyyy";
+        result.shortFormat.dateTime = "m/d/yyyy h:nn a";
+        result.shortFormat.time = "h:nn a";
+
+        result.fullDayOfWeekNames = &usFullDayOfWeekNames;
+        result.shortDayOfWeekNames = &usShortDayOfWeekNames;
+
+        result.fullMonthNames = &usFullMonthNames;
+        result.shortMonthNames = &usShortMonthNames;
+
+        result.amPmTexts = &usAmPmTexts;
+        result.dateSeparator = '/';
+        result.timeSeparator = ':';
+
+        return result;
+    }
+
+    DateTimeKindFormat generalLongFormat;
+    DateTimeKindFormat generalShortFormat;
+    DateTimeKindFormat longFormat;
+    DateTimeKindFormat shortFormat;
+    const(DayOfWeekNames)* fullDayOfWeekNames;
+    const(DayOfWeekNames)* shortDayOfWeekNames;
+    const(MonthNames)* fullMonthNames;
+    const(MonthNames)* shortMonthNames;
+    const(AmPmTexts)* amPmTexts; /// Optional
+    char dateSeparator = '/';
+    char timeSeparator = ':';
+}
+
+/**
+ * Specifies an operation/container is for Date, DateTime or Time object
+ */
 enum DateTimeKind : ubyte
 {
     date,
@@ -28,6 +145,10 @@ enum DateTimeKind : ubyte
     time,
 }
 
+/**
+ * Specifies whether a DateTime & Time object represents a local time,
+ * a Coordinated Universal Time (UTC), or is not specified as either local time or UTC
+ */
 enum DateTimeZoneKind : ubyte
 {
     unspecified = 0,
@@ -50,12 +171,20 @@ struct Tick
     enum long ticksPerDay = ticksPerHour * 24;              // 864,000,000,000
     enum int  ticksMaxPrecision = 7;                        // 999 * ticksPerMillisecond = 7 digits
 
+    enum int hoursPerDay = 24;
+
+    enum int minutesPerHour = 60;
+    enum int minutesPerDay = minutesPerHour * hoursPerDay;
+
+    enum int secondsPerMinute = 60;
+    enum int secondsPerDay = secondsPerMinute * minutesPerDay;
+
     // Number of milliseconds per time unit
-    enum long millisPerSecond = 1_000;
-    enum long millisPerMinute = millisPerSecond * 60;
-    enum long millisPerHour = millisPerMinute * 60;
-    enum long millisPerDay = millisPerHour * 24;
-    enum int  millisMaxPrecision = 3;
+    enum int millisPerSecond = 1_000;
+    enum int millisPerMinute = millisPerSecond * secondsPerMinute;
+    enum int millisPerHour = millisPerMinute * minutesPerHour;
+    enum int millisPerDay = millisPerHour * hoursPerDay;
+    enum int millisMaxPrecision = 3;
 
     // Number of days in a non-leap year
     enum long daysPerYear = 365;
@@ -158,6 +287,9 @@ struct Tick
     }
 }
 
+/**
+ * 100-nanosecond intervals precision for DateTime & Time
+ */
 struct TickData
 {
 @nogc nothrow @safe:
@@ -335,91 +467,12 @@ struct TickPart
     }
 }
 
-enum CustomFormatSpecifier : char
-{
-    year = 'y',
-    month = 'm',
-    day = 'd',
-    longHour = 'H',
-    shortHour = 'h',
-    minute = 'n',
-    second = 's',
-    fraction = 'z',
-    amPm = 'a',
-    separatorDate = '/',
-    separatorTime = ':',
-}
-
-alias AmPmTexts = string[2];
-alias DayOfWeekNames = string[7];
-alias MonthNames = string[12];
-
-struct DateTimeKindFormat
-{
-nothrow @safe:
-
-    string date;
-    string dateTime;
-    string time;
-}
-
-struct DateTimeSetting
-{
-nothrow @safe:
-
-    bool isValid() const @nogc pure scope
-    {
-        return fullDayOfWeekNames !is null && shortDayOfWeekNames !is null
-            && fullMonthNames !is null && shortMonthNames !is null
-            && dateSeparator != 0 && timeSeparator != 0;
-    }
-
-    static DateTimeSetting us() @nogc pure
-    {
-        DateTimeSetting result;
-
-        result.generalLongFormat.date = "mm/dd/yyyy";
-        result.generalLongFormat.dateTime = "mm/dd/yyyy h:nn:ss a";
-        result.generalLongFormat.time = "h:nn:ss a";
-
-        result.generalShortFormat.date = "m/d/yyyy";
-        result.generalShortFormat.dateTime = "m/d/yyyy h:nn a";
-        result.generalShortFormat.time = "h:nn a";
-
-        result.longFormat.date = "ddd, mmm dd, yyyy";
-        result.longFormat.dateTime = "ddd, mmm dd, yyyy h:nn:ss a";
-        result.longFormat.time = "h:nn:ss a";
-
-        result.shortFormat.date = "m/d/yyyy";
-        result.shortFormat.dateTime = "m/d/yyyy h:nn a";
-        result.shortFormat.time = "h:nn a";
-
-        result.fullDayOfWeekNames = &usFullDayOfWeekNames;
-        result.shortDayOfWeekNames = &usShortDayOfWeekNames;
-
-        result.fullMonthNames = &usFullMonthNames;
-        result.shortMonthNames = &usShortMonthNames;
-
-        result.amPmTexts = &usAmPmTexts;
-        result.dateSeparator = '/';
-        result.timeSeparator = ':';
-
-        return result;
-    }
-
-    DateTimeKindFormat generalLongFormat;
-    DateTimeKindFormat generalShortFormat;
-    DateTimeKindFormat longFormat;
-    DateTimeKindFormat shortFormat;
-    const(DayOfWeekNames)* fullDayOfWeekNames;
-    const(DayOfWeekNames)* shortDayOfWeekNames;
-    const(MonthNames)* fullMonthNames;
-    const(MonthNames)* shortMonthNames;
-    const(AmPmTexts)* amPmTexts; /// Optional
-    char dateSeparator = '/';
-    char timeSeparator = ':';
-}
-
+/**
+ * Indicators the result of an operation
+ *   none = no error taken place
+ *   underflow = result of an operation is underflow
+ *   overflow = result of an operation is overflow
+ */
 enum ErrorOp : ubyte
 {
     none,
@@ -427,6 +480,9 @@ enum ErrorOp : ubyte
     overflow,
 }
 
+/**
+ * Specifies the part of a Date, DateTime, Time having an error
+ */
 enum ErrorPart : ubyte
 {
     none,
@@ -552,6 +608,49 @@ static immutable DayOfWeekNames usShortDayOfWeekNames = [
     "Sat",
     ];
 
+/**
+ * Convert date of week name into DayOfWeek enum
+ * Params:
+ *   dowName = day of week name to be converted
+ *   shortDayOfWeekNames = array[0..7] of valid and in-order short week names
+ *   fullDayOfWeekNames = array[0..7] of valid and in-order full week names
+ * Returns:
+ *   ResultIf!DayOfWeek
+ */
+ResultIf!DayOfWeek toDayOfWeek(string dowName, scope const(DayOfWeekNames) shortDayOfWeekNames, scope const(DayOfWeekNames) fullDayOfWeekNames) @nogc nothrow pure
+{
+    import std.uni : sicmp;
+
+    if (dowName.length)
+    {
+        foreach (i; 0..shortDayOfWeekNames.length)
+        {
+            if (sicmp(shortDayOfWeekNames[i], dowName) == 0)
+                return ResultIf!DayOfWeek.ok(cast(DayOfWeek)i);
+        }
+
+        foreach (i; 0..fullDayOfWeekNames.length)
+        {
+            if (sicmp(fullDayOfWeekNames[i], dowName) == 0)
+                return ResultIf!DayOfWeek.ok(cast(DayOfWeek)i);
+        }
+    }
+
+    return ResultIf!DayOfWeek.error(1, dowName);
+}
+
+/**
+ * Convert date of week name (US Names) into DayOfWeek enum
+ * Params:
+ *   dowName = day of week name to be converted
+ * Returns:
+ *   ResultIf!DayOfWeek
+ */
+ResultIf!DayOfWeek toDayOfWeekUS(string dowName) @nogc nothrow pure
+{
+    return toDayOfWeek(dowName, usShortDayOfWeekNames, usFullDayOfWeekNames);
+}
+
 // Must match order of Month
 static immutable MonthNames usFullMonthNames = [
     "January",
@@ -583,8 +682,52 @@ static immutable MonthNames usShortMonthNames = [
     "Dec",
     ];
 
+/**
+ * Convert month name into `int` month value [1..12]
+ * Params:
+ *   monthName = month name to be converted
+ *   shortMonthNames = array[0..12] of valid and in-order short month names
+ *   fullMonthNames = array[0..12] of valid and in-order full month names
+ * Returns:
+ *   ResultIf!int
+ */
+ResultIf!int toMonth(string monthName, scope const(MonthNames) shortMonthNames, scope const(MonthNames) fullMonthNames) @nogc nothrow pure
+{
+    import std.uni : sicmp;
+
+    if (monthName.length)
+    {
+        foreach (i; 0..shortMonthNames.length)
+        {
+            if (sicmp(shortMonthNames[i], monthName) == 0)
+                return ResultIf!int.ok(cast(int)i + 1);
+        }
+
+        foreach (i; 0..fullMonthNames.length)
+        {
+            if (sicmp(fullMonthNames[i], monthName) == 0)
+                return ResultIf!int.ok(cast(int)i + 1);
+        }
+    }
+
+    return ResultIf!int.error(1, monthName);
+}
+
+/**
+ * Convert month name (US Names) into `int` month value [1..12]
+ * Params:
+ *   monthName = month name to be converted
+ * Returns:
+ *   ResultIf!int
+ */
+ResultIf!int toMonthUS(string monthName) @nogc nothrow pure
+{
+    return toMonth(monthName, usShortMonthNames, usFullMonthNames);
+}
+
 DateTimeSetting dateTimeSetting;
 __gshared DateTimeSetting sharedDateTimeSetting = DateTimeSetting.us();
+
 
 package(pham.dtm):
 
@@ -740,6 +883,7 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
 
 __gshared static Mutex tdMutex;
 
+
 private:
 
 shared static this() @trusted
@@ -776,4 +920,58 @@ unittest // Show duration precision
     dgWriteln("999 msecs in usecs:  ", d.total!"usecs"().dgToStr());  //     999_000
     dgWriteln("999 msecs in hnsecs: ", d.total!"hnsecs"().dgToStr()); //   9_990_000
     dgWriteln("999 msecs in nsecs:  ", d.total!"nsecs"().dgToStr());  // 999_000_000
+}
+
+unittest // toDayOfWeekUS
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.tick.toDayOfWeekUS");
+
+    assert(toDayOfWeekUS("sunday").value == DayOfWeek.sunday);
+    assert(toDayOfWeekUS("monday").value == DayOfWeek.monday);
+    assert(toDayOfWeekUS("sun").value == DayOfWeek.sunday);
+    assert(toDayOfWeekUS("mon").value == DayOfWeek.monday);
+
+    foreach (i, m; usShortDayOfWeekNames)
+    {
+        assert(toDayOfWeekUS(m).value == i);
+    }
+
+    foreach (i, m; usFullDayOfWeekNames)
+    {
+        assert(toDayOfWeekUS(m).value == i);
+    }
+
+    assert(!toDayOfWeekUS(""));
+    assert(!toDayOfWeekUS(" "));
+    assert(!toDayOfWeekUS("0"));
+    assert(!toDayOfWeekUS("1"));
+    assert(!toDayOfWeekUS("what"));
+}
+
+unittest // toMonthUS
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.dtm")("unittest pham.dtm.tick.toMonthUS");
+
+    assert(toMonthUS("january").value == 1);
+    assert(toMonthUS("december").value == 12);
+    assert(toMonthUS("jan").value == 1);
+    assert(toMonthUS("dec").value == 12);
+
+    foreach (i, m; usShortMonthNames)
+    {
+        assert(toMonthUS(m).value == i + 1);
+    }
+
+    foreach (i, m; usFullMonthNames)
+    {
+        assert(toMonthUS(m).value == i + 1);
+    }
+
+    assert(!toMonthUS(""));
+    assert(!toMonthUS(" "));
+    assert(!toMonthUS("0"));
+    assert(!toMonthUS("-1"));
+    assert(!toMonthUS("13"));
 }

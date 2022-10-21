@@ -298,6 +298,9 @@ public:
         return DateTime(data);
     }
 
+    /**
+     * Returns equivalent Duration of this instance
+     */
     Duration toDuration() const @nogc nothrow pure
     {
         return Tick.durationFromTicks(data.sticks);
@@ -383,6 +386,9 @@ public:
         return hour >= 12 ? 1 : 0;
     }
 
+    /**
+     * Returns current time zone of this instance
+     */
     @property DateTimeZoneKind kind() const @nogc nothrow pure
     {
         return data.kind;
@@ -435,7 +441,7 @@ public:
     }
 
     /**
-     * Returns the Date farthest in the future which is representable by Date.
+     * Returns the maximum Time value which is 23:59:59.9999999
      */
     @property static Time max() @nogc nothrow pure
     {
@@ -443,7 +449,7 @@ public:
     }
 
     /**
-     * Returns the Date farthest in the past which is representable by Date.
+     * Returns the minimum Time value which is midnight
      */
     @property static Time min() @nogc nothrow pure
     {
@@ -455,11 +461,55 @@ public:
         return DateTime.now.time;
     }
 
+    /**
+     * Returns the value of the current Time expressed in whole hours
+     */
+    pragma(inline, true)
+    @property long totalHours() const @nogc nothrow pure
+    {
+        return cast(long)(data.sticks / Tick.ticksPerHour);
+    }
+
+    /**
+     * Returns the value of the current Time expressed in whole minutes
+     */
+    pragma(inline, true)
+    @property long totalMinutes() const @nogc nothrow pure
+    {
+        return cast(long)(data.sticks / Tick.ticksPerMinute);
+    }
+
+    /**
+     * Returns the value of the current Time expressed in whole seconds
+     */
+    pragma(inline, true)
+    @property long totalSeconds() const @nogc nothrow pure
+    {
+        return cast(long)(data.sticks / Tick.ticksPerSecond);
+    }
+
+    /**
+     * Returns the value of the current Time expressed in whole milliseconds
+     */
+    pragma(inline, true)
+    @property long totalMilliseconds() const @nogc nothrow pure
+    {
+        return cast(long)(data.sticks / Tick.ticksPerMillisecond);
+    }
+
     @property static Time utcNow() @nogc nothrow
     {
         return DateTime.utcNow.time;
     }
 
+    /**
+     * Returns the zero Time value which time 00:00:00.000 AM
+     */
+    alias midnight = min;
+
+    /**
+     * Returns the zero Time value which is midnight time 00:00:00.000 AM
+     */
     alias zero = min;
 
 public:

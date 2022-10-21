@@ -193,47 +193,69 @@ public:
     }
 
     /**
-     * Gets the time difference with the base UTC offset for the time zone during the adjustment-rule period.
+     * The time difference with the base UTC offset for the time zone during the adjustment-rule period
      */
     @property Duration baseUtcOffsetDelta() const @nogc nothrow pure scope
     {
         return _baseUtcOffsetDelta;
     }
 
+    /**
+     * The amount of time that is required to form the time zone's daylight saving
+     * time. This amount of time is added to the time zone's offset from Coordinated
+     * Universal Time (UTC).
+     */
     @property Duration daylightDelta() const @nogc nothrow pure scope
     {
         return _daylightDelta;
     }
 
+    /**
+     * The information about the annual transition from standard time to daylight saving time
+     */
     @property TransitionTime daylightTransitionBegin() const @nogc nothrow pure scope
     {
         return _daylightTransitionBegin;
     }
 
+    /**
+     * The information about the annual transition from daylight saving time back to standard time
+     */
     @property TransitionTime daylightTransitionEnd() const @nogc nothrow pure scope
     {
         return _daylightTransitionEnd;
     }
 
+    /**
+     * The date when the adjustment rule takes effect
+     */
     @property DateTime dateBegin() const @nogc nothrow pure scope
     {
         return _dateBegin;
     }
 
+    /**
+     * The date when the adjustment rule stops to be in effect
+     */
     @property DateTime dateEnd() const @nogc nothrow pure scope
     {
         return _dateEnd;
     }
 
     /**
-     * Gets a value indicating that this AdjustmentRule fixes the time zone offset
-     * from dateBegin to dateEnd without any daylight transitions in between.
+     * A value indicating that this AdjustmentRule fixes the time zone offset
+     * from dateBegin to dateEnd without any daylight transitions in between
      */
     @property bool noDaylightTransitions() const @nogc nothrow pure scope
     {
         return _noDaylightTransitions;
     }
 
+    /**
+     * The amount of time that is required to form the time zone's standard
+     * time. This amount of time is added to the time zone's offset from Coordinated
+     * Universal Time (UTC).
+     */
     @property Duration standardDelta() const @nogc nothrow pure scope
     {
         return _standardDelta;
@@ -611,6 +633,11 @@ public:
             case ValidatedTimeZoneError.ruleOrder:
                 throw new TimeException("daylightDelta is out of chronological order");
         }
+    }
+
+    @property const(AdjustmentRule[]) adjustmentRules() const @nogc nothrow pure
+    {
+        return _adjustmentRules;
     }
 
     @property static TimeZoneInfo localTimeZone() nothrow
@@ -1301,34 +1328,53 @@ public:
             assert(0);
     }
 
-    @property DateTime timeOfDay() const @nogc nothrow pure
-    {
-        return _timeOfDay;
-    }
-
-    @property int month() const @nogc nothrow pure
-    {
-        return _month;
-    }
-
-    @property int week() const @nogc nothrow pure
-    {
-        return _week;
-    }
-
+    /**
+     * The day on which the time change occurs
+     */
     @property int day() const @nogc nothrow pure
     {
         return _day;
     }
 
+    /**
+     * The day of the week on which the time change occurs
+     */
     @property DayOfWeek dayOfWeek() const @nogc nothrow pure
     {
         return _dayOfWeek;
     }
 
+    /**
+     * Returns a value indicating whether the time change occurs at a fixed date and time (such as November 30)
+     * or a floating date and time (such as the last Sunday of November)
+     */
     @property bool isFixedDateRule() const @nogc nothrow pure
     {
         return _isFixedDateRule;
+    }
+
+    /**
+     * The month of the year on which the time change occurs
+     */
+    @property int month() const @nogc nothrow pure
+    {
+        return _month;
+    }
+
+    /**
+     * The time of day at which the time change occurs
+     */
+    @property DateTime timeOfDay() const @nogc nothrow pure
+    {
+        return _timeOfDay;
+    }
+
+    /**
+     * The week of the month in which the time change occurs
+     */
+    @property int week() const @nogc nothrow pure
+    {
+        return _week;
     }
 
 private:
@@ -1440,24 +1486,14 @@ version (Windows)
     {
         return systemTime.wYear == 0
             ? TransitionTime.createFloatingDateRule(
-                DateTime(1 /* year  */,
-                    1 /* month */,
-                    1 /* day   */,
-                    systemTime.wHour,
-                    systemTime.wMinute,
-                    systemTime.wSecond,
-                    systemTime.wMilliseconds),
+                DateTime(1 /* year */, 1 /* month */, 1 /* day */,
+                    systemTime.wHour, systemTime.wMinute, systemTime.wSecond, systemTime.wMilliseconds),
                 systemTime.wMonth,
                 systemTime.wDay,
                 cast(DayOfWeek)systemTime.wDayOfWeek /* Week 1-5 */)
             : TransitionTime.createFixedDateRule(
-                DateTime(1 /* year  */,
-                    1 /* month */,
-                    1 /* day   */,
-                    systemTime.wHour,
-                    systemTime.wMinute,
-                    systemTime.wSecond,
-                    systemTime.wMilliseconds),
+                DateTime(1 /* year */, 1 /* month */, 1 /* day */,
+                    systemTime.wHour, systemTime.wMinute, systemTime.wSecond, systemTime.wMilliseconds),
                 systemTime.wMonth,
                 systemTime.wDay);
     }
@@ -1758,7 +1794,7 @@ else
 
 shared static this() @trusted
 {
-    defaultTimeZoneInfoMaps = getDefaultTimeZoneInfoMaps();
+    defaultTimeZoneInfoMaps = cast(immutable TimeZoneInfoMapList)getDefaultTimeZoneInfoMaps();
 }
 
 unittest

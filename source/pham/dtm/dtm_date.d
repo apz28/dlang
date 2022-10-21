@@ -16,25 +16,13 @@ import std.traits : isSomeChar;
 
 import pham.utl.utf8 : ShortStringBuffer;
 import pham.dtm.tick;
-public import pham.dtm.tick : CustomFormatSpecifier, DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind;
+public import pham.dtm.tick : CustomFormatSpecifier, DayOfWeek, DateTimeKind,
+    DateTimeSetting, dateTimeSetting, DateTimeZoneKind,
+    firstDayOfMonth, firstDayOfWeek;
 public import pham.dtm.time : Time;
 import pham.dtm.time_zone : TimeZoneInfo;
 
 @safe:
-
-enum DayOfWeek : ubyte
-{
-    sunday = 0,
-    monday,
-    tuesday,
-    wednesday,
-    thursday,
-    friday,
-    saturday,
-}
-
-enum firstDayOfMonth = 1;
-enum firstDayOfWeek = DayOfWeek.sunday;
 
 struct Date
 {
@@ -101,9 +89,15 @@ public:
     }
 
     /**
-     * Adds the specified number of days to the value of this instance
-     * and returns instance whose value is the sum of the date represented by this instance
-     * and days.
+     * Adds the specified number of days to the value of this Date
+     * and returns new Date whose value is the sum of the date represented by this Date
+     * and days
+     * Params:
+     *   days = number of days to be added
+     * Returns:
+     *   Date whose value is the sum of the date represented by this Date and days
+     * Throws:
+     *   TimeException if sum of days is not in valid days range
      */
     Date addDays(const(int) days) const pure
     {
@@ -127,9 +121,9 @@ public:
     }
 
     /**
-     * Adds the specified number of months to the value of this instance
-     * and returns instance whose value is the sum of the date represented by this instance
-     * and months.
+     * Adds the specified number of months to the value of this Date
+     * and returns new Date whose value is the sum of the date represented by this Date
+     * and months
      */
     Date addMonths(const(int) months) const pure
     {
@@ -138,9 +132,9 @@ public:
     }
 
     /**
-     * Adds the specified number of years to the value of this instance
-     * and returns instance whose value is the sum of the date represented by this instance
-     * and years.
+     * Adds the specified number of years to the value of this Date
+     * and returns new Date whose value is the sum of the date represented by this Date
+     * and years
      */
     Date addYears(const(int) years) const pure
     {
@@ -149,7 +143,7 @@ public:
     }
 
     /**
-     * Returns the first day in the month that this Date is in.
+     * Returns the first day in the month that this Date is in
      */
     Date beginOfMonth() const nothrow pure @safe
     {
@@ -158,6 +152,15 @@ public:
         return Date(y, m, 1);
     }
 
+    /**
+     * Create new Date with specified number of days
+     * Params:
+     *   days = number of days since 1/1/1
+     * Returns:
+     *   Date with days
+     * Throws:
+     *   TimeException if days is not in valid days range
+     */
     static Date createDate(int days) pure
     {
         if (isValidDays(days) != ErrorOp.none)
@@ -165,6 +168,17 @@ public:
         return Date(days);
     }
 
+    /**
+     * Create new Date with specified year, month & day
+     * Params:
+     *   year = the year of date
+     *   month = the month of year
+     *   day = the day of month
+     * Returns:
+     *   Date with specified year, month & day
+     * Throws:
+     *   TimeException if year or month or day is not in its' valid value range
+     */
     static Date createDate(int year, int month, int day) pure
     {
         DateTime.checkDateParts(year, month, day);
@@ -172,7 +186,7 @@ public:
     }
 
     /**
-     * Returns the last day in the month that this Date is in.
+     * Returns the last day in the month that this Date is in
      */
     Date endOfMonth() const @nogc nothrow pure @safe
     {
@@ -181,11 +195,25 @@ public:
         return Date(y, m, DateTime.daysInMonth(y, m));
     }
 
+    /**
+     * Gets date parts of this Date
+     * Params:
+     *   year = the year of this Date
+     *   month = the month of year of this Date
+     *   day = the day of month of this Date
+     */
     void getDate(out int year, out int month, out int day) const @nogc nothrow pure
     {
         toDateTime().getDate(year, month, day);
     }
 
+    /**
+     * Query if days is in valid days range
+     * Params:
+     *   days = number of days to be checked
+     * Returns:
+     *   an enum ErrorOp value
+     */
     static ErrorOp isValidDays(const(long) days) @nogc nothrow pure
     {
         return days < minDays
@@ -193,15 +221,26 @@ public:
             : (days > maxDays ? ErrorOp.overflow : ErrorOp.none);
     }
 
+    alias isValidMonth = DateTime.isValidMonth;
+    alias isValidYear = DateTime.isValidMonth;
+
     /**
-     * Returns the equivalent DateTime of this instance. The resulting value
+     * Returns the equivalent DateTime of this Date. The resulting value
      * corresponds to this DateTime with the time-of-day part set to
-     * zero (midnight).
+     * zero (midnight)
      */
     pragma(inline, true)
     DateTime toDateTime() const @nogc nothrow pure
     {
         return DateTime(uticks);
+    }
+
+    /**
+     * Returns equivalent Duration of this instance
+     */
+    Duration toDuration() const @nogc nothrow pure
+    {
+        return Tick.durationFromTicks(sticks);
     }
 
     size_t toHash() const @nogc nothrow pure scope
@@ -235,7 +274,7 @@ public:
     ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt) const
     if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
-    import pham.dtm.date_time_format;
+        import pham.dtm.date_time_format;
 
         auto fmtSpec = FormatDateTimeSpec!Char(fmt);
         auto fmtValue = FormatDateTimeValue(this);
@@ -244,20 +283,33 @@ public:
         return sink;
     }
 
+    /**
+     * Adds the specified number of days to the value of this Date
+     * and set newDate whose value is the sum of the date represented by this Date
+     * and days
+     * Params:
+     *   days = number of days to be added
+     *   newDate = Date whose value is the sum of the date represented by this Date and days
+     * Returns:
+     *   an enum ErrorOp value of this add operation
+     */
     ErrorOp tryAddDays(const(int) days, out Date newDate) const @nogc nothrow pure
     {
         long newDays = void;
         return addDaysImpl(days, newDays, newDate);
     }
 
+    /**
+     * Returns the century of this Date
+     */
     @property int century() const @nogc nothrow pure
     {
         return year / 100;
     }
 
     /**
-     * Returns the day-of-month part of this instance. The returned
-     * value is an integer between 1 and 31.
+     * Returns the day-of-month part of this Date. The returned
+     * value is an integer between 1 and 31
      */
     @property int day() const @nogc nothrow pure
     {
@@ -266,7 +318,7 @@ public:
 
     /**
      * Returns the day-of-year part of this Date. The returned value
-     * is an integer between 1 and 366.
+     * is an integer between 1 and 366
      */
     @property int dayOfYear() const @nogc nothrow pure
     {
@@ -277,7 +329,7 @@ public:
      * Returns the day-of-week part of this instance. The returned value
      * is an integer between 0 and 6, where 0 indicates Sunday, 1 indicates
      * Monday, 2 indicates Tuesday, 3 indicates Wednesday, 4 indicates
-     * Thursday, 5 indicates Friday, and 6 indicates Saturday.
+     * Thursday, 5 indicates Friday, and 6 indicates Saturday
      */
     @property DayOfWeek dayOfWeek() const @nogc nothrow pure
     {
@@ -285,33 +337,83 @@ public:
     }
 
     /**
-     * Returns the number of days since January 1, 0001 in the Proleptic Gregorian calendar represented by this instance.
+     * Returns the number of days since January 1, 0001 in the Proleptic Gregorian calendar represented by this Date
      */
     @property int days() const @nogc nothrow pure
     {
         return cast(int)data;
     }
 
+    /**
+     * Returns the number of days since January 1, 0001 in the Proleptic Gregorian calendar represented by this Date
+     */
     @property int julianDay() const @nogc nothrow pure
     {
         return cast(int)data;
     }
 
     /**
-     * Returns the month part of this instance. The returned value is an
-     * integer between 1 and 12.
+     * Returns the month part of this Date. The returned value is an
+     * integer between 1 and 12
      */
     @property int month() const @nogc nothrow pure
     {
         return toDateTime().month;
     }
 
+    /**
+     * Returns the value of the current Date expressed in whole days
+     */
+    alias totalDays = days;
+
+    /**
+     * Returns the value of the current Date expressed in whole hours
+     */
+    pragma(inline, true)
+    @property long totalHours() const @nogc nothrow pure
+    {
+        return cast(long)(sticks / Tick.ticksPerHour);
+    }
+
+    /**
+     * Returns the value of the current Date expressed in whole minutes
+     */
+    pragma(inline, true)
+    @property long totalMinutes() const @nogc nothrow pure
+    {
+        return cast(long)(sticks / Tick.ticksPerMinute);
+    }
+
+    /**
+     * Returns the value of the current Date expressed in whole seconds
+     */
+    pragma(inline, true)
+    @property long totalSeconds() const @nogc nothrow pure
+    {
+        return cast(long)(sticks / Tick.ticksPerSecond);
+    }
+
+    /**
+     * Returns the value of the current Date expressed in whole milliseconds
+     */
+    pragma(inline, true)
+    @property long totalMilliseconds() const @nogc nothrow pure
+    {
+        return cast(long)(sticks / Tick.ticksPerMillisecond);
+    }
+
+    /**
+     * Returns the number of ticks that represent the date of this Date
+     */
     pragma(inline, true)
     @property long sticks() const @nogc nothrow pure
     {
         return cast(long)data * Tick.ticksPerDay;
     }
 
+    /**
+     * Returns the number of ticks that represent the date of this Date
+     */
     pragma(inline, true)
     @property ulong uticks() const @nogc nothrow pure
     {
@@ -319,7 +421,7 @@ public:
     }
 
     /**
-     * Returns the year part of this instance. The returned value is an
+     * Returns the year part of this Date. The returned value is an
      * integer between 1 and 9999.
      */
     @property int year() const @nogc nothrow pure
@@ -343,6 +445,9 @@ public:
         return Date(cast(uint)minDays);
     }
 
+    /**
+     * Returns the current date
+     */
     @property static Date today() @nogc nothrow
     {
         return DateTime.today;
@@ -356,6 +461,12 @@ public:
 
     // Maps to December 31 year 9999.
     enum int maxDays = Tick.daysTo10000 - 1;
+
+    alias minYear = DateTime.minYear;
+    alias maxYear = DateTime.maxYear;
+
+    alias daysInMonth365 = DateTime.daysInMonth365;
+    alias daysInMonth366 = DateTime.daysInMonth366;
 
 package(pham.dtm):
     this(uint data) @nogc nothrow pure
@@ -996,6 +1107,7 @@ public:
             return ErrorPart.none;
     }
 
+    pragma(inline, true)
     static ErrorOp isValidMonth(const(int) month) @nogc nothrow pure
     {
         return month < 1
@@ -1003,6 +1115,7 @@ public:
             : (month > 12 ? ErrorOp.overflow : ErrorOp.none);
     }
 
+    pragma(inline, true)
     static ErrorOp isValidTicks(const(long) ticks) @nogc nothrow pure
     {
         return ticks < minTicks
@@ -1022,6 +1135,7 @@ public:
         return ErrorOp.none; //todo
     }
 
+    pragma(inline, true)
     static ErrorOp isValidYear(const(int) year) @nogc nothrow pure
     {
         return year < minYear
@@ -1029,6 +1143,9 @@ public:
             : (year > maxYear ? ErrorOp.overflow : ErrorOp.none);
     }
 
+    /**
+     * Returns equivalent Duration of this instance
+     */
     Duration toDuration() const @nogc nothrow pure
     {
         return Tick.durationFromTicks(data.sticks);
@@ -1301,10 +1418,49 @@ public:
         return Time(cast(ulong)(data.sticks % Tick.ticksPerDay) | data.internalKind);
     }
 
+    /**
+     * Returns the value of the current DateTime expressed in whole days
+     */
     pragma(inline, true)
     @property int totalDays() const @nogc nothrow pure
     {
         return cast(int)(data.sticks / Tick.ticksPerDay);
+    }
+
+    /**
+     * Returns the value of the current DateTime expressed in whole hours
+     */
+    pragma(inline, true)
+    @property long totalHours() const @nogc nothrow pure
+    {
+        return cast(long)(data.sticks / Tick.ticksPerHour);
+    }
+
+    /**
+     * Returns the value of the current DateTime expressed in whole minutes
+     */
+    pragma(inline, true)
+    @property long totalMinutes() const @nogc nothrow pure
+    {
+        return cast(long)(data.sticks / Tick.ticksPerMinute);
+    }
+
+    /**
+     * Returns the value of the current DateTime expressed in whole seconds
+     */
+    pragma(inline, true)
+    @property long totalSeconds() const @nogc nothrow pure
+    {
+        return cast(long)(data.sticks / Tick.ticksPerSecond);
+    }
+
+    /**
+     * Returns the value of the current DateTime expressed in whole milliseconds
+     */
+    pragma(inline, true)
+    @property long totalMilliseconds() const @nogc nothrow pure
+    {
+        return cast(long)(data.sticks / Tick.ticksPerMillisecond);
     }
 
     pragma(inline, true)
@@ -1330,7 +1486,7 @@ public:
 
     /**
      * Returns the DateTime farthest in the future which is representable by DateTime.
-     * The DateTime which is returned is in UTC.
+     * The DateTime which is returned is in UTC
      */
     @property static DateTime max() @nogc nothrow pure
     {
@@ -1339,23 +1495,34 @@ public:
 
     /**
      * Returns the DateTime farthest in the past which is representable by DateTime.
-     * The DateTime which is returned is in UTC.
+     * The DateTime which is returned is in UTC
      */
     @property static DateTime min() @nogc nothrow pure
     {
         return DateTime(cast(ulong)minTicks | TickData.kindUtc);
     }
 
+    /**
+     * Returns a DateTime object that is set to the current date and time on this
+     * computer, expressed as the local time
+     */
     @property static DateTime now() nothrow
     {
         return TimeZoneInfo.convertUtcToLocal(utcNow());
     }
 
+    /**
+     * Returns the current date on this computer
+     */
     @property static Date today() @nogc nothrow
     {
         return utcNow.date;
     }
 
+    /**
+     * Returns a DateTime object that is set to the current date and time on this
+     * computer, expressed as the Coordinated Universal Time (UTC)
+     */
     @property static DateTime utcNow() @nogc nothrow
     {
         const ticks = Tick.currentSystemTicks();
@@ -1367,7 +1534,10 @@ public:
 public:
     enum long minTicks = 0;
     enum long maxTicks = Tick.daysTo10000 * Tick.ticksPerDay - 1;
+
+    enum long minMillis =  0;
     enum long maxMillis = Tick.daysTo10000 * Tick.millisPerDay;
+
     enum int minYear = 1;
     enum int maxYear = 9_999;
 
