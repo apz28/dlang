@@ -11,8 +11,8 @@
 
 module pham.db.value;
 
-import std.math : isNaN;
 import std.conv : to;
+import std.math : isNaN;
 import std.range.primitives: ElementType;
 import std.traits : isArrayT = isArray, Unqual;
 
@@ -21,8 +21,8 @@ import pham.dtm.variant_coerce;
 import pham.external.dec.variant_coerce;
 public import pham.utl.variant : Variant, VariantType;
 import pham.utl.variant_coerce;
-import pham.db.type;
 import pham.db.convert;
+import pham.db.type;
 
 struct DbValue
 {
@@ -354,9 +354,11 @@ private:
         else static if (isArrayT!T)
         {
             this._value = rhs;
-            version (DbValueTypeSet) alias E = ElementType!T;
             version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : (DbType.array | dbTypeOf!E());
+            {
+                alias E = ElementType!T;
+                this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : (DbType.array | dbTypeOf!E());
+            }
         }
         else
             static assert(0, "Not supported type: " ~ T.stringof);

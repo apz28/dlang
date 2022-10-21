@@ -3194,7 +3194,7 @@ protected:
         if (type == DbType.unknown && _dbValue.type != DbType.unknown)
         {
             if (isDbTypeHasSize(_dbValue.type) && _dbValue.hasSize)
-                size = _dbValue.size;
+                size = cast(int32)_dbValue.size;
             type = _dbValue.type;
             reevaluateBaseType();
         }
