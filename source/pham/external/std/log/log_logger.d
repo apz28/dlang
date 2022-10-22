@@ -341,15 +341,15 @@ private:
 log("Hello World", 3.1415);
 --------------------
  */
-void log(string moduleName = __MODULE__, Args...)(lazy Args args, Exception ex = null,
-    in int line = __LINE__, in string fileName = __FILE__,
-    in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+void log(string moduleName = __MODULE__, Args...)(lazy Args args,
+    Exception ex = null,
+    in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
 if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(Unqual!(Args[0]) == LogLevel)))
 {
     version (DebugLogger) debug writeln("args.line=", line);
 
     auto logger = threadLog;
-    logger.log!(moduleName, Args)(logger.logLevel, args, ex, line, fileName, funcName, prettyFuncName);
+    logger.log!(moduleName, Args)(logger.logLevel, args, ex, line, fileName, funcName);
 }
 
 /**
@@ -365,14 +365,14 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(
 log(true, "Hello World", 3.1415);
 --------------------
  */
-void log(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy Args args, Exception ex = null,
-    in int line = __LINE__, in string fileName = __FILE__,
-    in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+void log(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy Args args,
+    Exception ex = null,
+    in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
 {
     version (DebugLogger) debug writeln("condition.args.line=", line);
 
     auto logger = threadLog;
-    logger.log!(moduleName, Args)(logger.logLevel, condition, args, ex, line, fileName, funcName, prettyFuncName);
+    logger.log!(moduleName, Args)(logger.logLevel, condition, args, ex, line, fileName, funcName);
 }
 
 /**
@@ -387,14 +387,14 @@ void log(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy Args
 log(LogLevel.warn, "Hello World", 3.1415);
 --------------------
 */
-void log(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy Args args, Exception ex = null,
-    in int line = __LINE__, in string fileName = __FILE__,
-    in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+void log(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy Args args,
+    Exception ex = null,
+    in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
 if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
 {
     version (DebugLogger) debug writeln("ll.args.line=", line);
 
-    threadLog.log!(moduleName, Args)(ll, args, ex, line, fileName, funcName, prettyFuncName);
+    threadLog.log!(moduleName, Args)(ll, args, ex, line, fileName, funcName);
 }
 
 /**
@@ -411,11 +411,11 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
 log(LogLevel.warn, true, "Hello World", 3.1415);
 --------------------
  */
-void log(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy bool condition, lazy Args args, Exception ex = null,
-    in int line = __LINE__, in string fileName = __FILE__,
-    in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+void log(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy bool condition, lazy Args args,
+    Exception ex = null,
+    in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
 {
-    threadLog.log!(moduleName, Args)(ll, condition, args, ex, line, fileName, funcName, prettyFuncName);
+    threadLog.log!(moduleName, Args)(ll, condition, args, ex, line, fileName, funcName);
 }
 
 /**
@@ -430,15 +430,15 @@ void log(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy bool 
 logf("Hello World %f", 3.1415);
 --------------------
  */
-void logf(string moduleName = __MODULE__, Args...)(lazy string fmt, lazy Args args, Exception ex = null,
-    in int line = __LINE__, in string fileName = __FILE__,
-    in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+void logf(string moduleName = __MODULE__, Args...)(lazy string fmt, lazy Args args,
+    Exception ex = null,
+    in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
 if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(Unqual!(Args[0]) == LogLevel)))
 {
     version (DebugLogger) debug writeln("fmt.args.line=", line);
 
     auto logger = threadLog;
-    logger.logf!(moduleName, Args)(logger.logLevel, fmt, args, ex, line, fileName, funcName, prettyFuncName);
+    logger.logf!(moduleName, Args)(logger.logLevel, fmt, args, ex, line, fileName, funcName);
 }
 
 /**
@@ -455,14 +455,14 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(
 logf(true, "Hello World %f", 3.1415);
 --------------------
  */
-void logf(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy string fmt, lazy Args args, Exception ex = null,
-    in int line = __LINE__, in string fileName = __FILE__,
-    in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+void logf(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy string fmt, lazy Args args,
+    Exception ex = null,
+    in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
 {
     version (DebugLogger) debug writeln("condition.fmt.args.line=", line);
 
     auto logger = threadLog;
-    logger.logf!(moduleName, Args)(logger.logLevel, condition, fmt, args, ex, line, fileName, funcName, prettyFuncName);
+    logger.logf!(moduleName, Args)(logger.logLevel, condition, fmt, args, ex, line, fileName, funcName);
 }
 
 /**
@@ -479,13 +479,13 @@ void logf(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy str
 logf(LogLevel.warn, "Hello World %f", 3.1415);
 --------------------
  */
-void logf(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy string fmt, lazy Args args, Exception ex = null,
-    in int line = __LINE__, in string fileName = __FILE__,
-    in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+void logf(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy string fmt, lazy Args args,
+    Exception ex = null,
+    in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
 {
     version (DebugLogger) debug writeln("ll.fmt.args.line=", line);
 
-    threadLog.logf!(moduleName, Args)(ll, fmt, args, ex, line, fileName, funcName, prettyFuncName);
+    threadLog.logf!(moduleName, Args)(ll, fmt, args, ex, line, fileName, funcName);
 }
 
 /**
@@ -503,13 +503,13 @@ void logf(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy stri
 logf(LogLevel.warn, true, "Hello World %f", 3.1415);
 --------------------
  */
-void logf(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy bool condition, lazy string fmt, lazy Args args, Exception ex = null,
-    in int line = __LINE__, in string fileName = __FILE__,
-    in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+void logf(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy bool condition, lazy string fmt, lazy Args args,
+    Exception ex = null,
+    in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
 {
     version (DebugLogger) debug writeln("ll.condition.fmt.args.line=", line);
 
-    threadLog.logf!(moduleName, Args)(ll, condition, fmt, args, ex, line, fileName, funcName, prettyFuncName);
+    threadLog.logf!(moduleName, Args)(ll, condition, fmt, args, ex, line, fileName, funcName);
 }
 
 /**
@@ -520,28 +520,28 @@ void logf(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy bool
  */
 template defaultLogFunction(LogLevel ll)
 {
-    void defaultLogFunction(string moduleName = __MODULE__, Args...)(lazy Args args, Exception ex = null,
-        in int line = __LINE__, in string fileName = __FILE__,
-        in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+    void defaultLogFunction(string moduleName = __MODULE__, Args...)(lazy Args args,
+        Exception ex = null,
+        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
     {
         version (DebugLogger) debug writeln("defaultLogFunction.args.line=", line);
 
         static if (isStaticModuleLoggingActive!(ll, moduleName))
         {
-            threadLog.logFunction!(ll).logImpl!(moduleName, Args)(args, ex, line, fileName, funcName, prettyFuncName);
+            threadLog.logFunction!(ll).logImpl!(moduleName, Args)(args, ex, line, fileName, funcName);
         }
     }
 
-    void defaultLogFunction(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy Args args, Exception ex = null,
-        in int line = __LINE__, in string fileName = __FILE__,
-        in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+    void defaultLogFunction(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy Args args,
+        Exception ex = null,
+        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
     {
         version (DebugLogger) debug writeln("defaultLogFunction.condition.args.line=", line);
 
         static if (isStaticModuleLoggingActive!(ll, moduleName))
         {
-            threadLog.logFunction!(ll).logImpl!(moduleName, Args)(condition, args, ex, line, fileName, funcName, prettyFuncName);
+            threadLog.logFunction!(ll).logImpl!(moduleName, Args)(condition, args, ex, line, fileName, funcName);
         }
     }
 }
@@ -561,14 +561,14 @@ template defaultLogFunction(LogLevel ll)
  * Example:
 --------------------
 logTrace(1337, "is number");
-logDebug_(1337, "is number");
+logDebug(1337, "is number");
 logInfo(1337, "is number");
 logError(1337, "is number");
 logCritical(1337, "is number");
 logFatal(1337, "is number");
 
 logTrace(true, 1337, "is number");
-logDebug_(false, 1337, "is number");
+logDebug(false, 1337, "is number");
 logInfo(false, 1337, "is number");
 logError(true, 1337, "is number");
 logCritical(false, 1337, "is number");
@@ -577,7 +577,7 @@ logFatal(true, 1337, "is number");
  */
 alias logTrace = defaultLogFunction!(LogLevel.trace);
 /// Ditto
-alias logDebug_ = defaultLogFunction!(LogLevel.debug_);
+alias logDebug = defaultLogFunction!(LogLevel.debug_);
 /// Ditto
 alias logInfo = defaultLogFunction!(LogLevel.info);
 /// Ditto
@@ -597,28 +597,28 @@ alias logFatal = defaultLogFunction!(LogLevel.fatal);
  */
 template defaultLogFunctionf(LogLevel ll)
 {
-    void defaultLogFunctionf(string moduleName = __MODULE__, Args...)(lazy string fmt, lazy Args args, Exception ex = null,
-        in int line = __LINE__, in string fileName = __FILE__,
-        in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+    void defaultLogFunctionf(string moduleName = __MODULE__, Args...)(lazy string fmt, lazy Args args,
+        Exception ex = null,
+        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
     {
         version (DebugLogger) debug writeln("defaultLogFunctionf.fmt.args.line=", line);
 
         static if (isStaticModuleLoggingActive!(ll, moduleName))
         {
-            threadLog.logFunction!(ll).logImplf!(moduleName, Args)(fmt, args, ex, line, fileName, funcName, prettyFuncName);
+            threadLog.logFunction!(ll).logImplf!(moduleName, Args)(fmt, args, ex, line, fileName, funcName);
         }
     }
 
-    void defaultLogFunctionf(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy string fmt, lazy Args args, Exception ex = null,
-        in int line = __LINE__, in string fileName = __FILE__,
-        in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+    void defaultLogFunctionf(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy string fmt, lazy Args args,
+        Exception ex = null,
+        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
     {
         version (DebugLogger) debug writeln("defaultLogFunctionf.condition.fmt.args.line=", line);
 
         static if (isStaticModuleLoggingActive!(ll, moduleName))
         {
-            threadLog.logFunction!(ll).logImplf!(moduleName, Args)(condition, fmt, args, ex, line, fileName, funcName, prettyFuncName);
+            threadLog.logFunction!(ll).logImplf!(moduleName, Args)(condition, fmt, args, ex, line, fileName, funcName);
         }
     }
 }
@@ -666,7 +666,7 @@ logFatalf(someFunct(), "is number %d", 6);
  */
 alias logTracef = defaultLogFunctionf!(LogLevel.trace);
 /// Ditto
-alias logDebugf_ = defaultLogFunctionf!(LogLevel.debug_);
+alias logDebugf = defaultLogFunctionf!(LogLevel.debug_);
 /// Ditto
 alias logInfof = defaultLogFunctionf!(LogLevel.info);
 /// Ditto
@@ -855,8 +855,8 @@ public:
     alias isTrace = isFunction!(LogLevel.trace).isImpl;
     alias isTrace2 = isFunction!(LogLevel.trace).isImpl2;
     /// Ditto
-    alias isDebug_ = isFunction!(LogLevel.debug_).isImpl;
-    alias isDebug2_ = isFunction!(LogLevel.debug_).isImpl2;
+    alias isDebug = isFunction!(LogLevel.debug_).isImpl;
+    alias isDebug2 = isFunction!(LogLevel.debug_).isImpl2;
     /// Ditto
     alias isInfo = isFunction!(LogLevel.info).isImpl;
     alias isInfo2 = isFunction!(LogLevel.info).isImpl2;
@@ -887,7 +887,7 @@ public:
             case LogLevel.trace:
                 return isTrace2!(moduleName)(llModuleLogLevel);
             case LogLevel.debug_:
-                return isDebug2_!(moduleName)(llModuleLogLevel);
+                return isDebug2!(moduleName)(llModuleLogLevel);
             case LogLevel.info:
                 return isInfo2!(moduleName)(llModuleLogLevel);
             case LogLevel.warn:
@@ -931,9 +931,9 @@ public:
         s.fatal(1337, "is number");
         --------------------
          */
-        final void logImpl(string moduleName = __MODULE__, Args...)(lazy Args args, Exception ex = null,
-            in int line = __LINE__, in string fileName = __FILE__,
-            in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+        final void logImpl(string moduleName = __MODULE__, Args...)(lazy Args args,
+            Exception ex = null,
+            in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
         if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
         {
             version (DebugLogger) debug writeln("Logger.logImpl().line=", line, ", funcName=", funcName);
@@ -946,7 +946,7 @@ public:
                     auto currTime = Clock.currTime;
                     {
                         auto locked = LogRAIIMutex(mutex);
-                        auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                        auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
                         this.beginMsg(header);
                         auto writer = LogArgumentWriter(this);
                         writer.put!(Args)(args);
@@ -980,9 +980,9 @@ public:
         s.fatal(true, 1337, "is number");
         --------------------
          */
-        final void logImpl(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy Args args, Exception ex = null,
-            in int line = __LINE__, in string fileName = __FILE__,
-            in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+        final void logImpl(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy Args args,
+            Exception ex = null,
+            in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
         {
             version (DebugLogger) debug writeln("logFunction.condition.args.line=", line);
 
@@ -994,7 +994,7 @@ public:
                     auto currTime = Clock.currTime;
                     {
                         auto locked = LogRAIIMutex(mutex);
-                        auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                        auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
                         this.beginMsg(header);
                         auto writer = LogArgumentWriter(this);
                         writer.put!(Args)(args);
@@ -1027,9 +1027,9 @@ public:
         s.fatalf("is number %d", 5);
         --------------------
          */
-        final void logImplf(string moduleName = __MODULE__, Args...)(lazy string fmt, lazy Args args, Exception ex = null,
-            in int line = __LINE__, in string fileName = __FILE__,
-            in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+        final void logImplf(string moduleName = __MODULE__, Args...)(lazy string fmt, lazy Args args,
+            Exception ex = null,
+            in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
         if (args.length == 0 || (args.length > 0 && !is(Unqual!(A[0]) : string)))
         {
             version (DebugLogger) debug writeln("logFunction.args.line=", line);
@@ -1042,7 +1042,7 @@ public:
                     auto currTime = Clock.currTime;
                     {
                         auto locked = LogRAIIMutex(mutex);
-                        auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                        auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
                         this.beginMsg(header);
                         auto writer = LogArgumentWriter(this);
                         writer.putf(fmt, args);
@@ -1077,9 +1077,9 @@ public:
         s.fatalf(true, "is number %d", 5);
         --------------------
          */
-        final void logImplf(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy string fmt, lazy Args args, Exception ex = null,
-            in int line = __LINE__, in string fileName = __FILE__,
-            in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+        final void logImplf(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy string fmt, lazy Args args,
+            Exception ex = null,
+            in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
         {
             version (DebugLogger) debug writeln("logFunction.condition.fmt.args.line=", line);
 
@@ -1091,7 +1091,7 @@ public:
                     auto currTime = Clock.currTime;
                     {
                         auto locked = LogRAIIMutex(mutex);
-                        auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                        auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
                         this.beginMsg(header);
                         auto writer = LogArgumentWriter(this);
                         writer.putf(fmt, args);
@@ -1159,9 +1159,9 @@ public:
     s.log(1337, "is number");
     --------------------
      */
-    final void log(string moduleName = __MODULE__, Args...)(lazy Args args, Exception ex = null,
-        in int line = __LINE__, in string fileName = __FILE__,
-        in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+    final void log(string moduleName = __MODULE__, Args...)(lazy Args args,
+        Exception ex = null,
+        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(Unqual!(Args[0]) == LogLevel)))
     {
         version (DebugLogger) debug writeln("Logger.log().line=", line, ", funcName=", funcName);
@@ -1174,7 +1174,7 @@ public:
                 auto currTime = Clock.currTime;
                 {
                     auto locked = LogRAIIMutex(mutex);
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.put!(Args)(args);
@@ -1208,9 +1208,9 @@ public:
     s.log(false, 1337, "is number");
     --------------------
      */
-    final void log(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy Args args, Exception ex = null,
-        in int line = __LINE__, in string fileName = __FILE__,
-        in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+    final void log(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy Args args,
+        Exception ex = null,
+        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
     {
         version (DebugLogger) debug writeln("Logger.log().line=", line, ", funcName=", funcName);
 
@@ -1222,7 +1222,7 @@ public:
                 auto currTime = Clock.currTime;
                 {
                     auto locked = LogRAIIMutex(mutex);
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.put!(Args)(args);
@@ -1255,9 +1255,9 @@ public:
     s.log(LogLevel.fatal, 1337, "is number");
     --------------------
      */
-    final void log(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy Args args, Exception ex = null,
-        in int line = __LINE__, in string fileName = __FILE__,
-        in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+    final void log(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy Args args,
+        Exception ex = null,
+        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
     {
         version (DebugLogger) debug writeln("Logger.log().line=", line, ", funcName=", funcName, ", ll=", ll);
@@ -1269,7 +1269,7 @@ public:
                 auto currTime = Clock.currTime;
                 {
                     auto locked = LogRAIIMutex(mutex);
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.put!(Args)(args);
@@ -1300,9 +1300,9 @@ public:
     l.log(1337);
     --------------------
      */
-    final void log(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy bool condition, lazy Args args, Exception ex = null,
-        in int line = __LINE__, in string fileName = __FILE__,
-        in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+    final void log(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy bool condition, lazy Args args,
+        Exception ex = null,
+        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
     {
         version (DebugLogger) debug writeln("Logger.log().line=", line, ", funcName=", funcName, ", ll=", ll);
 
@@ -1313,7 +1313,7 @@ public:
                 auto currTime = Clock.currTime;
                 {
                     auto locked = LogRAIIMutex(mutex);
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.put!(Args)(args);
@@ -1345,9 +1345,9 @@ public:
     s.logf("%d %s", 1337, "is number");
     --------------------
      */
-    final void logf(string moduleName = __MODULE__, Args...)(lazy string fmt, lazy Args args, Exception ex = null,
-        in int line = __LINE__, in string fileName = __FILE__,
-        in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+    final void logf(string moduleName = __MODULE__, Args...)(lazy string fmt, lazy Args args,
+        Exception ex = null,
+        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(Unqual!(Args[0]) == LogLevel)))
     {
         version (DebugLogger) debug writeln("Logger.logf().line=", line, ", funcName=", funcName);
@@ -1360,7 +1360,7 @@ public:
                 auto currTime = Clock.currTime;
                 {
                     auto locked = LogRAIIMutex(mutex);
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.putf!(Args)(fmt, args);
@@ -1395,9 +1395,9 @@ public:
     s.logf(true ,"%d %s", 1337, "is number");
     --------------------
      */
-    final void logf(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy string fmt, lazy Args args, Exception ex = null,
-        in int line = __LINE__, in string fileName = __FILE__,
-        in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+    final void logf(string moduleName = __MODULE__, Args...)(lazy bool condition, lazy string fmt, lazy Args args,
+        Exception ex = null,
+        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
     {
         version (DebugLogger) debug writeln("Logger.logf().line=", line, ", funcName=", funcName);
 
@@ -1409,7 +1409,7 @@ public:
                 auto currTime = Clock.currTime;
                 {
                     auto locked = LogRAIIMutex(mutex);
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.putf!(Args)(fmt, args);
@@ -1443,9 +1443,9 @@ public:
     s.logf(LogLevel.fatal, "%d %s", 1337, "is number");
     --------------------
      */
-    final void logf(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy string fmt, lazy Args args, Exception ex = null,
-        in int line = __LINE__, in string fileName = __FILE__,
-        in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+    final void logf(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy string fmt, lazy Args args,
+        Exception ex = null,
+        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
     {
         version (DebugLogger) debug writeln("Logger.logf().line=", line, ", funcName=", funcName, ", ll=", ll);
 
@@ -1456,7 +1456,7 @@ public:
                 auto currTime = Clock.currTime;
                 {
                     auto locked = LogRAIIMutex(mutex);
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.putf!(Args)(fmt, args);
@@ -1492,9 +1492,9 @@ public:
     s.logf(LogLevel.fatal, true ,"%d %s", 1337, "is number");
     --------------------
      */
-    final void logf(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy bool condition, lazy string fmt, lazy Args args, Exception ex = null,
-        in int line = __LINE__, in string fileName = __FILE__,
-        in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__) nothrow
+    final void logf(string moduleName = __MODULE__, Args...)(const(LogLevel) ll, lazy bool condition, lazy string fmt, lazy Args args,
+        Exception ex = null,
+        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__) nothrow
     {
         version (DebugLogger) debug writeln("Logger.logf().line=", line, ", funcName=", funcName, ", ll=", ll);
 
@@ -1505,7 +1505,7 @@ public:
                 auto currTime = Clock.currTime;
                 {
                     auto locked = LogRAIIMutex(mutex);
-                    auto header = LogHeader(ll, line, fileName, funcName, prettyFuncName, moduleName, thisThreadID, currTime, ex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
                     this.beginMsg(header);
                     auto writer = LogArgumentWriter(this);
                     writer.putf!(Args)(fmt, args);
@@ -1526,7 +1526,6 @@ public:
         int line; /// the line number the log function was called from
         string fileName; /// the filename the log function was called from
         string funcName; /// the name of the function the log function was called from
-        string prettyFuncName; /// the pretty formatted name of the function the log function was called from
         string moduleName; /// the name of the module the log message is coming from
         ThreadID threadID; /// thread id of the log message
         SysTime timestamp; /// the time the message was logged
@@ -2277,8 +2276,6 @@ else
 
     static immutable string newLineLiteral = "\n";
 
-    enum usePrettyFuncNameDetailLevel = 4;
-
 public:
     this(Logger logger)
     {
@@ -2324,16 +2321,16 @@ public:
         text(sink, element, separatedStringPart(fileName, dirSeparator, element.detailLevel + 1));
     }
 
-    static string funcName(const ref LogOutputPatternElement element, string funcName, string prettyFuncName) nothrow
+    static string funcName(const ref LogOutputPatternElement element, string funcName) nothrow
     {
         const detailLevel = element.detailLevel;
-        return text(element, detailLevel >= usePrettyFuncNameDetailLevel ? prettyFuncName : separatedStringPart(funcName, '.', detailLevel + 1));
+        return text(element, separatedStringPart(funcName, '.', detailLevel + 1));
     }
 
-    static void funcName(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, string funcName, string prettyFuncName) nothrow
+    static void funcName(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, string funcName) nothrow
     {
         const detailLevel = element.detailLevel;
-        text(sink, element, detailLevel >= usePrettyFuncNameDetailLevel ? prettyFuncName : separatedStringPart(funcName, '.', detailLevel + 1));
+        text(sink, element, separatedStringPart(funcName, '.', detailLevel + 1));
     }
 
     static string integer(I)(const ref LogOutputPatternElement element, I value) nothrow
@@ -2537,7 +2534,7 @@ public:
                             text(sink, element, payload.message);
                             break;
                         case OutputPatternName.method:
-                            funcName(sink, element, payload.header.funcName, payload.header.prettyFuncName);
+                            funcName(sink, element, payload.header.funcName);
                             break;
                         case OutputPatternName.newLine:
                             newLine(sink, element);
@@ -2588,8 +2585,7 @@ public:
     this(Logger logger, string message,
         bool logBeginEnd = false,
         Duration warnMsecs = Duration.zero,
-        in int line = __LINE__, in string fileName = __FILE__,
-        in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__,
+        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__,
         in string moduleName = __MODULE__)
     {
         this.message = message;
@@ -2598,7 +2594,6 @@ public:
         this.payload.header.line = line;
         this.payload.header.fileName = fileName;
         this.payload.header.funcName = funcName;
-        this.payload.header.prettyFuncName = prettyFuncName;
         this.payload.header.moduleName = moduleName;
         this.payload.header.threadID = thisThreadID;
         this.logBeginEnd = logBeginEnd;
@@ -3283,15 +3278,12 @@ unittest // moduleParentOf
 
     // funcName
     immutable string funcName = "core.Point.dot";
-    immutable string prettyFuncName = "double core.Point.dot(Point rhs)";
     LogOutputPatternElement funcPattern;
-    assert(LogOutputWriter.funcName(funcPattern, funcName, prettyFuncName) == "dot");
+    assert(LogOutputWriter.funcName(funcPattern, funcName) == "dot");
     funcPattern.detailLevel = 1;
-    assert(LogOutputWriter.funcName(funcPattern, funcName, prettyFuncName) == "Point.dot");
+    assert(LogOutputWriter.funcName(funcPattern, funcName) == "Point.dot");
     funcPattern.detailLevel = 2;
-    assert(LogOutputWriter.funcName(funcPattern, funcName, prettyFuncName) == "core.Point.dot");
-    funcPattern.detailLevel = LogOutputWriter.usePrettyFuncNameDetailLevel; // Any number >= LogOutputPatternElement.usePrettyFuncNameDetailLevel
-    assert(LogOutputWriter.funcName(funcPattern, funcName, prettyFuncName) == prettyFuncName);
+    assert(LogOutputWriter.funcName(funcPattern, funcName) == "core.Point.dot");
 
     // integer
     LogOutputPatternElement intPattern;
@@ -3357,7 +3349,7 @@ package(pham.external.std.log)
         {
             lvl = defaultUnitTestLogLevel;
             line = 0;
-            file = func = outputMessage = prettyFunc = msg = null;
+            file = func = outputMessage = msg = null;
         }
 
     protected:
@@ -3375,7 +3367,6 @@ package(pham.external.std.log)
             this.line = payload.header.line;
             this.file = payload.header.fileName;
             this.func = payload.header.funcName;
-            this.prettyFunc = payload.header.prettyFuncName;
             this.msg = payload.message;
 
             auto buffer = Appender!string();
@@ -3391,7 +3382,6 @@ package(pham.external.std.log)
         string file;
         string func;
         string outputMessage;
-        string prettyFunc;
         string msg;
     }
 }
@@ -3419,9 +3409,8 @@ void testFuncNames(Logger logger) @safe
 {
     auto tl1 = new TestLogger();
     testFuncNames(tl1);
-    version (DebugLogger) debug writeln("tl1.func=", tl1.func, ", tl1.prettyFunc=", tl1.prettyFunc, ", tl1.msg=", tl1.msg);
+    version (DebugLogger) debug writeln("tl1.func=", tl1.func, ", tl1.msg=", tl1.msg);
     assert(tl1.func == "pham.external.std.log.logger.testFuncNames", tl1.func);
-    assert(tl1.prettyFunc == "void pham.external.std.log.logger.testFuncNames(Logger logger) @safe", tl1.prettyFunc);
     assert(tl1.msg == "I'm here", tl1.msg);
 }
 
@@ -4294,17 +4283,15 @@ void testFuncNames(Logger logger) @safe
     auto tl = new TestLogger();
     LogOutputPatternElement blankPattern, datePattern;
     SysTime atTimestamp;
-    string atfileName, atfuncName, atprettyFuncName;
+    string atfileName, atfuncName;
     int atLine;
 
     datePattern.fmt = "%S";
 
-    void setFunctionInfo(in string fileName = __FILE__,
-        in string funcName = __FUNCTION__, in string prettyFuncName = __PRETTY_FUNCTION__)
+    void setFunctionInfo(in string fileName = __FILE__, in string funcName = __FUNCTION__)
     {
         atfileName = fileName;
         atfuncName = funcName;
-        atprettyFuncName = prettyFuncName;
         atTimestamp = Clock.currTime;
     }
 
@@ -4326,7 +4313,7 @@ void testFuncNames(Logger logger) @safe
         ~ " [" ~ LogOutputWriter.logLevel(blankPattern, tl.logLevel) ~ "] "
         ~ LogOutputWriter.fileName(blankPattern, atfileName) ~ "."
         ~ LogOutputWriter.integer(blankPattern, atLine) ~ "."
-        ~ LogOutputWriter.funcName(blankPattern, atfuncName, atprettyFuncName) ~ ": "
+        ~ LogOutputWriter.funcName(blankPattern, atfuncName) ~ ": "
         ~ LogOutputWriter.text(blankPattern, testMessage)
         ~ LogOutputWriter.newLine(blankPattern);
     version (DebugLogger) debug writeln(tl.outputMessage);

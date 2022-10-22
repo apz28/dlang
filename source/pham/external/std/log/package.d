@@ -192,6 +192,6 @@ will never log a message and will never throw on a log call with `LogLevel`
 */
 module pham.external.std.log;
 
+import pham.external.std.log.date_time_format;
 public import pham.external.std.log.logger;
 public import pham.external.std.log.multi_logger;
-public import pham.external.std.log.date_time_format;
