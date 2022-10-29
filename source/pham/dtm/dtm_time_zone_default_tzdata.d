@@ -37,12 +37,7 @@ TimeZoneInfo[] getDefaultTimeZoneInfosByTZData(string tzdataText)
         return null;
 
     auto tzDatabase = parseTZData(tzdataText);
-
-
-    TimeZoneInfo[] result;
-    result.reserve(200);
-
-    return result;
+    return toTimeZoneInfo(tzDatabase);
 }
 
 pragma(inline, true)
@@ -98,16 +93,38 @@ struct RuleInfo
     TimeInfo timeOfDay;
     TimeInfo daylightDelta;
     string letters;
+    
+    pragma(inline, true)
+    bool supportsDaylightSavingTime() const @nogc pure
+    {
+        return daylightDelta.isValid();
+    }
+}
+
+struct RuleInfoSet
+{
+    string name;
+    RuleInfo firstRule;
+    RuleInfo[] rules;
 }
 
 struct TimeInfo
 {
+nothrow @safe:
+
     // Order is important
     Time time;
     char mode;
     bool addDay;
+    bool neg;
 
-    static bool isValidMode(char c) @nogc nothrow pure @safe
+    pragma(inline, true)
+    bool isValid() const @nogc pure
+    {
+        return time != Time.zero || mode != '\0' || addDay;        
+    }
+    
+    static bool isValidMode(char c) @nogc pure
     {
         switch (c)
         {
@@ -129,16 +146,39 @@ struct TimeInfo
                 return false;
         }
     }
+
+    Duration toDuration() const @nogc pure
+    {
+        auto result = time.toDuration();
+        if (addDay)
+            result += dur!"days"(1);
+        return neg ? -result : result;
+    }
 }
 
 struct ZoneInfo
 {
+nothrow @safe:
+
     // Order is important
     string name;
-    TimeInfo utcOffset;
+    TimeInfo stdOffset;
     string ruleName;
+    TimeInfo ruleDelta;
     string format;
     DateTime untilDateTime;
+    
+    bool supportsDaylightSavingTime() const @nogc pure
+    {
+        return sameLast(format, "DT") || (ruleName.length != 0 && sameLast(format, "%sT"));
+    }
+}
+
+struct ZoneInfoSet
+{
+    string name;
+    ZoneInfo firstZone;
+    ZoneInfo[] zones;
 }
 
 struct TZDatabase
@@ -154,22 +194,19 @@ nothrow @safe:
     {
         auto p = rule.name in rules;
         if (p !is null)
-            (*p) ~= rule;
+            (*p).rules ~= rule;
         else
-            rules[rule.name] = [rule];
+            rules[rule.name] = RuleInfoSet(rule.name, rule, null);
     }
 
     void addZone(ZoneInfo zone)
     {
         auto p = zone.name in zones;
         if (p !is null)
-            (*p) ~= zone;
+            (*p).zones ~= zone;
         else
-            zones[zone.name] = [zone];
+            zones[zone.name] = ZoneInfoSet(zone.name, zone, null);
     }
-
-    alias RuleInfoSet = RuleInfo[];
-    alias ZoneInfoSet = ZoneInfo[];
 
     LinkInfo[string] links;
     RuleInfoSet[string] rules;
@@ -208,6 +245,11 @@ string normalizeWhite(string line) pure
     }
 
     return leadingChars == useResult ? result.data : line;
+}
+
+string nullIf(string s) @nogc pure
+{
+    return s != "-" ? s : null;
 }
 
 TZDatabase parseTZData(string tzdataText)
@@ -343,7 +385,7 @@ ResultIf!RuleInfo toRule(string[] elems)
     const d = toDay(elems[6]);
     const tod = toTime(elems[7]);
     const tdelta = toTime(elems[8]);
-    const letters = elems.length >= 10 ? elems[9] : null;
+    const letters = elems.length >= 10 ? nullIf(elems[9]) : null;
 
     return name.length != 0 && yb && ye && m && d && tod && tdelta
         ? ResultIf!RuleInfo.ok(RuleInfo(name, yb, ye, m, d, tod, tdelta, letters))
@@ -351,7 +393,11 @@ ResultIf!RuleInfo toRule(string[] elems)
 }
 
 ResultIf!TimeInfo toTime(string v)
-{
+{        
+    const neg = v.length != 0 && v[0] == '-';
+    if (neg)
+        v = v[1..$];
+
     char mode = v.length != 0 ? v[$ - 1] : '\0';
     if (TimeInfo.isValidMode(mode))
         v = v[0..$ - 1];
@@ -373,7 +419,7 @@ ResultIf!TimeInfo toTime(string v)
     Time time;
     if (v == "24:00")
     {
-        time = Time.midnight;
+        time = Time(0, 0, 0, 0, DateTimeZoneKind.local);
         addDay = true;
     }
     // As of TZDB 2018f, Japan's fallback transitions occur at 25:00. We can't
@@ -388,9 +434,10 @@ ResultIf!TimeInfo toTime(string v)
         scope const patterns = [pattern("hh:nn:ss.zzz"), pattern("hh:nn"), pattern("hh")];
         if (tryParse!Time(v, patterns, time) != DateTimeParser.noError)
             return ResultIf!TimeInfo.error(1);
+        time = time.asKind(DateTimeZoneKind.unspecified);
     }
 
-    return ResultIf!TimeInfo.ok(TimeInfo(time, mode, addDay));
+    return ResultIf!TimeInfo.ok(TimeInfo(time, mode, addDay, neg));
 }
 
 ResultIf!int toYearBegin(string v) pure
@@ -434,8 +481,11 @@ ResultIf!ZoneInfo toZone(string[] elems, string previousZoneName)
 
     auto zoneName = previousZoneName.length != 0 ? previousZoneName : elems[1];
     size_t i = previousZoneName.length != 0 ? 1 : 2;
-    const utcOffset = toTime(elems[i++]);
-    auto ruleName = elems[i++];
+    auto stdOffset = toTime(elems[i++]);
+    auto ruleName = nullIf(elems[i++]);
+    auto ruleDelta = toTime(ruleName);
+    if (ruleDelta)
+        ruleName = null;
     auto format = elems[i++];
     DateTime untilDateTime;
     if (i < elems.length)
@@ -446,16 +496,62 @@ ResultIf!ZoneInfo toZone(string[] elems, string previousZoneName)
         const untilTime = i < elems.length ? toTime(elems[i++]) : ResultIf!TimeInfo.ok(TimeInfo(Time.midnight, '\0', false));
 
         if (untilYear && untilMonth && untilDay && untilTime)
-            untilDateTime = DateTime(Date(untilYear, untilMonth, untilDay), untilTime.time);
+            untilDateTime = DateTime(Date(untilYear, untilMonth, untilDay), untilTime.time.asKind(DateTimeZoneKind.unspecified));
         else
             return ResultIf!ZoneInfo.error(1);
     }
     else
-        untilDateTime = DateTime.max;
+        untilDateTime = DateTime.max.asKind(DateTimeZoneKind.unspecified);
 
-    return zoneName.length != 0 && utcOffset //&& ruleName.length != 0
-        ? ResultIf!ZoneInfo.ok(ZoneInfo(zoneName, utcOffset, ruleName, format, untilDateTime))
+    return zoneName.length != 0 && stdOffset
+        ? ResultIf!ZoneInfo.ok(ZoneInfo(zoneName, stdOffset, ruleName, ruleDelta, format, untilDateTime))
         : ResultIf!ZoneInfo.error(1);
+}
+
+TimeZoneInfo[] toTimeZoneInfo(ref TZDatabase tzDatabase)
+{
+    scope (failure) assert(0);
+    
+    TimeZoneInfo[] result;
+    result.reserve(200);
+
+    foreach (name, ref zoneInfoSet; tzDatabase.zones)
+    {
+        auto firstZone = zoneInfoSet.firstZone;
+        
+        auto id = name;
+        auto displayName = name;
+        auto standardName = name;
+        auto daylightName = name;
+        auto baseUtcOffset = firstZone.stdOffset.toDuration();
+        auto supportsDaylightSavingTime = firstZone.supportsDaylightSavingTime();
+
+        AdjustmentRule[] adjRules;
+        DateTime adjBegin = DateTime.min.asKind(DateTimeZoneKind.unspecified);
+        DateTime adjEnd = firstZone.untilDateTime;
+        Duration adjDaylightDelta, adjStandardDelta, adjBaseUtcOffsetDelta;
+        TransitionTime adjDaylightTransitionBegin, adjDaylightTransitionEnd;
+        bool adjNoDaylightTransitions;
+        
+       /*
+  string name;
+    TimeInfo stdOffset;
+    string ruleName;
+    TimeInfo ruleDelta;
+    string format;
+    DateTime untilDateTime;
+    */
+         
+        foreach (ref zoneInfo; zoneInfoSet.zones)
+        {
+            if (zoneInfo.supportsDaylightSavingTime())
+                supportsDaylightSavingTime = true;
+        }       
+        result ~= TimeZoneInfo(id, displayName, standardName, daylightName, baseUtcOffset,
+            supportsDaylightSavingTime, adjRules);
+    }
+
+    return result;
 }
 
 string trimRight(string line) @nogc pure

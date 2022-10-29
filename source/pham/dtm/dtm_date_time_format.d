@@ -17,7 +17,7 @@ import std.traits : isSomeChar, isSomeString, Unqual;
 
 import pham.utl.object : toString;
 import pham.dtm.tick;
-import pham.dtm.date : Date, DateTime, DayOfWeek, firstDayOfMonth, firstDayOfWeek;
+import pham.dtm.date : Date, DateTime, DayOfWeek, firstDayOfMonth, firstDayOfWeek, JulianDate;
 import pham.dtm.time : Time;
 
 @safe:
@@ -138,16 +138,16 @@ public:
         return _hour;
     }
 
-    @property uint julianDay() const @nogc pure
+    @property int julianDay() const @nogc pure
     {
         final switch (kind)
         {
             case DateTimeKind.date:
-                return date.julianDay;
+                return cast(int)Tick.round(date.julianDay);
             case DateTimeKind.dateTime:
-                return dateTime.julianDay;
+                return cast(int)Tick.round(dateTime.julianDay);
             case DateTimeKind.time:
-                return time.julianDay;
+                return cast(int)Tick.round(time.julianDay);
         }
     }
 
@@ -886,25 +886,25 @@ private:
     string s;
 
     s = DateTime(2010, 8, 24, 0, 0, 0).toString("%j");
-    assert(s == "734007", s);
+    assert(s == "2455433", s);
 
     s = DateTime(2010, 8, 24, 11, 59, 59).toString("%j");
-    assert(s == "734007", s);
+    assert(s == "2455433", s);
 
     s = DateTime(2010, 8, 24, 12, 0, 0).toString("%j");
-    assert(s == "734008", s);
+    assert(s == "2455433", s);
 
     s = DateTime(2010, 8, 24, 13, 0, 0).toString("%j");
-    assert(s == "734008", s);
+    assert(s == "2455433", s);
 
     s = Date(2010, 8, 24).toString("%j");
-    assert(s == "734007", s);
+    assert(s == "2455433", s);
 
     s = Time(11, 59, 59).toString("%j");
-    assert(s == "0", s);
+    assert(s == "1721424", s);
 
     s = Time(12, 0, 0).toString("%j");
-    assert(s == "1", s);
+    assert(s == "1721424", s);
 }
 
 @safe unittest // FormatDateTimeSpecifier.longDate, shortDate

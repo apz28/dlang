@@ -345,11 +345,14 @@ public:
     }
 
     /**
-     * Returns the number of days since January 1, 0001 in the Proleptic Gregorian calendar represented by this Date
+     * Returns JulianDay represented by this Date, the Time part is zero (midnight 00:00:00.000)
+     * The $(HTTP en.wikipedia.org/wiki/Julian_day)
      */
-    @property int julianDay() const @nogc nothrow pure
+    @property double julianDay() const @nogc nothrow pure
     {
-        return cast(int)data;
+        int y = void, m = void, d = void;
+        getDate(y, m, d);
+        return JulianDate.toJulianDay(y, m, d, 0, 0, 0, 0);
     }
 
     /**
@@ -1066,6 +1069,10 @@ public:
         hour = cast(int)(totalHours % 24);
     }
 
+    /**
+     * Indicates whether this instance of DateTime is within the daylight saving
+     * time range for the current time zone
+     */
     bool isDaylightSavingTime() const nothrow
     {
         if (data.internalKind == TickData.kindUtc)
@@ -1354,9 +1361,16 @@ public:
         return cast(int)(cast(uint)(data.sticks / Tick.ticksPerHour) % 24);
     }
 
-    @property int julianDay() const @nogc nothrow pure
+    /**
+     * Returns JulianDay represented by this DateTime
+     * The $(HTTP en.wikipedia.org/wiki/Julian_day)
+     */
+    @property double julianDay() const @nogc nothrow pure
     {
-        return totalDays + (hour >= 12 ? 1 : 0);
+        int y = void, m = void, d = void, h = void, n = void, s = void, f = void;
+        getDate(y, m, d);
+        getTime(h, n, s, f);
+        return JulianDate.toJulianDay(y, m, d, h, n, s, f);
     }
 
     @property DateTimeZoneKind kind() const @nogc nothrow pure
@@ -1463,12 +1477,16 @@ public:
         return cast(long)(data.sticks / Tick.ticksPerMillisecond);
     }
 
+    /**
+     * Returns the number of ticks that represent the date and time of this instance
+     */
     pragma(inline, true)
     @property long sticks() const @nogc nothrow pure scope
     {
         return data.sticks;
     }
 
+    ///dito
     pragma(inline, true)
     @property ulong uticks() const @nogc nothrow pure scope
     {
@@ -1719,6 +1737,67 @@ private:
     }
 
     TickData data;
+}
+
+struct JulianDate
+{
+@nogc nothrow @safe:
+
+    enum CalendarKind : ubyte
+    {
+        julian,
+        gregorian,
+        outofrange,
+    }
+
+    static CalendarKind calendarKind(const(int) year, const(int) month, const(int) day) pure
+    {
+        // All dates prior to 1582 are in the Julian calendar
+        if (year < 1582)
+            return CalendarKind.julian;
+        // All dates after 1582 are in the Gregorian calendar
+        else if (year > 1582)
+            return CalendarKind.gregorian;
+        else
+        {
+            // If 1582, check before October 4 (Julian) or after October 15 (Gregorian)
+            if (month < 10)
+                return CalendarKind.julian;
+            else if (month > 10)
+                return CalendarKind.gregorian;
+            else
+            {
+                if (day < 5)
+                    return CalendarKind.julian;
+                else if (day > 14)
+                    return CalendarKind.gregorian;
+                else
+                    // Any date in the range 10/5/1582 to 10/14/1582 is invalid
+                    // This date is not valid as it does not exist in either the Julian or the Gregorian calendars
+                    return CalendarKind.outofrange;
+            }
+        }
+    }
+
+    /**
+     * Calculate julian day for year, month, day, hour, minute, second, millisecond
+     * If date (year, month, day) is not a valid Julian/Gregorian calendar, the return value is NaN
+     * The $(HTTP en.wikipedia.org/wiki/Julian_day)
+     */
+    static double toJulianDay(const(int) year, const(int) month, const(int) day, const(int) hour, const(int) minute, const(int) second, const(int) millisecond) pure
+    {
+        // Determine correct calendar based on date
+        const ck = calendarKind(year, month, day);
+        if (ck == CalendarKind.outofrange)
+            return double.nan;
+
+        const int Y = month > 2 ? year : year - 1;
+        const int M = month > 2 ? month : month + 12;
+        const double D = day + hour/24.0 + minute/1440.0 + (second + millisecond / 1000.0)/86400.0;
+        const int B = ck == CalendarKind.julian ? 0 : (2 - Y/100 + Y/100/4);
+
+        return cast(int)(365.25*(Y + 4716)) + cast(int)(30.6001*(M + 1)) + D + B - 1524.5;
+    }
 }
 
 
@@ -2085,9 +2164,9 @@ unittest // DateTime.julianDay
     import pham.utl.test;
     traceUnitTest!("pham.dtm")("unittest pham.dtm.date.DateTime.julianDay");
 
-    assert(DateTime.min.julianDay == 0, to!string(DateTime.min.julianDay));
-    assert(DateTime.max.julianDay == Date.maxDays + 1, to!string(DateTime.max.julianDay));
-    assert(DateTime(1, 1, 1, 12, 0, 0, 0).julianDay == 1);
+    assert(Tick.round(DateTime.min.julianDay) == 1721424, to!string(Tick.round(DateTime.min.julianDay)));
+    assert(Tick.round(DateTime.max.julianDay) == 5373484, to!string(Tick.round(DateTime.max.julianDay)));
+    assert(Tick.round(DateTime(1, 1, 1, 12, 0, 0, 0).julianDay) == 1721424, to!string(Tick.round(DateTime(1, 1, 1, 12, 0, 0, 0).julianDay)));
 }
 
 unittest // DateTime.opBinary
@@ -2412,9 +2491,9 @@ unittest // Date.julianDay
     import pham.utl.test;
     traceUnitTest!("pham.dtm")("unittest pham.dtm.date.Date.julianDay");
 
-    assert(Date.min.julianDay == 0, to!string(Date.min.julianDay));
-    assert(Date.max.julianDay == Date.maxDays, to!string(Date.max.julianDay));
-    assert(Date(1, 1, 1).julianDay == 0);
+    assert(Tick.round(Date.min.julianDay) == 1721424, to!string(Tick.round(Date.min.julianDay)));
+    assert(Tick.round(Date.max.julianDay) == 5373484, to!string(Tick.round(Date.max.julianDay)));
+    assert(Tick.round(Date(1, 1, 1).julianDay) == 1721424, to!string(Tick.round(Date(1, 1, 1).julianDay)));
 }
 
 unittest // Date.opBinary

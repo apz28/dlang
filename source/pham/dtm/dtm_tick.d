@@ -236,6 +236,12 @@ struct Tick
         return duration.total!"hnsecs"();
     }
 
+    static long round(const(double) d) pure
+    {
+        const r = d >= 0.0 ? 0.5 : -0.5;
+        return cast(long)(d + r);
+    }
+
     pragma(inline, true)
     static ulong timeToTicks(int hour, int minute, int second) pure
     in

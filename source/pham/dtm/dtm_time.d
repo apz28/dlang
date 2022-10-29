@@ -15,7 +15,7 @@ import std.range.primitives : isOutputRange;
 import std.traits : isSomeChar;
 
 import pham.utl.utf8 : ShortStringBuffer;
-import pham.dtm.date : DateTime, DayOfWeek;
+import pham.dtm.date : DateTime, DayOfWeek, JulianDate;
 import pham.dtm.tick;
 public import pham.dtm.tick : CustomFormatSpecifier, DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind;
 
@@ -289,8 +289,7 @@ public:
 
     /**
      * Returns the equivalent DateTime of this instance. The resulting value
-     * corresponds to this DateTime with the date part set to
-     * zero (Jan 1st year 1).
+     * corresponds to this DateTime with the date part set to zero (Jan 1st year 1).
      */
     pragma(inline, true)
     DateTime toDateTime() const @nogc nothrow pure
@@ -381,9 +380,15 @@ public:
         return cast(int)((data.sticks / Tick.ticksPerHour) % 24);
     }
 
-    @property uint julianDay() const @nogc nothrow pure
+    /**
+     * Returns JulianDay represented by this Time, the Date part is zero (Jan 1st year 1)
+     * The $(HTTP en.wikipedia.org/wiki/Julian_day)
+     */
+    @property double julianDay() const @nogc nothrow pure
     {
-        return hour >= 12 ? 1 : 0;
+        int h = void, n = void, s = void, f = void;
+        getTime(h, n, s, f);
+        return JulianDate.toJulianDay(1, 1, 1, h, n, s, f);
     }
 
     /**
@@ -428,12 +433,16 @@ public:
         return cast(int)((data.sticks / Tick.ticksPerSecond) % 60);
     }
 
+    /**
+     * Returns the number of ticks that represent the time of this instance
+     */
     pragma(inline, true)
     @property long sticks() const @nogc nothrow pure
     {
         return data.sticks;
     }
 
+    ///dito
     pragma(inline, true)
     @property ulong uticks() const @nogc nothrow pure
     {
@@ -456,6 +465,10 @@ public:
         return Time(cast(ulong)minTicks | TickData.kindUnspecified);
     }
 
+    /**
+     * Returns a Time object that is set to the current time on this
+     * computer, expressed as the local time
+     */
     @property static Time now() nothrow
     {
         return DateTime.now.time;
@@ -497,13 +510,18 @@ public:
         return cast(long)(data.sticks / Tick.ticksPerMillisecond);
     }
 
+    /**
+     * Returns a Time object that is set to the current time on this
+     * computer, expressed as the Coordinated Universal Time (UTC)
+     */
     @property static Time utcNow() @nogc nothrow
     {
         return DateTime.utcNow.time;
     }
 
     /**
-     * Returns the zero Time value which time 00:00:00.000 AM
+     * Returns the midnight Time value which is midnight time 00:00:00.000 AM
+     * Same as zero
      */
     alias midnight = min;
 
@@ -897,13 +915,14 @@ unittest // Time.createTime
 
 unittest // Time.julianDay
 {
+    import std.conv : to;
     import pham.utl.test;
     traceUnitTest!("pham.dtm")("unittest pham.dtm.time.Time.julianDay");
 
-    assert(Time(0, 0, 0, 0).julianDay == 0);
-    assert(Time(11, 59, 59, 999).julianDay == 0);
-    assert(Time(12, 0, 0, 0).julianDay == 1);
-    assert(Time(23, 59, 59, 999).julianDay == 1);
+    assert(Tick.round(Time(0, 0, 0, 0).julianDay) == 1721424, to!string(Tick.round(Time(0, 0, 0, 0).julianDay)));
+    assert(Tick.round(Time(11, 59, 59, 999).julianDay) == 1721424, to!string(Tick.round(Time(11, 59, 59, 999).julianDay)));
+    assert(Tick.round(Time(12, 0, 0, 0).julianDay) == 1721424, to!string(Tick.round(Time(12, 0, 0, 0).julianDay)));
+    assert(Tick.round(Time(23, 59, 59, 999).julianDay) == 1721424, to!string(Tick.round(Time(23, 59, 59, 999).julianDay)));
 }
 
 unittest // Time.getTime
