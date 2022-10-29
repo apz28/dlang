@@ -171,6 +171,8 @@ public:
         return len != 0 ? (useStatic ? _staticItems[0..len] : _dynamicItems) : [];
     }
 
+    /** Returns range interface
+    */
     T opIndex(const(size_t) index) nothrow
     in
     {

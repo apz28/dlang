@@ -801,7 +801,16 @@ public:
     /**
      * Returns the bit at the given index.
      */
-    bool opIndex(size_t index) const @nogc pure
+    static if (is(T == ubyte))
+    T[] opIndex() @nogc pure return
+    {
+        return _values;
+    }
+
+    /**
+     * Returns the bit at the given index.
+     */
+    bool opIndex(const(size_t) index) const @nogc pure
     in
     {
         assert(index < length);
@@ -811,7 +820,7 @@ public:
         return bt(_values, index);
     }
 
-    bool opIndexAssign(bool bit, size_t index) @nogc pure @trusted
+    bool opIndexAssign(bool bit, const(size_t) index) @nogc pure @trusted
     in
     {
         assert(index < length);
@@ -823,12 +832,6 @@ public:
         else
             btr(_values.ptr, index);
         return bit;
-    }
-
-    static if (is(T == ubyte))
-    T[] opSlice() @nogc pure return
-    {
-        return _values;
     }
 
     /*
@@ -843,21 +846,21 @@ public:
 
     /**
       Sets the bits of a slice of `BitArray` starting
-      at index `start` and ends at index ($D end - 1)
+      at index `beginIndex` and ends at index ($D endIndex - 1)
       with the values specified by `bit`.
      */
-    ref typeof(this) opSliceAssign(bool bit, size_t start, size_t end) @nogc return
+    ref typeof(this) opSliceAssign(bool bit, const(size_t) beginIndex, const(size_t) endIndex) @nogc return
     in
     {
-        assert(start <= end, "start must be less or equal to end");
-        assert(end <= length, "end must be less or equal to the length");
+        assert(beginIndex <= endIndex, "beginIndex must be less or equal to endIndex");
+        assert(endIndex <= length, "endIndex must be less or equal to the length");
     }
     do
     {
-        size_t startBlock = start / bitsPerElement;
-        const size_t endBlock = end / bitsPerElement;
-        const size_t startOffset = start % bitsPerElement;
-        const size_t endOffset = end % bitsPerElement;
+        size_t startBlock = beginIndex / bitsPerElement;
+        const size_t endBlock = endIndex / bitsPerElement;
+        const size_t startOffset = beginIndex % bitsPerElement;
+        const size_t endOffset = endIndex % bitsPerElement;
 
         if (startBlock == endBlock)
         {

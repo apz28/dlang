@@ -507,14 +507,14 @@ public:
         return useShortSize ? _shortData[0.._length] : _longData[0.._length];
     }
 
-    T opIndex(const(size_t) i) const @nogc nothrow pure
+    T opIndex(const(size_t) index) const @nogc nothrow pure
     in
     {
-        assert(i < length);
+        assert(index < length);
     }
     do
     {
-        return useShortSize ? _shortData[i] : _longData[i];
+        return useShortSize ? _shortData[index] : _longData[index];
     }
 
     inout(T)[] opSlice(const(size_t) beginIndex, const(size_t) endIndex) inout nothrow pure return
@@ -532,33 +532,33 @@ public:
                 : (useShortSize ? _shortData[beginIndex..endIndex] : _longData[beginIndex..endIndex]);
     }
 
-    ref typeof(this) opIndexAssign(T c, const(size_t) i) @nogc nothrow return
+    ref typeof(this) opIndexAssign(T c, const(size_t) index) @nogc nothrow return
     in
     {
-        assert(i < length);
+        assert(index < length);
     }
     do
     {
         if (useShortSize)
-            _shortData[i] = c;
+            _shortData[index] = c;
         else
-            _longData[i] = c;
+            _longData[index] = c;
         return this;
     }
 
     static if (isIntegral!T)
-    ref typeof(this) opIndexOpAssign(string op)(T c, const(size_t) i) @nogc nothrow pure
+    ref typeof(this) opIndexOpAssign(string op)(T c, const(size_t) index) @nogc nothrow pure
     if (op == "&" || op == "|" || op == "^")
     in
     {
-        assert(i < length);
+        assert(index < length);
     }
     do
     {
         if (useShortSize)
-            mixin("_shortData[i] " ~ op ~ "= c;");
+            mixin("_shortData[index] " ~ op ~ "= c;");
         else
-            mixin("_longData[i] " ~ op ~ "= c;");
+            mixin("_longData[index] " ~ op ~ "= c;");
         return this;
     }
 

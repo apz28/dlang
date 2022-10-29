@@ -17,12 +17,12 @@ import std.conv : ConvException, convTo = to;
 import std.exception : enforce;
 import std.format : format;
 import std.range.primitives : ElementType;
-import std.traits : Unqual;
+import std.traits : isFloatingPoint, isIntegral, Unqual;
 
 version (unittest) import pham.utl.test;
 import pham.utl.numeric_parser : defaultParseDecimalOptions, isDigit, isNumericLexerRange, NumericLexer,
     NumericLexerFlag;
-import pham.utl.object : cmpInteger;
+import pham.utl.object : cmpInteger, sameSign;
 
 @safe:
 
@@ -56,26 +56,28 @@ public:
     static ptrdiff_t suffixIndex(scope const(char)[] suffix) @nogc nothrow pure
     {
         auto result = suffixes.countUntil(suffix);
-        if (result < 0 && suffix == "BYTES")
+        if (result < 0 && (suffix == "BYTES" || suffix == "bytes"))
             return 0;
         return result;
     }
 
 public:
-    this(long bytes) @nogc nothrow pure
+    this(string units, T)(T value) @nogc nothrow pure
+    if (suffixIndex(units) >= 0 && (isIntegral!T || isFloatingPoint!T))
     {
-        this._bytes = bytes;
+        enum unitIndex = suffixIndex(units);
+        this._bytes = opSafe!"*"(value, unitSizes[unitIndex].value);
     }
 
     ref typeof(this) opOpAssign(string op, T)(T value) @nogc nothrow pure return
-    if (op == "*" && (__traits(isIntegral, T) || __traits(isFloating, T)))
+    if (op == "*" && (isIntegral!T || isFloatingPoint!T))
     {
-        _bytes = cast(long)(_bytes * value);
+        _bytes = opSafe!"*"(_bytes, value);
         return this;
     }
 
     ref typeof(this) opOpAssign(string op, T)(T value) @nogc pure return
-    if (op == "/" && (__traits(isIntegral, T) || __traits(isFloating, T)))
+    if (op == "/" && (isIntegral!T || isFloatingPoint!T))
     in
     {
         assert(value != 0);
@@ -89,17 +91,17 @@ public:
     FileSize opBinary(string op)(scope const(FileSize) rhs) const @nogc nothrow pure
     if (op == "+" || op == "-")
     {
-        return FileSize(mixin("_bytes " ~ op ~ " rhs._bytes"));
+        return FileSize(opSafe!op(_bytes, rhs._bytes));
     }
 
     FileSize opBinary(string op, T)(T value) const @nogc nothrow pure
-    if (op == "*" && (__traits(isIntegral, T) || __traits(isFloating, T)))
+    if (op == "*" && (isIntegral!T || isFloatingPoint!T))
     {
-        return FileSize(cast(long)(_bytes * value));
+        return FileSize(opSafe!op(_bytes, value));
     }
 
     FileSize opBinary(string op, T)(T value) const pure
-    if (op == "/" && (__traits(isIntegral, T) || __traits(isFloating, T)))
+    if (op == "/" && (isIntegral!T || isFloatingPoint!T))
     in
     {
         assert(value != 0);
@@ -146,7 +148,15 @@ public:
     if (suffixIndex(units) >= 0)
     {
         enum unitIndex = suffixIndex(units);
-        return FileSize(value * unitSizes[unitIndex].value);
+        return FileSize(opSafe!"*"(value, unitSizes[unitIndex].value));
+    }
+
+    version (none) // not able to set alias Bytes = ... if implemented
+    static FileSize from(string units)(double value) @nogc nothrow pure
+    if (suffixIndex(units) >= 0)
+    {
+        enum unitIndex = suffixIndex(units);
+        return FileSize(opSafe!"*"(value, unitSizes[unitIndex].value));
     }
 
     static FileSize parse(Range)(Range range) pure
@@ -223,6 +233,11 @@ public:
         return result;
     }
 
+    size_t toHash() const nothrow pure
+    {
+        return .hashOf(_bytes);
+    }
+
     string toString(string units)() const nothrow pure
     if (suffixIndex(units) >= 0)
     {
@@ -253,6 +268,42 @@ public:
     static @property FileSize zero() @nogc nothrow pure
     {
         return FileSize(0);
+    }
+
+private:
+    this(long bytes) @nogc nothrow pure
+    {
+        this._bytes = bytes;
+    }
+
+    static long opSafe(string op, RHS)(const(long) lhs, const(RHS) rhs) @nogc nothrow pure
+    {
+        import core.checkedint : adds, subs, muls;
+
+        static if (isFloatingPoint!RHS)
+            return cast(long)(mixin("lhs" ~ op ~ "rhs"));
+        else
+        {
+            long result;
+            bool overflow;
+
+            static if (op == "+")
+                result = adds(lhs, long(rhs), overflow);
+            else static if (op == "-")
+                result = subs(lhs, long(rhs), overflow);
+            else static if (op == "*")
+                result = muls(lhs, long(rhs), overflow);
+            else
+                static assert(0, op);
+
+            if (!overflow)
+                return result;
+
+            static if (op == "*")
+                return sameSign(lhs, rhs) ? long.max : long.min;
+            else
+                return sameSign(lhs, rhs) == 1 ? long.max : long.min;
+        }
     }
 
 private:
@@ -388,44 +439,6 @@ private:
     assert(FileSize(-17).abs() == FileSize(17));
 }
 
-@safe nothrow unittest // FileSize.to
-{
-    import pham.utl.test;
-    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.to");
-
-    assert(FileSize(0).to!"Bytes"() == 0);
-    assert(FileSize(0).to!"KB"() == 0);
-    assert(FileSize(0).to!"MB"() == 0);
-    assert(FileSize(0).to!"GB"() == 0);
-    assert(FileSize(0).to!"TB"() == 0);
-    assert(FileSize(0).to!"PB"() == 0);
-
-    assert(FileSize(1).to!"Bytes"() == 1);
-    assert(FileSize(1).to!"KB"() == 1);
-    assert(FileSize(1).to!"MB"() == 0);
-    assert(FileSize(1).to!"GB"() == 0);
-    assert(FileSize(1).to!"TB"() == 0);
-    assert(FileSize(1).to!"PB"() == 0);
-
-    assert(FileSize(1023).to!"KB"() == 1);
-    assert(FileSize(1023).to!"MB"() == 0);
-    assert(FileSize(1023).to!"GB"() == 0);
-    assert(FileSize(1023).to!"TB"() == 0);
-    assert(FileSize(1023).to!"PB"() == 0);
-
-    assert(FileSize(1024).to!"KB"() == 1);
-    assert(FileSize(1024).to!"MB"() == 1);
-    assert(FileSize(1024).to!"GB"() == 0);
-    assert(FileSize(1024).to!"TB"() == 0);
-    assert(FileSize(1024).to!"PB"() == 0);
-
-    assert(FileSize(1025).to!"KB"() == 2);
-    assert(FileSize(1025).to!"MB"() == 1);
-    assert(FileSize(1025).to!"GB"() == 0);
-    assert(FileSize(1025).to!"TB"() == 0);
-    assert(FileSize(1025).to!"PB"() == 0);
-}
-
 @safe nothrow unittest // FileSize.from
 {
     import pham.utl.test;
@@ -453,44 +466,6 @@ private:
     assert(FileSize.from!"PB"(1).bytes == 1024L * 1024 * 1024 * 1024 * 1024);
     assert(1.PBytes.bytes == 1024L * 1024 * 1024 * 1024 * 1024);
     assert(FileSize.from!"PB"(1).to!"PB"() == 1);
-}
-
-@safe nothrow unittest // FileSize.toString
-{
-    import pham.utl.test;
-    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.toString");
-
-    assert(FileSize(0).toString!"Bytes"() == "0 Bytes");
-    assert(FileSize(0).toString!"KB"() == "0 KB");
-    assert(FileSize(0).toString!"MB"() == "0 MB");
-    assert(FileSize(0).toString!"GB"() == "0 GB");
-    assert(FileSize(0).toString!"TB"() == "0 TB");
-    assert(FileSize(0).toString!"PB"() == "0 PB");
-
-    assert(FileSize(1).toString!"Bytes"() == "1 Bytes");
-    assert(FileSize(1).toString!"KB"() == "1 KB");
-    assert(FileSize(1).toString!"MB"() == "0 MB");
-    assert(FileSize(1).toString!"GB"() == "0 GB");
-    assert(FileSize(1).toString!"TB"() == "0 TB");
-    assert(FileSize(1).toString!"PB"() == "0 PB");
-
-    assert(FileSize(1023).toString!"KB"() == "1 KB");
-    assert(FileSize(1023).toString!"MB"() == "0 MB");
-    assert(FileSize(1023).toString!"GB"() == "0 GB");
-    assert(FileSize(1023).toString!"TB"() == "0 TB");
-    assert(FileSize(1023).toString!"PB"() == "0 PB");
-
-    assert(FileSize(1024).toString!"KB"() == "1 KB");
-    assert(FileSize(1024).toString!"MB"() == "1 MB");
-    assert(FileSize(1024).toString!"GB"() == "0 GB");
-    assert(FileSize(1024).toString!"TB"() == "0 TB");
-    assert(FileSize(1024).toString!"PB"() == "0 PB");
-
-    assert(FileSize(1025).toString!"KB"() == "2 KB");
-    assert(FileSize(1025).toString!"MB"() == "1 MB");
-    assert(FileSize(1025).toString!"GB"() == "0 GB");
-    assert(FileSize(1025).toString!"TB"() == "0 TB");
-    assert(FileSize(1025).toString!"PB"() == "0 PB");
 }
 
 @safe unittest // FileSize.parse
@@ -537,4 +512,97 @@ private:
     assertThrown!ConvException(FileSize.parse("1 unknown"));
     assertThrown!ConvException(FileSize.parse("Bytes"));
     assertThrown!ConvException(FileSize.parse("-PB"));
+}
+
+@safe nothrow unittest // FileSize.to
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.to");
+
+    assert(FileSize(0).to!"Bytes"() == 0);
+    assert(FileSize(0).to!"KB"() == 0);
+    assert(FileSize(0).to!"MB"() == 0);
+    assert(FileSize(0).to!"GB"() == 0);
+    assert(FileSize(0).to!"TB"() == 0);
+    assert(FileSize(0).to!"PB"() == 0);
+
+    assert(FileSize(1).to!"Bytes"() == 1);
+    assert(FileSize(1).to!"KB"() == 1);
+    assert(FileSize(1).to!"MB"() == 0);
+    assert(FileSize(1).to!"GB"() == 0);
+    assert(FileSize(1).to!"TB"() == 0);
+    assert(FileSize(1).to!"PB"() == 0);
+
+    assert(FileSize(1023).to!"KB"() == 1);
+    assert(FileSize(1023).to!"MB"() == 0);
+    assert(FileSize(1023).to!"GB"() == 0);
+    assert(FileSize(1023).to!"TB"() == 0);
+    assert(FileSize(1023).to!"PB"() == 0);
+
+    assert(FileSize(1024).to!"KB"() == 1);
+    assert(FileSize(1024).to!"MB"() == 1);
+    assert(FileSize(1024).to!"GB"() == 0);
+    assert(FileSize(1024).to!"TB"() == 0);
+    assert(FileSize(1024).to!"PB"() == 0);
+
+    assert(FileSize(1025).to!"KB"() == 2);
+    assert(FileSize(1025).to!"MB"() == 1);
+    assert(FileSize(1025).to!"GB"() == 0);
+    assert(FileSize(1025).to!"TB"() == 0);
+    assert(FileSize(1025).to!"PB"() == 0);
+}
+
+@safe nothrow unittest // FileSize.toString
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.toString");
+
+    assert(FileSize(0).toString!"Bytes"() == "0 Bytes");
+    assert(FileSize(0).toString!"KB"() == "0 KB");
+    assert(FileSize(0).toString!"MB"() == "0 MB");
+    assert(FileSize(0).toString!"GB"() == "0 GB");
+    assert(FileSize(0).toString!"TB"() == "0 TB");
+    assert(FileSize(0).toString!"PB"() == "0 PB");
+
+    assert(FileSize(1).toString!"Bytes"() == "1 Bytes");
+    assert(FileSize(1).toString!"KB"() == "1 KB");
+    assert(FileSize(1).toString!"MB"() == "0 MB");
+    assert(FileSize(1).toString!"GB"() == "0 GB");
+    assert(FileSize(1).toString!"TB"() == "0 TB");
+    assert(FileSize(1).toString!"PB"() == "0 PB");
+
+    assert(FileSize(1023).toString!"KB"() == "1 KB");
+    assert(FileSize(1023).toString!"MB"() == "0 MB");
+    assert(FileSize(1023).toString!"GB"() == "0 GB");
+    assert(FileSize(1023).toString!"TB"() == "0 TB");
+    assert(FileSize(1023).toString!"PB"() == "0 PB");
+
+    assert(FileSize(1024).toString!"KB"() == "1 KB");
+    assert(FileSize(1024).toString!"MB"() == "1 MB");
+    assert(FileSize(1024).toString!"GB"() == "0 GB");
+    assert(FileSize(1024).toString!"TB"() == "0 TB");
+    assert(FileSize(1024).toString!"PB"() == "0 PB");
+
+    assert(FileSize(1025).toString!"KB"() == "2 KB");
+    assert(FileSize(1025).toString!"MB"() == "1 MB");
+    assert(FileSize(1025).toString!"GB"() == "0 GB");
+    assert(FileSize(1025).toString!"TB"() == "0 TB");
+    assert(FileSize(1025).toString!"PB"() == "0 PB");
+}
+
+@safe nothrow unittest // FileSize overflow
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl.filesize")("unittest pham.utl.filesize.FileSize.overflow");
+
+    const lh = (long.max / 2) + 1;
+
+    assert(FileSize.from!"KB"(lh).bytes == long.max);
+    assert(FileSize.from!"MB"(lh).bytes == long.max);
+    assert(FileSize.from!"GB"(lh).bytes == long.max);
+    assert(FileSize.from!"TB"(lh).bytes == long.max);
+    assert(FileSize.from!"PB"(lh).bytes == long.max);
+
+    assert((FileSize.from!"Bytes"(lh) * lh).bytes == long.max);
+    assert((FileSize.from!"Bytes"(lh) + FileSize.from!"Bytes"(lh)).bytes == long.max);
 }

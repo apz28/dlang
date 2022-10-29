@@ -329,6 +329,26 @@ if (isSomeString!S && isSomeChar!C && is(Unqual!(typeof(S.init[0])) == C))
 }
 
 /**
+ * Compares and returns none-zero if both values are same sign
+ * Params:
+ *   lhs = left hand side of integral value
+ *   rhs = right hand side of integral value
+ * Retruns:
+ *   -1 if `lhs` and `rhs` are both negative
+ *   1 if `lhs` and `rhs` are both positive
+ *   0 otherwise
+ */
+pragma(inline, true)
+int sameSign(LHS, RHS)(const(LHS) lhs, const(RHS) rhs) @nogc nothrow pure @safe
+if (isIntegral!LHS && isIntegral!RHS)
+{
+    const lhsP = lhs >= 0;
+    const rhsP = rhs >= 0;
+    
+    return lhsP && rhsP ? 1 : (!lhsP && !rhsP ? -1 : 0);
+}
+
+/**
  * Returns the complete class-name of 'object' without template type if any. If `object` is null, returns "null"
  * Params:
  *   object = the object to get the class-name from
@@ -1184,6 +1204,27 @@ nothrow @safe unittest // pad
     assert(pad("12", 2, ' ') == "12");
     assert(pad("12", 3, ' ') == " 12");
     assert(pad("12", -3, ' ') == "12 ");
+}
+
+nothrow @safe unittest // sameSign
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.object.sameSign");
+
+    assert(sameSign(0, 0) == 1);
+    assert(sameSign(1, 0) == 1);
+    assert(sameSign(0, 1) == 1);
+    assert(sameSign(3, 1) == 1);
+    
+    assert(sameSign(-1, -100) == -1);
+    
+    assert(sameSign(-1, 1) == 0);
+    assert(sameSign(-10, 0) == 0);
+    
+    assert(sameSign(byte.min, byte.max) == 0);
+    assert(sameSign(byte.min, int.max) == 0);
+    assert(sameSign(byte.max, int.max) == 1);
+    assert(sameSign(byte.min, int.min) == -1);
 }
 
 nothrow @safe unittest // shortClassName
