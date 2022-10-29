@@ -97,7 +97,7 @@ public:
     void writeName(uint8 type, scope const(char)[] v) nothrow
     in
     {
-        assert(v.length <= uint.max);
+        assert(v.length < uint32.max);
     }
     do
     {
@@ -173,7 +173,7 @@ public:
     void writeBegin(size_t length) nothrow
     in
     {
-        assert(length <= ushort.max / 2); // Max number of columns
+        assert(length <= uint16.max / 2); // Max number of columns
     }
     do
     {
@@ -181,7 +181,7 @@ public:
 	    _writer.writeUInt8(FbIsc.blr_begin);
 	    _writer.writeUInt8(FbIsc.blr_message);
 	    _writer.writeUInt8(0);
-	    _writer.writeUInt16(cast(ushort)(length * 2));
+	    _writer.writeUInt16(cast(uint16)(length * 2));
     }
 
     void writeColumn(scope const(DbBaseType) baseType) nothrow
@@ -204,7 +204,7 @@ public:
     void writeEnd(size_t length) nothrow
     in
     {
-        assert(length <= ushort.max / 2); // Max number of columns
+        assert(length <= uint16.max / 2); // Max number of columns
     }
     do
     {
@@ -309,7 +309,7 @@ struct FbConnectionWriter
 public:
     @disable this(this);
 
-    this(FbConnection connection, FbOperation versionId) nothrow
+    this(FbConnection connection, uint8 versionId) nothrow
     {
         this._connection = connection;
         this._versionId = versionId;
@@ -336,7 +336,7 @@ public:
         return _buffer.peekBytes();
     }
 
-	void writeBytes(uint8 type, scope const(ubyte)[] v) nothrow
+	void writeBytes(uint8 type, scope const(uint8)[] v) nothrow
     in
     {
         assert(v.length < uint32.max);
@@ -386,21 +386,21 @@ public:
 		_writer.writeInt8(v);
 	}
 
-	void writeInt16(uint8 type, short v) nothrow
+	void writeInt16(uint8 type, int16 v) nothrow
 	{
 		_writer.writeUInt8(type);
 		writeLength(2);
 		_writer.writeInt16(v);
 	}
 
-	void writeInt32(uint8 type, int v) nothrow
+	void writeInt32(uint8 type, int32 v) nothrow
 	{
 		_writer.writeUInt8(type);
         writeLength(4);
 		_writer.writeInt32(v);
 	}
 
-    void writeMultiParts(uint8 type, scope const(ubyte)[] v) nothrow
+    void writeMultiParts(uint8 type, scope const(uint8)[] v) nothrow
     {
         if (versionId > FbIsc.isc_dpb_version1)
             return writeBytes(type, v);
@@ -427,7 +427,7 @@ public:
         _writer.writeUInt8(type);
     }
 
-    @property FbOperation versionId() const nothrow
+    @property uint8 versionId() const nothrow
     {
         return _versionId;
     }
@@ -437,16 +437,106 @@ private:
     void writeLength(size_t len) nothrow
     {
         if (versionId > FbIsc.isc_dpb_version1)
-            _writer.writeUInt32(cast(uint32)len);
+            _writer.writeUInt32(len);
         else
-            _writer.writeUInt8(cast(uint8)len);
+            _writer.writeUInt8(len);
     }
 
 private:
     DbWriteBuffer _buffer;
     FbConnection _connection;
     FbParameterWriter _writer;
-    FbOperation _versionId;
+    uint8 _versionId;
+}
+
+struct FbDatabaseParameterWriter
+{
+@safe:
+
+public:
+    @disable this(this);
+
+    this(FbConnection connection, uint8 versionId) nothrow
+    {
+        this._connection = connection;
+        this._versionId = versionId;
+        this._buffer = connection.acquireParameterWriteBuffer();
+        this._writer = FbParameterWriter(this._buffer);
+        
+		this._writer.writeUInt8(versionId);        
+    }
+
+    ~this() nothrow
+    {
+        dispose(false);
+    }
+
+    void dispose(bool disposing = true) nothrow
+    {
+        _writer.dispose(disposing);
+        if (_buffer !is null && _connection !is null)
+            _connection.releaseParameterWriteBuffer(_buffer);
+        _buffer = null;
+        _connection = null;
+    }
+
+    ubyte[] peekBytes() nothrow return
+    {
+        return _buffer.peekBytes();
+    }
+
+	void writeBytes(uint8 type, scope const(uint8)[] v) nothrow
+    in
+    {
+        assert(v.length < uint32.max);
+    }
+    do
+	{
+        const vLen = v.length;
+        
+		_writer.writeUInt8(type);
+		_writer.writeUInt32(vLen);
+        if (vLen)
+		    _writer.writeBytes(v);
+	}
+
+    pragma(inline, true)
+	void writeChars(uint8 type, scope const(char)[] v) nothrow
+	{
+		writeBytes(type, v.representation);
+	}
+
+	void writeInt16(uint8 type, int16 v) nothrow
+	{
+		_writer.writeUInt8(type);
+        _writer.writeUInt32(2);
+		_writer.writeInt16(v);
+	}
+
+	void writeInt32(uint8 type, int32 v) nothrow
+	{
+		_writer.writeUInt8(type);
+        _writer.writeUInt32(4);
+		_writer.writeInt32(v);
+	}
+
+	void writeUInt8(uint8 type, uint8 v) nothrow
+	{
+		_writer.writeUInt8(type);
+        _writer.writeUInt32(1);
+		_writer.writeInt8(v);
+	}
+
+    @property uint8 versionId() const nothrow
+    {
+        return _versionId;
+    }
+
+private:
+    DbWriteBuffer _buffer;
+    FbConnection _connection;
+    FbParameterWriter _writer;
+    uint8 _versionId;
 }
 
 struct FbTransactionWriter
@@ -482,7 +572,7 @@ public:
         return _buffer.peekBytes();
     }
 
-	void writeBytes(uint8 type, scope const(ubyte)[] v) nothrow
+	void writeBytes(uint8 type, scope const(uint8)[] v) nothrow
     in
     {
         assert(v.length <= uint8.max);
@@ -490,7 +580,7 @@ public:
     do
 	{
         v = truncate(v, uint8.max);
-        const vLen = cast(uint8)v.length;
+        const vLen = v.length;
 
 		_writer.writeUInt8(type);
 		_writer.writeUInt8(vLen);
@@ -522,7 +612,8 @@ public:
 		_writer.writeInt32(v);
 	}
 
-    void writeType(uint8 type) nothrow
+    pragma(inline, true)
+    void writeOpaqueUInt8(uint8 type) nothrow
     {
         _writer.writeUInt8(type);
     }
@@ -925,6 +1016,7 @@ public:
     do
     {
         const len = cast(uint16)v.length;
+        
         // Bizarre with three copies of the length
         writeInt32(cast(int32)len);
         writeInt32(cast(int32)len);
@@ -940,7 +1032,7 @@ public:
         writePad(1);
     }
 
-    void writeBytes(scope const(ubyte)[] v) nothrow
+    void writeBytes(scope const(uint8)[] v) nothrow
     in
     {
         assert(v.length < fbMaxPackageSize);
@@ -1113,7 +1205,7 @@ public:
         _writer.writeBytes(bytes);
     }
 
-    void writeOpaqueBytes(scope const(ubyte)[] v, const(size_t) forLength) nothrow
+    void writeOpaqueBytes(scope const(uint8)[] v, const(size_t) forLength) nothrow
     in
     {
         assert(v.length < fbMaxPackageSize);

@@ -1487,7 +1487,7 @@ protected:
             foreach (ref lockedTable; transaction.lockedTables)
             {
                 writer.writeChars(lockTableReadOrWrite(lockedTable), lockedTable.tableName);
-                writer.writeType(lockTableBehavior(lockedTable));
+                writer.writeOpaqueUInt8(lockTableBehavior(lockedTable));
             }
 
             return transaction.transactionItems ~ writer.peekBytes();
@@ -1544,16 +1544,16 @@ protected:
         ubyte isolationMode, versionMode, waitMode;
         isolationLevel(isolationMode, versionMode, waitMode);
 
-        writer.writeType(FbIsc.isc_tpb_version);
-        writer.writeType(isolationMode);
+        writer.writeOpaqueUInt8(FbIsc.isc_tpb_version);
+        writer.writeOpaqueUInt8(isolationMode);
         if (versionMode)
-            writer.writeType(versionMode);
-        writer.writeType(readOrWriteMode());
-        writer.writeType(waitMode);
+            writer.writeOpaqueUInt8(versionMode);
+        writer.writeOpaqueUInt8(readOrWriteMode());
+        writer.writeOpaqueUInt8(waitMode);
         if (waitMode != FbIsc.isc_tpb_nowait && transaction.lockTimeout)
             writer.writeInt32(FbIsc.isc_tpb_lock_timeout, transaction.lockTimeout.limitRangeTimeoutAsSecond);
         if (transaction.autoCommit)
-            writer.writeType(FbIsc.isc_tpb_autocommit);
+            writer.writeOpaqueUInt8(FbIsc.isc_tpb_autocommit);
 
         return writer.peekBytes();
     }

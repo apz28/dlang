@@ -44,7 +44,7 @@ protected:
     }
 
 protected:
-    enum size_t alignValue = 32;
+    enum size_t dataSizeAlignment = 128;
     ubyte[] _data;
     size_t _offset;
 
@@ -242,7 +242,7 @@ protected:
         const curLength = length;
         if (_data.length < (_offset + curLength + additionalBytes))
         {
-            _data.length = alignRoundup((_offset << 1) + curLength + additionalBytes, alignValue);
+            _data.length = alignRoundup((_offset << 1) + curLength + additionalBytes, dataSizeAlignment);
             _data.assumeSafeAppend();
         }
     }
@@ -465,7 +465,7 @@ protected:
     {
         if (_data.length < _offset + additionalBytes)
         {
-            _data.length = alignRoundup((_offset << 1) + additionalBytes, alignValue);
+            _data.length = alignRoundup((_offset << 1) + additionalBytes, dataSizeAlignment);
             _data.assumeSafeAppend();
         }
 
@@ -591,7 +591,7 @@ public:
     void writeInt32(size_t v) nothrow
     in
     {
-        assert(v < int32.max);
+        assert(v <= int32.max);
     }
     do
     {
@@ -610,16 +610,50 @@ public:
         _buffer._data[_buffer._offset++] = v;
     }
 
+    pragma(inline, true)
+    void writeUInt8(size_t v) nothrow
+    in
+    {
+        assert(v <= uint8.max);
+    }
+    do
+    {
+        writeUInt8(cast(uint8)v);
+    }
+
     void writeUInt16(uint16 v) nothrow
     {
         auto bytes = uintEncode!(uint16, EndianKind)(v);
         _buffer.writeBytesImpl(bytes[]);
     }
 
+    pragma(inline, true)
+    void writeUInt16(size_t v) nothrow
+    in
+    {
+        assert(v <= uint16.max);
+    }
+    do
+    {
+        writeUInt16(cast(uint16)v);
+    }
+
     void writeUInt32(uint32 v) nothrow
     {
         auto bytes = uintEncode!(uint32, EndianKind)(v);
         _buffer.writeBytesImpl(bytes[]);
+    }
+
+    pragma(inline, true)
+    static if (size_t.sizeof > uint32.sizeof)
+    void writeUInt32(size_t v) nothrow
+    in
+    {
+        assert(v <= uint32.max);
+    }
+    do
+    {
+        writeUInt32(cast(uint32)v);
     }
 
     void writeUInt64(uint64 v) nothrow
