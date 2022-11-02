@@ -2433,8 +2433,7 @@ if (isDecimal!D)
 ExceptionFlags decimalMax(D1, D2, D)(auto const ref D1 x, auto const ref D2 y, out D z)
 if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 {
-    scope (failure) return ExceptionFlags.invalidOperation;
-
+try {
     DataType!D cx, cy; int ex, ey; bool sx, sy;
     const fx = fastDecode(x, cx, ex, sx);
     const fy = fastDecode(y, cy, ey, sy);
@@ -2511,13 +2510,13 @@ if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
     else
         z = y;
     return ExceptionFlags.none;
+} catch (Exception) return ExceptionFlags.invalidOperation;
 }
 
 ExceptionFlags decimalMaxAbs(D1, D2, D)(auto const ref D1 x, auto const ref D2 y, out D z)
 if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 {
-    scope (failure) return ExceptionFlags.invalidOperation;
-
+try {
     DataType!D cx, cy; int ex, ey; bool sx, sy;
     const fx = fastDecode(x, cx, ex, sx);
     const fy = fastDecode(y, cy, ey, sy);
@@ -2587,13 +2586,13 @@ if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
     else
         z = y;
     return ExceptionFlags.none;
+} catch (Exception) return ExceptionFlags.invalidOperation;
 }
 
 ExceptionFlags decimalMin(D1, D2, D)(auto const ref D1 x, auto const ref D2 y, out D z)
 if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 {
-    scope (failure) return ExceptionFlags.invalidOperation;
-
+try {
     DataType!D cx, cy; int ex, ey; bool sx, sy;
     const fx = fastDecode(x, cx, ex, sx);
     const fy = fastDecode(y, cy, ey, sy);
@@ -2670,13 +2669,13 @@ if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
     else
         z = y;
     return ExceptionFlags.none;
+} catch (Exception) return ExceptionFlags.invalidOperation;
 }
 
 ExceptionFlags decimalMinAbs(D1, D2, D)(auto const ref D1 x, auto const ref D2 y, out D z)
 if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 {
-    scope (failure) return ExceptionFlags.invalidOperation;
-
+try {
     DataType!D cx, cy; int ex, ey; bool sx, sy;
     const fx = fastDecode(x, cx, ex, sx);
     const fy = fastDecode(y, cy, ey, sy);
@@ -2746,6 +2745,7 @@ if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
     else
         z = y;
     return ExceptionFlags.none;
+} catch (Exception) return ExceptionFlags.invalidOperation;
 }
 
 ExceptionFlags decimalMod(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc

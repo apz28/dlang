@@ -76,8 +76,7 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
 {
     import std.range.primitives: empty, front, popFront;
 
-    scope (failure) return ExceptionFlags.invalidOperation;
-
+try {
     exponent = 0;
     isinf = isnan = signaling = signed = wasHex = false;
     while (expect(range, '_'))
@@ -126,6 +125,7 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
         default:
             return ExceptionFlags.invalidOperation;
     }
+} catch (Exception) return ExceptionFlags.invalidOperation;
 }
 
 ExceptionFlags parseDecimalFloat(R, T)(ref R range, out T coefficient, out int exponent,
@@ -441,8 +441,7 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
 {
     import std.range.primitives : empty, front, popFront;
 
-    scope (failure) return ExceptionFlags.invalidOperation;
-
+try {
     exponent = 0;
     bool afterDecimalPoint = false;
     bool atLeastOneDigit = parseZeroes(range) > 0 || zeroPrefix;
@@ -569,6 +568,7 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
         //return atLeastOneFractionalDigit ? flags : (flags | ExceptionFlags.invalidOperation);
     else
         return atLeastOneDigit ? flags : (flags | ExceptionFlags.invalidOperation);
+} catch (Exception) return ExceptionFlags.invalidOperation;
 }
 
 //parses $(B NaN) and optional payload, expect payload as number in optional (), [], {}, <>. invalidOperation on failure

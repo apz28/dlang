@@ -7443,9 +7443,9 @@ else
 
         static double toDouble(const(char)[] s)
         {
-            scope (failure) return double.nan;
-
+        try {
             return to!double(s);
+        } catch (Exception) return double.nan;
         }
 
         static void checkResult(const ref S s, string result)
