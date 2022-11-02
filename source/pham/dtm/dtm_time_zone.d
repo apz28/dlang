@@ -1115,7 +1115,7 @@ struct TimeZoneInfoMap
 nothrow @safe:
 
 public:
-    this(MapId id, string zoneId, return TimeZoneInfo* info) @nogc pure
+    this(MapId id, string zoneId, TimeZoneInfo* info) @nogc pure
     {
         this._id = id;
         this._zoneId = zoneId;
@@ -1169,14 +1169,14 @@ public:
         this.initDicts;
     }
 
-    final void add(MapId id, return TimeZoneInfo* info) pure
+    final void add(MapId id, TimeZoneInfo* info) pure
     {
         auto map = TimeZoneInfoMap(id, info.id, info);
         zoneIds[info.id] = map;
         ids[id] = map;
     }
 
-    final void add(MapId id, string zoneId, return TimeZoneInfo* info) pure
+    final void add(MapId id, string zoneId, TimeZoneInfo* info) pure
     {
         auto map = TimeZoneInfoMap(id, zoneId, info);
         zoneIds[zoneId] = map;

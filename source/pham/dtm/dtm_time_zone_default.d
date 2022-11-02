@@ -20,9 +20,7 @@ __gshared static string defaultTimeZoneDataFileName;
 
 TimeZoneInfoMapList getDefaultTimeZoneInfoMaps() @trusted
 {
-    scope (failure)
-        return new TimeZoneInfoMapList(null);
-
+try {
     version (dtm_time_zone_default_code)
     {
         import pham.dtm.time_zone_default_code;
@@ -53,4 +51,5 @@ TimeZoneInfoMapList getDefaultTimeZoneInfoMaps() @trusted
         else
             return new TimeZoneInfoMapList(null);
     }
+} catch (Exception) return new TimeZoneInfoMapList(null);
 }
