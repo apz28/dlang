@@ -104,9 +104,9 @@ int64 removeTimeUnitFromHNSecs(const(int64) hnsecs) @nogc pure
 Duration secondDigitsToDurationSafe(scope const(char)[] validSecondStr, Duration failedValue,
     Duration emptyValue = Duration.zero) pure
 {
-    scope (failure)
-        return failedValue;
+try {
     return validSecondStr.length == 0 ? emptyValue : dur!"seconds"(to!int64(validSecondStr));
+} catch (Exception) return failedValue;
 }
 
 /**
@@ -122,9 +122,9 @@ D toDecimalSafe(D)(scope const(char)[] validDecimalStr, D failedValue,
     D emptyValue = D.zero)
 if (isDecimal!D)
 {
-    scope (failure)
-        return failedValue;
+try {
     return validDecimalStr.length == 0 ? emptyValue : D(validDecimalStr);
+} catch (Exception) return failedValue;
 }
 
 /**
@@ -142,9 +142,9 @@ if (is(I == int) || is(I == uint)
     || is(I == long) || is(I == ulong)
     || is(I == short) || is(I == ushort))
 {
-    scope (failure)
-        return failedValue;
+try {
     return validIntegerStr.length == 0 ? emptyValue : to!I(validIntegerStr);
+} catch (Exception) return failedValue;
 }
 
 enum failedConvertedString = "?";
@@ -179,9 +179,9 @@ if (isSomeChar!C)
 string toStringSafe(S)(S validWideString, string failedValue) pure
 if (is(S == wstring) || is(S == dstring))
 {
-    scope (failure)
-        return failedValue;
+try {
     return validWideString.length == 0 ? null : to!string(validWideString);
+} catch (Exception) return failedValue;
 }
 
 /**

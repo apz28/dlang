@@ -349,7 +349,7 @@ public:
 
     final void cancelRequestWrite(FbHandle handle)
     {
-        cancelRequestWrite(handle, FbIsc.fb_cancel_raise);
+        cancelRequestWrite(handle, FbIsc.op_cancel_raise);
     }
 
     final void closeCursorCommandRead()
@@ -412,7 +412,7 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
-        auto useCSB = connection.connectionStringBuilder;
+        auto useCSB = connection.fbConnectionStringBuilder;
         auto writerAI = FbConnectionWriter(connection, FbIsc.isc_dpb_version);
 
         auto writer = FbXdrWriter(connection);
@@ -453,14 +453,23 @@ public:
         }
 
         FbXdrReader reader;
-        const op = readOperation(reader, 0);
+        FbOperation op = readOperation(reader, 0);
+        
+        size_t limitCounter = 20; // Avoid malicious response
+        while (op == FbIsc.op_crypt_key_callback && limitCounter--)
+        {
+            auto rCryptKeyCallback = readCryptKeyCallbackResponseImpl(reader, FbIsc.protocol_version15);
+            writeCryptKeyCallbackResponse(stateInfo, rCryptKeyCallback, FbIsc.protocol_version15);
+            op = readOperation(reader, 0);
+        }
+        
         switch (op)
         {
             case FbIsc.op_accept:
-                auto aResponse = readAcceptResponseImpl(reader);
-                stateInfo.serverAcceptType = aResponse.acceptType;
-                stateInfo.serverArchitecture = aResponse.architecture;
-                stateInfo.serverVersion = aResponse.version_;
+                auto acceptResponse = readAcceptResponseImpl(reader);
+                stateInfo.serverAcceptType = acceptResponse.acceptType;
+                stateInfo.serverArchitecture = acceptResponse.architecture;
+                stateInfo.serverVersion = acceptResponse.version_;
                 this._serverVersion = stateInfo.serverVersion;
                 connection.serverInfo[DbServerIdentifier.protocolAcceptType] = to!string(stateInfo.serverAcceptType);
                 connection.serverInfo[DbServerIdentifier.protocolArchitect] = to!string(stateInfo.serverArchitecture);
@@ -491,7 +500,7 @@ public:
                         throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_auth_data);
                     }
 
-                    auto useCSB = connection.connectionStringBuilder;
+                    auto useCSB = connection.fbConnectionStringBuilder;
                     auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword, stateInfo.serverAuthData[], stateInfo.authData);
                     if (status.isError)
                     {
@@ -925,36 +934,6 @@ public:
         return readGenericResponseImpl(reader);
     }
 
-    version (none)
-    final FbResponse readResponse(FbOperation mainOp)
-    {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
-
-        FbXdrReader reader;
-        const op = readOperation(reader, 0);
-        switch (op)
-        {
-            case FbIsc.op_response:
-                auto rGeneric = readGenericResponseImpl(reader);
-                return new FbResponse(op, rGeneric);
-            case FbIsc.op_fetch_response:
-                auto rFetch = readFetchResponseImpl(reader);
-                return new FbResponse(op, rFetch);
-            case FbIsc.op_sql_response:
-                auto rSql = readSqlResponseImpl(reader);
-                return new FbResponse(op, rSql);
-            case FbIsc.op_trusted_auth:
-                auto rTrustedAuthentication = readTrustedAuthenticationResponseImpl(reader);
-                return new FbResponse(op, rTrustedAuthentication);
-            case FbIsc.op_crypt_key_callback:
-                auto rCryptKeyCallback = readCryptKeyCallbackResponseImpl(reader);
-                return new FbResponse(op, rCryptKeyCallback);
-            default:
-                auto msg = DbMessage.eUnexpectReadOperation.fmtMessage(op, mainOp);
-                throw new FbException(msg, DbErrorCode.read, 0, FbIscResultCode.isc_net_read_err);
-        }
-    }
-
     final FbIscSqlResponse readSqlResponse()
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
@@ -1110,7 +1089,7 @@ protected:
 
         return stateInfo.auth !is null
                 && stateInfo.auth.canCryptedConnection()
-                && getCryptedConnectionCode() != FbIsc.connect_crypt_disabled
+                && getCryptedConnectionCode() != FbIsc.cnct_client_crypt_disabled
             ? DbEncryptedConnection.enabled
             : DbEncryptedConnection.disabled;
     }
@@ -1181,7 +1160,7 @@ protected:
                         stateInfo.authMethod = stateInfo.serverAuthMethod;
                         stateInfo.auth = createAuth(stateInfo.authMethod);
                     }
-                    auto useCSB = connection.connectionStringBuilder;
+                    auto useCSB = connection.fbConnectionStringBuilder;
                     auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword, cResponse.data, stateInfo.authData);
                     if (status.isError)
                     {
@@ -1232,7 +1211,8 @@ protected:
         switch (op)
         {
             case FbIsc.op_crypt_key_callback:
-                readCryptKeyCallbackResponseImpl(reader);
+                auto rCryptKeyCallback = readCryptKeyCallbackResponseImpl(reader, stateInfo.serverVersion);
+                writeCryptKeyCallbackResponse(stateInfo, rCryptKeyCallback, stateInfo.serverVersion);
                 break;
 
             case FbIsc.op_response:
@@ -1369,7 +1349,7 @@ protected:
                 return false;
         }
 
-		writer.writeType(FbIsc.isc_dpb_version);
+		writer.writeVersion();
 		writer.writeInt32(FbIsc.isc_dpb_dummy_packet_interval, useCSB.dummyPackageInterval.limitRangeTimeoutAsSecond());
 		writer.writeInt32(FbIsc.isc_dpb_sql_dialect, useCSB.dialect);
 		writer.writeChars(FbIsc.isc_dpb_lc_ctype, useCSB.charset);
@@ -1679,7 +1659,7 @@ protected:
 
     final int32 getCryptedConnectionCode() nothrow
     {
-        auto useCSB = connection.connectionStringBuilder;
+        auto useCSB = connection.fbConnectionStringBuilder;
 
         // Check security settting that supports encryption regardless of encrypt setting
         final switch (useCSB.integratedSecurity) with (DbIntegratedSecurityConnection)
@@ -1689,22 +1669,24 @@ protected:
                 break;
             case legacy:
             case sspi:
-                return FbIsc.connect_crypt_disabled;
+                return FbIsc.cnct_client_crypt_disabled;
         }
 
         final switch (useCSB.encrypt) with (DbEncryptedConnection)
         {
             case disabled:
-                return FbIsc.connect_crypt_disabled;
+                return FbIsc.cnct_client_crypt_disabled;
             case enabled:
-                return FbIsc.connect_crypt_enabled;
+                return FbIsc.cnct_client_crypt_enabled;
             case required:
-                return FbIsc.connect_crypt_required;
+                return FbIsc.cnct_client_crypt_required;
         }
     }
 
     final FbIscAcceptResponse readAcceptResponseImpl(ref FbXdrReader reader)
     {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        
         auto version_ = FbIscAcceptResponse.normalizeVersion(reader.readInt32());
         auto architecture = reader.readInt32();
         auto acceptType = reader.readInt32();
@@ -1714,6 +1696,8 @@ protected:
 
     final FbIscAcceptDataResponse readAcceptDataResponseImpl(ref FbXdrReader reader)
     {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        
         auto version_ = FbIscAcceptResponse.normalizeVersion(reader.readInt32());
         auto architecture = reader.readInt32();
         auto acceptType = reader.readInt32();
@@ -1773,6 +1757,8 @@ protected:
 
     final FbIscCondAuthResponse readCondAuthResponseImpl(ref FbXdrReader reader)
     {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        
         auto rData = reader.readBytes();
         auto rName = reader.readString();
         auto rList = reader.readBytes();
@@ -1780,12 +1766,30 @@ protected:
         return FbIscCondAuthResponse(rData, rName, rList, rKey);
     }
 
-    final FbIscCryptKeyCallbackResponse readCryptKeyCallbackResponseImpl(ref FbXdrReader reader)
+    final FbIscCryptKeyCallbackResponse readCryptKeyCallbackResponseImpl(ref FbXdrReader reader, const(int32) serverVersion)
     {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        
         auto rData = reader.readBytes();
-        return FbIscCryptKeyCallbackResponse(rData);
+        auto rSize = serverVersion > FbIsc.protocol_version13 ? reader.readInt32() : 0;
+        return FbIscCryptKeyCallbackResponse(rData, rSize);
     }
 
+    final void writeCryptKeyCallbackResponse(ref FbConnectingStateInfo stateInfo,
+        ref FbIscCryptKeyCallbackResponse cryptKeyCallbackResponse, const(int32) serverVersion)
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        
+        auto useCSB = connection.fbConnectionStringBuilder;
+        auto cryptKey = useCSB.cryptKey;
+        auto writer = FbXdrWriter(connection);
+		writer.writeOperation(FbIsc.op_crypt_key_callback);
+        writer.writeBytes(cryptKey);
+        if (serverVersion > FbIsc.protocol_version13)
+            writer.writeInt32(cryptKeyCallbackResponse.size);
+        writer.flush();        
+    }
+    
     final FbIscFetchResponse readFetchResponseImpl(ref FbXdrReader reader)
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
@@ -1814,10 +1818,6 @@ protected:
             version (TraceFunction) traceFunction!("pham.db.fbdatabase")("errorCode=", rStatues.errorCode());
 
             throw new FbException(rStatues);
-        }
-        else if (rStatues.hasWarn)
-        {
-            //todo check for warning status
         }
 
         return FbIscGenericResponse(rHandle, rId, rData, rStatues);
@@ -1865,7 +1865,7 @@ protected:
 
     final void validateRequiredEncryption(bool wasEncryptedSetup)
     {
-		if (!wasEncryptedSetup && getCryptedConnectionCode() == FbIsc.connect_crypt_required)
+		if (!wasEncryptedSetup && getCryptedConnectionCode() == FbIsc.cnct_client_crypt_required)
         {
             auto msg = DbMessage.eInvalidConnectionRequiredEncryption.fmtMessage(connection.connectionStringBuilder.forErrorInfo);
             throw new FbException(msg, DbErrorCode.connect, null, 0, FbIscResultCode.isc_wirecrypt_incompatible);

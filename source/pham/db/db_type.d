@@ -286,6 +286,7 @@ enum DbConnectionParameterIdentifier : string
 
     // Specific to firebird
     fbCachePage = "cachePage",
+    fbCryptKey = "cryptKey",
     fbDatabaseTrigger = "databaseTrigger",
     fbDialect = "dialect",
     fbDummyPacketInterval = "dummyPacketInterval", /// In seconds

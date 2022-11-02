@@ -123,8 +123,8 @@ public:
             }
             catch (Exception e)
             {
-                if (logger !is null)
-                    logger.error(e.msg, e);
+                if (auto log = logger)
+                    log.error(e.msg, e);
             }
         }
 
@@ -1062,13 +1062,22 @@ protected:
         try
         {
             _largeBlobManager.dispose(false);
+        }
+        catch (Exception e)
+        {
+            if (auto log = logger)
+                log.error(e.msg, e);
+        }
+
+        try
+        {
             if (!failedOpen && _protocol !is null && socketActive)
                 _protocol.disconnectWrite();
         }
         catch (Exception e)
         {
-            if (logger !is null)
-                logger.error(e.msg, e);
+            if (auto log = logger)
+                log.error(e.msg, e);
         }
 
         super.doClose(failedOpen);

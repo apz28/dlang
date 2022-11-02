@@ -111,7 +111,7 @@ public:
         _writer.writeUInt8(v);
     }
 
-    @property DbWriteBuffer buffer() nothrow pure return
+    @property DbWriteBuffer buffer() nothrow pure
     {
         return _buffer;
     }
@@ -136,7 +136,7 @@ struct FbBlrWriter
 public:
     @disable this(this);
 
-    this(DbWriteBuffer buffer) nothrow
+    this(DbWriteBuffer buffer) nothrow pure
     {
         this._connection = null;
         this._buffer = buffer;
@@ -422,12 +422,19 @@ public:
         }
     }
 
-    void writeType(uint8 type) nothrow
+    pragma(inline, true)
+    void writeOpaqueUInt8(uint8 v) nothrow
     {
-        _writer.writeUInt8(type);
+        _writer.writeUInt8(v);
     }
 
-    @property uint8 versionId() const nothrow
+    pragma(inline, true)
+    void writeVersion() nothrow
+    {
+        _writer.writeUInt8(versionId);
+    }
+
+    @property uint8 versionId() const nothrow pure
     {
         return _versionId;
     }
@@ -462,8 +469,6 @@ public:
         this._versionId = versionId;
         this._buffer = connection.acquireParameterWriteBuffer();
         this._writer = FbParameterWriter(this._buffer);
-        
-		this._writer.writeUInt8(versionId);        
     }
 
     ~this() nothrow
@@ -527,7 +532,13 @@ public:
 		_writer.writeInt8(v);
 	}
 
-    @property uint8 versionId() const nothrow
+    pragma(inline, true)
+    void writeVersion() nothrow
+    {
+        _writer.writeUInt8(versionId);
+    }
+
+    @property uint8 versionId() const nothrow pure
     {
         return _versionId;
     }
@@ -613,9 +624,9 @@ public:
 	}
 
     pragma(inline, true)
-    void writeOpaqueUInt8(uint8 type) nothrow
+    void writeOpaqueUInt8(uint8 v) nothrow
     {
-        _writer.writeUInt8(type);
+        _writer.writeUInt8(v);
     }
 
 private:

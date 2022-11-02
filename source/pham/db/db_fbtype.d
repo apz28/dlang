@@ -183,7 +183,7 @@ public:
 
     static int32 normalizeVersion(int32 version_) pure
     {
-        return (version_ < 0)
+        return version_ < 0
 		    ? FbIsc.protocol_flag | cast(ushort)(version_ & FbIsc.protocol_mask)
             : version_;
     }
@@ -543,13 +543,15 @@ struct FbIscCryptKeyCallbackResponse
 nothrow @safe:
 
 public:
-    this(const(ubyte)[] data) pure
+    this(const(ubyte)[] data, int32 size) pure
     {
         this.data = data;
+        this.size = size;
     }
 
 public:
     const(ubyte)[] data;
+    int32 size; // For >= FbIsc.protocol_version15
 }
 
 struct FbIscError

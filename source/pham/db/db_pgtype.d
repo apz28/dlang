@@ -686,11 +686,10 @@ public:
 
     const(ubyte)[] getSalt() const pure
     {
-        scope (failure)
-            return null;
-
+    try {
         enum padding = true;
         return CipherHelper.base64Decode!padding(salt);
+    } catch (Exception) return null;
     }
 
     bool isValid() const pure scope

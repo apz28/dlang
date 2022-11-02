@@ -23,7 +23,7 @@ version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.external.std.log.logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
 import pham.utl.enum_set : toName;
-import pham.utl.object : DisposableState, functionName;
+import pham.utl.object : bytesFromBase64s, bytesToBase64s, DisposableState, functionName;
 import pham.db.buffer;
 import pham.db.convert;
 import pham.db.database;
@@ -630,8 +630,8 @@ public:
             }
             catch (Exception e)
             {
-                if (logger !is null)
-                    logger.error(e.msg, e);
+                if (auto log = logger)
+                    log.error(e.msg, e);
             }
         }
 
@@ -1562,13 +1562,22 @@ protected:
         try
         {
             _arrayManager.dispose(false);
+        }
+        catch (Exception e)
+        {
+            if (auto log = logger)
+                log.error(e.msg, e);
+        }
+
+        try
+        {
             if (!failedOpen && _protocol !is null && socketActive)
                 _protocol.disconnectWrite();
         }
         catch (Exception e)
         {
-            if (logger !is null)
-                logger.error(e.msg, e);
+            if (auto log = logger)
+                log.error(e.msg, e);
         }
 
         super.doClose(failedOpen);
@@ -1629,13 +1638,15 @@ private:
 
 class FbConnectionStringBuilder : SkConnectionStringBuilder
 {
+@safe:
+
 public:
-    this(string connectionString) nothrow @safe
+    this(string connectionString) nothrow
     {
         super(connectionString);
     }
 
-    final string integratedSecurityName() const nothrow @safe
+    final string integratedSecurityName() const nothrow
     {
         final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
         {
@@ -1650,43 +1661,54 @@ public:
         }
     }
 
-    final override const(string[]) parameterNames() const nothrow @safe
+    final override const(string[]) parameterNames() const nothrow
     {
         return fbValidConnectionParameterNames;
     }
 
-    @property final uint32 cachePages() nothrow @safe
+    @property final uint32 cachePages() nothrow
     {
         return toIntegerSafe!uint32(getString(DbConnectionParameterIdentifier.fbCachePage), uint16.max);
     }
 
-    @property final bool databaseTrigger() nothrow @safe
+    @property final uint8[] cryptKey() nothrow
+    {
+        return bytesFromBase64s(getString(DbConnectionParameterIdentifier.fbCryptKey));    
+    }
+
+    @property final typeof(this) cryptKey(scope const(uint8)[] value) nothrow
+    {
+        put(DbConnectionParameterIdentifier.fbCryptKey, bytesToBase64s(value));
+        return this;
+    }
+
+    @property final bool databaseTrigger() nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.fbDatabaseTrigger));
     }
 
-    @property final int16 dialect() nothrow @safe
+    @property final int16 dialect() nothrow
     {
-        return toIntegerSafe!int16(getString(DbConnectionParameterIdentifier.fbDialect), FbIsc.defaultDialect);
+        return toIntegerSafe!int16(getString(DbConnectionParameterIdentifier.fbDialect), FbIscDefault.defaultDialect);
     }
 
-    @property final Duration dummyPackageInterval() nothrow @safe
+    @property final Duration dummyPackageInterval() nothrow
     {
         return secondDigitsToDurationSafe(getString(DbConnectionParameterIdentifier.fbDummyPacketInterval), Duration.zero);
     }
 
-    @property final bool garbageCollect() nothrow @safe
+    @property final bool garbageCollect() nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.fbGarbageCollect));
     }
 
-    @property final override DbScheme scheme() const nothrow pure @safe
+    @property final override DbScheme scheme() const nothrow pure
     {
         return DbScheme.fb;
     }
 
 protected:
-    final override string getDefault(string name) const nothrow @safe
+    final override string getDefault(string name) const nothrow
     {
         auto n = DbIdentitier(name);
         auto result = assumeWontThrow(fbDefaultConnectionParameterValues.get(n, null));
@@ -1695,7 +1717,7 @@ protected:
         return result;
     }
 
-    final override void setDefaultIfs() nothrow @safe
+    final override void setDefaultIfs() nothrow
     {
         foreach (dpv; fbDefaultConnectionParameterValues.byKeyValue)
             putIf(dpv.key, dpv.value);

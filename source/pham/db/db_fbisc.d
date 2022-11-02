@@ -23,7 +23,7 @@ enum FbIsc
 	ptype_compress_flag = 0x0100, // Set on max type - start on protocol_version13
 
     // Connection Version
-	connect_version2 = 2, // Obsolete
+	//connect_version2 = 2, // Obsolete - Not supported
 	connect_version3 = 3,
     connect_version = connect_version3,
 
@@ -32,10 +32,12 @@ enum FbIsc
 	// Protocol Version
 	protocol_flag = 0x8000,
 	protocol_mask = ~protocol_flag,
-	protocol_version10 = 10, // Obsolete
-	protocol_version11 = protocol_flag | 11, // Obsolete
-	protocol_version12 = protocol_flag | 12, // Obsolete
+	//protocol_version10 = 10, // Obsolete - Not supported
+	protocol_version11 = protocol_flag | 11, // Obsolete - Not supported
+	//protocol_version12 = protocol_flag | 12, // Obsolete - Not supported
 	protocol_version13 = protocol_flag | 13,
+	protocol_version15 = protocol_flag | 15,
+	protocol_version16 = protocol_flag | 16,
     protocol_version = protocol_version13,
 
 	cnct_user = 1,
@@ -48,10 +50,9 @@ enum FbIsc
 	cnct_login = 9,
 	cnct_plugin_list = 10,
 	cnct_client_crypt = 11,
-
-    connect_crypt_disabled = 0,
-    connect_crypt_enabled = 1,
-    connect_crypt_required = 2,
+        cnct_client_crypt_disabled = 0,
+        cnct_client_crypt_enabled = 1,
+        cnct_client_crypt_required = 2,
 
 	isc_info_end = 1,
 	isc_info_truncated = 2,
@@ -469,14 +470,13 @@ enum FbIsc
 	op_cancel_blob = 38,
 	op_close_blob = 39,
 	op_info_blob = 43,
+        // Blob information items for op_info_blob
+        isc_info_blob_num_segments = 4,
+        isc_info_blob_max_segment = 5,
+        isc_info_blob_total_length = 6,
+        isc_info_blob_type = 7,
 	op_batch_segments = 44, // For putting all blob
 	op_create_blob2 = 57,
-
-	// Blob information items for op_info_blob
-    isc_info_blob_num_segments = 4,
-    isc_info_blob_max_segment = 5,
-    isc_info_blob_total_length = 6,
-    isc_info_blob_type = 7,
 
 	// Array operations
 	op_get_slice = 58,
@@ -509,23 +509,36 @@ enum FbIsc
 	op_authenticate_user = 88, // FB3
 	op_partial = 89, // FB3
 	op_trusted_auth = 90, // FB3
+	op_cancel = 91, // Cancel operator - FB3
+        // Cancel operator types - op_cancel
+        op_cancel_disable = 1,
+        op_cancel_enable = 2,
+        op_cancel_raise = 3,
+        op_cancel_abort = 4,
 	op_cont_auth = 92, // FB3
 	op_ping = 93, // FB3
 	op_accept_data = 94, // FB3
 	op_abort_aux_connection = 95, // FB3
 	op_crypt = 96, // FB3
 	op_crypt_key_callback = 97, // FB3
-	op_cond_accept = 98, // FB3
-	op_cancel = 91, // Cancel operator - FB3
+	op_cond_accept = 98, // FB3    
+	op_batch_create = 99, // FB4
+	op_batch_msg = 100, // FB4
+	op_batch_exec = 101, // FB4
+	op_batch_rls = 102, // FB4
+	op_batch_cs = 103, // FB4
+	op_batch_regblob = 104, // FB4
+	op_batch_blob_stream = 105, // FB4
+	op_batch_set_bpb = 106, // FB4
+	op_repl_data = 107, // FB4
+	op_repl_req = 108, // FB4
+	op_batch_cancel = 109, // FB4    
+}
 
-	// Cancel operator types
-	fb_cancel_disable = 1,
-	fb_cancel_enable = 2,
-	fb_cancel_raise = 3,
-	fb_cancel_abort = 4,
-
-	gmt_zone = 65_535,
+enum FbIscDefault
+{
 	defaultDialect = 3,
+	gmt_zone = 65_535,
 }
 
 enum FbIscSize

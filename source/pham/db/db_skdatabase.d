@@ -786,7 +786,7 @@ shared static this()
     skDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(string[string]))[
-            DbConnectionParameterIdentifier.packageSize : "‭16383‬", // In bytes - do not add underscore, to!... does not work
+            DbConnectionParameterIdentifier.packageSize : "16384", // In bytes - do not add underscore, to!int does not work
             DbConnectionParameterIdentifier.socketBlocking : dbBoolTrue,
             DbConnectionParameterIdentifier.socketNoDelay : dbBoolTrue,
             DbConnectionParameterIdentifier.socketSslVerificationHost : dbBoolFalse,

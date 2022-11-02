@@ -115,9 +115,7 @@ public:
 
     final ResultStatus isValidSignature(scope const(ubyte)[] serverAuthData)
     {
-        scope (failure)
-            return ResultStatus.error(1, "challenge is not valid", DbMessage.eInvalidConnectionAuthServerData);
-
+    try {
         const scope response = cast(const(char)[])serverAuthData;
 
         if (!response.startsWith("v="))
@@ -134,6 +132,7 @@ public:
             return ResultStatus.error(3, "challenge contained an invalid signature", DbMessage.eInvalidConnectionAuthServerData);
 
         return ResultStatus.ok();
+    } catch (Exception) return ResultStatus.error(1, "challenge is not valid", DbMessage.eInvalidConnectionAuthServerData);
     }
 
     static string normalize(scope const(char)[] str)

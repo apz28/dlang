@@ -698,9 +698,7 @@ protected:
         version (TraceFunction) traceFunction!("pham.db.mydatabase")("failedOpen=", failedOpen, ", socketActive=", socketActive);
 
         scope (exit)
-        {
             disposeProtocol(false);
-        }
 
         try
         {
@@ -709,8 +707,8 @@ protected:
         }
         catch (Exception e)
         {
-            if (logger !is null)
-                logger.error(e.msg, e);
+            if (auto log = logger)
+                log.error(e.msg, e);
         }
 
         super.doClose(failedOpen);
