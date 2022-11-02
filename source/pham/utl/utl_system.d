@@ -85,9 +85,7 @@ version (Windows)
     string windowErrorString(DWORD errorCode,
         int langId = LANG_NEUTRAL, int subLangId = SUBLANG_DEFAULT) nothrow @trusted
     {
-        scope (failure)
-            return null;
-
+    try {
         wchar* buf = null;
         auto len = FormatMessageW(
             FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -111,6 +109,7 @@ version (Windows)
         }
         else
             return null;
+    } catch (Exception) return null;
     }
 }
 else version (Posix)

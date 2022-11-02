@@ -2549,7 +2549,7 @@ do
 alias ProbablyPrimeTestRandomGen = BigInteger delegate(BigInteger /*limit*/) nothrow @safe;
 enum ushort probablyPrimeTestIterations = 20;
 
-bool isProbablyPrime(const(BigInteger) x, ProbablyPrimeTestRandomGen testRandomGen, const(ushort) testIterations = probablyPrimeTestIterations) nothrow
+bool isProbablyPrime(const(BigInteger) x, scope ProbablyPrimeTestRandomGen testRandomGen, const(ushort) testIterations = probablyPrimeTestIterations) nothrow
 {
     version (profile) debug auto p = PerfFunction.create();
 
@@ -2652,7 +2652,7 @@ BigInteger greatestCommonDivisor(const(uint)[] leftBits, const(uint)[] rightBits
 // If isForced is true, one of the rounds is forced to use base 2.
 // See Handbook of Applied Cryptography, p. 139, Algorithm 4.24.
 // The number n is known to be non-zero.
-bool isProbablyPrimeMillerRabin(const(BigInteger) n, ProbablyPrimeTestRandomGen testRandomGen, const(ushort) testIterations,
+bool isProbablyPrimeMillerRabin(const(BigInteger) n, scope ProbablyPrimeTestRandomGen testRandomGen, const(ushort) testIterations,
     const(bool) isForced) nothrow
 {
     version (profile) debug auto p = PerfFunction.create();

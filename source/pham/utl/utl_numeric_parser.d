@@ -11,6 +11,7 @@
 
 module pham.utl.numeric_parser;
 
+public import std.ascii : LetterCase;
 import std.range.primitives : ElementEncodingType, ElementType, empty, front, popFront, put,
     isInfinite, isInputRange, isOutputRange;
 import std.traits : isIntegral, isSigned, isSomeChar, isUnsigned, Unqual;
@@ -18,6 +19,149 @@ import std.traits : isIntegral, isSigned, isSomeChar, isUnsigned, Unqual;
 import pham.utl.utf8;
 
 nothrow @safe:
+
+enum Base64MappingChar : char
+{
+    map62th = '+',
+    map63th = '/',
+    padding = '=',
+    noPadding = '\0',    
+}
+
+size_t cvtBytesBase64Length(const(size_t) bytesLength,
+    const(char) padding = Base64MappingChar.padding) @nogc pure
+{
+    const mod3 = bytesLength % 3;
+    if (padding == Base64MappingChar.noPadding)
+        return (bytesLength / 3) * 4 + (mod3 == 0 ? 0 : (mod3 == 1 ? 2 : 3));
+    else
+        return (bytesLength / 3 + (mod3 ? 1 : 0)) * 4;
+}
+
+/**
+ * Convert byte array to its base64 presentation
+ * Params:
+ *  bytes = bytes to be converted
+ *  padding = a padding character; use Base64MappingChar.noPadding to avoid adding padding character
+ *  isLineBreak = should adding '\n' for each 80 base64 characters?
+ * Returns:
+ *  array of base64 characters
+ */
+char[] cvtBytesBase64(scope const(ubyte)[] bytes,
+    const(char) padding = Base64MappingChar.padding,
+    const(bool) isLineBreak = false) pure @trusted
+{
+    if (bytes.length == 0)
+        return null;
+
+    enum lineBreakChar = '\n';
+    enum lineBreakLength = 80;
+    
+    static immutable encodeMap = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+        ~ Base64MappingChar.map62th ~ Base64MappingChar.map63th;
+
+    const size_t resultLength = cvtBytesBase64Length(bytes.length, padding)
+        + (isLineBreak ? lineBreakCount(bytes.length, lineBreakLength) : 0);
+        
+    size_t resultLineBreak = 0;
+    char[] result = new char[resultLength];    
+    auto resultPtr = &result[0];
+    auto bytesPtr = &bytes[0];
+    
+    const blocks = bytes.length / 3;
+    foreach (_; 0..blocks)
+    {
+        if (isLineBreak && resultLineBreak >= lineBreakLength)
+        {
+            resultLineBreak = 0;
+            *resultPtr++ = lineBreakChar;        
+        }
+        
+        const val = (bytesPtr[0] << 16) | (bytesPtr[1] << 8) | bytesPtr[2];
+        *resultPtr++ = encodeMap[val >> 18       ];
+        *resultPtr++ = encodeMap[val >> 12 & 0x3f];
+        *resultPtr++ = encodeMap[val >>  6 & 0x3f];
+        *resultPtr++ = encodeMap[val       & 0x3f];
+        bytesPtr += 3;
+        
+        if (isLineBreak)
+            resultLineBreak += 4;           
+    }
+    
+    const remain = bytes.length % 3;
+    if (remain)
+    {
+        const val = (bytesPtr[0] << 16) | (remain == 2 ? bytesPtr[1] << 8 : 0);
+        *resultPtr++ = encodeMap[val >> 18       ];
+        *resultPtr++ = encodeMap[val >> 12 & 0x3f];
+
+        final switch (remain)
+        {
+            case 2:
+                *resultPtr++ = encodeMap[val >> 6 & 0x3f];
+                if (padding != Base64MappingChar.noPadding)
+                    *resultPtr++ = padding;
+                break;
+            case 1:
+                if (padding != Base64MappingChar.noPadding)
+                {
+                    *resultPtr++ = padding;
+                    *resultPtr++ = padding;
+                }
+                break;
+        }
+    }
+    
+    return result;
+}
+
+/**
+ * Convert byte array to its hex presentation
+ * Params:
+ *  bytes = bytes to be converted
+ *  letterCase = use upper or lower case letters
+ *  isLineBreak = should adding '\n' for each 80 hex characters?
+ * Returns:
+ *  array of hex characters
+ */
+char[] cvtBytesHex(scope const(ubyte)[] bytes,
+    const(LetterCase) letterCase = LetterCase.upper,
+    const(bool) isLineBreak = false) pure @trusted
+{
+    import std.ascii : lowerHexDigits, upperHexDigits=hexDigits;
+
+    if (bytes.length == 0)
+        return null;
+
+    enum lineBreakChar = '\n';
+    enum lineBreakLength = 80;
+
+    const hexDigits = letterCase == LetterCase.upper ? upperHexDigits : lowerHexDigits;
+    
+    const size_t resultLength = bytes.length * 2
+        + (isLineBreak ? lineBreakCount(bytes.length, lineBreakLength) : 0);
+    
+    size_t resultLineBreak = 0;
+    char[] result = new char[resultLength];    
+    auto resultPtr = &result[0];
+    
+    foreach (b; bytes)
+    {        
+        if (isLineBreak && resultLineBreak >= lineBreakLength)
+        {
+            resultLineBreak = 0;
+            *resultPtr++ = lineBreakChar;
+        }        
+        
+        *resultPtr++ = hexDigits[(b >> 4) & 0xF];
+        *resultPtr++ = hexDigits[b & 0xF];
+        
+        if (isLineBreak)
+            resultLineBreak += 2;
+    }
+    
+    return result;
+}
 
 /**
  * Check and convert a 'c' from digit to byte
@@ -122,6 +266,14 @@ if (isSomeChar!Char)
     return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
 }
 
+pragma(inline, true)
+size_t lineBreakCount(const(size_t) charsLength, const(size_t) breakLength) @nogc pure
+{
+    return breakLength == 0 || charsLength <= breakLength
+        ? 0
+        : ((charsLength - 1) / breakLength); //((charsLength / breakLength) + (charsLength % breakLength != 0));
+}
+
 enum NumericLexerFlag : uint
 {
     skipLeadingBlank = 1 << 0, /// Skip leading space chars
@@ -213,13 +365,12 @@ enum isConstCharArray(T) =
 
 enum isNumericLexerRange(Range) = isInputRange!Range && isSomeChar!(ElementType!Range) && !isInfinite!Range;
 
-struct Base64Lexer(char Map62th, char Map63th, Range)
+struct Base64Lexer(Range, char map62th = Base64MappingChar.map62th, char map63th = Base64MappingChar.map63th)
 if (isNumericLexerRange!Range)
 {
 nothrow @safe:
 
 public:
-    enum paddingChar = '=';
     alias RangeElement = Unqual!(ElementType!Range);
 
 public:
@@ -278,7 +429,7 @@ public:
     pragma(inline, true)
     bool isEndingCondition()
     {
-        return empty || front == paddingChar;
+        return empty || front == Base64MappingChar.padding;
     }
 
     pragma(inline, true)
@@ -304,7 +455,7 @@ public:
     size_t skipPaddingChars() pure
     {
         size_t result;
-        while (!empty && front == paddingChar)
+        while (!empty && front == Base64MappingChar.padding)
         {
             result++;
             popFront();
@@ -384,7 +535,7 @@ private:
         't':0b101101, 'u':0b101110, 'v':0b101111, 'w':0b110000, 'x':0b110001,
         'y':0b110010, 'z':0b110011, '0':0b110100, '1':0b110101, '2':0b110110,
         '3':0b110111, '4':0b111000, '5':0b111001, '6':0b111010, '7':0b111011,
-        '8':0b111100, '9':0b111101, Map62th:0b111110, Map63th:0b111111,
+        '8':0b111100, '9':0b111101, map62th:0b111110, map63th:0b111111,
         ];
 
     size_t _count;
@@ -579,7 +730,7 @@ private:
             value.popFront();
             c = value.empty ? '\0' : value.front;
         }
-        
+
         if (c == '0' && (options.flags & NumericLexerFlag.allowHexDigit))
         {
             _savedFront = c;
@@ -746,7 +897,7 @@ NumericLexerOptions!(const(Char)) defaultParseIntegralOptions(Char)() pure
 NumericParsedKind parseBase64(Range, Writer)(scope ref Range base64Text, ref Writer sink) pure
 if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 {
-    auto lexer = Base64Lexer!('+', '/', Range)(base64Text, defaultParseBase64Options!(ElementType!Range)());
+    auto lexer = Base64Lexer!(Range)(base64Text, defaultParseBase64Options!(ElementType!Range)());
     if (!lexer.hasBase64Char)
         return NumericParsedKind.invalid;
 
@@ -1017,6 +1168,27 @@ if (isConstCharArray!S && isIntegral!Target)
 // Any below codes are private
 private:
 
+nothrow @safe unittest // cvtBytesBase64Length
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.cvtBytesBase64Length");
+    
+    assert(cvtBytesBase64Length(0) == 0);
+    assert(cvtBytesBase64Length(3) == 4);
+
+    assert(cvtBytesBase64Length(4, Base64MappingChar.padding) == 8);
+    assert(cvtBytesBase64Length(4, Base64MappingChar.noPadding) == 6);    
+}
+
+nothrow @safe unittest // cvtBytesBase64
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.cvtBytesBase64");
+    
+    ubyte[] data = [0x1a, 0x2b, 0x3c, 0x4d, 0x5d, 0x6e];
+    assert(cvtBytesBase64(data) == "Gis8TV1u");    
+}
+
 nothrow @safe unittest // cvtDigit
 {
     import pham.utl.test;
@@ -1100,6 +1272,18 @@ nothrow @safe unittest // isHexDigit
     assert(isHexDigit('a'));
     assert(isHexDigit('F'));
     assert(!isHexDigit('z'));
+}
+
+nothrow @safe unittest // lineBreakCount
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.lineBreakCount");
+
+    assert(lineBreakCount(0, 80) == 0);
+    assert(lineBreakCount(1, 80) == 0);
+    assert(lineBreakCount(80, 80) == 0);
+    assert(lineBreakCount(81, 80) == 1);
+    assert(lineBreakCount(160, 80) == 1);
 }
 
 nothrow @safe unittest // NumericLexerOptions.isHexDigitPrefix

@@ -339,13 +339,12 @@ if (isSomeString!S && isString!D && is(CharOfString!S == CharOfString!D))
 bool doCoerceStringEx(S, D)(scope void* srcPtr, scope void* dstPtr) nothrow
 if (isSomeString!S && isString!D && !is(CharOfString!S == CharOfString!D))
 {
-import std.conv : to;
+    import std.conv : to;
 
-    scope (failure)
-        return false;
-
+try {
     *cast(D*)dstPtr = to!D(*cast(S*)srcPtr);
     return true;
+} catch (Exception) return false;
 }
 
 bool doCoerceConstString(S, D)(scope void* srcPtr, scope void* dstPtr) nothrow

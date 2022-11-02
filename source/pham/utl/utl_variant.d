@@ -1900,8 +1900,7 @@ private:
 
     static bool tryPut(scope T* src, size_t dstSize, scope void* dst, scope TypeInfo dstTypeInfo) nothrow
     {
-        scope (failure) return false;
-
+    try {
         alias UT = Unqual!T;
         alias AllTypes = AssignableTypes!T;
 
@@ -1952,6 +1951,7 @@ private:
         }
 
         return false;
+    } catch (Exception) return false;
     }
 }
 

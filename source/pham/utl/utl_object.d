@@ -13,7 +13,6 @@ module pham.utl.object;
 
 import core.sync.mutex : Mutex;
 public import std.ascii : LetterCase;
-import std.ascii : lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
 import std.exception : assumeWontThrow;
 import std.format : FormatSpec;
 import std.math : isPowerOf2;
@@ -64,6 +63,20 @@ ubyte[] bytesFromBase64s(scope const(char)[] validBase64Text) nothrow pure @safe
 }
 
 /**
+ * Convert byte array to its base64 presentation
+ * Params:
+ *  bytes = bytes to be converted
+ * Returns:
+ *  array of base64 characters
+ */
+char[] bytesToBase64s(scope const(ubyte)[] bytes) nothrow pure @safe
+{
+    import pham.utl.numeric_parser : Base64MappingChar, cvtBytesBase64;
+
+    return cvtBytesBase64(bytes, Base64MappingChar.padding, false);
+}
+
+/**
  * Converts string of hex-digits into ubyte array
  * Params:
  *   validHexDigits = hex-digits to be converted
@@ -88,24 +101,13 @@ ubyte[] bytesFromHexs(scope const(char)[] validHexDigits) nothrow pure @safe
  * Params:
  *  bytes = bytes to be converted
  * Returns:
- *  array of characters
+ *  array of hex characters
  */
-char[] bytesToHexs(scope const(ubyte)[] bytes,
-    const(LetterCase) letterCase = LetterCase.upper) nothrow pure @safe
+char[] bytesToHexs(scope const(ubyte)[] bytes) nothrow pure @safe
 {
-    char[] result;
-    if (bytes.length)
-    {
-        const hexDigits = letterCase == LetterCase.upper ? upperHexDigits : lowerHexDigits;
-        result.length = bytes.length * 2;
-        size_t i;
-        foreach (b; bytes)
-        {
-            result[i++] = hexDigits[(b >> 4) & 0xF];
-            result[i++] = hexDigits[b & 0xF];
-        }
-    }
-    return result;
+    import pham.utl.numeric_parser : cvtBytesHex;
+    
+    return cvtBytesHex(bytes, LetterCase.upper, false);
 }
 
 /**
@@ -466,6 +468,8 @@ ref Writer toString(uint radix = 10, N, Writer)(return ref Writer sink, N n,
     const(LetterCase) letterCase = LetterCase.upper) nothrow pure @safe
 if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
 {
+    import std.ascii : lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
+    
     alias UN = Unqual!N;
     enum bufSize = 300;
 
