@@ -163,6 +163,26 @@ if (isFloatingPoint!T)
         return (lhs > rhs) - (lhs < rhs);
 }
 
+private string osCharToString(scope const(char)[] v) nothrow @trusted
+{
+    import std.conv : to;
+    
+    auto result = assumeWontThrow(to!string(v.ptr));
+    while (result.length && result[$ - 1] <= ' ')
+        result = result[0..$ - 1];
+    return result;
+}
+
+private string osWCharToString(scope const(wchar)[] v) nothrow
+{
+    import std.conv : to;
+    
+    auto result = assumeWontThrow(to!string(v));
+    while (result.length && result[$ - 1] <= ' ')
+        result = result[0..$ - 1];
+    return result;
+}
+
 /**
  * Returns current computer-name of running process
  */
@@ -171,24 +191,22 @@ string currentComputerName() nothrow @trusted
     version (Windows)
     {
         import core.sys.windows.winbase : GetComputerNameW;
-        import std.conv : to;
 
         wchar[1000] result = void;
         uint len = result.length - 1;
         if (GetComputerNameW(&result[0], &len))
-            return assumeWontThrow(to!string(result[0..len]));
+            return osWCharToString(result[0..len]);
         else
             return null;
     }
     else version (Posix)
     {
         import core.sys.posix.unistd : gethostname;
-        import std.conv : to;
 
-        char[1000] result = void;
+        char[1000] result = '\0';
         uint len = result.length - 1;
         if (gethostname(&result[0], len) == 0)
-            return assumeWontThrow(to!string(result.ptr));
+            return osCharToString(result[]);
         else
             return null;
     }
@@ -217,20 +235,19 @@ string currentProcessName() nothrow @trusted
     version (Windows)
     {
         import core.sys.windows.winbase : GetModuleFileNameW;
-        import std.conv : to;
 
         wchar[1000] result = void;
         const len = GetModuleFileNameW(null, &result[0], result.length - 1);
-        return assumeWontThrow(to!string(result[0..len]));
+        return osWCharToString(result[0..len]);
     }
     else version (Posix)
     {
         import core.sys.posix.unistd : readlink;
 
-        char[1000] result = void;
+        char[1000] result = '\0';
         uint len = result.length - 1;
         len = readlink("/proc/self/exe".ptr, &result[0], len);
-        return result[0..len].idup;
+        return osCharToString(result[]);
     }
     else
     {
@@ -247,26 +264,24 @@ string currentUserName() nothrow @trusted
     version (Windows)
     {
         import core.sys.windows.winbase : GetUserNameW;
-        import std.conv : to;
 
         wchar[1000] result = void;
         uint len = result.length - 1;
         if (GetUserNameW(&result[0], &len))
-            return assumeWontThrow(to!string(result[0..len]));
+            return osWCharToString(result[0..len]);
         else
-            return "";
+            return null;
     }
     else version (Posix)
     {
         import core.sys.posix.unistd : getlogin_r;
-        import std.conv : to;
 
-        char[1000] result = void;
+        char[1000] result = '\0';
         uint len = result.length - 1;
         if (getlogin_r(&result[0], len) == 0)
-            return assumeWontThrow(to!string(&result[0]));
+            return osCharToString(result[]);
         else
-            return "";
+            return null;
     }
     else
     {
