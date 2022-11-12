@@ -23,13 +23,18 @@ nothrow @safe:
 enum DbTokenKind : ubyte
 {
     space,
-    comment,
-    parameterUnnamed,
-    parameterNamed,
-    quotedDouble,
-    quotedSingle,
-    quotedBracket,
     literal,
+    quotedSingle, // 'xyz...' or `xyz...`
+    quotedDouble, // "xyz..."
+    parameterUnnamed, // ?
+    parameterNamed,  // :xyz... or @xyz...
+    comma, // ,
+    bracketBegin, // [ -> [xyz...]
+    bracketEnd, // ] -> [xyz...]
+    parenthesisBegin, // ( -> (xyz...)
+    parenthesisEnd, // ) -> (xyz...)
+    comment, // --xyz... or /*xyz...*/
+    eos, // end of stream/string
 }
 
 // S should be either 'const(char)[]' or 'string'
@@ -44,9 +49,7 @@ public:
     this(S sql) pure
     {
         this._sql = sql;
-        this._empty = sql.length == 0;
-        if (sql.length)
-            this.popFront();
+        this.reset();
     }
 
     static S parseParameter(S sql, void delegate(ref Appender!S result, S parameterName, uint32 parameterNumber) nothrow @safe parameterCallBack)
@@ -88,11 +91,16 @@ public:
                     break;
 
                 case DbTokenKind.space:
-                case DbTokenKind.comment:
-                case DbTokenKind.quotedDouble:
-                case DbTokenKind.quotedSingle:
-                case DbTokenKind.quotedBracket:
                 case DbTokenKind.literal:
+                case DbTokenKind.quotedSingle:
+                case DbTokenKind.quotedDouble:
+                case DbTokenKind.comma:
+                case DbTokenKind.bracketBegin:
+                case DbTokenKind.bracketEnd:
+                case DbTokenKind.parenthesisBegin:
+                case DbTokenKind.parenthesisEnd:
+                case DbTokenKind.comment:
+                case DbTokenKind.eos:
                     break;
             }
 
@@ -120,22 +128,30 @@ public:
 
     void popFront() pure
     {
-        _currentParameterIndicator = [];
+        _currentParameterIndicator = null;
         _malformed = false;
         _beginP = _p;
 
         if (_p >= _sql.length)
         {
-            _empty = true;
-            _currentToken = [];
-            _kind = DbTokenKind.space;
+            _currentParameterIndicator = _currentToken = null;
+            _currentKind = DbTokenKind.eos;
+            _malformed = _lastKinds.length != 0;
             return;
+        }
+
+        void closeToken(DbTokenKind openKind)
+        {
+            if (_lastKinds.length == 0 || _lastKinds[$ - 1] != openKind)
+                _malformed = true;
+            else
+                _lastKinds = _lastKinds[0..$ - 1];
         }
 
         void literalToken()
         {
             _currentToken = _sql[_beginP.._p];
-            _kind = DbTokenKind.literal;
+            _currentKind = DbTokenKind.literal;
         }
 
         const c = readChar();
@@ -143,13 +159,23 @@ public:
         {
             case CharKind.space:
                 _currentToken = readSpace();
-                _kind = DbTokenKind.space;
+                _currentKind = DbTokenKind.space;
+                return;
+
+            case CharKind.quotedSingle:
+                _currentToken = readQuoted(c);
+                _currentKind = DbTokenKind.quotedSingle;
+                return;
+
+            case CharKind.quotedDouble:
+                _currentToken = readQuoted(c);
+                _currentKind = DbTokenKind.quotedDouble;
                 return;
 
             case CharKind.parameterUnnamed:
                 _currentParameterIndicator = _sql[_beginP.._p];
-                _currentToken = [];
-                _kind = DbTokenKind.parameterUnnamed;
+                _currentToken = null;
+                _currentKind = DbTokenKind.parameterUnnamed;
                 return;
 
             case CharKind.parameterNamed:
@@ -161,7 +187,7 @@ public:
                     {
                         _beginP = parameter2P;
                         _currentToken = readName();
-                        _kind = DbTokenKind.parameterNamed;
+                        _currentKind = DbTokenKind.parameterNamed;
                         return;
                     }
                     else
@@ -169,23 +195,35 @@ public:
                 }
                 _malformed = true;
                 _currentToken = _currentParameterIndicator;
-                _kind = DbTokenKind.literal;
+                _currentKind = DbTokenKind.literal;
                 return;
 
-            case CharKind.quotedDouble:
-                _currentToken = readQuoted(c);
-                _kind = DbTokenKind.quotedDouble;
+            case CharKind.comma:
+                _currentToken = ",";
+                _currentKind = DbTokenKind.comma;
                 return;
 
-            case CharKind.quotedSingle:
-                _currentToken = readQuoted(c);
-                _kind = DbTokenKind.quotedSingle;
+            case CharKind.bracketBegin:
+                _currentToken = "[";
+                _currentKind = DbTokenKind.bracketBegin;
+                _lastKinds ~= DbTokenKind.bracketBegin;
                 return;
 
-            case CharKind.quotedBracket:
-                _currentToken = readQuoted(']');
-                _kind = DbTokenKind.quotedBracket;
+            case CharKind.bracketEnd:
+                _currentToken = "]";
+                _currentKind = DbTokenKind.bracketEnd;
+                return closeToken(DbTokenKind.bracketBegin);
+
+            case CharKind.parenthesisBegin:
+                _currentToken = "(";
+                _currentKind = DbTokenKind.parenthesisBegin;
+                _lastKinds ~= DbTokenKind.parenthesisBegin;
                 return;
+
+            case CharKind.parenthesisEnd:
+                _currentToken = ")";
+                _currentKind = DbTokenKind.parenthesisEnd;
+                return closeToken(DbTokenKind.parenthesisBegin);
 
             case CharKind.commentSingle:
                 if (_p < _sql.length)
@@ -194,7 +232,7 @@ public:
                     if (readChar() == c)
                     {
                         _currentToken = readCommentSingle();
-                        _kind = DbTokenKind.comment;
+                        _currentKind = DbTokenKind.comment;
                         return;
                     }
                     else
@@ -209,7 +247,7 @@ public:
                     if (readChar() == '*')
                     {
                         _currentToken = readCommentMulti();
-                        _kind = DbTokenKind.comment;
+                        _currentKind = DbTokenKind.comment;
                         return;
                     }
                     else
@@ -219,26 +257,22 @@ public:
 
             case CharKind.literal:
                 _currentToken = readLiteral();
-                _kind = DbTokenKind.literal;
+                _currentKind = DbTokenKind.literal;
                 return literalToken();
         }
     }
 
-    void reset()
+    void reset() pure
     {
         _p = _beginP = 0;
-        _currentToken, _currentParameterIndicator = null;
-        _kind = DbTokenKind.space;
-        _malformed = false;
-        _empty = _sql.length == 0;
-        if (_sql.length)
-            popFront();
+        _lastKinds = null;
+        popFront();
     }
 
     pragma(inline, true)
     @property bool empty() const @nogc pure
     {
-        return _empty;
+        return _currentKind == DbTokenKind.eos;
     }
 
     @property S front() const @nogc pure
@@ -253,7 +287,12 @@ public:
 
     @property DbTokenKind kind() const @nogc pure
     {
-        return _kind;
+        return _currentKind;
+    }
+
+    @property const(DbTokenKind)[] lastKinds() const @nogc pure
+    {
+        return _lastKinds;
     }
 
     @property size_t offset() const @nogc pure
@@ -261,7 +300,7 @@ public:
         return _p;
     }
 
-    @property S parameterIndicator() const pure
+    @property S parameterIndicator() const @nogc pure
     {
         return _currentParameterIndicator;
     }
@@ -275,14 +314,18 @@ private:
     enum CharKind : ubyte
     {
         space,
+        literal,
+        quotedSingle,
+        quotedDouble,
         parameterUnnamed,
         parameterNamed,
-        quotedDouble,
-        quotedSingle,
-        quotedBracket,
+        comma,
+        bracketBegin,
+        bracketEnd,
+        parenthesisBegin,
+        parenthesisEnd,
         commentSingle,
         commentMulti,
-        literal,
     }
 
     static CharKind charKind(const(dchar) c) @nogc pure
@@ -299,8 +342,16 @@ private:
                 return CharKind.quotedSingle;
             case '"':
                 return CharKind.quotedDouble;
+            case ',':
+                return CharKind.comma;
             case '[':
-                return CharKind.quotedBracket;
+                return CharKind.bracketBegin;
+            case ']':
+                return CharKind.bracketEnd;
+            case '(':
+                return CharKind.parenthesisBegin;
+            case ')':
+                return CharKind.parenthesisEnd;
             case '-':
             case '#':
                 return CharKind.commentSingle;
@@ -438,8 +489,9 @@ private:
 private:
     S _sql, _currentParameterIndicator, _currentToken;
     size_t _p, _beginP;
-    DbTokenKind _kind;
-    bool _empty, _malformed;
+    DbTokenKind[] _lastKinds;
+    DbTokenKind _currentKind;
+    bool _malformed;
 }
 
 
@@ -448,17 +500,40 @@ private:
 
 version (unittest)
 {
+    const(char)[] quoteBool(bool token, bool expected, const(char)[] name, int line)
+    {
+        import std.conv : to;
+        
+        return "'" ~ to!string(token) ~ " vs " ~ to!string(expected) ~ "' " ~ name ~ " from line# " ~ to!string(line);
+    }
+    
+    const(char)[] quoteKind(DbTokenKind token, DbTokenKind expected, const(char)[] name, int line)
+    {
+        import std.conv : to;
+        import pham.utl.enum_set : toName;
+        
+        return "'" ~ toName(token) ~ " vs " ~ toName(expected) ~ "' " ~ name ~ " from line# " ~ to!string(line);
+    }
+    
+    const(char)[] quoteStr(const(char)[] token, const(char)[] expected, const(char)[] name, int line)
+    {
+        import std.conv : to;
+        
+        return "'" ~ token ~ " vs " ~ expected ~ "' " ~ name ~ " from line# " ~ to!string(line);
+    }
+    
     void checkTokenizer(ref DbTokenizer!string tokenizer,
         bool empty, bool malformed, const(char)[] parameterIndicator, DbTokenKind kind, const(char)[] front,
         in int line = __LINE__)
     {
         import std.conv : to;
+        import pham.utl.enum_set : toName;
 
-        assert(tokenizer.empty == empty, "empty #" ~ to!string(line));
-        assert(tokenizer.malformed == malformed, "'"  ~ tokenizer.malformed ~ "' malformed #" ~ to!string(line));
-        assert(tokenizer.parameterIndicator == parameterIndicator, "parameterIndicator #" ~ to!string(line));
-        assert(tokenizer.kind == kind, "kind #" ~ to!string(line));
-        assert(tokenizer.front == front, "'"  ~ tokenizer.front ~ "' front #" ~ to!string(line));
+        assert(tokenizer.empty == empty, "empty from line# " ~ to!string(line));
+        assert(tokenizer.malformed == malformed, quoteBool(tokenizer.malformed, malformed, "malformed", line));
+        assert(tokenizer.parameterIndicator == parameterIndicator, quoteStr(tokenizer.parameterIndicator, parameterIndicator, "parameterIndicator", line));
+        assert(tokenizer.kind == kind, quoteKind(tokenizer.kind, kind, "kind", line));
+        assert(tokenizer.front == front, quoteStr(tokenizer.front, front, "front", line));
     }
 }
 
@@ -468,7 +543,7 @@ unittest // DbTokenizer - empty
     traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer");
 
     auto tokenizer = DbTokenizer!string("");
-    checkTokenizer(tokenizer, true, false, "", DbTokenKind.space, "");
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
 unittest // DbTokenizer - Simple statement
@@ -476,22 +551,23 @@ unittest // DbTokenizer - Simple statement
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer");
 
-    auto tokenizer = DbTokenizer!string("select count(int_field) FROM test");
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count(int_field)");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, true, false, "", DbTokenKind.space, "");
+    auto tokenizer = DbTokenizer!string("select count(int_field), [bracket] FROM test");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.parenthesisBegin, "("); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "int_field"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.parenthesisEnd, ")"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comma, ","); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketBegin, "["); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "bracket"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketEnd, "]"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test"); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
 unittest // DbTokenizer - Single parameter
@@ -499,38 +575,31 @@ unittest // DbTokenizer - Single parameter
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer");
 
-    auto tokenizer = DbTokenizer!string("select count(int_field) FROM test Where varchar_field = @p0");
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count(int_field)");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "Where");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "varchar_field");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "=");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "@", DbTokenKind.parameterNamed, "p0");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, true, false, "", DbTokenKind.space, "");
+    auto tokenizer = DbTokenizer!string("select count(int_field), [bracket] FROM test Where varchar_field = @p0");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.parenthesisBegin, "("); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "int_field"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.parenthesisEnd, ")"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comma, ","); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketBegin, "["); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "bracket"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketEnd, "]"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "Where"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "varchar_field"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "="); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "@", DbTokenKind.parameterNamed, "p0"); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
 unittest // DbTokenizer - Single parameter
@@ -538,38 +607,31 @@ unittest // DbTokenizer - Single parameter
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer");
 
-    auto tokenizer = DbTokenizer!string("select count(int_field) FROM test Where varchar_field = :p0");
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count(int_field)");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "Where");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "varchar_field");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "=");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, ":", DbTokenKind.parameterNamed, "p0");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, true, false, "", DbTokenKind.space, "");
+    auto tokenizer = DbTokenizer!string("select count(int_field), [bracket] FROM test Where varchar_field = :p0");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.parenthesisBegin, "("); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "int_field"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.parenthesisEnd, ")"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comma, ","); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketBegin, "["); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "bracket"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketEnd, "]"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "Where"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "varchar_field"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "="); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, ":", DbTokenKind.parameterNamed, "p0"); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
 unittest // DbTokenizer - Single parameter
@@ -577,38 +639,31 @@ unittest // DbTokenizer - Single parameter
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer");
 
-    auto tokenizer = DbTokenizer!string("select count(int_field) FROM test Where varchar_field = ?");
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count(int_field)");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "Where");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "varchar_field");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "=");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "?", DbTokenKind.parameterUnnamed, "");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, true, false, "", DbTokenKind.space, "");
+    auto tokenizer = DbTokenizer!string("select count(int_field), [bracket] FROM test Where varchar_field = ?");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.parenthesisBegin, "("); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "int_field"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.parenthesisEnd, ")"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comma, ","); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketBegin, "["); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "bracket"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketEnd, "]"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "Where"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "varchar_field"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "="); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "?", DbTokenKind.parameterUnnamed, ""); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
 unittest // DbTokenizer - Multi parameters
@@ -616,52 +671,38 @@ unittest // DbTokenizer - Multi parameters
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer");
 
-    auto tokenizer = DbTokenizer!string("select count(int_field) FROM test Where f1=@p1 and f2=:p2 and f3=?");
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count(int_field)");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "Where");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "f1=");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "@", DbTokenKind.parameterNamed, "p1");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "and");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "f2=");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, ":", DbTokenKind.parameterNamed, "p2");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "and");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "f3=");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "?", DbTokenKind.parameterUnnamed, "");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, true, false, "", DbTokenKind.space, "");
+    auto tokenizer = DbTokenizer!string("select count(int_field), [bracket] FROM test Where f1=@p1 and f2=:p2 and f3=?");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.parenthesisBegin, "("); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "int_field"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.parenthesisEnd, ")"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comma, ","); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketBegin, "["); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "bracket"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketEnd, "]"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "Where"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "f1="); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "@", DbTokenKind.parameterNamed, "p1"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "and"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "f2="); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, ":", DbTokenKind.parameterNamed, "p2"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "and"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "f3="); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "?", DbTokenKind.parameterUnnamed, ""); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
 unittest // DbTokenizer - Parameter with block comment
@@ -669,54 +710,45 @@ unittest // DbTokenizer - Parameter with block comment
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer");
 
-    auto tokenizer = DbTokenizer!string(" select count(int_field)  FROM test /* this is a comment with ' */  Where varchar_field = @_LongName$123 /**/ x=?");
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count(int_field)");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, "  ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "/* this is a comment with ' */");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, "  ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "Where");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "varchar_field");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "=");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "@", DbTokenKind.parameterNamed, "_LongName$123");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "/**/");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "x=");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "?", DbTokenKind.parameterUnnamed, "");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, true, false, "", DbTokenKind.space, "");
+    auto tokenizer = DbTokenizer!string(" select count(int_field, int_field2), [bracket, bracket2] FROM test /* this is a comment with ' */  Where varchar_field = @_LongName$123 /**/ x=?");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.parenthesisBegin, "("); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "int_field"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comma, ","); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "int_field2"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.parenthesisEnd, ")"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comma, ","); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketBegin, "["); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "bracket"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comma, ","); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "bracket2"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketEnd, "]"); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test"); tokenizer.popFront();        
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "/* this is a comment with ' */"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, "  "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "Where"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "varchar_field"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "="); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "@", DbTokenKind.parameterNamed, "_LongName$123"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "/**/"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "x="); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "?", DbTokenKind.parameterUnnamed, ""); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
 unittest // DbTokenizer - Parameter with line comment
@@ -725,57 +757,42 @@ unittest // DbTokenizer - Parameter with line comment
     traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer");
 
     auto tokenizer = DbTokenizer!string("select count(int_field), ' @ ' as ab, \" : \" ac, [ ad ] ad FROM test ? -- comment with @p123 ");
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count(int_field),");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.quotedSingle, "' @ '");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "as");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "ab,");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.quotedDouble, "\" : \"");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "ac,");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.quotedBracket, "[ ad ]");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "ad");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "?", DbTokenKind.parameterUnnamed, "");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "-- comment with @p123 ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, true, false, "", DbTokenKind.space, "");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.parenthesisBegin, "("); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "int_field"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.parenthesisEnd, ")"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comma, ","); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.quotedSingle, "' @ '"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "as"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "ab"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comma, ","); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.quotedDouble, "\" : \""); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "ac"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comma, ","); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketBegin, "["); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "ad"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketEnd, "]"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "ad"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "?", DbTokenKind.parameterUnnamed, ""); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "-- comment with @p123 "); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
 unittest // DbTokenizer - Malformed multi parameters
@@ -783,52 +800,30 @@ unittest // DbTokenizer - Malformed multi parameters
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer");
 
-    auto tokenizer = DbTokenizer!string("select count(int_field) FROM test Where f1=@ and f2=: and f3=?");
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count(int_field)");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "Where");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "f1=");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, true, "@", DbTokenKind.literal, "@");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "and");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "f2=");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, true, ":", DbTokenKind.literal, ":");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "and");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "f3=");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "?", DbTokenKind.parameterUnnamed, "");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, true, false, "", DbTokenKind.space, "");
+    auto tokenizer = DbTokenizer!string("select int_field FROM test Where f1=@ and f2=: and f3=?");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "int_field"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "Where"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "f1="); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, true, "@", DbTokenKind.literal, "@"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "and"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "f2="); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, true, ":", DbTokenKind.literal, ":"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "and"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "f3="); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "?", DbTokenKind.parameterUnnamed, ""); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
 unittest // DbTokenizer - Malform quoted
@@ -836,44 +831,32 @@ unittest // DbTokenizer - Malform quoted
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer");
 
-    auto tokenizer = DbTokenizer!string("select count(int_field), ' @ -- comment with @p123 ");
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count(int_field),");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, true, "", DbTokenKind.quotedSingle, "' @ -- comment with @p123 ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, true, false, "", DbTokenKind.space, "");
+    auto tokenizer = DbTokenizer!string("select int_field ' @ -- comment with @p123 ");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "int_field"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, true, "", DbTokenKind.quotedSingle, "' @ -- comment with @p123 "); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 
-    tokenizer = DbTokenizer!string("select count(int_field), \" @ -- comment with @p123 ");
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count(int_field),");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, true, "", DbTokenKind.quotedDouble, "\" @ -- comment with @p123 ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, true, false, "", DbTokenKind.space, "");
+    tokenizer = DbTokenizer!string("select , \" @ -- comment with @p123 ");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comma, ","); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, true, "", DbTokenKind.quotedDouble, "\" @ -- comment with @p123 "); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 
-    tokenizer = DbTokenizer!string("select count(int_field), [ @ -- comment with @p123 ");
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count(int_field),");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, true, "", DbTokenKind.quotedBracket, "[ @ -- comment with @p123 ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, true, false, "", DbTokenKind.space, "");
+    tokenizer = DbTokenizer!string("select int_field, [ -- comment with @p123 ");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "int_field"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comma, ","); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketBegin, "["); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();    
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "-- comment with @p123 "); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, true, "", DbTokenKind.eos, "");
 }
 
 unittest // DbTokenizer - Malform block comment
@@ -881,28 +864,13 @@ unittest // DbTokenizer - Malform block comment
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer");
 
-    auto tokenizer = DbTokenizer!string(" select count(int_field)  FROM test /* this is a comment with '  Where varchar_field = @_LongName$123 ");
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "count(int_field)");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, "  ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, true, "", DbTokenKind.comment, "/* this is a comment with '  Where varchar_field = @_LongName$123 ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, true, false, "", DbTokenKind.space, "");
+    auto tokenizer = DbTokenizer!string("FROM test /* this is a comment with '  Where varchar_field = @_LongName$123 ");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, true, "", DbTokenKind.comment, "/* this is a comment with '  Where varchar_field = @_LongName$123 "); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
 unittest // DbTokenizer.parseParameter
@@ -983,13 +951,10 @@ unittest // DbTokenizer - comment single line
     traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer.comment");
 
     auto tokenizer = DbTokenizer!string(" -- comment with \r\n ");
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "-- comment with \r\n");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " ");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, true, false, "", DbTokenKind.space, "");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "-- comment with \r\n"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
 unittest // DbTokenizer - comment multi lines
@@ -998,11 +963,8 @@ unittest // DbTokenizer - comment multi lines
     traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer.comment");
 
     auto tokenizer = DbTokenizer!string(" \n/* comment with \r\n */ \n");
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " \n");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "/* comment with \r\n */");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " \n");
-    tokenizer.popFront();
-    checkTokenizer(tokenizer, true, false, "", DbTokenKind.space, "");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " \n"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "/* comment with \r\n */"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " \n"); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
