@@ -343,6 +343,7 @@ private:
         spaceLine,
     }
     
+    pragma(inline, true)
     static CharKind charKind(const(dchar) c) @nogc pure
     {
         switch (c)
@@ -380,6 +381,7 @@ private:
         }
     }
 
+    pragma(inline, true)
     static bool isNameChar(const(dchar) c) @nogc pure
     {
         //import pham.utl.test; dgWriteln("c=", c, ", isAlphaNum(c)=", isAlphaNum(c));
@@ -387,6 +389,7 @@ private:
         return c == '_' || c == '$' || isAlphaNum(c);
     }
 
+    pragma(inline, true)
     static SpaceKind isSpaceChar(const(dchar) c) @nogc pure
     {
         return c == '\n' || c == '\r'
@@ -426,7 +429,7 @@ private:
         {
             const c = readChar();
             if (c == 0x0A)
-                return _sql[_beginP.._p];
+                break;
             else if (c == 0x0D)
             {
                 // Skip return line feed?
@@ -436,7 +439,7 @@ private:
                     if (readChar() != 0x0A)
                         _p = saveP;
                 }
-                return _sql[_beginP.._p];
+                break;
             }
         }
         return _sql[_beginP.._p];
