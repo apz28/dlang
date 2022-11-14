@@ -141,12 +141,12 @@ public:
         static if (skipLevel == DbTokenSkipLevel.space)
         {
             if (_currentKind <= DbTokenKind.space)
-                popFront();
+                popFrontImpl();
         }
         else static if (skipLevel == DbTokenSkipLevel.spaceLine)
         {
             if (_currentKind <= DbTokenKind.spaceLine)
-                popFront();
+                popFrontImpl();
         }
     }
 
