@@ -38,8 +38,15 @@ enum DbTokenKind : ubyte
     eos, // end of stream/string
 }
 
+enum DbTokenSkipLevel : ubyte
+{
+    none,
+    space,
+    spaceLine,
+}
+
 // S should be either 'const(char)[]' or 'string'
-struct DbTokenizer(S)
+struct DbTokenizer(S, DbTokenSkipLevel skipLevel = DbTokenSkipLevel.none)
 {
 nothrow @safe:
 
@@ -129,6 +136,149 @@ public:
     }
 
     void popFront() pure
+    {
+        popFrontImpl();
+        static if (skipLevel == DbTokenSkipLevel.space)
+        {
+            if (_currentKind <= DbTokenKind.space)
+                popFront();
+        }
+        else static if (skipLevel == DbTokenSkipLevel.spaceLine)
+        {
+            if (_currentKind <= DbTokenKind.spaceLine)
+                popFront();
+        }
+    }
+
+    void reset() pure
+    {
+        _p = _beginP = 0;
+        _lastKinds = null;
+        popFront();
+    }
+
+    pragma(inline, true)
+    @property bool empty() const @nogc pure
+    {
+        return _currentKind == DbTokenKind.eos;
+    }
+
+    @property S front() const @nogc pure
+    {
+        return _currentToken;
+    }
+
+    @property bool malformed() const @nogc pure
+    {
+        return _malformed;
+    }
+
+    @property DbTokenKind kind() const @nogc pure
+    {
+        return _currentKind;
+    }
+
+    @property const(DbTokenKind)[] lastKinds() const @nogc pure
+    {
+        return _lastKinds;
+    }
+
+    @property size_t offset() const @nogc pure
+    {
+        return _p;
+    }
+
+    @property S parameterIndicator() const @nogc pure
+    {
+        return _currentParameterIndicator;
+    }
+
+    @property S sql() const pure
+    {
+        return _sql;
+    }
+
+private:
+    enum CharKind : ubyte
+    {
+        space,
+        spaceLine,
+        literal,
+        quotedSingle,
+        quotedDouble,
+        parameterUnnamed,
+        parameterNamed,
+        comma,
+        bracketBegin,
+        bracketEnd,
+        parenthesisBegin,
+        parenthesisEnd,
+        commentSingle,
+        commentMulti,
+    }
+
+    enum SpaceKind : ubyte
+    {
+        none,
+        space,
+        spaceLine,
+    }
+    
+    pragma(inline, true)
+    static CharKind charKind(const(dchar) c) @nogc pure
+    {
+        switch (c)
+        {
+            case '?':
+                return CharKind.parameterUnnamed;
+            case '@':
+            case ':':
+                return CharKind.parameterNamed;
+            case '`':
+            case '\'':
+                return CharKind.quotedSingle;
+            case '"':
+                return CharKind.quotedDouble;
+            case ',':
+                return CharKind.comma;
+            case '[':
+                return CharKind.bracketBegin;
+            case ']':
+                return CharKind.bracketEnd;
+            case '(':
+                return CharKind.parenthesisBegin;
+            case ')':
+                return CharKind.parenthesisEnd;
+            case '-':
+            case '#':
+                return CharKind.commentSingle;
+            case '/':
+                return CharKind.commentMulti;
+            default:
+                const p = isSpaceChar(c);
+                return p == SpaceKind.spaceLine
+                    ? CharKind.spaceLine
+                    : (p == SpaceKind.space ? CharKind.space : CharKind.literal);
+        }
+    }
+
+    pragma(inline, true)
+    static bool isNameChar(const(dchar) c) @nogc pure
+    {
+        //import pham.utl.test; dgWriteln("c=", c, ", isAlphaNum(c)=", isAlphaNum(c));
+
+        return c == '_' || c == '$' || isAlphaNum(c);
+    }
+
+    pragma(inline, true)
+    static SpaceKind isSpaceChar(const(dchar) c) @nogc pure
+    {
+        return c == '\n' || c == '\r'
+            ? SpaceKind.spaceLine
+            : (c == '\t' || isSpace(c) ? SpaceKind.space : SpaceKind.none);
+    }
+    
+    void popFrontImpl() pure
     {
         _currentParameterIndicator = null;
         _malformed = false;
@@ -267,134 +417,6 @@ public:
                 _currentKind = DbTokenKind.literal;
                 return literalToken();
         }
-    }
-
-    void reset() pure
-    {
-        _p = _beginP = 0;
-        _lastKinds = null;
-        popFront();
-    }
-
-    pragma(inline, true)
-    @property bool empty() const @nogc pure
-    {
-        return _currentKind == DbTokenKind.eos;
-    }
-
-    @property S front() const @nogc pure
-    {
-        return _currentToken;
-    }
-
-    @property bool malformed() const @nogc pure
-    {
-        return _malformed;
-    }
-
-    @property DbTokenKind kind() const @nogc pure
-    {
-        return _currentKind;
-    }
-
-    @property const(DbTokenKind)[] lastKinds() const @nogc pure
-    {
-        return _lastKinds;
-    }
-
-    @property size_t offset() const @nogc pure
-    {
-        return _p;
-    }
-
-    @property S parameterIndicator() const @nogc pure
-    {
-        return _currentParameterIndicator;
-    }
-
-    @property S sql() const pure
-    {
-        return _sql;
-    }
-
-private:
-    enum CharKind : ubyte
-    {
-        space,
-        spaceLine,
-        literal,
-        quotedSingle,
-        quotedDouble,
-        parameterUnnamed,
-        parameterNamed,
-        comma,
-        bracketBegin,
-        bracketEnd,
-        parenthesisBegin,
-        parenthesisEnd,
-        commentSingle,
-        commentMulti,
-    }
-
-    enum SpaceKind : ubyte
-    {
-        none,
-        space,
-        spaceLine,
-    }
-    
-    pragma(inline, true)
-    static CharKind charKind(const(dchar) c) @nogc pure
-    {
-        switch (c)
-        {
-            case '?':
-                return CharKind.parameterUnnamed;
-            case '@':
-            case ':':
-                return CharKind.parameterNamed;
-            case '`':
-            case '\'':
-                return CharKind.quotedSingle;
-            case '"':
-                return CharKind.quotedDouble;
-            case ',':
-                return CharKind.comma;
-            case '[':
-                return CharKind.bracketBegin;
-            case ']':
-                return CharKind.bracketEnd;
-            case '(':
-                return CharKind.parenthesisBegin;
-            case ')':
-                return CharKind.parenthesisEnd;
-            case '-':
-            case '#':
-                return CharKind.commentSingle;
-            case '/':
-                return CharKind.commentMulti;
-            default:
-                const p = isSpaceChar(c);
-                return p == SpaceKind.spaceLine
-                    ? CharKind.spaceLine
-                    : (p == SpaceKind.space ? CharKind.space : CharKind.literal);
-        }
-    }
-
-    pragma(inline, true)
-    static bool isNameChar(const(dchar) c) @nogc pure
-    {
-        //import pham.utl.test; dgWriteln("c=", c, ", isAlphaNum(c)=", isAlphaNum(c));
-
-        return c == '_' || c == '$' || isAlphaNum(c);
-    }
-
-    pragma(inline, true)
-    static SpaceKind isSpaceChar(const(dchar) c) @nogc pure
-    {
-        return c == '\n' || c == '\r'
-            ? SpaceKind.spaceLine
-            : (c == '\t' || isSpace(c) ? SpaceKind.space : SpaceKind.none);
     }
 
     pragma(inline, true)
@@ -553,7 +575,7 @@ version (unittest)
         return "'" ~ token ~ " vs " ~ expected ~ "' " ~ name ~ " from line# " ~ to!string(line);
     }
 
-    void checkTokenizer(ref DbTokenizer!string tokenizer,
+    void checkTokenizer(T)(ref T tokenizer,
         bool empty, bool malformed, const(char)[] parameterIndicator, DbTokenKind kind, const(char)[] front,
         in int line = __LINE__)
     {
@@ -998,4 +1020,25 @@ unittest // DbTokenizer - comment multi lines
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "/* comment with \r\n */"); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.spaceLine, " \n"); tokenizer.popFront();
     checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
+}
+
+unittest // SkipLevel
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer.SkipLevel");
+    
+    auto tokenizerSpace = DbTokenizer!(string, DbTokenSkipLevel.space)("FROM test /* this is a comment */ @_LongName$123 \n ");
+    checkTokenizer(tokenizerSpace, false, false, "", DbTokenKind.literal, "FROM"); tokenizerSpace.popFront();
+    checkTokenizer(tokenizerSpace, false, false, "", DbTokenKind.literal, "test"); tokenizerSpace.popFront();
+    checkTokenizer(tokenizerSpace, false, false, "", DbTokenKind.comment, "/* this is a comment */");  tokenizerSpace.popFront();
+    checkTokenizer(tokenizerSpace, false, false, "@", DbTokenKind.parameterNamed, "_LongName$123"); tokenizerSpace.popFront();
+    checkTokenizer(tokenizerSpace, false, false, "", DbTokenKind.spaceLine, " \n "); tokenizerSpace.popFront();
+    checkTokenizer(tokenizerSpace, true, false, "", DbTokenKind.eos, "");
+        
+    auto tokenizerSpaceLine = DbTokenizer!(string, DbTokenSkipLevel.spaceLine)("FROM test /* this is a comment */ @_LongName$123 \n ");
+    checkTokenizer(tokenizerSpaceLine, false, false, "", DbTokenKind.literal, "FROM"); tokenizerSpaceLine.popFront();
+    checkTokenizer(tokenizerSpaceLine, false, false, "", DbTokenKind.literal, "test"); tokenizerSpaceLine.popFront();
+    checkTokenizer(tokenizerSpaceLine, false, false, "", DbTokenKind.comment, "/* this is a comment */");  tokenizerSpaceLine.popFront();
+    checkTokenizer(tokenizerSpaceLine, false, false, "@", DbTokenKind.parameterNamed, "_LongName$123"); tokenizerSpaceLine.popFront();
+    checkTokenizer(tokenizerSpaceLine, true, false, "", DbTokenKind.eos, "");
 }
