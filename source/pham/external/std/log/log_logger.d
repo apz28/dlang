@@ -15,7 +15,7 @@ module pham.external.std.log.logger;
 import core.atomic : atomicLoad, atomicStore,  MemoryOrder;
 import core.sync.mutex : Mutex;
 import core.thread : ThreadID;
-import core.time : dur, msecs;
+import core.time : dur;
 public import core.time : Duration;
 import std.array : Appender;
 import std.conv : emplace, to;
@@ -3220,7 +3220,7 @@ unittest // moduleParentOf
 
     // date
     LogOutputPatternElement datePattern;
-    auto timestamp = SysTime(DateTime(1, 1, 1, 1, 1, 1), msecs(1), null);
+    auto timestamp = SysTime(DateTime(1, 1, 1, 1, 1, 1), dur!"msecs"(1), null);
     version (DebugLogger) debug writeln(LogOutputWriter.date(datePattern, timestamp));
     assert(LogOutputWriter.date(datePattern, timestamp) == "0001-01-01T01:01:01.001000");
 
