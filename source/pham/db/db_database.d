@@ -1522,6 +1522,7 @@ protected:
     size_t _nextCounter;
     int _readerCounter;
     DbConnectionState _state;
+    DbConnectionType _type;
 
 private:
     DLinkDbCommandTypes.DLinkList _commands;

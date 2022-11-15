@@ -143,6 +143,7 @@ nothrow @safe:
     int32 serverArchitecture;
     int32 serverVersion;
     int nextAuthState;
+    DbConnectionType connectionType;
 }
 
 alias FbDeferredResponse = void delegate() @safe;
@@ -408,18 +409,21 @@ public:
         return r.getIscObject();
     }
 
-    final void connectAttachmentWrite(ref FbConnectingStateInfo stateInfo)
+    final void connectAttachmentWrite(ref FbConnectingStateInfo stateInfo, FbCreateDatabaseInfo createDatabaseInfo)
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
+        const isCreateOp = stateInfo.connectionType == DbConnectionType.create;
         auto useCSB = connection.fbConnectionStringBuilder;
-        auto writerAI = FbConnectionWriter(connection, FbIsc.isc_dpb_version);
+        auto writerAI = FbConnectionWriter(connection, FbIsc.isc_dpb_version2); // Can be latest version depending on protocol version
 
         auto writer = FbXdrWriter(connection);
-		writer.writeOperation(FbIsc.op_attach);
+		writer.writeOperation(isCreateOp ? FbIsc.op_create : FbIsc.op_attach);
 		writer.writeHandle(0);
-		writer.writeChars(useCSB.databaseName);
-        writer.writeBytes(describeAttachmentInformation(writerAI, stateInfo));
+		writer.writeChars(isCreateOp ? createDatabaseInfo.fileName : useCSB.databaseName);
+        writer.writeBytes(isCreateOp
+            ? describeCreateInformation(writerAI, stateInfo, createDatabaseInfo)
+            : describeAttachmentInformation(writerAI, stateInfo));
         writer.flush();
     }
 
@@ -532,23 +536,24 @@ public:
         }
     }
 
-    final void connectAuthenticationWrite(ref FbConnectingStateInfo stateInfo)
+    final void connectAuthenticationWrite(ref FbConnectingStateInfo stateInfo, FbCreateDatabaseInfo createDatabaseInfo)
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
         clearServerInfo();
 
+        const isCreateOp = stateInfo.connectionType == DbConnectionType.create;
         auto useCSB = connection.fbConnectionStringBuilder;
         const compressFlag = useCSB.compress ? FbIsc.ptype_compress_flag : 0;
         auto protoItems = describeProtocolItems;
-        auto writerUI = FbConnectionWriter(connection, FbIsc.isc_dpb_version);
+        auto writerUI = FbConnectionWriter(connection, FbIsc.isc_dpb_version1); // Must be version1 at this point
 
         auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_connect);
-		writer.writeOperation(FbIsc.op_attach);
+		writer.writeOperation(isCreateOp ? FbIsc.op_create : FbIsc.op_attach);
 		writer.writeInt32(FbIsc.connect_version);
         writer.writeInt32(FbIsc.connect_generic_achitecture_client);
-        writer.writeChars(useCSB.databaseName);
+        writer.writeChars(isCreateOp ? createDatabaseInfo.fileName : useCSB.databaseName);
         writer.writeInt32(protoItems.length); // Protocol count
         writer.writeBytes(describeUserIdentification(writerUI, stateInfo));
         foreach (p; protoItems)
@@ -561,7 +566,28 @@ public:
         }
         writer.flush();
     }
+    
+    final void createDatabaseRead()
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
+        auto r = readGenericResponse();
+    }
+    
+    final void createDatabaseWrite(FbCreateDatabaseInfo createDatabaseInfo)
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+
+        auto writerAI = FbConnectionWriter(connection, FbIsc.isc_dpb_version2); // Can be latest version depending on protocol version
+        
+        auto writer = FbXdrWriter(connection);
+		writer.writeOperation(FbIsc.op_create);
+        writer.writeHandle(0);
+		writer.writeChars(createDatabaseInfo.fileName);
+        writer.writeBytes(describeCreateInformation(writerAI, createDatabaseInfo));
+        writer.flush();
+    }
+    
     final void deallocateCommandRead()
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
@@ -1186,8 +1212,8 @@ protected:
 		writer.writeChars(stateInfo.auth.name); // like CNCT_plugin_name
 		writer.writeChars(stateInfo.auth.name); // like CNCT_plugin_list
 		writer.writeBytes(stateInfo.serverAuthKey[]);
-        stateInfo.nextAuthState++;
 		writer.flush();
+        stateInfo.nextAuthState++;
     }
 
     final FbAuth createAuth(const(char)[] authMethod)
@@ -1325,29 +1351,12 @@ protected:
         writer.writeUInt8(FbIsc.isc_sdl_eoc);
         return writer.peekBytes();
     }
-
+    
     final ubyte[] describeAttachmentInformation(return ref FbConnectionWriter writer, ref FbConnectingStateInfo stateInfo)
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("stateInfo.authData=", stateInfo.authData.toString());
 
         auto useCSB = connection.fbConnectionStringBuilder;
-
-        version (none)
-        bool needSendPassword() nothrow pure @safe
-        {
-            if (stateInfo.authData.length)
-                return false;
-            else if (stateInfo.serverVersion < FbIsc.protocol_version12)
-                return true;
-            else if (stateInfo.serverVersion == FbIsc.protocol_version12)
-            {
-                const iss = useCSB.integratedSecurity;
-                return iss != DbIntegratedSecurityConnection.sspi &&
-                    iss != DbIntegratedSecurityConnection.trusted;
-            }
-            else
-                return false;
-        }
 
 		writer.writeVersion();
 		writer.writeInt32(FbIsc.isc_dpb_dummy_packet_interval, useCSB.dummyPackageInterval.limitRangeTimeoutAsSecond());
@@ -1360,19 +1369,72 @@ protected:
 		writer.writeChars(FbIsc.isc_dpb_process_name, currentProcessName());
 		writer.writeCharsIf(FbIsc.isc_dpb_client_version, useCSB.applicationVersion);
 		if (stateInfo.authData.length)
-		    writer.writeBytes(FbIsc.isc_dpb_specific_auth_data, stateInfo.authData[]);
+		    writer.writeBytes(FbIsc.isc_dpb_specific_auth_data, stateInfo.authData[]);            
 		if (useCSB.cachePages)
 			writer.writeInt32(FbIsc.isc_dpb_num_buffers, useCSB.cachePages);
 		if (!useCSB.databaseTrigger)
 		    writer.writeInt32(FbIsc.isc_dpb_no_db_triggers, 1);
 		if (!useCSB.garbageCollect)
-		    writer.writeInt32(FbIsc.isc_dpb_no_garbage_collect, 1);
+		    writer.writeInt32(FbIsc.isc_dpb_no_garbage_collect, 1);            
 		writer.writeInt32(FbIsc.isc_dpb_utf8_filename, 1); // This is weirdess - must be last or fail to authenticate
 
         auto result = writer.peekBytes();
-
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("dpbValue.length=", result.length, ", dpbValue=", result.dgToHex());
+        return result;
+    }
+    
+    final ubyte[] describeCreateInformation(return ref FbConnectionWriter writer, ref FbConnectingStateInfo stateInfo,
+        FbCreateDatabaseInfo createDatabaseInfo)
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("stateInfo.authData=", stateInfo.authData.toString());
 
+        auto useCSB = connection.fbConnectionStringBuilder;
+        auto useUserName = createDatabaseInfo.ownerName.length
+            ? createDatabaseInfo.ownerName
+            : useCSB.userName;
+
+		writer.writeVersion();
+		writer.writeInt32(FbIsc.isc_dpb_dummy_packet_interval, useCSB.dummyPackageInterval.limitRangeTimeoutAsSecond());
+		writer.writeInt32(FbIsc.isc_dpb_sql_dialect, useCSB.dialect);
+		writer.writeChars(FbIsc.isc_dpb_lc_ctype, useCSB.charset);
+        writer.writeCharsIf(FbIsc.isc_dpb_user_name, useUserName);
+        writer.writeCharsIf(FbIsc.isc_dpb_password, createDatabaseInfo.ownerPassword);
+	    writer.writeCharsIf(FbIsc.isc_dpb_sql_role_name, useCSB.roleName);
+		writer.writeInt32(FbIsc.isc_dpb_connect_timeout, useCSB.connectionTimeout.limitRangeTimeoutAsSecond());
+		writer.writeInt32(FbIsc.isc_dpb_process_id, currentProcessId());
+		writer.writeChars(FbIsc.isc_dpb_process_name, currentProcessName());
+		writer.writeCharsIf(FbIsc.isc_dpb_client_version, useCSB.applicationVersion);
+		if (stateInfo.authData.length)
+		    writer.writeBytes(FbIsc.isc_dpb_specific_auth_data, stateInfo.authData[]);
+        writer.writeCharsIf(FbIsc.isc_dpb_set_db_charset, createDatabaseInfo.defaultCharacterSet);
+		writer.writeInt32(FbIsc.isc_dpb_force_write, createDatabaseInfo.forcedWrite ? 1 : 0);
+		writer.writeInt32(FbIsc.isc_dpb_overwrite, createDatabaseInfo.overwrite ? 1 : 0);
+		if (createDatabaseInfo.pageSize > 0)
+			writer.writeInt32(FbIsc.isc_dpb_page_size, createDatabaseInfo.pageSize);                        
+		writer.writeInt32(FbIsc.isc_dpb_utf8_filename, 1); // This is weirdess - must be last or fail to authenticate
+
+        auto result = writer.peekBytes();
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("dpbValue.length=", result.length, ", dpbValue=", result.dgToHex());
+        return result;
+    }
+    
+    final ubyte[] describeCreateInformation(return ref FbConnectionWriter writer,
+        FbCreateDatabaseInfo createDatabaseInfo)
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+
+		writer.writeVersion();
+        if (writer.writeCharsIf(FbIsc.isc_dpb_user_name, createDatabaseInfo.ownerName))
+            writer.writeCharsIf(FbIsc.isc_dpb_password, createDatabaseInfo.ownerPassword);
+        writer.writeCharsIf(FbIsc.isc_dpb_set_db_charset, createDatabaseInfo.defaultCharacterSet);
+		writer.writeInt32(FbIsc.isc_dpb_force_write, createDatabaseInfo.forcedWrite ? 1 : 0);
+		writer.writeInt32(FbIsc.isc_dpb_overwrite, createDatabaseInfo.overwrite ? 1 : 0);
+		if (createDatabaseInfo.pageSize > 0)
+			writer.writeInt32(FbIsc.isc_dpb_page_size, createDatabaseInfo.pageSize);                        
+		writer.writeInt32(FbIsc.isc_dpb_utf8_filename, 1); // This is weirdess - must be last or fail to authenticate
+
+        auto result = writer.peekBytes();
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("dpbValue.length=", result.length, ", dpbValue=", result.dgToHex());
         return result;
     }
 
@@ -1573,9 +1635,7 @@ protected:
         }
 
         auto result = writer.peekBytes();
-
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("result=", result.dgToHex());
-
         return result;
     }
 
@@ -1771,7 +1831,7 @@ protected:
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
         
         auto rData = reader.readBytes();
-        auto rSize = serverVersion > FbIsc.protocol_version13 ? reader.readInt32() : 0;
+        auto rSize = serverVersion > FbIsc.protocol_version13 ? reader.readInt32() : int32.min; // Use min to indicate not used - zero may be false positive
         return FbIscCryptKeyCallbackResponse(rData, rSize);
     }
 
@@ -1798,7 +1858,6 @@ protected:
         auto rCount = reader.readInt32();
 
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("rStatus=", rStatus, ", rCount=", rCount);
-
         return FbIscFetchResponse(rStatus, rCount);
     }
 
@@ -1852,7 +1911,6 @@ protected:
         auto rCount = reader.readInt32();
 
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("rCount=", rCount);
-
         return FbIscSqlResponse(rCount);
     }
 
@@ -1960,7 +2018,3 @@ static immutable ubyte[] describeStatementRowsAffectedInfoItems = [
 static immutable ubyte[] describeStatementTypeInfoItems = [
     FbIsc.isc_info_sql_stmt_type
     ];
-
-
-// Any below codes are private
-private:

@@ -1433,6 +1433,31 @@ public:
         return result;
     }
 
+    final void createDatabase(FbCreateDatabaseInfo createDatabaseInfo)
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+
+        if (state == DbConnectionState.open)
+        {
+            _protocol.createDatabaseWrite(createDatabaseInfo);
+            _protocol.createDatabaseRead();
+        }
+        else
+        {
+            auto safeType = _type;
+            _createDatabaseInfo = createDatabaseInfo;
+            _type = DbConnectionType.create;
+            scope (exit)
+            {
+                _type = safeType;
+                _createDatabaseInfo = FbCreateDatabaseInfo.init;
+            }
+
+            open();
+            close();
+        }
+    }
+
     @property final ref FbArrayManager arrayManager() nothrow @safe
     {
         return _arrayManager;
@@ -1588,6 +1613,7 @@ protected:
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
         FbConnectingStateInfo stateInfo;
+        stateInfo.connectionType = _type;
 
         doOpenSocket();
         doOpenAuthentication(stateInfo);
@@ -1598,7 +1624,7 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
-        protocol.connectAttachmentWrite(stateInfo);
+        protocol.connectAttachmentWrite(stateInfo, _createDatabaseInfo);
         _handle = protocol.connectAttachmentRead(stateInfo).handle;
     }
 
@@ -1607,7 +1633,7 @@ protected:
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
         _protocol = new FbProtocol(this);
-        _protocol.connectAuthenticationWrite(stateInfo);
+        _protocol.connectAuthenticationWrite(stateInfo, _createDatabaseInfo);
         _protocol.connectAuthenticationRead(stateInfo);
     }
 
@@ -1631,6 +1657,7 @@ protected:
 protected:
     FbArrayManager _arrayManager;
     FbProtocol _protocol;
+    FbCreateDatabaseInfo _createDatabaseInfo;
 
 private:
     DLinkDbBufferTypes.DLinkList _parameterWriteBuffers;
@@ -1673,7 +1700,7 @@ public:
 
     @property final uint8[] cryptKey() nothrow
     {
-        return bytesFromBase64s(getString(DbConnectionParameterIdentifier.fbCryptKey));    
+        return bytesFromBase64s(getString(DbConnectionParameterIdentifier.fbCryptKey));
     }
 
     @property final typeof(this) cryptKey(scope const(uint8)[] value) nothrow
@@ -1738,7 +1765,6 @@ public:
 
         charClasses['"'] = CharClass.quote;
         charClasses['\''] = CharClass.quote;
-
         charClasses['\\'] = CharClass.backslash;
     }
 
@@ -2058,6 +2084,11 @@ version (UnitTestFBDatabase)
         csb.integratedSecurity = integratedSecurity;
 
         return cast(FbConnection)result;
+    }
+
+    string testCreateDatabaseFileName()
+    {
+        return "C:\\Development\\Projects\\DLang\\FirebirdSQL\\TEST_CREATE.FDB";
     }
 
     string testTableSchema() nothrow pure @safe
@@ -3290,7 +3321,7 @@ unittest // DbRAIITransaction
     import std.exception : assertThrown;
     import pham.utl.test;
     import pham.db.exception : DbException;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.database.DbRAIITransaction");
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbdatabase.DbRAIITransaction");
 
     bool commit = false;
     auto connection = createTestConnection();
@@ -3476,4 +3507,56 @@ unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
 
     const perfResult = unitTestPerfFBDatabase();
     dgWriteln("FB-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
+}
+
+version (UnitTestFBDatabase)
+unittest // FbConnection.createDatabase
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbdatabase.createDatabase");
+
+    FbCreateDatabaseInfo ci;
+    ci.fileName = testCreateDatabaseFileName();
+    ci.defaultCharacterSet = "iso8859_1";
+    ci.overwrite = true;
+    ci.pageSize = 16384;
+
+    void deleteTestCreateDatabaseFile()
+    {
+        import core.thread : Thread;
+        import core.time : dur;
+        import std.file : exists, remove;
+
+        if (exists(ci.fileName))
+        {
+            Thread.sleep(dur!"msecs"(5_000)); // Firebird may still be holding the file
+            remove(ci.fileName);
+        }
+    }
+
+    bool failed = true;
+    auto connection = createTestConnection();
+    scope (exit)
+    {
+        if (failed)
+            traceUnitTest!("pham.db.fbdatabase")("failed - exiting and closing connection");
+
+        connection.close();
+        connection.dispose();
+        connection = null;
+
+        deleteTestCreateDatabaseFile();
+    }
+
+    { // Without active connection
+        connection.createDatabase(ci);
+        deleteTestCreateDatabaseFile();
+    }
+
+    { // With active connection
+        connection.open();
+        connection.createDatabase(ci);
+        connection.close();
+        deleteTestCreateDatabaseFile();
+    }
 }

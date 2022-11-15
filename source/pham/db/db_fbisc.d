@@ -246,7 +246,7 @@ enum FbIsc
 	// Database Parameter Block Types
 	isc_dpb_version1 = 1,
 	isc_dpb_version2 = 2,
-    isc_dpb_version = isc_dpb_version1,
+    //isc_dpb_version = isc_dpb_version2,
 	isc_dpb_page_size = 4,
 	isc_dpb_num_buffers = 5,
 	isc_dpb_no_garbage_collect = 16,
@@ -268,7 +268,7 @@ enum FbIsc
 	isc_dpb_process_name = 74,
 	isc_dpb_org_filename = 76,
 	isc_dpb_utf8_filename = 77,
-	isc_dpb_client_version		 = 80,
+	isc_dpb_client_version = 80,
 	isc_dpb_specific_auth_data = 84,
 
 	// backup
@@ -637,4 +637,23 @@ enum FbIscType
 	sql_dec128 = 32_762,
 	sql_boolean = 32_764,
 	sql_null = 32_766
+}
+
+enum FbIscBatch
+{
+	version1 = 1,
+    version_ = version1,
+
+	tag_multierror = 1,
+	tag_record_counts = 2,
+	tag_buffer_bytes_size = 3,
+	tag_blob_policy = 4,
+	tag_detailed_errors = 5,
+
+	blob_none = 0,
+	blob_id_engine = 1,
+	blob_id_user = 2,
+	blob_stream = 3,
+
+	blob_seghdr_align = 2,
 }

@@ -269,7 +269,7 @@ ubyte[T.sizeof] uintEncode(T, Endian EndianKind)(T v) @nogc pure
 if (isUnsigned!T && T.sizeof > 1)
 {
     ubyte[T.sizeof] result = void;
-    auto uv = cast(Unqual!T)v;
+    Unqual!T uv = v;
 
     version (BigEndian)
     static if (EndianKind == Endian.littleEndian)

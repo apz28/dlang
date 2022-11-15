@@ -131,6 +131,12 @@ enum DbConnectionState : ubyte
     failed,
 }
 
+enum DbConnectionType : ubyte
+{
+    connect, // Must be first as default
+    create,
+}
+
 enum DbDefaultSize
 {
     /**

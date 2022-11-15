@@ -1636,6 +1636,18 @@ public:
     Kind kind;
 }
 
+struct FbCreateDatabaseInfo
+{
+    string fileName;
+    string defaultCharacterSet;
+    string defaultCollation;
+    string ownerName;
+    string ownerPassword;
+    uint pageSize;
+    bool forcedWrite;
+    bool overwrite;
+}
+
 struct FbProtocolInfo
 {
 nothrow @safe:

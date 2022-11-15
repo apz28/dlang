@@ -122,6 +122,115 @@ private:
     FbParameterWriter _writer;
 }
 
+struct FbBatchWriter
+{
+@safe:
+
+public:
+    @disable this(this);
+
+    this(FbConnection connection, uint8 versionId) nothrow
+    {
+        this._connection = connection;
+        this._versionId = versionId;
+        this._buffer = connection.acquireParameterWriteBuffer();
+        this._writer = FbParameterWriter(this._buffer);
+    }
+
+    ~this() nothrow
+    {
+        dispose(false);
+    }
+
+    void dispose(bool disposing = true) nothrow
+    {
+        _writer.dispose(disposing);
+        if (_buffer !is null && _connection !is null)
+            _connection.releaseParameterWriteBuffer(_buffer);
+        _buffer = null;
+        _connection = null;
+    }
+
+    ubyte[] peekBytes() nothrow return
+    {
+        return _buffer.peekBytes();
+    }
+
+	void writeBytes(uint8 type, scope const(uint8)[] v) nothrow
+    in
+    {
+        assert(v.length < uint32.max);
+    }
+    do
+	{
+		_writer.writeUInt8(type);
+		_writer.writeUInt32(v.length);
+        if (v.length)
+		    _writer.writeBytes(v);
+	}
+
+	void writeChars(uint8 type, scope const(char)[] v) nothrow
+	{
+        auto bytes = v.representation;
+		writeBytes(type, bytes);
+	}
+
+	bool writeCharsIf(uint8 type, scope const(char)[] v) nothrow
+	{
+        if (v.length)
+        {
+		    writeChars(type, v);
+            return true;
+        }
+        else
+            return false;
+	}
+
+	void writeInt8(uint8 type, int8 v) nothrow
+	{
+		_writer.writeUInt8(type);
+		_writer.writeUInt32(1); // length
+		_writer.writeInt8(v);
+	}
+
+	void writeInt16(uint8 type, int16 v) nothrow
+	{
+		_writer.writeUInt8(type);
+		_writer.writeUInt32(2); // length
+		_writer.writeInt16(v);
+	}
+
+	void writeInt32(uint8 type, int32 v) nothrow
+	{
+		_writer.writeUInt8(type);
+        _writer.writeUInt32(4); // length
+		_writer.writeInt32(v);
+	}
+
+    pragma(inline, true)
+    void writeOpaqueUInt8(uint8 v) nothrow
+    {
+        _writer.writeUInt8(v);
+    }
+
+    pragma(inline, true)
+    void writeVersion() nothrow
+    {
+        _writer.writeUInt8(versionId);
+    }
+
+    @property uint8 versionId() const nothrow pure
+    {
+        return _versionId;
+    }
+
+private:
+    DbWriteBuffer _buffer;
+    FbConnection _connection;
+    FbParameterWriter _writer;
+    uint8 _versionId;
+}
+
 enum FbBlrWriteType
 {
     base,
@@ -356,23 +465,26 @@ public:
 	void writeChars(uint8 type, scope const(char)[] v) nothrow
     in
     {
-        assert(v.length <= uint8.max);
+        assert(v.length < uint32.max);
+        assert(v.length <= uint8.max || versionId > FbIsc.isc_dpb_version1);
     }
     do
 	{
-		writeBytes(type, v.representation);
+        auto bytes = v.representation;
+		writeBytes(type, bytes);
 	}
 
 	bool writeCharsIf(uint8 type, scope const(char)[] v) nothrow
     in
     {
-        assert(v.length <= uint8.max);
+        assert(v.length < uint32.max);
+        assert(v.length <= uint8.max || versionId > FbIsc.isc_dpb_version1);
     }
     do
 	{
         if (v.length)
         {
-		    writeBytes(type, v.representation);
+		    writeChars(type, v);
             return true;
         }
         else
@@ -447,100 +559,6 @@ private:
             _writer.writeUInt32(len);
         else
             _writer.writeUInt8(len);
-    }
-
-private:
-    DbWriteBuffer _buffer;
-    FbConnection _connection;
-    FbParameterWriter _writer;
-    uint8 _versionId;
-}
-
-struct FbDatabaseParameterWriter
-{
-@safe:
-
-public:
-    @disable this(this);
-
-    this(FbConnection connection, uint8 versionId) nothrow
-    {
-        this._connection = connection;
-        this._versionId = versionId;
-        this._buffer = connection.acquireParameterWriteBuffer();
-        this._writer = FbParameterWriter(this._buffer);
-    }
-
-    ~this() nothrow
-    {
-        dispose(false);
-    }
-
-    void dispose(bool disposing = true) nothrow
-    {
-        _writer.dispose(disposing);
-        if (_buffer !is null && _connection !is null)
-            _connection.releaseParameterWriteBuffer(_buffer);
-        _buffer = null;
-        _connection = null;
-    }
-
-    ubyte[] peekBytes() nothrow return
-    {
-        return _buffer.peekBytes();
-    }
-
-	void writeBytes(uint8 type, scope const(uint8)[] v) nothrow
-    in
-    {
-        assert(v.length < uint32.max);
-    }
-    do
-	{
-        const vLen = v.length;
-        
-		_writer.writeUInt8(type);
-		_writer.writeUInt32(vLen);
-        if (vLen)
-		    _writer.writeBytes(v);
-	}
-
-    pragma(inline, true)
-	void writeChars(uint8 type, scope const(char)[] v) nothrow
-	{
-		writeBytes(type, v.representation);
-	}
-
-	void writeInt16(uint8 type, int16 v) nothrow
-	{
-		_writer.writeUInt8(type);
-        _writer.writeUInt32(2);
-		_writer.writeInt16(v);
-	}
-
-	void writeInt32(uint8 type, int32 v) nothrow
-	{
-		_writer.writeUInt8(type);
-        _writer.writeUInt32(4);
-		_writer.writeInt32(v);
-	}
-
-	void writeUInt8(uint8 type, uint8 v) nothrow
-	{
-		_writer.writeUInt8(type);
-        _writer.writeUInt32(1);
-		_writer.writeInt8(v);
-	}
-
-    pragma(inline, true)
-    void writeVersion() nothrow
-    {
-        _writer.writeUInt8(versionId);
-    }
-
-    @property uint8 versionId() const nothrow pure
-    {
-        return _versionId;
     }
 
 private:
