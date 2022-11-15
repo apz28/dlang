@@ -23,18 +23,19 @@ nothrow @safe:
 enum DbTokenKind : ubyte
 {
     space,
+    commentSingle, // --xyz... or ##xyz...
+    commentMulti, // /*xyz...*/
     spaceLine, // Space with line break
     literal,
     quotedSingle, // 'xyz...' or `xyz...`
     quotedDouble, // "xyz..."
-    parameterUnnamed, // ?
     parameterNamed,  // :xyz... or @xyz...
+    parameterUnnamed, // ?
     comma, // ,
     bracketBegin, // [ -> [xyz...]
     bracketEnd, // ] -> [xyz...]
     parenthesisBegin, // ( -> (xyz...)
     parenthesisEnd, // ) -> (xyz...)
-    comment, // --xyz... or /*xyz...*/
     eos, // end of stream/string
 }
 
@@ -42,6 +43,7 @@ enum DbTokenSkipLevel : ubyte
 {
     none,
     space,
+    comment,
     spaceLine,
 }
 
@@ -99,6 +101,8 @@ public:
                     break;
 
                 case DbTokenKind.space:
+                case DbTokenKind.commentSingle:
+                case DbTokenKind.commentMulti:
                 case DbTokenKind.spaceLine:
                 case DbTokenKind.literal:
                 case DbTokenKind.quotedSingle:
@@ -108,7 +112,6 @@ public:
                 case DbTokenKind.bracketEnd:
                 case DbTokenKind.parenthesisBegin:
                 case DbTokenKind.parenthesisEnd:
-                case DbTokenKind.comment:
                 case DbTokenKind.eos:
                     break;
             }
@@ -138,14 +141,16 @@ public:
     void popFront() pure
     {
         popFrontImpl();
-        static if (skipLevel == DbTokenSkipLevel.space)
+        static if (skipLevel != DbTokenSkipLevel.none)
         {
-            if (_currentKind <= DbTokenKind.space)
-                popFrontImpl();
-        }
-        else static if (skipLevel == DbTokenSkipLevel.spaceLine)
-        {
-            if (_currentKind <= DbTokenKind.spaceLine)
+            enum skipToken = skipLevel == DbTokenSkipLevel.space
+                ? DbTokenKind.space
+                : (skipLevel == DbTokenSkipLevel.comment
+                    ? DbTokenKind.commentMulti
+                    : (skipLevel == DbTokenSkipLevel.spaceLine
+                        ? DbTokenKind.spaceLine
+                        : assert(0)));
+            while (_currentKind <= skipToken)
                 popFrontImpl();
         }
     }
@@ -202,19 +207,19 @@ private:
     enum CharKind : ubyte
     {
         space,
+        commentSingle,
+        commentMulti,
         spaceLine,
         literal,
         quotedSingle,
         quotedDouble,
-        parameterUnnamed,
         parameterNamed,
+        parameterUnnamed,
         comma,
         bracketBegin,
         bracketEnd,
         parenthesisBegin,
         parenthesisEnd,
-        commentSingle,
-        commentMulti,
     }
 
     enum SpaceKind : ubyte
@@ -229,11 +234,11 @@ private:
     {
         switch (c)
         {
-            case '?':
-                return CharKind.parameterUnnamed;
             case '@':
             case ':':
                 return CharKind.parameterNamed;
+            case '?':
+                return CharKind.parameterUnnamed;
             case '`':
             case '\'':
                 return CharKind.quotedSingle;
@@ -389,7 +394,7 @@ private:
                     if (readChar() == c)
                     {
                         _currentToken = readCommentSingle();
-                        _currentKind = DbTokenKind.comment;
+                        _currentKind = DbTokenKind.commentSingle;
                         return;
                     }
                     else
@@ -404,7 +409,7 @@ private:
                     if (readChar() == '*')
                     {
                         _currentToken = readCommentMulti();
-                        _currentKind = DbTokenKind.comment;
+                        _currentKind = DbTokenKind.commentMulti;
                         return;
                     }
                     else
@@ -787,7 +792,7 @@ unittest // DbTokenizer - Parameter with block comment
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test"); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "/* this is a comment with ' */"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.commentMulti, "/* this is a comment with ' */"); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, "  "); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "Where"); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
@@ -797,7 +802,7 @@ unittest // DbTokenizer - Parameter with block comment
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "@", DbTokenKind.parameterNamed, "_LongName$123"); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "/**/"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.commentMulti, "/**/"); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "x="); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "?", DbTokenKind.parameterUnnamed, ""); tokenizer.popFront();
@@ -844,7 +849,7 @@ unittest // DbTokenizer - Parameter with line comment
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "?", DbTokenKind.parameterUnnamed, ""); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "-- comment with @p123 "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.commentSingle, "-- comment with @p123 "); tokenizer.popFront();
     checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
@@ -900,7 +905,7 @@ unittest // DbTokenizer - Malform quoted
     checkTokenizer(tokenizer, false, true, "", DbTokenKind.quotedDouble, "\" @ -- comment with @p123 "); tokenizer.popFront();
     checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 
-    tokenizer = DbTokenizer!string("select int_field, [ -- comment with @p123 ");
+    tokenizer = DbTokenizer!string("select int_field, [ -- comment with @p123 \n");
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "select"); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "int_field"); tokenizer.popFront();
@@ -908,7 +913,7 @@ unittest // DbTokenizer - Malform quoted
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.bracketBegin, "["); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "-- comment with @p123 "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.commentSingle, "-- comment with @p123 \n"); tokenizer.popFront();
     checkTokenizer(tokenizer, true, true, "", DbTokenKind.eos, "");
 }
 
@@ -922,7 +927,7 @@ unittest // DbTokenizer - Malform block comment
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "test"); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
-    checkTokenizer(tokenizer, false, true, "", DbTokenKind.comment, "/* this is a comment with '  Where varchar_field = @_LongName$123 "); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, true, "", DbTokenKind.commentMulti, "/* this is a comment with '  Where varchar_field = @_LongName$123 "); tokenizer.popFront();
     checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
@@ -1005,7 +1010,7 @@ unittest // DbTokenizer - comment single line
 
     auto tokenizer = DbTokenizer!string(" -- comment with \r\n ");
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "-- comment with \r\n"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.commentSingle, "-- comment with \r\n"); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.space, " "); tokenizer.popFront();
     checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
@@ -1017,7 +1022,7 @@ unittest // DbTokenizer - comment multi lines
 
     auto tokenizer = DbTokenizer!string(" \n/* comment with \r\n */ \n");
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.spaceLine, " \n"); tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.comment, "/* comment with \r\n */"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.commentMulti, "/* comment with \r\n */"); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.spaceLine, " \n"); tokenizer.popFront();
     checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
@@ -1030,15 +1035,21 @@ unittest // SkipLevel
     auto tokenizerSpace = DbTokenizer!(string, DbTokenSkipLevel.space)("FROM test /* this is a comment */ @_LongName$123 \n ");
     checkTokenizer(tokenizerSpace, false, false, "", DbTokenKind.literal, "FROM"); tokenizerSpace.popFront();
     checkTokenizer(tokenizerSpace, false, false, "", DbTokenKind.literal, "test"); tokenizerSpace.popFront();
-    checkTokenizer(tokenizerSpace, false, false, "", DbTokenKind.comment, "/* this is a comment */");  tokenizerSpace.popFront();
+    checkTokenizer(tokenizerSpace, false, false, "", DbTokenKind.commentMulti, "/* this is a comment */");  tokenizerSpace.popFront();
     checkTokenizer(tokenizerSpace, false, false, "@", DbTokenKind.parameterNamed, "_LongName$123"); tokenizerSpace.popFront();
     checkTokenizer(tokenizerSpace, false, false, "", DbTokenKind.spaceLine, " \n "); tokenizerSpace.popFront();
     checkTokenizer(tokenizerSpace, true, false, "", DbTokenKind.eos, "");
         
-    auto tokenizerSpaceLine = DbTokenizer!(string, DbTokenSkipLevel.spaceLine)("FROM test /* this is a comment */ @_LongName$123 \n ");
+    auto tokenizerComment = DbTokenizer!(string, DbTokenSkipLevel.comment)("FROM test /* comment1 */ /* comment2 */ @_LongName$123 \n ");
+    checkTokenizer(tokenizerComment, false, false, "", DbTokenKind.literal, "FROM"); tokenizerComment.popFront();
+    checkTokenizer(tokenizerComment, false, false, "", DbTokenKind.literal, "test"); tokenizerComment.popFront();
+    checkTokenizer(tokenizerComment, false, false, "@", DbTokenKind.parameterNamed, "_LongName$123"); tokenizerComment.popFront();
+    checkTokenizer(tokenizerComment, false, false, "", DbTokenKind.spaceLine, " \n "); tokenizerComment.popFront();
+    checkTokenizer(tokenizerComment, true, false, "", DbTokenKind.eos, "");
+        
+    auto tokenizerSpaceLine = DbTokenizer!(string, DbTokenSkipLevel.spaceLine)("FROM test /* comment1 */ /* comment2 */ \n \n @_LongName$123 \n ");
     checkTokenizer(tokenizerSpaceLine, false, false, "", DbTokenKind.literal, "FROM"); tokenizerSpaceLine.popFront();
     checkTokenizer(tokenizerSpaceLine, false, false, "", DbTokenKind.literal, "test"); tokenizerSpaceLine.popFront();
-    checkTokenizer(tokenizerSpaceLine, false, false, "", DbTokenKind.comment, "/* this is a comment */");  tokenizerSpaceLine.popFront();
     checkTokenizer(tokenizerSpaceLine, false, false, "@", DbTokenKind.parameterNamed, "_LongName$123"); tokenizerSpaceLine.popFront();
     checkTokenizer(tokenizerSpaceLine, true, false, "", DbTokenKind.eos, "");
 }
