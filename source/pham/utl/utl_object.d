@@ -106,7 +106,7 @@ ubyte[] bytesFromHexs(scope const(char)[] validHexDigits) nothrow pure @safe
 char[] bytesToHexs(scope const(ubyte)[] bytes) nothrow pure @safe
 {
     import pham.utl.numeric_parser : cvtBytesHex;
-    
+
     return cvtBytesHex(bytes, LetterCase.upper, false);
 }
 
@@ -166,7 +166,7 @@ if (isFloatingPoint!T)
 private string osCharToString(scope const(char)[] v) nothrow @trusted
 {
     import std.conv : to;
-    
+
     auto result = assumeWontThrow(to!string(v.ptr));
     while (result.length && result[$ - 1] <= ' ')
         result = result[0..$ - 1];
@@ -176,7 +176,7 @@ private string osCharToString(scope const(char)[] v) nothrow @trusted
 private string osWCharToString(scope const(wchar)[] v) nothrow
 {
     import std.conv : to;
-    
+
     auto result = assumeWontThrow(to!string(v));
     while (result.length && result[$ - 1] <= ' ')
         result = result[0..$ - 1];
@@ -361,7 +361,7 @@ if (isIntegral!LHS && isIntegral!RHS)
 {
     const lhsP = lhs >= 0;
     const rhsP = rhs >= 0;
-    
+
     return lhsP && rhsP ? 1 : (!lhsP && !rhsP ? -1 : 0);
 }
 
@@ -484,7 +484,7 @@ ref Writer toString(uint radix = 10, N, Writer)(return ref Writer sink, N n,
 if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
 {
     import std.ascii : lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
-    
+
     alias UN = Unqual!N;
     enum bufSize = 300;
 
@@ -782,7 +782,8 @@ private:
 struct VersionString
 {
     import std.array : join, split;
-    import std.algorithm.iteration;
+    import std.algorithm.comparison : min;
+    import std.algorithm.iteration : map;
     import std.conv : to;
     import std.string : strip;
     import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
@@ -792,24 +793,54 @@ nothrow @safe:
 
 public:
     enum maxPartLength = 4;
+    enum stopPartValue = uint.max; // A way to signal logical order stopped on certain version index/position part
 
     static struct Parti
     {
     nothrow @safe:
 
-        uint[maxPartLength] data;
-        size_t length;
+    public:
+        this(scope const(uint)[] parti) @nogc pure
+        {
+            const len = min(parti.length, maxPartLength);
+            this._length = cast(ubyte)len;
+            this.data[0..len] = parti[0..len];
+        }
+
+        this(const(uint) major, const(uint) minor, const(uint) release, const(uint) build) @nogc pure
+        {
+            this._length = 4;
+            this.data[0] = major;
+            this.data[1] = minor;
+            this.data[2] = release;
+            this.data[3] = build;
+        }
+
+        this(const(uint) major, const(uint) minor) @nogc pure
+        {
+            this._length = 2;
+            this.data[0] = major;
+            this.data[1] = minor;
+        }
 
         int opCmp(scope const(Parti) rhs) const @nogc pure
         {
-            const len = rhs.length > this.length ? this.length : rhs.length;
-            foreach (i; 0..len)
+            const stopLHS = this.stopLength;
+            const stopRHS = rhs.stopLength;
+            const stopLen = stopRHS > stopLHS ? stopLHS : stopRHS;
+
+            const cmpLHS = this._length > stopLen ? stopLen : this._length;
+            const cmpRHS = rhs._length > stopLen ? stopLen : rhs._length;
+            const cmpLen = cmpRHS > cmpLHS ? cmpLHS : cmpRHS;
+
+            foreach (i; 0..cmpLen)
             {
-                const result = cmpInteger(data[i], rhs.data[i]);
+                const result = cmpInteger(this.data[i], rhs.data[i]);
                 if (result != 0)
                     return result;
             }
-            return cmpInteger(this.length, rhs.length);
+
+            return cmpInteger(cmpLHS, cmpRHS);
         }
 
         bool opEquals(scope const(Parti) rhs) const @nogc pure
@@ -817,102 +848,142 @@ public:
             return opCmp(rhs) == 0;
         }
 
-        static Parti parti(scope const(uint)[] parti) @nogc pure
+        pragma(inline, true)
+        size_t stopLength() const @nogc pure
         {
-            Parti result;
-            result.length = parti.length > maxPartLength ? maxPartLength : parti.length;
-            if (parti.length > 0)
-                result.data[0] = parti[0];
-            if (parti.length > 1)
-                result.data[1] = parti[1];
-            if (parti.length > 2)
-                result.data[2] = parti[2];
-            if (parti.length > 3)
-                result.data[3] = parti[3];
-            return result;
-        }
-
-        static Parti parti(const(uint) major, const(uint) minor, const(uint) release, const(uint) build) @nogc pure
-        {
-            Parti result;
-            result.length = 4;
-            result.data[0] = major;
-            result.data[1] = minor;
-            result.data[2] = release;
-            result.data[3] = build;
-            return result;
-        }
-
-        static Parti parti(const(uint) major, const(uint) minor) @nogc pure
-        {
-            Parti result;
-            result.length = 2;
-            result.data[0] = major;
-            result.data[1] = minor;
-            return result;
+            foreach (i; 0..maxPartLength)
+            {
+                if (data[i] == stopPartValue)
+                    return i;
+            }
+            return maxPartLength;
         }
 
         string toString() const pure
         {
-            return empty ? null : data[0..length].map!(v => to!string(v)).join(".");
+            return _length ? data[0.._length].map!(v => to!string(v)).join(".") : null;
         }
 
         @property bool empty() const @nogc pure
         {
-            return length == 0;
+            return _length == 0;
         }
+
+        @property size_t length() const @nogc pure
+        {
+            return _length;
+        }
+
+        @property size_t length(const(size_t) newLength) @nogc pure
+        {
+            _length = cast(ubyte)min(newLength, maxPartLength);
+            return _length;
+        }
+
+    public:
+        uint[maxPartLength] data;
+
+    private:
+        ubyte _length;
     }
 
     static struct Parts
     {
     nothrow @safe:
 
-        string[maxPartLength] data;
-        size_t length;
-
+    public:
+        this(scope const(uint)[] parti) pure
+        {        
+            const len = min(parti.length, maxPartLength);
+            ShortStringBuffer!char tempBuffer;
+            this._length = cast(ubyte)len;
+            foreach (i; 0..len)
+                this.data[i] = .toString(tempBuffer.clear(), parti[i]).toString();
+        }
+        
         bool opEquals(scope const(Parts) rhs) const @nogc pure
         {
-            const sameLength = this.length == rhs.length;
+            const sameLength = this._length == rhs._length;
             if (sameLength)
             {
-                foreach (i; 0..this.length)
+                foreach (i; 0..this._length)
                 {
-                    if (data[i] != rhs.data[i])
+                    if (this.data[i] != rhs.data[i])
                         return false;
                 }
             }
             return sameLength;
         }
 
+        static Parts parse(string versionString) pure
+        {
+            static immutable uint[] n = [];
+            return versionString.length != 0 ? Parts(split(versionString, ".")) : Parts(n);
+        }
+
+        /**
+         * Convert version part strings into their integral presentation.
+         * If a string is not able to be converted because of empty or invalid character(s), 
+         * the value will be substituted with zero
+         */
+        Parti toParti() const @nogc pure scope
+        {
+            Parti result;
+            result._length = _length;
+            foreach (i; 0.._length)
+            {
+                if (parseIntegral(data[i], result.data[i]) != NumericParsedKind.ok)
+                    result.data[i] = 0;
+            }
+            return result;
+        }
+
         string toString() const pure
         {
-            return empty ? null : data[0..length].join(".");
+            return _length ? data[0.._length].join(".") : null;
         }
 
         @property bool empty() const @nogc pure
         {
-            return length == 0;
+            return _length == 0;
         }
+
+        @property size_t length() const @nogc pure
+        {
+            return _length;
+        }
+
+        @property size_t length(const(size_t) newLength) @nogc pure
+        {
+            _length = cast(ubyte)min(newLength, maxPartLength);
+            return _length;
+        }
+
+    public:
+        string[maxPartLength] data;
+
+    private:
+        this(string[] parts) pure
+        {        
+            const len = min(parts.length, maxPartLength);
+            this._length = cast(ubyte)len;
+            foreach (i; 0..len)
+                this.data[i] = parts[i].strip();
+        }
+        
+    private:
+        ubyte _length;
     }
 
 public:
     this(string versionString) pure
     {
-        this.parts = parse(versionString);
+        this.parts = Parts.parse(versionString);
     }
 
-    this(scope const(uint)[] parts) pure
+    this(scope const(uint)[] parti) pure
     {
-        ShortStringBuffer!char tempBuffer;
-        this.parts.length = parts.length > maxPartLength ? maxPartLength : parts.length;
-        if (parts.length > 0)
-            this.parts.data[0] = .toString(tempBuffer.clear(), parts[0]).toString();
-        if (parts.length > 1)
-            this.parts.data[1] = .toString(tempBuffer.clear(), parts[1]).toString();
-        if (parts.length > 2)
-            this.parts.data[2] = .toString(tempBuffer.clear(), parts[2]).toString();
-        if (parts.length > 3)
-            this.parts.data[3] = .toString(tempBuffer.clear(), parts[3]).toString();
+        this.parts = Parts(parti);
     }
 
     this(const(uint) major, const(uint) minor, const(uint) release, const(uint) build) pure
@@ -927,32 +998,33 @@ public:
 
     int opCmp(scope const(VersionString) rhs) const @nogc pure
     {
-        return opCmp(toParti(rhs.parts));
+        return opCmp(rhs.parts.toParti());
     }
 
     int opCmp(string rhs) const pure
     {
-        return opCmp(toParti(VersionString(rhs).parts));
+        auto rhsVersion = VersionString(rhs);
+        return opCmp(rhsVersion.parts.toParti());
     }
 
     int opCmp(scope const(uint)[] rhs) const @nogc pure
     {
-        return opCmp(Parti.parti(rhs));
+        return opCmp(Parti(rhs));
     }
 
     int opCmp(const(uint) major, const(uint) minor, const(uint) release, const(uint) build) const @nogc pure
     {
-        return opCmp(Parti.parti(major, minor, release, build));
+        return opCmp(Parti(major, minor, release, build));
     }
 
     int opCmp(const(uint) major, const(uint) minor) const @nogc pure
     {
-        return opCmp(Parti.parti(major, minor));
+        return opCmp(Parti(major, minor));
     }
 
     int opCmp(scope const(Parti) rhs) const @nogc pure
     {
-        return toParti(parts).opCmp(rhs);
+        return parts.toParti().opCmp(rhs);
     }
 
     bool opEquals(scope const(VersionString) rhs) const @nogc pure
@@ -967,64 +1039,17 @@ public:
 
     bool opEquals(scope const(uint)[] rhs) const @nogc pure
     {
-        return opCmp(Parti.parti(rhs)) == 0;
+        return opCmp(Parti(rhs)) == 0;
     }
 
     bool opEquals(const(uint) major, const(uint) minor, const(uint) release, const(uint) build) const @nogc pure
     {
-        return opCmp(Parti.parti(major, minor, release, build)) == 0;
+        return opCmp(Parti(major, minor, release, build)) == 0;
     }
 
     bool opEquals(const(uint) major, const(uint) minor) const @nogc pure
     {
-        return opCmp(Parti.parti(major, minor)) == 0;
-    }
-
-    static Parts parse(string versionString) pure
-    {
-        Parts result;
-        if (versionString.length != 0)
-        {
-            auto versions = split(versionString, ".");
-            if (versions.length > 0)
-            {
-                result.data[0] = versions[0].strip();
-                result.length++;
-            }
-            if (versions.length > 1)
-            {
-                result.data[1] = versions[1].strip();
-                result.length++;
-            }
-            if (versions.length > 2)
-            {
-                result.data[2] = versions[2].strip();
-                result.length++;
-            }
-            if (versions.length > 3)
-            {
-                result.data[3] = versions[3].strip();
-                result.length++;
-            }
-        }
-        return result;
-    }
-
-    static Parti toParti(scope const(Parts) parts) @nogc pure
-    in
-    {
-        assert(parts.length <= maxPartLength);
-    }
-    do
-    {
-        Parti result;
-        result.length = parts.length;
-        foreach (i; 0..parts.length)
-        {
-            if (parseIntegral(parts.data[i], result.data[i]) != NumericParsedKind.ok)
-                result.data[i] = 0;
-        }
-        return result;
+        return opCmp(Parti(major, minor)) == 0;
     }
 
     string toString() const pure
@@ -1034,7 +1059,7 @@ public:
 
     @property bool empty() const @nogc pure
     {
-        return parts.length == 0;
+        return parts.empty;
     }
 
 public:
@@ -1234,12 +1259,12 @@ nothrow @safe unittest // sameSign
     assert(sameSign(1, 0) == 1);
     assert(sameSign(0, 1) == 1);
     assert(sameSign(3, 1) == 1);
-    
+
     assert(sameSign(-1, -100) == -1);
-    
+
     assert(sameSign(-1, 1) == 0);
     assert(sameSign(-10, 0) == 0);
-    
+
     assert(sameSign(byte.min, byte.max) == 0);
     assert(sameSign(byte.min, int.max) == 0);
     assert(sameSign(byte.max, int.max) == 1);
@@ -1430,30 +1455,55 @@ unittest // RAIIMutex
 
 nothrow @safe unittest // VersionString
 {
+    import std.conv : to;
     import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.object.VersionString");
 
-    const v1Str = "1.2.3.4";
+    const v1Str = "2.2.3.4";
     const v1 = VersionString(v1Str);
-    assert(v1.parts.data[0] == "1");
+    assert(v1.parts.data[0] == "2");
     assert(v1.parts.data[1] == "2");
     assert(v1.parts.data[2] == "3");
     assert(v1.parts.data[3] == "4");
     assert(v1.toString() == v1Str);
+    assert(v1 == VersionString(v1Str));
+    assert(v1 == v1Str);
 
-    const v2Str = "1.2.0.0";
+    const v2Str = "2.2.0.0";
     const v2 = VersionString(v2Str);
-    assert(v2.parts.data[0] == "1");
+    assert(v2.parts.data[0] == "2");
     assert(v2.parts.data[1] == "2");
     assert(v2.parts.data[2] == "0");
     assert(v2.parts.data[3] == "0");
     assert(v2.toString() == v2Str);
-
-    assert(v1 > v2);
-    assert(v1 == VersionString(v1Str));
-    assert(v1 == v1Str);
     assert(v2 == v2Str);
     assert(v2 == VersionString(v2Str));
+
+    assert(v1 > v2);
+
+    const v3 = VersionString(2, VersionString.stopPartValue, 2, 0);
+    assert(v3.parts.data[0] == "2");
+    assert(v3.parts.data[1] == to!string(VersionString.stopPartValue));
+    assert(v3.parts.data[2] == "2");
+    assert(v3.parts.data[3] == "0");
+    assert(v1 == v3);
+    assert(v2 == v3);
+
+    const v4Str = "4.4.4.4";
+    const v4 = VersionString(v4Str);
+    assert(v4.parts.data[0] == "4");
+    assert(v4.parts.data[1] == "4");
+    assert(v4.parts.data[2] == "4");
+    assert(v4.parts.data[3] == "4");
+    assert(v3 < v4);
+
+    const vbStr = "1.2";
+    const vb = VersionString(vbStr);
+    assert(vb.parts.data[0] == "1");
+    assert(vb.parts.data[1] == "2");
+    assert(vb.parts.data[2].length == 0);
+    assert(vb.parts.data[3].length == 0);
+    assert(vb.toString() == vbStr);
 
     auto vNull = VersionString("");
     assert(vNull.toString() == "");
