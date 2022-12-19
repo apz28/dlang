@@ -18,7 +18,7 @@ import pham.external.dec.integral : divrem;
 
 nothrow @safe:
 
-/// Densely packed decimal codec
+/// Densely packed decimal codec in big-endian format
 struct DecimalCodec(int bits)
 if (bits == 32 || bits == 64 || bits == 128)
 {
