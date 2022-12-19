@@ -394,17 +394,6 @@ version (unittest)
         catch (Exception) {}
     }
 
-    void dgWriteln(A...)(A args) nothrow
-    {
-        import std.stdio : writeln;
-
-        try
-        {
-            debug writeln(args);
-        }
-        catch (Exception) {}
-    }
-
     void dgWriteln(const(char)[] prefix, scope const(ubyte)[] bytes) nothrow
     {
         import pham.utl.object : bytesToHexs;
@@ -415,6 +404,17 @@ version (unittest)
         }
         catch (Exception)
         {}
+    }
+
+    void dgWriteln(A...)(A args) nothrow
+    {
+        import std.stdio : writeln;
+
+        try
+        {
+            debug writeln(args);
+        }
+        catch (Exception) {}
     }
 
     void dgWritefln(Char, A...)(in Char[] fmt, A args) nothrow

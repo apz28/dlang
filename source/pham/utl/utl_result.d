@@ -11,8 +11,12 @@
 
 module pham.utl.result;
 
+/**
+ * Simple aggregate to indicate if function result is an error or intended value
+ */
 struct ResultIf(T)
 {
+public:
     this(T value, int errorCode, string errorMessage = null)
     {
         this.value = value;
@@ -25,6 +29,9 @@ struct ResultIf(T)
         return isOK;
     }
 
+    /**
+     * Create this result-type as error
+     */
     pragma(inline, true)
     static typeof(this) error(int errorCode, string errorMessage = null)
     in
@@ -36,30 +43,38 @@ struct ResultIf(T)
         return typeof(this)(T.init, errorCode, errorMessage);
     }
 
+    /**
+     * Create this result-type without error
+     */
     pragma(inline, true)
     static typeof(this) ok(T value)
     {
         return typeof(this)(value, 0, null);
     }
 
+    /**
+     * Returns true if there is error-code or error-message
+     */
     pragma(inline, true)
     @property bool isError() const @nogc nothrow pure @safe
     {
         return !isOK;
     }
 
+    /**
+     * Returns true if there is no error-code and error-message
+     */
     pragma(inline, true)
     @property bool isOK() const @nogc nothrow pure @safe
     {
         return errorCode == 0 && errorMessage.length == 0;
     }
-
-    alias value this;
-
+    
 public:
     T value;
-    string errorMessage;
-    int errorCode;
+    alias value this;
+    string errorMessage; // if lengh != 0, it considers an error
+    int errorCode = -1;  // -1 = Uninitialized is explicitely an error
 }
 
 struct ResultStatus

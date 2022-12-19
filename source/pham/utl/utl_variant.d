@@ -32,6 +32,8 @@ import pham.utl.object : cmpFloat, cmpInteger;
 
 struct This;
 
+enum variantNoLengthMarker = -1;
+
 enum VariantType : ubyte
 {
     null_,
@@ -803,9 +805,9 @@ public:
 
     /**
      * If the `VariantN` contains an array or associativeArray,
-     * returns its' length. Otherwise, return 0
+     * returns its' length. Otherwise, return variantNoLengthMarker (-1)
      */
-    @property size_t length() const nothrow pure @safe
+    @property ptrdiff_t length() const nothrow pure @safe
     {
         return handler.length(size, pointer);
     }
@@ -1430,7 +1432,7 @@ public:
         indexAssignAR = &hIndexAssignAR;
     bool function(TypeInfo unqualifiedRhsValue) nothrow pure @safe
         isCompatibleArrayComparison = &hIsCompatibleArrayComparison;
-    size_t function(size_t size, scope void* store) @nogc nothrow pure @safe
+    ptrdiff_t function(size_t size, scope void* store) @nogc nothrow pure @safe
         length = &hLength;
     NullType function(size_t size, scope void* store) @nogc nothrow pure @safe
         nullType = &hNullType;
@@ -1725,12 +1727,12 @@ private:
             return false;
     }
 
-    static size_t hLength(size_t size, scope void* store) @nogc nothrow pure @safe
+    static ptrdiff_t hLength(size_t size, scope void* store) @nogc nothrow pure @safe
     {
         static if (isArray!T || isAssociativeArray!T)
             return hValuePointer(size, store).length;
         else
-            return 0;
+            return variantNoLengthMarker;
     }
 
     static NullType hNullType(size_t size, scope void* store) @nogc nothrow pure @safe
@@ -2633,13 +2635,13 @@ nothrow @safe unittest // Variant.length
     traceUnitTest!("pham.utl.variant")("unittest pham.utl.variant.Variant.length");
 
     Variant vVoid;
-    assert(vVoid.length == 0);
+    assert(vVoid.length == variantNoLengthMarker);
 
     static foreach (T; AliasSeq!(byte, ubyte, short, ushort, int, uint, long, ulong))
     {
         {
             Variant vt = T.init;
-            assert(vt.length == 0);
+            assert(vt.length == variantNoLengthMarker);
         }
 
         // Static array
@@ -2669,7 +2671,7 @@ nothrow @safe unittest // Variant.length
     {
         {
             Variant vt = T.init;
-            assert(vt.length == 0);
+            assert(vt.length == variantNoLengthMarker);
         }
 
         // Static array
@@ -2699,7 +2701,7 @@ nothrow @safe unittest // Variant.length
     {
         {
             Variant vt = T.init;
-            assert(vt.length == 0);
+            assert(vt.length == variantNoLengthMarker);
         }
 
         // Static array
@@ -2764,7 +2766,7 @@ nothrow @safe unittest // Variant.length
     {
         {
             Variant vt = T.init;
-            assert(vt.length == 0);
+            assert(vt.length == variantNoLengthMarker);
         }
 
         // Static array
@@ -2792,39 +2794,39 @@ nothrow @safe unittest // Variant.length
 
     enum E { a, b }
     Variant vE = E.a;
-    assert(vE.length == 0);
+    assert(vE.length == variantNoLengthMarker);
 
     enum EI : int { a = 1, b = 100 }
     Variant vEI = EI.b;
-    assert(vEI.length == 0);
+    assert(vEI.length == variantNoLengthMarker);
 
     static struct S { int i; }
     Variant vS = S(1);
-    assert(vS.length == 0);
+    assert(vS.length == variantNoLengthMarker);
 
     static union U { int i; string s; }
     Variant vU = U(1);
-    assert(vU.length == 0);
+    assert(vU.length == variantNoLengthMarker);
 
     static class C { long d; }
     Variant vC = new C();
-    assert(vC.length == 0);
+    assert(vC.length == variantNoLengthMarker);
 
     interface I { void f(); }
     I i;
     Variant vI = i;
-    assert(vI.length == 0);
+    assert(vI.length == variantNoLengthMarker);
 
     Variant vP = cast(void*)null;
-    assert(vP.length == 0);
+    assert(vP.length == variantNoLengthMarker);
 
     int dlg() { return 2; }
     Variant vDlg = &dlg;
-    assert(vDlg.length == 0);
+    assert(vDlg.length == variantNoLengthMarker);
 
     static int fct() { return 1; }
     Variant vFct = &fct;
-    assert(vFct.length == 0);
+    assert(vFct.length == variantNoLengthMarker);
 }
 
 nothrow @safe unittest // Variant.isNull & Variant.nullify

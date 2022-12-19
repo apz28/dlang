@@ -18,7 +18,7 @@ import std.conv : ConvException;
 import std.format : FormatException, FormatSpec, formatValue;
 import std.range.primitives : ElementType, isInputRange, isOutputRange, put;
 import std.string : indexOf;
-import std.traits : isFloatingPoint, isIntegral, isSigned, isSomeChar, Unqual;
+import std.traits : isFloatingPoint, isIntegral, isSigned, isSomeChar, isUnsigned, Unqual;
 import std.typecons : Flag;
 public import std.typecons : No, Yes;
 
@@ -1596,6 +1596,7 @@ private:
     }
 
     void cloneForConvert(I)(ref UIntTempArray result, out I highMark) const
+    if (isUnsigned!I)
     {
         if (_bits.length == 0)
         {
@@ -1728,7 +1729,7 @@ private:
         const(Flag!"unsigned") unsigned = No.unsigned,
         const(Flag!"bigEndian") bigEndian = No.bigEndian) nothrow pure
     {
-        bool isNegative;
+        bool isNegative = false;
         ptrdiff_t byteCount = cast(ptrdiff_t)(value.length);
         if (byteCount > 0)
         {
@@ -1755,10 +1756,6 @@ private:
                     byteCount++;
                 }
             }
-        }
-        else
-        {
-            isNegative = false;
         }
 
         if (byteCount == 0)

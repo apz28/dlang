@@ -16,7 +16,7 @@ import pham.utl.array : IndexedArray;
 struct DelegateList(Args...)
 {
 public:
-    alias DelegateHandler = void delegate(Args args);
+    alias DelegateHandler = void delegate(Args args) @safe;
 
 public:
     void opOpAssign(string op)(DelegateHandler handler) nothrow pure @safe
@@ -30,7 +30,7 @@ public:
             static assert(0);
     }
 
-    void opCall(Args args)
+    void opCall(Args args) @safe
     {
         if (items.length != 0)
         {
@@ -107,7 +107,7 @@ unittest // DelegateList
     static struct S1
     {
         int a;
-        void accumulate(string name, int value)// nothrow
+        void accumulate(string name, int value) @safe
         {
             a += value;
         }
