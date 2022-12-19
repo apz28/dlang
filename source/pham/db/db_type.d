@@ -73,6 +73,7 @@ enum DbCommandExecuteType : ubyte
 enum DbCommandFlag : ubyte
 {
     allRowsFetched,
+    batched,
     implicitTransaction,
     implicitTransactionStarted,
     parametersCheck,
@@ -1758,7 +1759,7 @@ static immutable DbTypeInfo*[string] nativeNameToDbTypeInfos;
 
 static immutable char dbSchemeSeparator = ':';
 
-DbType dbArrayOf(DbType elementType) pure
+DbType dbArrayOf(DbType elementType) @nogc pure
 in
 {
     assert(elementType != DbType.array);
@@ -1768,7 +1769,7 @@ do
     return (DbType.array | elementType);
 }
 
-DbType dbTypeOf(T)() pure
+DbType dbTypeOf(T)() @nogc pure
 {
     if (auto e = T.stringof in nativeNameToDbTypeInfos)
         return (*e).dbType;
@@ -1783,7 +1784,7 @@ DbType dbTypeOf(T)() pure
         return DbType.unknown;
 }
 
-bool isDbTypeHasSize(DbType rawType) pure
+bool isDbTypeHasSize(DbType rawType) @nogc pure
 {
     switch (rawType)
     {
@@ -1792,6 +1793,7 @@ bool isDbTypeHasSize(DbType rawType) pure
         case DbType.text:
         case DbType.json:
         case DbType.xml:
+        case DbType.fixedBinary:
         case DbType.binary:
         case DbType.record:
         case DbType.array:
@@ -1801,7 +1803,24 @@ bool isDbTypeHasSize(DbType rawType) pure
     }
 }
 
-bool isDbTypeString(DbType rawType) pure
+bool isDbTypeHasZeroSizeAsNull(DbType rawType) @nogc pure
+{
+    switch (rawType)
+    {
+        case DbType.text:
+        case DbType.json:
+        case DbType.xml:
+        case DbType.fixedBinary:
+        case DbType.binary:
+        case DbType.record:
+        case DbType.array:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool isDbTypeString(DbType rawType) @nogc pure
 {
     return rawType == DbType.string
         || rawType == DbType.text
@@ -1809,7 +1828,7 @@ bool isDbTypeString(DbType rawType) pure
         || rawType == rawType.xml;
 }
 
-bool isDbFalse(scope const(char)[] s) pure
+bool isDbFalse(scope const(char)[] s) @nogc pure
 {
     if (s.length != 0)
     {
@@ -1823,7 +1842,7 @@ bool isDbFalse(scope const(char)[] s) pure
     return false;
 }
 
-bool isDbTrue(scope const(char)[] s) pure
+bool isDbTrue(scope const(char)[] s) @nogc pure
 {
     if (s.length != 0)
     {
@@ -1837,7 +1856,7 @@ bool isDbTrue(scope const(char)[] s) pure
     return false;
 }
 
-DbParameterDirection parameterModeToDirection(scope const(char)[] mode)
+DbParameterDirection parameterModeToDirection(scope const(char)[] mode) @nogc pure
 {
     return mode == "IN"
         ? DbParameterDirection.input

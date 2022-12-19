@@ -251,6 +251,16 @@ protected:
     size_t _maxLength;
 }
 
+version (TraceFunctionReader)
+{
+    private static long totalRead = 0;
+    private long totalReadOf(const(size_t) nBytes) @nogc nothrow @safe
+    {
+        totalRead += nBytes;
+        return totalRead;
+    }
+}
+
 struct DbValueReader(Endian EndianKind)
 {
 @safe:
@@ -271,12 +281,16 @@ public:
     pragma(inline, true)
     void advance(const(size_t) nBytes)
     {
+        version (TraceFunctionReader) debug traceFunction!("pham.db.database")(nBytes, ", total=", totalReadOf(nBytes));
+
         _buffer.advance(nBytes);
     }
 
     pragma(inline, true)
     ubyte[] consume(const(size_t) nBytes)
     {
+        version (TraceFunctionReader) debug traceFunction!("pham.db.database")(nBytes, ", total=", totalReadOf(nBytes));
+
         return _buffer.consume(nBytes);
     }
 
@@ -295,6 +309,8 @@ public:
     pragma(inline, true)
     ubyte[] readBytes(size_t nBytes)
     {
+        version (TraceFunctionReader) debug traceFunction!("pham.db.database")(nBytes, ", total=", totalReadOf(nBytes));
+
         return _buffer.readBytesImpl(nBytes);
     }
 
@@ -306,6 +322,8 @@ public:
     }
     do
     {
+        version (TraceFunctionReader) debug traceFunction!("pham.db.database")(value.length, ", total=", totalReadOf(value.length));
+
         return _buffer.readBytesImpl(value);
     }
 
@@ -318,6 +336,8 @@ public:
     pragma(inline, true)
     char[] readChars(size_t nBytes) @trusted // @trusted=cast()
     {
+        version (TraceFunctionReader) debug traceFunction!("pham.db.database")(nBytes, ", total=", totalReadOf(nBytes));
+
         return cast(char[])_buffer.readBytesImpl(nBytes);
     }
 
@@ -353,6 +373,8 @@ public:
 
     void readTwoInt32(out int32 i1, out int32 i2)
     {
+        version (TraceFunctionReader) debug traceFunction!("pham.db.database")(uint32.sizeof * 2, ", total=", totalReadOf(uint32.sizeof * 2));
+
         const bytes = _buffer.consume(uint32.sizeof * 2);
         i1 = cast(int32)uintDecode!(uint32, EndianKind)(bytes[0..uint32.sizeof]);
         i2 = cast(int32)uintDecode!(uint32, EndianKind)(bytes[uint32.sizeof..$]);
@@ -366,24 +388,32 @@ public:
 
     uint8 readUInt8()
     {
+        version (TraceFunctionReader) debug traceFunction!("pham.db.database")(uint8.sizeof, ", total=", totalReadOf(uint8.sizeof));
+
         _buffer.ensureAvailableIf(uint8.sizeof);
         return _buffer._data[_buffer._offset++];
     }
 
     uint16 readUInt16()
     {
+        version (TraceFunctionReader) debug traceFunction!("pham.db.database")(uint16.sizeof, ", total=", totalReadOf(uint16.sizeof));
+
         const bytes = _buffer.consume(uint16.sizeof);
         return uintDecode!(uint16, EndianKind)(bytes);
     }
 
     uint32 readUInt32()
     {
+        version (TraceFunctionReader) debug traceFunction!("pham.db.database")(uint32.sizeof, ", total=", totalReadOf(uint32.sizeof));
+
         const bytes = _buffer.consume(uint32.sizeof);
         return uintDecode!(uint32, EndianKind)(bytes);
     }
 
     uint64 readUInt64()
     {
+        version (TraceFunctionReader) debug traceFunction!("pham.db.database")(uint64.sizeof, ", total=", totalReadOf(uint64.sizeof));
+
         const bytes = _buffer.consume(uint64.sizeof);
         return uintDecode!(uint64, EndianKind)(bytes);
     }

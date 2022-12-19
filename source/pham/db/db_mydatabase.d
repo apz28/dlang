@@ -55,7 +55,7 @@ public:
         super(connection, transaction, name);
     }
 
-    final override const(char)[] getExecutionPlan(uint vendorMode)
+    final override const(char)[] getExecutionPlan(uint vendorMode) @safe
 	{
         version (TraceFunction) traceFunction!("pham.db.mydatabase")("vendorMode=", vendorMode);
 
@@ -591,7 +591,7 @@ public:
         super(database, connectionStringBuilder);
     }
 
-    final override DbCancelCommandData createCancelCommandData(DbCommand command = null)
+    final override DbCancelCommandData createCancelCommandData(DbCommand command = null) @safe
     {
         MyCancelCommandData result = new MyCancelCommandData();
         result.serverProcessId = to!int32(serverInfo[DbServerIdentifier.protocolProcessId]);
@@ -702,7 +702,7 @@ protected:
 
         try
         {
-            if (!failedOpen && _protocol !is null && socketActive)
+            if (!failedOpen && _protocol !is null && canWriteDisconnectMessage())
                 _protocol.disconnectWrite();
         }
         catch (Exception e)
@@ -955,7 +955,8 @@ public:
         charClasses['\uff3c'] = CharClass.backslash;
     }
 
-    override DbCommand createCommand(DbConnection connection, string name = null)
+    override DbCommand createCommand(DbConnection connection,
+        string name = null)
     in
     {
         assert((cast(MyConnection)connection) !is null);
@@ -965,7 +966,8 @@ public:
         return new MyCommand(cast(MyConnection)connection, name);
     }
 
-    override DbCommand createCommand(DbConnection connection, DbTransaction transaction, string name = null)
+    override DbCommand createCommand(DbConnection connection, DbTransaction transaction,
+        string name = null)
     in
     {
         assert((cast(MyConnection)connection) !is null);
@@ -1031,7 +1033,8 @@ public:
         return new MyParameterList(this);
     }
 
-    override DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel, bool defaultTransaction)
+    override DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel,
+        bool defaultTransaction = false)
     in
     {
         assert((cast(MyConnection)connection) !is null);
@@ -1412,9 +1415,7 @@ unittest // MyTransaction
     auto connection = createTestConnection();
     scope (exit)
     {
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
@@ -1441,8 +1442,6 @@ unittest // MyTransaction
     transaction = connection.defaultTransaction();
     transaction.start();
     transaction.rollback();
-
-    transaction = null;
 }
 
 version (UnitTestMYDatabase)
@@ -1458,18 +1457,13 @@ unittest // MyCommand.DDL
         if (failed)
             traceUnitTest!("pham.db.mydatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     command.commandDDL = q"{CREATE TABLE create_then_drop (a INT NOT NULL PRIMARY KEY, b VARCHAR(100))}";
     command.executeNonQuery();
@@ -1494,18 +1488,13 @@ unittest // MyCommand.DML
         if (failed)
             traceUnitTest!("pham.db.mydatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     command.commandText = simpleSelectCommandText();
     auto reader = command.executeReader();
@@ -1580,18 +1569,13 @@ unittest // MyCommand.DML
         if (failed)
             traceUnitTest!("pham.db.mydatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     command.commandText = parameterSelectCommandText();
     command.parameters.add("INT_FIELD", DbType.int32).value = 1;
@@ -1672,9 +1656,7 @@ unittest // MyCommand.DML.StoredProcedure
         if (failed)
             traceUnitTest!("pham.db.mydatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
@@ -1691,10 +1673,7 @@ unittest // MyCommand.DML.StoredProcedure
 
         auto command = connection.createCommand();
         scope (exit)
-        {
             command.dispose();
-            command = null;
-        }
 
         command.parametersCheck = false;
         command.commandStoredProcedure = "MULTIPLE_BY2";
@@ -1709,10 +1688,7 @@ unittest // MyCommand.DML.StoredProcedure
 
         auto command = connection.createCommand();
         scope (exit)
-        {
             command.dispose();
-            command = null;
-        }
 
         command.parametersCheck = true;
         command.commandStoredProcedure = "MULTIPLE_BY2";
@@ -1738,26 +1714,24 @@ unittest // MyCommand.DML.Abort reader
         if (failed)
             traceUnitTest!("pham.db.mydatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     command.commandText = "select * from foo limit 1000";
 
     {
         traceUnitTest!("pham.db.mydatabase")("Aborting case");
 
-        int count;
         auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+
+        int count;
         assert(reader.hasRows());
         while (reader.read())
         {
@@ -1765,21 +1739,22 @@ unittest // MyCommand.DML.Abort reader
             if (count == 10)
                 break;
         }
-        reader.dispose();
         assert(count == 10);
     }
 
     {
         traceUnitTest!("pham.db.mydatabase")("Read all after abort case");
 
-        int count;
         auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+            
+        int count;
         assert(reader.hasRows());
         while (reader.read())
         {
             count++;
         }
-        reader.dispose();
         assert(count == 1000);
     }
 
@@ -1912,18 +1887,13 @@ version (UnitTestPerfMYDatabase)
             if (failed)
                 traceUnitTest!("pham.db.mydatabase")("failed - exiting and closing connection");
 
-            connection.close();
             connection.dispose();
-            connection = null;
         }
         connection.open();
 
         auto command = connection.createCommand();
         scope (exit)
-        {
             command.dispose();
-            command = null;
-        }
 
         enum maxRecordCount = 100_000;
         command.commandText = "select * from foo limit 100000";

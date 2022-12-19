@@ -195,13 +195,11 @@ if (isDecimal!D)
 		static assert(0);
 }
 
-D decimalDecode(D)(scope const(ubyte)[] bytes)
+D decimalDecode(D)(scope const(ubyte)[] bigEndianBytes)
 if (isDecimal!D)
 {
 	ShortStringBuffer!ubyte endianBytes;
-	endianBytes.put(bytes);
-	if (endian == Endian.littleEndian)
-		endianBytes.reverse();
+	endianBytes.put(bigEndianBytes);
 
 	static if (D.sizeof == 4)
 		return DecimalCodec32.decode(endianBytes[]);
@@ -227,28 +225,25 @@ if (isDecimal!D)
 	else
 		static assert(0);
 
-	if (endian == Endian.littleEndian)
-		result.reverse();
-
 	return result;
 }
 
 enum int128ByteLength = 16;
 
-BigInteger int128Decode(scope const(ubyte)[] bytes)
+BigInteger int128Decode(scope const(ubyte)[] bigEndianBytes)
 in
 {
-	assert(bytes.length == int128ByteLength);
+	assert(bigEndianBytes.length == int128ByteLength);
 }
 do
 {
-	return BigInteger(bytes, No.unsigned, toBigEndianFlag(endian == Endian.bigEndian));
+	return BigInteger(bigEndianBytes, No.unsigned, toBigEndianFlag(true));
 }
 
-bool int128Encode(ref ubyte[int128ByteLength] bytes, scope const(BigInteger) value)
+bool int128Encode(ref ubyte[int128ByteLength] bigEndianBytes, scope const(BigInteger) value)
 {
 	UByteTempArray b;
-	value.toBytes(b);
+	value.toBytes(b); // Value is in little-endian
 
     // Too big?
 	if (b.length > int128ByteLength)
@@ -263,10 +258,10 @@ bool int128Encode(ref ubyte[int128ByteLength] bytes, scope const(BigInteger) val
 		b.fill(padValue, oldLength);
     }
 
-	if (endian == Endian.bigEndian)
-		b.reverse();
+    // Firebird expects in big-endian
+    b.reverse();
 
-	bytes[] = b[0..int128ByteLength];
+	bigEndianBytes[] = b[0..int128ByteLength];
 	return true;
 }
 
@@ -376,35 +371,70 @@ unittest // int128Decode & int128Encode
 		return BigInteger(value);
     }
 
-	BigInteger v, v2;
+	BigInteger v1, v2;
 	ubyte[int128ByteLength] b;
 	bool c;
 
-	v = BigInteger(1234);
-	c = int128Encode(b, v);
-	assert(c);
-	assert(b == bytesFromHexs("D2040000000000000000000000000000"));
-	v2 = int128Decode(b);
-	assert(v2 == v);
+    v1 = int128Decode(bytesFromHexs("00000000000000000000000000000000"));
+    assert(v1 == safeBigInteger("0"), v1.toString());
 
-	v = safeBigInteger("1234567890123456789012345678901234");
-	c = int128Encode(b, v);
-	assert(c);
-	assert(b == bytesFromHexs("F2AF967ED05C82DE3297FF6FDE3C0000"));
-	v2 = int128Decode(b);
-	assert(v2 == v);
+    v1 = int128Decode(bytesFromHexs("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"));
+    assert(v1 == safeBigInteger("-1"), v1.toString());
 
-	v = BigInteger(-1234);
-	c = int128Encode(b, v);
-	assert(c);
-	assert(b == bytesFromHexs("2EFBFFFFFFFFFFFFFFFFFFFFFFFFFFFF"));
-	v2 = int128Decode(b);
-	assert(v2 == v);
+    v1 = int128Decode(bytesFromHexs("00000000000000000000000000000001"));
+    assert(v1 == safeBigInteger("1"), v1.toString());
 
-	v = safeBigInteger("-1234567890123456789012345678901234");
-	c = int128Encode(b, v);
+    v1 = int128Decode(bytesFromHexs("FFFFFFFFFFFFD8EFFFFFFFFFFFFF8766"));
+    assert(v1 == safeBigInteger("-184467440737095516190874"), v1.toString());
+
+    v1 = int128Decode(bytesFromHexs("0000000000002710000000000000789A"));
+    assert(v1 == safeBigInteger("184467440737095516190874"), v1.toString());
+
+    c = int128Encode(b, safeBigInteger("0"));
+    assert(c);
+    assert(b[] == bytesFromHexs("00000000000000000000000000000000"), b[].dgToHex);
+
+    c = int128Encode(b, safeBigInteger("-1"));
+    assert(c);
+    assert(b[] == bytesFromHexs("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"), b[].dgToHex);
+
+    c = int128Encode(b, safeBigInteger("1"));
+    assert(c);
+    assert(b[] == bytesFromHexs("00000000000000000000000000000001"), b[].dgToHex);
+
+    c = int128Encode(b, safeBigInteger("-184467440737095516190874"));
+    assert(c);
+    assert(b[] == bytesFromHexs("FFFFFFFFFFFFD8EFFFFFFFFFFFFF8766"), b[].dgToHex);
+
+    c = int128Encode(b, safeBigInteger("184467440737095516190874"));
+    assert(c);
+    assert(b[] == bytesFromHexs("0000000000002710000000000000789A"), b[].dgToHex);
+
+	v1 = BigInteger(1234);
+	c = int128Encode(b, v1);
 	assert(c);
-	assert(b == bytesFromHexs("0E5069812FA37D21CD68009021C3FFFF"));
+	assert(b == bytesFromHexs("000000000000000000000000000004D2"), b[].dgToHex);
 	v2 = int128Decode(b);
-	assert(v2 == v);
+	assert(v2 == v1);
+
+	v1 = BigInteger(-1234);
+	c = int128Encode(b, v1);
+	assert(c);
+	assert(b == bytesFromHexs("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFB2E"), b[].dgToHex);
+	v2 = int128Decode(b);
+	assert(v2 == v1);
+
+	v1 = safeBigInteger("1234567890123456789012345678901234");
+	c = int128Encode(b, v1);
+	assert(c);
+	assert(b == bytesFromHexs("00003CDE6FFF9732DE825CD07E96AFF2"), b[].dgToHex);
+	v2 = int128Decode(b);
+	assert(v2 == v1);
+
+	v1 = safeBigInteger("-1234567890123456789012345678901234");
+	c = int128Encode(b, v1);
+	assert(c);
+	assert(b == bytesFromHexs("FFFFC321900068CD217DA32F8169500E"), b[].dgToHex);
+	v2 = int128Decode(b);
+	assert(v2 == v1);
 }

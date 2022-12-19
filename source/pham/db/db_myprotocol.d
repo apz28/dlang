@@ -873,7 +873,7 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.mydatabase")();
 
-        if (parameter.isNullValue)
+        if (parameter.isNull)
             writer.writeOpaqueChars("NULL");
         else
             describeValue(writer, parameter, parameter.value);

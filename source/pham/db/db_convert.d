@@ -48,6 +48,24 @@ Duration limitRangeTimeout(Duration value,
 }
 
 /**
+ * Checks and returns `value` within `min` and `max` inclusive as millisecond unit
+ * Params:
+ *   value = a value to be checked
+ *   min = inclusive minimum value
+ *   max = inclusive maximum value
+ * Returns:
+ *   `min` if `value` is less than `min`
+ *   `max` if `value` is greater than `max`
+ *   otherwise `value`
+ */
+pragma(inline, true)
+int32 limitRangeTimeoutAsMilliSecond(scope const(Duration) value,
+    scope const(Duration) min = minTimeoutDuration, scope const(Duration) max = maxTimeoutDuration) @nogc pure
+{
+    return cast(int32)limitRangeValue(value.total!"msecs", min.total!"msecs"(), max.total!"msecs"());
+}
+
+/**
  * Checks and returns `value` within `min` and `max` inclusive as second unit
  * Params:
  *   value = a value to be checked

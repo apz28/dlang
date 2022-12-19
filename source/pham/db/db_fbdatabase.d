@@ -773,12 +773,12 @@ public:
         return _info.hasHandle;
     }
 
-    @property Logger logger() nothrow pure @safe
+    @property Logger logger() nothrow pure
     {
         return _command !is null ? _command.logger : null;
     }
 
-    @property uint maxSegmentLength() const nothrow
+    @property uint maxSegmentLength() const nothrow pure
     {
         // Max package size - overhead
         // See FbXdrWriter.writeBlob for overhead
@@ -808,18 +808,22 @@ public:
     {
         super(connection, name);
         this._flags.set(DbCommandFlag.transactionRequired, true);
-        static if (fbDeferredProtocol)
-            this._handle = DbHandle(fbCommandDeferredHandle);
     }
 
     this(FbConnection connection, FbTransaction transaction, string name = null) nothrow @safe
     {
         super(connection, transaction, name);
-        static if (fbDeferredProtocol)
-            this._handle = DbHandle(fbCommandDeferredHandle);
     }
 
-	final override const(char)[] getExecutionPlan(uint vendorMode)
+    // Firebird >= v4.0
+    final FbCommandBatch createCommandBatch(size_t parametersCapacity = 0) @safe
+    {
+        checkActiveReader();
+
+        return FbCommandBatch(this, false, parametersCapacity);
+    }
+
+	final override const(char)[] getExecutionPlan(uint vendorMode) @safe
 	{
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("vendorMode=", vendorMode);
 
@@ -918,6 +922,25 @@ public:
     }
 
 package(pham.db):
+    final bool canReturnRecordsAffected() const nothrow @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+
+        if (!returnRecordsAffected || commandType == DbCommandType.ddl)
+            return false;
+
+        switch (baseCommandType)
+        {
+            case FbIscCommandType.insert:
+            case FbIscCommandType.update:
+            case FbIscCommandType.delete_:
+            case FbIscCommandType.storedProcedure:
+                return true;
+            default:
+                return false;
+        }
+    }
+
     final FbParameter[] fbInputParameters() nothrow @trusted //@trusted=cast()
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
@@ -950,6 +973,8 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
+        static if (fbDeferredProtocol)
+            _handle = fbCommandDeferredHandle;
         auto protocol = fbConnection.protocol;
         protocol.allocateCommandWrite();
     }
@@ -959,6 +984,8 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
+        static if (fbDeferredProtocol)
+            _handle = fbCommandDeferredHandle;
         auto protocol = fbConnection.protocol;
         protocol.allocateCommandWrite(writer);
         return &allocateHandleRead;
@@ -972,25 +999,6 @@ protected:
         return protocol.serverVersion >= FbIsc.protocol_version11;
     }
 
-    final bool canReturnRecordsAffected() const nothrow @safe
-    {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
-
-        if (!returnRecordsAffected || commandType == DbCommandType.ddl)
-            return false;
-
-        switch (baseCommandType)
-        {
-            case FbIscCommandType.insert:
-            case FbIscCommandType.update:
-            case FbIscCommandType.delete_:
-            case FbIscCommandType.storedProcedure:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     final void deallocateHandle() @safe
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("fbHandle=", fbHandle);
@@ -999,37 +1007,46 @@ protected:
         // to avoid double errors when connection is shutting down
         scope (exit)
         {
-            static if (fbDeferredProtocol)
-                _handle = fbCommandDeferredHandle;
-            else
-                _handle.reset();
+            batched = false;
+            _handle.reset();
             version (TraceFunction) traceFunction!("pham.db.fbdatabase")("fbHandle=", fbHandle);
         }
 
         try
         {
             auto protocol = fbConnection.protocol;
-            protocol.deallocateCommandWrite(this);
             static if (fbDeferredProtocol)
+            {
+                auto writer = FbXdrWriter(fbConnection);
+                
+                if (batched)
+                {
+                    protocol.releaseCommandBatchWrite(writer, this);
+                    protocol.deferredResponses ~= &protocol.releaseCommandBatchRead;
+                }
+                
+                protocol.deallocateCommandWrite(writer, this);
+                writer.flush();
+
                 protocol.deferredResponses ~= &protocol.deallocateCommandRead;
+            }
             else
+            {
+                if (batched)
+                {
+                    protocol.releaseCommandBatchWrite(this);
+                    protocol.releaseCommandBatchRead();
+                }
+
+                protocol.deallocateCommandWrite(this);
                 protocol.deallocateCommandRead();
+            }
         }
         catch (Exception e)
         {
             if (auto log = logger)
                 log.error(forLogInfo(), newline, e.msg, e);
         }
-    }
-
-    static if (fbDeferredProtocol)
-    final FbDeferredResponse deallocateHandleWrite(ref FbXdrWriter writer) nothrow @safe
-    {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
-
-        auto protocol = fbConnection.protocol;
-        protocol.deallocateCommandWrite(writer, this);
-        return &protocol.deallocateCommandRead;
     }
 
     final override void doExecuteCommand(const(DbCommandExecuteType) type) @safe
@@ -1046,10 +1063,6 @@ protected:
         auto logTimming = logger !is null
             ? LogTimming(logger, text(forLogInfo(), newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
-
-        // Setup id for blob, text & array id parameters
-        if (hasParameters)
-            prepareParameters();
 
         auto protocol = fbConnection.protocol;
 
@@ -1209,9 +1222,39 @@ protected:
             deallocateHandle();
     }
 
+    FbCommandBatchResult[] executeNonQueryBatch(ref FbCommandBatch commandBatch) @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        version (profile) debug auto p = PerfFunction.create();
+
+        auto protocol = fbConnection.protocol;
+
+        {
+            auto writer = FbXdrWriter(fbConnection);
+            if (!this.batched)
+                protocol.createCommandBatchWrite(writer, commandBatch);
+            protocol.messageCommandBatchWrite(writer, commandBatch);
+            protocol.executeCommandBatchWrite(writer, commandBatch);
+
+            version (TraceFunction) traceFunction!("pham.db.fbdatabase")("data=", writer.peekBytes().dgToHex());
+
+            writer.flush();
+        }
+
+        if (!this.batched)
+        {
+            protocol.createCommandBatchRead(commandBatch);
+            this.batched = true;
+        }
+        protocol.messageCommandBatchRead(commandBatch);
+        auto response = protocol.executeCommandBatchRead(commandBatch);
+        return response.toCommandBatchResult();
+    }
+
     static void fillNamedColumn(DbNameColumn column, const ref FbIscFieldInfo iscField, const(bool) isNew) nothrow @safe
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")(iscField.traceString());
+        //import pham.utl.test; dgWriteln("fillNamedColumn=", iscField.traceString());
 
         column.baseName = iscField.name.idup;
         column.baseOwner = iscField.owner.idup;
@@ -1268,35 +1311,6 @@ protected:
     {
         return baseCommandType == FbIscCommandType.select
             || baseCommandType == FbIscCommandType.selectForUpdate;
-    }
-
-    final void prepareParameters() @safe
-    {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
-
-        foreach (parameter; parameters)
-        {
-            if (!parameter.isInput || parameter.value.isNull)
-                continue;
-
-            final switch (parameter.isValueIdType)
-            {
-                case DbFieldIdType.no:
-                    break;
-                case DbFieldIdType.array:
-                    auto arrayId = writeArray(parameter, parameter.value);
-                    parameter.value.setEntity(arrayId.get!FbId(), parameter.type);
-                    break;
-                case DbFieldIdType.blob:
-                    auto blobId = writeBlob(parameter, parameter.value.get!(const(ubyte)[])());
-                    parameter.value.setEntity(blobId.get!FbId(), parameter.type);
-                    break;
-                case DbFieldIdType.clob:
-                    auto clobId = writeClob(parameter, parameter.value.get!string());
-                    parameter.value.setEntity(clobId.get!FbId(), parameter.type);
-                    break;
-            }
-        }
     }
 
     final void processPrepareResponse(scope FbIscBindInfo[] iscBindInfos) @safe
@@ -1398,6 +1412,153 @@ protected:
         }
         return result;
     }
+
+    final void removeBatch(ref FbCommandBatch commandBatch) @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+
+        assert(commandBatch.fbCommand is this);
+
+        scope (exit)
+            batched = false;
+        auto protocol = fbConnection.protocol;
+        protocol.releaseCommandBatchWrite(this);
+        protocol.deferredResponses ~= &protocol.releaseCommandBatchRead;
+    }
+}
+
+// Firebird >= v4.0
+struct FbCommandBatch
+{
+@safe:
+
+public:
+    @disable this(this);
+
+    ~this()
+    {
+        dispose(false);
+    }
+
+    FbParameterList addParameters() nothrow
+    {
+        auto result = cast(FbParameterList)_command.database.createParameterList();
+        _parameters ~= result;
+        return result;
+    }
+
+    void clearParameters() nothrow @trusted
+    {
+        _parameters.length = 0;
+        _parameters.assumeSafeAppend();
+    }
+
+    void dispose(bool disposing = true) nothrow
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("_commandOwned=", _commandOwned, ", _preparedState=", _preparedState);
+        
+        if (_command)
+        {
+            try
+            {
+                if (_commandOwned)
+                    _command.dispose();
+                else if (_preparedState == PreparedState.implicit)
+                    _command.unprepare();
+                else
+                    _command.removeBatch(this);
+            }
+            catch (Exception e)
+            {
+                if (auto log = logger)
+                    log.error(e.msg, e);
+            }
+        }
+
+        _command = null;
+        _commandOwned = false;
+        _parameters = null;
+        _preparedState = PreparedState.unknown;
+    }
+
+    FbCommandBatchResult[] executeNonQuery()
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+
+        if (_parameters.length == 0)
+            return [];
+
+        if (_preparedState == PreparedState.unknown || !_command.prepared)
+        {
+            if (_command.prepared)
+                _preparedState = PreparedState.explicit;
+            else
+            {
+                _command.prepare();
+                _preparedState = PreparedState.implicit;
+            }
+        }
+
+        return _command.executeNonQueryBatch(this);
+    }
+
+    ref typeof(this) prepare() return
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+
+        if (!_command.prepared)
+        {
+            _command.prepare();
+            _preparedState = PreparedState.explicit;
+        }
+        return this;
+    }
+
+    @property FbCommand fbCommand() nothrow pure
+    {
+        return _command;
+    }
+
+    @property final FbConnection fbConnection() nothrow pure
+    {
+        return _command.fbConnection;
+    }
+
+    @property FbTransaction fbTransaction() nothrow pure
+    {
+        return _command.fbTransaction;
+    }
+
+    @property Logger logger() nothrow pure
+    {
+        return _command !is null ? _command.logger : null;
+    }
+
+    @property FbParameterList[] parameters() nothrow pure
+    {
+        return _parameters;
+    }
+
+public:
+    uint batchBufferLength = FbIscSize.batchBufferLength;
+    bool multiErrors = true;
+
+private:
+    this(FbCommand command, bool commandOwned, size_t parametersCapacity = 0) nothrow pure
+    {
+        this._command = command;
+        this._commandOwned = commandOwned;
+        if (parametersCapacity != 0)
+            this._parameters.reserve(parametersCapacity);
+    }
+
+private:
+    enum PreparedState : ubyte { unknown, explicit, implicit, }
+
+    FbCommand _command;
+    FbParameterList[] _parameters;
+    PreparedState _preparedState;
+    bool _commandOwned;
 }
 
 class FbConnection : SkConnection
@@ -1426,7 +1587,14 @@ public:
         this._arrayManager._connection = this;
     }
 
-    final override DbCancelCommandData createCancelCommandData(DbCommand command = null)
+    // Firebird >= v4.0
+    final FbCommandBatch createCommandBatch(string commandText, size_t parametersCapacity = 0) @safe
+    {
+        auto command = cast(FbCommand)createCommandText(commandText);
+        return FbCommandBatch(command, true, parametersCapacity);
+    }
+
+    final override DbCancelCommandData createCancelCommandData(DbCommand command = null) nothrow @safe
     {
         FbCancelCommandData result = new FbCancelCommandData();
         result.connectionHandle = fbHandle;
@@ -1444,12 +1612,12 @@ public:
         }
         else
         {
-            auto safeType = _type;
+            auto saveType = _type;
             _createDatabaseInfo = createDatabaseInfo;
             _type = DbConnectionType.create;
             scope (exit)
             {
-                _type = safeType;
+                _type = saveType;
                 _createDatabaseInfo = FbCreateDatabaseInfo.init;
             }
 
@@ -1596,7 +1764,7 @@ protected:
 
         try
         {
-            if (!failedOpen && _protocol !is null && socketActive)
+            if (!failedOpen && _protocol !is null && canWriteDisconnectMessage())
                 _protocol.disconnectWrite();
         }
         catch (Exception e)
@@ -1698,12 +1866,12 @@ public:
         return toIntegerSafe!uint32(getString(DbConnectionParameterIdentifier.fbCachePage), uint16.max);
     }
 
-    @property final uint8[] cryptKey() nothrow
+    @property final ubyte[] cryptKey() nothrow
     {
         return bytesFromBase64s(getString(DbConnectionParameterIdentifier.fbCryptKey));
     }
 
-    @property final typeof(this) cryptKey(scope const(uint8)[] value) nothrow
+    @property final typeof(this) cryptKey(scope const(ubyte)[] value) nothrow
     {
         put(DbConnectionParameterIdentifier.fbCryptKey, bytesToBase64s(value));
         return this;
@@ -1768,7 +1936,8 @@ public:
         charClasses['\\'] = CharClass.backslash;
     }
 
-    override DbCommand createCommand(DbConnection connection, string name = null)
+    override DbCommand createCommand(DbConnection connection,
+        string name = null)
     in
     {
         assert((cast(FbConnection)connection) !is null);
@@ -1778,7 +1947,8 @@ public:
         return new FbCommand(cast(FbConnection)connection, name);
     }
 
-    override DbCommand createCommand(DbConnection connection, DbTransaction transaction, string name = null)
+    override DbCommand createCommand(DbConnection connection, DbTransaction transaction,
+        string name = null)
     in
     {
         assert((cast(FbConnection)connection) !is null);
@@ -1844,7 +2014,8 @@ public:
         return new FbParameterList(this);
     }
 
-    override DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel, bool defaultTransaction)
+    override DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel,
+        bool defaultTransaction = false)
     in
     {
         assert((cast(FbConnection)connection) !is null);
@@ -1926,6 +2097,35 @@ public:
     final override DbFieldIdType isValueIdType() const nothrow pure @safe
     {
         return FbIscFieldInfo.isValueIdType(baseTypeId, baseSubTypeId);
+    }
+
+package(pham.db):
+    final void prepareParameter(FbCommand command) @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+
+        if (!isInput || isNull)
+            return;
+
+        final switch (isValueIdType)
+        {
+            case DbFieldIdType.no:
+                break;
+            case DbFieldIdType.array:
+                auto arrayId = command.writeArray(this, value);
+                value.setEntity(arrayId.get!FbId(), type);
+                break;
+            case DbFieldIdType.blob:
+                auto blob = value.get!(const(ubyte)[])();
+                auto blobId = command.writeBlob(this, blob);
+                value.setEntity(blobId.get!FbId(), type);
+                break;
+            case DbFieldIdType.clob:
+                auto clob = value.get!(const(char)[])();
+                auto clobId = command.writeClob(this, clob);
+                value.setEntity(clobId.get!FbId(), type);
+                break;
+        }
     }
 }
 
@@ -2067,7 +2267,7 @@ version (UnitTestFBDatabase)
     FbConnection createTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
         DbCompressConnection compress = DbCompressConnection.disabled,
-        DbIntegratedSecurityConnection integratedSecurity = DbIntegratedSecurityConnection.srp1)
+        DbIntegratedSecurityConnection integratedSecurity = DbIntegratedSecurityConnection.srp256)
     {
         auto db = DbDatabaseList.getDb(DbScheme.fb);
         assert(cast(FbDatabase)db !is null);
@@ -2076,9 +2276,9 @@ version (UnitTestFBDatabase)
         assert(cast(FbConnection)result !is null);
 
         auto csb = (cast(FbConnection)result).fbConnectionStringBuilder;
-        csb.databaseName = "C:\\Development\\Projects\\DLang\\FirebirdSQL\\TEST.FDB";
-        csb.receiveTimeout = dur!"seconds"(20);
-        csb.sendTimeout = dur!"seconds"(10);
+        csb.databaseName = "UNIT_TEST";  // Use alias mapping name
+        csb.receiveTimeout = dur!"seconds"(40);
+        csb.sendTimeout = dur!"seconds"(20);
         csb.encrypt = encrypt;
         csb.compress = compress;
         csb.integratedSecurity = integratedSecurity;
@@ -2177,10 +2377,7 @@ unittest // FbConnection
 
     auto connection = createTestConnection();
     scope (exit)
-    {
         connection.dispose();
-        connection = null;
-    }
     assert(connection.state == DbConnectionState.closed);
 
     connection.open();
@@ -2199,10 +2396,7 @@ unittest // FbConnection.encrypt
     {
         auto connection = createTestConnection(DbEncryptedConnection.enabled);
         scope (exit)
-        {
             connection.dispose();
-            connection = null;
-        }
         assert(connection.state == DbConnectionState.closed);
 
         connection.open();
@@ -2241,10 +2435,7 @@ unittest // FbConnection.integratedSecurity
     {
         auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.disabled, DbIntegratedSecurityConnection.srp256);
         scope (exit)
-        {
             connection.dispose();
-            connection = null;
-        }
         assert(connection.state == DbConnectionState.closed);
 
         connection.open();
@@ -2263,10 +2454,7 @@ unittest // FbConnection.encrypt.compress
 
     auto connection = createTestConnection(DbEncryptedConnection.required, DbCompressConnection.zip);
     scope (exit)
-    {
         connection.dispose();
-        connection = null;
-    }
     assert(connection.state == DbConnectionState.closed);
 
     connection.open();
@@ -2284,11 +2472,7 @@ unittest // FbTransaction
 
     auto connection = createTestConnection();
     scope (exit)
-    {
-        connection.close();
         connection.dispose();
-        connection = null;
-    }
     connection.open();
 
     auto transaction = connection.createTransaction(DbIsolationLevel.readUncommitted);
@@ -2314,8 +2498,6 @@ unittest // FbTransaction
     transaction = connection.defaultTransaction();
     transaction.start();
     transaction.rollback();
-
-    transaction = null;
 }
 
 version (UnitTestFBDatabase)
@@ -2326,17 +2508,12 @@ unittest // FbTransaction.encrypt.compress
 
     auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
     scope (exit)
-    {
-        connection.close();
         connection.dispose();
-        connection = null;
-    }
     connection.open();
 
     auto transaction = connection.createTransaction(DbIsolationLevel.readCommitted);
     transaction.start();
     transaction.commit();
-    transaction = null;
 }
 
 version (UnitTestFBDatabase)
@@ -2352,21 +2529,16 @@ unittest // FbCommand.DDL
         if (failed)
             traceUnitTest!("pham.db.fbdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     version (TraceFunction) traceFunction!("pham.db.fbdatabase")("CREATE TABLE");
-    command.commandDDL = q"{CREATE TABLE create_then_drop (a INT NOT NULL PRIMARY KEY, b VARCHAR(100))}";
+    command.commandDDL = "CREATE TABLE create_then_drop (a INT NOT NULL PRIMARY KEY, b VARCHAR(100))";
     command.executeNonQuery();
 
     version (TraceFunction) traceFunction!("pham.db.fbdatabase")("DROP TABLE");
@@ -2389,18 +2561,13 @@ unittest // FbCommand.DDL.encrypt.compress
         if (failed)
             traceUnitTest!("pham.db.fbdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     command.commandDDL = q"{CREATE TABLE create_then_drop (a INT NOT NULL PRIMARY KEY, b VARCHAR(100))}";
     command.executeNonQuery();
@@ -2424,18 +2591,13 @@ unittest // FbCommand.getExecutionPlan
         if (failed)
             traceUnitTest!("pham.db.fbdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     command.commandText = simpleSelectCommandText();
 
@@ -2473,18 +2635,13 @@ unittest // FbCommand.DML.Types
         if (failed)
             traceUnitTest!("pham.db.fbdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     // char
     {
@@ -2646,11 +2803,11 @@ unittest // FbCommand.DML.Types
         v = command.executeScalar();
         assert(v.get!int64() == 1);
 
-	    command.commandText = "select cast(-9223372036854775808 as bigint) from rdb$database";
+	    command.commandText = "select cast('-9223372036854775808' as bigint) from rdb$database";
         v = command.executeScalar();
         assert(v.get!int64() == -9223372036854775808);
 
-	    command.commandText = "select cast(9223372036854775807 as bigint) from rdb$database";
+	    command.commandText = "select cast('9223372036854775807' as bigint) from rdb$database";
         v = command.executeScalar();
         assert(v.get!int64() == 9223372036854775807);
     }
@@ -2686,19 +2843,19 @@ unittest // FbCommand.DML.Types
 
 	    command.commandText = "select cast(-1 as int128) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!int128() == -1);
+        assert(v.get!int128() == -1, v.get!int128().toString());
 
 	    command.commandText = "select cast(1 as int128) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!int128() == 1);
+        assert(v.get!int128() == 1, v.get!int128().toString());
 
-	    command.commandText = "select cast(-184467440737095516190874 as int128) from rdb$database";
+	    command.commandText = "select cast('-184467440737095516190874' as int128) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!int128() == int128("-184467440737095516190874"));
+        assert(v.get!int128() == int128("-184467440737095516190874"), v.get!int128().toString());
 
-	    command.commandText = "select cast(184467440737095516190874 as int128) from rdb$database";
+	    command.commandText = "select cast('184467440737095516190874' as int128) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!int128() == int128("184467440737095516190874"));
+        assert(v.get!int128() == int128("184467440737095516190874"), v.get!int128().toString());
     }
 
     // decfloat(16)
@@ -2710,31 +2867,31 @@ unittest // FbCommand.DML.Types
 
 	    command.commandText = "select cast(0 as decfloat(16)) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal64() == 0);
+        assert(v.get!Decimal64() == 0, v.get!Decimal64().toString());
 
 	    command.commandText = "select cast(-1.0 as decfloat(16)) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal64() == -1.0);
+        assert(v.get!Decimal64() == -1.0, v.get!Decimal64().toString());
 
 	    command.commandText = "select cast(1.0 as decfloat(16)) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal64() == 1.0);
+        assert(v.get!Decimal64() == 1.0, v.get!Decimal64().toString());
 
-	    command.commandText = "select cast(-100000000000000000000000000000000000 as decfloat(16)) from rdb$database";
+	    command.commandText = "select cast('-100000000000000000000000000000000000' as decfloat(16)) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal64() == Decimal64("-100000000000000000000000000000000000"));
+        assert(v.get!Decimal64() == Decimal64("-100000000000000000000000000000000000"), v.get!Decimal64().toString());
 
-	    command.commandText = "select cast(100000000000000000000000000000000000 as decfloat(16)) from rdb$database";
+	    command.commandText = "select cast('100000000000000000000000000000000000' as decfloat(16)) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal64() == Decimal64("100000000000000000000000000000000000"));
+        assert(v.get!Decimal64() == Decimal64("100000000000000000000000000000000000"), v.get!Decimal64().toString());
 
-	    command.commandText = "select cast(123.000000001E-1 as decfloat(16)) from rdb$database";
+	    command.commandText = "select cast('123.000000001E-1' as decfloat(16)) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal64() == Decimal64("123.000000001E-1"));
+        assert(v.get!Decimal64() == Decimal64("123.000000001E-1"), v.get!Decimal64().toString());
 
-	    command.commandText = "select cast(-123.000000001E-1 as decfloat(16)) from rdb$database";
+	    command.commandText = "select cast('-123.000000001E-1' as decfloat(16)) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal64() == Decimal64("-123.000000001E-1"));
+        assert(v.get!Decimal64() == Decimal64("-123.000000001E-1"), v.get!Decimal64().toString());
     }
 
     // decfloat(34)
@@ -2746,31 +2903,31 @@ unittest // FbCommand.DML.Types
 
 	    command.commandText = "select cast(0 as decfloat(34)) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal128() == 0);
+        assert(v.get!Decimal128() == 0, v.get!Decimal64().toString());
 
 	    command.commandText = "select cast(-1.0 as decfloat(34)) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal128() == -1.0);
+        assert(v.get!Decimal128() == -1.0, v.get!Decimal64().toString());
 
 	    command.commandText = "select cast(1.0 as decfloat(34)) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal128() == 1.0);
+        assert(v.get!Decimal128() == 1.0, v.get!Decimal64().toString());
 
-	    command.commandText = "select cast(-100000000000000000000000000000000000 as decfloat(34)) from rdb$database";
+	    command.commandText = "select cast('-100000000000000000000000000000000000' as decfloat(34)) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal128() == Decimal128("-100000000000000000000000000000000000"));
+        assert(v.get!Decimal128() == Decimal128("-100000000000000000000000000000000000"), v.get!Decimal64().toString());
 
-	    command.commandText = "select cast(100000000000000000000000000000000000 as decfloat(34)) from rdb$database";
+	    command.commandText = "select cast('100000000000000000000000000000000000' as decfloat(34)) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal128() == Decimal128("100000000000000000000000000000000000"));
+        assert(v.get!Decimal128() == Decimal128("100000000000000000000000000000000000"), v.get!Decimal64().toString());
 
-	    command.commandText = "select cast(123.000000001E-1 as decfloat(34)) from rdb$database";
+	    command.commandText = "select cast('123.000000001E-1' as decfloat(34)) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal128() == Decimal128("123.000000001E-1"));
+        assert(v.get!Decimal128() == Decimal128("123.000000001E-1"), v.get!Decimal64().toString());
 
-	    command.commandText = "select cast(-123.000000001E-1 as decfloat(34)) from rdb$database";
+	    command.commandText = "select cast('-123.000000001E-1' as decfloat(34)) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal128() == Decimal128("-123.000000001E-1"));
+        assert(v.get!Decimal128() == Decimal128("-123.000000001E-1"), v.get!Decimal64().toString());
     }
 
     // decfloat
@@ -2782,31 +2939,31 @@ unittest // FbCommand.DML.Types
 
 	    command.commandText = "select cast(0 as decfloat) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal128() == 0);
+        assert(v.get!Decimal128() == 0, v.get!Decimal128().toString());
 
 	    command.commandText = "select cast(-1.0 as decfloat) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal128() == -1.0);
+        assert(v.get!Decimal128() == -1.0, v.get!Decimal128().toString());
 
-	    command.commandText = "select cast(1.0 as decfloat) from rdb$database";
+	    command.commandText = "select cast(1.0 as decfloat(34)) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal128() == 1.0);
+        assert(v.get!Decimal128() == 1.0, v.get!Decimal128().toString());
 
-	    command.commandText = "select cast(-100000000000000000000000000000000000 as decfloat) from rdb$database";
+	    command.commandText = "select cast('-100000000000000000000000000000000000' as decfloat) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal128() == Decimal128("-100000000000000000000000000000000000"));
+        assert(v.get!Decimal128() == Decimal128("-100000000000000000000000000000000000"), v.get!Decimal128().toString());
 
-	    command.commandText = "select cast(100000000000000000000000000000000000 as decfloat) from rdb$database";
+	    command.commandText = "select cast('100000000000000000000000000000000000' as decfloat) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal128() == Decimal128("100000000000000000000000000000000000"));
+        assert(v.get!Decimal128() == Decimal128("100000000000000000000000000000000000"), v.get!Decimal128().toString());
 
-	    command.commandText = "select cast(123.000000001E-1 as decfloat) from rdb$database";
+	    command.commandText = "select cast('123.000000001E-1' as decfloat) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal128() == Decimal128("123.000000001E-1"));
+        assert(v.get!Decimal128() == Decimal128("123.000000001E-1"), v.get!Decimal128().toString());
 
-	    command.commandText = "select cast(-123.000000001E-1 as decfloat) from rdb$database";
+	    command.commandText = "select cast('-123.000000001E-1' as decfloat) from rdb$database";
         v = command.executeScalar();
-        assert(v.get!Decimal128() == Decimal128("-123.000000001E-1"));
+        assert(v.get!Decimal128() == Decimal128("-123.000000001E-1"), v.get!Decimal128().toString());
     }
 
     failed = false;
@@ -2826,18 +2983,13 @@ unittest // FbCommand.DML
         if (failed)
             traceUnitTest!("pham.db.fbdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     command.commandText = simpleSelectCommandText();
     auto reader = command.executeReader();
@@ -2912,18 +3064,13 @@ unittest // FbCommand.DML.Parameter
         if (failed)
             traceUnitTest!("pham.db.fbdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     command.commandText = parameterSelectCommandText();
     command.parameters.add("INT_FIELD", DbType.int32).value = 1;
@@ -3005,18 +3152,13 @@ unittest // FbCommand.DML.encrypt.compress
         if (failed)
             traceUnitTest!("pham.db.fbdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     command.commandText = simpleSelectCommandText();
     auto reader = command.executeReader();
@@ -3090,9 +3232,7 @@ unittest // FbCommand.DML.FbArrayManager
         if (failed)
             traceUnitTest!("pham.db.fbdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
@@ -3127,9 +3267,7 @@ unittest // FbCommand.DML.Array
         if (failed)
             traceUnitTest!("pham.db.fbdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
@@ -3202,9 +3340,7 @@ unittest // FbCommand.DML.Array.Less
         if (failed)
             traceUnitTest!("pham.db.fbdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
@@ -3267,19 +3403,14 @@ unittest // FbCommand.DML.StoredProcedure
         if (failed)
             traceUnitTest!("pham.db.fbdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     {
         auto command = connection.createCommand();
         scope (exit)
-        {
             command.dispose();
-            command = null;
-        }
 
         command.commandStoredProcedure = "MULTIPLE_BY2";
         command.parameters.add("X", DbType.int32).value = 2;
@@ -3290,16 +3421,13 @@ unittest // FbCommand.DML.StoredProcedure
     {
         auto command = connection.createCommand();
         scope (exit)
-        {
             command.dispose();
-            command = null;
-        }
 
         command.commandText = "select * from MULTIPLE_BY2(2)";
         auto reader = command.executeReader();
         scope (exit)
             reader.dispose();
-
+            
         int count;
         assert(reader.hasRows());
         while (reader.read())
@@ -3327,9 +3455,7 @@ unittest // DbRAIITransaction
     auto connection = createTestConnection();
     scope (exit)
     {
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
@@ -3338,12 +3464,9 @@ unittest // DbRAIITransaction
         auto transactionHolder = DbRAIITransaction(connection);
 
         auto command = connection.createCommand();
-        command.transaction = transactionHolder.transaction;
         scope (exit)
-        {
             command.dispose();
-            command = null;
-        }
+        command.transaction = transactionHolder.transaction;
 
         command.commandText = "SELECT 1 FROM RDB$DATABASE";
         auto v = command.executeScalar();
@@ -3358,6 +3481,122 @@ unittest // DbRAIITransaction
 
     assertThrown!DbException(testDbRAIITransaction());
     assert(commit == false);
+}
+
+version (UnitTestFBDatabase)
+unittest // FbCommandBatch
+{
+    import pham.dtm.date;
+    import pham.utl.object : VersionString;
+    import pham.utl.test;
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbdatabase.FbCommandBatch");
+
+    bool failed = true;
+    auto connection = createTestConnection();
+    scope (exit)
+    {
+        if (failed)
+            traceUnitTest!("pham.db.fbdatabase")("failed - exiting and closing connection");
+
+        connection.dispose();
+    }
+    connection.open();
+
+    const minSupportVersion = VersionString("4.0");
+    const canTest = VersionString(connection.serverVersion()) >= minSupportVersion;
+    if (!canTest)
+        return;
+
+    {
+        auto command = connection.createCommandDDL("create table batch (i int not null primary key, t timestamp)");
+        command.executeNonQuery();
+        command.dispose();
+    }
+
+    scope (exit)
+    {
+        auto command = connection.createCommandDDL("drop table batch");
+        scope (exit)
+            command.dispose();
+        command.executeNonQuery();        
+    }
+    
+	auto iv = [1, 2, 3, 4];
+	auto tv = [DateTime(2022, 01, 17, 1, 0, 0), DateTime(2022, 01, 17, 2, 0, 0),
+        DateTime(2022, 01, 17, 2, 1, 0), DateTime(2022, 01, 17, 2, 2, 0)];
+    assert(iv.length == tv.length);
+
+    // OK
+	{
+        assert(iv.length == 4);
+		auto command = connection.createCommandBatch("insert into batch values (@i, @t)");
+
+        // Test first block
+        foreach (i; 0..2)
+        {
+            auto parameters = command.addParameters();
+            parameters.add("i", DbValue(iv[i]));
+            parameters.add("t", DbValue(tv[i]));
+        }
+        command.executeNonQuery();
+
+        // Test second block
+        command.clearParameters();
+        foreach (i; 2..4)
+        {
+            auto parameters = command.addParameters();
+            parameters.add("i", DbValue(iv[i]));
+            parameters.add("t", DbValue(tv[i]));
+        }
+        command.executeNonQuery();
+	}
+
+    // OK validated
+	{
+        assert(iv.length == 4);
+		auto command = connection.createCommandText("select i, t from batch order by i");
+        scope (exit)
+            command.dispose();
+        
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+            
+		auto i = 0;
+		while (reader.read())
+		{
+            assert(i < iv.length);
+			assert(reader.getValue(0) == iv[i]);
+			assert(reader.getValue(1) == DbDateTime.toDbDateTime(tv[i]));
+			i++;
+		}  
+	}
+
+    // Mixed OK & Failure
+    version (none) // TODO Firebird bug -> not able to perform different sql on same connection
+    {
+		auto command = connection.createCommandBatch("insert into batch values (@i)");
+
+        command.addParameters().add("i", DbValue(6)); // OK
+        command.addParameters().add("i", DbValue(1)); // Failure - duplicate
+        command.addParameters().add("i", DbValue(7)); // OK
+        command.addParameters().add("i", DbValue(2)); // Failure - duplicate
+        auto result = command.executeNonQuery();
+		assert(result.length == 4);
+		assert(result[0].isOK);
+		assert(result[0].exception is null);
+		assert(result[0].recordsAffected == 1);
+
+		assert(result[1].isError);
+		assert(result[1].exception !is null);
+
+		assert(result[2].isOK);
+		assert(result[2].exception is null);
+		assert(result[2].recordsAffected == 1);
+
+		assert(result[3].isError);
+		assert(result[3].exception !is null);
+    }
 }
 
 version (UnitTestPerfFBDatabase)
@@ -3462,18 +3701,13 @@ version (UnitTestPerfFBDatabase)
             if (failed)
                 traceUnitTest!("pham.db.fbdatabase")("failed - exiting and closing connection");
 
-            connection.close();
             connection.dispose();
-            connection = null;
         }
         connection.open();
 
         auto command = connection.createCommand();
         scope (exit)
-        {
             command.dispose();
-            command = null;
-        }
 
         enum maxRecordCount = 100_000;
         command.commandText = "select first(100000) * from foo";
@@ -3541,9 +3775,7 @@ unittest // FbConnection.createDatabase
         if (failed)
             traceUnitTest!("pham.db.fbdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
 
         deleteTestCreateDatabaseFile();
     }

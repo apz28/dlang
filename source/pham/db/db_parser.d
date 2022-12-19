@@ -13,9 +13,11 @@ module pham.db.parser;
 
 import std.array : Appender;
 import std.uni : isAlphaNum, isSpace;
+public import std.uni : sicmp;
 
 version (unittest) import pham.utl.test;
 import pham.utl.utf8 : nextUTF8Char;
+public import pham.db.message;
 import pham.db.type : uint32;
 
 nothrow @safe:
@@ -62,95 +64,29 @@ public:
         this.reset();
     }
 
-    static S parseParameter(S sql, void delegate(ref Appender!S result, S parameterName, uint32 parameterNumber) nothrow @safe parameterCallBack)
-    in
+    ptrdiff_t isCurrentKind(scope const(DbTokenKind)[] kinds) @nogc pure
     {
-        assert(parameterCallBack !is null);
-    }
-    do
-    {
-        version (TraceFunction) traceFunction!("pham.db.database")("sql.length=", sql.length);
-
-        if (sql.length == 0)
-            return sql;
-
-        size_t prevP, beginP;
-        uint32 parameterNumber; // Based 1 value
-        auto result = Appender!S();
-        auto tokenizer = DbTokenizer!S(sql);
-        while (!tokenizer.empty)
+        foreach (i; 0..kinds.length)
         {
-            //import pham.utl.test; dgWriteln("tokenizer.kind=", tokenizer.kind, ", tokenizer.front=", tokenizer.front);
-
-            final switch (tokenizer.kind)
-            {
-                case DbTokenKind.parameterUnnamed:
-                case DbTokenKind.parameterNamed:
-                    // Leading text before parameter?
-                    if (beginP < prevP)
-                    {
-                        //import pham.utl.test; dgWriteln("sql[beginP..prevP]=", sql[beginP..prevP]);
-
-                        result.put(sql[beginP..prevP]);
-                    }
-
-                    // save info for next round
-                    beginP = tokenizer.offset;
-
-                    parameterCallBack(result, tokenizer.front, ++parameterNumber);
-                    break;
-
-                case DbTokenKind.space:
-                case DbTokenKind.commentSingle:
-                case DbTokenKind.commentMulti:
-                case DbTokenKind.spaceLine:
-                case DbTokenKind.literal:
-                case DbTokenKind.quotedSingle:
-                case DbTokenKind.quotedDouble:
-                case DbTokenKind.comma:
-                case DbTokenKind.bracketBegin:
-                case DbTokenKind.bracketEnd:
-                case DbTokenKind.parenthesisBegin:
-                case DbTokenKind.parenthesisEnd:
-                case DbTokenKind.eos:
-                    break;
-            }
-
-            prevP = tokenizer.offset;
-            tokenizer.popFront();
+            if (kinds[i] == _currentKind)
+                return i;
         }
-
-        //import pham.utl.test; dgWriteln("tokenizer.kind=", tokenizer.kind, ", tokenizer.front=", tokenizer.front, ", parameterNumber=", parameterNumber);
-
-        if (parameterNumber == 0)
-            return sql;
-        else
-        {
-            // Remaining text?
-            if (beginP < sql.length)
-            {
-                //import pham.utl.test; dgWriteln("sql[beginP..$]=", sql[beginP..$]);
-
-                result.put(sql[beginP..$]);
-            }
-
-            return result.data;
-        }
+        return -1;
     }
-
+    
     void popFront() pure
     {
         popFrontImpl();
         static if (skipLevel != DbTokenSkipLevel.none)
         {
-            enum skipToken = skipLevel == DbTokenSkipLevel.space
+            enum skipTokenLevel = skipLevel == DbTokenSkipLevel.space
                 ? DbTokenKind.space
                 : (skipLevel == DbTokenSkipLevel.comment
                     ? DbTokenKind.commentMulti
                     : (skipLevel == DbTokenSkipLevel.spaceLine
                         ? DbTokenKind.spaceLine
-                        : assert(0)));
-            while (_currentKind <= skipToken)
+                        : assert(0, "Missing implementing of DbTokenSkipLevel element")));
+            while (_currentKind <= skipTokenLevel)
                 popFrontImpl();
         }
     }
@@ -162,6 +98,16 @@ public:
         popFront();
     }
 
+    static S removeQuoteIf(S s) pure
+    {
+        if (s.length <= 1)
+            return s;
+            
+        return s[0] == s[$ - 1] && (s[0] == '"' || s[0] == '`' || s[0] == '\'')
+            ? s[1..$ - 1]
+            : s;
+    }
+    
     pragma(inline, true)
     @property bool empty() const @nogc pure
     {
@@ -552,6 +498,139 @@ private:
     bool _malformed;
 }
 
+struct DbTokenErrorMessage
+{
+    import pham.utl.result : ResultIf;
+
+nothrow @safe:
+ 
+    static string conversion(string sqlKind, string fromValue, string toType) pure
+    {
+        scope (failure) assert(0);
+        return DbMessage.eMalformSQLStatementConversion.fmtMessage(sqlKind, fromValue, toType);
+    }
+    
+    static string eos(string sqlKind) pure
+    {
+        scope (failure) assert(0);
+        return DbMessage.eMalformSQLStatementEos.fmtMessage(sqlKind);
+    }
+    
+    static ResultIf!T eosResult(T)(string sqlKind)
+    {
+        return ResultIf!T.error(DbErrorCode.parse, eos(sqlKind));
+    }
+    
+    static string keyword(string sqlKind, string expected, string found) pure
+    {
+        scope (failure) assert(0);
+        return DbMessage.eMalformSQLStatementKeyword.fmtMessage(sqlKind, expected, found);
+    }
+    
+    static ResultIf!T keywordResult(T)(string sqlKind, string expected, string found)
+    {
+        return ResultIf!T.error(DbErrorCode.parse, keyword(sqlKind, expected, found));
+    }
+    
+    static string other(string sqlKind, string expected, string found) pure
+    {
+        scope (failure) assert(0);
+        return DbMessage.eMalformSQLStatementOther.fmtMessage(sqlKind, expected, found);
+    }
+
+    static ResultIf!T otherResult(T)(string sqlKind, string expected, string found)
+    {
+        return ResultIf!T.error(DbErrorCode.parse, other(sqlKind, expected, found));
+    }
+    
+    static string reKeyword(string sqlKind, string keyword) pure
+    {
+        scope (failure) assert(0);
+        return DbMessage.eMalformSQLStatementReKeyword.fmtMessage(sqlKind, keyword);
+    }
+
+    static ResultIf!T reKeywordResult(T)(string sqlKind, string keyword)
+    {
+        return ResultIf!T.error(DbErrorCode.parse, reKeyword(sqlKind, keyword));
+    }
+}
+
+S parseParameter(S)(S sql, void delegate(ref Appender!S result, S parameterName, uint32 parameterNumber) nothrow @safe parameterCallBack)
+in
+{
+    assert(parameterCallBack !is null);
+}
+do
+{
+    version (TraceFunction) traceFunction!("pham.db.database")("sql.length=", sql.length);
+
+    if (sql.length == 0)
+        return sql;
+
+    size_t prevP, beginP;
+    uint32 parameterNumber; // Based 1 value
+    auto result = Appender!S();
+    auto tokenizer = DbTokenizer!S(sql);
+    while (!tokenizer.empty)
+    {
+        //import pham.utl.test; dgWriteln("tokenizer.kind=", tokenizer.kind, ", tokenizer.front=", tokenizer.front);
+
+        final switch (tokenizer.kind)
+        {
+            case DbTokenKind.parameterNamed:
+            case DbTokenKind.parameterUnnamed:
+                // Leading text before parameter?
+                if (beginP < prevP)
+                {
+                    //import pham.utl.test; dgWriteln("sql[beginP..prevP]=", sql[beginP..prevP]);
+
+                    result.put(sql[beginP..prevP]);
+                }
+
+                // save info for next round
+                beginP = tokenizer.offset;
+
+                parameterCallBack(result, tokenizer.front, ++parameterNumber);
+                break;
+
+            case DbTokenKind.space:
+            case DbTokenKind.commentSingle:
+            case DbTokenKind.commentMulti:
+            case DbTokenKind.spaceLine:
+            case DbTokenKind.literal:
+            case DbTokenKind.quotedSingle:
+            case DbTokenKind.quotedDouble:
+            case DbTokenKind.comma:
+            case DbTokenKind.bracketBegin:
+            case DbTokenKind.bracketEnd:
+            case DbTokenKind.parenthesisBegin:
+            case DbTokenKind.parenthesisEnd:
+            case DbTokenKind.eos:
+                break;
+        }
+
+        prevP = tokenizer.offset;
+        tokenizer.popFront();
+    }
+
+    //import pham.utl.test; dgWriteln("tokenizer.kind=", tokenizer.kind, ", tokenizer.front=", tokenizer.front, ", parameterNumber=", parameterNumber);
+
+    if (parameterNumber == 0)
+        return sql;
+    else
+    {
+        // Remaining text?
+        if (beginP < sql.length)
+        {
+            //import pham.utl.test; dgWriteln("sql[beginP..$]=", sql[beginP..$]);
+
+            result.put(sql[beginP..$]);
+        }
+
+        return result.data;
+    }
+}
+
 
 // Any below codes are private
 private:
@@ -931,78 +1010,6 @@ unittest // DbTokenizer - Malform block comment
     checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
-unittest // DbTokenizer.parseParameter
-{
-    import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.parser.parseParameter");
-
-    static class StringList
-    {
-    nothrow @safe:
-
-    public:
-        StringList clear()
-        {
-            items.length = 0;
-            return this;
-        }
-
-        void saveParameter(ref Appender!string result, string prmName, uint32 prmNo)
-        {
-            result.put('?');
-            if (prmName.length)
-                items ~= prmName;
-        }
-
-    public:
-        string[] items;
-
-        alias items this;
-    }
-
-    string s;
-    auto slist = new StringList();
-
-    slist.clear();
-    assert(DbTokenizer!string.parseParameter("", &slist.saveParameter) == "");
-    assert(slist.length == 0);
-
-    slist.clear();
-    s = DbTokenizer!string.parseParameter("select count(int_field) FROM test", &slist.saveParameter);
-    assert(s == "select count(int_field) FROM test", s);
-    assert(slist.length == 0);
-
-    slist.clear();
-    s = DbTokenizer!string.parseParameter("select count(int_field) FROM test Where varchar_field = @p0", &slist.saveParameter);
-    assert(s == "select count(int_field) FROM test Where varchar_field = ?", s);
-    assert(slist.length == 1);
-    assert(slist[0] == "p0");
-
-    slist.clear();
-    s = DbTokenizer!string.parseParameter("select count(int_field) FROM test Where varchar_field = @p0 and int_field < :p1", &slist.saveParameter);
-    assert(s == "select count(int_field) FROM test Where varchar_field = ? and int_field < ?", s);
-    assert(slist.length == 2);
-    assert(slist[0] == "p0");
-    assert(slist[1] == "p1");
-
-    slist.clear();
-    s = DbTokenizer!string.parseParameter(" select count(int_field)  FROM test /* this is a comment with ' */  Where varchar_field = @_LongName$123 ", &slist.saveParameter);
-    assert(s == " select count(int_field)  FROM test /* this is a comment with ' */  Where varchar_field = ? ", s);
-    assert(slist.length == 1);
-    assert(slist[0] == "_LongName$123");
-
-    slist.clear();
-    s = DbTokenizer!string.parseParameter("select count(int_field), ' @ ' as ab, \" : \" ac FROM test Where varchar_field = @p0 -- comment with @p123 ", &slist.saveParameter);
-    assert(s == "select count(int_field), ' @ ' as ab, \" : \" ac FROM test Where varchar_field = ? -- comment with @p123 ", s);
-    assert(slist.length == 1);
-    assert(slist[0] == "p0");
-
-    slist.clear();
-    s = DbTokenizer!string.parseParameter("", &slist.saveParameter);
-    assert(s == "", s);
-    assert(slist.length == 0);
-}
-
 unittest // DbTokenizer - comment single line
 {
     import pham.utl.test;
@@ -1027,7 +1034,7 @@ unittest // DbTokenizer - comment multi lines
     checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
-unittest // SkipLevel
+unittest // DbTokenizer - SkipLevel
 {
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer.SkipLevel");
@@ -1052,4 +1059,75 @@ unittest // SkipLevel
     checkTokenizer(tokenizerSpaceLine, false, false, "", DbTokenKind.literal, "test"); tokenizerSpaceLine.popFront();
     checkTokenizer(tokenizerSpaceLine, false, false, "@", DbTokenKind.parameterNamed, "_LongName$123"); tokenizerSpaceLine.popFront();
     checkTokenizer(tokenizerSpaceLine, true, false, "", DbTokenKind.eos, "");
+}
+
+unittest // parseParameter
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.database")("unittest pham.db.parser.parseParameter");
+
+    static class StringList
+    {
+    nothrow @safe:
+
+    public:
+        StringList clear()
+        {
+            items.length = 0;
+            return this;
+        }
+
+        void saveParameter(ref Appender!string result, string prmName, uint32 prmNo)
+        {
+            result.put('?');
+            if (prmName.length)
+                items ~= prmName;
+        }
+
+    public:
+        string[] items;
+        alias items this;
+    }
+
+    string s;
+    auto slist = new StringList();
+
+    slist.clear();
+    assert(parseParameter("", &slist.saveParameter) == "");
+    assert(slist.length == 0);
+
+    slist.clear();
+    s = parseParameter("select count(int_field) FROM test", &slist.saveParameter);
+    assert(s == "select count(int_field) FROM test", s);
+    assert(slist.length == 0);
+
+    slist.clear();
+    s = parseParameter("select count(int_field) FROM test Where varchar_field = @p0", &slist.saveParameter);
+    assert(s == "select count(int_field) FROM test Where varchar_field = ?", s);
+    assert(slist.length == 1);
+    assert(slist[0] == "p0");
+
+    slist.clear();
+    s = parseParameter("select count(int_field) FROM test Where varchar_field = @p0 and int_field < :p1", &slist.saveParameter);
+    assert(s == "select count(int_field) FROM test Where varchar_field = ? and int_field < ?", s);
+    assert(slist.length == 2);
+    assert(slist[0] == "p0");
+    assert(slist[1] == "p1");
+
+    slist.clear();
+    s = parseParameter(" select count(int_field)  FROM test /* this is a comment with ' */  Where varchar_field = @_LongName$123 ", &slist.saveParameter);
+    assert(s == " select count(int_field)  FROM test /* this is a comment with ' */  Where varchar_field = ? ", s);
+    assert(slist.length == 1);
+    assert(slist[0] == "_LongName$123");
+
+    slist.clear();
+    s = parseParameter("select count(int_field), ' @ ' as ab, \" : \" ac FROM test Where varchar_field = @p0 -- comment with @p123 ", &slist.saveParameter);
+    assert(s == "select count(int_field), ' @ ' as ab, \" : \" ac FROM test Where varchar_field = ? -- comment with @p123 ", s);
+    assert(slist.length == 1);
+    assert(slist[0] == "p0");
+
+    slist.clear();
+    s = parseParameter("", &slist.saveParameter);
+    assert(s == "", s);
+    assert(slist.length == 0);
 }

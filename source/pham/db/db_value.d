@@ -19,10 +19,13 @@ import std.traits : isArrayT = isArray, Unqual;
 version (profile) import pham.utl.test : PerfFunction;
 import pham.dtm.variant_coerce;
 import pham.external.dec.variant_coerce;
+import pham.utl.variant : variantNoLengthMarker;
 public import pham.utl.variant : Variant, VariantType;
 import pham.utl.variant_coerce;
 import pham.db.convert;
 import pham.db.type;
+
+alias valueNoSizeMarker = variantNoLengthMarker;
 
 struct DbValue
 {
@@ -126,17 +129,20 @@ public:
 
     @property bool isNull() const nothrow pure @safe
     {
-        return _value.isNull;
+        return _value.isNull || (isDbTypeHasZeroSizeAsNull(_type) && size == 0);
     }
 
     /**
-     * Gets size, in bytes of the value
-     * used for chars, string, json, xml, binary, struct and array types.
-     * If instance does not have size, return -1
+     * Gets size or length of the value
+     * chars, string, json, xml, binary and array types is length
+     * struct is size
+     * If instance does not have size, return valueNoSizeMarker (-1)
      */
     @property ptrdiff_t size() const nothrow pure @safe
     {
-        return hasSize ? cast(ptrdiff_t)_value.length : -1;
+        return hasSize
+            ? (_type == DbType.record ? _value.typeSize : _value.length)
+            : valueNoSizeMarker;
     }
 
     /**
@@ -157,14 +163,12 @@ public:
     {
         return _value;
     }
+    alias value this;
 
     @property void value(Variant value) @safe
     {
         doAssignVariant(value);
     }
-
-public:
-    alias value this;
 
 package(pham.db):
     Variant _value;
@@ -178,39 +182,26 @@ private:
         static if (typeid(T) is typeid(null))
         {
             this._value.nullify();
-            version (DbValueTypeSet)
-            if (rhsTypeIf != DbType.unknown)
-                this._type = rhsTypeIf;
         }
         else static if (is(UT == bool))
         {
             this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.boolean;
         }
         else static if (is(UT == byte))
         {
             this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.int8;
         }
         else static if (is(UT == ubyte) || is(UT == short))
         {
             this._value = cast(short)rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.int16;
         }
         else static if (is(UT == ushort) || is(UT == int))
         {
             this._value = cast(int)rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.int32;
         }
         else static if (is(UT == uint) || is(UT == long) || is(UT == ulong))
         {
             this._value = cast(long)rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.int64;
         }
         else static if (is(UT == float))
         {
@@ -218,8 +209,6 @@ private:
                 this._value.nullify();
             else
                 this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.float32;
         }
         else static if (is(UT == double))
         {
@@ -227,8 +216,6 @@ private:
                 this._value.nullify();
             else
                 this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.float64;
         }
         else static if (is(UT == real))
         {
@@ -236,76 +223,52 @@ private:
                 this._value.nullify();
             else
                 this._value = cast(double)rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.float64;
         }
         else static if (is(UT == DbDate))
         {
             this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.date;
         }
         else static if (is(UT == DbDateTime))
         {
             this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : (rhs.isTZ ? DbType.datetimeTZ : DbType.datetime);
         }
         else static if (is(UT == DbTime))
         {
             this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : (rhs.isTZ ? DbType.timeTZ : DbType.time);
         }
         // Map to DbDateTime
         else static if (is(UT == DateTime))
         {
-            this._value = DbDateTime(rhs, 0, rhs.kind);
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.datetime;
+            this._value = DbDateTime.toDbDateTime(rhs);
         }
         // Map to DbTime
         else static if (is(UT == Time))
         {
-            this._value = DbTime(rhs);
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.time;
+            this._value = DbTime.toDbTime(rhs);
         }
         else static if (is(UT == UUID))
         {
             this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.uuid;
         }
         else static if (is(UT == char) || is(UT == wchar) || is(UT == dchar))
         {
             this._value = to!string(rhs);
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.chars;
         }
         else static if (is(T == string))
         {
             this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.string;
         }
         else static if (is(T == wstring) || is(T == dstring))
         {
             this._value = to!string(rhs);
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.string;
         }
         else static if (is(UT == char[]))
         {
             this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.chars;
         }
         else static if (is(UT == ubyte[]))
         {
             this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.binary;
         }
         else static if (is(UT == Decimal32))
         {
@@ -313,8 +276,6 @@ private:
                 this._value.nullify();
             else
                 this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.decimal32;
         }
         else static if (is(UT == Decimal64))
         {
@@ -322,8 +283,6 @@ private:
                 this._value.nullify();
             else
                 this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.decimal64;
         }
         else static if (is(UT == Decimal128))
         {
@@ -331,14 +290,10 @@ private:
                 this._value.nullify();
             else
                 this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.decimal128;
         }
         else static if (is(UT == BigInteger))
         {
             this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.int128;
         }
         else static if (is(UT == DbValue))
         {
@@ -348,17 +303,10 @@ private:
         else static if (is(T == struct))
         {
             this._value = rhs;
-            version (DbValueTypeSet)
-            this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : DbType.record;
         }
         else static if (isArrayT!T)
         {
             this._value = rhs;
-            version (DbValueTypeSet)
-            {
-                alias E = ElementType!T;
-                this._type = rhsTypeIf != DbType.unknown ? rhsTypeIf : (DbType.array | dbTypeOf!E());
-            }
         }
         else
             static assert(0, "Not supported type: " ~ T.stringof);
@@ -382,7 +330,7 @@ private:
                         break;
                     case VariantType.character:
                     // TODO convert to string
-                        this._type = DbType.chars;
+                        this._type = DbType.fixedString;
                         break;
                     case VariantType.integer:
                         this._type = DbType.int32;
@@ -406,6 +354,7 @@ private:
                     case VariantType.struct_:
                         this._type = DbType.record;
                         break;
+
                     case VariantType.associativeArray:
                     case VariantType.class_:
                     case VariantType.interface_:
@@ -660,64 +609,119 @@ unittest // DbValue
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.value.DbValue");
 
-    DbValue vb = DbValue(true);
+    static struct VStruct
+    {
+        int x;
+        float y;
+    }
+
+    DbValue vn = DbValue(null, DbType.unknown);
+    assert(vn.type == DbType.unknown);
+    assert(vn.size == valueNoSizeMarker);
+    assert(vn.isNull);
+
+    DbValue vb = DbValue(true, DbType.boolean);
     assert(vb.value == true);
-    version (DbValueTypeSet) assert(vb.type == DbType.boolean);
+    assert(vb.type == DbType.boolean);
+    assert(vb.size == valueNoSizeMarker);
+    assert(!vb.isNull);
 
-    DbValue vc = DbValue('x');
+    DbValue vc = DbValue('x', DbType.fixedString);
     assert(vc.value == "x");
-    version (DbValueTypeSet) assert(vc.type == DbType.chars);
+    assert(vc.type == DbType.fixedString);
+    assert(vc.size == 1);
+    assert(!vc.isNull);
 
-    DbValue vi8 = DbValue(byte.max);
+    DbValue vi8 = DbValue(byte.max, DbType.int8);
     assert(vi8.value == byte.max);
-    version (DbValueTypeSet) assert(vi8.type == DbType.int8);
+    assert(vi8.type == DbType.int8);
+    assert(vi8.size == valueNoSizeMarker);
+    assert(!vi8.isNull);
 
-    DbValue vi16 = DbValue(ubyte.max);
+    DbValue vi16 = DbValue(ubyte.max, DbType.int16);
     assert(vi16.value == ubyte.max);
-    version (DbValueTypeSet) assert(vi16.type == DbType.int16);
-    vi16 = DbValue(short.max);
+    assert(vi16.type == DbType.int16);
+    assert(vi16.size == valueNoSizeMarker);
+    assert(!vi16.isNull);
+    vi16 = DbValue(short.max, DbType.int16);
     assert(vi16.value == short.max);
-    version (DbValueTypeSet) assert(vi16.type == DbType.int16);
+    assert(vi16.type == DbType.int16);
+    assert(vi16.size == valueNoSizeMarker);
+    assert(!vi16.isNull);
 
-    DbValue vi32 = DbValue(ushort.max);
+    DbValue vi32 = DbValue(ushort.max, DbType.int32);
     assert(vi32.value == ushort.max);
-    version (DbValueTypeSet) assert(vi32.type == DbType.int32);
-    vi32 = DbValue(int.max);
+    assert(vi32.type == DbType.int32);
+    assert(vi32.size == valueNoSizeMarker);
+    assert(!vi32.isNull);
+    vi32 = DbValue(int.max, DbType.int32);
     assert(vi32.value == int.max);
-    version (DbValueTypeSet) assert(vi32.type == DbType.int32);
+    assert(vi32.type == DbType.int32);
+    assert(vi32.size == valueNoSizeMarker);
+    assert(!vi32.isNull);
 
-    DbValue vi64 = DbValue(uint.max);
+    DbValue vi64 = DbValue(uint.max, DbType.int64);
     assert(vi64.value == uint.max);
-    version (DbValueTypeSet) assert(vi64.type == DbType.int64);
-    vi64 = DbValue(long.min);
+    assert(vi64.type == DbType.int64);
+    assert(vi64.size == valueNoSizeMarker);
+    assert(!vi64.isNull);
+    vi64 = DbValue(long.min, DbType.int64);
     assert(vi64.value == long.min);
-    version (DbValueTypeSet) assert(vi64.type == DbType.int64);
-    vi64 = DbValue(1234567890uL);
+    assert(vi64.type == DbType.int64);
+    assert(vi64.size == valueNoSizeMarker);
+    assert(!vi64.isNull);
+    vi64 = DbValue(1234567890uL, DbType.int64);
     assert(vi64.value == 1234567890L);
-    version (DbValueTypeSet) assert(vi64.type == DbType.int64);
+    assert(vi64.type == DbType.int64);
+    assert(vi64.size == valueNoSizeMarker);
+    assert(!vi64.isNull);
 
-    DbValue vf32 = DbValue(float.max);
+    DbValue vf32 = DbValue(float.max, DbType.float32);
     assert(vf32.value == float.max);
-    version (DbValueTypeSet) assert(vf32.type == DbType.float32);
+    assert(vf32.type == DbType.float32);
+    assert(vf32.size == valueNoSizeMarker);
+    assert(!vf32.isNull);
 
-    DbValue vf64 = DbValue(double.max);
+    DbValue vf64 = DbValue(double.max, DbType.float64);
     assert(vf64.value == double.max);
-    version (DbValueTypeSet) assert(vf64.type == DbType.float64);
+    assert(vf64.type == DbType.float64);
+    assert(vf64.size == valueNoSizeMarker);
+    assert(!vf64.isNull);
 
-    DbValue vs = DbValue("this is a string");
-    assert(vs.value == "this is a string");
-    version (DbValueTypeSet) assert(vs.type == DbType.string);
+    DbValue vss = DbValue("this is a string", DbType.string);
+    assert(vss.value == "this is a string");
+    assert(vss.type == DbType.string);
+    assert(vss.size == "this is a string".length);
+    assert(!vss.isNull);
+    vss = DbValue("", DbType.string);
+    assert(vss.value == "");
+    assert(vss.type == DbType.string);
+    assert(vss.size == 0);
+    //assert(!vss.isNull); // TODO need to work out for this empty type?
 
-    DbValue vsw = DbValue("this is a wstring"w);
+    DbValue vsw = DbValue("this is a wstring"w, DbType.string);
     assert(vsw.value == "this is a wstring");
-    version (DbValueTypeSet) assert(vsw.type == DbType.string);
+    assert(vsw.type == DbType.string);
+    assert(vsw.size == "this is a wstring".length);
+    assert(!vsw.isNull);
 
-    DbValue vsd = DbValue("this is a dstring"d);
+    DbValue vsd = DbValue("this is a dstring"d, DbType.string);
     assert(vsd.value == "this is a dstring");
-    version (DbValueTypeSet) assert(vsd.type == DbType.string);
+    assert(vsd.type == DbType.string);
+    assert(vsd.size == "this is a dstring".length);
+    assert(!vsd.isNull);
 
     ubyte[] bi = [1,2,3];
-    DbValue vbi = DbValue(bi);
+    DbValue vbi = DbValue(bi, DbType.binary);
     assert(vbi.value == cast(ubyte[])[1,2,3]);
-    version (DbValueTypeSet) assert(vbi.type == DbType.binary);
+    assert(vbi.type == DbType.binary);
+    assert(vbi.size == [1,2,3].length);
+    assert(!vbi.isNull);
+
+    VStruct vs = VStruct(1, 1.2f);
+    DbValue vsi = DbValue(vs, DbType.record);
+    assert(vsi.value == VStruct(1, 1.2f));
+    assert(vsi.type == DbType.record);
+    assert(vsi.size == VStruct.sizeof);
+    assert(!vsi.isNull);
 }

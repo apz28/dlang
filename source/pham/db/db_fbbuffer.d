@@ -60,7 +60,7 @@ public:
         _connection = null;
     }
 
-    ubyte[] peekBytes() nothrow return
+    ubyte[] peekBytes() nothrow
     {
         return _buffer.peekBytes();
     }
@@ -115,7 +115,7 @@ public:
     {
         return _buffer;
     }
-    
+
 private:
     DbWriteBuffer _buffer;
     FbConnection _connection;
@@ -151,12 +151,12 @@ public:
         _connection = null;
     }
 
-    ubyte[] peekBytes() nothrow return
+    ubyte[] peekBytes() nothrow
     {
         return _buffer.peekBytes();
     }
 
-	void writeBytes(uint8 type, scope const(uint8)[] v) nothrow
+	void writeBytes(uint8 type, scope const(ubyte)[] v) nothrow
     in
     {
         assert(v.length < uint32.max);
@@ -251,10 +251,10 @@ public:
         this._buffer = buffer;
         this._writer = FbParameterWriter(buffer);
     }
-    
+
     this(FbConnection connection) nothrow
     {
-        DbWriteBuffer conBuffer = connection.acquireParameterWriteBuffer();        
+        DbWriteBuffer conBuffer = connection.acquireParameterWriteBuffer();
         this._connection = connection;
         this._buffer = conBuffer;
         this._writer = FbParameterWriter(conBuffer);
@@ -274,7 +274,7 @@ public:
         _connection = null;
     }
 
-    ubyte[] peekBytes() nothrow return
+    ubyte[] peekBytes() nothrow
     {
         return _buffer.peekBytes();
     }
@@ -293,7 +293,7 @@ public:
 	    _writer.writeUInt16(cast(uint16)(length * 2));
     }
 
-    void writeColumn(scope const(DbBaseType) baseType) nothrow
+    void writeColumn(scope const(DbBaseType) baseType, ref FbIscBlrDescriptor descriptor) nothrow
     in
     {
         assert(baseType.size >= -1 && baseType.size <= uint16.max);
@@ -305,9 +305,12 @@ public:
         const writeTypeFor = fbType == FbIscType.sql_null
             ? FbBlrWriteType.null_
             : (fbType == FbIscType.sql_array ? FbBlrWriteType.array : FbBlrWriteType.base);
-        writeType(FbIscFieldInfo.fbTypeToBlrType(fbType), baseType, writeTypeFor);
+
+        writeType(FbIscFieldInfo.fbTypeToBlrType(fbType), baseType, writeTypeFor, descriptor);
+
 	    _writer.writeUInt8(FbBlrType.blr_short);
 	    _writer.writeUInt8(0);
+        descriptor.addSize(2, 2);
     }
 
     void writeEnd(size_t length) nothrow
@@ -321,7 +324,8 @@ public:
 	    _writer.writeUInt8(FbIsc.blr_eoc);
     }
 
-    void writeType(FbBlrType blrType, scope const(DbBaseType) baseType, const(FbBlrWriteType) writeTypeFor) nothrow
+    void writeType(FbBlrType blrType, scope const(DbBaseType) baseType, const(FbBlrWriteType) writeTypeFor,
+        ref FbIscBlrDescriptor descriptor) nothrow
     in
     {
         assert(baseType.size >= -1 && baseType.size <= uint16.max);
@@ -331,80 +335,138 @@ public:
     {
         if (writeTypeFor == FbBlrWriteType.null_)
         {
+            const size = cast(int16)baseType.size;
 			_writer.writeUInt8(FbBlrType.blr_text);
-			_writer.writeInt16(0); // (cast(int16)baseType.size);
+			_writer.writeInt16(size);
+            descriptor.addSize(0, size);
             return;
         }
         else if (writeTypeFor == FbBlrWriteType.array)
         {
 			_writer.writeUInt8(FbBlrType.blr_quad);
 			_writer.writeInt8(0);
+            descriptor.addSize(4, 8);
             return;
         }
-        
+
         assert(writeTypeFor == FbBlrWriteType.base);
+
+        // Mapping
+        if (blrType == FbBlrType.blr_text)
+            blrType = FbBlrType.blr_text2;
+        else if (blrType == FbBlrType.blr_blob)
+            blrType = FbBlrType.blr_blob2;
+        else if (blrType == FbBlrType.blr_varying)
+            blrType = FbBlrType.blr_varying2;
+        else if (blrType == FbBlrType.blr_cstring)
+            blrType = FbBlrType.blr_cstring2;
+
+        // Type
+		_writer.writeUInt8(blrType);
+
 	    final switch (blrType) with (FbBlrType)
 	    {
             case blr_short:
-            case blr_long:
-            case blr_quad:
-            case blr_int64:
-            case blr_dec64:
-            case blr_dec128:
-            case blr_int128:
-			    _writer.writeUInt8(cast(uint8)blrType);
 			    _writer.writeInt8(cast(int8)baseType.numericScale);
+                descriptor.addSize(2, 2);
 			    break;
-                
+
+            case blr_long:
+			    _writer.writeInt8(cast(int8)baseType.numericScale);
+                descriptor.addSize(4, 4);
+			    break;
+
+            case blr_quad:
+			    _writer.writeInt8(cast(int8)baseType.numericScale);
+                descriptor.addSize(4, 8);
+			    break;
+
             case blr_float:
-            case blr_d_float:
-            case blr_sql_date:
-            case blr_sql_time:
-            case blr_bool:            
-            case blr_double:
-            case blr_sql_time_tz:
-            case blr_timestamp_tz:
-            case blr_ex_time_tz:
-            case blr_ex_timestamp_tz:
-            case blr_timestamp:
-			    _writer.writeUInt8(cast(uint8)blrType);              
+                descriptor.addSize(4, 4);
 			    break;
-                
+
+            case blr_d_float:
+            case blr_double:
+                descriptor.addSize(8, 8);
+			    break;
+
+            case blr_date:
+            case blr_time:
+                descriptor.addSize(4, 4);
+			    break;
+
             case blr_text:
             case blr_text2:
-			    _writer.writeUInt8(blr_text2);
+                const size = cast(int16)baseType.size;
 			    _writer.writeInt16(cast(int16)baseType.subTypeId); // charset
-			    _writer.writeInt16(cast(int16)baseType.size); // length
+			    _writer.writeInt16(size);
+                descriptor.addSize(0, size);
 			    break;
-                
-            case blr_blob: // Mapped to blr_blob2
+
+            case blr_int64:
+			    _writer.writeInt8(cast(int8)baseType.numericScale);
+                descriptor.addSize(8, 8);
+			    break;
+
             case blr_blob2:
-			    //_writer.writeUInt8(blr_quad);
-			    //_writer.writeInt8(0);
-                _writer.writeUInt8(blr_blob2);
+            case blr_blob:
 			    _writer.writeInt16(cast(int16)baseType.subTypeId);
 			    _writer.writeInt16(0); // charset
+                descriptor.addSize(4, 8);
 			    break;
-            
-            case blr_varying: // Mapped to blr_varying2
+
+            case blr_bool:
+                descriptor.addSize(0, 1);
+			    break;
+
+            case blr_dec16:
+                descriptor.addSize(8, 8);
+			    break;
+
+            case blr_dec34:
+                descriptor.addSize(8, 16);
+			    break;
+
+            case blr_int128:
+			    _writer.writeInt8(cast(int8)baseType.numericScale);
+                descriptor.addSize(8, 16);
+			    break;
+
+            case blr_time_tz:
+                descriptor.addSize(4, 6);
+			    break;
+
+            case blr_timestamp_tz:
+                descriptor.addSize(4, 10);
+			    break;
+
+            case blr_ex_time_tz:
+                descriptor.addSize(4, 8);
+			    break;
+
+            case blr_ex_timestamp_tz:
+                descriptor.addSize(4, 12);
+			    break;
+
+            case blr_timestamp:
+                descriptor.addSize(4, 8);
+			    break;
+
+            case blr_varying:
             case blr_varying2:
-			    _writer.writeUInt8(blr_varying2);
-			    _writer.writeInt16(cast(int16)baseType.subTypeId); // charset
-			    _writer.writeInt16(cast(int16)baseType.size); // length
-			    break;
-                
-            case blr_cstring: // Mapped to blr_cstring2
+            case blr_cstring:
             case blr_cstring2:
-                _writer.writeUInt8(blr_cstring2);
-			    _writer.writeInt16(cast(int16)baseType.subTypeId);            
-			    _writer.writeInt16(cast(int16)baseType.size);  
-                break;
-            
+                const size = cast(int16)baseType.size;
+			    _writer.writeInt16(cast(int16)baseType.subTypeId); // charset
+			    _writer.writeInt16(size);
+                descriptor.addSize(2, size + 2);
+			    break;
+
             case blr_blob_id:
-                assert(0, "blr_blob_id [45] not supported");
-	    }        
+                assert(0);
+	    }
     }
-    
+
 private:
     DbWriteBuffer _buffer;
     FbConnection _connection;
@@ -440,12 +502,12 @@ public:
         _connection = null;
     }
 
-    ubyte[] peekBytes() nothrow return
+    ubyte[] peekBytes() nothrow
     {
         return _buffer.peekBytes();
     }
 
-	void writeBytes(uint8 type, scope const(uint8)[] v) nothrow
+	void writeBytes(uint8 type, scope const(ubyte)[] v) nothrow
     in
     {
         assert(v.length < uint32.max);
@@ -512,7 +574,7 @@ public:
 		_writer.writeInt32(v);
 	}
 
-    void writeMultiParts(uint8 type, scope const(uint8)[] v) nothrow
+    void writeMultiParts(uint8 type, scope const(ubyte)[] v) nothrow
     {
         if (versionId > FbIsc.isc_dpb_version1)
             return writeBytes(type, v);
@@ -596,12 +658,12 @@ public:
         _connection = null;
     }
 
-    ubyte[] peekBytes() nothrow return
+    ubyte[] peekBytes() nothrow
     {
         return _buffer.peekBytes();
     }
 
-	void writeBytes(uint8 type, scope const(uint8)[] v) nothrow
+	void writeBytes(uint8 type, scope const(ubyte)[] v) nothrow
     in
     {
         assert(v.length <= uint8.max);
@@ -753,8 +815,9 @@ public:
 				return D(readFloat64());
     		case FbIscType.sql_float:
 				return D(readFloat32());
-            case FbIscType.sql_dec64:
-            case FbIscType.sql_dec128:
+            case FbIscType.sql_dec16:
+            case FbIscType.sql_dec34:
+                assert(decimalByteLength!D() == 8 || decimalByteLength!D() == 16);
                 auto bytes = _reader.readBytes(decimalByteLength!D());
                 return decimalDecode!D(bytes);
 			default:
@@ -835,7 +898,7 @@ public:
 
     FbOperation readOperation()
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        version (TraceFunctionReader) traceFunction!("pham.db.fbdatabase")();
 
         static assert(int32.sizeof == FbOperation.sizeof);
 
@@ -843,7 +906,7 @@ public:
         {
             auto result = readInt32();
 
-            version (TraceFunction) traceFunction!("pham.db.fbdatabase")("code=", result);
+            version (TraceFunctionReader) traceFunction!("pham.db.fbdatabase")("code=", result);
 
             if (result != FbIsc.op_dummy)
                 return result;
@@ -857,7 +920,7 @@ public:
 
     FbIscStatues readStatuses() @trusted
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        version (TraceFunctionReader) traceFunction!("pham.db.fbdatabase")();
 
         FbIscStatues result;
         int gdsCode;
@@ -868,7 +931,7 @@ public:
         {
 			auto typeCode = readInt32();
 
-            version (TraceFunction) traceFunction!("pham.db.fbdatabase")("typeCode=", typeCode);
+            version (TraceFunctionReader) traceFunction!("pham.db.fbdatabase")("typeCode=", typeCode);
 
 			switch (typeCode)
 			{
@@ -976,7 +1039,7 @@ private:
     {
         const paddingNBytes = (4 - nBytes) & 3;
         if (paddingNBytes)
-            _buffer.advance(paddingNBytes);
+            _reader.advance(paddingNBytes);
     }
 
 private:
@@ -1026,13 +1089,13 @@ public:
 
     void flush()
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        version (TraceFunctionWriter) traceFunction!("pham.db.fbdatabase")();
 
         _buffer.flush();
     }
 
     pragma(inline, true)
-    ubyte[] peekBytes() nothrow return
+    ubyte[] peekBytes() nothrow
     {
         return _buffer.peekBytes();
     }
@@ -1045,7 +1108,7 @@ public:
     do
     {
         const len = cast(uint16)v.length;
-        
+
         // Bizarre with three copies of the length
         writeInt32(cast(int32)len);
         writeInt32(cast(int32)len);
@@ -1061,7 +1124,7 @@ public:
         writePad(1);
     }
 
-    void writeBytes(scope const(uint8)[] v) nothrow
+    void writeBytes(scope const(ubyte)[] v) nothrow
     in
     {
         assert(v.length < fbMaxPackageSize);
@@ -1138,8 +1201,8 @@ public:
 				return writeFloat64(cast(float64)v);
     		case FbIscType.sql_float:
 				return writeFloat32(cast(float32)v);
-            case FbIscType.sql_dec64:
-            case FbIscType.sql_dec128:
+            case FbIscType.sql_dec16:
+            case FbIscType.sql_dec34:
                 ShortStringBuffer!ubyte buffer;
                 _writer.writeBytes(decimalEncode!D(buffer, v)[]);
                 return;
@@ -1182,7 +1245,7 @@ public:
     void writeHandle(FbHandle handle) nothrow
     {
         static assert(uint32.sizeof == FbHandle.sizeof);
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("handle=", handle);
+        version (TraceFunctionWriter) traceFunction!("pham.db.fbdatabase")("handle=", handle);
 
         _writer.writeUInt32(cast(uint32)handle);
     }
@@ -1191,7 +1254,7 @@ public:
     void writeId(FbId id) nothrow
     {
         static assert(int64.sizeof == FbId.sizeof);
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("id=", id);
+        version (TraceFunctionWriter) traceFunction!("pham.db.fbdatabase")("id=", id);
 
         _writer.writeInt64(cast(int64)id);
     }
@@ -1234,7 +1297,7 @@ public:
         _writer.writeBytes(bytes);
     }
 
-    void writeOpaqueBytes(scope const(uint8)[] v, const(size_t) forLength) nothrow
+    void writeOpaqueBytes(scope const(ubyte)[] v, const(size_t) forLength) nothrow
     in
     {
         assert(v.length < fbMaxPackageSize);
@@ -1256,7 +1319,7 @@ public:
     void writeOperation(FbOperation operation) nothrow
     {
         static assert(int32.sizeof == FbOperation.sizeof);
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("operation=", operation);
+        version (TraceFunctionWriter) traceFunction!("pham.db.fbdatabase")("operation=", operation);
 
         writeInt32(cast(int32)operation);
     }

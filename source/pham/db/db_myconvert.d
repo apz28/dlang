@@ -86,7 +86,7 @@ uint8 dateEncode(ref ubyte[maxDateBufferSize] myDateBytes, scope const(Date) dat
 static immutable DateTimePattern[] datePatterns;
 bool dateDecodeString(scope const(char)[] myDateString, ref DbDate dbDate)
 {
-	version (TraceFunction) traceFunction!("pham.db.mydatabase")("myDateString=", myDateString);
+	version (TraceFunction) debug traceFunction!("pham.db.mydatabase")("myDateString=", myDateString);
 	assert(datePatterns.length != 0);
 
 	Date dt = void;
@@ -170,7 +170,7 @@ uint8 dateTimeEncode(ref ubyte[maxDateTimeBufferSize] myDateTimeBytes, scope con
 static immutable DateTimePattern[] dateTimePatterns;
 bool dateTimeDecodeString(scope const(char)[] myDateTimeString, ref DbDateTime dbDateTime)
 {
-	version (TraceFunction) traceFunction!("pham.db.mydatabase")("myDateTimeString=", myDateTimeString);
+	version (TraceFunction) debug traceFunction!("pham.db.mydatabase")("myDateTimeString=", myDateTimeString);
 	assert(dateTimePatterns.length != 0);
 
 	DateTime dt = void;
@@ -314,7 +314,7 @@ uint8 timeSpanEncode(ref ubyte[maxTimeSpanBufferSize] myTimeSpanBytes, scope con
 static immutable DateTimePattern[] timePatterns;
 bool timeSpanDecodeString(scope const(char)[] myTimeString, ref DbTimeSpan dbTimeSpan)
 {
-	version (TraceFunction) traceFunction!("pham.db.mydatabase")("myTimeString=", myTimeString);
+	version (TraceFunction) debug traceFunction!("pham.db.mydatabase")("myTimeString=", myTimeString);
 	assert(timePatterns.length != 0);
 
 	Time tm = void;
@@ -392,7 +392,7 @@ do
 		result |= cast(T)(v[7]) << shift;
     }
 
-	version (TraceFunction) traceFunction!("pham.db.mydatabase")("uintDecode.result=", result, ", bytes=", v.dgToHex());
+	version (TraceFunction) debug traceFunction!("pham.db.mydatabase")("uintDecode.result=", result, ", bytes=", v.dgToHex());
 
     return result;
 }

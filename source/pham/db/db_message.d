@@ -17,7 +17,8 @@ enum DbErrorCode : int
 {
     connect = 1,
     read = 2,
-    write = 3
+    write = 3,
+    parse = 4,
 }
 
 struct DbMessage
@@ -57,22 +58,40 @@ struct DbMessage
     static immutable eInvalidConnectionAuthUnsupportedName = "Unsupported authenticated type: %s";
     static immutable eInvalidConnectionAuthVerificationFailed = "Unable to verify authenticated server signature for type: %s";
     static immutable eInvalidConnectionHostName = "Unable to resolve host '%s'";
+    static immutable eInvalidConnectionFatal = "Cannot perform %s when connection to '%s' is in fatal state";
     static immutable eInvalidConnectionInactive = "Cannot perform %s when connection to '%s' is closed";
     static immutable eInvalidConnectionName = "Connection element name '%s' is invalid";
     static immutable eInvalidConnectionStatus = "Connection status '%s' is invalid";
     static immutable eInvalidConnectionRequiredEncryption = "Wire encryption to '%s' is required but not support";
-    static immutable eInvalidConnectionPoolMaxUsed = "All connections are used: %d / %d";
+    static immutable eInvalidConnectionPoolMaxUsed = "All connections are in used: %d / %d";
 
     static immutable eInvalidSQLDAFieldIndex = "Invalid/Unsupported SQLDA type %d. FieldIndex, %d, is invalid";
     static immutable eInvalidSQLDAIndex = "Invalid/Unsupported SQLDA type %d. Index is not set";
     static immutable eInvalidSQLDANotEnoughData = "Invalid/Unsupported SQLDA type %d. Not enough data for reading %d bytes";
     static immutable eInvalidSQLDAType = "Invalid/Unsupported SQLDA type %d";
+    
+    static immutable eMalformSQLStatementConversion = "Malformed '%s' statement. Unable to convert '%s' to '%s'";
+    static immutable eMalformSQLStatementEos = "Malformed '%s' statement. Not enough data for parsing";
+    static immutable eMalformSQLStatementKeyword = "Malformed '%s' statement. Expected keyword '%s' but '%s' found";
+    static immutable eMalformSQLStatementOther = "Malformed '%s' statement. Expected '%s' but '%s' found";
+    static immutable eMalformSQLStatementReKeyword = "Malformed '%s' statement. Recurrence keyword '%s'";
 
-    static immutable eCompletedTransaction = "Cannot perform %s when transaction is already completed";
+    static immutable eCompletedTransaction = "Cannot perform %s when transaction was already completed";
     static immutable eInvalidTransactionState = "Cannot perform %s when transaction state is %s; expecting %s";
 
-    static immutable eInvalidName = "Name '%s' is not found for '%s'";
-    static immutable eInvalidSchemeName = "Database scheme name '%s' is not found";
+    static immutable eInvalidName = "Name '%s' not found for '%s'";
+    static immutable eInvalidSchemeName = "Database scheme name '%s' not found";
+}
+
+string addMessageLine(ref string message, string addingLine) nothrow
+{
+    import std.ascii : newline;
+    
+    if (message.length == 0)
+        message = addingLine;
+    else
+        message ~= newline ~ addingLine;
+    return message;
 }
 
 string fmtMessage(Args...)(string fmt, Args args)

@@ -30,6 +30,7 @@ public:
         string statusMessage, statusState;
         int statusCode;
         statues.buildMessage(statusMessage, statusCode, statusState);
+        
         super(statusMessage, statusCode, statusState, 0, statusCode, next);
         this.statues = statues;
     }

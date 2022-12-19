@@ -112,7 +112,7 @@ public:
         this._flags.set(DbCommandFlag.implicitTransaction, false);
     }
 
-    final typeof(this) cancel()
+    final typeof(this) cancel() @safe
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
@@ -236,7 +236,7 @@ public:
         return _connection !is null ? _connection.forLogInfo() : null;
     }
 
-    abstract const(char)[] getExecutionPlan(uint vendorMode = 0);
+    abstract const(char)[] getExecutionPlan(uint vendorMode = 0) @safe;
 
     final DbParameter[] inputParameters() nothrow @safe
     {
@@ -292,24 +292,32 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
-        checkActiveReader();
-
-        // Must reset regardless if error taken place
-        // to avoid double errors when connection is shutting down
-        scope (exit)
+        void unprepareExit() @safe
         {
             resetNewStatement(ResetStatementKind.unprepare);
 
             _executeCommandText = null;
             _lastInsertedId.reset();
             _recordsAffected.reset();
+            _handle.reset();
             _baseCommandType = 0;
-            _commandState = DbCommandState.unprepared;
             _flags.set(DbCommandFlag.prepared, false);
+            _commandState = DbCommandState.unprepared;
         }
 
-        doUnprepare();
+        if (_connection !is null && _connection.isFatalError)
+        {
+            unprepareExit();
+            return this;
+        }
 
+        checkActiveReader();
+
+        // Must reset regardless if error taken place
+        // to avoid double errors when connection is shutting down
+        scope (exit)
+            unprepareExit();
+        doUnprepare();
         return this;
     }
 
@@ -324,6 +332,11 @@ public:
         return writeBlob(clobColumn, clobValue.representation, optionalClobValueId);
     }
 
+    @property final bool activeReader() const nothrow pure @safe
+    {
+        return _activeReader;
+    }
+    
     @property final bool allRowsFetched() const nothrow @safe
     {
         return _flags.on(DbCommandFlag.allRowsFetched);
@@ -332,6 +345,11 @@ public:
     @property final int baseCommandType() const nothrow @safe
     {
         return _baseCommandType;
+    }
+
+    @property final bool batched() const nothrow pure @safe
+    {
+        return _flags.on(DbCommandFlag.batched);
     }
 
     @property final DbCommandState commandState() const nothrow @safe
@@ -377,7 +395,7 @@ public:
     }
 
     /**
-     * Gets or sets the time (minimum value based in seconds) to wait for executing
+     * Gets or sets the time to wait for executing
      * a command and generating an error if elapsed
      */
     @property final Duration commandTimeout() const nothrow @safe
@@ -453,7 +471,7 @@ public:
     /**
      * Returns true if this DbCommand has atleast one DbParameter; otherwise returns false
      */
-    @property final size_t hasParameters() nothrow pure @safe
+    @property final size_t hasParameters() const nothrow pure @safe
     {
         return _parameters !is null ? _parameters.length : 0;
     }
@@ -467,11 +485,6 @@ public:
     {
         enum outputOnly = false;
         return _parameters !is null ? _parameters.outputCount(outputOnly) : 0;
-    }
-
-    @property final bool activeReader() const nothrow pure @safe
-    {
-        return _activeReader;
     }
 
     /**
@@ -576,12 +589,17 @@ public:
     nothrow @safe DelegateList!(Object, DbNotificationMessage[]) notifyMessage;
     DbCustomAttributeList customAttributes;
     DbNotificationMessage[] notificationMessages;
-    Duration logTimmingWarningDur = dur!"seconds"(10);
+    Duration logTimmingWarningDur = dur!"seconds"(60);
 
 package(pham.db):
     @property final void allRowsFetched(bool value) nothrow pure @safe
     {
         _flags.set(DbCommandFlag.allRowsFetched, value);
+    }
+
+    @property final void batched(bool value) nothrow pure @safe
+    {
+        _flags.set(DbCommandFlag.batched, value);
     }
 
     pragma(inline, true)
@@ -654,7 +672,7 @@ protected:
 
     string buildStoredProcedureSql(string storedProcedureName, const(BuildCommandTextState) state) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("storedProcedureName=", storedProcedureName, ", state=", state);
+        version (TraceFunction) traceFunction!("pham.db.database")("state=", state, ", storedProcedureName=", storedProcedureName);
 
         if (storedProcedureName.length == 0)
             return null;
@@ -682,10 +700,7 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.database")("tableName=", tableName, ", state=", state);
 
-        if (tableName.length == 0)
-            return null;
-
-        auto result = "SELECT * FROM " ~ tableName;
+        auto result = tableName.length != 0 ? ("SELECT * FROM " ~ tableName) : null;
 
         version (TraceFunction) traceFunction!("pham.db.database")("tableName=", tableName, ", result=", result);
 
@@ -694,16 +709,13 @@ protected:
 
     string buildTextSql(string sql, const(BuildCommandTextState) state) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("sql=", sql, ", state=", state);
-
-        if (sql.length == 0)
-            return null;
+        version (TraceFunction) traceFunction!("pham.db.database")("state=", state, ", sql=", sql);
 
         // Do not clear to allow parameters to be filled without calling prepare
         // clearParameters();
 
-        auto result = parametersCheck && commandType != DbCommandType.ddl
-            ? DbTokenizer!string.parseParameter(sql, &buildParameterNameCallback)
+        auto result = sql.length != 0 && parametersCheck && commandType != DbCommandType.ddl
+            ? parseParameter(sql, &buildParameterNameCallback)
             : sql;
 
         version (TraceFunction) traceFunction!("pham.db.database")("result=", result);
@@ -721,11 +733,13 @@ protected:
             throw new DbException(msg, DbErrorCode.connect, null);
         }
 
-        if (_connection is null || _connection.state != DbConnectionState.open)
+        if (_connection is null)
         {
             auto msg = DbMessage.eInvalidCommandConnection.fmtMessage(callerName);
             throw new DbException(msg, DbErrorCode.connect, null);
         }
+        else
+            _connection.checkActive(callerName);
     }
 
     final void checkActiveReader(string callerName = __FUNCTION__) @safe
@@ -774,22 +788,33 @@ protected:
         }
     }
 
-    typeof(this) doCommandText(string customText, DbCommandType type) @safe
+    typeof(this) doCommandText(string commandText, DbCommandType type) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("type=", type, ", customText=", customText);
+        version (TraceFunction) traceFunction!("pham.db.database")("type=", type, ", commandText=", commandText);
 
         if (prepared)
             unprepare();
 
         clearParameters();
         _executeCommandText = null;
-        _commandText = customText;
+        _commandText = commandText;
         return commandType(type);
     }
 
     override void doDispose(bool disposing) nothrow @safe
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
+
+        try
+        {
+            if (_connection !is null && prepared)
+                unprepare();
+        }
+        catch (Exception e)
+        {
+            if (auto log = logger)
+                log.error(e.msg, e);
+        }
 
         if (_fields !is null)
         {
@@ -825,12 +850,13 @@ protected:
     {
         if (notificationMessages.length == 0)
             return;
+        scope (exit)
+            notificationMessages.length = 0;
 
         if (notifyMessage)
         {
             try { notifyMessage(this, notificationMessages); } catch(Exception) {}
         }
-        notificationMessages.length = 0;
     }
 
     final void mergeOutputParams(ref DbRowValue values) @safe
@@ -893,6 +919,8 @@ protected:
 
     void removeReaderCompleted(const(bool) implicitTransaction) nothrow @safe
     {
+        version (TraceFunction) traceFunction!("pham.db.database")("implicitTransaction=", implicitTransaction);
+
         if (implicitTransaction && disposingState != DisposableState.destructing)
         {
             try
@@ -1078,7 +1106,7 @@ public:
         this._connectionStringBuilder.assign(connectionStringBuilder);
     }
 
-    final void cancelCommand(DbCommand command = null)
+    final void cancelCommand(DbCommand command = null) @safe
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
@@ -1087,7 +1115,7 @@ public:
         cancelCommand(command, data);
     }
 
-    final void cancelCommand(DbCommand command, DbCancelCommandData data)
+    final void cancelCommand(DbCommand command, DbCancelCommandData data) @safe
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
@@ -1099,7 +1127,7 @@ public:
         doNotifyMessage();
     }
 
-    final void close()
+    final void close() @safe
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
@@ -1129,12 +1157,12 @@ public:
         doClose(false);
     }
 
-    final DLinkDbCommandTypes.DLinkRange commands()
+    final DLinkDbCommandTypes.DLinkRange commands() @safe
     {
         return _commands[];
     }
 
-    abstract DbCancelCommandData createCancelCommandData(DbCommand command = null);
+    abstract DbCancelCommandData createCancelCommandData(DbCommand command = null) @safe;
 
     final DbCommand createCommand(string name = null) @safe
     {
@@ -1142,6 +1170,24 @@ public:
 
         checkActive();
         return _commands.insertEnd(database.createCommand(this, name));
+    }
+
+    final DbCommand createCommandDDL(string commandDDL, string name = null) @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.database")();
+
+        auto result = createCommand(name);
+        result.commandDDL = commandDDL;
+        return result;
+    }
+
+    final DbCommand createCommandText(string commandText, string name = null) @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.database")();
+
+        auto result = createCommand(name);
+        result.commandText = commandText;
+        return result;
     }
 
     final DbTransaction createTransaction(DbIsolationLevel isolationLevel = DbIsolationLevel.readCommitted) @safe
@@ -1172,14 +1218,15 @@ public:
         return _connectionStringBuilder.forLogInfo();
     }
 
-    final typeof(this) open()
+    final typeof(this) open() @safe
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
-        auto previousState = state;
+        const previousState = _state;
         if (previousState == DbConnectionState.open)
             return this;
 
+        _fatalError = false;
         _state = DbConnectionState.opening;
         serverInfo.clear();
         notificationMessages.length = 0;
@@ -1187,6 +1234,7 @@ public:
 
         scope (failure)
         {
+            _fatalError = true;
             _state = DbConnectionState.failing;
             doClose(true);
 
@@ -1242,12 +1290,12 @@ public:
     /**
      * Gets or sets the connection string used to establish the initial connection.
      */
-    @property final string connectionString()
+    @property final string connectionString() @safe
     {
         return connectionStringBuilder.connectionString;
     }
 
-    @property final typeof(this) connectionString(string value)
+    @property final typeof(this) connectionString(string value) @safe
     {
         if (connectionString != value)
         {
@@ -1270,6 +1318,15 @@ public:
     @property final DbHandle handle() const nothrow @safe
     {
         return _handle;
+    }
+
+    /**
+     * Returns true if there is a mismatched reading/writing data with database server and
+     * must perform disconnect and connect again
+     */
+    @property final bool isFatalError() const nothrow pure @safe
+    {
+        return _fatalError;
     }
 
     @property final DbTransaction lastTransaction(bool excludeDefaultTransaction) nothrow pure @safe
@@ -1332,6 +1389,13 @@ package(pham.db):
         return (++_nextCounter);
     }
 
+    void fatalError(string callerName = __FUNCTION__) @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.database")("callerName=", callerName);
+
+        _fatalError = true;
+    }
+
 protected:
     final void checkActive(string callerName = __FUNCTION__) @safe
     {
@@ -1339,7 +1403,9 @@ protected:
 
         if (state != DbConnectionState.open)
         {
-            auto msg = DbMessage.eInvalidConnectionInactive.fmtMessage(callerName, connectionStringBuilder.forErrorInfo());
+            auto msg = _fatalError
+                ? DbMessage.eInvalidConnectionFatal.fmtMessage(callerName, connectionStringBuilder.forErrorInfo())
+                : DbMessage.eInvalidConnectionInactive.fmtMessage(callerName, connectionStringBuilder.forErrorInfo());
             throw new DbException(msg, DbErrorCode.connect, null);
         }
     }
@@ -1386,13 +1452,13 @@ protected:
             _transactions.remove(_transactions.last).disposal(disposing);
     }
 
-    final void doBeginStateChange(DbConnectionState newState)
+    final void doBeginStateChange(DbConnectionState newState) @safe
     {
         if (beginStateChange)
             beginStateChange(this, newState);
     }
 
-    final void doEndStateChange(DbConnectionState oldState)
+    final void doEndStateChange(DbConnectionState oldState) @safe
     {
         if (endStateChange)
             endStateChange(this, oldState);
@@ -1402,6 +1468,17 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
+        try
+        {
+            if (_state == DbConnectionState.open)
+                close();
+        }
+        catch (Exception e)
+        {
+            if (auto log = logger)
+                log.error(e.msg, e);
+        }        
+            
         beginStateChange.clear();
         endStateChange.clear();
         disposeTransactions(disposing);
@@ -1414,7 +1491,7 @@ protected:
         _state = DbConnectionState.closed;
     }
 
-    final void doNotifyMessage() nothrow @trusted
+    final void doNotifyMessage() nothrow @safe
     {
         if (notificationMessages.length == 0)
             return;
@@ -1489,7 +1566,7 @@ public:
      * Params:
      *  newState = new state value
      */
-    nothrow @safe DelegateList!(DbConnection, DbConnectionState) beginStateChange;
+    DelegateList!(DbConnection, DbConnectionState) beginStateChange;
 
     /**
      * Delegate to get notify when a state change
@@ -1497,9 +1574,9 @@ public:
      * Params:
      *  oldState = old state value
      */
-    nothrow @safe DelegateList!(DbConnection, DbConnectionState) endStateChange;
+    DelegateList!(DbConnection, DbConnectionState) endStateChange;
 
-    nothrow @safe DelegateList!(Object, DbNotificationMessage[]) notifyMessage;
+    DelegateList!(Object, DbNotificationMessage[]) notifyMessage;
 
     DbNotificationMessage[] notificationMessages;
 
@@ -1523,6 +1600,7 @@ protected:
     int _readerCounter;
     DbConnectionState _state;
     DbConnectionType _type;
+    bool _fatalError;
 
 private:
     DLinkDbCommandTypes.DLinkList _commands;
@@ -2380,8 +2458,10 @@ public:
     }
 
 public:
-    abstract DbCommand createCommand(DbConnection connection, string name = null) nothrow;
-    abstract DbCommand createCommand(DbConnection connection, DbTransaction transaction, string name = null) nothrow;
+    abstract DbCommand createCommand(DbConnection connection,
+        string name = null) nothrow;
+    abstract DbCommand createCommand(DbConnection connection, DbTransaction transaction,
+        string name = null) nothrow;
     abstract DbConnection createConnection(string connectionString) nothrow;
     abstract DbConnection createConnection(DbConnectionStringBuilder connectionStringBuilder) nothrow;
     abstract DbConnectionStringBuilder createConnectionStringBuilder(string connectionString) nothrow;
@@ -2389,7 +2469,8 @@ public:
     abstract DbFieldList createFieldList(DbCommand command) nothrow;
     abstract DbParameter createParameter(DbIdentitier name) nothrow;
     abstract DbParameterList createParameterList() nothrow;
-    abstract DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel, bool defaultTransaction) nothrow;
+    abstract DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel,
+        bool defaultTransaction = false) nothrow;
 
     final DbField createField(DbCommand command, string name) nothrow
     {
@@ -2940,12 +3021,12 @@ public:
 
     abstract DbField createSelf(DbCommand command) nothrow @safe;
 
-    @property final DbCommand command() nothrow @safe
+    @property final DbCommand command() nothrow pure @safe
     {
         return _command;
     }
 
-    @property final DbDatabase database() nothrow @safe
+    @property final DbDatabase database() nothrow pure @safe
     {
         return _command !is null ? _command.database : null;
     }
@@ -3054,12 +3135,12 @@ public:
         version (TraceInvalidMemoryOp) traceFunction!("pham.db.database")(className(this));
     }
 
-    @property final DbCommand command() nothrow @safe
+    @property final DbCommand command() nothrow pure @safe
     {
         return _command;
     }
 
-    @property final DbDatabase database() nothrow @safe
+    @property final DbDatabase database() nothrow pure @safe
     {
         return _command !is null ? _command.database : null;
     }
@@ -3101,6 +3182,29 @@ public:
     {
         this._name = name;
         this._flags.set(DbSchemaColumnFlag.allowNull, true);
+    }
+
+    final DbParameter cloneMetaInfo(DbParameter source) nothrow pure @safe
+    in
+    {
+        assert(source !is null);
+    }
+    do
+    {
+        //this._name = source._name;
+        this._baseName = source._baseName;
+        this._baseOwner = source._baseOwner;
+        this._baseSchemaName = source._baseSchemaName;
+        this._baseTableName = source._baseTableName;
+        this._baseId = source._baseId;
+        this._baseTableId = source._baseTableId;
+        this._baseType = source._baseType;
+        //this._ordinal = source._ordinal;
+        this._size = source._size;
+        this._type = source._type;
+        this._flags = source._flags;
+        this._direction = source._direction;
+        return this;
     }
 
     final bool hasInputValue() const nothrow pure @safe
@@ -3147,14 +3251,21 @@ public:
         return this;
     }
 
-    @property final bool isNullValue() const nothrow pure @safe
+    @property final bool isNull() const nothrow pure @safe
     {
-        return _dbValue.isNull;
+        return _dbValue.isNull || (isDbTypeHasZeroSizeAsNull(type) && _dbValue.size <= 0);
     }
 
     @property final Variant variant() @safe
     {
         return _dbValue.value;
+    }
+
+    @property final DbParameter variant(Variant variant) @safe
+    {
+        this._dbValue.value = variant;
+        this.valueAssigned();
+        return this;
     }
 
     /**
@@ -3188,9 +3299,11 @@ protected:
     final void nullifyValue() nothrow @safe
     {
         _dbValue.nullify();
+        if (type != DbType.unknown)
+            _dbValue.type = type;
     }
 
-    final void valueAssigned() @safe
+    final void valueAssigned() nothrow @safe
     {
         if (type == DbType.unknown && _dbValue.type != DbType.unknown)
         {
@@ -3199,6 +3312,8 @@ protected:
             type = _dbValue.type;
             reevaluateBaseType();
         }
+        else if (type != DbType.unknown)
+            _dbValue.type = type;
     }
 
 protected:
@@ -3255,6 +3370,13 @@ public:
     {
         DbIdentitier id = DbIdentitier(name);
         return add(id, type, direction, size);
+    }
+
+    final DbParameter add(string name, DbValue value) @safe
+    {
+        auto result = add(name, DbType.unknown);
+        result.value = value;
+        return result;
     }
 
     final DbParameter addClone(DbParameter source) @safe
@@ -3427,7 +3549,7 @@ public:
         return touch(id, type, direction, size);
     }
 
-    @property final DbDatabase database() nothrow @safe
+    @property final DbDatabase database() nothrow pure @safe
     {
         return _database;
     }
@@ -3907,11 +4029,23 @@ public:
 
         checkState(DbTransactionState.active);
 
+        if (_connection !is null && _connection.isFatalError)
+        {
+            _state = DbTransactionState.error;
+            _handle.reset();
+            if (auto log = logger)
+                log.info(forLogInfo(), newline, "transaction.commit(fatalError)");
+            return this;
+        }
+
         if (auto log = logger)
             log.info(forLogInfo(), newline, "transaction.commit()");
 
         scope (failure)
+        {
             _state = DbTransactionState.error;
+            _handle.reset();
+        }
 
         doCommit(false);
         if (!handle)
@@ -3932,25 +4066,37 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
-        if (state == DbTransactionState.active)
+        if (state != DbTransactionState.active)
+            return this;
+
+        if (_connection !is null && _connection.isFatalError)
         {
+            _state = DbTransactionState.error;
+            _handle.reset();
             if (auto log = logger)
-                log.info(forLogInfo(), newline, "transaction.rollback()");
-
-            scope (failure)
-                _state = DbTransactionState.error;
-
-            doRollback(false);
-            if (!handle)
-                _state = DbTransactionState.inactive;
+                log.info(forLogInfo(), newline, "transaction.rollback(fatalError)");
+            return this;
         }
+
+        if (auto log = logger)
+            log.info(forLogInfo(), newline, "transaction.rollback()");
+
+        scope (failure)
+        {
+            _state = DbTransactionState.error;
+            _handle.reset();
+        }
+
+        doRollback(false);
+        if (!handle)
+            _state = DbTransactionState.inactive;
 
         return this;
     }
 
     final typeof(this) start() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction!("pham.db.database")("autoCommit=", autoCommit, ", isolationLevel=", isolationLevel, ", isRetaining=", isRetaining);
 
         checkState(DbTransactionState.inactive);
 
@@ -3960,6 +4106,7 @@ public:
         scope (failure)
         {
             _state = DbTransactionState.error;
+            _handle.reset();
             if (!isDefault)
                 complete(false);
         }
@@ -4144,8 +4291,22 @@ protected:
 
     override void doDispose(bool disposing) nothrow @safe
     {
-        assert(state != DbTransactionState.active);
-
+        try
+        {
+            if (_connection !is null && _state == DbTransactionState.active)
+            {
+                if (autoCommit)
+                    commit();
+                else
+                    rollback();
+            }
+        }
+        catch (Exception e)
+        {
+            if (auto log = logger)
+                log.error(e.msg, e);
+        }
+        
         complete(disposing);
         _next = null;
         _prev = null;

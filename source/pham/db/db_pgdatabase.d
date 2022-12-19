@@ -572,7 +572,7 @@ public:
         super(connection, transaction, name);
     }
 
-	final override const(char)[] getExecutionPlan(uint vendorMode)
+	final override const(char)[] getExecutionPlan(uint vendorMode) @safe
 	{
         version (TraceFunction) traceFunction!("pham.db.pgdatabase")("vendorMode=", vendorMode);
 
@@ -965,7 +965,7 @@ public:
         this._largeBlobManager._connection = this;
     }
 
-    final override DbCancelCommandData createCancelCommandData(DbCommand command = null)
+    final override DbCancelCommandData createCancelCommandData(DbCommand command = null) @safe
     {
         auto result = new PgCancelCommandData();
         result.serverProcessId = to!int32(serverInfo[DbServerIdentifier.protocolProcessId]);
@@ -1071,7 +1071,7 @@ protected:
 
         try
         {
-            if (!failedOpen && _protocol !is null && socketActive)
+            if (!failedOpen && _protocol !is null && canWriteDisconnectMessage())
                 _protocol.disconnectWrite();
         }
         catch (Exception e)
@@ -1270,7 +1270,8 @@ public:
         charClasses['\\'] = CharClass.backslash;
     }
 
-    override DbCommand createCommand(DbConnection connection, string name = null)
+    override DbCommand createCommand(DbConnection connection,
+        string name = null)
     in
     {
         assert((cast(PgConnection)connection) !is null);
@@ -1280,7 +1281,8 @@ public:
         return new PgCommand(cast(PgConnection)connection, name);
     }
 
-    override DbCommand createCommand(DbConnection connection, DbTransaction transaction, string name = null)
+    override DbCommand createCommand(DbConnection connection, DbTransaction transaction,
+        string name = null)
     in
     {
         assert((cast(PgConnection)connection) !is null);
@@ -1346,7 +1348,8 @@ public:
         return new PgParameterList(this);
     }
 
-    override DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel, bool defaultTransaction)
+    override DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel,
+        bool defaultTransaction = false)
     in
     {
         assert((cast(PgConnection)connection) !is null);
@@ -1714,9 +1717,7 @@ unittest // PgTransaction
     auto connection = createTestConnection();
     scope (exit)
     {
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
@@ -1743,8 +1744,6 @@ unittest // PgTransaction
     transaction = connection.defaultTransaction();
     transaction.start();
     transaction.rollback();
-
-    transaction = null;
 }
 
 version (UnitTestPGDatabase)
@@ -1760,18 +1759,13 @@ unittest // PgCommand.DDL
         if (failed)
             traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     command.commandDDL = q"{CREATE TABLE create_then_drop (a INT NOT NULL PRIMARY KEY, b VARCHAR(100))}";
     command.executeNonQuery();
@@ -1796,18 +1790,13 @@ unittest // PgCommand.DML
         if (failed)
             traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     command.commandText = simpleSelectCommandText();
     auto reader = command.executeReader();
@@ -1882,18 +1871,13 @@ unittest // PgCommand.DML
         if (failed)
             traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     command.commandText = parameterSelectCommandText();
     command.parameters.add("INT_FIELD", DbType.int32).value = 1;
@@ -1974,18 +1958,13 @@ unittest // PgCommand.DML.pg_proc
         if (failed)
             traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     command.commandText = q"{
 SELECT pg_proc.proname, pg_proc.pronargs, pg_proc.proargnames, pg_proc.proargtypes, pg_proc.proargmodes, pg_proc.prorettype
@@ -2031,9 +2010,7 @@ unittest // PgLargeBlob
         if (failed)
             traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
@@ -2095,9 +2072,7 @@ unittest // PgCommand.DML
         if (failed)
             traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
@@ -2183,18 +2158,13 @@ unittest // PgCommand.getExecutionPlan
         if (failed)
             traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
    }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
-    {
         command.dispose();
-        command = null;
-    }
 
     command.commandText = simpleSelectCommandText();
 
@@ -2237,9 +2207,7 @@ unittest // PgCommand.DML.StoredProcedure
         if (failed)
             traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
-        connection.close();
         connection.dispose();
-        connection = null;
     }
     connection.open();
 
@@ -2254,10 +2222,7 @@ unittest // PgCommand.DML.StoredProcedure
     {
         auto command = connection.createCommand();
         scope (exit)
-        {
             command.dispose();
-            command = null;
-        }
 
         command.commandStoredProcedure = "multiple_by2";
         command.parameters.add("X", DbType.int32, DbParameterDirection.inputOutput).value = 2;
@@ -2391,18 +2356,13 @@ version (UnitTestPerfPGDatabase)
             if (failed)
                 traceUnitTest!("pham.db.pgdatabase")("failed - exiting and closing connection");
 
-            connection.close();
             connection.dispose();
-            connection = null;
         }
         connection.open();
 
         auto command = connection.createCommand();
         scope (exit)
-        {
             command.dispose();
-            command = null;
-        }
 
         enum maxRecordCount = 100_000;
         command.commandText = "select * from foo limit 100000";

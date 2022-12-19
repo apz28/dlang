@@ -119,9 +119,9 @@ static immutable DbTypeInfo[] fbNativeTypes = [
     {dbName:"TIMESTAMPTZ", nativeName:"TIMESTAMP WITH OFFSET TIMEZONE", displaySize:28, nativeSize:10, nativeId:FbIscType.sql_timestamp_tz_ex, dbType:DbType.datetimeTZ}, // fb4
     {dbName:"TIMETZ", nativeName:"TIME WITH TIMEZONE", displaySize:17, nativeSize:6, nativeId:FbIscType.sql_time_tz, dbType:DbType.timeTZ}, // fb4
     {dbName:"TIMETZ", nativeName:"TIME WITH OFFSET TIMEZONE", displaySize:17, nativeSize:6, nativeId:FbIscType.sql_time_tz_ex, dbType:DbType.timeTZ}, // fb4
-    {dbName:"DECIMAL(16)", nativeName:"DECFLOAT(16)", displaySize:16, nativeSize:8, nativeId:FbIscType.sql_dec64, dbType:DbType.decimal64}, // fb4
-    {dbName:"DECIMAL(34)", nativeName:"DECFLOAT(34)", displaySize:34, nativeSize:16, nativeId:FbIscType.sql_dec128, dbType:DbType.decimal128}, // fb4
-    {dbName:"DECIMAL(34)", nativeName:"DECFLOAT", displaySize:34, nativeSize:16, nativeId:FbIscType.sql_dec128, dbType:DbType.decimal128}, // fb4 - Map to DECFLOAT(34) as document
+    {dbName:"DECIMAL(16)", nativeName:"DECFLOAT(16)", displaySize:16, nativeSize:8, nativeId:FbIscType.sql_dec16, dbType:DbType.decimal64}, // fb4
+    {dbName:"DECIMAL(34)", nativeName:"DECFLOAT(34)", displaySize:34, nativeSize:16, nativeId:FbIscType.sql_dec34, dbType:DbType.decimal128}, // fb4
+    {dbName:"DECIMAL(34)", nativeName:"DECFLOAT", displaySize:34, nativeSize:16, nativeId:FbIscType.sql_dec34, dbType:DbType.decimal128}, // fb4 - Map to DECFLOAT(34) as document
     {dbName:"", nativeName:"NULL", displaySize:4, nativeSize:0, nativeId:FbIscType.sql_null, dbType:DbType.unknown},
     ];
 
@@ -181,11 +181,15 @@ public:
         return (acceptType & FbIsc.ptype_compress_flag) != 0;
     }
 
-    static int32 normalizeVersion(int32 version_) pure
+    static int32 normalizeVersion(const(int32) version_) pure
     {
-        return version_ < 0
+        const result = version_ < 0
 		    ? FbIsc.protocol_flag | cast(ushort)(version_ & FbIsc.protocol_mask)
             : version_;
+
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("version_=", version_, ", result=", result);
+
+        return result;
     }
 
 public:
@@ -516,6 +520,88 @@ public:
     int32 length;
 }
 
+struct FbIscBlrDescriptor
+{
+nothrow @safe:
+
+public:
+	void addSize(const(uint32) alignment, const(uint32) addingSize) @nogc pure
+	{
+        if (alignment)
+            this.size = (this.size + alignment - 1) & ~(alignment - 1);
+        this.size += addingSize;
+	}
+
+public
+    ubyte[] data;
+    uint32 size;
+}
+
+struct FbIscCommandBatchStatus
+{
+nothrow @safe:
+
+public:
+    int32 recIndex;
+    FbIscStatues statues;
+}
+
+struct FbIscCommandBatchExecuteResponse
+{
+@safe:
+
+public:
+    FbCommandBatchResult[] toCommandBatchResult()
+    {
+        // Build hash-set for faster lookup
+        int32[int32] errorIndexes;
+        foreach (i, e; errorIndexesData)
+            errorIndexes[e] = i;
+
+        int32[int32] errorStatues;
+        foreach (i, ref FbIscCommandBatchStatus e; errorStatuesData)
+        {
+            errorStatues[e.recIndex] = i;
+        }
+
+        // Construct result
+        auto result =  new FbCommandBatchResult[recCount];
+        foreach (i; 0..recCount)
+        {
+			auto recordsAffected = i < recordsAffectedData.length
+				? DbRecordsAffected(recordsAffectedData[i])
+				: DbRecordsAffected.init;
+
+            const ei = errorStatues.get(i, -1);
+			if (ei >= 0)
+			{
+				result[i] = FbCommandBatchResult.error(recordsAffected, new FbException(errorStatuesData[ei].statues));
+                continue;
+			}
+
+            if (errorIndexes.get(i, -1) >= 0)
+			{
+                result[i] = FbCommandBatchResult.error(recordsAffected, null);
+                continue;
+			}
+
+			result[i] = FbCommandBatchResult.ok(recordsAffected);
+        }
+
+        return result;
+    }
+
+public:
+    FbHandle statementHandle;
+    int32 recCount;
+    int32 recordsAffectedCount;
+    int32 errorStatuesCount;
+    int32 errorIndexesCount;
+    int32[] recordsAffectedData;
+    FbIscCommandBatchStatus[] errorStatuesData;
+    int32[] errorIndexesData;
+}
+
 alias FbIscCondAcceptResponse = FbIscAcceptDataResponse;
 
 struct FbIscCondAuthResponse
@@ -688,9 +774,9 @@ public:
 				return FbIscType.sql_float;
 			case FbBlrType.blr_d_float:
 				return FbIscType.sql_d_float;
-			case FbBlrType.blr_sql_date:
+			case FbBlrType.blr_date:
 				return FbIscType.sql_date;
-			case FbBlrType.blr_sql_time:
+			case FbBlrType.blr_time:
 				return FbIscType.sql_time;
 			case FbBlrType.blr_text:
 			case FbBlrType.blr_text2:
@@ -705,15 +791,15 @@ public:
 				return FbIscType.sql_blob;
 			case FbBlrType.blr_bool:
 				return FbIscType.sql_boolean;
-			case FbBlrType.blr_dec64:
-				return FbIscType.sql_dec64;
-			case FbBlrType.blr_dec128:
-				return FbIscType.sql_dec128;
+			case FbBlrType.blr_dec16:
+				return FbIscType.sql_dec16;
+			case FbBlrType.blr_dec34:
+				return FbIscType.sql_dec34;
 			case FbBlrType.blr_int128:
 				return FbIscType.sql_int128;
 			case FbBlrType.blr_double:
 				return FbIscType.sql_double;
-            case FbBlrType.blr_sql_time_tz:
+            case FbBlrType.blr_time_tz:
 				return FbIscType.sql_time_tz;
 	        case FbBlrType.blr_timestamp_tz:
 				return FbIscType.sql_timestamp_tz;
@@ -853,9 +939,9 @@ public:
 		    case FbIscType.sql_quad:
 			    return FbBlrType.blr_quad;
 		    case FbIscType.sql_time:
-			    return FbBlrType.blr_sql_time;
+			    return FbBlrType.blr_time;
 		    case FbIscType.sql_date:
-			    return FbBlrType.blr_sql_date;
+			    return FbBlrType.blr_date;
 		    case FbIscType.sql_int64:
 			    return FbBlrType.blr_int64;
 		    case FbIscType.sql_int128:
@@ -865,24 +951,24 @@ public:
 		    case FbIscType.sql_timestamp_tz_ex:
 			    return FbBlrType.blr_ex_timestamp_tz;
 		    case FbIscType.sql_time_tz:
-			    return FbBlrType.blr_sql_time_tz;
+			    return FbBlrType.blr_time_tz;
 		    case FbIscType.sql_time_tz_ex:
 			    return FbBlrType.blr_ex_time_tz;
 		    /*
             case FbIscType.SQL_DEC_FIXED:
 			    return FbBlrType.blr_int128;
             */
-		    case FbIscType.sql_dec64:
-			    return FbBlrType.blr_dec64;
-		    case FbIscType.sql_dec128:
-			    return FbBlrType.blr_dec128;
+		    case FbIscType.sql_dec16:
+			    return FbBlrType.blr_dec16;
+		    case FbIscType.sql_dec34:
+			    return FbBlrType.blr_dec34;
 		    case FbIscType.sql_boolean:
 			    return FbBlrType.blr_bool;
 		    case FbIscType.sql_null:
 			    return FbBlrType.blr_text;
-	    }    
+	    }
     }
-    
+
     string fbTypeName() const pure
     {
         return fbTypeName(type);
@@ -927,8 +1013,8 @@ public:
              t == FbIscType.sql_quad ||
              t == FbIscType.sql_int64 ||
              //t == FbIscType.sql_dec_fixed ||
-             t == FbIscType.sql_dec64 ||
-             t == FbIscType.sql_dec128
+             t == FbIscType.sql_dec16 ||
+             t == FbIscType.sql_dec34
             );
     }
 
@@ -1475,7 +1561,7 @@ public:
             {
                 case FbIsc.isc_arg_gds:
                     code = error.code;
-                    message ~= error.str();
+                    addMessageLine(message, error.str());
                     break;
                 case FbIsc.isc_arg_number:
                 case FbIsc.isc_arg_string:
@@ -1484,10 +1570,10 @@ public:
                     message = message.replace(marker, error.str());
                     break;
                 case FbIsc.isc_arg_interpreted:
-                    message ~= error.str();
+                    addMessageLine(message, error.str());
                     break;
                 case FbIsc.isc_arg_sql_state:
-                    state = error.str();
+                    addMessageLine(state, error.str());
                     break;
                 default:
                     break;
@@ -1636,14 +1722,84 @@ public:
     Kind kind;
 }
 
+struct FbCommandBatchResult
+{
+@safe:
+
+public:
+    this(DbRecordsAffected recordsAffected, FbException exception, bool isError) nothrow pure
+    {
+        this.recordsAffected = recordsAffected;
+        this.exception = exception;
+        this.isError = isError;
+    }
+
+    bool opCast(C: bool)() const @nogc nothrow pure
+    {
+        return !isError;
+    }
+
+    /**
+     * Create FbCommandBatchResult as error
+     */
+    pragma(inline, true)
+    static typeof(this) error(DbRecordsAffected recordsAffected, FbException exception) nothrow pure
+    {
+        return typeof(this)(recordsAffected, exception, true);
+    }
+
+    /**
+     * Create FbCommandBatchResult without error
+     */
+    pragma(inline, true)
+    static typeof(this) ok(DbRecordsAffected recordsAffected) nothrow pure
+    {
+        return typeof(this)(recordsAffected, null, false);
+    }
+
+    pragma(inline, true)
+    @property isOK() const nothrow @nogc pure
+    {
+        return !isError;
+    }
+
+public:
+    DbRecordsAffected recordsAffected;
+    FbException exception;
+    bool isError;
+}
+
 struct FbCreateDatabaseInfo
 {
+@safe:
+
+public:
+    static immutable int[] knownPageSizes = [4_096, 8_192, 16_384, 32_768];
+    static int toKnownPageSize(const(int) pageSize) @nogc nothrow pure
+    {
+
+        // Current max if not provided
+        if (pageSize <= 0)
+            return knownPageSizes[$ - 1];
+
+        foreach (n; knownPageSizes)
+        {
+            if (pageSize <= n)
+                return n;
+        }
+
+        // Future value not known
+        return pageSize;
+    }
+
+public:
     string fileName;
     string defaultCharacterSet;
     string defaultCollation;
     string ownerName;
     string ownerPassword;
-    uint pageSize;
+    string roleName;
+    int pageSize;
     bool forcedWrite;
     bool overwrite;
 }
@@ -1948,4 +2104,33 @@ unittest // FbIscBindInfo
 
     assert(bindResults[1].selectOrBind == FbIsc.isc_info_sql_bind);
     assert(bindResults[1].length == 0);
+}
+
+unittest // FbCreateDatabaseInfo.toKnownPageSize
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbtype.FbCreateDatabaseInfo.toKnownPageSize");
+
+    assert(FbCreateDatabaseInfo.toKnownPageSize(-2) == FbCreateDatabaseInfo.knownPageSizes[$ - 1]);
+    assert(FbCreateDatabaseInfo.toKnownPageSize(0) == FbCreateDatabaseInfo.knownPageSizes[$ - 1]);
+
+    assert(FbCreateDatabaseInfo.toKnownPageSize(1) == 4_096);
+    assert(FbCreateDatabaseInfo.toKnownPageSize(4_095) == 4_096);
+    assert(FbCreateDatabaseInfo.toKnownPageSize(4_096) == 4_096);
+
+    assert(FbCreateDatabaseInfo.toKnownPageSize(4_097) == 8_192);
+    assert(FbCreateDatabaseInfo.toKnownPageSize(8_191) == 8_192);
+    assert(FbCreateDatabaseInfo.toKnownPageSize(8_192) == 8_192);
+
+    assert(FbCreateDatabaseInfo.toKnownPageSize(8_193) == 16_384);
+    assert(FbCreateDatabaseInfo.toKnownPageSize(16_383) == 16_384);
+    assert(FbCreateDatabaseInfo.toKnownPageSize(16_384) == 16_384);
+
+    assert(FbCreateDatabaseInfo.toKnownPageSize(16_385) == 32_768);
+    assert(FbCreateDatabaseInfo.toKnownPageSize(32_767) == 32_768);
+    assert(FbCreateDatabaseInfo.toKnownPageSize(32_768) == 32_768);
+
+    // Future value - return as is
+    assert(FbCreateDatabaseInfo.toKnownPageSize(65_536) == 65_536);
+    assert(FbCreateDatabaseInfo.toKnownPageSize(131_073) == 131_073);
 }

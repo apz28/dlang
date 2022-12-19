@@ -282,7 +282,7 @@ public:
     }
 
     pragma(inline, true)
-    ubyte[] peekBytes() nothrow return
+    ubyte[] peekBytes() nothrow
     {
         return _buffer.peekBytes();
     }

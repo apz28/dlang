@@ -38,7 +38,6 @@ enum FbIsc
 	protocol_version13 = protocol_flag | 13,
 	protocol_version15 = protocol_flag | 15,
 	protocol_version16 = protocol_flag | 16,
-    protocol_version = protocol_version13,
 
 	cnct_user = 1,
 	//cnct_passwd = 2,
@@ -521,7 +520,7 @@ enum FbIsc
 	op_abort_aux_connection = 95, // FB3
 	op_crypt = 96, // FB3
 	op_crypt_key_callback = 97, // FB3
-	op_cond_accept = 98, // FB3    
+	op_cond_accept = 98, // FB3
 	op_batch_create = 99, // FB4
 	op_batch_msg = 100, // FB4
 	op_batch_exec = 101, // FB4
@@ -532,7 +531,7 @@ enum FbIsc
 	op_batch_set_bpb = 106, // FB4
 	op_repl_data = 107, // FB4
 	op_repl_req = 108, // FB4
-	op_batch_cancel = 109, // FB4    
+	op_batch_cancel = 109, // FB4
 }
 
 enum FbIscDefault
@@ -549,10 +548,11 @@ enum FbIscSize
     /**
      * Sizes in bytes
      */
+    batchBufferLength = 1_000 * 1_000, // max 256 * 1024 * 1024
 	blobSizeInfoBufferLength = 100,
-    executePlanBufferLength = 32_000,
-	parameterBufferLength = 16_000,
-	prepareInfoBufferLength = 32_000,
+    executePlanBufferLength = 32 * 1_000,
+	parameterBufferLength = 16 * 1_000,
+	prepareInfoBufferLength = 32 * 1_000,
 	rowsEffectedBufferLength = 100,
 	statementTypeBufferLength = 100,
 }
@@ -575,6 +575,7 @@ enum FbIscText
 	isc_info_db_class_classic_text = "CLASSIC SERVER",
 	isc_info_db_class_server_text = "SUPER SERVER",
 
+    isc_filter_chacha_name = "ChaCha",
 	isc_filter_arc4_name = "Arc4",
 	isc_filter_zip_name = "zlib"
 }
@@ -587,18 +588,18 @@ enum FbBlrType
 	blr_quad = 9,
 	blr_float = 10,
 	blr_d_float = 11,
-	blr_sql_date = 12,
-	blr_sql_time = 13,
+	blr_date = 12,
+	blr_time = 13,
 	blr_text = 14, // Should use blr_text2 to avoid utf8 truncation
 	blr_text2 = 15,
 	blr_int64 = 16,
 	blr_blob2 = 17,
 	blr_bool = 23,
-	blr_dec64 = 24,
-	blr_dec128 = 25,
+	blr_dec16 = 24,
+	blr_dec34 = 25,
 	blr_int128 = 26,
 	blr_double = 27,
-	blr_sql_time_tz	= 28,
+	blr_time_tz	= 28,
 	blr_timestamp_tz = 29,
 	blr_ex_time_tz = 30,
 	blr_ex_timestamp_tz = 31,
@@ -633,8 +634,8 @@ enum FbIscType
 	sql_time_tz = 32_756,
 	sql_time_tz_ex = 32_750,
 	//sql_dec_fixed = 32_758,
-	sql_dec64 = 32_760,
-	sql_dec128 = 32_762,
+	sql_dec16 = 32_760,  // 64 bits
+	sql_dec34 = 32_762,  // 128 bits
 	sql_boolean = 32_764,
 	sql_null = 32_766
 }
