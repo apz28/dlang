@@ -68,8 +68,8 @@ import std.typecons : Flag, No, Yes;
 version (TraceFunction) import pham.utl.test;
 import pham.utl.array : arrayOfChar;
 import pham.utl.big_integer;
+import pham.utl.disposable : DisposableObject, DisposingReason;
 import pham.utl.numeric_parser : isHexDigit;
-import pham.utl.object : DisposableObject;
 import pham.utl.utf8 : ShortStringBuffer;
 public import pham.cp.cipher : CipherKey;
 public import pham.cp.cipher_digest;
@@ -151,16 +151,16 @@ public:
         this._paddingSize = paddingSize;
     }
 
-    ~this() nothrow pure
+    ~this() nothrow @safe pure
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
     // For security reason, need to clear the secrete information
-    void dispose(bool disposing = true) nothrow pure
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
-        _g.dispose(disposing);
-        _N.dispose(disposing);
+        _g.dispose(disposingReason);
+        _N.dispose(disposingReason);
         _exponentSize = _paddingSize = 0;
     }
 
@@ -493,11 +493,11 @@ protected:
         return result;
     }
 
-    override void doDispose(bool disposing) nothrow @safe
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        _ephemeralPrivate.dispose(disposing);
-        _ephemeralPublic.dispose(disposing);
-        _k.dispose(disposing);
+        _ephemeralPrivate.dispose(disposingReason);
+        _ephemeralPublic.dispose(disposingReason);
+        _k.dispose(disposingReason);
     }
 
 protected:

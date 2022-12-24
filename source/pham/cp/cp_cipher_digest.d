@@ -16,6 +16,8 @@ import std.digest.md : MD5Digest;
 import std.digest.sha : Digest, SHA1Digest, SHA256Digest, SHA384Digest, SHA512Digest;
 import std.string : representation;
 
+import pham.utl.disposable : DisposingReason;
+
 nothrow @safe:
 
 enum DigestId : string
@@ -38,7 +40,7 @@ public:
 public:
     ~this() pure
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
     ref typeof(this) opOpAssign(string op)(scope const(ubyte)[] rhs) pure return
@@ -79,7 +81,7 @@ public:
         return buffer[0..length];
     }
 
-    void dispose(bool disposing = true) pure
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
         buffer[] = 0;
         length = 0;
@@ -237,7 +239,7 @@ public:
 
     ~this() pure
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
     ref typeof(this) begin() return
@@ -268,7 +270,7 @@ public:
         return this;
     }
 
-    void dispose(bool disposing = true) pure
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
         _key[] = 0;
         _iPad[] = 0;

@@ -18,8 +18,9 @@ import std.typecons : No, Yes;
 
 version (profile) import pham.utl.test : PerfFunction;
 import pham.utl.big_integer : BigInteger, defaultParseBigIntegerOptions;
+import pham.utl.disposable : DisposableObject, DisposingReason;
 import pham.utl.numeric_parser : NumericLexerFlag, NumericLexerOptions;
-import pham.utl.object : bytesToHexs, DisposableObject;
+import pham.utl.object : bytesToHexs;
 import pham.utl.utf8 : NoDecodeInputRange, NoDecodeOutputRange, ShortStringBuffer,
     ShortStringBufferSize, UTF8CharRange;
 import pham.cp.cipher_digest : DigestId;
@@ -38,7 +39,7 @@ public:
 
     ~this() nothrow pure
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
     ref typeof(this) opAssign(scope const(ubyte)[] values) nothrow pure return
@@ -68,9 +69,9 @@ public:
     }
 
     // For security reason, need to clear the secrete information
-    void dispose(bool disposing = true) nothrow pure
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
-        data.dispose(disposing);
+        data.dispose(disposingReason);
     }
 
     string toString() const nothrow pure @trusted
@@ -131,29 +132,7 @@ public:
 
     ~this() pure
     {
-        dispose(false);
-    }
-
-    // For security reason, need to clear the secrete information
-    void dispose(bool disposing = true) pure
-    {
-        _exponent[] = 0;
-        _exponent = null;
-        _modulus[] = 0;
-        _modulus = null;
-        _d[] = 0;
-        _d = null;
-        _p[] = 0;
-        _p = null;
-        _q[] = 0;
-        _q = null;
-        _dp[] = 0;
-        _dp = null;
-        _dq[] = 0;
-        _dq = null;
-        _inversedq[] = 0;
-        _inversedq = null;
-        _keyBitLength = 0;
+        dispose(DisposingReason.destructor);
     }
 
     static ubyte[] bytesFromBigInteger(scope const(BigInteger) n) pure
@@ -179,6 +158,28 @@ public:
         auto parseOptions = defaultParseBigIntegerOptions!char();
         parseOptions.flags |= NumericLexerFlag.skipInnerBlank;
         return BigInteger(validDigits, parseOptions);
+    }
+
+    // For security reason, need to clear the secrete information
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    {
+        _exponent[] = 0;
+        _exponent = null;
+        _modulus[] = 0;
+        _modulus = null;
+        _d[] = 0;
+        _d = null;
+        _p[] = 0;
+        _p = null;
+        _q[] = 0;
+        _q = null;
+        _dp[] = 0;
+        _dp = null;
+        _dq[] = 0;
+        _dq = null;
+        _inversedq[] = 0;
+        _inversedq = null;
+        _keyBitLength = 0;
     }
 
     static char[] hexDigitsFromBigInteger(scope const(BigInteger) n) pure
@@ -337,14 +338,14 @@ public:
 
     ~this() pure
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
     // For security reason, need to clear the secrete information
-    void dispose(bool disposing = true) pure
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
-        _privateKey.dispose(disposing);
-        _publicKey.dispose(disposing);
+        _privateKey.dispose(disposingReason);
+        _publicKey.dispose(disposingReason);
         _salt[] = 0;
         _salt = null;
     }
@@ -394,9 +395,9 @@ public:
     @property string name() const pure;
 
 protected:
-    override void doDispose(bool disposing)
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        _parameters.dispose(disposing);
+        _parameters.dispose(disposingReason);
     }
 
 protected:

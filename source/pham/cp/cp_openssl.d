@@ -13,6 +13,7 @@ module pham.cp.openssl;
 
 import std.string : fromStringz, toStringz;
 
+import pham.utl.disposable : DisposingReason;
 public import pham.utl.result : ResultStatus;
 import pham.cp.cipher : calculateBufferLength;
 import pham.cp.openssl_binding;
@@ -183,7 +184,7 @@ public:
 
     ~this()
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
     void close() @trusted
@@ -239,7 +240,7 @@ public:
         return ResultStatus.ok();
     }
 
-    void dispose(bool disposing = true) @trusted
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @trusted
     {
         disposeSSLResources();
         sslCa = null;
@@ -716,10 +717,10 @@ public:
 
     ~this()
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing = true) @trusted
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @trusted
     {
         disposeSSLResources();
         _iv[] = 0;
@@ -1125,10 +1126,10 @@ public:
 
     ~this() pure
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing = true) pure
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
         _pemData[] = 0;
         _pemData = null;
@@ -1204,13 +1205,13 @@ public:
 
     ~this()
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing = true) @trusted
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @trusted
     {
         disposeSSLResources();
-        _pem.dispose(disposing);
+        _pem.dispose(disposingReason);
     }
 
     ResultStatus decrypt(scope const(ubyte)[] input, ref ubyte[] output, out size_t outputLength) @trusted

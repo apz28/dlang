@@ -14,6 +14,7 @@ module pham.cp.cipher_chacha;
 import std.algorithm.mutation : swap;
 
 version (unittest) import pham.utl.test;
+import pham.utl.disposable : DisposingReason;
 import pham.utl.bit_array : bytesToNative, nativeToBytes;
 import pham.cp.cipher;
 
@@ -94,7 +95,7 @@ public:
     }
 
 protected:
-    override void doDispose(bool disposing)
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         key[] = 0;
 		//key = null;
@@ -106,7 +107,7 @@ protected:
 		p1 = p2 = p3 = p5 = p6 = p7 = p9 = p10 = p11 = p13 = p14 = p15 = 0;
         _counter = 0;
 		_overflow = precompDone = false;
-        super.doDispose(disposing);
+        super.doDispose(disposingReason);
     }
 
 private:

@@ -14,6 +14,7 @@ module pham.cp.auth_rsa;
 import std.typecons : No;
 
 import pham.utl.big_integer : BigInteger, modInverse, modPow;
+import pham.utl.disposable : DisposingReason;
 import pham.cp.cipher;
 import pham.cp.openssl;
 import pham.cp.pad;
@@ -33,16 +34,16 @@ struct CipherRSAPrivateKey
 public:
     ~this() nothrow pure
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
     // For security reason, need to clear the secrete information
-    void dispose(bool disposing = true) nothrow pure
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
-        publicKey.dispose(disposing);
-        d.dispose(disposing);
+        publicKey.dispose(disposingReason);
+        d.dispose(disposingReason);
         foreach (ref prime; primes)
-             prime.dispose(disposing);
+             prime.dispose(disposingReason);
     }
 
 public:
@@ -54,15 +55,15 @@ public:
 struct CipherRSAPublicKey
 {
 public:
-    ~this() nothrow pure
+    ~this() nothrow @safe pure
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
     // For security reason, need to clear the secrete information
-    void dispose(bool disposing = true) nothrow pure
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
-        N.dispose(disposing);
+        N.dispose(disposingReason);
         E = 0;
     }
 
@@ -258,14 +259,14 @@ public:
     }
 
 protected:
-    override void doDispose(bool disposing)
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        privateExponent.dispose(disposing);
-        privateModulus.dispose(disposing);
-        publicExponent.dispose(disposing);
-        publicModulus.dispose(disposing);
-        tempBlock.dispose(disposing);
-        super.doDispose(disposing);
+        privateExponent.dispose(disposingReason);
+        privateModulus.dispose(disposingReason);
+        publicExponent.dispose(disposingReason);
+        publicModulus.dispose(disposingReason);
+        tempBlock.dispose(disposingReason);
+        super.doDispose(disposingReason);
     }
 
 protected:

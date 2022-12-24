@@ -14,6 +14,7 @@ module pham.cp.cipher_rc4;
 import std.algorithm.mutation : swap;
 
 version (unittest) import pham.utl.test;
+import pham.utl.disposable : DisposingReason;
 import pham.cp.cipher;
 
 nothrow @safe:
@@ -73,11 +74,11 @@ public:
     }
 
 protected:
-    override void doDispose(bool disposing)
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _stateData[] = 0;
         x = y = 0;
-        super.doDispose(disposing);
+        super.doDispose(disposingReason);
     }
 
 private:
