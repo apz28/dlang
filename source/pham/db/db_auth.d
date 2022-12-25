@@ -15,6 +15,7 @@ import std.conv : to;
 
 version (unittest) import pham.utl.test;
 public import pham.cp.cipher : CipherBuffer;
+import pham.utl.disposable : DisposingReason;
 import pham.utl.object : VersionString;
 public import pham.utl.result : ResultStatus;
 import pham.db.message : DbMessage, fmtMessage;
@@ -143,7 +144,7 @@ protected:
         }
     }
 
-    override void doDispose(bool disposing) nothrow
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _serverPublicKey[] = 0;
         _serverPublicKey = null;

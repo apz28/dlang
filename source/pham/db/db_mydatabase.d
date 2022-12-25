@@ -19,7 +19,9 @@ import std.system : Endian;
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.external.std.log.logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
+import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.utl.enum_set;
+import pham.utl.object : VersionString;
 import pham.db.buffer;
 import pham.db.database;
 import pham.db.exception;
@@ -637,7 +639,7 @@ package(pham.db):
 
     final void releasePackageReadBuffer(DbReadBuffer item) nothrow @safe
     {
-        if (!disposingState)
+        if (!isDisposing(lastDisposingReason))
             _packageReadBuffers.insertEnd(item.reset());
     }
 
@@ -651,26 +653,26 @@ package(pham.db):
 
     final void releaseParameterWriteBuffer(DbWriteBuffer item) nothrow @safe
     {
-        if (!disposingState)
+        if (!isDisposing(lastDisposingReason))
             _parameterWriteBuffers.insertEnd(item.reset());
     }
 
 protected:
-    final void disposePackageReadBuffers(bool disposing) nothrow @safe
+    final void disposePackageReadBuffers(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
         while (!_packageReadBuffers.empty)
-            _packageReadBuffers.remove(_packageReadBuffers.last).disposal(disposing);
+            _packageReadBuffers.remove(_packageReadBuffers.last).dispose(disposingReason);
     }
 
-    final void disposeProtocol(bool disposing) nothrow @safe
+    final void disposeProtocol(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
         if (_protocol !is null)
         {
-            _protocol.disposal(disposing);
+            _protocol.dispose(disposingReason);
             _protocol = null;
         }
     }
@@ -698,7 +700,7 @@ protected:
         version (TraceFunction) traceFunction!("pham.db.mydatabase")("failedOpen=", failedOpen, ", socketActive=", socketActive);
 
         scope (exit)
-            disposeProtocol(false);
+            disposeProtocol(DisposingReason.other);
 
         try
         {
@@ -714,13 +716,13 @@ protected:
         super.doClose(failedOpen);
     }
 
-    override void doDispose(bool disposing) nothrow @safe
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
-        super.doDispose(disposing);
-        disposePackageReadBuffers(disposing);
-        disposeProtocol(disposing);
+        super.doDispose(disposingReason);
+        disposePackageReadBuffers(disposingReason);
+        disposeProtocol(disposingReason);
     }
 
     final override void doOpen() @safe
@@ -1172,6 +1174,12 @@ public:
         super(connection, isolationLevel);
     }
 
+    override bool canSavePoint() @safe
+    {
+        const minSupportVersion = VersionString("8.0");
+        return super.canSavePoint() && VersionString(connection.serverVersion()) >= minSupportVersion;
+    }
+
     @property final MyConnection myConnection() nothrow pure @safe
     {
         return cast(MyConnection)connection;
@@ -1370,7 +1378,7 @@ unittest // MyConnection
     assert(connection.state == DbConnectionState.closed);
 
     connection.open();
-    assert(connection.state == DbConnectionState.open);
+    assert(connection.state == DbConnectionState.opened);
 
     connection.close();
     assert(connection.state == DbConnectionState.closed);
@@ -1392,7 +1400,7 @@ unittest // MyConnection(myAuthSha2Caching)
     csb.userPassword = "masterkey";
     csb.integratedSecurity = DbIntegratedSecurityConnection.srp256;
     connection.open();
-    assert(connection.state == DbConnectionState.open);
+    assert(connection.state == DbConnectionState.opened);
 
     connection.close();
     assert(connection.state == DbConnectionState.closed);
@@ -1400,7 +1408,7 @@ unittest // MyConnection(myAuthSha2Caching)
     // Not matching with server to check for authentication change
     csb.integratedSecurity = DbIntegratedSecurityConnection.legacy;
     connection.open();
-    assert(connection.state == DbConnectionState.open);
+    assert(connection.state == DbConnectionState.opened);
 
     connection.close();
     assert(connection.state == DbConnectionState.closed);
@@ -1779,7 +1787,7 @@ unittest // MyConnection(SSL)
     csb.encrypt = DbEncryptedConnection.enabled;
 
     connection.open();
-    assert(connection.state == DbConnectionState.open);
+    assert(connection.state == DbConnectionState.opened);
 
     connection.close();
     assert(connection.state == DbConnectionState.closed);

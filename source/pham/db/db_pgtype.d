@@ -18,6 +18,7 @@ import std.conv : to;
 
 version (TraceFunction) import pham.utl.test;
 import pham.cp.cipher : CipherHelper;
+import pham.utl.disposable : DisposingReason;
 import pham.utl.enum_set : toName;
 import pham.utl.object : cmpInteger;
 import pham.db.convert : toIntegerSafe;
@@ -619,10 +620,10 @@ public:
 
     ~this() pure
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing) pure
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
         signature[] = 0;
         signature = null;
@@ -667,10 +668,10 @@ public:
 
     ~this() pure
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing) pure
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
         nonce[] = 0;
         nonce = null;

@@ -19,6 +19,8 @@ import std.system : Endian;
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.external.std.log.logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
+import pham.utl.disposable : DisposingReason, isDisposing;
+import pham.utl.object : VersionString;
 import pham.db.buffer;
 import pham.db.convert;
 import pham.db.database;
@@ -58,6 +60,11 @@ public:
     @disable this(this);
 
     this(PgConnection connection) nothrow pure @safe
+    in
+    {
+        assert(connection !is null);
+    }
+    do
     {
         this._connection = connection;
     }
@@ -70,7 +77,7 @@ public:
 
     ~this() @safe
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
     bool opCast(C: bool)() const nothrow @safe
@@ -95,9 +102,7 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
 
-        scope (exit)
-            resetClose();
-        pgConnection.largeBlobManager.close(pgDescriptorId);
+        doClose(DisposingReason.other);
     }
 
     void create(PgOId preferredId = 0) @safe
@@ -113,23 +118,13 @@ public:
         _id = pgConnection.largeBlobManager.createPreferred(preferredId);
     }
 
-    void dispose(bool disposing = true) nothrow @safe
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        if (isOpen && _connection)
-        {
-            try
-            {
-                close();
-            }
-            catch (Exception e)
-            {
-                if (auto log = logger)
-                    log.error(e.msg, e);
-            }
-        }
-
-        _connection = null;
-        reset();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        
+        doClose(disposingReason);
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     int64 length() @safe
@@ -328,6 +323,39 @@ public:
     }
 
 package(pham.db):
+    void doClose(const(DisposingReason) disposingReason) nothrow @safe
+    {
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+
+        scope (exit)
+        {
+            if (isDisposing(disposingReason))
+                reset();
+            else
+                resetClose();
+        }
+
+        if (isDisposing(disposingReason) && !isOpen)
+            return;
+
+        try
+        {
+            if (isDisposing(disposingReason))
+            {
+                if (pgConnection !is null)
+                    pgConnection.largeBlobManager.close(pgDescriptorId);
+                return;
+            }
+
+            pgConnection.largeBlobManager.close(pgDescriptorId);
+        }
+        catch (Exception e)
+        {
+            if (auto log = logger)
+                log.error(e.msg, e);
+        }
+    }
+
     void reset() nothrow pure @safe
     {
         resetClose();
@@ -362,26 +390,34 @@ struct PgLargeBlobManager
 {
 public:
     this(PgConnection connection) nothrow pure @safe
+    in
+    {
+        assert(connection !is null);
+    }
+    do
     {
         this._connection = connection;
+        version (TraceFunction) { import pham.utl.test; debug dgWritefln("PgLargeBlobManager(create)%s", cast(void*)_connection); }
     }
 
     ~this() @safe
     {
-        dispose(false);
+        version (TraceFunction) { import pham.utl.test; debug dgWritefln("PgLargeBlobManager(destroy)%s", cast(void*)_connection); }
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing = true) nothrow @safe
+    void close() nothrow @safe
     {
-        disposeCommand(_close, disposing);
-        disposeCommand(_createNew, disposing);
-        disposeCommand(_createPreferred, disposing);
-        disposeCommand(_open, disposing);
-        disposeCommand(_read, disposing);
-        disposeCommand(_seek, disposing);
-        disposeCommand(_write, disposing);
-        disposeCommand(_unlink, disposing);
-        _connection = null;
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        
+        doClose(DisposingReason.other);
+    }
+    
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    {
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        
+        doClose(disposingReason);
     }
 
     int32 close(PgDescriptorId descriptorId) @safe
@@ -477,6 +513,21 @@ public:
         return _connection;
     }
 
+package(pham.db):
+    void doClose(const(DisposingReason) disposingReason) nothrow @safe
+    {
+        disposeCommand(_close, disposingReason);
+        disposeCommand(_createNew, disposingReason);
+        disposeCommand(_createPreferred, disposingReason);
+        disposeCommand(_open, disposingReason);
+        disposeCommand(_read, disposingReason);
+        disposeCommand(_seek, disposingReason);
+        disposeCommand(_write, disposingReason);
+        disposeCommand(_unlink, disposingReason);
+        if (isDisposing(disposingReason))
+            _connection = null;
+    }
+
 private:
     static struct Argument
     {
@@ -530,11 +581,13 @@ private:
         return cast(PgCommand)result.prepare();
     }
 
-    void disposeCommand(ref PgCommand command, bool disposing)  nothrow @safe
+    void disposeCommand(ref PgCommand command, const(DisposingReason) disposingReason) nothrow @safe
     {
-        if (command)
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+
+        if (command !is null)
         {
-            command.disposal(disposing);
+            command.dispose(disposingReason);
             command = null;
         }
     }
@@ -945,13 +998,13 @@ public:
     this(PgDatabase database) nothrow @safe
     {
         super(database);
-        this._largeBlobManager._connection = this;
+        this._largeBlobManager = PgLargeBlobManager(this);
     }
 
     this(PgDatabase database, string connectionString) nothrow @safe
     {
         super(database, connectionString);
-        this._largeBlobManager._connection = this;
+        this._largeBlobManager = PgLargeBlobManager(this);
     }
 
     this(DbDatabase database, PgConnectionStringBuilder connectionStringBuilder) nothrow @safe
@@ -962,7 +1015,7 @@ public:
     do
     {
         super(database, connectionStringBuilder);
-        this._largeBlobManager._connection = this;
+        this._largeBlobManager = PgLargeBlobManager(this);
     }
 
     final override DbCancelCommandData createCancelCommandData(DbCommand command = null) @safe
@@ -1012,34 +1065,37 @@ package(pham.db):
 
     final void releaseMessageReadBuffer(DbReadBuffer item) nothrow @safe
     {
-        if (!disposingState)
+        if (!isDisposing(lastDisposingReason))
             _messageReadBuffers.insertEnd(item.reset());
     }
 
 protected:
-    override void disposeCommands(bool disposing) nothrow @safe
+    override void disposeCommands(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
-        _largeBlobManager.dispose(disposing);
-        super.disposeCommands(disposing);
+        if (isDisposing(disposingReason))
+            this._largeBlobManager.dispose(disposingReason);
+        else
+            this._largeBlobManager.close();
+        super.disposeCommands(disposingReason);
     }
 
-    final void disposeMessageReadBuffers(bool disposing) nothrow @safe
+    final void disposeMessageReadBuffers(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
         while (!_messageReadBuffers.empty)
-            _messageReadBuffers.remove(_messageReadBuffers.last).disposal(disposing);
+            _messageReadBuffers.remove(_messageReadBuffers.last).dispose(disposingReason);
     }
 
-    final void disposeProtocol(bool disposing) nothrow @safe
+    final void disposeProtocol(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
         if (_protocol !is null)
         {
-            _protocol.disposal(disposing);
+            _protocol.dispose(disposingReason);
             _protocol = null;
         }
     }
@@ -1057,17 +1113,10 @@ protected:
         version (TraceFunction) traceFunction!("pham.db.pgdatabase")("failedOpen=", failedOpen, ", socketActive=", socketActive);
 
         scope (exit)
-            disposeProtocol(false);
+            disposeProtocol(DisposingReason.other);
 
-        try
-        {
-            _largeBlobManager.dispose(false);
-        }
-        catch (Exception e)
-        {
-            if (auto log = logger)
-                log.error(e.msg, e);
-        }
+        if (!failedOpen)
+            _largeBlobManager.doClose(DisposingReason.other);
 
         try
         {
@@ -1083,13 +1132,13 @@ protected:
         super.doClose(failedOpen);
     }
 
-    override void doDispose(bool disposing) nothrow @safe
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
-        super.doDispose(disposing);
-        disposeMessageReadBuffers(disposing);
-        disposeProtocol(disposing);
+        super.doDispose(disposingReason);
+        disposeMessageReadBuffers(disposingReason);
+        disposeProtocol(disposingReason);
     }
 
     final override void doOpen() @safe
@@ -1502,6 +1551,12 @@ public:
         super(connection, isolationLevel);
     }
 
+    override bool canSavePoint() @safe
+    {
+        const minSupportVersion = VersionString("11.0");
+        return super.canSavePoint() && VersionString(connection.serverVersion()) >= minSupportVersion;
+    }
+
     @property final PgConnection pgConnection() nothrow pure @safe
     {
         return cast(PgConnection)connection;
@@ -1702,7 +1757,7 @@ unittest // PgConnection
     assert(connection.state == DbConnectionState.closed);
 
     connection.open();
-    assert(connection.state == DbConnectionState.open);
+    assert(connection.state == DbConnectionState.opened);
 
     connection.close();
     assert(connection.state == DbConnectionState.closed);
@@ -2025,6 +2080,8 @@ unittest // PgLargeBlob
     }
 
     auto blob = PgLargeBlob(connection);
+    scope (exit)
+        blob.dispose();
     blob.create();
     assert(blob.pgId != 0);
 
@@ -2045,9 +2102,9 @@ unittest // PgLargeBlob
 
     blob.remove();
     assert(blob.pgId == 0);
-    blob.dispose();
 
     transaction.commit();
+
     transaction.dispose();
     transaction = null;
 
@@ -2248,7 +2305,7 @@ unittest // PgConnection(SSL)
     csb.encrypt = DbEncryptedConnection.enabled;
 
     connection.open();
-    assert(connection.state == DbConnectionState.open);
+    assert(connection.state == DbConnectionState.opened);
 
     connection.close();
     assert(connection.state == DbConnectionState.closed);

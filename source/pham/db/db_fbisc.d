@@ -548,9 +548,9 @@ enum FbIscSize
     /**
      * Sizes in bytes
      */
-    batchBufferLength = 1_000 * 1_000, // max 256 * 1024 * 1024
 	blobSizeInfoBufferLength = 100,
     executePlanBufferLength = 32 * 1_000,
+    maxBatchBufferLength = 1_000 * 1_000, // max 256 * 1024 * 1024
 	parameterBufferLength = 16 * 1_000,
 	prepareInfoBufferLength = 32 * 1_000,
 	rowsEffectedBufferLength = 100,

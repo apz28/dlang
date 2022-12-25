@@ -15,6 +15,7 @@ version (Windows):
 
 version (unittest) import pham.utl.test;
 import pham.external.std.windows.sspi_ex : RequestSecClient, RequestSecResult;
+import pham.utl.disposable : DisposingReason;
 import pham.db.auth;
 import pham.db.message;
 import pham.db.type : DbScheme;
@@ -100,11 +101,11 @@ public:
     }
 
 protected:
-    override void doDispose(bool disposing) nothrow
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        _secClient.dispose(disposing);
+        _secClient.dispose(disposingReason);
         _remotePrincipal = _secPackage = null;
-        super.doDispose(disposing);
+        super.doDispose(disposingReason);
     }
 
 private:

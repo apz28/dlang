@@ -78,6 +78,7 @@ struct DbMessage
 
     static immutable eCompletedTransaction = "Cannot perform %s when transaction was already completed";
     static immutable eInvalidTransactionState = "Cannot perform %s when transaction state is %s; expecting %s";
+    static immutable eInvalidTransactionSavePoint = "Cannot perform %s; invalid transaction savepoint %s";
 
     static immutable eInvalidName = "Name '%s' not found for '%s'";
     static immutable eInvalidSchemeName = "Database scheme name '%s' not found";

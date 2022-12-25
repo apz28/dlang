@@ -118,18 +118,20 @@ enum DbCompressConnection : ubyte
  * $(DbConnectionState.closed) The connection is closed
  * $(DbConnectionState.closing) The transition state to close
  * $(DbConnectionState.opening) The transition state to open
- * $(DbConnectionState.open) The connection is open
- * $(DbConnectionState.failing) The transition state to fail
+ * $(DbConnectionState.opened) The connection is open
+ * $(DbConnectionState.failing) The transition state to failed
  * $(DbConnectionState.failed) The connection to the data source is not able to open. A connection in this state may be closed and then re-opened
+ * $(DbConnectionState.disposed) The connection instance is no longer usable
  */
 enum DbConnectionState : ubyte
 {
     closed,  // Make this state first as default value
     closing,
     opening,
-    open,
+    opened,
     failing,
     failed,
+    disposed,
 }
 
 enum DbConnectionType : ubyte

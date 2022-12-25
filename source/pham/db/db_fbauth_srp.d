@@ -18,6 +18,7 @@ import std.typecons : Flag, No, Yes;
 
 version (TraceFunction) import pham.utl.test;
 import pham.utl.big_integer;
+import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.utl.object : bytesFromHexs, bytesToHexs;
 import pham.cp.auth_rsp;
 import pham.db.auth;
@@ -187,19 +188,20 @@ protected:
         return M;
     }
 
-    override void doDispose(bool disposing)
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         if (_authClient !is null)
         {
-            _authClient.disposal(disposing);
-            _authClient = null;
+            _authClient.dispose(disposingReason);
+            if (isDisposing(disposingReason))
+                _authClient = null;
         }
-        _premasterKey.dispose(disposing);
+        _premasterKey.dispose(disposingReason);
         _proof[] = 0;
         _proof = null;
         _sessionKey[] = 0;
         _sessionKey = null;
-        super.doDispose(disposing);
+        super.doDispose(disposingReason);
     }
 
 private:

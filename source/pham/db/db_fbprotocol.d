@@ -20,6 +20,7 @@ import std.typecons : Flag, No, Yes;
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.utl.bit_array : BitArrayImpl, bitLengthToElement, hostToNetworkOrder;
+import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.utl.enum_set : toName;
 import pham.utl.object : InitializedValue, bytesFromHexs, bytesToHexs, functionName,
     currentComputerName, currentProcessId, currentProcessName, currentUserName;
@@ -598,8 +599,8 @@ public:
 			batchWriter.writeInt32(FbIscBatch.tag_record_counts, 1);
 		if (commandBatch.multiErrors)
 			batchWriter.writeInt32(FbIscBatch.tag_multierror, 1);
-		batchWriter.writeInt32(FbIscBatch.tag_buffer_bytes_size, commandBatch.batchBufferLength);
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("batchBufferLength=", commandBatch.batchBufferLength, ", data=", batchWriter.peekBytes().dgToHex());
+		batchWriter.writeInt32(FbIscBatch.tag_buffer_bytes_size, commandBatch.maxBatchBufferLength);
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("maxBatchBufferLength=", commandBatch.maxBatchBufferLength, ", data=", batchWriter.peekBytes().dgToHex());
 
 		writer.writeOperation(FbIsc.op_batch_create);
         writer.writeHandle(commandBatch.fbCommand.fbHandle);
@@ -1901,12 +1902,13 @@ protected:
         }
     }
 
-    override void doDispose(bool disposing) nothrow
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
-        _connection = null;
         _serverVersion = 0;
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     final int32 getCryptedConnectionCode() nothrow

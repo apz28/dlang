@@ -19,6 +19,7 @@ import std.system : Endian;
 
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
+import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.utl.enum_set : toName;
 import pham.utl.object : shortClassName;
 import pham.db.buffer;
@@ -1204,11 +1205,10 @@ protected:
         valueWriter.writeArrayEnd(marker);
     }
 
-    override void doDispose(bool disposing) nothrow @safe
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
-
-        _connection = null;
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     final T[] readValueArray(T)(ref PgReader reader, PgCommand command, DbNameColumn column, const(int32) valueLength)

@@ -18,6 +18,7 @@ import std.conv : to;
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.utl.bit_array : BitArrayImpl, bitLengthToElement;
+import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.utl.enum_set : toName;
 import pham.utl.object : shortClassName, VersionString;
 import pham.db.buffer;
@@ -1114,11 +1115,10 @@ protected:
         assert(0, toName!DbType(column.type));
     }
 
-    override void doDispose(bool disposing) nothrow
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
-
-        _connection = null;
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     final MyOkResponse handleAuthenticationChallenge(ref MyConnectingStateInfo stateInfo, bool authMethodChanged)

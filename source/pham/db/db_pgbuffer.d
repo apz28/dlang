@@ -17,6 +17,7 @@ import std.system : Endian;
 
 version (unittest) import pham.utl.test;
 import pham.external.dec.decimal : scaleFrom, scaleTo;
+import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.db.buffer;
 import pham.db.convert;
 import pham.db.type;
@@ -54,17 +55,18 @@ public:
 
     ~this() nothrow
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing = true) nothrow
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         if (_buffer !is null && _connection !is null)
             _connection.releaseMessageReadBuffer(_buffer);
 
-        _buffer = null;
-        _connection = null;
-        _reader.dispose(disposing);
+        _buffer = null;        
+        _reader.dispose(disposingReason);
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     pragma(inline, true)
@@ -233,7 +235,7 @@ public:
 
     ~this()
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
     void beginMessage(char messageCode) nothrow
@@ -256,15 +258,18 @@ public:
         beginMessage('\0');
     }
 
-    void dispose(bool disposing = true)
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         if (_needBuffer && _buffer !is null && _connection !is null)
             _connection.releaseSocketWriteBuffer(_buffer);
 
         _buffer = null;
-        _connection = null;
-        _needBuffer = false;
         _reserveLenghtOffset = -1;
+        if (isDisposing(disposingReason))
+        {
+            _needBuffer = false;
+            _connection = null;
+        }
     }
 
     pragma(inline, true)
@@ -411,11 +416,12 @@ public:
         this._reader = DbValueReader!(Endian.bigEndian)(buffer);
     }
 
-    void dispose(bool disposing = true)
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         _buffer = null;
-        _connection = null;
-        _reader.dispose(disposing);
+        _reader.dispose(disposingReason);
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     pragma(inline, true)
@@ -677,11 +683,12 @@ public:
         this._writer = DbValueWriter!(Endian.bigEndian)(buffer);
     }
 
-    void dispose(bool disposing = true)
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         _buffer = null;
-        _connection = null;
-        _writer.dispose(disposing);
+        _writer.dispose(disposingReason);
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     size_t writeArrayBegin() nothrow

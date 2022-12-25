@@ -11,7 +11,7 @@
 
 module pham.db.database;
 
-import core.atomic : atomicLoad, atomicStore,  MemoryOrder;
+import core.atomic : atomicFetchAdd, atomicFetchSub, atomicLoad, atomicStore;
 import core.sync.mutex : Mutex;
 public import core.time : Duration, dur;
 import std.array : Appender;
@@ -28,8 +28,9 @@ import pham.external.std.log.logger : Logger, LogLevel, LogTimming, ModuleLogger
 import pham.utl.delegate_list;
 import pham.utl.dlink_list;
 import pham.utl.enum_set : EnumSet, toEnum, toName;
+import pham.utl.disposable;
 import pham.utl.object : currentComputerName, currentProcessId, currentProcessName, currentUserName,
-    DisposableState, IDisposable, RAIIMutex, singleton;
+    RAIIMutex, singleton;
 import pham.utl.timer;
 import pham.utl.utf8 : nextUTF8Char;
 import pham.db.convert;
@@ -95,6 +96,11 @@ abstract class DbCommand : DbDisposableObject
 {
 public:
     this(DbConnection connection, string name = null) nothrow @safe
+    in
+    {
+        assert(connection !is null);
+    }
+    do
     {
         this._connection = connection;
         this._name = name;
@@ -106,10 +112,15 @@ public:
     }
 
     this(DbConnection connection, DbTransaction transaction, string name = null) nothrow @safe
+    in
+    {
+        assert(connection !is null);
+    }
+    do
     {
         this(connection, name);
         this._transaction = transaction;
-        this._flags.set(DbCommandFlag.implicitTransaction, false);
+        this._flags.set(DbCommandFlag.implicitTransaction, transaction is null);
     }
 
     final typeof(this) cancel() @safe
@@ -336,7 +347,7 @@ public:
     {
         return _activeReader;
     }
-    
+
     @property final bool allRowsFetched() const nothrow @safe
     {
         return _flags.on(DbCommandFlag.allRowsFetched);
@@ -738,8 +749,8 @@ protected:
             auto msg = DbMessage.eInvalidCommandConnection.fmtMessage(callerName);
             throw new DbException(msg, DbErrorCode.connect, null);
         }
-        else
-            _connection.checkActive(callerName);
+       
+        _connection.checkActive(callerName);
     }
 
     final void checkActiveReader(string callerName = __FUNCTION__) @safe
@@ -756,7 +767,7 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.database")("callerName=", callerName);
 
-        if (_connection is null || _connection.state != DbConnectionState.open)
+        if (_connection is null || _connection.state != DbConnectionState.opened)
             throw new DbException(DbMessage.eInvalidCommandConnection, DbErrorCode.connect, null);
 
         checkActiveReader(callerName);
@@ -801,9 +812,9 @@ protected:
         return commandType(type);
     }
 
-    override void doDispose(bool disposing) nothrow @safe
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
         try
         {
@@ -818,13 +829,13 @@ protected:
 
         if (_fields !is null)
         {
-            version (none) _fields.disposal(disposing);
+            version (none) _fields.dispose(disposingReason);
             _fields = null;
         }
 
         if (_parameters !is null)
         {
-            version (none) _parameters.disposal(disposing);
+            version (none) _parameters.dispose(disposingReason);
             _parameters = null;
         }
 
@@ -836,7 +847,8 @@ protected:
         if (_connection !is null)
         {
             _connection.removeCommand(this);
-            _connection = null;
+            if (isDisposing(disposingReason))
+                _connection = null;
         }
 
         _commandState = DbCommandState.closed;
@@ -921,7 +933,7 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.database")("implicitTransaction=", implicitTransaction);
 
-        if (implicitTransaction && disposingState != DisposableState.destructing)
+        if (implicitTransaction && !isDisposing(lastDisposingReason))
         {
             try
             {
@@ -1127,34 +1139,24 @@ public:
         doNotifyMessage();
     }
 
-    final void close() @safe
+    final typeof(this) close() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction!("pham.db.database")("state=", state);
 
-        auto previousState = state;
-        if (previousState != DbConnectionState.open)
-            return;
+        if (_poolList !is null)
+            return _poolList.release(this);
 
-        // Pool?
-        if (list !is null && list.pool !is null)
-        {
-            list.pool.release(this);
-            return;
-        }
-
-        scope (exit)
-        {
-            _handle.reset();
-            _state = DbConnectionState.closed;
-            doEndStateChange(previousState);
-        }
+        const previousState = state;
+        if (previousState == DbConnectionState.closed)
+            return this;
 
         _state = DbConnectionState.closing;
-        doBeginStateChange(DbConnectionState.closed);
-        rollbackTransactions(false);
-        disposeTransactions(false);
-        disposeCommands(false);
-        doClose(false);
+        doBeginStateChange(DbConnectionState.closing);
+        doClose(DbConnectionState.closing);
+        _state = DbConnectionState.closed;
+        doEndStateChange(previousState);
+    
+        return this;
     }
 
     final DLinkDbCommandTypes.DLinkRange commands() @safe
@@ -1220,52 +1222,41 @@ public:
 
     final typeof(this) open() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction!("pham.db.database")("state=", state);
 
-        const previousState = _state;
-        if (previousState == DbConnectionState.open)
+        const previousState = state;
+        if (previousState == DbConnectionState.opened)
             return this;
 
-        _fatalError = false;
+        reset();
         _state = DbConnectionState.opening;
-        serverInfo.clear();
-        notificationMessages.length = 0;
-        doBeginStateChange(DbConnectionState.open);
+        doBeginStateChange(DbConnectionState.opening);
 
         scope (failure)
         {
             _fatalError = true;
             _state = DbConnectionState.failing;
-            doClose(true);
-
-            _state = DbConnectionState.failed;
+            doClose(DbConnectionState.failing);
             doEndStateChange(previousState);
+            _state = DbConnectionState.failed;
         }
 
         doOpen();
-        _state = DbConnectionState.open;
+        _state = DbConnectionState.opened;
         doEndStateChange(previousState);
         doNotifyMessage();
 
         return this;
     }
-
+    
     final typeof(this) release() @safe
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
-        auto lst = _list;
-        if (lst !is null)
-        {
-            auto pool = lst.pool;
-            if (pool !is null)
-                pool.release(this);
-            else
-                lst.release(this);
-        }
-        else
-            dispose();
-
+        if (_poolList !is null)
+            return _poolList.release(this);
+                    
+        dispose();            
         return null;
     }
 
@@ -1321,6 +1312,22 @@ public:
     }
 
     /**
+     * Returns true if this connection has any DbCommand
+     */
+    @property final bool hasCommands() const nothrow pure @safe
+    {
+        return !_commands.empty;
+    }
+
+    /**
+     * Returns true if this connection has any DbTransaction
+     */
+    @property final bool hasTransactions() const nothrow pure @safe
+    {
+        return !_transactions.empty;
+    }
+
+    /**
      * Returns true if there is a mismatched reading/writing data with database server and
      * must perform disconnect and connect again
      */
@@ -1339,27 +1346,6 @@ public:
             result = _transactions.next(result);
         }
         return result;
-    }
-
-    @property final DbConnectionList list() nothrow pure @safe
-    {
-        return _list;
-    }
-
-    /**
-     * Returns true if this connection has any DbCommand
-     */
-    @property final bool hasCommands() const nothrow pure @safe
-    {
-        return !_commands.empty;
-    }
-
-    /**
-     * Returns true if this connection has any DbTransaction
-     */
-    @property final bool hasTransactions() const nothrow pure @safe
-    {
-        return !_transactions.empty;
     }
 
 	/**
@@ -1384,6 +1370,30 @@ package(pham.db):
         return result;
     }
 
+    final void doClose(const(DbConnectionState) reasonState) nothrow @safe
+    {
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        
+        const isClosing = reasonState == DbConnectionState.closing;
+        const isFailing = isFatalError || reasonState == DbConnectionState.failing;
+        
+        try
+        {
+            if (!isFailing)
+                rollbackTransactions();
+            disposeTransactions(DisposingReason.other);
+            disposeCommands(DisposingReason.other);
+            doClose(isFailing);    
+        }
+        catch (Exception e)
+        {
+            if (auto log = logger)
+                log.error(e.msg, e);
+        }        
+        
+        _handle.reset();
+    }
+    
     final size_t nextCounter() nothrow @safe
     {
         return (++_nextCounter);
@@ -1401,7 +1411,7 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.database")("callerName=", callerName);
 
-        if (state != DbConnectionState.open)
+        if (state != DbConnectionState.opened)
         {
             auto msg = _fatalError
                 ? DbMessage.eInvalidConnectionFatal.fmtMessage(callerName, connectionStringBuilder.forErrorInfo())
@@ -1420,7 +1430,7 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.database")("callerName=", callerName);
 
-        if (state == DbConnectionState.open)
+        if (state == DbConnectionState.opened)
         {
             auto msg = DbMessage.eInvalidConnectionActive.fmtMessage(callerName, connectionStringBuilder.forErrorInfo());
             throw new DbException(msg, DbErrorCode.connect, null);
@@ -1435,21 +1445,21 @@ protected:
         return _transactions.insertEnd(result);
     }
 
-    void disposeCommands(bool disposing) nothrow @safe
+    void disposeCommands(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
         while (!_commands.empty)
-            _commands.remove(_commands.last).disposal(disposing);
+            _commands.remove(_commands.last).dispose(disposingReason);
     }
 
-    void disposeTransactions(bool disposing) nothrow @safe
+    void disposeTransactions(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
         _defaultTransaction = null;
         while (!_transactions.empty)
-            _transactions.remove(_transactions.last).disposal(disposing);
+            _transactions.remove(_transactions.last).dispose(disposingReason);
     }
 
     final void doBeginStateChange(DbConnectionState newState) @safe
@@ -1464,31 +1474,30 @@ protected:
             endStateChange(this, oldState);
     }
 
-    override void doDispose(bool disposing) nothrow @safe
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
-        try
-        {
-            if (_state == DbConnectionState.open)
-                close();
-        }
-        catch (Exception e)
-        {
-            if (auto log = logger)
-                log.error(e.msg, e);
-        }        
-            
+        if (_state != DbConnectionState.closed && _state != DbConnectionState.failed)
+            doClose(DbConnectionState.closing);
+
         beginStateChange.clear();
         endStateChange.clear();
-        disposeTransactions(disposing);
-        disposeCommands(disposing);
-        serverInfo.clear();
-        _list = null;
-        _connectionStringBuilder = null;
-        _database = null;
+        disposeTransactions(disposingReason);
+        disposeCommands(disposingReason);
+        serverInfo.clear();        
         _handle.reset();
-        _state = DbConnectionState.closed;
+        _state = DbConnectionState.disposed;
+
+        if (_poolList !is null)
+            DbConnectionList.beforeDisposeConnection(this);
+            
+        if (isDisposing(disposingReason))
+        {
+            _connectionStringBuilder = null;
+            _database = null;
+            _poolList = null;
+        }
     }
 
     final void doNotifyMessage() nothrow @safe
@@ -1503,14 +1512,15 @@ protected:
         notificationMessages.length = 0;
     }
 
-    void doPool(bool pooling) @safe
+    void doPool(bool pooling) nothrow @safe
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
         if (pooling)
         {
-            disposeCommands(true);
-            disposeTransactions(true);
+            _inactiveTime = DateTime.utcNow;
+            disposeTransactions(DisposingReason.other);
+            disposeCommands(DisposingReason.other);
         }
     }
 
@@ -1518,11 +1528,8 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
-        if (!disposingState)
-        {
-            if (value._prev !is null || value._next !is null)
-                _commands.remove(value);
-        }
+        if (value._prev !is null || value._next !is null)
+            _commands.remove(value);
     }
 
     void removeTransaction(DbTransaction value) nothrow @safe
@@ -1532,14 +1539,25 @@ protected:
         if (_defaultTransaction is value)
             _defaultTransaction = null;
 
-        if (!disposingState)
-        {
-            if (value._prev !is null || value._next !is null)
-                _transactions.remove(value);
-        }
+        if (value._prev !is null || value._next !is null)
+            _transactions.remove(value);
     }
 
-    final void rollbackTransactions(bool disposing) @safe
+    void reset() nothrow @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.database")();
+
+        _fatalError = false;
+        _nextCounter = 0;
+        _readerCounter = 0;
+        _inactiveTime = DateTime.zero;
+        serverInfo.clear();
+        notificationMessages.length = 0;
+        disposeTransactions(DisposingReason.other);
+        disposeCommands(DisposingReason.other);
+    }
+
+    final void rollbackTransactions() @safe
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
@@ -1592,7 +1610,7 @@ public:
 
 protected:
     DbDatabase _database;
-    DbConnectionList _list;
+    DbConnectionList _poolList;
     DbTransaction _defaultTransaction;
     DateTime _inactiveTime;
     DbHandle _handle;
@@ -1635,56 +1653,45 @@ public:
         if (created)
         {
             auto result = database.createConnection(connectionString);
-            result._list = this;
+            result._poolList = this;
             return result;
         }
         else
         {
             auto result = _connections.remove(_connections.last);
-            _length--;
+            atomicFetchSub(_length, 1);
+            result._poolList = this;
             result.doPool(false);
             return result;
         }
     }
 
-    final DbConnection release(DbConnection item) @safe
+    final DbConnection release(DbConnection item) nothrow @safe
     in
     {
         assert(item !is null);
-        assert(item.list is null || item.list is this);
     }
     do
     {
-        if (item.list !is this)
+        DbConnectionList poolList;
+        final switch (canPoolConnection(this, null, item, poolList))
         {
-            if (item.list is null)
+            case CanPool.none:
                 return disposeConnection(item);
-            else
-            {
-                auto lst = item.list;
-                return lst.disposeConnection(item);
-            }
+            case CanPool.wrongList:
+                return poolList.release(item);
+            case CanPool.dispose:
+                return disposeConnection(item);
+            case CanPool.ok:
+                return pool.release(item);            
         }
-
-        try
-        {
-            item.doPool(true);
-        }
-        catch (Exception e)
-        {
-            disposeConnection(item);
-            throw e; // rethrow
-        }
-        _connections.insertEnd(item);
-        _length++;
-
-        return null;
     }
 
     final DbConnection[] removeInactives(scope const(DateTime) now, scope const(Duration) maxInactiveTime) nothrow @safe
     {
         DbConnection[] result;
         result.reserve(length);
+        
         // Iterate and get inactive connections
         foreach (connection; this)
         {
@@ -1692,13 +1699,14 @@ public:
             if (elapsed > maxInactiveTime)
                 result ~= connection;
         }
+        
         // Detach from list
         foreach (removed; result)
         {
             _connections.remove(removed);
-            removed._list = null;
-            _length--;
+            atomicFetchSub(_length, 1);
         }
+        
         return result;
     }
 
@@ -1714,7 +1722,7 @@ public:
 
     @property final size_t length() const nothrow @safe
     {
-        return _length;
+        return atomicLoad(_length);
     }
 
     @property final DbConnectionPool pool() nothrow pure @safe
@@ -1723,28 +1731,73 @@ public:
     }
 
 protected:
-    final DbConnection disposeConnection(DbConnection item) @safe
-    in
-    {
-        assert(item !is null);
-    }
-    do
-    {
-        if (item.list !is null && item.list.pool !is null)
-            item.list.pool._acquiredLength--;
+    static void beforeDisposeConnection(DbConnection item) nothrow @safe
+    {        
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
-        item._list = null;
+        auto itemPool = item._poolList !is null ? item._poolList.pool : null;
+        if (itemPool !is null)
+            atomicFetchSub(itemPool._acquiredLength, 1);
+        item._poolList = null;
+    }
+    
+    enum CanPool : ubyte { none, wrongList, dispose, ok }
+    
+    static CanPool canPoolConnection(DbConnectionList checkList, DbConnectionPool checkPool,
+        DbConnection item, out DbConnectionList poolList) nothrow @safe
+    {
+        poolList = item._poolList;
+        
+        // Not pooling
+        if (poolList is null)
+            return CanPool.none;
+            
+        // Wrong pool
+        if (checkList !is null && poolList !is checkList)
+            return CanPool.wrongList;
+            
+        if (checkPool !is null && poolList.pool !is null && poolList.pool !is checkPool)
+            return CanPool.wrongList;
+                    
+        // In disposing mode or no longer active
+        if (poolList.pool is null
+            || isDisposing(poolList.lastDisposingReason)
+            || item.state != DbConnectionState.opened || item.isFatalError)
+            return CanPool.dispose;
+            
+        return CanPool.ok;
+    }
+    
+    static DbConnection disposeConnection(DbConnection item) nothrow @safe
+    {
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        
+        beforeDisposeConnection(item);
         item.dispose();
         return null;
     }
 
-    override void doDispose(bool disposing) nothrow @safe
+    final DbConnection doRelease(DbConnection item) nothrow @safe
     {
+        item.doPool(true);
+        item._poolList = null;
+        _connections.insertEnd(item);
+        atomicFetchAdd(_length, 1);
+        return null;
+    }
+    
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    {
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        
         while (!_connections.empty)
-            _connections.remove(_connections.last).disposal(disposing);
+            _connections.remove(_connections.last).dispose(disposingReason);
         _length = 0;
-        _database = null;
-        _pool = null;
+        if (isDisposing(disposingReason))
+        {
+            _database = null;
+            _pool = null;
+        }
     }
 
 protected:
@@ -1776,13 +1829,13 @@ public:
             throw new DbException(msg, DbErrorCode.connect, null);
         }
 
+        bool created;
         auto database = DbDatabaseList.getDb(scheme);
         auto lst = schemeConnections(database, connectionString);
-        bool created;
         auto result = lst.acquire(created);
-        _acquiredLength++;
+        atomicFetchAdd(_acquiredLength, 1);
         if (!created)
-            _length--;
+            atomicFetchSub(_length, 1);
         return result;
     }
 
@@ -1815,68 +1868,58 @@ public:
         return singleton(_instance, &createInstance);
     }
 
-    final DbConnection release(DbConnection item) @safe
+    final DbConnection release(DbConnection item) nothrow @safe
     in
     {
         assert(item !is null);
     }
     do
     {
-        auto lst = item.list;
-
-        // Not from pool?
-        if (lst is null)
+        DbConnectionList poolList;
+        final switch (DbConnectionList.canPoolConnection(null, this, item, poolList))
         {
-            item.dispose();
-            return null;
+            case DbConnectionList.CanPool.none:
+                return DbConnectionList.disposeConnection(item);
+            case DbConnectionList.CanPool.wrongList:
+                return poolList.release(item);
+            case DbConnectionList.CanPool.dispose:
+                return DbConnectionList.disposeConnection(item);
+            case DbConnectionList.CanPool.ok:
+                break;
         }
-
-        // Wrong pool?
-        if (lst.pool !is this)
-        {
-            if (lst.pool is null)
-                lst.disposeConnection(item);
-            else
-                lst.pool.release(item);
-            return null;
-        }
-
+                
         auto raiiMutex = () @trusted { return RAIIMutex(_poolMutex); }();
         const localMaxLength = maxLength;
 
         // Over limit?
-        if (_length + 1 >= localMaxLength)
-        {
-            lst.disposeConnection(item);
-            return null;
-        }
+        if (atomicLoad(_length) + 1 >= localMaxLength)
+            return DbConnectionList.disposeConnection(item);
 
-        item._inactiveTime = DateTime.utcNow;
-        lst.release(item); // release can raise exception
-        _acquiredLength--;
-        _length++;
+        poolList.doRelease(item);
+        atomicFetchSub(_acquiredLength, 1);
+        atomicFetchAdd(_length, 1);
 
         return null;
     }
 
     @property final size_t acquiredLength() const nothrow @safe
     {
-        return _acquiredLength;
+        return atomicLoad(_acquiredLength);
     }
 
     @property final size_t length() const nothrow pure @safe
     {
-        return _length;
+        return atomicLoad(_length);
     }
 
     @property final size_t maxLength() const nothrow pure @safe
     {
-        return atomicLoad!(MemoryOrder.acq)(_maxLength);
+        return atomicLoad(_maxLength);
     }
 
     @property final typeof(this) maxLength(size_t value) nothrow pure @safe
     {
-        atomicStore!(MemoryOrder.rel)(_maxLength, cast(shared)value);
+        atomicStore(_maxLength, value);
         return this;
     }
 
@@ -1886,12 +1929,14 @@ protected:
         return new DbConnectionPool();
     }
 
-    override void doDispose(bool disposing) nothrow @safe
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         scope (failure) assert(0);
 
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        
         foreach (_, lst; _schemeConnections)
-            lst.disposal(disposing);
+            lst.dispose(disposingReason);
         _schemeConnections = null;
         _acquiredLength = 0;
         _length = 0;
@@ -1913,8 +1958,8 @@ protected:
             auto inactives = lst.removeInactives(now, _maxInactiveTime);
             if (inactives.length)
             {
-                _length -= inactives.length;
                 result ~= inactives;
+                atomicFetchSub(_length, inactives.length);
             }
         }
         return result;
@@ -2589,16 +2634,12 @@ public:
      */
     @property final Logger logger() nothrow pure @trusted //@trusted=cast()
     {
-        import core.atomic : atomicLoad,  MemoryOrder;
-
-        return cast(Logger)atomicLoad!(MemoryOrder.acq)(_logger);
+        return cast(Logger)atomicLoad(_logger);
     }
 
     @property final DbDatabase logger(Logger logger) nothrow pure @trusted //@trusted=cast()
     {
-        import core.atomic : atomicStore,  MemoryOrder;
-
-        atomicStore!(MemoryOrder.rel)(_logger, cast(shared)logger);
+        atomicStore(_logger, cast(shared)logger);
         return this;
     }
 
@@ -3115,24 +3156,24 @@ public:
         return createField(command, id);
     }
 
-    final void disposal(bool disposing) nothrow @safe
+    /**
+     * Implement IDisposable.dispose
+     * Will do nothing if called more than one
+     */
+    final void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
     {
-        version (TraceInvalidMemoryOp) traceFunction!("pham.db.database")(className(this));
-
-        _disposing++;
-        doDispose(disposing);
-
-        version (TraceInvalidMemoryOp) traceFunction!("pham.db.database")(className(this));
+        assert(disposingReason != DisposingReason.none);
     }
-
-    final void dispose() nothrow @safe
+    do
     {
-        version (TraceInvalidMemoryOp) traceFunction!("pham.db.database")(className(this));
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
-        _disposing++;
-        doDispose(true);
+        if (!_lastDisposingReason.canDispose(disposingReason))
+            return;
 
-        version (TraceInvalidMemoryOp) traceFunction!("pham.db.database")(className(this));
+        _lastDisposingReason.value = disposingReason;
+        doDispose(disposingReason);
     }
 
     @property final DbCommand command() nothrow pure @safe
@@ -3145,14 +3186,10 @@ public:
         return _command !is null ? _command.database : null;
     }
 
-    @property final DisposableState disposingState() const nothrow @safe
+    pragma(inline, true)
+    @property final override DisposingReason lastDisposingReason() const @nogc nothrow @safe
     {
-        if (_disposing == 0)
-            return DisposableState.none;
-        else if (_disposing > 0)
-            return DisposableState.disposing;
-        else
-            return DisposableState.destructing;
+        return _lastDisposingReason.value;
     }
 
 protected:
@@ -3162,17 +3199,18 @@ protected:
         item._ordinal = cast(uint32)length;
     }
 
-    void doDispose(bool disposing) nothrow @safe
+    void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         clear();
-        _command = null;
+        if (isDisposing(disposingReason))
+            _command = null;
     }
 
 protected:
     DbCommand _command;
 
 private:
-    byte _disposing;
+    LastDisposingReason _lastDisposingReason;
 }
 
 class DbParameter : DbNameColumn
@@ -3397,24 +3435,24 @@ public:
         return database.createParameter(id);
     }
 
-    final void disposal(bool disposing) nothrow @safe
+    /**
+     * Implement IDisposable.dispose
+     * Will do nothing if called more than one
+     */
+    final void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
     {
-        version (TraceInvalidMemoryOp) traceFunction!("pham.db.database")(className(this));
-
-        _disposing++;
-        doDispose(disposing);
-
-        version (TraceInvalidMemoryOp) traceFunction!("pham.db.database")(className(this));
+        assert(disposingReason != DisposingReason.none);
     }
-
-    final void dispose() nothrow @safe
+    do
     {
-        version (TraceInvalidMemoryOp) traceFunction!("pham.db.database")(className(this));
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
-        _disposing++;
-        doDispose(true);
+        if (!_lastDisposingReason.canDispose(disposingReason))
+            return;
 
-        version (TraceInvalidMemoryOp) traceFunction!("pham.db.database")(className(this));
+        _lastDisposingReason.value = disposingReason;
+        doDispose(disposingReason);
     }
 
     final DbIdentitier generateParameterName() nothrow @safe
@@ -3554,14 +3592,10 @@ public:
         return _database;
     }
 
-    @property final DisposableState disposingState() const nothrow @safe
+    pragma(inline, true)
+    @property final override DisposingReason lastDisposingReason() const @nogc nothrow @safe
     {
-        if (_disposing == 0)
-            return DisposableState.none;
-        else if (_disposing > 0)
-            return DisposableState.disposing;
-        else
-            return DisposableState.destructing;
+        return _lastDisposingReason.value;
     }
 
 protected:
@@ -3571,17 +3605,20 @@ protected:
         item._ordinal = cast(uint32)length;
     }
 
-    void doDispose(bool disposing) nothrow @safe
+    void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        
         clear();
-        _database = null;
+        if (isDisposing(disposingReason))
+            _database = null;
     }
 
 protected:
     DbDatabase _database;
 
 private:
-    byte _disposing;
+    LastDisposingReason _lastDisposingReason;
 }
 
 struct DbRAIITransaction
@@ -3682,7 +3719,7 @@ public:
 
     ~this() @safe
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
     /*
@@ -3710,12 +3747,12 @@ public:
         return this;
     }
 
-    void dispose(bool disposing = true) @safe
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
         if (_command !is null)
-            doDetach(disposing);
+            doDetach(isDisposing(disposingReason));
 
         _fields = null;
         _fetchedCount = 0;
@@ -4020,6 +4057,11 @@ public:
         return this;
     }
 
+    bool canSavePoint() @safe
+    {
+        return state == DbTransactionState.active && isOpenedConnection();
+    }
+    
     /**
      * Performs a commit for this transaction
 	 */
@@ -4027,36 +4069,56 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
+        scope (failure)
+            resetState(DbTransactionState.error);
         checkState(DbTransactionState.active);
-
-        if (_connection !is null && _connection.isFatalError)
-        {
-            _state = DbTransactionState.error;
-            _handle.reset();
-            if (auto log = logger)
-                log.info(forLogInfo(), newline, "transaction.commit(fatalError)");
-            return this;
-        }
 
         if (auto log = logger)
             log.info(forLogInfo(), newline, "transaction.commit()");
 
-        scope (failure)
-        {
-            _state = DbTransactionState.error;
-            _handle.reset();
-        }
-
         doCommit(false);
         if (!handle)
-            _state = DbTransactionState.inactive;
+            resetState(DbTransactionState.inactive);
+        return this;
+    }
 
+    /**
+     * Releases a pending transaction save-point
+     * Params:
+     *  savePointName = The name of the save-point
+     */
+    final typeof(this) commit(string savePointName) @safe
+    in
+    {
+        assert(savePointName.length != 0);
+    }
+    do
+    {
+        version (TraceFunction) traceFunction!("pham.db.database")();
+        
+        checkSavePointState();        
+        _savePointNames.length = checkSavePointName(savePointName);
+        
+        if (auto log = logger)
+            log.info(forLogInfo(), newline, "transaction.commit(" ~ savePointName ~ ")");
+        
+        doSavePoint(savePointName, "RELEASE SAVEPOINT " ~ savePointName);
         return this;
     }
 
     final string forLogInfo() const nothrow @safe
     {
         return _connection !is null ? _connection.forLogInfo() : null;
+    }
+
+    final int isSavePoint(scope const(char)[] savePointName) const nothrow pure @safe
+    {
+        foreach (i, n; _savePointNames)
+        {
+            if (n == savePointName)
+                return i;
+        }
+        return -1;
     }
 
     /**
@@ -4069,28 +4131,40 @@ public:
         if (state != DbTransactionState.active)
             return this;
 
-        if (_connection !is null && _connection.isFatalError)
-        {
-            _state = DbTransactionState.error;
-            _handle.reset();
-            if (auto log = logger)
-                log.info(forLogInfo(), newline, "transaction.rollback(fatalError)");
-            return this;
-        }
+        scope (failure)
+            resetState(DbTransactionState.error);
+        checkState(DbTransactionState.active);
 
         if (auto log = logger)
             log.info(forLogInfo(), newline, "transaction.rollback()");
 
-        scope (failure)
-        {
-            _state = DbTransactionState.error;
-            _handle.reset();
-        }
-
         doRollback(false);
         if (!handle)
-            _state = DbTransactionState.inactive;
+            resetState(DbTransactionState.inactive);
+        return this;
+    }
 
+    /**
+     * Rolls back a pending transaction save-point
+     * Params:
+     *  savePointName = The name of the save-point
+     */
+    final typeof(this) rollback(string savePointName) @safe
+    in
+    {
+        assert(savePointName.length != 0);
+    }
+    do
+    {
+        version (TraceFunction) traceFunction!("pham.db.database")();
+
+        checkSavePointState();
+        _savePointNames.length = checkSavePointName(savePointName);
+        
+        if (auto log = logger)
+            log.info(forLogInfo(), newline, "transaction.rollback(" ~ savePointName ~ ")");
+        
+        doSavePoint(savePointName, "ROLLBACK TO SAVEPOINT " ~ savePointName);
         return this;
     }
 
@@ -4104,16 +4178,34 @@ public:
             log.info(forLogInfo(), newline, "transaction.start()");
 
         scope (failure)
-        {
-            _state = DbTransactionState.error;
-            _handle.reset();
-            if (!isDefault)
-                complete(false);
-        }
+            resetState(DbTransactionState.error);
 
         doStart();
         _state = DbTransactionState.active;
+        return this;
+    }
 
+    /**
+     * Creates a transaction save-point
+     * Params:
+     *  savePointName = The name of the save-point
+     *                  if no name is supplied, a default name is generated as "SAVEPOINT_nnn"
+     *                  where nnn is an incremented counter
+     */
+    final typeof(this) start(string savePointName) @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.database")();
+
+        checkSavePointState();
+
+        if (savePointName.length == 0)
+            savePointName = "SAVEPOINT_" ~ to!string(_connection.nextCounter());
+
+        if (auto log = logger)
+            log.info(forLogInfo(), newline, "transaction.start(" ~ savePointName ~ ")");
+
+        doSavePoint(savePointName, "SAVEPOINT " ~ savePointName);
+        _savePointNames ~= savePointName;
         return this;
     }
 
@@ -4156,6 +4248,11 @@ public:
     @property final DbHandle handle() const nothrow pure @safe
     {
         return _handle;
+    }
+
+    @property final bool hasSavePoint() const nothrow pure @safe
+    {
+        return _savePointNames.length != 0;
     }
 
     @property final bool isDefault() const nothrow @safe
@@ -4232,6 +4329,11 @@ public:
         return this;
     }
 
+    @property final const(string)[] savePointNames() const nothrow pure @safe
+    {
+        return _savePointNames;
+    }
+
     /**
      * Indicator of current state of transaction
 	 */
@@ -4250,12 +4352,37 @@ protected:
 
     final bool canRetain() const nothrow @safe
     {
-        return isRetaining
-            && disposingState == DisposableState.none
-            && _connection.state == DbConnectionState.open;
+        return isRetaining && isOpenedConnection();
     }
 
-    final void checkState(DbTransactionState checkingState,
+    final int checkSavePointName(string savePointName,
+        string callerName = __FUNCTION__) @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.database")("savePointName=", savePointName, ", callerName=", callerName);
+
+        const index = isSavePoint(savePointName);
+        if (index < 0)
+        {
+            auto msg = DbMessage.eInvalidTransactionSavePoint.fmtMessage(callerName, savePointName);
+            throw new DbException(msg, 0, null);
+        }
+        return index;
+    }
+
+    final void checkSavePointState(string callerName = __FUNCTION__) @safe
+    {
+        try
+        {
+            checkState(DbTransactionState.active, callerName);
+        }
+        catch (Exception ex)
+        {
+            resetState(DbTransactionState.error);
+            throw ex;
+        }
+    }
+    
+    final void checkState(const(DbTransactionState) checkingState,
         string callerName = __FUNCTION__) @safe
     {
         version (TraceFunction) traceFunction!("pham.db.database")("checkingState=", checkingState, ", callerName=", callerName);
@@ -4271,29 +4398,17 @@ protected:
             auto msg = DbMessage.eCompletedTransaction.fmtMessage(callerName);
             throw new DbException(msg, 0, null);
         }
+        
+        _connection.checkActive(callerName);
     }
 
-    final void complete(bool disposing) nothrow @safe
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("disposing=", disposing);
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
-        if (_connection !is null)
-        {
-            _connection.removeTransaction(this);
-            _connection = null;
-        }
-
-        _state = DbTransactionState.disposed;
-        _lockedTables = null;
-        _database = null;
-        _handle.reset();
-    }
-
-    override void doDispose(bool disposing) nothrow @safe
-    {
         try
         {
-            if (_connection !is null && _state == DbTransactionState.active)
+            if (_state == DbTransactionState.active && isOpenedConnection())
             {
                 if (autoCommit)
                     commit();
@@ -4306,15 +4421,51 @@ protected:
             if (auto log = logger)
                 log.error(e.msg, e);
         }
-        
-        complete(disposing);
+
+        if (_connection !is null)
+            _connection.removeTransaction(this);
+
+        _state = DbTransactionState.disposed;
+        _savePointNames = null;
+        _lockedTables = null;
+        _handle.reset();
+        _connection = null;
+        _database = null;
         _next = null;
         _prev = null;
     }
 
-    void doOptionChanged(string name) nothrow @safe
+    void doOptionChanged(string propertyName) nothrow @safe
     {}
 
+    void doSavePoint(string savePointName, string savePointStatement) @safe
+    {
+        version (TraceFunction) traceFunction!("pham.db.database")("savePointStatement=", savePointStatement);
+
+        auto command = connection.createCommand();
+        scope (exit)
+            command.dispose();
+
+        command.commandText = savePointStatement;
+        command.transaction = this;
+        command.executeNonQuery();
+    }
+
+    final bool isOpenedConnection() const nothrow @safe
+    {
+        return _connection !is null && _connection.state == DbConnectionState.opened && !_connection.isFatalError;
+    }
+    
+    void resetState(const(DbTransactionState) toState) nothrow @safe
+    {
+        _savePointNames = null;
+        _state = toState;
+        _handle.reset();
+        
+        if (toState == DbTransactionState.error && !isDefault)
+            doDispose(DisposingReason.other);
+    }
+    
     abstract void doCommit(bool disposing) @safe;
     abstract void doRollback(bool disposing) @safe;
     abstract void doStart() @safe;
@@ -4322,6 +4473,7 @@ protected:
 protected:
     DbConnection _connection;
     DbDatabase _database;
+    string[] _savePointNames;
     DbHandle _handle;
     Duration _lockTimeout;
     DbLockTable[] _lockedTables;

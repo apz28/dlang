@@ -25,7 +25,8 @@ version (unittest) import pham.utl.test;
 import pham.utl.utf8 : nextUTF8Char;
 import pham.utl.array : IndexedArray;
 import pham.utl.enum_set : EnumSet;
-import pham.utl.object : DisposableState, IDisposable, shortClassName;
+import pham.utl.disposable;
+import pham.utl.object : shortClassName;
 import pham.db.exception;
 import pham.db.message;
 import pham.db.parser;
@@ -347,36 +348,32 @@ abstract class DbObject
 
 abstract class DbDisposableObject : DbObject, IDisposable
 {
- nothrow @safe:
-
 public:
-    final void disposal(bool disposing)
+    final void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
     {
-        _disposing++;
-        doDispose(disposing);
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        if (!_lastDisposingReason.canDispose(disposingReason))
+            return;
+
+        _lastDisposingReason.value = disposingReason;
+        doDispose(disposingReason);
     }
 
-    final void dispose()
+    pragma(inline, true)
+    @property final override DisposingReason lastDisposingReason() const @nogc nothrow @safe
     {
-        _disposing++;
-        doDispose(true);
-    }
-
-    @property final DisposableState disposingState() const
-    {
-        if (_disposing == 0)
-            return DisposableState.none;
-        else if (_disposing > 0)
-            return DisposableState.disposing;
-        else
-            return DisposableState.destructing;
+        return _lastDisposingReason.value;
     }
 
 protected:
-    abstract void doDispose(bool disposing);
+    abstract void doDispose(const(DisposingReason) disposingReason) nothrow @safe;
 
 private:
-    byte _disposing;
+    LastDisposingReason _lastDisposingReason;
 }
 
 class DbNameObject : DbObject

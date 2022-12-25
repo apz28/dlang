@@ -18,6 +18,7 @@ import std.system : Endian;
 version (unittest) import pham.utl.test;
 import pham.utl.bit_array : numericBitCast;
 import pham.utl.dlink_list;
+import pham.utl.disposable : DisposingReason;
 import pham.utl.object : alignRoundup;
 import pham.utl.utf8 : inplaceMoveToLeft;
 import pham.db.convert;
@@ -35,7 +36,7 @@ class DbBuffer : DbDisposableObject
 @safe:
 
 protected:
-    override void doDispose(bool disposing) nothrow
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _data = null;
         _offset = 0;
@@ -199,10 +200,10 @@ public:
     }
 
 protected:
-    override void doDispose(bool disposing) nothrow
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _maxLength = 0;
-        super.doDispose(disposing);
+        super.doDispose(disposingReason);
     }
 
     final void mergeOffset() nothrow
@@ -273,7 +274,7 @@ public:
         this._buffer = buffer;
     }
 
-    void dispose(bool disposing = true) nothrow pure
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
         _buffer = null;
     }
@@ -527,7 +528,7 @@ public:
         this._buffer = buffer;
     }
 
-    void dispose(bool disposing = true) nothrow pure
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
         _buffer = null;
     }

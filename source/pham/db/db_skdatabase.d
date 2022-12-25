@@ -18,6 +18,7 @@ import std.socket : Address, AddressFamily, InternetAddress, ProtocolType, Socke
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.cp.openssl;
+import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.utl.system : lastSocketError, lastSocketErrorCode;
 import pham.db.buffer;
 import pham.db.buffer_filter;
@@ -174,7 +175,7 @@ package(pham.db):
     {
         version (TraceFunctionWriter) traceFunction!("pham.db.database")();
 
-        if (!disposingState)
+        if (!isDisposing(lastDisposingReason))
             _socketWriteBuffers.insertEnd(item.reset());
     }
 
@@ -355,70 +356,60 @@ protected:
         return new SkWriteBuffer(this, capacity);
     }
 
-    final void disposeSocket(bool disposing) nothrow @safe
+    final void disposeSocket(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) if (disposing) traceFunction!("pham.db.database")();
-
-        _sslSocket.dispose(disposing);
-        disposeSocketBufferFilters(disposing);
-        disposeSocketReadBuffer(disposing);
-        disposeSocketWriteBuffers(disposing);
+        _sslSocket.dispose(disposingReason);
+        disposeSocketBufferFilters(disposingReason);
+        disposeSocketReadBuffer(disposingReason);
+        disposeSocketWriteBuffers(disposingReason);
         if (socketActive)
             _socket.close();
         _socket = null;
     }
 
-    final void disposeSocketBufferFilters(bool disposing) nothrow @safe
+    final void disposeSocketBufferFilters(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
-
         while (_socketReadBufferFilters !is null)
         {
             auto temp = _socketReadBufferFilters;
             _socketReadBufferFilters = _socketReadBufferFilters.next;
-            temp.disposal(disposing);
+            temp.dispose(disposingReason);
         }
 
         while (_socketWriteBufferFilters !is null)
         {
             auto temp = _socketWriteBufferFilters;
             _socketWriteBufferFilters = _socketWriteBufferFilters.next;
-            temp.disposal(disposing);
+            temp.dispose(disposingReason);
         }
     }
 
-    final void disposeSocketReadBuffer(bool disposing) nothrow @safe
+    final void disposeSocketReadBuffer(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunctionReader) traceFunction!("pham.db.database")();
-
         if (_socketReadBuffer !is null)
         {
-            _socketReadBuffer.disposal(disposing);
+            _socketReadBuffer.dispose(disposingReason);
             _socketReadBuffer = null;
         }
     }
 
-    final void disposeSocketWriteBuffers(bool disposing) nothrow @safe
+    final void disposeSocketWriteBuffers(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunctionWriter) traceFunction!("pham.db.database")();
-
         while (!_socketWriteBuffers.empty)
-            _socketWriteBuffers.remove(_socketWriteBuffers.last).disposal(disposing);
+            _socketWriteBuffers.remove(_socketWriteBuffers.last).dispose(disposingReason);
     }
 
     override void doClose(bool failedOpen) @safe
     {
         version (TraceFunction) traceFunction!("pham.db.database")();
 
-        disposeSocket(false);
+        disposeSocket(DisposingReason.other);
     }
 
-    override void doDispose(bool disposing) nothrow @safe
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
-
-        super.doDispose(disposing);
-        disposeSocket(disposing);
+        super.doDispose(disposingReason);
+        disposeSocket(disposingReason);
     }
 
     final void doOpenSocket() @trusted
@@ -428,7 +419,7 @@ protected:
         auto useCSB = skConnectionStringBuilder;
 
         if (_socket !is null && _socket.addressFamily != useCSB.toAddressFamily())
-            disposeSocket(false);
+            disposeSocket(DisposingReason.other);
 
         if (useCSB.encrypt != DbEncryptedConnection.disabled)
             setSSLSocketOptions();
@@ -676,10 +667,11 @@ public:
     }
 
 protected:
-    override void doDispose(bool disposing) nothrow
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        _connection = null;
-        super.doDispose(disposing);
+        if (isDisposing(disposingReason))
+            _connection = null;
+        super.doDispose(disposingReason);
     }
 
 protected:
@@ -719,10 +711,11 @@ public:
     }
 
 protected:
-    override void doDispose(bool disposing) nothrow
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        _connection = null;
-        super.doDispose(disposing);
+        if (isDisposing(disposingReason))
+            _connection = null;
+        super.doDispose(disposingReason);
     }
 
 protected:
@@ -753,15 +746,16 @@ public:
 
     ~this()
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing = true)
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         if (_needBuffer && _buffer !is null && _connection !is null)
             _connection.releaseSocketWriteBuffer(_buffer);
         _buffer = null;
-        _connection = null;
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     @property DbWriteBuffer buffer() nothrow pure

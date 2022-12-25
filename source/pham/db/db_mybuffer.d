@@ -19,6 +19,7 @@ import std.system : Endian;
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.utl.bit_array : numericBitCast;
+import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.utl.object : simpleFloatFmt, simpleIntegerFmt;
 import pham.utl.utf8 : ShortStringBuffer, ShortStringBufferSize;
 import pham.db.buffer;
@@ -56,13 +57,15 @@ public:
         this._buffer = new DbReadBuffer(packetData);
     }
 
-    void dispose(bool disposing = true)
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         if (_buffer !is null && _connection !is null)
             _connection.releasePackageReadBuffer(_buffer);
 
         _buffer = null;
-        _connection = null;
+        
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     bool isAuthSha2Caching(string authMethod) nothrow pure
@@ -112,11 +115,6 @@ public:
         return _packetLength;
     }
 
-public:
-    int32 maxBlockSize = int32.max / 2;
-    int32 maxPacketSize = int32.max;
-    ubyte sequenceByte;
-
 private:
     void readPacketData(MyConnection connection)
     {
@@ -152,6 +150,11 @@ private:
         version (TraceFunction) traceFunction!("pham.db.mydatabase")("_packetLength=", _packetLength, ", buffer=", this._buffer.peekBytes(200).dgToHex());
     }
 
+public:
+    int32 maxBlockSize = int32.max / 2;
+    int32 maxPacketSize = int32.max;
+    ubyte sequenceByte;
+
 private:
     DbReadBuffer _buffer;
     MyConnection _connection;
@@ -178,11 +181,12 @@ public:
         _buffer.advance(nBytes);
     }
 
-    void dispose(bool disposing = true)
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         _buffer = null;
-        _connection = null;
-        _reader.dispose(disposing);
+        _reader.dispose(disposingReason);
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     pragma(inline, true)
@@ -645,7 +649,7 @@ public:
 
     ~this()
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
     void beginPackage(ubyte sequenceByte) nothrow
@@ -657,13 +661,14 @@ public:
         this._writer.writeUInt32(0);
     }
 
-    void dispose(bool disposing = true)
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        _writer.dispose(disposing);
+        _writer.dispose(disposingReason);
         if (_socketBuffer && _buffer !is null && _connection !is null)
             _connection.releaseSocketWriteBuffer(_buffer);
         _buffer = null;
-        _connection = null;
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     pragma(inline, true)

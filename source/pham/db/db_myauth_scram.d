@@ -21,6 +21,7 @@ version (unittest) import pham.utl.test;
 import pham.cp.cipher : CipherHelper;
 import pham.cp.cipher_digest : Digester, DigestId, DigestResult, HMACS;
 import pham.cp.random : CipherRandomGenerator;
+import pham.utl.disposable : DisposingReason;
 import pham.utl.numeric_parser : NumericParsedKind, parseHexDigits, parseIntegral;
 import pham.utl.utf8 : ShortStringBuffer;
 import pham.db.auth;
@@ -177,7 +178,7 @@ public:
     }
 
 protected:
-    override void doDispose(bool disposing)
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         client[] = 0;
         client = null;
@@ -187,7 +188,7 @@ protected:
         auth = null;
         salted[] = 0;
         salted = null;
-        super.doDispose(disposing);
+        super.doDispose(disposingReason);
     }
 
     final DigestResult hashOf(scope const(ubyte)[] str)

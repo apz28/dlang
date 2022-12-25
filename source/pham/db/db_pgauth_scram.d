@@ -19,6 +19,7 @@ version (unittest) import pham.utl.test;
 import pham.cp.cipher : CipherHelper;
 import pham.cp.cipher_digest : DigestId, DigestResult, HMACS, digestOf;
 import pham.cp.random : CipherRandomGenerator;
+import pham.utl.disposable : DisposingReason;
 import pham.utl.object : bytesFromHexs, bytesToHexs;
 import pham.utl.utf8 : ShortStringBuffer;
 import pham.db.auth;
@@ -172,7 +173,7 @@ protected:
         return result;
     }
 
-    override void doDispose(bool disposing) nothrow
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _cbind[] = 0;
         _cbind = null;
@@ -180,9 +181,9 @@ protected:
         _cbindFlag = null;
         _nonce[] = 0;
         _nonce = null;
-        _saltedPassword.dispose(disposing);
-        _serverSignature.dispose(disposing);
-        super.doDispose(disposing);
+        _saltedPassword.dispose(disposingReason);
+        _serverSignature.dispose(disposingReason);
+        super.doDispose(disposingReason);
     }
 
     final const(char)[] finalRequestWithoutProof(scope const(char)[] serverNonce) const pure scope

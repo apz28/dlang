@@ -19,6 +19,7 @@ import std.traits : isArrayT = isArray, Unqual;
 version (profile) import pham.utl.test : PerfFunction;
 import pham.dtm.variant_coerce;
 import pham.external.dec.variant_coerce;
+import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.utl.variant : variantNoLengthMarker;
 public import pham.utl.variant : Variant, VariantType;
 import pham.utl.variant_coerce;
@@ -425,13 +426,14 @@ public:
         return this;
     }
 
-    void dispose(bool disposing = true) nothrow @safe
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         if (columns)
         {
             foreach (ref c; columns)
                 c.nullify();
-            columns = null;
+            if (isDisposing(disposingReason))
+                columns = null;
         }
     }
 
@@ -471,7 +473,7 @@ public:
             dequeueItem();
     }
 
-    void dispose(bool disposing = true) nothrow @safe
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         clearItems(head);
         clearItems(pools);

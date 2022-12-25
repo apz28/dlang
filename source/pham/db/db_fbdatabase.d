@@ -23,7 +23,8 @@ version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.external.std.log.logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
 import pham.utl.enum_set : toName;
-import pham.utl.object : bytesFromBase64s, bytesToBase64s, DisposableState, functionName;
+import pham.utl.disposable : DisposingReason, isDisposing;
+import pham.utl.object : bytesFromBase64s, bytesToBase64s, functionName, VersionString;
 import pham.db.buffer;
 import pham.db.convert;
 import pham.db.database;
@@ -46,12 +47,22 @@ public:
     @disable this(this);
 
     this(FbCommand command, FbIscArrayDescriptor descriptor) nothrow pure @safe
+    in
+    {
+        assert(command !is null);
+    }
+    do
     {
         this._command = command;
         this._descriptor = descriptor;
     }
 
     this(FbCommand command, FbIscArrayDescriptor descriptor, FbId id) nothrow pure @safe
+    in
+    {
+        assert(command !is null);
+    }
+    do
     {
         this._command = command;
         this._descriptor = descriptor;
@@ -59,21 +70,27 @@ public:
     }
 
     this(FbCommand command, string tableName, string fieldName, FbId id) @safe
+    in
+    {
+        assert(command !is null);
+    }
+    do
     {
         this._command = command;
         this._id = id;
         this._descriptor = fbConnection.arrayManager.getDescriptor(tableName, fieldName);
     }
 
-    void dispose(bool disposing = true) nothrow @safe
-    {
-        _command = null;
-        _id = 0;
-    }
-
     ~this() @safe
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
+    }
+
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    {
+        _id = 0;
+        if (isDisposing(disposingReason))
+            _command = null;
     }
 
     Variant readArray(DbNameColumn arrayColumn) @safe
@@ -407,23 +424,39 @@ struct FbArrayManager
 
 public:
     this(FbConnection connection) nothrow pure
+    in
+    {
+        assert(connection !is null);
+    }
+    do
     {
         this._connection = connection;
+        version (TraceFunction) { import pham.utl.test; debug dgWritefln("FbArrayManager(create)%s", cast(void*)_connection); }
     }
 
     ~this()
     {
-        dispose(false);
+        version (TraceFunction) { import pham.utl.test; debug dgWritefln("FbArrayManager(destroy)%s", cast(void*)_connection); }
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing = true) nothrow
+    void close() nothrow
     {
-        disposeCommand(_arrayType, disposing);
-        _connection = null;
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        
+        doClose(DisposingReason.other);
+    }
+    
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    {
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        
+        doClose(disposingReason);
     }
 
     FbIscArrayDescriptor getDescriptor(string tableName, string fieldName)
     {
+        version (TraceFunction) { import pham.utl.test; debug dgWritefln("FbArrayManager(getDescriptor)%s", cast(void*)_connection); }
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("tableName=", tableName, ", fieldName=", fieldName);
 
         FbIscArrayDescriptor result;
@@ -468,6 +501,16 @@ public:
         return _connection;
     }
 
+package(pham.db):
+    void doClose(const(DisposingReason) disposingReason) nothrow
+    {
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+
+        disposeCommand(_arrayType, disposingReason);
+        if (isDisposing(disposingReason))
+            _connection = null;
+    }
+
 private:
     FbCommand createCommand(string commandText)
     {
@@ -478,11 +521,13 @@ private:
         return cast(FbCommand)result.prepare();
     }
 
-    void disposeCommand(ref FbCommand command, bool disposing) nothrow
+    void disposeCommand(ref FbCommand command, const(DisposingReason) disposingReason) nothrow
     {
-        if (command)
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+
+        if (command !is null)
         {
-            command.disposal(disposing);
+            command.dispose(disposingReason);
             command = null;
         }
     }
@@ -511,6 +556,11 @@ public:
     @disable this(this);
 
     this(FbCommand command) nothrow pure
+    in
+    {
+        assert(command !is null);
+    }
+    do
     {
         this._command = command;
     }
@@ -523,7 +573,7 @@ public:
 
     ~this()
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
     void cancel()
@@ -536,15 +586,7 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
-        scope (exit)
-            _info.resetHandle();
-
-        auto protocol = fbConnection.protocol;
-        protocol.blobEndWrite(this, FbIsc.op_cancel_blob);
-        static if (fbDeferredProtocol)
-            protocol.deferredResponses ~= &protocol.blobEndRead;
-        else
-            protocol.blobEndRead();
+        cancelImpl();
     }
 
     static if (fbDeferredProtocol)
@@ -576,15 +618,7 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
-        scope (exit)
-            _info.resetHandle();
-
-        auto protocol = fbConnection.protocol;
-        protocol.blobEndWrite(this, FbIsc.op_close_blob);
-        static if (fbDeferredProtocol)
-            protocol.deferredResponses ~= &protocol.blobEndRead;
-        else
-            protocol.blobEndRead();
+        doClose(DisposingReason.other);
     }
 
     static if (fbDeferredProtocol)
@@ -620,23 +654,11 @@ public:
         _info = protocol.blobBeginRead();
     }
 
-    void dispose(bool disposing = true) nothrow
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        if (_info.hasHandle && _command)
-        {
-            try
-            {
-                cancel();
-            }
-            catch (Exception e)
-            {
-                if (auto log = logger)
-                    log.error(e.msg, e);
-            }
-        }
-
-        _command = null;
-        _info.reset();
+        doClose(disposingReason);
+        if (isDisposing(disposingReason))
+            _command = null;
     }
 
     int32 length()
@@ -784,6 +806,60 @@ public:
         // See FbXdrWriter.writeBlob for overhead
         const max = fbMaxPackageSize - (int32.sizeof * 6);
         return (segmentLength < 100 || segmentLength > max) ? max : segmentLength;
+    }
+
+package(pham.db):
+    void cancelImpl()
+    {
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+
+        scope (exit)
+            _info.resetHandle();
+
+        auto protocol = fbConnection.protocol;
+        protocol.blobEndWrite(this, FbIsc.op_cancel_blob);
+        static if (fbDeferredProtocol)
+            protocol.deferredResponses ~= &protocol.blobEndRead;
+        else
+            protocol.blobEndRead();
+    }
+
+    void doClose(const(DisposingReason) disposingReason) nothrow
+    {
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+
+        scope (exit)
+        {
+            if (isDisposing(disposingReason))
+                _info.reset();
+            else
+                _info.resetHandle();
+        }
+
+        if (isDisposing(disposingReason) && !isOpen)
+            return;
+
+        try
+        {
+            if (isDisposing(disposingReason))
+            {
+                if (fbConnection !is null)
+                    cancelImpl();
+                return;
+            }
+
+            auto protocol = fbConnection.protocol;
+            protocol.blobEndWrite(this, FbIsc.op_close_blob);
+            static if (fbDeferredProtocol)
+                protocol.deferredResponses ~= &protocol.blobEndRead;
+            else
+                protocol.blobEndRead();
+        }
+        catch (Exception e)
+        {
+            if (auto log = logger)
+                log.error(e.msg, e);
+        }
     }
 
 public:
@@ -1018,13 +1094,13 @@ protected:
             static if (fbDeferredProtocol)
             {
                 auto writer = FbXdrWriter(fbConnection);
-                
+
                 if (batched)
                 {
                     protocol.releaseCommandBatchWrite(writer, this);
                     protocol.deferredResponses ~= &protocol.releaseCommandBatchRead;
                 }
-                
+
                 protocol.deallocateCommandWrite(writer, this);
                 writer.flush();
 
@@ -1437,7 +1513,7 @@ public:
 
     ~this()
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
     FbParameterList addParameters() nothrow
@@ -1453,16 +1529,16 @@ public:
         _parameters.assumeSafeAppend();
     }
 
-    void dispose(bool disposing = true) nothrow
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("_commandOwned=", _commandOwned, ", _preparedState=", _preparedState);
-        
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+
         if (_command)
         {
             try
             {
                 if (_commandOwned)
-                    _command.dispose();
+                    _command.dispose(disposingReason);
                 else if (_preparedState == PreparedState.implicit)
                     _command.unprepare();
                 else
@@ -1474,11 +1550,14 @@ public:
                     log.error(e.msg, e);
             }
         }
-
-        _command = null;
-        _commandOwned = false;
+        
         _parameters = null;
         _preparedState = PreparedState.unknown;
+        if (isDisposing(disposingReason))
+        {
+            _command = null;
+            _commandOwned = false;
+        }
     }
 
     FbCommandBatchResult[] executeNonQuery()
@@ -1540,7 +1619,7 @@ public:
     }
 
 public:
-    uint batchBufferLength = FbIscSize.batchBufferLength;
+    uint maxBatchBufferLength = FbIscSize.maxBatchBufferLength;
     bool multiErrors = true;
 
 private:
@@ -1567,13 +1646,13 @@ public:
     this(FbDatabase database) nothrow @safe
     {
         super(database);
-        this._arrayManager._connection = this;
+        this._arrayManager = FbArrayManager(this);
     }
 
     this(FbDatabase database, string connectionString) nothrow @safe
     {
         super(database, connectionString);
-        this._arrayManager._connection = this;
+        this._arrayManager = FbArrayManager(this);
     }
 
     this(DbDatabase database, FbConnectionStringBuilder connectionStringBuilder) nothrow @safe
@@ -1584,7 +1663,7 @@ public:
     do
     {
         super(database, connectionStringBuilder);
-        this._arrayManager._connection = this;
+        this._arrayManager = FbArrayManager(this);
     }
 
     // Firebird >= v4.0
@@ -1605,7 +1684,7 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
-        if (state == DbConnectionState.open)
+        if (state == DbConnectionState.opened)
         {
             _protocol.createDatabaseWrite(createDatabaseInfo);
             _protocol.createDatabaseRead();
@@ -1675,7 +1754,7 @@ package(pham.db):
 
     final void releaseParameterWriteBuffer(DbWriteBuffer item) nothrow @safe
     {
-        if (!disposingState)
+        if (!isDisposing(lastDisposingReason))
             _parameterWriteBuffers.insertEnd(item.reset());
     }
 
@@ -1701,40 +1780,43 @@ protected:
         return result;
     }
 
-    override void disposeCommands(bool disposing) nothrow @safe
+    override void disposeCommands(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
-        _arrayManager.dispose(disposing);
-        super.disposeCommands(disposing);
+        if (isDisposing(disposingReason))
+            this._arrayManager.dispose(disposingReason);
+        else
+            this._arrayManager.close();
+        super.disposeCommands(disposingReason);
     }
 
-    final void disposeParameterWriteBuffers(bool disposing) nothrow @safe
+    final void disposeParameterWriteBuffers(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
         while (!_parameterWriteBuffers.empty)
-            _parameterWriteBuffers.remove(_parameterWriteBuffers.last).disposal(disposing);
+            _parameterWriteBuffers.remove(_parameterWriteBuffers.last).dispose(disposingReason);
     }
 
-    final void disposeProtocol(bool disposing) nothrow @safe
+    final void disposeProtocol(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
         if (_protocol !is null)
         {
-            _protocol.disposal(disposing);
+            _protocol.dispose(disposingReason);
             _protocol = null;
         }
     }
 
-    override void doDispose(bool disposing) nothrow @safe
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
 
-        super.doDispose(disposing);
-        disposeParameterWriteBuffers(disposing);
-        disposeProtocol(disposing);
+        super.doDispose(disposingReason);
+        disposeParameterWriteBuffers(disposingReason);
+        disposeProtocol(disposingReason);
     }
 
     final override void doCancelCommand(DbCancelCommandData data) @safe
@@ -1750,17 +1832,10 @@ protected:
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("failedOpen=", failedOpen, ", socketActive=", socketActive);
 
         scope (exit)
-            disposeProtocol(false);
+            disposeProtocol(DisposingReason.other);
 
-        try
-        {
-            _arrayManager.dispose(false);
-        }
-        catch (Exception e)
-        {
-            if (auto log = logger)
-                log.error(e.msg, e);
-        }
+        if (!failedOpen)
+            _arrayManager.doClose(DisposingReason.other);
 
         try
         {
@@ -1811,10 +1886,7 @@ protected:
 
         auto command = createCommand();
         scope (exit)
-        {
             command.dispose();
-            command = null;
-        }
 
         // ex: "3.0.7"
         command.commandText = "SELECT rdb$get_context('SYSTEM', 'ENGINE_VERSION') FROM rdb$database";
@@ -2148,6 +2220,12 @@ public:
         this._transactionItems = buildTransactionItems();
     }
 
+    override bool canSavePoint() @safe
+    {
+        const minSupportVersion = VersionString("4.0");
+        return super.canSavePoint() && VersionString(connection.serverVersion()) >= minSupportVersion;
+    }
+
     @property final FbConnection fbConnection() nothrow pure @safe
     {
         return cast(FbConnection)connection;
@@ -2184,9 +2262,9 @@ protected:
         return FbProtocol.describeTransactionItems(paramWriter, this).dup;
     }
 
-    final override void doOptionChanged(string name) nothrow @safe
+    final override void doOptionChanged(string propertyName) nothrow @safe
     {
-        super.doOptionChanged(name);
+        super.doOptionChanged(propertyName);
         _transactionItems = buildTransactionItems();
     }
 
@@ -2194,7 +2272,7 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("disposing=", disposing);
 
-        const canRetain = !disposing && isRetaining && disposingState != DisposableState.destructing;
+        const canRetain = !disposing && isRetaining && !isDisposing(lastDisposingReason);
         auto protocol = fbConnection.protocol;
         if (canRetain)
         {
@@ -2381,7 +2459,7 @@ unittest // FbConnection
     assert(connection.state == DbConnectionState.closed);
 
     connection.open();
-    assert(connection.state == DbConnectionState.open);
+    assert(connection.state == DbConnectionState.opened);
 
     connection.close();
     assert(connection.state == DbConnectionState.closed);
@@ -2400,7 +2478,7 @@ unittest // FbConnection.encrypt
         assert(connection.state == DbConnectionState.closed);
 
         connection.open();
-        assert(connection.state == DbConnectionState.open);
+        assert(connection.state == DbConnectionState.opened);
 
         connection.close();
         assert(connection.state == DbConnectionState.closed);
@@ -2418,7 +2496,7 @@ unittest // FbConnection.encrypt
         assert(connection.state == DbConnectionState.closed);
 
         connection.open();
-        assert(connection.state == DbConnectionState.open);
+        assert(connection.state == DbConnectionState.opened);
 
         connection.close();
         assert(connection.state == DbConnectionState.closed);
@@ -2439,7 +2517,7 @@ unittest // FbConnection.integratedSecurity
         assert(connection.state == DbConnectionState.closed);
 
         connection.open();
-        assert(connection.state == DbConnectionState.open);
+        assert(connection.state == DbConnectionState.opened);
 
         connection.close();
         assert(connection.state == DbConnectionState.closed);
@@ -2458,7 +2536,7 @@ unittest // FbConnection.encrypt.compress
     assert(connection.state == DbConnectionState.closed);
 
     connection.open();
-    assert(connection.state == DbConnectionState.open);
+    assert(connection.state == DbConnectionState.opened);
 
     connection.close();
     assert(connection.state == DbConnectionState.closed);
@@ -3427,7 +3505,7 @@ unittest // FbCommand.DML.StoredProcedure
         auto reader = command.executeReader();
         scope (exit)
             reader.dispose();
-            
+
         int count;
         assert(reader.hasRows());
         while (reader.read())
@@ -3454,9 +3532,7 @@ unittest // DbRAIITransaction
     bool commit = false;
     auto connection = createTestConnection();
     scope (exit)
-    {
         connection.dispose();
-    }
     connection.open();
 
     void testDbRAIITransaction()
@@ -3518,9 +3594,9 @@ unittest // FbCommandBatch
         auto command = connection.createCommandDDL("drop table batch");
         scope (exit)
             command.dispose();
-        command.executeNonQuery();        
+        command.executeNonQuery();
     }
-    
+
 	auto iv = [1, 2, 3, 4];
 	auto tv = [DateTime(2022, 01, 17, 1, 0, 0), DateTime(2022, 01, 17, 2, 0, 0),
         DateTime(2022, 01, 17, 2, 1, 0), DateTime(2022, 01, 17, 2, 2, 0)];
@@ -3557,11 +3633,11 @@ unittest // FbCommandBatch
 		auto command = connection.createCommandText("select i, t from batch order by i");
         scope (exit)
             command.dispose();
-        
+
         auto reader = command.executeReader();
         scope (exit)
             reader.dispose();
-            
+
 		auto i = 0;
 		while (reader.read())
 		{
@@ -3569,7 +3645,7 @@ unittest // FbCommandBatch
 			assert(reader.getValue(0) == iv[i]);
 			assert(reader.getValue(1) == DbDateTime.toDbDateTime(tv[i]));
 			i++;
-		}  
+		}
 	}
 
     // Mixed OK & Failure

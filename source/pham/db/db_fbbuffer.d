@@ -20,6 +20,7 @@ import std.typecons : Flag, No, Yes;
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.external.dec.decimal : scaleFrom, scaleTo;
+import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.utl.utf8 : ShortStringBuffer;
 import pham.db.buffer;
 import pham.db.convert;
@@ -48,16 +49,17 @@ public:
 
     ~this() nothrow
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing = true) nothrow
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        _writer.dispose(disposing);
+        _writer.dispose(disposingReason);
         if (_buffer !is null && _connection !is null)
             _connection.releaseParameterWriteBuffer(_buffer);
         _buffer = null;
-        _connection = null;
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     ubyte[] peekBytes() nothrow
@@ -139,16 +141,17 @@ public:
 
     ~this() nothrow
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing = true) nothrow
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        _writer.dispose(disposing);
+        _writer.dispose(disposingReason);
         if (_buffer !is null && _connection !is null)
             _connection.releaseParameterWriteBuffer(_buffer);
         _buffer = null;
-        _connection = null;
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     ubyte[] peekBytes() nothrow
@@ -262,16 +265,17 @@ public:
 
     ~this() nothrow
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing = true) nothrow
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        _writer.dispose(disposing);
+        _writer.dispose(disposingReason);
         if (_buffer !is null && _connection !is null)
             _connection.releaseParameterWriteBuffer(_buffer);
         _buffer = null;
-        _connection = null;
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     ubyte[] peekBytes() nothrow
@@ -490,16 +494,17 @@ public:
 
     ~this() nothrow
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing = true) nothrow
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        _writer.dispose(disposing);
+        _writer.dispose(disposingReason);
         if (_buffer !is null && _connection !is null)
             _connection.releaseParameterWriteBuffer(_buffer);
         _buffer = null;
-        _connection = null;
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     ubyte[] peekBytes() nothrow
@@ -646,16 +651,17 @@ public:
 
     ~this() nothrow
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing = true) nothrow
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        _writer.dispose(disposing);
+        _writer.dispose(disposingReason);
         if (_buffer !is null && _connection !is null)
             _connection.releaseParameterWriteBuffer(_buffer);
         _buffer = null;
-        _connection = null;
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     ubyte[] peekBytes() nothrow
@@ -738,12 +744,13 @@ public:
         this._reader = DbValueReader!(Endian.bigEndian)(this._buffer);
     }
 
-    void dispose(bool disposing = true)
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        _reader.dispose(disposing);
+        _reader.dispose(disposingReason);
         _buffer = null;
-        _connection = null;
         _connectionBuffer = false;
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     bool readBool()
@@ -1075,16 +1082,17 @@ public:
 
     ~this()
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing = true)
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        _writer.dispose(disposing);
+        _writer.dispose(disposingReason);
         if (_socketBuffer && _buffer !is null && _connection !is null)
             _connection.releaseSocketWriteBuffer(_buffer);
         _buffer = null;
-        _connection = null;
+        if (isDisposing(disposingReason))
+            _connection = null;
     }
 
     void flush()

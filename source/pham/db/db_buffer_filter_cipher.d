@@ -13,6 +13,7 @@ module pham.db.buffer_filter_cipher;
 
 version (unittest) import pham.utl.test;
 import pham.cp.cipher : Cipher, CipherKey;
+import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.db.buffer_filter;
 
 nothrow @safe:
@@ -67,14 +68,15 @@ public
     }
 
 protected:
-    override void doDispose(bool disposing)
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         if (_cipher !is null)
         {
-            _cipher.disposal(disposing);
-            _cipher = null;
+            _cipher.dispose(disposingReason);
+            if (isDisposing(disposingReason))
+                _cipher = null;
         }
-        super.doDispose(disposing);
+        super.doDispose(disposingReason);
     }
 
 private:

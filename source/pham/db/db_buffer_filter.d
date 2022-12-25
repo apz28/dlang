@@ -12,6 +12,7 @@
 module pham.db.buffer_filter;
 
 version (unittest) import pham.utl.test;
+import pham.utl.disposable : DisposingReason;
 import pham.utl.enum_set : toName;
 import pham.db.object;
 
@@ -103,7 +104,7 @@ protected:
         errorCode = 0;
     }
 
-    override void doDispose(bool disposing)
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _next = null;
         _outputBuffer = null;
