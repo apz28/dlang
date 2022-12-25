@@ -13,6 +13,7 @@ module pham.external.std.windows.sspi_ex;
 
 version (Windows):
 
+import pham.utl.disposable : DisposingReason;
 import pham.external.std.windows.sspi;
 
 nothrow @safe:
@@ -97,16 +98,16 @@ nothrow @safe:
 public:
     ~this()
     {
-        dispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    void dispose(bool disposing = true)
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose)
     {
-        disposeClientContext(disposing);
-        disposeClientCredentials(disposing);
+        disposeClientContext(disposingReason);
+        disposeClientCredentials(disposingReason);
     }
 
-    void disposeClientContext(bool disposing) @trusted
+    void disposeClientContext(const(DisposingReason) disposingReason) @trusted
     {
         if (clientContext.isValid())
         {
@@ -115,7 +116,7 @@ public:
         }
     }
 
-    void disposeClientCredentials(bool disposing) @trusted
+    void disposeClientCredentials(const(DisposingReason) disposingReason) @trusted
     {
         if (clientCredentials.isValid())
         {
