@@ -1674,15 +1674,15 @@ public:
     do
     {
         DbConnectionList poolList;
-        final switch (canPoolConnection(this, null, item, poolList))
+        final switch (canPoolConnection(this, null, item, poolList)) with (CanPool)
         {
-            case CanPool.none:
+            case none:
                 return disposeConnection(item);
-            case CanPool.wrongList:
+            case wrongList:
                 return poolList.release(item);
-            case CanPool.dispose:
+            case dispose:
                 return disposeConnection(item);
-            case CanPool.ok:
+            case ok:
                 return pool.release(item);            
         }
     }
@@ -1876,15 +1876,15 @@ public:
     do
     {
         DbConnectionList poolList;
-        final switch (DbConnectionList.canPoolConnection(null, this, item, poolList))
+        final switch (DbConnectionList.canPoolConnection(null, this, item, poolList)) with (DbConnectionList.CanPool)
         {
-            case DbConnectionList.CanPool.none:
+            case none:
                 return DbConnectionList.disposeConnection(item);
-            case DbConnectionList.CanPool.wrongList:
+            case wrongList:
                 return poolList.release(item);
-            case DbConnectionList.CanPool.dispose:
+            case dispose:
                 return DbConnectionList.disposeConnection(item);
-            case DbConnectionList.CanPool.ok:
+            case ok:
                 break;
         }
                 
