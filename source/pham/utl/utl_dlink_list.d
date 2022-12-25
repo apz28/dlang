@@ -11,6 +11,8 @@
 
 module pham.utl.dlink_list;
 
+import pham.utl.disposable : DisposingReason;
+
 nothrow @safe:
 
 /**
@@ -60,10 +62,10 @@ if (isDLink!T)
         version (none)
         ~this()
         {
-            dispose(false);
+            dispose(DisposingReason.destructor);
         }
 
-        void dispose(bool disposing = true)
+        void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
         {
             _currentNode = null;
             _firstNode = null;

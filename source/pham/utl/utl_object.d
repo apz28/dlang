@@ -21,6 +21,7 @@ import std.traits : isArray, isAssociativeArray, isFloatingPoint, isIntegral, is
     isSomeChar, isSomeString, isUnsigned, Unqual;
 
 version (TraceInvalidMemoryOp) import pham.utl.test;
+import pham.utl.disposable;
 
 /**
  * Roundups and returns value, `n`, to the power of 2 modular value, `powerOf2AlignmentSize`
@@ -549,89 +550,6 @@ if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
 }
 
 /**
- * Generic interface to implement disposable class
- * Sample object implementation of this interface, `DisposableObject`
- */
-interface IDisposable
-{
-nothrow @safe:
-
-    /**
-     * The actual function to perform disposing logic
-     * Params:
-     *   disposing = indicate if it is called from `dispose` or object destructor
-     *               true = called from `dispose`
-     *               false = called from object destructor
-     */
-    void disposal(bool disposing);
-
-    /*
-     * Should just make call to `disposal` with parameter, `disposing` = true
-     */
-    void dispose();
-}
-
-/**
- * State of disposable class
- */
-enum DisposableState : ubyte
-{
-    none,         /// dispose or destructor has not been called
-    disposing,    /// in disposing state
-    disposed,     /// already disposed
-    destructing,  /// in destructing state
-    destructed,   /// already destructed
-}
-
-/**
- * An abstract class to implement `IDisposable` interface
- */
-abstract class DisposableObject : IDisposable
-{
-nothrow @safe:
-
-public:
-    /**
-     * Implement IDisposable.disposal
-     */
-    final override void disposal(bool disposing)
-    {
-        if ((_disposingState == DisposableState.none) || (!disposing && _disposingState == DisposableState.disposed))
-        {
-            _disposingState = disposing ? DisposableState.disposing : DisposableState.destructing;
-            doDispose(disposing);
-            _disposingState = disposing ? DisposableState.disposed : DisposableState.destructed;
-        }
-    }
-
-    /**
-     * Implement IDisposable.dispose
-     * Will do nothing if called more than one
-     */
-    final override void dispose()
-    {
-        disposal(true);
-    }
-
-    /**
-     * Returns current disposing state of current object
-     */
-    @property final DisposableState disposingState() const @nogc pure
-    {
-        return _disposingState;
-    }
-
-protected:
-    /**
-     * Abstract function of this class to perform disposing logic
-     */
-    abstract void doDispose(bool disposing);
-
-private:
-    DisposableState _disposingState;
-}
-
-/**
  * Boxer type to have indicator that its' value has been set or not-set regardless of if the setting value
  * is a default one
  */
@@ -893,14 +811,14 @@ public:
 
     public:
         this(scope const(uint)[] parti) pure
-        {        
+        {
             const len = min(parti.length, maxPartLength);
             ShortStringBuffer!char tempBuffer;
             this._length = cast(ubyte)len;
             foreach (i; 0..len)
                 this.data[i] = .toString(tempBuffer.clear(), parti[i]).toString();
         }
-        
+
         bool opEquals(scope const(Parts) rhs) const @nogc pure
         {
             const sameLength = this._length == rhs._length;
@@ -923,7 +841,7 @@ public:
 
         /**
          * Convert version part strings into their integral presentation.
-         * If a string is not able to be converted because of empty or invalid character(s), 
+         * If a string is not able to be converted because of empty or invalid character(s),
          * the value will be substituted with zero
          */
         Parti toParti() const @nogc pure scope
@@ -964,13 +882,13 @@ public:
 
     private:
         this(string[] parts) pure
-        {        
+        {
             const len = min(parts.length, maxPartLength);
             this._length = cast(ubyte)len;
             foreach (i; 0..len)
                 this.data[i] = parts[i].strip();
         }
-        
+
     private:
         ubyte _length;
     }
@@ -1357,48 +1275,6 @@ nothrow @safe unittest // stringOfChar
     // Test default call
     Appender!string buffer;
     assert(toString(buffer, 10).data == "10");
-}
-
-unittest // DisposableObject
-{
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.object.DisposableObject");
-
-    static int stateCounter;
-
-    static class TestDisposableObject : DisposableObject
-    {
-    public:
-        ~this()
-        {
-            disposal(false);
-            assert(disposingState == DisposableState.destructed);
-        }
-
-    protected:
-        override void doDispose(bool disposing)
-        {
-            if (disposing)
-                assert(disposingState == DisposableState.disposing);
-            else
-                assert(disposingState == DisposableState.destructing);
-
-            stateCounter++;
-        }
-    }
-
-    auto c = new TestDisposableObject();
-    assert(c.disposingState == DisposableState.none);
-
-    c.dispose();
-    assert(c.disposingState == DisposableState.disposed);
-    assert(stateCounter == 1);
-    c.dispose(); // Do nothing if call second time (or subsequece dispose calls)
-    assert(c.disposingState == DisposableState.disposed);
-    assert(stateCounter == 1);
-
-    destroy(c);
-    assert(stateCounter == 2);
 }
 
 unittest // InitializedValue

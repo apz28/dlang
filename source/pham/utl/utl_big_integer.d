@@ -23,6 +23,7 @@ import std.typecons : Flag;
 public import std.typecons : No, Yes;
 
 version (profile) import pham.utl.test : PerfFunction;
+import pham.utl.disposable : DisposingReason;
 public import pham.utl.numeric_parser : NumericLexerFlag, NumericLexerOptions;
 import pham.utl.numeric_parser : cvtDigit, cvtHexDigit2, isHexDigit, isNumericLexerRange, NumericLexer, NumericStringRange;
 import pham.utl.object : bytesToHexs, simpleIntegerFmt;
@@ -943,7 +944,7 @@ public:
     /**
      * For security reason, need a way clear the internal data
      */
-    void dispose(bool disposing = true) @nogc nothrow pure
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) @nogc nothrow pure @safe
     {
         _sign = 0;
         _bits[] = 0;

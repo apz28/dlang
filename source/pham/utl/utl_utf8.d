@@ -16,6 +16,8 @@ import std.range.primitives : empty, front, popFront, put, save;
 import std.string : representation;
 import std.traits : isIntegral, isSomeChar;
 
+import pham.utl.disposable : DisposingReason;
+
 nothrow @safe:
 
 void inplaceMoveToLeft(ref ubyte[] data, size_t fromIndex, size_t toIndex, size_t nBytes) pure
@@ -632,7 +634,7 @@ public:
         return cast(immutable(T)[])(result);
     }
 
-    void dispose(bool disposing) nothrow pure
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
         _shortData[] = 0;
         _longData[] = 0;
