@@ -1551,9 +1551,9 @@ public:
         super(connection, isolationLevel);
     }
 
-    override bool canSavePoint() @safe
+    final override bool canSavePoint() @safe
     {
-        const minSupportVersion = VersionString("11.0");
+        enum minSupportVersion = VersionString("11.0");
         return super.canSavePoint() && VersionString(connection.serverVersion()) >= minSupportVersion;
     }
 

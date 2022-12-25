@@ -1174,9 +1174,9 @@ public:
         super(connection, isolationLevel);
     }
 
-    override bool canSavePoint() @safe
+    final override bool canSavePoint() @safe
     {
-        const minSupportVersion = VersionString("8.0");
+        enum minSupportVersion = VersionString("8.0");
         return super.canSavePoint() && VersionString(connection.serverVersion()) >= minSupportVersion;
     }
 
@@ -1240,9 +1240,9 @@ protected:
     {
         version (TraceFunction) traceFunction!("pham.db.mydatabase")();
 
-        auto tmText = _transactionCommandText;
-        if (tmText.length == 0)
-            tmText = buildTransactionCommandText();
+        auto tmText = _transactionCommandText.length != 0
+            ? _transactionCommandText
+            : buildTransactionCommandText();
 
         transactionCommand(tmText);
         transactionCommand("BEGIN");

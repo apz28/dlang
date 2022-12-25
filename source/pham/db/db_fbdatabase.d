@@ -2220,9 +2220,9 @@ public:
         this._transactionItems = buildTransactionItems();
     }
 
-    override bool canSavePoint() @safe
+    final override bool canSavePoint() @safe
     {
-        const minSupportVersion = VersionString("4.0");
+        enum minSupportVersion = VersionString("4.0");
         return super.canSavePoint() && VersionString(connection.serverVersion()) >= minSupportVersion;
     }
 
@@ -2262,7 +2262,7 @@ protected:
         return FbProtocol.describeTransactionItems(paramWriter, this).dup;
     }
 
-    final override void doOptionChanged(string propertyName) nothrow @safe
+    override void doOptionChanged(string propertyName) nothrow @safe
     {
         super.doOptionChanged(propertyName);
         _transactionItems = buildTransactionItems();
@@ -2274,7 +2274,7 @@ protected:
 
         const canRetain = !disposing && isRetaining && !isDisposing(lastDisposingReason);
         auto protocol = fbConnection.protocol;
-        if (canRetain)
+        if (!disposing && canRetain)
         {
             scope (failure)
                 _handle.reset();

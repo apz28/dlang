@@ -344,7 +344,11 @@ private:
 }
 
 abstract class DbObject
-{}
+{
+protected:
+    void doOptionChanged(string propertyName) nothrow @safe
+    {}
+}
 
 abstract class DbDisposableObject : DbObject, IDisposable
 {

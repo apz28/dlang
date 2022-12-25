@@ -4057,6 +4057,9 @@ public:
         return this;
     }
 
+    /**
+     * Returns true if this transaction instance can start a save-point
+     */
     bool canSavePoint() @safe
     {
         return state == DbTransactionState.active && isOpenedConnection();
@@ -4076,7 +4079,7 @@ public:
         if (auto log = logger)
             log.info(forLogInfo(), newline, "transaction.commit()");
 
-        doCommit(false);
+        doCommit(isDisposing(lastDisposingReason));
         if (!handle)
             resetState(DbTransactionState.inactive);
         return this;
@@ -4111,7 +4114,13 @@ public:
         return _connection !is null ? _connection.forLogInfo() : null;
     }
 
-    final int isSavePoint(scope const(char)[] savePointName) const nothrow pure @safe
+    /**
+     * Returns index of matched existing savePointName;
+     * If not found, return -1
+     * Params:
+     *  savePointName = The name of the save-point to search
+     */
+    final int isSavePoint(scope const(char)[] savePointName) const nothrow @safe
     {
         foreach (i, n; _savePointNames)
         {
@@ -4138,7 +4147,7 @@ public:
         if (auto log = logger)
             log.info(forLogInfo(), newline, "transaction.rollback()");
 
-        doRollback(false);
+        doRollback(isDisposing(lastDisposingReason));
         if (!handle)
             resetState(DbTransactionState.inactive);
         return this;
@@ -4210,6 +4219,7 @@ public:
     }
 
     /**
+     * Should it performs a commit of this pending transaction instance is out of scope
      * Default value is false
      */
     @property final bool autoCommit() const nothrow pure @safe
@@ -4250,7 +4260,10 @@ public:
         return _handle;
     }
 
-    @property final bool hasSavePoint() const nothrow pure @safe
+    /**
+     * Returns true if having pending save-point to be released or rollback
+     */
+    @property final bool hasSavePoint() const nothrow @safe
     {
         return _savePointNames.length != 0;
     }
@@ -4279,6 +4292,7 @@ public:
     }
 
     /**
+     * Transaction lock time-out
      * Default value is 60 seconds
      */
     @property final Duration lockTimeout() const nothrow pure @safe
@@ -4329,6 +4343,9 @@ public:
         return this;
     }
 
+    /**
+     * Current list of pending save-point names
+     */
     @property final const(string)[] savePointNames() const nothrow pure @safe
     {
         return _savePointNames;
@@ -4352,7 +4369,7 @@ protected:
 
     final bool canRetain() const nothrow @safe
     {
-        return isRetaining && isOpenedConnection();
+        return isRetaining && isOpenedConnection() && !isDisposing(lastDisposingReason);
     }
 
     final int checkSavePointName(string savePointName,
@@ -4434,9 +4451,6 @@ protected:
         _next = null;
         _prev = null;
     }
-
-    void doOptionChanged(string propertyName) nothrow @safe
-    {}
 
     void doSavePoint(string savePointName, string savePointStatement) @safe
     {
