@@ -12,7 +12,7 @@
 */
 module pham.external.std.log.logger;
 
-import core.atomic : atomicLoad, atomicStore,  MemoryOrder;
+import core.atomic : atomicLoad, atomicStore;
 import core.sync.mutex : Mutex;
 import core.thread : ThreadID;
 import core.time : dur;
@@ -32,6 +32,7 @@ public import std.typecons : No, Yes;
 import std.utf : encode;
 
 version (DebugLogger) import std.stdio : writeln;
+import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.external.std.log.date_time_format;
 
 
@@ -240,12 +241,12 @@ public:
 
     ~this()
     {
-        doDispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    final void dispose()
+    final void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe scope
     {
-        doDispose(true);
+        doDispose(disposingReason);
     }
 
     final LogLevel logLevel(scope string moduleName, const(LogLevel) notFoundLogLevel) @nogc
@@ -311,16 +312,18 @@ public:
     }
 
 protected:
-    void doDispose(bool disposing) @trusted scope
+    void doDispose(const(DisposingReason) disposingReason) @trusted scope
     {
-        if (disposing)
+        if (isDisposing(disposingReason))
+        {
             values = null;
 
-        if (mutex !is null)
-        {
-            if (ownMutex)
-                mutex.destroy();
-            mutex = null;
+            if (mutex !is null)
+            {
+                if (ownMutex)
+                    mutex.destroy();
+                mutex = null;
+            }
         }
     }
 
@@ -706,12 +709,12 @@ public:
 
     ~this() nothrow @safe
     {
-        doDispose(false);
+        dispose(DisposingReason.destructor);
     }
 
-    final void dispose()
+    final void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe scope
     {
-        doDispose(true);
+        doDispose(disposingReason);
     }
 
     /**
@@ -1506,18 +1509,18 @@ public:
     }
 
 protected:
-    void doDispose(bool disposing) nothrow @trusted scope
+    void doDispose(const(DisposingReason) disposingReason) nothrow @trusted scope
     {
         option.logLevel = LogLevel.off;
-        if (disposing)
+        if (isDisposing(disposingReason))
         {
             userName_ = null;
             userContext_ = null;
-        }
-        if (mutex !is null)
-        {
-            mutex.destroy();
-            mutex = null;
+            if (mutex !is null)
+            {
+                mutex.destroy();
+                mutex = null;
+            }
         }
     }
 
@@ -2212,13 +2215,13 @@ private:
 
 struct LogOutputWriter
 {
-import std.range.primitives : put;
-import std.algorithm.comparison : max, min;
-import std.format : format, formattedWrite;
+    import std.range.primitives : put;
+    import std.algorithm.comparison : max, min;
+    import std.format : format, formattedWrite;
 
-alias format = pham.external.std.log.date_time_format.format;
-alias formattedWrite = pham.external.std.log.date_time_format.formattedWrite;
-alias pad = pham.external.std.log.date_time_format.pad;
+    alias format = pham.external.std.log.date_time_format.format;
+    alias formattedWrite = pham.external.std.log.date_time_format.formattedWrite;
+    alias pad = pham.external.std.log.date_time_format.pad;
 
 @safe:
 
@@ -2872,29 +2875,50 @@ if (sharedLog !is myLogger)
     threadLog_ = logger;
 }
 
+
+private string osCharToString(scope const(char)[] v) nothrow @trusted
+{
+    import std.conv : to;
+    import std.exception : assumeWontThrow;
+
+    auto result = assumeWontThrow(to!string(v.ptr));
+    while (result.length && result[$ - 1] <= ' ')
+        result = result[0..$ - 1];
+    return result;
+}
+
+private string osWCharToString(scope const(wchar)[] v) nothrow
+{
+    import std.conv : to;
+    import std.exception : assumeWontThrow;
+
+    auto result = assumeWontThrow(to!string(v));
+    while (result.length && result[$ - 1] <= ' ')
+        result = result[0..$ - 1];
+    return result;
+}
+
 string currentUserName() nothrow @trusted
 {
     version (Windows)
     {
         import core.sys.windows.winbase : GetUserNameW;
-        import std.exception : assumeWontThrow;
-
-        wchar[256] result = void;
+        
+        wchar[1000] result = void;
         uint len = result.length - 1;
         if (GetUserNameW(&result[0], &len))
-            return assumeWontThrow(to!string(result[0..len]));
+            return osWCharToString(result[0..len]);
         else
             return "";
     }
     else version (Posix)
     {
         import core.sys.posix.unistd : getlogin_r;
-        import std.exception : assumeWontThrow;
 
-        char[256] result = void;
+        char[1000] result = '\0';
         uint len = result.length - 1;
         if (getlogin_r(&result[0], len) == 0)
-            return assumeWontThrow(to!string(&result[0]));
+            return osCharToString(result[]);
         else
             return "";
     }
@@ -2908,13 +2932,13 @@ string currentUserName() nothrow @trusted
 /// Thread safe to read value from a variable
 auto threadSafeLoad(T)(ref shared T value) nothrow @safe
 {
-    return atomicLoad!(MemoryOrder.acq)(value);
+    return atomicLoad(value);
 }
 
 /// Thread safe to write value to a variable
 void threadSafeStore(T)(ref shared T dst, shared T src) nothrow @safe
 {
-    atomicStore!(MemoryOrder.rel)(dst, src);
+    atomicStore(dst, src);
 }
 
 
