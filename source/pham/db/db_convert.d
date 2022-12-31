@@ -26,9 +26,6 @@ import pham.db.type;
 
 nothrow @safe:
 
-enum minTimeoutDuration = Duration.zero;
-enum maxTimeoutDuration = dur!"msecs"(int32.max);
-
 /**
  * Checks and returns `value` within `min` and `max` inclusive
  * Params:

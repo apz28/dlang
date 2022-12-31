@@ -443,14 +443,14 @@ public:
     void close() nothrow
     {
         version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
-        
+
         doClose(DisposingReason.other);
     }
-    
+
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
-        
+
         doClose(disposingReason);
     }
 
@@ -1550,7 +1550,7 @@ public:
                     log.error(e.msg, e);
             }
         }
-        
+
         _parameters = null;
         _preparedState = PreparedState.unknown;
         if (isDisposing(disposingReason))
@@ -1649,20 +1649,21 @@ public:
         this._arrayManager = FbArrayManager(this);
     }
 
-    this(FbDatabase database, string connectionString) nothrow @safe
+    this(FbDatabase database, string connectionString) @safe
     {
         super(database, connectionString);
         this._arrayManager = FbArrayManager(this);
     }
 
-    this(DbDatabase database, FbConnectionStringBuilder connectionStringBuilder) nothrow @safe
-    in
+    this(DbDatabase database, FbConnectionStringBuilder connectionString) nothrow @safe
     {
-        assert(connectionStringBuilder !is null);
+        super(database, connectionString);
+        this._arrayManager = FbArrayManager(this);
     }
-    do
+
+    this(DbDatabase database, DbURL!string connectionString) @safe
     {
-        super(database, connectionStringBuilder);
+        super(database, connectionString);
         this._arrayManager = FbArrayManager(this);
     }
 
@@ -1908,9 +1909,14 @@ class FbConnectionStringBuilder : SkConnectionStringBuilder
 @safe:
 
 public:
-    this(string connectionString) nothrow
+    this(DbDatabase database) nothrow
     {
-        super(connectionString);
+        super(database);
+    }
+
+    this(DbDatabase database, string connectionString)
+    {
+        super(database, connectionString);
     }
 
     final string integratedSecurityName() const nothrow
@@ -1994,22 +2000,29 @@ protected:
 
 class FbDatabase : DbDatabase
 {
-nothrow @safe:
+@safe:
 
 public:
-    this() pure
+    this() nothrow pure
     {
         this._name = DbIdentitier(DbScheme.fb);
         this._identifierQuoteChar = '"';
         this._stringQuoteChar = '\'';
 
-        charClasses['"'] = CharClass.quote;
-        charClasses['\''] = CharClass.quote;
-        charClasses['\\'] = CharClass.backslash;
+        this._charClasses['"'] = CharClass.quote;
+        this._charClasses['\''] = CharClass.quote;
+        this._charClasses['\\'] = CharClass.backslash;
+
+        this.populateValidParamNameChecks();
+    }
+
+    final override const(string[]) connectionStringParameterNames() const nothrow pure
+    {
+        return fbValidConnectionParameterNames;
     }
 
     override DbCommand createCommand(DbConnection connection,
-        string name = null)
+        string name = null) nothrow
     in
     {
         assert((cast(FbConnection)connection) !is null);
@@ -2020,7 +2033,7 @@ public:
     }
 
     override DbCommand createCommand(DbConnection connection, DbTransaction transaction,
-        string name = null)
+        string name = null) nothrow
     in
     {
         assert((cast(FbConnection)connection) !is null);
@@ -2038,25 +2051,44 @@ public:
         return result;
     }
 
-    override DbConnection createConnection(DbConnectionStringBuilder connectionStringBuilder)
+    override DbConnection createConnection(DbConnectionStringBuilder connectionString) nothrow
     in
     {
-        assert(connectionStringBuilder !is null);
-        assert(cast(FbConnectionStringBuilder)connectionStringBuilder !is null);
+        assert(connectionString !is null);
+        assert(connectionString.scheme == DbScheme.fb);
+        assert(cast(FbConnectionStringBuilder)connectionString !is null);
     }
     do
     {
-        auto result = new FbConnection(this, cast(FbConnectionStringBuilder)connectionStringBuilder);
+        auto result = new FbConnection(this, cast(FbConnectionStringBuilder)connectionString);
         result.logger = this.logger;
         return result;
     }
 
-    override DbConnectionStringBuilder createConnectionStringBuilder(string connectionString)
+    override DbConnection createConnection(DbURL!string connectionString)
+    in
     {
-        return new FbConnectionStringBuilder(connectionString);
+        assert(DbURL.scheme == DbScheme.fb);
+        assert(DbURL.isValid());
+    }
+    do
+    {
+        auto result = new FbConnection(this, connectionString);
+        result.logger = this.logger;
+        return result;
     }
 
-    override DbField createField(DbCommand command, DbIdentitier name)
+    override DbConnectionStringBuilder createConnectionStringBuilder() nothrow
+    {
+        return new FbConnectionStringBuilder(this);
+    }
+
+    override DbConnectionStringBuilder createConnectionStringBuilder(string connectionString)
+    {
+        return new FbConnectionStringBuilder(this, connectionString);
+    }
+
+    override DbField createField(DbCommand command, DbIdentitier name) nothrow
     in
     {
         assert((cast(FbCommand)command) !is null);
@@ -2066,7 +2098,7 @@ public:
         return new FbField(cast(FbCommand)command, name);
     }
 
-    override DbFieldList createFieldList(DbCommand command)
+    override DbFieldList createFieldList(DbCommand command) nothrow
     in
     {
         assert(cast(FbCommand)command !is null);
@@ -2076,18 +2108,18 @@ public:
         return new FbFieldList(cast(FbCommand)command);
     }
 
-    override DbParameter createParameter(DbIdentitier name)
+    override DbParameter createParameter(DbIdentitier name) nothrow
     {
         return new FbParameter(this, name);
     }
 
-    override DbParameterList createParameterList()
+    override DbParameterList createParameterList() nothrow
     {
         return new FbParameterList(this);
     }
 
     override DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel,
-        bool defaultTransaction = false)
+        bool defaultTransaction = false) nothrow
     in
     {
         assert((cast(FbConnection)connection) !is null);
@@ -2098,7 +2130,7 @@ public:
         return new FbTransaction(cast(FbConnection)connection, isolationLevel, isRetaining);
     }
 
-    @property final override DbScheme scheme() const pure
+    @property final override DbScheme scheme() const nothrow pure
     {
         return DbScheme.fb;
     }
@@ -2441,7 +2473,7 @@ unittest // FbConnectionStringBuilder
     auto useCSB = cast(FbConnectionStringBuilder)connectionStringBuiler;
 
     assert(useCSB.serverName == "localhost");
-    assert(useCSB.port == 3050);
+    assert(useCSB.serverPort == 3050);
     assert(useCSB.userName == "SYSDBA");
     assert(useCSB.userPassword == "masterkey");
     assert(useCSB.dialect == 3);
@@ -2487,12 +2519,7 @@ unittest // FbConnection.encrypt
     {
         auto connection = createTestConnection(DbEncryptedConnection.required);
         scope (exit)
-        {
             connection.dispose();
-            connection = null;
-            version (TraceInvalidMemoryOp)
-                GC.collect();
-        }
         assert(connection.state == DbConnectionState.closed);
 
         connection.open();
@@ -3673,6 +3700,62 @@ unittest // FbCommandBatch
 		assert(result[3].isError);
 		assert(result[3].exception !is null);
     }
+}
+
+unittest // DbDatabaseList.createConnection
+{
+    import std.string : representation;
+    import pham.utl.test;
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.DbDatabaseList.createConnection");
+
+    auto connection = DbDatabaseList.createConnection("firebird:server=myServerAddress;database=myDataBase;" ~
+        "user=myUsername;password=myPassword;role=myRole;pooling=true;connectionTimeout=100;encrypt=enabled;" ~
+        "fetchRecordCount=50;integratedSecurity=legacy;cachePage=2000;cryptKey=QUIx;");
+    scope (exit)
+        connection.dispose();
+    auto connectionString = cast(FbConnectionStringBuilder)connection.connectionStringBuilder;
+
+    assert(connection.scheme == DbScheme.fb);
+    assert(connectionString.serverName == "myServerAddress");
+    assert(connectionString.databaseName == "myDataBase");
+    assert(connectionString.userName == "myUsername");
+    assert(connectionString.userPassword == "myPassword");
+    assert(connectionString.roleName == "myRole");
+    assert(connectionString.pooling == true);
+    assert(connectionString.connectionTimeout == dur!"seconds"(100));
+    assert(connectionString.encrypt == DbEncryptedConnection.enabled);
+    assert(connectionString.fetchRecordCount == 50);
+    assert(connectionString.integratedSecurity == DbIntegratedSecurityConnection.legacy);
+    assert(connectionString.cachePages == 2000);
+    assert(connectionString.cryptKey == "AB1".representation());
+}
+
+unittest // DbDatabaseList.createConnectionByURL
+{
+    import std.string : representation;
+    import pham.utl.test;
+    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.DbDatabaseList.createConnectionByURL");
+
+    auto connection = DbDatabaseList.createConnectionByURL("firebird://myUsername:myPassword@myServerAddress/myDataBase?" ~
+        "role=myRole&pooling=true&connectionTimeout=100&encrypt=enabled&" ~
+        "fetchRecordCount=50&integratedSecurity=legacy&cachePage=2000&cryptKey=QUIx");
+    scope (exit)
+        connection.dispose();
+    auto connectionString = cast(FbConnectionStringBuilder)connection.connectionStringBuilder;
+
+    assert(connection.scheme == DbScheme.fb);
+    assert(connectionString.serverName == "myServerAddress");
+    assert(connectionString.databaseName == "myDataBase");
+    assert(connectionString.userName == "myUsername");
+    assert(connectionString.userPassword == "myPassword");
+    assert(connectionString.roleName == "myRole");
+    assert(connectionString.pooling == true);
+    assert(connectionString.connectionTimeout == dur!"seconds"(100));
+    assert(connectionString.encrypt == DbEncryptedConnection.enabled);
+    assert(connectionString.fetchRecordCount == 50);
+    assert(connectionString.integratedSecurity == DbIntegratedSecurityConnection.legacy);
+    assert(connectionString.cachePages == 2000);
+    assert(connectionString.cryptKey == "AB1".representation());
 }
 
 version (UnitTestPerfFBDatabase)

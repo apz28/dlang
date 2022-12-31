@@ -31,6 +31,8 @@ nothrow @safe:
  */
 ResultIf!FbCreateDatabaseInfo parseCreateDatabase(string createDatabaseStatement)
 {    
+    import std.uni : sicmp;
+    
     static immutable string sqlKind = "CREATE";
     
     enum LiteralKeyword : ubyte
@@ -303,7 +305,7 @@ SQL";
     assert(validInfo.ownerName == "sysdba");
     assert(validInfo.ownerPassword == "masterkey");
     assert(validInfo.roleName == "role_name");
-    assert(validInfo.pageSize == 8000);
+    assert(validInfo.pageSize == 8_000);
     assert(validInfo.forcedWrite);
     assert(validInfo.overwrite);
 

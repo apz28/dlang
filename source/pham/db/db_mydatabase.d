@@ -578,19 +578,19 @@ public:
         super(database);
     }
 
-    this(MyDatabase database, string connectionString) nothrow @safe
+    this(MyDatabase database, string connectionString) @safe
     {
         super(database, connectionString);
     }
 
-    this(MyDatabase database, MyConnectionStringBuilder connectionStringBuilder) nothrow @safe
-    in
+    this(MyDatabase database, MyConnectionStringBuilder connectionString) nothrow @safe
     {
-        assert(connectionStringBuilder !is null);
+        super(database, connectionString);
     }
-    do
+
+    this(DbDatabase database, DbURL!string connectionString) @safe
     {
-        super(database, connectionStringBuilder);
+        super(database, connectionString);
     }
 
     final override DbCancelCommandData createCancelCommandData(DbCommand command = null) @safe
@@ -853,13 +853,20 @@ private:
 
 class MyConnectionStringBuilder : SkConnectionStringBuilder
 {
+@safe:
+
 public:
-    this(string connectionString) nothrow @safe
+    this(DbDatabase database) nothrow
     {
-        super(connectionString);
+        super(database);
     }
 
-    final string integratedSecurityName() const nothrow @safe
+    this(DbDatabase database, string connectionString)
+    {
+        super(database, connectionString);
+    }
+
+    final string integratedSecurityName() const nothrow
     {
         final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
         {
@@ -874,12 +881,12 @@ public:
         }
     }
 
-    final override const(string[]) parameterNames() const nothrow @safe
+    final override const(string[]) parameterNames() const nothrow
     {
         return myValidConnectionParameterNames;
     }
 
-    @property final bool allowUserVariables() const nothrow @safe
+    @property final bool allowUserVariables() const nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.myAllowUserVariables));
     }
@@ -891,13 +898,13 @@ public:
         return this;
     }
 
-    @property final override DbScheme scheme() const nothrow pure @safe
+    @property final override DbScheme scheme() const nothrow pure
     {
         return DbScheme.my;
     }
 
 protected:
-    final override string getDefault(string name) const nothrow @safe
+    final override string getDefault(string name) const nothrow
     {
         auto n = DbIdentitier(name);
         auto result = assumeWontThrow(myDefaultConnectionParameterValues.get(n, null));
@@ -906,7 +913,7 @@ protected:
         return result;
     }
 
-    final override void setDefaultIfs() nothrow @safe
+    final override void setDefaultIfs() nothrow
     {
         foreach (dpv; myDefaultConnectionParameterValues.byKeyValue)
             putIf(dpv.key, dpv.value);
@@ -916,49 +923,56 @@ protected:
 
 class MyDatabase : DbDatabase
 {
-nothrow @safe:
+@safe:
 
 public:
-    this() pure
+    this() nothrow pure
     {
         this._name = DbIdentitier(DbScheme.my);
         this._identifierQuoteChar = '`';
         this._stringQuoteChar = '\'';
 
-        charClasses['\u0022'] = CharClass.quote;
-        charClasses['\u0027'] = CharClass.quote;
-        charClasses['\u0060'] = CharClass.quote;
-        charClasses['\u00b4'] = CharClass.quote;
-        charClasses['\u02b9'] = CharClass.quote;
-        charClasses['\u02ba'] = CharClass.quote;
-        charClasses['\u02bb'] = CharClass.quote;
-        charClasses['\u02bc'] = CharClass.quote;
-        charClasses['\u02c8'] = CharClass.quote;
-        charClasses['\u02ca'] = CharClass.quote;
-        charClasses['\u02cb'] = CharClass.quote;
-        charClasses['\u02d9'] = CharClass.quote;
-        charClasses['\u0300'] = CharClass.quote;
-        charClasses['\u0301'] = CharClass.quote;
-        charClasses['\u2018'] = CharClass.quote;
-        charClasses['\u2019'] = CharClass.quote;
-        charClasses['\u201a'] = CharClass.quote;
-        charClasses['\u2032'] = CharClass.quote;
-        charClasses['\u2035'] = CharClass.quote;
-        charClasses['\u275b'] = CharClass.quote;
-        charClasses['\u275c'] = CharClass.quote;
-        charClasses['\uff07'] = CharClass.quote;
+        this._charClasses['\u0022'] = CharClass.quote;
+        this._charClasses['\u0027'] = CharClass.quote;
+        this._charClasses['\u0060'] = CharClass.quote;
+        this._charClasses['\u00b4'] = CharClass.quote;
+        this._charClasses['\u02b9'] = CharClass.quote;
+        this._charClasses['\u02ba'] = CharClass.quote;
+        this._charClasses['\u02bb'] = CharClass.quote;
+        this._charClasses['\u02bc'] = CharClass.quote;
+        this._charClasses['\u02c8'] = CharClass.quote;
+        this._charClasses['\u02ca'] = CharClass.quote;
+        this._charClasses['\u02cb'] = CharClass.quote;
+        this._charClasses['\u02d9'] = CharClass.quote;
+        this._charClasses['\u0300'] = CharClass.quote;
+        this._charClasses['\u0301'] = CharClass.quote;
+        this._charClasses['\u2018'] = CharClass.quote;
+        this._charClasses['\u2019'] = CharClass.quote;
+        this._charClasses['\u201a'] = CharClass.quote;
+        this._charClasses['\u2032'] = CharClass.quote;
+        this._charClasses['\u2035'] = CharClass.quote;
+        this._charClasses['\u275b'] = CharClass.quote;
+        this._charClasses['\u275c'] = CharClass.quote;
+        this._charClasses['\uff07'] = CharClass.quote;
 
-        charClasses['\u005c'] = CharClass.backslash;
-        charClasses['\u00a5'] = CharClass.backslash;
-        charClasses['\u0160'] = CharClass.backslash;
-        charClasses['\u20a9'] = CharClass.backslash;
-        charClasses['\u2216'] = CharClass.backslash;
-        charClasses['\ufe68'] = CharClass.backslash;
-        charClasses['\uff3c'] = CharClass.backslash;
+        this._charClasses['\u005c'] = CharClass.backslash;
+        this._charClasses['\u00a5'] = CharClass.backslash;
+        this._charClasses['\u0160'] = CharClass.backslash;
+        this._charClasses['\u20a9'] = CharClass.backslash;
+        this._charClasses['\u2216'] = CharClass.backslash;
+        this._charClasses['\ufe68'] = CharClass.backslash;
+        this._charClasses['\uff3c'] = CharClass.backslash;
+
+        this.populateValidParamNameChecks();
+    }
+
+    final override const(string[]) connectionStringParameterNames() const nothrow pure
+    {
+        return myValidConnectionParameterNames;
     }
 
     override DbCommand createCommand(DbConnection connection,
-        string name = null)
+        string name = null) nothrow
     in
     {
         assert((cast(MyConnection)connection) !is null);
@@ -969,7 +983,7 @@ public:
     }
 
     override DbCommand createCommand(DbConnection connection, DbTransaction transaction,
-        string name = null)
+        string name = null) nothrow
     in
     {
         assert((cast(MyConnection)connection) !is null);
@@ -987,25 +1001,44 @@ public:
         return result;
     }
 
-    override DbConnection createConnection(DbConnectionStringBuilder connectionStringBuilder)
+    override DbConnection createConnection(DbConnectionStringBuilder connectionString) nothrow
     in
     {
-        assert(connectionStringBuilder !is null);
-        assert(cast(MyConnectionStringBuilder)connectionStringBuilder !is null);
+        assert(connectionString !is null);
+        assert(connectionString.scheme == DbScheme.my);
+        assert(cast(MyConnectionStringBuilder)connectionString !is null);
     }
     do
     {
-        auto result = new MyConnection(this, cast(MyConnectionStringBuilder)connectionStringBuilder);
+        auto result = new MyConnection(this, cast(MyConnectionStringBuilder)connectionString);
         result.logger = this.logger;
         return result;
     }
 
-    override DbConnectionStringBuilder createConnectionStringBuilder(string connectionString)
+    override DbConnection createConnection(DbURL!string connectionString)
+    in
     {
-        return new MyConnectionStringBuilder(connectionString);
+        assert(DbURL.scheme == DbScheme.my);
+        assert(DbURL.isValid());
+    }
+    do
+    {
+        auto result = new MyConnection(this, connectionString);
+        result.logger = this.logger;
+        return result;
     }
 
-    override DbField createField(DbCommand command, DbIdentitier name)
+    override DbConnectionStringBuilder createConnectionStringBuilder() nothrow
+    {
+        return new MyConnectionStringBuilder(this);
+    }
+
+    override DbConnectionStringBuilder createConnectionStringBuilder(string connectionString)
+    {
+        return new MyConnectionStringBuilder(this, connectionString);
+    }
+
+    override DbField createField(DbCommand command, DbIdentitier name) nothrow
     in
     {
         assert((cast(MyCommand)command) !is null);
@@ -1015,7 +1048,7 @@ public:
         return new MyField(cast(MyCommand)command, name);
     }
 
-    override DbFieldList createFieldList(DbCommand command)
+    override DbFieldList createFieldList(DbCommand command) nothrow
     in
     {
         assert(cast(MyCommand)command !is null);
@@ -1025,18 +1058,18 @@ public:
         return new MyFieldList(cast(MyCommand)command);
     }
 
-    override DbParameter createParameter(DbIdentitier name)
+    override DbParameter createParameter(DbIdentitier name) nothrow
     {
         return new MyParameter(this, name);
     }
 
-    override DbParameterList createParameterList()
+    override DbParameterList createParameterList() nothrow
     {
         return new MyParameterList(this);
     }
 
     override DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel,
-        bool defaultTransaction = false)
+        bool defaultTransaction = false) nothrow
     in
     {
         assert((cast(MyConnection)connection) !is null);
@@ -1046,7 +1079,7 @@ public:
         return new MyTransaction(cast(MyConnection)connection, isolationLevel);
     }
 
-    @property final override DbScheme scheme() const pure
+    @property final override DbScheme scheme() const nothrow pure
     {
         return DbScheme.my;
     }
@@ -1756,7 +1789,7 @@ unittest // MyCommand.DML.Abort reader
         auto reader = command.executeReader();
         scope (exit)
             reader.dispose();
-            
+
         int count;
         assert(reader.hasRows());
         while (reader.read())
@@ -1791,6 +1824,56 @@ unittest // MyConnection(SSL)
 
     connection.close();
     assert(connection.state == DbConnectionState.closed);
+}
+
+unittest // DbDatabaseList.createConnection
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.DbDatabaseList.createConnection");
+
+    auto connection = DbDatabaseList.createConnection("mysql:server=myServerAddress;database=myDataBase;" ~
+        "user=myUsername;password=myPassword;role=myRole;pooling=true;connectionTimeout=100;encrypt=enabled;" ~
+        "fetchRecordCount=50;integratedSecurity=legacy;");
+    scope (exit)
+        connection.dispose();
+    auto connectionString = cast(MyConnectionStringBuilder)connection.connectionStringBuilder;
+
+    assert(connection.scheme == DbScheme.my);
+    assert(connectionString.serverName == "myServerAddress");
+    assert(connectionString.databaseName == "myDataBase");
+    assert(connectionString.userName == "myUsername");
+    assert(connectionString.userPassword == "myPassword");
+    assert(connectionString.roleName == "myRole");
+    assert(connectionString.pooling == true);
+    assert(connectionString.connectionTimeout == dur!"seconds"(100));
+    assert(connectionString.encrypt == DbEncryptedConnection.enabled);
+    assert(connectionString.fetchRecordCount == 50);
+    assert(connectionString.integratedSecurity == DbIntegratedSecurityConnection.legacy);
+}
+
+unittest // DbDatabaseList.createConnectionByURL
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.DbDatabaseList.createConnectionByURL");
+
+    auto connection = DbDatabaseList.createConnectionByURL("mysql://myUsername:myPassword@myServerAddress/myDataBase?" ~
+        "role=myRole&pooling=true&connectionTimeout=100&encrypt=enabled&" ~
+        "fetchRecordCount=50&integratedSecurity=legacy");
+    scope (exit)
+        connection.dispose();
+    auto connectionString = cast(MyConnectionStringBuilder)connection.connectionStringBuilder;
+
+    assert(connection.scheme == DbScheme.my);
+    assert(connectionString.serverName == "myServerAddress");
+    assert(connectionString.databaseName == "myDataBase");
+    assert(connectionString.userName == "myUsername");
+    assert(connectionString.userPassword == "myPassword");
+    assert(connectionString.roleName == "myRole");
+    assert(connectionString.pooling == true);
+    assert(connectionString.connectionTimeout == dur!"seconds"(100));
+    assert(connectionString.encrypt == DbEncryptedConnection.enabled);
+    assert(connectionString.fetchRecordCount == 50);
+    assert(connectionString.integratedSecurity == DbIntegratedSecurityConnection.legacy);
 }
 
 version (UnitTestPerfMYDatabase)

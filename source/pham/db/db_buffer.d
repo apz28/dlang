@@ -16,11 +16,11 @@ import std.string : representation;
 import std.system : Endian;
 
 version (unittest) import pham.utl.test;
+import pham.utl.array : inplaceMoveToLeft;
 import pham.utl.bit_array : numericBitCast;
 import pham.utl.dlink_list;
 import pham.utl.disposable : DisposingReason;
 import pham.utl.object : alignRoundup;
-import pham.utl.utf8 : inplaceMoveToLeft;
 import pham.db.convert;
 import pham.db.exception;
 import pham.db.message;

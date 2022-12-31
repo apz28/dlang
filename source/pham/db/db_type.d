@@ -13,8 +13,8 @@ module pham.db.type;
 
 import core.internal.hash : hashOf;
 import std.format: FormatSpec, formatValue;
-import core.time : convert, dur;
-public import core.time : Duration;
+import core.time : convert;
+public import core.time : dur, Duration;
 import std.range.primitives : isOutputRange, put;
 import std.traits : isArray, isSomeChar, Unqual;
 import std.uni : sicmp;
@@ -26,10 +26,10 @@ import pham.dtm.tick : ErrorOp, Tick;
 public import pham.dtm.time : Time;
 import pham.dtm.time_zone : TimeZoneInfo, TimeZoneInfoMap;
 public import pham.external.dec.decimal : Decimal32, Decimal64, Decimal128, isDecimal, Precision, RoundingMode;
+import pham.utl.array : ShortStringBuffer;
 public import pham.utl.big_integer : BigInteger;
 import pham.utl.enum_set : toName;
 import pham.utl.object : cmpFloat, cmpInteger;
-import pham.utl.utf8 : ShortStringBuffer;
 
 alias float32 = float;
 alias float64 = double;
@@ -54,6 +54,9 @@ static immutable string returnParameterName = "return";
 enum hnsecsPerDay = convert!("hours", "hnsecs")(24);
 //enum hnsecsPerHour = convert!("hours", "hnsecs")(1);
 enum nullDate = Date(1, 1, 1);
+
+enum minTimeoutDuration = Duration.zero;
+enum maxTimeoutDuration = dur!"msecs"(int32.max);
 
  /**
   * All possible values for conversion between bool and its' string
@@ -239,6 +242,14 @@ enum DbLockType : ubyte
     write,
 }
 
+enum DbNameValueValidated : ubyte
+{
+    invalidName,
+    duplicateName,
+    invalidValue,
+    ok,
+}
+
 /**
  * Describes the type of a parameter
  * $(DbParameterDirection.input) is an input parameter
@@ -259,54 +270,60 @@ enum DbParameterDirection : ubyte
  */
 enum DbConnectionParameterIdentifier : string
 {
-    allowBatch = "allowBatch", /// When true, multiple SQL statements can be sent with one command execution. Batch statements should be separated by the server-defined separator character.
-    charset = "charset",
-    compress = "compress",
-    commandTimeout = "commandTimeout", /// In seconds - Sets the default value of the command timeout to be used.
-    connectionTimeout = "connectionTimeout", /// In seconds
-    database = "database",
-    databaseFile = "databaseFile",
-    encrypt = "encrypt",
-    fetchRecordCount = "fetchRecordCount",
-    integratedSecurity = "integratedSecurity",
-    maxPoolCount = "maxPoolCount",
-    minPoolCount = "minPoolCount",
-    packageSize = "packageSize",
-    port = "port",
-    pooling = "pooling",
-    poolTimeout = "poolTimeout", /// In seconds
-    receiveTimeout = "receiveTimeout", /// In seconds
-    roleName = "role",
-    sendTimeout = "sendTimeout", /// In seconds
-    server = "server",
-    userName = "user",
-    userPassword = "password",
+    allowBatch = "allowBatch", /// bool
+                               /// When true, multiple SQL statements can be sent with one command execution.
+                               /// Batch statements should be separated by the server-defined separator character.
+    charset = "charset", /// string
+    commandTimeout = "commandTimeout", /// Duration in seconds
+                                       /// Sets the default value of the command timeout to be used.
+    compress = "compress", /// DbCompressConnection
+    connectionTimeout = "connectionTimeout", /// Duration in seconds
+    databaseName = "database", /// string
+    databaseFile = "databaseFile", /// string
+    encrypt = "encrypt", /// DbEncryptedConnection
+    fetchRecordCount = "fetchRecordCount", /// uint32
+    integratedSecurity = "integratedSecurity", /// DbIntegratedSecurityConnection
+    maxPoolCount = "maxPoolCount", /// uint32
+    minPoolCount = "minPoolCount", /// uint32
+    packageSize = "packageSize", /// uint32
+    pooling = "pooling", /// bool
+    poolTimeout = "poolTimeout", /// Duration in seconds
+    receiveTimeout = "receiveTimeout", /// Duration in seconds
+    roleName = "role", /// string
+    sendTimeout = "sendTimeout", /// Duration in seconds
+    serverName = "server", /// string
+    serverPort = "port", // uint16
+    userName = "user", /// string
+    userPassword = "password", /// string
 
     // For socket
-    socketBlocking = "blocking",
-    socketNoDelay = "noDelay",
-    socketSslCa = "sslCa",
-    socketSslCaDir = "sslCaDir",
-    socketSslCert = "sslCert",
-    socketSslKey = "sslKey",
-    socketSslKeyPassword = "sslKeyPassword",
-    socketSslVerificationHost = "sslVerificationHost",
-    socketSslVerificationMode = "sslVerificationMode", // SSL_VERIFY_NONE, SSL_VERIFY_PEER, SSL_VERIFY_FAIL_IF_NO_PEER_CERT, SSL_VERIFY_CLIENT_ONCE, ...
+    socketBlocking = "blocking", /// bool
+    socketNoDelay = "noDelay", /// bool
+    socketSslCa = "sslCa", /// string
+    socketSslCaDir = "sslCaDir", /// string
+    socketSslCert = "sslCert", /// string
+    socketSslKey = "sslKey", /// string
+    socketSslKeyPassword = "sslKeyPassword", /// string
+    socketSslVerificationHost = "sslVerificationHost", /// bool
+    socketSslVerificationMode = "sslVerificationMode", /// int
+                                                       /// SSL_VERIFY_NONE, SSL_VERIFY_PEER, SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
+                                                       /// SSL_VERIFY_CLIENT_ONCE, ...
 
     // Specific to firebird
-    fbCachePage = "cachePage",
-    fbCryptKey = "cryptKey",
-    fbDatabaseTrigger = "databaseTrigger",
-    fbDialect = "dialect",
-    fbDummyPacketInterval = "dummyPacketInterval", /// In seconds
-    fbGarbageCollect = "garbageCollect",
+    fbCachePage = "cachePage", /// uint32
+    fbCryptKey = "cryptKey", /// ubyte[]
+    fbDatabaseTrigger = "databaseTrigger", /// bool
+    fbDialect = "dialect", /// int16
+    fbDummyPacketInterval = "dummyPacketInterval", /// Duration in seconds
+    fbGarbageCollect = "garbageCollect", /// bool
 
     // Specific to mysql
-    myAllowUserVariables = "allowUserVariables", /// Setting this to true indicates that the provider expects user variables in the SQL.
+    myAllowUserVariables = "allowUserVariables", /// bool
+                                                 /// Setting this to true indicates that the provider expects user variables in the SQL.
 
     // Specific to postgresql
-    pgOptions = "options",
     /*
+    pgOptions = "options",
     pgPassFile = "passfile",
     pgFallbackApplicationName = "fallback_application_name",
     pgKeepAlives = "keepalives",
@@ -332,7 +349,6 @@ enum DbConnectionCustomIdentifier : string
 {
     applicationName = "applicationName",
     applicationVersion = "applicationVersion",
-
     currentComputerName = "currentComputerName",
     currentProcessId = "currentProcessId",
     currentProcessName = "currentProcessName",
@@ -1682,9 +1698,6 @@ private:
 
 struct DbTypeInfo
 {
-nothrow @safe:
-
-public:
     string dbName;
     string nativeName;
     int32 displaySize;
@@ -1693,7 +1706,65 @@ public:
     DbType dbType;
 }
 
-static immutable string[string] dbDefaultConnectionValues;
+struct DbHost(S)
+{
+nothrow @safe:
+
+public:
+    bool isValid() const @nogc
+    {
+        return name.length != 0;
+    }
+
+public:
+    S name;
+    ushort port;
+}
+
+struct DbURL(S)
+{
+nothrow @safe:
+
+public:
+    DbHost!S firstHost()
+    {
+        foreach (ref h; hosts)
+        {
+            if (h.isValid())
+                return h;
+        }
+        
+        return hosts.length ? hosts[0] : DbHost!S.init;
+    }
+    
+    bool isValid() const @nogc
+    {
+        return database.length != 0 && isValidHosts();
+    }
+
+    bool isValidHosts() const @nogc
+    {
+        foreach (ref h; hosts)
+        {
+            if (!h.isValid())
+                return false;
+        }
+        return hosts.length != 0;
+    }
+    
+public:
+    S database;
+    DbHost!S[] hosts;
+    S[S] options;
+    DbScheme scheme;
+    S userName;
+    S userPassword;
+}
+
+alias IsConnectionParameterValue = DbNameValueValidated function(string value) nothrow;
+
+static immutable string[string] dbDefaultConnectionParameterValues;
+static immutable IsConnectionParameterValue[string] dbIsConnectionParameterValues;
 
 enum dynamicTypeSize = -1; // blob/text - no limit
 enum runtimeTypeSize = -2; // fixed/vary length string/array - limit
@@ -1786,6 +1857,26 @@ DbType dbTypeOf(T)() @nogc pure
         return DbType.unknown;
 }
 
+bool isDbScheme(string schemeStr, ref DbScheme scheme) @nogc pure
+{
+    import std.traits : EnumMembers;
+    
+    if (schemeStr.length)
+    {
+        foreach (e; EnumMembers!DbScheme)
+        {
+            //import pham.utl.test; debug dgWriteln(e, " ? ", cast(string)e); //output: fb ? firebird ...             
+            if (e == schemeStr)
+            {
+                scheme = e;
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
 bool isDbTypeHasSize(DbType rawType) @nogc pure
 {
     switch (rawType)
@@ -1860,11 +1951,11 @@ bool isDbTrue(scope const(char)[] s) @nogc pure
 
 DbParameterDirection parameterModeToDirection(scope const(char)[] mode) @nogc pure
 {
-    return mode == "IN"
+    return mode == "IN" || mode == "in"
         ? DbParameterDirection.input
-        : (mode == "OUT"
+        : (mode == "OUT" || mode == "out"
             ? DbParameterDirection.output
-            : (mode == "INOUT"
+            : (mode == "INOUT" || mode == "inout"
                 ? DbParameterDirection.inputOutput
                 : DbParameterDirection.input));
 }
@@ -1873,9 +1964,224 @@ DbParameterDirection parameterModeToDirection(scope const(char)[] mode) @nogc pu
 // Any below codes are private
 private:
 
+DbNameValueValidated isConnectionParameter1K(string v)
+{
+    return v.length != 0 && v.length <= 1_000
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterAny(string v)
+{
+    return DbNameValueValidated.ok;
+}
+
+DbNameValueValidated isConnectionParameterAny200(string v)
+{
+    return v.length <= 200
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterAny1K(string v)
+{
+    return v.length <= 1_000
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterAny2K(string v)
+{
+    return v.length <= 2_000
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterLength(string v)
+{
+    return v.length != 0
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterBool(string v)
+{
+    return isDbFalse(v) || isDbTrue(v)
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterCharset(string v)
+{
+    return v == "UTF8" || v == "utf8"
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterDurationTimeout(string v)
+{
+    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    
+    int32 vint;
+    if (parseIntegral!(string, int32)(v, vint) != NumericParsedKind.ok)
+        return DbNameValueValidated.invalidValue;
+    
+    const vdur = dur!"seconds"(vint);
+    return vdur >= minTimeoutDuration && vdur <= maxTimeoutDuration
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterCompress(string v)
+{
+    import std.traits : EnumMembers;
+    import pham.utl.enum_set : toName;
+    
+    if (v.length)
+    {
+        foreach (e; EnumMembers!DbCompressConnection)
+        {
+            if (toName(e) == v)
+                return DbNameValueValidated.ok;
+        }
+    }
+
+    return DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterEncrypt(string v)
+{
+    import std.traits : EnumMembers;
+    import pham.utl.enum_set : toName;
+    
+    if (v.length)
+    {
+        foreach (e; EnumMembers!DbEncryptedConnection)
+        {
+            if (toName(e) == v)
+                return DbNameValueValidated.ok;
+        }
+    }
+
+    return DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterFBDialect(string v)
+{
+    return v == "3"
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterIntegratedSecurity(string v)
+{
+    import std.traits : EnumMembers;
+    import pham.utl.enum_set : toName;
+    
+    if (v.length)
+    {
+        foreach (e; EnumMembers!DbIntegratedSecurityConnection)
+        {
+            if (toName(e) == v)
+                return DbNameValueValidated.ok;
+        }
+    }
+
+    return DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterInt32Any(string v)
+{
+    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    
+    int32 vint;
+    if (parseIntegral!(string, int32)(v, vint) != NumericParsedKind.ok)
+        return DbNameValueValidated.invalidValue;
+    
+    return DbNameValueValidated.ok;
+}
+
+DbNameValueValidated isConnectionParameterInt32Pos(string v)
+{
+    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    
+    int32 vint;
+    if (parseIntegral!(string, int32)(v, vint) != NumericParsedKind.ok)
+        return DbNameValueValidated.invalidValue;
+    
+    return vint >= 0
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterUBytesAny(string v)
+{    
+    import pham.utl.array : ShortStringBuffer;
+    import pham.utl.numeric_parser : NumericParsedKind, parseBase64;
+    import pham.utl.utf8 : NoDecodeInputRange;
+
+    if (v.length == 0)
+        return DbNameValueValidated.ok;
+        
+    NoDecodeInputRange!(v, char) inputRange;
+    ShortStringBuffer!ubyte result;
+    if (parseBase64(inputRange, result) != NumericParsedKind.ok)
+        return DbNameValueValidated.invalidValue;
+    
+    return DbNameValueValidated.ok;
+}
+
+DbNameValueValidated isConnectionParameterUInt16Any(string v)
+{
+    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    
+    uint16 vint;
+    if (parseIntegral!(string, uint16)(v, vint) != NumericParsedKind.ok)
+        return DbNameValueValidated.invalidValue;
+    
+    return DbNameValueValidated.ok;
+}
+
+DbNameValueValidated isConnectionParameterUInt32Any(string v)
+{
+    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    
+    uint32 vint;
+    if (parseIntegral!(string, uint32)(v, vint) != NumericParsedKind.ok)
+        return DbNameValueValidated.invalidValue;
+    
+    return DbNameValueValidated.ok;
+}
+
+DbNameValueValidated isConnectionParameterUInt32_8K(string v)
+{
+    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    
+    uint32 vint;
+    if (parseIntegral!(string, uint32)(v, vint) != NumericParsedKind.ok)
+        return DbNameValueValidated.invalidValue;
+        
+    return vint > 0 && vint <= 8_000
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterUInt32_256K(string v)
+{
+    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    
+    uint32 vint;
+    if (parseIntegral!(string, uint32)(v, vint) != NumericParsedKind.ok)
+        return DbNameValueValidated.invalidValue;
+        
+    return vint > 0 && vint <= 256_000
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
 shared static this()
 {
-    dbDefaultConnectionValues = () nothrow pure @trusted // @trusted=cast()
+    dbDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(string[string]))[
             DbConnectionParameterIdentifier.charset : "UTF8",
@@ -1890,10 +2196,55 @@ shared static this()
             DbConnectionParameterIdentifier.poolTimeout : "30", // In seconds
             DbConnectionParameterIdentifier.receiveTimeout : "0", // In seconds - no limit
             DbConnectionParameterIdentifier.sendTimeout : "60", // In seconds
-            DbConnectionParameterIdentifier.server : "localhost"
+            DbConnectionParameterIdentifier.serverName : "localhost"
         ];
     }();
 
+    dbIsConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
+    {
+        return cast(immutable(IsConnectionParameterValue[string]))[
+            DbConnectionParameterIdentifier.allowBatch : &isConnectionParameterBool,
+            DbConnectionParameterIdentifier.charset : &isConnectionParameterCharset,
+            DbConnectionParameterIdentifier.commandTimeout : &isConnectionParameterDurationTimeout,
+            DbConnectionParameterIdentifier.compress : &isConnectionParameterCompress,
+            DbConnectionParameterIdentifier.connectionTimeout : &isConnectionParameterDurationTimeout,
+            DbConnectionParameterIdentifier.databaseName : &isConnectionParameterAny1K,
+            DbConnectionParameterIdentifier.databaseFile : &isConnectionParameterAny2K,
+            DbConnectionParameterIdentifier.encrypt : &isConnectionParameterEncrypt,
+            DbConnectionParameterIdentifier.fetchRecordCount : &isConnectionParameterUInt32_8K,
+            DbConnectionParameterIdentifier.integratedSecurity : &isConnectionParameterIntegratedSecurity,
+            DbConnectionParameterIdentifier.maxPoolCount : &isConnectionParameterUInt32Any,
+            DbConnectionParameterIdentifier.minPoolCount : &isConnectionParameterUInt32Any,
+            DbConnectionParameterIdentifier.packageSize : &isConnectionParameterUInt32_256K,
+            DbConnectionParameterIdentifier.pooling : &isConnectionParameterBool,
+            DbConnectionParameterIdentifier.poolTimeout : &isConnectionParameterDurationTimeout,
+            DbConnectionParameterIdentifier.receiveTimeout : &isConnectionParameterDurationTimeout,
+            DbConnectionParameterIdentifier.roleName : &isConnectionParameterAny200,
+            DbConnectionParameterIdentifier.sendTimeout : &isConnectionParameterDurationTimeout,
+            DbConnectionParameterIdentifier.serverName : &isConnectionParameterAny1K,
+            DbConnectionParameterIdentifier.serverPort : &isConnectionParameterUInt16Any,
+            DbConnectionParameterIdentifier.userName : &isConnectionParameterAny200,
+            DbConnectionParameterIdentifier.userPassword : &isConnectionParameterAny200,
+            DbConnectionParameterIdentifier.socketBlocking : &isConnectionParameterBool,
+            DbConnectionParameterIdentifier.socketNoDelay : &isConnectionParameterBool,
+            DbConnectionParameterIdentifier.socketSslCa : &isConnectionParameterAny2K,
+            DbConnectionParameterIdentifier.socketSslCaDir : &isConnectionParameterAny2K,
+            DbConnectionParameterIdentifier.socketSslCert : &isConnectionParameterAny2K,
+            DbConnectionParameterIdentifier.socketSslKey : &isConnectionParameterAny2K,
+            DbConnectionParameterIdentifier.socketSslKeyPassword : &isConnectionParameterAny200,
+            DbConnectionParameterIdentifier.socketSslVerificationHost : &isConnectionParameterBool,
+            DbConnectionParameterIdentifier.socketSslVerificationMode : &isConnectionParameterInt32Any,
+            DbConnectionParameterIdentifier.fbCachePage : &isConnectionParameterInt32Pos,
+            DbConnectionParameterIdentifier.fbCryptKey : &isConnectionParameterUBytesAny,
+            DbConnectionParameterIdentifier.fbDatabaseTrigger : &isConnectionParameterBool,
+            DbConnectionParameterIdentifier.fbDialect : &isConnectionParameterFBDialect,
+            DbConnectionParameterIdentifier.fbDummyPacketInterval : &isConnectionParameterDurationTimeout,
+            DbConnectionParameterIdentifier.fbGarbageCollect : &isConnectionParameterBool,
+            DbConnectionParameterIdentifier.myAllowUserVariables : &isConnectionParameterBool,
+            //DbConnectionParameterIdentifier. : &,
+        ];
+    }();
+    
     dbTypeToDbTypeInfos = () nothrow pure
     {
         immutable(DbTypeInfo)*[DbType] result;

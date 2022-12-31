@@ -13,6 +13,7 @@ module pham.db.message;
 
 @safe:
 
+
 enum DbErrorCode : int
 {
     connect = 1,
@@ -62,6 +63,7 @@ struct DbMessage
     static immutable eInvalidConnectionInactive = "Cannot perform %s when connection to '%s' is closed";
     static immutable eInvalidConnectionName = "Connection element name '%s' is invalid";
     static immutable eInvalidConnectionStatus = "Connection status '%s' is invalid";
+    //static immutable eInvalidConnectionString = "Connection-String is invalid";
     static immutable eInvalidConnectionRequiredEncryption = "Wire encryption to '%s' is required but not support";
     static immutable eInvalidConnectionPoolMaxUsed = "All connections are in used: %d / %d";
 

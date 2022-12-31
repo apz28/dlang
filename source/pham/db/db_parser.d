@@ -13,12 +13,15 @@ module pham.db.parser;
 
 import std.array : Appender;
 import std.uni : isAlphaNum, isSpace;
-public import std.uni : sicmp;
 
 version (unittest) import pham.utl.test;
+import pham.utl.enum_set : toEnum;
 import pham.utl.utf8 : nextUTF8Char;
-public import pham.db.message;
-import pham.db.type : uint32;
+import pham.utl.result : addLine;
+public import pham.utl.result : ResultIf;
+import pham.db.message;
+public import pham.db.message : DbErrorCode;
+import pham.db.type : DbHost, DbScheme, DbURL, isDbScheme, uint32;
 
 nothrow @safe:
 
@@ -73,7 +76,7 @@ public:
         }
         return -1;
     }
-    
+
     void popFront() pure
     {
         popFrontImpl();
@@ -102,12 +105,12 @@ public:
     {
         if (s.length <= 1)
             return s;
-            
+
         return s[0] == s[$ - 1] && (s[0] == '"' || s[0] == '`' || s[0] == '\'')
             ? s[1..$ - 1]
             : s;
     }
-    
+
     pragma(inline, true)
     @property bool empty() const @nogc pure
     {
@@ -174,7 +177,7 @@ private:
         space,
         spaceLine,
     }
-    
+
     pragma(inline, true)
     static CharKind charKind(const(dchar) c) @nogc pure
     {
@@ -228,7 +231,7 @@ private:
             ? SpaceKind.spaceLine
             : (c == '\t' || isSpace(c) ? SpaceKind.space : SpaceKind.none);
     }
-    
+
     void popFrontImpl() pure
     {
         _currentParameterIndicator = null;
@@ -503,35 +506,35 @@ struct DbTokenErrorMessage
     import pham.utl.result : ResultIf;
 
 nothrow @safe:
- 
+
     static string conversion(string sqlKind, string fromValue, string toType) pure
     {
         scope (failure) assert(0);
         return DbMessage.eMalformSQLStatementConversion.fmtMessage(sqlKind, fromValue, toType);
     }
-    
+
     static string eos(string sqlKind) pure
     {
         scope (failure) assert(0);
         return DbMessage.eMalformSQLStatementEos.fmtMessage(sqlKind);
     }
-    
+
     static ResultIf!T eosResult(T)(string sqlKind)
     {
         return ResultIf!T.error(DbErrorCode.parse, eos(sqlKind));
     }
-    
+
     static string keyword(string sqlKind, string expected, string found) pure
     {
         scope (failure) assert(0);
         return DbMessage.eMalformSQLStatementKeyword.fmtMessage(sqlKind, expected, found);
     }
-    
+
     static ResultIf!T keywordResult(T)(string sqlKind, string expected, string found)
     {
         return ResultIf!T.error(DbErrorCode.parse, keyword(sqlKind, expected, found));
     }
-    
+
     static string other(string sqlKind, string expected, string found) pure
     {
         scope (failure) assert(0);
@@ -542,7 +545,7 @@ nothrow @safe:
     {
         return ResultIf!T.error(DbErrorCode.parse, other(sqlKind, expected, found));
     }
-    
+
     static string reKeyword(string sqlKind, string keyword) pure
     {
         scope (failure) assert(0);
@@ -631,6 +634,208 @@ do
     }
 }
 
+/**
+ * DbScheme://[username:password@]host1[:port1][,host2[:port2],...[,hostN[:portN]]][/[<database>][?<options>]]
+ * <database>
+ *   string
+ * <options>
+ *   <name>=<value>[,<name>=<value>]
+ * <name>
+ *   string
+ * <value>
+ *   [quoted]string[quoted]
+ *
+ * Example
+ *   firebird://SYSDBA:masterkey@localhost:3050/c:\data\firebird.fdb?compress=1,encrypt=1
+ */
+ResultIf!(DbURL!S) parseDbURL(S)(S dbURL)
+{
+    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    import pham.utl.text : parseFormEncodedValues, simpleIndexOf, simpleIndexOfAny, simpleSplitter;
+
+    auto currentURL = dbURL;
+    size_t currentOffset = 0;
+    DbURL!S result;
+    string errorMessage;
+
+    ResultIf!(DbURL!S) returnResult() nothrow @safe
+    {
+        return errorMessage.length == 0
+            ? ResultIf!(DbURL!S).ok(result)
+            : ResultIf!(DbURL!S)(result, DbErrorCode.parse, errorMessage);
+    }
+
+    // Required
+    bool parseScheme() nothrow @safe
+    {
+        bool schemeError(string message) nothrow @safe
+        {
+            addLine(errorMessage, message);
+            addLine(errorMessage, "Scheme specification is expected to be of the form '<SCHEME_NAME>://'");
+            return false;
+        }
+
+        const i = currentURL.simpleIndexOf("://");
+        if (i <= 0)
+            return schemeError("Missing scheme separator <://>");
+
+        const scheme = currentURL[0..i];
+        currentURL = currentURL[i + 3..$];
+        currentOffset += i + 3;
+
+        if (!isDbScheme(scheme, result.scheme))
+            return schemeError("Invalid scheme: " ~ scheme.idup ~ ".");
+
+        return true;
+    }
+
+    if (!parseScheme())
+        return returnResult();
+
+    // Optional; if defined, userName must not be empty
+    bool parseIdentity() nothrow @safe
+    {
+        bool identityError(string message) nothrow @safe
+        {
+            addLine(errorMessage, message);
+            addLine(errorMessage, "Identity specification is expected to be of the form '://<USER_NAME:PASSWORD>@'");
+            return false;
+        }
+
+        const i = currentURL.simpleIndexOf('@');
+        if (i < 0)
+            return true;
+
+        const identity = currentURL[0..i];
+        currentURL = currentURL[i + 1..$];
+        currentOffset += i + 1;
+
+        const iColon = identity.simpleIndexOf(':');
+        if (iColon < 0)
+            result.userName = identity;
+        else
+        {
+            result.userName = identity[0..iColon];
+            result.userPassword = identity[iColon + 1..$];
+        }
+
+        if (result.userName.length != 0)
+            return true;
+
+        return identityError("Missing user-name.");
+    }
+
+    if (!parseIdentity())
+        return returnResult();
+
+    bool parseHost() nothrow @safe
+    {
+        bool hostError(string message) nothrow @safe
+        {
+            addLine(errorMessage, message);
+            addLine(errorMessage, "Host specifications are expected to be of the form '@<HOST:PORT>,<HOST:PORT>,.../'");
+            return false;
+        }
+
+        S hosts;
+        const i = currentURL.simpleIndexOf('/');
+        if (i >= 0)
+        {
+            hosts = currentURL[0..i];
+            currentURL = currentURL[i + 1..$];
+            currentOffset += i + 1;
+        }
+        else
+        {
+            hosts = currentURL;
+            currentOffset += currentURL.length;
+            currentURL = null;
+        }
+
+        foreach (host; hosts.simpleSplitter(','))
+		{
+            auto hostPort = host.simpleSplitter(':');
+			S h = hostPort.front;
+            if (h.length == 0)
+                return hostError("Missing host-name.");
+            ushort p = 0;
+			hostPort.popFront();
+			if (!hostPort.empty)
+            {
+                auto ps = hostPort.front;
+                hostPort.popFront();
+				if (parseIntegral!(S, ushort)(ps, p) != NumericParsedKind.ok)
+                    return hostError("Invalid port: " ~ ps.idup ~ ".");
+			}
+            if (!hostPort.empty)
+                return hostError("Invalid host/port: " ~ host.idup ~ ".");
+			result.hosts ~= DbHost!S(h, p);
+		}
+
+        if (result.hosts.length != 0)
+            return true;
+
+        return hostError("Missing host.");
+    }
+
+    if (!parseHost())
+        return returnResult();
+
+    bool parseDatabase() nothrow @safe
+    {
+        bool databaseError(string message) nothrow @safe
+        {
+            addLine(errorMessage, message);
+            addLine(errorMessage, "Database specification is expected to be of the form '/<DATABASE_NAME>?'");
+            return false;
+        }
+
+        const i = currentURL.simpleIndexOf('?');
+        if (i >= 0)
+        {
+            result.database = currentURL[0..i];
+            currentURL = currentURL[i + 1..$];
+            currentOffset += i + 1;
+        }
+        else
+        {
+            result.database = currentURL;
+            currentOffset += currentURL.length;
+            currentURL = null;
+        }
+
+        if (result.database.length != 0)
+            return true;
+
+        return databaseError("Missing database-name.");
+    }
+
+    if (!parseDatabase())
+        return returnResult();
+
+    bool parsedOption(size_t index, ResultIf!S name, ResultIf!S value) nothrow @safe
+    {
+        if (name && value)
+        {
+            result.options[name] = value;
+            return true;
+        }
+        else
+        {
+            if (!name)
+                addLine(errorMessage, name.errorMessage ~ ".");
+            if (!value)
+                addLine(errorMessage, value.errorMessage ~ ".");
+            addLine(errorMessage, "Option specifications are expected to be of the form '?<NAME=VALUE>&<NAME=VALUE>&...'");
+            return false;
+        }
+    }
+
+    if (currentURL.length != 0)
+        parseFormEncodedValues(currentURL, &parsedOption);
+
+    return returnResult();
+}
 
 // Any below codes are private
 private:
@@ -1038,7 +1243,7 @@ unittest // DbTokenizer - SkipLevel
 {
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.parser.DbTokenizer.SkipLevel");
-    
+
     auto tokenizerSpace = DbTokenizer!(string, DbTokenSkipLevel.space)("FROM test /* this is a comment */ @_LongName$123 \n ");
     checkTokenizer(tokenizerSpace, false, false, "", DbTokenKind.literal, "FROM"); tokenizerSpace.popFront();
     checkTokenizer(tokenizerSpace, false, false, "", DbTokenKind.literal, "test"); tokenizerSpace.popFront();
@@ -1046,14 +1251,14 @@ unittest // DbTokenizer - SkipLevel
     checkTokenizer(tokenizerSpace, false, false, "@", DbTokenKind.parameterNamed, "_LongName$123"); tokenizerSpace.popFront();
     checkTokenizer(tokenizerSpace, false, false, "", DbTokenKind.spaceLine, " \n "); tokenizerSpace.popFront();
     checkTokenizer(tokenizerSpace, true, false, "", DbTokenKind.eos, "");
-        
+
     auto tokenizerComment = DbTokenizer!(string, DbTokenSkipLevel.comment)("FROM test /* comment1 */ /* comment2 */ @_LongName$123 \n ");
     checkTokenizer(tokenizerComment, false, false, "", DbTokenKind.literal, "FROM"); tokenizerComment.popFront();
     checkTokenizer(tokenizerComment, false, false, "", DbTokenKind.literal, "test"); tokenizerComment.popFront();
     checkTokenizer(tokenizerComment, false, false, "@", DbTokenKind.parameterNamed, "_LongName$123"); tokenizerComment.popFront();
     checkTokenizer(tokenizerComment, false, false, "", DbTokenKind.spaceLine, " \n "); tokenizerComment.popFront();
     checkTokenizer(tokenizerComment, true, false, "", DbTokenKind.eos, "");
-        
+
     auto tokenizerSpaceLine = DbTokenizer!(string, DbTokenSkipLevel.spaceLine)("FROM test /* comment1 */ /* comment2 */ \n \n @_LongName$123 \n ");
     checkTokenizer(tokenizerSpaceLine, false, false, "", DbTokenKind.literal, "FROM"); tokenizerSpaceLine.popFront();
     checkTokenizer(tokenizerSpaceLine, false, false, "", DbTokenKind.literal, "test"); tokenizerSpaceLine.popFront();
@@ -1130,4 +1335,69 @@ unittest // parseParameter
     s = parseParameter("", &slist.saveParameter);
     assert(s == "", s);
     assert(slist.length == 0);
+}
+
+unittest // parseDbURL
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.database")("unittest pham.db.parser.parseDbURL");
+
+    auto cfg = parseDbURL("firebird://SYSDBA:masterkey@localhost/baz");
+    assert(cfg, cfg.getErrorString());
+    assert(cfg.scheme == DbScheme.fb);
+	assert(cfg.userName == "SYSDBA", cfg.userName);
+	assert(cfg.userPassword == "masterkey", cfg.userPassword);
+	assert(cfg.hosts.length == 1);
+	assert(cfg.hosts[0].name == "localhost", cfg.hosts[0].name);
+	assert(cfg.hosts[0].port == 0);
+	assert(cfg.database == "baz", cfg.database);
+    assert(cfg.options.length == 0);
+
+    cfg = parseDbURL("firebird://SYSDBA:@localhost/baz");
+    assert(cfg, cfg.getErrorString());
+    assert(cfg.scheme == DbScheme.fb);
+	assert(cfg.userName == "SYSDBA", cfg.userName);
+	assert(cfg.userPassword.length == 0);
+	assert(cfg.hosts.length == 1);
+	assert(cfg.hosts[0].name == "localhost", cfg.hosts[0].name);
+	assert(cfg.hosts[0].port == 0);
+	assert(cfg.database == "baz", cfg.database);
+    assert(cfg.options.length == 0);
+
+	cfg = parseDbURL("postgresql://ROOT:flinstone@host1.example.com,host2.other.example.com:27108,host3:27019"
+				~ "/postgresql?journal=true;connectTimeout=1500;socketTimeout=1000");
+    assert(cfg, cfg.getErrorString());
+    assert(cfg.scheme == DbScheme.pg);
+	assert(cfg.userName == "ROOT", cfg.userName);
+	assert(cfg.userPassword == "flinstone", cfg.userPassword);
+	assert(cfg.hosts.length == 3);
+	assert(cfg.hosts[0].name == "host1.example.com", cfg.hosts[0].name);
+	assert(cfg.hosts[0].port == 0);
+	assert(cfg.hosts[1].name == "host2.other.example.com", cfg.hosts[1].name);
+	assert(cfg.hosts[1].port == 27108);
+	assert(cfg.hosts[2].name == "host3", cfg.hosts[2].name);
+	assert(cfg.hosts[2].port == 27019);
+	assert(cfg.database == "postgresql", cfg.database);
+    assert(cfg.options.length == 3);
+	assert(cfg.options["journal"] == "true");
+	assert(cfg.options["connectTimeout"] == "1500");
+	assert(cfg.options["socketTimeout"] == "1000");
+
+	cfg = parseDbURL("mysql://me:sl$ash/w0+rd@localhost/mydb");
+    assert(cfg, cfg.getErrorString());
+    assert(cfg.scheme == DbScheme.my);
+	assert(cfg.userName == "me", cfg.userName);
+	assert(cfg.userPassword == "sl$ash/w0+rd", cfg.userPassword);
+	assert(cfg.hosts.length == 1);
+	assert(cfg.hosts[0].name == "localhost", cfg.hosts[0].name);
+	assert(cfg.hosts[0].port == 0);
+	assert(cfg.database == "mydb", cfg.database);
+    assert(cfg.options.length == 0);
+
+    // Invalid URLs
+    cfg = parseDbURL("localhost:27018"); assert(!cfg, cfg.getErrorString());
+    cfg = parseDbURL("http://blah"); assert(!cfg, cfg.getErrorString());
+    cfg = parseDbURL("firebird://@localhost"); assert(!cfg, cfg.getErrorString());
+    cfg = parseDbURL("mysql://:thepass@localhost"); assert(!cfg, cfg.getErrorString());
+    cfg = parseDbURL("postgresql://:badport/"); assert(!cfg, cfg.getErrorString());
 }

@@ -17,7 +17,7 @@ import core.time : Duration, dur;
 version (unittest) import pham.utl.test;
 import pham.dtm.tick : Tick;
 import pham.dtm.time_zone : TimeZoneInfo;
-import pham.utl.utf8 : ShortStringBuffer, ShortStringBufferSize;
+import pham.utl.array : ShortStringBuffer, ShortStringBufferSize;
 import pham.db.convert : toDecimalSafe;
 import pham.db.type;
 import pham.db.pgtype;

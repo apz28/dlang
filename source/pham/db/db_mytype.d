@@ -12,9 +12,9 @@
 module pham.db.mytype;
 
 version (TraceFunction) import pham.utl.test;
+import pham.utl.array : ShortStringBuffer;
 import pham.utl.bit_array : Map32Bit;
 import pham.utl.enum_set : toName;
-import pham.utl.utf8 : ShortStringBuffer;
 import pham.db.message;
 import pham.db.type;
 import pham.db.myoid;
@@ -146,19 +146,23 @@ static immutable string[string] myDefaultConnectionParameterValues;
 
 static immutable string[] myValidConnectionParameterNames = [
     // Primary
-    DbConnectionParameterIdentifier.server,
-    DbConnectionParameterIdentifier.port,
-    DbConnectionParameterIdentifier.database,
+    DbConnectionParameterIdentifier.serverName,
+    DbConnectionParameterIdentifier.serverPort,
+    DbConnectionParameterIdentifier.databaseName,
     DbConnectionParameterIdentifier.userName,
     DbConnectionParameterIdentifier.userPassword,
+    DbConnectionParameterIdentifier.roleName,
     DbConnectionParameterIdentifier.allowBatch,
     DbConnectionParameterIdentifier.charset,
     DbConnectionParameterIdentifier.compress,
     DbConnectionParameterIdentifier.encrypt,
+    DbConnectionParameterIdentifier.integratedSecurity,
 
     // Other
     DbConnectionParameterIdentifier.commandTimeout,
     DbConnectionParameterIdentifier.connectionTimeout,
+    DbConnectionParameterIdentifier.fetchRecordCount,
+    DbConnectionParameterIdentifier.packageSize,
     DbConnectionParameterIdentifier.pooling,
     DbConnectionParameterIdentifier.receiveTimeout,
     DbConnectionParameterIdentifier.sendTimeout,
@@ -568,7 +572,7 @@ shared static this() nothrow
     myDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(string[string]))[
-            DbConnectionParameterIdentifier.port : "3306", // x_protocol=33060
+            DbConnectionParameterIdentifier.serverPort : "3306", // x_protocol=33060
             DbConnectionParameterIdentifier.userName : "root",
             DbConnectionParameterIdentifier.integratedSecurity : toName(DbIntegratedSecurityConnection.legacy),
             DbConnectionParameterIdentifier.allowBatch : dbBoolTrue,

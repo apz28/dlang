@@ -41,24 +41,29 @@ static immutable string[string] pgDefaultConnectionParameterValues;
 
 static immutable string[] pgValidConnectionParameterNames = [
     // Primary
-    DbConnectionParameterIdentifier.server,
-    DbConnectionParameterIdentifier.port,
-    DbConnectionParameterIdentifier.database,
+    DbConnectionParameterIdentifier.serverName,
+    DbConnectionParameterIdentifier.serverPort,
+    DbConnectionParameterIdentifier.databaseName,
     DbConnectionParameterIdentifier.userName,
     DbConnectionParameterIdentifier.userPassword,
-    //DbConnectionParameterIdentifier.encrypt,
-    //DbConnectionParameterIdentifier.compress,
+    DbConnectionParameterIdentifier.roleName,
+    DbConnectionParameterIdentifier.encrypt,
     DbConnectionParameterIdentifier.charset,
+    //DbConnectionParameterIdentifier.compress,
+    DbConnectionParameterIdentifier.encrypt,
+    DbConnectionParameterIdentifier.integratedSecurity,
 
     // Other
     DbConnectionParameterIdentifier.connectionTimeout,
+    DbConnectionParameterIdentifier.fetchRecordCount,
+    DbConnectionParameterIdentifier.packageSize,
     DbConnectionParameterIdentifier.pooling,
     DbConnectionParameterIdentifier.receiveTimeout,
     DbConnectionParameterIdentifier.sendTimeout,
     DbConnectionParameterIdentifier.socketBlocking,
 
-    DbConnectionParameterIdentifier.pgOptions,
     /*
+    DbConnectionParameterIdentifier.pgOptions,
     DbConnectionParameterIdentifier.pgPassFile,
     DbConnectionParameterIdentifier.pgFallbackApplicationName,
     DbConnectionParameterIdentifier.pgKeepAlives,
@@ -903,7 +908,7 @@ shared static this()
     pgDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(string[string]))[
-            DbConnectionParameterIdentifier.port : "5432",
+            DbConnectionParameterIdentifier.serverPort : "5432",
             DbConnectionParameterIdentifier.userName : "postgres",
             DbConnectionParameterIdentifier.integratedSecurity : toName(DbIntegratedSecurityConnection.srp256),
             ];
@@ -918,7 +923,7 @@ shared static this()
             DbConnectionParameterIdentifier.charset : "client_encoding",
             DbConnectionParameterIdentifier.compress : "",
             DbConnectionParameterIdentifier.connectionTimeout : "",
-            DbConnectionParameterIdentifier.database : "database",
+            DbConnectionParameterIdentifier.databaseName : "database",
             DbConnectionParameterIdentifier.databaseFile : "",
             DbConnectionParameterIdentifier.encrypt : "",
             DbConnectionParameterIdentifier.fetchRecordCount : "",
@@ -926,19 +931,19 @@ shared static this()
             DbConnectionParameterIdentifier.maxPoolCount : "",
             DbConnectionParameterIdentifier.minPoolCount : "",
             DbConnectionParameterIdentifier.packageSize : "",
-            DbConnectionParameterIdentifier.port : "", // port - ignore sending over
             DbConnectionParameterIdentifier.pooling : "",
             DbConnectionParameterIdentifier.poolTimeout : "",
             DbConnectionParameterIdentifier.receiveTimeout : "",
             DbConnectionParameterIdentifier.roleName : "",
             DbConnectionParameterIdentifier.sendTimeout : "",
-            DbConnectionParameterIdentifier.server : "", // host - ignore sending over
+            DbConnectionParameterIdentifier.serverName : "", // host - ignore sending over
+            DbConnectionParameterIdentifier.serverPort : "", // port - ignore sending over
             DbConnectionParameterIdentifier.userName : "user",
             DbConnectionParameterIdentifier.userPassword : "", // password - special handling
             DbConnectionParameterIdentifier.socketBlocking : "",
             DbConnectionParameterIdentifier.socketNoDelay : "",
-            DbConnectionParameterIdentifier.pgOptions : DbConnectionParameterIdentifier.pgOptions,
             /*
+            DbConnectionParameterIdentifier.pgOptions : DbConnectionParameterIdentifier.pgOptions,
             DbConnectionParameterIdentifier.pgPassFile : DbConnectionParameterIdentifier.pgPassFile,
             DbConnectionParameterIdentifier.pgFallbackApplicationName : DbConnectionParameterIdentifier.pgFallbackApplicationName,
             DbConnectionParameterIdentifier.pgKeepAlives : DbConnectionParameterIdentifier.pgKeepAlives,

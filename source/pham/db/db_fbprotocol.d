@@ -22,8 +22,8 @@ version (unittest) import pham.utl.test;
 import pham.utl.bit_array : BitArrayImpl, bitLengthToElement, hostToNetworkOrder;
 import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.utl.enum_set : toName;
-import pham.utl.object : InitializedValue, bytesFromHexs, bytesToHexs, functionName,
-    currentComputerName, currentProcessId, currentProcessName, currentUserName;
+import pham.utl.object : InitializedValue, bytesFromHexs, bytesToHexs, functionName;
+import pham.utl.system : currentComputerName, currentProcessId, currentProcessName, currentUserName;
 import pham.db.buffer_filter;
 import pham.db.buffer_filter_cipher;
 import pham.db.buffer_filter_compressor;

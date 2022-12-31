@@ -17,8 +17,8 @@ import std.exception : assumeWontThrow;
 import std.traits : EnumMembers, Unqual;
 
 version (TraceFunction) import pham.utl.test;
+import pham.utl.array : ShortStringBuffer;
 import pham.utl.enum_set : toName;
-import pham.utl.utf8 : ShortStringBuffer;
 import pham.utl.variant : Algebraic, Variant, VariantType;
 import pham.db.util : toVersionString;
 import pham.db.message;
@@ -73,16 +73,19 @@ static immutable string[string] fbDefaultConnectionParameterValues;
 
 static immutable string[] fbValidConnectionParameterNames = [
     // Primary
-    DbConnectionParameterIdentifier.server,
-    DbConnectionParameterIdentifier.port,
-    DbConnectionParameterIdentifier.database,
+    DbConnectionParameterIdentifier.serverName,
+    DbConnectionParameterIdentifier.serverPort,
+    DbConnectionParameterIdentifier.databaseName,
     DbConnectionParameterIdentifier.userName,
     DbConnectionParameterIdentifier.userPassword,
-    DbConnectionParameterIdentifier.encrypt,
-    DbConnectionParameterIdentifier.compress,
+    DbConnectionParameterIdentifier.roleName,
     DbConnectionParameterIdentifier.charset,
-
+    DbConnectionParameterIdentifier.compress,
+    DbConnectionParameterIdentifier.encrypt,
+    DbConnectionParameterIdentifier.integratedSecurity,
+    
     // Other
+    DbConnectionParameterIdentifier.commandTimeout,
     DbConnectionParameterIdentifier.connectionTimeout,
     DbConnectionParameterIdentifier.fetchRecordCount,
     DbConnectionParameterIdentifier.pooling,
@@ -92,6 +95,7 @@ static immutable string[] fbValidConnectionParameterNames = [
     DbConnectionParameterIdentifier.socketBlocking,
 
     DbConnectionParameterIdentifier.fbCachePage,
+    DbConnectionParameterIdentifier.fbCryptKey,
     DbConnectionParameterIdentifier.fbDatabaseTrigger,
     DbConnectionParameterIdentifier.fbDialect,
     DbConnectionParameterIdentifier.fbDummyPacketInterval,
@@ -2020,7 +2024,7 @@ shared static this() nothrow
     fbDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(string[string]))[
-            DbConnectionParameterIdentifier.port : "3050",
+            DbConnectionParameterIdentifier.serverPort : "3050",
             DbConnectionParameterIdentifier.userName : "SYSDBA",
             DbConnectionParameterIdentifier.userPassword : "masterkey",
             DbConnectionParameterIdentifier.integratedSecurity : toName(DbIntegratedSecurityConnection.srp256),

@@ -84,20 +84,19 @@ public:
         super(database);
     }
 
-    this(DbDatabase database, string connectionString) nothrow @safe
+    this(DbDatabase database, string connectionString) @safe
     {
         super(database, connectionString);
     }
 
-    this(DbDatabase database, SkConnectionStringBuilder connectionStringBuilder) nothrow @safe
-    in
+    this(DbDatabase database, SkConnectionStringBuilder connectionString) nothrow @safe
     {
-        assert(connectionStringBuilder !is null);
-        assert(connectionStringBuilder.scheme == scheme);
+        super(database, connectionString);
     }
-    do
+
+    this(DbDatabase database, DbURL!string connectionString) @safe
     {
-        super(database, connectionStringBuilder);
+        super(database, connectionString);
     }
 
     final void chainBufferFilters(DbBufferFilter readFilter, DbBufferFilter writeFilter) @safe
@@ -324,7 +323,7 @@ protected:
     {
         return !isFatalError && socketActive;
     }
-    
+
     SkException createConnectError(int errorCode, string errorMessage, Exception e) @safe
     {
         if (auto log = logger)
@@ -467,13 +466,20 @@ private:
 
 abstract class SkConnectionStringBuilder : DbConnectionStringBuilder
 {
+@safe:
+
 public:
-    this(string connectionString) nothrow @safe
+    this(DbDatabase database) nothrow
     {
-        super(connectionString);
+        super(database);
     }
 
-    final bool hasSSL() const nothrow @safe
+    this(DbDatabase database, string connectionString)
+    {
+        super(database, connectionString);
+    }
+
+    final bool hasSSL() const nothrow
     {
         return (sslCert.length || sslKey.length) && (sslCa.length || sslCaDir.length);
     }
@@ -481,7 +487,7 @@ public:
     final Address toAddress()
     {
         // todo for iv6
-        return new InternetAddress(serverName, port);
+        return new InternetAddress(serverName, serverPort);
     }
 
     final AddressFamily toAddressFamily() nothrow
@@ -490,7 +496,7 @@ public:
         return AddressFamily.INET;
     }
 
-    @property final bool blocking() const nothrow @safe
+    @property final bool blocking() const nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.socketBlocking));
     }
@@ -502,7 +508,7 @@ public:
         return this;
     }
 
-    @property final bool noDelay() const nothrow @safe
+    @property final bool noDelay() const nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.socketNoDelay));
     }
@@ -514,7 +520,7 @@ public:
         return this;
     }
 
-    @property final string sslCa() const nothrow @safe
+    @property final string sslCa() const nothrow
     {
         return getString(DbConnectionParameterIdentifier.socketSslCa);
     }
@@ -525,7 +531,7 @@ public:
         return this;
     }
 
-    @property final string sslCaDir() const nothrow @safe
+    @property final string sslCaDir() const nothrow
     {
         return getString(DbConnectionParameterIdentifier.socketSslCaDir);
     }
@@ -536,7 +542,7 @@ public:
         return this;
     }
 
-    @property final string sslCert() const nothrow @safe
+    @property final string sslCert() const nothrow
     {
         return getString(DbConnectionParameterIdentifier.socketSslCert);
     }
@@ -547,7 +553,7 @@ public:
         return this;
     }
 
-    @property final string sslKey() const nothrow @safe
+    @property final string sslKey() const nothrow
     {
         return getString(DbConnectionParameterIdentifier.socketSslKey);
     }
@@ -558,7 +564,7 @@ public:
         return this;
     }
 
-    @property final string sslKeyPassword() const nothrow @safe
+    @property final string sslKeyPassword() const nothrow
     {
         return getString(DbConnectionParameterIdentifier.socketSslKeyPassword);
     }
@@ -569,7 +575,7 @@ public:
         return this;
     }
 
-    @property final bool sslVerificationHost() const nothrow @safe
+    @property final bool sslVerificationHost() const nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.socketSslVerificationHost));
     }
@@ -581,7 +587,7 @@ public:
         return this;
     }
 
-    @property final int sslVerificationMode() const nothrow @safe
+    @property final int sslVerificationMode() const nothrow
     {
         return toIntegerSafe!int(getString(DbConnectionParameterIdentifier.socketSslVerificationMode), -1);
     }
@@ -594,7 +600,7 @@ public:
     }
 
 protected:
-    override string getDefault(string name) const nothrow @safe
+    override string getDefault(string name) const nothrow
     {
         auto result = super.getDefault(name);
         if (result.length == 0)

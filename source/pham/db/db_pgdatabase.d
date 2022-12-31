@@ -121,7 +121,7 @@ public:
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
-        
+
         doClose(disposingReason);
         if (isDisposing(disposingReason))
             _connection = null;
@@ -409,14 +409,14 @@ public:
     void close() nothrow @safe
     {
         version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
-        
+
         doClose(DisposingReason.other);
     }
-    
+
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
-        
+
         doClose(disposingReason);
     }
 
@@ -1001,20 +1001,21 @@ public:
         this._largeBlobManager = PgLargeBlobManager(this);
     }
 
-    this(PgDatabase database, string connectionString) nothrow @safe
+    this(PgDatabase database, string connectionString) @safe
     {
         super(database, connectionString);
         this._largeBlobManager = PgLargeBlobManager(this);
     }
 
-    this(DbDatabase database, PgConnectionStringBuilder connectionStringBuilder) nothrow @safe
-    in
+    this(DbDatabase database, PgConnectionStringBuilder connectionString) nothrow @safe
     {
-        assert(connectionStringBuilder !is null);
+        super(database, connectionString);
+        this._largeBlobManager = PgLargeBlobManager(this);
     }
-    do
+
+    this(DbDatabase database, DbURL!string connectionString) @safe
     {
-        super(database, connectionStringBuilder);
+        super(database, connectionString);
         this._largeBlobManager = PgLargeBlobManager(this);
     }
 
@@ -1254,13 +1255,20 @@ private:
 
 class PgConnectionStringBuilder : SkConnectionStringBuilder
 {
+@safe:
+
 public:
-    this(string connectionString) nothrow @safe
+    this(DbDatabase database) nothrow
     {
-        super(connectionString);
+        super(database);
     }
 
-    final string integratedSecurityName() const nothrow @safe
+    this(DbDatabase database, string connectionString)
+    {
+        super(database, connectionString);
+    }
+
+    final string integratedSecurityName() const nothrow
     {
         final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
         {
@@ -1274,18 +1282,18 @@ public:
         }
     }
 
-    final override const(string[]) parameterNames() const nothrow @safe
+    final override const(string[]) parameterNames() const nothrow
     {
         return pgValidConnectionParameterNames;
     }
 
-    @property final override DbScheme scheme() const nothrow pure @safe
+    @property final override DbScheme scheme() const nothrow pure
     {
         return DbScheme.pg;
     }
 
 protected:
-    final override string getDefault(string name) const nothrow @safe
+    final override string getDefault(string name) const nothrow
     {
         auto n = DbIdentitier(name);
         auto result = assumeWontThrow(pgDefaultConnectionParameterValues.get(n, null));
@@ -1294,7 +1302,7 @@ protected:
         return result;
     }
 
-    final override void setDefaultIfs() nothrow @safe
+    final override void setDefaultIfs() nothrow
     {
         foreach (dpv; pgDefaultConnectionParameterValues.byKeyValue)
             putIf(dpv.key, dpv.value);
@@ -1304,23 +1312,29 @@ protected:
 
 class PgDatabase : DbDatabase
 {
-nothrow @safe:
+@safe:
 
 public:
-    this() pure
+    this() nothrow pure
     {
         this._name = DbIdentitier(DbScheme.pg);
         this._identifierQuoteChar = '"';
         this._stringQuoteChar = '\'';
 
-        charClasses['"'] = CharClass.quote;
-        charClasses['\''] = CharClass.quote;
+        this._charClasses['"'] = CharClass.quote;
+        this._charClasses['\''] = CharClass.quote;
+        this._charClasses['\\'] = CharClass.backslash;
 
-        charClasses['\\'] = CharClass.backslash;
+        this.populateValidParamNameChecks();
+    }
+
+    final override const(string[]) connectionStringParameterNames() const nothrow pure
+    {
+        return pgValidConnectionParameterNames;
     }
 
     override DbCommand createCommand(DbConnection connection,
-        string name = null)
+        string name = null) nothrow
     in
     {
         assert((cast(PgConnection)connection) !is null);
@@ -1331,7 +1345,7 @@ public:
     }
 
     override DbCommand createCommand(DbConnection connection, DbTransaction transaction,
-        string name = null)
+        string name = null) nothrow
     in
     {
         assert((cast(PgConnection)connection) !is null);
@@ -1349,25 +1363,44 @@ public:
         return result;
     }
 
-    override DbConnection createConnection(DbConnectionStringBuilder connectionStringBuilder)
+    override DbConnection createConnection(DbConnectionStringBuilder connectionString) nothrow
     in
     {
-        assert(connectionStringBuilder !is null);
-        assert(cast(PgConnectionStringBuilder)connectionStringBuilder !is null);
+        assert(connectionString !is null);
+        assert(connectionString.scheme == DbScheme.pg);
+        assert(cast(PgConnectionStringBuilder)connectionString !is null);
     }
     do
     {
-        auto result = new PgConnection(this, cast(PgConnectionStringBuilder)connectionStringBuilder);
+        auto result = new PgConnection(this, cast(PgConnectionStringBuilder)connectionString);
         result.logger = this.logger;
         return result;
     }
 
-    override DbConnectionStringBuilder createConnectionStringBuilder(string connectionString)
+    override DbConnection createConnection(DbURL!string connectionString)
+    in
     {
-        return new PgConnectionStringBuilder(connectionString);
+        assert(DbURL.scheme == DbScheme.pg);
+        assert(DbURL.isValid());
+    }
+    do
+    {
+        auto result = new PgConnection(this, connectionString);
+        result.logger = this.logger;
+        return result;
     }
 
-    override DbField createField(DbCommand command, DbIdentitier name)
+    override DbConnectionStringBuilder createConnectionStringBuilder() nothrow
+    {
+        return new PgConnectionStringBuilder(this);
+    }
+
+    override DbConnectionStringBuilder createConnectionStringBuilder(string connectionString)
+    {
+        return new PgConnectionStringBuilder(this, connectionString);
+    }
+
+    override DbField createField(DbCommand command, DbIdentitier name) nothrow
     in
     {
         assert((cast(PgCommand)command) !is null);
@@ -1377,7 +1410,7 @@ public:
         return new PgField(cast(PgCommand)command, name);
     }
 
-    override DbFieldList createFieldList(DbCommand command)
+    override DbFieldList createFieldList(DbCommand command) nothrow
     in
     {
         assert(cast(PgCommand)command !is null);
@@ -1387,18 +1420,18 @@ public:
         return new PgFieldList(cast(PgCommand)command);
     }
 
-    override DbParameter createParameter(DbIdentitier name)
+    override DbParameter createParameter(DbIdentitier name) nothrow
     {
         return new PgParameter(this, name);
     }
 
-    override DbParameterList createParameterList()
+    override DbParameterList createParameterList() nothrow
     {
         return new PgParameterList(this);
     }
 
     override DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel,
-        bool defaultTransaction = false)
+        bool defaultTransaction = false) nothrow
     in
     {
         assert((cast(PgConnection)connection) !is null);
@@ -1408,7 +1441,7 @@ public:
         return new PgTransaction(cast(PgConnection)connection, isolationLevel);
     }
 
-    @property final override DbScheme scheme() const pure
+    @property final override DbScheme scheme() const nothrow pure
     {
         return DbScheme.pg;
     }
@@ -2309,6 +2342,56 @@ unittest // PgConnection(SSL)
 
     connection.close();
     assert(connection.state == DbConnectionState.closed);
+}
+
+unittest // DbDatabaseList.createConnection
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.DbDatabaseList.createConnection");
+
+    auto connection = DbDatabaseList.createConnection("postgresql:server=myServerAddress;database=myDataBase;" ~
+        "user=myUsername;password=myPassword;role=myRole;pooling=true;connectionTimeout=100;encrypt=enabled;" ~
+        "fetchRecordCount=50;integratedSecurity=legacy;");
+    scope (exit)
+        connection.dispose();
+    auto connectionString = cast(PgConnectionStringBuilder)connection.connectionStringBuilder;
+
+    assert(connection.scheme == DbScheme.pg);
+    assert(connectionString.serverName == "myServerAddress");
+    assert(connectionString.databaseName == "myDataBase");
+    assert(connectionString.userName == "myUsername");
+    assert(connectionString.userPassword == "myPassword");
+    assert(connectionString.roleName == "myRole");
+    assert(connectionString.pooling == true);
+    assert(connectionString.connectionTimeout == dur!"seconds"(100));
+    assert(connectionString.encrypt == DbEncryptedConnection.enabled);
+    assert(connectionString.fetchRecordCount == 50);
+    assert(connectionString.integratedSecurity == DbIntegratedSecurityConnection.legacy);
+}
+
+unittest // DbDatabaseList.createConnectionByURL
+{
+    import pham.utl.test;
+    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.DbDatabaseList.createConnectionByURL");
+
+    auto connection = DbDatabaseList.createConnectionByURL("postgresql://myUsername:myPassword@myServerAddress/myDataBase?" ~
+        "role=myRole&pooling=true&connectionTimeout=100&encrypt=enabled&" ~
+        "fetchRecordCount=50&integratedSecurity=legacy");
+    scope (exit)
+        connection.dispose();
+    auto connectionString = cast(PgConnectionStringBuilder)connection.connectionStringBuilder;
+
+    assert(connection.scheme == DbScheme.pg);
+    assert(connectionString.serverName == "myServerAddress");
+    assert(connectionString.databaseName == "myDataBase");
+    assert(connectionString.userName == "myUsername");
+    assert(connectionString.userPassword == "myPassword");
+    assert(connectionString.roleName == "myRole");
+    assert(connectionString.pooling == true);
+    assert(connectionString.connectionTimeout == dur!"seconds"(100));
+    assert(connectionString.encrypt == DbEncryptedConnection.enabled);
+    assert(connectionString.fetchRecordCount == 50);
+    assert(connectionString.integratedSecurity == DbIntegratedSecurityConnection.legacy);
 }
 
 version (UnitTestPerfPGDatabase)

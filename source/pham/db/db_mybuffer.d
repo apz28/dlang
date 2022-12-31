@@ -18,10 +18,10 @@ import std.system : Endian;
 
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
+import pham.utl.array : ShortStringBuffer, ShortStringBufferSize;
 import pham.utl.bit_array : numericBitCast;
 import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.utl.object : simpleFloatFmt, simpleIntegerFmt;
-import pham.utl.utf8 : ShortStringBuffer, ShortStringBufferSize;
 import pham.db.buffer;
 import pham.db.message;
 import pham.db.type;

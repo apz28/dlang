@@ -16,17 +16,17 @@ import std.algorithm.comparison : min;
 import std.array : Appender;
 import std.ascii : isWhite;
 import std.conv : to;
-import std.exception : assumeWontThrow;
 import std.traits : ParameterTypeTuple, Unqual;
 import std.uni : sicmp, toUpper;
 
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
-import pham.utl.utf8 : nextUTF8Char;
 import pham.utl.array : IndexedArray;
-import pham.utl.enum_set : EnumSet;
 import pham.utl.disposable;
+import pham.utl.enum_set : EnumSet;
 import pham.utl.object : shortClassName;
+import pham.utl.result : addLine, ResultIf;
+import pham.utl.utf8 : nextUTF8Char;
 import pham.db.exception;
 import pham.db.message;
 import pham.db.parser;
@@ -38,7 +38,7 @@ import pham.db.util;
  * Ex:
  *      name1=value1,name2=value2
  * Params:
- *      elementSeparator = is the separator string for each element
+ *      elementSeparator = is the separator character for each element
  *      valueSeparator = is the separator for each name & its value
  * Returns:
  *      string of all elements
@@ -48,6 +48,8 @@ string getDelimiterText(T)(DbNameValueList!T list,
     char valueSeparator = '=') nothrow @safe
 if (is(T == const(char)[]) || is(T == string))
 {
+    import std.exception : assumeWontThrow;
+
     if (list.length == 0)
         return "";
 
@@ -72,34 +74,47 @@ if (is(T == const(char)[]) || is(T == string))
  *      name1=value1,name2=value2
  * Params:
  *      values = a string of elements to be broken up
- *      elementSeparator = is the separator string for each element
+ *      elementSeparators = are the separator characters for each element
  *      valueSeparator = is the separator for each name & its value
  * Returns:
  *      self
  */
-DbNameValueList!T setDelimiterText(T)(DbNameValueList!T list, string values,
-    char elementSeparator = ',',
+ResultIf!(DbNameValueList!T) setDelimiterText(T)(DbNameValueList!T list, string values,
+    string elementSeparators = ",",
     char valueSeparator = '=') nothrow @safe
 if (is(T == string))
 in
 {
-    assert(!isWhite(elementSeparator) && !isWhite(valueSeparator));
+    assert(elementSeparators.length != 0);
+    assert(!isWhite(valueSeparator));
 }
 do
 {
     list.clear();
 
+    string errorMessage;
     size_t p;
     dchar cCode;
     ubyte cCount;
 
+    pragma(inline, true)
+    bool isElementSeparator(const(dchar) c) nothrow @safe
+    {
+        foreach (i; 0..elementSeparators.length)
+        {
+            if (c == elementSeparators[i])
+                return true;
+        }
+        return false;
+    }
+    
     string readName()
     {
         const begin = p;
         size_t end = values.length, lastSpace;
         while (p < values.length && nextUTF8Char(values, p, cCode, cCount))
         {
-            if (cCode == elementSeparator || cCode == valueSeparator)
+            if (isElementSeparator(cCode) || cCode == valueSeparator)
             {
                 end = p;
                 p += cCount;
@@ -121,7 +136,7 @@ do
         size_t end = values.length, lastSpace;
         while (p < values.length && nextUTF8Char(values, p, cCode, cCount))
         {
-            if (cCode == elementSeparator)
+            if (isElementSeparator(cCode))
             {
                 end = p;
                 p += cCount;
@@ -153,14 +168,35 @@ do
 
     while (skipSpaces())
     {
-        string value = "";
+        string value = null;
         string name = readName();
         if (skipSpaces())
             value = readValue();
-        list.put(name, value);
+
+        // Last element separator?
+        if (name.length == 0 && value.length == 0 && p >= values.length)
+            break;
+            
+        final switch (list.isValid(name, value)) with (DbNameValueValidated)
+        {
+            case invalidName:
+                addLine(errorMessage, "Invalid name: " ~ name);
+                break;
+            case duplicateName:
+                addLine(errorMessage, "Duplicate name: " ~ name);
+                break;
+            case invalidValue:
+                addLine(errorMessage, "Invalid value of " ~ name ~ ": " ~ value);
+                break;
+            case ok:
+                list.put(name, value);
+                break;
+        }
     }
 
-    return list;
+    return errorMessage.length == 0
+        ? ResultIf!(DbNameValueList!T).ok(list)
+        : ResultIf!(DbNameValueList!T)(list, DbErrorCode.parse, errorMessage);
 }
 
 DbIdentitier[] toIdentifiers(const string[] strings) nothrow
@@ -1077,6 +1113,17 @@ public:
         return indexOf(id);
     }
 
+    DbNameValueValidated isValid(const(DbIdentitier) name, T value) nothrow
+    {
+        return name.length != 0 ? DbNameValueValidated.ok : DbNameValueValidated.invalidName;
+    }
+
+    final DbNameValueValidated isValid(string name, T value) nothrow
+    {
+        const id = DbIdentitier(name);
+        return isValid(id, value);
+    }
+
     final typeof(this) put(DbIdentitier name, T value) nothrow
     in
     {
@@ -1100,29 +1147,22 @@ public:
         return put(id, value);
     }
 
-    final bool putIf(DbIdentitier name, T value) nothrow
-    in
+    final DbNameValueValidated putIf(DbIdentitier name, T value) nothrow
     {
-        assert(name.length != 0);
-    }
-    do
-    {
-        if (!exist(name))
+        auto result = isValid(name, value);
+        if (result == DbNameValueValidated.ok && exist(name))
+            result = DbNameValueValidated.duplicateName;
+
+        if (result == DbNameValueValidated.ok)
         {
             auto item = Pair(name, value);
             add(item);
-            return true;
         }
-        else
-            return false;
+
+        return result;
     }
 
-    final bool putIf(string name, T value) nothrow
-    in
-    {
-        assert(name.length != 0);
-    }
-    do
+    final DbNameValueValidated putIf(string name, T value) nothrow
     {
         auto id = DbIdentitier(name, length);
         return putIf(id, value);
@@ -1286,7 +1326,7 @@ unittest // DbNameValueList
     assert(list.get("x") is null);
 
     static immutable delimiterText = "a=1,bcd=2, user id = 3, x=4 ";
-    list.setDelimiterText(delimiterText, ',', '=');
+    list.setDelimiterText(delimiterText, ",", '=');
     assert(list.length == 4, list.getDelimiterText(',', '='));
     assert(list.get("a") == "1", list.get("a"));
     assert(list.get("bcd") == "2", list.get("bcd"));
