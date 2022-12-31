@@ -17,15 +17,16 @@ import std.traits : isUnsigned, Unqual;
 import std.typecons : No, Yes;
 
 version (profile) import pham.utl.test : PerfFunction;
+import pham.utl.array : ShortStringBuffer, ShortStringBufferSize;
 import pham.utl.big_integer : BigInteger, defaultParseBigIntegerOptions;
 import pham.utl.disposable : DisposableObject, DisposingReason;
 import pham.utl.numeric_parser : NumericLexerFlag, NumericLexerOptions;
 import pham.utl.object : bytesToHexs;
-import pham.utl.utf8 : NoDecodeInputRange, NoDecodeOutputRange, ShortStringBuffer,
-    ShortStringBufferSize, UTF8CharRange;
+import pham.utl.utf8 : NoDecodeInputRange, NoDecodeOutputRange, UTF8CharRange;
 import pham.cp.cipher_digest : DigestId;
 
 nothrow @safe:
+
 
 struct CipherBuffer
 {

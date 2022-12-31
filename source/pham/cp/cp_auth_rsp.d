@@ -66,11 +66,10 @@ import std.string : representation;
 import std.typecons : Flag, No, Yes;
 
 version (TraceFunction) import pham.utl.test;
-import pham.utl.array : arrayOfChar;
+import pham.utl.array : arrayOfChar, ShortStringBuffer;
 import pham.utl.big_integer;
 import pham.utl.disposable : DisposableObject, DisposingReason;
 import pham.utl.numeric_parser : isHexDigit;
-import pham.utl.utf8 : ShortStringBuffer;
 public import pham.cp.cipher : CipherKey;
 public import pham.cp.cipher_digest;
 public import pham.cp.random : CipherRandomGenerator;

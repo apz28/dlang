@@ -18,9 +18,9 @@ import pham.dtm.date : Date, DateTime;
 import pham.dtm.date_time_parse : DateTimeParser, DateTimePattern, tryParse;
 import pham.dtm.tick : DateTimeZoneKind;
 import pham.dtm.time : Time;
+import pham.utl.array : ShortStringBuffer;
 import pham.utl.big_integer : BigInteger;
 import pham.utl.object : cmpInteger, ResultStatus, toString;
-import pham.utl.utf8 : ShortStringBuffer;
 import pham.utl.variant : Variant;
 import pham.cp.cipher : CipherBuffer;
 
