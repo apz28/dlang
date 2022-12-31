@@ -11,7 +11,7 @@
 
 module pham.utl.dlink_list;
 
-import pham.utl.disposable : DisposingReason;
+public import pham.utl.disposable : DisposingReason;
 
 nothrow @safe:
 
