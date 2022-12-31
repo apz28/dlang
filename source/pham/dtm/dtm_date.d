@@ -14,7 +14,7 @@ module pham.dtm.date;
 import std.range.primitives : isOutputRange;
 import std.traits : isSomeChar;
 
-import pham.utl.utf8 : ShortStringBuffer;
+import pham.utl.array : ShortStringBuffer;
 import pham.dtm.tick;
 public import pham.dtm.tick : CustomFormatSpecifier, DayOfWeek, DateTimeKind,
     DateTimeSetting, dateTimeSetting, DateTimeZoneKind,
