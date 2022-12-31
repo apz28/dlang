@@ -475,15 +475,6 @@ shared static this() @trusted
         version (TraceFunction) createTraceLogger();
         version (TraceUnitTest) createTraceLogger();
     }
-
-    version (TraceInvalidMemoryOp)
-    {
-        import core.exception;
-        import pham.utl.test;
-        dgWriteln("utl.utltest.shared static this()");
-
-        assertHandler(null);
-    }
 }
 
 shared static ~this() @trusted

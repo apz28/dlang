@@ -16,9 +16,10 @@ import std.meta : allSatisfy;
 import std.range.primitives : put;
 import std.traits : EnumMembers, isIntegral, Unqual;
 
-import pham.utl.utf8 : ShortStringBuffer;
+import pham.utl.array : ShortStringBuffer;
 
 nothrow @safe:
+
 
 /**
  * Count members of an enum type, E
@@ -250,9 +251,9 @@ if (isEnumSet!E)
 E toEnum(E)(string validEnumName, E emptyValue = E.init) pure
 if (is(E Base == enum))
 {
-import std.exception : assumeWontThrow;
+    scope (failure) assert(0);
 
-    return validEnumName.length != 0 ? assumeWontThrow(to!E(validEnumName)) : emptyValue;
+    return validEnumName.length != 0 ? to!E(validEnumName) : emptyValue;
 }
 
 /**

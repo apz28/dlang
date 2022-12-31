@@ -1316,6 +1316,7 @@ nothrow @safe unittest // parseBase64
 {
     import std.conv : to;
     import std.string : representation;
+    import pham.utl.array : ShortStringBuffer;
     import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.utf8.parseBase64");
 

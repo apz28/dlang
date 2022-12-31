@@ -647,7 +647,7 @@ private:
 
 unittest // Inflate
 {
-	import pham.utl.object;
+	import pham.utl.object : bytesFromHexs;
     import pham.utl.test;
     traceUnitTest!("pham.utl.zip")("unittest pham.utl.zip.ZlibCodec.Inflate");
 
@@ -676,7 +676,7 @@ unittest // Inflate
 
 unittest // Deflate
 {
-	import pham.utl.object;
+	import pham.utl.object : bytesFromHexs;
     import pham.utl.test;
     traceUnitTest!("pham.utl.zip")("unittest pham.utl.zip.ZlibCodec.Deflate");
 
@@ -705,9 +705,8 @@ unittest // Deflate
 
 unittest // Deflate & Inflate long string
 {
-	import pham.utl.object;
 	import pham.cp.random : CipherRandomGenerator;
-	import pham.utl.utf8 : ShortStringBuffer;
+	import pham.utl.array : ShortStringBuffer;
     import pham.utl.test;
     traceUnitTest!("pham.utl.zip")("unittest pham.utl.zip.ZlibCodec.Deflate & Inflate long string");
 
@@ -735,7 +734,6 @@ unittest // Deflate & Inflate long string
 version (UnitTestZLib)
 unittest // ZlibCodec.Deflate
 {
-	import pham.utl.object;
     import pham.utl.test;
     traceUnitTest!("pham.utl.zip")("unittest pham.utl.zip.ZlibCodec.Deflate.BigFile");
 

@@ -13,11 +13,12 @@ module pham.utl.array;
 
 import std.algorithm.mutation : swapAt;
 import std.range.primitives : ElementType;
-import std.traits : isDynamicArray, isIntegral, isStaticArray, lvalueOf;
+import std.traits : isDynamicArray, isIntegral, isSomeChar, isStaticArray, lvalueOf;
 
-version (profile) import pham.utl.test : PerfFunction;
+import pham.utl.disposable : DisposingReason;
 
 nothrow:
+
 
 C[] arrayOfChar(C)(C c, size_t count) @safe
 if (is(C == char) || is(C == byte) || is(C == ubyte))
@@ -32,7 +33,22 @@ if (is(C == char) || is(C == byte) || is(C == ubyte))
         return null;
 }
 
-void removeAt(T)(ref T array, size_t index) pure
+void inplaceMoveToLeft(ref ubyte[] data, size_t fromIndex, size_t toIndex, size_t nBytes) pure @trusted
+in
+{
+    assert(nBytes > 0);
+    assert(toIndex < fromIndex);
+    assert(toIndex + nBytes <= data.length);
+    assert(fromIndex + nBytes <= data.length);
+}
+do
+{
+    import core.stdc.string : memmove;
+
+    memmove(data.ptr + toIndex, data.ptr + fromIndex, nBytes);
+}
+
+void removeAt(T)(ref T array, size_t index) pure @safe
 if (isDynamicArray!T)
 in
 {
@@ -41,9 +57,6 @@ in
 }
 do
 {
-    //if (GC.inFinalizer())
-    //    return;
-
     // Move all items after index to the left
     if (array.length > 1)
     {
@@ -59,7 +72,7 @@ do
     array.length = array.length - 1;
 }
 
-void removeAt(T)(ref T array, size_t index, ref size_t length) pure
+void removeAt(T)(ref T array, size_t index, ref size_t length) pure @safe
 if (isStaticArray!T)
 in
 {
@@ -68,9 +81,6 @@ in
 }
 do
 {
-    //if (GC.inFinalizer())
-    //    return;
-
     // Safety check
     if (length > array.length)
         length = array.length;
@@ -470,25 +480,440 @@ private:
     T[StaticSize] _staticItems;
 }
 
+struct ShortStringBufferSize(T, ushort StaticSize)
+if (StaticSize > 0 && (isSomeChar!T || isIntegral!T))
+{
+@safe:
+
+public:
+    this(this) nothrow pure
+    {
+        _longData = _longData.dup;
+    }
+
+    this(bool setShortLength) nothrow pure
+    {
+        if (setShortLength)
+            this._length = StaticSize;
+    }
+
+    this(ushort shortLength) nothrow pure
+    {
+        if (shortLength)
+        {
+            this._length = shortLength;
+            if (shortLength > StaticSize)
+                this._longData.length = shortLength;
+        }
+    }
+
+    this(scope const(T)[] values) nothrow pure
+    {
+        setData(values);
+    }
+
+    ref typeof(this) opAssign(scope const(T)[] values) nothrow return
+    {
+        setData(values);
+        return this;
+    }
+
+    ref typeof(this) opOpAssign(string op)(T c) nothrow pure return
+    if (op == "~" || op == "+")
+    {
+        return put(c);
+    }
+
+    ref typeof(this) opOpAssign(string op)(scope const(T)[] s) nothrow pure return
+    if (op == "~" || op == "+")
+    {
+        return put(s);
+    }
+
+    static if (isIntegral!T)
+    ref typeof(this) opOpAssign(string op)(scope const(T)[] rhs) @nogc nothrow pure
+    if (op == "&" || op == "|" || op == "^")
+    {
+        const len = _length > rhs.length ? rhs.length : _length;
+        if (useShortSize)
+        {
+            foreach (i; 0..len)
+                mixin("_shortData[i] " ~ op ~ "= rhs[i];");
+
+            static if (op == "&")
+            if (len < _length)
+                _shortData[len.._length] = 0;
+        }
+        else
+        {
+            foreach (i; 0..len)
+                mixin("_longData[i] " ~ op ~ "= rhs[i];");
+
+            static if (op == "&")
+            if (len < _length)
+                _longData[len.._length] = 0;
+        }
+        return this;
+    }
+
+    size_t opDollar() const @nogc nothrow pure
+    {
+        return _length;
+    }
+
+    bool opEquals(scope const(typeof(this)) rhs) const @nogc nothrow pure
+    {
+        scope const rhsd = rhs.useShortSize ? rhs._shortData[0..rhs._length] : rhs._longData[0..rhs._length];
+        return useShortSize ? (_shortData[0.._length] == rhsd) : (_longData[0.._length] == rhsd);
+    }
+
+    bool opEquals(scope const(T)[] rhs) const @nogc nothrow pure
+    {
+        return useShortSize ? (_shortData[0.._length] == rhs) : (_longData[0.._length] == rhs);
+    }
+
+    inout(T)[] opIndex() inout nothrow pure return
+    {
+        return useShortSize ? _shortData[0.._length] : _longData[0.._length];
+    }
+
+    T opIndex(const(size_t) index) const @nogc nothrow pure
+    in
+    {
+        assert(index < length);
+    }
+    do
+    {
+        return useShortSize ? _shortData[index] : _longData[index];
+    }
+
+    inout(T)[] opSlice(const(size_t) beginIndex, const(size_t) endIndex) inout nothrow pure return
+    in
+    {
+        assert(beginIndex <= endIndex);
+    }
+    do
+    {
+        if (beginIndex >= _length)
+            return [];
+        else
+            return endIndex > _length
+                ? (useShortSize ? _shortData[beginIndex.._length] : _longData[beginIndex.._length])
+                : (useShortSize ? _shortData[beginIndex..endIndex] : _longData[beginIndex..endIndex]);
+    }
+
+    ref typeof(this) opIndexAssign(T c, const(size_t) index) @nogc nothrow return
+    in
+    {
+        assert(index < length);
+    }
+    do
+    {
+        if (useShortSize)
+            _shortData[index] = c;
+        else
+            _longData[index] = c;
+        return this;
+    }
+
+    static if (isIntegral!T)
+    ref typeof(this) opIndexOpAssign(string op)(T c, const(size_t) index) @nogc nothrow pure
+    if (op == "&" || op == "|" || op == "^")
+    in
+    {
+        assert(index < length);
+    }
+    do
+    {
+        if (useShortSize)
+            mixin("_shortData[index] " ~ op ~ "= c;");
+        else
+            mixin("_longData[index] " ~ op ~ "= c;");
+        return this;
+    }
+
+    ref typeof(this) chopFront(const(size_t) chopLength) nothrow pure return
+    {
+        if (chopLength >= _length)
+            return clear();
+
+        const newLength = _length - chopLength;
+        if (useShortSize)
+            _shortData[0..newLength] = _shortData[chopLength.._length];
+        else
+        {
+            // Switch from long to short?
+            if (useShortSize(newLength))
+                _shortData[0..newLength] = _longData[chopLength.._length];
+            else
+                _longData[0..newLength] = _longData[chopLength.._length];
+        }
+        _length = newLength;
+        return this;
+    }
+
+    ref typeof(this) chopTail(const(size_t) chopLength) nothrow pure return
+    {
+        if (chopLength >= _length)
+            return clear();
+
+        const newLength = _length - chopLength;
+        // Switch from long to short?
+        if (!useShortSize && useShortSize(newLength))
+            _shortData[0..newLength] = _longData[chopLength.._length];
+        _length = newLength;
+        return this;
+    }
+
+    ref typeof(this) clear(bool setShortLength = false, bool disposing = false) nothrow pure return
+    {
+        if (setShortLength || disposing)
+        {
+            _shortData[] = 0;
+            _longData[] = 0;
+        }
+        _length = setShortLength ? StaticSize : 0;
+        return this;
+    }
+
+    T[] consume() nothrow pure
+    {
+        T[] result = _length != 0
+            ? (useShortSize ? _shortData[0.._length].dup : _longData[0.._length])
+            : [];
+
+        _shortData[] = 0;
+        _longData = null;
+        _length = 0;
+
+        return result;
+    }
+
+    immutable(T)[] consumeUnique() nothrow pure @trusted
+    {
+        T[] result = _length != 0
+            ? (useShortSize ? _shortData[0.._length].dup : _longData[0.._length])
+            : [];
+
+        _shortData[] = 0;
+        _longData = null;
+        _length = 0;
+
+        return cast(immutable(T)[])(result);
+    }
+
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    {
+        _shortData[] = 0;
+        _longData[] = 0;
+        _longData = null;
+        _length = 0;
+    }
+
+    inout(T)[] left(size_t len) inout nothrow pure return
+    {
+        if (len >= _length)
+            return opIndex();
+        else
+            return opIndex()[0..len];
+    }
+
+    ref typeof(this) put(T c) nothrow pure return
+    {
+         const newLength = _length + 1;
+        // Still in short?
+        if (useShortSize(newLength))
+            _shortData[_length++] = c;
+        else
+        {
+            if (useShortSize)
+                switchToLongData(1);
+            else if (_longData.length < newLength)
+                _longData.length = alignAddtionalLength(newLength);
+            _longData[_length++] = c;
+        }
+        return this;
+    }
+
+    ref typeof(this) put(scope const(T)[] s) nothrow pure return
+    {
+        if (!s.length)
+            return this;
+
+        const newLength = _length + s.length;
+        // Still in short?
+        if (useShortSize(newLength))
+        {
+            _shortData[_length..newLength] = s[0..$];
+        }
+        else
+        {
+            if (useShortSize)
+                switchToLongData(s.length);
+            else if (_longData.length < newLength)
+                _longData.length = alignAddtionalLength(newLength);
+            _longData[_length..newLength] = s[0..$];
+        }
+        _length = newLength;
+        return this;
+    }
+
+    static if (is(T == char))
+    ref typeof(this) put(dchar c) nothrow pure return
+    {
+        import std.typecons : Yes;
+        import std.utf : encode, UseReplacementDchar;
+
+        char[4] buffer;
+        const len = encode!(Yes.useReplacementDchar)(buffer, c);
+        return put(buffer[0..len]);
+    }
+
+    ref typeof(this) reverse() @nogc nothrow pure
+    {
+        if (const len = length)
+        {
+            const last = len - 1;
+            const steps = len / 2;
+            if (useShortSize)
+            {
+                for (size_t i = 0; i < steps; i++)
+                    _shortData.swapAt(i, last - i);
+            }
+            else
+            {
+                for (size_t i = 0; i < steps; i++)
+                    _longData.swapAt(i, last - i);
+            }
+        }
+        return this;
+    }
+
+    inout(T)[] right(size_t len) inout nothrow pure return
+    {
+        if (len >= _length)
+            return opIndex();
+        else
+            return opIndex()[_length - len.._length];
+    }
+
+    static if (isSomeChar!T)
+    immutable(T)[] toString() const nothrow pure
+    {
+        return _length != 0
+            ? (useShortSize ? _shortData[0.._length].idup : _longData[0.._length].idup)
+            : [];
+    }
+
+    static if (isSomeChar!T)
+    ref Writer toString(Writer)(return ref Writer sink) const pure
+    {
+        if (_length)
+            put(sink, opIndex());
+        return sink;
+    }
+
+    pragma (inline, true)
+    @property bool empty() const @nogc nothrow pure
+    {
+        return _length == 0;
+    }
+
+    pragma(inline, true)
+    @property size_t length() const @nogc nothrow pure
+    {
+        return _length;
+    }
+
+    pragma(inline, true)
+    @property static size_t shortSize() @nogc nothrow pure
+    {
+        return StaticSize;
+    }
+
+    pragma (inline, true)
+    @property bool useShortSize() const @nogc nothrow pure
+    {
+        return _length <= StaticSize;
+    }
+
+    pragma(inline, true)
+    @property bool useShortSize(const(size_t) checkLength) const @nogc nothrow pure
+    {
+        return checkLength <= StaticSize;
+    }
+
+private:
+    pragma(inline, true)
+    size_t alignAddtionalLength(const(size_t) additionalLength) @nogc nothrow pure
+    {
+        if (additionalLength <= overReservedLength)
+            return overReservedLength;
+        else
+            return ((additionalLength + overReservedLength - 1) / overReservedLength) * overReservedLength;
+    }
+
+    void setData(scope const(T)[] values) nothrow pure
+    {
+        _length = values.length;
+        if (_length)
+        {
+            if (useShortSize)
+            {
+                _shortData[0.._length] = values[0.._length];
+            }
+            else
+            {
+                if (_longData.length < _length)
+                    _longData.length = _length;
+                _longData[0.._length] = values[0.._length];
+            }
+        }
+    }
+
+    void switchToLongData(const(size_t) additionalLength) nothrow pure
+    {
+        const capacity = alignAddtionalLength(_length + additionalLength);
+        if (_longData.length < capacity)
+            _longData.length = capacity;
+        if (_length)
+            _longData[0.._length] = _shortData[0.._length];
+    }
+
+private:
+    enum overReservedLength = 1_000u;
+    size_t _length;
+    T[] _longData;
+    T[StaticSize] _shortData = 0;
+}
+
+template ShortStringBuffer(T)
+if (isSomeChar!T || isIntegral!T)
+{
+    private enum overheadSize = ShortStringBufferSize!(T, 1u).sizeof;
+    alias ShortStringBuffer = ShortStringBufferSize!(T, 256u - overheadSize);
+}
+
 
 // Any below codes are private
 private:
 
 nothrow @safe unittest // array.arrayOfChar
 {
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.array.arrayOfChar");
-
     assert(arrayOfChar!char('0', 0) == []);
     assert(arrayOfChar!char('0', 1) == "0");
     assert(arrayOfChar!char('0', 10) == "0000000000");
 }
 
+nothrow @safe unittest // inplaceMoveToLeft
+{
+    auto bytes = cast(ubyte[])"1234567890".dup;
+    inplaceMoveToLeft(bytes, 5, 0, 5);
+    assert(bytes == "6789067890");
+}
+
 nothrow @safe unittest // array.IndexedArray
 {
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.array.IndexedArray");
-
     auto a = IndexedArray!(int, 2)(0);
 
     // Check initial state
@@ -588,14 +1013,60 @@ nothrow @safe unittest // array.IndexedArray
 
 nothrow unittest // IndexedArray.reverse
 {
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.array.IndexedArray.reverse");
-
     auto a = IndexedArray!(int, 3)(0);
 
     a.clear().put([1, 2], 0);
     assert(a.reverse()[] == [2, 1]);
 
     a.clear().put([1, 2, 3, 4, 5], 0);
+    assert(a.reverse()[] == [5, 4, 3, 2, 1]);
+}
+
+@safe unittest // ShortStringBufferSize
+{
+    alias TestBuffer = ShortStringBufferSize!(char, 5);
+
+    TestBuffer s;
+    assert(s.length == 0);
+    s.put('1');
+    assert(s.length == 1);
+    s.put("234");
+    assert(s.length == 4);
+    assert(s.toString() == "1234");
+    assert(s[] == "1234");
+    s.clear();
+    assert(s.length == 0);
+    s.put("abc");
+    assert(s.length == 3);
+    assert(s.toString() == "abc");
+    assert(s[] == "abc");
+    assert(s.left(1) == "a");
+    assert(s.left(10) == "abc");
+    assert(s.right(2) == "bc");
+    assert(s.right(10) == "abc");
+    s.put("defghijklmnopqrstuvxywz");
+    assert(s.length == 26);
+    assert(s.toString() == "abcdefghijklmnopqrstuvxywz");
+    assert(s[] == "abcdefghijklmnopqrstuvxywz");
+    assert(s.left(5) == "abcde");
+    assert(s.left(20) == "abcdefghijklmnopqrst");
+    assert(s.right(5) == "vxywz");
+    assert(s.right(20) == "ghijklmnopqrstuvxywz");
+
+    TestBuffer s2;
+    s2 ~= s[];
+    assert(s2.length == 26);
+    assert(s2.toString() == "abcdefghijklmnopqrstuvxywz");
+    assert(s2[] == "abcdefghijklmnopqrstuvxywz");
+}
+
+nothrow @safe unittest // ShortStringBufferSize.reverse
+{
+    ShortStringBufferSize!(int, 3) a;
+
+    a.clear().put([1, 2]);
+    assert(a.reverse()[] == [2, 1]);
+
+    a.clear().put([1, 2, 3, 4, 5]);
     assert(a.reverse()[] == [5, 4, 3, 2, 1]);
 }

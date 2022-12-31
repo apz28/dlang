@@ -19,10 +19,11 @@ import std.range.primitives : isOutputRange, put;
 import std.system : Endian;
 import std.traits : isIntegral, isNumeric, isSomeChar, isUnsigned, Unqual;
 
+import pham.utl.array : ShortStringBuffer;
 import pham.utl.object : cmpInteger;
-import pham.utl.utf8 : ShortStringBuffer;
 
 nothrow @safe:
+
 
 union Map16Bit
 {

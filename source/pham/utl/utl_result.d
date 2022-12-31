@@ -11,6 +11,28 @@
 
 module pham.utl.result;
 
+import std.traits : isIntegral;
+
+
+string addLine(ref string lines, string line) nothrow pure @safe
+{
+    import std.ascii : newline;
+    
+    if (lines.length == 0)
+        lines = line;
+    else
+        lines = lines ~ newline ~ line;
+    return lines;
+}
+
+string errorCodeToString(I)(I errorCode) nothrow pure @safe
+if (isIntegral!I)
+{
+    import std.conv : to;
+
+    return "0x" ~ to!string(errorCode, 16) ~ " (" ~ to!string(errorCode) ~ ")";
+}
+
 /**
  * Simple aggregate to indicate if function result is an error or intended value
  */
@@ -29,6 +51,14 @@ public:
         return isOK;
     }
 
+    string getErrorString() const nothrow pure @safe
+    {
+        string result = errorMessage;
+        if (errorCode != 0)
+            addLine(result, "Error code: " ~ errorCodeToString(errorCode));
+        return result;
+    }
+    
     /**
      * Create this result-type as error
      */
@@ -116,7 +146,7 @@ public:
         return isOK
             ? "Status: " ~ to!string(errorStatus)
             : "Status: " ~ to!string(errorStatus)
-                ~ "\nCode: " ~ to!string(errorCode)
+                ~ "\nCode: " ~ errorCodeToString(errorCode)
                 ~ "\nMessage: " ~ errorMessage;
     }
 
@@ -144,9 +174,6 @@ private:
 
 unittest // ResultIf
 {
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.result.ResultIf");
-
     auto e = ResultIf!int.error(1, "Error");
     assert(!e.isOK);
     assert(e.isError);
@@ -165,9 +192,6 @@ unittest // ResultIf
 
 unittest // ResultStatus
 {
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.result.ResultStatus");
-
     auto e = ResultStatus.error(1, "Error");
     assert(!e.isOK);
     assert(e.isError);

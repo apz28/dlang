@@ -23,11 +23,11 @@ import std.typecons : Flag;
 public import std.typecons : No, Yes;
 
 version (profile) import pham.utl.test : PerfFunction;
+import pham.utl.array : ShortStringBuffer;
 import pham.utl.disposable : DisposingReason;
 public import pham.utl.numeric_parser : NumericLexerFlag, NumericLexerOptions;
 import pham.utl.numeric_parser : cvtDigit, cvtHexDigit2, isHexDigit, isNumericLexerRange, NumericLexer, NumericStringRange;
 import pham.utl.object : bytesToHexs, simpleIntegerFmt;
-import pham.utl.utf8 : ShortStringBuffer;
 import pham.utl.big_integer_calculator;
 public import pham.utl.big_integer_calculator : UByteTempArray, UIntTempArray;
 import pham.utl.big_integer_helper;
