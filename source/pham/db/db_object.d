@@ -1283,7 +1283,7 @@ do
 
     return errorMessage.length == 0
         ? ResultIf!(DbIdentitierValueList!T).ok(list)
-        : ResultIf!(DbIdentitierValueList!T)(list, DbErrorCode.parse, errorMessage);
+        : ResultIf!(DbIdentitierValueList!T).error(list, DbErrorCode.parse, errorMessage);
 }
 
 

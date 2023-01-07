@@ -663,7 +663,7 @@ ResultIf!(DbURL!S) parseDbURL(S)(S dbURL)
     {
         return errorMessage.length == 0
             ? ResultIf!(DbURL!S).ok(result)
-            : ResultIf!(DbURL!S)(result, DbErrorCode.parse, errorMessage);
+            : ResultIf!(DbURL!S).error(result, DbErrorCode.parse, errorMessage);
     }
 
     // Required
