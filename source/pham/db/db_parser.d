@@ -16,9 +16,10 @@ import std.uni : isAlphaNum, isSpace;
 
 version (unittest) import pham.utl.test;
 import pham.utl.enum_set : toEnum;
-import pham.utl.utf8 : nextUTF8Char;
 import pham.utl.result : addLine;
+import pham.utl.utf8 : nextUTF8Char;
 public import pham.utl.result : ResultIf;
+import pham.utl.text : NamedValue;
 import pham.db.message;
 public import pham.db.message : DbErrorCode;
 import pham.db.type : DbHost, DbScheme, DbURL, isDbScheme, uint32;
@@ -651,7 +652,7 @@ do
 ResultIf!(DbURL!S) parseDbURL(S)(S dbURL)
 {
     import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
-    import pham.utl.text : parseFormEncodedValues, simpleIndexOf, simpleIndexOfAny, simpleSplitter;
+    import pham.utl.text : NamedValue, parseFormEncodedValues, simpleIndexOf, simpleIndexOfAny, simpleSplitter;
 
     auto currentURL = dbURL;
     size_t currentOffset = 0;
@@ -817,7 +818,7 @@ ResultIf!(DbURL!S) parseDbURL(S)(S dbURL)
     {
         if (name && value)
         {
-            result.options[name] = value;
+            result.options ~= NamedValue!S(name, value);
             return true;
         }
         else
@@ -1379,9 +1380,9 @@ unittest // parseDbURL
 	assert(cfg.hosts[2].port == 27019);
 	assert(cfg.database == "postgresql", cfg.database);
     assert(cfg.options.length == 3);
-	assert(cfg.options["journal"] == "true");
-	assert(cfg.options["connectTimeout"] == "1500");
-	assert(cfg.options["socketTimeout"] == "1000");
+	assert(cfg.option("journal") == "true");
+	assert(cfg.option("connectTimeout") == "1500");
+	assert(cfg.option("socketTimeout") == "1000");
 
 	cfg = parseDbURL("mysql://me:sl$ash/w0+rd@localhost/mydb");
     assert(cfg, cfg.getErrorString());

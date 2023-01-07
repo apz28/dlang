@@ -30,6 +30,7 @@ import pham.utl.array : ShortStringBuffer;
 public import pham.utl.big_integer : BigInteger;
 import pham.utl.enum_set : toName;
 import pham.utl.object : cmpFloat, cmpInteger;
+import pham.utl.text : NamedValue;
 
 alias float32 = float;
 alias float64 = double;
@@ -1752,10 +1753,17 @@ public:
         return hosts.length != 0;
     }
     
+    @property S option(S name) @nogc pure
+    {
+        import pham.utl.text : valueOf;
+        
+        return options.valueOf!S(name, null);
+    }
+    
 public:
     S database;
     DbHost!S[] hosts;
-    S[S] options;
+    NamedValue!S[] options;
     DbScheme scheme;
     S userName;
     S userPassword;

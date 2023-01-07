@@ -33,172 +33,6 @@ import pham.db.parser;
 import pham.db.type;
 import pham.db.util;
 
-/**
- * Returns a string of all elements in the table
- * Ex:
- *      name1=value1,name2=value2
- * Params:
- *      elementSeparator = is the separator character for each element
- *      valueSeparator = is the separator for each name & its value
- * Returns:
- *      string of all elements
- */
-string getDelimiterText(T)(DbNameValueList!T list,
-    char elementSeparator = ',',
-    char valueSeparator = '=') nothrow @safe
-if (is(T == const(char)[]) || is(T == string))
-{
-    import std.exception : assumeWontThrow;
-
-    if (list.length == 0)
-        return "";
-
-    auto buffer = Appender!string();
-    buffer.reserve(min(list.length * 50, 16_000));
-    size_t i;
-    foreach (ref e; list[])
-    {
-        if (i++ != 0)
-            buffer.put(elementSeparator);
-
-        assumeWontThrow(buffer.put(e.name.value));
-        buffer.put(valueSeparator);
-        buffer.put(e.value);
-    }
-    return buffer.data;
-}
-
-/**
- * Parse delimiter text into names & values. Beginning and ending spaces will be eliminated.
- * Ex:
- *      name1=value1,name2=value2
- * Params:
- *      values = a string of elements to be broken up
- *      elementSeparators = are the separator characters for each element
- *      valueSeparator = is the separator for each name & its value
- * Returns:
- *      self
- */
-ResultIf!(DbNameValueList!T) setDelimiterText(T)(DbNameValueList!T list, string values,
-    string elementSeparators = ",",
-    char valueSeparator = '=') nothrow @safe
-if (is(T == string))
-in
-{
-    assert(elementSeparators.length != 0);
-    assert(!isWhite(valueSeparator));
-}
-do
-{
-    list.clear();
-
-    string errorMessage;
-    size_t p;
-    dchar cCode;
-    ubyte cCount;
-
-    pragma(inline, true)
-    bool isElementSeparator(const(dchar) c) nothrow @safe
-    {
-        foreach (i; 0..elementSeparators.length)
-        {
-            if (c == elementSeparators[i])
-                return true;
-        }
-        return false;
-    }
-    
-    string readName()
-    {
-        const begin = p;
-        size_t end = values.length, lastSpace;
-        while (p < values.length && nextUTF8Char(values, p, cCode, cCount))
-        {
-            if (isElementSeparator(cCode) || cCode == valueSeparator)
-            {
-                end = p;
-                p += cCount;
-                break;
-            }
-            else if (isWhite(cCode))
-                lastSpace = p;
-            else
-                lastSpace = 0;
-            p += cCount;
-        }
-
-        return lastSpace != 0 ? values[begin..lastSpace] : values[begin..end];
-    }
-
-    string readValue()
-    {
-        const begin = p;
-        size_t end = values.length, lastSpace;
-        while (p < values.length && nextUTF8Char(values, p, cCode, cCount))
-        {
-            if (isElementSeparator(cCode))
-            {
-                end = p;
-                p += cCount;
-                break;
-            }
-            else if (isWhite(cCode))
-                lastSpace = p;
-            else
-                lastSpace = 0;
-            p += cCount;
-        }
-
-        return lastSpace != 0 ? values[begin..lastSpace] : values[begin..end];
-    }
-
-    bool skipSpaces()
-    {
-        while (p < values.length)
-        {
-            if (nextUTF8Char(values, p, cCode, cCount))
-            {
-                if (!isWhite(cCode))
-                    break;
-            }
-            p += cCount;
-        }
-        return p < values.length;
-    }
-
-    while (skipSpaces())
-    {
-        string value = null;
-        string name = readName();
-        if (skipSpaces())
-            value = readValue();
-
-        // Last element separator?
-        if (name.length == 0 && value.length == 0 && p >= values.length)
-            break;
-            
-        final switch (list.isValid(name, value)) with (DbNameValueValidated)
-        {
-            case invalidName:
-                addLine(errorMessage, "Invalid name: " ~ name);
-                break;
-            case duplicateName:
-                addLine(errorMessage, "Duplicate name: " ~ name);
-                break;
-            case invalidValue:
-                addLine(errorMessage, "Invalid value of " ~ name ~ ": " ~ value);
-                break;
-            case ok:
-                list.put(name, value);
-                break;
-        }
-    }
-
-    return errorMessage.length == 0
-        ? ResultIf!(DbNameValueList!T).ok(list)
-        : ResultIf!(DbNameValueList!T)(list, DbErrorCode.parse, errorMessage);
-}
-
 DbIdentitier[] toIdentifiers(const string[] strings) nothrow
 {
     DbIdentitier[] result = new DbIdentitier[](strings.length);
@@ -820,12 +654,12 @@ protected:
     EnumSet!Flag flags;
 }
 
-struct DbNameValue(T)
+struct DbIdentitierValue(T)
 {
 nothrow @safe:
 
 public:
-    alias List = DbNameValueList!T;
+    alias List = DbIdentitierValueList!T;
     //pragma(msg, List);
 
 public:
@@ -886,12 +720,12 @@ private:
     DbIdentitier _name;
 }
 
-class DbNameValueList(T) : DbObject
+class DbIdentitierValueList(T) : DbObject
 {
 @safe:
 
 public:
-    alias Pair = DbNameValue!T;
+    alias Pair = DbIdentitierValue!T;
 
 public:
     /**
@@ -902,7 +736,7 @@ public:
     nothrow @safe:
 
     public:
-        alias List = DbNameValueList!T;
+        alias List = DbIdentitierValueList!T;
 
     public:
         this(List list) pure
@@ -1286,18 +1120,184 @@ protected:
     bool reIndex;
 }
 
+/**
+ * Returns a string of all elements in the table
+ * Ex:
+ *      name1=value1,name2=value2
+ * Params:
+ *      elementSeparator = is the separator character for each element
+ *      valueSeparator = is the separator for each name & its value
+ * Returns:
+ *      string of all elements
+ */
+string getDelimiterText(T)(DbIdentitierValueList!T list,
+    char elementSeparator = ',',
+    char valueSeparator = '=') nothrow @safe
+if (is(T == const(char)[]) || is(T == string))
+{
+    import std.exception : assumeWontThrow;
+
+    if (list.length == 0)
+        return "";
+
+    auto buffer = Appender!string();
+    buffer.reserve(min(list.length * 50, 16_000));
+    size_t i;
+    foreach (ref e; list[])
+    {
+        if (i++ != 0)
+            buffer.put(elementSeparator);
+
+        assumeWontThrow(buffer.put(e.name.value));
+        buffer.put(valueSeparator);
+        buffer.put(e.value);
+    }
+    return buffer.data;
+}
+
+/**
+ * Parse delimiter text into names & values. Beginning and ending spaces will be eliminated.
+ * Ex:
+ *      name1=value1,name2=value2
+ * Params:
+ *      values = a string of elements to be broken up
+ *      elementSeparators = are the separator characters for each element
+ *      valueSeparator = is the separator for each name & its value
+ * Returns:
+ *      self
+ */
+ResultIf!(DbIdentitierValueList!T) setDelimiterText(T)(DbIdentitierValueList!T list, string values,
+    string elementSeparators = ",",
+    char valueSeparator = '=') nothrow @safe
+if (is(T == string))
+in
+{
+    assert(elementSeparators.length != 0);
+    assert(!isWhite(valueSeparator));
+}
+do
+{
+    list.clear();
+
+    string errorMessage;
+    size_t p;
+    dchar cCode;
+    ubyte cCount;
+
+    pragma(inline, true)
+    bool isElementSeparator(const(dchar) c) nothrow @safe
+    {
+        foreach (i; 0..elementSeparators.length)
+        {
+            if (c == elementSeparators[i])
+                return true;
+        }
+        return false;
+    }
+    
+    string readName()
+    {
+        const begin = p;
+        size_t end = values.length, lastSpace;
+        while (p < values.length && nextUTF8Char(values, p, cCode, cCount))
+        {
+            if (isElementSeparator(cCode) || cCode == valueSeparator)
+            {
+                end = p;
+                p += cCount;
+                break;
+            }
+            else if (isWhite(cCode))
+                lastSpace = p;
+            else
+                lastSpace = 0;
+            p += cCount;
+        }
+
+        return lastSpace != 0 ? values[begin..lastSpace] : values[begin..end];
+    }
+
+    string readValue()
+    {
+        const begin = p;
+        size_t end = values.length, lastSpace;
+        while (p < values.length && nextUTF8Char(values, p, cCode, cCount))
+        {
+            if (isElementSeparator(cCode))
+            {
+                end = p;
+                p += cCount;
+                break;
+            }
+            else if (isWhite(cCode))
+                lastSpace = p;
+            else
+                lastSpace = 0;
+            p += cCount;
+        }
+
+        return lastSpace != 0 ? values[begin..lastSpace] : values[begin..end];
+    }
+
+    bool skipSpaces()
+    {
+        while (p < values.length)
+        {
+            if (nextUTF8Char(values, p, cCode, cCount))
+            {
+                if (!isWhite(cCode))
+                    break;
+            }
+            p += cCount;
+        }
+        return p < values.length;
+    }
+
+    while (skipSpaces())
+    {
+        string value = null;
+        string name = readName();
+        if (skipSpaces())
+            value = readValue();
+
+        // Last element separator?
+        if (name.length == 0 && value.length == 0 && p >= values.length)
+            break;
+            
+        final switch (list.isValid(name, value)) with (DbNameValueValidated)
+        {
+            case invalidName:
+                addLine(errorMessage, "Invalid name: " ~ name);
+                break;
+            case duplicateName:
+                addLine(errorMessage, "Duplicate name: " ~ name);
+                break;
+            case invalidValue:
+                addLine(errorMessage, "Invalid value of " ~ name ~ ": " ~ value);
+                break;
+            case ok:
+                list.put(name, value);
+                break;
+        }
+    }
+
+    return errorMessage.length == 0
+        ? ResultIf!(DbIdentitierValueList!T).ok(list)
+        : ResultIf!(DbIdentitierValueList!T)(list, DbErrorCode.parse, errorMessage);
+}
+
 
 // Any below codes are private
 private:
 
-unittest // DbNameValueList
+unittest // DbIdentitierValueList
 {
     import std.conv : to;
     import std.string : indexOf;
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.object.DbNameValueList");
+    traceUnitTest!("pham.db.database")("unittest pham.db.object.DbIdentitierValueList");
 
-    auto list = new DbNameValueList!string();
+    auto list = new DbIdentitierValueList!string();
     list.put("a", "1");
     list.put("bcd", "2");
     list.put("x", "3");

@@ -2001,7 +2001,7 @@ private:
     __gshared static DbConnectionPool _instance;
 }
 
-abstract class DbConnectionStringBuilder : DbNameValueList!string
+abstract class DbConnectionStringBuilder : DbIdentitierValueList!string
 {
 @safe:
 
@@ -2134,21 +2134,21 @@ public:
 
         clear();
 
-        foreach (name, value; connectionString.options)
+        foreach (ref o; connectionString.options)
         {
-            final switch (super.isValid(name, value)) with (DbNameValueValidated)
+            final switch (super.isValid(o.name, o.value)) with (DbNameValueValidated)
             {
                 case invalidName:
-                    addLine(errorMessage, "Invalid name: " ~ name);
+                    addLine(errorMessage, "Invalid name: " ~ o.name);
                     break;
                 case duplicateName:
-                    addLine(errorMessage, "Duplicate name: " ~ name);
+                    addLine(errorMessage, "Duplicate name: " ~ o.name);
                     break;
                 case invalidValue:
-                    addLine(errorMessage, "Invalid value of " ~ name ~ ": " ~ value);
+                    addLine(errorMessage, "Invalid value of " ~ o.name ~ ": " ~ o.value);
                     break;
                 case ok:
-                    put(name, value);
+                    put(o.name, o.value);
                     break;
             }
         }
