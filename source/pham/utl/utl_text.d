@@ -21,7 +21,27 @@ struct NamedValue(S)
     S name;
     S value;
 }
-              
+
+ptrdiff_t indexOf(S)(scope const(NamedValue!S)[] values, scope const(S) name) pure
+{
+    foreach (i, ref v; values)
+    {
+        if (v.name == name)
+            return i;
+    }
+    return -1;
+}
+
+S valueOf(S)(NamedValue!S[] values, scope const(S) name, S notFound = S.init) pure
+{
+    foreach (ref v; values)
+    {
+        if (v.name == name)
+            return v.value;
+    }
+    return notFound;
+}
+
 ResultIf!S decodeFormValue(S)(S encodedFormValue, const(char) invalidReplacementChar) pure
 {
     import std.array : Appender;
@@ -225,11 +245,11 @@ do
 auto simpleSplitter(S, Separator)(S str, Separator separator)
 {
     import std.traits : isSomeChar;
-    
+
     struct Result
     {
     nothrow @safe:
-    
+
     public:
         this(S input, Separator separator)
         {
@@ -257,7 +277,7 @@ auto simpleSplitter(S, Separator)(S str, Separator separator)
                 _frontLength = unComputed;
             }
         }
-        
+
         @property bool empty() const
         {
             return _frontLength == atEnd;
@@ -272,10 +292,10 @@ auto simpleSplitter(S, Separator)(S str, Separator separator)
         {
             if (_frontLength == unComputed)
                 computeFrontLength();
-            
+
             return _input[0.._frontLength];
         }
-        
+
     private:
         void computeFrontLength()
         {
@@ -289,7 +309,7 @@ auto simpleSplitter(S, Separator)(S str, Separator separator)
             }
             _frontLength = _input.length;
         }
-        
+
         pragma(inline, true)
         bool isSeparator(const(size_t) i) const
         {
@@ -298,10 +318,10 @@ auto simpleSplitter(S, Separator)(S str, Separator separator)
             else
                 return simpleIndexOf(_separator, _input[i]) >= 0;
         }
-        
+
     private:
         enum size_t unComputed = size_t.max - 1, atEnd = size_t.max;
-        
+
         S _input;
         Separator _separator;
         size_t _frontLength;
@@ -354,12 +374,12 @@ nothrow @safe unittest  // simpleSplitter
     import std.algorithm.comparison : equal;
 
     string[] empty;
-    
+
     assert("".simpleSplitter('|').equal(empty));
     assert("|".simpleSplitter('|').equal(["", ""]));
-    assert("||".simpleSplitter('|').equal(["", "", ""]));    
+    assert("||".simpleSplitter('|').equal(["", "", ""]));
     assert("|a|bc|def|".simpleSplitter('|').equal(["", "a", "bc", "def", ""]));
-    assert("a|bc|def".simpleSplitter('|').equal(["a", "bc", "def"]));   
+    assert("a|bc|def".simpleSplitter('|').equal(["a", "bc", "def"]));
 }
 
 nothrow @safe unittest // decodeFormValue
