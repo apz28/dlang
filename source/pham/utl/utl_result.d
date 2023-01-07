@@ -39,11 +39,10 @@ if (isIntegral!I)
 struct ResultIf(T)
 {
 public:
-    this(T value, int errorCode, string errorMessage = null)
+    this(T value, ResultStatus status)
     {
         this.value = value;
-        this.errorCode = errorCode;
-        this.errorMessage = errorMessage;
+        this.status = status;
     }
 
     bool opCast(C: bool)() const @nogc nothrow pure @safe
@@ -53,24 +52,22 @@ public:
 
     string getErrorString() const nothrow pure @safe
     {
-        string result = errorMessage;
-        if (errorCode != 0)
-            addLine(result, "Error code: " ~ errorCodeToString(errorCode));
-        return result;
+        return status.getErrorString();
     }
     
     /**
      * Create this result-type as error
      */
     pragma(inline, true)
-    static typeof(this) error(int errorCode, string errorMessage = null)
-    in
+    static typeof(this) error(int errorCode, string errorMessage, string errorFormat = null)
     {
-        assert(errorCode != 0 || errorMessage.length != 0);
+        return typeof(this)(T.init, ResultStatus.error(errorCode, errorMessage, errorFormat));
     }
-    do
+
+    pragma(inline, true)
+    static typeof(this) error(T value, int errorCode, string errorMessage, string errorFormat = null)
     {
-        return typeof(this)(T.init, errorCode, errorMessage);
+        return typeof(this)(value, ResultStatus.error(errorCode, errorMessage, errorFormat));
     }
 
     /**
@@ -79,16 +76,26 @@ public:
     pragma(inline, true)
     static typeof(this) ok(T value)
     {
-        return typeof(this)(value, 0, null);
+        return typeof(this)(value, ResultStatus.ok());
     }
 
+    @property int errorCode() const @nogc nothrow pure @safe
+    {
+        return status.errorCode;
+    }
+    
+    @property string errorMessage() const @nogc nothrow pure @safe
+    {
+        return status.errorMessage;
+    }
+    
     /**
      * Returns true if there is error-code or error-message
      */
     pragma(inline, true)
     @property bool isError() const @nogc nothrow pure @safe
     {
-        return !isOK;
+        return status.isError;
     }
 
     /**
@@ -97,19 +104,20 @@ public:
     pragma(inline, true)
     @property bool isOK() const @nogc nothrow pure @safe
     {
-        return errorCode == 0 && errorMessage.length == 0;
+        return status.isOK;
     }
     
 public:
     T value;
     alias value this;
-    string errorMessage; // if lengh != 0, it considers an error
-    int errorCode = -1;  // -1 = Uninitialized is explicitely an error
+    ResultStatus status = ResultStatus.defaultError();
 }
 
 struct ResultStatus
 {
 nothrow @safe:
+
+    enum defaultErrorCode = int.min;
 
 public:
     this(bool errorStatus, int errorCode, string errorMessage, string errorFormat = null) @nogc pure
@@ -125,16 +133,29 @@ public:
         return isOK;
     }
 
+    static typeof(this) defaultError() @nogc pure
+    {
+        return typeof(this)(true, defaultErrorCode, null, null);
+    }
+
     pragma(inline, true)
     static typeof(this) error(int errorCode, string errorMessage, string errorFormat = null) @nogc pure
     {
-        return ResultStatus(true, errorCode, errorMessage, errorFormat);
+        return typeof(this)(true, errorCode, errorMessage, errorFormat);
+    }
+
+    string getErrorString() const pure
+    {
+        string result = errorMessage;
+        if (errorCode != 0)
+            addLine(result, "Error code: " ~ errorCodeToString(errorCode));
+        return result;
     }
 
     pragma(inline, true)
     static typeof(this) ok() @nogc pure
     {
-        return ResultStatus(false, 0, null);
+        return typeof(this)(false, 0, null, null);
     }
 
     string toString() const pure
@@ -143,23 +164,27 @@ public:
 
         scope (failure) assert(0);
 
-        return isOK
-            ? "Status: " ~ to!string(errorStatus)
-            : "Status: " ~ to!string(errorStatus)
-                ~ "\nCode: " ~ errorCodeToString(errorCode)
-                ~ "\nMessage: " ~ errorMessage;
+        string result = "Error status: " ~ to!string(errorStatus);
+        if (isError)
+        {
+            if (errorMessage.length != 0)
+                addLine(result, "Error message: " ~ errorMessage);
+            if (errorCode != 0)
+                addLine(result, "Error code: " ~ errorCodeToString(errorCode));
+        }
+        return result;
     }
 
     pragma(inline, true)
     @property bool isError() const @nogc pure
     {
-        return !isOK;
+        return errorStatus;
     }
 
     pragma(inline, true)
     @property bool isOK() const @nogc pure
     {
-        return !errorStatus;
+        return !isError;
     }
 
 public:

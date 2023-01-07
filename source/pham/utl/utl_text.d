@@ -102,7 +102,7 @@ ResultIf!S decodeFormValue(S)(S encodedFormValue, const(char) invalidReplacement
 	}
     return firstErrorIndex == -1
         ? ResultIf!S.ok(result.data)
-        : ResultIf!S(result.data, cast(int)firstErrorIndex, "Invalid form-encoded character: " ~ firstErrorText.idup);
+        : ResultIf!S.error(result.data, cast(int)firstErrorIndex, "Invalid form-encoded character: " ~ firstErrorText.idup);
 }
 
 /**
