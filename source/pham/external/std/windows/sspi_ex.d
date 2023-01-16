@@ -26,7 +26,7 @@ public
     enum secBufferSize = 16_000;
 
 public:
-    void dispose(bool disposing = true) pure
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) pure @trusted
     {
         secBuffer.cbBuffer = 0;
         secBuffer.BufferType = 0;
@@ -37,9 +37,10 @@ public:
         secBufferDesc.pBuffers = null;
 
         secBufferData[] = 0;
+        secBufferData = null;
     }
 
-    ubyte[] getSecBytes() pure
+    ubyte[] getSecBytes() pure @trusted
     {
         return secBufferData[0..secBuffer.cbBuffer].dup;
     }
@@ -90,8 +91,8 @@ nothrow @safe:
 
 struct RequestSecClient
 {
-import std.conv : to;
-import std.string : toStringz;
+    import std.conv : to;
+    import std.string : toStringz;
 
 nothrow @safe:
 
