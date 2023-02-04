@@ -2433,243 +2433,249 @@ if (isDecimal!D)
 ExceptionFlags decimalMax(D1, D2, D)(auto const ref D1 x, auto const ref D2 y, out D z)
 if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 {
-try {
-    DataType!D cx, cy; int ex, ey; bool sx, sy;
-    const fx = fastDecode(x, cx, ex, sx);
-    const fy = fastDecode(y, cy, ey, sy);
+    // Special try construct for grep
+    try {
+        DataType!D cx, cy; int ex, ey; bool sx, sy;
+        const fx = fastDecode(x, cx, ex, sx);
+        const fy = fastDecode(y, cy, ey, sy);
 
-    if (fx == FastClass.signalingNaN)
-    {
-        z = copysign(D.nan, x);
-        return ExceptionFlags.invalidOperation;
-    }
-
-    if (fy == FastClass.signalingNaN)
-    {
-        if (fx == FastClass.quietNaN)
+        if (fx == FastClass.signalingNaN)
+        {
             z = copysign(D.nan, x);
-        else
-            z = copysign(D.nan, y);
-        return ExceptionFlags.invalidOperation;
-    }
+            return ExceptionFlags.invalidOperation;
+        }
 
-    if (fx == FastClass.quietNaN)
-    {
+        if (fy == FastClass.signalingNaN)
+        {
+            if (fx == FastClass.quietNaN)
+                z = copysign(D.nan, x);
+            else
+                z = copysign(D.nan, y);
+            return ExceptionFlags.invalidOperation;
+        }
+
+        if (fx == FastClass.quietNaN)
+        {
+            if (fy == FastClass.quietNaN)
+                z = x;
+            else
+                z = y;
+            return ExceptionFlags.none;
+        }
+
         if (fy == FastClass.quietNaN)
+        {
+            z = x;
+            return ExceptionFlags.none;
+        }
+
+        if (fx == FastClass.infinite)
+        {
+            if (sx)
+                z = y;
+            else
+                z = x;
+            return ExceptionFlags.none;
+        }
+
+        if (fy == FastClass.infinite)
+        {
+            if (sy)
+                z = x;
+            else
+                z = y;
+            return ExceptionFlags.none;
+        }
+
+        if (fx == FastClass.zero)
+        {
+            if (sy)
+                z = x;
+            else
+                z = y;
+            return ExceptionFlags.none;
+        }
+
+        if (fy == FastClass.zero)
+        {
+            if (sx)
+                z = y;
+            else
+                z = x;
+            return ExceptionFlags.none;
+        }
+
+        const c = coefficientCmp(cx, ex, sx, cy, ey, sy);
+        if (c >= 0)
             z = x;
         else
             z = y;
+            
         return ExceptionFlags.none;
-    }
-
-    if (fy == FastClass.quietNaN)
-    {
-        z = x;
-        return ExceptionFlags.none;
-    }
-
-    if (fx == FastClass.infinite)
-    {
-        if (sx)
-            z = y;
-        else
-            z = x;
-        return ExceptionFlags.none;
-    }
-
-    if (fy == FastClass.infinite)
-    {
-        if (sy)
-            z = x;
-        else
-            z = y;
-        return ExceptionFlags.none;
-    }
-
-    if (fx == FastClass.zero)
-    {
-        if (sy)
-            z = x;
-        else
-            z = y;
-        return ExceptionFlags.none;
-    }
-
-    if (fy == FastClass.zero)
-    {
-        if (sx)
-            z = y;
-        else
-            z = x;
-        return ExceptionFlags.none;
-    }
-
-    const c = coefficientCmp(cx, ex, sx, cy, ey, sy);
-    if (c >= 0)
-        z = x;
-    else
-        z = y;
-    return ExceptionFlags.none;
-} catch (Exception) return ExceptionFlags.invalidOperation;
+    } catch (Exception) return ExceptionFlags.invalidOperation;
 }
 
 ExceptionFlags decimalMaxAbs(D1, D2, D)(auto const ref D1 x, auto const ref D2 y, out D z)
 if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 {
-try {
-    DataType!D cx, cy; int ex, ey; bool sx, sy;
-    const fx = fastDecode(x, cx, ex, sx);
-    const fy = fastDecode(y, cy, ey, sy);
+    // Special try construct for grep
+    try {
+        DataType!D cx, cy; int ex, ey; bool sx, sy;
+        const fx = fastDecode(x, cx, ex, sx);
+        const fy = fastDecode(y, cy, ey, sy);
 
-    if (fx == FastClass.signalingNaN)
-    {
-        z = copysign(D.nan, x);
-        return ExceptionFlags.invalidOperation;
-    }
-
-    if (fy == FastClass.signalingNaN)
-    {
-        if (fx == FastClass.quietNaN)
+        if (fx == FastClass.signalingNaN)
+        {
             z = copysign(D.nan, x);
-        else
-            z = copysign(D.nan, y);
-        return ExceptionFlags.invalidOperation;
-    }
+            return ExceptionFlags.invalidOperation;
+        }
 
-    if (fx == FastClass.quietNaN)
-    {
+        if (fy == FastClass.signalingNaN)
+        {
+            if (fx == FastClass.quietNaN)
+                z = copysign(D.nan, x);
+            else
+                z = copysign(D.nan, y);
+            return ExceptionFlags.invalidOperation;
+        }
+
+        if (fx == FastClass.quietNaN)
+        {
+            if (fy == FastClass.quietNaN)
+                z = x;
+            else
+                z = y;
+            return ExceptionFlags.none;
+        }
+
         if (fy == FastClass.quietNaN)
+        {
+            z = x;
+            return ExceptionFlags.none;
+        }
+
+        if (fx == FastClass.infinite)
+        {
+            if (!sx || fy != FastClass.infinite)
+                z = x;
+            else
+                z = y;
+            return ExceptionFlags.none;
+        }
+
+        if (fy == FastClass.infinite)
+        {
+            z = y;
+            return ExceptionFlags.none;
+        }
+
+        if (fx == FastClass.zero)
+        {
+            z = y;
+            return ExceptionFlags.none;
+        }
+
+        if (fy == FastClass.zero)
+        {
+            z = x;
+            return ExceptionFlags.none;
+        }
+
+        const c = coefficientCmp(cx, ex, cy, ey);
+        if (c > 0)
+            z = x;
+        else if (c == 0 && !sx)
             z = x;
         else
             z = y;
+            
         return ExceptionFlags.none;
-    }
-
-    if (fy == FastClass.quietNaN)
-    {
-        z = x;
-        return ExceptionFlags.none;
-    }
-
-    if (fx == FastClass.infinite)
-    {
-        if (!sx || fy != FastClass.infinite)
-            z = x;
-        else
-            z = y;
-        return ExceptionFlags.none;
-    }
-
-    if (fy == FastClass.infinite)
-    {
-        z = y;
-        return ExceptionFlags.none;
-    }
-
-    if (fx == FastClass.zero)
-    {
-        z = y;
-        return ExceptionFlags.none;
-    }
-
-    if (fy == FastClass.zero)
-    {
-        z = x;
-        return ExceptionFlags.none;
-    }
-
-    const c = coefficientCmp(cx, ex, cy, ey);
-    if (c > 0)
-        z = x;
-    else if (c == 0 && !sx)
-        z = x;
-    else
-        z = y;
-    return ExceptionFlags.none;
-} catch (Exception) return ExceptionFlags.invalidOperation;
+    } catch (Exception) return ExceptionFlags.invalidOperation;
 }
 
 ExceptionFlags decimalMin(D1, D2, D)(auto const ref D1 x, auto const ref D2 y, out D z)
 if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 {
-try {
-    DataType!D cx, cy; int ex, ey; bool sx, sy;
-    const fx = fastDecode(x, cx, ex, sx);
-    const fy = fastDecode(y, cy, ey, sy);
+    // Special try construct for grep
+    try {
+        DataType!D cx, cy; int ex, ey; bool sx, sy;
+        const fx = fastDecode(x, cx, ex, sx);
+        const fy = fastDecode(y, cy, ey, sy);
 
-    if (fx == FastClass.signalingNaN)
-    {
-        z = copysign(D.nan, x);
-        return ExceptionFlags.invalidOperation;
-    }
-
-    if (fy == FastClass.signalingNaN)
-    {
-        if (fx == FastClass.quietNaN)
+        if (fx == FastClass.signalingNaN)
+        {
             z = copysign(D.nan, x);
-        else
-            z = copysign(D.nan, y);
-        return ExceptionFlags.invalidOperation;
-    }
+            return ExceptionFlags.invalidOperation;
+        }
 
-    if (fx == FastClass.quietNaN)
-    {
+        if (fy == FastClass.signalingNaN)
+        {
+            if (fx == FastClass.quietNaN)
+                z = copysign(D.nan, x);
+            else
+                z = copysign(D.nan, y);
+            return ExceptionFlags.invalidOperation;
+        }
+
+        if (fx == FastClass.quietNaN)
+        {
+            if (fy == FastClass.quietNaN)
+                z = x;
+            else
+                z = y;
+            return ExceptionFlags.none;
+        }
+
         if (fy == FastClass.quietNaN)
+        {
+            z = x;
+            return ExceptionFlags.none;
+        }
+
+        if (fx == FastClass.infinite)
+        {
+            if (sx)
+                z = x;
+            else
+                z = y;
+            return ExceptionFlags.none;
+        }
+
+        if (fy == FastClass.infinite)
+        {
+            if (sy)
+                z = y;
+            else
+                z = x;
+            return ExceptionFlags.none;
+        }
+
+        if (fx == FastClass.zero)
+        {
+            if (sy)
+                z = y;
+            else
+                z = x;
+            return ExceptionFlags.none;
+        }
+
+        if (fy == FastClass.zero)
+        {
+            if (sx)
+                z = x;
+            else
+                z = y;
+            return ExceptionFlags.none;
+        }
+
+        const c = coefficientCmp(cx, ex, sx, cy, ey, sy);
+        if (c <= 0)
             z = x;
         else
             z = y;
+            
         return ExceptionFlags.none;
-    }
-
-    if (fy == FastClass.quietNaN)
-    {
-        z = x;
-        return ExceptionFlags.none;
-    }
-
-    if (fx == FastClass.infinite)
-    {
-        if (sx)
-            z = x;
-        else
-            z = y;
-        return ExceptionFlags.none;
-    }
-
-    if (fy == FastClass.infinite)
-    {
-        if (sy)
-            z = y;
-        else
-            z = x;
-        return ExceptionFlags.none;
-    }
-
-    if (fx == FastClass.zero)
-    {
-        if (sy)
-            z = y;
-        else
-            z = x;
-        return ExceptionFlags.none;
-    }
-
-    if (fy == FastClass.zero)
-    {
-        if (sx)
-            z = x;
-        else
-            z = y;
-        return ExceptionFlags.none;
-    }
-
-    const c = coefficientCmp(cx, ex, sx, cy, ey, sy);
-    if (c <= 0)
-        z = x;
-    else
-        z = y;
-    return ExceptionFlags.none;
-} catch (Exception) return ExceptionFlags.invalidOperation;
+    } catch (Exception) return ExceptionFlags.invalidOperation;
 }
 
 ExceptionFlags decimalMinAbs(D1, D2, D)(auto const ref D1 x, auto const ref D2 y, out D z)

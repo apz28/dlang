@@ -7443,9 +7443,10 @@ else
 
         static double toDouble(const(char)[] s)
         {
-        try {
-            return to!double(s);
-        } catch (Exception) return double.nan;
+            // Special try construct for grep
+            try {
+                return to!double(s);
+            } catch (Exception) return double.nan;
         }
 
         static void checkResult(const ref S s, string result)

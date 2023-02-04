@@ -76,56 +76,57 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
 {
     import std.range.primitives: empty, front, popFront;
 
-try {
-    exponent = 0;
-    isinf = isnan = signaling = signed = wasHex = false;
-    while (expect(range, '_'))
-    { }
+    // Special try construct for grep
+    try {
+        exponent = 0;
+        isinf = isnan = signaling = signed = wasHex = false;
+        while (expect(range, '_'))
+        { }
 
-    if (range.empty)
-        return ExceptionFlags.invalidOperation;
-
-    bool hasSign = parseSign(range, signed);
-    if (range.empty && hasSign)
-        return ExceptionFlags.invalidOperation;
-
-    while (expect(range, '_'))
-    { }
-
-    switch (range.front)
-    {
-        case 'i':
-        case 'I':
-            isinf = true;
-            return parseInfinity(range) ? ExceptionFlags.none : ExceptionFlags.invalidOperation;
-        case 'n':
-        case 'N':
-            isnan = true;
-            signaling = false;
-            return parseNaN(range, coefficient) ? ExceptionFlags.none : ExceptionFlags.invalidOperation;
-        case 's':
-        case 'S':
-            isnan = true;
-            signaling = true;
-            range.popFront();
-            return parseNaN(range, coefficient) ? ExceptionFlags.none : ExceptionFlags.invalidOperation;
-        case '0':
-            range.popFront();
-            if (expectInsensitive(range, 'x'))
-            {
-                wasHex = true;
-                return parseDecimalHex(range, coefficient, exponent);
-            }
-            else
-                return parseDecimalFloat(range, coefficient, exponent, true);
-        case '1': .. case '9':
-            return parseDecimalFloat(range, coefficient, exponent, false);
-        case '.':
-            return parseDecimalFloat(range, coefficient, exponent, false);
-        default:
+        if (range.empty)
             return ExceptionFlags.invalidOperation;
-    }
-} catch (Exception) return ExceptionFlags.invalidOperation;
+
+        bool hasSign = parseSign(range, signed);
+        if (range.empty && hasSign)
+            return ExceptionFlags.invalidOperation;
+
+        while (expect(range, '_'))
+        { }
+
+        switch (range.front)
+        {
+            case 'i':
+            case 'I':
+                isinf = true;
+                return parseInfinity(range) ? ExceptionFlags.none : ExceptionFlags.invalidOperation;
+            case 'n':
+            case 'N':
+                isnan = true;
+                signaling = false;
+                return parseNaN(range, coefficient) ? ExceptionFlags.none : ExceptionFlags.invalidOperation;
+            case 's':
+            case 'S':
+                isnan = true;
+                signaling = true;
+                range.popFront();
+                return parseNaN(range, coefficient) ? ExceptionFlags.none : ExceptionFlags.invalidOperation;
+            case '0':
+                range.popFront();
+                if (expectInsensitive(range, 'x'))
+                {
+                    wasHex = true;
+                    return parseDecimalHex(range, coefficient, exponent);
+                }
+                else
+                    return parseDecimalFloat(range, coefficient, exponent, true);
+            case '1': .. case '9':
+                return parseDecimalFloat(range, coefficient, exponent, false);
+            case '.':
+                return parseDecimalFloat(range, coefficient, exponent, false);
+            default:
+                return ExceptionFlags.invalidOperation;
+        }
+    } catch (Exception) return ExceptionFlags.invalidOperation;
 }
 
 ExceptionFlags parseDecimalFloat(R, T)(ref R range, out T coefficient, out int exponent,
@@ -441,134 +442,135 @@ if (isInputRange!R && isSomeChar!(ElementType!R))
 {
     import std.range.primitives : empty, front, popFront;
 
-try {
-    exponent = 0;
-    bool afterDecimalPoint = false;
-    bool atLeastOneDigit = parseZeroes(range) > 0 || zeroPrefix;
-    bool atLeastOneFractionalDigit = false;
-    ExceptionFlags flags = ExceptionFlags.none;
-    while (!range.empty)
-    {
-        if (range.front >= '0' && range.front <= '9')
+    // Special try construct for grep
+    try {
+        exponent = 0;
+        bool afterDecimalPoint = false;
+        bool atLeastOneDigit = parseZeroes(range) > 0 || zeroPrefix;
+        bool atLeastOneFractionalDigit = false;
+        ExceptionFlags flags = ExceptionFlags.none;
+        while (!range.empty)
         {
-            const uint digit = range.front - '0';
-            bool overflow;
-            Unqual!T v = fma(value, 10U, digit, overflow);
-            if (overflow)
+            if (range.front >= '0' && range.front <= '9')
             {
-                //try to shrink the coefficient, this will loose some zeros
-                coefficientShrink(value, exponent);
-                overflow = false;
-                v = fma(value, 10U, digit, overflow);
+                const uint digit = range.front - '0';
+                bool overflow;
+                Unqual!T v = fma(value, 10U, digit, overflow);
                 if (overflow)
-                    break;
-            }
-            range.popFront();
-            value = v;
-            if (afterDecimalPoint)
-            {
-                atLeastOneFractionalDigit = true;
-                --exponent;
-            }
-            else
-                atLeastOneDigit = true;
-        }
-        else if (range.front == '.' && !afterDecimalPoint)
-        {
-            afterDecimalPoint = true;
-            range.popFront();
-        }
-        else if (range.front == '_')
-            range.popFront();
-        else
-            break;
-    }
-
-    //no more space in coefficient, just increase exponent before decimal point
-    //detect if rounding is necessary
-    int lastDigit = 0;
-    bool mustRoundUp = false;
-    while (!range.empty)
-    {
-        if (range.front >= '0' && range.front <= '9')
-        {
-            const uint digit = range.front - '0';
-            if (afterDecimalPoint)
-                atLeastOneFractionalDigit = true;
-            else
-                ++exponent;
-            range.popFront();
-            if (digit != 0)
-                flags = ExceptionFlags.inexact;
-            if (digit <= 3)
-                break;
-            else if (digit >= 5)
-            {
-                if (lastDigit == 4)
                 {
-                    mustRoundUp = true;
-                    break;
+                    //try to shrink the coefficient, this will loose some zeros
+                    coefficientShrink(value, exponent);
+                    overflow = false;
+                    v = fma(value, 10U, digit, overflow);
+                    if (overflow)
+                        break;
                 }
+                range.popFront();
+                value = v;
+                if (afterDecimalPoint)
+                {
+                    atLeastOneFractionalDigit = true;
+                    --exponent;
+                }
+                else
+                    atLeastOneDigit = true;
             }
+            else if (range.front == '.' && !afterDecimalPoint)
+            {
+                afterDecimalPoint = true;
+                range.popFront();
+            }
+            else if (range.front == '_')
+                range.popFront();
             else
-                lastDigit = 4;
+                break;
         }
-        else if (range.front == '.' && !afterDecimalPoint)
-        {
-            afterDecimalPoint = true;
-            range.popFront();
-        }
-        else if (range.front == '_')
-            range.popFront();
-        else
-            break;
-    }
 
-    //just increase exponent before decimal point
-    while (!range.empty)
-    {
-        if (range.front >= '0' && range.front <= '9')
+        //no more space in coefficient, just increase exponent before decimal point
+        //detect if rounding is necessary
+        int lastDigit = 0;
+        bool mustRoundUp = false;
+        while (!range.empty)
         {
-            if (range.front != '0')
-                flags = ExceptionFlags.inexact;
-            if (!afterDecimalPoint)
-               ++exponent;
+            if (range.front >= '0' && range.front <= '9')
+            {
+                const uint digit = range.front - '0';
+                if (afterDecimalPoint)
+                    atLeastOneFractionalDigit = true;
+                else
+                    ++exponent;
+                range.popFront();
+                if (digit != 0)
+                    flags = ExceptionFlags.inexact;
+                if (digit <= 3)
+                    break;
+                else if (digit >= 5)
+                {
+                    if (lastDigit == 4)
+                    {
+                        mustRoundUp = true;
+                        break;
+                    }
+                }
+                else
+                    lastDigit = 4;
+            }
+            else if (range.front == '.' && !afterDecimalPoint)
+            {
+                afterDecimalPoint = true;
+                range.popFront();
+            }
+            else if (range.front == '_')
+                range.popFront();
             else
-                atLeastOneFractionalDigit = true;
-            range.popFront();
+                break;
         }
-        else if (range.front == '.' && !afterDecimalPoint)
-        {
-            afterDecimalPoint = true;
-            range.popFront();
-        }
-        else if (range.front == '_')
-            range.popFront();
-        else
-            break;
-    }
 
-    if (mustRoundUp)
-    {
-        if (value < T.max)
-            ++value;
-        else
+        //just increase exponent before decimal point
+        while (!range.empty)
         {
-            auto r = divrem(value, 10U);
-            ++value;
-            if (r >= 5U)
-                ++value;
-            else if (r == 4U && mustRoundUp)
-                ++value;
+            if (range.front >= '0' && range.front <= '9')
+            {
+                if (range.front != '0')
+                    flags = ExceptionFlags.inexact;
+                if (!afterDecimalPoint)
+                   ++exponent;
+                else
+                    atLeastOneFractionalDigit = true;
+                range.popFront();
+            }
+            else if (range.front == '.' && !afterDecimalPoint)
+            {
+                afterDecimalPoint = true;
+                range.popFront();
+            }
+            else if (range.front == '_')
+                range.popFront();
+            else
+                break;
         }
-    }
 
-    if (afterDecimalPoint)
-        return flags;
-        //return atLeastOneFractionalDigit ? flags : (flags | ExceptionFlags.invalidOperation);
-    else
-        return atLeastOneDigit ? flags : (flags | ExceptionFlags.invalidOperation);
-} catch (Exception) return ExceptionFlags.invalidOperation;
+        if (mustRoundUp)
+        {
+            if (value < T.max)
+                ++value;
+            else
+            {
+                auto r = divrem(value, 10U);
+                ++value;
+                if (r >= 5U)
+                    ++value;
+                else if (r == 4U && mustRoundUp)
+                    ++value;
+            }
+        }
+
+        if (afterDecimalPoint)
+            return flags;
+            //return atLeastOneFractionalDigit ? flags : (flags | ExceptionFlags.invalidOperation);
+        else
+            return atLeastOneDigit ? flags : (flags | ExceptionFlags.invalidOperation);
+    } catch (Exception) return ExceptionFlags.invalidOperation;
 }
 
 //parses $(B NaN) and optional payload, expect payload as number in optional (), [], {}, <>. invalidOperation on failure
