@@ -257,13 +257,13 @@ struct PerfTestResult
 
 version (unittest)
 {
+    import std.ascii : LetterCase;
     import std.conv : to;
     import std.format : format;
     import std.traits : isSomeChar;
     import pham.external.std.log.logger : FileLogger, lastModuleSeparatorIndex, LoggerOption, LogLevel, moduleParentOf, OutputPattern;
-    public import pham.utl.object : bytesFromHexs, bytesToHexs;
 
-	static ubyte[] dgReadAllBinary(string fileName) nothrow @trusted
+	ubyte[] dgReadAllBinary(string fileName) nothrow @trusted
     {
 		import std.stdio;
 		import std.file;
@@ -285,6 +285,19 @@ version (unittest)
         }
     }
 
+    ubyte[] dgFromHex(scope const(char)[] hexs) nothrow pure @safe
+    {
+        import pham.utl.array : ShortStringBuffer;
+        import pham.utl.numeric_parser : NumericParsedKind, parseHexDigits;
+        import pham.utl.utf8 : NoDecodeInputRange;
+
+        NoDecodeInputRange!(hexs, char) inputRange;
+        ShortStringBuffer!ubyte result;
+        if (parseHexDigits(inputRange, result) != NumericParsedKind.ok)
+            return null;
+        return result[].dup;
+    }
+    
     string dgToHex(ubyte n) nothrow pure @safe
     {
         try
@@ -321,13 +334,11 @@ version (unittest)
         catch (Exception) { return null; }
     }
 
-    string dgToHex(scope const(ubyte)[] b) nothrow pure @safe
+    string dgToHex(scope const(ubyte)[] bytes) nothrow pure @safe
     {
-        try
-        {
-            return bytesToHexs(b);
-        }
-        catch (Exception) { return null; }
+        import pham.utl.numeric_parser : cvtBytesHex;
+
+        return cvtBytesHex(bytes, LetterCase.upper, false);
     }
 
     string dgToStr(bool b) @nogc nothrow pure @safe

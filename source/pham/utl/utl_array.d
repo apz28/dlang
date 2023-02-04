@@ -11,16 +11,15 @@
 
 module pham.utl.array;
 
-import std.algorithm.mutation : swapAt;
 import std.range.primitives : ElementType;
 import std.traits : isDynamicArray, isIntegral, isSomeChar, isStaticArray, lvalueOf;
 
 import pham.utl.disposable : DisposingReason;
 
-nothrow:
+nothrow @safe:
 
 
-C[] arrayOfChar(C)(C c, size_t count) @safe
+C[] arrayOfChar(C)(C c, size_t count)
 if (is(C == char) || is(C == byte) || is(C == ubyte))
 {
     if (count)
@@ -31,6 +30,18 @@ if (is(C == char) || is(C == byte) || is(C == ubyte))
     }
     else
         return null;
+}
+
+ptrdiff_t indexOf(T)(scope const(T)[] items, const(T) item) @trusted
+{
+    scope (failure) assert(0);
+    
+    foreach (i; 0..items.length)
+    {
+        if (items[i] == item)
+            return i;
+    }
+    return -1;
 }
 
 void inplaceMoveToLeft(ref ubyte[] data, size_t fromIndex, size_t toIndex, size_t nBytes) pure @trusted
@@ -48,7 +59,7 @@ do
     memmove(data.ptr + toIndex, data.ptr + fromIndex, nBytes);
 }
 
-void removeAt(T)(ref T array, size_t index) pure @safe
+void removeAt(T)(ref T array, size_t index) pure
 if (isDynamicArray!T)
 in
 {
@@ -72,7 +83,7 @@ do
     array.length = array.length - 1;
 }
 
-void removeAt(T)(ref T array, size_t index, ref size_t length) pure @safe
+void removeAt(T)(ref T array, size_t index, ref size_t length) pure
 if (isStaticArray!T)
 in
 {
@@ -286,16 +297,7 @@ public:
 
     ptrdiff_t indexOf(in T item) @trusted
     {
-        if (length == 0)
-            return -1;
-
-        auto items = this[];
-        foreach (i; 0..items.length)
-        {
-            if (items[i] == item)
-                return i;
-        }
-        return -1;
+        return length == 0 ? -1 : .indexOf(this[], item);
     }
 
     pragma(inline, true)
@@ -367,6 +369,8 @@ public:
 
     ref typeof(this) reverse() @nogc nothrow pure
     {
+        import std.algorithm.mutation : swapAt;
+        
         if (const len = length)
         {
             const last = len - 1;
@@ -665,9 +669,9 @@ public:
         return this;
     }
 
-    ref typeof(this) clear(bool setShortLength = false, bool disposing = false) nothrow pure return
+    ref typeof(this) clear(bool setShortLength = false) nothrow pure return
     {
-        if (setShortLength || disposing)
+        if (setShortLength)
         {
             _shortData[] = 0;
             _longData[] = 0;
@@ -716,6 +720,20 @@ public:
             return opIndex();
         else
             return opIndex()[0..len];
+    }
+
+    ref typeof(this) removeFront(const(T) removingValue) nothrow pure return
+    {
+        while (_length && opIndex(0) == removingValue)
+            chopFront(1);
+        return this;
+    }
+
+    ref typeof(this) removeTail(const(T) removingValue) nothrow pure return
+    {
+        while (_length && opIndex(_length - 1) == removingValue)
+            chopTail(1);
+        return this;
     }
 
     ref typeof(this) put(T c) nothrow pure return
@@ -771,18 +789,21 @@ public:
 
     ref typeof(this) reverse() @nogc nothrow pure
     {
-        if (const len = length)
+        import std.algorithm.mutation : swapAt;
+
+        const len = length;
+        if (len > 1)
         {
             const last = len - 1;
             const steps = len / 2;
             if (useShortSize)
             {
-                for (size_t i = 0; i < steps; i++)
+                foreach (i; 0..steps)
                     _shortData.swapAt(i, last - i);
             }
             else
             {
-                for (size_t i = 0; i < steps; i++)
+                foreach (i; 0..steps)
                     _longData.swapAt(i, last - i);
             }
         }

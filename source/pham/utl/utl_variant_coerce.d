@@ -341,10 +341,11 @@ if (isSomeString!S && isString!D && !is(CharOfString!S == CharOfString!D))
 {
     import std.conv : to;
 
-try {
-    *cast(D*)dstPtr = to!D(*cast(S*)srcPtr);
-    return true;
-} catch (Exception) return false;
+    // Special try construct for grep
+    try {
+        *cast(D*)dstPtr = to!D(*cast(S*)srcPtr);
+        return true;
+    } catch (Exception) return false;
 }
 
 bool doCoerceConstString(S, D)(scope void* srcPtr, scope void* dstPtr) nothrow

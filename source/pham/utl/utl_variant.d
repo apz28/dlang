@@ -1902,58 +1902,59 @@ private:
 
     static bool tryPut(scope T* src, size_t dstSize, scope void* dst, scope TypeInfo dstTypeInfo) nothrow
     {
-    try {
-        alias UT = Unqual!T;
-        alias AllTypes = AssignableTypes!T;
+        // Special try construct for grep
+        try {
+            alias UT = Unqual!T;
+            alias AllTypes = AssignableTypes!T;
 
-        foreach (dstT; AllTypes)
-        {
-            if (typeid(dstT) !is dstTypeInfo)
-                continue;
-
-            // SPECIAL NOTE: variant only will ever create a new value with
-            // tryPut (effectively), and T is always the same type of
-            // dstType, but with different modifiers (and a limited set of
-            // implicit targets). So this checks to see if we can construct
-            // a T from dstType, knowing that prerequisite. This handles issues
-            // where the type contains some constant data aside from the
-            // modifiers on the type itself.
-            static if (is(typeof(delegate dstT() { return *src; }))
-                || is(dstT == const(U), U)
-                || is(dstT == shared(U), U)
-                || is(dstT == shared const(U), U)
-                || is(dstT == immutable(U), U))
+            foreach (dstT; AllTypes)
             {
-                if (src)
+                if (typeid(dstT) !is dstTypeInfo)
+                    continue;
+
+                // SPECIAL NOTE: variant only will ever create a new value with
+                // tryPut (effectively), and T is always the same type of
+                // dstType, but with different modifiers (and a limited set of
+                // implicit targets). So this checks to see if we can construct
+                // a T from dstType, knowing that prerequisite. This handles issues
+                // where the type contains some constant data aside from the
+                // modifiers on the type itself.
+                static if (is(typeof(delegate dstT() { return *src; }))
+                    || is(dstT == const(U), U)
+                    || is(dstT == shared(U), U)
+                    || is(dstT == shared const(U), U)
+                    || is(dstT == immutable(U), U))
                 {
-                    // Just checking if convertible?
-                    if (dst is null)
-                        return true;
+                    if (src)
+                    {
+                        // Just checking if convertible?
+                        if (dst is null)
+                            return true;
 
-                    alias UDT = Unqual!dstT;
-                    static if (isStaticArray!T && isDynamicArray!dstT)
-                    {
-                        auto src2 = (*src)[];
-                        emplace(cast(UDT*)dst, cast(UDT)src2);
+                        alias UDT = Unqual!dstT;
+                        static if (isStaticArray!T && isDynamicArray!dstT)
+                        {
+                            auto src2 = (*src)[];
+                            emplace(cast(UDT*)dst, cast(UDT)src2);
+                        }
+                        else static if (!is(Unqual!dstT == void))
+                        {
+                            emplace(cast(UDT*)dst, *cast(UT*)src);
+                        }
+                        else
+                            assert(0, fullyQualifiedName!dstT); // type T is not constructible from src
                     }
-                    else static if (!is(Unqual!dstT == void))
-                    {
-                        emplace(cast(UDT*)dst, *cast(UT*)src);
-                    }
-                    else
-                        assert(0, fullyQualifiedName!dstT); // type T is not constructible from src
+
+                    return true;
                 }
-
-                return true;
+                else
+                {
+                    assert(0, fullyQualifiedName!dstT); // type T is not constructible from src
+                }
             }
-            else
-            {
-                assert(0, fullyQualifiedName!dstT); // type T is not constructible from src
-            }
-        }
 
-        return false;
-    } catch (Exception) return false;
+            return false;
+        } catch (Exception) return false;
     }
 }
 

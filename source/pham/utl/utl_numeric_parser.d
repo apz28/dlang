@@ -1170,9 +1170,6 @@ private:
 
 nothrow @safe unittest // cvtBytesBase64Length
 {
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.cvtBytesBase64Length");
-    
     assert(cvtBytesBase64Length(0) == 0);
     assert(cvtBytesBase64Length(3) == 4);
 
@@ -1182,18 +1179,12 @@ nothrow @safe unittest // cvtBytesBase64Length
 
 nothrow @safe unittest // cvtBytesBase64
 {
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.cvtBytesBase64");
-    
     ubyte[] data = [0x1a, 0x2b, 0x3c, 0x4d, 0x5d, 0x6e];
     assert(cvtBytesBase64(data) == "Gis8TV1u");    
 }
 
 nothrow @safe unittest // cvtDigit
 {
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.cvtDigit");
-
     ubyte b;
 
     assert(cvtDigit('0', b));
@@ -1210,9 +1201,6 @@ nothrow @safe unittest // cvtDigit
 
 nothrow @safe unittest // cvtDigit2
 {
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.cvtDigit2");
-
     assert(cvtDigit2('0') == 0);
     assert(cvtDigit2('1') == 1);
     assert(cvtDigit2('9') == 9);
@@ -1220,9 +1208,6 @@ nothrow @safe unittest // cvtDigit2
 
 nothrow @safe unittest // isDigit
 {
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.isDigit");
-
     assert(isDigit('0'));
     assert(isDigit('1'));
     assert(isDigit('9'));
@@ -1231,9 +1216,6 @@ nothrow @safe unittest // isDigit
 
 nothrow @safe unittest // cvtHexDigit
 {
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.cvtHexDigit");
-
     ubyte b;
 
     assert(cvtHexDigit('0', b));
@@ -1253,9 +1235,6 @@ nothrow @safe unittest // cvtHexDigit
 
 nothrow @safe unittest // cvtHexDigit2
 {
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.cvtHexDigit2");
-
     assert(cvtHexDigit2('0') == 0);
     assert(cvtHexDigit2('9') == 9);
     assert(cvtHexDigit2('a') == 10);
@@ -1264,9 +1243,6 @@ nothrow @safe unittest // cvtHexDigit2
 
 nothrow @safe unittest // isHexDigit
 {
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.isHexDigit");
-
     assert(isHexDigit('0'));
     assert(isHexDigit('9'));
     assert(isHexDigit('a'));
@@ -1276,9 +1252,6 @@ nothrow @safe unittest // isHexDigit
 
 nothrow @safe unittest // lineBreakCount
 {
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.lineBreakCount");
-
     assert(lineBreakCount(0, 80) == 0);
     assert(lineBreakCount(1, 80) == 0);
     assert(lineBreakCount(80, 80) == 0);
@@ -1288,9 +1261,6 @@ nothrow @safe unittest // lineBreakCount
 
 nothrow @safe unittest // NumericLexerOptions.isHexDigitPrefix
 {
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.NumericLexerOptions.isHexDigitPrefix");
-
     enum t1 = NumericLexerOptions!char.isHexDigitPrefix("0x0");
     enum t2 = NumericLexerOptions!char.isHexDigitPrefix("0X0");
 
@@ -1302,8 +1272,6 @@ nothrow @safe unittest // NumericLexerOptions.isHexDigitPrefix
 nothrow @safe unittest // NumericLexer
 {
     import std.utf : byCodeUnit;
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.NumericLexer");
 
     NumericLexer!(typeof("".byCodeUnit)) r;
 
@@ -1317,8 +1285,6 @@ nothrow @safe unittest // parseBase64
     import std.conv : to;
     import std.string : representation;
     import pham.utl.array : ShortStringBuffer;
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.parseBase64");
 
     static test(string base64Text, NumericParsedKind expectedCondition, string expectedText,
         int line = __LINE__)
@@ -1341,8 +1307,6 @@ nothrow @safe unittest // parseBase64
 nothrow @safe unittest // parseIntegral, parseHexDigits
 {
     import std.conv : to;
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.parseIntegral, parseHexDigits");
 
     int i;
 
@@ -1371,8 +1335,6 @@ nothrow @safe unittest // parseIntegral
     import std.conv : to;
     import std.meta : AliasSeq;
     import std.traits : isSigned, isUnsigned;
-    import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.utf8.parseIntegral");
 
     static foreach (I; AliasSeq!(byte, ubyte, short, ushort, int, uint, long, ulong))
     {
