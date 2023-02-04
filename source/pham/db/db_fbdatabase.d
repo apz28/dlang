@@ -3690,7 +3690,6 @@ unittest // FbCommandBatch
 	}
 
     // Mixed OK & Failure
-    //version (none) // TODO Firebird bug -> not able to perform different sql on same connection
     {
 		auto command = connection.createCommandBatch("insert into batch(i) values(@i)");
 
