@@ -15,7 +15,7 @@ import std.string : fromStringz, toStringz;
 
 import pham.utl.disposable : DisposingReason;
 public import pham.utl.result : ResultStatus;
-import pham.cp.cipher : calculateBufferLength;
+import pham.cp.cipher : calculateBufferLength, CipherRawKey;
 import pham.cp.openssl_binding;
 
 @safe:
@@ -698,8 +698,8 @@ public:
     this(OpenSSLKeyInfo info, scope const(ubyte)[] key, scope const(ubyte)[] iv) pure
     {
         this._info = info;
-        this._key = key.dup;
-        this._iv = iv.dup;
+        this._key = CipherRawKey!ubyte(key);
+        this._iv = CipherRawKey!ubyte(iv);
     }
 
     this(ref typeof(this) rhs)
@@ -708,10 +708,8 @@ public:
         this._ctx = rhs._ctx;
         rhs._ctx = null;
         this._info = rhs._info;
-        this._iv[] = 0;
-        this._iv = rhs._iv.dup;
-        this._key[] = 0;
-        this._key = rhs._key.dup;
+        this._iv = rhs._iv;
+        this._key = rhs._key;
         this._isEncrypted = rhs._isEncrypted;
     }
 
@@ -723,10 +721,8 @@ public:
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @trusted
     {
         disposeSSLResources();
-        _iv[] = 0;
-        _iv = null;
-        _key[] = 0;
-        _key = null;
+        _iv.dispose(disposingReason);
+        _key.dispose(disposingReason);
     }
 
     ResultStatus initialize(bool isEncrypted) @trusted
@@ -873,12 +869,12 @@ public:
         return _ctx !is null;
     }
 
-    @property const(ubyte)[] iv() const pure
+    @property const(CipherRawKey!ubyte) iv() const pure
     {
         return _iv;
     }
 
-    @property const(ubyte)[] key() const pure
+    @property const(CipherRawKey!ubyte) key() const pure
     {
         return _key;
     }
@@ -908,8 +904,8 @@ private:
 private:
     EVP_CIPHER_CTX* _ctx;
     OpenSSLKeyInfo _info;
-    ubyte[] _iv;
-    ubyte[] _key;
+    CipherRawKey!ubyte _iv;
+    CipherRawKey!ubyte _key;
     bool _isEncrypted;
 }
 

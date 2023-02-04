@@ -1247,7 +1247,7 @@ struct ASN1DerEncoder
 nothrow @safe:
 
 public:
-    static void writeBoolean(ref CipherBuffer destination, const(bool) x,
+    static void writeBoolean(ref CipherBuffer!ubyte destination, const(bool) x,
         const(ASN1Tag) tag = ASN1Tag.boolean) pure
     {
         //todo destination.put(tag);
@@ -1255,7 +1255,7 @@ public:
         destination.put(x ? 0xff : 0x00);
     }
 
-    static void writeGeneralizedTime(ref CipherBuffer destination, const(DateTime) x,
+    static void writeGeneralizedTime(ref CipherBuffer!ubyte destination, const(DateTime) x,
         const(ASN1Tag) tag = ASN1Tag.generalizedTime) pure
     {
         int y, m, d, h, n, s;
@@ -1274,7 +1274,7 @@ public:
         writeTagValue(destination, tag, buffer[].representation);
     }
 
-    static void writeInteger(T)(ref CipherBuffer destination, const(T) x,
+    static void writeInteger(T)(ref CipherBuffer!ubyte destination, const(T) x,
         const(ASN1Tag) tag = ASN1Tag.integer) pure
     if (isIntegral!T)
     {
@@ -1284,38 +1284,38 @@ public:
 		    destination.put(cast(ubyte)(x >> ((n - 1 - j) * 8)));
     }
 
-    static void writeNull(ref CipherBuffer destination,
+    static void writeNull(ref CipherBuffer!ubyte destination,
         const(ASN1Tag) tag = ASN1Tag.null_) pure
     {
         //todo destination.put(tag);
         destination.put(0x00);
     }
 
-    static void writeOctetString(ref CipherBuffer destination, scope const(char)[] x,
+    static void writeOctetString(ref CipherBuffer!ubyte destination, scope const(char)[] x,
         const(ASN1Tag) tag = ASN1Tag.octetString) pure
     {
         writeTagValue(destination, tag, x.representation);
     }
 
-    static void writePrintableString(ref CipherBuffer destination, scope const(char)[] x,
+    static void writePrintableString(ref CipherBuffer!ubyte destination, scope const(char)[] x,
         const(ASN1Tag) tag = ASN1Tag.printableString) pure
     {
         writeTagValue(destination, tag, x.representation);
     }
 
-    static void writeSequence(ref CipherBuffer destination, scope const(char)[][] x,
+    static void writeSequence(ref CipherBuffer!ubyte destination, scope const(char)[][] x,
         const(ASN1Tag) tag = ASN1Tag.sequence) pure
     {
         writeTagStrings(destination, tag, x);
     }
 
-    static void writeSet(ref CipherBuffer destination, scope const(char)[][] x,
+    static void writeSet(ref CipherBuffer!ubyte destination, scope const(char)[][] x,
         const(ASN1Tag) tag = ASN1Tag.set) pure
     {
         writeTagStrings(destination, tag, x);
     }
 
-    static void writeTagStrings(ref CipherBuffer destination, const(ASN1Tag) tag, scope const(char)[][] xs) pure
+    static void writeTagStrings(ref CipherBuffer!ubyte destination, const(ASN1Tag) tag, scope const(char)[][] xs) pure
     {
         size_t totalLength = 0;
         foreach (x; xs)
@@ -1327,13 +1327,13 @@ public:
             destination.put(x.representation);
     }
 
-    static void writeUTFString(ref CipherBuffer destination, scope const(char)[] x,
+    static void writeUTFString(ref CipherBuffer!ubyte destination, scope const(char)[] x,
         const(ASN1Tag) tag = ASN1Tag.utf8String) pure
     {
         writeTagValue(destination, tag, x.representation);
     }
 
-    static void writeTagValue(ref CipherBuffer destination, const(ASN1Tag) tag, scope const(ubyte)[] x) pure
+    static void writeTagValue(ref CipherBuffer!ubyte destination, const(ASN1Tag) tag, scope const(ubyte)[] x) pure
     {
         //todo destination.put(tag);
         writeLength(destination, x.length);
@@ -1341,7 +1341,7 @@ public:
     }
 
     version (none)
-    static void writeVisibleString(ref CipherBuffer destination, scope const(char)[] x,
+    static void writeVisibleString(ref CipherBuffer!ubyte destination, scope const(char)[] x,
         const(ASN1Tag) tag = ASN1Tag.visibleString) pure
     {
         //todo destination.put(tag);
@@ -1409,7 +1409,7 @@ private:
         return result;
     }
 
-    static void writeBase128Int64(ref CipherBuffer destination, const(long) x)
+    static void writeBase128Int64(ref CipherBuffer!ubyte destination, const(long) x)
     {
 	    const n = lengthBase128Int64(x);
 	    for (int i = n - 1; i >= 0; i--)
@@ -1421,7 +1421,7 @@ private:
     	}
     }
 
-    static void writeLength(ref CipherBuffer destination, const(size_t) n) pure
+    static void writeLength(ref CipherBuffer!ubyte destination, const(size_t) n) pure
     {
         if (n >= 0x80)
         {

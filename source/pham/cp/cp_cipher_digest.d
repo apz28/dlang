@@ -17,16 +17,18 @@ import std.digest.sha : Digest, SHA1Digest, SHA256Digest, SHA384Digest, SHA512Di
 import std.string : representation;
 
 import pham.utl.disposable : DisposingReason;
+import pham.cp.cipher_buffer;
 
 nothrow @safe:
 
+
 enum DigestId : string
 {
-    md5 = "MD5",
-    sha1 = "SHA1",
-    sha256 = "SHA256",
-    sha384 = "SHA384",
-    sha512 = "SHA512",
+    md5 = "MD5",  // 16 bytes
+    sha1 = "SHA1",  // 20 bytes
+    sha256 = "SHA256",  // 32 bytes
+    sha384 = "SHA384",  // 48 bytes
+    sha512 = "SHA512",  // 64 bytes
 }
 
 struct DigestResult
@@ -213,14 +215,13 @@ private:
     uint _digestBits;
 }
 
-ubyte[] digestOf(DigestId id)(scope const(ubyte)[] data...)
+CipherRawKey!ubyte digestOf(DigestId id)(scope const(ubyte)[] data...)
 {
     DigestResult rTemp = void;
     auto hasher = new Digester(id);
-    return hasher.begin()
+    return CipherRawKey!ubyte(hasher.begin()
         .digest(data)
-        .finish(rTemp)
-        .dup;
+        .finish(rTemp));
 }
 
 struct HMACS
@@ -349,11 +350,11 @@ private:
 nothrow @safe unittest // digestOf
 {
     import std.string : representation;
-    import pham.utl.object;
+    import pham.utl.object : bytesFromHexs, bytesToHexs;
     import pham.utl.test;
     traceUnitTest!("pham.cp")("unittest pham.cp.cipher_digest.digestOf");
 
-    ubyte[] hash;
+    CipherRawKey!ubyte hash;
 
     hash = digestOf!(DigestId.md5)("abc".representation);
     assert(bytesToHexs(hash) == "900150983CD24FB0D6963F7D28E17F72");
@@ -374,11 +375,11 @@ nothrow @safe unittest // digestOf
 nothrow @safe unittest // digestOf - for Firebird database engine
 {
     import std.string : representation;
-    import pham.utl.object;
+    import pham.utl.object : bytesFromHexs;
     import pham.utl.test;
     traceUnitTest!("pham.cp")("unittest pham.cp.cipher_digest.digestOf - for Firebird database engine");
 
-    ubyte[] hash;
+    CipherRawKey!ubyte hash;
 
     hash = digestOf!(DigestId.sha1)("SYSDBA:masterkey".representation);
     assert(hash == bytesFromHexs("E395799C5652AAA4536273A20AA740E246835CC4"));
@@ -390,7 +391,7 @@ nothrow @safe unittest // digestOf - for Firebird database engine
 nothrow @safe unittest // HMACS
 {
     import std.string : representation;
-    import pham.utl.object;
+    import pham.utl.object : bytesFromHexs;
     import pham.utl.test;
     traceUnitTest!("pham.cp")("unittest pham.cp.cipher_digest.HMACS");
 

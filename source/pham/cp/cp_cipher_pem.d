@@ -14,12 +14,12 @@ module pham.cp.cipher_pem;
 import std.algorithm.searching : endsWith, startsWith;
 
 import pham.utl.object : bytesFromBase64s;
-import pham.cp.cipher : CipherKey;
+import pham.cp.cipher : CipherKey, CipherPrivateRSAKey, CipherPublicRSAKey;
 
 struct PemReader(alias pkcs8)
 {
-import std.bitmanip : peek;
-import std.system : Endian;
+    import std.bitmanip : peek;
+    import std.system : Endian;
 
 @nogc nothrow pure @safe:
 
@@ -210,7 +210,8 @@ CipherKey pkcs8ParseRSAPrivateKey(scope const(ubyte)[] pkcs8)
     const dq = reader.readKey(2);
     const inversedq = reader.readKey(2);
 
-    return CipherKey(0, modulus, exponent, d, p, q, dp, dq, inversedq);
+    auto k = CipherPrivateRSAKey(0, modulus.dup, exponent.dup, d.dup, p.dup, q.dup, dp.dup, dq.dup, inversedq.dup);
+    return CipherKey(k);
 }
 
 CipherKey pkcs8ParsePrivateKey(scope const(ubyte)[] pkcs8)
@@ -293,7 +294,8 @@ CipherKey pkcs8ParsePublicKey(scope const(ubyte)[] pkcs8)
 
     //import pham.utl.test; dgWriteln("modulus=", modulus.dgToHex());
     //import pham.utl.test; dgWriteln("exponent=", exponent.dgToHex());
-    return CipherKey(0, modulus, exponent);
+    auto k = CipherPublicRSAKey(0, modulus.dup, exponent.dup);
+    return CipherKey(k);
 }
 
 CipherKey pemParsePublicKey(scope const(char)[] pem)

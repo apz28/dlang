@@ -100,17 +100,17 @@ public:
     this(CipherParameters parameters)
     in
     {
-        assert(parameters.publicKey.isRSA);
+        assert(parameters.publicKey.publicRSA.isValid());
     }
     do
     {
         this._parameters = parameters;
-        this.publicExponent = CipherKey.bytesToBigInteger(parameters.publicKey.exponent);
-        this.publicModulus = CipherKey.bytesToBigInteger(parameters.publicKey.modulus);
-        if (parameters.privateKey.isRSA)
+        this.publicExponent = CipherKey.bytesToBigInteger(parameters.publicKey.publicRSA.exponent);
+        this.publicModulus = CipherKey.bytesToBigInteger(parameters.publicKey.publicRSA.modulus);
+        if (parameters.privateKey.publicRSA.isValid())
         {
-            this.privateExponent = CipherKey.bytesToBigInteger(parameters.privateKey.exponent);
-            this.privateModulus = CipherKey.bytesToBigInteger(parameters.privateKey.modulus);
+            this.privateExponent = CipherKey.bytesToBigInteger(parameters.privateKey.publicRSA.exponent);
+            this.privateModulus = CipherKey.bytesToBigInteger(parameters.privateKey.publicRSA.modulus);
         }
     }
 
@@ -127,7 +127,7 @@ public:
         output.length = (input.length / kLen) * bLen;
 
         size_t i, r;
-        CipherBuffer iBlock;
+        CipherBuffer!ubyte iBlock;
         while (i < input.length)
         {
             iBlock.clear().put(input[i..i + kLen]);
@@ -142,7 +142,7 @@ public:
         return output;
     }
 
-    final ref CipherBuffer decrypt(return ref CipherBuffer dataBlock)
+    final ref CipherBuffer!ubyte decrypt(return ref CipherBuffer!ubyte dataBlock)
     in
     {
         assert(dataBlock.length == keyByteLength);
@@ -155,7 +155,7 @@ public:
             : modPow(dataBlockInt, publicExponent, publicModulus);
 
         tempBlock.clear();
-        dataBlock.clear().put(unpadPKCS1_5(CipherKey.bytesFromBigInteger(resultInt, tempBlock))[]);
+        dataBlock.clear().put(unpadPKCS1_5(CipherKey.bytesFromBigInteger(tempBlock, resultInt))[]);
         return dataBlock;
     }
 
@@ -174,7 +174,7 @@ public:
         output.length = rLen;
 
         size_t i, r;
-        CipherBuffer iBlock;
+        CipherBuffer!ubyte iBlock;
         while (i < input.length)
         {
             const leftLen = input.length - i;
@@ -188,7 +188,7 @@ public:
         return output;
     }
 
-    final ref CipherBuffer encrypt(return ref CipherBuffer dataBlock)
+    final ref CipherBuffer!ubyte encrypt(return ref CipherBuffer!ubyte dataBlock)
     in
     {
         assert(dataBlock.length < keyByteLength - padPKCS1_5Length);
@@ -201,7 +201,7 @@ public:
             : modPow(dataBlockInt, publicExponent, publicModulus);
 
         tempBlock.clear();
-        dataBlock.clear().put(CipherKey.bytesFromBigInteger(resultInt, tempBlock)[]);
+        dataBlock.clear().put(CipherKey.bytesFromBigInteger(tempBlock, resultInt)[]);
         const kLen = keyByteLength;
         while (dataBlock.length < kLen)
             dataBlock.put(0);
@@ -222,7 +222,7 @@ public:
         //publicKey = CipherKey(keySize, nBytes, CipherKey.bytesFromBigInteger(e));
     }
 
-    final ref CipherBuffer padPKCS1_5(return ref CipherBuffer dataBlock)
+    final ref CipherBuffer!ubyte padPKCS1_5(return ref CipherBuffer!ubyte dataBlock)
     in
     {
         assert(dataBlock.length < keyByteLength - padPKCS1_5Length);
@@ -232,23 +232,23 @@ public:
         return pkcs1_5Pad.pad(dataBlock, keyByteLength);
     }
 
-    final ref CipherBuffer unpadPKCS1_5(return ref CipherBuffer dataBlock) const pure
+    final ref CipherBuffer!ubyte unpadPKCS1_5(return ref CipherBuffer!ubyte dataBlock) const pure
     {
         return pkcs1_5Pad.unpad(dataBlock, keyByteLength);
     }
 
     pragma(inline, true)
-    @property final bool hasPrivateKey() const @nogc pure
+    @property final bool hasPrivateKey() const pure
     {
-        return _parameters.privateKey.isRSA;
+        return _parameters.privateKey.publicRSA.isValid();
     }
 
-    @property final size_t keyByteLength() const @nogc pure
+    @property final size_t keyByteLength() const pure
     {
         return _parameters.publicKey.keyByteLength;
     }
 
-    @property final override bool isSymantic() const @nogc pure
+    @property final override bool isSymantic() const pure
     {
         return true;
     }
@@ -274,7 +274,7 @@ protected:
 
 private:
     CipherPaddingPKCS1_5 pkcs1_5Pad;
-    CipherBuffer tempBlock;
+    CipherBuffer!ubyte tempBlock;
 //    CipherRandomGenerator rnd;
 }
 

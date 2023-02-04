@@ -136,7 +136,7 @@ public:
     }
     do
     {
-        CipherBuffer buffer;
+        CipherBuffer!ubyte buffer;
         nextBytes(buffer, (bitLength + 7) / 8);
         return BigInteger(buffer[], Yes.unsigned);
     }
@@ -181,7 +181,7 @@ public:
 
     	const b = bitLength % 8 == 0 ? 8 : bitLength % 8;
         const bs = (bitLength + 7) / 8;
-        CipherBuffer buffer;
+        CipherBuffer!ubyte buffer;
 
         while (true)
         {
@@ -269,9 +269,9 @@ public:
             count--;
         }
 
-        // Exclude 0 for last byte
+        // Exclude 0 or FF for last byte
         if (count)
-            put(sink, next!ubyte(1, ubyte.max));
+            put(sink, next!ubyte(1, ubyte.max-1));
 
         return sink;
     }
@@ -304,11 +304,17 @@ public:
 
          // Excluse 0 for first digit
         put(sink, digits[next!ubyte(1, digits.length - 1)]);
-
-        while (--count)
+        count--;
+        
+        while (count > 1)
         {
             put(sink, digits[next!ubyte(0, digits.length - 1)]);
+            count--;
         }
+        
+         // Excluse 0 for last digit
+        if (count)
+            put(sink, digits[next!ubyte(1, digits.length - 1)]);
 
         return sink;
     }
@@ -340,7 +346,7 @@ public:
             count--;
         }
 
-        // Excluse 0 or F for first hexdigit
+        // Excluse 0 or F for last hexdigit
         if (count)
             put(sink, hexDigits[next!ubyte(1, hexDigits.length - 2)]);
 

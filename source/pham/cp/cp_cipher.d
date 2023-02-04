@@ -11,79 +11,449 @@
 
 module pham.cp.cipher;
 
-import std.algorithm.searching : all;
 import std.range.primitives : isOutputRange, put;
 import std.traits : isUnsigned, Unqual;
 import std.typecons : No, Yes;
 
 version (profile) import pham.utl.test : PerfFunction;
-import pham.utl.array : ShortStringBuffer, ShortStringBufferSize;
+import pham.utl.array : ShortStringBuffer;
 import pham.utl.big_integer : BigInteger, defaultParseBigIntegerOptions;
 import pham.utl.disposable : DisposableObject, DisposingReason;
 import pham.utl.numeric_parser : NumericLexerFlag, NumericLexerOptions;
-import pham.utl.object : bytesToHexs;
 import pham.utl.utf8 : NoDecodeInputRange, NoDecodeOutputRange, UTF8CharRange;
+public import pham.cp.cipher_buffer;
 import pham.cp.cipher_digest : DigestId;
 
 nothrow @safe:
 
 
-struct CipherBuffer
+struct CipherChaChaKey
 {
-@safe:
+nothrow @safe:
+
+    enum keySize128 = 16;
+    enum keySize256 = 32;
+    enum nonceSizeCounter32 = 12;
+    enum nonceSizeCounter64 = 8;
 
 public:
-    this(scope const(ubyte)[] values) nothrow pure
+    this(uint keyBitLength, scope const(ubyte)[] key, scope const(ubyte)[] nonce, uint counter32,
+        int rounds = 0) pure
     {
-        this.data.opAssign(values);
+        this.keyBitLength = keyBitLength;
+        this.key = CipherRawKey!ubyte(key);
+        this.nonce = CipherRawKey!ubyte(nonce);
+        this.rounds = calRounds(rounds);
+        this.counter32 = counter32;
+        this.counterSize = CounterSize.counter32;
     }
-
-    ~this() nothrow pure
+    
+    this(uint keyBitLength, CipherRawKey!ubyte key, CipherRawKey!ubyte nonce, uint counter32,
+        int rounds = 0) pure
+    {
+        this.keyBitLength = keyBitLength;
+        this.key = key;
+        this.nonce = nonce;
+        this.rounds = calRounds(rounds);
+        this.counter32 = counter32;
+        this.counterSize = CounterSize.counter32;
+    }
+    
+    this(uint keyBitLength, scope const(ubyte)[] key, scope const(ubyte)[] nonce, ulong counter64,
+        int rounds = 0) pure
+    {
+        this.keyBitLength = keyBitLength;
+        this.key = CipherRawKey!ubyte(key);
+        this.nonce = CipherRawKey!ubyte(nonce);
+        this.rounds = calRounds(rounds);
+        this.counter64 = counter64;
+        this.counterSize = CounterSize.counter64;
+    }
+    
+    this(uint keyBitLength, CipherRawKey!ubyte key, CipherRawKey!ubyte nonce, ulong counter64,
+        int rounds = 0) pure
+    {
+        this.keyBitLength = keyBitLength;
+        this.key = key;
+        this.nonce = nonce;
+        this.rounds = calRounds(rounds);
+        this.counter64 = counter64;
+        this.counterSize = CounterSize.counter64;
+    }    
+    
+    ~this() pure
     {
         dispose(DisposingReason.destructor);
     }
 
-    ref typeof(this) opAssign(scope const(ubyte)[] values) nothrow pure return
+    ref typeof(this) opAssign(ref typeof(this) rhs) pure return
     {
-        data.opAssign(values);
+        this.keyBitLength = rhs.keyBitLength;
+        this.key = rhs.key;
+        this.nonce = rhs.nonce;
+        this.rounds = rhs.rounds;
+        this.counter64 = rhs.counter64;
+        this.counterSize = rhs.counterSize;
         return this;
     }
 
-    pragma(inline, true)
-    ref typeof(this) chopFront(const(size_t) chopLength) nothrow pure return
+    static int calRounds(const(int) rounds) @nogc pure
     {
-        data.chopFront(chopLength);
-        return this;
+        enum chacha20 = 20;
+        return rounds == 0 ? chacha20 : rounds;
     }
 
-    pragma(inline, true)
-    ref typeof(this) chopTail(const(size_t) chopLength) nothrow pure return
-    {
-        data.chopTail(chopLength);
-        return this;
-    }
-
-    ref typeof(this) clear(bool setShortLength = false, bool disposing = false) nothrow pure return
-    {
-        data.clear(setShortLength, disposing);
-        return this;
-    }
-
-    // For security reason, need to clear the secrete information
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
-        data.dispose(disposingReason);
+        clear();
     }
 
-    string toString() const nothrow pure @trusted
+    bool isValid() const @nogc pure
     {
-        return cast(string)bytesToHexs(data[]);
+        return isValidKey() && isValidNonce();
+    }
+    
+    bool isValidKey() const @nogc pure
+    {
+        return (key.length == keySize128 || key.length == keySize256) && key.isValid();
+    }
+    
+    bool isValidNonce() const @nogc pure
+    {
+        return ((counterSize == CounterSize.counter32 && nonce.length == nonceSizeCounter32)
+                || (counterSize == CounterSize.counter64 && nonce.length == nonceSizeCounter64))
+            && nonce.isValid();
+    }
+    
+private:
+    void clear() pure
+    {
+        counter64 = 0;
+        rounds = 0;
+        keyBitLength = 0;
+        key.clear();
+        nonce.clear();
+    }
+    
+    void unique() pure
+    {
+        key.unique();
+        nonce.unique();
+    }
+    
+public:
+    enum CounterSize : ubyte
+    {
+        counter32,
+        counter64,
+    }
+    
+    uint keyBitLength;
+    CipherRawKey!ubyte key, nonce;
+    union 
+    {
+        ulong counter64;
+        uint counter32;
+    }
+    int rounds;
+    CounterSize counterSize;
+}
+
+struct CipherPrivateRSAKey
+{
+nothrow @safe:
+
+public:
+    this(uint keyBitLength, scope const(ubyte)[] modulus, scope const(ubyte)[] exponent) pure
+    {
+        this.keyBitLength = keyBitLength;
+        this.modulus = CipherRawKey!ubyte(modulus);
+        this.exponent = CipherRawKey!ubyte(exponent);
+    }
+    
+    this(uint keyBitLength, CipherRawKey!ubyte modulus, CipherRawKey!ubyte exponent) pure
+    {
+        this.keyBitLength = keyBitLength;
+        this.modulus = modulus;
+        this.exponent = exponent;
+    }
+    
+    this(uint keyBitLength, scope const(ubyte)[] modulus, scope const(ubyte)[] exponent,
+        scope const(ubyte)[] d, scope const(ubyte)[] p, scope const(ubyte)[] q, scope const(ubyte)[] dp,
+        scope const(ubyte)[] dq, scope const(ubyte)[] inversedq) pure
+    {
+        this.keyBitLength = keyBitLength;
+        this.modulus = CipherRawKey!ubyte(modulus);
+        this.exponent = CipherRawKey!ubyte(exponent);
+        this.d = CipherRawKey!ubyte(d);
+        this.p = CipherRawKey!ubyte(p);
+        this.q = CipherRawKey!ubyte(q);
+        this.dp = CipherRawKey!ubyte(dp);
+        this.dq = CipherRawKey!ubyte(dq);
+        this.inversedq = CipherRawKey!ubyte(inversedq);
+    }
+    
+    this(uint keyBitLength, CipherRawKey!ubyte modulus, CipherRawKey!ubyte exponent,
+        CipherRawKey!ubyte d, CipherRawKey!ubyte p, CipherRawKey!ubyte q, CipherRawKey!ubyte dp,
+        CipherRawKey!ubyte dq, CipherRawKey!ubyte inversedq) pure
+    {
+        this.keyBitLength = keyBitLength;
+        this.modulus = modulus;
+        this.exponent = exponent;
+        this.d = d;
+        this.p = p;
+        this.q = q;
+        this.dp = dp;
+        this.dq = dq;
+        this.inversedq = inversedq;
+    }
+    
+    ~this() pure
+    {
+        dispose(DisposingReason.destructor);
+    }
+
+    ref typeof(this) opAssign(ref typeof(this) rhs) pure return
+    {
+        this.keyBitLength = rhs.keyBitLength;
+        this.modulus = rhs.modulus;
+        this.exponent = rhs.exponent;
+        this.d = rhs.d;
+        this.p = rhs.p;
+        this.q = rhs.q;
+        this.dp = rhs.dp;
+        this.dq = rhs.dq;
+        this.inversedq = rhs.inversedq;
+        return this;
+    }
+
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    {
+        clear();
+    }
+
+    bool isValid() const @nogc pure
+    {
+        return modulus.isValid() && exponent.isValid();
+    }
+
+private:
+    void clear() pure
+    {
+        keyBitLength = 0;
+        modulus.clear();
+        exponent.clear();
+        d.clear();
+        p.clear();
+        q.clear();
+        dp.clear();
+        dq.clear();
+        inversedq.clear();
+    }
+
+    void unique() pure
+    {
+        modulus.unique();
+        exponent.unique();
+        d.unique();
+        p.unique();
+        q.unique();
+        dp.unique();
+        dq.unique();
+        inversedq.unique();
     }
 
 public:
-    private enum overheadSize = ShortStringBufferSize!(ubyte, 1u).sizeof;
-    ShortStringBufferSize!(ubyte, 1_024u - overheadSize) data;
-    alias data this;
+    uint keyBitLength;
+    CipherRawKey!ubyte modulus, exponent;
+    CipherRawKey!ubyte d, p, q, dp, dq, inversedq;
+}
+
+struct CipherPublicRSAKey
+{
+nothrow @safe:
+
+public:
+    this(uint keyBitLength, scope const(ubyte)[] modulus, scope const(ubyte)[] exponent) pure
+    {
+        this.keyBitLength = keyBitLength;
+        this.modulus = CipherRawKey!ubyte(modulus);
+        this.exponent = CipherRawKey!ubyte(exponent);
+    }
+    
+    this(uint keyBitLength, CipherRawKey!ubyte modulus, CipherRawKey!ubyte exponent) pure
+    {
+        this.keyBitLength = keyBitLength;
+        this.modulus = modulus;
+        this.exponent = exponent;
+    }
+    
+    ~this() pure
+    {
+        dispose(DisposingReason.destructor);
+    }
+
+    ref typeof(this) opAssign(ref typeof(this) rhs) pure return
+    {
+        this.keyBitLength = rhs.keyBitLength;
+        this.modulus = rhs.modulus;
+        this.exponent = rhs.exponent;
+        return this;
+    }
+
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    {
+        clear();
+    }
+
+    bool isValid() const @nogc pure
+    {
+        return modulus.isValid() && exponent.isValid();
+    }
+
+private:
+    void clear() pure
+    {
+        keyBitLength = 0;
+        modulus.clear();
+        exponent.clear();
+    }
+    
+    void unique() pure
+    {
+        modulus.unique();
+        exponent.unique();
+    }
+
+public:
+    uint keyBitLength;
+    CipherRawKey!ubyte modulus, exponent;
+}
+
+struct CipherSimpleKey
+{
+nothrow @safe:
+
+public:
+    this(uint keyBitLength, scope const(ubyte)[] key) pure
+    {
+        this.keyBitLength = keyBitLength;
+        this.key = CipherRawKey!ubyte(key);
+    }
+    
+    this(uint keyBitLength, CipherRawKey!ubyte key) pure
+    {
+        this.keyBitLength = keyBitLength;
+        this.key = key;
+    }
+    
+    ~this() pure
+    {
+        dispose(DisposingReason.destructor);
+    }
+
+    ref typeof(this) opAssign(ref typeof(this) rhs) pure return
+    {
+        this.keyBitLength = rhs.keyBitLength;
+        this.key = rhs.key;
+        return this;
+    }
+
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    {
+        clear();
+    }
+
+    bool isValid() const @nogc pure
+    {
+        return key.isValid();
+    }
+
+private:
+    void clear() pure
+    {
+        keyBitLength = 0;
+        key.clear();
+    }
+    
+    void unique() pure
+    {
+        key.unique();
+    }
+
+public:
+    uint keyBitLength;
+    CipherRawKey!ubyte key;
+}
+
+struct CipherVectorKey
+{
+nothrow @safe:
+
+public:
+    this(uint keyBitLength, scope const(ubyte)[] key, scope const(ubyte)[] nonce) pure
+    {
+        this.keyBitLength = keyBitLength;
+        this.key = CipherRawKey!ubyte(key);
+        this.nonce = CipherRawKey!ubyte(nonce);
+    }
+    
+    this(uint keyBitLength, CipherRawKey!ubyte key, CipherRawKey!ubyte nonce) pure
+    {
+        this.keyBitLength = keyBitLength;
+        this.key = key;
+        this.nonce = nonce;
+    }
+    
+    ~this() pure
+    {
+        dispose(DisposingReason.destructor);
+    }
+
+    ref typeof(this) opAssign(ref typeof(this) rhs) pure return
+    {
+        this.keyBitLength = rhs.keyBitLength;
+        this.key = rhs.key;
+        this.nonce = rhs.nonce;
+        return this;
+    }
+
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    {
+        clear();
+    }
+
+    bool isValid() const @nogc pure
+    {
+        return key.isValid() && nonce.isValid();
+    }
+
+private:
+    void clear() pure
+    {
+        keyBitLength = 0;
+        key.clear();
+        nonce.clear();
+    }
+    
+    void unique() pure
+    {
+        key.unique();
+        nonce.unique();
+    }
+
+public:
+    uint keyBitLength;
+    CipherRawKey!ubyte key, nonce;
+}
+
+enum CipherKeyKind : ubyte
+{
+    chacha,
+    privateRSA,
+    publicRSA,
+    simpleKey,
+    vectorKey,
 }
 
 struct CipherKey
@@ -93,42 +463,42 @@ nothrow @safe:
 public:
     this(this) pure
     {
-        _exponent = _exponent.dup;
-        _modulus = _modulus.dup;
-        _d = _d.dup;
-        _p = _p.dup;
-        _q = _q.dup;
-        _dp = _dp.dup;
-        _dq = _dq.dup;
-        _inversedq = _inversedq.dup;
+        unique();
     }
 
-    this(uint keyBitLength, scope const(ubyte)[] key) pure
+    this(CipherSimpleKey key) pure
     {
-        this._keyBitLength = keyBitLength;
-        this._modulus = key.dup;
+        this._kind = CipherKeyKind.simpleKey;
+        this._keyBitLength = key.keyBitLength;
+        this._simple = key;
     }
 
-    this(uint keyBitLength, scope const(ubyte)[] modulus, scope const(ubyte)[] exponent) pure
+    this(CipherChaChaKey chacha) pure
     {
-        this._keyBitLength = keyBitLength;
-        this._modulus = modulus.dup;
-        this._exponent = exponent.dup;
+        this._kind = CipherKeyKind.chacha;
+        this._keyBitLength = chacha.keyBitLength;
+        this._chacha = chacha;
     }
 
-    this(uint keyBitLength, scope const(ubyte)[] modulus, scope const(ubyte)[] exponent,
-        scope const(ubyte)[] d, scope const(ubyte)[] p, scope const(ubyte)[] q,
-        scope const(ubyte)[] dp, scope const(ubyte)[] dq, scope const(ubyte)[] inversedq) pure
+    this(CipherPrivateRSAKey privateRSA) pure
     {
-        this._keyBitLength = keyBitLength;
-        this._modulus = modulus.dup;
-        this._exponent = exponent.dup;
-        this._d = d.dup;
-        this._p = p.dup;
-        this._q = q.dup;
-        this._dp = dp.dup;
-        this._dq = dq.dup;
-        this._inversedq = inversedq.dup;
+        this._kind = CipherKeyKind.privateRSA;
+        this._keyBitLength = privateRSA.keyBitLength;
+        this._privateRSA = privateRSA;
+    }
+
+    this(CipherPublicRSAKey publicRSA) pure
+    {
+        this._kind = CipherKeyKind.publicRSA;
+        this._keyBitLength = publicRSA.keyBitLength;
+        this._publicRSA = publicRSA;
+    }
+
+    this(CipherVectorKey vector) pure
+    {
+        this._kind = CipherKeyKind.vectorKey;
+        this._keyBitLength = vector.keyBitLength;
+        this._vector = vector;
     }
 
     ~this() pure
@@ -136,12 +506,84 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    static ubyte[] bytesFromBigInteger(scope const(BigInteger) n) pure
+    ref typeof(this) opAssign(ref CipherSimpleKey rhs) pure return @trusted
     {
-        return n.toBytes(No.includeSign);
+        this.clearKey();
+        this._kind = CipherKeyKind.simpleKey;
+        this._keyBitLength = rhs.keyBitLength;
+        this._simple = rhs;
+        return this;
     }
 
-    static ref Writer bytesFromBigInteger(Writer)(scope const(BigInteger) n, return ref Writer sink) pure
+    ref typeof(this) opAssign(ref CipherChaChaKey rhs) pure return @trusted
+    {
+        this.clearKey();
+        this._kind = CipherKeyKind.chacha;
+        this._keyBitLength = rhs.keyBitLength;
+        this._chacha = rhs;
+        return this;
+    }
+
+    ref typeof(this) opAssign(ref CipherPrivateRSAKey rhs) pure return @trusted
+    {
+        this.clearKey();
+        this._kind = CipherKeyKind.privateRSA;
+        this._keyBitLength = rhs.keyBitLength;
+        this._privateRSA = rhs;
+        return this;
+    }
+
+    ref typeof(this) opAssign(ref CipherPublicRSAKey rhs) pure return @trusted
+    {
+        this.clearKey();
+        this._kind = CipherKeyKind.publicRSA;
+        this._keyBitLength = rhs.keyBitLength;
+        this._publicRSA = rhs;
+        return this;
+    }
+
+    ref typeof(this) opAssign(ref CipherVectorKey rhs) pure return @trusted
+    {
+        this.clearKey();
+        this._kind = CipherKeyKind.vectorKey;
+        this._keyBitLength = rhs.keyBitLength;
+        this._vector = rhs;
+        return this;
+    }
+    
+    ref typeof(this) opAssign(ref typeof(this) rhs) pure return @trusted
+    {
+        this.clearKey();
+        this._kind = rhs._kind;
+        this._keyBitLength = rhs._keyBitLength;
+        final switch (rhs._kind) with (CipherKeyKind)
+        {
+            case chacha:
+                this._chacha = rhs._chacha;
+                break;
+            case privateRSA:
+                this._privateRSA = rhs._privateRSA;
+                break;
+            case publicRSA:
+                this._publicRSA = rhs._publicRSA;
+                break;
+            case simpleKey:
+                this._simple = rhs._simple;
+                break;
+            case vectorKey:
+                this._vector = rhs._vector;
+                break;
+        }
+        return this;
+    }
+
+    static CipherRawKey!ubyte bytesFromBigInteger(scope const(BigInteger) n) pure
+    {
+        CipherBuffer!ubyte result;
+        return bytesFromBigInteger(result, n).toRawKey();
+    }
+
+    static ref Writer bytesFromBigInteger(Writer)(return ref Writer sink, scope const(BigInteger) n) pure
     if (isOutputRange!(Writer, ubyte))
     {
         return n.toBytes(sink, No.includeSign);
@@ -164,29 +606,14 @@ public:
     // For security reason, need to clear the secrete information
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
-        _exponent[] = 0;
-        _exponent = null;
-        _modulus[] = 0;
-        _modulus = null;
-        _d[] = 0;
-        _d = null;
-        _p[] = 0;
-        _p = null;
-        _q[] = 0;
-        _q = null;
-        _dp[] = 0;
-        _dp = null;
-        _dq[] = 0;
-        _dq = null;
-        _inversedq[] = 0;
-        _inversedq = null;
         _keyBitLength = 0;
+        clearKey();
     }
 
-    static char[] hexDigitsFromBigInteger(scope const(BigInteger) n) pure
+    static CipherRawKey!char hexDigitsFromBigInteger(scope const(BigInteger) n) pure
     {
-        ShortStringBuffer!char buffer;
-        return n.toHexString!(ShortStringBuffer!char, char)(buffer, No.includeSign)[].dup;
+        CipherBuffer!char result;
+        return n.toHexString!(CipherBuffer!char, char)(result, No.includeSign).toRawKey();
     }
 
     static BigInteger hexDigitsToBigInteger(scope const(ubyte)[] validHexDigits) pure
@@ -216,39 +643,27 @@ public:
         return x == 1;
     }
 
-    /**
-     * Returns true if v is not empty and not all zeros
-     */
-    static bool isValidKey(scope const(ubyte)[] v) @nogc pure
+    bool isValid() const @nogc pure @trusted
     {
-        // Must not empty
-        if (v.length == 0)
-            return false;
-
-        // Must not all zero
-        return !v.all!((a) => (a == 0));
+        final switch (_kind) with (CipherKeyKind)
+        {
+            case chacha:
+                return _chacha.isValid();
+            case privateRSA:
+                return _privateRSA.isValid();
+            case publicRSA:
+                return _publicRSA.isValid();
+            case simpleKey:
+                return _simple.isValid();
+            case vectorKey:
+                return _vector.isValid();
+        }
     }
-
-    @property isValidRSAPublicKey() const @nogc pure
+    
+    @property ref const(CipherChaChaKey) chacha() const pure return @trusted
     {
-        return isValidKey(_modulus) && isValidKey(_exponent);
-    }
-
-    @property const(ubyte)[] exponent() const @nogc pure
-    {
-        return _exponent;
-    }
-
-    //TODO remove
-    pragma(inline, true)
-    @property bool isRSA() const @nogc pure
-    {
-        return exponent.length != 0 && modulus.length != 0 && keyByteLength != 0;
-    }
-
-    @property const(ubyte)[] key() const @nogc pure
-    {
-        return _modulus;
+        static immutable CipherChaChaKey dummy;
+        return _kind == CipherKeyKind.chacha ? _chacha : dummy;
     }
 
     /**
@@ -269,45 +684,91 @@ public:
         return (_keyBitLength + 7) / 8;
     }
 
-    @property const(ubyte)[] modulus() const @nogc pure
+    @property CipherKeyKind kind() const @nogc pure
     {
-        return _modulus;
+        return _kind;
     }
 
-    @property const(ubyte)[] d() const @nogc pure
+    @property ref const(CipherPrivateRSAKey) privateRSA() const pure return @trusted
     {
-        return _d;
+        static immutable CipherPrivateRSAKey dummy;
+        return _kind == CipherKeyKind.privateRSA ? _privateRSA : dummy;
     }
 
-    @property const(ubyte)[] p() const @nogc pure
+    @property ref const(CipherPublicRSAKey) publicRSA() const pure return @trusted
     {
-        return _p;
+        static immutable CipherPublicRSAKey dummy;
+        return _kind == CipherKeyKind.publicRSA ? _publicRSA : dummy;
     }
 
-    @property const(ubyte)[] q() const @nogc pure
+    @property ref const(CipherSimpleKey) simple() const pure return @trusted
     {
-        return _q;
+        static immutable CipherSimpleKey dummy;
+        return _kind == CipherKeyKind.simpleKey ? _simple : dummy;
     }
 
-    @property const(ubyte)[] dp() const @nogc pure
+    @property ref const(CipherVectorKey) vector() const pure return @trusted
     {
-        return _dp;
-    }
-
-    @property const(ubyte)[] dq() const @nogc pure
-    {
-        return _dq;
-    }
-
-    @property const(ubyte)[] inversedq() const @nogc pure
-    {
-        return _inversedq;
+        static immutable CipherVectorKey dummy;
+        return _kind == CipherKeyKind.vectorKey ? _vector : dummy;
     }
 
 private:
-    ubyte[] _exponent, _modulus;
-    ubyte[] _d, _p, _q, _dp, _dq, _inversedq;
+    void clearKey() pure @trusted
+    {
+        final switch (_kind) with (CipherKeyKind)
+        {
+            case chacha:
+                _chacha.clear();
+                break;
+            case privateRSA:
+                _privateRSA.clear();
+                break;
+            case publicRSA:
+                _publicRSA.clear();
+                break;
+            case simpleKey:
+                _simple.clear();
+                break;
+            case vectorKey:
+                _vector.clear();
+                break;
+        }
+    }
+    
+    void unique() pure @trusted
+    {
+        final switch (_kind) with (CipherKeyKind)
+        {
+            case chacha:
+                _chacha.unique();
+                break;
+            case privateRSA:
+                _privateRSA.unique();
+                break;
+            case publicRSA:
+                _publicRSA.unique();
+                break;
+            case simpleKey:
+                _simple.unique();
+                break;
+            case vectorKey:
+                _vector.unique();
+                break;
+        }
+    }
+
+private:
+    union
+    {
+        CipherChaChaKey _chacha;
+        CipherPrivateRSAKey _privateRSA;
+        CipherPublicRSAKey _publicRSA;
+        CipherSimpleKey _simple;
+        CipherVectorKey _vector;
+    }
     uint _keyBitLength;
+    CipherKeyKind _kind;
 }
 
 struct CipherParameters
@@ -315,13 +776,6 @@ struct CipherParameters
 nothrow @safe:
 
 public:
-    this(this)
-    {
-        // Keys will be cleared on destructor,
-        // so need to make copy because D Slice is a reference value
-        _salt = _salt.dup;
-    }
-
     this(CipherKey privateKey) pure
     {
         this._privateKey = privateKey;
@@ -329,12 +783,10 @@ public:
 
     this(DigestId digestId, CipherKey privateKey, CipherKey publicKey, scope const(ubyte)[] salt) pure
     {
-        // Keys will be cleared on destructor,
-        // so need to make copy because D Slice is a reference value
         this._digestId = digestId;
         this._privateKey = privateKey;
         this._publicKey = publicKey;
-        this._salt = salt.dup;
+        this._salt = CipherRawKey!ubyte(salt);
     }
 
     ~this() pure
@@ -347,8 +799,7 @@ public:
     {
         _privateKey.dispose(disposingReason);
         _publicKey.dispose(disposingReason);
-        _salt[] = 0;
-        _salt = null;
+        _salt.dispose(disposingReason);
     }
 
     @property DigestId digestId() const @nogc pure
@@ -372,7 +823,7 @@ public:
         return _publicKey;
     }
 
-    @property const(ubyte)[] salt() const @nogc pure
+    @property ref const(CipherRawKey!ubyte) salt() const @nogc pure return
     {
         return _salt;
     }
@@ -381,7 +832,7 @@ private:
     DigestId _digestId;
     CipherKey _privateKey;
     CipherKey _publicKey;
-    ubyte[] _salt;
+    CipherRawKey!ubyte _salt;
 }
 
 abstract class Cipher : DisposableObject
@@ -408,11 +859,11 @@ protected:
 version (none)
 struct CipherPrimeCheck
 {
-import std.algorithm.iteration : each;
-import std.algorithm.mutation : swap;
-import std.math : abs;
+    import std.algorithm.iteration : each;
+    import std.algorithm.mutation : swap;
+    import std.math : abs;
 
-import pham.utl.big_integer;
+    import pham.utl.big_integer;
 
 nothrow @safe:
 
@@ -504,8 +955,8 @@ public:
 
 struct CipherHelper
 {
-import std.base64 : Base64Impl;
-import std.uni : toUpperChar = toUpper;
+    import std.base64 : Base64Impl;
+    import std.uni : toUpperChar = toUpper;
 
 @safe:
 
@@ -682,20 +1133,6 @@ do
 
 // Any below codes are private
 private:
-
-unittest // CipherParameters.isValidKey
-{
-    import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.cipher.CipherParameters.isValidKey");
-
-    assert(CipherKey.isValidKey([9]));
-    assert(CipherKey.isValidKey([0, 1]));
-    assert(CipherKey.isValidKey([1, 0, 2]));
-
-    assert(!CipherKey.isValidKey([]));
-    assert(!CipherKey.isValidKey([0]));
-    assert(!CipherKey.isValidKey([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
-}
 
 version (none)
 unittest // CipherPrimeCheck.isProbablePrime

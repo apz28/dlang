@@ -28,7 +28,7 @@ nothrow @safe:
 * Returns:     string containing the salt concatenated
 *              on to the encrypted results. Same as stored in passwd file.
 **************************************************************************/
-CipherBuffer crypt3(scope const(char)[] pw, scope const(char)[2] salt)
+CipherBuffer!ubyte crypt3(scope const(char)[] pw, scope const(char)[2] salt)
 in
 {
     assert(pw.length > 0);
@@ -111,7 +111,7 @@ do
             iobuf[i + 2] = c;
         }
 
-        return CipherBuffer(iobuf[0..i + 2]);
+        return CipherBuffer!ubyte(iobuf[0..i + 2]);
     }
 }
 

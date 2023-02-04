@@ -60,7 +60,6 @@
 
 module pham.cp.auth_rsp;
 
-import std.algorithm.mutation : reverse;
 import std.conv : to;
 import std.string : representation;
 import std.typecons : Flag, No, Yes;
@@ -70,7 +69,7 @@ import pham.utl.array : arrayOfChar, ShortStringBuffer;
 import pham.utl.big_integer;
 import pham.utl.disposable : DisposableObject, DisposingReason;
 import pham.utl.numeric_parser : isHexDigit;
-public import pham.cp.cipher : CipherKey;
+public import pham.cp.cipher : CipherBuffer, CipherKey, CipherRawKey;
 public import pham.cp.cipher_digest;
 public import pham.cp.random : CipherRandomGenerator;
 
@@ -82,32 +81,6 @@ enum minGroupSize = 2_048;
 
 // minExponentSize (in bytes) for generating ephemeral private keys.
 enum minExponentSize = 32;
-
-ubyte[] bytesFromBigInteger(scope const(BigInteger) n) pure
-{
-    auto result = reverse(CipherKey.bytesFromBigInteger(n));
-    while (result.length > 1 && result[0] == 0)
-        result = result[1..$];
-    return result;
-}
-
-ubyte[] bytesFromBigIntegerPad(scope const(BigInteger) n, const(size_t) paddingSize) pure
-{
-    auto result = bytesFromBigInteger(n);
-
-    if (result.length > paddingSize)
-        return result[result.length - paddingSize..$];
-
-    //if (paddingSize > result.length)
-    //    return arrayOfChar(0, paddingSize - result.length) ~ result;
-
-    return result;
-}
-
-BigInteger bytesToBigInteger(scope const(ubyte)[] bytes) pure
-{
-    return CipherKey.bytesToBigInteger(reverse(bytes.dup) ~ cast(ubyte[])[0]);
-}
 
 struct PrimeGroup
 {
@@ -215,7 +188,7 @@ public:
     }
 
     this(DigestId digestId, DigestId proofDigestId, const(PrimeGroup) group,
-         char separator = ':')
+        char separator = ':')
     {
         this._hasher = Digester(digestId);
         this._proofHasher = Digester(proofDigestId);
@@ -223,20 +196,33 @@ public:
         this._separator = separator;
     }
 
-    BigInteger generateSecret()
-    {
+    static CipherRawKey!ubyte generateSecret(const(uint) byteSize)
+    {        
+        CipherBuffer!ubyte result;
         CipherRandomGenerator rnd;
-        ShortStringBuffer!char buffer;
-        return CipherKey.hexDigitsToBigInteger(rnd.nextHexDigits(buffer, exponentSize * 2)[]);
+        return rnd.nextBytes(result, byteSize).toRawKey(); 
     }
 
-    ubyte[] hash(BigInteger n, Flag!"pad" pad)
+    CipherRawKey!ubyte hash(const(BigInteger) n, Flag!"pad" pad)
     {
         DigestResult rTemp = void;
-        auto bytes = pad ? bytesFromBigIntegerPad(n, paddingSize) : bytesFromBigInteger(n);
-        return _hasher.begin()
+        auto bytes = pad 
+            ? Auth.bytesFromBigIntegerPad(n, paddingSize)
+            : Auth.bytesFromBigInteger(n);
+        return CipherRawKey!ubyte(_hasher.begin()
             .digest(bytes)
-            .finish(rTemp).dup;
+            .finish(rTemp));
+    }
+
+    CipherRawKey!ubyte proofHash(const(BigInteger) n, Flag!"pad" pad)
+    {
+        DigestResult rTemp = void;
+        auto bytes = pad 
+            ? Auth.bytesFromBigIntegerPad(n, paddingSize)
+            : Auth.bytesFromBigInteger(n);
+        return CipherRawKey!ubyte(_hasher.begin()
+            .digest(bytes)
+            .finish(rTemp));
     }
 
     @property uint exponentSize() const @nogc pure
@@ -305,6 +291,32 @@ public:
         this._k = k == BigInteger.zero ? calculateK() : k;
     }
 
+    static CipherRawKey!ubyte bytesFromBigInteger(scope const(BigInteger) n) pure
+    {
+        auto result = CipherKey.bytesFromBigInteger(n).reverse().removeFront(0);
+        return result.empty ? CipherRawKey!ubyte([0]) : result;
+    }
+
+    static CipherRawKey!ubyte bytesFromBigIntegerPad(scope const(BigInteger) n, const(size_t) paddingSize) pure
+    {
+        auto result = bytesFromBigInteger(n);
+
+        //if (paddingSize > result.length)
+        //    return arrayOfChar(0, paddingSize - result.length) ~ result;
+
+        return result.length > paddingSize
+            ? result.chopFront(result.length - paddingSize)
+            : result;
+    }
+
+    static BigInteger bytesToBigInteger(scope const(ubyte)[] bytes) pure
+    {
+        auto temp = CipherBuffer!ubyte(bytes);
+        temp.reverse();
+        temp.put(0);
+        return CipherKey.bytesToBigInteger(temp[]);
+    }
+
     // u = H(PAD(A), PAD(B))
     final BigInteger calculateU(const(BigInteger) A, const(BigInteger) B)
     {
@@ -357,39 +369,39 @@ public:
         return bytesToBigInteger(rHash);
     }
 
-    final ubyte[] digest(scope const(ubyte)[] v)
+    final CipherRawKey!ubyte digest(scope const(ubyte)[] v)
     {
         auto hasher = _parameters.hasher;
 
         DigestResult hashTemp = void;
-        return hasher.begin()
+        return CipherRawKey!ubyte(hasher.begin()
             .digest(v)
-            .finish(hashTemp).dup;
+            .finish(hashTemp));
     }
 
-    final ubyte[] digest(scope const(char)[] v)
+    final CipherRawKey!ubyte digest(scope const(char)[] v)
     {
         return digest(v.representation);
     }
 
-    final ubyte[] digest(const(BigInteger) v)
+    final CipherRawKey!ubyte digest(const(BigInteger) v)
     {
         auto hasher = _parameters.hasher;
 
         DigestResult hashTemp = void;
-        return hasher.begin()
+        return CipherRawKey!ubyte(hasher.begin()
             .digest(bytesFromBigInteger(v))
-            .finish(hashTemp).dup;
+            .finish(hashTemp));
     }
 
-    final ubyte[] digestPad(const(BigInteger) v)
+    final CipherRawKey!ubyte digestPad(const(BigInteger) v)
     {
         auto hasher = _parameters.hasher;
 
         DigestResult hashTemp = void;
-        return hasher.begin()
+        return CipherRawKey!ubyte(hasher.begin()
             .digest(bytesFromBigIntegerPad(v, paddingSize))
-            .finish(hashTemp).dup;
+            .finish(hashTemp));
     }
 
     // IsPublicValid checks to see whether public A or B is valid within the group
@@ -413,6 +425,16 @@ public:
     	return true;
     }
 
+    final CipherRawKey!ubyte proofDigest(const(BigInteger) v)
+    {
+        auto hasher = _parameters.proofHasher;
+
+        DigestResult hashTemp = void;
+        return CipherRawKey!ubyte(hasher.begin()
+            .digest(bytesFromBigInteger(v).value)
+            .finish(hashTemp));
+    }
+
     version (TraceFunction)
     string traceString() const nothrow
     {
@@ -428,9 +450,10 @@ public:
         return _ephemeralPrivate;
     }
 
-    @property final ubyte[] ephemeralPrivateKey() const pure
+    // Hex digits
+    @property final const(CipherRawKey!char) ephemeralPrivateKey() const pure
     {
-        return CipherKey.hexDigitsFromBigInteger(_ephemeralPrivate).representation;
+        return CipherKey.hexDigitsFromBigInteger(_ephemeralPrivate);
     }
 
     @property final BigInteger ephemeralPublic() pure
@@ -438,9 +461,10 @@ public:
         return _ephemeralPublic;
     }
 
-    @property final ubyte[] ephemeralPublicKey() const pure
+    // Hex digits
+    @property final const(CipherRawKey!char) ephemeralPublicKey() const pure
     {
-        return CipherKey.hexDigitsFromBigInteger(_ephemeralPublic).representation;
+        return CipherKey.hexDigitsFromBigInteger(_ephemeralPublic);
     }
 
     @property final BigInteger g()
@@ -516,7 +540,9 @@ public:
     this(AuthParameters parameters, BigInteger k)
     {
         super(parameters, k);
-        this._ephemeralPrivate = parameters.generateSecret();
+        
+        auto secretKey = parameters.generateSecret(parameters.exponentSize);
+        this._ephemeralPrivate = CipherKey.bytesToBigInteger(secretKey[]);
         this._ephemeralPublic = calculateA(_ephemeralPrivate);
     }
 
@@ -544,68 +570,68 @@ public:
         scope const(ubyte)[] salt, BigInteger serverPublicKey)
     {
         // Firebird algorithm
-    version (all)
-    {
-        auto u = calculateU(ephemeralPublic, serverPublicKey);
-        auto x = calculateX(userName, userPassword, salt);
-		auto gx = modPow(g, x, N);
-        BigInteger kgx;
-        divRem(k * gx, N, kgx);
-		auto bkgx = serverPublicKey - kgx;
-        if (bkgx < 0)
-            bkgx = bkgx + N;
-        BigInteger diff;
-        divRem(bkgx, N, diff);
-        BigInteger ux;
-        divRem(u * x, N, ux);
-        BigInteger aux;
-        divRem(ephemeralPrivate + ux, N, aux);
-        auto result = modPow(diff, aux, N);
-
-        version (TraceFunction)
+        version (all)
         {
-            import pham.utl.test;
-            traceFunction!("pham.cp")("ephemeralPublic=", ephemeralPublic.toString(),
-                ", ephemeralPrivate=", ephemeralPrivate.toString(),
-                ", serverPublicKey=", serverPublicKey.toString(),
-                ", u=", u.toString(),
-                ", x=", x.toString(),
-                ", gx=", gx.toString(),
-                ", kgx=", kgx.toString(),
-                ", bkgx=", bkgx.toString(),
-                ", diff=", diff.toString(),
-                ", ux=", ux.toString(),
-                ", aux=", aux.toString(),
-                ", result=", result.toString());
-        }
-    }
-    else
-    {
-        auto u = calculateU(ephemeralPublic, serverPublicKey);
-        auto x = calculateX(userName, userPassword, salt);
-		auto gx = modPow(g, x, N);
-        auto kgx = (k * gx) % N;
-		auto base = (serverPublicKey - kgx) % N;
-        auto ux = (u * x) % N;
-        auto exponent = (ephemeralPrivate + ux) % N;
-		auto result = modPow(base, exponent, N);
+            auto u = calculateU(ephemeralPublic, serverPublicKey);
+            auto x = calculateX(userName, userPassword, salt);
+            auto gx = modPow(g, x, N);
+            BigInteger kgx;
+            divRem(k * gx, N, kgx);
+            auto bkgx = serverPublicKey - kgx;
+            if (bkgx < 0)
+                bkgx = bkgx + N;
+            BigInteger diff;
+            divRem(bkgx, N, diff);
+            BigInteger ux;
+            divRem(u * x, N, ux);
+            BigInteger aux;
+            divRem(ephemeralPrivate + ux, N, aux);
+            auto result = modPow(diff, aux, N);
 
-        version (TraceFunction)
-        {
-            import pham.utl.test;
-            traceFunction!("pham.cp")("ephemeralPublic=", ephemeralPublic.toString(),
-                ", ephemeralPrivate=", ephemeralPrivate.toString(),
-                ", serverPublicKey=", serverPublicKey.toString(),
-                ", u=", u.toString(),
-                ", x=", x.toString(),
-                ", gx=", gx.toString(),
-                ", kgx=", kgx.toString(),
-                ", base=", base.toString(),
-                ", ux=", ux.toString(),
-                ", exponent=", exponent.toString(),
-                ", result=", result.toString());
+            version (TraceFunction)
+            {
+                import pham.utl.test;
+                traceFunction!("pham.cp")("ephemeralPublic=", ephemeralPublic.toString(),
+                    ", ephemeralPrivate=", ephemeralPrivate.toString(),
+                    ", serverPublicKey=", serverPublicKey.toString(),
+                    ", u=", u.toString(),
+                    ", x=", x.toString(),
+                    ", gx=", gx.toString(),
+                    ", kgx=", kgx.toString(),
+                    ", bkgx=", bkgx.toString(),
+                    ", diff=", diff.toString(),
+                    ", ux=", ux.toString(),
+                    ", aux=", aux.toString(),
+                    ", result=", result.toString());
+            }
         }
-    }
+        else
+        {
+            auto u = calculateU(ephemeralPublic, serverPublicKey);
+            auto x = calculateX(userName, userPassword, salt);
+            auto gx = modPow(g, x, N);
+            auto kgx = (k * gx) % N;
+            auto base = (serverPublicKey - kgx) % N;
+            auto ux = (u * x) % N;
+            auto exponent = (ephemeralPrivate + ux) % N;
+            auto result = modPow(base, exponent, N);
+
+            version (TraceFunction)
+            {
+                import pham.utl.test;
+                traceFunction!("pham.cp")("ephemeralPublic=", ephemeralPublic.toString(),
+                    ", ephemeralPrivate=", ephemeralPrivate.toString(),
+                    ", serverPublicKey=", serverPublicKey.toString(),
+                    ", u=", u.toString(),
+                    ", x=", x.toString(),
+                    ", gx=", gx.toString(),
+                    ", kgx=", kgx.toString(),
+                    ", base=", base.toString(),
+                    ", ux=", ux.toString(),
+                    ", exponent=", exponent.toString(),
+                    ", result=", result.toString());
+            }
+        }
 
         return result;
     }
@@ -688,7 +714,7 @@ public:
         u = SHA1(PAD(A) | PAD(B))
         <premaster secret> = (A * v^u) ^ b % N
     */
-    final override ubyte[] makeKey() nothrow
+    final override CipherRawKey!ubyte makeKey() nothrow
     {
         if (ephemeralPublicOther == 0)
         {
@@ -883,25 +909,25 @@ shared static this()
         48);
 }
 
-nothrow @safe unittest // bytesToBigInteger
+nothrow @safe unittest // Auth.bytesToBigInteger
 {
-    import pham.utl.object;
+    import pham.utl.object : bytesFromHexs;
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.auth_rsp.bytesToBigInteger");
+    traceUnitTest!("pham.cp")("unittest pham.cp.auth_rsp.Auth.bytesToBigInteger");
 
-    assert(bytesToBigInteger(bytesFromHexs("BADAD8293C6296A5E190B90189CC983140C933CC")).toString() == "1066752676112117711667100034894519583952173872076");
-    assert(bytesToBigInteger(bytesFromHexs("C4EA21BB365BBEEAF5F2C654883E56D11E43C44E")).toString() == "1124183503868421757928291737012660252296180122702");
-    assert(bytesToBigInteger(bytesFromHexs("325B32AC6CDC607502C4532300FADD4D3A0CDC1C")).toString() == "287483320641822846566806844311705592438316653596");
+    assert(Auth.bytesToBigInteger(bytesFromHexs("BADAD8293C6296A5E190B90189CC983140C933CC")).toString() == "1066752676112117711667100034894519583952173872076");
+    assert(Auth.bytesToBigInteger(bytesFromHexs("C4EA21BB365BBEEAF5F2C654883E56D11E43C44E")).toString() == "1124183503868421757928291737012660252296180122702");
+    assert(Auth.bytesToBigInteger(bytesFromHexs("325B32AC6CDC607502C4532300FADD4D3A0CDC1C")).toString() == "287483320641822846566806844311705592438316653596");
 }
 
-nothrow @safe unittest // bigIntegerToBytes
+nothrow @safe unittest // Auth.bigIntegerToBytes
 {
-    import pham.utl.object;
+    import pham.utl.object : bytesToHexs;
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.auth_rsp.bytesFromBigInteger");
+    traceUnitTest!("pham.cp")("unittest pham.cp.auth_rsp.Auth.bytesFromBigInteger");
 
-    assert(bytesToHexs(bytesFromBigInteger(CipherKey.digitsToBigInteger("58543554083751952442334332707885450963256912723720014361224396835623580320574993412213112731622008780624513837590415042361332636920155374789034615041232473542789648377986158701807740526423554224690384086846078749662234094040670372520229647584994218966915554154095758043112636200250640433313973626261330006062"))) == "535E68E994A09E4C230894A6CC5F2B2485048097578E647222329B71A0AE81A91ADB0130AFEA1137DC1D2E6E22B0344C27C1572EDC5458B467087F05949B06B48F93E24D03A6320DCD07650E427F15F29DCDC90BAE5C81B37F418AB2CD48C27E2B919526A02AF70DC8FC0AED061B44CD3B17FB5042043FD2EDBE81296075102E");
-    assert(bytesToHexs(bytesFromBigInteger(CipherKey.digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
-    assert(bytesToHexs(bytesFromBigInteger(CipherKey.digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
-    assert(bytesToHexs(bytesFromBigInteger(CipherKey.digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
+    assert(bytesToHexs(Auth.bytesFromBigInteger(CipherKey.digitsToBigInteger("58543554083751952442334332707885450963256912723720014361224396835623580320574993412213112731622008780624513837590415042361332636920155374789034615041232473542789648377986158701807740526423554224690384086846078749662234094040670372520229647584994218966915554154095758043112636200250640433313973626261330006062"))) == "535E68E994A09E4C230894A6CC5F2B2485048097578E647222329B71A0AE81A91ADB0130AFEA1137DC1D2E6E22B0344C27C1572EDC5458B467087F05949B06B48F93E24D03A6320DCD07650E427F15F29DCDC90BAE5C81B37F418AB2CD48C27E2B919526A02AF70DC8FC0AED061B44CD3B17FB5042043FD2EDBE81296075102E");
+    assert(bytesToHexs(Auth.bytesFromBigInteger(CipherKey.digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
+    assert(bytesToHexs(Auth.bytesFromBigInteger(CipherKey.digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
+    assert(bytesToHexs(Auth.bytesFromBigInteger(CipherKey.digitsToBigInteger("28749804614170657751613395335352001644021045590210914186913541716332978472699287641712130718432436775513509435910353882602931518835680441332783686729305742324521039220455708164504634943313672661596106590080117722530992561561401591892583596939561753640930289078202910469465603085941318098275740297449693738855"))) == "28F0EAAB25F8A11AA5134393599A38F32C04687898BD9F09A5235342AAD6371680F47782A581C3553A56308F3EA8C022EBA5EAC56C51F821574B2538F667748163D1AE71EB30B55E48678735A08783BC34D6434C44668DAE44056744CF95C182600D0BD25BF4CCF9FACFCF2C0EEFC07CBE0959D307BBB833A281544BC4CB7767");
 }

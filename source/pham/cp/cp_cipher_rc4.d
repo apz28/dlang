@@ -15,7 +15,7 @@ import std.algorithm.mutation : swap;
 
 version (unittest) import pham.utl.test;
 import pham.utl.disposable : DisposingReason;
-import pham.cp.cipher;
+import pham.cp.cipher : Cipher, CipherKey, CipherKeyKind, CipherParameters, CipherRawKey, CipherSimpleKey;
 
 nothrow @safe:
 
@@ -26,22 +26,24 @@ nothrow @safe:
 public:
 	this(scope const(ubyte)[] key) pure
     in
-    {
-        assert(CipherKey.isValidKey(key));
+    {        
+        assert(CipherRawKey!ubyte.isValid(key));
     }
     do
     {
-		this(CipherKey(cast(uint)(key.length * 8), key));
+        auto k = CipherSimpleKey(cast(uint)(key.length * 8), key);
+		this(CipherKey(k));
     }
 
-    this(CipherKey privateKey) pure
+    this(CipherKey key) pure
     in
     {
-        assert(CipherKey.isValidKey(privateKey.key));
+        assert(key.kind == CipherKeyKind.simpleKey);
+        assert(key.isValid());
     }
     do
     {
-        this._parameters = CipherParameters(privateKey);
+        this._parameters = CipherParameters(key);
         initKey();
     }
 
@@ -65,7 +67,7 @@ public:
 
     @property final override bool isSymantic() const @nogc pure
     {
-        return false;
+        return true;
     }
 
     @property final override string name() const pure
@@ -82,14 +84,14 @@ protected:
     }
 
 private:
-    final void initKey() @nogc pure
+    final void initKey() pure
     {
         x = y = 0;
         foreach (i; 0..stateLength)
             _stateData[i] = cast(ubyte)i;
 
         int iKey, i2;
-        const key = _parameters.privateKey.key;
+        const key = _parameters.privateKey.simple.key;
         foreach (i; 0..stateLength)
         {
             i2 = (key[iKey] + _stateData[i] + i2) & 0xff;
@@ -136,7 +138,6 @@ private:
 
 unittest // CipherRC4
 {
-    import pham.utl.object : bytesFromHexs;
     import pham.utl.test;
     traceUnitTest!("pham.cp")("unittest pham.cp.cipher_rc4.CipherRC4");
 
@@ -159,12 +160,12 @@ unittest // CipherRC4
     }
 
     {
-        auto key = bytesFromHexs("1234ABCD43211234ABCD432112345678");
+        auto key = dgFromHex("1234ABCD43211234ABCD432112345678");
         auto input = key.dup;
         ubyte[] output;
 
         auto cipherRC4 = new CipherRC4(key);
-        assert(cipherRC4.encrypt(input, output) == bytesFromHexs("4B8E9F295B071B7239ABC838B3E4DC9B"));
+        assert(cipherRC4.encrypt(input, output) == dgFromHex("4B8E9F295B071B7239ABC838B3E4DC9B"));
 
         cipherRC4.dispose();
         cipherRC4 = null;
