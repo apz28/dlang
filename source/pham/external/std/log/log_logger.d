@@ -727,22 +727,23 @@ public:
      */
     void forwardLog(ref LogEntry payload) nothrow @trusted
     {
-    try {
-        version (DebugLogger) debug writeln("Logger.forwardLog()");
+        bool isFatal = false;
+        // Special try construct for grep
+        try {
+            version (DebugLogger) debug writeln("Logger.forwardLog()");
 
-        bool wasLog = false;
-        const llGlobalLogLevel = globalLogLevel;
-        const llLogLevel = this.logLevel;
-        const llModuleLogLevel = (cast()moduleOptions_).logLevel(payload.header.moduleName, LogLevel.off);
-        if (isLoggingEnabled(payload.header.logLevel, llModuleLogLevel, llLogLevel, llGlobalLogLevel))
-        {
-            auto locked = LogRAIIMutex(mutex);
-            this.writeLog(payload);
-            wasLog = true;
-        }
-        if (wasLog && payload.header.logLevel == LogLevel.fatal)
+            const llGlobalLogLevel = globalLogLevel;
+            const llLogLevel = this.logLevel;
+            const llModuleLogLevel = (cast()moduleOptions_).logLevel(payload.header.moduleName, LogLevel.off);
+            if (isLoggingEnabled(payload.header.logLevel, llModuleLogLevel, llLogLevel, llGlobalLogLevel))
+            {
+                isFatal = payload.header.logLevel == LogLevel.fatal;
+                auto locked = LogRAIIMutex(mutex);
+                this.writeLog(payload);
+            }
+        } catch (Exception) {}
+        if (isFatal)
             doFatal();
-    } catch (Exception) {}
     }
 
     pragma(inline, true)
@@ -938,10 +939,13 @@ public:
         {
             version (DebugLogger) debug writeln("Logger.logImpl().line=", line, ", funcName=", funcName);
 
+            bool isFatal = false;
+            // Special try construct for grep
             static if (isStaticModuleLoggingActive!(ll, moduleName))
             try {
                 if (isFunction!(ll).isImpl!(moduleName)())
                 {
+                    isFatal = ll == LogLevel.fatal;
                     auto currTime = Clock.currTime;
                     {
                         auto locked = LogRAIIMutex(mutex);
@@ -951,10 +955,10 @@ public:
                         writer.put!(Args)(args);
                         this.endMsg();
                     }
-                    if (ll == LogLevel.fatal)
-                        doFatal();
                 }
             } catch (Exception) {}
+            if (isFatal)
+                doFatal();
         }
 
         /**
@@ -983,10 +987,13 @@ public:
         {
             version (DebugLogger) debug writeln("logFunction.condition.args.line=", line);
 
+            bool isFatal = false;
+            // Special try construct for grep
             static if (isStaticModuleLoggingActive!(ll, moduleName))
             try {
                 if (isFunction!(ll).isImpl!(moduleName)() && condition)
                 {
+                    isFatal = ll == LogLevel.fatal;
                     auto currTime = Clock.currTime;
                     {
                         auto locked = LogRAIIMutex(mutex);
@@ -996,10 +1003,10 @@ public:
                         writer.put!(Args)(args);
                         this.endMsg();
                     }
-                    if (ll == LogLevel.fatal)
-                        doFatal();
                 }
             } catch (Exception) {}
+            if (isFatal)
+                doFatal();
         }
 
         /**
@@ -1028,10 +1035,13 @@ public:
         {
             version (DebugLogger) debug writeln("logFunction.args.line=", line);
 
+            bool isFatal = false;
+            // Special try construct for grep
             static if (isStaticModuleLoggingActive!(ll, moduleName))
             try {
                 if (isFunction!(ll).isImpl!(moduleName)())
                 {
+                    isFatal = ll == LogLevel.fatal;
                     auto currTime = Clock.currTime;
                     {
                         auto locked = LogRAIIMutex(mutex);
@@ -1041,10 +1051,10 @@ public:
                         writer.putf(fmt, args);
                         this.endMsg();
                     }
-                    if (ll == LogLevel.fatal)
-                        doFatal();
                 }
             } catch (Exception) {}
+            if (isFatal)
+                doFatal();
         }
 
         /**
@@ -1074,10 +1084,13 @@ public:
         {
             version (DebugLogger) debug writeln("logFunction.condition.fmt.args.line=", line);
 
+            bool isFatal = false;
+            // Special try construct for grep
             static if (isStaticModuleLoggingActive!(ll, moduleName))
             try {
                 if (isFunction!(ll).isImpl!(moduleName)() && condition)
                 {
+                    isFatal = ll == LogLevel.fatal;
                     auto currTime = Clock.currTime;
                     {
                         auto locked = LogRAIIMutex(mutex);
@@ -1087,10 +1100,10 @@ public:
                         writer.putf(fmt, args);
                         this.endMsg();
                     }
-                    if (ll == LogLevel.fatal)
-                        doFatal();
                 }
             } catch (Exception) {}
+            if (isFatal)
+                doFatal();
         }
     }
 
@@ -1154,23 +1167,26 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.log().line=", line, ", funcName=", funcName);
 
-    try {
-        const ll = this.logLevel;
-        if (isLogLevel!(moduleName)(ll))
-        {
-            auto currTime = Clock.currTime;
+        bool isFatal = false;
+        // Special try construct for grep
+        try {
+            const ll = this.logLevel;
+            if (isLogLevel!(moduleName)(ll))
             {
-                auto locked = LogRAIIMutex(mutex);
-                auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.put!(Args)(args);
-                this.endMsg();
+                isFatal = ll == LogLevel.fatal;
+                auto currTime = Clock.currTime;
+                {
+                    auto locked = LogRAIIMutex(mutex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.put!(Args)(args);
+                    this.endMsg();
+                }
             }
-            if (ll == LogLevel.fatal)
-                doFatal();
-        }
-    } catch (Exception) {}
+        } catch (Exception) {}
+        if (isFatal)
+            doFatal();
     }
 
     /**
@@ -1199,23 +1215,26 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.log().line=", line, ", funcName=", funcName);
 
-    try {
-        const ll = this.logLevel;
-        if (isLogLevel!(moduleName)(ll) && condition)
-        {
-            auto currTime = Clock.currTime;
+        bool isFatal = false;
+        // Special try construct for grep
+        try {
+            const ll = this.logLevel;
+            if (isLogLevel!(moduleName)(ll) && condition)
             {
-                auto locked = LogRAIIMutex(mutex);
-                auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.put!(Args)(args);
-                this.endMsg();
+                isFatal = ll == LogLevel.fatal;
+                auto currTime = Clock.currTime;
+                {
+                    auto locked = LogRAIIMutex(mutex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.put!(Args)(args);
+                    this.endMsg();
+                }
             }
-            if (ll == LogLevel.fatal)
-                doFatal();
-        }
-    } catch (Exception) {}
+        } catch (Exception) {}
+        if (isFatal)
+            doFatal();
     }
 
     /**
@@ -1244,22 +1263,25 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.log().line=", line, ", funcName=", funcName, ", ll=", ll);
 
-    try {
-        if (isLogLevel!(moduleName)(ll))
-        {
-            auto currTime = Clock.currTime;
+        bool isFatal = false;
+        // Special try construct for grep
+        try {
+            if (isLogLevel!(moduleName)(ll))
             {
-                auto locked = LogRAIIMutex(mutex);
-                auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.put!(Args)(args);
-                this.endMsg();
+                isFatal = ll == LogLevel.fatal;
+                auto currTime = Clock.currTime;
+                {
+                    auto locked = LogRAIIMutex(mutex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.put!(Args)(args);
+                    this.endMsg();
+                }
             }
-            if (ll == LogLevel.fatal)
-                doFatal();
-        }
-    } catch (Exception) {}
+        } catch (Exception) {}
+        if (isFatal)
+            doFatal();
     }
 
     /**
@@ -1285,22 +1307,25 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.log().line=", line, ", funcName=", funcName, ", ll=", ll);
 
-    try {
-        if (isLogLevel!(moduleName)(ll) && condition)
-        {
-            auto currTime = Clock.currTime;
+        bool isFatal = false;
+        // Special try construct for grep
+        try {
+            if (isLogLevel!(moduleName)(ll) && condition)
             {
-                auto locked = LogRAIIMutex(mutex);
-                auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.put!(Args)(args);
-                this.endMsg();
+                isFatal = ll == LogLevel.fatal;
+                auto currTime = Clock.currTime;
+                {
+                    auto locked = LogRAIIMutex(mutex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.put!(Args)(args);
+                    this.endMsg();
+                }
             }
-            if (ll == LogLevel.fatal)
-                doFatal();
-        }
-    } catch (Exception) {}
+        } catch (Exception) {}
+        if (isFatal)
+            doFatal();
     }
 
     /**
@@ -1328,23 +1353,26 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.logf().line=", line, ", funcName=", funcName);
 
-    try {
-        const ll = this.logLevel;
-        if (isLogLevel!(moduleName)(ll))
-        {
-            auto currTime = Clock.currTime;
+        bool isFatal = false;
+        // Special try construct for grep
+        try {
+            const ll = this.logLevel;
+            if (isLogLevel!(moduleName)(ll))
             {
-                auto locked = LogRAIIMutex(mutex);
-                auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.putf!(Args)(fmt, args);
-                this.endMsg();
+                isFatal = ll == LogLevel.fatal;
+                auto currTime = Clock.currTime;
+                {
+                    auto locked = LogRAIIMutex(mutex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.putf!(Args)(fmt, args);
+                    this.endMsg();
+                }
             }
-            if (ll == LogLevel.fatal)
-                doFatal();
-        }
-    } catch (Exception) {}
+        } catch (Exception) {}
+        if (isFatal)
+            doFatal();
     }
 
     /**
@@ -1374,23 +1402,26 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.logf().line=", line, ", funcName=", funcName);
 
-    try {
-        const ll = this.logLevel;
-        if (isLogLevel!(moduleName)(ll) && condition)
-        {
-            auto currTime = Clock.currTime;
+        bool isFatal = false;
+        // Special try construct for grep
+        try {
+            const ll = this.logLevel;
+            if (isLogLevel!(moduleName)(ll) && condition)
             {
-                auto locked = LogRAIIMutex(mutex);
-                auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.putf!(Args)(fmt, args);
-                this.endMsg();
+                isFatal = ll == LogLevel.fatal;
+                auto currTime = Clock.currTime;
+                {
+                    auto locked = LogRAIIMutex(mutex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.putf!(Args)(fmt, args);
+                    this.endMsg();
+                }
             }
-            if (ll == LogLevel.fatal)
-                doFatal();
-        }
-    } catch (Exception) {}
+        } catch (Exception) {}
+        if (isFatal)
+            doFatal();
     }
 
     /**
@@ -1419,22 +1450,25 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.logf().line=", line, ", funcName=", funcName, ", ll=", ll);
 
-    try {
-        if (isLogLevel!(moduleName)(ll))
-        {
-            auto currTime = Clock.currTime;
+        bool isFatal = false;
+        // Special try construct for grep
+        try {
+            if (isLogLevel!(moduleName)(ll))
             {
-                auto locked = LogRAIIMutex(mutex);
-                auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.putf!(Args)(fmt, args);
-                this.endMsg();
+                isFatal = ll == LogLevel.fatal;
+                auto currTime = Clock.currTime;
+                {
+                    auto locked = LogRAIIMutex(mutex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.putf!(Args)(fmt, args);
+                    this.endMsg();
+                }
             }
-            if (ll == LogLevel.fatal)
-                doFatal();
-        }
-    } catch (Exception) {}
+        } catch (Exception) {}
+        if (isFatal)
+            doFatal();
     }
 
     /**
@@ -1465,22 +1499,25 @@ public:
     {
         version (DebugLogger) debug writeln("Logger.logf().line=", line, ", funcName=", funcName, ", ll=", ll);
 
-    try {
-        if (isLogLevel!(moduleName)(ll) && condition)
-        {
-            auto currTime = Clock.currTime;
+        bool isFatal = false;
+        // Special try construct for grep
+        try {
+            if (isLogLevel!(moduleName)(ll) && condition)
             {
-                auto locked = LogRAIIMutex(mutex);
-                auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
-                this.beginMsg(header);
-                auto writer = LogArgumentWriter(this);
-                writer.putf!(Args)(fmt, args);
-                this.endMsg();
+                isFatal = ll == LogLevel.fatal;
+                auto currTime = Clock.currTime;
+                {
+                    auto locked = LogRAIIMutex(mutex);
+                    auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, ex);
+                    this.beginMsg(header);
+                    auto writer = LogArgumentWriter(this);
+                    writer.putf!(Args)(fmt, args);
+                    this.endMsg();
+                }
             }
-            if (ll == LogLevel.fatal)
-                doFatal();
-        }
-    } catch (Exception) {}
+        } catch (Exception) {}
+        if (isFatal)
+            doFatal();
     }
 
 public:
@@ -1693,8 +1730,8 @@ protected:
  */
 class FileLogger : MemLogger
 {
-import std.file : exists, mkdirRecurse;
-import std.path : dirName;
+    import std.file : exists, mkdirRecurse;
+    import std.path : dirName;
 
 @safe:
 
@@ -1761,13 +1798,14 @@ public:
 
     ~this() nothrow
     {
-    try {
-        if (fileOpened_ && file_.isOpen)
-            file_.close();
-        file_ = File.init;
-        fileName_ = null;
-        fileOpened_ = false;
-    } catch (Exception) {}
+        // Special try construct for grep
+        try {
+            if (fileOpened_ && file_.isOpen)
+                file_.close();
+            file_ = File.init;
+            fileName_ = null;
+            fileOpened_ = false;
+        } catch (Exception) {}
     }
 
     /**
@@ -2252,26 +2290,28 @@ public:
 
     static string date(const ref LogOutputPatternElement element, in SysTime value) nothrow @trusted
     {
-    try {
-        // %s=FmtTimeSpecifier.sortableDateTime
-        auto s = element.fmt.length != 0 ? format(element.fmt, value) : format("%s", value);
-        return pad(element, s);
-    } catch (Exception) return null;
+        // Special try construct for grep
+        try {
+            // %s=FmtTimeSpecifier.sortableDateTime
+            auto s = element.fmt.length != 0 ? format(element.fmt, value) : format("%s", value);
+            return pad(element, s);
+        } catch (Exception) return null;
     }
 
     static void date(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, in SysTime value) nothrow @trusted
     {
-    try {
-        // %s=FmtTimeSpecifier.sortableDateTime
-        ShortStringBuffer!char s;
-        if (element.fmt.length)
-            formattedWrite(s, element.fmt, value);
-        else
-            formattedWrite(s, "%s", value);
-        const lp = padLeft(sink, element, s.length);
-        put(sink, s[]);
-        padRight(sink, element, s.length + lp);
-    } catch (Exception) {}
+        // Special try construct for grep
+        try {
+            // %s=FmtTimeSpecifier.sortableDateTime
+            ShortStringBuffer!char s;
+            if (element.fmt.length)
+                formattedWrite(s, element.fmt, value);
+            else
+                formattedWrite(s, "%s", value);
+            const lp = padLeft(sink, element, s.length);
+            put(sink, s[]);
+            padRight(sink, element, s.length + lp);
+        } catch (Exception) {}
     }
 
     static string fileName(const ref LogOutputPatternElement element, string fileName) nothrow
@@ -2299,25 +2339,27 @@ public:
     static string integer(I)(const ref LogOutputPatternElement element, I value) nothrow
     if (isIntegral!I)
     {
-    try {
-        auto s = element.fmt.length != 0 ? format(element.fmt, value) : format("%s", value);
-        return pad(element, s);
-    } catch (Exception) return null;
+        // Special try construct for grep
+        try {
+            auto s = element.fmt.length != 0 ? format(element.fmt, value) : format("%s", value);
+            return pad(element, s);
+        } catch (Exception) return null;
     }
 
     static void integer(Writer, I)(auto ref Writer sink, const ref LogOutputPatternElement element, I value) nothrow
     if (isIntegral!I)
     {
-    try {
-        ShortStringBuffer!char s;
-        if (element.fmt.length)
-            formattedWrite(s, element.fmt, value);
-        else
-            formattedWrite(s, "%s", value);
-        const lp = padLeft(sink, element, s.length);
-        put(sink, s[]);
-        padRight(sink, element, s.length + lp);
-    } catch (Exception) {}
+        // Special try construct for grep
+        try {
+            ShortStringBuffer!char s;
+            if (element.fmt.length)
+                formattedWrite(s, element.fmt, value);
+            else
+                formattedWrite(s, "%s", value);
+            const lp = padLeft(sink, element, s.length);
+            put(sink, s[]);
+            padRight(sink, element, s.length + lp);
+        } catch (Exception) {}
     }
 
     static string logLevel(const ref LogOutputPatternElement element, LogLevel value) nothrow
@@ -2337,9 +2379,10 @@ public:
 
     static void newLine(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element) nothrow
     {
-    try {
-        put(sink, newLineLiteral);
-    } catch (Exception) {}
+        // Special try construct for grep
+        try {
+            put(sink, newLineLiteral);
+        } catch (Exception) {}
     }
 
     static string pad(const ref LogOutputPatternElement element, string value) nothrow
@@ -2363,32 +2406,34 @@ public:
 
     static size_t padLeft(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, size_t valueLength) nothrow
     {
-    try {
-        if (const p = element.calPadLength(element.leftPad, valueLength))
-        {
-            size_t n = p;
-            while (n--)
-                put(sink, ' ');
-            return p;
-        }
-        else
-            return 0u;
-    } catch (Exception) return 0u;
+        // Special try construct for grep
+        try {
+            if (const p = element.calPadLength(element.leftPad, valueLength))
+            {
+                size_t n = p;
+                while (n--)
+                    put(sink, ' ');
+                return p;
+            }
+            else
+                return 0u;
+        } catch (Exception) return 0u;
     }
 
     static size_t padRight(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, size_t valueLength) nothrow
     {
-    try {
-        if (const p = element.calPadLength(element.rightPad, valueLength))
-        {
-            size_t n = p;
-            while (n--)
-                put(sink, ' ');
-            return p;
-        }
-        else
-            return 0u;
-    } catch (Exception) return 0u;
+        // Special try construct for grep
+        try {
+            if (const p = element.calPadLength(element.rightPad, valueLength))
+            {
+                size_t n = p;
+                while (n--)
+                    put(sink, ' ');
+                return p;
+            }
+            else
+                return 0u;
+        } catch (Exception) return 0u;
     }
 
     static string separatedStringPart(string separatedString, char separator, size_t count) nothrow pure @safe
