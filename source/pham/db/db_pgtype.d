@@ -692,10 +692,11 @@ public:
 
     const(ubyte)[] getSalt() const pure
     {
-    try {
-        enum padding = true;
-        return CipherHelper.base64Decode!padding(salt);
-    } catch (Exception) return null;
+        // Special try construct for grep
+        try {
+            enum padding = true;
+            return CipherHelper.base64Decode!padding(salt);
+        } catch (Exception) return null;
     }
 
     bool isValid() const pure scope
@@ -995,9 +996,9 @@ unittest // PgOIdScramSHA256FirstMessage
     import pham.utl.test;
     traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgtype.PgOIdScramSHA256FirstMessage");
 
-    auto r = PgOIdScramSHA256FirstMessage(bytesFromHexs("723D307131356635454831642F682F313258634E4F485A2B3731524F4149563643492F322B35786344516B56534E317A6E6C2C733D456E5261337A47685830462F464A62616279685655513D3D2C693D34303936"));
+    auto r = PgOIdScramSHA256FirstMessage(dgFromHex("723D307131356635454831642F682F313258634E4F485A2B3731524F4149563643492F322B35786344516B56534E317A6E6C2C733D456E5261337A47685830462F464A62616279685655513D3D2C693D34303936"));
     assert(r.iteration == 4096);
     assert(r.nonce == "0q15f5EH1d/h/12XcNOHZ+71ROAIV6CI/2+5xcDQkVSN1znl");
     assert(r.salt == "EnRa3zGhX0F/FJbabyhVUQ==");
-    assert(r.getSalt() == bytesFromHexs("12745ADF31A15F417F1496DA6F285551"), r.getSalt().dgToHex());
+    assert(r.getSalt() == dgFromHex("12745ADF31A15F417F1496DA6F285551"), r.getSalt().dgToHex());
 }

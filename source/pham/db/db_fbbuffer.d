@@ -710,6 +710,12 @@ public:
 	}
 
     pragma(inline, true)
+    void writeOpaqueBytes(scope const(ubyte)[] v) nothrow
+    {
+        _writer.writeBytes(v);
+    }
+
+    pragma(inline, true)
     void writeOpaqueUInt8(uint8 v) nothrow
     {
         _writer.writeUInt8(v);
@@ -1111,7 +1117,7 @@ public:
     void writeBlob(scope const(ubyte)[] v) nothrow
     in
     {
-        assert(v.length < fbMaxPackageSize);
+        assert(v.length < FbIscSize.maxPackageLength);
     }
     do
     {
@@ -1135,7 +1141,7 @@ public:
     void writeBytes(scope const(ubyte)[] v) nothrow
     in
     {
-        assert(v.length < fbMaxPackageSize);
+        assert(v.length < FbIscSize.maxPackageLength);
     }
     do
     {
@@ -1149,7 +1155,7 @@ public:
     void writeChars(scope const(char)[] v) nothrow
     in
     {
-        assert(v.length < fbMaxPackageSize);
+        assert(v.length < FbIscSize.maxPackageLength);
     }
     do
     {
@@ -1222,8 +1228,8 @@ public:
     void writeFixedChars(scope const(char)[] v, scope const(DbBaseType) baseType) nothrow
     in
     {
-        assert(v.length < fbMaxPackageSize);
-        assert(baseType.size < fbMaxPackageSize);
+        assert(v.length < FbIscSize.maxPackageLength);
+        assert(baseType.size < FbIscSize.maxPackageLength);
     }
     do
     {
@@ -1308,8 +1314,8 @@ public:
     void writeOpaqueBytes(scope const(ubyte)[] v, const(size_t) forLength) nothrow
     in
     {
-        assert(v.length < fbMaxPackageSize);
-        assert(forLength < fbMaxPackageSize);
+        assert(v.length < FbIscSize.maxPackageLength);
+        assert(forLength < FbIscSize.maxPackageLength);
     }
     do
     {

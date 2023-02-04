@@ -312,6 +312,7 @@ enum DbConnectionParameterIdentifier : string
 
     // Specific to firebird
     fbCachePage = "cachePage", /// uint32
+    fbCryptAlgorithm = "cryptAlgorithm", /// string - name of encrypt algorithm
     fbCryptKey = "cryptKey", /// ubyte[]
     fbDatabaseTrigger = "databaseTrigger", /// bool
     fbDialect = "dialect", /// int16

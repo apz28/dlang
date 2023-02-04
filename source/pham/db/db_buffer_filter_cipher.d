@@ -12,7 +12,7 @@
 module pham.db.buffer_filter_cipher;
 
 version (unittest) import pham.utl.test;
-import pham.cp.cipher : Cipher, CipherKey;
+import pham.cp.cipher : Cipher, CipherKey, CipherKeyKind;
 import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.db.buffer_filter;
 
@@ -22,7 +22,7 @@ class DbBufferFilterCipher(DbBufferFilterKind Kind) : DbBufferFilter
 {
 nothrow @safe:
 
-public
+public:
     this(Cipher cipher)
     {
         this._cipher = cipher;
@@ -83,16 +83,41 @@ private:
     Cipher _cipher;
 }
 
-class DbBufferFilterCipherRC4(DbBufferFilterKind Kind) : DbBufferFilterCipher!Kind
+class DbBufferFilterCipherChaCha(DbBufferFilterKind Kind) : DbBufferFilterCipher!Kind
 {
-import pham.cp.cipher_rc4 : CipherRC4;
+    import pham.cp.cipher_chacha : CipherChaCha20;
 
 nothrow @safe:
 
 public:
-    this(CipherKey privateKey)
+    this(CipherKey key)
+    in
     {
-        super(new CipherRC4(privateKey));
+        assert(key.kind == CipherKeyKind.chacha);
+        assert(key.isValid());
+    }
+    do
+    {
+        super(new CipherChaCha20(key));
+    }
+}
+
+class DbBufferFilterCipherRC4(DbBufferFilterKind Kind) : DbBufferFilterCipher!Kind
+{
+    import pham.cp.cipher_rc4 : CipherRC4;
+
+nothrow @safe:
+
+public:
+    this(CipherKey key)
+    in
+    {
+        assert(key.kind == CipherKeyKind.simpleKey);
+        assert(key.isValid());
+    }
+    do
+    {
+        super(new CipherRC4(key));
     }
 }
 
@@ -103,12 +128,14 @@ private:
 unittest // DbBufferFilterCipherRC4
 {
     import std.string : representation;
+    import pham.cp.cipher : CipherSimpleKey;
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.buffer_filter_cipher.DbBufferFilterCipherRC4");
 
-    auto privateKey = CipherKey(0, "abc0123456789xyz".representation);
-	auto encryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.write)(privateKey);
-	auto decryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.read)(privateKey);
+    auto k = CipherSimpleKey(0, "abc0123456789xyz".representation);
+    auto key = CipherKey(k);
+	auto encryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.write)(key);
+	auto decryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.read)(key);
 
     static immutable const(ubyte)[] original = "the quick brown fox jumps over the lazy dog\r".representation;
     ubyte[] encrypted, decrypted;

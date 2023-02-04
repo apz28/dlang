@@ -40,7 +40,7 @@ struct PgConnectingStateInfo
 nothrow @safe:
 
     PgAuth auth;
-    CipherBuffer authData;
+    CipherBuffer!ubyte authData;
     const(char)[] authMethod;
     int32 authType;
     int32 serverProcessId;

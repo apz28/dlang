@@ -804,7 +804,7 @@ public:
     {
         // Max package size - overhead
         // See FbXdrWriter.writeBlob for overhead
-        const max = fbMaxPackageSize - (int32.sizeof * 6);
+        const max = FbIscSize.maxPackageLength - (int32.sizeof * 6);
         return (segmentLength < 100 || segmentLength > max) ? max : segmentLength;
     }
 
@@ -1924,13 +1924,13 @@ public:
         final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
         {
             case legacy:
-                return fbAuthLegacyName;
+                return FbIscText.authLegacyName;
             case srp1:
-                return fbAuthSrp1Name;
+                return FbIscText.authSrp1Name;
             case srp256:
-                return fbAuthSrp256Name;
+                return FbIscText.authSrp256Name;
             case sspi:
-                return fbAuthSSPIName;
+                return FbIscText.authSspiName;
         }
     }
 
@@ -1942,6 +1942,17 @@ public:
     @property final uint32 cachePages() nothrow
     {
         return toIntegerSafe!uint32(getString(DbConnectionParameterIdentifier.fbCachePage), uint16.max);
+    }
+
+    @property final string cryptAlgorithm() nothrow
+    {
+        return getString(DbConnectionParameterIdentifier.fbCryptAlgorithm);
+    }
+
+    @property final typeof(this) cryptAlgorithm(string value) nothrow
+    {
+        put(DbConnectionParameterIdentifier.fbCryptAlgorithm, value.length != 0 ? value : FbIscText.filterCryptDefault);
+        return this;
     }
 
     @property final ubyte[] cryptKey() nothrow
@@ -1962,7 +1973,7 @@ public:
 
     @property final int16 dialect() nothrow
     {
-        return toIntegerSafe!int16(getString(DbConnectionParameterIdentifier.fbDialect), FbIscDefault.defaultDialect);
+        return toIntegerSafe!int16(getString(DbConnectionParameterIdentifier.fbDialect), FbIscDefault.dialect);
     }
 
     @property final Duration dummyPackageInterval() nothrow
@@ -2249,7 +2260,6 @@ public:
     {
         super(connection, isolationLevel);
         this._flags.set(DbTransactionFlag.retaining, retaining);
-        this._transactionItems = buildTransactionItems();
     }
 
     final override bool canSavePoint() @safe
@@ -2283,23 +2293,11 @@ public:
     }
     do
     {
-        _transactionItems = value.length != 0 ? value : buildTransactionItems();
+        _transactionItems = value;
         return this;
     }
 
 protected:
-    final ubyte[] buildTransactionItems() nothrow @safe
-    {
-        auto paramWriter = FbTransactionWriter(fbConnection);
-        return FbProtocol.describeTransactionItems(paramWriter, this).dup;
-    }
-
-    override void doOptionChanged(string propertyName) nothrow @safe
-    {
-        super.doOptionChanged(propertyName);
-        _transactionItems = buildTransactionItems();
-    }
-
     final override void doCommit(bool disposing) @safe
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("disposing=", disposing);
@@ -2518,6 +2516,22 @@ unittest // FbConnection.encrypt
 
     {
         auto connection = createTestConnection(DbEncryptedConnection.required);
+        connection.fbConnectionStringBuilder.cryptAlgorithm = FbIscText.filterCryptArc4Name;
+        scope (exit)
+            connection.dispose();
+        assert(connection.state == DbConnectionState.closed);
+
+        connection.open();
+        assert(connection.state == DbConnectionState.opened);
+
+        connection.close();
+        assert(connection.state == DbConnectionState.closed);
+    }
+
+    //version (none) // TODO
+    {
+        auto connection = createTestConnection(DbEncryptedConnection.required);
+        connection.fbConnectionStringBuilder.cryptAlgorithm = FbIscText.filterCryptChachaName;
         scope (exit)
             connection.dispose();
         assert(connection.state == DbConnectionState.closed);
@@ -3632,7 +3646,7 @@ unittest // FbCommandBatch
     // OK
 	{
         assert(iv.length == 4);
-		auto command = connection.createCommandBatch("insert into batch values (@i, @t)");
+		auto command = connection.createCommandBatch("insert into batch(i, t) values(@i, @t)");
 
         // Test first block
         foreach (i; 0..2)
@@ -3676,9 +3690,9 @@ unittest // FbCommandBatch
 	}
 
     // Mixed OK & Failure
-    version (none) // TODO Firebird bug -> not able to perform different sql on same connection
+    //version (none) // TODO Firebird bug -> not able to perform different sql on same connection
     {
-		auto command = connection.createCommandBatch("insert into batch values (@i)");
+		auto command = connection.createCommandBatch("insert into batch(i) values(@i)");
 
         command.addParameters().add("i", DbValue(6)); // OK
         command.addParameters().add("i", DbValue(1)); // Failure - duplicate

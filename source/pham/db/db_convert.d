@@ -81,7 +81,7 @@ int32 limitRangeTimeoutAsSecond(scope const(Duration) value,
 }
 
 /**
- * Removes date part from a hecto-nanoseconds 
+ * Removes date part from a hecto-nanoseconds
  * Params:
  *   hnsecs = a hecto-nanoseconds
  * Returns:
@@ -95,7 +95,7 @@ int64 removeDateUnitFromHNSecs(const(int64) hnsecs) @nogc pure
 }
 
 /**
- * Removes time part from a hecto-nanoseconds 
+ * Removes time part from a hecto-nanoseconds
  * Params:
  *   hnsecs = a hecto-nanoseconds
  * Returns:
@@ -119,9 +119,10 @@ int64 removeTimeUnitFromHNSecs(const(int64) hnsecs) @nogc pure
 Duration secondDigitsToDurationSafe(scope const(char)[] validSecondStr, Duration failedValue,
     Duration emptyValue = Duration.zero) pure
 {
-try {
-    return validSecondStr.length == 0 ? emptyValue : dur!"seconds"(to!int64(validSecondStr));
-} catch (Exception) return failedValue;
+    // Special try construct for grep
+    try {
+        return validSecondStr.length == 0 ? emptyValue : dur!"seconds"(to!int64(validSecondStr));
+    } catch (Exception) return failedValue;
 }
 
 /**
@@ -137,9 +138,10 @@ D toDecimalSafe(D)(scope const(char)[] validDecimalStr, D failedValue,
     D emptyValue = D.zero)
 if (isDecimal!D)
 {
-try {
-    return validDecimalStr.length == 0 ? emptyValue : D(validDecimalStr);
-} catch (Exception) return failedValue;
+    // Special try construct for grep
+    try {
+        return validDecimalStr.length == 0 ? emptyValue : D(validDecimalStr);
+    } catch (Exception) return failedValue;
 }
 
 /**
@@ -157,9 +159,10 @@ if (is(I == int) || is(I == uint)
     || is(I == long) || is(I == ulong)
     || is(I == short) || is(I == ushort))
 {
-try {
-    return validIntegerStr.length == 0 ? emptyValue : to!I(validIntegerStr);
-} catch (Exception) return failedValue;
+    // Special try construct for grep
+    try {
+        return validIntegerStr.length == 0 ? emptyValue : to!I(validIntegerStr);
+    } catch (Exception) return failedValue;
 }
 
 enum failedConvertedString = "?";
@@ -176,11 +179,12 @@ enum failedConvertedString = "?";
 string toStringSafe(C)(C validChar, string failedValue) pure
 if (isSomeChar!C)
 {
-    scope (failure) assert(0);
-        
-    return cast(int)validChar == 0 
-        ? null
-        : (isValidCodepoint!C(validChar) ? to!string(validChar) : failedValue);
+    // Special try construct for grep
+    try {
+        return validChar == 0
+            ? null
+            : (isValidCodepoint!C(validChar) ? to!string(validChar) : failedValue);
+    } catch (Exception) return failedValue;
 }
 
 /**
@@ -194,9 +198,18 @@ if (isSomeChar!C)
 string toStringSafe(S)(S validWideString, string failedValue) pure
 if (is(S == wstring) || is(S == dstring))
 {
-try {
-    return validWideString.length == 0 ? null : to!string(validWideString);
-} catch (Exception) return failedValue;
+    // Special try construct for grep
+    try {
+        return validWideString.length == 0 ? null : to!string(validWideString);
+    } catch (Exception) return failedValue;
+}
+
+string toStringSafe(I)(I number) pure
+if (isIntegral!I)
+{
+    scope (failure) assert(0);
+    
+    return to!string(number);    
 }
 
 /**
@@ -361,7 +374,7 @@ unittest // limitRangeTimeout
 {
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.convert.limitRangeTimeout");
-    
+
     assert(limitRangeTimeout(dur!"seconds"(-1)) == minTimeoutDuration);
     assert(limitRangeTimeout(dur!"seconds"(1)) == dur!"seconds"(1));
     assert(limitRangeTimeout(Duration.max) == maxTimeoutDuration);
@@ -371,7 +384,7 @@ unittest // limitRangeTimeoutAsSecond
 {
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.convert.limitRangeTimeoutAsSecond");
-    
+
     assert(limitRangeTimeoutAsSecond(dur!"seconds"(-1)) == minTimeoutDuration.total!"seconds"());
     assert(limitRangeTimeoutAsSecond(dur!"seconds"(1)) == 1);
     assert(limitRangeTimeoutAsSecond(Duration.max) == maxTimeoutDuration.total!"seconds"());
@@ -401,7 +414,7 @@ unittest // secondDigitsToDurationSafe
 {
     import pham.utl.test;
     traceUnitTest!("pham.db.database")("unittest pham.db.convert.secondDigitsToDurationSafe");
-    
+
     assert(secondDigitsToDurationSafe("123", Duration.zero) == dur!"seconds"(123));
     assert(secondDigitsToDurationSafe("abc", Duration.zero) == Duration.zero);
     assert(secondDigitsToDurationSafe("", Duration.max) == Duration.zero);
@@ -451,7 +464,7 @@ unittest // toStringSafe
     {
         return 0xFFFFFF;
     }
-    
+
     assert(toStringSafe(char('\0'), failedConvertedString) is null);
     assert(toStringSafe(wchar('\0'), failedConvertedString) is null);
     assert(toStringSafe(dchar('\0'), failedConvertedString) is null);

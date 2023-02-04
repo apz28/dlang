@@ -536,7 +536,7 @@ enum FbIsc
 
 enum FbIscDefault
 {
-	defaultDialect = 3,
+	dialect = 3,
 	gmt_zone = 65_535,
 }
 
@@ -550,7 +550,10 @@ enum FbIscSize
      */
 	blobSizeInfoBufferLength = 100,
     executePlanBufferLength = 32 * 1_000,
-    maxBatchBufferLength = 1_000 * 1_000, // max 256 * 1024 * 1024
+    maxBatchBufferLength = 16 * 1_000 * 1_000, // max 256 * 1024 * 1024
+    maxCharsLength = 32_767, // char[]
+    maxPackageLength = 32_767,
+    maxVarCharsLength = maxCharsLength - 2, // varchar[] - '-2' for size place holder
 	parameterBufferLength = 16 * 1_000,
 	prepareInfoBufferLength = 32 * 1_000,
 	rowsEffectedBufferLength = 100,
@@ -572,12 +575,21 @@ enum FbIscResultCode
 
 enum FbIscText
 {
-	isc_info_db_class_classic_text = "CLASSIC SERVER",
-	isc_info_db_class_server_text = "SUPER SERVER",
+    authLegacyName = "Legacy_Auth",
+    authSrp1Name = "Srp",
+    authSrp256Name = "Srp256",
+    authSrp384Name = "Srp384",
+    authSrp512Name = "Srp512",
+    authSspiName = "Win_Sspi",
 
-    isc_filter_chacha_name = "ChaCha",
-	isc_filter_arc4_name = "Arc4",
-	isc_filter_zip_name = "zlib"
+	infoDbClassClassicText = "CLASSIC SERVER",
+	infoDbClassServerText = "SUPER SERVER",
+
+	filterCompressZipName = "zlib",
+    filterCryptChachaName = "ChaCha",
+    filterCryptChacha64Name = "ChaCha64",
+	filterCryptArc4Name = "Arc4",
+    filterCryptDefault = filterCryptArc4Name,
 }
 
 // BLR Type Codes
@@ -640,7 +652,7 @@ enum FbIscType
 	sql_null = 32_766
 }
 
-enum FbIscBatch
+enum FbIscBatchType
 {
 	version1 = 1,
     version_ = version1,
@@ -657,4 +669,12 @@ enum FbIscBatch
 	blob_stream = 3,
 
 	blob_seghdr_align = 2,
+}
+
+enum FbIscServerKeyType
+{
+    tag_key_type = 0,
+    tag_key_plugins = 1,
+    tag_known_plugins = 2,
+    tag_plugin_specific = 3,
 }

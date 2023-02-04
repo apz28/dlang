@@ -40,7 +40,7 @@ public:
      *  serverAuthData = is server salt
      */
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
@@ -52,7 +52,7 @@ public:
         auto result = new char[3 + 32];
         result[0..3] = "md5";
         result[3..$] = MD5toHex(md5Password, serverAuthData);
-        authData = CipherBuffer(result.representation());
+        authData = CipherBuffer!ubyte(result.representation());
         return ResultStatus.ok();
     }
 
@@ -97,7 +97,7 @@ unittest // PgAuthMD5
 
     auto salt = bytesFromHexs("9F170CAC");
     auto auth = new PgAuthMD5();
-    CipherBuffer encp;
+    CipherBuffer!ubyte encp;
     assert(auth.getAuthData(0, "postgres", "masterkey", salt, encp).isOK);
     assert(encp == "md549f0896152ed83ec298a6c09b270be02".representation(), encp.toString());
 }

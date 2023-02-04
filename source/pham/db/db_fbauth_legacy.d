@@ -19,7 +19,7 @@ import pham.db.auth;
 import pham.db.message;
 import pham.db.type : DbScheme;
 import pham.db.fbauth;
-import pham.db.fbtype : fbAuthLegacyName;
+import pham.db.fbisc : FbIscText;
 
 nothrow @safe:
 
@@ -29,7 +29,7 @@ nothrow @safe:
 
 public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
@@ -55,7 +55,7 @@ public:
 
     @property final override string name() const pure
     {
-        return fbAuthLegacyName;
+        return FbIscText.authLegacyName;
     }
 
 private:
@@ -70,7 +70,7 @@ private:
 
 shared static this()
 {
-    DbAuth.registerAuthMap(DbAuthMap(fbAuthLegacyName, DbScheme.fb, &createAuthLegacy));
+    DbAuth.registerAuthMap(DbAuthMap(FbIscText.authLegacyName, DbScheme.fb, &createAuthLegacy));
 }
 
 DbAuth createAuthLegacy()

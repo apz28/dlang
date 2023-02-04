@@ -14,7 +14,7 @@ module pham.db.auth;
 import std.conv : to;
 
 version (unittest) import pham.utl.test;
-public import pham.cp.cipher : CipherBuffer;
+public import pham.cp.cipher : CipherBuffer, CipherRawKey;
 import pham.utl.disposable : DisposingReason;
 import pham.utl.object : VersionString;
 public import pham.utl.result : ResultStatus;
@@ -30,7 +30,7 @@ abstract class DbAuth : DbDisposableObject
 
 public:
     ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData) nothrow;
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData) nothrow;
 
     static string getErrorMessage(ResultStatus errorStatus, scope const(char)[] authName) pure
     {
@@ -39,12 +39,16 @@ public:
             : errorStatus.errorMessage;
     }
 
+    CipherRawKey!ubyte sessionKey() nothrow
+    {
+        return CipherRawKey!ubyte.init;
+    }
+
     DbAuth setServerPublicKey(scope const(ubyte)[] serverPublicKey) nothrow pure
     {
         version (TraceFunction) traceFunction!("pham.db.database")("serverPublicKey=", serverPublicKey.dgToHex());
 
-        this._serverPublicKey[] = 0; // Clear previous value for security reason
-        this._serverPublicKey = serverPublicKey.dup;
+        this._serverPublicKey = serverPublicKey; 
         return this;
     }
 
@@ -52,8 +56,7 @@ public:
     {
         version (TraceFunction) traceFunction!("pham.db.database")("serverSalt=", serverSalt.dgToHex());
 
-        this._serverSalt[] = 0; // Clear previous value for security reason
-        this._serverSalt = serverSalt.dup;
+        this._serverSalt = serverSalt;
         return this;
     }
 
@@ -71,31 +74,26 @@ public:
 
     @property string name() const nothrow pure;
 
-    @property const(ubyte)[] privateKey() const nothrow
+    @property const(CipherRawKey!ubyte) privateKey() const nothrow
     {
-        return null;
+        return CipherRawKey!ubyte([]);
     }
 
-    @property const(ubyte)[] publicKey() const nothrow
+    @property const(CipherRawKey!ubyte) publicKey() const nothrow
     {
-        return null;
+        return CipherRawKey!ubyte([]);
     }
 
     @property DbScheme scheme() const nothrow pure;
 
-    @property final const(ubyte)[] serverPublicKey() const nothrow pure
+    @property final const(CipherRawKey!ubyte) serverPublicKey() const nothrow pure
     {
         return _serverPublicKey;
     }
 
-    @property final const(ubyte)[] serverSalt() const nothrow pure
+    @property final const(CipherRawKey!ubyte) serverSalt() const nothrow pure
     {
         return _serverSalt;
-    }
-
-    @property const(ubyte)[] sessionKey() const nothrow
-    {
-        return null;
     }
 
     @property string sessionKeyName() const nothrow pure
@@ -146,10 +144,8 @@ protected:
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        _serverPublicKey[] = 0;
-        _serverPublicKey = null;
-        _serverSalt[] = 0;
-        _serverSalt = null;
+        _serverPublicKey.dispose(disposingReason);
+        _serverSalt.dispose(disposingReason);
         _nextState = 0;
     }
 
@@ -158,8 +154,8 @@ public:
     bool isSSLConnection;
 
 protected:
-    ubyte[] _serverPublicKey;
-    ubyte[] _serverSalt;
+    CipherRawKey!ubyte _serverPublicKey;
+    CipherRawKey!ubyte _serverSalt;
     int _nextState;
 
 private:

@@ -867,7 +867,10 @@ protected:
 
         if (notifyMessage)
         {
-            try { notifyMessage(this, notificationMessages); } catch(Exception) {}
+            // Special try construct for grep
+            try {
+                notifyMessage(this, notificationMessages);
+            } catch(Exception) {}
         }
     }
 
@@ -1529,7 +1532,10 @@ protected:
 
         if (notifyMessage)
         {
-            try { notifyMessage(this, notificationMessages); } catch(Exception) {}
+            // Special try construct for grep
+            try {
+                notifyMessage(this, notificationMessages);
+            } catch(Exception) {}
         }
         notificationMessages.length = 0;
     }

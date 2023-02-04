@@ -29,7 +29,7 @@ nothrow @safe:
 
 public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
@@ -37,7 +37,7 @@ public:
         if (status.isError)
             return status;
 
-        authData = CipherBuffer(userPassword.representation());
+        authData = CipherBuffer!ubyte(userPassword.representation());
         return ResultStatus.ok();
     }
 

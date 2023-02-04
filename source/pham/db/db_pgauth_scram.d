@@ -41,7 +41,7 @@ public:
     }
 
     final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         version (TraceFunction) traceFunction!("pham.db.pgdatabase")("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
@@ -53,7 +53,7 @@ public:
     }
 
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
@@ -72,16 +72,16 @@ public:
         {
             if (!verifyServerSignature(serverAuthData))
                 return ResultStatus.error(state + 1, null, DbMessage.eInvalidConnectionAuthVerificationFailed);
-            authData = CipherBuffer.init;
+            authData = CipherBuffer!ubyte.init;
             return ResultStatus.ok();
         }
         else
             assert(0);
     }
 
-    final CipherBuffer initialRequest() const pure scope
+    final CipherBuffer!ubyte initialRequest() const pure scope
     {
-        return CipherBuffer((_cbindFlag ~ ",,n=,r=" ~ _nonce).representation());
+        return CipherBuffer!ubyte((_cbindFlag ~ ",,n=,r=" ~ _nonce).representation());
     }
 
     final typeof(this) reset()
@@ -123,7 +123,7 @@ public:
     }
 
 protected:
-    final CipherBuffer calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
+    final CipherBuffer!ubyte calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
         const ref PgOIdScramSHA256FirstMessage firstMessage)
     {
         version (TraceFunction) traceFunction!("pham.db.pgdatabase")("userName=", userName);
@@ -162,7 +162,7 @@ protected:
             .digest(clientFinalMessageWithoutProof.representation())
             .finish(_serverSignature);
 
-        auto result = CipherBuffer((clientFinalMessageWithoutProof ~ ",p=" ~ clientProof).representation());
+        auto result = CipherBuffer!ubyte((clientFinalMessageWithoutProof ~ ",p=" ~ clientProof).representation());
 
         version (TraceFunction)
         traceFunction!("pham.db.pgdatabase")("clientKey=", clientKey[].dgToHex(),

@@ -40,18 +40,18 @@ public:
         this._remotePrincipal = remotePrincipal;
     }
 
-    final ResultStatus calculateAuth(scope const(char)[] userName, scope const(char)[] userPassword, ref CipherBuffer authData)
+    final ResultStatus calculateAuth(scope const(char)[] userName, scope const(char)[] userPassword, ref CipherBuffer!ubyte authData)
     {
         ubyte[] result;
         RequestSecResult errorStatus;
         if (!_secClient.init(secPackage, remotePrincipal, errorStatus, result))
             return ResultStatus.error(errorStatus.status, errorStatus.message, DbMessage.eInvalidConnectionAuthClientData);
-        authData = CipherBuffer(result);
+        authData = CipherBuffer!ubyte(result);
         return ResultStatus.ok();
     }
 
     final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         version (TraceFunction) traceFunction!("pham.db.mydatabase")("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
@@ -59,12 +59,12 @@ public:
         RequestSecResult errorStatus;
         if (!_secClient.authenticate(remotePrincipal, serverAuthData, errorStatus, result))
             return ResultStatus.error(errorStatus.status, errorStatus.message, DbMessage.eInvalidConnectionAuthServerData);
-        authData = CipherBuffer(result);
+        authData = CipherBuffer!ubyte(result);
         return ResultStatus.ok();
     }
 
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         version (TraceFunction) traceFunction!("pham.db.mydatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 

@@ -42,8 +42,8 @@ struct MyConnectingStateInfo
 nothrow @safe:
 
     MyAuth auth;
-    CipherBuffer authData;
-    CipherBuffer serverAuthData;
+    CipherBuffer!ubyte authData;
+    CipherBuffer!ubyte serverAuthData;
     string authMethod;
     string serverVersion;
     uint32 connectionFlags;

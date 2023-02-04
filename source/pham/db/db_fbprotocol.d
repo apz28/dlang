@@ -72,8 +72,8 @@ DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
     if (data.length <= 2)
         return result;
 
-    const endPos = data.length - 2;
     size_t pos = 0;
+    const endPos = data.length - 2;
 
     void parseRecordValues()
     {
@@ -135,11 +135,12 @@ struct FbConnectingStateInfo
 nothrow @safe:
 
     FbAuth auth;
-    CipherBuffer authData;
+    CipherBuffer!ubyte authData;
     const(char)[] authMethod;
-    CipherBuffer serverAuthData;
-    CipherBuffer serverAuthKey;
+    CipherBuffer!ubyte serverAuthData;
+    CipherBuffer!ubyte serverAuthKey;
     const(char)[] serverAuthMethod;
+    FbIscServerKey[] serverAuthKeys;
     int32 serverAcceptType;
     int32 serverArchitecture;
     int32 serverVersion;
@@ -492,6 +493,7 @@ public:
                 stateInfo.serverAuthKey = adResponse.authKey;
                 stateInfo.serverAuthData = adResponse.authData;
                 stateInfo.serverAuthMethod = adResponse.authName;
+                stateInfo.serverAuthKeys = FbIscServerKey.parse(adResponse.authKey);
                 this._serverVersion = stateInfo.serverVersion;
                 connection.serverInfo[DbServerIdentifier.protocolAcceptType] = to!string(stateInfo.serverAcceptType);
                 connection.serverInfo[DbServerIdentifier.protocolArchitect] = to!string(stateInfo.serverArchitecture);
@@ -506,7 +508,8 @@ public:
                     }
 
                     auto useCSB = connection.fbConnectionStringBuilder;
-                    auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword, stateInfo.serverAuthData[], stateInfo.authData);
+                    auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName,
+                        useCSB.userPassword, stateInfo.serverAuthData[], stateInfo.authData);
                     if (status.isError)
                     {
                         auto msg = stateInfo.auth.getErrorMessage(status, stateInfo.authMethod);
@@ -593,13 +596,13 @@ public:
         auto pWriterBlr = FbBlrWriter(connection);
         auto pPrmBlr = describeBlrParameters(pWriterBlr, inputParameters);
 
-        auto batchWriter = FbBatchWriter(connection, FbIscBatch.version_);
+        auto batchWriter = FbBatchWriter(connection, FbIscBatchType.version_);
         batchWriter.writeVersion();
 		if (commandBatch.fbCommand.canReturnRecordsAffected())
-			batchWriter.writeInt32(FbIscBatch.tag_record_counts, 1);
+			batchWriter.writeInt32(FbIscBatchType.tag_record_counts, 1);
 		if (commandBatch.multiErrors)
-			batchWriter.writeInt32(FbIscBatch.tag_multierror, 1);
-		batchWriter.writeInt32(FbIscBatch.tag_buffer_bytes_size, commandBatch.maxBatchBufferLength);
+			batchWriter.writeInt32(FbIscBatchType.tag_multierror, 1);
+		batchWriter.writeInt32(FbIscBatchType.tag_buffer_bytes_size, commandBatch.maxBatchBufferLength);
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("maxBatchBufferLength=", commandBatch.maxBatchBufferLength, ", data=", batchWriter.peekBytes().dgToHex());
 
 		writer.writeOperation(FbIsc.op_batch_create);
@@ -1303,17 +1306,24 @@ protected:
                 auto r = readGenericResponseImpl(reader);
                 r.statues.getWarn(connection.notificationMessages);
                 stateInfo.serverAuthKey = r.data;
+                stateInfo.serverAuthKeys = FbIscServerKey.parse(r.data);
                 break;
 
             case FbIsc.op_trusted_auth:
                 auto tResponse = readTrustedAuthResponseImpl(reader);
-                stateInfo.serverAuthKey = tResponse.data;
+                version (all)
+                if (tResponse.data.length)
+                {
+                    stateInfo.serverAuthKey = tResponse.data;
+                    stateInfo.serverAuthKeys = FbIscServerKey.parse(tResponse.data);
+                }
                 break;
 
             case FbIsc.op_cont_auth:
                 auto cResponse = readCondAuthResponseImpl(reader);
-                stateInfo.serverAuthKey = cResponse.key;
                 stateInfo.serverAuthMethod = cResponse.name;
+                stateInfo.serverAuthKey = cResponse.key;
+                stateInfo.serverAuthKeys = FbIscServerKey.parse(cResponse.key);
                 if (stateInfo.serverAuthMethod.length != 0)
                 {
                     if (stateInfo.serverAuthMethod != stateInfo.authMethod)
@@ -1323,7 +1333,8 @@ protected:
                         stateInfo.auth = createAuth(stateInfo.authMethod);
                     }
                     auto useCSB = connection.fbConnectionStringBuilder;
-                    auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword, cResponse.data, stateInfo.authData);
+                    auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName,
+                        useCSB.userPassword, cResponse.data, stateInfo.authData);
                     if (status.isError)
                     {
                         auto msg = stateInfo.auth.getErrorMessage(status, stateInfo.authMethod);
@@ -1390,21 +1401,45 @@ protected:
 
     final void cryptSetupBufferFilter(ref FbConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("sessionKey=", stateInfo.auth.sessionKey().dgToHex());
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
-        auto privateKey = CipherKey(0, stateInfo.auth.sessionKey());
-		auto encryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.write)(privateKey);
-		auto decryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.read)(privateKey);
-		connection.chainBufferFilters(decryptor, encryptor);
+        auto useCSB = connection.fbConnectionStringBuilder;
+        auto cryptAlgorithm = useCSB.cryptAlgorithm;
+        auto key = createCryptKey(cryptAlgorithm, stateInfo.auth.sessionKey(), stateInfo.serverAuthKeys);
+
+        switch (cryptAlgorithm)
+        {
+            case FbIscText.filterCryptChachaName:
+                auto encryptor = new DbBufferFilterCipherChaCha!(DbBufferFilterKind.write)(key);
+                auto decryptor = new DbBufferFilterCipherChaCha!(DbBufferFilterKind.read)(key);
+                connection.chainBufferFilters(decryptor, encryptor);
+                break;
+
+            case FbIscText.filterCryptChacha64Name:
+                auto encryptor = new DbBufferFilterCipherChaCha!(DbBufferFilterKind.write)(key);
+                auto decryptor = new DbBufferFilterCipherChaCha!(DbBufferFilterKind.read)(key);
+                connection.chainBufferFilters(decryptor, encryptor);
+                break;
+
+            //case FbIscText.filterCryptArc4Name:
+            default:
+                auto encryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.write)(key);
+                auto decryptor = new DbBufferFilterCipherRC4!(DbBufferFilterKind.read)(key);
+                connection.chainBufferFilters(decryptor, encryptor);
+                break;
+        }
     }
 
     final void cryptWrite(ref FbConnectingStateInfo stateInfo)
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
 
+        auto useCSB = connection.fbConnectionStringBuilder;
+        auto cryptAlgorithm = useCSB.cryptAlgorithm;
+
         auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_crypt);
-		writer.writeChars(FbIscText.isc_filter_arc4_name);
+		writer.writeChars(cryptAlgorithm);
         writer.writeChars(stateInfo.auth.sessionKeyName);
         writer.flush();
     }
@@ -1716,6 +1751,11 @@ protected:
                 : FbIsc.isc_tpb_lock_write;
         }
 
+        if (transaction.transactionItems.length == 0)
+            describeTransactionItems(writer, transaction);
+        else
+            writer.writeOpaqueBytes(transaction.transactionItems);
+
         if (transaction.lockedTables.length)
         {
             foreach (ref lockedTable; transaction.lockedTables)
@@ -1723,14 +1763,12 @@ protected:
                 writer.writeChars(lockTableReadOrWrite(lockedTable), lockedTable.tableName);
                 writer.writeOpaqueUInt8(lockTableBehavior(lockedTable));
             }
-
-            return transaction.transactionItems ~ writer.peekBytes();
         }
-        else
-            return transaction.transactionItems;
+
+        return writer.peekBytes();
     }
 
-    public static ubyte[] describeTransactionItems(return ref FbTransactionWriter writer, FbTransaction transaction) nothrow
+    public static void describeTransactionItems(return ref FbTransactionWriter writer, FbTransaction transaction) nothrow
     {
         void isolationLevel(out ubyte isolationMode, out ubyte versionMode, out ubyte waitMode) nothrow @safe
         {
@@ -1789,8 +1827,6 @@ protected:
             writer.writeInt32(FbIsc.isc_tpb_lock_timeout, transaction.lockTimeout.limitRangeTimeoutAsSecond);
         if (transaction.autoCommit)
             writer.writeOpaqueUInt8(FbIsc.isc_tpb_autocommit);
-
-        return writer.peekBytes();
     }
 
     final ubyte[] describeUserIdentification(return ref FbConnectionWriter writer, ref FbConnectingStateInfo stateInfo)
@@ -1960,6 +1996,8 @@ protected:
         auto authenticated = reader.readInt32();
         auto authKey = reader.readBytes();
 
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("authenticated=", authenticated, ", authData=", authData.dgToHex(), ", authKey=", authKey.dgToHex(), ", authName=", authName);
+
         return FbIscAcceptDataResponse(version_, architecture, acceptType, authData, authName, authenticated, authKey);
     }
 
@@ -2017,6 +2055,9 @@ protected:
         auto rName = reader.readString();
         auto rList = reader.readBytes();
         auto rKey = reader.readBytes();
+
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("rName=", rName, ", rData=", rData.dgToHex(), ", rKey=", rKey.dgToHex(), ", rList=", rList.dgToHex());
+
         return FbIscCondAuthResponse(rData, rName, rList, rKey);
     }
 
@@ -2063,6 +2104,9 @@ protected:
 
         auto rData = reader.readBytes();
         auto rSize = serverVersion > FbIsc.protocol_version13 ? reader.readInt32() : int32.min; // Use min to indicate not used - zero may be false positive
+
+        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("rSize=", rSize, ", rData=", rData.dgToHex());
+
         return FbIscCryptKeyCallbackResponse(rData, rSize);
     }
 

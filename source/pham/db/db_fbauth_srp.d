@@ -25,7 +25,7 @@ import pham.db.auth;
 import pham.db.message;
 import pham.db.type : DbScheme;
 import pham.db.fbauth;
-import pham.db.fbtype : fbAuthSrp1Name, fbAuthSrp256Name, fbAuthSrp384Name, fbAuthSrp512Name;
+import pham.db.fbisc : FbIscText;
 
 nothrow @safe:
 
@@ -53,7 +53,7 @@ public:
     }
 
     final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
@@ -68,12 +68,12 @@ public:
 
         _premasterKey = _authClient.calculatePremasterKey(normalizedUserName, userPassword, serverSalt, serverPublicKeyInt);
         _proof = calculateProof(normalizedUserName, userPassword, serverSalt, serverPublicKeyInt);
-        authData = CipherBuffer(bytesToHexs(_proof).representation());
+        authData = CipherBuffer!ubyte(bytesToHexs(_proof).representation());
         return ResultStatus.ok();
     }
 
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         version (TraceFunction) traceFunction!("pham.db.fbdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
@@ -83,7 +83,7 @@ public:
 
         if (state == 0)
         {
-            authData = CipherBuffer(publicKey());
+            authData = CipherBuffer!ubyte(publicKey());
             return ResultStatus.ok();
         }
         else if (state == 1)
@@ -97,6 +97,11 @@ public:
         maxSaltLength = saltLength * 2;
         // ((saltLength + 1) * 2) + ((keyLength + 1) * 2)
         return (saltLength + keyLength + 2) * 2;  //+2 for leading size data
+    }
+    
+    final override CipherRawKey!ubyte sessionKey()
+    {
+        return _authClient.digest(_premasterKey);
     }
 
     @property final override bool canCryptedConnection() const pure
@@ -114,24 +119,19 @@ public:
         return 2; // No verification
     }
 
-    @property final override const(ubyte)[] privateKey() const
+    @property final override const(CipherRawKey!ubyte) privateKey() const
     {
-        return _authClient.ephemeralPrivateKey();
+        return CipherRawKey!ubyte(_authClient.ephemeralPrivateKey().representation());
     }
 
-    @property final override const(ubyte)[] publicKey() const
+    @property final override const(CipherRawKey!ubyte) publicKey() const
     {
-        return _authClient.ephemeralPublicKey();
+        return CipherRawKey!ubyte(_authClient.ephemeralPublicKey().representation());
     }
 
     @property final BigInteger serverPublicKeyAsBigInteger() const pure
     {
         return CipherKey.hexDigitsToBigInteger(serverPublicKey);
-    }
-
-    @property final override const(ubyte)[] sessionKey() const
-    {
-        return _sessionKey;
     }
 
     @property final override string sessionKeyName() const pure
@@ -155,21 +155,20 @@ protected:
         auto proofHasher = parameters.proofHasher;
 
         auto K = _authClient.digest(_premasterKey);
-		auto n1 = bytesToBigInteger(_authClient.digest(_authClient.N));
-		auto n2 = bytesToBigInteger(_authClient.digest(_authClient.g));
+		auto n1 = Auth.bytesToBigInteger(_authClient.digest(_authClient.N));
+		auto n2 = Auth.bytesToBigInteger(_authClient.digest(_authClient.g));
 		n1 = modPow(n1, n2, _authClient.N);
-		n2 = bytesToBigInteger(_authClient.digest(userName));
+		n2 = Auth.bytesToBigInteger(_authClient.digest(userName));
 
         DigestResult hashTemp = void;
         auto M = proofHasher.begin()
-            .digest(bytesFromBigInteger(n1))
-            .digest(bytesFromBigInteger(n2))
+            .digest(Auth.bytesFromBigInteger(n1))
+            .digest(Auth.bytesFromBigInteger(n2))
             .digest(salt)
-            .digest(bytesFromBigInteger(_authClient.ephemeralPublic))
-            .digest(bytesFromBigInteger(serverPublicKey))
+            .digest(Auth.bytesFromBigInteger(_authClient.ephemeralPublic))
+            .digest(Auth.bytesFromBigInteger(serverPublicKey))
             .digest(K)
             .finish(hashTemp).dup;
-        _sessionKey = K;
 
         version (TraceFunction)
         {
@@ -197,10 +196,7 @@ protected:
                 _authClient = null;
         }
         _premasterKey.dispose(disposingReason);
-        _proof[] = 0;
-        _proof = null;
-        _sessionKey[] = 0;
-        _sessionKey = null;
+        _proof.dispose(disposingReason);
         super.doDispose(disposingReason);
     }
 
@@ -212,8 +208,7 @@ private:
 
     AuthClient _authClient;
     BigInteger _premasterKey;
-    ubyte[] _proof;
-    ubyte[] _sessionKey;
+    CipherRawKey!ubyte _proof;
 }
 
 class FbAuthSrpSHA1 : FbAuthSrp
@@ -228,7 +223,7 @@ public:
 
     @property final override string name() const pure
     {
-        return fbAuthSrp1Name;
+        return FbIscText.authSrp1Name;
     }
 
 protected:
@@ -251,7 +246,7 @@ public:
 
     @property final override string name() const pure
     {
-        return fbAuthSrp256Name;
+        return FbIscText.authSrp256Name;
     }
 
 protected:
@@ -274,7 +269,7 @@ public:
 
     @property final override string name() const pure
     {
-        return fbAuthSrp384Name;
+        return FbIscText.authSrp384Name;
     }
 
 protected:
@@ -297,7 +292,7 @@ public:
 
     @property final override string name() const pure
     {
-        return fbAuthSrp512Name;
+        return FbIscText.authSrp512Name;
     }
 
 protected:
@@ -314,10 +309,10 @@ private:
 
 shared static this()
 {
-    DbAuth.registerAuthMap(DbAuthMap(fbAuthSrp1Name, DbScheme.fb, &createAuthSrpSHA1));
-    DbAuth.registerAuthMap(DbAuthMap(fbAuthSrp256Name, DbScheme.fb, &createAuthSrpSHA256));
-    DbAuth.registerAuthMap(DbAuthMap(fbAuthSrp384Name, DbScheme.fb, &createAuthSrpSHA384));
-    DbAuth.registerAuthMap(DbAuthMap(fbAuthSrp512Name, DbScheme.fb, &createAuthSrpSHA512));
+    DbAuth.registerAuthMap(DbAuthMap(FbIscText.authSrp1Name, DbScheme.fb, &createAuthSrpSHA1));
+    DbAuth.registerAuthMap(DbAuthMap(FbIscText.authSrp256Name, DbScheme.fb, &createAuthSrpSHA256));
+    DbAuth.registerAuthMap(DbAuthMap(FbIscText.authSrp384Name, DbScheme.fb, &createAuthSrpSHA384));
+    DbAuth.registerAuthMap(DbAuthMap(FbIscText.authSrp512Name, DbScheme.fb, &createAuthSrpSHA512));
 }
 
 DbAuth createAuthSrpSHA1()
@@ -385,7 +380,7 @@ version (unittest)
         auto privateKey = CipherKey.digitsToBigInteger(digitPrivateKey);
         auto serverAuthData = bytesFromHexs(serverHexAuthData);
         auto client = new FbAuthSrpSHA1(privateKey);
-        CipherBuffer proof;
+        CipherBuffer!ubyte proof;
         assert(client.calculateProof(testUserName, testUserPassword, serverAuthData, proof).isOK);
         assert(client._authClient.ephemeralPublic.toString() == digitExpectedPublicKey,
             "digitExpectedPublicKey(" ~ to!string(line) ~ "): " ~ client._authClient.ephemeralPublic.toString() ~ " ? " ~ digitExpectedPublicKey);

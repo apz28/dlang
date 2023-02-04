@@ -51,7 +51,7 @@ public:
     }
 
     final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         version (TraceFunction) traceFunction!("pham.db.mydatabase")("_nextState=", _nextState, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
@@ -73,12 +73,12 @@ public:
 
         enum padding = false;
         auto result = withoutProof ~ ",p=" ~ CipherHelper.base64Encode!padding(ckey[]);
-        authData = CipherBuffer(result.representation());
+        authData = CipherBuffer!ubyte(result.representation());
         return ResultStatus.ok();
     }
 
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer authData)
+        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         version (TraceFunction) traceFunction!("pham.db.mydatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
@@ -95,14 +95,14 @@ public:
             return calculateProof(userName, userPassword, serverAuthData, authData);
         else if (state == 2)
         {
-            authData = CipherBuffer.init;
+            authData = CipherBuffer!ubyte.init;
             return isValidSignature(serverAuthData);
         }
         else
             assert(0);
     }
 
-    final CipherBuffer getInitial(scope const(char)[] userName, scope const(char)[] userPassword)
+    final CipherBuffer!ubyte getInitial(scope const(char)[] userName, scope const(char)[] userPassword)
     {
         if (this.cnonce.length == 0)
         {
@@ -111,29 +111,29 @@ public:
             this.cnonce = generator.nextAlphaNumCharacters(buffer, 32)[].dup;
         }
         this.client = "n=" ~ normalize(userName) ~ ",r=" ~ this.cnonce;
-        return CipherBuffer(("n,a=" ~ normalize(userName) ~ "," ~ this.client).representation());
+        return CipherBuffer!ubyte(("n,a=" ~ normalize(userName) ~ "," ~ this.client).representation());
     }
 
     final ResultStatus isValidSignature(scope const(ubyte)[] serverAuthData)
     {
-    try {
-        const scope response = cast(const(char)[])serverAuthData;
+        try {
+            const scope response = cast(const(char)[])serverAuthData;
 
-        if (!response.startsWith("v="))
-            return ResultStatus.error(2, "challenge did not start with a signature", DbMessage.eInvalidConnectionAuthServerData);
+            if (!response.startsWith("v="))
+                return ResultStatus.error(2, "challenge did not start with a signature", DbMessage.eInvalidConnectionAuthServerData);
 
-        enum padding = false;
-        const signature = CipherHelper.base64Decode!padding(response[2..$]);
-        const skey = hmacOf(this.salted, "Server Key".representation());
-        const calculated = hmacOf(skey[], this.auth);
+            enum padding = false;
+            const signature = CipherHelper.base64Decode!padding(response[2..$]);
+            const skey = hmacOf(this.salted, "Server Key".representation());
+            const calculated = hmacOf(skey[], this.auth);
 
-        if (signature.length != calculated.length)
-            return ResultStatus.error(3, "challenge contained a signature with an invalid length", DbMessage.eInvalidConnectionAuthServerData);
-        if (signature != calculated[])
-            return ResultStatus.error(3, "challenge contained an invalid signature", DbMessage.eInvalidConnectionAuthServerData);
+            if (signature.length != calculated.length)
+                return ResultStatus.error(3, "challenge contained a signature with an invalid length", DbMessage.eInvalidConnectionAuthServerData);
+            if (signature != calculated[])
+                return ResultStatus.error(3, "challenge contained an invalid signature", DbMessage.eInvalidConnectionAuthServerData);
 
-        return ResultStatus.ok();
-    } catch (Exception) return ResultStatus.error(1, "challenge is not valid", DbMessage.eInvalidConnectionAuthServerData);
+            return ResultStatus.ok();
+        } catch (Exception) return ResultStatus.error(1, "challenge is not valid", DbMessage.eInvalidConnectionAuthServerData);
     }
 
     static string normalize(scope const(char)[] str)

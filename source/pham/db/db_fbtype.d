@@ -20,9 +20,10 @@ version (TraceFunction) import pham.utl.test;
 import pham.utl.array : ShortStringBuffer;
 import pham.utl.enum_set : toName;
 import pham.utl.variant : Algebraic, Variant, VariantType;
-import pham.db.util : toVersionString;
+import pham.db.convert : toStringSafe;
 import pham.db.message;
 import pham.db.type;
+import pham.db.util : toVersionString;
 import pham.db.fbisc;
 import pham.db.fbmessage;
 import pham.db.fbexception;
@@ -34,21 +35,9 @@ alias FbHandle = uint32;
 alias FbOperation = int32;
 
 enum fbDeferredProtocol = true;
+static if (fbDeferredProtocol) enum fbCommandDeferredHandle = FbHandle(0xFFFF_FFFF);
 
-enum fbMaxChars = 32_767;
-enum fbMaxPackageSize = 32_767;
-enum fbMaxVarChars = fbMaxChars - 2; // -2 for size place holder
 enum fbNullIndicator = -1;
-
-static if (fbDeferredProtocol)
-enum fbCommandDeferredHandle = FbHandle(0xFFFF_FFFF);
-
-static immutable string fbAuthLegacyName = "Legacy_Auth";
-static immutable string fbAuthSrp1Name = "Srp";
-static immutable string fbAuthSrp256Name = "Srp256";
-static immutable string fbAuthSrp384Name = "Srp384";
-static immutable string fbAuthSrp512Name = "Srp512";
-static immutable string fbAuthSSPIName = "Win_Sspi";
 
 enum FbIscCommandType : int32
 {
@@ -95,6 +84,7 @@ static immutable string[] fbValidConnectionParameterNames = [
     DbConnectionParameterIdentifier.socketBlocking,
 
     DbConnectionParameterIdentifier.fbCachePage,
+    DbConnectionParameterIdentifier.fbCryptAlgorithm,
     DbConnectionParameterIdentifier.fbCryptKey,
     DbConnectionParameterIdentifier.fbDatabaseTrigger,
     DbConnectionParameterIdentifier.fbDialect,
@@ -1351,8 +1341,8 @@ public:
 			    case FbIsc.isc_info_db_class:
 				    const serverClass = parseInt32!false(payload, pos, len, typ);
                     string serverText = serverClass == FbIsc.isc_info_db_class_classic_access
-					        ? FbIscText.isc_info_db_class_classic_text
-                            : FbIscText.isc_info_db_class_server_text;
+					        ? FbIscText.infoDbClassClassicText
+                            : FbIscText.infoDbClassServerText;
 				    result ~= FbIscInfo(serverText);
 				    break;
 
@@ -1532,6 +1522,100 @@ public:
 private:
     DbHandle _handleStorage;
     DbId _idStorage;
+}
+
+struct FbIscServerPluginKey
+{
+@safe:
+
+    string pluginName;
+    ubyte[] specificData;
+}
+
+struct FbIscServerKey
+{
+@safe:
+
+public:
+    ptrdiff_t indexOf(scope const(char)[] pluginName) const nothrow pure
+    {
+        foreach (i; 0..pluginKeys.length)
+        {
+            if (pluginKeys[i].pluginName == pluginName)
+                return i;
+        }
+        return -1;
+    }
+    
+    static FbIscServerKey[] parse(const(ubyte)[] data)
+    {
+        FbIscServerKey[] result;
+        
+        if (data.length <= 2)
+            return result;
+
+        size_t pos = 0;
+        const endPos = data.length - 2;    
+
+        void parseKeyType() @safe
+        {
+            import pham.utl.array : indexOf;
+            
+			const uint len1 = parseInt32!true(data, pos, 1, FbIscServerKeyType.tag_key_type);
+            auto pluginType = parseString!true(data, pos, len1, FbIscServerKeyType.tag_key_type).idup;
+            if (pos >= endPos)
+                return;
+
+            const typ = data[pos++];
+            if (typ != FbIscServerKeyType.tag_key_plugins)
+                throw new Exception("Unexpected tag type: TODO ");
+
+			const uint len2 = parseInt32!true(data, pos, 1, FbIscServerKeyType.tag_key_plugins);
+            auto pluginNames = parseString!true(data, pos, len2, FbIscServerKeyType.tag_key_plugins).idup;
+
+            FbIscServerPluginKey[] pluginKeys;
+            while (pos < endPos && data[pos] == FbIscServerKeyType.tag_plugin_specific)
+            {
+                pos++;
+                
+                const uint len3 = parseInt32!true(data, pos, 1, FbIscServerKeyType.tag_plugin_specific);
+                auto data = parseBytes(data, pos, len3, FbIscServerKeyType.tag_plugin_specific);
+                const i = data.indexOf(0);                
+                if (i > 0)
+                {
+                    auto pluginName = (cast(const(char)[])data[0..i]).idup;
+                    auto specificData = data[i + 1..$].dup;
+                    pluginKeys ~= FbIscServerPluginKey(pluginName, specificData);
+                }
+            }
+            
+            result ~= FbIscServerKey(pluginType, pluginNames, pluginKeys);
+        }
+
+        while (pos < endPos)
+        {
+            const typ = data[pos++];
+            switch (typ)
+            {
+                case FbIscServerKeyType.tag_key_type:
+                    parseKeyType();
+                    break;
+                //case FbIscServerKeyType.tag_key_plugins:
+                //case FbIscServerKeyType.tag_known_plugins:
+                //case FbIscServerKeyType.tag_plugin_specific:
+                default:
+                    //todo log error
+                    break;
+            }
+        }
+        
+        return result;
+    }
+
+public:
+    string pluginType;
+    string pluginNames;
+    FbIscServerPluginKey[] pluginKeys;
 }
 
 struct FbIscSqlResponse
@@ -1933,6 +2017,25 @@ FbIscCommandType parseCommandType(scope const(ubyte)[] data) pure
 	return FbIscCommandType.none;
 }
 
+const(ubyte)[] parseBytes(const(ubyte)[] data, ref size_t index, uint length, int type) pure
+{
+    parseCheckLength(data, index, length, type);
+    return parseBytesImpl(data, index, length);
+}
+
+pragma(inline, true)
+private const(ubyte)[] parseBytesImpl(const(ubyte)[] data, ref size_t index, uint length) nothrow pure
+{
+    if (length)
+    {
+        auto result = data[index..index + length];
+        index += length;
+        return result;
+    }
+    else
+        return null;
+}
+
 int32 parseInt32(bool Advance)(scope const(ubyte)[] data, size_t index, uint length, int type) pure
 if (Advance == false)
 {
@@ -2007,7 +2110,7 @@ private const(char)[] parseStringImpl(const(ubyte)[] data, ref size_t index, uin
 {
     if (length)
     {
-        const(char)[] result = cast(const(char)[])data[index..index + length];
+        auto result = cast(const(char)[])data[index..index + length];
         index += length;
         return result;
     }
@@ -2029,7 +2132,8 @@ shared static this() nothrow
             DbConnectionParameterIdentifier.userPassword : "masterkey",
             DbConnectionParameterIdentifier.integratedSecurity : toName(DbIntegratedSecurityConnection.srp256),
             DbConnectionParameterIdentifier.fbCachePage : "0", // 0=Not used/set
-            DbConnectionParameterIdentifier.fbDialect : "3",
+            DbConnectionParameterIdentifier.fbCryptAlgorithm : FbIscText.filterCryptDefault,
+            DbConnectionParameterIdentifier.fbDialect : toStringSafe(FbIscDefault.dialect),
             DbConnectionParameterIdentifier.fbDatabaseTrigger : dbBoolTrue,
             DbConnectionParameterIdentifier.fbDummyPacketInterval : "300",  // In seconds, 5 minutes
             DbConnectionParameterIdentifier.fbGarbageCollect : dbBoolTrue,

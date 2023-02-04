@@ -13,14 +13,69 @@ module pham.db.fbauth;
 
 version (TraceFunction) import pham.utl.test;
 import pham.cp.cipher : CipherHelper;
-public import pham.cp.cipher : CipherBuffer, CipherKey;
+public import pham.cp.cipher : CipherBuffer, CipherChaChaKey, CipherKey, CipherSimpleKey;
+public import pham.cp.cipher_buffer : CipherRawKey;
 import pham.utl.array : ShortStringBuffer;
 import pham.utl.utf8 : UTF8CharRange;
 import pham.db.auth;
 import pham.db.message;
 import pham.db.type : DbScheme;
+import pham.db.fbtype : FbIscServerKey;
 
 nothrow @safe:
+
+
+CipherKey createCryptKey(scope const(char)[] cryptAlgorithm, scope const(ubyte)[] sessionKey, scope const(FbIscServerKey)[] serverAuthKeys)
+{
+    import std.system : Endian;
+    import pham.cp.cipher_digest : DigestId, digestOf;
+    import pham.db.convert : uintDecode;
+    import pham.db.type : uint32, uint64;
+    import pham.db.fbisc : FbIscText;    
+
+    const(ubyte)[] findPluginKey(scope const(char)[] pluginName)
+    {
+        foreach (ref p; serverAuthKeys)
+        {
+            const i = p.indexOf(pluginName);
+            if (i >= 0 && p.pluginKeys[i].specificData.length != 0)
+                return p.pluginKeys[i].specificData;
+        }
+        return null;
+    }
+
+    CipherRawKey!ubyte toChaChaKey()
+    {
+        return digestOf!(DigestId.sha256)(sessionKey);
+    }
+
+    switch (cryptAlgorithm)
+    {
+        case FbIscText.filterCryptChachaName:
+            enum withCounter32 = CipherChaChaKey.nonceSizeCounter32 + 4;
+            const serverKey = findPluginKey(cryptAlgorithm);
+            const nonce = serverKey[0..CipherChaChaKey.nonceSizeCounter32];
+            const uint32 counter32 = serverKey.length == withCounter32
+                ? uintDecode!(uint32, Endian.bigEndian)(serverKey[CipherChaChaKey.nonceSizeCounter32..withCounter32])
+                : 0u;
+            const k = toChaChaKey();
+            return CipherKey(CipherChaChaKey(cast(uint)(k.length * 8), k, nonce, counter32));
+
+        case FbIscText.filterCryptChacha64Name:
+            enum withCounter64 = CipherChaChaKey.nonceSizeCounter64 + 8;
+            const serverKey = findPluginKey(cryptAlgorithm);
+            const nonce = serverKey[0..CipherChaChaKey.nonceSizeCounter64];
+            const uint64 counter64 = serverKey.length == withCounter64
+                ? uintDecode!(uint64, Endian.bigEndian)(serverKey[CipherChaChaKey.nonceSizeCounter64..withCounter64])
+                : 0u;
+            const k = toChaChaKey();
+            return CipherKey(CipherChaChaKey(cast(uint)(k.length * 8), k, nonce, counter64));
+
+        //case FbIscText.filterCryptArc4Name:
+        default:
+            return CipherKey(CipherSimpleKey(cast(uint)(sessionKey.length * 8), sessionKey));
+    }
+}
 
 abstract class FbAuth : DbAuth
 {
