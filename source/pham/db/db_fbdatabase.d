@@ -2514,6 +2514,7 @@ unittest // FbConnection.encrypt
         assert(connection.state == DbConnectionState.closed);
     }
 
+    // Encryption connection Arc4
     {
         auto connection = createTestConnection(DbEncryptedConnection.required);
         connection.fbConnectionStringBuilder.cryptAlgorithm = FbIscText.filterCryptArc4Name;
@@ -2528,10 +2529,25 @@ unittest // FbConnection.encrypt
         assert(connection.state == DbConnectionState.closed);
     }
 
-    //version (none) // TODO
+    // Encryption connection chacha
     {
         auto connection = createTestConnection(DbEncryptedConnection.required);
         connection.fbConnectionStringBuilder.cryptAlgorithm = FbIscText.filterCryptChachaName;
+        scope (exit)
+            connection.dispose();
+        assert(connection.state == DbConnectionState.closed);
+
+        connection.open();
+        assert(connection.state == DbConnectionState.opened);
+
+        connection.close();
+        assert(connection.state == DbConnectionState.closed);
+    }
+
+    // Encryption connection chacha64
+    {
+        auto connection = createTestConnection(DbEncryptedConnection.required);
+        connection.fbConnectionStringBuilder.cryptAlgorithm = FbIscText.filterCryptChacha64Name;
         scope (exit)
             connection.dispose();
         assert(connection.state == DbConnectionState.closed);
