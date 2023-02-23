@@ -30,7 +30,7 @@ union Map16Bit
     ushort u; // Make this first to have zero initialized value
     short i;
     ubyte[2] lh;
-    ubyte[ushort.sizeof] a;
+    ubyte[2] a;
 }
 static assert(Map16Bit.sizeof == 2);
 
@@ -40,7 +40,7 @@ union Map32Bit
     int i;
     float f;
     ushort[2] lh;
-    ubyte[uint.sizeof] a;
+    ubyte[4] a;
 }
 static assert(Map32Bit.sizeof == 4);
 
@@ -50,9 +50,16 @@ union Map64Bit
     long i;
     double f;
     uint[2] lh;
-    ubyte[ulong.sizeof] a;
+    ubyte[8] a;
 }
 static assert(Map64Bit.sizeof == 8);
+
+static if (size_t.sizeof == 2)
+    alias MapSizeBit = Map16Bit;
+else static if (size_t.sizeof == 4)
+    alias MapSizeBit = Map32Bit;
+else static if (size_t.sizeof == 8)
+    alias MapSizeBit = Map64Bit;
 
 pragma(inline, true)
 private size_t bitAt(T)(const(size_t) index) @nogc pure
@@ -518,23 +525,23 @@ public:
                 static if (T.sizeof >= 8)
                 {
                 case 7:
-                    _values[i] = (cast(T)(bytes[j + 2]) << 48);
+                    _values[i] |= (cast(T)(bytes[j + 6]) << 48);
                     goto case 6;
                 case 6:
-                    _values[i] = (cast(T)(bytes[j + 2]) << 40);
+                    _values[i] |= (cast(T)(bytes[j + 5]) << 40);
                     goto case 5;
                 case 5:
-                    _values[i] = (cast(T)(bytes[j + 2]) << 32);
+                    _values[i] |= (cast(T)(bytes[j + 4]) << 32);
                     goto case 4;
                 case 4:
-                    _values[i] = (cast(T)(bytes[j + 2]) << 24);
+                    _values[i] |= (cast(T)(bytes[j + 3]) << 24);
                     goto case 3;
                 }
 
                 static if (T.sizeof >= 4)
                 {
                 case 3:
-                    _values[i] = (cast(T)(bytes[j + 2]) << 16);
+                    _values[i] |= (cast(T)(bytes[j + 2]) << 16);
                     goto case 2;
                 case 2:
                     _values[i] |= (cast(T)(bytes[j + 1]) << 8);
@@ -544,6 +551,7 @@ public:
                 case 1:
                     _values[i] |= bytes[j];
                     break;
+
                 default:
                     break;
             }
@@ -1481,6 +1489,7 @@ version (unittest)
 
 nothrow @safe unittest
 {
+    import std.conv : to;
     import pham.utl.test;
     traceUnitTest!("pham.utl")("unittest pham.utl.bit_array.BitArray");
 
