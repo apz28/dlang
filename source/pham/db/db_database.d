@@ -4287,7 +4287,7 @@ public:
      * Params:
      *  savePointName = The name of the save-point to search
      */
-    final int isSavePoint(scope const(char)[] savePointName) const nothrow @safe
+    final ptrdiff_t isSavePoint(scope const(char)[] savePointName) const nothrow @safe
     {
         foreach (i, n; _savePointNames)
         {
@@ -4539,7 +4539,7 @@ protected:
         return isRetaining && isOpenedConnection() && !isDisposing(lastDisposingReason);
     }
 
-    final int checkSavePointName(string savePointName,
+    final ptrdiff_t checkSavePointName(string savePointName,
         string callerName = __FUNCTION__) @safe
     {
         version (TraceFunction) traceFunction!("pham.db.database")("savePointName=", savePointName, ", callerName=", callerName);

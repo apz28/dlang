@@ -550,12 +550,12 @@ public:
         // Build hash-set for faster lookup
         int32[int32] errorIndexes;
         foreach (i, e; errorIndexesData)
-            errorIndexes[e] = i;
+            errorIndexes[e] = cast(int32)i;
 
         int32[int32] errorStatues;
         foreach (i, ref FbIscCommandBatchStatus e; errorStatuesData)
         {
-            errorStatues[e.recIndex] = i;
+            errorStatues[e.recIndex] = cast(int32)i;
         }
 
         // Construct result
