@@ -293,7 +293,7 @@ private:
 unittest // CipherRawKey.isValid
 {
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.cipher_buffer.CipherRawKey.isValid");
+    traceUnitTest("unittest pham.cp.cipher_buffer.CipherRawKey.isValid");
 
     assert(CipherRawKey!ubyte.isValid([9]));
     assert(CipherRawKey!ubyte.isValid([0, 1]));

@@ -596,7 +596,7 @@ public:
 
     static BigInteger digitsToBigInteger(scope const(char)[] validDigits) pure
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         auto parseOptions = defaultParseBigIntegerOptions!char();
         parseOptions.flags |= NumericLexerFlag.skipInnerBlank;
@@ -623,7 +623,7 @@ public:
 
     static BigInteger hexDigitsToBigInteger(scope const(char)[] validHexDigits) pure
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         auto parseOptions = defaultParseBigIntegerOptions!char();
         parseOptions.flags |= NumericLexerFlag.skipInnerBlank
@@ -1138,11 +1138,11 @@ version (none)
 unittest // CipherPrimeCheck.isProbablePrime
 {
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.cipher.CipherPrimeCheck.isProbablePrime");
+    traceUnitTest("unittest pham.cp.cipher.CipherPrimeCheck.isProbablePrime");
 
     static BigInteger toBigInteger(string digits) nothrow @safe
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         return BigInteger(digits);
     }
@@ -1174,9 +1174,9 @@ unittest // CipherHelper.base64Decode & base64Encode
 {
     import std.string : representation;
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.cipher.CipherHelper.base64Decode & base64Encode");
+    traceUnitTest("unittest pham.cp.cipher.CipherHelper.base64Decode & base64Encode");
 
-    scope (failure) assert(0);
+    scope (failure) assert(0, "Assume nothrow failed");
 
     assert(CipherHelper.base64Decode!true("VGhvdSBzaGFsdCBuZXZlciBjb250aW51ZSBhZnRlciBhc3NlcnRpbmcgbnVsbA==") == "Thou shalt never continue after asserting null".representation());
     assert(CipherHelper.base64Encode!true("Thou shalt never continue after asserting null".representation()) == "VGhvdSBzaGFsdCBuZXZlciBjb250aW51ZSBhZnRlciBhc3NlcnRpbmcgbnVsbA==");

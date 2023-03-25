@@ -414,7 +414,7 @@ private:
 unittest // CipherRSA.generateKey
 {
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.auth_rsa.CipherRSA.generateKey");
+    traceUnitTest("unittest pham.cp.auth_rsa.CipherRSA.generateKey");
 
     CipherKey privateKey, publicKey;
     //CipherRSA.generateKey(privateKey, publicKey, 128);

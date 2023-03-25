@@ -139,7 +139,7 @@ private:
 unittest // CipherRC4
 {
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.cipher_rc4.CipherRC4");
+    traceUnitTest("unittest pham.cp.cipher_rc4.CipherRC4");
 
     {
         ubyte[] key = [ 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef ];

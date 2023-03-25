@@ -346,7 +346,7 @@ unittest // CipherChaCha20
 {
 	import std.conv : to;
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.cipher_chacha.CipherChaCha20");
+    traceUnitTest("unittest pham.cp.cipher_chacha.CipherChaCha20");
 
 	static struct TestCase
     {

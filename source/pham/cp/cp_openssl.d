@@ -1520,7 +1520,7 @@ unittest // OpenSSLExt.generateKeyPair
 {
     import std.file : write;
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.openssl.OpenSSLExt.generateKeyPair");
+    traceUnitTest("unittest pham.cp.openssl.OpenSSLExt.generateKeyPair");
 
     if (isOpenSSLIntalled())
     {
@@ -1538,7 +1538,7 @@ unittest // OpenSSLCrypt
 {
     import std.string : representation;
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.openssl.OpenSSLCrypt");
+    traceUnitTest("unittest pham.cp.openssl.OpenSSLCrypt");
 
     if (isOpenSSLIntalled())
     {
@@ -1581,7 +1581,7 @@ unittest // OpenSSLRSACrypt
 {
     import std.string : representation;
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.openssl.OpenSSLRSACrypt");
+    traceUnitTest("unittest pham.cp.openssl.OpenSSLRSACrypt");
 
     if (isOpenSSLIntalled())
     {
@@ -1634,7 +1634,7 @@ unittest // OpenSSLExt.generatePrimNumber
 {
     import std.string : representation;
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.openssl.OpenSSLExt.generatePrimNumber");
+    traceUnitTest("unittest pham.cp.openssl.OpenSSLExt.generatePrimNumber");
 
     if (isOpenSSLIntalled())
     {

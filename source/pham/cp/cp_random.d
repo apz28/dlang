@@ -177,7 +177,7 @@ public:
     }
     do
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
     	const b = bitLength % 8 == 0 ? 8 : bitLength % 8;
         const bs = (bitLength + 7) / 8;
@@ -422,7 +422,7 @@ private:
 unittest // CipherRandomGenerator.nextBigIntegerPrime
 {
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.random.CipherRandomGenerator.nextBigIntegerPrime");
+    traceUnitTest("unittest pham.cp.random.CipherRandomGenerator.nextBigIntegerPrime");
 
     auto perf = PerfTestResult.create();
     BigInteger p;

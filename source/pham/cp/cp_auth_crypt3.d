@@ -438,7 +438,7 @@ struct Crypt3Key
 {
     import std.string : representation;
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.auth_crypt3.crypt3");
+    traceUnitTest("unittest pham.cp.auth_crypt3.crypt3");
 
     auto e = crypt3("test", "PQ");
     assert(e == "PQl1.p7BcJRuM".representation(), "PQl1.p7BcJRuM ? '" ~ cast(const(char)[])(e[]) ~ "'");

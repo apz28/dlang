@@ -605,7 +605,7 @@ unittest // CipherPadding
 {
     import std.traits : EnumMembers;
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.pad.CipherPadding");
+    traceUnitTest("unittest pham.cp.pad.CipherPadding");
 
     ubyte[] data1 = [1, 2, 3, 4, 5, 6, 7];
     ubyte[] data2 = [1, 2, 3, 4, 5, 6, 7, 8];

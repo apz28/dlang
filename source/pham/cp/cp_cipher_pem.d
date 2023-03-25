@@ -349,7 +349,7 @@ private:
 unittest
 {
     import pham.utl.test;
-    traceUnitTest!("pham.cp")("unittest pham.cp.cipher_pem.pemParsePublicKey");
+    traceUnitTest("unittest pham.cp.cipher_pem.pemParsePublicKey");
 
     static immutable string publicPem =
 q"PEM
