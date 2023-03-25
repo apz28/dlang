@@ -131,7 +131,7 @@ abstract `Logger` and implements `beginMsg`, `commitMsg`, `endMsg` and `writeLog
 -------------
 class MyCustomLogger : MemLogger
 {
-    final override void writeLog(ref Logger.LogEntry payload) nothrow @safe
+    protected final override void writeLog(ref Logger.LogEntry payload) nothrow @safe
     {
         // log message in my custom way
     }
@@ -139,27 +139,27 @@ class MyCustomLogger : MemLogger
 
 class MyCustomLogger : Logger
 {
-    this(LoggerOptions options) nothrow @safe
+    public this(LoggerOptions options) nothrow @safe
     {
         super(options);
     }
 
-    final override void beginMsg(ref Logger.LogHeader header) nothrow @safe
+    protected final override void beginMsg(ref Logger.LogHeader header) nothrow @safe
     {
         // log message in my custom way
     }
 
-    final override void commitMsg(scope const(char)[] msg) nothrow @safe
+    protected final override void commitMsg(scope const(char)[] msg) nothrow @safe
     {
         // log message in my custom way
     }
 
-    final override void endMsg() nothrow @safe
+    protected final override void endMsg(ref Logger.LogHeader header) nothrow @safe
     {
         // log message in my custom way
     }
 
-    final override void writeLog(ref Logger.LogEntry payload) nothrow @safe
+    protected final override void writeLog(ref Logger.LogEntry payload) nothrow @safe
     {
         // log message in my custom way
     }
@@ -170,8 +170,8 @@ logger.log("Awesome log message with LogLevel.info");
 -------------
 
 To gain more precise control over the logging process, additionally to
-overriding the `writeLogMsg` method the methods `beginLogMsg`,
-`logMsgPart` and `finishLogMsg` can be overridden.
+overriding the `writeLog` method the methods `beginLog`,
+`commitMsg` and `endMsg` can be overridden.
 
 $(H3 Compile Time Disabling of `Logger`)
 In order to disable logging at compile time, pass `DisableLogger...` as a

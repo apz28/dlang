@@ -49,15 +49,11 @@ public:
      */
     void insertLogger(string name, Logger newLogger) nothrow @safe
     {
-        try
-        {
-            synchronized (mutex)
-            {
-                this.loggerEntries ~= MultiLoggerEntry(name, newLogger);
-            }
-        }
-        catch (Exception)
-        {}
+        // Special try construct for grep
+        try {
+            auto locked = LogRAIIMutex(_mutex);
+            this.loggerEntries ~= MultiLoggerEntry(name, newLogger);
+        } catch (Exception) {}
     }
 
     /**
@@ -75,25 +71,21 @@ public:
         import std.algorithm : remove;
 
         Logger firstRemoved;
-        try
-        {
-            synchronized (mutex)
+        // Special try construct for grep
+        try {
+            auto locked = LogRAIIMutex(_mutex);
+            for (size_t i = 0; i < this.loggerEntries.length; i++)
             {
-                for (size_t i = 0; i < this.loggerEntries.length; i++)
+                if (this.loggerEntries[i].name == toRemove)
                 {
-                    if (this.loggerEntries[i].name == toRemove)
-                    {
-                        if (firstRemoved is null)
-                            firstRemoved = this.loggerEntries[i].logger;
-                        this.loggerEntries = this.loggerEntries.remove(i);
-                        if (!all)
-                            break;
-                    }
+                    if (firstRemoved is null)
+                        firstRemoved = this.loggerEntries[i].logger;
+                    this.loggerEntries = this.loggerEntries.remove(i);
+                    if (!all)
+                        break;
                 }
             }
-        }
-        catch (Exception)
-        {}
+        } catch (Exception) {}
 
         return firstRemoved;
     }
@@ -107,11 +99,11 @@ protected:
         foreach (ref loggerEntry; this.loggerEntries)
         {
             /*
-            We don't perform any checks here to avoid race conditions.
-            Instead the child will check on its own if its log level matches
-            and assume LogLevel.all for the globalLogLevel (since we already
-            know the message passes this test).
-            */
+             * We don't perform any checks here to avoid deadlocked conditions.
+             * Instead the child will check on its own if its log level matches
+             * and assume LogLevel.all for the globalLogLevel (since we already
+             * know the message passes this test).
+             */
             loggerEntry.logger.forwardLog(payload);
         }
     }
@@ -130,8 +122,6 @@ private:
 
 @safe unittest
 {
-import std.exception : assertThrown;
-
     auto a = new MultiLogger;
     auto n0 = new NullLogger();
     auto n1 = new NullLogger();
@@ -167,9 +157,9 @@ import std.exception : assertThrown;
 // Issue #16
 @system unittest
 {
-import std.file : deleteme, remove;
-import std.stdio : File;
-import std.string : indexOf;
+    import std.file : deleteme, remove;
+    import std.stdio : File;
+    import std.string : indexOf;
 
     string logName = deleteme ~ __FUNCTION__ ~ ".log";
     auto logFileOutput = File(logName, "w");
