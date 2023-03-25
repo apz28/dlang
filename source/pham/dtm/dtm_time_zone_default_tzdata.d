@@ -30,14 +30,14 @@ nothrow @safe:
 
 TimeZoneInfo[] getDefaultTimeZoneInfosByTZData(string tzdataText)
 {
-    scope (failure)
-        return null;
-
     if (tzdataText.length == 0)
         return null;
-
-    auto tzDatabase = parseTZData(tzdataText);
-    return toTimeZoneInfo(tzDatabase);
+        
+    // Special try construct for grep
+    try {
+        auto tzDatabase = parseTZData(tzdataText);
+        return toTimeZoneInfo(tzDatabase);
+    } catch (Exception) return null;
 }
 
 pragma(inline, true)
@@ -311,47 +311,52 @@ string removeComment(string line) @nogc pure
 
 ResultIf!DayInfo toDay(string v) pure
 {
-    scope (failure)
-        return ResultIf!DayInfo.error(1);
-
-    ResultIf!int dayOfMonth = ResultIf!int.ok(1);
-    ResultIf!int dayOfWeek = ResultIf!int.ok(notUsedInt);
-    bool advanceDayOfWeek = false;
-
-    if (sameFirst(v, lastDoW))
+    ResultIf!int convDayOfWeek(ResultIf!DayOfWeek v) nothrow pure
     {
-        dayOfMonth = ResultIf!int.ok(notUsedInt);
-        dayOfWeek = toDayOfWeekUS(v[lastDoW.length..$]);
-
-        return dayOfMonth && dayOfWeek
-            ? ResultIf!DayInfo.ok(DayInfo(dayOfMonth, dayOfWeek, advanceDayOfWeek))
-            : ResultIf!DayInfo.error(1);
+        return ResultIf!int(v.value, v.status);
     }
+    
+    // Special try construct for grep
+    try {
+        ResultIf!int dayOfMonth = ResultIf!int.ok(1);
+        ResultIf!int dayOfWeek = ResultIf!int.ok(notUsedInt);
+        bool advanceDayOfWeek = false;
 
-    auto i = countUntil(v, ">=");
-    if (i >= 0)
-    {
-        dayOfMonth = toDayOfMonth(v[i + 2..$]);
-        dayOfWeek = toDayOfWeekUS(v[0..i]);
-        advanceDayOfWeek = true;
-    }
-    else
-    {
-        i = countUntil(v, "<=");
+        if (sameFirst(v, lastDoW))
+        {
+            dayOfMonth = ResultIf!int.ok(notUsedInt);
+            dayOfWeek = convDayOfWeek(toDayOfWeekUS(v[lastDoW.length..$]));
+
+            return dayOfMonth && dayOfWeek
+                ? ResultIf!DayInfo.ok(DayInfo(dayOfMonth, dayOfWeek, advanceDayOfWeek))
+                : ResultIf!DayInfo.error(1, "Invalid day: " ~ v);
+        }
+
+        auto i = countUntil(v, ">=");
         if (i >= 0)
         {
             dayOfMonth = toDayOfMonth(v[i + 2..$]);
-            dayOfWeek = toDayOfWeekUS(v[0..i]);
+            dayOfWeek = convDayOfWeek(toDayOfWeekUS(v[0..i]));
+            advanceDayOfWeek = true;
         }
         else
         {
-            dayOfMonth = toDayOfMonth(v);
+            i = countUntil(v, "<=");
+            if (i >= 0)
+            {
+                dayOfMonth = toDayOfMonth(v[i + 2..$]);
+                dayOfWeek = convDayOfWeek(toDayOfWeekUS(v[0..i]));
+            }
+            else
+            {
+                dayOfMonth = toDayOfMonth(v);
+            }
         }
-    }
 
-    return dayOfMonth && dayOfWeek
-        ? ResultIf!DayInfo.ok(DayInfo(dayOfMonth, dayOfWeek, advanceDayOfWeek))
-        : ResultIf!DayInfo.error(1);
+        return dayOfMonth && dayOfWeek
+            ? ResultIf!DayInfo.ok(DayInfo(dayOfMonth, dayOfWeek, advanceDayOfWeek))
+            : ResultIf!DayInfo.error(1, "Invalid day: " ~ v);
+    } catch (Exception) return ResultIf!DayInfo.error(1, "Invalid day: " ~ v);
 }
 
 ResultIf!int toDayOfMonth(string v) pure
@@ -363,20 +368,20 @@ ResultIf!int toDayOfMonth(string v) pure
             return ResultIf!int.ok(n);
     }
 
-    return ResultIf!int.error(1);
+    return ResultIf!int.error(1, "Invalid day of month: " ~ v);
 }
 
 ResultIf!LinkInfo toLink(string[] elems) @nogc pure
 {
     return elems.length < 3 || elems[1].length == 0 || elems[2].length == 0
-        ? ResultIf!LinkInfo.error(1)
+        ? ResultIf!LinkInfo.error(1, "Invalid datetime link")
         : ResultIf!LinkInfo.ok(LinkInfo(elems[1], elems[2]));
 }
 
 ResultIf!RuleInfo toRule(string[] elems)
 {
     if (elems.length < 9)
-        return ResultIf!RuleInfo.error(1);
+        return ResultIf!RuleInfo.error(1, "Invalid datetime rule");
 
     const name = elems[1];
     const yb = toYearBegin(elems[2]);
@@ -389,7 +394,7 @@ ResultIf!RuleInfo toRule(string[] elems)
 
     return name.length != 0 && yb && ye && m && d && tod && tdelta
         ? ResultIf!RuleInfo.ok(RuleInfo(name, yb, ye, m, d, tod, tdelta, letters))
-        : ResultIf!RuleInfo.error(1);
+        : ResultIf!RuleInfo.error(1, "Invalid datetime rule");
 }
 
 ResultIf!TimeInfo toTime(string v)
@@ -405,7 +410,7 @@ ResultIf!TimeInfo toTime(string v)
         mode = '\0';
 
     if (v.length == 0)
-        return ResultIf!TimeInfo.error(1);
+        return ResultIf!TimeInfo.error(1, "Invalid time: " ~ v);
 
     static DateTimePattern pattern(string patternText) pure
     {
@@ -433,7 +438,7 @@ ResultIf!TimeInfo toTime(string v)
     {
         scope const patterns = [pattern("hh:nn:ss.zzz"), pattern("hh:nn"), pattern("hh")];
         if (tryParse!Time(v, patterns, time) != DateTimeParser.noError)
-            return ResultIf!TimeInfo.error(1);
+            return ResultIf!TimeInfo.error(1, "Invalid time: " ~ v);
         time = time.asKind(DateTimeZoneKind.unspecified);
     }
 
@@ -452,7 +457,7 @@ ResultIf!int toYearBegin(string v) pure
             return ResultIf!int.ok(n);
     }
 
-    return ResultIf!int.error(1);
+    return ResultIf!int.error(1, "Invalid year: " ~ v);
 }
 
 ResultIf!int toYearEnd(string v, ResultIf!int onlyYear) pure
@@ -470,14 +475,14 @@ ResultIf!int toYearEnd(string v, ResultIf!int onlyYear) pure
             return ResultIf!int.ok(n);
     }
 
-    return ResultIf!int.error(1);
+    return ResultIf!int.error(1, "Invalid year: " ~ v);
 }
 
 ResultIf!ZoneInfo toZone(string[] elems, string previousZoneName)
 {
     if ((previousZoneName.length == 0 && elems.length < 5)
         || (previousZoneName.length != 0 && elems.length < 4))
-        return ResultIf!ZoneInfo.error(1);
+        return ResultIf!ZoneInfo.error(1, "Invalid datetime zone");
 
     auto zoneName = previousZoneName.length != 0 ? previousZoneName : elems[1];
     size_t i = previousZoneName.length != 0 ? 1 : 2;
@@ -490,7 +495,7 @@ ResultIf!ZoneInfo toZone(string[] elems, string previousZoneName)
     DateTime untilDateTime;
     if (i < elems.length)
     {
-        const untilYear = toYearEnd(elems[i++], ResultIf!int.error(1));
+        const untilYear = toYearEnd(elems[i++], ResultIf!int.error(1, "Invalid datetime zone"));
         const untilMonth = i < elems.length ? toMonthUS(elems[i++]) : ResultIf!int.ok(1);
         const untilDay = i < elems.length ? toDayOfMonth(elems[i++]) : ResultIf!int.ok(1);
         const untilTime = i < elems.length ? toTime(elems[i++]) : ResultIf!TimeInfo.ok(TimeInfo(Time.midnight, '\0', false));
@@ -498,14 +503,14 @@ ResultIf!ZoneInfo toZone(string[] elems, string previousZoneName)
         if (untilYear && untilMonth && untilDay && untilTime)
             untilDateTime = DateTime(Date(untilYear, untilMonth, untilDay), untilTime.time.asKind(DateTimeZoneKind.unspecified));
         else
-            return ResultIf!ZoneInfo.error(1);
+            return ResultIf!ZoneInfo.error(1, "Invalid datetime zone");
     }
     else
         untilDateTime = DateTime.max.asKind(DateTimeZoneKind.unspecified);
 
     return zoneName.length != 0 && stdOffset
         ? ResultIf!ZoneInfo.ok(ZoneInfo(zoneName, stdOffset, ruleName, ruleDelta, format, untilDateTime))
-        : ResultIf!ZoneInfo.error(1);
+        : ResultIf!ZoneInfo.error(1, "Invalid datetime zone");
 }
 
 TimeZoneInfo[] toTimeZoneInfo(ref TZDatabase tzDatabase)
@@ -707,7 +712,7 @@ unittest // toYearEnd
     traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toYearEnd");
 
     ResultIf!int r, onlyError, onlyOK;
-    onlyError = ResultIf!int.error(1);
+    onlyError = ResultIf!int.error(1, null);
     onlyOK = ResultIf!int.ok(2000);
 
     r = toYearEnd("max", onlyOK);

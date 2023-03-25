@@ -26,25 +26,25 @@ nothrow @safe:
 
 TimeZoneInfo[] getDefaultTimeZoneInfosByJson(string jsonText) @trusted
 {
-    scope (failure)
-        return null;
+    // Special try construct for grep
+    try {
+        if (jsonText.length == 0)
+            return null;
 
-    if (jsonText.length == 0)
-        return null;
+        TimeZoneInfo[] result;
+        result.reserve(200);
 
-    TimeZoneInfo[] result;
-    result.reserve(200);
+        auto js = parseJSON(jsonText);
+        auto jsZones = js["zones"].array;
+        foreach (ref jsZone; jsZones)
+        {
+            auto zone = toZone(jsZone);
+            if (zone)
+                result ~= zone;
+        }
 
-    auto js = parseJSON(jsonText);
-    auto jsZones = js["zones"].array;
-    foreach (ref jsZone; jsZones)
-    {
-        auto zone = toZone(jsZone);
-        if (zone)
-            result ~= zone;
-    }
-
-    return result;
+        return result;
+    } catch (Exception) return null;
 }
 
 
@@ -55,7 +55,7 @@ ResultIf!DateTime toDateTime(string v)
 {
     auto vs = v.split("?");
     if (vs.length != 2)
-        return ResultIf!DateTime.error(1);
+        return ResultIf!DateTime.error(1, "Missing splitter '?'");
 
     auto pattern = DateTimePattern.usShortDateTime;
     pattern.dateSeparator = '-';
@@ -63,37 +63,41 @@ ResultIf!DateTime toDateTime(string v)
     pattern.patternText = "yyyy/mm/ddThh:nn:ss.zzzzzz";
     DateTime datetime;
     if (tryParse!DateTime(vs[0], pattern, datetime) != DateTimeParser.noError)
-        return ResultIf!DateTime.error(1);
+        return ResultIf!DateTime.error(1, "Invalid datetime: " ~ vs[0]);
 
     const kind = toKind(vs[1]);
 
     return kind
         ? ResultIf!DateTime.ok(datetime.asKind(kind))
-        : ResultIf!DateTime.error(1);
+        : ResultIf!DateTime.error(1, "Invalid datetime kind: " ~ vs[1]);
 }
 
-ResultIf!Duration toDeltaMinutes(long v) @nogc pure
+ResultIf!Duration toDeltaMinutes(long v) pure
 {
+    import std.conv : to;
+    
     // + Tick.minutesPerHour in case of daylight saving
     enum int limit = Tick.minutesPerDay + Tick.minutesPerHour;
 
     const ti = toInt(v);
     return ti && ti >= -limit && ti <= limit
         ? ResultIf!Duration.ok(dur!"minutes"(ti))
-        : ResultIf!Duration.error(1);
+        : ResultIf!Duration.error(1, "Minute delta is out of bound: " ~ to!string(v));
 }
 
-ResultIf!int toInt(long v) @nogc pure
+ResultIf!int toInt(long v) pure
 {
+    import std.conv : to;
+    
     if (v < int.min)
-        return ResultIf!int.error(1);
+        return ResultIf!int.error(1, "Integer is out of bound: " ~ to!string(v));
     else if (v > int.max)
-        return ResultIf!int.error(1);
+        return ResultIf!int.error(1, "Integer is out of bound: " ~ to!string(v));
     else
         return ResultIf!int.ok(cast(int)v);
 }
 
-ResultIf!DateTimeZoneKind toKind(string v) @nogc pure
+ResultIf!DateTimeZoneKind toKind(string v) pure
 {
     if (v == "unspecified")
         return ResultIf!DateTimeZoneKind.ok(DateTimeZoneKind.unspecified);
@@ -102,74 +106,74 @@ ResultIf!DateTimeZoneKind toKind(string v) @nogc pure
     else if (v == "local")
         return ResultIf!DateTimeZoneKind.ok(DateTimeZoneKind.local);
     else
-        return ResultIf!DateTimeZoneKind.error(1);
+        return ResultIf!DateTimeZoneKind.error(1, "Invalid datetime kind: " ~ v);
 }
 
 ResultIf!AdjustmentRule toRule(ref JSONValue v) @trusted
 {
-    scope (failure)
-        return ResultIf!AdjustmentRule.error(1);
+    // Special try construct for grep
+    try {
+        const db = toDateTime(v["dateBegin"].str);
+        const de = toDateTime(v["dateEnd"].str);
+        const bdelta = toDeltaMinutes(v["baseUtcOffsetDelta"].integer);
+        const ddelta = toDeltaMinutes(v["daylightDelta"].integer);
+        const sdelta = toDeltaMinutes(v["standardDelta"].integer);
+        const tb = toTransition(v["daylightTransitionBegin"].object);
+        const te = toTransition(v["daylightTransitionEnd"].object);
+        const nt = v["noDaylightTransitions"].boolean;
 
-    const db = toDateTime(v["dateBegin"].str);
-    const de = toDateTime(v["dateEnd"].str);
-    const bdelta = toDeltaMinutes(v["baseUtcOffsetDelta"].integer);
-    const ddelta = toDeltaMinutes(v["daylightDelta"].integer);
-    const sdelta = toDeltaMinutes(v["standardDelta"].integer);
-    const tb = toTransition(v["daylightTransitionBegin"].object);
-    const te = toTransition(v["daylightTransitionEnd"].object);
-    const nt = v["noDaylightTransitions"].boolean;
-
-    return db && de && bdelta && ddelta && sdelta && tb && te
-        ? ResultIf!AdjustmentRule.ok(AdjustmentRule(db, de, bdelta, ddelta, sdelta, tb, te, nt))
-        : ResultIf!AdjustmentRule.error(1);
+        return db && de && bdelta && ddelta && sdelta && tb && te
+            ? ResultIf!AdjustmentRule.ok(AdjustmentRule(db, de, bdelta, ddelta, sdelta, tb, te, nt))
+            : ResultIf!AdjustmentRule.error(1, "Invalid datetime rule");
+    } catch (Exception) return ResultIf!AdjustmentRule.error(1, "Invalid datetime rule");
 }
 
 ResultIf!TransitionTime toTransition(ref JSONValue[string] v)
 {
-    scope (failure)
-        return ResultIf!TransitionTime.error(1);
+    // Special try construct for grep
+    try {
+        const tod = toDateTime(v["timeOfDay"].str);
+        const m = toInt(v["month"].integer);
+        const w = toInt(v["week"].integer);
+        const d = toInt(v["day"].integer);
+        const dow = toDayOfWeekUS(v["dayOfWeek"].str);
+        const fixed = v["isFixedDateRule"].boolean;
 
-    const tod = toDateTime(v["timeOfDay"].str);
-    const m = toInt(v["month"].integer);
-    const w = toInt(v["week"].integer);
-    const d = toInt(v["day"].integer);
-    const dow = toDayOfWeekUS(v["dayOfWeek"].str);
-    const fixed = v["isFixedDateRule"].boolean;
-
-    return tod && m && w && d && dow
-        ? ResultIf!TransitionTime.ok(TransitionTime(tod, m, w, d, dow, fixed))
-        : ResultIf!TransitionTime.error(1);
+        return tod && m && w && d && dow
+            ? ResultIf!TransitionTime.ok(TransitionTime(tod, m, w, d, dow, fixed))
+            : ResultIf!TransitionTime.error(1, "Invalid datetime transition");
+    } catch (Exception) return ResultIf!TransitionTime.error(1, "Invalid datetime transition");
 }
 
 ResultIf!TimeZoneInfo toZone(ref JSONValue v) @trusted
 {
-    scope (failure)
-        return ResultIf!TimeZoneInfo.error(1);
+    // Special try construct for grep
+    try {
+        const id = v["id"].str;
+        const displayName = v["displayName"].str;
+        const standardName = v["standardName"].str;
+        const daylightName = v["daylightName"].str;
+        const baseUtcOffset = toDeltaMinutes(v["baseUtcOffset"].integer);
+        const supportsDaylightSavingTime = v["supportsDaylightSavingTime"].boolean;
 
-    const id = v["id"].str;
-    const displayName = v["displayName"].str;
-    const standardName = v["standardName"].str;
-    const daylightName = v["daylightName"].str;
-    const baseUtcOffset = toDeltaMinutes(v["baseUtcOffset"].integer);
-    const supportsDaylightSavingTime = v["supportsDaylightSavingTime"].boolean;
+        if (id.length == 0 || !baseUtcOffset)
+            return ResultIf!TimeZoneInfo.error(1, "Invalid datetime transition");
 
-    if (id.length == 0 || !baseUtcOffset)
-        return ResultIf!TimeZoneInfo.error(1);
+        auto result = TimeZoneInfo(id, displayName, standardName, daylightName,
+            baseUtcOffset, supportsDaylightSavingTime);
 
-    auto result = TimeZoneInfo(id, displayName, standardName, daylightName,
-        baseUtcOffset, supportsDaylightSavingTime);
+        auto jsRules = v["adjustmentRules"].array;
+        foreach (ref jsRule; jsRules)
+        {
+            auto rule = toRule(jsRule);
+            if (!rule)
+                return ResultIf!TimeZoneInfo.error(1, "Invalid datetime transition rule");
 
-    auto jsRules = v["adjustmentRules"].array;
-    foreach (ref jsRule; jsRules)
-    {
-        auto rule = toRule(jsRule);
-        if (!rule)
-            return ResultIf!TimeZoneInfo.error(1);
+           result.addRule(rule.value);
+        }
 
-       result.addRule(rule.value);
-    }
-
-    return ResultIf!TimeZoneInfo.ok(result);
+        return ResultIf!TimeZoneInfo.ok(result);
+    } catch (Exception) return ResultIf!TimeZoneInfo.error(1, "Invalid datetime transition");
 }
 
 unittest // toInt
