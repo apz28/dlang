@@ -161,8 +161,7 @@ public:
     string toString() const pure
     {
         import std.conv : to;
-
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         string result = "Error status: " ~ to!string(errorStatus);
         if (isError)

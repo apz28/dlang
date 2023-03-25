@@ -34,7 +34,7 @@ if (is(C == char) || is(C == byte) || is(C == ubyte))
 
 ptrdiff_t indexOf(T)(scope const(T)[] items, const(T) item) @trusted
 {
-    scope (failure) assert(0);
+    scope (failure) assert(0, "Assume nothrow failed");
     
     foreach (i; 0..items.length)
     {

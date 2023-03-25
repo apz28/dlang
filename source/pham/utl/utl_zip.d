@@ -11,7 +11,6 @@
 
 module pham.utl.zip;
 
-import std.exception : assumeWontThrow;
 import std.format : format;
 
 public import pham.utl.zip_constant;
@@ -472,6 +471,8 @@ public:
 	 */
 	final int flushPending()
 	{
+        scope (failure) assert(0, "Assume nothrow failed");
+        
 		const len = dstate.pendingCount > availableBytesOut ? availableBytesOut : dstate.pendingCount;
 		if (len == 0)
 			return setError(ZipResult.Z_STREAM_END, null);
@@ -482,8 +483,8 @@ public:
 			outputBuffer.length < (nextOut + len))
 		{
 			return setError(ZipResult.Z_ERRNO,
-				assumeWontThrow(format("Invalid State. (pending.length=%u, pendingCount=%u)",
-					cast(uint)dstate.pending.length, dstate.pendingCount)));
+				format("Invalid State. (pending.length=%u, pendingCount=%u)",
+					cast(uint)dstate.pending.length, dstate.pendingCount));
 		}
 
 		outputBuffer[nextOut..nextOut + len] = dstate.pending[dstate.nextPending..dstate.nextPending + len];
@@ -649,7 +650,7 @@ unittest // Inflate
 {
 	import pham.utl.object : bytesFromHexs;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.zip")("unittest pham.utl.zip.ZlibCodec.Inflate");
+    traceUnitTest("unittest pham.utl.zip.ZlibCodec.Inflate");
 
 	auto zipData1 = bytesFromHexs("789C626060E0644005820C9CC195B9B9A9254599C98C2C8E45C926107146980200000000FFFF");
 	auto expectUnzipData1 = bytesFromHexs("0000000900000000000000000000000000000011000953796D6D6574726963010441726334000000000000010000000000000000");
@@ -678,7 +679,7 @@ unittest // Deflate
 {
 	import pham.utl.object : bytesFromHexs;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.zip")("unittest pham.utl.zip.ZlibCodec.Deflate");
+    traceUnitTest("unittest pham.utl.zip.ZlibCodec.Deflate");
 
 	auto zipData1 = bytesFromHexs("789C626060E0644005820C9CC195B9B9A9254599C98C2C8E45C926107146980200000000FFFF");
 	auto expectUnzipData1 = bytesFromHexs("0000000900000000000000000000000000000011000953796D6D6574726963010441726334000000000000010000000000000000");
@@ -708,7 +709,7 @@ unittest // Deflate & Inflate long string
 	import pham.cp.random : CipherRandomGenerator;
 	import pham.utl.array : ShortStringBuffer;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.zip")("unittest pham.utl.zip.ZlibCodec.Deflate & Inflate long string");
+    traceUnitTest("unittest pham.utl.zip.ZlibCodec.Deflate & Inflate long string");
 
 	CipherRandomGenerator generator;
 	ShortStringBuffer!ubyte buffer;
@@ -735,7 +736,7 @@ version (UnitTestZLib)
 unittest // ZlibCodec.Deflate
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.zip")("unittest pham.utl.zip.ZlibCodec.Deflate.BigFile");
+    traceUnitTest("unittest pham.utl.zip.ZlibCodec.Deflate.BigFile");
 
 	auto bigData = dgReadAllBinary("zip_test_expressionsem.d");
 	auto expectZipBigData = dgReadAllBinary("zip_test_expressionsem.zip");

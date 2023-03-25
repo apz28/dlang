@@ -251,7 +251,7 @@ if (isEnumSet!E)
 E toEnum(E)(string validEnumName, E emptyValue = E.init) pure
 if (is(E Base == enum))
 {
-    scope (failure) assert(0);
+    scope (failure) assert(0, "Assume nothrow failed");
 
     return validEnumName.length != 0 ? to!E(validEnumName) : emptyValue;
 }
@@ -792,7 +792,7 @@ size_t maxBits() @nogc pure
 nothrow @safe unittest // toEnum
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.enum_set.toEnum");
+    traceUnitTest("unittest pham.utl.enum_set.toEnum");
 
     enum EnumTestOrder
     {
@@ -810,7 +810,7 @@ nothrow @safe unittest // toEnum
 nothrow @safe unittest // toName
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.enum_set.toName");
+    traceUnitTest("unittest pham.utl.enum_set.toName");
 
     enum EnumTestOrder : ubyte
     {
@@ -838,7 +838,7 @@ nothrow @safe unittest // EnumSet
 {
     import std.traits : OriginalType;
     import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.enum_set.EnumSet");
+    traceUnitTest("unittest pham.utl.enum_set.EnumSet");
 
     //pragma(msg, size_t.sizeof * 8, '.', size_t.max);
 
@@ -1035,7 +1035,7 @@ nothrow @safe unittest // EnumSet
 nothrow @safe unittest // EnumArray
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.enum_set.EnumArray");
+    traceUnitTest("unittest pham.utl.enum_set.EnumArray");
 
     enum EnumTest
     {

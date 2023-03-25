@@ -476,7 +476,7 @@ nothrow unittest // ConvertHandler.Integral
 {
     import std.math : lround;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.variant")("unittest pham.utl.variant.ConvertHandler.Integral");
+    traceUnitTest("unittest pham.utl.variant.ConvertHandler.Integral");
 
     ConvertHandler handler;
     bool f;
@@ -620,7 +620,7 @@ nothrow unittest // ConvertHandler.Integral
 nothrow unittest // ConvertHandler.Float
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.variant")("unittest pham.utl.variant.ConvertHandler.Float");
+    traceUnitTest("unittest pham.utl.variant.ConvertHandler.Float");
 
     ConvertHandler handler;
     bool f;
@@ -694,7 +694,7 @@ nothrow unittest // ConvertHandler.Float
 nothrow unittest // ConvertHandler.cast(bool)
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.variant")("unittest pham.utl.variant.ConvertHandler.cast(bool)");
+    traceUnitTest("unittest pham.utl.variant.ConvertHandler.cast(bool)");
 
     ConvertHandler handler;
     bool f;
@@ -743,7 +743,7 @@ nothrow unittest // ConvertHandler.coerce(string)
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.variant")("unittest pham.utl.variant.ConvertHandler.coerce(string)");
+    traceUnitTest("unittest pham.utl.variant.ConvertHandler.coerce(string)");
 
     ConvertHandler handler;
     bool f;
@@ -753,7 +753,7 @@ nothrow unittest // ConvertHandler.coerce(string)
         static foreach (D; AliasSeq!(char, wchar, dchar))
         {
             {
-                scope (failure) assert(0);
+                scope (failure) assert(0, "Assume nothrow failed");
 
                 auto foo = to!(StringOfChar!S)("this is a foo?");
                 auto food = to!(StringOfChar!D)(foo);
@@ -783,7 +783,7 @@ nothrow unittest // ConvertHandler.coerce(string)
     static foreach (S; AliasSeq!(char, wchar, dchar))
     {
         {
-            scope (failure) assert(0);
+            scope (failure) assert(0, "Assume nothrow failed");
 
             auto foo = to!(StringOfChar!S)("this is a foo?");
             ConstStringOfChar!S d;

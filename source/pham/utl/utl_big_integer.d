@@ -1195,7 +1195,7 @@ public:
     }
     do
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         const ptrdiff_t cuSrc = _bits.length;
 
@@ -1307,7 +1307,7 @@ public:
     }
     do
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         const isUpper = f.spec == 'X';
         const hexDigitSources = isUpper ? upperHexDigits : lowerHexDigits;
@@ -2939,7 +2939,7 @@ string toStringSafe(const(BigInteger) n,
     string format = null,
     char separator = '_') nothrow @safe
 {
-    scope (failure) assert(0);
+    scope (failure) assert(0, "Assume nothrow failed");
 
     return format.length ? n.toString(format, separator) : n.toString();
 }
@@ -2948,7 +2948,7 @@ nothrow unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger.toString('%d')");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger.toString('%d')");
 
     static void check(T)(T value, string checkedValue,
         string format = null,
@@ -2983,7 +2983,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger.toString('%X')");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger.toString('%X')");
 
     static void check(T)(T value, string checkedValue,
         string format = "%X",
@@ -3018,7 +3018,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(parse integer)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(parse integer)");
 
     static void check(string value,
         size_t line = __LINE__) @safe
@@ -3051,7 +3051,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(parse hex)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(parse hex)");
 
     static void check(string value,
         size_t line = __LINE__)
@@ -3083,7 +3083,7 @@ unittest // Parse failed
 {
     import std.exception : assertThrown;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger() failed");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger() failed");
 
     assertThrown!ConvException(BigInteger(""));
     assertThrown!ConvException(BigInteger("123 456"));
@@ -3094,7 +3094,7 @@ unittest // Parse failed
 unittest
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(compare)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(compare)");
 
     auto x = BigInteger("12345");
     auto x2 = BigInteger("12345");
@@ -3120,7 +3120,7 @@ unittest
     import std.conv : to, ConvException;
     import std.exception : assertThrown;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(cast)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(cast)");
 
     // Non-zero values are regarded as true
     auto x = BigInteger("1");
@@ -3177,7 +3177,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(operator + - ~ )");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(operator + - ~ )");
 
     static void check(const(BigInteger) value, string checkedValue,
         size_t line = __LINE__)
@@ -3327,7 +3327,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(operator * / %)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(operator * / %)");
 
     static void check(const(BigInteger) value, string checkedValue,
         size_t line = __LINE__)
@@ -3399,7 +3399,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(operator << >> ^^)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(operator << >> ^^)");
 
     static void check(const(BigInteger) value, string checkedValue,
         size_t line = __LINE__)
@@ -3430,7 +3430,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(multiply)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(multiply)");
 
     static void check(const(BigInteger) value, string checkedValue,
         size_t line = __LINE__)
@@ -3450,7 +3450,7 @@ unittest
 unittest
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger.enum");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger.enum");
 
     enum b = BigInteger("0x123");
     enum b2 = BigInteger("291");
@@ -3460,7 +3460,7 @@ unittest
 unittest
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger.toBytes");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger.toBytes");
 
     auto b = BigInteger("148607213746748888433115898774488125434956021884951532398437063594981690133657747515764650183781235940657054608881977858196568765979755791042029635107364589767082851027596594595936524517171068826751265581664247659551324634745120309986368437908665195084578221129443657946400665125676458397984792168049771254957");
 
@@ -3471,7 +3471,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger.BigInteger(RSP Calculation)");
+    traceUnitTest("unittest pham.utl.biginteger.BigInteger(RSP Calculation)");
 
     static void check(string caseNumber, const(BigInteger) value, string checkedValue,
         size_t line = __LINE__)
@@ -3567,7 +3567,7 @@ unittest
 {
     import std.conv : to;
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger - to!BigInteger('123...')");
+    traceUnitTest("unittest pham.utl.biginteger - to!BigInteger('123...')");
 
     const a = to!BigInteger("1234");
     assert(a == 1234);
@@ -3576,7 +3576,7 @@ unittest
 unittest
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.biginteger");
+    traceUnitTest("unittest pham.utl.biginteger");
 
     auto a = BigInteger("-903145792771643190182");
     auto b = BigInteger("0xCF0A55968BB1A7545A");
@@ -3590,7 +3590,7 @@ unittest
 unittest // modInverse
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.big_integer.modInverse");
+    traceUnitTest("unittest pham.utl.big_integer.modInverse");
 
     BigInteger d;
 
@@ -3610,7 +3610,7 @@ unittest // modInverse
 unittest // BigInteger.bitLength
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.big_integer.BigInteger.bitLength");
+    traceUnitTest("unittest pham.utl.big_integer.BigInteger.bitLength");
 
     assert(BigInteger(0).bitLength == 0);
     assert(BigInteger(1).bitLength == 1);
@@ -3633,7 +3633,7 @@ unittest // BigInteger.bitLength
 unittest // BigInteger.trailingZeroBits
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.big_integer.BigInteger.trailingZeroBits");
+    traceUnitTest("unittest pham.utl.big_integer.BigInteger.trailingZeroBits");
 
     assert(BigInteger(0).trailingZeroBits == 0);
     assert(BigInteger(1).trailingZeroBits == 0);
@@ -3656,7 +3656,7 @@ unittest // BigInteger.trailingZeroBits
 unittest // BigInteger.sqrt
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.big_integer.BigInteger.sqrt");
+    traceUnitTest("unittest pham.utl.big_integer.BigInteger.sqrt");
 
     auto options = defaultParseBigIntegerOptions!char();
     options.flags |= NumericLexerFlag.unsigned;
@@ -3675,7 +3675,7 @@ unittest // BigInteger.sqrt
 unittest // BigInteger.divRem
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.biginteger")("unittest pham.utl.big_integer.divRem");
+    traceUnitTest("unittest pham.utl.big_integer.divRem");
 
     BigInteger divident = BigInteger(-50);
     BigInteger divisor = BigInteger(1);

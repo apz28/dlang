@@ -183,8 +183,7 @@ private:
         import std.algorithm : sort;
         import std.format : format;
         import std.stdio : File;
-
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         auto counterValues = counters.values;
         counterValues.sort!("a.elapsedTime > b.elapsedTime"); // Sort in descending order
@@ -261,7 +260,8 @@ version (unittest)
     import std.conv : to;
     import std.format : format;
     import std.traits : isSomeChar;
-    import pham.external.std.log.logger : FileLogger, lastModuleSeparatorIndex, LoggerOption, LogLevel, moduleParentOf, OutputPattern;
+    import pham.external.std.log.logger : defaultOutputPattern, FileLogger, LoggerOption, LogLevel,
+        OutputPattern;
 
 	ubyte[] dgReadAllBinary(string fileName) nothrow @trusted
     {
@@ -297,41 +297,33 @@ version (unittest)
             return null;
         return result[].dup;
     }
-    
+
     string dgToHex(ubyte n) nothrow pure @safe
     {
-        try
-        {
+        try {
             return format!"%.2X"(n);
-        }
-        catch (Exception) { return null; }
+        } catch (Exception) { return null; }
     }
 
     string dgToHex(ushort n) nothrow pure @safe
     {
-        try
-        {
+        try {
             return format!"%.4X"(n);
-        }
-        catch (Exception) { return null; }
+        } catch (Exception) { return null; }
     }
 
     string dgToHex(uint n) nothrow pure @safe
     {
-        try
-        {
+        try {
             return format!"%.8X"(n);
-        }
-        catch (Exception) { return null; }
+        } catch (Exception) { return null; }
     }
 
     string dgToHex(ulong n) nothrow pure @safe
     {
-        try
-        {
+        try {
             return format!"%.16X"(n);
-        }
-        catch (Exception) { return null; }
+        } catch (Exception) { return null; }
     }
 
     string dgToHex(scope const(ubyte)[] bytes) nothrow pure @safe
@@ -348,49 +340,39 @@ version (unittest)
 
     string dgToStr(int n) nothrow pure @safe
     {
-        try
-        {
+        try {
             return format!"%,3?d"('_', n);
-        }
-        catch (Exception) { return null; }
+        } catch (Exception) { return null; }
     }
 
     string dgToStr(uint n) nothrow pure @safe
     {
-        try
-        {
+        try {
             return format!"%,3?d"('_', n);
-        }
-        catch (Exception) { return null; }
+        } catch (Exception) { return null; }
     }
 
     string dgToStr(long n) nothrow pure @safe
     {
-        try
-        {
+        try {
             return format!"%,3?d"('_', n);
-        }
-        catch (Exception) { return null; }
+        } catch (Exception) { return null; }
     }
 
     string dgToStr(ulong n) nothrow pure @safe
     {
-        try
-        {
+        try {
             return format!"%,3?d"('_', n);
-        }
-        catch (Exception) { return null; }
+        } catch (Exception) { return null; }
     }
 
     void dgWrite(A...)(A args) nothrow
     {
         import std.stdio : write;
 
-        try
-        {
+        try {
             debug write(args);
-        }
-        catch (Exception) {}
+        } catch (Exception) {}
     }
 
     void dgWritef(Char, A...)(in Char[] fmt, A args) nothrow
@@ -398,34 +380,27 @@ version (unittest)
     {
         import std.stdio : writef;
 
-        try
-        {
+        try {
             debug writef(fmt, args);
-        }
-        catch (Exception) {}
+        } catch (Exception) {}
     }
 
     void dgWriteln(const(char)[] prefix, scope const(ubyte)[] bytes) nothrow
     {
         import pham.utl.object : bytesToHexs;
 
-        try
-        {
+        try {
             debug dgWriteln(prefix, bytesToHexs(bytes));
-        }
-        catch (Exception)
-        {}
+        } catch (Exception) {}
     }
 
     void dgWriteln(A...)(A args) nothrow
     {
         import std.stdio : writeln;
 
-        try
-        {
+        try {
             debug writeln(args);
-        }
-        catch (Exception) {}
+        } catch (Exception) {}
     }
 
     void dgWritefln(Char, A...)(in Char[] fmt, A args) nothrow
@@ -433,42 +408,33 @@ version (unittest)
     {
         import std.stdio : writefln;
 
-        try
-        {
+        try {
             debug writefln(fmt, args);
-        }
-        catch (Exception) {}
+        } catch (Exception) {}
     }
 
-    void traceFunction(string moduleName = __MODULE__, A...)(A args,
-        int line = __LINE__, string functionName = __FUNCTION__) @nogc nothrow pure @trusted
+    void traceFunction(Args...)(Args args,
+        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
     {
         version (TraceFunction)
         {
-            debug const prefix = functionName ~ "(" ~ to!string(line) ~ ")";
-            if (args.length)
-            {
-                debug traceLogger.trace!(moduleName)(prefix, ": ", args);
-            }
-            else
-            {
-                debug traceLogger.trace!(moduleName)(prefix);
-            }
+            debug traceLogger.trace!(Args)(args, null, line, fileName, funcName, moduleName);
         }
     }
 
-    void traceUnitTest(string moduleName = __MODULE__, A...)(A args) @nogc nothrow pure @trusted
+    void traceUnitTest(Args...)(Args args,
+        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
     {
-        version (TraceUnitTest) debug traceLogger.trace!(moduleName, A)(args);
+        version (TraceUnitTest)
+        {
+            debug traceLogger.trace!(Args)(args, null, line, fileName, funcName, moduleName);
+        }
     }
 
     private void createTraceLogger() nothrow @trusted
     {
         if (traceLogger is null)
-        {
-            static immutable string pattern = OutputPattern.message ~ OutputPattern.newLine;
-            traceLogger = new FileLogger("trace.log", "w", LoggerOption(LogLevel.error, "unittestTrace", pattern, 10));
-        }
+            traceLogger = new FileLogger("trace.log", "w", LoggerOption(LogLevel.trace, "unittestTrace", defaultOutputPattern, 10));
     }
 
     private static __gshared FileLogger traceLogger;
@@ -520,13 +486,13 @@ unittest // PerfCpuUsage
     import core.time : dur;
     import core.thread.osthread : Thread;
     import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest pham.utl.utltest.PerfCpuUsage");
+    traceUnitTest("unittest pham.utl.utltest.PerfCpuUsage");
 
     void delay() nothrow @trusted
     {
         Thread.sleep(dur!("msecs")(20));
     }
-    
+
     delay();
     delay();
     const cpuTime = PerfCpuUsage.get();

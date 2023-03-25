@@ -243,8 +243,7 @@ private:
 string osCharToString(scope const(char)[] v) nothrow @safe
 {
     import std.conv : to;
-
-    scope (failure) assert(0);
+    scope (failure) assert(0, "Assume nothrow failed");
     
     auto result = to!string(v);
     while (result.length && result[$ - 1] <= ' ')
@@ -255,8 +254,7 @@ string osCharToString(scope const(char)[] v) nothrow @safe
 string osWCharToString(scope const(wchar)[] v) nothrow @safe
 {
     import std.conv : to;
-
-    scope (failure) assert(0);
+    scope (failure) assert(0, "Assume nothrow failed");
     
     auto result = to!string(v);
     while (result.length && result[$ - 1] <= ' ')

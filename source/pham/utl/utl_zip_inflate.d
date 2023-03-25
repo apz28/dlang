@@ -11,7 +11,6 @@
 
 module pham.utl.zip_inflate;
 
-import std.exception : assumeWontThrow;
 import std.format : format;
 
 import pham.utl.zip_constant;
@@ -71,6 +70,8 @@ public:
     }
 	do
 	{
+        scope (failure) assert(0, "Assume nothrow failed");
+        
 		int b;
 
 		//int f = (flush == FlushType.Finish) ? ZipResult.Z_BUF_ERROR : ZipResult.Z_OK;
@@ -93,14 +94,14 @@ public:
 					{
 						mode = InflateManagerMode.BAD;
 						marker = 5; // can't try inflateSync
-						_codec.setError(ZipResult.Z_ERRNO, assumeWontThrow(format("unknown compression method (%d)", method)));
+						_codec.setError(ZipResult.Z_ERRNO, format("unknown compression method (%d)", method));
 						break;
 					}
 					if ((method >> 4) + 8 > wbits)
 					{
 						mode = InflateManagerMode.BAD;
 						marker = 5; // can't try inflateSync
-						_codec.setError(ZipResult.Z_ERRNO, assumeWontThrow(format("invalid window size (%d)", (method >> 4) + 8)));
+						_codec.setError(ZipResult.Z_ERRNO, format("invalid window size (%d)", (method >> 4) + 8));
 						break;
 					}
 					mode = InflateManagerMode.FLAG;
@@ -239,7 +240,7 @@ public:
 					{
 						mode = InflateManagerMode.BAD;
 						marker = 5; // can't try inflateSync
-						_codec.setError(ZipResult.Z_DATA_ERROR, assumeWontThrow(format("incorrect data check %lu / %lu", computedCheck, expectedCheck)));
+						_codec.setError(ZipResult.Z_DATA_ERROR, format("incorrect data check %lu / %lu", computedCheck, expectedCheck));
 						break;
 					}
 					mode = InflateManagerMode.DONE;

@@ -275,7 +275,7 @@ private:
 unittest // DllLibrary
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl")("unittest utl.dynlib.DllLibrary");
+    traceUnitTest("unittest utl.dynlib.DllLibrary");
 
     version (Windows)
     {

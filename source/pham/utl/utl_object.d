@@ -13,7 +13,6 @@ module pham.utl.object;
 
 import core.sync.mutex : Mutex;
 public import std.ascii : LetterCase;
-import std.exception : assumeWontThrow;
 import std.format : FormatSpec;
 import std.math : isPowerOf2;
 import std.range.primitives : put;

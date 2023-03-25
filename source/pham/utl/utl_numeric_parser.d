@@ -440,7 +440,7 @@ public:
 
     void popFront() pure
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         value.popFront();
         _count++;
@@ -491,7 +491,7 @@ public:
     }
     do
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         return value.front;
     }
@@ -508,7 +508,7 @@ public:
 private:
     void checkHasBase64Char() pure
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         if (options.canSkippingLeadingBlank)
             skipSpaces();
@@ -609,7 +609,7 @@ public:
 
     void popFront() pure
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         if (_hasSavedFront)
             _hasSavedFront = false;
@@ -659,7 +659,7 @@ public:
     }
     do
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         return _hasSavedFront ? _savedFront : value.front;
     }
@@ -704,7 +704,7 @@ public:
 private:
     void checkHasNumericChar() pure
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         _isHex = (options.flags & NumericLexerFlag.hexDigit) != 0;
         cvtNumericFrontFct = _isHex ? &(cvtHexDigit!RangeElement) : &(cvtDigit!RangeElement);
