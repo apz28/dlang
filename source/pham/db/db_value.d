@@ -609,7 +609,7 @@ private:
 unittest // DbValue
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.value.DbValue");
+    traceUnitTest("unittest pham.db.value.DbValue");
 
     static struct VStruct
     {

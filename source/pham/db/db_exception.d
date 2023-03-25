@@ -22,7 +22,7 @@ public:
     this(string message, int code, string sqlState,
          int socketCode = 0, int vendorCode = 0, Exception next = null) pure
     {
-        version (TraceFunction) debug traceFunction!("pham.db.database")();
+        version (TraceFunction) debug traceFunction();
 
         if (code)
             message ~= "\n" ~ DbMessage.eErrorCode.fmtMessage(code);
@@ -39,7 +39,7 @@ public:
 
     override string toString() @trusted
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         auto result = super.toString();
 

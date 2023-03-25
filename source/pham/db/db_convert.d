@@ -13,7 +13,6 @@ module pham.db.convert;
 
 import core.time : convert, dur;
 import std.conv : to;
-import std.exception : assumeWontThrow;
 import std.math : abs, pow;
 import std.system : Endian;
 import std.traits: isIntegral, isSomeChar, isUnsigned, Unqual;
@@ -207,7 +206,7 @@ if (is(S == wstring) || is(S == dstring))
 string toStringSafe(I)(I number) pure
 if (isIntegral!I)
 {
-    scope (failure) assert(0);
+    scope (failure) assert(0, "Assume nothrow failed");
     
     return to!string(number);    
 }
@@ -373,7 +372,7 @@ private:
 unittest // limitRangeTimeout
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.convert.limitRangeTimeout");
+    traceUnitTest("unittest pham.db.convert.limitRangeTimeout");
 
     assert(limitRangeTimeout(dur!"seconds"(-1)) == minTimeoutDuration);
     assert(limitRangeTimeout(dur!"seconds"(1)) == dur!"seconds"(1));
@@ -383,7 +382,7 @@ unittest // limitRangeTimeout
 unittest // limitRangeTimeoutAsSecond
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.convert.limitRangeTimeoutAsSecond");
+    traceUnitTest("unittest pham.db.convert.limitRangeTimeoutAsSecond");
 
     assert(limitRangeTimeoutAsSecond(dur!"seconds"(-1)) == minTimeoutDuration.total!"seconds"());
     assert(limitRangeTimeoutAsSecond(dur!"seconds"(1)) == 1);
@@ -393,7 +392,7 @@ unittest // limitRangeTimeoutAsSecond
 unittest // removeDateUnitFromHNSecs
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.convert.removeDateUnitFromHNSecs");
+    traceUnitTest("unittest pham.db.convert.removeDateUnitFromHNSecs");
 
     const t = dur!"hours"(1) + dur!"minutes"(59);
     const h = dur!"days"(1_000) + t;
@@ -403,7 +402,7 @@ unittest // removeDateUnitFromHNSecs
 unittest // removeTimeUnitFromHNSecs
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.convert.removeTimeUnitFromHNSecs");
+    traceUnitTest("unittest pham.db.convert.removeTimeUnitFromHNSecs");
 
     const d = dur!"days"(1_000);
     const h = d + dur!"hours"(1) + dur!"minutes"(59);
@@ -413,7 +412,7 @@ unittest // removeTimeUnitFromHNSecs
 unittest // secondDigitsToDurationSafe
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.convert.secondDigitsToDurationSafe");
+    traceUnitTest("unittest pham.db.convert.secondDigitsToDurationSafe");
 
     assert(secondDigitsToDurationSafe("123", Duration.zero) == dur!"seconds"(123));
     assert(secondDigitsToDurationSafe("abc", Duration.zero) == Duration.zero);
@@ -423,7 +422,7 @@ unittest // secondDigitsToDurationSafe
 unittest // toDecimalSafe
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.convert.toDecimalSafe");
+    traceUnitTest("unittest pham.db.convert.toDecimalSafe");
 
     assert(toDecimalSafe!Decimal64("", Decimal64(-1)) == Decimal64(0));
     assert(toDecimalSafe!Decimal64("", Decimal64(-1), Decimal64.max) == Decimal64.max);
@@ -435,7 +434,7 @@ unittest // toDecimalSafe
 unittest // toIntegerSafe
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.convert.toIntegerSafe");
+    traceUnitTest("unittest pham.db.convert.toIntegerSafe");
 
     assert(toIntegerSafe!int("", -1) == 0);
     assert(toIntegerSafe!int("", -1, int.max) == int.max);
@@ -448,7 +447,7 @@ unittest // toIntegerSafe
 unittest // toStringSafe
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.convert.toStringSafe");
+    traceUnitTest("unittest pham.db.convert.toStringSafe");
 
     static int invalidUTF8()
     {
@@ -479,7 +478,7 @@ unittest // toStringSafe
 unittest // toStringSafe
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.convert.toStringSafe");
+    traceUnitTest("unittest pham.db.convert.toStringSafe");
 
     // Need a way to test failure state. D not allow to have invalid string literal
     //assert(toStringSafe("b\uFFFF\uFFFF"w, failedConvertedString) == failedConvertedString);
@@ -491,7 +490,7 @@ unittest // toStringSafe
 unittest // uintDecode & uintEncode
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.convert.uintDecode & uintEncode");
+    traceUnitTest("unittest pham.db.convert.uintDecode & uintEncode");
 
     // 16 bits
     auto b16 = uintEncode!(ushort, Endian.littleEndian)(ushort.min);

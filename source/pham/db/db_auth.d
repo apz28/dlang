@@ -46,7 +46,7 @@ public:
 
     DbAuth setServerPublicKey(scope const(ubyte)[] serverPublicKey) nothrow pure
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("serverPublicKey=", serverPublicKey.dgToHex());
+        version (TraceFunction) traceFunction("serverPublicKey=", serverPublicKey.dgToHex());
 
         this._serverPublicKey = serverPublicKey; 
         return this;
@@ -54,7 +54,7 @@ public:
 
     DbAuth setServerSalt(scope const(ubyte)[] serverSalt) nothrow pure
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("serverSalt=", serverSalt.dgToHex());
+        version (TraceFunction) traceFunction("serverSalt=", serverSalt.dgToHex());
 
         this._serverSalt = serverSalt;
         return this;

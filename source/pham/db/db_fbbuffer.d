@@ -911,7 +911,7 @@ public:
 
     FbOperation readOperation()
     {
-        version (TraceFunctionReader) traceFunction!("pham.db.fbdatabase")();
+        version (TraceFunctionReader) traceFunction();
 
         static assert(int32.sizeof == FbOperation.sizeof);
 
@@ -919,7 +919,7 @@ public:
         {
             auto result = readInt32();
 
-            version (TraceFunctionReader) traceFunction!("pham.db.fbdatabase")("code=", result);
+            version (TraceFunctionReader) traceFunction("code=", result);
 
             if (result != FbIsc.op_dummy)
                 return result;
@@ -933,7 +933,7 @@ public:
 
     FbIscStatues readStatuses() @trusted
     {
-        version (TraceFunctionReader) traceFunction!("pham.db.fbdatabase")();
+        version (TraceFunctionReader) traceFunction();
 
         FbIscStatues result;
         int gdsCode;
@@ -944,7 +944,7 @@ public:
         {
 			auto typeCode = readInt32();
 
-            version (TraceFunctionReader) traceFunction!("pham.db.fbdatabase")("typeCode=", typeCode);
+            version (TraceFunctionReader) traceFunction("typeCode=", typeCode);
 
 			switch (typeCode)
 			{
@@ -1103,7 +1103,7 @@ public:
 
     void flush()
     {
-        version (TraceFunctionWriter) traceFunction!("pham.db.fbdatabase")();
+        version (TraceFunctionWriter) traceFunction();
 
         _buffer.flush();
     }
@@ -1259,7 +1259,7 @@ public:
     void writeHandle(FbHandle handle) nothrow
     {
         static assert(uint32.sizeof == FbHandle.sizeof);
-        version (TraceFunctionWriter) traceFunction!("pham.db.fbdatabase")("handle=", handle);
+        version (TraceFunctionWriter) traceFunction("handle=", handle);
 
         _writer.writeUInt32(cast(uint32)handle);
     }
@@ -1268,7 +1268,7 @@ public:
     void writeId(FbId id) nothrow
     {
         static assert(int64.sizeof == FbId.sizeof);
-        version (TraceFunctionWriter) traceFunction!("pham.db.fbdatabase")("id=", id);
+        version (TraceFunctionWriter) traceFunction("id=", id);
 
         _writer.writeInt64(cast(int64)id);
     }
@@ -1333,7 +1333,7 @@ public:
     void writeOperation(FbOperation operation) nothrow
     {
         static assert(int32.sizeof == FbOperation.sizeof);
-        version (TraceFunctionWriter) traceFunction!("pham.db.fbdatabase")("operation=", operation);
+        version (TraceFunctionWriter) traceFunction("operation=", operation);
 
         writeInt32(cast(int32)operation);
     }
@@ -1433,7 +1433,7 @@ private:
 unittest // FbXdrWriter & FbXdrReader
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbbuffer.FbXdrReader & db.fbbuffer.FbXdrWriter");
+    traceUnitTest("unittest pham.db.fbbuffer.FbXdrReader & db.fbbuffer.FbXdrWriter");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
     const(ubyte)[] bytes = [1,2,5,101];

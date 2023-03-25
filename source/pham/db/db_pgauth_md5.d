@@ -42,7 +42,7 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        version (TraceFunction) traceFunction("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
         auto status = checkAdvanceState(state);
         if (status.isError)
@@ -93,7 +93,7 @@ unittest // PgAuthMD5
     import std.string : representation;
     import pham.utl.object : bytesFromHexs;
     import pham.utl.test;
-    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgauth_md5.PgAuthMD5");
+    traceUnitTest("unittest pham.db.pgauth_md5.PgAuthMD5");
 
     auto salt = bytesFromHexs("9F170CAC");
     auto auth = new PgAuthMD5();

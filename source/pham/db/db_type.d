@@ -685,7 +685,7 @@ public:
     ref Writer toString(Writer, Char)(return ref Writer sink) const
     if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         put(sink, '(');
         leftTop.toString!(Writer, Char)(sink);
@@ -813,7 +813,7 @@ public:
     ref Writer toString(Writer, Char)(return ref Writer sink) const
     if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         FormatSpec!Char spec;
         spec.spec = 'f';
@@ -890,7 +890,7 @@ public:
     ref Writer toString(Writer, Char)(return ref Writer sink) const
     if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         put(sink, open ? '[' : '(');
         foreach (i; 0..points.length)
@@ -966,7 +966,7 @@ public:
     ref Writer toString(Writer, Char)(return ref Writer sink) const
     if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         put(sink, '(');
         foreach (i; 0..points.length)
@@ -1013,7 +1013,7 @@ public:
     ref Writer toString(Writer, Char)(return ref Writer sink) const
     if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         FormatSpec!Char spec;
         spec.spec = 'f';
@@ -1500,7 +1500,7 @@ public:
     ref Writer toString(Writer, Char = char)(return ref Writer sink) const
     if (isOutputRange!(Writer, Char))
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         _value.toString(sink, "%s");
 
@@ -2280,7 +2280,7 @@ shared static this()
 unittest // dbTypeOf
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.type.dbTypeOf");
+    traceUnitTest("unittest pham.db.type.dbTypeOf");
 
     //pragma(msg, "DbDateTime: ", DbDateTime.sizeof); // 24
     //pragma(msg, "SysTime: ", SysTime.sizeof); // 16

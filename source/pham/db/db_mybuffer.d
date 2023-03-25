@@ -132,7 +132,7 @@ private:
             size_t blockSize = void;
             blockHeaderDecode(blockHeader, blockSize, sequenceByte);
 
-            version (TraceFunction) traceFunction!("pham.db.mydatabase")("blockSize=", blockSize, ", sequenceByte=", sequenceByte, ", blockHeader=", blockHeader.a[].dgToHex());
+            version (TraceFunction) traceFunction("blockSize=", blockSize, ", sequenceByte=", sequenceByte, ", blockHeader=", blockHeader.a[].dgToHex());
 
             if (blockSize)
             {
@@ -147,7 +147,7 @@ private:
         }
         this._packetLength = cast(int32)this._buffer.length;
 
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("_packetLength=", _packetLength, ", buffer=", this._buffer.peekBytes(200).dgToHex());
+        version (TraceFunction) traceFunction("_packetLength=", _packetLength, ", buffer=", this._buffer.peekBytes(200).dgToHex());
     }
 
 public:
@@ -427,7 +427,7 @@ public:
     {
         const c = readUInt8();
 
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("readPackedInt64.c=", c);
+        version (TraceFunction) traceFunction("readPackedInt64.c=", c);
 
         switch (c)
         {
@@ -608,7 +608,7 @@ private:
     {
         auto result = cast(char[])consumeBytes(len);
 
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("consumeChars=", result);
+        version (TraceFunction) traceFunction("consumeChars=", result);
 
         return result;
     }
@@ -654,7 +654,7 @@ public:
 
     void beginPackage(ubyte sequenceByte) nothrow
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")(traceString(sequenceByte));
+        version (TraceFunction) traceFunction(traceString(sequenceByte));
 
         this._sequenceByte = sequenceByte;
         this._reserveLenghtOffset = _buffer.offset;
@@ -679,7 +679,7 @@ public:
 
     void flush()
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("_buffer.length=", _buffer.length);
+        version (TraceFunction) traceFunction("_buffer.length=", _buffer.length);
 
         writePackageLength();
         _buffer.flush();
@@ -1078,7 +1078,7 @@ private:
             const blockSize = _buffer.length - _reserveLenghtOffset - 4;
             auto blockHeader = blockHeaderEncode(blockSize, _sequenceByte);
 
-            version (TraceFunction) traceFunction!("pham.db.mydatabase")("_reserveLenghtOffset=", _reserveLenghtOffset, ", blockSize=", blockSize, ", blockHeader=", blockHeader.a[].dgToHex());
+            version (TraceFunction) traceFunction("_reserveLenghtOffset=", _reserveLenghtOffset, ", blockSize=", blockSize, ", blockHeader=", blockHeader.a[].dgToHex());
 
             _writer.rewriteUInt32(blockHeader.u, _reserveLenghtOffset);
             _reserveLenghtOffset = -1; // Reset after done written the length
@@ -1103,7 +1103,7 @@ version (none) //todo
 unittest // MyXdrWriter & MyXdrReader
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.mybuffer.MyXdrReader & db.mybuffer.MyXdrWriter");
+    traceUnitTest("unittest pham.db.mybuffer.MyXdrReader & db.mybuffer.MyXdrWriter");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
     const(ubyte)[] bytes = [1,2,5,101];

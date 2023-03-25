@@ -31,7 +31,7 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        version (TraceFunction) traceFunction("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
         if (state == 0)
         {
@@ -49,7 +49,7 @@ public:
     final override ResultStatus getPassword(scope const(char)[] userName, scope const(char)[] userPassword,
         ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("userName=", userName);
+        version (TraceFunction) traceFunction("userName=", userName);
 
         if (userPassword.length == 0)
         {
@@ -115,7 +115,7 @@ DbAuth createAuthNative()
 unittest
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.myauth_native.MyAuthNative.getPassword");
+    traceUnitTest("unittest pham.db.myauth_native.MyAuthNative.getPassword");
 
     auto auth = new MyAuthNative();
     auth.setServerSalt(dgFromHex("625A1C30712F1F333E6A732543335E6A5C252613"));

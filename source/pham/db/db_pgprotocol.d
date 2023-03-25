@@ -62,7 +62,7 @@ public:
 
     final PgOIdFieldInfo[] bindCommandParameterRead(PgCommand command)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
     receiveAgain:
         auto reader = PgReader(connection);
@@ -113,7 +113,7 @@ public:
 
     final void bindCommandParameterWrite(PgCommand command)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
         auto inputParameters = command.pgInputParameters();
 
@@ -134,7 +134,7 @@ public:
 
     final void connectAuthenticationRead(ref PgConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
     receiveAgain:
         auto reader = PgReader(connection);
@@ -149,7 +149,7 @@ public:
 
             case 'R': // AuthenticationXXXX
                 stateInfo.authType = reader.readInt32();
-                version (TraceFunction) traceFunction!("pham.db.pgdatabase")("authType=", stateInfo.authType);
+                version (TraceFunction) traceFunction("authType=", stateInfo.authType);
                 switch (stateInfo.authType)
                 {
                     case 0: // authentication successful, now wait for another messages
@@ -197,13 +197,13 @@ public:
             case 'S': // ParameterStatus
                 const name = reader.readCString();
                 const value = reader.readCString();
-                version (TraceFunction) traceFunction!("pham.db.pgdatabase")("name=", name, ", value=", value);
+                version (TraceFunction) traceFunction("name=", name, ", value=", value);
                 connection.serverInfo[name] = value;
                 goto receiveAgain;
 
             case 'Z': // ReadyForQuery
                 stateInfo.trStatus = reader.readChar();
-                version (TraceFunction) traceFunction!("pham.db.pgdatabase")("trStatus=", stateInfo.trStatus);
+                version (TraceFunction) traceFunction("trStatus=", stateInfo.trStatus);
                 switch (stateInfo.trStatus) // check for validity
                 {
                     case 'E', 'I', 'T':
@@ -240,7 +240,7 @@ public:
 
     final void connectAuthenticationWrite(ref PgConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
         auto useCSB = connection.pgConnectionStringBuilder;
 
@@ -282,7 +282,7 @@ public:
 
     final void connectCheckingSSL(ref PgConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
         stateInfo.canCryptedConnection = canCryptedConnection(stateInfo);
         if (stateInfo.canCryptedConnection != DbEncryptedConnection.disabled)
@@ -294,7 +294,7 @@ public:
 
     final void connectSSLRead(ref PgConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
         auto socketBuffer = connection.acquireSocketReadBuffer();
         auto socketReader = DbValueReader!(Endian.bigEndian)(socketBuffer);
@@ -309,11 +309,11 @@ public:
                 }
                 break;
             case 'S':
-                version (TraceFunction) traceFunction!("pham.db.pgdatabase")("Bind SSL");
+                version (TraceFunction) traceFunction("Bind SSL");
                 auto rs = connection.doOpenSSL();
                 if (rs.isError)
                 {
-                    version (TraceFunction) traceFunction!("pham.db.pgdatabase")("SSL failed code=", rs.errorCode, ", message=", rs.errorMessage);
+                    version (TraceFunction) traceFunction("SSL failed code=", rs.errorCode, ", message=", rs.errorMessage);
                     connection.throwConnectError(rs.errorCode, rs.errorMessage);
                 }
 
@@ -328,7 +328,7 @@ public:
 
     final void connectSSLWrite(ref PgConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
         auto writer = PgWriter(connection);
         writer.beginUntypeMessage();
@@ -338,7 +338,7 @@ public:
 
     final void deallocateCommandRead()
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
     receiveAgain:
         auto reader = PgReader(connection);
@@ -371,7 +371,7 @@ public:
 
     final void deallocateCommandWrite(PgCommand command)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
         auto writer = PgWriter(connection);
         writeCloseMessage(writer, PgOIdDescribeType.statement, command.name);
@@ -381,7 +381,7 @@ public:
 
     final void disconnectWrite()
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
         writeSignal(PgOIdDescribeType.disconnect);
     }
@@ -390,7 +390,7 @@ public:
     {
         // Need to return package reader to continue reading row values
 
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("type=", type);
+        version (TraceFunction) traceFunction("type=", type);
 
         PgOIdExecuteResult result;
 
@@ -469,7 +469,7 @@ public:
 
     final void executeCommandWrite(PgCommand command, const(DbCommandExecuteType) type)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("type=", type);
+        version (TraceFunction) traceFunction("type=", type);
 
         auto writer = PgWriter(connection);
         writeExecuteMessage(writer, command, type);
@@ -490,7 +490,7 @@ public:
         version (TraceFunction)
         {
             static ulong counter;
-            traceFunction!("pham.db.pgdatabase")("counter: ", ++counter);
+            traceFunction("counter: ", ++counter);
         }
 
         PgOIdFetchResult result;
@@ -534,7 +534,7 @@ public:
 
     final void prepareCommandRead(PgCommand command)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
 	receiveAgain:
         auto reader = PgReader(connection);
@@ -566,7 +566,7 @@ public:
 
     final void prepareCommandWrite(PgCommand command, scope const(char)[] sql)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
         auto inputParameters = command.pgInputParameters();
 
@@ -583,7 +583,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")(column.traceString(), ", valueLength=", valueLength);
+        version (TraceFunction) traceFunction(column.traceString(), ", valueLength=", valueLength);
         version (profile) debug auto p = PerfFunction.create();
 
         PgXdrReader checkValueLength(const(int32) expectedLength) @safe
@@ -750,14 +750,14 @@ public:
 
     final DbRowValue readValues(ref PgReader reader, PgCommand command, PgFieldList fields)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
         version (profile) debug auto p = PerfFunction.create();
 
         const fieldCount = reader.readFieldCount();
         const resultFieldCount = max(fieldCount, fields.length);
         const readFieldCount = min(fieldCount, fields.length);
 
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("fieldCount=", fieldCount, ", fields.length=", fields.length);
+        version (TraceFunction) traceFunction("fieldCount=", fieldCount, ", fields.length=", fields.length);
 
         auto result = DbRowValue(resultFieldCount);
 
@@ -784,7 +784,7 @@ public:
 
     final PgGenericResponse readGenericResponse(ref PgReader reader)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
         PgGenericResponse result;
         while (true)
@@ -801,7 +801,7 @@ public:
 
     final PgNotificationResponse readNotificationResponse(ref PgReader reader)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
         PgNotificationResponse result;
         result.pid = reader.readInt32();
@@ -825,7 +825,7 @@ public:
 protected:
     final void cancelRequestWrite(int32 serverProcessId, int32 serverSecretKey, int32 cancelKind)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("serverProcessId=", serverProcessId, ", serverSecretKey=", serverSecretKey, ", cancelKind=", cancelKind);
+        version (TraceFunction) traceFunction("serverProcessId=", serverProcessId, ", serverSecretKey=", serverSecretKey, ", cancelKind=", cancelKind);
 
         const len = int32.sizeof +  // Length
                     int32.sizeof +  // Cancel request code
@@ -842,7 +842,7 @@ protected:
 
     final DbEncryptedConnection canCryptedConnection(ref PgConnectingStateInfo stateInfo) nothrow
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
         auto useCSB = connection.pgConnectionStringBuilder;
 
@@ -861,7 +861,7 @@ protected:
 
     final void connectAuthenticationProcess(ref PgConnectingStateInfo stateInfo, const(ubyte)[] serverAuthData)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("stateInfo.nextAuthState=", stateInfo.nextAuthState, ", stateInfo.authMethod=", stateInfo.authMethod, ", serverAuthData=", serverAuthData.dgToHex());
+        version (TraceFunction) traceFunction("stateInfo.nextAuthState=", stateInfo.nextAuthState, ", stateInfo.authMethod=", stateInfo.authMethod, ", serverAuthData=", serverAuthData.dgToHex());
 
         auto useCSB = connection.pgConnectionStringBuilder;
 
@@ -947,7 +947,7 @@ protected:
 
     final void describeParameters(ref PgWriter writer, scope PgParameter[] inputParameters)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("inputParameters.length=", inputParameters.length);
+        version (TraceFunction) traceFunction("inputParameters.length=", inputParameters.length);
 
         writer.writeInt16(cast(int16)inputParameters.length);
         foreach (param; inputParameters)
@@ -1132,7 +1132,7 @@ protected:
 
     final void describeValueArray(T)(ref PgWriter writer, DbNameColumn column, ref DbValue value, const(int32) elementOid)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("elementOid=", elementOid);
+        version (TraceFunction) traceFunction("elementOid=", elementOid);
 
         auto values = value.get!(T[])();
         const int32 length = cast(int32)values.length;
@@ -1213,7 +1213,7 @@ protected:
 
     final T[] readValueArray(T)(ref PgReader reader, PgCommand command, DbNameColumn column, const(int32) valueLength)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
         int32[] lengths;
         int32 elementOid;
@@ -1323,7 +1323,7 @@ protected:
 
     final DbValue readValueError(DbNameColumn column, const(int32) valueLength, const(int32) expectedLength)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
         auto msg = expectedLength > 0
             ? DbMessage.eUnexpectReadValue.fmtMessage(shortClassName(this) ~ ".readValue", toName!DbType(column.type), valueLength, expectedLength)
@@ -1333,7 +1333,7 @@ protected:
 
     final void writeBindMessage(ref PgWriter writer, PgCommand command, scope PgParameter[] inputParameters)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
         writer.beginMessage(PgOIdDescribeType.bindStatement);
         writer.writeCChars(command.name); // portalName
@@ -1352,7 +1352,7 @@ protected:
 
     final void writeCloseMessage(ref PgWriter writer, const(PgOIdDescribeType) type, scope const(char)[] name)
 	{
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
 		writer.beginMessage(PgOIdDescribeType.close);
         writer.writeChar(type);
@@ -1362,7 +1362,7 @@ protected:
 
     final void writeDescribeMessage(ref PgWriter writer, PgCommand command)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
 		writer.beginMessage(PgOIdDescribeType.describeStatement);
         writer.writeChar(PgOIdDescribeType.portal);
@@ -1372,7 +1372,7 @@ protected:
 
     final void writeExecuteMessage(ref PgWriter writer, PgCommand command, const(DbCommandExecuteType) type)
 	{
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
 		writer.beginMessage(PgOIdDescribeType.executeStatement);
         writer.writeCChars(command.name);
@@ -1383,7 +1383,7 @@ protected:
     final void writeParseMessage(ref PgWriter writer, PgCommand command, scope const(char)[] sql,
         scope PgParameter[] inputParameters)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")();
+        version (TraceFunction) traceFunction();
 
 		writer.beginMessage(PgOIdDescribeType.parseStatement);
         writer.writeCChars(command.name);
@@ -1393,7 +1393,7 @@ protected:
             writer.writeInt16(cast(int16)inputParameters.length);
             foreach (parameter; inputParameters)
             {
-                version (TraceFunction) traceFunction!("pham.db.pgdatabase")("parameter.name=", parameter.name, ", baseName=", parameter.baseName, ", baseTypeId=", parameter.baseTypeId);
+                version (TraceFunction) traceFunction("parameter.name=", parameter.name, ", baseName=", parameter.baseName, ", baseTypeId=", parameter.baseTypeId);
                 writer.writeInt32(parameter.baseTypeId); // OIDType
             }
         }

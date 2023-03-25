@@ -13,7 +13,6 @@ module pham.db.mydatabase;
 
 import std.array : Appender;
 import std.conv : text, to;
-import std.exception : assumeWontThrow;
 import std.system : Endian;
 
 version (profile) import pham.utl.test : PerfFunction;
@@ -59,7 +58,7 @@ public:
 
     final override const(char)[] getExecutionPlan(uint vendorMode) @safe
 	{
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("vendorMode=", vendorMode);
+        version (TraceFunction) traceFunction("vendorMode=", vendorMode);
 
         string explainFormat() nothrow @safe
         {
@@ -133,7 +132,7 @@ public:
 protected:
     override string buildStoredProcedureSql(string storedProcedureName, const(BuildCommandTextState) state) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("storedProcedureName=", storedProcedureName, ", state=", state);
+        version (TraceFunction) traceFunction("storedProcedureName=", storedProcedureName, ", state=", state);
 
         if (storedProcedureName.length == 0)
             return null;
@@ -219,14 +218,14 @@ protected:
             }
         }
 
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("storedProcedureName=", storedProcedureName, ", result=", result.data);
+        version (TraceFunction) traceFunction("storedProcedureName=", storedProcedureName, ", result=", result.data);
 
         return result.data;
     }
 
     final void deallocateHandle() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) traceFunction();
 
         scope (exit)
             _handle.reset();
@@ -245,7 +244,7 @@ protected:
 
     final override void doExecuteCommand(const(DbCommandExecuteType) type) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("type=", type);
+        version (TraceFunction) traceFunction("type=", type);
         version (profile) debug auto p = PerfFunction.create();
 
         if (!prepared && hasParameters && parametersCheck)
@@ -299,7 +298,7 @@ protected:
     }
     do
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("isScalar=", isScalar);
+        version (TraceFunction) traceFunction("isScalar=", isScalar);
         version (profile) debug auto p = PerfFunction.create();
 
         auto protocol = myConnection.protocol;
@@ -309,7 +308,7 @@ protected:
             MyReader rowPackage;
             if (!protocol.readRow(rowPackage))
             {
-                version (TraceFunction) traceFunction!("pham.db.mydatabase")("allRowsFetched=true");
+                version (TraceFunction) traceFunction("allRowsFetched=true");
                 allRowsFetched = true;
                 break;
             }
@@ -322,7 +321,7 @@ protected:
 
     final override void doPrepare() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) traceFunction();
         version (profile) debug auto p = PerfFunction.create();
 
         auto sql = executeCommandText(BuildCommandTextState.prepare);
@@ -340,7 +339,7 @@ protected:
 
     final override void doUnprepare() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) traceFunction();
 
         purgePendingRows();
 
@@ -355,7 +354,7 @@ protected:
 
     static void fillNamedColumn(DbNameColumn column, const ref MyFieldInfo myField, const(bool) isNew) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")(myField.traceString());
+        version (TraceFunction) traceFunction(myField.traceString());
 
         column.baseName = myField.useName();
         column.baseNumericScale = myField.scale;
@@ -381,7 +380,7 @@ protected:
 
     final void processExecuteResponse(ref MyCommandResultResponse response, const(int) counter) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("response.okResponse.lastInsertId=", response.okResponse.lastInsertId, ", response.okResponse.affectedRows=", response.okResponse.affectedRows, ", response.fields.length=", response.fields.length);
+        version (TraceFunction) traceFunction("response.okResponse.lastInsertId=", response.okResponse.lastInsertId, ", response.okResponse.affectedRows=", response.okResponse.affectedRows, ", response.fields.length=", response.fields.length);
 
         if (counter == 1)
         {
@@ -418,7 +417,7 @@ protected:
 
     final void processPrepareResponse(ref MyCommandPreparedResponse response) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) traceFunction();
 
         if (response.parameters.length != 0)
         {
@@ -474,7 +473,7 @@ protected:
 
     final void purgePendingRows() nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) traceFunction();
 
         if (!isSelectCommandType || allRowsFetched)
             return;
@@ -494,7 +493,7 @@ protected:
 
     final DbRowValue readRow(ref MyReader rowPackage, const(bool) isScalar) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("isScalar=", isScalar);
+        version (TraceFunction) traceFunction("isScalar=", isScalar);
         version (profile) debug auto p = PerfFunction.create();
 
         auto protocol = myConnection.protocol;
@@ -503,7 +502,7 @@ protected:
 
     override void removeReaderCompleted(const(bool) implicitTransaction) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) traceFunction();
 
         purgePendingRows();
         super.removeReaderCompleted(implicitTransaction);
@@ -679,7 +678,7 @@ protected:
 
     final override void doCancelCommand(DbCancelCommandData data) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) traceFunction();
 
         auto myData = cast(MyCancelCommandData)data;
         auto cancelCommandText = "KILL QUERY " ~ to!string(myData.serverProcessId);
@@ -697,7 +696,7 @@ protected:
 
     final override void doClose(bool failedOpen) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("failedOpen=", failedOpen, ", socketActive=", socketActive);
+        version (TraceFunction) traceFunction("failedOpen=", failedOpen, ", socketActive=", socketActive);
 
         scope (exit)
             disposeProtocol(DisposingReason.other);
@@ -727,7 +726,7 @@ protected:
 
     final override void doOpen() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) traceFunction();
 
         MyConnectingStateInfo stateInfo;
 
@@ -738,7 +737,7 @@ protected:
 
     final void doOpenAuthentication(ref MyConnectingStateInfo stateInfo) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) traceFunction();
 
         _protocol = new MyProtocol(this);
         _protocol.connectGreetingRead(stateInfo);
@@ -749,7 +748,7 @@ protected:
     final override string getServerVersion() @safe
     {
         // Use this command "SHOW VARIABLES LIKE 'version'" or "SHOW VARIABLES LIKE '%version%'"
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) traceFunction();
 
         auto command = createNonTransactionCommand();
         scope (exit)
@@ -773,7 +772,7 @@ protected:
     do
     {
         //TODO cache this result
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("storedProcedureName=", storedProcedureName);
+        version (TraceFunction) traceFunction("storedProcedureName=", storedProcedureName);
 
         auto command = createNonTransactionCommand();
         scope (exit)
@@ -906,11 +905,11 @@ public:
 protected:
     final override string getDefault(string name) const nothrow
     {
+        scope (failure) assert(0, "Assume nothrow failed");
+        
         auto n = DbIdentitier(name);
-        auto result = assumeWontThrow(myDefaultConnectionParameterValues.get(n, null));
-        if (result.ptr is null)
-            result = super.getDefault(name);
-        return result;
+        auto result = myDefaultConnectionParameterValues.get(n, null);
+        return result.ptr !is null ? result : super.getDefault(name);
     }
 
     final override void setDefaultIfs() nothrow
@@ -1257,21 +1256,21 @@ protected:
 
     final override void doCommit(bool disposing) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("disposing=", disposing);
+        version (TraceFunction) traceFunction("disposing=", disposing);
 
         transactionCommand("COMMIT");
     }
 
     final override void doRollback(bool disposing) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("disposing=", disposing);
+        version (TraceFunction) traceFunction("disposing=", disposing);
 
         transactionCommand("ROLLBACK");
     }
 
     final override void doStart() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")();
+        version (TraceFunction) traceFunction();
 
         auto tmText = _transactionCommandText.length != 0
             ? _transactionCommandText
@@ -1283,7 +1282,7 @@ protected:
 
     final void transactionCommand(string tmText) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("tmText=", tmText);
+        version (TraceFunction) traceFunction("tmText=", tmText);
 
         auto command = myConnection.createNonTransactionCommand();
         scope (exit)
@@ -1307,6 +1306,16 @@ shared static this()
 
     auto db = new MyDatabase();
     DbDatabaseList.registerDb(db);
+}
+
+unittest // Turn on trace log if requested - must be first unittest one
+{
+    version (TraceFunctionMYDatabase)
+    {
+        import pham.external.std.log.logger : LogLevel, ModuleLoggerOption, ModuleLoggerOptions;
+        
+        ModuleLoggerOptions.setModule(ModuleLoggerOption(ModuleLoggerOptions.wildPackageName(__MODULE__), LogLevel.trace));
+    }
 }
 
 version (UnitTestMYDatabase)
@@ -1403,7 +1412,7 @@ version (UnitTestMYDatabase)
 unittest // MyConnection
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.mydatabase.MyConnection");
+    traceUnitTest("unittest pham.db.mydatabase.MyConnection");
 
     auto connection = createTestConnection();
     scope (exit)
@@ -1421,7 +1430,7 @@ version (UnitTestMYDatabase)
 unittest // MyConnection(myAuthSha2Caching)
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.mydatabase.MyConnection(myAuthSha2Caching)");
+    traceUnitTest("unittest pham.db.mydatabase.MyConnection(myAuthSha2Caching)");
 
     auto connection = createTestConnection();
     scope (exit)
@@ -1451,7 +1460,7 @@ version (UnitTestMYDatabase)
 unittest // MyTransaction
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.mydatabase.MyTransaction");
+    traceUnitTest("unittest pham.db.mydatabase.MyTransaction");
 
     auto connection = createTestConnection();
     scope (exit)
@@ -1489,14 +1498,14 @@ version (UnitTestMYDatabase)
 unittest // MyCommand.DDL
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.mydatabase.MyCommand.DDL");
+    traceUnitTest("unittest pham.db.mydatabase.MyCommand.DDL");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            traceUnitTest!("pham.db.mydatabase")("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.dispose();
     }
@@ -1520,14 +1529,14 @@ unittest // MyCommand.DML
 {
     import std.math;
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.mydatabase.MyCommand.DML - Simple select");
+    traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML - Simple select");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            traceUnitTest!("pham.db.mydatabase")("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.dispose();
     }
@@ -1547,7 +1556,7 @@ unittest // MyCommand.DML
     while (reader.read())
     {
         count++;
-        traceUnitTest!("pham.db.mydatabase")("unittest pham.db.mydatabase.MyCommand.DML.checking - count: ", count);
+        traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -1601,14 +1610,14 @@ unittest // MyCommand.DML
 {
     import std.math;
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.mydatabase.MyCommand.DML - Parameter select");
+    traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML - Parameter select");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            traceUnitTest!("pham.db.mydatabase")("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.dispose();
     }
@@ -1635,7 +1644,7 @@ unittest // MyCommand.DML
     while (reader.read())
     {
         count++;
-        traceUnitTest!("pham.db.mydatabase")("unittest pham.db.mydatabase.MyCommand.DML.checking - count: ", count);
+        traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -1688,21 +1697,21 @@ version (UnitTestMYDatabase)
 unittest // MyCommand.DML.StoredProcedure
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.mydatabase.MyCommand.DML.StoredProcedure");
+    traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML.StoredProcedure");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            traceUnitTest!("pham.db.mydatabase")("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.dispose();
     }
     connection.open();
 
     {
-        traceUnitTest!("pham.db.mydatabase")("Get information");
+        traceUnitTest("Get information");
         auto info = connection.getStoredProcedureInfo("MULTIPLE_BY2");
         assert(info.argumentTypes.length == 2);
         assert(info.argumentTypes[0].name == "X");
@@ -1710,7 +1719,7 @@ unittest // MyCommand.DML.StoredProcedure
     }
 
     {
-        traceUnitTest!("pham.db.mydatabase")("Without prepare");
+        traceUnitTest("Without prepare");
 
         auto command = connection.createCommand();
         scope (exit)
@@ -1725,7 +1734,7 @@ unittest // MyCommand.DML.StoredProcedure
     }
 
     {
-        traceUnitTest!("pham.db.mydatabase")("With prepare");
+        traceUnitTest("With prepare");
 
         auto command = connection.createCommand();
         scope (exit)
@@ -1746,14 +1755,14 @@ version (UnitTestMYDatabase)
 unittest // MyCommand.DML.Abort reader
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.mydatabase.MyCommand.DML - Abort reader");
+    traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML - Abort reader");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {
         if (failed)
-            traceUnitTest!("pham.db.mydatabase")("failed - exiting and closing connection");
+            traceUnitTest("failed - exiting and closing connection");
 
         connection.dispose();
     }
@@ -1766,7 +1775,7 @@ unittest // MyCommand.DML.Abort reader
     command.commandText = "select * from foo limit 1000";
 
     {
-        traceUnitTest!("pham.db.mydatabase")("Aborting case");
+        traceUnitTest("Aborting case");
 
         auto reader = command.executeReader();
         scope (exit)
@@ -1784,7 +1793,7 @@ unittest // MyCommand.DML.Abort reader
     }
 
     {
-        traceUnitTest!("pham.db.mydatabase")("Read all after abort case");
+        traceUnitTest("Read all after abort case");
 
         auto reader = command.executeReader();
         scope (exit)
@@ -1806,7 +1815,7 @@ version (UnitTestMYDatabase)
 unittest // MyConnection(SSL)
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.mydatabase.MyConnection(SSL)");
+    traceUnitTest("unittest pham.db.mydatabase.MyConnection(SSL)");
 
     auto connection = createTestConnection();
     scope (exit)
@@ -1829,7 +1838,7 @@ unittest // MyConnection(SSL)
 unittest // DbDatabaseList.createConnection
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.DbDatabaseList.createConnection");
+    traceUnitTest("unittest pham.db.DbDatabaseList.createConnection");
 
     auto connection = DbDatabaseList.createConnection("mysql:server=myServerAddress;database=myDataBase;" ~
         "user=myUsername;password=myPassword;role=myRole;pooling=true;connectionTimeout=100;encrypt=enabled;" ~
@@ -1854,7 +1863,7 @@ unittest // DbDatabaseList.createConnection
 unittest // DbDatabaseList.createConnectionByURL
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.DbDatabaseList.createConnectionByURL");
+    traceUnitTest("unittest pham.db.DbDatabaseList.createConnectionByURL");
 
     auto connection = DbDatabaseList.createConnectionByURL("mysql://myUsername:myPassword@myServerAddress/myDataBase?" ~
         "role=myRole&pooling=true&connectionTimeout=100&encrypt=enabled&" ~
@@ -1976,7 +1985,7 @@ version (UnitTestPerfMYDatabase)
         {
             version (unittest)
             if (failed)
-                traceUnitTest!("pham.db.mydatabase")("failed - exiting and closing connection");
+                traceUnitTest("failed - exiting and closing connection");
 
             connection.dispose();
         }
@@ -2014,8 +2023,18 @@ unittest // MyCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
 {
     import std.format : format;
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.mydatabase.MyCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
+    traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
 
     const perfResult = unitTestPerfMYDatabase();
     dgWriteln("MY-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
+}
+
+unittest // Turn off trace log if requested - must be last unittest one
+{
+    version (TraceFunctionMYDatabase)
+    {
+        import pham.external.std.log.logger : ModuleLoggerOptions;
+        
+        ModuleLoggerOptions.removeModule(ModuleLoggerOptions.wildPackageName(__MODULE__));
+    }
 }

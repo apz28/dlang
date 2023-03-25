@@ -43,7 +43,7 @@ public:
     final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        version (TraceFunction) traceFunction("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
         auto firstMessage = PgOIdScramSHA256FirstMessage(serverAuthData);
         if (!firstMessage.isValid() || !firstMessage.nonce.startsWith(this.nonce))
@@ -55,7 +55,7 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        version (TraceFunction) traceFunction("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
         auto status = checkAdvanceState(state);
         if (status.isError)
@@ -126,12 +126,12 @@ protected:
     final CipherBuffer!ubyte calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
         const ref PgOIdScramSHA256FirstMessage firstMessage)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("userName=", userName);
+        version (TraceFunction) traceFunction("userName=", userName);
 
         const clientInitialRequestBare = initialRequestBare();
         const clientFinalMessageWithoutProof = finalRequestWithoutProof(firstMessage.nonce);
         scope const serverMessage = firstMessage.getMessage();
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("userName=", userName);
+        version (TraceFunction) traceFunction("userName=", userName);
         setServerSalt(firstMessage.getSalt());
         _saltedPassword = computeScramSHA256HashPassword(userPassword, serverSalt, firstMessage.iteration);
 
@@ -165,7 +165,7 @@ protected:
         auto result = CipherBuffer!ubyte((clientFinalMessageWithoutProof ~ ",p=" ~ clientProof).representation());
 
         version (TraceFunction)
-        traceFunction!("pham.db.pgdatabase")("clientKey=", clientKey[].dgToHex(),
+        traceFunction("clientKey=", clientKey[].dgToHex(),
             ", clientProofBytes=", clientProofBytes[],
             ", clientProofBytes.length=", clientProofBytes.length,
             ", result.length=", result.length, ", result=", cast(const(char)[])(result[]));
@@ -219,7 +219,7 @@ private:
 
     static void computeScramSHA256HashPasswordInitial(ref DigestResult result, scope const(char)[] userPassword, scope const(ubyte)[] serverSalt)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("serverSalt=", serverSalt.dgToHex());
+        version (TraceFunction) traceFunction("serverSalt=", serverSalt.dgToHex());
 
         enum ubyte[4] one = [0, 0, 0, 1]; // uint=1 in BigEndian
 
@@ -232,7 +232,7 @@ private:
 
     static void computeScramSHA256HashPasswordIteration(ref DigestResult result, scope const(char)[] userPassword, const(int) iteration)
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("iteration=", iteration, ", result=", result[].dgToHex());
+        version (TraceFunction) traceFunction("iteration=", iteration, ", result=", result[].dgToHex());
 
         auto hmac = HMACS(DigestId.sha256, userPassword.representation());
         DigestResult hmacResult;
@@ -282,7 +282,7 @@ DbAuth createAuthScram256()
 unittest // PgAuthScram256.computeScramSHA256HashPassword
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgauth_scram.PgAuthScram256.computeScramSHA256HashPassword");
+    traceUnitTest("unittest pham.db.pgauth_scram.PgAuthScram256.computeScramSHA256HashPassword");
 
     auto r = PgAuthScram256.computeScramSHA256HashPassword("masterkey", bytesFromHexs("12745ADF31A15F417F1496DA6F285551"), 4096);
     assert(r[] == bytesFromHexs("C7025D14F64AFCD68B504E933FEF597BAAD89F35E7F7167FC0F5809B21018C05"));

@@ -86,7 +86,7 @@ uint8 dateEncode(ref ubyte[maxDateBufferSize] myDateBytes, scope const(Date) dat
 static immutable DateTimePattern[] datePatterns;
 bool dateDecodeString(scope const(char)[] myDateString, ref DbDate dbDate)
 {
-	version (TraceFunction) debug traceFunction!("pham.db.mydatabase")("myDateString=", myDateString);
+	version (TraceFunction) debug traceFunction("myDateString=", myDateString);
 	assert(datePatterns.length != 0);
 
 	Date dt = void;
@@ -102,7 +102,7 @@ bool dateDecodeString(scope const(char)[] myDateString, ref DbDate dbDate)
 enum maxDateStringSize = 23;
 uint8 dateEncodeString(ref char[maxDateStringSize] myDateString, scope const(Date) date)
 {
-	scope (failure) assert(0);
+	scope (failure) assert(0, "Assume nothrow failed");
 
 	ShortStringBuffer!char buffer;
 	myDateString[0..maxDateStringSize] = date.toString(buffer, "timestamp('%cyyyy-mm-dd')")[0..maxDateStringSize];
@@ -170,7 +170,7 @@ uint8 dateTimeEncode(ref ubyte[maxDateTimeBufferSize] myDateTimeBytes, scope con
 static immutable DateTimePattern[] dateTimePatterns;
 bool dateTimeDecodeString(scope const(char)[] myDateTimeString, ref DbDateTime dbDateTime)
 {
-	version (TraceFunction) debug traceFunction!("pham.db.mydatabase")("myDateTimeString=", myDateTimeString);
+	version (TraceFunction) debug traceFunction("myDateTimeString=", myDateTimeString);
 	assert(dateTimePatterns.length != 0);
 
 	DateTime dt = void;
@@ -186,7 +186,7 @@ bool dateTimeDecodeString(scope const(char)[] myDateTimeString, ref DbDateTime d
 enum maxDateTimeStringSize = 39;
 uint8 dateTimeEncodeString(ref char[maxDateTimeStringSize] myDateTimeString, scope const(DbDateTime) dateTime)
 {
-	scope (failure) assert(0);
+	scope (failure) assert(0, "Assume nothrow failed");
 
 	ShortStringBuffer!char buffer;
 	if (dateTime.value.fraction != 0)
@@ -239,7 +239,7 @@ uint8 geometryEncode(ref ubyte[maxMyGeometryBufferSize] myGeometryBytes, scope c
 
 uint8 geometryEncode(ref char[maxMyGeometryBufferSize] myGeometryChars, scope const(MyGeometry) geometry)
 {
-	scope (failure) assert(0);
+	scope (failure) assert(0, "Assume nothrow failed");
 
 	ShortStringBuffer!char buffer;
 	if (geometry.srid != 0)
@@ -314,7 +314,7 @@ uint8 timeSpanEncode(ref ubyte[maxTimeSpanBufferSize] myTimeSpanBytes, scope con
 static immutable DateTimePattern[] timePatterns;
 bool timeSpanDecodeString(scope const(char)[] myTimeString, ref DbTimeSpan dbTimeSpan)
 {
-	version (TraceFunction) debug traceFunction!("pham.db.mydatabase")("myTimeString=", myTimeString);
+	version (TraceFunction) debug traceFunction("myTimeString=", myTimeString);
 	assert(timePatterns.length != 0);
 
 	Time tm = void;
@@ -330,7 +330,7 @@ bool timeSpanDecodeString(scope const(char)[] myTimeString, ref DbTimeSpan dbTim
 enum maxTimeSpanStringSize = 30;
 uint8 timeSpanEncodeString(ref char[maxTimeSpanStringSize] myTimeSpanString, scope const(DbTimeSpan) timeSpan)
 {
-	scope (failure) assert(0);
+	scope (failure) assert(0, "Assume nothrow failed");
 
 	int day = void, hour = void, minute = void, second = void, microsecond = void;
 	bool isNeg = void;
@@ -392,7 +392,7 @@ do
 		result |= cast(T)(v[7]) << shift;
     }
 
-	version (TraceFunction) debug traceFunction!("pham.db.mydatabase")("uintDecode.result=", result, ", bytes=", v.dgToHex());
+	version (TraceFunction) debug traceFunction("uintDecode.result=", result, ", bytes=", v.dgToHex());
 
     return result;
 }
@@ -514,7 +514,7 @@ shared static this()
 unittest // uintEncode & uintDecode
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.myconvert.uintEncode & uintDecode");
+    traceUnitTest("unittest pham.db.myconvert.uintEncode & uintDecode");
 
     // 16 bits
     auto b16 = uintEncode!(ushort, 2)(ushort.min);
@@ -584,7 +584,7 @@ unittest // uintEncode & uintDecode
 unittest // dateDecode & dateEncode
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.myconvert.dateDecode & dateEncode");
+    traceUnitTest("unittest pham.db.myconvert.dateDecode & dateEncode");
 
 	ubyte[maxDateBufferSize] buffer = void;
 	int bufferSize = void;
@@ -606,7 +606,7 @@ unittest // dateDecode & dateEncode
 unittest // dateTimeDecode & dateTimeEncode
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.myconvert.dateTimeDecode & dateTimeEncode");
+    traceUnitTest("unittest pham.db.myconvert.dateTimeDecode & dateTimeEncode");
 
 	ubyte[maxDateTimeBufferSize] buffer = void;
 	int bufferSize = void;
@@ -656,7 +656,7 @@ unittest // dateTimeDecode & dateTimeEncode
 unittest // timeSpanDecode & timeSpanEncode
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.myconvert.timeSpanDecode & timeSpanEncode");
+    traceUnitTest("unittest pham.db.myconvert.timeSpanDecode & timeSpanEncode");
 
 	Time time;
 	DbTimeSpan timeSpan;

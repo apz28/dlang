@@ -121,9 +121,9 @@ void dateTimeEncodeTZ(scope const(DbDateTime) value, out int64 pgTime, out int32
 D numericDecode(D)(scope const(PgOIdNumeric) pgNumeric)
 if (isDecimal!D)
 {
-	scope (failure) assert(0);
+	scope (failure) assert(0, "Assume nothrow failed");
 
-    version (TraceFunction) traceFunction!("pham.db.pgdatabase")(pgNumeric.traceString());
+    version (TraceFunction) traceFunction(pgNumeric.traceString());
 
     if (pgNumeric.isNaN)
         return D.nan;
@@ -209,7 +209,7 @@ if (isDecimal!D)
 		}
 	}
 
-    version (TraceFunction) traceFunction!("pham.db.pgdatabase")("value=", value[]);
+    version (TraceFunction) traceFunction("value=", value[]);
 
 	if (pgNumeric.dscale > 0)
 		return D(value[], RoundingMode.banking);
@@ -369,7 +369,7 @@ private:
 unittest // numericDecode
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgconvert.numericDecode");
+    traceUnitTest("unittest pham.db.pgconvert.numericDecode");
 
 	PgOIdNumeric n5_40 = {ndigits:2, weight:0, sign:0, dscale:2, digits:[5, 4000]};
 	PgOIdNumeric n6_50 = {ndigits:2, weight:0, sign:0, dscale:2, digits:[6, 5000]};
@@ -381,7 +381,7 @@ unittest // numericDecode
 unittest // numericEncode
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgconvert.numericEncode");
+    traceUnitTest("unittest pham.db.pgconvert.numericEncode");
 
 	// Scale=1 because Decimal.toString will truncate trailing zero
 	PgOIdNumeric n5_40 = {ndigits:2, weight:0, sign:0, dscale:1, digits:[5, 4000]};
@@ -390,12 +390,12 @@ unittest // numericEncode
 	static void traceNumeric(PgOIdNumeric pgNumeric)
     {
 		version (TraceFunction)
-		traceUnitTest!("pham.db.pgdatabase")(pgNumeric.traceString());
+		traceUnitTest(pgNumeric.traceString());
     }
 
 	auto dec5_40 = toDecimalSafe!Decimal64("5.40", Decimal64.nan);
 	auto num5_40 = numericEncode!Decimal64(dec5_40);
-	//traceUnitTest!("pham.db.pgdatabase")(dec5_40.toString());
+	//traceUnitTest(dec5_40.toString());
 	//traceNumeric(num5_40);
 	//traceNumeric(n5_40);
 	assert(num5_40 == n5_40);

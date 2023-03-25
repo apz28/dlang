@@ -46,9 +46,9 @@ do
 
 string makeCommandName(void* command, uint counter)
 {
-import std.format : format;
+    import std.format : format;
 
-    scope (failure) assert(0);
+    scope (failure) assert(0, "Assume nothrow failed");
 
     return format("%X_%u", command, counter);
 }
@@ -132,7 +132,7 @@ private:
 unittest // truncate
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.util.truncate");
+    traceUnitTest("unittest pham.db.util.truncate");
 
     assert(truncate("", 2) == "");
     assert(truncate("123456", 2) == "12");
@@ -142,7 +142,7 @@ unittest // truncate
 unittest // versionString
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.util.versionString");
+    traceUnitTest("unittest pham.db.util.versionString");
 
     assert(toVersionString([]) == "");
     assert(toVersionString([1]) == "1");

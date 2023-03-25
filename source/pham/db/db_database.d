@@ -17,7 +17,6 @@ public import core.time : Duration, dur;
 import std.array : Appender;
 public import std.ascii : newline;
 import std.conv : to;
-import std.exception : assumeWontThrow;
 import std.format : format;
 import std.traits : FieldNameTuple;
 import std.typecons : Flag, No, Yes;
@@ -125,7 +124,7 @@ public:
 
     final typeof(this) cancel() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         if (_connection !is null)
             _connection.cancelCommand(this);
@@ -135,7 +134,7 @@ public:
 
     final typeof(this) clearParameters() nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         if (_parameters !is null)
             _parameters.clear();
@@ -145,7 +144,7 @@ public:
 
     final DbRecordsAffected executeNonQuery() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         bool implicitTransactionCalled = false;
         bool unprepareCalled = false;
@@ -178,7 +177,7 @@ public:
 
     final DbReader executeReader() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         checkCommand(DbCommandType.ddl);
         const wasPrepared = prepared;
@@ -201,7 +200,7 @@ public:
 
     final DbValue executeScalar() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         bool implicitTransactionCalled = false;
         bool unprepareCalled = false;
@@ -251,14 +250,14 @@ public:
 
     final DbParameter[] inputParameters() nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         return hasParameters ? parameters.inputParameters() : null;
     }
 
     final typeof(this) prepare() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         if (prepared)
             return this;
@@ -301,7 +300,7 @@ public:
 
     final typeof(this) unprepare() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         void unprepareExit() @safe
         {
@@ -634,7 +633,7 @@ protected:
 
     final string buildExecuteCommandText(const(BuildCommandTextState) state) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("state=", state);
+        version (TraceFunction) traceFunction("state=", state);
 
         string result;
         final switch (commandType)
@@ -661,8 +660,8 @@ protected:
 
     final void buildParameterNameCallback(ref Appender!string result, string parameterName, uint32 ordinal) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("parameterName=", parameterName, ", ordinal=", ordinal);
-        scope (failure) assert(0);
+        version (TraceFunction) traceFunction("parameterName=", parameterName, ", ordinal=", ordinal);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         // Construct sql
         result.put(buildParameterPlaceholder(parameterName, ordinal));
@@ -683,7 +682,7 @@ protected:
 
     string buildStoredProcedureSql(string storedProcedureName, const(BuildCommandTextState) state) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("state=", state, ", storedProcedureName=", storedProcedureName);
+        version (TraceFunction) traceFunction("state=", state, ", storedProcedureName=", storedProcedureName);
 
         if (storedProcedureName.length == 0)
             return null;
@@ -702,25 +701,25 @@ protected:
         }
         result.put(')');
 
-        version (TraceFunction) traceFunction!("pham.db.database")("storedProcedureName=", storedProcedureName, ", result=", result.data);
+        version (TraceFunction) traceFunction("storedProcedureName=", storedProcedureName, ", result=", result.data);
 
         return result.data;
     }
 
     string buildTableSql(string tableName, const(BuildCommandTextState) state) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("tableName=", tableName, ", state=", state);
+        version (TraceFunction) traceFunction("tableName=", tableName, ", state=", state);
 
         auto result = tableName.length != 0 ? ("SELECT * FROM " ~ tableName) : null;
 
-        version (TraceFunction) traceFunction!("pham.db.database")("tableName=", tableName, ", result=", result);
+        version (TraceFunction) traceFunction("tableName=", tableName, ", result=", result);
 
         return result;
     }
 
     string buildTextSql(string sql, const(BuildCommandTextState) state) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("state=", state, ", sql=", sql);
+        version (TraceFunction) traceFunction("state=", state, ", sql=", sql);
 
         // Do not clear to allow parameters to be filled without calling prepare
         // clearParameters();
@@ -729,14 +728,14 @@ protected:
             ? parseParameter(sql, &buildParameterNameCallback)
             : sql;
 
-        version (TraceFunction) traceFunction!("pham.db.database")("result=", result);
+        version (TraceFunction) traceFunction("result=", result);
 
         return result;
     }
 
     void checkActive(string callerName = __FUNCTION__) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("callerName=", callerName);
+        version (TraceFunction) traceFunction("callerName=", callerName);
 
         if (!handle)
         {
@@ -755,7 +754,7 @@ protected:
 
     final void checkActiveReader(string callerName = __FUNCTION__) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("callerName=", callerName);
+        version (TraceFunction) traceFunction("callerName=", callerName);
 
         if (_activeReader)
             throw new DbException(DbMessage.eInvalidCommandActiveReader, 0, null);
@@ -765,7 +764,7 @@ protected:
 
     void checkCommand(int excludeCommandType, string callerName = __FUNCTION__) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("callerName=", callerName);
+        version (TraceFunction) traceFunction("callerName=", callerName);
 
         if (_connection is null || _connection.state != DbConnectionState.opened)
             throw new DbException(DbMessage.eInvalidCommandConnection, DbErrorCode.connect, null);
@@ -790,7 +789,7 @@ protected:
 
     final void checkInactive(string callerName = __FUNCTION__) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("callerName=", callerName);
+        version (TraceFunction) traceFunction("callerName=", callerName);
 
         if (handle)
         {
@@ -801,7 +800,7 @@ protected:
 
     typeof(this) doCommandText(string commandText, DbCommandType type) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("type=", type, ", commandText=", commandText);
+        version (TraceFunction) traceFunction("type=", type, ", commandText=", commandText);
 
         if (prepared)
             unprepare();
@@ -876,7 +875,7 @@ protected:
 
     final void mergeOutputParams(ref DbRowValue values) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         auto localParameters = parameters;
         size_t i;
@@ -899,7 +898,7 @@ protected:
 
     final bool needPrepare(const(DbCommandExecuteType) type) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("type=", type);
+        version (TraceFunction) traceFunction("type=", type);
 
         return !prepared
             && commandType != DbCommandType.table
@@ -908,7 +907,7 @@ protected:
 
     void prepareExecuting(const(DbCommandExecuteType) type) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("type=", type);
+        version (TraceFunction) traceFunction("type=", type);
 
         _lastInsertedId.reset();
         _recordsAffected.reset();
@@ -922,7 +921,7 @@ protected:
 
     final void removeReader(ref DbReader value) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         if (_activeReader && value.command is this)
         {
@@ -934,7 +933,7 @@ protected:
 
     void removeReaderCompleted(const(bool) implicitTransaction) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("implicitTransaction=", implicitTransaction);
+        version (TraceFunction) traceFunction("implicitTransaction=", implicitTransaction);
 
         if (implicitTransaction && !isDisposing(lastDisposingReason))
         {
@@ -959,7 +958,7 @@ protected:
 
     final void resetImplicitTransactionIf(const(ResetImplicitTransactiontFlag) flags)  @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("flags=", flags);
+        version (TraceFunction) traceFunction("flags=", flags);
 
         auto t = _transaction;
 
@@ -1000,7 +999,7 @@ protected:
 
     void resetNewStatement(const(ResetStatementKind) kind) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("kind=", kind);
+        version (TraceFunction) traceFunction("kind=", kind);
 
         notificationMessages.length = 0;
         _flags.set(DbCommandFlag.cancelled, false);
@@ -1016,7 +1015,7 @@ protected:
 
     void setOutputParameters(ref DbRowValue values)
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         if (values && hasParameters)
         {
@@ -1032,7 +1031,7 @@ protected:
 
     final bool setImplicitTransactionIf() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         if ((_transaction is null || _transaction.state == DbTransactionState.disposed) && transactionRequired)
         {
@@ -1148,7 +1147,7 @@ public:
 
     final void cancelCommand(DbCommand command = null) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         checkActive();
         auto data = createCancelCommandData(command);
@@ -1157,7 +1156,7 @@ public:
 
     final void cancelCommand(DbCommand command, DbCancelCommandData data) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         checkActive();
         notificationMessages.length = 0;
@@ -1169,7 +1168,7 @@ public:
 
     final typeof(this) close() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("state=", state);
+        version (TraceFunction) traceFunction("state=", state);
 
         if (_poolList !is null)
             return _poolList.release(this);
@@ -1196,7 +1195,7 @@ public:
 
     final DbCommand createCommand(string name = null) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         checkActive();
         return _commands.insertEnd(database.createCommand(this, name));
@@ -1204,7 +1203,7 @@ public:
 
     final DbCommand createCommandDDL(string commandDDL, string name = null) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         auto result = createCommand(name);
         result.commandDDL = commandDDL;
@@ -1213,7 +1212,7 @@ public:
 
     final DbCommand createCommandText(string commandText, string name = null) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         auto result = createCommand(name);
         result.commandText = commandText;
@@ -1222,7 +1221,7 @@ public:
 
     final DbTransaction createTransaction(DbIsolationLevel isolationLevel = DbIsolationLevel.readCommitted) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         checkActive();
         return createTransactionImpl(isolationLevel, false);
@@ -1230,7 +1229,7 @@ public:
 
     final DbTransaction defaultTransaction(DbIsolationLevel isolationLevel = DbIsolationLevel.readCommitted) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         checkActive();
         if (_defaultTransaction is null)
@@ -1250,7 +1249,7 @@ public:
 
     final typeof(this) open() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("state=", state);
+        version (TraceFunction) traceFunction("state=", state);
 
         const previousState = state;
         if (previousState == DbConnectionState.opened)
@@ -1279,7 +1278,7 @@ public:
 
     final typeof(this) release() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         if (_poolList !is null)
             return _poolList.release(this);
@@ -1426,7 +1425,7 @@ package(pham.db):
 
     void fatalError(string callerName = __FUNCTION__) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("callerName=", callerName);
+        version (TraceFunction) traceFunction("callerName=", callerName);
 
         _fatalError = true;
     }
@@ -1434,7 +1433,7 @@ package(pham.db):
 protected:
     final void checkActive(string callerName = __FUNCTION__) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("callerName=", callerName);
+        version (TraceFunction) traceFunction("callerName=", callerName);
 
         if (state != DbConnectionState.opened)
         {
@@ -1453,7 +1452,7 @@ protected:
 
     final void checkInactive(string callerName = __FUNCTION__) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("callerName=", callerName);
+        version (TraceFunction) traceFunction("callerName=", callerName);
 
         if (state == DbConnectionState.opened)
         {
@@ -1464,7 +1463,7 @@ protected:
 
     final DbTransaction createTransactionImpl(DbIsolationLevel isolationLevel, bool defaultTransaction) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         auto result = database.createTransaction(this, isolationLevel, defaultTransaction);
         return _transactions.insertEnd(result);
@@ -1542,7 +1541,7 @@ protected:
 
     void doPool(bool pooling) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         if (pooling)
         {
@@ -1554,7 +1553,7 @@ protected:
 
     void removeCommand(DbCommand value) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         if (value._prev !is null || value._next !is null)
             _commands.remove(value);
@@ -1562,7 +1561,7 @@ protected:
 
     void removeTransaction(DbTransaction value) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         if (_defaultTransaction is value)
             _defaultTransaction = null;
@@ -1573,7 +1572,7 @@ protected:
 
     void reset() nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         _fatalError = false;
         _nextCounter = 0;
@@ -1587,7 +1586,7 @@ protected:
 
     final void rollbackTransactions() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         foreach (t; _transactions[])
             t.rollback();
@@ -1952,9 +1951,8 @@ protected:
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        scope (failure) assert(0);
-
         version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        scope (failure) assert(0, "Assume nothrow failed");
 
         foreach (_, lst; _schemeConnections)
             lst.dispose(disposingReason);
@@ -2557,8 +2555,10 @@ public:
 protected:
     string getDefault(string name) const nothrow
     {
+        scope (failure) assert(0, "Assume nothrow failed");
+        
         auto n = DbIdentitier(name);
-        return assumeWontThrow(dbDefaultConnectionParameterValues.get(n, null));
+        return dbDefaultConnectionParameterValues.get(n, null);
     }
 
     final string getString(string name) const nothrow
@@ -3660,7 +3660,7 @@ public:
 
     final DbParameter[] inputParameters() nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         const count = inputCount();
         if (count == 0)
@@ -3896,7 +3896,7 @@ public:
      */
     ref typeof(this) detach() nothrow return
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         if (_flags.on(Flag.cacheResult) && _hasRows == HasRows.yes && _command !is null)
         {
@@ -4045,7 +4045,7 @@ public:
      */
     bool read() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("_fetchedCount=", _fetchedCount);
+        version (TraceFunction) traceFunction("_fetchedCount=", _fetchedCount);
         version (profile) debug auto p = PerfFunction.create();
 
         if (_hasRows == HasRows.unknown)
@@ -4118,7 +4118,7 @@ private:
 
     void doDetach(bool disposing) nothrow @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         _command.removeReader(this);
         _command = null;
@@ -4131,7 +4131,7 @@ private:
     }
     do
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         _currentRow = command.fetch(false);
         const hasRow = _currentRow.length != 0;
@@ -4148,7 +4148,7 @@ private:
             _flags.set(Flag.allRowsFetched, true);
         }
 
-        version (TraceFunction) traceFunction!("pham.db.database")("_fetchedCount=", _fetchedCount, ", hasRow=", hasRow);
+        version (TraceFunction) traceFunction("_fetchedCount=", _fetchedCount, ", hasRow=", hasRow);
 
         return hasRow;
     }
@@ -4160,7 +4160,7 @@ private:
     }
     do
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         _currentRow = command.fetch(false);
         const hasRow = _currentRow.length != 0;
@@ -4169,7 +4169,7 @@ private:
         else
             _flags.set(Flag.allRowsFetched, true);
 
-        version (TraceFunction) traceFunction!("pham.db.database")("_fetchedCount=", _fetchedCount, ", hasRow=", hasRow);
+        version (TraceFunction) traceFunction("_fetchedCount=", _fetchedCount, ", hasRow=", hasRow);
     }
 
     Variant getVariant(const(size_t) index) @safe
@@ -4237,7 +4237,7 @@ public:
 	 */
     final typeof(this) commit() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         scope (failure)
             resetState(DbTransactionState.error);
@@ -4264,7 +4264,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         checkSavePointState();
         _savePointNames.length = checkSavePointName(savePointName);
@@ -4302,7 +4302,7 @@ public:
 	 */
     final typeof(this) rollback() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         if (state != DbTransactionState.active)
             return this;
@@ -4332,7 +4332,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         checkSavePointState();
         _savePointNames.length = checkSavePointName(savePointName);
@@ -4346,7 +4346,7 @@ public:
 
     final typeof(this) start() @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("autoCommit=", autoCommit, ", isolationLevel=", isolationLevel, ", isRetaining=", isRetaining);
+        version (TraceFunction) traceFunction("autoCommit=", autoCommit, ", isolationLevel=", isolationLevel, ", isRetaining=", isRetaining);
 
         checkState(DbTransactionState.inactive);
 
@@ -4370,7 +4370,7 @@ public:
      */
     final typeof(this) start(string savePointName) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")();
+        version (TraceFunction) traceFunction();
 
         checkSavePointState();
 
@@ -4542,7 +4542,7 @@ protected:
     final ptrdiff_t checkSavePointName(string savePointName,
         string callerName = __FUNCTION__) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("savePointName=", savePointName, ", callerName=", callerName);
+        version (TraceFunction) traceFunction("savePointName=", savePointName, ", callerName=", callerName);
 
         const index = isSavePoint(savePointName);
         if (index < 0)
@@ -4569,7 +4569,7 @@ protected:
     final void checkState(const(DbTransactionState) checkingState,
         string callerName = __FUNCTION__) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("checkingState=", checkingState, ", callerName=", callerName);
+        version (TraceFunction) traceFunction("checkingState=", checkingState, ", callerName=", callerName);
 
         if (_state != checkingState)
         {
@@ -4621,7 +4621,7 @@ protected:
 
     void doSavePoint(string savePointName, string savePointStatement) @safe
     {
-        version (TraceFunction) traceFunction!("pham.db.database")("savePointStatement=", savePointStatement);
+        version (TraceFunction) traceFunction("savePointStatement=", savePointStatement);
 
         auto command = connection.createCommand();
         scope (exit)

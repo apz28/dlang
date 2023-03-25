@@ -31,7 +31,7 @@ public:
     ResultStatus getPassword(scope const(char)[] userName, scope const(char)[] userPassword,
         ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("userName=", userName);
+        version (TraceFunction) traceFunction("userName=", userName);
 
         authData = CipherBuffer!ubyte.init;
         return ResultStatus.ok();

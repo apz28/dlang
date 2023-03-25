@@ -53,7 +53,7 @@ public:
     final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("_nextState=", _nextState, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        version (TraceFunction) traceFunction("_nextState=", _nextState, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
         ShortStringBuffer!ubyte serverSalt;
         const(char)[] serverNonce;
@@ -80,7 +80,7 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        version (TraceFunction) traceFunction("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
         auto status = checkAdvanceState(state);
         if (status.isError)
@@ -346,16 +346,16 @@ DbAuth createAuthScramSha256()
 
 private:
 
+version (none)
 unittest // MyAuthScramSha1
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.myauth_scram.MyAuthScramSha1");
-
+    traceUnitTest("unittest pham.db.myauth_scram.MyAuthScramSha1");
 }
 
+version (none)
 unittest // MyAuthScramSha256
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.myauth_scram.MyAuthScramSha256");
-
+    traceUnitTest("unittest pham.db.myauth_scram.MyAuthScramSha256");
 }

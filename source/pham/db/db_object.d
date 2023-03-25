@@ -184,7 +184,7 @@ public:
 
     @property string ivalue() const pure
     {
-	    scope (failure) assert(0);
+	    scope (failure) assert(0, "Assume nothrow failed");
 
         return toUpper(_s);
     }
@@ -1135,7 +1135,7 @@ string getDelimiterText(T)(DbIdentitierValueList!T list,
     char valueSeparator = '=') nothrow @safe
 if (is(T == const(char)[]) || is(T == string))
 {
-    import std.exception : assumeWontThrow;
+    scope (failure) assert(0, "Assume nothrow failed");
 
     if (list.length == 0)
         return "";
@@ -1148,7 +1148,7 @@ if (is(T == const(char)[]) || is(T == string))
         if (i++ != 0)
             buffer.put(elementSeparator);
 
-        assumeWontThrow(buffer.put(e.name.value));
+        buffer.put(e.name.value);
         buffer.put(valueSeparator);
         buffer.put(e.value);
     }
@@ -1295,7 +1295,7 @@ unittest // DbIdentitierValueList
     import std.conv : to;
     import std.string : indexOf;
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.object.DbIdentitierValueList");
+    traceUnitTest("unittest pham.db.object.DbIdentitierValueList");
 
     auto list = new DbIdentitierValueList!string();
     list.put("a", "1");
@@ -1356,7 +1356,7 @@ unittest // DbNameObjectList
 {
     import std.string : indexOf;
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.object.DbNameObjectList");
+    traceUnitTest("unittest pham.db.object.DbNameObjectList");
 
     static class DbNameObjectTest : DbNameObject
     {
@@ -1397,7 +1397,7 @@ unittest // DbNameObjectList
 unittest // DbCustomAttributeList
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.object.DbCustomAttributeList");
+    traceUnitTest("unittest pham.db.object.DbCustomAttributeList");
 
     DbCustomAttributeList v;
 

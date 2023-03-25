@@ -162,7 +162,7 @@ public:
 
         version (TraceFunction)
         {
-            traceFunction!("pham.db.fbdatabase")("keyLength=", keyLength,
+            traceFunction("keyLength=", keyLength,
                 ", saltLength=", saltLength,
                 ", serverAuthDataLength=", serverAuthDataOrg.length,
                 ", serverPublicKey=", _serverPublicKey.dgToHex(),
@@ -182,7 +182,7 @@ public:
 unittest // FbAuth.normalizeUserName
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.FbAuth.normalizeUserName");
+    traceUnitTest("unittest pham.db.FbAuth.normalizeUserName");
 
     assert(FbAuth.normalizeUserName("sysDba") == "SYSDBA");
     assert(FbAuth.normalizeUserName("\"sysdba\"") == "sysdba");

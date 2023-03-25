@@ -130,7 +130,7 @@ unittest // DbBufferFilterCipherRC4
     import std.string : representation;
     import pham.cp.cipher : CipherSimpleKey;
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.buffer_filter_cipher.DbBufferFilterCipherRC4");
+    traceUnitTest("unittest pham.db.buffer_filter_cipher.DbBufferFilterCipherRC4");
 
     auto k = CipherSimpleKey(0, "abc0123456789xyz".representation);
     auto key = CipherKey(k);

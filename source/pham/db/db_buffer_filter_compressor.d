@@ -77,7 +77,7 @@ public:
             errorMessage = codec.errorMessage.length != 0 ? codec.errorMessage : ZlibException.codeMessage(errorNumber);
             codec.resetBuffers(null, null);
 
-            version (TraceFunction) traceFunction!("pham.db.database")("errorNumber=", errorNumber, ", errorMessage=", errorMessage);
+            version (TraceFunction) traceFunction("errorNumber=", errorNumber, ", errorMessage=", errorMessage);
 
             return false;
         }
@@ -171,7 +171,7 @@ unittest // DbBufferFilterCompressorZip
 {
     import std.string : representation;
     import pham.utl.test;
-    traceUnitTest!("pham.db.database")("unittest pham.db.buffer_filter_compressor.DbBufferFilterCompressorZip");
+    traceUnitTest("unittest pham.db.buffer_filter_compressor.DbBufferFilterCompressorZip");
 
 	auto compress = new DbBufferFilterCompressorZip!(DbBufferFilterKind.write)();
 	auto uncompress = new DbBufferFilterCompressorZip!(DbBufferFilterKind.read)();

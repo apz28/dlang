@@ -197,7 +197,7 @@ private:
         }
         this._reader = DbValueReader!(Endian.bigEndian)(this._buffer);
 
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("messageType=", _messageType, ", messageLength=", _messageLength);
+        version (TraceFunction) traceFunction("messageType=", _messageType, ", messageLength=", _messageLength);
     }
 
 private:
@@ -245,7 +245,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")(traceString(messageCode));
+        version (TraceFunction) traceFunction(traceString(messageCode));
 
         if (messageCode != '\0')
             _writer.writeChar(messageCode);
@@ -280,7 +280,7 @@ public:
 
     void flush()
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_buffer.length=", _buffer.length);
+        version (TraceFunction) traceFunction("_buffer.length=", _buffer.length);
 
         writeMessageLength();
         _buffer.flush();
@@ -387,7 +387,7 @@ private:
             // Package length includes the length itself but exclude the package code
             const len = _buffer.length - _reserveLenghtOffset;
 
-            version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_reserveLenghtOffset=", _reserveLenghtOffset, ", len=", len);
+            version (TraceFunction) traceFunction("_reserveLenghtOffset=", _reserveLenghtOffset, ", len=", len);
 
             _writer.rewriteInt32(cast(int32)len, _reserveLenghtOffset);
             _reserveLenghtOffset = -1; // Reset after done written the length
@@ -924,7 +924,7 @@ private:
 
     size_t markBegin() nothrow
     {
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("_buffer.offset=", _buffer.offset);
+        version (TraceFunction) traceFunction("_buffer.offset=", _buffer.offset);
 
         auto result = _buffer.offset;
         _writer.writeInt32(0);
@@ -935,7 +935,7 @@ private:
     {
         // Value length excludes its length
         const len = _buffer.offset - marker - int32.sizeof;
-        version (TraceFunction) traceFunction!("pham.db.pgdatabase")("marker=", marker, ", len=", len);
+        version (TraceFunction) traceFunction("marker=", marker, ", len=", len);
         _writer.rewriteInt32(cast(int32)(len), marker);
     }
 
@@ -948,7 +948,7 @@ private:
 unittest // PgXdrReader & PgXdrWriter
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.pgdatabase")("unittest pham.db.pgbuffer.PgXdrReader & db.fbbuffer.PgXdrWriter");
+    traceUnitTest("unittest pham.db.pgbuffer.PgXdrReader & db.fbbuffer.PgXdrWriter");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
     const(ubyte)[] bytes = [1,2,5,101];

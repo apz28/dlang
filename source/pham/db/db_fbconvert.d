@@ -13,7 +13,6 @@ module pham.db.fbconvert;
 
 import core.time : Duration, dur;
 import std.conv : to;
-import std.exception : assumeWontThrow;
 import std.system : Endian, endian;
 import std.typecons : No;
 
@@ -94,13 +93,11 @@ DbDate dateDecode(int32 fbDate) @nogc pure
 		year += 1;
 	}
 
-    try
-    {
+    try {
         return Date(year, month, day);
-    }
-    catch (Exception e)
+    } catch (Exception e)
     {
-		auto msg = assumeWontThrow(e.msg) ~ "\nyear=" ~ to!string(year) ~ ", month=" ~ to!string(month) ~ ", day=" ~ to!string(day) ~ ", fbDate=" ~ to!string(orgFbDate);
+		auto msg = e.msg ~ "\nyear=" ~ to!string(year) ~ ", month=" ~ to!string(month) ~ ", day=" ~ to!string(day) ~ ", fbDate=" ~ to!string(orgFbDate);
         assert(0, msg);
     }
 	}
@@ -330,7 +327,7 @@ private:
 unittest // dateDecode & dateEncode
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbconvert.dateDecode & dateEncode");
+    traceUnitTest("unittest pham.db.fbconvert.dateDecode & dateEncode");
 
 	enum orgFbDate = 58_989;
 
@@ -346,7 +343,7 @@ unittest // dateDecode & dateEncode
 unittest // timeDecode & timeEncode
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbconvert.timeDecode & timeEncode");
+    traceUnitTest("unittest pham.db.fbconvert.timeDecode & timeEncode");
 
 	enum orgFbTime = 36_610_000;
 
@@ -363,11 +360,12 @@ unittest // int128Decode & int128Encode
 {
 	import pham.utl.object : bytesFromHexs;
     import pham.utl.test;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbconvert.int128Decode & int128Encode");
+    traceUnitTest("unittest pham.db.fbconvert.int128Decode & int128Encode");
 
 	static BigInteger safeBigInteger(string value) nothrow pure @safe
     {
-		scope (failure) assert(0);
+		scope (failure) assert(0, "Assume nothrow failed");
+        
 		return BigInteger(value);
     }
 

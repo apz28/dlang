@@ -285,7 +285,7 @@ private:
 unittest // parseCreateDatabase
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbparser.parseCreateDatabase");
+    traceUnitTest("unittest pham.db.fbparser.parseCreateDatabase");
 
     static immutable createSQL = q"SQL
 CREATE DATABASE '\\Test\Firebird.fdb'

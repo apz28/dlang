@@ -31,7 +31,7 @@ public:
     final CipherBuffer!ubyte calculateAuth(scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] nonce)
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("userName=", userName, ", nonce=", nonce.dgToHex());
+        version (TraceFunction) traceFunction("userName=", userName, ", nonce=", nonce.dgToHex());
 
         if (userPassword.length == 0)
             return CipherBuffer!ubyte.init;
@@ -53,14 +53,14 @@ public:
     final override ResultStatus getPassword(scope const(char)[] userName, scope const(char)[] userPassword,
         ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("userName=", userName);
+        version (TraceFunction) traceFunction("userName=", userName);
 
         return getPasswordEx(userName, userPassword, true, authData);
     }
 
     final override DbAuth setServerSalt(scope const(ubyte)[] serverSalt) pure
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("serverSalt=", serverSalt.dgToHex());
+        version (TraceFunction) traceFunction("serverSalt=", serverSalt.dgToHex());
 
         // if the data given to us is a null terminated string,
         // we need to trim off the trailing zero
@@ -82,7 +82,7 @@ protected:
             authData.put(auth[]);
         }
 
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("userName=", userName, ", leadingIndicator=", leadingIndicator, ", result=", authData[].dgToHex());
+        version (TraceFunction) traceFunction("userName=", userName, ", leadingIndicator=", leadingIndicator, ", result=", authData[].dgToHex());
 
         return ResultStatus.ok();
     }
@@ -99,7 +99,7 @@ protected:
             result.put(left[i] ^ right[i]);
         }
 
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("left=", left.dgToHex(), ", right=", right.dgToHex(), ", result=", result[].dgToHex());
+        version (TraceFunction) traceFunction("left=", left.dgToHex(), ", right=", right.dgToHex(), ", result=", result[].dgToHex());
 
         return result;
     }
@@ -113,7 +113,7 @@ protected:
         }
         result.put(0x00 ^ nonce[src.length % nonce.length]); // null terminated
 
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("src=", src.dgToHex(), ", nonce=", nonce.dgToHex(), ", result=", result[].dgToHex());
+        version (TraceFunction) traceFunction("src=", src.dgToHex(), ", nonce=", nonce.dgToHex(), ", result=", result[].dgToHex());
 
         return result;
     }
@@ -154,7 +154,7 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        version (TraceFunction) traceFunction("state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
         if (state == 0)
         {
@@ -187,7 +187,7 @@ protected:
     {
         version (TraceFunction)
         {
-            scope (exit) traceFunction!("pham.db.mydatabase")("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ", result=", authData[].dgToHex());
+            scope (exit) traceFunction("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ", result=", authData[].dgToHex());
         }
 
         // Send as clear text since the channel is already encrypted?
@@ -219,13 +219,13 @@ protected:
         // Obfuscate the plain text password with the session scramble.
         auto obfuscatedUserPassword = xorNonce(userPassword.representation(), serverSalt);
 
-        version (TraceFunction) traceFunction!("pham.db.mydatabase")("obfuscatedUserPassword=", obfuscatedUserPassword.toString());
+        version (TraceFunction) traceFunction("obfuscatedUserPassword=", obfuscatedUserPassword.toString());
 
         auto pem = OpenSSLRSAPem.publicKey(cast(const(char)[])serverAuthData, null);
         auto rsa = OpenSSLRSACrypt(pem);
         if (!serverVersion.empty && serverVersion < "8.0.5")
         {
-            version (TraceFunction) traceFunction!("pham.db.mydatabase")("paddingMode=PRSA_PKCS1_PADDING");
+            version (TraceFunction) traceFunction("paddingMode=PRSA_PKCS1_PADDING");
             rsa.paddingMode = RSA_PKCS1_PADDING;
         }
 
@@ -261,7 +261,7 @@ DbAuth createAuthSha2Caching()
 unittest
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.mydatabase")("unittest pham.db.myauth_sha.MyAuthSha2Caching");
+    traceUnitTest("unittest pham.db.myauth_sha.MyAuthSha2Caching");
 
     auto obfuscated = MyAuthSha.xorNonce("masterkey".representation(), dgFromHex("773529605513697D2E3F02211E41096D1E4F5E40"));
     assert(obfuscated[] == dgFromHex("1A545A1430610218573F"), obfuscated.toString());

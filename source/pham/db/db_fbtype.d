@@ -13,7 +13,6 @@ module pham.db.fbtype;
 
 import std.array : Appender, replace;
 import std.conv : to;
-import std.exception : assumeWontThrow;
 import std.traits : EnumMembers, Unqual;
 
 version (TraceFunction) import pham.utl.test;
@@ -181,7 +180,7 @@ public:
 		    ? FbIsc.protocol_flag | cast(ushort)(version_ & FbIsc.protocol_mask)
             : version_;
 
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("version_=", version_, ", result=", result);
+        version (TraceFunction) traceFunction("version_=", version_, ", result=", result);
 
         return result;
     }
@@ -255,7 +254,7 @@ public:
     static bool parse(const(ubyte)[] payload, ref FbIscBindInfo[] bindResults,
         ref ptrdiff_t previousBindIndex, ref ptrdiff_t previousFieldIndex)
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("payload.length=", payload.length);
+        version (TraceFunction) traceFunction("payload.length=", payload.length);
 
         size_t posData;
         ptrdiff_t fieldIndex = previousFieldIndex;
@@ -392,9 +391,9 @@ public:
 
         version (TraceFunction)
         {
-            traceFunction!("pham.db.fbdatabase")("bindResults.length=", bindResults.length);
+            traceFunction("bindResults.length=", bindResults.length);
             foreach (i, ref desc; bindResults)
-                traceFunction!("pham.db.fbdatabase")(desc.traceString(i));
+                traceFunction(desc.traceString(i));
         }
 
         return true;
@@ -492,7 +491,7 @@ public:
             }
         }
 
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("maxSegment=", maxSegment, ", segmentCount=", segmentCount, ", length=", length);
+        version (TraceFunction) traceFunction("maxSegment=", maxSegment, ", segmentCount=", segmentCount, ", length=", length);
     }
 
     ref typeof(this) reset() nothrow pure return
@@ -1639,7 +1638,7 @@ nothrow @safe:
 public:
     void buildMessage(out string message, out int code, out string state)
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")();
+        version (TraceFunction) traceFunction();
 
         message = state = null;
         code = 0;
@@ -2158,7 +2157,7 @@ unittest // FbIscBlobSize
 {
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbtype.FbIscBlobSize");
+    traceUnitTest("unittest pham.db.fbtype.FbIscBlobSize");
 
     auto info = bytesFromHexs("05040004000000040400010000000604000400000001");
     auto parsedSize = FbIscBlobSize(info);
@@ -2171,7 +2170,7 @@ unittest // FbIscBindInfo
 {
     import pham.utl.object;
     import pham.utl.test;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbtype.FbIscBindInfo");
+    traceUnitTest("unittest pham.db.fbtype.FbIscBindInfo");
 
     FbIscBindInfo[] bindResults;
     ptrdiff_t previousBindIndex = -1;
@@ -2217,7 +2216,7 @@ unittest // FbIscBindInfo
 unittest // FbCreateDatabaseInfo.toKnownPageSize
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbtype.FbCreateDatabaseInfo.toKnownPageSize");
+    traceUnitTest("unittest pham.db.fbtype.FbCreateDatabaseInfo.toKnownPageSize");
 
     assert(FbCreateDatabaseInfo.toKnownPageSize(-2) == FbCreateDatabaseInfo.knownPageSizes[$ - 1]);
     assert(FbCreateDatabaseInfo.toKnownPageSize(0) == FbCreateDatabaseInfo.knownPageSizes[$ - 1]);

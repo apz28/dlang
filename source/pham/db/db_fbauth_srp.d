@@ -55,7 +55,7 @@ public:
     final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        version (TraceFunction) traceFunction("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
         auto status = parseServerAuthData(serverAuthData);
         if (status.isError)
@@ -75,7 +75,7 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        version (TraceFunction) traceFunction("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
 
         auto status = checkAdvanceState(state);
         if (status.isError)
@@ -145,7 +145,7 @@ protected:
     {
         this._authClient = new AuthClient(AuthParameters(digestId, proofDigestId, fbPrime), CipherKey.digitsToBigInteger(K), ephemeralPrivate);
 
-        version (TraceFunction) traceFunction!("pham.db.fbdatabase")(this._authClient.traceString());
+        version (TraceFunction) traceFunction(this._authClient.traceString());
     }
 
     final ubyte[] calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
@@ -172,7 +172,7 @@ protected:
 
         version (TraceFunction)
         {
-		    traceFunction!("pham.db.fbdatabase")("userName=", userName,
+		    traceFunction("userName=", userName,
                 ", salt=", salt.dgToHex(),
                 ", serverPublicKey=", serverPublicKey.toString(),
                 ", _premasterKey=", _premasterKey.toString(),
@@ -352,7 +352,7 @@ shared static this()
 nothrow @safe unittest // PrimeGroup
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbauth_srp.PrimeGroup");
+    traceUnitTest("unittest pham.db.fbauth_srp.PrimeGroup");
 
     assert(fbPrime.N.toString() == FbAuthSrp.N);
     assert(fbPrime.g.toString() == "2");
@@ -402,7 +402,7 @@ version (unittest)
 nothrow @safe unittest // FbAuthSrpSHA1
 {
     import pham.utl.test;
-    traceUnitTest!("pham.db.fbdatabase")("unittest pham.db.fbauth_srp.FbAuthSrpSHA1");
+    traceUnitTest("unittest pham.db.fbauth_srp.FbAuthSrpSHA1");
 
     testCheckSHA1(
         /*digitPrivateKey*/ "264905762513559650080771073972109248903",
