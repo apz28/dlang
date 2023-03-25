@@ -189,8 +189,7 @@ bool equalCaseInsensitive(S)(scope const(XmlChar!S)[] s1, scope const(XmlChar!S)
 if (isXmlString!S)
 {
     import std.uni : sicmp;
-
-    scope (failure) assert(0);
+    scope (failure) assert(0, "Assume nothrow failed");
 
     return sicmp(s1, s2) == 0;
 }

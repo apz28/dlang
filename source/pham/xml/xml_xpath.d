@@ -12,7 +12,6 @@
 module pham.xml.xpath;
 
 import std.conv : to;
-import std.exception : assumeWontThrow;
 import std.math : isNaN;
 import std.typecons : Flag, No, Yes;
 
@@ -2270,7 +2269,7 @@ public:
 
     final const(XPathParamInfo!S) find(const(C)[] name) const nothrow
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         return data.get(name, null);
     }
@@ -2585,6 +2584,8 @@ public:
     }
     do
     {
+        scope (failure) assert(0, "Assume nothrow failed");
+        
         const start = _xPathExpressionNextIndex - 2;
         size_t end = _xPathExpressionNextIndex - 1;
 
@@ -2597,7 +2598,7 @@ public:
         version (xmlTraceXPathParser)
         outputXmlTraceXPathParserF("scanNumberM(%s [%d..%d])", _xPathExpression[start..end], start, end);
 
-        return assumeWontThrow(to!double(_xPathExpression[start..end]));
+        return to!double(_xPathExpression[start..end]);
     }
 
     double scanNumberS() nothrow
@@ -2608,6 +2609,8 @@ public:
     }
     do
     {
+        scope (failure) assert(0, "Assume nothrow failed");
+        
         const start = _xPathExpressionNextIndex - 1;
         size_t end = _xPathExpressionNextIndex - 1;
         while (isDigit(currentChar))
@@ -2629,7 +2632,7 @@ public:
         version (xmlTraceXPathParser)
         outputXmlTraceXPathParserF("scanNumberS(%s [%d..%d])", _xPathExpression[start..end], start, end);
 
-        return assumeWontThrow(to!double(_xPathExpression[start..end]));
+        return to!double(_xPathExpression[start..end]);
     }
 
     const(C)[] scanText()

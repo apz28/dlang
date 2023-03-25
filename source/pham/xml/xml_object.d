@@ -11,7 +11,6 @@
 
 module pham.xml.object;
 
-import std.exception : assumeWontThrow;
 import std.format : format;
 
 import pham.xml.message;
@@ -96,7 +95,9 @@ public:
 
     string lineMessage() const
     {
-        return assumeWontThrow(format(XmlMessage.atLineInfo, sourceLine, sourceColumn));
+        scope (failure) assert(0, "Assume nothrow failed");
+        
+        return format(XmlMessage.atLineInfo, sourceLine, sourceColumn);
     }
 
     @property size_t sourceColumn() const
