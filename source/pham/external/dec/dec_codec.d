@@ -45,7 +45,7 @@ public:
     }
 	do
     {
-		version (TraceFunction) traceFunction!("pham.external.dec")("firstByte=", decBytes[0], ", decBytes=", decBytes);
+		version (TraceFunction) traceFunction("firstByte=", decBytes[0], ", decBytes=", decBytes);
 
 		const firstByte = decBytes[0];
 		const isNeg = (firstByte & negativeBit) == negativeBit;
@@ -70,12 +70,12 @@ public:
 					: 0b1000 | (usignedRightShift(firstByteAsInt, 2) & 0b01);
 				const exponentBitsRemaining = exponentContinuationBits - 2;
 
-				version (TraceFunction) traceFunction!("pham.external.dec")("exponentMSB=", exponentMSB, ", firstDigit=", firstDigit);
+				version (TraceFunction) traceFunction("exponentMSB=", exponentMSB, ", firstDigit=", firstDigit);
 
 				const exponent = unbiasedExponent(decodeExponent(exponentMSB, exponentBitsRemaining, decBytes));
 				const coefficient = decodeCoefficient(isNeg, firstDigit, decBytes);
 
-				version (TraceFunction) traceFunction!("pham.external.dec")("exponent=", exponent, ", coefficient=", coefficient);
+				version (TraceFunction) traceFunction("exponent=", exponent, ", coefficient=", coefficient);
 
 				D result = void;
 				result.pack(coefficient, exponent, isNeg);
@@ -85,7 +85,7 @@ public:
 
 	static EncodedResult encode(scope const(D) value) @nogc
     {
-		version (TraceFunction) debug traceFunction!("pham.external.dec")(traceString());
+		version (TraceFunction) debug traceFunction(traceString());
 
 		EncodedResult decBytes;
 
@@ -98,7 +98,7 @@ public:
 		else
 			decBytes[0] |= s;
 
-		version (TraceFunction) traceFunction!("pham.external.dec")("firstByte=", decBytes[0], ", decBytes=", decBytes);
+		version (TraceFunction) traceFunction("firstByte=", decBytes[0], ", decBytes=", decBytes);
 
 		return decBytes;
     }
@@ -176,7 +176,7 @@ private:
                      | (cast(int)decBytes[firstByteIndex - 1] << (bitsPerByte - firstByteBitOffset)));
 
 			version (TraceFunction)
-			traceFunction!("pham.external.dec")("firstByteIndex=", firstByteIndex,
+			traceFunction("firstByteIndex=", firstByteIndex,
                       ", decBytes[firstByteIndex]=", decBytes[firstByteIndex],
                       ", decBytes[firstByteIndex - 1]=", decBytes[firstByteIndex - 1],
                       ", dpdGroupBits=", dpdGroupBits);
@@ -188,7 +188,7 @@ private:
 				digitChars[dstIndex..dstIndex + digitsPerGroup] = dpdGroupBits2Digits[srcIndex..srcIndex + digitsPerGroup];
 
 				version (TraceFunction)
-				traceFunction!("pham.external.dec")("srcIndex=", srcIndex,
+				traceFunction("srcIndex=", srcIndex,
 						  ", dstIndex=", dstIndex,
                           ", digitChars[dstIndex..dstIndex + digitsPerGroup]=", digitChars[dstIndex..dstIndex + digitsPerGroup]);
             }
@@ -208,7 +208,7 @@ private:
 		if (isNeg)
 			digitChars[--digitCharIndex] = '-';
 
-		version (TraceFunction) traceFunction!("pham.external.dec")("digitChars=", digitChars);
+		version (TraceFunction) traceFunction("digitChars=", digitChars);
 
 		return decodeCoefficient(D.buildin(digitChars[digitCharIndex..$]));
 	}
@@ -226,7 +226,7 @@ private:
 		int exponent = exponentMSB;
 		size_t byteIndex = 1;
 
-		version (TraceFunction) traceFunction!("pham.external.dec")("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining, ", decBytes=", decBytes);
+		version (TraceFunction) traceFunction("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining, ", decBytes=", decBytes);
 
 		while (exponentBitsRemaining > 8)
 		{
@@ -234,7 +234,7 @@ private:
 			byteIndex += 1;
 			exponentBitsRemaining -= 8;
 
-			version (TraceFunction) traceFunction!("pham.external.dec")("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining);
+			version (TraceFunction) traceFunction("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining);
 		}
 
 		if (exponentBitsRemaining > 0)
@@ -242,7 +242,7 @@ private:
 			exponent = (exponent << exponentBitsRemaining)
                 | (usignedRightShift(decBytes[byteIndex] & 0xFF, 8 - exponentBitsRemaining));
 
-			version (TraceFunction) traceFunction!("pham.external.dec")("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining);
+			version (TraceFunction) traceFunction("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining);
 		}
 
 		return exponent;
@@ -266,7 +266,7 @@ private:
     }
 	do
     {
-		version (TraceFunction) traceFunction!("pham.external.dec")("coefficient=", coefficient);
+		version (TraceFunction) traceFunction("coefficient=", coefficient);
 
 		D.U remainingValue = coefficient;
 		foreach (digitGroup; 0..digitGroups)
@@ -286,7 +286,7 @@ private:
 			decBytes[firstByteIndex - 1] = cast(ubyte)(decBytes[firstByteIndex - 1] | preByte);
 
 			version (TraceFunction)
-			traceFunction!("pham.external.dec")("remainingValue=", remainingValue,
+			traceFunction("remainingValue=", remainingValue,
 				", remainder=", remainder, ", currentGroup=", currentGroup,
 				", curByte=", curByte, ", preByte=", preByte,
 				", decBytes[firstByteIndex]=", decBytes[firstByteIndex],
@@ -299,7 +299,7 @@ private:
 
 	static void encodeExponentContinuation(int biasedExponent, int expBitsRemaining, ref EncodedResult decBytes) @nogc
 	{
-		version (TraceFunction) traceFunction!("pham.external.dec")("biasedExponent=", biasedExponent, ", expBitsRemaining=", expBitsRemaining, ", decBytes=", decBytes);
+		version (TraceFunction) traceFunction("biasedExponent=", biasedExponent, ", expBitsRemaining=", expBitsRemaining, ", decBytes=", decBytes);
 
 		size_t expByteIndex = 1;
 		while (expBitsRemaining > 8)
@@ -307,14 +307,14 @@ private:
 			decBytes[expByteIndex++] = cast(ubyte)usignedRightShift(biasedExponent, expBitsRemaining - 8);
 			expBitsRemaining -= 8;
 
-			version (TraceFunction) traceFunction!("pham.external.dec")("decBytes[expByteIndex]=", decBytes[expByteIndex - 1], ", expByteIndex=", expByteIndex - 1);
+			version (TraceFunction) traceFunction("decBytes[expByteIndex]=", decBytes[expByteIndex - 1], ", expByteIndex=", expByteIndex - 1);
 		}
 
 		if (expBitsRemaining > 0)
 		{
 			decBytes[expByteIndex] |= cast(ubyte)(biasedExponent << 8 - expBitsRemaining);
 
-			version (TraceFunction) traceFunction!("pham.external.dec")("decBytes[expByteIndex]=", decBytes[expByteIndex], ", expByteIndex=", expByteIndex);
+			version (TraceFunction) traceFunction("decBytes[expByteIndex]=", decBytes[expByteIndex], ", expByteIndex=", expByteIndex);
 		}
 	}
 
@@ -327,7 +327,7 @@ private:
 		absValue.unpack(coefficient, unbiasedExponent);
 		const biasedExponent = biasedExponent(unbiasedExponent);
 
-		version (TraceFunction) traceFunction!("pham.external.dec")("unbiasedExponent=", unbiasedExponent,
+		version (TraceFunction) traceFunction("unbiasedExponent=", unbiasedExponent,
             ", biasedExponent=", biasedExponent,
             ", coefficient=", coefficient,
             ", isNeg=", isNeg);
@@ -350,7 +350,7 @@ private:
 		}
 
 		version (TraceFunction)
-		traceFunction!("pham.external.dec")("expMSB=", expMSB, ", expTwoBitCont =", expTwoBitCont,
+		traceFunction("expMSB=", expMSB, ", expTwoBitCont =", expTwoBitCont,
 			", mostSignificantDigit=", mostSignificantDigit, ", decBytes[0]=", decBytes[0],
 			", decBytes=", decBytes);
 
@@ -410,7 +410,7 @@ private:
 	{
 		const result = cast(uint)(cast(uint)value >> shift);
 
-		version (TraceFunction) traceFunction!("pham.external.dec")("value=", value, ", shift=", shift, ", result=", result);
+		version (TraceFunction) traceFunction("value=", value, ", shift=", shift, ", result=", result);
 
 		return result;
 	}
@@ -667,7 +667,7 @@ unittest // DecimalCodec64
 {
 	import pham.utl.object : bytesFromHexs;
 	import pham.utl.test;
-	traceUnitTest!("pham.external.dec")("unittest pham.external.dec.codec.DecimalCodec64");
+	traceUnitTest("unittest pham.external.dec.codec.DecimalCodec64");
 
 	DecimalCodec64 codec;
 	auto n = Decimal64.buildin("0");
@@ -732,7 +732,7 @@ unittest // DecimalCodec128
 {
 	import pham.utl.object : bytesFromHexs;
 	import pham.utl.test;
-	traceUnitTest!("pham.external.dec")("unittest pham.external.dec.codec.DecimalCodec128");
+	traceUnitTest("unittest pham.external.dec.codec.DecimalCodec128");
 
 	// Decode
 	DecimalCodec128 codec;

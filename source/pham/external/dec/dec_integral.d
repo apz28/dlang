@@ -708,7 +708,7 @@ unittest
 
     T rnd(T)()
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         static if (is(T == uint))
             return uniform(1U, uint.max, gen);

@@ -148,7 +148,7 @@ unittest
     import std.math.operations : isClose;
     import std.traits : isSigned, isUnsigned;
     import pham.utl.test;
-    traceUnitTest!("pham.external.dec")("unittest pham.external.dec.variant_coerce");
+    traceUnitTest("unittest pham.external.dec.variant_coerce");
 
     ConvertHandler handler, invHandler;
     bool f;
@@ -432,7 +432,7 @@ unittest
 {
     import pham.utl.variant;
     import pham.utl.test;
-    traceUnitTest!("pham.external.dec")("unittest pham.external.dec.variant_coerce");
+    traceUnitTest("unittest pham.external.dec.variant_coerce");
 
     Variant v;
 

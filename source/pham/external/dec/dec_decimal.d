@@ -1220,8 +1220,7 @@ public:
         static immutable string defaultMoneyFmt =
             () {
                 import std.conv : to;
-
-                scope (failure) assert(0);
+                scope (failure) assert(0, "Assume nothrow failed");
 
                 return "%." ~ to!string(cast(int)Precision.bankingScale) ~ "f";
             } ();
@@ -6346,7 +6345,7 @@ do
 {
     import std.math : abs;
 
-    scope (failure) assert(0);
+    scope (failure) assert(0, "Assume nothrow failed");
 
     alias UD = Unqual!D;
 
