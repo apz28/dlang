@@ -510,7 +510,7 @@ ResultIf!ZoneInfo toZone(string[] elems, string previousZoneName)
 
 TimeZoneInfo[] toTimeZoneInfo(ref TZDatabase tzDatabase)
 {
-    scope (failure) assert(0);
+    scope (failure) assert(0, "Assume nothrow failed");
     
     TimeZoneInfo[] result;
     result.reserve(200);
@@ -571,7 +571,7 @@ string trimRight(string line) @nogc pure
 unittest // normalizeWhite
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.time_zone_default_tzdata.normalizeWhite");
+    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.normalizeWhite");
 
     assert(normalizeWhite(null) is null);
     assert(normalizeWhite("  \t \n ") == " ");
@@ -582,7 +582,7 @@ unittest // normalizeWhite
 unittest // removeComment
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.time_zone_default_tzdata.removeComment");
+    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.removeComment");
 
     assert(removeComment(null) is null);
     assert(removeComment("#") is null);
@@ -594,7 +594,7 @@ unittest // removeComment
 unittest // sameFirst
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.time_zone_default_tzdata.sameFirst");
+    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.sameFirst");
 
     assert(sameFirst("", ""));
     assert(sameFirst("abc xyz", "ab"));
@@ -607,7 +607,7 @@ unittest // sameFirst
 unittest // sameLast
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.time_zone_default_tzdata.sameLast");
+    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.sameLast");
 
     assert(sameLast("", ""));
     assert(sameLast("abc xyz", "yz"));
@@ -620,14 +620,14 @@ unittest // sameLast
 unittest // toDay
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.time_zone_default_tzdata.toDay");
+    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toDay");
 //todo
 }
 
 unittest // toDayOfMonth
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.time_zone_default_tzdata.toDayOfMonth");
+    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toDayOfMonth");
 
     ResultIf!int r;
     r = toDayOfMonth("1");
@@ -648,7 +648,7 @@ unittest // toDayOfMonth
 unittest // toLink
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.time_zone_default_tzdata.toLink");
+    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toLink");
 
     ResultIf!LinkInfo r;
     r = toLink([linkId, "name", "alias"]);
@@ -666,21 +666,21 @@ unittest // toLink
 unittest // toRule
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.time_zone_default_tzdata.toRule");
+    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toRule");
     //todo
 }
 
 unittest // toTime
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.time_zone_default_tzdata.toTime");
+    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toTime");
     //todo
 }
 
 unittest // toYearBegin
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.time_zone_default_tzdata.toYearBegin");
+    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toYearBegin");
 
     ResultIf!int r;
     r = toYearBegin("min");
@@ -704,7 +704,7 @@ unittest // toYearBegin
 unittest // toYearEnd
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.time_zone_default_tzdata.toYearEnd");
+    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toYearEnd");
 
     ResultIf!int r, onlyError, onlyOK;
     onlyError = ResultIf!int.error(1);
@@ -736,14 +736,14 @@ unittest // toYearEnd
 unittest // toZone
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.time_zone_default_tzdata.toZone");
+    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toZone");
     //todo
 }
 
 unittest // trimRight
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.time_zone_default_tzdata.trimRight");
+    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.trimRight");
 
     assert(trimRight(null) is null);
     assert(trimRight("  \t \n ") is null);

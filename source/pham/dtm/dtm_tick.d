@@ -931,7 +931,7 @@ unittest // Show duration precision
 unittest // toDayOfWeekUS
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.tick.toDayOfWeekUS");
+    traceUnitTest("unittest pham.dtm.tick.toDayOfWeekUS");
 
     assert(toDayOfWeekUS("sunday").value == DayOfWeek.sunday);
     assert(toDayOfWeekUS("monday").value == DayOfWeek.monday);
@@ -958,7 +958,7 @@ unittest // toDayOfWeekUS
 unittest // toMonthUS
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.tick.toMonthUS");
+    traceUnitTest("unittest pham.dtm.tick.toMonthUS");
 
     assert(toMonthUS("january").value == 1);
     assert(toMonthUS("december").value == 12);

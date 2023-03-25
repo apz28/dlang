@@ -132,7 +132,7 @@ shared static this()
 unittest
 {
     import pham.utl.test;
-    traceUnitTest!("pham.utl.dtm")("unittest pham.dtm.variant_coerce");
+    traceUnitTest("unittest pham.dtm.variant_coerce");
 
     Date d = Date(2000, 1, 1);
     Time t = Time(1, 0, 0, 0);

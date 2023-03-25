@@ -317,7 +317,7 @@ public:
 
     bool opEquals(scope const(TimeZoneInfo) rhs) const @nogc nothrow pure scope
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         bool equalsAdjustmentRules() const @nogc nothrow pure
         {
@@ -1435,11 +1435,11 @@ version (Windows)
 
     TimeZoneInfo localTimeZoneWindows(string useId) nothrow @trusted
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         static string toName(scope const(WCHAR)[] systemName) nothrow pure @safe
         {
-            scope (failure) assert(0);
+            scope (failure) assert(0, "Assume nothrow failed");
 
             auto result = to!string(systemName);
             auto len = result.length;
@@ -1800,7 +1800,7 @@ shared static this() @trusted
 unittest
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.time_zone.localTimeZone");
+    traceUnitTest("unittest pham.dtm.time_zone.localTimeZone");
 
     auto ltz = TimeZoneInfo.localTimeZone();
 

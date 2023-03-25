@@ -454,7 +454,7 @@ private:
     static string toString(const(Char) c) nothrow pure
     {
         import std.conv : to;
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         return c != 0 ? to!string(c) : null;
     }
@@ -462,7 +462,7 @@ private:
     static string toString(const(Char)[] c) nothrow pure
     {
         import std.conv : to;
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         return c.length != 0 ? to!string(c) : null;
     }
@@ -855,7 +855,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.shortDateTime, longDateTime
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %f %F");
+    traceUnitTest("unittest pham.dtm.date_time_format - %f %F");
 
     string s;
 
@@ -868,7 +868,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.generalShortDateTime, generalLongDateTime
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %g");
+    traceUnitTest("unittest pham.dtm.date_time_format - %g");
 
     string s;
 
@@ -881,7 +881,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.julianDay
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %j");
+    traceUnitTest("unittest pham.dtm.date_time_format - %j");
 
     string s;
 
@@ -910,7 +910,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.longDate, shortDate
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %d %D");
+    traceUnitTest("unittest pham.dtm.date_time_format - %d %D");
 
     string s;
 
@@ -928,7 +928,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.longTime, shortTime
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %t %T");
+    traceUnitTest("unittest pham.dtm.date_time_format - %t %T");
 
     string s;
 
@@ -946,7 +946,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.monthDay, monthYear
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %M %Y");
+    traceUnitTest("unittest pham.dtm.date_time_format - %M %Y");
 
     string s;
 
@@ -959,7 +959,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.sortableDateTime
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %s");
+    traceUnitTest("unittest pham.dtm.date_time_format - %s");
 
     string s;
 
@@ -980,7 +980,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.sortableDateTimeLess
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %S");
+    traceUnitTest("unittest pham.dtm.date_time_format - %S");
 
     string s;
 
@@ -995,7 +995,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.utcFullDateTime
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %U");
+    traceUnitTest("unittest pham.dtm.date_time_format - %U");
 
     string s;
 
@@ -1006,7 +1006,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.utcSortableDateTime
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %u");
+    traceUnitTest("unittest pham.dtm.date_time_format - %u");
 
     string s;
 
@@ -1017,7 +1017,7 @@ private:
 @safe unittest // FormatDateTimeSpecifier.custom, FormatDateTimeSpecifier.dateSeparator, FormatDateTimeSpecifier.timeSeparator
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_format - %custom....");
+    traceUnitTest("unittest pham.dtm.date_time_format - %custom....");
 
     string s;
 

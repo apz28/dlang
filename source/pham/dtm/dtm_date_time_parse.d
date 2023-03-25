@@ -122,7 +122,7 @@ nothrow @safe:
 
     ptrdiff_t indexOfAmPm(scope const(char)[] text) const @nogc pure scope
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         if (amPmTexts is null)
             return -1;
@@ -137,7 +137,7 @@ nothrow @safe:
 
     ptrdiff_t indexOfMonth(scope const(char)[] text) const @nogc pure scope
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         foreach (i, n; *fullMonthNames)
         {
@@ -156,7 +156,7 @@ nothrow @safe:
 
     ptrdiff_t indexOfWeek(scope const(char)[] text) const @nogc pure scope
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         foreach (i, n; *fullDayOfWeekNames)
         {
@@ -476,7 +476,7 @@ public:
 
     ptrdiff_t parse(scope const(char)[] dateTimeText, const ref DateTimePattern pattern)
     {
-        scope (failure) assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         reset();
         endP = dateTimeText.length;
@@ -952,7 +952,7 @@ DateTimePatternInfo[CacheDateTimePatternInfoKey] cacheDateTimePatternInfos;
 unittest // DateTimePatternInfo
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_parse.DateTimePatternInfo");
+    traceUnitTest("unittest pham.dtm.date_time_parse.DateTimePatternInfo");
 
     DateTimePatternInfo p;
 
@@ -1024,7 +1024,7 @@ unittest // DateTimePatternInfo
 unittest // tryParse
 {
     import pham.utl.test;
-    traceUnitTest!("pham.dtm")("unittest pham.dtm.date_time_parse.tryParse");
+    traceUnitTest("unittest pham.dtm.date_time_parse.tryParse");
 
     ptrdiff_t r;
     auto p = DateTimePattern.usShortDateTime;
