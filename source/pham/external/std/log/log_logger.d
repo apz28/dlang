@@ -2242,10 +2242,8 @@ protected:
         try
         {
             const pattern = _fileBaseName ~ dtPattern ~ _fileExt;
-        import std.stdio; debug writeln("_fileDir=", _fileDir, ", pattern=", pattern);
             foreach (string fileName; dirEntries(_fileDir, pattern, SpanMode.shallow))
             {
-        import std.stdio; debug writeln("dirName=", fileName);
                 if (isBackupFile(fileName))
                 {
                     version (Windows)
@@ -2322,39 +2320,36 @@ protected:
     final void renameFiles(const(SysTime) t, const(ulong) s)
     {
         version (DebugLogger) debug writeln("RollingFileLogger.renameFiles()");
-        import std.stdio; debug writeln("t=", t, ", s=", s);
 
         doClose();
-
+        
         // Any limit?
-        if (_rollingOption.maxRollBackupCount != 0)
+        // Check if over count limit; if so delete the oldest
+        if (_rollingOption.maxRollBackupCount != 0 
+            && _rollBackupCount >= _rollingOption.maxRollBackupCount)
         {
-            // Check if over count limit; if so delete the oldest
-            if (++_rollBackupCount >= _rollingOption.maxRollBackupCount)
+            string[] backupFileNames = getBackupFileNames();
+            if (backupFileNames.length >= _rollingOption.maxRollBackupCount)
             {
-                string[] backupFileNames = getBackupFileNames();
-                if (backupFileNames.length >= _rollingOption.maxRollBackupCount)
+                size_t i;
+                backupFileNames.sort();
+                while (backupFileNames.length - i >= _rollingOption.maxRollBackupCount)
                 {
-                    size_t i;
-                    backupFileNames.sort();
-                    while (backupFileNames.length - i >= _rollingOption.maxRollBackupCount)
-                    {
-                        deleteFile(backupFileNames[i]);
-                        i++;
-                    }
+                    deleteFile(backupFileNames[i]);
+                    i++;
                 }
             }
+            _rollBackupCount = _rollingOption.maxRollBackupCount - 1;
         }
 
         const toName = nextBackupFile();
         rollFile(_fileName, toName);
-        _rollBackupCount--;
+        _rollBackupCount++;        
     }
 
     final void rollFile(const(string) fromName, const(string) toName)
     {
         version (DebugLogger) debug writeln("RollingFileLogger.rollFile()");
-        import std.stdio; debug writeln("fromName=", fromName, ", toName=", toName);
 
         deleteFile(toName);
         try
@@ -4930,9 +4925,8 @@ unittest // RollingFileLogger
                 s.put(' ');
             s.put(to!string(j));
         }
-        lg.log(LogLevel.error, s.toString());
+        lg.log(LogLevel.error, s.data);
     }
-    writeln("fileSize=", lg.fileSize());
     auto bf = lg.getBackupFileNames();
     assert(bf.length == 1, to!string(bf.length));    
 }
