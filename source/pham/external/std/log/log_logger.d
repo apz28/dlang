@@ -54,7 +54,9 @@ enum LogLevel : ubyte
 enum highestLogLevel = LogLevel.fatal;
 enum lowestLogLevel = LogLevel.trace;
 
+enum defaultGlobalLogLevel = lowestLogLevel; // No restriction
 enum defaultLogLevel = LogLevel.warn;
+enum defaultRequestLogLevel = LogLevel.info;
 enum defaultSharedLogLevel = LogLevel.warn;
 
 ptrdiff_t lastModuleSeparatorIndex(string moduleName) @nogc nothrow pure @safe
@@ -72,9 +74,9 @@ string moduleParentOf(string moduleName) @nogc nothrow pure @safe
 }
 
 /**
- * Determines if LogLevel, ll, will be able to be logged 
+ * Determines if LogLevel, ll, will be able to be logged
  * Params:
- *   ll = requesting LogLevel 
+ *   ll = requesting LogLevel
  *   moduleLL = module LogLevel restriction
  *   loggerLL = logger instance LogLevel restriction
  *   globalLL = global LogLevel restriction
@@ -234,21 +236,21 @@ public:
         auto locked = LogRAIIMutex(mutex);
         if (values.length == 0 || moduleName.length == 0)
             return notFoundLogLevel;
-        
+
         if (const v = moduleName in values)
             return (*v).logLevel;
-            
-        string pm = moduleName; 
+
+        string pm = moduleName;
         while (parentLevel--)
         {
             pm = moduleParentOf(pm);
             if (pm.length == 0)
                 break;
-            
+
             if (const v = (pm ~ ".*") in values)
                 return (*v).logLevel;
         }
-            
+
         return notFoundLogLevel;
     }
 
@@ -282,7 +284,7 @@ public:
         auto locked = LogRAIIMutex(mutex);
         if (const v = option.moduleName in values)
         {
-            auto result = *v;        
+            auto result = *v;
             values[option.moduleName] = option;
             return result;
         }
@@ -303,7 +305,7 @@ public:
         }
     }
 
-    static LogLevel logLevelModule(scope string moduleName, 
+    static LogLevel logLevelModule(scope string moduleName,
         uint parentLevel = 1,
         const(LogLevel) notFoundLogLevel = LogLevel.off) @trusted
     {
@@ -319,7 +321,7 @@ public:
     {
         return (cast()_moduleOptions).set(option);
     }
-    
+
     static string wildPackageName(string moduleName) pure
     {
         const packageName = moduleParentOf(moduleName);
@@ -369,7 +371,7 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(
     static if (isLoggingEnabled)
     {
         auto logger = threadLog;
-        logger.log!(Args)(logger.logLevel, args, ex, line, fileName, funcName, moduleName);
+        logger.log!(Args)(defaultRequestLogLevel, args, ex, line, fileName, funcName, moduleName);
     }
 }
 
@@ -395,7 +397,7 @@ void log(Args...)(lazy bool condition, lazy Args args,
     static if (isLoggingEnabled)
     {
         auto logger = threadLog;
-        logger.log!(Args)(logger.logLevel, condition, args, ex, line, fileName, funcName, moduleName);
+        logger.log!(Args)(defaultRequestLogLevel, condition, args, ex, line, fileName, funcName, moduleName);
     }
 }
 
@@ -470,7 +472,7 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(
     static if (isLoggingEnabled)
     {
         auto logger = threadLog;
-        logger.logf!(Args)(logger.logLevel, fmt, args, ex, line, fileName, funcName, moduleName);
+        logger.logf!(Args)(defaultRequestLogLevel, fmt, args, ex, line, fileName, funcName, moduleName);
     }
 }
 
@@ -497,7 +499,7 @@ void logf(Args...)(lazy bool condition, lazy string fmt, lazy Args args,
     static if (isLoggingEnabled)
     {
         auto logger = threadLog;
-        logger.logf!(Args)(logger.logLevel, condition, fmt, args, ex, line, fileName, funcName, moduleName);
+        logger.logf!(Args)(defaultRequestLogLevel, condition, fmt, args, ex, line, fileName, funcName, moduleName);
     }
 }
 
@@ -1222,7 +1224,7 @@ public:
             // Special try construct for grep
             try {
                 auto currTime = currentTime();
-                const ll = this.logLevel;
+                const ll = defaultRequestLogLevel;
                 if (isLogLevel(ll, moduleName))
                 {
                     isFatal = ll == LogLevel.fatal;
@@ -1273,7 +1275,7 @@ public:
             // Special try construct for grep
             try {
                 auto currTime = currentTime();
-                const ll = this.logLevel;
+                const ll = defaultRequestLogLevel;
                 if (isLogLevel(ll, moduleName) && condition)
                 {
                     isFatal = ll == LogLevel.fatal;
@@ -1420,7 +1422,7 @@ public:
             // Special try construct for grep
             try {
                 auto currTime = currentTime();
-                const ll = this.logLevel;
+                const ll = defaultRequestLogLevel;
                 if (isLogLevel(ll, moduleName))
                 {
                     isFatal = ll == LogLevel.fatal;
@@ -1471,7 +1473,7 @@ public:
             // Special try construct for grep
             try {
                 auto currTime = currentTime();
-                const ll = this.logLevel;
+                const ll = defaultRequestLogLevel;
                 if (isLogLevel(ll, moduleName) && condition)
                 {
                     isFatal = ll == LogLevel.fatal;
@@ -1705,16 +1707,16 @@ private:
  */
 class MemLogger : Logger
 {
-@safe:
+nothrow @safe:
 
 public:
-    this(LoggerOption option = LoggerOption.init) nothrow
+    this(LoggerOption option = LoggerOption.init)
     {
         super(option);
     }
 
 protected:
-    override void beginMsg(ref Logger.LogHeader header) nothrow
+    override void beginMsg(ref Logger.LogHeader header)
     {
         version (DebugLogger) debug writeln("MemLogger.beginMsg()");
 
@@ -1723,26 +1725,26 @@ protected:
         logEntry = Logger.LogEntry(this, header, null);
     }
 
-    override void commitMsg(scope const(char)[] msg) nothrow
+    override void commitMsg(scope const(char)[] msg)
     {
         version (DebugLogger) debug writeln("MemLogger.commitMsg()");
 
         msgBuffer.put(msg);
     }
 
-    override void endMsg(ref Logger.LogHeader header) nothrow
+    override void endMsg(ref Logger.LogHeader header)
     {
         version (DebugLogger) debug writeln("MemLogger.endMsg()");
 
         this.logEntry.message = msgBuffer.data;
         this.writeLog(logEntry);
-        
+
         // Reset to release its memory
         this.logEntry = Logger.LogEntry.init;
         this.msgBuffer = Appender!string();
     }
 
-    override void writeLog(ref Logger.LogEntry payload) nothrow
+    override void writeLog(ref Logger.LogEntry payload)
     {}
 
 protected:
@@ -1754,10 +1756,10 @@ class ConsoleLogger : MemLogger
 {
     import std.stdio : File, stdout;
 
-@safe:
+nothrow @safe:
 
 public:
-    this(LoggerOption option = LoggerOption.init) nothrow
+    this(LoggerOption option = LoggerOption.init)
     {
         super(option);
     }
@@ -1768,7 +1770,7 @@ protected:
         return stdout;
     }
 
-    final override void writeLog(ref Logger.LogEntry payload) nothrow
+    final override void writeLog(ref Logger.LogEntry payload)
     {
         version (DebugLogger) debug writeln("ConsoleLogger.writeLog()");
 
@@ -1790,14 +1792,36 @@ protected:
 /// An option to create $(LREF FileLogger) directory if it is non-existent.
 alias CreateFolder = Flag!"CreateFolder";
 
+struct FileLoggerOption
+{
+nothrow @safe:
+
+    static immutable string appendMode = "a";
+    static immutable string overwriteMode = "w";
+
+public:
+    /**
+     * file mode open for appending or writing new file, default is appending
+     * a = append
+     * w = write - override if existed
+     */
+    string openMode = appendMode;
+
+    /**
+     * Ensure log file directory existed if CreateFolder.yes
+     */
+    CreateFolder createFileFolder = CreateFolder.yes;
+}
+
 /**
  * This `Logger` implementation writes log messages to the associated
  * file. The name of the file has to be passed on construction time.
  */
 class FileLogger : MemLogger
 {
-    import std.file : exists, mkdirRecurse;
-    import std.path : dirName;
+    import core.stdc.stdio : SEEK_END, SEEK_SET;
+    import std.file : DirEntry, mkdirRecurse;
+    import std.path : extractFileName = baseName, extractDirName = dirName, extractFileExt = extension;
     import std.stdio : File;
 
 @safe:
@@ -1808,40 +1832,25 @@ public:
      * Params:
      *  fileName = The filename of the output file of the `FileLogger`. If that
      *      file can not be opened for writting, logLevel will switch to off.
-     *  openMode = file mode open for appending or writing new file, default is appending
+     *  fileOption = default file option
      *  option = default log option
-     *  createFileFolder = if yes and fileName contains a folder name, this
-     *      folder will be created.
      *
      * Example:
      *  auto l1 = new FileLogger("logFile.log");
-     *  auto l2 = new FileLogger("logFile.log", "w");
-     *  auto l3 = new FileLogger("logFile.log", "a", LoggerOption(defaultOutputHeaderPatterns, LogLevel.fatal));
-     *  auto l3 = new FileLogger("logFolder/logFile.log", "a", LoggerOption(defaultOutputHeaderPatterns, LogLevel.fatal), CreateFolder.yes);
+     *  auto l2 = new FileLogger("logFile.log", FileLoggerOption("w");
+     *  auto l3 = new FileLogger("logFile.log", FileLoggerOption("a"), LoggerOption(defaultOutputHeaderPatterns, LogLevel.fatal));
+     *  auto l3 = new FileLogger("logFolder/logFile.log", FileLoggerOption("w", CreateFolder.yes), LoggerOption(defaultOutputHeaderPatterns, LogLevel.fatal));
      */
-    this(const string fileName,
-        string openMode = "a",
-        LoggerOption option = LoggerOption.init,
-        CreateFolder createFileFolder = CreateFolder.yes) nothrow
+    this(const(string) fileName,
+        FileLoggerOption fileOption = FileLoggerOption.init,
+        LoggerOption option = LoggerOption.init) nothrow
     {
-        try
-        {
-            if (createFileFolder)
-            {
-                auto d = dirName(fileName);
-                mkdirRecurse(d);
-            }
-
-            this._file.open(fileName, openMode == "w" ? openMode : "a");
-        }
-        catch (Exception)
-        {
+        this.fileName = fileName;
+        this._fileOwned = true;
+        this._fileOption = fileOption;
+        if (!doOpen(fileName, fileOption))
             option.logLevel = LogLevel.off;
-        }
-
         super(option);
-        this._fileName = fileName;
-        this._fileOpened = true;
     }
 
     /**
@@ -1860,21 +1869,23 @@ public:
     this(File file,
         LoggerOption option = LoggerOption.init)
     {
-        super(option);
         this._file = file;
-        this._fileOpened = false;
+        this._fileOwned = false;
+        this._fileOption = FileLoggerOption(null, CreateFolder.no);
+        super(option);
     }
 
-    ~this() nothrow
+nothrow:
+
+    ~this()
     {
         doClose();
     }
 
     /**
-     * If the `FileLogger` is managing the `File` it logs to, this
-     * method will return a reference to this File.
+     * Return a reference to this File.
      */
-    @property final File file() nothrow
+    @property final File file()
     {
         return this._file;
     }
@@ -1883,37 +1894,120 @@ public:
      * If the `FileLogger` was constructed with a fileName, this method
      * returns this fileName. Otherwise an empty `string` is returned.
      */
-    @property final string fileName() const nothrow pure
+    @property final string fileName() const pure
     {
         return this._fileName;
     }
 
-protected:
-    final void doClose() nothrow @safe scope
+    @property final FileLoggerOption fileOption() const
     {
+        return this._fileOption;
+    }
+
+protected:
+    final void doClose() scope
+    {
+        version (DebugLogger) debug writeln("FileLogger.doClose()");
+
         // Special try construct for grep
         try {
-            if (_fileOpened && _file.isOpen)
+            if (_fileOwned && _file.isOpen)
                 _file.close();
             _file = File.init;
-            _fileName = null;
-            _fileOpened = false;
-        } catch (Exception) {}
+        } catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
     }
-    
-    override void doFatal() nothrow @safe
+
+    override void doFatal()
     {
         doClose();
         super.doFatal();
     }
+
+    final bool doOpen(const(string) fileName, const(FileLoggerOption) fileOption)
+    {
+        version (DebugLogger) debug writeln("FileLogger.doOpen()");
+
+        try
+        {
+            if (fileOption.createFileFolder)
+            {
+                auto d = extractDirName(fileName);
+                mkdirRecurse(d);
+            }
+
+            this._file.open(fileName, fileOption.openMode == FileLoggerOption.overwriteMode ? "w" : "a");
+            return true;
+        }
+        catch (Exception e)
+        {
+            version (DebugLogger) debug writeln(e.msg);
+            return false;
+        }
+    }
+
+    static string extractFileNameWithoutExt(const(string) fileName)
+    {
+        const ext = extractFileExt(fileName);
+        return fileName[0..$-ext.length];
+    }
+
+    final ulong fileSize() @trusted
+    {
+        version (DebugLogger) debug writeln("FileLogger.fileSize()");
+
+        try
+        {
+            if (!_file.isOpen)
+            {
+                auto fe = DirEntry(fileName);
+                return fe.size;
+            }
+
+            _file.lock();
+            scope (exit)
+                _file.unlock();
+
+            const curPos = _file.tell();
+            scope (exit)
+                _file.seek(curPos, SEEK_SET);
+                
+            _file.seek(0, SEEK_END);
+            return _file.tell();
+        }
+        catch (Exception e)
+        {
+            version (DebugLogger) debug writeln(e.msg);
+            return 0u;
+        }
+    }
+
+    final SysTime lastModified()
+    {
+        version (DebugLogger) debug writeln("FileLogger.lastModified()");
+
+        try
+        {
+            auto fe = DirEntry(fileName);
+            return fe.timeLastModified;
+        }
+        catch (Exception e)
+        {
+            version (DebugLogger) debug writeln(e.msg);
+            return SysTime.init;
+        }        
+    }
     
-    final override void writeLog(ref Logger.LogEntry payload) nothrow
+    final override void writeLog(ref Logger.LogEntry payload)
     {
         version (DebugLogger) debug writeln("FileLogger.writeLog()");
 
+        if (!_file.isOpen)
+            return;
+        
         try {
             auto writer = LogOutputWriter(this);
-            writer.write(_file.lockingTextWriter(), payload);
+            auto lockedFile = _file.lockingTextWriter();
+            writer.write(lockedFile, payload);
             if (++_flushWriteLogLines >= flushOutputLines)
             {
                 _file.flush();
@@ -1922,11 +2016,30 @@ protected:
         } catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
     }
 
+    @property final void fileName(const(string) value)
+    {
+        if (value.length)
+        {
+            this._fileName = value;
+            this._fileDir = extractDirName(value);
+            this._fileBaseName = extractFileNameWithoutExt(extractFileName(value));
+            this._fileExt = extractFileExt(value);
+        }
+        else
+        {
+            this._fileName = this._fileDir = this._fileBaseName = this._fileExt = null;
+        }
+    }
+
 protected:
     File _file; /// The `File` log messages are written to.
+    string _fileBaseName;
+    string _fileDir;
+    string _fileExt;
     string _fileName; // The filename of the `File` log messages are written to.
+    FileLoggerOption _fileOption;
     size_t _flushWriteLogLines;
-    bool _fileOpened;
+    bool _fileOwned;
 }
 
 /**
@@ -1936,30 +2049,325 @@ protected:
  */
 class NullLogger : Logger
 {
+nothrow @safe:
+ 
 public:
-    this() nothrow @safe
+    this()
     {
         super(LoggerOption(lowestLogLevel, "Null", "", size_t.max));
     }
 
-    final override void forwardLog(ref Logger.LogEntry payload) nothrow @safe
+    final override void forwardLog(ref Logger.LogEntry payload)
     {}
 
 protected:
-    final override void doFatal() nothrow @safe
+    final override void doFatal()
     {}
 
-    final override void beginMsg(ref Logger.LogHeader header) nothrow @safe
+    final override void beginMsg(ref Logger.LogHeader header)
     {}
 
-    final override void commitMsg(scope const(char)[] msg) nothrow @safe
+    final override void commitMsg(scope const(char)[] msg)
     {}
 
-    final override void endMsg(ref Logger.LogHeader header) nothrow @safe
+    final override void endMsg(ref Logger.LogHeader header)
     {}
 
-    final override void writeLog(ref Logger.LogEntry payload) nothrow @safe
+    final override void writeLog(ref Logger.LogEntry payload)
     {}
+}
+
+enum RollingFileMode : ubyte
+{
+    composite, /// Roll files based on both the date and size of the file
+    date, /// Roll files based only on the date
+    size, /// Roll files based only on the size of the file
+}
+
+enum RollingDateMode : ubyte
+{
+	topOfMonth, /// Roll the log each month
+	topOfWeek, /// Roll the log each week
+	topOfDay, /// Roll the log each day (midnight)
+	topOfHour, /// Roll the log for each hour
+}
+
+struct RollingFileLoggerOption
+{
+nothrow @safe:
+
+public:
+    bool rollingDate() const @nogc
+    {
+        return fileMode == RollingFileMode.date || fileMode == RollingFileMode.composite;
+    }
+
+    bool rollingSize() const @nogc
+    {
+        return (fileMode == RollingFileMode.size || fileMode == RollingFileMode.composite) && (maxFileSize > 0);
+    }
+
+public:
+    /**
+     * the maximum size that the output file is allowed to reach
+     * before being rolled over to backup files
+     * Zero is no limit, default is 10MB
+     */
+    ulong maxFileSize = 10*1024*1024;
+
+    /**
+     * the maximum number of backup files that are kept before
+     * the oldest is erased
+     * Zero is no backup files, default is 52 (52 weeks per year) since dateMode=RollingDateMode.topOfWeek
+     */
+    uint maxRollBackupCount = 52;
+
+    /**
+     * A date point when a log file to be rolled over
+     */
+    RollingDateMode dateMode = RollingDateMode.topOfWeek;
+
+    /**
+     * Mode to determines when a log file to be rolled over
+     */
+    RollingFileMode fileMode = RollingFileMode.composite;
+}
+
+class RollingFileLogger : FileLogger
+{
+    import core.time : MonoTime;
+    import std.algorithm.sorting : sort;
+    import std.file : dirEntries, fileExists = exists, fileRemove = remove, fileRename = rename, SpanMode;
+    import std.path : buildPath;
+    import std.string : lastIndexOf;
+    import std.uni : toLower;
+
+nothrow @safe:
+
+public:
+    this(const string fileName,
+        RollingFileLoggerOption rollingFileOption = RollingFileLoggerOption.init,
+        LoggerOption option = LoggerOption.init)
+    {
+        this._rollingOption = rollingFileOption;
+        super(fileName, FileLoggerOption(FileLoggerOption.appendMode, CreateFolder.yes), option);
+        this._rollTimestamp = nextCheckTimestamp(lastModified());
+        determineBackupFiles();
+    }
+
+    @property final RollingFileLoggerOption rollingOption() const
+    {
+        return _rollingOption;
+    }
+
+protected:
+    final bool adjustFileBeforeAppend() 
+    {
+        version (DebugLogger) debug writeln("RollingFileLogger.adjustFileBeforeAppend()");
+
+        bool rolled = false;
+
+        if (_rollingOption.rollingDate())
+        {
+            const n = currentTime();
+            if (n >= _rollTimestamp)
+            {
+                _rollTimestamp = nextCheckTimestamp(n);
+                renameFiles();
+                rolled = true;
+            }
+        }
+
+        if (!rolled && _rollingOption.rollingSize())
+        {
+            const n = fileSize();
+            if (n >= _rollingOption.maxFileSize)
+            {
+                renameFiles();
+                rolled = true;
+            }
+        }
+
+        if (rolled && !doOpen(_fileName, FileLoggerOption(FileLoggerOption.overwriteMode)))
+            return false;
+        else
+            return true;
+    }
+
+    override void beginMsg(ref Logger.LogHeader header)
+    {
+        if (!adjustFileBeforeAppend())
+            this.logLevel = LogLevel.off;
+        super.beginMsg(header);
+    }
+    
+    final void deleteFile(const(string) fileName)
+    {
+        version (DebugLogger) debug writeln("RollingFileLogger.deleteFile()");
+
+        if (!fileExists(fileName))
+            return;
+
+        string deleteFileName = fileName;
+        try
+        {
+            string tempFileName = fileName ~ "." ~ to!string(MonoTime.currTime().ticks) ~ ".DeletePending";
+            fileRename(fileName, tempFileName);
+            deleteFileName = tempFileName;
+        }
+        catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+
+        try
+        {
+            fileRemove(deleteFileName);
+        }
+        catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+    }
+
+    final void determineBackupFiles()
+    {
+        version (DebugLogger) debug writeln("RollingFileLogger.determineBackupFiles()");
+
+        const backupFileNames = getBackupFileNames();
+        _rollBackupCount = backupFileNames.length;
+    }
+
+    final string[] getBackupFileNames()
+    {
+        version (DebugLogger) debug writeln("RollingFileLogger.getBackupFiles()");
+
+        string[] result;
+        result.reserve(100);
+
+        try
+        {
+            const pattern = _fileBaseName ~ dtPattern ~ _fileExt;
+            foreach (string fileName; dirEntries(_fileDir, pattern, SpanMode.shallow))
+            {
+                if (isBackupFile(fileName))
+                {
+                    version (Windows)
+                        result ~= toLower(fileName);
+                    else
+                        result ~= fileName;
+                }
+            }
+        }
+        catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+
+        return result;
+    }
+
+    final ulong isBackupFile(const(string) fileName)
+    {
+        version (DebugLogger) debug writeln("RollingFileLogger.isBackupFile()");
+
+        try
+        {
+            // Backup file has this pattern: baseName + "." + datePattern + extension
+            const s = extractFileNameWithoutExt(fileName);
+            const i = lastIndexOf(s, '.');
+            const v = i >= 0 ? s[i + 1..$] : null;
+            return v.length == dtLength ? LogOutputPatternParser.safeToInt!ulong(v) : 0u;
+        }
+        catch (Exception) { return 0u; }
+    }
+
+    final string nextBackupFile()
+    {
+        version (DebugLogger) debug writeln("RollingFileLogger.nextBackupFile()");
+        scope (failure) assert(0, "Assume nothrow failed");
+
+        const postfix = format(dtFormat, currentTime());
+        return buildPath(_fileDir, _fileBaseName ~ postfix ~ _fileExt);
+    }
+
+    final SysTime nextCheckTimestamp(const(SysTime) n)
+    {
+        version (DebugLogger) debug writeln("RollingFileLogger.nextCheckTimestamp()");
+        scope (failure) assert(0, "Assume nothrow failed");
+
+        SysTime result = n;
+        final switch (_rollingOption.dateMode)
+        {
+            case RollingDateMode.topOfMonth:
+                result.fracSecs = Duration.zero;
+                result.second = 0;
+                result.minute = 0;
+                result.hour = 0;
+                result.roll!"days"(1 - cast(int)result.day); // first day of month is 1
+                return result.roll!"months"(1);
+            case RollingDateMode.topOfWeek:
+                result.fracSecs = Duration.zero;
+                result.second = 0;
+                result.minute = 0;
+                result.hour = 0;
+                return result.roll!"days"(7 - cast(int)result.dayOfWeek);
+            case RollingDateMode.topOfDay:
+                result.fracSecs = Duration.zero;
+                result.second = 0;
+                result.minute = 0;
+                result.hour = 0;
+                return result.roll!"days"(1);
+            case RollingDateMode.topOfHour:
+                result.fracSecs = Duration.zero;
+                result.second = 0;
+                result.minute = 0;
+                return result.roll!"hours"(1);
+        }
+    }
+
+    final void renameFiles()
+    {
+        version (DebugLogger) debug writeln("RollingFileLogger.renameFiles()");
+
+        doClose();
+
+        // No limit?
+        if (_rollingOption.maxRollBackupCount == 0)
+            return;
+
+        // Check if over count limit; if so delete the oldest
+        if (++_rollBackupCount >= _rollingOption.maxRollBackupCount)
+        {
+            string[] backupFileNames = getBackupFileNames();
+            if (backupFileNames.length >= _rollingOption.maxRollBackupCount)
+            {
+                size_t i;
+                backupFileNames.sort();
+                while (backupFileNames.length - i >= _rollingOption.maxRollBackupCount)
+                {
+                    deleteFile(backupFileNames[i]);
+                    i++;
+                }
+            }
+        }
+
+        const toName = nextBackupFile();
+        rollFile(_fileName, toName);
+        _rollBackupCount--;
+    }
+
+    final void rollFile(const(string) fromName, const(string) toName)
+    {
+        version (DebugLogger) debug writeln("RollingFileLogger.rollFile()");
+
+        deleteFile(toName);
+        try
+        {
+            fileRename(fromName, toName);
+        }
+        catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+    }
+
+private:
+    enum dtLength = 14;
+    static immutable string dtFormat = "%cyyyymmddhhnnss";
+    static immutable string dtPattern = ".??????????????";
+
+    RollingFileLoggerOption _rollingOption;
+    SysTime _rollTimestamp;
+    size_t _rollBackupCount;
 }
 
 struct LogArgumentWriter
@@ -2184,7 +2592,7 @@ public:
         return element.kind;
     }
 
-    static LogOutputPatternElement.Kind parseElement(ref LogOutputPatternElement element) nothrow @safe
+    static LogOutputPatternElement.Kind parseElement(ref LogOutputPatternElement element)
     in
     {
         assert(element.kind == LogOutputPatternElement.Kind.pattern);
@@ -2209,13 +2617,23 @@ public:
         return outputPattern_.length == 0;
     }
 
+protected:
+    static T safeToInt(T)(scope const(char)[] s, T failedValue = T.init) pure
+    {
+        try
+        {
+            return s.length != 0 ? to!T(s) : failedValue;
+        }
+        catch (Exception) return failedValue;
+    }
+
 private:
-    static bool isSameNext(string s, size_t n, char c) nothrow pure @safe
+    static bool isSameNext(string s, size_t n, char c) pure
     {
         return n < s.length && s[n] == c;
     }
 
-    static void parseElementFormat(ref LogOutputPatternElement element) nothrow @safe
+    static void parseElementFormat(ref LogOutputPatternElement element)
     {
         if (element.pattern[0] != OutputPatternMarker.format)
             return;
@@ -2252,7 +2670,7 @@ private:
         element.setAsLiteral();
     }
 
-    static void parseElementPads(ref LogOutputPatternElement element) nothrow @safe
+    static void parseElementPads(ref LogOutputPatternElement element)
     {
         size_t bMarker = notSet;
         size_t i = 0;
@@ -2261,7 +2679,7 @@ private:
         {
             scope (failure) assert(0, "Assume nothrow failed");
 
-            auto result = to!int(element.pattern[bMarker..i]);
+            auto result = safeToInt!int(element.pattern[bMarker..i]);
             element.pattern = element.pattern[i + 1..$];
             bMarker = notSet;
             i = 0;
@@ -2343,9 +2761,9 @@ version (Windows)
 else
     enum char dirSeparator = '/';
 
-    // 5 chars for log text alignment
+    // 4 chars for log text alignment
     static immutable string[LogLevel.max + 1] logLevelTexts = [
-        "trace", "debug", "info ", "warn ", "error", "criti", "fatal", "off  "
+        "trac", "debg", "info", "warn", "erro", "crit", "fata", "????"
     ];
 
     static immutable string newLineLiteral = "\n";
@@ -2891,6 +3309,9 @@ private:
 
 static immutable SysTime appStartupTimestamp;
 
+/**
+ * Returns Clock.currTime as local time
+ */
 pragma(inline, true)
 SysTime currentTime() nothrow @safe
 {
@@ -2948,7 +3369,7 @@ SysTime currentTime() nothrow @safe
     // If we have set up our own logger use that
     if (auto logger = atomicLoad(_sharedLog))
         return logger;
-    
+
     auto result = sharedLogImpl; // Otherwise resort to the default logger
     result.logLevel = atomicLoad(_sharedLogLevel);
     return result;
@@ -3003,8 +3424,8 @@ SysTime currentTime() nothrow @safe
 
 
 private string osCharToString(scope const(char)[] v) nothrow @trusted
-{    
-    import std.conv : to;    
+{
+    import std.conv : to;
     scope (failure) assert(0, "Assume nothrow failed");
 
     auto result = to!string(v.ptr);
@@ -3015,7 +3436,7 @@ private string osCharToString(scope const(char)[] v) nothrow @trusted
 
 private string osWCharToString(scope const(wchar)[] v) nothrow
 {
-    import std.conv : to;    
+    import std.conv : to;
     scope (failure) assert(0, "Assume nothrow failed");
 
     auto result = to!string(v);
@@ -3066,7 +3487,7 @@ Logger _threadLog;
 __gshared Logger _sharedLog;
 __gshared ModuleLoggerOptions _moduleOptions;
 __gshared LogLevel _sharedLogLevel = defaultSharedLogLevel;
-__gshared LogLevel _globalLogLevel = lowestLogLevel;
+__gshared LogLevel _globalLogLevel = defaultGlobalLogLevel;
 
 class SharedLogger : FileLogger
 {
@@ -3750,7 +4171,7 @@ void testFuncNames(Logger logger) @safe
                     logf(ll2, cond, "%d%s", value, valueS); assert(!cond || !canLog || (memS.line == __LINE__ && memS.msg == value2S));
                 }
 
-                const canLog = ll != LogLevel.off && gll != LogLevel.off && ll >= gll;
+                const canLog = defaultRequestLogLevel >= ll && ll != LogLevel.off && gll != LogLevel.off && ll >= gll;
 
                 mem.log(valueS); assert(!canLog || (mem.line == __LINE__ && mem.msg == valueS));
                 mem.log(valueS, value); assert(!canLog || (mem.line == __LINE__ && mem.msg == value2S));
@@ -4189,7 +4610,7 @@ void testFuncNames(Logger logger) @safe
             remove(fn);
     }
 
-    auto fl = new FileLogger(fn, "w", LoggerOption(defaultUnitTestLogLevel, "Test", defaultOutputPattern, 0));
+    auto fl = new FileLogger(fn, FileLoggerOption(FileLoggerOption.overwriteMode), LoggerOption(defaultUnitTestLogLevel, "Test", defaultOutputPattern, 0));
     scope (exit)
         fl.file.close();
 
@@ -4249,7 +4670,7 @@ void testFuncNames(Logger logger) @safe
     const string filename = filepath ~ "output.txt";
     assert(!exists(filepath));
 
-    auto f = new FileLogger(filename, "w", LoggerOption(defaultUnitTestLogLevel, "Test", defaultOutputPattern, 0));
+    auto f = new FileLogger(filename, FileLoggerOption(FileLoggerOption.overwriteMode), LoggerOption(defaultUnitTestLogLevel, "Test", defaultOutputPattern, 0));
     scope(exit) () @trusted
     {
         f.file.close();
@@ -4394,7 +4815,7 @@ void testFuncNames(Logger logger) @safe
     void callLog()
     {
         setFunctionInfo();
-        tl.log(testMessage); atLine = __LINE__;
+        tl.log(tl.logLevel, testMessage); atLine = __LINE__;
     }
 
     tl.outputPattern = OutputPatternMarker.terminator ~ "'%S'" ~ OutputPatternName.date ~ OutputPatternMarker.terminator
