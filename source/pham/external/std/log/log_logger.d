@@ -1721,7 +1721,7 @@ protected:
         version (DebugLogger) debug writeln("MemLogger.beginMsg()");
 
         msgBuffer = Appender!string();
-        msgBuffer.reserve(1000);
+        msgBuffer.reserve(1_000);
         logEntry = Logger.LogEntry(this, header, null);
     }
 
@@ -2173,7 +2173,7 @@ protected:
             if (n >= _rollTimestamp)
             {
                 _rollTimestamp = nextCheckTimestamp(n);
-                renameFiles();
+                renameFiles(n, 0);
                 rolled = true;
             }
         }
@@ -2182,8 +2182,8 @@ protected:
         {
             const n = fileSize();
             if (n >= _rollingOption.maxFileSize)
-            {
-                renameFiles();
+            {            
+                renameFiles(SysTime.init, n);
                 rolled = true;
             }
         }
@@ -2242,8 +2242,10 @@ protected:
         try
         {
             const pattern = _fileBaseName ~ dtPattern ~ _fileExt;
+        import std.stdio; debug writeln("_fileDir=", _fileDir, ", pattern=", pattern);
             foreach (string fileName; dirEntries(_fileDir, pattern, SpanMode.shallow))
             {
+        import std.stdio; debug writeln("dirName=", fileName);
                 if (isBackupFile(fileName))
                 {
                     version (Windows)
@@ -2317,28 +2319,29 @@ protected:
         }
     }
 
-    final void renameFiles()
+    final void renameFiles(const(SysTime) t, const(ulong) s)
     {
         version (DebugLogger) debug writeln("RollingFileLogger.renameFiles()");
+        import std.stdio; debug writeln("t=", t, ", s=", s);
 
         doClose();
 
-        // No limit?
-        if (_rollingOption.maxRollBackupCount == 0)
-            return;
-
-        // Check if over count limit; if so delete the oldest
-        if (++_rollBackupCount >= _rollingOption.maxRollBackupCount)
+        // Any limit?
+        if (_rollingOption.maxRollBackupCount != 0)
         {
-            string[] backupFileNames = getBackupFileNames();
-            if (backupFileNames.length >= _rollingOption.maxRollBackupCount)
+            // Check if over count limit; if so delete the oldest
+            if (++_rollBackupCount >= _rollingOption.maxRollBackupCount)
             {
-                size_t i;
-                backupFileNames.sort();
-                while (backupFileNames.length - i >= _rollingOption.maxRollBackupCount)
+                string[] backupFileNames = getBackupFileNames();
+                if (backupFileNames.length >= _rollingOption.maxRollBackupCount)
                 {
-                    deleteFile(backupFileNames[i]);
-                    i++;
+                    size_t i;
+                    backupFileNames.sort();
+                    while (backupFileNames.length - i >= _rollingOption.maxRollBackupCount)
+                    {
+                        deleteFile(backupFileNames[i]);
+                        i++;
+                    }
                 }
             }
         }
@@ -2351,6 +2354,7 @@ protected:
     final void rollFile(const(string) fromName, const(string) toName)
     {
         version (DebugLogger) debug writeln("RollingFileLogger.rollFile()");
+        import std.stdio; debug writeln("fromName=", fromName, ", toName=", toName);
 
         deleteFile(toName);
         try
@@ -2362,7 +2366,7 @@ protected:
 
 private:
     enum dtLength = 14;
-    static immutable string dtFormat = "%cyyyymmddhhnnss";
+    static immutable string dtFormat = ".%cyyyymmddhhnnss";
     static immutable string dtPattern = ".??????????????";
 
     RollingFileLoggerOption _rollingOption;
@@ -4695,14 +4699,14 @@ void testFuncNames(Logger logger) @safe
         file.close();
         remove(filename);
     }
-    auto l = new FileLogger(file);
+    auto lg = new FileLogger(file);
 
-    string notWritten = "this should not be written to file";
-    string written = "this should be written to file";
+    static immutable string notWritten = "this should not be written to file";
+    static immutable string written = "this should be written to file";
 
-    l.logLevel = LogLevel.critical;
-    l.log(LogLevel.warn, notWritten);
-    l.log(LogLevel.critical, written);
+    lg.logLevel = LogLevel.critical;
+    lg.log(LogLevel.warn, notWritten);
+    lg.log(LogLevel.critical, written);
     file.close();
 
     file = File(filename, "r");
@@ -4718,28 +4722,29 @@ void testFuncNames(Logger logger) @safe
     import std.stdio : File;
     import std.string : indexOf;
 
-    string filename = deleteme ~ __FUNCTION__ ~ ".tempLogFile";
-    FileLogger l = new FileLogger(filename);
+    const filename = deleteme ~ __FUNCTION__ ~ ".tempLogFile";
+    auto lg = new FileLogger(filename);
     scope (exit)
+    {
+        lg.doClose();
         remove(filename);
+    }
 
-    auto logRestore = LogRestore(l);
+    auto logRestore = LogRestore(lg);
     sharedLogLevel = LogLevel.critical;
-
-    string notWritten = "this should not be written to file";
-    string written = "this should be written to file";
-
     assert(sharedLogLevel == LogLevel.critical);
 
+    static immutable string notWritten = "this should not be written to file";
+    static immutable string written = "this should be written to file";
     log(LogLevel.warn, notWritten);
     log(LogLevel.critical, written);
-
-    l.file.close();
+    lg.doClose();
 
     auto file = File(filename, "r");
     scope (exit)
         file.close();
     assert(!file.eof);
+    
     string readLine = file.readln();
     assert(readLine.indexOf(written) != -1, readLine);
     assert(readLine.indexOf(notWritten) == -1, readLine);
@@ -4781,9 +4786,10 @@ void testFuncNames(Logger logger) @safe
 {
     import std.file : deleteme, remove;
 
-    auto fl = new FileLogger(deleteme ~ "-someFile.log");
-    scope(exit)
-        remove(deleteme ~ "-someFile.log");
+    const fn = deleteme ~ "-FileLogger.log";
+    auto fl = new FileLogger(deleteme);
+    scope (exit)
+        remove(deleteme);
     auto logRestore = LogRestore(fl, fl);
 
     auto tempLog = threadLog;
@@ -4894,6 +4900,41 @@ unittest // ModuleLoggerOptions.wildPackageName
     assert(ModuleLoggerOptions.wildPackageName("pham.external.std.log.logger") == "pham.external.std.log.*");
     assert(ModuleLoggerOptions.wildPackageName("logger") == "");
     assert(ModuleLoggerOptions.wildPackageName("") == "");
+}
+
+unittest // RollingFileLogger
+{
+    import std.conv : to;
+    import std.file : deleteme, remove;
+    import std.stdio : writeln;
+    
+    string fileName = deleteme ~ "-RollingFileLoggerTest.log";
+    auto option = RollingFileLoggerOption(10_000, 1, RollingDateMode.topOfHour, RollingFileMode.composite);    
+    auto lg = new RollingFileLogger(fileName, option);
+    scope (exit)
+    {
+        auto bfs = lg.getBackupFileNames();
+        foreach (bf; bfs)
+            remove(bf);
+        lg.doClose();
+        remove(fileName);
+    }
+            
+    foreach (i; 0..1_000)
+    {
+        auto s = Appender!string();
+        s.reserve(2_000);
+        foreach (j; 50..100)
+        {
+            if (j > 50)
+                s.put(' ');
+            s.put(to!string(j));
+        }
+        lg.log(LogLevel.error, s.toString());
+    }
+    writeln("fileSize=", lg.fileSize());
+    auto bf = lg.getBackupFileNames();
+    assert(bf.length == 1, to!string(bf.length));    
 }
 
 /* Sample D predefined variable
