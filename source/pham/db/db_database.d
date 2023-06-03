@@ -126,10 +126,19 @@ public:
     {
         version (TraceFunction) traceFunction();
 
-        if (_connection !is null)
-            _connection.cancelCommand(this);
+        checkActive();
+        
+        if (auto log = canTraceLog())
+            log.infof("%s.command.cancel()%s%s", forLogInfo(), newline, commandText);
 
+        _connection.cancelCommand(this);
         return this;
+    }
+
+    pragma(inline, true)
+    final Logger canTraceLog() nothrow pure @safe
+    {
+        return _connection !is null ? _connection.canTraceLog() : null;
     }
 
     final typeof(this) clearParameters() nothrow @safe
@@ -146,31 +155,51 @@ public:
     {
         version (TraceFunction) traceFunction();
 
-        bool implicitTransactionCalled = false;
-        bool unprepareCalled = false;
         checkCommand(-1);
+
+        if (auto log = canTraceLog())
+            log.infof("%s.command.executeNonQuery()%s%s", forLogInfo(), newline, commandText);
+
+        bool implicitTransactionCalled = false;
+        bool unprepareCalled = false;              
         const wasPrepared = prepared;
         resetNewStatement(ResetStatementKind.execute);
         const implicitTransaction = setImplicitTransactionIf();
-        scope (failure)
+        
+        void resetImplicitTransaction(const(bool) isError) @safe
         {
             if (!implicitTransactionCalled && implicitTransaction)
-                resetImplicitTransactionIf(cast(ResetImplicitTransactiontFlag)(ResetImplicitTransactiontFlag.error | ResetImplicitTransactiontFlag.nonQuery));
-            if (!unprepareCalled && !wasPrepared && prepared)
-                unprepare();
+            {
+                implicitTransactionCalled = true;
+                const flags = isError 
+                    ? ResetImplicitTransactiontFlag.nonQuery | ResetImplicitTransactiontFlag.error
+                    : ResetImplicitTransactiontFlag.nonQuery;
+                resetImplicitTransactionIf(cast(ResetImplicitTransactiontFlag)flags);
+            }
         }
+        
+        void restStatement(const(bool) isError) @safe
+        {
+            if (!unprepareCalled && !wasPrepared && prepared)
+            {
+                unprepareCalled = true;
+                unprepare();
+            }
+        }
+        
+        scope (exit)
+        {
+            resetImplicitTransaction(false);
+            restStatement(false);
+        }
+        scope (failure)
+        {
+            resetImplicitTransaction(true);
+            restStatement(true);
+        }
+        
         doExecuteCommand(DbCommandExecuteType.nonQuery);
         auto result = recordsAffected;
-        if (implicitTransaction)
-        {
-            implicitTransactionCalled = true;
-            resetImplicitTransactionIf(ResetImplicitTransactiontFlag.nonQuery);
-        }
-        if (!wasPrepared && prepared)
-        {
-            unprepareCalled = true;
-            unprepare();
-        }
         doNotifyMessage();
         return result;
     }
@@ -180,6 +209,10 @@ public:
         version (TraceFunction) traceFunction();
 
         checkCommand(DbCommandType.ddl);
+        
+        if (auto log = canTraceLog())
+            log.infof("%s.command.executeReader()%s%s", forLogInfo(), newline, commandText);
+        
         const wasPrepared = prepared;
         resetNewStatement(ResetStatementKind.execute);
         const implicitTransaction = setImplicitTransactionIf();
@@ -202,31 +235,48 @@ public:
     {
         version (TraceFunction) traceFunction();
 
+        checkCommand(DbCommandType.ddl);
+        
+        if (auto log = canTraceLog())
+            log.infof("%s.command.executeScalar()%s%s", forLogInfo(), newline, commandText);
+
         bool implicitTransactionCalled = false;
         bool unprepareCalled = false;
-        checkCommand(DbCommandType.ddl);
         const wasPrepared = prepared;
         resetNewStatement(ResetStatementKind.execute);
         const implicitTransaction = setImplicitTransactionIf();
-        scope (failure)
+        
+        void resetImplicitTransaction(const(bool) isError) @safe
         {
             if (!implicitTransaction && implicitTransaction)
-                resetImplicitTransactionIf(ResetImplicitTransactiontFlag.error);
-            if (!unprepareCalled && !wasPrepared && prepared)
-                unprepare();
+            {
+                implicitTransactionCalled = true;
+                resetImplicitTransactionIf(isError ? ResetImplicitTransactiontFlag.error : ResetImplicitTransactiontFlag.none);
+            }
         }
+        
+        void restStatement(const(bool) isError) @safe
+        {
+            if (!unprepareCalled && !wasPrepared && prepared)
+            {
+                unprepareCalled = true;
+                unprepare();
+            }
+        }
+        
+        scope (exit)
+        {
+            resetImplicitTransaction(false);
+            restStatement(false);
+        }
+        scope (failure)
+        {
+            resetImplicitTransaction(true);
+            restStatement(true);
+        }        
+        
         doExecuteCommand(DbCommandExecuteType.scalar);
         auto values = fetch(true);
-        if (implicitTransaction)
-        {
-            implicitTransactionCalled = true;
-            resetImplicitTransactionIf(ResetImplicitTransactiontFlag.none);
-        }
-        if (!wasPrepared && prepared)
-        {
-            unprepareCalled = true;
-            unprepare();
-        }
         doNotifyMessage();
         return values ? values[0] : DbValue.dbNull();
     }
@@ -240,6 +290,11 @@ public:
      *  a DbRowValue with zero column-length being returned.
      */
     abstract DbRowValue fetch(const(bool) isScalar) @safe;
+
+    final string forErrorInfo() const nothrow @safe
+    {
+        return _connection !is null ? _connection.forErrorInfo() : null;
+    }
 
     final string forLogInfo() const nothrow @safe
     {
@@ -258,13 +313,19 @@ public:
     final typeof(this) prepare() @safe
     {
         version (TraceFunction) traceFunction();
-
+        assert(!prepared, "command already prepared");
+        
         if (prepared)
             return this;
 
         checkCommand(-1);
+        
+        if (auto log = canTraceLog())
+            log.infof("%s.command.prepare()%s%s", forLogInfo(), newline, commandText);
+        
         resetNewStatement(ResetStatementKind.prepare);
         const implicitTransaction = setImplicitTransactionIf();
+        
         scope (failure)
         {
             _commandState = DbCommandState.error;
@@ -282,7 +343,7 @@ public:
         catch (Exception e)
         {
             if (auto log = logger)
-                log.error(forLogInfo(), newline, e.msg, newline, _executeCommandText, e);
+                log.errorf("%s.command.prepare() - %s%s%s", forLogInfo(), e.msg, newline, _executeCommandText, e);
             throw e;
         }
 
@@ -322,6 +383,9 @@ public:
         }
 
         checkActiveReader();
+        
+        if (auto log = canTraceLog())
+            log.infof("%s.command.unprepare()%s%s", forLogInfo(), newline, commandText);
 
         // Must reset regardless if error taken place
         // to avoid double errors when connection is shutting down
@@ -505,6 +569,7 @@ public:
         return _lastInsertedId;
     }
 
+    pragma(inline, true)
     @property final Logger logger() nothrow pure @safe
     {
         return _connection !is null ? _connection.logger : null;
@@ -652,8 +717,11 @@ protected:
                 break;
         }
 
-        if (auto log = logger)
-            log.info(forLogInfo(), newline, result);
+        if (auto log = canTraceLog())
+        {
+            if (result != commandText)
+                log.infof("%s.command.buildExecuteCommandText()%s%s", forLogInfo(), newline, result);
+        }
 
         return result;
     }
@@ -733,41 +801,42 @@ protected:
         return result;
     }
 
-    void checkActive(string callerName = __FUNCTION__) @safe
+    void checkActive(string file = __FILE__, size_t line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
     {
         version (TraceFunction) traceFunction("callerName=", callerName);
 
         if (!handle)
         {
             auto msg = DbMessage.eInvalidCommandInactive.fmtMessage(callerName);
-            throw new DbException(msg, DbErrorCode.connect, null);
+            throw new DbException(msg, DbErrorCode.connect, null, 0, 0, file, line, next);
         }
 
         if (_connection is null)
         {
             auto msg = DbMessage.eInvalidCommandConnection.fmtMessage(callerName);
-            throw new DbException(msg, DbErrorCode.connect, null);
+            throw new DbException(msg, DbErrorCode.connect, null, 0, 0, file, line, next);
         }
 
         _connection.checkActive(callerName);
     }
 
-    final void checkActiveReader(string callerName = __FUNCTION__) @safe
+    final void checkActiveReader(string file = __FILE__, size_t line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
     {
         version (TraceFunction) traceFunction("callerName=", callerName);
 
         if (_activeReader)
-            throw new DbException(DbMessage.eInvalidCommandActiveReader, 0, null);
+            throw new DbException(DbMessage.eInvalidCommandActiveReader, 0, null, 0, 0, file, line, next);
 
         connection.checkActiveReader(callerName);
     }
 
-    void checkCommand(int excludeCommandType, string callerName = __FUNCTION__) @safe
+    void checkCommand(int excludeCommandType,
+        string file = __FILE__, size_t line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
     {
         version (TraceFunction) traceFunction("callerName=", callerName);
 
         if (_connection is null || _connection.state != DbConnectionState.opened)
-            throw new DbException(DbMessage.eInvalidCommandConnection, DbErrorCode.connect, null);
+            throw new DbException(DbMessage.eInvalidCommandConnection, DbErrorCode.connect, null, 0, 0, file, line, next);
 
         checkActiveReader(callerName);
 
@@ -775,26 +844,26 @@ protected:
             transaction = null;
 
         if (_commandText.length == 0)
-            throw new DbException(DbMessage.eInvalidCommandText, 0, null);
+            throw new DbException(DbMessage.eInvalidCommandText, 0, null, 0, 0, file, line, next);
 
         if (excludeCommandType != -1 && _commandType == excludeCommandType)
         {
             auto msg = DbMessage.eInvalidCommandUnfit.fmtMessage(callerName);
-            throw new DbException(msg, 0, null);
+            throw new DbException(msg, 0, null, 0, 0, file, line, next);
         }
 
         if (_transaction !is null && _transaction.connection !is _connection)
-            throw new DbException(DbMessage.eInvalidCommandConnectionDif, 0, null);
+            throw new DbException(DbMessage.eInvalidCommandConnectionDif, 0, null, 0, 0, file, line, next);
     }
 
-    final void checkInactive(string callerName = __FUNCTION__) @safe
+    final void checkInactive(string file = __FILE__, size_t line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
     {
         version (TraceFunction) traceFunction("callerName=", callerName);
 
         if (handle)
         {
             auto msg = DbMessage.eInvalidCommandActive.fmtMessage(callerName);
-            throw new DbException(msg, DbErrorCode.connect, null);
+            throw new DbException(msg, DbErrorCode.connect, null, 0, 0, file, line, next);
         }
     }
 
@@ -823,7 +892,7 @@ protected:
         catch (Exception e)
         {
             if (auto log = logger)
-                log.error(e.msg, e);
+                log.errorf("%s.doDispose() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
         }
 
         if (_fields !is null)
@@ -944,16 +1013,16 @@ protected:
             catch (Exception e)
             {
                 if (auto log = logger)
-                    log.error(forLogInfo(), newline, e.msg, e);
+                    log.errorf("%s.removeReaderCompleted() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
             }
         }
     }
 
     enum ResetImplicitTransactiontFlag : ubyte
     {
-        none,
-        error,
-        nonQuery,
+        none = 0, // Must be bit flag for set
+        error = 1,
+        nonQuery = 2,
     }
 
     final void resetImplicitTransactionIf(const(ResetImplicitTransactiontFlag) flags)  @safe
@@ -1159,6 +1228,10 @@ public:
         version (TraceFunction) traceFunction();
 
         checkActive();
+        
+        if (auto log = canTraceLog())
+            log.infof("%s.cancelCommand()", forLogInfo()); 
+        
         notificationMessages.length = 0;
         if (command !is null)
             command._flags.set(DbCommandFlag.cancelled, true);
@@ -1166,16 +1239,30 @@ public:
         doNotifyMessage();
     }
 
+    pragma(inline, true)
+    final Logger canTraceLog() nothrow pure @safe
+    {
+        return logger !is null && LogLevel.info >= logger.logLevel ? logger : null;
+    }
+
     final typeof(this) close() @safe
     {
         version (TraceFunction) traceFunction("state=", state);
 
         if (_poolList !is null)
+        {
+            if (auto log = canTraceLog())
+                log.infof("%s.close()", forLogInfo()); 
+                
             return _poolList.release(this);
+        }
 
         const previousState = state;
         if (previousState == DbConnectionState.closed)
             return this;
+        
+        if (auto log = canTraceLog())
+            log.infof("%s.close()", forLogInfo()); 
 
         _state = DbConnectionState.closing;
         doBeginStateChange(DbConnectionState.closing);
@@ -1254,6 +1341,9 @@ public:
         const previousState = state;
         if (previousState == DbConnectionState.opened)
             return this;
+        
+        if (auto log = canTraceLog())
+            log.infof("%s.open()", forLogInfo()); 
 
         reset();
         _state = DbConnectionState.opening;
@@ -1279,6 +1369,9 @@ public:
     final typeof(this) release() @safe
     {
         version (TraceFunction) traceFunction();
+        
+        if (auto log = canTraceLog())
+            log.infof("%s.release()", forLogInfo()); 
 
         if (_poolList !is null)
             return _poolList.release(this);
@@ -1412,7 +1505,7 @@ package(pham.db):
         catch (Exception e)
         {
             if (auto log = logger)
-                log.error(e.msg, e);
+                log.errorf("%s.doClose() - %s", forLogInfo(), e.msg, e);
         }
 
         _handle.reset();
@@ -1624,7 +1717,7 @@ public:
     DbCustomAttributeList serverInfo;
 
     /**
-     * For logging various message & trace
+     * For logging various operation or error message
      */
     Logger logger;
 
@@ -4197,7 +4290,6 @@ private:
     size_t _fetchedCount;
     EnumSet!Flag _flags;
     HasRows _hasRows;
-    //bool _allRowsFetched, _cacheResult, _implicitTransaction, _skipFetchNext;
 }
 
 abstract class DbTransaction : DbDisposableObject
@@ -4232,6 +4324,12 @@ public:
         return state == DbTransactionState.active && isOpenedConnection();
     }
 
+    pragma(inline, true)
+    final Logger canTraceLog() nothrow pure @safe
+    {
+        return _connection !is null ? _connection.canTraceLog() : null;
+    }
+
     /**
      * Performs a commit for this transaction
 	 */
@@ -4243,8 +4341,8 @@ public:
             resetState(DbTransactionState.error);
         checkState(DbTransactionState.active);
 
-        if (auto log = logger)
-            log.info(forLogInfo(), newline, "transaction.commit()");
+        if (auto log = canTraceLog())
+            log.infof("%s.transaction.commit(isolationLevel=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel)); 
 
         doCommit(isDisposing(lastDisposingReason));
         if (!handle)
@@ -4269,11 +4367,16 @@ public:
         checkSavePointState();
         _savePointNames.length = checkSavePointName(savePointName);
 
-        if (auto log = logger)
-            log.info(forLogInfo(), newline, "transaction.commit(" ~ savePointName ~ ")");
+        if (auto log = canTraceLog())
+            log.infof("%s.transaction.commit(isolationLevel=%s, savePointName=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel), savePointName);
 
         doSavePoint(savePointName, "RELEASE SAVEPOINT " ~ savePointName);
         return this;
+    }
+
+    final string forErrorInfo() const nothrow @safe
+    {
+        return _connection !is null ? _connection.forErrorInfo() : null;
     }
 
     final string forLogInfo() const nothrow @safe
@@ -4311,8 +4414,8 @@ public:
             resetState(DbTransactionState.error);
         checkState(DbTransactionState.active);
 
-        if (auto log = logger)
-            log.info(forLogInfo(), newline, "transaction.rollback()");
+        if (auto log = canTraceLog())
+            log.infof("%s.transaction.rollback(isolationLevel=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel));
 
         doRollback(isDisposing(lastDisposingReason));
         if (!handle)
@@ -4337,8 +4440,8 @@ public:
         checkSavePointState();
         _savePointNames.length = checkSavePointName(savePointName);
 
-        if (auto log = logger)
-            log.info(forLogInfo(), newline, "transaction.rollback(" ~ savePointName ~ ")");
+        if (auto log = canTraceLog())
+            log.infof("%s.transaction.rollback(isolationLevel=%s, savePointName=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel), savePointName);
 
         doSavePoint(savePointName, "ROLLBACK TO SAVEPOINT " ~ savePointName);
         return this;
@@ -4349,12 +4452,11 @@ public:
         version (TraceFunction) traceFunction("autoCommit=", autoCommit, ", isolationLevel=", isolationLevel, ", isRetaining=", isRetaining);
 
         checkState(DbTransactionState.inactive);
-
-        if (auto log = logger)
-            log.info(forLogInfo(), newline, "transaction.start()");
-
         scope (failure)
             resetState(DbTransactionState.error);
+
+        if (auto log = canTraceLog())
+            log.infof("%s.transaction.start(isolationLevel=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel));
 
         doStart();
         _state = DbTransactionState.active;
@@ -4373,12 +4475,11 @@ public:
         version (TraceFunction) traceFunction();
 
         checkSavePointState();
-
         if (savePointName.length == 0)
             savePointName = "SAVEPOINT_" ~ to!string(_connection.nextCounter());
 
-        if (auto log = logger)
-            log.info(forLogInfo(), newline, "transaction.start(" ~ savePointName ~ ")");
+        if (auto log = canTraceLog())
+            log.infof("%s.transaction.start(isolationLevel=%s, savePointName=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel), savePointName);
 
         doSavePoint(savePointName, "SAVEPOINT " ~ savePointName);
         _savePointNames ~= savePointName;
@@ -4482,6 +4583,7 @@ public:
         return this;
     }
 
+    pragma(inline, true)
     @property final Logger logger() nothrow pure @safe
     {
         return _connection !is null ? _connection.logger : null;
@@ -4603,7 +4705,7 @@ protected:
         catch (Exception e)
         {
             if (auto log = logger)
-                log.error(e.msg, e);
+                log.errorf("%s.doDispose() - %s", forLogInfo(), e.msg, e);
         }
 
         if (_connection !is null)

@@ -20,14 +20,16 @@ class MyException : SkException
 
 public:
     this(string message, int code, string sqlState,
-        int socketCode = 0, int vendorCode = 0, Exception next = null) pure
+        int socketCode = 0, int vendorCode = 0,
+        string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure
     {
-        super(message, code, sqlState, socketCode, vendorCode, next);
+        super(message, code, sqlState, socketCode, vendorCode, file, line, next);
     }
 
-    this(MyErrorResult errorResult, Exception next = null) pure
+    this(MyErrorResult errorResult,
+        string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure
     {
-        super(errorResult.message, errorResult.code, errorResult.sqlState, 0, errorResult.code, next);
+        super(errorResult.message, errorResult.code, errorResult.sqlState, 0, errorResult.code, file, line, next);
         this.errorResult = errorResult;
     }
 

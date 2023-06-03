@@ -137,7 +137,7 @@ int32 dateEncode(scope const(DbDate) value) @nogc pure
 DbDateTime dateTimeDecode(int32 fbDate, int32 fbTime) @nogc pure
 {
 	auto dt = DateTime(dateDecode(fbDate), Time(timeToDuration(fbTime)));
-	return DbDateTime(dt, 0);
+	return DbDateTime(dt, 0, 0);
 }
 
 void dateTimeEncode(scope const(DbDateTime) value, out int32 fbDate, out int32 fbTime) @nogc pure
@@ -146,37 +146,20 @@ void dateTimeEncode(scope const(DbDateTime) value, out int32 fbDate, out int32 f
 	fbTime = durationToTime(value.time.toDuration());
 }
 
-enum notUseZoneOffset = int16.max;
-
 DbDateTime dateTimeDecodeTZ(int32 fbDate, int32 fbTime, uint16 fbZoneId, int16 fbZoneOffset)
 {
-	auto fbtzm = FbTimeZone.timeZone(fbZoneId);
-	auto tzm = TimeZoneInfoMap.timeZoneMap(fbtzm.name);
-	auto dt = DateTime(dateDecode(fbDate), Time(timeToDuration(fbTime)));
-	if (fbZoneOffset != notUseZoneOffset)
-    {
-		if (fbZoneOffset != 0)
-			dt = dt.addMinutesSafe(-cast(int)fbZoneOffset);
-		dt = dt.asUTC();
-    }
-	else if (tzm.isValid())
-    {
-		dt = tzm.info.convertDateTimeToUTC(dt);
-    }
-	return DbDateTime(TimeZoneInfo.convertUtcToLocal(dt), 0);
+	auto dt = DateTime(dateDecode(fbDate), Time(timeToDuration(fbTime), DateTimeZoneKind.utc));
+	return DbDateTime(dt, fbZoneId, fbZoneOffset);
 }
 
 void dateTimeEncodeTZ(scope const(DbDateTime) value, out int32 fbDate, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)
 {
-	fbZoneId = FbIscDefault.gmt_zone;
+	fbZoneId = FbIscDefault.gmt_zoneId;
 	fbZoneOffset = 0; // Already in UTC so set it to zero
 	if (value.kind == DateTimeZoneKind.utc)
 		dateTimeEncode(value, fbDate, fbTime);
 	else
-    {
-		auto utc = value.toUTC();
-		dateTimeEncode(utc, fbDate, fbTime);
-    }
+		dateTimeEncode(value.toUTC(), fbDate, fbTime);
 }
 
 size_t decimalByteLength(D)() pure
@@ -274,33 +257,17 @@ int32 timeEncode(scope const(DbTime) value) @nogc pure
 
 DbTime timeDecodeTZ(int32 fbTime, uint16 fbZoneId, int16 fbZoneOffset)
 {
-	auto fbtzm = FbTimeZone.timeZone(fbZoneId);
-	auto tzm = TimeZoneInfoMap.timeZoneMap(fbtzm.name);
-	auto dt = DateTime(DateTime.utcNow.date, Time(timeToDuration(fbTime)));
-	if (fbZoneOffset != notUseZoneOffset)
-    {
-		if (fbZoneOffset != 0)
-			dt = dt.addMinutesSafe(-cast(int)fbZoneOffset);
-		dt = dt.asUTC;
-    }
-	else if (tzm.isValid())
-    {
-		dt = tzm.info.convertDateTimeToUTC(dt);
-    }
-	return DbTime(TimeZoneInfo.convertUtcToLocal(dt).time, 0);
+	auto dt = DateTime(DateTime.utcNow.date, Time(timeToDuration(fbTime), DateTimeZoneKind.utc));
+	return DbTime(dt.time, fbZoneId, fbZoneOffset);
 }
 
 void timeEncodeTZ(scope const(DbTime) value, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)
 {
-	fbZoneId = FbIscDefault.gmt_zone;
+	fbZoneId = FbIscDefault.gmt_zoneId;
 	fbZoneOffset = 0; // Already in UTC so set it to zero
-	if (value.kind == DateTimeZoneKind.utc)
-		fbTime = timeEncode(value);
-	else
-    {
-		auto utct = value.toUTC();
-		fbTime = timeEncode(utct);
-    }
+	fbTime = value.kind == DateTimeZoneKind.utc
+		? timeEncode(value)
+		: timeEncode(value.toUTC());
 }
 
 // time-part value as the number of deci-milliseconds (10^-4 second) elapsed since midnight

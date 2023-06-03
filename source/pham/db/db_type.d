@@ -490,24 +490,32 @@ struct DbDateTime
 nothrow @safe:
 
 public:
-    this(DateTime datetime, uint16 zoneId = 0) @nogc pure
+    this(DateTime datetime,
+        uint16 zoneId = 0, int16 zoneOffset = 0) @nogc pure
     {
         this._value = datetime;
-        //TODO this._zoneId = zoneId != 0 ? zoneId : DbTime.resolveZoneId(datetime.timezone.name, kind);
+        this._zoneId = zoneId;
+        this._zoneOffset = zoneOffset;
     }
 
     this(int32 validYear, int32 validMonth, int32 validDay,
         int32 validHour, int32 validMinute, int32 validSecond, int32 validMillisecond,
         DateTimeZoneKind kind = DateTimeZoneKind.unspecified,
-        uint16 zoneId = 0) @nogc pure
+        uint16 zoneId = 0, int16 zoneOffset = 0) @nogc pure
     {
-        this(DateTime(validYear, validMonth, validDay, validHour, validMinute, validSecond, validMillisecond, kind), zoneId);
+        this(DateTime(validYear, validMonth, validDay, validHour, validMinute, validSecond, validMillisecond, kind), zoneId, zoneOffset);
     }
 
     int opCmp(scope const(DbDateTime) rhs) const @nogc pure
     {
-        const result = _value.opCmp(rhs._value);
-        return result == 0 ? cmpInteger(_zoneId, rhs._zoneId) : result;
+        int result = _value.opCmp(rhs._value);
+        if (result == 0)
+        {
+            result = cmpInteger(_zoneId, rhs._zoneId);
+            if (result == 0)
+                result = cmpInteger(_zoneOffset, rhs._zoneOffset);
+        }
+        return result;
     }
 
     int opCmp(scope const(DateTime) rhs) const @nogc pure
@@ -519,7 +527,7 @@ public:
     // Some kind of compiler bug
     bool opEquals(scope const(DbDateTime) rhs) const @nogc pure
     {
-        return zoneId == rhs.zoneId && _value.opEquals(rhs._value);
+        return _value.opEquals(rhs._value) && zoneId == rhs.zoneId && zoneOffset == rhs.zoneOffset;
     }
 
     bool opEquals(scope const(DateTime) rhs) const @nogc pure
@@ -529,7 +537,7 @@ public:
 
     static DbDateTime toDbDateTime(scope const(DateTime) value) @nogc pure
     {
-        return DbDateTime(value, 0); //TODO search for zone_id
+        return DbDateTime(value, 0, 0); //TODO search for zone_id
     }
 
     Duration toDuration() const @nogc pure
@@ -552,24 +560,7 @@ public:
     if (isOutputRange!(Writer, Char))
     {
         _value.toString(sink);
-
-        /* TODO
-        if (zoneId != 0)
-        {
-            if (zoneId == timeZoneUtcId)
-                put(sink, 'Z');
-            else
-            auto zn = DbTimeZoneList.instance().zone(zoneId);
-            // Valid zone?
-            if (zn.id != 0)
-            {
-                put(sink, ' ');
-                put(sink, zn.name);
-            }
-        }
-        */
-
-        return sink;
+        return DbTime.toStringOffset(sink, kind, zoneOffset);
     }
 
     typeof(this) toUTC() const
@@ -583,13 +574,13 @@ public:
             if (tzm.isValid())
             {
                 auto utcDT = tzm.info.convertDateTimeToUTC(_value);
-                return DbDateTime(utcDT, 0);
+                return DbDateTime(utcDT, 0, 0);
             }
         }
 
         auto tz = TimeZoneInfo.localTimeZone(_value.year);
         auto utcDT = tz.convertDateTimeToUTC(_value);
-        return DbDateTime(utcDT, 0);
+        return DbDateTime(utcDT, 0, 0);
     }
 
     @property Date date() const @nogc pure
@@ -599,7 +590,7 @@ public:
 
     @property bool isTZ() const @nogc pure
     {
-        return zoneId != 0;
+        return zoneId != 0 || zoneOffset != 0;
     }
 
     @property DateTimeZoneKind kind() const @nogc pure
@@ -632,11 +623,20 @@ public:
         return _zoneId;
     }
 
+    /**
+     * Zone offset in minute
+     */
+    @property int16 zoneOffset() const @nogc pure
+    {
+        return _zoneOffset;
+    }
+
     alias value this;
 
 private:
     DateTime _value;
     uint16 _zoneId;
+    int16 _zoneOffset;
 }
 
 struct DbGeoBox
@@ -1424,22 +1424,23 @@ nothrow @safe:
 
 public:
     this(Time time,
-        uint16 zoneId = 0) @nogc pure
+        uint16 zoneId = 0, int16 zoneOffset = 0) @nogc pure
     {
         this._value = time;
-        //TODO this._zoneId = zoneId != 0 ? zoneId : resolveZoneId(time.timezone.name, kind);
+        this._zoneId = zoneId;
+        this._zoneOffset = zoneOffset;
     }
 
     this(scope const Duration time,
         DateTimeZoneKind kind = DateTimeZoneKind.unspecified,
-        uint16 zoneId = 0) @nogc pure
+        uint16 zoneId = 0, int16 zoneOffset = 0) @nogc pure
     {
-        this(Time(Tick.durationToTicks(time), kind), zoneId);
+        this(Time(Tick.durationToTicks(time), kind), zoneId, zoneOffset);
     }
 
     this(int32 validHour, int32 validMinute, int32 validSecond, int32 validMillisecond,
         DateTimeZoneKind kind = DateTimeZoneKind.unspecified,
-        uint16 zoneId = 0) @nogc pure
+        uint16 zoneId = 0, int16 zoneOffset = 0) @nogc pure
     {
         auto timeDuration = Duration.zero;
         if (validHour != 0)
@@ -1450,25 +1451,31 @@ public:
             timeDuration += dur!"seconds"(validSecond);
         if (validMillisecond != 0)
             timeDuration += dur!"msecs"(validMillisecond);
-        this(timeDuration, kind, zoneId);
+        this(timeDuration, kind, zoneId, zoneOffset);
     }
 
     int opCmp(scope const(DbTime) rhs) const @nogc pure
     {
-        const result = _value.opCmp(rhs._value);
-        return result == 0 ? cmpInteger(_zoneId, rhs._zoneId) : result;
+        int result = _value.opCmp(rhs._value);
+        if (result == 0)
+        {
+            result = cmpInteger(_zoneId, rhs._zoneId);
+            if (result == 0)
+                result = cmpInteger(_zoneOffset, rhs._zoneOffset);
+        }
+        return result;
     }
 
     int opCmp(scope const(Time) rhs) const @nogc pure
     {
-        return this.opCmp(DbTime(rhs));
+        return this.opCmp(DbTime(rhs, 0, 0));
     }
 
     // Do not use template function to support Variant
     // Some kind of compiler bug
     bool opEquals(scope const(DbTime) rhs) const @nogc pure
     {
-        return zoneId == rhs.zoneId && _value == rhs._value;
+        return _value == rhs._value && zoneId == rhs.zoneId && zoneOffset == rhs.zoneOffset;
     }
 
     bool opEquals(scope const(Time) rhs) const @nogc pure
@@ -1478,7 +1485,7 @@ public:
 
     static DbTime toDbTime(scope const(Time) value) @nogc pure
     {
-        return DbTime(value, 0); //TODO search for zone_id
+        return DbTime(value, 0, 0); //TODO search for zone_id
     }
 
     Duration toDuration() const @nogc pure
@@ -1500,25 +1507,31 @@ public:
     ref Writer toString(Writer, Char = char)(return ref Writer sink) const
     if (isOutputRange!(Writer, Char))
     {
-        scope (failure) assert(0, "Assume nothrow failed");
+        //scope (failure) assert(0, "Assume nothrow failed");
 
-        _value.toString(sink, "%s");
+        _value.toString(sink);
+        return toStringOffset(sink, kind, zoneOffset);
+    }
 
-        /* TODO
-        if (zoneId != 0)
+    static ref Writer toStringOffset(Writer, Char = char)(return ref Writer sink, const(DateTimeZoneKind) kind, const(int16) validOffset)
+    if (isOutputRange!(Writer, Char))
+    {
+        import std.math.algebraic : abs;
+        import pham.utl.object : toString;
+        
+        if (validOffset != 0)
         {
-            if (zoneId == timeZoneUtcId)
-                put(sink, 'Z');
-            else
-            auto zn = DbTimeZoneList.instance().zone(zoneId);
-            // Valid zone?
-            if (zn.id != 0)
-            {
-                put(sink, ' ');
-                put(sink, zn.name);
-            }
+            byte h = void, m = void;
+            TimeZoneInfo.offsetToISOPart(validOffset, h, m);
+            ShortStringBuffer!Char buffer;
+            toString(buffer, abs(h), 2);
+            buffer.put(':');
+            toString(buffer, m, 2);
+            put(sink, h < 0 ? '-' : '+');
+            put(sink, buffer.toString());
         }
-        */
+        else if (kind == DateTimeZoneKind.utc)
+            put(sink, 'Z');
 
         return sink;
     }
@@ -1542,12 +1555,12 @@ public:
         auto dt = DateTime.utcNow.date + _value;
         auto tz = TimeZoneInfo.localTimeZone(dt.year);
         auto utcDT = tz.convertDateTimeToUTC(dt);
-        return DbTime(utcDT.time, 0);
+        return DbTime(utcDT.time, 0, 0);
     }
 
     @property bool isTZ() const @nogc pure
     {
-        return zoneId != 0;
+        return zoneId != 0 || zoneOffset != 0;
     }
 
     @property DateTimeZoneKind kind() const @nogc pure
@@ -1575,11 +1588,20 @@ public:
         return _zoneId;
     }
 
+    /**
+     * Zone offset in minute
+     */
+    @property int16 zoneOffset() const @nogc pure
+    {
+        return _zoneOffset;
+    }
+
     alias value this;
 
 private:
     Time _value;
     uint16 _zoneId;
+    int16 _zoneOffset;
 }
 
 struct DbTimeSpan
@@ -2337,4 +2359,22 @@ unittest // dbTypeOf
         enum cis = is(SimpleClass == class);
         writeln("is(SimpleClass == class): ", cis);
     }
+}
+
+unittest // DbDateTime
+{
+    import pham.utl.test;
+    traceUnitTest("unittest pham.db.type.DbDateTime");
+
+    assert(DbDateTime(2020, 8, 27, 8, 0, 0, 0, DateTimeZoneKind.utc, 0, 65).toString() == "08/27/2020 8:00:00 AM+01:05");
+    assert(DbDateTime(2020, 8, 27, 8, 0, 0, 0, DateTimeZoneKind.utc, 0, -65).toString() == "08/27/2020 8:00:00 AM-01:05");
+}
+
+unittest // DbTime
+{
+    import pham.utl.test;
+    traceUnitTest("unittest pham.db.type.DbTime");
+
+    assert(DbTime(8, 0, 0, 0, DateTimeZoneKind.utc, 0, 65).toString() == "8:00:00 AM+01:05");
+    assert(DbTime(8, 0, 0, 0, DateTimeZoneKind.utc, 0, -65).toString() == "8:00:00 AM-01:05");
 }

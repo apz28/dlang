@@ -660,6 +660,16 @@ public:
             _command = null;
     }
 
+    final string forErrorInfo() const nothrow @safe
+    {
+        return _command !is null ? _command.forErrorInfo() : null;
+    }
+
+    final string forLogInfo() const nothrow @safe
+    {
+        return _command !is null ? _command.forLogInfo() : null;
+    }
+
     int32 length()
     in
     {
@@ -794,6 +804,7 @@ public:
         return _info.hasHandle;
     }
 
+    pragma(inline, true)
     @property Logger logger() nothrow pure
     {
         return _command !is null ? _command.logger : null;
@@ -857,7 +868,7 @@ package(pham.db):
         catch (Exception e)
         {
             if (auto log = logger)
-                log.error(e.msg, e);
+                log.errorf("%s.doClose() - %s", forLogInfo(), e.msg, e);
         }
     }
 
@@ -901,6 +912,9 @@ public:
 	final override const(char)[] getExecutionPlan(uint vendorMode) @safe
 	{
         version (TraceFunction) traceFunction("vendorMode=", vendorMode);
+        
+        if (auto log = canTraceLog())
+            log.infof("%s.command.getExecutionPlan(vendorMode=%d)%s%s", forLogInfo(), vendorMode, newline, commandText);
 
         const wasPrepared = prepared;
         if (!wasPrepared)
@@ -1120,7 +1134,7 @@ protected:
         catch (Exception e)
         {
             if (auto log = logger)
-                log.error(forLogInfo(), newline, e.msg, e);
+                log.errorf("%s.deallocateHandle() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
         }
     }
 
@@ -1136,7 +1150,7 @@ protected:
         prepareExecuting(type);
 
         auto logTimming = logger !is null
-            ? LogTimming(logger, text(forLogInfo(), newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(logger, text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
         auto protocol = fbConnection.protocol;
@@ -1220,7 +1234,7 @@ protected:
         auto sql = executeCommandText(BuildCommandTextState.prepare); // Make sure statement is constructed before doing other tasks
 
         auto logTimming = logger !is null
-            ? LogTimming(logger, text(forLogInfo(), newline, sql), false, logTimmingWarningDur)
+            ? LogTimming(logger, text(forLogInfo(), ".doPrepare()", newline, sql), false, logTimmingWarningDur)
             : LogTimming.init;
 
         static if (fbDeferredProtocol)
@@ -1301,6 +1315,10 @@ protected:
     {
         version (TraceFunction) traceFunction();
         version (profile) debug auto p = PerfFunction.create();
+
+        auto logTimming = logger !is null
+            ? LogTimming(logger, text(forLogInfo(), ".executeNonQueryBatch()", newline, _executeCommandText), false, logTimmingWarningDur)
+            : LogTimming.init;
 
         auto protocol = fbConnection.protocol;
 
@@ -1546,7 +1564,7 @@ public:
             catch (Exception e)
             {
                 if (auto log = logger)
-                    log.error(e.msg, e);
+                    log.errorf("%s.dispose() - %s", forLogInfo(), e.msg, e);
             }
         }
 
@@ -1580,6 +1598,16 @@ public:
         return _command.executeNonQueryBatch(this);
     }
 
+    final string forErrorInfo() const nothrow @safe
+    {
+        return _command !is null ? _command.forErrorInfo() : null;
+    }
+
+    final string forLogInfo() const nothrow @safe
+    {
+        return _command !is null ? _command.forLogInfo() : null;
+    }
+
     ref typeof(this) prepare() return
     {
         version (TraceFunction) traceFunction();
@@ -1607,6 +1635,7 @@ public:
         return _command.fbTransaction;
     }
 
+    pragma(inline, true)
     @property Logger logger() nothrow pure
     {
         return _command !is null ? _command.logger : null;
@@ -1759,25 +1788,22 @@ package(pham.db):
     }
 
 protected:
-    final override SkException createConnectError(int errorCode, string errorMessage, Exception e) @safe
+    final override SkException createConnectError(int errorCode, string errorMessage,
+        string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe
     {
-        auto result = super.createConnectError(errorCode, errorMessage, e);
-        result.vendorCode = FbIscResultCode.isc_net_connect_err;
-        return result;
+        return new FbException(errorMessage, DbErrorCode.connect, null, errorCode, FbIscResultCode.isc_net_connect_err, file, line, next);
     }
 
-    final override SkException createReadDataError(int errorCode, string errorMessage, Exception e) @safe
+    final override SkException createReadDataError(int errorCode, string errorMessage,
+        string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe
     {
-        auto result = super.createReadDataError(errorCode, errorMessage, e);
-        result.vendorCode = FbIscResultCode.isc_net_read_err;
-        return result;
+        return new FbException(errorMessage, DbErrorCode.read, null, errorCode, FbIscResultCode.isc_net_read_err, file, line, next);
     }
 
-    final override SkException createWriteDataError(int errorCode, string errorMessage, Exception e) @safe
+    final override SkException createWriteDataError(int errorCode, string errorMessage,
+        string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe
     {
-        auto result = super.createWriteDataError(errorCode, errorMessage, e);
-        result.vendorCode = FbIscResultCode.isc_net_write_err;
-        return result;
+        return new FbException(errorMessage, DbErrorCode.write, null, errorCode, FbIscResultCode.isc_net_write_err, file, line, next);
     }
 
     override void disposeCommands(const(DisposingReason) disposingReason) nothrow @safe
@@ -1845,7 +1871,7 @@ protected:
         catch (Exception e)
         {
             if (auto log = logger)
-                log.error(e.msg, e);
+                log.error("%s.doClose() - %s", forLogInfo(), e.msg, e);
         }
 
         super.doClose(failedOpen);
@@ -3110,6 +3136,30 @@ unittest // FbCommand.DML.Types
         assert(v.get!Decimal128() == Decimal128("-123.000000001E-1"), v.get!Decimal128().toString());
     }
 
+    // timestamp with time zone
+    if (dbVersion >= "4.0")
+    {
+		command.commandText = "select cast(null as timestamp with time zone) from rdb$database";
+		auto v = command.executeScalar();
+		assert(v.isNull());
+    
+		command.commandText = "select cast('2020-08-27 10:00 Europe/Prague' as timestamp with time zone) from rdb$database";
+		v = command.executeScalar();
+		assert(v.get!DbDateTime() == DbDateTime(2020, 8, 27, 8, 0, 0, 0, DateTimeZoneKind.utc, 65059), v.get!DbDateTime().toString());
+    }
+    
+    // time with time zone
+    if (dbVersion >= "4.0")
+    {
+		command.commandText = "select cast(null as time with time zone) from rdb$database";
+		auto v = command.executeScalar();
+		assert(v.isNull());
+    
+		command.commandText = "select cast('15:00 Europe/Prague' as time with time zone) from rdb$database";
+		v = command.executeScalar();
+		assert(v.get!DbTime() == DbTime(14, 0, 0, 0, DateTimeZoneKind.utc, 65059), v.get!DbTime().toString());
+    }
+    
     failed = false;
 }
 

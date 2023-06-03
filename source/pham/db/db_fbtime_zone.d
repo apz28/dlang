@@ -13,6 +13,7 @@ module pham.db.fbtimezone;
 
 import pham.utl.object : singleton;
 import pham.db.type : uint16;
+import pham.db.fbisc : FbIscDefault;
 
 nothrow @safe:
 
@@ -68,8 +69,7 @@ public:
     }
 
 public:
-	enum utcId = 65_535;
-	static immutable utcName = "GMT";
+	static immutable string gmt_zoneName = "GMT";
 
 private:
     string _name;
@@ -139,7 +139,7 @@ private:
 }
 
 static immutable FbTimeZone[] timeZones = [
-	FbTimeZone(FbTimeZone.utcName, FbTimeZone.utcId),
+	FbTimeZone(FbTimeZone.gmt_zoneName, FbIscDefault.gmt_zoneId),
 	FbTimeZone("ACT", 65534),
 	FbTimeZone("AET", 65533),
 	FbTimeZone("AGT", 65532),

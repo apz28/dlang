@@ -20,18 +20,20 @@ class FbException : SkException
 
 public:
     this(string message, int code, string state,
-         int socketCode = 0, int vendorCode = 0, Exception next = null) pure
+        int socketCode = 0, int vendorCode = 0,
+        string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure
     {
-        super(message, code, state, socketCode, vendorCode, next);
+        super(message, code, state, socketCode, vendorCode, file, line, next);
     }
 
-    this(FbIscStatues statues, Exception next = null)
+    this(FbIscStatues statues,
+        string file = __FILE__, size_t line = __LINE__, Throwable next = null)
     {
         string statusMessage, statusState;
         int statusCode;
         statues.buildMessage(statusMessage, statusCode, statusState);
         
-        super(statusMessage, statusCode, statusState, 0, statusCode, next);
+        super(statusMessage, statusCode, statusState, 0, statusCode, file, line, next);
         this.statues = statues;
     }
 

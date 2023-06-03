@@ -537,7 +537,7 @@ enum FbIsc
 enum FbIscDefault
 {
 	dialect = 3,
-	gmt_zone = 65_535,
+	gmt_zoneId = 65_535,
 }
 
 enum FbIscSize

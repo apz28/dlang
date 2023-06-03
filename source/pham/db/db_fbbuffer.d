@@ -794,16 +794,16 @@ public:
 
     DbDateTime readDateTimeTZ()
     {
-        // Do not try to inline function calls, D does not honor right sequence from left to right
+        // Do not try to inline function calls, D does not honor correct sequence from left to right
         auto d = readInt32();
         auto t = readInt32();
         auto zId = readUInt16();
-        return dateTimeDecodeTZ(d, t, zId, notUseZoneOffset);
+        return dateTimeDecodeTZ(d, t, zId, 0);
     }
 
     DbDateTime readDateTimeTZEx()
     {
-        // Do not try to inline function calls, D does not honor right sequence from left to right
+        // Do not try to inline function calls, D does not honor correct sequence from left to right
         auto d = readInt32();
         auto t = readInt32();
         auto zId = readUInt16();
@@ -1003,7 +1003,7 @@ public:
         // Do not try to inline function calls, D does not honor right sequence from left to right
         auto t = readInt32();
         auto zId = readUInt16();
-        return timeDecodeTZ(t, zId, notUseZoneOffset);
+        return timeDecodeTZ(t, zId, 0);
     }
 
     DbTime readTimeTZEx()
@@ -1449,9 +1449,9 @@ unittest // FbXdrWriter & FbXdrReader
     writer.writeBytes(bytes);
     writer.writeChars(chars);
     writer.writeDate(DbDate(1, 2, 3));
-    writer.writeDateTime(DbDateTime(DateTime(1,2,3,4,5,6), 0));
-    writer.writeDateTimeTZ(DbDateTime(DateTime(1,2,3,4,5,6), 0));
-    writer.writeDateTimeTZEx(DbDateTime(DateTime(1,2,3,4,5,6), 0));
+    writer.writeDateTime(DbDateTime(DateTime(1,2,3,4,5,6)));
+    writer.writeDateTimeTZ(DbDateTime(DateTime(1,2,3,4,5,6,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
+    writer.writeDateTimeTZEx(DbDateTime(DateTime(1,2,3,4,5,6,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
     //writer.writeDecimal();
     //writer.writeFixedChars();
     writer.writeFloat32(float.min_normal);
@@ -1474,8 +1474,8 @@ unittest // FbXdrWriter & FbXdrReader
     writer.writeOpaqueBytes(bytes, bytes.length);
     writer.writeOperation(5);
     writer.writeTime(DbTime(Time(1,2,3)));
-    writer.writeTimeTZ(DbTime(Time(1,2,3)));
-    writer.writeTimeTZEx(DbTime(Time(1,2,3)));
+    writer.writeTimeTZ(DbTime(Time(1,2,3,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
+    writer.writeTimeTZEx(DbTime(Time(1,2,3,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
     writer.writeUInt16(100);
     writer.writeUUID(uuid);
 
@@ -1485,9 +1485,9 @@ unittest // FbXdrWriter & FbXdrReader
     assert(reader.readBytes() == bytes);
     assert(reader.readChars() == chars);
     assert(reader.readDate() == DbDate(1, 2, 3));
-    assert(reader.readDateTime() == DbDateTime(DateTime(1,2,3,4,5,6), 0));
-    assert(reader.readDateTimeTZ() == DbDateTime(DateTime(1,2,3,4,5,6), 0));
-    assert(reader.readDateTimeTZEx() == DbDateTime(DateTime(1,2,3,4,5,6), 0));
+    assert(reader.readDateTime() == DbDateTime(DateTime(1,2,3,4,5,6)));
+    assert(reader.readDateTimeTZ() == DbDateTime(DateTime(1,2,3,4,5,6,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
+    assert(reader.readDateTimeTZEx() == DbDateTime(DateTime(1,2,3,4,5,6,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
     //assert(reader.readDecimal() == );
     //assert(reader.readFixedChars() == );
     assert(reader.readFloat32() == float.min_normal);
@@ -1510,8 +1510,8 @@ unittest // FbXdrWriter & FbXdrReader
     assert(reader.readOpaqueBytes(bytes.length) == bytes);
     assert(reader.readOperation() == 5);
     assert(reader.readTime() == DbTime(Time(1,2,3)));
-    assert(reader.readTimeTZ() == DbTime(Time(1,2,3)));
-    assert(reader.readTimeTZEx() == DbTime(Time(1,2,3)));
+    assert(reader.readTimeTZ() == DbTime(Time(1,2,3,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
+    assert(reader.readTimeTZEx() == DbTime(Time(1,2,3,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
     assert(reader.readUInt16() == 100);
     assert(reader.readUUID() == uuid);
 }

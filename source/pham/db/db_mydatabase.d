@@ -60,6 +60,9 @@ public:
 	{
         version (TraceFunction) traceFunction("vendorMode=", vendorMode);
 
+        if (auto log = canTraceLog())
+            log.infof("%s.command.getExecutionPlan(vendorMode=%d)%s%s", forLogInfo(), vendorMode, newline, commandText);
+
         string explainFormat() nothrow @safe
         {
             switch (vendorMode)
@@ -82,7 +85,7 @@ public:
 
         size_t lines = 0;
         auto result = Appender!string();
-        result.reserve(1000);
+        result.reserve(1_000);
         while (explainReader.read())
         {
             if (lines)
@@ -238,7 +241,7 @@ protected:
         catch (Exception e)
         {
             if (auto log = logger)
-                log.error(forLogInfo(), newline, e.msg, e);
+                log.errorf("%s.deallocateHandle() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
         }
     }
 
@@ -254,7 +257,7 @@ protected:
         const lPrepared = prepared;
 
         auto logTimming = logger !is null
-            ? LogTimming(logger, text(forLogInfo(), newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(logger, text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
         auto protocol = myConnection.protocol;
@@ -327,7 +330,7 @@ protected:
         auto sql = executeCommandText(BuildCommandTextState.prepare);
 
         auto logTimming = logger !is null
-            ? LogTimming(logger, text(forLogInfo(), newline, sql), false, logTimmingWarningDur)
+            ? LogTimming(logger, text(forLogInfo(), ".doPrepare()", newline, sql), false, logTimmingWarningDur)
             : LogTimming.init;
 
         auto protocol = myConnection.protocol;
@@ -487,7 +490,7 @@ protected:
         catch (Exception e)
         {
             if (auto log = logger)
-                log.error(forLogInfo(), newline, e.msg, e);
+                log.errorf("%s.purgePendingRows() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
         }
     }
 
@@ -657,6 +660,24 @@ package(pham.db):
     }
 
 protected:
+    final override SkException createConnectError(int errorCode, string errorMessage,
+        string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe
+    {
+        return new MyException(errorMessage, DbErrorCode.connect, null, errorCode, 0, file, line, next);
+    }
+
+    final override SkException createReadDataError(int errorCode, string errorMessage,
+        string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe
+    {
+        return new MyException(errorMessage, DbErrorCode.read, null, errorCode, 0, file, line, next);
+    }
+
+    final override SkException createWriteDataError(int errorCode, string errorMessage,
+        string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe
+    {
+        return new MyException(errorMessage, DbErrorCode.write, null, errorCode, 0, file, line, next);
+    }
+
     final void disposePackageReadBuffers(const(DisposingReason) disposingReason) nothrow @safe
     {
         version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
@@ -709,7 +730,7 @@ protected:
         catch (Exception e)
         {
             if (auto log = logger)
-                log.error(e.msg, e);
+                log.errorf("%s.doClose() - %s", forLogInfo(), e.msg, e);
         }
 
         super.doClose(failedOpen);
