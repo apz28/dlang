@@ -561,6 +561,32 @@ public:
             : (_id == utcId || _id == utcId2 ? DateTimeZoneKind.utc : DateTimeZoneKind.unspecified);
     }
 
+    pragma(inline, true)
+    static short offsetFromISOPart(const(byte) validOffsetHour, const(byte) validOffsetMinute) @nogc nothrow pure scope
+    in
+    {
+        assert(validOffsetHour >= -14 && validOffsetHour <= 14);
+        assert(validOffsetMinute >= 0 && validOffsetMinute < 60);
+    }
+    do
+    {
+        return cast(short)((cast(short)validOffsetHour * 60) + validOffsetMinute);
+    }
+    
+    pragma(inline, true)
+    static void offsetToISOPart(const(short) validMinuteOffset, out byte hour, out byte minute) @nogc nothrow pure scope
+    in
+    {
+        assert(validMinuteOffset >= (-14 * 60) && validOffsetHour <= (14 * 60));
+    }
+    do
+    {
+        import std.math.algebraic : abs;
+        
+        hour = cast(byte)(validMinuteOffset / 60);
+        minute = cast(byte)(abs(validMinuteOffset) - (cast(short)abs(hour) * 60));
+    }
+    
     size_t toHash() const @nogc nothrow pure scope
     {
         return hashOf(_id);
@@ -703,7 +729,9 @@ public:
     // constants for TimeZone.local and TimeZone.utc
     static immutable string localId = "Local";
     static immutable string utcId = "UTC";
+    enum utcIdInt = 1;
     static immutable string utcId2 = "GMT";
+    enum utcId2Int = 2;
     static immutable string utcStandardName = "Coordinated Universal Time";
     static immutable string utcDisplayName = "(UTC) Coordinated Universal Time";
 
@@ -1212,12 +1240,12 @@ private:
             if (tzi.id == TimeZoneInfo.utcId)
             {
                 utcIdIndex = i;
-                add(1, tzi);
+                add(TimeZoneInfo.utcIdInt, tzi);
             }
             else if (tzi.id == TimeZoneInfo.utcId2)
             {
                 utcId2Index = i;
-                add(2, tzi);
+                add(TimeZoneInfo.utcId2Int, tzi);
             }
             else
                 add(++idSeed, tzi);
@@ -1225,7 +1253,7 @@ private:
 
         // Add alias if not found
         if (utcId2Index == -1 && utcIdIndex >= 0)
-            add(2, TimeZoneInfo.utcId2, &zones[utcIdIndex]);
+            add(TimeZoneInfo.utcId2Int, TimeZoneInfo.utcId2, &zones[utcIdIndex]);
     }
 
 private:
@@ -1800,7 +1828,7 @@ shared static this() @trusted
 unittest
 {
     import pham.utl.test;
-    traceUnitTest("unittest pham.dtm.time_zone.localTimeZone");
+    traceUnitTest("unittest pham.dtm.time_zone.TimeZoneInfo.localTimeZone");
 
     auto ltz = TimeZoneInfo.localTimeZone();
 
@@ -1811,4 +1839,22 @@ unittest
               ", ltz.id=", ltz.id,
               ", ltz.standardName=", ltz.standardName,
               ", ltz.supportsDaylightSavingTime=", ltz.supportsDaylightSavingTime);
+}
+
+unittest // TimeZoneInfo.offsetFromISOPart & offsetToISOPart
+{
+    import pham.utl.test;
+    traceUnitTest("unittest pham.dtm.time_zone.TimeZoneInfo.offsetFromISOPart & offsetToISOPart");
+    
+    assert(TimeZoneInfo.offsetFromISOPart(1, 5) == 65);
+    assert(TimeZoneInfo.offsetFromISOPart(-5, 0) == -5 * 60);
+
+    byte h, m;
+    TimeZoneInfo.offsetToISOPart(65, h, m);
+    assert(h == 1);
+    assert(m == 5);
+
+    TimeZoneInfo.offsetToISOPart(-5 * 60, h, m);
+    assert(h == -5);
+    assert(m == 0);
 }
