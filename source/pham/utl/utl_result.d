@@ -13,8 +13,9 @@ module pham.utl.result;
 
 import std.traits : isIntegral;
 
+@safe:
 
-string addLine(ref string lines, string line) nothrow pure @safe
+string addLine(ref string lines, string line) nothrow pure
 {
     import std.ascii : newline;
     
@@ -25,7 +26,7 @@ string addLine(ref string lines, string line) nothrow pure @safe
     return lines;
 }
 
-string errorCodeToString(I)(I errorCode) nothrow pure @safe
+string errorCodeToString(I)(I errorCode) nothrow pure
 if (isIntegral!I)
 {
     import std.conv : to;
@@ -38,6 +39,8 @@ if (isIntegral!I)
  */
 struct ResultIf(T)
 {
+@safe:
+
 public:
     this(T value, ResultStatus status)
     {
@@ -45,12 +48,12 @@ public:
         this.status = status;
     }
 
-    bool opCast(C: bool)() const @nogc nothrow pure @safe
+    bool opCast(C: bool)() const @nogc nothrow pure
     {
         return isOK;
     }
 
-    string getErrorString() const nothrow pure @safe
+    string getErrorString() const nothrow pure
     {
         return status.getErrorString();
     }
@@ -79,12 +82,12 @@ public:
         return typeof(this)(value, ResultStatus.ok());
     }
 
-    @property int errorCode() const @nogc nothrow pure @safe
+    @property int errorCode() const @nogc nothrow pure
     {
         return status.errorCode;
     }
     
-    @property string errorMessage() const @nogc nothrow pure @safe
+    @property string errorMessage() const @nogc nothrow pure
     {
         return status.errorMessage;
     }
@@ -93,7 +96,7 @@ public:
      * Returns true if there is error-code or error-message
      */
     pragma(inline, true)
-    @property bool isError() const @nogc nothrow pure @safe
+    @property bool isError() const @nogc nothrow pure
     {
         return status.isError;
     }
@@ -102,7 +105,7 @@ public:
      * Returns true if there is no error-code and error-message
      */
     pragma(inline, true)
-    @property bool isOK() const @nogc nothrow pure @safe
+    @property bool isOK() const @nogc nothrow pure
     {
         return status.isOK;
     }

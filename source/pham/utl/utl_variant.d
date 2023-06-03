@@ -5707,3 +5707,12 @@ version (none)
     assert(v >= null);
     assert(!(v < null));
 }
+
+unittest // https://issues.dlang.org/show_bug.cgi?id=23809
+{
+    import pham.utl.test;
+    traceUnitTest("unittest pham.utl.variant - https://issues.dlang.org/show_bug.cgi?id=23809");
+
+    Variant v = Variant(["one": Variant(1)]);
+    v["two"] = Variant(4); // Segfault
+}

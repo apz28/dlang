@@ -260,7 +260,7 @@ version (unittest)
     import std.conv : to;
     import std.format : format;
     import std.traits : isSomeChar;
-    import pham.external.std.log.logger : defaultOutputPattern, FileLogger, LoggerOption, LogLevel,
+    import pham.external.std.log.logger : defaultOutputPattern, FileLogger, FileLoggerOption, LoggerOption, LogLevel,
         OutputPattern;
 
 	ubyte[] dgReadAllBinary(string fileName) nothrow @trusted
@@ -434,7 +434,7 @@ version (unittest)
     private void createTraceLogger() nothrow @trusted
     {
         if (traceLogger is null)
-            traceLogger = new FileLogger("trace.log", "w", LoggerOption(LogLevel.trace, "unittestTrace", defaultOutputPattern, 10));
+            traceLogger = new FileLogger("trace.log", FileLoggerOption(FileLoggerOption.overwriteMode), LoggerOption(LogLevel.trace, "unittestTrace", defaultOutputPattern, 10));
     }
 
     private static __gshared FileLogger traceLogger;

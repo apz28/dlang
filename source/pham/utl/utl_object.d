@@ -369,7 +369,7 @@ if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
 
     static if (radix == 10)
     {
-        UN un = isNeg ? -n : n;
+        UN un = isNeg ? cast(N)-n : n;
         while (un >= 10)
         {
             bufDigits[--bufIndex] = decimalDigits[un % 10];
