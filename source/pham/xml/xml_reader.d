@@ -68,7 +68,7 @@ public:
         decode();
     }
 
-    final const(C)[] readSpaces()
+    final S readSpaces()
     {
         static if (isBlockReader)
         {
@@ -85,7 +85,7 @@ public:
         }
     }
 
-    final bool readUntilMarker(out const(C)[] data, const(C)[] untilMarker)
+    final bool readUntilMarker(out S data, scope const(C)[] untilMarker)
     {
         const c = untilMarker[$ - 1];
         data = null;
@@ -153,7 +153,7 @@ public:
         return false;
     }
 
-    final bool readUntilText(bool checkReservedChar)(out XmlString!S data, const(C)[] untilMarker)
+    final bool readUntilText(bool checkReservedChar)(out XmlString!S data, scope const(C)[] untilMarker)
     {
         const c = untilMarker[$ - 1];
         data = null;
@@ -324,7 +324,7 @@ package:
             return 0;
     }
 
-    final const(C)[] readNameImpl(alias stopChar)(out ParseContext!S name)
+    final S readNameImpl(alias stopChar)(out ParseContext!S name)
     {
         name.loc = loc;
         static if (isBlockReader)
@@ -354,7 +354,7 @@ package:
         return name.s;
     }
 
-    final const(C)[] readAnyName(out ParseContext!S name)
+    final S readAnyName(out ParseContext!S name)
     {
         return readNameImpl!isNameSeparator(name);
     }
@@ -369,22 +369,22 @@ package:
             buffer.put(currentCodes());
     }
 
-    final const(C)[] readDeclarationAttributeName(out ParseContext!S name)
+    final S readDeclarationAttributeName(out ParseContext!S name)
     {
         return readNameImpl!isDeclarationAttributeNameSeparator(name);
     }
 
-    final const(C)[] readDocumentTypeAttributeListChoiceName(out ParseContext!S name)
+    final S readDocumentTypeAttributeListChoiceName(out ParseContext!S name)
     {
         return readNameImpl!isDocumentTypeAttributeListChoice(name);
     }
 
-    final const(C)[] readDocumentTypeElementChoiceName(out ParseContext!S name)
+    final S readDocumentTypeElementChoiceName(out ParseContext!S name)
     {
         return readNameImpl!isDocumentTypeElementChoice(name);
     }
 
-    final const(C)[] readElementEName(out ParseContext!S name)
+    final S readElementEName(out ParseContext!S name)
     {
         name.loc = loc;
         const first = front;
@@ -453,17 +453,17 @@ package:
         return name.s;
     }
 
-    final const(C)[] readElementPName(out ParseContext!S name)
+    final S readElementPName(out ParseContext!S name)
     {
         return readNameImpl!isElementPNameSeparator(name);
     }
 
-    final const(C)[] readElementXAttributeName(out ParseContext!S name)
+    final S readElementXAttributeName(out ParseContext!S name)
     {
         return readNameImpl!isElementAttributeNameSeparator(name);
     }
 
-    final const(C)[] readElementXName(out ParseContext!S name)
+    final S readElementXName(out ParseContext!S name)
     {
         return readNameImpl!isElementXNameSeparator(name);
     }
@@ -502,7 +502,7 @@ package:
     }
 
 protected:
-    final const(C)[] currentCodes() nothrow pure
+    final S currentCodes() nothrow pure
     in
     {
         assert(!empty);
@@ -656,7 +656,7 @@ protected:
     }
 
 protected:
-    const(C)[] s;
+    S s;
     size_t sLen, sPos;
     XmlLoc loc;
     static if (isBlockReader)
@@ -674,7 +674,7 @@ class XmlStringReader(S = string) : XmlReader!S
 @safe:
 
 public:
-    this(const(XmlChar!S)[] str)
+    this(S str)
     {
         this.s = str;
         this.sLen = str.length;
@@ -769,6 +769,6 @@ if (isXmlString!S)
 
     alias C = XmlChar!S;
 
-    const(C)[] s;
+    S s;
     XmlLoc loc;
 }

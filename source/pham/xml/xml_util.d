@@ -20,23 +20,6 @@ import pham.xml.type;
 
 @safe:
 
-/** Code to identify what kind of encoding of an array of bytes or stream of bytes.
-    $(XmlEncodedMarker none) there is not encoded marker
-    $(XmlEncodedMarker utf8) utf8 encoded marker
-    $(XmlEncodedMarker utf16be) utf16be encoded marker
-    $(XmlEncodedMarker utf16le) utf16le encoded marker
-    $(XmlEncodedMarker utf32be) utf32be encoded marker
-    $(XmlEncodedMarker utf32le) utf32le encoded marker
-*/
-enum XmlEncodedMarker : ubyte
-{
-    none,
-    utf8,
-    utf16be,
-    utf16le,
-    utf32be,
-    utf32le,
-}
 
 /** Determine XmlEncodedMarker of an array of bytes
     Params:
@@ -77,7 +60,7 @@ XmlEncodedMarker getEncodedMarker(scope const(ubyte)[] s) nothrow pure
             return XmlEncodedMarker.utf16le;
     }
 
-    return XmlEncodedMarker.none;
+    return XmlEncodedMarker.unknown;
 }
 
 /** Throws a XmlException if the string is not pass isName function according to the
@@ -87,15 +70,15 @@ XmlEncodedMarker getEncodedMarker(scope const(ubyte)[] s) nothrow pure
     Params:
         name = the string to be tested
 */
-void checkName(S, Flag!"AllowEmpty" AllowEmpty)(const(XmlChar!S)[] name)
-if (isXmlString!S)
+void checkName(S, Flag!"AllowEmpty" AllowEmpty)(scope const(XmlChar!S)[] name)
+if (isXmlStringEx!S)
 {
     if (!isName!(S, AllowEmpty)(name))
     {
         if (name.length == 0)
             throw new XmlException(XmlMessage.eBlankName);
         else
-            throw new XmlException(XmlMessage.eInvalidName, name);
+            throw new XmlException(XmlMessage.eInvalidName, name.idup);
     }
 }
 
@@ -108,7 +91,7 @@ if (isXmlString!S)
         otherwise prefix ":" localName
 */
 pragma (inline, true)
-const(XmlChar!S)[] combineName(S)(const(XmlChar!S)[] prefix, const(XmlChar!S)[] localName) nothrow pure
+S combineName(S)(S prefix, S localName) nothrow pure
 if (isXmlString!S)
 {
     if (prefix.length == 0)
@@ -126,7 +109,7 @@ if (isXmlString!S)
         c = the character to be returned
 */
 bool convertToChar(S)(scope const(XmlChar!S)[] s, out dchar c) nothrow pure
-if (isXmlString!S)
+if (isXmlStringEx!S)
 {
     c = 0;
     if (s.length == 0)
@@ -174,7 +157,7 @@ if (isXmlString!S)
         s2 = one of D string type
 */
 bool equalCase(S)(scope const(XmlChar!S)[] s1, scope const(XmlChar!S)[] s2) nothrow pure
-if (isXmlString!S)
+if (isXmlStringEx!S)
 {
     return s1 == s2;
 }
@@ -186,7 +169,7 @@ if (isXmlString!S)
         s2 = one of D string type
 */
 bool equalCaseInsensitive(S)(scope const(XmlChar!S)[] s1, scope const(XmlChar!S)[] s2) nothrow pure
-if (isXmlString!S)
+if (isXmlStringEx!S)
 {
     import std.uni : sicmp;
     scope (failure) assert(0, "Assume nothrow failed");
@@ -200,7 +183,7 @@ if (isXmlString!S)
         subString = one of D string type
 */
 bool equalRight(S)(scope const(XmlChar!S)[] s, scope const(XmlChar!S)[] subString) nothrow pure
-if (isXmlString!S)
+if (isXmlStringEx!S)
 {
     auto i = s.length;
     auto j = subString.length;
@@ -405,7 +388,7 @@ bool isNameInC(const(dchar) c) nothrow pure
         name = the string to be tested
 */
 bool isName(S, Flag!"AllowEmpty" AllowEmpty)(scope const(XmlChar!S)[] name) nothrow pure
-if (isXmlString!S)
+if (isXmlStringEx!S)
 {
     if (name.length == 0)
         return AllowEmpty;
@@ -445,7 +428,7 @@ bool isSpace(const(dchar) c) nothrow pure
         s = the string to be tested
 */
 bool isSpaces(S)(scope const(XmlChar!S)[] s) nothrow pure
-if (isXmlString!S)
+if (isXmlStringEx!S)
 {
     foreach (c; s)
     {
@@ -475,21 +458,22 @@ bool isClassType(T)(Object object) nothrow pure
         s = the string to be tested
 */
 bool isVersionStr(S, Flag!"AllowEmpty" AllowEmpty)(const(XmlChar!S)[] s) nothrow pure
-if (isXmlString!S)
+if (isXmlStringEx!S)
 {
     import std.string : isNumeric;
 
     if (s.length == 0)
         return AllowEmpty;
 
+    enum const(XmlChar!S) separator = '.';
     const(XmlChar!S)[] v1, v2;
-    if (int r = splitNameValueD!S(s, '.', v1, v2))
+    if (const r = splitNameValueD!(const(XmlChar!S)[])(s, separator, v1, v2))
     {
         if (!isNumeric(v1))
             return false;
 
         // There is dot separator but no value
-        if (r == 1 && v2.length == 0)
+        if (r == 2 && v2.length == 0)
             return AllowEmpty;
 
         return v2.length == 0 || isNumeric(v2);
@@ -504,13 +488,10 @@ if (isXmlString!S)
         count = how many characters that the function returns
 */
 pragma (inline, true)
-const(XmlChar!S)[] leftString(S)(return const(XmlChar!S)[] s, size_t count) nothrow pure
-if (isXmlString!S)
+S leftString(S)(S s, const(size_t) count) nothrow pure
+if (isXmlStringEx!S)
 {
-    if (count >= s.length)
-        return s;
-    else
-        return s[0..count];
+    return count >= s.length ? s : s[0..count];
 }
 
 /** Returns number of code-points from left of a string
@@ -519,13 +500,10 @@ if (isXmlString!S)
         s = the string to be sliced
         count = how many characters that the function returns
 */
-const(XmlChar!S)[] leftStringIndicator(S)(return const(XmlChar!S)[] s, size_t count) nothrow pure
-if (isXmlString!S)
+S leftStringIndicator(S)(S s, const(size_t) count) nothrow pure
+if (isXmlStringEx!S)
 {
-    if (count >= s.length)
-        return s;
-    else
-        return s[0..count] ~ "...";
+    return count >= s.length ? s : s[0..count] ~ "...";
 }
 
 /** Convert from one string type to another. If both types are the same,
@@ -566,18 +544,14 @@ if (isXmlString!fromS && isXmlString!toS)
         count = how many characters that the function returns
 */
 pragma (inline, true)
-const(XmlChar!S)[] rightString(S)(return const(XmlChar!S)[] s, size_t count) nothrow pure
-if (isXmlString!S)
+S rightString(S)(S s, size_t count) nothrow pure
+if (isXmlStringEx!S)
 {
-    if (count >= s.length)
-        return s;
-    else
-        return s[$ - count..$];
+    return count >= s.length ? s : s[$ - count..$];
 }
 
-void splitName(S)(const(XmlChar!S)[] name,
-    out const(XmlChar!S)[] prefix, out const(XmlChar!S)[] localName) nothrow pure
-if (isXmlString!S)
+void splitName(S)(S name, out S prefix, out S localName) nothrow pure
+if (isXmlStringEx!S)
 in
 {
     assert(name.length != 0);
@@ -586,15 +560,12 @@ do
 {
     import std.string : indexOf;
 
-    auto colonIndex = name.indexOf(':');
+    const colonIndex = name.indexOf(':');
     if (colonIndex >= 0)
     {
         prefix = name[0..colonIndex];
-        auto nameLength = name.length;
-        if (colonIndex + 1 < nameLength)
-            localName = name[colonIndex + 1..nameLength];
-        else
-            localName = "";
+        const nameLength = name.length;
+        localName = colonIndex + 1 < nameLength ? localName = name[colonIndex + 1..nameLength] : "";
     }
     else
     {
@@ -613,20 +584,19 @@ do
         name = string part before the aDelimiter
         value = string part after the aDelimiter
 */
-int splitNameValueD(S)(const(XmlChar!S)[] s, in dchar delimiter,
-    out const(XmlChar!S)[] name, out const(XmlChar!S)[] value) nothrow pure
-if (isXmlString!S)
+int splitNameValueD(S)(S s, const(XmlChar!S) delimiter, out S name, out S value) nothrow pure
+if (isXmlStringEx!S)
 {
     import std.string : indexOf;
 
-    if (s.length != 0)
-        return splitNameValueI!S(s, s.indexOf(delimiter), name, value);
-    else
+    if (s.length == 0)
     {
         name = null;
         value = null;
         return 0;
     }
+    
+    return splitNameValueI!S(s, s.indexOf(delimiter), name, value);
 }
 
 /** Split the string into name and value at the index, index.
@@ -639,30 +609,33 @@ if (isXmlString!S)
         value = string part after the aIndex
 */
 pragma (inline, true)
-int splitNameValueI(S)(const(XmlChar!S)[] s, in ptrdiff_t index,
-    out const(XmlChar!S)[] name, out const(XmlChar!S)[] value) nothrow pure
-if (isXmlString!S)
+int splitNameValueI(S)(S s, const(ptrdiff_t) index, out S name, out S value) nothrow pure
+if (isXmlStringEx!S)
 in
 {
     assert(index < 0 || index < s.length);
 }
 do
 {
+    if (s.length == 0)
+    {
+        name = null;
+        value = null;
+        return 0;
+    }
+
     if (index >= 0)
     {
         name = s[0..index];
-        auto sLength = s.length;
-        if (index + 1 < sLength)
-            value = s[index + 1..sLength];
-        else
-            value = null;
-        return 1;
+        const sLength = s.length;
+        value = index + 1 < sLength ? s[index + 1..sLength] : null;
+        return 2;
     }
     else
     {
         name = s;
         value = null;
-        return -1;
+        return 1;
     }
 }
 
@@ -671,7 +644,7 @@ do
         c = the character that be repeated
         count = number of times c to be repeated
 */
-S stringOfChar(S)(XmlChar!S c, size_t count)
+S stringOfChar(S)(const(XmlChar!S) c, size_t count)
 if (isXmlString!S)
 in
 {
@@ -913,7 +886,7 @@ do
 unittest  // combineName
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.combineName");
+    traceUnitTest("unittest xml.util.combineName");
 
     assert(combineName!string("", "") == "");
     assert(combineName!string("", "name") == "name");
@@ -924,7 +897,7 @@ unittest  // combineName
 unittest  // equalCase
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.equalCase");
+    traceUnitTest("unittest xml.util.equalCase");
 
     assert(equalCase!string("", ""));
     assert(equalCase!string(" ", " "));
@@ -940,7 +913,7 @@ unittest  // equalCase
 unittest  // equalCaseInsensitive
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.equalCaseInsensitive");
+    traceUnitTest("unittest xml.util.equalCaseInsensitive");
 
     assert(equalCaseInsensitive!string("", ""));
     assert(equalCaseInsensitive!string(" ", " "));
@@ -956,7 +929,7 @@ unittest  // equalCaseInsensitive
 unittest  // formatNumber
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.formatNumber");
+    traceUnitTest("unittest xml.util.formatNumber");
 
     assert(formatNumber!int(0) == "0");
     assert(formatNumber!int(100) == "100");
@@ -990,7 +963,7 @@ unittest  // formatNumber
 unittest  // formatFloat
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.formatFloat");
+    traceUnitTest("unittest xml.util.formatFloat");
 
     assert(formatFloat!double(0.0) == "0.000_000");
     assert(formatFloat!double(100.0) == "100.000_000");
@@ -1009,7 +982,7 @@ unittest  // formatFloat
 unittest  // stringOfChar
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.stringOfChar");
+    traceUnitTest("unittest xml.util.stringOfChar");
 
     assert(stringOfChar!string(' ', 0) == "");
     assert(stringOfChar!string(' ', 1) == " ");
@@ -1019,7 +992,7 @@ unittest  // stringOfChar
 unittest  // isChar
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.isChar");
+    traceUnitTest("unittest xml.util.isChar");
 
     assert(isChar(cast(dchar)0x9));
     assert(isChar(cast(dchar)0xA));
@@ -1062,7 +1035,7 @@ unittest  // isChar
 unittest  // isDigit
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.isDigit");
+    traceUnitTest("unittest xml.util.isDigit");
 
     assert(isDigit('0'));
     assert(isDigit('1'));
@@ -1133,7 +1106,7 @@ unittest  // isDigit
 unittest  // isExtender
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.isExtender");
+    traceUnitTest("unittest xml.util.isExtender");
 
     assert(isExtender(cast(dchar)0x00B7));
     assert(isExtender(cast(dchar)0x02D0));
@@ -1157,7 +1130,7 @@ unittest  // isExtender
 unittest  // isIdeographic
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.isIdeographic");
+    traceUnitTest("unittest xml.util.isIdeographic");
 
     assert(isIdeographic('\u4E00'));
     assert(isIdeographic('\u9FA5'));
@@ -1181,7 +1154,7 @@ unittest  // all code points for xml_util.isChar, xml_util.isDigit, xml_util.isI
     version (none)
     {
         import std.conv;
-        dgWriteln("unittest xml.util.isChar, isDigit, isIdeographic");
+        traceUnitTest("unittest xml.util.isChar, isDigit, isIdeographic");
 
         foreach (c; 0..dchar.max + 1)
         {
@@ -1196,7 +1169,7 @@ unittest  // all code points for xml_util.isChar, xml_util.isDigit, xml_util.isI
 unittest  // isSpaces
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.isSpaces");
+    traceUnitTest("unittest xml.util.isSpaces");
 
     assert(isSpaces!string(" "));
     assert(isSpaces!string("    \n\t"));
@@ -1218,7 +1191,7 @@ unittest  // isVersionStr
 {
     import std.typecons : No, Yes;
     import pham.utl.test;
-    dgWriteln("unittest xml.util.isVersionStr");
+    traceUnitTest("unittest xml.util.isVersionStr");
 
     assert(isVersionStr!(string, Yes.AllowEmpty)(""));
     assert(isVersionStr!(string, No.AllowEmpty)("1"));
@@ -1236,7 +1209,7 @@ unittest  // isVersionStr
 unittest  // leftString
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.leftString");
+    traceUnitTest("unittest xml.util.leftString");
 
     assert(leftString!string("", 1) == "");
     assert(leftString!string("abc", 1) == "a");
@@ -1247,7 +1220,7 @@ unittest  // leftString
 unittest  // leftStringIndicator
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.leftStringIndicator");
+    traceUnitTest("unittest xml.util.leftStringIndicator");
 
     assert(leftStringIndicator!string("", 1) == "");
     assert(leftStringIndicator!string("abc", 1) == "a...");
@@ -1258,7 +1231,7 @@ unittest  // leftStringIndicator
 unittest  // rightString
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.rightString");
+    traceUnitTest("unittest xml.util.rightString");
 
     assert(rightString!string("", 1) == "");
     assert(rightString!string("abc", 1) == "c");
@@ -1269,9 +1242,9 @@ unittest  // rightString
 unittest  // splitName
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.splitName");
+    traceUnitTest("unittest xml.util.splitName");
 
-    const(char)[] p, n;
+    string p, n;
 
     splitName!string(":", p, n);
     assert(p == "");
@@ -1289,23 +1262,23 @@ unittest  // splitName
 unittest  // splitNameValue
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.util.splitNameValue");
+    traceUnitTest("unittest xml.util.splitNameValue");
 
-    const(XmlChar!string)[] n, v;
+    string n, v;
 
-    assert(splitNameValueD!string("name=value", '=', n, v) == 1);
+    assert(splitNameValueD!string("name=value", '=', n, v) == 2);
     assert(n == "name");
     assert(v == "value");
 
-    assert(splitNameValueD!string("name=", '=', n, v) == 1);
+    assert(splitNameValueD!string("name=", '=', n, v) == 2);
     assert(n == "name");
     assert(v == "");
 
-    assert(splitNameValueD!string("name", '=', n, v) == -1);
+    assert(splitNameValueD!string("name", '=', n, v) == 1);
     assert(n == "name");
     assert(v is null);
 
-    assert(splitNameValueD!string("=value", '=', n, v) == 1);
+    assert(splitNameValueD!string("=value", '=', n, v) == 2);
     assert(n == "");
     assert(v == "value");
 
@@ -1313,7 +1286,7 @@ unittest  // splitNameValue
     assert(n is null);
     assert(v is null);
 
-    assert(splitNameValueD!string("  ", '=', n, v) == -1);
+    assert(splitNameValueD!string("  ", '=', n, v) == 1);
     assert(n == "  ");
     assert(v is null);
 }

@@ -326,7 +326,7 @@ public:
         this._text = value;
     }
 
-    this(const(C)[] value) nothrow @trusted
+    this(scope const(C)[] value) nothrow @trusted
     {
         version (xmlTraceXPathParser)
         outputXmlTraceXPathParserF("XPathValue.this(this[text]: %s)", value);
@@ -396,7 +396,7 @@ public:
         this._text = value;
     }
 
-    void opAssign(const(C)[] value) nothrow @trusted
+    void opAssign(scope const(C)[] value) nothrow @trusted
     {
         version (xmlTraceXPathParser)
         outputXmlTraceXPathParserF("XPathValue.opAssign(value[text]: %s)", value);
@@ -661,7 +661,7 @@ public:
     XPathValue!S resValue;
 
     XmlNodeList!S filterNodes;
-    XPathValue!S[const(C)[]] variables;
+    XPathValue!S[S] variables;
 
 package:
     version (xmlTraceXPathParser)
@@ -681,7 +681,7 @@ abstract class XPathNode(S = string) : XmlObject!S
 
 public:
     T get(T)(ref XPathContext!S inputContext)
-    if (is(T == const(C)[]) || is(T == double) || is(T == bool))
+    if (is(T == S) || is(T == double) || is(T == bool) || is(T == const(C)[]))
     {
         auto tempOutputContext = inputContext.createOutputContext();
         evaluate(inputContext, tempOutputContext);
@@ -716,7 +716,7 @@ public:
         }
     }
 
-    final const(C)[] qualifiedName() nothrow
+    final S qualifiedName() nothrow
     {
         if (_qualifiedName.ptr is null)
             _qualifiedName = combineName!S(_prefix, _localName);
@@ -752,9 +752,9 @@ protected:
     }
 
 protected:
-    const(C)[] _localName;
-    const(C)[] _prefix;
-    const(C)[] _qualifiedName;
+    S _localName;
+    S _prefix;
+    S _qualifiedName;
     XPathNode!S _parent;
 }
 
@@ -764,7 +764,7 @@ class XPathAxis(S = string) : XPathNode!S
 
 public:
     this(XPathNode!S parent, XPathAxisType axisType, XPathNode!S input,
-         XPathNodeType nodetype, const(C)[] prefix, const(C)[] localName) nothrow
+         XPathNodeType nodetype, S prefix, S localName) nothrow
     {
         version (xmlTraceXPathParser)
         outputXmlTraceXPathParserF("%s.this(axisType: %s, input: %s, nodeType: %s, prefix: %s, localName: %s)",
@@ -900,12 +900,12 @@ public:
         return _input;
     }
 
-    @property final const(C)[] localName() const nothrow
+    @property final S localName() const nothrow
     {
         return _localName;
     }
 
-    @property final const(C)[] prefix() const nothrow
+    @property final S prefix() const nothrow
     {
         return _prefix;
     }
@@ -1304,7 +1304,7 @@ class XPathUserDefinedFunctionEntry(S = string) : XmlObject!S
 @safe:
 
 public:
-    this(const(C)[] prefix, const(C)[] localName, XPathResultType resultType,
+    this(S prefix, S localName, XPathResultType resultType,
         XPathFunctionTable!S.XPathFunctionEvaluate evaluate) nothrow
     {
         this._prefix = prefix;
@@ -1320,17 +1320,17 @@ public:
         return _evaluate;
     }
 
-    @property final const(C)[] localName() const nothrow
+    @property final S localName() const nothrow
     {
         return _localName;
     }
 
-    @property final const(C)[] prefix() const nothrow
+    @property final S prefix() const nothrow
     {
         return _prefix;
     }
 
-    @property final const(C)[] qualifiedName() const nothrow
+    @property final S qualifiedName() const nothrow
     {
         return _qualifiedName;
     }
@@ -1341,9 +1341,9 @@ public:
     }
 
 private:
-    const(C)[] _localName;
-    const(C)[] _prefix;
-    const(C)[] _qualifiedName;
+    S _localName;
+    S _prefix;
+    S _qualifiedName;
     XPathFunctionTable!S.XPathFunctionEvaluate _evaluate;
     XPathResultType _resultType;
 }
@@ -1367,7 +1367,7 @@ public:
         return singleton!(XPathFunctionTable!S)(_defaultFunctionTable, &createDefaultFunctionTable);
     }
 
-    final bool find(const(C)[] name, ref XPathUserDefinedFunctionEntry!S fct) const nothrow @trusted
+    final bool find(scope const(C)[] name, ref XPathUserDefinedFunctionEntry!S fct) const nothrow @trusted
     {
         const(XPathUserDefinedFunctionEntry!S)* r = name in userDefinedFunctions;
 
@@ -1380,7 +1380,7 @@ public:
         }
     }
 
-    final bool find(const(C)[] name, ref XPathFunctionEvaluate fct) const nothrow
+    final bool find(scope const(C)[] name, ref XPathFunctionEvaluate fct) const nothrow
     {
         const(XPathFunctionEvaluate)* r = name in defaultFunctions;
 
@@ -1401,8 +1401,6 @@ public:
             return true;
         }
     }
-
-    alias userDefinedFunctions this;
 
 public:
     XPathUserDefinedFunctionEntry!S[S] userDefinedFunctions;
@@ -1480,7 +1478,7 @@ public:
         setEvaluateFct();
     }
 
-    this(XPathNode!S parent, const(C)[] prefix, const(C)[] localName, XPathNode!S[] argumentList)
+    this(XPathNode!S parent, S prefix, S localName, XPathNode!S[] argumentList)
     {
         version (xmlTraceXPathParser)
         outputXmlTraceXPathParserF("%s.this(prefix: %s, localName: %s, argc: %d)", shortClassName(this),
@@ -1580,12 +1578,12 @@ public:
         return _functionType;
     }
 
-    @property final const(C)[] localName() const nothrow
+    @property final S localName() const nothrow
     {
         return _localName;
     }
 
-    @property final const(C)[] prefix() const nothrow
+    @property final S prefix() const nothrow
     {
         return _prefix;
     }
@@ -1715,7 +1713,7 @@ public:
         this._value = value;
     }
 
-    this(XPathNode!S parent, const(C)[] value) nothrow
+    this(XPathNode!S parent, S value) nothrow
     {
         version (xmlTraceXPathParser)
         outputXmlTraceXPathParserF("%s.this(value: %s)", shortClassName(this), value);
@@ -2089,7 +2087,7 @@ class XPathVariable(S = string) : XPathNode!S
 @safe:
 
 public:
-    this(XPathNode!S parent, const(C)[] prefix, const(C)[] localName) nothrow
+    this(XPathNode!S parent, S prefix, S localName) nothrow
     {
         version (xmlTraceXPathParser)
         outputXmlTraceXPathParserF("%s.this(prefix: %s, localName: %s)", shortClassName(this), prefix, localName);
@@ -2132,12 +2130,12 @@ public:
         return XPathAstType.variable;
     }
 
-    @property final const(C)[] localName() const nothrow
+    @property final S localName() const nothrow
     {
         return _localName;
     }
 
-    @property final const(C)[] prefix() const nothrow
+    @property final S prefix() const nothrow
     {
         return _prefix;
     }
@@ -2163,7 +2161,7 @@ public:
         return singleton!(XPathAxisTypeTable!S)(_defaultAxisTypeTable, &createDefaultAxisTypeTable);
     }
 
-    final XPathAxisType get(const(C)[] name, XPathAxisType defaultValue = XPathAxisType.error) const nothrow
+    final XPathAxisType get(scope const(C)[] name, XPathAxisType defaultValue = XPathAxisType.error) const nothrow
     {
         const(XPathAxisType)* r = name in data;
 
@@ -2173,10 +2171,8 @@ public:
             return *r;
     }
 
-    alias data this;
-
 public:
-    XPathAxisType[const(C)[]] data;
+    XPathAxisType[S] data;
 
 protected:
     static XPathAxisTypeTable!S createDefaultAxisTypeTable() nothrow
@@ -2267,17 +2263,18 @@ public:
         return singleton!(XPathFunctionParamInfoTable!S)(_defaultFunctionParamInfoTable, &createDefaultFunctionParamInfoTable);
     }
 
-    final const(XPathParamInfo!S) find(const(C)[] name) const nothrow
+    final const(XPathParamInfo!S) find(scope const(C)[] name) const nothrow
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
-        return data.get(name, null);
+        if (auto e = name in data)
+            return *e;
+        else
+            return null;
     }
 
-    alias data this;
-
 public:
-    XPathParamInfo!S[const(C)[]] data;
+    XPathParamInfo!S[S] data;
 
 protected:
     static XPathFunctionParamInfoTable!S createDefaultFunctionParamInfoTable() nothrow
@@ -2376,7 +2373,7 @@ public:
     alias C = XmlChar!S;
 
 public:
-    this(const(C)[] xpathExpression)
+    this(S xpathExpression)
     in
     {
         assert(xpathExpression.length != 0);
@@ -2553,7 +2550,7 @@ public:
         return true;
     }
 
-    const(C)[] scanName() nothrow
+    S scanName() nothrow
     in
     {
         assert(isNameStartC(currentChar));
@@ -2635,7 +2632,7 @@ public:
         return to!double(_xPathExpression[start..end]);
     }
 
-    const(C)[] scanText()
+    S scanText()
     {
         const quoteChar = currentChar;
         nextChar();
@@ -2724,7 +2721,7 @@ public:
         return _kind;
     }
 
-    @property const(C)[] name() const nothrow
+    @property S name() const nothrow
     {
         return _name;
     }
@@ -2765,7 +2762,7 @@ public:
         return _numberValue;
     }
 
-    @property const(C)[] prefix() const nothrow
+    @property S prefix() const nothrow
     in
     {
         assert(_kind == XPathScannerLexKind.name);
@@ -2775,12 +2772,12 @@ public:
         return _prefix;
     }
 
-    @property const(C)[] sourceText() const nothrow
+    @property S sourceText() const nothrow
     {
         return _xPathExpression;
     }
 
-    @property const(C)[] textValue() const nothrow
+    @property S textValue() const nothrow
     in
     {
         assert(_kind == XPathScannerLexKind.text);
@@ -2793,8 +2790,8 @@ public:
 
 private:
     XPathAxisTypeTable!S _axisTypeTable;
-    const(C)[] _prefix, _name, _textValue;
-    const(C)[] _xPathExpression;
+    S _prefix, _name, _textValue;
+    S _xPathExpression;
     size_t _xPathExpressionNextIndex, _xPathExpressionLength;
     double _numberValue;
     C _currentChar, _kind;
@@ -2808,7 +2805,7 @@ public:
     alias C = XmlChar!S;
 
 public:
-    this(const(C)[] xpathExpressionOrPattern)
+    this(S xpathExpressionOrPattern)
     {
         scanner = XPathScanner!S(xpathExpressionOrPattern);
     }
@@ -2847,7 +2844,7 @@ public:
         return result;
     }
 
-    @property const(C)[] sourceText() const nothrow
+    @property S sourceText() const nothrow
     {
         return scanner.sourceText;
     }
@@ -2924,7 +2921,7 @@ private:
     }
 
     pragma (inline, true)
-    bool isOp(const(C)[] opName)
+    bool isOp(scope const(C)[] opName)
     {
         version (xmlTraceXPathParser)
         outputXmlTraceXPathParserF("%sisOp('%s') ? '%s'", indentString(), opName, scanner.name);
@@ -3401,7 +3398,7 @@ private:
                 --nodeIndent;
         }
 
-        const(C)[] nodeName, nodePrefix;
+        S nodeName, nodePrefix;
 
         switch (scanner.kind)
         {
@@ -3512,8 +3509,8 @@ private:
                 --nodeIndent;
         }
 
-        const(C)[] name = scanner.name;
-        const(C)[] prefix = scanner.prefix;
+        S name = scanner.name;
+        S prefix = scanner.prefix;
         XPathNode!S[] argList;
         checkAndSkipToken(XPathScannerLexKind.name);
 
@@ -3803,7 +3800,7 @@ void opCompare(string Op, S)(XPathOperator!S opNode, ref XPathContext!S inputCon
         for (size_t i = 0; i < outputContext1.resNodes.length; ++i)
         {
             auto e1 = outputContext1.resNodes.item(i);
-            const(XmlChar!S)[] s1 = e1.toText();
+            S s1 = e1.toText();
             for (size_t j = 0; j < outputContext2.resNodes.length; ++j)
             {
                 auto e2 = outputContext2.resNodes.item(j);
@@ -3887,9 +3884,9 @@ void fctCeiling(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref
 
 void fctConcat(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    const(XmlChar!S)[] s;
+    S s;
     foreach (e; context.argumentList)
-        s ~= e.get!(const(XmlChar!S)[])(inputContext);
+        s ~= e.get!S(inputContext);
 
     outputContext.resValue = s;
 }
@@ -3898,8 +3895,8 @@ void fctContains(S)(XPathFunction!S context, ref XPathContext!S inputContext, re
 {
     import std.string : indexOf;
 
-    const(XmlChar!S)[] s1 = context.argumentList[0].get!(const(XmlChar!S)[])(inputContext);
-    const(XmlChar!S)[] s2 = context.argumentList[1].get!(const(XmlChar!S)[])(inputContext);
+    const s1 = context.argumentList[0].get!S(inputContext);
+    const s2 = context.argumentList[1].get!S(inputContext);
     bool result = s1.indexOf(s2) >= 0;
 
     outputContext.resValue = result;
@@ -3938,13 +3935,13 @@ void fctId(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPat
     import std.algorithm.searching : find;
     import std.array : empty, split;
 
-    const(XmlChar!S)[][] idTokens = context.argumentList[0].get!(const(XmlChar!S)[])(inputContext).split();
+    S[] idTokens = context.argumentList[0].get!S(inputContext).split();
 
     bool hasId(XmlNode!S e)
     {
         if (auto a = e.findAttributeById())
         {
-            const(XmlChar!S)[] av = a.value;
+            S av = a.value;
             return !find(idTokens, av).empty;
         }
         else
@@ -3979,7 +3976,7 @@ void fctLang(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
 {
     import std.algorithm.searching : startsWith;
 
-    const(XmlChar!S)[] lan = context.argumentList[0].get!(const(XmlChar!S)[])(inputContext);
+    S lan = context.argumentList[0].get!S(inputContext);
 
     bool hasLan(XmlNode!S e)
     {
@@ -3988,7 +3985,7 @@ void fctLang(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
         {
             if (auto a = e.findAttribute("xml:lang"))
             {
-                const(XmlChar!S)[] av = a.value;
+                S av = a.value;
                 r = av.startsWith(lan);
             }
             e = e.parent;
@@ -4021,7 +4018,7 @@ void fctLast(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
 
 void fctLocalName(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    const(XmlChar!S)[] result;
+    S result;
     bool useDefault;
     if (context.argumentList.length != 0)
     {
@@ -4040,7 +4037,7 @@ void fctLocalName(S)(XPathFunction!S context, ref XPathContext!S inputContext, r
 
 void fctName(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    const(XmlChar!S)[] result;
+    S result;
     bool useDefault;
     if (context.argumentList.length != 0)
     {
@@ -4059,7 +4056,7 @@ void fctName(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
 
 void fctNamespaceUri(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    const(XmlChar!S)[] result;
+    S result;
     bool useDefault;
     if (context.argumentList.length != 0)
     {
@@ -4123,8 +4120,8 @@ void fctStartsWith(S)(XPathFunction!S context, ref XPathContext!S inputContext, 
 {
     import std.algorithm.searching : startsWith;
 
-    auto s1 = context.argumentList[0].get!(const(XmlChar!S)[])(inputContext);
-    auto s2 = context.argumentList[1].get!(const(XmlChar!S)[])(inputContext);
+    const s1 = context.argumentList[0].get!S(inputContext);
+    const s2 = context.argumentList[1].get!S(inputContext);
     bool result = s1.startsWith(s2);
 
     outputContext.resValue = result;
@@ -4135,9 +4132,9 @@ void fctStringLength(S)(XPathFunction!S context, ref XPathContext!S inputContext
     import std.uni : byGrapheme;
 
     double result = 0;
-    const(XmlChar!S)[] s;
+    S s;
     if (context.argumentList.length != 0)
-        s = context.argumentList[0].get!(const(XmlChar!S)[])(inputContext);
+        s = context.argumentList[0].get!S(inputContext);
     else if (!inputContext.resNodes.empty)
         s = inputContext.resNodes.front.toText();
     foreach (e; s.byGrapheme)
@@ -4150,10 +4147,10 @@ void fctSubstring(S)(XPathFunction!S context, ref XPathContext!S inputContext, r
 {
     import std.algorithm.comparison : min;
 
-    const(XmlChar!S)[] result;
-    const(XmlChar!S)[] s = context.argumentList[0].get!(const(XmlChar!S)[])(inputContext);
+    S result;
+    S s = context.argumentList[0].get!S(inputContext);
     int pos = cast(int)context.argumentList[1].get!double(inputContext);
-    int cnt = cast(int)context.argumentList[2].get!double(inputContext);
+    const cnt = cast(int)context.argumentList[2].get!double(inputContext);
 
     // Based 1 in xpath, so convert to based 0
     --pos;
@@ -4169,8 +4166,8 @@ void fctSubstringAfter(S)(XPathFunction!S context, ref XPathContext!S inputConte
 {
     import std.algorithm.searching : findSplit;
 
-    auto s = context.argumentList[0].get!(const(XmlChar!S)[])(inputContext);
-    auto sub = context.argumentList[1].get!(const(XmlChar!S)[])(inputContext);
+    const s = context.argumentList[0].get!S(inputContext);
+    const sub = context.argumentList[1].get!S(inputContext);
     auto searchResult = s.findSplit(sub);
 
     outputContext.resValue = searchResult[2];
@@ -4180,8 +4177,8 @@ void fctSubstringBefore(S)(XPathFunction!S context, ref XPathContext!S inputCont
 {
     import std.algorithm.searching : findSplit;
 
-    auto s = context.argumentList[0].get!(const(XmlChar!S)[])(inputContext);
-    auto sub = context.argumentList[1].get!(const(XmlChar!S)[])(inputContext);
+    const s = context.argumentList[0].get!S(inputContext);
+    const sub = context.argumentList[1].get!S(inputContext);
     auto searchResult = s.findSplit(sub);
 
     if (searchResult[1] == sub)
@@ -4209,7 +4206,7 @@ void fctSum(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPa
 
 void fctText(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    outputContext.resValue = context.get!(const(XmlChar!S)[])(inputContext);
+    outputContext.resValue = context.get!S(inputContext);
 }
 
 void fctTranslate(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
@@ -4338,7 +4335,7 @@ bool toBoolean(double value) nothrow pure
     return !isNaN(value) && value != 0;
 }
 
-bool toBoolean(S)(const(XmlChar!S)[] value) nothrow pure
+bool toBoolean(S)(scope const(XmlChar!S)[] value) nothrow pure
 if (isXmlString!S)
 {
     version (xmlTraceXPathParser)
@@ -4352,7 +4349,7 @@ double toNumber(bool value) nothrow pure
     return value ? 1.0 : 0.0;
 }
 
-double toNumber(S)(const(XmlChar!S)[] value) pure
+double toNumber(S)(scope const(XmlChar!S)[] value) pure
 if (isXmlString!S)
 {
     import std.string : strip;
@@ -4398,7 +4395,7 @@ if (isXmlString!S)
     }
 }
 
-const(XmlChar!S)[] toText(S)(XmlNode!S node)
+S toText(S)(XmlNode!S node)
 if (isXmlString!S)
 {
     return node.hasValue(No.checkContent) ? node.value : node.innerText;
@@ -4409,7 +4406,7 @@ unittest  // XPathParser
 {
     import std.file : write; // write parser tracer info to file
     import pham.utl.test;
-    dgWriteln("unittest xml.xpath.XPathParser");
+    traceUnitTest("unittest xml.xpath.XPathParser");
 
     string[] output;
     XPathParser!string xpathParser;
@@ -4506,7 +4503,7 @@ unittest  // XPathParser.selectNodes
 {
     import pham.xml.test;
     import pham.utl.test;
-    dgWriteln("unittest xml.xpath.XPathParser.selectNodes");
+    traceUnitTest("unittest xml.xpath.XPathParser.selectNodes");
 
     auto doc = new XmlDocument!string().load(xpathXml);
     auto nodeList = doc.documentElement.selectNodes("descendant::book[author/last-name='Austen']");

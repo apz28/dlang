@@ -462,11 +462,11 @@ protected:
 
 class XmlFileWriter(S = string) : XmlWriter!S
 {
+    import std.file;
+    import std.stdio;
+    import std.algorithm.comparison : max;
+    
 @safe:
-
-import std.file;
-import std.stdio;
-import std.algorithm.comparison : max;
 
 public:
     this(string fileName, Flag!"prettyOutput" prettyOutput,

@@ -59,8 +59,7 @@ public:
 
     XmlDocument!S parse()
     {
-        version (xmlTraceParser)
-        outputXmlTraceParser("parse");
+        version (xmlTraceParser) outputXmlTraceParser("parse");
 
         nodeStack.length = 0;
         (() @trusted => nodeStack.assumeSafeAppend())();
@@ -189,7 +188,7 @@ private:
                 --nodeIndent;
         }
 
-        const(C)[] data;
+        S data;
         if (!reader.readUntilMarker(data, "]]>"))
         {
             if (reader.empty)
@@ -222,7 +221,7 @@ private:
                 --nodeIndent;
         }
 
-        const(C)[] data;
+        S data;
         if (!reader.readUntilMarker(data, "-->"))
         {
             if (reader.empty)
@@ -343,7 +342,7 @@ private:
 
         if (reader.skipSpaces().isAnyFrontBut('['))
         {
-            const(C)[] systemOrPublic;
+            S systemOrPublic;
             XmlString!S publicId, text;
             parseExternalId(systemOrPublic, publicId, text, false);
 
@@ -456,8 +455,8 @@ private:
 
         ParseContext!S localContext;
         XmlString!S defaultText;
-        const(C)[] type, defaultType;
-        const(C)[][] typeItems;
+        S type, defaultType;
+        S[] typeItems;
 
         auto name = reader.skipSpaces().readAnyName(localContext);
 
@@ -676,7 +675,7 @@ private:
 
         ParseContext!S localContext;
         XmlString!S publicId, text;
-        const(C)[] systemOrPublic, notationName;
+        S systemOrPublic, notationName;
         bool reference;
 
         if (reader.skipSpaces().moveFrontIf('%'))
@@ -697,7 +696,7 @@ private:
 
             if (!reference && reader.skipSpaces().isAnyFrontBut('>'))
             {
-                const(C)[] nData = reader.readAnyName(localContext);
+                S nData = reader.readAnyName(localContext);
                 if (nData != XmlConst!S.nData)
                     throw new XmlParserException(localContext.loc, XmlMessage.eExpectedStringButString, XmlConst!string.nData, nData);
                 notationName = reader.skipSpaces().readAnyName(localContext);
@@ -848,7 +847,7 @@ private:
             parentNode.appendAttribute(attribute);
     }
 
-    void parseElementXEnd(const(C)[] beginTagName)
+    void parseElementXEnd(S beginTagName)
     {
         version (xmlTraceParser)
         outputXmlTraceParserF("%sparseElementXEnd.%s", indentString(), beginTagName);
@@ -908,7 +907,7 @@ private:
         }
     }
 
-    void parseExternalId(ref const(C)[] systemOrPublic, ref XmlString!S publicId,
+    void parseExternalId(ref S systemOrPublic, ref XmlString!S publicId,
         ref XmlString!S text, bool optionalText)
     {
         version (xmlTraceParser)
@@ -946,7 +945,7 @@ private:
 
         ParseContext!S localContext;
         XmlString!S publicId, text;
-        const(C)[] systemOrPublic;
+        S systemOrPublic;
 
         auto name = reader.skipSpaces().readAnyName(localContext);
 
@@ -1066,8 +1065,8 @@ private:
     enum skipSpaceBefore = 1;
     enum skipSpaceAfter = 2;
 
-    XmlNode!S[] nodeStack;
     XmlDocument!S document;
+    XmlNode!S[] nodeStack;
     XmlReader!S reader;
     const(XmlParseOptions!S) options;
 
@@ -1083,11 +1082,10 @@ private:
 
 private:
 
-
 unittest  // XmlParser.invalid construct
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.parser.XmlParser.invalid construct");
+    traceUnitTest("unittest xml.parser.XmlParser.invalid construct");
 
     void parseError(string xml)
     {
@@ -1113,7 +1111,7 @@ unittest  // XmlParser.invalid construct
 unittest  // XmlParser.DOCTYPE
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.parser.XmlParser.DOCTYPE");
+    traceUnitTest("unittest xml.parser.XmlParser.DOCTYPE");
 
     static immutable string xml =
 q"XML
@@ -1131,7 +1129,7 @@ unittest  // XmlParser
 {
     import pham.xml.test;
     import pham.utl.test;
-    dgWriteln("unittest xml.parser.XmlParser");
+    traceUnitTest("unittest xml.parser.XmlParser");
 
     auto doc = new XmlDocument!string().load(parserXml);
 }
@@ -1141,7 +1139,7 @@ unittest  // XmlParser.navigation
     import std.conv : to;
     import std.typecons : No, Yes;
     import pham.utl.test;
-    dgWriteln("unittest xml.parser.XmlParser.navigation");
+    traceUnitTest("unittest xml.parser.XmlParser.navigation");
 
     static immutable string xml =
 q"XML
@@ -1164,13 +1162,13 @@ XML";
 
     auto doc = new XmlDocument!string().load(xml);
 
-    dgWriteln("unittest XmlParser - navigation(start walk)");
-    dgWriteln("check doc.documentDeclaration");
+    traceUnitTest("unittest XmlParser - navigation(start walk)");
+    traceUnitTest("check doc.documentDeclaration");
 
     assert(doc.documentDeclaration !is null);
     assert(doc.documentDeclaration.innerText = "version=\"1.0\" encoding=\"UTF-8\"");
 
-    dgWriteln("check doc.documentElement");
+    traceUnitTest("check doc.documentElement");
 
     assert(doc.documentElement !is null);
     assert(doc.documentElement.nodeType == XmlNodeType.element);
@@ -1179,7 +1177,7 @@ XML";
 
     XmlNodeList!string L;
 
-    dgWriteln("check doc.documentElement.getChildNodes(deep=true)");
+    traceUnitTest("check doc.documentElement.getChildNodes(deep=true)");
 
     L = doc.documentElement.getChildNodes(null, Yes.deep);
 
@@ -1575,55 +1573,58 @@ XML";
 
 unittest  // XmlParser.SAX
 {
+    import pham.xml.dom;
     import pham.xml.test;
     import pham.utl.test;
-    dgWriteln("unittest xml.parser.XmlParser.SAX");
+    traceUnitTest("unittest xml.parser.XmlParser.SAX");
 
-    version (none)
-    static bool processAttribute(XmlNode!string parent, XmlAttribute!string attribute)
+    static struct ProcessXml
     {
-        // return true to keep the attribute, however if its parent node is discarded,
-        // the attribute will also be discarded at the end
-        // return false to discard the attribute
-        return false;
+        version (none)
+        bool processAttribute(XmlNode!string parent, XmlAttribute!string attribute)
+        {
+            // return true to keep the attribute, however if its parent node is discarded,
+            // the attribute will also be discarded at the end
+            // return false to discard the attribute
+            return false;
+        }
+
+        version (none)
+        void processElementBegin(XmlNode!string parent, XmlElement!string element)
+        {}
+
+        bool processElementEnd(XmlNode!string parent, XmlElement!string element)
+        {
+            // return true to keep the element, however if its parent node is discarded,
+            // the element will also be discarded at the end
+            // return false to discard the element
+
+            // Only keep elements with localName = "bookstore" | "book" | "title"
+            auto localName = element.localName;
+            return localName == "bookstore" ||
+                localName == "book" ||
+                localName == "title";
+        }
+
+        bool processOtherNode(XmlNode!string parent, XmlNode!string node)
+        {
+            // return true to keep the node, however if its parent node is discarded,
+            // the node will also be discarded at the end
+            // return false to discard the node
+
+            return node.nodeType == XmlNodeType.text;
+        }
     }
 
-    version (none)
-    static void processElementBegin(XmlNode!string parent, XmlElement!string element)
-    {}
-
-    static bool processElementEnd(XmlNode!string parent, XmlElement!string element)
-    {
-        // return true to keep the element, however if its parent node is discarded,
-        // the element will also be discarded at the end
-        // return false to discard the element
-
-        // Only keep elements with localName = "bookstore" | "book" | "title"
-        auto localName = element.localName;
-        return localName == "bookstore" ||
-            localName == "book" ||
-            localName == "title";
-    }
-
-    static bool processOtherNode(XmlNode!string parent, XmlNode!string node)
-    {
-        // return true to keep the node, however if its parent node is discarded,
-        // the node will also be discarded at the end
-        // return false to discard the node
-
-        return node.nodeType == XmlNodeType.text;
-    }
-
+    ProcessXml processXml;
+    
     XmlParseOptions!string options;
-    version (none)
-    options.onSaxAttributeNode = &processAttribute;
-    version (none)
-    options.onSaxElementNodeBegin = &processElementBegin;
-    options.onSaxElementNodeEnd = &processElementEnd;
-    options.onSaxOtherNode = &processOtherNode;
+    version (none) options.onSaxAttributeNode = &processXml.processAttribute;
+    version (none) options.onSaxElementNodeBegin = &processXml.processElementBegin;
+    options.onSaxElementNodeEnd = &processXml.processElementEnd;
+    options.onSaxOtherNode = &processXml.processOtherNode;
 
     auto doc = new XmlDocument!string();
-
     doc.load!(Yes.SAX)(parserSaxXml, options);
 
     assert(doc.outerXml() == "<bookstore><book><title>Pride And Prejudice</title></book><book><title>The Handmaid's Tale</title></book></bookstore>");

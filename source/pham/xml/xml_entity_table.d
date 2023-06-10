@@ -42,16 +42,15 @@ public:
             true if encodedValue found in the table
             false otherwise
     */
-    final bool find(scope const(C)[] encodedValue, ref const(C)[] decodedValue) const nothrow
+    final bool find(scope const(C)[] encodedValue, ref S decodedValue) const nothrow
     {
-        const const(C)[]* r = encodedValue in data;
-        if (r is null)
-            return false;
-        else
+        if (auto e = encodedValue in data)
         {
-            decodedValue = *r;
+            decodedValue = *e;
             return true;
         }
+        else
+            return false;
     }
 
     /** Reset the table with 5 standard reserved encoded XML characters
@@ -63,10 +62,8 @@ public:
         return this;
     }
 
-    alias data this;
-
 public:
-    const(C)[][const(C)[]] data;
+    S[S] data;
 
 protected:
     static XmlEntityTable!S createDefaultEntityTable() nothrow pure
@@ -92,16 +89,15 @@ private:
 
 private:
 
-
 unittest // XmlEntityTable.defaultEntityTable
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.entity_table.XmlEntityTable.defaultEntityTable");
+    traceUnitTest("unittest xml.entity_table.XmlEntityTable.defaultEntityTable");
 
     auto table = XmlEntityTable!string.defaultEntityTable();
     assert(table !is null);
 
-    const(XmlChar!string)[] s;
+    string s;
 
     assert(table.find("&amp;", s));
     assert(s == "&");

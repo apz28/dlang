@@ -30,14 +30,14 @@ public:
     alias C = XmlChar!S;
 
 public:
-    const(C)[][const(C)[]] items;
+    S[S] items;
 
     /**
      * Returns true if name, n, is existed in table; otherwise false
      * Params:
      *  n = is a name to be searched for
      */
-    bool exist(const(C)[] n) const
+    bool exist(scope const(C)[] n) const
     {
         auto e = n in items;
         return e !is null;
@@ -50,7 +50,7 @@ public:
      * Returns:
      *  existing its name, n
      */
-    const(C)[] put(const(C)[] n)
+    S put(S n)
     in
     {
         assert(n.length != 0);

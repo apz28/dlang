@@ -90,7 +90,7 @@ public:
         Example:
             writeln(decode("a &gt; b")); // writes "a > b"
     */
-    final const(C)[] decode(XmlDecodeMode DecodeMode = XmlDecodeMode.strict)(return const(C)[] s)
+    final S decode(XmlDecodeMode DecodeMode = XmlDecodeMode.strict)(S s)
     {
         return decode!DecodeMode(s, XmlEntityTable!S.defaultEntityTable());
     }
@@ -112,7 +112,7 @@ public:
         Example:
             writeln(decode("a &gt; b")); // writes "a > b"
     */
-    final const(C)[] decode(XmlDecodeMode DecodeMode = XmlDecodeMode.strict)(return const(C)[] s, in XmlEntityTable!S entityTable)
+    final S decode(XmlDecodeMode DecodeMode = XmlDecodeMode.strict)(S s, in XmlEntityTable!S entityTable)
     {
         import std.string : startsWith;
 
@@ -121,7 +121,7 @@ public:
         version (xmlTraceParser)
         outputXmlTraceParserF("decode(%s)", s);
 
-        const(C)[] refChars;
+        S refChars;
         size_t i, lastI, mark;
         for (; i < s.length;)
         {
@@ -166,7 +166,7 @@ public:
             {
                 static if (DecodeMode == XmlDecodeMode.strict)
                 {
-                    auto msg = XmlMessage.eUnescapeAndChar ~ " " ~ toUTF!(S, string)(leftString!S(refChars, 20).idup);
+                    auto msg = XmlMessage.eUnescapeAndChar ~ " " ~ toUTF!(S, string)(leftString!S(refChars, 20u).idup);
                     throw new XmlConvertException(XmlLoc(0, i), msg);
                 }
                 else
@@ -195,7 +195,7 @@ public:
                     {
                         static if (DecodeMode == XmlDecodeMode.strict)
                         {
-                            auto msg = XmlMessage.eUnescapeAndChar ~ " " ~ toUTF!(S, string)(leftString!S(refChars, 20).idup);
+                            auto msg = XmlMessage.eUnescapeAndChar ~ " " ~ toUTF!(S, string)(leftString!S(refChars, 20u).idup);
                             throw new XmlConvertException(XmlLoc(0, i), msg);
                         }
                         else
@@ -208,14 +208,14 @@ public:
                 }
                 else
                 {
-                    const(C)[] r;
+                    S r;
                     if (entityTable.find(refChars, r))
                         put(r);
                     else
                     {
                         static if (DecodeMode == XmlDecodeMode.strict)
                         {
-                            auto msg = XmlMessage.eUnescapeAndChar ~ " " ~ toUTF!(S, string)(leftString!S(refChars, 20).idup);
+                            auto msg = XmlMessage.eUnescapeAndChar ~ " " ~ toUTF!(S, string)(leftString!S(refChars, 20u).idup);
                             throw new XmlConvertException(XmlLoc(0, i), msg);
                         }
                         else
@@ -282,7 +282,7 @@ public:
      * Example:
      *  writeln(encode("a > b")); // writes "a &gt; b"
      */
-    final const(C)[] encode(return const(C)[] s) nothrow
+    final S encode(S s) nothrow
     {
         version (xmlTraceParser)
         {
@@ -291,7 +291,7 @@ public:
                 outputXmlTraceParserF("encode() - %s", value());
         }
 
-        const(C)[] r;
+        S r;
         size_t lastI;
         foreach (i, c; s)
         {
@@ -519,9 +519,9 @@ unittest  // XmlBuffer.decode
 {
     import std.exception : assertThrown;
     import pham.utl.test;
-    dgWriteln("unittest xml.buffer.XmlBuffer.decode");
+    traceUnitTest("unittest xml.buffer.XmlBuffer.decode");
 
-    const(char)[] s;
+    string s;
     auto buffer = new XmlBuffer!(string, No.CheckEncoded)();
 
     // Assert that things that should work, do
@@ -558,9 +558,9 @@ unittest  // XmlBuffer.decode
 unittest  // XmlBuffer.encode
 {
     import pham.utl.test;
-    dgWriteln("unittest xml.buffer.XmlBuffer.encode");
+    traceUnitTest("unittest xml.buffer.XmlBuffer.encode");
 
-    const(XmlChar!string)[] s;
+    string s;
     auto buffer = new XmlBuffer!(string, No.CheckEncoded)();
 
     s = "hello";
