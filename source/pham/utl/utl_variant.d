@@ -28,7 +28,7 @@ import std.traits : ConstOf, fullyQualifiedName,
 import std.typecons : ReplaceTypeUnless, Tuple;
 
 import pham.utl.variant_coerce;
-import pham.utl.object : cmpFloat, cmpInteger;
+import pham.utl.object : cmpFloat, cmpFloatUnknownResult, cmpInteger;
 
 struct This;
 
@@ -150,7 +150,7 @@ public:
     }
 
     static if (elaborateConstructor)
-    this(this) nothrow @safe
+    this(this) nothrow @trusted
     {
         if (handler)
         {
@@ -261,7 +261,7 @@ public:
     if (!is(T : VariantN) && Types.length > 0 && allSatisfy!(allowed, Types))
     {
         // discover which typeInfo of rhs is actually storing
-        foreach (V; T.AllowedTypes)
+        static foreach (V; T.AllowedTypes)
         {
             if (rhs.typeInfo is typeid(V))
             {
@@ -391,7 +391,7 @@ public:
      * operators. In case comparison is not sensible between the held
      * value and `rhs`, an float.nan is returned.
      */
-    float opCmp(T)(auto ref T rhs) const nothrow @trusted
+    int opCmp(T)(auto ref T rhs) const nothrow @trusted
     if (allowed!T || is(Unqual!T == VariantN))
     {
         static if (is(Unqual!T == VariantN))
@@ -447,7 +447,7 @@ public:
         version (assert)
             assert(0, "Cannot do VariantN(" ~ typeInfo.toString() ~ ") opCmp() with " ~ fullyQualifiedName!T);
         else
-            return float.nan;
+            return cmpFloatUnknownResult;
     }
 
     /**
@@ -1414,7 +1414,7 @@ public:
         boolCast = &hBoolCast;
     int function(size_t size, scope void* store, size_t pLength, scope void* pValues, scope void* result) @trusted
         call = &hCall;
-    float function(size_t lhsSize, scope void* lhsStore, size_t rhsSize, scope void* rhsStore) nothrow @safe
+    int function(size_t lhsSize, scope void* lhsStore, size_t rhsSize, scope void* rhsStore) nothrow @safe
         cmp = &hCmp;
     void function(size_t size, scope void* store) nothrow @safe
         construct = &hConstruct;
@@ -1567,7 +1567,7 @@ private:
         }
     }
 
-    static float hCmp(size_t lhsSize, scope void* lhsStore,
+    static int hCmp(size_t lhsSize, scope void* lhsStore,
         size_t rhsSize, scope void* rhsStore) nothrow @trusted
     {
         scope (failure) assert(0, "Assume nothrow failed");
@@ -1595,24 +1595,26 @@ private:
             }
             else
             {
-                static if (is(typeof(*vlhs == *vrhs)))
-                {
-                    if (*vlhs == *vrhs)
-                        return 0;
-                }
-
                 static if (is(typeof(*vlhs < *vrhs)))
                 {
                     if (*vlhs < *vrhs)
                         return -1;
                     else if (*vlhs > *vrhs)
                         return 1;
+                    else
+                        return 0;
+                }
+
+                static if (is(typeof(*vlhs == *vrhs)))
+                {
+                    if (*vlhs == *vrhs)
+                        return 0;
                 }
 
                 version (assert)
                     assert(0, typeid(T).toString() ~ ".opCmp()?");
                 else
-                    return float.nan;
+                    return cmpFloatUnknownResult;
             }
         }
     }

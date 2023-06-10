@@ -153,14 +153,15 @@ if (isIntegral!T)
  *   1 if `lhs` is greater than `rhs`
  *   0 otherwise
  */
+enum cmpFloatUnknownResult = int.min;
 pragma(inline, true)
-float cmpFloat(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
+int cmpFloat(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
 if (isFloatingPoint!T)
 {
     import std.math : isNaN;
 
     if (isNaN(lhs) || isNaN(rhs))
-        return float.nan;
+        return cmpFloatUnknownResult;
     else
         return (lhs > rhs) - (lhs < rhs);
 }
@@ -941,7 +942,7 @@ nothrow @safe unittest // className
 
 nothrow @safe unittest // cmpFloat
 {
-    import std.math : isNaN;
+    //import std.math : isNaN;
 
     assert(cmpFloat(0.0, 0.0) == 0);
     assert(cmpFloat(1.0, 2.0) == -1);
@@ -951,9 +952,12 @@ nothrow @safe unittest // cmpFloat
     assert(cmpFloat(double.max, double.max) == 0);
     assert(cmpFloat(-double.max, double.max) == -1);
     assert(cmpFloat(double.max, -double.max) == 1);
-    assert(isNaN(cmpFloat(double.nan, 2.0)));
-    assert(isNaN(cmpFloat(1.0, double.nan)));
-    assert(isNaN(cmpFloat(double.nan, double.nan)));
+    //assert(isNaN(cmpFloat(double.nan, 2.0)));
+    //assert(isNaN(cmpFloat(1.0, double.nan)));
+    //assert(isNaN(cmpFloat(double.nan, double.nan)));
+    assert(cmpFloat(double.nan, 2.0) == cmpFloatUnknownResult);
+    assert(cmpFloat(1.0, double.nan) == cmpFloatUnknownResult);
+    assert(cmpFloat(double.nan, double.nan) == cmpFloatUnknownResult);
 }
 
 nothrow @safe unittest // cmpInteger
