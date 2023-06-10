@@ -4285,6 +4285,7 @@ protected:
     S _prefix;
 }
 
+debug (PhamXml)
 unittest  // Display object sizeof
 {
     import pham.utl.test;
