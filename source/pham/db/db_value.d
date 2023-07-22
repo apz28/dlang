@@ -461,6 +461,7 @@ struct DbRowValueQueue
 {
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     bool opCast(To: bool)() const nothrow @safe
     {

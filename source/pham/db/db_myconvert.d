@@ -20,7 +20,7 @@ version (unittest) import pham.utl.test;
 import pham.dtm.date_time_parse;
 import pham.dtm.tick : Tick, TickPart;
 import pham.utl.array : ShortStringBuffer;
-import pham.utl.bit_array : numericBitCast;
+import pham.utl.bit : numericBitCast;
 import pham.utl.object : simpleIntegerFmt;
 import pham.db.type;
 import pham.db.myoid;

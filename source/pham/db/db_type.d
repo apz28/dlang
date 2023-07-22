@@ -24,12 +24,13 @@ public import pham.dtm.date : Date, DateTime;
 public import pham.dtm.tick : DateTimeZoneKind;
 import pham.dtm.tick : ErrorOp, Tick;
 public import pham.dtm.time : Time;
-import pham.dtm.time_zone : TimeZoneInfo, TimeZoneInfoMap;
+import pham.dtm.time_zone : TimeZoneInfo;
+import pham.dtm.time_zone_map : TimeZoneInfoMap;
 public import pham.external.dec.decimal : Decimal32, Decimal64, Decimal128, isDecimal, Precision, RoundingMode;
 import pham.utl.array : ShortStringBuffer;
 public import pham.utl.big_integer : BigInteger;
 import pham.utl.enum_set : toName;
-import pham.utl.object : cmpFloat, cmpInteger;
+import pham.utl.result : cmp;
 import pham.utl.text : NamedValue;
 
 alias float32 = float;
@@ -511,9 +512,9 @@ public:
         int result = _value.opCmp(rhs._value);
         if (result == 0)
         {
-            result = cmpInteger(_zoneId, rhs._zoneId);
+            result = cmp(_zoneId, rhs._zoneId);
             if (result == 0)
-                result = cmpInteger(_zoneOffset, rhs._zoneOffset);
+                result = cmp(_zoneOffset, rhs._zoneOffset);
         }
         return result;
     }
@@ -527,7 +528,7 @@ public:
     // Some kind of compiler bug
     bool opEquals(scope const(DbDateTime) rhs) const @nogc pure
     {
-        return _value.opEquals(rhs._value) && zoneId == rhs.zoneId && zoneOffset == rhs.zoneOffset;
+        return opCmp(rhs) == 0;
     }
 
     bool opEquals(scope const(DateTime) rhs) const @nogc pure
@@ -668,7 +669,7 @@ public:
 
     bool opEquals(scope const(DbGeoBox) rhs) const @nogc pure
     {
-        return leftTop.opEquals(rhs.leftTop) && rightBottom.opEquals(rhs.rightBottom);
+        return opCmp(rhs) == 0;
     }
 
     size_t toHash() const @nogc pure
@@ -784,19 +785,19 @@ public:
 
     float opCmp(scope const(DbGeoCircle) rhs) const @nogc pure
     {
-        auto result = cmpFloat(x, rhs.x);
+        auto result = cmp(x, rhs.x);
         if (result == 0)
         {
-            result = cmpFloat(y, rhs.y);
+            result = cmp(y, rhs.y);
             if (result == 0)
-                result = cmpFloat(r, rhs.r);
+                result = cmp(r, rhs.r);
         }
         return result;
     }
 
     bool opEquals(scope const(DbGeoCircle) rhs) const @nogc pure
     {
-        return x == rhs.x && y == rhs.y && r == rhs.r;
+        return opCmp(rhs) == 0;
     }
 
     size_t toHash() const @nogc pure
@@ -846,31 +847,12 @@ public:
 
     float opCmp(scope const(DbGeoPath) rhs) const @nogc pure
     {
-        const m = points.length < rhs.points.length ? points.length : rhs.points.length;
-        foreach (i; 0..m)
-        {
-            const c = points[i].opCmp(rhs.points[i]);
-            if (c != 0)
-                return c;
-        }
-
-        const c = cmpInteger(points.length, rhs.points.length);
-        return c == 0 ? cmpInteger(cast(byte)open, cast(byte)rhs.open) : c;
+        return cmp(this, rhs);
     }
 
     bool opEquals(scope const(DbGeoPath) rhs) const @nogc pure
     {
-        if (open == rhs.open && points.length == rhs.points.length)
-        {
-            foreach (i; 0..points.length)
-            {
-                if (!points[i].opEquals(rhs.points[i]))
-                    return false;
-            }
-            return true;
-        }
-        else
-            return false;
+        return this.points.length == rhs.points.length && cmp(this, rhs) == 0;
     }
 
     size_t toHash() const @nogc pure
@@ -906,6 +888,21 @@ public:
 public:
     DbGeoPoint[] points;
     bool open;
+    
+private:
+    static float cmp(scope ref const(DbGeoPath) lhs, scope ref const(DbGeoPath) rhs) @nogc pure
+    {
+        const len = lhs.points.length <= rhs.points.length ? lhs.points.length : rhs.points.length;
+        foreach (i; 0..len)
+        {
+            const c = lhs.points[i].opCmp(rhs.points[i]);
+            if (c != 0)
+                return c;
+        }
+
+        const c = .cmp(lhs.points.length, rhs.points.length);
+        return c == 0 ? .cmp(cast(byte)lhs.open, cast(byte)rhs.open) : c;
+    }        
 }
 
 struct DbGeoPolygon
@@ -920,30 +917,12 @@ public:
 
     float opCmp(scope const(DbGeoPolygon) rhs) const @nogc pure
     {
-        const m = points.length < rhs.points.length ? points.length : rhs.points.length;
-        foreach (i; 0..m)
-        {
-            const c = points[i].opCmp(rhs.points[i]);
-            if (c != 0)
-                return c;
-        }
-
-        return cmpInteger(points.length, rhs.points.length);
+        return cmp(this, rhs);
     }
 
     bool opEquals(scope const(DbGeoPolygon) rhs) const @nogc pure
     {
-        if (points.length == rhs.points.length)
-        {
-            foreach (i; 0..points.length)
-            {
-                if (!points[i].opEquals(rhs.points[i]))
-                    return false;
-            }
-            return true;
-        }
-        else
-            return false;
+        return this.points.length == rhs.points.length && cmp(this, rhs) == 0;
     }
 
     size_t toHash() const @nogc pure
@@ -981,6 +960,20 @@ public:
 
 public:
     DbGeoPoint[] points;
+    
+private:
+    static float cmp(scope ref const(DbGeoPolygon) lhs, scope ref const(DbGeoPolygon) rhs) @nogc pure
+    {
+        const len = lhs.points.length <= rhs.points.length ? lhs.points.length : rhs.points.length;
+        foreach (const i; 0..len)
+        {
+            const c = lhs.points[i].opCmp(rhs.points[i]);
+            if (c != 0)
+                return c;
+        }
+
+        return .cmp(lhs.points.length, rhs.points.length);
+    }
 }
 
 struct DbGeoPoint
@@ -990,13 +983,13 @@ nothrow @safe:
 public:
     float opCmp(scope const(DbGeoPoint) rhs) const @nogc pure
     {
-        const result = cmpFloat(x, rhs.x);
-        return result == 0 ? cmpFloat(y, rhs.y) : result;
+        const result = cmp(x, rhs.x);
+        return result == 0 ? cmp(y, rhs.y) : result;
     }
 
     bool opEquals(scope const(DbGeoPoint) rhs) const @nogc pure
     {
-        return x == rhs.x && y == rhs.y;
+        return opCmp(rhs) == 0;
     }
 
     size_t toHash() const @nogc pure
@@ -1104,12 +1097,12 @@ public:
 
     int opCmp(scope const(DbHandle) rhs) const pure
     {
-        return cmpInteger(value.i64, rhs.value.i64);
+        return cmp(value.i64, rhs.value.i64);
     }
 
     bool opEquals(scope const(DbHandle) rhs) const pure
     {
-        return value.i64 == rhs.value.i64;
+        return opCmp(rhs) == 0;
     }
 
     pragma(inline, true)
@@ -1226,12 +1219,12 @@ public:
 
     int opCmp(scope const(DbId) rhs) const pure
     {
-        return cmpInteger(value.i64, rhs.value.i64);
+        return cmp(value.i64, rhs.value.i64);
     }
 
     bool opEquals(scope const(DbId) rhs) const pure
     {
-        return value.i64 == rhs.value.i64;
+        return opCmp(rhs) == 0;
     }
 
     pragma(inline, true)
@@ -1459,9 +1452,9 @@ public:
         int result = _value.opCmp(rhs._value);
         if (result == 0)
         {
-            result = cmpInteger(_zoneId, rhs._zoneId);
+            result = cmp(_zoneId, rhs._zoneId);
             if (result == 0)
-                result = cmpInteger(_zoneOffset, rhs._zoneOffset);
+                result = cmp(_zoneOffset, rhs._zoneOffset);
         }
         return result;
     }
@@ -1475,7 +1468,7 @@ public:
     // Some kind of compiler bug
     bool opEquals(scope const(DbTime) rhs) const @nogc pure
     {
-        return _value == rhs._value && zoneId == rhs.zoneId && zoneOffset == rhs.zoneOffset;
+        return opCmp(rhs) == 0;
     }
 
     bool opEquals(scope const(Time) rhs) const @nogc pure
@@ -1518,7 +1511,7 @@ public:
     {
         import std.math.algebraic : abs;
         import pham.utl.object : toString;
-        
+
         if (validOffset != 0)
         {
             byte h = void, m = void;
@@ -1626,7 +1619,7 @@ public:
 
     int opCmp(scope const(DbTimeSpan) rhs) const @nogc pure
     {
-        return cmpInteger(this.ticks, rhs.ticks);
+        return cmp(this.ticks, rhs.ticks);
     }
 
     int opCmp(scope const(Duration) rhs) const @nogc pure
@@ -1636,7 +1629,7 @@ public:
 
     bool opEquals(scope const(DbTimeSpan) rhs) const @nogc pure
     {
-        return this.ticks == rhs.ticks;
+        return opCmp(rhs) == 0;
     }
 
     bool opEquals(scope const(Duration) rhs) const @nogc pure
@@ -1757,10 +1750,10 @@ public:
             if (h.isValid())
                 return h;
         }
-        
+
         return hosts.length ? hosts[0] : DbHost!S.init;
     }
-    
+
     bool isValid() const @nogc
     {
         return database.length != 0 && isValidHosts();
@@ -1775,14 +1768,14 @@ public:
         }
         return hosts.length != 0;
     }
-    
+
     @property S option(S name) @nogc pure
     {
         import pham.utl.text : valueOf;
-        
+
         return options.valueOf!S(name, null);
     }
-    
+
 public:
     S database;
     DbHost!S[] hosts;
@@ -1891,12 +1884,12 @@ DbType dbTypeOf(T)() @nogc pure
 bool isDbScheme(string schemeStr, ref DbScheme scheme) @nogc pure
 {
     import std.traits : EnumMembers;
-    
+
     if (schemeStr.length)
     {
         foreach (e; EnumMembers!DbScheme)
         {
-            //import pham.utl.test; debug dgWriteln(e, " ? ", cast(string)e); //output: fb ? firebird ...             
+            //import pham.utl.test; debug dgWriteln(e, " ? ", cast(string)e); //output: fb ? firebird ...
             if (e == schemeStr)
             {
                 scheme = e;
@@ -1904,7 +1897,7 @@ bool isDbScheme(string schemeStr, ref DbScheme scheme) @nogc pure
             }
         }
     }
-    
+
     return false;
 }
 
@@ -2052,11 +2045,11 @@ DbNameValueValidated isConnectionParameterCharset(string v)
 DbNameValueValidated isConnectionParameterDurationTimeout(string v)
 {
     import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
-    
+
     int32 vint;
     if (parseIntegral!(string, int32)(v, vint) != NumericParsedKind.ok)
         return DbNameValueValidated.invalidValue;
-    
+
     const vdur = dur!"seconds"(vint);
     return vdur >= minTimeoutDuration && vdur <= maxTimeoutDuration
         ? DbNameValueValidated.ok
@@ -2067,7 +2060,7 @@ DbNameValueValidated isConnectionParameterCompress(string v)
 {
     import std.traits : EnumMembers;
     import pham.utl.enum_set : toName;
-    
+
     if (v.length)
     {
         foreach (e; EnumMembers!DbCompressConnection)
@@ -2084,7 +2077,7 @@ DbNameValueValidated isConnectionParameterEncrypt(string v)
 {
     import std.traits : EnumMembers;
     import pham.utl.enum_set : toName;
-    
+
     if (v.length)
     {
         foreach (e; EnumMembers!DbEncryptedConnection)
@@ -2108,7 +2101,7 @@ DbNameValueValidated isConnectionParameterIntegratedSecurity(string v)
 {
     import std.traits : EnumMembers;
     import pham.utl.enum_set : toName;
-    
+
     if (v.length)
     {
         foreach (e; EnumMembers!DbIntegratedSecurityConnection)
@@ -2124,74 +2117,74 @@ DbNameValueValidated isConnectionParameterIntegratedSecurity(string v)
 DbNameValueValidated isConnectionParameterInt32Any(string v)
 {
     import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
-    
+
     int32 vint;
     if (parseIntegral!(string, int32)(v, vint) != NumericParsedKind.ok)
         return DbNameValueValidated.invalidValue;
-    
+
     return DbNameValueValidated.ok;
 }
 
 DbNameValueValidated isConnectionParameterInt32Pos(string v)
 {
     import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
-    
+
     int32 vint;
     if (parseIntegral!(string, int32)(v, vint) != NumericParsedKind.ok)
         return DbNameValueValidated.invalidValue;
-    
+
     return vint >= 0
         ? DbNameValueValidated.ok
         : DbNameValueValidated.invalidValue;
 }
 
 DbNameValueValidated isConnectionParameterUBytesAny(string v)
-{    
+{
     import pham.utl.array : ShortStringBuffer;
     import pham.utl.numeric_parser : NumericParsedKind, parseBase64;
     import pham.utl.utf8 : NoDecodeInputRange;
 
     if (v.length == 0)
         return DbNameValueValidated.ok;
-        
+
     NoDecodeInputRange!(v, char) inputRange;
     ShortStringBuffer!ubyte result;
     if (parseBase64(inputRange, result) != NumericParsedKind.ok)
         return DbNameValueValidated.invalidValue;
-    
+
     return DbNameValueValidated.ok;
 }
 
 DbNameValueValidated isConnectionParameterUInt16Any(string v)
 {
     import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
-    
+
     uint16 vint;
     if (parseIntegral!(string, uint16)(v, vint) != NumericParsedKind.ok)
         return DbNameValueValidated.invalidValue;
-    
+
     return DbNameValueValidated.ok;
 }
 
 DbNameValueValidated isConnectionParameterUInt32Any(string v)
 {
     import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
-    
+
     uint32 vint;
     if (parseIntegral!(string, uint32)(v, vint) != NumericParsedKind.ok)
         return DbNameValueValidated.invalidValue;
-    
+
     return DbNameValueValidated.ok;
 }
 
 DbNameValueValidated isConnectionParameterUInt32_8K(string v)
 {
     import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
-    
+
     uint32 vint;
     if (parseIntegral!(string, uint32)(v, vint) != NumericParsedKind.ok)
         return DbNameValueValidated.invalidValue;
-        
+
     return vint > 0 && vint <= 8_000
         ? DbNameValueValidated.ok
         : DbNameValueValidated.invalidValue;
@@ -2200,11 +2193,11 @@ DbNameValueValidated isConnectionParameterUInt32_8K(string v)
 DbNameValueValidated isConnectionParameterUInt32_256K(string v)
 {
     import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
-    
+
     uint32 vint;
     if (parseIntegral!(string, uint32)(v, vint) != NumericParsedKind.ok)
         return DbNameValueValidated.invalidValue;
-        
+
     return vint > 0 && vint <= 256_000
         ? DbNameValueValidated.ok
         : DbNameValueValidated.invalidValue;
@@ -2275,7 +2268,7 @@ shared static this()
             //DbConnectionParameterIdentifier. : &,
         ];
     }();
-    
+
     dbTypeToDbTypeInfos = () nothrow pure
     {
         immutable(DbTypeInfo)*[DbType] result;

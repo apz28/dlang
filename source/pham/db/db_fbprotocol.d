@@ -19,7 +19,8 @@ import std.typecons : Flag, No, Yes;
 
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
-import pham.utl.bit_array : BitArrayImpl, bitLengthToElement, hostToNetworkOrder;
+import pham.utl.bit : bitLengthToElement, hostToNetworkOrder;
+import pham.utl.bit_array : BitArrayImpl;
 import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.utl.enum_set : toName;
 import pham.utl.object : InitializedValue, bytesFromHexs, bytesToHexs, functionName;
@@ -1768,7 +1769,7 @@ protected:
         return writer.peekBytes();
     }
 
-    public static void describeTransactionItems(return ref FbTransactionWriter writer, FbTransaction transaction) nothrow
+    public static void describeTransactionItems(ref FbTransactionWriter writer, FbTransaction transaction) nothrow
     {
         void isolationLevel(out ubyte isolationMode, out ubyte versionMode, out ubyte waitMode) nothrow @safe
         {
@@ -1868,7 +1869,7 @@ protected:
         return result;
     }
 
-    final void describeValue(return ref FbXdrWriter writer, DbNameColumn column, ref DbValue value)
+    final void describeValue(ref FbXdrWriter writer, DbNameColumn column, ref DbValue value)
     in
     {
         assert(!value.isNull);

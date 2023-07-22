@@ -214,6 +214,7 @@ struct PgWriter
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(PgConnection connection) nothrow
     {
@@ -408,6 +409,7 @@ struct PgXdrReader
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(PgConnection connection, DbReadBuffer buffer)
     {
@@ -675,6 +677,7 @@ struct PgXdrWriter
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(PgConnection connection, DbWriteBuffer buffer) nothrow
     {
@@ -1009,7 +1012,7 @@ unittest // PgXdrReader & PgXdrWriter
     ubyte[] writerBytes = writer.buffer.peekBytes();
     auto reader = PgXdrReader(writerBytes);
     int32 valueLength;
-    int32 readLength(int line = __LINE__)
+    int32 readLength(uint line = __LINE__)
     {
         valueLength = reader.readInt32();
         return valueLength;

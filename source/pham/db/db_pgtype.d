@@ -20,7 +20,7 @@ version (TraceFunction) import pham.utl.test;
 import pham.cp.cipher : CipherHelper;
 import pham.utl.disposable : DisposingReason;
 import pham.utl.enum_set : toName;
-import pham.utl.object : cmpInteger;
+import pham.utl.result : cmp;
 import pham.db.convert : toIntegerSafe;
 import pham.db.message;
 import pham.db.type;
@@ -496,19 +496,19 @@ public:
 
     int opCmp(scope const(PgOIdInterval) rhs) const @nogc pure
     {
-        auto result = cmpInteger(months, rhs.months);
+        auto result = cmp(months, rhs.months);
         if (result == 0)
         {
-            result = cmpInteger(days, rhs.days);
+            result = cmp(days, rhs.days);
             if (result == 0)
-                result = cmpInteger(microseconds, rhs.microseconds);
+                result = cmp(microseconds, rhs.microseconds);
         }
         return result;
     }
 
     bool opEquals(scope const(PgOIdInterval) rhs) const @nogc pure
     {
-        return months == rhs.months && days == rhs.days && microseconds == rhs.microseconds;
+        return opCmp(rhs) == 0;
     }
 
     size_t toHash() const @nogc pure

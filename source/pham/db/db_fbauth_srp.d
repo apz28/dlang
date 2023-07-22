@@ -375,7 +375,7 @@ version (unittest)
         const(char)[] expectedHexServerSalt,
         const(char)[] expectedHexServerPublicKey,
         const(char)[] expectedDigitServerPublicKey,
-        size_t line = __LINE__)
+        uint line = __LINE__)
     {
         auto privateKey = CipherKey.digitsToBigInteger(digitPrivateKey);
         auto serverAuthData = bytesFromHexs(serverHexAuthData);

@@ -164,12 +164,12 @@ public:
 
     bool opEquals(scope const(DbIdentitier) rhs) const pure
     {
-        return sicmp(_s, rhs._s) == 0;
+        return opCmp(rhs) == 0;
     }
 
     bool opEquals(scope const(char)[] rhs) const pure
     {
-        return sicmp(_s, rhs) == 0;
+        return opCmp(rhs) == 0;
     }
 
     size_t toHash() const pure
@@ -258,14 +258,14 @@ public:
     alias List = DbNameObjectList!DbNameObject;
 
 public:
-    final int opCmp(scope const(DbIdentitier) otherName) const pure
+    final int opCmp(scope const(DbIdentitier) rhsName) const pure
     {
-        return _name.opCmp(otherName);
+        return _name.opCmp(rhsName);
     }
 
-    final bool opEquals(scope const(DbIdentitier) otherName) const pure
+    final bool opEquals(scope const(DbIdentitier) rhsName) const pure
     {
-        return _name.opEquals(otherName);
+        return opCmp(rhsName) == 0;
     }
 
     final override size_t toHash() const
@@ -685,14 +685,14 @@ public:
         this(id, value);
     }
 
-    int opCmp(scope const(DbIdentitier) otherName) const
+    int opCmp(scope const(DbIdentitier) rhsName) const
     {
-        return _name.opCmp(otherName);
+        return _name.opCmp(rhsName);
     }
 
-    bool opEquals(scope const(DbIdentitier) otherName) const
+    bool opEquals(scope const(DbIdentitier) rhsName) const
     {
-        return _name.opEquals(otherName);
+        return opCmp(rhsName) == 0;
     }
 
     size_t toHash() const

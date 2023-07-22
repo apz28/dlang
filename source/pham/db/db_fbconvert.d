@@ -18,7 +18,8 @@ import std.typecons : No;
 
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
-import pham.dtm.time_zone : TimeZoneInfo, TimeZoneInfoMap;
+import pham.dtm.time_zone : TimeZoneInfo;
+import pham.dtm.time_zone_map : TimeZoneInfoMap;
 import pham.external.dec.codec : DecimalCodec32, DecimalCodec64, DecimalCodec128;
 import pham.utl.array : ShortStringBuffer;
 import pham.utl.big_integer : toBigEndianFlag, UByteTempArray;
@@ -332,7 +333,7 @@ unittest // int128Decode & int128Encode
 	static BigInteger safeBigInteger(string value) nothrow pure @safe
     {
 		scope (failure) assert(0, "Assume nothrow failed");
-        
+
 		return BigInteger(value);
     }
 

@@ -801,7 +801,7 @@ protected:
         return result;
     }
 
-    void checkActive(string file = __FILE__, size_t line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
+    void checkActive(string file = __FILE__, uint line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
     {
         version (TraceFunction) traceFunction("callerName=", callerName);
 
@@ -820,7 +820,7 @@ protected:
         _connection.checkActive(callerName);
     }
 
-    final void checkActiveReader(string file = __FILE__, size_t line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
+    final void checkActiveReader(string file = __FILE__, uint line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
     {
         version (TraceFunction) traceFunction("callerName=", callerName);
 
@@ -831,7 +831,7 @@ protected:
     }
 
     void checkCommand(int excludeCommandType,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
+        string file = __FILE__, uint line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
     {
         version (TraceFunction) traceFunction("callerName=", callerName);
 
@@ -856,7 +856,7 @@ protected:
             throw new DbException(DbMessage.eInvalidCommandConnectionDif, 0, null, 0, 0, file, line, next);
     }
 
-    final void checkInactive(string file = __FILE__, size_t line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
+    final void checkInactive(string file = __FILE__, uint line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
     {
         version (TraceFunction) traceFunction("callerName=", callerName);
 
@@ -3886,8 +3886,7 @@ struct DbRAIITransaction
 @safe:
 
 public:
-    @disable this();
-    @disable this(ref typeof(this));
+    @disable this(this);
     @disable void opAssign(typeof(this));
 
     this(DbConnection connection,
@@ -3968,6 +3967,7 @@ struct DbReader
 {
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(DbCommand command, bool implicitTransaction) nothrow @safe
     {

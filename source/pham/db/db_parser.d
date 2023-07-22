@@ -872,7 +872,7 @@ version (unittest)
 
     void checkTokenizer(T)(ref T tokenizer,
         bool empty, bool malformed, const(char)[] parameterIndicator, DbTokenKind kind, const(char)[] front,
-        in int line = __LINE__)
+        in uint line = __LINE__)
     {
         import std.conv : to;
         import pham.utl.enum_set : toName;
@@ -1277,12 +1277,12 @@ unittest // parseParameter
     import pham.utl.test;
     traceUnitTest("unittest pham.db.parser.parseParameter");
 
-    static class StringList
+    static struct StringList
     {
     nothrow @safe:
 
     public:
-        StringList clear()
+        ref StringList clear()
         {
             items.length = 0;
             return this;
@@ -1301,7 +1301,7 @@ unittest // parseParameter
     }
 
     string s;
-    auto slist = new StringList();
+    StringList slist;
 
     slist.clear();
     assert(parseParameter("", &slist.saveParameter) == "");

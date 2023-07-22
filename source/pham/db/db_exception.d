@@ -21,7 +21,7 @@ class DbException : Exception
 public:
     this(string message, int code, string sqlState,
         int socketCode = 0, int vendorCode = 0,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure
+        string file = __FILE__, uint line = __LINE__, Throwable next = null) pure
     {
         version (TraceFunction) debug traceFunction();
 
@@ -68,7 +68,7 @@ class SkException : DbException
 public:
     this(string message, int code, string sqlState,
         int socketCode = 0, int vendorCode = 0,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure
+        string file = __FILE__, uint line = __LINE__, Throwable next = null) pure
     {
         super(message, code, sqlState, socketCode, vendorCode, file, line, next);
     }

@@ -19,7 +19,7 @@ import std.system : Endian;
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
 import pham.utl.array : ShortStringBuffer, ShortStringBufferSize;
-import pham.utl.bit_array : numericBitCast;
+import pham.utl.bit : numericBitCast;
 import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.utl.object : simpleFloatFmt, simpleIntegerFmt;
 import pham.db.buffer;
@@ -63,7 +63,7 @@ public:
             _connection.releasePackageReadBuffer(_buffer);
 
         _buffer = null;
-        
+
         if (isDisposing(disposingReason))
             _connection = null;
     }
@@ -167,6 +167,7 @@ struct MyXdrReader
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(MyConnection connection, DbReadBuffer buffer)
     {
@@ -625,6 +626,7 @@ struct MyXdrWriter
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(MyConnection connection, uint maxSinglePackage) nothrow
     {

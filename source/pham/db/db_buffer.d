@@ -17,7 +17,7 @@ import std.system : Endian;
 
 version (unittest) import pham.utl.test;
 import pham.utl.array : inplaceMoveToLeft;
-import pham.utl.bit_array : numericBitCast;
+import pham.utl.bit : numericBitCast;
 import pham.utl.dlink_list;
 import pham.utl.disposable : DisposingReason;
 import pham.utl.object : alignRoundup;
@@ -522,6 +522,7 @@ struct DbValueWriter(Endian EndianKind)
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(DbWriteBuffer buffer) nothrow pure
     {

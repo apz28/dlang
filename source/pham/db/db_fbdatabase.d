@@ -44,6 +44,7 @@ struct FbArray
 {
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(FbCommand command, FbIscArrayDescriptor descriptor) nothrow pure @safe
     in
@@ -553,6 +554,7 @@ struct FbBlob
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(FbCommand command) nothrow pure
     in
@@ -1527,6 +1529,7 @@ struct FbCommandBatch
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     ~this()
     {
@@ -1789,19 +1792,19 @@ package(pham.db):
 
 protected:
     final override SkException createConnectError(int errorCode, string errorMessage,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe
+        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
     {
         return new FbException(errorMessage, DbErrorCode.connect, null, errorCode, FbIscResultCode.isc_net_connect_err, file, line, next);
     }
 
     final override SkException createReadDataError(int errorCode, string errorMessage,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe
+        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
     {
         return new FbException(errorMessage, DbErrorCode.read, null, errorCode, FbIscResultCode.isc_net_read_err, file, line, next);
     }
 
     final override SkException createWriteDataError(int errorCode, string errorMessage,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe
+        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
     {
         return new FbException(errorMessage, DbErrorCode.write, null, errorCode, FbIscResultCode.isc_net_write_err, file, line, next);
     }

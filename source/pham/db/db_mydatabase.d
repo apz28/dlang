@@ -661,19 +661,19 @@ package(pham.db):
 
 protected:
     final override SkException createConnectError(int errorCode, string errorMessage,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe
+        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
     {
         return new MyException(errorMessage, DbErrorCode.connect, null, errorCode, 0, file, line, next);
     }
 
     final override SkException createReadDataError(int errorCode, string errorMessage,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe
+        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
     {
         return new MyException(errorMessage, DbErrorCode.read, null, errorCode, 0, file, line, next);
     }
 
     final override SkException createWriteDataError(int errorCode, string errorMessage,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe
+        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
     {
         return new MyException(errorMessage, DbErrorCode.write, null, errorCode, 0, file, line, next);
     }

@@ -126,6 +126,7 @@ public:
         return _socket;
     }
 
+    pragma(inline, true)
     @property final bool socketActive() const nothrow pure @safe
     {
         return _socket !is null && _socket.handle != socket_t.init;
@@ -297,7 +298,7 @@ package(pham.db):
     }
 
     final void throwConnectError(int errorRawCode, string errorRawMessage,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
+        string file = __FILE__, uint line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
     {
         version (TraceFunction) traceFunction("errorRawCode=", errorRawCode, ", errorRawMessage=", errorRawMessage);
 
@@ -309,7 +310,7 @@ package(pham.db):
     }
 
     final void throwReadDataError(int errorRawCode, string errorRawMessage,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
+        string file = __FILE__, uint line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
     {
         version (TraceFunctionReader) traceFunction("errorRawCode=", errorRawCode, ", errorRawMessage=", errorRawMessage);
 
@@ -321,7 +322,7 @@ package(pham.db):
     }
 
     final void throwWriteDataError(int errorRawCode, string errorRawMessage,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
+        string file = __FILE__, uint line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
     {
         version (TraceFunctionWriter) traceFunction("errorRawCode=", errorRawCode, ", errorRawMessage=", errorRawMessage);
 
@@ -339,19 +340,19 @@ protected:
     }
 
     SkException createConnectError(int errorCode, string errorMessage,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe
+        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
     {
         return new SkException(errorMessage, DbErrorCode.connect, null, errorCode, 0, file, line, next);
     }
 
     SkException createReadDataError(int errorCode, string errorMessage,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe
+        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
     {
         return new SkException(errorMessage, DbErrorCode.read, null, errorCode, 0, file, line, next);
     }
 
     SkException createWriteDataError(int errorCode, string errorMessage,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe
+        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
     {
         return new SkException(errorMessage, DbErrorCode.write, null, errorCode, 0, file, line, next);
     }
@@ -747,6 +748,7 @@ struct SkWriteBufferLocal
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(SkConnection connection) nothrow
     {

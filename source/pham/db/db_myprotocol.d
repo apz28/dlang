@@ -17,7 +17,8 @@ import std.conv : to;
 
 version (profile) import pham.utl.test : PerfFunction;
 version (unittest) import pham.utl.test;
-import pham.utl.bit_array : BitArrayImpl, bitLengthToElement;
+import pham.utl.bit : bitLengthToElement;
+import pham.utl.bit_array : BitArrayImpl;
 import pham.utl.disposable : DisposingReason, isDisposing;
 import pham.utl.enum_set : toName;
 import pham.utl.object : shortClassName, VersionString;

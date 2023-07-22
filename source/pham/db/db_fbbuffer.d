@@ -39,6 +39,7 @@ struct FbArrayWriter
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(FbConnection connection) nothrow
     {
@@ -130,6 +131,7 @@ struct FbBatchWriter
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(FbConnection connection, uint8 versionId) nothrow
     {
@@ -247,6 +249,7 @@ struct FbBlrWriter
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(DbWriteBuffer buffer) nothrow pure
     {
@@ -483,6 +486,7 @@ struct FbConnectionWriter
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(FbConnection connection, uint8 versionId) nothrow
     {
@@ -641,6 +645,7 @@ struct FbTransactionWriter
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(FbConnection connection) nothrow
     {
@@ -1068,6 +1073,7 @@ struct FbXdrWriter
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(FbConnection connection) nothrow
     {

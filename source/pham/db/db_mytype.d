@@ -13,7 +13,7 @@ module pham.db.mytype;
 
 version (TraceFunction) import pham.utl.test;
 import pham.utl.array : ShortStringBuffer;
-import pham.utl.bit_array : Map32Bit;
+import pham.utl.bit : Map32Bit;
 import pham.utl.enum_set : toName;
 import pham.db.message;
 import pham.db.type;
