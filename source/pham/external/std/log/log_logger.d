@@ -24,8 +24,8 @@ import std.datetime.systime : Clock, SysTime;
 import std.datetime.timezone : LocalTime, UTC;
 import std.format : formattedWrite;
 import std.process : thisThreadID;
-import std.range.primitives : empty, front, popFront;
-import std.traits : isDynamicArray, isIntegral, isSomeString, Unqual;
+import std.range.primitives : empty, ElementType, front, isInfinite, isInputRange, popFront;
+import std.traits : isDynamicArray, isIntegral, isSomeChar, isSomeString, Unqual;
 import std.typecons : Flag;
 public import std.typecons : No, Yes;
 import std.utf : encode;
@@ -1754,7 +1754,7 @@ protected:
 
 class ConsoleLogger : MemLogger
 {
-    import std.stdio : File, stdout;
+    import std.stdio : File, stderr, stdout;
 
 nothrow @safe:
 
@@ -1765,9 +1765,25 @@ public:
     }
 
 protected:
-    File trustedStdout() @trusted
+    static File trustedStderr() @trusted
+    {
+        return stderr;
+    }
+
+    static File trustedStdout() @trusted
     {
         return stdout;
+    }
+
+    static bool isStdio(ref File file)
+    {
+        try {
+            const fileno = file.isOpen ? file.fileno : -1;
+            if (fileno == -1)
+                return false;
+            return fileno == trustedStderr().fileno
+                || fileno == trustedStdout().fileno;
+        } catch (Exception e) { version (DebugLogger) debug writeln(e.msg); return false; }
     }
 
     final override void writeLog(ref Logger.LogEntry payload)
@@ -1776,8 +1792,9 @@ protected:
 
         try {
             auto writer = LogOutputWriter(this);
-            writer.write(trustedStdout().lockingTextWriter(), payload);
-            if (++flushWriteLogLines >= flushOutputLines)
+            auto lockedFile = trustedStdout().lockingTextWriter();
+            writer.write(lockedFile, payload);
+            if (flushOutputLines && ++flushWriteLogLines >= flushOutputLines)
             {
                 trustedStdout().flush();
                 flushWriteLogLines = 0;
@@ -1845,9 +1862,10 @@ public:
         FileLoggerOption fileOption = FileLoggerOption.init,
         LoggerOption option = LoggerOption.init) nothrow
     {
-        this.fileName = fileName;
+        this.fileName(fileName);
         this._fileOwned = true;
         this._fileOption = fileOption;
+        this._isStdio = false;
         if (!doOpen(fileName, fileOption))
             option.logLevel = LogLevel.off;
         super(option);
@@ -1869,9 +1887,11 @@ public:
     this(File file,
         LoggerOption option = LoggerOption.init)
     {
+        this.fileName(null);
         this._file = file;
         this._fileOwned = false;
         this._fileOption = FileLoggerOption(null, CreateFolder.no);
+        this._isStdio = ConsoleLogger.isStdio(file);
         super(option);
     }
 
@@ -1902,6 +1922,11 @@ nothrow:
     @property final FileLoggerOption fileOption() const
     {
         return this._fileOption;
+    }
+
+    @property final bool isStdio() const pure
+    {
+        return this._isStdio;
     }
 
 protected:
@@ -1955,6 +1980,9 @@ protected:
     {
         version (DebugLogger) debug writeln("FileLogger.fileSize()");
 
+        if (_isStdio)
+            return 0;
+
         try
         {
             if (!_file.isOpen)
@@ -1970,7 +1998,7 @@ protected:
             const curPos = _file.tell();
             scope (exit)
                 _file.seek(curPos, SEEK_SET);
-                
+
             _file.seek(0, SEEK_END);
             return _file.tell();
         }
@@ -1985,6 +2013,9 @@ protected:
     {
         version (DebugLogger) debug writeln("FileLogger.lastModified()");
 
+        if (_isStdio)
+            return SysTime.init;
+
         try
         {
             auto fe = DirEntry(fileName);
@@ -1994,21 +2025,29 @@ protected:
         {
             version (DebugLogger) debug writeln(e.msg);
             return SysTime.init;
-        }        
+        }
     }
-    
+
     final override void writeLog(ref Logger.LogEntry payload)
     {
         version (DebugLogger) debug writeln("FileLogger.writeLog()");
 
         if (!_file.isOpen)
             return;
-        
+
         try {
             auto writer = LogOutputWriter(this);
-            auto lockedFile = _file.lockingTextWriter();
-            writer.write(lockedFile, payload);
-            if (++_flushWriteLogLines >= flushOutputLines)
+            if (_isStdio)
+            {
+                auto lockedFile = _file.lockingTextWriter();
+                writer.write(lockedFile, payload);
+            }
+            else
+            {
+                auto sinkFile = FileOutputSink(_file);
+                writer.write(sinkFile, payload);
+            }
+            if (flushOutputLines && ++_flushWriteLogLines >= flushOutputLines)
             {
                 _file.flush();
                 _flushWriteLogLines = 0;
@@ -2031,6 +2070,57 @@ protected:
         }
     }
 
+    static struct FileOutputSink
+    {
+    nothrow @safe:
+
+        this(ref File file)
+        {
+            this.file = file;
+        }
+
+        //version (none)
+        void put(scope char c) @trusted
+        {
+            try {
+                file.write(c);
+            } catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+        }
+
+        //version (none)
+        void put(scope string s) @trusted
+        {
+            try {
+                file.write(s);
+            } catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+        }
+
+        void put(C)(scope C c) @trusted
+        if (isSomeChar!C || is(C : const(ubyte)))
+        {
+            try {
+                file.write(c);
+            } catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+        }
+
+        void put(A)(scope A items) @trusted
+        if ((isSomeChar!(ElementType!A) || is(ElementType!A : const(ubyte)))
+            && isInputRange!A
+            && !isInfinite!A)
+        {
+            try {
+                foreach (c; items)
+                {
+                    file.write(c);
+                }
+            } catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+        }
+
+        //alias write = put;
+
+        File file;
+    }
+
 protected:
     File _file; /// The `File` log messages are written to.
     string _fileBaseName;
@@ -2040,6 +2130,7 @@ protected:
     FileLoggerOption _fileOption;
     size_t _flushWriteLogLines;
     bool _fileOwned;
+    bool _isStdio;
 }
 
 /**
@@ -2050,7 +2141,7 @@ protected:
 class NullLogger : Logger
 {
 nothrow @safe:
- 
+
 public:
     this()
     {
@@ -2161,7 +2252,7 @@ public:
     }
 
 protected:
-    final bool adjustFileBeforeAppend() 
+    final bool adjustFileBeforeAppend()
     {
         version (DebugLogger) debug writeln("RollingFileLogger.adjustFileBeforeAppend()");
 
@@ -2182,7 +2273,7 @@ protected:
         {
             const n = fileSize();
             if (n >= _rollingOption.maxFileSize)
-            {            
+            {
                 renameFiles(SysTime.init, n);
                 rolled = true;
             }
@@ -2200,7 +2291,7 @@ protected:
             this.logLevel = LogLevel.off;
         super.beginMsg(header);
     }
-    
+
     final void deleteFile(const(string) fileName)
     {
         version (DebugLogger) debug writeln("RollingFileLogger.deleteFile()");
@@ -2232,7 +2323,7 @@ protected:
         _rollBackupCount = backupFileNames.length;
     }
 
-    final string[] getBackupFileNames()
+    final string[] getBackupFileNames() @trusted
     {
         version (DebugLogger) debug writeln("RollingFileLogger.getBackupFiles()");
 
@@ -2322,10 +2413,10 @@ protected:
         version (DebugLogger) debug writeln("RollingFileLogger.renameFiles()");
 
         doClose();
-        
+
         // Any limit?
         // Check if over count limit; if so delete the oldest
-        if (_rollingOption.maxRollBackupCount != 0 
+        if (_rollingOption.maxRollBackupCount != 0
             && _rollBackupCount >= _rollingOption.maxRollBackupCount)
         {
             string[] backupFileNames = getBackupFileNames();
@@ -2344,7 +2435,7 @@ protected:
 
         const toName = nextBackupFile();
         rollFile(_fileName, toName);
-        _rollBackupCount++;        
+        _rollBackupCount++;
     }
 
     final void rollFile(const(string) fromName, const(string) toName)
@@ -3012,7 +3103,7 @@ public:
             final switch (elementKind) with (LogOutputPatternElement.Kind)
             {
                 case literal:
-                    put(sink, element.value);
+                    sink.put(element.value);
                     break;
                 case pattern:
                     // Try matching a support pattern
@@ -3060,7 +3151,7 @@ public:
                             break;
                         // Not matching any pattern, output as is
                         default:
-                            put(sink, element.value);
+                            sink.put(element.value);
                             break;
                     }
                     break;
@@ -3080,6 +3171,7 @@ nothrow @safe:
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     /**
      * Params:
@@ -3190,8 +3282,7 @@ struct LogRAIIMutex
 @nogc nothrow @safe:
 
 public:
-    @disable this();
-    @disable this(ref typeof(this));
+    @disable this(this);
     @disable void opAssign(typeof(this));
 
     this(Mutex mutex)
@@ -3508,8 +3599,8 @@ public:
  * This method returns the global default Logger.
  * Marked @trusted because of excessive reliance on __gshared data
  */
+__gshared align(__traits(classInstanceAlignment, SharedLogger)) void[__traits(classInstanceSize, SharedLogger)] _sharedLogBuffer;
 __gshared SharedLogger _sharedLogDefault;
-__gshared align(SharedLogger.alignof) void[__traits(classInstanceSize, SharedLogger)] _sharedLogBuffer;
 Logger sharedLogImpl() nothrow @trusted
 {
     import std.concurrency : initOnce;
@@ -3555,8 +3646,8 @@ protected:
 /*
  * This method returns the thread local default Logger for sharedLog.
  */
+align(__traits(classInstanceAlignment, ForwardSharedLogger)) void[__traits(classInstanceSize, ForwardSharedLogger)] _threadLogBuffer;
 ForwardSharedLogger _threadLogDefault;
-align(ForwardSharedLogger.alignof) void[__traits(classInstanceSize, ForwardSharedLogger)] _threadLogBuffer;
 Logger threadLogImpl() nothrow @trusted
 {
     if (_threadLogDefault is null)
@@ -3906,6 +3997,11 @@ void testFuncNames(Logger logger) @safe
 {
     static string s = "I'm here";
     logger.log(s);
+}
+
+@safe unittest // Test compilable without error
+{
+    sharedLog.trace("Test calling without error");
 }
 
 @safe unittest
@@ -4599,9 +4695,9 @@ void testFuncNames(Logger logger) @safe
 {
     import std.file : exists, remove, tempDir;
     import std.path : buildPath;
-    import std.stdio : File;
+    import std.stdio : File, writeln;
     import std.string : indexOf;
-
+    
     string fn = tempDir.buildPath("bug15517.log");
     scope (exit)
     {
@@ -4609,18 +4705,21 @@ void testFuncNames(Logger logger) @safe
             remove(fn);
     }
 
-    auto fl = new FileLogger(fn, FileLoggerOption(FileLoggerOption.overwriteMode), LoggerOption(defaultUnitTestLogLevel, "Test", defaultOutputPattern, 0));
-    scope (exit)
-        fl.file.close();
-
-    auto logRestore = LogRestore(fl);
-
     auto ts = [ "Test log 1", "Test log 2", "Test log 3"];
-    foreach (t; ts)
-    {
-        log(t);
-    }
+    
+    { // Scope
+        auto fl = new FileLogger(fn, FileLoggerOption(FileLoggerOption.overwriteMode), LoggerOption(defaultUnitTestLogLevel, "Test", defaultOutputPattern, 0));
+        scope (exit)
+            fl.file.close();
 
+        auto logRestore = LogRestore(fl);
+
+        foreach (t; ts)
+        {
+            log(t);
+        }
+    }
+    
     auto f = File(fn);
     auto byLine = f.byLine();
     assert(!byLine.empty);
@@ -4739,7 +4838,7 @@ void testFuncNames(Logger logger) @safe
     scope (exit)
         file.close();
     assert(!file.eof);
-    
+
     string readLine = file.readln();
     assert(readLine.indexOf(written) != -1, readLine);
     assert(readLine.indexOf(notWritten) == -1, readLine);
@@ -4902,9 +5001,9 @@ unittest // RollingFileLogger
     import std.conv : to;
     import std.file : deleteme, remove;
     import std.stdio : writeln;
-    
+
     string fileName = deleteme ~ "-RollingFileLoggerTest.log";
-    auto option = RollingFileLoggerOption(10_000, 1, RollingDateMode.topOfHour, RollingFileMode.composite);    
+    auto option = RollingFileLoggerOption(10_000, 1, RollingDateMode.topOfHour, RollingFileMode.composite);
     auto lg = new RollingFileLogger(fileName, option);
     scope (exit)
     {
@@ -4914,7 +5013,7 @@ unittest // RollingFileLogger
         lg.doClose();
         remove(fileName);
     }
-            
+
     foreach (i; 0..1_000)
     {
         auto s = Appender!string();
@@ -4928,7 +5027,7 @@ unittest // RollingFileLogger
         lg.log(LogLevel.error, s.data);
     }
     auto bf = lg.getBackupFileNames();
-    assert(bf.length == 1, to!string(bf.length));    
+    assert(bf.length == 1, to!string(bf.length));
 }
 
 /* Sample D predefined variable
