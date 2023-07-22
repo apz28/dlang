@@ -27,8 +27,8 @@ import std.traits : ConstOf, fullyQualifiedName,
     ImplicitConversionTargets = AllImplicitConversionTargets;
 import std.typecons : ReplaceTypeUnless, Tuple;
 
+import pham.utl.result : cmp;
 import pham.utl.variant_coerce;
-import pham.utl.object : cmpFloat, cmpFloatUnknownResult, cmpInteger;
 
 struct This;
 
@@ -391,7 +391,7 @@ public:
      * operators. In case comparison is not sensible between the held
      * value and `rhs`, an float.nan is returned.
      */
-    int opCmp(T)(auto ref T rhs) const nothrow @trusted
+    float opCmp(T)(auto ref T rhs) const nothrow @trusted
     if (allowed!T || is(Unqual!T == VariantN))
     {
         static if (is(Unqual!T == VariantN))
@@ -442,12 +442,12 @@ public:
         const nullRhs = nullTypeOf!T() == NullType.value ? 1 : 0;
 
         if (nullLhs == 0 || nullRhs == 0)
-            return cmpInteger!int(nullLhs, nullRhs);
+            return .cmp(nullLhs, nullRhs);
 
         version (assert)
             assert(0, "Cannot do VariantN(" ~ typeInfo.toString() ~ ") opCmp() with " ~ fullyQualifiedName!T);
         else
-            return cmpFloatUnknownResult;
+            return float.nan;
     }
 
     /**
@@ -1414,7 +1414,7 @@ public:
         boolCast = &hBoolCast;
     int function(size_t size, scope void* store, size_t pLength, scope void* pValues, scope void* result) @trusted
         call = &hCall;
-    int function(size_t lhsSize, scope void* lhsStore, size_t rhsSize, scope void* rhsStore) nothrow @safe
+    float function(size_t lhsSize, scope void* lhsStore, size_t rhsSize, scope void* rhsStore) nothrow @safe
         cmp = &hCmp;
     void function(size_t size, scope void* store) nothrow @safe
         construct = &hConstruct;
@@ -1567,45 +1567,36 @@ private:
         }
     }
 
-    static int hCmp(size_t lhsSize, scope void* lhsStore,
+    static float hCmp(size_t lhsSize, scope void* lhsStore,
         size_t rhsSize, scope void* rhsStore) nothrow @trusted
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
         static if (is(T == void))
         {
-            return 0;
+            return float.nan;
         }
         else
         {
             auto vlhs = hValuePointer(lhsSize, lhsStore);
             auto vrhs = hValuePointer(rhsSize, rhsStore);
-
-            static if (isIntegral!T)
+            //pragma(msg, typeof(vlhs).stringof);
+            
+            static if (isIntegral!T || isFloatingPoint!T || isArray!T)
             {
-                return cmpInteger(*vlhs, *vrhs);
+                return .cmp(*vlhs, *vrhs);
             }
-            else static if (isFloatingPoint!T)
-            {
-                return cmpFloat(*vlhs, *vrhs);
-            }
-            else static if (__traits(compiles, { auto _ = T.init.opCmp(T.init); }))
+            else static if (__traits(compiles, T.init.opCmp(T.init)))
             {
                 return (*vlhs).opCmp(*vrhs);
             }
+            else static if (__traits(compiles, *vlhs < *vrhs))
+            {
+                return (*vlhs > *vrhs) - (*vlhs < *vrhs);
+            }
             else
             {
-                static if (is(typeof(*vlhs < *vrhs)))
-                {
-                    if (*vlhs < *vrhs)
-                        return -1;
-                    else if (*vlhs > *vrhs)
-                        return 1;
-                    else
-                        return 0;
-                }
-
-                static if (is(typeof(*vlhs == *vrhs)))
+                static if (__traits(compiles, *vlhs == *vrhs))
                 {
                     if (*vlhs == *vrhs)
                         return 0;
@@ -1614,7 +1605,7 @@ private:
                 version (assert)
                     assert(0, typeid(T).toString() ~ ".opCmp()?");
                 else
-                    return cmpFloatUnknownResult;
+                    return float.nan;
             }
         }
     }
@@ -5071,7 +5062,8 @@ nothrow @safe unittest // Algebraic
     // Also test for elaborate copying
     static struct S
     {
-        @disable this();
+        //@disable this(this);
+        //@disable void opAssign(typeof(this));
 
         this(int dummy)
         {
@@ -5082,8 +5074,6 @@ nothrow @safe unittest // Algebraic
         {
             ++cnt;
         }
-
-        @disable S opAssign();
 
         ~this()
         {
@@ -5467,7 +5457,8 @@ nothrow @safe unittest // Algebraic
     static struct T
     {
         Value value;
-        @disable this();
+        @disable this(this);
+        @disable void opAssign(typeof(this));
     }
     auto a = appender!(T[]);
 }

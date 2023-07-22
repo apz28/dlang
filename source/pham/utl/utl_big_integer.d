@@ -24,6 +24,7 @@ public import std.typecons : No, Yes;
 
 version (profile) import pham.utl.test : PerfFunction;
 import pham.utl.array : ShortStringBuffer;
+import pham.utl.bit : bitLength, trailingZeroBits;
 import pham.utl.disposable : DisposingReason;
 public import pham.utl.numeric_parser : NumericLexerFlag, NumericLexerOptions;
 import pham.utl.numeric_parser : cvtDigit, cvtHexDigit2, isHexDigit, isNumericLexerRange, NumericLexer, NumericStringRange;
@@ -162,7 +163,7 @@ public:
         void throwError()
         {
             import std.conv;
-        
+
             throw new ConvException("Not a valid numerical string at " ~ to!string(lexer.count));
         }
 
@@ -178,7 +179,7 @@ public:
                 if (isHexDigit(f))
                 {
                     hexDigits.put(f);
-                    
+
                     lexer.popFront();
                 }
                 else if (lexer.conditionSkipSpaces())
@@ -189,7 +190,7 @@ public:
                 else
                     throwError();
             }
-        
+
             const resultLength = (hexDigits.length / 2) + (hexDigits.length % 2);
             auto resultBits = UByteTempArray(resultLength);
             size_t bitIndex = 0;
@@ -1430,11 +1431,10 @@ public:
     @property uint bitLength() const @nogc nothrow pure scope
     {
         import std.math : abs;
-        import pham.utl.bit_array : bitLength;
 
         return _bits.length == 0
-            ? bitLength(cast(uint)abs(_sign))
-            : cast(uint)(_bits.length - 1) * kcbitUint + bitLength(_bits[$ - 1]);
+            ? .bitLength(cast(uint)abs(_sign))
+            : cast(uint)(_bits.length - 1) * kcbitUint + .bitLength(_bits[$ - 1]);
     }
 
     /// Returns the value of the i'th bit, with lsb == bit 0.
@@ -1539,10 +1539,9 @@ public:
     @property uint trailingZeroBits() const @nogc nothrow pure scope
     {
         import std.math : abs;
-        import pham.utl.bit_array : trailingZeroBits;
 
         if (_bits.length == 0)
-            return isZero ? 0 : trailingZeroBits(cast(uint)abs(_sign));
+            return isZero ? 0 : .trailingZeroBits(cast(uint)abs(_sign));
 
         uint i;
         foreach (b; _bits)
@@ -1553,7 +1552,7 @@ public:
                 break;
         }
     	// x[i] != 0
-	    return i*kcbitUint + trailingZeroBits(_bits[i]);
+	    return i*kcbitUint + .trailingZeroBits(_bits[i]);
     }
 
 private:
@@ -2953,7 +2952,7 @@ nothrow unittest
     static void check(T)(T value, string checkedValue,
         string format = null,
         char separator = '_',
-        size_t line = __LINE__) nothrow @safe
+        uint line = __LINE__) nothrow @safe
     {
         auto v = BigInteger(value);
         auto s = toStringSafe(v, format, separator);
@@ -2988,7 +2987,7 @@ unittest
     static void check(T)(T value, string checkedValue,
         string format = "%X",
         char separator = '_',
-        size_t line = __LINE__)
+        uint line = __LINE__)
     {
         auto v = BigInteger(value);
         auto s = toStringSafe(v, format, separator);
@@ -3021,7 +3020,7 @@ unittest
     traceUnitTest("unittest pham.utl.biginteger.BigInteger(parse integer)");
 
     static void check(string value,
-        size_t line = __LINE__) @safe
+        uint line = __LINE__) @safe
     {
         auto v = BigInteger(value);
         auto s = toStringSafe(v);
@@ -3054,7 +3053,7 @@ unittest
     traceUnitTest("unittest pham.utl.biginteger.BigInteger(parse hex)");
 
     static void check(string value,
-        size_t line = __LINE__)
+        uint line = __LINE__)
     {
         auto v = BigInteger("0x" ~ value);
         auto s = toStringSafe(v, "%X");
@@ -3180,7 +3179,7 @@ unittest
     traceUnitTest("unittest pham.utl.biginteger.BigInteger(operator + - ~ )");
 
     static void check(const(BigInteger) value, string checkedValue,
-        size_t line = __LINE__)
+        uint line = __LINE__)
     {
         auto s = toStringSafe(value, "%,3d", '_');
         assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
@@ -3330,7 +3329,7 @@ unittest
     traceUnitTest("unittest pham.utl.biginteger.BigInteger(operator * / %)");
 
     static void check(const(BigInteger) value, string checkedValue,
-        size_t line = __LINE__)
+        uint line = __LINE__)
     {
         auto s = toStringSafe(value, "%,3d", '_');
         assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
@@ -3402,7 +3401,7 @@ unittest
     traceUnitTest("unittest pham.utl.biginteger.BigInteger(operator << >> ^^)");
 
     static void check(const(BigInteger) value, string checkedValue,
-        size_t line = __LINE__)
+        uint line = __LINE__)
     {
         auto s = toStringSafe(value, "%,3d", '_');
         assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
@@ -3433,7 +3432,7 @@ unittest
     traceUnitTest("unittest pham.utl.biginteger.BigInteger(multiply)");
 
     static void check(const(BigInteger) value, string checkedValue,
-        size_t line = __LINE__)
+        uint line = __LINE__)
     {
         auto s = toStringSafe(value);
         assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
@@ -3474,7 +3473,7 @@ unittest
     traceUnitTest("unittest pham.utl.biginteger.BigInteger(RSP Calculation)");
 
     static void check(string caseNumber, const(BigInteger) value, string checkedValue,
-        size_t line = __LINE__)
+        uint line = __LINE__)
     {
         auto s = toStringSafe(value);
         assert(s == checkedValue, caseNumber ~ " from line s: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);

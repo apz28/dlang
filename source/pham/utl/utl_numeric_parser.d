@@ -375,6 +375,7 @@ public:
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(Range value, NumericLexerOptions!(const(ElementType!Range)) options) pure
     {
@@ -552,6 +553,7 @@ public:
 
 public:
     @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(Range value, NumericLexerOptions!(const(RangeElement)) options) pure
     {
@@ -1287,7 +1289,7 @@ nothrow @safe unittest // parseBase64
     import pham.utl.array : ShortStringBuffer;
 
     static test(string base64Text, NumericParsedKind expectedCondition, string expectedText,
-        int line = __LINE__)
+        uint line = __LINE__)
     {
         ShortStringBuffer!ubyte buffer;
         assert(parseBase64(base64Text, buffer) == expectedCondition, "parseBase64 failed from line#: " ~ to!string(line));

@@ -13,6 +13,9 @@
 
 module pham.utl.big_integer_helper;
 
+import pham.utl.bit : DoubleUlong = Map64Bit;
+import pham.utl.result : cmp;
+
 nothrow @safe:
 
 package(pham.utl):
@@ -26,23 +29,17 @@ enum kuMaskHighBit = cast(uint)int.min;
 
 struct BigIntegerHelper
 {
-    static union DoubleUlong
-    {
-        ulong uu; // Declare integral first to have zero initialized
-        double dbl;
-    }
-
 @nogc nothrow pure @safe:
 
     pragma (inline, true)
     static void getDoubleParts(double dbl, out int sign, out int exp, out ulong man, out bool fFinite)
     {
         DoubleUlong du;
-        du.dbl = dbl;
+        du.f = dbl;
 
-        sign = 1 - (cast(int)(du.uu >> 62) & 2);
-        man = du.uu & 0x000FFFFFFFFFFFFF;
-        exp = cast(int)(du.uu >> 52) & 0x7FF;
+        sign = 1 - (cast(int)(du.u >> 62) & 2);
+        man = du.u & 0x000FFFFFFFFFFFFF;
+        exp = cast(int)(du.u >> 52) & 0x7FF;
         if (exp == 0)
         {
             // Denormalized number.
@@ -70,7 +67,7 @@ struct BigIntegerHelper
         DoubleUlong du;
 
         if (man == 0)
-            du.uu = 0;
+            du.u = 0;
         else
         {
             // Normalize so that 0x0010 0000 0000 0000 is the highest bit set.
@@ -89,7 +86,7 @@ struct BigIntegerHelper
             if (exp >= 0x7FF)
             {
                 // Infinity.
-                du.uu = 0x7FF0000000000000;
+                du.u = 0x7FF0000000000000;
             }
             else if (exp <= 0)
             {
@@ -98,25 +95,25 @@ struct BigIntegerHelper
                 if (exp < -52)
                 {
                     // Underflow to zero.
-                    du.uu = 0;
+                    du.u = 0;
                 }
                 else
                 {
-                    du.uu = man >> -exp;
-                    assert(du.uu != 0);
+                    du.u = man >> -exp;
+                    assert(du.u != 0);
                 }
             }
             else
             {
                 // Mask off the implicit high bit.
-                du.uu = (man & 0x000FFFFFFFFFFFFF) | (cast(ulong)exp << 52);
+                du.u = (man & 0x000FFFFFFFFFFFFF) | (cast(ulong)exp << 52);
             }
         }
 
         if (sign < 0)
-            du.uu |= 0x8000000000000000;
+            du.u |= 0x8000000000000000;
 
-        return du.dbl;
+        return du.f;
     }
 
     pragma (inline, true)
@@ -154,13 +151,13 @@ struct BigIntegerHelper
     pragma (inline, true)
     static int compare(long left, long right)
     {
-        return left < right ? -1 : (left > right ? 1 : 0);
+        return .cmp(left, right);
     }
 
     pragma (inline, true)
     static int compare(ulong left, ulong right)
     {
-        return left < right ? -1 : (left > right ? 1 : 0);
+        return .cmp(left, right);
     }
 
     static int cbitHighZero(uint u)

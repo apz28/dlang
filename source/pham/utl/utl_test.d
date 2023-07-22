@@ -414,7 +414,7 @@ version (unittest)
     }
 
     void traceFunction(Args...)(Args args,
-        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
+        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
     {
         version (TraceFunction)
         {
@@ -423,7 +423,7 @@ version (unittest)
     }
 
     void traceUnitTest(Args...)(Args args,
-        in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
+        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
     {
         version (TraceUnitTest)
         {

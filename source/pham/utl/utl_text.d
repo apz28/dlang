@@ -15,7 +15,6 @@ public import pham.utl.result : ResultIf;
 
 nothrow @safe:
 
-
 struct NamedValue(S)
 {
     S name;
@@ -155,7 +154,8 @@ void parseFormEncodedValues(S)(S formEncodedValues, bool delegate(size_t index, 
 }
 
 /**
- * Finds the first occurence of character `c` in string `str` and returns its index
+ * Finds the first occurence of character `c` in string `str` and returns its index.
+ * No auto decode
  * Params:
  *   str = string
  *   c = a character to look for
@@ -163,12 +163,7 @@ void parseFormEncodedValues(S)(S formEncodedValues, bool delegate(size_t index, 
  *   index of `c` in `str` if found
  *   -1 if not found
  */
-ptrdiff_t simpleIndexOf(scope const(char)[] str, const(char) c) @nogc pure
-in
-{
-    assert(isSimpleChar(c));
-}
-do
+ptrdiff_t simpleIndexOf(C)(scope const(C)[] str, const(C) c) @nogc pure
 {
 	foreach (i; 0..str.length)
     {
@@ -179,7 +174,8 @@ do
 }
 
 /**
- * Finds the first occurence of sub-string `subStr` in string `str` and returns its index
+ * Finds the first occurence of sub-string `subStr` in string `str` and returns its index.
+ * No auto decode
  * Params:
  *   str = string
  *   subStr = a sub-string to look for
@@ -187,12 +183,7 @@ do
  *   index of `subStr` in `str` if found
  *   -1 if not found
  */
-ptrdiff_t simpleIndexOf(scope const(char)[] str, scope const(char)[] subStr) @nogc pure
-in
-{
-    assert(isAllSimpleChar(subStr));
-}
-do
+ptrdiff_t simpleIndexOf(C)(scope const(C)[] str, scope const(C)[] subStr) @nogc pure
 {
     if (str.length < subStr.length || subStr.length == 0)
         return -1;
@@ -219,7 +210,8 @@ do
 }
 
 /**
- * Finds the first occurence of any character `chars` in `str` and returns its index
+ * Finds the first occurence of any character `chars` in `str` and returns its index.
+ * No auto decode
  * Params:
  *   str = string
  *   chars = list of characters to look for
@@ -227,12 +219,7 @@ do
  *   index of any `chars` in `str`
  *   -1 if not found
  */
-ptrdiff_t simpleIndexOfAny(scope const(char)[] str, scope const(char)[] chars) @nogc pure
-in
-{
-    assert(isAllSimpleChar(chars));
-}
-do
+ptrdiff_t simpleIndexOfAny(C)(scope const(C)[] str, scope const(C)[] chars) @nogc pure
 {
 	foreach (i; 0..str.length)
     {

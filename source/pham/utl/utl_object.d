@@ -16,11 +16,14 @@ public import std.ascii : LetterCase;
 import std.format : FormatSpec;
 import std.math : isPowerOf2;
 import std.range.primitives : put;
-import std.traits : isArray, isAssociativeArray, isFloatingPoint, isIntegral, isPointer,
+import std.traits : isArray, isAssociativeArray, isIntegral, isPointer,
     isSomeChar, isSomeString, isUnsigned, Unqual;
 
+import pham.utl.array : ShortStringBuffer;
 import pham.utl.disposable;
-
+import pham.utl.numeric_parser : Base64MappingChar, NumericParsedKind, cvtBytesBase64, cvtBytesHex, parseBase64, parseHexDigits;
+import pham.utl.result : cmp;
+import pham.utl.utf8 : NoDecodeInputRange;
 
 /**
  * Roundups and returns value, `n`, to the power of 2 modular value, `powerOf2AlignmentSize`
@@ -52,10 +55,6 @@ do
  */
 ubyte[] bytesFromBase64s(scope const(char)[] validBase64Text) nothrow pure @safe
 {
-    import pham.utl.array : ShortStringBuffer;
-    import pham.utl.numeric_parser : NumericParsedKind, parseBase64;
-    import pham.utl.utf8 : NoDecodeInputRange;
-
     NoDecodeInputRange!(validBase64Text, char) inputRange;
     ShortStringBuffer!ubyte result;
     if (parseBase64(inputRange, result) != NumericParsedKind.ok)
@@ -72,8 +71,6 @@ ubyte[] bytesFromBase64s(scope const(char)[] validBase64Text) nothrow pure @safe
  */
 char[] bytesToBase64s(scope const(ubyte)[] bytes) nothrow pure @safe
 {
-    import pham.utl.numeric_parser : Base64MappingChar, cvtBytesBase64;
-
     return cvtBytesBase64(bytes, Base64MappingChar.padding, false);
 }
 
@@ -87,10 +84,6 @@ char[] bytesToBase64s(scope const(ubyte)[] bytes) nothrow pure @safe
  */
 ubyte[] bytesFromHexs(scope const(char)[] validHexDigits) nothrow pure @safe
 {
-    import pham.utl.array : ShortStringBuffer;
-    import pham.utl.numeric_parser : NumericParsedKind, parseHexDigits;
-    import pham.utl.utf8 : NoDecodeInputRange;
-
     NoDecodeInputRange!(validHexDigits, char) inputRange;
     ShortStringBuffer!ubyte result;
     if (parseHexDigits(inputRange, result) != NumericParsedKind.ok)
@@ -107,8 +100,6 @@ ubyte[] bytesFromHexs(scope const(char)[] validHexDigits) nothrow pure @safe
  */
 char[] bytesToHexs(scope const(ubyte)[] bytes) nothrow pure @safe
 {
-    import pham.utl.numeric_parser : cvtBytesHex;
-
     return cvtBytesHex(bytes, LetterCase.upper, false);
 }
 
@@ -123,47 +114,6 @@ string className(Object object) nothrow pure @safe
         return "null";
     else
         return typeid(object).name;
-}
-
-/**
- * Compares and returns logical order of integer type values
- * Params:
- *   lhs = left hand side of float value
- *   rhs = right hand side of float value
- * Retruns:
- *   -1 if `lhs` is less than `rhs`
- *   1 if `lhs` is greater than `rhs`
- *   0 otherwise
- */
-pragma(inline, true)
-int cmpInteger(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
-if (isIntegral!T)
-{
-    return (lhs > rhs) - (lhs < rhs);
-}
-
-/**
- * Compares and returns logical order of float type values
- * Params:
- *   lhs = left hand side of float value
- *   rhs = right hand side of float value
- * Retruns:
- *   float.nan if either `lhs` or `rhs` is a NaN value
- *   -1 if `lhs` is less than `rhs`
- *   1 if `lhs` is greater than `rhs`
- *   0 otherwise
- */
-enum cmpFloatUnknownResult = int.min;
-pragma(inline, true)
-int cmpFloat(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
-if (isFloatingPoint!T)
-{
-    import std.math : isNaN;
-
-    if (isNaN(lhs) || isNaN(rhs))
-        return cmpFloatUnknownResult;
-    else
-        return (lhs > rhs) - (lhs < rhs);
 }
 
 /**
@@ -219,26 +169,6 @@ if (isSomeString!S && isSomeChar!C && is(Unqual!(typeof(S.init[0])) == C))
         return size > 0
             ? (stringOfChar!C(n - value.length, c) ~ value)
             : (value ~ stringOfChar!C(n - value.length, c));
-}
-
-/**
- * Compares and returns none-zero if both values are same sign
- * Params:
- *   lhs = left hand side of integral value
- *   rhs = right hand side of integral value
- * Retruns:
- *   -1 if `lhs` and `rhs` are both negative
- *   1 if `lhs` and `rhs` are both positive
- *   0 otherwise
- */
-pragma(inline, true)
-int sameSign(LHS, RHS)(const(LHS) lhs, const(RHS) rhs) @nogc nothrow pure @safe
-if (isIntegral!LHS && isIntegral!RHS)
-{
-    const lhsP = lhs >= 0;
-    const rhsP = rhs >= 0;
-
-    return lhsP && rhsP ? 1 : (!lhsP && !rhsP ? -1 : 0);
 }
 
 /**
@@ -507,8 +437,7 @@ struct RAIIMutex
 @nogc nothrow @safe:
 
 public:
-    @disable this();
-    @disable this(ref typeof(this));
+    @disable this(this);
     @disable void opAssign(typeof(this));
 
     /**
@@ -628,12 +557,12 @@ public:
 
             foreach (i; 0..cmpLen)
             {
-                const result = cmpInteger(this.data[i], rhs.data[i]);
+                const result = cmp(this.data[i], rhs.data[i]);
                 if (result != 0)
                     return result;
             }
 
-            return cmpInteger(cmpLHS, cmpRHS);
+            return cmp(cmpLHS, cmpRHS);
         }
 
         bool opEquals(scope const(Parti) rhs) const @nogc pure
@@ -940,38 +869,6 @@ nothrow @safe unittest // className
     assert(className(c2) == "pham.utl.object.TestClassTemplate!int.TestClassTemplate");
 }
 
-nothrow @safe unittest // cmpFloat
-{
-    //import std.math : isNaN;
-
-    assert(cmpFloat(0.0, 0.0) == 0);
-    assert(cmpFloat(1.0, 2.0) == -1);
-    assert(cmpFloat(1.0, 1.0) == 0);
-    assert(cmpFloat(2.0, 1.0) == 1);
-    assert(cmpFloat(-double.max, -double.max) == 0);
-    assert(cmpFloat(double.max, double.max) == 0);
-    assert(cmpFloat(-double.max, double.max) == -1);
-    assert(cmpFloat(double.max, -double.max) == 1);
-    //assert(isNaN(cmpFloat(double.nan, 2.0)));
-    //assert(isNaN(cmpFloat(1.0, double.nan)));
-    //assert(isNaN(cmpFloat(double.nan, double.nan)));
-    assert(cmpFloat(double.nan, 2.0) == cmpFloatUnknownResult);
-    assert(cmpFloat(1.0, double.nan) == cmpFloatUnknownResult);
-    assert(cmpFloat(double.nan, double.nan) == cmpFloatUnknownResult);
-}
-
-nothrow @safe unittest // cmpInteger
-{
-    assert(cmpInteger(0, 0) == 0);
-    assert(cmpInteger(1, 2) == -1);
-    assert(cmpInteger(1, 1) == 0);
-    assert(cmpInteger(2, 1) == 1);
-    assert(cmpInteger(int.min, int.min) == 0);
-    assert(cmpInteger(int.max, int.max) == 0);
-    assert(cmpInteger(int.min, int.max) == -1);
-    assert(cmpInteger(int.max, int.min) == 1);
-}
-
 nothrow @safe unittest // functionName
 {
     auto c1 = new TestClassName();
@@ -998,24 +895,6 @@ nothrow @safe unittest // pad
     assert(pad("12", 2, ' ') == "12");
     assert(pad("12", 3, ' ') == " 12");
     assert(pad("12", -3, ' ') == "12 ");
-}
-
-nothrow @safe unittest // sameSign
-{
-    assert(sameSign(0, 0) == 1);
-    assert(sameSign(1, 0) == 1);
-    assert(sameSign(0, 1) == 1);
-    assert(sameSign(3, 1) == 1);
-
-    assert(sameSign(-1, -100) == -1);
-
-    assert(sameSign(-1, 1) == 0);
-    assert(sameSign(-10, 0) == 0);
-
-    assert(sameSign(byte.min, byte.max) == 0);
-    assert(sameSign(byte.min, int.max) == 0);
-    assert(sameSign(byte.max, int.max) == 1);
-    assert(sameSign(byte.min, int.min) == -1);
 }
 
 nothrow @safe unittest // shortClassName
@@ -1060,7 +939,7 @@ nothrow @safe unittest // stringOfChar
     import std.conv : to;
 
     void testCheck(uint radix = 10, N)(N n, const(ubyte) pad, string expected,
-        size_t line = __LINE__)
+        uint line = __LINE__)
     {
         Appender!string buffer;
         toString!(radix, N)(buffer, n, pad);

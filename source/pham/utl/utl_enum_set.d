@@ -791,9 +791,6 @@ size_t maxBits() @nogc pure
 
 nothrow @safe unittest // toEnum
 {
-    import pham.utl.test;
-    traceUnitTest("unittest pham.utl.enum_set.toEnum");
-
     enum EnumTestOrder
     {
         one,
@@ -809,9 +806,6 @@ nothrow @safe unittest // toEnum
 
 nothrow @safe unittest // toName
 {
-    import pham.utl.test;
-    traceUnitTest("unittest pham.utl.enum_set.toName");
-
     enum EnumTestOrder : ubyte
     {
         one,
@@ -837,8 +831,6 @@ nothrow @safe unittest // toName
 nothrow @safe unittest // EnumSet
 {
     import std.traits : OriginalType;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.utl.enum_set.EnumSet");
 
     //pragma(msg, size_t.sizeof * 8, '.', size_t.max);
 
@@ -1034,9 +1026,6 @@ nothrow @safe unittest // EnumSet
 
 nothrow @safe unittest // EnumArray
 {
-    import pham.utl.test;
-    traceUnitTest("unittest pham.utl.enum_set.EnumArray");
-
     enum EnumTest
     {
         one,
