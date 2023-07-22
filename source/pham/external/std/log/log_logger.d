@@ -4905,7 +4905,7 @@ void testFuncNames(Logger logger) @safe
 
     datePattern.fmt = "%S";
 
-    void setFunctionInfo(in string fileName = __FILE__, in string funcName = __FUNCTION__)
+    void setFunctionInfo(int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__)
     {
         atfileName = fileName;
         atfuncName = funcName;
