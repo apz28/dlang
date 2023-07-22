@@ -26,11 +26,11 @@ nothrow @safe:
 
 TimeZoneInfo[] getDefaultTimeZoneInfosByJson(string jsonText) @trusted
 {
+    if (jsonText.length == 0)
+        return null;
+
     // Special try construct for grep
     try {
-        if (jsonText.length == 0)
-            return null;
-
         TimeZoneInfo[] result;
         result.reserve(200);
 

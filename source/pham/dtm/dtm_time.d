@@ -120,7 +120,7 @@ public:
 
     bool opEquals(scope const(Time) rhs) const @nogc nothrow pure scope
     {
-        return data.opEquals(rhs.data);
+        return opCmp(rhs) == 0;
     }
 
     Time addBias(const(int) biasSign, const(int) biasHour, const(int) biasMinute) const @nogc nothrow pure

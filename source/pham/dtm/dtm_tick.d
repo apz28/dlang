@@ -17,7 +17,7 @@ public import core.time : dur, Duration, TimeException;
 import std.conv : to;
 import std.traits : isIntegral;
 
-import pham.utl.result : ResultIf;
+import pham.utl.result : cmp, ResultIf;
 
 version = RelaxCompareTime;
 
@@ -304,20 +304,20 @@ struct TickData
     {
         version (RelaxCompareTime)
         {
-            const result = cmpInteger(this.uticks, rhs.uticks);
+            const result = cmp(this.uticks, rhs.uticks);
             if (result == 0)
             {
                 const lhsKind = this.internalKind;
                 const rhsKind = rhs.internalKind;
                 if (!isCompatibleKind(lhsKind, rhsKind))
-                    return cmpInteger(lhsKind, rhsKind);
+                    return cmp(lhsKind, rhsKind);
             }
             return result;
         }
         else
         {
-            const result = cmpInteger(this.uticks, rhs.uticks);
-            return result == 0 ? cmpInteger(this.internalKind, rhs.internalKind) : result;
+            const result = cmp(this.uticks, rhs.uticks);
+            return result == 0 ? cmp(this.internalKind, rhs.internalKind) : result;
         }
     }
 
@@ -502,13 +502,6 @@ enum ErrorPart : ubyte
     year,
     week,
     kind,
-}
-
-pragma(inline, true)
-int cmpInteger(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure @safe
-if (isIntegral!T)
-{
-    return (lhs > rhs) - (lhs < rhs);
 }
 
 void checkTimeParts(int hour, int minute, int second, int millisecond) pure

@@ -12,7 +12,7 @@
 module pham.dtm.time_zone_default;
 
 version = dtm_time_zone_default_code;
-import pham.dtm.time_zone : TimeZoneInfoMapList;
+import pham.dtm.time_zone_map : TimeZoneInfoMapList;
 
 nothrow @safe:
 

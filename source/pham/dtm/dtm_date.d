@@ -15,6 +15,7 @@ import std.range.primitives : isOutputRange;
 import std.traits : isSomeChar;
 
 import pham.utl.array : ShortStringBuffer;
+import pham.utl.result : cmp;
 import pham.dtm.tick;
 public import pham.dtm.tick : CustomFormatSpecifier, DayOfWeek, DateTimeKind,
     DateTimeSetting, dateTimeSetting, DateTimeZoneKind,
@@ -80,12 +81,12 @@ public:
 
     int opCmp(scope const(Date) rhs) const @nogc nothrow pure scope
     {
-        return cmpInteger(data, rhs.data);
+        return cmp(data, rhs.data);
     }
 
     bool opEquals(scope const(Date) rhs) const @nogc nothrow pure scope
     {
-        return data == rhs.data;
+        return opCmp(rhs) == 0;
     }
 
     /**
@@ -641,7 +642,7 @@ public:
 
     bool opEquals(scope const(DateTime) rhs) const @nogc nothrow pure scope
     {
-        return data.opEquals(rhs.data);
+        return opCmp(rhs) == 0;
     }
 
     DateTime addBias(const(int) biasSign, const(int) biasHour, const(int) biasMinute) const @nogc nothrow pure

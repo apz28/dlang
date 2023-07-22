@@ -18,7 +18,6 @@ version (unittest) import pham.utl.test;
 import pham.dtm.date;
 import pham.dtm.tick;
 import pham.dtm.time;
-import pham.dtm.time_zone_default;
 
 @safe:
 
@@ -577,7 +576,7 @@ public:
     static void offsetToISOPart(const(short) validMinuteOffset, out byte hour, out byte minute) @nogc nothrow pure scope
     in
     {
-        assert(validMinuteOffset >= (-14 * 60) && validOffsetHour <= (14 * 60));
+        assert(validMinuteOffset >= (-14 * 60) && validMinuteOffset <= (14 * 60));
     }
     do
     {
@@ -1136,132 +1135,6 @@ private:
     bool _supportsDaylightSavingTime;
 }
 
-alias MapId = ushort;
-
-struct TimeZoneInfoMap
-{
-nothrow @safe:
-
-public:
-    this(MapId id, string zoneId, TimeZoneInfo* info) @nogc pure
-    {
-        this._id = id;
-        this._zoneId = zoneId;
-        this._info = info;
-    }
-
-	bool isValid() const @nogc pure
-    {
-		return _id != 0 && _zoneId.length != 0 && _info !is null;
-    }
-
-    static TimeZoneInfoMap timeZoneMap(MapId id) @nogc nothrow @trusted
-    {
-        return (cast()defaultTimeZoneInfoMaps).timeZoneMap(id);
-    }
-
-    static TimeZoneInfoMap timeZoneMap(string zoneId) @nogc nothrow @trusted
-    {
-        return (cast()defaultTimeZoneInfoMaps).timeZoneMap(zoneId);
-    }
-
-    @property MapId id() const @nogc pure
-    {
-        return _id;
-    }
-
-    @property const(TimeZoneInfo)* info() const @nogc pure
-    {
-        return _info;
-    }
-
-    @property string zoneId() const @nogc pure
-    {
-        return _zoneId;
-    }
-
-private:
-    string _zoneId;
-    TimeZoneInfo* _info;
-    MapId _id; // Runtime assigned value
-}
-
-class TimeZoneInfoMapList
-{
-nothrow @safe:
-
-public:
-    this(TimeZoneInfo[] zones) pure
-    {
-        this.zones = zones;
-        this.initDicts;
-    }
-
-    final void add(MapId id, TimeZoneInfo* info) pure
-    {
-        auto map = TimeZoneInfoMap(id, info.id, info);
-        zoneIds[info.id] = map;
-        ids[id] = map;
-    }
-
-    final void add(MapId id, string zoneId, TimeZoneInfo* info) pure
-    {
-        auto map = TimeZoneInfoMap(id, zoneId, info);
-        zoneIds[zoneId] = map;
-        if ((id in ids) is null)
-            ids[id] = map;
-    }
-
-    final TimeZoneInfoMap timeZoneMap(MapId id) @nogc pure
-    {
-        if (auto e = id in ids)
-            return *e;
-        else
-            return TimeZoneInfoMap(0, null, null);
-    }
-
-    final TimeZoneInfoMap timeZoneMap(string zoneId) @nogc pure
-    {
-        if (auto e = zoneId in zoneIds)
-            return *e;
-        else
-            return TimeZoneInfoMap(0, null, null);
-    }
-
-private:
-    final void initDicts() pure
-    {
-        MapId idSeed = 30; // Reserve first 30 for utc ones
-        ptrdiff_t utcIdIndex = -1, utcId2Index = -1;
-        foreach (i; 0..zones.length)
-        {
-            auto tzi = &zones[i];
-
-            if (tzi.id == TimeZoneInfo.utcId)
-            {
-                utcIdIndex = i;
-                add(TimeZoneInfo.utcIdInt, tzi);
-            }
-            else if (tzi.id == TimeZoneInfo.utcId2)
-            {
-                utcId2Index = i;
-                add(TimeZoneInfo.utcId2Int, tzi);
-            }
-            else
-                add(++idSeed, tzi);
-        }
-
-        // Add alias if not found
-        if (utcId2Index == -1 && utcIdIndex >= 0)
-            add(TimeZoneInfo.utcId2Int, TimeZoneInfo.utcId2, &zones[utcIdIndex]);
-    }
-
-private:
-    TimeZoneInfoMap[MapId] ids;
-    TimeZoneInfoMap[string] zoneIds;
-    TimeZoneInfo[] zones;
-}
-
 struct TransitionTime
 {
 @safe:
@@ -1414,7 +1287,6 @@ private:
     bool _isFixedDateRule;
 }
 
-
 package(pham.dtm):
 
 struct CacheTimeZoneInfo
@@ -1453,8 +1325,6 @@ TimeZoneInfo notFoundLocalTimeZone(string useId) @nogc nothrow pure
 
 
 private:
-
-static immutable TimeZoneInfoMapList defaultTimeZoneInfoMaps;
 
 version (Windows)
 {
@@ -1820,12 +1690,7 @@ else version (Posix)
 else
     static assert(0, "Unsupport target");
 
-shared static this() @trusted
-{
-    defaultTimeZoneInfoMaps = cast(immutable TimeZoneInfoMapList)getDefaultTimeZoneInfoMaps();
-}
-
-unittest
+unittest // TimeZoneInfo.localTimeZone
 {
     import pham.utl.test;
     traceUnitTest("unittest pham.dtm.time_zone.TimeZoneInfo.localTimeZone");
