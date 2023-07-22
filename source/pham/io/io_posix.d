@@ -17,75 +17,51 @@ import core.sys.posix.fcntl;
 import core.sys.posix.unistd : close, lseek64, pipe, read, ftruncate64, write;
 import core.stdc.stdio : remove;
 
-import pham.io.type : SeekOrigin, StreamOpenInfo, StreamResult;
+import pham.io.type : SeekOrigin, StreamOpenInfo, IOResult;
 
-alias Handle = int;
-enum invalidHandleValue = -1;
-
-string getSystemErrorMessage(const(int) errorNo) nothrow @trusted
-in
-{
-    assert(errorNo != 0);
-}
-do
-{
-    import core.stdc.string : strlen, strerror_r;
-
-    char[1_000] buf = void;
-    const(char)* p;
-
-    version (CRuntime_Glibc)
-        p = strerror_r(errorNo, buf.ptr, buf.length);
-    else if (!strerror_r(errorNo, buf.ptr, buf.length))
-        p = buf.ptr;
-    return p !is null ? p[0..p.strlen].idup : null;
-}
-
-pragma(inline, true)
-int lastErrorNo() nothrow @safe
-{
-    return errno;
-}
+alias FileHandle = int;
+enum invalidFileHandle = -1;
+private enum limitEINTR = 5;
 
 alias closeFile = close;
 
-int createFilePipes(const(bool) asInput, out Handle inputHandle, out Handle outputHandle,
+int createFilePipes(const(bool) asInput, out FileHandle inputHandle, out FileHandle outputHandle,
     uint bufferSize = 0) nothrow @trusted
 {
-    Handle[2] handles = invalidHandleValue;
-    int result;
+    FileHandle[2] handles = invalidFileHandle;
+    int result, limit;
     do
     {
         result = pipe(handles);
     }
-    while (result < 0 && errno == EINTR);
+    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
     inputHandle = handles[0];
     outputHandle = handles[1];
     return result;
 }
 
 pragma(inline, true)
-int flushFile(Handle handle) nothrow @trusted
+int flushFile(FileHandle handle) nothrow @trusted
 in
 {
-    assert(handle != invalidHandleValue);
+    assert(handle != invalidHandle);
 }
 do
 {
-    int result;
+    int result, limit;
     do
     {
         result = fsync(handle);
     }
-    while (result < 0 && errno == EINTR);
+    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
     return result;
 }
 
 pragma(inline, true)
-long getLengthFile(Handle handle) nothrow @trusted
+long getLengthFile(FileHandle handle) nothrow @trusted
 in
 {
-    assert(handle != invalidHandleValue);
+    assert(handle != invalidHandle);
 }
 do
 {
@@ -98,36 +74,37 @@ do
     return seekHandle(0, SeekOrigin.end);
 }
 
-Handle openFile(scope const(char)[] fileName, scope const(StreamOpenInfo) openInfo) nothrow @trusted
+FileHandle openFile(scope const(char)[] fileName, scope const(StreamOpenInfo) openInfo) nothrow @trusted
 {
     import std.internal.cstring : tempCString;
 
     auto lpFileName = fileName.tempCString();
-    Handle result;
+    FileHandle result;
+    int limit;
     do
     {
         result = open(lpFileName, openInfo.mode, openInfo.flag);
     }
-    while (result < 0 && errno == EINTR);
+    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
     return result;
 }
 
 pragma(inline, true)
-int readFile(Handle handle, scope ubyte[] bytes) nothrow @trusted
+int readFile(FileHandle handle, scope ubyte[] bytes) nothrow @trusted
 in
 {
-    assert(handle != invalidHandleValue);
+    assert(handle != invalidHandle);
     assert(bytes.length > 0);
     assert(bytes.length <= int.max);
 }
 do
 {
-    int result;
+    int result, limit;
     do
     {
         result = read(handle, bytes.ptr, cast(uint)bytes.length);
     }
-    while (result < 0 && errno == EINTR);
+    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
     return result;
 }
 
@@ -136,64 +113,65 @@ int removeFile(scope const(char)[] fileName) nothrow @trusted
     import std.internal.cstring : tempCString;
 
     auto lpFileName = fileName.tempCString();
-    int result;
+    int result, limit;
     do
     {
         result = remove(lpFileName);
     }
-    while (result < 0 && errno == EINTR);
+    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
     return result;
 }
 
 pragma(inline, true)
-long seekFile(Handle handle, long offset, SeekOrigin origin) nothrow @trusted
+long seekFile(FileHandle handle, long offset, SeekOrigin origin) nothrow @trusted
 in
 {
-    assert(handle != invalidHandleValue);
+    assert(handle != invalidHandle);
 }
 do
 {
     long result;
+    int limit;
     do
     {
         result = lseek64(handle, offset, origin);
     }
-    while (result < 0 && errno == EINTR);
+    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
     return result;
 }
 
 pragma(inline, true)
-int setLengthFile(Handle handle, long length) nothrow @trusted
+int setLengthFile(FileHandle handle, long length) nothrow @trusted
 in
 {
-    assert(handle != invalidHandleValue);
+    assert(handle != invalidHandle);
 }
 do
 {
-    int result;
+    int result, limit;
     do
     {
         result = ftruncate64(handle, length);
     }
-    while (result < 0 && errno == EINTR);
+    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
     return result;
 }
 
 pragma(inline, true)
-int writeFile(Handle handle, scope const(ubyte)[] bytes) nothrow @trusted
+int writeFile(FileHandle handle, scope const(ubyte)[] bytes) nothrow @trusted
 in
 {
-    assert(handle != invalidHandleValue);
+    assert(handle != invalidHandle);
     assert(bytes.length >= 0);
     assert(bytes.length <= int.max);
 }
 do
 {
-    int result;
+    int result, limit;
     do
     {
         result = write(handle, bytes.ptr, cast(uint)bytes.length);
     }
-    while (result < 0 && errno == EINTR);
+    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
     return result;
 }

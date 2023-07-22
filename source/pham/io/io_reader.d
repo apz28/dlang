@@ -14,6 +14,8 @@ module pham.io.reader;
 import std.bitmanip : bigEndianToNative, littleEndianToNative;
 import std.system : Endian;
 
+import pham.utl.bit : Map32Bit, Map64Bit;
+import pham.io.error;
 import pham.io.stream;
 import pham.io.type;
 
@@ -104,14 +106,14 @@ public:
     pragma(inline, true)
     float readFloat()
     {
-        BytesOfFloat v2 = { i:readUInt() };
+        Map32Bit v2 = { u:readUInt() };
         return v2.f;
     }
 
     pragma(inline, true)
     double readDouble()
     {
-        BytesOfDouble v2 = { i:readULong() };
+        Map64Bit v2 = { u:readULong() };
         return v2.f;
     }
 
@@ -250,7 +252,7 @@ public:
     {
         return cast(ValueKind)readKind();
     }
-    
+
     @property Stream stream() nothrow pure
     {
         return _stream;
@@ -313,8 +315,8 @@ unittest // StreamReader
     import std.stdio;
 
     auto s = new ReadonlyStream(null);
-    BytesOfFloat f = { i:0x01020304 };
-    BytesOfDouble d = { i:0x0102030405060708 };
+    Map32Bit f = { u:0x01020304 };
+    Map64Bit d = { u:0x0102030405060708 };
 
     auto w2 = StreamReader!(Endian.littleEndian)(s.open([0x22, 0x11]));
     assert(w2.readUShort() == 0x1122);

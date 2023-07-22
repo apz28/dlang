@@ -14,6 +14,8 @@ module pham.io.writer;
 import std.bitmanip : nativeToBigEndian, nativeToLittleEndian;
 import std.system : Endian;
 
+import pham.utl.bit : Map32Bit, Map64Bit;
+import pham.io.error;
 import pham.io.stream;
 import pham.io.type;
 
@@ -104,15 +106,15 @@ public:
     pragma(inline, true)
     void write(float v)
     {
-        BytesOfFloat v2 = { f:v };
-        write(v2.i);
+        Map32Bit v2 = { f:v };
+        write(v2.u);
     }
 
     pragma(inline, true)
     void write(double v)
     {
-        BytesOfDouble v2 = { f:v };
-        write(v2.i);
+        Map64Bit v2 = { f:v };
+        write(v2.u);
     }
 
     pragma(inline, true)
@@ -384,8 +386,8 @@ private:
 unittest // StreamWriter
 {
     auto s = new MemoryStream();
-    BytesOfFloat f = { i:0x01020304 };
-    BytesOfDouble d = { i:0x0102030405060708 };
+    Map32Bit f = { u:0x01020304 };
+    Map64Bit d = { u:0x0102030405060708 };
 
     auto w1 = StreamWriter!(Endian.littleEndian)(s.clear());
     w1.write("hello");

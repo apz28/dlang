@@ -14,6 +14,8 @@ module pham.io.stream;
 public import core.time : Duration;
 import core.time : msecs;
 
+import pham.utl.result : lastSystemError;
+public import pham.io.error : IOError;
 public import pham.io.type;
 version (Posix)
     import pham.io.posix;
@@ -31,14 +33,14 @@ class Stream
 public:
     ~this() nothrow
     {
-        close();
+        close(true);
     }
 
     /**
      * Closes the current stream and releases any resources (such as sockets and file handles)
      * associated with the current stream
      */
-    abstract StreamResult close() nothrow scope;
+    abstract IOResult close(const(bool) destroying = false) nothrow scope;
 
     /**
      * Reads the bytes from the current stream and writes them to another stream.
@@ -79,7 +81,7 @@ public:
      * When overridden in a derived class, clears all buffers for this stream and causes
      * any buffered data to be written to the underlying device
      */
-    abstract StreamResult flush() nothrow;
+    abstract IOResult flush() nothrow;
 
     /**
      * Read a ubyte from stream.
@@ -235,10 +237,10 @@ public:
         return readTimeoutImpl();
     }
 
-    @property final Duration readTimeout(Duration value) nothrow
+    @property final Stream readTimeout(Duration value) nothrow
     {
         if (const r = checkUnsupported(canTimeout))
-            return msecs(r);
+            return null;
 
         return readTimeoutImpl(value);
     }
@@ -254,22 +256,22 @@ public:
         return writeTimeoutImpl();
     }
 
-    @property final Duration writeTimeout(Duration value) nothrow
+    @property final Stream writeTimeout(Duration value) nothrow
     {
         if (const r = checkUnsupported(canTimeout))
-            return msecs(r);
+            return null;
 
         return writeTimeoutImpl(value);
     }
 
 public:
-    StreamError lastError;
+    IOError lastError;
 
 package(pham.io):
     enum defaultBufferSize = 16_384;
 
     pragma(inline, true)
-    final StreamResult checkActive(string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
+    final IOResult checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
     {
         return active
             ? lastError.reset()
@@ -277,8 +279,8 @@ package(pham.io):
     }
 
     pragma(inline, true)
-    final StreamResult checkUnsupported(const(bool) can,
-        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
+    final IOResult checkUnsupported(const(bool) can,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
     {
         return can
             ? lastError.reset()
@@ -329,7 +331,7 @@ protected:
         assert(0, "Must overwrite");
     }
 
-    Duration readTimeoutImpl(Duration value) nothrow
+    Stream readTimeoutImpl(Duration value) nothrow
     {
         assert(0, "Must overwrite");
     }
@@ -339,7 +341,7 @@ protected:
         assert(0, "Must overwrite");
     }
 
-    Duration writeTimeoutImpl(Duration value) nothrow
+    Stream writeTimeoutImpl(Duration value) nothrow
     {
         assert(0, "Must overwrite");
     }
@@ -376,11 +378,11 @@ public:
         return this;
     }
 
-    final override StreamResult close() nothrow scope
+    final override IOResult close(const(bool) destroying = false) nothrow scope
     {
         _data = null;
         _position = 0;
-        return StreamResult.success;
+        return IOResult.success;
     }
 
     /**
@@ -392,9 +394,9 @@ public:
         return this._position >= this._data.length;
     }
 
-    override StreamResult flush() nothrow
+    override IOResult flush() nothrow
     {
-        return StreamResult.success;
+        return IOResult.success;
     }
 
     pragma(inline, true)
@@ -587,11 +589,11 @@ public:
         this._data = data;
     }
 
-    final override StreamResult close() nothrow scope
+    final override IOResult close(const(bool) destroying = false) nothrow scope
     {
         _data = null;
         _position = 0;
-        return StreamResult.success;
+        return IOResult.success;
     }
 
     /**
@@ -603,9 +605,9 @@ public:
         return this._position >= this._data.length;
     }
 
-    override StreamResult flush() nothrow
+    override IOResult flush() nothrow
     {
-        return StreamResult.success;
+        return IOResult.success;
     }
 
     final ReadonlyStream open(ubyte[] data) nothrow pure
@@ -757,25 +759,44 @@ private:
     size_t _position;
 }
 
-class HandleStream : Stream
+class FileHandleStream : Stream
 {
 @safe:
 
 public:
-    this(Handle handle, string name) nothrow pure
+    this(FileHandle handle, string name, StreamOpenMode openMode) nothrow pure
     {
         this._handle = handle;
         this._name = name;
+        this._openMode = openMode;
+        this._position = 0;
+    }
+
+    final override IOResult close(const(bool) destroying = false) nothrow scope
+    {
+        if (_handle == invalidFileHandle)
+            return IOResult.success;
+
+        scope (exit)
+        {
+            _handle = invalidFileHandle;
+            _position = 0;
+        }
+
+        if (closeFile(_handle) == IOResult.success)
+            return IOResult.success;
+
+        return lastError.setFailed(lastSystemError());
     }
 
     pragma(inline, true)
     @property final override bool active() const @nogc nothrow
     {
-        return _handle != invalidHandleValue;
+        return _handle != invalidFileHandle;
     }
 
     pragma(inline, true)
-    @property final Handle handle() @nogc nothrow pure
+    @property final FileHandle handle() @nogc nothrow pure
     {
         return _handle;
     }
@@ -785,50 +806,16 @@ public:
         return this._name;
     }
 
-private:
-    string _name;
-    Handle _handle = invalidHandleValue;
-}
-
-class FileHandleStream : HandleStream
-{
-@safe:
-
-public:
-    this(Handle handle, string name, StreamOpenMode openMode) nothrow pure
+    pragma(inline, true)
+    @property final StreamOpenMode openMode() const @nogc nothrow pure
     {
-        super(handle, name);
-        this._openMode = openMode;
-        this._position = 0;
-    }
-
-    final override StreamResult close() nothrow scope
-    {
-        if (_handle == invalidHandleValue)
-            return StreamResult.success;
-
-        scope (exit)
-        {
-            _handle = invalidHandleValue;
-            _position = 0;
-        }
-
-        if (closeFile(_handle) == 0)
-            return StreamResult.success;
-
-        return lastError.setFailed(lastErrorNo());
+        return _openMode;
     }
 
     pragma(inline, true)
     @property final override long position() nothrow
     {
         return _position;
-    }
-
-    pragma(inline, true)
-    @property final StreamOpenMode openMode() const @nogc nothrow pure
-    {
-        return _openMode;
     }
 
 protected:
@@ -841,7 +828,7 @@ protected:
             const rn = remaining >= int.max ? int.max : remaining;
             const rr = readFile(_handle, bytes[offset..offset+rn]);
             if (rr < 0)
-                return lastError.setFailed(lastErrorNo());
+                return lastError.setFailed(lastSystemError());
             else if (rr == 0)
                 break;
             offset += rr;
@@ -857,7 +844,7 @@ protected:
 
         const result = seekFile(_handle, offset, origin);
         if (result < 0)
-            return lastError.setFailed(lastErrorNo());
+            return lastError.setFailed(lastSystemError());
 
         this._position = result;
         return result;
@@ -872,7 +859,7 @@ protected:
             const wn = remaining >= int.max ? int.max : remaining;
             const wr = writeFile(_handle, bytes[offset..offset+wn]);
             if (wr < 0)
-                return lastError.setFailed(lastErrorNo());
+                return lastError.setFailed(lastSystemError());
             else if (wr == 0)
                 break;
             offset += wr;
@@ -882,6 +869,8 @@ protected:
     }
 
 private:
+    string _name;
+    FileHandle _handle = invalidFileHandle;
     long _position;
     StreamOpenMode _openMode;
 }
@@ -891,7 +880,7 @@ class FileStream : FileHandleStream
 @safe:
 
 public:
-    this(Handle handle, string fileName, StreamOpenMode openMode) nothrow pure
+    this(FileHandle handle, string fileName, StreamOpenMode openMode) nothrow pure
     {
         super(handle, fileName, openMode);
     }
@@ -904,7 +893,7 @@ public:
             this(fileName, openInfo);
         else
         {
-            super(invalidHandleValue, fileName, openInfo.mode);
+            super(invalidFileHandle, fileName, openInfo.mode);
             this.lastError.set(0, "Failed open file-name: " ~ fileName ~ "\n" ~ parseResult.message);
         }
     }
@@ -913,8 +902,8 @@ public:
     {
         auto h = openFile(fileName, openInfo);
         super(h, fileName, openInfo.mode);
-        if (h == invalidHandleValue)
-            this.lastError.set(lastErrorNo(), "Failed open file-name: " ~ fileName);
+        if (h == invalidFileHandle)
+            this.lastError.set(lastSystemError(), "Failed open file-name: " ~ fileName);
     }
 
     /**
@@ -926,14 +915,14 @@ public:
         return this.position >= this.length;
     }
 
-    final override StreamResult flush() nothrow
+    final override IOResult flush() nothrow
     {
         if (const r = checkActive())
             return r;
 
-        return flushFile(_handle) == 0
-            ? StreamResult.success
-            : lastError.setFailed(lastErrorNo());
+        return flushFile(_handle) == IOResult.success
+            ? IOResult.success
+            : lastError.setFailed(lastSystemError());
     }
 
     final override long setLength(long value) nothrow
@@ -943,15 +932,15 @@ public:
 
         const curPosition = seekFile(_handle, 0, SeekOrigin.current);
         if (curPosition < 0)
-            return lastError.setFailed(lastErrorNo());
+            return lastError.setFailed(lastSystemError());
 
         if (seekFile(_handle, value, SeekOrigin.begin) < 0)
-            return lastError.setFailed(lastErrorNo());
+            return lastError.setFailed(lastSystemError());
         scope (success)
             seekFile(handle, curPosition > value ? value : curPosition, SeekOrigin.begin);
 
         if (setLengthFile(_handle, value) < 0)
-            return lastError.setFailed(lastErrorNo());
+            return lastError.setFailed(lastSystemError());
 
         return value;
     }
@@ -963,7 +952,8 @@ public:
 
     @property final override bool canRead() const @nogc nothrow
     {
-        return active && (isOpenMode(openMode, StreamOpenMode.read) || isOpenMode(openMode, StreamOpenMode.readWrite));
+        return active && (isOpenMode(openMode, StreamOpenMode.read)
+            || isOpenMode(openMode, StreamOpenMode.readWrite));
     }
 
     @property final override bool canSeek() const @nogc nothrow
@@ -978,7 +968,8 @@ public:
 
     @property final override bool canWrite() const @nogc nothrow
     {
-        return active && (isOpenMode(openMode, StreamOpenMode.write) || isOpenMode(openMode, StreamOpenMode.readWrite));
+        return active && (isOpenMode(openMode, StreamOpenMode.write)
+            || isOpenMode(openMode, StreamOpenMode.readWrite));
     }
 
     alias fileName = name;
@@ -989,7 +980,7 @@ public:
             return r;
 
         const result = getLengthFile(_handle);
-        return result >= 0 ? result : lastError.setFailed(lastErrorNo());
+        return result >= 0 ? result : lastError.setFailed(lastSystemError());
     }
 }
 
@@ -998,12 +989,12 @@ class InputPipeStream : FileHandleStream
 @safe:
 
 public:
-    this(Handle handle, string name) nothrow pure
+    this(FileHandle handle, string name) nothrow pure
     {
         super(handle, name, StreamOpenMode.readOnly);
     }
 
-    final override StreamResult flush() nothrow
+    final override IOResult flush() nothrow
     {
         if (const r = checkUnsupported(false))
             return r;
@@ -1044,7 +1035,7 @@ public:
 
     @property final override long length() nothrow
     {
-        return -1L;
+        return -1L; // No length
     }
 }
 
@@ -1053,19 +1044,19 @@ class OutputPipeStream : FileHandleStream
 @safe:
 
 public:
-    this(Handle handle, string name) nothrow pure
+    this(FileHandle handle, string name) nothrow pure
     {
         super(handle, name, StreamOpenMode.writeOnly);
     }
 
-    final override StreamResult flush() nothrow
+    final override IOResult flush() nothrow
     {
         if (const r = checkActive())
             return r;
 
-        return flushFile(_handle) == 0
-            ? StreamResult.success
-            : lastError.setFailed(lastErrorNo());
+        return flushFile(_handle) == IOResult.success
+            ? IOResult.success
+            : lastError.setFailed(lastSystemError());
     }
 
     final override long setLength(long value) nothrow
@@ -1102,26 +1093,26 @@ public:
 
     @property final override long length() nothrow
     {
-        return -1L;
+        return -1L; // No length
     }
 }
 
-StreamError createPipeStreams(const(bool) asInput, out InputPipeStream inputStream, out OutputPipeStream outputStream,
+IOError createPipeStreams(const(bool) asInput, out InputPipeStream inputStream, out OutputPipeStream outputStream,
     uint bufferSize = 0) nothrow
 {
-    Handle inputHandle, outputHandle;
+    FileHandle inputHandle, outputHandle;
     const r = createFilePipes(asInput, inputHandle, outputHandle, bufferSize);
-    if (r < 0)
+    if (r != IOResult.success)
     {
         inputStream = null;
         outputStream = null;
-        return StreamError.failed(lastErrorNo());
+        return IOError.failed(lastSystemError());
     }
     else
     {
         inputStream = new InputPipeStream(inputHandle, "stdin" ~ (asInput ? "-in" : "-out"));
         outputStream = new OutputPipeStream(outputHandle, "stdout" ~ (asInput ? "-in" : "-out"));
-        return StreamError.init;
+        return IOError.init;
     }
 }
 
@@ -1177,7 +1168,7 @@ public:
             childOutputWrite.close();
     }
 
-    StreamError openAll() nothrow
+    IOError openAll() nothrow
     {
         auto r1 = createPipeStreams(true, childInputRead, childInputWrite);
         if (r1.isError)
@@ -1190,7 +1181,7 @@ public:
             childInputWrite.close();
             return r2;
         }
-        return StreamError.init;
+        return IOError.init;
     }
 
     static bool canClose(long rwResult, ChildInputOutputCloseAfter closeAfter) @nogc nothrow pure

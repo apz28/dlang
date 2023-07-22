@@ -16,8 +16,6 @@ version (Posix)
 {
     import core.sys.posix.fcntl;
     import core.stdc.stdio : SEEK_SET, SEEK_CUR, SEEK_END;
-
-    import pham.io.posix : getSystemErrorMessage;
 }
 else version (Windows)
 {
@@ -29,11 +27,25 @@ else version (Windows)
     import core.sys.windows.windef : DWORD;
     import core.sys.windows.winnt : FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_TEMPORARY,
         FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_GENERIC_WRITE, FILE_WRITE_DATA, GENERIC_READ, GENERIC_WRITE;
-
-    import pham.io.windows : getSystemErrorMessage;
 }
 
+import pham.io.error : IOError;
+
 @safe:
+
+enum IOResult : int
+{
+    success = 0,
+    failed = -1,
+    unsupported = -2,
+}
+
+enum SeekOrigin : int
+{
+    begin = SEEK_SET, /// Offset is relative to the beginning
+    current = SEEK_CUR, /// Offset is relative to the current position
+    end = SEEK_END, /// Offset is relative to the end
+}
 
 enum StreamOpenMode : int
 {
@@ -52,20 +64,6 @@ enum StreamOpenMode : int
     writePlus = readWrite | create | truncate, /// w+
     appendOnly = append | create | write, /// a
     appendPlus = append | create | readWrite, /// a+
-}
-
-enum SeekOrigin : int
-{
-    begin = SEEK_SET, /// Offset is relative to the beginning
-    current = SEEK_CUR, /// Offset is relative to the current position
-    end = SEEK_END, /// Offset is relative to the end
-}
-
-enum StreamResult : int
-{
-    success = 0,
-    failed = -1,
-    unsupported = -2,
 }
 
 enum ValueKind : ubyte
@@ -118,27 +116,6 @@ enum ValueKind : ubyte
     unknown = 255 // last value
 }
 
-union BytesOfFloat
-{
-    uint i;
-    float f;
-    ubyte[uint.sizeof] b;
-}
-
-union BytesOfDouble
-{
-    ulong i;
-    double f;
-    ubyte[ulong.sizeof] b;
-}
-
-// i=1 ~ b=[1,0,0,0]
-union BytesOfInt
-{
-    int i;
-    ubyte[int.sizeof] b;
-}
-
 struct StreamOpenInfo
 {
 @safe:
@@ -164,9 +141,9 @@ public:
      *   mode = fopen mode to convert to `StreamOpenMode` enum
      *   info = info.mode will contain the converted `StreamOpenMode` enum
      * Returns:
-     *   StreamError with success or error with appropriate info
+     *   IOError with success or error with appropriate info
      */
-    static StreamError parseOpenMode(scope const(char)[] mode, out StreamOpenInfo info) nothrow
+    static IOError parseOpenMode(scope const(char)[] mode, out StreamOpenInfo info) nothrow
     {
         enum OkMode { notSet, invalid, valid }
 
@@ -246,7 +223,7 @@ public:
                 break;
         }
 
-        return ok == OkMode.valid ? StreamError(0, null) : StreamError(0, "Invalid file-stream open mode: " ~ mode.idup);
+        return ok == OkMode.valid ? IOError(0, null) : IOError(0, "Invalid file-stream open mode: " ~ mode.idup);
     }
 
     version (Windows)
@@ -320,172 +297,6 @@ private:
             return FILE_SHARE_READ;
         else
             return 0;
-    }
-}
-
-struct StreamError
-{
-@safe:
-
-public:
-    this(int errorNo, string message,
-        string file = __FILE__, size_t line = __LINE__) nothrow pure
-    {
-        this.errorNo = errorNo;
-        this.message = message;
-        this.file = file;
-        this.line = line;
-    }
-
-    bool opCast(C: bool)() const @nogc nothrow pure
-    {
-        return isOK;
-    }
-
-    static StreamError failed(int errorNo, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
-    {
-        StreamError result;
-        result.setFailed(errorNo, postfixMessage, funcName, file, line);
-        return result;
-    }
-
-    pragma(inline, true)
-    StreamResult reset() nothrow
-    {
-        this.errorNo = 0;
-        this.message = null;
-        this.file = null;
-        this.line = 0;
-        return StreamResult.success;
-    }
-
-    StreamResult set(int errorNo, string message, StreamResult result = StreamResult.failed,
-        string file = __FILE__, size_t line = __LINE__) nothrow
-    {
-        this.errorNo = errorNo;
-        this.message = message;
-        this.file = file;
-        this.line = line;
-        return result;
-    }
-
-    StreamResult setFailed(int errorNo, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
-    {
-        this.errorNo = errorNo;
-        this.message = "Failed " ~ funcName ~ postfixMessage;
-        this.file = file;
-        this.line = line;
-        const sysErrorMessage = errorNo != 0 ? getSystemErrorMessage(errorNo) : null;
-        if (sysErrorMessage.length)
-            this.message ~= "\n" ~ sysErrorMessage;
-        return StreamResult.failed;
-    }
-
-    StreamResult setUnsupported(int errorNo, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
-    {
-        this.errorNo = errorNo;
-        this.message = "Unsupported " ~ funcName ~ postfixMessage;
-        this.file = file;
-        this.line = line;
-        return StreamResult.unsupported;
-    }
-
-    pragma(inline, true)
-    void throwIf(E : StreamException = StreamException)()
-    {
-        if (errorNo != 0 || message.length != 0)
-            throwIt!E();
-    }
-
-    void throwIt(E : StreamException = StreamException)()
-    {
-        throw new E(errorNo, message, file, line);
-    }
-
-    /**
-     * Returns true if there is error-code or error-message
-     */
-    pragma(inline, true)
-    @property bool isError() const @nogc nothrow pure
-    {
-        return errorNo != 0 || message.length != 0;
-    }
-
-    /**
-     * Returns true if there is no error-code and error-message
-     */
-    pragma(inline, true)
-    @property bool isOK() const @nogc nothrow pure
-    {
-        return errorNo == 0 && message.length == 0;
-    }
-
-public:
-    string file;
-    string message;
-    size_t line;
-    int errorNo;
-}
-
-class StreamException : Exception
-{
-@safe:
-
-public:
-    this(int errorNo, string message,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null) nothrow pure
-    {
-        super(message, file, line, next);
-        this.errorNo = errorNo;
-    }
-
-    override string toString() nothrow @trusted
-    {
-        import std.format : format;
-        scope (failure) assert(0, "Assume nothrow failed");
-
-        auto result = super.toString();
-        if (errorNo != 0)
-            result ~= "\nError code: " ~ format!"0x%.8d [%d]"(errorNo, errorNo);
-
-        auto e = next;
-        while (e !is null)
-        {
-            result ~= "\n\n" ~ e.toString();
-            e = e.next;
-        }
-
-        return result;
-    }
-
-public:
-    const(int) errorNo;
-}
-
-class StreamReadException : StreamException
-{
-@safe:
-
-public:
-    this(int errorNo, string message,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null) nothrow pure
-    {
-        super(errorNo, message, file, line, next);
-    }
-}
-
-class StreamWriteException : StreamException
-{
-@safe:
-
-public:
-    this(int errorNo, string message,
-        string file = __FILE__, size_t line = __LINE__, Throwable next = null) nothrow pure
-    {
-        super(errorNo, message, file, line, next);
     }
 }
 

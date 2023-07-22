@@ -1,0 +1,1543 @@
+/*
+ *
+ * License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
+ * Authors: An Pham
+ *
+ * Copyright An Pham 2023 - xxxx.
+ * Distributed under the Boost Software License, Version 1.0.
+ * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+ *
+ */
+
+module pham.io.socket_type;
+
+import core.time : Duration;
+import std.system : Endian;
+
+import pham.utl.bit : fromBytes, hostToNetworkOrder, Map32Bit, nativeToBytes, networkToHostOrder, toBytes;
+import pham.utl.enum_set : EnumSet, toName;
+import pham.utl.numeric_parser : cvtDigit, cvtHexDigit, NumericParsedKind, parseIntegral;
+import pham.utl.object : toString;
+import pham.utl.result;
+import pham.utl.text : simpleIndexOf;
+version (Posix)
+{
+    import core.sys.posix.sys.socket;
+    import pham.io.socket_posix;
+}
+else version (Windows)
+{
+    import core.sys.windows.winsock2;
+    import pham.io.socket_windows;
+}
+else
+    static assert(0, "Unsupport target");
+
+@safe:
+
+enum AddressFamily : int
+{
+    unspecified         = AF_UNSPEC,    // AF_UNSPEC - Unspecified
+    unix                = AF_UNIX,    // local to host (pipes, portals)
+    ipv4                = AF_INET,    // internetwork: UDP, TCP, etc.
+    impLink             = 3,    // arpanet imp addresses
+    pup                 = 4,    // pup protocols: e.g. BSP
+    chaos               = 5,    // mit CHAOS protocols
+    ns                  = 6,    // XEROX NS protocols
+    ipx                 = ns,   // IPX and SPX
+    iso                 = 7,    // ISO protocols
+    osi                 = iso,  // OSI is ISO
+    ecma                = 8,    // european computer manufacturers
+    dataKit             = 9,    // datakit protocols
+    ccitt               = 10,   // CCITT protocols, X.25 etc
+    sna                 = 11,   // IBM SNA
+    decNet              = 12,   // DECnet
+    dataLink            = 13,   // Direct data link interface
+    lat                 = 14,   // LAT
+    hyperChannel        = 15,   // NSC Hyperchannel
+    appleTalk           = 16,   // AppleTalk
+    netBios             = 17,   // NetBios-style addresses
+    voiceView           = 18,   // VoiceView
+    fireFox             = 19,   // FireFox
+    banyan              = 21,   // Banyan
+    atm                 = 22,   // Native ATM Services
+    ipv6                = AF_INET6,   // AF_INET6 - Internetwork Version 6
+    cluster             = 24,   // Microsoft Wolfpack
+    ieee12844           = 25,   // IEEE 1284.4 WG AF
+    irda                = 26,   // IrDA
+    networkDesigners    = 28,   // Network Designers OSI & gateway enabled protocols
+    max                 = AF_MAX,   // Max
+}
+
+enum Protocol : int
+{
+    ip = IPPROTO_IP,
+    icmp = IPPROTO_ICMP,
+    igmp = IPPROTO_IGMP,
+    ggp = IPPROTO_GGP,
+    tcp = IPPROTO_TCP,
+    pup = IPPROTO_PUP,
+    udp = IPPROTO_UDP,
+    idp = IPPROTO_IDP,
+    nd = IPPROTO_ND,
+}
+
+/**
+ * Poll status of a socket
+ */
+enum SelectMode : int
+{
+    none = 0, /// Poll result status which is an error indicator
+    read = 1, /// Poll the read status of a socket
+    write = 2, /// Poll the write status of a socket
+    error = 4, /// Poll the error status of a socket
+    readWrite = read | write,
+    all = read | write | error,
+}
+
+enum SocketOption : int
+{
+    acceptConnection = SO_ACCEPTCONN, /// get whether socket is accepting connections
+    broadcast = SO_BROADCAST, /// broadcast for datagram sockets
+    debug_ = SO_DEBUG, /// enable socket debugging
+    dontRoute = SO_DONTROUTE, /// send only to directly connected hosts
+    error = SO_ERROR, /// get pending socket errors
+    keepAlive = SO_KEEPALIVE, /// enable keep-alive messages on connection-based sockets
+    linger = SO_LINGER, /// linger option
+    oobInline = SO_OOBINLINE, /// inline receive out-of-band data
+    receiveBufferSize = SO_RCVBUF, /// get or set receive buffer size
+    rcvLowat = SO_RCVLOWAT, /// min number of input bytes to process
+    receiveTimeout = SO_RCVTIMEO, /// receiving timeout
+    reuseAddress = SO_REUSEADDR, /// reuse bind address
+    sendBufferSize = SO_SNDBUF, /// get or set send buffer size
+    sndLowat = SO_SNDLOWAT, /// min number of output bytes to process
+    sendTimeout = SO_SNDTIMEO, /// sending timeout
+    type = SO_TYPE, /// get socket type
+    useLoopBack = SO_USELOOPBACK, /// Use the local loopback address when sending data from this socket. This option should only be used when all data sent will also be received locally
+}
+
+enum SocketType : int
+{
+    unspecified = 0, /// unspecified socket type, mostly as resolve hint
+    stream = SOCK_STREAM, /// sequenced, reliable, two-way, connection-based data streams
+    dgram = SOCK_DGRAM, /// unordered, unreliable datagrams of fixed length
+    seqPacket = SOCK_SEQPACKET, /// sequenced, reliable, two-way datagrams of fixed length
+    raw = SOCK_RAW, /// raw network access
+}
+
+enum ShutdownReason : int
+{
+    receive = SD_RECEIVE,      /// socket receives are disallowed
+    send = SD_SEND,         /// socket sends are disallowed
+    both = SD_BOTH,         /// both RECEIVE and SEND
+}
+
+struct AddressInfo
+{
+nothrow @safe:
+
+public:
+    static AddressInfo bindHints(SocketType type = SocketType.stream, Protocol protocol = Protocol.tcp) pure
+    {
+        AddressInfo result;
+        result.family = AddressFamily.unspecified;
+        result.type = type;
+        result.protocol = protocol;
+        result.flags = AI_ADDRCONFIG | AI_V4MAPPED;
+        return result;
+    }
+
+    static AddressInfo connectHints(SocketType type = SocketType.stream, Protocol protocol = Protocol.tcp) pure
+    {
+        AddressInfo result;
+        result.family = AddressFamily.unspecified;
+        result.type = type;
+        result.protocol = protocol;
+        result.flags = AI_ADDRCONFIG | AI_V4MAPPED;
+        return result;
+    }
+
+    string toString() const pure
+    {
+        return address.isIPv4
+            ? IPv4AddressHelper.toString(address._ipvNumbers[0..IPAddress.maxIPv4AddressBytes], port)
+            : (address.isIPv6
+                ? IPv6AddressHelper.toString(address._ipvNumbers[0..IPAddress.maxIPv6AddressBytes], address.scopeId, port)
+                : null);
+    }
+
+public:
+    string canonName;
+    IPAddress address;
+    AddressFamily family;
+    SocketType type;
+    Protocol protocol;
+    int flags;
+    ushort port;
+}
+
+struct BindInfo
+{
+nothrow @safe:
+
+public:
+    this(IPAddress address, ushort port) pure
+    {
+        this.address = address;
+        this.port = port;
+    }
+    
+    this(string hostName, ushort port) pure
+    {
+        this.hostName = hostName;
+        this.port = port;
+    }
+    
+    bool isBlocking() const @nogc
+    {
+        return blocking && (type == SocketType.stream || type == SocketType.seqPacket);
+    }
+
+    string resolveHostName() const
+    {
+        return hostName;
+    }
+
+    string resolveServiceName() const
+    {
+        import std.conv : to;
+
+        return serviceName.length
+            ? serviceName
+            : (port ? to!string(port) : null);
+    }
+
+    void setLinger(scope const(Duration) duration)
+    {
+        linger = toSocketLinger(duration);
+    }
+
+    string toErrorInfo()
+    {
+        return .toErrorInfo(family, type, protocol);
+    }
+
+    @property bool blocking() const @nogc
+    {
+        return flags.on(Flags.blocking);
+    }
+
+    @property ref BindInfo blocking(bool state) @nogc return
+    {
+        flags.set(Flags.blocking, state);
+        return this;
+    }
+
+    @property bool debug_() const @nogc
+    {
+        return flags.on(Flags.debug_);
+    }
+
+    @property ref BindInfo debug_(bool state) @nogc return
+    {
+        flags.set(Flags.debug_, state);
+        return this;
+    }
+
+    @property bool dontRoute() const @nogc
+    {
+        return flags.on(Flags.dontRoute);
+    }
+
+    @property ref BindInfo dontRoute(bool state) @nogc return
+    {
+        flags.set(Flags.dontRoute, state);
+        return this;
+    }
+
+    @property AddressFamily family() const @nogc
+    {
+        return address.family;
+    }
+
+    @property bool ipv6Only() const @nogc
+    {
+        return flags.on(Flags.ipv6Only);
+    }
+
+    @property ref BindInfo ipv6Only(bool state) @nogc return
+    {
+        flags.set(Flags.ipv6Only, state);
+        return this;
+    }
+
+    @property bool needResolveHostName() const @nogc
+    {
+        return hostName.length != 0 && address.family == AddressFamily.unspecified;
+    }
+
+    @property bool noDelay() const @nogc
+    {
+        return flags.on(Flags.noDelay);
+    }
+
+    @property ref BindInfo noDelay(bool state) @nogc return
+    {
+        flags.set(Flags.noDelay, state);
+        return this;
+    }
+
+    @property bool reuseAddress() const @nogc
+    {
+        return flags.on(Flags.reuseAddress);
+    }
+
+    @property ref BindInfo reuseAddress(bool state) @nogc return
+    {
+        flags.set(Flags.reuseAddress, state);
+        return this;
+    }
+
+    @property bool useLinger() const @nogc
+    {
+        return linger.l_onoff != 0 || linger.l_linger != 0;
+    }
+
+    @property bool useLoopback() const @nogc
+    {
+        return flags.on(Flags.useLoopback);
+    }
+
+    @property ref BindInfo useLoopback(bool state) @nogc return
+    {
+        flags.set(Flags.useLoopback, state);
+        return this;
+    }
+
+public:
+    IPAddress address;
+    SocketType type = SocketType.stream;
+    Protocol protocol = Protocol.tcp;
+    ushort port;
+    Linger linger;
+    uint backLog = 100;
+    EnumSet!Flags flags = EnumSet!Flags([Flags.blocking, Flags.reuseAddress]);
+    string hostName;
+    string serviceName;
+    AddressInfo resolveHostHints = AddressInfo.bindHints();
+
+private:
+    enum Flags
+    {
+        blocking,
+        debug_,
+        dontRoute,
+        ipv6Only,
+        noDelay,
+        reuseAddress,
+        useLoopback,
+    }
+}
+
+struct ConnectInfo
+{
+    import core.time : seconds;
+
+nothrow @safe:
+
+public:
+    this(IPAddress address, ushort port) pure
+    {
+        this.address = address;
+        this.port = port;
+    }
+    
+    this(string hostName, ushort port) pure
+    {
+        this.hostName = hostName;
+        this.port = port;
+    }
+    
+    bool isBlocking() const @nogc
+    {
+        return blocking && (type == SocketType.stream || type == SocketType.seqPacket);
+    }
+
+    string resolveHostName() const
+    {
+        return hostName;
+    }
+
+    string resolveServiceName() const
+    {
+        import std.conv : to;
+
+        return serviceName.length
+            ? serviceName
+            : (port ? to!string(port) : null);
+    }
+
+    void setLinger(scope const(Duration) duration)
+    {
+        linger = toSocketLinger(duration);
+    }
+
+    string toErrorInfo()
+    {
+        return .toErrorInfo(family, type, protocol);
+    }
+
+    @property bool blocking() const @nogc
+    {
+        return flags.on(Flags.blocking);
+    }
+
+    @property ref ConnectInfo blocking(bool state) @nogc return
+    {
+        flags.set(Flags.blocking, state);
+        return this;
+    }
+
+    @property bool debug_() const @nogc
+    {
+        return flags.on(Flags.debug_);
+    }
+
+    @property ref ConnectInfo debug_(bool state) @nogc return
+    {
+        flags.set(Flags.debug_, state);
+        return this;
+    }
+
+    @property bool dontRoute() const @nogc
+    {
+        return flags.on(Flags.dontRoute);
+    }
+
+    @property ref ConnectInfo dontRoute(bool state) @nogc return
+    {
+        flags.set(Flags.dontRoute, state);
+        return this;
+    }
+
+    @property AddressFamily family() const @nogc
+    {
+        return address.family;
+    }
+
+    @property bool ipv6Only() const @nogc
+    {
+        return flags.on(Flags.ipv6Only);
+    }
+
+    @property ref ConnectInfo ipv6Only(bool state) @nogc return
+    {
+        flags.set(Flags.ipv6Only, state);
+        return this;
+    }
+
+    @property bool keepAlive() const @nogc
+    {
+        return flags.on(Flags.keepAlive);
+    }
+
+    @property ref ConnectInfo keepAlive(bool state) @nogc return
+    {
+        flags.set(Flags.keepAlive, state);
+        return this;
+    }
+
+    @property bool needResolveHostName() const @nogc
+    {
+        return hostName.length != 0 && address.family == AddressFamily.unspecified;
+    }
+
+    @property bool noDelay() const @nogc
+    {
+        return flags.on(Flags.noDelay);
+    }
+
+    @property ref ConnectInfo noDelay(bool state) @nogc return
+    {
+        flags.set(Flags.noDelay, state);
+        return this;
+    }
+
+    @property bool useLinger() const @nogc
+    {
+        return linger.l_onoff != 0 || linger.l_linger != 0;
+    }
+
+    @property bool useLoopback() const @nogc
+    {
+        return flags.on(Flags.useLoopback);
+    }
+
+    @property ref ConnectInfo useLoopback(bool state) @nogc return
+    {
+        flags.set(Flags.useLoopback, state);
+        return this;
+    }
+
+public:
+    IPAddress address;
+    SocketType type = SocketType.stream;
+    Protocol protocol = Protocol.tcp;
+    ushort port;
+    Duration connectTimeout = 5.seconds;
+    Duration readTimeout;
+    Duration writeTimeout;
+    Linger linger;
+    uint receiveBufferSize;
+    uint sendBufferSize;
+    EnumSet!Flags flags = EnumSet!Flags([Flags.blocking]);
+    string hostName;
+    string serviceName;
+    AddressInfo resolveHostHints = AddressInfo.connectHints();
+
+private:
+    enum Flags
+    {
+        blocking,
+        debug_,
+        dontRoute,
+        ipv6Only,
+        keepAlive,
+        noDelay,
+        useLoopback,
+    }
+}
+
+struct IPAddress
+{
+@safe:
+
+public:
+    /**
+     * Initializes a new IPAddress struct with an IPv4 address.
+     * The uint value is assumed to be in network byte order.
+     */
+    this(uint ipv4Address) nothrow pure
+    {
+        this._family = AddressFamily.ipv4;
+        this._ipvNumbers[0..maxIPv4AddressBytes] = .toBytes(ipv4Address);
+        this._scopeId = 0;
+    }
+
+    /**
+     * Initializes a new IPAddress struct with an IPv4 or IPv6 address depending on the length of address.
+     * For IPv6, the scopeid will be 0 (zero).
+     * The Byte array is assumed to be in network byte order with the most significant byte first in index position 0.
+     */
+    this(scope const(ubyte)[] address) nothrow pure
+    in
+    {
+        assert(address.length == maxIPv4AddressBytes || address.length == maxIPv6AddressBytes);
+    }
+    do
+    {
+        if (address.length == maxIPv4AddressBytes)
+        {
+            this._family = AddressFamily.ipv4;
+            this._ipvNumbers[0..maxIPv4AddressBytes] = address[];
+            this._scopeId = 0;
+        }
+        else if (address.length == maxIPv6AddressBytes)
+        {
+            this._family = AddressFamily.ipv6;
+            this._ipvNumbers[0..maxIPv6AddressBytes] = address[];
+            this._scopeId = 0;
+        }
+        else
+            this._family = AddressFamily.unspecified;
+    }
+
+    /**
+     * Initializes a new IPAddress struct with an IPv6 address.
+     * The scopeid identifies a network interface in the case of a link-local address.
+     * The scope is valid only for link-local and site-local addresses.
+     * The Byte array is assumed to be in network byte order with the most significant byte first in index position 0.
+     */
+    this(scope const(ubyte)[] ipv6Address, uint scopeId) nothrow pure
+    in
+    {
+        assert(ipv6Address.length == maxIPv6AddressBytes);
+    }
+    do
+    {
+        if (ipv6Address.length == maxIPv6AddressBytes)
+        {
+            this._family = AddressFamily.ipv6;
+            this._ipvNumbers[0..maxIPv6AddressBytes] = ipv6Address[];
+            this._scopeId = scopeId;
+        }
+        else
+            this._family = AddressFamily.unspecified;
+    }
+
+    int opCmp(scope const(IPAddress) rhs) const @nogc nothrow pure scope
+    {
+        int result = cmp(this.isIPv6 ? 2 : (this.isIPv4 ? 1 : 0), rhs.isIPv6 ? 2 : (rhs.isIPv4 ? 1 : 0));
+        if (result == 0)
+          result = cmp(this._ipvNumbers[], rhs._ipvNumbers[]);
+        if (result == 0)
+          result = cmp(this._scopeId, rhs._scopeId);
+        if (result == 0)
+           result = cmp(this._family, rhs._family);
+        return result;
+    }
+
+    bool opEquals(scope const(IPAddress) rhs) const @nogc nothrow pure scope
+    {
+        return opCmp(rhs) == 0;
+    }
+
+    /**
+     * Maps the IPAddress struct to an IPv4 address
+     */
+    IPAddress mapToIPv4() nothrow
+    {
+        if (isIPv6)
+        {
+            ubyte[maxIPvBytes] ipv4Numbers = 0;
+            ipv4Numbers[0..maxIPv4AddressBytes] = _ipvNumbers[maxIPv6AddressBytes-maxIPv4AddressBytes..maxIPv6AddressBytes];
+            return IPAddress(ipv4Numbers, 0, AddressFamily.ipv4);
+        }
+        else
+            return this;
+    }
+
+    /**
+     * Maps the IPAddress struct to an IPv6 address
+     */
+    IPAddress mapToIPv6() nothrow
+    {
+        if (isIPv4)
+        {
+            ubyte[maxIPvBytes] ipv6Numbers = 0;
+            ipv6Numbers[12..maxIPv6AddressBytes] = _ipvNumbers[0..maxIPv4AddressBytes];
+            ipv6Numbers[10..12] = 0xff;
+            return IPAddress(ipv6Numbers, 0, AddressFamily.ipv6);
+        }
+        else
+            return this;
+    }
+
+    static ResultIf!IPAddress parse(scope const(char)[] address) nothrow
+    {
+        if (simpleIndexOf(address, ':') >= 0 || (address.length && address[0] == '['))
+            return IPv6AddressHelper.parse(address);
+        else
+            return IPv4AddressHelper.parse(address);
+    }
+
+    static ResultIf!IPAddress parseIPv4(scope const(char)[] address) nothrow pure
+    {
+        return IPv4AddressHelper.parse(address);
+    }
+
+    static ResultIf!IPAddress parseIPv6(scope const(char)[] address) nothrow
+    {
+        return IPv6AddressHelper.parse(address);
+    }
+
+    /**
+     *  Returns IP address in bytes in network order
+     */
+    const(ubyte)[] toBytes() const @nogc nothrow pure return
+    {
+        return isIPv4
+            ? _ipvNumbers[0..maxIPv4AddressBytes]
+            : (isIPv6 ? _ipvNumbers[0..maxIPv6AddressBytes] : null);
+    }
+
+    SocketAddress toSocketAddress(ushort port) @nogc nothrow pure
+    {
+        return SocketAddress(this, port);
+    }
+
+    size_t toHash() const @nogc nothrow pure scope
+    {
+        return hashOf(_family, hashOf(_scopeId, hashOf(_ipvNumbers)));
+    }
+
+    string toString() const nothrow
+    {
+        return isIPv4 ? toStringIPv4() : (isIPv6 ? toStringIPv6() : null);
+    }
+
+    @property AddressFamily family() const @nogc nothrow pure
+    {
+        return _family;
+    }
+
+    @property bool isAny() const @nogc nothrow pure
+    {
+        return isIPv4
+            ? this.opEquals(ipv4Any)
+            : (isIPv6 ? this.opEquals(ipv6Any) : false);
+    }
+
+    @property bool isIPv4() const @nogc nothrow pure
+    {
+        return _family == AddressFamily.ipv4;
+    }
+
+    @property bool isIPv6() const @nogc nothrow pure
+    {
+        return _family == AddressFamily.ipv6;
+    }
+
+    @property bool isLoopback() const @nogc nothrow pure
+    {
+        return isIPv4
+            ? this.opEquals(ipv4Loopback)
+            : (isIPv6 ? (this.opEquals(ipv6Loopback) || this.opEquals(ipv4LoopbackMappedToIPv6)) : false);
+    }
+
+    @property uint scopeId() const @nogc nothrow pure
+    {
+        return isIPv6 ? _scopeId : 0;
+    }
+
+public:
+    enum maxIPv4AddressBytes = 4;
+    enum maxIPv4StringLength = 15; // 4 numbers separated by 3 periods, with up to 3 digits per number
+
+    enum maxIPv6AddressBytes = 16;
+    enum maxIPv6StringLength = 65;
+
+    alias maxIPvBytes = maxIPv6AddressBytes;
+
+    static immutable IPAddress ipv4Any = IPAddress([0, 0, 0, 0]);
+    static immutable IPAddress ipv4Loopback = IPAddress([127, 0, 0, 1]);
+    static immutable IPAddress ipv4Broadcast = IPAddress([255, 255, 255, 255]);
+    alias ipv4None = ipv4Broadcast;
+
+    static immutable IPAddress ipv6Any = IPAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0);
+    static immutable IPAddress ipv6Loopback = IPAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 0);
+    alias ipv6None = ipv6Any;
+    static immutable IPAddress ipv4LoopbackMappedToIPv6 = IPAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 127, 0, 0, 1], 0);
+
+private:
+    this(ubyte[maxIPvBytes] ipvNumbers, uint scopeId, AddressFamily family) nothrow pure
+    {
+        this._ipvNumbers = ipvNumbers;
+        this._scopeId = scopeId;
+        this._family = family;
+    }
+
+    string toStringIPv4() const nothrow
+    {
+        return IPv4AddressHelper.toString(_ipvNumbers[0..maxIPv4AddressBytes], 0);
+    }
+
+    string toStringIPv6() const nothrow
+    {
+        return IPv6AddressHelper.toString(_ipvNumbers[0..maxIPv6AddressBytes], _scopeId, 0);
+    }
+
+private:
+    ubyte[maxIPvBytes] _ipvNumbers; // In network endian format
+    uint _scopeId;
+    AddressFamily _family;
+}
+
+struct SocketAddress
+{
+nothrow @safe:
+
+public:
+    this(scope const(IPAddress) address, const(ushort) port) @nogc pure
+    {
+        if (address.isIPv4)
+        {
+            this._slen = _sin.sizeof;
+            this._sin.sin_addr.s_addr = fromBytes!uint(address.toBytes());
+            this._sin.sin_port = hostToNetworkOrder(port);
+
+        }
+        else if (address.isIPv6)
+        {
+            this._slen = _sin6.sizeof;
+            this._sin6.sin6_addr.s6_addr[] = address.toBytes();
+            this._sin6.sin6_port = hostToNetworkOrder(port);
+            this._sin6.sin6_scope_id = address.scopeId;
+        }
+        else
+            this._slen = 0;
+    }
+
+    this(scope const(ubyte)[] sockAddr) @nogc pure @trusted
+    {
+        if (sockAddr.length == _sin.sizeof)
+        {
+            this._slen = _sin.sizeof;
+            this._sin = *cast(sockaddr_in*)&sockAddr[0];
+        }
+        else if (sockAddr.length == _sin6.sizeof)
+        {
+            this._slen = _sin6.sizeof;
+            this._sin6 = *cast(sockaddr_in6*)&sockAddr[0];
+        }
+        else
+            this._slen = 0;
+    }
+
+    int opCmp(scope const(SocketAddress) rhs) const @nogc nothrow pure scope
+    {
+        int result;
+        if (this.isIPv4 && rhs.isIPv4)
+        {
+            result = cmp(this._sin.sin_addr.s_addr, rhs._sin.sin_addr.s_addr);
+            if (result == 0)
+                result = cmp(this._sin.sin_port, rhs._sin.sin_port);
+        }
+        else if (this.isIPv6 && rhs.isIPv6)
+        {
+            result = cmp(this._sin6.sin6_addr.s6_addr[], rhs._sin6.sin6_addr.s6_addr[]);
+            if (result == 0)
+                result = cmp(this._sin6.sin6_scope_id, rhs._sin6.sin6_scope_id);
+            if (result == 0)
+                result = cmp(this._sin6.sin6_port, rhs._sin6.sin6_port);
+        }
+        else
+            result = cmp(this._slen, rhs._slen);
+        return result;
+    }
+
+    bool opEquals(scope const(SocketAddress) rhs) const @nogc nothrow pure scope
+    {
+        return opCmp(rhs) == 0;
+    }
+
+    IPAddress toIPAddress() const nothrow pure
+    {
+        return isIPv4
+            ? IPAddress(_sin.sin_addr.s_addr)
+            : (isIPv6 ? IPAddress(_sin6.sin6_addr.s6_addr[], scopeId) : IPAddress.init);
+    }
+
+    string toString() const nothrow pure
+    {
+        auto address = toIPAddress();
+        return address.isIPv4
+            ? IPv4AddressHelper.toString(address._ipvNumbers[0..IPAddress.maxIPv4AddressBytes], port)
+            : (address.isIPv6
+                ? IPv6AddressHelper.toString(address._ipvNumbers[0..IPAddress.maxIPv6AddressBytes], address.scopeId, port)
+                : null);
+    }
+
+    @property int slen() @nogc pure
+    {
+        return cast(int)_slen;
+    }
+
+    @property const(sockaddr)* sval() @nogc pure return
+    {
+        return isIPv4
+            ? cast(const(sockaddr)*)&_sin
+            : (isIPv6 ? cast(const(sockaddr)*)&_sin6 : null);
+    }
+
+    @property AddressFamily family() const @nogc nothrow pure
+    {
+        return isIPv4
+            ? AddressFamily.ipv4
+            : (isIPv6 ? AddressFamily.ipv6 : AddressFamily.unspecified);
+    }
+
+    @property bool isIPv4() const @nogc nothrow pure
+    {
+        return _slen == _sin.sizeof;
+    }
+
+    @property bool isIPv6() const @nogc nothrow pure
+    {
+        return _slen == _sin6.sizeof;
+    }
+
+    @property ushort port() const @nogc nothrow pure
+    {
+        return isIPv4
+            ? networkToHostOrder(_sin.sin_port)
+            : (isIPv6 ? networkToHostOrder(_sin6.sin6_port) : 0);
+    }
+
+    @property uint scopeId() const @nogc nothrow pure
+    {
+        return isIPv6 ? _sin6.sin6_scope_id : 0;
+    }
+
+package(pham.io):
+    this(scope const(sockaddr)* ai_addr, const(size_t) ai_addrLen) nothrow pure @trusted
+    {
+        if (ai_addrLen == _sin.sizeof)
+        {
+            this._slen = _sin.sizeof;
+            this._sin = *cast(sockaddr_in*)ai_addr;
+        }
+        else if (ai_addrLen == _sin6.sizeof)
+        {
+            this._slen = _sin6.sizeof;
+            this._sin6 = *cast(sockaddr_in6*)ai_addr;
+        }
+        else
+            this._slen = 0;
+    }
+
+private:
+    sockaddr_in6 _sin6;
+    sockaddr_in _sin;
+    size_t _slen;
+}
+
+//pragma(msg, sockaddr_in.sizeof); // 16
+//pragma(msg, sockaddr_in6.sizeof); // 28
+
+string toErrorInfo(AddressFamily family, SocketType type, Protocol protocol) nothrow pure
+{
+    return "family: " ~ toName!AddressFamily(family) ~ ", type: " ~ toName!SocketType(type) ~ ", protocol: " ~ toName!Protocol(protocol);
+}
+
+Linger toSocketLinger(scope const(Duration) duration) @nogc nothrow pure
+{
+    enum msecsPerSecond = 1_000;
+    const r = duration.total!"msecs"();
+    const vr = r <= 0 ? 0 : (r > int.max ? int.max : cast(int)r); // value in valid range
+    const vs = (vr / msecsPerSecond) + (vr % msecsPerSecond != 0); // value in seconds
+    Linger result;
+    result.l_linger = vs > ushort.max ? ushort.max : cast(ushort)vs; // seconds
+    result.l_onoff = vr != 0;
+    return result;
+}
+
+TimeVal toSocketTimeVal(scope const(Duration) duration) @nogc nothrow pure
+{
+    enum msecsPerSecond = 1_000;
+    const r = duration.total!"msecs"();
+    const vr = r <= 0 ? 0 : (r > int.max ? int.max : cast(int)r); // value in valid range
+    TimeVal result;
+    result.tv_sec = vr / msecsPerSecond; // seconds
+    result.tv_usec = (vr % msecsPerSecond) * 1_000; // microseconds
+    return result;
+}
+
+
+private:
+
+struct IPv4AddressHelper
+{
+    import std.array : Appender;
+    import std.ascii : isDigit;
+
+@safe:
+
+public:
+    static void appendSections(ref Appender!string destination, scope const(ubyte)[] ipv4Address) nothrow pure
+    {
+        .toString(destination, ipv4Address[0]);
+        destination.put('.');
+        .toString(destination, ipv4Address[1]);
+        destination.put('.');
+        .toString(destination, ipv4Address[2]);
+        destination.put('.');
+        .toString(destination, ipv4Address[3]);
+    }
+
+    static ResultIf!IPAddress parse(scope const(char)[] address, const(bool) notImplicitFile = true) nothrow pure
+    {
+        ResultIf!IPAddress error(size_t index) nothrow pure
+        {
+            import std.conv : to;
+
+            return index != size_t.max
+                ? ResultIf!IPAddress.error(0, "Invalid IPv4 address: " ~ address.idup ~ " at position " ~ to!string(index))
+                : ResultIf!IPAddress.error(0, "Invalid IPv4 address: " ~ address.idup);
+        }
+
+        if (address.length == 0)
+            return error(size_t.max);
+
+        enum Base : int { decimal = 10, hex = 16, octal = 8 }
+        enum DotParts : ubyte { p0, p1, p2, p3 }
+        enum maxIPv4Value = uint.max;
+
+        ulong[4] parts;
+        ulong currentValue;
+        int dotCount; // Limit 3
+        Base numberBase = Base.decimal;
+        char ch;
+        bool atLeastOneChar;
+
+        // Parse one dotted section at a time
+        size_t current = 0;
+        for (; current < address.length; current++)
+        {
+            ch = address[current];
+            currentValue = 0;
+
+            // Figure out what base this section is in
+            numberBase = Base.decimal;
+            if (ch == '0')
+            {
+                atLeastOneChar = true;
+                numberBase = Base.octal;
+                current++;
+                if (current < address.length)
+                {
+                    ch = address[current];
+                    if (ch == 'x' || ch == 'X')
+                    {
+                        atLeastOneChar = false;
+                        numberBase = Base.hex;
+                        current++;
+                    }
+                }
+            }
+
+            // Parse this section
+            for (; current < address.length; current++)
+            {
+                ch = address[current];
+                int digitValue;
+
+                if ((numberBase == Base.decimal || numberBase == Base.hex) && isDigit(ch))
+                    digitValue = ch - '0';
+                else if (numberBase == Base.octal && '0' <= ch && ch <= '7')
+                    digitValue = ch - '0';
+                else if (numberBase == Base.hex && 'a' <= ch && ch <= 'f')
+                    digitValue = ch + 10 - 'a';
+                else if (numberBase == Base.hex && 'A' <= ch && ch <= 'F')
+                    digitValue = ch + 10 - 'A';
+                else
+                    break; // Invalid/terminator
+
+                currentValue = (currentValue * numberBase) + digitValue;
+
+                 // Overflow?
+                if (currentValue > maxIPv4Value)
+                    return error(current);
+
+                atLeastOneChar = true;
+            }
+
+            if (current < address.length && address[current] == '.')
+            {
+                // Max of 3 dots and 4 segments
+                if (dotCount >= 3)
+                    return error(current);
+
+                // Only the last segment can be more than 255 (if there are less than 3 dots)
+                if (currentValue > 0xff)
+                    return error(current);
+
+                // No empty segmets: 1...1
+                if (!atLeastOneChar)
+                    return error(current);
+
+                parts[dotCount++] = currentValue;
+                atLeastOneChar = false;
+                continue;
+            }
+            // We don't get here unless We find an invalid character or a terminator
+            break;
+        }
+
+        // Empty trailing segment: 1.1.1.
+        if (!atLeastOneChar)
+            return error(current);
+        else if (current >= address.length)
+        {
+            // end of string, allowed
+        }
+        else if ((ch = address[current]) == '/' || ch == '\\' || (notImplicitFile && (ch == ':' || ch == '?' || ch == '#')))
+        {
+            // end with special character, allowed
+        }
+        // not a valid terminating character
+        else
+            return error(current);
+
+        parts[dotCount] = currentValue;
+
+        ResultIf!IPAddress ok(DotParts dotParts) nothrow pure
+        {
+            final switch (dotParts)
+            {
+                case DotParts.p0: // 0xFFFFFFFF
+                    return ResultIf!IPAddress.ok(IPAddress(hostToNetworkOrder(cast(uint)parts[0])));
+                case DotParts.p1: // 0xFF.0xFFFFFF
+                    return ResultIf!IPAddress.ok(IPAddress(hostToNetworkOrder(cast(uint)((parts[0] << 24) | (parts[1] & 0xffffff)))));
+                case DotParts.p2: // 0xFF.0xFF.0xFFFF
+                    return ResultIf!IPAddress.ok(IPAddress([cast(ubyte)parts[0], cast(ubyte)parts[1], cast(ubyte)((parts[2] >> 8) & 0xff), cast(ubyte)(parts[2] & 0xff)]));
+                case DotParts.p3: // 0xFF.0xFF.0xFF.0xFF
+                    return ResultIf!IPAddress.ok(IPAddress([cast(ubyte)parts[0], cast(ubyte)parts[1], cast(ubyte)parts[2], cast(ubyte)parts[3]]));
+            }
+        }
+
+        // Parsed, reassemble and check for overflows
+        switch (dotCount)
+        {
+            case 0: // 0xFFFFFFFF
+                if (parts[0] > maxIPv4Value)
+                    return error(size_t.max);
+                return ok(DotParts.p0);
+            case 1: // 0xFF.0xFFFFFF
+                if (parts[1] > 0xffffff)
+                    return error(size_t.max);
+                return ok(DotParts.p1);
+            case 2: // 0xFF.0xFF.0xFFFF
+                if (parts[2] > 0xffff)
+                    return error(size_t.max);
+                return ok(DotParts.p2);
+            case 3: // 0xFF.0xFF.0xFF.0xFF
+                if (parts[3] > 0xff)
+                    return error(size_t.max);
+                return ok(DotParts.p3);
+            default:
+                return error(size_t.max);
+        }
+    }
+
+    static ResultIf!(ubyte[IPAddress.maxIPv4AddressBytes]) parseHostNumber(scope const(char)[] address) nothrow pure
+    {
+        ResultIf!(ubyte[IPAddress.maxIPv4AddressBytes]) error(size_t index) nothrow pure
+        {
+            import std.conv : to;
+
+            return index != size_t.max
+                ? ResultIf!(ubyte[IPAddress.maxIPv4AddressBytes]).error(0, "Invalid IPv4 address: " ~ address.idup ~ " at position " ~ to!string(index))
+                : ResultIf!(ubyte[IPAddress.maxIPv4AddressBytes]).error(0, "Invalid IPv4 address: " ~ address.idup);
+        }
+
+        ubyte[IPAddress.maxIPv4AddressBytes] result;
+
+        size_t c, i;
+        while (c < address.length)
+        {
+            if (i == IPAddress.maxIPv4AddressBytes)
+                return error(c);
+
+            const c2 = c;
+            int b;
+            for (; c < address.length && address[c] != '.' && address[c] != ':'; ++c)
+            {
+                ubyte cb;
+                if (!cvtDigit(address[c], cb))
+                    return error(c);
+                b = (b * 10) + cb;
+            }
+            if (b > 0xff)
+                return error(c2);
+            result[i++] = cast(byte)b;
+            c++;
+        }
+
+        if (i != IPAddress.maxIPv4AddressBytes)
+            return error(size_t.max);
+
+        return ResultIf!(ubyte[IPAddress.maxIPv4AddressBytes]).ok(result);
+    }
+
+    static string toString(scope const(ubyte)[] ipv4Address, ushort port) nothrow pure
+    {
+        Appender!string buffer;
+        buffer.reserve(IPAddress.maxIPv4StringLength + (port ? 6+1: 0));
+        return toString(buffer, ipv4Address, port)[];
+    }
+
+    static ref Appender!string toString(return ref Appender!string destination, scope const(ubyte)[] ipv4Address, ushort port) nothrow pure
+    {
+        appendSections(destination, ipv4Address);
+        if (port)
+        {
+            destination.put(':');
+            .toString(destination, port);
+        }
+        return destination;
+    }
+}
+
+struct IPv6AddressHelper
+{
+    import std.array : Appender;
+    import std.ascii : LetterCase;
+
+@safe:
+    enum maxIPv6AddressShorts = IPAddress.maxIPv6AddressBytes / 2;
+
+public:
+    // Appends each of the numbers in address in indexed range [fromInclusive, toExclusive),
+    // while also replacing the longest sequence of 0s found in that range with "::", as long
+    // as the sequence is more than one 0.
+    static void appendSections(ref Appender!string destination, scope const(ushort)[] ipv6Address) nothrow pure
+    {
+        // Find the longest sequence of zeros to be combined into a "::"
+        const r = findCompressionRange(ipv6Address);
+        bool needsColon = false;
+
+        // Handle a zero sequence if there is one
+        if (r[0] >= 0)
+        {
+            // Output all of the numbers before the zero sequence
+            foreach (i; 0..r[0])
+            {
+                if (needsColon)
+                    destination.put(':');
+                .toString!16(destination, networkToHostOrder(ipv6Address[i]), 0, '0', LetterCase.lower);
+                needsColon = true;
+            }
+
+            // Output the zero sequence if there is one
+            destination.put("::");
+            needsColon = false;
+        }
+
+        // Output everything after the zero sequence
+        foreach (i; r[1]..ipv6Address.length)
+        {
+            if (needsColon)
+                destination.put(':');
+            .toString!16(destination, networkToHostOrder(ipv6Address[i]), 0, '0', LetterCase.lower);
+            needsColon = true;
+        }
+    }
+
+    static const(ubyte)[] extractIPv4Address(return scope const(ushort)[] ipv6Address) nothrow pure
+    {
+        return cast(const(ubyte)[])ipv6Address[6..8];
+    }
+
+    // RFC 5952 Section 4.2.3
+    // Longest consecutive sequence of zero segments, minimum 2.
+    // On equal, first sequence wins. <-1, -1> for no compression.
+    static ptrdiff_t[2] findCompressionRange(scope const(ushort)[] ipv6Address) nothrow pure
+    {
+        int longestSequenceLength, longestSequenceStart = -1, currentSequenceLength;
+
+        foreach (i; 0..ipv6Address.length)
+        {
+            if (ipv6Address[i] == 0)
+            {
+                currentSequenceLength++;
+                if (currentSequenceLength > longestSequenceLength)
+                {
+                    longestSequenceLength = currentSequenceLength;
+                    longestSequenceStart = cast(int)i - currentSequenceLength + 1;
+                }
+            }
+            else
+            {
+                currentSequenceLength = 0;
+            }
+        }
+
+        return longestSequenceLength > 1
+            ? [longestSequenceStart, longestSequenceStart + longestSequenceLength]
+            : [-1, 0];
+    }
+
+    static ResultIf!IPAddress parse(scope const(char)[] address) nothrow
+    {
+        ResultIf!IPAddress error(size_t index) nothrow pure
+        {
+            import std.conv : to;
+
+            return index != size_t.max
+                ? ResultIf!IPAddress.error(0, "Invalid IPv6 address: " ~ address.idup ~ " at position " ~ to!string(index))
+                : ResultIf!IPAddress.error(0, "Invalid IPv6 address: " ~ address.idup);
+        }
+
+        if (address.length == 0)
+            return error(size_t.max);
+
+        const(char)[] scopeId;
+        ushort[maxIPv6AddressShorts] numbers;
+        ptrdiff_t index, prefixLength, start, compressorIndex = -1;
+        int number;
+        bool numberIsValid;
+
+        bool addNumber() nothrow pure
+        {
+            if (index < numbers.length)
+            {
+                numbers[index++] = hostToNetworkOrder(cast(ushort)number);
+                number = 0;
+                numberIsValid = false;
+                return true;
+            }
+            return false;
+        }
+
+        //This used to be a class instance member but have not been used so far
+        if (address[start] == '[')
+            ++start;
+
+        ptrdiff_t i = start;
+        for (; i < address.length && address[i] != ']'; )
+        {
+            switch (address[i])
+            {
+                case '%':
+                    if (numberIsValid)
+                    {
+                        if (!addNumber())
+                            return error(i);
+                    }
+
+                    start = i+1;
+                    for (++i; i < address.length && address[i] != ']' && address[i] != '/'; ++i)
+                    {}
+
+                    scopeId = address[start..i];
+                    // ignore prefix if any
+                    for (; i < address.length && address[i] != ']'; ++i)
+                    {}
+                    break;
+
+                case ':':
+                    if (!addNumber())
+                        return error(i);
+                    ++i;
+                    if (address[i] == ':')
+                    {
+                        compressorIndex = index;
+                        ++i;
+                    }
+                    else if (compressorIndex < 0 && index < 6)
+                    {
+                        // no point checking for IPv4 address if we don't
+                        // have a compressor or we haven't seen 6 16-bit
+                        // numbers yet
+                        break;
+                    }
+
+                    // check to see if the upcoming number is really an IPv4
+                    // address. If it is, convert it to 2 ushort numbers
+                    ptrdiff_t j = i;
+                    for (; j < address.length &&
+                                    (address[j] != ']') &&
+                                    (address[j] != ':') &&
+                                    (address[j] != '%') &&
+                                    (address[j] != '/') &&
+                                    (j < i + 4); ++j)
+                    {
+
+                        if (address[j] == '.')
+                        {
+                            // we have an IPv4 address. Find the end of it:
+                            // we know that since we have a valid IPv6
+                            // address, the only things that will terminate
+                            // the IPv4 address are the prefix delimiter '/'
+                            // or the end-of-string (which we conveniently
+                            // delimited with ']')
+                            while (j < address.length && address[j] != ']' && address[j] != '/' && address[j] != '%')
+                                ++j;
+
+                            const hostNumber = IPv4AddressHelper.parseHostNumber(address[i..j]);
+                            if (hostNumber)
+                            {
+                                number = (cast(ushort)hostNumber[0] << 8) | hostNumber[1];
+                                if (!addNumber())
+                                    return error(i);
+                                number = (cast(ushort)hostNumber[2] << 8) | hostNumber[3];
+                                if (!addNumber())
+                                    return error(i);
+                                i = j;
+                            }
+                            else
+                            {
+                                return error(i);
+                            }
+                            break;
+                        }
+                    }
+                    break;
+
+                case '/':
+                    if (numberIsValid && !addNumber())
+                        return error(i);
+
+                    // since we have a valid IPv6 address string, the prefix
+                    // length is the last token in the string
+                    for (++i; i < address.length && address[i] != ']'; ++i)
+                    {
+                        prefixLength = (prefixLength * 10) + (address[i] - '0');
+                    }
+                    break;
+
+                default:
+                    ubyte hb;
+                    if (!cvtHexDigit(address[i++], hb))
+                        return error(i-1);
+                    number = (number * 16) + hb;
+                    numberIsValid = true;
+                    break;
+            }
+        }
+
+        // add number to the array if its not the prefix length or part of
+        // an IPv4 address that's already been handled
+        if (numberIsValid && !addNumber())
+            return error(size_t.max);
+
+        // if we had a compressor sequence ("::") then we need to expand the
+        // numbers array
+        if (compressorIndex > 0)
+        {
+            ptrdiff_t toIndex = maxIPv6AddressShorts - 1;
+            ptrdiff_t fromIndex = index - 1;
+
+            // if fromIndex and toIndex are the same, it means that "zero bits" are already in the correct place
+            // it happens for leading and trailing compression
+            if (fromIndex != toIndex)
+            {
+                for (ptrdiff_t i2 = index - compressorIndex; i2 > 0; --i2)
+                {
+                    numbers[toIndex--] = numbers[fromIndex];
+                    numbers[fromIndex--] = 0;
+                }
+            }
+        }
+
+        if (scopeId.length)
+        {
+            auto sc = parseScopeId(scopeId);
+            if (sc)
+                return ResultIf!IPAddress.ok(IPAddress(cast(const(ubyte)[])numbers, sc.value));
+            else
+                return error(size_t.max);
+        }
+        else
+            return ResultIf!IPAddress.ok(IPAddress(cast(const(ubyte)[])numbers, 0));
+    }
+
+    static ResultIf!uint parseScopeId(scope const(char)[] scopeId) nothrow
+    {
+        if (scopeId.length == 0)
+            return ResultIf!uint.ok(0);
+
+        uint result;
+        if (parseIntegral(scopeId, result) == NumericParsedKind.ok)
+            return ResultIf!uint.ok(result);
+
+        result = interfaceNameToIndex(scopeId);
+        return result != 0
+            ? ResultIf!uint.ok(result)
+            : ResultIf!uint.error(0, "Invalid scope name: " ~ scopeId.idup);
+    }
+
+    // Returns true if the IPv6 address should be formatted with an embedded IPv4 address:
+    // ::192.168.1.1
+    static bool shouldHaveIpv4Embedded(scope const(ushort)[] ipv6Address) nothrow pure
+    {
+        // 0:0 : 0:0 : x:x : x.x.x.x
+        if (ipv6Address[0] == 0 && ipv6Address[1] == 0 && ipv6Address[2] == 0 && ipv6Address[3] == 0 && ipv6Address[6] != 0)
+        {
+            // RFC 5952 Section 5 - 0:0 : 0:0 : 0:[0 | FFFF] : x.x.x.x
+            if (ipv6Address[4] == 0 && (ipv6Address[5] == 0 || ipv6Address[5] == 0xFFFF))
+            {
+                return true;
+            }
+            // SIIT - 0:0 : 0:0 : FFFF:0 : x.x.x.x
+            else if (ipv6Address[4] == 0xFFFF && ipv6Address[5] == 0)
+            {
+                return true;
+            }
+        }
+
+        // ISATAP
+        return ipv6Address[4] == 0 && ipv6Address[5] == 0x5EFE;
+    }
+
+    static string toString(scope const(ubyte)[] ipv6Address, uint scopeId, ushort port) nothrow pure
+    {
+        Appender!string buffer;
+        buffer.reserve(IPAddress.maxIPv6StringLength + (port ? 6+3: 0));
+        return toString(buffer, ipv6Address, scopeId, port)[];
+    }
+
+    static ref Appender!string toString(return ref Appender!string destination, scope const(ubyte)[] ipv6Address, uint scopeId, ushort port) nothrow pure
+    {
+        const ipv6Address2 = cast(const(ushort)[])ipv6Address;
+
+        if (port)
+            destination.put('[');
+
+        if (shouldHaveIpv4Embedded(ipv6Address2))
+        {
+            appendSections(destination, ipv6Address2[0..6]);
+            destination.put(':');
+            IPv4AddressHelper.appendSections(destination, extractIPv4Address(ipv6Address2));
+        }
+        else
+        {
+            appendSections(destination, ipv6Address2);
+        }
+
+        if (scopeId != 0)
+        {
+            destination.put('%');
+            .toString(destination, scopeId);
+        }
+
+        if (port)
+        {
+            destination.put(']');
+            destination.put(':');
+            .toString(destination, port);
+        }
+
+        return destination;
+    }
+}
+
+unittest // IPAddress
+{
+    auto ipv41a = IPAddress(0x0100A8C0u);
+    assert(ipv41a.toString() == "192.168.0.1", ipv41a.toString());
+    auto ipv41b = IPAddress([0xC0,0xA8,0x00,0x01]);
+    assert(ipv41b.toString() == "192.168.0.1");
+    assert(ipv41a.toBytes() == ipv41b.toBytes());
+    assert(ipv41a == ipv41b);
+    assert(ipv41a.mapToIPv6().toBytes() == [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,0xC0,0xA8,0x00,0x01]);
+
+    auto ipv6 = IPAddress([0x20,0x01,0x0D,0xB8,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0x00,0x00,0x42,0x83,0x29], 4);
+    assert(ipv6.toString() == "2001:db8::ff00:42:8329%4");
+
+    // Embedded IPv4
+    ipv6 = IPAddress([0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,0xC0,0x00,0x02,0x80]);
+    assert(ipv6.toString() == "::ffff:192.0.2.128", ipv6.toString());
+    assert(ipv6.mapToIPv4().toBytes() == [0xC0,0x00,0x02,0x80]);
+}
+
+unittest // IPAddress.parse
+{
+    auto ipv4 = IPAddress.parseIPv4("192.168.0.1");
+    assert(ipv4.isOK);
+    assert(ipv4.toBytes() == [0xC0,0xA8,0x00,0x01]);
+    auto ipv4b = IPAddress.parse("192.168.0.1");
+    assert(ipv4.value == ipv4b.value);
+
+    auto ipv6 = IPAddress.parseIPv6("2001:db8::ff00:42:8329%4");
+    assert(ipv6.isOK, ipv6.errorMessage());
+    assert(ipv6.toBytes() == [0x20,0x01,0x0D,0xB8,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0x00,0x00,0x42,0x83,0x29]);
+    assert(ipv6.scopeId == 4);
+    auto ipv6b = IPAddress.parse("2001:db8::ff00:42:8329%4");
+    assert(ipv6.value == ipv6b.value);
+
+    ipv6 = IPAddress.parseIPv6("::ffff:192.0.2.128");
+    assert(ipv6.isOK, ipv6.errorMessage());
+    assert(ipv6.toBytes() == [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,0xC0,0x00,0x02,0x80]);
+    assert(ipv6.scopeId == 0);
+}
+
+unittest // SocketAddress
+{
+    auto ipv4 = SocketAddress(IPAddress.parseIPv4("192.168.0.1"), 99);
+    assert(ipv4.toString() == "192.168.0.1:99");
+
+    auto ipv6 = SocketAddress(IPAddress.parseIPv6("2001:db8::ff00:42:8329%4"), 99);
+    assert(ipv6.toString() == "[2001:db8::ff00:42:8329%4]:99");
+}
