@@ -38,7 +38,8 @@ public:
     alias C = XmlChar!S;
 
 public:
-    @disable this();
+    @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(XmlDocument!S document, XmlReader!S reader, XmlParseOptions!S options) nothrow
     {

@@ -584,7 +584,8 @@ public:
     alias C = XmlChar!S;
 
 public:
-    @disable this();
+    @disable this(this);
+    @disable void opAssign(typeof(this));
 
     this(XmlNode!S xpathNode) nothrow pure
     {
