@@ -13,6 +13,7 @@ module pham.cp.pad;
 
 import std.algorithm.searching : all;
 
+import pham.utl.bit : bytesToNative, nativeToBytes;
 import pham.cp.cipher : CipherBuffer;
 import pham.cp.random;
 
@@ -135,8 +136,6 @@ public:
         }
         else
         {
-            import pham.utl.bit_array : nativeToBytes;
-
             const orgDataLength = cast(uint)data.length;
             ptrdiff_t paddingSize = blockSize - (orgDataLength % blockSize);
             if (paddingSize < 4)
@@ -229,8 +228,6 @@ public:
         }
         else static if (fill == CipherPaddingModeKind.zero && suffix == CipherPaddingModeKind.orgSize)
         {
-            import pham.utl.bit_array : bytesToNative;
-
             const dataLength = data.length;
             if (!isValidPaddedDataSize(dataLength, blockSize))
                 return [];
@@ -334,8 +331,6 @@ public:
         }
         else static if (fill == CipherPaddingModeKind.zero && suffix == CipherPaddingModeKind.orgSize)
         {
-            import pham.utl.bit_array : bytesToNative;
-
             const dataLength = data.length;
             if (!isValidPaddedDataSize(dataLength, blockSize))
                 return data.clear();

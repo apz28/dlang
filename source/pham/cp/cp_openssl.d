@@ -179,7 +179,7 @@ struct OpenSSLClientSocket
 nothrow @safe:
 
 public:
-    @disable this(ref typeof(this));
+    @disable this(this);
     @disable void opAssign(typeof(this));
 
     ~this()

@@ -15,8 +15,8 @@ import std.algorithm.mutation : swap;
 import std.string : representation;
 
 version (unittest) import pham.utl.test;
+import pham.utl.bit : bytesToNative, nativeToBytes;
 import pham.utl.disposable : DisposingReason;
-import pham.utl.bit_array : bytesToNative, nativeToBytes;
 import pham.cp.cipher;
 
 nothrow @safe:
@@ -35,7 +35,7 @@ public:
      * kkkkkkkk  kkkkkkkk  kkkkkkkk  kkkkkkkk
      * bbbbbbbb  nnnnnnnn  nnnnnnnn  nnnnnnnn
      * c=constant k=key b=blockcount n=nonce
-     */ 
+     */
     struct Block
     {
     nothrow @safe:
@@ -46,7 +46,7 @@ public:
             ubyte[blockSize] bytes;
         }
     }
-    
+
     enum nonceSizeX = 24;
 
 public:
@@ -72,7 +72,7 @@ public:
 		    initNonce[0..4] = 0;
 		    initNonce[4..12] = _parameters.privateKey.chacha.nonce[16..24];
         }
-    
+
         auto k = CipherChaChaKey(cast(uint)(key.length * 8), key, nonce, counter32, rounds);
         this(CipherKey(k));
     }
@@ -212,7 +212,7 @@ private:
                 break;
         }
     }
-    
+
     final ubyte[] process(scope const(ubyte)[] input, ubyte[] output) @nogc pure
     in
     {

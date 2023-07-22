@@ -20,7 +20,7 @@ import pham.dtm.tick : DateTimeZoneKind;
 import pham.dtm.time : Time;
 import pham.utl.array : ShortStringBuffer;
 import pham.utl.big_integer : BigInteger;
-import pham.utl.object : cmpInteger, ResultStatus, toString;
+import pham.utl.object : cmp, ResultStatus, toString;
 import pham.utl.variant : Variant;
 import pham.cp.cipher : CipherBuffer;
 
@@ -223,13 +223,13 @@ public:
         const cmpLen = rhsBytes.length > _bitBytes.length ? _bitBytes.length : rhsBytes.length;
         foreach (i; 0..cmpLen)
         {
-            const c = cmpInteger(_bitBytes[i], rhsBytes[i]);
+            const c = cmp(_bitBytes[i], rhsBytes[i]);
             if (c != 0)
                 return c;
         }
 
-        const c = cmpInteger(_bitBytes.length, rhsBytes.length);
-        return c != 0 ? c : cmpInteger(_bitLength, rhs._bitLength);
+        const c = cmp(_bitBytes.length, rhsBytes.length);
+        return c != 0 ? c : cmp(_bitLength, rhs._bitLength);
     }
 
     bool opEquals(scope const(ASN1BitString) rhs) const @nogc pure
@@ -1475,12 +1475,12 @@ public:
         const cmpLen = rhs.length > _value.length ? _value.length : rhs.length;
         foreach (i; 0..cmpLen)
         {
-            const c = cmpInteger(_value[i], rhs[i]);
+            const c = cmp(_value[i], rhs[i]);
             if (c != 0)
                 return c;
         }
 
-        return cmpInteger(_value.length, rhs.length);
+        return cmp(_value.length, rhs.length);
     }
 
     int opCmp(scope const(ASN1ObjectIdentifier) rhs) const @nogc pure
@@ -1490,21 +1490,12 @@ public:
 
     bool opEquals(scope const(int)[] rhs) const @nogc pure
     {
-        if (_value.length != rhs.length)
-            return false;
-
-        foreach (i; 0..rhs.length)
-        {
-            if (_value[i] != rhs[i])
-                return false;
-        }
-
-        return true;
+        return opCmp(rhs) == 0;
     }
 
     bool opEquals(scope const(ASN1ObjectIdentifier) rhs) const @nogc pure
     {
-        return opEquals(rhs._value);
+        return opCmp(rhs) == 0;
     }
 
     size_t toHash() const @nogc pure
