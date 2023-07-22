@@ -1075,21 +1075,21 @@ package(pham.db):
 
 protected:
     final override SkException createConnectError(int errorCode, string errorMessage,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new PgException(errorMessage, DbErrorCode.connect, null, errorCode, 0, file, line, next);
+        return new PgException(errorMessage, DbErrorCode.connect, null, errorCode, 0, next, funcName, file, line);
     }
 
     final override SkException createReadDataError(int errorCode, string errorMessage,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new PgException(errorMessage, DbErrorCode.read, null, errorCode, 0, file, line, next);
+        return new PgException(errorMessage, DbErrorCode.read, null, errorCode, 0, next, funcName, file, line);
     }
 
     final override SkException createWriteDataError(int errorCode, string errorMessage,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new PgException(errorMessage, DbErrorCode.write, null, errorCode, 0, file, line, next);
+        return new PgException(errorMessage, DbErrorCode.write, null, errorCode, 0, next, funcName, file, line);
     }
 
     override void disposeCommands(const(DisposingReason) disposingReason) nothrow @safe

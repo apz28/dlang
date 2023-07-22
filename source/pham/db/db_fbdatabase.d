@@ -1792,21 +1792,21 @@ package(pham.db):
 
 protected:
     final override SkException createConnectError(int errorCode, string errorMessage,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new FbException(errorMessage, DbErrorCode.connect, null, errorCode, FbIscResultCode.isc_net_connect_err, file, line, next);
+        return new FbException(errorMessage, DbErrorCode.connect, null, errorCode, FbIscResultCode.isc_net_connect_err, next, callerName, file, line);
     }
 
     final override SkException createReadDataError(int errorCode, string errorMessage,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new FbException(errorMessage, DbErrorCode.read, null, errorCode, FbIscResultCode.isc_net_read_err, file, line, next);
+        return new FbException(errorMessage, DbErrorCode.read, null, errorCode, FbIscResultCode.isc_net_read_err, next, callerName, file, line);
     }
 
     final override SkException createWriteDataError(int errorCode, string errorMessage,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new FbException(errorMessage, DbErrorCode.write, null, errorCode, FbIscResultCode.isc_net_write_err, file, line, next);
+        return new FbException(errorMessage, DbErrorCode.write, null, errorCode, FbIscResultCode.isc_net_write_err, next, callerName, file, line);
     }
 
     override void disposeCommands(const(DisposingReason) disposingReason) nothrow @safe

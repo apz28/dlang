@@ -801,42 +801,42 @@ protected:
         return result;
     }
 
-    void checkActive(string file = __FILE__, uint line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
+    void checkActive(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         version (TraceFunction) traceFunction("callerName=", callerName);
 
         if (!handle)
         {
             auto msg = DbMessage.eInvalidCommandInactive.fmtMessage(callerName);
-            throw new DbException(msg, DbErrorCode.connect, null, 0, 0, file, line, next);
+            throw new DbException(msg, DbErrorCode.connect, null, 0, 0, null, callerName, file, line);
         }
 
         if (_connection is null)
         {
             auto msg = DbMessage.eInvalidCommandConnection.fmtMessage(callerName);
-            throw new DbException(msg, DbErrorCode.connect, null, 0, 0, file, line, next);
+            throw new DbException(msg, DbErrorCode.connect, null, 0, 0, null, callerName, file, line);
         }
 
         _connection.checkActive(callerName);
     }
 
-    final void checkActiveReader(string file = __FILE__, uint line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
+    final void checkActiveReader(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         version (TraceFunction) traceFunction("callerName=", callerName);
 
         if (_activeReader)
-            throw new DbException(DbMessage.eInvalidCommandActiveReader, 0, null, 0, 0, file, line, next);
+            throw new DbException(DbMessage.eInvalidCommandActiveReader, 0, null, 0, 0, null, callerName, file, line);
 
         connection.checkActiveReader(callerName);
     }
 
-    void checkCommand(int excludeCommandType,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
+    void checkCommand(int excludeCommandType, Throwable next = null, 
+        string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         version (TraceFunction) traceFunction("callerName=", callerName);
 
         if (_connection is null || _connection.state != DbConnectionState.opened)
-            throw new DbException(DbMessage.eInvalidCommandConnection, DbErrorCode.connect, null, 0, 0, file, line, next);
+            throw new DbException(DbMessage.eInvalidCommandConnection, DbErrorCode.connect, null, 0, 0, next, callerName, file, line);
 
         checkActiveReader(callerName);
 
@@ -844,26 +844,26 @@ protected:
             transaction = null;
 
         if (_commandText.length == 0)
-            throw new DbException(DbMessage.eInvalidCommandText, 0, null, 0, 0, file, line, next);
+            throw new DbException(DbMessage.eInvalidCommandText, 0, null, 0, 0, next, callerName, file, line);
 
         if (excludeCommandType != -1 && _commandType == excludeCommandType)
         {
             auto msg = DbMessage.eInvalidCommandUnfit.fmtMessage(callerName);
-            throw new DbException(msg, 0, null, 0, 0, file, line, next);
+            throw new DbException(msg, 0, null, 0, 0, next, callerName, file, line);
         }
 
         if (_transaction !is null && _transaction.connection !is _connection)
-            throw new DbException(DbMessage.eInvalidCommandConnectionDif, 0, null, 0, 0, file, line, next);
+            throw new DbException(DbMessage.eInvalidCommandConnectionDif, 0, null, 0, 0, next, callerName, file, line);
     }
 
-    final void checkInactive(string file = __FILE__, uint line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
+    final void checkInactive(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         version (TraceFunction) traceFunction("callerName=", callerName);
 
         if (handle)
         {
             auto msg = DbMessage.eInvalidCommandActive.fmtMessage(callerName);
-            throw new DbException(msg, DbErrorCode.connect, null, 0, 0, file, line, next);
+            throw new DbException(msg, DbErrorCode.connect, null, 0, 0, null, callerName, file, line);
         }
     }
 
@@ -1516,7 +1516,7 @@ package(pham.db):
         return (++_nextCounter);
     }
 
-    void fatalError(string callerName = __FUNCTION__) @safe
+    void fatalError(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         version (TraceFunction) traceFunction("callerName=", callerName);
 
@@ -1524,7 +1524,7 @@ package(pham.db):
     }
 
 protected:
-    final void checkActive(string callerName = __FUNCTION__) @safe
+    final void checkActive(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         version (TraceFunction) traceFunction("callerName=", callerName);
 
@@ -1537,13 +1537,13 @@ protected:
         }
     }
 
-    final void checkActiveReader(string callerName = __FUNCTION__) @safe
+    final void checkActiveReader(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         if (_readerCounter != 0 && !supportMultiReaders)
             throw new DbException(DbMessage.eInvalidConnectionActiveReader, 0, null);
     }
 
-    final void checkInactive(string callerName = __FUNCTION__) @safe
+    final void checkInactive(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         version (TraceFunction) traceFunction("callerName=", callerName);
 
@@ -4642,7 +4642,7 @@ protected:
     }
 
     final ptrdiff_t checkSavePointName(string savePointName,
-        string callerName = __FUNCTION__) @safe
+        string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         version (TraceFunction) traceFunction("savePointName=", savePointName, ", callerName=", callerName);
 
@@ -4655,7 +4655,7 @@ protected:
         return index;
     }
 
-    final void checkSavePointState(string callerName = __FUNCTION__) @safe
+    final void checkSavePointState(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         try
         {
@@ -4669,7 +4669,7 @@ protected:
     }
 
     final void checkState(const(DbTransactionState) checkingState,
-        string callerName = __FUNCTION__) @safe
+        string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         version (TraceFunction) traceFunction("checkingState=", checkingState, ", callerName=", callerName);
 

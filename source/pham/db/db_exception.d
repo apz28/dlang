@@ -21,7 +21,7 @@ class DbException : Exception
 public:
     this(string message, int code, string sqlState,
         int socketCode = 0, int vendorCode = 0,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) pure
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
     {
         version (TraceFunction) debug traceFunction();
 
@@ -32,6 +32,7 @@ public:
             message ~= "\n" ~ DbMessage.eErrorSqlState.fmtMessage(sqlState);
 
         super(message, file, line, next);
+        this.funcName = funcName;
         this.sqlState = sqlState;
         this.code = code;
         this.socketCode = socketCode;
@@ -55,6 +56,7 @@ public:
     }
 
 public:
+    string funcName;
     string sqlState;
     int code;
     int socketCode;
@@ -68,8 +70,8 @@ class SkException : DbException
 public:
     this(string message, int code, string sqlState,
         int socketCode = 0, int vendorCode = 0,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) pure
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
     {
-        super(message, code, sqlState, socketCode, vendorCode, file, line, next);
+        super(message, code, sqlState, socketCode, vendorCode, next, funcName, file, line);
     }
 }

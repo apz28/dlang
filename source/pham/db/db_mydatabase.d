@@ -661,21 +661,21 @@ package(pham.db):
 
 protected:
     final override SkException createConnectError(int errorCode, string errorMessage,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new MyException(errorMessage, DbErrorCode.connect, null, errorCode, 0, file, line, next);
+        return new MyException(errorMessage, DbErrorCode.connect, null, errorCode, 0, next, callerName, file, line);
     }
 
     final override SkException createReadDataError(int errorCode, string errorMessage,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new MyException(errorMessage, DbErrorCode.read, null, errorCode, 0, file, line, next);
+        return new MyException(errorMessage, DbErrorCode.read, null, errorCode, 0, next, callerName, file, line);
     }
 
     final override SkException createWriteDataError(int errorCode, string errorMessage,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new MyException(errorMessage, DbErrorCode.write, null, errorCode, 0, file, line, next);
+        return new MyException(errorMessage, DbErrorCode.write, null, errorCode, 0, next, callerName, file, line);
     }
 
     final void disposePackageReadBuffers(const(DisposingReason) disposingReason) nothrow @safe

@@ -298,7 +298,7 @@ package(pham.db):
     }
 
     final void throwConnectError(int errorRawCode, string errorRawMessage,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         version (TraceFunction) traceFunction("errorRawCode=", errorRawCode, ", errorRawMessage=", errorRawMessage);
 
@@ -306,11 +306,11 @@ package(pham.db):
             log.errorf("%s.%s() - %s", forLogInfo(), callerName, errorRawMessage);
 
         auto msg = DbMessage.eConnect.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
-        throw createConnectError(errorRawCode, msg, file, line, next);
+        throw createConnectError(errorRawCode, msg, next, callerName, file, line);
     }
 
     final void throwReadDataError(int errorRawCode, string errorRawMessage,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         version (TraceFunctionReader) traceFunction("errorRawCode=", errorRawCode, ", errorRawMessage=", errorRawMessage);
 
@@ -318,11 +318,11 @@ package(pham.db):
             log.errorf("%s.%s() - %s", forLogInfo(), callerName, errorRawMessage);
 
         auto msg = DbMessage.eReadData.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
-        throw createReadDataError(errorRawCode, msg, file, line, next);
+        throw createReadDataError(errorRawCode, msg, next, callerName, file, line);
     }
 
     final void throwWriteDataError(int errorRawCode, string errorRawMessage,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null, string callerName = __FUNCTION__) @safe
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         version (TraceFunctionWriter) traceFunction("errorRawCode=", errorRawCode, ", errorRawMessage=", errorRawMessage);
 
@@ -330,7 +330,7 @@ package(pham.db):
             log.errorf("%s.%s() - %s", forLogInfo(), callerName, errorRawMessage);
 
         auto msg = DbMessage.eWriteData.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
-        throw createWriteDataError(errorRawCode, msg, file, line, next);
+        throw createWriteDataError(errorRawCode, msg, next, callerName, file, line);
     }
 
 protected:
@@ -340,21 +340,21 @@ protected:
     }
 
     SkException createConnectError(int errorCode, string errorMessage,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new SkException(errorMessage, DbErrorCode.connect, null, errorCode, 0, file, line, next);
+        return new SkException(errorMessage, DbErrorCode.connect, null, errorCode, 0, next, callerName, file, line);
     }
 
     SkException createReadDataError(int errorCode, string errorMessage,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new SkException(errorMessage, DbErrorCode.read, null, errorCode, 0, file, line, next);
+        return new SkException(errorMessage, DbErrorCode.read, null, errorCode, 0, next, callerName, file, line);
     }
 
     SkException createWriteDataError(int errorCode, string errorMessage,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) @safe
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new SkException(errorMessage, DbErrorCode.write, null, errorCode, 0, file, line, next);
+        return new SkException(errorMessage, DbErrorCode.write, null, errorCode, 0, next, callerName, file, line);
     }
 
     DbReadBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
@@ -448,7 +448,7 @@ protected:
         {
             auto socketErrorMsg = e.msg;
             auto socketErrorCode = lastSocketErrorCode();
-            throwConnectError(socketErrorCode, socketErrorMsg, e.file, e.line, e);
+            throwConnectError(socketErrorCode, socketErrorMsg, e);
         }
     }
 

@@ -22,18 +22,18 @@ class PgException : SkException
 public:
     this(string message, int code, string sqlState,
         int socketCode = 0, int vendorCode = 0,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) pure
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
     {
-        super(message, code, sqlState, socketCode, vendorCode, file, line, next);
+        super(message, code, sqlState, socketCode, vendorCode, next, funcName, file, line);
     }
 
     this(PgGenericResponse statues,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null)
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__)
     {
         auto statusMessage = statues.errorString();
         auto statusSqlState = statues.sqlState();
         auto statusCode = statues.errorCode();
-        super(statusMessage, statusCode, statusSqlState, 0, statusCode, file, line, next);
+        super(statusMessage, statusCode, statusSqlState, 0, statusCode, next, funcName, file, line);
         this.statues = statues;
     }
 
