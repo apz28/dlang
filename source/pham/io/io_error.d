@@ -22,10 +22,11 @@ struct IOError
 
 public:
     this(uint errorNo, string message,
-        string file = __FILE__, uint line = __LINE__) nothrow pure
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
     {
         this.errorNo = errorNo;
         this.message = message;
+        this.funcName = funcName;
         this.file = file;
         this.line = line;
     }
@@ -45,7 +46,7 @@ public:
         else
             return false;
     }
-    
+
     IOResult clone(IOError source, IOResult result) nothrow pure
     {
         this.file = source.file;
@@ -54,7 +55,7 @@ public:
         this.line = source.line;
         return result;
     }
-    
+
     static IOError failed(uint errorNo, string postfixMessage = null,
         string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
     {
@@ -66,9 +67,9 @@ public:
     pragma(inline, true)
     static typeof(this) ok() nothrow pure
     {
-        return typeof(this)(0, null, null, 0);
+        return typeof(this)(0, null, null, null, 0);
     }
-    
+
     pragma(inline, true)
     IOResult reset() nothrow
     {
@@ -78,10 +79,11 @@ public:
     }
 
     IOResult set(uint errorNo, string message, IOResult result = IOResult.failed,
-        string file = __FILE__, uint line = __LINE__) nothrow
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
     {
         this.errorNo = errorNo;
         this.message = message;
+        this.funcName = funcName;
         this.file = file;
         this.line = line;
         return result;
@@ -92,6 +94,7 @@ public:
     {
         this.errorNo = errorNo;
         this.message = "Failed " ~ funcName ~ postfixMessage;
+        this.funcName = funcName;
         this.file = file;
         this.line = line;
         this.addMessageIf(errorNo != 0 ? getSystemErrorMessage(errorNo) : null);
@@ -104,6 +107,7 @@ public:
     {
         this.errorNo = errorNo;
         this.message = "Unsupported " ~ funcName ~ postfixMessage;
+        this.funcName = funcName;
         this.file = file;
         this.line = line;
         return IOResult.unsupported;
@@ -118,7 +122,7 @@ public:
 
     void throwIt(E : StreamException = StreamException)()
     {
-        throw new E(errorNo, message, file, line);
+        throw new E(errorNo, message, null, funcName, file, line);
     }
 
     /**
@@ -140,6 +144,7 @@ public:
     }
 
 public:
+    string funcName;
     string file;
     string message;
     uint errorNo;
@@ -152,9 +157,10 @@ class IOException : Exception
 
 public:
     this(uint errorNo, string message,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) nothrow pure
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
     {
         super(message, file, line, next);
+        this.callerName = callerName;
         this.errorNo = errorNo;
     }
 
@@ -178,6 +184,7 @@ public:
     }
 
 public:
+    string callerName;
     const(uint) errorNo;
 }
 
@@ -187,9 +194,9 @@ class StreamException : IOException
 
 public:
     this(uint errorNo, string message,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) nothrow pure
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
     {
-        super(errorNo, message, file, line, next);
+        super(errorNo, message, next, callerName, file, line);
     }
 }
 
@@ -199,9 +206,9 @@ class StreamReadException : StreamException
 
 public:
     this(uint errorNo, string message,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) nothrow pure
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
     {
-        super(errorNo, message, file, line, next);
+        super(errorNo, message, next, callerName, file, line);
     }
 }
 
@@ -211,8 +218,8 @@ class StreamWriteException : StreamException
 
 public:
     this(uint errorNo, string message,
-        string file = __FILE__, uint line = __LINE__, Throwable next = null) nothrow pure
+        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
     {
-        super(errorNo, message, file, line, next);
+        super(errorNo, message, next, callerName, file, line);
     }
 }
