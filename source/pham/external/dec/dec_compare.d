@@ -3,11 +3,16 @@ module pham.external.dec.compare;
 import std.math: isInfinity, isNaN, signStd = signbit;
 import std.traits: isFloatingPoint, isIntegral, isUnsigned, Unqual;
 
-import pham.external.dec.decimal : CommonDecimal, CommonStorage, DataType,
+import pham.external.dec.decimal : CommonDecimal, CommonStorage,
     Decimal, Decimal32, Decimal64, Decimal128,
-    ExceptionFlags, FastClass, RoundingMode, fastDecode, isDecimal, signDec = signbit;
-import pham.external.dec.integral : dataTypeToString, pow10, prec, unsign;
+    fastDecode, isDecimal, signDec = signbit;
+import pham.external.dec.integral : pow10, prec, unsign;
 import pham.external.dec.math : mulpow10;
+import pham.external.dec.sink : dataTypeToString;
+import pham.external.dec.type;
+
+//enum nanResult = -2;
+//enum signalNaNResult = -3;
 
 nothrow @safe:
 package(pham.external.dec):
@@ -15,13 +20,11 @@ package(pham.external.dec):
 alias signbit = signDec;
 alias signbit = signStd;
 
-int decimalCmp(D1, D2)(auto const ref D1 x, auto const ref D2 y) @safe pure nothrow @nogc
+float decimalCmp(D1, D2)(auto const ref D1 x, auto const ref D2 y) @safe pure nothrow @nogc
 if (isDecimal!(D1, D2))
 {
-    //-3 signan
-    //-2 nan
     alias D = CommonDecimal!(D1, D2);
-    DataType!D cx, cy; int ex, ey; bool sx, sy;
+    DataType!(D.sizeof) cx, cy; int ex, ey; bool sx, sy;
     const fx = fastDecode(x, cx, ex, sx);
     const fy = fastDecode(y, cy, ey, sy);
 
@@ -34,27 +37,32 @@ if (isDecimal!(D1, D2))
                 return sx ? -1: 1;
             if (fy == FastClass.infinite)
                 return sy ? 1 : -1;
-            return fy == FastClass.signalingNaN ? -3 : -2;
+            //return fy == FastClass.signalingNaN ? signalNaNResult : nanResult;
+            return float.nan;
         case FastClass.zero:
             if (fy == FastClass.finite || fy == FastClass.infinite)
                 return sy ? 1 : -1;
             if (fy == FastClass.zero)
                 return 0;
-            return fy == FastClass.signalingNaN ? -3 : -2;
+            //return fy == FastClass.signalingNaN ? signalNaNResult : nanResult;
+            return float.nan;
         case FastClass.infinite:
             if (fy == FastClass.finite || fy == FastClass.zero)
                 return sx ? -1 : 1;
             if (fy == FastClass.infinite)
                 return sx == sy ? 0 : (sx ? -1 : 1);
-            return fy == FastClass.signalingNaN ? -3 : -2;
+            //return fy == FastClass.signalingNaN ? signalNaNResult : nanResult;
+            return float.nan;
         case FastClass.quietNaN:
-            return fy == FastClass.signalingNaN ? -3 : -2;
+            //return fy == FastClass.signalingNaN ? signalNaNResult : nanResult;
+            return float.nan;
         case FastClass.signalingNaN:
-            return -3;
+            //return signalNaNResult;
+            return float.nan;
     }
 }
 
-int decimalCmp(D, T)(auto const ref D x, auto const ref T y) @safe pure nothrow @nogc
+float decimalCmp(D, T)(auto const ref D x, auto const ref T y) @safe pure nothrow @nogc
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
@@ -73,18 +81,23 @@ if (isDecimal!D && isIntegral!T)
         case FastClass.infinite:
             return sx ? -1 : 1;
         case FastClass.quietNaN:
+            //return nanResult;
+            return float.nan;
         case FastClass.signalingNaN:
-            return -2;
+            //return signalNaNResult;
+            return float.nan;
     }
 }
 
-int decimalCmp(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @safe pure nothrow @nogc
+float decimalCmp(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     if (x.isSignalNaN)
-        return -3;
+        //return signalNaNResult;
+        return float.nan;
     if (x.isNaN || y.isNaN)
-        return -2;
+        //return nanResult;
+        return float.nan;
 
     const sx = cast(bool)signbit(x);
     const sy = cast(bool)signbit(y);
@@ -218,11 +231,11 @@ int coefficientCmp(T)(const T cx, const(int) ex, const(T) cy, const(int) ey) @sa
         return 0;
 }
 
-int decimalEqu(D1, D2)(auto const ref D1 x, auto const ref D2 y) @safe pure nothrow @nogc
+float decimalEqu(D1, D2)(auto const ref D1 x, auto const ref D2 y) @safe pure nothrow @nogc
 if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
-    DataType!D cx, cy; int ex, ey; bool sx, sy;
+    DataType!(D.sizeof) cx, cy; int ex, ey; bool sx, sy;
     const fx = fastDecode(x, cx, ex, sx);
     const fy = fastDecode(y, cy, ey, sy);
 
@@ -233,27 +246,32 @@ if (isDecimal!(D1, D2))
                 return coefficientEqu(cx, ex, sx, cy, ey, sy);
             if (fy == FastClass.zero || fy == FastClass.infinite)
                 return 0;
-            return fy == FastClass.signalingNaN ? -3 : -2;
+            //return fy == FastClass.signalingNaN ? signalNaNResult : nanResult;
+            return float.nan;
         case FastClass.zero:
             if (fy == FastClass.zero)
                 return 1;
             if (fy == FastClass.finite || fy == FastClass.infinite)
                 return 0;
-            return fy == FastClass.signalingNaN ? -3 : -2;
+            //return fy == FastClass.signalingNaN ? signalNaNResult : nanResult;
+            return float.nan;
         case FastClass.infinite:
             if (fy == FastClass.infinite)
                 return sx == sy ? 1 : 0;
             if (fy == FastClass.finite || fy == FastClass.zero)
                 return 0;
-            return fy == FastClass.signalingNaN ? -3 : -2;
+            //return fy == FastClass.signalingNaN ? signalNaNResult : nanResult;
+            return float.nan;
         case FastClass.quietNaN:
-            return fy == FastClass.signalingNaN ? -3 : -2;
+            //return fy == FastClass.signalingNaN ? signalNaNResult : nanResult;
+            return float.nan;
         case FastClass.signalingNaN:
-            return -3;
+            //return signalNaNResult;
+            return float.nan;
     }
 }
 
-int decimalEqu(D, T)(auto const ref D x, auto const ref T y) @safe pure nothrow @nogc
+float decimalEqu(D, T)(auto const ref D x, auto const ref T y) @safe pure nothrow @nogc
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
@@ -270,19 +288,23 @@ if (isDecimal!D && isIntegral!T)
         case FastClass.infinite:
             return 0;
         case FastClass.quietNaN:
-            return -2;
+            //return nanResult;
+            return float.nan;
         case FastClass.signalingNaN:
-            return -3;
+            //return signalNaNResult;
+            return float.nan;
     }
 }
 
-int decimalEqu(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @safe pure nothrow @nogc
+float decimalEqu(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     if (x.isSignalNaN)
-        return -3;
+        //return signalNaNResult;
+        return float.nan;
     if (x.isNaN || y.isNaN)
-        return -2;
+        //return nanResult;
+        return float.nan;
     if (x.isZero)
         return y == 0.0 ? 1 : 0;
     if (y == 0.0)

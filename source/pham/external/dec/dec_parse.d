@@ -4,10 +4,11 @@ import core.checkedint: adds;
 import std.range.primitives: ElementType, isInputRange;
 import std.traits: isSomeChar, Unqual;
 
-import pham.external.dec.decimal : DataType, ExceptionFlags, isDecimal;
+import pham.external.dec.decimal : isDecimal;
 import pham.external.dec.integral : divrem, fma;
 import pham.external.dec.math : coefficientAdjust, coefficientShrink;
 import pham.external.dec.range;
+import pham.external.dec.type;
 
 nothrow @safe:
 package(pham.external.dec):
@@ -25,7 +26,7 @@ if (isInputRange!R && isSomeChar!(ElementType!R) && isDecimal!D)
 ExceptionFlags parse(D, R)(ref R range, out D decimal, const(int) precision, const(RoundingMode) mode)
 if (isInputRange!R && isSomeChar!(ElementType!R) && isDecimal!D)
 {
-    DataType!D coefficient;
+    DataType!(D.sizeof) coefficient;
     int exponent;
     bool isinf, isnan, signaling, signed;
     auto flags = parseDecimal(range, coefficient, exponent, isinf, isnan, signaling, isnegative);

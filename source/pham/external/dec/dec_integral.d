@@ -4,8 +4,6 @@ import core.bitop : bsf, bsr;
 import core.checkedint: adds, addu, mulu, subs, subu;
 import std.traits: CommonType, isSigned, isSomeChar, isUnsigned, Signed, Unqual, Unsigned;
 
-import pham.external.dec.sink : ShortStringBuffer;
-
 nothrow @safe:
 package(pham.external.dec):
 
@@ -16,7 +14,7 @@ package(pham.external.dec):
 template isCustomUnsignedBit(T)
 {
     alias UT = Unqual!T;
-    enum isCustomUnsignedBit = is(UT: UnsignedBit!bits, int bits);
+    enum isCustomUnsignedBit = is(UT: UnsignedBit!bytes, int bytes);
 }
 
 template isAnyUnsignedBit(T)
@@ -35,12 +33,12 @@ bool isHexString(scope const(char)[] s) @nogc pure
     return s.length >= 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X');
 }
 
-struct UnsignedBit(int bits)
-if (bits >= 128 && (bits & (bits - 1)) == 0)
+struct UnsignedBit(int bytes)
+if (bytes >= 16 && (bytes & (bytes - 1)) == 0)
 {
 @nogc nothrow @safe:
 
-    alias HALF = makeUnsignedBit!(bits / 2);
+    alias HALF = makeUnsignedBit!(bytes / 2);
     alias THIS = typeof(this);
 
     version (LittleEndian)
@@ -564,13 +562,13 @@ if (bits >= 128 && (bits & (bits - 1)) == 0)
     /// Return this instance data size in bytes
     @property static size_t sizeofData() pure
     {
-        return bits / 8;
+        return bytes;
     }
 }
 
-alias uint128 = UnsignedBit!128;
-alias uint256 = UnsignedBit!256;
-alias uint512 = UnsignedBit!512;
+alias uint128 = UnsignedBit!16;
+alias uint256 = UnsignedBit!32;
+alias uint512 = UnsignedBit!64;
 
 ///Returns true if all specified types are UnsignedBit... types.
 template isUnsignedBit(Ts...)
@@ -587,20 +585,20 @@ template isUnsignedBit(Ts...)
     }();
 }
 
-template makeUnsignedBit(int bits)
+template makeUnsignedBit(int bytes)
 {
-    static if (bits == 8)
+    static if (bytes == 1)
         alias makeUnsignedBit = ubyte;
-    else static if (bits == 16)
+    else static if (bytes == 2)
         alias makeUnsignedBit = ushort;
-    else static if (bits == 32)
+    else static if (bytes == 4)
         alias makeUnsignedBit = uint;
-    else static if (bits == 64)
+    else static if (bytes == 8)
         alias makeUnsignedBit = ulong;
-    else static if (bits >= 128)
-        alias makeUnsignedBit = UnsignedBit!bits;
+    else static if (bytes >= 16)
+        alias makeUnsignedBit = UnsignedBit!bytes;
     else
-        static assert(0, "Unsupport bits");
+        static assert(0, "Unsupport bytes");
 }
 
 T toUnsign(T)(const(char)[] s, ref bool overflow) @nogc nothrow pure @safe // TODO scope
@@ -672,33 +670,6 @@ if (T.sizeof >= 4 && isAnyUnsignedBit!T)
         return UT(s);
 }
 
-char[] dataTypeToString(T)(return ref ShortStringBuffer!char buffer, auto const ref T value) @nogc nothrow pure @safe
-if (isUnsignedBit!T)
-{
-    size_t i = buffer.clear(true).length;
-    T.THIS v = value;
-    do
-    {
-        const r = divrem(v, 10U);
-        buffer[--i] = cast(char)('0' + cast(uint)r);
-    } while (v != 0U);
-    return buffer.right(buffer.length - i);
-}
-
-char[] dataTypeToString(T)(return ref ShortStringBuffer!char buffer, auto const ref T value) @nogc nothrow pure @safe
-if (is(Unqual!T == ushort) || is(Unqual!T == uint) || is(Unqual!T == ulong))
-{
-    size_t i = buffer.clear(true).length;
-    Unqual!T v = value;
-    do
-    {
-        const r = v % 10U;
-        buffer[--i] = cast(char)('0' + cast(uint)r);
-        v /= 10U;
-    } while (v != 0U);
-    return buffer.right(buffer.length - i);
-}
-
 unittest
 {
     import std.typetuple;
@@ -718,7 +689,7 @@ unittest
             return T(rnd!(T.HALF)(), rnd!(T.HALF)());
     }
 
-    foreach (T; TypeTuple!(UnsignedBit!128, UnsignedBit!256, UnsignedBit!512))
+    foreach (T; TypeTuple!(UnsignedBit!16, UnsignedBit!32, UnsignedBit!64))
     {
         enum zero = T(0U);
         enum one = T(1U);
@@ -1292,8 +1263,7 @@ auto xmul(T)(auto const ref T x, auto const ref T y)
 if (isCustomUnsignedBit!T)
 {
     enum bits = T.sizeof * 8;
-    enum rbits = bits * 2;
-    alias R = UnsignedBit!rbits;
+    alias R = UnsignedBit!(T.sizeof * 2);
 
     if (x == 0U || y == 0U)
         return R.min;
@@ -1371,8 +1341,7 @@ auto xsqr(T)(auto const ref T x)
 if (isCustomUnsignedBit!T)
 {
     enum bits = T.sizeof * 8;
-    enum rbits = bits * 2;
-    alias R = UnsignedBit!rbits;
+    alias R = UnsignedBit!(T.sizeof * 2);
 
     const hilo = xmul(x.lo, x.hi);
 
@@ -1415,8 +1384,7 @@ auto xmul(T, U)(auto const ref T x, auto const ref U y)
 if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
 {
     enum bits = T.sizeof * 8;
-    enum rbits = bits * 2;
-    alias R = UnsignedBit!rbits;
+    alias R = UnsignedBit!(T.sizeof * 2);
 
     if (x == 0U || y == 0U)
         return R.min;
@@ -3020,15 +2988,6 @@ unittest // uparse
     uint512 x0 = uparse!uint512("0", overflow); assert(!overflow);
     uint512 x1 = uparse!uint512("1_234_567_890_123_456_789_012_345_678_901_234_567_890", overflow); assert(!overflow);
     uint512 x2 = uparse!uint512("0x1234_5678_9012_3456_7890_1234_5678_9012_3456_7890", overflow); assert(!overflow);
-}
-
-unittest // dataTypeToString
-{
-    ShortStringBuffer!char buffer;
-
-    assert(dataTypeToString(buffer, 0U) == "0");
-    assert(dataTypeToString(buffer, 12345U) == "12345");
-    assert(dataTypeToString(buffer, uint128("10000000000000000000000000")) == "10000000000000000000000000");
 }
 
 unittest // unUnsign

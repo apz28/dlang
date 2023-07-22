@@ -3,17 +3,17 @@ module pham.external.dec.math;
 import std.traits : isFloatingPoint, isIntegral, isSigned, Unqual, Unsigned;
 
 import pham.external.dec.compare : coefficientApproxEqu, coefficientCmp;
-import pham.external.dec.decimal : CommonDecimal, CommonStorage, DataType,
+import pham.external.dec.decimal : CommonDecimal, CommonStorage,
     Decimal, Decimal32, Decimal64, Decimal128,
-    ExceptionFlags, FastClass, RoundingMode,
     decimalToDecimal, decimalToSigned,
     copysign, fabs, fastDecode, isDecimal, isLess, isGreater, realFloatPrecision,
     signbit, unsignalize;
 import pham.external.dec.integral : cappedAdd, cappedSub, clz, ctz, cvt, divrem,
     isAnyUnsignedBit, makeUnsignedBit, maxmul10, pow10, prec, uint128, unsign,
     xadd, xmul, xsqr, xsub;
+import pham.external.dec.type;
 
- @safe nothrow:
+@safe nothrow:
 package(pham.external.dec):
 
  /* ****************************************************************************************************************** */
@@ -37,8 +37,8 @@ ExceptionFlags decimalAdd(D1, D2)(ref D1 x, auto const ref D2 y, const(int) prec
 if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
-    alias T = DataType!D;
-    alias T1 = DataType!D1;
+    alias T = DataType!(D.sizeof);
+    alias T1 = DataType!(D1.sizeof);
 
     T cx, cy; int ex, ey; bool sx, sy;
 
@@ -106,7 +106,7 @@ ExceptionFlags decimalAdd(D, T)(ref D x, auto const ref T y, const(int) precisio
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
-    alias X = DataType!D;
+    alias X = DataType!(D.sizeof);
     U cx; int ex; bool sx;
     final switch(fastDecode(x, cx, ex, sx))
     {
@@ -133,7 +133,7 @@ ExceptionFlags decimalAdd(D, F)(ref D x, auto const ref F y, const(int) precisio
 if (isDecimal!D && isFloatingPoint!F)
 {
     alias T = CommonStorage!(D, F);
-    alias X = DataType!D;
+    alias X = DataType!(D.sizeof);
 
     T cx, cy; int ex, ey; bool sx, sy;
     ExceptionFlags flags;
@@ -339,7 +339,7 @@ ExceptionFlags coefficientAdd(T)(ref T cx, ref int ex, ref bool sx, const(T) cy,
 
 ExceptionFlags decimalAdjust(D)(ref D x, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     final switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
@@ -639,7 +639,7 @@ ExceptionFlags decimalAsinh(D)(ref D x, const(int) precision, const(RoundingMode
 ExceptionFlags decimalAtan(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.signalingNaN:
@@ -651,13 +651,13 @@ if (isDecimal!D)
             x = signbit(x) ? -D.PI_2 : D.PI_2;
             return decimalAdjust(x, precision, mode);
         default:
-            DataType!D reductions;
+            DataType!(D.sizeof) reductions;
             coefficientCapAtan(cx, ex, sx, reductions);
             auto flags = coefficientAtan(cx, ex, sx);
             if (reductions)
             {
                 flags |= coefficientMul(cx, ex, sx, reductions, 0, false, RoundingMode.implicit);
-                flags |= coefficientMul(cx, ex, sx, DataType!D(2U), 0, false, RoundingMode.implicit);
+                flags |= coefficientMul(cx, ex, sx, DataType!(D.sizeof)(2U), 0, false, RoundingMode.implicit);
             }
             return x.adjustedPack(cx, ex, sx, precision, mode, flags);
     }
@@ -726,7 +726,7 @@ ExceptionFlags decimalAtanh(D)(ref D x, const(int) precision, const(RoundingMode
     if (x.isNaN || x.isZero)
         return ExceptionFlags.none;
 
-    alias T = DataType!D;
+    alias T = DataType!(D.sizeof);
     T cx = void;
     int ex = void;
     bool sx = x.unpack(cx, ex);
@@ -950,7 +950,7 @@ if (isDecimal!(D1, D2, D3))
 ExceptionFlags decimalCbrt(D)(ref D x, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     final switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
@@ -977,7 +977,7 @@ ExceptionFlags coefficientCbrt(T)(ref T cx, ref int ex) @safe pure nothrow @nogc
         return ExceptionFlags.none;
     }
 
-    alias U = makeUnsignedBit!(T.sizeof * 16);
+    alias U = makeUnsignedBit!(T.sizeof * 2);
 
     U cxx = cx;
     ExceptionFlags flags;
@@ -1064,7 +1064,7 @@ if (isDecimal!D)
 ExceptionFlags decimalCos(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.signalingNaN:
@@ -1188,11 +1188,11 @@ ExceptionFlags coefficientCosQ(T)(ref T cx, ref int ex, ref bool sx) @safe pure 
 
 ExceptionFlags decimalDec(D)(ref D x, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     final switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
-            const flags = coefficientAdd(cx, ex, sx, DataType!D(1U), 0, true, RoundingMode.implicit);
+            const flags = coefficientAdd(cx, ex, sx, DataType!(D.sizeof)(1U), 0, true, RoundingMode.implicit);
             return x.adjustedPack(cx, ex, sx, precision, mode, flags);
         case FastClass.zero:
             x = -D.one;
@@ -1210,8 +1210,8 @@ ExceptionFlags decimalDiv(D1, D2)(ref D1 x, auto const ref D2 y, const(int) prec
 if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
-    alias T = DataType!D;
-    alias T1 = DataType!D1;
+    alias T = DataType!(D.sizeof);
+    alias T1 = DataType!(D1.sizeof);
 
     T cx, cy; int ex, ey; bool sx, sy;
 
@@ -1314,8 +1314,8 @@ if (isDecimal!D && isIntegral!T)
     {
         case FastClass.finite:
             auto flags = coefficientDiv(cx, ex, sx, cy, 0, sy, RoundingMode.implicit);
-            flags |= coefficientAdjust(cx, ex, cvt!U(DataType!D.max), sx, RoundingMode.implicit);
-            return z.adjustedPack(cvt!(DataType!D)(cx), ex, sx, precision, mode, flags);
+            flags |= coefficientAdjust(cx, ex, cvt!U(DataType!(D.sizeof).max), sx, RoundingMode.implicit);
+            return z.adjustedPack(cvt!(DataType!(D.sizeof))(cx), ex, sx, precision, mode, flags);
         case FastClass.zero:
             z = sx ^ sy ? -D.infinity : D.infinity;
             return ExceptionFlags.divisionByZero;
@@ -1489,7 +1489,7 @@ ExceptionFlags coefficientDiv(T)(ref T cx, ref int ex, ref bool sx, const(T) cy,
         return ExceptionFlags.none;
     }
 
-    alias U = makeUnsignedBit!(T.sizeof * 16);
+    alias U = makeUnsignedBit!(T.sizeof * 2);
     U cxx = savecx;
     const px = prec(savecx);
     const pm = prec(U.max) - 1;
@@ -1554,8 +1554,8 @@ if (isDecimal!D)
 
     bool hasPositiveInfinity, hasNegativeInfinity;
 
-    alias T = makeUnsignedBit!(D.sizeof * 16);
-    DataType!D cx, cy;
+    alias T = makeUnsignedBit!(D.sizeof * 2);
+    DataType!(D.sizeof) cx, cy;
     T cxx, cyy, cr;
     int ex, ey, er;
     bool sx, sy, sr;
@@ -1706,8 +1706,8 @@ if (isDecimal!D)
         return ExceptionFlags.none;
     }
 
-    flags |= coefficientAdjust(cr, er, cvt!T(DataType!D.max), sr, mode);
-    return result.adjustedPack(cvt!(DataType!D)(cr), er, sr, precision, mode, flags);
+    flags |= coefficientAdjust(cr, er, cvt!T(DataType!(D.sizeof).max), sr, mode);
+    return result.adjustedPack(cvt!(DataType!(D.sizeof))(cr), er, sr, precision, mode, flags);
 }
 
 ExceptionFlags decimalExp(D)(ref D x, const(int) precision, const(RoundingMode) mode)
@@ -1772,7 +1772,7 @@ if (isDecimal!D)
         return ExceptionFlags.overflow | ExceptionFlags.inexact;
     }
 
-    DataType!D cx = void;
+    DataType!(D.sizeof) cx = void;
     int ex = void;
     bool sx = x.unpack(cx, ex);
     const flags2 = coefficientExp(cx, ex, sx);
@@ -1831,7 +1831,7 @@ if (isDecimal!D)
         x = D.one;
         return ExceptionFlags.none;
     }
-    alias T = DataType!D;
+    alias T = DataType!(D.sizeof);
     return x.adjustedPack(T(1U), n, false, precision, mode, ExceptionFlags.none);
 }
 
@@ -1988,7 +1988,7 @@ ExceptionFlags decimalFMA(D1, D2, D3, D)(auto const ref D1 x, auto const ref D2 
     out D result, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!(D1, D2, D3) && is(D : CommonDecimal!(D1, D2, D3)))
 {
-    alias U = DataType!D;
+    alias U = DataType!(D.sizeof);
 
     U cx, cy, cz; int ex, ey, ez; bool sx, sy, sz;
 
@@ -2111,7 +2111,7 @@ ExceptionFlags decimalHypot(D1, D2, D)(auto const ref D1 x, auto const ref D2 y,
     const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!(D1, D2) && is(D: CommonDecimal!(D1, D2)))
 {
-    alias U = DataType!D;
+    alias U = DataType!(D.sizeof);
 
     U cx, cy; int ex, ey; bool sx, sy;
 
@@ -2160,11 +2160,11 @@ ExceptionFlags coefficientHypot(T)(ref T cx, ref int ex, auto const ref T cy, co
 
 ExceptionFlags decimalInc(D)(ref D x, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     final switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
-            const flags = coefficientAdd(cx, ex, sx, DataType!D(1U), 0, false, RoundingMode.implicit);
+            const flags = coefficientAdd(cx, ex, sx, DataType!(D.sizeof)(1U), 0, false, RoundingMode.implicit);
             return x.adjustedPack(cx, ex, sx, precision, mode, flags);
         case FastClass.zero:
             x = D.one;
@@ -2181,7 +2181,7 @@ ExceptionFlags decimalInc(D)(ref D x, const(int) precision, const(RoundingMode) 
 ExceptionFlags decimalLog(D)(auto const ref D x, out int y) @safe pure nothrow @nogc
 if (isDecimal!D)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     final switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
@@ -2230,7 +2230,7 @@ if (isDecimal!D)
         return ExceptionFlags.divisionByZero;
     }
 
-    DataType!D cx = void;
+    DataType!(D.sizeof) cx = void;
     int ex = void;
     bool sx = x.unpack(cx, ex);
     const flags = coefficientLog(cx, ex, sx);
@@ -2393,7 +2393,7 @@ if (isDecimal!D)
         return ExceptionFlags.divisionByZero;
     }
 
-    DataType!D c = void;
+    DataType!(D.sizeof) c = void;
     int e = void;
     x.unpack(c, e);
     coefficientShrink(c, e);
@@ -2435,7 +2435,7 @@ if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 {
     // Special try construct for grep
     try {
-        DataType!D cx, cy; int ex, ey; bool sx, sy;
+        DataType!(D.sizeof) cx, cy; int ex, ey; bool sx, sy;
         const fx = fastDecode(x, cx, ex, sx);
         const fy = fastDecode(y, cy, ey, sy);
 
@@ -2520,7 +2520,7 @@ if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 {
     // Special try construct for grep
     try {
-        DataType!D cx, cy; int ex, ey; bool sx, sy;
+        DataType!(D.sizeof) cx, cy; int ex, ey; bool sx, sy;
         const fx = fastDecode(x, cx, ex, sx);
         const fy = fastDecode(y, cy, ey, sy);
 
@@ -2598,7 +2598,7 @@ if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 {
     // Special try construct for grep
     try {
-        DataType!D cx, cy; int ex, ey; bool sx, sy;
+        DataType!(D.sizeof) cx, cy; int ex, ey; bool sx, sy;
         const fx = fastDecode(x, cx, ex, sx);
         const fy = fastDecode(y, cy, ey, sy);
 
@@ -2682,7 +2682,7 @@ ExceptionFlags decimalMinAbs(D1, D2, D)(auto const ref D1 x, auto const ref D2 y
 if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 {
 try {
-    DataType!D cx, cy; int ex, ey; bool sx, sy;
+    DataType!(D.sizeof) cx, cy; int ex, ey; bool sx, sy;
     const fx = fastDecode(x, cx, ex, sx);
     const fy = fastDecode(y, cy, ey, sy);
 
@@ -2758,8 +2758,8 @@ ExceptionFlags decimalMod(D1, D2)(ref D1 x, auto const ref D2 y, const(int) prec
 if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
-    alias T = DataType!D;
-    alias T1 = DataType!D1;
+    alias T = DataType!(D.sizeof);
+    alias T1 = DataType!(D1.sizeof);
 
     T cx, cy; int ex, ey; bool sx, sy;
 
@@ -2827,7 +2827,7 @@ ExceptionFlags decimalMod(D, T)(ref D x, auto const ref T y, const(int) precisio
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
-    alias X = DataType!D;
+    alias X = DataType!(D.sizeof);
 
     U cx; int ex; bool sx;
     bool sy;
@@ -2861,7 +2861,7 @@ ExceptionFlags decimalMod(T, D)(auto const ref T x, auto const ref D y, out D z,
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
-    alias X = DataType!D;
+    alias X = DataType!(D.sizeof);
     U cy; int ey; bool sy;
     int ex = 0;
     bool sx;
@@ -2937,7 +2937,7 @@ ExceptionFlags decimalMod(F, D)(auto const ref F x, auto const ref D y, out D z,
 if (isDecimal!D && isFloatingPoint!F)
 {
     alias T = CommonStorage!(D, F);
-    alias X = DataType!D;
+    alias X = DataType!(D.sizeof);
 
     T cx, cy; int ex, ey; bool sx, sy;
     ExceptionFlags flags;
@@ -3009,8 +3009,8 @@ ExceptionFlags decimalMul(D1, D2)(ref D1 x, auto const ref D2 y, const(int) prec
 if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
-    alias T = DataType!D;
-    alias T1 = DataType!D1;
+    alias T = DataType!(D.sizeof);
+    alias T1 = DataType!(D1.sizeof);
 
     T cx, cy; int ex, ey; bool sx, sy;
 
@@ -3065,7 +3065,7 @@ ExceptionFlags decimalMul(D, T)(ref D x, auto const ref T y, const(int) precisio
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
-    alias X = DataType!D;
+    alias X = DataType!(D.sizeof);
     U cx; int ex; bool sx;
     bool sy;
     U cy = unsign!U(y, sy);
@@ -3203,13 +3203,13 @@ ExceptionFlags coefficientMul(T)(ref T cx, ref int ex, ref bool sx, const(T) cy,
 ExceptionFlags decimalMulPow2(D)(ref D x, const(int) n, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     final switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             if (!n)
                 return ExceptionFlags.none;
-            DataType!D cy = 1U;
+            DataType!(D.sizeof) cy = 1U;
             int ey = n;
             ExceptionFlags flags;
             final switch(mode)
@@ -3245,7 +3245,7 @@ if (isDecimal!D)
 ExceptionFlags decimalNextDown(D)(ref D x) @safe pure nothrow @nogc
 if (isDecimal!D)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     final switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
@@ -3256,7 +3256,7 @@ if (isDecimal!D)
                 ++cx;
             return x.adjustedPack(cx, ex, sx, 0, RoundingMode.towardNegative, ExceptionFlags.none);
         case FastClass.zero:
-            x.pack(DataType!D(1U), D.EXP_MIN, true);
+            x.pack(DataType!(D.sizeof)(1U), D.EXP_MIN, true);
             return ExceptionFlags.none;
         case FastClass.infinite:
             if (!sx)
@@ -3273,7 +3273,7 @@ if (isDecimal!D)
 ExceptionFlags decimalNextUp(D)(ref D x) @safe pure nothrow @nogc
 if (isDecimal!D)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     final switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
@@ -3284,7 +3284,7 @@ if (isDecimal!D)
                 ++cx;
             return x.adjustedPack(cx, ex, sx, 0, RoundingMode.towardPositive, ExceptionFlags.none);
         case FastClass.zero:
-            x.pack(DataType!D(1U), D.EXP_MIN, false);
+            x.pack(DataType!(D.sizeof)(1U), D.EXP_MIN, false);
             return ExceptionFlags.none;
         case FastClass.infinite:
             if (sx)
@@ -3320,7 +3320,7 @@ if (isDecimal!(D1, D2) && is(D: CommonDecimal!(D1, D2)))
 ExceptionFlags decimalPow(D, T)(ref D x, const(T) n, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D & isIntegral!T)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
 
     final switch (fastDecode(x, cx, ex, sx))
     {
@@ -3331,7 +3331,7 @@ if (isDecimal!D & isIntegral!T)
                 return ExceptionFlags.none;
             }
 
-            DataType!D cv; int ev; bool sv;
+            DataType!(D.sizeof) cv; int ev; bool sv;
             ExceptionFlags flags;
             static if (isSigned!T)
             {
@@ -3457,8 +3457,8 @@ if (isDecimal!D && isFloatingPoint!F)
 ExceptionFlags decimalProd(D)(const(D)[] x, out D result, out int scale, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D)
 {
-    alias T = makeUnsignedBit!(D.sizeof * 16);
-    DataType!D cx;
+    alias T = makeUnsignedBit!(D.sizeof * 2);
+    DataType!(D.sizeof) cx;
     T cxx, cr;
     ExceptionFlags flags;
     int ex, er;
@@ -3562,8 +3562,8 @@ if (isDecimal!D)
         return ExceptionFlags.none;
     }
 
-    flags |= coefficientAdjust(cr, er, cvt!T(DataType!D.max), sr, mode);
-    return result.adjustedPack(cvt!(DataType!D)(cr), er, sr, precision, mode, flags);
+    flags |= coefficientAdjust(cr, er, cvt!T(DataType!(D.sizeof).max), sr, mode);
+    return result.adjustedPack(cvt!(DataType!(D.sizeof))(cr), er, sr, precision, mode, flags);
 }
 
 ExceptionFlags decimalProdDiff(D)(const(D)[] x, const(D)[] y, out D result, out int scale, const(int) precision, const(RoundingMode) mode)
@@ -3576,8 +3576,8 @@ if (isDecimal!D)
     bool infinitySign;
     bool invalidSum;
 
-    alias T = makeUnsignedBit!(D.sizeof * 16);
-    DataType!D cx, cy;
+    alias T = makeUnsignedBit!(D.sizeof * 2);
+    DataType!(D.sizeof) cx, cy;
     T cxx, cyy, cr;
     int ex, ey, er;
     bool sx, sy, sr;
@@ -3696,8 +3696,8 @@ if (isDecimal!D)
         return ExceptionFlags.none;
     }
 
-    flags |= coefficientAdjust(cr, er, cvt!T(DataType!D.max), sr, mode);
-    return result.adjustedPack(cvt!(DataType!D)(cr), er, sr, precision, mode, flags);
+    flags |= coefficientAdjust(cr, er, cvt!T(DataType!(D.sizeof).max), sr, mode);
+    return result.adjustedPack(cvt!(DataType!(D.sizeof))(cr), er, sr, precision, mode, flags);
 }
 
 ExceptionFlags decimalProdSum(D)(const(D)[] x, const(D)[] y, out D result, out int scale, const(int) precision, const(RoundingMode) mode)
@@ -3710,8 +3710,8 @@ if (isDecimal!D)
     bool infinitySign;
     bool invalidSum;
 
-    alias T = makeUnsignedBit!(D.sizeof * 16);
-    DataType!D cx, cy;
+    alias T = makeUnsignedBit!(D.sizeof * 2);
+    DataType!(D.sizeof) cx, cy;
     T cxx, cyy, cr;
     int ex, ey, er;
     bool sx, sy, sr;
@@ -3830,8 +3830,8 @@ if (isDecimal!D)
         return ExceptionFlags.none;
     }
 
-    flags |= coefficientAdjust(cr, er, cvt!T(DataType!D.max), sr, mode);
-    return result.adjustedPack(cvt!(DataType!D)(cr), er, sr, precision, mode, flags);
+    flags |= coefficientAdjust(cr, er, cvt!T(DataType!(D.sizeof).max), sr, mode);
+    return result.adjustedPack(cvt!(DataType!(D.sizeof))(cr), er, sr, precision, mode, flags);
 }
 
 ExceptionFlags decimalQuantize(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
@@ -3949,7 +3949,7 @@ if (isDecimal!D && isIntegral!T)
 ExceptionFlags decimalRound(D)(ref D x, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     final switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
@@ -3980,7 +3980,7 @@ ExceptionFlags coefficientRound(T)(ref T cx, ref int ex, const(bool) sx, const(R
 ExceptionFlags decimalScale(D)(ref D x, const(int) n, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     final switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
@@ -4011,7 +4011,7 @@ if (isDecimal!D)
 ExceptionFlags decimalSin(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.signalingNaN:
@@ -4170,7 +4170,7 @@ ExceptionFlags coefficientSinCosQ(T)(const T cx, const(int) ex, const(bool) sx,
 ExceptionFlags decimalRSqrt(D)(ref D x, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     final switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
@@ -4218,7 +4218,7 @@ ExceptionFlags coefficientRSqrt(T)(ref T cx, ref int ex) @safe pure nothrow @nog
 ExceptionFlags decimalSqr(D)(ref D x, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     final switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
@@ -4241,7 +4241,7 @@ if (isDecimal!D)
 ExceptionFlags decimalSqrt(D)(ref D x, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     final switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
@@ -4313,7 +4313,7 @@ ExceptionFlags coefficientSqrt(T)(ref T cx, ref int ex) @safe pure nothrow @nogc
         return ExceptionFlags.none;
     }
 
-    alias U = makeUnsignedBit!(T.sizeof * 16);
+    alias U = makeUnsignedBit!(T.sizeof * 2);
 
     U cxx = cx;
     ExceptionFlags flags;
@@ -4339,9 +4339,9 @@ ExceptionFlags coefficientSqrt(T)(ref T cx, ref int ex) @safe pure nothrow @nogc
 ExceptionFlags decimalSum(D)(const(D)[] x, out D result, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D)
 {
-    alias T = makeUnsignedBit!(D.sizeof * 16);
+    alias T = makeUnsignedBit!(D.sizeof * 2);
 
-    DataType!D cx;
+    DataType!(D.sizeof) cx;
     T cxx, cr;
     int ex, er;
     bool sx, sr;
@@ -4431,15 +4431,15 @@ if (isDecimal!D)
         return ExceptionFlags.none;
     }
 
-    flags |= coefficientAdjust(cr, er, cvt!T(DataType!D.max), sr, mode);
-    return result.adjustedPack(cvt!(DataType!D)(cr), er, sr, precision, mode, flags);
+    flags |= coefficientAdjust(cr, er, cvt!T(DataType!(D.sizeof).max), sr, mode);
+    return result.adjustedPack(cvt!(DataType!(D.sizeof))(cr), er, sr, precision, mode, flags);
 }
 
 ExceptionFlags decimalSumAbs(D)(const(D)[] x, out D result, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D)
 {
-    alias T = makeUnsignedBit!(D.sizeof * 16);
-    DataType!D cx;
+    alias T = makeUnsignedBit!(D.sizeof * 2);
+    DataType!(D.sizeof) cx;
     T cxx, cr;
     ExceptionFlags flags;
     int ex, er;
@@ -4510,15 +4510,15 @@ if (isDecimal!D)
         return ExceptionFlags.none;
     }
 
-    flags |= coefficientAdjust(cr, er, cvt!T(DataType!D.max), sr, mode);
-    return result.adjustedPack(cvt!(DataType!D)(cr), er, sr, precision, mode, flags);
+    flags |= coefficientAdjust(cr, er, cvt!T(DataType!(D.sizeof).max), sr, mode);
+    return result.adjustedPack(cvt!(DataType!(D.sizeof))(cr), er, sr, precision, mode, flags);
 }
 
 ExceptionFlags decimalSumSquare(D)(const(D)[] x, out D result, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D)
 {
-    alias T = makeUnsignedBit!(D.sizeof * 16);
-    DataType!D cx;
+    alias T = makeUnsignedBit!(D.sizeof * 2);
+    DataType!(D.sizeof) cx;
     T cxx, cr;
     ExceptionFlags flags;
     int ex, er;
@@ -4589,8 +4589,8 @@ if (isDecimal!D)
         return ExceptionFlags.none;
     }
 
-    flags |= coefficientAdjust(cr, er, cvt!T(DataType!D.max), sr, mode);
-    return result.adjustedPack(cvt!(DataType!D)(cr), er, sr, precision, mode, flags);
+    flags |= coefficientAdjust(cr, er, cvt!T(DataType!(D.sizeof).max), sr, mode);
+    return result.adjustedPack(cvt!(DataType!(D.sizeof))(cr), er, sr, precision, mode, flags);
 }
 
 ExceptionFlags decimalSub(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
@@ -4603,7 +4603,7 @@ ExceptionFlags decimalSub(D, T)(ref D x, auto const ref T y, const(int) precisio
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
-    alias X = DataType!D;
+    alias X = DataType!(D.sizeof);
     U cx; int ex; bool sx;
     final switch(fastDecode(x, cx, ex, sx))
     {
@@ -4651,7 +4651,7 @@ if (isDecimal!D && isFloatingPoint!F)
 ExceptionFlags decimalTan(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     switch(fastDecode(x, cx, ex, sx))
     {
         case FastClass.signalingNaN:
@@ -4665,7 +4665,7 @@ if (isDecimal!D)
         default:
             int quadrant;
             auto flags = coefficientCapAngle(cx, ex, sx, quadrant);
-            DataType!D csin, ccos; int esin, ecos; bool ssin, scos;
+            DataType!(D.sizeof) csin, ccos; int esin, ecos; bool ssin, scos;
             flags |= coefficientSinCosQ(cx, ex, sx, csin, esin, ssin, ccos, ecos, scos);
             switch (quadrant)
             {
@@ -5281,7 +5281,7 @@ ExceptionFlags coefficientCapAngle(T)(ref T cx, ref int ex, ref bool sx) @safe p
 {
     if (coefficientCmp(cx, ex, Constants!T.c2π, Constants!T.e2π) > 0)
     {
-        alias U = makeUnsignedBit!(T.sizeof * 16);
+        alias U = makeUnsignedBit!(T.sizeof * 2);
         U cxx = cx;
         auto flags = coefficientMod2PI(cxx, ex);
         flags |= coefficientAdjust(cxx, ex, cvt!U(T.max), sx, RoundingMode.implicit);
@@ -5299,7 +5299,7 @@ ExceptionFlags coefficientCapAngle(T)(ref T cx, ref int ex, ref bool sx, out int
         ExceptionFlags flags;
         if (coefficientCmp(cx, ex, Constants!T.c2π, Constants!T.e2π) > 0)
         {
-            alias U = makeUnsignedBit!(T.sizeof * 16);
+            alias U = makeUnsignedBit!(T.sizeof * 2);
             U cxx = cx;
             flags = coefficientMod2PI(cxx, ex);
             flags |= coefficientAdjust(cxx, ex, cvt!U(T.max), sx, RoundingMode.implicit);

@@ -1,17 +1,19 @@
 module pham.external.dec.decimal;
 
-import std.math : FloatingPointControl, getNaNPayload, ieeeFlags, isNaN, isInfinity,
+import std.math : FloatingPointControl, getNaNPayload, ieeeFlags, 
     ldexp, resetIeeeFlags, signStd = signbit;
+import std.math.traits : isNaN;
 import std.range.primitives : ElementType, isInputRange, isOutputRange, put;
 import std.traits : isFloatingPoint, isIntegral, isSigned, isSomeChar, isSomeString,
     isUnsigned, Unqual, Unsigned;
 
-import pham.external.dec.integral;
-import pham.external.dec.numeric;
-import pham.external.dec.math;
 import pham.external.dec.compare;
-import pham.external.dec.range;
+import pham.external.dec.integral;
+import pham.external.dec.math;
+import pham.external.dec.numeric;
 import pham.external.dec.parse;
+import pham.external.dec.range;
+public import pham.external.dec.type;
 
 version (D_BetterC) {}
 else
@@ -50,442 +52,6 @@ else
     }
 }
 
-enum CheckInfinity : byte
-{
-    no = 0,         /// The value is $(B NaN) (quiet or signaling) or any finite value
-    yes = 1,        /// The value is infinite
-    negative = -1,  /// The value is negative infinite
-}
-
-enum CheckNaN : byte
-{
-    no = 0,         /// The value is not $(B NaN) (quiet or signaling)
-    qNaN = 1,       /// The value is $(B NaN) quiet
-    sNaN = 2,       /// The value is $(B NaN) signaling
-    negQNaN = -1,   /// The value is negative $(B NaN) quiet
-    negSNaN = -2,   /// The value is negative $(B NaN) signaling
-}
-
-/**
- * These flags indicate that an error has occurred. They indicate that a 0, $(B NaN) or an infinity value has been generated,
- * that a result is inexact, or that a signalling $(B NaN) has been encountered.
- * If the corresponding traps are set using $(MYREF DecimalControl),
- * an exception will be thrown after setting these error flags.
- * By default the context will have all error flags lowered and exceptions are thrown only for severe errors.
- */
-enum ExceptionFlags : uint
-{
-    ///no error
-    none             = 0U,
-    ///$(MYREF InvalidOperationException) is thrown if trap is set
-	invalidOperation = 1U << 0,
-    ///$(MYREF DivisionByZeroException) is thrown if trap is set
-	divisionByZero   = 1U << 1,
-    ///$(MYREF OverflowException) is thrown if trap is set
-	overflow         = 1U << 2,
-    ///$(MYREF UnderflowException) is thrown if trap is set
-	underflow        = 1U << 3,
-    ///$(MYREF InexactException) is thrown if trap is set
-	inexact          = 1U << 4,
-    ///group of errors considered severe: invalidOperation, divisionByZero, overflow, underflow
-	severe           = invalidOperation | divisionByZero | overflow | underflow,
-    ///all errors
-	all              = severe | inexact,
-}
-
-/**
- * Rounding modes. To better understand how rounding is performed, consult the table below.
- *
- * $(BOOKTABLE,
- *  $(TR $(TH Value) $(TH tiesToEven) $(TH tiesToAway) $(TH towardPositive) $(TH towardNegative) $(TH towardZero))
- *  $(TR $(TD +1.3)  $(TD +1)         $(TD +1)         $(TD +2)             $(TD +1)             $(TD +1))
- *  $(TR $(TD +1.5)  $(TD +2)         $(TD +2)         $(TD +2)             $(TD +1)             $(TD +1))
- *  $(TR $(TD +1.8)  $(TD +2)         $(TD +2)         $(TD +2)             $(TD +1)             $(TD +1))
- *  $(TR $(TD -1.3)  $(TD -1)         $(TD -1)         $(TD -1)             $(TD -2)             $(TD -1))
- *  $(TR $(TD -1.5)  $(TD -2)         $(TD -2)         $(TD -1)             $(TD -2)             $(TD -1))
- *  $(TR $(TD -1.8)  $(TD -2)         $(TD -2)         $(TD -1)             $(TD -2)             $(TD -1))
- *  $(TR $(TD +2.3)  $(TD +2)         $(TD +2)         $(TD +3)             $(TD +2)             $(TD +2))
- *  $(TR $(TD +2.5)  $(TD +2)         $(TD +3)         $(TD +3)             $(TD +2)             $(TD +2))
- *  $(TR $(TD +2.8)  $(TD +3)         $(TD +3)         $(TD +3)             $(TD +2)             $(TD +2))
- *  $(TR $(TD -2.3)  $(TD -2)         $(TD -2)         $(TD -2)             $(TD -3)             $(TD -2))
- *  $(TR $(TD -2.5)  $(TD -2)         $(TD -3)         $(TD -2)             $(TD -3)             $(TD -2))
- *  $(TR $(TD -2.8)  $(TD -3)         $(TD -3)         $(TD -2)             $(TD -3)             $(TD -2))
- * )
- */
-enum RoundingMode : ubyte
-{
-    ///rounded away from zero; halfs are rounded to the nearest even number
-	tiesToEven,
-    ///rounded away from zero
-	tiesToAway,
-    ///truncated toward positive infinity
-	towardPositive,
-    ///truncated toward negative infinity
-	towardNegative,
-    ///truncated toward zero
-	towardZero,
-
-    implicit = tiesToEven,
-    banking = tiesToEven,
-}
-
-/**
- * Precision used to round decimal operation results. Every result will be adjusted
- * to fit the specified precision. Use $(MYREF DecimalControl) to query or set the
- * context precision
- */
-enum Precision : int
-{
-    ///use the default precision of the current type
-    ///(7 digits for Decimal32, 16 digits for Decimal64 or 34 digits for Decimal128)
-	precisionDefault = 0,
-    ///use 32 bits precision (7 digits)
-	precision32 = Decimal!32.PRECISION,
-    ///use 64 bits precision (16 digits)
-	precision64 = Decimal!64.PRECISION,
-    ////use 128 bits precision (34 digits)
-    precision128 = Decimal!128.PRECISION,
-
-    ////
-    bankingScale = 4,
-}
-
-struct DecimalControlFlags
-{
-	ExceptionFlags flags;
-	ExceptionFlags traps;
-}
-
-/**
-    Container for _decimal context control, provides methods to alter exception handling,
-    manually edit error flags, adjust arithmetic precision and rounding mode
-*/
-struct DecimalControl
-{
-private:
-	static DecimalControlFlags _state;
-
-public:
-    /**
-     * Gets or sets the rounding mode used when the result of an operation exceeds the _decimal precision.
-     * See $(MYREF RoundingMode) for details.
-     * ---
-     * DecimalControl.rounding = RoundingMode.tiesToEven;
-     * Decimal32 d1 = 123456789;
-     * assert(d1 == 123456800);
-
-     * DecimalControl.rounding = RoundingMode.towardNegative;
-     * Decimal32 d2 = 123456789;
-     * assert(d2 == 123456700);
-     * ---
-     */
-    @IEEECompliant("defaultModes", 46)
-    @IEEECompliant("getDecimalRoundingDirection", 46)
-    @IEEECompliant("restoreModes", 46)
-    @IEEECompliant("saveModes", 46)
-    @IEEECompliant("setDecimalRoundingDirection", 46)
-    static RoundingMode rounding;
-
-    /**
-     * Gets or sets the precision applied to peration results.
-     * See $(MYREF Precision) for details.
-     * ---
-     * DecimalControl.precision = precisionDefault;
-     * Decimal32 d1 = 12345;
-     * assert(d1 == 12345);
-
-     * DecimalControl.precision = 4;
-     * Decimal32 d2 = 12345;
-     * assert(d2 == 12350);
-     * ---
-     */
-    static int precision;
-
-    /**
-     * Check flags for traps value and raise exception if set
-     * Order of flag to be checked:
-     *  invalidOperation, divisionByZero, overflow, underflow and inexact
-     * ---
-     * DecimalControl.enableTraps();
-     * try
-     * {
-     *     const flags = ExceptionFlags.divisionByZero | ExceptionFlags.overflow;
-     *     const traps = ExceptionFlags.severe;
-     *     checkFlags(flags, traps);
-     * }
-     * catch (DivisionByZeroException)
-     * {
-     * }
-     * ---
-     */
-    static void checkFlags(const(ExceptionFlags) flags, const(ExceptionFlags) traps) @nogc pure @safe
-    {
-        version (D_BetterC)
-        {
-            if (__ctfe)
-            {
-                if ((flags & ExceptionFlags.invalidOperation) && (traps & ExceptionFlags.invalidOperation))
-                    assert(0, "Invalid operation");
-                if ((flags & ExceptionFlags.divisionByZero) && (traps & ExceptionFlags.divisionByZero))
-                    assert(0, "Division by zero");
-                if ((flags & ExceptionFlags.overflow) && (traps & ExceptionFlags.overflow))
-                    assert(0, "Overflow");
-                if ((flags & ExceptionFlags.underflow) && (traps & ExceptionFlags.underflow))
-                    assert(0, "Underflow");
-                if ((flags & ExceptionFlags.inexact) && (traps & ExceptionFlags.inexact))
-                    assert(0, "Inexact");
-            }
-        }
-        else
-        {
-            if ((flags & ExceptionFlags.invalidOperation) && (traps & ExceptionFlags.invalidOperation))
-                throw EInvalidOperationException;
-            if ((flags & ExceptionFlags.divisionByZero) && (traps & ExceptionFlags.divisionByZero))
-                throw EDivisionByZeroException;
-            if ((flags & ExceptionFlags.overflow) && (traps & ExceptionFlags.overflow))
-                throw EOverflowException;
-            if ((flags & ExceptionFlags.underflow) && (traps & ExceptionFlags.underflow))
-                throw EUnderflowException;
-            if ((flags & ExceptionFlags.inexact) && (traps & ExceptionFlags.inexact))
-                throw EInexactException;
-        }
-    }
-
-    /**
-     * Return true if flags contain overflow or underflow value
-     */
-    static bool isOverUnderFlow(const(ExceptionFlags) flags) @nogc nothrow pure @safe
-    {
-        return (flags & (ExceptionFlags.overflow || ExceptionFlags.underflow)) != 0;
-    }
-
-    /**
-     * Clear current traps & flags to none state and return its' previous state
-     */
-    static DecimalControlFlags clearState() @nogc nothrow @safe
-    {
-        const result = _state;
-        _state.flags = _state.traps = ExceptionFlags.none;
-        return result;
-    }
-
-    /**
-     * Set the traps & flags to 'state' value and return its's previous state
-     */
-    static DecimalControlFlags restoreState(const(DecimalControlFlags) state) @nogc nothrow @safe
-    {
-        const result = _state;
-        _state = state;
-        return result;
-    }
-
-    /**
-     * Sets specified error flags. Multiple errors may be ORed together.
-     * ---
-     * DecimalControl.raiseFlags(ExceptionFlags.overflow | ExceptionFlags.underflow);
-     * assert(DecimalControl.overflow);
-     * assert(DecimalControl.underflow);
-     * ---
-	 */
-    @IEEECompliant("raiseFlags", 26)
-	static void raiseFlags(const(ExceptionFlags) raisingFlags) @nogc @safe
-	{
-        const validFlags = raisingFlags & ExceptionFlags.all;
-        if (__ctfe)
-            checkFlags(validFlags, ExceptionFlags.severe);
-        else
-        {
-            const newFlags = _state.flags ^ validFlags;
-            _state.flags |= validFlags;
-		    checkFlags(newFlags, traps);
-        }
-	}
-
-    /**
-     * Unsets specified error flags. Multiple errors may be ORed together.
-     * ---
-     * DecimalControl.resetFlags(ExceptionFlags.inexact);
-     * assert(!DecimalControl.inexact);
-     * ---
-	 */
-    @IEEECompliant("lowerFlags", 26)
-	static ExceptionFlags resetFlags(const(ExceptionFlags) resetingFlags) @nogc @safe nothrow
-	{
-        const result = _state.flags;
-        _state.flags &= ~(resetingFlags & ExceptionFlags.all);
-        return result;
-	}
-
-    /**
-     * Enables specified error flags (group) without throwing corresponding exceptions.
-     * ---
-     * DecimalControl.restoreFlags(ExceptionFlags.underflow | ExceptionsFlags.inexact);
-     * assert(DecimalControl.testFlags(ExceptionFlags.underflow | ExceptionFlags.inexact));
-     * ---
-	 */
-    @IEEECompliant("restoreFlags", 26)
-	static ExceptionFlags restoreFlags(const(ExceptionFlags) restoringFlags) @nogc @safe nothrow
-	{
-        if (__ctfe)
-        {
-            return ExceptionFlags.none;
-        }
-        else
-        {
-            const result = _state.flags;
-            _state.flags |= restoringFlags & ExceptionFlags.all;
-            return result;
-        }
-	}
-
-    /**
-     * Checks if the specified error flags are set. Multiple exceptions may be ORed together.
-     * ---
-     * DecimalControl.raiseFlags(ExceptionFlags.overflow | ExceptionFlags.underflow | ExceptionFlags.inexact);
-     * assert(DecimalControl.hasFlags(ExceptionFlags.overflow | ExceptionFlags.inexact));
-     * ---
-	 */
-    @IEEECompliant("testFlags", 26)
-    @IEEECompliant("testSavedFlags", 26)
-	static bool hasFlags(const(ExceptionFlags) checkingFlags) @nogc nothrow @safe
-	{
-		return (_state.flags & checkingFlags) != 0;
-	}
-
-	static ExceptionFlags setFlags(const(ExceptionFlags) settingFlags) @nogc nothrow @safe
-	{
-        if (__ctfe)
-        {
-            return ExceptionFlags.none;
-        }
-        else
-        {
-            const result = _state.flags;
-            _state.flags |= (settingFlags & ExceptionFlags.all);
-            return result;
-        }
-	}
-
-    /**
-     * Disables specified exceptions. Multiple exceptions may be ORed together.
-     * ---
-     * DecimalControl.disableExceptions(ExceptionFlags.overflow);
-     * auto d = Decimal64.max * Decimal64.max;
-     * assert(DecimalControl.overflow);
-     * assert(d.isInfinity);
-     * ---
-	 */
-	static ExceptionFlags disableTraps(const(ExceptionFlags) disablingTraps) @nogc @safe nothrow
-	{
-        const result = _state.traps;
-		_state.traps &= ~(disablingTraps & ExceptionFlags.all);
-        return result;
-	}
-
-    /**
-     * Enables specified exceptions. Multiple exceptions may be ORed together.
-     * ---
-     * DecimalControl.enableTraps(ExceptionFlags.overflow);
-     * try
-     * {
-     *     auto d = Decimal64.max * 2;
-     * }
-     * catch (OverflowException)
-     * {
-     * }
-     * ---
-	 */
-	static ExceptionFlags enableTraps(const(ExceptionFlags) enablingTraps) @nogc @safe nothrow
-	{
-        const result = _state.traps;
-		_state.traps |= enablingTraps & ExceptionFlags.all;
-        return result;
-	}
-
-    /**
-     * Extracts current enabled exceptions.
-     * ---
-     * auto saved = DecimalControl.traps;
-     * DecimalControl.disableExceptions(ExceptionFlags.all);
-     * DecimalControl.enableExceptions(saved);
-     * ---
-	 */
-	static @property ExceptionFlags traps() @nogc nothrow @safe
-	{
-        return _state.traps;
-	}
-
-    /**
-     * Returns the current set flags.
-     * ---
-     * DecimalControl.restoreFlags(ExceptionFlags.inexact);
-     * assert(DecimalControl.flags & ExceptionFlags.inexact);
-     * ---
-	 */
-    @IEEECompliant("saveAllFlags", 26)
-	static @property ExceptionFlags flags() @nogc nothrow @safe
-	{
-        if (__ctfe)
-            return ExceptionFlags.none;
-        else
-            return _state.flags;
-	}
-
-    /**
-     * IEEE _decimal context errors. By default, no error is set.
-     * ---
-     * DecimalControl.disableExceptions(ExceptionFlags.all);
-     * Decimal32 uninitialized;
-     * Decimal64 d = Decimal64.max * 2;
-     * Decimal32 e = uninitialized + 5.0;
-     * assert(DecimalControl.overflow);
-     * assert(DecimalControl.invalidOperation);
-     * ---
-     */
-	static @property bool divisionByZero() @nogc nothrow @safe
-	{
-		return (_state.flags & ExceptionFlags.divisionByZero) != 0;
-	}
-
-    ///ditto
-	static @property bool inexact() @nogc nothrow @safe
-	{
-		return (_state.flags & ExceptionFlags.inexact) != 0;
-	}
-
-    ///ditto
-	static @property bool invalidOperation() @nogc nothrow @safe
-	{
-		return (_state.flags & ExceptionFlags.invalidOperation) != 0;
-	}
-
-    ///ditto
-	static @property bool overflow() @nogc nothrow @safe
-	{
-		return (_state.flags & ExceptionFlags.overflow) != 0;
-	}
-
-    ///ditto
-	static @property bool severe() @nogc nothrow @safe
-	{
-		return (_state.flags & ExceptionFlags.severe) != 0;
-	}
-
-    ///ditto
-	static @property bool underflow() @nogc nothrow @safe
-	{
-		return (_state.flags & ExceptionFlags.underflow) != 0;
-	}
-
-    ///true if this programming environment conforms to IEEE 754-1985
-    @IEEECompliant("is754version1985", 24)
-    enum is754version1985 = true;
-
-    ///true if this programming environment conforms to IEEE 754-2008
-    @IEEECompliant("is754version2008", 24)
-    enum is754version2008 = true;
-}
-
 int maxPrecision(T)() @nogc nothrow pure @safe
 if (isFloatingPoint!T)
 {
@@ -502,21 +68,21 @@ if (isFloatingPoint!T)
 }
 
 /**
-_Decimal floating-point computer numbering format that occupies 4, 8 or 16 bytes in computer memory.
-*/
-struct Decimal(int bits)
-if (bits == 32 || bits == 64 || bits == 128)
+_* Decimal floating-point computer numbering format that occupies 4, 8 or 16 bytes in computer memory.
+ */
+struct Decimal(int bytes)
+if (bytes == 4 || bytes == 8 || bytes == 16)
 {
 private:
     alias D = typeof(this);
     enum explicitModeTraps = ExceptionFlags.invalidOperation | ExceptionFlags.overflow | ExceptionFlags.underflow;
 
 package(pham.external.dec):
-    alias U = DataType!D;
+    alias U = DataType!bytes;
 
 public:
-    enum PRECISION      = 9 * bits / 32 - 2;             //7, 16, 34
-    enum EMAX           = 3 * (2 ^^ (bits / 16 + 3));    //96, 384, 6144
+    enum PRECISION      = precisionOf(bytes);        //7, 16, 34
+    enum EMAX           = 3 * (2 ^^ (bytes * 8 / 16 + 3));    //96, 384, 6144
     enum EXP_BIAS       = EMAX + PRECISION - 2;          //101, 398, 6176
     enum EXP_MIN        = -EXP_BIAS;
     enum EXP_MAX        = EMAX - PRECISION + 1;          //90, 369, 6111
@@ -895,7 +461,7 @@ public:
     auto opUnary(string op: "-")() const
     {
         D result = this;
-        static if (bits == 128)
+        static if (bytes == 16)
             result.data.hi ^= D.MASK_SGN.hi;
         else
             result.data ^= D.MASK_SGN;
@@ -1193,9 +759,9 @@ public:
     */
     size_t toHash() @safe pure nothrow @nogc
     {
-        static if (bits == 32)
+        static if (bytes == 4)
             return data;
-        else static if (bits == 64)
+        else static if (bytes == 8)
         {
             static if (size_t.sizeof == uint.sizeof)
                 return cast(uint)data ^ cast(uint)(data >>> 32);
@@ -1342,7 +908,7 @@ public:
     @property bool isFinite() const @nogc nothrow pure @safe
     // @("this must be fast")
     {
-        static if (bits == 128)
+        static if (bytes == 16)
             return (data.hi & MASK_INF.hi) != MASK_INF.hi;
         else
             return (data & MASK_INF) != MASK_INF;
@@ -1358,7 +924,7 @@ public:
     @property CheckInfinity isInfinity() const @nogc nothrow pure @safe
     // @("this must be fast")
     {
-        static if (bits == 128)
+        static if (bytes == 16)
             const isInf = (data.hi & MASK_SNAN.hi) == MASK_INF.hi;
         else
             const isInf = (data & MASK_SNAN) == MASK_INF;
@@ -1375,7 +941,7 @@ public:
     @property CheckNaN isNaN() const @nogc nothrow pure @safe
     // @("this must be fast")
     {
-        static if (bits == 128)
+        static if (bytes == 16)
         {
             enum qnanMask = MASK_QNAN.hi;
             enum snanMask = MASK_SNAN.hi;
@@ -1403,7 +969,7 @@ public:
     @property bool isNeg() const @nogc nothrow pure @safe
     // @("this must be fast")
     {
-        static if (bits == 128)
+        static if (bytes == 16)
             return (data.hi & MASK_SGN.hi) == MASK_SGN.hi;
         else
             return (data & MASK_SGN) == MASK_SGN;
@@ -1449,7 +1015,7 @@ public:
     @property bool isZero() const @nogc nothrow pure
     // @("this must be fast")
     {
-        static if (bits == 128)
+        static if (bytes == 16)
         {
             if ((data.hi & MASK_INF.hi) != MASK_INF.hi)
             {
@@ -1576,7 +1142,7 @@ package(pham.external.dec):
         import std.math : abs;
 
         ExceptionFlags flags;
-        DataType!D cx; int ex; bool sx;
+        DataType!bytes cx; int ex; bool sx;
         switch (fastDecode(value, cx, ex, sx, mode, flags))
         {
             case FastClass.quietNaN:
@@ -1598,12 +1164,12 @@ package(pham.external.dec):
                     if (maxFractionalDigits < exAbs)
                     {
                         const clearFractions = exAbs - maxFractionalDigits;
-                        const roundDigits = pow10Index!(DataType!D)(clearFractions - 1);
+                        const roundDigits = pow10Index!(DataType!bytes)(clearFractions - 1);
 
                         // Round it up/down first
                         const roundValue = mode == RoundingMode.tiesToEven
-                            ? pow10RoundEven!(DataType!D)[roundDigits]
-                            : pow10!(DataType!D)[roundDigits];
+                            ? pow10RoundEven!(DataType!bytes)[roundDigits]
+                            : pow10!(DataType!bytes)[roundDigits];
                         xadd(cx, roundValue);
 
                         // Clear subsequence fractional digits to be zero
@@ -1612,7 +1178,7 @@ package(pham.external.dec):
                         auto cxDigits = dataTypeToString(buffer, cx);
                         if (cxDigits.length > clearFractions)
                             cxDigits[$ - clearFractions..$] = '0';
-                        cx = toUnsign!(DataType!D)(cxDigits, overflow);
+                        cx = toUnsign!(DataType!bytes)(cxDigits, overflow);
                         assert(!overflow, "Overflow");
                     }
                 }
@@ -1706,7 +1272,7 @@ package(pham.external.dec):
     enum subn           = buildin(U(1U), EXP_MIN, false);
     enum threequarters  = buildin(U(75U), -2, false);
 
-    static if (bits == 128)
+    static if (bytes == 16)
     {
         enum maxFloat   = buildin(s_max_float);
         enum maxDouble  = buildin(s_max_double);
@@ -1733,18 +1299,18 @@ package(pham.external.dec):
     enum PI2            = buildin(s_pi2);
 
 private:
-    enum expBits        = bits / 16 + 6;                 //8, 10, 14
-    enum trailingBits   = bits - expBits - 1;            //23, 53, 113
+    enum expBits        = bytes * 8 / 16 + 6;                 //8, 10, 14
+    enum trailingBits   = bytes * 8 - expBits - 1;            //23, 53, 113
 
     enum SHIFT_EXP1     = trailingBits;                  //23, 53, 113
     enum SHIFT_EXP2     = trailingBits - 2;              //21, 51, 111
 
-    enum MASK_QNAN      = U(0b01111100U) << (bits - 8);
-    enum MASK_SNAN      = U(0b01111110U) << (bits - 8);
-    enum MASK_SNANBIT   = U(0b00000010U) << (bits - 8);
-    enum MASK_INF       = U(0b01111000U) << (bits - 8);
-    enum MASK_SGN       = U(0b10000000U) << (bits - 8);
-    enum MASK_EXT       = U(0b01100000U) << (bits - 8);
+    enum MASK_QNAN      = U(0b01111100U) << (bytes * 8 - 8);
+    enum MASK_SNAN      = U(0b01111110U) << (bytes * 8 - 8);
+    enum MASK_SNANBIT   = U(0b00000010U) << (bytes * 8 - 8);
+    enum MASK_INF       = U(0b01111000U) << (bytes * 8 - 8);
+    enum MASK_SGN       = U(0b10000000U) << (bytes * 8 - 8);
+    enum MASK_EXT       = U(0b01100000U) << (bytes * 8 - 8);
     enum MASK_EXP1      = ((U(1U) << expBits) - 1U) << SHIFT_EXP1;
     enum MASK_EXP2      = ((U(1U) << expBits) - 1U) << SHIFT_EXP2;
     enum MASK_COE1      = ~(MASK_SGN | MASK_EXP1);
@@ -1971,11 +1537,11 @@ private:
 }
 
 ///Shorthand notations for $(MYREF Decimal) types
-alias Decimal32 = Decimal!32;
+alias Decimal32 = Decimal!4;
 ///ditto
-alias Decimal64 = Decimal!64;
+alias Decimal64 = Decimal!8;
 ///ditto
-alias Decimal128 = Decimal!128;
+alias Decimal128 = Decimal!16;
 
 ///Returns true if all specified types are Decimal... types.
 template isDecimal(Ts...)
@@ -2028,7 +1594,10 @@ unittest
         static foreach (T; DecimalTypes)
             static assert(is(typeof(D(T.init)) == D));
         static foreach (T; IntegralTypes)
+        {
+            //pragma(msg, T.stringof ~ " vs " ~ D.stringof ~ " vs " ~ typeof(D(T.init)).stringof);
             static assert(is(typeof(D(T.init)) == D));
+        }
         static foreach (T; FloatTypes)
             static assert(is(typeof(D(T.init)) == D));
         static foreach (T; CharTypes)
@@ -2174,6 +1743,7 @@ unittest
         static foreach (T; IntegralTypes)
         {
             //pragma(msg, typeof(T.init ^^ D.init).stringof);
+            //pragma(msg, typeof(T.init / D.init).stringof);
             static assert(is(typeof(T.init + D.init) == D));
             static assert(is(typeof(T.init - D.init) == D));
             static assert(is(typeof(T.init * D.init) == D));
@@ -2437,6 +2007,19 @@ unittest
 version (D_BetterC) {}
 else
 {
+    mixin template ExceptionConstructors()
+    {
+        this(string msg, string file = __FILE__, uint line = __LINE__, Throwable next = null) @nogc nothrow pure @safe
+        {
+            super(msg, file, line, next);
+        }
+
+        this(string msg, Throwable next, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure @safe
+        {
+            super(msg, file, line, next);
+        }
+    }
+
     ///Root object for all _decimal exceptions
     abstract class DecimalException : Exception
     {
@@ -2480,32 +2063,6 @@ else
     static immutable EUnderflowException = new UnderflowException("Underflow");
 }
 
-///IEEE-754-2008 floating point categories
-enum DecimalClass : ubyte
-{
-    ///a signalling $(B NaN) represents most of the time an uninitialized variable;
-    ///a quiet $(B NaN) represents the result of an invalid operation
-    signalingNaN,
-    ///ditto
-    quietNaN,
-    ///value represents infinity
-    negativeInfinity,
-    ///ditto
-    positiveInfinity,
-    ///value represents a normalized _decimal value
-    negativeNormal,
-    ///ditto
-    positiveNormal,
-    ///value represents a subnormal _decimal value
-    negativeSubnormal,
-    ///ditto
-    positiveSubnormal,
-    ///value is 0
-    negativeZero,
-    ///ditto
-    positiveZero,
-}
-
 /**
 Returns the decimal class where x falls into.
 This operation is silent, no exception flags are set and no exceptions are thrown.
@@ -2518,7 +2075,7 @@ Returns:
 DecimalClass decimalClass(D)(auto const ref D x)
 if (isDecimal!D)
 {
-    DataType!D coefficient;
+    DataType!(D.sizeof) coefficient;
     uint exponent;
 
     static if (is(D: Decimal32) || is(D: Decimal64))
@@ -2607,16 +2164,6 @@ unittest
         assert(decimalClass(T.min_normal) == DecimalClass.positiveNormal);
         assert(decimalClass(T.epsilon) == DecimalClass.positiveNormal);
     }
-}
-
-///IEEE-754-2008 subset of floating point categories
-enum DecimalSubClass : ubyte
-{
-    signalingNaN,
-    quietNaN,
-    negativeInfinity,
-    positiveInfinity,
-    finite,
 }
 
 /**
@@ -2727,17 +2274,22 @@ Notes:
     - -sNaN < -$(B NaN) < -infinity < -finite < -0.0 < +0.0 < +finite < +infinity < +$(B NaN) < +sNaN<br/>
     - for two $(B NaN) values the total order is defined based on the payload
 */
+pragma(inline, true)
 float cmp(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
+    return decimalCmp(x, y);
+    
+    /*
     const c = decimalCmp(x, y);
 
     // Not accept NaN?
     version (none)
-    if (c < -1)
+    if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
-    return c < -1 ? float.nan : cast(float)(c);
+    return .isNaN(c) ? float.nan : c;
+    */
 }
 
 ///
@@ -2778,29 +2330,38 @@ unittest
 }
 
 ///
+pragma(inline, true)
 float cmp(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @nogc nothrow pure @safe
 if (isDecimal!D && isFloatingPoint!F)
 {
+    return decimalCmp(x, y, yPrecision, yMode, yMaxFractionalDigits);
+    /*
     const c = decimalCmp(x, y, yPrecision, yMode, yMaxFractionalDigits);
 
     version (none)
-    if (c < -1)
+    if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
-    return c < -1 ? float.nan : cast(float)(c);
+    return .isNaN(c) ? float.nan : c;
+    */
 }
 
 ///
+pragma(inline, true)
 float cmp(D, I)(auto const ref D x, auto const ref I y) @nogc nothrow pure @safe
 if (isDecimal!D && isIntegral!I)
 {
+    return decimalCmp(x, y);
+    
+    /*
     const c = decimalCmp(x, y);
 
     version (none)
-    if (c < -1)
+    if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
-    return c < -1 ? float.nan : cast(float)(c);
+    return .isNaN(c) ? float.nan : c;
+    */
 }
 
 ///
@@ -2825,14 +2386,18 @@ Notes:
 bool isEqual(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
+    return decimalEqu(x, y) == 1;
+    
+    /*
     const c = decimalEqu(x, y);
 
     // Not accept NaN?
     version (none)
-    if (c < -1)
+    if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
     return c == 1;
+    */
 }
 
 ///
@@ -2859,28 +2424,36 @@ unittest
 bool isEqual(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @nogc nothrow pure @safe
 if (isDecimal!D && isFloatingPoint!F)
 {
+    return decimalEqu(x, y, yPrecision, yMode, yMaxFractionalDigits) == 1;
+    
+    /*
     const c = decimalEqu(x, y, yPrecision, yMode, yMaxFractionalDigits);
 
     // Not accept NaN?
     version (none)
-    if (c < -1)
+    if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
     return c == 1;
+    */
 }
 
 @IEEECompliant("compareSignalingEqual", 24)
 bool isEqual(D, I)(auto const ref D x, auto const ref I y) @nogc nothrow pure @safe
 if (isDecimal!D && isIntegral!I)
 {
+    return decimalEqu(x, y) == 1;
+    
+    /*
     const c = decimalEqu(x, y);
 
     // Not accept NaN?
     version (none)
-    if (c < -1)
+    if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
     return c == 1;
+    */
 }
 
 ///
@@ -2896,7 +2469,7 @@ if (isDecimal!(D1, D2))
 {
     const c = decimalEqu(x, y);
 
-    if (c < -1)
+    if (.isNaN(c))
     {
         version (none)
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
@@ -2932,7 +2505,7 @@ if (isDecimal!(D1, D2))
     const c = decimalCmp(x, y);
 
     version (none)
-    if (c < -1)
+    if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
     return c > 0;
@@ -2946,7 +2519,7 @@ if (isDecimal!(D1, D2))
     const c = decimalCmp(x, y);
 
     version (none)
-    if (c < -1)
+    if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
     return c >= 0;
@@ -2958,16 +2531,7 @@ bool isGreaterOrUnordered(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nog
 if (isDecimal!(D1, D2))
 {
     const c = decimalCmp(x, y);
-
-    if (c == -3)
-    {
-        version (none)
-        DecimalControl.setFlags(ExceptionFlags.invalidOperation);
-
-        return false;
-    }
-
-    return c > 0 || c < -1;
+    return .isNaN(c) || c > 0;
 }
 
 ///ditto
@@ -2979,10 +2543,10 @@ if (isDecimal!(D1, D2))
     const c = decimalCmp(x, y);
 
     version (none)
-    if (c < -1)
+    if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
-    return c == -1;
+    return c < 0;
 }
 
 ///ditto
@@ -2992,7 +2556,7 @@ if (isDecimal!(D1, D2))
 {
     const c = decimalCmp(x, y);
 
-    if (c < -1)
+    if (.isNaN(c))
     {
         version (none)
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
@@ -3000,7 +2564,7 @@ if (isDecimal!(D1, D2))
         return false;
     }
 
-    return c <= 0 && c > -2;
+    return c <= 0;
 }
 
 ///ditto
@@ -3009,16 +2573,7 @@ bool isLessOrUnordered(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc n
 if (isDecimal!(D1, D2))
 {
     const c = decimalCmp(x, y);
-
-    if (c == -3)
-    {
-        version (none)
-        DecimalControl.setFlags(ExceptionFlags.invalidOperation);
-
-        return false;
-    }
-
-    return c < 0;
+    return .isNaN(c) || c < 0;
 }
 
 ///ditto
@@ -3027,13 +2582,7 @@ if (isDecimal!(D1, D2))
 bool isUnordered(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
-    const c = decimalCmp(x, y);
-
-    version (none)
-    if (c == -3)
-        DecimalControl.setFlags(ExceptionFlags.invalidOperation);
-
-    return c < -1;
+    return isNaN(decimalCmp(x, y));
 }
 
 ///
@@ -4542,7 +4091,7 @@ Notes:
 */
 D frexp(D)(auto const ref D x, out int y)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     Unqual!D result;
     final switch(fastDecode(x, cx, ex, sx))
     {
@@ -4874,7 +4423,7 @@ Returns:
 bool isNormal(D)(auto const ref D x)
 if (isDecimal!D)
 {
-    DataType!D coefficient;
+    DataType!(D.sizeof) coefficient;
     uint exponent;
 
     static if (is(D: Decimal32) || is(D: Decimal64))
@@ -4950,7 +4499,7 @@ if (isDecimal!D)
     if (x.isNaN || x.isInfinity || x.isZero || signbit(x) != 0U)
         return false;
 
-    alias U = DataType!D;
+    alias U = DataType!(D.sizeof);
     U c = void;
     int e = void;
     x.unpack(c, e);
@@ -4993,7 +4542,7 @@ Returns:
 bool isSubnormal(D)(auto const ref D x)
 if (isDecimal!D)
 {
-    DataType!D coefficient;
+    DataType!(D.sizeof) coefficient;
     uint exponent;
 
     static if (is(D: Decimal32) || is(D: Decimal64))
@@ -5470,7 +5019,7 @@ D NaN(D, T)(const T payload)
 if (isDecimal!D && isUnsigned!T)
 {
     D result = void;
-    result.data = D.MASK_QNAN | (cast(DataType!D)payload & D.MASK_PAYL);
+    result.data = D.MASK_QNAN | (cast(DataType!(D.sizeof))payload & D.MASK_PAYL);
     return result;
 }
 
@@ -5592,7 +5141,7 @@ if (isDecimal!D)
         result = D.one;
     else
     {
-        alias U = DataType!D;
+        alias U = DataType!(D.sizeof);
         U c = void;
         int e = void;
         const bool s = x.unpack(c, e);
@@ -5884,7 +5433,7 @@ functions returns the raw encoded exponent.
 int quantexp(D)(auto const ref D x)
 if (isDecimal!D)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
@@ -6498,7 +6047,7 @@ Returns:
     1 if the sign bit is set, 0 otherwise
 */
 @IEEECompliant("isSignMinus", 25)
-int signbit(D: Decimal!bits, int bits)(auto const ref D x)
+int signbit(D: Decimal!bytes, int bytes)(auto const ref D x)
 {
     static if (is(D: Decimal32) || is(D: Decimal64))
     {
@@ -7217,7 +6766,7 @@ DECIMAL toMsDecimal(D)(auto const ref D x)
     if (x.isZero)
         return result;
 
-    DataType!D cx = void;
+    DataType!(D.sizeof) cx = void;
     int ex = void;
     const bool sx = x.unpack(cx, ex);
 
@@ -7268,7 +6817,7 @@ D fromMsDecimal(D)(auto const ref DECIMAL x)
     bool sx = (x.sign & DECIMAL.DECIMAL_NEG) == DECIMAL.DECIMAL_NEG;
 
     auto flags = coefficientAdjust(cx, ex, cvt!uint128(D.COEF_MAX), RoundingMode.implicit);
-    flags |= result.adjustedPack(cvt!(DataType!D)(cx), ex, sx,
+    flags |= result.adjustedPack(cvt!(DataType!(D.sizeof))(cx), ex, sx,
                                     __ctfe ?  D.PRECISION : DecimalControl.precision,
                                     __ctfe ? RoundingMode.implicit  : DecimalControl.rounding,
                                     flags);
@@ -7362,7 +6911,7 @@ if (isDecimal!D)
         result = x;
     else
     {
-        alias U = DataType!D;
+        alias U = DataType!(D.sizeof);
         U c = void;
         int e = void;
         const bool s = x.unpack(c, e);
@@ -7387,35 +6936,6 @@ if (isDecimal!D)
     else
         DecimalControl.raiseFlags(flags);
     return result;
-}
-
-package(pham.external.dec):
-
-template DataType(D)
-{
-    alias UD = Unqual!D;
-    static if (is(UD == Decimal32))
-        alias DataType = uint;
-    else static if (is(UD == Decimal64))
-        alias DataType = ulong;
-    else static if (is(UD == Decimal128))
-        alias DataType = uint128;
-    else
-        static assert(0);
-}
-
-mixin template ExceptionConstructors()
-{
-    this(string msg, string file = __FILE__, size_t line = __LINE__,
-        Throwable next = null) @nogc nothrow pure @safe
-    {
-        super(msg, file, line, next);
-    }
-
-    this(string msg, Throwable next, string file = __FILE__, size_t line = __LINE__) @nogc nothrow pure @safe
-    {
-        super(msg, file, line, next);
-    }
 }
 
 /// format, toString()
@@ -7625,7 +7145,7 @@ ExceptionFlags decimalToDecimal(D1, D2)(auto const ref D1 source, out D2 target,
     const(int) precision, const(RoundingMode) mode) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
-    DataType!D1 cx; int ex; bool sx;
+    DataType!(D1.sizeof) cx; int ex; bool sx;
     final switch(fastDecode(source, cx, ex, sx))
     {
         case FastClass.finite:
@@ -7724,7 +7244,7 @@ if (isDecimal!D && isSigned!T)
 ExceptionFlags decimalToFloat(D, T)(auto const ref D source, out T target, const(RoundingMode) mode)
 if (isDecimal!D && isFloatingPoint!T)
 {
-    DataType!D cx; int ex; bool sx;
+    DataType!(D.sizeof) cx; int ex; bool sx;
     final switch (fastDecode(source, cx, ex, sx))
     {
         case FastClass.finite:
@@ -7872,16 +7392,16 @@ template CommonStorage(D1, D2)
 if (isDecimal!(D1, D2))
 {
     static if (D1.sizeof >= D2.sizeof)
-        alias CommonStorage = DataType!D1;
+        alias CommonStorage = DataType!(D1.sizeof);
     else
-        alias CommonStorage = DataType!D2;
+        alias CommonStorage = DataType!(D2.sizeof);
 }
 
 template CommonStorage(D, I)
 if (isDecimal!D && isIntegral!I)
 {
     static if (D.sizeof >= I.sizeof)
-        alias CommonStorage = DataType!D;
+        alias CommonStorage = DataType!(D.sizeof);
     else
         alias CommonStorage = Unsigned!I;
 }
@@ -7891,7 +7411,7 @@ if (isDecimal!D && isFloatingPoint!F)
 {
     alias UF = Unqual!F;
     static if (is(UF == float) || is(UF == double))
-        alias CommonStorage = DataType!D;
+        alias CommonStorage = DataType!(D.sizeof);
     else
         alias CommonStorage = CommonStorage!(D, ulong);
 }
@@ -7932,7 +7452,7 @@ if (isDecimal!D)
 
 @safe pure nothrow @nogc
 DecimalClass decimalDecode(D, T)(auto const ref D x, out T cx, out int ex, out bool sx)
-if (isDecimal!D && is(T: DataType!D))
+if (isDecimal!D && is(T: DataType!(D.sizeof)))
 {
     sx = cast(bool)(x.data & D.MASK_SGN);
 
@@ -7974,15 +7494,6 @@ if (isDecimal!D && is(T: DataType!D))
             return sx ? DecimalClass.negativeSubnormal : DecimalClass.positiveSubnormal;
     }
     return sx ? DecimalClass.negativeNormal : DecimalClass.positiveNormal;
-}
-
-enum FastClass : ubyte
-{
-    signalingNaN,
-    quietNaN,
-    infinite,
-    zero,
-    finite,
 }
 
 @safe pure nothrow @nogc
@@ -8409,12 +7920,6 @@ U get_mod2pi(U)(ref int power)
         power -= digits;
         return result;
     }
-}
-
-struct IEEECompliant
-{
-    string name;
-    int page;
 }
 
 //10 bit encoding

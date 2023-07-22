@@ -12,25 +12,26 @@
 module pham.external.dec.codec;
 
 version (TraceFunction) import pham.utl.test;
-import pham.external.dec.decimal: Decimal32, Decimal64, Decimal128, DecimalSubClass,
+import pham.external.dec.decimal: Decimal32, Decimal64, Decimal128,
     decimalSubClass, fabs;
 import pham.external.dec.integral : divrem;
+import pham.external.dec.type;
 
 nothrow @safe:
 
 /// Densely packed decimal codec in big-endian format
-struct DecimalCodec(int bits)
-if (bits == 32 || bits == 64 || bits == 128)
+struct DecimalCodec(int bytes)
+if (bytes == 4 || bytes == 8 || bytes == 16)
 {
 nothrow @safe:
 
 public:
-	enum formatBitLength = bits;
-	enum formatByteLength = bits / 8;
+	enum formatBitLength = bytes * 8;
+	enum formatByteLength = bytes;
 
-	static if (bits == 32)
+	static if (bytes == 4)
 		alias D = Decimal32;
-	else static if (bits == 64)
+	else static if (bytes == 8)
 		alias D = Decimal64;
 	else
 		alias D = Decimal128;
@@ -423,7 +424,7 @@ private:
 	enum int negativeSignNumber = -1;
 	enum signBits = 1;
 
-	enum coefficientDigits = 9 * bits / 32 - 2; // 7, 16, 34
+	enum coefficientDigits = 9 * bytes * 8 / 32 - 2; // 7, 16, 34
 	static assert(coefficientDigits == 7 || coefficientDigits == 16 || coefficientDigits == 34);
 	enum digitGroups = coefficientDigits / digitsPerGroup;
 	enum coefficientContinuationBits = bitsPerGroup * (coefficientDigits - 1) / digitsPerGroup;
@@ -443,9 +444,9 @@ private:
 	enum ubyte typeMask    = 0b0111_1110;
 }
 
-alias DecimalCodec32 = DecimalCodec!32;
-alias DecimalCodec64 = DecimalCodec!64;
-alias DecimalCodec128 = DecimalCodec!128;
+alias DecimalCodec32 = DecimalCodec!4;
+alias DecimalCodec64 = DecimalCodec!8;
+alias DecimalCodec128 = DecimalCodec!16;
 
 
 private:

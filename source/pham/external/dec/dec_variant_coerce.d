@@ -18,8 +18,9 @@ private:
 import std.traits : isFloatingPoint, isIntegral, isSomeChar;
 import std.meta : AliasSeq;
 
-import pham.external.dec.decimal : Decimal32, Decimal64, Decimal128, DecimalControl, ExceptionFlags, isDecimal, RoundingMode;
 import pham.utl.variant_coerce;
+import pham.external.dec.decimal : Decimal32, Decimal64, Decimal128, isDecimal;
+import pham.external.dec.type;
 
 // Support Variant.coerce
 bool doCoerceDecimal(S, D)(scope void* srcPtr, scope void* dstPtr) nothrow
@@ -147,8 +148,6 @@ unittest
     import std.format : format;
     import std.math.operations : isClose;
     import std.traits : isSigned, isUnsigned;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.external.dec.variant_coerce");
 
     ConvertHandler handler, invHandler;
     bool f;
@@ -431,8 +430,6 @@ unittest
 unittest
 {
     import pham.utl.variant;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.external.dec.variant_coerce");
 
     Variant v;
 

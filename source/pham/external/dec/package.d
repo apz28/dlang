@@ -339,3 +339,4 @@ Source:    $(LINK2 https://github.com/rumbu13/decimal/blob/master/src/package.d,
 module pham.external.dec;
 
 public import pham.external.dec.decimal;
+public import pham.external.dec.type;

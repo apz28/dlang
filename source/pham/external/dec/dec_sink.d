@@ -6,10 +6,10 @@ import std.format : FormatSpec;
 import std.range.primitives : isOutputRange, put;
 import std.traits : isIntegral, isSomeChar, Unqual;
 
-import pham.external.dec.decimal : DataType, DecimalControl, FastClass,
-    RoundingMode, fastDecode, isDecimal;
-import pham.external.dec.integral : divrem, isAnyUnsignedBit, prec;
+import pham.external.dec.decimal : fastDecode, isDecimal;
+import pham.external.dec.integral : divrem, isAnyUnsignedBit, isUnsignedBit, prec;
 import pham.external.dec.math : coefficientAdjust, coefficientShrink, divpow10;
+import pham.external.dec.type;
 
 nothrow @safe:
 
@@ -265,6 +265,33 @@ if (isSomeChar!T || isIntegral!T)
     alias ShortStringBuffer = ShortStringBufferSize!(T, 256u - overheadSize);
 }
 
+char[] dataTypeToString(T)(return ref ShortStringBuffer!char buffer, auto const ref T value) @nogc nothrow pure @safe
+if (isUnsignedBit!T)
+{
+    size_t i = buffer.clear(true).length;
+    T.THIS v = value;
+    do
+    {
+        const r = divrem(v, 10U);
+        buffer[--i] = cast(char)('0' + cast(uint)r);
+    } while (v != 0U);
+    return buffer.right(buffer.length - i);
+}
+
+char[] dataTypeToString(T)(return ref ShortStringBuffer!char buffer, auto const ref T value) @nogc nothrow pure @safe
+if (is(Unqual!T == ushort) || is(Unqual!T == uint) || is(Unqual!T == ulong))
+{
+    size_t i = buffer.clear(true).length;
+    Unqual!T v = value;
+    do
+    {
+        const r = v % 10U;
+        buffer[--i] = cast(char)('0' + cast(uint)r);
+        v /= 10U;
+    } while (v != 0U);
+    return buffer.right(buffer.length - i);
+}
+
 pragma(inline, true)
 bool hasPrecision(Char)(scope const ref FormatSpec!Char spec) @nogc pure
 if (isSomeChar!Char)
@@ -329,15 +356,15 @@ in
 }
 do
 {
-    DataType!D coefficient;
+    DataType!(D.sizeof) coefficient;
     int exponent;
     bool isNegative;
 
     const fx = fastDecode(decimal, coefficient, exponent, isNegative);
     if (fx == FastClass.signalingNaN)
-        sinkNaN!(Writer, Char, DataType!D)(sink, spec, isNegative, true, coefficient, spec.spec == 'a' || spec.spec == 'A');
+        sinkNaN!(Writer, Char, DataType!(D.sizeof))(sink, spec, isNegative, true, coefficient, spec.spec == 'a' || spec.spec == 'A');
     else if (fx == FastClass.quietNaN)
-        sinkNaN!(Writer, Char, DataType!D)(sink, spec, isNegative, false, coefficient, spec.spec == 'a' || spec.spec == 'A');
+        sinkNaN!(Writer, Char, DataType!(D.sizeof))(sink, spec, isNegative, false, coefficient, spec.spec == 'a' || spec.spec == 'A');
     else if (fx == FastClass.infinite)
         sinkInfinity!(Writer, Char)(sink, spec, decimal.isNeg);
     else
@@ -348,16 +375,16 @@ do
             case 'F':
             case 's':
             case 'S':
-                return sinkFloat!(Writer, Char, DataType!D)(sink, spec, coefficient, exponent, isNegative, mode);
+                return sinkFloat!(Writer, Char, DataType!(D.sizeof))(sink, spec, coefficient, exponent, isNegative, mode);
             case 'e':
             case 'E':
-                return sinkExponential!(Writer, Char, DataType!D)(sink, spec, coefficient, exponent, isNegative, mode);
+                return sinkExponential!(Writer, Char, DataType!(D.sizeof))(sink, spec, coefficient, exponent, isNegative, mode);
             case 'g':
             case 'G':
-                return sinkGeneral!(Writer, Char, DataType!D)(sink, spec, coefficient, exponent, isNegative, mode);
+                return sinkGeneral!(Writer, Char, DataType!(D.sizeof))(sink, spec, coefficient, exponent, isNegative, mode);
             case 'a':
             case 'A':
-                return sinkHexadecimal!(Writer, Char, DataType!D)(sink, spec, coefficient, exponent, isNegative);
+                return sinkHexadecimal!(Writer, Char, DataType!(D.sizeof))(sink, spec, coefficient, exponent, isNegative);
             default:
                 assert(0, "Unsupported format specifier: " ~ spec.spec);
         }
@@ -1037,4 +1064,14 @@ nothrow @safe unittest // ShortStringBufferSize.reverse
 
     a.clear().put([1, 2, 3, 4, 5]);
     assert(a.reverse()[] == [5, 4, 3, 2, 1]);
+}
+
+unittest // dataTypeToString
+{
+    import pham.external.dec.integral : uint128;
+    ShortStringBuffer!char buffer;
+
+    assert(dataTypeToString(buffer, 0U) == "0");
+    assert(dataTypeToString(buffer, 12345U) == "12345");
+    assert(dataTypeToString(buffer, uint128("10000000000000000000000000")) == "10000000000000000000000000");
 }
