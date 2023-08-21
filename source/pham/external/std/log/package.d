@@ -20,7 +20,7 @@ program. Logging should be easy, but also flexible and powerful, therefore
 
 The easiest way to create a log message is to write:
 -------------
-import pham.external.std.log.logger;
+import pham.external.std.log.log_logger;
 
 void main()
 {
@@ -192,6 +192,6 @@ will never log a message and will never throw on a log call with `LogLevel`
 */
 module pham.external.std.log;
 
-import pham.external.std.log.date_time_format;
-public import pham.external.std.log.logger;
-public import pham.external.std.log.multi_logger;
+import pham.external.std.log.log_date_time_format;
+public import pham.external.std.log.log_logger;
+public import pham.external.std.log.log_multi_logger;

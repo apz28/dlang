@@ -5,9 +5,9 @@
  * Distributed under the Boost Software License, Version 1.0.
  * License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  */
-module pham.external.std.log.multi_logger;
+module pham.external.std.log.log_multi_logger;
 
-import pham.external.std.log.logger;
+import pham.external.std.log.log_logger;
 
 /**
  * This Element is stored inside the `MultiLogger` and associates a

@@ -9,7 +9,7 @@
  *
  */
 
-module pham.external.std.log.date_time_format;
+module pham.external.std.log.log_date_time_format;
 
 import core.time : Duration, msecs, usecs;
 import std.conv : to;

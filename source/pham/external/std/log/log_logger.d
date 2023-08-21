@@ -10,7 +10,7 @@
  * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
 */
-module pham.external.std.log.logger;
+module pham.external.std.log.log_logger;
 
 import core.atomic : atomicLoad, atomicExchange, atomicStore;
 import core.sync.mutex : Mutex;
@@ -31,8 +31,8 @@ public import std.typecons : No, Yes;
 import std.utf : encode;
 
 version (DebugLogger) import std.stdio : writeln;
-import pham.utl.disposable : DisposingReason, isDisposing;
-import pham.external.std.log.date_time_format;
+import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.external.std.log.log_date_time_format;
 
 
 /**
@@ -2840,9 +2840,9 @@ struct LogOutputWriter
     import std.algorithm.comparison : max, min;
     import std.format : format, formattedWrite;
 
-    alias format = pham.external.std.log.date_time_format.format;
-    alias formattedWrite = pham.external.std.log.date_time_format.formattedWrite;
-    alias pad = pham.external.std.log.date_time_format.pad;
+    alias format = pham.external.std.log.log_date_time_format.format;
+    alias formattedWrite = pham.external.std.log.log_date_time_format.formattedWrite;
+    alias pad = pham.external.std.log.log_date_time_format.pad;
 
 @safe:
 
@@ -4021,7 +4021,7 @@ void testFuncNames(Logger logger) @safe
     auto tl1 = new TestLogger();
     testFuncNames(tl1);
     version (DebugLogger) debug writeln("tl1.func=", tl1.func, ", tl1.msg=", tl1.msg);
-    assert(tl1.func == "pham.external.std.log.logger.testFuncNames", tl1.func);
+    assert(tl1.func == "pham.external.std.log.log_logger.testFuncNames", tl1.func);
     assert(tl1.msg == "I'm here", tl1.msg);
 }
 
@@ -4066,7 +4066,7 @@ void testFuncNames(Logger logger) @safe
 
 @safe unittest
 {
-    import pham.external.std.log.multi_logger : MultiLogger;
+    import pham.external.std.log.log_multi_logger : MultiLogger;
 
     auto tl1 = new TestLogger();
     auto tl2 = new TestLogger();
@@ -4526,7 +4526,7 @@ void testFuncNames(Logger logger) @safe
 @safe unittest
 {
     import std.string : indexOf;
-    import pham.external.std.log.multi_logger : MultiLogger;
+    import pham.external.std.log.log_multi_logger : MultiLogger;
 
     auto logger = new MultiLogger(LoggerOption(LogLevel.error, "Multi", defaultOutputPattern, 0));
     auto tl = new TestLogger(LoggerOption(LogLevel.info, "Test", defaultOutputPattern, 0));
