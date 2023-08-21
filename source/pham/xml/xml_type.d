@@ -9,7 +9,7 @@
  *
  */
 
-module pham.xml.type;
+module pham.xml.xml_type;
 
 nothrow @safe:
 

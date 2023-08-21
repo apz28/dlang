@@ -9,10 +9,10 @@
  *
  */
 
-module pham.xml.exception;
+module pham.xml.xml_exception;
 
-import pham.xml.message;
-import pham.xml.object;
+import pham.xml.xml_message;
+import pham.xml.xml_object;
 
 @safe:
 

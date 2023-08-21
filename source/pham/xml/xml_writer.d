@@ -9,17 +9,17 @@
  *
  */
 
-module pham.xml.writer;
+module pham.xml.xml_writer;
 
 import std.array : Appender;
 import std.range.primitives : back, empty, front, popFront;
 import std.typecons : Flag, No, Yes;
 
-import pham.xml.buffer;
-import pham.xml.message;
-import pham.xml.object;
-import pham.xml.type;
-import pham.xml.util;
+import pham.xml.xml_buffer;
+import pham.xml.xml_message;
+import pham.xml.xml_object;
+import pham.xml.xml_type;
+import pham.xml.xml_util;
 
 @safe:
 

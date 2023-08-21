@@ -9,18 +9,18 @@
  *
  */
 
-module pham.xml.buffer;
+module pham.xml.xml_buffer;
 
 import std.array : Appender;
 import std.typecons : Flag, No, Yes;
 
-import pham.utl.dlink_list;
-import pham.xml.entity_table;
-import pham.xml.exception;
-import pham.xml.message;
-import pham.xml.object;
-import pham.xml.type;
-import pham.xml.util;
+import pham.utl.utl_dlink_list;
+import pham.xml.xml_entity_table;
+import pham.xml.xml_exception;
+import pham.xml.xml_message;
+import pham.xml.xml_object;
+import pham.xml.xml_type;
+import pham.xml.xml_util;
 
 @safe:
 
@@ -518,7 +518,7 @@ private:
 unittest  // XmlBuffer.decode
 {
     import std.exception : assertThrown;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest xml.buffer.XmlBuffer.decode");
 
     string s;
@@ -557,7 +557,7 @@ unittest  // XmlBuffer.decode
 
 unittest  // XmlBuffer.encode
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest xml.buffer.XmlBuffer.encode");
 
     string s;

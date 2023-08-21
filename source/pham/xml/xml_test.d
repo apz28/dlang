@@ -9,7 +9,7 @@
  *
  */
 
-module pham.xml.test;
+module pham.xml.xml_test;
 
 @safe:
 

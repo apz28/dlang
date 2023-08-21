@@ -9,22 +9,22 @@
  *
  */
 
-module pham.xml.xpath;
+module pham.xml.xml_xpath;
 
 import std.conv : to;
 import std.math : isNaN;
 import std.typecons : Flag, No, Yes;
 
-import pham.utl.object : className, shortClassName, singleton;
-import pham.utl.enum_set : EnumArray;
-import pham.xml.buffer;
-import pham.xml.dom;
-import pham.xml.exception;
-import pham.xml.message;
-import pham.xml.object;
-import pham.xml.type;
-import pham.xml.util;
-import pham.xml.writer;
+import pham.utl.utl_object : className, shortClassName, singleton;
+import pham.utl.utl_enum_set : EnumArray;
+import pham.xml.xml_buffer;
+import pham.xml.xml_dom;
+import pham.xml.xml_exception;
+import pham.xml.xml_message;
+import pham.xml.xml_object;
+import pham.xml.xml_type;
+import pham.xml.xml_util;
+import pham.xml.xml_writer;
 
 @safe:
 
@@ -4406,7 +4406,7 @@ if (isXmlString!S)
 unittest  // XPathParser
 {
     import std.file : write; // write parser tracer info to file
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest xml.xpath.XPathParser");
 
     string[] output;
@@ -4502,8 +4502,8 @@ unittest  // XPathParser
 
 unittest  // XPathParser.selectNodes
 {
-    import pham.xml.test;
-    import pham.utl.test;
+    import pham.xml.xml_test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest xml.xpath.XPathParser.selectNodes");
 
     auto doc = new XmlDocument!string().load(xpathXml);

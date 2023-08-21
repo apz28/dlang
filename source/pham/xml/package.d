@@ -13,17 +13,17 @@ module pham.xml;
 
 public import std.typecons : No, Yes;
 
-public import pham.xml.buffer;
-public import pham.xml.dom;
-public import pham.xml.entity_table;
-public import pham.xml.exception;
-public import pham.xml.parser;
-public import pham.xml.reader;
-public import pham.xml.string;
-public import pham.xml.type;
-public import pham.xml.util;
-public import pham.xml.xpath;
-public import pham.xml.writer;
+public import pham.xml.xml_buffer;
+public import pham.xml.xml_dom;
+public import pham.xml.xml_entity_table;
+public import pham.xml.xml_exception;
+public import pham.xml.xml_parser;
+public import pham.xml.xml_reader;
+public import pham.xml.xml_string;
+public import pham.xml.xml_type;
+public import pham.xml.xml_util;
+public import pham.xml.xml_xpath;
+public import pham.xml.xml_writer;
 
 // Remove this version will cause compiler crash
 version (dmdCrash)

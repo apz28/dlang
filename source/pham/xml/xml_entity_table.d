@@ -9,13 +9,13 @@
  *
  */
 
-module pham.xml.entity_table;
+module pham.xml.xml_entity_table;
 
-import pham.utl.object : singleton;
-import pham.xml.message;
-import pham.xml.object;
-import pham.xml.type;
-import pham.xml.util;
+import pham.utl.utl_object : singleton;
+import pham.xml.xml_message;
+import pham.xml.xml_object;
+import pham.xml.xml_type;
+import pham.xml.xml_util;
 
 @safe:
 
@@ -91,7 +91,7 @@ private:
 
 unittest // XmlEntityTable.defaultEntityTable
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest xml.entity_table.XmlEntityTable.defaultEntityTable");
 
     auto table = XmlEntityTable!string.defaultEntityTable();

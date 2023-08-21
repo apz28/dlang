@@ -9,12 +9,12 @@
  *
  */
 
-module pham.xml.object;
+module pham.xml.xml_object;
 
 import std.format : format;
 
-import pham.xml.message;
-import pham.xml.type;
+import pham.xml.xml_message;
+import pham.xml.xml_type;
 
 @safe:
 

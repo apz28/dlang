@@ -9,7 +9,7 @@
  *
  */
 
-module pham.xml.parser;
+module pham.xml.xml_parser;
 
 import std.conv : to;
 import std.range.primitives : back, empty, front, popFront, popBack;
@@ -17,15 +17,15 @@ import std.string : indexOf;
 import std.typecons : Flag;
 public import std.typecons : No, Yes;
 
-import pham.xml.buffer;
-import pham.xml.dom;
-import pham.xml.exception;
-import pham.xml.message;
-import pham.xml.object;
-import pham.xml.reader;
-import pham.xml.string;
-import pham.xml.type;
-import pham.xml.util;
+import pham.xml.xml_buffer;
+import pham.xml.xml_dom;
+import pham.xml.xml_exception;
+import pham.xml.xml_message;
+import pham.xml.xml_object;
+import pham.xml.xml_reader;
+import pham.xml.xml_string;
+import pham.xml.xml_type;
+import pham.xml.xml_util;
 
 @safe:
 
@@ -1085,7 +1085,7 @@ private:
 
 unittest  // XmlParser.invalid construct
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest xml.parser.XmlParser.invalid construct");
 
     void parseError(string xml)
@@ -1111,7 +1111,7 @@ unittest  // XmlParser.invalid construct
 
 unittest  // XmlParser.DOCTYPE
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest xml.parser.XmlParser.DOCTYPE");
 
     static immutable string xml =
@@ -1128,8 +1128,8 @@ XML";
 
 unittest  // XmlParser
 {
-    import pham.xml.test;
-    import pham.utl.test;
+    import pham.xml.xml_test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest xml.parser.XmlParser");
 
     auto doc = new XmlDocument!string().load(parserXml);
@@ -1139,7 +1139,7 @@ unittest  // XmlParser.navigation
 {
     import std.conv : to;
     import std.typecons : No, Yes;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest xml.parser.XmlParser.navigation");
 
     static immutable string xml =
@@ -1574,9 +1574,9 @@ XML";
 
 unittest  // XmlParser.SAX
 {
-    import pham.xml.dom;
-    import pham.xml.test;
-    import pham.utl.test;
+    import pham.xml.xml_dom;
+    import pham.xml.xml_test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest xml.parser.XmlParser.SAX");
 
     static struct ProcessXml

@@ -9,26 +9,26 @@
  *
  */
 
-module pham.xml.dom;
+module pham.xml.xml_dom;
 
 import std.array : Appender, split;
 import std.typecons : Flag;
 public import std.typecons : No, Yes;
 
-import pham.utl.dlink_list;
-import pham.utl.enum_set : EnumSet;
-import pham.utl.object : shortClassName, singleton;
-import pham.xml.buffer;
-import pham.xml.entity_table;
-import pham.xml.exception;
-import pham.xml.message;
-import pham.xml.object;
-import pham.xml.parser;
-import pham.xml.reader;
-import pham.xml.string;
-import pham.xml.type;
-import pham.xml.util;
-import pham.xml.writer;
+import pham.utl.utl_dlink_list;
+import pham.utl.utl_enum_set : EnumSet;
+import pham.utl.utl_object : shortClassName, singleton;
+import pham.xml.xml_buffer;
+import pham.xml.xml_entity_table;
+import pham.xml.xml_exception;
+import pham.xml.xml_message;
+import pham.xml.xml_object;
+import pham.xml.xml_parser;
+import pham.xml.xml_reader;
+import pham.xml.xml_string;
+import pham.xml.xml_type;
+import pham.xml.xml_util;
+import pham.xml.xml_writer;
 
 @safe:
 
@@ -4288,7 +4288,7 @@ protected:
 debug (PhamXml)
 unittest  // Display object sizeof
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
 
     dgWriteln("");
     dgWriteln("xml.XmlNodeList.sizeof: ", XmlNodeList!string.sizeof);
@@ -4345,7 +4345,7 @@ version (unittest)
 unittest  // XmlDocument
 {
     import std.conv : to;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest xml.XmlDocument");
 
     auto doc = new XmlDocument!string();
@@ -4403,7 +4403,7 @@ unittest  // XmlDocument
 unittest // XmlNodeList
 {
     import std.conv : to;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest xml.XmlNodeList");
 
     auto doc = XmlDocument!string(sampleXml);
