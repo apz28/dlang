@@ -9,10 +9,11 @@
  *
  */
 
-module pham.cp.cipher_buffer;
+module pham.cp.cp_cipher_buffer;
 
-import pham.utl.array : ShortStringBufferSize;
-import pham.utl.disposable : DisposingReason;
+import pham.utl.utl_array : ShortStringBufferSize;
+import pham.utl.utl_disposable : DisposingReason;
+import pham.utl.utl_object : bytesToHexs;
 
 nothrow @safe:
 
@@ -38,7 +39,7 @@ public:
         data.opAssign(values);
         return this;
     }
-    
+
     pragma(inline, true)
     ref typeof(this) chopFront(const(size_t) chopLength) nothrow pure return
     {
@@ -92,23 +93,21 @@ public:
         data.removeTail(removingValue);
         return this;
     }
-    
+
     pragma(inline, true)
     ref typeof(this) reverse() @nogc nothrow pure return
     {
         data.reverse();
         return this;
     }
-    
+
     CipherRawKey!T toRawKey() const nothrow pure
     {
         return CipherRawKey!T(data[]);
     }
-    
+
     string toString() const nothrow pure @trusted
     {
-        import pham.utl.object : bytesToHexs;
-        
         static if (is(T == char))
             return data[].idup;
         else
@@ -188,13 +187,13 @@ public:
     {
         clear();
     }
-    
+
     pragma(inline, true)
     bool isValid() const @nogc pure
     {
         return isValid(_data);
     }
-    
+
     /**
      * Returns true if v is not empty and not all same value
      */
@@ -203,7 +202,7 @@ public:
         // Must not empty
         if (v.length == 0)
             return false;
-            
+
         // Must not all the same value
         if (v.length > 1)
         {
@@ -215,10 +214,10 @@ public:
             }
             return false;
         }
-            
+
         return true;
     }
-    
+
     ref typeof(this) reverse() pure return
     {
         import std.algorithm.mutation : swapAt;
@@ -247,19 +246,19 @@ public:
             _data = _data[0.._data.length - 1];
         return this;
     }
-    
+
     pragma(inline, true)
     @property bool empty() const @nogc pure
     {
         return _data.length == 0;
     }
-    
+
     pragma(inline, true)
     @property size_t length() const @nogc pure
     {
         return _data.length;
     }
-    
+
     pragma(inline, true)
     @property const(T)[] value() const pure
     {
@@ -275,7 +274,7 @@ package(pham.cp):
         _data[] = 0;
         _data = null;
     }
-    
+
     pragma(inline, true)
     void unique() pure
     {
@@ -292,9 +291,6 @@ private:
 
 unittest // CipherRawKey.isValid
 {
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.cipher_buffer.CipherRawKey.isValid");
-
     assert(CipherRawKey!ubyte.isValid([9]));
     assert(CipherRawKey!ubyte.isValid([0, 1]));
     assert(CipherRawKey!ubyte.isValid([1, 0, 2]));

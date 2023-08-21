@@ -9,7 +9,7 @@
  *
  */
 
-module pham.cp.random;
+module pham.cp.cp_random;
 
 import std.algorithm.searching : all;
 import std.random : isUniformRNG, Random;
@@ -17,10 +17,10 @@ import std.range.primitives : isOutputRange, put;
 import std.traits : isUnsigned, Unqual;
 import std.typecons : No, Yes;
 
-version (profile) import pham.utl.test : PerfFunction;
-import pham.cp.cipher : CipherBuffer;
-import pham.cp.cipher_prime_number;
-import pham.utl.big_integer : BigInteger, defaultParseBigIntegerOptions, isProbablyPrime, probablyPrimeTestIterations;
+version (profile) import pham.utl.utl_test : PerfFunction;
+import pham.utl.utl_big_integer : BigInteger, defaultParseBigIntegerOptions, isProbablyPrime, probablyPrimeTestIterations;
+import pham.cp.cp_cipher : CipherBuffer;
+import pham.cp.cp_cipher_prime_number;
 
 nothrow @safe:
 
@@ -421,9 +421,8 @@ private:
 
 unittest // CipherRandomGenerator.nextBigIntegerPrime
 {
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.random.CipherRandomGenerator.nextBigIntegerPrime");
-
+    import pham.utl.utl_test : PerfTestResult;
+    
     auto perf = PerfTestResult.create();
     BigInteger p;
     CipherRandomGenerator rnd;

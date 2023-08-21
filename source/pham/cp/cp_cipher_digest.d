@@ -9,15 +9,15 @@
  *
  */
 
-module pham.cp.cipher_digest;
+module pham.cp.cp_cipher_digest;
 
 import std.algorithm.mutation : swapAt;
 import std.digest.md : MD5Digest;
 import std.digest.sha : Digest, SHA1Digest, SHA256Digest, SHA384Digest, SHA512Digest;
 import std.string : representation;
 
-import pham.utl.disposable : DisposingReason;
-import pham.cp.cipher_buffer;
+import pham.utl.utl_disposable : DisposingReason;
+import pham.cp.cp_cipher_buffer;
 
 nothrow @safe:
 
@@ -350,9 +350,7 @@ private:
 nothrow @safe unittest // digestOf
 {
     import std.string : representation;
-    import pham.utl.object : bytesFromHexs, bytesToHexs;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.cipher_digest.digestOf");
+    import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
 
     CipherRawKey!ubyte hash;
 
@@ -375,9 +373,7 @@ nothrow @safe unittest // digestOf
 nothrow @safe unittest // digestOf - for Firebird database engine
 {
     import std.string : representation;
-    import pham.utl.object : bytesFromHexs;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.cipher_digest.digestOf - for Firebird database engine");
+    import pham.utl.utl_object : bytesFromHexs;
 
     CipherRawKey!ubyte hash;
 
@@ -391,9 +387,7 @@ nothrow @safe unittest // digestOf - for Firebird database engine
 nothrow @safe unittest // HMACS
 {
     import std.string : representation;
-    import pham.utl.object : bytesFromHexs;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.cipher_digest.HMACS");
+    import pham.utl.utl_object : bytesFromHexs;
 
     DigestResult rBuffer = void;
     ubyte[] r;

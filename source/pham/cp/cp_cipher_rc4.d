@@ -9,13 +9,13 @@
  *
  */
 
-module pham.cp.cipher_rc4;
+module pham.cp.cp_cipher_rc4;
 
 import std.algorithm.mutation : swap;
 
-version (unittest) import pham.utl.test;
-import pham.utl.disposable : DisposingReason;
-import pham.cp.cipher : Cipher, CipherKey, CipherKeyKind, CipherParameters, CipherRawKey, CipherSimpleKey;
+version (unittest) import pham.utl.utl_test;
+import pham.utl.utl_disposable : DisposingReason;
+import pham.cp.cp_cipher : Cipher, CipherKey, CipherKeyKind, CipherParameters, CipherRawKey, CipherSimpleKey;
 
 nothrow @safe:
 
@@ -138,9 +138,6 @@ private:
 
 unittest // CipherRC4
 {
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.cipher_rc4.CipherRC4");
-
     {
         ubyte[] key = [ 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef ];
         ubyte[] test = [ 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef ];

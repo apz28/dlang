@@ -9,12 +9,12 @@
  *
  */
 
-module pham.cp.openssl_binding;
+module pham.cp.cp_openssl_binding;
 
 public import core.stdc.config : c_long, c_ulong;
 
-import pham.utl.object : VersionString;
-import pham.utl.result : ResultStatus;
+import pham.utl.utl_object : VersionString;
+import pham.utl.utl_result : ResultStatus;
 
 nothrow:
 

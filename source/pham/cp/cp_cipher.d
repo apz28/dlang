@@ -9,20 +9,20 @@
  *
  */
 
-module pham.cp.cipher;
+module pham.cp.cp_cipher;
 
 import std.range.primitives : isOutputRange, put;
 import std.traits : isUnsigned, Unqual;
 import std.typecons : No, Yes;
 
-version (profile) import pham.utl.test : PerfFunction;
-import pham.utl.array : ShortStringBuffer;
-import pham.utl.big_integer : BigInteger, defaultParseBigIntegerOptions;
-import pham.utl.disposable : DisposableObject, DisposingReason;
-import pham.utl.numeric_parser : NumericLexerFlag, NumericLexerOptions;
-import pham.utl.utf8 : NoDecodeInputRange, NoDecodeOutputRange, UTF8CharRange;
-public import pham.cp.cipher_buffer;
-import pham.cp.cipher_digest : DigestId;
+version (profile) import pham.utl.utl_test : PerfFunction;
+import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_big_integer : BigInteger, defaultParseBigIntegerOptions;
+import pham.utl.utl_disposable : DisposableObject, DisposingReason;
+import pham.utl.utl_numeric_parser : NumericLexerFlag, NumericLexerOptions;
+import pham.utl.utl_utf8 : NoDecodeInputRange, NoDecodeOutputRange, UTF8CharRange;
+public import pham.cp.cp_cipher_buffer;
+import pham.cp.cp_cipher_digest : DigestId;
 
 nothrow @safe:
 
@@ -863,7 +863,7 @@ struct CipherPrimeCheck
     import std.algorithm.mutation : swap;
     import std.math : abs;
 
-    import pham.utl.big_integer;
+    import pham.utl.utl_big_integer;
 
 nothrow @safe:
 
@@ -1137,9 +1137,6 @@ private:
 version (none)
 unittest // CipherPrimeCheck.isProbablePrime
 {
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.cipher.CipherPrimeCheck.isProbablePrime");
-
     static BigInteger toBigInteger(string digits) nothrow @safe
     {
         scope (failure) assert(0, "Assume nothrow failed");
@@ -1173,8 +1170,6 @@ unittest // CipherPrimeCheck.isProbablePrime
 unittest // CipherHelper.base64Decode & base64Encode
 {
     import std.string : representation;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.cipher.CipherHelper.base64Decode & base64Encode");
 
     scope (failure) assert(0, "Assume nothrow failed");
 

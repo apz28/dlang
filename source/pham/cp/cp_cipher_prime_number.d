@@ -9,7 +9,7 @@
  *
  */
 
-module pham.cp.cipher_prime_number;
+module pham.cp.cp_cipher_prime_number;
 
 nothrow @safe:
 

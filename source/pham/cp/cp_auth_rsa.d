@@ -9,15 +9,15 @@
  *
  */
 
-module pham.cp.auth_rsa;
+module pham.cp.cp_auth_rsa;
 
 import std.typecons : No;
 
-import pham.utl.big_integer : BigInteger, modInverse, modPow;
-import pham.utl.disposable : DisposingReason;
-import pham.cp.cipher;
-import pham.cp.openssl;
-import pham.cp.pad;
+import pham.utl.utl_big_integer : BigInteger, modInverse, modPow;
+import pham.utl.utl_disposable : DisposingReason;
+import pham.cp.cp_cipher;
+import pham.cp.cp_openssl;
+import pham.cp.cp_pad;
 
 nothrow @safe:
 
@@ -413,9 +413,6 @@ private:
 
 unittest // CipherRSA.generateKey
 {
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.auth_rsa.CipherRSA.generateKey");
-
     CipherKey privateKey, publicKey;
     //CipherRSA.generateKey(privateKey, publicKey, 128);
 

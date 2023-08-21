@@ -9,14 +9,15 @@
  *
  */
 
-module pham.cp.openssl;
+module pham.cp.cp_openssl;
 
 import std.string : fromStringz, toStringz;
 
-import pham.utl.disposable : DisposingReason;
-public import pham.utl.result : ResultStatus;
-import pham.cp.cipher : calculateBufferLength, CipherRawKey;
-import pham.cp.openssl_binding;
+import pham.io.io_socket_error;
+import pham.utl.utl_disposable : DisposingReason;
+public import pham.utl.utl_result : ResultStatus;
+import pham.cp.cp_cipher : calculateBufferLength, CipherRawKey;
+import pham.cp.cp_openssl_binding;
 
 @safe:
 
@@ -172,9 +173,6 @@ public:
 struct OpenSSLClientSocket
 {
     import std.array : join;
-    import std.socket : socket_t;
-
-    import pham.utl.system : lastSocketError;
 
 nothrow @safe:
 
@@ -202,7 +200,7 @@ public:
         _connected = false;
     }
 
-    ResultStatus connect(socket_t socketHandle) @trusted
+    ResultStatus connect(int socketHandle) @trusted
     in
     {
         assert(isInitialized && !isConnected);
@@ -211,7 +209,7 @@ public:
     {
         //opensslApi.SSL_set_ex_data(_ssl, sslDataIndex(), &this);
 
-        if (1 != opensslApi.SSL_set_fd(_ssl, cast(int)socketHandle))
+        if (1 != opensslApi.SSL_set_fd(_ssl, socketHandle))
             return currentError("SSL_set_fd");
 
         int r = opensslApi.SSL_connect(_ssl);
@@ -232,7 +230,7 @@ public:
             auto cipher = opensslApi.SSL_get_current_cipher(_ssl);
             if (cipher !is null)
             {
-                import pham.utl.test; dgWriteln("SSL_name=", fromStringz(opensslApi.SSL_CIPHER_get_name(cipher)), ", version=", fromStringz(opensslApi.SSL_CIPHER_get_version(cipher)));
+                import pham.utl.utl_test; dgWriteln("SSL_name=", fromStringz(opensslApi.SSL_CIPHER_get_name(cipher)), ", version=", fromStringz(opensslApi.SSL_CIPHER_get_version(cipher)));
             }
         }
 
@@ -293,7 +291,8 @@ public:
         int tryCount;
         while (readSize < data.length)
         {
-            const readingingSize = cast(int)(data.length - readSize);
+            const leftSize = data.length - readSize;
+            const readingingSize = leftSize <= int.max ? cast(int)leftSize : int.max;
             const int r = opensslApi.SSL_read(_ssl, &data[readSize], readingingSize);
             if (r > 0)
             {
@@ -349,7 +348,7 @@ public:
         int tryCount;
         while (data.length)
         {
-            const writtingSize = cast(int)data.length;
+            const writtingSize = data.length <= int.max ? cast(int)data.length : int.max;
             const int r = opensslApi.SSL_write(_ssl, cast(void*)&data[0], writtingSize);
             if (r > 0)
             {
@@ -394,7 +393,10 @@ public:
     {
         __gshared int idx = -1;
         if (idx == -1)
-            idx = opensslApi.SSL_get_ex_new_index(0, cast(void*)"pham.cp.openssl.OpenSSLClientSocket".ptr, null, null, null);
+        {
+            static const identifier = __MODULE__ ~ ".OpenSSLClientSocket";
+            idx = opensslApi.SSL_get_ex_new_index(0, cast(void*)identifier.ptr, null, null, null);
+        }
         return idx;
     }
 
@@ -674,7 +676,9 @@ private:
 
         auto self = cast(OpenSSLClientSocket*)cbu;
         const maxLen = size - 1;
-        const len = cast(int)self.sslKeyPassword.length <= maxLen ? cast(int)self.sslKeyPassword.length : maxLen;
+        const len = cast(int)self.sslKeyPassword.length <= maxLen
+            ? cast(int)self.sslKeyPassword.length
+            : maxLen;
         memcpy(buffer, &self.sslKeyPassword[0], len);
         buffer[len] = '\0';
         return len;
@@ -1047,10 +1051,10 @@ public:
         //char* bnDec = opensslApi.BN_bn2dec(bn);
         //auto decPrim = fromStringz(bnDec);
         //opensslApi.OPENSSL_free(bnDec);
-        //import pham.utl.test; dgWriteln("dec ", decPrim.length, ": ", decPrim);
+        //import pham.utl.utl_test; dgWriteln("dec ", decPrim.length, ": ", decPrim);
 
         hexPrim = fromStringz(bnHex);
-        //import pham.utl.test; dgWriteln("hex ", hexPrim.length, ": ", hexPrim);
+        //import pham.utl.utl_test; dgWriteln("hex ", hexPrim.length, ": ", hexPrim);
 
         return ResultStatus.ok();
     }
@@ -1490,7 +1494,7 @@ version (unittest)
     bool isOpenSSLIntalled() @nogc nothrow @safe
     {
         import std.file : exists;
-        import pham.cp.openssl_binding : libCryptoNames, libSslNames;
+        import pham.cp.cp_openssl_binding : libCryptoNames, libSslNames;
 
         bool lib1;
         foreach (lib; libSslNames)
@@ -1519,8 +1523,6 @@ version (unittest)
 unittest // OpenSSLExt.generateKeyPair
 {
     import std.file : write;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.openssl.OpenSSLExt.generateKeyPair");
 
     if (isOpenSSLIntalled())
     {
@@ -1537,8 +1539,6 @@ unittest // OpenSSLExt.generateKeyPair
 unittest // OpenSSLCrypt
 {
     import std.string : representation;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.openssl.OpenSSLCrypt");
 
     if (isOpenSSLIntalled())
     {
@@ -1580,8 +1580,6 @@ unittest // OpenSSLCrypt
 unittest // OpenSSLRSACrypt
 {
     import std.string : representation;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.openssl.OpenSSLRSACrypt");
 
     if (isOpenSSLIntalled())
     {
@@ -1633,8 +1631,6 @@ unittest // OpenSSLRSACrypt
 unittest // OpenSSLExt.generatePrimNumber
 {
     import std.string : representation;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.openssl.OpenSSLExt.generatePrimNumber");
 
     if (isOpenSSLIntalled())
     {

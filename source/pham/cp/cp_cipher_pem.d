@@ -9,19 +9,19 @@
  *
  */
 
-module pham.cp.cipher_pem;
+module pham.cp.cp_cipher_pem;
 
 import std.algorithm.searching : endsWith, startsWith;
 
-import pham.utl.object : bytesFromBase64s;
-import pham.cp.cipher : CipherKey, CipherPrivateRSAKey, CipherPublicRSAKey;
+import pham.utl.utl_object : bytesFromBase64s;
+import pham.cp.cp_cipher : CipherKey, CipherPrivateRSAKey, CipherPublicRSAKey;
 
 struct PemReader(alias pkcs8)
 {
     import std.bitmanip : peek;
     import std.system : Endian;
 
-@nogc nothrow pure @safe:
+nothrow pure @safe:
 
 public:
     bool readAdvance(const(ushort) n1, const(ushort) n2)
@@ -80,7 +80,7 @@ public:
                 readByte();
         }
 
-        //import pham.utl.test; dgWriteln("readFieldLength().bytesToRead=", bytesToRead, ", bytes=", (bytes[]).dgToHex);
+        //import pham.utl.utl_test; dgWriteln("readFieldLength().bytesToRead=", bytesToRead, ", bytes=", (bytes[]).dgToHex);
         return peek!(int, Endian.littleEndian)(bytes[]);
     }
 
@@ -92,7 +92,7 @@ public:
 
         int result = readFieldLength();
 
-        //import pham.utl.test; dgWriteln("readIntegerSize()=", result);
+        //import pham.utl.utl_test; dgWriteln("readIntegerSize()=", result);
         return result;
     }
 
@@ -123,7 +123,7 @@ public:
 
             elems = peek!(int, Endian.littleEndian)(cast(const(ubyte)[])[lowByte, highByte, 0x00, 0x00]);
         }
-        //import pham.utl.test; dgWriteln("readKey().elems=", elems, ", length=", length);
+        //import pham.utl.utl_test; dgWriteln("readKey().elems=", elems, ", length=", length);
         return elems > 0 ? readBytes(elems) : null;
     }
 
@@ -266,14 +266,14 @@ CipherKey pemParsePrivateKey(scope const(char)[] pem)
 
 CipherKey pkcs8ParsePublicKey(scope const(ubyte)[] pkcs8)
 {
-    //import pham.utl.test; dgWriteln("pkcs8=", pkcs8.dgToHex());
+    //import pham.utl.utl_test; dgWriteln("pkcs8=", pkcs8.dgToHex());
 
     auto reader = PemReader!(pkcs8)();
 
     if (!reader.readAdvance(0x8130, 0x8230))
         return CipherKey.init;
 
-    //import pham.utl.test; dgWriteln("oid");
+    //import pham.utl.utl_test; dgWriteln("oid");
     // make sure Sequence for OID is correct
     if (reader.readBytes(15) != rsaOidSequence)
         return CipherKey.init;
@@ -288,12 +288,12 @@ CipherKey pkcs8ParsePublicKey(scope const(ubyte)[] pkcs8)
     if (!reader.readAdvance(0x8130, 0x8230))
         return CipherKey.init;
 
-    //import pham.utl.test; dgWriteln("readkey=", reader.empty);
+    //import pham.utl.utl_test; dgWriteln("readkey=", reader.empty);
     const modulus = reader.readKey(2);
     const exponent = reader.readKey(1);
 
-    //import pham.utl.test; dgWriteln("modulus=", modulus.dgToHex());
-    //import pham.utl.test; dgWriteln("exponent=", exponent.dgToHex());
+    //import pham.utl.utl_test; dgWriteln("modulus=", modulus.dgToHex());
+    //import pham.utl.utl_test; dgWriteln("exponent=", exponent.dgToHex());
     auto k = CipherPublicRSAKey(0, modulus.dup, exponent.dup);
     return CipherKey(k);
 }
@@ -348,9 +348,6 @@ private:
 
 unittest
 {
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.cipher_pem.pemParsePublicKey");
-
     static immutable string publicPem =
 q"PEM
 -----BEGIN PUBLIC KEY-----

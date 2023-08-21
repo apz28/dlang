@@ -9,15 +9,15 @@
  *
  */
 
-module pham.cp.cipher_chacha;
+module pham.cp.cp_cipher_chacha;
 
 import std.algorithm.mutation : swap;
 import std.string : representation;
 
-version (unittest) import pham.utl.test;
-import pham.utl.bit : bytesToNative, nativeToBytes;
-import pham.utl.disposable : DisposingReason;
-import pham.cp.cipher;
+version (unittest) import pham.utl.utl_test;
+import pham.utl.utl_bit : bytesToNative, nativeToBytes;
+import pham.utl.utl_disposable : DisposingReason;
+import pham.cp.cp_cipher;
 
 nothrow @safe:
 
@@ -345,8 +345,6 @@ private:
 unittest // CipherChaCha20
 {
 	import std.conv : to;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.cipher_chacha.CipherChaCha20");
 
 	static struct TestCase
     {

@@ -9,13 +9,13 @@
  *
  */
 
-module pham.cp.pad;
+module pham.cp.cp_pad;
 
 import std.algorithm.searching : all;
 
-import pham.utl.bit : bytesToNative, nativeToBytes;
-import pham.cp.cipher : CipherBuffer;
-import pham.cp.random;
+import pham.utl.utl_bit : bytesToNative, nativeToBytes;
+import pham.cp.cp_cipher : CipherBuffer;
+import pham.cp.cp_random;
 
 nothrow @safe:
 
@@ -599,8 +599,6 @@ private:
 unittest // CipherPadding
 {
     import std.traits : EnumMembers;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.pad.CipherPadding");
 
     ubyte[] data1 = [1, 2, 3, 4, 5, 6, 7];
     ubyte[] data2 = [1, 2, 3, 4, 5, 6, 7, 8];

@@ -9,20 +9,20 @@
  *
  */
 
-module pham.cp.codec_asn1;
+module pham.cp.cp_codec_asn1;
 
 import std.string : representation;
 import std.traits : isIntegral, isSigned, Unqual;
         
-import pham.dtm.date : Date, DateTime;
-import pham.dtm.date_time_parse : DateTimeParser, DateTimePattern, tryParse;
-import pham.dtm.tick : DateTimeZoneKind;
-import pham.dtm.time : Time;
-import pham.utl.array : ShortStringBuffer;
-import pham.utl.big_integer : BigInteger;
-import pham.utl.object : cmp, ResultStatus, toString;
-import pham.utl.variant : Variant;
-import pham.cp.cipher : CipherBuffer;
+import pham.dtm.dtm_dtm_date : Date, DateTime;
+import pham.dtm.dtm_dtm_date_time_parse : DateTimeParser, DateTimePattern, tryParse;
+import pham.dtm.dtm_dtm_tick : DateTimeZoneKind;
+import pham.dtm.dtm_dtm_time : Time;
+import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_big_integer : BigInteger;
+import pham.utl.utl_object : cmp, ResultStatus, toString;
+import pham.utl.utl_variant : Variant;
+import pham.cp.cp_cipher : CipherBuffer;
 
 nothrow @safe:
 
@@ -78,7 +78,7 @@ enum ASN1Tag : int
 
 ResultStatus ASN1IsBMPString(scope const(ubyte)[] x) @nogc pure
 {
-    import pham.utl.utf8 : nextUTF16Char;
+    import pham.utl.utl_utf8 : nextUTF16Char;
 
     if (x.length == 0)
         return ResultStatus.ok();
@@ -180,7 +180,7 @@ ResultStatus ASN1IsPrintableString(scope const(ubyte)[] x) @nogc pure
 
 ResultStatus ASN1IsUTF8String(scope const(ubyte)[] x) @nogc pure
 {
-    import pham.utl.utf8 : nextUTF8Char;
+    import pham.utl.utl_utf8 : nextUTF8Char;
 
     size_t p;
     dchar cCode;
@@ -474,7 +474,7 @@ public:
 
     static ResultStatus parseBMPString(scope const(ubyte)[] bytes, ref string result) pure
     {
-        import pham.utl.utf8 : nextUTF16Char;
+        import pham.utl.utl_utf8 : nextUTF16Char;
 
         if (bytes.length == 0)
         {
@@ -928,7 +928,7 @@ public:
 
     static ResultStatus parseValue(scope const(ubyte)[] bytes, scope const(ASN1FieldParameters) parameters, ref ASN1Value result, out size_t nBytes)
     {
-        import pham.utl.enum_set : toName;
+        import pham.utl.utl_enum_set : toName;
 
         nBytes = 0;
         if (bytes.length == 0)
@@ -1910,8 +1910,6 @@ shared static this()
 unittest // ASN1BitString.opIndex
 {
     import std.conv : to;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.codec_asn1.ASN1BitString.opIndex");
 
     static void test(size_t index, bool expectedValue, int line = __LINE__)
     {
@@ -1929,8 +1927,6 @@ unittest // ASN1BitString.opIndex
 unittest // ASN1BitString.rightAlign
 {
     import std.conv : to;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.codec_asn1.ASN1BitString.rightAlign");
 
     static void test(scope const(ASN1BitString) v, scope const(ubyte)[] expectedValue, int line = __LINE__) @safe
     {
@@ -1948,8 +1944,6 @@ unittest // ASN1BitString.rightAlign
 unittest // ASN1BerDecoder.parseBoolean
 {
     import std.conv : to;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseBoolean");
 
     static void test(scope const(ubyte)[] bytes, bool parsedResult, bool expectedValue, int line = __LINE__)
     {
@@ -1968,8 +1962,6 @@ unittest // ASN1BerDecoder.parseBoolean
 unittest // ASN1BerDecoder.parseInteger.int
 {
     import std.conv : to;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseInteger.int");
 
     static void test(scope const(ubyte)[] bytes, bool parsedResult, int expectedValue, int line = __LINE__)
     {
@@ -1995,8 +1987,6 @@ unittest // ASN1BerDecoder.parseInteger.int
 unittest // ASN1BerDecoder.parseInteger.long
 {
     import std.conv : to;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseInteger.long");
 
     static void test(scope const(ubyte)[] bytes, bool parsedResult, long expectedValue, int line = __LINE__)
     {
@@ -2022,8 +2012,6 @@ unittest // ASN1BerDecoder.parseInteger.long
 unittest // ASN1BerDecoder.parseBigInteger
 {
     import std.conv : to;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseBigInteger");
 
     static void test(scope const(ubyte)[] bytes, bool parsedResult, long expectedValue, int line = __LINE__) nothrow
     {
@@ -2046,8 +2034,6 @@ unittest // ASN1BerDecoder.parseBigInteger
 unittest // ASN1BerDecoder.parseBitString
 {
     import std.conv : to;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseBitString");
 
     static void test(scope const(ubyte)[] bytes, bool parsedResult, const(ASN1BitString) expectedValue, int line = __LINE__) @safe
     {
@@ -2067,8 +2053,6 @@ unittest // ASN1BerDecoder.parseBitString
 unittest // ASN1BerDecoder.parseObjectIdentifier
 {
     import std.conv : to;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseObjectIdentifier");
 
     static void test(scope const(ubyte)[] bytes, bool parsedResult, int[] expectedValue, int line = __LINE__)
     {
@@ -2087,11 +2071,9 @@ unittest // ASN1BerDecoder.parseObjectIdentifier
 
 unittest // ASN1BerDecoder.parseUTCTime
 {
-    import pham.dtm.tick : DateTimeZoneKind;
-    import pham.dtm.date_time_parse : twoDigitYearCenturyWindowDefault;
+    import pham.dtm.dtm_tick : DateTimeZoneKind;
+    import pham.dtm.dtm_date_time_parse : twoDigitYearCenturyWindowDefault;
     import std.conv : to;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseUTCTime");
 
     static void test(string bytes, bool parsedResult, scope const(DateTime) expectedValue, int line = __LINE__)
     {
@@ -2123,9 +2105,7 @@ unittest // ASN1BerDecoder.parseUTCTime
 unittest // ASN1BerDecoder.parseGeneralizedTime
 {
     import std.conv : to;
-    import pham.dtm.tick : DateTimeZoneKind;
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.codec_asn1.ASN1BerDecoder.parseGeneralizedTime");
+    import pham.dtm.dtm_tick : DateTimeZoneKind;
 
     static void test(string bytes, bool parsedResult, scope const(DateTime) expectedValue, int line = __LINE__)
     {
@@ -2142,9 +2122,6 @@ unittest // ASN1BerDecoder.parseGeneralizedTime
 
 unittest // ASN1OId.initializeDefaults, ASN1OId.idOf, ASN1OId.nameOf
 {
-    import pham.utl.test;
-    traceUnitTest("unittest pham.cp.codec_asn1.ASN1OId.initializeDefaults, ASN1OId.idOf, ASN1OId.nameOf");
-
     auto v = ASN1OId.idOf("2.5.8.1.1");
     assert(v !is null);
     assert(v.name == "RSA");
