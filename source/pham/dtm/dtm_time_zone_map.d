@@ -9,13 +9,13 @@
  *
  */
 
-module pham.dtm.time_zone_map;
+module pham.dtm.dtm_time_zone_map;
 
 import std.uni : sicmp;
 
-import pham.utl.result;
-import pham.dtm.time_zone : TimeZoneInfo;
-import pham.dtm.time_zone_default;
+import pham.utl.utl_result;
+import pham.dtm.dtm_time_zone : TimeZoneInfo;
+import pham.dtm.dtm_time_zone_default;
 
 @safe:
 
@@ -236,7 +236,7 @@ protected:
         return null;
         /* TODO
         import std.array : split;
-        import pham.xml.dom;
+        import pham.xml.xml_dom;
 
         static struct ProcessXml
         {
@@ -469,7 +469,7 @@ shared static this() @trusted
 version (none)
 unittest // IanaWindowNameMapList
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.dtm.time_zone_map.IanaWindowNameMapList");
 
 static immutable string mapXml = q"XML

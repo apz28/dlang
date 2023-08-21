@@ -9,17 +9,17 @@
  *
  */
 
-module pham.dtm.variant_coerce;
+module pham.dtm.dtm_variant_coerce;
 
 
 // All implement after this point must be private
 private:
 
-import pham.dtm.date : Date, DateTime;
-import pham.dtm.date_time_parse : DateTimeParser, DateTimePattern, tryParse;
-import pham.dtm.tick : dateTimeSetting;
-import pham.dtm.time : Time;
-import pham.utl.variant_coerce;
+import pham.dtm.dtm_date : Date, DateTime;
+import pham.dtm.dtm_date_time_parse : DateTimeParser, DateTimePattern, tryParse;
+import pham.dtm.dtm_tick : dateTimeSetting;
+import pham.dtm.dtm_time : Time;
+import pham.utl.utl_variant_coerce;
 
 // Support Variant.coerce
 bool doCoerceDateToDateTime(scope void* srcPtr, scope void* dstPtr) nothrow
@@ -131,7 +131,7 @@ shared static this()
 
 unittest
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.dtm.variant_coerce");
 
     Date d = Date(2000, 1, 1);

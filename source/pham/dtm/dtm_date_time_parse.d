@@ -9,18 +9,18 @@
  *
  */
 
-module pham.dtm.date_time_parse;
+module pham.dtm.dtm_date_time_parse;
 
 import std.ascii : isPunctuation;
 import std.traits : Unqual;
 import std.uni : sicmp;
 
-import pham.utl.object : RAIIMutex;
-import pham.dtm.tick;
-public import pham.dtm.tick : DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind, CustomFormatSpecifier;
-import pham.dtm.date : Date, DateTime;
-import pham.dtm.time : Time;
-import pham.dtm.time_zone : TimeZoneInfo;
+import pham.utl.utl_object : RAIIMutex;
+import pham.dtm.dtm_tick;
+public import pham.dtm.dtm_tick : DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind, CustomFormatSpecifier;
+import pham.dtm.dtm_date : Date, DateTime;
+import pham.dtm.dtm_time : Time;
+import pham.dtm.dtm_time_zone : TimeZoneInfo;
 
 @safe:
 
@@ -274,7 +274,7 @@ public:
                     this.separatorTimeCount++;
             }
 
-            //import pham.utl.test; dgWriteln("elementl=", elementl, ", p=", p);
+            //import pham.utl.utl_test; dgWriteln("elementl=", elementl, ", p=", p);
 
             this.elements[this.elementl - 1].incLength();
             lastPatternKind = toKind;
@@ -646,7 +646,7 @@ public:
 
         version (none)
         {
-            import pham.utl.test;
+            import pham.utl.utl_test;
             dgWriteln("year=", year, ", month=", month, ", day=", day
                       , ", hour=", hour, ", minute=", minute, ", second=", second
                       , ", zoneAdjustment=", zoneAdjustment, ", zoneAdjustmentHour=", zoneAdjustmentHour, ", zoneAdjustmentMinute=", zoneAdjustmentMinute
@@ -670,7 +670,7 @@ public:
         if (pattern.skipBlanks & SkipBlank.inner)
             skipLeadingBlank(dateTimeText);
 
-        //import pham.utl.test; dgWriteln("scanAlpha: p=", p, ", dateTimeText=", dateTimeText[p..endP]);
+        //import pham.utl.utl_test; dgWriteln("scanAlpha: p=", p, ", dateTimeText=", dateTimeText[p..endP]);
 
         result.begin = p;
         while (p < endP && isAlphaChar(dateTimeText[p]))
@@ -685,7 +685,7 @@ public:
         if (pattern.skipBlanks & SkipBlank.inner)
             skipLeadingBlank(dateTimeText);
 
-        //import pham.utl.test; dgWriteln("scanChar: p=", p, ", dateTimeText=", dateTimeText[p..endP], ", c=", c);
+        //import pham.utl.utl_test; dgWriteln("scanChar: p=", p, ", dateTimeText=", dateTimeText[p..endP], ", c=", c);
 
         const result = p < endP && dateTimeText[p] == c;
         if (result)
@@ -696,7 +696,7 @@ public:
     bool scanLiteral(return scope const(char)[] dateTimeText, scope const ref DateTimePattern pattern,
         scope const ref PatternMarker marker, out PatternMarker result) @nogc pure
     {
-        //import pham.utl.test; dgWriteln("scanLiteral: p=", p, ", dateTimeText=", dateTimeText[p..endP], ", length=", marker.end - marker.begin);
+        //import pham.utl.utl_test; dgWriteln("scanLiteral: p=", p, ", dateTimeText=", dateTimeText[p..endP], ", length=", marker.end - marker.begin);
 
         result.begin = p;
         size_t m = marker.begin;
@@ -730,7 +730,7 @@ public:
         if (pattern.skipBlanks & SkipBlank.inner)
             skipLeadingBlank(dateTimeText);
 
-        //import pham.utl.test; dgWriteln("scanNumber: p=", p, ", dateTimeText=", dateTimeText[p..endP], ", charLimit=", charLimit);
+        //import pham.utl.utl_test; dgWriteln("scanNumber: p=", p, ", dateTimeText=", dateTimeText[p..endP], ", charLimit=", charLimit);
 
         charCount = 0;
         result = 0;
@@ -749,7 +749,7 @@ public:
         if (pattern.skipBlanks & SkipBlank.inner)
             skipLeadingBlank(dateTimeText);
 
-        //import pham.utl.test; dgWriteln("scanSymbol: p=", p, ", dateTimeText=", dateTimeText[p..endP]);
+        //import pham.utl.utl_test; dgWriteln("scanSymbol: p=", p, ", dateTimeText=", dateTimeText[p..endP]);
 
         result.begin = p;
         while (p < endP && isSymbolChar(pattern, dateTimeText[p]))
@@ -951,7 +951,7 @@ DateTimePatternInfo[CacheDateTimePatternInfoKey] cacheDateTimePatternInfos;
 
 unittest // DateTimePatternInfo
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.dtm.date_time_parse.DateTimePatternInfo");
 
     DateTimePatternInfo p;
@@ -1023,7 +1023,7 @@ unittest // DateTimePatternInfo
 
 unittest // tryParse
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.dtm.date_time_parse.tryParse");
 
     ptrdiff_t r;

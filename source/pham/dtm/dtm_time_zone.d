@@ -9,15 +9,15 @@
  *
  */
 
-module pham.dtm.time_zone;
+module pham.dtm.dtm_time_zone;
 
 import std.conv : to;
 import std.uni : sicmp;
 
-version (unittest) import pham.utl.test;
-import pham.dtm.date;
-import pham.dtm.tick;
-import pham.dtm.time;
+version (unittest) import pham.utl.utl_test;
+import pham.dtm.dtm_date;
+import pham.dtm.dtm_tick;
+import pham.dtm.dtm_time;
 
 @safe:
 
@@ -1349,7 +1349,7 @@ version (Windows)
         TIME_ZONE_INFORMATION tzInfo;
         if (GetTimeZoneInformation(&tzInfo) != TIME_ZONE_ID_INVALID)
         {
-            //import pham.utl.test; dgWriteln("tzInfo.Bias=", tzInfo.Bias, ", tzInfo.DaylightBias=", tzInfo.DaylightBias, ", tzInfo.StandardBias=", tzInfo.StandardBias);
+            //import pham.utl.utl_test; dgWriteln("tzInfo.Bias=", tzInfo.Bias, ", tzInfo.DaylightBias=", tzInfo.DaylightBias, ", tzInfo.StandardBias=", tzInfo.StandardBias);
 
             const standardName = toName(tzInfo.StandardName);
             const daylightName = toName(tzInfo.DaylightName);
@@ -1692,7 +1692,7 @@ else
 
 unittest // TimeZoneInfo.localTimeZone
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.dtm.time_zone.TimeZoneInfo.localTimeZone");
 
     auto ltz = TimeZoneInfo.localTimeZone();
@@ -1708,7 +1708,7 @@ unittest // TimeZoneInfo.localTimeZone
 
 unittest // TimeZoneInfo.offsetFromISOPart & offsetToISOPart
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.dtm.time_zone.TimeZoneInfo.offsetFromISOPart & offsetToISOPart");
     
     assert(TimeZoneInfo.offsetFromISOPart(1, 5) == 65);

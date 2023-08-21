@@ -9,7 +9,7 @@
  *
  */
 
-module pham.dtm.tick;
+module pham.dtm.dtm_tick;
 
 import core.sync.mutex : Mutex;
 import core.time : ClockType, convert;
@@ -17,7 +17,7 @@ public import core.time : dur, Duration, TimeException;
 import std.conv : to;
 import std.traits : isIntegral;
 
-import pham.utl.result : cmp, ResultIf;
+import pham.utl.utl_result : cmp, ResultIf;
 
 version = RelaxCompareTime;
 
@@ -907,7 +907,7 @@ static this() @trusted
 version (none)
 unittest // Show duration precision
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
 
     auto d = dur!"seconds"(1);
     dgWriteln("1 second in msecs:  ", d.total!"msecs"().dgToStr());  //         1_000
@@ -923,7 +923,7 @@ unittest // Show duration precision
 
 unittest // toDayOfWeekUS
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.dtm.tick.toDayOfWeekUS");
 
     assert(toDayOfWeekUS("sunday").value == DayOfWeek.sunday);
@@ -950,7 +950,7 @@ unittest // toDayOfWeekUS
 
 unittest // toMonthUS
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.dtm.tick.toMonthUS");
 
     assert(toMonthUS("january").value == 1);

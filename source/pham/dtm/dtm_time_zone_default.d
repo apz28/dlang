@@ -9,10 +9,10 @@
  *
  */
 
-module pham.dtm.time_zone_default;
+module pham.dtm.dtm_time_zone_default;
 
 version = dtm_time_zone_default_code;
-import pham.dtm.time_zone_map : TimeZoneInfoMapList;
+import pham.dtm.dtm_time_zone_map : TimeZoneInfoMapList;
 
 nothrow @safe:
 
@@ -24,7 +24,7 @@ TimeZoneInfoMapList getDefaultTimeZoneInfoMaps() @trusted
     try {
         version (dtm_time_zone_default_code)
         {
-            import pham.dtm.time_zone_default_code;
+            import pham.dtm.dtm_time_zone_default_code;
 
             auto zones = getDefaultTimeZoneInfosByCode();
             return new TimeZoneInfoMapList(zones);
@@ -33,8 +33,8 @@ TimeZoneInfoMapList getDefaultTimeZoneInfoMaps() @trusted
         {
             import std.file : readText;
 
-            import pham.dtm.time_zone_default_json : getDefaultTimeZoneInfosByJson;
-            import pham.dtm.time_zone_default_tzdata : getDefaultTimeZoneInfosByTZData, sameLast;
+            import pham.dtm.dtm_time_zone_default_json : getDefaultTimeZoneInfosByJson;
+            import pham.dtm.dtm_time_zone_default_tzdata : getDefaultTimeZoneInfosByTZData, sameLast;
 
             if (sameLast(defaultTimeZoneDataFileName, ".json"))
             {
