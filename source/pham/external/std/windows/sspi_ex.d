@@ -13,7 +13,7 @@ module pham.external.std.windows.sspi_ex;
 
 version (Windows):
 
-import pham.utl.disposable : DisposingReason;
+import pham.utl.utl_disposable : DisposingReason;
 import pham.external.std.windows.sspi;
 
 nothrow @safe:
