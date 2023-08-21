@@ -9,20 +9,20 @@
 *
 */
 
-module pham.db.pgauth_md5;
+module pham.db.db_pgauth_md5;
 
 import std.ascii : LetterCase;
 import std.conv : to;
 import std.digest.md : md5Of;
 import std.string : representation;
 
-version (unittest) import pham.utl.test;
-import pham.utl.numeric_parser : cvtBytesHex;
-import pham.db.auth;
-import pham.db.message;
-import pham.db.type : DbScheme;
-import pham.db.pgauth;
-import pham.db.pgtype : pgAuthMD5Name;
+version (unittest) import pham.utl.utl_test;
+import pham.utl.utl_numeric_parser : cvtBytesHex;
+import pham.db.db_auth;
+import pham.db.db_message;
+import pham.db.db_type : DbScheme;
+import pham.db.db_pgauth;
+import pham.db.db_pgtype : pgAuthMD5Name;
 
 nothrow @safe:
 
@@ -91,8 +91,8 @@ DbAuth createAuthMD5()
 unittest // PgAuthMD5
 {
     import std.string : representation;
-    import pham.utl.object : bytesFromHexs;
-    import pham.utl.test;
+    import pham.utl.utl_object : bytesFromHexs;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgauth_md5.PgAuthMD5");
 
     auto salt = bytesFromHexs("9F170CAC");

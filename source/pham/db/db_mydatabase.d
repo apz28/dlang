@@ -9,32 +9,32 @@
  *
  */
 
-module pham.db.mydatabase;
+module pham.db.db_mydatabase;
 
 import std.array : Appender;
 import std.conv : text, to;
 import std.system : Endian;
 
-version (profile) import pham.utl.test : PerfFunction;
-version (unittest) import pham.utl.test;
-import pham.external.std.log.logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
-import pham.utl.disposable : DisposingReason, isDisposing;
-import pham.utl.enum_set;
-import pham.utl.object : VersionString;
-import pham.db.buffer;
-import pham.db.database;
-import pham.db.exception;
-import pham.db.message;
-import pham.db.object;
-import pham.db.skdatabase;
-import pham.db.type;
-import pham.db.util;
-import pham.db.value;
-import pham.db.mybuffer;
-import pham.db.myexception;
-import pham.db.myoid;
-import pham.db.myprotocol;
-import pham.db.mytype;
+version (profile) import pham.utl.utl_test : PerfFunction;
+version (unittest) import pham.utl.utl_test;
+import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
+import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.utl.utl_enum_set;
+import pham.utl.utl_object : VersionString;
+import pham.db.db_buffer;
+import pham.db.db_database;
+import pham.db.db_exception;
+import pham.db.db_message;
+import pham.db.db_object;
+import pham.db.db_skdatabase;
+import pham.db.db_type;
+import pham.db.db_util;
+import pham.db.db_value;
+import pham.db.db_mybuffer;
+import pham.db.db_myexception;
+import pham.db.db_myoid;
+import pham.db.db_myprotocol;
+import pham.db.db_mytype;
 
 class MyCancelCommandData : DbCancelCommandData
 {
@@ -660,27 +660,27 @@ package(pham.db):
     }
 
 protected:
-    final override SkException createConnectError(int errorCode, string errorMessage,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final override SkException createConnectError(int socketErrorCode, string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new MyException(errorMessage, DbErrorCode.connect, null, errorCode, 0, next, callerName, file, line);
+        return new MyException(DbErrorCode.connect, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
-    final override SkException createReadDataError(int errorCode, string errorMessage,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final override SkException createReadDataError(int socketErrorCode, string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new MyException(errorMessage, DbErrorCode.read, null, errorCode, 0, next, callerName, file, line);
+        return new MyException(DbErrorCode.read, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
-    final override SkException createWriteDataError(int errorCode, string errorMessage,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final override SkException createWriteDataError(int socketErrorCode, string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new MyException(errorMessage, DbErrorCode.write, null, errorCode, 0, next, callerName, file, line);
+        return new MyException(DbErrorCode.write, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
     final void disposePackageReadBuffers(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         while (!_packageReadBuffers.empty)
             _packageReadBuffers.remove(_packageReadBuffers.last).dispose(disposingReason);
@@ -688,7 +688,7 @@ protected:
 
     final void disposeProtocol(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         if (_protocol !is null)
         {
@@ -738,7 +738,7 @@ protected:
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         super.doDispose(disposingReason);
         disposePackageReadBuffers(disposingReason);
@@ -1333,7 +1333,7 @@ unittest // Turn on trace log if requested - must be first unittest one
 {
     version (TraceFunctionMYDatabase)
     {
-        import pham.external.std.log.logger : LogLevel, ModuleLoggerOption, ModuleLoggerOptions;
+        import pham.external.std.log.log_logger : LogLevel, ModuleLoggerOption, ModuleLoggerOptions;
         
         ModuleLoggerOptions.setModule(ModuleLoggerOption(ModuleLoggerOptions.wildPackageName(__MODULE__), LogLevel.trace));
     }
@@ -1432,7 +1432,7 @@ WHERE INT_FIELD = @INT_FIELD
 version (UnitTestMYDatabase)
 unittest // MyConnection
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.mydatabase.MyConnection");
 
     auto connection = createTestConnection();
@@ -1450,7 +1450,7 @@ unittest // MyConnection
 version (UnitTestMYDatabase)
 unittest // MyConnection(myAuthSha2Caching)
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.mydatabase.MyConnection(myAuthSha2Caching)");
 
     auto connection = createTestConnection();
@@ -1480,7 +1480,7 @@ unittest // MyConnection(myAuthSha2Caching)
 version (UnitTestMYDatabase)
 unittest // MyTransaction
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.mydatabase.MyTransaction");
 
     auto connection = createTestConnection();
@@ -1518,7 +1518,7 @@ unittest // MyTransaction
 version (UnitTestMYDatabase)
 unittest // MyCommand.DDL
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.mydatabase.MyCommand.DDL");
 
     bool failed = true;
@@ -1549,7 +1549,7 @@ version (UnitTestMYDatabase)
 unittest // MyCommand.DML
 {
     import std.math;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML - Simple select");
 
     bool failed = true;
@@ -1630,7 +1630,7 @@ version (UnitTestMYDatabase)
 unittest // MyCommand.DML
 {
     import std.math;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML - Parameter select");
 
     bool failed = true;
@@ -1717,7 +1717,7 @@ unittest // MyCommand.DML
 version (UnitTestMYDatabase)
 unittest // MyCommand.DML.StoredProcedure
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML.StoredProcedure");
 
     bool failed = true;
@@ -1775,7 +1775,7 @@ unittest // MyCommand.DML.StoredProcedure
 version (UnitTestMYDatabase)
 unittest // MyCommand.DML.Abort reader
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML - Abort reader");
 
     bool failed = true;
@@ -1835,7 +1835,7 @@ unittest // MyCommand.DML.Abort reader
 version (UnitTestMYDatabase)
 unittest // MyConnection(SSL)
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.mydatabase.MyConnection(SSL)");
 
     auto connection = createTestConnection();
@@ -1858,7 +1858,7 @@ unittest // MyConnection(SSL)
 
 unittest // DbDatabaseList.createConnection
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.DbDatabaseList.createConnection");
 
     auto connection = DbDatabaseList.createConnection("mysql:server=myServerAddress;database=myDataBase;" ~
@@ -1883,7 +1883,7 @@ unittest // DbDatabaseList.createConnection
 
 unittest // DbDatabaseList.createConnectionByURL
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.DbDatabaseList.createConnectionByURL");
 
     auto connection = DbDatabaseList.createConnectionByURL("mysql://myUsername:myPassword@myServerAddress/myDataBase?" ~
@@ -1908,7 +1908,7 @@ unittest // DbDatabaseList.createConnectionByURL
 
 version (UnitTestPerfMYDatabase)
 {
-    import pham.utl.test : PerfTestResult;
+    import pham.utl.utl_test : PerfTestResult;
 
     PerfTestResult unitTestPerfMYDatabase()
     {
@@ -2043,7 +2043,7 @@ version (UnitTestPerfMYDatabase)
 unittest // MyCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953
 {
     import std.format : format;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
 
     const perfResult = unitTestPerfMYDatabase();
@@ -2054,7 +2054,7 @@ unittest // Turn off trace log if requested - must be last unittest one
 {
     version (TraceFunctionMYDatabase)
     {
-        import pham.external.std.log.logger : ModuleLoggerOptions;
+        import pham.external.std.log.log_logger : ModuleLoggerOptions;
         
         ModuleLoggerOptions.removeModule(ModuleLoggerOptions.wildPackageName(__MODULE__));
     }

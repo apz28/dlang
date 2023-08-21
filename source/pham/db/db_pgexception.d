@@ -9,34 +9,39 @@
  *
 */
 
-module pham.db.pgexception;
+module pham.db.db_pgexception;
 
-import pham.db.exception;
-import pham.db.message : DbErrorCode;
-import pham.db.pgtype : PgGenericResponse;
+import pham.db.db_exception;
+import pham.db.db_message : DbErrorCode;
+import pham.db.db_pgtype : PgGenericResponse;
 
 class PgException : SkException
 {
 @safe:
 
 public:
-    this(string message, int code, string sqlState,
-        int socketCode = 0, int vendorCode = 0,
+    this(uint errorCode, string errorMessage,
         Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
     {
-        super(message, code, sqlState, socketCode, vendorCode, next, funcName, file, line);
+        super(errorCode, errorMessage, next, funcName, file, line);
     }
 
-    this(PgGenericResponse statues,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__)
+    this(uint errorCode, string errorMessage, string sqlState, uint socketCode, uint vendorCode,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
     {
-        auto statusMessage = statues.errorString();
-        auto statusSqlState = statues.sqlState();
-        auto statusCode = statues.errorCode();
-        super(statusMessage, statusCode, statusSqlState, 0, statusCode, next, funcName, file, line);
-        this.statues = statues;
+        super(errorCode, errorMessage, sqlState, socketCode, vendorCode, next, funcName, file, line);
+    }
+
+    this(PgGenericResponse status,
+        Throwable next = null)
+    {
+        auto statusErrorMessage = status.errorString();
+        auto statusSqlState = status.sqlState();
+        auto statusErrorCode = status.errorCode();
+        super(statusErrorCode, statusErrorMessage, statusSqlState, 0, statusErrorCode, next, status.funcName, status.file, status.line);
+        this.status = status;
     }
 
 public:
-    PgGenericResponse statues;
+    PgGenericResponse status;
 }

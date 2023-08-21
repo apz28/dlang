@@ -9,10 +9,9 @@
  *
  */
 
-module pham.db.message;
+module pham.db.db_message;
 
 @safe:
-
 
 enum DbErrorCode : int
 {
@@ -86,19 +85,22 @@ struct DbMessage
     static immutable eInvalidSchemeName = "Database scheme name '%s' not found";
 }
 
-string addMessageLine(ref string message, string addingLine) nothrow
+string addMessageLine(ref string messages, string messageLine) nothrow pure
 {
     import std.ascii : newline;
     
-    if (message.length == 0)
-        message = addingLine;
+    if (messages.length == 0)
+        messages = messageLine;
     else
-        message ~= newline ~ addingLine;
-    return message;
+        messages ~= newline ~ messageLine;
+    return messages;
 }
 
-string fmtMessage(Args...)(string fmt, Args args)
+package(pham.db) string fmtMessage(Args...)(string fmt, Args args) nothrow pure
 {
     import std.format : format;
+    
+    scope (failure) assert(0, "Assume nothrow failed");
+    
     return format(fmt, args);
 }

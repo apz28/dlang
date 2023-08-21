@@ -9,7 +9,7 @@
 *
 */
 
-module pham.db.myauth_scram;
+module pham.db.db_myauth_scram;
 
 import std.algorithm.searching : startsWith;
 import std.array : Appender, split;
@@ -17,18 +17,18 @@ import std.base64 : Base64, Base64Impl;
 import std.conv : to;
 import std.string : representation;
 
-version (unittest) import pham.utl.test;
-import pham.cp.cipher : CipherHelper;
-import pham.cp.cipher_digest : Digester, DigestId, DigestResult, HMACS;
-import pham.cp.random : CipherRandomGenerator;
-import pham.utl.array : ShortStringBuffer;
-import pham.utl.disposable : DisposingReason;
-import pham.utl.numeric_parser : NumericParsedKind, parseHexDigits, parseIntegral;
-import pham.db.auth;
-import pham.db.message;
-import pham.db.type : DbScheme;
-import pham.db.myauth;
-import pham.db.mytype : myAuthScramSha1Name, myAuthScramSha256Name;
+version (unittest) import pham.utl.utl_test;
+import pham.cp.cp_cipher : CipherHelper;
+import pham.cp.cp_cipher_digest : Digester, DigestId, DigestResult, HMACS;
+import pham.cp.cp_random : CipherRandomGenerator;
+import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_disposable : DisposingReason;
+import pham.utl.utl_numeric_parser : NumericParsedKind, parseHexDigits, parseIntegral;
+import pham.db.db_auth;
+import pham.db.db_message;
+import pham.db.db_type : DbScheme;
+import pham.db.db_myauth;
+import pham.db.db_mytype : myAuthScramSha1Name, myAuthScramSha256Name;
 
 nothrow @safe:
 
@@ -120,7 +120,7 @@ public:
             const scope response = cast(const(char)[])serverAuthData;
 
             if (!response.startsWith("v="))
-                return ResultStatus.error(2, "challenge did not start with a signature", DbMessage.eInvalidConnectionAuthServerData);
+                return ResultStatus.error(2, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "challenge did not start with a signature"));
 
             enum padding = false;
             const signature = CipherHelper.base64Decode!padding(response[2..$]);
@@ -128,12 +128,12 @@ public:
             const calculated = hmacOf(skey[], this.auth);
 
             if (signature.length != calculated.length)
-                return ResultStatus.error(3, "challenge contained a signature with an invalid length", DbMessage.eInvalidConnectionAuthServerData);
+                return ResultStatus.error(3, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "challenge contained a signature with an invalid length"));
             if (signature != calculated[])
-                return ResultStatus.error(3, "challenge contained an invalid signature", DbMessage.eInvalidConnectionAuthServerData);
+                return ResultStatus.error(3, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "challenge contained an invalid signature"));
 
             return ResultStatus.ok();
-        } catch (Exception) return ResultStatus.error(1, "challenge is not valid", DbMessage.eInvalidConnectionAuthServerData);
+        } catch (Exception) return ResultStatus.error(1, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "challenge is not valid"));
     }
 
     static string normalize(scope const(char)[] str)
@@ -255,10 +255,10 @@ protected:
         {
             auto s = *val;
             if (parseHexDigits(s, salt) == 0)
-                return ResultStatus.error(1, "salt is invalid", DbMessage.eInvalidConnectionAuthServerData);
+                return ResultStatus.error(1, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "SALT is invalid"));
         }
         else
-            return ResultStatus.error(1, "salt is missing", DbMessage.eInvalidConnectionAuthServerData);
+            return ResultStatus.error(1, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "SALT is missing"));
 
         // nonce is missing?
         if (auto val = 'r' in serverAuthData)
@@ -266,10 +266,10 @@ protected:
             nonce = *val;
             // invalid nonce?
             if (!nonce.startsWith(this.cnonce))
-                return ResultStatus.error(3, "nonce is invalid", DbMessage.eInvalidConnectionAuthServerData);
+                return ResultStatus.error(3, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "NONCE is invalid"));
         }
         else
-            return ResultStatus.error(2, "nonce is missing", DbMessage.eInvalidConnectionAuthServerData);
+            return ResultStatus.error(2, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "NONCE is missing"));
 
         // iteration count is missing?
         if (auto val = 'i' in serverAuthData)
@@ -277,10 +277,10 @@ protected:
             auto s = *val;
             // invalid iteration count?
             if (parseIntegral(s, count) != NumericParsedKind.ok)
-                return ResultStatus.error(5, "iteration count is invalid", DbMessage.eInvalidConnectionAuthServerData);
+                return ResultStatus.error(5, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "ITERATION count is invalid"));
         }
         else
-            return ResultStatus.error(4, "iteration count is missing", DbMessage.eInvalidConnectionAuthServerData);
+            return ResultStatus.error(4, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "ITERATION count is missing"));
 
         return ResultStatus.ok();
     }
@@ -349,13 +349,13 @@ private:
 version (none)
 unittest // MyAuthScramSha1
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.myauth_scram.MyAuthScramSha1");
 }
 
 version (none)
 unittest // MyAuthScramSha256
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.myauth_scram.MyAuthScramSha256");
 }

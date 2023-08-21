@@ -9,22 +9,22 @@
  *
 */
 
-module pham.db.myconvert;
+module pham.db.db_myconvert;
 
 import core.time : dur;
 import std.format : FormatSpec, formatValue;
 import std.traits: isUnsigned, Unqual;
 
-version (profile) import pham.utl.test : PerfFunction;
-version (unittest) import pham.utl.test;
-import pham.dtm.date_time_parse;
-import pham.dtm.tick : Tick, TickPart;
-import pham.utl.array : ShortStringBuffer;
-import pham.utl.bit : numericBitCast;
-import pham.utl.object : simpleIntegerFmt;
-import pham.db.type;
-import pham.db.myoid;
-import pham.db.mytype;
+version (profile) import pham.utl.utl_test : PerfFunction;
+version (unittest) import pham.utl.utl_test;
+import pham.dtm.dtm_date_time_parse;
+import pham.dtm.dtm_tick : Tick, TickPart;
+import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_bit : numericBitCast;
+import pham.utl.utl_object : simpleIntegerFmt;
+import pham.db.db_type;
+import pham.db.db_myoid;
+import pham.db.db_mytype;
 
 nothrow @safe:
 
@@ -513,7 +513,7 @@ shared static this()
 
 unittest // uintEncode & uintDecode
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.myconvert.uintEncode & uintDecode");
 
     // 16 bits
@@ -583,7 +583,7 @@ unittest // uintEncode & uintDecode
 
 unittest // dateDecode & dateEncode
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.myconvert.dateDecode & dateEncode");
 
 	ubyte[maxDateBufferSize] buffer = void;
@@ -605,7 +605,7 @@ unittest // dateDecode & dateEncode
 
 unittest // dateTimeDecode & dateTimeEncode
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.myconvert.dateTimeDecode & dateTimeEncode");
 
 	ubyte[maxDateTimeBufferSize] buffer = void;
@@ -655,7 +655,7 @@ unittest // dateTimeDecode & dateTimeEncode
 
 unittest // timeSpanDecode & timeSpanEncode
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.myconvert.timeSpanDecode & timeSpanEncode");
 
 	Time time;

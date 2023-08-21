@@ -9,20 +9,20 @@
  *
  */
 
-module pham.db.parser;
+module pham.db.db_parser;
 
 import std.array : Appender;
 import std.uni : isAlphaNum, isSpace;
 
-version (unittest) import pham.utl.test;
-import pham.utl.enum_set : toEnum;
-import pham.utl.result : addLine;
-import pham.utl.utf8 : nextUTF8Char;
-public import pham.utl.result : ResultIf;
-import pham.utl.text : NamedValue;
-import pham.db.message;
-public import pham.db.message : DbErrorCode;
-import pham.db.type : DbHost, DbScheme, DbURL, isDbScheme, uint32;
+version (unittest) import pham.utl.utl_test;
+import pham.utl.utl_enum_set : toEnum;
+import pham.utl.utl_result : addLine;
+import pham.utl.utl_utf8 : nextUTF8Char;
+public import pham.utl.utl_result : ResultIf;
+import pham.utl.utl_text : NamedValue;
+import pham.db.db_message;
+public import pham.db.db_message : DbErrorCode;
+import pham.db.db_type : DbHost, DbScheme, DbURL, isDbScheme, uint32;
 
 nothrow @safe:
 
@@ -220,7 +220,7 @@ private:
     pragma(inline, true)
     static bool isNameChar(const(dchar) c) @nogc pure
     {
-        //import pham.utl.test; dgWriteln("c=", c, ", isAlphaNum(c)=", isAlphaNum(c));
+        //import pham.utl.utl_test; dgWriteln("c=", c, ", isAlphaNum(c)=", isAlphaNum(c));
 
         return c == '_' || c == '$' || isAlphaNum(c);
     }
@@ -438,7 +438,7 @@ private:
 
     S readName() pure
     {
-        //import pham.utl.test; dgWriteln("_beginP=", _beginP, ", _sql=", _sql[_beginP.._p]);
+        //import pham.utl.utl_test; dgWriteln("_beginP=", _beginP, ", _sql=", _sql[_beginP.._p]);
 
         while (_p < _sql.length)
         {
@@ -504,7 +504,7 @@ private:
 
 struct DbTokenErrorMessage
 {
-    import pham.utl.result : ResultIf;
+    import pham.utl.utl_result : ResultIf;
 
 nothrow @safe:
 
@@ -582,7 +582,7 @@ do
     auto tokenizer = DbTokenizer!S(sql);
     while (!tokenizer.empty)
     {
-        //import pham.utl.test; dgWriteln("tokenizer.kind=", tokenizer.kind, ", tokenizer.front=", tokenizer.front);
+        //import pham.utl.utl_test; dgWriteln("tokenizer.kind=", tokenizer.kind, ", tokenizer.front=", tokenizer.front);
 
         final switch (tokenizer.kind)
         {
@@ -591,7 +591,7 @@ do
                 // Leading text before parameter?
                 if (beginP < prevP)
                 {
-                    //import pham.utl.test; dgWriteln("sql[beginP..prevP]=", sql[beginP..prevP]);
+                    //import pham.utl.utl_test; dgWriteln("sql[beginP..prevP]=", sql[beginP..prevP]);
 
                     result.put(sql[beginP..prevP]);
                 }
@@ -622,7 +622,7 @@ do
         tokenizer.popFront();
     }
 
-    //import pham.utl.test; dgWriteln("tokenizer.kind=", tokenizer.kind, ", tokenizer.front=", tokenizer.front, ", parameterNumber=", parameterNumber);
+    //import pham.utl.utl_test; dgWriteln("tokenizer.kind=", tokenizer.kind, ", tokenizer.front=", tokenizer.front, ", parameterNumber=", parameterNumber);
 
     if (parameterNumber == 0)
         return sql;
@@ -631,7 +631,7 @@ do
         // Remaining text?
         if (beginP < sql.length)
         {
-            //import pham.utl.test; dgWriteln("sql[beginP..$]=", sql[beginP..$]);
+            //import pham.utl.utl_test; dgWriteln("sql[beginP..$]=", sql[beginP..$]);
 
             result.put(sql[beginP..$]);
         }
@@ -656,8 +656,8 @@ do
  */
 ResultIf!(DbURL!S) parseDbURL(S)(S dbURL)
 {
-    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
-    import pham.utl.text : NamedValue, parseFormEncodedValues, simpleIndexOf, simpleIndexOfAny, simpleSplitter;
+    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
+    import pham.utl.utl_text : NamedValue, parseFormEncodedValues, simpleIndexOf, simpleIndexOfAny, simpleSplitter;
 
     auto currentURL = dbURL;
     size_t currentOffset = 0;
@@ -858,7 +858,7 @@ version (unittest)
     const(char)[] quoteKind(DbTokenKind token, DbTokenKind expected, const(char)[] name, int line)
     {
         import std.conv : to;
-        import pham.utl.enum_set : toName;
+        import pham.utl.utl_enum_set : toName;
 
         return "'" ~ toName(token) ~ " vs " ~ toName(expected) ~ "' " ~ name ~ " from line# " ~ to!string(line);
     }
@@ -875,7 +875,7 @@ version (unittest)
         in uint line = __LINE__)
     {
         import std.conv : to;
-        import pham.utl.enum_set : toName;
+        import pham.utl.utl_enum_set : toName;
 
         assert(tokenizer.empty == empty, "empty from line# " ~ to!string(line));
         assert(tokenizer.malformed == malformed, quoteBool(tokenizer.malformed, malformed, "malformed", line));
@@ -887,7 +887,7 @@ version (unittest)
 
 unittest // DbTokenizer - empty
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.DbTokenizer");
 
     auto tokenizer = DbTokenizer!string("");
@@ -896,7 +896,7 @@ unittest // DbTokenizer - empty
 
 unittest // DbTokenizer - Simple statement
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.DbTokenizer");
 
     auto tokenizer = DbTokenizer!string("select count(int_field), [bracket] FROM test");
@@ -920,7 +920,7 @@ unittest // DbTokenizer - Simple statement
 
 unittest // DbTokenizer - Single parameter
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.DbTokenizer");
 
     auto tokenizer = DbTokenizer!string("select count(int_field), [bracket] FROM test Where varchar_field = @p0");
@@ -952,7 +952,7 @@ unittest // DbTokenizer - Single parameter
 
 unittest // DbTokenizer - Single parameter
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.DbTokenizer");
 
     auto tokenizer = DbTokenizer!string("select count(int_field), [bracket] FROM test Where varchar_field = :p0");
@@ -984,7 +984,7 @@ unittest // DbTokenizer - Single parameter
 
 unittest // DbTokenizer - Single parameter
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.DbTokenizer");
 
     auto tokenizer = DbTokenizer!string("select count(int_field), [bracket] FROM test Where varchar_field = ?");
@@ -1016,7 +1016,7 @@ unittest // DbTokenizer - Single parameter
 
 unittest // DbTokenizer - Multi parameters
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.DbTokenizer");
 
     auto tokenizer = DbTokenizer!string("select count(int_field), [bracket] FROM test Where f1=@p1 and f2=:p2 and f3=?");
@@ -1055,7 +1055,7 @@ unittest // DbTokenizer - Multi parameters
 
 unittest // DbTokenizer - Parameter with block comment
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.DbTokenizer");
 
     auto tokenizer = DbTokenizer!string(" select count(int_field, int_field2), [bracket, bracket2] FROM test /* this is a comment with ' */  Where varchar_field = @_LongName$123 /**/ x=?");
@@ -1101,7 +1101,7 @@ unittest // DbTokenizer - Parameter with block comment
 
 unittest // DbTokenizer - Parameter with line comment
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.DbTokenizer");
 
     auto tokenizer = DbTokenizer!string("select count(int_field), ' @ ' as ab, \" : \" ac, [ ad ] ad FROM test ? -- comment with @p123 ");
@@ -1145,7 +1145,7 @@ unittest // DbTokenizer - Parameter with line comment
 
 unittest // DbTokenizer - Malformed multi parameters
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.DbTokenizer");
 
     auto tokenizer = DbTokenizer!string("select int_field FROM test Where f1=@ and f2=: and f3=?");
@@ -1176,7 +1176,7 @@ unittest // DbTokenizer - Malformed multi parameters
 
 unittest // DbTokenizer - Malform quoted
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.DbTokenizer");
 
     auto tokenizer = DbTokenizer!string("select int_field ' @ -- comment with @p123 ");
@@ -1209,7 +1209,7 @@ unittest // DbTokenizer - Malform quoted
 
 unittest // DbTokenizer - Malform block comment
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.DbTokenizer");
 
     auto tokenizer = DbTokenizer!string("FROM test /* this is a comment with '  Where varchar_field = @_LongName$123 ");
@@ -1223,7 +1223,7 @@ unittest // DbTokenizer - Malform block comment
 
 unittest // DbTokenizer - comment single line
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.DbTokenizer.comment");
 
     auto tokenizer = DbTokenizer!string(" -- comment with \r\n ");
@@ -1235,7 +1235,7 @@ unittest // DbTokenizer - comment single line
 
 unittest // DbTokenizer - comment multi lines
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.DbTokenizer.comment");
 
     auto tokenizer = DbTokenizer!string(" \n/* comment with \r\n */ \n");
@@ -1247,7 +1247,7 @@ unittest // DbTokenizer - comment multi lines
 
 unittest // DbTokenizer - SkipLevel
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.DbTokenizer.SkipLevel");
 
     auto tokenizerSpace = DbTokenizer!(string, DbTokenSkipLevel.space)("FROM test /* this is a comment */ @_LongName$123 \n ");
@@ -1274,7 +1274,7 @@ unittest // DbTokenizer - SkipLevel
 
 unittest // parseParameter
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.parseParameter");
 
     static struct StringList
@@ -1345,7 +1345,7 @@ unittest // parseParameter
 
 unittest // parseDbURL
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.parser.parseDbURL");
 
     auto cfg = parseDbURL("firebird://SYSDBA:masterkey@localhost/baz");

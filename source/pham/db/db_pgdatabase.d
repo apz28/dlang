@@ -9,31 +9,31 @@
  *
 */
 
-module pham.db.pgdatabase;
+module pham.db.db_pgdatabase;
 
 import std.array : Appender;
 import std.conv : text, to;
 import std.system : Endian;
 
-version (profile) import pham.utl.test : PerfFunction;
-version (unittest) import pham.utl.test;
-import pham.external.std.log.logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
-import pham.utl.disposable : DisposingReason, isDisposing;
-import pham.utl.object : VersionString;
-import pham.db.buffer;
-import pham.db.convert;
-import pham.db.database;
-import pham.db.message;
-import pham.db.object;
-import pham.db.skdatabase;
-import pham.db.type;
-import pham.db.util;
-import pham.db.value;
-import pham.db.pgbuffer;
-import pham.db.pgexception;
-import pham.db.pgoid;
-import pham.db.pgprotocol;
-import pham.db.pgtype;
+version (profile) import pham.utl.utl_test : PerfFunction;
+version (unittest) import pham.utl.utl_test;
+import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
+import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.utl.utl_object : VersionString;
+import pham.db.db_buffer;
+import pham.db.db_convert;
+import pham.db.db_database;
+import pham.db.db_message;
+import pham.db.db_object;
+import pham.db.db_skdatabase;
+import pham.db.db_type;
+import pham.db.db_util;
+import pham.db.db_value;
+import pham.db.db_pgbuffer;
+import pham.db.db_pgexception;
+import pham.db.db_pgoid;
+import pham.db.db_pgprotocol;
+import pham.db.db_pgtype;
 
 // Require in active transaction block
 struct PgLargeBlob
@@ -120,7 +120,7 @@ public:
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         doClose(disposingReason);
         if (isDisposing(disposingReason))
@@ -325,7 +325,7 @@ public:
 package(pham.db):
     void doClose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         scope (exit)
         {
@@ -397,25 +397,25 @@ public:
     do
     {
         this._connection = connection;
-        version (TraceFunction) { import pham.utl.test; debug dgWritefln("PgLargeBlobManager(create)%s", cast(void*)_connection); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWritefln("PgLargeBlobManager(create)%s", cast(void*)_connection); }
     }
 
     ~this() @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWritefln("PgLargeBlobManager(destroy)%s", cast(void*)_connection); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWritefln("PgLargeBlobManager(destroy)%s", cast(void*)_connection); }
         dispose(DisposingReason.destructor);
     }
 
     void close() nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         doClose(DisposingReason.other);
     }
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         doClose(disposingReason);
     }
@@ -583,7 +583,7 @@ private:
 
     void disposeCommand(ref PgCommand command, const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         if (command !is null)
         {
@@ -1074,27 +1074,27 @@ package(pham.db):
     }
 
 protected:
-    final override SkException createConnectError(int errorCode, string errorMessage,
+    final override SkException createConnectError(int socketErrorCode, string errorMessage,
         Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new PgException(errorMessage, DbErrorCode.connect, null, errorCode, 0, next, funcName, file, line);
+        return new PgException(DbErrorCode.connect, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
-    final override SkException createReadDataError(int errorCode, string errorMessage,
+    final override SkException createReadDataError(int socketErrorCode, string errorMessage,
         Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new PgException(errorMessage, DbErrorCode.read, null, errorCode, 0, next, funcName, file, line);
+        return new PgException(DbErrorCode.read, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
-    final override SkException createWriteDataError(int errorCode, string errorMessage,
+    final override SkException createWriteDataError(int socketErrorCode, string errorMessage,
         Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new PgException(errorMessage, DbErrorCode.write, null, errorCode, 0, next, funcName, file, line);
+        return new PgException(DbErrorCode.write, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
     override void disposeCommands(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         if (isDisposing(disposingReason))
             this._largeBlobManager.dispose(disposingReason);
@@ -1105,7 +1105,7 @@ protected:
 
     final void disposeMessageReadBuffers(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         while (!_messageReadBuffers.empty)
             _messageReadBuffers.remove(_messageReadBuffers.last).dispose(disposingReason);
@@ -1113,7 +1113,7 @@ protected:
 
     final void disposeProtocol(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         if (_protocol !is null)
         {
@@ -1156,7 +1156,7 @@ protected:
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         super.doDispose(disposingReason);
         disposeMessageReadBuffers(disposingReason);
@@ -1715,7 +1715,7 @@ unittest // Turn on trace log if requested - must be first unittest one
 {
     version (TraceFunctionPGDatabase)
     {
-        import pham.external.std.log.logger : LogLevel, ModuleLoggerOption, ModuleLoggerOptions;
+        import pham.external.std.log.log_logger : LogLevel, ModuleLoggerOption, ModuleLoggerOptions;
         
         ModuleLoggerOptions.setModule(ModuleLoggerOption(ModuleLoggerOptions.wildPackageName(__MODULE__), LogLevel.trace));
     }
@@ -1812,7 +1812,7 @@ WHERE INT_FIELD = @INT_FIELD
 version (UnitTestPGDatabase)
 unittest // PgConnection
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgdatabase.PgConnection");
 
     auto connection = createTestConnection();
@@ -1830,7 +1830,7 @@ unittest // PgConnection
 version (UnitTestPGDatabase)
 unittest // PgTransaction
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgdatabase.PgTransaction");
 
     auto connection = createTestConnection();
@@ -1868,7 +1868,7 @@ unittest // PgTransaction
 version (UnitTestPGDatabase)
 unittest // PgCommand.DDL
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DDL");
 
     bool failed = true;
@@ -1899,7 +1899,7 @@ version (UnitTestPGDatabase)
 unittest // PgCommand.DML
 {
     import std.math;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - Simple select");
 
     bool failed = true;
@@ -1980,7 +1980,7 @@ version (UnitTestPGDatabase)
 unittest // PgCommand.DML
 {
     import std.math;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - Parameter select");
 
     bool failed = true;
@@ -2067,7 +2067,7 @@ unittest // PgCommand.DML
 version (UnitTestPGDatabase)
 unittest // PgCommand.DML.pg_proc
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - pg_proc");
 
     bool failed = true;
@@ -2119,7 +2119,7 @@ ORDER BY pg_proc.proname
 version (UnitTestPGDatabase)
 unittest // PgLargeBlob
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgdatabase.PgLargeBlob");
 
     bool failed = true;
@@ -2178,7 +2178,7 @@ unittest // PgLargeBlob
 version (UnitTestPGDatabase)
 unittest // PgCommand.DML
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - Array");
 
     static int[] arrayValue() nothrow pure @safe
@@ -2249,7 +2249,7 @@ unittest // PgCommand.getExecutionPlan
     import std.algorithm.searching : startsWith;
     import std.array : split;
     import std.string : indexOf;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgdatabase.PgCommand.getExecutionPlan");
 
     static const(char)[] removePText(const(char)[] s)
@@ -2318,7 +2318,7 @@ Execution Time: 0.053 ms}";
 version (UnitTestPGDatabase)
 unittest // PgCommand.DML.StoredProcedure
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.StoredProcedure");
 
     bool failed = true;
@@ -2357,7 +2357,7 @@ unittest // PgCommand.DML.StoredProcedure
 version (UnitTestPGDatabase)
 unittest // PgConnection(SSL)
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgdatabase.PgConnection(SSL)");
 
     auto connection = createTestConnection();
@@ -2377,7 +2377,7 @@ unittest // PgConnection(SSL)
 
 unittest // DbDatabaseList.createConnection
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.DbDatabaseList.createConnection");
 
     auto connection = DbDatabaseList.createConnection("postgresql:server=myServerAddress;database=myDataBase;" ~
@@ -2402,7 +2402,7 @@ unittest // DbDatabaseList.createConnection
 
 unittest // DbDatabaseList.createConnectionByURL
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.DbDatabaseList.createConnectionByURL");
 
     auto connection = DbDatabaseList.createConnectionByURL("postgresql://myUsername:myPassword@myServerAddress/myDataBase?" ~
@@ -2427,7 +2427,7 @@ unittest // DbDatabaseList.createConnectionByURL
 
 version (UnitTestPerfPGDatabase)
 {
-    import pham.utl.test : PerfTestResult;
+    import pham.utl.utl_test : PerfTestResult;
 
     PerfTestResult unitTestPerfPGDatabase()
     {
@@ -2562,7 +2562,7 @@ version (UnitTestPerfPGDatabase)
 unittest // PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953
 {
     import std.format : format;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
 
     const perfResult = unitTestPerfPGDatabase();
@@ -2573,7 +2573,7 @@ unittest // Turn off trace log if requested - must be last unittest one
 {
     version (TraceFunctionPGDatabase)
     {
-        import pham.external.std.log.logger : ModuleLoggerOptions;
+        import pham.external.std.log.log_logger : ModuleLoggerOptions;
         
         ModuleLoggerOptions.removeModule(ModuleLoggerOptions.wildPackageName(__MODULE__));
     }

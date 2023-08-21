@@ -9,23 +9,23 @@
  *
 */
 
-module pham.db.fbconvert;
+module pham.db.db_fbconvert;
 
 import core.time : Duration, dur;
 import std.conv : to;
 import std.system : Endian, endian;
 import std.typecons : No;
 
-version (profile) import pham.utl.test : PerfFunction;
-version (unittest) import pham.utl.test;
-import pham.dtm.time_zone : TimeZoneInfo;
-import pham.dtm.time_zone_map : TimeZoneInfoMap;
-import pham.external.dec.codec : DecimalCodec32, DecimalCodec64, DecimalCodec128;
-import pham.utl.array : ShortStringBuffer;
-import pham.utl.big_integer : toBigEndianFlag, UByteTempArray;
-import pham.db.type;
-import pham.db.fbisc;
-import pham.db.fbtimezone : FbTimeZone;
+version (profile) import pham.utl.utl_test : PerfFunction;
+version (unittest) import pham.utl.utl_test;
+import pham.dtm.dtm_time_zone : TimeZoneInfo;
+import pham.dtm.dtm_time_zone_map : TimeZoneInfoMap;
+import pham.external.dec.dec_codec : DecimalCodec32, DecimalCodec64, DecimalCodec128;
+import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_big_integer : toBigEndianFlag, UByteTempArray;
+import pham.db.db_type;
+import pham.db.db_fbisc;
+import pham.db.db_fbtime_zone : FbTimeZone;
 
 nothrow @safe:
 
@@ -294,7 +294,7 @@ private:
 
 unittest // dateDecode & dateEncode
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbconvert.dateDecode & dateEncode");
 
 	enum orgFbDate = 58_989;
@@ -310,7 +310,7 @@ unittest // dateDecode & dateEncode
 
 unittest // timeDecode & timeEncode
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbconvert.timeDecode & timeEncode");
 
 	enum orgFbTime = 36_610_000;
@@ -326,8 +326,8 @@ unittest // timeDecode & timeEncode
 
 unittest // int128Decode & int128Encode
 {
-	import pham.utl.object : bytesFromHexs;
-    import pham.utl.test;
+	import pham.utl.utl_object : bytesFromHexs;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbconvert.int128Decode & int128Encode");
 
 	static BigInteger safeBigInteger(string value) nothrow pure @safe

@@ -10,17 +10,17 @@
  * Conversion should be found under PostgreSQL...\src\backend\utils\adt\... (_recv or _send)
 */
 
-module pham.db.pgconvert;
+module pham.db.db_pgconvert;
 
 import core.time : Duration, dur;
 
-version (unittest) import pham.utl.test;
-import pham.dtm.tick : Tick;
-import pham.dtm.time_zone : TimeZoneInfo;
-import pham.utl.array : ShortStringBuffer, ShortStringBufferSize;
-import pham.db.convert : toDecimalSafe;
-import pham.db.type;
-import pham.db.pgtype;
+version (unittest) import pham.utl.utl_test;
+import pham.dtm.dtm_tick : Tick;
+import pham.dtm.dtm_time_zone : TimeZoneInfo;
+import pham.utl.utl_array : ShortStringBuffer, ShortStringBufferSize;
+import pham.db.db_convert : toDecimalSafe;
+import pham.db.db_type;
+import pham.db.db_pgtype;
 
 nothrow @safe:
 
@@ -368,7 +368,7 @@ private:
 
 unittest // numericDecode
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgconvert.numericDecode");
 
 	PgOIdNumeric n5_40 = {ndigits:2, weight:0, sign:0, dscale:2, digits:[5, 4000]};
@@ -380,7 +380,7 @@ unittest // numericDecode
 
 unittest // numericEncode
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgconvert.numericEncode");
 
 	// Scale=1 because Decimal.toString will truncate trailing zero

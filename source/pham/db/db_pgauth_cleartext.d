@@ -9,17 +9,17 @@
 *
 */
 
-module pham.db.pgauth_cleartext;
+module pham.db.db_pgauth_cleartext;
 
 import std.conv : to;
 import std.string : representation;
 
-version (unittest) import pham.utl.test;
-import pham.db.auth;
-import pham.db.message;
-import pham.db.type : DbScheme;
-import pham.db.pgauth;
-import pham.db.pgtype : pgAuthClearTextName;
+version (unittest) import pham.utl.utl_test;
+import pham.db.db_auth;
+import pham.db.db_message;
+import pham.db.db_type : DbScheme;
+import pham.db.db_pgauth;
+import pham.db.db_pgtype : pgAuthClearTextName;
 
 nothrow @safe:
 

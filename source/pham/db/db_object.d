@@ -9,7 +9,7 @@
  *
  */
 
-module pham.db.object;
+module pham.db.db_object;
 
 import std.algorithm : remove;
 import std.algorithm.comparison : min;
@@ -19,19 +19,19 @@ import std.conv : to;
 import std.traits : ParameterTypeTuple, Unqual;
 import std.uni : sicmp, toUpper;
 
-version (profile) import pham.utl.test : PerfFunction;
-version (unittest) import pham.utl.test;
-import pham.utl.array : IndexedArray;
-import pham.utl.disposable;
-import pham.utl.enum_set : EnumSet;
-import pham.utl.object : shortClassName;
-import pham.utl.result : addLine, ResultIf;
-import pham.utl.utf8 : nextUTF8Char;
-import pham.db.exception;
-import pham.db.message;
-import pham.db.parser;
-import pham.db.type;
-import pham.db.util;
+version (profile) import pham.utl.utl_test : PerfFunction;
+version (unittest) import pham.utl.utl_test;
+import pham.utl.utl_array : IndexedArray;
+import pham.utl.utl_disposable;
+import pham.utl.utl_enum_set : EnumSet;
+import pham.utl.utl_object : shortClassName;
+import pham.utl.utl_result : addLine, ResultIf;
+import pham.utl.utl_utf8 : nextUTF8Char;
+import pham.db.db_exception;
+import pham.db.db_message;
+import pham.db.db_parser;
+import pham.db.db_type;
+import pham.db.db_util;
 
 DbIdentitier[] toIdentifiers(const string[] strings) nothrow
 {
@@ -510,7 +510,7 @@ public:
         if (!find(name, result))
         {
             auto msg = DbMessage.eInvalidName.fmtMessage(name, shortClassName(this));
-            throw new DbException(msg, 0, null);
+            throw new DbException(0, msg);
         }
         return result;
     }
@@ -547,7 +547,7 @@ public:
         if (result < 0)
         {
             auto msg = DbMessage.eInvalidName.fmtMessage(name, shortClassName(this));
-            throw new DbException(msg, 0, null);
+            throw new DbException(0, msg);
         }
         return result;
     }
@@ -915,7 +915,7 @@ public:
         if (!find(name, result))
         {
             auto msg = DbMessage.eInvalidName.fmtMessage(name, shortClassName(this));
-            throw new DbException(msg, 0, null);
+            throw new DbException(0, msg);
         }
         return result;
     }
@@ -1294,7 +1294,7 @@ unittest // DbIdentitierValueList
 {
     import std.conv : to;
     import std.string : indexOf;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.object.DbIdentitierValueList");
 
     auto list = new DbIdentitierValueList!string();
@@ -1355,7 +1355,7 @@ unittest // DbIdentitierValueList
 unittest // DbNameObjectList
 {
     import std.string : indexOf;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.object.DbNameObjectList");
 
     static class DbNameObjectTest : DbNameObject
@@ -1396,7 +1396,7 @@ unittest // DbNameObjectList
 
 unittest // DbCustomAttributeList
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.object.DbCustomAttributeList");
 
     DbCustomAttributeList v;

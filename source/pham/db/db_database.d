@@ -9,7 +9,7 @@
  *
  */
 
-module pham.db.database;
+module pham.db.db_database;
 
 import core.atomic : atomicFetchAdd, atomicFetchSub, atomicLoad, atomicStore;
 import core.sync.mutex : Mutex;
@@ -21,25 +21,25 @@ import std.format : format;
 import std.traits : FieldNameTuple;
 import std.typecons : Flag, No, Yes;
 
-version (profile) import pham.utl.test : PerfFunction;
-version (unittest) import pham.utl.test;
-import pham.external.std.log.logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
-import pham.utl.delegate_list;
-import pham.utl.dlink_list;
-import pham.utl.enum_set : EnumSet, toEnum, toName;
-import pham.utl.disposable;
-import pham.utl.object : RAIIMutex, singleton;
-import pham.utl.system : currentComputerName, currentProcessId, currentProcessName, currentUserName;
-import pham.utl.timer;
-import pham.utl.utf8 : nextUTF8Char;
-import pham.db.convert;
-public import pham.db.exception;
-import pham.db.message;
-import pham.db.object;
-import pham.db.parser;
-public import pham.db.type;
-import pham.db.util;
-public import pham.db.value;
+version (profile) import pham.utl.utl_test : PerfFunction;
+version (unittest) import pham.utl.utl_test;
+import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
+import pham.utl.utl_delegate_list;
+import pham.utl.utl_dlink_list;
+import pham.utl.utl_enum_set : EnumSet, toEnum, toName;
+import pham.utl.utl_disposable;
+import pham.utl.utl_object : RAIIMutex, singleton;
+import pham.utl.utl_system : currentComputerName, currentProcessId, currentProcessName, currentUserName;
+import pham.utl.utl_timer;
+import pham.utl.utl_utf8 : nextUTF8Char;
+import pham.db.db_convert;
+public import pham.db.db_exception;
+import pham.db.db_message;
+import pham.db.db_object;
+import pham.db.db_parser;
+public import pham.db.db_type;
+import pham.db.db_util;
+public import pham.db.db_value;
 
 alias DbNotificationMessageEvent = void delegate(scope DbNotificationMessage[] notificationMessages);
 
@@ -801,69 +801,69 @@ protected:
         return result;
     }
 
-    void checkActive(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    void checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        version (TraceFunction) traceFunction("callerName=", callerName);
+        version (TraceFunction) traceFunction("funcName=", funcName);
 
         if (!handle)
         {
-            auto msg = DbMessage.eInvalidCommandInactive.fmtMessage(callerName);
-            throw new DbException(msg, DbErrorCode.connect, null, 0, 0, null, callerName, file, line);
+            auto msg = DbMessage.eInvalidCommandInactive.fmtMessage(funcName);
+            throw new DbException(DbErrorCode.connect, msg, null, funcName, file, line);
         }
 
         if (_connection is null)
         {
-            auto msg = DbMessage.eInvalidCommandConnection.fmtMessage(callerName);
-            throw new DbException(msg, DbErrorCode.connect, null, 0, 0, null, callerName, file, line);
+            auto msg = DbMessage.eInvalidCommandConnection.fmtMessage(funcName);
+            throw new DbException(DbErrorCode.connect, msg, null, funcName, file, line);
         }
 
-        _connection.checkActive(callerName);
+        _connection.checkActive(funcName, file, line);
     }
 
-    final void checkActiveReader(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final void checkActiveReader(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        version (TraceFunction) traceFunction("callerName=", callerName);
+        version (TraceFunction) traceFunction("funcName=", funcName);
 
         if (_activeReader)
-            throw new DbException(DbMessage.eInvalidCommandActiveReader, 0, null, 0, 0, null, callerName, file, line);
+            throw new DbException(0, DbMessage.eInvalidCommandActiveReader, null, funcName, file, line);
 
-        connection.checkActiveReader(callerName);
+        connection.checkActiveReader(funcName, file, line);
     }
 
-    void checkCommand(int excludeCommandType, Throwable next = null, 
-        string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    void checkCommand(int excludeCommandType,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        version (TraceFunction) traceFunction("callerName=", callerName);
+        version (TraceFunction) traceFunction("funcName=", funcName);
 
         if (_connection is null || _connection.state != DbConnectionState.opened)
-            throw new DbException(DbMessage.eInvalidCommandConnection, DbErrorCode.connect, null, 0, 0, next, callerName, file, line);
+            throw new DbException(DbErrorCode.connect, DbMessage.eInvalidCommandConnection, null, funcName, file, line);
 
-        checkActiveReader(callerName);
+        checkActiveReader(funcName, file, line);
 
         if (_transaction !is null && _transaction.state != DbTransactionState.active)
             transaction = null;
 
         if (_commandText.length == 0)
-            throw new DbException(DbMessage.eInvalidCommandText, 0, null, 0, 0, next, callerName, file, line);
+            throw new DbException(0, DbMessage.eInvalidCommandText, null, funcName, file, line);
 
         if (excludeCommandType != -1 && _commandType == excludeCommandType)
         {
-            auto msg = DbMessage.eInvalidCommandUnfit.fmtMessage(callerName);
-            throw new DbException(msg, 0, null, 0, 0, next, callerName, file, line);
+            auto msg = DbMessage.eInvalidCommandUnfit.fmtMessage(funcName);
+            throw new DbException(0, msg, null, funcName, file, line);
         }
 
         if (_transaction !is null && _transaction.connection !is _connection)
-            throw new DbException(DbMessage.eInvalidCommandConnectionDif, 0, null, 0, 0, next, callerName, file, line);
+            throw new DbException(0, DbMessage.eInvalidCommandConnectionDif, null, funcName, file, line);
     }
 
-    final void checkInactive(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final void checkInactive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        version (TraceFunction) traceFunction("callerName=", callerName);
+        version (TraceFunction) traceFunction("funcName=", funcName);
 
         if (handle)
         {
-            auto msg = DbMessage.eInvalidCommandActive.fmtMessage(callerName);
-            throw new DbException(msg, DbErrorCode.connect, null, 0, 0, null, callerName, file, line);
+            auto msg = DbMessage.eInvalidCommandActive.fmtMessage(funcName);
+            throw new DbException(DbErrorCode.connect, msg, null, funcName, file, line);
         }
     }
 
@@ -882,7 +882,7 @@ protected:
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         try
         {
@@ -1489,7 +1489,7 @@ package(pham.db):
 
     final void doClose(const(DbConnectionState) reasonState) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         const isClosing = reasonState == DbConnectionState.closing;
         const isFailing = isFatalError || reasonState == DbConnectionState.failing;
@@ -1516,41 +1516,41 @@ package(pham.db):
         return (++_nextCounter);
     }
 
-    void fatalError(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    void fatalError(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        version (TraceFunction) traceFunction("callerName=", callerName);
+        version (TraceFunction) traceFunction("funcName=", funcName);
 
         _fatalError = true;
     }
 
 protected:
-    final void checkActive(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final void checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        version (TraceFunction) traceFunction("callerName=", callerName);
+        version (TraceFunction) traceFunction("funcName=", funcName);
 
         if (state != DbConnectionState.opened)
         {
             auto msg = _fatalError
-                ? DbMessage.eInvalidConnectionFatal.fmtMessage(callerName, connectionStringBuilder.forErrorInfo())
-                : DbMessage.eInvalidConnectionInactive.fmtMessage(callerName, connectionStringBuilder.forErrorInfo());
-            throw new DbException(msg, DbErrorCode.connect, null);
+                ? DbMessage.eInvalidConnectionFatal.fmtMessage(funcName, connectionStringBuilder.forErrorInfo())
+                : DbMessage.eInvalidConnectionInactive.fmtMessage(funcName, connectionStringBuilder.forErrorInfo());
+            throw new DbException(DbErrorCode.connect, msg, null, funcName, file, line);
         }
     }
 
-    final void checkActiveReader(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final void checkActiveReader(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         if (_readerCounter != 0 && !supportMultiReaders)
-            throw new DbException(DbMessage.eInvalidConnectionActiveReader, 0, null);
+            throw new DbException(0, DbMessage.eInvalidConnectionActiveReader, null, funcName, file, line);
     }
 
-    final void checkInactive(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final void checkInactive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        version (TraceFunction) traceFunction("callerName=", callerName);
+        version (TraceFunction) traceFunction("funcName=", funcName);
 
         if (state == DbConnectionState.opened)
         {
-            auto msg = DbMessage.eInvalidConnectionActive.fmtMessage(callerName, connectionStringBuilder.forErrorInfo());
-            throw new DbException(msg, DbErrorCode.connect, null);
+            auto msg = DbMessage.eInvalidConnectionActive.fmtMessage(funcName, connectionStringBuilder.forErrorInfo());
+            throw new DbException(DbErrorCode.connect, msg, null, funcName, file, line);
         }
     }
 
@@ -1564,7 +1564,7 @@ protected:
 
     void disposeCommands(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         while (!_commands.empty)
             _commands.remove(_commands.last).dispose(disposingReason);
@@ -1572,7 +1572,7 @@ protected:
 
     void disposeTransactions(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         _defaultTransaction = null;
         while (!_transactions.empty)
@@ -1593,7 +1593,7 @@ protected:
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         if (_state != DbConnectionState.closed && _state != DbConnectionState.failed)
             doClose(DbConnectionState.closing);
@@ -1846,7 +1846,7 @@ public:
 protected:
     static void beforeDisposeConnection(DbConnection item) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         auto itemPool = item._poolList !is null ? item._poolList.pool : null;
         if (itemPool !is null)
@@ -1883,7 +1883,7 @@ protected:
 
     static DbConnection disposeConnection(DbConnection item) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         beforeDisposeConnection(item);
         item.dispose();
@@ -1901,7 +1901,7 @@ protected:
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         while (!_connections.empty)
             _connections.remove(_connections.last).dispose(disposingReason);
@@ -1939,7 +1939,7 @@ public:
         if (_acquiredLength >= localMaxLength)
         {
             auto msg = DbMessage.eInvalidConnectionPoolMaxUsed.fmtMessage(_acquiredLength, localMaxLength);
-            throw new DbException(msg, DbErrorCode.connect, null);
+            throw new DbException(DbErrorCode.connect, msg);
         }
 
         bool created;
@@ -2044,7 +2044,7 @@ protected:
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
         scope (failure) assert(0, "Assume nothrow failed");
 
         foreach (_, lst; _schemeConnections)
@@ -2213,7 +2213,7 @@ public:
         this.setDefaultIfs();
 
         if (error)
-            throw new DbException(errorMessage, errorCode, null);
+            throw new DbException(errorCode, errorMessage);
 
         return this;
     }
@@ -2225,7 +2225,7 @@ public:
     }
     do
     {
-        import pham.utl.result : addLine;
+        import pham.utl.utl_result : addLine;
         
         string errorMessage;
 
@@ -2261,7 +2261,7 @@ public:
         this.setDefaultIfs();
 
         if (errorMessage.length)
-            throw new DbException(errorMessage, DbErrorCode.parse, null);
+            throw new DbException(DbErrorCode.parse, errorMessage);
 
         return this;
     }
@@ -2938,7 +2938,7 @@ public:
     {
         auto cfg = parseDbURL(dbURL);
         if (!cfg)
-            throw new DbException(cfg.errorMessage, cfg.errorCode, null);
+            throw new DbException(cfg.errorCode, cfg.errorMessage);
 
         auto database = getDb(cfg.scheme);
         return database.createConnection(cfg);
@@ -2966,7 +2966,7 @@ public:
             return result;
 
         auto msg = DbMessage.eInvalidSchemeName.fmtMessage(scheme);
-        throw new DbException(msg, 0, null);
+        throw new DbException(0, msg);
     }
 
     static DbDatabase getDb(string scheme) @safe
@@ -2976,7 +2976,7 @@ public:
             return result;
 
         auto msg = DbMessage.eInvalidSchemeName.fmtMessage(scheme);
-        throw new DbException(msg, 0, null);
+        throw new DbException(0, msg);
     }
 
     static DbDatabaseList instance() nothrow @trusted
@@ -3427,7 +3427,7 @@ public:
     }
     do
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         if (!_lastDisposingReason.canDispose(disposingReason))
             return;
@@ -3706,7 +3706,7 @@ public:
     }
     do
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         if (!_lastDisposingReason.canDispose(disposingReason))
             return;
@@ -3867,7 +3867,7 @@ protected:
 
     void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         clear();
         if (isDisposing(disposingReason))
@@ -4009,7 +4009,7 @@ public:
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         if (_command !is null)
             doDetach(isDisposing(disposingReason));
@@ -4642,24 +4642,24 @@ protected:
     }
 
     final ptrdiff_t checkSavePointName(string savePointName,
-        string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        version (TraceFunction) traceFunction("savePointName=", savePointName, ", callerName=", callerName);
+        version (TraceFunction) traceFunction("savePointName=", savePointName, ", funcName=", funcName);
 
         const index = isSavePoint(savePointName);
         if (index < 0)
         {
-            auto msg = DbMessage.eInvalidTransactionSavePoint.fmtMessage(callerName, savePointName);
-            throw new DbException(msg, 0, null);
+            auto msg = DbMessage.eInvalidTransactionSavePoint.fmtMessage(funcName, savePointName);
+            throw new DbException(0, msg, null, funcName, file, line);
         }
         return index;
     }
 
-    final void checkSavePointState(string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final void checkSavePointState(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         try
         {
-            checkState(DbTransactionState.active, callerName);
+            checkState(DbTransactionState.active, funcName, file, line);
         }
         catch (Exception ex)
         {
@@ -4669,28 +4669,28 @@ protected:
     }
 
     final void checkState(const(DbTransactionState) checkingState,
-        string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        version (TraceFunction) traceFunction("checkingState=", checkingState, ", callerName=", callerName);
+        version (TraceFunction) traceFunction("checkingState=", checkingState, ", funcName=", funcName);
 
         if (_state != checkingState)
         {
-            auto msg = DbMessage.eInvalidTransactionState.fmtMessage(callerName, toName!DbTransactionState(_state), toName!DbTransactionState(checkingState));
-            throw new DbException(msg, DbErrorCode.connect, null);
+            auto msg = DbMessage.eInvalidTransactionState.fmtMessage(funcName, toName!DbTransactionState(_state), toName!DbTransactionState(checkingState));
+            throw new DbException(DbErrorCode.connect, msg, null, funcName, file, line);
         }
 
         if (_connection is null)
         {
-            auto msg = DbMessage.eCompletedTransaction.fmtMessage(callerName);
-            throw new DbException(msg, 0, null);
+            auto msg = DbMessage.eCompletedTransaction.fmtMessage(funcName);
+            throw new DbException(0, msg, null, funcName, file, line);
         }
 
-        _connection.checkActive(callerName);
+        _connection.checkActive(funcName, file, line);
     }
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         try
         {

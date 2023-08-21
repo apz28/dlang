@@ -9,7 +9,7 @@
  *
  */
 
-module pham.db.type;
+module pham.db.db_type;
 
 import core.internal.hash : hashOf;
 import std.format: FormatSpec, formatValue;
@@ -20,18 +20,18 @@ import std.traits : isArray, isSomeChar, Unqual;
 import std.uni : sicmp;
 public import std.uuid : UUID;
 
-public import pham.dtm.date : Date, DateTime;
-public import pham.dtm.tick : DateTimeZoneKind;
-import pham.dtm.tick : ErrorOp, Tick;
-public import pham.dtm.time : Time;
-import pham.dtm.time_zone : TimeZoneInfo;
-import pham.dtm.time_zone_map : TimeZoneInfoMap;
-public import pham.external.dec.decimal : Decimal32, Decimal64, Decimal128, isDecimal, Precision, RoundingMode;
-import pham.utl.array : ShortStringBuffer;
-public import pham.utl.big_integer : BigInteger;
-import pham.utl.enum_set : toName;
-import pham.utl.result : cmp;
-import pham.utl.text : NamedValue;
+public import pham.dtm.dtm_date : Date, DateTime;
+public import pham.dtm.dtm_tick : DateTimeZoneKind;
+import pham.dtm.dtm_tick : ErrorOp, Tick;
+public import pham.dtm.dtm_time : Time;
+import pham.dtm.dtm_time_zone : TimeZoneInfo;
+import pham.dtm.dtm_time_zone_map : TimeZoneInfoMap;
+public import pham.external.dec.dec_decimal : Decimal32, Decimal64, Decimal128, isDecimal, Precision, RoundingMode;
+import pham.utl.utl_array : ShortStringBuffer;
+public import pham.utl.utl_big_integer : BigInteger;
+import pham.utl.utl_enum_set : toName;
+import pham.utl.utl_result : cmp;
+import pham.utl.utl_text : NamedValue;
 
 alias float32 = float;
 alias float64 = double;
@@ -1510,7 +1510,7 @@ public:
     if (isOutputRange!(Writer, Char))
     {
         import std.math.algebraic : abs;
-        import pham.utl.object : toString;
+        import pham.utl.utl_object : toString;
 
         if (validOffset != 0)
         {
@@ -1771,7 +1771,7 @@ public:
 
     @property S option(S name) @nogc pure
     {
-        import pham.utl.text : valueOf;
+        import pham.utl.utl_text : valueOf;
 
         return options.valueOf!S(name, null);
     }
@@ -1889,7 +1889,7 @@ bool isDbScheme(string schemeStr, ref DbScheme scheme) @nogc pure
     {
         foreach (e; EnumMembers!DbScheme)
         {
-            //import pham.utl.test; debug dgWriteln(e, " ? ", cast(string)e); //output: fb ? firebird ...
+            //import pham.utl.utl_test; debug dgWriteln(e, " ? ", cast(string)e); //output: fb ? firebird ...
             if (e == schemeStr)
             {
                 scheme = e;
@@ -2044,7 +2044,7 @@ DbNameValueValidated isConnectionParameterCharset(string v)
 
 DbNameValueValidated isConnectionParameterDurationTimeout(string v)
 {
-    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
 
     int32 vint;
     if (parseIntegral!(string, int32)(v, vint) != NumericParsedKind.ok)
@@ -2059,7 +2059,7 @@ DbNameValueValidated isConnectionParameterDurationTimeout(string v)
 DbNameValueValidated isConnectionParameterCompress(string v)
 {
     import std.traits : EnumMembers;
-    import pham.utl.enum_set : toName;
+    import pham.utl.utl_enum_set : toName;
 
     if (v.length)
     {
@@ -2076,7 +2076,7 @@ DbNameValueValidated isConnectionParameterCompress(string v)
 DbNameValueValidated isConnectionParameterEncrypt(string v)
 {
     import std.traits : EnumMembers;
-    import pham.utl.enum_set : toName;
+    import pham.utl.utl_enum_set : toName;
 
     if (v.length)
     {
@@ -2100,7 +2100,7 @@ DbNameValueValidated isConnectionParameterFBDialect(string v)
 DbNameValueValidated isConnectionParameterIntegratedSecurity(string v)
 {
     import std.traits : EnumMembers;
-    import pham.utl.enum_set : toName;
+    import pham.utl.utl_enum_set : toName;
 
     if (v.length)
     {
@@ -2116,7 +2116,7 @@ DbNameValueValidated isConnectionParameterIntegratedSecurity(string v)
 
 DbNameValueValidated isConnectionParameterInt32Any(string v)
 {
-    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
 
     int32 vint;
     if (parseIntegral!(string, int32)(v, vint) != NumericParsedKind.ok)
@@ -2127,7 +2127,7 @@ DbNameValueValidated isConnectionParameterInt32Any(string v)
 
 DbNameValueValidated isConnectionParameterInt32Pos(string v)
 {
-    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
 
     int32 vint;
     if (parseIntegral!(string, int32)(v, vint) != NumericParsedKind.ok)
@@ -2140,9 +2140,9 @@ DbNameValueValidated isConnectionParameterInt32Pos(string v)
 
 DbNameValueValidated isConnectionParameterUBytesAny(string v)
 {
-    import pham.utl.array : ShortStringBuffer;
-    import pham.utl.numeric_parser : NumericParsedKind, parseBase64;
-    import pham.utl.utf8 : NoDecodeInputRange;
+    import pham.utl.utl_array : ShortStringBuffer;
+    import pham.utl.utl_numeric_parser : NumericParsedKind, parseBase64;
+    import pham.utl.utl_utf8 : NoDecodeInputRange;
 
     if (v.length == 0)
         return DbNameValueValidated.ok;
@@ -2157,7 +2157,7 @@ DbNameValueValidated isConnectionParameterUBytesAny(string v)
 
 DbNameValueValidated isConnectionParameterUInt16Any(string v)
 {
-    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
 
     uint16 vint;
     if (parseIntegral!(string, uint16)(v, vint) != NumericParsedKind.ok)
@@ -2168,7 +2168,7 @@ DbNameValueValidated isConnectionParameterUInt16Any(string v)
 
 DbNameValueValidated isConnectionParameterUInt32Any(string v)
 {
-    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
 
     uint32 vint;
     if (parseIntegral!(string, uint32)(v, vint) != NumericParsedKind.ok)
@@ -2179,7 +2179,7 @@ DbNameValueValidated isConnectionParameterUInt32Any(string v)
 
 DbNameValueValidated isConnectionParameterUInt32_8K(string v)
 {
-    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
 
     uint32 vint;
     if (parseIntegral!(string, uint32)(v, vint) != NumericParsedKind.ok)
@@ -2192,7 +2192,7 @@ DbNameValueValidated isConnectionParameterUInt32_8K(string v)
 
 DbNameValueValidated isConnectionParameterUInt32_256K(string v)
 {
-    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
 
     uint32 vint;
     if (parseIntegral!(string, uint32)(v, vint) != NumericParsedKind.ok)
@@ -2269,7 +2269,7 @@ shared static this()
         ];
     }();
 
-    dbTypeToDbTypeInfos = () nothrow pure
+    dbTypeToDbTypeInfos = () nothrow pure @trusted
     {
         immutable(DbTypeInfo)*[DbType] result;
         foreach (ref e; dbNativeTypes)
@@ -2280,7 +2280,7 @@ shared static this()
         return result;
     }();
 
-    nativeNameToDbTypeInfos = () nothrow pure
+    nativeNameToDbTypeInfos = () nothrow pure @trusted
     {
         immutable(DbTypeInfo)*[string] result;
         foreach (ref e; dbNativeTypes)
@@ -2294,7 +2294,7 @@ shared static this()
 
 unittest // dbTypeOf
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.type.dbTypeOf");
 
     //pragma(msg, "DbDateTime: ", DbDateTime.sizeof); // 24
@@ -2356,7 +2356,7 @@ unittest // dbTypeOf
 
 unittest // DbDateTime
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.type.DbDateTime");
 
     assert(DbDateTime(2020, 8, 27, 8, 0, 0, 0, DateTimeZoneKind.utc, 0, 65).toString() == "08/27/2020 8:00:00 AM+01:05");
@@ -2365,7 +2365,7 @@ unittest // DbDateTime
 
 unittest // DbTime
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.type.DbTime");
 
     assert(DbTime(8, 0, 0, 0, DateTimeZoneKind.utc, 0, 65).toString() == "8:00:00 AM+01:05");

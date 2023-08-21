@@ -9,23 +9,23 @@
 *
 */
 
-module pham.db.fbauth_srp;
+module pham.db.db_fbauth_srp;
 
 import std.algorithm.mutation : reverse;
 import std.conv : to;
 import std.string : representation;
 import std.typecons : Flag, No, Yes;
 
-version (TraceFunction) import pham.utl.test;
-import pham.utl.big_integer;
-import pham.utl.disposable : DisposingReason, isDisposing;
-import pham.utl.object : bytesFromHexs, bytesToHexs;
-import pham.cp.auth_rsp;
-import pham.db.auth;
-import pham.db.message;
-import pham.db.type : DbScheme;
-import pham.db.fbauth;
-import pham.db.fbisc : FbIscText;
+version (TraceFunction) import pham.utl.utl_test;
+import pham.utl.utl_big_integer;
+import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+import pham.cp.cp_auth_rsp;
+import pham.db.db_auth;
+import pham.db.db_message;
+import pham.db.db_type : DbScheme;
+import pham.db.db_fbauth;
+import pham.db.db_fbisc : FbIscText;
 
 nothrow @safe:
 
@@ -351,7 +351,7 @@ shared static this()
 
 nothrow @safe unittest // PrimeGroup
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbauth_srp.PrimeGroup");
 
     assert(fbPrime.N.toString() == FbAuthSrp.N);
@@ -363,7 +363,7 @@ version (unittest)
 {
     import std.string : representation;
     import std.conv : to;
-    import pham.utl.test;
+    import pham.utl.utl_test;
 
     auto testUserName = "SYSDBA";
     auto testUserPassword = "masterkey";
@@ -401,7 +401,7 @@ version (unittest)
 
 nothrow @safe unittest // FbAuthSrpSHA1
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbauth_srp.FbAuthSrpSHA1");
 
     testCheckSHA1(

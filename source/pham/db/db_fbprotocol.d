@@ -9,7 +9,7 @@
  *
 */
 
-module pham.db.fbprotocol;
+module pham.db.db_fbprotocol;
 
 import std.algorithm.comparison : max, min;
 import std.array : Appender;
@@ -17,30 +17,30 @@ import std.conv : to;
 import std.range.primitives : isOutputRange, put;
 import std.typecons : Flag, No, Yes;
 
-version (profile) import pham.utl.test : PerfFunction;
-version (unittest) import pham.utl.test;
-import pham.utl.bit : bitLengthToElement, hostToNetworkOrder;
-import pham.utl.bit_array : BitArrayImpl;
-import pham.utl.disposable : DisposingReason, isDisposing;
-import pham.utl.enum_set : toName;
-import pham.utl.object : InitializedValue, bytesFromHexs, bytesToHexs, functionName;
-import pham.utl.system : currentComputerName, currentProcessId, currentProcessName, currentUserName;
-import pham.db.buffer_filter;
-import pham.db.buffer_filter_cipher;
-import pham.db.buffer_filter_compressor;
-import pham.db.convert;
-import pham.db.database : DbNameColumn;
-import pham.db.message;
-import pham.db.object : DbDisposableObject;
-import pham.db.type;
-import pham.db.util;
-import pham.db.value;
-import pham.db.fbauth;
-import pham.db.fbbuffer;
-import pham.db.fbdatabase;
-import pham.db.fbexception;
-import pham.db.fbisc;
-import pham.db.fbtype;
+version (profile) import pham.utl.utl_test : PerfFunction;
+version (unittest) import pham.utl.utl_test;
+import pham.utl.utl_bit : bitLengthToElement, hostToNetworkOrder;
+import pham.utl.utl_bit_array : BitArrayImpl;
+import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.utl.utl_enum_set : toName;
+import pham.utl.utl_object : InitializedValue, bytesFromHexs, bytesToHexs, functionName;
+import pham.utl.utl_system : currentComputerName, currentProcessId, currentProcessName, currentUserName;
+import pham.db.db_buffer_filter;
+import pham.db.db_buffer_filter_cipher;
+import pham.db.db_buffer_filter_compressor;
+import pham.db.db_convert;
+import pham.db.db_database : DbNameColumn;
+import pham.db.db_message;
+import pham.db.db_object : DbDisposableObject;
+import pham.db.db_type;
+import pham.db.db_util;
+import pham.db.db_value;
+import pham.db.db_fbauth;
+import pham.db.db_fbbuffer;
+import pham.db.db_fbdatabase;
+import pham.db.db_fbexception;
+import pham.db.db_fbisc;
+import pham.db.db_fbtype;
 
 /**
     Returns:
@@ -505,17 +505,14 @@ public:
 					if (stateInfo.auth is null || stateInfo.serverAuthMethod != stateInfo.authMethod)
                     {
                         auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(stateInfo.serverAuthMethod);
-                        throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_auth_data);
+                        throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_auth_data);
                     }
 
                     auto useCSB = connection.fbConnectionStringBuilder;
                     auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName,
                         useCSB.userPassword, stateInfo.serverAuthData[], stateInfo.authData);
                     if (status.isError)
-                    {
-                        auto msg = stateInfo.auth.getErrorMessage(status, stateInfo.authMethod);
-                        throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_auth_data);
-                    }
+                        throw new FbException(DbErrorCode.read, status.errorMessage, null, 0, FbIscResultCode.isc_auth_data);
 				}
 
                 setupCompression(); // Before further sending requests
@@ -537,7 +534,7 @@ public:
 
             default:
                 auto msg = DbMessage.eUnhandleIntOperation.fmtMessage(op, "authentication");
-                throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_auth_data);
+                throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_auth_data);
         }
     }
 
@@ -827,7 +824,7 @@ public:
         else
         {
             auto msg = DbMessage.eUnexpectReadOperation.fmtMessage(op, FbIsc.op_response);
-            throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_net_read_err);
+            throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_net_read_err);
         }
     }
 
@@ -1149,7 +1146,7 @@ public:
             case DbType.array:
             case DbType.unknown:
                 auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(dbType));
-                throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_net_read_err);
+                throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_net_read_err);
         }
 
         version (protocolPrev13)
@@ -1337,16 +1334,13 @@ protected:
                     auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName,
                         useCSB.userPassword, cResponse.data, stateInfo.authData);
                     if (status.isError)
-                    {
-                        auto msg = stateInfo.auth.getErrorMessage(status, stateInfo.authMethod);
-                        throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_auth_data);
-                    }
+                        throw new FbException(DbErrorCode.read, status.errorMessage, null, 0, FbIscResultCode.isc_auth_data);
                 }
                 break;
 
             default:
                 auto msg = DbMessage.eUnhandleIntOperation.fmtMessage(op, "authentication");
-                throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_auth_data);
+                throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_auth_data);
         }
     }
 
@@ -1370,7 +1364,7 @@ protected:
         if (!authMap.isValid())
         {
             auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(authMethod);
-            throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_auth_data);
+            throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_auth_data);
         }
 
         return cast(FbAuth)authMap.createAuth();
@@ -1396,7 +1390,7 @@ protected:
 
             default:
                 auto msg = DbMessage.eUnhandleIntOperation.fmtMessage(op, "encryption");
-                throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_auth_data);
+                throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_auth_data);
         }
     }
 
@@ -1852,10 +1846,7 @@ protected:
         {
             auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword, null, stateInfo.authData);
             if (status.isError)
-            {
-                auto msg = stateInfo.auth.getErrorMessage(status, stateInfo.authMethod);
-                throw new FbException(msg, DbErrorCode.write, null, 0, FbIscResultCode.isc_auth_data);
-            }
+                throw new FbException(DbErrorCode.write, status.errorMessage, null, 0, FbIscResultCode.isc_auth_data);
 
             writer.writeMultiParts(FbIsc.cnct_specific_data, stateInfo.authData[]);
             writer.writeInt32(FbIsc.cnct_client_crypt, hostToNetworkOrder!int32(getCryptedConnectionCode()));
@@ -1935,13 +1926,13 @@ protected:
             case DbType.array:
             case DbType.unknown:
                 auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(column.type));
-                throw new FbException(msg, DbErrorCode.write, null, 0, FbIscResultCode.isc_net_write_err);
+                throw new FbException(DbErrorCode.write, msg, null, 0, FbIscResultCode.isc_net_write_err);
         }
     }
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         _serverVersion = 0;
         if (isDisposing(disposingReason))
@@ -2178,7 +2169,7 @@ protected:
         if (expectedOperation != 0 && expectedOperation != result)
         {
             auto msg = DbMessage.eUnexpectReadOperation.fmtMessage(result, expectedOperation);
-            throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_net_read_err);
+            throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_net_read_err);
         }
         return result;
     }
@@ -2205,7 +2196,7 @@ protected:
 		if (!wasEncryptedSetup && getCryptedConnectionCode() == FbIsc.cnct_client_crypt_required)
         {
             auto msg = DbMessage.eInvalidConnectionRequiredEncryption.fmtMessage(connection.connectionStringBuilder.forErrorInfo);
-            throw new FbException(msg, DbErrorCode.connect, null, 0, FbIscResultCode.isc_wirecrypt_incompatible);
+            throw new FbException(DbErrorCode.connect, msg, null, 0, FbIscResultCode.isc_wirecrypt_incompatible);
         }
     }
 

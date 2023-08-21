@@ -9,23 +9,23 @@
  *
 */
 
-module pham.db.fbtype;
+module pham.db.db_fbtype;
 
 import std.array : Appender, replace;
 import std.conv : to;
 import std.traits : EnumMembers, Unqual;
 
-version (TraceFunction) import pham.utl.test;
-import pham.utl.array : ShortStringBuffer;
-import pham.utl.enum_set : toName;
-import pham.utl.variant : Algebraic, Variant, VariantType;
-import pham.db.convert : toStringSafe;
-import pham.db.message;
-import pham.db.type;
-import pham.db.util : toVersionString;
-import pham.db.fbisc;
-import pham.db.fbmessage;
-import pham.db.fbexception;
+version (TraceFunction) import pham.utl.utl_test;
+import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_enum_set : toName;
+import pham.utl.utl_variant : Algebraic, Variant, VariantType;
+import pham.db.db_convert : toStringSafe;
+import pham.db.db_message;
+import pham.db.db_type;
+import pham.db.db_util : toVersionString;
+import pham.db.db_fbisc;
+import pham.db.db_fbmessage;
+import pham.db.db_fbexception;
 
 @safe:
 
@@ -71,7 +71,7 @@ static immutable string[] fbValidConnectionParameterNames = [
     DbConnectionParameterIdentifier.compress,
     DbConnectionParameterIdentifier.encrypt,
     DbConnectionParameterIdentifier.integratedSecurity,
-    
+
     // Other
     DbConnectionParameterIdentifier.commandTimeout,
     DbConnectionParameterIdentifier.connectionTimeout,
@@ -265,7 +265,7 @@ public:
             if (fieldIndex < 0)
             {
                 auto msg = DbMessage.eInvalidSQLDAFieldIndex.fmtMessage(typ, fieldIndex);
-                throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
+                throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
             }
             return fieldIndex;
         }
@@ -275,7 +275,7 @@ public:
             if (bindIndex < 0)
             {
                 auto msg = DbMessage.eInvalidSQLDAIndex.fmtMessage(typ);
-                throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
+                throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
             }
             return bindIndex;
         }
@@ -322,7 +322,7 @@ public:
                         if (checkFieldIndex(typ) >= bindResults[checkBindIndex(typ)].length)
                         {
                             auto msg = DbMessage.eInvalidSQLDAFieldIndex.fmtMessage(typ, fieldIndex);
-                            throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
+                            throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
                         }
 
 			            break;
@@ -382,7 +382,7 @@ public:
 
 			        default:
                         auto msg = DbMessage.eInvalidSQLDAType.fmtMessage(typ);
-                        throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
+                        throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
 		        }
             }
 
@@ -1023,7 +1023,7 @@ public:
     string traceString() const nothrow @trusted
     {
         import std.conv : to;
-        import pham.utl.enum_set : toName;
+        import pham.utl.utl_enum_set : toName;
 
         return "aliasName=" ~ to!string(aliasName)
             ~ ", name=" ~ to!string(name)
@@ -1545,21 +1545,21 @@ public:
         }
         return -1;
     }
-    
+
     static FbIscServerKey[] parse(const(ubyte)[] data)
     {
         FbIscServerKey[] result;
-        
+
         if (data.length <= 2)
             return result;
 
         size_t pos = 0;
-        const endPos = data.length - 2;    
+        const endPos = data.length - 2;
 
         void parseKeyType() @safe
         {
-            import pham.utl.array : indexOf;
-            
+            import pham.utl.utl_array : indexOf;
+
 			const uint len1 = parseInt32!true(data, pos, 1, FbIscServerKeyType.tag_key_type);
             auto pluginType = parseString!true(data, pos, len1, FbIscServerKeyType.tag_key_type).idup;
             if (pos >= endPos)
@@ -1576,10 +1576,10 @@ public:
             while (pos < endPos && data[pos] == FbIscServerKeyType.tag_plugin_specific)
             {
                 pos++;
-                
+
                 const uint len3 = parseInt32!true(data, pos, 1, FbIscServerKeyType.tag_plugin_specific);
                 auto data = parseBytes(data, pos, len3, FbIscServerKeyType.tag_plugin_specific);
-                const i = data.indexOf(0);                
+                const i = data.indexOf(0);
                 if (i > 0)
                 {
                     auto pluginName = (cast(const(char)[])data[0..i]).idup;
@@ -1587,7 +1587,7 @@ public:
                     pluginKeys ~= FbIscServerPluginKey(pluginName, specificData);
                 }
             }
-            
+
             result ~= FbIscServerKey(pluginType, pluginNames, pluginKeys);
         }
 
@@ -1607,7 +1607,7 @@ public:
                     break;
             }
         }
-        
+
         return result;
     }
 
@@ -1636,6 +1636,16 @@ struct FbIscStatues
 nothrow @safe:
 
 public:
+    this(FbIscError[] errors, int32 sqlCode,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
+    {
+        this.errors = errors;
+        this.sqlCode = sqlCode;
+        this.funcName = funcName;
+        this.file = file;
+        this.line = line;
+    }
+
     void buildMessage(out string message, out int code, out string state)
     {
         version (TraceFunction) traceFunction();
@@ -1758,6 +1768,9 @@ public:
 public:
     FbIscError[] errors;
     int32 sqlCode;
+    string file;
+    string funcName;
+    uint line;
 }
 
 struct FbIscTrustedAuthResponse
@@ -1989,7 +2002,7 @@ void parseCheckLength(scope const(ubyte)[] data, size_t index, uint length, int 
     if (index + length > data.length)
     {
         auto msg = DbMessage.eInvalidSQLDANotEnoughData.fmtMessage(type, length);
-        throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
+        throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
     }
 }
 
@@ -2139,7 +2152,7 @@ shared static this() nothrow
         ];
     }();
 
-    fbIscTypeToDbTypeInfos = () nothrow pure
+    fbIscTypeToDbTypeInfos = () nothrow pure @trusted
     {
         immutable(DbTypeInfo)*[int32] result;
         foreach (ref e; fbNativeTypes)
@@ -2155,8 +2168,8 @@ enum countOfFbIscType = EnumMembers!FbIscType.length;
 
 unittest // FbIscBlobSize
 {
-    import pham.utl.object;
-    import pham.utl.test;
+    import pham.utl.utl_object;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbtype.FbIscBlobSize");
 
     auto info = bytesFromHexs("05040004000000040400010000000604000400000001");
@@ -2168,8 +2181,8 @@ unittest // FbIscBlobSize
 
 unittest // FbIscBindInfo
 {
-    import pham.utl.object;
-    import pham.utl.test;
+    import pham.utl.utl_object;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbtype.FbIscBindInfo");
 
     FbIscBindInfo[] bindResults;
@@ -2215,7 +2228,7 @@ unittest // FbIscBindInfo
 
 unittest // FbCreateDatabaseInfo.toKnownPageSize
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbtype.FbCreateDatabaseInfo.toKnownPageSize");
 
     assert(FbCreateDatabaseInfo.toKnownPageSize(-2) == FbCreateDatabaseInfo.knownPageSizes[$ - 1]);

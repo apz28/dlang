@@ -9,22 +9,22 @@
  *
 */
 
-module pham.db.pgtype;
+module pham.db.db_pgtype;
 
 import core.time : dur;
 import std.algorithm : startsWith;
 import std.array : split;
 import std.conv : to;
 
-version (TraceFunction) import pham.utl.test;
-import pham.cp.cipher : CipherHelper;
-import pham.utl.disposable : DisposingReason;
-import pham.utl.enum_set : toName;
-import pham.utl.result : cmp;
-import pham.db.convert : toIntegerSafe;
-import pham.db.message;
-import pham.db.type;
-import pham.db.pgoid;
+version (TraceFunction) import pham.utl.utl_test;
+import pham.cp.cp_cipher : CipherHelper;
+import pham.utl.utl_disposable : DisposingReason;
+import pham.utl.utl_enum_set : toName;
+import pham.utl.utl_result : cmp;
+import pham.db.db_convert : toIntegerSafe;
+import pham.db.db_message;
+import pham.db.db_type;
+import pham.db.db_pgoid;
 
 nothrow @safe:
 
@@ -160,7 +160,16 @@ struct PgGenericResponse
 nothrow @safe:
 
 public:
-    int errorCode() const
+    this(string[char] typeValues,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
+    {
+        this.typeValues = typeValues;
+        this.funcName = funcName;
+        this.file = file;
+        this.line = line;
+    }
+
+    uint errorCode() const
     {
         return 0;
     }
@@ -169,9 +178,9 @@ public:
     {
         version (TraceFunction) traceFunction();
 
-        auto result = severity ~ ' ' ~ sqlState ~ ": " ~ message;
+        auto result = sqlSeverity ~ ' ' ~ sqlState ~ ": " ~ sqlMessage;
 
-        auto s = detail;
+        auto s = detailMessage;
         if (s.length)
             result ~= "\n" ~ DbMessage.eErrorDetail ~ ": " ~ s;
 
@@ -201,19 +210,19 @@ public:
             }
         }
 
-        addWarnMessage(message);
-        addWarnMessage(detail);
+        addWarnMessage(sqlMessage);
+        addWarnMessage(detailMessage);
         addWarnMessage(hint);
 
         return result;
     }
 
-    @property string message() const
+    @property string sqlMessage() const
     {
         return typeValues[PgOIdDiag.messagePrimary];
     }
 
-    @property string severity() const
+    @property string sqlSeverity() const
     {
         return typeValues[PgOIdDiag.severity];
     }
@@ -225,12 +234,12 @@ public:
 
     /* Optional Values */
 
-    @property string detail() const
+    @property string detailMessage() const
     {
         return getOptional(PgOIdDiag.messageDetail);
     }
 
-    @property string file() const
+    @property string sqlFile() const
     {
         return getOptional(PgOIdDiag.sourceFile);
     }
@@ -250,28 +259,31 @@ public:
         return getOptional(PgOIdDiag.internalQuery);
     }
 
-    @property string line() const
+    @property string sqlLine() const
     {
         return getOptional(PgOIdDiag.sourceLine);
     }
 
-    @property string position() const
+    @property string sqlPosition() const
     {
         return getOptional(PgOIdDiag.statementPosition);
     }
 
-    @property string routine() const
+    @property string sqlRoutine() const
     {
         return getOptional(PgOIdDiag.sourceFunction);
     }
 
-    @property string where() const
+    @property string sqlWhere() const
     {
         return getOptional(PgOIdDiag.context);
     }
 
 public:
     string[char] typeValues;
+    string file;
+    string funcName;
+    uint line;
 }
 
 struct PgNotificationResponse
@@ -396,7 +408,7 @@ public:
     string traceString() const nothrow @trusted
     {
         import std.conv : to;
-        import pham.utl.enum_set : toName;
+        import pham.utl.utl_enum_set : toName;
 
         return "name=" ~ name
             ~ ", modifier=" ~ to!string(modifier)
@@ -967,7 +979,7 @@ shared static this()
             ];
     }();
 
-    PgOIdTypeToDbTypeInfos = () nothrow pure
+    PgOIdTypeToDbTypeInfos = () nothrow pure @trusted
     {
         immutable(DbTypeInfo)*[int32] result;
         foreach (ref e; pgNativeTypes)
@@ -980,7 +992,7 @@ shared static this()
 
 unittest // canSendParameter
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgtype.canSendParameter");
 
     string mappedName;
@@ -993,7 +1005,7 @@ unittest // canSendParameter
 
 unittest // PgOIdScramSHA256FirstMessage
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgtype.PgOIdScramSHA256FirstMessage");
 
     auto r = PgOIdScramSHA256FirstMessage(dgFromHex("723D307131356635454831642F682F313258634E4F485A2B3731524F4149563643492F322B35786344516B56534E317A6E6C2C733D456E5261337A47685830462F464A62616279685655513D3D2C693D34303936"));

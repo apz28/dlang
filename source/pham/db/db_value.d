@@ -9,22 +9,22 @@
  *
  */
 
-module pham.db.value;
+module pham.db.db_value;
 
 import std.conv : to;
 import std.math : isNaN;
 import std.range.primitives: ElementType;
 import std.traits : isArrayT = isArray, Unqual;
 
-version (profile) import pham.utl.test : PerfFunction;
-import pham.dtm.variant_coerce;
-import pham.external.dec.variant_coerce;
-import pham.utl.disposable : DisposingReason, isDisposing;
-import pham.utl.variant : variantNoLengthMarker;
-public import pham.utl.variant : Variant, VariantType;
-import pham.utl.variant_coerce;
-import pham.db.convert;
-import pham.db.type;
+version (profile) import pham.utl.utl_test : PerfFunction;
+import pham.dtm.dtm_variant_coerce;
+import pham.external.dec.dec_variant_coerce;
+import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.utl.utl_variant : variantNoLengthMarker;
+public import pham.utl.utl_variant : Variant, VariantType;
+import pham.utl.utl_variant_coerce;
+import pham.db.db_convert;
+import pham.db.db_type;
 
 alias valueNoSizeMarker = variantNoLengthMarker;
 
@@ -609,7 +609,7 @@ private:
 
 unittest // DbValue
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.value.DbValue");
 
     static struct VStruct

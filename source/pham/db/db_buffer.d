@@ -9,23 +9,23 @@
  *
  */
 
-module pham.db.buffer;
+module pham.db.db_buffer;
 
 import std.bitmanip : swapEndian;
 import std.string : representation;
 import std.system : Endian;
 
-version (unittest) import pham.utl.test;
-import pham.utl.array : inplaceMoveToLeft;
-import pham.utl.bit : numericBitCast;
-import pham.utl.dlink_list;
-import pham.utl.disposable : DisposingReason;
-import pham.utl.object : alignRoundup;
-import pham.db.convert;
-import pham.db.exception;
-import pham.db.message;
-import pham.db.object;
-import pham.db.type;
+version (unittest) import pham.utl.utl_test;
+import pham.utl.utl_array : inplaceMoveToLeft;
+import pham.utl.utl_bit : numericBitCast;
+import pham.utl.utl_dlink_list;
+import pham.utl.utl_disposable : DisposingReason;
+import pham.utl.utl_object : alignRoundup;
+import pham.db.db_convert;
+import pham.db.db_exception;
+import pham.db.db_message;
+import pham.db.db_object;
+import pham.db.db_type;
 
 @safe:
 
@@ -107,7 +107,7 @@ public:
             if ((_offset + nBytes) > _maxLength)
             {
                 auto msg = DbMessage.eNotEnoughData.fmtMessage(nBytes, length);
-                throw new DbException(msg, DbErrorCode.read, null);
+                throw new DbException(DbErrorCode.read, msg);
             }
         }
     }
@@ -213,7 +213,7 @@ protected:
     }
     do
     {
-        //import pham.utl.test; dgWriteln("offset=", _offset, ", length=", length, ", _data.length=", _data.length);
+        //import pham.utl.utl_test; dgWriteln("offset=", _offset, ", length=", length, ", _data.length=", _data.length);
 
         const saveLength = length;
         if (saveLength != 0)
@@ -466,7 +466,7 @@ public:
     final string traceString() const nothrow @trusted
     {
         import std.conv : to;
-        import pham.utl.object : bytesToHexs;
+        import pham.utl.utl_object : bytesToHexs;
 
         const bytes = _data[0..length];
         return "length=" ~ to!string(bytes.length)
@@ -709,7 +709,7 @@ private:
 
 unittest // DbWriteBuffer & DbReadBuffer
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.buffer.DbWriteBuffer & db.buffer.DbReadBuffer");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";

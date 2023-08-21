@@ -9,9 +9,9 @@
  *
  */
 
-module pham.db.util;
+module pham.db.db_util;
 
-import pham.db.type;
+import pham.db.db_type;
 
 nothrow @safe:
 
@@ -131,7 +131,7 @@ private:
 
 unittest // truncate
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.util.truncate");
 
     assert(truncate("", 2) == "");
@@ -141,7 +141,7 @@ unittest // truncate
 
 unittest // versionString
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.util.versionString");
 
     assert(toVersionString([]) == "");

@@ -9,11 +9,11 @@
  *
  */
 
-module pham.db.fbtimezone;
+module pham.db.db_fbtime_zone;
 
-import pham.utl.object : singleton;
-import pham.db.type : uint16;
-import pham.db.fbisc : FbIscDefault;
+import pham.utl.utl_object : singleton;
+import pham.db.db_type : uint16;
+import pham.db.db_fbisc : FbIscDefault;
 
 nothrow @safe:
 
@@ -108,7 +108,7 @@ public:
             return FbTimeZone(null, 0);
     }
 
-	static immutable(FbTimeZone)*[string] nameDict() pure
+	static immutable(FbTimeZone)*[string] nameDict() pure @trusted
     {
 		immutable(FbTimeZone)*[string] result;
         foreach (ref z; timeZones)
@@ -116,7 +116,7 @@ public:
 		return result;
     }
 
-	static immutable(FbTimeZone)*[uint16] idDict() pure
+	static immutable(FbTimeZone)*[uint16] idDict() pure @trusted
     {
 		immutable(FbTimeZone)*[uint16] result;
         foreach (ref z; timeZones)

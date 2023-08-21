@@ -9,31 +9,36 @@
  *
 */
 
-module pham.db.fbexception;
+module pham.db.db_fbexception;
 
-import pham.db.exception;
-import pham.db.fbtype : FbIscStatues;
+import pham.db.db_exception;
+import pham.db.db_fbtype : FbIscStatues;
 
 class FbException : SkException
 {
 @safe:
 
 public:
-    this(string message, int code, string state,
-        int socketCode = 0, int vendorCode = 0,
+    this(uint errorCode, string errorMessage,
         Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
     {
-        super(message, code, state, socketCode, vendorCode, next, funcName, file, line);
+        super(errorCode, errorMessage, next, funcName, file, line);
+    }
+
+    this(uint errorCode, string errorMessage, string sqlState, uint socketCode, uint vendorCode,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
+    {
+        super(errorCode, errorMessage, sqlState, socketCode, vendorCode, next, funcName, file, line);
     }
 
     this(FbIscStatues statues,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__)
+        Throwable next = null)
     {
         string statusMessage, statusState;
         int statusCode;
         statues.buildMessage(statusMessage, statusCode, statusState);
 
-        super(statusMessage, statusCode, statusState, 0, statusCode, next, funcName, file, line);
+        super(statusCode, statusMessage, statusState, 0, statusCode, next, statues.funcName, statues.file, statues.line);
         this.statues = statues;
     }
 

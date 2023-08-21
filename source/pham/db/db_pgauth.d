@@ -9,11 +9,11 @@
 *
 */
 
-module pham.db.pgauth;
+module pham.db.db_pgauth;
 
-public import pham.cp.cipher : CipherBuffer;
-import pham.db.auth;
-import pham.db.type : DbScheme;
+public import pham.cp.cp_cipher : CipherBuffer;
+import pham.db.db_auth;
+import pham.db.db_type : DbScheme;
 
 nothrow @safe:
 

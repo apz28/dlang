@@ -9,15 +9,15 @@
  *
 */
 
-module pham.db.mytype;
+module pham.db.db_mytype;
 
-version (TraceFunction) import pham.utl.test;
-import pham.utl.array : ShortStringBuffer;
-import pham.utl.bit : Map32Bit;
-import pham.utl.enum_set : toName;
-import pham.db.message;
-import pham.db.type;
-import pham.db.myoid;
+version (TraceFunction) import pham.utl.utl_test;
+import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_bit : Map32Bit;
+import pham.utl.utl_enum_set : toName;
+import pham.db.db_message;
+import pham.db.db_type;
+import pham.db.db_myoid;
 
 nothrow @safe:
 
@@ -249,9 +249,25 @@ struct MyErrorResult
 {
 @safe:
 
-    string message;
+public:
+    this(int errorCode, string errorMessage, string sqlState,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
+    {
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+        this.sqlState = sqlState;
+        this.funcName = funcName;
+        this.file = file;
+        this.line = line;
+    }
+
+public:
+    int errorCode;
+    string errorMessage;
     string sqlState;
-    int code;
+    string file;
+    string funcName;
+    uint line;
 }
 
 struct MyFieldInfo
@@ -580,7 +596,7 @@ shared static this() nothrow
         ];
     }();
 
-    myOIdTypeToDbTypeInfos = () nothrow pure
+    myOIdTypeToDbTypeInfos = () nothrow pure @trusted
     {
         immutable(DbTypeInfo)*[int32] result;
         foreach (ref e; myNativeTypes)

@@ -9,34 +9,34 @@
  *
 */
 
-module pham.db.myprotocol;
+module pham.db.db_myprotocol;
 
 import std.algorithm.comparison : max;
 import std.array : Appender;
 import std.conv : to;
 
-version (profile) import pham.utl.test : PerfFunction;
-version (unittest) import pham.utl.test;
-import pham.utl.bit : bitLengthToElement;
-import pham.utl.bit_array : BitArrayImpl;
-import pham.utl.disposable : DisposingReason, isDisposing;
-import pham.utl.enum_set : toName;
-import pham.utl.object : shortClassName, VersionString;
-import pham.db.buffer;
-import pham.db.database : DbNameColumn;
-import pham.db.message;
-import pham.db.object;
-import pham.db.parser;
-import pham.db.type;
-import pham.db.util;
-import pham.db.value;
-import pham.db.myauth;
-import pham.db.mybuffer;
-import pham.db.myconvert;
-import pham.db.mydatabase;
-import pham.db.myexception;
-import pham.db.myoid;
-import pham.db.mytype;
+version (profile) import pham.utl.utl_test : PerfFunction;
+version (unittest) import pham.utl.utl_test;
+import pham.utl.utl_bit : bitLengthToElement;
+import pham.utl.utl_bit_array : BitArrayImpl;
+import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.utl.utl_enum_set : toName;
+import pham.utl.utl_object : shortClassName, VersionString;
+import pham.db.db_buffer;
+import pham.db.db_database : DbNameColumn;
+import pham.db.db_message;
+import pham.db.db_object;
+import pham.db.db_parser;
+import pham.db.db_type;
+import pham.db.db_util;
+import pham.db.db_value;
+import pham.db.db_myauth;
+import pham.db.db_mybuffer;
+import pham.db.db_myconvert;
+import pham.db.db_mydatabase;
+import pham.db.db_myexception;
+import pham.db.db_myoid;
+import pham.db.db_mytype;
 
 struct MyConnectingStateInfo
 {
@@ -93,7 +93,7 @@ public:
                     if (packageData.isLastPacket())
                     {
                         auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage("Old password");
-                        throw new MyException(msg, DbErrorCode.connect, null);
+                        throw new MyException(DbErrorCode.connect, msg);
                     }
                     const indicator = reader.readUInt8();
                     assert(indicator == 0xfe);
@@ -531,7 +531,7 @@ public:
 
         auto packageData = readPackageData();
         if (!packageData.isEOF())
-            throw new MyException("Expected end of data packet", DbErrorCode.read, null);
+            throw new MyException(DbErrorCode.read, "Expected end of data packet");
         auto reader = MyXdrReader(connection, packageData.buffer);
 
         MyEOFResponse result;
@@ -623,7 +623,7 @@ public:
         DbValue unsupportDataError()
         {
             auto msg = DbMessage.eUnsupportDataType.fmtMessage(shortClassName(this) ~ ".readValue", toName!DbType(column.type));
-            throw new MyException(msg, DbErrorCode.read, null);
+            throw new MyException(DbErrorCode.read, msg);
         }
 
         const dbType = column.type;
@@ -847,7 +847,7 @@ protected:
         if (!authMap.isValid())
         {
             auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(stateInfo.authMethod);
-            throw new MyException(msg, DbErrorCode.read, null);
+            throw new MyException(DbErrorCode.read, msg);
         }
         auto result = cast(MyAuth)authMap.createAuth();
         result.isSSLConnection = stateInfo.canCryptedConnection != DbEncryptedConnection.disabled;
@@ -924,7 +924,7 @@ protected:
         void unsupportDataError()
         {
             auto msg = DbMessage.eUnsupportDataType.fmtMessage(shortClassName(this) ~ ".describeValue", toName!DbType(column.type));
-            throw new MyException(msg, DbErrorCode.write, null);
+            throw new MyException(DbErrorCode.write, msg);
         }
 
         if (column.isArray)
@@ -1006,7 +1006,7 @@ protected:
         void unsupportDataError()
         {
             auto msg = DbMessage.eUnsupportDataType.fmtMessage(shortClassName(this) ~ ".describeValue", toName!DbType(column.type));
-            throw new MyException(msg, DbErrorCode.write, null);
+            throw new MyException(DbErrorCode.write, msg);
         }
 
         if (column.isArray)
@@ -1134,16 +1134,14 @@ protected:
 		if (stateInfo.auth is null)
         {
             auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(stateInfo.authMethod);
-            throw new MyException(msg, DbErrorCode.read, null);
+            throw new MyException(DbErrorCode.read, msg);
         }
 
         {
             auto status = stateInfo.auth.getAuthData(authState, useUserName, useUserPassword, stateInfo.serverAuthData[], stateInfo.authData);
             if (status.isError)
-            {
-                auto msg = stateInfo.auth.getErrorMessage(status, stateInfo.authMethod);
-                throw new MyException(msg, DbErrorCode.read, null);
-            }
+                throw new MyException(DbErrorCode.read, status.errorMessage);
+            
             if (authMethodChanged && stateInfo.authData.length == 0)
                 stateInfo.authData.put(0x00);
         }
@@ -1173,10 +1171,7 @@ protected:
                 auto status = stateInfo.auth.getAuthData(authState, useUserName, useUserPassword,
                     stateInfo.serverAuthData[], stateInfo.authData);
                 if (status.isError)
-                {
-                    auto msg = stateInfo.auth.getErrorMessage(status, stateInfo.authMethod);
-                    throw new MyException(msg, DbErrorCode.read, null);
-                }
+                    throw new MyException(DbErrorCode.read, status.errorMessage);
             }
         }
 
@@ -1202,7 +1197,7 @@ protected:
         auto reader = MyXdrReader(connection, packageData.buffer);
 
         if (reader.readUInt8() != 0)
-            throw new MyException("Expected prepared statement marker", DbErrorCode.read, null);
+            throw new MyException(DbErrorCode.read, "Expected prepared statement marker");
 
         info.id = reader.readInt32();
         info.fieldCount = reader.readInt16();
@@ -1312,14 +1307,14 @@ protected:
         if (encrypt == DbEncryptedConnection.required)
         {
             auto msg = DbMessage.eInvalidConnectionRequiredEncryption.fmtMessage(connection.connectionStringBuilder.forErrorInfo);
-            throw new MyException(msg, DbErrorCode.connect, null);
+            throw new MyException(DbErrorCode.connect, msg);
         }
 
         // Server is requesting a secure connection
         if ((stateInfo.serverCapabilities & MyCapabilityFlags.secureConnection) != 0 && encrypt == DbEncryptedConnection.disabled)
         {
             auto msg = DbMessage.eInvalidConnectionRequiredEncryption.fmtMessage(connection.connectionStringBuilder.forErrorInfo);
-            throw new MyException(msg, DbErrorCode.connect, null);
+            throw new MyException(DbErrorCode.connect, msg);
         }
     }
 

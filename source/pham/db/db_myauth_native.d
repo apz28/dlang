@@ -9,17 +9,17 @@
 *
 */
 
-module pham.db.myauth_native;
+module pham.db.db_myauth_native;
 
 import std.conv : to;
 
-version (unittest) import pham.utl.test;
-import pham.cp.cipher_digest : Digester, DigestId, DigestResult;
-import pham.db.auth;
-import pham.db.message;
-import pham.db.type : DbScheme;
-import pham.db.mytype : myAuthNativeName;
-import pham.db.myauth;
+version (unittest) import pham.utl.utl_test;
+import pham.cp.cp_cipher_digest : Digester, DigestId, DigestResult;
+import pham.db.db_auth;
+import pham.db.db_message;
+import pham.db.db_type : DbScheme;
+import pham.db.db_mytype : myAuthNativeName;
+import pham.db.db_myauth;
 
 nothrow @safe:
 
@@ -114,7 +114,7 @@ DbAuth createAuthNative()
 
 unittest
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.myauth_native.MyAuthNative.getPassword");
 
     auto auth = new MyAuthNative();

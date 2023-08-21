@@ -9,12 +9,12 @@
 *
 */
 
-module pham.db.buffer_filter_cipher;
+module pham.db.db_buffer_filter_cipher;
 
-version (unittest) import pham.utl.test;
-import pham.cp.cipher : Cipher, CipherKey, CipherKeyKind;
-import pham.utl.disposable : DisposingReason, isDisposing;
-import pham.db.buffer_filter;
+version (unittest) import pham.utl.utl_test;
+import pham.cp.cp_cipher : Cipher, CipherKey, CipherKeyKind;
+import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.db.db_buffer_filter;
 
 nothrow @safe:
 
@@ -85,7 +85,7 @@ private:
 
 class DbBufferFilterCipherChaCha(DbBufferFilterKind Kind) : DbBufferFilterCipher!Kind
 {
-    import pham.cp.cipher_chacha : CipherChaCha20;
+    import pham.cp.cp_cipher_chacha : CipherChaCha20;
 
 nothrow @safe:
 
@@ -104,7 +104,7 @@ public:
 
 class DbBufferFilterCipherRC4(DbBufferFilterKind Kind) : DbBufferFilterCipher!Kind
 {
-    import pham.cp.cipher_rc4 : CipherRC4;
+    import pham.cp.cp_cipher_rc4 : CipherRC4;
 
 nothrow @safe:
 
@@ -128,8 +128,8 @@ private:
 unittest // DbBufferFilterCipherRC4
 {
     import std.string : representation;
-    import pham.cp.cipher : CipherSimpleKey;
-    import pham.utl.test;
+    import pham.cp.cp_cipher : CipherSimpleKey;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.buffer_filter_cipher.DbBufferFilterCipherRC4");
 
     auto k = CipherSimpleKey(0, "abc0123456789xyz".representation);

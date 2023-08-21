@@ -9,7 +9,7 @@
  *
 */
 
-module pham.db.fbbuffer;
+module pham.db.db_fbbuffer;
 
 import std.algorithm.comparison : max, min;
 import std.array : replicate;
@@ -17,19 +17,19 @@ import std.string : representation;
 import std.system : Endian;
 import std.typecons : Flag, No, Yes;
 
-version (profile) import pham.utl.test : PerfFunction;
-version (unittest) import pham.utl.test;
-import pham.external.dec.decimal : scaleFrom, scaleTo;
-import pham.utl.array : ShortStringBuffer;
-import pham.utl.disposable : DisposingReason, isDisposing;
-import pham.db.buffer;
-import pham.db.convert;
-import pham.db.type;
-import pham.db.util;
-import pham.db.fbconvert;
-import pham.db.fbdatabase;
-import pham.db.fbisc;
-import pham.db.fbtype;
+version (profile) import pham.utl.utl_test : PerfFunction;
+version (unittest) import pham.utl.utl_test;
+import pham.external.dec.dec_decimal : scaleFrom, scaleTo;
+import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.db.db_buffer;
+import pham.db.db_convert;
+import pham.db.db_type;
+import pham.db.db_util;
+import pham.db.db_fbconvert;
+import pham.db.db_fbdatabase;
+import pham.db.db_fbisc;
+import pham.db.db_fbtype;
 
 alias FbParameterWriter = DbValueWriter!(Endian.littleEndian);
 
@@ -1438,7 +1438,7 @@ private:
 
 unittest // FbXdrWriter & FbXdrReader
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbbuffer.FbXdrReader & db.fbbuffer.FbXdrWriter");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";

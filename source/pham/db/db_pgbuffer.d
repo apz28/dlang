@@ -10,21 +10,21 @@
  * Conversion should be found under PostgreSQL...\src\backend\utils\adt\... (_recv or _send)
 */
 
-module pham.db.pgbuffer;
+module pham.db.db_pgbuffer;
 
 import std.string : representation;
 import std.system : Endian;
 
-version (unittest) import pham.utl.test;
-import pham.external.dec.decimal : scaleFrom, scaleTo;
-import pham.utl.disposable : DisposingReason, isDisposing;
-import pham.db.buffer;
-import pham.db.convert;
-import pham.db.type;
-import pham.db.pgdatabase;
-import pham.db.pgconvert;
-import pham.db.pgoid;
-import pham.db.pgtype;
+version (unittest) import pham.utl.utl_test;
+import pham.external.dec.dec_decimal : scaleFrom, scaleTo;
+import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.db.db_buffer;
+import pham.db.db_convert;
+import pham.db.db_type;
+import pham.db.db_pgdatabase;
+import pham.db.db_pgconvert;
+import pham.db.db_pgoid;
+import pham.db.db_pgtype;
 
 struct PgReader
 {
@@ -950,7 +950,7 @@ private:
 
 unittest // PgXdrReader & PgXdrWriter
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgbuffer.PgXdrReader & db.fbbuffer.PgXdrWriter");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";

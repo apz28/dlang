@@ -9,32 +9,37 @@
  *
  */
 
-module pham.db.exception;
+module pham.db.db_exception;
 
-version (TraceFunction) import pham.utl.test;
-import pham.db.message;
+version (TraceFunction) import pham.utl.utl_test;
+import pham.db.db_message;
 
 class DbException : Exception
 {
 @safe:
 
 public:
-    this(string message, int code, string sqlState,
-        int socketCode = 0, int vendorCode = 0,
+    this(uint errorCode, string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
+    {
+        this(errorCode, errorMessage, null, 0, 0, next, funcName, file, line);
+    }
+    
+    this(uint errorCode, string errorMessage, string sqlState, uint socketCode, uint vendorCode,
         Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
     {
         version (TraceFunction) debug traceFunction();
 
-        if (code)
-            message ~= "\n" ~ DbMessage.eErrorCode.fmtMessage(code);
+        if (errorCode)
+            addMessageLine(errorMessage, DbMessage.eErrorCode.fmtMessage(errorCode));
 
         if (sqlState.length)
-            message ~= "\n" ~ DbMessage.eErrorSqlState.fmtMessage(sqlState);
+            addMessageLine(errorMessage, DbMessage.eErrorSqlState.fmtMessage(sqlState));
 
-        super(message, file, line, next);
+        super(errorMessage, file, line, next);
+        this.errorCode = errorCode;
         this.funcName = funcName;
         this.sqlState = sqlState;
-        this.code = code;
         this.socketCode = socketCode;
         this.vendorCode = vendorCode;
     }
@@ -48,7 +53,8 @@ public:
         auto e = next;
         while (e !is null)
         {
-            result ~= "\n\n" ~ e.toString();
+            addMessageLine(result, "");
+            addMessageLine(result, e.toString());
             e = e.next;
         }
 
@@ -58,9 +64,9 @@ public:
 public:
     string funcName;
     string sqlState;
-    int code;
-    int socketCode;
-    int vendorCode;
+    uint errorCode;
+    uint socketCode;
+    uint vendorCode;
 }
 
 class SkException : DbException
@@ -68,10 +74,15 @@ class SkException : DbException
 @safe:
 
 public:
-    this(string message, int code, string sqlState,
-        int socketCode = 0, int vendorCode = 0,
+    this(uint errorCode, string errorMessage,
         Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
     {
-        super(message, code, sqlState, socketCode, vendorCode, next, funcName, file, line);
+        super(errorCode, errorMessage, next, funcName, file, line);
+    }
+
+    this(uint errorCode, string errorMessage, string sqlState, uint socketCode, uint vendorCode,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
+    {
+        super(errorCode, errorMessage, sqlState, socketCode, vendorCode, next, funcName, file, line);
     }
 }

@@ -9,24 +9,24 @@
 *
 */
 
-module pham.db.pgauth_scram;
+module pham.db.db_pgauth_scram;
 
 import std.algorithm : startsWith;
 import std.conv : to;
 import std.string : representation;
 
-version (unittest) import pham.utl.test;
-import pham.cp.cipher : CipherHelper;
-import pham.cp.cipher_digest : DigestId, DigestResult, HMACS, digestOf;
-import pham.cp.random : CipherRandomGenerator;
-import pham.utl.array : ShortStringBuffer;
-import pham.utl.disposable : DisposingReason;
-import pham.utl.object : bytesFromHexs, bytesToHexs;
-import pham.db.auth;
-import pham.db.message;
-import pham.db.type : DbScheme;
-import pham.db.pgauth;
-import pham.db.pgtype : pgAuthScram256Name, PgOIdScramSHA256FinalMessage, PgOIdScramSHA256FirstMessage;
+version (unittest) import pham.utl.utl_test;
+import pham.cp.cp_cipher : CipherHelper;
+import pham.cp.cp_cipher_digest : DigestId, DigestResult, HMACS, digestOf;
+import pham.cp.cp_random : CipherRandomGenerator;
+import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_disposable : DisposingReason;
+import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+import pham.db.db_auth;
+import pham.db.db_message;
+import pham.db.db_type : DbScheme;
+import pham.db.db_pgauth;
+import pham.db.db_pgtype : pgAuthScram256Name, PgOIdScramSHA256FinalMessage, PgOIdScramSHA256FirstMessage;
 
 nothrow @safe:
 
@@ -47,7 +47,7 @@ public:
 
         auto firstMessage = PgOIdScramSHA256FirstMessage(serverAuthData);
         if (!firstMessage.isValid() || !firstMessage.nonce.startsWith(this.nonce))
-            return ResultStatus.error(_nextState + 1, to!string(_nextState), DbMessage.eInvalidConnectionAuthServerData);
+            return ResultStatus.error(_nextState + 1, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid state: " ~ to!string(_nextState)));
         authData = calculateProof(userName, userPassword, firstMessage);
         return ResultStatus.ok();
     }
@@ -71,7 +71,7 @@ public:
         else if (state == 2)
         {
             if (!verifyServerSignature(serverAuthData))
-                return ResultStatus.error(state + 1, null, DbMessage.eInvalidConnectionAuthVerificationFailed);
+                return ResultStatus.error(state + 1, DbMessage.eInvalidConnectionAuthVerificationFailed.fmtMessage(name));
             authData = CipherBuffer!ubyte.init;
             return ResultStatus.ok();
         }
@@ -281,7 +281,7 @@ DbAuth createAuthScram256()
 
 unittest // PgAuthScram256.computeScramSHA256HashPassword
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.pgauth_scram.PgAuthScram256.computeScramSHA256HashPassword");
 
     auto r = PgAuthScram256.computeScramSHA256HashPassword("masterkey", bytesFromHexs("12745ADF31A15F417F1496DA6F285551"), 4096);

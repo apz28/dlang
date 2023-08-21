@@ -9,11 +9,11 @@
 *
 */
 
-module pham.db.buffer_filter_compressor;
+module pham.db.db_buffer_filter_compressor;
 
-version (unittest) import pham.utl.test;
-import pham.utl.object : alignRoundup;
-import pham.db.buffer_filter;
+version (unittest) import pham.utl.utl_test;
+import pham.utl.utl_object : alignRoundup;
+import pham.db.db_buffer_filter;
 
 nothrow @safe:
 
@@ -37,7 +37,7 @@ public:
 // Firebird requires to have rfc1950Header (checksum)
 class DbBufferFilterCompressorZip(DbBufferFilterKind Kind) : DbBufferFilterCompressor!Kind
 {
-import pham.utl.zip;
+import pham.utl.utl_zip;
 
 nothrow @safe:
 
@@ -170,7 +170,7 @@ private:
 unittest // DbBufferFilterCompressorZip
 {
     import std.string : representation;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.buffer_filter_compressor.DbBufferFilterCompressorZip");
 
 	auto compress = new DbBufferFilterCompressorZip!(DbBufferFilterKind.write)();

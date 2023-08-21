@@ -9,7 +9,7 @@
  *
 */
 
-module pham.db.fbdatabase;
+module pham.db.db_fbdatabase;
 
 import std.algorithm.comparison : max;
 import std.array : Appender;
@@ -18,27 +18,27 @@ import std.math : abs;
 import std.string : indexOf;
 import std.system : Endian;
 
-version (profile) import pham.utl.test : PerfFunction;
-version (unittest) import pham.utl.test;
-import pham.external.std.log.logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
-import pham.utl.enum_set : toName;
-import pham.utl.disposable : DisposingReason, isDisposing;
-import pham.utl.object : bytesFromBase64s, bytesToBase64s, functionName, VersionString;
-import pham.db.buffer;
-import pham.db.convert;
-import pham.db.database;
-import pham.db.exception : SkException;
-import pham.db.message;
-import pham.db.object;
-import pham.db.skdatabase;
-import pham.db.type;
-import pham.db.util;
-import pham.db.value;
-import pham.db.fbbuffer;
-import pham.db.fbexception;
-import pham.db.fbisc;
-import pham.db.fbprotocol;
-import pham.db.fbtype;
+version (profile) import pham.utl.utl_test : PerfFunction;
+version (unittest) import pham.utl.utl_test;
+import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
+import pham.utl.utl_enum_set : toName;
+import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.utl.utl_object : bytesFromBase64s, bytesToBase64s, functionName, VersionString;
+import pham.db.db_buffer;
+import pham.db.db_convert;
+import pham.db.db_database;
+import pham.db.db_exception : SkException;
+import pham.db.db_message;
+import pham.db.db_object;
+import pham.db.db_skdatabase;
+import pham.db.db_type;
+import pham.db.db_util;
+import pham.db.db_value;
+import pham.db.db_fbbuffer;
+import pham.db.db_fbexception;
+import pham.db.db_fbisc;
+import pham.db.db_fbprotocol;
+import pham.db.db_fbtype;
 
 struct FbArray
 {
@@ -149,7 +149,7 @@ public:
             case DbType.array:
             case DbType.unknown:
                 auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(descriptor.fieldInfo.dbType));
-                throw new FbException(msg, DbErrorCode.read, null, 0, FbIscResultCode.isc_net_read_err);
+                throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_net_read_err);
         }
 
         // Never reach here
@@ -311,7 +311,7 @@ public:
             case DbType.array:
             case DbType.unknown:
                 auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(descriptor.fieldInfo.dbType));
-                throw new FbException(msg, DbErrorCode.write, null, 0, FbIscResultCode.isc_net_write_err);
+                throw new FbException(DbErrorCode.write, msg, null, 0, FbIscResultCode.isc_net_write_err);
         }
 
         auto protocol = fbConnection.protocol;
@@ -431,32 +431,32 @@ public:
     do
     {
         this._connection = connection;
-        version (TraceFunction) { import pham.utl.test; debug dgWritefln("FbArrayManager(create)%s", cast(void*)_connection); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWritefln("FbArrayManager(create)%s", cast(void*)_connection); }
     }
 
     ~this()
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWritefln("FbArrayManager(destroy)%s", cast(void*)_connection); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWritefln("FbArrayManager(destroy)%s", cast(void*)_connection); }
         dispose(DisposingReason.destructor);
     }
 
     void close() nothrow
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         doClose(DisposingReason.other);
     }
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         doClose(disposingReason);
     }
 
     FbIscArrayDescriptor getDescriptor(string tableName, string fieldName)
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWritefln("FbArrayManager(getDescriptor)%s", cast(void*)_connection); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWritefln("FbArrayManager(getDescriptor)%s", cast(void*)_connection); }
         version (TraceFunction) traceFunction("tableName=", tableName, ", fieldName=", fieldName);
 
         FbIscArrayDescriptor result;
@@ -504,7 +504,7 @@ public:
 package(pham.db):
     void doClose(const(DisposingReason) disposingReason) nothrow
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         disposeCommand(_arrayType, disposingReason);
         if (isDisposing(disposingReason))
@@ -523,7 +523,7 @@ private:
 
     void disposeCommand(ref FbCommand command, const(DisposingReason) disposingReason) nothrow
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         if (command !is null)
         {
@@ -823,7 +823,7 @@ public:
 package(pham.db):
     void cancelImpl()
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         scope (exit)
             _info.resetHandle();
@@ -838,7 +838,7 @@ package(pham.db):
 
     void doClose(const(DisposingReason) disposingReason) nothrow
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         scope (exit)
         {
@@ -1349,7 +1349,7 @@ protected:
     static void fillNamedColumn(DbNameColumn column, const ref FbIscFieldInfo iscField, const(bool) isNew) nothrow @safe
     {
         version (TraceFunction) traceFunction(iscField.traceString());
-        //import pham.utl.test; dgWriteln("fillNamedColumn=", iscField.traceString());
+        //import pham.utl.utl_test; dgWriteln("fillNamedColumn=", iscField.traceString());
 
         column.baseName = iscField.name.idup;
         column.baseOwner = iscField.owner.idup;
@@ -1551,7 +1551,7 @@ public:
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         if (_command)
         {
@@ -1791,27 +1791,27 @@ package(pham.db):
     }
 
 protected:
-    final override SkException createConnectError(int errorCode, string errorMessage,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final override SkException createConnectError(int socketErrorCode, string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new FbException(errorMessage, DbErrorCode.connect, null, errorCode, FbIscResultCode.isc_net_connect_err, next, callerName, file, line);
+        return new FbException(DbErrorCode.connect, errorMessage, null, socketErrorCode, FbIscResultCode.isc_net_connect_err, next, funcName, file, line);
     }
 
-    final override SkException createReadDataError(int errorCode, string errorMessage,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final override SkException createReadDataError(int socketErrorCode, string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new FbException(errorMessage, DbErrorCode.read, null, errorCode, FbIscResultCode.isc_net_read_err, next, callerName, file, line);
+        return new FbException(DbErrorCode.read, errorMessage, null, socketErrorCode, FbIscResultCode.isc_net_read_err, next, funcName, file, line);
     }
 
-    final override SkException createWriteDataError(int errorCode, string errorMessage,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final override SkException createWriteDataError(int socketErrorCode, string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new FbException(errorMessage, DbErrorCode.write, null, errorCode, FbIscResultCode.isc_net_write_err, next, callerName, file, line);
+        return new FbException(DbErrorCode.write, errorMessage, null, socketErrorCode, FbIscResultCode.isc_net_write_err, next, funcName, file, line);
     }
 
     override void disposeCommands(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         if (isDisposing(disposingReason))
             this._arrayManager.dispose(disposingReason);
@@ -1822,7 +1822,7 @@ protected:
 
     final void disposeParameterWriteBuffers(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         while (!_parameterWriteBuffers.empty)
             _parameterWriteBuffers.remove(_parameterWriteBuffers.last).dispose(disposingReason);
@@ -1830,7 +1830,7 @@ protected:
 
     final void disposeProtocol(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         if (_protocol !is null)
         {
@@ -1841,7 +1841,7 @@ protected:
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.test; debug dgWriteln(__FUNCTION__); }
+        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
 
         super.doDispose(disposingReason);
         disposeParameterWriteBuffers(disposingReason);
@@ -2402,7 +2402,7 @@ unittest // Turn on trace log if requested - must be first unittest one
 {
     version (TraceFunctionFBDatabase)
     {
-        import pham.external.std.log.logger : LogLevel, ModuleLoggerOption, ModuleLoggerOptions;
+        import pham.external.std.log.log_logger : LogLevel, ModuleLoggerOption, ModuleLoggerOptions;
         
         ModuleLoggerOptions.setModule(ModuleLoggerOption(ModuleLoggerOptions.wildPackageName(__MODULE__), LogLevel.trace));
     }
@@ -2498,7 +2498,7 @@ WHERE INT_FIELD = @INT_FIELD
 
 unittest // FbConnectionStringBuilder
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbConnectionStringBuilder");
 
     auto db = DbDatabaseList.getDb(DbScheme.fb);
@@ -2518,7 +2518,7 @@ unittest // FbConnectionStringBuilder
 version (UnitTestFBDatabase)
 unittest // FbConnection
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbConnection");
 
     auto connection = createTestConnection();
@@ -2536,7 +2536,7 @@ unittest // FbConnection
 version (UnitTestFBDatabase)
 unittest // FbConnection.encrypt
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbConnection - encrypt");
 
     {
@@ -2601,7 +2601,7 @@ unittest // FbConnection.encrypt
 version (UnitTestFBDatabase)
 unittest // FbConnection.integratedSecurity
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbConnection - integratedSecurity");
 
     version (Windows)
@@ -2622,7 +2622,7 @@ unittest // FbConnection.integratedSecurity
 version (UnitTestFBDatabase)
 unittest // FbConnection.encrypt.compress
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbConnection - encrypt=required, compress=zip");
 
     auto connection = createTestConnection(DbEncryptedConnection.required, DbCompressConnection.zip);
@@ -2640,7 +2640,7 @@ unittest // FbConnection.encrypt.compress
 version (UnitTestFBDatabase)
 unittest // FbTransaction
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbTransaction");
 
     auto connection = createTestConnection();
@@ -2676,7 +2676,7 @@ unittest // FbTransaction
 version (UnitTestFBDatabase)
 unittest // FbTransaction.encrypt.compress
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbTransaction - encrypt=enabled, compress=zip");
 
     auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
@@ -2692,7 +2692,7 @@ unittest // FbTransaction.encrypt.compress
 version (UnitTestFBDatabase)
 unittest // FbCommand.DDL
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DDL");
 
     bool failed = true;
@@ -2724,7 +2724,7 @@ unittest // FbCommand.DDL
 version (UnitTestFBDatabase)
 unittest // FbCommand.DDL.encrypt.compress
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DDL - encrypt=enabled, compress=zip");
 
     bool failed = true;
@@ -2754,7 +2754,7 @@ unittest // FbCommand.DDL.encrypt.compress
 version (UnitTestFBDatabase)
 unittest // FbCommand.getExecutionPlan
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbCommand.getExecutionPlan");
 
     bool failed = true;
@@ -2797,8 +2797,8 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.DML.Types
 {
     import std.conv;
-    import pham.utl.object;
-    import pham.utl.test;
+    import pham.utl.utl_object;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.Types");
 
     bool failed = true;
@@ -3170,7 +3170,7 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.DML
 {
     import std.math;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - Simple select");
 
     bool failed = true;
@@ -3251,7 +3251,7 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.DML.Parameter
 {
     import std.math;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - Parameter select");
 
     bool failed = true;
@@ -3339,7 +3339,7 @@ version (UnitTestFBDatabase)
 unittest // FbCommand.DML.encrypt.compress
 {
     import std.math;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - Simple select with encrypt=enabled, compress=zip");
 
     bool failed = true;
@@ -3419,7 +3419,7 @@ unittest // FbCommand.DML.encrypt.compress
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML.FbArrayManager
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - FbArrayManager");
 
     bool failed = true;
@@ -3449,7 +3449,7 @@ unittest // FbCommand.DML.FbArrayManager
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML.Array
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - Array");
 
     static int[] arrayValue() nothrow pure @safe
@@ -3517,7 +3517,7 @@ unittest // FbCommand.DML.Array
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML.Array.Less
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - Array.Less");
 
     static int[] selectArrayValue() nothrow pure @safe
@@ -3590,7 +3590,7 @@ unittest // FbCommand.DML.Array.Less
 version (UnitTestFBDatabase)
 unittest // FbCommand.DML.StoredProcedure
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.StoredProcedure");
 
     bool failed = true;
@@ -3644,8 +3644,8 @@ version (UnitTestFBDatabase)
 unittest // DbRAIITransaction
 {
     import std.exception : assertThrown;
-    import pham.utl.test;
-    import pham.db.exception : DbException;
+    import pham.utl.utl_test;
+    import pham.db.db_exception : DbException;
     traceUnitTest("unittest pham.db.fbdatabase.DbRAIITransaction");
 
     bool commit = false;
@@ -3681,9 +3681,9 @@ unittest // DbRAIITransaction
 version (UnitTestFBDatabase)
 unittest // FbCommandBatch
 {
-    import pham.dtm.date;
-    import pham.utl.object : VersionString;
-    import pham.utl.test;
+    import pham.dtm.dtm_date;
+    import pham.utl.utl_object : VersionString;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbCommandBatch");
 
     bool failed = true;
@@ -3796,7 +3796,7 @@ unittest // FbCommandBatch
 unittest // DbDatabaseList.createConnection
 {
     import std.string : representation;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.DbDatabaseList.createConnection");
 
     auto connection = DbDatabaseList.createConnection("firebird:server=myServerAddress;database=myDataBase;" ~
@@ -3824,7 +3824,7 @@ unittest // DbDatabaseList.createConnection
 unittest // DbDatabaseList.createConnectionByURL
 {
     import std.string : representation;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.DbDatabaseList.createConnectionByURL");
 
     auto connection = DbDatabaseList.createConnectionByURL("firebird://myUsername:myPassword@myServerAddress/myDataBase?" ~
@@ -3851,7 +3851,7 @@ unittest // DbDatabaseList.createConnectionByURL
 
 version (UnitTestPerfFBDatabase)
 {
-    import pham.utl.test : PerfTestResult;
+    import pham.utl.utl_test : PerfTestResult;
 
     PerfTestResult unitTestPerfFBDatabase()
     {
@@ -3986,7 +3986,7 @@ version (UnitTestPerfFBDatabase)
 unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953
 {
     import std.format : format;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
 
     const perfResult = unitTestPerfFBDatabase();
@@ -3996,7 +3996,7 @@ unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
 version (UnitTestFBDatabase)
 unittest // FbConnection.createDatabase
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbdatabase.createDatabase");
 
     FbCreateDatabaseInfo ci;
@@ -4047,7 +4047,7 @@ unittest // Turn off trace log if requested - must be last unittest one
 {
     version (TraceFunctionFBDatabase)
     {
-        import pham.external.std.log.logger : ModuleLoggerOptions;
+        import pham.external.std.log.log_logger : ModuleLoggerOptions;
         
         ModuleLoggerOptions.removeModule(ModuleLoggerOptions.wildPackageName(__MODULE__));
     }

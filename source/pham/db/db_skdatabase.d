@@ -9,27 +9,35 @@
  *
  */
 
-module pham.db.skdatabase;
+module pham.db.db_skdatabase;
 
+version (pham_io_socket)
+    enum usePhamIOSocket = true;
+else
+    enum usePhamIOSocket = false;
+    
 import std.conv : to;
-import std.socket : Address, AddressFamily, InternetAddress, ProtocolType, Socket, socket_t, SocketOption, SocketOptionLevel, SocketType;
+static if (!usePhamIOSocket) import std.socket : Address, AddressFamily, InternetAddress, Internet6Address,
+    ProtocolType, Socket, socket_t, SocketOption, SocketOptionLevel, SocketType;
 
-version (profile) import pham.utl.test : PerfFunction;
-version (unittest) import pham.utl.test;
-import pham.cp.openssl;
-import pham.utl.disposable : DisposingReason, isDisposing;
-import pham.utl.system : lastSocketError, lastSocketErrorCode;
-import pham.db.buffer;
-import pham.db.buffer_filter;
-import pham.db.buffer_filter_cipher;
-import pham.db.convert;
-import pham.db.database;
-import pham.db.exception;
-import pham.db.message;
-import pham.db.object : DbIdentitier;
-import pham.db.type;
-import pham.db.util;
-import pham.db.value;
+version (profile) import pham.utl.utl_test : PerfFunction;
+version (unittest) import pham.utl.utl_test;
+import pham.cp.cp_openssl;
+static if (usePhamIOSocket) import pham.io.io_socket;
+static if (!usePhamIOSocket) import pham.io.io_socket_error;
+import pham.utl.utl_disposable : DisposingReason, isDisposing;
+static if (!usePhamIOSocket) import pham.utl.utl_text : simpleIndexOf;
+import pham.db.db_buffer;
+import pham.db.db_buffer_filter;
+import pham.db.db_buffer_filter_cipher;
+import pham.db.db_convert;
+import pham.db.db_database;
+import pham.db.db_exception;
+import pham.db.db_message;
+import pham.db.db_object : DbIdentitier;
+import pham.db.db_type;
+import pham.db.db_util;
+import pham.db.db_value;
 
 static immutable string[string] skDefaultConnectionParameterValues;
 
@@ -129,12 +137,16 @@ public:
     pragma(inline, true)
     @property final bool socketActive() const nothrow pure @safe
     {
-        return _socket !is null && _socket.handle != socket_t.init;
+        static if (!usePhamIOSocket)
+            return _socket !is null && _socket.handle != socket_t.init;
+        else
+            return _socket !is null && _socket.active;
     }
 
+    pragma(inline, true)
     @property final bool socketSSLActive() const nothrow pure @safe
     {
-        return _sslSocket.isConnected && socketActive;
+        return socketActive && _sslSocket.isConnected;
     }
 
 package(pham.db):
@@ -163,7 +175,7 @@ package(pham.db):
         if (rs.isError)
             return rs;
 
-        rs = _sslSocket.connect(_socket.handle);
+        rs = _sslSocket.connect(cast(int)_socket.handle);
         if (rs.isError)
         {
             _sslSocket.uninitialize();
@@ -181,20 +193,6 @@ package(pham.db):
             _socketWriteBuffers.insertEnd(item.reset());
     }
 
-    void setSocketOptions() @safe
-    {
-        version (TraceFunctionReader) traceFunction();
-
-        auto useCSB = skConnectionStringBuilder;
-
-        socket.blocking = useCSB.blocking;
-        socket.setOption(SocketOptionLevel.SOCKET, SocketOption.TCP_NODELAY, useCSB.noDelay ? 1 : 0);
-        if (auto n = useCSB.receiveTimeout)
-            socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, n);
-        if (auto n = useCSB.sendTimeout)
-            socket.setOption(SocketOptionLevel.SOCKET, SocketOption.SNDTIMEO, n);
-    }
-
     final size_t socketReadData(ubyte[] data) @trusted
     {
         version (TraceFunctionReader) traceFunction("_sslSocket.isConnected=", _sslSocket.isConnected);
@@ -209,14 +207,21 @@ package(pham.db):
         }
         else
         {
-            result = socket.receive(data);
-            if (result == Socket.ERROR || (result == 0 && data.length != 0))
+            static if (!usePhamIOSocket)
             {
-                if (result == Socket.ERROR)
-                    result = size_t.max;
-
-                auto status = lastSocketError("receive");
-                throwReadDataError(status.errorCode, status.errorMessage);
+                result = _socket.receive(data);
+                if ((result == Socket.ERROR) || (result == 0 && data.length != 0))
+                {
+                    auto status = lastSocketError("receive");
+                    throwReadDataError(status.errorCode, status.errorMessage);
+                }
+            }
+            else
+            {
+                const rs = _socket.receive(data);
+                if ((rs < 0) || (rs == 0 && data.length != 0))
+                    throwReadDataError(_socket.lastError.errorCode, _socket.lastError.errorMessage);
+                result = cast(size_t)(rs);
             }
         }
 
@@ -281,14 +286,21 @@ package(pham.db):
         }
         else
         {
-            result = _socket.send(sendingData);
-            if (result == Socket.ERROR || result != sendingData.length)
+            static if (!usePhamIOSocket)
             {
-                if (result == Socket.ERROR)
-                    result = size_t.max;
-
-                auto status = lastSocketError("send");
-                throwWriteDataError(status.errorCode, status.errorMessage);
+                result = _socket.send(sendingData);
+                if (result == Socket.ERROR || result != sendingData.length)
+                {
+                    auto status = lastSocketError("send");
+                    throwWriteDataError(status.errorCode, status.errorMessage);
+                }
+            }
+            else
+            {
+                const rs = _socket.send(sendingData);
+                if (rs < 0 || rs != sendingData.length)
+                    throwWriteDataError(_socket.lastError.errorCode, _socket.lastError.errorMessage);
+                result = cast(size_t)(rs);
             }
         }
 
@@ -298,39 +310,39 @@ package(pham.db):
     }
 
     final void throwConnectError(int errorRawCode, string errorRawMessage,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         version (TraceFunction) traceFunction("errorRawCode=", errorRawCode, ", errorRawMessage=", errorRawMessage);
 
         if (auto log = logger)
-            log.errorf("%s.%s() - %s", forLogInfo(), callerName, errorRawMessage);
+            log.errorf("%s.%s() - %s", forLogInfo(), funcName, errorRawMessage);
 
         auto msg = DbMessage.eConnect.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
-        throw createConnectError(errorRawCode, msg, next, callerName, file, line);
+        throw createConnectError(errorRawCode, msg, next, funcName, file, line);
     }
 
     final void throwReadDataError(int errorRawCode, string errorRawMessage,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         version (TraceFunctionReader) traceFunction("errorRawCode=", errorRawCode, ", errorRawMessage=", errorRawMessage);
 
         if (auto log = logger)
-            log.errorf("%s.%s() - %s", forLogInfo(), callerName, errorRawMessage);
+            log.errorf("%s.%s() - %s", forLogInfo(), funcName, errorRawMessage);
 
         auto msg = DbMessage.eReadData.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
-        throw createReadDataError(errorRawCode, msg, next, callerName, file, line);
+        throw createReadDataError(errorRawCode, msg, next, funcName, file, line);
     }
 
     final void throwWriteDataError(int errorRawCode, string errorRawMessage,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         version (TraceFunctionWriter) traceFunction("errorRawCode=", errorRawCode, ", errorRawMessage=", errorRawMessage);
 
         if (auto log = logger)
-            log.errorf("%s.%s() - %s", forLogInfo(), callerName, errorRawMessage);
+            log.errorf("%s.%s() - %s", forLogInfo(), funcName, errorRawMessage);
 
         auto msg = DbMessage.eWriteData.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
-        throw createWriteDataError(errorRawCode, msg, next, callerName, file, line);
+        throw createWriteDataError(errorRawCode, msg, next, funcName, file, line);
     }
 
 protected:
@@ -339,22 +351,22 @@ protected:
         return !isFatalError && socketActive;
     }
 
-    SkException createConnectError(int errorCode, string errorMessage,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    SkException createConnectError(int socketErrorCode, string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new SkException(errorMessage, DbErrorCode.connect, null, errorCode, 0, next, callerName, file, line);
+        return new SkException(DbErrorCode.connect, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
-    SkException createReadDataError(int errorCode, string errorMessage,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    SkException createReadDataError(int socketErrorCode, string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new SkException(errorMessage, DbErrorCode.read, null, errorCode, 0, next, callerName, file, line);
+        return new SkException(DbErrorCode.read, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
-    SkException createWriteDataError(int errorCode, string errorMessage,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    SkException createWriteDataError(int socketErrorCode, string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        return new SkException(errorMessage, DbErrorCode.write, null, errorCode, 0, next, callerName, file, line);
+        return new SkException(DbErrorCode.write, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
     DbReadBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
@@ -369,12 +381,20 @@ protected:
 
     final void disposeSocket(const(DisposingReason) disposingReason) nothrow @safe
     {
-        _sslSocket.dispose(disposingReason);
         disposeSocketBufferFilters(disposingReason);
         disposeSocketReadBuffer(disposingReason);
         disposeSocketWriteBuffers(disposingReason);
-        if (socketActive)
-            _socket.close();
+        _sslSocket.dispose(disposingReason);
+        static if (!usePhamIOSocket)
+        {
+            if (_socket !is null && _socket.handle != socket_t.init)
+                _socket.close();
+        }
+        else
+        {
+            if (_socket !is null)
+                _socket.close();
+        }
         _socket = null;
     }
 
@@ -427,32 +447,62 @@ protected:
     {
         version (TraceFunction) traceFunction();
 
-        auto useCSB = skConnectionStringBuilder;
+        disposeSocket(DisposingReason.other);
 
-        if (_socket !is null && _socket.addressFamily != useCSB.toAddressFamily())
-            disposeSocket(DisposingReason.other);
+        auto useCSB = skConnectionStringBuilder;
 
         if (useCSB.encrypt != DbEncryptedConnection.disabled)
             setSSLSocketOptions();
 
-        if (_socket is null)
-            _socket = new Socket(useCSB.toAddressFamily(), SocketType.STREAM, ProtocolType.TCP);
-
-        try
+        static if (!usePhamIOSocket)
         {
-            auto address = useCSB.toAddress();
-            _socket.connect(address);
-            setSocketOptions();
+            try
+            {
+                auto address = useCSB.toConnectAddress();
+                _socket = new Socket(address.addressFamily, SocketType.STREAM, ProtocolType.TCP);
+                _socket.connect(address);
+                setSocketOptions();
+            }
+            catch (Exception e)
+            {
+                auto socketErrorMsg = e.msg;
+                auto socketErrorCode = lastSocketError();
+                throwConnectError(socketErrorCode, socketErrorMsg, e);
+            }
         }
-        catch (Exception e)
+        else
         {
-            auto socketErrorMsg = e.msg;
-            auto socketErrorCode = lastSocketErrorCode();
-            throwConnectError(socketErrorCode, socketErrorMsg, e);
+            _socket = new Socket(useCSB.toConnectInfo());
+            if (_socket.lastError.isError)
+            {
+                auto errorCode = _socket.lastError.errorCode;
+                auto errorMessage = _socket.lastError.errorMessage;
+                auto funcName = _socket.lastError.funcName;
+                auto file = _socket.lastError.file;
+                auto line = _socket.lastError.line;
+                _socket = null;
+                throwConnectError(errorCode, errorMessage, null, funcName, file, line);
+            }
         }
+        assert(_socket.isAlive());
     }
 
-    void setSSLSocketOptions()
+    static if (!usePhamIOSocket)
+    void setSocketOptions() @safe
+    {
+        version (TraceFunctionReader) traceFunction();
+
+        auto useCSB = skConnectionStringBuilder;
+
+        socket.blocking = useCSB.blocking;
+        socket.setOption(SocketOptionLevel.SOCKET, SocketOption.TCP_NODELAY, useCSB.noDelay ? 1 : 0);
+        if (auto n = useCSB.receiveTimeout)
+            socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, n);
+        if (auto n = useCSB.sendTimeout)
+            socket.setOption(SocketOptionLevel.SOCKET, SocketOption.SNDTIMEO, n);
+    }
+
+    void setSSLSocketOptions() @safe
     {
         auto useCSB = skConnectionStringBuilder;
 
@@ -496,18 +546,28 @@ public:
         return (sslCert.length || sslKey.length) && (sslCa.length || sslCaDir.length);
     }
 
-    final Address toAddress()
+    static if (!usePhamIOSocket)
+    final Address toConnectAddress() const
     {
-        // todo for iv6
-        return new InternetAddress(serverName, serverPort);
+        const sn = serverName;
+        return (sn.simpleIndexOf(':') >= 0 || (sn.length && sn[0] == '['))
+            ? new Internet6Address(sn, serverPort)
+            : new InternetAddress(sn, serverPort);    
     }
-
-    final AddressFamily toAddressFamily() nothrow
+    
+    static if (usePhamIOSocket)
+    final ConnectInfo toConnectInfo() const nothrow
     {
-        // todo for iv6 AddressFamily.INET6
-        return AddressFamily.INET;
+        auto result = ConnectInfo(serverName, serverPort);
+        result.blocking = blocking;
+        result.noDelay = noDelay;
+        result.connectTimeout = connectionTimeout;
+        result.readTimeout = receiveTimeout;
+        result.writeTimeout = sendTimeout;
+        
+        return result;
     }
-
+    
     @property final bool blocking() const nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.socketBlocking));
@@ -657,7 +717,7 @@ public:
         reserve(additionalBytes);
         const nOffset = _offset + length;
 
-        //import pham.utl.test; dgWriteln("nOffset=", nOffset, ", _data.length=", _data.length, ", additionalBytes=", additionalBytes.dgToHex(), ", length=", length);
+        //import pham.utl.utl_test; dgWriteln("nOffset=", nOffset, ", _data.length=", _data.length, ", additionalBytes=", additionalBytes.dgToHex(), ", length=", length);
 
         // n=size_t.max -> no data returned
         const n = connection.socketReadData(_data[nOffset.._data.length]);

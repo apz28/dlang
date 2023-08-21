@@ -9,17 +9,17 @@
 *
 */
 
-module pham.db.myauth_sha;
+module pham.db.db_myauth_sha;
 
 import std.string : representation;
 
-version (unittest) import pham.utl.test;
-import pham.cp.cipher_digest : Digester, DigestId, DigestResult;
-import pham.db.auth;
-import pham.db.message;
-import pham.db.type : DbScheme;
-import pham.db.myauth;
-import pham.db.mytype : myAuthSha256Mem, myAuthSha2Caching;
+version (unittest) import pham.utl.utl_test;
+import pham.cp.cp_cipher_digest : Digester, DigestId, DigestResult;
+import pham.db.db_auth;
+import pham.db.db_message;
+import pham.db.db_type : DbScheme;
+import pham.db.db_myauth;
+import pham.db.db_mytype : myAuthSha256Mem, myAuthSha2Caching;
 
 nothrow @safe:
 
@@ -145,8 +145,8 @@ public:
 
 class MyAuthSha2Caching : MyAuthSha
 {
-import pham.cp.openssl : OpenSSLRSACrypt, OpenSSLRSAPem;
-import pham.cp.openssl_binding : RSA_PKCS1_PADDING;
+import pham.cp.cp_openssl : OpenSSLRSACrypt, OpenSSLRSAPem;
+import pham.cp.cp_openssl_binding : RSA_PKCS1_PADDING;
 
 nothrow @safe:
 
@@ -237,7 +237,7 @@ protected:
         size_t outputLength;
         status = rsa.encrypt(obfuscatedUserPassword[], output, outputLength);
         if (status.isError)
-            return ResultStatus.error(status.errorCode, status.errorMessage, DbMessage.eInvalidConnectionAuthServerData);
+            return ResultStatus.error(status.errorCode, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, status.errorMessage));
 
         authData = CipherBuffer!ubyte(output[0..outputLength]);
         return ResultStatus.ok();
@@ -260,7 +260,7 @@ DbAuth createAuthSha2Caching()
 
 unittest
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.myauth_sha.MyAuthSha2Caching");
 
     auto obfuscated = MyAuthSha.xorNonce("masterkey".representation(), dgFromHex("773529605513697D2E3F02211E41096D1E4F5E40"));

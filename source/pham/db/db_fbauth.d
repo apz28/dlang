@@ -9,18 +9,18 @@
 *
 */
 
-module pham.db.fbauth;
+module pham.db.db_fbauth;
 
-version (TraceFunction) import pham.utl.test;
-import pham.cp.cipher : CipherHelper;
-public import pham.cp.cipher : CipherBuffer, CipherChaChaKey, CipherKey, CipherSimpleKey;
-public import pham.cp.cipher_buffer : CipherRawKey;
-import pham.utl.array : ShortStringBuffer;
-import pham.utl.utf8 : UTF8CharRange;
-import pham.db.auth;
-import pham.db.message;
-import pham.db.type : DbScheme;
-import pham.db.fbtype : FbIscServerKey;
+version (TraceFunction) import pham.utl.utl_test;
+import pham.cp.cp_cipher : CipherHelper;
+public import pham.cp.cp_cipher : CipherBuffer, CipherChaChaKey, CipherKey, CipherSimpleKey;
+public import pham.cp.cp_cipher_buffer : CipherRawKey;
+import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_utf8 : UTF8CharRange;
+import pham.db.db_auth;
+import pham.db.db_message;
+import pham.db.db_type : DbScheme;
+import pham.db.db_fbtype : FbIscServerKey;
 
 nothrow @safe:
 
@@ -28,10 +28,10 @@ nothrow @safe:
 CipherKey createCryptKey(scope const(char)[] cryptAlgorithm, scope const(ubyte)[] sessionKey, scope const(FbIscServerKey)[] serverAuthKeys)
 {
     import std.system : Endian;
-    import pham.cp.cipher_digest : DigestId, digestOf;
-    import pham.db.convert : uintDecode;
-    import pham.db.type : uint32, uint64;
-    import pham.db.fbisc : FbIscText;    
+    import pham.cp.cp_cipher_digest : DigestId, digestOf;
+    import pham.db.db_convert : uintDecode;
+    import pham.db.db_type : uint32, uint64;
+    import pham.db.db_fbisc : FbIscText;    
 
     const(ubyte)[] findPluginKey(scope const(char)[] pluginName)
     {
@@ -144,20 +144,20 @@ public:
         // Min & Max length?
         size_t maxSaltLength;
         if (serverAuthData.length < minLength || serverAuthData.length > maxSizeServerAuthData(maxSaltLength))
-            return ResultStatus.error(DbErrorCode.connect, "invalid length", DbMessage.eInvalidConnectionAuthServerData);
+            return ResultStatus.error(DbErrorCode.connect, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid server-auth-data length"));
 
 		const saltLength = serverAuthData[0] + (cast(size_t)serverAuthData[1] << 8);
         serverAuthData = serverAuthData[2..$]; // Skip the length data
         if (saltLength > maxSaltLength || saltLength > serverAuthData.length)
-            return ResultStatus.error(DbErrorCode.connect, "invalid length", DbMessage.eInvalidConnectionAuthServerData);
+            return ResultStatus.error(DbErrorCode.connect, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid server-auth-data length"));
         _serverSalt = serverAuthData[0..saltLength].dup;
 
         serverAuthData = serverAuthData[saltLength..$]; // Skip salt data
         if (serverAuthData.length < minLength)
-            return ResultStatus.error(DbErrorCode.connect, "invalid length", DbMessage.eInvalidConnectionAuthServerData);
+            return ResultStatus.error(DbErrorCode.connect, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid server-auth-data length"));
 		const keyLength = serverAuthData[0] + (cast(size_t)serverAuthData[1] << 8);
         if (keyLength + 2 > serverAuthData.length)
-            return ResultStatus.error(DbErrorCode.connect, "invalid length", DbMessage.eInvalidConnectionAuthServerData);
+            return ResultStatus.error(DbErrorCode.connect, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid server-auth-data length"));
         _serverPublicKey = serverAuthData[2..keyLength + 2].dup;
 
         version (TraceFunction)
@@ -181,7 +181,7 @@ public:
 
 unittest // FbAuth.normalizeUserName
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.FbAuth.normalizeUserName");
 
     assert(FbAuth.normalizeUserName("sysDba") == "SYSDBA");

@@ -9,7 +9,7 @@
  *
 */
 
-module pham.db.fbisc;
+module pham.db.db_fbisc;
 
 nothrow @safe:
 

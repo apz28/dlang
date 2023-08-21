@@ -9,18 +9,18 @@
 *
 */
 
-module pham.db.auth;
+module pham.db.db_auth;
 
 import std.conv : to;
 
-version (unittest) import pham.utl.test;
-public import pham.cp.cipher : CipherBuffer, CipherRawKey;
-import pham.utl.disposable : DisposingReason;
-import pham.utl.object : VersionString;
-public import pham.utl.result : ResultStatus;
-import pham.db.message : DbMessage, fmtMessage;
-import pham.db.object : DbDisposableObject;
-import pham.db.type : DbScheme;
+version (unittest) import pham.utl.utl_test;
+public import pham.cp.cp_cipher : CipherBuffer, CipherRawKey;
+import pham.utl.utl_disposable : DisposingReason;
+import pham.utl.utl_object : VersionString;
+public import pham.utl.utl_result : ResultStatus;
+import pham.db.db_message : DbMessage, fmtMessage;
+import pham.db.db_object : DbDisposableObject;
+import pham.db.db_type : DbScheme;
 
 nothrow @safe:
 
@@ -31,13 +31,6 @@ abstract class DbAuth : DbDisposableObject
 public:
     ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData) nothrow;
-
-    static string getErrorMessage(ResultStatus errorStatus, scope const(char)[] authName) pure
-    {
-        return errorStatus.errorFormat.length != 0
-            ? errorStatus.errorFormat.fmtMessage(authName, errorStatus.errorMessage)
-            : errorStatus.errorMessage;
-    }
 
     CipherRawKey!ubyte sessionKey() nothrow
     {
@@ -133,8 +126,10 @@ public:
 protected:
     final ResultStatus checkAdvanceState(const(int) state) nothrow pure
     {
+        scope (failure) assert(0, "Assume nothrow failed");
+        
         if (state != _nextState || state >= multiStates)
-            return ResultStatus.error(state + 1, to!string(state), DbMessage.eInvalidConnectionAuthServerData);
+            return ResultStatus.error(state + 1, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid state: " ~ to!string(state)));
         else
         {
             _nextState++;

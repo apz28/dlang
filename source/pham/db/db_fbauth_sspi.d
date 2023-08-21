@@ -9,18 +9,18 @@
 *
 */
 
-module pham.db.fbauth_sspi;
+module pham.db.db_fbauth_sspi;
 
 version (Windows):
 
-version (unittest) import pham.utl.test;
+version (unittest) import pham.utl.utl_test;
 import pham.external.std.windows.sspi_ex : RequestSecClient, RequestSecResult;
-import pham.utl.disposable : DisposingReason;
-import pham.db.auth;
-import pham.db.message;
-import pham.db.type : DbScheme;
-import pham.db.fbauth;
-import pham.db.fbisc : FbIscText;
+import pham.utl.utl_disposable : DisposingReason;
+import pham.db.db_auth;
+import pham.db.db_message;
+import pham.db.db_type : DbScheme;
+import pham.db.db_fbauth;
+import pham.db.db_fbisc : FbIscText;
 
 nothrow @safe:
 
@@ -45,7 +45,7 @@ public:
         ubyte[] result;
         RequestSecResult errorStatus;
         if (!_secClient.init(secPackage, remotePrincipal, errorStatus, result))
-            return ResultStatus.error(errorStatus.status, errorStatus.message, DbMessage.eInvalidConnectionAuthClientData);
+            return ResultStatus.error(errorStatus.status, DbMessage.eInvalidConnectionAuthClientData.fmtMessage(name, errorStatus.message));
         authData = CipherBuffer!ubyte(result);
         return ResultStatus.ok();
     }
@@ -58,7 +58,7 @@ public:
         ubyte[] result;
         RequestSecResult errorStatus;
         if (!_secClient.authenticate(remotePrincipal, serverAuthData, errorStatus, result))
-            return ResultStatus.error(errorStatus.status, errorStatus.message, DbMessage.eInvalidConnectionAuthServerData);
+            return ResultStatus.error(errorStatus.status, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, errorStatus.message));
         authData = CipherBuffer!ubyte(result);
         return ResultStatus.ok();
     }

@@ -9,27 +9,27 @@
  *
 */
 
-module pham.db.mybuffer;
+module pham.db.db_mybuffer;
 
 import std.conv : to;
 import std.format : FormatSpec, formatValue;
 import std.string : representation;
 import std.system : Endian;
 
-version (profile) import pham.utl.test : PerfFunction;
-version (unittest) import pham.utl.test;
-import pham.utl.array : ShortStringBuffer, ShortStringBufferSize;
-import pham.utl.bit : numericBitCast;
-import pham.utl.disposable : DisposingReason, isDisposing;
-import pham.utl.object : simpleFloatFmt, simpleIntegerFmt;
-import pham.db.buffer;
-import pham.db.message;
-import pham.db.type;
-import pham.db.myconvert;
-import pham.db.mydatabase;
-import pham.db.myexception;
-import pham.db.myoid;
-import pham.db.mytype;
+version (profile) import pham.utl.utl_test : PerfFunction;
+version (unittest) import pham.utl.utl_test;
+import pham.utl.utl_array : ShortStringBuffer, ShortStringBufferSize;
+import pham.utl.utl_bit : numericBitCast;
+import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.utl.utl_object : simpleFloatFmt, simpleIntegerFmt;
+import pham.db.db_buffer;
+import pham.db.db_message;
+import pham.db.db_type;
+import pham.db.db_myconvert;
+import pham.db.db_mydatabase;
+import pham.db.db_myexception;
+import pham.db.db_myoid;
+import pham.db.db_mytype;
 
 @safe:
 
@@ -267,7 +267,7 @@ public:
                 return result;
 
             auto msg = DbMessage.eReadInvalidData.fmtMessage(s, "DbDate");
-            throw new MyException(msg, DbErrorCode.read, null);
+            throw new MyException(DbErrorCode.read, msg);
         }
     }
 
@@ -291,7 +291,7 @@ public:
                 return result;
 
             auto msg = DbMessage.eReadInvalidData.fmtMessage(s, "DbDateTime");
-            throw new MyException(msg, DbErrorCode.read, null);
+            throw new MyException(DbErrorCode.read, msg);
         }
     }
 
@@ -307,15 +307,15 @@ public:
         _buffer.advance(1); // Skip error indicator
 
         MyErrorResult result;
-        result.code = readInt16();
-        result.message = readCString(true);
+        result.errorCode = readInt16();
+        result.errorMessage = readCString(true);
 
         // Start with SQL_STATE?
-        if (result.message.length >= 6 && result.message[0] == '#')
+        if (result.errorMessage.length >= 6 && result.errorMessage[0] == '#')
         {
-            enum offset = 1; //result.message[0] == '#' ? 1 : 0;
-            result.sqlState = result.message[offset..5 + offset];
-            result.message = result.message[offset + 5..$];
+            enum offset = 1; //result.errorMessage[0] == '#' ? 1 : 0;
+            result.sqlState = result.errorMessage[offset..5 + offset];
+            result.errorMessage = result.errorMessage[offset + 5..$];
         }
 
         return result;
@@ -515,7 +515,7 @@ public:
                 return result;
 
             auto msg = DbMessage.eReadInvalidData.fmtMessage(s, "DbTimeSpan");
-            throw new MyException(msg, DbErrorCode.read, null);
+            throw new MyException(DbErrorCode.read, msg);
         }
     }
 
@@ -1104,7 +1104,7 @@ private:
 version (none) //todo
 unittest // MyXdrWriter & MyXdrReader
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.mybuffer.MyXdrReader & db.mybuffer.MyXdrWriter");
 
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";

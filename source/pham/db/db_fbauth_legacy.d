@@ -9,17 +9,17 @@
 *
 */
 
-module pham.db.fbauth_legacy;
+module pham.db.db_fbauth_legacy;
 
 import std.conv : to;
 
-version (unittest) import pham.utl.test;
-import pham.cp.auth_crypt3;
-import pham.db.auth;
-import pham.db.message;
-import pham.db.type : DbScheme;
-import pham.db.fbauth;
-import pham.db.fbisc : FbIscText;
+version (unittest) import pham.utl.utl_test;
+import pham.cp.cp_auth_crypt3;
+import pham.db.db_auth;
+import pham.db.db_message;
+import pham.db.db_type : DbScheme;
+import pham.db.db_fbauth;
+import pham.db.db_fbisc : FbIscText;
 
 nothrow @safe:
 

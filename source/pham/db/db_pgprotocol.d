@@ -9,7 +9,7 @@
  *
 */
 
-module pham.db.pgprotocol;
+module pham.db.db_pgprotocol;
 
 import std.algorithm.comparison : max, min;
 import std.ascii : LetterCase;
@@ -17,23 +17,23 @@ import std.conv : to;
 import std.string : indexOf, lastIndexOf, representation;
 import std.system : Endian;
 
-version (profile) import pham.utl.test : PerfFunction;
-version (unittest) import pham.utl.test;
-import pham.utl.disposable : DisposingReason, isDisposing;
-import pham.utl.enum_set : toName;
-import pham.utl.object : shortClassName;
-import pham.db.buffer;
-import pham.db.database : DbNameColumn;
-import pham.db.message;
-import pham.db.object;
-import pham.db.type;
-import pham.db.value;
-import pham.db.pgauth;
-import pham.db.pgbuffer;
-import pham.db.pgdatabase;
-import pham.db.pgexception;
-import pham.db.pgoid;
-import pham.db.pgtype;
+version (profile) import pham.utl.utl_test : PerfFunction;
+version (unittest) import pham.utl.utl_test;
+import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.utl.utl_enum_set : toName;
+import pham.utl.utl_object : shortClassName;
+import pham.db.db_buffer;
+import pham.db.db_database : DbNameColumn;
+import pham.db.db_message;
+import pham.db.db_object;
+import pham.db.db_type;
+import pham.db.db_value;
+import pham.db.db_pgauth;
+import pham.db.db_pgbuffer;
+import pham.db.db_pgdatabase;
+import pham.db.db_pgexception;
+import pham.db.db_pgoid;
+import pham.db.db_pgtype;
 
 struct PgConnectingStateInfo
 {
@@ -191,7 +191,7 @@ public:
 
                     default: // non supported authentication type, close connection
                         auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(to!string(stateInfo.authType));
-                        throw new PgException(msg, DbErrorCode.read, null);
+                        throw new PgException(DbErrorCode.read, msg);
                 }
 
             case 'S': // ParameterStatus
@@ -212,7 +212,7 @@ public:
 
                     default:
                         auto msg = DbMessage.eInvalidConnectionStatus.fmtMessage(to!string(stateInfo.trStatus));
-                        throw new PgException(msg, DbErrorCode.read, null);
+                        throw new PgException(DbErrorCode.read, msg);
                 }
 
                 // connection is opened and now it's possible to send queries
@@ -305,7 +305,7 @@ public:
                 if (stateInfo.canCryptedConnection == DbEncryptedConnection.required)
                 {
                     auto msg = DbMessage.eInvalidConnectionRequiredEncryption.fmtMessage(connection.connectionStringBuilder.forErrorInfo);
-                    throw new PgException(msg, DbErrorCode.connect, null);
+                    throw new PgException(DbErrorCode.connect, msg);
                 }
                 break;
             case 'S':
@@ -322,7 +322,7 @@ public:
                 break;
             default:
                 auto msg = DbMessage.eUnhandleStrOperation.fmtMessage(to!string(messageType), "SSLRequest (N or S)");
-                throw new PgException(msg, DbErrorCode.connect, null);
+                throw new PgException(DbErrorCode.connect, msg);
         }
     }
 
@@ -437,13 +437,13 @@ public:
                 break;
 
             case 'I': // EmptyQueryResponse
-                throw new PgException(DbMessage.eInvalidCommandText, DbErrorCode.read, null);
+                throw new PgException(DbErrorCode.read, DbMessage.eInvalidCommandText);
 
             case 'Z': // ReadyForQuery - done
                 break;
 
             case 's': // PortalSuspended
-                throw new PgException(DbMessage.eInvalidCommandSuspended, DbErrorCode.read, null);
+                throw new PgException(DbErrorCode.read, DbMessage.eInvalidCommandSuspended);
 
             case 'E': // ErrorResponse
                 auto EResponse = readGenericResponse(reader);
@@ -869,17 +869,14 @@ protected:
             stateInfo.auth = createAuth(stateInfo.authMethod);
         if (stateInfo.auth is null)
         {
-            auto msg = DbMessage.eInvalidConnectionAuthServerData.fmtMessage(stateInfo.authMethod, stateInfo.nextAuthState);
-            throw new PgException(msg, DbErrorCode.read, null);
+            auto msg = DbMessage.eInvalidConnectionAuthServerData.fmtMessage(stateInfo.authMethod, "invalid state: " ~ to!string(stateInfo.nextAuthState));
+            throw new PgException(DbErrorCode.read, msg);
         }
 
         auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword,
             serverAuthData, stateInfo.authData);
         if (status.isError)
-        {
-            auto msg = stateInfo.auth.getErrorMessage(status, stateInfo.authMethod);
-            throw new PgException(msg, DbErrorCode.read, null);
-        }
+            throw new PgException(DbErrorCode.read, status.errorMessage);
 
         if (stateInfo.authData.length || stateInfo.nextAuthState == 0)
         {
@@ -939,7 +936,7 @@ protected:
         if (!authMap.isValid())
         {
             auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(authMethod);
-            throw new PgException(msg, DbErrorCode.read, null);
+            throw new PgException(DbErrorCode.read, msg);
         }
 
         return cast(PgAuth)authMap.createAuth();
@@ -965,7 +962,7 @@ protected:
         void unsupportDataError()
         {
             auto msg = DbMessage.eUnsupportDataType.fmtMessage(shortClassName(this) ~ ".describeValue", toName!DbType(column.type));
-            throw new PgException(msg, DbErrorCode.write, null);
+            throw new PgException(DbErrorCode.write, msg);
         }
 
         if (column.isArray)
@@ -1328,7 +1325,7 @@ protected:
         auto msg = expectedLength > 0
             ? DbMessage.eUnexpectReadValue.fmtMessage(shortClassName(this) ~ ".readValue", toName!DbType(column.type), valueLength, expectedLength)
             : DbMessage.eUnsupportDataType.fmtMessage(shortClassName(this) ~ ".readValue", toName!DbType(column.type));
-        throw new PgException(msg, DbErrorCode.read, null);
+        throw new PgException(DbErrorCode.read, msg);
     }
 
     final void writeBindMessage(ref PgWriter writer, PgCommand command, scope PgParameter[] inputParameters)

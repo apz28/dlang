@@ -9,12 +9,12 @@
  *
 */
 
-module pham.db.fbparser;
+module pham.db.db_fbparser;
 
-import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
-import pham.utl.result : ResultIf;
-import pham.db.parser;
-import pham.db.fbtype;
+import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
+import pham.utl.utl_result : ResultIf;
+import pham.db.db_parser;
+import pham.db.db_fbtype;
 
 nothrow @safe:
 
@@ -284,7 +284,7 @@ private:
 
 unittest // parseCreateDatabase
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbparser.parseCreateDatabase");
 
     static immutable createSQL = q"SQL

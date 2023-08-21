@@ -9,7 +9,7 @@
  *
 */
 
-module pham.db.pgoid;
+module pham.db.db_pgoid;
 
 enum PgDefaultSize
 {

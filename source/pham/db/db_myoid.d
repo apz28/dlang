@@ -9,7 +9,7 @@
  *
 */
 
-module pham.db.myoid;
+module pham.db.db_myoid;
 
 enum myUTF8CharSetId = 33;
 

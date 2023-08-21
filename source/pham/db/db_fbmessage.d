@@ -9,9 +9,9 @@
  *
 */
 
-module pham.db.fbmessage;
+module pham.db.db_fbmessage;
 
-import pham.utl.object : singleton;
+import pham.utl.utl_object : singleton;
 
 nothrow @safe:
 
@@ -2970,7 +2970,7 @@ private:
 
 @safe unittest // FbMessages
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.db.fbmessage.FbMessages");
 
     assert(FbMessages.get(335544321).length != 0);

@@ -9,12 +9,12 @@
 *
 */
 
-module pham.db.myauth;
+module pham.db.db_myauth;
 
-version (unittest) import pham.utl.test;
-public import pham.cp.cipher : CipherBuffer;
-import pham.db.auth;
-import pham.db.type : DbScheme;
+version (unittest) import pham.utl.utl_test;
+public import pham.cp.cp_cipher : CipherBuffer;
+import pham.db.db_auth;
+import pham.db.db_type : DbScheme;
 
 nothrow @safe:
 
