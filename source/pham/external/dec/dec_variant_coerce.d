@@ -9,7 +9,7 @@
  *
  */
 
-module pham.external.dec.variant_coerce;
+module pham.external.dec.dec_variant_coerce;
 
 
 // All implement after this point must be private
@@ -18,9 +18,9 @@ private:
 import std.traits : isFloatingPoint, isIntegral, isSomeChar;
 import std.meta : AliasSeq;
 
-import pham.utl.variant_coerce;
-import pham.external.dec.decimal : Decimal32, Decimal64, Decimal128, isDecimal;
-import pham.external.dec.type;
+import pham.utl.utl_variant_coerce;
+import pham.external.dec.dec_decimal : Decimal32, Decimal64, Decimal128, isDecimal;
+import pham.external.dec.dec_type;
 
 // Support Variant.coerce
 bool doCoerceDecimal(S, D)(scope void* srcPtr, scope void* dstPtr) nothrow
@@ -429,7 +429,7 @@ unittest
 
 unittest
 {
-    import pham.utl.variant;
+    import pham.utl.utl_variant;
 
     Variant v;
 

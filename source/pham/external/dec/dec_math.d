@@ -1,17 +1,17 @@
-module pham.external.dec.math;
+module pham.external.dec.dec_math;
 
 import std.traits : isFloatingPoint, isIntegral, isSigned, Unqual, Unsigned;
 
-import pham.external.dec.compare : coefficientApproxEqu, coefficientCmp;
-import pham.external.dec.decimal : CommonDecimal, CommonStorage,
+import pham.external.dec.dec_compare : coefficientApproxEqu, coefficientCmp;
+import pham.external.dec.dec_decimal : CommonDecimal, CommonStorage,
     Decimal, Decimal32, Decimal64, Decimal128,
     decimalToDecimal, decimalToSigned,
     copysign, fabs, fastDecode, isDecimal, isLess, isGreater, realFloatPrecision,
     signbit, unsignalize;
-import pham.external.dec.integral : cappedAdd, cappedSub, clz, ctz, cvt, divrem,
+import pham.external.dec.dec_integral : cappedAdd, cappedSub, clz, ctz, cvt, divrem,
     isAnyUnsignedBit, makeUnsignedBit, maxmul10, pow10, prec, uint128, unsign,
     xadd, xmul, xsqr, xsub;
-import pham.external.dec.type;
+import pham.external.dec.dec_type;
 
 @safe nothrow:
 package(pham.external.dec):
@@ -373,7 +373,7 @@ ExceptionFlags decimalAcos(D)(ref D x, const(int) precision, const(RoundingMode)
 
     if (x.isZero)
     {
-        x = D.PI_2;
+        x = D.pi_2;
         return decimalAdjust(x, precision, mode);
     }
 
@@ -389,39 +389,39 @@ ExceptionFlags decimalAcos(D)(ref D x, const(int) precision, const(RoundingMode)
         return ExceptionFlags.none;
     }
 
-    if (x == -D.SQRT3_2)
+    if (x == -D.sqrt3_2)
     {
-        x = D._5PI_6;
+        x = D.pi5_6;
         return ExceptionFlags.none;
     }
 
-    if (x == -D.SQRT2_2)
+    if (x == -D.sqrt2_2)
     {
-        x = D._3PI_4;
+        x = D.pi3_4;
         return ExceptionFlags.none;
     }
 
     if (x == -D.half)
     {
-        x  = D._2PI_3;
+        x  = D.pi2_3;
         return ExceptionFlags.none;
     }
 
     if (x == D.half)
     {
-        x  = D.PI_2;
+        x  = D.pi_2;
         return ExceptionFlags.none;
     }
 
-    if (x == D.SQRT2_2)
+    if (x == D.sqrt2_2)
     {
-        x = D.PI_4;
+        x = D.pi_4;
         return ExceptionFlags.none;
     }
 
-    if (x == D.SQRT3_2)
+    if (x == D.sqrt3_2)
     {
-        x = D.PI_6;
+        x = D.pi_6;
         return ExceptionFlags.none;
     }
 
@@ -438,6 +438,10 @@ ExceptionFlags decimalAcos(D)(ref D x, const(int) precision, const(RoundingMode)
     return flags;
 }
 
+//sqrt(D.max)/2
+private enum acoshmax32 = Decimal32.buildin(cast(const(ubyte)[])[73, 24, 32, 82]); // Decimal32("1.581138e51");
+private enum acoshmax64 = Decimal64.buildin(cast(const(ubyte)[])[71, 229, 158, 9, 146, 78, 200, 93]); // Decimal64("1.581138830084189e192");
+private enum acoshmax128 = Decimal128.buildin(cast(const(ubyte)[])[71, 254, 77, 244, 199, 26, 0, 27, 93, 84, 221, 121, 204, 202, 242, 39]); // Decimal128("1.581138830084189665999446772216359e3072");
 ExceptionFlags decimalAcosh(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 {
     if (x.isSignalNaN)
@@ -469,19 +473,14 @@ ExceptionFlags decimalAcosh(D)(ref D x, const(int) precision, const(RoundingMode
         for very big x: (ln(x + x) = ln(2) + ln(x), otherwise will overflow
     */
 
-    //sqrt(D.max)/2
     static if (is(D: Decimal32))
-    {
-        enum acoshmax = Decimal32("1.581138e51");
-    }
+        alias acoshmax = acoshmax32;
     else static if (is(D: Decimal64))
-    {
-        enum acoshmax = Decimal64("1.581138830084189e192");
-    }
+        alias acoshmax = acoshmax64;
+    else static if (is(D: Decimal128))
+        alias acoshmax = acoshmax128;
     else
-    {
-        enum acoshmax = Decimal128("1.581138830084189665999446772216359e3072");
-    }
+        static assert(0);
 
     ExceptionFlags flags;
     if (isGreater(x, acoshmax))
@@ -499,6 +498,26 @@ ExceptionFlags decimalAcosh(D)(ref D x, const(int) precision, const(RoundingMode
         flags |= decimalAdd(x, x1, 0, mode);
         flags |= decimalLog(x, precision, mode);
         return flags;
+    }
+}
+
+version (ShowEnumDecBytes)
+unittest
+{
+    static assert(acoshmax32 == Decimal32("1.581138e51"));
+    static assert(acoshmax64 == Decimal64("1.581138830084189e192"));
+    static assert(acoshmax128 == Decimal128("1.581138830084189665999446772216359e3072"));
+
+    version (none)
+    {
+        import std.stdio;
+        scope (failure) assert(0, "Assume nothrow failed");
+        ubyte[Decimal32.sizeof] bytes32;
+        debug writeln("acoshmax32 = Decimal32.buildin(cast(const(ubyte)[])", acoshmax32.toBigEndianBytes(bytes32), ");");
+        ubyte[Decimal64.sizeof] bytes64;
+        debug writeln("acoshmax64 = Decimal64.buildin(cast(const(ubyte)[])", acoshmax64.toBigEndianBytes(bytes64), ");");
+        ubyte[Decimal128.sizeof] bytes128;
+        debug writeln("acoshmax128 = Decimal128.buildin(cast(const(ubyte)[])", acoshmax128.toBigEndianBytes(bytes128), ");");
     }
 }
 
@@ -524,49 +543,49 @@ ExceptionFlags decimalAsin(D)(ref D x, const(int) precision, const(RoundingMode)
 
     if (x == -D.one)
     {
-        x = -D.PI_2;
+        x = -D.pi_2;
         return decimalAdjust(x, precision, mode);
     }
 
     if (x == D.one)
     {
-        x = D.PI_2;
+        x = D.pi_2;
         return ExceptionFlags.none;
     }
 
-    if (x == -D.SQRT3_2)
+    if (x == -D.sqrt3_2)
     {
-        x = -D.PI_3;
+        x = -D.pi_3;
         return ExceptionFlags.none;
     }
 
-    if (x == -D.SQRT2_2)
+    if (x == -D.sqrt2_2)
     {
-        x = -D.PI_4;
+        x = -D.pi_4;
         return ExceptionFlags.none;
     }
 
     if (x == -D.half)
     {
-        x  = -D.PI_6;
+        x  = -D.pi_6;
         return ExceptionFlags.none;
     }
 
     if (x == D.half)
     {
-        x  = D.PI_6;
+        x  = D.pi_6;
         return ExceptionFlags.none;
     }
 
-    if (x == D.SQRT2_2)
+    if (x == D.sqrt2_2)
     {
-        x = D.PI_4;
+        x = D.pi_4;
         return ExceptionFlags.none;
     }
 
-    if (x == D.SQRT3_2)
+    if (x == D.sqrt3_2)
     {
-        x = D.PI_6;
+        x = D.pi_6;
         return ExceptionFlags.none;
     }
 
@@ -583,6 +602,10 @@ ExceptionFlags decimalAsin(D)(ref D x, const(int) precision, const(RoundingMode)
     return flags;
 }
 
+//sqrt(D.max)/2
+private enum asinhmax32 = Decimal32.buildin(cast(const(ubyte)[])[73, 24, 32, 82]); // Decimal32("1.581138e51");
+private enum asinhmax64 = Decimal64.buildin(cast(const(ubyte)[])[71, 229, 158, 9, 146, 78, 200, 93]); // Decimal64("1.581138830084189e192");
+private enum asinhmax128 = Decimal128.buildin(cast(const(ubyte)[])[71, 254, 77, 244, 199, 26, 0, 27, 93, 84, 221, 121, 204, 202, 242, 39]); // Decimal128("1.581138830084189665999446772216359e3072");
 ExceptionFlags decimalAsinh(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 {
     if (x.isSignalNaN)
@@ -597,19 +620,14 @@ ExceptionFlags decimalAsinh(D)(ref D x, const(int) precision, const(RoundingMode
     //+- ln(|x| + sqrt(x*x + 1))
     //+-[ln(2) + ln(|x|)] for very big x,
 
-    //sqrt(D.max)/2
     static if (is(D: Decimal32))
-    {
-        enum asinhmax = Decimal32("1.581138e51");
-    }
+        alias asinhmax = asinhmax32;
     else static if (is(D: Decimal64))
-    {
-        enum asinhmax = Decimal64("1.581138830084189e192");
-    }
+        alias asinhmax = asinhmax64;
+    else static if (is(D: Decimal128))
+        alias asinhmax = asinhmax128;
     else
-    {
-        enum asinhmax = Decimal128("1.581138830084189665999446772216359e3072");
-    }
+        static assert(0);
 
     bool sx = cast(bool)signbit(x);
     x = fabs(x);
@@ -636,6 +654,26 @@ ExceptionFlags decimalAsinh(D)(ref D x, const(int) precision, const(RoundingMode
     return flags;
 }
 
+version (ShowEnumDecBytes)
+unittest
+{
+    static assert(asinhmax32 == Decimal32("1.581138e51"));
+    static assert(asinhmax64 == Decimal64("1.581138830084189e192"));
+    static assert(asinhmax128 == Decimal128("1.581138830084189665999446772216359e3072"));
+
+    version (none)
+    {
+        import std.stdio;
+        scope (failure) assert(0, "Assume nothrow failed");
+        ubyte[Decimal32.sizeof] bytes32;
+        debug writeln("asinhmax32 = Decimal32.buildin(cast(const(ubyte)[])", asinhmax32.toBigEndianBytes(bytes32), ");");
+        ubyte[Decimal64.sizeof] bytes64;
+        debug writeln("asinhmax64 = Decimal64.buildin(cast(const(ubyte)[])", asinhmax64.toBigEndianBytes(bytes64), ");");
+        ubyte[Decimal128.sizeof] bytes128;
+        debug writeln("asinhmax128 = Decimal128.buildin(cast(const(ubyte)[])", asinhmax128.toBigEndianBytes(bytes128), ");");
+    }
+}
+
 ExceptionFlags decimalAtan(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D)
 {
@@ -648,7 +686,7 @@ if (isDecimal!D)
         case FastClass.zero:
             return ExceptionFlags.none;
         case FastClass.infinite:
-            x = signbit(x) ? -D.PI_2 : D.PI_2;
+            x = signbit(x) ? -D.pi_2 : D.pi_2;
             return decimalAdjust(x, precision, mode);
         default:
             DataType!(D.sizeof) reductions;
@@ -840,7 +878,7 @@ ExceptionFlags decimalAtan2(D1, D2, D3)(auto const ref D1 y, auto const ref D2 x
 
     if (x.isZero)
     {
-        z = signbit(y) ? -D.PI_2 : D.PI_2;
+        z = signbit(y) ? -D.pi_2 : D.pi_2;
         return ExceptionFlags.inexact;
     }
 
@@ -849,12 +887,12 @@ ExceptionFlags decimalAtan2(D1, D2, D3)(auto const ref D1 y, auto const ref D2 x
         if (x.isInfinity)
         {
             if (signbit(x))
-                z = signbit(y) ? -D._3PI_4 : D._3PI_4;
+                z = signbit(y) ? -D.pi3_4 : D.pi3_4;
             else
-                z = signbit(y) ? -D.PI_4 : D.PI_4;
+                z = signbit(y) ? -D.pi_4 : D.pi_4;
         }
         else
-            z = signbit(y) ? -D.PI_2 : D.PI_2;
+            z = signbit(y) ? -D.pi_2 : D.pi_2;
         return ExceptionFlags.inexact;
     }
 
@@ -994,7 +1032,7 @@ ExceptionFlags coefficientCbrt(T)(ref T cx, ref int ex) @safe pure nothrow @nogc
     }
 
     ex /= 3;
-    import pham.external.dec.integral : cbrtIntegral = cbrt;
+    import pham.external.dec.dec_integral : cbrtIntegral = cbrt;
     const bool inexact = cbrtIntegral(cxx);
     flags |= coefficientAdjust(cxx, ex, cvt!U(T.max), false, RoundingMode.implicit);
     cx = cast(T)cxx;
@@ -1710,6 +1748,12 @@ if (isDecimal!D)
     return result.adjustedPack(cvt!(DataType!(D.sizeof))(cr), er, sr, precision, mode, flags);
 }
 
+private enum lnmax32 = Decimal32.buildin(cast(const(ubyte)[])[48, 162, 20, 163]);   // Decimal32("+223.3507");
+private enum lnmin32 = Decimal32.buildin(cast(const(ubyte)[])[176, 163, 124, 106]); // Decimal32("-232.5610");
+private enum lnmax64 = Decimal64.buildin(cast(const(ubyte)[])[48, 63, 126, 160, 159, 38, 241, 195]); // Decimal64("+886.4952608027075");
+private enum lnmin64 = Decimal64.buildin(cast(const(ubyte)[])[236, 8, 142, 223, 58, 205, 41, 205]);  // Decimal64("-916.4288670116301");
+private enum lnmax128 = Decimal128.buildin(cast(const(ubyte)[])[48, 6, 69, 195, 8, 255, 242, 196, 47, 205, 138, 242, 106, 65, 146, 117]); // Decimal128("+14149.38539644841072829055748903541");
+private enum lnmin128 = Decimal128.buildin(cast(const(ubyte)[])[176, 6, 70, 29, 33, 42, 144, 236, 128, 221, 62, 115, 189, 252, 170, 7]);  // Decimal128("-14220.76553433122614449511522413063");
 ExceptionFlags decimalExp(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D)
 {
@@ -1744,18 +1788,18 @@ if (isDecimal!D)
 
     static if (is(D : Decimal32))
     {
-        enum lnmax = Decimal32("+223.3507");
-        enum lnmin = Decimal32("-232.5610");
+        alias lnmax = lnmax32;
+        alias lnmin = lnmin32;
     }
     else static if (is(D: Decimal64))
     {
-        enum lnmax = Decimal64("+886.4952608027075");
-        enum lnmin = Decimal64("-916.4288670116301");
+        alias lnmax = lnmax64;
+        alias lnmin = lnmin64;
     }
     else static if (is(D: Decimal128))
     {
-        enum lnmax = Decimal128("+14149.38539644841072829055748903541");
-        enum lnmin = Decimal128("-14220.76553433122614449511522413063");
+        alias lnmax = lnmax128;
+        alias lnmin = lnmin128;
     }
     else
         static assert(0);
@@ -1777,6 +1821,32 @@ if (isDecimal!D)
     bool sx = x.unpack(cx, ex);
     const flags2 = coefficientExp(cx, ex, sx);
     return x.adjustedPack(cx, ex, sx, precision, mode, flags2);
+}
+
+version (ShowEnumDecBytes)
+unittest
+{
+    static assert(lnmax32 == Decimal32("+223.3507"));
+    static assert(lnmin32 == Decimal32("-232.5610"));
+    static assert(lnmax64 == Decimal64("+886.4952608027075"));
+    static assert(lnmin64 == Decimal64("-916.4288670116301"));
+    static assert(lnmax128 == Decimal128("+14149.38539644841072829055748903541"));
+    static assert(lnmin128 == Decimal128("-14220.76553433122614449511522413063"));
+
+    version (none)
+    {
+        import std.stdio;
+        scope (failure) assert(0, "Assume nothrow failed");
+        ubyte[Decimal32.sizeof] bytes32;
+        debug writeln("lnmax32 = Decimal32.buildin(cast(const(ubyte)[])", lnmax32.toBigEndianBytes(bytes32), ");");
+        debug writeln("lnmin32 = Decimal32.buildin(cast(const(ubyte)[])", lnmin32.toBigEndianBytes(bytes32), ");");
+        ubyte[Decimal64.sizeof] bytes64;
+        debug writeln("lnmax64 = Decimal64.buildin(cast(const(ubyte)[])", lnmax64.toBigEndianBytes(bytes64), ");");
+        debug writeln("lnmin64 = Decimal64.buildin(cast(const(ubyte)[])", lnmin64.toBigEndianBytes(bytes64), ");");
+        ubyte[Decimal128.sizeof] bytes128;
+        debug writeln("lnmax128 = Decimal128.buildin(cast(const(ubyte)[])", lnmax128.toBigEndianBytes(bytes128), ");");
+        debug writeln("lnmin128 = Decimal128.buildin(cast(const(ubyte)[])", lnmin128.toBigEndianBytes(bytes128), ");");
+    }
 }
 
 ExceptionFlags coefficientExp(T)(ref T cx, ref int ex, ref bool sx) @safe pure nothrow @nogc
@@ -2510,7 +2580,7 @@ if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
             z = x;
         else
             z = y;
-            
+
         return ExceptionFlags.none;
     } catch (Exception) return ExceptionFlags.invalidOperation;
 }
@@ -2588,7 +2658,7 @@ if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
             z = x;
         else
             z = y;
-            
+
         return ExceptionFlags.none;
     } catch (Exception) return ExceptionFlags.invalidOperation;
 }
@@ -2673,7 +2743,7 @@ if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
             z = x;
         else
             z = y;
-            
+
         return ExceptionFlags.none;
     } catch (Exception) return ExceptionFlags.invalidOperation;
 }
@@ -4329,7 +4399,7 @@ ExceptionFlags coefficientSqrt(T)(ref T cx, ref int ex) @safe pure nothrow @nogc
     }
 
     ex /= 2;
-    import pham.external.dec.integral : sqrtIntegral = sqrt;
+    import pham.external.dec.dec_integral : sqrtIntegral = sqrt;
     const bool inexact = sqrtIntegral(cxx);
     flags |= coefficientAdjust(cxx, ex, cvt!U(T.max), false, RoundingMode.implicit);
     cx = cast(T)cxx;

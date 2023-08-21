@@ -1,15 +1,15 @@
-module pham.external.dec.compare;
+module pham.external.dec.dec_compare;
 
 import std.math: isInfinity, isNaN, signStd = signbit;
 import std.traits: isFloatingPoint, isIntegral, isUnsigned, Unqual;
 
-import pham.external.dec.decimal : CommonDecimal, CommonStorage,
+import pham.external.dec.dec_decimal : CommonDecimal, CommonStorage,
     Decimal, Decimal32, Decimal64, Decimal128,
     fastDecode, isDecimal, signDec = signbit;
-import pham.external.dec.integral : pow10, prec, unsign;
-import pham.external.dec.math : mulpow10;
-import pham.external.dec.sink : dataTypeToString;
-import pham.external.dec.type;
+import pham.external.dec.dec_integral : pow10, prec, unsign;
+import pham.external.dec.dec_math : mulpow10;
+import pham.external.dec.dec_sink : dataTypeToString;
+import pham.external.dec.dec_type;
 
 //enum nanResult = -2;
 //enum signalNaNResult = -3;

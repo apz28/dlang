@@ -1,4 +1,4 @@
-module pham.external.dec.sink;
+module pham.external.dec.dec_sink;
 
 import std.algorithm.mutation : swapAt;
 import std.ascii : upHexChars = hexDigits, loHexChars = lowerHexDigits;
@@ -6,10 +6,10 @@ import std.format : FormatSpec;
 import std.range.primitives : isOutputRange, put;
 import std.traits : isIntegral, isSomeChar, Unqual;
 
-import pham.external.dec.decimal : fastDecode, isDecimal;
-import pham.external.dec.integral : divrem, isAnyUnsignedBit, isUnsignedBit, prec;
-import pham.external.dec.math : coefficientAdjust, coefficientShrink, divpow10;
-import pham.external.dec.type;
+import pham.external.dec.dec_decimal : fastDecode, isDecimal;
+import pham.external.dec.dec_integral : divrem, isAnyUnsignedBit, isUnsignedBit, prec;
+import pham.external.dec.dec_math : coefficientAdjust, coefficientShrink, divpow10;
+import pham.external.dec.dec_type;
 
 nothrow @safe:
 
@@ -1068,7 +1068,7 @@ nothrow @safe unittest // ShortStringBufferSize.reverse
 
 unittest // dataTypeToString
 {
-    import pham.external.dec.integral : uint128;
+    import pham.external.dec.dec_integral : uint128;
     ShortStringBuffer!char buffer;
 
     assert(dataTypeToString(buffer, 0U) == "0");

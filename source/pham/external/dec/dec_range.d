@@ -1,4 +1,4 @@
-module pham.external.dec.range;
+module pham.external.dec.dec_range;
 
 import std.range.primitives: isInputRange;
 import std.traits: isSomeChar;
@@ -9,12 +9,12 @@ package(pham.external.dec):
 //rewrite some range primitives because phobos is performing utf decoding and we are not interested
 //in throwing UTFException and consequentely bring the garbage collector into equation
 //Also, we don't need any decoding, we are working with the ASCII character set
-@property bool empty(T)(scope const(T)[] s) @safe pure nothrow @nogc
+@property bool empty(T)(scope const(T)[] s) @nogc nothrow pure @safe
 {
-    return !s.length;
+    return s.length == 0;
 }
 
-@property T front(T)(const T[] s) @safe pure nothrow @nogc
+inout(T) front(T)(inout(T)[] s) @nogc nothrow pure @safe
 in
 {
     assert(s.length);
@@ -24,18 +24,18 @@ do
     return s[0];
 }
 
-void popFront(T)(ref T[] s) @safe pure nothrow @nogc
+void popFront(T)(ref T[] s) @nogc nothrow pure @safe
 in
 {
     assert(s.length);
 }
 do
 {
-    s = s[1 .. $];
+    s = s[1..$];
 }
 
 //returns true and advance range if element is found
-bool expect(R, T)(ref R range, T element) @safe pure nothrow @nogc
+bool expect(R, T)(ref R range, T element) @nogc nothrow pure @safe
 if (isInputRange!R && isSomeChar!T)
 {
     if (!range.empty && range.front == element)
@@ -46,7 +46,7 @@ if (isInputRange!R && isSomeChar!T)
     return false;
 }
 
-unittest
+unittest // expect
 {
     auto s = "abc";
     assert(expect(s, 'a'));
@@ -57,7 +57,7 @@ unittest
 }
 
 //returns parsed characters count and advance range
-size_t expect(R, C)(ref R range, const(C)[] s) @safe pure nothrow @nogc
+size_t expect(R, C)(ref R range, const(C)[] s) @nogc nothrow pure @safe
 if (isInputRange!R && isSomeChar!C)
 {
     size_t result = 0;
@@ -71,7 +71,7 @@ if (isInputRange!R && isSomeChar!C)
     return result;
 }
 
-unittest
+unittest // expect
 {
     auto s = "somestring";
     assert(expect(s, "some") == 4);
@@ -81,7 +81,7 @@ unittest
 }
 
 //returns true and advance range if element is found case insensitive
-bool expectInsensitive(R, T)(ref R range, T element) @safe pure nothrow @nogc
+bool expectInsensitive(R, T)(ref R range, T element) @nogc nothrow pure @safe
 if (isInputRange!R && isSomeChar!T)
 {
     if (!range.empty && ((range.front | 32) == (element | 32)))
@@ -92,7 +92,7 @@ if (isInputRange!R && isSomeChar!T)
     return false;
 }
 
-unittest
+unittest // expectInsensitive
 {
     auto s = "abcABC";
     assert(expectInsensitive(s, 'a'));
@@ -107,7 +107,7 @@ unittest
 }
 
 //returns parsed characters count and advance range insensitive
-size_t expectInsensitive(R, C)(ref R range, const(C)[] s) @safe pure nothrow @nogc
+size_t expectInsensitive(R, C)(ref R range, const(C)[] s) @nogc nothrow pure @safe
 if (isInputRange!R && isSomeChar!C)
 {
     size_t result = 0;
@@ -121,7 +121,7 @@ if (isInputRange!R && isSomeChar!C)
     return result;
 }
 
-unittest
+unittest // expectInsensitive
 {
     auto s = "sOmEsTrInG";
     assert(expectInsensitive(s, "SoME") == 4);

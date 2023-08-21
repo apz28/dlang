@@ -1,28 +1,28 @@
-module pham.external.dec.decimal;
+module pham.external.dec.dec_decimal;
 
-import std.math : FloatingPointControl, getNaNPayload, ieeeFlags, 
+import std.math : FloatingPointControl, getNaNPayload, ieeeFlags,
     ldexp, resetIeeeFlags, signStd = signbit;
 import std.math.traits : isNaN;
 import std.range.primitives : ElementType, isInputRange, isOutputRange, put;
 import std.traits : isFloatingPoint, isIntegral, isSigned, isSomeChar, isSomeString,
     isUnsigned, Unqual, Unsigned;
 
-import pham.external.dec.compare;
-import pham.external.dec.integral;
-import pham.external.dec.math;
-import pham.external.dec.numeric;
-import pham.external.dec.parse;
-import pham.external.dec.range;
-public import pham.external.dec.type;
+import pham.external.dec.dec_compare;
+import pham.external.dec.dec_integral;
+import pham.external.dec.dec_math;
+import pham.external.dec.dec_numeric;
+import pham.external.dec.dec_parse;
+import pham.external.dec.dec_range;
+public import pham.external.dec.dec_type;
 
 version (D_BetterC) {}
 else
 {
   public import std.format : FormatSpec;
-  import pham.external.dec.sink;
+  import pham.external.dec.dec_sink;
 }
 
-private alias fma = pham.external.dec.integral.fma;
+private alias fma = pham.external.dec.dec_integral.fma;
 
 version (Windows)
 {
@@ -70,19 +70,19 @@ if (isFloatingPoint!T)
 /**
 _* Decimal floating-point computer numbering format that occupies 4, 8 or 16 bytes in computer memory.
  */
-struct Decimal(int bytes)
-if (bytes == 4 || bytes == 8 || bytes == 16)
+struct Decimal(int Bytes)
+if (Bytes == 4 || Bytes == 8 || Bytes == 16)
 {
 private:
     alias D = typeof(this);
     enum explicitModeTraps = ExceptionFlags.invalidOperation | ExceptionFlags.overflow | ExceptionFlags.underflow;
 
 package(pham.external.dec):
-    alias U = DataType!bytes;
+    alias U = DataType!Bytes;
 
 public:
-    enum PRECISION      = precisionOf(bytes);        //7, 16, 34
-    enum EMAX           = 3 * (2 ^^ (bytes * 8 / 16 + 3));    //96, 384, 6144
+    enum PRECISION      = precisionOf(Bytes);        //7, 16, 34
+    enum EMAX           = 3 * (2 ^^ (Bytes * 8 / 16 + 3));    //96, 384, 6144
     enum EXP_BIAS       = EMAX + PRECISION - 2;          //101, 398, 6176
     enum EXP_MIN        = -EXP_BIAS;
     enum EXP_MAX        = EMAX - PRECISION + 1;          //90, 369, 6111
@@ -110,21 +110,14 @@ public:
     enum sNaN           = buildin(MASK_SNAN, MASK_NONE, MASK_NONE);
     enum zero           = buildin(U(0U), 0, false);
 
-    enum E              = buildin(s_e);
-    enum PI             = buildin(s_pi);
-    enum PI_2           = buildin(s_pi_2);
-    enum PI_4           = buildin(s_pi_4);
-    enum M_1_PI         = buildin(s_m_1_pi);
-    enum M_2_PI         = buildin(s_m_2_pi);
-    enum M_2_SQRTPI     = buildin(s_m_2_sqrtpi);
-    enum SQRT2          = buildin(s_sqrt2);
-    enum SQRT1_2        = buildin(s_sqrt1_2);
-    enum LN10           = buildin(s_ln10);
-    enum LOG2T          = buildin(s_log2t);
-    enum LOG2E          = buildin(s_log2e);
-    enum LOG2           = buildin(s_log2);
-    enum LOG10E         = buildin(s_log10e);
-    enum LN2            = buildin(s_ln2);
+    enum E              = buildin(SEnumBytes!Bytes.s_E); // buildin(s_E);
+    enum PI             = buildin(SEnumBytes!Bytes.s_PI); // buildin(s_PI);
+    enum LN10           = buildin(SEnumBytes!Bytes.s_LN10); // buildin(s_LN10);
+    enum LOG2T          = buildin(SEnumBytes!Bytes.s_LOG2T); // buildin(s_LOG2T);
+    enum LOG2E          = buildin(SEnumBytes!Bytes.s_LOG2E); // buildin(s_LOG2E);
+    enum LOG2           = buildin(SEnumBytes!Bytes.s_LOG2); // buildin(s_LOG2);
+    enum LOG10E         = buildin(SEnumBytes!Bytes.s_LOG10E); // buildin(s_LOG10E);
+    enum LN2            = buildin(SEnumBytes!Bytes.s_LN2); // buildin(s_LN2);
 
     ///always 10 for _decimal data types
     @IEEECompliant("radix", 25)
@@ -461,7 +454,7 @@ public:
     auto opUnary(string op: "-")() const
     {
         D result = this;
-        static if (bytes == 16)
+        static if (Bytes == 16)
             result.data.hi ^= D.MASK_SGN.hi;
         else
             result.data ^= D.MASK_SGN;
@@ -518,7 +511,7 @@ public:
             return isEqual(this, value,
                     decPrecision > fltPrecision ? fltPrecision : decPrecision,
                     __ctfe ? RoundingMode.implicit : DecimalControl.rounding,
-                     0);
+                    0);
         }
         else static if (isSomeChar!T)
             return opEquals(cast(uint)value);
@@ -678,8 +671,8 @@ public:
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
         else static if (isIntegral!T || isFloatingPoint!T)
             const flags = decimalOp(value, this, result,
-                             __ctfe ? 0 : DecimalControl.precision,
-                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
+                            __ctfe ? 0 : DecimalControl.precision,
+                            __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
         else static if (isSomeChar!T)
             const flags = decimalOp(cast(uint)value, this, result,
                             __ctfe ? 0 : DecimalControl.precision,
@@ -717,7 +710,7 @@ public:
         else static if (isSomeChar!T)
             const flags = decimalOp(this, cast(uint)value,
                             __ctfe ? 0 : DecimalControl.precision,
-                           __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
+                            __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
         else
             static assert(0, "Cannot perform assignment operation: '" ~ Unqual!D.stringof ~ "' " ~ op ~"= '" ~ Unqual!T.stringof ~ "'");
 
@@ -746,7 +739,8 @@ public:
      *  maxFractionalDigits = perform round-up/truncate at specified fractional position
      *                        if the value <= 0 or value > PRECESION will be ignore
      */
-    static typeof(this) money(T)(auto const ref T value, const(int) maxFractionalDigits = Precision.bankingScale) @nogc pure @safe
+    static typeof(this) money(T)(auto const ref T value,
+        const(int) maxFractionalDigits = Precision.bankingScale) @nogc pure @safe
     if (isFloatingPoint!T)
     {
         return D(value, RoundingMode.banking, maxFractionalDigits);
@@ -759,9 +753,9 @@ public:
     */
     size_t toHash() @safe pure nothrow @nogc
     {
-        static if (bytes == 4)
+        static if (Bytes == 4)
             return data;
-        else static if (bytes == 8)
+        else static if (Bytes == 8)
         {
             static if (size_t.sizeof == uint.sizeof)
                 return cast(uint)data ^ cast(uint)(data >>> 32);
@@ -908,7 +902,7 @@ public:
     @property bool isFinite() const @nogc nothrow pure @safe
     // @("this must be fast")
     {
-        static if (bytes == 16)
+        static if (Bytes == 16)
             return (data.hi & MASK_INF.hi) != MASK_INF.hi;
         else
             return (data & MASK_INF) != MASK_INF;
@@ -924,7 +918,7 @@ public:
     @property CheckInfinity isInfinity() const @nogc nothrow pure @safe
     // @("this must be fast")
     {
-        static if (bytes == 16)
+        static if (Bytes == 16)
             const isInf = (data.hi & MASK_SNAN.hi) == MASK_INF.hi;
         else
             const isInf = (data & MASK_SNAN) == MASK_INF;
@@ -941,7 +935,7 @@ public:
     @property CheckNaN isNaN() const @nogc nothrow pure @safe
     // @("this must be fast")
     {
-        static if (bytes == 16)
+        static if (Bytes == 16)
         {
             enum qnanMask = MASK_QNAN.hi;
             enum snanMask = MASK_SNAN.hi;
@@ -969,7 +963,7 @@ public:
     @property bool isNeg() const @nogc nothrow pure @safe
     // @("this must be fast")
     {
-        static if (bytes == 16)
+        static if (Bytes == 16)
             return (data.hi & MASK_SGN.hi) == MASK_SGN.hi;
         else
             return (data & MASK_SGN) == MASK_SGN;
@@ -1015,7 +1009,7 @@ public:
     @property bool isZero() const @nogc nothrow pure
     // @("this must be fast")
     {
-        static if (bytes == 16)
+        static if (Bytes == 16)
         {
             if ((data.hi & MASK_INF.hi) != MASK_INF.hi)
             {
@@ -1078,6 +1072,20 @@ package(pham.external.dec):
     {
         Unqual!D result = void;
         result.packString(validDecimal, D.PRECISION, RoundingMode.implicit);
+        version (ShowEnumDecBytes) version (none)
+        {
+            import std.stdio : writeln;
+            ubyte[Bytes] b;
+            if (!__ctfe)
+                debug writeln(U.stringof, "::", validDecimal, ": ", result.data.toBigEndianBytes(b[]));
+        }
+        return result;
+    }
+
+    static D buildin(scope const(ubyte)[] bigEndianBytes) @nogc nothrow pure @safe
+    {
+        Unqual!D result = void;
+        result.data = fromBigEndianBytes!U(bigEndianBytes);
         return result;
     }
 
@@ -1087,7 +1095,10 @@ package(pham.external.dec):
     {
         if (!errorPack(isNegative, previousFlags, precision, mode, cvt!U(coefficient)))
         {
-            const bool stickyUnderflow = coefficient && (exponent < int.max - EXP_BIAS && exponent + EXP_BIAS < PRECISION - 1 && prec(coefficient) < PRECISION - (exponent + EXP_BIAS));
+            const bool stickyUnderflow = coefficient 
+                && (exponent < int.max - EXP_BIAS 
+                    && exponent + EXP_BIAS < PRECISION - 1
+                    && prec(coefficient) < PRECISION - (exponent + EXP_BIAS));
             static if (T.sizeof <= U.sizeof)
                 U cx = coefficient;
             else
@@ -1136,13 +1147,14 @@ package(pham.external.dec):
             this.data = sgnMask | (expMask << SHIFT_EXP2) | (coefficient & MASK_COE2) | MASK_EXT;
     }
 
-    ExceptionFlags packFloatingPoint(T)(const(T) value, const(int) precision, const(RoundingMode) mode, const(int) maxFractionalDigits) @nogc nothrow pure @safe
+    ExceptionFlags packFloatingPoint(T)(const(T) value, const(int) precision, const(RoundingMode) mode,
+        const(int) maxFractionalDigits) @nogc nothrow pure @safe
     if (isFloatingPoint!T)
     {
         import std.math : abs;
 
         ExceptionFlags flags;
-        DataType!bytes cx; int ex; bool sx;
+        DataType!Bytes cx; int ex; bool sx;
         switch (fastDecode(value, cx, ex, sx, mode, flags))
         {
             case FastClass.quietNaN:
@@ -1164,12 +1176,12 @@ package(pham.external.dec):
                     if (maxFractionalDigits < exAbs)
                     {
                         const clearFractions = exAbs - maxFractionalDigits;
-                        const roundDigits = pow10Index!(DataType!bytes)(clearFractions - 1);
+                        const roundDigits = pow10Index!(DataType!Bytes)(clearFractions - 1);
 
                         // Round it up/down first
                         const roundValue = mode == RoundingMode.tiesToEven
-                            ? pow10RoundEven!(DataType!bytes)[roundDigits]
-                            : pow10!(DataType!bytes)[roundDigits];
+                            ? pow10RoundEven!(DataType!Bytes)[roundDigits]
+                            : pow10!(DataType!Bytes)[roundDigits];
                         xadd(cx, roundValue);
 
                         // Clear subsequence fractional digits to be zero
@@ -1178,7 +1190,7 @@ package(pham.external.dec):
                         auto cxDigits = dataTypeToString(buffer, cx);
                         if (cxDigits.length > clearFractions)
                             cxDigits[$ - clearFractions..$] = '0';
-                        cx = toUnsign!(DataType!bytes)(cxDigits, overflow);
+                        cx = toUnsign!(DataType!Bytes)(cxDigits, overflow);
                         assert(!overflow, "Overflow");
                     }
                 }
@@ -1232,6 +1244,16 @@ package(pham.external.dec):
             this.data = sgnMask | (expMask << SHIFT_EXP2) | (coefficient & MASK_COE2) | MASK_EXT;
     }
 
+    ubyte[] toBigEndianBytes(return ubyte[] bytes) const @nogc nothrow pure @safe
+    in
+    {
+        assert(bytes.length == U.sizeof);
+    }
+    do
+    {
+        return data.toBigEndianBytes(bytes);
+    }
+    
     bool unpack(out U coefficient, out int biasedExponent) const @nogc nothrow pure @safe
     out
     {
@@ -1272,45 +1294,52 @@ package(pham.external.dec):
     enum subn           = buildin(U(1U), EXP_MIN, false);
     enum threequarters  = buildin(U(75U), -2, false);
 
-    static if (bytes == 16)
+    enum sqrt1_2        = buildin(SEnumBytes!Bytes.s_sqrt1_2); // buildin(s_sqrt1_2);
+    enum sqrt2          = buildin(SEnumBytes!Bytes.s_sqrt2); // buildin(s_sqrt2);
+    enum sqrt3          = buildin(SEnumBytes!Bytes.s_sqrt3); // buildin(s_sqrt3);
+    enum m_sqrt3        = buildin(SEnumBytes!Bytes.s_m_sqrt3); // buildin(s_m_sqrt3);
+    enum m_2_sqrtpi     = buildin(SEnumBytes!Bytes.s_m_2_sqrtpi); // buildin(s_m_2_sqrtpi);
+    enum pi_2           = buildin(SEnumBytes!Bytes.s_pi_2); // buildin(s_pi_2);
+    enum pi_3           = buildin(SEnumBytes!Bytes.s_pi_3); // buildin(s_pi_3);
+    enum pi_4           = buildin(SEnumBytes!Bytes.s_pi_4); // buildin(s_pi_4);
+    enum pi_6           = buildin(SEnumBytes!Bytes.s_pi_6); // buildin(s_pi_6);
+    enum pi2            = buildin(SEnumBytes!Bytes.s_pi2); // buildin(s_pi2);
+    enum pi2_3          = buildin(SEnumBytes!Bytes.s_pi2_3); // buildin(s_pi2_3);
+    enum pi3_4          = buildin(SEnumBytes!Bytes.s_pi3_4); // buildin(s_pi3_4);
+    enum pi5_6          = buildin(SEnumBytes!Bytes.s_pi5_6); // buildin(s_pi5_6);
+    enum sqrt3_2        = buildin(SEnumBytes!Bytes.s_sqrt3_2); // buildin(s_sqrt3_2);
+    enum sqrt2_2        = buildin(SEnumBytes!Bytes.s_sqrt2_2); // buildin(s_sqrt2_2);
+    enum onethird       = buildin(SEnumBytes!Bytes.s_onethird); // buildin(s_onethird);
+    enum twothirds      = buildin(SEnumBytes!Bytes.s_twothirds); // buildin(s_twothirds);
+    enum n5_6           = buildin(SEnumBytes!Bytes.s_n5_6); // buildin(s_n5_6);
+    enum n1_6           = buildin(SEnumBytes!Bytes.s_n1_6); // buildin(s_n1_6);
+    enum m_1_pi         = buildin(SEnumBytes!Bytes.s_m_1_pi); // buildin(s_m_1_pi);
+    enum m_1_2pi        = buildin(SEnumBytes!Bytes.s_m_1_2pi); // buildin(s_m_1_2pi);
+    enum m_2_pi         = buildin(SEnumBytes!Bytes.s_m_2_pi); // buildin(s_m_2_pi);
+
+    static if (Bytes == 16)
     {
-        enum maxFloat   = buildin(s_max_float);
-        enum maxDouble  = buildin(s_max_double);
-        enum maxReal    = buildin(s_max_real);
-        enum minFloat   = buildin(s_min_float);
-        enum minDouble  = buildin(s_min_double);
-        enum minReal    = buildin(s_min_real);
+        enum maxFloat   = buildin(SEnumBytes!Bytes.s_maxFloat128); // buildin(s_maxFloat128);
+        enum maxDouble  = buildin(SEnumBytes!Bytes.s_maxDouble128); // buildin(s_maxDouble128);
+        enum maxReal    = buildin(SEnumBytes!Bytes.s_maxReal128); // buildin(s_maxReal128);
+        enum minFloat   = buildin(SEnumBytes!Bytes.s_minFloat128); // buildin(s_minFloat128);
+        enum minDouble  = buildin(SEnumBytes!Bytes.s_minDouble128); // buildin(s_minDouble128);
+        enum minReal    = buildin(SEnumBytes!Bytes.s_minReal128); // buildin(s_minReal128);
     }
 
-    enum SQRT3          = buildin(s_sqrt3);
-    enum M_SQRT3        = buildin(s_m_sqrt3);
-    enum PI_3           = buildin(s_pi_3);
-    enum PI_6           = buildin(s_pi_6);
-    enum _5PI_6         = buildin(s_5pi_6);
-    enum _3PI_4         = buildin(s_3pi_4);
-    enum _2PI_3         = buildin(s_2pi_3);
-    enum SQRT3_2        = buildin(s_sqrt3_2);
-    enum SQRT2_2        = buildin(s_sqrt2_2);
-    enum onethird       = buildin(s_onethird);
-    enum twothirds      = buildin(s_twothirds);
-    enum _5_6           = buildin(s_5_6);
-    enum _1_6           = buildin(s_1_6);
-    enum M_1_2PI        = buildin(s_m_1_2pi);
-    enum PI2            = buildin(s_pi2);
-
 private:
-    enum expBits        = bytes * 8 / 16 + 6;                 //8, 10, 14
-    enum trailingBits   = bytes * 8 - expBits - 1;            //23, 53, 113
+    enum expBits        = Bytes * 8 / 16 + 6;                 //8, 10, 14
+    enum trailingBits   = Bytes * 8 - expBits - 1;            //23, 53, 113
 
     enum SHIFT_EXP1     = trailingBits;                  //23, 53, 113
     enum SHIFT_EXP2     = trailingBits - 2;              //21, 51, 111
 
-    enum MASK_QNAN      = U(0b01111100U) << (bytes * 8 - 8);
-    enum MASK_SNAN      = U(0b01111110U) << (bytes * 8 - 8);
-    enum MASK_SNANBIT   = U(0b00000010U) << (bytes * 8 - 8);
-    enum MASK_INF       = U(0b01111000U) << (bytes * 8 - 8);
-    enum MASK_SGN       = U(0b10000000U) << (bytes * 8 - 8);
-    enum MASK_EXT       = U(0b01100000U) << (bytes * 8 - 8);
+    enum MASK_QNAN      = U(0b01111100U) << (Bytes * 8 - 8);
+    enum MASK_SNAN      = U(0b01111110U) << (Bytes * 8 - 8);
+    enum MASK_SNANBIT   = U(0b00000010U) << (Bytes * 8 - 8);
+    enum MASK_INF       = U(0b01111000U) << (Bytes * 8 - 8);
+    enum MASK_SGN       = U(0b10000000U) << (Bytes * 8 - 8);
+    enum MASK_EXT       = U(0b01100000U) << (Bytes * 8 - 8);
     enum MASK_EXP1      = ((U(1U) << expBits) - 1U) << SHIFT_EXP1;
     enum MASK_EXP2      = ((U(1U) << expBits) - 1U) << SHIFT_EXP2;
     enum MASK_COE1      = ~(MASK_SGN | MASK_EXP1);
@@ -1837,19 +1866,19 @@ unittest
 
         static assert(is(typeof(D.E) == D));
         static assert(is(typeof(D.PI) == D));
-        static assert(is(typeof(D.PI_2) == D));
-        static assert(is(typeof(D.PI_4) == D));
-        static assert(is(typeof(D.M_1_PI) == D));
-        static assert(is(typeof(D.M_2_PI) == D));
-        static assert(is(typeof(D.M_2_SQRTPI) == D));
+        static assert(is(typeof(D.pi_2) == D));
+        static assert(is(typeof(D.pi_4) == D));
+        static assert(is(typeof(D.m_1_pi) == D));
+        static assert(is(typeof(D.m_2_pi) == D));
+        static assert(is(typeof(D.m_2_sqrtpi) == D));
         static assert(is(typeof(D.LN10) == D));
         static assert(is(typeof(D.LN2) == D));
         static assert(is(typeof(D.LOG2) == D));
         static assert(is(typeof(D.LOG2E) == D));
         static assert(is(typeof(D.LOG2T) == D));
         static assert(is(typeof(D.LOG10E) == D));
-        static assert(is(typeof(D.SQRT2) == D));
-        static assert(is(typeof(D.SQRT1_2) == D));
+        static assert(is(typeof(D.sqrt2) == D));
+        static assert(is(typeof(D.sqrt1_2) == D));
     }
 
     //expected members
@@ -2279,7 +2308,7 @@ float cmp(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow pure @
 if (isDecimal!(D1, D2))
 {
     return decimalCmp(x, y);
-    
+
     /*
     const c = decimalCmp(x, y);
 
@@ -2331,7 +2360,8 @@ unittest
 
 ///
 pragma(inline, true)
-float cmp(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @nogc nothrow pure @safe
+float cmp(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode,
+    const(int) yMaxFractionalDigits) @nogc nothrow pure @safe
 if (isDecimal!D && isFloatingPoint!F)
 {
     return decimalCmp(x, y, yPrecision, yMode, yMaxFractionalDigits);
@@ -2352,7 +2382,7 @@ float cmp(D, I)(auto const ref D x, auto const ref I y) @nogc nothrow pure @safe
 if (isDecimal!D && isIntegral!I)
 {
     return decimalCmp(x, y);
-    
+
     /*
     const c = decimalCmp(x, y);
 
@@ -2387,7 +2417,7 @@ bool isEqual(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow pur
 if (isDecimal!(D1, D2))
 {
     return decimalEqu(x, y) == 1;
-    
+
     /*
     const c = decimalEqu(x, y);
 
@@ -2421,11 +2451,12 @@ unittest
 }
 
 @IEEECompliant("compareSignalingEqual", 24)
-bool isEqual(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @nogc nothrow pure @safe
+bool isEqual(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode,
+    const(int) yMaxFractionalDigits) @nogc nothrow pure @safe
 if (isDecimal!D && isFloatingPoint!F)
 {
     return decimalEqu(x, y, yPrecision, yMode, yMaxFractionalDigits) == 1;
-    
+
     /*
     const c = decimalEqu(x, y, yPrecision, yMode, yMaxFractionalDigits);
 
@@ -2443,7 +2474,7 @@ bool isEqual(D, I)(auto const ref D x, auto const ref I y) @nogc nothrow pure @s
 if (isDecimal!D && isIntegral!I)
 {
     return decimalEqu(x, y) == 1;
-    
+
     /*
     const c = decimalEqu(x, y);
 
@@ -2761,7 +2792,7 @@ if (isDecimal!D)
 unittest
 {
     Decimal32 x = 0;
-    assert(acos(x) == Decimal32.PI_2);
+    assert(acos(x) == Decimal32.pi_2);
 }
 
 unittest
@@ -2772,7 +2803,7 @@ unittest
     {
         assert(acos(-T.one) == T.PI);
         assert(acos(T.one) == 0);
-        assert(acos(T.zero) == T.PI_2);
+        assert(acos(T.zero) == T.pi_2);
         assert(acos(T.nan).isNaN);
     }
 }
@@ -2982,8 +3013,8 @@ if (isDecimal!D)
 unittest
 {
     Decimal32 x = 1;
-    assert(asin(x) == Decimal32.PI_2);
-    assert(asin(-x) == -Decimal32.PI_2);
+    assert(asin(x) == Decimal32.pi_2);
+    assert(asin(-x) == -Decimal32.pi_2);
 }
 
 unittest
@@ -2992,9 +3023,9 @@ unittest
 
     foreach (T; AliasSeq!(Decimal32, Decimal64, Decimal128))
     {
-        assert(asin(-T.one) == -T.PI_2);
+        assert(asin(-T.one) == -T.pi_2);
         assert(asin(T.zero) == 0);
-        assert(asin(T.one) == T.PI_2);
+        assert(asin(T.one) == T.pi_2);
         assert(asin(T.nan).isNaN);
     }
 }
@@ -3086,7 +3117,7 @@ if (isDecimal!D)
 unittest
 {
     Decimal32 radians = 1;
-    assert(atan(radians) == Decimal32.PI_4);
+    assert(atan(radians) == Decimal32.pi_4);
 }
 
 unittest
@@ -3097,8 +3128,8 @@ unittest
     {
         assert(isIdentical(atan(T.zero), T.zero));
         assert(isIdentical(atan(-T.zero), -T.zero));
-        assert(isIdentical(atan(T.infinity), T.PI_2));
-        assert(isIdentical(atan(-T.infinity), -T.PI_2));
+        assert(isIdentical(atan(T.infinity), T.pi_2));
+        assert(isIdentical(atan(-T.infinity), -T.pi_2));
         assert(atan(T.nan).isNaN);
     }
 }
@@ -3149,7 +3180,7 @@ unittest
 {
     Decimal32 y = 10;
     Decimal32 x = 0;
-    assert(atan2(y, x) == Decimal32.PI_2);
+    assert(atan2(y, x) == Decimal32.pi_2);
 }
 
 unittest
@@ -3168,18 +3199,18 @@ unittest
         assert(atan2(-T.zero, -T.one) == -T.PI);
         assert(atan2(T.zero, T.one) == T.zero);
         assert(atan2(-T.zero, T.one) == -T.zero);
-        assert(atan2(-T.one, T.zero) == -T.PI_2);
-        assert(atan2(T.one, T.zero) == T.PI_2);
+        assert(atan2(-T.one, T.zero) == -T.pi_2);
+        assert(atan2(T.one, T.zero) == T.pi_2);
         assert(atan2(T.one, -T.infinity) == T.PI);
         assert(atan2(-T.one, -T.infinity) == -T.PI);
         assert(atan2(T.one, T.infinity) == T.zero);
         assert(atan2(-T.one, T.infinity) == -T.zero);
-        assert(atan2(-T.infinity, T.one) == -T.PI_2);
-        assert(atan2(T.infinity, T.one) == T.PI_2);
-        assert(atan2(-T.infinity, -T.infinity) == -T._3PI_4);
-        assert(atan2(T.infinity, -T.infinity) == T._3PI_4);
-        assert(atan2(-T.infinity, T.infinity) == -T.PI_4);
-        assert(atan2(T.infinity, T.infinity) == T.PI_4);
+        assert(atan2(-T.infinity, T.one) == -T.pi_2);
+        assert(atan2(T.infinity, T.one) == T.pi_2);
+        assert(atan2(-T.infinity, -T.infinity) == -T.pi3_4);
+        assert(atan2(T.infinity, -T.infinity) == T.pi3_4);
+        assert(atan2(-T.infinity, T.infinity) == -T.pi_4);
+        assert(atan2(T.infinity, T.infinity) == T.pi_4);
     }
 }
 
@@ -5908,7 +5939,8 @@ do
         static assert(0);
 }
 
-D scaleFrom(T, D)(auto const ref T value, const(int) scale, const(RoundingMode) roundingMode = RoundingMode.banking) @nogc pure @safe
+D scaleFrom(T, D)(auto const ref T value, const(int) scale,
+    const(RoundingMode) roundingMode = RoundingMode.banking) @nogc pure @safe
 if (isDecimal!D && (is(T == short) || is(T == int) || is(T == long)))
 in
 {
@@ -5941,7 +5973,8 @@ unittest // scaleFrom
     assert(scaleFrom!(long, Decimal64)(1234567L, -2) == 12345.67);
 }
 
-T scaleTo(D, T)(auto const ref D value, const(int) scale, const(RoundingMode) roundingMode = RoundingMode.banking) @nogc nothrow pure @safe
+T scaleTo(D, T)(auto const ref D value, const(int) scale,
+    const(RoundingMode) roundingMode = RoundingMode.banking) @nogc nothrow pure @safe
 if (isDecimal!D && (is(T == short) || is(T == int) || is(T == long)))
 in
 {
@@ -7248,12 +7281,12 @@ if (isDecimal!D && isFloatingPoint!T)
     final switch (fastDecode(source, cx, ex, sx))
     {
         case FastClass.finite:
-//    s_max_float     = "3.402823466385288598117041834845169e+0038",
-//    s_min_float     = "1.401298464324817070923729583289916e-0045",
-//    s_max_double    = "1.797693134862315708145274237317043e+0308",
-//    s_min_double    = "4.940656458412465441765687928682213e-0324",
-//    s_max_real      = "1.189731495357231765021263853030970e+4932",
-//    s_min_real      = "3.645199531882474602528405933619419e-4951",
+//    s_maxFloat128     = "3.402823466385288598117041834845169e+0038",
+//    s_minFloat128     = "1.401298464324817070923729583289916e-0045",
+//    s_maxDouble128    = "1.797693134862315708145274237317043e+0308",
+//    s_minDouble128    = "4.940656458412465441765687928682213e-0324",
+//    s_maxReal128      = "1.189731495357231765021263853030970e+4932",
+//    s_minReal128      = "3.645199531882474602528405933619419e-4951",
 
             alias UT = Unqual!T;
             static if (is(UT == float) ||
@@ -7662,6 +7695,7 @@ int realFloatPrecision(F)(const(int) precision) @nogc nothrow pure @safe
         return precision == 0 ? 21 : (precision > 21 ? 21 : precision);
 }
 
+version (none)
 struct Constants(T)
 {
     static if (is(T:uint))
@@ -7720,6 +7754,22 @@ struct Constants(T)
         enum int        ee          = -38;
         enum uint128    cln10       = uint128("230258509299404568401799145468436420760");
         enum int        eln10       = -38;
+
+        version (ShowEnumDecBytes)
+        unittest
+        {
+            import std.stdio;
+            scope (failure) assert(0, "Assume nothrow failed");
+
+            ubyte[16] b128;
+            writeln("128 c1_2π: ", c1_2π.toBigEndianBytes(b128[]));
+            writeln("128 c2π: ", c2π.toBigEndianBytes(b128[]));
+            writeln("128 c2_π: ", c2_π.toBigEndianBytes(b128[]));
+            writeln("128 cπ_2: ", cπ_2.toBigEndianBytes(b128[]));
+            writeln("128 cthird: ", cthird.toBigEndianBytes(b128[]));
+            writeln("128 ce: ", ce.toBigEndianBytes(b128[]));
+            writeln("128 cln10: ", cln10.toBigEndianBytes(b128[]));
+        }
     }
     else static if (is(T:uint256))
     {
@@ -7739,15 +7789,147 @@ struct Constants(T)
         enum int        ee          = -76;
         enum uint256    cln10       = uint256("23025850929940456840179914546843642076011014886287729760333279009675726096774");
         enum int        eln10       = -76;
+
+        version (ShowEnumDecBytes)
+        unittest
+        {
+            import std.stdio;
+            scope (failure) assert(0, "Assume nothrow failed");
+
+            ubyte[32] b256;
+            writeln("256 c1_2π: ", c1_2π.toBigEndianBytes(b256[]));
+            writeln("256 c2π: ", c2π.toBigEndianBytes(b256[]));
+            writeln("256 c2_π: ", c2_π.toBigEndianBytes(b256[]));
+            writeln("256 cπ_2: ", cπ_2.toBigEndianBytes(b256[]));
+            writeln("256 cthird: ", cthird.toBigEndianBytes(b256[]));
+            writeln("256 ce: ", ce.toBigEndianBytes(b256[]));
+            writeln("256 cln10: ", cln10.toBigEndianBytes(b256[]));
+        }
     }
     else
         static assert(0);
 }
 
+template SEnumBytes(int Bytes)
+{
+    static if (Bytes == 4)
+    {
+        enum s_E = cast(const(ubyte)[])[47, 169, 122, 74];
+        enum s_PI = cast(const(ubyte)[])[47, 175, 239, 217];
+        enum s_LN10 = cast(const(ubyte)[])[47, 163, 34, 121];
+        enum s_LOG2T = cast(const(ubyte)[])[47, 178, 176, 72];
+        enum s_LOG2E = cast(const(ubyte)[])[47, 150, 3, 135];
+        enum s_LOG2 = cast(const(ubyte)[])[47, 45, 238, 252];
+        enum s_LOG10E = cast(const(ubyte)[])[47, 66, 68, 161];
+        enum s_LN2 = cast(const(ubyte)[])[47, 105, 196, 16];
+        enum s_pi_2 = cast(const(ubyte)[])[47, 151, 247, 236];
+        enum s_pi_4 = cast(const(ubyte)[])[47, 119, 215, 158];
+        enum s_m_1_pi = cast(const(ubyte)[])[47, 48, 145, 251];
+        enum s_m_2_pi = cast(const(ubyte)[])[47, 97, 35, 246];
+        enum s_m_2_sqrtpi = cast(const(ubyte)[])[47, 145, 55, 187];
+        enum s_sqrt2 = cast(const(ubyte)[])[47, 149, 148, 70];
+        enum s_sqrt1_2 = cast(const(ubyte)[])[47, 107, 229, 92];
+        enum s_sqrt3 = cast(const(ubyte)[])[47, 154, 109, 211];
+        enum s_m_sqrt3 = cast(const(ubyte)[])[47, 88, 24, 191];
+        enum s_pi_3 = cast(const(ubyte)[])[47, 143, 250, 158];
+        enum s_pi_6 = cast(const(ubyte)[])[47, 79, 229, 20];
+        enum s_sqrt2_2 = cast(const(ubyte)[])[47, 107, 229, 92];
+        enum s_sqrt3_2 = cast(const(ubyte)[])[107, 196, 37, 30];
+        enum s_pi5_6 = cast(const(ubyte)[])[47, 167, 242, 138];
+        enum s_pi3_4 = cast(const(ubyte)[])[47, 163, 243, 226];
+        enum s_pi2_3 = cast(const(ubyte)[])[47, 159, 245, 59];
+        enum s_onethird = cast(const(ubyte)[])[47, 50, 220, 213];
+        enum s_twothirds = cast(const(ubyte)[])[47, 101, 185, 171];
+        enum s_n5_6 = cast(const(ubyte)[])[47, 127, 40, 21];
+        enum s_n1_6 = cast(const(ubyte)[])[47, 25, 110, 107];
+        enum s_m_1_2pi = cast(const(ubyte)[])[47, 24, 72, 253];
+        enum s_pi2 = cast(const(ubyte)[])[47, 223, 223, 177];
+    }
+    else static if (Bytes == 8)
+    {
+        enum s_E = cast(const(ubyte)[])[47, 233, 168, 67, 78, 200, 226, 37];
+        enum s_PI = cast(const(ubyte)[])[47, 235, 41, 67, 10, 37, 109, 33];
+        enum s_LN10 = cast(const(ubyte)[])[47, 232, 46, 48, 94, 136, 115, 254];
+        enum s_LOG2T = cast(const(ubyte)[])[47, 235, 205, 70, 168, 16, 173, 194];
+        enum s_LOG2E = cast(const(ubyte)[])[47, 229, 32, 31, 157, 110, 112, 131];
+        enum s_LOG2 = cast(const(ubyte)[])[47, 202, 177, 218, 19, 149, 56, 68];
+        enum s_LOG10E = cast(const(ubyte)[])[47, 207, 109, 226, 163, 55, 177, 198];
+        enum s_LN2 = cast(const(ubyte)[])[47, 216, 160, 35, 10, 190, 78, 221];
+        enum s_pi_2 = cast(const(ubyte)[])[47, 229, 148, 161, 133, 18, 182, 145];
+        enum s_pi_4 = cast(const(ubyte)[])[47, 219, 231, 39, 153, 93, 144, 211];
+        enum s_m_1_pi = cast(const(ubyte)[])[47, 203, 79, 2, 244, 241, 222, 83];
+        enum s_m_2_pi = cast(const(ubyte)[])[47, 214, 158, 5, 233, 227, 188, 165];
+        enum s_m_2_sqrtpi = cast(const(ubyte)[])[47, 228, 2, 65, 63, 109, 58, 217];
+        enum s_sqrt2 = cast(const(ubyte)[])[47, 229, 6, 56, 65, 5, 147, 231];
+        enum s_sqrt1_2 = cast(const(ubyte)[])[47, 217, 31, 25, 69, 27, 227, 131];
+        enum s_sqrt3 = cast(const(ubyte)[])[47, 230, 39, 74, 129, 30, 57, 237];
+        enum s_m_sqrt3 = cast(const(ubyte)[])[47, 212, 130, 248, 89, 15, 107, 194];
+        enum s_pi_3 = cast(const(ubyte)[])[47, 227, 184, 107, 174, 12, 121, 182];
+        enum s_pi_6 = cast(const(ubyte)[])[47, 210, 154, 26, 102, 62, 96, 141];
+        enum s_sqrt2_2 = cast(const(ubyte)[])[47, 217, 31, 25, 69, 27, 227, 131];
+        enum s_sqrt3_2 = cast(const(ubyte)[])[47, 222, 196, 116, 133, 151, 33, 162];
+        enum s_pi5_6 = cast(const(ubyte)[])[47, 233, 77, 13, 51, 31, 48, 70];
+        enum s_pi3_4 = cast(const(ubyte)[])[47, 232, 94, 242, 71, 156, 17, 217];
+        enum s_pi2_3 = cast(const(ubyte)[])[47, 231, 112, 215, 92, 24, 243, 107];
+        enum s_onethird = cast(const(ubyte)[])[47, 203, 215, 166, 37, 64, 85, 85];
+        enum s_twothirds = cast(const(ubyte)[])[47, 215, 175, 76, 74, 128, 170, 171];
+        enum s_n5_6 = cast(const(ubyte)[])[47, 221, 155, 31, 93, 32, 213, 85];
+        enum s_n1_6 = cast(const(ubyte)[])[47, 197, 235, 211, 18, 160, 42, 171];
+        enum s_m_1_2pi = cast(const(ubyte)[])[47, 197, 167, 129, 122, 120, 239, 41];
+        enum s_pi2 = cast(const(ubyte)[])[47, 246, 82, 134, 20, 74, 218, 66];
+    }
+    else static if (Bytes == 16)
+    {
+        enum s_E = cast(const(ubyte)[])[47, 254, 134, 5, 138, 75, 244, 222, 78, 144, 106, 204, 178, 106, 187, 86];
+        enum s_PI = cast(const(ubyte)[])[47, 254, 154, 228, 121, 87, 150, 167, 186, 190, 85, 100, 230, 243, 159, 143];
+        enum s_LN10 = cast(const(ubyte)[])[47, 254, 113, 134, 181, 179, 173, 164, 20, 77, 7, 155, 146, 117, 244, 204];
+        enum s_LOG2T = cast(const(ubyte)[])[47, 254, 163, 200, 160, 148, 98, 211, 143, 1, 212, 185, 207, 71, 18, 238];
+        enum s_LOG2E = cast(const(ubyte)[])[47, 254, 71, 33, 95, 23, 166, 85, 227, 137, 147, 211, 222, 131, 75, 164];
+        enum s_LOG2 = cast(const(ubyte)[])[47, 252, 148, 107, 83, 194, 26, 7, 50, 34, 162, 191, 204, 189, 135, 130];
+        enum s_LOG10E = cast(const(ubyte)[])[47, 252, 214, 31, 171, 139, 176, 250, 28, 107, 133, 185, 11, 217, 107, 227];
+        enum s_LN2 = cast(const(ubyte)[])[47, 253, 85, 191, 121, 86, 12, 191, 116, 131, 43, 138, 34, 255, 76, 6];
+        enum s_pi_2 = cast(const(ubyte)[])[47, 254, 77, 114, 60, 171, 203, 83, 221, 95, 42, 178, 115, 121, 207, 199];
+        enum s_pi_4 = cast(const(ubyte)[])[47, 253, 131, 59, 47, 90, 248, 163, 82, 219, 213, 124, 65, 97, 14, 229];
+        enum s_m_1_pi = cast(const(ubyte)[])[47, 252, 156, 240, 91, 34, 90, 23, 191, 203, 190, 12, 236, 151, 165, 175];
+        enum s_m_2_pi = cast(const(ubyte)[])[47, 253, 57, 224, 182, 68, 180, 47, 127, 151, 124, 25, 217, 47, 75, 94];
+        enum s_m_2_sqrtpi = cast(const(ubyte)[])[47, 254, 55, 162, 37, 186, 161, 80, 240, 9, 160, 153, 245, 193, 182, 137];
+        enum s_sqrt2 = cast(const(ubyte)[])[47, 254, 69, 185, 226, 120, 205, 248, 180, 62, 15, 15, 16, 20, 128, 34];
+        enum s_sqrt1_2 = cast(const(ubyte)[])[47, 253, 92, 161, 108, 92, 5, 219, 133, 54, 75, 75, 80, 102, 128, 170];
+        enum s_sqrt3 = cast(const(ubyte)[])[47, 254, 85, 101, 141, 255, 250, 80, 117, 24, 247, 247, 126, 151, 83, 80];
+        enum s_m_sqrt3 = cast(const(ubyte)[])[47, 253, 28, 167, 217, 85, 66, 97, 134, 83, 58, 142, 80, 163, 21, 182];
+        enum s_pi_3 = cast(const(ubyte)[])[47, 254, 51, 161, 125, 199, 220, 226, 147, 148, 199, 33, 162, 81, 53, 48];
+        enum s_pi_6 = cast(const(ubyte)[])[47, 253, 2, 39, 116, 231, 80, 108, 225, 231, 227, 168, 43, 150, 9, 238];
+        enum s_sqrt2_2 = cast(const(ubyte)[])[47, 253, 92, 161, 108, 92, 5, 219, 133, 54, 75, 75, 80, 102, 128, 170];
+        enum s_sqrt3_2 = cast(const(ubyte)[])[47, 253, 170, 251, 197, 255, 227, 146, 73, 124, 215, 213, 120, 244, 160, 145];
+        enum s_pi5_6 = cast(const(ubyte)[])[47, 254, 129, 19, 186, 115, 168, 54, 112, 243, 241, 212, 21, 203, 4, 247];
+        enum s_pi3_4 = cast(const(ubyte)[])[47, 254, 116, 43, 91, 1, 176, 253, 204, 14, 192, 11, 173, 54, 183, 171];
+        enum s_pi2_3 = cast(const(ubyte)[])[47, 254, 103, 66, 251, 143, 185, 197, 39, 41, 142, 67, 68, 162, 106, 95];
+        enum s_onethird = cast(const(ubyte)[])[47, 252, 164, 88, 148, 228, 130, 149, 103, 217, 218, 33, 85, 85, 85, 85];
+        enum s_twothirds = cast(const(ubyte)[])[47, 253, 72, 177, 41, 201, 5, 42, 207, 179, 180, 66, 170, 170, 170, 171];
+        enum s_n5_6 = cast(const(ubyte)[])[47, 253, 154, 221, 116, 59, 70, 117, 131, 160, 161, 83, 85, 85, 85, 85];
+        enum s_n1_6 = cast(const(ubyte)[])[47, 252, 82, 44, 74, 114, 65, 74, 179, 236, 237, 16, 170, 170, 170, 171];
+        enum s_m_1_2pi = cast(const(ubyte)[])[47, 252, 78, 120, 45, 145, 45, 11, 223, 229, 223, 6, 118, 75, 210, 216];
+        enum s_pi2 = cast(const(ubyte)[])[47, 255, 53, 200, 242, 175, 45, 79, 117, 124, 170, 201, 205, 231, 63, 30];
+        enum s_maxFloat128 = cast(const(ubyte)[])[48, 74, 167, 197, 171, 159, 85, 155, 61, 7, 200, 75, 93, 204, 99, 241];
+        enum s_minFloat128 = cast(const(ubyte)[])[47, 164, 69, 22, 223, 138, 22, 254, 99, 213, 183, 26, 180, 153, 54, 60];
+        enum s_maxDouble128 = cast(const(ubyte)[])[50, 102, 88, 162, 19, 204, 122, 79, 250, 224, 60, 72, 37, 21, 111, 179];
+        enum s_minDouble128 = cast(const(ubyte)[])[45, 118, 243, 151, 218, 3, 175, 6, 170, 131, 63, 210, 87, 21, 246, 229];
+        enum s_maxReal128 = cast(const(ubyte)[])[86, 134, 58, 168, 133, 203, 26, 108, 236, 243, 134, 52, 204, 240, 142, 58];
+        enum s_minReal128 = cast(const(ubyte)[])[9, 80, 179, 184, 226, 237, 169, 26, 35, 45, 217, 80, 16, 41, 120, 219];
+    }
+}
+
 enum
 {
-    s_e             = "2.7182818284590452353602874713526625",
-    s_pi            = "3.1415926535897932384626433832795029",
+    s_E             = "2.7182818284590452353602874713526625",
+    s_PI            = "3.1415926535897932384626433832795029",
+    s_LN10          = "2.3025850929940456840179914546843642",
+    s_LOG2T         = "3.3219280948873623478703194294893902",
+    s_LOG2E         = "1.4426950408889634073599246810018921",
+    s_LOG2          = "0.3010299956639811952137388947244930",
+    s_LOG10E        = "0.4342944819032518276511289189166051",
+    s_LN2           = "0.6931471805599453094172321214581766",
+
     s_pi_2          = "1.5707963267948966192313216916397514",
     s_pi_4          = "0.7853981633974483096156608458198757",
     s_m_1_pi        = "0.3183098861837906715377675267450287",
@@ -7755,12 +7937,6 @@ enum
     s_m_2_sqrtpi    = "1.1283791670955125738961589031215452",
     s_sqrt2         = "1.4142135623730950488016887242096981",
     s_sqrt1_2       = "0.7071067811865475244008443621048490",
-    s_ln10          = "2.3025850929940456840179914546843642",
-    s_log2t         = "3.3219280948873623478703194294893902",
-    s_log2e         = "1.4426950408889634073599246810018921",
-    s_log2          = "0.3010299956639811952137388947244930",
-    s_log10e        = "0.4342944819032518276511289189166051",
-    s_ln2           = "0.6931471805599453094172321214581766",
 
     s_sqrt3         = "1.7320508075688772935274463415058723",
     s_m_sqrt3       = "0.5773502691896257645091487805019574",
@@ -7769,22 +7945,137 @@ enum
 
     s_sqrt2_2       = "0.7071067811865475244008443621048490",
     s_sqrt3_2       = "0.8660254037844386467637231707529361",
-    s_5pi_6         = "2.6179938779914943653855361527329190",
-    s_3pi_4         = "2.3561944901923449288469825374596271",
-    s_2pi_3         = "2.0943951023931954923084289221863352",
+    s_pi5_6         = "2.6179938779914943653855361527329190",
+    s_pi3_4         = "2.3561944901923449288469825374596271",
+    s_pi2_3         = "2.0943951023931954923084289221863352",
     s_onethird      = "0.3333333333333333333333333333333333",
     s_twothirds     = "0.6666666666666666666666666666666667",
-    s_5_6           = "0.8333333333333333333333333333333333",
-    s_1_6           = "0.1666666666666666666666666666666667",
+    s_n5_6          = "0.8333333333333333333333333333333333",
+    s_n1_6          = "0.1666666666666666666666666666666667",
     s_m_1_2pi       = "0.1591549430918953357688837633725144",
     s_pi2           = "6.2831853071795864769252867665590058",
 
-    s_max_float     = "3.402823466385288598117041834845169e+0038",
-    s_min_float     = "1.401298464324817070923729583289916e-0045",
-    s_max_double    = "1.797693134862315708145274237317043e+0308",
-    s_min_double    = "4.940656458412465441765687928682213e-0324",
-    s_max_real      = "1.189731495357231765021263853030970e+4932",
-    s_min_real      = "3.645199531882474602528405933619419e-4951",
+    // Only for Decimal128
+    s_maxFloat128   = "3.402823466385288598117041834845169e+0038",
+    s_minFloat128   = "1.401298464324817070923729583289916e-0045",
+    s_maxDouble128  = "1.797693134862315708145274237317043e+0308",
+    s_minDouble128  = "4.940656458412465441765687928682213e-0324",
+    s_maxReal128    = "1.189731495357231765021263853030970e+4932",
+    s_minReal128    = "3.645199531882474602528405933619419e-4951",
+}
+
+version (ShowEnumDecBytes)
+unittest
+{
+    import std.meta : AliasSeq;
+
+    static foreach (D; AliasSeq!(Decimal32, Decimal64, Decimal128))
+    {
+        {
+            static assert(D.E == D.buildin(s_E));
+            static assert(D.PI == D.buildin(s_PI));
+            static assert(D.LN10 == D.buildin(s_LN10));
+            static assert(D.LOG2T == D.buildin(s_LOG2T));
+            static assert(D.LOG2E == D.buildin(s_LOG2E));
+            static assert(D.LOG2 == D.buildin(s_LOG2));
+            static assert(D.LOG10E == D.buildin(s_LOG10E));
+            static assert(D.LN2 == D.buildin(s_LN2));
+            
+            static assert(D.pi_2 == D.buildin(s_pi_2));
+            static assert(D.pi_4 == D.buildin(s_pi_4));
+            static assert(D.m_1_pi == D.buildin(s_m_1_pi));
+            static assert(D.m_2_pi == D.buildin(s_m_2_pi));
+            static assert(D.m_2_sqrtpi == D.buildin(s_m_2_sqrtpi));
+            static assert(D.sqrt2 == D.buildin(s_sqrt2));
+            static assert(D.sqrt1_2 == D.buildin(s_sqrt1_2));
+
+            static assert(D.sqrt3 == D.buildin(s_sqrt3));
+            static assert(D.m_sqrt3 == D.buildin(s_m_sqrt3));
+            static assert(D.pi_3 == D.buildin(s_pi_3));
+            static assert(D.pi_6 == D.buildin(s_pi_6));
+
+            static assert(D.sqrt2_2 == D.buildin(s_sqrt2_2));
+            static assert(D.sqrt3_2 == D.buildin(s_sqrt3_2));
+            static assert(D.pi5_6 == D.buildin(s_pi5_6));
+            static assert(D.pi3_4 == D.buildin(s_pi3_4));
+            static assert(D.pi2_3 == D.buildin(s_pi2_3));
+            static assert(D.onethird == D.buildin(s_onethird));
+            static assert(D.twothirds == D.buildin(s_twothirds));
+            static assert(D.n5_6 == D.buildin(s_n5_6));
+            static assert(D.n5_6 == D.buildin(s_n5_6));
+            static assert(D.m_1_2pi == D.buildin(s_m_1_2pi));
+            static assert(D.pi2 == D.buildin(s_pi2));
+            
+            static if (D.sizeof == 16)
+            {
+                static assert(D.maxFloat == D.buildin(s_maxFloat128));
+                static assert(D.minFloat == D.buildin(s_minFloat128));
+                static assert(D.maxDouble == D.buildin(s_maxDouble128));
+                static assert(D.minDouble == D.buildin(s_minDouble128));
+                static assert(D.maxReal == D.buildin(s_maxReal128));
+                static assert(D.minReal == D.buildin(s_minReal128));
+            }
+        }        
+    }
+}
+
+version (ShowEnumDecBytes) version (none)
+unittest
+{
+    import std.meta : AliasSeq;
+    import std.stdio;
+    scope (failure) assert(0, "Assume nothrow failed");
+
+    static foreach (D; AliasSeq!(Decimal32, Decimal64, Decimal128))
+    {
+        {
+            ubyte[D.sizeof] bytes;
+            debug writeln(D.stringof, " enum s_E = cast(const(ubyte)[])", D.E.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_PI = cast(const(ubyte)[])", D.PI.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_LN10 = cast(const(ubyte)[])", D.LN10.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_LOG2T = cast(const(ubyte)[])", D.LOG2T.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_LOG2E = cast(const(ubyte)[])", D.LOG2E.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_LOG2 = cast(const(ubyte)[])", D.LOG2.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_LOG10E = cast(const(ubyte)[])", D.LOG10E.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_LN2 = cast(const(ubyte)[])", D.LN2.data.toBigEndianBytes(bytes), ";");
+
+            debug writeln(D.stringof, " enum s_pi_2 = cast(const(ubyte)[])", D.pi_2.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_pi_4 = cast(const(ubyte)[])", D.pi_4.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_m_1_pi = cast(const(ubyte)[])", D.m_1_pi.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_m_2_pi = cast(const(ubyte)[])", D.m_2_pi.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_m_2_sqrtpi = cast(const(ubyte)[])", D.m_2_sqrtpi.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_sqrt2 = cast(const(ubyte)[])", D.sqrt2.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_sqrt1_2 = cast(const(ubyte)[])", D.sqrt1_2.data.toBigEndianBytes(bytes), ";");
+
+            debug writeln(D.stringof, " enum s_sqrt3 = cast(const(ubyte)[])", D.sqrt3.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_m_sqrt3 = cast(const(ubyte)[])", D.m_sqrt3.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_pi_3 = cast(const(ubyte)[])", D.pi_3.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_pi_6 = cast(const(ubyte)[])", D.pi_6.data.toBigEndianBytes(bytes), ";");
+
+            debug writeln(D.stringof, " enum s_sqrt2_2 = cast(const(ubyte)[])", D.sqrt2_2.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_sqrt3_2 = cast(const(ubyte)[])", D.sqrt3_2.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_pi5_6 = cast(const(ubyte)[])", D.pi5_6.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_pi3_4 = cast(const(ubyte)[])", D.pi3_4.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_pi2_3 = cast(const(ubyte)[])", D.pi2_3.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_onethird = cast(const(ubyte)[])", D.onethird.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_twothirds = cast(const(ubyte)[])", D.twothirds.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_n5_6 = cast(const(ubyte)[])", D.n5_6.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_n1_6 = cast(const(ubyte)[])", D.n1_6.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_m_1_2pi = cast(const(ubyte)[])", D.m_1_2pi.data.toBigEndianBytes(bytes), ";");
+            debug writeln(D.stringof, " enum s_pi2 = cast(const(ubyte)[])", D.pi2.data.toBigEndianBytes(bytes), ";");
+
+            static if (D.sizeof == 16)
+            {
+                debug writeln(D.stringof, " enum s_maxFloat128 = cast(const(ubyte)[])", D.maxFloat.data.toBigEndianBytes(bytes), ";");
+                debug writeln(D.stringof, " enum s_minFloat128 = cast(const(ubyte)[])", D.minFloat.data.toBigEndianBytes(bytes), ";");
+                debug writeln(D.stringof, " enum s_maxDouble128 = cast(const(ubyte)[])", D.maxDouble.data.toBigEndianBytes(bytes), ";");
+                debug writeln(D.stringof, " enum s_minDouble128 = cast(const(ubyte)[])", D.minDouble.data.toBigEndianBytes(bytes), ";");
+                debug writeln(D.stringof, " enum s_maxReal128 = cast(const(ubyte)[])", D.maxReal.data.toBigEndianBytes(bytes), ";");
+                debug writeln(D.stringof, " enum s_minReal128 = cast(const(ubyte)[])", D.minReal.data.toBigEndianBytes(bytes), ";");
+            }
+        }
+        debug writeln("");
+    }
 }
 
 //to find mod(10^n/2pi; 1): take digits[n .. n + precision], exponent -n
@@ -8004,7 +8295,7 @@ version (none)
 unittest
 {
     import std.meta : AliasSeq;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     dgWriteln("Decimal32.min=", Decimal32.min.toString());
     dgWriteln("Decimal32.max=", Decimal32.max.toString());
     dgWriteln("Decimal64.min=", Decimal64.min.toString());

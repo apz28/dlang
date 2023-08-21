@@ -9,13 +9,13 @@
  *
  */
 
-module pham.external.dec.codec;
+module pham.external.dec.dec_codec;
 
-version (TraceFunction) import pham.utl.test;
-import pham.external.dec.decimal: Decimal32, Decimal64, Decimal128,
+version (TraceFunction) import pham.utl.utl_test;
+import pham.external.dec.dec_decimal: Decimal32, Decimal64, Decimal128,
     decimalSubClass, fabs;
-import pham.external.dec.integral : divrem;
-import pham.external.dec.type;
+import pham.external.dec.dec_integral : divrem;
+import pham.external.dec.dec_type;
 
 nothrow @safe:
 
@@ -666,9 +666,7 @@ static immutable int[] bin2DPD = [
 
 unittest // DecimalCodec64
 {
-	import pham.utl.object : bytesFromHexs;
-	import pham.utl.test;
-	traceUnitTest("unittest pham.external.dec.codec.DecimalCodec64");
+	import pham.utl.utl_object : bytesFromHexs;
 
 	DecimalCodec64 codec;
 	auto n = Decimal64.buildin("0");
@@ -731,9 +729,7 @@ unittest // DecimalCodec64
 
 unittest // DecimalCodec128
 {
-	import pham.utl.object : bytesFromHexs;
-	import pham.utl.test;
-	traceUnitTest("unittest pham.external.dec.codec.DecimalCodec128");
+	import pham.utl.utl_object : bytesFromHexs;
 
 	// Decode
 	DecimalCodec128 codec;

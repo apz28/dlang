@@ -1,4 +1,4 @@
-module pham.external.dec.type;
+module pham.external.dec.dec_type;
 
 nothrow @safe:
 
@@ -18,10 +18,37 @@ enum CheckNaN : byte
     negSNaN = -2,   /// The value is negative $(B NaN) signaling
 }
 
+/**
+ * These flags indicate that an error has occurred. They indicate that a 0, $(B NaN) or an infinity value has been generated,
+ * that a result is inexact, or that a signalling $(B NaN) has been encountered.
+ * If the corresponding traps are set using $(MYREF DecimalControl),
+ * an exception will be thrown after setting these error flags.
+ * By default the context will have all error flags lowered and exceptions are thrown only for severe errors.
+ */
+enum ExceptionFlags : uint
+{
+    ///no error
+    none             = 0U,
+    ///$(MYREF InvalidOperationException) is thrown if trap is set
+	invalidOperation = 1U << 0,
+    ///$(MYREF DivisionByZeroException) is thrown if trap is set
+	divisionByZero   = 1U << 1,
+    ///$(MYREF OverflowException) is thrown if trap is set
+	overflow         = 1U << 2,
+    ///$(MYREF UnderflowException) is thrown if trap is set
+	underflow        = 1U << 3,
+    ///$(MYREF InexactException) is thrown if trap is set
+	inexact          = 1U << 4,
+    ///group of errors considered severe: invalidOperation, divisionByZero, overflow, underflow
+	severe           = invalidOperation | divisionByZero | overflow | underflow,
+    ///all errors
+	all              = severe | inexact,
+}
+
 template DataType(int bytes)
 if (bytes == 4 || bytes == 8 || bytes == 16)
 {
-    import pham.external.dec.integral : uint128;
+    import pham.external.dec.dec_integral : uint128;
 
     static if (bytes == 4)
         alias DataType = uint;
@@ -57,6 +84,82 @@ enum DecimalClass : ubyte
     negativeZero,
     ///ditto
     positiveZero,
+}
+
+///IEEE-754-2008 subset of floating point categories
+enum DecimalSubClass : ubyte
+{
+    signalingNaN,
+    quietNaN,
+    negativeInfinity,
+    positiveInfinity,
+    finite,
+}
+
+enum FastClass : ubyte
+{
+    signalingNaN,
+    quietNaN,
+    infinite,
+    zero,
+    finite,
+}
+
+/**
+ * Precision used to round decimal operation results. Every result will be adjusted
+ * to fit the specified precision. Use $(MYREF DecimalControl) to query or set the
+ * context precision
+ */
+enum Precision : int
+{
+    ///use the default precision of the current type
+    ///(7 digits for Decimal32, 16 digits for Decimal64 or 34 digits for Decimal128)
+	precisionDefault = 0,
+    ///use 32 bits precision (7 digits)
+	precision32 = precisionOf(4),
+    ///use 64 bits precision (16 digits)
+	precision64 = precisionOf(8),
+    ///use 128 bits precision (34 digits)
+    precision128 = precisionOf(16),
+
+    ////
+    bankingScale = 4,
+}
+
+/**
+ * Rounding modes. To better understand how rounding is performed, consult the table below.
+ *
+ * $(BOOKTABLE,
+ *  $(TR $(TH Value) $(TH tiesToEven) $(TH tiesToAway) $(TH towardPositive) $(TH towardNegative) $(TH towardZero))
+ *  $(TR $(TD +1.3)  $(TD +1)         $(TD +1)         $(TD +2)             $(TD +1)             $(TD +1))
+ *  $(TR $(TD +1.5)  $(TD +2)         $(TD +2)         $(TD +2)             $(TD +1)             $(TD +1))
+ *  $(TR $(TD +1.8)  $(TD +2)         $(TD +2)         $(TD +2)             $(TD +1)             $(TD +1))
+ *  $(TR $(TD -1.3)  $(TD -1)         $(TD -1)         $(TD -1)             $(TD -2)             $(TD -1))
+ *  $(TR $(TD -1.5)  $(TD -2)         $(TD -2)         $(TD -1)             $(TD -2)             $(TD -1))
+ *  $(TR $(TD -1.8)  $(TD -2)         $(TD -2)         $(TD -1)             $(TD -2)             $(TD -1))
+ *  $(TR $(TD +2.3)  $(TD +2)         $(TD +2)         $(TD +3)             $(TD +2)             $(TD +2))
+ *  $(TR $(TD +2.5)  $(TD +2)         $(TD +3)         $(TD +3)             $(TD +2)             $(TD +2))
+ *  $(TR $(TD +2.8)  $(TD +3)         $(TD +3)         $(TD +3)             $(TD +2)             $(TD +2))
+ *  $(TR $(TD -2.3)  $(TD -2)         $(TD -2)         $(TD -2)             $(TD -3)             $(TD -2))
+ *  $(TR $(TD -2.5)  $(TD -2)         $(TD -3)         $(TD -2)             $(TD -3)             $(TD -2))
+ *  $(TR $(TD -2.8)  $(TD -3)         $(TD -3)         $(TD -2)             $(TD -3)             $(TD -2))
+ * )
+ */
+enum RoundingMode : ubyte
+{
+    ///rounded away from zero; halfs are rounded to the nearest even number
+	tiesToEven,
+    ///rounded away from zero
+	tiesToAway,
+    ///truncated toward positive infinity
+	towardPositive,
+    ///truncated toward negative infinity
+	towardNegative,
+    ///truncated toward zero
+	towardZero,
+
+    implicit = tiesToEven,
+    banking = tiesToEven,
 }
 
 /**
@@ -127,38 +230,36 @@ public:
     {
         version (D_BetterC)
         {
-            if (__ctfe)
-            {
-                if ((flags & ExceptionFlags.invalidOperation) && (traps & ExceptionFlags.invalidOperation))
-                    assert(0, "Invalid operation");
-                if ((flags & ExceptionFlags.divisionByZero) && (traps & ExceptionFlags.divisionByZero))
-                    assert(0, "Division by zero");
-                if ((flags & ExceptionFlags.overflow) && (traps & ExceptionFlags.overflow))
-                    assert(0, "Overflow");
-                if ((flags & ExceptionFlags.underflow) && (traps & ExceptionFlags.underflow))
-                    assert(0, "Underflow");
-                if ((flags & ExceptionFlags.inexact) && (traps & ExceptionFlags.inexact))
-                    assert(0, "Inexact");
-            }
+            assert(!isFlagTrapped(flags, traps, ExceptionFlags.invalidOperation), "Invalid operation");
+            assert(!isFlagTrapped(flags, traps, ExceptionFlags.divisionByZero), "Division by zero");
+            assert(!isFlagTrapped(flags, traps, ExceptionFlags.overflow), "Overflow");
+            assert(!isFlagTrapped(flags, traps, ExceptionFlags.underflow), "Underflow");
+            assert(!isFlagTrapped(flags, traps, ExceptionFlags.inexact), "Inexact");
         }
         else
         {
-            import pham.external.dec.decimal : EInvalidOperationException, EDivisionByZeroException,
+            import pham.external.dec.dec_decimal : EInvalidOperationException, EDivisionByZeroException,
                 EOverflowException, EUnderflowException, EInexactException;
             
-            if ((flags & ExceptionFlags.invalidOperation) && (traps & ExceptionFlags.invalidOperation))
+            if (isFlagTrapped(flags, traps, ExceptionFlags.invalidOperation))
                 throw cast()EInvalidOperationException;
-            if ((flags & ExceptionFlags.divisionByZero) && (traps & ExceptionFlags.divisionByZero))
+            if (isFlagTrapped(flags, traps, ExceptionFlags.divisionByZero))
                 throw cast()EDivisionByZeroException;
-            if ((flags & ExceptionFlags.overflow) && (traps & ExceptionFlags.overflow))
+            if (isFlagTrapped(flags, traps, ExceptionFlags.overflow))
                 throw cast()EOverflowException;
-            if ((flags & ExceptionFlags.underflow) && (traps & ExceptionFlags.underflow))
+            if (isFlagTrapped(flags, traps, ExceptionFlags.underflow))
                 throw cast()EUnderflowException;
-            if ((flags & ExceptionFlags.inexact) && (traps & ExceptionFlags.inexact))
+            if (isFlagTrapped(flags, traps, ExceptionFlags.inexact))
                 throw cast()EInexactException;
         }
     }
 
+    pragma(inline, true)
+    static bool isFlagTrapped(const(ExceptionFlags) flags, const(ExceptionFlags) traps, const(ExceptionFlags) checkingFlag) @nogc nothrow pure
+    {
+        return (flags & checkingFlag) && (traps & checkingFlag);
+    }
+    
     /**
      * Return true if flags contain overflow or underflow value
      */
@@ -400,52 +501,6 @@ struct DecimalControlFlags
 	ExceptionFlags traps;
 }
 
-///IEEE-754-2008 subset of floating point categories
-enum DecimalSubClass : ubyte
-{
-    signalingNaN,
-    quietNaN,
-    negativeInfinity,
-    positiveInfinity,
-    finite,
-}
-
-/**
- * These flags indicate that an error has occurred. They indicate that a 0, $(B NaN) or an infinity value has been generated,
- * that a result is inexact, or that a signalling $(B NaN) has been encountered.
- * If the corresponding traps are set using $(MYREF DecimalControl),
- * an exception will be thrown after setting these error flags.
- * By default the context will have all error flags lowered and exceptions are thrown only for severe errors.
- */
-enum ExceptionFlags : uint
-{
-    ///no error
-    none             = 0U,
-    ///$(MYREF InvalidOperationException) is thrown if trap is set
-	invalidOperation = 1U << 0,
-    ///$(MYREF DivisionByZeroException) is thrown if trap is set
-	divisionByZero   = 1U << 1,
-    ///$(MYREF OverflowException) is thrown if trap is set
-	overflow         = 1U << 2,
-    ///$(MYREF UnderflowException) is thrown if trap is set
-	underflow        = 1U << 3,
-    ///$(MYREF InexactException) is thrown if trap is set
-	inexact          = 1U << 4,
-    ///group of errors considered severe: invalidOperation, divisionByZero, overflow, underflow
-	severe           = invalidOperation | divisionByZero | overflow | underflow,
-    ///all errors
-	all              = severe | inexact,
-}
-
-enum FastClass : ubyte
-{
-    signalingNaN,
-    quietNaN,
-    infinite,
-    zero,
-    finite,
-}
-
 struct IEEECompliant
 {
 @safe:
@@ -462,61 +517,4 @@ in
 do
 {
     return 9 * bytes * 8 / 32 - 2; //7, 16, 34
-}
-
-/**
- * Precision used to round decimal operation results. Every result will be adjusted
- * to fit the specified precision. Use $(MYREF DecimalControl) to query or set the
- * context precision
- */
-enum Precision : int
-{
-    ///use the default precision of the current type
-    ///(7 digits for Decimal32, 16 digits for Decimal64 or 34 digits for Decimal128)
-	precisionDefault = 0,
-    ///use 32 bits precision (7 digits)
-	precision32 = precisionOf(4),
-    ///use 64 bits precision (16 digits)
-	precision64 = precisionOf(8),
-    ///use 128 bits precision (34 digits)
-    precision128 = precisionOf(16),
-
-    ////
-    bankingScale = 4,
-}
-
-/**
- * Rounding modes. To better understand how rounding is performed, consult the table below.
- *
- * $(BOOKTABLE,
- *  $(TR $(TH Value) $(TH tiesToEven) $(TH tiesToAway) $(TH towardPositive) $(TH towardNegative) $(TH towardZero))
- *  $(TR $(TD +1.3)  $(TD +1)         $(TD +1)         $(TD +2)             $(TD +1)             $(TD +1))
- *  $(TR $(TD +1.5)  $(TD +2)         $(TD +2)         $(TD +2)             $(TD +1)             $(TD +1))
- *  $(TR $(TD +1.8)  $(TD +2)         $(TD +2)         $(TD +2)             $(TD +1)             $(TD +1))
- *  $(TR $(TD -1.3)  $(TD -1)         $(TD -1)         $(TD -1)             $(TD -2)             $(TD -1))
- *  $(TR $(TD -1.5)  $(TD -2)         $(TD -2)         $(TD -1)             $(TD -2)             $(TD -1))
- *  $(TR $(TD -1.8)  $(TD -2)         $(TD -2)         $(TD -1)             $(TD -2)             $(TD -1))
- *  $(TR $(TD +2.3)  $(TD +2)         $(TD +2)         $(TD +3)             $(TD +2)             $(TD +2))
- *  $(TR $(TD +2.5)  $(TD +2)         $(TD +3)         $(TD +3)             $(TD +2)             $(TD +2))
- *  $(TR $(TD +2.8)  $(TD +3)         $(TD +3)         $(TD +3)             $(TD +2)             $(TD +2))
- *  $(TR $(TD -2.3)  $(TD -2)         $(TD -2)         $(TD -2)             $(TD -3)             $(TD -2))
- *  $(TR $(TD -2.5)  $(TD -2)         $(TD -3)         $(TD -2)             $(TD -3)             $(TD -2))
- *  $(TR $(TD -2.8)  $(TD -3)         $(TD -3)         $(TD -2)             $(TD -3)             $(TD -2))
- * )
- */
-enum RoundingMode : ubyte
-{
-    ///rounded away from zero; halfs are rounded to the nearest even number
-	tiesToEven,
-    ///rounded away from zero
-	tiesToAway,
-    ///truncated toward positive infinity
-	towardPositive,
-    ///truncated toward negative infinity
-	towardNegative,
-    ///truncated toward zero
-	towardZero,
-
-    implicit = tiesToEven,
-    banking = tiesToEven,
 }
