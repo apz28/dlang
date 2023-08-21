@@ -9,26 +9,26 @@
  *
  */
 
-module pham.io.socket_type;
+module pham.io.io_socket_type;
 
 import core.time : Duration;
 import std.system : Endian;
 
-import pham.utl.bit : fromBytes, hostToNetworkOrder, Map32Bit, nativeToBytes, networkToHostOrder, toBytes;
-import pham.utl.enum_set : EnumSet, toName;
-import pham.utl.numeric_parser : cvtDigit, cvtHexDigit, NumericParsedKind, parseIntegral;
-import pham.utl.object : toString;
-import pham.utl.result;
-import pham.utl.text : simpleIndexOf;
+import pham.utl.utl_bit : fromBytes, hostToNetworkOrder, Map32Bit, nativeToBytes, networkToHostOrder, toBytes;
+import pham.utl.utl_enum_set : EnumSet, toName;
+import pham.utl.utl_numeric_parser : cvtDigit, cvtHexDigit, NumericParsedKind, parseIntegral;
+import pham.utl.utl_object : toString;
+import pham.utl.utl_result;
+import pham.utl.utl_text : simpleIndexOf;
 version (Posix)
 {
     import core.sys.posix.sys.socket;
-    import pham.io.socket_posix;
+    import pham.io.io_socket_posix;
 }
 else version (Windows)
 {
     import core.sys.windows.winsock2;
-    import pham.io.socket_windows;
+    import pham.io.io_socket_windows;
 }
 else
     static assert(0, "Unsupport target");
@@ -625,7 +625,7 @@ public:
 
     static ResultIf!IPAddress parse(scope const(char)[] address) nothrow
     {
-        if (simpleIndexOf(address, ':') >= 0 || (address.length && address[0] == '['))
+        if (address.simpleIndexOf(':') >= 0 || (address.length && address[0] == '['))
             return IPv6AddressHelper.parse(address);
         else
             return IPv4AddressHelper.parse(address);

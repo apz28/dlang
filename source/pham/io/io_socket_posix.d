@@ -9,7 +9,7 @@
  *
  */
 
-module pham.io.socket_posix;
+module pham.io.io_socket_posix;
 
 version (Posix):
 
@@ -22,16 +22,13 @@ public import core.sys.posix.sys.socket : Linger = linger;
 public import core.sys.posix.sys.time : TimeVal = timeval;
 import core.sys.posix.unistd : close;
 
-import pham.io.socket_type : SelectMode;
-import pham.io.type : IOResult;
+import pham.utl.utl_result : resultError, resultOK;
+import pham.io.io_socket_type : SelectMode;
 
 enum IPV6_V6ONLY = 27;
 alias SocketHandle = int;
 enum invalidSocketHandle = -1;
 private enum limitEINTR = 5;
-
-alias closeSocket = close;
-alias ioctlSocket = fcntl;
 
 pragma(inline, true)
 SocketHandle acceptSocket(SocketHandle handle, scope sockaddr* nameVal, scope int* nameLen) nothrow @trusted
@@ -60,6 +57,22 @@ in
 do
 {
     return bind(handle, nameVal, nameLen);
+}
+
+pragma(inline, true)
+int closeSocket(SocketHandle handle) nothrow @trusted
+in
+{
+    assert(handle != invalidSocketHandle);
+}
+do
+{
+    return close(handle);
+}
+
+string closeSocketAPI() @nogc nothrow pure @safe
+{
+    return "close";
 }
 
 pragma(inline, true)
@@ -99,6 +112,11 @@ do
     return r == 0 ? result : r;
 }
 
+string getAvailableBytesSocketAPI() @nogc nothrow pure @safe
+{
+    return "ioctl";
+}
+
 pragma(inline, true)
 int getBlockingSocket(SocketHandle handle) nothrow @trusted
 in
@@ -109,6 +127,11 @@ do
 {
     const r = fcntl(handle, F_GETFL, 0);
     return r < 0 ? r : ((r & O_NONBLOCK) == O_NONBLOCK ? 0 : 1);
+}
+
+string getBlockingSocketAPI() @nogc nothrow pure @safe
+{
+    return "fcntl";
 }
 
 int getErrorSocket(SocketHandle handle) nothrow @trusted
@@ -124,7 +147,7 @@ do
         return r;
 
     errno = optVal;
-    return optVal ? IOResult.success : IOResult.failed;
+    return optVal ? resultOK : resultError;
 }
 
 pragma(inline, true)
@@ -224,7 +247,7 @@ do
     {
         if (r == 0)
             errno = ETIMEDOUT;
-        return IOResult.failed;
+        return resultError;
     }
 
     int result = 0;
@@ -242,6 +265,11 @@ do
     }
 
     return result;
+}
+
+string selectSocketAPI() @nogc nothrow pure @safe
+{
+    return "select";
 }
 
 pragma(inline, true)
@@ -279,6 +307,11 @@ do
     return fcntl(handle, F_SETFL, n);
 }
 
+string setBlockingSocketAPI() @nogc nothrow pure @safe
+{
+    return "fcntl";
+}
+
 pragma(inline, true)
 int setIntOptionSocket(T)(SocketHandle handle, int optLevel, int optName, T optVal) nothrow @trusted
 in
@@ -290,6 +323,11 @@ do
     return setsockopt(handle, optLevel, optName, &optVal, T.sizeof);
 }
 
+string setIntOptionSocketAPI() @nogc nothrow pure @safe
+{
+    return "setsockopt";
+}
+
 pragma(inline, true)
 int setLingerSocket(SocketHandle handle, Linger linger) nothrow @trusted
 in
@@ -299,6 +337,11 @@ in
 do
 {
     return setsockopt(handle, SOL_SOCKET, SO_LINGER, &linger, Linger.sizeof);
+}
+
+string setLingerSocketAPI() @nogc nothrow pure @safe
+{
+    return "setsockopt";
 }
 
 pragma(inline, true)
@@ -321,6 +364,11 @@ in
 do
 {
     return setsockopt(handle, SOL_SOCKET, optionName, &timeout, timeout.sizeof);
+}
+
+string setTimeoutSocketAPI() @nogc nothrow pure @safe
+{
+    return "setsockopt";
 }
 
 pragma(inline, true)
@@ -352,8 +400,8 @@ in
 }
 do
 {
-    const r = selectSocket(handle, SelectMode.write | SelectMode.error, timeout);
+    const r = selectSocket(handle, SelectMode.read | SelectMode.write | SelectMode.error, timeout);
     return r <= 0
-        ? IOResult.failed
-        : ((r & SelectMode.error) == SelectMode.error ? IOResult.failed : IOResult.success);
+        ? resultError
+        : ((r & SelectMode.error) == SelectMode.error ? resultError : resultOK);
 }

@@ -9,174 +9,38 @@
  *
  */
 
-module pham.io.error;
+module pham.io.io_error;
 
-import pham.utl.result : errorCodeToString, getSystemErrorMessage;
-import pham.io.type : IOResult;
+import pham.utl.utl_result : addLine, errorCodeToString;
 
 @safe:
-
-struct IOError
-{
-@safe:
-
-public:
-    this(uint errorNo, string message,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
-    {
-        this.errorNo = errorNo;
-        this.message = message;
-        this.funcName = funcName;
-        this.file = file;
-        this.line = line;
-    }
-
-    bool opCast(C: bool)() const @nogc nothrow pure
-    {
-        return isOK;
-    }
-
-    bool addMessageIf(string msg) nothrow pure
-    {
-        if (msg.length)
-        {
-            this.message ~= "\n" ~ msg;
-            return true;
-        }
-        else
-            return false;
-    }
-
-    IOResult clone(IOError source, IOResult result) nothrow pure
-    {
-        this.file = source.file;
-        this.message = source.message;
-        this.errorNo = source.errorNo;
-        this.line = source.line;
-        return result;
-    }
-
-    static IOError failed(uint errorNo, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
-    {
-        IOError result;
-        result.setFailed(errorNo, postfixMessage, funcName, file, line);
-        return result;
-    }
-
-    pragma(inline, true)
-    static typeof(this) ok() nothrow pure
-    {
-        return typeof(this)(0, null, null, null, 0);
-    }
-
-    pragma(inline, true)
-    IOResult reset() nothrow
-    {
-        this.file = this.message = null;
-        this.errorNo = this.line = 0;
-        return IOResult.success;
-    }
-
-    IOResult set(uint errorNo, string message, IOResult result = IOResult.failed,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
-    {
-        this.errorNo = errorNo;
-        this.message = message;
-        this.funcName = funcName;
-        this.file = file;
-        this.line = line;
-        return result;
-    }
-
-    IOResult setFailed(uint errorNo, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
-    {
-        this.errorNo = errorNo;
-        this.message = "Failed " ~ funcName ~ postfixMessage;
-        this.funcName = funcName;
-        this.file = file;
-        this.line = line;
-        this.addMessageIf(errorNo != 0 ? getSystemErrorMessage(errorNo) : null);
-        this.addMessageIf(errorNo != 0 ? ("Error code: " ~ errorCodeToString(errorNo)) : null);
-        return IOResult.failed;
-    }
-
-    IOResult setUnsupported(uint errorNo, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
-    {
-        this.errorNo = errorNo;
-        this.message = "Unsupported " ~ funcName ~ postfixMessage;
-        this.funcName = funcName;
-        this.file = file;
-        this.line = line;
-        return IOResult.unsupported;
-    }
-
-    pragma(inline, true)
-    void throwIf(E : StreamException = StreamException)()
-    {
-        if (errorNo != 0 || message.length != 0)
-            throwIt!E();
-    }
-
-    void throwIt(E : StreamException = StreamException)()
-    {
-        throw new E(errorNo, message, null, funcName, file, line);
-    }
-
-    /**
-     * Returns true if there is error-code or error-message
-     */
-    pragma(inline, true)
-    @property bool isError() const @nogc nothrow pure
-    {
-        return errorNo != 0 || message.length != 0;
-    }
-
-    /**
-     * Returns true if there is no error-code and error-message
-     */
-    pragma(inline, true)
-    @property bool isOK() const @nogc nothrow pure
-    {
-        return errorNo == 0 && message.length == 0;
-    }
-
-public:
-    string funcName;
-    string file;
-    string message;
-    uint errorNo;
-    uint line;
-}
 
 class IOException : Exception
 {
 @safe:
 
 public:
-    this(uint errorNo, string message,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+    this(uint errorCode, string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
     {
-        super(message, file, line, next);
-        this.callerName = callerName;
-        this.errorNo = errorNo;
+        super(errorMessage, file, line, next);
+        this.errorCode = errorCode;
+        this.funcName = funcName;
     }
 
     override string toString() nothrow @trusted
     {
-        import std.format : format;
         scope (failure) assert(0, "Assume nothrow failed");
 
         auto result = super.toString();
-        if (errorNo != 0)
-            result ~= "\nError code: " ~ format!"0x%.8d [%d]"(errorNo, errorNo);
+        if (errorCode != 0)
+            addLine(result, "Error code: " ~ errorCodeToString(errorCode));
 
         auto e = next;
         while (e !is null)
         {
-            result ~= "\n\n" ~ e.toString();
+            addLine(result, "");
+            addLine(result, e.toString());
             e = e.next;
         }
 
@@ -184,8 +48,8 @@ public:
     }
 
 public:
-    string callerName;
-    const(uint) errorNo;
+    string funcName;
+    uint errorCode;
 }
 
 class StreamException : IOException
@@ -193,10 +57,10 @@ class StreamException : IOException
 @safe:
 
 public:
-    this(uint errorNo, string message,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+    this(uint errorCode, string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
     {
-        super(errorNo, message, next, callerName, file, line);
+        super(errorCode, errorMessage, next, funcName, file, line);
     }
 }
 
@@ -205,10 +69,10 @@ class StreamReadException : StreamException
 @safe:
 
 public:
-    this(uint errorNo, string message,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+    this(uint errorCode, string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
     {
-        super(errorNo, message, next, callerName, file, line);
+        super(errorCode, errorMessage, next, funcName, file, line);
     }
 }
 
@@ -217,9 +81,9 @@ class StreamWriteException : StreamException
 @safe:
 
 public:
-    this(uint errorNo, string message,
-        Throwable next = null, string callerName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+    this(uint errorCode, string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
     {
-        super(errorNo, message, next, callerName, file, line);
+        super(errorCode, errorMessage, next, funcName, file, line);
     }
 }

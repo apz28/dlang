@@ -9,7 +9,7 @@
  *
  */
 
-module pham.io.socket_windows;
+module pham.io.io_socket_windows;
 
 version (Windows):
 
@@ -23,12 +23,11 @@ pragma(lib, "ws2_32");
 extern (Windows) DWORD if_nametoindex(scope const char*) @nogc nothrow @trusted;
 extern (Windows) void WSASetLastError(int) @nogc nothrow @trusted;
 
-import pham.io.socket_type : SelectMode;
-import pham.io.type : IOResult;
+import pham.utl.utl_result : resultOK, resultError;
+import pham.io.io_socket_type : SelectMode;
 
 alias SocketHandle = SOCKET;
 enum invalidSocketHandle = INVALID_SOCKET;
-alias ioctlSocket = ioctlsocket;
 enum AI_V4MAPPED = 0x0800; // https://learn.microsoft.com/en-us/windows/win32/api/ws2def/ns-ws2def-addrinfoex4
 
 pragma(inline, true)
@@ -62,6 +61,11 @@ in
 do
 {
     return closesocket(handle);
+}
+
+string closeSocketAPI() @nogc nothrow pure @safe
+{
+    return "closesocket";
 }
 
 pragma(inline, true)
@@ -98,6 +102,11 @@ do
     return r == 0 ? cast(int)result : r;
 }
 
+string getAvailableBytesSocketAPI() @nogc nothrow pure @safe
+{
+    return "ioctlsocket";
+}
+
 int getErrorSocket(SocketHandle handle) nothrow @trusted
 in
 {
@@ -111,7 +120,7 @@ do
         return r;
 
     WSASetLastError(optVal);
-    return optVal ? IOResult.success : IOResult.failed;
+    return optVal ? resultOK : resultError;
 }
 
 pragma(inline, true)
@@ -197,7 +206,7 @@ do
     {
         if (r == 0)
             WSASetLastError(ETIMEDOUT);
-        return IOResult.failed;
+        return resultError;
     }
 
     int result = 0;
@@ -215,6 +224,11 @@ do
     }
 
     return result;
+}
+
+string selectSocketAPI() @nogc nothrow pure @safe
+{
+    return "select";
 }
 
 pragma(inline, true)
@@ -240,6 +254,11 @@ do
     return ioctlsocket(handle, FIONBIO, &n);
 }
 
+string setBlockingSocketAPI() @nogc nothrow pure @safe
+{
+    return "ioctlsocket";
+}
+
 pragma(inline, true)
 int setIntOptionSocket(T)(SocketHandle handle, int optLevel, int optName, T optVal) nothrow @trusted
 in
@@ -251,6 +270,11 @@ do
     return setsockopt(handle, optLevel, optName, &optVal, T.sizeof);
 }
 
+string setIntOptionSocketAPI() @nogc nothrow pure @safe
+{
+    return "setsockopt";
+}
+
 pragma(inline, true)
 int setLingerSocket(SocketHandle handle, Linger linger) nothrow @trusted
 in
@@ -260,6 +284,11 @@ in
 do
 {
     return setsockopt(handle, SOL_SOCKET, SO_LINGER, &linger, Linger.sizeof);
+}
+
+string setLingerSocketAPI() @nogc nothrow pure @safe
+{
+    return "setsockopt";
 }
 
 pragma(inline, true)
@@ -282,6 +311,11 @@ in
 do
 {
     return setsockopt(handle, SOL_SOCKET, optionName, &timeout, timeout.sizeof);
+}
+
+string setTimeoutSocketAPI() @nogc nothrow pure @safe
+{
+    return "setsockopt";
 }
 
 pragma(inline, true)
@@ -313,10 +347,10 @@ in
 }
 do
 {
-    const r = selectSocket(handle, SelectMode.write | SelectMode.error, timeout);
+    const r = selectSocket(handle, SelectMode.read | SelectMode.write | SelectMode.error, timeout);
     return r <= 0
-        ? IOResult.failed
-        : ((r & SelectMode.error) == SelectMode.error ? IOResult.failed : IOResult.success);
+        ? resultError
+        : ((r & SelectMode.error) == SelectMode.error ? resultError : resultOK);
 }
 
 

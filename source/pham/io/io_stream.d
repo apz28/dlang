@@ -9,18 +9,18 @@
  *
  */
 
-module pham.io.stream;
+module pham.io.io_stream;
 
 public import core.time : Duration;
 import core.time : msecs;
 
-import pham.utl.result : lastSystemError;
-public import pham.io.error : IOError;
-public import pham.io.type;
+import pham.utl.utl_result : lastSystemError, resultError, resultOK;
+public import pham.utl.utl_result : ResultIf, ResultStatus;
+public import pham.io.io_type;
 version (Posix)
-    import pham.io.posix;
+    import pham.io.io_posix;
 else version (Windows)
-    import pham.io.windows;
+    import pham.io.io_windows;
 else
     static assert(0, "Unsupport target");
 
@@ -40,7 +40,7 @@ public:
      * Closes the current stream and releases any resources (such as sockets and file handles)
      * associated with the current stream
      */
-    abstract IOResult close(const(bool) destroying = false) nothrow scope;
+    abstract int close(const(bool) destroying = false) nothrow scope;
 
     /**
      * Reads the bytes from the current stream and writes them to another stream.
@@ -81,7 +81,7 @@ public:
      * When overridden in a derived class, clears all buffers for this stream and causes
      * any buffered data to be written to the underlying device
      */
-    abstract IOResult flush() nothrow;
+    abstract int flush() nothrow;
 
     /**
      * Read a ubyte from stream.
@@ -265,26 +265,26 @@ public:
     }
 
 public:
-    IOError lastError;
+    ResultStatus lastError;
 
 package(pham.io):
     enum defaultBufferSize = 16_384;
 
     pragma(inline, true)
-    final IOResult checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    final int checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
     {
         return active
             ? lastError.reset()
-            : lastError.setFailed(0, funcName, " with inactive stream", file, line);
+            : lastError.setError(0, " with inactive stream", funcName, file, line);
     }
 
     pragma(inline, true)
-    final IOResult checkUnsupported(const(bool) can,
+    final int checkUnsupported(const(bool) can,
         string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
     {
         return can
             ? lastError.reset()
-            : lastError.setUnsupported(0, null, funcName, file, line);
+            : lastError.setUnsupportedError(0, null, funcName, file, line);
     }
 
 protected:
@@ -378,11 +378,11 @@ public:
         return this;
     }
 
-    final override IOResult close(const(bool) destroying = false) nothrow scope
+    final override int close(const(bool) destroying = false) nothrow scope
     {
         _data = null;
         _position = 0;
-        return IOResult.success;
+        return resultOK;
     }
 
     /**
@@ -394,9 +394,9 @@ public:
         return this._position >= this._data.length;
     }
 
-    override IOResult flush() nothrow
+    override int flush() nothrow
     {
-        return IOResult.success;
+        return resultOK;
     }
 
     pragma(inline, true)
@@ -410,7 +410,7 @@ public:
         import std.conv : to;
 
         if (value > maxLength)
-            return lastError.setFailed(0, " with over limit " ~ to!string(value));
+            return lastError.setError(0, " with over limit " ~ to!string(value));
 
         if (value <= 0)
             _data = null;
@@ -431,7 +431,7 @@ public:
 
         const newPos = this._position + 1;
         if (newPos > maxLength)
-            return lastError.setFailed(0, " with over limit " ~ to!string(newPos));
+            return lastError.setError(0, " with over limit " ~ to!string(newPos));
 
         if (this._data.length < newPos)
             this._data.length = newPos;
@@ -538,7 +538,7 @@ protected:
         {
             case SeekOrigin.begin:
                 if (offset > maxLength)
-                    return lastError.setFailed(0, " with over limit " ~ to!string(offset));
+                    return lastError.setError(0, " with over limit " ~ to!string(offset));
                 this._position = offset <= 0 ? 0 : cast(size_t)offset;
                 break;
             case SeekOrigin.current:
@@ -589,11 +589,11 @@ public:
         this._data = data;
     }
 
-    final override IOResult close(const(bool) destroying = false) nothrow scope
+    final override int close(const(bool) destroying = false) nothrow scope
     {
         _data = null;
         _position = 0;
-        return IOResult.success;
+        return resultOK;
     }
 
     /**
@@ -605,9 +605,9 @@ public:
         return this._position >= this._data.length;
     }
 
-    override IOResult flush() nothrow
+    override int flush() nothrow
     {
-        return IOResult.success;
+        return resultOK;
     }
 
     final ReadonlyStream open(ubyte[] data) nothrow pure
@@ -772,10 +772,10 @@ public:
         this._position = 0;
     }
 
-    final override IOResult close(const(bool) destroying = false) nothrow scope
+    final override int close(const(bool) destroying = false) nothrow scope
     {
         if (_handle == invalidFileHandle)
-            return IOResult.success;
+            return resultOK;
 
         scope (exit)
         {
@@ -783,10 +783,10 @@ public:
             _position = 0;
         }
 
-        if (closeFile(_handle) == IOResult.success)
-            return IOResult.success;
+        if (closeFile(_handle) == resultOK)
+            return resultOK;
 
-        return lastError.setFailed(lastSystemError());
+        return lastError.setSystemError(closeFileAPI(), lastSystemError());
     }
 
     pragma(inline, true)
@@ -828,7 +828,7 @@ protected:
             const rn = remaining >= int.max ? int.max : remaining;
             const rr = readFile(_handle, bytes[offset..offset+rn]);
             if (rr < 0)
-                return lastError.setFailed(lastSystemError());
+                return lastError.setSystemError(readFileAPI(), lastSystemError());
             else if (rr == 0)
                 break;
             offset += rr;
@@ -844,7 +844,7 @@ protected:
 
         const result = seekFile(_handle, offset, origin);
         if (result < 0)
-            return lastError.setFailed(lastSystemError());
+            return lastError.setSystemError(seekFileAPI(), lastSystemError());
 
         this._position = result;
         return result;
@@ -859,7 +859,7 @@ protected:
             const wn = remaining >= int.max ? int.max : remaining;
             const wr = writeFile(_handle, bytes[offset..offset+wn]);
             if (wr < 0)
-                return lastError.setFailed(lastSystemError());
+                return lastError.setSystemError(writeFileAPI(), lastSystemError());
             else if (wr == 0)
                 break;
             offset += wr;
@@ -887,14 +887,13 @@ public:
 
     this(string fileName, scope const(char)[] mode = "r") nothrow
     {
-        StreamOpenInfo openInfo;
-        auto parseResult = StreamOpenInfo.parseOpenMode(mode, openInfo);
+        auto parseResult = StreamOpenInfo.parseOpenMode(mode);
         if (parseResult.isOK)
-            this(fileName, openInfo);
+            this(fileName, parseResult.value);
         else
         {
-            super(invalidFileHandle, fileName, openInfo.mode);
-            this.lastError.set(0, "Failed open file-name: " ~ fileName ~ "\n" ~ parseResult.message);
+            super(invalidFileHandle, fileName, parseResult.value.mode);
+            this.lastError.setError(0, "Failed open file-name: " ~ fileName ~ "\n" ~ parseResult.errorMessage);
         }
     }
 
@@ -903,7 +902,7 @@ public:
         auto h = openFile(fileName, openInfo);
         super(h, fileName, openInfo.mode);
         if (h == invalidFileHandle)
-            this.lastError.set(lastSystemError(), "Failed open file-name: " ~ fileName);
+            this.lastError.setSystemError(openFileAPI(), lastSystemError(), " file-name: " ~ fileName);
     }
 
     /**
@@ -915,14 +914,14 @@ public:
         return this.position >= this.length;
     }
 
-    final override IOResult flush() nothrow
+    final override int flush() nothrow
     {
         if (const r = checkActive())
             return r;
 
-        return flushFile(_handle) == IOResult.success
-            ? IOResult.success
-            : lastError.setFailed(lastSystemError());
+        return flushFile(_handle) == resultOK
+            ? resultOK
+            : lastError.setSystemError(flushFileAPI(), lastSystemError());
     }
 
     final override long setLength(long value) nothrow
@@ -932,15 +931,15 @@ public:
 
         const curPosition = seekFile(_handle, 0, SeekOrigin.current);
         if (curPosition < 0)
-            return lastError.setFailed(lastSystemError());
+            return lastError.setSystemError(seekFileAPI(), lastSystemError());
 
         if (seekFile(_handle, value, SeekOrigin.begin) < 0)
-            return lastError.setFailed(lastSystemError());
+            return lastError.setSystemError(seekFileAPI(), lastSystemError());
         scope (success)
             seekFile(handle, curPosition > value ? value : curPosition, SeekOrigin.begin);
 
         if (setLengthFile(_handle, value) < 0)
-            return lastError.setFailed(lastSystemError());
+            return lastError.setSystemError(setLengthFileAPI(), lastSystemError());
 
         return value;
     }
@@ -980,7 +979,7 @@ public:
             return r;
 
         const result = getLengthFile(_handle);
-        return result >= 0 ? result : lastError.setFailed(lastSystemError());
+        return result >= 0 ? result : lastError.setSystemError(getLengthFileAPI(), lastSystemError());
     }
 }
 
@@ -994,7 +993,7 @@ public:
         super(handle, name, StreamOpenMode.readOnly);
     }
 
-    final override IOResult flush() nothrow
+    final override int flush() nothrow
     {
         if (const r = checkUnsupported(false))
             return r;
@@ -1049,14 +1048,14 @@ public:
         super(handle, name, StreamOpenMode.writeOnly);
     }
 
-    final override IOResult flush() nothrow
+    final override int flush() nothrow
     {
         if (const r = checkActive())
             return r;
 
-        return flushFile(_handle) == IOResult.success
-            ? IOResult.success
-            : lastError.setFailed(lastSystemError());
+        return flushFile(_handle) == resultOK
+            ? resultOK
+            : lastError.setSystemError(flushFileAPI(), lastSystemError());
     }
 
     final override long setLength(long value) nothrow
@@ -1097,22 +1096,22 @@ public:
     }
 }
 
-IOError createPipeStreams(const(bool) asInput, out InputPipeStream inputStream, out OutputPipeStream outputStream,
+ResultStatus createPipeStreams(const(bool) asInput, out InputPipeStream inputStream, out OutputPipeStream outputStream,
     uint bufferSize = 0) nothrow
 {
     FileHandle inputHandle, outputHandle;
     const r = createFilePipes(asInput, inputHandle, outputHandle, bufferSize);
-    if (r != IOResult.success)
+    if (r != resultOK)
     {
         inputStream = null;
         outputStream = null;
-        return IOError.failed(lastSystemError());
+        return ResultStatus.systemError(createFilePipesAPI(), lastSystemError());
     }
     else
     {
         inputStream = new InputPipeStream(inputHandle, "stdin" ~ (asInput ? "-in" : "-out"));
         outputStream = new OutputPipeStream(outputHandle, "stdout" ~ (asInput ? "-in" : "-out"));
-        return IOError.init;
+        return ResultStatus.ok();
     }
 }
 
@@ -1168,7 +1167,7 @@ public:
             childOutputWrite.close();
     }
 
-    IOError openAll() nothrow
+    ResultStatus openAll() nothrow
     {
         auto r1 = createPipeStreams(true, childInputRead, childInputWrite);
         if (r1.isError)
@@ -1181,7 +1180,7 @@ public:
             childInputWrite.close();
             return r2;
         }
-        return IOError.init;
+        return ResultStatus.ok();
     }
 
     static bool canClose(long rwResult, ChildInputOutputCloseAfter closeAfter) @nogc nothrow pure

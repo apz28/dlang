@@ -9,15 +9,15 @@
  *
  */
 
-module pham.io.writer;
+module pham.io.io_writer;
 
 import std.bitmanip : nativeToBigEndian, nativeToLittleEndian;
 import std.system : Endian;
 
-import pham.utl.bit : Map32Bit, Map64Bit;
-import pham.io.error;
-import pham.io.stream;
-import pham.io.type;
+import pham.utl.utl_bit : Map32Bit, Map64Bit;
+import pham.io.io_error;
+import pham.io.io_stream;
+import pham.io.io_type;
 
 @safe:
 
@@ -363,7 +363,7 @@ package(pham.io):
     }
 
     pragma(inline, true)
-    void writeEndianInteger(T)(T v)
+    void writeEndianInteger(T)(T v) @trusted
     {
         static if (isSameRTEndian(EndianKind))
             writeBuffer(&v, T.sizeof);

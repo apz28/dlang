@@ -9,7 +9,7 @@
  *
  */
 
-module pham.io.windows;
+module pham.io.io_windows;
 
 version (Windows):
 
@@ -25,7 +25,8 @@ pragma(lib, "kernel32");
 extern (Windows) BOOL FlushFileBuffers(HANDLE hFile) @nogc nothrow @system;
 //extern (Windows) DWORD GetFileType(HANDLE hFile) @nogc nothrow @system;
 
-import pham.io.type : SeekOrigin, StreamOpenInfo, IOResult;
+import pham.utl.utl_result : resultError, resultOK;
+import pham.io.io_type : SeekOrigin, StreamOpenInfo;
 
 alias FileHandle = HANDLE;
 alias invalidFileHandle = INVALID_HANDLE_VALUE;
@@ -39,7 +40,12 @@ in
 }
 do
 {
-    return CloseHandle(handle) ? IOResult.success : IOResult.failed;
+    return CloseHandle(handle) ? resultOK : resultError;
+}
+
+string closeFileAPI() @nogc nothrow pure @safe
+{
+    return "CloseHandle";
 }
 
 /// Follow Posix return convention = -1=error, 0=success
@@ -53,21 +59,21 @@ int createFilePipes(const(bool) asInput, out FileHandle inputHandle, out FileHan
 
     inputHandle = outputHandle = invalidFileHandle;
     int result = CreatePipe(&inputHandle, &outputHandle, &saAttr, bufferSize)
-        ? IOResult.success
-        : IOResult.failed;
-    if (result == IOResult.success)
+        ? resultOK
+        : resultError;
+    if (result == resultOK)
     {
         if (asInput)
         {
             if (!SetHandleInformation(outputHandle, HANDLE_FLAG_INHERIT, 0))
-                result = IOResult.failed;
+                result = resultError;
         }
         else
         {
             if (!SetHandleInformation(inputHandle, HANDLE_FLAG_INHERIT, 0))
-                result = IOResult.failed;
+                result = resultError;
         }
-        if (result == IOResult.failed)
+        if (result == resultError)
         {
             const e = GetLastError();
             CloseHandle(inputHandle);
@@ -76,6 +82,11 @@ int createFilePipes(const(bool) asInput, out FileHandle inputHandle, out FileHan
         }
     }
     return result;
+}
+
+string createFilePipesAPI() @nogc nothrow pure @safe
+{
+    return "CreatePipe";
 }
 
 /// Follow Posix return convention = -1=error, 0=success
@@ -87,7 +98,12 @@ in
 }
 do
 {
-    return FlushFileBuffers(handle) ? IOResult.success : IOResult.failed;
+    return FlushFileBuffers(handle) ? resultOK : resultError;
+}
+
+string flushFileAPI() @nogc nothrow pure @safe
+{
+    return "FlushFileBuffers";
 }
 
 /// Follow Posix return convention = -1=error, >=0=success with its length
@@ -100,7 +116,12 @@ in
 do
 {
     LARGE_INTEGER li;
-    return GetFileSizeEx(handle, &li) ? li.QuadPart : IOResult.failed;
+    return GetFileSizeEx(handle, &li) ? li.QuadPart : resultError;
+}
+
+string getLengthFileAPI() @nogc nothrow pure @safe
+{
+    return "GetFileSizeEx";
 }
 
 FileHandle openFile(scope const(char)[] fileName, scope const(StreamOpenInfo) openInfo) nothrow @trusted
@@ -119,6 +140,11 @@ FileHandle openFile(scope const(char)[] fileName, scope const(StreamOpenInfo) op
         );
 }
 
+string openFileAPI() @nogc nothrow pure @safe
+{
+    return "CreateFileW";
+}
+
 /// Follow Posix return convention = -1=error, >=0=success with its read length
 pragma(inline, true)
 int readFile(FileHandle handle, scope ubyte[] bytes) nothrow @trusted
@@ -133,7 +159,12 @@ do
     uint result = 0;
     return ReadFile(handle, cast(void*)bytes.ptr, cast(uint)bytes.length, &result, null)
         ? cast(int)result
-        : IOResult.failed;
+        : resultError;
+}
+
+string readFileAPI() @nogc nothrow pure @safe
+{
+    return "ReadFile";
 }
 
 /// Follow Posix return convention = -1=error, 0=success
@@ -142,7 +173,12 @@ int removeFile(scope const(char)[] fileName) nothrow @trusted
     import std.internal.cstring : tempCStringW;
 
     auto lpFileName = fileName.tempCStringW();
-    return DeleteFileW(lpFileName) ? IOResult.success : IOResult.failed;
+    return DeleteFileW(lpFileName) ? resultOK : resultError;
+}
+
+string removeFileAPI() @nogc nothrow pure @safe
+{
+    return "DeleteFileW";
 }
 
 /// Follow Posix return convention = -1=error, >=0=success with its seek position
@@ -158,8 +194,13 @@ do
     li.QuadPart = offset;
     li.LowPart = SetFilePointer(handle, li.LowPart, &li.HighPart, origin);
     return li.LowPart == INVALID_SET_FILE_POINTER && GetLastError() != NO_ERROR
-        ? IOResult.failed
+        ? resultError
         : li.QuadPart;
+}
+
+string seekFileAPI() @nogc nothrow pure @safe
+{
+    return "SetFilePointer";
 }
 
 /// Follow Posix return convention = -1=error, >=0=success with its file length
@@ -171,7 +212,12 @@ in
 }
 do
 {
-    return SetEndOfFile(handle) ? IOResult.success : IOResult.failed;
+    return SetEndOfFile(handle) ? resultOK : resultError;
+}
+
+string setLengthFileAPI() @nogc nothrow pure @safe
+{
+    return "SetEndOfFile";
 }
 
 /// Follow Posix return convention = -1=error, >=0=success with its written length
@@ -188,5 +234,10 @@ do
     uint result = 0;
     return WriteFile(handle, cast(void*)bytes.ptr, cast(uint)bytes.length, &result, null)
         ? cast(int)result
-        : IOResult.failed;
+        : resultError;
+}
+
+string writeFileAPI() @nogc nothrow pure @safe
+{
+    return "WriteFile";
 }

@@ -9,7 +9,7 @@
  *
  */
 
-module pham.io.posix;
+module pham.io.io_posix;
 
 version (Posix):
 
@@ -17,13 +17,27 @@ import core.sys.posix.fcntl;
 import core.sys.posix.unistd : close, lseek64, pipe, read, ftruncate64, write;
 import core.stdc.stdio : remove;
 
-import pham.io.type : SeekOrigin, StreamOpenInfo, IOResult;
+import pham.io.io_type : SeekOrigin, StreamOpenInfo;
 
 alias FileHandle = int;
 enum invalidFileHandle = -1;
 private enum limitEINTR = 5;
 
-alias closeFile = close;
+pragma(inline, true)
+int closeFile(FileHandle handle) nothrow @trusted
+in
+{
+    assert(handle != invalidFileHandle);
+}
+do
+{
+    return close(handle);
+}
+
+string closeFileAPI() @nogc nothrow pure @safe
+{
+    return "close";
+}
 
 int createFilePipes(const(bool) asInput, out FileHandle inputHandle, out FileHandle outputHandle,
     uint bufferSize = 0) nothrow @trusted
@@ -38,6 +52,11 @@ int createFilePipes(const(bool) asInput, out FileHandle inputHandle, out FileHan
     inputHandle = handles[0];
     outputHandle = handles[1];
     return result;
+}
+
+string createFilePipesAPI() @nogc nothrow pure @safe
+{
+    return "pipe";
 }
 
 pragma(inline, true)
@@ -57,6 +76,11 @@ do
     return result;
 }
 
+string flushFileAPI() @nogc nothrow pure @safe
+{
+    return "fsync";
+}
+
 pragma(inline, true)
 long getLengthFile(FileHandle handle) nothrow @trusted
 in
@@ -65,13 +89,18 @@ in
 }
 do
 {
-    const curPosition = seekHandle(0, SeekOrigin.current);
+    const curPosition = seekFile(handle, 0, SeekOrigin.current);
     if (curPosition < 0)
         return curPosition;
     scope (exit)
-        seekHandle(curPosition, SeekOrigin.begin);
+        seekFile(handle, curPosition, SeekOrigin.begin);
 
-    return seekHandle(0, SeekOrigin.end);
+    return seekFile(handle, 0, SeekOrigin.end);
+}
+
+string getLengthFileAPI() @nogc nothrow pure @safe
+{
+    return seekFileAPI;
 }
 
 FileHandle openFile(scope const(char)[] fileName, scope const(StreamOpenInfo) openInfo) nothrow @trusted
@@ -87,6 +116,11 @@ FileHandle openFile(scope const(char)[] fileName, scope const(StreamOpenInfo) op
     }
     while (result < 0 && errno == EINTR && limit++ < limitEINTR);
     return result;
+}
+
+string openFileAPI() @nogc nothrow pure @safe
+{
+    return "open";
 }
 
 pragma(inline, true)
@@ -108,6 +142,11 @@ do
     return result;
 }
 
+string readFileAPI() @nogc nothrow pure @safe
+{
+    return "read";
+}
+
 int removeFile(scope const(char)[] fileName) nothrow @trusted
 {
     import std.internal.cstring : tempCString;
@@ -120,6 +159,11 @@ int removeFile(scope const(char)[] fileName) nothrow @trusted
     }
     while (result < 0 && errno == EINTR && limit++ < limitEINTR);
     return result;
+}
+
+string removeFileAPI() @nogc nothrow pure @safe
+{
+    return "remove";
 }
 
 pragma(inline, true)
@@ -140,6 +184,11 @@ do
     return result;
 }
 
+string seekFileAPI() @nogc nothrow pure @safe
+{
+    return "lseek64";
+}
+
 pragma(inline, true)
 int setLengthFile(FileHandle handle, long length) nothrow @trusted
 in
@@ -155,6 +204,11 @@ do
     }
     while (result < 0 && errno == EINTR && limit++ < limitEINTR);
     return result;
+}
+
+string setLengthFileAPI() @nogc nothrow pure @safe
+{
+    return "ftruncate64";
 }
 
 pragma(inline, true)
@@ -174,4 +228,9 @@ do
     }
     while (result < 0 && errno == EINTR && limit++ < limitEINTR);
     return result;
+}
+
+string writeFileAPI() @nogc nothrow pure @safe
+{
+    return "write";
 }

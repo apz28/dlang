@@ -9,7 +9,7 @@
  *
  */
 
-module pham.io.type;
+module pham.io.io_type;
 
 import std.system : Endian;
 version (Posix)
@@ -29,16 +29,9 @@ else version (Windows)
         FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_GENERIC_WRITE, FILE_WRITE_DATA, GENERIC_READ, GENERIC_WRITE;
 }
 
-import pham.io.error : IOError;
+public import pham.utl.utl_result : ResultIf;
 
 @safe:
-
-enum IOResult : int
-{
-    success = 0,
-    failed = -1,
-    unsupported = -2,
-}
 
 enum SeekOrigin : int
 {
@@ -139,15 +132,14 @@ public:
      *
      * Params:
      *   mode = fopen mode to convert to `StreamOpenMode` enum
-     *   info = info.mode will contain the converted `StreamOpenMode` enum
      * Returns:
-     *   IOError with success or error with appropriate info
+     *   ResultIf!StreamOpenInfo
      */
-    static IOError parseOpenMode(scope const(char)[] mode, out StreamOpenInfo info) nothrow
+    static ResultIf!StreamOpenInfo parseOpenMode(scope const(char)[] mode) nothrow
     {
         enum OkMode { notSet, invalid, valid }
 
-        info.reset();
+        StreamOpenInfo info;
         OkMode ok = OkMode.notSet;
         char lastModeChar = '\0';
         foreach (i; 0..mode.length)
@@ -223,7 +215,9 @@ public:
                 break;
         }
 
-        return ok == OkMode.valid ? IOError(0, null) : IOError(0, "Invalid file-stream open mode: " ~ mode.idup);
+        return ok == OkMode.valid 
+            ? ResultIf!StreamOpenInfo.ok(info) 
+            : ResultIf!StreamOpenInfo.error(0, "Invalid file-stream open mode: " ~ mode.idup);
     }
 
     version (Windows)
@@ -317,59 +311,89 @@ bool isSameRTEndian(const(Endian) endian) @nogc nothrow pure
 
 unittest // StreamOpenInfo.parseOpenMode
 {
-    StreamOpenInfo info;
-    assert(StreamOpenInfo.parseOpenMode("r", info).isOK());
+    ResultIf!StreamOpenInfo info;
+    
+    info = StreamOpenInfo.parseOpenMode("r");
+    assert(info.isOK());
     assert(info.mode == StreamOpenMode.read);
-    assert(StreamOpenInfo.parseOpenMode("r+", info).isOK());
+    
+    info = StreamOpenInfo.parseOpenMode("r+");
+    assert(info.isOK());
     assert(info.mode == StreamOpenMode.readWrite);
-    assert(StreamOpenInfo.parseOpenMode("rb", info).isOK());
+    
+    info = StreamOpenInfo.parseOpenMode("rb");
+    assert(info.isOK());
     assert(info.mode == (StreamOpenMode.read | StreamOpenMode.binary));
-    assert(StreamOpenInfo.parseOpenMode("r+b", info).isOK());
+    
+    info = StreamOpenInfo.parseOpenMode("r+b");
+    assert(info.isOK());
     assert(info.mode == (StreamOpenMode.readWrite | StreamOpenMode.binary));
 
-    assert(StreamOpenInfo.parseOpenMode("rw", info).isError());
-    assert(StreamOpenInfo.parseOpenMode("ra", info).isError());
-    assert(StreamOpenInfo.parseOpenMode("rt", info).isError());
-    assert(StreamOpenInfo.parseOpenMode("r+t", info).isError());
-    assert(StreamOpenInfo.parseOpenMode("rbt", info).isError());
-    assert(StreamOpenInfo.parseOpenMode("r+bt", info).isError());
+    assert(StreamOpenInfo.parseOpenMode("rw").isError());
+    assert(StreamOpenInfo.parseOpenMode("ra").isError());
+    assert(StreamOpenInfo.parseOpenMode("rt").isError());
+    assert(StreamOpenInfo.parseOpenMode("r+t").isError());
+    assert(StreamOpenInfo.parseOpenMode("rbt").isError());
+    assert(StreamOpenInfo.parseOpenMode("r+bt").isError());
 
-    assert(StreamOpenInfo.parseOpenMode("w", info).isOK());
+    info = StreamOpenInfo.parseOpenMode("w");
+    assert(info.isOK());
     assert(info.mode == (StreamOpenMode.create | StreamOpenMode.truncate | StreamOpenMode.write));
-    assert(StreamOpenInfo.parseOpenMode("wt", info).isOK());
+    
+    info = StreamOpenInfo.parseOpenMode("wt");
+    assert(info.isOK());
     assert(info.mode == (StreamOpenMode.create | StreamOpenMode.truncate | StreamOpenMode.write | StreamOpenMode.temporary));
-    assert(StreamOpenInfo.parseOpenMode("w+", info).isOK());
+    
+    info = StreamOpenInfo.parseOpenMode("w+");
+    assert(info.isOK());
     assert(info.mode == (StreamOpenMode.create | StreamOpenMode.truncate | StreamOpenMode.readWrite));
-    assert(StreamOpenInfo.parseOpenMode("w+t", info).isOK());
+    
+    info = StreamOpenInfo.parseOpenMode("w+t");
+    assert(info.isOK());
     assert(info.mode == (StreamOpenMode.create | StreamOpenMode.truncate | StreamOpenMode.readWrite | StreamOpenMode.temporary));
-    assert(StreamOpenInfo.parseOpenMode("wb", info).isOK());
+    
+    info = StreamOpenInfo.parseOpenMode("wb");
+    assert(info.isOK());
     assert(info.mode == (StreamOpenMode.create | StreamOpenMode.truncate | StreamOpenMode.write | StreamOpenMode.binary));
-    assert(StreamOpenInfo.parseOpenMode("wbt", info).isOK());
+    
+    info = StreamOpenInfo.parseOpenMode("wbt");
+    assert(info.isOK());
     assert(info.mode == (StreamOpenMode.create | StreamOpenMode.truncate | StreamOpenMode.write | StreamOpenMode.binary | StreamOpenMode.temporary));
-    assert(StreamOpenInfo.parseOpenMode("w+b", info).isOK());
+    
+    info = StreamOpenInfo.parseOpenMode("w+b");
+    assert(info.isOK());
     assert(info.mode == (StreamOpenMode.create | StreamOpenMode.truncate | StreamOpenMode.readWrite | StreamOpenMode.binary));
-    assert(StreamOpenInfo.parseOpenMode("w+bt", info).isOK());
+    
+    info = StreamOpenInfo.parseOpenMode("w+bt");
+    assert(info.isOK());
     assert(info.mode == (StreamOpenMode.create | StreamOpenMode.truncate | StreamOpenMode.readWrite | StreamOpenMode.binary | StreamOpenMode.temporary));
 
-    assert(StreamOpenInfo.parseOpenMode("wr", info).isError());
-    assert(StreamOpenInfo.parseOpenMode("wa", info).isError());
+    assert(StreamOpenInfo.parseOpenMode("wr").isError());
+    assert(StreamOpenInfo.parseOpenMode("wa").isError());
 
-    assert(StreamOpenInfo.parseOpenMode("a", info).isOK());
+    info = StreamOpenInfo.parseOpenMode("a");
+    assert(info.isOK());
     assert(info.mode == (StreamOpenMode.create | StreamOpenMode.write | StreamOpenMode.append));
-    assert(StreamOpenInfo.parseOpenMode("a+", info).isOK());
+    
+    info = StreamOpenInfo.parseOpenMode("a+");
+    assert(info.isOK());
     assert(info.mode == (StreamOpenMode.create | StreamOpenMode.readWrite | StreamOpenMode.append));
-    assert(StreamOpenInfo.parseOpenMode("ab", info).isOK());
+    
+    info = StreamOpenInfo.parseOpenMode("ab");
+    assert(info.isOK());
     assert(info.mode == (StreamOpenMode.create | StreamOpenMode.write | StreamOpenMode.append | StreamOpenMode.binary));
-    assert(StreamOpenInfo.parseOpenMode("a+b", info).isOK());
+    
+    info = StreamOpenInfo.parseOpenMode("a+b");
+    assert(info.isOK());
     assert(info.mode == (StreamOpenMode.create | StreamOpenMode.readWrite | StreamOpenMode.append | StreamOpenMode.binary));
 
-    assert(StreamOpenInfo.parseOpenMode("ar", info).isError());
-    assert(StreamOpenInfo.parseOpenMode("aw", info).isError());
-    assert(StreamOpenInfo.parseOpenMode("at", info).isError());
-    assert(StreamOpenInfo.parseOpenMode("a+t", info).isError());
-    assert(StreamOpenInfo.parseOpenMode("abt", info).isError());
-    assert(StreamOpenInfo.parseOpenMode("a+bt", info).isError());
+    assert(StreamOpenInfo.parseOpenMode("ar").isError());
+    assert(StreamOpenInfo.parseOpenMode("aw").isError());
+    assert(StreamOpenInfo.parseOpenMode("at").isError());
+    assert(StreamOpenInfo.parseOpenMode("a+t").isError());
+    assert(StreamOpenInfo.parseOpenMode("abt").isError());
+    assert(StreamOpenInfo.parseOpenMode("a+bt").isError());
 
-    assert(!StreamOpenInfo.parseOpenMode("xyz", info).isOK());
-    assert(StreamOpenInfo.parseOpenMode("xyz", info).isError());
+    assert(!StreamOpenInfo.parseOpenMode("xyz").isOK());
+    assert(StreamOpenInfo.parseOpenMode("xyz").isError());
 }
