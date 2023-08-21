@@ -9,14 +9,14 @@
  *
  */
 
-module pham.utl.utf8;
+module pham.utl.utl_utf8;
 
 import std.algorithm.mutation : swapAt;
 import std.range.primitives : empty, front, popFront, put, save;
 import std.string : representation;
 import std.traits : isSomeChar;
 
-import pham.utl.disposable : DisposingReason;
+import pham.utl.utl_disposable : DisposingReason;
 
 nothrow @safe:
 

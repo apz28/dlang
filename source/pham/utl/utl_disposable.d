@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.disposable;
+module pham.utl.utl_disposable;
 
 /**
  * Reason to call dispose

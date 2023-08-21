@@ -9,13 +9,13 @@
  *
  */
 
-module pham.utl.zip_inflate;
+module pham.utl.utl_zip_inflate;
 
 import std.format : format;
 
-import pham.utl.zip_constant;
-import pham.utl.zip_tree;
-import pham.utl.zip;
+import pham.utl.utl_zip_constant;
+import pham.utl.utl_zip_tree;
+import pham.utl.utl_zip;
 
 nothrow @safe:
 

@@ -9,14 +9,14 @@
  *
  */
 
-module pham.utl.enum_set;
+module pham.utl.utl_enum_set;
 
 import std.conv : to;
 import std.meta : allSatisfy;
 import std.range.primitives : put;
 import std.traits : EnumMembers, isIntegral, Unqual;
 
-import pham.utl.array : ShortStringBuffer;
+import pham.utl.utl_array : ShortStringBuffer;
 
 nothrow @safe:
 

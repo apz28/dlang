@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.zip_constant;
+module pham.utl.utl_zip_constant;
 
 nothrow @safe:
 

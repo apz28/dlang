@@ -11,10 +11,10 @@
  * tree/master/src/System.Runtime.Numerics/src/System/Numerics
  */
 
-module pham.utl.big_integer_helper;
+module pham.utl.utl_big_integer_helper;
 
-import pham.utl.bit : DoubleUlong = Map64Bit;
-import pham.utl.result : cmp;
+import pham.utl.utl_bit : DoubleUlong = Map64Bit;
+import pham.utl.utl_result : cmp;
 
 nothrow @safe:
 

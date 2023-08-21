@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.bit;
+module pham.utl.utl_bit;
 
 import std.bitmanip : bigEndianToNative, littleEndianToNative, nativeToBigEndian, nativeToLittleEndian, swapEndian;
 import std.system : Endian;

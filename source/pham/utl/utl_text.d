@@ -9,9 +9,9 @@
  *
  */
 
-module pham.utl.text;
+module pham.utl.utl_text;
 
-public import pham.utl.result : ResultIf;
+public import pham.utl.utl_result : ResultIf;
 
 nothrow @safe:
 
@@ -44,7 +44,7 @@ S valueOf(S)(NamedValue!S[] values, scope const(S) name, S notFound = S.init) pu
 ResultIf!S decodeFormValue(S)(S encodedFormValue, const(char) invalidReplacementChar) pure
 {
     import std.array : Appender;
-    import pham.utl.numeric_parser : NumericParsedKind, parseHexDigits;
+    import pham.utl.utl_numeric_parser : NumericParsedKind, parseHexDigits;
 
     if (encodedFormValue.simpleIndexOfAny("%+") < 0)
         return ResultIf!S.ok(encodedFormValue);

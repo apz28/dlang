@@ -9,13 +9,13 @@
  *
  */
 
-module pham.utl.timer;
+module pham.utl.utl_timer;
 
 import core.sync.mutex : Mutex;
 import core.thread.osthread : Thread;
 public import core.time : Duration, dur;
 
-import pham.utl.object : RAIIMutex;
+import pham.utl.utl_object : RAIIMutex;
 
 alias TimerDelegate = void delegate(TimerEvent event);
 alias TimerFunction = void function(TimerEvent event);

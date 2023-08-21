@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.variant_coerce;
+module pham.utl.utl_variant_coerce;
 
 import std.math.traits : isNaN;
 import std.meta : AliasSeq;
@@ -475,7 +475,7 @@ if ((isIntegral!L || isFloatingPoint!L || isSomeChar!L)
 nothrow unittest // ConvertHandler.Integral
 {
     import std.math : lround;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.utl.variant.ConvertHandler.Integral");
 
     ConvertHandler handler;
@@ -619,7 +619,7 @@ nothrow unittest // ConvertHandler.Integral
 
 nothrow unittest // ConvertHandler.Float
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.utl.variant.ConvertHandler.Float");
 
     ConvertHandler handler;
@@ -693,7 +693,7 @@ nothrow unittest // ConvertHandler.Float
 
 nothrow unittest // ConvertHandler.cast(bool)
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.utl.variant.ConvertHandler.cast(bool)");
 
     ConvertHandler handler;
@@ -742,7 +742,7 @@ nothrow unittest // ConvertHandler.cast(bool)
 nothrow unittest // ConvertHandler.coerce(string)
 {
     import std.conv : to;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.utl.variant.ConvertHandler.coerce(string)");
 
     ConvertHandler handler;

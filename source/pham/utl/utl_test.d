@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.test;
+module pham.utl.utl_test;
 
 import core.time : Duration, MonoTime, dur;
 import core.sync.mutex : Mutex;
@@ -131,7 +131,7 @@ public:
     }
     do
     {
-        import pham.utl.object : RAIIMutex;
+        import pham.utl.utl_object : RAIIMutex;
 
         auto raiiMutex = RAIIMutex(countersMutex);
         auto existedCounter = name in counters;
@@ -260,7 +260,7 @@ version (unittest)
     import std.conv : to;
     import std.format : format;
     import std.traits : isSomeChar;
-    import pham.external.std.log.logger : defaultOutputPattern, FileLogger, FileLoggerOption, LoggerOption, LogLevel,
+    import pham.external.std.log.log_logger : defaultOutputPattern, FileLogger, FileLoggerOption, LoggerOption, LogLevel,
         OutputPattern;
 
 	ubyte[] dgReadAllBinary(string fileName) nothrow @trusted
@@ -287,9 +287,9 @@ version (unittest)
 
     ubyte[] dgFromHex(scope const(char)[] hexs) nothrow pure @safe
     {
-        import pham.utl.array : ShortStringBuffer;
-        import pham.utl.numeric_parser : NumericParsedKind, parseHexDigits;
-        import pham.utl.utf8 : NoDecodeInputRange;
+        import pham.utl.utl_array : ShortStringBuffer;
+        import pham.utl.utl_numeric_parser : NumericParsedKind, parseHexDigits;
+        import pham.utl.utl_utf8 : NoDecodeInputRange;
 
         NoDecodeInputRange!(hexs, char) inputRange;
         ShortStringBuffer!ubyte result;
@@ -328,7 +328,7 @@ version (unittest)
 
     string dgToHex(scope const(ubyte)[] bytes) nothrow pure @safe
     {
-        import pham.utl.numeric_parser : cvtBytesHex;
+        import pham.utl.utl_numeric_parser : cvtBytesHex;
 
         return cvtBytesHex(bytes, LetterCase.upper, false);
     }
@@ -387,7 +387,7 @@ version (unittest)
 
     void dgWriteln(const(char)[] prefix, scope const(ubyte)[] bytes) nothrow
     {
-        import pham.utl.object : bytesToHexs;
+        import pham.utl.utl_object : bytesToHexs;
 
         try {
             debug dgWriteln(prefix, bytesToHexs(bytes));
@@ -485,7 +485,7 @@ unittest // PerfCpuUsage
 {
     import core.time : dur;
     import core.thread.osthread : Thread;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.utl.utltest.PerfCpuUsage");
 
     void delay() nothrow @trusted

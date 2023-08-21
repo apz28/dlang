@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.dynamic_library;
+module pham.utl.utl_dynamic_library;
 
 import std.format : format;
 import std.string : toStringz;
@@ -274,7 +274,7 @@ private:
 
 unittest // DllLibrary
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest utl.dynlib.DllLibrary");
 
     version (Windows)

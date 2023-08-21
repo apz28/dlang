@@ -9,8 +9,9 @@
  *
  */
 
-module pham.utl.result;
+module pham.utl.utl_result;
 
+import std.conv : to;
 import std.math.traits : isNaN;
 import std.traits : isFloatingPoint, isIntegral, isScalarType;
 
@@ -136,7 +137,7 @@ if (isScalarType!T && !isFloatingPoint!T)
     static if (is(U == char))
     {
         import core.internal.string : dstrcmp;
-        
+
         return dstrcmp(cast(const(char)[])lhs, cast(const(char)[])rhs);
     }
     else static if (!is(U == T))
@@ -154,7 +155,7 @@ if (isScalarType!T && !isFloatingPoint!T)
             if (!__ctfe)
             {
                 import core.stdc.string : memcmp;
-                
+
                 const c = memcmp(lhs.ptr, rhs.ptr, len * T.sizeof);
                 return c ? c : cmp(lhs.length, rhs.length);
             }
@@ -243,12 +244,16 @@ if (!isScalarType!T1 && !isScalarType!T2)
 string errorCodeToString(I)(I errorCode) nothrow pure
 if (isIntegral!I)
 {
-    import std.conv : to;
-
     return "0x" ~ to!string(errorCode, 16) ~ " (" ~ to!string(errorCode) ~ ")";
 }
 
-string getSystemErrorMessage(const(int) errorNo) nothrow @trusted
+string genericErrorMessage(I)(string apiName, I errorCode) nothrow pure
+if (isIntegral!I)
+{
+    return apiName ~ " - Error code: " ~ errorCodeToString(errorCode);
+}
+
+string getSystemErrorMessage(const(uint) errorNo) nothrow @trusted
 in
 {
     assert(errorNo != 0);
@@ -257,32 +262,25 @@ do
 {
     version (Windows)
     {
-        import core.sys.windows.winbase : FormatMessageA, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS;
+        import core.sys.windows.winbase : FormatMessageW, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS;
+        import core.sys.windows.winnt : LANG_NEUTRAL;
 
-        char[1_000] buf = void;
-        auto n = FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, null, errorNo, 0, buf.ptr, buf.length, null);
-        while (n > 0 && buf[n-1] < ' ')
-            n--;
-        return n > 0 ? buf[0..n].idup : null;
+        wchar[1_000] buf = void;
+        auto n = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, null, errorNo, LANG_NEUTRAL, buf.ptr, buf.length, null);
+        return n > 0 ? osWCharToString(buf[0..n]) : null;
     }
     else version (Posix)
     {
         import core.stdc.string : strlen, strerror_r;
 
-        char[1_000] buf;
+        char[1_000] buf = '\0';
         const(char)* p;
 
         version (CRuntime_Glibc)
             p = strerror_r(errorNo, buf.ptr, buf.length);
         else if (!strerror_r(errorNo, buf.ptr, buf.length))
             p = buf.ptr;
-        if (p !is null)
-        {
-            auto n = p.strlen;
-            while (n > 0 && p[n-1] < ' ')
-                n--;
-        }
-        return p !is null ? p[0..p.strlen].idup : null;
+        return p !is null ? osCharToString(p[0..p.strlen]) : null;
     }
     else
         static assert(0, "Unsupport target");
@@ -307,6 +305,14 @@ uint lastSystemError() nothrow @trusted
         static assert(0, "Unsupport target");
 }
 
+ResultStatus lastSystemError(string apiName,
+    string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+{
+    auto code = lastSystemError();
+    auto message = getSystemErrorMessage(code);
+    return ResultStatus.error(code, message.length != 0 ? message : genericErrorMessage(apiName, code), funcName, file, line);
+}
+
 /**
  * Compares and returns none-zero if both values are same sign
  * Params:
@@ -318,7 +324,7 @@ uint lastSystemError() nothrow @trusted
  *   0 otherwise
  */
 pragma(inline, true)
-int sameSign(LHS, RHS)(const(LHS) lhs, const(RHS) rhs) @nogc nothrow pure @safe
+int sameSign(LHS, RHS)(const(LHS) lhs, const(RHS) rhs) @nogc nothrow pure
 if (isIntegral!LHS && isIntegral!RHS)
 {
     const lhsP = lhs >= 0;
@@ -445,7 +451,7 @@ struct ResultIf(T)
 @safe:
 
 public:
-    this(T value, ResultStatus status)
+    this(T value, ResultStatus status) nothrow
     {
         this.value = value;
         this.status = status;
@@ -465,27 +471,42 @@ public:
      * Create this result-type as error
      */
     pragma(inline, true)
-    static typeof(this) error(int errorCode, string errorMessage, string errorFormat = null)
+    static typeof(this) error(uint errorCode, string errorMessage,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
     {
-        return typeof(this)(T.init, ResultStatus.error(errorCode, errorMessage, errorFormat));
+        return typeof(this)(T.init, ResultStatus.error(errorCode, errorMessage, funcName, file, line));
     }
 
     pragma(inline, true)
-    static typeof(this) error(T value, int errorCode, string errorMessage, string errorFormat = null)
+    static typeof(this) error(T value, uint errorCode, string errorMessage,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
     {
-        return typeof(this)(value, ResultStatus.error(errorCode, errorMessage, errorFormat));
+        return typeof(this)(value, ResultStatus.error(errorCode, errorMessage, funcName, file, line));
     }
 
+    static typeof(this) systemError(string apiName, uint errorCode, string postfixMessage = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    {
+        return typeof(this)(T.init, ResultStatus.systemError(apiName, errorCode, postfixMessage, funcName, file, line));
+    }
+
+    static typeof(this) systemError(T value, string apiName, uint errorCode, string postfixMessage = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    {
+        return typeof(this)(value, ResultStatus.systemError(apiName, errorCode, postfixMessage, funcName, file, line));
+    }
+        
     /**
      * Create this result-type without error
      */
     pragma(inline, true)
-    static typeof(this) ok(T value)
+    static typeof(this) ok(T value) nothrow
     {
         return typeof(this)(value, ResultStatus.ok());
     }
 
-    @property int errorCode() const @nogc nothrow pure
+    pragma(inline, true)
+    @property uint errorCode() const @nogc nothrow pure
     {
         return status.errorCode;
     }
@@ -516,96 +537,222 @@ public:
 public:
     T value;
     alias value this;
-    ResultStatus status = ResultStatus.defaultError();
+    ResultStatus status = ResultStatus(resultUninitialized, null, null, null, 0);
 }
+
+enum resultOK = 0;
+enum resultError = -1;
+enum resultUnsupported = -2;
+enum resultUninitialized = -3;
 
 struct ResultStatus
 {
-nothrow @safe:
-
-    enum defaultErrorCode = int.min;
+@safe:
 
 public:
-    this(bool errorStatus, int errorCode, string errorMessage, string errorFormat = null) @nogc pure
+    this(uint errorCode, string errorMessage,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
     {
-        this.errorStatus = errorStatus;
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
-        this.errorFormat = errorFormat;
+        this.funcName = funcName;
+        this.file = file;
+        this.line = line;
     }
 
-    bool opCast(C: bool)() const @nogc pure
+    bool opCast(C: bool)() const @nogc nothrow pure
     {
         return isOK;
     }
 
-    bool clone(ResultStatus source) @nogc pure
+    bool addMessageIf(string errorLine) nothrow pure
     {
-        this.errorFormat = source.errorFormat;
-        this.errorMessage = source.errorMessage;
+        return addLineIf(this.errorMessage, errorLine);
+    }
+
+    int clone(ResultStatus source, const(int) result) @nogc nothrow pure
+    {
         this.errorCode = source.errorCode;
-        this.errorStatus = source.errorStatus;
-        return this.errorStatus;
-    }
-
-    static typeof(this) defaultError() @nogc pure
-    {
-        return typeof(this)(true, defaultErrorCode, null, null);
-    }
-
-    pragma(inline, true)
-    static typeof(this) error(int errorCode, string errorMessage, string errorFormat = null) @nogc pure
-    {
-        return typeof(this)(true, errorCode, errorMessage, errorFormat);
-    }
-
-    string getErrorString() const pure
-    {
-        string result = errorMessage;
-        if (errorCode != 0)
-            addLine(result, "Error code: " ~ errorCodeToString(errorCode));
+        this.errorMessage = source.errorMessage;
+        this.funcName = source.funcName;
+        this.file = source.file;
+        this.line = source.line;
         return result;
     }
 
     pragma(inline, true)
-    static typeof(this) ok() @nogc pure
+    static typeof(this) error(uint errorCode, string errorMessage,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
     {
-        return typeof(this)(false, 0, null, null);
+        return typeof(this)(errorCode, errorMessage, funcName, file, line);
+    }
+
+    static typeof(this) systemError(string apiName, uint errorCode, string postfixMessage = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    {
+        typeof(this) result;
+        result.setSystemError(apiName, errorCode, postfixMessage, funcName, file, line);
+        return result;
+    }
+
+    static typeof(this) unsupportedError(uint errorCode, string postfixMessage = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    {
+        typeof(this) result;
+        result.setUnsupportedError(errorCode, postfixMessage, funcName, file, line);
+        return result;
+    }
+
+    string getErrorString() const nothrow pure
+    {
+        return errorMessage.length != 0
+            ? errorMessage
+            : (errorCode != 0 ? ("Error code: " ~ errorCodeToString(errorCode)) : null);
+    }
+    
+    pragma(inline, true)
+    static typeof(this) ok() @nogc nothrow pure
+    {
+        return typeof(this)(0, null, null, null, 0);
+    }
+
+    pragma(inline, true)
+    int reset(const(int) result = resultOK) @nogc nothrow pure
+    {
+        this.errorMessage = this.file = this.funcName = null;
+        this.errorCode = this.line = 0;
+        return result;
+    }
+
+    int set(uint errorCode, string errorMessage, const(int) result = resultError,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
+    {
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+        this.funcName = funcName;
+        this.file = file;
+        this.line = line;
+        return result;
+    }
+
+    int setError(uint errorCode, string postfixMessage = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    {
+        this.errorCode = errorCode;
+        this.errorMessage = "Failed " ~ funcName ~ postfixMessage;
+        this.funcName = funcName;
+        this.file = file;
+        this.line = line;
+        this.addMessageIf(errorCode != 0 ? ("Error code: " ~ errorCodeToString(errorCode)) : null);
+        return resultError;
+    }
+
+    int setSystemError(string apiName, uint errorCode, string postfixMessage = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    {
+        this.errorCode = errorCode;
+        this.errorMessage = "Failed " ~ apiName ~ postfixMessage;
+        this.funcName = funcName;
+        this.file = file;
+        this.line = line;
+        this.addMessageIf(errorCode != 0 ? getSystemErrorMessage(errorCode) : null);
+        this.addMessageIf(errorCode != 0 ? ("Error code: " ~ errorCodeToString(errorCode)) : null);
+        return resultError;
+    }
+
+    int setUnsupportedError(uint errorCode, string postfixMessage = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+    {
+        this.errorCode = errorCode;
+        this.errorMessage = "Unsupported " ~ funcName ~ postfixMessage;
+        this.funcName = funcName;
+        this.file = file;
+        this.line = line;
+        return resultUnsupported;
+    }
+
+    pragma(inline, true)
+    void throwIf(E : Exception = Exception)()
+    {
+        if (isError)
+            throwIt!E();
+    }
+
+    void throwIt(E : Exception = Exception)(Throwable next = null)
+    {
+        static if (__traits(compiles, new E(errorCode, errorMessage, next, funcName, file, line)))
+            throw new E(errorCode, errorMessage, next, funcName, file, line);
+        else
+            throw new E(errorMessage, file, line, next);
     }
 
     string toString() const pure
     {
-        import std.conv : to;
         scope (failure) assert(0, "Assume nothrow failed");
 
-        string result = "Error status: " ~ to!string(errorStatus);
-        if (isError)
-        {
-            if (errorMessage.length != 0)
-                addLine(result, "Error message: " ~ errorMessage);
-            if (errorCode != 0)
-                addLine(result, "Error code: " ~ errorCodeToString(errorCode));
-        }
+        string result;
+
+        if (errorMessage.length != 0)
+            addLine(result, "Error message: " ~ errorMessage);
+        if (errorCode != 0)
+            addLine(result, "Error code: " ~ errorCodeToString(errorCode));
+        if (file.length != 0)
+            addLine(result, "File: " ~ file ~ " at line# " ~ to!string(line));
+        if (funcName.length != 0)
+            addLine(result, "Function: " ~ funcName);
+
         return result;
     }
 
+    /**
+     * Returns true if this instant is an error status
+     * If errorCode != 0 or errorMessage.length != 0
+     */
     pragma(inline, true)
-    @property bool isError() const @nogc pure
+    @property bool isError() const @nogc nothrow pure
     {
-        return errorStatus;
+        return errorCode != 0 || errorMessage.length != 0;
     }
 
+    /**
+     * Returns true if this instant is an OK status
+     * If errorCode == 0 and errorMessage.length == 0
+     */
     pragma(inline, true)
-    @property bool isOK() const @nogc pure
+    @property bool isOK() const @nogc nothrow pure
     {
-        return !isError;
+        return errorCode == 0 && errorMessage.length == 0;
     }
 
 public:
-    string errorFormat;
     string errorMessage;
-    int errorCode;
-    bool errorStatus;
+    string file;
+    string funcName;
+    uint errorCode;
+    uint line;
+}
+
+
+package(pham.utl):
+
+string osCharToString(scope const(char)[] v) nothrow pure
+{
+    scope (failure) assert(0, "Assume nothrow failed");
+    
+    auto result = to!string(v);
+    while (result.length && result[$ - 1] <= ' ')
+        result = result[0..$ - 1];
+    return result;
+}
+
+string osWCharToString(scope const(wchar)[] v) nothrow pure
+{
+    scope (failure) assert(0, "Assume nothrow failed");
+    
+    auto result = to!string(v);
+    while (result.length && result[$ - 1] <= ' ')
+        result = result[0..$ - 1];
+    return result;
 }
 
 
@@ -623,13 +770,13 @@ nothrow @safe unittest // cmp floating
     assert(isNaN(cmp(float.nan, float.nan)));
     assert(isNaN(cmp(float.infinity, float.nan)));
     assert(isNaN(cmp(float.nan, -float.infinity)));
-    
+
     assert(isNaN(cmp(-float.infinity, -float.infinity)));
-    assert(isNaN(cmp(float.infinity, float.infinity)));    
+    assert(isNaN(cmp(float.infinity, float.infinity)));
     assert(cmp(-float.infinity, float.infinity) < 0);
     assert(cmp(float.infinity, -float.infinity) > 0);
     assert(cmp(float.infinity, float.max) > 0);
-    assert(cmp(-float.infinity, -float.max) < 0);    
+    assert(cmp(-float.infinity, -float.max) < 0);
 }
 
 nothrow @safe unittest // cmp integral

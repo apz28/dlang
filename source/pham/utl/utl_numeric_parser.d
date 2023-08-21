@@ -9,14 +9,14 @@
  *
  */
 
-module pham.utl.numeric_parser;
+module pham.utl.utl_numeric_parser;
 
 public import std.ascii : LetterCase;
 import std.range.primitives : ElementEncodingType, ElementType, empty, front, popFront, put,
     isInfinite, isInputRange, isOutputRange;
 import std.traits : isIntegral, isSigned, isSomeChar, isUnsigned, Unqual;
 
-import pham.utl.utf8;
+import pham.utl.utl_utf8;
 
 nothrow @safe:
 
@@ -1286,7 +1286,7 @@ nothrow @safe unittest // parseBase64
 {
     import std.conv : to;
     import std.string : representation;
-    import pham.utl.array : ShortStringBuffer;
+    import pham.utl.utl_array : ShortStringBuffer;
 
     static test(string base64Text, NumericParsedKind expectedCondition, string expectedText,
         uint line = __LINE__)

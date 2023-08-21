@@ -9,13 +9,13 @@
  *
  */
 
-module pham.utl.zip_tree;
+module pham.utl.utl_zip_tree;
 
 import std.algorithm.comparison : max;
 
-import pham.utl.zip_constant;
-import pham.utl.zip_deflate;
-import pham.utl.zip;
+import pham.utl.utl_zip_constant;
+import pham.utl.utl_zip_deflate;
+import pham.utl.utl_zip;
 
 nothrow @safe:
 

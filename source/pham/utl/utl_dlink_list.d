@@ -9,9 +9,9 @@
  *
  */
 
-module pham.utl.dlink_list;
+module pham.utl.utl_dlink_list;
 
-public import pham.utl.disposable : DisposingReason;
+public import pham.utl.utl_disposable : DisposingReason;
 
 nothrow @safe:
 
@@ -293,7 +293,7 @@ private:
 unittest
 {
     import std.conv : to;
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.utl.dlink_list");
 
     class X

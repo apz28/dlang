@@ -9,12 +9,12 @@
  *
  */
 
-module pham.utl.array;
+module pham.utl.utl_array;
 
 import std.range.primitives : ElementType;
 import std.traits : isDynamicArray, isIntegral, isSomeChar, isStaticArray, lvalueOf;
 
-import pham.utl.disposable : DisposingReason;
+import pham.utl.utl_disposable : DisposingReason;
 
 nothrow @safe:
 

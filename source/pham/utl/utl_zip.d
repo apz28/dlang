@@ -9,14 +9,14 @@
  *
  */
 
-module pham.utl.zip;
+module pham.utl.utl_zip;
 
 import std.format : format;
 
-public import pham.utl.zip_constant;
-import pham.utl.zip_tree;
-import pham.utl.zip_deflate;
-import pham.utl.zip_inflate;
+public import pham.utl.utl_zip_constant;
+import pham.utl.utl_zip_tree;
+import pham.utl.utl_zip_deflate;
+import pham.utl.utl_zip_inflate;
 
 nothrow @safe:
 
@@ -648,8 +648,8 @@ private:
 
 unittest // Inflate
 {
-	import pham.utl.object : bytesFromHexs;
-    import pham.utl.test;
+	import pham.utl.utl_object : bytesFromHexs;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.utl.zip.ZlibCodec.Inflate");
 
 	auto zipData1 = bytesFromHexs("789C626060E0644005820C9CC195B9B9A9254599C98C2C8E45C926107146980200000000FFFF");
@@ -677,8 +677,8 @@ unittest // Inflate
 
 unittest // Deflate
 {
-	import pham.utl.object : bytesFromHexs;
-    import pham.utl.test;
+	import pham.utl.utl_object : bytesFromHexs;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.utl.zip.ZlibCodec.Deflate");
 
 	auto zipData1 = bytesFromHexs("789C626060E0644005820C9CC195B9B9A9254599C98C2C8E45C926107146980200000000FFFF");
@@ -706,17 +706,19 @@ unittest // Deflate
 
 unittest // Deflate & Inflate long string
 {
-	import pham.cp.random : CipherRandomGenerator;
-	import pham.utl.array : ShortStringBuffer;
-    import pham.utl.test;
+    import std.array : array;
+    import std.random;
+	import std.range : generate, takeExactly; //iota;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.utl.zip.ZlibCodec.Deflate & Inflate long string");
 
-	CipherRandomGenerator generator;
-	ShortStringBuffer!ubyte buffer;
-	auto sourceBytes = generator.nextBytes(buffer, 256_000)[].dup;
+    scope (failure) assert(0, "Assume nothrow failed");
+    
+	auto rnd = Random(unpredictableSeed);
+	auto sourceBytes = cast(ubyte[])generate!(() => uniform(1, 255)).takeExactly(256_000).array;
 
 	auto zipper = new ZlibCodec(CompressionMode.compress);
-	zipper.resetBuffers(sourceBytes[], 1024 * 1024);
+	zipper.resetBuffers(sourceBytes, 1024 * 1024);
 	auto r = zipper.deflate(FlushType.sync);
 	assert(r == ZipResult.Z_OK);
 	assert(zipper.availableBytesIn == 0);
@@ -729,13 +731,13 @@ unittest // Deflate & Inflate long string
 	assert(r == ZipResult.Z_OK);
 	assert(zipper2.availableBytesIn == 0);
 	assert(zipper2.nextOut != 0);
-	assert(zipper2.peekOutput() == sourceBytes[]);
+	assert(zipper2.peekOutput() == sourceBytes);
 }
 
 version (UnitTestZLib)
 unittest // ZlibCodec.Deflate
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.utl.zip.ZlibCodec.Deflate.BigFile");
 
 	auto bigData = dgReadAllBinary("zip_test_expressionsem.d");

@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.ini_file;
+module pham.utl.utl_ini_file;
 
 import std.file : exists;
 import std.format : format;
@@ -19,8 +19,8 @@ import std.traits : hasUDA, isArray, isBasicType, isSomeString;
 import std.typecons : Flag, No, Yes;
 import std.uni : sicmp;
 
-import pham.utl.array : removeAt;
-import pham.utl.delegate_list;
+import pham.utl.utl_array : removeAt;
+import pham.utl.utl_delegate_list;
 
 enum IniFileOpenMode : ubyte
 {
@@ -125,65 +125,61 @@ public:
             comments.length = 0;
         }
 
-        Line getValue(Line valueName, Line defaultValue = null)
+        Line getValue(scope Line name, Line defaultValue = null)
         {
-            const i = indexOfName(valueName);
+            const i = indexOfName(name);
             if (i >= 0)
                 return values[i].value;
             else
                 return defaultValue;
         }
 
-        ptrdiff_t indexOfName(in Line valueName)
+        ptrdiff_t indexOfName(scope Line name)
         {
             foreach (i, ref e; values)
             {
-                if (sicmp(e.name, valueName) == 0)
+                if (sicmp(e.name, name) == 0)
                     return i;
             }
 
             return -1;
         }
 
-        bool removeValue(Line removedName)
+        bool removeValue(scope Line removingName)
         {
-             const i = indexOfName(removedName);
-             if (i >= 0)
-             {
-                 removeAt(values, i);
-                 return true;
-             }
-             else
-                return false;
+            const i = indexOfName(removingName);
+            if (i < 0)
+               return false;
+            
+            removeAt(values, i);
+            return true;
         }
 
-        void setValue(Line valueName, Line value)
+        void setValue(Line name, Line value)
         in
         {
-            assert(valueName.length != 0);
+            assert(name.length != 0);
         }
         do
         {
-            const i = indexOfName(valueName);
+            const i = indexOfName(name);
             if (i >= 0)
                 values[i].value = value;
             else
-                values ~= Value(valueName, value, null);
+                values ~= Value(name, value, null);
         }
 
-        bool setValueComment(L...)(Line valueName, L valueComments)
+        bool setValueComment(L...)(Line name, L valueComments)
         {
-            const i = indexOfName(valueName);
-            if (i >= 0)
-            {
-                values[i].comments = null;
-                foreach (c; valueComments)
-                    values[i].comments ~= c;
+            const i = indexOfName(name);
+            if (i < 0)
+                return false;
+            
+            values[i].comments = null;
+            foreach (c; valueComments)
+                values[i].comments ~= c;
 
-                return true;
-            }
-
-            return false;
+            return true;
         }
     }
 
@@ -224,9 +220,9 @@ public:
 
     final void clear() nothrow @safe
     {
+        foundSection = FoundSection(null, -1);
         _loadedError = false;
         _sections.length = 0;
-        foundSection = FoundSection(null, -1);
         _changed = true;
     }
 
@@ -246,15 +242,15 @@ public:
         return res;
     }
 
-    /** Returns a string value if existing sectionName & name; otherwise returns defaultValue
+    /** Returns a string value if existing sectionName & valueName; otherwise returns defaultValue
     */
-    final Line getValue(Line sectionName, Line valueName, Line defaultValue = null)
+    final Line getValue(scope Line sectionName, scope Line valueName, Line defaultValue = null)
     {
         Line res;
-        const s = indexOfSection(sectionName);
-        if (s >= 0)
+        const si = indexOfSection(sectionName);
+        if (si >= 0)
         {
-            res = _sections[s].getValue(valueName, defaultValue);
+            res = _sections[si].getValue(valueName, defaultValue);
             if (onGetValue)
                 onGetValue(this, sectionName, valueName, false, &res);
         }
@@ -269,37 +265,32 @@ public:
 
     /** Returns array of all names of the sectionName
     */
-    final Line[] getNames(Line sectionName) nothrow @safe
+    final Line[] getNames(scope Line sectionName) nothrow @safe
     {
-        const s = indexOfSection(sectionName);
-        if (s >= 0)
-        {
-            Line[] res;
-            res.reserve(_sections[s].values.length);
-            foreach (ref e; _sections[s].values)
-                res ~= e.name;
-            return res;
-        }
-        else
+        const si = indexOfSection(sectionName);
+        if (si < 0)
             return null;
+        
+        Line[] res;
+        res.reserve(_sections[si].values.length);
+        foreach (ref e; _sections[si].values)
+            res ~= e.name;
+        return res;
     }
 
     /** Returns true if existing sectionName; otherwise returns false
     */
-    final bool hasSection(Line sectionName) nothrow @safe
+    final bool hasSection(scope Line sectionName) nothrow @safe
     {
         return indexOfSection(sectionName) >= 0;
     }
 
     /** Returns true if existing sectionName has existing name; otherwise returns false
     */
-    final bool hasValue(Line sectionName, Line valueName) nothrow @safe
+    final bool hasValue(scope Line sectionName, scope Line valueName) nothrow @safe
     {
-        const s = indexOfSection(sectionName);
-        if (s >= 0)
-            return _sections[s].indexOfName(valueName) >= 0;
-        else
-            return false;
+        const si = indexOfSection(sectionName);
+        return si >= 0 && _sections[si].indexOfName(valueName) >= 0;
     }
 
     final void load(Flag!"throwIfError" throwIfError = No.throwIfError)()
@@ -393,26 +384,24 @@ public:
 
     /** If found existing removedSectionName, remove it and returns true; otherwise returns false
     */
-    final bool removeSection(Line removedName) nothrow @safe
+    final bool removeSection(scope Line removingName) nothrow @safe
     {
-        const i = indexOfSection(removedName);
-        if (i >= 0)
-        {
-            foundSection = FoundSection(null, -1);
-            removeAt(_sections, i);
-            _changed = true;
-            return true;
-        }
-        else
+        const si = indexOfSection(removingName);
+        if (si < 0)
             return false;
+        
+        foundSection = FoundSection(null, -1);
+        removeAt(_sections, si);
+        _changed = true;
+        return true;
     }
 
-    /** Removes existing value if removedName is found and returns true; otherwise returns false
+    /** Removes existing value if removingName is found and returns true; otherwise returns false
     */
-    final bool removeValue(Line sectionName, Line removedName) nothrow @safe
+    final bool removeValue(scope Line sectionName, scope Line removingName) nothrow @safe
     {
-        const s = indexOfSection(sectionName);
-        if (s >= 0 && _sections[s].removeValue(removedName))
+        const si = indexOfSection(sectionName);
+        if (si >= 0 && _sections[si].removeValue(removingName))
         {
             _changed = true;
             return true;
@@ -483,32 +472,27 @@ public:
     */
     final bool setSectionComment(L...)(Line sectionName, L sectionComments) nothrow @safe
     {
-        const s = indexOfSection(sectionName);
-        if (s >= 0)
-        {
-            _sections[s].comments = null;
-            foreach (c; sectionComments)
-                _sections[s].comments ~= c;
-
-            _changed = true;
-            return true;
-        }
-        else
+        const si = indexOfSection(sectionName);
+        if (si < 0)
             return false;
+        
+        _sections[si].comments = null;
+        foreach (c; sectionComments)
+            _sections[si].comments ~= c;
+
+        _changed = true;
+        return true;
     }
 
     /** Set comment to the name, valueName
     */
     final bool setValueComment(L...)(Line sectionName, Line valueName, L valueComments) nothrow @safe
     {
-        const s = indexOfSection(sectionName);
-        if (s >= 0)
+        const si = indexOfSection(sectionName);
+        if (si >= 0 && _sections[si].setValueComment(valueName, valueComments))
         {
-            if (_sections[s].setValueComment(valueName, valueComments))
-            {
-                _changed = true;
-                return true;
-            }
+            _changed = true;
+            return true;
         }
 
         return false;
@@ -525,15 +509,15 @@ public:
         if (onSetValue)
             onSetValue(this, sectionName, valueName, &value);
 
-        const s = indexOfSection(sectionName);
-        if (s < 0)
+        const si = indexOfSection(sectionName);
+        if (si < 0)
         {
             auto section = Section(sectionName, null, null);
             section.setValue(valueName, value);
             _sections ~= section;
         }
         else
-            _sections[s].setValue(valueName, value);
+            _sections[si].setValue(valueName, value);
 
         _changed = true;
     }
@@ -788,9 +772,9 @@ public:
     }
 
 protected:
-    final ptrdiff_t indexOfSection(Line sectionName) nothrow @safe
+    final ptrdiff_t indexOfSection(scope Line sectionName) nothrow @safe
     {
-        if (sicmp(foundSection.name, sectionName) == 0)
+        if (foundSection.name.length != 0 && sicmp(foundSection.name, sectionName) == 0)
             return foundSection.index;
 
         foreach (i, ref s; _sections)
@@ -814,9 +798,10 @@ private:
         ptrdiff_t index;
     }
 
+    FoundSection foundSection = FoundSection(null, -1);
+
     const(char)[] _inifileName;
     Section[] _sections;
-    FoundSection foundSection = FoundSection(null, -1);
     IniFileOpenMode _openMode;
     bool _changed, _loadedError;
 }
@@ -927,7 +912,7 @@ private:
 
 unittest // IniFile.parseSection
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.utl.inifile.IniFile.parseSection");
 
     IniFile.Line name;
@@ -977,7 +962,7 @@ unittest // IniFile.parseSection
 
 unittest // IniFile.parseNameValue
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.utl.inifile.IniFile.parseNameValue");
 
     IniFile.Line name, value;
@@ -1052,7 +1037,7 @@ unittest // IniFile.parseNameValue
 
 unittest // IniFile
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.utl.inifile.IniFile");
 
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);
@@ -1127,7 +1112,7 @@ struct Foo
 
 unittest // saveMembers & loadMembers
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.utl.inifile.saveMembers & utl.inifile.loadMembers");
 
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);

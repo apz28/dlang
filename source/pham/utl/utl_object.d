@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.object;
+module pham.utl.utl_object;
 
 import core.sync.mutex : Mutex;
 public import std.ascii : LetterCase;
@@ -19,11 +19,11 @@ import std.range.primitives : put;
 import std.traits : isArray, isAssociativeArray, isIntegral, isPointer,
     isSomeChar, isSomeString, isUnsigned, Unqual;
 
-import pham.utl.array : ShortStringBuffer;
-import pham.utl.disposable;
-import pham.utl.numeric_parser : Base64MappingChar, NumericParsedKind, cvtBytesBase64, cvtBytesHex, parseBase64, parseHexDigits;
-import pham.utl.result : cmp;
-import pham.utl.utf8 : NoDecodeInputRange;
+import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_disposable;
+import pham.utl.utl_numeric_parser : Base64MappingChar, NumericParsedKind, cvtBytesBase64, cvtBytesHex, parseBase64, parseHexDigits;
+import pham.utl.utl_result : cmp;
+import pham.utl.utl_utf8 : NoDecodeInputRange;
 
 /**
  * Roundups and returns value, `n`, to the power of 2 modular value, `powerOf2AlignmentSize`
@@ -508,8 +508,8 @@ struct VersionString
     import std.algorithm.iteration : map;
     import std.conv : to;
     import std.string : strip;
-    import pham.utl.array : ShortStringBuffer;
-    import pham.utl.numeric_parser : NumericParsedKind, parseIntegral;
+    import pham.utl.utl_array : ShortStringBuffer;
+    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
 
 nothrow @safe:
 
@@ -863,21 +863,21 @@ nothrow @safe unittest // bytesFromBase64s
 nothrow @safe unittest // className
 {
     auto c1 = new TestClassName();
-    assert(className(c1) == "pham.utl.object.TestClassName");
+    assert(className(c1) == "pham.utl.utl_object.TestClassName");
 
     auto c2 = new TestClassTemplate!int();
-    assert(className(c2) == "pham.utl.object.TestClassTemplate!int.TestClassTemplate");
+    assert(className(c2) == "pham.utl.utl_object.TestClassTemplate!int.TestClassTemplate");
 }
 
 nothrow @safe unittest // functionName
 {
     auto c1 = new TestClassName();
-    assert(c1.testFN() == "pham.utl.object.TestClassName.testFN", c1.testFN());
+    assert(c1.testFN() == "pham.utl.utl_object.TestClassName.testFN", c1.testFN());
 
     TestStructName s1;
-    assert(s1.testFN() == "pham.utl.object.TestStructName.testFN", s1.testFN());
+    assert(s1.testFN() == "pham.utl.utl_object.TestStructName.testFN", s1.testFN());
 
-    assert(testFN() == "pham.utl.object.testFN", testFN());
+    assert(testFN() == "pham.utl.utl_object.testFN", testFN());
 }
 
 nothrow @safe unittest // limitRangeValue
@@ -900,17 +900,17 @@ nothrow @safe unittest // pad
 nothrow @safe unittest // shortClassName
 {
     auto c1 = new TestClassName();
-    assert(shortClassName(c1) == "pham.utl.object.TestClassName");
+    assert(shortClassName(c1) == "pham.utl.utl_object.TestClassName");
 
     auto c2 = new TestClassTemplate!int();
-    assert(shortClassName(c2) == "pham.utl.object.TestClassTemplate");
+    assert(shortClassName(c2) == "pham.utl.utl_object.TestClassTemplate");
 }
 
 nothrow @safe unittest // shortTypeName
 {
-    assert(shortTypeName!TestClassName() == "pham.utl.object.TestClassName", shortTypeName!TestClassName());
-    assert(shortTypeName!(TestClassTemplate!int)() == "pham.utl.object.TestClassTemplate", shortTypeName!(TestClassTemplate!int)());
-    assert(shortTypeName!TestStructName() == "pham.utl.object.TestStructName", shortTypeName!TestStructName());
+    assert(shortTypeName!TestClassName() == "pham.utl.utl_object.TestClassName", shortTypeName!TestClassName());
+    assert(shortTypeName!(TestClassTemplate!int)() == "pham.utl.utl_object.TestClassTemplate", shortTypeName!(TestClassTemplate!int)());
+    assert(shortTypeName!TestStructName() == "pham.utl.utl_object.TestStructName", shortTypeName!TestStructName());
 }
 
 unittest // singleton

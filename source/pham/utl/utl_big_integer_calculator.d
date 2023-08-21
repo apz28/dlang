@@ -11,11 +11,11 @@
  * tree/master/src/System.Runtime.Numerics/src/System/Numerics
  */
 
-module pham.utl.big_integer_calculator;
+module pham.utl.utl_big_integer_calculator;
 
 import std.algorithm : swap;
 
-import pham.utl.array : IndexedArray;
+import pham.utl.utl_array : IndexedArray;
 
 nothrow @safe:
 

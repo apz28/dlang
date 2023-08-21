@@ -9,9 +9,9 @@
  *
  */
 
-module pham.utl.delegate_list;
+module pham.utl.utl_delegate_list;
 
-import pham.utl.array : IndexedArray;
+import pham.utl.utl_array : IndexedArray;
 
 struct DelegateList(Args...)
 {
@@ -98,7 +98,7 @@ private:
 
 unittest // DelegateList
 {
-    import pham.utl.test;
+    import pham.utl.utl_test;
     traceUnitTest("unittest pham.utl.delegate_list.DelegateList");
 
     string eName;
