@@ -260,7 +260,7 @@ version (unittest)
     import std.conv : to;
     import std.format : format;
     import std.traits : isSomeChar;
-    import pham.external.std.log.log_logger : defaultOutputPattern, FileLogger, FileLoggerOption, LoggerOption, LogLevel,
+    import pham.external.std.log.log_logger : defaultOutputPattern, FileLogger, FileLoggerOption, LoggerOption, LogLevel, LogLocation,
         OutputPattern;
 
 	ubyte[] dgReadAllBinary(string fileName) nothrow @trusted
@@ -418,7 +418,7 @@ version (unittest)
     {
         version (TraceFunction)
         {
-            debug traceLogger.trace(line, fileName, funcName, moduleName);
+            debug traceLogger.trace(LogLocation(line, fileName, funcName, moduleName));
         }
     }
 
@@ -436,7 +436,7 @@ version (unittest)
     {
         version (TraceUnitTest)
         {
-            debug traceLogger.trace(line, fileName, funcName, moduleName);
+            debug traceLogger.trace(LogLocation(line, fileName, funcName, moduleName));
         }
     }
 
