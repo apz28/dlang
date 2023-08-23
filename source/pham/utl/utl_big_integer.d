@@ -1192,7 +1192,7 @@ public:
     if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     in
     {
-        assert(f.spec == 'd' || f.spec == 'D');
+        assert(f.spec == 'd' || f.spec == 's');
     }
     do
     {
@@ -1415,11 +1415,11 @@ public:
     if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     in
     {
-        assert(f.spec == 'd' || f.spec == 'D' || f.spec == 'x' || f.spec == 'X');
+        assert(f.spec == 'd' || f.spec == 's' || f.spec == 'x' || f.spec == 'X');
     }
     do
     {
-        if (f.spec == 'd' || f.spec == 'D')
+        if (f.spec == 'd' || f.spec == 's')
             return toDigitString(sink, f);
         else if (f.spec == 'x' || f.spec == 'X')
             return toHexString(sink, f, Yes.includeSign);
