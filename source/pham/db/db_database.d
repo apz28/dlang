@@ -4780,7 +4780,7 @@ __gshared static TimerThread _secondTimer;
 
 shared static this()
 {
-    version (TraceFunctionDB) ModuleLoggerOptions.setModule(ModuleLoggerOption(LogLevel.trace, "pham.db.database"));
+    version (TraceFunctionDB) ModuleLoggerOptions.setModule(ModuleLoggerOption(__MODULE__, LogLevel.trace));
 
     _poolMutex = new Mutex();
     _secondTimer = new TimerThread(dur!"seconds"(1));

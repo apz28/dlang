@@ -1323,7 +1323,7 @@ private:
 
 shared static this()
 {
-    version (TraceFunctionMYDatabase) ModuleLoggerOptions.setModule(ModuleLoggerOption(LogLevel.trace, "pham.db.mydatabase"));
+    version (TraceFunctionMYDatabase) ModuleLoggerOptions.setModule(ModuleLoggerOption(__MODULE__, LogLevel.trace));
 
     auto db = new MyDatabase();
     DbDatabaseList.registerDb(db);
@@ -1331,12 +1331,7 @@ shared static this()
 
 unittest // Turn on trace log if requested - must be first unittest one
 {
-    version (TraceFunctionMYDatabase)
-    {
-        import pham.external.std.log.log_logger : LogLevel, ModuleLoggerOption, ModuleLoggerOptions;
-        
-        ModuleLoggerOptions.setModule(ModuleLoggerOption(ModuleLoggerOptions.wildPackageName(__MODULE__), LogLevel.trace));
-    }
+    version (TraceFunctionMYDatabase) ModuleLoggerOptions.setModule(ModuleLoggerOption(ModuleLoggerOptions.wildPackageName(__MODULE__), LogLevel.trace));
 }
 
 version (UnitTestMYDatabase)

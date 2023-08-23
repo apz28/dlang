@@ -193,9 +193,10 @@ package(pham.db):
             _socketWriteBuffers.insertEnd(item.reset());
     }
 
+    version (TraceFunctionReader) static size_t socketReadDataCounter;
     final size_t socketReadData(ubyte[] data) @trusted
     {
-        version (TraceFunctionReader) traceFunction("_sslSocket.isConnected=", _sslSocket.isConnected);
+        version (TraceFunctionReader) traceFunction("counter=", ++socketReadDataCounter, ", _sslSocket.isConnected=", _sslSocket.isConnected);
         version (profile) debug auto p = PerfFunction.create();
 
         size_t result;
@@ -247,9 +248,10 @@ package(pham.db):
         return result;
     }
 
+    version (TraceFunctionWriter) static size_t socketWriteDataCounter;
     final size_t socketWriteData(scope const(ubyte)[] data) @trusted
     {
-        version (TraceFunctionWriter) traceFunction("_sslSocket.isConnected=", _sslSocket.isConnected, ", data=", data.dgToHex());
+        version (TraceFunctionWriter) traceFunction("counter=", ++socketWriteDataCounter, ", _sslSocket.isConnected=", _sslSocket.isConnected, ", data=", data.dgToHex());
 
         const(ubyte)[] sendingData;
 
@@ -480,7 +482,6 @@ protected:
                 auto funcName = _socket.lastError.funcName;
                 auto file = _socket.lastError.file;
                 auto line = _socket.lastError.line;
-                _socket = null;
                 throwConnectError(errorCode, errorMessage, null, funcName, file, line);
             }
         }
