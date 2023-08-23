@@ -236,6 +236,7 @@ int sendSocket(SocketHandle handle, scope const(ubyte)[] bytes, int flags) nothr
 in
 {
     assert(handle != invalidSocketHandle);
+    assert(bytes.length <= int.max);
 }
 do
 {

@@ -181,16 +181,31 @@ struct BindInfo
 nothrow @safe:
 
 public:
-    this(IPAddress address, ushort port) pure
+    this(IPAddress address, ushort port,
+        Protocol protocol = Protocol.tcp,
+        SocketType type = SocketType.stream) pure
     {
         this.address = address;
         this.port = port;
+        this.protocol = protocol;
+        this.type = type;
+        this.backLog = 100;
+        this.flags = EnumSet!Flags([Flags.blocking, Flags.reuseAddress]);
     }
     
-    this(string hostName, ushort port) pure
+    this(string hostName, ushort port,
+        Protocol protocol = Protocol.tcp,
+        SocketType type = SocketType.stream,
+        AddressFamily family = AddressFamily.ipv4) pure
     {
         this.hostName = hostName;
         this.port = port;
+        this.protocol = protocol;
+        this.type = type;
+        this.address = IPAddress(family);
+        this.backLog = 100;
+        this.flags = EnumSet!Flags([Flags.blocking, Flags.reuseAddress]);
+        this.resolveHostHints = AddressInfo.bindHints();
     }
     
     bool isBlocking() const @nogc
@@ -255,6 +270,7 @@ public:
         return this;
     }
 
+    pragma(inline, true)
     @property AddressFamily family() const @nogc
     {
         return address.family;
@@ -271,9 +287,10 @@ public:
         return this;
     }
 
+    pragma(inline, true)
     @property bool needResolveHostName() const @nogc
     {
-        return hostName.length != 0 && address.family == AddressFamily.unspecified;
+        return hostName.length != 0;
     }
 
     @property bool noDelay() const @nogc
@@ -316,15 +333,15 @@ public:
 
 public:
     IPAddress address;
-    SocketType type = SocketType.stream;
-    Protocol protocol = Protocol.tcp;
+    SocketType type;
+    Protocol protocol;
     ushort port;
     Linger linger;
-    uint backLog = 100;
-    EnumSet!Flags flags = EnumSet!Flags([Flags.blocking, Flags.reuseAddress]);
+    uint backLog;
+    EnumSet!Flags flags;
     string hostName;
     string serviceName;
-    AddressInfo resolveHostHints = AddressInfo.bindHints();
+    AddressInfo resolveHostHints;
 
 private:
     enum Flags
@@ -346,16 +363,31 @@ struct ConnectInfo
 nothrow @safe:
 
 public:
-    this(IPAddress address, ushort port) pure
+    this(IPAddress address, ushort port,
+        Protocol protocol = Protocol.tcp,
+        SocketType type = SocketType.stream) pure
     {
         this.address = address;
         this.port = port;
+        this.protocol = protocol;
+        this.type = type;
+        this.connectTimeout = 5.seconds;
+        this.flags = EnumSet!Flags([Flags.blocking, Flags.noDelay]);
     }
     
-    this(string hostName, ushort port) pure
+    this(string hostName, ushort port,
+        Protocol protocol = Protocol.tcp,
+        SocketType type = SocketType.stream,
+        AddressFamily family = AddressFamily.ipv4) pure
     {
         this.hostName = hostName;
         this.port = port;
+        this.protocol = protocol;
+        this.type = type;
+        this.address = IPAddress(family);
+        this.connectTimeout = 5.seconds;
+        this.flags = EnumSet!Flags([Flags.blocking, Flags.noDelay]);
+        this.resolveHostHints = AddressInfo.connectHints();
     }
     
     bool isBlocking() const @nogc
@@ -387,6 +419,7 @@ public:
         return .toErrorInfo(family, type, protocol);
     }
 
+    // Default is true
     @property bool blocking() const @nogc
     {
         return flags.on(Flags.blocking);
@@ -420,6 +453,7 @@ public:
         return this;
     }
 
+    pragma(inline, true)
     @property AddressFamily family() const @nogc
     {
         return address.family;
@@ -447,11 +481,13 @@ public:
         return this;
     }
 
+    pragma(inline, true)
     @property bool needResolveHostName() const @nogc
     {
-        return hostName.length != 0 && address.family == AddressFamily.unspecified;
+        return hostName.length != 0;
     }
 
+    // Default is true
     @property bool noDelay() const @nogc
     {
         return flags.on(Flags.noDelay);
@@ -481,19 +517,19 @@ public:
 
 public:
     IPAddress address;
-    SocketType type = SocketType.stream;
-    Protocol protocol = Protocol.tcp;
+    SocketType type;
+    Protocol protocol;
     ushort port;
-    Duration connectTimeout = 5.seconds;
+    Duration connectTimeout;
     Duration readTimeout;
     Duration writeTimeout;
     Linger linger;
     uint receiveBufferSize;
     uint sendBufferSize;
-    EnumSet!Flags flags = EnumSet!Flags([Flags.blocking]);
+    EnumSet!Flags flags;
     string hostName;
     string serviceName;
-    AddressInfo resolveHostHints = AddressInfo.connectHints();
+    AddressInfo resolveHostHints;
 
 private:
     enum Flags
@@ -575,6 +611,11 @@ public:
             this._family = AddressFamily.unspecified;
     }
 
+    this(AddressFamily family) nothrow pure
+    {
+        this._family = family;
+    }
+    
     int opCmp(scope const(IPAddress) rhs) const @nogc nothrow pure scope
     {
         int result = cmp(this.isIPv6 ? 2 : (this.isIPv4 ? 1 : 0), rhs.isIPv6 ? 2 : (rhs.isIPv4 ? 1 : 0));
@@ -755,7 +796,6 @@ public:
             this._slen = _sin.sizeof;
             this._sin.sin_addr.s_addr = fromBytes!uint(address.toBytes());
             this._sin.sin_port = hostToNetworkOrder(port);
-
         }
         else if (address.isIPv6)
         {

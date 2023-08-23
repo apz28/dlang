@@ -945,13 +945,10 @@ unittest
     import core.time : seconds;
     import std.conv : to;
 
-    BindInfo bindInfo;
-    bindInfo.address = IPAddress.parse("127.0.0.1");
-    bindInfo.port = 30_000;
+    BindInfo bindInfo = BindInfo(IPAddress.parse("127.0.0.1"), 30_000);
     //bindInfo.protocol = Protocol.udp;
     //bindInfo.type = SocketType.dgram;
-    auto serverSocket = new Socket();
-    serverSocket.bind(bindInfo);
+    auto serverSocket = new Socket(bindInfo);
     assert(serverSocket.lastError.isOK, serverSocket.lastError.errorMessage);
     scope (exit)
         serverSocket.close();
@@ -959,9 +956,7 @@ unittest
     assert(serverSocket.lastError.isOK, serverSocket.lastError.errorMessage);
     //import std.stdio : writeln; writeln("serverSocket.localAddress()=", serverSocket.localAddress());
 
-    ConnectInfo connectInfo;
-    connectInfo.address = IPAddress.parse("127.0.0.1");
-    connectInfo.port = 30_000;
+    ConnectInfo connectInfo = ConnectInfo(IPAddress.parse("127.0.0.1"), 30_000);
     //connectInfo.protocol = Protocol.udp;
     //connectInfo.type = SocketType.dgram;
     auto clientSocket = new Socket(connectInfo);
@@ -992,20 +987,15 @@ unittest
 
 unittest // Connect using machine name
 {
-    BindInfo bindInfo;
-    bindInfo.address = IPAddress.parse("127.0.0.1");
-    bindInfo.port = 30_000;
-    auto serverSocket = new Socket();
-    serverSocket.bind(bindInfo);
+    BindInfo bindInfo = BindInfo(IPAddress.parse("127.0.0.1"), 30_000);
+    auto serverSocket = new Socket(bindInfo);
     assert(serverSocket.lastError.isOK, serverSocket.lastError.errorMessage);
     scope (exit)
         serverSocket.close();
     serverSocket.listen(bindInfo.backLog);
     assert(serverSocket.lastError.isOK, serverSocket.lastError.errorMessage);
 
-    ConnectInfo connectInfo;
-    connectInfo.hostName = "localhost";
-    connectInfo.port = 30_000;
+    ConnectInfo connectInfo = ConnectInfo("localhost", 30_000);
     auto clientSocket = new Socket(connectInfo);
     assert(clientSocket.lastError.isOK, clientSocket.lastError.errorMessage);
     scope (exit)
@@ -1031,20 +1021,15 @@ unittest // Connect using machine name
 
 unittest // Bind & Connect using machine name
 {
-    BindInfo bindInfo;
-    bindInfo.hostName = "localhost";
-    bindInfo.port = 30_000;
-    auto serverSocket = new Socket();
-    serverSocket.bind(bindInfo);
+    BindInfo bindInfo = BindInfo("localhost", 30_000);
+    auto serverSocket = new Socket(bindInfo);
     assert(serverSocket.lastError.isOK, serverSocket.lastError.errorMessage);
     scope (exit)
         serverSocket.close();
     serverSocket.listen(bindInfo.backLog);
     assert(serverSocket.lastError.isOK, serverSocket.lastError.errorMessage);
 
-    ConnectInfo connectInfo;
-    connectInfo.hostName = "localhost";
-    connectInfo.port = 30_000;
+    ConnectInfo connectInfo = ConnectInfo("localhost", 30_000);
     auto clientSocket = new Socket(connectInfo);
     assert(clientSocket.lastError.isOK, clientSocket.lastError.errorMessage);
     scope (exit)
