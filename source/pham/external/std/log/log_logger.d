@@ -931,7 +931,7 @@ public:
 
     /// Ditto
     pragma(inline, true)
-    final bool isLogLevel2(const(LogLevel) ll, out LogLevel llModuleLevel, in string moduleName = __MODULE__) const nothrow @trusted
+    final bool isLogLevel2(const(LogLevel) ll, out LogLevel llModuleLevel, in string moduleName = __MODULE__) const nothrow @safe
     {
         final switch (ll)
         {
@@ -964,7 +964,37 @@ public:
     template logFunction(LogLevel ll)
     {
         /**
-         * This function logs data to the used `Logger`.
+         * This function logs function call to instant `Logger`.
+         */
+        final void logImpl(
+            in int line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow @safe
+        {
+            version (DebugLogger) debug writeln("Logger.logImpl(line=", line, ", funcName=", funcName, ")");
+
+            static if (isLoggingEnabled)
+            {
+                bool isFatal = false;
+                // Special try construct for grep
+                try {
+                    auto currTime = currentTime();
+                    if (isFunction!(ll).isImpl(moduleName))
+                    {
+                        isFatal = ll == LogLevel.fatal;
+                        {
+                            auto locked = LogRAIIMutex(_mutex);
+                            auto header = LogHeader(ll, line, fileName, funcName, moduleName, thisThreadID, currTime, null);
+                            this.beginMsg(header);
+                            this.endMsg(header);
+                        }
+                    }
+                } catch (Exception) {}
+                if (isFatal)
+                    doFatal();
+            }
+        }
+    
+        /**
+         * This function logs data to instant `Logger`.
          * In order for the resulting log message to be logged the `LogLevel`
          * must be greater or equal than the `LogLevel` of the used `Logger`
          * and must be greater or equal than the `LogLevel` of the `globalLogLevel`.
