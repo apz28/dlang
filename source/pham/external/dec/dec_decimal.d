@@ -64,7 +64,7 @@ if (isFloatingPoint!T)
     else static if (is(UT == real))
         return 21;
     else
-        static assert(0, "Unsupport floating point type");
+        static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
 }
 
 /**
@@ -8192,7 +8192,7 @@ U get_mod2pi(U)(ref int power)
     else static if (is(U: uint256))
         enum digits = 77;
     else
-        static assert(0, "Unsupported" ~ U.stringof);
+        static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ U.stringof);
 
     if (power >= 0)
     {

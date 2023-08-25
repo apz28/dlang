@@ -720,7 +720,7 @@ template makeUnsignedBit(int Bytes)
     else static if (Bytes == 1)
         alias makeUnsignedBit = ubyte;
     else
-        static assert(0, "Unsupport UnsignedBit");
+        static assert(0, "Unsupport system for makeUnsignedBit");
 }
 
 T toUnsign(T)(const(char)[] s, ref bool overflow) @nogc nothrow pure @safe // TODO scope
