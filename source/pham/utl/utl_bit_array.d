@@ -1536,8 +1536,6 @@ nothrow @safe unittest
         assert(BitArray.rollRight(x, y, 16) == 0x567890AB);
         assert(BitArray.rollRight(y, x, 4) == 0xF1234567);
     }
-    else
-        static assert(0, "Unsupported size_t");
 }
 
 nothrow @safe unittest
@@ -1561,8 +1559,6 @@ nothrow @safe unittest
         assert(BitArray.rollLeft(x, y, 16) == 0x567890AB);
         assert(BitArray.rollLeft(y, x, 4) == 0x0ABCDEF1);
     }
-    else
-        static assert(0, "Unsupported size_t");
 }
 
 nothrow @safe unittest

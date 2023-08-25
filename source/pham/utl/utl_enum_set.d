@@ -167,7 +167,7 @@ if (isEnumSet!E)
         else static if (E.max <= ulong.max)
             alias EnumSetStorage = ulong;
         else
-            static assert(0, "Overflow storage");
+            static assert(0, "Unsupport system for EnumSetStorage." ~ E.stringof);
     }
     else
     {
@@ -180,7 +180,7 @@ if (isEnumSet!E)
         else static if (count!E() <= ulong.sizeof * 8)
             alias EnumSetStorage = ulong;
         else
-            static assert(0, "Overflow storage");
+            static assert(0, "Unsupport system for EnumSetStorage." ~ E.stringof);
     }
 }
 

@@ -413,28 +413,19 @@ version (unittest)
         } catch (Exception) {}
     }
 
-    void traceFunction(
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
-    {
-        version (TraceFunction)
-        {
-            debug traceLogger.trace(LogLocation(line, fileName, funcName, moduleName));
-        }
-    }
-
     void traceFunction(Args...)(Args args,
         in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
     {
         version (TraceFunction)
         {
-            debug traceLogger.trace!(Args)(args, cast(Exception)null, line, fileName, funcName, moduleName);
+            debug traceLogger.trace!(Args)(args, line, fileName, funcName, moduleName);
         }
     }
 
-    void traceUnitTest(
+    void traceFunction(
         in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
     {
-        version (TraceUnitTest)
+        version (TraceFunction)
         {
             debug traceLogger.trace(LogLocation(line, fileName, funcName, moduleName));
         }
@@ -445,7 +436,16 @@ version (unittest)
     {
         version (TraceUnitTest)
         {
-            debug traceLogger.trace!(Args)(args, cast(Exception)null, line, fileName, funcName, moduleName);
+            debug traceLogger.trace!(Args)(args, line, fileName, funcName, moduleName);
+        }
+    }
+
+    void traceUnitTest(
+        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
+    {
+        version (TraceUnitTest)
+        {
+            debug traceLogger.trace(LogLocation(line, fileName, funcName, moduleName));
         }
     }
 

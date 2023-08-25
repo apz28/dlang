@@ -283,7 +283,7 @@ do
         return p !is null ? osCharToString(p[0..p.strlen]) : null;
     }
     else
-        static assert(0, "Unsupport target");
+        static assert(0, "Unsupport system for " ~ __FUNCTION__);
 }
 
 pragma(inline, true)
@@ -302,7 +302,7 @@ uint lastSystemError() nothrow @trusted
         return errno;
     }
     else
-        static assert(0, "Unsupport target");
+        static assert(0, "Unsupport system for " ~ __FUNCTION__);
 }
 
 ResultStatus lastSystemError(string apiName,

@@ -877,8 +877,7 @@ string saveMember(T)(T t)
     }
     else
     {
-        static assert(0, "Not support type: " ~ fullyQualifiedName!T);
-        return null;
+        static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
     }
 }
 

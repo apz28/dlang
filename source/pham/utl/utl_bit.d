@@ -451,7 +451,7 @@ if (isUnsigned!T && T.sizeof <= 8)
     else static if (T.sizeof == 1)
         return ntz8Table[x];
     else
-        static assert(0, "Unsupport unsigned type");
+        static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
 }
 
 

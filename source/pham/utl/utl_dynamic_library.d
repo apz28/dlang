@@ -95,7 +95,7 @@ class DllException : Exception
     }
     else
     {
-        static assert(0, "Unsupport platform.");
+        static assert(0, "Unsupport system for " ~ __FUNCTION__);
     }
 }
 
@@ -227,7 +227,7 @@ public:
     }
     else
     {
-        static assert(0, "Unsupport platform.");
+        static assert(0, "Unsupport system for " ~ __FUNCTION__);
     }
 
     /**

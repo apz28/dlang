@@ -143,7 +143,7 @@ T limitRangeValue(T)(T value, T min, T max) nothrow pure @safe
         return value < min ? min : (value > max ? max : value);
     }
     else
-        static assert(0, "T must be a type with comparison operators '<' and '>'");
+        static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
 }
 
 /**
