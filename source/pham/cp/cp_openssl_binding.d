@@ -26,7 +26,7 @@ version (Windows)
     alias loadFct = GetProcAddress;
     alias unloadLibFct = FreeLibrary;
 }
-else
+else version (Posix)
 {
     import core.sys.posix.dlfcn : dlclose, dlopen, dlsym;
 
@@ -34,6 +34,8 @@ else
     alias loadFct = dlsym;
     alias unloadLibFct = dlclose;
 }
+else
+    pragma(msg, "Unsupported system for " ~ __MODULE__);
 
 version (Windows)
 {
@@ -78,7 +80,7 @@ else version (Posix)
     static immutable LibName[] libCryptoNames = ["libcrypto.so.3.0", "libcrypto.so.1.1"];
 }
 else
-    static assert(0, "Unsupported system");
+    pragma(msg, "Unsupported system for " ~ __MODULE__);
 
 /*
  * tls1.h
