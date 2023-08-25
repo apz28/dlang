@@ -1196,7 +1196,7 @@ protected:
             else static if (is(T == DbGeoPoint))
                 valueWriter.writeGeoPoint(values[i]);
             else
-                static assert(0, "Unsupport writing for " ~ T.toString());
+                static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
         }
 
         valueWriter.writeArrayEnd(marker);
@@ -1313,7 +1313,7 @@ protected:
             else static if (is(T == DbGeoPoint))
                 result[i] = checkValueLength(elementValueLength, 8 * 2).readGeoPoint();
             else
-                static assert(0, "Unsupport reading for " ~ T.toString());
+                static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
         }
         return result;
     }

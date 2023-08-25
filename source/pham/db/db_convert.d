@@ -274,7 +274,7 @@ do
     }
     else
     {
-        static assert(0, "Unsupport " ~ T.stringof);
+        static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
     }
 
     version (BigEndian)
@@ -359,7 +359,7 @@ if (isUnsigned!T && T.sizeof > 1)
     }
     else
     {
-        static assert(0, "Unsupport " ~ T.stringof);
+        static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
     }
 
     return result;

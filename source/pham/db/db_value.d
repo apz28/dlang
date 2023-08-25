@@ -310,7 +310,7 @@ private:
             this._value = rhs;
         }
         else
-            static assert(0, "Not supported type: " ~ T.stringof);
+            static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
     }
 
     void doAssignVariant(Variant rhs) @safe

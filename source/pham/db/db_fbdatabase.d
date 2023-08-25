@@ -219,7 +219,7 @@ public:
             else static if (is(T == ubyte[]))
                 result[i] = reader.readBytes();
             else
-                static assert(0, "Unsupport reading for " ~ T.toString());
+                static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
         }
         return result;
     }
@@ -380,7 +380,7 @@ public:
             else static if (is(T == ubyte[]))
                 writer.writeBytes(value);
             else
-                static assert(0, "Unsupport writing for " ~ T.toString());
+                static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
         }
         return writerBuffer;
     }
