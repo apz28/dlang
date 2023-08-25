@@ -215,7 +215,7 @@ struct Tick
         else version (Posix)
             return currentSystemTicksPosix!clockType();
         else
-            static assert(0, "Unsupported target");
+            static assert(0, "Unsupport system for " ~ __FUNCTION__);
     }
 
     pragma(inline, true)
@@ -877,7 +877,7 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
         return convert!("seconds", "hnsecs")(ts.tv_sec) + ts.tv_nsec / 100 + hnsecsToUnixEpoch;
     }
     else
-        static assert(0, "Unsupported OS");
+        static assert(0, "Unsupport system for " ~ __FUNCTION__);
 }
 
 __gshared static Mutex tdMutex;

@@ -672,7 +672,7 @@ public:
         else version (Posix)
             return localTimeZonePosix(null);
         else
-            static assert(0, "Unsupported OS");
+            static assert(0, "Unsupport system for " ~ __FUNCTION__);
     }
 
     @property static ref TimeZoneInfo localTimeZone(const(int) year) nothrow
@@ -1688,7 +1688,7 @@ else version (Posix)
     }
 }
 else
-    static assert(0, "Unsupport target");
+    pragma(msg, "Unsupport system for " ~ __MODULE__);
 
 unittest // TimeZoneInfo.localTimeZone
 {
