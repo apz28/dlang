@@ -31,8 +31,7 @@ int lastSocketError() @nogc nothrow @trusted
     }
     else
     {
-        pragma(msg, "No socket error code for this platform.");
-        return 0;
+        static assert(0, "Unsupported system for " ~ __FUNCTION__));
     }
 }
 

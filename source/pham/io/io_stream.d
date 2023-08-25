@@ -22,7 +22,7 @@ version (Posix)
 else version (Windows)
     import pham.io.io_windows;
 else
-    static assert(0, "Unsupport target");
+    pragma(msg, "Unsupported system for " ~ __MODULE__);
 
 @safe:
 

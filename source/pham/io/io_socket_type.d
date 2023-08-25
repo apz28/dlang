@@ -31,7 +31,7 @@ else version (Windows)
     import pham.io.io_socket_windows;
 }
 else
-    static assert(0, "Unsupport target");
+    pragma(msg, "Unsupported system for " ~ __MODULE__);
 
 @safe:
 
