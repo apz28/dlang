@@ -18,7 +18,8 @@ else
     
 import std.conv : to;
 static if (!usePhamIOSocket) import std.socket : Address, AddressFamily, InternetAddress, Internet6Address,
-    ProtocolType, Socket, socket_t, SocketOption, SocketOptionLevel, SocketType;
+    ProtocolType, Socket, SocketException, SocketShutdown, SocketOption, SocketOptionLevel, SocketSet, SocketType,
+    socket_t;
 
 version (profile) import pham.utl.utl_test : PerfFunction;
 version (unittest) import pham.utl.utl_test;
@@ -137,10 +138,10 @@ public:
     pragma(inline, true)
     @property final bool socketActive() const nothrow pure @safe
     {
-        static if (!usePhamIOSocket)
-            return _socket !is null && _socket.handle != socket_t.init;
-        else
+        static if (usePhamIOSocket)
             return _socket !is null && _socket.active;
+        else
+            return _socket !is null && _socket.handle != socket_t.init;
     }
 
     pragma(inline, true)
@@ -208,7 +209,14 @@ package(pham.db):
         }
         else
         {
-            static if (!usePhamIOSocket)
+            static if (usePhamIOSocket)
+            {
+                const rs = _socket.receive(data);
+                if ((rs < 0) || (rs == 0 && data.length != 0))
+                    throwReadDataError(_socket.lastError.errorCode, _socket.lastError.errorMessage);
+                result = cast(size_t)(rs);
+            }
+            else
             {
                 result = _socket.receive(data);
                 if ((result == Socket.ERROR) || (result == 0 && data.length != 0))
@@ -216,13 +224,6 @@ package(pham.db):
                     auto status = lastSocketError("receive");
                     throwReadDataError(status.errorCode, status.errorMessage);
                 }
-            }
-            else
-            {
-                const rs = _socket.receive(data);
-                if ((rs < 0) || (rs == 0 && data.length != 0))
-                    throwReadDataError(_socket.lastError.errorCode, _socket.lastError.errorMessage);
-                result = cast(size_t)(rs);
             }
         }
 
@@ -288,7 +289,14 @@ package(pham.db):
         }
         else
         {
-            static if (!usePhamIOSocket)
+            static if (usePhamIOSocket)
+            {
+                const rs = _socket.send(sendingData);
+                if (rs < 0 || rs != sendingData.length)
+                    throwWriteDataError(_socket.lastError.errorCode, _socket.lastError.errorMessage);
+                result = cast(size_t)(rs);
+            }
+            else
             {
                 result = _socket.send(sendingData);
                 if (result == Socket.ERROR || result != sendingData.length)
@@ -296,13 +304,6 @@ package(pham.db):
                     auto status = lastSocketError("send");
                     throwWriteDataError(status.errorCode, status.errorMessage);
                 }
-            }
-            else
-            {
-                const rs = _socket.send(sendingData);
-                if (rs < 0 || rs != sendingData.length)
-                    throwWriteDataError(_socket.lastError.errorCode, _socket.lastError.errorMessage);
-                result = cast(size_t)(rs);
             }
         }
 
@@ -387,15 +388,21 @@ protected:
         disposeSocketReadBuffer(disposingReason);
         disposeSocketWriteBuffers(disposingReason);
         _sslSocket.dispose(disposingReason);
-        static if (!usePhamIOSocket)
+        static if (usePhamIOSocket)
         {
-            if (_socket !is null && _socket.handle != socket_t.init)
+            if (_socket !is null)
+            {
+                _socket.shutdown();
                 _socket.close();
+            }
         }
         else
         {
-            if (_socket !is null)
+            if (_socket !is null && _socket.handle != socket_t.init)
+            {
+                _socket.shutdown(SocketShutdown.BOTH);
                 _socket.close();
+            }
         }
         _socket = null;
     }
@@ -456,23 +463,7 @@ protected:
         if (useCSB.encrypt != DbEncryptedConnection.disabled)
             setSSLSocketOptions();
 
-        static if (!usePhamIOSocket)
-        {
-            try
-            {
-                auto address = useCSB.toConnectAddress();
-                _socket = new Socket(address.addressFamily, SocketType.STREAM, ProtocolType.TCP);
-                _socket.connect(address);
-                setSocketOptions();
-            }
-            catch (Exception e)
-            {
-                auto socketErrorMsg = e.msg;
-                auto socketErrorCode = lastSocketError();
-                throwConnectError(socketErrorCode, socketErrorMsg, e);
-            }
-        }
-        else
+        static if (usePhamIOSocket)
         {
             _socket = new Socket(useCSB.toConnectInfo());
             if (_socket.lastError.isError)
@@ -485,11 +476,53 @@ protected:
                 throwConnectError(errorCode, errorMessage, null, funcName, file, line);
             }
         }
+        else
+        {
+            try
+            {
+                auto address = useCSB.toConnectAddress();
+                _socket = new Socket(address.addressFamily, SocketType.STREAM, ProtocolType.TCP);
+                setSocketOptions(_socket);
+                doConnectSocket(_socket, address);                
+            }
+            catch (Exception e)
+            {
+                if (cast(SocketException)e)
+                {
+                    auto socketErrorMsg = e.msg;
+                    auto socketErrorCode = lastSocketError();
+                    throwConnectError(socketErrorCode, socketErrorMsg, e);
+                }
+                else
+                    throwConnectError(0, e.msg, e);
+            }
+        }
         assert(_socket.isAlive());
     }
 
     static if (!usePhamIOSocket)
-    void setSocketOptions() @safe
+    void doConnectSocket(Socket socket, ref Address address) @safe
+    {
+        version (TraceFunctionReader) traceFunction();
+
+        auto useCSB = skConnectionStringBuilder;
+        if (auto n = useCSB.connectionTimeout)
+        {
+            auto writeSet = new SocketSet();
+            writeSet.add(socket.handle);
+            socket.blocking = false;
+            socket.connect(address);
+            const r = socket.select(null, writeSet, null, n);
+            socket.blocking = useCSB.blocking;
+            if (r != 1 || !writeSet.isSet(socket.handle))
+                throw new Exception("Connection timeout");
+        }
+        else
+            socket.connect(address);
+    }
+
+    static if (!usePhamIOSocket)
+    void setSocketOptions(Socket socket) @safe
     {
         version (TraceFunctionReader) traceFunction();
 
