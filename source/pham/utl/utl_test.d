@@ -11,8 +11,18 @@
 
 module pham.utl.utl_test;
 
+version (TraceFunction) 
+    version = TraceLog;
+else version (TraceUnitTest)
+    version = TraceLog;
+
 import core.time : Duration, MonoTime, dur;
 import core.sync.mutex : Mutex;
+version (TraceLog)
+{
+    import pham.external.std.log.log_logger : defaultOutputPattern, FileLogger, FileLoggerOption, LoggerOption, 
+        LogLevel, LogLocation, OutputPattern;
+}
 
 nothrow @safe:
 
@@ -254,15 +264,13 @@ struct PerfTestResult
     }
 }
 
-version (unittest)
+debug
 {
     import std.ascii : LetterCase;
     import std.conv : to;
     import std.format : format;
     import std.traits : isSomeChar;
-    import pham.external.std.log.log_logger : defaultOutputPattern, FileLogger, FileLoggerOption, LoggerOption, LogLevel, LogLocation,
-        OutputPattern;
-
+    
 	ubyte[] dgReadAllBinary(string fileName) nothrow @trusted
     {
 		import std.stdio;
@@ -412,63 +420,56 @@ version (unittest)
             debug writefln(fmt, args);
         } catch (Exception) {}
     }
+}
 
-    void traceFunction(Args...)(Args args,
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
+void traceFunction(Args...)(Args args,
+    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
+{
+    version (TraceFunction)
     {
-        version (TraceFunction)
-        {
-            debug traceLogger.trace!(Args)(args, line, fileName, funcName, moduleName);
-        }
+        debug traceLogger.trace!(Args)(args, line, fileName, funcName, moduleName);
     }
+}
 
-    void traceFunction(
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
+void traceFunction(
+    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
+{
+    version (TraceFunction)
     {
-        version (TraceFunction)
-        {
-            debug traceLogger.trace(LogLocation(line, fileName, funcName, moduleName));
-        }
+        debug traceLogger.trace(LogLocation(line, fileName, funcName, moduleName));
     }
+}
 
-    void traceUnitTest(Args...)(Args args,
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
+void traceUnitTest(Args...)(Args args,
+    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
+{
+    version (TraceUnitTest)
     {
-        version (TraceUnitTest)
-        {
-            debug traceLogger.trace!(Args)(args, line, fileName, funcName, moduleName);
-        }
+        debug traceLogger.trace!(Args)(args, line, fileName, funcName, moduleName);
     }
+}
 
-    void traceUnitTest(
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
+void traceUnitTest(
+    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
+{
+    version (TraceUnitTest)
     {
-        version (TraceUnitTest)
-        {
-            debug traceLogger.trace(LogLocation(line, fileName, funcName, moduleName));
-        }
+        debug traceLogger.trace(LogLocation(line, fileName, funcName, moduleName));
     }
-
-    private void createTraceLogger() nothrow @trusted
-    {
-        if (traceLogger is null)
-            traceLogger = new FileLogger("trace.log", FileLoggerOption(FileLoggerOption.overwriteMode), LoggerOption(LogLevel.trace, "unittestTrace", defaultOutputPattern, 10));
-    }
-
-    private static __gshared FileLogger traceLogger;
 }
 
 
 private:
 
+version (TraceLog) static __gshared FileLogger traceLogger;
+
 shared static this() @trusted
 {
     version (profile) PerfFunctionCounter.countersMutex = new Mutex();
-
-    version (unittest)
+    version (TraceLog)
     {
-        version (TraceFunction) createTraceLogger();
-        version (TraceUnitTest) createTraceLogger();
+        traceLogger = new FileLogger("trace.log", FileLoggerOption(FileLoggerOption.overwriteMode), 
+            LoggerOption(LogLevel.trace, "unittestTrace", defaultOutputPattern, 10));
     }
 }
 
@@ -489,7 +490,7 @@ shared static ~this() @trusted
         }
     }
 
-    version (unittest)
+    version (TraceLog)
     {
         if (traceLogger !is null)
         {
