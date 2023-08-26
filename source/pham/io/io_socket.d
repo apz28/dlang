@@ -208,6 +208,8 @@ public:
 
     final int connect(ConnectInfo connectInfo) nothrow
     {
+        //import std.stdio : writeln; debug writeln("connect(hostname=", connectInfo.hostName, ", port=", connectInfo.port, ")");
+
         if (active && port != 0)
             return lastError.setError(EISCONN, " already active");
 
@@ -512,7 +514,7 @@ public:
         return r == resultOK ? resultOK : lastError.setSystemError(setTimeoutSocketAPI(), lastSocketError(), " writeTimeout");
     }
 
-    final int shutdown(ShutdownReason reason) nothrow scope
+    final int shutdown(ShutdownReason reason = ShutdownReason.both) nothrow scope
     {
         if (_handle == invalidSocketHandle)
             return resultOK;
@@ -629,6 +631,8 @@ protected:
 
     final int connectImpl(ConnectInfo connectInfo) nothrow
     {
+        //import std.stdio : writeln; debug writeln("connectImpl(address=", connectInfo.address.toString(), ", port=", connectInfo.port, ")");
+
         version (Windows) this._blocking = connectInfo.isBlocking();
         this._address = connectInfo.address;
         this._port = connectInfo.port;
@@ -699,6 +703,8 @@ protected:
 
     final int connectWithoutTimeout(ConnectInfo connectInfo) nothrow
     {
+        //import std.stdio : writeln; debug writeln("connectWithoutTimeout: ", connectInfo.port);
+        
         auto sa = connectInfo.address.toSocketAddress(connectInfo.port);
         const r = connectSocket(_handle, sa.sval, sa.slen, connectInfo.isBlocking());
         return r == resultOK || r == EINPROGRESS
@@ -708,6 +714,8 @@ protected:
 
     final int connectWithTimeout(ConnectInfo connectInfo) nothrow
     {
+        //import std.stdio : writeln; debug writeln("connectWithoutTimeout: ", connectInfo.port);
+
         // Turn blocking off first
         if (setBlocking(false) != resultOK)
             return resultError;
@@ -921,17 +929,32 @@ private:
     Duration _readTimeout, _writeTimeout;
 }
 
-unittest
+unittest // getAddressInfo
 {
-    const r1 = getAddressInfo("localhost", null, AddressInfo.connectHints());
+    const r1 = getAddressInfo("localhost", null, AddressInfo.connectHints(0));
     assert(r1.isOK);
     assert(r1.value.length > 0);
     //import std.stdio : writeln; writeln("r1.value.length=", r1.value.length, ", r1.value[0]=", r1.value[0].toString(), ", r1.value[1]=", r1.value.length > 1 ? r1.value[1].toString() : null);
 
-    const r2 = getAddressInfo("127.0.0.1", null, AddressInfo.connectHints());
+    const r2 = getAddressInfo("127.0.0.1", null, AddressInfo.connectHints(0));
     assert(r2.isOK);
     assert(r2.value.length > 0);
     //import std.stdio : writeln; writeln("r2.value.length=", r2.value.length, ", r2.value[0]=", r2.value[0].toString(), ", r2.value[1]=", r2.value.length > 1 ? r2.value[1].toString() : null);
+}
+
+@trusted unittest // getAddressInfo
+{
+    version (Windows)
+        import core.sys.windows.winsock2;
+    else version (Posix)
+        import core.sys.posix.sys.socket;
+
+    auto r = getAddressInfo("127.0.0.1", null, AddressInfo.connectHints(0, AddressFamily.ipv4));
+    assert(r.isOK);
+    assert(r.value.length > 0);
+    auto s = r.value[0].address.toSocketAddress(0);
+    auto sr = cast(sockaddr_in*)s.sval();
+    assert(sr.sin_addr.s_addr == inet_addr("127.0.0.1".ptr));
 }
 
 version (none)

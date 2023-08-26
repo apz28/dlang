@@ -31,7 +31,7 @@ int lastSocketError() @nogc nothrow @trusted
     }
     else
     {
-        static assert(0, "Unsupported system for " ~ __FUNCTION__));
+        static assert(0, "Unsupported system for " ~ __FUNCTION__);
     }
 }
 

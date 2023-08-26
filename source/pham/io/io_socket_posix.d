@@ -401,7 +401,7 @@ in
 }
 do
 {
-    const r = selectSocket(handle, SelectMode.read | SelectMode.write | SelectMode.error, timeout);
+    const r = selectSocket(handle, SelectMode.waitforConnect, timeout);
     return r <= 0
         ? resultError
         : ((r & SelectMode.error) == SelectMode.error ? resultError : resultOK);

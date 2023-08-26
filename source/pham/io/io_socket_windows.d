@@ -348,7 +348,7 @@ in
 }
 do
 {
-    const r = selectSocket(handle, SelectMode.read | SelectMode.write | SelectMode.error, timeout);
+    const r = selectSocket(handle, SelectMode.waitforConnect, timeout);
     return r <= 0
         ? resultError
         : ((r & SelectMode.error) == SelectMode.error ? resultError : resultOK);
@@ -363,7 +363,11 @@ static immutable int _WSAStartupResult;
 shared static this()
 {
     WSADATA wsaData;
-    _WSAStartupResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    ushort wsaVersion = MAKEWORD(2, 2);
+    _WSAStartupResult = WSAStartup(wsaVersion, &wsaData);
+    
+    //import std.stdio : writeln;
+    //debug writeln("WSAStartup=", _WSAStartupResult, ", wsaVersion=", wsaVersion);
 }
 
 shared static ~this()

@@ -91,8 +91,9 @@ enum SelectMode : int
     read = 1, /// Poll the read status of a socket
     write = 2, /// Poll the write status of a socket
     error = 4, /// Poll the error status of a socket
-    readWrite = read | write,
     all = read | write | error,
+    readWrite = read | write,
+    waitforConnect = write | error,
 }
 
 enum SocketOption : int
@@ -137,23 +138,31 @@ struct AddressInfo
 nothrow @safe:
 
 public:
-    static AddressInfo bindHints(SocketType type = SocketType.stream, Protocol protocol = Protocol.tcp) pure
+    static AddressInfo bindHints(ushort port,
+        AddressFamily family = AddressFamily.unspecified,
+        SocketType type = SocketType.stream,
+        Protocol protocol = Protocol.tcp) pure
     {
         AddressInfo result;
-        result.family = AddressFamily.unspecified;
+        result.family = family;
         result.type = type;
         result.protocol = protocol;
         result.flags = AI_ADDRCONFIG | AI_V4MAPPED;
+        result.port = port;
         return result;
     }
 
-    static AddressInfo connectHints(SocketType type = SocketType.stream, Protocol protocol = Protocol.tcp) pure
+    static AddressInfo connectHints(ushort port,
+        AddressFamily family = AddressFamily.unspecified,
+        SocketType type = SocketType.stream,
+        Protocol protocol = Protocol.tcp) pure
     {
         AddressInfo result;
-        result.family = AddressFamily.unspecified;
+        result.family = family;
         result.type = type;
         result.protocol = protocol;
         result.flags = AI_ADDRCONFIG | AI_V4MAPPED;
+        result.port = port;
         return result;
     }
 
@@ -182,8 +191,8 @@ nothrow @safe:
 
 public:
     this(IPAddress address, ushort port,
-        Protocol protocol = Protocol.tcp,
-        SocketType type = SocketType.stream) pure
+        SocketType type = SocketType.stream,
+        Protocol protocol = Protocol.tcp) pure
     {
         this.address = address;
         this.port = port;
@@ -193,10 +202,10 @@ public:
         this.flags = EnumSet!Flags([Flags.blocking, Flags.reuseAddress]);
     }
     
-    this(string hostName, ushort port,
-        Protocol protocol = Protocol.tcp,
+    this(string hostName, ushort port,        
+        AddressFamily family = AddressFamily.ipv4,
         SocketType type = SocketType.stream,
-        AddressFamily family = AddressFamily.ipv4) pure
+        Protocol protocol = Protocol.tcp) pure
     {
         this.hostName = hostName;
         this.port = port;
@@ -205,7 +214,7 @@ public:
         this.address = IPAddress(family);
         this.backLog = 100;
         this.flags = EnumSet!Flags([Flags.blocking, Flags.reuseAddress]);
-        this.resolveHostHints = AddressInfo.bindHints();
+        this.resolveHostHints = AddressInfo.bindHints(port, family, type, protocol);
     }
     
     bool isBlocking() const @nogc
@@ -364,8 +373,8 @@ nothrow @safe:
 
 public:
     this(IPAddress address, ushort port,
-        Protocol protocol = Protocol.tcp,
-        SocketType type = SocketType.stream) pure
+        SocketType type = SocketType.stream,
+        Protocol protocol = Protocol.tcp) pure
     {
         this.address = address;
         this.port = port;
@@ -376,9 +385,9 @@ public:
     }
     
     this(string hostName, ushort port,
-        Protocol protocol = Protocol.tcp,
+        AddressFamily family = AddressFamily.ipv4,
         SocketType type = SocketType.stream,
-        AddressFamily family = AddressFamily.ipv4) pure
+        Protocol protocol = Protocol.tcp) pure
     {
         this.hostName = hostName;
         this.port = port;
@@ -387,7 +396,7 @@ public:
         this.address = IPAddress(family);
         this.connectTimeout = 5.seconds;
         this.flags = EnumSet!Flags([Flags.blocking, Flags.noDelay]);
-        this.resolveHostHints = AddressInfo.connectHints();
+        this.resolveHostHints = AddressInfo.connectHints(port, family, type, protocol);
     }
     
     bool isBlocking() const @nogc
