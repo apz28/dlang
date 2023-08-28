@@ -33,6 +33,7 @@ struct DbMessage
     static immutable eNotEnoughData = "Not enough data for reading %d bytes; remainding %d bytes";
 
     static immutable eConnect = "Unable to connect to '%s'\n%s";
+    static immutable eConnectTimeoutRaw = "Connection timeout";
     static immutable eReadData = "Unable to receive data from '%s'\n%s";
     static immutable eReadInvalidData = "Unable to convert data from '%s' to type '%s'";
     static immutable eWriteData = "Unable to send data to '%s'\n%s";

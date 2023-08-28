@@ -382,29 +382,34 @@ protected:
         return new SkWriteBuffer(this, capacity);
     }
 
-    final void disposeSocket(const(DisposingReason) disposingReason) nothrow @safe
+    final void disposeSocket(const(DisposingReason) disposingReason, bool includeShutdown) nothrow @safe
     {
         disposeSocketBufferFilters(disposingReason);
         disposeSocketReadBuffer(disposingReason);
         disposeSocketWriteBuffers(disposingReason);
         _sslSocket.dispose(disposingReason);
-        static if (usePhamIOSocket)
+        if (_socket !is null)
         {
-            if (_socket !is null)
+            static if (usePhamIOSocket)
             {
-                _socket.shutdown();
-                _socket.close();
+                if (_socket.active)
+                {
+                    if (includeShutdown)
+                        _socket.shutdown();
+                    _socket.close();
+                }
             }
-        }
-        else
-        {
-            if (_socket !is null && _socket.handle != socket_t.init)
+            else
             {
-                _socket.shutdown(SocketShutdown.BOTH);
-                _socket.close();
+                if (_socket.handle != socket_t.init)
+                {
+                    if (includeShutdown)
+                        _socket.shutdown(SocketShutdown.BOTH);
+                    _socket.close();
+                }
             }
+            _socket = null;
         }
-        _socket = null;
     }
 
     final void disposeSocketBufferFilters(const(DisposingReason) disposingReason) nothrow @safe
@@ -443,20 +448,20 @@ protected:
     {
         version (TraceFunction) traceFunction();
 
-        disposeSocket(DisposingReason.other);
+        disposeSocket(DisposingReason.other, !failedOpen);
     }
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         super.doDispose(disposingReason);
-        disposeSocket(disposingReason);
+        disposeSocket(disposingReason, false);
     }
 
     final void doOpenSocket() @trusted
     {
         version (TraceFunction) traceFunction();
 
-        disposeSocket(DisposingReason.other);
+        disposeSocket(DisposingReason.other, true);
 
         auto useCSB = skConnectionStringBuilder;
 
@@ -486,8 +491,10 @@ protected:
                 doConnectSocket(_socket, address);                
             }
             catch (Exception e)
-            {
-                if (cast(SocketException)e)
+            {   
+                if (cast(SkException)e)
+                    throw e;
+                else if (cast(SocketException)e)
                 {
                     auto socketErrorMsg = e.msg;
                     auto socketErrorCode = lastSocketError();
@@ -515,7 +522,7 @@ protected:
             const r = socket.select(null, writeSet, null, n);
             socket.blocking = useCSB.blocking;
             if (r != 1 || !writeSet.isSet(socket.handle))
-                throw new Exception("Connection timeout");
+                throwConnectError(0, DbMessage.eConnectTimeoutRaw);
         }
         else
             socket.connect(address);
