@@ -24,7 +24,7 @@ if (is(C == char) || is(C == byte) || is(C == ubyte))
 {
     if (count)
     {
-        auto result = new C[count];
+        auto result = new C[](count);
         result[] = c;
         return result;
     }

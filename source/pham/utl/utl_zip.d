@@ -151,7 +151,7 @@ public:
 	 * ```
 	 * ubyte[] inflateBuffer(ubyte[] compressedBytes)
 	 * {
-	 *     auto result = new ubyte[1024]; // Must initialize non-null value
+	 *     auto result = new ubyte[](2_000); // Must initialize non-null value
 	 *     auto decompressor = new ZlibCodec();
 	 *
 	 *     decompressor.initializeInflate();
@@ -300,7 +300,7 @@ public:
 	 * ```
 	 * ubyte[] deflateBuffer(ubyte[] uncompressedBytes)
 	 * {
-	 *     auto result = new ubyte[1024]; // Must initialize non-null value
+	 *     auto result = new ubyte[](2_000); // Must initialize non-null value
 	 *     auto compressor = new ZlibCodec();
 	 *
 	 *     compressor.initializeDeflate();

@@ -4557,7 +4557,7 @@ import pham.utl.utl_test;
     Variant v;
 
     {
-        v = new int[42];
+        v = new int[](42);
         assert(v.length == 42);
         assert(v[0] == 0);
 
@@ -4574,7 +4574,7 @@ import pham.utl.utl_test;
     }
 
     {
-        v = new double[42];
+        v = new double[](42);
         assert(v.length == 42);
 
         v[5] = 7.0;

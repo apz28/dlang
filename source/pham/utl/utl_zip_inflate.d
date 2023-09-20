@@ -863,8 +863,8 @@ public:
 					{
 						int[] bl = [9];  // must be <= 9 for lookahead assumptions
 						int[] bd = [6]; // must be <= 9 for lookahead assumptions
-						int[] tl = new int[1];
-						int[] td = new int[1];
+						int[] tl = new int[](1);
+						int[] td = new int[](1);
 
 						t = table;
 						t = inftree.inflateTreesDynamic(257 + (t & 0x1f), 1 + ((t >> 5) & 0x1f), blens, bl, bd, tl, td, hufts, _codec);

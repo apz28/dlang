@@ -1396,17 +1396,18 @@ nothrow @safe unittest
     }
 
     {
-        bool[] buf = new bool[64*3];
-        buf[0 .. 64] = true;
+        enum bitLength = 64*3;
+        bool[] buf = new bool[](bitLength);
+        buf[0..64] = true;
         BitArray b = BitArray(buf);
         checkBitArrayRange(b, 0, 64, true);
         b <<= 64;
         checkBitArrayRange(b, 64, 128, true);
 
-        buf = new bool[64*3];
-        buf[64*2..64*3] = true;
+        buf = new bool[](bitLength);
+        buf[64*2..bitLength] = true;
         b = BitArray(buf);
-        checkBitArrayRange(b, 64*2, 64*3, true);
+        checkBitArrayRange(b, 64*2, bitLength, true);
         b >>= 64;
         checkBitArrayRange(b, 64, 128, true);
     }

@@ -2055,7 +2055,7 @@ private:
             assert(cu >= 1);
 
             // Populate the uints.
-            _bits = new uint[cu + 2];
+            _bits = new uint[](cu + 2);
             _bits[cu + 1] = cast(uint)(man >> (cbit + kcbitUint));
             _bits[cu] = cast(uint)(man >> cbit);
             if (cbit > 0)

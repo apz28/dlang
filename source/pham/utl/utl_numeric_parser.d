@@ -64,7 +64,7 @@ char[] cvtBytesBase64(scope const(ubyte)[] bytes,
         + (isLineBreak ? lineBreakCount(bytes.length, lineBreakLength) : 0);
         
     size_t resultLineBreak = 0;
-    char[] result = new char[resultLength];    
+    char[] result = new char[](resultLength);    
     auto resultPtr = &result[0];
     auto bytesPtr = &bytes[0];
     
@@ -142,7 +142,7 @@ char[] cvtBytesHex(scope const(ubyte)[] bytes,
         + (isLineBreak ? lineBreakCount(bytes.length, lineBreakLength) : 0);
     
     size_t resultLineBreak = 0;
-    char[] result = new char[resultLength];    
+    char[] result = new char[](resultLength);    
     auto resultPtr = &result[0];
     
     foreach (b; bytes)
