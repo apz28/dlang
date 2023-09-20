@@ -972,12 +972,12 @@ struct CipherHelper
 
         static if (padding)
         {
-            result = new ubyte[Base64Padding.decodeLength(value.length)];
+            result = new ubyte[](Base64Padding.decodeLength(value.length));
             Base64Padding.decode(inputRange, outputRange);
         }
         else
         {
-            result = new ubyte[Base64PaddingNo.decodeLength(value.length)];
+            result = new ubyte[](Base64PaddingNo.decodeLength(value.length));
             Base64PaddingNo.decode(inputRange, outputRange);
         }
 
@@ -993,12 +993,12 @@ struct CipherHelper
 
         static if (padding)
         {
-            result = new char[Base64Padding.encodeLength(value.length)];
+            result = new char[](Base64Padding.encodeLength(value.length));
             Base64Padding.encode(inputRange, outputRange);
         }
         else
         {
-            result = new char[Base64PaddingNo.encodeLength(value.length)];
+            result = new char[](Base64PaddingNo.encodeLength(value.length));
             Base64PaddingNo.encode(inputRange, outputRange);
         }
 

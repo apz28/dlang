@@ -14,13 +14,14 @@ module pham.cp.cp_codec_asn1;
 import std.string : representation;
 import std.traits : isIntegral, isSigned, Unqual;
         
-import pham.dtm.dtm_dtm_date : Date, DateTime;
-import pham.dtm.dtm_dtm_date_time_parse : DateTimeParser, DateTimePattern, tryParse;
-import pham.dtm.dtm_dtm_tick : DateTimeZoneKind;
-import pham.dtm.dtm_dtm_time : Time;
+import pham.dtm.dtm_date : Date, DateTime;
+import pham.dtm.dtm_date_time_parse : DateTimeParser, DateTimePattern, tryParse;
+import pham.dtm.dtm_tick : DateTimeZoneKind;
+import pham.dtm.dtm_time : Time;
 import pham.utl.utl_array : ShortStringBuffer;
 import pham.utl.utl_big_integer : BigInteger;
-import pham.utl.utl_object : cmp, ResultStatus, toString;
+import pham.utl.utl_object : toString;
+import pham.utl.utl_result : cmp, ResultStatus;
 import pham.utl.utl_variant : Variant;
 import pham.cp.cp_cipher : CipherBuffer;
 
@@ -343,7 +344,7 @@ public:
         this._empty = data.length == 0;
         if (!this._empty)
         {
-            this._currentDataBuffer = new ubyte[1000];
+            this._currentDataBuffer = new ubyte[](1_000);
             //popFront();
         }
     }
@@ -536,9 +537,9 @@ public:
 
         static DateTimePattern utcPattern(string patternText) nothrow pure @safe
         {
-            // Use DateTimePattern.usDateTime
+            // Use DateTimePattern.usShortDateTime
             // Any text month format is fine since it only use digits format
-            DateTimePattern result = DateTimePattern.usDateTime;
+            DateTimePattern result = DateTimePattern.usShortDateTime;
             result.defaultKind = DateTimeZoneKind.local;
             result.patternText = patternText;
             return result;
@@ -567,9 +568,9 @@ public:
 
         static DateTimePattern utcPattern(string patternText, DateTimeZoneKind kind) nothrow pure @safe
         {
-            // Use DateTimePattern.usDateTime
+            // Use DateTimePattern.usShortDateTime
             // Any text month format is fine since it only use digits format
-            DateTimePattern result = DateTimePattern.usDateTime;
+            DateTimePattern result = DateTimePattern.usShortDateTime;
             result.defaultKind = kind;
             result.patternText = patternText;
             return result;
@@ -660,7 +661,7 @@ public:
         if (!checkStatus)
             return checkStatus;
 
-        int[] tempValue = new int[bytes.length + 1];
+        int[] tempValue = new int[](bytes.length + 1);
     	if (fValue < 80)
         {
 		    tempValue[0] = fValue / 40;
@@ -853,9 +854,9 @@ public:
 
         static DateTimePattern utcPattern(string patternText, DateTimeZoneKind kind) nothrow pure @safe
         {
-            // Use DateTimePattern.usDateTime
+            // Use DateTimePattern.usShortDateTime
             // Any text month format is fine since it only use digits format
-            DateTimePattern result = DateTimePattern.usDateTime;
+            DateTimePattern result = DateTimePattern.usShortDateTime;
             result.defaultKind = kind;
             result.patternText = patternText;
             return result;
@@ -892,9 +893,9 @@ public:
 
         static DateTimePattern utcPattern(string patternText) nothrow pure @safe
         {
-            // Use DateTimePattern.usDateTime
+            // Use DateTimePattern.usShortDateTime
             // Any text month format is fine since it only use digits format
-            DateTimePattern result = DateTimePattern.usDateTime;
+            DateTimePattern result = DateTimePattern.usShortDateTime;
             result.defaultKind = DateTimeZoneKind.utc;
             result.patternText = patternText;
             return result;
@@ -1927,6 +1928,7 @@ unittest // ASN1BitString.opIndex
 unittest // ASN1BitString.rightAlign
 {
     import std.conv : to;
+    import pham.utl.utl_test;
 
     static void test(scope const(ASN1BitString) v, scope const(ubyte)[] expectedValue, int line = __LINE__) @safe
     {
@@ -1948,7 +1950,7 @@ unittest // ASN1BerDecoder.parseBoolean
     static void test(scope const(ubyte)[] bytes, bool parsedResult, bool expectedValue, int line = __LINE__)
     {
         bool v;
-        assert(ASN1BerDecoder.parseBoolean(bytes, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(ASN1BerDecoder.parseBoolean(bytes, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
         assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ to!string(v) ~ " vs " ~ to!string(expectedValue));
     }
 
@@ -1966,7 +1968,7 @@ unittest // ASN1BerDecoder.parseInteger.int
     static void test(scope const(ubyte)[] bytes, bool parsedResult, int expectedValue, int line = __LINE__)
     {
         int v;
-        assert(ASN1BerDecoder.parseInteger!int(bytes, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(ASN1BerDecoder.parseInteger!int(bytes, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
         assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ to!string(v) ~ " vs " ~ to!string(expectedValue));
     }
 
@@ -1991,7 +1993,7 @@ unittest // ASN1BerDecoder.parseInteger.long
     static void test(scope const(ubyte)[] bytes, bool parsedResult, long expectedValue, int line = __LINE__)
     {
         long v;
-        assert(ASN1BerDecoder.parseInteger!long(bytes, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(ASN1BerDecoder.parseInteger!long(bytes, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
         assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ to!string(v) ~ " vs " ~ to!string(expectedValue));
     }
 
@@ -2016,7 +2018,7 @@ unittest // ASN1BerDecoder.parseBigInteger
     static void test(scope const(ubyte)[] bytes, bool parsedResult, long expectedValue, int line = __LINE__) nothrow
     {
         BigInteger v;
-        assert(ASN1BerDecoder.parseBigInteger(bytes, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(ASN1BerDecoder.parseBigInteger(bytes, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
         assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.toString() ~ " vs " ~ to!string(expectedValue));
     }
 
@@ -2038,7 +2040,7 @@ unittest // ASN1BerDecoder.parseBitString
     static void test(scope const(ubyte)[] bytes, bool parsedResult, const(ASN1BitString) expectedValue, int line = __LINE__) @safe
     {
         ASN1BitString v;
-        assert(ASN1BerDecoder.parseBitString(bytes, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(ASN1BerDecoder.parseBitString(bytes, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
         assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.toString() ~ " vs " ~ expectedValue.toString());
     }
 
@@ -2057,7 +2059,7 @@ unittest // ASN1BerDecoder.parseObjectIdentifier
     static void test(scope const(ubyte)[] bytes, bool parsedResult, int[] expectedValue, int line = __LINE__)
     {
         ASN1ObjectIdentifier v;
-        assert(ASN1BerDecoder.parseObjectIdentifier(bytes, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(ASN1BerDecoder.parseObjectIdentifier(bytes, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
         assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.toString() ~ " vs " ~ ASN1ObjectIdentifier(expectedValue).toString());
     }
 
@@ -2078,7 +2080,7 @@ unittest // ASN1BerDecoder.parseUTCTime
     static void test(string bytes, bool parsedResult, scope const(DateTime) expectedValue, int line = __LINE__)
     {
         DateTime v;
-        assert(ASN1BerDecoder.parseUTCTime(bytes.representation, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(ASN1BerDecoder.parseUTCTime(bytes.representation, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
         assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.toString() ~ " vs " ~ expectedValue.toString());
     }
 
@@ -2110,7 +2112,7 @@ unittest // ASN1BerDecoder.parseGeneralizedTime
     static void test(string bytes, bool parsedResult, scope const(DateTime) expectedValue, int line = __LINE__)
     {
         DateTime v;
-        assert(ASN1BerDecoder.parseGeneralizedTime(bytes.representation, v).okStatus == parsedResult, "Failed from line: " ~ to!string(line));
+        assert(ASN1BerDecoder.parseGeneralizedTime(bytes.representation, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
         assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.toString() ~ " vs " ~ expectedValue.toString());
     }
 

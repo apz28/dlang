@@ -1386,7 +1386,7 @@ ubyte[] toTerminatedzIf(scope const(ubyte)[] s, const(size_t) maxLengh) nothrow 
     const len = maxLengh && s.length > maxLengh ? maxLengh : s.length;
     if (len)
     {
-        auto result = new ubyte[len + 1];
+        auto result = new ubyte[](len + 1);
         result[0..len] = s[0..len];
         result[len] = 0;
         return result;
@@ -1545,7 +1545,7 @@ unittest // OpenSSLCrypt
         ubyte[] key = [0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
         ubyte[] iv = [0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
         auto text = "This is an openssl TEST".representation;
-        ubyte[] output1 = new ubyte[500], output2 = new ubyte[500];
+        ubyte[] output1 = new ubyte[](500), output2 = new ubyte[](500);
         size_t output1Length, output2Length;
         ResultStatus status;
 
