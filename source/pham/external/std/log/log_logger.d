@@ -947,7 +947,6 @@ public:
     }
 
     /// Ditto
-    pragma(inline, true)
     final bool isLogLevel2(const(LogLevel) ll, out LogLevel llModuleLevel, in string moduleName = __MODULE__) const nothrow @safe
     {
         final switch (ll)
@@ -3491,7 +3490,6 @@ static immutable SysTime appStartupTimestamp;
 /**
  * Returns Clock.currTime as local time
  */
-pragma(inline, true)
 SysTime currentTime() nothrow @safe
 {
     scope (failure) assert(0, "Assume nothrow failed");
