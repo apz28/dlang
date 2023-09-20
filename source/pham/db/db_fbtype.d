@@ -558,7 +558,7 @@ public:
         }
 
         // Construct result
-        auto result =  new FbCommandBatchResult[recCount];
+        auto result =  new FbCommandBatchResult[](recCount);
         foreach (i; 0..recCount)
         {
 			auto recordsAffected = i < recordsAffectedData.length

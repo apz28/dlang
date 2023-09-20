@@ -377,7 +377,7 @@ private:
         this._connection = null;
         this._reserveLenghtOffset = -1;
         this._needBuffer = false;
-        this._buffer = new DbWriteBuffer(4000);
+        this._buffer = new DbWriteBuffer(4_000);
         this._writer = DbValueWriter!(Endian.bigEndian)(this._buffer);
     }
 
@@ -921,7 +921,7 @@ private:
     this(ubyte[] dummy)
     {
         this._connection = null;
-        this._buffer = new DbWriteBuffer(4000);
+        this._buffer = new DbWriteBuffer(4_000);
         this._writer = DbValueWriter!(Endian.bigEndian)(this._buffer);
     }
 
@@ -960,7 +960,7 @@ unittest // PgXdrReader & PgXdrWriter
     //pragma(msg, float.min_normal);
     //pragma(msg, double.min_normal);
 
-    auto writerBuffer = new DbWriteBuffer(4000);
+    auto writerBuffer = new DbWriteBuffer(4_000);
     auto writer = PgXdrWriter(null, writerBuffer);
     writer.writeBool(true);
     writer.writeBytes(bytes);

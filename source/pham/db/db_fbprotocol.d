@@ -2065,14 +2065,14 @@ protected:
 
         if (result.recordsAffectedCount > 0)
         {
-            result.recordsAffectedData = new int32[result.recordsAffectedCount];
+            result.recordsAffectedData = new int32[](result.recordsAffectedCount);
             foreach (i; 0..result.recordsAffectedCount)
                 result.recordsAffectedData[i] = reader.readInt32();
         }
 
         if (result.errorStatuesCount > 0)
         {
-            result.errorStatuesData = new FbIscCommandBatchStatus[result.errorStatuesCount];
+            result.errorStatuesData = new FbIscCommandBatchStatus[](result.errorStatuesCount);
             foreach (i; 0..result.errorStatuesCount)
             {
                 result.errorStatuesData[i].recIndex = reader.readInt32();
@@ -2082,7 +2082,7 @@ protected:
 
         if (result.errorIndexesCount > 0)
         {
-            result.errorIndexesData = new int32[result.errorIndexesCount];
+            result.errorIndexesData = new int32[](result.errorIndexesCount);
             foreach (i; 0..result.errorIndexesCount)
                 result.errorIndexesData[i] = reader.readInt32();
         }

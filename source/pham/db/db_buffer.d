@@ -224,7 +224,7 @@ protected:
 
     final ubyte[] readBytesImpl(const(size_t) nBytes)
     {
-        ubyte[] result = new ubyte[nBytes];
+        ubyte[] result = new ubyte[](nBytes);
         return readBytesImpl(result);
     }
 

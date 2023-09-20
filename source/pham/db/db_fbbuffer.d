@@ -1448,7 +1448,7 @@ unittest // FbXdrWriter & FbXdrReader
     //pragma(msg, float.min_normal);
     //pragma(msg, double.min_normal);
 
-    auto writerBuffer = new DbWriteBuffer(4000);
+    auto writerBuffer = new DbWriteBuffer(4_000);
     auto writer = FbXdrWriter(null, writerBuffer);
     //writer.writeBlob(bytes);
     writer.writeBool(true);

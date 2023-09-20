@@ -237,7 +237,7 @@ public:
     {
         version (TraceFunction) traceFunction();
 
-        auto writerBuffer = new DbWriteBuffer(4000);
+        auto writerBuffer = new DbWriteBuffer(4_000);
         uint elements;
         ubyte[] encodedArrayValue;
         final switch (descriptor.fieldInfo.dbType)
