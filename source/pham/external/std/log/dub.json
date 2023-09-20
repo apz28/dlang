@@ -1,7 +1,10 @@
 {
 	"name": "pham_external_std_log",
 	"description": "Logging modules.",
-	"authors": ["An Pham"],
+	"authors": [
+		"Robert Schadek",
+		"An Pham"
+	],
 	"homepage": "",
 	"license": "Boost Software License - Version 1.0",
 	"dependencies": {}

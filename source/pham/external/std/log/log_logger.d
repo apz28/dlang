@@ -2621,7 +2621,7 @@ public:
         import std.ascii : hexDigits = hexDigits;
         import std.exception : assumeUnique;
 
-        auto result = new char[bytes.length*2];
+        auto result = new char[](bytes.length*2);
         size_t i;
         foreach (b; bytes)
         {
@@ -2958,7 +2958,7 @@ public:
 
     static string arrayOfChar(size_t count, char c) nothrow pure
     {
-        auto result = new char[count];
+        auto result = new char[](count);
         result[] = c;
         return result.idup;
     }
