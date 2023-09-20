@@ -179,7 +179,6 @@ private:
         spaceLine,
     }
 
-    pragma(inline, true)
     static CharKind charKind(const(dchar) c) @nogc pure
     {
         switch (c)

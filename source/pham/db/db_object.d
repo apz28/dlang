@@ -1184,7 +1184,6 @@ do
     dchar cCode;
     ubyte cCount;
 
-    pragma(inline, true)
     bool isElementSeparator(const(dchar) c) nothrow @safe
     {
         foreach (i; 0..elementSeparators.length)
