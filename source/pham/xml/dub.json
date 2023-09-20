@@ -1,10 +1,12 @@
 {
 	"name": "pham_xml",
 	"description": "DOM, SAX, XPath XML Implementation.",
-	"authors": ["An Pham"],
+	"authors": [
+		"An Pham"
+	],
 	"homepage": "",
 	"license": "Boost Software License - Version 1.0",
 	"dependencies": {
-    "pham_utl": "~>1.0.0"
+		"pham_utl": "~>1.4.2"
 	}
 }
