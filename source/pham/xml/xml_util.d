@@ -608,7 +608,6 @@ if (isXmlStringEx!S)
         name = string part before the aIndex
         value = string part after the aIndex
 */
-pragma (inline, true)
 int splitNameValueI(S)(S s, const(ptrdiff_t) index, out S name, out S value) nothrow pure
 if (isXmlStringEx!S)
 in
