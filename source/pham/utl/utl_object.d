@@ -570,7 +570,6 @@ public:
             return opCmp(rhs) == 0;
         }
 
-        pragma(inline, true)
         size_t stopLength() const @nogc pure
         {
             foreach (i; 0..maxPartLength)

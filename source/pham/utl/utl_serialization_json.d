@@ -20,45 +20,45 @@ class JsonSerializer : Serializer
 @safe:
 
 public:
-    override Serializer begin() nothrow
+    override Serializer begin()
     {
         buffer = appender!string();
         buffer.reserve(bufferCapacity);
         return super.begin();
     }
 
-    final override Serializer aggregateBegin(string typeName, ptrdiff_t length) nothrow
+    final override Serializer aggregateBegin(string typeName, ptrdiff_t length)
     {
         buffer.put('{');
         return super.aggregateBegin(typeName, length);
     }
 
-    final override Serializer aggregateEnd(string typeName, ptrdiff_t length) nothrow
+    final override Serializer aggregateEnd(string typeName, ptrdiff_t length)
     {
         buffer.put('}');
         return super.aggregateEnd(typeName, length);
     }
 
-    final override Serializer aggregateItem(ptrdiff_t length) nothrow
+    final override Serializer aggregateItem(ptrdiff_t length)
     {
         if (length)
             buffer.put(',');
         return super.aggregateItem(length);
     }
     
-    final override Serializer arrayBegin(string elemTypeName, ptrdiff_t length) nothrow
+    final override Serializer arrayBegin(string elemTypeName, ptrdiff_t length)
     {
         buffer.put('[');
         return super.arrayBegin(elemTypeName, length);
     }
 
-    final override Serializer arrayEnd(string elemTypeName, ptrdiff_t length) nothrow
+    final override Serializer arrayEnd(string elemTypeName, ptrdiff_t length)
     {
         buffer.put(']');
         return super.arrayEnd(elemTypeName, length);
     }
 
-    final override Serializer arrayItem(ptrdiff_t length) nothrow
+    final override Serializer arrayItem(ptrdiff_t length)
     {
         if (length)
             buffer.put(',');
@@ -186,7 +186,6 @@ public:
     }
 
     // https://stackoverflow.com/questions/19176024/how-to-escape-special-characters-in-building-a-json-string
-    pragma(inline, true)
     static char isEscapedChar(const(char) c) @nogc nothrow pure
     {
         switch (c)

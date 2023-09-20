@@ -12,7 +12,7 @@
 module pham.utl.utl_serialization_bin;
 
 import std.array : Appender, appender;
-import std.traits : isFloatingPoint, isIntegral;
+import std.traits : isFloatingPoint, isIntegral, Unsigned;
 import pham.utl.utl_serialization;
 
 enum BinaryDataType : ubyte
@@ -24,10 +24,12 @@ enum BinaryDataType : ubyte
     int2,
     int4,
     int8,
-    //int16,
-    //int32,
+    int16_Reserved,
+    int32_Reserved,
     float4,
     float8,
+    float16_Reserved,
+    float32_Reserved,
     char_,
     chars,
     charsKey,
@@ -43,34 +45,36 @@ class BinarySerializer : Serializer
 @safe:
 
 public:
-    override Serializer begin() nothrow
+    override Serializer begin()
     {
         buffer = appender!(ubyte[])();
         buffer.reserve(bufferCapacity);
         return super.begin();
     }
-    
-    final override Serializer aggregateBegin(string typeName, ptrdiff_t length) nothrow
+
+    final override Serializer aggregateBegin(string typeName, ptrdiff_t length)
     {
         buffer.put(BinaryDataType.aggregateBegin);
         encodeInt!ptrdiff_t(length);
+        put(typeName);
         return super.aggregateBegin(typeName, length);
     }
 
-    final override Serializer aggregateEnd(string typeName, ptrdiff_t length) nothrow
+    final override Serializer aggregateEnd(string typeName, ptrdiff_t length)
     {
         buffer.put(BinaryDataType.aggregateEnd);
         return super.aggregateEnd(typeName, length);
     }
-    
-    final override Serializer arrayBegin(string elemTypeName, ptrdiff_t length) nothrow
+
+    final override Serializer arrayBegin(string elemTypeName, ptrdiff_t length)
     {
         buffer.put(BinaryDataType.arrayBegin);
         encodeInt!ptrdiff_t(length);
+        put(elemTypeName);
         return super.arrayBegin(elemTypeName, length);
     }
 
-    final override Serializer arrayEnd(string elemTypeName, ptrdiff_t length) nothrow
+    final override Serializer arrayEnd(string elemTypeName, ptrdiff_t length)
     {
         buffer.put(BinaryDataType.arrayEnd);
         return super.arrayEnd(elemTypeName, length);
@@ -93,7 +97,7 @@ public:
         buffer.put(BinaryDataType.char_);
         buffer.put(cast(ubyte)v);
     }
-    
+
     final override void put(byte v)
     {
         buffer.put(BinaryDataType.int1);
@@ -117,7 +121,7 @@ public:
         buffer.put(BinaryDataType.int8);
         encodeInt!long(v);
     }
-    
+
     final override void put(float v, const(FloatFormat) floatFormat)
     {
         buffer.put(BinaryDataType.float4);
@@ -166,29 +170,75 @@ public:
     }
 
 public:
-    final void encodeInt(V)(V v)
+    private enum firstBits = 6;
+    private enum moreBits = 7;
+    private enum ubyte firstByteMask = 0x3F;
+    private enum ubyte moreBit = 0x80;
+    private enum ubyte moreByteMask = 0x7F;
+    private enum ubyte negativeBit = 0x40;
+    
+    final V decodeInt(V)() @trusted
     if (isIntegral!V)
     {
-        const isNegative = v < 0;
-        if (isNegative)
-            v = cast(V)~v;
-            
-        // First 6 bits
-        ubyte lowerBits = cast(ubyte)(v & 0x3F); 
-        v >>= 6;
-        if (v)
-            lowerBits |= 0x80;
-        if (isNegative)
-            lowerBits |= 0x40;
-        buffer.put(lowerBits);
-        
-        // The rest with 7 bits
-        while (v)
+        alias UV = Unsigned!V;
+        size_t i = 0;
+        int counter = 1, shift = 0;
+        ubyte lowerBits = (buffer[])[i++];
+        const isNegative = (lowerBits & negativeBit) != 0;
+        UV result = lowerBits & firstByteMask;
+        while ((lowerBits & moreBit) != 0 && i < (buffer[]).length)
         {
-            lowerBits = cast(ubyte)(v & 0x7F);
-            v >>= 7;
-            if (v)
-                lowerBits |= 0x80;
+            shift = counter == 1 ? firstBits : (shift + moreBits);
+            lowerBits = (buffer[])[i++];
+            result |= (cast(UV)(lowerBits & moreByteMask)) << shift;
+            counter++;
+        }
+        result = isNegative ? cast(UV)~result : result;
+        return *(cast(V*)&result);
+    }
+
+    final V decodeFloat(V)() @trusted
+    if (isFloatingPoint!V)
+    {
+        static if (V.sizeof == 4)
+        {
+            auto vi = decodeInt!uint();
+            return *(cast(V*)&vi);
+        }
+        else static if (V.sizeof == 8)
+        {
+            auto vi = decodeInt!ulong();
+            return *(cast(V*)&vi);
+        }
+        else
+            static assert(0, "Not support float size: " ~ V.sizeof.stringof);
+    }
+
+    final void encodeInt(V)(V v) @trusted
+    if (isIntegral!V)
+    {
+        alias UV = Unsigned!V;
+        const isNegative = v < 0;
+        auto ev = *(cast(UV*)&v);
+        if (isNegative)
+            ev = cast(UV)~ev;
+
+        // First 6 bits
+        ubyte lowerBits = cast(ubyte)(ev & firstByteMask);
+        ev >>= firstBits;
+        if (ev)
+            lowerBits |= moreBit;
+        if (isNegative)
+            lowerBits |= negativeBit;
+        buffer.put(lowerBits);
+
+        // The rest with 7 bits
+        while (ev)
+        {
+            lowerBits = cast(ubyte)(ev & moreByteMask);
+            ev >>= moreBits;
+            if (ev)
+                lowerBits |= moreBit;
             buffer.put(lowerBits);
         }
     }
@@ -198,33 +248,81 @@ public:
     {
         static if (V.sizeof == 4)
         {
-            uint vi = *(cast(uint*)&v);
-            import std.stdio : writefln; debug writefln("v: %f  %x", v, vi);
-            version (LittleEndian)
-            {
-                const vh = cast(ushort)((vi >> 20) & 0x0FFF);
-                vi = (vi << 12) | vh;
-                import std.stdio : writefln; debug writefln("v2: %f  %x", v, vi);
-            }
-            encodeInt!uint(vi);
+            encodeInt!uint(*(cast(uint*)&v));
         }
         else static if (V.sizeof == 8)
         {
-            ulong vi = *(cast(ulong*)&v);
-            import std.stdio : writefln; debug writefln("v: %f  %x", v, vi);
-            version (LittleEndian)
-            {
-                const vh = cast(ushort)((vi >> 48) & 0xFFFF);
-                vi = (vi << 16) | vh;
-                import std.stdio : writefln; debug writefln("v2: %f  %x", v, vi);
-            }
-            encodeInt!ulong(vi);
+            encodeInt!ulong(*(cast(ulong*)&v));
         }
         else
             static assert(0, "Not support float size: " ~ V.sizeof.stringof);
     }
-    
+
 public:
     Appender!(ubyte[]) buffer;
     size_t bufferCapacity = 4_000 * 4;
+}
+
+unittest // BinarySerializer.encodeInt & decodeInt
+{
+    import std.digest : toHexString;
+    import std.stdio : writefln; 
+    
+    scope serializer = new BinarySerializer();
+    
+    serializer.begin();
+    serializer.encodeInt!short(22_826);
+    serializer.end(); //debug writefln("%s", toHexString(serializer.buffer[]));
+    const i2 = serializer.decodeInt!short(); //debug writefln("%x", i2);
+    assert(i2 == 22_826);
+    
+    serializer.begin();
+    serializer.encodeInt!uint(0x0FFF1A);
+    serializer.end(); //debug writefln("%s", toHexString(serializer.buffer[]));
+    const i4 = serializer.decodeInt!uint(); //debug writefln("%x", i4);
+    assert(i4 == 0x0FFF1A);
+    
+    serializer.begin();
+    serializer.encodeInt!long(-83_659_374_736_539L);
+    serializer.end(); //debug writefln("%s", toHexString(serializer.buffer[]));    
+    const i8 = serializer.decodeInt!long(); //debug writefln("%s", i8);
+    assert(i8 == -83_659_374_736_539L);
+}
+
+unittest // BinarySerializer.encodeFloat & decodeFloat
+{
+    import std.digest : toHexString;
+    import std.stdio : writefln; 
+    
+    scope serializer = new BinarySerializer();
+
+    serializer.begin();
+    serializer.encodeFloat!float(1_826.22f);
+    serializer.end(); //debug writefln("%s", toHexString(serializer.buffer[]));
+    auto f4 = serializer.decodeFloat!float(); //debug writefln("%x", i2);
+    assert(f4 == 1_826.22f);
+
+    serializer.begin();
+    serializer.encodeFloat!float(-1_826.22f);
+    serializer.end(); //debug writefln("%s", toHexString(serializer.buffer[]));
+    f4 = serializer.decodeFloat!float(); //debug writefln("%x", i2);
+    assert(f4 == -1_826.22f);
+
+    serializer.begin();
+    serializer.encodeFloat!double(9_877_631_826.22);
+    serializer.end(); //debug writefln("%s", toHexString(serializer.buffer[]));
+    auto f8 = serializer.decodeFloat!double(); //debug writefln("%x", i2);
+    assert(f8 == 9_877_631_826.22);
+
+    serializer.begin();
+    serializer.encodeFloat!double(-9_877_631_826.22);
+    serializer.end(); //debug writefln("%s", toHexString(serializer.buffer[]));
+    f8 = serializer.decodeFloat!double(); //debug writefln("%x", i2);
+    assert(f8 == -9_877_631_826.22);
+
+    serializer.begin();
+    serializer.encodeFloat!double(-1.1);
+    serializer.end(); //debug writefln("%s", toHexString(serializer.buffer[]));
+    f8 = serializer.decodeFloat!double(); //debug writefln("%x", i2);
+    assert(f8 == -1.1);
 }

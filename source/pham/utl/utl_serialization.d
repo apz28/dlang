@@ -171,14 +171,12 @@ public:
         return this;
     }
 
-    pragma(inline, true)
     ref typeof(this) exc(const(E) e) pure return
     {
         values = cast(E)(values & ~e);
         return this;
     }
 
-    pragma(inline, true)
     ref typeof(this) inc(const(E) e) pure return
     {
         values = cast(E)(values | e);
@@ -589,8 +587,7 @@ class Serializer
 @safe:
 
 public:
-    pragma(inline, true)
-    size_t decDepth() nothrow
+    final size_t decDepth() nothrow
     in
     {
         assert(depth > 0);
@@ -601,14 +598,13 @@ public:
         return depth;
     }
 
-    pragma(inline, true)
-    size_t incDepth() nothrow
+    final size_t incDepth() nothrow
     {
         depth++;
         return depth;
     }
 
-    Serializer begin() nothrow
+    Serializer begin()
     {
         depth = 0;
         return this;
@@ -619,36 +615,36 @@ public:
         return this;
     }
 
-    Serializer aggregateBegin(string typeName, ptrdiff_t length) nothrow
+    Serializer aggregateBegin(string typeName, ptrdiff_t length)
     {
         incDepth();
         return this;
     }
 
-    Serializer aggregateEnd(string typeName, ptrdiff_t length) nothrow
+    Serializer aggregateEnd(string typeName, ptrdiff_t length)
     {
         decDepth();
         return this;
     }
 
-    Serializer aggregateItem(ptrdiff_t length) nothrow
+    Serializer aggregateItem(ptrdiff_t length)
     {
         return this;
     }
 
-    Serializer arrayBegin(string elemTypeName, ptrdiff_t length) nothrow
+    Serializer arrayBegin(string elemTypeName, ptrdiff_t length)
     {
         incDepth();
         return this;
     }
 
-    Serializer arrayEnd(string elemTypeName, ptrdiff_t length) nothrow
+    Serializer arrayEnd(string elemTypeName, ptrdiff_t length)
     {
         decDepth();
         return this;
     }
 
-    Serializer arrayItem(ptrdiff_t length) nothrow
+    Serializer arrayItem(ptrdiff_t length)
     {
         return this;
     }
@@ -1127,7 +1123,6 @@ nothrow @safe:
         length = nl;
     }
     
-    pragma(inline, true)
     ref typeof(this) reset() @nogc return
     {
         length = 0;

@@ -51,7 +51,6 @@ bool addLineIf(ref string lines, string line) nothrow pure
  *   state = 0 if lhs is equal rhs
  *   state = 1 if lhs is greater than rhs
  */
-pragma(inline, true)
 float cmp(T)(const(T) lhs, const(T) rhs) @nogc nothrow pure
 if (isFloatingPoint!T)
 {
