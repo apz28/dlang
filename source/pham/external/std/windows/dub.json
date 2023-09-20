@@ -1,7 +1,9 @@
 {
 	"name": "pham_external_std_windows",
 	"description": "Various utility modules.",
-	"authors": ["An Pham"],
+	"authors": [
+		"An Pham"
+	],
 	"homepage": "",
 	"license": "Boost Software License - Version 1.0",
 	"dependencies": {}
