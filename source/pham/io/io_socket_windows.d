@@ -17,8 +17,8 @@ import core.sys.windows.windef : DWORD, MAKEWORD;
 import core.sys.windows.winsock2;
 public import core.sys.windows.winsock2 : Linger = linger, TimeVal = timeval;
 
-pragma(lib, "Iphlpapi");
-pragma(lib, "ws2_32");
+pragma(lib, "Iphlpapi.lib");
+pragma(lib, "Ws2_32.lib");
 
 extern (Windows) DWORD if_nametoindex(scope const char*) @nogc nothrow @trusted;
 extern (Windows) void WSASetLastError(int) @nogc nothrow @trusted;

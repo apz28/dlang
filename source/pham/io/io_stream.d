@@ -1291,7 +1291,7 @@ unittest // MemoryStream
 
 unittest // ReadonlyStream
 {
-    ubyte[] bufWrite = new ubyte[200];
+    ubyte[] bufWrite = new ubyte[](200);
     bufWrite[] = 75;
     ubyte[200] bufRead;
 

@@ -121,7 +121,7 @@ public:
     {
         if (len)
         {
-            auto result = new char[len];
+            auto result = new char[](len);
             readBuffer(&result[0], len);
             return result;
         }
@@ -133,7 +133,7 @@ public:
     {
         if (len)
         {
-            auto result = new ubyte[len];
+            auto result = new ubyte[](len);
             readBuffer(&result[0], len);
             return result;
         }
@@ -205,7 +205,7 @@ public:
         const len = readLength();
         if (len)
         {
-            auto result = new char[len];
+            auto result = new char[](len);
             readBuffer(&result[0], len);
             return result;
         }
@@ -218,7 +218,7 @@ public:
         const len = readLength();
         if (len)
         {
-            auto result = new ubyte[len];
+            auto result = new ubyte[](len);
             readBuffer(&result[0], len);
             return result;
         }
