@@ -66,35 +66,30 @@ public:
         data.dispose(disposingReason);
     }
 
-    pragma(inline, true)
     ref typeof(this) put(T v) nothrow pure return
     {
         data.put(v);
         return this;
     }
 
-    pragma(inline, true)
     ref typeof(this) put(scope const(T)[] v) nothrow pure return
     {
         data.put(v);
         return this;
     }
 
-    pragma(inline, true)
     ref typeof(this) removeFront(const(T) removingValue) nothrow pure return
     {
         data.removeFront(removingValue);
         return this;
     }
 
-    pragma(inline, true)
     ref typeof(this) removeTail(const(T) removingValue) nothrow pure return
     {
         data.removeTail(removingValue);
         return this;
     }
 
-    pragma(inline, true)
     ref typeof(this) reverse() @nogc nothrow pure return
     {
         data.reverse();

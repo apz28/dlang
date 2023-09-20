@@ -285,7 +285,8 @@ private:
             input = input[blockSize..$];
         }
 
-        return resultOutput[0..resultLength];
+        //return resultOutput[0..resultLength];
+        assert(0, "Unreachable");
     }
 
     static void chacha20Block(ref Block output, ref const(Block) input, const(int) rounds) @nogc pure
