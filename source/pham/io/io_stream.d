@@ -410,7 +410,7 @@ public:
         import std.conv : to;
 
         if (value > maxLength)
-            return lastError.setError(0, " with over limit " ~ to!string(value));
+            return lastError.setError(0, " with over limit " ~ value.to!string());
 
         if (value <= 0)
             _data = null;
@@ -431,7 +431,7 @@ public:
 
         const newPos = this._position + 1;
         if (newPos > maxLength)
-            return lastError.setError(0, " with over limit " ~ to!string(newPos));
+            return lastError.setError(0, " with over limit " ~ newPos.to!string());
 
         if (this._data.length < newPos)
             this._data.length = newPos;
@@ -538,7 +538,7 @@ protected:
         {
             case SeekOrigin.begin:
                 if (offset > maxLength)
-                    return lastError.setError(0, " with over limit " ~ to!string(offset));
+                    return lastError.setError(0, " with over limit " ~ offset.to!string());
                 this._position = offset <= 0 ? 0 : cast(size_t)offset;
                 break;
             case SeekOrigin.current:

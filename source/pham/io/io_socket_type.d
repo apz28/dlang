@@ -233,7 +233,7 @@ public:
 
         return serviceName.length
             ? serviceName
-            : (port ? to!string(port) : null);
+            : (port ? port.to!string() : null);
     }
 
     void setLinger(scope const(Duration) duration)
@@ -415,7 +415,7 @@ public:
 
         return serviceName.length
             ? serviceName
-            : (port ? to!string(port) : null);
+            : (port ? port.to!string() : null);
     }
 
     void setLinger(scope const(Duration) duration)
@@ -1001,7 +1001,7 @@ public:
             import std.conv : to;
 
             return index != size_t.max
-                ? ResultIf!IPAddress.error(0, "Invalid IPv4 address: " ~ address.idup ~ " at position " ~ to!string(index))
+                ? ResultIf!IPAddress.error(0, "Invalid IPv4 address: " ~ address.idup ~ " at position " ~ index.to!string())
                 : ResultIf!IPAddress.error(0, "Invalid IPv4 address: " ~ address.idup);
         }
 
@@ -1156,7 +1156,7 @@ public:
             import std.conv : to;
 
             return index != size_t.max
-                ? ResultIf!(ubyte[IPAddress.maxIPv4AddressBytes]).error(0, "Invalid IPv4 address: " ~ address.idup ~ " at position " ~ to!string(index))
+                ? ResultIf!(ubyte[IPAddress.maxIPv4AddressBytes]).error(0, "Invalid IPv4 address: " ~ address.idup ~ " at position " ~ index.to!string())
                 : ResultIf!(ubyte[IPAddress.maxIPv4AddressBytes]).error(0, "Invalid IPv4 address: " ~ address.idup);
         }
 
@@ -1294,7 +1294,7 @@ public:
             import std.conv : to;
 
             return index != size_t.max
-                ? ResultIf!IPAddress.error(0, "Invalid IPv6 address: " ~ address.idup ~ " at position " ~ to!string(index))
+                ? ResultIf!IPAddress.error(0, "Invalid IPv6 address: " ~ address.idup ~ " at position " ~ index.to!string())
                 : ResultIf!IPAddress.error(0, "Invalid IPv6 address: " ~ address.idup);
         }
 

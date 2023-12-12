@@ -66,7 +66,7 @@ ResultIf!(AddressInfo[]) getAddressInfo(scope const(char)[] hostNameOrAddress, s
     {
         auto sa = SocketAddress(res.ai_addr, res.ai_addrlen);
         AddressInfo addressInfo;
-        addressInfo.canonName = res.ai_canonname ? to!string(res.ai_canonname) : null;
+        addressInfo.canonName = res.ai_canonname ? res.ai_canonname.to!string() : null;
         addressInfo.family = cast(AddressFamily)res.ai_family;
         addressInfo.type = cast(SocketType)res.ai_socktype;
         addressInfo.protocol = cast(Protocol)res.ai_protocol;

@@ -159,7 +159,7 @@ public:
         // Read 4 bits left
         const b = readBuffer();
         if (b > 0x0Fu)
-            throw new StreamReadException(0, "Bad readEncodedInt bits: " ~ to!string(b));
+            throw new StreamReadException(0, "Bad readEncodedInt bits: " ~ b.to!string());
 
         result |= cast(uint)b << (maxBytesWithoutOverflow * 7);
         return result;
@@ -183,7 +183,7 @@ public:
         // Read 1 bit left
         const b = readBuffer();
         if (b > 0x01u)
-            throw new StreamReadException(0, "Bad readEncodedLong bits: " ~ to!string(b));
+            throw new StreamReadException(0, "Bad readEncodedLong bits: " ~ b.to!string());
 
         result |= cast(ulong)b << (maxBytesWithoutOverflow * 7);
         return result;
