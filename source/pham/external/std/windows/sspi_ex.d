@@ -146,7 +146,7 @@ public:
             errorStatus.status = CompleteAuthToken(&clientContext, requestSecBufferDesc.initClientContext());
             if (errorStatus.status != SEC_E_OK)
             {
-                errorStatus.message = "CompleteAuthToken() failed: " ~ to!string(errorStatus.status);
+                errorStatus.message = "CompleteAuthToken() failed: " ~ errorStatus.status.to!string();
                 return false;
             }
         }
@@ -158,7 +158,7 @@ public:
         }
         else
         {
-            errorStatus.message = "InitializeSecurityContextA() failed: " ~ to!string(errorStatus.status);
+            errorStatus.message = "InitializeSecurityContextA() failed: " ~ errorStatus.status.to!string();
             return false;
         }
     }
@@ -194,7 +194,7 @@ private:
             errorStatus.status = CompleteAuthToken(&clientContext, requestSecBufferDesc.initClientContext());
             if (errorStatus.status != SEC_E_OK)
             {
-                errorStatus.message = "CompleteAuthToken() failed: " ~ to!string(errorStatus.status);
+                errorStatus.message = "CompleteAuthToken() failed: " ~ errorStatus.status.to!string();
                 return false;
             }
         }
@@ -206,7 +206,7 @@ private:
         }
         else
         {
-            errorStatus.message = "InitializeSecurityContextA() failed: " ~ to!string(errorStatus.status);
+            errorStatus.message = "InitializeSecurityContextA() failed: " ~ errorStatus.status.to!string();
             return false;
         }
     }
@@ -218,7 +218,7 @@ private:
             null, null, null, null, &clientCredentials, &clientCredentialsTimestamp);
 		if (errorStatus.status != SEC_E_OK)
         {
-            errorStatus.message = "AcquireCredentialsHandleA() failed: " ~ to!string(errorStatus.status);
+            errorStatus.message = "AcquireCredentialsHandleA() failed: " ~ errorStatus.status.to!string();
             return false;
         }
         else
