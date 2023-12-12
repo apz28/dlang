@@ -2364,7 +2364,7 @@ protected:
         string deleteFileName = fileName;
         try
         {
-            string tempFileName = fileName ~ "." ~ to!string(MonoTime.currTime().ticks) ~ ".DeletePending";
+            string tempFileName = fileName ~ "." ~ MonoTime.currTime().ticks.to!string() ~ ".DeletePending";
             fileRename(fileName, tempFileName);
             deleteFileName = tempFileName;
         }
@@ -2803,7 +2803,7 @@ protected:
     {
         try
         {
-            return s.length != 0 ? to!T(s) : failedValue;
+            return s.length != 0 ? s.to!T() : failedValue;
         }
         catch (Exception) return failedValue;
     }
@@ -3170,7 +3170,7 @@ public:
     static string userContext(const ref LogOutputPatternElement element, Object value) nothrow @trusted
     {
     try {
-        return value !is null ? text(element, to!string(value)) : text(element, null);
+        return value !is null ? text(element, value.to!string()) : text(element, null);
     } catch (Exception) return null;
     }
 
@@ -3178,7 +3178,7 @@ public:
     {
     try {
         if (value !is null)
-            text(sink, element, to!string(value));
+            text(sink, element, value.to!string());
         else
             text(sink, element, null);
     } catch (Exception) {}
@@ -3605,7 +3605,7 @@ private string osCharToString(scope const(char)[] v) nothrow @trusted
     import std.conv : to;
     scope (failure) assert(0, "Assume nothrow failed");
 
-    auto result = to!string(v.ptr);
+    auto result = v.ptr.to!string();
     while (result.length && result[$ - 1] <= ' ')
         result = result[0..$ - 1];
     return result;
@@ -3616,7 +3616,7 @@ private string osWCharToString(scope const(wchar)[] v) nothrow
     import std.conv : to;
     scope (failure) assert(0, "Assume nothrow failed");
 
-    auto result = to!string(v);
+    auto result = v.to!string();
     while (result.length && result[$ - 1] <= ' ')
         result = result[0..$ - 1];
     return result;
@@ -3783,11 +3783,11 @@ unittest // moduleParentOf
 
     auto dl = sharedLog;
     assert(dl !is null);
-    assert(dl.logLevel == defaultLogLevel, to!string(dl.logLevel));
+    assert(dl.logLevel == defaultLogLevel, dl.logLevel.to!string());
 
     auto tl = threadLog;
     assert(tl !is null);
-    assert(tl.logLevel == defaultLogLevel, to!string(tl.logLevel));
+    assert(tl.logLevel == defaultLogLevel, tl.logLevel.to!string());
 }
 
 @safe unittest // create NullLogger
@@ -4028,9 +4028,9 @@ package(pham.external.std.log)
         {
             scope (failure) assert(0, "Assume nothrow failed");
 
-            return "logLevel=" ~ to!string(logLevel) ~ " vs expectedLogLevel=" ~ to!string(expectedLogLevel)
-                ~ ", lvl=" ~ to!string(lvl)
-                ~ ", line=" ~ to!string(location.line) ~ (expectedLine != 0 ? " vs expectedline=" ~ to!string(expectedLine) : "")
+            return "logLevel=" ~ logLevel.to!string() ~ " vs expectedLogLevel=" ~ expectedLogLevel.to!string()
+                ~ ", lvl=" ~ lvl.to!string()
+                ~ ", line=" ~ location.line.to!string() ~ (expectedLine != 0 ? " vs expectedline=" ~ expectedLine.to!string() : "")
                 ~ ", msg=" ~ msg
                 ~ ", exceptionMessage=" ~ exceptionMessage
                 ;
@@ -4127,7 +4127,7 @@ void testFuncNames(Logger logger) @safe
     tl1.log(""); line = __LINE__;
     assert(tl1.line == line);
     tl1.log(true, ""); line = __LINE__;
-    assert(tl1.line == line, to!string(tl1.line ) ~ " vs " ~ to!string(line));
+    assert(tl1.line == line, tl1.line.to!string() ~ " vs " ~ line.to!string());
     tl1.log(false, "");
     assert(tl1.line == line);
     tl1.log(LogLevel.info, ""); line = __LINE__;
@@ -4144,16 +4144,16 @@ void testFuncNames(Logger logger) @safe
     log(to!string(__LINE__)); line = __LINE__;
     assert(tl1.line == line, tl1.debugString(line, sharedLogLevel));
 
-    log(LogLevel.info, to!string(__LINE__)); line = __LINE__;
+    log(LogLevel.info, __LINE__.to!string()); line = __LINE__;
     assert(tl1.line == line, tl1.debugString(line, sharedLogLevel));
 
-    log(true, to!string(__LINE__)); line = __LINE__;
+    log(true, __LINE__.to!string()); line = __LINE__;
     assert(tl1.line == line, tl1.debugString(line, sharedLogLevel));
 
-    log(LogLevel.warn, true, to!string(__LINE__)); line = __LINE__;
+    log(LogLevel.warn, true, __LINE__.to!string()); line = __LINE__;
     assert(tl1.line == line, tl1.debugString(line, sharedLogLevel));
 
-    logTrace(to!string(__LINE__)); line = __LINE__;
+    logTrace(__LINE__.to!string()); line = __LINE__;
     assert(tl1.line == line, tl1.debugString(line, sharedLogLevel));
 }
 
@@ -4200,7 +4200,7 @@ void testFuncNames(Logger logger) @safe
 
     l.log(false, msg);
     assert(l.msg == msg);
-    assert(l.line == lineNumber, to!string(l.line));
+    assert(l.line == lineNumber, l.line.to!string());
     assert(l.logLevel == defaultUnitTestLogLevel);
 
     msg = "%s Another message";
@@ -4231,7 +4231,7 @@ void testFuncNames(Logger logger) @safe
     msg = "Another message";
     log(msg); lineNumber = __LINE__;
     assert(l.logLevel == defaultUnitTestLogLevel);
-    assert(l.line == lineNumber, to!string(l.line));
+    assert(l.line == lineNumber, l.line.to!string());
     assert(l.msg == msg, l.msg);
 
     log(true, msg); lineNumber = __LINE__;
@@ -4279,7 +4279,7 @@ void testFuncNames(Logger logger) @safe
 
     tl.trace("b"); l = __LINE__;
     assert(tl.msg == "b", tl.msg);
-    assert(tl.line == l, to!string(tl.line));
+    assert(tl.line == l, tl.line.to!string());
 }
 
 // testing possible log conditions
@@ -4299,7 +4299,7 @@ void testFuncNames(Logger logger) @safe
         LogLevel.critical, LogLevel.fatal, LogLevel.off];
 
     int value = 0;
-    string valueS = to!string(value);
+    string valueS = value.to!string();
     string value2S = format("%d%d", value, value);
     foreach (gll; levels)
     {
@@ -4403,7 +4403,7 @@ void testFuncNames(Logger logger) @safe
             }
 
             value++;
-            valueS = to!string(value);
+            valueS = value.to!string();
             value2S = format("%d%d", value, value);
         }
     }
@@ -5098,7 +5098,7 @@ unittest // LogTimming
     int msecs()
     {
         const i = tl.msg.indexOf(',');
-        return to!int(tl.msg[0..i]);
+        return tl.msg[0..i].to!int();
     }
 
     timeLog();
@@ -5156,7 +5156,7 @@ unittest // RollingFileLogger
         lg.log(LogLevel.error, s.data);
     }
     auto bf = lg.getBackupFileNames();
-    assert(bf.length == 1, to!string(bf.length));
+    assert(bf.length == 1, bf.length.to!string());
 }
 
 /* Sample D predefined variable
