@@ -193,6 +193,75 @@ nothrow @safe:
         result.patternText = patternText;
         return result;
     }
+    
+    static immutable string[Tick.ticksMaxPrecision + 1] millisecondFormats = [
+        "", "z", "zz", "zzz", "zzzz", "zzzzz", "zzzzzz", "zzzzzzz"
+    ];
+    
+    static string millisecondFormat(const(int) millisecondPrecision = Tick.ticksMaxPrecision) pure
+    {
+        if (millisecondPrecision <= 0)
+            return null;
+        else if (millisecondPrecision > Tick.ticksMaxPrecision)
+            return "." ~ millisecondFormats[Tick.ticksMaxPrecision];
+        else
+            return "." ~ millisecondFormats[millisecondPrecision];
+    }
+        
+    static DateTimePattern iso8601Date() @nogc pure
+    {
+        auto result = usShortDate;
+        result.dateSeparator = '-';
+        result.timeSeparator = ':';
+        result.patternText = "yyyy/mm/dd";
+        return result;
+    }
+
+    static DateTimePattern[] iso8601DateTime(const(int) millisecondPrecision = Tick.ticksMaxPrecision) pure
+    {
+        const precision = millisecondFormat(millisecondPrecision);
+        static immutable string fmt = "yyyy/mm/ddThh:nn:ss";
+
+        auto first = usShortDateTime;
+        first.dateSeparator = '-';
+        first.timeSeparator = ':';
+        first.patternText = fmt ~ precision;
+        
+        auto second = usShortDateTime;
+        second.dateSeparator = '-';
+        second.timeSeparator = ':';
+        second.patternText = fmt ~ precision ~ "+hh:nn";
+        
+        auto third = usShortDateTime;
+        third.dateSeparator = '-';
+        third.timeSeparator = ':';
+        third.patternText = fmt ~ precision ~ "Z";
+        
+        return [first, second, third];
+    }
+
+    static DateTimePattern[] iso8601Time(const(int) millisecondPrecision = Tick.ticksMaxPrecision) pure
+    {
+        const precision = millisecondFormat(millisecondPrecision);
+        static immutable string fmt = "hh:nn:ss";
+        
+        auto first = usShortTime;
+        first.dateSeparator = '-';
+        first.timeSeparator = ':';
+        first.patternText = fmt ~ precision;
+        
+        auto second = usShortTime;
+        second.dateSeparator = '-';
+        second.timeSeparator = ':';
+        second.patternText = fmt ~ precision ~ "+hh:nn";
+        
+        auto third = usShortTime;
+        third.dateSeparator = '-';
+        third.timeSeparator = ':';
+        third.patternText = fmt ~ precision ~ "Z";
+        
+        return [first, second, third];
+    }
 
     static DateTimePattern usShortDate() @nogc pure
     {
@@ -598,7 +667,12 @@ public:
                     break;
                 case PatternKind.literal:
                     PatternMarker literalMarker = void;
-                    scanLiteral(dateTimeText, pattern, e.marker, literalMarker);
+                    if (scanLiteral(dateTimeText, pattern, e.marker, literalMarker))
+                    {
+                        const literal = literalMarker.slice(dateTimeText);
+                        if (zoneAdjustment == 0 && p >= endP && (literal == "Z" || literal == "z"))
+                            zoneAdjustment = 1;
+                    }
                     break;
             }
 
@@ -810,6 +884,26 @@ public:
     int zoneAdjustment, zoneAdjustmentHour, zoneAdjustmentMinute;
     DateTimeKind parseType;
     bool hasTime;
+}
+
+T parse(T, ExceptionClass)(scope const(char)[] dateTimeText, const ref DateTimePattern pattern)
+if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
+{
+    T result;
+    const r = tryParse!T(dateTimeText, pattern, result);
+    if (r == DateTimeParser.noError)
+        return result;
+    throw new ExceptionClass("Invalid " ~ T.stringof ~ ": " ~ dateTimeText.idup);
+}
+
+T parse(T, ExceptionClass)(scope const(char)[] dateTimeText, scope const(DateTimePattern)[] patterns)
+if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
+{
+    T result;
+    const r = tryParse!T(dateTimeText, patterns, result);
+    if (r == DateTimeParser.noError)
+        return result;
+    throw new ExceptionClass("Invalid " ~ T.stringof ~ ": " ~ dateTimeText.idup);
 }
 
 ptrdiff_t tryParse(T)(scope const(char)[] dateTimeText, const ref DateTimePattern pattern, out T result) nothrow
@@ -1110,7 +1204,7 @@ unittest // tryParse
         assert(dt.second == 0);
 
         p.defaultKind = DateTimeZoneKind.utc;
-        p.patternText = "yyyy/mm/ddThh:nn:ss-hh:nn";
+        p.patternText = "yyyy/mm/ddThh:nn:ss+hh:nn";
         r = tryParse!DateTime("2021/06/09T11:00:00-04:00", p, dt);
         assert(r == DateTimeParser.noError);
         assert(dt.year == 2021);
@@ -1121,11 +1215,15 @@ unittest // tryParse
         assert(dt.second == 0);
     }
 
-    auto isop = DateTimePattern.usShortDateTime;
-    isop.dateSeparator = '-';
-    isop.timeSeparator = ':';
-    isop.patternText = "yyyy/mm/ddThh:nn:ss.zzzzzzz";
-    r = tryParse!DateTime("2009-06-15T13:45:30.0000001", isop, dt);
+    auto isopd = DateTimePattern.iso8601DateTime;
+    r = tryParse!Date("2009-06-15", isopd, d);
+    assert(r == DateTimeParser.noError);
+    assert(d.year == 2009);
+    assert(d.month == 6);
+    assert(d.day == 15);
+
+    auto isopdt = DateTimePattern.iso8601DateTime;
+    r = tryParse!DateTime("2009-06-15T13:45:30.0000001", isopdt, dt);
     assert(r == DateTimeParser.noError);
     assert(dt.year == 2009);
     assert(dt.month == 6);
@@ -1134,4 +1232,12 @@ unittest // tryParse
     assert(dt.minute == 45);
     assert(dt.second == 30);
     assert(dt.fraction == 1);
+
+    auto isopt = DateTimePattern.iso8601Time;
+    r = tryParse!Time("13:45:30.0000001", isopt, t);
+    assert(r == DateTimeParser.noError);
+    assert(t.hour == 13);
+    assert(t.minute == 45);
+    assert(t.second == 30);
+    assert(t.fraction == 1);
 }

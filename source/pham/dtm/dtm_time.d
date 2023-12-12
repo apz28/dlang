@@ -15,7 +15,7 @@ import std.range.primitives : isOutputRange;
 import std.traits : isSomeChar;
 
 import pham.utl.utl_array : ShortStringBuffer;
-import pham.dtm.dtm_date : DateTime, DayOfWeek, JulianDate;
+import pham.dtm.dtm_date : Date, DateTime, DayOfWeek, JulianDate;
 import pham.dtm.dtm_tick;
 public import pham.dtm.dtm_tick : CustomFormatSpecifier, DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind;
 
@@ -93,6 +93,11 @@ public:
     do
     {
         this.data = TickData.createTimeTick(Tick.timeToTicks(hour, minute, 0), kind);
+    }
+
+    this(TickData data) @nogc nothrow pure
+    {
+        this.data = data;
     }
 
     Time opBinary(string op)(scope const(Duration) duration) const @nogc nothrow pure scope
@@ -344,6 +349,12 @@ public:
             throw new FormatException(fmtSpec.errorMessage.idup);
         return sink;
     }
+    
+    Time toUTC() const nothrow
+    {
+        auto dt = DateTime(Date.today, this);
+        return dt.toUTC().time;
+    }
 
     /**
      * Returns Time as requested parameter, kind, without any conversion/adjustment
@@ -519,6 +530,17 @@ public:
         return DateTime.utcNow.time;
     }
 
+    @property int utcBias() const nothrow
+    {
+        auto dt = DateTime(Date.today, this);
+        return dt.utcBias;
+    }
+
+    @property TickData raw() const @nogc nothrow pure
+    {
+        return data;
+    }
+    
     /**
      * Returns the midnight Time value which is midnight time 00:00:00.000 AM
      * Same as zero
@@ -530,6 +552,7 @@ public:
      */
     alias zero = min;
 
+    
 public:
     // MinTimeTicks is the ticks for the midnight time 00:00:00.000 AM
     enum long minTicks = 0;
@@ -542,11 +565,6 @@ package(pham.dtm):
     this(ulong data) @nogc nothrow pure
     {
         this.data = TickData(data);
-    }
-
-    this(TickData data) @nogc nothrow pure
-    {
-        this.data = data;
     }
 
     void getDate(out int year, out int month, out int day) const @nogc nothrow pure
@@ -919,10 +937,10 @@ unittest // Time.julianDay
     import pham.utl.utl_test;
     traceUnitTest("unittest pham.dtm.time.Time.julianDay");
 
-    assert(Tick.round(Time(0, 0, 0, 0).julianDay) == 1721424, to!string(Tick.round(Time(0, 0, 0, 0).julianDay)));
-    assert(Tick.round(Time(11, 59, 59, 999).julianDay) == 1721424, to!string(Tick.round(Time(11, 59, 59, 999).julianDay)));
-    assert(Tick.round(Time(12, 0, 0, 0).julianDay) == 1721424, to!string(Tick.round(Time(12, 0, 0, 0).julianDay)));
-    assert(Tick.round(Time(23, 59, 59, 999).julianDay) == 1721424, to!string(Tick.round(Time(23, 59, 59, 999).julianDay)));
+    assert(Tick.round(Time(0, 0, 0, 0).julianDay) == 1721424, Tick.round(Time(0, 0, 0, 0).julianDay).to!string());
+    assert(Tick.round(Time(11, 59, 59, 999).julianDay) == 1721424, Tick.round(Time(11, 59, 59, 999).julianDay).to!string());
+    assert(Tick.round(Time(12, 0, 0, 0).julianDay) == 1721424, Tick.round(Time(12, 0, 0, 0).julianDay).to!string());
+    assert(Tick.round(Time(23, 59, 59, 999).julianDay) == 1721424, Tick.round(Time(23, 59, 59, 999).julianDay).to!string());
 }
 
 unittest // Time.getTime

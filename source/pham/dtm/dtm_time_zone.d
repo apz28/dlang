@@ -561,7 +561,7 @@ public:
     }
 
     pragma(inline, true)
-    static short offsetFromISOPart(const(byte) validOffsetHour, const(byte) validOffsetMinute) @nogc nothrow pure scope
+    static int offsetFromISOPart(const(byte) validOffsetHour, const(byte) validOffsetMinute) @nogc nothrow pure scope
     in
     {
         assert(validOffsetHour >= -14 && validOffsetHour <= 14);
@@ -569,21 +569,21 @@ public:
     }
     do
     {
-        return cast(short)((cast(short)validOffsetHour * 60) + validOffsetMinute);
+        return (cast(int)validOffsetHour * 60) + validOffsetMinute;
     }
     
     pragma(inline, true)
-    static void offsetToISOPart(const(short) validMinuteOffset, out byte hour, out byte minute) @nogc nothrow pure scope
+    static void offsetToISOPart(const(int) validOffsetMinute, out byte hour, out byte minute) @nogc nothrow pure scope
     in
     {
-        assert(validMinuteOffset >= (-14 * 60) && validMinuteOffset <= (14 * 60));
+        assert(validOffsetMinute >= (-14 * 60) && validOffsetMinute <= (14 * 60));
     }
     do
     {
         import std.math.algebraic : abs;
         
-        hour = cast(byte)(validMinuteOffset / 60);
-        minute = cast(byte)(abs(validMinuteOffset) - (cast(short)abs(hour) * 60));
+        hour = cast(byte)(validOffsetMinute / 60);
+        minute = cast(byte)(abs(validOffsetMinute) - (cast(int)abs(hour) * 60));
     }
     
     size_t toHash() const @nogc nothrow pure scope
@@ -1339,7 +1339,7 @@ version (Windows)
         {
             scope (failure) assert(0, "Assume nothrow failed");
 
-            auto result = to!string(systemName);
+            auto result = systemName.to!string();
             auto len = result.length;
             while (len && result[len - 1] <= ' ')
                 len--;

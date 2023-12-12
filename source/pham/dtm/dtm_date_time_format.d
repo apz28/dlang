@@ -19,6 +19,7 @@ import pham.utl.utl_object : toString;
 import pham.dtm.dtm_tick;
 import pham.dtm.dtm_date : Date, DateTime, DayOfWeek, firstDayOfMonth, firstDayOfWeek, JulianDate;
 import pham.dtm.dtm_time : Time;
+import pham.dtm.dtm_time_zone : TimeZoneInfo;
 
 @safe:
 
@@ -49,8 +50,8 @@ enum FormatDateTimeSpecifier : char
     shortTime = 't', /// %t 2009-06-15T13:45:30 -> 1:45 PM
     sortableDateTime = 's', /// %s 2009-06-15T13:45:30.0010000 -> 2009-06-15T13:45:30.0010000
     sortableDateTimeLess = 'S', /// %S 2009-06-15T13:45:30.0010000 -> 2009-06-15T13:45:30
-    utcFullDateTime = 'U', /// %U 2009-06-15T13:45:30 -> Monday, June 15, 2009 1:45:30 PM
     utcSortableDateTime = 'u', /// %u 2009-06-15T13:45:30.0000001 -> 2009-06-15 13:45:30.0000001Z
+    utcSortableDateTimeZ = 'U', /// %U 2009-06-15T13:45:30.0000001 -> 2009-06-15 13:45:30.0000001+HH:NN
 }
 
 struct FormatDateTimeValue
@@ -65,21 +66,23 @@ public:
         date.getDate(_year, _month, _day);
     }
 
-    this(in DateTime dateTime) @nogc pure
+    this(in DateTime dateTime)
     {
         this._kind = DateTimeKind.dateTime;
         this.dateTime = dateTime;
         dateTime.getDate(_year, _month, _day);
         dateTime.getTimePrecise(_hour, _minute, _second, _tick);
         this._millisecond = TickPart.tickToMillisecond(_tick);
+        TimeZoneInfo.offsetToISOPart(dateTime.utcBias, _utcBiasHour, _utcBiasMinute);
     }
 
-    this(in Time time) @nogc pure
+    this(in Time time)
     {
         this._kind = DateTimeKind.time;
         this.time = time;
         time.getTimePrecise(_hour, _minute, _second, _tick);
         this._millisecond = TickPart.tickToMillisecond(_tick);
+        TimeZoneInfo.offsetToISOPart(time.utcBias, _utcBiasHour, _utcBiasMinute);
     }
 
     string amPM(scope const ref DateTimeSetting setting) const pure
@@ -191,6 +194,16 @@ public:
         return _year;
     }
 
+    @property byte utcBiasMinute() const @nogc pure
+    {
+        return _utcBiasMinute;
+    }
+
+    @property byte utcBiasHour() const @nogc pure
+    {
+        return _utcBiasHour;
+    }
+
 private:
     union
     {
@@ -199,6 +212,7 @@ private:
         Time time;
     }
     int _year, _month, _day, _hour, _minute, _second, _millisecond, _tick;
+    byte _utcBiasHour, _utcBiasMinute;
     DateTimeKind _kind;
 }
 
@@ -365,8 +379,8 @@ private:
             case FormatDateTimeSpecifier.shortTime:
             case FormatDateTimeSpecifier.sortableDateTime:
             case FormatDateTimeSpecifier.sortableDateTimeLess:
-            case FormatDateTimeSpecifier.utcFullDateTime:
             case FormatDateTimeSpecifier.utcSortableDateTime:
+            case FormatDateTimeSpecifier.utcSortableDateTimeZ:
                 return FormatWriteResult.ok;
             default:
                 return errorWriteUp("Incorrect format specifier: " ~ toString(spec));
@@ -456,7 +470,7 @@ private:
         import std.conv : to;
         scope (failure) assert(0, "Assume nothrow failed");
 
-        return c != 0 ? to!string(c) : null;
+        return c != 0 ? c.to!string() : null;
     }
 
     static string toString(const(Char)[] c) nothrow pure
@@ -464,7 +478,7 @@ private:
         import std.conv : to;
         scope (failure) assert(0, "Assume nothrow failed");
 
-        return c.length != 0 ? to!string(c) : null;
+        return c.length != 0 ? c.to!string() : null;
     }
 }
 
@@ -474,6 +488,8 @@ uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope ref FormatDa
     scope ref FormatDateTimeValue fmtValue, scope const ref DateTimeSetting setting) nothrow
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
+    import std.math.algebraic : abs;
+
     void putAMorPM(bool space) nothrow @safe
     {
         auto s = fmtValue.amPM(setting);
@@ -770,37 +786,64 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     toString(sink, fmtValue.second, 2);
                 }
                 break;
-            case FormatDateTimeSpecifier.utcFullDateTime: // 2009-06-15T13:45:30 -> Monday, June 15, 2009 1:45:30 PM
-                put(sink, fmtValue.dayOfWeekName(setting, false));
-                put(sink, ", ");
-                put(sink, fmtValue.monthName(setting, false));
-                put(sink, ' ');
-                toString(sink, fmtValue.day);
-                put(sink, ", ");
-                toString(sink, fmtValue.year, 4);
-                put(sink, ' ');
-                toString(sink, fmtValue.shortHour);
-                put(sink, ':');
-                toString(sink, fmtValue.minute, 2);
-                put(sink, ':');
-                toString(sink, fmtValue.second, 2);
-                putAMorPM(true);
+            case FormatDateTimeSpecifier.utcSortableDateTime: // 2009-06-15T13:45:30.0000001 -> 2009-06-15T13:45:30.0000001Z
+                // Date part
+                if (fmtValue.kind != DateTimeKind.time)
+                {
+                    toString(sink, fmtValue.year, 4);
+                    put(sink, '-');
+                    toString(sink, fmtValue.month, 2);
+                    put(sink, '-');
+                    toString(sink, fmtValue.day, 2);
+
+                    // Has time?
+                    if (fmtValue.kind != DateTimeKind.date)
+                        put(sink, 'T');
+                }
+
+                // Time part
+                if (fmtValue.kind != DateTimeKind.date)
+                {
+                    toString(sink, fmtValue.hour, 2);
+                    put(sink, ':');
+                    toString(sink, fmtValue.minute, 2);
+                    put(sink, ':');
+                    toString(sink, fmtValue.second, 2);
+                    put(sink, '.');
+                    toString(sink, fmtValue.tick, Tick.ticksMaxPrecision);
+                    put(sink, 'Z');
+                }
                 break;
-            case FormatDateTimeSpecifier.utcSortableDateTime: // 2009-06-15T13:45:30.0000001 -> 2009-06-15 13:45:30.0000001Z
-                toString(sink, fmtValue.year, 4);
-                put(sink, '-');
-                toString(sink, fmtValue.month, 2);
-                put(sink, '-');
-                toString(sink, fmtValue.day, 2);
-                put(sink, ' ');
-                toString(sink, fmtValue.hour, 2);
-                put(sink, ':');
-                toString(sink, fmtValue.minute, 2);
-                put(sink, ':');
-                toString(sink, fmtValue.second, 2);
-                put(sink, '.');
-                toString(sink, fmtValue.tick, Tick.ticksMaxPrecision);
-                put(sink, 'Z');
+            case FormatDateTimeSpecifier.utcSortableDateTimeZ: // 2009-06-15T13:45:30.0000001 -> 2009-06-15T13:45:30.0000001+HH:NN
+                // Date part
+                if (fmtValue.kind != DateTimeKind.time)
+                {
+                    toString(sink, fmtValue.year, 4);
+                    put(sink, '-');
+                    toString(sink, fmtValue.month, 2);
+                    put(sink, '-');
+                    toString(sink, fmtValue.day, 2);
+
+                    // Has time?
+                    if (fmtValue.kind != DateTimeKind.date)
+                        put(sink, 'T');
+                }
+
+                // Time part
+                if (fmtValue.kind != DateTimeKind.date)
+                {
+                    toString(sink, fmtValue.hour, 2);
+                    put(sink, ':');
+                    toString(sink, fmtValue.minute, 2);
+                    put(sink, ':');
+                    toString(sink, fmtValue.second, 2);
+                    put(sink, '.');
+                    toString(sink, fmtValue.tick, Tick.ticksMaxPrecision);
+                    put(sink, fmtValue.utcBiasHour < 0 ? '-' : '+');
+                    toString(sink, abs(fmtValue.utcBiasHour), 2);
+                    put(sink, ':');
+                    toString(sink, fmtValue.utcBiasMinute, 2);
+                }
                 break;
             default:
                 assert(0);
@@ -992,17 +1035,6 @@ private:
     assert(s == "2009-06-15T13:45:30", s);
 }
 
-@safe unittest // FormatDateTimeSpecifier.utcFullDateTime
-{
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date_time_format - %U");
-
-    string s;
-
-    s = DateTime(2009, 06, 15, 13, 45, 30).toString("%U");
-    assert(s == "Monday, June 15, 2009 1:45:30 PM", s);
-}
-
 @safe unittest // FormatDateTimeSpecifier.utcSortableDateTime
 {
     import pham.utl.utl_test;
@@ -1011,7 +1043,21 @@ private:
     string s;
 
     s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%u");
-    assert(s == "2009-06-15 13:45:30.0000001Z", s);
+    assert(s == "2009-06-15T13:45:30.0000001Z", s);
+}
+
+@safe unittest // FormatDateTimeSpecifier.utcSortableDateTimeZ
+{
+    import pham.utl.utl_test;
+    traceUnitTest("unittest pham.dtm.date_time_format - %U");
+
+    string s;
+
+    s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%U");
+    assert(s == "2009-06-15T13:45:30.0000001-04:00", s);
+
+    s = DateTime(2009, 06, 15, 13, 45, 30, DateTimeZoneKind.utc).addTicks(1).toString("%U");
+    assert(s == "2009-06-15T13:45:30.0000001+00:00", s);
 }
 
 @safe unittest // FormatDateTimeSpecifier.custom, FormatDateTimeSpecifier.dateSeparator, FormatDateTimeSpecifier.timeSeparator

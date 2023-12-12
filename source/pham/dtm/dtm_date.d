@@ -608,6 +608,11 @@ public:
         this.data = TickData.createDateTimeTick(dateToTicks(year, month, day), kind);
     }
 
+    this(TickData data) @nogc nothrow pure
+    {
+        this.data = data;
+    }
+
     DateTime opBinary(string op)(scope const(Duration) duration) const pure scope
     if (op == "+" || op == "-")
     {
@@ -1198,7 +1203,16 @@ public:
             throw new FormatException(fmtSpec.errorMessage.idup);
         return sink;
     }
-
+    
+    DateTime toUTC() const nothrow
+    {
+        if (kind == DateTimeZoneKind.utc)
+            return DateTime(data);
+            
+        auto localZone = TimeZoneInfo.localTimeZone(year);
+        return localZone.convertDateTimeToUTC(this);
+    }
+    
     ErrorOp tryAddDays(const(double) days, out DateTime newDateTime) const @nogc nothrow pure
     {
         long newTicks = void;
@@ -1548,6 +1562,19 @@ public:
         return DateTime(cast(ulong)ticks | TickData.kindUtc);
     }
 
+    @property int utcBias() const nothrow
+    {
+        if (kind == DateTimeZoneKind.utc)
+            return 0;
+            
+        return cast(int)(totalMinutes - toUTC().totalMinutes);
+    }
+
+    @property TickData raw() const @nogc nothrow pure
+    {
+        return data;
+    }
+    
     alias zero = min;
 
 public:
@@ -1567,11 +1594,6 @@ package(pham.dtm):
     this(ulong data) @nogc nothrow pure
     {
         this.data = TickData(data);
-    }
-
-    this(TickData data) @nogc nothrow pure
-    {
-        this.data = data;
     }
 
     DateTime errorDateTime(const(ErrorOp) error) const @nogc nothrow pure scope
@@ -1809,15 +1831,15 @@ version (none)
 {
     import std.conv : to;
 
-    pragma(msg, to!string(dur!"msecs"(1).total!"usecs"()));    //     1_000
-    pragma(msg, to!string(dur!"msecs"(1).total!"hnsecs"()));   //    10_000
-    pragma(msg, to!string(dur!"msecs"(1).total!"nsecs"()));    // 1_000_000
-    pragma(msg, to!string(DateTime.maxMillis));                   //       315_537_897_600_000
-    pragma(msg, to!string(maxMillis * Tick.ticksPerMillisecond)); // 3_155_378_976_000_000_000
+    pragma(msg, (dur!"msecs"(1).total!"usecs"()).to!string());    //     1_000
+    pragma(msg, (dur!"msecs"(1).total!"hnsecs"()).to!string());   //    10_000
+    pragma(msg, (dur!"msecs"(1).total!"nsecs"()).to!string());    // 1_000_000
+    pragma(msg, DateTime.maxMillis.to!string());                   //       315_537_897_600_000
+    pragma(msg, (maxMillis * Tick.ticksPerMillisecond).to!string()); // 3_155_378_976_000_000_000
     enum ulong realMaxTicks = DateTime.ticksMask & 0xFFFF_FFFF_FFFF_FFFF;
-    pragma(msg, to!string(realMaxTicks));                      // 4_611_686_018_427_387_903
-    pragma(msg, to!string(DateTime.maxTicks));                 // 3_155_378_975_999_999_999
-    pragma(msg, to!string(realMaxTicks - DateTime.maxTicks));  // 1_456_307_042_427_387_904
+    pragma(msg, realMaxTicks.to!string());                      // 4_611_686_018_427_387_903
+    pragma(msg, DateTime.maxTicks.to!string());                 // 3_155_378_975_999_999_999
+    pragma(msg, (realMaxTicks - DateTime.maxTicks).to!string());  // 1_456_307_042_427_387_904
 }
 
 unittest // DateTime.now
@@ -2165,9 +2187,9 @@ unittest // DateTime.julianDay
     import pham.utl.utl_test;
     traceUnitTest("unittest pham.dtm.date.DateTime.julianDay");
 
-    assert(Tick.round(DateTime.min.julianDay) == 1721424, to!string(Tick.round(DateTime.min.julianDay)));
-    assert(Tick.round(DateTime.max.julianDay) == 5373484, to!string(Tick.round(DateTime.max.julianDay)));
-    assert(Tick.round(DateTime(1, 1, 1, 12, 0, 0, 0).julianDay) == 1721424, to!string(Tick.round(DateTime(1, 1, 1, 12, 0, 0, 0).julianDay)));
+    assert(Tick.round(DateTime.min.julianDay) == 1721424, Tick.round(DateTime.min.julianDay).to!string());
+    assert(Tick.round(DateTime.max.julianDay) == 5373484, Tick.round(DateTime.max.julianDay).to!string());
+    assert(Tick.round(DateTime(1, 1, 1, 12, 0, 0, 0).julianDay) == 1721424, Tick.round(DateTime(1, 1, 1, 12, 0, 0, 0).julianDay).to!string());
 }
 
 unittest // DateTime.opBinary
@@ -2492,9 +2514,9 @@ unittest // Date.julianDay
     import pham.utl.utl_test;
     traceUnitTest("unittest pham.dtm.date.Date.julianDay");
 
-    assert(Tick.round(Date.min.julianDay) == 1721424, to!string(Tick.round(Date.min.julianDay)));
-    assert(Tick.round(Date.max.julianDay) == 5373484, to!string(Tick.round(Date.max.julianDay)));
-    assert(Tick.round(Date(1, 1, 1).julianDay) == 1721424, to!string(Tick.round(Date(1, 1, 1).julianDay)));
+    assert(Tick.round(Date.min.julianDay) == 1721424, Tick.round(Date.min.julianDay).to!string());
+    assert(Tick.round(Date.max.julianDay) == 5373484, Tick.round(Date.max.julianDay).to!string());
+    assert(Tick.round(Date(1, 1, 1).julianDay) == 1721424, Tick.round(Date(1, 1, 1).julianDay).to!string());
 }
 
 unittest // Date.opBinary

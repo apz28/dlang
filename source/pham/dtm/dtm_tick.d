@@ -219,9 +219,9 @@ struct Tick
     }
 
     pragma(inline, true)
-    static Duration durationFromSystemBias(long bias) pure
+    static Duration durationFromSystemBias(long biasMinute) pure
     {
-        return bias != 0 ? dur!"minutes"(-bias) : Duration.zero;
+        return biasMinute != 0 ? dur!"minutes"(-biasMinute) : Duration.zero;
     }
 
     pragma(inline, true)
@@ -537,23 +537,23 @@ ErrorPart isValidTimeParts(const(int) hour, const(int) minute, const(int) second
 void throwArithmeticOutOfRange(ErrorPart error)(long outOfRangeValue) pure
 {
     static if (error == ErrorPart.tick)
-        throw new TimeException("Arithmetic ticks out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Arithmetic ticks out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.millisecond)
-        throw new TimeException("Arithmetic milliseconds out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Arithmetic milliseconds out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.second)
-        throw new TimeException("Arithmetic seconds out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Arithmetic seconds out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.minute)
-        throw new TimeException("Arithmetic minutes out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Arithmetic minutes out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.hour)
-        throw new TimeException("Arithmetic hours out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Arithmetic hours out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.day)
-        throw new TimeException("Arithmetic days out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Arithmetic days out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.month)
-        throw new TimeException("Arithmetic months out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Arithmetic months out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.year)
-        throw new TimeException("Arithmetic years out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Arithmetic years out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.year)
-        throw new TimeException("Arithmetic weeks out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Arithmetic weeks out of range: " ~ outOfRangeValue.to!string());
     else
         static assert(0);
 }
@@ -561,25 +561,25 @@ void throwArithmeticOutOfRange(ErrorPart error)(long outOfRangeValue) pure
 void throwOutOfRange(ErrorPart error)(long outOfRangeValue) pure
 {
     static if (error == ErrorPart.tick)
-        throw new TimeException("Ticks out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Ticks out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.millisecond)
-        throw new TimeException("Milliseconds out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Milliseconds out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.second)
-        throw new TimeException("Seconds out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Seconds out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.minute)
-        throw new TimeException("Minutes out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Minutes out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.hour)
-        throw new TimeException("Hours out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Hours out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.day)
-        throw new TimeException("Days out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Days out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.month)
-        throw new TimeException("Months out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Months out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.year)
-        throw new TimeException("Years out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Years out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.week)
-        throw new TimeException("Weeks out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Weeks out of range: " ~ outOfRangeValue.to!string());
     else static if (error == ErrorPart.kind)
-        throw new TimeException("Kind out of range: " ~ to!string(outOfRangeValue));
+        throw new TimeException("Kind out of range: " ~ outOfRangeValue.to!string());
     else
         static assert(0);
 }

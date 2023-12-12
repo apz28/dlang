@@ -82,17 +82,15 @@ ResultIf!Duration toDeltaMinutes(long v) pure
     const ti = toInt(v);
     return ti && ti >= -limit && ti <= limit
         ? ResultIf!Duration.ok(dur!"minutes"(ti))
-        : ResultIf!Duration.error(1, "Minute delta is out of bound: " ~ to!string(v));
+        : ResultIf!Duration.error(1, "Minute delta is out of bound: " ~ v.to!string());
 }
 
 ResultIf!int toInt(long v) pure
 {
     import std.conv : to;
     
-    if (v < int.min)
-        return ResultIf!int.error(1, "Integer is out of bound: " ~ to!string(v));
-    else if (v > int.max)
-        return ResultIf!int.error(1, "Integer is out of bound: " ~ to!string(v));
+    if (v < int.min || v > int.max)
+        return ResultIf!int.error(1, "Integer is out of bound: " ~ v.to!string());
     else
         return ResultIf!int.ok(cast(int)v);
 }
