@@ -35,7 +35,7 @@ do
 }
 
 //returns true and advance range if element is found
-bool expect(R, T)(ref R range, T element) @nogc nothrow pure @safe
+bool expect(R, T)(ref R range, const(T) element) @nogc nothrow pure @safe
 if (isInputRange!R && isSomeChar!T)
 {
     if (!range.empty && range.front == element)
@@ -57,7 +57,7 @@ unittest // expect
 }
 
 //returns parsed characters count and advance range
-size_t expect(R, C)(ref R range, const(C)[] s) @nogc nothrow pure @safe
+size_t expect(R, C)(ref R range, scope const(C)[] s) @nogc nothrow pure @safe
 if (isInputRange!R && isSomeChar!C)
 {
     size_t result = 0;
@@ -81,7 +81,7 @@ unittest // expect
 }
 
 //returns true and advance range if element is found case insensitive
-bool expectInsensitive(R, T)(ref R range, T element) @nogc nothrow pure @safe
+bool expectInsensitive(R, T)(ref R range, const(T) element) @nogc nothrow pure @safe
 if (isInputRange!R && isSomeChar!T)
 {
     if (!range.empty && ((range.front | 32) == (element | 32)))
@@ -107,7 +107,7 @@ unittest // expectInsensitive
 }
 
 //returns parsed characters count and advance range insensitive
-size_t expectInsensitive(R, C)(ref R range, const(C)[] s) @nogc nothrow pure @safe
+size_t expectInsensitive(R, C)(ref R range, scope const(C)[] s) @nogc nothrow pure @safe
 if (isInputRange!R && isSomeChar!C)
 {
     size_t result = 0;

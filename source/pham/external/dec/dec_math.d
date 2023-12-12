@@ -439,9 +439,9 @@ ExceptionFlags decimalAcos(D)(ref D x, const(int) precision, const(RoundingMode)
 }
 
 //sqrt(D.max)/2
-private enum acoshmax32 = Decimal32.buildin(cast(const(ubyte)[])[73, 24, 32, 82]); // Decimal32("1.581138e51");
-private enum acoshmax64 = Decimal64.buildin(cast(const(ubyte)[])[71, 229, 158, 9, 146, 78, 200, 93]); // Decimal64("1.581138830084189e192");
-private enum acoshmax128 = Decimal128.buildin(cast(const(ubyte)[])[71, 254, 77, 244, 199, 26, 0, 27, 93, 84, 221, 121, 204, 202, 242, 39]); // Decimal128("1.581138830084189665999446772216359e3072");
+private enum acoshmax32 = Decimal32.fromBigEndianBytes(cast(const(ubyte)[])[73, 24, 32, 82]); // Decimal32("1.581138e51");
+private enum acoshmax64 = Decimal64.fromBigEndianBytes(cast(const(ubyte)[])[71, 229, 158, 9, 146, 78, 200, 93]); // Decimal64("1.581138830084189e192");
+private enum acoshmax128 = Decimal128.fromBigEndianBytes(cast(const(ubyte)[])[71, 254, 77, 244, 199, 26, 0, 27, 93, 84, 221, 121, 204, 202, 242, 39]); // Decimal128("1.581138830084189665999446772216359e3072");
 ExceptionFlags decimalAcosh(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 {
     if (x.isSignalNaN)
@@ -603,9 +603,9 @@ ExceptionFlags decimalAsin(D)(ref D x, const(int) precision, const(RoundingMode)
 }
 
 //sqrt(D.max)/2
-private enum asinhmax32 = Decimal32.buildin(cast(const(ubyte)[])[73, 24, 32, 82]); // Decimal32("1.581138e51");
-private enum asinhmax64 = Decimal64.buildin(cast(const(ubyte)[])[71, 229, 158, 9, 146, 78, 200, 93]); // Decimal64("1.581138830084189e192");
-private enum asinhmax128 = Decimal128.buildin(cast(const(ubyte)[])[71, 254, 77, 244, 199, 26, 0, 27, 93, 84, 221, 121, 204, 202, 242, 39]); // Decimal128("1.581138830084189665999446772216359e3072");
+private enum asinhmax32 = Decimal32.fromBigEndianBytes(cast(const(ubyte)[])[73, 24, 32, 82]); // Decimal32("1.581138e51");
+private enum asinhmax64 = Decimal64.fromBigEndianBytes(cast(const(ubyte)[])[71, 229, 158, 9, 146, 78, 200, 93]); // Decimal64("1.581138830084189e192");
+private enum asinhmax128 = Decimal128.fromBigEndianBytes(cast(const(ubyte)[])[71, 254, 77, 244, 199, 26, 0, 27, 93, 84, 221, 121, 204, 202, 242, 39]); // Decimal128("1.581138830084189665999446772216359e3072");
 ExceptionFlags decimalAsinh(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 {
     if (x.isSignalNaN)
@@ -1748,12 +1748,12 @@ if (isDecimal!D)
     return result.adjustedPack(cvt!(DataType!(D.sizeof))(cr), er, sr, precision, mode, flags);
 }
 
-private enum lnmax32 = Decimal32.buildin(cast(const(ubyte)[])[48, 162, 20, 163]);   // Decimal32("+223.3507");
-private enum lnmin32 = Decimal32.buildin(cast(const(ubyte)[])[176, 163, 124, 106]); // Decimal32("-232.5610");
-private enum lnmax64 = Decimal64.buildin(cast(const(ubyte)[])[48, 63, 126, 160, 159, 38, 241, 195]); // Decimal64("+886.4952608027075");
-private enum lnmin64 = Decimal64.buildin(cast(const(ubyte)[])[236, 8, 142, 223, 58, 205, 41, 205]);  // Decimal64("-916.4288670116301");
-private enum lnmax128 = Decimal128.buildin(cast(const(ubyte)[])[48, 6, 69, 195, 8, 255, 242, 196, 47, 205, 138, 242, 106, 65, 146, 117]); // Decimal128("+14149.38539644841072829055748903541");
-private enum lnmin128 = Decimal128.buildin(cast(const(ubyte)[])[176, 6, 70, 29, 33, 42, 144, 236, 128, 221, 62, 115, 189, 252, 170, 7]);  // Decimal128("-14220.76553433122614449511522413063");
+private enum lnmax32 = Decimal32.fromBigEndianBytes(cast(const(ubyte)[])[48, 162, 20, 163]);   // Decimal32("+223.3507");
+private enum lnmin32 = Decimal32.fromBigEndianBytes(cast(const(ubyte)[])[176, 163, 124, 106]); // Decimal32("-232.5610");
+private enum lnmax64 = Decimal64.fromBigEndianBytes(cast(const(ubyte)[])[48, 63, 126, 160, 159, 38, 241, 195]); // Decimal64("+886.4952608027075");
+private enum lnmin64 = Decimal64.fromBigEndianBytes(cast(const(ubyte)[])[236, 8, 142, 223, 58, 205, 41, 205]);  // Decimal64("-916.4288670116301");
+private enum lnmax128 = Decimal128.fromBigEndianBytes(cast(const(ubyte)[])[48, 6, 69, 195, 8, 255, 242, 196, 47, 205, 138, 242, 106, 65, 146, 117]); // Decimal128("+14149.38539644841072829055748903541");
+private enum lnmin128 = Decimal128.fromBigEndianBytes(cast(const(ubyte)[])[176, 6, 70, 29, 33, 42, 144, 236, 128, 221, 62, 115, 189, 252, 170, 7]);  // Decimal128("-14220.76553433122614449511522413063");
 ExceptionFlags decimalExp(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D)
 {

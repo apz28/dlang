@@ -191,7 +191,7 @@ unittest
                 S s = checkMin;
                 f = handler.doCoerce(&s, &d);
                 assert(f, S.stringof ~ " to " ~ D.stringof);
-                assert(d == checkMin, S.stringof ~ " to " ~ D.stringof ~ " : " ~ d.toString() ~ " vs " ~ to!string(checkMin)); // S.stringof ~ " to " ~ D.stringof);
+                assert(d == checkMin, S.stringof ~ " to " ~ D.stringof ~ " : " ~ d.toString() ~ " vs " ~ checkMin.to!string()); // S.stringof ~ " to " ~ D.stringof);
 
                 // Inverse
                 s = 1;
@@ -210,7 +210,7 @@ unittest
                 s = checkMax;
                 f = handler.doCoerce(&s, &d);
                 assert(f, S.stringof ~ " to " ~ D.stringof);
-                assert(d == checkMax, S.stringof ~ " to " ~ D.stringof ~ " : " ~ d.toString() ~ " vs " ~ to!string(checkMax)); // S.stringof ~ " to " ~ D.stringof);
+                assert(d == checkMax, S.stringof ~ " to " ~ D.stringof ~ " : " ~ d.toString() ~ " vs " ~ checkMax.to!string()); // S.stringof ~ " to " ~ D.stringof);
 
                 // Inverse
                 s = 1;

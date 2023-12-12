@@ -9,6 +9,7 @@ import std.traits : isFloatingPoint, isIntegral, isSigned, isSomeChar, isSomeStr
 
 import pham.external.dec.dec_compare;
 import pham.external.dec.dec_integral;
+import pham.external.dec.dec_integral : fromBigEndianBytesImpl = fromBigEndianBytes;
 import pham.external.dec.dec_math;
 import pham.external.dec.dec_numeric;
 import pham.external.dec.dec_parse;
@@ -77,9 +78,6 @@ private:
     alias D = typeof(this);
     enum explicitModeTraps = ExceptionFlags.invalidOperation | ExceptionFlags.overflow | ExceptionFlags.underflow;
 
-package(pham.external.dec):
-    alias U = DataType!Bytes;
-
 public:
     enum PRECISION      = precisionOf(Bytes);        //7, 16, 34
     enum EMAX           = 3 * (2 ^^ (Bytes * 8 / 16 + 3));    //96, 384, 6144
@@ -110,14 +108,14 @@ public:
     enum sNaN           = buildin(MASK_SNAN, MASK_NONE, MASK_NONE);
     enum zero           = buildin(U(0U), 0, false);
 
-    enum E              = buildin(SEnumBytes!Bytes.s_E); // buildin(s_E);
-    enum PI             = buildin(SEnumBytes!Bytes.s_PI); // buildin(s_PI);
-    enum LN10           = buildin(SEnumBytes!Bytes.s_LN10); // buildin(s_LN10);
-    enum LOG2T          = buildin(SEnumBytes!Bytes.s_LOG2T); // buildin(s_LOG2T);
-    enum LOG2E          = buildin(SEnumBytes!Bytes.s_LOG2E); // buildin(s_LOG2E);
-    enum LOG2           = buildin(SEnumBytes!Bytes.s_LOG2); // buildin(s_LOG2);
-    enum LOG10E         = buildin(SEnumBytes!Bytes.s_LOG10E); // buildin(s_LOG10E);
-    enum LN2            = buildin(SEnumBytes!Bytes.s_LN2); // buildin(s_LN2);
+    enum E              = fromBigEndianBytes(SEnumBytes!Bytes.s_E); // buildin(s_E);
+    enum PI             = fromBigEndianBytes(SEnumBytes!Bytes.s_PI); // buildin(s_PI);
+    enum LN10           = fromBigEndianBytes(SEnumBytes!Bytes.s_LN10); // buildin(s_LN10);
+    enum LOG2T          = fromBigEndianBytes(SEnumBytes!Bytes.s_LOG2T); // buildin(s_LOG2T);
+    enum LOG2E          = fromBigEndianBytes(SEnumBytes!Bytes.s_LOG2E); // buildin(s_LOG2E);
+    enum LOG2           = fromBigEndianBytes(SEnumBytes!Bytes.s_LOG2); // buildin(s_LOG2);
+    enum LOG10E         = fromBigEndianBytes(SEnumBytes!Bytes.s_LOG10E); // buildin(s_LOG10E);
+    enum LN2            = fromBigEndianBytes(SEnumBytes!Bytes.s_LN2); // buildin(s_LN2);
 
     ///always 10 for _decimal data types
     @IEEECompliant("radix", 25)
@@ -204,8 +202,8 @@ public:
         auto a = Decimal32(true); //1.0
         auto b = Decimal32('a');  //'a' ascii code (97)
 
-        auto c = to!Decimal32(false); //phobos to!(bool, Decimal32)
-        auto d = to!Decimal128('Z');  //phobos to!(char, Decimal128)
+        auto c = false.to!Decimal32(); //phobos to!(bool, Decimal32)
+        auto d = 'Z'.to!Decimal128();  //phobos to!(char, Decimal128)
         ---
     */
     @IEEECompliant("convertFormat", 22)
@@ -216,38 +214,74 @@ public:
     this(T)(auto const ref T value) @safe
     if (isSomeString!T || (isInputRange!T && isSomeChar!(ElementType!T)))
     {
+        ExceptionFlags flags;
         static if (isSomeString!T)
         {
-            const flags = packString(value,
+            const valid = packString(value, flags,
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
-            if (!__ctfe)
-                DecimalControl.raiseFlags(flags);
         }
         else //static if (isInputRange!T && isSomeChar!(ElementType!T))
         {
-            const flags = packRange(value,
+            const valid = packRange(value, flags,
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
-            if (!__ctfe)
+        }
+        if (!__ctfe)
+        {
+            if (!valid)
+            {
+                static if (isSomeString!T)
+                {
+                    import std.conv : to;
+                    DecimalControl.throwFlags(ExceptionFlags.invalidOperation, value.to!string());
+                }
+                else
+                    DecimalControl.throwFlags(ExceptionFlags.invalidOperation);
+            }
+                
+            static if (isSomeString!T)
+            {
+                import std.conv : to;
+                DecimalControl.raiseFlags(flags, value.to!string());
+            }
+            else
                 DecimalControl.raiseFlags(flags);
         }
     }
 
     ///ditto
-    this(T)(auto const ref T value, const(RoundingMode) mode) pure @safe
+    this(T)(auto const ref T value, const(RoundingMode) mode) @safe
     if (isSomeString!T || (isInputRange!T && isSomeChar!(ElementType!T)))
     {
+        ExceptionFlags flags;
         static if (isSomeString!T)
         {
-            const flags = packString(value, PRECISION, mode);
-            if (!__ctfe)
-                DecimalControl.checkFlags(explicitModeTraps, flags);
+            const valid = packString(value, flags, PRECISION, mode);
         }
         else //static if (isInputRange!T && isSomeChar!(ElementType!T) && !isSomeString!T)
         {
-            const flags = packRange(value, PRECISION, mode);
-            if (!__ctfe)
+            const valid = packRange(value, flags, PRECISION, mode);
+        }
+        if (!__ctfe)
+        {
+            if (!valid)
+            {
+                static if (isSomeString!T)
+                {
+                    import std.conv : to;
+                    DecimalControl.throwFlags(ExceptionFlags.invalidOperation, value.to!string());
+                }
+                else
+                    DecimalControl.throwFlags(ExceptionFlags.invalidOperation);
+            }
+                
+            static if (isSomeString!T)
+            {
+                import std.conv : to;
+                DecimalControl.checkFlags(explicitModeTraps, flags, value.to!string());
+            }
+            else
                 DecimalControl.checkFlags(explicitModeTraps, flags);
         }
     }
@@ -306,7 +340,7 @@ public:
      * Params:
      *  mode = Rounding mode
      */
-    this(T)(auto const ref T value, const(RoundingMode) mode) @nogc pure @safe
+    this(T)(auto const ref T value, const(RoundingMode) mode) pure @safe
     if (isIntegral!T || isDecimal!T || isSomeChar!T)
     {
         static if (isIntegral!T)
@@ -342,7 +376,7 @@ public:
      *                             Decimal64("34567.89") vs Decimal64(34567.89, 2) => matched
      *  mode = Rounding mode
      */
-    this(T)(auto const ref T value, const(RoundingMode) mode, const(int) maxFractionalDigits) @nogc pure @safe
+    this(T)(auto const ref T value, const(RoundingMode) mode, const(int) maxFractionalDigits) pure @safe
     if (isFloatingPoint!T)
     {
         const flags = packFloatingPoint(value, PRECISION, mode, maxFractionalDigits);
@@ -471,7 +505,7 @@ public:
             $(TR $(TD any  ) $(TD any   ) $(TD        ) $(TD ✓      ) $(TD ✓     ))
         )
     */
-    auto ref opUnary(string op: "++")() @nogc @safe
+    auto ref opUnary(string op: "++")() @safe
     {
         const flags = decimalInc(this,
                         __ctfe ? 0 : DecimalControl.precision,
@@ -482,7 +516,7 @@ public:
     }
 
     ///ditto
-    auto ref opUnary(string op: "--")() @nogc @safe
+    auto ref opUnary(string op: "--")() @safe
     {
         const flags = decimalDec(this,
                         __ctfe ? 0 : DecimalControl.precision,
@@ -603,7 +637,7 @@ public:
     @IEEECompliant("powr", 42)
     @IEEECompliant("remainder", 25)
     @IEEECompliant("substraction", 21)
-    auto opBinary(string op, T)(auto const ref T value) const @nogc @safe
+    auto opBinary(string op, T)(auto const ref T value) const @safe
     if (op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "^^")
     {
         static if (isDecimal!T)
@@ -642,7 +676,7 @@ public:
     }
 
     ///ditto
-    auto opBinaryRight(string op, T)(auto const ref T value) const @nogc @safe
+    auto opBinaryRight(string op, T)(auto const ref T value) const @safe
     if (op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "^^")
     {
         static if (isDecimal!T)
@@ -685,7 +719,7 @@ public:
     }
 
     ///ditto
-    auto opOpAssign(string op, T)(auto const ref T value) @nogc @safe
+    auto opOpAssign(string op, T)(auto const ref T value) @safe
     if (op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "^^")
     {
         static if (op == "+")
@@ -740,10 +774,27 @@ public:
      *                        if the value <= 0 or value > PRECESION will be ignore
      */
     static typeof(this) money(T)(auto const ref T value,
-        const(int) maxFractionalDigits = Precision.bankingScale) @nogc pure @safe
+        const(int) maxFractionalDigits = Precision.bankingScale) pure @safe
     if (isFloatingPoint!T)
     {
         return D(value, RoundingMode.banking, maxFractionalDigits);
+    }
+
+    static D fromBigEndianBytes(scope const(ubyte)[] bigEndianBytes) @nogc nothrow pure @safe
+    {
+        Unqual!D result = void;
+        result.data = fromBigEndianBytesImpl!U(bigEndianBytes);
+        return result;
+    }
+
+    ubyte[] toBigEndianBytes(return ubyte[] bytes) const @nogc nothrow pure @safe
+    in
+    {
+        assert(bytes.length == U.sizeof);
+    }
+    do
+    {
+        return data.toBigEndianBytes(bytes);
     }
 
     /**
@@ -782,7 +833,7 @@ public:
                 import std.conv : to;
                 scope (failure) assert(0, "Assume nothrow failed");
 
-                return "%." ~ to!string(cast(int)Precision.bankingScale) ~ "f";
+                return "%." ~ (cast(int)Precision.bankingScale).to!string() ~ "f";
             } ();
 
         ///Converts current value to string in floating point or scientific notation,
@@ -1053,6 +1104,8 @@ public:
     }
 
 package(pham.external.dec):
+    alias U = DataType!Bytes;
+    
     static D buildin(const(U) coefficientMask, const(U) exponentMask, const(U) signMask) @nogc nothrow pure @safe
     {
         D result = void;
@@ -1071,7 +1124,9 @@ package(pham.external.dec):
     if (isSomeChar!C)
     {
         Unqual!D result = void;
-        result.packString(validDecimal, D.PRECISION, RoundingMode.implicit);
+        ExceptionFlags flags;
+        const valid = result.packString(validDecimal, flags, D.PRECISION, RoundingMode.implicit);
+        assert(valid, validDecimal.idup);
         version (ShowEnumDecBytes) version (none)
         {
             import std.stdio : writeln;
@@ -1079,13 +1134,6 @@ package(pham.external.dec):
             if (!__ctfe)
                 debug writeln(U.stringof, "::", validDecimal, ": ", result.data.toBigEndianBytes(b[]));
         }
-        return result;
-    }
-
-    static D buildin(scope const(ubyte)[] bigEndianBytes) @nogc nothrow pure @safe
-    {
-        Unqual!D result = void;
-        result.data = fromBigEndianBytes!U(bigEndianBytes);
         return result;
     }
 
@@ -1119,7 +1167,7 @@ package(pham.external.dec):
     }
 
     //packs $(B NaN)
-    ExceptionFlags invalidPack(const(bool) isNegative, const(U) payload) @nogc nothrow pure @safe
+    ExceptionFlags invalidPack(const(bool) isNegative, const(U) payload = U(0U)) @nogc nothrow pure @safe
     {
         data = isNegative ? (MASK_QNAN | (payload & MASK_PAYL) | MASK_SGN) : (MASK_QNAN | (payload & MASK_PAYL));
         return ExceptionFlags.invalidOperation;
@@ -1244,16 +1292,6 @@ package(pham.external.dec):
             this.data = sgnMask | (expMask << SHIFT_EXP2) | (coefficient & MASK_COE2) | MASK_EXT;
     }
 
-    ubyte[] toBigEndianBytes(return ubyte[] bytes) const @nogc nothrow pure @safe
-    in
-    {
-        assert(bytes.length == U.sizeof);
-    }
-    do
-    {
-        return data.toBigEndianBytes(bytes);
-    }
-    
     bool unpack(out U coefficient, out int biasedExponent) const @nogc nothrow pure @safe
     out
     {
@@ -1294,37 +1332,37 @@ package(pham.external.dec):
     enum subn           = buildin(U(1U), EXP_MIN, false);
     enum threequarters  = buildin(U(75U), -2, false);
 
-    enum sqrt1_2        = buildin(SEnumBytes!Bytes.s_sqrt1_2); // buildin(s_sqrt1_2);
-    enum sqrt2          = buildin(SEnumBytes!Bytes.s_sqrt2); // buildin(s_sqrt2);
-    enum sqrt3          = buildin(SEnumBytes!Bytes.s_sqrt3); // buildin(s_sqrt3);
-    enum m_sqrt3        = buildin(SEnumBytes!Bytes.s_m_sqrt3); // buildin(s_m_sqrt3);
-    enum m_2_sqrtpi     = buildin(SEnumBytes!Bytes.s_m_2_sqrtpi); // buildin(s_m_2_sqrtpi);
-    enum pi_2           = buildin(SEnumBytes!Bytes.s_pi_2); // buildin(s_pi_2);
-    enum pi_3           = buildin(SEnumBytes!Bytes.s_pi_3); // buildin(s_pi_3);
-    enum pi_4           = buildin(SEnumBytes!Bytes.s_pi_4); // buildin(s_pi_4);
-    enum pi_6           = buildin(SEnumBytes!Bytes.s_pi_6); // buildin(s_pi_6);
-    enum pi2            = buildin(SEnumBytes!Bytes.s_pi2); // buildin(s_pi2);
-    enum pi2_3          = buildin(SEnumBytes!Bytes.s_pi2_3); // buildin(s_pi2_3);
-    enum pi3_4          = buildin(SEnumBytes!Bytes.s_pi3_4); // buildin(s_pi3_4);
-    enum pi5_6          = buildin(SEnumBytes!Bytes.s_pi5_6); // buildin(s_pi5_6);
-    enum sqrt3_2        = buildin(SEnumBytes!Bytes.s_sqrt3_2); // buildin(s_sqrt3_2);
-    enum sqrt2_2        = buildin(SEnumBytes!Bytes.s_sqrt2_2); // buildin(s_sqrt2_2);
-    enum onethird       = buildin(SEnumBytes!Bytes.s_onethird); // buildin(s_onethird);
-    enum twothirds      = buildin(SEnumBytes!Bytes.s_twothirds); // buildin(s_twothirds);
-    enum n5_6           = buildin(SEnumBytes!Bytes.s_n5_6); // buildin(s_n5_6);
-    enum n1_6           = buildin(SEnumBytes!Bytes.s_n1_6); // buildin(s_n1_6);
-    enum m_1_pi         = buildin(SEnumBytes!Bytes.s_m_1_pi); // buildin(s_m_1_pi);
-    enum m_1_2pi        = buildin(SEnumBytes!Bytes.s_m_1_2pi); // buildin(s_m_1_2pi);
-    enum m_2_pi         = buildin(SEnumBytes!Bytes.s_m_2_pi); // buildin(s_m_2_pi);
+    enum sqrt1_2        = fromBigEndianBytes(SEnumBytes!Bytes.s_sqrt1_2); // buildin(s_sqrt1_2);
+    enum sqrt2          = fromBigEndianBytes(SEnumBytes!Bytes.s_sqrt2); // buildin(s_sqrt2);
+    enum sqrt3          = fromBigEndianBytes(SEnumBytes!Bytes.s_sqrt3); // buildin(s_sqrt3);
+    enum m_sqrt3        = fromBigEndianBytes(SEnumBytes!Bytes.s_m_sqrt3); // buildin(s_m_sqrt3);
+    enum m_2_sqrtpi     = fromBigEndianBytes(SEnumBytes!Bytes.s_m_2_sqrtpi); // buildin(s_m_2_sqrtpi);
+    enum pi_2           = fromBigEndianBytes(SEnumBytes!Bytes.s_pi_2); // buildin(s_pi_2);
+    enum pi_3           = fromBigEndianBytes(SEnumBytes!Bytes.s_pi_3); // buildin(s_pi_3);
+    enum pi_4           = fromBigEndianBytes(SEnumBytes!Bytes.s_pi_4); // buildin(s_pi_4);
+    enum pi_6           = fromBigEndianBytes(SEnumBytes!Bytes.s_pi_6); // buildin(s_pi_6);
+    enum pi2            = fromBigEndianBytes(SEnumBytes!Bytes.s_pi2); // buildin(s_pi2);
+    enum pi2_3          = fromBigEndianBytes(SEnumBytes!Bytes.s_pi2_3); // buildin(s_pi2_3);
+    enum pi3_4          = fromBigEndianBytes(SEnumBytes!Bytes.s_pi3_4); // buildin(s_pi3_4);
+    enum pi5_6          = fromBigEndianBytes(SEnumBytes!Bytes.s_pi5_6); // buildin(s_pi5_6);
+    enum sqrt3_2        = fromBigEndianBytes(SEnumBytes!Bytes.s_sqrt3_2); // buildin(s_sqrt3_2);
+    enum sqrt2_2        = fromBigEndianBytes(SEnumBytes!Bytes.s_sqrt2_2); // buildin(s_sqrt2_2);
+    enum onethird       = fromBigEndianBytes(SEnumBytes!Bytes.s_onethird); // buildin(s_onethird);
+    enum twothirds      = fromBigEndianBytes(SEnumBytes!Bytes.s_twothirds); // buildin(s_twothirds);
+    enum n5_6           = fromBigEndianBytes(SEnumBytes!Bytes.s_n5_6); // buildin(s_n5_6);
+    enum n1_6           = fromBigEndianBytes(SEnumBytes!Bytes.s_n1_6); // buildin(s_n1_6);
+    enum m_1_pi         = fromBigEndianBytes(SEnumBytes!Bytes.s_m_1_pi); // buildin(s_m_1_pi);
+    enum m_1_2pi        = fromBigEndianBytes(SEnumBytes!Bytes.s_m_1_2pi); // buildin(s_m_1_2pi);
+    enum m_2_pi         = fromBigEndianBytes(SEnumBytes!Bytes.s_m_2_pi); // buildin(s_m_2_pi);
 
     static if (Bytes == 16)
     {
-        enum maxFloat   = buildin(SEnumBytes!Bytes.s_maxFloat128); // buildin(s_maxFloat128);
-        enum maxDouble  = buildin(SEnumBytes!Bytes.s_maxDouble128); // buildin(s_maxDouble128);
-        enum maxReal    = buildin(SEnumBytes!Bytes.s_maxReal128); // buildin(s_maxReal128);
-        enum minFloat   = buildin(SEnumBytes!Bytes.s_minFloat128); // buildin(s_minFloat128);
-        enum minDouble  = buildin(SEnumBytes!Bytes.s_minDouble128); // buildin(s_minDouble128);
-        enum minReal    = buildin(SEnumBytes!Bytes.s_minReal128); // buildin(s_minReal128);
+        enum maxFloat   = fromBigEndianBytes(SEnumBytes!Bytes.s_maxFloat128); // buildin(s_maxFloat128);
+        enum maxDouble  = fromBigEndianBytes(SEnumBytes!Bytes.s_maxDouble128); // buildin(s_maxDouble128);
+        enum maxReal    = fromBigEndianBytes(SEnumBytes!Bytes.s_maxReal128); // buildin(s_maxReal128);
+        enum minFloat   = fromBigEndianBytes(SEnumBytes!Bytes.s_minFloat128); // buildin(s_minFloat128);
+        enum minDouble  = fromBigEndianBytes(SEnumBytes!Bytes.s_minDouble128); // buildin(s_minDouble128);
+        enum minReal    = fromBigEndianBytes(SEnumBytes!Bytes.s_minReal128); // buildin(s_minReal128);
     }
 
 private:
@@ -1485,83 +1523,87 @@ private:
         return (precision <= 0 || precision > maxPrecision) ? maxPrecision : precision;
     }
 
-    ExceptionFlags packString(C)(scope const(C)[] value, const(int) precision, const(RoundingMode) mode) nothrow pure @safe
+    bool packString(C)(scope const(C)[] value, out ExceptionFlags flags, const(int) precision, const(RoundingMode) mode) @safe
     if (isSomeChar!C)
     {
         const(C)[] ss = value;
         U coefficient;
         int exponent;
         bool isinf, isnan, issnan, isnegative, wasHex;
-        auto flags = parseDecimal(ss, coefficient, exponent, isinf, isnan, issnan, isnegative, wasHex);
-
-        if (ss.length)
-            return invalidPack(isnegative, coefficient) | flags;
+        if (!parseDecimal(ss, coefficient, exponent, flags, isinf, isnan, issnan, isnegative, wasHex))
+        {
+            flags |= invalidPack(isnegative);
+            return false;
+        }
 
         if (flags & ExceptionFlags.invalidOperation)
-            return invalidPack(isnegative, coefficient) | flags;
+        {
+            flags |= invalidPack(isnegative, coefficient);
+            return true;
+        }
 
         if (issnan)
             data = MASK_SNAN | (coefficient & MASK_PAYL);
         else if (isnan)
             data = MASK_QNAN | (coefficient & MASK_PAYL);
-        else if (isinf)
+        else if (isinf || flags & ExceptionFlags.overflow)
             data = MASK_INF;
+        else if (flags & ExceptionFlags.underflow)
+            data = MASK_ZERO;
         else
         {
             if (!wasHex)
-                return adjustedPack(coefficient, exponent, isnegative, precision, mode, flags);
+                flags |= adjustedPack(coefficient, exponent, isnegative, precision, mode, flags);
             else
-                return flags | checkedPack(coefficient, exponent, isnegative, precision, mode, true);
+                flags |= checkedPack(coefficient, exponent, isnegative, precision, mode, true);
         }
 
         if (isnegative)
             data |= MASK_SGN;
 
-        return flags;
+        return true;
     }
 
-    ExceptionFlags packRange(R)(ref R range, const(int) precision, const(RoundingMode) mode)
+    bool packRange(R)(ref R range, out ExceptionFlags flags, const(int) precision, const(RoundingMode) mode) @safe
     if (isInputRange!R && isSomeChar!(ElementType!R) && !isSomeString!range)
     {
         U coefficient;
-        bool isinf, isnan, issnan, isnegative, wasHex;
         int exponent;
-        auto flags = parseDecimal(range, coefficient, exponent, isinf, isnan, issnan, isnegative, wasHex);
-
-        if (!ss.empty)
-            flags |= ExceptionFlags.invalidOperation;
+        bool isinf, isnan, issnan, isnegative, wasHex;
+        if (!parseDecimal(range, coefficient, exponent, flags, isinf, isnan, issnan, isnegative, wasHex))
+        {
+            flags |= invalidPack(isnegative);
+            return false;
+        }
 
         if (flags & ExceptionFlags.invalidOperation)
         {
-            packErrors(isnegative, flags, coefficient);
-            return flags;
+            flags |= invalidPack(isnegative, coefficient);
+            return true;
         }
 
         if (issnan)
             data = MASK_SNAN | (coefficient & MASK_PAYL);
         else if (isnan)
             data = MASK_QNAN | (coefficient & MASK_PAYL);
-        else if (isinf)
+        else if (isinf || flags & ExceptionFlags.overflow)
             data = MASK_INF;
-        if (flags & ExceptionFlags.underflow)
+        else if (flags & ExceptionFlags.underflow)
             data = MASK_ZERO;
-        else if (flags & ExceptionFlags.overflow)
-            data = MASK_INF;
         else
         {
             flags |= coefficientAdjust(coefficient, exponent, EXP_MIN, EXP_MAX, COEF_MAX, isnegative, mode);
             flags |= coefficientAdjust(coefficient, exponent, EXP_MIN, EXP_MAX, precision, isnegative, mode);
+            if (flags & ExceptionFlags.underflow)
+                data = MASK_ZERO;
+            else if (flags & ExceptionFlags.overflow)
+                data = MASK_INF;
         }
-
-        if (flags & ExceptionFlags.underflow)
-            data = MASK_ZERO;
-        else if (flags & ExceptionFlags.overflow)
-            data = MASK_INF;
 
         if (isnegative)
             data |= MASK_SGN;
 
-        return flags;
+        return true;
     }
 }
 
@@ -1571,6 +1613,126 @@ alias Decimal32 = Decimal!4;
 alias Decimal64 = Decimal!8;
 ///ditto
 alias Decimal128 = Decimal!16;
+
+version (D_BetterC) 
+{}
+else
+{
+    mixin template ExceptionConstructors()
+    {
+        this(string msg, string file = __FILE__, uint line = __LINE__, Throwable next = null) @nogc nothrow pure @safe
+        {
+            super(msg, file, line, next);
+        }
+
+        this(string msg, Throwable next, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure @safe
+        {
+            super(msg, file, line, next);
+        }
+    }
+
+    ///Root object for all _decimal exceptions
+    abstract class DecimalException : Exception
+    {
+        mixin ExceptionConstructors;
+        
+        version (decNogcException)
+        {
+            void set(string msg, string file, uint line) @nogc nothrow pure @safe
+            {
+                this.file = file;
+                this.line = line;
+                this.msg = msg.length != 0 ? msg : this.kindMsg;
+            }
+            
+            @property ExceptionFlag kind() @nogc nothrow pure @safe;
+            
+            @property final string kindMsg() @nogc nothrow pure @safe
+            {
+                return exceptionMessages[kind];
+            }
+        }
+    }
+
+    ///Thrown if the denominator of a _decimal division operation is zero.
+    class DivisionByZeroException : DecimalException
+    {
+	    mixin ExceptionConstructors;
+        
+        version (decNogcException)
+        {
+            @property final override ExceptionFlag kind() @nogc nothrow pure @safe
+            {
+                return ExceptionFlag.divisionByZero;
+            }
+        }
+    }
+
+    ///Thrown if the result of a _decimal operation was rounded to fit in the destination format.
+    class InexactException : DecimalException
+    {
+	    mixin ExceptionConstructors;
+        
+        version (decNogcException)
+        {
+            @property final override ExceptionFlag kind() @nogc nothrow pure @safe
+            {
+                return ExceptionFlag.inexact;
+            }
+        }
+    }
+
+    ///Thrown if any operand of a _decimal operation is not a number or si not finite
+    class InvalidOperationException : DecimalException
+    {
+	    mixin ExceptionConstructors;
+        
+        version (decNogcException)
+        {
+            @property final override ExceptionFlag kind() @nogc nothrow pure @safe
+            {
+                return ExceptionFlag.invalidOperation;
+            }
+        }
+    }
+
+    ///Thrown if the result of a _decimal operation exceeds the largest finite number of the destination format.
+    class OverflowException : DecimalException
+    {
+	    mixin ExceptionConstructors;
+        
+        version (decNogcException)
+        {
+            @property final override ExceptionFlag kind() @nogc nothrow pure @safe
+            {
+                return ExceptionFlag.overflow;
+            }
+        }
+    }
+
+    ///Thrown if the result of a _decimal operation is smaller the smallest finite number of the destination format.
+    class UnderflowException : DecimalException
+    {
+	    mixin ExceptionConstructors;
+        
+        version (decNogcException)
+        {
+            @property final override ExceptionFlag kind() @nogc nothrow pure @safe
+            {
+                return ExceptionFlag.underflow;
+            }
+        }
+    }
+
+    version (decNogcException)
+    {
+        static immutable eDivisionByZeroException = new DivisionByZeroException(exceptionMessages[ExceptionFlag.divisionByZero]);
+        static immutable eInexactException = new InexactException(exceptionMessages[ExceptionFlag.inexact]);
+        static immutable eInvalidOperationException = new InvalidOperationException(exceptionMessages[ExceptionFlag.invalidOperation]);
+        static immutable eOverflowException = new OverflowException(exceptionMessages[ExceptionFlag.overflow]);
+        static immutable eUnderflowException = new UnderflowException(exceptionMessages[ExceptionFlag.underflow]);
+    }
+}
 
 ///Returns true if all specified types are Decimal... types.
 template isDecimal(Ts...)
@@ -1632,7 +1794,10 @@ unittest
         static foreach (T; CharTypes)
             static assert(is(typeof(D(T.init)) == D));
         static foreach (T; StringTypes)
+        {
+            //pragma(msg, T.stringof ~ " vs " ~ D.stringof ~ " vs " ~ typeof(D(T.init)).stringof);
             static assert(is(typeof(D(T.init)) == D));
+        }
         static assert(is(typeof(D(true)) == D));
     }
 
@@ -1904,6 +2069,22 @@ unittest // Default value
     static assert(Decimal128.sizeof == 16);
 }
 
+unittest
+{
+    version (D_BetterC) 
+    {}
+    else
+    {
+        try
+        {
+            auto d = Decimal128("294574L20484.87");
+            assert(0, "Must not reach here");
+        }
+        catch (InvalidOperationException)
+        {}
+    }
+}
+
 @("Decimal should support decimal + float")
 unittest
 {
@@ -2031,65 +2212,6 @@ unittest
     static assert(is(CommonDecimal!(Decimal64, Decimal64) == Decimal64));
     static assert(is(CommonDecimal!(Decimal64, Decimal128) == Decimal128));
     static assert(is(CommonDecimal!(Decimal128, Decimal128) == Decimal128));
-}
-
-version (D_BetterC) {}
-else
-{
-    mixin template ExceptionConstructors()
-    {
-        this(string msg, string file = __FILE__, uint line = __LINE__, Throwable next = null) @nogc nothrow pure @safe
-        {
-            super(msg, file, line, next);
-        }
-
-        this(string msg, Throwable next, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure @safe
-        {
-            super(msg, file, line, next);
-        }
-    }
-
-    ///Root object for all _decimal exceptions
-    abstract class DecimalException : Exception
-    {
-        mixin ExceptionConstructors;
-    }
-
-    ///Thrown if the denominator of a _decimal division operation is zero.
-    class DivisionByZeroException : DecimalException
-    {
-	    mixin ExceptionConstructors;
-    }
-
-    ///Thrown if the result of a _decimal operation was rounded to fit in the destination format.
-    class InexactException : DecimalException
-    {
-	    mixin ExceptionConstructors;
-    }
-
-    ///Thrown if any operand of a _decimal operation is not a number or si not finite
-    class InvalidOperationException : DecimalException
-    {
-	    mixin ExceptionConstructors;
-    }
-
-    ///Thrown if the result of a _decimal operation exceeds the largest finite number of the destination format.
-    class OverflowException : DecimalException
-    {
-	    mixin ExceptionConstructors;
-    }
-
-    ///Thrown if the result of a _decimal operation is smaller the smallest finite number of the destination format.
-    class UnderflowException : DecimalException
-    {
-	    mixin ExceptionConstructors;
-    }
-
-    static immutable EDivisionByZeroException = new DivisionByZeroException("Division by zero");
-    static immutable EInexactException = new InexactException("Inexact");
-    static immutable EInvalidOperationException = new InvalidOperationException("Invalid operation");
-    static immutable EOverflowException = new OverflowException("Overflow");
-    static immutable EUnderflowException = new UnderflowException("Underflow");
 }
 
 /**
@@ -5940,7 +6062,7 @@ do
 }
 
 D scaleFrom(T, D)(auto const ref T value, const(int) scale,
-    const(RoundingMode) roundingMode = RoundingMode.banking) @nogc pure @safe
+    const(RoundingMode) roundingMode = RoundingMode.banking) pure @safe
 if (isDecimal!D && (is(T == short) || is(T == int) || is(T == long)))
 in
 {
@@ -6990,14 +7112,14 @@ else
 
         static string callerLine(int line = __LINE__) nothrow pure @safe
         {
-            return to!string(line);
+            return line.to!string();
         }
 
         static double toDouble(const(char)[] s)
         {
             // Special try construct for grep
             try {
-                return to!double(s);
+                return s.to!double();
             } catch (Exception) return double.nan;
         }
 
@@ -7088,20 +7210,20 @@ else
   	        S("%.4a", "-1", "-0x1p+0", callerLine),
   	        S("%f", "+inf", "inf", callerLine),
   	        S("%.1f", "-inf", "-inf", callerLine),
-  	        S("% f", "$(B NaN)", " nan", callerLine),
+  	        S("% f", "nan", " nan", callerLine), //S("% f", "$(B NaN)", " nan", callerLine),
   	        S("%20f", "+inf", "                 inf", callerLine),
   	        S("% 20F", "+inf", "                 INF", callerLine),
   	        S("% 20e", "-inf", "                -inf", callerLine),
   	        S("%+20E", "-inf", "                -INF", callerLine),
   	        S("% +20g", "-Inf", "                -inf", callerLine),
   	        S("%+-20G", "+inf", "+INF                ", callerLine),
-  	        S("%20e", "$(B NaN)", "                 nan", callerLine),
-  	        S("% +20E", "$(B NaN)", "                +NAN", callerLine),
-  	        S("% -20g", "$(B NaN)", " nan                ", callerLine),
-  	        S("%+-20G", "$(B NaN)", "+NAN                ", callerLine),
+  	        S("%20e", "nan", "                 nan", callerLine), // S("%20e", "$(B NaN)", "                 nan", callerLine),
+  	        S("% +20E", "NAN", "                +NAN", callerLine), // S("% +20E", "$(B NaN)", "                +NAN", callerLine),
+  	        S("% -20g", "nan", " nan                ", callerLine), // S("% -20g", "$(B NaN)", " nan                ", callerLine),
+  	        S("%+-20G", "NAN", "+NAN                ", callerLine), // S("%+-20G", "$(B NaN)", "+NAN                ", callerLine),
   	        S("%+020e", "+inf", "                +inf", callerLine),
   	        S("%-020f", "-inf", "-inf                ", callerLine),
-  	        S("%-020E", "$(B NaN)", "NAN                 ", callerLine),
+  	        S("%-020E", "NAN", "NAN                 ", callerLine), // S("%-020E", "$(B NaN)", "NAN                 ", callerLine),
             S("%e", "1.0", "1.000000e+00", callerLine),
   	        S("%e", "1234.5678e3", "1.234568e+06", callerLine),
   	        S("%e", "1234.5678e-8", "1.234568e-05", callerLine),

@@ -1,5 +1,7 @@
 module pham.external.dec.dec_type;
 
+import pham.external.dec.dec_integral : uint128;
+
 nothrow @safe:
 
 enum CheckInfinity : byte
@@ -18,6 +20,15 @@ enum CheckNaN : byte
     negSNaN = -2,   /// The value is negative $(B NaN) signaling
 }
 
+enum ExceptionFlag : ubyte
+{
+    invalidOperation,
+    divisionByZero,
+    overflow,
+    underflow,
+    inexact,
+}
+
 /**
  * These flags indicate that an error has occurred. They indicate that a 0, $(B NaN) or an infinity value has been generated,
  * that a result is inexact, or that a signalling $(B NaN) has been encountered.
@@ -30,26 +41,32 @@ enum ExceptionFlags : uint
     ///no error
     none             = 0U,
     ///$(MYREF InvalidOperationException) is thrown if trap is set
-	invalidOperation = 1U << 0,
+	invalidOperation = 1U << ExceptionFlag.invalidOperation,
     ///$(MYREF DivisionByZeroException) is thrown if trap is set
-	divisionByZero   = 1U << 1,
+	divisionByZero   = 1U << ExceptionFlag.divisionByZero,
     ///$(MYREF OverflowException) is thrown if trap is set
-	overflow         = 1U << 2,
+	overflow         = 1U << ExceptionFlag.overflow,
     ///$(MYREF UnderflowException) is thrown if trap is set
-	underflow        = 1U << 3,
+	underflow        = 1U << ExceptionFlag.underflow,
     ///$(MYREF InexactException) is thrown if trap is set
-	inexact          = 1U << 4,
+	inexact          = 1U << ExceptionFlag.inexact,
     ///group of errors considered severe: invalidOperation, divisionByZero, overflow, underflow
 	severe           = invalidOperation | divisionByZero | overflow | underflow,
     ///all errors
 	all              = severe | inexact,
 }
 
+static immutable string[ExceptionFlag.max + 1] exceptionMessages = [
+    "Invalid operation",
+    "Division by zero",
+    "Overflow",
+    "Underflow",
+    "Inexact",
+];
+
 template DataType(int bytes)
 if (bytes == 4 || bytes == 8 || bytes == 16)
 {
-    import pham.external.dec.dec_integral : uint128;
-
     static if (bytes == 4)
         alias DataType = uint;
     else static if (bytes == 8)
@@ -226,32 +243,19 @@ public:
      * }
      * ---
      */
-    static void checkFlags(const(ExceptionFlags) flags, const(ExceptionFlags) traps) @nogc pure @trusted
+    static void checkFlags(const(ExceptionFlags) flags, const(ExceptionFlags) traps,
+        string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
     {
-        version (D_BetterC)
-        {
-            assert(!isFlagTrapped(flags, traps, ExceptionFlags.invalidOperation), "Invalid operation");
-            assert(!isFlagTrapped(flags, traps, ExceptionFlags.divisionByZero), "Division by zero");
-            assert(!isFlagTrapped(flags, traps, ExceptionFlags.overflow), "Overflow");
-            assert(!isFlagTrapped(flags, traps, ExceptionFlags.underflow), "Underflow");
-            assert(!isFlagTrapped(flags, traps, ExceptionFlags.inexact), "Inexact");
-        }
-        else
-        {
-            import pham.external.dec.dec_decimal : EInvalidOperationException, EDivisionByZeroException,
-                EOverflowException, EUnderflowException, EInexactException;
-            
-            if (isFlagTrapped(flags, traps, ExceptionFlags.invalidOperation))
-                throw cast()EInvalidOperationException;
-            if (isFlagTrapped(flags, traps, ExceptionFlags.divisionByZero))
-                throw cast()EDivisionByZeroException;
-            if (isFlagTrapped(flags, traps, ExceptionFlags.overflow))
-                throw cast()EOverflowException;
-            if (isFlagTrapped(flags, traps, ExceptionFlags.underflow))
-                throw cast()EUnderflowException;
-            if (isFlagTrapped(flags, traps, ExceptionFlags.inexact))
-                throw cast()EInexactException;
-        }
+        if (isFlagTrapped(flags, traps, ExceptionFlags.invalidOperation))
+            throwFlags(ExceptionFlags.invalidOperation, msg, file, line);
+        else if (isFlagTrapped(flags, traps, ExceptionFlags.divisionByZero))
+            throwFlags(ExceptionFlags.divisionByZero, msg, file, line);
+        else if (isFlagTrapped(flags, traps, ExceptionFlags.overflow))
+            throwFlags(ExceptionFlags.overflow, msg, file, line);
+        else if (isFlagTrapped(flags, traps, ExceptionFlags.underflow))
+            throwFlags(ExceptionFlags.underflow, msg, file, line);
+        else if (isFlagTrapped(flags, traps, ExceptionFlags.inexact))
+            throwFlags(ExceptionFlags.inexact, msg, file, line);
     }
 
     pragma(inline, true)
@@ -297,16 +301,17 @@ public:
      * ---
 	 */
     @IEEECompliant("raiseFlags", 26)
-	static void raiseFlags(const(ExceptionFlags) raisingFlags) @nogc
+	static void raiseFlags(const(ExceptionFlags) raisingFlags,
+        string msg = null, string file = __FILE__, uint line = __LINE__)
 	{
         const validFlags = raisingFlags & ExceptionFlags.all;
         if (__ctfe)
-            checkFlags(validFlags, ExceptionFlags.severe);
+            checkFlags(validFlags, ExceptionFlags.severe, msg, file, line);
         else
         {
             const newFlags = _state.flags ^ validFlags;
             _state.flags |= validFlags;
-		    checkFlags(newFlags, traps);
+		    checkFlags(newFlags, traps, msg, file, line);
         }
 	}
 
@@ -346,6 +351,83 @@ public:
             return result;
         }
 	}
+
+    static void throwFlags(const(ExceptionFlags) flags,
+        string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
+    {
+        version (D_BetterC)
+        {
+            assert(!(flags & ExceptionFlags.invalidOperation), msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.invalidOperation]);
+            assert(!(flags & ExceptionFlags.divisionByZero), msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.divisionByZero]);
+            assert(!(flags & ExceptionFlags.overflow), msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.overflow]);
+            assert(!(flags & ExceptionFlags.underflow), msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.underflow]);
+            assert(!(flags & ExceptionFlags.inexact), msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.inexact]);
+        }
+        else
+        {
+            version (decNogcException)
+            {
+                import pham.external.dec.dec_decimal : 
+                    eInvalidOperationException, eDivisionByZeroException, eOverflowException, eUnderflowException, eInexactException;
+            }
+            else
+            {
+                import pham.external.dec.dec_decimal :
+                    InvalidOperationException, DivisionByZeroException, OverflowException, UnderflowException, InexactException;
+            }
+            
+            if (flags & ExceptionFlags.invalidOperation)
+            {
+                version (decNogcException)
+                {
+                    (cast()eInvalidOperationException).set(msg, file, line);
+                    throw eInvalidOperationException;
+                }
+                else
+                    throw new InvalidOperationException(msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.invalidOperation], file, line);
+            }
+            else if (flags & ExceptionFlags.divisionByZero)
+            {
+                version (decNogcException)
+                {
+                    (cast()eDivisionByZeroException).set(msg, file, line);
+                    throw cast()eDivisionByZeroException;
+                }
+                else
+                    throw new DivisionByZeroException(msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.divisionByZero], file, line);
+            }
+            else if (flags & ExceptionFlags.overflow)
+            {
+                version (decNogcException)
+                {
+                    (cast()eOverflowException).set(msg, file, line);
+                    throw cast()eOverflowException;
+                }
+                else
+                    throw new OverflowException(msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.overflow], file, line);
+            }
+            else if (flags & ExceptionFlags.underflow)
+            {
+                version (decNogcException)
+                {
+                    (cast()eUnderflowException).set(msg, file, line);
+                    throw cast()eUnderflowException;
+                }
+                else
+                    throw new UnderflowException(msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.underflow], file, line);
+            }
+            else if (flags & ExceptionFlags.inexact)
+            {
+                version (decNogcException)
+                {
+                    (cast()eInexactException).set(msg, file, line);
+                    throw cast()eInexactException;
+                }
+                else
+                    throw new InexactException(msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.inexact], file, line);
+            }
+        }
+    }
 
     /**
      * Checks if the specified error flags are set. Multiple exceptions may be ORed together.

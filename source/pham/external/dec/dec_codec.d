@@ -109,16 +109,16 @@ public:
     {
 		import std.conv : to;
 
-		return "formatBitLength=" ~ to!string(formatBitLength)
-            ~ ", coefficientDigits=" ~ to!string(coefficientDigits)
-            ~ ", formatByteLength=" ~ to!string(formatByteLength)
-            ~ ", coefficientContinuationBits=" ~ to!string(coefficientContinuationBits)
-            ~ ", exponentContinuationBits=" ~ to!string(exponentContinuationBits)
-            ~ ", eLimit=" ~ to!string(eLimit)
-            ~ ", eMin=" ~ to!string(eMin)
-			~ ", exponentBias=" ~ to!string(exponentBias)
-            ~ ", digitGroups=" ~ to!string(digitGroups)
-            ~ ", eMax=" ~ to!string(eMax);
+		return "formatBitLength=" ~ formatBitLength.to!string()
+            ~ ", coefficientDigits=" ~ coefficientDigits.to!string()
+            ~ ", formatByteLength=" ~ formatByteLength.to!string()
+            ~ ", coefficientContinuationBits=" ~ coefficientContinuationBits.to!string()
+            ~ ", exponentContinuationBits=" ~ exponentContinuationBits.to!string()
+            ~ ", eLimit=" ~ eLimit.to!string()
+            ~ ", eMin=" ~ eMin.to!string()
+			~ ", exponentBias=" ~ exponentBias.to!string()
+            ~ ", digitGroups=" ~ digitGroups.to!string()
+            ~ ", eMax=" ~ eMax.to!string();
     }
 
 private:
