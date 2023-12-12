@@ -383,16 +383,16 @@ version (unittest)
         CipherBuffer!ubyte proof;
         assert(client.calculateProof(testUserName, testUserPassword, serverAuthData, proof).isOK);
         assert(client._authClient.ephemeralPublic.toString() == digitExpectedPublicKey,
-            "digitExpectedPublicKey(" ~ to!string(line) ~ "): " ~ client._authClient.ephemeralPublic.toString() ~ " ? " ~ digitExpectedPublicKey);
-        assert(bytesToHexs(client.serverPublicKey) == expectedHexServerPublicKey,
-            "expectedHexServerPublicKey(" ~ to!string(line) ~ "): " ~ bytesToHexs(client.serverPublicKey) ~ " ? " ~ expectedHexServerPublicKey);
-        assert(bytesToHexs(client.serverSalt) == expectedHexServerSalt,
-            "expectedHexServerSalt(" ~ to!string(line) ~ "): " ~ bytesToHexs(client.serverSalt) ~ " ? " ~ expectedHexServerSalt);
+            "digitExpectedPublicKey(" ~ line.to!string() ~ "): " ~ client._authClient.ephemeralPublic.toString() ~ " ? " ~ digitExpectedPublicKey);
+        assert(client.serverPublicKey.bytesToHexs() == expectedHexServerPublicKey,
+            "expectedHexServerPublicKey(" ~ line.to!string() ~ "): " ~ client.serverPublicKey.bytesToHexs() ~ " ? " ~ expectedHexServerPublicKey);
+        assert(client.serverSalt.bytesToHexs() == expectedHexServerSalt,
+            "expectedHexServerSalt(" ~ line.to!string() ~ "): " ~ client.serverSalt.bytesToHexs() ~ " ? " ~ expectedHexServerSalt);
         auto serverPublicKey = client.serverPublicKeyAsBigInteger;
         assert(serverPublicKey.toString() == expectedDigitServerPublicKey,
-            "expectedDigitServerPublicKey(" ~ to!string(line) ~ "): " ~ serverPublicKey.toString() ~ " ? " ~ expectedDigitServerPublicKey);
+            "expectedDigitServerPublicKey(" ~ line.to!string() ~ "): " ~ serverPublicKey.toString() ~ " ? " ~ expectedDigitServerPublicKey);
         assert(proof == expectedHexProof.representation(),
-            "expectedHexProof(" ~ to!string(line) ~ "): " ~ cast(const(char)[])(proof[]) ~ " ? " ~ expectedHexProof);
+            "expectedHexProof(" ~ line.to!string() ~ "): " ~ cast(const(char)[])(proof[]) ~ " ? " ~ expectedHexProof);
 
         client.dispose();
         client = null;

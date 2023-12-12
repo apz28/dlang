@@ -417,9 +417,9 @@ public:
             fieldsTraceString ~= "\n" ~ field.traceString();
         }
 
-        return "bindResult=" ~ to!string(index)
-            ~ ", length=" ~ to!string(length)
-            ~ ", selectOrBind=" ~ to!string(selectOrBind)
+        return "bindResult=" ~ index.to!string()
+            ~ ", length=" ~ length.to!string()
+            ~ ", selectOrBind=" ~ selectOrBind.to!string()
             ~ fieldsTraceString;
     }
 
@@ -659,7 +659,7 @@ public:
             case FbIsc.isc_arg_gds:
                 return FbMessages.get(_intParam);
 			case FbIsc.isc_arg_number:
-				return to!string(_intParam);
+				return _intParam.to!string();
 			case FbIsc.isc_arg_string:
 			case FbIsc.isc_arg_cstring:
 			case FbIsc.isc_arg_interpreted:
@@ -1025,15 +1025,15 @@ public:
         import std.conv : to;
         import pham.utl.utl_enum_set : toName;
 
-        return "aliasName=" ~ to!string(aliasName)
-            ~ ", name=" ~ to!string(name)
-            ~ ", tableName=" ~ to!string(tableName)
-            ~ ", dbType=" ~ toName!DbType(dbType)
-            ~ ", type=" ~ to!string(type)
-            ~ ", subType=" ~ to!string(subType)
-            ~ ", size=" ~ to!string(size)
-            ~ ", numericScale=" ~ to!string(numericScale)
-            ~ ", owner=" ~ to!string(owner);
+        return "aliasName=" ~ aliasName.to!string()
+            ~ ", name=" ~ name.to!string()
+            ~ ", tableName=" ~ tableName.to!string()
+            ~ ", dbType=" ~ dbType.toName!DbType()
+            ~ ", type=" ~ type.to!string()
+            ~ ", subType=" ~ subType.to!string()
+            ~ ", size=" ~ size.to!string()
+            ~ ", numericScale=" ~ numericScale.to!string()
+            ~ ", owner=" ~ owner.to!string();
     }
 
     const(char)[] useName() const pure
@@ -1428,13 +1428,13 @@ private:
             case VariantType.string:
                 auto s = *value.peek!string();
                 if (s.length)
-                    return to!int(s);
+                    return s.to!int();
                 else
                     return 0;
             case VariantType.dynamicArray: // const(char)[]
                 auto s2 = *value.peek!(const(char)[])();
                 if (s2.length)
-                    return to!int(s2);
+                    return s2.to!int();
                 else
                     return 0;
             default:
@@ -1449,7 +1449,7 @@ private:
             case VariantType.boolean:
                 return *value.peek!bool() ? dbBoolTrue : dbBoolFalse;
             case VariantType.integer:
-                return to!string(*value.peek!int());
+                return (*value.peek!int()).to!string();
             case VariantType.string:
                 return *value.peek!string();
             case VariantType.dynamicArray: // const(char)[]
@@ -1663,7 +1663,7 @@ public:
                 case FbIsc.isc_arg_number:
                 case FbIsc.isc_arg_string:
                 case FbIsc.isc_arg_cstring:
-                    auto marker = "@" ~ to!string(error.argNumber);
+                    auto marker = "@" ~ error.argNumber.to!string();
                     message = message.replace(marker, error.str());
                     break;
                 case FbIsc.isc_arg_interpreted:
@@ -1705,7 +1705,7 @@ public:
                 case FbIsc.isc_arg_cstring:
                     if (warnMessage.length != 0)
                     {
-                        auto marker = "@" ~ to!string(error.argNumber);
+                        auto marker = "@" ~ error.argNumber.to!string();
                         warnMessage = warnMessage.replace(marker, error.str());
                     }
                     break;

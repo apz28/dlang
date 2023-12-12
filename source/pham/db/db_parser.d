@@ -851,7 +851,7 @@ version (unittest)
     {
         import std.conv : to;
 
-        return "'" ~ to!string(token) ~ " vs " ~ to!string(expected) ~ "' " ~ name ~ " from line# " ~ to!string(line);
+        return "'" ~ token.to!string() ~ " vs " ~ expected.to!string() ~ "' " ~ name ~ " from line# " ~ line.to!string();
     }
 
     const(char)[] quoteKind(DbTokenKind token, DbTokenKind expected, const(char)[] name, int line)
@@ -859,14 +859,14 @@ version (unittest)
         import std.conv : to;
         import pham.utl.utl_enum_set : toName;
 
-        return "'" ~ toName(token) ~ " vs " ~ toName(expected) ~ "' " ~ name ~ " from line# " ~ to!string(line);
+        return "'" ~ token.toName() ~ " vs " ~ expected.toName() ~ "' " ~ name ~ " from line# " ~ line.to!string();
     }
 
     const(char)[] quoteStr(const(char)[] token, const(char)[] expected, const(char)[] name, int line)
     {
         import std.conv : to;
 
-        return "'" ~ token ~ " vs " ~ expected ~ "' " ~ name ~ " from line# " ~ to!string(line);
+        return "'" ~ token ~ " vs " ~ expected ~ "' " ~ name ~ " from line# " ~ line.to!string();
     }
 
     void checkTokenizer(T)(ref T tokenizer,
@@ -876,7 +876,7 @@ version (unittest)
         import std.conv : to;
         import pham.utl.utl_enum_set : toName;
 
-        assert(tokenizer.empty == empty, "empty from line# " ~ to!string(line));
+        assert(tokenizer.empty == empty, "empty from line# " ~ line.to!string());
         assert(tokenizer.malformed == malformed, quoteBool(tokenizer.malformed, malformed, "malformed", line));
         assert(tokenizer.parameterIndicator == parameterIndicator, quoteStr(tokenizer.parameterIndicator, parameterIndicator, "parameterIndicator", line));
         assert(tokenizer.kind == kind, quoteKind(tokenizer.kind, kind, "kind", line));

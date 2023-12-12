@@ -469,8 +469,8 @@ public:
         import pham.utl.utl_object : bytesToHexs;
 
         const bytes = _data[0..length];
-        return "length=" ~ to!string(bytes.length)
-            ~ ", data=" ~ cast(string)bytesToHexs(bytes);
+        return "length=" ~ bytes.length.to!string()
+            ~ ", data=" ~ cast(string)bytes.bytesToHexs();
     }
 
     @property final bool empty() const nothrow pure

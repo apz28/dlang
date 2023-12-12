@@ -714,7 +714,7 @@ package(pham.db):
 protected:
     final override string buildParameterPlaceholder(string parameterName, uint32 ordinal) nothrow @safe
     {
-        return "$" ~ to!string(ordinal);
+        return "$" ~ ordinal.to!string();
     }
 
     override string buildStoredProcedureSql(string storedProcedureName, const(BuildCommandTextState) state) @safe
@@ -1025,8 +1025,8 @@ public:
     final override DbCancelCommandData createCancelCommandData(DbCommand command = null) @safe
     {
         auto result = new PgCancelCommandData();
-        result.serverProcessId = to!int32(serverInfo[DbServerIdentifier.protocolProcessId]);
-        result.serverSecretKey = to!int32(serverInfo[DbServerIdentifier.protocolSecretKey]);
+        result.serverProcessId = serverInfo[DbServerIdentifier.protocolProcessId].to!int32();
+        result.serverSecretKey = serverInfo[DbServerIdentifier.protocolSecretKey].to!int32();
         return result;
     }
 

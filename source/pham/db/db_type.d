@@ -2149,7 +2149,7 @@ DbNameValueValidated isConnectionParameterUBytesAny(string v)
 
     NoDecodeInputRange!(v, char) inputRange;
     ShortStringBuffer!ubyte result;
-    if (parseBase64(inputRange, result) != NumericParsedKind.ok)
+    if (parseBase64(result, inputRange) != NumericParsedKind.ok)
         return DbNameValueValidated.invalidValue;
 
     return DbNameValueValidated.ok;

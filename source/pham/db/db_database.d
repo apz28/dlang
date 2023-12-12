@@ -2345,7 +2345,7 @@ public:
     @property final typeof(this) commandTimeout(scope const(Duration) value) nothrow
     {
         // Optional value
-        auto secondValue = to!string(limitRangeTimeoutAsSecond(value));
+        auto secondValue = limitRangeTimeoutAsSecond(value).to!string();
         put(DbConnectionParameterIdentifier.commandTimeout, secondValue);
         return this;
     }
@@ -2391,7 +2391,7 @@ public:
     {
         // Required value
         const convertingSecond = limitRangeTimeoutAsSecond(value);
-        auto setValue = convertingSecond != 0 ? to!string(convertingSecond) : getDefault(DbConnectionParameterIdentifier.connectionTimeout);
+        auto setValue = convertingSecond != 0 ? convertingSecond.to!string() : getDefault(DbConnectionParameterIdentifier.connectionTimeout);
         put(DbConnectionParameterIdentifier.connectionTimeout, setValue);
         return this;
     }
@@ -2457,7 +2457,7 @@ public:
     @property final typeof(this) fetchRecordCount(uint32 value) nothrow
     {
         // Required value
-        auto setValue = value != 0 ? to!string(value) : getDefault(DbConnectionParameterIdentifier.fetchRecordCount);
+        auto setValue = value != 0 ? value.to!string() : getDefault(DbConnectionParameterIdentifier.fetchRecordCount);
         put(DbConnectionParameterIdentifier.fetchRecordCount, setValue);
         return this;
     }
@@ -2480,7 +2480,7 @@ public:
 
     @property final typeof(this) maxPoolCount(uint32 value) nothrow
     {
-        put(DbConnectionParameterIdentifier.maxPoolCount, to!string(value));
+        put(DbConnectionParameterIdentifier.maxPoolCount, value.to!string());
         return this;
     }
 
@@ -2491,7 +2491,7 @@ public:
 
     @property final typeof(this) minPoolCount(uint32 value) nothrow
     {
-        put(DbConnectionParameterIdentifier.minPoolCount, to!string(value));
+        put(DbConnectionParameterIdentifier.minPoolCount, value.to!string());
         return this;
     }
 
@@ -2503,7 +2503,7 @@ public:
     @property final typeof(this) packageSize(uint32 value) nothrow
     {
         // Required value
-        auto setValue = value != 0 ? to!string(value) : getDefault(DbConnectionParameterIdentifier.packageSize);
+        auto setValue = value != 0 ? value.to!string() : getDefault(DbConnectionParameterIdentifier.packageSize);
         put(DbConnectionParameterIdentifier.packageSize, setValue);
         return this;
     }
@@ -2529,7 +2529,7 @@ public:
     {
         // Required value
         const convertingSecond = limitRangeTimeoutAsSecond(value);
-        auto setValue = convertingSecond != 0 ? to!string(convertingSecond) : getDefault(DbConnectionParameterIdentifier.poolTimeout);
+        auto setValue = convertingSecond != 0 ? convertingSecond.to!string() : getDefault(DbConnectionParameterIdentifier.poolTimeout);
         put(DbConnectionParameterIdentifier.poolTimeout, setValue);
         return this;
     }
@@ -2548,7 +2548,7 @@ public:
     {
         // Required value
         const convertingSecond = limitRangeTimeoutAsSecond(value);
-        auto setValue = convertingSecond != 0 ? to!string(convertingSecond) : getDefault(DbConnectionParameterIdentifier.receiveTimeout);
+        auto setValue = convertingSecond != 0 ? convertingSecond.to!string() : getDefault(DbConnectionParameterIdentifier.receiveTimeout);
         put(DbConnectionParameterIdentifier.receiveTimeout, setValue);
         return this;
     }
@@ -2580,7 +2580,7 @@ public:
     {
         // Required value
         const convertingSecond = limitRangeTimeoutAsSecond(value);
-        auto setValue = convertingSecond != 0 ? to!string(convertingSecond) : getDefault(DbConnectionParameterIdentifier.sendTimeout);
+        auto setValue = convertingSecond != 0 ? convertingSecond.to!string() : getDefault(DbConnectionParameterIdentifier.sendTimeout);
         put(DbConnectionParameterIdentifier.sendTimeout, setValue);
         return this;
     }
@@ -2607,7 +2607,7 @@ public:
 
     @property final typeof(this) serverPort(uint16 value) nothrow
     {
-        auto setValue = value != 0 ? to!string(value) : getDefault(DbConnectionParameterIdentifier.serverPort);
+        auto setValue = value != 0 ? value.to!string() : getDefault(DbConnectionParameterIdentifier.serverPort);
         put(DbConnectionParameterIdentifier.serverPort, setValue);
         return this;
     }
@@ -2683,7 +2683,7 @@ protected:
     final void setDefaultCustomAttributes() nothrow
     {
         customAttributes.put(DbConnectionCustomIdentifier.currentComputerName, currentComputerName());
-        customAttributes.put(DbConnectionCustomIdentifier.currentProcessId, to!string(currentProcessId()));
+        customAttributes.put(DbConnectionCustomIdentifier.currentProcessId, currentProcessId().to!string());
         customAttributes.put(DbConnectionCustomIdentifier.currentProcessName, currentProcessName());
         customAttributes.put(DbConnectionCustomIdentifier.currentUserName, currentUserName());
     }
@@ -3029,10 +3029,10 @@ public:
         import std.conv : to;
 
         return "type=" ~ toName!DbType(type)
-             ~ ", baseTypeId=" ~ to!string(baseTypeId)
-             ~ ", baseSubtypeId=" ~ to!string(baseSubTypeId)
-             ~ ", baseSize=" ~ to!string(baseSize)
-             ~ ", baseNumericScale=" ~ to!string(baseNumericScale);
+             ~ ", baseTypeId=" ~ baseTypeId.to!string()
+             ~ ", baseSubtypeId=" ~ baseSubTypeId.to!string()
+             ~ ", baseSize=" ~ baseSize.to!string()
+             ~ ", baseNumericScale=" ~ baseNumericScale.to!string();
     }
 
     /**
@@ -4476,7 +4476,7 @@ public:
 
         checkSavePointState();
         if (savePointName.length == 0)
-            savePointName = "SAVEPOINT_" ~ to!string(_connection.nextCounter());
+            savePointName = "SAVEPOINT_" ~ _connection.nextCounter().to!string();
 
         if (auto log = canTraceLog())
             log.infof("%s.transaction.start(isolationLevel=%s, savePointName=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel), savePointName);

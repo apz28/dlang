@@ -120,7 +120,7 @@ Duration secondDigitsToDurationSafe(scope const(char)[] validSecondStr, Duration
 {
     // Special try construct for grep
     try {
-        return validSecondStr.length == 0 ? emptyValue : dur!"seconds"(to!int64(validSecondStr));
+        return validSecondStr.length == 0 ? emptyValue : dur!"seconds"(validSecondStr.to!int64());
     } catch (Exception) return failedValue;
 }
 
@@ -160,7 +160,7 @@ if (is(I == int) || is(I == uint)
 {
     // Special try construct for grep
     try {
-        return validIntegerStr.length == 0 ? emptyValue : to!I(validIntegerStr);
+        return validIntegerStr.length == 0 ? emptyValue : validIntegerStr.to!I();
     } catch (Exception) return failedValue;
 }
 
@@ -182,7 +182,7 @@ if (isSomeChar!C)
     try {
         return validChar == 0
             ? null
-            : (isValidCodepoint!C(validChar) ? to!string(validChar) : failedValue);
+            : (validChar.isValidCodepoint!C() ? validChar.to!string() : failedValue);
     } catch (Exception) return failedValue;
 }
 
@@ -199,7 +199,7 @@ if (is(S == wstring) || is(S == dstring))
 {
     // Special try construct for grep
     try {
-        return validWideString.length == 0 ? null : to!string(validWideString);
+        return validWideString.length == 0 ? null : validWideString.to!string();
     } catch (Exception) return failedValue;
 }
 
@@ -208,7 +208,7 @@ if (isIntegral!I)
 {
     scope (failure) assert(0, "Assume nothrow failed");
     
-    return to!string(number);    
+    return number.to!string();    
 }
 
 /**

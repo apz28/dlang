@@ -143,8 +143,8 @@ public:
             case 'K': // BackendKeyData
                 stateInfo.serverProcessId = reader.readInt32();
                 stateInfo.serverSecretKey = reader.readInt32();
-                connection.serverInfo[DbServerIdentifier.protocolProcessId] = to!string(stateInfo.serverProcessId);
-                connection.serverInfo[DbServerIdentifier.protocolSecretKey] = to!string(stateInfo.serverSecretKey);
+                connection.serverInfo[DbServerIdentifier.protocolProcessId] = stateInfo.serverProcessId.to!string();
+                connection.serverInfo[DbServerIdentifier.protocolSecretKey] = stateInfo.serverSecretKey.to!string();
                 goto receiveAgain;
 
             case 'R': // AuthenticationXXXX
@@ -190,7 +190,7 @@ public:
                         goto receiveAgain;
 
                     default: // non supported authentication type, close connection
-                        auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(to!string(stateInfo.authType));
+                        auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(stateInfo.authType.to!string());
                         throw new PgException(DbErrorCode.read, msg);
                 }
 
@@ -207,11 +207,11 @@ public:
                 switch (stateInfo.trStatus) // check for validity
                 {
                     case 'E', 'I', 'T':
-                        connection.serverInfo[DbServerIdentifier.protocolTrStatus] = to!string(stateInfo.trStatus);
+                        connection.serverInfo[DbServerIdentifier.protocolTrStatus] = stateInfo.trStatus.to!string();
                         break;
 
                     default:
-                        auto msg = DbMessage.eInvalidConnectionStatus.fmtMessage(to!string(stateInfo.trStatus));
+                        auto msg = DbMessage.eInvalidConnectionStatus.fmtMessage(stateInfo.trStatus.to!string());
                         throw new PgException(DbErrorCode.read, msg);
                 }
 
@@ -408,21 +408,21 @@ public:
                     switch (result.dmlName)
                     {
                         case "COPY", "DELETE", "FETCH", "MOVE", "UPDATE":
-                            result.recordsAffected = to!long(tag[b1 + 1..$]);
+                            result.recordsAffected = tag[b1 + 1..$].to!long();
                             break;
 
                         case "INSERT":
                             const b2 = lastIndexOf(tag, ' ');
-                            result.oid = to!int32(tag[b1 + 1..b2]);
-                            result.recordsAffected = to!long(tag[b2 + 1..$]);
+                            result.oid = tag[b1 + 1..b2].to!int32();
+                            result.recordsAffected = tag[b2 + 1..$].to!long();
                             break;
 
                         case "SELECT":
                             const b2 = lastIndexOf(tag, ' ');
                             if (b2 > b1)
-                                result.recordsAffected = to!long(tag[b2 + 1..$]);
+                                result.recordsAffected = tag[b2 + 1..$].to!long();
                             else
-                                result.recordsAffected = to!long(tag[b1 + 1..$]);
+                                result.recordsAffected = tag[b1 + 1..$].to!long();
                             break;
 
                         default: // CREATE TABLE
@@ -869,7 +869,7 @@ protected:
             stateInfo.auth = createAuth(stateInfo.authMethod);
         if (stateInfo.auth is null)
         {
-            auto msg = DbMessage.eInvalidConnectionAuthServerData.fmtMessage(stateInfo.authMethod, "invalid state: " ~ to!string(stateInfo.nextAuthState));
+            auto msg = DbMessage.eInvalidConnectionAuthServerData.fmtMessage(stateInfo.authMethod, "invalid state: " ~ stateInfo.nextAuthState.to!string());
             throw new PgException(DbErrorCode.read, msg);
         }
 
@@ -910,7 +910,7 @@ protected:
                 return useCSB.compress ? "1" : null; // Return empty to skip sending since default is disabled
             case DbConnectionParameterIdentifier.connectionTimeout:
                 auto connectionTimeout = useCSB.connectionTimeout.total!"seconds";
-                return connectionTimeout != 0 ? to!string(connectionTimeout) : null; // Return empty to skip
+                return connectionTimeout != 0 ? connectionTimeout.to!string() : null; // Return empty to skip
             case DbConnectionParameterIdentifier.encrypt:
                 final switch (useCSB.encrypt)
                 {
@@ -923,7 +923,7 @@ protected:
                 }
             case DbConnectionParameterIdentifier.receiveTimeout:
                 auto receiveTimeout = useCSB.receiveTimeout.total!"msecs";
-                return receiveTimeout != 0 ? to!string(receiveTimeout) : null; // Return empty to skip
+                return receiveTimeout != 0 ? receiveTimeout.to!string() : null; // Return empty to skip
             default:
                 assert(0, "convertConnectionParameter? "  ~ name);
         }

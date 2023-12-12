@@ -129,7 +129,7 @@ protected:
         scope (failure) assert(0, "Assume nothrow failed");
         
         if (state != _nextState || state >= multiStates)
-            return ResultStatus.error(state + 1, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid state: " ~ to!string(state)));
+            return ResultStatus.error(state + 1, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid state: " ~ state.to!string()));
         else
         {
             _nextState++;

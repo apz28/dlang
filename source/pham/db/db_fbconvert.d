@@ -98,7 +98,7 @@ DbDate dateDecode(int32 fbDate) @nogc pure
         return Date(year, month, day);
     } catch (Exception e)
     {
-		auto msg = e.msg ~ "\nyear=" ~ to!string(year) ~ ", month=" ~ to!string(month) ~ ", day=" ~ to!string(day) ~ ", fbDate=" ~ to!string(orgFbDate);
+		auto msg = e.msg ~ "\nyear=" ~ year.to!string() ~ ", month=" ~ month.to!string() ~ ", day=" ~ day.to!string() ~ ", fbDate=" ~ orgFbDate.to!string();
         assert(0, msg);
     }
 	}
@@ -321,7 +321,7 @@ unittest // timeDecode & timeEncode
 	assert(time.second == 1);
 
 	auto fbTime = timeEncode(time);
-	assert(fbTime == orgFbTime, to!string(fbTime) ~ " ? " ~ to!string(orgFbTime));
+	assert(fbTime == orgFbTime, fbTime.to!string() ~ " ? " ~ orgFbTime.to!string());
 }
 
 unittest // int128Decode & int128Encode

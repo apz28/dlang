@@ -198,9 +198,9 @@ public:
         stateInfo.serverVersion = reader.readCString();
         stateInfo.protocolProcessId = reader.readInt32();
         this._protocolVersion = stateInfo.protocolVersion;
-        connection.serverInfo[DbServerIdentifier.protocolVersion] = to!string(stateInfo.protocolVersion);
+        connection.serverInfo[DbServerIdentifier.protocolVersion] = stateInfo.protocolVersion.to!string();
         connection.serverInfo[DbServerIdentifier.dbVersion] = stateInfo.serverVersion.idup;
-        connection.serverInfo[DbServerIdentifier.protocolProcessId] = to!string(stateInfo.protocolProcessId);
+        connection.serverInfo[DbServerIdentifier.protocolProcessId] = stateInfo.protocolProcessId.to!string();
 
         ubyte[] seedPart1 = reader.readCBytes();
 
@@ -215,7 +215,7 @@ public:
         // Previously, it was part of reserved always 0x00 13-byte filler.
         uint32 serverCapsHigh = reader.readUInt16();
         stateInfo.serverCapabilities |= (serverCapsHigh << 16);
-        connection.serverInfo[DbServerIdentifier.capabilityFlag] = to!string(stateInfo.serverCapabilities);
+        connection.serverInfo[DbServerIdentifier.capabilityFlag] = stateInfo.serverCapabilities.to!string();
 
         reader.advance(11);
 

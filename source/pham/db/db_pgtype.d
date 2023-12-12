@@ -411,15 +411,15 @@ public:
         import pham.utl.utl_enum_set : toName;
 
         return "name=" ~ name
-            ~ ", modifier=" ~ to!string(modifier)
-            ~ ", tableOid=" ~ to!string(tableOid)
-            ~ ", type=" ~ to!string(type)
-            ~ ", numericPrecision=" ~ to!string(numericPrecision)
-            ~ ", numericScale=" ~ to!string(numericScale)
-            ~ ", formatCode=" ~ to!string(formatCode)
-            ~ ", index=" ~ to!string(index)
-            ~ ", size=" ~ to!string(size)
-            ~ ", dbType=" ~ toName!DbType(dbType);
+            ~ ", modifier=" ~ modifier.to!string()
+            ~ ", tableOid=" ~ tableOid.to!string()
+            ~ ", type=" ~ type.to!string()
+            ~ ", numericPrecision=" ~ numericPrecision.to!string()
+            ~ ", numericScale=" ~ numericScale.to!string()
+            ~ ", formatCode=" ~ formatCode.to!string()
+            ~ ", index=" ~ index.to!string()
+            ~ ", size=" ~ size.to!string()
+            ~ ", dbType=" ~ dbType.toName!DbType();
     }
 
     @property bool allowNull() const @nogc pure
@@ -583,11 +583,11 @@ public:
 
         scope (failure) assert(0, "Assume nothrow failed");
 
-        return "ndigits=" ~ to!string(ndigits)
-            ~ ", weight=" ~ to!string(weight)
-            ~ ", sign=" ~ to!string(sign)
-            ~ ", dscale=" ~ to!string(dscale)
-            ~ ", digits=" ~ to!string(digits[0..ndigits]);
+        return "ndigits=" ~ ndigits.to!string()
+            ~ ", weight=" ~ weight.to!string()
+            ~ ", sign=" ~ sign.to!string()
+            ~ ", dscale=" ~ dscale.to!string()
+            ~ ", digits=" ~ digits[0..ndigits].to!string();
     }
 
     @property bool isNaN() const @nogc pure scope
@@ -699,7 +699,7 @@ public:
 
     const(char)[] getMessage() const pure
     {
-        return "r=" ~ nonce ~ ",s=" ~ salt ~ ",i=" ~ to!string(iteration);
+        return "r=" ~ nonce ~ ",s=" ~ salt ~ ",i=" ~ iteration.to!string();
     }
 
     const(ubyte)[] getSalt() const pure

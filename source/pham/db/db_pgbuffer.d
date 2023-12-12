@@ -298,11 +298,9 @@ public:
     {
         import std.conv : to;
 
-        if (messageCode != '\0')
-            return "_buffer.offset=" ~ to!string(_buffer.offset)
-                ~ ", messageCode=" ~ messageCode;
-        else
-            return "_buffer.offset=" ~ to!string(_buffer.offset);
+        return messageCode != '\0'
+            ? "_buffer.offset=" ~ _buffer.offset.to!string() ~ ", messageCode=" ~ messageCode
+            : "_buffer.offset=" ~ _buffer.offset.to!string();
     }
 
     void writeBytes(scope const(ubyte)[] v) nothrow

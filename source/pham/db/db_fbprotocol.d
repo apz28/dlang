@@ -478,9 +478,9 @@ public:
                 stateInfo.serverArchitecture = acceptResponse.architecture;
                 stateInfo.serverVersion = acceptResponse.version_;
                 this._serverVersion = stateInfo.serverVersion;
-                connection.serverInfo[DbServerIdentifier.protocolAcceptType] = to!string(stateInfo.serverAcceptType);
-                connection.serverInfo[DbServerIdentifier.protocolArchitect] = to!string(stateInfo.serverArchitecture);
-                connection.serverInfo[DbServerIdentifier.protocolVersion] = to!string(stateInfo.serverVersion);
+                connection.serverInfo[DbServerIdentifier.protocolAcceptType] = stateInfo.serverAcceptType.to!string();
+                connection.serverInfo[DbServerIdentifier.protocolArchitect] = stateInfo.serverArchitecture.to!string();
+                connection.serverInfo[DbServerIdentifier.protocolVersion] = stateInfo.serverVersion.to!string();
                 setupCompression();
                 validateRequiredEncryption(setupEncryption());
                 break;
@@ -496,9 +496,9 @@ public:
                 stateInfo.serverAuthMethod = adResponse.authName;
                 stateInfo.serverAuthKeys = FbIscServerKey.parse(adResponse.authKey);
                 this._serverVersion = stateInfo.serverVersion;
-                connection.serverInfo[DbServerIdentifier.protocolAcceptType] = to!string(stateInfo.serverAcceptType);
-                connection.serverInfo[DbServerIdentifier.protocolArchitect] = to!string(stateInfo.serverArchitecture);
-                connection.serverInfo[DbServerIdentifier.protocolVersion] = to!string(stateInfo.serverVersion);
+                connection.serverInfo[DbServerIdentifier.protocolAcceptType] = stateInfo.serverAcceptType.to!string();
+                connection.serverInfo[DbServerIdentifier.protocolArchitect] = stateInfo.serverArchitecture.to!string();
+                connection.serverInfo[DbServerIdentifier.protocolVersion] = stateInfo.serverVersion.to!string();
 
 				if (!adResponse.isAuthenticated || op == FbIsc.op_cond_accept)
 				{

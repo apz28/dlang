@@ -326,7 +326,7 @@ public:
         const len = readFieldLength ? readLength() : -1;
         return len == -1
             ? numericBitCast!float32(readUInt32!4())
-            : (len > 0 ? to!float32(consumeChars(len)) : 0);
+            : (len > 0 ? consumeChars(len).to!float32() : 0);
     }
 
     float64 readFloat64Value(const(bool) readFieldLength)
@@ -334,7 +334,7 @@ public:
         const len = readFieldLength ? readLength() : -1;
         return len == -1
             ? numericBitCast!float64(readUInt64!8())
-            : (len > 0 ? to!float64(consumeChars(len)) : 0);
+            : (len > 0 ? consumeChars(len).to!float64() : 0);
     }
 
     MyGeometry readGeometryValue(const(bool) readFieldLength)
@@ -354,7 +354,7 @@ public:
         const len = readFieldLength ? readLength() : -1;
         return len == -1
             ? _reader.readInt8()
-            : (len > 0 ? to!int8(consumeChars(len)) : 0);
+            : (len > 0 ? consumeChars(len).to!int8() : 0);
     }
 
     pragma(inline, true)
@@ -368,7 +368,7 @@ public:
         const len = readFieldLength ? readLength() : -1;
         return len == -1
             ? readInt16()
-            : (len > 0 ? to!int16(consumeChars(len)) : 0);
+            : (len > 0 ? consumeChars(len).to!int16() : 0);
     }
 
     pragma(inline, true)
@@ -388,7 +388,7 @@ public:
         const len = readFieldLength ? readLength() : -1;
         return len == -1
             ? readInt32()
-            : (len > 0 ? to!int32(consumeChars(len)) : 0);
+            : (len > 0 ? consumeChars(len).to!int32() : 0);
     }
 
     pragma(inline, true)
@@ -402,7 +402,7 @@ public:
         const len = readFieldLength ? readLength() : -1;
         return len == -1
             ? readInt64()
-            : (len > 0 ? to!int64(consumeChars(len)) : 0);
+            : (len > 0 ? consumeChars(len).to!int64() : 0);
     }
 
     pragma(inline, true)
@@ -698,8 +698,8 @@ public:
     {
         import std.conv : to;
 
-        return "_buffer.offset=" ~ to!string(_buffer.offset)
-            ~ ", sequenceByte=" ~ to!string(sequenceByte);
+        return "_buffer.offset=" ~ _buffer.offset.to!string()
+            ~ ", sequenceByte=" ~ sequenceByte.to!string();
     }
 
     pragma(inline, true)

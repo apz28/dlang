@@ -23,7 +23,7 @@ import pham.cp.cp_cipher_digest : Digester, DigestId, DigestResult, HMACS;
 import pham.cp.cp_random : CipherRandomGenerator;
 import pham.utl.utl_array : ShortStringBuffer;
 import pham.utl.utl_disposable : DisposingReason;
-import pham.utl.utl_numeric_parser : NumericParsedKind, parseHexDigits, parseIntegral;
+import pham.utl.utl_numeric_parser : NumericParsedKind, parseBase16, parseIntegral;
 import pham.db.db_auth;
 import pham.db.db_message;
 import pham.db.db_type : DbScheme;
@@ -254,7 +254,7 @@ protected:
         if (auto val = 's' in serverAuthData)
         {
             auto s = *val;
-            if (parseHexDigits(s, salt) == 0)
+            if (parseBase16(salt, s) == NumericParsedKind.ok)
                 return ResultStatus.error(1, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "SALT is invalid"));
         }
         else

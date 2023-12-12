@@ -47,7 +47,7 @@ public:
 
         auto firstMessage = PgOIdScramSHA256FirstMessage(serverAuthData);
         if (!firstMessage.isValid() || !firstMessage.nonce.startsWith(this.nonce))
-            return ResultStatus.error(_nextState + 1, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid state: " ~ to!string(_nextState)));
+            return ResultStatus.error(_nextState + 1, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid state: " ~ _nextState.to!string()));
         authData = calculateProof(userName, userPassword, firstMessage);
         return ResultStatus.ok();
     }

@@ -707,7 +707,7 @@ public:
 
     @property final typeof(this) sslVerificationMode(int value) nothrow
     {
-        auto setValue = value >= -1 ? to!string(value) : getDefault(DbConnectionParameterIdentifier.socketSslVerificationMode);
+        auto setValue = value >= -1 ? value.to!string() : getDefault(DbConnectionParameterIdentifier.socketSslVerificationMode);
         put(DbConnectionParameterIdentifier.socketSslVerificationMode, setValue);
         return this;
     }

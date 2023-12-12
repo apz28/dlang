@@ -253,7 +253,7 @@ private:
         }
         else static if (is(UT == char) || is(UT == wchar) || is(UT == dchar))
         {
-            this._value = to!string(rhs);
+            this._value = rhs.to!string();
         }
         else static if (is(T == string))
         {
@@ -261,7 +261,7 @@ private:
         }
         else static if (is(T == wstring) || is(T == dstring))
         {
-            this._value = to!string(rhs);
+            this._value = rhs.to!string();
         }
         else static if (is(UT == char[]))
         {

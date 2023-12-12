@@ -598,7 +598,7 @@ public:
     final override DbCancelCommandData createCancelCommandData(DbCommand command = null) @safe
     {
         MyCancelCommandData result = new MyCancelCommandData();
-        result.serverProcessId = to!int32(serverInfo[DbServerIdentifier.protocolProcessId]);
+        result.serverProcessId = serverInfo[DbServerIdentifier.protocolProcessId].to!int32();
         return result;
     }
 
@@ -702,7 +702,7 @@ protected:
         version (TraceFunction) traceFunction();
 
         auto myData = cast(MyCancelCommandData)data;
-        auto cancelCommandText = "KILL QUERY " ~ to!string(myData.serverProcessId);
+        auto cancelCommandText = "KILL QUERY " ~ myData.serverProcessId.to!string();
 
         auto command = createCommand(null);
         scope (exit)

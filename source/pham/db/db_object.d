@@ -496,7 +496,7 @@ public:
         do
         {
             ++n;
-            res = DbIdentitier(prefix ~ "_" ~ to!string(n));
+            res = DbIdentitier(prefix ~ "_" ~ n.to!string());
         }
         while (exist(res));
         return res;
@@ -896,7 +896,7 @@ public:
         do
         {
             ++n;
-            res = DbIdentitier(prefix ~ "_" ~ to!string(n));
+            res = DbIdentitier(prefix ~ "_" ~ n.to!string());
         }
         while (exist(res));
         return res;

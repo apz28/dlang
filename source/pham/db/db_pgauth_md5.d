@@ -17,7 +17,7 @@ import std.digest.md : md5Of;
 import std.string : representation;
 
 version (unittest) import pham.utl.utl_test;
-import pham.utl.utl_numeric_parser : cvtBytesHex;
+import pham.utl.utl_numeric_parser : cvtBytesBase16;
 import pham.db.db_auth;
 import pham.db.db_message;
 import pham.db.db_type : DbScheme;
@@ -70,7 +70,7 @@ private:
     //char[32]
     static char[] MD5toHex(T...)(scope const(T) data) nothrow @safe
     {
-        return md5Of(data).cvtBytesHex(LetterCase.lower);
+        return md5Of(data).cvtBytesBase16(LetterCase.lower);
     }
 }
 

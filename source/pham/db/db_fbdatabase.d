@@ -1471,7 +1471,7 @@ protected:
             }
             else
             {
-                assert(false, "Unknown binding type: " ~ to!string(iscBindInfo.selectOrBind));
+                assert(false, "Unknown binding type: " ~ iscBindInfo.selectOrBind.to!string());
             }
         }
     }
@@ -2859,12 +2859,12 @@ unittest // FbCommand.DML.Types
         v = command.executeScalar();
         assert(v.get!double() == 1.0);
 
-        const double dmin = to!double("-3.40E+38");
+        const double dmin = "-3.40E+38".to!double();
 	    command.commandText = "select cast((-3.40E+38) as double precision) from rdb$database";
         v = command.executeScalar();
         assert(v.get!double() == dmin);
 
-        const double dmax = to!double("3.40E+38");
+        const double dmax = "3.40E+38".to!double();
 	    command.commandText = "select cast((3.40E+38) as double precision) from rdb$database";
         v = command.executeScalar();
         assert(v.get!double() == dmax);
@@ -2888,12 +2888,12 @@ unittest // FbCommand.DML.Types
         v = command.executeScalar();
         assert(v.get!float() == 1.0);
 
-        const float fmin = to!float("-1.79E+38");
+        const float fmin = "-1.79E+38".to!float();
 	    command.commandText = "select cast((-1.79E+38) as float) from rdb$database";
         v = command.executeScalar();
         assert(v.get!float() == fmin);
 
-        const float fmax = to!float("1.79E+38");
+        const float fmax = "1.79E+38".to!float();
 	    command.commandText = "select cast((1.79E+38) as float) from rdb$database";
         v = command.executeScalar();
         assert(v.get!float() == fmax);
