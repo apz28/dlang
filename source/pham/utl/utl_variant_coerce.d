@@ -343,7 +343,7 @@ if (isSomeString!S && isString!D && !is(CharOfString!S == CharOfString!D))
 
     // Special try construct for grep
     try {
-        *cast(D*)dstPtr = to!D(*cast(S*)srcPtr);
+        *cast(D*)dstPtr = (*cast(S*)srcPtr).to!D();
         return true;
     } catch (Exception) return false;
 }
@@ -755,8 +755,8 @@ nothrow unittest // ConvertHandler.coerce(string)
             {
                 scope (failure) assert(0, "Assume nothrow failed");
 
-                auto foo = to!(StringOfChar!S)("this is a foo?");
-                auto food = to!(StringOfChar!D)(foo);
+                auto foo = "this is a foo?".to!(StringOfChar!S)();
+                auto food = foo.to!(StringOfChar!D)();
 
                 StringOfChar!D d;
 
@@ -785,7 +785,7 @@ nothrow unittest // ConvertHandler.coerce(string)
         {
             scope (failure) assert(0, "Assume nothrow failed");
 
-            auto foo = to!(StringOfChar!S)("this is a foo?");
+            auto foo = "this is a foo?".to!(StringOfChar!S)();
             ConstStringOfChar!S d;
 
             f = ConvertHandler.find!(S[], ConstStringOfChar!S)(handler);

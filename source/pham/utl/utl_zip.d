@@ -46,7 +46,7 @@ public:
 			case ZipResult.Z_MEM_ERROR: return "mem error";
 			case ZipResult.Z_BUF_ERROR: return "buf error";
 			case ZipResult.Z_VERSION_ERROR: return "version error";
-			default: return "unknown error: " ~ to!string(code);
+			default: return "unknown error: " ~ code.to!string();
         }
     }
 

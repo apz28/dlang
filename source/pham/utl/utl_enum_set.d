@@ -253,7 +253,7 @@ if (is(E Base == enum))
 {
     scope (failure) assert(0, "Assume nothrow failed");
 
-    return validEnumName.length != 0 ? to!E(validEnumName) : emptyValue;
+    return validEnumName.length != 0 ? validEnumName.to!E() : emptyValue;
 }
 
 /**
@@ -591,7 +591,7 @@ public:
 
             try
             {
-                auto toValue = to!E(value);
+                auto toValue = value.to!E();
                 include(toValue);
              }
              catch (Exception e)

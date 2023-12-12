@@ -362,7 +362,7 @@ public:
 
         auto errorMessage = typeInfo.toString() ~ " not supported opCall()";
         if (r > 0)
-            errorMessage ~= ".\nArgument count mismatch; expects " ~ to!string(r) ~ ", not " ~ to!string(Ps.length);
+            errorMessage ~= ".\nArgument count mismatch; expects " ~ r.to!string() ~ ", not " ~ Ps.length.to!string();
         throw new VariantException(typeInfo, errorMessage);
     }
 
@@ -1790,9 +1790,9 @@ private:
                 result = (*hValuePointer(size, store)).toString();
                 return true;
             }
-            else static if (is(typeof((T v) { return to!string(v); }(T.init))))
+            else static if (is(typeof((T v) { return v.to!string(); }(T.init))))
             {
-                result = to!string(*hValuePointer(size, store));
+                result = (*hValuePointer(size, store)).to!string();
                 return true;
             }
             else
@@ -4662,7 +4662,7 @@ import pham.utl.utl_test;
     assert(v() == 42);
 
     // function
-    static int bar(string s) { return to!int(s); }
+    static int bar(string s) { return s.to!int(); }
     v = &bar;
     assert(v("43") == 43);
 }

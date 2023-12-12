@@ -25,17 +25,7 @@ enum Base64MappingChar : char
     map62th = '+',
     map63th = '/',
     padding = '=',
-    noPadding = '\0',    
-}
-
-size_t cvtBytesBase64Length(const(size_t) bytesLength,
-    const(char) padding = Base64MappingChar.padding) @nogc pure
-{
-    const mod3 = bytesLength % 3;
-    if (padding == Base64MappingChar.noPadding)
-        return (bytesLength / 3) * 4 + (mod3 == 0 ? 0 : (mod3 == 1 ? 2 : 3));
-    else
-        return (bytesLength / 3 + (mod3 ? 1 : 0)) * 4;
+    noPadding = '\0',
 }
 
 /**
@@ -47,120 +37,156 @@ size_t cvtBytesBase64Length(const(size_t) bytesLength,
  * Returns:
  *  array of base64 characters
  */
-char[] cvtBytesBase64(scope const(ubyte)[] bytes,
+char[] cvtBytesBase64(bool lineBreak = false)(scope const(ubyte)[] bytes,
     const(char) padding = Base64MappingChar.padding,
-    const(bool) isLineBreak = false) pure @trusted
+    const(uint) lineBreakLength = 80) pure
 {
+    import std.array : Appender;
+
     if (bytes.length == 0)
         return null;
 
-    enum lineBreakChar = '\n';
-    enum lineBreakLength = 80;
-    
+    Appender!(char[]) buffer;
+    buffer.reserve(cvtBytesBase64Length(bytes.length, lineBreak, lineBreakLength, padding));
+    return cvtBytesBase64!(Appender!(char[]), lineBreak)(buffer, bytes, padding, lineBreakLength)[];
+}
+
+ref Writer cvtBytesBase64(Writer, bool lineBreak = false)(return ref Writer sink, scope const(ubyte)[] bytes,
+    const(char) padding = Base64MappingChar.padding,
+    const(uint) lineBreakLength = 80) pure @trusted
+if (isOutputRange!(Writer, char))
+{
+    if (bytes.length == 0)
+        return sink;
+
     static immutable encodeMap = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
         ~ Base64MappingChar.map62th ~ Base64MappingChar.map63th;
+    enum lineBreakChar = '\n';
 
-    const size_t resultLength = cvtBytesBase64Length(bytes.length, padding)
-        + (isLineBreak ? lineBreakCount(bytes.length, lineBreakLength) : 0);
-        
     size_t resultLineBreak = 0;
-    char[] result = new char[](resultLength);    
-    auto resultPtr = &result[0];
     auto bytesPtr = &bytes[0];
-    
     const blocks = bytes.length / 3;
     foreach (_; 0..blocks)
     {
-        if (isLineBreak && resultLineBreak >= lineBreakLength)
+        static if (lineBreak)
         {
-            resultLineBreak = 0;
-            *resultPtr++ = lineBreakChar;        
+            if (resultLineBreak >= lineBreakLength)
+            {
+                resultLineBreak = 0;
+                put(sink, lineBreakChar);
+            }
         }
-        
+
         const val = (bytesPtr[0] << 16) | (bytesPtr[1] << 8) | bytesPtr[2];
-        *resultPtr++ = encodeMap[val >> 18       ];
-        *resultPtr++ = encodeMap[val >> 12 & 0x3f];
-        *resultPtr++ = encodeMap[val >>  6 & 0x3f];
-        *resultPtr++ = encodeMap[val       & 0x3f];
+        put(sink, encodeMap[val >> 18       ]);
+        put(sink, encodeMap[val >> 12 & 0x3f]);
+        put(sink, encodeMap[val >>  6 & 0x3f]);
+        put(sink, encodeMap[val       & 0x3f]);
         bytesPtr += 3;
-        
-        if (isLineBreak)
-            resultLineBreak += 4;           
+
+        static if (lineBreak)
+            resultLineBreak += 4;
     }
-    
+
     const remain = bytes.length % 3;
     if (remain)
     {
         const val = (bytesPtr[0] << 16) | (remain == 2 ? bytesPtr[1] << 8 : 0);
-        *resultPtr++ = encodeMap[val >> 18       ];
-        *resultPtr++ = encodeMap[val >> 12 & 0x3f];
+        put(sink, encodeMap[val >> 18       ]);
+        put(sink, encodeMap[val >> 12 & 0x3f]);
 
         final switch (remain)
         {
             case 2:
-                *resultPtr++ = encodeMap[val >> 6 & 0x3f];
+                put(sink, encodeMap[val >> 6 & 0x3f]);
                 if (padding != Base64MappingChar.noPadding)
-                    *resultPtr++ = padding;
+                    put(sink, padding);
                 break;
             case 1:
                 if (padding != Base64MappingChar.noPadding)
                 {
-                    *resultPtr++ = padding;
-                    *resultPtr++ = padding;
+                    put(sink, padding);
+                    put(sink, padding);
                 }
                 break;
         }
     }
-    
-    return result;
+
+    return sink;
+}
+
+size_t cvtBytesBase64Length(const(size_t) bytes, const(bool) lineBreak, const(uint) lineBreakLength,
+    const(char) padding = Base64MappingChar.padding) @nogc pure
+{
+    const mod3 = bytes % 3;
+    const res = padding == Base64MappingChar.noPadding
+        ? ((bytes / 3) * 4 + (mod3 == 0 ? 0 : (mod3 == 1 ? 2 : 3)))
+        : ((bytes / 3 + (mod3 ? 1 : 0)) * 4);
+    return res + (lineBreak ? lineBreakCount(res, lineBreakLength) : 0);
 }
 
 /**
  * Convert byte array to its hex presentation
+ * lineBreak = should adding '\n' for each lineBreakLength hex characters?
  * Params:
  *  bytes = bytes to be converted
  *  letterCase = use upper or lower case letters
- *  isLineBreak = should adding '\n' for each 80 hex characters?
  * Returns:
  *  array of hex characters
  */
-char[] cvtBytesHex(scope const(ubyte)[] bytes,
+char[] cvtBytesBase16(bool lineBreak = false)(scope const(ubyte)[] bytes,
     const(LetterCase) letterCase = LetterCase.upper,
-    const(bool) isLineBreak = false) pure @trusted
+    const(uint) lineBreakLength = 80) pure
 {
-    import std.ascii : lowerHexDigits, upperHexDigits=hexDigits;
+    import std.array : Appender;
 
     if (bytes.length == 0)
         return null;
 
-    enum lineBreakChar = '\n';
-    enum lineBreakLength = 80;
+    Appender!(char[]) buffer;
+    buffer.reserve(cvtBytesBase16Length(bytes.length, lineBreak, lineBreakLength));
+    return cvtBytesBase16!(Appender!(char[]), lineBreak)(buffer, bytes, letterCase, lineBreakLength)[];
+}
+
+ref Writer cvtBytesBase16(Writer, bool lineBreak = false)(return ref Writer sink, scope const(ubyte)[] bytes,
+    const(LetterCase) letterCase = LetterCase.upper,
+    const(uint) lineBreakLength = 80) pure
+if (isOutputRange!(Writer, char))
+{
+    import std.ascii : lowerHexDigits, upperHexDigits=hexDigits;
+
+    if (bytes.length == 0)
+        return sink;
 
     const hexDigits = letterCase == LetterCase.upper ? upperHexDigits : lowerHexDigits;
-    
-    const size_t resultLength = bytes.length * 2
-        + (isLineBreak ? lineBreakCount(bytes.length, lineBreakLength) : 0);
-    
+    enum lineBreakChar = '\n';
+
     size_t resultLineBreak = 0;
-    char[] result = new char[](resultLength);    
-    auto resultPtr = &result[0];
-    
     foreach (b; bytes)
-    {        
-        if (isLineBreak && resultLineBreak >= lineBreakLength)
+    {
+        static if (lineBreak)
         {
-            resultLineBreak = 0;
-            *resultPtr++ = lineBreakChar;
-        }        
-        
-        *resultPtr++ = hexDigits[(b >> 4) & 0xF];
-        *resultPtr++ = hexDigits[b & 0xF];
-        
-        if (isLineBreak)
+            if (resultLineBreak >= lineBreakLength)
+            {
+                resultLineBreak = 0;
+                put(sink, lineBreakChar);
+            }
+        }
+
+        put(sink, hexDigits[(b >> 4) & 0xF]);
+        put(sink, hexDigits[b & 0xF]);
+
+        static if (lineBreak)
             resultLineBreak += 2;
     }
-    
-    return result;
+
+    return sink;
+}
+
+size_t cvtBytesBase16Length(const(size_t) bytes, const(bool) lineBreak, const(uint) lineBreakLength) @nogc pure
+{
+    const res = bytes * 2;
+    return res + (lineBreak ? lineBreakCount(res, lineBreakLength) : 0);
 }
 
 /**
@@ -267,7 +293,7 @@ if (isSomeChar!Char)
 }
 
 pragma(inline, true)
-size_t lineBreakCount(const(size_t) charsLength, const(size_t) breakLength) @nogc pure
+size_t lineBreakCount(const(size_t) charsLength, const(uint) breakLength) @nogc pure
 {
     return breakLength == 0 || charsLength <= breakLength
         ? 0
@@ -896,7 +922,7 @@ NumericLexerOptions!(const(Char)) defaultParseIntegralOptions(Char)() pure
  * Returns:
  *  NumericParsedKind
  */
-NumericParsedKind parseBase64(Range, Writer)(scope ref Range base64Text, ref Writer sink) pure
+NumericParsedKind parseBase64(Range, Writer)(ref Writer sink, scope ref Range base64Text) pure
 if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 {
     auto lexer = Base64Lexer!(Range)(base64Text, defaultParseBase64Options!(ElementType!Range)());
@@ -957,11 +983,20 @@ if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 }
 
 ///dito
-NumericParsedKind parseBase64(S, Writer)(scope S base64Text, ref Writer sink) pure
+NumericParsedKind parseBase64(S, Writer)(ref Writer sink, scope S base64Text) pure
 if (isConstCharArray!S && isOutputRange!(Writer, ubyte))
 {
-    auto range = NumericStringRange!S(base64Text);
-    return parseBase64(range, sink);
+    auto inputRange = NumericStringRange!S(base64Text);
+    return parseBase64(sink, inputRange);
+}
+
+pragma(inline, true)
+size_t parseBase64Length(const(size_t) chars,
+    const(char) padding = Base64MappingChar.padding) @nogc pure
+{
+    return padding == Base64MappingChar.noPadding
+        ? (chars / 4) * 3 + (chars % 4 < 2 ? 0 : (chars % 4 == 2 ? 1 : 2))
+        : (chars / 4) * 3;
 }
 
 /**
@@ -1023,7 +1058,7 @@ if (isConstCharArray!S && isIntegral!Target)
  * Returns:
  *  NumericParsedKind
  */
-NumericParsedKind parseHexDigits(Range, Writer)(scope ref Range hexDigitText, ref Writer sink) pure
+NumericParsedKind parseBase16(Range, Writer)(ref Writer sink, scope ref Range hexDigitText) pure
 if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 {
     auto lexer = NumericLexer!Range(hexDigitText, defaultParseHexDigitOptions!(ElementType!Range)());
@@ -1062,11 +1097,17 @@ if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 }
 
 ///dito
-NumericParsedKind parseHexDigits(S, Writer)(scope S hexDigitText, ref Writer sink) pure
+NumericParsedKind parseBase16(S, Writer)(ref Writer sink, scope S hexDigitText) pure
 if (isConstCharArray!S && isOutputRange!(Writer, ubyte))
 {
-    auto range = NumericStringRange!S(hexDigitText);
-    return parseHexDigits(range, sink);
+    auto inputRange = NumericStringRange!S(hexDigitText);
+    return parseBase16(sink, inputRange);
+}
+
+pragma(inline, true)
+size_t parseBase16Length(const(size_t) chars)
+{
+    return chars / 2;
 }
 
 /**
@@ -1172,17 +1213,17 @@ private:
 
 nothrow @safe unittest // cvtBytesBase64Length
 {
-    assert(cvtBytesBase64Length(0) == 0);
-    assert(cvtBytesBase64Length(3) == 4);
+    assert(cvtBytesBase64Length(0, false, 0) == 0);
+    assert(cvtBytesBase64Length(3, false, 0) == 4);
 
-    assert(cvtBytesBase64Length(4, Base64MappingChar.padding) == 8);
-    assert(cvtBytesBase64Length(4, Base64MappingChar.noPadding) == 6);    
+    assert(cvtBytesBase64Length(4, false, 0, Base64MappingChar.padding) == 8);
+    assert(cvtBytesBase64Length(4, false, 0, Base64MappingChar.noPadding) == 6);
 }
 
 nothrow @safe unittest // cvtBytesBase64
 {
     ubyte[] data = [0x1a, 0x2b, 0x3c, 0x4d, 0x5d, 0x6e];
-    assert(cvtBytesBase64(data) == "Gis8TV1u");    
+    assert(cvtBytesBase64(data) == "Gis8TV1u");
 }
 
 nothrow @safe unittest // cvtDigit
@@ -1292,8 +1333,8 @@ nothrow @safe unittest // parseBase64
         uint line = __LINE__)
     {
         ShortStringBuffer!ubyte buffer;
-        assert(parseBase64(base64Text, buffer) == expectedCondition, "parseBase64 failed from line#: " ~ to!string(line));
-        assert(expectedCondition != NumericParsedKind.ok || buffer[] == expectedText.representation(), "parseBase64 failed from line#: " ~ to!string(line));
+        assert(parseBase64(buffer, base64Text) == expectedCondition, "parseBase64 failed from line#: " ~ line.to!string());
+        assert(expectedCondition != NumericParsedKind.ok || buffer[] == expectedText.representation(), "parseBase64 failed from line#: " ~ line.to!string());
     }
 
     test("QUIx", NumericParsedKind.ok, "AB1");

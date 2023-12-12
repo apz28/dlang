@@ -296,12 +296,12 @@ debug
     ubyte[] dgFromHex(scope const(char)[] hexs) nothrow pure @safe
     {
         import pham.utl.utl_array : ShortStringBuffer;
-        import pham.utl.utl_numeric_parser : NumericParsedKind, parseHexDigits;
+        import pham.utl.utl_numeric_parser : NumericParsedKind, parseBase16;
         import pham.utl.utl_utf8 : NoDecodeInputRange;
 
         NoDecodeInputRange!(hexs, char) inputRange;
         ShortStringBuffer!ubyte result;
-        if (parseHexDigits(inputRange, result) != NumericParsedKind.ok)
+        if (parseBase16(result, inputRange) != NumericParsedKind.ok)
             return null;
         return result[].dup;
     }
@@ -336,9 +336,9 @@ debug
 
     string dgToHex(scope const(ubyte)[] bytes) nothrow pure @safe
     {
-        import pham.utl.utl_numeric_parser : cvtBytesHex;
+        import pham.utl.utl_numeric_parser : cvtBytesBase16;
 
-        return cvtBytesHex(bytes, LetterCase.upper, false);
+        return cvtBytesBase16(bytes, LetterCase.upper);
     }
 
     string dgToStr(bool b) @nogc nothrow pure @safe

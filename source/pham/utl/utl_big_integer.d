@@ -164,7 +164,7 @@ public:
         {
             import std.conv;
 
-            throw new ConvException("Not a valid numerical string at " ~ to!string(lexer.count));
+            throw new ConvException("Not a valid numerical string at " ~ lexer.count.to!string());
         }
 
         if (!lexer.hasNumericChar)
@@ -252,7 +252,7 @@ public:
             this.opUnary!"-"();
     }
 
-    ref BigInteger opAssign(T)(auto ref T x) nothrow pure return
+    ref BigInteger opAssign(T)(auto scope ref T x) nothrow pure scope return
     if (is(Unqual!T == BigInteger))
     {
         setSignInts(x._bits, x._sign);
@@ -2200,7 +2200,7 @@ private:
         _sign = 1;
     }
 
-    void setSignInts(scope const(uint)[] bits, int sign) nothrow pure
+    void setSignInts(scope const(uint)[] bits, int sign) nothrow pure scope
     {
         this._sign = sign;
         this._bits = bits.dup;
@@ -2954,7 +2954,7 @@ nothrow unittest // BigInteger.toString('%d')
     {
         auto v = BigInteger(value);
         auto s = toStringSafe(v, format, separator);
-        assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
+        assert(s == checkedValue, "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
     }
 
     check(0, to!string(0));
@@ -2987,7 +2987,7 @@ unittest // BigInteger.toString('%X')
     {
         auto v = BigInteger(value);
         auto s = toStringSafe(v, format, separator);
-        assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
+        assert(s == checkedValue, "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
     }
 
     check(0, to!string(0, 16));
@@ -3018,7 +3018,7 @@ unittest // parse integer
     {
         auto v = BigInteger(value);
         auto s = toStringSafe(v);
-        assert(s == value, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ value);
+        assert(s == value, "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ value);
     }
 
     check(to!string(0));
@@ -3049,7 +3049,7 @@ unittest // parse hex
     {
         auto v = BigInteger("0x" ~ value);
         auto s = toStringSafe(v, "%X");
-        assert(s == value, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ value);
+        assert(s == value, "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ value);
     }
 
     check(to!string(0, 16));
@@ -3165,8 +3165,8 @@ unittest // operator + - ~
         uint line = __LINE__)
     {
         auto s = toStringSafe(value, "%,3d", '_');
-        assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
-        assert(value == BigInteger(checkedValue), "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
+        assert(s == checkedValue, "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
+        assert(value == BigInteger(checkedValue), "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
     }
 
     BigInteger v, x;
@@ -3313,8 +3313,8 @@ unittest // operator * / %
         uint line = __LINE__)
     {
         auto s = toStringSafe(value, "%,3d", '_');
-        assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
-        assert(value == BigInteger(checkedValue), "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
+        assert(s == checkedValue, "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
+        assert(value == BigInteger(checkedValue), "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
     }
 
     BigInteger v, x;
@@ -3383,8 +3383,8 @@ unittest // operator << >> ^^
         uint line = __LINE__)
     {
         auto s = toStringSafe(value, "%,3d", '_');
-        assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
-        assert(value == BigInteger(checkedValue), "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
+        assert(s == checkedValue, "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
+        assert(value == BigInteger(checkedValue), "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
     }
 
     BigInteger v, x;
@@ -3412,8 +3412,8 @@ unittest // multiply
         uint line = __LINE__)
     {
         auto s = toStringSafe(value);
-        assert(s == checkedValue, "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
-        assert(value == BigInteger(checkedValue), "from line: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
+        assert(s == checkedValue, "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
+        assert(value == BigInteger(checkedValue), "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
     }
 
     BigInteger v, x;
@@ -3445,8 +3445,8 @@ unittest
         uint line = __LINE__)
     {
         auto s = toStringSafe(value);
-        assert(s == checkedValue, caseNumber ~ " from line s: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
-        assert(value == BigInteger(checkedValue), caseNumber ~ " from line b: " ~ to!string(line) ~ ": " ~ s ~ " ? " ~ checkedValue);
+        assert(s == checkedValue, caseNumber ~ " from line s: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
+        assert(value == BigInteger(checkedValue), caseNumber ~ " from line b: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
     }
 
     auto N = BigInteger("161854874649776085868045952190159031555772097014435707776279513538616175047026058065927714606879676219064271341818754038806823814541886861147177045257236811627035155212310813305487929926508522581710604504792711726648563877865328333166885998671854094528177699206377434633696300213499023964016345755132798642663");

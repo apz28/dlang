@@ -306,7 +306,7 @@ unittest
 
         final override string toString() const nothrow @safe
         {
-            return to!string(v);
+            return v.to!string();
         }
 
     public:

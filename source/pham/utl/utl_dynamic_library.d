@@ -90,7 +90,7 @@ class DllException : Exception
             if (errorText is null)
                 return DllMessage.eUnknownError;
 
-            return to!string(errorText);
+            return errorText.to!string();
         }
     }
     else

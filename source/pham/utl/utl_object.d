@@ -21,7 +21,7 @@ import std.traits : isArray, isAssociativeArray, isIntegral, isPointer,
 
 import pham.utl.utl_array : ShortStringBuffer;
 import pham.utl.utl_disposable;
-import pham.utl.utl_numeric_parser : Base64MappingChar, NumericParsedKind, cvtBytesBase64, cvtBytesHex, parseBase64, parseHexDigits;
+import pham.utl.utl_numeric_parser : Base64MappingChar, NumericParsedKind, cvtBytesBase64, cvtBytesBase16, parseBase64, parseBase16;
 import pham.utl.utl_result : cmp;
 import pham.utl.utl_utf8 : NoDecodeInputRange;
 
@@ -57,7 +57,7 @@ ubyte[] bytesFromBase64s(scope const(char)[] validBase64Text) nothrow pure @safe
 {
     NoDecodeInputRange!(validBase64Text, char) inputRange;
     ShortStringBuffer!ubyte result;
-    if (parseBase64(inputRange, result) != NumericParsedKind.ok)
+    if (parseBase64(result, inputRange) != NumericParsedKind.ok)
         return null;
     return result[].dup;
 }
@@ -71,7 +71,7 @@ ubyte[] bytesFromBase64s(scope const(char)[] validBase64Text) nothrow pure @safe
  */
 char[] bytesToBase64s(scope const(ubyte)[] bytes) nothrow pure @safe
 {
-    return cvtBytesBase64(bytes, Base64MappingChar.padding, false);
+    return cvtBytesBase64(bytes, Base64MappingChar.padding);
 }
 
 /**
@@ -86,7 +86,7 @@ ubyte[] bytesFromHexs(scope const(char)[] validHexDigits) nothrow pure @safe
 {
     NoDecodeInputRange!(validHexDigits, char) inputRange;
     ShortStringBuffer!ubyte result;
-    if (parseHexDigits(inputRange, result) != NumericParsedKind.ok)
+    if (parseBase16(result, inputRange) != NumericParsedKind.ok)
         return null;
     return result[].dup;
 }
@@ -100,7 +100,7 @@ ubyte[] bytesFromHexs(scope const(char)[] validHexDigits) nothrow pure @safe
  */
 char[] bytesToHexs(scope const(ubyte)[] bytes) nothrow pure @safe
 {
-    return cvtBytesHex(bytes, LetterCase.upper, false);
+    return cvtBytesBase16(bytes, LetterCase.upper);
 }
 
 /**
@@ -582,7 +582,7 @@ public:
 
         string toString() const pure
         {
-            return _length ? data[0.._length].map!(v => to!string(v)).join(".") : null;
+            return _length ? data[0.._length].map!(v => v.to!string()).join(".") : null;
         }
 
         @property bool empty() const @nogc pure
@@ -942,7 +942,7 @@ nothrow @safe unittest // stringOfChar
     {
         Appender!string buffer;
         toString!(radix, N)(buffer, n, pad);
-        assert(buffer.data == expected, to!string(line) ~ ": " ~ buffer.data ~ " vs " ~ expected);
+        assert(buffer.data == expected, line.to!string() ~ ": " ~ buffer.data ~ " vs " ~ expected);
     }
 
     testCheck(0, 0, "0");
@@ -1044,7 +1044,7 @@ nothrow @safe unittest // VersionString
 
     const v3 = VersionString(2, VersionString.stopPartValue, 2, 0);
     assert(v3.parts.data[0] == "2");
-    assert(v3.parts.data[1] == to!string(VersionString.stopPartValue));
+    assert(v3.parts.data[1] == VersionString.stopPartValue.to!string());
     assert(v3.parts.data[2] == "2");
     assert(v3.parts.data[3] == "0");
     assert(v1 == v3);

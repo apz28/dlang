@@ -11,11 +11,12 @@
 
 module pham.utl.utl_serialization;
 
+import std.array : Appender, appender;
 import std.conv : to;
-import std.meta;
+import std.meta : AliasSeq, aliasSeqOf, Filter, NoDuplicates, staticMap;
 import std.range : ElementType, isInputRange;
-import std.traits : BaseClassesTuple, EnumMembers, fullyQualifiedName, FunctionAttribute, functionAttributes,
-    isAggregateType, isDynamicArray, isFloatingPoint, isFunction, isIntegral, isSomeChar, isSomeFunction,
+import std.traits : BaseClassesTuple, BaseTypeTuple, EnumMembers, fullyQualifiedName, FunctionAttribute, functionAttributes,
+    isAggregateType, isCallable, isDynamicArray, isFloatingPoint, isFunction, isIntegral, isSomeChar, isSomeFunction,
     isStaticArray, Parameters, ReturnType, Unqual;
 
 @safe:
@@ -45,7 +46,7 @@ enum EnumFormat : ubyte
 enum BinaryDataFormat : ubyte
 {
     base64,
-    hex,
+    base16,
 }
 
 struct BinaryFormat
@@ -71,18 +72,18 @@ struct FloatFormat
 
 struct Serializable
 {
-@safe:
+nothrow @safe:
 
 public:
     this(string name,
-        Condition condition = Condition.required) @nogc nothrow pure
+        Condition condition = Condition.required) @nogc pure
     {
         this.name = name;
         this.condition = condition;
     }
 
-    this(string name, BinaryFormat binaryFormat,        
-        Condition condition = Condition.required) @nogc nothrow pure
+    this(string name, BinaryFormat binaryFormat,
+        Condition condition = Condition.required) @nogc pure
     {
         this.name = name;
         this.condition = condition;
@@ -90,7 +91,7 @@ public:
     }
 
     this(string name, EnumFormat enumFormat,
-        Condition condition = Condition.required) @nogc nothrow pure
+        Condition condition = Condition.required) @nogc pure
     {
         this.name = name;
         this.condition = condition;
@@ -98,32 +99,154 @@ public:
     }
 
     this(string name, FloatFormat floatFormat,
-        Condition condition = Condition.required) @nogc nothrow pure
+        Condition condition = Condition.required) @nogc pure
     {
         this.name = name;
         this.condition = condition;
         this.floatFormat = floatFormat;
     }
 
-    string serializableName(string memberName) @nogc nothrow pure
+    this(Serializable other, string memberName) @nogc pure
+    in
     {
-        return name.length != 0 ? name : memberName;
+        assert(memberName.length != 0);
+    }
+    do
+    {
+        this.name = other.name.length ? other.name : memberName;
+        this.memberName = memberName;
+        this.condition = other.condition;
+        this.binaryFormat = other.binaryFormat;
+        this.enumFormat = other.enumFormat;
+        this.floatFormat = other.floatFormat;
     }
 
 public:
     string name;
+    string memberName;
     Condition condition;
     BinaryFormat binaryFormat;
     EnumFormat enumFormat;
     FloatFormat floatFormat = FloatFormat(ubyte.max, false);
 }
 
+enum SerializableMemberFlag : ubyte
+{
+    none = 0,
+    explicitUDA = 1,
+    implicitUDA = 2,
+    isGetSet = 4,
+}
+
+enum SerializableMemberScope : ubyte
+{
+    none = 0,
+    private_ = 1,
+    protected_ = 2,
+    public_ = 4,
+}
+
+struct SerializableMemberOptions
+{
+nothrow @safe:
+
+public:
+    this(EnumBitSet!SerializableMemberFlag flags, EnumBitSet!SerializableMemberScope scopes) @nogc pure
+    {
+        this.flags = flags;
+        this.scopes = scopes;
+    }
+
+    bool isDeserializer(alias serializerMember)() const
+    {
+        //scope (failure) assert(0);
+        //import std.stdio; writeln; debug writeln(serializerMember.memberName, "=", serializerMember.memberScope, "/", this.scopes, ", ", serializerMember.flags, "/", this.flags);
+
+        if (serializerMember.attribute.condition == Condition.ignored)
+            return false;
+
+        if (!this.scopes.isSet(serializerMember.memberScope))
+            return false;
+
+        if (!this.flags.isSet(serializerMember.flags))
+            return false;
+
+        return true;
+    }
+
+    bool isSerializer(alias serializerMember)() const
+    {
+        //pragma(msg, serializerMember.memberName ~ ", " ~ serializerMember.memberScope.stringof ~ ", " ~ serializerMember.flags.stringof ~ ", " ~ serializerMember.attribute.condition.stringof);
+
+        if (serializerMember.attribute.condition == Condition.ignored)
+            return false;
+
+        if (!this.scopes.isSet(serializerMember.memberScope))
+            return false;
+
+        if (!this.flags.isSet(serializerMember.flags))
+            return false;
+
+        return true;
+    }
+
+public:
+    EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.isGetSet
+        | SerializableMemberFlag.implicitUDA
+        | SerializableMemberFlag.explicitUDA;
+    EnumBitSet!SerializableMemberScope scopes = SerializableMemberScope.public_;
+}
+
+SerializableMemberOptions getSerializableMemberOptions(T)() nothrow pure
+{
+    static if (hasUDA!(T, SerializableMemberOptions))
+        return getUDA!(T, SerializableMemberOptions);
+    else
+        return SerializableMemberOptions.init;
+}
+
 template allMembers(T)
 {
-    static if (isAggregateType!T)
-        alias allMembers = aliasSeqOf!(filterMembers([__traits(allMembers, T)]));
+    static if (isSerializerAggregateType!T)
+    {
+        static if (is(T == struct))
+            alias allMembers = aliasSeqOf!(filterMembers([__traits(allMembers, T)]));
+        else
+            alias allMembers = allClassMembers!T;
+    }
     else
         alias allMembers = AliasSeq!();
+}
+
+// Returns members of a class with base-class members in front
+template allClassMembers(T)
+if (is(T == class))
+{
+    //pragma(msg, T.stringof);
+
+    // Root Object type
+    static if (is(T == Object))
+        alias allClassMembers = AliasSeq!();
+    // Root Object as parent
+    else static if (is(BaseTypeTuple!T[0] == Object))
+        alias allClassMembers = aliasSeqOf!(filterMembers([__traits(allMembers, T)]));
+    // Not a class
+    else static if (!is(BaseTypeTuple!T[0] == Object) && !is(BaseTypeTuple!T[0] == class))
+        alias allClassMembers = AliasSeq!();
+    // Derived class - based members must be first
+    else
+        alias allClassMembers = NoDuplicates!(allClassMembers!(BaseTypeTuple!T[0]), aliasSeqOf!(filterMembers([__traits(derivedMembers, T)])));
+}
+
+template UnsignedFloat(T)
+if (isFloatingPoint!T)
+{
+    static if (is(T == float))
+        alias UnsignedFloat = uint;
+    else static if (is(T == double))
+        alias UnsignedFloat = ulong;
+    else
+        static assert(0, "Unsupported float type: " ~ T.stringof);
 }
 
 struct EnumBitSet(E)
@@ -226,7 +349,7 @@ template getOverloads(alias T, string name)
     //pragma(msg, T.stringof ~ "." ~ name ~ ".length=" ~ overloads.length.stringof);
     static if (overloads.length == 1 && __traits(isOverrideFunction, overloads[0]))
     {
-        private alias bases = BaseClassesTuple!T;        
+        private alias bases = BaseClassesTuple!T;
         private enum baseIndex =
         {
             static foreach (i, c; bases)
@@ -238,7 +361,7 @@ template getOverloads(alias T, string name)
                 }
             }
             return -1;
-        }();  
+        }();
         static if (baseIndex == -1)
             alias getOverloads = overloads;
         else
@@ -257,7 +380,7 @@ template getReturnType(alias getFunctionSymbol)
 }
 
 template getUDAs(alias symbol, alias attribute)
-{    
+{
     static if (__traits(compiles, __traits(getAttributes, symbol)))
         alias getUDAs = Filter!(isDesiredUDA!attribute, __traits(getAttributes, symbol));
     else
@@ -294,6 +417,63 @@ template hasUDA(alias symbol, alias attribute)
     enum bool hasUDA = getUDAs!(symbol, attribute).length != 0;
 }
 
+bool isExcludedMember(const(string) memberName) @nogc nothrow pure
+{
+    // Build in members
+    if (memberName.length >= 2 && (memberName[0..2] == "__" || memberName[$-2..$] == "__"))
+        return true;
+
+    foreach (const excludedMember; excludedMembers)
+    {
+        if (excludedMember == memberName)
+            return true;
+    }
+
+    return false;
+}
+
+enum IsFloatLiteral : ubyte
+{
+    none,
+    nan,
+    pinf,
+    ninf,
+}
+
+struct FloatLiteral
+{
+    string text;
+    IsFloatLiteral kind;
+}
+
+static immutable FloatLiteral[13] floatLiterals = [
+    // Standard texts first
+    FloatLiteral("NaN", IsFloatLiteral.nan),
+    FloatLiteral("Infinity", IsFloatLiteral.pinf),
+    FloatLiteral("-Infinity", IsFloatLiteral.ninf),
+    // Other support texts
+    FloatLiteral("nan", IsFloatLiteral.nan), 
+    FloatLiteral("NAN", IsFloatLiteral.nan), 
+    FloatLiteral("inf", IsFloatLiteral.pinf), 
+    FloatLiteral("+inf", IsFloatLiteral.pinf), 
+    FloatLiteral("infinity", IsFloatLiteral.pinf),
+    FloatLiteral("+infinity", IsFloatLiteral.pinf),
+    FloatLiteral("Infinite", IsFloatLiteral.pinf), // dlang.std.json
+    FloatLiteral("-inf", IsFloatLiteral.ninf),
+    FloatLiteral("-infinity", IsFloatLiteral.ninf),
+    FloatLiteral("-Infinite", IsFloatLiteral.ninf), // dlang.std.json
+];
+
+IsFloatLiteral isFloatLiteral(scope const(char)[] text) @nogc nothrow pure
+{
+    foreach(ref f; floatLiterals)
+    {
+        if (f.text == text)
+            return f.kind;
+    }
+    return IsFloatLiteral.none;
+}
+
 template isGetterFunction(alias symbol)
 {
     static if (isFunction!symbol)
@@ -318,11 +498,78 @@ template isSetterFunction(alias symbol)
         enum bool isSetterFunction = false;
 }
 
+//if (isAggregateType!V && !isInputRange!V)
+enum bool isSerializerAggregateType(T) = (is(T == struct) || is(T == class)) && !isInputRange!T;
+
 template isSerializerMember(alias member)
 {
     //pragma(msg, member.memberName ~ ", " ~ member.flags.stringof ~ ", " ~ member.attribute.condition.stringof);
-    enum bool isSerializerMember = member.flags != SerializerMemberFlag.none
+    enum bool isSerializerMember = member.flags != SerializableMemberFlag.none
         && member.attribute.condition != Condition.ignored;
+}
+
+bool isDeserializerMember(T, alias member)() nothrow pure
+{
+    enum SerializableMemberOptions attribute = getSerializableMemberOptions!T();
+    return isDeserializerMember!(attribute, member)();
+}
+
+bool isDeserializerMember(alias attribute, alias member)() nothrow pure
+{
+    return attribute.isDeserializer!member();
+}
+
+bool isSerializerMember(T, alias member)() nothrow pure
+{
+    enum SerializableMemberOptions attribute = getSerializableMemberOptions!T();
+    return isSerializerMember!(attribute, member)();
+}
+
+bool isSerializerMember(alias attribute, alias member)() nothrow pure
+{
+    return attribute.isSerializer!member();
+}
+
+string[] getDeserializerMembers(T)() nothrow pure
+{
+    enum SerializableMemberOptions attribute = getSerializableMemberOptions!T();
+    return getDeserializerMembers!(T, attribute)();
+}
+
+string[] getDeserializerMembers(T, alias attribute)() nothrow pure
+{
+    alias members = SerializerMemberList!T;
+    string[] result;
+    result.reserve(members.length);
+    foreach (member; members)
+    {
+        if (!attribute.isDeserializer!member())
+            continue;
+
+        result ~= member.memberName;
+    }
+    return result;
+}
+
+string[] getSerializerMembers(T)() nothrow pure
+{
+    enum SerializableMemberOptions attribute = getSerializableMemberOptions!T();
+    return getSerializerMembers!(T, attribute)();
+}
+
+string[] getSerializerMembers(T, alias attribute)() nothrow pure
+{
+    alias members = SerializerMemberList!T;
+    string[] result;
+    result.reserve(members.length);
+    foreach (member; members)
+    {
+        if (!attribute.isSerializer!member())
+            continue;
+
+        result ~= member.memberName;
+    }
+    return result;
 }
 
 template isTemplateSymbol(symbols...)
@@ -339,25 +586,58 @@ template isTemplateSymbol(alias symbol)
         enum bool isTemplateSymbol = false;
 }
 
-enum SerializerMemberFlag : ubyte
+class DSeserializerException : Exception
 {
-    none = 0,
-    implicitUDA = 1,
-    explicitUDA = 2,
-    isGetSet = 4,
+@safe:
+
+public:
+    this(string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+    {
+        super(errorMessage, file, line, next);
+        this.funcName = funcName;
+    }
+
+public:
+    string funcName;
+}
+
+class DeserializerException : DSeserializerException
+{
+@safe:
+
+public:
+    this(string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+    {
+        super(errorMessage, next, funcName, file, line);
+    }
+}
+
+class SeserializerException : DSeserializerException
+{
+@safe:
+
+public:
+    this(string errorMessage,
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+    {
+        super(errorMessage, next, funcName, file, line);
+    }
 }
 
 template SerializerMember(alias T, string name)
 {
 @safe:
     private alias member = __traits(getMember, T, name);
-    private enum bool hasTypeOfMember = hasTypeOfSymbol!member;
-    private enum bool isTemplateMember = isTemplateSymbol!member;
+    private enum bool hasTypeOfMember = name.length ? hasTypeOfSymbol!member : false;
+    private enum bool isTemplateMember = name.length ? isTemplateSymbol!member : false;
     private alias overloads = getOverloads!(T, name);
     //pragma(msg, T.stringof ~ "." ~ name ~ "." ~ overloads.length.stringof ~ "." ~ isTemplateMember.stringof ~ "." ~ hasTypeOfMember.stringof);
 
     /// The name of the member in the struct/class itself
     alias memberName = name;
+    enum isNull = name.length == 0;
 
     static if (overloads.length > 1 && getGetterSetterFunctions!(overloads).length)
     {
@@ -369,26 +649,26 @@ template SerializerMember(alias T, string name)
         alias memberType = getReturnType!memberGet;
 
         /// Visibility level of the member
-        enum SerializerScope memberScope = toSerializerScope(__traits(getVisibility, memberGet));
+        enum SerializableMemberScope memberScope = toSerializableMemberScope(__traits(getVisibility, memberGet));
 
         /// Serializable attribute of the member
         static if (hasUDA!(memberGet, Serializable))
         {
-            enum Serializable attribute = getUDA!(memberGet, Serializable);
-            enum EnumBitSet!SerializerMemberFlag flags = SerializerMemberFlag.explicitUDA
-                | SerializerMemberFlag.isGetSet;
+            enum Serializable attribute = Serializable(getUDA!(memberGet, Serializable), memberName);
+            enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.explicitUDA
+                | SerializableMemberFlag.isGetSet;
         }
         else static if (hasUDA!(memberSet, Serializable))
         {
-            enum Serializable attribute = getUDA!(memberSet, Serializable);
-            enum EnumBitSet!SerializerMemberFlag flags = SerializerMemberFlag.explicitUDA
-                | SerializerMemberFlag.isGetSet;
+            enum Serializable attribute = Serializable(getUDA!(memberSet, Serializable), memberName);
+            enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.explicitUDA
+                | SerializableMemberFlag.isGetSet;
         }
         else
         {
-            enum Serializable attribute = Serializable(name, Condition.required);
-            enum EnumBitSet!SerializerMemberFlag flags = SerializerMemberFlag.implicitUDA
-                | SerializerMemberFlag.isGetSet;
+            enum Serializable attribute = Serializable(memberName, Condition.required);
+            enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.implicitUDA
+                | SerializableMemberFlag.isGetSet;
         }
     }
     // Plain field
@@ -402,50 +682,50 @@ template SerializerMember(alias T, string name)
         alias memberType = typeof(member);
 
         /// Visibility level of the field
-        enum SerializerScope memberScope = toSerializerScope(__traits(getVisibility, member));
+        enum SerializableMemberScope memberScope = toSerializableMemberScope(__traits(getVisibility, member));
 
         /// Default value of the field (may or may not be `Type.init`)
         //alias memberDefault = __traits(getMember, T.init, name);
-        //TODO remove pragma(msg, name ~ "." ~ typeof(memberDefault).stringof);
+        //pragma(msg, name ~ "." ~ typeof(memberDefault).stringof);
 
         /// Serializable attribute of the field
         static if (hasUDA!(member, Serializable))
         {
-            enum Serializable attribute = getUDA!(member, Serializable);
-            enum EnumBitSet!SerializerMemberFlag flags = SerializerMemberFlag.explicitUDA;
+            enum Serializable attribute = Serializable(getUDA!(member, Serializable), memberName);
+            enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.explicitUDA;
         }
         else
         {
-            enum Serializable attribute = Serializable(name, Condition.required);
-            enum EnumBitSet!SerializerMemberFlag flags = SerializerMemberFlag.implicitUDA;
+            enum Serializable attribute = Serializable(memberName, Condition.required);
+            enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.implicitUDA;
         }
     }
-    else static if (overloads.length == 0 || isTemplateMember)
+    else static if (overloads.length == 0 || isTemplateMember || !__traits(compiles, getReturnType!memberGet))
     {
         alias memberGet = void;
         alias memberSet = void;
         alias memberType = void;
-        enum SerializerScope memberScope = SerializerScope.none;
-        enum Serializable attribute = Serializable(name, Condition.ignored);
-        enum EnumBitSet!SerializerMemberFlag flags = SerializerMemberFlag.none;
+        enum SerializableMemberScope memberScope = SerializableMemberScope.none;
+        enum Serializable attribute = Serializable(memberName, Condition.ignored);
+        enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.none;
     }
     else
     {
         alias memberGet = overloads[0];
         alias memberSet = void;
         alias memberType = getReturnType!memberGet;
-        enum SerializerScope memberScope = toSerializerScope(__traits(getVisibility, memberGet));
+        enum SerializableMemberScope memberScope = toSerializableMemberScope(__traits(getVisibility, memberGet));
 
         /// Serializable attribute of the function
         static if (hasUDA!(memberGet, Serializable))
         {
-            enum Serializable attribute = getUDA!(memberGet, Serializable);
-            enum EnumBitSet!SerializerMemberFlag flags = SerializerMemberFlag.explicitUDA;
+            enum Serializable attribute = Serializable(getUDA!(memberGet, Serializable), memberName);
+            enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.explicitUDA;
         }
         else
         {
-            enum Serializable attribute = Serializable(name, Condition.ignored);
-            enum EnumBitSet!SerializerMemberFlag flags = SerializerMemberFlag.none;
+            enum Serializable attribute = Serializable(memberName, Condition.ignored);
+            enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.none;
         }
     }
 }
@@ -453,34 +733,34 @@ template SerializerMember(alias T, string name)
 template SerializerMemberList(T)
 {
 public:
-    //pragma(msg, "\n"); pragma(msg, T.stringof);
+    //pragma(msg, "\nSerializerMemberList()", fullyQualifiedName!T);
 
-    static if (is(T == class) || is(T == struct))
+    static if (isSerializerAggregateType!T)
     {
-        static if (__traits(getAliasThis, T).length == 0)
+        private enum aliasedFieldNames = __traits(getAliasThis, T);
+        static if (aliasedFieldNames.length == 0)
         {
             alias SerializerMemberList = Filter!(isSerializerMember, staticMap!(createSerializerField, allMembers!T));
         }
-        else
+        else static if (aliasedFieldNames.length == 1)
         {
-            // Tuple of strings of aliased fields
-            // As of DMD v2.100.0, only a single alias this is supported in D.
-            private immutable aliasedFieldNames = __traits(getAliasThis, T);
-            static assert(aliasedFieldNames.length == 1, "Multiple `alias this` are not supported");
-
+            private enum aliasedFieldMembers = __traits(getMember, T, aliasedFieldNames);
             // Ignore alias to function
-            static if (isSomeFunction!(__traits(getMember, T, aliasedFieldNames)))
+            static if (isSomeFunction!(aliasedFieldMembers))
             {
                 alias SerializerMemberList = Filter!(isSerializerMember, staticMap!(createSerializerField, allMembers!T));
             }
             else
             {
-                private immutable baseFields = Erase!(aliasedFieldNames, allMembers!T);
+                private enum baseFields = Erase!(aliasedFieldNames, allMembers!T);
                 static assert(baseFields.length == allMembers!(T).length - 1);
-                private alias allFields = AliasSeq!(staticMap!(createSerializerField, baseFields),
-                    SerializerMemberList!(typeof(__traits(getMember, T, aliasedFieldNames))));
+                private alias allFields = AliasSeq!(staticMap!(createSerializerField, baseFields), SerializerMemberList!(typeof(aliasedFieldMembers)));
                 alias SerializerMemberList = Filter!(isSerializerMember, allFields);
             }
+        }
+        else
+        {
+            alias SerializerMemberList = AliasSeq!();
         }
     }
     else
@@ -492,200 +772,208 @@ private:
     alias createSerializerField(string name) = SerializerMember!(T, name);
 }
 
-enum SerializerScope : ubyte
-{
-    none = 0,
-    private_ = 1,
-    protected_ = 2,
-    public_ = 4,
-}
-
 struct SerializerOptions
 {
 @safe:
 
 public:
-    bool isReaderMember(alias member)() const nothrow
-    {
-        //scope (failure) assert(0);
-        //import std.stdio; writeln; debug writeln(member.memberName, "=", member.memberScope, "/", this.memberScopes, ", ", member.flags, "/", this.memberFlags);
-
-        if (!this.memberScopes.isSet(member.memberScope))
-            return false;
-
-        if (!this.memberFlags.isSet(member.flags))
-            return false;
-
-        if (member.attribute.condition == Condition.ignored)
-            return false;
-
-        return true;
-    }
-
-    bool isWriterMember(alias member)() const nothrow
-    {
-        //pragma(msg, member.memberName ~ ", " ~ member.memberScope.stringof ~ ", " ~ member.flags.stringof ~ ", " ~ member.attribute.condition.stringof);
-
-        if (!this.memberScopes.isSet(member.memberScope))
-            return false;
-
-        if (!this.memberFlags.isSet(member.flags))
-            return false;
-
-        if (member.attribute.condition == Condition.ignored)
-            return false;
-
-        return true;
-    }
-
-    string[] readerMembers(T)() const nothrow
-    {
-        alias members = SerializerMemberList!T;
-        string[] result;
-        result.reserve(members.length);
-        foreach (member; members)
-        {
-            if (!isReaderMember!member)
-                continue;
-
-            result ~= member.memberName;
-        }
-        return result;
-    }
-
-    string[] writerMembers(T)() const nothrow
-    {
-        alias members = SerializerMemberList!T;
-        string[] result;
-        result.reserve(members.length);
-        foreach (member; members)
-        {
-            if (!isWriterMember!member)
-                continue;
-
-            result ~= member.memberName;
-        }
-        return result;
-    }
-
-public:
-    EnumBitSet!SerializerScope memberScopes = SerializerScope.public_;
-    EnumBitSet!SerializerMemberFlag memberFlags = SerializerMemberFlag.isGetSet
-        | SerializerMemberFlag.implicitUDA
-        | SerializerMemberFlag.explicitUDA;
     FloatFormat floatFormat = FloatFormat(4, true);
+    string floatNaN = "NaN";
+    string floatNegInf = "-Infinity";
+    string floatPosInf = "+Infinity";
 }
 
-enum SerializerDataType : ubyte
+enum SerializerDataFormat : ubyte
 {
     text,
     binary,
 }
 
-class Serializer
+enum SerializerDataType : ubyte
+{
+    unknown,
+    null_,
+    bool_,
+    int1,
+    int2,
+    int4,
+    int8,
+    int16_Reserved,
+    int32_Reserved,
+    float4,
+    float8,
+    float16_Reserved,
+    float32_Reserved,
+    char_,
+    chars,
+    charsKey,
+    bytes,
+    aggregateBegin,
+    aggregateEnd,
+    arrayBegin,
+    arrayEnd,
+}
+
+pragma(inline, true)
+bool isNullableDataType(const(SerializerDataType) dataType) @nogc nothrow pure @safe
+{
+    return dataType == SerializerDataType.null_
+        || dataType == SerializerDataType.chars
+        || dataType == SerializerDataType.bytes;
+}
+
+alias DeserializerFunction = void function(Deserializer deserializer, scope void* value, scope ref Serializable attribute) @safe;
+alias SerializerFunction = void function(Serializer serializer, scope void* value, scope ref Serializable attribute) @safe;
+
+struct DSeserializerFunctions
+{
+    DeserializerFunction deserialize;
+    SerializerFunction serialize;
+}
+
+class DSeserializer
 {
 @safe:
 
 public:
-    final size_t decDepth() nothrow
+    alias Null = typeof(null);
+
+public:
+    size_t decDepth() nothrow
     in
     {
-        assert(depth > 0);
+        assert(_depth > 0);
     }
     do
     {
-        depth--;
-        return depth;
+        return --_depth;
     }
 
-    final size_t incDepth() nothrow
+    size_t incDepth() nothrow
     {
-        depth++;
-        return depth;
+        return ++_depth;
     }
 
-    Serializer begin()
+    static DSeserializerFunctions register(T)(SerializerFunction serialize, DeserializerFunction deserialize)
+    in
     {
-        depth = 0;
-        return this;
+        assert(serialize !is null);
+        assert(deserialize !is null);
     }
-
-    Serializer end()
+    do
     {
-        return this;
+        return register(fullyQualifiedName!T, DSeserializerFunctions(deserialize, serialize));
     }
 
-    Serializer aggregateBegin(string typeName, ptrdiff_t length)
+    static DSeserializerFunctions register(string type, SerializerFunction serialize, DeserializerFunction deserialize)
+    in
     {
-        incDepth();
-        return this;
+        assert(type.length > 0);
+        assert(serialize !is null);
+        assert(deserialize !is null);
     }
-
-    Serializer aggregateEnd(string typeName, ptrdiff_t length)
+    do
     {
-        decDepth();
-        return this;
+        return register(type, DSeserializerFunctions(deserialize, serialize));
     }
 
-    Serializer aggregateItem(ptrdiff_t length)
+    static DSeserializerFunctions register(string type, DSeserializerFunctions dserializes) @trusted // access __gshared customDSeserializedFunctions
+    in
     {
-        return this;
+        assert(type.length > 0);
+        assert(dserializes.serialize !is null);
+        assert(dserializes.deserialize !is null);
     }
-
-    Serializer arrayBegin(string elemTypeName, ptrdiff_t length)
+    do
     {
-        incDepth();
-        return this;
+        DSeserializerFunctions result;
+        if (auto f = type in customDSeserializedFunctions)
+            result = *f;
+        customDSeserializedFunctions[type] = dserializes;
+        return result;
     }
 
-    Serializer arrayEnd(string elemTypeName, ptrdiff_t length)
+    bool sameName(scope const(char)[] s1, scope const(char)[] s2) const @nogc nothrow
     {
-        decDepth();
-        return this;
+        return s1 == s2;
     }
 
-    Serializer arrayItem(ptrdiff_t length)
+    pragma(inline, true)
+    @property final size_t depth() const @nogc nothrow
     {
-        return this;
+        return _depth;
     }
 
-    abstract void put(typeof(null) v);
-    abstract void putBool(bool v); // Different name - D is not good of distinguish with byte/int
-    abstract void putChar(char v); // Different name - D is not good of distinguish with byte/int
-    abstract void put(byte v);
-    abstract void put(short v);
-    abstract void put(int v);
-    abstract void put(long v);
-    abstract void put(float v, const(FloatFormat) floatFormat);
-    abstract void put(double v, const(FloatFormat) floatFormat);
-    abstract void put(scope const(char)[] v); // String value
-    abstract void put(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat); // Binary value
-    abstract Serializer putKey(scope const(char)[] key);
-    abstract Serializer putKeyId(scope const(char)[] key);
-
-    @property abstract SerializerDataType dataType() const @nogc nothrow pure;
+    @property abstract SerializerDataFormat dataFormat() const @nogc nothrow pure;
 
 public:
-    static string binaryToString(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat)
-    {
-        import std.ascii : LetterCase;
-        import std.base64 : Base64;
-        import std.digest : toHexString;
+    SerializerOptions options;
 
+public:
+    static ubyte[] binaryFromString(ExceptionClass)(scope const(char)[] v, const(BinaryFormat) binaryFormat)
+    {
+        import pham.utl.utl_numeric_parser : NumericParsedKind, parseBase64, parseBase64Length, parseBase16, parseBase16Length;
+
+        string sampleV()
+        {
+            if (v.length == 0)
+                return null;
+            else if (v.length > 30)
+                return v[0..30].idup ~ " ...";
+            else
+                return v.idup;
+        }
+
+        if (v.length == 0)
+            return null;
+
+        Appender!(ubyte[]) buffer;
         final switch (binaryFormat.dataFormat)
         {
             case BinaryDataFormat.base64:
-                return Base64.encode(v);
-            case BinaryDataFormat.hex:
-                return binaryFormat.characterCaseFormat == CharacterCaseFormat.lower 
-                    ? toHexString!(LetterCase.lower)(v)
-                    : binaryFormat.characterCaseFormat == CharacterCaseFormat.upper 
-                        ? toHexString!(LetterCase.upper)(v)
-                        : toHexString(v);
+                buffer.reserve(parseBase64Length(v.length));
+                if (parseBase64(buffer, v) == NumericParsedKind.ok)
+                    return buffer[];
+                static if (is(ExceptionClass == void))
+                    return null;
+                else
+                    throw new ExceptionClass("Unable to convert base64 string to binary: " ~ sampleV());
+            case BinaryDataFormat.base16:
+                buffer.reserve(parseBase16Length(v.length));
+                if (parseBase16(buffer, v) == NumericParsedKind.ok)
+                    return buffer[];
+                static if (is(ExceptionClass == void))
+                    return null;
+                else
+                    throw new ExceptionClass("Unable to convert hex string to binary: " ~ sampleV());
         }
     }
-    
-    static const(char)[] floatToString(V)(return scope char[] vBuffer, V v, const(FloatFormat) floatFormat) pure
+
+    static string binaryToString(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat)
+    {
+        import std.ascii : LetterCase;
+        import pham.utl.utl_numeric_parser : cvtBytesBase64, cvtBytesBase64Length, cvtBytesBase16, cvtBytesBase16Length;
+
+        if (v.length == 0)
+            return null;
+
+        Appender!string buffer;
+        final switch (binaryFormat.dataFormat)
+        {
+            case BinaryDataFormat.base64:
+                buffer.reserve(cvtBytesBase64Length(v.length, false, 0));
+                return cvtBytesBase64(buffer, v)[];
+            case BinaryDataFormat.base16:
+                buffer.reserve(cvtBytesBase16Length(v.length, false, 0));
+                return binaryFormat.characterCaseFormat == CharacterCaseFormat.lower
+                    ? cvtBytesBase16(buffer, v, LetterCase.lower)[]
+                    : binaryFormat.characterCaseFormat == CharacterCaseFormat.upper
+                        ? cvtBytesBase16(buffer, v, LetterCase.upper)[]
+                        : cvtBytesBase16(buffer, v)[];
+        }
+    }
+
+    final const(char)[] floatToString(V)(return scope char[] vBuffer, V v, const(FloatFormat) floatFormat) pure
     if (isFloatingPoint!V)
     in
     {
@@ -695,18 +983,12 @@ public:
     {
         import std.format : sformat;
         import std.math : isInfinity, isNaN, sgn;
-        
+
         if (isNaN(v))
-        {
-            vBuffer[0..3] = "nan";
-            return vBuffer[0..3];
-        }
-        
+            return floatLiteralNaN(vBuffer, true);
+
         if (isInfinity(v))
-        {
-            vBuffer[0..4] = sgn(v) ? "-inf" : "+inf";
-            return vBuffer[0..4];
-        }
+            return floatLiteralInfinity(vBuffer, sgn(v) != 0, true);
 
         char[10] fBuffer = void;
         const fmt = floatFormat.floatPrecision >= 18 ? "%.18f" : sformat(fBuffer[], "%%.%df", floatFormat.floatPrecision);
@@ -715,22 +997,38 @@ public:
             : sformat(vBuffer[], fmt, v);
     }
 
+    const(char)[] floatLiteral(return scope char[] vBuffer, scope const(char)[] literal, const(bool) floatConversion) @nogc nothrow pure
+    {
+        vBuffer[0..literal.length] = literal;
+        return vBuffer[0..literal.length];
+    }
+
+    final const(char)[] floatLiteralInfinity(return scope char[] vBuffer, const(bool) isNeg, const(bool) floatConversion) @nogc nothrow pure
+    {
+        return floatLiteral(vBuffer, isNeg ? options.floatNegInf : options.floatPosInf, floatConversion);
+    }
+
+    final const(char)[] floatLiteralNaN(return scope char[] vBuffer, const(bool) floatConversion) @nogc nothrow pure
+    {
+        return floatLiteral(vBuffer, options.floatNaN, floatConversion);
+    }
+
     static const(char)[] floatStripTrailingZero(return scope const(char)[] v) @nogc nothrow pure
     {
         import std.ascii : isDigit;
-        
+
         // Start stripping all trailing zeros
         size_t len = v.length;
         while (len && v[len-1] == '0')
             len--;
-            
+
         // End with period -> add back a zero
-        if (len && !isDigit(v[len-1])) 
+        if (len && !isDigit(v[len-1]))
             len++;
-            
+
         return v[0..len];
     }
-    
+
     static const(char)[] intToString(V)(return scope char[] vBuffer, V v) pure
     if (isIntegral!V)
     in
@@ -740,203 +1038,741 @@ public:
     do
     {
         import std.format : sformat;
-        
+
         return sformat(vBuffer, "%d", v);
     }
-    
+
+protected:
+    size_t _depth;
+    static __gshared DSeserializerFunctions[string] customDSeserializedFunctions;
+}
+
+enum isCallableWith(alias func, T) = __traits(compiles, { auto _ = (T t) => func(t); });
+
+class Deserializer : DSeserializer
+{
+@safe:
+
+public:
+    Deserializer begin()
+    {
+        _depth = 0;
+        return this;
+    }
+
+    Deserializer end()
+    {
+        return this;
+    }
+
+    /*
+     * Returns number of members/fields of an aggregate type.
+     * If unknown, returns -1
+     */
+    ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
+    {
+        incDepth();
+        return -1;
+    }
+
+    void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable attribute)
+    {
+        decDepth();
+    }
+
+    /*
+     * Returns number of elements in an array.
+     * If unknown, returns -1
+     */
+    ptrdiff_t arrayBegin(string elemTypeName, scope ref Serializable attribute)
+    {
+        incDepth();
+        return -1;
+    }
+
+    void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
+    {
+        decDepth();
+    }
+
+    abstract bool empty() nothrow;
+    abstract SerializerDataType frontDataType() nothrow;
+    abstract bool hasArrayEle(size_t i, ptrdiff_t len) nothrow;
+    abstract bool hasAggregateEle(size_t i, ptrdiff_t len) nothrow;
+
+    abstract Null readNull();
+    abstract bool readBool();
+    abstract char readChar();
+    abstract byte readByte();
+    abstract short readShort();
+    abstract int readInt();
+    abstract long readLong();
+    abstract float readFloat(const(FloatFormat) floatFormat);
+    abstract double readDouble(const(FloatFormat) floatFormat);
+    abstract string readChars();
+    abstract const(char)[] readScopeChars();
+    abstract ubyte[] readBytes(const(BinaryFormat) binaryFormat);
+    abstract const(ubyte)[] readScopeBytes(const(BinaryFormat) binaryFormat);
+    abstract string readKey();
+    abstract ptrdiff_t readLength();
+
 public:
     // null
-    final void serialize(typeof(null), scope ref Serializable serializable)
+    final void deserialize(V : Null)(V, scope ref Serializable attribute)
     {
-        put(null);
+        readNull();
     }
 
     // Boolean
-    final void serialize(V : bool)(V v, scope ref Serializable serializable)
+    final void deserialize(V : bool)(ref V v, scope ref Serializable attribute)
     if (is(V == bool) && !is(V == enum))
     {
-        putBool(v);
+        v = readBool();
     }
 
     // Char
-    final void serialize(V : char)(V v, scope ref Serializable serializable)
+    final void deserialize(V : char)(ref V v, scope ref Serializable attribute)
     if (is(V == char) && !is(V == enum))
     {
-        putChar(v);
+        v = readChar();
     }
 
     // Integral
-    final void serialize(V)(V v, scope ref Serializable serializable)
+    final void deserialize(V)(ref V v, scope ref Serializable attribute)
     if (isIntegral!V && !is(V == enum))
     {
-        put(v);
+        static if (V.sizeof == 4)
+            v = readInt();
+        else static if (V.sizeof == 8)
+            v = readLong();
+        else static if (V.sizeof == 2)
+            v = readShort();
+        else static if (V.sizeof == 1)
+            v = readByte();
+        else
+            static assert(0, "Unsupported integral size: " ~ V.sizeof.stringof);
     }
 
     // Float
-    final void serialize(V)(V v, scope ref Serializable serializable)
+    final void deserialize(V)(ref V v, scope ref Serializable attribute)
     if (isFloatingPoint!V)
     {
-        const floatFormat = serializable.floatFormat.isFloatPrecision()
-            ? serializable.floatFormat
+        const floatFormat = attribute.floatFormat.isFloatPrecision()
+            ? attribute.floatFormat
             : options.floatFormat;
-        return put(v, floatFormat);
+        static if (V.sizeof == 4)
+            v = readFloat(floatFormat);
+        else //static if (V.sizeof == 8)
+            v = readDouble(floatFormat);
     }
 
     // Enum
-    final void serialize(V)(V v, scope ref Serializable serializable)
+    final void deserialize(V)(ref V v, scope ref Serializable attribute)
     if (is(V == enum))
     {
-        if (serializable.enumFormat == EnumFormat.integral)
+        if (attribute.enumFormat == EnumFormat.integral)
         {
             static if (is(V Base == enum) && isIntegral!Base)
             {
                 static if (Base.max <= int.max)
-                    put(cast(int)v);
+                    v = cast(V)readInt();
                 else
-                    put(cast(long)v);
+                    v = cast(V)readLong();
                 return;
             }
         }
 
-        const vStr = v.to!string();
-        put(vStr);
+        const s = readChars();
+        v = s.to!V();
     }
 
     // Chars/String
-    final void serialize(scope const(char)[] v, scope ref Serializable serializable)
+    final void deserialize(ref char[] v, scope ref Serializable attribute)
     {
-        if (v is null)
-            put(null);
-        else
-            put(v);
+        v = readChars().dup;
     }
 
     // String
-    final void serialize(string v, scope ref Serializable serializable)
+    final void deserialize(ref string v, scope ref Serializable attribute)
     {
-        if (v is null)
-            put(null);
-        else
-            put(v);
+        v = readChars();
     }
 
     // Bytes/Binary
-    final void serialize(scope const(ubyte)[] v, scope ref Serializable serializable)
+    final void deserialize(ref ubyte[] v, scope ref Serializable attribute)
     {
-        if (v is null)
-            put(null);
-        else
-            put(v, serializable.binaryFormat);
+        //import std.stdio : writeln; debug writeln("ubyte[].");
+        v = readBytes(attribute.binaryFormat);
     }
 
     // Array
-    final void serialize(V)(V[] v, scope ref Serializable serializable)
+    final void deserialize(V)(ref V[] v, scope ref Serializable attribute)
     if (!isSomeChar!V && !is(V == ubyte) && !is(V == byte))
     {
-        if (v is null)
+        //import std.stdio : writeln; debug writeln(fullyQualifiedName!V, ".", len);
+
+        static immutable elemTypeName = fullyQualifiedName!V;
+        size_t length;
+        const readLength = arrayBegin(elemTypeName, attribute);
+        scope (success)
+            arrayEnd(elemTypeName, length, attribute);
+
+        if (readLength == 0)
         {
-            put(null);
+            v = null;
             return;
         }
 
-        static immutable typeName = fullyQualifiedName!V;
-        arrayBegin(typeName, v.length);
-        scope (success)
-            arrayEnd(typeName, v.length);
-        foreach (i, ref e; v)
-        {
-            arrayItem(i);
-            serialize(e, serializable);
-        }
-    }
+        if (readLength > 0 && v.length < readLength)
+            v.length = readLength;
 
-    // Input range
-    final void serialize(R)(R v, scope ref Serializable serializable)
-    if (isInputRange!R && !isSomeChar!(ElementType!R) && !isDynamicArray!R)
-    {
-        static immutable typeName = fullyQualifiedName!(ElementType!R);
-        size_t length;
-        arrayBegin(typeName, -1);
-        scope (success)
-            arrayEnd(typeName, length);
-        foreach (ref e; v)
+        while (hasArrayEle(length, readLength))
         {
-            arrayItem(length);
-            serialize(e, serializable);
+            if (length == v.length)
+                v.length = length+1;
+            deserialize(v[length], attribute);
             length++;
         }
     }
 
     // Associative array with string key
-    final void serialize(V)(auto ref V[string] v, scope ref Serializable serializable)
+    final void deserialize(V)(ref V[string] v, scope ref Serializable attribute)
     {
-        if (v is null)
+        //import std.stdio : writeln; debug writeln(fullyQualifiedName!V, ".", len);
+
+        static immutable typeName = fullyQualifiedName!(V[string]);
+        size_t length;
+        const readLength = aggregateBegin(typeName, attribute);
+        scope (success)
+            aggregateEnd(typeName, length, attribute);
+
+        if (readLength == 0)
         {
-            put(null);
+            v = null;
             return;
         }
 
-        static immutable typeName = fullyQualifiedName!V ~ "[" ~ string.stringof ~ "]";
-        size_t index;
-        aggregateBegin(typeName, v.length);
+        Serializable memberAttribute = attribute;
+        while (hasAggregateEle(length, readLength))
+        {
+            const keyStr = readKey();
+            memberAttribute.name = keyStr;
+            V e;
+            deserialize(e, memberAttribute);
+            v[keyStr] = e;
+            length++;
+        }
+    }
+
+    // Associative array with integral key
+    final void deserialize(V : T[K], T, K)(ref V v, scope ref Serializable attribute)
+    if (isIntegral!K && !is(K == enum))
+    {
+        //import std.stdio : writeln; debug writeln(fullyQualifiedName!V, ".", len);
+
+        static immutable typeName = fullyQualifiedName!V;
+        size_t length;
+        const readLength = aggregateBegin(typeName, attribute);
         scope (success)
-            aggregateEnd(typeName, v.length);
+            aggregateEnd(typeName, length, attribute);
+
+        if (readLength == 0)
+        {
+            v = null;
+            return;
+        }
+
+        Serializable memberAttribute = attribute;
+        while (hasAggregateEle(length, readLength))
+        {
+            const keyStr = readKey();
+            const key = keyStr.to!K();
+            memberAttribute.name = keyStr;
+            T e;
+            deserialize(e, memberAttribute);
+            v[key] = e;
+            length++;
+        }
+    }
+
+    // Associative array with enum key
+    final void deserialize(V : T[K], T, K)(ref V v, scope ref Serializable attribute)
+    if (is(K == enum))
+    {
+        //import std.stdio : writeln; debug writeln(fullyQualifiedName!V, ".", len);
+
+        static immutable typeName = fullyQualifiedName!V;
+        size_t length;
+        const readLength = aggregateBegin(typeName, attribute);
+        scope (success)
+            aggregateEnd(typeName, length, attribute);
+
+        if (readLength == 0)
+        {
+            v = null;
+            return;
+        }
+
+        Serializable memberAttribute = attribute;
+        while (hasAggregateEle(length, readLength))
+        {
+            const keyStr = readKey();
+            K key;
+            if (memberAttribute.enumFormat == EnumFormat.integral)
+            {
+                static if (is(K KBase == enum) && isIntegral!KBase)
+                    key = cast(K)(keyStr.to!long());
+                else
+                    key = keyStr.to!K();
+            }
+            else
+                key = keyStr.to!K();
+
+            memberAttribute.name = keyStr;
+            T e;
+            deserialize(e, memberAttribute);
+            v[key] = e;
+            length++;
+        }
+    }
+
+    // Aggregate (class, struct)
+    final V deserialize(V)()
+    if (isSerializerAggregateType!V)
+    {
+        V v;
+        Serializable attribute;
+        begin();
+        deserialize(v, attribute);
+        end();
+        return v;
+    }
+
+    final void deserialize(V)(ref V v, scope ref Serializable attribute)
+    if (isSerializerAggregateType!V)
+    {
+        //pragma(msg, "\ndeserialize()", fullyQualifiedName!V);
+        //import std.stdio : writeln; debug writeln(fullyQualifiedName!V, ".", len);
+        static immutable typeName = fullyQualifiedName!V;
+        size_t memberSet;
+        const readLength = aggregateBegin(typeName, attribute);
+        scope (success)
+            aggregateEnd(typeName, memberSet, attribute);
+
+        if (readLength == 0)
+        {
+            static if (is(V == class))
+                v = null;
+            else
+                v = V.init;
+            return;
+        }
+
+        static if (is(V == class))
+        {
+            if (v is null)
+                v = new V();
+        }
+
+        static if (__traits(hasMember, V, "deserialize"))
+        {
+            memberSet = v.deserialize(this, readLength, attribute);
+            return;
+        }
+
+        scope (success)
+        {
+            if (memberSet)
+            {
+                static if (__traits(hasMember, V, "deserializeEnd"))
+                    v.deserializeEnd(this, memberSet, attribute);
+            }
+        }
+
+        enum MemberMatched {none, deserialize, ok }
+        enum SerializableMemberOptions memberOptions = getSerializableMemberOptions!V();
+        alias members = SerializerMemberList!V;
+        size_t i;
+        while (hasAggregateEle(i, readLength))
+        {
+            MemberMatched memberMatched = MemberMatched.none;
+            const memberName = readKey();
+            //import std.stdio : writeln; debug writeln("i=", i, ", memberName=", memberName);
+
+            static foreach (member; members)
+            {
+                if (sameName(member.attribute.name, memberName))
+                {
+                    //import std.stdio : writeln; debug writeln(V.stringof, "[", typeof(member.memberSet).stringof, ".", member.memberType.stringof, "] v.", member.memberName, ".", member.attribute.name, " vs ", memberName);
+                    //pragma(msg, V.stringof ~ "." ~ member.memberName);
+                    //pragma(msg, __traits(compiles, __traits(child, v, member.memberSet)));
+                    //pragma(msg, __traits(compiles, mixin("v." ~ member.memberName ~ " = member.memberType.init")));
+                    //pragma(msg, isCallable!(member.memberSet));
+
+                    static if (__traits(compiles, __traits(child, v, member.memberSet))
+                        && (__traits(compiles, mixin("v." ~ member.memberName ~ " = member.memberType.init"))
+                            || isCallable!(member.memberSet)))
+                    {
+                        //import std.stdio : writeln; debug writeln("matched");
+
+                        memberMatched = MemberMatched.ok;
+
+                        if (memberSet++ == 0)
+                        {
+                            static if (__traits(hasMember, V, "deserializeBegin"))
+                                v.deserializeBegin(this, readLength, attribute);
+                        }
+
+                        Serializable memberAttribute = member.attribute;
+                        static if (member.flags.isSet(SerializableMemberFlag.isGetSet))
+                        {
+                            member.memberType memberValue;
+                            if (!deserializeCustom!(member.memberType)(memberValue, memberAttribute))
+                            {
+                                memberMatched = MemberMatched.deserialize;
+                                static if (__traits(compiles, deserialize(memberValue, memberAttribute)))
+                                {
+                                    deserialize(memberValue, memberAttribute);
+                                    memberMatched = MemberMatched.ok;
+                                }
+                            }
+                            //mixin("v." ~ member.memberName) = memberValue;  // Overload issue if only overwrite only one (getter/setter)
+                            __traits(child, v, member.memberSet)(memberValue);
+                        }
+                        else
+                        {
+                            //pragma(msg, "deserialize()", fullyQualifiedName!(member.memberType), " ", member.memberName);
+                            if (!deserializeCustom!(member.memberType)(__traits(child, v, member.memberSet), memberAttribute))
+                            {
+                                memberMatched = MemberMatched.deserialize;
+                                static if (__traits(compiles, deserialize(__traits(child, v, member.memberSet), memberAttribute)))
+                                {
+                                    deserialize(__traits(child, v, member.memberSet), memberAttribute);
+                                    memberMatched = MemberMatched.ok;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (memberMatched == MemberMatched.none)
+                throw new DeserializerException(fullyQualifiedName!V ~ "." ~ memberName ~ " not found");
+            else if (memberMatched == MemberMatched.deserialize)
+                throw new DeserializerException(fullyQualifiedName!V ~ "." ~ memberName ~ " not able to deserialize");
+
+            i++;
+        }
+
+        version (UseMemberOrderList)
+        foreach (member; members)
+        {
+            if (!isDeserializerMember!(memberOptions, member)())
+                continue;
+
+            //pragma(msg, V.stringof ~ "." ~ member.memberName ~ "." ~ member.attribute.name);
+
+            static if (__traits(compiles, __traits(child, v, member.memberSet))
+                && __traits(compiles, mixin("v." ~ member.memberName) = member.memberType.init))
+            {
+                //import std.stdio : writeln; debug writeln(V.stringof, ".", member.memberName, ".", member.attribute.name);
+
+                if (!hasAggregateEle(i, readLength))
+                    break;
+
+                if (memberSet++ == 0)
+                {
+                    static if (__traits(hasMember, V, "deserializeBegin"))
+                        v.deserializeBegin(this, readLength, attribute);
+                }
+
+                const memberName = readKey();
+                Serializable memberAttribute = member.attribute;
+                static if (member.flags.isSet(SerializableMemberFlag.isGetSet))
+                {
+                    member.memberType memberValue;
+                    if (!deserializeCustom!(member.memberType)(memberValue, memberAttribute))
+                    {
+                        deserialize(memberValue, memberAttribute);
+                    }
+                    mixin("v." ~ member.memberName) = memberValue;
+                }
+                else
+                {
+                    if (!deserializeCustom!(member.memberType)(__traits(child, v, member.memberSet), memberAttribute))
+                    {
+                        deserialize(__traits(child, v, member.memberSet), memberAttribute);
+                    }
+                }
+
+                i++;
+            }
+        }
+    }
+
+    final void deserializeAny(V)(ref V v, scope ref Serializable attribute)
+    {
+        if (!deserializeCustom!V(v, attribute))
+            deserialize!V(v, attribute);
+    }
+
+    // Customized types
+    final bool deserializeCustom(V)(ref V v, scope ref Serializable attribute) @trusted // parameter address & access __gshared customDSeserializedFunctions
+    {
+        //pragma(msg, "deserializeCustom()", fullyQualifiedName!V);
+        alias UV = Unqual!V;
+        if (auto f = fullyQualifiedName!V in customDSeserializedFunctions)
+        {
+            (*f).deserialize(this, cast(UV*)&v, attribute);
+            return true;
+        }
+
+        return false;
+    }
+}
+
+class Serializer : DSeserializer
+{
+@safe:
+
+public:
+    Serializer begin()
+    {
+        _depth = 0;
+        return this;
+    }
+
+    Serializer end()
+    {
+        return this;
+    }
+
+    void aggregateBegin(string typeName, ptrdiff_t length, scope ref Serializable attribute)
+    {
+        incDepth();
+    }
+
+    void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable attribute)
+    {
+        decDepth();
+    }
+
+    Serializer aggregateItem(ptrdiff_t index, scope ref Serializable attribute)
+    {
+        return this;
+    }
+
+    void arrayBegin(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
+    {
+        incDepth();
+    }
+
+    void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
+    {
+        decDepth();
+    }
+
+    Serializer arrayItem(ptrdiff_t index)
+    {
+        return this;
+    }
+
+    abstract void write(Null v);
+    abstract void writeBool(bool v); // Different name - D is not good of distinguish between bool/byte|int
+    abstract void writeChar(char v); // Different name - D is not good of distinguish between char/byte|int
+    abstract void write(byte v);
+    abstract void write(short v);
+    abstract void write(int v);
+    abstract void write(long v);
+    abstract void write(float v, const(FloatFormat) floatFormat);
+    abstract void write(double v, const(FloatFormat) floatFormat);
+    abstract void write(scope const(char)[] v); // String value
+    abstract void write(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat); // Binary value
+    abstract Serializer writeKey(scope const(char)[] key);
+    abstract Serializer writeKeyId(scope const(char)[] key);
+
+public:
+    // null
+    final void serialize(Null, scope ref Serializable attribute)
+    {
+        write(null);
+    }
+
+    // Boolean
+    final void serialize(V : bool)(const(V) v, scope ref Serializable attribute)
+    if (is(V == bool) && !is(V == enum))
+    {
+        writeBool(v);
+    }
+
+    // Char
+    final void serialize(V : char)(const(V) v, scope ref Serializable attribute)
+    if (is(V == char) && !is(V == enum))
+    {
+        writeChar(v);
+    }
+
+    // Integral
+    final void serialize(V)(const(V) v, scope ref Serializable attribute)
+    if (isIntegral!V && !is(V == enum))
+    {
+        write(v);
+    }
+
+    // Float
+    final void serialize(V)(const(V) v, scope ref Serializable attribute)
+    if (isFloatingPoint!V)
+    {
+        const floatFormat = attribute.floatFormat.isFloatPrecision()
+            ? attribute.floatFormat
+            : options.floatFormat;
+        return write(v, floatFormat);
+    }
+
+    // Enum
+    final void serialize(V)(V v, scope ref Serializable attribute)
+    if (is(V == enum))
+    {
+        if (attribute.enumFormat == EnumFormat.integral)
+        {
+            static if (is(V Base == enum) && isIntegral!Base)
+            {
+                static if (Base.max <= int.max)
+                    write(cast(int)v);
+                else
+                    write(cast(long)v);
+                return;
+            }
+        }
+
+        const vStr = v.to!string();
+        write(vStr);
+    }
+
+    // Chars/String
+    final void serialize(scope const(char)[] v, scope ref Serializable attribute)
+    {
+        write(v);
+    }
+
+    // String
+    final void serialize(string v, scope ref Serializable attribute)
+    {
+        write(v);
+    }
+
+    // Bytes/Binary
+    final void serialize(scope const(ubyte)[] v, scope ref Serializable attribute)
+    {
+        write(v, attribute.binaryFormat);
+    }
+
+    // Array
+    final void serialize(V)(V[] v, scope ref Serializable attribute)
+    if (!isSomeChar!V && !is(V == ubyte) && !is(V == byte))
+    {
+        static immutable elemTypeName = fullyQualifiedName!V;
+        arrayBegin(elemTypeName, v.length, attribute);
+        scope (success)
+            arrayEnd(elemTypeName, v.length, attribute);
+
+        foreach (i, ref e; v)
+        {
+            arrayItem(i);
+            serialize(e, attribute);
+        }
+    }
+
+    // Input range
+    final void serialize(R)(R v, scope ref Serializable attribute)
+    if (isInputRange!R && !isSomeChar!(ElementType!R) && !isDynamicArray!R)
+    {
+        static immutable typeName = fullyQualifiedName!(ElementType!R);
+        size_t length;
+        arrayBegin(typeName, -1, attribute);
+        scope (success)
+            arrayEnd(typeName, length, attribute);
+
+        foreach (ref e; v)
+        {
+            arrayItem(length);
+            serialize(e, attribute);
+            length++;
+        }
+    }
+
+    // Associative array with string key
+    final void serialize(V)(V[string] v, scope ref Serializable attribute)
+    {
+        static immutable typeName = fullyQualifiedName!(V[string]);
+        const length = v.length;
+        aggregateBegin(typeName, length, attribute);
+        scope (success)
+            aggregateEnd(typeName, length, attribute);
+
+        if (length == 0)
+            return;
+
+        size_t index;
+        Serializable memberAttribute = attribute;
         foreach (key, ref val; v)
         {
-            aggregateItem(index);
-            putKey(key);
-            serialize(val, serializable);
+            memberAttribute.name = key;
+            aggregateItem(index, memberAttribute);
+            writeKey(key);
+            serialize(val, memberAttribute);
             index++;
         }
     }
 
     // Associative array with integral key
-    final void serialize(V : const T[K], T, K)(V v, scope ref Serializable serializable)
+    final void serialize(V : const T[K], T, K)(V v, scope ref Serializable attribute) @trusted
     if (isIntegral!K && !is(K == enum))
     {
         import std.format : sformat;
 
-        if (v is null)
-        {
-            put(null);
-            return;
-        }
-
         static immutable typeName = fullyQualifiedName!T ~ "[" ~ K.stringof ~ "]";
-        size_t index;
-        aggregateBegin(typeName, v.length);
+        const length = v.length;
+        aggregateBegin(typeName, length, attribute);
         scope (success)
-            aggregateEnd(typeName, v.length);
+            aggregateEnd(typeName, length, attribute);
+
+        if (length == 0)
+            return;
+
+        size_t index;
         char[50] keyBuffer = void;
+        Serializable memberAttribute = attribute;
         foreach (key, ref val; v)
         {
-            auto keyStr = sformat(keyBuffer[], "%d", key);
-            aggregateItem(index);
-            putKeyId(keyStr);
-            serialize(val, serializable);
+            const keyStr = sformat(keyBuffer[], "%d", key);
+            memberAttribute.name = cast(string)keyStr;
+            aggregateItem(index, memberAttribute);
+            writeKeyId(keyStr);
+            serialize(val, memberAttribute);
             index++;
         }
     }
 
     // Associative array with enum key
-    final void serialize(V : const T[K], T, K)(V v, scope ref Serializable serializable)
+    final void serialize(V : const T[K], T, K)(V v, scope ref Serializable attribute)
     if (is(K == enum))
     {
-        if (v is null)
-        {
-            put(null);
-            return;
-        }
+        static immutable typeName = fullyQualifiedName!T ~ "[" ~ (fullyQualifiedName!K).stringof ~ "]";
+        const length = v.length;
+        aggregateBegin(typeName, length, attribute);
+        scope (success)
+            aggregateEnd(typeName, length, attribute);
 
-        static immutable typeName = fullyQualifiedName!T ~ "[" ~ K.stringof ~ "]";
+        if (length == 0)
+            return;
+
         string keyStr;
         size_t index;
-        aggregateBegin(typeName, v.length);
-        scope (success)
-            aggregateEnd(typeName, v.length);
+        Serializable memberAttribute = attribute;
         foreach (key, ref val; v)
         {
-            if (serializable.enumFormat == EnumFormat.integral)
+            if (memberAttribute.enumFormat == EnumFormat.integral)
             {
                 static if (is(K KBase == enum) && isIntegral!KBase)
                     keyStr = (cast(long)key).to!string();
@@ -945,75 +1781,84 @@ public:
             }
             else
                 keyStr = key.to!string();
-            aggregateItem(index);
-            putKeyId(keyStr);
-            serialize(val, serializable);
+            memberAttribute.name = keyStr;
+            aggregateItem(index, memberAttribute);
+            writeKeyId(keyStr);
+            serialize(val, memberAttribute);
             index++;
         }
     }
 
     // Aggregate (class, struct)
     final void serialize(V)(auto ref V v)
-    //if (isAggregateType!V && !isInputRange!V)
-    if ((is(V == class) || is(V == struct)) && !isInputRange!V)
+    if (isSerializerAggregateType!V)
     {
-        Serializable serializable;
-        serialize(v, serializable);
+        Serializable attribute;
+        begin();
+        serialize(v, attribute);
+        end();
     }
 
-    final void serialize(V)(auto ref V v, scope ref Serializable serializable) @trusted // opEqual
-    //if (isAggregateType!V && !isInputRange!V)
-    if ((is(V == class) || is(V == struct)) && !isInputRange!V)
+    final void serialize(V)(auto ref V v, scope ref Serializable attribute) @trusted // opEqual
+    if (isSerializerAggregateType!V)
     {
-        static if (is(V == class))
+        bool vIsNull() nothrow @safe
         {
-            if (v is null)
-            {
-                put(null);
-                return;
-            }
+            static if (is(V == class))
+                return v is null;
+            else
+                return false;
         }
+
+        size_t length;
+        static immutable typeName = fullyQualifiedName!V;
+        aggregateBegin(typeName, vIsNull() ? 0 : -1, attribute);
+        scope (success)
+            aggregateEnd(typeName, length, attribute);
+
+        if (vIsNull())
+            return;
 
         static if (__traits(hasMember, V, "serialize"))
         {
             /*
             static if (__traits(hasMember, V, "serializeBegin"))
-                v.serializeBegin(this, serializable);
+                v.serializeBegin(this, attribute);
             static if (__traits(hasMember, V, "serializeEnd"))
-                scope (success) v.serializeEnd(this, serializable);
+                scope (success) v.serializeEnd(this, attribute);
             */
-            v.serialize(this, serializable);
+            length = v.serialize(this, attribute);
             return;
         }
 
-        static immutable typeName = fullyQualifiedName!V;
-        size_t length;
-        bool hasMember;
         scope (success)
         {
-            if (hasMember)
+            if (length)
             {
                 static if (__traits(hasMember, V, "serializeEnd"))
-                    v.serializeEnd(this, serializable);
-                aggregateEnd(typeName, length);
+                    v.serializeEnd(this, attribute);
             }
         }
+
+        enum SerializableMemberOptions memberOptions = getSerializableMemberOptions!V();
         alias members = SerializerMemberList!V;
         foreach (member; members)
         {
-            if (!options.isWriterMember!member)
+            if (!isSerializerMember!(memberOptions, member)())
                 continue;
 
-            //pragma(msg, V.stringof ~ "." ~ member.memberName);
+            //pragma(msg, V.stringof ~ "." ~ member.memberName ~ "." ~ member.attribute.name);
 
             static if (__traits(compiles, __traits(child, v, member.memberGet)))
-            {            
+            {
+                //import std.stdio : writeln; debug writeln(V.stringof, ".", member.memberName, ".", member.attribute.name);
+
                 auto memberValue = __traits(child, v, member.memberGet);
                 Serializable memberAttribute = member.attribute;
 
                 if (memberAttribute.condition == Condition.ignoredNull)
                 {
-                    static if (!isStaticArray!(member.memberType) && 
+                    static if (!isStaticArray!(member.memberType) &&
                         (is(member.memberType == class) || is(member.memberType : T[], T) || is(member.memberType : const T[K], T, K)))
                     {
                         if (memberValue is null)
@@ -1022,70 +1867,45 @@ public:
                 }
                 else if (memberAttribute.condition == Condition.ignoredDefault)
                 {
-                    if (memberValue == __traits(child, V.init, member.memberGet))
                     //if ((() @trusted => memberValue == __traits(child, V.init, member.memberGet))())
+                    if (memberValue == __traits(child, V.init, member.memberGet))
                         continue;
                 }
 
-                if (!hasMember)
+                // First member?
+                if (length == 0)
                 {
-                    hasMember = true;
-                    aggregateBegin(typeName, -1);
                     static if (__traits(hasMember, V, "serializeBegin"))
-                        v.serializeBegin(this, serializable);
+                        v.serializeBegin(this, attribute);
                 }
 
-                aggregateItem(length);
-                putKey(member.attribute.serializableName(member.memberName));
+                aggregateItem(length, memberAttribute);
+                writeKey(memberAttribute.name);
                 if (!serializeCustom!(member.memberType)(memberValue, memberAttribute))
-                    serialize(memberValue, memberAttribute);                
+                    serialize(memberValue, memberAttribute);
                 length++;
             }
         }
     }
 
-    final void serializeAny(V)(auto ref V v, scope ref Serializable serializable)
+    final void serializeAny(V)(auto ref V v, scope ref Serializable attribute)
     {
-        if (!serializeCustom!V(v, serializable))
-            serialize!V(v, serializable);
-    }
-    
-    // Customized types
-    final bool serializeCustom(V)(auto ref V v, scope ref Serializable attribute) @trusted // parameter address & access __gshared customSerializedTypes
-    {
-        alias UV = Unqual!V;
-        if (auto f = fullyQualifiedName!V in customSerializedTypes)
-        {
-            (*f)(this, cast(UV*)&v, attribute);
-            return true;
-        }
-        
-        return false;
+        if (!serializeCustom!V(v, attribute))
+            serialize!V(v, attribute);
     }
 
-    alias SerializeFunction = void function(Serializer serializer, scope void* value, scope ref Serializable attribute) @safe;
-    
-    static SerializeFunction registerSerialize(string type, SerializeFunction serialize) @trusted // access __gshared customSerializedTypes
-    in
-    {   
-        assert(type.length > 0);
-        assert(serialize !is null);
-    }
-    do
+    // Customized types
+    final bool serializeCustom(V)(auto ref V v, scope ref Serializable attribute) @trusted // parameter address & access __gshared customDSeserializedFunctions
     {
-        SerializeFunction result;
-        if (auto f = type in customSerializedTypes)
-            result = *f;
-        customSerializedTypes[type] = serialize;
-        return result;
+        alias UV = Unqual!V;
+        if (auto f = fullyQualifiedName!V in customDSeserializedFunctions)
+        {
+            (*f).serialize(this, cast(UV*)&v, attribute);
+            return true;
+        }
+
+        return false;
     }
-    
-public:
-    SerializerOptions options;
-    size_t depth;
-    
-private:
-    static __gshared SerializeFunction[string] customSerializedTypes;
 }
 
 struct StaticBuffer(T, size_t capacity)
@@ -1094,12 +1914,12 @@ nothrow @safe:
 
     T[capacity] data = 0; // 0=Make its struct to be zero initializer
     size_t length;
-    
+
     T[] opSlice() @nogc return
     {
         return data[0..length];
     }
-    
+
     pragma(inline, true)
     void put(T c) @nogc
     in
@@ -1110,7 +1930,7 @@ nothrow @safe:
     {
         data[length++] = c;
     }
-    
+
     void put(scope const(T)[] s) @nogc
     in
     {
@@ -1122,7 +1942,7 @@ nothrow @safe:
         data[length..nl] = s[0..$];
         length = nl;
     }
-    
+
     ref typeof(this) reset() @nogc return
     {
         length = 0;
@@ -1134,35 +1954,35 @@ T asciiCaseInplace(T)(return scope T s, const(CharacterCaseFormat) characterCase
 if (isDynamicArray!T)
 {
     import std.ascii : isLower, isUpper;
-    
+
     final switch (characterCaseFormat)
     {
-        case CharacterCaseFormat.normal: 
+        case CharacterCaseFormat.normal:
             return s;
-        case CharacterCaseFormat.upper: 
+        case CharacterCaseFormat.upper:
             foreach (ref c; s)
             {
                 if (isLower(c))
                     c = cast(char)(c - ('a' - 'A'));
             }
             return s;
-        case CharacterCaseFormat.lower: 
+        case CharacterCaseFormat.lower:
             foreach (ref c; s)
             {
                 if (isUpper(c))
                     c = cast(char)(c + ('a' - 'A'));
             }
             return s;
-    }    
+    }
 }
 
-SerializerScope toSerializerScope(scope const(char)[] visibility) @nogc nothrow pure
+SerializableMemberScope toSerializableMemberScope(scope const(char)[] visibility) @nogc nothrow pure
 {
     return visibility == "public" || visibility == "export"
-        ? SerializerScope.public_
+        ? SerializableMemberScope.public_
         : (visibility == "protected" || visibility == "package"
-            ? SerializerScope.protected_
-            : SerializerScope.private_); // visibility == "private"
+            ? SerializableMemberScope.protected_
+            : SerializableMemberScope.private_); // visibility == "private"
 }
 
 version (unittest)
@@ -1183,6 +2003,7 @@ package(pham.utl):
     {
     public:
         int publicInt;
+        private int _publicGetSet;
 
         int publicGetSet()
         {
@@ -1204,20 +2025,27 @@ package(pham.utl):
         {
             return int.max;
         }
-        
+
         ref UnitTestS1 setValues() return
         {
             _publicGetSet = 1;
-            _protectedGetSet = 3;
-            _privateGetSet = 5;
             publicInt = 20;
-            protectedInt = 0;
-            privateInt = 0;
             return this;
         }
 
+        void assertValues()
+        {
+            assert(_publicGetSet == 1, _publicGetSet.to!string);
+            assert(_protectedGetSet == 3, _protectedGetSet.to!string);
+            assert(_privateGetSet == 5, _privateGetSet.to!string);
+            assert(publicInt == 20, publicInt.to!string);
+            assert(protectedInt == 0, protectedInt.to!string);
+            assert(privateInt == 0, privateInt.to!string);
+        }
+
     protected:
-        int protectedInt;
+        int protectedInt = 0;
+        int _protectedGetSet = 3;
 
         int protectedGetSet()
         {
@@ -1231,7 +2059,8 @@ package(pham.utl):
         }
 
     private:
-        int privateInt;
+        int privateInt = 0;
+        int _privateGetSet = 5;
 
         int privateGetSet()
         {
@@ -1243,10 +2072,6 @@ package(pham.utl):
             _privateGetSet = i;
             return i;
         }
-        
-        int _publicGetSet;
-        int _protectedGetSet;
-        int _privateGetSet;
     }
 
     static class UnitTestC1
@@ -1255,6 +2080,7 @@ package(pham.utl):
         @Serializable("Int")
         int publicInt;
 
+        private int _publicGetSet;
         UnitTestS1 publicStruct;
 
         @Serializable("GetSet")
@@ -1278,35 +2104,44 @@ package(pham.utl):
         {
             return int.max;
         }
-        
+
         UnitTestC1 setValues()
         {
             _publicGetSet = 1;
-            _protectedGetSet = 3;
-            _privateGetSet = 5;
             publicInt = 30;
             publicStruct.setValues();
-            protectedInt = 0;
-            privateInt = 0;
             return this;
         }
 
+        void assertValues()
+        {
+            assert(_publicGetSet == 1, _publicGetSet.to!string);
+            assert(_protectedGetSet == 3, _protectedGetSet.to!string);
+            assert(_privateGetSet == 5, _privateGetSet.to!string);
+            assert(publicInt == 30, publicInt.to!string);
+            publicStruct.assertValues();
+            assert(protectedInt == 0, protectedInt.to!string);
+            assert(privateInt == 0, privateInt.to!string);
+        }
+
     protected:
-        int protectedInt;
+        int protectedInt = 0;
+        int _protectedGetSet = 3;
 
         int protectedGetSet()
         {
-            return protectedGetSet;
+            return _protectedGetSet;
         }
 
         int protectedGetSet(int i)
         {
-            protectedGetSet = i;
+            _protectedGetSet = i;
             return i;
         }
 
     private:
-        int privateInt;
+        int privateInt = 0;
+        int _privateGetSet = 5;
 
         int privateGetSet()
         {
@@ -1318,28 +2153,29 @@ package(pham.utl):
             _privateGetSet = i;
             return i;
         }
-        
-        int _publicGetSet;
-        int _protectedGetSet;
-        int _privateGetSet;
     }
 
     class UnitTestC2 : UnitTestC1
     {
     public:
-        string publicStr = "C2 public string";
+        string publicStr;
 
         override int publicGetSet()
         {
             return _publicGetSet;
         }
-        
+
         override UnitTestC2 setValues()
         {
             super.setValues();
-            _publicGetSet = 11;
             publicStr = "C2 public string";
             return this;
+        }
+
+        override void assertValues()
+        {
+            super.assertValues();
+            assert(publicStr == "C2 public string", publicStr);
         }
     }
 
@@ -1372,7 +2208,7 @@ package(pham.utl):
         UnitTestS1 struct1;
         UnitTestC1 class1;
         UnitTestC1 class1Null;
-        
+
         UnitTestAllTypes setValues()
         {
             enum1 = UnitTestEnum.third;
@@ -1407,6 +2243,42 @@ package(pham.utl):
             class1Null = null;
             return this;
         }
+
+        void assertValues()
+        {
+            import std.math : isInfinity, isNaN;
+
+            assert(enum1 == UnitTestEnum.third, enum1.to!string);
+            assert(bool1 == true, bool1.to!string);
+            assert(byte1 == 101, byte1.to!string);
+            assert(short1 == -1003, short1.to!string);
+            assert(ushort1 == 3975, ushort1.to!string);
+            assert(int1 == -382653, int1.to!string);
+            assert(uint1 == 3957209, uint1.to!string);
+            assert(long1 == -394572364, long1.to!string);
+            assert(ulong1 == 284659274, ulong1.to!string);
+            assert(float1 == 6394763.5, float1.to!string);
+            assert(floatNaN.isNaN, floatNaN.to!string);
+            assert(double1 == -2846627456445.765, double1.to!string);
+            assert(doubleInf.isInfinity, doubleInf.to!string);
+            assert(string1 == "test string of", string1);
+            assert(charArray == "will this work?", charArray);
+            assert(binary1 == [37,24,204,101,43], binary1.to!string);
+            assert(intArray == [135,937,3725,3068,38465,380], intArray.to!string);
+            assert(intArrayNull is null);
+            assert(intInt[2] == 23456, intInt[2].to!string);
+            assert(intInt[11] == 113456, intInt[11].to!string);
+            assert(intIntNull is null);
+            assert(enumEnum[UnitTestEnum.third] == UnitTestEnum.second, enumEnum[UnitTestEnum.third].to!string);
+            assert(enumEnum[UnitTestEnum.forth] == UnitTestEnum.sixth, enumEnum[UnitTestEnum.forth].to!string);
+            assert(strStr["key1"] == "key1 value", strStr["key1"]);
+            assert(strStr["key2"] == "key2 value", strStr["key2"]);
+            assert(strStr["key3"] is null, strStr["key3"]);
+            struct1.assertValues();
+            assert(class1 !is null);
+            class1.assertValues();
+            assert(class1Null is null);
+        }
     }
 }
 
@@ -1430,20 +2302,10 @@ string[] filterMembers(string[] allMembers) nothrow pure
     string[] result;
     result.reserve(allMembers.length);
 
-    NextLoop:
     foreach (member; allMembers)
     {
-        // Build in members
-        if (member.length >= 2 && (member[0..2] == "__" || member[$ - 2..$] == "__"))
-            continue;
-
-        foreach (excludedMember; excludedMembers)
-        {
-            if (excludedMember == member)
-                continue NextLoop;
-        }
-
-        result ~= member;
+        if (!isExcludedMember(member))
+            result ~= member;
     }
 
     return result;
@@ -1509,7 +2371,7 @@ unittest // SerializerMemberList
     {
         names ~= s1[i].memberName;
     }
-    assert(names == ["publicInt", "publicGetSet", "protectedInt", "protectedGetSet", "privateInt", "privateGetSet", "_publicGetSet", "_protectedGetSet", "_privateGetSet"], to!string(names));
+    assert(names == ["publicInt", "_publicGetSet", "publicGetSet", "protectedInt", "_protectedGetSet", "protectedGetSet", "privateInt", "_privateGetSet", "privateGetSet"], names.to!string());
 
     //const tes = s1.map(e => e.memberName);
     //import std.stdio; writeln; debug writeln("tes=", tes);
@@ -1522,7 +2384,7 @@ unittest // SerializerMemberList
     {
         names ~= c1[i].memberName;
     }
-    assert(names == ["publicInt", "publicStruct", "publicGetSet", "protectedInt", "protectedGetSet", "privateInt", "privateGetSet", "_publicGetSet", "_protectedGetSet", "_privateGetSet"], to!string(names));
+    assert(names == ["publicInt", "_publicGetSet", "publicStruct", "publicGetSet", "protectedInt", "_protectedGetSet", "protectedGetSet", "privateInt", "_privateGetSet", "privateGetSet"], names.to!string());
 
     names = null;
     //pragma(msg, SerializerMemberList!UnitTestC2);
@@ -1532,50 +2394,51 @@ unittest // SerializerMemberList
     {
         names ~= c2[i].memberName;
     }
-    assert(names == ["publicStr", "publicGetSet", "publicInt", "publicStruct", "protectedInt", "protectedGetSet", "privateInt", "privateGetSet", "_publicGetSet", "_protectedGetSet", "_privateGetSet"], to!string(names));
+    assert(names == ["publicInt", "_publicGetSet", "publicStruct", "publicGetSet", "protectedInt", "_protectedGetSet", "protectedGetSet", "privateInt", "_privateGetSet", "privateGetSet", "publicStr"], names.to!string());
 }
 
-unittest // SerializerOptions - Default
+unittest // SerializableMemberOptions - Default
 {
     import std.conv : to;
-    SerializerOptions options;
 
-    const readerMembers = options.readerMembers!UnitTestS1();
-    assert(readerMembers.length == 2, to!string(readerMembers.length) ~ "." ~ to!string(readerMembers));
-    assert(readerMembers == ["publicInt", "publicGetSet"]);
+    SerializableMemberOptions options;
 
-    const writerMembers = options.writerMembers!UnitTestS1();
-    assert(writerMembers.length == 2, to!string(writerMembers.length) ~ "." ~ to!string(writerMembers));
-    assert(writerMembers == ["publicInt", "publicGetSet"]);
+    const deserializerMembers = getDeserializerMembers!(UnitTestS1, options)();
+    assert(deserializerMembers.length == 2, deserializerMembers.length.to!string() ~ "." ~ deserializerMembers.to!string());
+    assert(deserializerMembers == ["publicInt", "publicGetSet"]);
+
+    const serializerMembers = getSerializerMembers!(UnitTestS1, options)();
+    assert(serializerMembers.length == 2, serializerMembers.length.to!string() ~ "." ~ serializerMembers.to!string());
+    assert(serializerMembers == ["publicInt", "publicGetSet"]);
 }
 
-unittest // SerializerOptions - Change options
+unittest // SerializableMemberOptions - Change options
 {
     import std.conv : to;
-    SerializerOptions options;
+    SerializableMemberOptions options;
 
     // All scopes
-    options.memberScopes = SerializerScope.public_ | SerializerScope.protected_ | SerializerScope.private_;
-    static immutable expectAllScopes = ["publicStr", "publicGetSet", "publicInt", "publicStruct", "protectedInt", "protectedGetSet", "privateInt", "privateGetSet", "_publicGetSet", "_protectedGetSet", "_privateGetSet"];
+    options.scopes = SerializableMemberScope.public_ | SerializableMemberScope.protected_ | SerializableMemberScope.private_;
+    static immutable expectAllScopes = ["publicInt", "_publicGetSet", "publicStruct", "publicGetSet", "protectedInt", "_protectedGetSet", "protectedGetSet", "privateInt", "_privateGetSet", "privateGetSet", "publicStr"];
 
-    const readerMembers = options.readerMembers!UnitTestC2();
-    //import std.stdio; writeln; debug writeln(readerMembers); debug writeln(expectAllScopes);
-    assert(readerMembers.length == 11, to!string(readerMembers.length) ~ "." ~ to!string(readerMembers));
-    assert(readerMembers == expectAllScopes, to!string(readerMembers));
-    const writerMembers = options.writerMembers!UnitTestC2();
-    assert(writerMembers.length == 11, to!string(writerMembers.length) ~ "." ~ to!string(writerMembers));
-    assert(writerMembers == expectAllScopes, to!string(writerMembers));
+    const deserializerMembers = getDeserializerMembers!(UnitTestC2, options)();
+    //import std.stdio; writeln; debug writeln(deserializerMembers); debug writeln(expectAllScopes);
+    assert(deserializerMembers.length == 11, deserializerMembers.length.to!string() ~ "." ~ deserializerMembers.to!string());
+    assert(deserializerMembers == expectAllScopes, deserializerMembers.to!string());
+    const serializerMembers = getSerializerMembers!(UnitTestC2, options)();
+    assert(serializerMembers.length == 11, serializerMembers.length.to!string() ~ "." ~ serializerMembers.to!string());
+    assert(serializerMembers == expectAllScopes, serializerMembers.to!string());
 
     // With attribute only
-    options.memberScopes = SerializerScope.public_ | SerializerScope.protected_ | SerializerScope.private_;
-    options.memberFlags = SerializerMemberFlag.isGetSet | SerializerMemberFlag.explicitUDA;
-    static immutable expectAttributeOnly = ["publicGetSet", "publicInt"];
+    options.scopes = SerializableMemberScope.public_ | SerializableMemberScope.protected_ | SerializableMemberScope.private_;
+    options.flags = SerializableMemberFlag.isGetSet | SerializableMemberFlag.explicitUDA;
+    static immutable expectAttributeOnly = ["publicInt", "publicGetSet"];
 
-    const readerMembers2 = options.readerMembers!UnitTestC2();
-    //import std.stdio; writeln; debug writeln(readerMembers2); debug writeln(expectAttributeOnly);
-    assert(readerMembers2.length == 2, to!string(readerMembers2.length) ~ "." ~ to!string(readerMembers2));
-    assert(readerMembers2 == expectAttributeOnly, to!string(readerMembers2));
-    const writerMembers2 = options.writerMembers!UnitTestC2();
-    assert(writerMembers2.length == 2, to!string(writerMembers2.length) ~ "." ~ to!string(writerMembers2));
-    assert(writerMembers2 == expectAttributeOnly, to!string(writerMembers2));
+    const deserializerMembers2 = getDeserializerMembers!(UnitTestC2, options)();
+    //import std.stdio; writeln; debug writeln(deserializerMembers2); debug writeln(expectAttributeOnly);
+    assert(deserializerMembers2.length == 2, deserializerMembers2.length.to!string() ~ "." ~ deserializerMembers2.to!string());
+    assert(deserializerMembers2 == expectAttributeOnly, deserializerMembers2.to!string());
+    const serializerMembers2 = getSerializerMembers!(UnitTestC2, options)();
+    assert(serializerMembers2.length == 2, serializerMembers2.length.to!string() ~ "." ~ serializerMembers2.to!string());
+    assert(serializerMembers2 == expectAttributeOnly, serializerMembers2.to!string());
 }

@@ -243,7 +243,7 @@ if (!isScalarType!T1 && !isScalarType!T2)
 string errorCodeToString(I)(I errorCode) nothrow pure
 if (isIntegral!I)
 {
-    return "0x" ~ to!string(errorCode, 16) ~ " (" ~ to!string(errorCode) ~ ")";
+    return "0x" ~ to!string(errorCode, 16) ~ " (" ~ errorCode.to!string() ~ ")";
 }
 
 string genericErrorMessage(I)(string apiName, I errorCode) nothrow pure
@@ -696,7 +696,7 @@ public:
         if (errorCode != 0)
             addLine(result, "Error code: " ~ errorCodeToString(errorCode));
         if (file.length != 0)
-            addLine(result, "File: " ~ file ~ " at line# " ~ to!string(line));
+            addLine(result, "File: " ~ file ~ " at line# " ~ line.to!string());
         if (funcName.length != 0)
             addLine(result, "Function: " ~ funcName);
 
@@ -738,7 +738,7 @@ string osCharToString(scope const(char)[] v) nothrow pure
 {
     scope (failure) assert(0, "Assume nothrow failed");
     
-    auto result = to!string(v);
+    auto result = v.to!string();
     while (result.length && result[$ - 1] <= ' ')
         result = result[0..$ - 1];
     return result;
@@ -748,7 +748,7 @@ string osWCharToString(scope const(wchar)[] v) nothrow pure
 {
     scope (failure) assert(0, "Assume nothrow failed");
     
-    auto result = to!string(v);
+    auto result = v.to!string();
     while (result.length && result[$ - 1] <= ' ')
         result = result[0..$ - 1];
     return result;
