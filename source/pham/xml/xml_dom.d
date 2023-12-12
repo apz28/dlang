@@ -4375,7 +4375,7 @@ unittest  // XmlDocument
 
     string dgOutputFailure()
     {
-        return "\n" ~ to!string(doc.outerXml()) ~ "\n" ~ sampleXml;
+        return "\n" ~ doc.outerXml().to!string() ~ "\n" ~ sampleXml;
     }
 
     assert(doc.outerXml() == sampleXml, dgOutputFailure());
@@ -4433,7 +4433,7 @@ unittest // XmlNodeList
     foreach (n; rootElementTags)
         elementsLength++;
     assert(elementsLength == 2);
-    assert(rootElementTags.length == elementsLength, to!string(rootElementTags.length));
+    assert(rootElementTags.length == elementsLength, rootElementTags.length.to!string());
     assert(!rootElementTags.empty);
 
     auto rootElementTags2 = doc.documentElement.getElementsByTagName("localname", "*");

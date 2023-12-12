@@ -1013,7 +1013,7 @@ private:
 
         auto q = expectChar!(0)("\"'");
         XmlString!S data;
-        if (!reader.readUntilText!false(data, to!S(q)))
+        if (!reader.readUntilText!false(data, q.to!S()))
             expectChar!(0)(q);
 
         version (xmlTraceParser)
@@ -1186,12 +1186,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "withAttributeOnly", L.front.name);
     assert(L.front.localName == "withAttributeOnly", L.front.localName);
     assert(L.front.hasAttributes);
@@ -1205,12 +1205,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "withAttributeOnly2", L.front.name);
     assert(L.front.localName == "withAttributeOnly2", L.front.localName);
     assert(L.front.hasAttributes);
@@ -1225,12 +1225,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "attributeWithNP", L.front.name);
     assert(L.front.localName == "attributeWithNP", L.front.localName);
     assert(L.front.hasAttributes);
@@ -1244,12 +1244,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "withAttributeAndChild", L.front.name);
     assert(L.front.localName == "withAttributeAndChild", L.front.localName);
     assert(L.front.hasAttributes);
@@ -1265,12 +1265,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "child", L.front.name);
     assert(L.front.localName == "child", L.front.localName);
     assert(!L.front.hasAttributes);
@@ -1283,12 +1283,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "child", L.front.name);
     assert(L.front.localName == "child", L.front.localName);
     assert(!L.front.hasAttributes);
@@ -1301,16 +1301,16 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
 
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "childWithText", L.front.name);
     assert(L.front.localName == "childWithText", L.front.localName);
     assert(!L.front.hasAttributes);
@@ -1324,12 +1324,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "childWithText2", L.front.name);
     assert(L.front.localName == "childWithText2", L.front.localName);
     assert(!L.front.hasAttributes);
@@ -1343,12 +1343,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "myNS:nodeWithNP", L.front.name);
     assert(L.front.localName == "nodeWithNP", L.front.localName);
     assert(!L.front.hasAttributes);
@@ -1359,12 +1359,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, (L.front.nodeType.to!string));
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.comment, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.comment, L.front.nodeType.to!string());
     assert(!L.front.hasAttributes);
     assert(!L.front.hasChildNodes);
     assert(L.front.value = " This is a -- comment ", L.front.value);
@@ -1374,12 +1374,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.cdata, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.cdata, L.front.nodeType.to!string());
     assert(!L.front.hasAttributes);
     assert(!L.front.hasChildNodes);
     assert(L.front.value = " dataSection! ", L.front.value);
@@ -1389,7 +1389,7 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
@@ -1404,12 +1404,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "withAttributeOnly", L.front.name);
     assert(L.front.localName == "withAttributeOnly", L.front.localName);
     assert(L.front.hasAttributes);
@@ -1423,12 +1423,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "withAttributeOnly2", L.front.name);
     assert(L.front.localName == "withAttributeOnly2", L.front.localName);
     assert(L.front.hasAttributes);
@@ -1443,12 +1443,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "attributeWithNP", L.front.name);
     assert(L.front.localName == "attributeWithNP", L.front.localName);
     assert(L.front.hasAttributes);
@@ -1462,12 +1462,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "withAttributeAndChild", L.front.name);
     assert(L.front.localName == "withAttributeAndChild", L.front.localName);
     assert(L.front.hasAttributes);
@@ -1483,12 +1483,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "childWithText", L.front.name);
     assert(L.front.localName == "childWithText", L.front.localName);
     assert(!L.front.hasAttributes);
@@ -1501,12 +1501,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "childWithText2", L.front.name);
     assert(L.front.localName == "childWithText2", L.front.localName);
     assert(!L.front.hasAttributes);
@@ -1519,12 +1519,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.element, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.element, L.front.nodeType.to!string());
     assert(L.front.name == "myNS:nodeWithNP", L.front.name);
     assert(L.front.localName == "nodeWithNP", L.front.localName);
     assert(!L.front.hasAttributes);
@@ -1535,12 +1535,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.comment, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.comment, L.front.nodeType.to!string());
     assert(!L.front.hasAttributes);
     assert(!L.front.hasChildNodes);
     assert(L.front.value = " This is a -- comment ", L.front.value);
@@ -1550,12 +1550,12 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 
     assert(!L.empty);
-    assert(L.front.nodeType == XmlNodeType.cdata, to!string(L.front.nodeType));
+    assert(L.front.nodeType == XmlNodeType.cdata, L.front.nodeType.to!string());
     assert(!L.front.hasAttributes);
     assert(!L.front.hasChildNodes);
     assert(L.front.value = " dataSection! ", L.front.value);
@@ -1565,7 +1565,7 @@ XML";
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
-        assert(L.front.nodeType == XmlNodeType.whitespace, to!string(L.front.nodeType));
+        assert(L.front.nodeType == XmlNodeType.whitespace, L.front.nodeType.to!string());
         L.popFront();
     }
 

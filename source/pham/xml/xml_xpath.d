@@ -1602,10 +1602,10 @@ protected:
     {
         if (functionType != XPathFunctionType.userDefined)
         {
-            XPathFunctionTable!S.defaultFunctionTable().find(to!S(functionType), evaluateFct);
+            XPathFunctionTable!S.defaultFunctionTable().find(functionType.to!S(), evaluateFct);
 
             if (evaluateFct is null)
-                throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), to!S(functionType));
+                throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), functionType.to!S());
         }
         else
         {
@@ -1848,7 +1848,7 @@ public:
 
         writer.putIndent();
         writer.put(toUTF!(string, S)(className(this)));
-        writer.putAttribute("::opType", to!S(opType));
+        writer.putAttribute("::opType", opType.to!S());
         writer.incNodeLevel();
         operand1.write(writer.putLF());
         operand2.write(writer.putLF());
@@ -2596,7 +2596,7 @@ public:
         version (xmlTraceXPathParser)
         outputXmlTraceXPathParserF("scanNumberM(%s [%d..%d])", _xPathExpression[start..end], start, end);
 
-        return to!double(_xPathExpression[start..end]);
+        return _xPathExpression[start..end].to!double();
     }
 
     double scanNumberS() nothrow
@@ -2630,7 +2630,7 @@ public:
         version (xmlTraceXPathParser)
         outputXmlTraceXPathParserF("scanNumberS(%s [%d..%d])", _xPathExpression[start..end], start, end);
 
-        return to!double(_xPathExpression[start..end]);
+        return _xPathExpression[start..end].to!double();
     }
 
     S scanText()
@@ -4359,7 +4359,7 @@ if (isXmlString!S)
     outputXmlTraceXPathParserF("toNumber(value: %s)", value);
 
     value = strip(value);
-    return (value.length == 0) ? double.nan : to!double(value);
+    return (value.length == 0) ? double.nan : value.to!double();
 }
 
 S toText(S)(bool value) nothrow pure
@@ -4386,7 +4386,7 @@ if (isXmlString!S)
     {
         try
         {
-            return to!S(value);
+            return value.to!S();
         }
         catch (Exception)
         {
