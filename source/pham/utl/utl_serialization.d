@@ -78,32 +78,60 @@ public:
     this(string name,
         Condition condition = Condition.required) @nogc pure
     {
+        this(name, null, condition);
+    }
+
+    this(string name, string memberName,
+        Condition condition = Condition.required) @nogc pure
+    {
         this.name = name;
+        this.memberName = memberName;
         this.condition = condition;
     }
 
     this(string name, BinaryFormat binaryFormat,
         Condition condition = Condition.required) @nogc pure
     {
+        this(name, null, binaryFormat, condition);
+    }
+
+    this(string name, string memberName, BinaryFormat binaryFormat,
+        Condition condition = Condition.required) @nogc pure
+    {
         this.name = name;
-        this.condition = condition;
+        this.memberName = memberName;
         this.binaryFormat = binaryFormat;
+        this.condition = condition;
     }
 
     this(string name, EnumFormat enumFormat,
         Condition condition = Condition.required) @nogc pure
     {
+        this(name, null, enumFormat, condition);
+    }
+
+    this(string name, string memberName, EnumFormat enumFormat,
+        Condition condition = Condition.required) @nogc pure
+    {
         this.name = name;
-        this.condition = condition;
+        this.memberName = memberName;
         this.enumFormat = enumFormat;
+        this.condition = condition;
     }
 
     this(string name, FloatFormat floatFormat,
         Condition condition = Condition.required) @nogc pure
     {
+        this(name, null, floatFormat, condition);
+    }
+
+    this(string name, string memberName, FloatFormat floatFormat,
+        Condition condition = Condition.required) @nogc pure
+    {
         this.name = name;
-        this.condition = condition;
+        this.memberName = memberName;
         this.floatFormat = floatFormat;
+        this.condition = condition;
     }
 
     this(Serializable other, string memberName) @nogc pure
@@ -128,6 +156,7 @@ public:
     BinaryFormat binaryFormat;
     EnumFormat enumFormat;
     FloatFormat floatFormat = FloatFormat(ubyte.max, false);
+    bool symbolName;
 }
 
 enum SerializableMemberFlag : ubyte
@@ -417,13 +446,13 @@ template hasUDA(alias symbol, alias attribute)
     enum bool hasUDA = getUDAs!(symbol, attribute).length != 0;
 }
 
-bool isExcludedMember(const(string) memberName) @nogc nothrow pure
+bool isExcludedBuildinMember(const(string) memberName) @nogc nothrow pure
 {
     // Build in members
     if (memberName.length >= 2 && (memberName[0..2] == "__" || memberName[$-2..$] == "__"))
         return true;
 
-    foreach (const excludedMember; excludedMembers)
+    foreach (const excludedMember; excludedBuildinMembers)
     {
         if (excludedMember == memberName)
             return true;
@@ -452,10 +481,10 @@ static immutable FloatLiteral[13] floatLiterals = [
     FloatLiteral("Infinity", IsFloatLiteral.pinf),
     FloatLiteral("-Infinity", IsFloatLiteral.ninf),
     // Other support texts
-    FloatLiteral("nan", IsFloatLiteral.nan), 
-    FloatLiteral("NAN", IsFloatLiteral.nan), 
-    FloatLiteral("inf", IsFloatLiteral.pinf), 
-    FloatLiteral("+inf", IsFloatLiteral.pinf), 
+    FloatLiteral("nan", IsFloatLiteral.nan),
+    FloatLiteral("NAN", IsFloatLiteral.nan),
+    FloatLiteral("inf", IsFloatLiteral.pinf),
+    FloatLiteral("+inf", IsFloatLiteral.pinf),
     FloatLiteral("infinity", IsFloatLiteral.pinf),
     FloatLiteral("+infinity", IsFloatLiteral.pinf),
     FloatLiteral("Infinite", IsFloatLiteral.pinf), // dlang.std.json
@@ -807,6 +836,8 @@ enum SerializerDataType : ubyte
     char_,
     chars,
     charsKey,
+    wchars,
+    dchars,
     bytes,
     aggregateBegin,
     aggregateEnd,
@@ -819,6 +850,8 @@ bool isNullableDataType(const(SerializerDataType) dataType) @nogc nothrow pure @
 {
     return dataType == SerializerDataType.null_
         || dataType == SerializerDataType.chars
+        || dataType == SerializerDataType.wchars
+        || dataType == SerializerDataType.dchars
         || dataType == SerializerDataType.bytes;
 }
 
@@ -1097,8 +1130,8 @@ public:
 
     abstract bool empty() nothrow;
     abstract SerializerDataType frontDataType() nothrow;
-    abstract bool hasArrayEle(size_t i, ptrdiff_t len) nothrow;
     abstract bool hasAggregateEle(size_t i, ptrdiff_t len) nothrow;
+    abstract bool hasArrayEle(size_t i, ptrdiff_t len) nothrow;
 
     abstract Null readNull();
     abstract bool readBool();
@@ -1110,6 +1143,8 @@ public:
     abstract float readFloat(const(FloatFormat) floatFormat);
     abstract double readDouble(const(FloatFormat) floatFormat);
     abstract string readChars();
+    abstract wstring readWChars();
+    abstract dstring readDChars();
     abstract const(char)[] readScopeChars();
     abstract ubyte[] readBytes(const(BinaryFormat) binaryFormat);
     abstract const(ubyte)[] readScopeBytes(const(BinaryFormat) binaryFormat);
@@ -1196,6 +1231,30 @@ public:
     final void deserialize(ref string v, scope ref Serializable attribute)
     {
         v = readChars();
+    }
+
+    // WChars/WString
+    final void deserialize(ref wchar[] v, scope ref Serializable attribute)
+    {
+        v = readWChars().dup;
+    }
+
+    // WString
+    final void deserialize(ref wstring v, scope ref Serializable attribute)
+    {
+        v = readWChars();
+    }
+
+    // DChars/DString
+    final void deserialize(ref dchar[] v, scope ref Serializable attribute)
+    {
+        v = readDChars().dup;
+    }
+
+    // WString
+    final void deserialize(ref dstring v, scope ref Serializable attribute)
+    {
+        v = readDChars();
     }
 
     // Bytes/Binary
@@ -1352,12 +1411,13 @@ public:
     if (isSerializerAggregateType!V)
     {
         //pragma(msg, "\ndeserialize()", fullyQualifiedName!V);
-        //import std.stdio : writeln; debug writeln(fullyQualifiedName!V, ".", len);
+        //import std.stdio : writeln; debug writeln(fullyQualifiedName!V);
         static immutable typeName = fullyQualifiedName!V;
-        size_t memberSet;
+        enum SerializableMemberOptions memberOptions = getSerializableMemberOptions!V();
+        ptrdiff_t deserializedLength;
         const readLength = aggregateBegin(typeName, attribute);
         scope (success)
-            aggregateEnd(typeName, memberSet, attribute);
+            aggregateEnd(typeName, deserializedLength, attribute);
 
         if (readLength == 0)
         {
@@ -1374,97 +1434,96 @@ public:
                 v = new V();
         }
 
-        static if (__traits(hasMember, V, "deserialize"))
-        {
-            memberSet = v.deserialize(this, readLength, attribute);
-            return;
-        }
-
         scope (success)
         {
-            if (memberSet)
-            {
-                static if (__traits(hasMember, V, "deserializeEnd"))
-                    v.deserializeEnd(this, memberSet, attribute);
-            }
+            static if (__traits(hasMember, V, "deserializeEnd"))
+                v.deserializeEnd(this, deserializedLength, attribute);
         }
 
-        enum MemberMatched {none, deserialize, ok }
-        enum SerializableMemberOptions memberOptions = getSerializableMemberOptions!V();
-        alias members = SerializerMemberList!V;
-        size_t i;
-        while (hasAggregateEle(i, readLength))
+        static if (__traits(hasMember, V, "deserialize"))
         {
-            MemberMatched memberMatched = MemberMatched.none;
-            const memberName = readKey();
-            //import std.stdio : writeln; debug writeln("i=", i, ", memberName=", memberName);
-
-            static foreach (member; members)
+            static if (__traits(hasMember, V, "deserializeBegin"))
+                v.deserializeBegin(this, readLength, attribute);
+            deserializedLength = v.deserialize(this, memberOptions, readLength, attribute);
+        }
+        else
+        {
+            enum MemberMatched {none, deserialize, ok }
+            alias members = SerializerMemberList!V;
+            size_t i;
+            while (hasAggregateEle(i, readLength))
             {
-                if (sameName(member.attribute.name, memberName))
+                MemberMatched memberMatched = MemberMatched.none;
+                const memberName = readKey();
+                //import std.stdio : writeln; debug writeln("i=", i, ", memberName=", memberName);
+
+                static foreach (member; members)
                 {
-                    //import std.stdio : writeln; debug writeln(V.stringof, "[", typeof(member.memberSet).stringof, ".", member.memberType.stringof, "] v.", member.memberName, ".", member.attribute.name, " vs ", memberName);
-                    //pragma(msg, V.stringof ~ "." ~ member.memberName);
-                    //pragma(msg, __traits(compiles, __traits(child, v, member.memberSet)));
-                    //pragma(msg, __traits(compiles, mixin("v." ~ member.memberName ~ " = member.memberType.init")));
-                    //pragma(msg, isCallable!(member.memberSet));
-
-                    static if (__traits(compiles, __traits(child, v, member.memberSet))
-                        && (__traits(compiles, mixin("v." ~ member.memberName ~ " = member.memberType.init"))
-                            || isCallable!(member.memberSet)))
+                    if (sameName(member.attribute.name, memberName))
                     {
-                        //import std.stdio : writeln; debug writeln("matched");
+                        //import std.stdio : writeln; debug writeln(V.stringof, "[", typeof(member.memberSet).stringof, ".", member.memberType.stringof, "] v.", member.memberName, ".", member.attribute.name, " vs ", memberName);
+                        //pragma(msg, V.stringof ~ "." ~ member.memberName);
+                        //pragma(msg, __traits(compiles, __traits(child, v, member.memberSet)));
+                        //pragma(msg, __traits(compiles, mixin("v." ~ member.memberName ~ " = member.memberType.init")));
+                        //pragma(msg, isCallable!(member.memberSet));
 
-                        memberMatched = MemberMatched.ok;
-
-                        if (memberSet++ == 0)
+                        static if (__traits(compiles, __traits(child, v, member.memberSet))
+                            && (__traits(compiles, mixin("v." ~ member.memberName ~ " = member.memberType.init"))
+                                || isCallable!(member.memberSet)))
                         {
-                            static if (__traits(hasMember, V, "deserializeBegin"))
-                                v.deserializeBegin(this, readLength, attribute);
-                        }
+                            //import std.stdio : writeln; debug writeln("matched");
 
-                        Serializable memberAttribute = member.attribute;
-                        static if (member.flags.isSet(SerializableMemberFlag.isGetSet))
-                        {
-                            member.memberType memberValue;
-                            if (!deserializeCustom!(member.memberType)(memberValue, memberAttribute))
+                            memberMatched = MemberMatched.ok;
+
+                            if (deserializedLength++ == 0)
                             {
-                                memberMatched = MemberMatched.deserialize;
-                                static if (__traits(compiles, deserialize(memberValue, memberAttribute)))
-                                {
-                                    deserialize(memberValue, memberAttribute);
-                                    memberMatched = MemberMatched.ok;
-                                }
+                                static if (__traits(hasMember, V, "deserializeBegin"))
+                                    v.deserializeBegin(this, readLength, attribute);
                             }
-                            //mixin("v." ~ member.memberName) = memberValue;  // Overload issue if only overwrite only one (getter/setter)
-                            __traits(child, v, member.memberSet)(memberValue);
-                        }
-                        else
-                        {
-                            //pragma(msg, "deserialize()", fullyQualifiedName!(member.memberType), " ", member.memberName);
-                            if (!deserializeCustom!(member.memberType)(__traits(child, v, member.memberSet), memberAttribute))
+
+                            Serializable memberAttribute = member.attribute;
+                            static if (member.flags.isSet(SerializableMemberFlag.isGetSet))
                             {
-                                memberMatched = MemberMatched.deserialize;
-                                static if (__traits(compiles, deserialize(__traits(child, v, member.memberSet), memberAttribute)))
+                                member.memberType memberValue;
+                                if (!deserializeCustom!(member.memberType)(memberValue, memberAttribute))
                                 {
-                                    deserialize(__traits(child, v, member.memberSet), memberAttribute);
-                                    memberMatched = MemberMatched.ok;
+                                    memberMatched = MemberMatched.deserialize;
+                                    static if (__traits(compiles, deserialize(memberValue, memberAttribute)))
+                                    {
+                                        deserialize(memberValue, memberAttribute);
+                                        memberMatched = MemberMatched.ok;
+                                    }
+                                }
+                                //mixin("v." ~ member.memberName) = memberValue;  // Overload issue if only overwrite only one (getter/setter)
+                                __traits(child, v, member.memberSet)(memberValue);
+                            }
+                            else
+                            {
+                                //pragma(msg, "deserialize()", fullyQualifiedName!(member.memberType), " ", member.memberName);
+                                if (!deserializeCustom!(member.memberType)(__traits(child, v, member.memberSet), memberAttribute))
+                                {
+                                    memberMatched = MemberMatched.deserialize;
+                                    static if (__traits(compiles, deserialize(__traits(child, v, member.memberSet), memberAttribute)))
+                                    {
+                                        deserialize(__traits(child, v, member.memberSet), memberAttribute);
+                                        memberMatched = MemberMatched.ok;
+                                    }
                                 }
                             }
                         }
                     }
                 }
+
+                if (memberMatched == MemberMatched.none)
+                    throw new DeserializerException(fullyQualifiedName!V ~ "." ~ memberName ~ " not found");
+                else if (memberMatched == MemberMatched.deserialize)
+                    throw new DeserializerException(fullyQualifiedName!V ~ "." ~ memberName ~ " not able to deserialize");
+
+                i++;
             }
-
-            if (memberMatched == MemberMatched.none)
-                throw new DeserializerException(fullyQualifiedName!V ~ "." ~ memberName ~ " not found");
-            else if (memberMatched == MemberMatched.deserialize)
-                throw new DeserializerException(fullyQualifiedName!V ~ "." ~ memberName ~ " not able to deserialize");
-
-            i++;
         }
 
-        version (UseMemberOrderList)
+        version (none)
         foreach (member; members)
         {
             if (!isDeserializerMember!(memberOptions, member)())
@@ -1558,7 +1617,16 @@ public:
     }
 
     Serializer aggregateItem(ptrdiff_t index, scope ref Serializable attribute)
+    in
     {
+        assert(attribute.name.length != 0);
+    }
+    do
+    {
+        if (attribute.symbolName)
+            writeKeyId(attribute.name);
+        else
+            writeKey(attribute.name);
         return this;
     }
 
@@ -1587,6 +1655,8 @@ public:
     abstract void write(float v, const(FloatFormat) floatFormat);
     abstract void write(double v, const(FloatFormat) floatFormat);
     abstract void write(scope const(char)[] v); // String value
+    abstract void write(scope const(wchar)[] v); // WString value
+    abstract void write(scope const(dchar)[] v); // DString value
     abstract void write(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat); // Binary value
     abstract Serializer writeKey(scope const(char)[] key);
     abstract Serializer writeKeyId(scope const(char)[] key);
@@ -1661,6 +1731,30 @@ public:
         write(v);
     }
 
+    // WChars/WString
+    final void serialize(scope const(wchar)[] v, scope ref Serializable attribute)
+    {
+        write(v);
+    }
+
+    // WString
+    final void serialize(wstring v, scope ref Serializable attribute)
+    {
+        write(v);
+    }
+
+    // DChars/DString
+    final void serialize(scope const(dchar)[] v, scope ref Serializable attribute)
+    {
+        write(v);
+    }
+
+    // DString
+    final void serialize(dstring v, scope ref Serializable attribute)
+    {
+        write(v);
+    }
+
     // Bytes/Binary
     final void serialize(scope const(ubyte)[] v, scope ref Serializable attribute)
     {
@@ -1715,11 +1809,11 @@ public:
 
         size_t index;
         Serializable memberAttribute = attribute;
+        memberAttribute.symbolName = false;
         foreach (key, ref val; v)
         {
             memberAttribute.name = key;
             aggregateItem(index, memberAttribute);
-            writeKey(key);
             serialize(val, memberAttribute);
             index++;
         }
@@ -1743,12 +1837,12 @@ public:
         size_t index;
         char[50] keyBuffer = void;
         Serializable memberAttribute = attribute;
+        memberAttribute.symbolName = true;
         foreach (key, ref val; v)
         {
             const keyStr = sformat(keyBuffer[], "%d", key);
             memberAttribute.name = cast(string)keyStr;
             aggregateItem(index, memberAttribute);
-            writeKeyId(keyStr);
             serialize(val, memberAttribute);
             index++;
         }
@@ -1770,6 +1864,7 @@ public:
         string keyStr;
         size_t index;
         Serializable memberAttribute = attribute;
+        memberAttribute.symbolName = true;
         foreach (key, ref val; v)
         {
             if (memberAttribute.enumFormat == EnumFormat.integral)
@@ -1783,7 +1878,6 @@ public:
                 keyStr = key.to!string();
             memberAttribute.name = keyStr;
             aggregateItem(index, memberAttribute);
-            writeKeyId(keyStr);
             serialize(val, memberAttribute);
             index++;
         }
@@ -1810,80 +1904,75 @@ public:
                 return false;
         }
 
-        size_t length;
+        ptrdiff_t serializeredLength;
         static immutable typeName = fullyQualifiedName!V;
+        alias members = SerializerMemberList!V;
+        enum SerializableMemberOptions memberOptions = getSerializableMemberOptions!V();
         aggregateBegin(typeName, vIsNull() ? 0 : -1, attribute);
         scope (success)
-            aggregateEnd(typeName, length, attribute);
+            aggregateEnd(typeName, serializeredLength, attribute);
 
         if (vIsNull())
             return;
 
-        static if (__traits(hasMember, V, "serialize"))
-        {
-            /*
-            static if (__traits(hasMember, V, "serializeBegin"))
-                v.serializeBegin(this, attribute);
-            static if (__traits(hasMember, V, "serializeEnd"))
-                scope (success) v.serializeEnd(this, attribute);
-            */
-            length = v.serialize(this, attribute);
-            return;
-        }
-
         scope (success)
         {
-            if (length)
-            {
-                static if (__traits(hasMember, V, "serializeEnd"))
-                    v.serializeEnd(this, attribute);
-            }
+            static if (__traits(hasMember, V, "serializeEnd"))
+                v.serializeEnd(this, serializeredLength, attribute);
         }
 
-        enum SerializableMemberOptions memberOptions = getSerializableMemberOptions!V();
-        alias members = SerializerMemberList!V;
-        foreach (member; members)
+        static if (__traits(hasMember, V, "serialize"))
         {
-            if (!isSerializerMember!(memberOptions, member)())
-                continue;
+            static if (__traits(hasMember, V, "serializeBegin"))
+                v.serializeBegin(this, members.length, attribute);
 
-            //pragma(msg, V.stringof ~ "." ~ member.memberName ~ "." ~ member.attribute.name);
-
-            static if (__traits(compiles, __traits(child, v, member.memberGet)))
+            serializeredLength = v.serialize(this, memberOptions, attribute);
+        }
+        else
+        {
+            foreach (member; members)
             {
-                //import std.stdio : writeln; debug writeln(V.stringof, ".", member.memberName, ".", member.attribute.name);
+                if (!isSerializerMember!(memberOptions, member)())
+                    continue;
 
-                auto memberValue = __traits(child, v, member.memberGet);
-                Serializable memberAttribute = member.attribute;
+                //pragma(msg, V.stringof ~ "." ~ member.memberName ~ "." ~ member.attribute.name);
 
-                if (memberAttribute.condition == Condition.ignoredNull)
+                static if (__traits(compiles, __traits(child, v, member.memberGet)))
                 {
-                    static if (!isStaticArray!(member.memberType) &&
-                        (is(member.memberType == class) || is(member.memberType : T[], T) || is(member.memberType : const T[K], T, K)))
+                    //import std.stdio : writeln; debug writeln(V.stringof, ".", member.memberName, ".", member.attribute.name);
+
+                    auto memberValue = __traits(child, v, member.memberGet);
+                    Serializable memberAttribute = member.attribute;
+                    memberAttribute.symbolName = false;
+
+                    if (memberAttribute.condition == Condition.ignoredNull)
                     {
-                        if (memberValue is null)
+                        static if (!isStaticArray!(member.memberType) &&
+                            (is(member.memberType == class) || is(member.memberType : T[], T) || is(member.memberType : const T[K], T, K)))
+                        {
+                            if (memberValue is null)
+                                continue;
+                        }
+                    }
+                    else if (memberAttribute.condition == Condition.ignoredDefault)
+                    {
+                        //if ((() @trusted => memberValue == __traits(child, V.init, member.memberGet))())
+                        if (memberValue == __traits(child, V.init, member.memberGet))
                             continue;
                     }
-                }
-                else if (memberAttribute.condition == Condition.ignoredDefault)
-                {
-                    //if ((() @trusted => memberValue == __traits(child, V.init, member.memberGet))())
-                    if (memberValue == __traits(child, V.init, member.memberGet))
-                        continue;
-                }
 
-                // First member?
-                if (length == 0)
-                {
-                    static if (__traits(hasMember, V, "serializeBegin"))
-                        v.serializeBegin(this, attribute);
-                }
+                    // First member?
+                    if (serializeredLength == 0)
+                    {
+                        static if (__traits(hasMember, V, "serializeBegin"))
+                            v.serializeBegin(this, attribute);
+                    }
 
-                aggregateItem(length, memberAttribute);
-                writeKey(memberAttribute.name);
-                if (!serializeCustom!(member.memberType)(memberValue, memberAttribute))
-                    serialize(memberValue, memberAttribute);
-                length++;
+                    aggregateItem(serializeredLength, memberAttribute);
+                    if (!serializeCustom!(member.memberType)(memberValue, memberAttribute))
+                        serialize(memberValue, memberAttribute);
+                    serializeredLength++;
+                }
             }
         }
     }
@@ -2026,7 +2115,7 @@ package(pham.utl):
             return int.max;
         }
 
-        ref UnitTestS1 setValues() return
+        ref typeof(this) setValues() return
         {
             _publicGetSet = 1;
             publicInt = 20;
@@ -2209,7 +2298,7 @@ package(pham.utl):
         UnitTestC1 class1;
         UnitTestC1 class1Null;
 
-        UnitTestAllTypes setValues()
+        typeof(this) setValues()
         {
             enum1 = UnitTestEnum.third;
             bool1 = true;
@@ -2280,12 +2369,121 @@ package(pham.utl):
             assert(class1Null is null);
         }
     }
+
+    static uint serializerCounter, deserializerCounter;
+    static struct UnitTestCustomS1
+    {
+    public:
+        UnitTestS1 s1;
+        dstring ds;
+        int iSkip;
+        wstring ws;
+        char c1;
+
+        ref typeof(this) setValues() return
+        {
+            serializerCounter = deserializerCounter = 0;
+
+            s1.setValues();
+            ds = "d string"d;
+            iSkip = 0;
+            ws = "w string"w;
+            c1 = 'U';
+            return this;
+        }
+
+        void assertValues()
+        {
+            s1.assertValues();
+            assert(ds == "d string"d);
+            assert(iSkip == 0);
+            assert(ws == "w string"w);
+            assert(c1 == 'U');
+            assert(deserializerCounter == 3);
+            assert(serializerCounter == 3);
+        }
+
+        /**
+         * Returns number of members being deserialized
+         */
+        ptrdiff_t deserialize(Deserializer deserializer, SerializableMemberOptions memberOptions, ptrdiff_t readLength, scope ref Serializable attribute)
+        {
+            Serializable memberAttribute;
+            ref Serializable setMemberAttribute(string name)
+            {
+                memberAttribute.name = name;
+                memberAttribute.memberName = name;
+                return memberAttribute;
+            }
+
+            // std.json does not maintain members order, so must check by name
+            size_t i;
+            while (deserializer.hasAggregateEle(i, readLength))
+            {
+                const n = deserializer.readKey();
+                if (n == "s1")
+                    deserializer.deserialize(s1, setMemberAttribute(n));
+                else if (n == "ds")
+                    deserializer.deserialize(ds, setMemberAttribute(n));
+                else if (n == "ws")
+                    deserializer.deserialize(ws, setMemberAttribute(n));
+                else if (n == "c1")
+                    deserializer.deserialize(c1, setMemberAttribute(n));
+                else
+                    assert(0);
+                i++;
+            }
+            assert(i == 4);
+            return i;
+        }
+
+        void deserializeBegin(Deserializer deserializer, ptrdiff_t readLength, scope ref Serializable attribute) @safe
+        {
+            deserializerCounter = 1;
+        }
+
+        void deserializeEnd(Deserializer deserializer, ptrdiff_t deserializedLength, scope ref Serializable attribute) @safe
+        {
+            deserializerCounter |= 2;
+        }
+
+        /**
+         * Returns number of members being serialized
+         */
+        ptrdiff_t serialize(Serializer serializer, SerializableMemberOptions memberOptions, scope ref Serializable attribute) @safe
+        {
+            Serializable memberAttribute;
+            ref Serializable setMemberAttribute(string name)
+            {
+                memberAttribute.name = name;
+                memberAttribute.memberName = name;
+                return memberAttribute;
+            }
+
+            serializer.aggregateItem(0, setMemberAttribute("s1")).serialize(s1, memberAttribute);
+            serializer.aggregateItem(1, setMemberAttribute("ds")).serialize(ds, memberAttribute);
+            serializer.aggregateItem(2, setMemberAttribute("ws")).serialize(ws, memberAttribute);
+            serializer.aggregateItem(3, setMemberAttribute("c1")).serialize(c1, memberAttribute);
+
+            return 4;
+        }
+
+        void serializeBegin(Serializer serializer, ptrdiff_t memberLength, scope ref Serializable attribute) @safe
+        {
+            serializerCounter = 1;
+        }
+
+        void serializeEnd(Serializer serializer, ptrdiff_t serializeredLength, scope ref Serializable attribute) @safe
+        {
+            serializerCounter |= 2;
+        }
+    }
 }
 
 
 private:
 
-static immutable excludedMembers = [
+static immutable excludedBuildinMembers = [
     "opAssign",
     "opCast",
     "opCmp",
@@ -2304,7 +2502,7 @@ string[] filterMembers(string[] allMembers) nothrow pure
 
     foreach (member; allMembers)
     {
-        if (!isExcludedMember(member))
+        if (!isExcludedBuildinMember(member))
             result ~= member;
     }
 

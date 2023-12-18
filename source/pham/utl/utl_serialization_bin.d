@@ -209,26 +209,33 @@ public:
         return BinaryIntCoder.decodeFloat!double(data, offset);
     }
 
-    final override string readChars() @trusted
+    final override string readChars()
     {
         return cast(string)readScopeChars().idup;
     }
 
-    final override const(char)[] readScopeChars() @trusted
+    final override wstring readWChars()
     {
-        const t = checkDataType(SerializerDataType.chars, 2);
-        if (t == SerializerDataType.null_)
-            return null;
-            
-        if (const len = readLength())
-        {
-            checkDataType(SerializerDataType.unknown, len);
-            const cOffset = offset;
-            offset += len;
-            return cast(const(char)[])data[cOffset..offset];
-        }
-        else
-            return null;
+        import std.conv : to;
+
+        static immutable SerializerDataType[2] checkTypes = [SerializerDataType.wchars, SerializerDataType.null_];
+        auto chars = cast(const(char)[])readScopeBytes(checkTypes[]);
+        return chars.to!wstring;
+    }
+
+    final override dstring readDChars()
+    {
+        import std.conv : to;
+
+        static immutable SerializerDataType[2] checkTypes = [SerializerDataType.dchars, SerializerDataType.null_];
+        auto chars = cast(const(char)[])readScopeBytes(checkTypes[]);
+        return chars.to!dstring;
+    }
+
+    final override const(char)[] readScopeChars()
+    {
+        static immutable SerializerDataType[2] checkTypes = [SerializerDataType.chars, SerializerDataType.null_];
+        return cast(const(char)[])readScopeBytes(checkTypes[]);
     }
 
     final override ubyte[] readBytes(const(BinaryFormat) binaryFormat)
@@ -238,10 +245,16 @@ public:
 
     final override const(ubyte)[] readScopeBytes(const(BinaryFormat) binaryFormat)
     {
-        const t = checkDataType(SerializerDataType.bytes, 2);
+        static immutable SerializerDataType[2] checkTypes = [SerializerDataType.bytes, SerializerDataType.null_];
+        return readScopeBytes(checkTypes[]);
+    }
+
+    final const(ubyte)[] readScopeBytes(scope const(SerializerDataType)[] dataTypes)
+    {
+        const t = checkDataType(dataTypes, 2);
         if (t == SerializerDataType.null_)
             return null;
-            
+
         if (const len = readLength())
         {
             checkDataType(SerializerDataType.unknown, len);
@@ -253,18 +266,10 @@ public:
             return null;
     }
 
-    final override string readKey() @trusted
+    final override string readKey()
     {
-        checkDataType(SerializerDataType.charsKey, 2);
-        if (const len = readLength())
-        {
-            checkDataType(SerializerDataType.unknown, len);
-            const cOffset = offset;
-            offset += len;
-            return cast(string)data[cOffset..offset].idup;
-        }
-        else
-            return null;
+        static immutable SerializerDataType[1] checkTypes = [SerializerDataType.charsKey];
+        return (cast(const(char)[])readScopeBytes(checkTypes[])).idup;
     }
 
     final override ptrdiff_t readLength()
@@ -277,20 +282,43 @@ public:
     final SerializerDataType checkDataType(const(SerializerDataType) dataType, const(size_t) bytes)
     {
         import std.conv : to;
-        
+
         if (offset + bytes > data.length)
             throw new DeserializerException("EOS - expect length " ~ bytes.to!string ~ " at offset " ~ offset.to!string ~ " with size " ~ data.length.to!string);
-            
+
         if (dataType != SerializerDataType.unknown)
         {
             const t = cast(SerializerDataType)data[offset];
-            if (!(t == dataType || (t == SerializerDataType.null_ && !isNullableDataType(dataType))))
+            if (t != dataType)
                 throw new DeserializerException("Expect datatype " ~ dataType.to!string ~ " but found " ~ t.to!string);
-            offset++;
+            offset++; // Skip type
             return t;
         }
-        
+
         return SerializerDataType.unknown;
+    }
+
+    final SerializerDataType checkDataType(scope const(SerializerDataType)[] dataTypes, const(size_t) bytes)
+    {
+        import std.conv : to;
+
+        if (offset + bytes > data.length)
+            throw new DeserializerException("EOS - expect length " ~ bytes.to!string ~ " at offset " ~ offset.to!string ~ " with size " ~ data.length.to!string);
+
+        const t = cast(SerializerDataType)data[offset];
+        bool found = false;
+        foreach (const dataType; dataTypes)
+        {
+            if (t == dataType)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            throw new DeserializerException("Expect one of datatypes " ~ dataTypes.to!string ~ " but found " ~ t.to!string);
+        offset++; // Skip type
+        return t;
     }
 
     final override bool empty() nothrow
@@ -425,17 +453,49 @@ public:
 
     final override void write(scope const(char)[] v) @trusted
     {
+        const vlength = v.length;
         buffer.put(SerializerDataType.chars);
-        BinaryIntCoder.encodeInt!BinaryLengthType(buffer, v.length);
+        BinaryIntCoder.encodeInt!BinaryLengthType(buffer, vlength);
+        if (vlength)
+            buffer.put(cast(const(ubyte)[])v);
+    }
+
+    final override void write(scope const(wchar)[] v)
+    {
+        import std.conv : to;
+
+        buffer.put(SerializerDataType.wchars);
         if (v.length)
-            buffer.put(cast(ubyte[])v);
+        {
+            auto v2 = v.to!string;
+            BinaryIntCoder.encodeInt!BinaryLengthType(buffer, v2.length);
+            buffer.put(cast(const(ubyte)[])v2);
+        }
+        else
+            BinaryIntCoder.encodeInt!BinaryLengthType(buffer, 0U);
+    }
+
+    final override void write(scope const(dchar)[] v)
+    {
+        import std.conv : to;
+
+        buffer.put(SerializerDataType.dchars);
+        if (v.length)
+        {
+            auto v2 = v.to!string;
+            BinaryIntCoder.encodeInt!BinaryLengthType(buffer, v2.length);
+            buffer.put(cast(const(ubyte)[])v2);
+        }
+        else
+            BinaryIntCoder.encodeInt!BinaryLengthType(buffer, 0U);
     }
 
     final override void write(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat)
     {
+        const vlength = v.length;
         buffer.put(SerializerDataType.bytes);
-        BinaryIntCoder.encodeInt!BinaryLengthType(buffer, v.length);
-        if (v.length)
+        BinaryIntCoder.encodeInt!BinaryLengthType(buffer, vlength);
+        if (vlength)
             buffer.put(v);
     }
 
@@ -444,7 +504,7 @@ public:
         buffer.put(SerializerDataType.charsKey);
         BinaryIntCoder.encodeInt!BinaryLengthType(buffer, key.length);
         if (key.length)
-            buffer.put(cast(ubyte[])key);
+            buffer.put(cast(const(ubyte)[])key);
         return this;
     }
 
@@ -472,19 +532,19 @@ version (unittest)
 package(pham.utl):
 
     static immutable string binUnitTestC2 =
-        "5048414D000111400F03496E74051E0F0C7075626C696353747275637411400F097075626C6963496E7405140F0C7075626C69634765745365740501120F0647657453657405010F097075626C69635374720E104332207075626C696320737472696E6712";
+        "5048414D000113400F03496E74051E0F0C7075626C696353747275637413400F097075626C6963496E7405140F0C7075626C69634765745365740501140F0647657453657405010F097075626C69635374720E104332207075626C696320737472696E6714";
 
     static immutable string binUnitTestAllTypes =
-        "5048414D000111400F05656E756D310E0574686972640F05626F6F6C3102010F05627974653103650F0675627974653103000F0673686F72743104EA0F0F077573686F72743104873E0F04696E743105FCDA2E0F0575696E7431059987E3030F056C6F6E673106CBC9A5F8020F06756C6F6E6731068AB9BC8F020F06666C6F61743109979C99AC090F08666C6F61744E614E09808080FC0F0F07646F75626C65310A9FB8EFF2B790DB8485030F09646F75626C65496E660A80808080808080F0FF010F07737472696E67310E0E7465737420737472696E67206F660F096368617241727261790E0F77696C6C207468697320776F726B3F0F0762696E6172793110052518CC652B0F08696E744172726179130605870205A90E058D3A05BC2F0581D90405BC05140F0C696E7441727261794E756C6C1300140F06696E74496E7411020F013205A0EE020F02313105B0EC0D120F0A696E74496E744E756C6C1100120F08656E756D456E756D11020F05666F7274680E0573697874680F0574686972640E067365636F6E64120F0673747253747211030F046B6579310E0A6B6579312076616C75650F046B6579320E0A6B6579322076616C75650F046B6579330E00120F077374727563743111400F097075626C6963496E7405140F0C7075626C69634765745365740501120F06636C6173733111400F03496E74051E0F0C7075626C696353747275637411400F097075626C6963496E7405140F0C7075626C69634765745365740501120F064765745365740501120F0A636C617373314E756C6C11001212";
+        "5048414D000113400F05656E756D310E0574686972640F05626F6F6C3102010F05627974653103650F0675627974653103000F0673686F72743104EA0F0F077573686F72743104873E0F04696E743105FCDA2E0F0575696E7431059987E3030F056C6F6E673106CBC9A5F8020F06756C6F6E6731068AB9BC8F020F06666C6F61743109979C99AC090F08666C6F61744E614E09808080FC0F0F07646F75626C65310A9FB8EFF2B790DB8485030F09646F75626C65496E660A80808080808080F0FF010F07737472696E67310E0E7465737420737472696E67206F660F096368617241727261790E0F77696C6C207468697320776F726B3F0F0762696E6172793112052518CC652B0F08696E744172726179150605870205A90E058D3A05BC2F0581D90405BC05160F0C696E7441727261794E756C6C1500160F06696E74496E7413020F013205A0EE020F02313105B0EC0D140F0A696E74496E744E756C6C1300140F08656E756D456E756D13020F05666F7274680E0573697874680F0574686972640E067365636F6E64140F0673747253747213030F046B6579310E0A6B6579312076616C75650F046B6579320E0A6B6579322076616C75650F046B6579330E00140F077374727563743113400F097075626C6963496E7405140F0C7075626C69634765745365740501140F06636C6173733113400F03496E74051E0F0C7075626C696353747275637413400F097075626C6963496E7405140F0C7075626C69634765745365740501140F064765745365740501140F0A636C617373314E756C6C13001414";
 
     static immutable string binUnitTestStd =
-        "5048414D000111400F07626967496E74310E212D37313435393236363431363639333136303336323534353738383738313630300F0564617465310E0A313939392D30312D30310F096461746554696D65310E13313939392D30372D30365431323A33303A33330F0873797354696D653106B6A1DBBA020F0A74696D654F66446179310E0831323A33303A33330F05757569643110108AB3060E2CBA4F23B74CB52DB3DBFB4612";
+        "5048414D000113400F07626967496E74310E212D37313435393236363431363639333136303336323534353738383738313630300F0564617465310E0A313939392D30312D30310F096461746554696D65310E13313939392D30372D30365431323A33303A33330F0873797354696D653106B6A1DBBA020F0A74696D654F66446179310E0831323A33303A33330F05757569643112108AB3060E2CBA4F23B74CB52DB3DBFB4614";
 
     static immutable string binUnitTestPham =
-        "5048414D000111400F07626967496E7431100EE07B47572A79980A9C3BA80E7AFC0F056461746531059A8A590F096461746554696D65310680EAAB9BCFF0CAC0110F0574696D65310680EA939C9B1A12";
+        "5048414D000113400F07626967496E7431120EE07B47572A79980A9C3BA80E7AFC0F056461746531059A8A590F096461746554696D65310680EAAB9BCFF0CAC0110F0574696D65310680EA939C9B1A14";
 
     static immutable string binUnitTestDec =
-        "5048414D000111400F0A646563696D616C4E614E10047C0000000F0F646563696D616C496E66696E6974791004F80000000F09646563696D616C33321004B2801BE90F09646563696D616C3634100831800010A3401C7C0F0A646563696D616C3132381010303C00000000000000001ACA9694C66712";
+        "5048414D000113400F0A646563696D616C4E614E12047C0000000F0F646563696D616C496E66696E6974791204F80000000F09646563696D616C33321204B2801BE90F09646563696D616C3634120831800010A3401C7C0F0A646563696D616C3132381210303C00000000000000001ACA9694C66714";
 }
 
 unittest // BinaryIntCoder.encodeInt & decodeInt
@@ -664,4 +724,18 @@ unittest // BinaryDeserializer.UnitTestDec
     scope deserializer = new BinaryDeserializer(bytesFromHexs(binUnitTestDec));
     auto c = deserializer.deserialize!UnitTestDec();
     c.assertValues();
+}
+
+unittest // BinarySerializer+BinaryDeserializer.UnitTestCustomS1
+{
+    import pham.utl.utl_object : bytesToHexs;
+
+    UnitTestCustomS1 c;
+    scope serializer = new BinarySerializer();
+    serializer.serialize!UnitTestCustomS1(c.setValues());
+
+    //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
+    scope deserializer = new BinaryDeserializer(serializer.buffer[]);
+    auto c2 = deserializer.deserialize!UnitTestCustomS1();
+    c2.assertValues();
 }

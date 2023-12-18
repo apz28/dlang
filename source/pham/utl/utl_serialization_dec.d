@@ -74,7 +74,7 @@ package(pham.utl):
         void assertValues()
         {
             assert(decimalNaN.isNaN);
-            assert(decimalInfinity.isInfinity); assert(decimalInfinity.isNeg);
+            assert(decimalInfinity.isInfinity && decimalInfinity.isNeg);
             assert(decimal32 == Decimal32("-7145"));
             assert(decimal64 == Decimal64("714583645.40"));
             assert(decimal128 == Decimal128("294574120484.87"));

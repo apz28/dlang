@@ -25,6 +25,7 @@ public:
     {
         //import std.stdio : writeln; writeln("\n'", data, "'\n");
         this.root = parseJSON(data);
+        //import std.stdio : writeln; debug writeln("root.type=", root.type);
         //import std.stdio : writeln; debug writeln("\n'", this.root.toString(JSONOptions.specialFloatLiterals), "'\n");
     }
 
@@ -43,6 +44,8 @@ public:
 
     override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
     {
+        static immutable JSONType[2] checkTypes = [JSONType.object, JSONType.null_];
+        checkDataType(checkTypes[]);
         super.aggregateBegin(typeName, attribute);
         const len = readLength();
         popFront(); // Navigate into member(s)
@@ -51,6 +54,8 @@ public:
 
     override ptrdiff_t arrayBegin(string elemTypeName, scope ref Serializable attribute)
     {
+        static immutable JSONType[2] checkTypes = [JSONType.array, JSONType.null_];
+        checkDataType(checkTypes[]);
         super.arrayBegin(elemTypeName, attribute);
         const len = readLength();
         popFront(); // Navigate into member(s)
@@ -59,19 +64,16 @@ public:
 
     final override Null readNull()
     {
-        assert(currents[$-1].type == JSONType.null_);
-
+        checkDataType(JSONType.null_);
         popFront();
         return null;
     }
 
     final override bool readBool()
     {
-        auto p = currents[$-1];
-        const t = p.type;
-        assert(t == JSONType.false_ || t == JSONType.true_);
-
-        const v = p.value.boolean;
+        static immutable JSONType[2] checkTypes = [JSONType.false_, JSONType.true_];
+        const t = checkDataType(checkTypes[]);
+        const v = currents[$-1].value.boolean;
         popFront();
         return v;
     }
@@ -106,11 +108,9 @@ public:
     final V readInt(V)()
     if (isIntegral!V)
     {
-        auto p = currents[$-1];
-        const t = p.type;
-        assert(t == JSONType.integer || t == JSONType.uinteger);
-
-        const v = t == JSONType.integer ? cast(V)p.value.integer : cast(V)p.value.uinteger;
+        static immutable JSONType[2] checkTypes = [JSONType.integer, JSONType.uinteger];
+        const t = checkDataType(checkTypes[]);
+        const v = t == JSONType.integer ? cast(V)currents[$-1].value.integer : cast(V)currents[$-1].value.uinteger;
         popFront();
         return v;
     }
@@ -129,14 +129,14 @@ public:
     if (isFloatingPoint!V)
     {
         //import std.stdio : writeln; debug writeln("readFloat().currents.length=", currents.length, ", current.type=", currents[$-1].type, ", current.value=",  currents[$-1].value.toString(JSONOptions.specialFloatLiterals));
-        auto p = currents[$-1];
-        const t = p.type;
-        assert(t == JSONType.float_ || t == JSONType.integer || t == JSONType.uinteger || t == JSONType.string);
+        static immutable JSONType[4] checkTypes = [JSONType.float_, JSONType.integer, JSONType.uinteger, JSONType.string];
+        const t = checkDataType(checkTypes[]);
+        auto p = &currents[$-1];
 
         V readFloatLiteral()
         {
             assert(t == JSONType.string);
-            
+
             const fl = isFloatLiteral(p.value.str);
             return fl == IsFloatLiteral.nan
                 ? V.nan
@@ -146,12 +146,12 @@ public:
                         ? -V.infinity
                         : cast(V)p.value.floating));
         }
-        
+
         const v = t == JSONType.float_
             ? cast(V)p.value.floating
             : (t == JSONType.integer
                 ? cast(V)p.value.integer
-                : (t == JSONType.uinteger 
+                : (t == JSONType.uinteger
                     ? cast(V)p.value.uinteger
                     : readFloatLiteral()));
         popFront();
@@ -160,13 +160,27 @@ public:
 
     final override string readChars()
     {
-        auto p = &currents[$-1];
-        const t = p.type;
-        assert(t == JSONType.string || t == JSONType.null_);
-
-        const v = t == JSONType.string ? p.value.str : null;
+        static immutable JSONType[2] checkTypes = [JSONType.string, JSONType.null_];
+        const t = checkDataType(checkTypes[]);
+        const v = t == JSONType.string ? currents[$-1].value.str : null;
         popFront();
         return v;
+    }
+
+    final override wstring readWChars()
+    {
+        import std.conv : to;
+
+        auto chars = readChars();
+        return chars.length != 0 ? chars.to!wstring : null;
+    }
+
+    final override dstring readDChars()
+    {
+        import std.conv : to;
+
+        auto chars = readChars();
+        return chars.length != 0 ? chars.to!dstring : null;
     }
 
     final override const(char)[] readScopeChars()
@@ -196,6 +210,45 @@ public:
     }
 
 public:
+    final JSONType checkDataType(const(JSONType) dataType)
+    {
+        import std.conv : to;
+
+        if (currents.length == 0)
+            throw new DeserializerException("EOS");
+
+        //import std.stdio : writeln; debug writeln("\tcheckDataType().currents.length=", currents.length, ", current.type=", currents[$-1].type, ", current.name=", currents[$-1].name);
+
+        const t = currents[$-1].type;
+        if (t != dataType)
+            throw new DeserializerException("Expect datatype " ~ dataType.to!string ~ " but found " ~ t.to!string ~ " (name: " ~ currents[$-1].name ~ ")");
+        return t;
+    }
+
+    final JSONType checkDataType(scope const(JSONType)[] dataTypes)
+    {
+        import std.conv : to;
+
+        if (currents.length == 0)
+            throw new DeserializerException("EOS");
+
+        //import std.stdio : writeln; debug writeln("\tcheckDataType().currents.length=", currents.length, ", current.type=", currents[$-1].type, ", current.name=", currents[$-1].name);
+
+        const t = currents[$-1].type;
+        bool found = false;
+        foreach (const dataType; dataTypes)
+        {
+            if (t == dataType)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            throw new DeserializerException("Expect one of datatypes " ~ dataTypes.to!string ~ " but found " ~ t.to!string ~ " (name: " ~ currents[$-1].name ~ ")");
+        return t;
+    }
+
     final override bool empty() nothrow
     {
         return currents.length == 0;
@@ -460,25 +513,59 @@ public:
     final override void write(scope const(char)[] v)
     {
         if (v is null)
-            buffer.put("null");
-        else
         {
-            buffer.put('"');
-            escapeString(buffer, v);
-            buffer.put('"');
+            buffer.put("null");
+            return;
         }
+
+        buffer.put('"');
+        escapeString(buffer, v);
+        buffer.put('"');
+    }
+
+    final override void write(scope const(wchar)[] v)
+    {
+        import std.conv : to;
+
+        if (v is null)
+        {
+            buffer.put("null");
+            return;
+        }
+
+        auto v2 = v.to!string;
+        buffer.put('"');
+        escapeString(buffer, v2);
+        buffer.put('"');
+    }
+
+    final override void write(scope const(dchar)[] v)
+    {
+        import std.conv : to;
+
+        if (v is null)
+        {
+            buffer.put("null");
+            return;
+        }
+
+        auto v2 = v.to!string;
+        buffer.put('"');
+        escapeString(buffer, v2);
+        buffer.put('"');
     }
 
     final override void write(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat)
     {
         if (v is null)
-            buffer.put("null");
-        else
         {
-            buffer.put('"');
-            buffer.put(binaryToString(v, binaryFormat));
-            buffer.put('"');
+            buffer.put("null");
+            return;
         }
+
+        buffer.put('"');
+        buffer.put(binaryToString(v, binaryFormat));
+        buffer.put('"');
     }
 
     final override Serializer writeKey(scope const(char)[] key)
@@ -615,26 +702,33 @@ package(pham.utl):
 
 unittest // JsonSerializer
 {
-    Serializable serializableAggregate, serializableArray;
+    Serializable serializableAggregate, serializableAggregateMember, serializableArray;
     Serializable serializableByName = Serializable(null, EnumFormat.name);
     Serializable serializableByIntegral = Serializable(null, EnumFormat.integral);
     FloatFormat floatFormat = FloatFormat(4, true);
     BinaryFormat binaryFormat;
 
+    ref Serializable aggregateMember(string name)
+    {
+        serializableAggregateMember.name = name;
+        serializableAggregateMember.memberName = name;
+        return serializableAggregateMember;
+    }
+
     scope serializer = new JsonSerializer();
     serializer.begin();
     serializer.aggregateBegin(null, -1, serializableAggregate);
-    serializer.aggregateItem(0, serializableAggregate).writeKeyId("b1").writeBool(true);
-    serializer.aggregateItem(1, serializableAggregate).writeKeyId("b2").writeBool(false);
-    serializer.aggregateItem(2, serializableAggregate).writeKeyId("n1").write(null);
-    serializer.aggregateItem(3, serializableAggregate).writeKey("f1").write(1.5, floatFormat);
-    serializer.aggregateItem(4, serializableAggregate).writeKey("d1").write(100);
-    serializer.aggregateItem(5, serializableAggregate).writeKey("c1").writeChar('c');
-    serializer.aggregateItem(6, serializableAggregate).writeKey("s1").write("This is a string /\\");
-    serializer.aggregateItem(7, serializableAggregate).writeKey("e1"); serializer.serialize(UnitTestEnum.second, serializableByName);
-    serializer.aggregateItem(8, serializableAggregate).writeKey("e2"); serializer.serialize(UnitTestEnum.forth, serializableByIntegral);
-    serializer.aggregateItem(9, serializableAggregate).writeKey("bin1").write([100, 101], binaryFormat);
-    serializer.aggregateItem(10, serializableAggregate).writeKey("arr1");
+    serializer.aggregateItem(0, aggregateMember("b1")).writeBool(true);
+    serializer.aggregateItem(1, aggregateMember("b2")).writeBool(false);
+    serializer.aggregateItem(2, aggregateMember("n1")).write(null);
+    serializer.aggregateItem(3, aggregateMember("f1")).write(1.5, floatFormat);
+    serializer.aggregateItem(4, aggregateMember("d1")).write(100);
+    serializer.aggregateItem(5, aggregateMember("c1")).writeChar('c');
+    serializer.aggregateItem(6, aggregateMember("s1")).write("This is a string /\\");
+    serializer.aggregateItem(7, aggregateMember("e1")); serializer.serialize(UnitTestEnum.second, serializableByName);
+    serializer.aggregateItem(8, aggregateMember("e2")); serializer.serialize(UnitTestEnum.forth, serializableByIntegral);
+    serializer.aggregateItem(9, aggregateMember("bin1")).write([100, 101], binaryFormat);
+    serializer.aggregateItem(10, aggregateMember("arr1"));
     serializer.arrayBegin(null, 2, serializableArray);
     serializer.arrayItem(0).write(200);
     serializer.arrayItem(1).write(201);
@@ -743,4 +837,16 @@ unittest // JsonDeserializer.UnitTestDec
     scope deserializer = new JsonDeserializer(jsonUnitTestDec);
     auto c = deserializer.deserialize!UnitTestDec();
     c.assertValues();
+}
+
+unittest // JsonSerializer+JsonDeserializer.UnitTestCustomS1
+{
+    UnitTestCustomS1 c;
+    scope serializer = new JsonSerializer();
+    serializer.serialize!UnitTestCustomS1(c.setValues());
+    
+    //import std.stdio : writeln; debug writeln("\n", serializer.buffer[]);
+    scope deserializer = new JsonDeserializer(serializer.buffer[]);
+    auto c2 = deserializer.deserialize!UnitTestCustomS1();
+    c2.assertValues();
 }
