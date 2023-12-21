@@ -503,6 +503,25 @@ IsFloatLiteral isFloatLiteral(scope const(char)[] text) @nogc nothrow pure
     return IsFloatLiteral.none;
 }
 
+template isCallableWithTypes(alias func, Args...)
+{    
+    private alias funcParams = Parameters!func;
+    private bool sameParamTypes()
+    {
+        bool result = true;
+        static foreach (i; 0..funcParams.length)
+        {
+            static if (!is(Args[i] : funcParams[i]))
+                result = false;
+        }
+        return result;
+    }
+    static if (isCallable!func && funcParams.length == Args.length)
+        enum bool isCallableWithTypes = sameParamTypes();
+    else
+        enum bool isCallableWithTypes = false;
+}
+
 template isGetterFunction(alias symbol)
 {
     static if (isFunction!symbol)
@@ -527,8 +546,31 @@ template isSetterFunction(alias symbol)
         enum bool isSetterFunction = false;
 }
 
+template isTemplateSymbol(symbols...)
+if (symbols.length > 1)
+{
+    enum bool isTemplateSymbol = false;
+}
+
+template isTemplateSymbol(alias symbol)
+{
+    static if (__traits(compiles, __traits(isTemplate, symbol)))
+        enum bool isTemplateSymbol = __traits(isTemplate, symbol);
+    else
+        enum bool isTemplateSymbol = false;
+}
+
 //if (isAggregateType!V && !isInputRange!V)
 enum bool isSerializerAggregateType(T) = (is(T == struct) || is(T == class)) && !isInputRange!T;
+
+template hasCallableWithTypes(T, string memberName, Args...)
+if (isSerializerAggregateType!T)
+{
+    static if (__traits(hasMember, T, memberName))
+        enum bool hasCallableWithTypes = isCallableWithTypes!(__traits(getMember, T, memberName), Args);
+    else
+        enum bool hasCallableWithTypes = false;
+}
 
 template isSerializerMember(alias member)
 {
@@ -599,20 +641,6 @@ string[] getSerializerMembers(T, alias attribute)() nothrow pure
         result ~= member.memberName;
     }
     return result;
-}
-
-template isTemplateSymbol(symbols...)
-if (symbols.length > 1)
-{
-    enum bool isTemplateSymbol = false;
-}
-
-template isTemplateSymbol(alias symbol)
-{
-    static if (__traits(compiles, __traits(isTemplate, symbol)))
-        enum bool isTemplateSymbol = __traits(isTemplate, symbol);
-    else
-        enum bool isTemplateSymbol = false;
 }
 
 class DSeserializerException : Exception
@@ -870,6 +898,7 @@ class DSeserializer
 
 public:
     alias Null = typeof(null);
+    enum unknownLength = -1;
 
 public:
     size_t decDepth() nothrow
@@ -1080,8 +1109,6 @@ protected:
     static __gshared DSeserializerFunctions[string] customDSeserializedFunctions;
 }
 
-enum isCallableWith(alias func, T) = __traits(compiles, { auto _ = (T t) => func(t); });
-
 class Deserializer : DSeserializer
 {
 @safe:
@@ -1105,7 +1132,7 @@ public:
     ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
     {
         incDepth();
-        return -1;
+        return unknownLength;
     }
 
     void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable attribute)
@@ -1120,7 +1147,7 @@ public:
     ptrdiff_t arrayBegin(string elemTypeName, scope ref Serializable attribute)
     {
         incDepth();
-        return -1;
+        return unknownLength;
     }
 
     void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
@@ -1436,15 +1463,16 @@ public:
 
         scope (success)
         {
-            static if (__traits(hasMember, V, "deserializeEnd"))
-                v.deserializeEnd(this, deserializedLength, attribute);
+            static if (hasCallableWithTypes!(V, "dsDeserializeEnd", Deserializer, ptrdiff_t, Serializable))
+                v.dsDeserializeEnd(this, deserializedLength, attribute);
         }
 
-        static if (__traits(hasMember, V, "deserialize"))
+        static if (hasCallableWithTypes!(V, "dsDeserialize", Deserializer, SerializableMemberOptions, ptrdiff_t, Serializable))
         {
-            static if (__traits(hasMember, V, "deserializeBegin"))
-                v.deserializeBegin(this, readLength, attribute);
-            deserializedLength = v.deserialize(this, memberOptions, readLength, attribute);
+            static if (hasCallableWithTypes!(V, "dsDeserializeBegin", Deserializer, ptrdiff_t, Serializable))
+                v.dsDeserializeBegin(this, readLength, attribute);
+                
+            deserializedLength = v.dsDeserialize(this, memberOptions, readLength, attribute);
         }
         else
         {
@@ -1459,7 +1487,7 @@ public:
 
                 static foreach (member; members)
                 {
-                    if (sameName(member.attribute.name, memberName))
+                    if (this.sameName(member.attribute.name, memberName))
                     {
                         //import std.stdio : writeln; debug writeln(V.stringof, "[", typeof(member.memberSet).stringof, ".", member.memberType.stringof, "] v.", member.memberName, ".", member.attribute.name, " vs ", memberName);
                         //pragma(msg, V.stringof ~ "." ~ member.memberName);
@@ -1477,8 +1505,8 @@ public:
 
                             if (deserializedLength++ == 0)
                             {
-                                static if (__traits(hasMember, V, "deserializeBegin"))
-                                    v.deserializeBegin(this, readLength, attribute);
+                                static if (hasCallableWithTypes!(V, "dsDeserializeBegin", Deserializer, ptrdiff_t, Serializable))
+                                    v.dsDeserializeBegin(this, readLength, attribute);
                             }
 
                             Serializable memberAttribute = member.attribute;
@@ -1908,7 +1936,7 @@ public:
         static immutable typeName = fullyQualifiedName!V;
         alias members = SerializerMemberList!V;
         enum SerializableMemberOptions memberOptions = getSerializableMemberOptions!V();
-        aggregateBegin(typeName, vIsNull() ? 0 : -1, attribute);
+        aggregateBegin(typeName, vIsNull() ? 0 : unknownLength, attribute);
         scope (success)
             aggregateEnd(typeName, serializeredLength, attribute);
 
@@ -1917,16 +1945,16 @@ public:
 
         scope (success)
         {
-            static if (__traits(hasMember, V, "serializeEnd"))
-                v.serializeEnd(this, serializeredLength, attribute);
+            static if (hasCallableWithTypes!(V, "dsSerializeEnd", Serializer, size_t, Serializable))
+                v.dsSerializeEnd(this, serializeredLength, attribute);
         }
 
-        static if (__traits(hasMember, V, "serialize"))
+        static if (hasCallableWithTypes!(V, "dsSerialize", Serializer, SerializableMemberOptions, Serializable))
         {
-            static if (__traits(hasMember, V, "serializeBegin"))
-                v.serializeBegin(this, members.length, attribute);
+            static if (hasCallableWithTypes!(V, "dsSerializeBegin", Serializer, size_t, Serializable))
+                v.dsSerializeBegin(this, members.length, attribute);
 
-            serializeredLength = v.serialize(this, memberOptions, attribute);
+            serializeredLength = v.dsSerialize(this, memberOptions, attribute);
         }
         else
         {
@@ -1964,8 +1992,8 @@ public:
                     // First member?
                     if (serializeredLength == 0)
                     {
-                        static if (__traits(hasMember, V, "serializeBegin"))
-                            v.serializeBegin(this, attribute);
+                        static if (hasCallableWithTypes!(V, "dsSerializeBegin", Serializer, size_t, Serializable))
+                            v.dsSerializeBegin(this, members.length, attribute);
                     }
 
                     aggregateItem(serializeredLength, memberAttribute);
@@ -2380,7 +2408,7 @@ package(pham.utl):
         wstring ws;
         char c1;
 
-        ref typeof(this) setValues() return
+        ref typeof(this) setValues() return @safe
         {
             serializerCounter = deserializerCounter = 0;
 
@@ -2392,7 +2420,7 @@ package(pham.utl):
             return this;
         }
 
-        void assertValues()
+        void assertValues() @safe
         {
             s1.assertValues();
             assert(ds == "d string"d);
@@ -2406,7 +2434,7 @@ package(pham.utl):
         /**
          * Returns number of members being deserialized
          */
-        ptrdiff_t deserialize(Deserializer deserializer, SerializableMemberOptions memberOptions, ptrdiff_t readLength, scope ref Serializable attribute)
+        ptrdiff_t dsDeserialize(Deserializer deserializer, SerializableMemberOptions memberOptions, ptrdiff_t readLength, scope ref Serializable attribute) @safe
         {
             Serializable memberAttribute;
             ref Serializable setMemberAttribute(string name)
@@ -2421,13 +2449,13 @@ package(pham.utl):
             while (deserializer.hasAggregateEle(i, readLength))
             {
                 const n = deserializer.readKey();
-                if (n == "s1")
+                if (deserializer.sameName(n, "s1"))
                     deserializer.deserialize(s1, setMemberAttribute(n));
-                else if (n == "ds")
+                else if (deserializer.sameName(n, "ds"))
                     deserializer.deserialize(ds, setMemberAttribute(n));
-                else if (n == "ws")
+                else if (deserializer.sameName(n, "ws"))
                     deserializer.deserialize(ws, setMemberAttribute(n));
-                else if (n == "c1")
+                else if (deserializer.sameName(n, "c1"))
                     deserializer.deserialize(c1, setMemberAttribute(n));
                 else
                     assert(0);
@@ -2437,12 +2465,12 @@ package(pham.utl):
             return i;
         }
 
-        void deserializeBegin(Deserializer deserializer, ptrdiff_t readLength, scope ref Serializable attribute) @safe
+        void dsDeserializeBegin(Deserializer deserializer, ptrdiff_t readLength, scope ref Serializable attribute) @safe
         {
             deserializerCounter = 1;
         }
 
-        void deserializeEnd(Deserializer deserializer, ptrdiff_t deserializedLength, scope ref Serializable attribute) @safe
+        void dsDeserializeEnd(Deserializer deserializer, ptrdiff_t deserializedLength, scope ref Serializable attribute) @safe
         {
             deserializerCounter |= 2;
         }
@@ -2450,7 +2478,7 @@ package(pham.utl):
         /**
          * Returns number of members being serialized
          */
-        ptrdiff_t serialize(Serializer serializer, SerializableMemberOptions memberOptions, scope ref Serializable attribute) @safe
+        ptrdiff_t dsSerialize(Serializer serializer, SerializableMemberOptions memberOptions, scope ref Serializable attribute) @safe
         {
             Serializable memberAttribute;
             ref Serializable setMemberAttribute(string name)
@@ -2468,18 +2496,17 @@ package(pham.utl):
             return 4;
         }
 
-        void serializeBegin(Serializer serializer, ptrdiff_t memberLength, scope ref Serializable attribute) @safe
+        void dsSerializeBegin(Serializer serializer, ptrdiff_t memberLength, scope ref Serializable attribute) @safe
         {
             serializerCounter = 1;
         }
 
-        void serializeEnd(Serializer serializer, ptrdiff_t serializeredLength, scope ref Serializable attribute) @safe
+        void dsSerializeEnd(Serializer serializer, ptrdiff_t serializeredLength, scope ref Serializable attribute) @safe
         {
             serializerCounter |= 2;
         }
     }
 }
-
 
 private:
 
@@ -2532,6 +2559,40 @@ template isDesiredUDA(alias attribute)
         else
             enum isDesiredUDA = is(toCheck == attribute);
     }
+}
+
+unittest // isCallableWithTypes
+{
+    static struct S
+    {
+        ptrdiff_t deserialize(Deserializer deserializer, SerializableMemberOptions memberOptions, ptrdiff_t readLength, scope ref Serializable attribute) @safe
+        {
+            return 0;
+        }
+        
+        ptrdiff_t serialize(Serializer serializer, SerializableMemberOptions memberOptions, scope ref Serializable attribute) @safe
+        {
+            return 1;
+        }
+    }
+    
+    ptrdiff_t deserialize(Deserializer deserializer, SerializableMemberOptions memberOptions, ptrdiff_t readLength, scope ref Serializable attribute) @safe
+    {
+        return 0;
+    }
+    
+    ptrdiff_t serialize(Serializer serializer, SerializableMemberOptions memberOptions, scope ref Serializable attribute) @safe
+    {
+        return 1;
+    }
+    
+    static assert (isCallableWithTypes!(deserialize, Deserializer, SerializableMemberOptions, size_t, Serializable));
+    static assert (isCallableWithTypes!(serialize, Serializer, SerializableMemberOptions, Serializable));
+    
+    alias deserializeMember = __traits(getMember, S, "deserialize");
+    static assert (isCallableWithTypes!(deserializeMember, Deserializer, SerializableMemberOptions, size_t, Serializable));
+    alias serializeMember = __traits(getMember, S, "serialize");
+    static assert (isCallableWithTypes!(serializeMember, Serializer, SerializableMemberOptions, Serializable));
 }
 
 unittest // StaticBuffer
