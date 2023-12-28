@@ -485,11 +485,11 @@ static immutable FloatLiteral[13] floatLiterals = [
     FloatLiteral("NAN", IsFloatLiteral.nan),
     FloatLiteral("inf", IsFloatLiteral.pinf),
     FloatLiteral("+inf", IsFloatLiteral.pinf),
+    FloatLiteral("-inf", IsFloatLiteral.ninf),
     FloatLiteral("infinity", IsFloatLiteral.pinf),
     FloatLiteral("+infinity", IsFloatLiteral.pinf),
-    FloatLiteral("Infinite", IsFloatLiteral.pinf), // dlang.std.json
-    FloatLiteral("-inf", IsFloatLiteral.ninf),
     FloatLiteral("-infinity", IsFloatLiteral.ninf),
+    FloatLiteral("Infinite", IsFloatLiteral.pinf), // dlang.std.json
     FloatLiteral("-Infinite", IsFloatLiteral.ninf), // dlang.std.json
 ];
 

@@ -116,12 +116,12 @@ public:
         offset = 0;
         version_ = 0;
 
-        checkDataType(SerializerDataType.unknown, binaryIndicator.length);
+        checkDataLength(binaryIndicator.length);
         if (data[0..binaryIndicator.length] != binaryIndicator)
             throw new DeserializerException("Not a binary data stream");
         offset += binaryIndicator.length;
 
-        checkDataType(SerializerDataType.unknown, ushort.sizeof);
+        checkDataLength(ushort.sizeof);
         ubyte[ushort.sizeof] v = data[offset..offset+ushort.sizeof];
         version_ = bigEndianToNative!(ushort, ushort.sizeof)(v);
         offset += ushort.sizeof;
@@ -257,7 +257,7 @@ public:
 
         if (const len = readLength())
         {
-            checkDataType(SerializerDataType.unknown, len);
+            checkDataLength(len);
             const cOffset = offset;
             offset += len;
             return data[cOffset..offset];
@@ -274,36 +274,38 @@ public:
 
     final override ptrdiff_t readLength()
     {
-        checkDataType(SerializerDataType.unknown, 1);
+        checkDataLength(1);
         return cast(ptrdiff_t)BinaryIntCoder.decodeInt!BinaryLengthType(data, offset);
     }
 
 public:
-    final SerializerDataType checkDataType(const(SerializerDataType) dataType, const(size_t) bytes)
+    pragma(inline, true)
+    final void checkDataLength(const(size_t) bytes)
     {
         import std.conv : to;
 
         if (offset + bytes > data.length)
             throw new DeserializerException("EOS - expect length " ~ bytes.to!string ~ " at offset " ~ offset.to!string ~ " with size " ~ data.length.to!string);
+    }
+    
+    final SerializerDataType checkDataType(const(SerializerDataType) dataType, const(size_t) bytes)
+    {
+        import std.conv : to;
 
-        if (dataType != SerializerDataType.unknown)
-        {
-            const t = cast(SerializerDataType)data[offset];
-            if (t != dataType)
-                throw new DeserializerException("Expect datatype " ~ dataType.to!string ~ " but found " ~ t.to!string);
-            offset++; // Skip type
-            return t;
-        }
+        checkDataLength(bytes);
 
-        return SerializerDataType.unknown;
+        const t = cast(SerializerDataType)data[offset];
+        if (t != dataType)
+            throw new DeserializerException("Expect datatype " ~ dataType.to!string ~ " but found " ~ t.to!string);
+        offset++; // Skip type
+        return t;
     }
 
     final SerializerDataType checkDataType(scope const(SerializerDataType)[] dataTypes, const(size_t) bytes)
     {
         import std.conv : to;
 
-        if (offset + bytes > data.length)
-            throw new DeserializerException("EOS - expect length " ~ bytes.to!string ~ " at offset " ~ offset.to!string ~ " with size " ~ data.length.to!string);
+        checkDataLength(bytes);
 
         const t = cast(SerializerDataType)data[offset];
         bool found = false;
