@@ -73,9 +73,10 @@ public:
     {
         static immutable JSONType[2] checkTypes = [JSONType.false_, JSONType.true_];
         const t = checkDataType(checkTypes[]);
-        const v = currents[$-1].value.boolean;
+        //const v = currents[$-1].value.boolean;
         popFront();
-        return v;
+        //return v;
+        return t == JSONType.true_;
     }
 
     final override char readChar()
@@ -144,7 +145,7 @@ public:
                     ? V.infinity
                     : (fl == IsFloatLiteral.ninf
                         ? -V.infinity
-                        : cast(V)p.value.floating));
+                        : throw new DeserializerException("Not a floating point json value")));
         }
 
         const v = t == JSONType.float_

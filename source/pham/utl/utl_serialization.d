@@ -643,7 +643,7 @@ string[] getSerializerMembers(T, alias attribute)() nothrow pure
     return result;
 }
 
-class DSeserializerException : Exception
+class DSerializerException : Exception
 {
 @safe:
 
@@ -659,7 +659,7 @@ public:
     string funcName;
 }
 
-class DeserializerException : DSeserializerException
+class DeserializerException : DSerializerException
 {
 @safe:
 
@@ -671,7 +671,7 @@ public:
     }
 }
 
-class SeserializerException : DSeserializerException
+class SerializerException : DSerializerException
 {
 @safe:
 
@@ -1052,8 +1052,8 @@ public:
         if (isInfinity(v))
             return floatLiteralInfinity(vBuffer, sgn(v) != 0, true);
 
-        char[10] fBuffer = void;
-        const fmt = floatFormat.floatPrecision >= 18 ? "%.18f" : sformat(fBuffer[], "%%.%df", floatFormat.floatPrecision);
+        char[10] fmtBuffer = void;
+        const fmt = floatFormat.floatPrecision >= 18 ? "%.18f" : sformat(fmtBuffer[], "%%.%df", floatFormat.floatPrecision);
         return floatFormat.stripTrailingZero
             ? floatStripTrailingZero(sformat(vBuffer, fmt, v))
             : sformat(vBuffer[], fmt, v);
