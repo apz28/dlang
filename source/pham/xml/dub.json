@@ -7,6 +7,6 @@
 	"homepage": "",
 	"license": "Boost Software License - Version 1.0",
 	"dependencies": {
-		"pham_utl": "~>1.4.2"
+		"pham_utl": "~>1.5"
 	}
 }
