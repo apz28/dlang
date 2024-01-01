@@ -1,6 +1,6 @@
 {
 	"name": "pham_library",
-	"description": "BigInteger, Date, DateTime, Time, Firebird Database Driver, Postgresql Database Driver, Logger, Variant, XML Implementation.",
+	"description": "BigInteger, Date, DateTime, Time, Firebird Database Driver, Postgresql Database Driver, Logger, Variant, XML, Serialize & Deserialize (JSON & Binary formats).",
 	"authors": ["An Pham"],
 	"homepage": "",
 	"license": "Boost Software License - Version 1.0",
