@@ -176,66 +176,90 @@ public:
 
     final override byte readByte()
     {
-        checkDataType(SerializerDataType.int1, 2);
-        return cast(byte)data[offset++];
+        return readInt!byte();
     }
 
     final override short readShort()
     {
-        static immutable SerializerDataType[2] checkTypes = [SerializerDataType.int2, SerializerDataType.int1];
-        const t = checkDataType(checkTypes, 2);
-        if (t == SerializerDataType.int2)
-            return BinaryIntCoder.decodeInt!short(data, offset);
-        else if (t == SerializerDataType.int1)
-            return cast(byte)data[offset++];
-        assert(0, "Should not reach here");
+        return readInt!short();
     }
 
     final override int readInt()
     {
-        static immutable SerializerDataType[3] checkTypes = [SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1];
-        const t = checkDataType(checkTypes, 2);
-        if (t == SerializerDataType.int4)
-            return BinaryIntCoder.decodeInt!int(data, offset);
-        else if (t == SerializerDataType.int2)
-            return BinaryIntCoder.decodeInt!short(data, offset);
-        else if (t == SerializerDataType.int1)
-            return cast(byte)data[offset++];
-        assert(0, "Should not reach here");
+        return readInt!int();
     }
 
     final override long readLong()
     {
-        static immutable SerializerDataType[4] checkTypes = [SerializerDataType.int8, SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1];
-        const t = checkDataType(checkTypes, 2);
-        if (t == SerializerDataType.int8)
-            return BinaryIntCoder.decodeInt!long(data, offset);
-        else if (t == SerializerDataType.int4)
-            return BinaryIntCoder.decodeInt!int(data, offset);
-        else if (t == SerializerDataType.int2)
-            return BinaryIntCoder.decodeInt!short(data, offset);
-        else if (t == SerializerDataType.int1)
-            return cast(byte)data[offset++];
-        assert(0, "Should not reach here");
+        return readInt!long();
     }
 
+    final V readInt(V)()
+    if (isIntegral!V)
+    {
+        static if (V.sizeof == 8)
+            static immutable SerializerDataType[4] checkTypes = [SerializerDataType.int8, SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1];
+        else static if (V.sizeof == 4)
+            static immutable SerializerDataType[3] checkTypes = [SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1];
+        else static if (V.sizeof == 2)
+            static immutable SerializerDataType[2] checkTypes = [SerializerDataType.int2, SerializerDataType.int1];
+        else //static if (V.sizeof == 1)
+            static immutable SerializerDataType[1] checkTypes = [SerializerDataType.int1];
+
+        return readInt!V(checkDataType(checkTypes, 2));
+    }
+
+    private final V readInt(V)(const(SerializerDataType) t)
+    if (isIntegral!V)
+    {
+        static if (V.sizeof >= 8)
+        if (t == SerializerDataType.int8)
+            return BinaryIntCoder.decodeInt!long(data, offset);
+            
+        static if (V.sizeof >= 4)
+        if (t == SerializerDataType.int4)
+            return BinaryIntCoder.decodeInt!int(data, offset);
+            
+        static if (V.sizeof >= 2)
+        if (t == SerializerDataType.int2)
+            return BinaryIntCoder.decodeInt!short(data, offset);
+            
+        assert(t == SerializerDataType.int1);
+        return cast(byte)data[offset++];
+    }
+    
     final override float readFloat(const(FloatFormat) floatFormat)
     {
-        checkDataType(SerializerDataType.float4, 2);
-        return BinaryIntCoder.decodeFloat!float(data, offset);
+        return readFloat!float();
     }
 
     final override double readDouble(const(FloatFormat) floatFormat)
     {
-        static immutable SerializerDataType[2] checkTypes = [SerializerDataType.float8, SerializerDataType.float4];
-        const t = checkDataType(checkTypes, 2);
-        if (t == SerializerDataType.float8)
-            return BinaryIntCoder.decodeFloat!double(data, offset);
-        else if (t == SerializerDataType.float4)
-            return BinaryIntCoder.decodeFloat!float(data, offset);
-        assert(0, "Should not reach here");
+        return readFloat!double();
     }
 
+    final V readFloat(V)()
+    if (isFloatingPoint!V)
+    {
+        static if (V.sizeof == 8)
+            static immutable SerializerDataType[6] checkTypes = [SerializerDataType.float8, SerializerDataType.float4, SerializerDataType.int8, SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1];
+        else //static if (V.sizeof == 4)
+            static immutable SerializerDataType[4] checkTypes = [SerializerDataType.float4, SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1];
+    
+        const t = checkDataType(checkTypes, 2);
+        
+        static if (V.sizeof >= 8)
+            return t == SerializerDataType.float8
+                ? BinaryIntCoder.decodeFloat!double(data, offset)
+                : (t == SerializerDataType.float4
+                    ? BinaryIntCoder.decodeFloat!float(data, offset)
+                    : cast(V)readInt!long(t));
+        else
+            return t == SerializerDataType.float4
+                ? BinaryIntCoder.decodeFloat!float(data, offset)
+                : cast(V)readInt!int(t);
+    }
+    
     final override string readChars()
     {
         auto chars = readScopeChars();
@@ -310,7 +334,7 @@ public:
         if (offset + bytes > data.length)
             throw new DeserializerException("EOS - expect length " ~ bytes.to!string ~ " at offset " ~ offset.to!string ~ " with size " ~ data.length.to!string);
     }
-    
+
     final SerializerDataType checkDataType(const(SerializerDataType) dataType, const(size_t) bytes)
     {
         checkDataLength(bytes);
