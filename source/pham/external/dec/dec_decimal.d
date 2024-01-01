@@ -227,19 +227,20 @@ public:
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
         }
+
+        if (!valid)
+        {
+            static if (isSomeString!T)
+            {
+                import std.conv : to;
+                DecimalControl.throwFlags(ExceptionFlags.invalidOperation, value.to!string());
+            }
+            else
+                DecimalControl.throwFlags(ExceptionFlags.invalidOperation);
+        }
+
         if (!__ctfe)
         {
-            if (!valid)
-            {
-                static if (isSomeString!T)
-                {
-                    import std.conv : to;
-                    DecimalControl.throwFlags(ExceptionFlags.invalidOperation, value.to!string());
-                }
-                else
-                    DecimalControl.throwFlags(ExceptionFlags.invalidOperation);
-            }
-                
             static if (isSomeString!T)
             {
                 import std.conv : to;
@@ -263,19 +264,20 @@ public:
         {
             const valid = packRange(value, flags, PRECISION, mode);
         }
+
+        if (!valid)
+        {
+            static if (isSomeString!T)
+            {
+                import std.conv : to;
+                DecimalControl.throwFlags(ExceptionFlags.invalidOperation, value.to!string());
+            }
+            else
+                DecimalControl.throwFlags(ExceptionFlags.invalidOperation);
+        }
+
         if (!__ctfe)
         {
-            if (!valid)
-            {
-                static if (isSomeString!T)
-                {
-                    import std.conv : to;
-                    DecimalControl.throwFlags(ExceptionFlags.invalidOperation, value.to!string());
-                }
-                else
-                    DecimalControl.throwFlags(ExceptionFlags.invalidOperation);
-            }
-                
             static if (isSomeString!T)
             {
                 import std.conv : to;
@@ -295,6 +297,7 @@ public:
             const flags = packIntegral(value,
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
+                            
             static if (D.sizeof <= T.sizeof)
             if (!__ctfe)
                 DecimalControl.raiseFlags(flags);
@@ -305,6 +308,7 @@ public:
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding,
                             0);
+                            
             static if (D.sizeof <= T.sizeof)
             if (!__ctfe)
                 DecimalControl.raiseFlags(flags);
@@ -314,6 +318,7 @@ public:
             const flags = decimalToDecimal(value, this,
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
+                            
             static if (D.sizeof <= T.sizeof)
             if (!__ctfe)
                 DecimalControl.raiseFlags(flags);
@@ -323,6 +328,7 @@ public:
             const flags = packIntegral(cast(uint)value,
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
+                            
             static if (D.sizeof <= uint.sizeof)
             if (!__ctfe)
                 DecimalControl.raiseFlags(flags);
@@ -346,6 +352,7 @@ public:
         static if (isIntegral!T)
         {
             const flags = packIntegral(value, PRECISION, mode);
+            
             static if (D.sizeof <= T.sizeof)
             if (!__ctfe)
                 DecimalControl.checkFlags(explicitModeTraps, flags);
@@ -353,6 +360,7 @@ public:
         else static if (isDecimal!T)
         {
             const flags = decimalToDecimal(value, this, PRECISION, mode);
+            
             static if (D.sizeof <= T.sizeof)
             if (!__ctfe)
                 DecimalControl.checkFlags(explicitModeTraps, flags);
@@ -360,6 +368,7 @@ public:
         else // isSomeChar!T
         {
             const flags = packIntegral(cast(uint)value, PRECISION, mode);
+            
             static if (D.sizeof <= uint.sizeof)
             if (!__ctfe)
                 DecimalControl.checkFlags(explicitModeTraps, flags);
@@ -380,6 +389,7 @@ public:
     if (isFloatingPoint!T)
     {
         const flags = packFloatingPoint(value, PRECISION, mode, maxFractionalDigits);
+        
         static if (D.sizeof <= T.sizeof)
         if (!__ctfe)
             DecimalControl.checkFlags(explicitModeTraps, flags);
@@ -436,6 +446,7 @@ public:
         {
             const flags = decimalToFloat(this, result,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
+                            
             static if (D.sizeof > T.sizeof)
             if (!__ctfe)
                 DecimalControl.setFlags(flags);
@@ -444,6 +455,7 @@ public:
         {
             const flags = decimalToUnsigned(this, result,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
+                            
             static if (D.sizeof > T.sizeof)
             if (!__ctfe)
                 DecimalControl.setFlags(flags);
@@ -452,6 +464,7 @@ public:
         {
             const flags = decimalToSigned(this, result,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
+                            
             static if (D.sizeof > T.sizeof)
             if (!__ctfe)
                 DecimalControl.setFlags(flags);
@@ -1105,7 +1118,7 @@ public:
 
 package(pham.external.dec):
     alias U = DataType!Bytes;
-    
+
     static D buildin(const(U) coefficientMask, const(U) exponentMask, const(U) signMask) @nogc nothrow pure @safe
     {
         D result = void;
@@ -1143,8 +1156,8 @@ package(pham.external.dec):
     {
         if (!errorPack(isNegative, previousFlags, precision, mode, cvt!U(coefficient)))
         {
-            const bool stickyUnderflow = coefficient 
-                && (exponent < int.max - EXP_BIAS 
+            const bool stickyUnderflow = coefficient
+                && (exponent < int.max - EXP_BIAS
                     && exponent + EXP_BIAS < PRECISION - 1
                     && prec(coefficient) < PRECISION - (exponent + EXP_BIAS));
             static if (T.sizeof <= U.sizeof)
@@ -1614,7 +1627,7 @@ alias Decimal64 = Decimal!8;
 ///ditto
 alias Decimal128 = Decimal!16;
 
-version (D_BetterC) 
+version (D_BetterC)
 {}
 else
 {
@@ -1635,7 +1648,7 @@ else
     abstract class DecimalException : Exception
     {
         mixin ExceptionConstructors;
-        
+
         version (decNogcException)
         {
             void set(string msg, string file, uint line) @nogc nothrow pure @safe
@@ -1644,9 +1657,9 @@ else
                 this.line = line;
                 this.msg = msg.length != 0 ? msg : this.kindMsg;
             }
-            
+
             @property ExceptionFlag kind() @nogc nothrow pure @safe;
-            
+
             @property final string kindMsg() @nogc nothrow pure @safe
             {
                 return exceptionMessages[kind];
@@ -1658,7 +1671,7 @@ else
     class DivisionByZeroException : DecimalException
     {
 	    mixin ExceptionConstructors;
-        
+
         version (decNogcException)
         {
             @property final override ExceptionFlag kind() @nogc nothrow pure @safe
@@ -1672,7 +1685,7 @@ else
     class InexactException : DecimalException
     {
 	    mixin ExceptionConstructors;
-        
+
         version (decNogcException)
         {
             @property final override ExceptionFlag kind() @nogc nothrow pure @safe
@@ -1686,7 +1699,7 @@ else
     class InvalidOperationException : DecimalException
     {
 	    mixin ExceptionConstructors;
-        
+
         version (decNogcException)
         {
             @property final override ExceptionFlag kind() @nogc nothrow pure @safe
@@ -1700,7 +1713,7 @@ else
     class OverflowException : DecimalException
     {
 	    mixin ExceptionConstructors;
-        
+
         version (decNogcException)
         {
             @property final override ExceptionFlag kind() @nogc nothrow pure @safe
@@ -1714,7 +1727,7 @@ else
     class UnderflowException : DecimalException
     {
 	    mixin ExceptionConstructors;
-        
+
         version (decNogcException)
         {
             @property final override ExceptionFlag kind() @nogc nothrow pure @safe
@@ -2071,17 +2084,19 @@ unittest // Default value
 
 unittest
 {
-    version (D_BetterC) 
+    version (D_BetterC)
     {}
     else
     {
-        try
-        {
-            auto d = Decimal128("294574L20484.87");
-            assert(0, "Must not reach here");
-        }
-        catch (InvalidOperationException)
-        {}
+        import std.exception : assertThrown;
+        
+        assertThrown!InvalidOperationException(Decimal128(""));
+        assertThrown!InvalidOperationException(Decimal128(" "));
+        assertThrown!InvalidOperationException(Decimal128("_"));
+        assertThrown!InvalidOperationException(Decimal128("+"));
+        assertThrown!InvalidOperationException(Decimal128("-"));
+        assertThrown!InvalidOperationException(Decimal128("."));
+        assertThrown!InvalidOperationException(Decimal128("294574L20484.87"));
     }
 }
 
@@ -8102,7 +8117,7 @@ unittest
             static assert(D.LOG2 == D.buildin(s_LOG2));
             static assert(D.LOG10E == D.buildin(s_LOG10E));
             static assert(D.LN2 == D.buildin(s_LN2));
-            
+
             static assert(D.pi_2 == D.buildin(s_pi_2));
             static assert(D.pi_4 == D.buildin(s_pi_4));
             static assert(D.m_1_pi == D.buildin(s_m_1_pi));
@@ -8127,7 +8142,7 @@ unittest
             static assert(D.n5_6 == D.buildin(s_n5_6));
             static assert(D.m_1_2pi == D.buildin(s_m_1_2pi));
             static assert(D.pi2 == D.buildin(s_pi2));
-            
+
             static if (D.sizeof == 16)
             {
                 static assert(D.maxFloat == D.buildin(s_maxFloat128));
@@ -8137,7 +8152,7 @@ unittest
                 static assert(D.maxReal == D.buildin(s_maxReal128));
                 static assert(D.minReal == D.buildin(s_minReal128));
             }
-        }        
+        }
     }
 }
 
