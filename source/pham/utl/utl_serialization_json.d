@@ -13,6 +13,7 @@ module pham.utl.utl_serialization_json;
 
 import std.array : Appender, appender;
 import std.json : JSONOptions, JSONType, JSONValue, parseJSON;
+import std.conv : to;
 import std.traits : isDynamicArray, isFloatingPoint, isIntegral;
 import pham.utl.utl_serialization;
 
@@ -170,16 +171,12 @@ public:
 
     final override wstring readWChars()
     {
-        import std.conv : to;
-
         auto chars = readChars();
         return chars.length != 0 ? chars.to!wstring : null;
     }
 
     final override dstring readDChars()
     {
-        import std.conv : to;
-
         auto chars = readChars();
         return chars.length != 0 ? chars.to!dstring : null;
     }
@@ -213,8 +210,6 @@ public:
 public:
     final JSONType checkDataType(const(JSONType) dataType)
     {
-        import std.conv : to;
-
         if (currents.length == 0)
             throw new DeserializerException("EOS");
 
@@ -228,8 +223,6 @@ public:
 
     final JSONType checkDataType(scope const(JSONType)[] dataTypes)
     {
-        import std.conv : to;
-
         if (currents.length == 0)
             throw new DeserializerException("EOS");
 
@@ -328,7 +321,7 @@ public:
         {
             const j = currents.length - 1;
             const jind = currents[j].index + 1;
-        //import std.stdio : writeln; debug writeln("\t           childLength=", currents[$-1].childLength, ", index=", currents[$-1].index, ", parentLength=", currents[$-1].parentLength);
+            //import std.stdio : writeln; debug writeln("\t           childLength=", currents[$-1].childLength, ", index=", currents[$-1].index, ", parentLength=", currents[$-1].parentLength);
             if (jind < currents[j].parentLength)
             {
                 currents[j] = currents[j - 1].getChild(jind);
@@ -526,8 +519,6 @@ public:
 
     final override void write(scope const(wchar)[] v)
     {
-        import std.conv : to;
-
         if (v is null)
         {
             buffer.put("null");
@@ -542,8 +533,6 @@ public:
 
     final override void write(scope const(dchar)[] v)
     {
-        import std.conv : to;
-
         if (v is null)
         {
             buffer.put("null");

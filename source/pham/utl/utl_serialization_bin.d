@@ -13,6 +13,7 @@ module pham.utl.utl_serialization_bin;
 
 import std.array : Appender, appender;
 import std.bitmanip : bigEndianToNative, nativeToBigEndian;
+import std.conv : to;
 import std.traits : isFloatingPoint, isIntegral, Unsigned;
 import pham.utl.utl_serialization;
 
@@ -181,20 +182,41 @@ public:
 
     final override short readShort()
     {
-        checkDataType(SerializerDataType.int2, 2);
-        return BinaryIntCoder.decodeInt!short(data, offset);
+        static immutable SerializerDataType[2] checkTypes = [SerializerDataType.int2, SerializerDataType.int1];
+        const t = checkDataType(checkTypes, 2);
+        if (t == SerializerDataType.int2)
+            return BinaryIntCoder.decodeInt!short(data, offset);
+        else if (t == SerializerDataType.int1)
+            return cast(byte)data[offset++];
+        assert(0, "Should not reach here");
     }
 
     final override int readInt()
     {
-        checkDataType(SerializerDataType.int4, 2);
-        return BinaryIntCoder.decodeInt!int(data, offset);
+        static immutable SerializerDataType[3] checkTypes = [SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1];
+        const t = checkDataType(checkTypes, 2);
+        if (t == SerializerDataType.int4)
+            return BinaryIntCoder.decodeInt!int(data, offset);
+        else if (t == SerializerDataType.int2)
+            return BinaryIntCoder.decodeInt!short(data, offset);
+        else if (t == SerializerDataType.int1)
+            return cast(byte)data[offset++];
+        assert(0, "Should not reach here");
     }
 
     final override long readLong()
     {
-        checkDataType(SerializerDataType.int8, 2);
-        return BinaryIntCoder.decodeInt!long(data, offset);
+        static immutable SerializerDataType[4] checkTypes = [SerializerDataType.int8, SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1];
+        const t = checkDataType(checkTypes, 2);
+        if (t == SerializerDataType.int8)
+            return BinaryIntCoder.decodeInt!long(data, offset);
+        else if (t == SerializerDataType.int4)
+            return BinaryIntCoder.decodeInt!int(data, offset);
+        else if (t == SerializerDataType.int2)
+            return BinaryIntCoder.decodeInt!short(data, offset);
+        else if (t == SerializerDataType.int1)
+            return cast(byte)data[offset++];
+        assert(0, "Should not reach here");
     }
 
     final override float readFloat(const(FloatFormat) floatFormat)
@@ -205,31 +227,33 @@ public:
 
     final override double readDouble(const(FloatFormat) floatFormat)
     {
-        checkDataType(SerializerDataType.float8, 2);
-        return BinaryIntCoder.decodeFloat!double(data, offset);
+        static immutable SerializerDataType[2] checkTypes = [SerializerDataType.float8, SerializerDataType.float4];
+        const t = checkDataType(checkTypes, 2);
+        if (t == SerializerDataType.float8)
+            return BinaryIntCoder.decodeFloat!double(data, offset);
+        else if (t == SerializerDataType.float4)
+            return BinaryIntCoder.decodeFloat!float(data, offset);
+        assert(0, "Should not reach here");
     }
 
     final override string readChars()
     {
-        return cast(string)readScopeChars().idup;
+        auto chars = readScopeChars();
+        return chars.length ? cast(string)chars.idup : null;
     }
 
     final override wstring readWChars()
     {
-        import std.conv : to;
-
-        static immutable SerializerDataType[2] checkTypes = [SerializerDataType.wchars, SerializerDataType.null_];
+        static immutable SerializerDataType[3] checkTypes = [SerializerDataType.wchars, SerializerDataType.chars, SerializerDataType.null_];
         auto chars = cast(const(char)[])readScopeBytes(checkTypes[]);
-        return chars.to!wstring;
+        return chars.length ? chars.to!wstring : null;
     }
 
     final override dstring readDChars()
     {
-        import std.conv : to;
-
-        static immutable SerializerDataType[2] checkTypes = [SerializerDataType.dchars, SerializerDataType.null_];
+        static immutable SerializerDataType[4] checkTypes = [SerializerDataType.dchars, SerializerDataType.wchars, SerializerDataType.chars, SerializerDataType.null_];
         auto chars = cast(const(char)[])readScopeBytes(checkTypes[]);
-        return chars.to!dstring;
+        return chars.length ? chars.to!dstring : null;
     }
 
     final override const(char)[] readScopeChars()
@@ -240,7 +264,8 @@ public:
 
     final override ubyte[] readBytes(const(BinaryFormat) binaryFormat)
     {
-        return readScopeBytes(binaryFormat).dup;
+        auto bytes = readScopeBytes(binaryFormat);
+        return bytes.length ? bytes.dup : null;
     }
 
     final override const(ubyte)[] readScopeBytes(const(BinaryFormat) binaryFormat)
@@ -282,16 +307,12 @@ public:
     pragma(inline, true)
     final void checkDataLength(const(size_t) bytes)
     {
-        import std.conv : to;
-
         if (offset + bytes > data.length)
             throw new DeserializerException("EOS - expect length " ~ bytes.to!string ~ " at offset " ~ offset.to!string ~ " with size " ~ data.length.to!string);
     }
     
     final SerializerDataType checkDataType(const(SerializerDataType) dataType, const(size_t) bytes)
     {
-        import std.conv : to;
-
         checkDataLength(bytes);
 
         const t = cast(SerializerDataType)data[offset];
@@ -303,8 +324,6 @@ public:
 
     final SerializerDataType checkDataType(scope const(SerializerDataType)[] dataTypes, const(size_t) bytes)
     {
-        import std.conv : to;
-
         checkDataLength(bytes);
 
         const t = cast(SerializerDataType)data[offset];
@@ -464,8 +483,6 @@ public:
 
     final override void write(scope const(wchar)[] v)
     {
-        import std.conv : to;
-
         buffer.put(SerializerDataType.wchars);
         if (v.length)
         {
@@ -479,8 +496,6 @@ public:
 
     final override void write(scope const(dchar)[] v)
     {
-        import std.conv : to;
-
         buffer.put(SerializerDataType.dchars);
         if (v.length)
         {
