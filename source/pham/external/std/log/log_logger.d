@@ -3745,7 +3745,7 @@ Logger threadLogImpl() nothrow @trusted
     return _threadLogDefault;
 }
 
-shared static this()
+shared static this() nothrow @trusted
 {
     appStartupTimestamp = currentTime();
     _moduleOptions = new ModuleLoggerOptions(null);
