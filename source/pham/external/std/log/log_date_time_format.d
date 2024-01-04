@@ -1067,7 +1067,7 @@ static immutable MonthNames usMonthNames = [
 
 private:
 
-static this() @trusted
+static this() nothrow @trusted
 {
     threadDateTimeContext = sharedDateTimeContext;
 }
