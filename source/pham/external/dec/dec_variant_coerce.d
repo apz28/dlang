@@ -88,7 +88,7 @@ if (isDecimal!S && (isFloatingPoint!D || isIntegral!D || isSomeChar!D))
     }
 }
 
-shared static this()
+shared static this() nothrow @safe
 {
     // Support Variant.coerce
     ConvertHandler handler, invHandler;
