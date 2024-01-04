@@ -2203,7 +2203,7 @@ DbNameValueValidated isConnectionParameterUInt32_256K(string v)
         : DbNameValueValidated.invalidValue;
 }
 
-shared static this()
+shared static this() nothrow @safe
 {
     dbDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {

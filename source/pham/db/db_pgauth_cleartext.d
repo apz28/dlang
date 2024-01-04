@@ -56,7 +56,7 @@ public:
 // Any below codes are private
 private:
 
-shared static this()
+shared static this() nothrow @safe
 {
     DbAuth.registerAuthMap(DbAuthMap(pgAuthClearTextName, DbScheme.pg, &createAuthClearText));
 }

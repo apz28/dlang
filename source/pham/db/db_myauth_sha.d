@@ -248,7 +248,7 @@ protected:
 // Any below codes are private
 private:
 
-shared static this()
+shared static this() nothrow @safe
 {
     DbAuth.registerAuthMap(DbAuthMap(myAuthSha2Caching, DbScheme.my, &createAuthSha2Caching));
 }

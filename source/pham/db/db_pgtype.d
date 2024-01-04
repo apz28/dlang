@@ -916,7 +916,7 @@ DbParameterDirection pgParameterModeToDirection(scope const(char)[] mode)
 // Any below codes are private
 private:
 
-shared static this()
+shared static this() nothrow @safe
 {
     pgDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {

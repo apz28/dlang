@@ -902,7 +902,7 @@ private:
 // Any below codes are private
 private:
 
-shared static this()
+shared static this() nothrow @safe
 {
     skDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {

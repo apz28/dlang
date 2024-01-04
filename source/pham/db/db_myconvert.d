@@ -475,7 +475,7 @@ if (isUnsigned!T && T.sizeof > 1)
 // Any below codes are private
 private:
 
-shared static this()
+shared static this() nothrow @safe
 {
 	static DateTimePattern dtPattern(string patternText, char dateSeparator, char timeSeparator) nothrow
     {

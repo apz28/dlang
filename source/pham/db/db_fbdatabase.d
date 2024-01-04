@@ -2390,7 +2390,7 @@ private:
 // Any below codes are private
 private:
 
-shared static this()
+shared static this() nothrow @safe
 {
     version (TraceFunctionFBDatabase) ModuleLoggerOptions.setModule(ModuleLoggerOption(__MODULE__, LogLevel.trace));
 

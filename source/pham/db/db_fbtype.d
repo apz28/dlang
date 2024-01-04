@@ -2134,7 +2134,7 @@ private const(char)[] parseStringImpl(const(ubyte)[] data, ref size_t index, uin
 // Any below codes are private
 private:
 
-shared static this() nothrow
+shared static this() nothrow @safe
 {
     fbDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {

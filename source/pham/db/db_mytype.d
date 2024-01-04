@@ -583,7 +583,7 @@ DbType myParameterTypeToDbType(scope const(char)[] myTypeName, const(int32) prec
 // Any below codes are private
 private:
 
-shared static this() nothrow
+shared static this() nothrow @safe
 {
     myDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {

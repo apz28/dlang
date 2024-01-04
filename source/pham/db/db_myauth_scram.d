@@ -327,7 +327,7 @@ public:
 // Any below codes are private
 private:
 
-shared static this()
+shared static this() nothrow @safe
 {
     DbAuth.registerAuthMap(DbAuthMap(myAuthScramSha1Name, DbScheme.my, &createAuthScramSha1));
     DbAuth.registerAuthMap(DbAuthMap(myAuthScramSha256Name, DbScheme.my, &createAuthScramSha256));

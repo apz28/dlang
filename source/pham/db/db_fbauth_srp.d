@@ -307,7 +307,7 @@ protected:
 // Any below codes are private
 private:
 
-shared static this()
+shared static this() nothrow @safe
 {
     DbAuth.registerAuthMap(DbAuthMap(FbIscText.authSrp1Name, DbScheme.fb, &createAuthSrpSHA1));
     DbAuth.registerAuthMap(DbAuthMap(FbIscText.authSrp256Name, DbScheme.fb, &createAuthSrpSHA256));
@@ -337,7 +337,7 @@ DbAuth createAuthSrpSHA512()
 
 static immutable PrimeGroup fbPrime;
 
-shared static this()
+shared static this() nothrow @safe
 {
     fbPrime = immutable PrimeGroup(
         2,

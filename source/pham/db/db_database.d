@@ -1957,7 +1957,7 @@ public:
         return acquire(connectionStringBuilder.scheme, connectionStringBuilder.connectionString);
     }
 
-    static void cleanup() @trusted
+    static void cleanup() nothrow @trusted
     {
         if (_instance !is null)
         {
@@ -2996,7 +2996,7 @@ public:
         instance().put(database);
     }
 
-    static void cleanup() @trusted
+    static void cleanup() nothrow @trusted
     {
         if (_instance !is null)
         {
@@ -4778,7 +4778,7 @@ private:
 __gshared static Mutex _poolMutex;
 __gshared static TimerThread _secondTimer;
 
-shared static this()
+shared static this() nothrow @trusted
 {
     version (TraceFunctionDB) ModuleLoggerOptions.setModule(ModuleLoggerOption(__MODULE__, LogLevel.trace));
 
@@ -4790,7 +4790,7 @@ shared static this()
     _secondTimer.addEvent(TimerEvent("DbConnectionPool", dur!"minutes"(1), &pool.doTimer));
 }
 
-shared static ~this()
+shared static ~this() nothrow @trusted
 {
     // Timer must be destroyed first
     if (_secondTimer !is null)
