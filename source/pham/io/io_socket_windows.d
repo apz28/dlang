@@ -360,7 +360,7 @@ private:
 
 static immutable int _WSAStartupResult;
 
-shared static this()
+shared static this() nothrow @trusted
 {
     WSADATA wsaData;
     ushort wsaVersion = MAKEWORD(2, 2);
@@ -370,7 +370,7 @@ shared static this()
     //debug writeln("WSAStartup=", _WSAStartupResult, ", wsaVersion=", wsaVersion);
 }
 
-shared static ~this()
+shared static ~this() nothrow @safe
 {
     if (_WSAStartupResult == 0)
         WSACleanup();
