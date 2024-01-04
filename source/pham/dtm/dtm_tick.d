@@ -885,12 +885,12 @@ __gshared static Mutex tdMutex;
 
 private:
 
-shared static this() @trusted
+shared static this() nothrow @trusted
 {
     tdMutex = new Mutex();
 }
 
-shared static ~this() @trusted
+shared static ~this() nothrow @trusted
 {
     if (tdMutex !is null)
     {
@@ -899,7 +899,7 @@ shared static ~this() @trusted
     }
 }
 
-static this() @trusted
+static this() nothrow @trusted
 {
     dateTimeSetting = sharedDateTimeSetting;
 }

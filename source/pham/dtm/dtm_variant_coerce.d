@@ -98,7 +98,7 @@ bool doCoerceStringToTime(scope void* srcPtr, scope void* dstPtr) nothrow
         return false;
 }
 
-shared static this()
+shared static this() nothrow @safe
 {
     // Support Variant.coerce
     ConvertHandler handler;

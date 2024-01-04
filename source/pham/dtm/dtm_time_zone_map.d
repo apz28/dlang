@@ -461,7 +461,7 @@ private:
 
 static immutable TimeZoneInfoMapList defaultTimeZoneInfoMaps;
 
-shared static this() @trusted
+shared static this() nothrow @trusted
 {
     defaultTimeZoneInfoMaps = cast(immutable TimeZoneInfoMapList)getDefaultTimeZoneInfoMaps();
 }
