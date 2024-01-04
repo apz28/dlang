@@ -808,7 +808,7 @@ public:
     static StaticTree BitLengths;
 
 private:
-    static this()
+    static this() nothrow @safe
     {
         Literals = new StaticTree(lengthAndLiteralsTreeCodes, Tree.ExtraLengthBits, ZipConst.LITERALS + 1, ZipConst.L_CODES, ZipConst.MAX_BITS);
         Distances = new StaticTree(distTreeCodes, Tree.ExtraDistanceBits, 0, ZipConst.D_CODES, ZipConst.MAX_BITS);
