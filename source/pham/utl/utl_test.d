@@ -463,7 +463,7 @@ private:
 
 version (TraceLog) static __gshared FileLogger traceLogger;
 
-shared static this() @trusted
+shared static this() nothrow @trusted
 {
     version (profile) PerfFunctionCounter.countersMutex = new Mutex();
     version (TraceLog)
@@ -473,7 +473,7 @@ shared static this() @trusted
     }
 }
 
-shared static ~this() @trusted
+shared static ~this() nothrow @trusted
 {
     version (profile)
     {

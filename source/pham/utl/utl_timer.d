@@ -107,7 +107,7 @@ private:
 class TimerThread : Thread
 {
 public:
-    this(in Duration resolutionInterval) @safe
+    this(in Duration resolutionInterval) nothrow @safe
     {
         this._disabled = 0;
         this._resolutionInterval = resolutionInterval;
@@ -117,7 +117,7 @@ public:
     /**
      * Add an event to timer to be notified
      */
-    final void addEvent(TimerEvent event)
+    final void addEvent(TimerEvent event) nothrow @safe
     {
         auto raiiMutex = RAIIMutex(_mutex);
         _notifiers ~= TimerNotifier(event);
@@ -156,7 +156,7 @@ public:
     /**
      * Remove all events with matching name (case sensitive) from timer
      */
-    final size_t removeEvent(string name)
+    final size_t removeEvent(scope const(char)[] name) nothrow @safe
     {
         import std.algorithm : remove;
 

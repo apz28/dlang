@@ -916,7 +916,7 @@ public:
         return ++_depth;
     }
 
-    static DSeserializerFunctions register(T)(SerializerFunction serialize, DeserializerFunction deserialize)
+    static DSeserializerFunctions register(T)(SerializerFunction serialize, DeserializerFunction deserialize) nothrow
     in
     {
         assert(serialize !is null);
@@ -927,7 +927,7 @@ public:
         return register(fullyQualifiedName!T, DSeserializerFunctions(deserialize, serialize));
     }
 
-    static DSeserializerFunctions register(string type, SerializerFunction serialize, DeserializerFunction deserialize)
+    static DSeserializerFunctions register(string type, SerializerFunction serialize, DeserializerFunction deserialize) nothrow
     in
     {
         assert(type.length > 0);
@@ -939,7 +939,7 @@ public:
         return register(type, DSeserializerFunctions(deserialize, serialize));
     }
 
-    static DSeserializerFunctions register(string type, DSeserializerFunctions dserializes) @trusted // access __gshared customDSeserializedFunctions
+    static DSeserializerFunctions register(string type, DSeserializerFunctions dserializes) nothrow @trusted // access __gshared customDSeserializedFunctions
     in
     {
         assert(type.length > 0);

@@ -179,7 +179,7 @@ package(pham.utl):
 
 private:
 
-shared static this()
+shared static this() nothrow @safe
 {
     DSeserializer.register!BigInteger(&serializeBigInteger, &deserializeBigInteger);
     DSeserializer.register!Date(&serializeDate, &deserializeDate);

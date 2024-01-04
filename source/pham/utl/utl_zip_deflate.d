@@ -1780,7 +1780,7 @@ public:
 	}
 
 private:
-	shared static this() @trusted
+	shared static this() nothrow @trusted
 	{
 		Tables = [
 			new Config(0, 0, 0, 0, DeflateFlavor.store),

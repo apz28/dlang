@@ -120,7 +120,7 @@ if (isDecimal!D)
     }
 }
 
-shared static this()
+shared static this() nothrow @safe
 {
     DSeserializer.register!Decimal32(&serializeDecimal32, &deserializeDecimal32);
     DSeserializer.register!Decimal64(&serializeDecimal64, &deserializeDecimal64);
