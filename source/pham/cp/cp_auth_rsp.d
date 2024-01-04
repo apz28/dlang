@@ -774,7 +774,7 @@ private:
 // D does not allow to inline initialize immutable at compile time
 // so do it at module constructor
 // Leading 00 to indicate a positive number
-shared static this()
+shared static this() nothrow @safe
 {
     version (none)
     prime1024 = immutable PrimeGroup(

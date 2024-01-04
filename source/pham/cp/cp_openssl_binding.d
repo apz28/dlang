@@ -39,7 +39,7 @@ else
 
 version (Windows)
 {
-    private enum loadLib = "LoadLibrary(lib.ptr)";
+    private enum loadLib = "LoadLibrary(&lib[0])";
 
     static immutable LibName[] libSslNames = libSslNamesImpl();
     private LibName[] libSslNamesImpl() pure @safe
@@ -1134,7 +1134,7 @@ static immutable OpenSSLApi opensslApi;
 
 private:
 
-shared static this()
+shared static this() nothrow @trusted
 {
     foreach (lib; libSslNames)
     {
@@ -1324,7 +1324,7 @@ shared static this()
     opensslApi.initLib();
 }
 
-shared static ~this()
+shared static ~this() nothrow @trusted
 {
     if (opensslApi._libCrypto !is null)
     {

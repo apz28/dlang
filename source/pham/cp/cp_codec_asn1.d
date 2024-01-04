@@ -1903,7 +1903,7 @@ struct ASN1Value
 
 private:
 
-shared static this()
+shared static this() nothrow @safe
 {
     ASN1OId.initializeDefaults();
 }
@@ -1915,7 +1915,7 @@ unittest // ASN1BitString.opIndex
     static void test(size_t index, bool expectedValue, int line = __LINE__)
     {
         enum v = ASN1BitString([0x82, 0x40], 16);
-        assert(v[index] == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ to!string(v[index]) ~ " vs " ~ to!string(expectedValue));
+        assert(v[index] == expectedValue, "Failed from line# " ~ line.to!string() ~ ": " ~ v[index].to!string() ~ " vs " ~ expectedValue.to!string());
     }
 
     test(0, true);
@@ -1932,7 +1932,7 @@ unittest // ASN1BitString.rightAlign
 
     static void test(scope const(ASN1BitString) v, scope const(ubyte)[] expectedValue, int line = __LINE__) @safe
     {
-        assert(v.rightAlign() == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.rightAlign().dgToHex() ~ " vs " ~ expectedValue.dgToHex());
+        assert(v.rightAlign() == expectedValue, "Failed from line# " ~ line.to!string() ~ ": " ~ v.rightAlign().dgToHex() ~ " vs " ~ expectedValue.dgToHex());
     }
 
     test(ASN1BitString([0x80]), [0x01]);
@@ -1950,8 +1950,8 @@ unittest // ASN1BerDecoder.parseBoolean
     static void test(scope const(ubyte)[] bytes, bool parsedResult, bool expectedValue, int line = __LINE__)
     {
         bool v;
-        assert(ASN1BerDecoder.parseBoolean(bytes, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
-        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ to!string(v) ~ " vs " ~ to!string(expectedValue));
+        assert(ASN1BerDecoder.parseBoolean(bytes, v).isOK == parsedResult, "Failed from line: " ~ line.to!string());
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ line.to!string() ~ ": " ~ v.to!string() ~ " vs " ~ expectedValue.to!string());
     }
 
     test([0x00], true, false);
@@ -1968,8 +1968,8 @@ unittest // ASN1BerDecoder.parseInteger.int
     static void test(scope const(ubyte)[] bytes, bool parsedResult, int expectedValue, int line = __LINE__)
     {
         int v;
-        assert(ASN1BerDecoder.parseInteger!int(bytes, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
-        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ to!string(v) ~ " vs " ~ to!string(expectedValue));
+        assert(ASN1BerDecoder.parseInteger!int(bytes, v).isOK == parsedResult, "Failed from line: " ~ line.to!string());
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ line.to!string() ~ ": " ~ v.to!string() ~ " vs " ~ expectedValue.to!string());
     }
 
     test([0x00], true, 0);
@@ -1993,8 +1993,8 @@ unittest // ASN1BerDecoder.parseInteger.long
     static void test(scope const(ubyte)[] bytes, bool parsedResult, long expectedValue, int line = __LINE__)
     {
         long v;
-        assert(ASN1BerDecoder.parseInteger!long(bytes, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
-        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ to!string(v) ~ " vs " ~ to!string(expectedValue));
+        assert(ASN1BerDecoder.parseInteger!long(bytes, v).isOK == parsedResult, "Failed from line: " ~ line.to!string());
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ line.to!string() ~ ": " ~ v.to!string() ~ " vs " ~ expectedValue.to!string());
     }
 
     test([0x00], true, 0);
@@ -2018,8 +2018,8 @@ unittest // ASN1BerDecoder.parseBigInteger
     static void test(scope const(ubyte)[] bytes, bool parsedResult, long expectedValue, int line = __LINE__) nothrow
     {
         BigInteger v;
-        assert(ASN1BerDecoder.parseBigInteger(bytes, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
-        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.toString() ~ " vs " ~ to!string(expectedValue));
+        assert(ASN1BerDecoder.parseBigInteger(bytes, v).isOK == parsedResult, "Failed from line: " ~ line.to!string());
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ line.to!string() ~ ": " ~ v.toString() ~ " vs " ~ expectedValue.to!string());
     }
 
     test([0xff], true, -1);
@@ -2040,8 +2040,8 @@ unittest // ASN1BerDecoder.parseBitString
     static void test(scope const(ubyte)[] bytes, bool parsedResult, const(ASN1BitString) expectedValue, int line = __LINE__) @safe
     {
         ASN1BitString v;
-        assert(ASN1BerDecoder.parseBitString(bytes, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
-        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.toString() ~ " vs " ~ expectedValue.toString());
+        assert(ASN1BerDecoder.parseBitString(bytes, v).isOK == parsedResult, "Failed from line: " ~ line.to!string());
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ line.to!string() ~ ": " ~ v.toString() ~ " vs " ~ expectedValue.toString());
     }
 
     test([], false, ASN1BitString.init);
@@ -2059,8 +2059,8 @@ unittest // ASN1BerDecoder.parseObjectIdentifier
     static void test(scope const(ubyte)[] bytes, bool parsedResult, int[] expectedValue, int line = __LINE__)
     {
         ASN1ObjectIdentifier v;
-        assert(ASN1BerDecoder.parseObjectIdentifier(bytes, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
-        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.toString() ~ " vs " ~ ASN1ObjectIdentifier(expectedValue).toString());
+        assert(ASN1BerDecoder.parseObjectIdentifier(bytes, v).isOK == parsedResult, "Failed from line: " ~ line.to!string());
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ line.to!string() ~ ": " ~ v.toString() ~ " vs " ~ ASN1ObjectIdentifier(expectedValue).toString());
     }
 
     test([], false, []);
@@ -2080,8 +2080,8 @@ unittest // ASN1BerDecoder.parseUTCTime
     static void test(string bytes, bool parsedResult, scope const(DateTime) expectedValue, int line = __LINE__)
     {
         DateTime v;
-        assert(ASN1BerDecoder.parseUTCTime(bytes.representation, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
-        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.toString() ~ " vs " ~ expectedValue.toString());
+        assert(ASN1BerDecoder.parseUTCTime(bytes.representation, v).isOK == parsedResult, "Failed from line: " ~ line.to!string());
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ line.to!string() ~ ": " ~ v.toString() ~ " vs " ~ expectedValue.toString());
     }
 
     static int year(int twoDigitYear) nothrow
@@ -2112,8 +2112,8 @@ unittest // ASN1BerDecoder.parseGeneralizedTime
     static void test(string bytes, bool parsedResult, scope const(DateTime) expectedValue, int line = __LINE__)
     {
         DateTime v;
-        assert(ASN1BerDecoder.parseGeneralizedTime(bytes.representation, v).isOK == parsedResult, "Failed from line: " ~ to!string(line));
-        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ to!string(line) ~ ": " ~ v.toString() ~ " vs " ~ expectedValue.toString());
+        assert(ASN1BerDecoder.parseGeneralizedTime(bytes.representation, v).isOK == parsedResult, "Failed from line: " ~ line.to!string());
+        assert(!parsedResult || v == expectedValue, "Failed from line# " ~ line.to!string() ~ ": " ~ v.toString() ~ " vs " ~ expectedValue.toString());
     }
 
 	test("20100102030405Z", true, DateTime(2010, 01, 02, 03, 04, 05, 0, DateTimeZoneKind.utc));

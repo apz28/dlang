@@ -1401,7 +1401,7 @@ static immutable OpenSSLKeyInfo[string] mappedKeyInfos;
 // Any below codes are private
 private:
 
-shared static this()
+shared static this() nothrow @safe
 {
     if (opensslApi.status().isOK)
     {
