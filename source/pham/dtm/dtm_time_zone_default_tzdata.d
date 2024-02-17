@@ -575,9 +575,6 @@ string trimRight(string line) @nogc pure
 
 unittest // normalizeWhite
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.normalizeWhite");
-
     assert(normalizeWhite(null) is null);
     assert(normalizeWhite("  \t \n ") == " ");
     assert(normalizeWhite("abc  \t \n ") == "abc ");
@@ -586,9 +583,6 @@ unittest // normalizeWhite
 
 unittest // removeComment
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.removeComment");
-
     assert(removeComment(null) is null);
     assert(removeComment("#") is null);
     assert(removeComment("#abc") is null);
@@ -598,9 +592,6 @@ unittest // removeComment
 
 unittest // sameFirst
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.sameFirst");
-
     assert(sameFirst("", ""));
     assert(sameFirst("abc xyz", "ab"));
     assert(sameFirst("abc xyz", "abc xyz"));
@@ -611,9 +602,6 @@ unittest // sameFirst
 
 unittest // sameLast
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.sameLast");
-
     assert(sameLast("", ""));
     assert(sameLast("abc xyz", "yz"));
     assert(sameLast("abc xyz", "abc xyz"));
@@ -624,16 +612,11 @@ unittest // sameLast
 
 unittest // toDay
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toDay");
 //todo
 }
 
 unittest // toDayOfMonth
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toDayOfMonth");
-
     ResultIf!int r;
     r = toDayOfMonth("1");
     assert(r);
@@ -652,9 +635,6 @@ unittest // toDayOfMonth
 
 unittest // toLink
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toLink");
-
     ResultIf!LinkInfo r;
     r = toLink([linkId, "name", "alias"]);
     assert(r);
@@ -670,23 +650,16 @@ unittest // toLink
 
 unittest // toRule
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toRule");
     //todo
 }
 
 unittest // toTime
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toTime");
     //todo
 }
 
 unittest // toYearBegin
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toYearBegin");
-
     ResultIf!int r;
     r = toYearBegin("min");
     assert(r);
@@ -708,9 +681,6 @@ unittest // toYearBegin
 
 unittest // toYearEnd
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toYearEnd");
-
     ResultIf!int r, onlyError, onlyOK;
     onlyError = ResultIf!int.error(1, null);
     onlyOK = ResultIf!int.ok(2000);
@@ -740,16 +710,11 @@ unittest // toYearEnd
 
 unittest // toZone
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.toZone");
     //todo
 }
 
 unittest // trimRight
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_tzdata.trimRight");
-
     assert(trimRight(null) is null);
     assert(trimRight("  \t \n ") is null);
     assert(trimRight("abc  \t \n ") == "abc");

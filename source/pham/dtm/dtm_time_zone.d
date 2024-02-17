@@ -14,7 +14,8 @@ module pham.dtm.dtm_time_zone;
 import std.conv : to;
 import std.uni : sicmp;
 
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_dtm_dtm_time_zone) import std.stdio : writeln;
+
 import pham.dtm.dtm_date;
 import pham.dtm.dtm_tick;
 import pham.dtm.dtm_time;
@@ -571,7 +572,7 @@ public:
     {
         return (cast(int)validOffsetHour * 60) + validOffsetMinute;
     }
-    
+
     pragma(inline, true)
     static void offsetToISOPart(const(int) validOffsetMinute, out byte hour, out byte minute) @nogc nothrow pure scope
     in
@@ -581,11 +582,11 @@ public:
     do
     {
         import std.math.algebraic : abs;
-        
+
         hour = cast(byte)(validOffsetMinute / 60);
         minute = cast(byte)(abs(validOffsetMinute) - (cast(int)abs(hour) * 60));
     }
-    
+
     size_t toHash() const @nogc nothrow pure scope
     {
         return hashOf(_id);
@@ -667,9 +668,9 @@ public:
 
     @property static TimeZoneInfo localTimeZone() nothrow
     {
-        version (Windows)
+        version(Windows)
             return localTimeZoneWindows(null);
-        else version (Posix)
+        else version(Posix)
             return localTimeZonePosix(null);
         else
             static assert(0, "Unsupport system for " ~ __FUNCTION__);
@@ -1326,7 +1327,7 @@ TimeZoneInfo notFoundLocalTimeZone(string useId) @nogc nothrow pure
 
 private:
 
-version (Windows)
+version(Windows)
 {
     import core.sys.windows.winbase : GetTimeZoneInformation, SYSTEMTIME, TIME_ZONE_INFORMATION, TIME_ZONE_ID_INVALID;
     import core.sys.windows.winnt : WCHAR;
@@ -1349,7 +1350,8 @@ version (Windows)
         TIME_ZONE_INFORMATION tzInfo;
         if (GetTimeZoneInformation(&tzInfo) != TIME_ZONE_ID_INVALID)
         {
-            //import pham.utl.utl_test; dgWriteln("tzInfo.Bias=", tzInfo.Bias, ", tzInfo.DaylightBias=", tzInfo.DaylightBias, ", tzInfo.StandardBias=", tzInfo.StandardBias);
+            debug(debug_pham_dtm_dtm_time_zone) debug writeln(__FUNCTION__, "(tzInfo.Bias=", tzInfo.Bias, ", tzInfo.DaylightBias=",
+                tzInfo.DaylightBias, ", tzInfo.StandardBias=", tzInfo.StandardBias, ")");
 
             const standardName = toName(tzInfo.StandardName);
             const daylightName = toName(tzInfo.DaylightName);
@@ -1404,7 +1406,7 @@ version (Windows)
         return tzInfo.DaylightDate.wMonth != 0 && !(transitionBegin == transitionEnd);
     }
 }
-else version (Posix)
+else version(Posix)
 {
     import std.algorithm.searching : canFind, startsWith;
     import std.file : dirEntries, exists, read, readLink, SpanMode;
@@ -1692,12 +1694,9 @@ else
 
 unittest // TimeZoneInfo.localTimeZone
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone.TimeZoneInfo.localTimeZone");
-
     auto ltz = TimeZoneInfo.localTimeZone();
 
-    version (none)
+    version(none)
     dgWriteln("ltz.baseUtcOffset=", ltz.baseUtcOffset,
               ", ltz.daylightName=", ltz.daylightName,
               ", ltz.dislayName=", ltz.displayName,
@@ -1708,9 +1707,6 @@ unittest // TimeZoneInfo.localTimeZone
 
 unittest // TimeZoneInfo.offsetFromISOPart & offsetToISOPart
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone.TimeZoneInfo.offsetFromISOPart & offsetToISOPart");
-    
     assert(TimeZoneInfo.offsetFromISOPart(1, 5) == 65);
     assert(TimeZoneInfo.offsetFromISOPart(-5, 0) == -5 * 60);
 

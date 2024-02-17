@@ -176,9 +176,6 @@ ResultIf!TimeZoneInfo toZone(ref JSONValue v) @trusted
 
 unittest // toInt
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_json.toInt");
-
     assert(toInt(0).value == 0);
     assert(toInt(1).value == 1);
     assert(toInt(int.min).value == int.min);
@@ -190,9 +187,6 @@ unittest // toInt
 
 unittest // toDeltaMinutes
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_json.toDeltaMinutes");
-
     assert(toDeltaMinutes(0).value == dur!"minutes"(0));
     assert(toDeltaMinutes(1).value == dur!"minutes"(1));
     assert(toDeltaMinutes(-Tick.minutesPerDay).value == dur!"minutes"(-Tick.minutesPerDay));
@@ -204,9 +198,6 @@ unittest // toDeltaMinutes
 
 unittest // toKind
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_json.toKind");
-
     assert(toKind("unspecified").value == DateTimeZoneKind.unspecified);
     assert(toKind("local").value == DateTimeZoneKind.local);
     assert(toKind("utc").value == DateTimeZoneKind.utc);
@@ -216,18 +207,12 @@ unittest // toKind
 
 unittest // toDateTime
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_json.toDateTime");
-
     assert(toDateTime("0001-01-01T00:00:00.0000?unspecified").value == DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeZoneKind.unspecified));
     assert(toDateTime("2006-12-31T00:00:00.0000?unspecified").value == DateTime(2006, 12, 31, 0, 0, 0, 0, DateTimeZoneKind.unspecified));
 }
 
 unittest // getDefaultTimeZoneInfosByJson
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_default_json.getDefaultTimeZoneInfosByJson");
-
     static immutable string json = q"JSON
 {
   "zones": [

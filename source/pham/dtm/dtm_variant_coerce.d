@@ -129,11 +129,8 @@ shared static this() nothrow @safe
     ConvertHandler.add!(DateTime, Time)(handler);
 }
 
-unittest
+unittest // variant_coerce
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.variant_coerce");
-
     Date d = Date(2000, 1, 1);
     Time t = Time(1, 0, 0, 0);
     DateTime dt = DateTime(d, t);

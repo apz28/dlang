@@ -3,7 +3,8 @@
  * License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * Authors: An Pham
  *
- * Copyright An Pham 2021 - xxxx.
+ * Copyright An Pham 2021 - xxxx694
+ .
  * Distributed under the Boost Software License, Version 1.0.
  * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
@@ -14,8 +15,11 @@ module pham.dtm.dtm_time;
 import std.range.primitives : isOutputRange;
 import std.traits : isSomeChar;
 
+debug(debug_pham_dtm_dtm_time) import std.stdio : writeln;
+
 import pham.utl.utl_array : ShortStringBuffer;
 import pham.dtm.dtm_date : Date, DateTime, DayOfWeek, JulianDate;
+import pham.dtm.dtm_date_time_format;
 import pham.dtm.dtm_tick;
 public import pham.dtm.dtm_tick : CustomFormatSpecifier, DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind;
 
@@ -112,10 +116,10 @@ public:
             static assert(0);
     }
 
-    Duration opBinary(string op)(scope const(Time) rhs) const @nogc nothrow pure scope
+    TickSpan opBinary(string op)(scope const(Time) rhs) const @nogc nothrow pure scope
     if (op == "-")
     {
-        return Tick.durationFromTicks(data.sticks - rhs.data.sticks);
+        return TickSpan(this.sticks, rhs.sticks);
     }
 
     int opCmp(scope const(Time) rhs) const @nogc nothrow pure scope
@@ -321,31 +325,43 @@ public:
         return toString(buffer).toString();
     }
 
-    ref Writer toString(Writer, Char = char)(return ref Writer sink) const nothrow
-    if (isOutputRange!(Writer, Char))
-    {
-        import pham.dtm.dtm_date_time_format;
-
-        auto fmtSpec = FormatDateTimeSpec!Char("%G");
-        auto fmtValue = FormatDateTimeValue(this);
-        formattedWrite(sink, fmtSpec, fmtValue);
-        return sink;
-    }
-
     string toString(scope const(char)[] fmt) const
     {
         ShortStringBuffer!char buffer;
         return toString(buffer, fmt).toString();
     }
 
+    string toString(scope const(char)[] fmt, scope ref DateTimeSetting setting) const
+    {
+        ShortStringBuffer!char buffer;
+        return toString(buffer, fmt, setting).toString();
+    }
+
+    ref Writer toString(Writer, Char = char)(return ref Writer sink) const nothrow
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+    {
+        auto fmtSpec = FormatDateTimeSpec!Char("%G");
+        auto fmtValue = FormatDateTimeValue(this);
+        formattedWrite(sink, fmtSpec, fmtValue);
+        return sink;
+    }
+
     ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt) const
     if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
-        import pham.dtm.dtm_date_time_format;
-
         auto fmtSpec = FormatDateTimeSpec!Char(fmt);
         auto fmtValue = FormatDateTimeValue(this);
         if (formattedWrite(sink, fmtSpec, fmtValue) == formatedWriteError)
+            throw new FormatException(fmtSpec.errorMessage.idup);
+        return sink;
+    }
+
+    ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt, auto scope ref DateTimeSetting setting) const
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+    {
+        auto fmtSpec = FormatDateTimeSpec!Char(fmt);
+        auto fmtValue = FormatDateTimeValue(this);
+        if (formattedWrite(sink, fmtSpec, fmtValue, setting) == formatedWriteError)
             throw new FormatException(fmtSpec.errorMessage.idup);
         return sink;
     }
@@ -582,11 +598,8 @@ alias TimeOfDay = Time;
 // Any below codes are private
 private:
 
-unittest
+unittest // time.contructor
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.contructor");
-
     assert(Time(0L) == Time.init);
     assert(Time(0, 0, 0, 0) == Time.init);
     assert(Time(0, 0, 0) == Time.init);
@@ -633,9 +646,6 @@ unittest
 
 unittest // Time.opCmp
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.Time.opCmp");
-
     assert(Time(0, 0, 0).opCmp(Time.init) == 0);
 
     assert(Time(0, 0, 0).opCmp(Time(0, 0, 0)) == 0);
@@ -672,9 +682,6 @@ unittest // Time.opCmp
 
 unittest // Time.opEquals
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.Time.opEquals");
-
     assert(Time(12, 30, 33, 1).opEquals(Time(12, 30, 33, 1)));
     assert(Time(12, 30, 33).opEquals(Time(12, 30, 33)));
     assert(Time(12, 30).opEquals(Time(12, 30)));
@@ -685,9 +692,8 @@ unittest // Time.opEquals
 
 unittest // Time.hour
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.Time.hour");
-
+    import std.conv : to;
+    
     assert(Time.init.hour == 0);
     assert(Time(12, 0, 0).hour == 12);
 
@@ -703,14 +709,13 @@ unittest // Time.hour
     int i4;
     auto t4 = Time(23, 59, 59, 999).addHours(1, i4);
     assert(t4 == Time(0, 59, 59, 999), t4.toString());
-    assert(i4 == 1, i4.dgToStr());
+    assert(i4 == 1, to!string(i4));
 }
 
 unittest // Time.minute
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.Time.minute");
-
+    import std.conv : to;
+    
     assert(Time.init.minute == 0);
     assert(Time(0, 30, 0).minute == 30);
 
@@ -726,14 +731,13 @@ unittest // Time.minute
     int i4;
     auto t4 = Time(23, 59, 59, 999).addMinutes(2, i4);
     assert(t4 == Time(0, 1, 59, 999), t4.toString());
-    assert(i4 == 1, i4.dgToStr());
+    assert(i4 == 1, to!string(i4));
 }
 
 unittest // Time.second
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.Time.second");
-
+    import std.conv : to;
+    
     assert(Time.init.second == 0);
     assert(Time(0, 0, 33).second == 33);
 
@@ -749,14 +753,13 @@ unittest // Time.second
     int i4;
     auto t4 = Time(23, 59, 59, 999).addSeconds(2, i4);
     assert(t4 == Time(0, 0, 1, 999), t4.toString());
-    assert(i4 == 1, i4.dgToStr());
+    assert(i4 == 1, to!string(i4));
 }
 
 unittest // Time.millisecond
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.Time.millisecond");
-
+    import std.conv : to;
+    
     assert(Time.init.millisecond == 0);
     assert(Time(0, 0, 0, 83).millisecond == 83);
 
@@ -772,14 +775,12 @@ unittest // Time.millisecond
     int i4;
     auto t4 = Time(23, 59, 59, 999).addMilliseconds(2, i4);
     assert(t4 == Time(0, 0, 0, 1), t4.toString());
-    assert(i4 == 1, i4.dgToStr());
+    assert(i4 == 1, to!string(i4));
 }
 
 unittest // Time.opBinary
 {
     import core.time : dur, hours, minutes, seconds, msecs;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.Time.opBinary");
 
     assert(Time(12, 12, 12, 0) + hours(1) == Time(13, 12, 12, 0));
     assert(Time(12, 12, 12, 0) + minutes(1) == Time(12, 13, 12, 0));
@@ -836,41 +837,63 @@ unittest // Time.opBinary
 
 unittest // Time.opBinary
 {
-    import core.time : dur, hours, minutes, seconds, msecs;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.Time.opBinary");
-
-    assert(Time(7, 12, 52) - Time(12, 30, 33) == dur!"seconds"(-19_061));
-    assert(Time(12, 30, 33) - Time(7, 12, 52) == dur!"seconds"(19_061));
-    assert(Time(12, 30, 33) - Time(14, 30, 33) == dur!"seconds"(-7200));
-    assert(Time(14, 30, 33) - Time(12, 30, 33) == dur!"seconds"(7200));
-    assert(Time(12, 30, 33) - Time(12, 34, 33) == dur!"seconds"(-240));
-    assert(Time(12, 34, 33) - Time(12, 30, 33) == dur!"seconds"(240));
-    assert(Time(12, 30, 33) - Time(12, 30, 34) == dur!"seconds"(-1));
-    assert(Time(12, 30, 34) - Time(12, 30, 33) == dur!"seconds"(1));
+    import core.time : dur;
+    import std.conv : to;
+    
+    static string toString(ubyte decimals = 4)(const(double) n) nothrow pure
+    {
+        import std.conv : to;
+        import std.format : format;
+        
+        scope (failure) assert(0, "Assume nothrow");
+        
+        enum fmt = "%." ~ to!string(decimals) ~ "f";
+        return format(fmt, n);
+    }
+    
+    static bool approxEqual(ubyte decimals = 4)(const(double) lhs, const(double) rhs) nothrow pure
+    {
+        import std.conv : to;
+        import std.math.operations : isClose;
+        
+        enum maxRelDiff = to!double("1e-" ~ to!string(decimals));
+        return isClose(lhs, rhs, maxRelDiff);
+    }
+    
+    assert((Time(7, 12, 52) - Time(12, 30, 33)).toDuration == dur!"seconds"(-19_061));
+    assert((Time(12, 30, 33) - Time(7, 12, 52)).toDuration == dur!"seconds"(19_061));
+    assert((Time(12, 30, 33) - Time(14, 30, 33)).toDuration == dur!"seconds"(-7200));
+    assert((Time(14, 30, 33) - Time(12, 30, 33)).toDuration == dur!"seconds"(7200));
+    assert((Time(12, 30, 33) - Time(12, 34, 33)).toDuration == dur!"seconds"(-240));
+    assert((Time(12, 34, 33) - Time(12, 30, 33)).toDuration == dur!"seconds"(240));
+    assert((Time(12, 30, 33) - Time(12, 30, 34)).toDuration == dur!"seconds"(-1));
+    assert((Time(12, 30, 34) - Time(12, 30, 33)).toDuration == dur!"seconds"(1));
 
     auto tod = Time(12, 30, 33);
     const ctod = Time(12, 30, 33);
     immutable itod = TimeOfDay(12, 30, 33);
-
-    assert(tod - tod == Duration.zero);
-    assert(tod - ctod == Duration.zero);
-    assert(tod - itod == Duration.zero);
-
-    assert(ctod - ctod == Duration.zero);
-    assert(ctod - tod == Duration.zero);
-    assert(ctod - itod == Duration.zero);
-
-    assert(itod - tod == Duration.zero);
-    assert(itod - ctod == Duration.zero);
-    assert(itod - itod == Duration.zero);
+    assert((tod - tod).toDuration == Duration.zero);
+    assert((tod - ctod).toDuration == Duration.zero);
+    assert((tod - itod).toDuration == Duration.zero);
+    assert((ctod - ctod).toDuration == Duration.zero);
+    assert((ctod - tod).toDuration == Duration.zero);
+    assert((ctod - itod).toDuration == Duration.zero);
+    assert((itod - tod).toDuration == Duration.zero);
+    assert((itod - ctod).toDuration == Duration.zero);
+    assert((itod - itod).toDuration == Duration.zero);    
+    
+	auto preTime = Time(0, 0, 0);
+    auto nowTime = Time(19, 22, 7);
+    assert(approxEqual!15((nowTime - preTime).totalDays, 0.807025462962963), toString!15((nowTime - preTime).totalDays));
+    assert(approxEqual!13((nowTime - preTime).totalHours, 19.3686111111111), toString!13((nowTime - preTime).totalHours));
+    assert(approxEqual!11((nowTime - preTime).totalMinutes, 1_162.11666666667), toString!11((nowTime - preTime).totalMinutes));
+    assert((nowTime - preTime).totalSeconds == 69_727, to!string((nowTime - preTime).totalSeconds));
+    assert((nowTime - preTime).totalMilliseconds == 69_727_000, to!string((nowTime - preTime).totalMilliseconds));
+    assert((nowTime - preTime).totalTicks == 697_270_000_000, to!string((nowTime - preTime).totalTicks));  
 }
 
 unittest // Time.min
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.Time.min");
-
     assert(Time.min.hour == 0);
     assert(Time.min.minute == 0);
     assert(Time.min.second == 0);
@@ -879,9 +902,6 @@ unittest // Time.min
 
 unittest // Time.max
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.Time.max");
-
     assert(Time.max.hour == 23);
     assert(Time.max.minute == 59);
     assert(Time.max.second == 59);
@@ -893,9 +913,6 @@ unittest // Time.max
 
 unittest // Time.toString
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.Time.toString");
-
     assert(Time.max.toString() == "11:59:59 PM", Time.max.toString());
 
     assert(Time(0, 0, 0).toString() == "0:00:00 AM", Time(0, 0, 0).toString());
@@ -914,8 +931,6 @@ unittest // Time.toString
 unittest // Time.createTime
 {
     import std.exception : assertThrown;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.Time.createTime");
 
     auto t1 = Time.createTime(0);
     auto t2 = Time.createTime(0, 0, 0, 100);
@@ -934,8 +949,6 @@ unittest // Time.createTime
 unittest // Time.julianDay
 {
     import std.conv : to;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.Time.julianDay");
 
     assert(Tick.round(Time(0, 0, 0, 0).julianDay) == 1721424, Tick.round(Time(0, 0, 0, 0).julianDay).to!string());
     assert(Tick.round(Time(11, 59, 59, 999).julianDay) == 1721424, Tick.round(Time(11, 59, 59, 999).julianDay).to!string());
@@ -945,9 +958,6 @@ unittest // Time.julianDay
 
 unittest // Time.getTime
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.Time.getTime");
-
     int h, m, s, ms;
 
     Time(0, 0, 0, 0).getTime(h, m, s, ms);
@@ -977,9 +987,6 @@ unittest // Time.getTime
 
 unittest // Time.getTimePrecise
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time.Time.getTimePrecise");
-
     int h, m, s, t;
 
     Time(0, 0, 0, 0).getTimePrecise(h, m, s, t);

@@ -171,6 +171,7 @@ struct Tick
     enum long ticksPerDay = ticksPerHour * 24;              // 864,000,000,000
     enum int  ticksMaxPrecision = 7;                        // 999 * ticksPerMillisecond = 7 digits
 
+    enum int daysPerWeek = 7;
     enum int hoursPerDay = 24;
 
     enum int minutesPerHour = 60;
@@ -188,19 +189,25 @@ struct Tick
 
     // Number of days in a non-leap year
     enum long daysPerYear = 365;
+    
     // Number of days in 4 years
     enum long daysPer4Years = daysPerYear * 4 + 1;       // 1_461
+    
     // Number of days in 100 years
     enum long daysPer100Years = daysPer4Years * 25 - 1;  // 36_524
+    
     // Number of days in 400 years
     enum long daysPer400Years = daysPer100Years * 4 + 1; // 146_097
 
     // Number of days from 1/1/0001 to 12/31/1600
     enum long daysTo1601 = daysPer400Years * 4;          // 584_388
+    
     // Number of days from 1/1/0001 to 12/30/1899
     enum long daysTo1899 = daysPer400Years * 4 + daysPer100Years * 3 - 367;
+    
     // Number of days from 1/1/0001 to 12/31/1969
     enum long daysTo1970 = daysPer400Years * 4 + daysPer100Years * 3 + daysPer4Years * 17 + daysPerYear; // 719_162
+    
     // Number of days from 1/1/0001 to 12/31/9999
     // The value calculated from "DateTime(12/31/9999).ticks / ticksPerDay"
     enum long daysTo10000 = daysPer400Years * 25 - 366;  // 3_652_059
@@ -210,9 +217,9 @@ struct Tick
     static long currentSystemTicks(ClockType clockType = ClockType.normal)() @trusted
     if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType == ClockType.precise)
     {
-        version (Windows)
+        version(Windows)
             return currentSystemTicksWindows!clockType();
-        else version (Posix)
+        else version(Posix)
             return currentSystemTicksPosix!clockType();
         else
             static assert(0, "Unsupport system for " ~ __FUNCTION__);
@@ -236,6 +243,21 @@ struct Tick
         return duration.total!"hnsecs"();
     }
 
+    static bool isValidMicrosecond(const(int) microsecond) pure
+    {
+        return microsecond >= -999_999 && microsecond <= 999_999;
+    }
+
+    static bool isValidMillisecond(const(int) millisecond) pure
+    {
+        return millisecond >= -999 && millisecond <= 999;
+    }
+
+    static bool isValidTickPrecision(const(int) tick) pure
+    {
+        return tick >= -9_999_999 && tick <= 9_999_999;
+    }
+    
     static long round(const(double) d) pure
     {
         const r = d >= 0.0 ? 0.5 : -0.5;
@@ -302,7 +324,7 @@ struct TickData
 
     int opCmp(scope const(TickData) rhs) const pure scope
     {
-        version (RelaxCompareTime)
+        version(RelaxCompareTime)
         {
             const result = cmp(this.uticks, rhs.uticks);
             if (result == 0)
@@ -323,7 +345,7 @@ struct TickData
 
     bool opEquals(scope const(TickData) rhs) const pure scope
     {
-        version (RelaxCompareTime)
+        version(RelaxCompareTime)
             return opCmp(rhs) == 0;
         else
             return this.data == rhs.data;
@@ -421,7 +443,7 @@ struct TickPart
     static int microsecondToTick(int microsecond) pure
     in
     {
-        assert(microsecond >= -999_999 && microsecond <= 999_999);
+        assert(Tick.isValidMicrosecond(microsecond));
     }
     do
     {
@@ -432,7 +454,7 @@ struct TickPart
     static int millisecondToMicrosecond(int millisecond) pure
     in
     {
-        assert(millisecond >= -999 && millisecond <= 999);
+        assert(Tick.isValidMillisecond(millisecond));
     }
     do
     {
@@ -443,7 +465,7 @@ struct TickPart
     static int millisecondToTick(int millisecond) pure
     in
     {
-        assert(millisecond >= -999 && millisecond <= 999);
+        assert(Tick.isValidMillisecond(millisecond));
     }
     do
     {
@@ -454,7 +476,7 @@ struct TickPart
     static int tickToMicrosecond(int tick) pure
     in
     {
-        assert(tick >= -9_999_999 && tick <= 9_999_999);
+        assert(Tick.isValidTickPrecision(tick));
     }
     do
     {
@@ -465,12 +487,135 @@ struct TickPart
     static int tickToMillisecond(int tick) pure
     in
     {
-        assert(tick >= -9_999_999 && tick <= 9_999_999);
+        assert(Tick.isValidTickPrecision(tick));
     }
     do
     {
         return tick / Tick.ticksPerMillisecond;
     }
+}
+
+/**
+ * Represents a tick interval between Date, DateTime & Time
+ */
+struct TickSpan
+{
+@nogc nothrow @safe:
+
+    this(const(long) ticks) pure
+    {
+        this.ticks = ticks;
+    }
+
+    this(const(long) nowTicks, const(long) thenTicks) pure
+    {
+        this.ticks = nowTicks - thenTicks;
+    }
+    
+    // Average over a 4 year span
+    enum double approxDaysPerMonth4ys = 30.4375;
+    enum double approxDaysPerYear4ys  = 365.25;
+     
+    /**
+     * The above are the average days per month/year over a normal 4 year period.
+     * We use these approximations because they are more accurate for the next
+     * century or so. After that you may want to switch over to these 400 year span
+     * approximations...
+     */
+    enum double approxDaysPerMonth400ys = 30.436875;
+    enum double approxDaysPerYear400ys  = 365.2425;     
+
+    /**
+     * The total number of years
+     */
+    pragma(inline, true)
+    double totalYears(const(double) approxDaysPerYear = TickSpan.approxDaysPerYear4ys) const pure
+    {
+        return totalTicks / (cast(double)Tick.ticksPerDay * approxDaysPerYear);
+    }
+
+    /**
+     * The total number of months
+     */   
+    pragma(inline, true)
+    double totalMonths(const(double) approxDaysPerMonth = TickSpan.approxDaysPerMonth4ys) const pure
+    {
+        return totalTicks / (cast(double)Tick.ticksPerDay * approxDaysPerMonth);
+    }
+
+    /**
+     * The total number of weeks
+     */    
+    pragma(inline, true)
+    double totalWeeks() const pure
+    {
+        return totalTicks / cast(double)(Tick.ticksPerDay * Tick.daysPerWeek);
+    }
+
+    /**
+     * The total number of days
+     */
+    pragma(inline, true)
+    double totalDays() const pure
+    {
+        return totalTicks / cast(double)Tick.ticksPerDay;
+    }
+
+    /**
+     * The total number of hours
+     */
+    pragma(inline, true)
+    double totalHours() const pure
+    {
+        return totalTicks / cast(double)Tick.ticksPerHour;
+    }
+
+    /**
+     * The total number of minutes
+     */
+    pragma(inline, true)
+    double totalMinutes() const pure
+    {
+        return totalTicks / cast(double)Tick.ticksPerMinute;
+    }
+
+    /**
+     * The total number of seconds
+     */
+    pragma(inline, true)
+    double totalSeconds() const pure
+    {
+        return totalTicks / cast(double)Tick.ticksPerSecond;
+    }
+
+    /**
+     * The total number of milliseconds
+     */
+    pragma(inline, true)
+    double totalMilliseconds() const pure
+    {
+        return totalTicks / cast(double)Tick.ticksPerMillisecond;
+    }
+
+    /**
+     * The total number of ticks
+     */
+    pragma(inline, true)
+    double totalTicks() const pure
+    {
+        return this.ticks;
+    }
+
+    /**
+     * The total number of ticks in Duration
+     */
+    pragma(inline, true)
+    Duration toDuration() const pure
+    {
+        return Tick.durationFromTicks(this.ticks);
+    }
+    
+    long ticks;
 }
 
 /**
@@ -730,7 +875,7 @@ __gshared DateTimeSetting sharedDateTimeSetting = DateTimeSetting.us();
 
 package(pham.dtm):
 
-version (Windows)
+version(Windows)
 long currentSystemTicksWindows(ClockType clockType = ClockType.normal)() @trusted
 if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType == ClockType.precise)
 {
@@ -749,7 +894,7 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
     return cast(long)tempHNSecs + hnsecsFrom1601;
 }
 
-version (Posix)
+version(Posix)
 long currentSystemTicksPosix(ClockType clockType = ClockType.normal)() @trusted
 if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType == ClockType.precise)
 {
@@ -757,7 +902,7 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
 
     enum long hnsecsToUnixEpoch = 621_355_968_000_000_000L;
 
-    version (Darwin)
+    version(Darwin)
     {
         import core.sys.posix.sys.time : gettimeofday, timeval;
 
@@ -769,7 +914,7 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
         gettimeofday(&tv, null);
         return convert!("seconds", "hnsecs")(tv.tv_sec) + tv.tv_usec * 10 + hnsecsToUnixEpoch;
     }
-    else version (linux)
+    else version(linux)
     {
         import core.sys.linux.time : CLOCK_REALTIME_COARSE;
         import core.sys.posix.time : clock_gettime, CLOCK_REALTIME;
@@ -789,7 +934,7 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
         assert(!error && ts.tv_sec.max < long.max);
         return convert!("seconds", "hnsecs")(ts.tv_sec) + ts.tv_nsec / 100 + hnsecsToUnixEpoch;
     }
-    else version (FreeBSD)
+    else version(FreeBSD)
     {
         import core.sys.freebsd.time : clock_gettime, CLOCK_REALTIME,
             CLOCK_REALTIME_FAST, CLOCK_REALTIME_PRECISE, CLOCK_SECOND;
@@ -809,7 +954,7 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
         assert(!error && ts.tv_sec.max < long.max);
         return convert!("seconds", "hnsecs")(ts.tv_sec) + ts.tv_nsec / 100 + hnsecsToUnixEpoch;
     }
-    else version (NetBSD)
+    else version(NetBSD)
     {
         import core.sys.netbsd.time : clock_gettime, CLOCK_REALTIME;
 
@@ -823,7 +968,7 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
         assert(!error && ts.tv_sec.max < long.max);
         return convert!("seconds", "hnsecs")(ts.tv_sec) + ts.tv_nsec / 100 + hnsecsToUnixEpoch;
     }
-    else version (OpenBSD)
+    else version(OpenBSD)
     {
         import core.sys.openbsd.time : clock_gettime, CLOCK_REALTIME;
 
@@ -837,7 +982,7 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
         assert(!error && ts.tv_sec.max < long.max);
         return convert!("seconds", "hnsecs")(ts.tv_sec) + ts.tv_nsec / 100 + hnsecsToUnixEpoch;
     }
-    else version (DragonFlyBSD)
+    else version(DragonFlyBSD)
     {
         import core.sys.dragonflybsd.time : clock_gettime, CLOCK_REALTIME,
             CLOCK_REALTIME_FAST, CLOCK_REALTIME_PRECISE, CLOCK_SECOND;
@@ -857,7 +1002,7 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
         assert(!error && ts.tv_sec.max < long.max);
         return convert!("seconds", "hnsecs")(ts.tv_sec) + ts.tv_nsec / 100 + hnsecsToUnixEpoch;
     }
-    else version (Solaris)
+    else version(Solaris)
     {
         import core.sys.solaris.time : clock_gettime, CLOCK_REALTIME;
 
@@ -904,28 +1049,25 @@ static this() nothrow @trusted
     dateTimeSetting = sharedDateTimeSetting;
 }
 
-version (none)
+version(none)
 unittest // Show duration precision
 {
-    import pham.utl.utl_test;
+    import std.stdio : writeln;
 
     auto d = dur!"seconds"(1);
-    dgWriteln("1 second in msecs:  ", d.total!"msecs"().dgToStr());  //         1_000
-    dgWriteln("1 second in usecs:  ", d.total!"usecs"().dgToStr());  //     1_000_000
-    dgWriteln("1 second in hnsecs: ", d.total!"hnsecs"().dgToStr()); //    10_000_000
-    dgWriteln("1 second in nsecs:  ", d.total!"nsecs"().dgToStr());  // 1_000_000_000
+    debug writeln("1 second in msecs:  ", d.total!"msecs"().dgToStr());  //         1_000
+    debug writeln("1 second in usecs:  ", d.total!"usecs"().dgToStr());  //     1_000_000
+    debug writeln("1 second in hnsecs: ", d.total!"hnsecs"().dgToStr()); //    10_000_000
+    debug writeln("1 second in nsecs:  ", d.total!"nsecs"().dgToStr());  // 1_000_000_000
 
     d = dur!"msecs"(999);
-    dgWriteln("999 msecs in usecs:  ", d.total!"usecs"().dgToStr());  //     999_000
-    dgWriteln("999 msecs in hnsecs: ", d.total!"hnsecs"().dgToStr()); //   9_990_000
-    dgWriteln("999 msecs in nsecs:  ", d.total!"nsecs"().dgToStr());  // 999_000_000
+    debug writeln("999 msecs in usecs:  ", d.total!"usecs"().dgToStr());  //     999_000
+    debug writeln("999 msecs in hnsecs: ", d.total!"hnsecs"().dgToStr()); //   9_990_000
+    debug writeln("999 msecs in nsecs:  ", d.total!"nsecs"().dgToStr());  // 999_000_000
 }
 
 unittest // toDayOfWeekUS
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.tick.toDayOfWeekUS");
-
     assert(toDayOfWeekUS("sunday").value == DayOfWeek.sunday);
     assert(toDayOfWeekUS("monday").value == DayOfWeek.monday);
     assert(toDayOfWeekUS("sun").value == DayOfWeek.sunday);
@@ -950,9 +1092,6 @@ unittest // toDayOfWeekUS
 
 unittest // toMonthUS
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.tick.toMonthUS");
-
     assert(toMonthUS("january").value == 1);
     assert(toMonthUS("december").value == 12);
     assert(toMonthUS("jan").value == 1);

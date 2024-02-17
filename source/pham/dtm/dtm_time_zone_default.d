@@ -22,7 +22,7 @@ TimeZoneInfoMapList getDefaultTimeZoneInfoMaps() @trusted
 {
     // Special try construct for grep
     try {
-        version (dtm_time_zone_default_code)
+        version(dtm_time_zone_default_code)
         {
             import pham.dtm.dtm_time_zone_default_code;
 

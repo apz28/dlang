@@ -466,12 +466,9 @@ shared static this() nothrow @trusted
     defaultTimeZoneInfoMaps = cast(immutable TimeZoneInfoMapList)getDefaultTimeZoneInfoMaps();
 }
 
-version (none)
+version(none)
 unittest // IanaWindowNameMapList
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.time_zone_map.IanaWindowNameMapList");
-
 static immutable string mapXml = q"XML
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE supplementalData SYSTEM "../../common/dtd/ldmlSupplemental.dtd">

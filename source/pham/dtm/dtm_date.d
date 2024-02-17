@@ -11,11 +11,13 @@
 
 module pham.dtm.dtm_date;
 
+import std.math.algebraic : abs;
 import std.range.primitives : isOutputRange;
 import std.traits : isSomeChar;
 
 import pham.utl.utl_array : ShortStringBuffer;
 import pham.utl.utl_result : cmp;
+import pham.dtm.dtm_date_time_format;
 import pham.dtm.dtm_tick;
 public import pham.dtm.dtm_tick : CustomFormatSpecifier, DayOfWeek, DateTimeKind,
     DateTimeSetting, dateTimeSetting, DateTimeZoneKind,
@@ -73,10 +75,10 @@ public:
             static assert(0);
     }
 
-    Duration opBinary(string op)(scope const(Date) rhs) const @nogc nothrow pure scope
+    TickSpan opBinary(string op)(scope const(Date) rhs) const @nogc nothrow pure scope
     if (op == "-")
     {
-        return Tick.durationFromTicks((cast(int)data - cast(int)(rhs.data)) * Tick.ticksPerDay);
+        return TickSpan(this.sticks, rhs.sticks);
     }
 
     int opCmp(scope const(Date) rhs) const @nogc nothrow pure scope
@@ -255,31 +257,43 @@ public:
         return toString(buffer).toString();
     }
 
-    ref Writer toString(Writer, Char = char)(return ref Writer sink) const nothrow
-    if (isOutputRange!(Writer, Char))
-    {
-        import pham.dtm.dtm_date_time_format;
-
-        auto fmtSpec = FormatDateTimeSpec!Char("%G");
-        auto fmtValue = FormatDateTimeValue(this);
-        formattedWrite(sink, fmtSpec, fmtValue);
-        return sink;
-    }
-
     string toString(scope const(char)[] fmt) const
     {
         ShortStringBuffer!char buffer;
         return toString(buffer, fmt).toString();
     }
 
+    string toString(scope const(char)[] fmt, scope ref DateTimeSetting setting) const
+    {
+        ShortStringBuffer!char buffer;
+        return toString(buffer, fmt, setting).toString();
+    }
+
+    ref Writer toString(Writer, Char = char)(return ref Writer sink) const nothrow
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+    {
+        auto fmtSpec = FormatDateTimeSpec!Char("%G");
+        auto fmtValue = FormatDateTimeValue(this);
+        formattedWrite(sink, fmtSpec, fmtValue);
+        return sink;
+    }
+
     ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt) const
     if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
-        import pham.dtm.dtm_date_time_format;
-
         auto fmtSpec = FormatDateTimeSpec!Char(fmt);
         auto fmtValue = FormatDateTimeValue(this);
         if (formattedWrite(sink, fmtSpec, fmtValue) == formatedWriteError)
+            throw new FormatException(fmtSpec.errorMessage.idup);
+        return sink;
+    }
+
+    ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt, auto scope ref DateTimeSetting setting) const
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+    {
+        auto fmtSpec = FormatDateTimeSpec!Char(fmt);
+        auto fmtValue = FormatDateTimeValue(this);
+        if (formattedWrite(sink, fmtSpec, fmtValue, setting) == formatedWriteError)
             throw new FormatException(fmtSpec.errorMessage.idup);
         return sink;
     }
@@ -634,10 +648,10 @@ public:
             static assert(0);
     }
 
-    Duration opBinary(string op)(scope const(DateTime) rhs) const @nogc nothrow pure scope
+    TickSpan opBinary(string op)(scope const(DateTime) rhs) const @nogc nothrow pure scope
     if (op == "-")
     {
-        return Tick.durationFromTicks(this.sticks - rhs.sticks);
+        return TickSpan(this.sticks, rhs.sticks);
     }
 
     int opCmp(scope const(DateTime) rhs) const @nogc nothrow pure scope
@@ -1175,8 +1189,20 @@ public:
         return toString(buffer).toString();
     }
 
+    string toString(scope const(char)[] fmt) const
+    {
+        ShortStringBuffer!char buffer;
+        return toString(buffer, fmt).toString();
+    }
+
+    string toString(scope const(char)[] fmt, scope ref DateTimeSetting setting) const
+    {
+        ShortStringBuffer!char buffer;
+        return toString(buffer, fmt, setting).toString();
+    }
+
     ref Writer toString(Writer, Char = char)(return ref Writer sink) const nothrow
-    if (isOutputRange!(Writer, Char))
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
         import pham.dtm.dtm_date_time_format;
 
@@ -1184,12 +1210,6 @@ public:
         auto fmtValue = FormatDateTimeValue(this);
         formattedWrite(sink, fmtSpec, fmtValue);
         return sink;
-    }
-
-    string toString(scope const(char)[] fmt) const
-    {
-        ShortStringBuffer!char buffer;
-        return toString(buffer, fmt).toString();
     }
 
     ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt) const
@@ -1203,16 +1223,26 @@ public:
             throw new FormatException(fmtSpec.errorMessage.idup);
         return sink;
     }
-    
+
+    ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt, auto scope ref DateTimeSetting setting) const
+    if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+    {
+        auto fmtSpec = FormatDateTimeSpec!Char(fmt);
+        auto fmtValue = FormatDateTimeValue(this);
+        if (formattedWrite(sink, fmtSpec, fmtValue, setting) == formatedWriteError)
+            throw new FormatException(fmtSpec.errorMessage.idup);
+        return sink;
+    }
+
     DateTime toUTC() const nothrow
     {
         if (kind == DateTimeZoneKind.utc)
             return DateTime(data);
-            
+
         auto localZone = TimeZoneInfo.localTimeZone(year);
         return localZone.convertDateTimeToUTC(this);
     }
-    
+
     ErrorOp tryAddDays(const(double) days, out DateTime newDateTime) const @nogc nothrow pure
     {
         long newTicks = void;
@@ -1566,7 +1596,7 @@ public:
     {
         if (kind == DateTimeZoneKind.utc)
             return 0;
-            
+
         return cast(int)(totalMinutes - toUTC().totalMinutes);
     }
 
@@ -1574,7 +1604,7 @@ public:
     {
         return data;
     }
-    
+
     alias zero = min;
 
 public:
@@ -1735,7 +1765,7 @@ private:
 
     void validateLeapSecond() pure
     {
-        version (none)
+        version(none)
         if (!isValidTimeWithLeapSeconds(year, month, day, hour, minute, kind))
             throwOutOfRange!(ErrorPart.second)(second);
     }
@@ -1823,11 +1853,116 @@ struct JulianDate
     }
 }
 
+/**
+ * Returns total positive number of years between 'now' and 'then'
+ */
+pragma(inline, true)
+int yearsBetween(T)(const(T) now, const(T) then,
+    const(double) approxDaysPerYear = TickSpan.approxDaysPerYear4ys) @nogc nothrow pure
+if (is(T == Date) || is(T == DateTime) || is(T == Time))
+{
+    
+    static if (is(T == Time))
+        return 0;
+    else
+        return abs(cast(int)(now - then).totalYears(approxDaysPerYear));
+}
+
+/**
+ * Returns total positive number of months between 'now' and 'then'
+ */
+pragma(inline, true)
+int monthsBetween(T)(const(T) now, const(T) then,
+    const(double) approxDaysPerMonth = TickSpan.approxDaysPerMonth4ys) @nogc nothrow pure
+if (is(T == Date) || is(T == DateTime) || is(T == Time))
+{
+    static if (is(T == Time))
+        return 0;
+    else
+        return abs(cast(int)(now - then).totalMonths(approxDaysPerMonth));
+}
+
+/**
+ * Returns total positive number of weeks between 'now' and 'then'
+ */
+pragma(inline, true)
+int weeksBetween(T)(const(T) now, const(T) then) @nogc nothrow pure
+if (is(T == Date) || is(T == DateTime) || is(T == Time))
+{
+    static if (is(T == Time))
+        return 0;
+    else
+        return abs(cast(int)(now - then).totalWeeks);
+}
+
+/**
+ * Returns total positive number of days between 'now' and 'then'
+ */
+pragma(inline, true)
+int daysBetween(T)(const(T) now, const(T) then) @nogc nothrow pure
+if (is(T == Date) || is(T == DateTime) || is(T == Time))
+{
+    static if (is(T == Time))
+        return 0;
+    else
+        return abs(cast(int)(now - then).totalDays);
+}
+
+/**
+ * Returns total positive number of hours between 'now' and 'then'
+ */
+pragma(inline, true)
+long hoursBetween(T)(const(T) now, const(T) then) @nogc nothrow pure
+if (is(T == Date) || is(T == DateTime) || is(T == Time))
+{
+    return abs(cast(long)(now - then).totalHours);
+}
+
+/**
+ * Returns total positive number of minutes between 'now' and 'then'
+ */
+pragma(inline, true)
+long minutesBetween(T)(const(T) now, const(T) then) @nogc nothrow pure
+if (is(T == Date) || is(T == DateTime) || is(T == Time))
+{
+    return abs(cast(long)(now - then).totalMinutes);
+}
+
+/**
+ * Returns total positive number of seconds between 'now' and 'then'
+ */
+pragma(inline, true)
+long secondsBetween(T)(const(T) now, const(T) then) @nogc nothrow pure
+if (is(T == Date) || is(T == DateTime) || is(T == Time))
+{
+    return abs(cast(long)(now - then).totalSeconds);
+}
+
+/**
+ * Returns total positive number of milliseconds between 'now' and 'then'
+ */
+pragma(inline, true)
+long millisecondsBetween(T)(const(T) now, const(T) then) @nogc nothrow pure
+if (is(T == Date) || is(T == DateTime) || is(T == Time))
+{
+    return abs(cast(long)(now - then).totalMilliseconds);
+}
+
+/**
+ * Returns total positive number of ticks between 'now' and 'then'
+ */
+pragma(inline, true)
+long ticksBetween(T)(const(T) now, const(T) then) @nogc nothrow pure
+if (is(T == Date) || is(T == DateTime) || is(T == Time))
+{
+    return abs((now - then).ticks);
+}
+
 
 // Any below codes are private
 private:
 
-version (none)
+version(none)
 {
     import std.conv : to;
 
@@ -1846,8 +1981,6 @@ unittest // DateTime.now
 {
     import std.datetime.systime : SysClock = Clock, SysTime;
     import std.datetime.date : SysDateTime = DateTime;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.now");
 
     auto sysNow = SysClock.currTime;
     auto sysDateTime = cast(SysDateTime)sysNow;
@@ -1871,9 +2004,6 @@ unittest // DateTime.now
 
 unittest // DateTime.constructor
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.constructor");
-
     auto d1 = DateTime.init;
     assert(d1.date == Date.init);
     assert(d1.time == Time.init);
@@ -1893,9 +2023,6 @@ unittest // DateTime.constructor
 
 unittest // DateTime.opCmp
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.opCmp");
-
     assert(DateTime(1999, 1, 1).opCmp(DateTime(1999, 1, 1)) == 0);
     assert(DateTime(1, 7, 1).opCmp(DateTime(1, 7, 1)) == 0);
     assert(DateTime(1, 1, 6).opCmp(DateTime(1, 1, 6)) == 0);
@@ -1973,9 +2100,6 @@ unittest // DateTime.opCmp
 
 unittest // DateTime.opEquals
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.opEquals");
-
     assert(DateTime(1999, 1, 1, 1, 1, 1, 1).opEquals(DateTime(1999, 1, 1, 1, 1, 1, 1)));
     assert(DateTime(1999, 1, 1, 1, 1, 1).opEquals(DateTime(1999, 1, 1, 1, 1, 1)));
     assert(DateTime(1999, 1, 1, 1, 1).opEquals(DateTime(1999, 1, 1, 1, 1)));
@@ -1990,9 +2114,6 @@ unittest // DateTime.opEquals
 
 unittest // DateTime.date
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.date");
-
     auto dt1 = DateTime.init;
     assert(dt1.date == Date.init);
 
@@ -2008,9 +2129,6 @@ unittest // DateTime.date
 
 unittest // DateTime.time
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.time");
-
     auto dt1 = DateTime.init;
     assert(dt1.time == Time.init);
 
@@ -2026,9 +2144,6 @@ unittest // DateTime.time
 
 unittest // DateTime.year
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.year");
-
     assert(DateTime.init.year == 1);
     assert(DateTime(1999, 7, 6).year == 1999);
 
@@ -2044,9 +2159,6 @@ unittest // DateTime.year
 
 unittest // DateTime.month
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.month");
-
     assert(DateTime.init.month == 1);
     assert(DateTime(1999, 7, 6, 12, 30, 33).month == 7);
 
@@ -2062,9 +2174,6 @@ unittest // DateTime.month
 
 unittest // DateTime.day
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.day");
-
     assert(DateTime(1999, 7, 6, 9, 7, 5).day == 6);
     assert(DateTime(2010, 10, 4, 0, 0, 30).day == 4);
 
@@ -2080,9 +2189,6 @@ unittest // DateTime.day
 
 unittest // DateTime.hour
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.hour");
-
     assert(DateTime.init.hour == 0);
     assert(DateTime(1, 1, 1, 12, 0, 0).hour == 12);
 
@@ -2098,9 +2204,6 @@ unittest // DateTime.hour
 
 unittest // DateTime.minute
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.minute");
-
     assert(DateTime.init.minute == 0);
     assert(DateTime(1, 1, 1, 0, 30, 0).minute == 30);
 
@@ -2116,9 +2219,6 @@ unittest // DateTime.minute
 
 unittest // DateTime.second
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.second");
-
     assert(DateTime.init.second == 0);
     assert(DateTime(1, 1, 1, 0, 0, 33, 999).second == 33);
 
@@ -2134,9 +2234,6 @@ unittest // DateTime.second
 
 unittest // DateTime.millisecond
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.millisecond");
-
     assert(DateTime.init.millisecond == 0);
     assert(DateTime(1, 1, 1, 0, 0, 33, 999).millisecond == 999);
 
@@ -2152,9 +2249,6 @@ unittest // DateTime.millisecond
 
 unittest // DateTime.min
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.min");
-
     assert(DateTime.min.year == 1);
     assert(DateTime.min.month == 1);
     assert(DateTime.min.day == 1);
@@ -2166,9 +2260,6 @@ unittest // DateTime.min
 
 unittest // DateTime.max
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.max");
-
     assert(DateTime.max.year == 9999);
     assert(DateTime.max.month == 12);
     assert(DateTime.max.day == 31);
@@ -2184,8 +2275,6 @@ unittest // DateTime.max
 unittest // DateTime.julianDay
 {
     import std.conv : to;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.julianDay");
 
     assert(Tick.round(DateTime.min.julianDay) == 1721424, Tick.round(DateTime.min.julianDay).to!string());
     assert(Tick.round(DateTime.max.julianDay) == 5373484, Tick.round(DateTime.max.julianDay).to!string());
@@ -2196,8 +2285,6 @@ unittest // DateTime.opBinary
 {
     import core.time : dur;
     import std.conv : to;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.opBinary");
 
     assert(DateTime(1999, 7, 6, 12, 30, 33) + dur!"days"(7) == DateTime(1999, 7, 13, 12, 30, 33));
     assert(DateTime(1999, 7, 6, 12, 30, 33) + dur!"days"(-7) == DateTime(1999, 6, 29, 12, 30, 33));
@@ -2242,43 +2329,67 @@ unittest // DateTime.opBinary
 {
     import core.time : dur;
     import std.conv : to;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.opBinary");
+    
+    static string toString(ubyte decimals = 4)(const(double) n) nothrow pure
+    {
+        import std.conv : to;
+        import std.format : format;
+        
+        scope (failure) assert(0, "Assume nothrow");
+        
+        enum fmt = "%." ~ to!string(decimals) ~ "f";
+        return format(fmt, n);
+    }
+    
+    static bool approxEqual(ubyte decimals = 4)(const(double) lhs, const(double) rhs) nothrow pure
+    {
+        import std.conv : to;
+        import std.math.operations : isClose;
+        
+        enum maxRelDiff = to!double("1e-" ~ to!string(decimals));
+        return isClose(lhs, rhs, maxRelDiff);
+    }
 
-    assert(DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1998, 7, 6, 12, 30, 33) == dur!"seconds"(31_536_000));
-    assert(DateTime(1998, 7, 6, 12, 30, 33) - DateTime(1999, 7, 6, 12, 30, 33) == dur!"seconds"(-31_536_000));
-    assert(DateTime(1999, 8, 6, 12, 30, 33) - DateTime(1999, 7, 6, 12, 30, 33) == dur!"seconds"(26_78_400));
-    assert(DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1999, 8, 6, 12, 30, 33) == dur!"seconds"(-26_78_400));
-    assert(DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1999, 7, 5, 12, 30, 33) == dur!"seconds"(86_400));
-    assert(DateTime(1999, 7, 5, 12, 30, 33) - DateTime(1999, 7, 6, 12, 30, 33) == dur!"seconds"(-86_400));
-    assert(DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1999, 7, 6, 11, 30, 33) == dur!"seconds"(3_600));
-    assert(DateTime(1999, 7, 6, 11, 30, 33) - DateTime(1999, 7, 6, 12, 30, 33) == dur!"seconds"(-3_600));
-    assert(DateTime(1999, 7, 6, 12, 31, 33) - DateTime(1999, 7, 6, 12, 30, 33) == dur!"seconds"(60));
-    assert(DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1999, 7, 6, 12, 31, 33) == dur!"seconds"(-60));
-    assert(DateTime(1999, 7, 6, 12, 30, 34) - DateTime(1999, 7, 6, 12, 30, 33) == dur!"seconds"(1));
-    assert(DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1999, 7, 6, 12, 30, 34) == dur!"seconds"(-1));
-    assert(DateTime(1, 1, 1, 12, 30, 33) - DateTime(1, 1, 1, 0, 0, 0) == dur!"seconds"(45_033));
-    assert(DateTime(1, 1, 1, 0, 0, 0) - DateTime(1, 1, 1, 12, 30, 33) == dur!"seconds"(-45_033));
+    assert((DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1998, 7, 6, 12, 30, 33)).toDuration == dur!"seconds"(31_536_000));
+    assert((DateTime(1998, 7, 6, 12, 30, 33) - DateTime(1999, 7, 6, 12, 30, 33)).toDuration == dur!"seconds"(-31_536_000));
+    assert((DateTime(1999, 8, 6, 12, 30, 33) - DateTime(1999, 7, 6, 12, 30, 33)).toDuration == dur!"seconds"(26_78_400));
+    assert((DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1999, 8, 6, 12, 30, 33)).toDuration == dur!"seconds"(-26_78_400));
+    assert((DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1999, 7, 5, 12, 30, 33)).toDuration == dur!"seconds"(86_400));
+    assert((DateTime(1999, 7, 5, 12, 30, 33) - DateTime(1999, 7, 6, 12, 30, 33)).toDuration == dur!"seconds"(-86_400));
+    assert((DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1999, 7, 6, 11, 30, 33)).toDuration == dur!"seconds"(3_600));
+    assert((DateTime(1999, 7, 6, 11, 30, 33) - DateTime(1999, 7, 6, 12, 30, 33)).toDuration == dur!"seconds"(-3_600));
+    assert((DateTime(1999, 7, 6, 12, 31, 33) - DateTime(1999, 7, 6, 12, 30, 33)).toDuration == dur!"seconds"(60));
+    assert((DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1999, 7, 6, 12, 31, 33)).toDuration == dur!"seconds"(-60));
+    assert((DateTime(1999, 7, 6, 12, 30, 34) - DateTime(1999, 7, 6, 12, 30, 33)).toDuration == dur!"seconds"(1));
+    assert((DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1999, 7, 6, 12, 30, 34)).toDuration == dur!"seconds"(-1));
+    assert((DateTime(1, 1, 1, 12, 30, 33) - DateTime(1, 1, 1, 0, 0, 0)).toDuration == dur!"seconds"(45_033));
+    assert((DateTime(1, 1, 1, 0, 0, 0) - DateTime(1, 1, 1, 12, 30, 33)).toDuration == dur!"seconds"(-45_033));
 
     auto dt = DateTime(1999, 7, 6, 12, 30, 33);
     const cdt = DateTime(1999, 7, 6, 12, 30, 33);
     immutable idt = DateTime(1999, 7, 6, 12, 30, 33);
-    assert(dt - dt == Duration.zero);
-    assert(cdt - dt == Duration.zero);
-    assert(idt - dt == Duration.zero);
-    assert(dt - cdt == Duration.zero);
-    assert(cdt - cdt == Duration.zero);
-    assert(idt - cdt == Duration.zero);
-    assert(dt - idt == Duration.zero);
-    assert(cdt - idt == Duration.zero);
-    assert(idt - idt == Duration.zero);
+    assert((dt - dt).toDuration == Duration.zero);
+    assert((cdt - dt).toDuration == Duration.zero);
+    assert((idt - dt).toDuration == Duration.zero);
+    assert((dt - cdt).toDuration == Duration.zero);
+    assert((cdt - cdt).toDuration == Duration.zero);
+    assert((idt - cdt).toDuration == Duration.zero);
+    assert((dt - idt).toDuration == Duration.zero);
+    assert((cdt - idt).toDuration == Duration.zero);
+    assert((idt - idt).toDuration == Duration.zero);
+    
+	auto preDate = DateTime(2021, 7, 15, 0, 0, 0); //15 July 2021 00:00:00
+    auto nowDate = DateTime(2024, 2, 13, 10, 49, 4); //13 February 2024 10:49:04
+    assert(approxEqual!12((nowDate - preDate).totalDays, 943.450740740741), toString!12((nowDate - preDate).totalDays));
+    assert(approxEqual!10((nowDate - preDate).totalHours, 22_642.8177777778), toString!10((nowDate - preDate).totalHours));
+    assert(approxEqual!8((nowDate - preDate).totalMinutes, 1_358_569.06666667), toString!8((nowDate - preDate).totalMinutes));
+    assert((nowDate - preDate).totalSeconds == 81_514_144, to!string((nowDate - preDate).totalSeconds));
+    assert((nowDate - preDate).totalMilliseconds == 81_514_144_000, to!string((nowDate - preDate).totalMilliseconds));
+    assert((nowDate - preDate).totalTicks == 815_141_440_000_000, to!string((nowDate - preDate).totalTicks));
 }
 
 unittest // DateTime.toString
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.toString");
-
     assert(DateTime.max.toString() == "12/31/9999 11:59:59 PM", DateTime.max.toString());
 
     auto dt = DateTime(1999, 7, 6, 12, 30, 33, 1);
@@ -2293,9 +2404,6 @@ unittest // DateTime.toString
 
 unittest // DateTime.dayOfWeek
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.dayOfWeek");
-
     auto dt = DateTime(1999, 7, 6, 12, 30, 33);
     assert(dt.dayOfWeek == DayOfWeek.tuesday);
 
@@ -2310,9 +2418,6 @@ unittest // DateTime.dayOfWeek
 
 unittest // DateTime.dayOfYear
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.dayOfYear");
-
     assert(DateTime(1999, 1, 1, 12, 22, 7).dayOfYear == 1);
     assert(DateTime(1999, 12, 31, 7, 2, 59).dayOfYear == 365);
     assert(DateTime(2000, 12, 31, 21, 20, 0).dayOfYear == 366);
@@ -2320,9 +2425,6 @@ unittest // DateTime.dayOfYear
 
 unittest // DateTime.beginOfMonth
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.beginOfMonth");
-
     assert(DateTime(1999, 1, 1, 0, 13, 26).beginOfMonth == DateTime(1999, 1, 1, 0, 0, 0, 0));
     assert(DateTime(1999, 2, 2, 1, 14, 27).beginOfMonth == DateTime(1999, 2, 1, 0, 0, 0, 0));
     assert(DateTime(2000, 2, 3, 2, 15, 28).beginOfMonth == DateTime(2000, 2, 1, 0, 0, 0, 0));
@@ -2340,9 +2442,6 @@ unittest // DateTime.beginOfMonth
 
 unittest // DateTime.endOfMonth
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.DateTime.endOfMonth");
-
     assert(DateTime(1999, 1, 1, 0, 13, 26).endOfMonth == DateTime(Date(1999, 1, 31), Time.max));
     assert(DateTime(1999, 2, 2, 1, 14, 27).endOfMonth == DateTime(Date(1999, 2, 28), Time.max));
     assert(DateTime(2000, 2, 3, 2, 15, 28).endOfMonth == DateTime(Date(2000, 2, 29), Time.max));
@@ -2361,9 +2460,6 @@ unittest // DateTime.endOfMonth
 
 unittest // Date.constructor
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.constructor");
-
     auto d1 = Date.init;
     assert(d1.year == 1);
     assert(d1.month == 1);
@@ -2382,9 +2478,6 @@ unittest // Date.constructor
 
 unittest // Date.opCmp
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.opCmp");
-
     assert(Date(1999, 1, 1).opCmp(Date(1999, 1, 1)) == 0);
     assert(Date(1, 7, 1).opCmp(Date(1, 7, 1)) == 0);
     assert(Date(1, 1, 6).opCmp(Date(1, 1, 6)) == 0);
@@ -2422,9 +2515,6 @@ unittest // Date.opCmp
 
 unittest // Date.opEquals
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.opEquals");
-
     assert(Date(1999, 1, 1).opEquals(Date(1999, 1, 1)));
 
     assert(!Date(1999, 12, 30).opEquals(Date(1999, 1, 1)));
@@ -2433,9 +2523,6 @@ unittest // Date.opEquals
 
 unittest // Date.year
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.year");
-
     assert(Date.init.year == 1);
     assert(Date(1999, 7, 6).year == 1999);
 
@@ -2451,9 +2538,6 @@ unittest // Date.year
 
 unittest // Date.month
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.month");
-
     assert(Date.init.month == 1);
     assert(Date(1999, 7, 6).month == 7);
 
@@ -2469,9 +2553,6 @@ unittest // Date.month
 
 unittest // Date.day
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.day");
-
     assert(Date(1999, 7, 6).day == 6);
     assert(Date(2010, 10, 4).day == 4);
 
@@ -2487,9 +2568,6 @@ unittest // Date.day
 
 unittest // Date.min
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.min");
-
     assert(Date.min.year == 1);
     assert(Date.min.month == 1);
     assert(Date.min.day == 1);
@@ -2497,9 +2575,6 @@ unittest // Date.min
 
 unittest // Date.max
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.max");
-
     assert(Date.max.year == 9999);
     assert(Date.max.month == 12);
     assert(Date.max.day == 31);
@@ -2511,8 +2586,6 @@ unittest // Date.max
 unittest // Date.julianDay
 {
     import std.conv : to;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.julianDay");
 
     assert(Tick.round(Date.min.julianDay) == 1721424, Tick.round(Date.min.julianDay).to!string());
     assert(Tick.round(Date.max.julianDay) == 5373484, Tick.round(Date.max.julianDay).to!string());
@@ -2523,8 +2596,6 @@ unittest // Date.opBinary
 {
     import core.time : dur;
     import std.conv : to;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.opBinary");
 
     assert(Date(1999, 7, 6) + dur!"days"(7) == Date(1999, 7, 13));
     assert(Date(1999, 7, 6) + dur!"days"(-7) == Date(1999, 6, 29));
@@ -2539,35 +2610,39 @@ unittest // Date.opBinary
 {
     import core.time : dur;
     import std.conv : to;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.opBinary");
 
-    assert(Date(1999, 7, 6) - Date(1998, 7, 6) == dur!"seconds"(31_536_000));
-    assert(Date(1998, 7, 6) - Date(1999, 7, 6) == dur!"seconds"(-31_536_000));
-    assert(Date(1999, 8, 6) - Date(1999, 7, 6) == dur!"seconds"(26_78_400));
-    assert(Date(1999, 7, 6) - Date(1999, 8, 6) == dur!"seconds"(-26_78_400));
-    assert(Date(1999, 7, 6) - Date(1999, 7, 5) == dur!"seconds"(86_400));
-    assert(Date(1999, 7, 5) - Date(1999, 7, 6) == dur!"seconds"(-86_400));
+    assert((Date(1999, 7, 6) - Date(1998, 7, 6)).toDuration == dur!"seconds"(31_536_000));
+    assert((Date(1998, 7, 6) - Date(1999, 7, 6)).toDuration == dur!"seconds"(-31_536_000));
+    assert((Date(1999, 8, 6) - Date(1999, 7, 6)).toDuration == dur!"seconds"(26_78_400));
+    assert((Date(1999, 7, 6) - Date(1999, 8, 6)).toDuration == dur!"seconds"(-26_78_400));
+    assert((Date(1999, 7, 6) - Date(1999, 7, 5)).toDuration == dur!"seconds"(86_400));
+    assert((Date(1999, 7, 5) - Date(1999, 7, 6)).toDuration == dur!"seconds"(-86_400));
 
     auto dt = Date(1999, 7, 6);
     const cdt = Date(1999, 7, 6);
     immutable idt = Date(1999, 7, 6);
-    assert(dt - dt == Duration.zero);
-    assert(cdt - dt == Duration.zero);
-    assert(idt - dt == Duration.zero);
-    assert(dt - cdt == Duration.zero);
-    assert(cdt - cdt == Duration.zero);
-    assert(idt - cdt == Duration.zero);
-    assert(dt - idt == Duration.zero);
-    assert(cdt - idt == Duration.zero);
-    assert(idt - idt == Duration.zero);
+    assert((dt - dt).toDuration == Duration.zero);
+    assert((cdt - dt).toDuration == Duration.zero);
+    assert((idt - dt).toDuration == Duration.zero);
+    assert((dt - cdt).toDuration == Duration.zero);
+    assert((cdt - cdt).toDuration == Duration.zero);
+    assert((idt - cdt).toDuration == Duration.zero);
+    assert((dt - idt).toDuration == Duration.zero);
+    assert((cdt - idt).toDuration == Duration.zero);
+    assert((idt - idt).toDuration == Duration.zero);
+    
+	auto preDate = Date(2021, 7, 15); //15 July 2021
+    auto nowDate = Date(2024, 2, 13); //13 February 2024
+    assert((nowDate - preDate).totalDays == 943);
+    assert((nowDate - preDate).totalHours == 22_632);
+    assert((nowDate - preDate).totalMinutes == 1_357_920);
+    assert((nowDate - preDate).totalSeconds == 81_475_200);
+    assert((nowDate - preDate).totalMilliseconds == 81_475_200_000);
+    assert((nowDate - preDate).totalTicks == 814_752_000_000_000);
 }
 
 unittest // Date.toString
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.toString");
-
     assert(Date.max.toString() == "12/31/9999", Date.max.toString());
 
     auto dt = Date(1999, 7, 6);
@@ -2582,9 +2657,6 @@ unittest // Date.toString
 
 unittest // Date.dayOfWeek
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.dayOfWeek");
-
     auto dt = Date(1999, 7, 6);
     assert(dt.dayOfWeek == DayOfWeek.tuesday);
 
@@ -2599,9 +2671,6 @@ unittest // Date.dayOfWeek
 
 unittest // Date.dayOfYear
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.dayOfYear");
-
     assert(Date(1999, 1, 1).dayOfYear == 1);
     assert(Date(1999, 12, 31).dayOfYear == 365);
     assert(Date(2000, 12, 31).dayOfYear == 366);
@@ -2609,9 +2678,6 @@ unittest // Date.dayOfYear
 
 unittest // Date.beginOfMonth
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.beginOfMonth");
-
     assert(Date(1999, 1, 1).beginOfMonth == Date(1999, 1, 1));
     assert(Date(1999, 2, 2).beginOfMonth == Date(1999, 2, 1));
     assert(Date(2000, 2, 3).beginOfMonth == Date(2000, 2, 1));
@@ -2629,9 +2695,6 @@ unittest // Date.beginOfMonth
 
 unittest // Date.endOfMonth
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date.Date.endOfMonth");
-
     assert(Date(1999, 1, 1).endOfMonth == Date(1999, 1, 31));
     assert(Date(1999, 2, 2).endOfMonth == Date(1999, 2, 28));
     assert(Date(2000, 2, 3).endOfMonth == Date(2000, 2, 29));

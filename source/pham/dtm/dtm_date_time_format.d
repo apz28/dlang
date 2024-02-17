@@ -16,8 +16,8 @@ import std.range.primitives : isOutputRange, put;
 import std.traits : isSomeChar, isSomeString, Unqual;
 
 import pham.utl.utl_object : toString;
-import pham.dtm.dtm_tick;
 import pham.dtm.dtm_date : Date, DateTime, DayOfWeek, firstDayOfMonth, firstDayOfWeek, JulianDate;
+import pham.dtm.dtm_tick;
 import pham.dtm.dtm_time : Time;
 import pham.dtm.dtm_time_zone : TimeZoneInfo;
 
@@ -485,7 +485,15 @@ private:
 enum formatedWriteError = uint.max;
 
 uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope ref FormatDateTimeSpec!Char fmtSpec,
-    scope ref FormatDateTimeValue fmtValue, scope const ref DateTimeSetting setting) nothrow
+    auto scope ref FormatDateTimeValue fmtValue) nothrow
+if (isOutputRange!(Writer, Char) && isSomeChar!Char)
+{
+    auto setting = dateTimeSetting; // Use local var from a thread var for faster use
+    return formattedWrite(sink, fmtSpec, fmtValue, setting);
+}
+
+uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope ref FormatDateTimeSpec!Char fmtSpec,
+    auto scope ref FormatDateTimeValue fmtValue, auto scope ref DateTimeSetting setting) nothrow
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     import std.math.algebraic : abs;
@@ -569,7 +577,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
         return putCustom(useShort);
     }
 
-    version (none)
+    version(none)
     void putFullDateTime() nothrow @safe
     {
         put(sink, fmtValue.dayOfWeekName(setting, false));
@@ -585,7 +593,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
         toString(sink, fmtValue.minute, 2);
     }
 
-    version (none)
+    version(none)
     void putGeneralDateTime() nothrow @safe
     {
         toString(sink, fmtValue.month);
@@ -599,7 +607,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
         toString(sink, fmtValue.minute, 2);
     }
 
-    version (none)
+    version(none)
     void putTime() nothrow @safe
     {
         toString(sink, fmtValue.shortHour);
@@ -625,7 +633,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                                 : setting.generalShortFormat.time);
                 if (putCustomFor(fmt, true) == FormatWriteResult.error)
                     return formatedWriteError;
-                version (none)
+                version(none)
                 {
                     // 2009-06-15T13:45:30 -> 6/15/2009 1:45 PM
                     putGeneralDateTime();
@@ -640,7 +648,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                                 : setting.generalLongFormat.time);
                 if (putCustomFor(fmt, false) == FormatWriteResult.error)
                     return formatedWriteError;
-                version (none)
+                version(none)
                 {
                     // 2009-06-15T13:45:30 -> 6/15/2009 1:45:30 PM
                     putGeneralDateTime();
@@ -655,7 +663,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
             case FormatDateTimeSpecifier.longDate:
                 if (putCustomFor(setting.longFormat.date, false) == FormatWriteResult.error)
                     return formatedWriteError;
-                version (none)
+                version(none)
                 {
                     // 2009-06-15T13:45:30 -> Monday, June 15, 2009
                     put(sink, fmtValue.dayOfWeekName(setting, false));
@@ -670,7 +678,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
             case FormatDateTimeSpecifier.longDateTime:
                 if (putCustomFor(setting.longFormat.dateTime, false) == FormatWriteResult.error)
                     return formatedWriteError;
-                version (none)
+                version(none)
                 {
                     // 2009-06-15T13:1:30 -> Monday, June 15, 2009 1:01:30 PM
                     putFullDateTime();
@@ -682,7 +690,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
             case FormatDateTimeSpecifier.longTime:
                 if (putCustomFor(setting.longFormat.time, false) == FormatWriteResult.error)
                     return formatedWriteError;
-                version (none)
+                version(none)
                 {
                     // 2009-06-15T13:45:30 -> 1:45:30 PM
                     putTime();
@@ -704,7 +712,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
             case FormatDateTimeSpecifier.shortDate:
                 if (putCustomFor(setting.shortFormat.date, true) == FormatWriteResult.error)
                     return formatedWriteError;
-                version (none)
+                version(none)
                 {
                     // 2009-06-15T13:45:30 -> 6/15/2009
                     toString(sink, fmtValue.month);
@@ -717,7 +725,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
             case FormatDateTimeSpecifier.shortDateTime:
                 if (putCustomFor(setting.shortFormat.dateTime, true) == FormatWriteResult.error)
                     return formatedWriteError;
-                version (none)
+                version(none)
                 {
                     // 2009-06-15T13:1:30 -> Monday, June 15, 2009 1:01 PM
                     putFullDateTime();
@@ -727,7 +735,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
             case FormatDateTimeSpecifier.shortTime:
                 if (putCustomFor(setting.shortFormat.time, true) == FormatWriteResult.error)
                     return formatedWriteError;
-                version (none)
+                version(none)
                 {
                     // 2009-06-15T13:45:30 -> 1:45 PM
                     putTime();
@@ -855,15 +863,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     return wr != FormatWriteResult.error ? result : formatedWriteError;
 }
 
-uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope ref FormatDateTimeSpec!Char fmtSpec,
-    scope ref FormatDateTimeValue fmtValue) nothrow
-if (isOutputRange!(Writer, Char) && isSomeChar!Char)
-{
-    auto setting = dateTimeSetting; // Use local var from a thread var for faster use
-    return formattedWrite(sink, fmtSpec, fmtValue, setting);
-}
-
-version (none)
+version(none)
 void pad(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] value, ptrdiff_t size, Char c) nothrow pure
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
@@ -895,11 +895,8 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 
 private:
 
-@safe unittest // FormatDateTimeSpecifier.shortDateTime, longDateTime
+@safe unittest // FormatDateTimeSpecifier.shortDateTime, longDateTime - %f %F
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date_time_format - %f %F");
-
     string s;
 
     s = DateTime(2009, 06, 15, 12, 1, 30).toString("%f");
@@ -908,24 +905,19 @@ private:
     assert(s == "Monday, June 15, 2009 1:01:30 PM", s);
 }
 
-@safe unittest // FormatDateTimeSpecifier.generalShortDateTime, generalLongDateTime
+@safe unittest // FormatDateTimeSpecifier.generalShortDateTime, generalLongDateTime - %g %G
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date_time_format - %g");
-
     string s;
 
     s = DateTime(2009, 06, 15, 13, 45, 30).toString("%g");
     assert(s == "6/15/2009 1:45 PM", s);
+    
     s = DateTime(2009, 06, 15, 13, 45, 30).toString("%G");
     assert(s == "06/15/2009 1:45:30 PM", s);
 }
 
-@safe unittest // FormatDateTimeSpecifier.julianDay
+@safe unittest // FormatDateTimeSpecifier.julianDay - %j
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date_time_format - %j");
-
     string s;
 
     s = DateTime(2010, 8, 24, 0, 0, 0).toString("%j");
@@ -950,11 +942,8 @@ private:
     assert(s == "1721424", s);
 }
 
-@safe unittest // FormatDateTimeSpecifier.longDate, shortDate
+@safe unittest // FormatDateTimeSpecifier.longDate, shortDate - %d %D
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date_time_format - %d %D");
-
     string s;
 
     s = DateTime(2009, 06, 15, 13, 45, 30).toString("%D");
@@ -966,13 +955,17 @@ private:
     assert(s == "Monday, June 15, 2009", s);
     s = Date(2009, 06, 15).toString("%d");
     assert(s == "6/15/2009");
+    
+    DateTimeSetting setting = DateTimeSetting.us;
+    setting.dateSeparator = '-';
+    s = DateTime(2009, 06, 15, 13, 45, 30).toString("%d", setting);
+    assert(s == "6-15-2009", s);
+    s = Date(2009, 06, 15).toString("%d", setting);
+    assert(s == "6-15-2009");    
 }
 
-@safe unittest // FormatDateTimeSpecifier.longTime, shortTime
+@safe unittest // FormatDateTimeSpecifier.longTime, shortTime - %t %T
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date_time_format - %t %T");
-
     string s;
 
     s = DateTime(2009, 06, 15, 13, 45, 30).toString("%T");
@@ -986,11 +979,8 @@ private:
     assert(s == "1:45 PM", s);
 }
 
-@safe unittest // FormatDateTimeSpecifier.monthDay, monthYear
+@safe unittest // FormatDateTimeSpecifier.monthDay, monthYear - %M %Y
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date_time_format - %M %Y");
-
     string s;
 
     s = DateTime(2009, 06, 15, 13, 45, 30).toString("%M");
@@ -999,11 +989,8 @@ private:
     assert(s == "June 2009");
 }
 
-@safe unittest // FormatDateTimeSpecifier.sortableDateTime
+@safe unittest // FormatDateTimeSpecifier.sortableDateTime - %s
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date_time_format - %s");
-
     string s;
 
     s = DateTime(2009, 06, 15, 13, 45, 30).toString("%s");
@@ -1020,11 +1007,8 @@ private:
     assert(s == "13:45:30.0000000", s);
 }
 
-@safe unittest // FormatDateTimeSpecifier.sortableDateTimeLess
+@safe unittest // FormatDateTimeSpecifier.sortableDateTimeLess - %S
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date_time_format - %S");
-
     string s;
 
     s = DateTime(2009, 06, 15, 13, 45, 30).toString("%S");
@@ -1035,22 +1019,16 @@ private:
     assert(s == "2009-06-15T13:45:30", s);
 }
 
-@safe unittest // FormatDateTimeSpecifier.utcSortableDateTime
+@safe unittest // FormatDateTimeSpecifier.utcSortableDateTime - %u
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date_time_format - %u");
-
     string s;
 
     s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%u");
     assert(s == "2009-06-15T13:45:30.0000001Z", s);
 }
 
-@safe unittest // FormatDateTimeSpecifier.utcSortableDateTimeZ
+@safe unittest // FormatDateTimeSpecifier.utcSortableDateTimeZ - %U
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date_time_format - %U");
-
     string s;
 
     s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%U");
@@ -1060,11 +1038,8 @@ private:
     assert(s == "2009-06-15T13:45:30.0000001+00:00", s);
 }
 
-@safe unittest // FormatDateTimeSpecifier.custom, FormatDateTimeSpecifier.dateSeparator, FormatDateTimeSpecifier.timeSeparator
+@safe unittest // FormatDateTimeSpecifier.custom, FormatDateTimeSpecifier.dateSeparator, FormatDateTimeSpecifier.timeSeparator - %custom....
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.dtm.date_time_format - %custom....");
-
     string s;
 
     s = DateTime(2009, 06, 15, 13, 45, 30).toString("%cmm/dd/yyyy HH:nn:ss");
