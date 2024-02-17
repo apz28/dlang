@@ -17,6 +17,8 @@ import std.string : indexOf;
 import std.typecons : Flag;
 public import std.typecons : No, Yes;
 
+debug(debug_pham_xml_xml_parser) import std.stdio : writeln;
+
 import pham.xml.xml_buffer;
 import pham.xml.xml_dom;
 import pham.xml.xml_exception;
@@ -60,7 +62,7 @@ public:
 
     XmlDocument!S parse()
     {
-        version (xmlTraceParser) outputXmlTraceParser("parse");
+        debug(debug_pham_xml_xml_parser) debug writeln(__FUNCTION__, "()");
 
         nodeStack.length = 0;
         (() @trusted => nodeStack.assumeSafeAppend())();
@@ -98,7 +100,7 @@ public:
     }
 
 private:
-    version (xmlTraceParser)
+    debug(debug_pham_xml_xml_parser)
     {
         size_t nodeIndent;
 
@@ -181,9 +183,9 @@ private:
 
     void parseCData(ref ParseContext!S tagName)
     {
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         {
-            outputXmlTraceParserF("%sparseCData.%s", indentString(), tagName.s);
+            debug writeln(__FUNCTION__, "(tagName.s=", tagName.s, ") - ", indentString());
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -214,9 +216,9 @@ private:
 
     void parseComment(ref ParseContext!S tagName)
     {
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         {
-            outputXmlTraceParserF("%sparseComment.%s", indentString(), tagName.s);
+            debug writeln(__FUNCTION__, "(tagName.s=", tagName.s, ") - ", indentString());
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -247,9 +249,9 @@ private:
 
     void parseDeclaration(ref ParseContext!S tagName)
     {
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         {
-            outputXmlTraceParserF("%sparseDeclaration.%s", indentString(), tagName.s);
+            debug writeln(__FUNCTION__, "(tagName.s=", tagName.s, ") - ", indentString());
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -284,9 +286,9 @@ private:
 
     void parseAttributeDeclaration(XmlDeclaration!S parentNode, ref ParseContext!S contextName)
     {
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         {
-            outputXmlTraceParserF0("%sparseAttributeDeclaration: ", indentString());
+            debug writeln(__FUNCTION__, "() - ", indentString());
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -303,8 +305,7 @@ private:
                 throw new XmlParserException(contextName.loc, XmlMessage.eAttributeDuplicated, name);
         }
 
-        version (xmlTraceParser)
-        outputXmlTraceParserF("'%s'", name);
+        debug(debug_pham_xml_xml_parser) debug writeln("\t", "name=", name);
 
         expectChar!(skipSpaceBefore | skipSpaceAfter)('=');
 
@@ -326,9 +327,9 @@ private:
 
     void parseDocumentType(ref ParseContext!S tagName)
     {
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         {
-            outputXmlTraceParserF("%sparseDocumentType.%s", indentString(), tagName.s);
+            debug writeln(__FUNCTION__, "(tagName.s=", tagName.s, ") - ", indentString());
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -413,9 +414,9 @@ private:
 
     void parseDocumentTypeAttributeList(ref ParseContext!S tagName)
     {
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         {
-            outputXmlTraceParserF("%sparseDocumentTypeAttributeList.%s", indentString(), tagName.s);
+            debug writeln(__FUNCTION__, "(tagName.s=", tagName.s, ") - ", indentString());
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -446,9 +447,9 @@ private:
 
     void parseDocumentTypeAttributeListItem(XmlDocumentTypeAttributeList!S attributeList)
     {
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         {
-            outputXmlTraceParserF("%sparseDocumentTypeAttributeListItem", indentString());
+            debug writeln(__FUNCTION__, "() - ", indentString());
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -510,9 +511,9 @@ private:
 
     void parseDocumentTypeElement(ref ParseContext!S tagName)
     {
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         {
-            outputXmlTraceParserF("%sparseDocumentTypeElement.%s", indentString(), tagName.s);
+            debug writeln(__FUNCTION__, "(tagName.s=", tagName.s, ") - ", indentString());
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -555,9 +556,9 @@ private:
 
     void parseDocumentTypeElementChoice(XmlDocumentTypeElement!S node, XmlDocumentTypeElementItem!S parent)
     {
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         {
-            outputXmlTraceParserF("%sparseDocumentTypeElementChoice", indentString());
+            debug writeln(__FUNCTION__, "() - ", indentString());
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -617,9 +618,9 @@ private:
 
     void parseElement()
     {
-        version (xmlTraceParser)
-        {
-            outputXmlTraceParserF("%sparseElement(%c)", indentString(), reader.front);
+        debug(debug_pham_xml_xml_parser)
+        {   
+            debug writeln(__FUNCTION__, "(reader.font=", reader.font, ") - ", indentString());
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -666,9 +667,9 @@ private:
 
     void parseEntity(ref ParseContext!S tagName)
     {
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         {
-            outputXmlTraceParserF("%sparseEntity.%s", indentString(), tagName.s);
+            debug writeln(__FUNCTION__, "(tagName.s=", tagName.s, ") - ", indentString());
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -736,9 +737,9 @@ private:
 
     void parseElementX(ref ParseContext!S tagName)
     {
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         {
-            outputXmlTraceParserF("%sparseElementX.%s", indentString(), tagName.s);
+            debug writeln(__FUNCTION__, "(tagName.s=", tagName.s, ") - ", indentString());
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -808,9 +809,9 @@ private:
 
     void parseElementXAttribute(XmlElement!S parentNode, ref ParseContext!S contextName)
     {
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         {
-            outputXmlTraceParserF0("%sparseElementXAttribute: ", indentString());
+            debug writeln(__FUNCTION__, "() - ", indentString());
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -827,8 +828,7 @@ private:
                 throw new XmlParserException(contextName.loc, XmlMessage.eAttributeDuplicated, name);
         }
 
-        version (xmlTraceParser)
-        outputXmlTraceParserF("'%s'", name);
+        debug(debug_pham_xml_xml_parser) debug writeln("\t", "name=", name);
 
         expectChar!(skipSpaceBefore | skipSpaceAfter)('=');
 
@@ -850,7 +850,7 @@ private:
 
     void parseElementXEnd(S beginTagName)
     {
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         outputXmlTraceParserF("%sparseElementXEnd.%s", indentString(), beginTagName);
 
         ParseContext!S endTagName;
@@ -872,15 +872,13 @@ private:
 
     void parseElementXText(XmlElement!S parentNode)
     {
-        version (xmlTraceParser)
-        outputXmlTraceParserF0("%sparseElementXText: ", indentString());
+        debug(debug_pham_xml_xml_parser) debug writeln(__FUNCTION__, "() - ", indentString());
 
         XmlString!S text;
         bool allWhitespaces;
         reader.readElementXText(text, allWhitespaces);
 
-        version (xmlTraceParser)
-        outputXmlTraceParserF("'%s'", text.rawValue().leftStringIndicator!S(30));
+        debug(debug_pham_xml_xml_parser) debug writeln("\t", "text(30)=", text.rawValue().leftStringIndicator!S(30));
 
         XmlNode!S node;
         if (allWhitespaces)
@@ -911,8 +909,7 @@ private:
     void parseExternalId(ref S systemOrPublic, ref XmlString!S publicId,
         ref XmlString!S text, bool optionalText)
     {
-        version (xmlTraceParser)
-        outputXmlTraceParserF("%sparseExternalId", indentString());
+        debug(debug_pham_xml_xml_parser) debug writeln(__FUNCTION__, "() - ", indentString());
 
         ParseContext!S localContext;
 
@@ -936,9 +933,9 @@ private:
 
     void parseNotation(ref ParseContext!S tagName)
     {
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         {
-            outputXmlTraceParserF("%sparseNotation.%s", indentString(), tagName.s);
+            debug writeln(__FUNCTION__, "(tagName.s=", tagName.s, ") - ", indentString());
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -970,9 +967,9 @@ private:
 
     void parseProcessingInstruction(ref ParseContext!S tagName)
     {
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         {
-            outputXmlTraceParserF("%sparseProcessingInstruction.%s", indentString(), tagName.s);
+            debug writeln(__FUNCTION__, "(tagName.s=", tagName.s, ") - ", indentString());
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -1008,15 +1005,14 @@ private:
 
     XmlString!S parseQuotedValue()
     {
-        version (xmlTraceParser)
-        outputXmlTraceParserF0("%sparseQuotedValue: ", indentString());
+        debug(debug_pham_xml_xml_parser) debug writeln(__FUNCTION__, "() - ", indentString());
 
         auto q = expectChar!(0)("\"'");
         XmlString!S data;
         if (!reader.readUntilText!false(data, q.to!S()))
             expectChar!(0)(q);
 
-        version (xmlTraceParser)
+        debug(debug_pham_xml_xml_parser)
         outputXmlTraceParserF("'%s'", data.rawValue().leftStringIndicator!S(30));
 
         return data;
@@ -1024,8 +1020,7 @@ private:
 
     void parseSpaces()
     {
-        version (xmlTraceParser)
-        outputXmlTraceParserF("%sparseSpaces", indentString());
+        debug(debug_pham_xml_xml_parser) debug writeln(__FUNCTION__, "() - ", indentString()); 
 
         auto s = reader.readSpaces();
         if (options.preserveWhitespace)
@@ -1085,9 +1080,6 @@ private:
 
 unittest  // XmlParser.invalid construct
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest xml.parser.XmlParser.invalid construct");
-
     void parseError(string xml)
     {
         try
@@ -1111,9 +1103,6 @@ unittest  // XmlParser.invalid construct
 
 unittest  // XmlParser.DOCTYPE
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest xml.parser.XmlParser.DOCTYPE");
-
     static immutable string xml =
 q"XML
 <!DOCTYPE myDoc SYSTEM "http://myurl.net/folder" [
@@ -1129,8 +1118,6 @@ XML";
 unittest  // XmlParser
 {
     import pham.xml.xml_test;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest xml.parser.XmlParser");
 
     auto doc = new XmlDocument!string().load(parserXml);
 }
@@ -1139,8 +1126,6 @@ unittest  // XmlParser.navigation
 {
     import std.conv : to;
     import std.typecons : No, Yes;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest xml.parser.XmlParser.navigation");
 
     static immutable string xml =
 q"XML
@@ -1163,13 +1148,13 @@ XML";
 
     auto doc = new XmlDocument!string().load(xml);
 
-    traceUnitTest("unittest XmlParser - navigation(start walk)");
-    traceUnitTest("check doc.documentDeclaration");
+    debug(debug_pham_xml_xml_parser) debug writeln("unittest XmlParser - navigation(start walk)");
+    debug(debug_pham_xml_xml_parser) debug writeln("check doc.documentDeclaration");
 
     assert(doc.documentDeclaration !is null);
     assert(doc.documentDeclaration.innerText = "version=\"1.0\" encoding=\"UTF-8\"");
 
-    traceUnitTest("check doc.documentElement");
+    debug(debug_pham_xml_xml_parser) debug writeln("check doc.documentElement");
 
     assert(doc.documentElement !is null);
     assert(doc.documentElement.nodeType == XmlNodeType.element);
@@ -1178,11 +1163,11 @@ XML";
 
     XmlNodeList!string L;
 
-    traceUnitTest("check doc.documentElement.getChildNodes(deep=true)");
+    debug(debug_pham_xml_xml_parser) debug writeln("check doc.documentElement.getChildNodes(deep=true)");
 
     L = doc.documentElement.getChildNodes(null, Yes.deep);
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1201,7 +1186,7 @@ XML";
     assert(L.front.firstAttribute is L.front.lastAttribute);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1221,7 +1206,7 @@ XML";
     assert(L.front.lastAttribute.value == "abc", L.front.lastAttribute.value);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1240,7 +1225,7 @@ XML";
     assert(L.front.firstAttribute.value == "something", L.front.firstAttribute.value);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1261,7 +1246,7 @@ XML";
     assert(L.front.lastAttribute.value == "with double quote \"\"", L.front.lastAttribute.value);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1279,7 +1264,7 @@ XML";
     assert(L.front.lastAttribute is null);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1297,7 +1282,7 @@ XML";
     assert(L.front.lastAttribute is null);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1320,7 +1305,7 @@ XML";
     L.popFront();
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1339,7 +1324,7 @@ XML";
     L.popFront();
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1355,7 +1340,7 @@ XML";
     assert(!L.front.hasChildNodes);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1370,7 +1355,7 @@ XML";
     assert(L.front.value = " This is a -- comment ", L.front.value);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1385,7 +1370,7 @@ XML";
     assert(L.front.value = " dataSection! ", L.front.value);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1395,12 +1380,11 @@ XML";
 
     assert(L.empty);
 
-    version (isXmlTraceProgress)
-    outputXmlTraceProgress("check doc.documentElement.childNodes()");
+    version(isXmlTraceProgress) outputXmlTraceProgress("check doc.documentElement.childNodes()");
 
     L = doc.documentElement.childNodes();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1419,7 +1403,7 @@ XML";
     assert(L.front.firstAttribute is L.front.lastAttribute);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1439,7 +1423,7 @@ XML";
     assert(L.front.lastAttribute.value == "abc", L.front.lastAttribute.value);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1458,7 +1442,7 @@ XML";
     assert(L.front.firstAttribute.value == "something", L.front.firstAttribute.value);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1479,7 +1463,7 @@ XML";
     assert(L.front.lastAttribute.value == "with double quote \"\"", L.front.lastAttribute.value);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1497,7 +1481,7 @@ XML";
     assert(L.front.firstChild.value == "abcd", L.front.firstChild.value);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1515,7 +1499,7 @@ XML";
     assert(L.front.firstChild.value == "line & Text", L.front.firstChild.value);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1531,7 +1515,7 @@ XML";
     assert(!L.front.hasChildNodes);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1546,7 +1530,7 @@ XML";
     assert(L.front.value = " This is a -- comment ", L.front.value);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1561,7 +1545,7 @@ XML";
     assert(L.front.value = " dataSection! ", L.front.value);
     L.popFront();
 
-    version (none)
+    version(none)
     if (doc.parseOptions.preserveWhitespace)
     {
         assert(!L.empty);
@@ -1576,12 +1560,10 @@ unittest  // XmlParser.SAX
 {
     import pham.xml.xml_dom;
     import pham.xml.xml_test;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest xml.parser.XmlParser.SAX");
 
     static struct ProcessXml
     {
-        version (none)
+        version(none)
         bool processAttribute(XmlNode!string parent, XmlAttribute!string attribute)
         {
             // return true to keep the attribute, however if its parent node is discarded,
@@ -1590,7 +1572,7 @@ unittest  // XmlParser.SAX
             return false;
         }
 
-        version (none)
+        version(none)
         void processElementBegin(XmlNode!string parent, XmlElement!string element)
         {}
 
@@ -1620,8 +1602,8 @@ unittest  // XmlParser.SAX
     ProcessXml processXml;
     
     XmlParseOptions!string options;
-    version (none) options.onSaxAttributeNode = &processXml.processAttribute;
-    version (none) options.onSaxElementNodeBegin = &processXml.processElementBegin;
+    version(none) options.onSaxAttributeNode = &processXml.processAttribute;
+    version(none) options.onSaxElementNodeBegin = &processXml.processElementBegin;
     options.onSaxElementNodeEnd = &processXml.processElementEnd;
     options.onSaxOtherNode = &processXml.processOtherNode;
 

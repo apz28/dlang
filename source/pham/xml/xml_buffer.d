@@ -14,6 +14,8 @@ module pham.xml.xml_buffer;
 import std.array : Appender;
 import std.typecons : Flag, No, Yes;
 
+debug(debug_pham_xml_xml_buffer) import std.stdio : writeln;
+
 import pham.utl.utl_dlink_list;
 import pham.xml.xml_entity_table;
 import pham.xml.xml_exception;
@@ -116,10 +118,9 @@ public:
     {
         import std.string : startsWith;
 
-        assert(entityTable !is null);
+        debug(debug_pham_xml_xml_buffer) debug writeln(__FUNCTION__, "(s=", s, ")");
 
-        version (xmlTraceParser)
-        outputXmlTraceParserF("decode(%s)", s);
+        assert(entityTable !is null);
 
         S refChars;
         size_t i, lastI, mark;
@@ -145,16 +146,14 @@ public:
                         refChars = s[i..j + 1];
                         mark = 1;
 
-                        version (xmlTraceParser)
-                        outputXmlTraceParserF("refChars(;): %s, i: %d, j: %d", refChars, i, j);
+                        debug(debug_pham_xml_xml_buffer) debug writeln("\t", "refChars=", refChars, ", i=", i, ", j=", j);
 
                         break;
                     case '&':
                         refChars = s[i..j];
                         mark = 2;
 
-                        version (xmlTraceParser)
-                        outputXmlTraceParserF("refChars(&): %s, i: %d, j: %d", refChars, i, j);
+                        debug(debug_pham_xml_xml_buffer) debug writeln("\t", "refChars=", refChars, ", i=", i, ", j=", j);
 
                         break;
                     default:
@@ -185,8 +184,7 @@ public:
             }
             else
             {
-                version (xmlTraceParser)
-                outputXmlTraceParserF("refChars(convert): %s", refChars);
+                debug(debug_pham_xml_xml_buffer) debug writeln("\t", "refChars=", refChars);
 
                 if (refChars[1] == '#')
                 {
@@ -228,8 +226,7 @@ public:
                 i += refChars.length;
             }
 
-            version (xmlTraceParser)
-            outputXmlTraceParserF("refChars.length: %d, i: %d", refChars.length, i);
+            debug(debug_pham_xml_xml_buffer) debug writeln("\t", "refChars=", refChars, ", i=", i);
 
             lastI = i;
         }
@@ -260,8 +257,7 @@ public:
         if (len <= count)
             return clear();
 
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         _buffer.shrinkTo(len - count);
         return this;
@@ -284,12 +280,8 @@ public:
      */
     final S encode(S s) nothrow
     {
-        version (xmlTraceParser)
-        {
-            outputXmlTraceParserF("encode(%s) - %s", s, value());
-            scope (exit)
-                outputXmlTraceParserF("encode() - %s", value());
-        }
+        debug(debug_pham_xml_xml_buffer) { debug writeln(__FUNCTION__, "(s=", s, ", value=", value(), ")");
+            scope (exit) debug writeln("\t", "value=", value()); }
 
         S r;
         size_t lastI;
@@ -518,8 +510,6 @@ private:
 unittest  // XmlBuffer.decode
 {
     import std.exception : assertThrown;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest xml.buffer.XmlBuffer.decode");
 
     string s;
     auto buffer = new XmlBuffer!(string, No.CheckEncoded)();
@@ -557,9 +547,6 @@ unittest  // XmlBuffer.decode
 
 unittest  // XmlBuffer.encode
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest xml.buffer.XmlBuffer.encode");
-
     string s;
     auto buffer = new XmlBuffer!(string, No.CheckEncoded)();
 

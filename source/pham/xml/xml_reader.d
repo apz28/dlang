@@ -15,6 +15,8 @@ import std.range.primitives : back, empty, front, popFront;
 import std.traits : hasMember;
 import std.typecons : Flag, No, Yes;
 
+debug(debug_pham_xml_xml_reader) import std.stdio : writeln;
+
 import pham.utl.utl_utf8 : nextUTF8Char, nextUTF16Char;
 import pham.xml.xml_buffer;
 import pham.xml.xml_exception;
@@ -347,9 +349,8 @@ package:
         if (name.s.length == 0)
             throw new XmlParserException(name.loc, XmlMessage.eBlankName);
 
-        version (xmlTraceParser)
-        outputXmlTraceParserF("readNameImpl: name: %s, line: %d, column: %d, nline: %d, ncolumn: %d",
-            name.s, name.loc.sourceLine, name.loc.sourceColumn, loc.sourceLine, loc.sourceColumn);
+        debug(debug_pham_xml_xml_reader) debug writeln(__FUNCTION__, "(name=", name.s, ", line=", name.loc.sourceLine,
+            ", column=", name.loc.sourceColumn, ", nline=", loc.sourceLine, ", ncolumn=", loc.sourceColumn);
 
         return name.s;
     }
@@ -446,9 +447,8 @@ package:
         if (name.s.length == 0)
             throw new XmlParserException(name.loc, XmlMessage.eBlankName);
 
-        version (xmlTraceParser)
-        outputXmlTraceParserF("readElementEName: name: %s, line: %d, column: %d, nline: %d, ncolumn: %d",
-            name.s, name.loc.sourceLine, name.loc.sourceColumn, loc.sourceLine, loc.sourceColumn);
+        debug(debug_pham_xml_xml_reader) debug writeln(__FUNCTION__, "(name=", name.s, 
+            ", line=", name.loc.sourceLine, ", column=", name.loc.sourceColumn, ", nline=", loc.sourceLine, ", ncolumn=", loc.sourceColumn);
 
         return name.s;
     }

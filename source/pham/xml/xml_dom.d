@@ -15,6 +15,8 @@ import std.array : Appender, split;
 import std.typecons : Flag;
 public import std.typecons : No, Yes;
 
+debug(debug_pham_xml_xml_dom) import std.stdio : writeln;
+
 import pham.utl.utl_dlink_list;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.utl.utl_object : shortClassName, singleton;
@@ -1132,7 +1134,7 @@ public:
         return _parent;
     }
 
-    version (none)
+    version(none)
     @property final ptrdiff_t indexOf() nothrow
     {
         if (auto p = parentNode())
@@ -1443,7 +1445,7 @@ public:
 public:
     this(this) nothrow
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.this(this)");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
         if (_listType == XmlNodeListType.childNodesDeep)
             _walkNodes = _walkNodes.dup;
@@ -1454,7 +1456,7 @@ public:
      */
     this(Object context) nothrow
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.this(flat)");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
         auto filterContext = cast(XmlNodeFilterContext!S)context;
 
@@ -1476,7 +1478,7 @@ public:
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.this(...)");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
         if (listType == XmlNodeListType.flat)
             throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, "XmlNodeList", "this(listType = XmlNodeListType.flat)");
@@ -1499,7 +1501,7 @@ public:
      *   this slow,  O(n), access, better use front & popFront
      */
     // Not implement because it is not obviously slow, use item() instead
-    version (none)
+    version(none)
     XmlNode!S opIndex(size_t index)
     {
         return item(index);
@@ -1540,7 +1542,7 @@ public:
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.insertBack()");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
         if (_listType == XmlNodeListType.flat)
         {
@@ -1563,7 +1565,7 @@ public:
     pragma(inline, true)
     XmlNode!S item(size_t index)
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.item(size_t)");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "(index=", index, ")");
 
         return empty ? null : _doGetIndexedItem(this, index);
     }
@@ -1571,7 +1573,7 @@ public:
     pragma(inline, true)
     XmlNode!S item(scope const(C)[] name)
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.item(const(C)[])");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "(name=", name, ")");
 
         return empty ? null : _doGetNamedItem(this, name);
     }
@@ -1584,7 +1586,7 @@ public:
      */
     size_t length()
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.length()");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
         if (empty)
             return 0;
@@ -1641,7 +1643,7 @@ public:
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.popFront()");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
         _doPopFront(this);
     }
@@ -1688,7 +1690,7 @@ public:
 
     void reset()
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.reset()");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
         reset2();
 
@@ -1763,7 +1765,7 @@ private:
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.checkFilter()");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
         _inFilter++;
         scope (exit)
@@ -1780,7 +1782,7 @@ private:
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.checkFilter()");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
         list._inFilter++;
         scope (exit)
@@ -1803,7 +1805,7 @@ private:
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getIndexedItemDeep()");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
         debug (PhamXml) list.checkVersionChanged();
 
         if (index == 0 || list._current is null)
@@ -1829,7 +1831,7 @@ private:
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getIndexedItemFlat()");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "(index=", index, ")");
 
         const i = index + list._currentOffset;
         return i < list._flatList.length ? list._flatList[i] : null;
@@ -1842,7 +1844,7 @@ private:
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getIndexedItemSibling()");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "(index=", index, ")");
         debug (PhamXml) list.checkVersionChanged();
 
         if (index == 0 || list._current is null)
@@ -1868,7 +1870,7 @@ private:
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getNamedItemDeep()");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "(name=", name, ")");
         debug (PhamXml) list.checkVersionChanged();
 
         if (list._current is null)
@@ -1897,7 +1899,7 @@ private:
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getNamedItemFlat()");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "(name=", name, ")");
 
         if (list._currentOffset >= list._flatList.length)
             return null;
@@ -1920,7 +1922,7 @@ private:
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.getNamedItemSibling()");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "(name=", name, ")");
         debug (PhamXml) list.checkVersionChanged();
 
         if (list._current is null)
@@ -1950,7 +1952,7 @@ private:
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParserF("XmlNodeList.popFrontDeep(current(%s.%s))", list._parent.name, list._current.name);
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "(list._current.name=", list._current.name, ")");
         debug (PhamXml) list.checkVersionChanged();
 
         popFrontDeepImpl(list);
@@ -1967,14 +1969,14 @@ private:
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParserF("XmlNodeList.popFrontDeepImpl(current(%s.%s))", list._parent.name, list._current.name);
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "(list._parent.name=", list._parent.name, ")");
         debug (PhamXml) list.checkVersionChanged();
 
         if (list._current.hasChildNodes)
         {
             if (list._current.nextSibling !is null)
             {
-                version (xmlTraceParser) outputXmlTraceParserF("XmlNodeList.popFrontDeep(push(%s.%s))", list._parent.name, list._current.nextSibling.name);
+                debug(debug_pham_xml_xml_dom) debug writeln("\t", "list._parent.name=", list._parent.name);
 
                 list._walkNodes ~= WalkNode(list._parent, list._current.nextSibling);
             }
@@ -2027,7 +2029,7 @@ private:
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.popFrontSibling()");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
         debug (PhamXml) list.checkVersionChanged();
 
         popFrontSiblingImpl(list);
@@ -2044,7 +2046,7 @@ private:
     }
     do
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.popFrontSiblingImpl()");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
         debug (PhamXml) list.checkVersionChanged();
 
         list._current = list._current.nextSibling;
@@ -2052,7 +2054,7 @@ private:
 
     void reset2() nothrow
     {
-        version (xmlTraceParser) outputXmlTraceParser("XmlNodeList.reset2()");
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
         _currentOffset = 0;
         //_length = unknownLength; // Set in reset
@@ -2480,8 +2482,7 @@ public:
 protected:
     final void breakText(S s) nothrow
     {
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         S[] t = s.split();
         foreach (e; t)
@@ -2509,8 +2510,7 @@ protected:
 
     final S buildText() nothrow
     {
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         auto buffer = selfOwnerDocument.acquireBuffer(nodeType);
         scope (exit)
@@ -2549,7 +2549,7 @@ protected:
         return _innerText;
     }
 
-    version (none)
+    version(none)
     final void checkStandalone(S s)
     {
         if (!isStandalone(s))
@@ -2557,7 +2557,7 @@ protected:
                 XmlConst!string.declarationStandaloneName, XmlConst!string.yes, XmlConst!string.no, s);
     }
 
-    version (none)
+    version(none)
     final void checkVersion(scope const(C)[] s) // rule 26
     {
         if (!isVersionStr!(S, Yes.AllowEmpty)(s))
@@ -2677,7 +2677,7 @@ public:
         auto reader = new XmlStringReader!S(xml);
         return load!SAX(reader, parseOptions);
     }
-    
+
     /** Load a content xml from a file-name, fileName, and returns its' document
     Params:
         fileName = a xml content file-name to be loaded from
@@ -4288,40 +4288,40 @@ protected:
 debug (PhamXml)
 unittest  // Display object sizeof
 {
-    import pham.utl.utl_test;
+    import std.stdio : writeln;
 
-    dgWriteln("");
-    dgWriteln("xml.XmlNodeList.sizeof: ", XmlNodeList!string.sizeof);
-    dgWriteln("xml.XmlAttribute.sizeof: ", XmlAttribute!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlCData.sizeof: ", XmlCData!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlComment.sizeof: ", XmlComment!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlDeclaration.sizeof: ", XmlDeclaration!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlDocument.sizeof: ", XmlDocument!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlDocumentFragment.sizeof: ", XmlDocumentFragment!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlDocumentType.sizeof: ", XmlDocumentType!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlDocumentTypeAttributeList.sizeof: ", XmlDocumentTypeAttributeList!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlDocumentTypeAttributeListDef.sizeof: ", XmlDocumentTypeAttributeListDef!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlDocumentTypeAttributeListDefType.sizeof: ", XmlDocumentTypeAttributeListDefType!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlDocumentTypeElement.sizeof: ", XmlDocumentTypeElement!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlDocumentTypeElementItem.sizeof: ", XmlDocumentTypeElementItem!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlElement.sizeof: ", XmlElement!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlEntity.sizeof: ", XmlEntity!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlEntityReference.sizeof: ", XmlEntityReference!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlNotation.sizeof: ", XmlNotation!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlProcessingInstruction.sizeof: ", XmlProcessingInstruction!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlSignificantWhitespace.sizeof: ", XmlSignificantWhitespace!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlText.sizeof: ", XmlText!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlWhitespace.sizeof: ", XmlWhitespace!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlCharacterWhitespace.sizeof: ", XmlCharacterWhitespace!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlName.sizeof: ", XmlName!string.classinfo.initializer.length);
-    dgWriteln("xml.XmlParser.sizeof: ", XmlParser!string.sizeof);
-    dgWriteln("xml.XmlString.sizeof: ", XmlString!string.sizeof);
-    dgWriteln("xml.XmlBuffer.sizeof: ", XmlBuffer!(string, No.CheckEncoded).classinfo.initializer.length);
-    dgWriteln("xml.XmlBufferList.sizeof: ", XmlBufferList!(string, No.CheckEncoded).classinfo.initializer.length);
-    dgWriteln("");
+    debug writeln("");
+    debug writeln("xml.XmlNodeList.sizeof: ", XmlNodeList!string.sizeof);
+    debug writeln("xml.XmlAttribute.sizeof: ", XmlAttribute!string.classinfo.initializer.length);
+    debug writeln("xml.XmlCData.sizeof: ", XmlCData!string.classinfo.initializer.length);
+    debug writeln("xml.XmlComment.sizeof: ", XmlComment!string.classinfo.initializer.length);
+    debug writeln("xml.XmlDeclaration.sizeof: ", XmlDeclaration!string.classinfo.initializer.length);
+    debug writeln("xml.XmlDocument.sizeof: ", XmlDocument!string.classinfo.initializer.length);
+    debug writeln("xml.XmlDocumentFragment.sizeof: ", XmlDocumentFragment!string.classinfo.initializer.length);
+    debug writeln("xml.XmlDocumentType.sizeof: ", XmlDocumentType!string.classinfo.initializer.length);
+    debug writeln("xml.XmlDocumentTypeAttributeList.sizeof: ", XmlDocumentTypeAttributeList!string.classinfo.initializer.length);
+    debug writeln("xml.XmlDocumentTypeAttributeListDef.sizeof: ", XmlDocumentTypeAttributeListDef!string.classinfo.initializer.length);
+    debug writeln("xml.XmlDocumentTypeAttributeListDefType.sizeof: ", XmlDocumentTypeAttributeListDefType!string.classinfo.initializer.length);
+    debug writeln("xml.XmlDocumentTypeElement.sizeof: ", XmlDocumentTypeElement!string.classinfo.initializer.length);
+    debug writeln("xml.XmlDocumentTypeElementItem.sizeof: ", XmlDocumentTypeElementItem!string.classinfo.initializer.length);
+    debug writeln("xml.XmlElement.sizeof: ", XmlElement!string.classinfo.initializer.length);
+    debug writeln("xml.XmlEntity.sizeof: ", XmlEntity!string.classinfo.initializer.length);
+    debug writeln("xml.XmlEntityReference.sizeof: ", XmlEntityReference!string.classinfo.initializer.length);
+    debug writeln("xml.XmlNotation.sizeof: ", XmlNotation!string.classinfo.initializer.length);
+    debug writeln("xml.XmlProcessingInstruction.sizeof: ", XmlProcessingInstruction!string.classinfo.initializer.length);
+    debug writeln("xml.XmlSignificantWhitespace.sizeof: ", XmlSignificantWhitespace!string.classinfo.initializer.length);
+    debug writeln("xml.XmlText.sizeof: ", XmlText!string.classinfo.initializer.length);
+    debug writeln("xml.XmlWhitespace.sizeof: ", XmlWhitespace!string.classinfo.initializer.length);
+    debug writeln("xml.XmlCharacterWhitespace.sizeof: ", XmlCharacterWhitespace!string.classinfo.initializer.length);
+    debug writeln("xml.XmlName.sizeof: ", XmlName!string.classinfo.initializer.length);
+    debug writeln("xml.XmlParser.sizeof: ", XmlParser!string.sizeof);
+    debug writeln("xml.XmlString.sizeof: ", XmlString!string.sizeof);
+    debug writeln("xml.XmlBuffer.sizeof: ", XmlBuffer!(string, No.CheckEncoded).classinfo.initializer.length);
+    debug writeln("xml.XmlBufferList.sizeof: ", XmlBufferList!(string, No.CheckEncoded).classinfo.initializer.length);
+    debug writeln("");
 }
 
-version (unittest)
+version(unittest)
 {
     private static immutable string sampleXml =
     "<?xml version=\"1.2\" encoding=\"utf8\" standalone=\"yes\"?>" ~
@@ -4345,8 +4345,6 @@ version (unittest)
 unittest  // XmlDocument
 {
     import std.conv : to;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest xml.XmlDocument");
 
     auto doc = new XmlDocument!string();
 
@@ -4403,8 +4401,6 @@ unittest  // XmlDocument
 unittest // XmlNodeList
 {
     import std.conv : to;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest xml.XmlNodeList");
 
     auto doc = XmlDocument!string(sampleXml);
 

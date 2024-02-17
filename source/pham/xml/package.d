@@ -26,7 +26,7 @@ public import pham.xml.xml_xpath;
 public import pham.xml.xml_writer;
 
 // Remove this version will cause compiler crash
-version (dmdCrash)
+version(dmdCrash)
 {
 /** For utf8 encoded string
 */

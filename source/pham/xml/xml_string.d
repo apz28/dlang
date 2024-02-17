@@ -50,7 +50,7 @@ public:
         return this;
     }
 
-    version (none)
+    version(none)
     S opCall()
     {
         return data;
@@ -127,7 +127,7 @@ private:
     XmlEncodeMode mode;
 }
 
-version (none)
+version(none)
 pragma (inline, true)
 XmlString!S toXmlString(S, Flag!"CheckEncoded" CheckEncoded)(XmlBuffer!(S, CheckEncoded) buffer)
 {

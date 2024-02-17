@@ -15,6 +15,8 @@ import std.conv : to;
 import std.math : isNaN;
 import std.typecons : Flag, No, Yes;
 
+debug(debug_pham_xml_xml_xpath) import std.stdio : writeln;
+
 import pham.utl.utl_object : className, shortClassName, singleton;
 import pham.utl.utl_enum_set : EnumArray;
 import pham.xml.xml_buffer;
@@ -55,11 +57,7 @@ if (isXmlString!S)
     auto xpathParser = XPathParser!S(xpath);
     auto xpathExpression = xpathParser.parseExpression();
 
-    version (xmlTraceXPathParser)
-    {
-        outputXmlTraceXPathParser("\n", xpath);
-        outputXmlTraceXPathParser(xpathExpression.outerXml(), "\n");
-    }
+    debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(xpath=", xpath, ") - ", xpathExpression.outerXml());
 
     auto inputContext = XPathContext!S(source);
     inputContext.resNodes.insertBack(source);
@@ -301,8 +299,7 @@ public:
 public:
     this(bool value) nothrow pure
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("XPathValue.this(this[boolean]: %d)", value);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
         this._type = XPathDataType.boolean;
         this.boolean = value;
@@ -310,8 +307,7 @@ public:
 
     this(double value) nothrow pure
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("XPathValue.this(this[double]: %f)", value);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
         this._type = XPathDataType.number;
         this.number = value;
@@ -319,8 +315,7 @@ public:
 
     this(S value) nothrow @trusted
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("XPathValue.this(this[text]: %s)", value);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
         this._type = XPathDataType.text;
         this._text = value;
@@ -328,8 +323,7 @@ public:
 
     this(scope const(C)[] value) nothrow @trusted
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("XPathValue.this(this[text]: %s)", value);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
         this._type = XPathDataType.text;
         this._text = value.idup;
@@ -337,8 +331,7 @@ public:
 
     this(const typeof(this) source) nothrow @trusted
 	{
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("XPathValue.this(this[%d]: %s)", source.type, source.toString());
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
         this._type = source.type;
         final switch (source.type)
@@ -365,8 +358,7 @@ public:
 
     void opAssign(bool value) nothrow
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("XPathValue.opAssign(value[boolean]: %d)", value);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
         if (_type != XPathDataType.boolean)
             clear();
@@ -376,8 +368,7 @@ public:
 
     void opAssign(double value) nothrow
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("XPathValue.opAssign(value[double]: %f)", value);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
         if (_type != XPathDataType.number)
             clear();
@@ -387,8 +378,7 @@ public:
 
     void opAssign(S value) nothrow @trusted
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("XPathValue.opAssign(value[text]: %s)", value);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
         if (_type != XPathDataType.text)
             clear();
@@ -398,8 +388,7 @@ public:
 
     void opAssign(scope const(C)[] value) nothrow @trusted
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("XPathValue.opAssign(value[text]: %s)", value);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
         if (_type != XPathDataType.text)
             clear();
@@ -445,9 +434,7 @@ public:
 
 	bool opEquals(const ref typeof(this) other) nothrow
 	{
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("XPathValue.opEquals(this[%d]: %s, other[%d]: %s)",
-            type, toString(), other.type, other.toString());
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(this=", this, ", other=", other, ")");
 
         return opCmp(other) == 0;
 	}
@@ -481,16 +468,14 @@ public:
         else
             result = sicmp(toString(), other.toString());
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("XPathValue.opCmp(this[%d]: %s, other[%d]: %s): %d",
-            type, toString(), other.type, other.toString(), result);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(this=", this, ", other=", other, ", result=", result, ")");
 
         return result;
     }
 
     void clear() nothrow
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         outputXmlTraceXPathParserF("XPathValue.clear(value[%d]: %s)", _type, toString());
 
         if (_type != XPathDataType.empty)
@@ -589,8 +574,7 @@ public:
 
     this(XmlNode!S xpathNode) nothrow pure
     {
-        version (xmlTraceXPathParser)
-        nodeIndent = &_nodeIndent;
+        debug(debug_pham_xml_xml_xpath) nodeIndent = &_nodeIndent;
 
         this._xpathNode = xpathNode;
     }
@@ -639,7 +623,7 @@ public:
     }
 
 package:
-    version (xmlTraceXPathParser)
+    debug(debug_pham_xml_xml_xpath)
     {
         void decNodeIndent()
         {
@@ -665,7 +649,7 @@ public:
     XPathValue!S[S] variables;
 
 package:
-    version (xmlTraceXPathParser)
+    debug(debug_pham_xml_xml_xpath)
     {
         static size_t _nodeIndent;
         size_t* nodeIndent;
@@ -767,9 +751,8 @@ public:
     this(XPathNode!S parent, XPathAxisType axisType, XPathNode!S input,
          XPathNodeType nodetype, S prefix, S localName) nothrow
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.this(axisType: %s, input: %s, nodeType: %s, prefix: %s, localName: %s)",
-            shortClassName(this), axisType, shortClassName(input), nodetype, prefix, localName);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(axisType=", axisType,
+            ", nodetype=", nodetype, ", prefix=", prefix, ", localName=", localName);
 
         this._parent = parent;
         this._input = input;
@@ -829,7 +812,7 @@ public:
 
     this(XPathNode!S parent, XPathAxisType axisType, XPathNode!S input) nothrow
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         outputXmlTraceXPathParserF("%s.this(axisType: %s, input: %s)", shortClassName(this), axisType, shortClassName(input));
 
         this(parent, axisType, input, XPathNodeType.all, null, null);
@@ -838,11 +821,7 @@ public:
 
     final override void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        version (xmlTraceXPathParser)
-        {
-            outputXmlTraceXPathParserF("%s%s.evaluate(axisType: %s, nodeType: %s, abbreviated: %s, qName: %s, nodeListCount: %d)",
-                inputContext.indentString, shortClassName(this), axisType, nodeType, abbreviated, qualifiedName(),
-                inputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) { debug writeln(__FUNCTION__, "()");
             inputContext.incNodeIndent;
             scope (exit)
                 inputContext.decNodeIndent;
@@ -863,8 +842,7 @@ public:
     {
         import std.format : format;
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.write", shortClassName(this));
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
 
         string n = format("::name(axisType=%s, nodeType=%s, abbreviated=%s)", axisType, nodeType, abbreviated);
         writer.putIndent();
@@ -936,8 +914,7 @@ protected:
                 result = equalName(node.localName, localName);
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.accept(name: %s): %s", inputContext.indentString, shortClassName(this), node.name, result);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(node.name=", node.name, ", result=", result, ")");
 
         return result;
     }
@@ -955,10 +932,7 @@ protected:
             }
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluateAncestor(axisType: %s, nodeType: %s, abbreviated: %s, qName: %s, nodeListCount: %d)",
-            inputContext.indentString, shortClassName(this), axisType, nodeType, abbreviated, qualifiedName(),
-            outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
     }
 
     final void evaluateAncestorOrSelf(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
@@ -977,10 +951,7 @@ protected:
             }
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluateAncestorOrSelf(axisType: %s, nodeType: %s, abbreviated: %s, qName: %s, nodeListCount: %d)",
-            inputContext.indentString, shortClassName(this), axisType, nodeType, abbreviated, qualifiedName(),
-            outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
     }
 
     final void evaluateAttribute(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
@@ -998,10 +969,7 @@ protected:
             }
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluateAttribute(axisType: %s, nodeType: %s, abbreviated: %s, qName: %s, nodeListCount: %d)",
-            inputContext.indentString, shortClassName(this), axisType, nodeType, abbreviated, qualifiedName(),
-            outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
     }
 
     final void evaluateChild(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
@@ -1019,10 +987,7 @@ protected:
             }
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluateChild(axisType: %s, nodeType: %s, abbreviated: %s, qName: %s, nodeListCount: %d)",
-            inputContext.indentString, shortClassName(this), axisType, nodeType, abbreviated, qualifiedName(),
-            outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
     }
 
     final void evaluateDescendant(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
@@ -1037,10 +1002,7 @@ protected:
             }
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluateDescendant(axisType: %s, nodeType: %s, abbreviated: %s, qName: %s, nodeListCount: %d)",
-            inputContext.indentString, shortClassName(this), axisType, nodeType, abbreviated, qualifiedName(),
-            outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
     }
 
     final void evaluateDescendantOrSelf(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
@@ -1058,10 +1020,7 @@ protected:
             }
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluateDescendantOrSelf(axisType: %s, nodeType: %s, abbreviated: %s, qName: %s, nodeListCount: %d)",
-            inputContext.indentString, shortClassName(this), axisType, nodeType, abbreviated, qualifiedName(),
-            outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
     }
 
     final void evaluateFollowing(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
@@ -1076,10 +1035,7 @@ protected:
                 outputContext.resNodes.insertBack(n);
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluateFollowing(axisType: %s, nodeType: %s, abbreviated: %s, qName: %s, nodeListCount: %d)",
-            inputContext.indentString, shortClassName(this), axisType, nodeType, abbreviated, qualifiedName(),
-            outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
     }
 
     final void evaluateFollowingSibling(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
@@ -1098,10 +1054,7 @@ protected:
             }
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluateFollowingSibling(axisType: %s, nodeType: %s, abbreviated: %s, qName: %s, nodeListCount: %d)",
-            inputContext.indentString, shortClassName(this), axisType, nodeType, abbreviated, qualifiedName(),
-            outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
     }
 
     final void evaluateNamespace(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
@@ -1119,10 +1072,7 @@ protected:
             }
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluateNamespace(axisType: %s, nodeType: %s, abbreviated: %s, qName: %s, nodeListCount: %d)",
-            inputContext.indentString, shortClassName(this), axisType, nodeType, abbreviated, qualifiedName(),
-            outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
     }
 
     final void evaluateParent(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
@@ -1134,10 +1084,7 @@ protected:
                 outputContext.resNodes.insertBack(p);
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluateParent(axisType: %s, nodeType: %s, abbreviated: %s, qName: %s, nodeListCount: %d)",
-            inputContext.indentString, shortClassName(this), axisType, nodeType, abbreviated, qualifiedName(),
-            outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
     }
 
     final void evaluatePreceding(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
@@ -1152,10 +1099,7 @@ protected:
                 outputContext.resNodes.insertBack(n);
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluatePreceding(axisType: %s, nodeType: %s, abbreviated: %s, qName: %s, nodeListCount: %d)",
-            inputContext.indentString, shortClassName(this), axisType, nodeType, abbreviated, qualifiedName(),
-            outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
     }
 
     final void evaluatePrecedingSibling(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
@@ -1174,10 +1118,7 @@ protected:
             }
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluatePrecedingSibling(axisType: %s, nodeType: %s, abbreviated: %s, qName: %s, nodeListCount: %d)",
-            inputContext.indentString, shortClassName(this), axisType, nodeType, abbreviated, qualifiedName(),
-            outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
     }
 
     final void evaluateSelf(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
@@ -1188,10 +1129,7 @@ protected:
                 outputContext.resNodes.insertBack(e);
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluateSelf(axisType: %s, nodeType: %s, abbreviated: %s, qName: %s, nodeListCount: %d)",
-            inputContext.indentString, shortClassName(this), axisType, nodeType, abbreviated, qualifiedName(),
-            outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
     }
 
 protected:
@@ -1210,9 +1148,7 @@ class XPathFilter(S = string) : XPathNode!S
 public:
     this(XPathNode!S parent, XPathNode!S input, XPathNode!S condition) nothrow
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.this(input: %s, condition: %s)", shortClassName(this),
-            shortClassName(input), shortClassName(condition));
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
 
         this._parent = parent;
         this._input = input;
@@ -1221,12 +1157,9 @@ public:
 
     final override void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParserF("%s%s.evaluate(input: %s, condition: %s, nodeListCount: %d)",
-                inputContext.indentString, shortClassName(this),
-                shortClassName(input), shortClassName(condition),
-                inputContext.resNodes.length);
+            debug writeln(__FUNCTION__, "() - ", inputContext.indentString);
             inputContext.incNodeIndent;
             scope (exit)
                 inputContext.decNodeIndent;
@@ -1263,8 +1196,7 @@ public:
 
     final override XmlWriter!S write(XmlWriter!S writer)
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.write", shortClassName(this));
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
 
         writer.putIndent();
         writer.put(toUTF!(string, S)(className(this)));
@@ -1414,8 +1346,7 @@ protected:
 
     final void initDefault() nothrow pure
     {
-        scope (failure)
-            assert(0);
+        scope (failure) assert(0, "Assume nothrow failed");
 
         defaultFunctions[to!S(XPathFunctionType.boolean)] = &fctBoolean!S;
         defaultFunctions[to!S(XPathFunctionType.ceiling)] = &fctCeiling!S;
@@ -1468,9 +1399,7 @@ public:
     }
     do
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.this(function: %s, argc: %d)", shortClassName(this),
-            functionType, argumentList.length);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(functionType=", functionType, ")");
 
         this._parent = parent;
         this._functionType = functionType;
@@ -1481,9 +1410,7 @@ public:
 
     this(XPathNode!S parent, S prefix, S localName, XPathNode!S[] argumentList)
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.this(prefix: %s, localName: %s, argc: %d)", shortClassName(this),
-            prefix, localName, argumentList.length);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(prefix=", prefix, ", localName=", localName, ")");
 
         this._parent = parent;
         this._functionType = XPathFunctionType.userDefined;
@@ -1501,8 +1428,7 @@ public:
     }
     do
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.this(function: %s)", shortClassName(this), functionType);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(functionType=", functionType, ")");
 
         this._parent = parent;
         this._functionType = functionType;
@@ -1517,8 +1443,7 @@ public:
     }
     do
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.this(function: %s, argn: %s)", shortClassName(this), shortClassName(argument));
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(functionType=", functionType, ")");
 
         this._parent = parent;
         this._functionType = functionType;
@@ -1529,10 +1454,9 @@ public:
 
     final override void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParserF("%s.evaluate(function: %s, returnType: %s, qName: %s, resNodes.length: %d, resValue.empty: %d)",
-                shortClassName(this), functionType, returnType, qualifiedName(), inputContext.resNodes.length, inputContext.resValue.empty);
+            debug writeln(__FUNCTION__, "()");
             inputContext.incNodeIndent;
             scope (exit)
                 inputContext.decNodeIndent;
@@ -1545,8 +1469,7 @@ public:
     {
         import std.format : format;
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.write", shortClassName(this));
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
 
         string n = format("::name(%s:%s)", functionType, returnType);
         writer.putIndent();
@@ -1634,8 +1557,7 @@ class XPathGroup(S = string) : XPathNode!S
 public:
     this(XPathNode!S parent, XPathNode!S groupNode) nothrow
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.this(group: %s)", shortClassName(this), shortClassName(groupNode));
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
 
         this._parent = parent;
         this._groupNode = groupNode;
@@ -1643,11 +1565,9 @@ public:
 
     final override void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParserF("%s%s.evaluate(group: %s, nodeListCount: %d)",
-                inputContext.indentString, shortClassName(this), shortClassName(groupNode),
-                inputContext.resNodes.length);
+            debug writeln(__FUNCTION__, "()");
             inputContext.incNodeIndent;
             scope (exit)
                 inputContext.decNodeIndent;
@@ -1660,8 +1580,7 @@ public:
 
     final override XmlWriter!S write(XmlWriter!S writer)
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.write", shortClassName(this));
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
 
         writer.putIndent();
         writer.put(toUTF!(string, S)(className(this)));
@@ -1698,8 +1617,7 @@ class XPathOperand(S = string) : XPathNode!S
 public:
     this(XPathNode!S parent, bool value) nothrow
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.this(value: %s)", shortClassName(this), value);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
         this._parent = parent;
         this._value = value;
@@ -1707,8 +1625,7 @@ public:
 
     this(XPathNode!S parent, double value) nothrow
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.this(value: %s)", shortClassName(this), value);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
         this._parent = parent;
         this._value = value;
@@ -1716,8 +1633,7 @@ public:
 
     this(XPathNode!S parent, S value) nothrow
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.this(value: %s)", shortClassName(this), value);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
         this._parent = parent;
         this._value = value;
@@ -1766,9 +1682,7 @@ public:
 
     final override void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluate(value: %s)", inputContext.indentString,
-            shortClassName(this), value.toString());
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - ", inputContext.indentString);
 
         outputContext.resValue = value;
     }
@@ -1777,8 +1691,7 @@ public:
     {
         import std.format : format;
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.write", shortClassName(this));
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
 
         string n = format("::value(%s)", returnType);
         writer.putIndent();
@@ -1814,9 +1727,7 @@ class XPathOperator(S = string) : XPathNode!S
 public:
     this(XPathNode!S parent, XPathOp opType, XPathNode!S operand1, XPathNode!S operand2) nothrow
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.this(opType: %s, operand1: %s, operand2: %s)",
-            shortClassName(this), opType, shortClassName(operand1), shortClassName(operand2));
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(opType=", opType, ")");
 
         this._parent = parent;
         this._opType = opType;
@@ -1828,11 +1739,9 @@ public:
 
     final override void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParserF("%s%s.evaluate(opType: %s, operand1: %s, operand2: %s, nodeListCount: %d)",
-                inputContext.indentString, shortClassName(this), opType, shortClassName(operand1), shortClassName(operand2),
-                inputContext.resNodes.length);
+            debug writeln(__FUNCTION__, "() - ", inputContext.indentString);
             inputContext.incNodeIndent;
             scope (exit)
                 inputContext.decNodeIndent;
@@ -1843,8 +1752,7 @@ public:
 
     final override XmlWriter!S write(XmlWriter!S writer)
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.write(%s)", shortClassName(this), opType);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
 
         writer.putIndent();
         writer.put(toUTF!(string, S)(className(this)));
@@ -2047,7 +1955,7 @@ class XPathRoot(S = string) : XPathNode!S
 public:
     this(XPathNode!S parent) nothrow
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         outputXmlTraceXPathParser(shortClassName(this), ".this()");
 
         this._parent = parent;
@@ -2055,16 +1963,14 @@ public:
 
     final override void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluate()", inputContext.indentString, shortClassName(this));
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - ", inputContext.indentString);
 
         outputContext.resNodes.insertBack(inputContext.xpathDocumentElement());
     }
 
     final override XmlWriter!S write(XmlWriter!S writer)
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.write", shortClassName(this));
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
 
         writer.putIndent();
         writer.put(toUTF!(string, S)(className(this)));
@@ -2090,8 +1996,7 @@ class XPathVariable(S = string) : XPathNode!S
 public:
     this(XPathNode!S parent, S prefix, S localName) nothrow
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.this(prefix: %s, localName: %s)", shortClassName(this), prefix, localName);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(prefix=", prefix, ", localName=", localName, ")");
 
         this._parent = parent;
         this._prefix = prefix;
@@ -2100,9 +2005,7 @@ public:
 
     final override void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s%s.evaluate(prefix: %s, localName: %s)",
-            inputContext.indentString, shortClassName(this), prefix, localName);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - ", inputContext.indentString);
 
         XPathValue!S* result = qualifiedName() in inputContext.variables;
         if (result is null && prefix.length != 0)
@@ -2116,8 +2019,7 @@ public:
 
     final override XmlWriter!S write(XmlWriter!S writer)
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%s.write", shortClassName(this));
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
 
         writer.putIndent();
         writer.put(toUTF!(string, S)(className(this)));
@@ -2567,8 +2469,7 @@ public:
             nextChar();
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("scanName(%s [%d..%d])", _xPathExpression[start..end], start, end);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - _xPathExpression=", _xPathExpression[start..end]);
 
         return _xPathExpression[start..end];
     }
@@ -2583,7 +2484,7 @@ public:
     do
     {
         scope (failure) assert(0, "Assume nothrow failed");
-        
+
         const start = _xPathExpressionNextIndex - 2;
         size_t end = _xPathExpressionNextIndex - 1;
 
@@ -2593,8 +2494,7 @@ public:
             nextChar();
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("scanNumberM(%s [%d..%d])", _xPathExpression[start..end], start, end);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - _xPathExpression=", _xPathExpression[start..end]);
 
         return _xPathExpression[start..end].to!double();
     }
@@ -2608,7 +2508,7 @@ public:
     do
     {
         scope (failure) assert(0, "Assume nothrow failed");
-        
+
         const start = _xPathExpressionNextIndex - 1;
         size_t end = _xPathExpressionNextIndex - 1;
         while (isDigit(currentChar))
@@ -2627,8 +2527,7 @@ public:
             }
         }
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("scanNumberS(%s [%d..%d])", _xPathExpression[start..end], start, end);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - _xPathExpression=", _xPathExpression[start..end]);
 
         return _xPathExpression[start..end].to!double();
     }
@@ -2654,8 +2553,7 @@ public:
 
         nextChar();
 
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("scanText(%s [%d..%d])", leftStringIndicator!S(_xPathExpression[start..end], 30), start, end);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - _xPathExpression=", _xPathExpression[start..end]);
 
         return _xPathExpression[start..end];
     }
@@ -2813,9 +2711,9 @@ public:
 
     XPathNode!S parseExpression()
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParserF("%sparseExpression(%s)", indentString(), sourceText);
+            debug writeln(__FUNCTION__, "() - ", indentString(), ", sourceText=", sourceText);
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -2830,9 +2728,9 @@ public:
 
     XPathNode!S parsePattern()
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParserF("%sparsePattern(%s)", indentString(), sourceText);
+            debug writeln(__FUNCTION__, "() - ", indentString(), ", sourceText=", sourceText);
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -2840,8 +2738,7 @@ public:
 
         XPathNode!S result = parsePattern(null);
         if (scanner.kind != XPathScannerLexKind.eof)
-            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar,
-                scanner.currentIndex + 1, sourceText);
+            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar, scanner.currentIndex + 1, sourceText);
         return result;
     }
 
@@ -2859,7 +2756,7 @@ private:
     size_t parseDepth;
     enum maxParseDepth = 200;
 
-    version (xmlTraceXPathParser)
+    debug(debug_pham_xml_xml_xpath)
     {
         size_t nodeIndent;
 
@@ -2880,7 +2777,7 @@ private:
     pragma (inline, true)
     void checkAndSkipToken(C t)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         outputXmlTraceXPathParserF("%spassToken('%c') ? '%c'", indentString(), t, scanner.kind);
 
         checkToken(t);
@@ -2890,9 +2787,7 @@ private:
     pragma (inline, true)
     void checkNodeSet(XPathResultType t)
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%scheckNodeSet(%d) ? [%d, %d]", indentString(), t,
-            XPathResultType.nodeSet, XPathResultType.any);
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - ", indentString());
 
         if (t != XPathResultType.nodeSet && t != XPathResultType.any)
             throw new XmlParserException(XmlMessage.eNodeSetExpectedAtOf, scanner.currentIndex + 1, sourceText);
@@ -2901,8 +2796,7 @@ private:
     pragma (inline, true)
     void checkToken(C t)
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%scheckToken('%c') ? '%c'", indentString(), t, scanner.kind);
+        debug(debug_pham_xml_xml_xpath)debug writeln(__FUNCTION__, "(t=", t, ")"); 
 
         if (scanner.kind != t)
             throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar,
@@ -2911,8 +2805,7 @@ private:
 
     XPathAxisType getAxisType()
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%sgetAxisType() ? '%s'", indentString(), scanner.name);
+        debug(debug_pham_xml_xml_xpath)debug writeln(__FUNCTION__, "()");
 
         const axis = scanner.nameAxisType();
         if (axis == XPathAxisType.error)
@@ -2924,8 +2817,7 @@ private:
     pragma (inline, true)
     bool isOp(scope const(C)[] opName)
     {
-        version (xmlTraceXPathParser)
-        outputXmlTraceXPathParserF("%sisOp('%s') ? '%s'", indentString(), opName, scanner.name);
+        debug(debug_pham_xml_xml_xpath)debug writeln(__FUNCTION__, "(opName=", opName, ")"); 
 
         return scanner.kind == XPathScannerLexKind.name &&
             scanner.prefix.length == 0 &&
@@ -2940,9 +2832,9 @@ private:
 
     XPathNode!S parseExpression(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseExpression", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -2959,9 +2851,9 @@ private:
     // OrExpr ::= ( OrExpr 'or' )? AndExpr
     XPathNode!S parseOrExpr(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseOrExpr", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -2983,9 +2875,9 @@ private:
     // AndExpr ::= ( AndExpr 'and' )? EqualityExpr
     XPathNode!S parseAndExpr(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseAndExpr", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3008,9 +2900,9 @@ private:
     // EqualityExpr ::= ( EqualityExpr EqualityOp )? RelationalExpr
     XPathNode!S parseEqualityExpr(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseEqualityExpr", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3036,9 +2928,9 @@ private:
     // RelationalExpr ::= ( RelationalExpr RelationalOp )? AdditiveExpr
     XPathNode!S parseRelationalExpr(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseRelationalExpr", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3066,9 +2958,9 @@ private:
     // AdditiveExpr ::= ( AdditiveExpr AdditiveOp )? MultiplicativeExpr
     XPathNode!S parseAdditiveExpr(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseAdditiveExpr", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3094,9 +2986,9 @@ private:
     // MultiplicativeExpr ::= ( MultiplicativeExpr MultiplicativeOp )? UnaryExpr
     XPathNode!S parseMultiplicativeExpr(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseMultiplicativeExpr", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3122,9 +3014,9 @@ private:
     // UnaryExpr ::= UnionExpr | '-' UnaryExpr
     XPathNode!S parseUnaryExpr(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseUnaryExpr", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3147,9 +3039,9 @@ private:
     // UnionExpr ::= ( UnionExpr '|' )? PathExpr
     XPathNode!S parseUnionExpr(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseUnionExpr", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3176,9 +3068,9 @@ private:
     // PathExpr ::= LocationPath | FilterExpr ( PathOp  RelativeLocationPath )?
     XPathNode!S parsePathExpr(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parsePathExpr", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3211,9 +3103,9 @@ private:
     // FilterExpr ::= PrimaryExpr | FilterExpr Predicate
     XPathNode!S parseFilterExpr(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseFilterExpr", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3229,9 +3121,9 @@ private:
     // Predicate ::= '[' Expr ']'
     XPathNode!S parsePredicate(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parsePredicate", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3250,9 +3142,9 @@ private:
     // LocationPath ::= RelativeLocationPath | AbsoluteLocationPath
     XPathNode!S parseLocationPath(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseLocationPath", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3281,9 +3173,9 @@ private:
     // Pattern ::= ( Pattern '|' )? LocationPathPattern
     XPathNode!S parsePattern(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parsePattern", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3307,9 +3199,9 @@ private:
     // RelativeLocationPath ::= ( RelativeLocationPath PathOp )? Step
     XPathNode!S parseRelativeLocationPath(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseRelativeLocationPath", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3337,9 +3229,9 @@ private:
     // Step ::= '.' | '..' | ( AxisName '::' | '@' )? NodeTest Predicate*
     XPathNode!S parseStep(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseStep", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3391,9 +3283,9 @@ private:
     // NodeTest ::= NameTest | 'comment ()' | 'text ()' | 'node ()' | 'processing-instruction ('  Literal ? ')'
     XPathNode!S parseNodeTest(XPathNode!S aInput, XPathAxisType axisType, XPathNodeType nodeType)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseNodeTest", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3455,9 +3347,9 @@ private:
     }
     do
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parsePrimaryExpr", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3502,9 +3394,9 @@ private:
 
     XPathNode!S parseMethod(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseMethod", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3595,9 +3487,9 @@ private:
     //  IdKeyPattern (('/' | '//') RelativePathPattern)?
     XPathNode!S parseLocationPathPattern(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseLocationPathPattern", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3653,9 +3545,9 @@ private:
     }
     do
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseIdKeyPattern", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3701,9 +3593,9 @@ private:
     // RelativePathPattern ::= ( RelativePathPattern PathOp )? StepPattern
     XPathNode!S parseRelativePathPattern(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseRelativePathPattern", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3727,9 +3619,9 @@ private:
     // ChildOrAttributeAxisSpecifier ::= @ ? | ('child' | 'attribute') '::'
     XPathNode!S parseStepPattern(XPathNode!S aInput)
     {
-        version (xmlTraceXPathParser)
+        debug(debug_pham_xml_xml_xpath)
         {
-            outputXmlTraceXPathParser(traceString("parseStepPattern", aInput));
+            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
             ++nodeIndent;
             scope (exit)
                 --nodeIndent;
@@ -3777,15 +3669,7 @@ void opCompare(string Op, S)(XPathOperator!S opNode, ref XPathContext!S inputCon
     auto outputContext2 = inputContext.createOutputContext();
     opNode.operand2.evaluate(inputContext, outputContext2);
 
-    version (xmlTraceXPathParser)
-    {
-        outputXmlTraceXPathParserF("%s%s.evaluate%s(operand1: %s, nodeListCount1: %d)",
-            inputContext.indentString, shortClassName(opNode), Op,
-            shortClassName(opNode.operand1), outputContext1.resNodes.length);
-        outputXmlTraceXPathParserF("%s%s.evaluate%s(operand2: %s, nodeListCount2: %d)",
-            inputContext.indentString, shortClassName(opNode), Op,
-            shortClassName(opNode.operand2), outputContext2.resNodes.length);
-    }
+    debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - ", inputContext.indentString);
 
     bool result;
     if (!outputContext1.resValue.empty && !outputContext2.resValue.empty)
@@ -3826,10 +3710,7 @@ void opCompare(string Op, S)(XPathOperator!S opNode, ref XPathContext!S inputCon
             XPathValue!S v2 = e2.toText();
             normalizeValueTo!S(v2, v1.type);
 
-            version (none) version (xmlTraceXPathParser)
-            outputXmlTraceXPathParserF("%s%s.evaluate%s(name: %s, value: %s, v1: %s)",
-                inputContext.indentString, shortClassName(opNode), Op,
-                e2.name, e2.toText(), v1.toString());
+            version(none) debug(debug_pham_xml_xml_xpath) debug writeln("\t", "Op=", Op, ", e2.name=", e2.name, ", e2=", e2.toText(), ", v1=", v1.toString());
 
             if (mixin("v1 " ~ Op ~ " v2"))
             {
@@ -4279,9 +4160,7 @@ if (isXmlString!S)
 void normalizeValueTo(S)(ref XPathValue!S v, const XPathDataType toT)
 if (isXmlString!S)
 {
-    version (xmlTraceXPathParser)
-    outputXmlTraceXPathParserF("normalizeValueTo(value[%d]: %s, toT: %d)",
-        v.type, v.toString(), toT);
+    debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(v=", v, ", toT=", toT, ")");
 
     const fromT = v.type;
     if (fromT != toT)
@@ -4305,9 +4184,7 @@ if (isXmlString!S)
 void normalizeValues(S)(ref XPathValue!S value1, ref XPathValue!S value2)
 if (isXmlString!S)
 {
-    version (xmlTraceXPathParser)
-    outputXmlTraceXPathParserF("normalizeValues(value1[%d]: %s, value2[%d]: %s)",
-        value1.type, value1.toString(), value2.type, value2.toString());
+    debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value1=", value1, ", value2=", value2, ")");
 
     const t1 = value1.type;
     const t2 = value2.type;
@@ -4339,8 +4216,7 @@ bool toBoolean(double value) nothrow pure
 bool toBoolean(S)(scope const(XmlChar!S)[] value) nothrow pure
 if (isXmlString!S)
 {
-    version (xmlTraceXPathParser)
-    outputXmlTraceXPathParserF("toBoolean(value: %s)", value);
+    debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
     return value == "1" || value == XmlConst!S.true_ || value == XmlConst!S.yes;
 }
@@ -4355,8 +4231,7 @@ if (isXmlString!S)
 {
     import std.string : strip;
 
-    version (xmlTraceXPathParser)
-    outputXmlTraceXPathParserF("toNumber(value: %s)", value);
+    debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
     value = strip(value);
     return (value.length == 0) ? double.nan : value.to!double();
@@ -4373,6 +4248,8 @@ if (isXmlString!S)
 {
     import std.math : isInfinity, signbit;
 
+    scope (failure) assert(0, "Assume nothrow failed");
+    
     if (isNaN(value))
         return "NaN";
     else if (isInfinity(value))
@@ -4384,15 +4261,7 @@ if (isXmlString!S)
     }
     else
     {
-        try
-        {
-            return value.to!S();
-        }
-        catch (Exception)
-        {
-            assert(0);
-            //return "NaN";
-        }
+        return value.to!S();
     }
 }
 
@@ -4406,8 +4275,6 @@ if (isXmlString!S)
 unittest  // XPathParser
 {
     import std.file : write; // write parser tracer info to file
-    import pham.utl.utl_test;
-    traceUnitTest("unittest xml.xpath.XPathParser");
 
     string[] output;
     XPathParser!string xpathParser;
@@ -4503,8 +4370,6 @@ unittest  // XPathParser
 unittest  // XPathParser.selectNodes
 {
     import pham.xml.xml_test;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest xml.xpath.XPathParser.selectNodes");
 
     auto doc = new XmlDocument!string().load(xpathXml);
     auto nodeList = doc.documentElement.selectNodes("descendant::book[author/last-name='Austen']");

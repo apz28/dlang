@@ -91,9 +91,6 @@ private:
 
 unittest // XmlEntityTable.defaultEntityTable
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest xml.entity_table.XmlEntityTable.defaultEntityTable");
-
     auto table = XmlEntityTable!string.defaultEntityTable();
     assert(table !is null);
 

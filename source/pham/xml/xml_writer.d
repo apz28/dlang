@@ -15,6 +15,8 @@ import std.array : Appender;
 import std.range.primitives : back, empty, front, popFront;
 import std.typecons : Flag, No, Yes;
 
+debug(debug_pham_xml_xml_writer) import std.stdio : writeln;
+
 import pham.xml.xml_buffer;
 import pham.xml.xml_message;
 import pham.xml.xml_object;
@@ -66,8 +68,7 @@ public:
 
     final typeof(this) putLF()
     {
-        version (xmlTraceParser)
-        outputXmlTraceParserF("putLF%d.%d()", _nodeLevel, _onlyOneNodeText);
+        debug(debug_pham_xml_xml_writer) debug writeln(__FUNCTION__, "(_nodeLevel=", _nodeLevel, ", _onlyOneNodeText=", _onlyOneNodeText, ")");
 
         put('\n');
         return this;
@@ -450,8 +451,7 @@ public:
 
     final override void put(scope const(C)[] s)
     {
-        version (xmlTraceParser)
-        outputXmlTraceParserF("put%d.%d('%s')", _nodeLevel, _onlyOneNodeText, s);
+        debug(debug_pham_xml_xml_writer) debug writeln(__FUNCTION__, "(_nodeLevel=", _nodeLevel, ", _onlyOneNodeText=", _onlyOneNodeText, ", s=", s, ")");
 
         buffer.put(s);
     }
