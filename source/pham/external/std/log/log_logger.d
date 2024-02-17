@@ -30,7 +30,8 @@ import std.typecons : Flag;
 public import std.typecons : No, Yes;
 import std.utf : encode;
 
-version (DebugLogger) import std.stdio : writeln;
+debug(debug_pham_external_std_log_log_logger) import std.stdio : writeln;
+
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.external.std.log.log_date_time_format;
 
@@ -90,9 +91,9 @@ string moduleParentOf(string moduleName) @nogc nothrow pure @safe
 pragma(inline, true)
 bool isLoggingEnabled(const(LogLevel) ll, const(LogLevel) moduleLL, const(LogLevel) loggerLL, const(LogLevel) globalLL) @nogc nothrow pure @safe
 {
-    version (DebugLogger) debug writeln("isLoggingEnabled(ll=", ll, ", moduleLL=", moduleLL, ", loggerLL=", loggerLL, ", globalLL=", globalLL, ")");
+    debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(ll=", ll, ", moduleLL=", moduleLL, ", loggerLL=", loggerLL, ", globalLL=", globalLL, ")");
 
-    version (DisableLogger)
+    version(DisableLogger)
         return false;
     else
     {
@@ -107,7 +108,7 @@ bool isLoggingEnabled(const(LogLevel) ll, const(LogLevel) moduleLL, const(LogLev
 pragma(inline, true)
 bool isLoggingEnabled() @nogc nothrow pure @safe
 {
-    version (DisableLogger)
+    version(DisableLogger)
         return false;
     else
         return true;
@@ -367,12 +368,12 @@ nothrow @safe:
         line = 0;
         fileName = funcName = moduleName = null;
     }
-    
+
     static LogLocation get(in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) pure
     {
         return LogLocation(line, fileName, funcName, moduleName);
     }
-    
+
     string fileName; /// the filename the log function was called from
     string funcName; /// the name of the function the log function was called from
     string moduleName; /// the name of the module the log message is coming from
@@ -394,7 +395,7 @@ void log(Args...)(lazy Args args,
     in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
 if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(Unqual!(Args[0]) == LogLevel)))
 {
-    version (DebugLogger) debug writeln("args.line=", line, ", funcName=", funcName);
+    debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(line=", line, ", funcName=", funcName, ")");
 
     static if (isLoggingEnabled)
     {
@@ -419,7 +420,7 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(
 void log(Args...)(lazy bool condition, lazy Args args,
     in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
 {
-    version (DebugLogger) debug writeln("condition.args.line=", line, ", funcName=", funcName);
+    debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(condition=", condition, ", line=", line, ", funcName=", funcName, ")");
 
     static if (isLoggingEnabled)
     {
@@ -444,7 +445,7 @@ void log(Args...)(const(LogLevel) ll, lazy Args args,
     in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
 if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
 {
-    version (DebugLogger) debug writeln("ll.args.line=", line, ", funcName=", funcName);
+    debug(debug_pham_external_std_log_log_logger) debug writeln(condition, "(ll=", ll, ", line=", line, ", funcName=", funcName, ")");
 
     static if (isLoggingEnabled)
     {
@@ -491,7 +492,7 @@ void logf(Args...)(lazy string fmt, lazy Args args,
     in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
 if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(Unqual!(Args[0]) == LogLevel)))
 {
-    version (DebugLogger) debug writeln("fmt.args.line=", line, ", funcName=", funcName);
+    debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
     static if (isLoggingEnabled)
     {
@@ -517,7 +518,7 @@ logf(true, "Hello World %f", 3.1415);
 void logf(Args...)(lazy bool condition, lazy string fmt, lazy Args args,
     in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
 {
-    version (DebugLogger) debug writeln("condition.fmt.args.line=", line, ", funcName=", funcName);
+    debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(condition=", condition, ", fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
     static if (isLoggingEnabled)
     {
@@ -543,7 +544,7 @@ void logf(Args...)(lazy bool condition, lazy string fmt, lazy Args args,
 void logf(Args...)(const(LogLevel) ll, lazy string fmt, lazy Args args,
     in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
 {
-    version (DebugLogger) debug writeln("ll.fmt.args.line=", line, ", funcName=", funcName);
+    debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(ll=", ll, ", fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
     static if (isLoggingEnabled)
     {
@@ -569,7 +570,7 @@ void logf(Args...)(const(LogLevel) ll, lazy string fmt, lazy Args args,
 void logf(Args...)(const(LogLevel) ll, lazy bool condition, lazy string fmt, lazy Args args,
     in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
 {
-    version (DebugLogger) debug writeln("ll.condition.fmt.args.line=", line, ", funcName=", funcName);
+    debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(ll=", ll, ", condition=", condition, ", fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
     static if (isLoggingEnabled)
     {
@@ -589,7 +590,7 @@ template defaultLogFunction(LogLevel ll)
         in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
     {
-        version (DebugLogger) debug writeln("defaultLogFunction.args.line=", line, ", funcName=", funcName);
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(line=", line, ", funcName=", funcName, ")");
 
         static if (isLoggingEnabled)
         {
@@ -600,7 +601,7 @@ template defaultLogFunction(LogLevel ll)
     void defaultLogFunction(Args...)(lazy bool condition, lazy Args args,
         in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     {
-        version (DebugLogger) debug writeln("defaultLogFunction.condition.args.line=", line, ", funcName=", funcName);
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(condition=", condition, ", line=", line, ", funcName=", funcName, ")");
 
         static if (isLoggingEnabled)
         {
@@ -664,7 +665,7 @@ template defaultLogFunctionf(LogLevel ll)
         in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
     {
-        version (DebugLogger) debug writeln("defaultLogFunctionf.fmt.args.line=", line, ", funcName=", funcName);
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
         static if (isLoggingEnabled)
         {
@@ -675,7 +676,7 @@ template defaultLogFunctionf(LogLevel ll)
     void defaultLogFunctionf(Args...)(lazy bool condition, lazy string fmt, lazy Args args,
         in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     {
-        version (DebugLogger) debug writeln("defaultLogFunctionf.condition.fmt.args.line=", line, ", funcName=", funcName);
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(condition=", condition, ", fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
         static if (isLoggingEnabled)
         {
@@ -785,7 +786,7 @@ public:
     {
         static if (isLoggingEnabled)
         {
-            version (DebugLogger) debug writeln("Logger.forwardLog()");
+            debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
             bool isFatal = false;
             const llGlobalLogLevel = lowestLogLevel;
@@ -984,7 +985,7 @@ public:
          */
         final void logImpl(LogLocation location) nothrow @safe
         {
-            version (DebugLogger) debug writeln("Logger.logImpl(line=", location.line, ", funcName=", location.funcName, ")");
+            debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(line=", location.line, ", funcName=", location.funcName, ")");
 
             static if (isLoggingEnabled)
             {
@@ -1002,7 +1003,7 @@ public:
                             this.endMsg(header);
                         }
                     }
-                } catch (Exception) {}
+                } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
                 if (isFatal)
                     doFatal();
             }
@@ -1025,7 +1026,7 @@ public:
             in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
         if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
         {
-            version (DebugLogger) debug writeln("Logger.logImpl(line=", line, ", funcName=", funcName, ")");
+            debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(line=", line, ", funcName=", funcName, ")");
 
             static if (isLoggingEnabled)
             {
@@ -1048,7 +1049,7 @@ public:
                             this.endMsg(header);
                         }
                     }
-                } catch (Exception) {}
+                } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
                 if (isFatal)
                     doFatal();
             }
@@ -1074,7 +1075,7 @@ public:
         final void logImpl(Args...)(lazy bool condition, lazy Args args,
             in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
         {
-            version (DebugLogger) debug writeln("Logger.logImpl(condition=", condition, ", line=", line, ", funcName=", funcName, ")");
+            debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(condition=", condition, ", line=", line, ", funcName=", funcName, ")");
 
             static if (isLoggingEnabled)
             {
@@ -1097,7 +1098,7 @@ public:
                             this.endMsg(header);
                         }
                     }
-                } catch (Exception) {}
+                } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
                 if (isFatal)
                     doFatal();
             }
@@ -1122,7 +1123,7 @@ public:
             in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
         if (args.length == 0 || (args.length > 0 && !is(Unqual!(A[0]) : string)))
         {
-            version (DebugLogger) debug writeln("Logger.logImplf(line=", line, ", funcName=", funcName, ")");
+            debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
             static if (isLoggingEnabled)
             {
@@ -1142,7 +1143,7 @@ public:
                             this.endMsg(header);
                         }
                     }
-                } catch (Exception) {}
+                } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
                 if (isFatal)
                     doFatal();
             }
@@ -1170,7 +1171,7 @@ public:
         final void logImplf(Args...)(lazy bool condition, lazy string fmt, lazy Args args,
             in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
         {
-            version (DebugLogger) debug writeln("Logger.logImplf(condition=", condition, ", line=", line, ", funcName=", funcName, ")");
+            debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(", condition=", condition, fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
             static if (isLoggingEnabled)
             {
@@ -1190,7 +1191,7 @@ public:
                             this.endMsg(header);
                         }
                     }
-                } catch (Exception) {}
+                } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
                 if (isFatal)
                     doFatal();
             }
@@ -1237,7 +1238,7 @@ public:
      */
     final void log(LogLocation location) nothrow @safe
     {
-        version (DebugLogger) debug writeln("Logger.log(line=", location.line, ", funcName=", location.funcName, ")");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(line=", location.line, ", funcName=", location.funcName, ")");
 
         static if (isLoggingEnabled)
         {
@@ -1256,7 +1257,7 @@ public:
                         this.endMsg(header);
                     }
                 }
-            } catch (Exception) {}
+            } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
             if (isFatal)
                 doFatal();
         }
@@ -1279,7 +1280,7 @@ public:
         in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(Unqual!(Args[0]) == LogLevel)))
     {
-        version (DebugLogger) debug writeln("Logger.log(line=", line, ", funcName=", funcName, ")");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(line=", line, ", funcName=", funcName, ")");
 
         static if (isLoggingEnabled)
         {
@@ -1303,7 +1304,7 @@ public:
                         this.endMsg(header);
                     }
                 }
-            } catch (Exception) {}
+            } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
             if (isFatal)
                 doFatal();
         }
@@ -1329,7 +1330,7 @@ public:
     final void log(Args...)(lazy bool condition, lazy Args args,
         in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     {
-        version (DebugLogger) debug writeln("Logger.log(line=", line, ", funcName=", funcName, ")");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(condition= ", condition, ", line=", line, ", funcName=", funcName, ")");
 
         static if (isLoggingEnabled)
         {
@@ -1353,7 +1354,7 @@ public:
                         this.endMsg(header);
                     }
                 }
-            } catch (Exception) {}
+            } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
             if (isFatal)
                 doFatal();
         }
@@ -1378,7 +1379,7 @@ public:
         in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
     {
-        version (DebugLogger) debug writeln("Logger.log(ll=", ll, ", line=", line, ", funcName=", funcName, ")");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(ll=", ll, ", line=", line, ", funcName=", funcName, ")");
 
         static if (isLoggingEnabled)
         {
@@ -1401,7 +1402,7 @@ public:
                         this.endMsg(header);
                     }
                 }
-            } catch (Exception) {}
+            } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
             if (isFatal)
                 doFatal();
         }
@@ -1425,7 +1426,7 @@ public:
     final void log(Args...)(const(LogLevel) ll, lazy bool condition, lazy Args args,
         in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     {
-        version (DebugLogger) debug writeln("Logger.log(ll=", ll, ", line=", line, ", funcName=", funcName, ")");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(ll=", ll, ", condition=", condition, ", line=", line, ", funcName=", funcName, ")");
 
         static if (isLoggingEnabled)
         {
@@ -1448,7 +1449,7 @@ public:
                         this.endMsg(header);
                     }
                 }
-            } catch (Exception) {}
+            } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
             if (isFatal)
                 doFatal();
         }
@@ -1472,7 +1473,7 @@ public:
         in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(Unqual!(Args[0]) == LogLevel)))
     {
-        version (DebugLogger) debug writeln("Logger.logf(line=", line, ", funcName=", funcName, ")");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
         static if (isLoggingEnabled)
         {
@@ -1493,7 +1494,7 @@ public:
                         this.endMsg(header);
                     }
                 }
-            } catch (Exception) {}
+            } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
             if (isFatal)
                 doFatal();
         }
@@ -1519,7 +1520,7 @@ public:
     final void logf(Args...)(lazy bool condition, lazy string fmt, lazy Args args,
         in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     {
-        version (DebugLogger) debug writeln("Logger.logf(condition=", condition, ", line=", line, ", funcName=", funcName, ")");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(condition=", condition, ", fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
         static if (isLoggingEnabled)
         {
@@ -1540,7 +1541,7 @@ public:
                         this.endMsg(header);
                     }
                 }
-            } catch (Exception) {}
+            } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
             if (isFatal)
                 doFatal();
         }
@@ -1565,7 +1566,7 @@ public:
     final void logf(Args...)(const(LogLevel) ll, lazy string fmt, lazy Args args,
         in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     {
-        version (DebugLogger) debug writeln("Logger.logf(ll=", ll, ", line=", line, ", funcName=", funcName, ")");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(ll=", ll, ", fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
         static if (isLoggingEnabled)
         {
@@ -1585,7 +1586,7 @@ public:
                         this.endMsg(header);
                     }
                 }
-            } catch (Exception) {}
+            } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
             if (isFatal)
                 doFatal();
         }
@@ -1612,7 +1613,7 @@ public:
     final void logf(Args...)(const(LogLevel) ll, lazy bool condition, lazy string fmt, lazy Args args,
         in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     {
-        version (DebugLogger) debug writeln("Logger.logf(ll=", ll, ", line=", line, ", funcName=", funcName, ")");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(ll=", ll, ", condition=", condition, ", line=", line, ", funcName=", funcName, ")");
 
         static if (isLoggingEnabled)
         {
@@ -1632,7 +1633,7 @@ public:
                         this.endMsg(header);
                     }
                 }
-            } catch (Exception) {}
+            } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
             if (isFatal)
                 doFatal();
         }
@@ -1642,7 +1643,7 @@ public:
     static struct LogHeader
     {
     nothrow @safe:
-    
+
         this(LogLevel logLevel, LogLocation location, ThreadID threadID, SysTime timestamp) pure
         {
             this.logLevel = logLevel;
@@ -1651,16 +1652,16 @@ public:
             this.timestamp = timestamp;
             this.exception = null;
         }
-    
+
         this(LogLevel logLevel, uint line, string fileName, string funcName, string moduleName, ThreadID threadID, SysTime timestamp) pure
-        {            
+        {
             this.logLevel = logLevel;
             this.location = LogLocation(line, fileName, funcName, moduleName);
             this.threadID = threadID;
             this.timestamp = timestamp;
             this.exception = null;
         }
-        
+
         LogLocation location;
         Exception exception;
         SysTime timestamp; /// the time the message was logged
@@ -1779,7 +1780,7 @@ public:
 protected:
     override void beginMsg(ref Logger.LogHeader header)
     {
-        version (DebugLogger) debug writeln("MemLogger.beginMsg()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         msgBuffer = Appender!string();
         msgBuffer.reserve(1_000);
@@ -1788,14 +1789,14 @@ protected:
 
     override void commitMsg(scope const(char)[] msg)
     {
-        version (DebugLogger) debug writeln("MemLogger.commitMsg()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         msgBuffer.put(msg);
     }
 
     override void endMsg(ref Logger.LogHeader header)
     {
-        version (DebugLogger) debug writeln("MemLogger.endMsg()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         this.logEntry.header = header;
         this.logEntry.message = msgBuffer.data;
@@ -1845,12 +1846,12 @@ protected:
                 return false;
             return fileno == trustedStderr().fileno
                 || fileno == trustedStdout().fileno;
-        } catch (Exception e) { version (DebugLogger) debug writeln(e.msg); return false; }
+        } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); return false; }
     }
 
     final override void writeLog(ref Logger.LogEntry payload)
     {
-        version (DebugLogger) debug writeln("ConsoleLogger.writeLog()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         try {
             auto writer = LogOutputWriter(this);
@@ -1861,7 +1862,7 @@ protected:
                 trustedStdout().flush();
                 flushWriteLogLines = 0;
             }
-        } catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+        } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
     }
 
 protected:
@@ -1994,14 +1995,14 @@ nothrow:
 protected:
     final void doClose() scope
     {
-        version (DebugLogger) debug writeln("FileLogger.doClose()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         // Special try construct for grep
         try {
             if (_fileOwned && _file.isOpen)
                 _file.close();
             _file = File.init;
-        } catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+        } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
     }
 
     override void doFatal()
@@ -2012,10 +2013,10 @@ protected:
 
     final bool doOpen(const(string) fileName, const(FileLoggerOption) fileOption)
     {
-        version (DebugLogger) debug writeln("FileLogger.doOpen()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
-        try
-        {
+        // Special try construct for grep
+        try {
             if (fileOption.createFileFolder)
             {
                 auto d = extractDirName(fileName);
@@ -2025,11 +2026,7 @@ protected:
             this._file.open(fileName, fileOption.openMode == FileLoggerOption.overwriteMode ? "w" : "a");
             return true;
         }
-        catch (Exception e)
-        {
-            version (DebugLogger) debug writeln(e.msg);
-            return false;
-        }
+        catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); return false; }
     }
 
     static string extractFileNameWithoutExt(const(string) fileName)
@@ -2040,13 +2037,12 @@ protected:
 
     final ulong fileSize() @trusted
     {
-        version (DebugLogger) debug writeln("FileLogger.fileSize()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         if (_isStdio)
             return 0;
 
-        try
-        {
+        try {
             if (!_file.isOpen)
             {
                 auto fe = DirEntry(fileName);
@@ -2064,35 +2060,26 @@ protected:
             _file.seek(0, SEEK_END);
             return _file.tell();
         }
-        catch (Exception e)
-        {
-            version (DebugLogger) debug writeln(e.msg);
-            return 0u;
-        }
+        catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); return 0u; }
     }
 
     final SysTime lastModified()
     {
-        version (DebugLogger) debug writeln("FileLogger.lastModified()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         if (_isStdio)
             return SysTime.init;
 
-        try
-        {
+        try {
             auto fe = DirEntry(fileName);
             return fe.timeLastModified;
         }
-        catch (Exception e)
-        {
-            version (DebugLogger) debug writeln(e.msg);
-            return SysTime.init;
-        }
+        catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); return SysTime.init; }
     }
 
     final override void writeLog(ref Logger.LogEntry payload)
     {
-        version (DebugLogger) debug writeln("FileLogger.writeLog()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         if (!_file.isOpen)
             return;
@@ -2114,7 +2101,7 @@ protected:
                 _file.flush();
                 _flushWriteLogLines = 0;
             }
-        } catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+        } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
     }
 
     @property final void fileName(const(string) value)
@@ -2141,20 +2128,20 @@ protected:
             this.file = file;
         }
 
-        //version (none)
+        //version(none)
         void put(scope char c) @trusted
         {
             try {
                 file.write(c);
-            } catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+            } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
         }
 
-        //version (none)
+        //version(none)
         void put(scope string s) @trusted
         {
             try {
                 file.write(s);
-            } catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+            } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
         }
 
         void put(C)(scope C c) @trusted
@@ -2162,7 +2149,7 @@ protected:
         {
             try {
                 file.write(c);
-            } catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+            } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
         }
 
         void put(A)(scope A items) @trusted
@@ -2175,7 +2162,7 @@ protected:
                 {
                     file.write(c);
                 }
-            } catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+            } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
         }
 
         //alias write = put;
@@ -2316,7 +2303,7 @@ public:
 protected:
     final bool adjustFileBeforeAppend()
     {
-        version (DebugLogger) debug writeln("RollingFileLogger.adjustFileBeforeAppend()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         bool rolled = false;
 
@@ -2356,30 +2343,28 @@ protected:
 
     final void deleteFile(const(string) fileName)
     {
-        version (DebugLogger) debug writeln("RollingFileLogger.deleteFile()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(fileName=", fileName, ")");
 
         if (!fileExists(fileName))
             return;
 
         string deleteFileName = fileName;
-        try
-        {
+        try {
             string tempFileName = fileName ~ "." ~ MonoTime.currTime().ticks.to!string() ~ ".DeletePending";
             fileRename(fileName, tempFileName);
             deleteFileName = tempFileName;
         }
-        catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+        catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
 
-        try
-        {
+        try {
             fileRemove(deleteFileName);
         }
-        catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+        catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
     }
 
     final void determineBackupFiles()
     {
-        version (DebugLogger) debug writeln("RollingFileLogger.determineBackupFiles()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         const backupFileNames = getBackupFileNames();
         _rollBackupCount = backupFileNames.length;
@@ -2387,48 +2372,46 @@ protected:
 
     final string[] getBackupFileNames() @trusted
     {
-        version (DebugLogger) debug writeln("RollingFileLogger.getBackupFiles()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         string[] result;
         result.reserve(100);
 
-        try
-        {
+        try {
             const pattern = _fileBaseName ~ dtPattern ~ _fileExt;
             foreach (string fileName; dirEntries(_fileDir, pattern, SpanMode.shallow))
             {
                 if (isBackupFile(fileName))
                 {
-                    version (Windows)
+                    version(Windows)
                         result ~= toLower(fileName);
                     else
                         result ~= fileName;
                 }
             }
         }
-        catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+        catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
 
         return result;
     }
 
     final ulong isBackupFile(const(string) fileName)
     {
-        version (DebugLogger) debug writeln("RollingFileLogger.isBackupFile()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(fileName=", fileName, ")");
 
-        try
-        {
+        try {
             // Backup file has this pattern: baseName + "." + datePattern + extension
             const s = extractFileNameWithoutExt(fileName);
             const i = lastIndexOf(s, '.');
             const v = i >= 0 ? s[i + 1..$] : null;
             return v.length == dtLength ? LogOutputPatternParser.safeToInt!ulong(v) : 0u;
         }
-        catch (Exception) { return 0u; }
+        catch (Exception) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); return 0u; }
     }
 
     final string nextBackupFile()
     {
-        version (DebugLogger) debug writeln("RollingFileLogger.nextBackupFile()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
         scope (failure) assert(0, "Assume nothrow failed");
 
         const postfix = format(dtFormat, currentTime());
@@ -2437,7 +2420,7 @@ protected:
 
     final SysTime nextCheckTimestamp(const(SysTime) n)
     {
-        version (DebugLogger) debug writeln("RollingFileLogger.nextCheckTimestamp()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
         scope (failure) assert(0, "Assume nothrow failed");
 
         SysTime result = n;
@@ -2472,7 +2455,7 @@ protected:
 
     final void renameFiles(const(SysTime) t, const(ulong) s)
     {
-        version (DebugLogger) debug writeln("RollingFileLogger.renameFiles()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         doClose();
 
@@ -2502,14 +2485,13 @@ protected:
 
     final void rollFile(const(string) fromName, const(string) toName)
     {
-        version (DebugLogger) debug writeln("RollingFileLogger.rollFile()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(fromName=", fromName, ", toName=", toName, ")");
 
         deleteFile(toName);
-        try
-        {
+        try {
             fileRename(fromName, toName);
         }
-        catch (Exception e) { version (DebugLogger) debug writeln(e.msg); }
+        catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
     }
 
 private:
@@ -2534,7 +2516,7 @@ public:
 
     static bool getException(Arg)(ref Logger.LogHeader header, Arg arg)
     {
-        alias argType = typeof(arg);         
+        alias argType = typeof(arg);
         static if (is(argType == class))
         {
             if (isException!argType())
@@ -2542,7 +2524,7 @@ public:
                 header.exception = cast(Exception)arg;
                 return true;
             }
-        } 
+        }
         return false;
     }
 
@@ -2552,17 +2534,17 @@ public:
         static const exceptionTypeId = typeid(Exception);
         return typeid(T).isBaseOf(exceptionTypeId);
     }
-    
+
     void put(scope const(char)[] msgText)
     {
-        version (DebugLogger) debug writeln("put.char[]");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         logger.commitMsg(msgText);
     }
 
     void put(dchar msgChar)
     {
-        version (DebugLogger) debug writeln("put.dchar");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         char[4] buffer;
         const len = encode!(Yes.useReplacementDchar)(buffer, msgChar);
@@ -2571,18 +2553,17 @@ public:
 
     void put(Args...)(ref Logger.LogHeader header, Args args) @trusted
     {
-        version (DebugLogger) debug writeln("put...");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
-        try
-        {            
-            const hasException = args.length && getException(header, args[args.length - 1]);        
+        try {
+            const hasException = args.length && getException(header, args[args.length - 1]);
             foreach (i, arg; args)
             {
                 alias argType = typeof(arg); //Args[i];
-                
+
                 if (hasException && i == args.length - 1)
                     break;
-               
+
                 static if (!is(isSomeString!(argType)) && isDynamicArray!(argType) && is(typeof(Unqual!(argType.init[0])) == ubyte))
                 {
                     auto argBytes = cast(const(ubyte)[])arg;
@@ -2592,29 +2573,22 @@ public:
                     logger.commitMsg(to!string(arg)); // Need to use 'to' function to convert to avoid cycle calls vs put(char[])
             }
         }
-        catch (Exception e)
-        {
-            version (DebugLogger) debug writeln(e.msg);
-        }
+        catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
     }
 
     void putf(Args...)(ref Logger.LogHeader header, scope const(char)[] fmt, Args args) @trusted
     {
-        version (DebugLogger) debug writeln("putf...");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
-        try
-        {
+        try {
             if (args.length)
                 getException(header, args[args.length - 1]);
-            
+
             formattedWrite(this, fmt, args);
         }
-        catch (Exception e)
-        {
-            version (DebugLogger) debug writeln(e.msg);
-        }
+        catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
     }
-    
+
     static string toHexString(scope const(ubyte)[] bytes) @trusted
     {
         import std.ascii : hexDigits = hexDigits;
@@ -2801,11 +2775,10 @@ public:
 protected:
     static T safeToInt(T)(scope const(char)[] s, T failedValue = T.init) pure
     {
-        try
-        {
+        try {
             return s.length != 0 ? s.to!T() : failedValue;
         }
-        catch (Exception) return failedValue;
+        catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); return failedValue; }
     }
 
 private:
@@ -2937,7 +2910,7 @@ struct LogOutputWriter
 
 @safe:
 
-version (Windows)
+version(Windows)
     enum char dirSeparator = '\\';
 else
     enum char dirSeparator = '/';
@@ -2969,7 +2942,7 @@ public:
             // %s=FmtTimeSpecifier.sortableDateTime
             auto s = element.fmt.length != 0 ? format(element.fmt, value) : format("%s", value);
             return pad(element, s);
-        } catch (Exception) return null;
+        } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); return null; }
     }
 
     static void date(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, in SysTime value) nothrow @trusted
@@ -2985,7 +2958,7 @@ public:
             const lp = padLeft(sink, element, s.length);
             put(sink, s[]);
             padRight(sink, element, s.length + lp);
-        } catch (Exception) {}
+        } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
     }
 
     static string fileName(const ref LogOutputPatternElement element, string fileName) nothrow
@@ -3017,7 +2990,7 @@ public:
         try {
             auto s = element.fmt.length != 0 ? format(element.fmt, value) : format("%s", value);
             return pad(element, s);
-        } catch (Exception) return null;
+        } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); return null; }
     }
 
     static void integer(Writer, I)(auto ref Writer sink, const ref LogOutputPatternElement element, I value) nothrow
@@ -3033,7 +3006,7 @@ public:
             const lp = padLeft(sink, element, s.length);
             put(sink, s[]);
             padRight(sink, element, s.length + lp);
-        } catch (Exception) {}
+        } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
     }
 
     static string logLevel(const ref LogOutputPatternElement element, LogLevel value) nothrow
@@ -3056,7 +3029,7 @@ public:
         // Special try construct for grep
         try {
             put(sink, newLineLiteral);
-        } catch (Exception) {}
+        } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
     }
 
     static string pad(const ref LogOutputPatternElement element, string value) nothrow
@@ -3091,7 +3064,7 @@ public:
             }
             else
                 return 0u;
-        } catch (Exception) return 0u;
+        } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); return 0u; }
     }
 
     static size_t padRight(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, size_t valueLength) nothrow
@@ -3107,7 +3080,7 @@ public:
             }
             else
                 return 0u;
-        } catch (Exception) return 0u;
+        } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); return 0u; }
     }
 
     static string separatedStringPart(string separatedString, char separator, size_t count) nothrow pure @safe
@@ -3130,31 +3103,31 @@ public:
 
     static string text(const ref LogOutputPatternElement element, string value) nothrow
     {
-    try {
-        if (element.fmt.length)
-            value = format(element.fmt, value);
-        return pad(element, value);
-    } catch (Exception) return null;
+        try {
+            if (element.fmt.length)
+                value = format(element.fmt, value);
+            return pad(element, value);
+        } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); return null; }
     }
 
     static void text(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, string value) nothrow
     {
-    try {
-        if (element.fmt.length)
-        {
-            ShortStringBuffer!char s;
-            formattedWrite(sink, element.fmt, value);
-            const lp = padLeft(sink, element, s.length);
-            put(sink, s[]);
-            padRight(sink, element, s.length + lp);
-        }
-        else
-        {
-            const lp = padLeft(sink, element, value.length);
-            put(sink, value);
-            padRight(sink, element, value.length + lp);
-        }
-    } catch (Exception) {}
+        try {
+            if (element.fmt.length)
+            {
+                ShortStringBuffer!char s;
+                formattedWrite(sink, element.fmt, value);
+                const lp = padLeft(sink, element, s.length);
+                put(sink, s[]);
+                padRight(sink, element, s.length + lp);
+            }
+            else
+            {
+                const lp = padLeft(sink, element, value.length);
+                put(sink, value);
+                padRight(sink, element, value.length + lp);
+            }
+        } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
     }
 
     static string timestamp(const ref LogOutputPatternElement element, in SysTime value) nothrow
@@ -3169,19 +3142,19 @@ public:
 
     static string userContext(const ref LogOutputPatternElement element, Object value) nothrow @trusted
     {
-    try {
-        return value !is null ? text(element, value.to!string()) : text(element, null);
-    } catch (Exception) return null;
+        try {
+            return value !is null ? text(element, value.to!string()) : text(element, null);
+        } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); return null; }
     }
 
     static void userContext(Writer)(auto ref Writer sink, const ref LogOutputPatternElement element, Object value) nothrow @trusted
     {
-    try {
-        if (value !is null)
-            text(sink, element, value.to!string());
-        else
-            text(sink, element, null);
-    } catch (Exception) {}
+        try {
+            if (value !is null)
+                text(sink, element, value.to!string());
+            else
+                text(sink, element, null);
+        } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
     }
 
     void write(Writer)(auto scope ref Writer sink, ref Logger.LogEntry payload) @trusted
@@ -3303,7 +3276,7 @@ public:
             log();
     }
 
-    version (none) // Just use this instead: xxx = LogTimming.init;
+    version(none) // Just use this instead: xxx = LogTimming.init;
     static typeof(this) opCall()
     {
         return LogTimming(null, false, 0, 0, null, null, null, null);
@@ -3628,7 +3601,7 @@ private string osWCharToString(scope const(wchar)[] v) nothrow
  */
 string currentUserName() nothrow @trusted
 {
-    version (Windows)
+    version(Windows)
     {
         import core.sys.windows.winbase : GetUserNameW;
 
@@ -3639,7 +3612,7 @@ string currentUserName() nothrow @trusted
         else
             return null;
     }
-    else version (Posix)
+    else version(Posix)
     {
         import core.sys.posix.unistd : getlogin_r;
 
@@ -3724,7 +3697,7 @@ protected:
 
     final override void writeLog(ref Logger.LogEntry payload) nothrow @safe
     {
-        version (DebugLogger) debug writeln("ForwardSharedLogger.writeLog()");
+        debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         sharedLog.forwardLog(payload);
     }
@@ -3949,7 +3922,7 @@ unittest // moduleParentOf
     // date
     LogOutputPatternElement datePattern;
     auto timestamp = SysTime(DateTime(1, 1, 1, 1, 1, 1), dur!"msecs"(1), null);
-    version (DebugLogger) debug writeln(LogOutputWriter.date(datePattern, timestamp));
+    debug(debug_pham_external_std_log_log_logger) debug writeln(LogOutputWriter.date(datePattern, timestamp));
     assert(LogOutputWriter.date(datePattern, timestamp) == "0001-01-01T01:01:01.001000");
 
     // fileName
@@ -3960,7 +3933,7 @@ unittest // moduleParentOf
     LogOutputPatternElement filePattern;
     assert(LogOutputWriter.fileName(filePattern, fileName) == "core.d");
     filePattern.detailLevel = 1;
-    version (DebugLogger) debug writeln(LogOutputWriter.fileName(filePattern, fileName));
+    debug(debug_pham_external_std_log_log_logger) debug writeln(LogOutputWriter.fileName(filePattern, fileName));
     assert(LogOutputWriter.fileName(filePattern, fileName) == "subdir"
            ~ LogOutputWriter.dirSeparator ~ "core.d");
     filePattern.detailLevel = 2;
@@ -4000,7 +3973,7 @@ unittest // moduleParentOf
     assert(LogOutputWriter.userContext(contextPattern, null).length == 0);
 }
 
-version (unittest)
+version(unittest)
 package(pham.external.std.log)
 {
     enum defaultUnitTestLogLevel = lowestLogLevel;
@@ -4045,7 +4018,7 @@ package(pham.external.std.log)
         {
             return location.line;
         }
-        
+
         final void reset() nothrow pure @safe
         {
             lvl = defaultUnitTestLogLevel;
@@ -4060,7 +4033,7 @@ package(pham.external.std.log)
 
         final override void writeLog(ref Logger.LogEntry payload) nothrow @safe
         {
-            version (DebugLogger) debug writeln("TestLogger.writeLog().payload.header.logLevel=", payload.header.logLevel, ", funcName=", payload.header.location.funcName, ", message=", payload.message);
+            debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(logLevel=", payload.header.logLevel, ", funcName=", payload.header.location.funcName, ", message=", payload.message, ")");
             scope (failure) assert(0, "Assume nothrow failed");
 
             this.lvl = payload.header.logLevel;
@@ -4084,7 +4057,7 @@ package(pham.external.std.log)
     }
 }
 
-version (unittest)
+version(unittest)
 void testFuncNames(Logger logger) @safe
 {
     static string s = "I'm here";
@@ -4113,7 +4086,7 @@ void testFuncNames(Logger logger) @safe
 {
     auto tl1 = new TestLogger();
     testFuncNames(tl1);
-    version (DebugLogger) debug writeln("tl1.location.funcName=", tl1.location.funcName, ", tl1.msg=", tl1.msg);
+    debug(debug_pham_external_std_log_log_logger) debug writeln("tl1.location.funcName=", tl1.location.funcName, ", tl1.msg=", tl1.msg);
     assert(tl1.location.funcName == "pham.external.std.log.log_logger.testFuncNames", tl1.location.funcName);
     assert(tl1.msg == "I'm here", tl1.msg);
 }
@@ -4744,14 +4717,14 @@ void testFuncNames(Logger logger) @safe
     assert(tl.line == line);
 }
 
-@safe unittest // Test with exception 
+@safe unittest // Test with exception
 {
     static immutable systemToStringMsg = "SystemToString";
     static immutable exceptionMsg = "Test exception";
-    
+
     int line;
     auto tl = new TestLogger();
-    
+
     try
     {
         throw new Exception(exceptionMsg);
@@ -4763,7 +4736,7 @@ void testFuncNames(Logger logger) @safe
     assert(tl.msg == systemToStringMsg, tl.msg);
     assert(tl.line == line);
     assert(tl.exceptionMessage == exceptionMsg, tl.exceptionMessage);
-    
+
     try
     {
         throw new Exception(exceptionMsg);
@@ -5062,8 +5035,8 @@ void testFuncNames(Logger logger) @safe
         ~ LogOutputWriter.funcName(blankPattern, atfuncName) ~ ": "
         ~ LogOutputWriter.text(blankPattern, testMessage)
         ~ LogOutputWriter.newLine(blankPattern);
-    version (DebugLogger) debug writeln(tl.outputMessage);
-    version (DebugLogger) debug writeln(expectedOutput);
+    debug(debug_pham_external_std_log_log_logger) debug writeln(tl.outputMessage);
+    debug(debug_pham_external_std_log_log_logger) debug writeln(expectedOutput);
     assert(tl.outputMessage == expectedOutput, tl.outputMessage ~ " vs " ~ expectedOutput);
 
     tl.outputPattern = OutputPatternMarker.terminator ~ "'%S'" ~ OutputPatternName.date ~ OutputPatternMarker.terminator
@@ -5073,8 +5046,8 @@ void testFuncNames(Logger logger) @safe
     expectedOutput = LogOutputWriter.date(datePattern, atTimestamp)
         ~ LogOutputWriter.text(blankPattern, TestLoggerCustomContext.customContext)
         ~ LogOutputWriter.timestamp(blankPattern, atTimestamp);
-    version (DebugLogger) debug writeln(tl.outputMessage);
-    version (DebugLogger) debug writeln(expectedOutput);
+    debug(debug_pham_external_std_log_log_logger) debug writeln(tl.outputMessage);
+    debug(debug_pham_external_std_log_log_logger) debug writeln(expectedOutput);
     assert(tl.outputMessage == expectedOutput, tl.outputMessage ~ " vs " ~ expectedOutput);
 }
 
