@@ -142,7 +142,7 @@ protected:
         messages[335544409] = "transaction--request mismatch (synchronization error)"; /* trareqmis */
         messages[335544410] = "bad handle count"; /* badhndcnt */
         messages[335544411] = "wrong version of transaction parameter block"; /* wrotpbver */
-        messages[335544412] = "unsupported BLR version (expected @1, encountered @2)"; /* wroblrver */
+        messages[335544412] = "unsupported BLR version(expected @1, encountered @2)"; /* wroblrver */
         messages[335544413] = "wrong version of database parameter block"; /* wrodpbver */
         messages[335544414] = "BLOB and array data types are not supported for @1 operation"; /* blobnotsup */
         messages[335544415] = "database corrupted"; /* badrelation */
@@ -748,7 +748,7 @@ protected:
         messages[335545029] = "Install incomplete. To complete security database initialization please CREATE USER. For details read doc/README.security_database.txt."; /* missing_data_structures */
         messages[335545030] = "@1 operation is not allowed for system table @2"; /* protect_sys_tab */
         messages[335545031] = "Libtommath error code @1 in function @2"; /* libtommath_generic */
-        messages[335545032] = "unsupported BLR version (expected between @1 and @2, encountered @3)"; /* wroblrver2 */
+        messages[335545032] = "unsupported BLR version(expected between @1 and @2, encountered @3)"; /* wroblrver2 */
         messages[335545033] = "expected length @1, actual @2"; /* trunc_limits */
         messages[335545034] = "Wrong info requested in isc_svc_query() for anonymous service"; /* info_access */
         messages[335545035] = "No isc_info_svc_stdin in user request, but service thread requested stdin data"; /* svc_no_stdin */
@@ -2970,9 +2970,6 @@ private:
 
 @safe unittest // FbMessages
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbmessage.FbMessages");
-
     assert(FbMessages.get(335544321).length != 0);
     assert(FbMessages.get(337182760).length != 0);
 }

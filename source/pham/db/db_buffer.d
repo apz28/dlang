@@ -15,7 +15,8 @@ import std.bitmanip : swapEndian;
 import std.string : representation;
 import std.system : Endian;
 
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_buffer) import std.stdio : writeln;
+
 import pham.utl.utl_array : inplaceMoveToLeft;
 import pham.utl.utl_bit : numericBitCast;
 import pham.utl.utl_dlink_list;
@@ -99,7 +100,7 @@ public:
 
     final void ensureAvailable(const(size_t) nBytes) @trusted
     {
-        version (profile) debug auto p = PerfFunction.create();
+        version(profile) debug auto p = PerfFunction.create();
 
         if ((_offset + nBytes) > _maxLength)
         {
@@ -213,7 +214,7 @@ protected:
     }
     do
     {
-        //import pham.utl.utl_test; dgWriteln("offset=", _offset, ", length=", length, ", _data.length=", _data.length);
+        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(offset=", _offset, ", length=", length, ", _data.length=", _data.length, ")");
 
         const saveLength = length;
         if (saveLength != 0)
@@ -252,7 +253,7 @@ protected:
     size_t _maxLength;
 }
 
-version (TraceFunctionReader)
+debug(debug_pham_db_db_buffer)
 {
     private static long totalRead = 0;
     private long totalReadOf(const(size_t) nBytes) @nogc nothrow @safe
@@ -282,7 +283,7 @@ public:
     pragma(inline, true)
     void advance(const(size_t) nBytes)
     {
-        version (TraceFunctionReader) debug traceFunction(nBytes, ", total=", totalReadOf(nBytes));
+        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(nBytes=", nBytes, ", total=", totalReadOf(nBytes), ")");
 
         _buffer.advance(nBytes);
     }
@@ -290,7 +291,7 @@ public:
     pragma(inline, true)
     ubyte[] consume(const(size_t) nBytes)
     {
-        version (TraceFunctionReader) debug traceFunction(nBytes, ", total=", totalReadOf(nBytes));
+        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(nBytes=", nBytes, ", total=", totalReadOf(nBytes), ")");
 
         return _buffer.consume(nBytes);
     }
@@ -310,7 +311,7 @@ public:
     pragma(inline, true)
     ubyte[] readBytes(size_t nBytes)
     {
-        version (TraceFunctionReader) debug traceFunction(nBytes, ", total=", totalReadOf(nBytes));
+        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(nBytes=", nBytes, ", total=", totalReadOf(nBytes), ")");
 
         return _buffer.readBytesImpl(nBytes);
     }
@@ -323,7 +324,7 @@ public:
     }
     do
     {
-        version (TraceFunctionReader) debug traceFunction(value.length, ", total=", totalReadOf(value.length));
+        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(value.length=", value.length, ", total=", totalReadOf(value.length), ")");
 
         return _buffer.readBytesImpl(value);
     }
@@ -337,7 +338,7 @@ public:
     pragma(inline, true)
     char[] readChars(size_t nBytes) @trusted // @trusted=cast()
     {
-        version (TraceFunctionReader) debug traceFunction(nBytes, ", total=", totalReadOf(nBytes));
+        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(nBytes=", nBytes, ", total=", totalReadOf(nBytes), ")");
 
         return cast(char[])_buffer.readBytesImpl(nBytes);
     }
@@ -374,7 +375,7 @@ public:
 
     void readTwoInt32(out int32 i1, out int32 i2)
     {
-        version (TraceFunctionReader) debug traceFunction(uint32.sizeof * 2, ", total=", totalReadOf(uint32.sizeof * 2));
+        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint32.sizeof * 2, ", total=", totalReadOf(uint32.sizeof * 2), ")");
 
         const bytes = _buffer.consume(uint32.sizeof * 2);
         i1 = cast(int32)uintDecode!(uint32, EndianKind)(bytes[0..uint32.sizeof]);
@@ -389,7 +390,7 @@ public:
 
     uint8 readUInt8()
     {
-        version (TraceFunctionReader) debug traceFunction(uint8.sizeof, ", total=", totalReadOf(uint8.sizeof));
+        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint8.sizeof, ", total=", totalReadOf(uint8.sizeof), ")");
 
         _buffer.ensureAvailableIf(uint8.sizeof);
         return _buffer._data[_buffer._offset++];
@@ -397,7 +398,7 @@ public:
 
     uint16 readUInt16()
     {
-        version (TraceFunctionReader) debug traceFunction(uint16.sizeof, ", total=", totalReadOf(uint16.sizeof));
+        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint16.sizeof, ", total=", totalReadOf(uint16.sizeof), ")");
 
         const bytes = _buffer.consume(uint16.sizeof);
         return uintDecode!(uint16, EndianKind)(bytes);
@@ -405,7 +406,7 @@ public:
 
     uint32 readUInt32()
     {
-        version (TraceFunctionReader) debug traceFunction(uint32.sizeof, ", total=", totalReadOf(uint32.sizeof));
+        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint32.sizeof, ", total=", totalReadOf(uint32.sizeof), ")");
 
         const bytes = _buffer.consume(uint32.sizeof);
         return uintDecode!(uint32, EndianKind)(bytes);
@@ -413,7 +414,7 @@ public:
 
     uint64 readUInt64()
     {
-        version (TraceFunctionReader) debug traceFunction(uint64.sizeof, ", total=", totalReadOf(uint64.sizeof));
+        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint64.sizeof, ", total=", totalReadOf(uint64.sizeof), ")");
 
         const bytes = _buffer.consume(uint64.sizeof);
         return uintDecode!(uint64, EndianKind)(bytes);
@@ -462,7 +463,7 @@ public:
         return this;
     }
 
-    version (TraceFunction)
+    debug(debug_pham_db_db_buffer)
     final string traceString() const nothrow @trusted
     {
         import std.conv : to;
@@ -709,9 +710,6 @@ private:
 
 unittest // DbWriteBuffer & DbReadBuffer
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.buffer.DbWriteBuffer & db.buffer.DbReadBuffer");
-
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
 
     //pragma(msg, float.min_normal);

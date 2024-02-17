@@ -15,7 +15,7 @@ import pham.db.db_type;
 
 nothrow @safe:
 
-version (none)
+version(none)
 string dictionaryGet(ref const(string[string]) values, string name, string notFoundValue) pure
 in
 {
@@ -29,7 +29,7 @@ do
         return notFoundValue;
 }
 
-version (none)
+version(none)
 string dictionaryPut(ref string[string] values, string name, string value) pure
 in
 {
@@ -131,9 +131,6 @@ private:
 
 unittest // truncate
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.util.truncate");
-
     assert(truncate("", 2) == "");
     assert(truncate("123456", 2) == "12");
     assert(truncate("1234567890", 20) == "1234567890");
@@ -141,9 +138,6 @@ unittest // truncate
 
 unittest // versionString
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.util.versionString");
-
     assert(toVersionString([]) == "");
     assert(toVersionString([1]) == "1");
     assert(toVersionString([1, 2, 3]) == "1.2.3");

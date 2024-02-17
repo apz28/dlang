@@ -11,7 +11,6 @@
 
 module pham.db.db_buffer_filter;
 
-version (unittest) import pham.utl.utl_test;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_enum_set : toName;
 import pham.db.db_object;

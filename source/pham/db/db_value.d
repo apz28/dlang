@@ -16,7 +16,7 @@ import std.math : isNaN;
 import std.range.primitives: ElementType;
 import std.traits : isArrayT = isArray, Unqual;
 
-version (profile) import pham.utl.utl_test : PerfFunction;
+version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.dtm.dtm_variant_coerce;
 import pham.external.dec.dec_variant_coerce;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
@@ -38,7 +38,7 @@ public:
 
     this(T)(T value, DbType type = DbType.unknown) @safe
     {
-        version (profile) debug auto p = PerfFunction.create();
+        version(profile) debug auto p = PerfFunction.create();
 
         this._type = type;
         doAssign!(T, false)(value);
@@ -316,7 +316,8 @@ private:
     void doAssignVariant(Variant rhs) @safe
     {
         this._value = rhs;
-        version (DbValueTypeSet)
+        
+        version(DbValueTypeSet)
         {
             if (rhsTypeIf != DbType.unknown)
                 this._type = rhsTypeIf;
@@ -609,9 +610,6 @@ private:
 
 unittest // DbValue
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.value.DbValue");
-
     static struct VStruct
     {
         int x;

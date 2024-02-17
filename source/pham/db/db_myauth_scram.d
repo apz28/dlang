@@ -17,7 +17,8 @@ import std.base64 : Base64, Base64Impl;
 import std.conv : to;
 import std.string : representation;
 
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_myauth_scram) import std.stdio : writeln;
+
 import pham.cp.cp_cipher : CipherHelper;
 import pham.cp.cp_cipher_digest : Digester, DigestId, DigestResult, HMACS;
 import pham.cp.cp_random : CipherRandomGenerator;
@@ -53,7 +54,7 @@ public:
     final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction("_nextState=", _nextState, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        debug(debug_pham_db_db_myauth_scram) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
 
         ShortStringBuffer!ubyte serverSalt;
         const(char)[] serverNonce;
@@ -80,7 +81,7 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        debug(debug_pham_db_db_myauth_scram) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
 
         auto status = checkAdvanceState(state);
         if (status.isError)
@@ -346,16 +347,12 @@ DbAuth createAuthScramSha256()
 
 private:
 
-version (none)
+version(none)
 unittest // MyAuthScramSha1
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.myauth_scram.MyAuthScramSha1");
 }
 
-version (none)
+version(none)
 unittest // MyAuthScramSha256
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.myauth_scram.MyAuthScramSha256");
 }

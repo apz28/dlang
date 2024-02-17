@@ -16,8 +16,9 @@ import std.format : FormatSpec, formatValue;
 import std.string : representation;
 import std.system : Endian;
 
-version (profile) import pham.utl.utl_test : PerfFunction;
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_mybuffer) import std.stdio : writeln;
+
+version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_array : ShortStringBuffer, ShortStringBufferSize;
 import pham.utl.utl_bit : numericBitCast;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
@@ -132,7 +133,7 @@ private:
             size_t blockSize = void;
             blockHeaderDecode(blockHeader, blockSize, sequenceByte);
 
-            version (TraceFunction) traceFunction("blockSize=", blockSize, ", sequenceByte=", sequenceByte, ", blockHeader=", blockHeader.a[].dgToHex());
+            debug(debug_pham_db_db_mybuffer) debug writeln(__FUNCTION__, "(blockSize=", blockSize, ", sequenceByte=", sequenceByte, ", blockHeader=", blockHeader.a[].dgToHex(), ")");
 
             if (blockSize)
             {
@@ -147,7 +148,7 @@ private:
         }
         this._packetLength = cast(int32)this._buffer.length;
 
-        version (TraceFunction) traceFunction("_packetLength=", _packetLength, ", buffer=", this._buffer.peekBytes(200).dgToHex());
+        debug(debug_pham_db_db_mybuffer) debug writeln(__FUNCTION__, "(_packetLength=", _packetLength, ", buffer=", this._buffer.peekBytes(200).dgToHex(), ")");
     }
 
 public:
@@ -428,7 +429,7 @@ public:
     {
         const c = readUInt8();
 
-        version (TraceFunction) traceFunction("readPackedInt64.c=", c);
+        debug(debug_pham_db_db_mybuffer) debug writeln(__FUNCTION__, "(readPackedInt64.c=", c, ")");
 
         switch (c)
         {
@@ -609,7 +610,7 @@ private:
     {
         auto result = cast(char[])consumeBytes(len);
 
-        version (TraceFunction) traceFunction("consumeChars=", result);
+        debug(debug_pham_db_db_mybuffer) debug writeln(__FUNCTION__, "(consumeChars=", result, ")");
 
         return result;
     }
@@ -656,7 +657,7 @@ public:
 
     void beginPackage(ubyte sequenceByte) nothrow
     {
-        version (TraceFunction) traceFunction(traceString(sequenceByte));
+        debug(debug_pham_db_db_mybuffer) debug writeln(__FUNCTION__, "(sequenceByte=", traceString(sequenceByte), ")");
 
         this._sequenceByte = sequenceByte;
         this._reserveLenghtOffset = _buffer.offset;
@@ -681,7 +682,7 @@ public:
 
     void flush()
     {
-        version (TraceFunction) traceFunction("_buffer.length=", _buffer.length);
+        debug(debug_pham_db_db_mybuffer) debug writeln(__FUNCTION__, "(_buffer.length=", _buffer.length, ")");
 
         writePackageLength();
         _buffer.flush();
@@ -693,7 +694,7 @@ public:
         return _buffer.peekBytes();
     }
 
-    version (TraceFunction)
+    debug(debug_pham_db_db_mybuffer)
     string traceString(ubyte sequenceByte) const nothrow pure @trusted
     {
         import std.conv : to;
@@ -1080,7 +1081,8 @@ private:
             const blockSize = _buffer.length - _reserveLenghtOffset - 4;
             auto blockHeader = blockHeaderEncode(blockSize, _sequenceByte);
 
-            version (TraceFunction) traceFunction("_reserveLenghtOffset=", _reserveLenghtOffset, ", blockSize=", blockSize, ", blockHeader=", blockHeader.a[].dgToHex());
+            debug(debug_pham_db_db_mybuffer) debug writeln(__FUNCTION__, "(_reserveLenghtOffset=", _reserveLenghtOffset,
+                ", blockSize=", blockSize, ", blockHeader=", blockHeader.a[].dgToHex(), ")");
 
             _writer.rewriteUInt32(blockHeader.u, _reserveLenghtOffset);
             _reserveLenghtOffset = -1; // Reset after done written the length
@@ -1101,12 +1103,9 @@ private:
 // Any below codes are private
 private:
 
-version (none) //todo
+version(none) //todo
 unittest // MyXdrWriter & MyXdrReader
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.mybuffer.MyXdrReader & db.mybuffer.MyXdrWriter");
-
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
     const(ubyte)[] bytes = [1,2,5,101];
     const(UUID) uuid = UUID(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15);

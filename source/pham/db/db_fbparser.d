@@ -284,9 +284,6 @@ private:
 
 unittest // parseCreateDatabase
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbparser.parseCreateDatabase");
-
     static immutable createSQL = q"SQL
 CREATE DATABASE '\\Test\Firebird.fdb'
   USER sysdba PASSWORD 'masterkey'

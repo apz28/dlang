@@ -20,6 +20,8 @@ import std.traits : isArray, isSomeChar, Unqual;
 import std.uni : sicmp;
 public import std.uuid : UUID;
 
+debug(debug_pham_db_db_type) import std.stdio : writeln;
+
 public import pham.dtm.dtm_date : Date, DateTime;
 public import pham.dtm.dtm_tick : DateTimeZoneKind;
 import pham.dtm.dtm_tick : ErrorOp, Tick;
@@ -1889,7 +1891,8 @@ bool isDbScheme(string schemeStr, ref DbScheme scheme) @nogc pure
     {
         foreach (e; EnumMembers!DbScheme)
         {
-            //import pham.utl.utl_test; debug dgWriteln(e, " ? ", cast(string)e); //output: fb ? firebird ...
+            debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(e=", e, " ? ", cast(string)e); //output: fb ? firebird ... }
+            
             if (e == schemeStr)
             {
                 scheme = e;
@@ -2294,9 +2297,6 @@ shared static this() nothrow @safe
 
 unittest // dbTypeOf
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.type.dbTypeOf");
-
     //pragma(msg, "DbDateTime: ", DbDateTime.sizeof); // 24
     //pragma(msg, "SysTime: ", SysTime.sizeof); // 16
     //pragma(msg, "DateTime: ", DateTime.sizeof); // 8
@@ -2333,7 +2333,7 @@ unittest // dbTypeOf
     assert(dbTypeOf!Decimal64() == DbType.decimal64, toName(dbTypeOf!Decimal64()));
     assert(dbTypeOf!Decimal128() == DbType.decimal128, toName(dbTypeOf!Decimal128()));
 
-    version (none)
+    version(none)
     {
         struct SimpleStruct {}
         SimpleStruct r1;
@@ -2356,18 +2356,12 @@ unittest // dbTypeOf
 
 unittest // DbDateTime
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.type.DbDateTime");
-
     assert(DbDateTime(2020, 8, 27, 8, 0, 0, 0, DateTimeZoneKind.utc, 0, 65).toString() == "08/27/2020 8:00:00 AM+01:05");
     assert(DbDateTime(2020, 8, 27, 8, 0, 0, 0, DateTimeZoneKind.utc, 0, -65).toString() == "08/27/2020 8:00:00 AM-01:05");
 }
 
 unittest // DbTime
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.type.DbTime");
-
     assert(DbTime(8, 0, 0, 0, DateTimeZoneKind.utc, 0, 65).toString() == "8:00:00 AM+01:05");
     assert(DbTime(8, 0, 0, 0, DateTimeZoneKind.utc, 0, -65).toString() == "8:00:00 AM-01:05");
 }

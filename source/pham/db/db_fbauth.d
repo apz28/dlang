@@ -11,7 +11,8 @@
 
 module pham.db.db_fbauth;
 
-version (TraceFunction) import pham.utl.utl_test;
+debug(debug_pham_db_db_fbauth) import std.stdio : writeln;
+
 import pham.cp.cp_cipher : CipherHelper;
 public import pham.cp.cp_cipher : CipherBuffer, CipherChaChaKey, CipherKey, CipherSimpleKey;
 public import pham.cp.cp_cipher_buffer : CipherRawKey;
@@ -136,8 +137,7 @@ public:
 
     ResultStatus parseServerAuthData(scope const(ubyte)[] serverAuthData)
     {
-        version (TraceFunction)
-        const serverAuthDataOrg = serverAuthData;
+        debug(debug_pham_db_db_fbauth) const serverAuthDataOrg = serverAuthData;
 
         enum minLength = 3; // two leading size data + at least 1 byte data
 
@@ -160,15 +160,12 @@ public:
             return ResultStatus.error(DbErrorCode.connect, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid server-auth-data length"));
         _serverPublicKey = serverAuthData[2..keyLength + 2].dup;
 
-        version (TraceFunction)
-        {
-            traceFunction("keyLength=", keyLength,
+        debug(debug_pham_db_db_fbauth) debug writeln(__FUNCTION__, "(keyLength=", keyLength,
                 ", saltLength=", saltLength,
                 ", serverAuthDataLength=", serverAuthDataOrg.length,
                 ", serverPublicKey=", _serverPublicKey.dgToHex(),
                 ", serverSalt=", _serverSalt.dgToHex(),
-                ", serverAuthData=", serverAuthDataOrg.dgToHex());
-        }
+                ", serverAuthData=", serverAuthDataOrg.dgToHex(), ")");
 
         return ResultStatus.ok();
     }
@@ -181,9 +178,6 @@ public:
 
 unittest // FbAuth.normalizeUserName
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.FbAuth.normalizeUserName");
-
     assert(FbAuth.normalizeUserName("sysDba") == "SYSDBA");
     assert(FbAuth.normalizeUserName("\"sysdba\"") == "sysdba");
     assert(FbAuth.normalizeUserName("\"\"\"a\"\"\"") == "\"a\"");

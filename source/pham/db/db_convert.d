@@ -18,7 +18,6 @@ import std.system : Endian;
 import std.traits: isIntegral, isSomeChar, isUnsigned, Unqual;
 import std.utf : isValidCodepoint;
 
-version (unittest) import pham.utl.utl_test;
 import pham.dtm.dtm_tick : Tick;
 import pham.utl.utl_object : limitRangeValue;
 import pham.db.db_type;
@@ -277,7 +276,7 @@ do
         static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
     }
 
-    version (BigEndian)
+    version(BigEndian)
     static if (EndianKind == Endian.littleEndian)
         result = swapEndian(result);
 
@@ -298,7 +297,7 @@ if (isUnsigned!T && T.sizeof > 1)
     ubyte[T.sizeof] result = void;
     Unqual!T uv = v;
 
-    version (BigEndian)
+    version(BigEndian)
     static if (EndianKind == Endian.littleEndian)
         uv = swapEndian(uv);
 
@@ -371,9 +370,6 @@ private:
 
 unittest // limitRangeTimeout
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.convert.limitRangeTimeout");
-
     assert(limitRangeTimeout(dur!"seconds"(-1)) == minTimeoutDuration);
     assert(limitRangeTimeout(dur!"seconds"(1)) == dur!"seconds"(1));
     assert(limitRangeTimeout(Duration.max) == maxTimeoutDuration);
@@ -381,9 +377,6 @@ unittest // limitRangeTimeout
 
 unittest // limitRangeTimeoutAsSecond
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.convert.limitRangeTimeoutAsSecond");
-
     assert(limitRangeTimeoutAsSecond(dur!"seconds"(-1)) == minTimeoutDuration.total!"seconds"());
     assert(limitRangeTimeoutAsSecond(dur!"seconds"(1)) == 1);
     assert(limitRangeTimeoutAsSecond(Duration.max) == maxTimeoutDuration.total!"seconds"());
@@ -391,9 +384,6 @@ unittest // limitRangeTimeoutAsSecond
 
 unittest // removeDateUnitFromHNSecs
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.convert.removeDateUnitFromHNSecs");
-
     const t = dur!"hours"(1) + dur!"minutes"(59);
     const h = dur!"days"(1_000) + t;
     assert(removeDateUnitFromHNSecs(h.total!"hnsecs"()) == t.total!"hnsecs"());
@@ -401,9 +391,6 @@ unittest // removeDateUnitFromHNSecs
 
 unittest // removeTimeUnitFromHNSecs
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.convert.removeTimeUnitFromHNSecs");
-
     const d = dur!"days"(1_000);
     const h = d + dur!"hours"(1) + dur!"minutes"(59);
     assert(removeTimeUnitFromHNSecs(h.total!"hnsecs"()) == d.total!"hnsecs"());
@@ -411,9 +398,6 @@ unittest // removeTimeUnitFromHNSecs
 
 unittest // secondDigitsToDurationSafe
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.convert.secondDigitsToDurationSafe");
-
     assert(secondDigitsToDurationSafe("123", Duration.zero) == dur!"seconds"(123));
     assert(secondDigitsToDurationSafe("abc", Duration.zero) == Duration.zero);
     assert(secondDigitsToDurationSafe("", Duration.max) == Duration.zero);
@@ -421,9 +405,6 @@ unittest // secondDigitsToDurationSafe
 
 unittest // toDecimalSafe
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.convert.toDecimalSafe");
-
     assert(toDecimalSafe!Decimal64("", Decimal64(-1)) == Decimal64(0));
     assert(toDecimalSafe!Decimal64("", Decimal64(-1), Decimal64.max) == Decimal64.max);
     assert(toDecimalSafe!Decimal64("98765432", Decimal64(-1)) == Decimal64(98_765_432));
@@ -431,11 +412,8 @@ unittest // toDecimalSafe
     assert(toDecimalSafe!Decimal64("-8765324", Decimal64(-1)) == Decimal64(-8_765_324));
 }
 
-unittest // toIntegerSafe
+nothrow unittest // toIntegerSafe
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.convert.toIntegerSafe");
-
     assert(toIntegerSafe!int("", -1) == 0);
     assert(toIntegerSafe!int("", -1, int.max) == int.max);
     assert(toIntegerSafe!int("1", -1) == 1);
@@ -446,9 +424,6 @@ unittest // toIntegerSafe
 
 unittest // toStringSafe
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.convert.toStringSafe");
-
     static int invalidUTF8()
     {
         return 0xFF;
@@ -477,9 +452,6 @@ unittest // toStringSafe
 
 unittest // toStringSafe
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.convert.toStringSafe");
-
     // Need a way to test failure state. D not allow to have invalid string literal
     //assert(toStringSafe("b\uFFFF\uFFFF"w, failedConvertedString) == failedConvertedString);
     //assert(toStringSafe("c\uFFFF\uFFFF"d, failedConvertedString) == failedConvertedString);
@@ -489,9 +461,6 @@ unittest // toStringSafe
 
 unittest // uintDecode & uintEncode
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.convert.uintDecode & uintEncode");
-
     // 16 bits
     auto b16 = uintEncode!(ushort, Endian.littleEndian)(ushort.min);
     auto u16 = uintDecode!(ushort, Endian.littleEndian)(b16);

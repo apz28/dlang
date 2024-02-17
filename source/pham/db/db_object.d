@@ -19,8 +19,7 @@ import std.conv : to;
 import std.traits : ParameterTypeTuple, Unqual;
 import std.uni : sicmp, toUpper;
 
-version (profile) import pham.utl.utl_test : PerfFunction;
-version (unittest) import pham.utl.utl_test;
+version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_array : IndexedArray;
 import pham.utl.utl_disposable;
 import pham.utl.utl_enum_set : EnumSet;
@@ -368,7 +367,7 @@ public:
 
 public:
     // Does not work for infer type & attributes (nothrow @safe)
-    version (none)
+    version(none)
     int opApply(Dg)(scope Dg dg)
     if (ParameterTypeTuple!Dg.length == 1)
     {
@@ -381,7 +380,7 @@ public:
     }
 
     // Does not work for infer type & attributes (nothrow @safe)
-    version (none)
+    version(none)
     int opApply(Dg)(scope Dg dg)
     if (ParameterTypeTuple!Dg.length == 2)
     {
@@ -419,7 +418,7 @@ public:
      */
     final T opIndex(scope const(DbIdentitier) name) nothrow @safe
     {
-        version (profile) debug auto p = PerfFunction.create();
+        version(profile) debug auto p = PerfFunction.create();
 
         auto e = name in lookupItems;
         return e ? *e : null;
@@ -432,7 +431,7 @@ public:
         return opIndex(id);
     }
 
-    version (none)
+    version(none)
     final typeof(this) opIndexAssign(T item) nothrow @safe
     in
     {
@@ -454,7 +453,7 @@ public:
 
     final bool exist(scope const(DbIdentitier) name) const nothrow pure @safe
     {
-        version (profile) debug auto p = PerfFunction.create();
+        version(profile) debug auto p = PerfFunction.create();
 
         const e = name in lookupItems;
         return e !is null;
@@ -468,7 +467,7 @@ public:
 
     final bool find(scope const(DbIdentitier) name, out T item) nothrow @safe
     {
-        version (profile) debug auto p = PerfFunction.create();
+        version(profile) debug auto p = PerfFunction.create();
 
         auto e = name in lookupItems;
         if (e !is null)
@@ -504,7 +503,7 @@ public:
 
     final T get(const(DbIdentitier) name) @safe
     {
-        version (profile) debug auto p = PerfFunction.create();
+        version(profile) debug auto p = PerfFunction.create();
 
         T result;
         if (!find(name, result))
@@ -523,7 +522,7 @@ public:
 
     final ptrdiff_t indexOf(scope const(DbIdentitier) name) nothrow pure @safe
     {
-        version (profile) debug auto p = PerfFunction.create();
+        version(profile) debug auto p = PerfFunction.create();
 
         if (flags.on(Flag.reIndex))
             reIndexItems();
@@ -784,7 +783,7 @@ public:
     }
 
 public:
-    version (none)
+    version(none)
     int opApply(scope int delegate(ref Pair e) dg)
     {
         foreach (i; 0..length)
@@ -795,7 +794,7 @@ public:
         return 0;
     }
 
-    version (none)
+    version(none)
     int opApply(scope int delegate(size_t i, ref Pair e) dg)
     {
         foreach (i; 0..length)
@@ -1293,8 +1292,6 @@ unittest // DbIdentitierValueList
 {
     import std.conv : to;
     import std.string : indexOf;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.object.DbIdentitierValueList");
 
     auto list = new DbIdentitierValueList!string();
     list.put("a", "1");
@@ -1354,8 +1351,6 @@ unittest // DbIdentitierValueList
 unittest // DbNameObjectList
 {
     import std.string : indexOf;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.object.DbNameObjectList");
 
     static class DbNameObjectTest : DbNameObject
     {
@@ -1395,9 +1390,6 @@ unittest // DbNameObjectList
 
 unittest // DbCustomAttributeList
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.object.DbCustomAttributeList");
-
     DbCustomAttributeList v;
 
     v["name1"] = "value1";

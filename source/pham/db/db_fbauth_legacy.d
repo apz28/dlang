@@ -11,9 +11,8 @@
 
 module pham.db.db_fbauth_legacy;
 
-import std.conv : to;
+debug(debug_pham_db_db_fbauth_legacy) import std.stdio : writeln;
 
-version (unittest) import pham.utl.utl_test;
 import pham.cp.cp_auth_crypt3;
 import pham.db.db_auth;
 import pham.db.db_message;
@@ -31,7 +30,8 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        debug(debug_pham_db_db_fbauth_legacy) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state,
+            ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
 
         auto status = checkAdvanceState(state);
         if (status.isError)

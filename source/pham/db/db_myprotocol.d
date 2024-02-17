@@ -15,8 +15,9 @@ import std.algorithm.comparison : max;
 import std.array : Appender;
 import std.conv : to;
 
-version (profile) import pham.utl.utl_test : PerfFunction;
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_myprotocol) import std.stdio : writeln;
+
+version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_bit : bitLengthToElement;
 import pham.utl.utl_bit_array : BitArrayImpl;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
@@ -68,7 +69,7 @@ public:
 
     final MyOkResponse connectAuthenticationRead(ref MyConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         enum AuthKind : ubyte { ok, cont, change, }
         AuthKind kind;
@@ -99,7 +100,7 @@ public:
                     assert(indicator == 0xfe);
                     const newAuthMethod = reader.readCString();
                     stateInfo.serverAuthData = reader.buffer.consumeAll();
-                    version (TraceFunction) traceFunction("newAuthMethod=", newAuthMethod, ", stateInfo.authMethod=", stateInfo.authMethod);
+                    debug(debug_pham_db_db_myprotocol) debug writeln("\t", "newAuthMethod=", newAuthMethod, ", stateInfo.authMethod=", stateInfo.authMethod);
                     if (stateInfo.authMethod != newAuthMethod)
                     {
                         stateInfo.authMethod = newAuthMethod;
@@ -114,7 +115,7 @@ public:
 
     final void connectAuthenticationWrite(ref MyConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction("stateInfo.connectionFlags=", stateInfo.connectionFlags);
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(stateInfo.connectionFlags=", stateInfo.connectionFlags, ")");
 
         auto useCSB = connection.myConnectionStringBuilder;
 
@@ -138,11 +139,11 @@ public:
         {
             writer.flush();
 
-            version (TraceFunction) traceFunction("Bind SSL");
+            debug(debug_pham_db_db_myprotocol) debug writeln("\t", "Bind SSL");
             auto rs = connection.doOpenSSL();
             if (rs.isError)
             {
-                version (TraceFunction) traceFunction("SSL failed code=", rs.errorCode, ", message=", rs.errorMessage);
+                debug(debug_pham_db_db_myprotocol) debug writeln("\t", "SSL failed code=", rs.errorCode, ", message=", rs.errorMessage);
                 connection.throwConnectError(rs.errorCode, rs.errorMessage);
             }
 
@@ -188,7 +189,7 @@ public:
 
     final void connectGreetingRead(ref MyConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         auto useCSB = connection.myConnectionStringBuilder;
         auto packageData = readPackageData();
@@ -233,7 +234,7 @@ public:
 
     final void deallocateCommandWrite(MyCommand command)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = MyXdrWriter(connection, maxSinglePackage);
         writer.beginPackage(0);
@@ -244,7 +245,7 @@ public:
 
     final void disconnectWrite()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = MyXdrWriter(connection, maxSinglePackage);
         writer.beginPackage(0);
@@ -254,7 +255,7 @@ public:
 
     final MyCommandResultResponse executeCommandDirectRead(MyCommand command)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         auto packageData = readPackageData();
         auto reader = MyXdrReader(connection, packageData.buffer);
@@ -268,7 +269,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         const lisQueryAttributes = isQueryAttributes;
         const hasCustomAttributes = lisQueryAttributes && command !is null ? command.customAttributes.length : 0;
@@ -304,7 +305,8 @@ public:
             if (hasCustomAttributes)
                 describeAttributes(typeWriter, valueWriter, command.customAttributes, lisQueryAttributes);
 
-            version (TraceFunction) traceFunction("nullBitmap[].length=", nullBitmap[].length, ", types.length=", types.peekBytes().length, ", values.length=", values.peekBytes().length);
+            debug(debug_pham_db_db_myprotocol) debug writeln("\t", "nullBitmap[].length=", nullBitmap[].length, ", types.length=", types.peekBytes().length,
+                ", values.length=", values.peekBytes().length);
 
             writer.writeOpaqueBytes(nullBitmap[]);
             writer.writeUInt8(1); // new_params_bind_flag
@@ -361,7 +363,7 @@ public:
 
     final MyCommandResultResponse executeCommandRead(MyCommand command)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         auto packageData = readPackageData();
         auto reader = MyXdrReader(connection, packageData.buffer);
@@ -377,7 +379,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction("type=", type);
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(type=", type, ")");
 
         const lisQueryAttributes = isQueryAttributes;
         const hasCustomAttributes = lisQueryAttributes ? command.customAttributes.length : 0;
@@ -412,7 +414,8 @@ public:
             if (hasCustomAttributes)
                 describeAttributes(typeWriter, valueWriter, command.customAttributes, lisQueryAttributes);
 
-            version (TraceFunction) traceFunction("nullBitmap[].length=", nullBitmap[].length, ", types.length=", types.peekBytes().length, ", values.length=", values.peekBytes().length);
+            debug(debug_pham_db_db_myprotocol) debug writeln("\t", "nullBitmap[].length=", nullBitmap[].length, ", types.length=", types.peekBytes().length,
+                ", values.length=", values.peekBytes().length);
 
             writer.writeOpaqueBytes(nullBitmap[]);
             writer.writeUInt8(1); // new_params_bind_flag
@@ -425,14 +428,14 @@ public:
 
     final MyOkResponse pingRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         return readOkResponse();
     }
 
     final void pingWrite()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = MyXdrWriter(connection, maxSinglePackage);
         writer.beginPackage(0);
@@ -442,7 +445,7 @@ public:
 
     final MyCommandPreparedResponse prepareCommandRead(MyCommand command)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         MyCommandPreparedResponse result;
         prepareCommandReadHeader(command, result);
@@ -455,7 +458,7 @@ public:
 
     final prepareCommandWrite(MyCommand command, scope const(char)[] sql)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = MyXdrWriter(connection, maxSinglePackage);
         writer.beginPackage(0);
@@ -469,7 +472,7 @@ public:
      */
     final size_t purgePendingRows()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         size_t result;
         while (true)
@@ -484,7 +487,7 @@ public:
 
     final MyOkResponse setDatabaseRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         auto packageData = readPackageData();
         auto reader = MyXdrReader(connection, packageData.buffer);
@@ -493,7 +496,7 @@ public:
 
     final void setDatabaseWrite(scope const(char)[] databaseName)
     {
-        version (TraceFunction) traceFunction("databaseName=", databaseName);
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(databaseName=", databaseName, ")");
 
         auto writer = MyXdrWriter(connection, maxSinglePackage);
         writer.beginPackage(0);
@@ -504,7 +507,7 @@ public:
 
     final MyCommandResultResponse readCommandResultResponse(MyCommand command, ref MyXdrReader reader)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         MyCommandResultResponse result;
 
@@ -527,7 +530,7 @@ public:
 
     final MyEOFResponse readEOF()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         auto packageData = readPackageData();
         if (!packageData.isEOF())
@@ -548,7 +551,7 @@ public:
 
     final MyOkResponse readOkResponse()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         auto packageData = readPackageData();
         auto reader = MyXdrReader(connection, packageData.buffer);
@@ -557,7 +560,7 @@ public:
 
     final MyOkResponse readOkResponse(ref MyXdrReader reader)
     {
-        version (TraceFunction) traceFunction("reader");
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         MyOkResponse result;
 
@@ -609,7 +612,7 @@ public:
 
     final bool readRow(out MyReader rowPackage)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         rowPackage = readPackageData();
         return !rowPackage.isEOF();
@@ -617,8 +620,8 @@ public:
 
     final DbValue readValue(ref MyXdrReader reader, MyCommand command, DbNameColumn column, const(bool) readFieldLength)
     {
-        version (TraceFunction) traceFunction(column.traceString(), ", readFieldLength=", readFieldLength);
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(column=", column.traceString(), ", readFieldLength=", readFieldLength, ")");
+        version(profile) debug auto p = PerfFunction.create();
 
         DbValue unsupportDataError()
         {
@@ -694,8 +697,8 @@ public:
 
     final DbRowValue readValues(ref MyReader rowPackage, MyCommand command, MyFieldList fields)
     {
-        version (TraceFunction) traceFunction("fieldCount=", fields.length);
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(fieldCount=", fields.length, ")");
+        version(profile) debug auto p = PerfFunction.create();
 
         const hasNullBitmapBytes = command.prepared;
         auto reader = MyXdrReader(connection, rowPackage.buffer);
@@ -737,7 +740,7 @@ public:
 protected:
     final void calculateConnectionFlags(ref MyConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         auto useCSB = connection.myConnectionStringBuilder;
 
@@ -795,7 +798,7 @@ protected:
         if ((stateInfo.serverCapabilities & MyCapabilityFlags.connectAttrs) != 0)
             stateInfo.connectionFlags |= MyCapabilityFlags.connectAttrs;
 
-        version (none) // Not yet implementation
+        version(none) // Not yet implementation
         if ((stateInfo.serverCapabilities & MyCapabilityFlags.canHandleExpiredPassword) != 0)
             stateInfo.connectionFlags |= MyCapabilityFlags.canHandleExpiredPassword;
 
@@ -816,7 +819,7 @@ protected:
 
     final DbEncryptedConnection canCryptedConnection(ref MyConnectingStateInfo stateInfo) nothrow
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         auto useCSB = connection.myConnectionStringBuilder;
 
@@ -841,7 +844,7 @@ protected:
 
     final MyAuth createAuth(ref MyConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction("stateInfo.authMethod=", stateInfo.authMethod);
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(stateInfo.authMethod=", stateInfo.authMethod, ")");
 
         auto authMap = MyAuth.findAuthMap(stateInfo.authMethod);
         if (!authMap.isValid())
@@ -859,7 +862,7 @@ protected:
     final void describeAttributes(ref MyXdrWriter typeWriter, ref MyXdrWriter valueWriter,
         ref DbCustomAttributeList attributes, const(bool) queryAttributes)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         foreach (name, value; attributes.values)
         {
@@ -873,7 +876,7 @@ protected:
 
     final void describeParameter(ref MyXdrWriter writer, MyParameter parameter)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         if (parameter.isNull)
             writer.writeOpaqueChars("NULL");
@@ -884,7 +887,7 @@ protected:
     final void describeParameter(ref MyXdrWriter typeWriter, ref MyXdrWriter valueWriter, ref BitArrayImpl!ubyte nullBitmap,
         MyParameter parameter, const(size_t) parameterIndex, const(bool) queryAttributes)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         if (parameter.hasInputValue())
         {
@@ -903,7 +906,7 @@ protected:
     final void describeParameters(ref MyXdrWriter typeWriter, ref MyXdrWriter valueWriter, ref BitArrayImpl!ubyte nullBitmap,
         MyParameterList parameters, const(bool) queryAttributes)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         size_t i;
         foreach (parameter; parameters)
@@ -919,7 +922,7 @@ protected:
     }
     do
     {
-        version (TraceFunction) traceFunction("type=", toName!DbType(column.type), ", values.offset=", writer.buffer.offset);
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(type=", toName!DbType(column.type), ", values.offset=", writer.buffer.offset, ")");
 
         void unsupportDataError()
         {
@@ -1001,7 +1004,7 @@ protected:
     }
     do
     {
-        version (TraceFunction) traceFunction("type=", toName!DbType(column.type), ", values.offset=", valueWriter.buffer.offset);
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(type=", toName!DbType(column.type), ", values.offset=", valueWriter.buffer.offset, ")");
 
         void unsupportDataError()
         {
@@ -1124,7 +1127,7 @@ protected:
 
     final MyOkResponse handleAuthenticationChallenge(ref MyConnectingStateInfo stateInfo, bool authMethodChanged)
     {
-        version (TraceFunction) traceFunction("authMethodChanged=", authMethodChanged, ", stateInfo.authMethod=", stateInfo.authMethod);
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(authMethodChanged=", authMethodChanged, ", stateInfo.authMethod=", stateInfo.authMethod, ")");
 
         auto useCSB = connection.myConnectionStringBuilder;
         auto useUserName = useCSB.userName;
@@ -1181,7 +1184,7 @@ protected:
 
     final void prepareCommandReadFields(MyCommand command, ref MyCommandPreparedResponse info)
     {
-        version (TraceFunction) traceFunction("info.fieldCount=", info.fieldCount);
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(info.fieldCount=", info.fieldCount, ")");
 
         info.fields.reserve(info.fieldCount);
         foreach (i; 0..info.fieldCount)
@@ -1191,7 +1194,7 @@ protected:
 
     final void prepareCommandReadHeader(MyCommand command, ref MyCommandPreparedResponse info)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         auto packageData = readPackageData();
         auto reader = MyXdrReader(connection, packageData.buffer);
@@ -1207,7 +1210,7 @@ protected:
 
     final void prepareCommandReadParameters(MyCommand command, ref MyCommandPreparedResponse info)
     {
-        version (TraceFunction) traceFunction("info.parameterCount=", info.parameterCount);
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(info.parameterCount=", info.parameterCount, ")");
 
         info.parameters.reserve(info.parameterCount);
         foreach (i; 0..info.parameterCount)
@@ -1217,7 +1220,7 @@ protected:
 
     final void readCommandResultReadFields(MyCommand command, ref MyCommandResultResponse info)
     {
-        version (TraceFunction) traceFunction("info.fieldCount=", info.fieldCount);
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(info.fieldCount=", info.fieldCount, ")");
 
         info.fields.reserve(info.fieldCount);
         foreach (i; 0..info.fieldCount)
@@ -1226,7 +1229,7 @@ protected:
 
     final MyFieldInfo readFieldInfo(MyCommand command, size_t index, bool isParameter)
     {
-        version (TraceFunction) traceFunction("index=", index, ", isParameter=", isParameter);
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(index=", index, ", isParameter=", isParameter, ")");
 
         auto packageData = readPackageData();
         auto reader = MyXdrReader(connection, packageData.buffer);
@@ -1258,21 +1261,21 @@ protected:
 
     final BitArrayImpl!ubyte readNullBitmaps(ref MyXdrReader reader, size_t fieldCount)
     {
-        version (TraceFunction) traceFunction("fieldCount=", fieldCount);
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(fieldCount=", fieldCount, ")");
 
         const nullBitmapBytes = bitLengthToElement!ubyte(fieldCount + 2);
 
         reader.readUInt8(); // byte header
         auto bytes = reader.readBytes(cast(int32)nullBitmapBytes);
 
-        version (TraceFunction) traceFunction("fieldCount=", fieldCount, ", length=", nullBitmapBytes, ", bytes=", bytes.dgToHex());
+        debug(debug_pham_db_db_myprotocol) debug writeln("\t", "fieldCount=", fieldCount, ", length=", nullBitmapBytes, ", bytes=", bytes.dgToHex());
 
         return BitArrayImpl!ubyte(bytes);
     }
 
     final MyReader readPackageData()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         auto result = MyReader(connection);
         this.sequenceByte = result.sequenceByte;
@@ -1285,10 +1288,10 @@ protected:
         return result;
     }
 
-    version (none)
+    version(none)
     final bool skipPackageData()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
         auto result = MyReader(connection);
         return !result.empty;
@@ -1296,7 +1299,7 @@ protected:
 
     final void validateRequiredEncryption(ref MyConnectingStateInfo stateInfo, bool wasEncryptedSetup)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
 
 		if (wasEncryptedSetup)
             return;

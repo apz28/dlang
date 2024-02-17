@@ -18,9 +18,10 @@ import std.math : abs;
 import std.string : indexOf;
 import std.system : Endian;
 
-version (profile) import pham.utl.utl_test : PerfFunction;
-version (unittest) import pham.utl.utl_test;
-import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
+debug(debug_pham_db_db_fbdatabase) import std.stdio : writeln;
+
+version(profile) import pham.utl.utl_test : PerfFunction;
+import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
 import pham.utl.utl_enum_set : toName;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_object : bytesFromBase64s, bytesToBase64s, functionName, VersionString;
@@ -95,7 +96,7 @@ public:
 
     Variant readArray(DbNameColumn arrayColumn) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         final switch (descriptor.fieldInfo.dbType)
         {
@@ -158,7 +159,7 @@ public:
 
     T[] readArrayImpl(T)(DbNameColumn arrayColumn) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto baseType = descriptor.fieldInfo.baseType;
         auto response = readArrayRaw(arrayColumn);
@@ -226,7 +227,7 @@ public:
 
     FbIscArrayGetResponse readArrayRaw(DbNameColumn arrayColumn) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
         protocol.arrayGetWrite(this);
@@ -235,7 +236,7 @@ public:
 
     void writeArray(DbNameColumn arrayColumn, ref DbValue arrayValue) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto writerBuffer = new DbWriteBuffer(4_000);
         uint elements;
@@ -322,7 +323,7 @@ public:
     DbWriteBuffer writeArrayImpl(T)(DbWriteBuffer writerBuffer, DbNameColumn arrayColumn, ref DbValue arrayValue,
         out uint elements) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto baseType = descriptor.fieldInfo.baseType;
         auto values = arrayValue.get!(T[])();
@@ -430,35 +431,36 @@ public:
     }
     do
     {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
+
         this._connection = connection;
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWritefln("FbArrayManager(create)%s", cast(void*)_connection); }
     }
 
     ~this()
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWritefln("FbArrayManager(destroy)%s", cast(void*)_connection); }
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
+
         dispose(DisposingReason.destructor);
     }
 
     void close() nothrow
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         doClose(DisposingReason.other);
     }
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         doClose(disposingReason);
     }
 
     FbIscArrayDescriptor getDescriptor(string tableName, string fieldName)
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWritefln("FbArrayManager(getDescriptor)%s", cast(void*)_connection); }
-        version (TraceFunction) traceFunction("tableName=", tableName, ", fieldName=", fieldName);
-
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(tableName=", tableName, ", fieldName=", fieldName, ")");
+    
         FbIscArrayDescriptor result;
         result.fieldInfo.tableName = tableName;
         result.fieldInfo.name = fieldName;
@@ -504,7 +506,7 @@ public:
 package(pham.db):
     void doClose(const(DisposingReason) disposingReason) nothrow
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         disposeCommand(_arrayType, disposingReason);
         if (isDisposing(disposingReason))
@@ -514,7 +516,7 @@ package(pham.db):
 private:
     FbCommand createCommand(string commandText)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto result = fbConnection.createCommand();
         result.commandText = commandText;
@@ -523,7 +525,7 @@ private:
 
     void disposeCommand(ref FbCommand command, const(DisposingReason) disposingReason) nothrow
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         if (command !is null)
         {
@@ -585,7 +587,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         cancelImpl();
     }
@@ -599,7 +601,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         scope (exit)
             _info.resetHandle();
@@ -607,6 +609,12 @@ public:
         auto protocol = fbConnection.protocol;
         protocol.blobEndWrite(writer, this, FbIsc.op_cancel_blob);
         return &protocol.blobEndRead;
+    }
+
+    pragma(inline, true)
+    final Logger canErrorLog() nothrow @safe
+    {
+        return _command !is null ? _command.canErrorLog() : null;
     }
 
     void close()
@@ -617,7 +625,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         doClose(DisposingReason.other);
     }
@@ -631,7 +639,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         scope (exit)
             _info.resetHandle();
@@ -648,7 +656,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
         protocol.blobBeginWrite(this, FbIsc.op_create_blob);
@@ -657,6 +665,8 @@ public:
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
+        
         doClose(disposingReason);
         if (isDisposing(disposingReason))
             _command = null;
@@ -691,7 +701,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
         protocol.blobBeginWrite(this, FbIsc.op_open_blob);
@@ -705,7 +715,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         open();
         scope (exit)
@@ -740,7 +750,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         create();
         scope (failure)
@@ -767,7 +777,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
         protocol.blobSizeInfoWrite(this);
@@ -823,7 +833,7 @@ public:
 package(pham.db):
     void cancelImpl()
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         scope (exit)
             _info.resetHandle();
@@ -838,7 +848,7 @@ package(pham.db):
 
     void doClose(const(DisposingReason) disposingReason) nothrow
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         scope (exit)
         {
@@ -869,8 +879,8 @@ package(pham.db):
         }
         catch (Exception e)
         {
-            if (auto log = logger)
-                log.errorf("%s.doClose() - %s", forLogInfo(), e.msg, e);
+            if (auto log = canErrorLog())
+                log.errorf("%s.blob.doClose() - %s", forLogInfo(), e.msg, e);
         }
     }
 
@@ -913,7 +923,7 @@ public:
 
 	final override const(char)[] getExecutionPlan(uint vendorMode) @safe
 	{
-        version (TraceFunction) traceFunction("vendorMode=", vendorMode);
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(vendorMode=", vendorMode, ")");
         
         if (auto log = canTraceLog())
             log.infof("%s.command.getExecutionPlan(vendorMode=%d)%s%s", forLogInfo(), vendorMode, newline, commandText);
@@ -945,7 +955,7 @@ public:
 
     final override Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         if (arrayValueId.isNull)
             return Variant.varNull();
@@ -956,7 +966,7 @@ public:
 
     final override ubyte[] readBlob(DbNameColumn blobColumn, DbValue blobValueId) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         if (blobValueId.isNull)
             return null;
@@ -967,7 +977,7 @@ public:
 
     final DbValue writeArray(DbNameColumn arrayColumn, ref DbValue arrayValue) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto array = FbArray(this, arrayColumn.baseTableName, arrayColumn.baseName, 0);
         array.writeArray(arrayColumn, arrayValue);
@@ -977,7 +987,7 @@ public:
     final override DbValue writeBlob(DbNameColumn blobColumn, scope const(ubyte)[] blobValue,
         DbValue optionalBlobValueId = DbValue.init) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         // Firebird always create new id
         auto blob = FbBlob(this);
@@ -1015,7 +1025,7 @@ public:
 package(pham.db):
     final bool canReturnRecordsAffected() const nothrow @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         if (!returnRecordsAffected || commandType == DbCommandType.ddl)
             return false;
@@ -1034,7 +1044,7 @@ package(pham.db):
 
     final FbParameter[] fbInputParameters() nothrow @trusted //@trusted=cast()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         return cast(FbParameter[])inputParameters();
     }
@@ -1054,7 +1064,7 @@ package(pham.db):
 protected:
     final void allocateHandleRead() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
         _handle = protocol.allocateCommandRead(this).handle;
@@ -1062,7 +1072,7 @@ protected:
 
     final void allocateHandleWrite() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         static if (fbDeferredProtocol)
             _handle = fbCommandDeferredHandle;
@@ -1073,7 +1083,7 @@ protected:
     static if (fbDeferredProtocol)
     final FbDeferredResponse allocateHandleWrite(ref FbXdrWriter writer) nothrow @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         static if (fbDeferredProtocol)
             _handle = fbCommandDeferredHandle;
@@ -1084,7 +1094,7 @@ protected:
 
     final bool canBundleOperations() nothrow @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
         return protocol.serverVersion >= FbIsc.protocol_version11;
@@ -1092,7 +1102,7 @@ protected:
 
     final void deallocateHandle() @safe
     {
-        version (TraceFunction) traceFunction("fbHandle=", fbHandle);
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(fbHandle=", fbHandle, ")");
 
         // Must reset regardless if error taken place
         // to avoid double errors when connection is shutting down
@@ -1100,7 +1110,7 @@ protected:
         {
             batched = false;
             _handle.reset();
-            version (TraceFunction) traceFunction("fbHandle=", fbHandle);
+            debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "fbHandle=", fbHandle);
         }
 
         try
@@ -1135,26 +1145,26 @@ protected:
         }
         catch (Exception e)
         {
-            if (auto log = logger)
-                log.errorf("%s.deallocateHandle() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
+            if (auto log = canErrorLog())
+                log.errorf("%s.command.deallocateHandle() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
         }
     }
 
     final override void doExecuteCommand(const(DbCommandExecuteType) type) @safe
     {
-        version (TraceFunction) traceFunction("type=", type);
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(type=", type, ")");
+        version(profile) debug auto p = PerfFunction.create();
 
         // Firebird always need to do repare
         if (!prepared)
             prepare();
-
-        prepareExecuting(type);
-
-        auto logTimming = logger !is null
-            ? LogTimming(logger, text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
+        
+        auto logTimming = canTimeLog() !is null
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
+        prepareExecuting(type);
+        
         auto protocol = fbConnection.protocol;
 
         if (executedCount > 1 && type != DbCommandExecuteType.nonQuery)
@@ -1186,7 +1196,7 @@ protected:
         {
             _recordsAffected = getRecordsAffected();
 
-            version (TraceFunction) traceFunction("_recordsAffected=", _recordsAffected);
+            debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "_recordsAffected=", _recordsAffected);
         }
     }
 
@@ -1197,8 +1207,12 @@ protected:
     }
     do
     {
-        version (TraceFunction) traceFunction("isScalar=", isScalar);
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ")");
+        version(profile) debug auto p = PerfFunction.create();
+
+        auto logTimming = canTimeLog() !is null
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doFetch()", newline, _executeCommandText), false, logTimmingWarningDur)
+            : LogTimming.init;
 
         auto protocol = fbConnection.protocol;
         protocol.fetchCommandWrite(this);
@@ -1215,7 +1229,7 @@ protected:
                     break;
 
                 case DbFetchResultStatus.completed:
-                    version (TraceFunction) traceFunction("allRowsFetched=true");
+                    debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "allRowsFetched=true");
                     allRowsFetched = true;
                     continueFetching = false;
                     break;
@@ -1230,19 +1244,19 @@ protected:
 
     final override void doPrepare() @safe
     {
-        version (TraceFunction) traceFunction();
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
+        version(profile) debug auto p = PerfFunction.create();
 
         auto sql = executeCommandText(BuildCommandTextState.prepare); // Make sure statement is constructed before doing other tasks
 
-        auto logTimming = logger !is null
-            ? LogTimming(logger, text(forLogInfo(), ".doPrepare()", newline, sql), false, logTimmingWarningDur)
+        auto logTimming = canTimeLog() !is null
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doPrepare()", newline, sql), false, logTimmingWarningDur)
             : LogTimming.init;
 
         static if (fbDeferredProtocol)
         {
             FbDeferredResponse[] requestResponses;
-            {
+            { // Scope
                 auto writer = FbXdrWriter(fbConnection);
 
                 if (!isFbHandle)
@@ -1255,6 +1269,7 @@ protected:
 
                 writer.flush();
             }
+            
             foreach (ref requestResponse; requestResponses)
                 requestResponse();
         }
@@ -1276,12 +1291,12 @@ protected:
             }
         }
 
-        version (TraceFunction) traceFunction("fbHandle=", fbHandle, ", baseCommandType=", _baseCommandType);
+        debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "fbHandle=", fbHandle, ", baseCommandType=", _baseCommandType);
     }
 
     final void doPrepareRead() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
         processPrepareResponse(protocol.prepareCommandRead(this));
@@ -1289,7 +1304,7 @@ protected:
 
     final void doPrepareWrite(scope const(char)[] sql) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
         protocol.prepareCommandWrite(this, sql);
@@ -1298,7 +1313,7 @@ protected:
     static if (fbDeferredProtocol)
     final FbDeferredResponse doPrepareWrite(ref FbXdrWriter writer, scope const(char)[] sql) nothrow @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
         protocol.prepareCommandWrite(writer, this, sql);
@@ -1307,7 +1322,7 @@ protected:
 
     final override void doUnprepare() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         if (isFbHandle)
             deallocateHandle();
@@ -1315,11 +1330,11 @@ protected:
 
     FbCommandBatchResult[] executeNonQueryBatch(ref FbCommandBatch commandBatch) @safe
     {
-        version (TraceFunction) traceFunction();
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
+        version(profile) debug auto p = PerfFunction.create();
 
-        auto logTimming = logger !is null
-            ? LogTimming(logger, text(forLogInfo(), ".executeNonQueryBatch()", newline, _executeCommandText), false, logTimmingWarningDur)
+        auto logTimming = canTimeLog() !is null
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".executeNonQueryBatch()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
         auto protocol = fbConnection.protocol;
@@ -1331,7 +1346,7 @@ protected:
             protocol.messageCommandBatchWrite(writer, commandBatch);
             protocol.executeCommandBatchWrite(writer, commandBatch);
 
-            version (TraceFunction) traceFunction("data=", writer.peekBytes().dgToHex());
+            debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "data=", writer.peekBytes().dgToHex());
 
             writer.flush();
         }
@@ -1348,8 +1363,7 @@ protected:
 
     static void fillNamedColumn(DbNameColumn column, const ref FbIscFieldInfo iscField, const(bool) isNew) nothrow @safe
     {
-        version (TraceFunction) traceFunction(iscField.traceString());
-        //import pham.utl.utl_test; dgWriteln("fillNamedColumn=", iscField.traceString());
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(iscField=", iscField.traceString(), ")");
 
         column.baseName = iscField.name.idup;
         column.baseOwner = iscField.owner.idup;
@@ -1369,7 +1383,7 @@ protected:
 
     final DbRecordsAffected getRecordsAffected() @safe
 	{
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
         protocol.recordsAffectedCommandWrite(this);
@@ -1378,7 +1392,7 @@ protected:
 
 	final void getStatementTypeRead() @safe
 	{
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
         _baseCommandType = protocol.typeCommandRead(this);
@@ -1386,7 +1400,7 @@ protected:
 
 	final void getStatementTypeWrite() @safe
 	{
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
         protocol.typeCommandWrite(this);
@@ -1395,7 +1409,7 @@ protected:
     static if (fbDeferredProtocol)
 	final FbDeferredResponse getStatementTypeWrite(ref FbXdrWriter writer) nothrow @safe
 	{
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
         protocol.typeCommandWrite(writer, this);
@@ -1410,7 +1424,7 @@ protected:
 
     final void processPrepareResponse(scope FbIscBindInfo[] iscBindInfos) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         const isStoredProcedure = commandType == DbCommandType.storedProcedure;
 
@@ -1418,7 +1432,7 @@ protected:
         {
             if (iscBindInfo.selectOrBind == FbIsc.isc_info_sql_select)
             {
-                version (TraceFunction) traceFunction("fields");
+                debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "fields");
 
                 const localIsStoredProcedure = isStoredProcedure;
                 auto localParameters = localIsStoredProcedure ? parameters : null;
@@ -1451,7 +1465,7 @@ protected:
             }
             else if (iscBindInfo.selectOrBind == FbIsc.isc_info_sql_bind)
             {
-                version (TraceFunction) traceFunction("parameters");
+                debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "parameters");
 
                 auto localParameters = parameters;
                 foreach (i, ref iscField; iscBindInfo.fields)
@@ -1478,8 +1492,8 @@ protected:
 
     final DbRowValue readRow(const(bool) isScalar) @safe
     {
-        version (TraceFunction) traceFunction("isScalar=", isScalar);
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ")");
+        version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = fbConnection.protocol;
         auto result = protocol.readValues(this, fbFields);
@@ -1510,7 +1524,7 @@ protected:
 
     final void removeBatch(ref FbCommandBatch commandBatch) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         assert(commandBatch.fbCommand is this);
 
@@ -1543,6 +1557,12 @@ public:
         return result;
     }
 
+    pragma(inline, true)
+    final Logger canErrorLog() nothrow @safe
+    {
+        return _command !is null ? _command.canErrorLog() : null;
+    }
+
     void clearParameters() nothrow @trusted
     {
         _parameters.length = 0;
@@ -1551,7 +1571,7 @@ public:
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         if (_command)
         {
@@ -1566,8 +1586,8 @@ public:
             }
             catch (Exception e)
             {
-                if (auto log = logger)
-                    log.errorf("%s.dispose() - %s", forLogInfo(), e.msg, e);
+                if (auto log = canErrorLog())
+                    log.errorf("%s.batch.dispose() - %s", forLogInfo(), e.msg, e);
             }
         }
 
@@ -1582,7 +1602,7 @@ public:
 
     FbCommandBatchResult[] executeNonQuery()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         if (_parameters.length == 0)
             return [];
@@ -1613,7 +1633,7 @@ public:
 
     ref typeof(this) prepare() return
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         if (!_command.prepared)
         {
@@ -1714,7 +1734,7 @@ public:
 
     final void createDatabase(FbCreateDatabaseInfo createDatabaseInfo)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         if (state == DbConnectionState.opened)
         {
@@ -1811,7 +1831,7 @@ protected:
 
     override void disposeCommands(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         if (isDisposing(disposingReason))
             this._arrayManager.dispose(disposingReason);
@@ -1822,7 +1842,7 @@ protected:
 
     final void disposeParameterWriteBuffers(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         while (!_parameterWriteBuffers.empty)
             _parameterWriteBuffers.remove(_parameterWriteBuffers.last).dispose(disposingReason);
@@ -1830,7 +1850,7 @@ protected:
 
     final void disposeProtocol(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         if (_protocol !is null)
         {
@@ -1841,7 +1861,7 @@ protected:
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         super.doDispose(disposingReason);
         disposeParameterWriteBuffers(disposingReason);
@@ -1850,7 +1870,7 @@ protected:
 
     final override void doCancelCommand(DbCancelCommandData data) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto fbData = cast(FbCancelCommandData)data;
         _protocol.cancelRequestWrite(fbData.connectionHandle);
@@ -1858,7 +1878,7 @@ protected:
 
     final override void doClose(bool failedOpen) @safe
     {
-        version (TraceFunction) traceFunction("failedOpen=", failedOpen, ", socketActive=", socketActive);
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(failedOpen=", failedOpen, ", socketActive=", socketActive, ")");
 
         scope (exit)
             disposeProtocol(DisposingReason.other);
@@ -1873,8 +1893,8 @@ protected:
         }
         catch (Exception e)
         {
-            if (auto log = logger)
-                log.error("%s.doClose() - %s", forLogInfo(), e.msg, e);
+            if (auto log = canErrorLog())
+                log.error("%s.batch.doClose() - %s", forLogInfo(), e.msg, e);
         }
 
         super.doClose(failedOpen);
@@ -1882,7 +1902,7 @@ protected:
 
     final override void doOpen() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         FbConnectingStateInfo stateInfo;
         stateInfo.connectionType = _type;
@@ -1894,7 +1914,7 @@ protected:
 
     final void doOpenAttachment(ref FbConnectingStateInfo stateInfo) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         protocol.connectAttachmentWrite(stateInfo, _createDatabaseInfo);
         _handle = protocol.connectAttachmentRead(stateInfo).handle;
@@ -1902,7 +1922,7 @@ protected:
 
     final void doOpenAuthentication(ref FbConnectingStateInfo stateInfo) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         _protocol = new FbProtocol(this);
         _protocol.connectAuthenticationWrite(stateInfo, _createDatabaseInfo);
@@ -1911,7 +1931,7 @@ protected:
 
     final override string getServerVersion() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto command = createCommand();
         scope (exit)
@@ -2245,7 +2265,7 @@ public:
 package(pham.db):
     final void prepareParameter(FbCommand command) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         if (!isInput || isNull)
             return;
@@ -2328,7 +2348,7 @@ public:
 protected:
     final override void doCommit(bool disposing) @safe
     {
-        version (TraceFunction) traceFunction("disposing=", disposing);
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposing=", disposing, ")");
 
         const canRetain = !disposing && isRetaining && !isDisposing(lastDisposingReason);
         auto protocol = fbConnection.protocol;
@@ -2352,7 +2372,7 @@ protected:
 
     final override void doRollback(bool disposing) @safe
     {
-        version (TraceFunction) traceFunction("disposing=", disposing);
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposing=", disposing, ")");
 
         auto protocol = fbConnection.protocol;
         if (!disposing && canRetain())
@@ -2375,7 +2395,7 @@ protected:
 
     final override void doStart() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
         protocol.startTransactionWrite(this);
@@ -2392,18 +2412,11 @@ private:
 
 shared static this() nothrow @safe
 {
-    version (TraceFunctionFBDatabase) ModuleLoggerOptions.setModule(ModuleLoggerOption(__MODULE__, LogLevel.trace));
-
     auto db = new FbDatabase();
     DbDatabaseList.registerDb(db);
 }
 
-unittest // Turn on trace log if requested - must be first unittest one
-{
-    version (TraceFunctionFBDatabase) ModuleLoggerOptions.setModule(ModuleLoggerOption(ModuleLoggerOptions.wildPackageName(__MODULE__), LogLevel.trace));
-}
-
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 {
     FbConnection createTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
@@ -2493,9 +2506,6 @@ WHERE INT_FIELD = @INT_FIELD
 
 unittest // FbConnectionStringBuilder
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbConnectionStringBuilder");
-
     auto db = DbDatabaseList.getDb(DbScheme.fb);
     assert(cast(FbDatabase)db !is null);
 
@@ -2510,12 +2520,9 @@ unittest // FbConnectionStringBuilder
     assert(useCSB.dialect == 3);
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbConnection
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbConnection");
-
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -2528,12 +2535,9 @@ unittest // FbConnection
     assert(connection.state == DbConnectionState.closed);
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbConnection.encrypt
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbConnection - encrypt");
-
     {
         auto connection = createTestConnection(DbEncryptedConnection.enabled);
         scope (exit)
@@ -2593,13 +2597,10 @@ unittest // FbConnection.encrypt
     }
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbConnection.integratedSecurity
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbConnection - integratedSecurity");
-
-    version (Windows)
+    version(Windows)
     {
         auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.disabled, DbIntegratedSecurityConnection.srp256);
         scope (exit)
@@ -2614,12 +2615,9 @@ unittest // FbConnection.integratedSecurity
     }
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbConnection.encrypt.compress
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbConnection - encrypt=required, compress=zip");
-
     auto connection = createTestConnection(DbEncryptedConnection.required, DbCompressConnection.zip);
     scope (exit)
         connection.dispose();
@@ -2632,12 +2630,9 @@ unittest // FbConnection.encrypt.compress
     assert(connection.state == DbConnectionState.closed);
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbTransaction
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbTransaction");
-
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -2668,12 +2663,9 @@ unittest // FbTransaction
     transaction.rollback();
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbTransaction.encrypt.compress
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbTransaction - encrypt=enabled, compress=zip");
-
     auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
     scope (exit)
         connection.dispose();
@@ -2684,53 +2676,37 @@ unittest // FbTransaction.encrypt.compress
     transaction.commit();
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbCommand.DDL
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DDL");
-
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     auto command = connection.createCommand();
     scope (exit)
         command.dispose();
 
-    version (TraceFunction) traceFunction("CREATE TABLE");
+    debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(CREATE TABLE)");
     command.commandDDL = "CREATE TABLE create_then_drop (a INT NOT NULL PRIMARY KEY, b VARCHAR(100))";
     command.executeNonQuery();
 
-    version (TraceFunction) traceFunction("DROP TABLE");
+    debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(DROP TABLE)");
     command.commandDDL = "DROP TABLE create_then_drop";
     command.executeNonQuery();
 
     failed = false;
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbCommand.DDL.encrypt.compress
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DDL - encrypt=enabled, compress=zip");
-
     bool failed = true;
     auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     auto command = connection.createCommand();
@@ -2746,21 +2722,13 @@ unittest // FbCommand.DDL.encrypt.compress
     failed = false;
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbCommand.getExecutionPlan
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.getExecutionPlan");
-
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     auto command = connection.createCommand();
@@ -2788,23 +2756,16 @@ Select Expression
     failed = false;
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbCommand.DML.Types
 {
     import std.conv;
     import pham.utl.utl_object;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.Types");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     auto command = connection.createCommand();
@@ -3161,22 +3122,15 @@ unittest // FbCommand.DML.Types
     failed = false;
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbCommand.DML
 {
     import std.math;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - Simple select");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     auto command = connection.createCommand();
@@ -3193,7 +3147,7 @@ unittest // FbCommand.DML
     while (reader.read())
     {
         count++;
-        traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
+        debug(debug_pham_db_db_fbdatabase) debug writeln("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -3242,22 +3196,15 @@ unittest // FbCommand.DML
     failed = false;
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbCommand.DML.Parameter
 {
     import std.math;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - Parameter select");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     auto command = connection.createCommand();
@@ -3281,7 +3228,7 @@ unittest // FbCommand.DML.Parameter
     while (reader.read())
     {
         count++;
-        traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
+        debug(debug_pham_db_db_fbdatabase) debug writeln("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -3330,22 +3277,15 @@ unittest // FbCommand.DML.Parameter
     failed = false;
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbCommand.DML.encrypt.compress
 {
     import std.math;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - Simple select with encrypt=enabled, compress=zip");
 
     bool failed = true;
     auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     auto command = connection.createCommand();
@@ -3362,7 +3302,7 @@ unittest // FbCommand.DML.encrypt.compress
     while (reader.read())
     {
         count++;
-        traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
+        debug(debug_pham_db_db_fbdatabase) debug writeln("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -3411,21 +3351,13 @@ unittest // FbCommand.DML.encrypt.compress
     failed = false;
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbCommand.DML.FbArrayManager
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - FbArrayManager");
-
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     FbIscArrayDescriptor descriptor = connection.arrayManager.getDescriptor("TEST_SELECT", "INTEGER_ARRAY");
@@ -3441,12 +3373,9 @@ unittest // FbCommand.DML.FbArrayManager
     failed = false;
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbCommand.DML.Array
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - Array");
-
     static int[] arrayValue() nothrow pure @safe
     {
         return [1,2,3,4,5,6,7,8,9,10];
@@ -3455,12 +3384,7 @@ unittest // FbCommand.DML.Array
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     void setArrayValue()
@@ -3495,7 +3419,7 @@ unittest // FbCommand.DML.Array
         while (reader.read())
         {
             count++;
-            traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
+            debug(debug_pham_db_db_fbdatabase) debug writeln("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
 
             assert(reader.getValue(0) == arrayValue());
             assert(reader.getValue("INTEGER_ARRAY") == arrayValue());
@@ -3509,12 +3433,9 @@ unittest // FbCommand.DML.Array
     failed = false;
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbCommand.DML.Array.Less
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML - Array.Less");
-
     static int[] selectArrayValue() nothrow pure @safe
     {
         return [1,2,3,4,5,0,0,0,0,0];
@@ -3528,12 +3449,7 @@ unittest // FbCommand.DML.Array.Less
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     void setArrayValue()
@@ -3568,7 +3484,7 @@ unittest // FbCommand.DML.Array.Less
         while (reader.read())
         {
             count++;
-            traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
+            debug(debug_pham_db_db_fbdatabase) debug writeln("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
 
             assert(reader.getValue(0) == selectArrayValue());
             assert(reader.getValue("INTEGER_ARRAY") == selectArrayValue());
@@ -3582,21 +3498,13 @@ unittest // FbCommand.DML.Array.Less
     failed = false;
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbCommand.DML.StoredProcedure
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.StoredProcedure");
-
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     {
@@ -3635,13 +3543,11 @@ unittest // FbCommand.DML.StoredProcedure
     failed = false;
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // DbRAIITransaction
 {
     import std.exception : assertThrown;
-    import pham.utl.utl_test;
     import pham.db.db_exception : DbException;
-    traceUnitTest("unittest pham.db.fbdatabase.DbRAIITransaction");
 
     bool commit = false;
     auto connection = createTestConnection();
@@ -3673,23 +3579,16 @@ unittest // DbRAIITransaction
     assert(commit == false);
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbCommandBatch
 {
     import pham.dtm.dtm_date;
     import pham.utl.utl_object : VersionString;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbCommandBatch");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     const minSupportVersion = VersionString("4.0");
@@ -3791,8 +3690,6 @@ unittest // FbCommandBatch
 unittest // DbDatabaseList.createConnection
 {
     import std.string : representation;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.DbDatabaseList.createConnection");
 
     auto connection = DbDatabaseList.createConnection("firebird:server=myServerAddress;database=myDataBase;" ~
         "user=myUsername;password=myPassword;role=myRole;pooling=true;connectionTimeout=100;encrypt=enabled;" ~
@@ -3819,8 +3716,6 @@ unittest // DbDatabaseList.createConnection
 unittest // DbDatabaseList.createConnectionByURL
 {
     import std.string : representation;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.DbDatabaseList.createConnectionByURL");
 
     auto connection = DbDatabaseList.createConnectionByURL("firebird://myUsername:myPassword@myServerAddress/myDataBase?" ~
         "role=myRole&pooling=true&connectionTimeout=100&encrypt=enabled&" ~
@@ -3844,7 +3739,7 @@ unittest // DbDatabaseList.createConnectionByURL
     assert(connectionString.cryptKey == "AB1".representation());
 }
 
-version (UnitTestPerfFBDatabase)
+version(UnitTestPerfFBDatabase)
 {
     import pham.utl.utl_test : PerfTestResult;
 
@@ -3895,7 +3790,7 @@ version (UnitTestPerfFBDatabase)
 
             void readData(ref DbReader reader)
             {
-                version (all)
+                version(all)
                 {
                     Foo1 = reader.getValue!int64(0); //foo1 BIGINT NOT NULL,
                     Foo2 = reader.getValue!int64(1); //foo2 BIGINT NOT NULL,
@@ -3941,13 +3836,7 @@ version (UnitTestPerfFBDatabase)
         bool failed = true;
         auto connection = createTestConnection();
         scope (exit)
-        {
-            version (unittest)
-            if (failed)
-                traceUnitTest("failed - exiting and closing connection");
-
             connection.dispose();
-        }
         connection.open();
 
         auto command = connection.createCommand();
@@ -3960,14 +3849,14 @@ version (UnitTestPerfFBDatabase)
         scope (exit)
             reader.dispose();
 
-        version (UnitTestFBCollectData) auto datas = new Data[](maxRecordCount);
+        version(UnitTestFBCollectData) auto datas = new Data[](maxRecordCount);
         else Data data;
         assert(reader.hasRows());
 
         auto result = PerfTestResult.create();
         while (result.count < maxRecordCount && reader.read())
         {
-            version (UnitTestFBCollectData) datas[result.count++] = Data(reader);
+            version(UnitTestFBCollectData) datas[result.count++] = Data(reader);
             else { data.readData(reader); result.count++; }
         }
         result.end();
@@ -3977,23 +3866,18 @@ version (UnitTestPerfFBDatabase)
     }
 }
 
-version (UnitTestPerfFBDatabase)
+version(UnitTestPerfFBDatabase)
 unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953
 {
     import std.format : format;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
 
     const perfResult = unitTestPerfFBDatabase();
     dgWriteln("FB-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
 }
 
-version (UnitTestFBDatabase)
+version(UnitTestFBDatabase)
 unittest // FbConnection.createDatabase
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbdatabase.createDatabase");
-
     FbCreateDatabaseInfo ci;
     ci.fileName = testCreateDatabaseFileName();
     ci.defaultCharacterSet = "iso8859_1";
@@ -4017,9 +3901,6 @@ unittest // FbConnection.createDatabase
     auto connection = createTestConnection();
     scope (exit)
     {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
 
         deleteTestCreateDatabaseFile();
@@ -4035,15 +3916,5 @@ unittest // FbConnection.createDatabase
         connection.createDatabase(ci);
         connection.close();
         deleteTestCreateDatabaseFile();
-    }
-}
-
-unittest // Turn off trace log if requested - must be last unittest one
-{
-    version (TraceFunctionFBDatabase)
-    {
-        import pham.external.std.log.log_logger : ModuleLoggerOptions;
-        
-        ModuleLoggerOptions.removeModule(ModuleLoggerOptions.wildPackageName(__MODULE__));
     }
 }

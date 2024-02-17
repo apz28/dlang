@@ -16,7 +16,8 @@ import std.conv : to;
 import std.digest.md : md5Of;
 import std.string : representation;
 
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_pgauth_md5) import std.stdio : writeln;
+
 import pham.utl.utl_numeric_parser : cvtBytesBase16;
 import pham.db.db_auth;
 import pham.db.db_message;
@@ -42,7 +43,8 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        debug(debug_pham_db_db_pgauth_md5) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state, ", userName=", userName,
+            ", serverAuthData=", serverAuthData.dgToHex(), ")");
 
         auto status = checkAdvanceState(state);
         if (status.isError)
@@ -92,8 +94,6 @@ unittest // PgAuthMD5
 {
     import std.string : representation;
     import pham.utl.utl_object : bytesFromHexs;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgauth_md5.PgAuthMD5");
 
     auto salt = bytesFromHexs("9F170CAC");
     auto auth = new PgAuthMD5();

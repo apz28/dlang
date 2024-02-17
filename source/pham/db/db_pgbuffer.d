@@ -15,7 +15,8 @@ module pham.db.db_pgbuffer;
 import std.string : representation;
 import std.system : Endian;
 
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_pgbuffer) import std.stdio : writeln;
+
 import pham.external.dec.dec_decimal : scaleFrom, scaleTo;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.db.db_buffer;
@@ -81,7 +82,7 @@ public:
         return _reader.readChar();
     }
 
-    version (none)
+    version(none)
     pragma(inline, true)
     char[] readChars(size_t nBytes)
     {
@@ -197,7 +198,7 @@ private:
         }
         this._reader = DbValueReader!(Endian.bigEndian)(this._buffer);
 
-        version (TraceFunction) traceFunction("messageType=", _messageType, ", messageLength=", _messageLength);
+        debug(debug_pham_db_db_pgbuffer) debug writeln(__FUNCTION__, "(messageType=", _messageType, ", messageLength=", _messageLength, ")");
     }
 
 private:
@@ -246,7 +247,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction(traceString(messageCode));
+        debug(debug_pham_db_db_pgbuffer) debug writeln(__FUNCTION__, "(messageCode=", traceString(messageCode), ")");
 
         if (messageCode != '\0')
             _writer.writeChar(messageCode);
@@ -281,7 +282,7 @@ public:
 
     void flush()
     {
-        version (TraceFunction) traceFunction("_buffer.length=", _buffer.length);
+        debug(debug_pham_db_db_pgbuffer) debug writeln(__FUNCTION__, "(_buffer.length=", _buffer.length, ")");
 
         writeMessageLength();
         _buffer.flush();
@@ -293,7 +294,7 @@ public:
         return _buffer.peekBytes();
     }
 
-    version (TraceFunction)
+    debug(debug_pham_db_db_pgbuffer)
     string traceString(char messageCode) const nothrow pure @trusted
     {
         import std.conv : to;
@@ -369,7 +370,7 @@ public:
     }
 
 private:
-    version (unittest)
+    version(unittest)
     this(ubyte[] dummy)
     {
         this._connection = null;
@@ -386,7 +387,7 @@ private:
             // Package length includes the length itself but exclude the package code
             const len = _buffer.length - _reserveLenghtOffset;
 
-            version (TraceFunction) traceFunction("_reserveLenghtOffset=", _reserveLenghtOffset, ", len=", len);
+            debug(debug_pham_db_db_pgbuffer) debug writeln(__FUNCTION__, "(_reserveLenghtOffset=", _reserveLenghtOffset, ", len=", len, ")");
 
             _writer.rewriteInt32(cast(int32)len, _reserveLenghtOffset);
             _reserveLenghtOffset = -1; // Reset after done written the length
@@ -430,7 +431,7 @@ public:
         return _reader.readBool();
     }
 
-    version (none)
+    version(none)
     ubyte[] readBytes()
     {
         const len = readInt32();
@@ -443,7 +444,7 @@ public:
         return _reader.readBytes(nBytes);
     }
 
-    version (none)
+    version(none)
     char[] readChars() @trusted // @trusted=cast()
     {
         const len = readInt32();
@@ -655,7 +656,7 @@ public:
     }
 
 private:
-    version (unittest)
+    version(unittest)
     this(ubyte[] data)
     {
         this._connection = null;
@@ -915,7 +916,7 @@ public:
     }
 
 private:
-    version (unittest)
+    version(unittest)
     this(ubyte[] dummy)
     {
         this._connection = null;
@@ -925,7 +926,7 @@ private:
 
     size_t markBegin() nothrow
     {
-        version (TraceFunction) traceFunction("_buffer.offset=", _buffer.offset);
+        debug(debug_pham_db_db_pgbuffer) debug writeln(__FUNCTION__, "(_buffer.offset=", _buffer.offset, ")");
 
         auto result = _buffer.offset;
         _writer.writeInt32(0);
@@ -936,8 +937,8 @@ private:
     {
         // Value length excludes its length
         const len = _buffer.offset - marker - int32.sizeof;
-        version (TraceFunction) traceFunction("marker=", marker, ", len=", len);
-        _writer.rewriteInt32(cast(int32)(len), marker);
+        debug(debug_pham_db_db_pgbuffer) debug writeln(__FUNCTION__, "(marker=", marker, ", len=", len, ")");
+        _writer.rewriteInt32(cast(int32)len, marker);
     }
 
 private:
@@ -948,9 +949,6 @@ private:
 
 unittest // PgXdrReader & PgXdrWriter
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgbuffer.PgXdrReader & db.fbbuffer.PgXdrWriter");
-
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
     const(ubyte)[] bytes = [1,2,5,101];
     const(UUID) uuid = UUID(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15);

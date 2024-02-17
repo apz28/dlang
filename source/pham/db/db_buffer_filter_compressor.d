@@ -11,7 +11,8 @@
 
 module pham.db.db_buffer_filter_compressor;
 
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_buffer_filter_compressor) import std.stdio : writeln;
+
 import pham.utl.utl_object : alignRoundup;
 import pham.db.db_buffer_filter;
 
@@ -77,7 +78,7 @@ public:
             errorMessage = codec.errorMessage.length != 0 ? codec.errorMessage : ZlibException.codeMessage(errorNumber);
             codec.resetBuffers(null, null);
 
-            version (TraceFunction) traceFunction("errorNumber=", errorNumber, ", errorMessage=", errorMessage);
+            debug(debug_pham_db_db_buffer_filter_compressor) debug writeln(__FUNCTION__, "(errorNumber=", errorNumber, ", errorMessage=", errorMessage, ")");
 
             return false;
         }
@@ -170,8 +171,6 @@ private:
 unittest // DbBufferFilterCompressorZip
 {
     import std.string : representation;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.buffer_filter_compressor.DbBufferFilterCompressorZip");
 
 	auto compress = new DbBufferFilterCompressorZip!(DbBufferFilterKind.write)();
 	auto uncompress = new DbBufferFilterCompressorZip!(DbBufferFilterKind.read)();

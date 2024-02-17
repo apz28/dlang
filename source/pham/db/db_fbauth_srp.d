@@ -16,7 +16,8 @@ import std.conv : to;
 import std.string : representation;
 import std.typecons : Flag, No, Yes;
 
-version (TraceFunction) import pham.utl.utl_test;
+debug(debug_pham_db_db_fbauth_srp) import std.stdio : writeln;
+
 import pham.utl.utl_big_integer;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
@@ -55,7 +56,7 @@ public:
     final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        debug(debug_pham_db_db_fbauth_srp) debug writeln(__FUNCTION__, "(userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
 
         auto status = parseServerAuthData(serverAuthData);
         if (status.isError)
@@ -75,7 +76,8 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        debug(debug_pham_db_db_fbauth_srp) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state, ", userName=", userName,
+            ", serverAuthData=", serverAuthData.dgToHex(), ")");
 
         auto status = checkAdvanceState(state);
         if (status.isError)
@@ -140,12 +142,12 @@ public:
     }
 
 protected:
-    version (unittest)
+    version(unittest)
     this(DigestId digestId, DigestId proofDigestId, BigInteger ephemeralPrivate)
     {
         this._authClient = new AuthClient(AuthParameters(digestId, proofDigestId, fbPrime), CipherKey.digitsToBigInteger(K), ephemeralPrivate);
 
-        version (TraceFunction) traceFunction(this._authClient.traceString());
+        debug(debug_pham_db_db_fbauth_srp) debug writeln(__FUNCTION__, "(_authClient=", this._authClient.traceString(), ")");
     }
 
     final ubyte[] calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
@@ -170,9 +172,7 @@ protected:
             .digest(K)
             .finish(hashTemp).dup;
 
-        version (TraceFunction)
-        {
-		    traceFunction("userName=", userName,
+        debug(debug_pham_db_db_fbauth_srp) debug writeln(__FUNCTION__, "(userName=", userName,
                 ", salt=", salt.dgToHex(),
                 ", serverPublicKey=", serverPublicKey.toString(),
                 ", _premasterKey=", _premasterKey.toString(),
@@ -181,8 +181,7 @@ protected:
 		        ", _authClient.ephemeralPrivate=", _authClient.ephemeralPrivate.toString(),
 		        ", _authClient.ephemeralPublic=", _authClient.ephemeralPublic.toString(),
                 ", K=", K,
-                ", M=", M);
-        }
+                ", M=", M, ")");
 
         return M;
     }
@@ -227,7 +226,7 @@ public:
     }
 
 protected:
-    version (unittest)
+    version(unittest)
     this(BigInteger ephemeralPrivate)
     {
         super(DigestId.sha1, DigestId.sha1, ephemeralPrivate);
@@ -250,7 +249,7 @@ public:
     }
 
 protected:
-    version (unittest)
+    version(unittest)
     this(BigInteger ephemeralPrivate)
     {
         super(DigestId.sha1, DigestId.sha256, ephemeralPrivate);
@@ -273,7 +272,7 @@ public:
     }
 
 protected:
-    version (unittest)
+    version(unittest)
     this(BigInteger ephemeralPrivate)
     {
         super(DigestId.sha1, DigestId.sha384, ephemeralPrivate);
@@ -296,7 +295,7 @@ public:
     }
 
 protected:
-    version (unittest)
+    version(unittest)
     this(BigInteger ephemeralPrivate)
     {
         super(DigestId.sha1, DigestId.sha512, ephemeralPrivate);
@@ -351,19 +350,15 @@ shared static this() nothrow @safe
 
 nothrow @safe unittest // PrimeGroup
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbauth_srp.PrimeGroup");
-
     assert(fbPrime.N.toString() == FbAuthSrp.N);
     assert(fbPrime.g.toString() == "2");
     assert(fbPrime.paddingSize == FbAuthSrp.keyLength);
 }
 
-version (unittest)
+version(unittest)
 {
     import std.string : representation;
     import std.conv : to;
-    import pham.utl.utl_test;
 
     auto testUserName = "SYSDBA";
     auto testUserPassword = "masterkey";
@@ -401,9 +396,6 @@ version (unittest)
 
 nothrow @safe unittest // FbAuthSrpSHA1
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbauth_srp.FbAuthSrpSHA1");
-
     testCheckSHA1(
         /*digitPrivateKey*/ "264905762513559650080771073972109248903",
         /*digitExpectedPublicKey*/ "20683020699665853524089952214242729025570102331355286896164651135690756690875771106556553465927252488139803212504773984793490588986767319872337272030442815731428721361389194577481083428832457789266753718602245677204767791176476438551576288962556819987630078684529566279195237212923198916151796921004472200100",

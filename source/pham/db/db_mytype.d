@@ -11,7 +11,8 @@
 
 module pham.db.db_mytype;
 
-version (TraceFunction) import pham.utl.utl_test;
+debug(debug_pham_db_db_mytype) import std.stdio : writeln;
+
 import pham.utl.utl_array : ShortStringBuffer;
 import pham.utl.utl_bit : Map32Bit;
 import pham.utl.utl_enum_set : toName;
@@ -298,7 +299,7 @@ public:
                 precision--;
         }
 
-        version (none) //We do not support unsigned
+        version(none) //We do not support unsigned
         if (isUnsigned)
         {
             switch (typeId) with (MyTypeId)
@@ -387,7 +388,7 @@ public:
         return decimalType;
     }
 
-    version (TraceFunction)
+    debug(debug_pham_db_db_mytype)
     string traceString() const nothrow @trusted
     {
         import std.conv : to;

@@ -11,9 +11,10 @@
 
 module pham.db.db_myauth_sspi;
 
-version (Windows):
+version(Windows):
 
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_myauth_sspi) import std.stdio : writeln;
+
 import pham.external.std.windows.sspi_ex : RequestSecClient, RequestSecResult;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.db.db_auth;
@@ -53,7 +54,7 @@ public:
     final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        debug(debug_pham_db_db_myauth_sspi) debug writeln(__FUNCTION__, "(userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
 
         ubyte[] result;
         RequestSecResult errorStatus;
@@ -66,7 +67,8 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        debug(debug_pham_db_db_myauth_sspi) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state, ", userName=", userName,
+            ", serverAuthData=", serverAuthData.dgToHex(), ")");
 
         auto status = checkAdvanceState(state);
         if (status.isError)

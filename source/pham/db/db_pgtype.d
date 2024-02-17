@@ -16,7 +16,8 @@ import std.algorithm : startsWith;
 import std.array : split;
 import std.conv : to;
 
-version (TraceFunction) import pham.utl.utl_test;
+debug(debug_pham_db_db_pgtype) import std.stdio : writeln;
+
 import pham.cp.cp_cipher : CipherHelper;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_enum_set : toName;
@@ -176,8 +177,6 @@ public:
 
     string errorString() const
     {
-        version (TraceFunction) traceFunction();
-
         auto result = sqlSeverity ~ ' ' ~ sqlState ~ ": " ~ sqlMessage;
 
         auto s = detailMessage;
@@ -404,7 +403,7 @@ public:
         return DbFieldIdType.no; //oIdType == PgOIdType.oid;
     }
 
-    version (TraceFunction)
+    debug(debug_pham_db_db_pgtype)
     string traceString() const nothrow @trusted
     {
         import std.conv : to;
@@ -576,7 +575,7 @@ public:
         this.sign = cast(int16)value;
     }
 
-    version (TraceFunction)
+    debug(debug_pham_db_db_pgtype)
     string traceString() const nothrow scope @trusted
     {
         import std.conv : to;
@@ -615,24 +614,26 @@ nothrow @safe:
 public:
     this(scope const(char)[] signature) pure
     {
-        version (TraceFunction) traceFunction("signature=", signature);
+        debug(debug_pham_db_db_pgtype) debug writeln(__FUNCTION__, "(signature=", signature, ")");
 
         this.signature = signature.dup;
     }
 
     this(scope const(ubyte)[] payload) pure @trusted
     {
+        debug(debug_pham_db_db_pgtype) debug writeln(__FUNCTION__, "(payload=", payload, ")");
+
         foreach (scope part; (cast(string)payload).split(","))
         {
             if (part.startsWith("v="))
                 this.signature = part[2..$].dup;
             else
             {
-                version (TraceFunction) traceFunction("Unknown part: ", part);
+                debug(debug_pham_db_db_pgtype) debug writeln("\t", "Unknown part=", part);
             }
         }
 
-        version (TraceFunction) traceFunction("signature=", signature);
+        debug(debug_pham_db_db_pgtype) debug writeln("\t", "signature=", signature);
     }
 
     ~this() pure
@@ -657,7 +658,7 @@ nothrow @safe:
 public:
     this(scope const(char)[] nonce, scope const(char)[] salt, int32 iteration) pure
     {
-        version (TraceFunction) traceFunction("nonce=", nonce, ", salt=", salt, ", iteration=", iteration);
+        debug(debug_pham_db_db_pgtype) debug writeln(__FUNCTION__, "(nonce=", nonce, ", salt=", salt, ", iteration=", iteration, ")");
 
         this.nonce = nonce.dup;
         this.salt = salt.dup;
@@ -666,6 +667,8 @@ public:
 
     this(scope const(ubyte)[] payload) pure @trusted
     {
+        debug(debug_pham_db_db_pgtype) debug writeln(__FUNCTION__, "(payload=", payload, ")");
+        
         foreach (scope part; (cast(string)payload).split(","))
         {
             if (part.startsWith("r="))
@@ -676,11 +679,11 @@ public:
                 this._iteration = toIntegerSafe!int32(part[2..$], -1);
             else
             {
-                version (TraceFunction) traceFunction("Unknown part: ", part);
+                debug(debug_pham_db_db_pgtype) debug writeln("\t", "Unknown part=", part);
             }
         }
 
-        version (TraceFunction) traceFunction("nonce=", nonce, ", salt=", salt, ", _iteration=", _iteration);
+        debug(debug_pham_db_db_pgtype) debug writeln("\t", "nonce=", nonce, ", salt=", salt, ", _iteration=", _iteration);
     }
 
     ~this() pure
@@ -992,9 +995,6 @@ shared static this() nothrow @safe
 
 unittest // canSendParameter
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgtype.canSendParameter");
-
     string mappedName;
     assert(canSendParameter(DbConnectionParameterIdentifier.userPassword, mappedName) == CanSendParameter.no);
     /*
@@ -1005,12 +1005,11 @@ unittest // canSendParameter
 
 unittest // PgOIdScramSHA256FirstMessage
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgtype.PgOIdScramSHA256FirstMessage");
-
-    auto r = PgOIdScramSHA256FirstMessage(dgFromHex("723D307131356635454831642F682F313258634E4F485A2B3731524F4149563643492F322B35786344516B56534E317A6E6C2C733D456E5261337A47685830462F464A62616279685655513D3D2C693D34303936"));
+    import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+    
+    auto r = PgOIdScramSHA256FirstMessage(bytesFromHexs("723D307131356635454831642F682F313258634E4F485A2B3731524F4149563643492F322B35786344516B56534E317A6E6C2C733D456E5261337A47685830462F464A62616279685655513D3D2C693D34303936"));
     assert(r.iteration == 4096);
     assert(r.nonce == "0q15f5EH1d/h/12XcNOHZ+71ROAIV6CI/2+5xcDQkVSN1znl");
     assert(r.salt == "EnRa3zGhX0F/FJbabyhVUQ==");
-    assert(r.getSalt() == dgFromHex("12745ADF31A15F417F1496DA6F285551"), r.getSalt().dgToHex());
+    assert(r.getSalt() == bytesFromHexs("12745ADF31A15F417F1496DA6F285551"), r.getSalt().bytesToHexs());
 }

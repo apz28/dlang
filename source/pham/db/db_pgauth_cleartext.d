@@ -14,7 +14,8 @@ module pham.db.db_pgauth_cleartext;
 import std.conv : to;
 import std.string : representation;
 
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_pgauth_cleartext) import std.stdio : writeln;
+
 import pham.db.db_auth;
 import pham.db.db_message;
 import pham.db.db_type : DbScheme;
@@ -31,7 +32,8 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        debug(debug_pham_db_db_pgauth_cleartext) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state,
+            ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
 
         auto status = checkAdvanceState(state);
         if (status.isError)

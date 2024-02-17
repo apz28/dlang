@@ -15,9 +15,10 @@ import std.array : Appender;
 import std.conv : text, to;
 import std.system : Endian;
 
-version (profile) import pham.utl.utl_test : PerfFunction;
-version (unittest) import pham.utl.utl_test;
-import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
+debug(debug_pham_db_db_mydatabase) import std.stdio : writeln;
+
+version(profile) import pham.utl.utl_test : PerfFunction;
+import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_enum_set;
 import pham.utl.utl_object : VersionString;
@@ -58,7 +59,7 @@ public:
 
     final override const(char)[] getExecutionPlan(uint vendorMode) @safe
 	{
-        version (TraceFunction) traceFunction("vendorMode=", vendorMode);
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(vendorMode=", vendorMode, ")");
 
         if (auto log = canTraceLog())
             log.infof("%s.command.getExecutionPlan(vendorMode=%d)%s%s", forLogInfo(), vendorMode, newline, commandText);
@@ -135,7 +136,7 @@ public:
 protected:
     override string buildStoredProcedureSql(string storedProcedureName, const(BuildCommandTextState) state) @safe
     {
-        version (TraceFunction) traceFunction("storedProcedureName=", storedProcedureName, ", state=", state);
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ", state=", state, ")");
 
         if (storedProcedureName.length == 0)
             return null;
@@ -221,14 +222,14 @@ protected:
             }
         }
 
-        version (TraceFunction) traceFunction("storedProcedureName=", storedProcedureName, ", result=", result.data);
+        debug(debug_pham_db_db_mydatabase) debug writeln("\t", "storedProcedureName=", storedProcedureName, ", result=", result.data);
 
         return result.data;
     }
 
     final void deallocateHandle() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
 
         scope (exit)
             _handle.reset();
@@ -240,25 +241,25 @@ protected:
         }
         catch (Exception e)
         {
-            if (auto log = logger)
-                log.errorf("%s.deallocateHandle() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
+            if (auto log = canErrorLog())
+                log.errorf("%s.command.deallocateHandle() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
         }
     }
 
     final override void doExecuteCommand(const(DbCommandExecuteType) type) @safe
     {
-        version (TraceFunction) traceFunction("type=", type);
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(type=", type, ")");
+        version(profile) debug auto p = PerfFunction.create();
 
         if (!prepared && hasParameters && parametersCheck)
             prepare();
 
+        auto logTimming = canTimeLog() !is null
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
+            : LogTimming.init;
+
         prepareExecuting(type);
         const lPrepared = prepared;
-
-        auto logTimming = logger !is null
-            ? LogTimming(logger, text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
-            : LogTimming.init;
 
         auto protocol = myConnection.protocol;
         if (lPrepared)
@@ -301,8 +302,12 @@ protected:
     }
     do
     {
-        version (TraceFunction) traceFunction("isScalar=", isScalar);
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ")");
+        version(profile) debug auto p = PerfFunction.create();
+
+        auto logTimming = canTimeLog() !is null
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doFetch()", newline, _executeCommandText), false, logTimmingWarningDur)
+            : LogTimming.init;
 
         auto protocol = myConnection.protocol;
         uint continueFetchingCount = fetchRecordCount;
@@ -311,7 +316,7 @@ protected:
             MyReader rowPackage;
             if (!protocol.readRow(rowPackage))
             {
-                version (TraceFunction) traceFunction("allRowsFetched=true");
+                debug(debug_pham_db_db_mydatabase) debug writeln("\t", "allRowsFetched=true");
                 allRowsFetched = true;
                 break;
             }
@@ -324,13 +329,13 @@ protected:
 
     final override void doPrepare() @safe
     {
-        version (TraceFunction) traceFunction();
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
+        version(profile) debug auto p = PerfFunction.create();
 
         auto sql = executeCommandText(BuildCommandTextState.prepare);
 
-        auto logTimming = logger !is null
-            ? LogTimming(logger, text(forLogInfo(), ".doPrepare()", newline, sql), false, logTimmingWarningDur)
+        auto logTimming = canTimeLog() !is null
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doPrepare()", newline, sql), false, logTimmingWarningDur)
             : LogTimming.init;
 
         auto protocol = myConnection.protocol;
@@ -342,7 +347,7 @@ protected:
 
     final override void doUnprepare() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
 
         purgePendingRows();
 
@@ -357,7 +362,7 @@ protected:
 
     static void fillNamedColumn(DbNameColumn column, const ref MyFieldInfo myField, const(bool) isNew) nothrow @safe
     {
-        version (TraceFunction) traceFunction(myField.traceString());
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(myField=", myField.traceString(), ")");
 
         column.baseName = myField.useName();
         column.baseNumericScale = myField.scale;
@@ -383,7 +388,8 @@ protected:
 
     final void processExecuteResponse(ref MyCommandResultResponse response, const(int) counter) @safe
     {
-        version (TraceFunction) traceFunction("response.okResponse.lastInsertId=", response.okResponse.lastInsertId, ", response.okResponse.affectedRows=", response.okResponse.affectedRows, ", response.fields.length=", response.fields.length);
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(response.okResponse.lastInsertId=", response.okResponse.lastInsertId,
+            ", response.okResponse.affectedRows=", response.okResponse.affectedRows, ", response.fields.length=", response.fields.length, ")");
 
         if (counter == 1)
         {
@@ -420,7 +426,7 @@ protected:
 
     final void processPrepareResponse(ref MyCommandPreparedResponse response) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
 
         if (response.parameters.length != 0)
         {
@@ -476,7 +482,7 @@ protected:
 
     final void purgePendingRows() nothrow @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
 
         if (!isSelectCommandType || allRowsFetched)
             return;
@@ -489,15 +495,15 @@ protected:
         }
         catch (Exception e)
         {
-            if (auto log = logger)
-                log.errorf("%s.purgePendingRows() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
+            if (auto log = canErrorLog())
+                log.errorf("%s.command.purgePendingRows() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
         }
     }
 
     final DbRowValue readRow(ref MyReader rowPackage, const(bool) isScalar) @safe
     {
-        version (TraceFunction) traceFunction("isScalar=", isScalar);
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ")");
+        version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = myConnection.protocol;
         return protocol.readValues(rowPackage, this, myFields);
@@ -505,7 +511,7 @@ protected:
 
     override void removeReaderCompleted(const(bool) implicitTransaction) nothrow @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
 
         purgePendingRows();
         super.removeReaderCompleted(implicitTransaction);
@@ -680,7 +686,7 @@ protected:
 
     final void disposePackageReadBuffers(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         while (!_packageReadBuffers.empty)
             _packageReadBuffers.remove(_packageReadBuffers.last).dispose(disposingReason);
@@ -688,7 +694,7 @@ protected:
 
     final void disposeProtocol(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         if (_protocol !is null)
         {
@@ -699,7 +705,7 @@ protected:
 
     final override void doCancelCommand(DbCancelCommandData data) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
 
         auto myData = cast(MyCancelCommandData)data;
         auto cancelCommandText = "KILL QUERY " ~ myData.serverProcessId.to!string();
@@ -717,7 +723,7 @@ protected:
 
     final override void doClose(bool failedOpen) @safe
     {
-        version (TraceFunction) traceFunction("failedOpen=", failedOpen, ", socketActive=", socketActive);
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(failedOpen=", failedOpen, ", socketActive=", socketActive, ")");
 
         scope (exit)
             disposeProtocol(DisposingReason.other);
@@ -729,8 +735,8 @@ protected:
         }
         catch (Exception e)
         {
-            if (auto log = logger)
-                log.errorf("%s.doClose() - %s", forLogInfo(), e.msg, e);
+            if (auto log = canErrorLog())
+                log.errorf("%s.connection.doClose() - %s", forLogInfo(), e.msg, e);
         }
 
         super.doClose(failedOpen);
@@ -738,7 +744,7 @@ protected:
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         super.doDispose(disposingReason);
         disposePackageReadBuffers(disposingReason);
@@ -747,7 +753,7 @@ protected:
 
     final override void doOpen() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
 
         MyConnectingStateInfo stateInfo;
 
@@ -758,7 +764,7 @@ protected:
 
     final void doOpenAuthentication(ref MyConnectingStateInfo stateInfo) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
 
         _protocol = new MyProtocol(this);
         _protocol.connectGreetingRead(stateInfo);
@@ -769,7 +775,7 @@ protected:
     final override string getServerVersion() @safe
     {
         // Use this command "SHOW VARIABLES LIKE 'version'" or "SHOW VARIABLES LIKE '%version%'"
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
 
         auto command = createNonTransactionCommand();
         scope (exit)
@@ -793,7 +799,8 @@ protected:
     do
     {
         //TODO cache this result
-        version (TraceFunction) traceFunction("storedProcedureName=", storedProcedureName);
+        
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ")");
 
         auto command = createNonTransactionCommand();
         scope (exit)
@@ -1277,21 +1284,21 @@ protected:
 
     final override void doCommit(bool disposing) @safe
     {
-        version (TraceFunction) traceFunction("disposing=", disposing);
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(disposing=", disposing, ")");
 
         transactionCommand("COMMIT");
     }
 
     final override void doRollback(bool disposing) @safe
     {
-        version (TraceFunction) traceFunction("disposing=", disposing);
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(disposing=", disposing, ")");
 
         transactionCommand("ROLLBACK");
     }
 
     final override void doStart() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
 
         auto tmText = _transactionCommandText.length != 0
             ? _transactionCommandText
@@ -1303,7 +1310,7 @@ protected:
 
     final void transactionCommand(string tmText) @safe
     {
-        version (TraceFunction) traceFunction("tmText=", tmText);
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(tmText=", tmText, ")");
 
         auto command = myConnection.createNonTransactionCommand();
         scope (exit)
@@ -1323,18 +1330,11 @@ private:
 
 shared static this() nothrow @safe
 {
-    version (TraceFunctionMYDatabase) ModuleLoggerOptions.setModule(ModuleLoggerOption(__MODULE__, LogLevel.trace));
-
     auto db = new MyDatabase();
     DbDatabaseList.registerDb(db);
 }
 
-unittest // Turn on trace log if requested - must be first unittest one
-{
-    version (TraceFunctionMYDatabase) ModuleLoggerOptions.setModule(ModuleLoggerOption(ModuleLoggerOptions.wildPackageName(__MODULE__), LogLevel.trace));
-}
-
-version (UnitTestMYDatabase)
+version(UnitTestMYDatabase)
 {
     MyConnection createTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
@@ -1424,12 +1424,9 @@ WHERE INT_FIELD = @INT_FIELD
     // CREATE USER 'sha256user'@'localhost' IDENTIFIED WITH sha256_password BY 'password';
 }
 
-version (UnitTestMYDatabase)
+version(UnitTestMYDatabase)
 unittest // MyConnection
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.mydatabase.MyConnection");
-
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -1442,12 +1439,9 @@ unittest // MyConnection
     assert(connection.state == DbConnectionState.closed);
 }
 
-version (UnitTestMYDatabase)
+version(UnitTestMYDatabase)
 unittest // MyConnection(myAuthSha2Caching)
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.mydatabase.MyConnection(myAuthSha2Caching)");
-
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -1472,12 +1466,9 @@ unittest // MyConnection(myAuthSha2Caching)
     assert(connection.state == DbConnectionState.closed);
 }
 
-version (UnitTestMYDatabase)
+version(UnitTestMYDatabase)
 unittest // MyTransaction
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.mydatabase.MyTransaction");
-
     auto connection = createTestConnection();
     scope (exit)
     {
@@ -1510,21 +1501,13 @@ unittest // MyTransaction
     transaction.rollback();
 }
 
-version (UnitTestMYDatabase)
+version(UnitTestMYDatabase)
 unittest // MyCommand.DDL
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.mydatabase.MyCommand.DDL");
-
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     auto command = connection.createCommand();
@@ -1540,22 +1523,15 @@ unittest // MyCommand.DDL
     failed = false;
 }
 
-version (UnitTestMYDatabase)
-unittest // MyCommand.DML
+version(UnitTestMYDatabase)
+unittest // MyCommand.DML - Simple select
 {
     import std.math;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML - Simple select");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     auto command = connection.createCommand();
@@ -1572,7 +1548,7 @@ unittest // MyCommand.DML
     while (reader.read())
     {
         count++;
-        traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML.checking - count: ", count);
+        debug(debug_pham_db_db_mydatabase) debug writeln("unittest pham.db.mydatabase.MyCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -1621,22 +1597,15 @@ unittest // MyCommand.DML
     failed = false;
 }
 
-version (UnitTestMYDatabase)
-unittest // MyCommand.DML
+version(UnitTestMYDatabase)
+unittest // MyCommand.DML - Parameter select
 {
     import std.math;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML - Parameter select");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     auto command = connection.createCommand();
@@ -1660,7 +1629,7 @@ unittest // MyCommand.DML
     while (reader.read())
     {
         count++;
-        traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML.checking - count: ", count);
+        debug(debug_pham_db_db_mydatabase) debug writeln("unittest pham.db.mydatabase.MyCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -1709,25 +1678,18 @@ unittest // MyCommand.DML
     failed = false;
 }
 
-version (UnitTestMYDatabase)
+version(UnitTestMYDatabase)
 unittest // MyCommand.DML.StoredProcedure
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML.StoredProcedure");
-
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     {
-        traceUnitTest("Get information");
+        debug(debug_pham_db_db_mydatabase) debug writeln("Get information");
+        
         auto info = connection.getStoredProcedureInfo("MULTIPLE_BY2");
         assert(info.argumentTypes.length == 2);
         assert(info.argumentTypes[0].name == "X");
@@ -1735,7 +1697,7 @@ unittest // MyCommand.DML.StoredProcedure
     }
 
     {
-        traceUnitTest("Without prepare");
+        debug(debug_pham_db_db_mydatabase) debug writeln("Without prepare");
 
         auto command = connection.createCommand();
         scope (exit)
@@ -1750,7 +1712,7 @@ unittest // MyCommand.DML.StoredProcedure
     }
 
     {
-        traceUnitTest("With prepare");
+        debug(debug_pham_db_db_mydatabase) debug writeln("With prepare");
 
         auto command = connection.createCommand();
         scope (exit)
@@ -1767,21 +1729,13 @@ unittest // MyCommand.DML.StoredProcedure
     failed = false;
 }
 
-version (UnitTestMYDatabase)
+version(UnitTestMYDatabase)
 unittest // MyCommand.DML.Abort reader
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML - Abort reader");
-
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     auto command = connection.createCommand();
@@ -1791,7 +1745,7 @@ unittest // MyCommand.DML.Abort reader
     command.commandText = "select * from foo limit 1000";
 
     {
-        traceUnitTest("Aborting case");
+        debug(debug_pham_db_db_mydatabase) debug writeln("Aborting case");
 
         auto reader = command.executeReader();
         scope (exit)
@@ -1809,7 +1763,7 @@ unittest // MyCommand.DML.Abort reader
     }
 
     {
-        traceUnitTest("Read all after abort case");
+        debug(debug_pham_db_db_mydatabase) debug writeln("Read all after abort case");
 
         auto reader = command.executeReader();
         scope (exit)
@@ -1827,12 +1781,9 @@ unittest // MyCommand.DML.Abort reader
     failed = false;
 }
 
-version (UnitTestMYDatabase)
+version(UnitTestMYDatabase)
 unittest // MyConnection(SSL)
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.mydatabase.MyConnection(SSL)");
-
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -1853,9 +1804,6 @@ unittest // MyConnection(SSL)
 
 unittest // DbDatabaseList.createConnection
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.DbDatabaseList.createConnection");
-
     auto connection = DbDatabaseList.createConnection("mysql:server=myServerAddress;database=myDataBase;" ~
         "user=myUsername;password=myPassword;role=myRole;pooling=true;connectionTimeout=100;encrypt=enabled;" ~
         "fetchRecordCount=50;integratedSecurity=legacy;");
@@ -1878,9 +1826,6 @@ unittest // DbDatabaseList.createConnection
 
 unittest // DbDatabaseList.createConnectionByURL
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.DbDatabaseList.createConnectionByURL");
-
     auto connection = DbDatabaseList.createConnectionByURL("mysql://myUsername:myPassword@myServerAddress/myDataBase?" ~
         "role=myRole&pooling=true&connectionTimeout=100&encrypt=enabled&" ~
         "fetchRecordCount=50&integratedSecurity=legacy");
@@ -1901,7 +1846,7 @@ unittest // DbDatabaseList.createConnectionByURL
     assert(connectionString.integratedSecurity == DbIntegratedSecurityConnection.legacy);
 }
 
-version (UnitTestPerfMYDatabase)
+version(UnitTestPerfMYDatabase)
 {
     import pham.utl.utl_test : PerfTestResult;
 
@@ -1952,7 +1897,7 @@ version (UnitTestPerfMYDatabase)
 
             void readData(ref DbReader reader)
             {
-                version (all)
+                version(all)
                 {
                     Foo1 = reader.getValue!int64(0); //foo1 BIGINT NOT NULL,
                     Foo2 = reader.getValue!int64(1); //foo2 BIGINT NOT NULL,
@@ -1998,13 +1943,7 @@ version (UnitTestPerfMYDatabase)
         bool failed = true;
         auto connection = createTestConnection();
         scope (exit)
-        {
-            version (unittest)
-            if (failed)
-                traceUnitTest("failed - exiting and closing connection");
-
             connection.dispose();
-        }
         connection.open();
 
         auto command = connection.createCommand();
@@ -2017,14 +1956,14 @@ version (UnitTestPerfMYDatabase)
         scope (exit)
             reader.dispose();
 
-        version (UnitTestMYCollectData) auto datas = new Data[](maxRecordCount);
+        version(UnitTestMYCollectData) auto datas = new Data[](maxRecordCount);
         else Data data;
         assert(reader.hasRows());
 
         auto result = PerfTestResult.create();
         while (result.count < maxRecordCount && reader.read())
         {
-            version (UnitTestMYCollectData) datas[result.count++] = Data(reader);
+            version(UnitTestMYCollectData) datas[result.count++] = Data(reader);
             else { data.readData(reader); result.count++; }
         }
         result.end();
@@ -2034,23 +1973,11 @@ version (UnitTestPerfMYDatabase)
     }
 }
 
-version (UnitTestPerfMYDatabase)
+version(UnitTestPerfMYDatabase)
 unittest // MyCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953
 {
     import std.format : format;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.mydatabase.MyCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
 
     const perfResult = unitTestPerfMYDatabase();
     dgWriteln("MY-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
-}
-
-unittest // Turn off trace log if requested - must be last unittest one
-{
-    version (TraceFunctionMYDatabase)
-    {
-        import pham.external.std.log.log_logger : ModuleLoggerOptions;
-        
-        ModuleLoggerOptions.removeModule(ModuleLoggerOptions.wildPackageName(__MODULE__));
-    }
 }

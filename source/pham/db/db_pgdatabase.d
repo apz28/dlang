@@ -15,9 +15,10 @@ import std.array : Appender;
 import std.conv : text, to;
 import std.system : Endian;
 
-version (profile) import pham.utl.utl_test : PerfFunction;
-version (unittest) import pham.utl.utl_test;
-import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming, ModuleLoggerOption, ModuleLoggerOptions;
+debug(debug_pham_db_db_pgdatabase) import std.stdio : writeln;
+
+version(profile) import pham.utl.utl_test : PerfFunction;
+import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_object : VersionString;
 import pham.db.db_buffer;
@@ -43,8 +44,8 @@ public:
 
     enum OpenMode : int32
     {
-        write = 0x00020000,
-        read  = 0x00040000,
+        write = 0x0002_0000,
+        read  = 0x0004_0000,
         readWrite = read | write
     }
 
@@ -92,6 +93,12 @@ public:
         return this;
     }
 
+    pragma(inline, true)
+    final Logger canErrorLog() nothrow @safe
+    {
+        return _connection !is null ? _connection.canErrorLog() : null;
+    }
+
     void close() @safe
     in
     {
@@ -100,7 +107,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         doClose(DisposingReason.other);
     }
@@ -113,18 +120,23 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         _id = pgConnection.largeBlobManager.createPreferred(preferredId);
     }
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         doClose(disposingReason);
         if (isDisposing(disposingReason))
             _connection = null;
+    }
+
+    string forLogInfo() const nothrow @safe
+    {
+        return _connection !is null ? _connection.forLogInfo() : null;
     }
 
     int64 length() @safe
@@ -135,7 +147,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         if (_length < 0)
         {
@@ -154,7 +166,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         this._mode = mode;
         this._descriptorId = pgConnection.largeBlobManager.open(pgId, mode);
@@ -167,7 +179,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         open(OpenMode.read);
         scope (exit)
@@ -195,7 +207,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         if (!_id.isValid())
             create();
@@ -214,7 +226,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         size_t result = 0;
         while (result < data.length)
@@ -239,7 +251,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         if (isOpen)
             close();
@@ -256,7 +268,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         _length = -1; // Need to reset the length
         size_t result = 0;
@@ -325,7 +337,7 @@ public:
 package(pham.db):
     void doClose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         scope (exit)
         {
@@ -351,8 +363,8 @@ package(pham.db):
         }
         catch (Exception e)
         {
-            if (auto log = logger)
-                log.errorf("%s.doClose() - %s", e.msg, e);
+            if (auto log = canErrorLog())
+                log.errorf("%s.blob.doClose() - %s", forLogInfo(), e.msg, e);
         }
     }
 
@@ -371,7 +383,7 @@ package(pham.db):
 
     int64 seek(int64 offset, SeekOrigin origin) @safe
     {
-        version (TraceFunction) traceFunction("offset=", offset, ", origin=", origin);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(offset=", offset, ", origin=", origin, ")");
 
         return pgConnection.largeBlobManager.seek(pgDescriptorId, offset, origin);
     }
@@ -396,33 +408,35 @@ public:
     }
     do
     {
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
+
         this._connection = connection;
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWritefln("PgLargeBlobManager(create)%s", cast(void*)_connection); }
     }
 
     ~this() @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWritefln("PgLargeBlobManager(destroy)%s", cast(void*)_connection); }
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
+
         dispose(DisposingReason.destructor);
     }
 
     void close() nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         doClose(DisposingReason.other);
     }
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         doClose(disposingReason);
     }
 
     int32 close(PgDescriptorId descriptorId) @safe
     {
-        version (TraceFunction) traceFunction("descriptorId=", descriptorId);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(descriptorId=", descriptorId, ")");
 
         if (!_close)
             _close = createFunction("lo_close", [Argument("descriptorId", PgOIdType.int4)]);
@@ -432,7 +446,7 @@ public:
 
     PgOId createNew() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         if (!_createNew)
             _createNew = createFunction("lo_creat", [Argument("blobId", PgOIdType.int4)]);
@@ -442,7 +456,7 @@ public:
 
     PgOId createPreferred(PgOId preferredId) @safe
     {
-        version (TraceFunction) traceFunction("preferredId=", preferredId);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(preferredId=", preferredId, ")");
 
         if (!_createPreferred)
             _createPreferred = createFunction("lo_create", [Argument("blobId", PgOIdType.oid)]);
@@ -452,7 +466,7 @@ public:
 
     PgDescriptorId open(PgOId blobId, int32 mode) @safe
     {
-        version (TraceFunction) traceFunction("blobId=", blobId, ", mode=", mode);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(blobId=", blobId, ", mode=", mode, ")");
 
         if (!_open)
             _open = createFunction("lo_open", [Argument("blobId", PgOIdType.oid), Argument("mode", PgOIdType.int4)]);
@@ -463,7 +477,7 @@ public:
 
     ubyte[] read(PgDescriptorId descriptorId, int32 nBytes) @safe
     {
-        version (TraceFunction) traceFunction("descriptorId=", descriptorId, ", nBytes=", nBytes);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(descriptorId=", descriptorId, ", nBytes=", nBytes, ")");
 
         if (!_read)
             _read = createFunction("loread", [Argument("descriptorId", PgOIdType.int4), Argument("nBytes", PgOIdType.int4)]);
@@ -475,7 +489,7 @@ public:
 
     int64 seek(PgDescriptorId descriptorId, int64 offset, int32 origin) @safe
     {
-        version (TraceFunction) traceFunction("descriptorId=", descriptorId, ", offset=", offset, ", origin=", origin);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(descriptorId=", descriptorId, ", offset=", offset, ", origin=", origin, ")");
 
         if (!_seek)
             _seek = createFunction("lo_lseek64", [Argument("descriptorId", PgOIdType.int4), Argument("offset", PgOIdType.int8), Argument("origin", PgOIdType.int4)]);
@@ -487,7 +501,7 @@ public:
 
     int32 write(PgDescriptorId descriptorId, scope const(ubyte)[] bytes) @safe
     {
-        version (TraceFunction) traceFunction("descriptorId=", descriptorId);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(descriptorId=", descriptorId, ")");
 
         if (!_write)
             _write = createFunction("lowrite", [Argument("descriptorId", PgOIdType.int4), Argument("bytes", PgOIdType.bytea)]);
@@ -498,7 +512,7 @@ public:
 
     int32 unlink(PgOId blobId) @safe
     {
-        version (TraceFunction) traceFunction("blobId=", blobId);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(blobId=", blobId, ")");
 
         if (!_unlink)
             _unlink = createFunction("lo_unlink", [Argument("blobId", PgOIdType.oid)]);
@@ -539,7 +553,7 @@ private:
 
     PgCommand createFunction(string functionName, scope Argument[] arguments) @safe
     {
-        version (TraceFunction) traceFunction("functionName=", functionName);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(functionName=", functionName, ")");
 
         auto commandText = Appender!string();
         commandText.reserve(500);
@@ -568,7 +582,7 @@ private:
 
     PgCommand createStoredProcedure(string storedProcedureName, scope Argument[] arguments) @safe
     {
-        version (TraceFunction) traceFunction("storedProcedureName=", storedProcedureName);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ")");
 
         auto result = pgConnection.createCommand(storedProcedureName);
         result.commandStoredProcedure = storedProcedureName;
@@ -583,7 +597,7 @@ private:
 
     void disposeCommand(ref PgCommand command, const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         if (command !is null)
         {
@@ -627,7 +641,7 @@ public:
 
 	final override const(char)[] getExecutionPlan(uint vendorMode) @safe
 	{
-        version (TraceFunction) traceFunction("vendorMode=", vendorMode);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(vendorMode=", vendorMode, ")");
 
         if (auto log = canTraceLog())
             log.infof("%s.command.getExecutionPlan(vendorMode=%d)%s%s", forLogInfo(), vendorMode, newline, commandText);
@@ -658,14 +672,14 @@ public:
 
     final override Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         return Variant.varNull();
     }
 
     final override ubyte[] readBlob(DbNameColumn blobColumn, DbValue blobValueId) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         if (blobValueId.isNull)
             return null;
@@ -677,7 +691,7 @@ public:
     final override DbValue writeBlob(DbNameColumn blobColumn, scope const(ubyte)[] blobValue,
         DbValue optionalBlobValueId = DbValue.init) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         auto blob = optionalBlobValueId.isNull
                     ? PgLargeBlob(pgConnection)
@@ -706,7 +720,7 @@ public:
 package(pham.db):
     final PgParameter[] pgInputParameters() nothrow @trusted //@trusted=cast()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         return cast(PgParameter[])inputParameters();
     }
@@ -719,7 +733,7 @@ protected:
 
     override string buildStoredProcedureSql(string storedProcedureName, const(BuildCommandTextState) state) @safe
     {
-        version (TraceFunction) traceFunction("storedProcedureName=", storedProcedureName, ", state=", state);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ", state=", state, ")");
 
         if (storedProcedureName.length == 0)
             return null;
@@ -748,14 +762,14 @@ protected:
         }
         result.put(')');
 
-        version (TraceFunction) traceFunction("storedProcedureName=", storedProcedureName, ", result=", result.data);
+        debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "storedProcedureName=", storedProcedureName, ", result=", result.data);
 
         return result.data;
     }
 
     final void deallocateHandle() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         // Must reset regardless if error taken place
         // to avoid double errors when connection is shutting down
@@ -770,24 +784,24 @@ protected:
         }
         catch (Exception e)
         {
-            if (auto log = logger)
-                log.errorf("%s.deallocateHandle() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
+            if (auto log = canErrorLog())
+                log.errorf("%s.connection.deallocateHandle() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
         }
     }
 
     final override void doExecuteCommand(const(DbCommandExecuteType) type) @safe
     {
-        version (TraceFunction) traceFunction("type=", type);
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(type=", type, ")");
+        version(profile) debug auto p = PerfFunction.create();
 
         if (!prepared)
             prepare();
 
-        prepareExecuting(type);
-
-        auto logTimming = logger !is null
-            ? LogTimming(logger, text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
+        auto logTimming = canTimeLog() !is null
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
+
+        prepareExecuting(type);
 
         auto protocol = pgConnection.protocol;
         protocol.bindCommandParameterWrite(this);
@@ -809,7 +823,11 @@ protected:
 
     final DbFetchResultStatus doExecuteCommandFetch(const(DbCommandExecuteType) type, const(bool) fetchAgain) @safe
     {
-        version (TraceFunction) traceFunction("type=", type, ", fetchAgain=", fetchAgain);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(type=", type, ", fetchAgain=", fetchAgain, ")");
+
+        auto logTimming = canTimeLog() !is null
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doExecuteCommandFetch()", newline, _executeCommandText), false, logTimmingWarningDur)
+            : LogTimming.init;
 
         auto protocol = pgConnection.protocol;
         protocol.executeCommandWrite(this, type);
@@ -818,7 +836,7 @@ protected:
         if (!fetchAgain)
         {
             _recordsAffected = response.recordsAffected;
-            version (TraceFunction) traceFunction("_recordsAffected=", _recordsAffected);
+            debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "_recordsAffected=", _recordsAffected);
         }
 
         const result = response.fetchStatus();
@@ -831,7 +849,7 @@ protected:
                 break;
 
             case DbFetchResultStatus.completed:
-                version (TraceFunction) traceFunction("allRowsFetched=true");
+                debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "allRowsFetched=true");
                 allRowsFetched = true;
                 break;
 
@@ -850,8 +868,12 @@ protected:
     }
     do
     {
-        version (TraceFunction) traceFunction("isScalar=", isScalar);
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ")");
+        version(profile) debug auto p = PerfFunction.create();
+
+        auto logTimming = canTimeLog() !is null
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doFetch()", newline, _executeCommandText), false, logTimmingWarningDur)
+            : LogTimming.init;
 
         auto protocol = pgConnection.protocol;
         uint continueFetchingCount = isScalar ? 1 : fetchRecordCount;
@@ -870,11 +892,11 @@ protected:
                     break;
 
                 case DbFetchResultStatus.completed:
-                    version (TraceFunction) traceFunction("allRowsFetched=true");
+                    debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "allRowsFetched=true");
                     allRowsFetched = true;
                     continueFetching = false;
 
-                    version (none) // Only valid if there is portal name
+                    version(none) // Only valid if there is portal name
                     if (!isScalar && response.needFetchAgain(isSuspended))
                     {
                         final switch (doExecuteCommandFetch(DbCommandExecuteType.reader, true))
@@ -907,13 +929,13 @@ protected:
 
     final override void doPrepare() @safe
     {
-        version (TraceFunction) traceFunction();
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
+        version(profile) debug auto p = PerfFunction.create();
 
         auto sql = executeCommandText(BuildCommandTextState.prepare); // Make sure statement is constructed before doing other tasks
 
-        auto logTimming = logger !is null
-            ? LogTimming(logger, text(forLogInfo(), ".doPrepare()", newline, sql), false, logTimmingWarningDur)
+        auto logTimming = canTimeLog() !is null
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doPrepare()", newline, sql), false, logTimmingWarningDur)
             : LogTimming.init;
 
         auto protocol = pgConnection.protocol;
@@ -924,7 +946,7 @@ protected:
 
     final override void doUnprepare() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         if (_handle)
             deallocateHandle();
@@ -932,7 +954,7 @@ protected:
 
     static void fillNamedColumn(DbNameColumn column, const ref PgOIdFieldInfo oidField, const(bool) isNew) nothrow @safe
     {
-        version (TraceFunction) traceFunction(oidField.traceString());
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(oidField=", oidField.traceString(), ")");
 
         column.baseName = oidField.name;
         column.baseSize = oidField.size;
@@ -951,7 +973,7 @@ protected:
 
     final void processBindResponse(scope PgOIdFieldInfo[] oidFieldInfos) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         if (oidFieldInfos.length == 0)
             return;
@@ -987,8 +1009,8 @@ protected:
 
     final DbRowValue readRow(ref PgReader reader, const(bool) isScalar) @safe
     {
-        version (TraceFunction) traceFunction("isScalar=", isScalar);
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ")");
+        version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = pgConnection.protocol;
         return protocol.readValues(reader, this, pgFields);
@@ -1094,7 +1116,7 @@ protected:
 
     override void disposeCommands(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         if (isDisposing(disposingReason))
             this._largeBlobManager.dispose(disposingReason);
@@ -1105,7 +1127,7 @@ protected:
 
     final void disposeMessageReadBuffers(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         while (!_messageReadBuffers.empty)
             _messageReadBuffers.remove(_messageReadBuffers.last).dispose(disposingReason);
@@ -1113,7 +1135,7 @@ protected:
 
     final void disposeProtocol(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         if (_protocol !is null)
         {
@@ -1124,7 +1146,7 @@ protected:
 
     final override void doCancelCommand(DbCancelCommandData data) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         auto pgData = cast(PgCancelCommandData)data;
         _protocol.cancelRequestWrite(pgData.serverProcessId, pgData.serverSecretKey);
@@ -1132,8 +1154,8 @@ protected:
 
     final override void doClose(bool failedOpen) @safe
     {
-        version (TraceFunction) traceFunction("failedOpen=", failedOpen, ", socketActive=", socketActive);
-
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(failedOpen=", failedOpen, ", socketActive=", socketActive, ")");
+        
         scope (exit)
             disposeProtocol(DisposingReason.other);
 
@@ -1147,8 +1169,8 @@ protected:
         }
         catch (Exception e)
         {
-            if (auto log = logger)
-                log.errorf("%s.doClose() - %s", forLogInfo(), e.msg, e);
+            if (auto log = canErrorLog())
+                log.errorf("%s.connection.doClose() - %s", forLogInfo(), e.msg, e);
         }
 
         super.doClose(failedOpen);
@@ -1156,7 +1178,7 @@ protected:
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         super.doDispose(disposingReason);
         disposeMessageReadBuffers(disposingReason);
@@ -1165,7 +1187,7 @@ protected:
 
     final override void doOpen() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         PgConnectingStateInfo stateInfo;
 
@@ -1176,7 +1198,7 @@ protected:
 
     final void doOpenAuthentication(ref PgConnectingStateInfo stateInfo) @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         _protocol = new PgProtocol(this);
         _protocol.connectCheckingSSL(stateInfo);
@@ -1187,7 +1209,7 @@ protected:
     final override string getServerVersion() @safe
     {
         // Ex: SELECT version()="PostgreSQL 12.4, compiled by Visual C++ build 1914, 64-bit"
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         auto command = createNonTransactionCommand();
         scope (exit)
@@ -1207,7 +1229,7 @@ protected:
     do
     {
         //TODO cache this result
-        version (TraceFunction) traceFunction("storedProcedureName=", storedProcedureName);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ")");
 
         auto command = createNonTransactionCommand();
         scope (exit)
@@ -1660,21 +1682,21 @@ protected:
 
     final override void doCommit(bool disposing) @safe
     {
-        version (TraceFunction) traceFunction("disposing=", disposing);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(disposing=", disposing, ")");
 
         transactionCommand("COMMIT");
     }
 
     final override void doRollback(bool disposing) @safe
     {
-        version (TraceFunction) traceFunction("disposing=", disposing);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(disposing=", disposing, ")");
 
         transactionCommand("ROLLBACK");
     }
 
     final override void doStart() @safe
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         auto tmText = _transactionCommandText;
         if (tmText.length == 0)
@@ -1685,7 +1707,7 @@ protected:
 
     final void transactionCommand(string tmText) @safe
     {
-        version (TraceFunction) traceFunction("tmText=", tmText);
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(tmText=", tmText, ")");
 
         auto command = pgConnection.createNonTransactionCommand();
         scope (exit)
@@ -1705,18 +1727,11 @@ private:
 
 shared static this() nothrow @safe
 {
-    version (TraceFunctionPGDatabase) ModuleLoggerOptions.setModule(ModuleLoggerOption(__MODULE__, LogLevel.trace));
-
     auto db = new PgDatabase();
     DbDatabaseList.registerDb(db);
 }
 
-unittest // Turn on trace log if requested - must be first unittest one
-{
-    version (TraceFunctionPGDatabase) ModuleLoggerOptions.setModule(ModuleLoggerOption(ModuleLoggerOptions.wildPackageName(__MODULE__), LogLevel.trace));
-}
-
-version (UnitTestPGDatabase)
+version(UnitTestPGDatabase)
 {
     PgConnection createTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
@@ -1804,12 +1819,9 @@ WHERE INT_FIELD = @INT_FIELD
     }
 }
 
-version (UnitTestPGDatabase)
+version(UnitTestPGDatabase)
 unittest // PgConnection
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgConnection");
-
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -1822,17 +1834,12 @@ unittest // PgConnection
     assert(connection.state == DbConnectionState.closed);
 }
 
-version (UnitTestPGDatabase)
+version(UnitTestPGDatabase)
 unittest // PgTransaction
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgTransaction");
-
     auto connection = createTestConnection();
     scope (exit)
-    {
         connection.dispose();
-    }
     connection.open();
 
     auto transaction = connection.createTransaction(DbIsolationLevel.readUncommitted);
@@ -1860,21 +1867,13 @@ unittest // PgTransaction
     transaction.rollback();
 }
 
-version (UnitTestPGDatabase)
+version(UnitTestPGDatabase)
 unittest // PgCommand.DDL
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DDL");
-
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     auto command = connection.createCommand();
@@ -1890,22 +1889,15 @@ unittest // PgCommand.DDL
     failed = false;
 }
 
-version (UnitTestPGDatabase)
-unittest // PgCommand.DML
+version(UnitTestPGDatabase)
+unittest // PgCommand.DML - Simple select
 {
     import std.math;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - Simple select");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     auto command = connection.createCommand();
@@ -1922,7 +1914,7 @@ unittest // PgCommand.DML
     while (reader.read())
     {
         count++;
-        traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
+        debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -1971,22 +1963,15 @@ unittest // PgCommand.DML
     failed = false;
 }
 
-version (UnitTestPGDatabase)
-unittest // PgCommand.DML
+version(UnitTestPGDatabase)
+unittest // PgCommand.DML - Parameter select
 {
     import std.math;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - Parameter select");
 
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     auto command = connection.createCommand();
@@ -2010,7 +1995,7 @@ unittest // PgCommand.DML
     while (reader.read())
     {
         count++;
-        traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
+        debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -2059,21 +2044,13 @@ unittest // PgCommand.DML
     failed = false;
 }
 
-version (UnitTestPGDatabase)
+version(UnitTestPGDatabase)
 unittest // PgCommand.DML.pg_proc
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - pg_proc");
-
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     auto command = connection.createCommand();
@@ -2095,7 +2072,7 @@ ORDER BY pg_proc.proname
     while (reader.read())
     {
         count++;
-        traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
+        debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
 
         auto proname = reader.getValue("proname").toString();
         auto pronargs = reader.getValue("pronargs").toString();
@@ -2103,7 +2080,7 @@ ORDER BY pg_proc.proname
         auto proargtypes = reader.getValue("proargtypes").toString();
         auto proargmodes = reader.getValue("proargmodes").toString();
         auto prorettype = reader.getValue("prorettype").toString();
-        traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.proname=", proname,
+        debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.pgdatabase.PgCommand.DML.proname=", proname,
             ", pronargs=", pronargs, ", proargnames=", proargnames, ", proargtypes=", proargtypes,
             ", proargmodes=", proargmodes, ", prorettype=", prorettype);
     }
@@ -2111,21 +2088,13 @@ ORDER BY pg_proc.proname
     failed = false;
 }
 
-version (UnitTestPGDatabase)
+version(UnitTestPGDatabase)
 unittest // PgLargeBlob
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgLargeBlob");
-
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     enum ubyte[] testData = [1,2,3,4,5,6,7,8,9,10];
@@ -2170,12 +2139,9 @@ unittest // PgLargeBlob
     failed = false;
 }
 
-version (UnitTestPGDatabase)
-unittest // PgCommand.DML
+version(UnitTestPGDatabase)
+unittest // PgCommand.DML - Array
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML - Array");
-
     static int[] arrayValue() nothrow pure @safe
     {
         return [1,2,3,4,5,6,7,8,9,10];
@@ -2184,12 +2150,7 @@ unittest // PgCommand.DML
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     void setArrayValue()
@@ -2224,7 +2185,7 @@ unittest // PgCommand.DML
         while (reader.read())
         {
             count++;
-            traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
+            debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
 
             assert(reader.getValue(0) == arrayValue());
             assert(reader.getValue("INTEGER_ARRAY") == arrayValue());
@@ -2238,14 +2199,12 @@ unittest // PgCommand.DML
     failed = false;
 }
 
-version (UnitTestPGDatabase)
+version(UnitTestPGDatabase)
 unittest // PgCommand.getExecutionPlan
 {
     import std.algorithm.searching : startsWith;
     import std.array : split;
     import std.string : indexOf;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.getExecutionPlan");
 
     static const(char)[] removePText(const(char)[] s)
     {
@@ -2270,12 +2229,7 @@ unittest // PgCommand.getExecutionPlan
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-   }
     connection.open();
 
     auto command = connection.createCommand();
@@ -2310,25 +2264,18 @@ Execution Time: 0.053 ms}";
     failed = false;
 }
 
-version (UnitTestPGDatabase)
+version(UnitTestPGDatabase)
 unittest // PgCommand.DML.StoredProcedure
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.StoredProcedure");
-
     bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
-    {
-        if (failed)
-            traceUnitTest("failed - exiting and closing connection");
-
         connection.dispose();
-    }
     connection.open();
 
     {
-        traceUnitTest("Get information");
+        debug(debug_pham_db_db_pgdatabase) debug writeln("Get information");
+        
         auto info = connection.getStoredProcedureInfo("multiple_by2");
         assert(info !is null);
         assert(info.argumentTypes.length == 1);
@@ -2349,12 +2296,9 @@ unittest // PgCommand.DML.StoredProcedure
     failed = false;
 }
 
-version (UnitTestPGDatabase)
+version(UnitTestPGDatabase)
 unittest // PgConnection(SSL)
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgConnection(SSL)");
-
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -2372,9 +2316,6 @@ unittest // PgConnection(SSL)
 
 unittest // DbDatabaseList.createConnection
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.DbDatabaseList.createConnection");
-
     auto connection = DbDatabaseList.createConnection("postgresql:server=myServerAddress;database=myDataBase;" ~
         "user=myUsername;password=myPassword;role=myRole;pooling=true;connectionTimeout=100;encrypt=enabled;" ~
         "fetchRecordCount=50;integratedSecurity=legacy;");
@@ -2397,9 +2338,6 @@ unittest // DbDatabaseList.createConnection
 
 unittest // DbDatabaseList.createConnectionByURL
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.DbDatabaseList.createConnectionByURL");
-
     auto connection = DbDatabaseList.createConnectionByURL("postgresql://myUsername:myPassword@myServerAddress/myDataBase?" ~
         "role=myRole&pooling=true&connectionTimeout=100&encrypt=enabled&" ~
         "fetchRecordCount=50&integratedSecurity=legacy");
@@ -2420,7 +2358,7 @@ unittest // DbDatabaseList.createConnectionByURL
     assert(connectionString.integratedSecurity == DbIntegratedSecurityConnection.legacy);
 }
 
-version (UnitTestPerfPGDatabase)
+version(UnitTestPerfPGDatabase)
 {
     import pham.utl.utl_test : PerfTestResult;
 
@@ -2471,7 +2409,7 @@ version (UnitTestPerfPGDatabase)
 
             void readData(ref DbReader reader)
             {
-                version (all)
+                version(all)
                 {
                     Foo1 = reader.getValue!int64(0); //foo1 BIGINT NOT NULL,
                     Foo2 = reader.getValue!int64(1); //foo2 BIGINT NOT NULL,
@@ -2517,13 +2455,7 @@ version (UnitTestPerfPGDatabase)
         bool failed = true;
         auto connection = createTestConnection();
         scope (exit)
-        {
-            version (unittest)
-            if (failed)
-                traceUnitTest("failed - exiting and closing connection");
-
             connection.dispose();
-        }
         connection.open();
 
         auto command = connection.createCommand();
@@ -2536,14 +2468,14 @@ version (UnitTestPerfPGDatabase)
         scope (exit)
             reader.dispose();
 
-        version (UnitTestPGCollectData) auto datas = new Data[](maxRecordCount);
+        version(UnitTestPGCollectData) auto datas = new Data[](maxRecordCount);
         else Data data;
         assert(reader.hasRows());
 
         auto result = PerfTestResult.create();
         while (result.count < maxRecordCount && reader.read())
         {
-            version (UnitTestPGCollectData) datas[result.count++] = Data(reader);
+            version(UnitTestPGCollectData) datas[result.count++] = Data(reader);
             else { data.readData(reader); result.count++; }
         }
         result.end();
@@ -2553,23 +2485,11 @@ version (UnitTestPerfPGDatabase)
     }
 }
 
-version (UnitTestPerfPGDatabase)
+version(UnitTestPerfPGDatabase)
 unittest // PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953
 {
     import std.format : format;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgdatabase.PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953");
 
     const perfResult = unitTestPerfPGDatabase();
     dgWriteln("PG-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
-}
-
-unittest // Turn off trace log if requested - must be last unittest one
-{
-    version (TraceFunctionPGDatabase)
-    {
-        import pham.external.std.log.log_logger : ModuleLoggerOptions;
-        
-        ModuleLoggerOptions.removeModule(ModuleLoggerOptions.wildPackageName(__MODULE__));
-    }
 }

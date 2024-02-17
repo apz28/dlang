@@ -17,8 +17,9 @@ import std.conv : to;
 import std.range.primitives : isOutputRange, put;
 import std.typecons : Flag, No, Yes;
 
-version (profile) import pham.utl.utl_test : PerfFunction;
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_fbprotocol) import std.stdio : writeln;
+
+version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_bit : bitLengthToElement, hostToNetworkOrder;
 import pham.utl.utl_bit_array : BitArrayImpl;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
@@ -163,7 +164,7 @@ public:
 
     final FbIscObject allocateCommandRead(FbCommand command)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         r.statues.getWarn(command.notificationMessages);
@@ -172,7 +173,7 @@ public:
 
     final void allocateCommandWrite()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
         allocateCommandWrite(writer);
@@ -181,7 +182,7 @@ public:
 
     final void allocateCommandWrite(ref FbXdrWriter writer) nothrow
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
 		writer.writeOperation(FbIsc.op_allocate_statement);
 		writer.writeHandle(connection.fbHandle);
@@ -189,7 +190,7 @@ public:
 
     final FbIscArrayGetResponse arrayGetRead(ref FbArray array)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         FbXdrReader reader;
         const op = readOperation(reader, FbIsc.op_slice);
@@ -198,7 +199,7 @@ public:
 
     final void arrayGetWrite(ref FbArray array)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writerASdl = FbArrayWriter(connection);
 
@@ -215,7 +216,7 @@ public:
 
     final FbIscObject arrayPutRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         //r.statues.getWarn(command.notificationMessages);
@@ -224,7 +225,7 @@ public:
 
     final void arrayPutWrite(ref FbArray array, uint32 elements, scope const(ubyte)[] encodedArrayValue)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writerASdl = FbArrayWriter(connection);
 
@@ -241,7 +242,7 @@ public:
 
     final FbIscObject blobBeginRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         //r.statues.getWarn(command.notificationMessages);
@@ -250,7 +251,7 @@ public:
 
     final void blobBeginWrite(ref FbBlob blob, FbOperation createOrOpen)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
 	    writer.writeOperation(createOrOpen);
@@ -261,7 +262,7 @@ public:
 
     final void blobEndRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         //r.statues.getWarn(command.notificationMessages);
@@ -269,7 +270,7 @@ public:
 
     final void blobEndWrite(ref FbBlob blob, FbOperation closeOrCancelOp)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
         blobEndWrite(writer, blob, closeOrCancelOp);
@@ -278,7 +279,7 @@ public:
 
     final void blobEndWrite(ref FbXdrWriter writer, ref FbBlob blob, FbOperation closeOrCancelOp) nothrow
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
 	    writer.writeOperation(closeOrCancelOp);
 		writer.writeHandle(blob.fbHandle);
@@ -286,7 +287,7 @@ public:
 
     final FbIscGenericResponse blobGetSegmentsRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         //r.statues.getWarn(command.notificationMessages);
@@ -295,7 +296,7 @@ public:
 
     final void blobGetSegmentsWrite(ref FbBlob blob)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         const trunkLength = blob.maxSegmentLength;
         const dataSegment = 0;
@@ -309,7 +310,7 @@ public:
 
     final void blobPutSegmentsRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         //r.statues.getWarn(command.notificationMessages);
@@ -317,7 +318,7 @@ public:
 
     final void blobPutSegmentsWrite(ref FbBlob blob, scope const(ubyte)[] segment)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_batch_segments);
@@ -328,7 +329,7 @@ public:
 
     final FbIscBlobSize blobSizeInfoRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         //r.statues.getWarn(command.notificationMessages);
@@ -340,7 +341,7 @@ public:
 
     final void blobSizeInfoWrite(ref FbBlob blob)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_info_blob);
@@ -358,7 +359,7 @@ public:
 
     final void closeCursorCommandRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         //r.statues.getWarn(command.notificationMessages);
@@ -366,7 +367,7 @@ public:
 
     final void closeCursorCommandWrite(FbCommand command)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_free_statement);
@@ -377,7 +378,7 @@ public:
 
     final void commitRetainingTransactionWrite(FbTransaction transaction)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
         writer.writeOperation(FbIsc.op_commit_retaining);
@@ -387,7 +388,7 @@ public:
 
     final void commitTransactionRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         //r.statues.getWarn(connection.notificationMessages);
@@ -395,7 +396,7 @@ public:
 
     final void commitTransactionWrite(FbTransaction transaction)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
         writer.writeOperation(FbIsc.op_commit);
@@ -405,7 +406,7 @@ public:
 
     final FbIscObject connectAttachmentRead(ref FbConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         r.statues.getWarn(connection.notificationMessages);
@@ -414,7 +415,7 @@ public:
 
     final void connectAttachmentWrite(ref FbConnectingStateInfo stateInfo, FbCreateDatabaseInfo createDatabaseInfo)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         const isCreateOp = stateInfo.connectionType == DbConnectionType.create;
         auto useCSB = connection.fbConnectionStringBuilder;
@@ -432,7 +433,7 @@ public:
 
     final void connectAuthenticationRead(ref FbConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         void setupCompression()
         {
@@ -540,7 +541,7 @@ public:
 
     final void connectAuthenticationWrite(ref FbConnectingStateInfo stateInfo, FbCreateDatabaseInfo createDatabaseInfo)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         clearServerInfo();
 
@@ -571,7 +572,7 @@ public:
 
     final void createCommandBatchRead(ref FbCommandBatch commandBatch)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         r.statues.getWarn(commandBatch.fbCommand.notificationMessages);
@@ -579,7 +580,7 @@ public:
 
     final void createCommandBatchWrite(ref FbCommandBatch commandBatch)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
         createCommandBatchWrite(writer, commandBatch);
@@ -588,7 +589,7 @@ public:
 
     final void createCommandBatchWrite(ref FbXdrWriter writer, ref FbCommandBatch commandBatch)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto inputParameters = commandBatch.fbCommand.fbInputParameters();
         auto pWriterBlr = FbBlrWriter(connection);
@@ -601,7 +602,7 @@ public:
 		if (commandBatch.multiErrors)
 			batchWriter.writeInt32(FbIscBatchType.tag_multierror, 1);
 		batchWriter.writeInt32(FbIscBatchType.tag_buffer_bytes_size, commandBatch.maxBatchBufferLength);
-        version (TraceFunction) traceFunction("maxBatchBufferLength=", commandBatch.maxBatchBufferLength, ", data=", batchWriter.peekBytes().dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "maxBatchBufferLength=", commandBatch.maxBatchBufferLength, ", data=", batchWriter.peekBytes().dgToHex());
 
 		writer.writeOperation(FbIsc.op_batch_create);
         writer.writeHandle(commandBatch.fbCommand.fbHandle);
@@ -612,14 +613,14 @@ public:
 
     final void createDatabaseRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
     }
 
     final void createDatabaseWrite(FbCreateDatabaseInfo createDatabaseInfo)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writerAI = FbConnectionWriter(connection, FbIsc.isc_dpb_version2); // Can be latest version depending on protocol version
 
@@ -633,7 +634,7 @@ public:
 
     final void deallocateCommandRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         //r.statues.getWarn(command.notificationMessages);
@@ -641,7 +642,7 @@ public:
 
     final void deallocateCommandWrite(FbCommand command)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
         deallocateCommandWrite(writer, command);
@@ -650,7 +651,7 @@ public:
 
     final void deallocateCommandWrite(ref FbXdrWriter writer, FbCommand command) nothrow
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
 		writer.writeOperation(FbIsc.op_free_statement);
 		writer.writeHandle(command.fbHandle);
@@ -659,7 +660,7 @@ public:
 
     final void disconnectWrite()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
         if (connection.handle)
@@ -675,7 +676,7 @@ public:
 
     final FbIscCommandBatchExecuteResponse executeCommandBatchRead(ref FbCommandBatch commandBatch)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         FbXdrReader reader;
         const op = readOperation(reader, FbIsc.op_batch_cs);
@@ -684,7 +685,7 @@ public:
 
     final void executeCommandBatchWrite(ref FbCommandBatch commandBatch)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
         executeCommandBatchWrite(writer, commandBatch);
@@ -693,7 +694,7 @@ public:
 
     final void executeCommandBatchWrite(ref FbXdrWriter writer, ref FbCommandBatch commandBatch)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
 		writer.writeOperation(FbIsc.op_batch_exec);
 		writer.writeHandle(commandBatch.fbCommand.fbHandle);
@@ -702,7 +703,7 @@ public:
 
     final void executeCommandRead(FbCommand command)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         // Nothing to process - just need acknowledge
         auto r = readGenericResponse();
@@ -711,7 +712,7 @@ public:
 
     final void executeCommandWrite(FbCommand command, DbCommandExecuteType type)
     {
-        version (TraceFunction) traceFunction("type=", type);
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(type=", type, ")");
 
         auto writer = FbXdrWriter(connection);
         writer.writeOperation(command.isStoredProcedure ? FbIsc.op_execute2 : FbIsc.op_execute);
@@ -723,11 +724,11 @@ public:
 		{
             auto pWriterBlr = FbBlrWriter(connection);
             auto pPrmBlr = describeBlrParameters(pWriterBlr, inputParameters);
-            version (TraceFunction) traceFunction("pPrmBlr=", pPrmBlr);
+            debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "pPrmBlr=", pPrmBlr);
 
             auto pWriterVal = FbXdrWriter(connection);
             auto pPrmVal = describeParameters(pWriterVal, command, inputParameters).peekBytes();
-            version (TraceFunction) traceFunction("pPrmVal=", pPrmVal);
+            debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "pPrmVal=", pPrmVal);
 
             writer.writeBytes(pPrmBlr.data);
 			writer.writeInt32(0); // Message number
@@ -761,7 +762,7 @@ public:
     final FbCommandPlanInfo.Kind executionPlanCommandInfoRead(FbCommand command, uint mode,
         out FbCommandPlanInfo info)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         const describeMode = mode == 0
             ? FbIsc.isc_info_sql_get_plan
@@ -799,7 +800,7 @@ public:
 
     final void executionPlanCommandInfoWrite(FbCommand command, uint mode, uint32 bufferLength)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto describeItems = mode == 0
             ? describeStatementPlanInfoItems
@@ -809,7 +810,7 @@ public:
 
     final FbIscFetchResponse fetchCommandRead(FbCommand command)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         FbXdrReader reader;
         const op = readOperation(reader, 0);
@@ -835,7 +836,7 @@ public:
     }
     do
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writerBlr = FbBlrWriter(connection);
         auto pFldBlr = describeBlrFields(writerBlr, command.fbFields);
@@ -851,7 +852,7 @@ public:
 
     final void messageCommandBatchRead(ref FbCommandBatch commandBatch)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         // Nothing to process - just need acknowledge
         auto r = readGenericResponse();
@@ -860,7 +861,7 @@ public:
 
     final void messageCommandBatchWrite(ref FbCommandBatch commandBatch)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
         messageCommandBatchWrite(writer, commandBatch);
@@ -869,7 +870,7 @@ public:
 
     final void messageCommandBatchWrite(ref FbXdrWriter writer, ref FbCommandBatch commandBatch)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto inputParameters = commandBatch.fbCommand.fbInputParameters();
 
@@ -886,7 +887,7 @@ public:
 
     final FbIscBindInfo[] prepareCommandRead(FbCommand command)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         r.statues.getWarn(command.notificationMessages);
@@ -897,7 +898,7 @@ public:
 
         while (!FbIscBindInfo.parse(r.data, bindResults, previousBindIndex, previousFieldIndex))
         {
-            version (TraceFunction) traceFunction("previousBindIndex=", previousBindIndex, ", previousFieldIndex=", previousFieldIndex);
+            debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "previousBindIndex=", previousBindIndex, ", previousFieldIndex=", previousFieldIndex);
 
             enum bindBlocks = 2;
             auto bindItems = describeStatementInfoAndBindInfoItems;
@@ -937,7 +938,7 @@ public:
 
     final prepareCommandWrite(FbCommand command, scope const(char)[] sql)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
         prepareCommandWrite(writer, command, sql);
@@ -946,7 +947,7 @@ public:
 
     final prepareCommandWrite(ref FbXdrWriter writer, FbCommand command, scope const(char)[] sql) nothrow
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto bindItems = describeStatementInfoAndBindInfoItems;
 
@@ -961,7 +962,7 @@ public:
 
     final DbRecordsAffected recordsAffectedCommandRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         DbRecordsAffected result;
         auto r = readGenericResponse();
@@ -981,14 +982,14 @@ public:
 
     final void recordsAffectedCommandWrite(FbCommand command)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         commandInfoWrite(command, describeStatementRowsAffectedInfoItems, FbIscSize.rowsEffectedBufferLength);
     }
 
     final void rollbackRetainingTransactionWrite(FbTransaction transaction)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
         writer.writeOperation(FbIsc.op_rollback_retaining);
@@ -998,7 +999,7 @@ public:
 
     final void rollbackTransactionRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         //r.statues.getWarn(connection.notificationMessages);
@@ -1006,7 +1007,7 @@ public:
 
     final void rollbackTransactionWrite(FbTransaction transaction)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
         writer.writeOperation(FbIsc.op_rollback);
@@ -1016,7 +1017,7 @@ public:
 
     final FbIscObject startTransactionRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         //r.statues.getWarn(connection.notificationMessages);
@@ -1025,7 +1026,7 @@ public:
 
     final void startTransactionWrite(FbTransaction transaction)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto paramWriter = FbTransactionWriter(connection);
         auto paramBytes = describeTransaction(paramWriter, transaction);
@@ -1039,7 +1040,7 @@ public:
 
     final int typeCommandRead(FbCommand command)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         r.statues.getWarn(command.notificationMessages);
@@ -1051,21 +1052,21 @@ public:
 
     final void typeCommandWrite(FbCommand command)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         commandInfoWrite(command, describeStatementTypeInfoItems, FbIscSize.statementTypeBufferLength);
     }
 
     final void typeCommandWrite(ref FbXdrWriter writer, FbCommand command) nothrow
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         commandInfoWrite(writer, command, describeStatementTypeInfoItems, FbIscSize.statementTypeBufferLength);
     }
 
     final FbIscGenericResponse readGenericResponse()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         FbXdrReader reader;
         const op = readOperation(reader, FbIsc.op_response);
@@ -1074,7 +1075,7 @@ public:
 
     final FbIscSqlResponse readSqlResponse()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         FbXdrReader reader;
         const op = readOperation(reader, FbIsc.op_sql_response);
@@ -1083,8 +1084,8 @@ public:
 
     final DbValue readValue(ref FbXdrReader reader, FbCommand command, DbNameColumn column)
     {
-        version (TraceFunction) traceFunction(column.traceString());
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(column=", column.traceString(), ")");
+        version(profile) debug auto p = PerfFunction.create();
 
         const dbType = column.type;
 
@@ -1149,7 +1150,7 @@ public:
                 throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_net_read_err);
         }
 
-        version (protocolPrev13)
+        version(fbProtocolPrev13)
         {
             // Flag after value - Weird but that's how Firebird
 		    auto nullFlag = reader.readInt32();
@@ -1167,8 +1168,8 @@ public:
 
     final DbRowValue readValues(FbCommand command, FbFieldList fields)
     {
-        version (TraceFunction) traceFunction();
-        version (profile) debug auto p = PerfFunction.create();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        version(profile) debug auto p = PerfFunction.create();
 
         auto reader = FbXdrReader(connection);
 
@@ -1189,7 +1190,7 @@ public:
 
     final void releaseCommandBatchRead()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto r = readGenericResponse();
         //r.statues.getWarn(command.notificationMessages);
@@ -1197,7 +1198,7 @@ public:
 
     final void releaseCommandBatchWrite(FbCommand command)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
         releaseCommandBatchWrite(writer, command);
@@ -1206,7 +1207,7 @@ public:
 
     final void releaseCommandBatchWrite(ref FbXdrWriter writer, FbCommand command)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
 		writer.writeOperation(FbIsc.op_batch_rls);
 		writer.writeHandle(command.fbHandle);
@@ -1225,7 +1226,7 @@ public:
 protected:
     final void cancelRequestWrite(FbHandle handle, int32 cancelKind)
     {
-        version (TraceFunction) traceFunction("cancelKind=", cancelKind);
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(cancelKind=", cancelKind, ")");
 
         auto writer = FbXdrWriter(connection);
         writer.writeHandle(handle);
@@ -1264,7 +1265,7 @@ protected:
 
     final void commandInfoWrite(FbCommand command, scope const(ubyte)[] items, uint32 resultBufferLength)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
         commandInfoWrite(writer, command, items, resultBufferLength);
@@ -1274,7 +1275,7 @@ protected:
     final void commandInfoWrite(ref FbXdrWriter writer, FbCommand command, scope const(ubyte)[] items,
         uint32 resultBufferLength) nothrow
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
 		writer.writeOperation(FbIsc.op_info_sql);
         writer.writeHandle(command.fbHandle);
@@ -1285,7 +1286,7 @@ protected:
 
     final void compressSetupBufferFilter()
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
 		auto compressor = new DbBufferFilterCompressorZip!(DbBufferFilterKind.write)();
 		auto decompressor = new DbBufferFilterCompressorZip!(DbBufferFilterKind.read)();
@@ -1294,7 +1295,7 @@ protected:
 
     final void connectAuthenticationAcceptRead(ref FbConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         FbXdrReader reader;
         const op = readOperation(reader, 0);
@@ -1309,7 +1310,6 @@ protected:
 
             case FbIsc.op_trusted_auth:
                 auto tResponse = readTrustedAuthResponseImpl(reader);
-                version (all)
                 if (tResponse.data.length)
                 {
                     stateInfo.serverAuthKey = tResponse.data;
@@ -1346,7 +1346,7 @@ protected:
 
     final void connectAuthenticationAcceptWrite(ref FbConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_cont_auth);
@@ -1372,7 +1372,7 @@ protected:
 
     final void cryptRead(ref FbConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         FbXdrReader reader;
         const op = readOperation(reader, 0);
@@ -1396,7 +1396,7 @@ protected:
 
     final void cryptSetupBufferFilter(ref FbConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto useCSB = connection.fbConnectionStringBuilder;
         auto cryptAlgorithm = useCSB.cryptAlgorithm;
@@ -1427,7 +1427,7 @@ protected:
 
     final void cryptWrite(ref FbConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto useCSB = connection.fbConnectionStringBuilder;
         auto cryptAlgorithm = useCSB.cryptAlgorithm;
@@ -1464,7 +1464,7 @@ protected:
         writer.writeName(FbIsc.isc_sdl_relation, array.descriptor.fieldInfo.tableName);
         writer.writeName(FbIsc.isc_sdl_field, array.descriptor.fieldInfo.name);
 
-        version (FbMultiDimensions)
+        version(fbMultiDimensions)
         {
             foreach (i, ref bound; array.descriptor.bounds)
             {
@@ -1521,7 +1521,7 @@ protected:
 
     final ubyte[] describeAttachmentInformation(return ref FbConnectionWriter writer, ref FbConnectingStateInfo stateInfo)
     {
-        version (TraceFunction) traceFunction("stateInfo.authData=", stateInfo.authData.toString());
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(stateInfo.authData=", stateInfo.authData.toString(), ")");
 
         auto useCSB = connection.fbConnectionStringBuilder;
 
@@ -1546,14 +1546,14 @@ protected:
 		writer.writeInt32(FbIsc.isc_dpb_utf8_filename, 1); // This is weirdess - must be last or fail to authenticate
 
         auto result = writer.peekBytes();
-        version (TraceFunction) traceFunction("dpbValue.length=", result.length, ", dpbValue=", result.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "dpbValue.length=", result.length, ", dpbValue=", result.dgToHex());
         return result;
     }
 
     final ubyte[] describeCreateInformation(return ref FbConnectionWriter writer, ref FbConnectingStateInfo stateInfo,
         FbCreateDatabaseInfo createDatabaseInfo)
     {
-        version (TraceFunction) traceFunction("stateInfo.authData=", stateInfo.authData.toString());
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(stateInfo.authData=", stateInfo.authData.toString(), ")");
 
         auto useCSB = connection.fbConnectionStringBuilder;
         auto useRoleName = createDatabaseInfo.roleName.length
@@ -1584,14 +1584,14 @@ protected:
 		writer.writeInt32(FbIsc.isc_dpb_utf8_filename, 1); // This is weirdess - must be last or fail to authenticate
 
         auto result = writer.peekBytes();
-        version (TraceFunction) traceFunction("dpbValue.length=", result.length, ", dpbValue=", result.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "dpbValue.length=", result.length, ", dpbValue=", result.dgToHex());
         return result;
     }
 
     final ubyte[] describeCreateInformation(return ref FbConnectionWriter writer,
         FbCreateDatabaseInfo createDatabaseInfo) nothrow
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
 		writer.writeVersion();
         if (writer.writeCharsIf(FbIsc.isc_dpb_user_name, createDatabaseInfo.ownerName))
@@ -1605,7 +1605,7 @@ protected:
 		writer.writeInt32(FbIsc.isc_dpb_utf8_filename, 1); // This is weirdess - must be last or fail to authenticate
 
         auto result = writer.peekBytes();
-        version (TraceFunction) traceFunction("dpbValue.length=", result.length, ", dpbValue=", result.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "dpbValue.length=", result.length, ", dpbValue=", result.dgToHex());
         return result;
     }
 
@@ -1627,7 +1627,7 @@ protected:
         writer.writeEnd(fields.length);
 
         result.data = writer.peekBytes();
-        version (TraceFunction) traceFunction("size=", result.size, ", data=", result.data.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(size=", result.size, ", data=", result.data.dgToHex(), ")");
         return result;
     }
 
@@ -1649,7 +1649,7 @@ protected:
         writer.writeEnd(parameters.length);
 
         result.data = writer.peekBytes();
-        version (TraceFunction) traceFunction("size=", result.size, ", data=", result.data.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(size=", result.size, ", data=", result.data.dgToHex(), ")");
         return result;
     }
 
@@ -1828,7 +1828,7 @@ protected:
     {
         auto useCSB = connection.fbConnectionStringBuilder;
 
-        version (TraceFunction) traceFunction("userName=", useCSB.userName);
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(userName=", useCSB.userName, ")");
 
         stateInfo.nextAuthState = 0;
         stateInfo.authData = null;
@@ -1852,11 +1852,11 @@ protected:
             writer.writeInt32(FbIsc.cnct_client_crypt, hostToNetworkOrder!int32(getCryptedConnectionCode()));
             stateInfo.nextAuthState++;
 
-            version (TraceFunction) traceFunction("specificData=", stateInfo.authData.toString());
+            debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "specificData=", stateInfo.authData.toString());
         }
 
         auto result = writer.peekBytes();
-        version (TraceFunction) traceFunction("result=", result.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "result=", result.dgToHex());
         return result;
     }
 
@@ -1932,7 +1932,7 @@ protected:
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        version (TraceFunction) { import pham.utl.utl_test; debug dgWriteln(__FUNCTION__); }
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         _serverVersion = 0;
         if (isDisposing(disposingReason))
@@ -1967,7 +1967,7 @@ protected:
 
     final FbIscAcceptResponse readAcceptResponseImpl(ref FbXdrReader reader)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto version_ = FbIscAcceptResponse.normalizeVersion(reader.readInt32());
         auto architecture = reader.readInt32();
@@ -1978,7 +1978,7 @@ protected:
 
     final FbIscAcceptDataResponse readAcceptDataResponseImpl(ref FbXdrReader reader)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto version_ = FbIscAcceptResponse.normalizeVersion(reader.readInt32());
         auto architecture = reader.readInt32();
@@ -1988,14 +1988,15 @@ protected:
         auto authenticated = reader.readInt32();
         auto authKey = reader.readBytes();
 
-        version (TraceFunction) traceFunction("authenticated=", authenticated, ", authData=", authData.dgToHex(), ", authKey=", authKey.dgToHex(), ", authName=", authName);
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "authenticated=", authenticated, ", authData=", authData.dgToHex(),
+            ", authKey=", authKey.dgToHex(), ", authName=", authName);
 
         return FbIscAcceptDataResponse(version_, architecture, acceptType, authData, authName, authenticated, authKey);
     }
 
     final FbIscArrayGetResponse readArrayGetResponseImpl(ref FbXdrReader reader, scope const(FbIscArrayDescriptor) descriptor)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         FbIscArrayGetResponse result;
         result.sliceLength = reader.readInt32(); // Weird?
@@ -2041,14 +2042,15 @@ protected:
 
     final FbIscCondAuthResponse readCondAuthResponseImpl(ref FbXdrReader reader)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto rData = reader.readBytes();
         auto rName = reader.readString();
         auto rList = reader.readBytes();
         auto rKey = reader.readBytes();
 
-        version (TraceFunction) traceFunction("rName=", rName, ", rData=", rData.dgToHex(), ", rKey=", rKey.dgToHex(), ", rList=", rList.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "rName=", rName, ", rData=", rData.dgToHex(),
+            ", rKey=", rKey.dgToHex(), ", rList=", rList.dgToHex());
 
         return FbIscCondAuthResponse(rData, rName, rList, rKey);
     }
@@ -2092,12 +2094,12 @@ protected:
 
     final FbIscCryptKeyCallbackResponse readCryptKeyCallbackResponseImpl(ref FbXdrReader reader, const(int32) serverVersion)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto rData = reader.readBytes();
         auto rSize = serverVersion > FbIsc.protocol_version13 ? reader.readInt32() : int32.min; // Use min to indicate not used - zero may be false positive
 
-        version (TraceFunction) traceFunction("rSize=", rSize, ", rData=", rData.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "rSize=", rSize, ", rData=", rData.dgToHex());
 
         return FbIscCryptKeyCallbackResponse(rData, rSize);
     }
@@ -2105,7 +2107,7 @@ protected:
     final void writeCryptKeyCallbackResponse(ref FbConnectingStateInfo stateInfo,
         ref FbIscCryptKeyCallbackResponse cryptKeyCallbackResponse, const(int32) serverVersion)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto useCSB = connection.fbConnectionStringBuilder;
         auto cryptKey = useCSB.cryptKey;
@@ -2119,29 +2121,29 @@ protected:
 
     final FbIscFetchResponse readFetchResponseImpl(ref FbXdrReader reader)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto rStatus = reader.readInt32();
         auto rCount = reader.readInt32();
 
-        version (TraceFunction) traceFunction("rStatus=", rStatus, ", rCount=", rCount);
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "rStatus=", rStatus, ", rCount=", rCount);
         return FbIscFetchResponse(rStatus, rCount);
     }
 
     final FbIscGenericResponse readGenericResponseImpl(ref FbXdrReader reader)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto rHandle = reader.readHandle();
         auto rId = reader.readId();
         auto rData = reader.readBytes();
         auto rStatues = reader.readStatuses();
 
-        version (TraceFunction) traceFunction("rHandle=", rHandle, ", rId=", rId, ", rData=", rData.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "rHandle=", rHandle, ", rId=", rId, ", rData=", rData.dgToHex());
 
         if (rStatues.isError)
         {
-            version (TraceFunction) traceFunction("errorCode=", rStatues.errorCode());
+            debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "errorCode=", rStatues.errorCode());
 
             throw new FbException(rStatues);
         }
@@ -2151,7 +2153,7 @@ protected:
 
     final FbOperation readOperation(out FbXdrReader reader, const(FbOperation) expectedOperation) @trusted
     {
-        version (TraceFunction) traceFunction("deferredResponses.length=", deferredResponses.length);
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(deferredResponses.length=", deferredResponses.length, ")");
 
         if (deferredResponses.length != 0)
         {
@@ -2176,11 +2178,11 @@ protected:
 
     final FbIscSqlResponse readSqlResponseImpl(ref FbXdrReader reader)
     {
-        version (TraceFunction) traceFunction();
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto rCount = reader.readInt32();
 
-        version (TraceFunction) traceFunction("rCount=", rCount);
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "rCount=", rCount);
         return FbIscSqlResponse(rCount);
     }
 

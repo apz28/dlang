@@ -11,7 +11,6 @@
 
 module pham.db.db_buffer_filter_cipher;
 
-version (unittest) import pham.utl.utl_test;
 import pham.cp.cp_cipher : Cipher, CipherKey, CipherKeyKind;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.db.db_buffer_filter;
@@ -129,8 +128,6 @@ unittest // DbBufferFilterCipherRC4
 {
     import std.string : representation;
     import pham.cp.cp_cipher : CipherSimpleKey;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.buffer_filter_cipher.DbBufferFilterCipherRC4");
 
     auto k = CipherSimpleKey(0, "abc0123456789xyz".representation);
     auto key = CipherKey(k);

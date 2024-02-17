@@ -13,7 +13,8 @@ module pham.db.db_myauth_native;
 
 import std.conv : to;
 
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_myauth_native) import std.stdio : writeln;
+
 import pham.cp.cp_cipher_digest : Digester, DigestId, DigestResult;
 import pham.db.db_auth;
 import pham.db.db_message;
@@ -31,7 +32,8 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction("_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        debug(debug_pham_db_db_myauth_native) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state,
+            ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
 
         if (state == 0)
         {
@@ -49,7 +51,7 @@ public:
     final override ResultStatus getPassword(scope const(char)[] userName, scope const(char)[] userPassword,
         ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction("userName=", userName);
+        debug(debug_pham_db_db_myauth_native) debug writeln(__FUNCTION__, "(userName=", userName, ")");
 
         if (userPassword.length == 0)
         {
@@ -112,14 +114,13 @@ DbAuth createAuthNative()
     return new MyAuthNative();
 }
 
-unittest
+unittest // MyAuthNative.getPassword
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.myauth_native.MyAuthNative.getPassword");
-
+    import pham.utl.utl_object : bytesFromHexs;
+    
     auto auth = new MyAuthNative();
-    auth.setServerSalt(dgFromHex("625A1C30712F1F333E6A732543335E6A5C252613"));
+    auth.setServerSalt(bytesFromHexs("625A1C30712F1F333E6A732543335E6A5C252613"));
     CipherBuffer!ubyte proof;
     assert(auth.getPassword("root", "masterkey", proof).isOK());
-    assert(proof == dgFromHex("14578C3E295CC566EBD151EB8FB708A21972E80A6C"), proof.toString());
+    assert(proof == bytesFromHexs("14578C3E295CC566EBD151EB8FB708A21972E80A6C"), proof.toString());
 }

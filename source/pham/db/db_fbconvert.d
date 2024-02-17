@@ -16,8 +16,7 @@ import std.conv : to;
 import std.system : Endian, endian;
 import std.typecons : No;
 
-version (profile) import pham.utl.utl_test : PerfFunction;
-version (unittest) import pham.utl.utl_test;
+version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.dtm.dtm_time_zone : TimeZoneInfo;
 import pham.dtm.dtm_time_zone_map : TimeZoneInfoMap;
 import pham.external.dec.dec_codec : DecimalCodec32, DecimalCodec64, DecimalCodec128;
@@ -66,7 +65,7 @@ DbDate dateDecode(int32 fbDate) @nogc pure
 {
     return epochDate.addDaysSafe(fbDate);
 
-	version (none)
+	version(none)
     {
 	const orgFbDate = fbDate;
 	int year, month, day;
@@ -111,7 +110,7 @@ int32 dateEncode(scope const(DbDate) value) @nogc pure
 {
     return value.days - epochDate.days;
 
-	version (none)
+	version(none)
 	{
     const day = value.day;
     int year = value.year;
@@ -294,9 +293,6 @@ private:
 
 unittest // dateDecode & dateEncode
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbconvert.dateDecode & dateEncode");
-
 	enum orgFbDate = 58_989;
 
 	auto date = dateDecode(orgFbDate);
@@ -310,9 +306,6 @@ unittest // dateDecode & dateEncode
 
 unittest // timeDecode & timeEncode
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbconvert.timeDecode & timeEncode");
-
 	enum orgFbTime = 36_610_000;
 
 	auto time = timeDecode(orgFbTime);
@@ -326,9 +319,7 @@ unittest // timeDecode & timeEncode
 
 unittest // int128Decode & int128Encode
 {
-	import pham.utl.utl_object : bytesFromHexs;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbconvert.int128Decode & int128Encode");
+	import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
 
 	static BigInteger safeBigInteger(string value) nothrow pure @safe
     {
@@ -358,49 +349,49 @@ unittest // int128Decode & int128Encode
 
     c = int128Encode(b, safeBigInteger("0"));
     assert(c);
-    assert(b[] == bytesFromHexs("00000000000000000000000000000000"), b[].dgToHex);
+    assert(b[] == bytesFromHexs("00000000000000000000000000000000"), b[].bytesToHexs);
 
     c = int128Encode(b, safeBigInteger("-1"));
     assert(c);
-    assert(b[] == bytesFromHexs("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"), b[].dgToHex);
+    assert(b[] == bytesFromHexs("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"), b[].bytesToHexs);
 
     c = int128Encode(b, safeBigInteger("1"));
     assert(c);
-    assert(b[] == bytesFromHexs("00000000000000000000000000000001"), b[].dgToHex);
+    assert(b[] == bytesFromHexs("00000000000000000000000000000001"), b[].bytesToHexs);
 
     c = int128Encode(b, safeBigInteger("-184467440737095516190874"));
     assert(c);
-    assert(b[] == bytesFromHexs("FFFFFFFFFFFFD8EFFFFFFFFFFFFF8766"), b[].dgToHex);
+    assert(b[] == bytesFromHexs("FFFFFFFFFFFFD8EFFFFFFFFFFFFF8766"), b[].bytesToHexs);
 
     c = int128Encode(b, safeBigInteger("184467440737095516190874"));
     assert(c);
-    assert(b[] == bytesFromHexs("0000000000002710000000000000789A"), b[].dgToHex);
+    assert(b[] == bytesFromHexs("0000000000002710000000000000789A"), b[].bytesToHexs);
 
 	v1 = BigInteger(1234);
 	c = int128Encode(b, v1);
 	assert(c);
-	assert(b == bytesFromHexs("000000000000000000000000000004D2"), b[].dgToHex);
+	assert(b == bytesFromHexs("000000000000000000000000000004D2"), b[].bytesToHexs);
 	v2 = int128Decode(b);
 	assert(v2 == v1);
 
 	v1 = BigInteger(-1234);
 	c = int128Encode(b, v1);
 	assert(c);
-	assert(b == bytesFromHexs("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFB2E"), b[].dgToHex);
+	assert(b == bytesFromHexs("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFB2E"), b[].bytesToHexs);
 	v2 = int128Decode(b);
 	assert(v2 == v1);
 
 	v1 = safeBigInteger("1234567890123456789012345678901234");
 	c = int128Encode(b, v1);
 	assert(c);
-	assert(b == bytesFromHexs("00003CDE6FFF9732DE825CD07E96AFF2"), b[].dgToHex);
+	assert(b == bytesFromHexs("00003CDE6FFF9732DE825CD07E96AFF2"), b[].bytesToHexs);
 	v2 = int128Decode(b);
 	assert(v2 == v1);
 
 	v1 = safeBigInteger("-1234567890123456789012345678901234");
 	c = int128Encode(b, v1);
 	assert(c);
-	assert(b == bytesFromHexs("FFFFC321900068CD217DA32F8169500E"), b[].dgToHex);
+	assert(b == bytesFromHexs("FFFFC321900068CD217DA32F8169500E"), b[].bytesToHexs);
 	v2 = int128Decode(b);
 	assert(v2 == v1);
 }

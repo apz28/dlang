@@ -11,7 +11,8 @@
 
 module pham.db.db_myauth;
 
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_myauth) import std.stdio : writeln;
+
 public import pham.cp.cp_cipher : CipherBuffer;
 import pham.db.db_auth;
 import pham.db.db_type : DbScheme;
@@ -31,7 +32,7 @@ public:
     ResultStatus getPassword(scope const(char)[] userName, scope const(char)[] userPassword,
         ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction("userName=", userName);
+        debug(debug_pham_db_db_myauth) debug writeln(__FUNCTION__, "(userName=", userName, ")");
 
         authData = CipherBuffer!ubyte.init;
         return ResultStatus.ok();

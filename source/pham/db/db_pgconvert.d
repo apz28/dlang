@@ -14,7 +14,8 @@ module pham.db.db_pgconvert;
 
 import core.time : Duration, dur;
 
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_pgconvert) import std.stdio : writeln;
+
 import pham.dtm.dtm_tick : Tick;
 import pham.dtm.dtm_time_zone : TimeZoneInfo;
 import pham.utl.utl_array : ShortStringBuffer, ShortStringBufferSize;
@@ -27,10 +28,10 @@ nothrow @safe:
 enum epochDate = Date(2000, 1, 1);
 enum epochDateTime = DateTime(2000, 1, 1);
 
-version (none)
+version(none)
 enum epochDateJulian = dateToJulian(2000, 1, 1); // 2_451_545
 
-version (none)
+version(none)
 int32 dateToJulian(int y, int m, int d) pure
 {
 	if (m > 2)
@@ -52,7 +53,7 @@ int32 dateToJulian(int y, int m, int d) pure
 	return julian;
 }
 
-version (none)
+version(none)
 void julianToDateParts(int32 jd, out int year, out int month, out int day) pure
 {
     uint julian = jd + 32_044;
@@ -70,7 +71,7 @@ void julianToDateParts(int32 jd, out int year, out int month, out int day) pure
     month = (quad + 10) % 12 + 1;
 }
 
-version (none)
+version(none)
 void dateDecode(int32 pgDate, out int year, out int month, out int day) pure
 {
     julianToDateParts(pgDate + epochDateJulian, year, month, day);
@@ -123,7 +124,7 @@ if (isDecimal!D)
 {
 	scope (failure) assert(0, "Assume nothrow failed");
 
-    version (TraceFunction) traceFunction(pgNumeric.traceString());
+    debug(debug_pham_db_db_pgconvert) debug writeln(__FUNCTION__, "(pgNumeric=", pgNumeric.traceString(), ")");
 
     if (pgNumeric.isNaN)
         return D.nan;
@@ -209,7 +210,7 @@ if (isDecimal!D)
 		}
 	}
 
-    version (TraceFunction) traceFunction("value=", value[]);
+    debug(debug_pham_db_db_pgconvert) debug writeln("\t", "value=", value[]);
 
 	if (pgNumeric.dscale > 0)
 		return D(value[], RoundingMode.banking);
@@ -368,9 +369,6 @@ private:
 
 unittest // numericDecode
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgconvert.numericDecode");
-
 	PgOIdNumeric n5_40 = {ndigits:2, weight:0, sign:0, dscale:2, digits:[5, 4000]};
 	PgOIdNumeric n6_50 = {ndigits:2, weight:0, sign:0, dscale:2, digits:[6, 5000]};
 
@@ -380,17 +378,13 @@ unittest // numericDecode
 
 unittest // numericEncode
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.pgconvert.numericEncode");
-
 	// Scale=1 because Decimal.toString will truncate trailing zero
 	PgOIdNumeric n5_40 = {ndigits:2, weight:0, sign:0, dscale:1, digits:[5, 4000]};
 	PgOIdNumeric n6_50 = {ndigits:2, weight:0, sign:0, dscale:1, digits:[6, 5000]};
 
 	static void traceNumeric(PgOIdNumeric pgNumeric)
     {
-		version (TraceFunction)
-		traceUnitTest(pgNumeric.traceString());
+		debug(debug_pham_db_db_pgconvert) debug writeln(pgNumeric.traceString());
     }
 
 	auto dec5_40 = toDecimalSafe!Decimal64("5.40", Decimal64.nan);

@@ -17,8 +17,9 @@ import std.string : representation;
 import std.system : Endian;
 import std.typecons : Flag, No, Yes;
 
-version (profile) import pham.utl.utl_test : PerfFunction;
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_fbbuffer) import std.stdio : writeln;
+
+version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.dec.dec_decimal : scaleFrom, scaleTo;
 import pham.utl.utl_array : ShortStringBuffer;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
@@ -916,7 +917,7 @@ public:
 
     FbOperation readOperation()
     {
-        version (TraceFunctionReader) traceFunction();
+        debug(debug_pham_db_db_fbbuffer) debug writeln(__FUNCTION__, "()");
 
         static assert(int32.sizeof == FbOperation.sizeof);
 
@@ -924,7 +925,7 @@ public:
         {
             auto result = readInt32();
 
-            version (TraceFunctionReader) traceFunction("code=", result);
+            debug(debug_pham_db_db_fbbuffer) debug writeln("\t", "code=", result);
 
             if (result != FbIsc.op_dummy)
                 return result;
@@ -938,7 +939,7 @@ public:
 
     FbIscStatues readStatuses() @trusted
     {
-        version (TraceFunctionReader) traceFunction();
+        debug(debug_pham_db_db_fbbuffer) debug writeln(__FUNCTION__, "()");
 
         FbIscStatues result;
         int gdsCode;
@@ -949,7 +950,7 @@ public:
         {
 			auto typeCode = readInt32();
 
-            version (TraceFunctionReader) traceFunction("typeCode=", typeCode);
+            debug(debug_pham_db_db_fbbuffer) debug writeln("\t", "typeCode=", typeCode);
 
 			switch (typeCode)
 			{
@@ -1109,7 +1110,7 @@ public:
 
     void flush()
     {
-        version (TraceFunctionWriter) traceFunction();
+        debug(debug_pham_db_db_fbbuffer) debug writeln(__FUNCTION__, "()");
 
         _buffer.flush();
     }
@@ -1265,7 +1266,7 @@ public:
     void writeHandle(FbHandle handle) nothrow
     {
         static assert(uint32.sizeof == FbHandle.sizeof);
-        version (TraceFunctionWriter) traceFunction("handle=", handle);
+        debug(debug_pham_db_db_fbbuffer) debug writeln(__FUNCTION__, "(handle=", handle, ")");
 
         _writer.writeUInt32(cast(uint32)handle);
     }
@@ -1274,7 +1275,7 @@ public:
     void writeId(FbId id) nothrow
     {
         static assert(int64.sizeof == FbId.sizeof);
-        version (TraceFunctionWriter) traceFunction("id=", id);
+        debug(debug_pham_db_db_fbbuffer) debug writeln(__FUNCTION__, "(id=", id, ")");
 
         _writer.writeInt64(cast(int64)id);
     }
@@ -1339,7 +1340,7 @@ public:
     void writeOperation(FbOperation operation) nothrow
     {
         static assert(int32.sizeof == FbOperation.sizeof);
-        version (TraceFunctionWriter) traceFunction("operation=", operation);
+        debug(debug_pham_db_db_fbbuffer) debug writeln(__FUNCTION__, "(operation=", operation, ")");
 
         writeInt32(cast(int32)operation);
     }
@@ -1438,9 +1439,6 @@ private:
 
 unittest // FbXdrWriter & FbXdrReader
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.fbbuffer.FbXdrReader & db.fbbuffer.FbXdrWriter");
-
     const(char)[] chars = "1234567890qazwsxEDCRFV_+?";
     const(ubyte)[] bytes = [1,2,5,101];
     const(UUID) uuid = UUID(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15);

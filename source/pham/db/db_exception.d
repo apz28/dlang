@@ -11,7 +11,6 @@
 
 module pham.db.db_exception;
 
-version (TraceFunction) import pham.utl.utl_test;
 import pham.db.db_message;
 
 class DbException : Exception
@@ -28,8 +27,6 @@ public:
     this(uint errorCode, string errorMessage, string sqlState, uint socketCode, uint vendorCode,
         Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
     {
-        version (TraceFunction) debug traceFunction();
-
         if (errorCode)
             addMessageLine(errorMessage, DbMessage.eErrorCode.fmtMessage(errorCode));
 
@@ -46,8 +43,6 @@ public:
 
     override string toString() @trusted
     {
-        version (TraceFunction) traceFunction();
-
         auto result = super.toString();
 
         auto e = next;

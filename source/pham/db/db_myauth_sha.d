@@ -13,7 +13,8 @@ module pham.db.db_myauth_sha;
 
 import std.string : representation;
 
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_myauth_sha) import std.stdio : writeln;
+
 import pham.cp.cp_cipher_digest : Digester, DigestId, DigestResult;
 import pham.db.db_auth;
 import pham.db.db_message;
@@ -31,7 +32,7 @@ public:
     final CipherBuffer!ubyte calculateAuth(scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] nonce)
     {
-        version (TraceFunction) traceFunction("userName=", userName, ", nonce=", nonce.dgToHex());
+        debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(userName=", userName, ", nonce=", nonce.dgToHex(), ")");
 
         if (userPassword.length == 0)
             return CipherBuffer!ubyte.init;
@@ -53,14 +54,14 @@ public:
     final override ResultStatus getPassword(scope const(char)[] userName, scope const(char)[] userPassword,
         ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction("userName=", userName);
+        debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(userName=", userName, ")");
 
         return getPasswordEx(userName, userPassword, true, authData);
     }
 
     final override DbAuth setServerSalt(scope const(ubyte)[] serverSalt) pure
     {
-        version (TraceFunction) traceFunction("serverSalt=", serverSalt.dgToHex());
+        debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(serverSalt=", serverSalt.dgToHex(), ")");
 
         // if the data given to us is a null terminated string,
         // we need to trim off the trailing zero
@@ -82,7 +83,7 @@ protected:
             authData.put(auth[]);
         }
 
-        version (TraceFunction) traceFunction("userName=", userName, ", leadingIndicator=", leadingIndicator, ", result=", authData[].dgToHex());
+        debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(userName=", userName, ", leadingIndicator=", leadingIndicator, ", result=", authData[].dgToHex(), ")");
 
         return ResultStatus.ok();
     }
@@ -99,7 +100,7 @@ protected:
             result.put(left[i] ^ right[i]);
         }
 
-        version (TraceFunction) traceFunction("left=", left.dgToHex(), ", right=", right.dgToHex(), ", result=", result[].dgToHex());
+        debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(left=", left.dgToHex(), ", right=", right.dgToHex(), ", result=", result[].dgToHex(), ")");
 
         return result;
     }
@@ -113,13 +114,13 @@ protected:
         }
         result.put(0x00 ^ nonce[src.length % nonce.length]); // null terminated
 
-        version (TraceFunction) traceFunction("src=", src.dgToHex(), ", nonce=", nonce.dgToHex(), ", result=", result[].dgToHex());
+        debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(src=", src.dgToHex(), ", nonce=", nonce.dgToHex(), ", result=", result[].dgToHex(), ")");
 
         return result;
     }
 }
 
-version (none)
+version(none)
 class MyAuthSha256Mem : MyAuthSha
 {
 nothrow @safe:
@@ -154,7 +155,7 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction) traceFunction("state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex());
+        debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
 
         if (state == 0)
         {
@@ -185,10 +186,7 @@ protected:
     final ResultStatus getAuthDataPassword2(scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        version (TraceFunction)
-        {
-            scope (exit) traceFunction("userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ", result=", authData[].dgToHex());
-        }
+        debug(debug_pham_db_db_myauth_sha) scope (exit) debug writeln(__FUNCTION__, "(userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ", result=", authData[].dgToHex(), ")");
 
         // Send as clear text since the channel is already encrypted?
         if (isSSLConnection)
@@ -219,13 +217,13 @@ protected:
         // Obfuscate the plain text password with the session scramble.
         auto obfuscatedUserPassword = xorNonce(userPassword.representation(), serverSalt);
 
-        version (TraceFunction) traceFunction("obfuscatedUserPassword=", obfuscatedUserPassword.toString());
+        debug(debug_pham_db_db_myauth_sha) debug writeln("\t", "obfuscatedUserPassword=", obfuscatedUserPassword.toString());
 
         auto pem = OpenSSLRSAPem.publicKey(cast(const(char)[])serverAuthData, null);
         auto rsa = OpenSSLRSACrypt(pem);
         if (!serverVersion.empty && serverVersion < "8.0.5")
         {
-            version (TraceFunction) traceFunction("paddingMode=PRSA_PKCS1_PADDING");
+            debug(debug_pham_db_db_myauth_sha) debug writeln("\t", "paddingMode=PRSA_PKCS1_PADDING");
             rsa.paddingMode = RSA_PKCS1_PADDING;
         }
 
@@ -258,41 +256,40 @@ DbAuth createAuthSha2Caching()
     return new MyAuthSha2Caching();
 }
 
-unittest
+unittest // myauth_sha.MyAuthSha2Caching
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.myauth_sha.MyAuthSha2Caching");
-
-    auto obfuscated = MyAuthSha.xorNonce("masterkey".representation(), dgFromHex("773529605513697D2E3F02211E41096D1E4F5E40"));
-    assert(obfuscated[] == dgFromHex("1A545A1430610218573F"), obfuscated.toString());
+    import pham.utl.utl_object : bytesFromHexs;
+    
+    auto obfuscated = MyAuthSha.xorNonce("masterkey".representation(), bytesFromHexs("773529605513697D2E3F02211E41096D1E4F5E40"));
+    assert(obfuscated[] == bytesFromHexs("1A545A1430610218573F"), obfuscated.toString());
 
     {
         auto auth = new MyAuthSha2Caching();
-        auth.setServerSalt(dgFromHex("773529605513697D2E3F02211E41096D1E4F5E4000"));
+        auth.setServerSalt(bytesFromHexs("773529605513697D2E3F02211E41096D1E4F5E4000"));
         CipherBuffer!ubyte pwAuth;
         assert(auth.getPassword("caching_sha2_password", "masterkey", pwAuth).isOK());
-        assert(pwAuth[] == dgFromHex("20235CE4068AEF19D30C37784D968A4D489E46AE8D6CB6B9B5CB5FF3AA044FDD99"), pwAuth.toString());
+        assert(pwAuth[] == bytesFromHexs("20235CE4068AEF19D30C37784D968A4D489E46AE8D6CB6B9B5CB5FF3AA044FDD99"), pwAuth.toString());
     }
 
     {
         auto auth = new MyAuthSha2Caching();
         CipherBuffer!ubyte state1;
-        assert(auth.getAuthData(0, "caching_sha2_password", "masterkey", dgFromHex("2C4A135B7618231F1E6D1C12204E7F1A6A261B5F00"), state1).isOK());
-        assert(state1[] == dgFromHex("9558075C2D7DC2FDFBB306442A71378E3908793609084D3E4A66C7691A0EDE62"), state1.toString());
+        assert(auth.getAuthData(0, "caching_sha2_password", "masterkey", bytesFromHexs("2C4A135B7618231F1E6D1C12204E7F1A6A261B5F00"), state1).isOK());
+        assert(state1[] == bytesFromHexs("9558075C2D7DC2FDFBB306442A71378E3908793609084D3E4A66C7691A0EDE62"), state1.toString());
     }
 
     {
         auto auth = new MyAuthSha2Caching();
         CipherBuffer!ubyte state1;
-        assert(auth.getAuthData(0, "caching_sha2_password", "masterkey", dgFromHex("773529605513697D2E3F02211E41096D1E4F5E4000"), state1).isOK());
-        assert(state1[] == dgFromHex("235CE4068AEF19D30C37784D968A4D489E46AE8D6CB6B9B5CB5FF3AA044FDD99"), state1.toString());
+        assert(auth.getAuthData(0, "caching_sha2_password", "masterkey", bytesFromHexs("773529605513697D2E3F02211E41096D1E4F5E4000"), state1).isOK());
+        assert(state1[] == bytesFromHexs("235CE4068AEF19D30C37784D968A4D489E46AE8D6CB6B9B5CB5FF3AA044FDD99"), state1.toString());
 
         CipherBuffer!ubyte state2;
-        assert(auth.getAuthData(1, "caching_sha2_password", "masterkey", dgFromHex("04"), state2).isOK());
-        assert(state2[] == dgFromHex("02"), state2.toString());
+        assert(auth.getAuthData(1, "caching_sha2_password", "masterkey", bytesFromHexs("04"), state2).isOK());
+        assert(state2[] == bytesFromHexs("02"), state2.toString());
 
         // Not able to unittest for this case because of random padding data
-        //auto state3 = auth.getAuthData(2, "caching_sha2_password", "masterkey", dgFromHex("2D2D2D2D2D424547494E205055424C4943204B45592D2D2D2D2D0A4D494942496A414E42676B71686B6947397730424151454641414F43415138414D49494243674B4341514541355242567065474D5369743365634D36436355360A6A6461706161584D4B496B5450443562687459582F6E5A45503557546F72704B6B67776359487371646F453879726D596841524374563079466A752B39534A2F0A30654C766D3553625761564F39664B3053336D71546450436B5251717547586D374575797A3374664734743432716B5971456765314670676950394C694A44510A4B425A6A68475061384A306A6F72574243654C364472685651642F524A68676B43613543547843574C7259674943786A58726D494A565872674E755067734D410A516E433848386349466D5236734B4D563241573949574B7A6E31753950774E434443505A764777352B303130344E33796B2F654A5776303858317569783166540A4B426B45387A715566464E3449454374704E76486A377578614F735772527A68305876776E6A4D436B454A664C69674D4F31696A674D564776493839304564310A39774944415141420A2D2D2D2D2D454E44205055424C4943204B45592D2D2D2D2D0A"));
-        //assert(state3[] == dgFromHex("173FA77A68396EB1C690F4D216CCC2F8211C50357665668DC1EE8DD160B021DC77F3A6D5BCD14BEF0902817C58B539DE9A476517C6234F0022D4D4191B6A0C3FCA5DC80BB46D05F03DA75C2B696C55A9A03752551AED255351788392E4D8CECC362414A3B0572870A8912351AE6FF748B4269E2429E6C45B4C7F02EE50C607B428A4D8D70E2FF66F89FC6C2E2B64780241E4A4B03AC145E4198FA69B737996AFE1E6CDF797EFAECDF641C73AAD5E80D28ADE2269201311433D0E47C098F79F71E73C81FD5BC29438550F997DCD94ACAA3B3FE6A8CDEFE79E01016B156812E8A34E4F152F386ED77323FC45433611708F8487B1DD56E5778C241F25E6577D0DBB"), state3.toString());
+        //auto state3 = auth.getAuthData(2, "caching_sha2_password", "masterkey", bytesFromHexs("2D2D2D2D2D424547494E205055424C4943204B45592D2D2D2D2D0A4D494942496A414E42676B71686B6947397730424151454641414F43415138414D49494243674B4341514541355242567065474D5369743365634D36436355360A6A6461706161584D4B496B5450443562687459582F6E5A45503557546F72704B6B67776359487371646F453879726D596841524374563079466A752B39534A2F0A30654C766D3553625761564F39664B3053336D71546450436B5251717547586D374575797A3374664734743432716B5971456765314670676950394C694A44510A4B425A6A68475061384A306A6F72574243654C364472685651642F524A68676B43613543547843574C7259674943786A58726D494A565872674E755067734D410A516E433848386349466D5236734B4D563241573949574B7A6E31753950774E434443505A764777352B303130344E33796B2F654A5776303858317569783166540A4B426B45387A715566464E3449454374704E76486A377578614F735772527A68305876776E6A4D436B454A664C69674D4F31696A674D564776493839304564310A39774944415141420A2D2D2D2D2D454E44205055424C4943204B45592D2D2D2D2D0A"));
+        //assert(state3[] == bytesFromHexs("173FA77A68396EB1C690F4D216CCC2F8211C50357665668DC1EE8DD160B021DC77F3A6D5BCD14BEF0902817C58B539DE9A476517C6234F0022D4D4191B6A0C3FCA5DC80BB46D05F03DA75C2B696C55A9A03752551AED255351788392E4D8CECC362414A3B0572870A8912351AE6FF748B4269E2429E6C45B4C7F02EE50C607B428A4D8D70E2FF66F89FC6C2E2B64780241E4A4B03AC145E4198FA69B737996AFE1E6CDF797EFAECDF641C73AAD5E80D28ADE2269201311433D0E47C098F79F71E73C81FD5BC29438550F997DCD94ACAA3B3FE6A8CDEFE79E01016B156812E8A34E4F152F386ED77323FC45433611708F8487B1DD56E5778C241F25E6577D0DBB"), state3.toString());
     }
 }

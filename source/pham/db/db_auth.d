@@ -13,7 +13,8 @@ module pham.db.db_auth;
 
 import std.conv : to;
 
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_auth) import std.stdio : writeln;
+
 public import pham.cp.cp_cipher : CipherBuffer, CipherRawKey;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_object : VersionString;
@@ -39,7 +40,7 @@ public:
 
     DbAuth setServerPublicKey(scope const(ubyte)[] serverPublicKey) nothrow pure
     {
-        version (TraceFunction) traceFunction("serverPublicKey=", serverPublicKey.dgToHex());
+        debug(debug_pham_db_db_auth) debug writeln(__FUNCTION__, "(serverPublicKey=", serverPublicKey.dgToHex(), ")");
 
         this._serverPublicKey = serverPublicKey; 
         return this;
@@ -47,7 +48,7 @@ public:
 
     DbAuth setServerSalt(scope const(ubyte)[] serverSalt) nothrow pure
     {
-        version (TraceFunction) traceFunction("serverSalt=", serverSalt.dgToHex());
+        debug(debug_pham_db_db_auth) debug writeln(__FUNCTION__, "(serverSalt=", serverSalt.dgToHex(), ")");
 
         this._serverSalt = serverSalt;
         return this;

@@ -15,8 +15,9 @@ import core.time : dur;
 import std.format : FormatSpec, formatValue;
 import std.traits: isUnsigned, Unqual;
 
-version (profile) import pham.utl.utl_test : PerfFunction;
-version (unittest) import pham.utl.utl_test;
+debug(debug_pham_db_db_myconvert) import std.stdio : writeln;
+
+version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.dtm.dtm_date_time_parse;
 import pham.dtm.dtm_tick : Tick, TickPart;
 import pham.utl.utl_array : ShortStringBuffer;
@@ -86,7 +87,7 @@ uint8 dateEncode(ref ubyte[maxDateBufferSize] myDateBytes, scope const(Date) dat
 static immutable DateTimePattern[] datePatterns;
 bool dateDecodeString(scope const(char)[] myDateString, ref DbDate dbDate)
 {
-	version (TraceFunction) debug traceFunction("myDateString=", myDateString);
+	debug(debug_pham_db_db_myconvert) debug writeln(__FUNCTION__, "(myDateString=", myDateString, ")");
 	assert(datePatterns.length != 0);
 
 	Date dt = void;
@@ -170,7 +171,7 @@ uint8 dateTimeEncode(ref ubyte[maxDateTimeBufferSize] myDateTimeBytes, scope con
 static immutable DateTimePattern[] dateTimePatterns;
 bool dateTimeDecodeString(scope const(char)[] myDateTimeString, ref DbDateTime dbDateTime)
 {
-	version (TraceFunction) debug traceFunction("myDateTimeString=", myDateTimeString);
+	debug(debug_pham_db_db_myconvert) debug writeln(__FUNCTION__, "(myDateTimeString=", myDateTimeString, ")");
 	assert(dateTimePatterns.length != 0);
 
 	DateTime dt = void;
@@ -314,7 +315,7 @@ uint8 timeSpanEncode(ref ubyte[maxTimeSpanBufferSize] myTimeSpanBytes, scope con
 static immutable DateTimePattern[] timePatterns;
 bool timeSpanDecodeString(scope const(char)[] myTimeString, ref DbTimeSpan dbTimeSpan)
 {
-	version (TraceFunction) debug traceFunction("myTimeString=", myTimeString);
+	debug(debug_pham_db_db_myconvert) debug writeln(__FUNCTION__, "(myTimeString=", myTimeString, ")");
 	assert(timePatterns.length != 0);
 
 	Time tm = void;
@@ -392,7 +393,7 @@ do
 		result |= cast(T)(v[7]) << shift;
     }
 
-	version (TraceFunction) debug traceFunction("uintDecode.result=", result, ", bytes=", v.dgToHex());
+	debug(debug_pham_db_db_myconvert) debug writeln(__FUNCTION__, "(uintDecode.result=", result, ", bytes=", v.dgToHex(), ")");
 
     return result;
 }
@@ -513,9 +514,6 @@ shared static this() nothrow @safe
 
 unittest // uintEncode & uintDecode
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.myconvert.uintEncode & uintDecode");
-
     // 16 bits
     auto b16 = uintEncode!(ushort, 2)(ushort.min);
     auto u16 = uintDecode!ushort(b16[]);
@@ -583,9 +581,6 @@ unittest // uintEncode & uintDecode
 
 unittest // dateDecode & dateEncode
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.myconvert.dateDecode & dateEncode");
-
 	ubyte[maxDateBufferSize] buffer = void;
 	int bufferSize = void;
 	Date date = void;
@@ -605,9 +600,6 @@ unittest // dateDecode & dateEncode
 
 unittest // dateTimeDecode & dateTimeEncode
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.myconvert.dateTimeDecode & dateTimeEncode");
-
 	ubyte[maxDateTimeBufferSize] buffer = void;
 	int bufferSize = void;
 	DbDateTime dateTime = void;
@@ -655,9 +647,6 @@ unittest // dateTimeDecode & dateTimeEncode
 
 unittest // timeSpanDecode & timeSpanEncode
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.db.myconvert.timeSpanDecode & timeSpanEncode");
-
 	Time time;
 	DbTimeSpan timeSpan;
 	ubyte[maxTimeSpanBufferSize] buffer;
