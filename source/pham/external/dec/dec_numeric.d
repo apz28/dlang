@@ -23,7 +23,7 @@ enum MAX_REAL_EXPONENT_34       = 4899;
 enum MIN_REAL_COEFFICIENT_34    = uint128(cast(const(ubyte)[])[179, 184, 226, 237, 169, 26, 35, 45, 217, 80, 16, 41, 120, 219]);   // uint128("3645199531882474602528405933619419");
 enum MIN_REAL_EXPONENT_34       = -4984;
 
-version (ShowEnumDecBytes)
+version(ShowEnumDecBytes)
 unittest
 {
     static assert(MAX_FLOAT_COEFFICIENT_34 == uint128("3402823466385288598117041834845169"));
@@ -36,7 +36,7 @@ unittest
     static assert(MIN_REAL_COEFFICIENT_34 == uint128("3645199531882474602528405933619419"));
 }
 
-version (ShowEnumDecBytes) version (none)
+version(ShowEnumDecBytes) version(none)
 unittest
 {
     import std.stdio;
@@ -299,7 +299,7 @@ bool runpack(const(real) r, out int exp, out ulong mantissa, out bool inf, out b
     return (ru.e & 0x8000) != 0;
 }
 
-version (none)
+version(none)
 void floatExtract(float f, out uint coefficient, out int exponent)
 {
     // x * 2^n = y * 10^m -> 2^n = n * log2(10)

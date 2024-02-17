@@ -64,6 +64,19 @@ static immutable string[ExceptionFlag.max + 1] exceptionMessages = [
     "Inexact",
 ];
 
+string getExceptionMessage(string throwingMsg, const(ExceptionFlag) kind) @nogc nothrow pure @safe
+{
+    return throwingMsg.length != 0 ? throwingMsg : exceptionMessages[kind];
+}
+
+version(D_BetterC)
+string getExceptionMessage(return char[] bufferMsg, string throwingMsg, const(ExceptionFlag) kind, string file, uint line) @nogc nothrow pure @safe
+{
+    import std.format : sformat;
+
+    return sformat(bufferMsg, "%s in %s [%d]", getExceptionMessage(throwingMsg, kind), file, line);
+}
+
 template DataType(int bytes)
 if (bytes == 4 || bytes == 8 || bytes == 16)
 {
@@ -256,6 +269,8 @@ public:
             throwFlags(ExceptionFlags.underflow, msg, file, line);
         else if (isFlagTrapped(flags, traps, ExceptionFlags.inexact))
             throwFlags(ExceptionFlags.inexact, msg, file, line);
+
+
     }
 
     pragma(inline, true)
@@ -263,7 +278,7 @@ public:
     {
         return (flags & checkingFlag) && (traps & checkingFlag);
     }
-    
+
     /**
      * Return true if flags contain overflow or underflow value
      */
@@ -352,80 +367,113 @@ public:
         }
 	}
 
+    version(D_BetterC)
+    {}
+    else
+    {
+        import pham.external.dec.dec_decimal :
+            InvalidOperationException, DivisionByZeroException, OverflowException, UnderflowException, InexactException;
+
+        version(decNogcException)
+        {
+            static immutable eDivisionByZeroException = new DivisionByZeroException(exceptionMessages[ExceptionFlag.divisionByZero]);
+            static immutable eInexactException = new InexactException(exceptionMessages[ExceptionFlag.inexact]);
+            static immutable eInvalidOperationException = new InvalidOperationException(exceptionMessages[ExceptionFlag.invalidOperation]);
+            static immutable eOverflowException = new OverflowException(exceptionMessages[ExceptionFlag.overflow]);
+            static immutable eUnderflowException = new UnderflowException(exceptionMessages[ExceptionFlag.underflow]);
+        }
+    }
+
     static void throwFlags(const(ExceptionFlags) flags,
         string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
     {
-        version (D_BetterC)
+        if (flags & ExceptionFlags.invalidOperation)
+            throwInvalidOperationError(msg, file, line);
+        else if (flags & ExceptionFlags.divisionByZero)
+            throwDivisionByZeroError(msg, file, line);
+        else if (flags & ExceptionFlags.overflow)
+            throwOverflowError(msg, file, line);
+        else if (flags & ExceptionFlags.underflow)
+            throwUnderflowError(msg, file, line);
+        else if (flags & ExceptionFlags.inexact)
+            throwInexactError(msg, file, line);
+    }
+
+    version(D_BetterC)
+    private static char[500] errorMessageBuffer;
+
+    static noreturn throwDivisionByZeroError(string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
+    {
+        version(D_BetterC)
         {
-            assert(!(flags & ExceptionFlags.invalidOperation), msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.invalidOperation]);
-            assert(!(flags & ExceptionFlags.divisionByZero), msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.divisionByZero]);
-            assert(!(flags & ExceptionFlags.overflow), msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.overflow]);
-            assert(!(flags & ExceptionFlags.underflow), msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.underflow]);
-            assert(!(flags & ExceptionFlags.inexact), msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.inexact]);
+            assert(0, getExceptionMessage(errorMessageBuffer[], msg, ExceptionFlag.divisionByZero, file, line));
         }
         else
         {
-            version (decNogcException)
-            {
-                import pham.external.dec.dec_decimal : 
-                    eInvalidOperationException, eDivisionByZeroException, eOverflowException, eUnderflowException, eInexactException;
-            }
+            version(decNogcException)
+                throw (cast()eDivisionByZeroException).set(msg, file, line);
             else
-            {
-                import pham.external.dec.dec_decimal :
-                    InvalidOperationException, DivisionByZeroException, OverflowException, UnderflowException, InexactException;
-            }
-            
-            if (flags & ExceptionFlags.invalidOperation)
-            {
-                version (decNogcException)
-                {
-                    (cast()eInvalidOperationException).set(msg, file, line);
-                    throw eInvalidOperationException;
-                }
-                else
-                    throw new InvalidOperationException(msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.invalidOperation], file, line);
-            }
-            else if (flags & ExceptionFlags.divisionByZero)
-            {
-                version (decNogcException)
-                {
-                    (cast()eDivisionByZeroException).set(msg, file, line);
-                    throw cast()eDivisionByZeroException;
-                }
-                else
-                    throw new DivisionByZeroException(msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.divisionByZero], file, line);
-            }
-            else if (flags & ExceptionFlags.overflow)
-            {
-                version (decNogcException)
-                {
-                    (cast()eOverflowException).set(msg, file, line);
-                    throw cast()eOverflowException;
-                }
-                else
-                    throw new OverflowException(msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.overflow], file, line);
-            }
-            else if (flags & ExceptionFlags.underflow)
-            {
-                version (decNogcException)
-                {
-                    (cast()eUnderflowException).set(msg, file, line);
-                    throw cast()eUnderflowException;
-                }
-                else
-                    throw new UnderflowException(msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.underflow], file, line);
-            }
-            else if (flags & ExceptionFlags.inexact)
-            {
-                version (decNogcException)
-                {
-                    (cast()eInexactException).set(msg, file, line);
-                    throw cast()eInexactException;
-                }
-                else
-                    throw new InexactException(msg.length != 0 ? msg : exceptionMessages[ExceptionFlag.inexact], file, line);
-            }
+                throw new DivisionByZeroException(getExceptionMessage(msg, ExceptionFlag.divisionByZero), file, line);
+        }
+    }
+
+    static noreturn throwInexactError(string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
+    {
+        version(D_BetterC)
+        {
+            assert(0, getExceptionMessage(errorMessageBuffer[], msg, ExceptionFlag.inexact, file, line));
+        }
+        else
+        {
+            version(decNogcException)
+                throw (cast()eInexactException).set(msg, file, line);
+            else
+                throw new InexactException(getExceptionMessage(msg, ExceptionFlag.inexact), file, line);
+        }
+    }
+
+    static noreturn throwInvalidOperationError(string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
+    {
+        version(D_BetterC)
+        {
+            assert(0, getExceptionMessage(errorMessageBuffer[], msg, ExceptionFlag.invalidOperation, file, line));
+        }
+        else
+        {
+            version(decNogcException)
+                throw (cast()eInvalidOperationException).set(msg, file, line);
+            else
+                throw new InvalidOperationException(getExceptionMessage(msg, ExceptionFlag.invalidOperation), file, line);
+        }
+    }
+
+    static noreturn throwOverflowError(string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
+    {
+        version(D_BetterC)
+        {
+            assert(0, getExceptionMessage(errorMessageBuffer[], msg, ExceptionFlag.overflow, file, line));
+        }
+        else
+        {
+            version(decNogcException)
+                throw (cast()eOverflowException).set(msg, file, line);
+            else
+                throw new OverflowException(getExceptionMessage(msg, ExceptionFlag.overflow), file, line);
+        }
+    }
+
+    static noreturn throwUnderflowError(string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
+    {
+        version(D_BetterC)
+        {
+            assert(0, getExceptionMessage(errorMessageBuffer[], msg, ExceptionFlag.underflow, file, line));
+        }
+        else
+        {
+            version(decNogcException)
+                throw (cast()eUnderflowException).set(msg, file, line);
+            else
+                throw new UnderflowException(getExceptionMessage(msg, ExceptionFlag.underflow), file, line);
         }
     }
 

@@ -133,7 +133,7 @@ shared static this() nothrow @safe
     }
 }
 
-version (unittest)
+version(unittest)
 T round(T)(T x, ubyte places)
 if (isFloatingPoint!T)
 {

@@ -16,7 +16,7 @@ import pham.external.dec.dec_parse;
 import pham.external.dec.dec_range;
 public import pham.external.dec.dec_type;
 
-version (D_BetterC) {}
+version(D_BetterC) {}
 else
 {
   public import std.format : FormatSpec;
@@ -25,7 +25,7 @@ else
 
 private alias fma = pham.external.dec.dec_integral.fma;
 
-version (Windows)
+version(Windows)
 {
     public import core.sys.windows.wtypes: DECIMAL;
 }
@@ -836,7 +836,7 @@ public:
         }
     }
 
-    version (D_BetterC) {}
+    version(D_BetterC) {}
     else
     {
         static immutable char defaultFmtSpec = 'f';
@@ -1140,7 +1140,7 @@ package(pham.external.dec):
         ExceptionFlags flags;
         const valid = result.packString(validDecimal, flags, D.PRECISION, RoundingMode.implicit);
         assert(valid, validDecimal.idup);
-        version (ShowEnumDecBytes) version (none)
+        version(ShowEnumDecBytes) version(none)
         {
             import std.stdio : writeln;
             ubyte[Bytes] b;
@@ -1627,7 +1627,7 @@ alias Decimal64 = Decimal!8;
 ///ditto
 alias Decimal128 = Decimal!16;
 
-version (D_BetterC)
+version(D_BetterC)
 {}
 else
 {
@@ -1649,21 +1649,17 @@ else
     {
         mixin ExceptionConstructors;
 
-        version (decNogcException)
+        version(decNogcException)
         {
-            void set(string msg, string file, uint line) @nogc nothrow pure @safe
+            final typeof(this) set(string msg, string file, uint line) @nogc nothrow pure @safe
             {
                 this.file = file;
                 this.line = line;
-                this.msg = msg.length != 0 ? msg : this.kindMsg;
+                this.msg = getExceptionMessage(msg, this.kind);
+                return this;
             }
 
             @property ExceptionFlag kind() @nogc nothrow pure @safe;
-
-            @property final string kindMsg() @nogc nothrow pure @safe
-            {
-                return exceptionMessages[kind];
-            }
         }
     }
 
@@ -1672,7 +1668,7 @@ else
     {
 	    mixin ExceptionConstructors;
 
-        version (decNogcException)
+        version(decNogcException)
         {
             @property final override ExceptionFlag kind() @nogc nothrow pure @safe
             {
@@ -1686,7 +1682,7 @@ else
     {
 	    mixin ExceptionConstructors;
 
-        version (decNogcException)
+        version(decNogcException)
         {
             @property final override ExceptionFlag kind() @nogc nothrow pure @safe
             {
@@ -1700,7 +1696,7 @@ else
     {
 	    mixin ExceptionConstructors;
 
-        version (decNogcException)
+        version(decNogcException)
         {
             @property final override ExceptionFlag kind() @nogc nothrow pure @safe
             {
@@ -1714,7 +1710,7 @@ else
     {
 	    mixin ExceptionConstructors;
 
-        version (decNogcException)
+        version(decNogcException)
         {
             @property final override ExceptionFlag kind() @nogc nothrow pure @safe
             {
@@ -1728,22 +1724,13 @@ else
     {
 	    mixin ExceptionConstructors;
 
-        version (decNogcException)
+        version(decNogcException)
         {
             @property final override ExceptionFlag kind() @nogc nothrow pure @safe
             {
                 return ExceptionFlag.underflow;
             }
         }
-    }
-
-    version (decNogcException)
-    {
-        static immutable eDivisionByZeroException = new DivisionByZeroException(exceptionMessages[ExceptionFlag.divisionByZero]);
-        static immutable eInexactException = new InexactException(exceptionMessages[ExceptionFlag.inexact]);
-        static immutable eInvalidOperationException = new InvalidOperationException(exceptionMessages[ExceptionFlag.invalidOperation]);
-        static immutable eOverflowException = new OverflowException(exceptionMessages[ExceptionFlag.overflow]);
-        static immutable eUnderflowException = new UnderflowException(exceptionMessages[ExceptionFlag.underflow]);
     }
 }
 
@@ -2084,7 +2071,7 @@ unittest // Default value
 
 unittest
 {
-    version (D_BetterC)
+    version(D_BetterC)
     {}
     else
     {
@@ -2450,7 +2437,7 @@ if (isDecimal!(D1, D2))
     const c = decimalCmp(x, y);
 
     // Not accept NaN?
-    version (none)
+    version(none)
     if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
@@ -2505,7 +2492,7 @@ if (isDecimal!D && isFloatingPoint!F)
     /*
     const c = decimalCmp(x, y, yPrecision, yMode, yMaxFractionalDigits);
 
-    version (none)
+    version(none)
     if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
@@ -2523,7 +2510,7 @@ if (isDecimal!D && isIntegral!I)
     /*
     const c = decimalCmp(x, y);
 
-    version (none)
+    version(none)
     if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
@@ -2542,7 +2529,7 @@ Compares two _decimal operands for equality
 Returns:
     true if the specified condition is satisfied, false otherwise or if any of the operands is $(B NaN).
 
-version (none)
+version(none)
 Notes:
     By default, $(MYREF Decimal.opEquals) is silent, returning false if a $(B NaN) value is encountered.
     isEqual and isNotEqual will throw $(MYREF InvalidOperationException) or will
@@ -2559,7 +2546,7 @@ if (isDecimal!(D1, D2))
     const c = decimalEqu(x, y);
 
     // Not accept NaN?
-    version (none)
+    version(none)
     if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
@@ -2598,7 +2585,7 @@ if (isDecimal!D && isFloatingPoint!F)
     const c = decimalEqu(x, y, yPrecision, yMode, yMaxFractionalDigits);
 
     // Not accept NaN?
-    version (none)
+    version(none)
     if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
@@ -2616,7 +2603,7 @@ if (isDecimal!D && isIntegral!I)
     const c = decimalEqu(x, y);
 
     // Not accept NaN?
-    version (none)
+    version(none)
     if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
@@ -2639,7 +2626,7 @@ if (isDecimal!(D1, D2))
 
     if (.isNaN(c))
     {
-        version (none)
+        version(none)
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
         return false;
@@ -2672,7 +2659,7 @@ if (isDecimal!(D1, D2))
 {
     const c = decimalCmp(x, y);
 
-    version (none)
+    version(none)
     if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
@@ -2686,7 +2673,7 @@ if (isDecimal!(D1, D2))
 {
     const c = decimalCmp(x, y);
 
-    version (none)
+    version(none)
     if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
@@ -2710,7 +2697,7 @@ if (isDecimal!(D1, D2))
 {
     const c = decimalCmp(x, y);
 
-    version (none)
+    version(none)
     if (.isNaN(c))
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
@@ -2726,7 +2713,7 @@ if (isDecimal!(D1, D2))
 
     if (.isNaN(c))
     {
-        version (none)
+        version(none)
         DecimalControl.setFlags(ExceptionFlags.invalidOperation);
 
         return false;
@@ -7109,7 +7096,7 @@ if (isDecimal!D)
 }
 
 /// format, toString()
-version (D_BetterC) {}
+version(D_BetterC) {}
 else
 {
     unittest
@@ -7832,7 +7819,7 @@ int realFloatPrecision(F)(const(int) precision) @nogc nothrow pure @safe
         return precision == 0 ? 21 : (precision > 21 ? 21 : precision);
 }
 
-version (none)
+version(none)
 struct Constants(T)
 {
     static if (is(T:uint))
@@ -7892,7 +7879,7 @@ struct Constants(T)
         enum uint128    cln10       = uint128("230258509299404568401799145468436420760");
         enum int        eln10       = -38;
 
-        version (ShowEnumDecBytes)
+        version(ShowEnumDecBytes)
         unittest
         {
             import std.stdio;
@@ -7927,7 +7914,7 @@ struct Constants(T)
         enum uint256    cln10       = uint256("23025850929940456840179914546843642076011014886287729760333279009675726096774");
         enum int        eln10       = -76;
 
-        version (ShowEnumDecBytes)
+        version(ShowEnumDecBytes)
         unittest
         {
             import std.stdio;
@@ -8101,7 +8088,7 @@ enum
     s_minReal128    = "3.645199531882474602528405933619419e-4951",
 }
 
-version (ShowEnumDecBytes)
+version(ShowEnumDecBytes)
 unittest
 {
     import std.meta : AliasSeq;
@@ -8156,7 +8143,7 @@ unittest
     }
 }
 
-version (ShowEnumDecBytes) version (none)
+version(ShowEnumDecBytes) version(none)
 unittest
 {
     import std.meta : AliasSeq;
@@ -8428,24 +8415,24 @@ unittest // Decimal.opCast - up cast
     assert(to!Decimal128(Decimal64(12345678)) == Decimal128(12345678));
 }
 
-version (none)
+version(none)
 unittest
 {
     import std.meta : AliasSeq;
-    import pham.utl.utl_test;
-    dgWriteln("Decimal32.min=", Decimal32.min.toString());
-    dgWriteln("Decimal32.max=", Decimal32.max.toString());
-    dgWriteln("Decimal64.min=", Decimal64.min.toString());
-    dgWriteln("Decimal64.max=", Decimal64.max.toString());
-    dgWriteln("Decimal128.min=", Decimal128.min.toString());
-    dgWriteln("Decimal128.max=", Decimal128.max.toString());
+    import std.stdio : writeln;
+    writeln("Decimal32.min=", Decimal32.min.toString());
+    writeln("Decimal32.max=", Decimal32.max.toString());
+    writeln("Decimal64.min=", Decimal64.min.toString());
+    writeln("Decimal64.max=", Decimal64.max.toString());
+    writeln("Decimal128.min=", Decimal128.min.toString());
+    writeln("Decimal128.max=", Decimal128.max.toString());
 
     static foreach (S; AliasSeq!(int, uint, long, ulong))
     {
         static foreach (D; AliasSeq!(Decimal32, Decimal64, Decimal128))
         {
-            dgWriteln(D.stringof, "(", S.stringof, ".min)", D(S.min).toString());
-            dgWriteln(D.stringof, "(", S.stringof, ".max)", D(S.max).toString());
+            writeln(D.stringof, "(", S.stringof, ".min)", D(S.min).toString());
+            writeln(D.stringof, "(", S.stringof, ".max)", D(S.max).toString());
         }
     }
 
@@ -8453,8 +8440,8 @@ unittest
     {
         static foreach (D; AliasSeq!(Decimal32, Decimal64, Decimal128))
         {
-            dgWriteln(D.stringof, "(-", S.stringof, ".max)", D(-S.max).toString());
-            dgWriteln(D.stringof, "(", S.stringof, ".max)", D(S.max).toString());
+            writeln(D.stringof, "(-", S.stringof, ".max)", D(-S.max).toString());
+            writeln(D.stringof, "(", S.stringof, ".max)", D(S.max).toString());
         }
     }
 

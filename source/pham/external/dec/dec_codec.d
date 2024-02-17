@@ -11,9 +11,9 @@
 
 module pham.external.dec.dec_codec;
 
-version (TraceFunction) import pham.utl.utl_test;
-import pham.external.dec.dec_decimal: Decimal32, Decimal64, Decimal128,
-    decimalSubClass, fabs;
+debug(debug_pham_external_dec_dec_codec) import std.stdio : writeln;
+
+import pham.external.dec.dec_decimal: Decimal32, Decimal64, Decimal128, decimalSubClass, fabs;
 import pham.external.dec.dec_integral : divrem;
 import pham.external.dec.dec_type;
 
@@ -46,7 +46,7 @@ public:
     }
 	do
     {
-		version (TraceFunction) traceFunction("firstByte=", decBytes[0], ", decBytes=", decBytes);
+		debug(debug_pham_external_dec_dec_codec) debug writeln(__FUNCTION__, "(decBytes=", decBytes, ")");
 
 		const firstByte = decBytes[0];
 		const isNeg = (firstByte & negativeBit) == negativeBit;
@@ -71,12 +71,12 @@ public:
 					: 0b1000 | (usignedRightShift(firstByteAsInt, 2) & 0b01);
 				const exponentBitsRemaining = exponentContinuationBits - 2;
 
-				version (TraceFunction) traceFunction("exponentMSB=", exponentMSB, ", firstDigit=", firstDigit);
+				debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "exponentMSB=", exponentMSB, ", firstDigit=", firstDigit);
 
 				const exponent = unbiasedExponent(decodeExponent(exponentMSB, exponentBitsRemaining, decBytes));
 				const coefficient = decodeCoefficient(isNeg, firstDigit, decBytes);
 
-				version (TraceFunction) traceFunction("exponent=", exponent, ", coefficient=", coefficient);
+				debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "exponent=", exponent, ", coefficient=", coefficient);
 
 				D result = void;
 				result.pack(coefficient, exponent, isNeg);
@@ -86,7 +86,7 @@ public:
 
 	static EncodedResult encode(scope const(D) value) @nogc
     {
-		version (TraceFunction) debug traceFunction(traceString());
+		debug(debug_pham_external_dec_dec_codec) debug writeln(__FUNCTION__, "(value=", value.toString(), ")\r\t", traceString());
 
 		EncodedResult decBytes;
 
@@ -99,12 +99,12 @@ public:
 		else
 			decBytes[0] |= s;
 
-		version (TraceFunction) traceFunction("firstByte=", decBytes[0], ", decBytes=", decBytes);
+		debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "decBytes=", decBytes);
 
 		return decBytes;
     }
 
-	version (TraceFunction)
+	debug(debug_pham_external_dec_dec_codec)
 	static string traceString() nothrow @trusted
     {
 		import std.conv : to;
@@ -162,6 +162,8 @@ private:
     }
 	do
 	{
+        debug(debug_pham_external_dec_dec_codec) debug writeln(__FUNCTION__, "()");
+        
 		char[coefficientDigits + 1] digitChars = '0';
 
 		foreach (digitGroup; 0..digitGroups)
@@ -176,8 +178,7 @@ private:
                     (cast(int)decBytes[firstByteIndex] >>> firstByteBitOffset)
                      | (cast(int)decBytes[firstByteIndex - 1] << (bitsPerByte - firstByteBitOffset)));
 
-			version (TraceFunction)
-			traceFunction("firstByteIndex=", firstByteIndex,
+			debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "firstByteIndex=", firstByteIndex,
                       ", decBytes[firstByteIndex]=", decBytes[firstByteIndex],
                       ", decBytes[firstByteIndex - 1]=", decBytes[firstByteIndex - 1],
                       ", dpdGroupBits=", dpdGroupBits);
@@ -188,8 +189,7 @@ private:
 				const dstIndex = digitChars.length - (digitGroup + 1) * digitsPerGroup;
 				digitChars[dstIndex..dstIndex + digitsPerGroup] = dpdGroupBits2Digits[srcIndex..srcIndex + digitsPerGroup];
 
-				version (TraceFunction)
-				traceFunction("srcIndex=", srcIndex,
+				debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "srcIndex=", srcIndex,
 						  ", dstIndex=", dstIndex,
                           ", digitChars[dstIndex..dstIndex + digitsPerGroup]=", digitChars[dstIndex..dstIndex + digitsPerGroup]);
             }
@@ -209,7 +209,7 @@ private:
 		if (isNeg)
 			digitChars[--digitCharIndex] = '-';
 
-		version (TraceFunction) traceFunction("digitChars=", digitChars);
+		debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "digitChars=", digitChars);
 
 		return decodeCoefficient(D.buildin(digitChars[digitCharIndex..$]));
 	}
@@ -227,7 +227,7 @@ private:
 		int exponent = exponentMSB;
 		size_t byteIndex = 1;
 
-		version (TraceFunction) traceFunction("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining, ", decBytes=", decBytes);
+		debug(debug_pham_external_dec_dec_codec) debug writeln(__FUNCTION__, "(exponentMSB=", exponentMSB, ", exponentBitsRemaining=", exponentBitsRemaining, ", decBytes=", decBytes, ")");
 
 		while (exponentBitsRemaining > 8)
 		{
@@ -235,7 +235,7 @@ private:
 			byteIndex += 1;
 			exponentBitsRemaining -= 8;
 
-			version (TraceFunction) traceFunction("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining);
+			debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining);
 		}
 
 		if (exponentBitsRemaining > 0)
@@ -243,7 +243,7 @@ private:
 			exponent = (exponent << exponentBitsRemaining)
                 | (usignedRightShift(decBytes[byteIndex] & 0xFF, 8 - exponentBitsRemaining));
 
-			version (TraceFunction) traceFunction("exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining);
+			debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining);
 		}
 
 		return exponent;
@@ -267,7 +267,7 @@ private:
     }
 	do
     {
-		version (TraceFunction) traceFunction("coefficient=", coefficient);
+		debug(debug_pham_external_dec_dec_codec) debug writeln(__FUNCTION__, "(coefficient=", coefficient, ")");
 
 		D.U remainingValue = coefficient;
 		foreach (digitGroup; 0..digitGroups)
@@ -286,8 +286,7 @@ private:
 			decBytes[firstByteIndex] = curByte;
 			decBytes[firstByteIndex - 1] = cast(ubyte)(decBytes[firstByteIndex - 1] | preByte);
 
-			version (TraceFunction)
-			traceFunction("remainingValue=", remainingValue,
+			debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "remainingValue=", remainingValue,
 				", remainder=", remainder, ", currentGroup=", currentGroup,
 				", curByte=", curByte, ", preByte=", preByte,
 				", decBytes[firstByteIndex]=", decBytes[firstByteIndex],
@@ -300,7 +299,7 @@ private:
 
 	static void encodeExponentContinuation(int biasedExponent, int expBitsRemaining, ref EncodedResult decBytes) @nogc
 	{
-		version (TraceFunction) traceFunction("biasedExponent=", biasedExponent, ", expBitsRemaining=", expBitsRemaining, ", decBytes=", decBytes);
+		debug(debug_pham_external_dec_dec_codec) debug writeln(__FUNCTION__, "(biasedExponent=", biasedExponent, ", expBitsRemaining=", expBitsRemaining, ", decBytes=", decBytes, ")");
 
 		size_t expByteIndex = 1;
 		while (expBitsRemaining > 8)
@@ -308,14 +307,14 @@ private:
 			decBytes[expByteIndex++] = cast(ubyte)usignedRightShift(biasedExponent, expBitsRemaining - 8);
 			expBitsRemaining -= 8;
 
-			version (TraceFunction) traceFunction("decBytes[expByteIndex]=", decBytes[expByteIndex - 1], ", expByteIndex=", expByteIndex - 1);
+			debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "decBytes[expByteIndex]=", decBytes[expByteIndex - 1], ", expByteIndex=", expByteIndex - 1);
 		}
 
 		if (expBitsRemaining > 0)
 		{
 			decBytes[expByteIndex] |= cast(ubyte)(biasedExponent << 8 - expBitsRemaining);
 
-			version (TraceFunction) traceFunction("decBytes[expByteIndex]=", decBytes[expByteIndex], ", expByteIndex=", expByteIndex);
+			debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "decBytes[expByteIndex]=", decBytes[expByteIndex], ", expByteIndex=", expByteIndex);
 		}
 	}
 
@@ -328,10 +327,8 @@ private:
 		absValue.unpack(coefficient, unbiasedExponent);
 		const biasedExponent = biasedExponent(unbiasedExponent);
 
-		version (TraceFunction) traceFunction("unbiasedExponent=", unbiasedExponent,
-            ", biasedExponent=", biasedExponent,
-            ", coefficient=", coefficient,
-            ", isNeg=", isNeg);
+		debug(debug_pham_external_dec_dec_codec) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "unbiasedExponent=", unbiasedExponent, ", biasedExponent=", biasedExponent, ", coefficient=", coefficient, ", isNeg=", isNeg);
 
 		const mostSignificantDigit = encodeCoefficient(coefficient, decBytes);
 		const expMSB = usignedRightShift(biasedExponent, exponentContinuationBits);
@@ -350,10 +347,7 @@ private:
 										| expTwoBitCont);
 		}
 
-		version (TraceFunction)
-		traceFunction("expMSB=", expMSB, ", expTwoBitCont =", expTwoBitCont,
-			", mostSignificantDigit=", mostSignificantDigit, ", decBytes[0]=", decBytes[0],
-			", decBytes=", decBytes);
+		debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "expMSB=", expMSB, ", expTwoBitCont =", expTwoBitCont, ", mostSignificantDigit=", mostSignificantDigit, ", decBytes[0]=", decBytes[0], ", decBytes=", decBytes);
 
 		encodeExponentContinuation(biasedExponent, exponentContinuationBits - 2, decBytes);
     }
@@ -411,7 +405,7 @@ private:
 	{
 		const result = cast(uint)(cast(uint)value >> shift);
 
-		version (TraceFunction) traceFunction("value=", value, ", shift=", shift, ", result=", result);
+		debug(debug_pham_external_dec_dec_codec) debug writeln(__FUNCTION__, "(value=", value, ", shift=", shift, ")\r\tresult=", result);
 
 		return result;
 	}

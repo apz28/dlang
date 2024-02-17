@@ -501,14 +501,14 @@ ExceptionFlags decimalAcosh(D)(ref D x, const(int) precision, const(RoundingMode
     }
 }
 
-version (ShowEnumDecBytes)
+version(ShowEnumDecBytes)
 unittest
 {
     static assert(acoshmax32 == Decimal32("1.581138e51"));
     static assert(acoshmax64 == Decimal64("1.581138830084189e192"));
     static assert(acoshmax128 == Decimal128("1.581138830084189665999446772216359e3072"));
 
-    version (none)
+    version(none)
     {
         import std.stdio;
         scope (failure) assert(0, "Assume nothrow failed");
@@ -654,14 +654,14 @@ ExceptionFlags decimalAsinh(D)(ref D x, const(int) precision, const(RoundingMode
     return flags;
 }
 
-version (ShowEnumDecBytes)
+version(ShowEnumDecBytes)
 unittest
 {
     static assert(asinhmax32 == Decimal32("1.581138e51"));
     static assert(asinhmax64 == Decimal64("1.581138830084189e192"));
     static assert(asinhmax128 == Decimal128("1.581138830084189665999446772216359e3072"));
 
-    version (none)
+    version(none)
     {
         import std.stdio;
         scope (failure) assert(0, "Assume nothrow failed");
@@ -1174,7 +1174,7 @@ ExceptionFlags decimalCosh(D)(ref D x, const(int) precision, const(RoundingMode)
     return flags;
 }
 
-version (none) // Missing decimalReduceAngle
+version(none) // Missing decimalReduceAngle
 ExceptionFlags decimalCosPi(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D)
 {
@@ -1823,7 +1823,7 @@ if (isDecimal!D)
     return x.adjustedPack(cx, ex, sx, precision, mode, flags2);
 }
 
-version (ShowEnumDecBytes)
+version(ShowEnumDecBytes)
 unittest
 {
     static assert(lnmax32 == Decimal32("+223.3507"));
@@ -1833,7 +1833,7 @@ unittest
     static assert(lnmax128 == Decimal128("+14149.38539644841072829055748903541"));
     static assert(lnmin128 == Decimal128("-14220.76553433122614449511522413063"));
 
-    version (none)
+    version(none)
     {
         import std.stdio;
         scope (failure) assert(0, "Assume nothrow failed");
@@ -4150,7 +4150,7 @@ ExceptionFlags decimalSinh(D)(ref D x, const(int) precision, const(RoundingMode)
     return flags;
 }
 
-version (none) // Missing decimalReduceAngle
+version(none) // Missing decimalReduceAngle
 ExceptionFlags decimalSinPi(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D)
 {

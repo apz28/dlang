@@ -140,7 +140,7 @@ if (isDecimal!D && isFloatingPoint!F)
 
     const result = decimalCmp(x, v);
 
-    version (none)
+    version(none)
     if (result == 0 && (flags & ExceptionFlags.inexact))
     {
         //seems equal, but float was truncated toward zero, so it's smaller

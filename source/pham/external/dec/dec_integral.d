@@ -94,7 +94,7 @@ if (Bytes >= 16 && (Bytes & (Bytes - 1)) == 0)
     alias HALF = makeUnsignedBit!HALFSize;
     alias THIS = typeof(this);
 
-    version (LittleEndian)
+    version(LittleEndian)
     {
         HALF lo;
         HALF hi;
@@ -2155,7 +2155,7 @@ static immutable uint128[39] pow10_128 = [
     uint128(cast(const(ubyte)[])[75, 59, 76, 168, 90, 134, 196, 122, 9, 138, 34, 64, 0, 0, 0, 0]),  // uint128("100000000000000000000000000000000000000"),
     ];
 
-version (ShowEnumDecBytes)
+version(ShowEnumDecBytes)
 unittest
 {
     static assert(pow10_128[0 + 20]  == uint128("100000000000000000000"));
@@ -2260,7 +2260,7 @@ static immutable uint256[78] pow10_256 = [
     uint256(cast(const(ubyte)[])[221, 21, 254, 134, 175, 250, 217, 18, 73, 239, 14, 183, 19, 243, 158, 190, 170, 152, 123, 110, 111, 210, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0]), // uint256("100000000000000000000000000000000000000000000000000000000000000000000000000000"),
     ];
 
-version (ShowEnumDecBytes)
+version(ShowEnumDecBytes)
 unittest
 {
     static assert(pow10_256[0 + 20]  == uint256("100000000000000000000")); // 20
@@ -2481,7 +2481,7 @@ static immutable uint512[155] pow10_512 = [
     uint512(cast(const(ubyte)[])[190, 238, 251, 88, 74, 255, 134, 3, 170, 251, 85, 15, 250, 207, 216, 250, 92, 164, 126, 79, 136, 212, 83, 113, 39, 203, 210, 254, 98, 20, 95, 8, 69, 68, 182, 83, 53, 81, 85, 182, 175, 153, 212, 10, 228, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), // uint512("10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
     ];
 
-version (ShowEnumDecBytes)
+version(ShowEnumDecBytes)
 unittest
 {
     static assert(pow10_512[0 + 20]   == uint512("100000000000000000000")); // 20
@@ -2743,7 +2743,7 @@ static immutable uint128[39] pow10RoundEven_128 = [
     uint128(cast(const(ubyte)[])[75, 59, 76, 168, 90, 134, 196, 122, 9, 138, 34, 64, 0, 0, 0, 0]),    // uint128("100000000000000000000000000000000000000"),
     ];
 
-version (ShowEnumDecBytes)
+version(ShowEnumDecBytes)
 unittest
 {
     static assert(pow10RoundEven_128[0 + 19]  == uint128("50000000000000000000")); // 19
@@ -2849,7 +2849,7 @@ static immutable uint256[78] pow10RoundEven_256 = [
     uint256(cast(const(ubyte)[])[221, 21, 254, 134, 175, 250, 217, 18, 73, 239, 14, 183, 19, 243, 158, 190, 170, 152, 123, 110, 111, 210, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0]), // uint256("100000000000000000000000000000000000000000000000000000000000000000000000000000"),
     ];
 
-version (ShowEnumDecBytes)
+version(ShowEnumDecBytes)
 unittest
 {
     static assert(pow10RoundEven_256[0 + 19]  == uint256("50000000000000000000")); // 19
@@ -3071,7 +3071,7 @@ static immutable uint512[155] pow10RoundEven_512 = [
     uint512(cast(const(ubyte)[])[190, 238, 251, 88, 74, 255, 134, 3, 170, 251, 85, 15, 250, 207, 216, 250, 92, 164, 126, 79, 136, 212, 83, 113, 39, 203, 210, 254, 98, 20, 95, 8, 69, 68, 182, 83, 53, 81, 85, 182, 175, 153, 212, 10, 228, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), // uint512("10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
     ];
 
-version (ShowEnumDecBytes)
+version(ShowEnumDecBytes)
 unittest
 {
     static assert(pow10RoundEven_512[0 + 19]   == uint512("50000000000000000000")); // 19
@@ -3336,7 +3336,7 @@ static immutable uint128[39] maxmul10_128 = [
     uint128(3UL),
     ];
 
-version (ShowEnumDecBytes)
+version(ShowEnumDecBytes)
 unittest
 {
     static assert(maxmul10_128[0]  == uint128("340282366920938463463374607431768211455"));
@@ -3442,7 +3442,7 @@ static immutable uint256[78] maxmul10_256 = [
     uint256(1UL),
     ];
 
-version (ShowEnumDecBytes)
+version(ShowEnumDecBytes)
 unittest
 {
     static assert(maxmul10_256[0]  == uint256("115792089237316195423570985008687907853269984665640564039457584007913129639935"));
@@ -3670,7 +3670,7 @@ unittest // unUnsign
     assert(toUnsign!ulong("0x1234_5678_9012", overflow) == 0x1234_5678_9012); assert(!overflow);
 }
 
-version (ShowEnumDecBytes) version (none)
+version(ShowEnumDecBytes) version(none)
 unittest
 {
     import std.stdio;
