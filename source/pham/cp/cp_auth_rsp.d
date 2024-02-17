@@ -64,7 +64,8 @@ import std.conv : to;
 import std.string : representation;
 import std.typecons : Flag, No, Yes;
 
-version (TraceFunction) import pham.utl.utl_test;
+debug(debug_pham_cp_cp_auth_rsp) import std.stdio : writeln;
+
 import pham.utl.utl_array : arrayOfChar, ShortStringBuffer;
 import pham.utl.utl_big_integer;
 import pham.utl.utl_disposable : DisposableObject, DisposingReason;
@@ -333,16 +334,9 @@ public:
             .finish(kTemp);
         auto result = bytesToBigInteger(rHash);
 
-        version (TraceFunction)
-        {
-            import pham.utl.utl_test;
-            traceFunction("A=", A.toString(),
-                ", A.pad=", bytesFromBigIntegerPad(A, paddingSize),
-                ", B=", B.toString(),
-                ", B.pad=", bytesFromBigIntegerPad(B, paddingSize),
-                ", rHash=", rHash,
-                ", result=", result);
-        }
+        debug(debug_pham_cp_cp_auth_rsp) debug writeln(__FUNCTION__, "(A=", A.toString(), ", A.pad=",
+            bytesFromBigIntegerPad(A, paddingSize), ", B=", B.toString(), ", B.pad=", bytesFromBigIntegerPad(B, paddingSize),
+            ", rHash=", rHash, ", result=", result, ")");
 
         return result;
 	}
@@ -435,7 +429,7 @@ public:
             .finish(hashTemp));
     }
 
-    version (TraceFunction)
+    debug(debug_pham_cp_cp_auth_rsp)
     string traceString() const nothrow
     {
         return "Auth.N=" ~ _parameters.group.N.toString()
@@ -505,13 +499,8 @@ protected:
             .finish(kTemp);
         auto result = bytesToBigInteger(rHash);
 
-        version (TraceFunction)
-        {
-            import pham.utl.utl_test;
-            traceFunction("N=" ~ N.toString(),
-                ", g=" ~ g.toString(),
-                ", result=", result.toString());
-        }
+        debug(debug_pham_cp_cp_auth_rsp) debug writeln(__FUNCTION__, "(N=", N.toString(),
+            ", g=", g.toString(), ", result=", result.toString(), ")");
 
         return result;
     }
@@ -546,7 +535,7 @@ public:
         this._ephemeralPublic = calculateA(_ephemeralPrivate);
     }
 
-    version (unittest)
+    version(unittest)
     this(AuthParameters parameters, BigInteger k, BigInteger ephemeralPrivate)
     {
         assert(ephemeralPrivate != 0);
@@ -570,7 +559,7 @@ public:
         scope const(ubyte)[] salt, BigInteger serverPublicKey)
     {
         // Firebird algorithm
-        version (all)
+        version(all)
         {
             auto u = calculateU(ephemeralPublic, serverPublicKey);
             auto x = calculateX(userName, userPassword, salt);
@@ -588,22 +577,10 @@ public:
             divRem(ephemeralPrivate + ux, N, aux);
             auto result = modPow(diff, aux, N);
 
-            version (TraceFunction)
-            {
-                import pham.utl.utl_test;
-                traceFunction("ephemeralPublic=", ephemeralPublic.toString(),
-                    ", ephemeralPrivate=", ephemeralPrivate.toString(),
-                    ", serverPublicKey=", serverPublicKey.toString(),
-                    ", u=", u.toString(),
-                    ", x=", x.toString(),
-                    ", gx=", gx.toString(),
-                    ", kgx=", kgx.toString(),
-                    ", bkgx=", bkgx.toString(),
-                    ", diff=", diff.toString(),
-                    ", ux=", ux.toString(),
-                    ", aux=", aux.toString(),
-                    ", result=", result.toString());
-            }
+            debug(debug_pham_cp_cp_auth_rsp) debug writeln(__FUNCTION__, "(ephemeralPublic=", ephemeralPublic.toString(),
+                ", ephemeralPrivate=", ephemeralPrivate.toString(), ", serverPublicKey=", serverPublicKey.toString(), ", u=", u.toString(),
+                ", x=", x.toString(), ", gx=", gx.toString(), ", kgx=", kgx.toString(), ", bkgx=", bkgx.toString(), ", diff=", diff.toString(),
+                ", ux=", ux.toString(), ", aux=", aux.toString(), ", result=", result.toString(), ")");
         }
         else
         {
@@ -616,27 +593,16 @@ public:
             auto exponent = (ephemeralPrivate + ux) % N;
             auto result = modPow(base, exponent, N);
 
-            version (TraceFunction)
-            {
-                import pham.utl.utl_test;
-                traceFunction("ephemeralPublic=", ephemeralPublic.toString(),
-                    ", ephemeralPrivate=", ephemeralPrivate.toString(),
-                    ", serverPublicKey=", serverPublicKey.toString(),
-                    ", u=", u.toString(),
-                    ", x=", x.toString(),
-                    ", gx=", gx.toString(),
-                    ", kgx=", kgx.toString(),
-                    ", base=", base.toString(),
-                    ", ux=", ux.toString(),
-                    ", exponent=", exponent.toString(),
-                    ", result=", result.toString());
-            }
+            debug(debug_pham_cp_cp_auth_rsp) debug writeln(__FUNCTION__, "(ephemeralPublic=", ephemeralPublic.toString(),
+                ", ephemeralPrivate=", ephemeralPrivate.toString(), ", serverPublicKey=", serverPublicKey.toString(), ", u=", u.toString(),
+                ", x=", x.toString(), ", gx=", gx.toString(), ", kgx=", kgx.toString(), ", base=", base.toString(), ", ux=", ux.toString(),
+                ", exponent=", exponent.toString(), ", result=", result.toString(), ")");
         }
 
         return result;
     }
 
-    version (none)
+    version(none)
     final bool isServerProofed(scope const(char)[] user, scope const(ubyte)[] salt,
         scope const(ubyte)[] serverProof) nothrow
     {
@@ -646,7 +612,7 @@ public:
             return m == serverProof;
     }
 
-    version (none)
+    version(none)
     final bool verify(scope const(char)[] user, scope const(ubyte)[] salt, scope const(char)[] serverProofHexs) nothrow
     {
         if (ephemeralPublicOther == 0)
@@ -686,7 +652,7 @@ public:
         super(parameters, k);
     }
 
-    version (none)
+    version(none)
     /*
     v: Your long term secret, v.
 
@@ -704,7 +670,7 @@ public:
         makeB();
     }
 
-    version (none)
+    version(none)
     /*
         N, g, s, v = <read from password file>
         b = random()
@@ -752,7 +718,7 @@ public:
     }
 
 protected:
-    version (none)
+    version(none)
     final void makeB() nothrow
     {
         // B = k*v + g^b % N
@@ -776,7 +742,7 @@ private:
 // Leading 00 to indicate a positive number
 shared static this() nothrow @safe
 {
-    version (none)
+    version(none)
     prime1024 = immutable PrimeGroup(
         2,
         "EEAF0AB9 ADB38DD6 9C33F80A FA8FC5E8 60726187 75FF3C0B 9EA2314C 9C256576
@@ -785,7 +751,7 @@ shared static this() nothrow @safe
          68EDBC3C 05726CC0 2FD4CBF4 976EAA9A FD5138FE 8376435B 9FC61D2F C0EB06E3",
         32); //?
 
-    version (none)
+    version(none)
     prime1536 = immutable PrimeGroup(
         2,
         "9DEF3CAF B939277A B1F12A86 17A47BBB DBA51DF4 99AC4C80 BEEEA961 4B19CC4D

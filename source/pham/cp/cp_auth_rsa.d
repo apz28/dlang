@@ -278,7 +278,7 @@ private:
 //    CipherRandomGenerator rnd;
 }
 
-version (none)
+version(none)
 class CipherRSA128 : CipherRSA
 {
 nothrow @safe:
@@ -300,7 +300,7 @@ public:
     }
 }
 
-version (none)
+version(none)
 class CipherRSA256 : CipherRSA
 {
 nothrow @safe:
@@ -322,7 +322,7 @@ public:
     }
 }
 
-version (none)
+version(none)
 class CipherRSA512 : CipherRSA
 {
 nothrow @safe:

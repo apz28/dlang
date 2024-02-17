@@ -18,7 +18,7 @@ import pham.utl.utl_result : ResultStatus;
 
 nothrow:
 
-version (Windows)
+version(Windows)
 {
     import core.sys.windows.windows : FreeLibrary, GetProcAddress, LoadLibrary;
 
@@ -26,7 +26,7 @@ version (Windows)
     alias loadFct = GetProcAddress;
     alias unloadLibFct = FreeLibrary;
 }
-else version (Posix)
+else version(Posix)
 {
     import core.sys.posix.dlfcn : dlclose, dlopen, dlsym;
 
@@ -37,7 +37,7 @@ else version (Posix)
 else
     pragma(msg, "Unsupported system for " ~ __MODULE__);
 
-version (Windows)
+version(Windows)
 {
     private enum loadLib = "LoadLibrary(&lib[0])";
 
@@ -59,7 +59,7 @@ version (Windows)
             return ["libcrypto-3.dll"w, "libcrypto-1_1.dll"w];
     }
 }
-else version (OSX)
+else version(OSX)
 {
     private enum loadLib = "dlopen(lib.ptr, RTLD_LAZY)";
 
@@ -71,7 +71,7 @@ else version (OSX)
         "libcrypto.44.dylib", "libcrypto.42.dylib", "libcrypto.41.dylib",
         "libcrypto.35.dylib"];
 }
-else version (Posix)
+else version(Posix)
 {
     private enum loadLib = "dlopen(lib.ptr, RTLD_LAZY)";
 

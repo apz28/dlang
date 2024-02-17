@@ -13,7 +13,6 @@ module pham.cp.cp_cipher_rc4;
 
 import std.algorithm.mutation : swap;
 
-version (unittest) import pham.utl.utl_test;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.cp.cp_cipher : Cipher, CipherKey, CipherKeyKind, CipherParameters, CipherRawKey, CipherSimpleKey;
 
@@ -138,6 +137,8 @@ private:
 
 unittest // CipherRC4
 {
+    import pham.utl.utl_object : bytesFromHexs;
+    
     {
         ubyte[] key = [ 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef ];
         ubyte[] test = [ 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef ];
@@ -157,12 +158,12 @@ unittest // CipherRC4
     }
 
     {
-        auto key = dgFromHex("1234ABCD43211234ABCD432112345678");
+        auto key = bytesFromHexs("1234ABCD43211234ABCD432112345678");
         auto input = key.dup;
         ubyte[] output;
 
         auto cipherRC4 = new CipherRC4(key);
-        assert(cipherRC4.encrypt(input, output) == dgFromHex("4B8E9F295B071B7239ABC838B3E4DC9B"));
+        assert(cipherRC4.encrypt(input, output) == bytesFromHexs("4B8E9F295B071B7239ABC838B3E4DC9B"));
 
         cipherRC4.dispose();
         cipherRC4 = null;

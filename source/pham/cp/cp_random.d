@@ -17,7 +17,7 @@ import std.range.primitives : isOutputRange, put;
 import std.traits : isUnsigned, Unqual;
 import std.typecons : No, Yes;
 
-version (profile) import pham.utl.utl_test : PerfFunction;
+version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_big_integer : BigInteger, defaultParseBigIntegerOptions, isProbablyPrime, probablyPrimeTestIterations;
 import pham.cp.cp_cipher : CipherBuffer;
 import pham.cp.cp_cipher_prime_number;
@@ -257,7 +257,7 @@ public:
     }
     do
     {
-        version (profile) debug auto p = PerfFunction.create();
+        version(profile) debug auto p = PerfFunction.create();
 
         // Exclude 0 or FF for first byte
         put(sink, next!ubyte(1, ubyte.max-1));
@@ -421,9 +421,9 @@ private:
 
 unittest // CipherRandomGenerator.nextBigIntegerPrime
 {
-    import pham.utl.utl_test : PerfTestResult;
+    //import pham.utl.utl_test : PerfTestResult;
     
-    auto perf = PerfTestResult.create();
+    //auto perf = PerfTestResult.create();
     BigInteger p;
     CipherRandomGenerator rnd;
 

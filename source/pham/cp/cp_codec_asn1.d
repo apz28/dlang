@@ -349,7 +349,7 @@ public:
         }
     }
 
-    version (none)
+    version(none)
     void popFront() pure
     in
     {
@@ -1341,7 +1341,7 @@ public:
         destination.put(x);
     }
 
-    version (none)
+    version(none)
     static void writeVisibleString(ref CipherBuffer!ubyte destination, scope const(char)[] x,
         const(ASN1Tag) tag = ASN1Tag.visibleString) pure
     {
@@ -1928,11 +1928,11 @@ unittest // ASN1BitString.opIndex
 unittest // ASN1BitString.rightAlign
 {
     import std.conv : to;
-    import pham.utl.utl_test;
-
+    import pham.utl.utl_object : bytesToHexs;
+    
     static void test(scope const(ASN1BitString) v, scope const(ubyte)[] expectedValue, int line = __LINE__) @safe
     {
-        assert(v.rightAlign() == expectedValue, "Failed from line# " ~ line.to!string() ~ ": " ~ v.rightAlign().dgToHex() ~ " vs " ~ expectedValue.dgToHex());
+        assert(v.rightAlign() == expectedValue, "Failed from line# " ~ line.to!string() ~ ": " ~ v.rightAlign().bytesToHexs() ~ " vs " ~ expectedValue.bytesToHexs());
     }
 
     test(ASN1BitString([0x80]), [0x01]);

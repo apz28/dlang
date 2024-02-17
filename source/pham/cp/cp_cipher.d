@@ -15,7 +15,7 @@ import std.range.primitives : isOutputRange, put;
 import std.traits : isUnsigned, Unqual;
 import std.typecons : No, Yes;
 
-version (profile) import pham.utl.utl_test : PerfFunction;
+version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_array : ShortStringBuffer;
 import pham.utl.utl_big_integer : BigInteger, defaultParseBigIntegerOptions;
 import pham.utl.utl_disposable : DisposableObject, DisposingReason;
@@ -856,7 +856,7 @@ protected:
     CipherParameters _parameters;
 }
 
-version (none)
+version(none)
 struct CipherPrimeCheck
 {
     import std.algorithm.iteration : each;
@@ -868,7 +868,7 @@ struct CipherPrimeCheck
 nothrow @safe:
 
 public:
-    version (none)
+    version(none)
     static bool isComposit(const(BigInteger) n, const(ushort) testIterations)
     {
         CipherRandomGenerator rnd;
@@ -1134,7 +1134,7 @@ do
 // Any below codes are private
 private:
 
-version (none)
+version(none)
 unittest // CipherPrimeCheck.isProbablePrime
 {
     static BigInteger toBigInteger(string digits) nothrow @safe

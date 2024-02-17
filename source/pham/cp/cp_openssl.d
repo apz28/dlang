@@ -13,6 +13,8 @@ module pham.cp.cp_openssl;
 
 import std.string : fromStringz, toStringz;
 
+debug(debug_pham_cp_cp_openssl) import std.stdio : writeln;
+
 import pham.io.io_socket_error;
 import pham.utl.utl_disposable : DisposingReason;
 public import pham.utl.utl_result : ResultStatus;
@@ -225,13 +227,12 @@ public:
                 return r < 0 ? currentSSLError(_ssl, r, "SSL_accept") : currentError("SSL_accept");
         }
 
-        version (none)
+        version(none)
         {
             auto cipher = opensslApi.SSL_get_current_cipher(_ssl);
-            if (cipher !is null)
-            {
-                import pham.utl.utl_test; dgWriteln("SSL_name=", fromStringz(opensslApi.SSL_CIPHER_get_name(cipher)), ", version=", fromStringz(opensslApi.SSL_CIPHER_get_version(cipher)));
-            }
+            
+            debug(debug_pham_cp_cp_openssl) if (cipher !is null) debug writeln(__FUNCTION__, "() - SSL_name=", fromStringz(opensslApi.SSL_CIPHER_get_name(cipher)), 
+                ", version=", fromStringz(opensslApi.SSL_CIPHER_get_version(cipher)));
         }
 
         _connected = true;
@@ -328,7 +329,7 @@ public:
         return ResultStatus.error(0, "SSL_read failed");
     }
 
-    version (none)
+    version(none)
     int receivePending() @trusted
     {
         return opensslApi.SSL_pending(_ssl);
@@ -437,12 +438,12 @@ public:
         return ResultStatus.ok();
     }
 
-    version (none)
+    version(none)
     static int verifyCallback(int preverify_ok, X509_STORE_CTX* sctx)
     {
         return 1; //1=OK
 
-        version (none)
+        version(none)
         {
         auto ssl = cast(SSL*)opensslApi.X509_STORE_CTX_get_ex_data(sctx, opensslApi.SSL_get_ex_data_X509_STORE_CTX_idx());
         auto clientSocket = cast(OpenSSLClientSocket*)opensslApi.SSL_get_ex_data(ssl, sslDataIndex());
@@ -1051,10 +1052,10 @@ public:
         //char* bnDec = opensslApi.BN_bn2dec(bn);
         //auto decPrim = fromStringz(bnDec);
         //opensslApi.OPENSSL_free(bnDec);
-        //import pham.utl.utl_test; dgWriteln("dec ", decPrim.length, ": ", decPrim);
+        //debug(debug_pham_cp_cp_openssl) debug writeln(__FUNCTION__, "() - decPrim=", decPrim);
 
         hexPrim = fromStringz(bnHex);
-        //import pham.utl.utl_test; dgWriteln("hex ", hexPrim.length, ": ", hexPrim);
+        debug(debug_pham_cp_cp_openssl) debug writeln(__FUNCTION__, "() - hexPrim=", hexPrim);
 
         return ResultStatus.ok();
     }
@@ -1380,7 +1381,7 @@ private:
     OpenSSLRSAPem _pem;
 }
 
-version (none)
+version(none)
 ubyte[] toTerminatedzIf(scope const(ubyte)[] s, const(size_t) maxLengh) nothrow pure
 {
     const len = maxLengh && s.length > maxLengh ? maxLengh : s.length;
@@ -1489,7 +1490,7 @@ ResultStatus currentSSLError(SSL* ssl, int r, string apiName) nothrow @trusted
     return ResultStatus.error(code, msg.length != 0 ? msg.idup : apiName);
 }
 
-version (unittest)
+version(unittest)
 {
     bool isOpenSSLIntalled() @nogc nothrow @safe
     {

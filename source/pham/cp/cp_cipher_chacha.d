@@ -14,7 +14,6 @@ module pham.cp.cp_cipher_chacha;
 import std.algorithm.mutation : swap;
 import std.string : representation;
 
-version (unittest) import pham.utl.utl_test;
 import pham.utl.utl_bit : bytesToNative, nativeToBytes;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.cp.cp_cipher;
@@ -55,8 +54,8 @@ public:
     in
     {
         import std.conv : to;
-        assert(key.length == CipherChaChaKey.keySize128 || key.length == CipherChaChaKey.keySize256, to!string(key.length));
-        assert(nonce.length == CipherChaChaKey.nonceSizeCounter32 || nonce.length == CipherChaChaKey.nonceSizeCounter64, to!string(nonce.length));
+        assert(key.length == CipherChaChaKey.keySize128 || key.length == CipherChaChaKey.keySize256, key.length.to!string());
+        assert(nonce.length == CipherChaChaKey.nonceSizeCounter32 || nonce.length == CipherChaChaKey.nonceSizeCounter64, nonce.length.to!string());
 		assert(CipherRawKey!ubyte.isValid(key));
 		assert(CipherRawKey!ubyte.isValid(nonce));
     }
@@ -65,7 +64,7 @@ public:
         // XChaCha20 uses the ChaCha20 core to mix 16 bytes of the nonce into a
 		// derived key, allowing it to operate on a nonce of 24 bytes. See
 		// draft-irtf-cfrg-xchacha-01, Section 2.3.
-        version (none)
+        version(none)
         if (nonce.length == nonceSizeX)
         {
 		    initKey[] = hChaCha20(_parameters.privateKey.chacha.key, _parameters.privateKey.chacha.nonce[0..16]);
@@ -82,8 +81,8 @@ public:
     in
     {
         import std.conv : to;
-        assert(key.length == CipherChaChaKey.keySize128 || key.length == CipherChaChaKey.keySize256, to!string(key.length));
-        assert(nonce.length == CipherChaChaKey.nonceSizeCounter32 || nonce.length == CipherChaChaKey.nonceSizeCounter64, to!string(nonce.length));
+        assert(key.length == CipherChaChaKey.keySize128 || key.length == CipherChaChaKey.keySize256, key.length.to!string());
+        assert(nonce.length == CipherChaChaKey.nonceSizeCounter32 || nonce.length == CipherChaChaKey.nonceSizeCounter64, nonce.length.to!string());
 		assert(CipherRawKey!ubyte.isValid(key));
 		assert(CipherRawKey!ubyte.isValid(nonce));
     }
@@ -346,6 +345,7 @@ private:
 unittest // CipherChaCha20
 {
 	import std.conv : to;
+    import pham.utl.utl_object : bytesFromHexs;
 
 	static struct TestCase
     {
@@ -357,14 +357,14 @@ unittest // CipherChaCha20
 
 	static void test32(TestCase testCase, in int fromLine = __LINE__)
     {
-        auto cipher = new CipherChaCha20(dgFromHex(testCase.key), dgFromHex(testCase.nonce), uint(0));
-		auto input = dgFromHex(testCase.input);
-		auto expect = dgFromHex(testCase.output);
+        auto cipher = new CipherChaCha20(bytesFromHexs(testCase.key), bytesFromHexs(testCase.nonce), uint(0));
+		auto input = bytesFromHexs(testCase.input);
+		auto expect = bytesFromHexs(testCase.output);
 		ubyte[] output;
 		const result = cipher.encrypt(input, output);
 		//dgWriteln(expect.dgToHex());
 		//dgWriteln(result.dgToHex());
-		assert(result == expect, "From line: " ~ to!string(fromLine));
+		assert(result == expect, "From line: " ~ fromLine.to!string());
     }
 
 	test32(TestCase(
@@ -928,7 +928,7 @@ unittest // CipherChaCha20
 	));
 
 	// From libsodium/test/default/xchacha20.c
-    version (none)
+    version(none)
 	test32(TestCase(
 		/* nonce */"c047548266b7c370d33566a2425cbf30d82d1eaf5294109e",
 		/* key */"9d23bd4149cb979ccf3c5c94dd217e9808cb0e50cd0f67812235eaaf601d6232",
@@ -937,7 +937,7 @@ unittest // CipherChaCha20
 	));
 
 	// From draft-irtf-cfrg-xchacha-01
-    version (none)
+    version(none)
 	test32(TestCase(
 		/* nonce */"404142434445464748494a4b4c4d4e4f5051525354555658",
 		/* key */"808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
