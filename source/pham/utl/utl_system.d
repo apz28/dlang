@@ -20,7 +20,7 @@ public import pham.utl.utl_result : errorCodeToString, ResultStatus;
  */
 string currentComputerName() nothrow @trusted
 {
-    version (Windows)
+    version(Windows)
     {
         import core.sys.windows.winbase : GetComputerNameW;
 
@@ -31,7 +31,7 @@ string currentComputerName() nothrow @trusted
         else
             return null;
     }
-    else version (Posix)
+    else version(Posix)
     {
         import core.sys.posix.unistd : gethostname;
 
@@ -66,7 +66,7 @@ uint currentProcessId() nothrow @safe
  */
 string currentProcessName() nothrow @trusted
 {
-    version (Windows)
+    version(Windows)
     {
         import core.sys.windows.winbase : GetModuleFileNameW;
 
@@ -74,7 +74,7 @@ string currentProcessName() nothrow @trusted
         const len = GetModuleFileNameW(null, &result[0], result.length - 1);
         return osWCharToString(result[0..len]);
     }
-    else version (Posix)
+    else version(Posix)
     {
         import core.sys.posix.unistd : readlink;
 
@@ -95,7 +95,7 @@ string currentProcessName() nothrow @trusted
  */
 string currentUserName() nothrow @trusted
 {
-    version (Windows)
+    version(Windows)
     {
         import core.sys.windows.winbase : GetUserNameW;
 
@@ -106,7 +106,7 @@ string currentUserName() nothrow @trusted
         else
             return null;
     }
-    else version (Posix)
+    else version(Posix)
     {
         import core.sys.posix.unistd : getlogin_r;
 

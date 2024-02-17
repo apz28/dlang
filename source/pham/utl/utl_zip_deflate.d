@@ -649,20 +649,20 @@ private:
 		pendingCount += p.length;
 	}
 
-	version (NOTNEEDED)
+	version(none) // Not used
     void putByte(ubyte c)
     {
         pending[pendingCount++] = c;
     }
 
-	version (NOTNEEDED)
+	version(none) // Not used
     void putShort(ushort b)
     {
         pending[pendingCount++] = cast(ubyte)b;
         pending[pendingCount++] = cast(ubyte)(b >> 8);
     }
 
-	version (NOTNEEDED)
+	version(none) // Not used
     void putShortMSB(ushort b)
     {
         pending[pendingCount++] = cast(ubyte)(b >> 8);

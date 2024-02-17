@@ -148,7 +148,7 @@ if (isScalarType!T && !isFloatingPoint!T)
     {
         const len = lhs.length <= rhs.length ? lhs.length : rhs.length;
 
-        version (BigEndian)
+        version(BigEndian)
         static if (__traits(isUnsigned, T) ? !is(T == __vector) : is(T : P*, P))
         {
             if (!__ctfe)
@@ -259,7 +259,7 @@ in
 }
 do
 {
-    version (Windows)
+    version(Windows)
     {
         import core.sys.windows.winbase : FormatMessageW, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS;
         import core.sys.windows.winnt : LANG_NEUTRAL;
@@ -268,14 +268,14 @@ do
         auto n = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, null, errorNo, LANG_NEUTRAL, buf.ptr, buf.length, null);
         return n > 0 ? osWCharToString(buf[0..n]) : null;
     }
-    else version (Posix)
+    else version(Posix)
     {
         import core.stdc.string : strlen, strerror_r;
 
         char[1_000] buf = '\0';
         const(char)* p;
 
-        version (CRuntime_Glibc)
+        version(CRuntime_Glibc)
             p = strerror_r(errorNo, buf.ptr, buf.length);
         else if (!strerror_r(errorNo, buf.ptr, buf.length))
             p = buf.ptr;
@@ -288,13 +288,13 @@ do
 pragma(inline, true)
 uint lastSystemError() nothrow @trusted
 {
-    version (Windows)
+    version(Windows)
     {
         import core.sys.windows.winbase : GetLastError;
 
         return GetLastError();
     }
-    else version (Posix)
+    else version(Posix)
     {
         import core.stdc.errno : errno;
 

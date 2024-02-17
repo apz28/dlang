@@ -646,7 +646,7 @@ public:
             case 's':
                 return toBitArray(sink);
             default:
-                version (Debug)
+                version(Debug)
                     assert(0);
                 else
                     return toBitArray(sink);
@@ -826,16 +826,16 @@ alias BitArray = BitArrayImpl!size_t;
 // Any below codes are private
 private:
 
-version (unittest)
+version(unittest)
 {
     void checkBitArrayRange(ref BitArray b, size_t start, size_t end, bool v,
         uint callerLine = __LINE__)
     {
-        import pham.utl.utl_test;
+        import std.conv : to;
 
         foreach (i; start..end)
         {
-            assert(b[i] == v, "BitDifference(" ~ dgToStr(callerLine) ~ "): at index " ~ dgToStr(i));
+            assert(b[i] == v, "BitDifference(" ~ to!string(callerLine) ~ "): at index " ~ to!string(i));
         }
     }
 
@@ -859,8 +859,6 @@ version (unittest)
 nothrow @safe unittest // BitArray
 {
     import std.conv : to;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray");
 
     auto b = BitArray(1, true);
     assert(b.length == 1);
@@ -893,11 +891,8 @@ nothrow @safe unittest // BitArray
     }
 }
 
-nothrow @safe unittest // BitArray
+nothrow @safe unittest // BitArray.length
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.length");
-
     BitArray ba;
 
     ba.length = 1;
@@ -913,11 +908,8 @@ nothrow @safe unittest // BitArray
     assert(ba[1] == 0);
 }
 
-nothrow @safe unittest // BitArray
+nothrow @safe unittest // BitArray.opIndex
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opIndex");
-
     static void fun(const(BitArray) arr)
     {
         auto x = arr[0];
@@ -930,11 +922,8 @@ nothrow @safe unittest // BitArray
     fun(a);
 }
 
-nothrow @safe unittest // BitArray
+nothrow @safe unittest // BitArray.opSliceAssign
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opSliceAssign");
-
     auto b = BitArray(cast(bool[])[1,0,1,0,1,1]);
 
     // all bits are set
@@ -975,11 +964,8 @@ nothrow @safe unittest // BitArray
     checkBitArrayRange(b, 3, 245, false);
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // BitArray.flip
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.flip");
-
     // positions 0, 2, 4 are set; after flipping, positions 1, 3, 5 are set
     auto b = BitArray(cast(bool[])[1,0,1,0,1,0]);
     b.flip();
@@ -1008,11 +994,8 @@ nothrow @safe unittest
     assert(b[101] == true);
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // BitArray.countBitSet
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.countBitSet");
-
     auto a = BitArray(cast(bool[])[0,1,1,0,0,1,1]);
     assert(a.countBitSet == 4);
 
@@ -1025,11 +1008,8 @@ nothrow @safe unittest
     assert(c.countBitSet == 130 - 45);
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // BitArray.opApply
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opApply");
-
     bool[] ba = [1,0,1];
     auto a = BitArray(ba);
 
@@ -1059,11 +1039,8 @@ nothrow @safe unittest
     }
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // BitArray.reverse
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.reverse");
-
     bool[5] data = [1,0,1,1,0];
     auto b = BitArray(data);
     b.reverse();
@@ -1071,11 +1048,8 @@ nothrow @safe unittest
         assert(b[i] == data[4 - i]);
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // BitArray.opEquals
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opEquals");
-
     bool[] ba = [1,0,1,0,1];
     bool[] bb = [1,0,1];
     bool[] bc = [1,0,1,0,1,0,1];
@@ -1099,11 +1073,8 @@ nothrow @safe unittest
     assert(f != g);
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // BitArray.opCmp
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opCmp");
-
     {
         bool[] ba = [1,0,1,0,1];
         bool[] bb = [1,0,1];
@@ -1166,11 +1137,8 @@ nothrow @safe unittest
     }
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // BitArray.opUnary~
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opUnary~");
-
     bool[] ba = [1,0,1,0,1];
     auto a = BitArray(ba);
     BitArray b = ~a;
@@ -1182,11 +1150,8 @@ nothrow @safe unittest
     assert(b[4] != a[4]);
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // BitArray.opBinary
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opBinary");
-
     {
         bool[] ba = [1,0,1,0,1];
         bool[] bb = [1,0,1,1,0];
@@ -1277,11 +1242,8 @@ nothrow @safe unittest
     }
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // BitArray.opOpAssign
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.opOpAssign");
-
     {
         bool[] ba = [1,0,1,0,1,1,0,1,0,1];
         bool[] bb = [1,0,1,1,0];
@@ -1516,11 +1478,8 @@ nothrow @safe unittest
     }
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // BitArray.rollRight
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.rollRight");
-
     static if (size_t.sizeof == 8)
     {
         size_t x = 0x12345678_90ABCDEF;
@@ -1539,11 +1498,8 @@ nothrow @safe unittest
     }
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // BitArray.rollLeft
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.rollLeft");
-
     static if (size_t.sizeof == 8)
     {
         size_t x = 0x12345678_90ABCDEF;
@@ -1562,11 +1518,8 @@ nothrow @safe unittest
     }
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // BitArray.toString(sink)
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.toString(sink)");
-
     auto b = BitArray(cast(const(bool)[])[0,0,0,0,1,1,1,1,0,0,0,0,1,1,1,1]);
 
     assert(toBitArray(b) == "[0,0,0,0,1,1,1,1,0,0,0,0,1,1,1,1]");
@@ -1574,11 +1527,9 @@ nothrow @safe unittest
     assert(toBitString(b) == "00001111_00001111");
 }
 
-nothrow @safe unittest
+nothrow @safe unittest // BitArray.get
 {
-    import pham.utl.utl_object;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.bit_array.BitArray.get");
+    import pham.utl.utl_object : bytesToHexs;
 
 	auto b = BitArray(5, true);
     auto bytes = b.get!ubyte();

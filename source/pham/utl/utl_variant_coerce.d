@@ -450,7 +450,7 @@ shared static this() nothrow @safe
     }
 }
 
-version (unittest)
+version(unittest)
 template isGreaterEqual(L, R)
 if ((isIntegral!L || isFloatingPoint!L || isSomeChar!L)
     && (isIntegral!R || isFloatingPoint!R || isSomeChar!R))
@@ -475,8 +475,6 @@ if ((isIntegral!L || isFloatingPoint!L || isSomeChar!L)
 nothrow unittest // ConvertHandler.Integral
 {
     import std.math : lround;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.variant.ConvertHandler.Integral");
 
     ConvertHandler handler;
     bool f;
@@ -619,9 +617,6 @@ nothrow unittest // ConvertHandler.Integral
 
 nothrow unittest // ConvertHandler.Float
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.variant.ConvertHandler.Float");
-
     ConvertHandler handler;
     bool f;
 
@@ -693,9 +688,6 @@ nothrow unittest // ConvertHandler.Float
 
 nothrow unittest // ConvertHandler.cast(bool)
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.variant.ConvertHandler.cast(bool)");
-
     ConvertHandler handler;
     bool f;
 
@@ -742,8 +734,6 @@ nothrow unittest // ConvertHandler.cast(bool)
 nothrow unittest // ConvertHandler.coerce(string)
 {
     import std.conv : to;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.variant.ConvertHandler.coerce(string)");
 
     ConvertHandler handler;
     bool f;

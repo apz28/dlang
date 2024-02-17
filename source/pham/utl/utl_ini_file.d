@@ -150,7 +150,7 @@ public:
             const i = indexOfName(removingName);
             if (i < 0)
                return false;
-            
+
             removeAt(values, i);
             return true;
         }
@@ -174,7 +174,7 @@ public:
             const i = indexOfName(name);
             if (i < 0)
                 return false;
-            
+
             values[i].comments = null;
             foreach (c; valueComments)
                 values[i].comments ~= c;
@@ -270,7 +270,7 @@ public:
         const si = indexOfSection(sectionName);
         if (si < 0)
             return null;
-        
+
         Line[] res;
         res.reserve(_sections[si].values.length);
         foreach (ref e; _sections[si].values)
@@ -389,7 +389,7 @@ public:
         const si = indexOfSection(removingName);
         if (si < 0)
             return false;
-        
+
         foundSection = FoundSection(null, -1);
         removeAt(_sections, si);
         _changed = true;
@@ -475,7 +475,7 @@ public:
         const si = indexOfSection(sectionName);
         if (si < 0)
             return false;
-        
+
         _sections[si].comments = null;
         foreach (c; sectionComments)
             _sections[si].comments ~= c;
@@ -911,9 +911,6 @@ private:
 
 unittest // IniFile.parseSection
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.inifile.IniFile.parseSection");
-
     IniFile.Line name;
 
     string gName()
@@ -961,9 +958,6 @@ unittest // IniFile.parseSection
 
 unittest // IniFile.parseNameValue
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.inifile.IniFile.parseNameValue");
-
     IniFile.Line name, value;
 
     string gName()
@@ -1036,9 +1030,6 @@ unittest // IniFile.parseNameValue
 
 unittest // IniFile
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.inifile.IniFile");
-
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);
 
     // Check for empty
@@ -1073,7 +1064,7 @@ unittest // IniFile
     assert(inifile.getNames("section") is null);
 }
 
-version (unittest)
+version(unittest)
 @Ini("Foo struct")
 struct Foo
 {
@@ -1111,9 +1102,6 @@ struct Foo
 
 unittest // saveMembers & loadMembers
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.inifile.saveMembers & utl.inifile.loadMembers");
-
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);
 
     Foo p1;

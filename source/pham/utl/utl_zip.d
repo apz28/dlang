@@ -649,8 +649,6 @@ private:
 unittest // Inflate
 {
 	import pham.utl.utl_object : bytesFromHexs;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.zip.ZlibCodec.Inflate");
 
 	auto zipData1 = bytesFromHexs("789C626060E0644005820C9CC195B9B9A9254599C98C2C8E45C926107146980200000000FFFF");
 	auto expectUnzipData1 = bytesFromHexs("0000000900000000000000000000000000000011000953796D6D6574726963010441726334000000000000010000000000000000");
@@ -678,8 +676,6 @@ unittest // Inflate
 unittest // Deflate
 {
 	import pham.utl.utl_object : bytesFromHexs;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.zip.ZlibCodec.Deflate");
 
 	auto zipData1 = bytesFromHexs("789C626060E0644005820C9CC195B9B9A9254599C98C2C8E45C926107146980200000000FFFF");
 	auto expectUnzipData1 = bytesFromHexs("0000000900000000000000000000000000000011000953796D6D6574726963010441726334000000000000010000000000000000");
@@ -709,8 +705,6 @@ unittest // Deflate & Inflate long string
     import std.array : array;
     import std.random;
 	import std.range : generate, takeExactly; //iota;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.zip.ZlibCodec.Deflate & Inflate long string");
 
     scope (failure) assert(0, "Assume nothrow failed");
     
@@ -734,12 +728,9 @@ unittest // Deflate & Inflate long string
 	assert(zipper2.peekOutput() == sourceBytes);
 }
 
-version (UnitTestZLib)
-unittest // ZlibCodec.Deflate
+version(UnitTestZLib)
+unittest // ZlibCodec.Deflate.BigFile
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.zip.ZlibCodec.Deflate.BigFile");
-
 	auto bigData = dgReadAllBinary("zip_test_expressionsem.d");
 	auto expectZipBigData = dgReadAllBinary("zip_test_expressionsem.zip");
 

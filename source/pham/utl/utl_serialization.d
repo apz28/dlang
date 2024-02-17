@@ -1551,7 +1551,7 @@ public:
             }
         }
 
-        version (none)
+        version(none)
         foreach (member; members)
         {
             if (!isDeserializerMember!(memberOptions, member)())
@@ -2102,7 +2102,7 @@ SerializableMemberScope toSerializableMemberScope(scope const(char)[] visibility
             : SerializableMemberScope.private_); // visibility == "private"
 }
 
-version (unittest)
+version(unittest)
 {
 package(pham.utl):
 

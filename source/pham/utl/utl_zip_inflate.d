@@ -252,7 +252,7 @@ public:
 				case InflateManagerMode.BAD:
 					return _codec.setError(ZipResult.Z_ERRNO, "Bad state.\n" ~ _codec.errorMessage);
 
-                version (none) // todo remove
+                version(none) // todo remove
                 {
                 default:
 					return _codec.setError(ZipResult.Z_STREAM_ERROR, "Stream error.");
@@ -961,7 +961,7 @@ public:
 					writeAt = q;
 					return flush(r);
 
-				version (none) //todo remove
+				version(none) //todo remove
                 {
 				default:
 					r = ZipResult.Z_STREAM_ERROR;
@@ -1517,7 +1517,7 @@ public:
 					blocks.writeAt = q;
 					return blocks.flush(r);
 
-				version (none) //todo remove
+				version(none) //todo remove
                 {
 				default:
 					r = ZipResult.Z_STREAM_ERROR;

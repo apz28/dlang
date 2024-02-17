@@ -16,8 +16,6 @@ import std.range.primitives : empty, front, popFront, put, save;
 import std.string : representation;
 import std.traits : isSomeChar;
 
-import pham.utl.utl_disposable : DisposingReason;
-
 nothrow @safe:
 
 
@@ -144,7 +142,7 @@ bool nextUTF8Char(scope const(char)[] str, size_t pos, out dchar cCode, out ubyt
     return nextUTF8Char(str.representation, pos, cCode, cCount);
 }
 
-version (none)
+version(none)
 pragma(inline, true)
 bool isUTF16SurrogateHigh(const(wchar) c) @nogc pure
 {
@@ -153,7 +151,7 @@ bool isUTF16SurrogateHigh(const(wchar) c) @nogc pure
     return c >= unicodeSurrogateHighBegin && c <= unicodeSurrogateHighEnd;
 }
 
-version (none)
+version(none)
 pragma(inline, true)
 bool isUTF16SurrogateLow(const(wchar) c) @nogc pure
 {

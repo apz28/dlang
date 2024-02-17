@@ -568,7 +568,7 @@ public:
 
 private:
 
-version (unittest)
+version(unittest)
 {
 package(pham.utl):
 

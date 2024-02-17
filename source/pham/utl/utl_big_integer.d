@@ -22,7 +22,7 @@ import std.traits : isFloatingPoint, isIntegral, isSigned, isSomeChar, isUnsigne
 import std.typecons : Flag;
 public import std.typecons : No, Yes;
 
-version (profile) import pham.utl.utl_test : PerfFunction;
+version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_array : ShortStringBuffer;
 import pham.utl.utl_bit : bitLength, trailingZeroBits;
 import pham.utl.utl_disposable : DisposingReason;
@@ -65,7 +65,7 @@ struct BigInteger
 @safe:
 
 public:
-    version (none)
+    version(none)
     this(this) nothrow pure
     {
         _bits = _bits.dup;
@@ -2548,7 +2548,7 @@ enum ushort probablyPrimeTestIterations = 20;
 
 bool isProbablyPrime(const(BigInteger) x, scope ProbablyPrimeTestRandomGen testRandomGen, const(ushort) testIterations = probablyPrimeTestIterations) nothrow
 {
-    version (profile) debug auto p = PerfFunction.create();
+    version(profile) debug auto p = PerfFunction.create();
 
     if (x.sign == -1 || x.isZero || x.isOne)
         return false;
@@ -2593,7 +2593,7 @@ private:
 void extendedEuclid(const(BigInteger) a, const(BigInteger) b,
     out BigInteger x, out BigInteger y, out BigInteger gcd) nothrow pure
 {
-    version (profile) debug auto p = PerfFunction.create();
+    version(profile) debug auto p = PerfFunction.create();
 
     BigInteger s = BigInteger.zero, oldS = BigInteger.one;
     BigInteger t = BigInteger.one, oldT = BigInteger.zero;
@@ -2652,7 +2652,7 @@ BigInteger greatestCommonDivisor(const(uint)[] leftBits, const(uint)[] rightBits
 bool isProbablyPrimeMillerRabin(const(BigInteger) n, scope ProbablyPrimeTestRandomGen testRandomGen, const(ushort) testIterations,
     const(bool) isForced) nothrow
 {
-    version (profile) debug auto p = PerfFunction.create();
+    version(profile) debug auto p = PerfFunction.create();
 
 	auto nm1 = n - 1;
 
@@ -2698,7 +2698,7 @@ bool isProbablyPrimeMillerRabin(const(BigInteger) n, scope ProbablyPrimeTestRand
 
 bool isProbablyPrimeLucas(const(BigInteger) n) nothrow pure
 {
-    version (profile) debug auto pf = PerfFunction.create();
+    version(profile) debug auto pf = PerfFunction.create();
 
 /* Already checked by caller -> no need
 	// Discard 0 & 1
@@ -2887,7 +2887,7 @@ in
 }
 do
 {
-    version (profile) debug auto p = PerfFunction.create();
+    version(profile) debug auto p = PerfFunction.create();
 
 	// We use the formulation described in chapter 2, section 2.4,
 	// "The Yacas Book of Algorithms":
@@ -2933,7 +2933,7 @@ do
 	}
 }
 
-version (unittest)
+version(unittest)
 string toStringSafe(const(BigInteger) n,
     string format = null,
     char separator = '_') nothrow @safe

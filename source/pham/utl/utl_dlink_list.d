@@ -59,7 +59,7 @@ if (isDLink!T)
             }
         }
 
-        version (none)
+        version(none)
         ~this()
         {
             dispose(DisposingReason.destructor);
@@ -91,7 +91,7 @@ if (isDLink!T)
             return _currentNode;
         }
 
-        @property bool empty() const pure
+        @property bool empty() const @nogc pure
         {
             return _empty;
         }
@@ -121,7 +121,7 @@ if (isDLink!T)
          *  true if checkNode has a next node, false otherwise
          */
         pragma (inline, true)
-        bool hasNext(scope T checkNode) pure
+        bool hasNext(scope T checkNode) @nogc pure
         {
             return checkNode !is null && checkNode !is checkNode._next;
         }
@@ -253,7 +253,7 @@ if (isDLink!T)
             return removingNode;
         }
 
-        @property bool empty() const pure
+        @property bool empty() const @nogc pure
         {
             return _rootNode is null;
         }
@@ -293,8 +293,6 @@ private:
 unittest
 {
     import std.conv : to;
-    import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.dlink_list");
 
     class X
     {

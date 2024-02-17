@@ -175,7 +175,7 @@ in
 do
 {
     ubyte[T.sizeof] convertingBytes = bytes[0..T.sizeof];
-    version (LittleEndian)
+    version(LittleEndian)
         return littleEndianToNative!T(convertingBytes);
     else
         return bigEndianToNative!T(convertingBytes);
@@ -200,7 +200,7 @@ pragma(inline, true)
 auto nativeToBytes(T)(const(T) value) @nogc pure
 if (isIntegral!T)
 {
-    version (LittleEndian)
+    version(LittleEndian)
         return nativeToLittleEndian!T(value);
     else
         return nativeToBigEndian!T(value);
@@ -219,7 +219,7 @@ pragma(inline, true)
 T hostToNetworkOrder(T)(const(T) host) @nogc pure
 if (isIntegral!T || isSomeChar!T)
 {
-    version (BigEndian)
+    version(BigEndian)
         return host;
     else
         return swapEndian!T(host);
@@ -229,7 +229,7 @@ pragma(inline, true)
 T networkToHostOrder(T)(const(T) network) @nogc pure
 if (isIntegral!T || isSomeChar!T)
 {
-    version (BigEndian)
+    version(BigEndian)
         return network;
     else
         return swapEndian!T(network);
@@ -316,7 +316,7 @@ if (isUnsigned!T && T.sizeof <= 8)
         return n + hbt8Table[cast(ubyte)ux];
     }
 
-    version (none)
+    version(none)
     {
         if (x != 0)
         {
@@ -370,7 +370,7 @@ if (isUnsigned!T)
         return n + lbt8Table[cast(ubyte)ux];
     }
 
-    version (none)
+    version(none)
     {
         if (x != 0)
         {

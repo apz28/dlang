@@ -58,7 +58,7 @@ class DllException : Exception
     /**
      * Platform/OS specific last error code & last error message
      */
-    version (Windows)
+    version(Windows)
     {
         import core.sys.windows.windows;
         import std.windows.syserror;
@@ -187,7 +187,7 @@ public:
     /**
      * Platform/OS specific load function
      */
-    version (Windows)
+    version(Windows)
     {
         import core.sys.windows.windows;
 
@@ -274,10 +274,7 @@ private:
 
 unittest // DllLibrary
 {
-    import pham.utl.utl_test;
-    traceUnitTest("unittest utl.dynlib.DllLibrary");
-
-    version (Windows)
+    version(Windows)
     {
         // Use any library that is always installed
         auto lib = new DllLibrary("Ws2_32.dll");

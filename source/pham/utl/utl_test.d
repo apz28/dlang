@@ -11,14 +11,14 @@
 
 module pham.utl.utl_test;
 
-version (TraceFunction) 
+version(TraceFunction) 
     version = TraceLog;
-else version (TraceUnitTest)
+else version(TraceUnitTest)
     version = TraceLog;
 
 import core.time : Duration, MonoTime, dur;
 import core.sync.mutex : Mutex;
-version (TraceLog)
+version(TraceLog)
 {
     import pham.external.std.log.log_logger : defaultOutputPattern, FileLogger, FileLoggerOption, LoggerOption, 
         LogLevel, LogLocation, OutputPattern;
@@ -38,7 +38,7 @@ public:
             return PerfCpuUsage(Duration.max, Duration.max);
         }
 
-	    version (Windows)
+	    version(Windows)
         {
             import core.sys.windows.windows : FILETIME, GetCurrentProcess, GetProcessTimes;
 	        //import core.sys.windows.psapi : PROCESS_MEMORY_COUNTERS, GetProcessMemoryInfo;
@@ -61,7 +61,7 @@ public:
 		    result.userTime = toMicroSeconds(userTime);
             return result;
 	    }
-        else version (Posix)
+        else version(Posix)
         {
             import core.sys.posix.sys.resource: rusage, getrusage, RUSAGE_SELF, timeval;
 
@@ -104,7 +104,7 @@ public:
         return result;
     }
 
-    version (profile)
+    version(profile)
     ~this() pure
     {
         if (name.length)
@@ -133,7 +133,7 @@ public:
         this._elapsedTime = elapsedTime;
     }
 
-    version (profile)
+    version(profile)
     static void profile(in string name, in Duration elapsedTime) @trusted
     in
     {
@@ -187,7 +187,7 @@ public:
     }
 
 private:
-    version (profile)
+    version(profile)
     static void saveProfile(string fileName) @trusted
     {
         import std.algorithm : sort;
@@ -217,7 +217,7 @@ private:
     string _name;
     size_t _count;
     Duration _elapsedTime;
-    version (profile)
+    version(profile)
     {
         __gshared static PerfFunctionCounter[string] counters;
         __gshared static Mutex countersMutex;
@@ -276,8 +276,7 @@ debug
 		import std.stdio;
 		import std.file;
 
-		try
-        {
+		try {
 			auto f = File(fileName);
 			f.seek(0, SEEK_END);
 			auto size = cast(size_t)f.tell();
@@ -286,11 +285,7 @@ debug
 			f.rawRead(result);
 			return result;
 		}
-		catch (Exception e)
-        {
-			debug dgWriteln("fileName=", fileName, ", e.msg=", e.msg);
-			return null;
-        }
+		catch (Exception e) { debug dgWriteln("fileName=", fileName, ", e.msg=", e.msg); return null; }
     }
 
     ubyte[] dgFromHex(scope const(char)[] hexs) nothrow pure @safe
@@ -425,7 +420,7 @@ debug
 void traceFunction(Args...)(Args args,
     in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
 {
-    version (TraceFunction)
+    version(TraceFunction)
     {
         debug traceLogger.trace!(Args)(args, line, fileName, funcName, moduleName);
     }
@@ -434,7 +429,7 @@ void traceFunction(Args...)(Args args,
 void traceFunction(
     in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
 {
-    version (TraceFunction)
+    version(TraceFunction)
     {
         debug traceLogger.trace(LogLocation(line, fileName, funcName, moduleName));
     }
@@ -443,7 +438,7 @@ void traceFunction(
 void traceUnitTest(Args...)(Args args,
     in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
 {
-    version (TraceUnitTest)
+    version(TraceUnitTest)
     {
         debug traceLogger.trace!(Args)(args, line, fileName, funcName, moduleName);
     }
@@ -452,7 +447,7 @@ void traceUnitTest(Args...)(Args args,
 void traceUnitTest(
     in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
 {
-    version (TraceUnitTest)
+    version(TraceUnitTest)
     {
         debug traceLogger.trace(LogLocation(line, fileName, funcName, moduleName));
     }
@@ -461,12 +456,12 @@ void traceUnitTest(
 
 private:
 
-version (TraceLog) static __gshared FileLogger traceLogger;
+version(TraceLog) static __gshared FileLogger traceLogger;
 
 shared static this() nothrow @trusted
 {
-    version (profile) PerfFunctionCounter.countersMutex = new Mutex();
-    version (TraceLog)
+    version(profile) PerfFunctionCounter.countersMutex = new Mutex();
+    version(TraceLog)
     {
         traceLogger = new FileLogger("trace.log", FileLoggerOption(FileLoggerOption.overwriteMode), 
             LoggerOption(LogLevel.trace, "unittestTrace", defaultOutputPattern, 10));
@@ -475,7 +470,7 @@ shared static this() nothrow @trusted
 
 shared static ~this() nothrow @trusted
 {
-    version (profile)
+    version(profile)
     {
         if (PerfFunctionCounter.countersMutex !is null)
         {
@@ -490,7 +485,7 @@ shared static ~this() nothrow @trusted
         }
     }
 
-    version (TraceLog)
+    version(TraceLog)
     {
         if (traceLogger !is null)
         {

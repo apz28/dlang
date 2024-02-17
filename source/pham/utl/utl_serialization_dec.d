@@ -49,7 +49,7 @@ void serialize(Serializer serializer, scope ref Decimal128 value, scope ref Seri
     serializeImpl!Decimal128(serializer, value, attribute);
 }
 
-version (unittest)
+version(unittest)
 {
 package(pham.utl):
 

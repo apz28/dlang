@@ -373,7 +373,7 @@ nothrow @safe:
 
     // Do an in-place two's complement. "Dangerous" because it causes
     // a mutation and needs to be used with care for immutable types.
-    version (none)
+    version(none)
     static void makeTwosComplement(ref uint[] d) pure
     {
         if (d.length != 0)

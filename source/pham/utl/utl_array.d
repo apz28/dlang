@@ -706,7 +706,7 @@ public:
         return cast(immutable(T)[])(result);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         _shortData[] = 0;
         _longData[] = 0;

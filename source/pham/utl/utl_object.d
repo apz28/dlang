@@ -20,7 +20,6 @@ import std.traits : isArray, isAssociativeArray, isIntegral, isPointer,
     isSomeChar, isSomeString, isUnsigned, Unqual;
 
 import pham.utl.utl_array : ShortStringBuffer;
-import pham.utl.utl_disposable;
 import pham.utl.utl_numeric_parser : Base64MappingChar, NumericParsedKind, cvtBytesBase64, cvtBytesBase16, parseBase64, parseBase16;
 import pham.utl.utl_result : cmp;
 import pham.utl.utl_utf8 : NoDecodeInputRange;
@@ -791,7 +790,7 @@ public:
 // Any below codes are private
 private:
 
-version (unittest)
+version(unittest)
 {
     class TestClassName
     {
