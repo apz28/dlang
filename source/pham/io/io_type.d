@@ -12,12 +12,12 @@
 module pham.io.io_type;
 
 import std.system : Endian;
-version (Posix)
+version(Posix)
 {
     import core.sys.posix.fcntl;
     import core.stdc.stdio : SEEK_SET, SEEK_CUR, SEEK_END;
 }
-else version (Windows)
+else version(Windows)
 {
     import core.stdc.stdio : O_RDONLY, O_WRONLY, O_RDWR, O_APPEND, O_CREAT, O_TRUNC, O_BINARY,
         O_TMPFILE=O_TEMPORARY;
@@ -220,7 +220,7 @@ public:
             : ResultIf!StreamOpenInfo.error(0, "Invalid file-stream open mode: " ~ mode.idup);
     }
 
-    version (Windows)
+    version(Windows)
     DWORD toCreationDisposition() const nothrow
     {
         switch (mode & (StreamOpenMode.create | StreamOpenMode.truncate))
@@ -238,7 +238,7 @@ public:
         }
     }
 
-    version (Windows)
+    version(Windows)
     DWORD toDesiredAccess() const nothrow
     {
         switch (mode & (StreamOpenMode.read | StreamOpenMode.write | StreamOpenMode.readWrite | StreamOpenMode.append))
@@ -258,7 +258,7 @@ public:
         }
     }
 
-    version (Windows)
+    version(Windows)
     DWORD toFlagsAndAttributes() const nothrow
     {
         return (mode & StreamOpenMode.temporary) == StreamOpenMode.temporary
@@ -266,7 +266,7 @@ public:
             : FILE_ATTRIBUTE_NORMAL;
     }
 
-    version (Windows)
+    version(Windows)
     DWORD toShareMode() const nothrow
     {
         return flag;
@@ -285,9 +285,9 @@ public:
 private:
     static int initFlag() nothrow pure
     {
-        version (Posix)
+        version(Posix)
             return S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-        else version (Windows)
+        else version(Windows)
             return FILE_SHARE_READ;
         else
             return 0;
@@ -303,7 +303,7 @@ bool isOpenMode(const(StreamOpenMode) modes, const(StreamOpenMode) checkMode) @n
 pragma(inline, true)
 bool isSameRTEndian(const(Endian) endian) @nogc nothrow pure
 {
-    version (LittleEndian)
+    version(LittleEndian)
         return endian == Endian.littleEndian;
     else
         return endian == Endian.bigEndian;

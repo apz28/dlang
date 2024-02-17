@@ -11,7 +11,7 @@
 
 module pham.io.io_windows;
 
-version (Windows):
+version(Windows):
 
 import core.sys.windows.basetsd : HANDLE;
 import core.sys.windows.winbase : CloseHandle, CreateFileW, CreatePipe, DeleteFileW, GetFileSizeEx, GetLastError,    

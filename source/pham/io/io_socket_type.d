@@ -20,12 +20,12 @@ import pham.utl.utl_numeric_parser : cvtDigit, cvtHexDigit, NumericParsedKind, p
 import pham.utl.utl_object : toString;
 import pham.utl.utl_result;
 import pham.utl.utl_text : simpleIndexOf;
-version (Posix)
+version(Posix)
 {
     import core.sys.posix.sys.socket;
     import pham.io.io_socket_posix;
 }
-else version (Windows)
+else version(Windows)
 {
     import core.sys.windows.winsock2;
     import pham.io.io_socket_windows;

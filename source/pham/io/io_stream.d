@@ -17,9 +17,9 @@ import core.time : msecs;
 import pham.utl.utl_result : lastSystemError, resultError, resultOK;
 public import pham.utl.utl_result : ResultIf, ResultStatus;
 public import pham.io.io_type;
-version (Posix)
+version(Posix)
     import pham.io.io_posix;
-else version (Windows)
+else version(Windows)
     import pham.io.io_windows;
 else
     pragma(msg, "Unsupported system for " ~ __MODULE__);

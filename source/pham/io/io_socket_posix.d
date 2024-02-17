@@ -11,7 +11,7 @@
 
 module pham.io.io_socket_posix;
 
-version (Posix):
+version(Posix):
 
 import core.sys.posix.fcntl : errno;
 import core.sys.posix.net.if_;

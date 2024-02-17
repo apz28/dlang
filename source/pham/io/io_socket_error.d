@@ -17,13 +17,13 @@ import pham.utl.utl_result : genericErrorMessage, getSystemErrorMessage, ResultS
 
 int lastSocketError() @nogc nothrow @trusted
 {
-    version (Windows)
+    version(Windows)
     {
         import core.sys.windows.winsock2;
 
         return WSAGetLastError();
     }
-    else version (Posix)
+    else version(Posix)
     {
         import core.stdc.errno;
 

@@ -11,7 +11,7 @@
 
 module pham.io.io_posix;
 
-version (Posix):
+version(Posix):
 
 import core.sys.posix.fcntl;
 import core.sys.posix.unistd : close, lseek64, pipe, read, ftruncate64, write;

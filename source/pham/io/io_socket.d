@@ -18,12 +18,12 @@ public import pham.utl.utl_result : ResultIf, ResultStatus;
 public import pham.io.io_socket_type;
 import pham.io.io_stream : Stream;
 public import pham.io.io_type;
-version (Posix)
+version(Posix)
 {
     import core.sys.posix.sys.socket;
     import pham.io.io_socket_posix;
 }
-else version (Windows)
+else version(Windows)
 {
     import core.sys.windows.winsock2;
     import pham.io.io_socket_windows;
@@ -293,7 +293,7 @@ public:
     
         this._address = IPAddress.init;
         this._port = 0;
-        version (Windows) this._blocking = true; // Default in windows  
+        version(Windows) this._blocking = true; // Default in windows  
         this._handle = createSocket(family, type, protocol);
         if (this._handle == invalidSocketHandle)
             return lastError.setSystemError("socket", lastSocketError());
@@ -538,7 +538,7 @@ public:
 
     @property final bool blocking() const @nogc nothrow
     {
-        version (Windows)
+        version(Windows)
             return _blocking;
         else
         {
@@ -566,7 +566,7 @@ public:
 protected:
     final int bindImpl(BindInfo bindInfo) nothrow
     {
-        version (Windows) this._blocking = bindInfo.isBlocking();
+        version(Windows) this._blocking = bindInfo.isBlocking();
         this._address = bindInfo.address;
         this._port = bindInfo.port;
         
@@ -633,7 +633,7 @@ protected:
     {
         //import std.stdio : writeln; debug writeln("connectImpl(address=", connectInfo.address.toString(), ", port=", connectInfo.port, ")");
 
-        version (Windows) this._blocking = connectInfo.isBlocking();
+        version(Windows) this._blocking = connectInfo.isBlocking();
         this._address = connectInfo.address;
         this._port = connectInfo.port;
                 
@@ -785,7 +785,7 @@ private:
     SocketHandle _handle;
     IPAddress _address;
     ushort _port;
-    version (Windows) bool _blocking; // Windows api does not have a function to query blocking state from socket handle
+    version(Windows) bool _blocking; // Windows api does not have a function to query blocking state from socket handle
 }
 
 class SocketStream : Stream
@@ -944,9 +944,9 @@ unittest // getAddressInfo
 
 @trusted unittest // getAddressInfo
 {
-    version (Windows)
+    version(Windows)
         import core.sys.windows.winsock2;
-    else version (Posix)
+    else version(Posix)
         import core.sys.posix.sys.socket;
 
     auto r = getAddressInfo("127.0.0.1", null, AddressInfo.connectHints(0, AddressFamily.ipv4));
@@ -957,7 +957,7 @@ unittest // getAddressInfo
     assert(sr.sin_addr.s_addr == inet_addr("127.0.0.1".ptr));
 }
 
-version (none)
+version(none)
 unittest
 {
     import std.stdio : writeln; writeln("Socket.isSupportIPv4=", Socket.isSupportIPv4(), ", Socket.isSupportIPv6=", Socket.isSupportIPv6());

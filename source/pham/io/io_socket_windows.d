@@ -11,7 +11,7 @@
 
 module pham.io.io_socket_windows;
 
-version (Windows):
+version(Windows):
 
 import core.sys.windows.windef : DWORD, MAKEWORD;
 import core.sys.windows.winsock2;
