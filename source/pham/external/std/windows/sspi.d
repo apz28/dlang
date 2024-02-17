@@ -9,11 +9,11 @@
  */
 module pham.external.std.windows.sspi;
 
-version (Windows):
+version(Windows):
 nothrow:
 @system:
 
-version (ANSI)
+version(ANSI)
 {}
 else
 {
@@ -433,7 +433,7 @@ SECURITY_STATUS QuerySecurityPackageInfoW(scope const(SEC_WCHAR)*, scope PSecPkg
 PSecurityFunctionTableA InitSecurityInterfaceA();
 PSecurityFunctionTableW InitSecurityInterfaceW();
 
-version (Unicode)
+version(Unicode)
 {
     alias UNISP_NAME = UNISP_NAME_W;
     alias SecPkgInfo = SecPkgInfoW;

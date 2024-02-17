@@ -11,7 +11,7 @@
 
 module pham.external.std.windows.sspi_ex;
 
-version (Windows):
+version(Windows):
 
 import pham.utl.utl_disposable : DisposingReason;
 import pham.external.std.windows.sspi;
