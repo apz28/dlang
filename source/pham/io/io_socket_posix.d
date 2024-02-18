@@ -142,7 +142,7 @@ in
 do
 {
     buffer[] = '\0';
-    uint size = cast(uint)buffer.length - 1;
+    uint size = cast(uint)(buffer.length - 1);
     if (gethostname(&buffer[0], size) == 0)
     {
         foreach (i; 0..buffer.length)

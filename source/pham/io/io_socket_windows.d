@@ -116,7 +116,7 @@ in
 do
 {
     buffer[] = '\0';
-    DWORD size = cast(DWORD)buffer.length - 1;
+    DWORD size = cast(DWORD)(buffer.length - 1);
     if (GetComputerNameA(&buffer[0], &size))
         return size;
 
