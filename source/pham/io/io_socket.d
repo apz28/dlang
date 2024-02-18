@@ -78,6 +78,13 @@ ResultIf!(AddressInfo[]) getAddressInfo(scope const(char)[] hostNameOrAddress, s
     return ResultIf!(AddressInfo[]).ok(addressInfos);
 }
 
+string getComputerName() nothrow
+{
+    char[1_000] buffer = void;
+    const len = getComputerNameOS(buffer[]);
+    return len > 0 ? buffer[0..len].idup : null;
+}
+
 class Socket
 {
 @safe:
@@ -929,17 +936,31 @@ private:
     Duration _readTimeout, _writeTimeout;
 }
 
+unittest // getComputerName
+{
+    //import std.stdio : writeln;
+    
+    const r = getComputerName();
+    assert(r.length > 0);
+    
+    //debug writeln("getComputerName=", r);
+}
+
 unittest // getAddressInfo
 {
-    const r1 = getAddressInfo("localhost", null, AddressInfo.connectHints(0));
+    //import std.stdio : writeln;
+    
+    const r1 = getAddressInfo(getComputerName(), null, AddressInfo.connectHints(0));
     assert(r1.isOK);
     assert(r1.value.length > 0);
-    //import std.stdio : writeln; writeln("r1.value.length=", r1.value.length, ", r1.value[0]=", r1.value[0].toString(), ", r1.value[1]=", r1.value.length > 1 ? r1.value[1].toString() : null);
+    //foreach (i, ref v; r1.value)
+    //    debug writeln("i=", i, ", r1.value[i]=", v.toString());
 
     const r2 = getAddressInfo("127.0.0.1", null, AddressInfo.connectHints(0));
     assert(r2.isOK);
     assert(r2.value.length > 0);
-    //import std.stdio : writeln; writeln("r2.value.length=", r2.value.length, ", r2.value[0]=", r2.value[0].toString(), ", r2.value[1]=", r2.value.length > 1 ? r2.value[1].toString() : null);
+    //foreach (i, ref v; r2.value)
+    //    debug writeln("i=", i, ", r2.value[i]=", v.toString());
 }
 
 @trusted unittest // getAddressInfo

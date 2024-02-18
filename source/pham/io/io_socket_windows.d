@@ -13,6 +13,7 @@ module pham.io.io_socket_windows;
 
 version(Windows):
 
+import core.sys.windows.winbase : GetComputerNameA;
 import core.sys.windows.windef : DWORD, MAKEWORD;
 import core.sys.windows.winsock2;
 public import core.sys.windows.winsock2 : Linger = linger, TimeVal = timeval;
@@ -105,6 +106,21 @@ do
 string getAvailableBytesSocketAPI() @nogc nothrow pure @safe
 {
     return "ioctlsocket";
+}
+
+size_t getComputerNameOS(scope return char[] buffer) @nogc nothrow @trusted
+in
+{
+    assert(buffer.length > 1);
+}
+do
+{
+    buffer[] = '\0';
+    DWORD size = cast(DWORD)buffer.length - 1;
+    if (GetComputerNameA(&buffer[0], &size))
+        return size;
+
+    return 0;
 }
 
 int getErrorSocket(SocketHandle handle) nothrow @trusted

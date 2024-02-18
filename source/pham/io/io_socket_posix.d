@@ -20,7 +20,7 @@ import core.sys.posix.sys.select;
 import core.sys.posix.sys.socket;
 public import core.sys.posix.sys.socket : Linger = linger;
 public import core.sys.posix.sys.time : TimeVal = timeval;
-import core.sys.posix.unistd : close;
+import core.sys.posix.unistd : close, gethostname;
 
 import pham.utl.utl_result : resultError, resultOK;
 import pham.io.io_socket_type : SelectMode;
@@ -132,6 +132,23 @@ do
 string getBlockingSocketAPI() @nogc nothrow pure @safe
 {
     return "fcntl";
+}
+
+size_t getComputerNameOS(scope return char[] buffer) @nogc nothrow @trusted
+in
+{
+    assert(buffer.length > 1);
+}
+do
+{
+    buffer[] = '\0';
+    if (gethostname(&buffer[0], buffer.length - 1) == 0)
+    {
+        foreach (i; 0..buffer.length)
+            return i;
+    }
+    
+    return 0;
 }
 
 int getErrorSocket(SocketHandle handle) nothrow @trusted
