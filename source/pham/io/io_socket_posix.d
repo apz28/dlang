@@ -142,10 +142,14 @@ in
 do
 {
     buffer[] = '\0';
-    if (gethostname(&buffer[0], buffer.length - 1) == 0)
+    uint size = cast(uint)buffer.length - 1;
+    if (gethostname(&buffer[0], size) == 0)
     {
         foreach (i; 0..buffer.length)
-            return i;
+        {
+            if (buffer[i] == '\0')
+                return i;
+        }
     }
     
     return 0;
