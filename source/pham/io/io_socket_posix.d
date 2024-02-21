@@ -134,7 +134,7 @@ string getBlockingSocketAPI() @nogc nothrow pure @safe
     return "fcntl";
 }
 
-size_t getComputerNameOS(scope return char[] buffer) @nogc nothrow @trusted
+uint getComputerNameOS(scope return char[] buffer) @nogc nothrow @trusted
 in
 {
     assert(buffer.length > 1);
@@ -148,7 +148,7 @@ do
         foreach (i; 0..buffer.length)
         {
             if (buffer[i] == '\0')
-                return i;
+                return cast(uint)i;
         }
     }
     

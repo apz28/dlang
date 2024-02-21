@@ -108,14 +108,13 @@ string getAvailableBytesSocketAPI() @nogc nothrow pure @safe
     return "ioctlsocket";
 }
 
-size_t getComputerNameOS(scope return char[] buffer) @nogc nothrow @trusted
+uint getComputerNameOS(scope return char[] buffer) @nogc nothrow @trusted
 in
 {
     assert(buffer.length > 1);
 }
 do
 {
-    buffer[] = '\0';
     DWORD size = cast(DWORD)(buffer.length - 1);
     if (GetComputerNameA(&buffer[0], &size))
         return size;
