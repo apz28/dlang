@@ -1265,7 +1265,7 @@ public:
         auto result = logger;
         return result !is null && result.isWarn ? result : null;
     }
-    
+
     pragma(inline, true)
     final Logger canTraceLog() nothrow @safe
     {
@@ -3589,7 +3589,8 @@ public:
 
     @property final bool isNull() const nothrow pure @safe
     {
-        return _dbValue.isNull || (isDbTypeHasZeroSizeAsNull(type) && _dbValue.size <= 0);
+        return _dbValue.isNull
+            || (isDbTypeHasZeroSizeAsNull(type) && _dbValue.size <= 0);
     }
 
     @property final Variant variant() @safe
@@ -3690,7 +3691,7 @@ public:
     }
     do
     {
-        DbIdentitier id = DbIdentitier(name);
+        auto id = DbIdentitier(name);
         return add(id, type, direction, size);
     }
 
@@ -3704,14 +3705,21 @@ public:
     }
     do
     {
-        DbIdentitier id = DbIdentitier(name);
+        auto id = DbIdentitier(name);
         return add(id, type, direction, size);
     }
 
-    final DbParameter add(string name, DbValue value) @safe
+    final DbParameter add(string name, DbType type, DbValue value) @safe
     {
-        auto result = add(name, DbType.unknown);
+        auto result = add(name, type);
         result.value = value;
+        return result;
+    }
+
+    final DbParameter add(string name, DbType type, Variant value) @safe
+    {
+        auto result = add(name, type);
+        result.variant = value;
         return result;
     }
 
@@ -3729,7 +3737,7 @@ public:
 
     final DbParameter createParameter(string name) nothrow @safe
     {
-        DbIdentitier id = DbIdentitier(name);
+        auto id = DbIdentitier(name);
         return database.createParameter(id);
     }
 
@@ -3761,9 +3769,11 @@ public:
     final DbParameter hasOutputParameter(string name, size_t outputIndex) nothrow @safe
     {
         DbParameter result;
+
         // Parameter can't have same name regardless of direction
         if (name.length != 0 && find(name, result))
             return result;
+
         size_t outIndex;
         foreach (i; 0..length)
         {
@@ -3775,6 +3785,7 @@ public:
                     return result;
             }
         }
+
         return null;
     }
 
@@ -3796,21 +3807,19 @@ public:
         const count = inputCount();
         if (count == 0)
             return null;
-        else
+
+        size_t i = 0;
+        auto result = new DbParameter[](count);
+        foreach (parameter; this)
         {
-            size_t i = 0;
-            auto result = new DbParameter[](count);
-            foreach (parameter; this)
+            if (parameter.isInput())
             {
-                if (parameter.isInput())
-                {
-                    if (parameter.baseTypeId == 0)
-                        parameter.reevaluateBaseType();
-                    result[i++] = parameter;
-                }
+                if (parameter.baseTypeId == 0)
+                    parameter.reevaluateBaseType();
+                result[i++] = parameter;
             }
-            return result;
         }
+        return result;
     }
 
     final typeof(this) nullifyOutputParameters() nothrow @safe
@@ -3868,7 +3877,7 @@ public:
     }
     do
     {
-        DbIdentitier id = DbIdentitier(name);
+        auto id = DbIdentitier(name);
         return touch(id, type, direction, size);
     }
 
@@ -3881,7 +3890,7 @@ public:
     }
     do
     {
-        DbIdentitier id = DbIdentitier(name);
+        auto id = DbIdentitier(name);
         return touch(id, type, direction, size);
     }
 

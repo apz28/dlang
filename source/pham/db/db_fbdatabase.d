@@ -3624,8 +3624,8 @@ unittest // FbCommandBatch
         foreach (i; 0..2)
         {
             auto parameters = command.addParameters();
-            parameters.add("i", DbValue(iv[i]));
-            parameters.add("t", DbValue(tv[i]));
+            parameters.add("i", DbType.int32, DbValue(iv[i]));
+            parameters.add("t", DbType.datetime, DbValue(tv[i]));
         }
         command.executeNonQuery();
 
@@ -3634,8 +3634,8 @@ unittest // FbCommandBatch
         foreach (i; 2..4)
         {
             auto parameters = command.addParameters();
-            parameters.add("i", DbValue(iv[i]));
-            parameters.add("t", DbValue(tv[i]));
+            parameters.add("i", DbType.int32, DbValue(iv[i]));
+            parameters.add("t", DbType.datetime, DbValue(tv[i]));
         }
         command.executeNonQuery();
 	}
@@ -3665,10 +3665,10 @@ unittest // FbCommandBatch
     {
 		auto command = connection.createCommandBatch("insert into batch(i) values(@i)");
 
-        command.addParameters().add("i", DbValue(6)); // OK
-        command.addParameters().add("i", DbValue(1)); // Failure - duplicate
-        command.addParameters().add("i", DbValue(7)); // OK
-        command.addParameters().add("i", DbValue(2)); // Failure - duplicate
+        command.addParameters().add("i", DbType.int32, DbValue(6)); // OK
+        command.addParameters().add("i", DbType.int32, DbValue(1)); // Failure - duplicate
+        command.addParameters().add("i", DbType.int32, DbValue(7)); // OK
+        command.addParameters().add("i", DbType.int32, DbValue(2)); // Failure - duplicate
         auto result = command.executeNonQuery();
 		assert(result.length == 4);
 		assert(result[0].isOK);

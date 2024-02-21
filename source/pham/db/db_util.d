@@ -110,6 +110,12 @@ if (is(A == const(char)[]) || is(A == char[]))
     return value.length <= maxLength ? value : value[0..maxLength];
 }
 
+A truncate(A)(return A value, size_t maxLength) pure
+if (is(A == const(ubyte)[]) || is(A == ubyte[]))
+{
+    return value.length <= maxLength ? value : value[0..maxLength];
+}
+
 A truncateEndIf(A)(return A value, size_t ifMaxLength, char ifChar) pure
 if (is(A == const(char)[]) || is(A == char[]))
 {
@@ -117,12 +123,6 @@ if (is(A == const(char)[]) || is(A == char[]))
     while (length > ifMaxLength && value[length - 1] == ifChar)
         length--;
     return length == value.length ? value : value[0..length];
-}
-
-A truncate(A)(return A value, size_t maxLength) pure
-if (is(A == const(ubyte)[]) || is(A == ubyte[]))
-{
-    return value.length <= maxLength ? value : value[0..maxLength];
 }
 
 
