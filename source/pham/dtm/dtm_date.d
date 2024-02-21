@@ -1857,11 +1857,11 @@ struct JulianDate
  * Returns total positive number of years between 'now' and 'then'
  */
 pragma(inline, true)
-int yearsBetween(T)(const(T) now, const(T) then,
+int yearsBetween(T)(scope const(T) now, scope const(T) then,
     const(double) approxDaysPerYear = TickSpan.approxDaysPerYear4ys) @nogc nothrow pure
 if (is(T == Date) || is(T == DateTime) || is(T == Time))
 {
-    
+
     static if (is(T == Time))
         return 0;
     else
@@ -1872,7 +1872,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
  * Returns total positive number of months between 'now' and 'then'
  */
 pragma(inline, true)
-int monthsBetween(T)(const(T) now, const(T) then,
+int monthsBetween(T)(scope const(T) now, scope const(T) then,
     const(double) approxDaysPerMonth = TickSpan.approxDaysPerMonth4ys) @nogc nothrow pure
 if (is(T == Date) || is(T == DateTime) || is(T == Time))
 {
@@ -1886,7 +1886,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
  * Returns total positive number of weeks between 'now' and 'then'
  */
 pragma(inline, true)
-int weeksBetween(T)(const(T) now, const(T) then) @nogc nothrow pure
+int weeksBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
 if (is(T == Date) || is(T == DateTime) || is(T == Time))
 {
     static if (is(T == Time))
@@ -1899,7 +1899,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
  * Returns total positive number of days between 'now' and 'then'
  */
 pragma(inline, true)
-int daysBetween(T)(const(T) now, const(T) then) @nogc nothrow pure
+int daysBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
 if (is(T == Date) || is(T == DateTime) || is(T == Time))
 {
     static if (is(T == Time))
@@ -1912,7 +1912,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
  * Returns total positive number of hours between 'now' and 'then'
  */
 pragma(inline, true)
-long hoursBetween(T)(const(T) now, const(T) then) @nogc nothrow pure
+long hoursBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
 if (is(T == Date) || is(T == DateTime) || is(T == Time))
 {
     return abs(cast(long)(now - then).totalHours);
@@ -1922,7 +1922,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
  * Returns total positive number of minutes between 'now' and 'then'
  */
 pragma(inline, true)
-long minutesBetween(T)(const(T) now, const(T) then) @nogc nothrow pure
+long minutesBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
 if (is(T == Date) || is(T == DateTime) || is(T == Time))
 {
     return abs(cast(long)(now - then).totalMinutes);
@@ -1932,7 +1932,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
  * Returns total positive number of seconds between 'now' and 'then'
  */
 pragma(inline, true)
-long secondsBetween(T)(const(T) now, const(T) then) @nogc nothrow pure
+long secondsBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
 if (is(T == Date) || is(T == DateTime) || is(T == Time))
 {
     return abs(cast(long)(now - then).totalSeconds);
@@ -1942,7 +1942,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
  * Returns total positive number of milliseconds between 'now' and 'then'
  */
 pragma(inline, true)
-long millisecondsBetween(T)(const(T) now, const(T) then) @nogc nothrow pure
+long millisecondsBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
 if (is(T == Date) || is(T == DateTime) || is(T == Time))
 {
     return abs(cast(long)(now - then).totalMilliseconds);
@@ -1952,7 +1952,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
  * Returns total positive number of ticks between 'now' and 'then'
  */
 pragma(inline, true)
-long ticksBetween(T)(const(T) now, const(T) then) @nogc nothrow pure
+long ticksBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
 if (is(T == Date) || is(T == DateTime) || is(T == Time))
 {
     return abs((now - then).ticks);
@@ -2329,24 +2329,24 @@ unittest // DateTime.opBinary
 {
     import core.time : dur;
     import std.conv : to;
-    
+
     static string toString(ubyte decimals = 4)(const(double) n) nothrow pure
     {
         import std.conv : to;
         import std.format : format;
-        
+
         scope (failure) assert(0, "Assume nothrow");
-        
-        enum fmt = "%." ~ to!string(decimals) ~ "f";
+
+        enum fmt = "%." ~ decimals.to!string ~ "f";
         return format(fmt, n);
     }
-    
+
     static bool approxEqual(ubyte decimals = 4)(const(double) lhs, const(double) rhs) nothrow pure
     {
         import std.conv : to;
         import std.math.operations : isClose;
-        
-        enum maxRelDiff = to!double("1e-" ~ to!string(decimals));
+
+        enum maxRelDiff = ("1e-" ~ decimals.to!string).to!double;
         return isClose(lhs, rhs, maxRelDiff);
     }
 
@@ -2377,15 +2377,15 @@ unittest // DateTime.opBinary
     assert((dt - idt).toDuration == Duration.zero);
     assert((cdt - idt).toDuration == Duration.zero);
     assert((idt - idt).toDuration == Duration.zero);
-    
+
 	auto preDate = DateTime(2021, 7, 15, 0, 0, 0); //15 July 2021 00:00:00
     auto nowDate = DateTime(2024, 2, 13, 10, 49, 4); //13 February 2024 10:49:04
     assert(approxEqual!12((nowDate - preDate).totalDays, 943.450740740741), toString!12((nowDate - preDate).totalDays));
     assert(approxEqual!10((nowDate - preDate).totalHours, 22_642.8177777778), toString!10((nowDate - preDate).totalHours));
     assert(approxEqual!8((nowDate - preDate).totalMinutes, 1_358_569.06666667), toString!8((nowDate - preDate).totalMinutes));
-    assert((nowDate - preDate).totalSeconds == 81_514_144, to!string((nowDate - preDate).totalSeconds));
-    assert((nowDate - preDate).totalMilliseconds == 81_514_144_000, to!string((nowDate - preDate).totalMilliseconds));
-    assert((nowDate - preDate).totalTicks == 815_141_440_000_000, to!string((nowDate - preDate).totalTicks));
+    assert((nowDate - preDate).totalSeconds == 81_514_144, (nowDate - preDate).totalSeconds.to!string);
+    assert((nowDate - preDate).totalMilliseconds == 81_514_144_000, (nowDate - preDate).totalMilliseconds.to!string);
+    assert((nowDate - preDate).totalTicks == 815_141_440_000_000, (nowDate - preDate).totalTicks.to!string);
 }
 
 unittest // DateTime.toString
@@ -2630,7 +2630,7 @@ unittest // Date.opBinary
     assert((dt - idt).toDuration == Duration.zero);
     assert((cdt - idt).toDuration == Duration.zero);
     assert((idt - idt).toDuration == Duration.zero);
-    
+
 	auto preDate = Date(2021, 7, 15); //15 July 2021
     auto nowDate = Date(2024, 2, 13); //13 February 2024
     assert((nowDate - preDate).totalDays == 943);
@@ -2708,4 +2708,47 @@ unittest // Date.endOfMonth
     assert(Date(1999, 10, 21).endOfMonth == Date(1999, 10, 31));
     assert(Date(1999, 11, 22).endOfMonth == Date(1999, 11, 30));
     assert(Date(1999, 12, 23).endOfMonth == Date(1999, 12, 31));
+}
+
+unittest // ...Between
+{
+    import std.conv : to;
+
+    // Date
+	auto preDate = Date(2021, 7, 15); //15 July 2021
+    auto nowDate = Date(2024, 2, 13); //13 February 2024
+    assert(yearsBetween(nowDate, preDate) == 2, yearsBetween(nowDate, preDate).to!string);
+    assert(monthsBetween(nowDate, preDate) == 30, monthsBetween(nowDate, preDate).to!string);
+    assert(weeksBetween(nowDate, preDate) == 134, weeksBetween(nowDate, preDate).to!string);
+    assert(daysBetween(nowDate, preDate) == 943, daysBetween(nowDate, preDate).to!string);
+    assert(hoursBetween(nowDate, preDate) == 22_632);
+    assert(minutesBetween(nowDate, preDate) == 1_357_920);
+    assert(secondsBetween(nowDate, preDate) == 81_475_200);
+    assert(millisecondsBetween(nowDate, preDate) == 81_475_200_000);
+    assert(ticksBetween(nowDate, preDate) == 814_752_000_000_000);
+
+    // DateTime
+	auto preDateTime = DateTime(2021, 7, 15, 0, 0, 0); //15 July 2021 00:00:00
+    auto nowDateTime = DateTime(2024, 2, 13, 10, 49, 4); //13 February 2024 10:49:04
+    assert(yearsBetween(nowDateTime, preDateTime) == 2, yearsBetween(nowDateTime, preDateTime).to!string);
+    assert(monthsBetween(nowDateTime, preDateTime) == 30, monthsBetween(nowDateTime, preDateTime).to!string);
+    assert(weeksBetween(nowDateTime, preDateTime) == 134, weeksBetween(nowDateTime, preDateTime).to!string);
+    assert(daysBetween(nowDateTime, preDateTime) == 943, daysBetween(nowDateTime, preDateTime).to!string);
+    assert(hoursBetween(nowDateTime, preDateTime) == 22_642, hoursBetween(nowDateTime, preDateTime).to!string);
+    assert(minutesBetween(nowDateTime, preDateTime) == 1_358_569, minutesBetween(nowDateTime, preDateTime).to!string);
+    assert(secondsBetween(nowDateTime, preDateTime) == 81_514_144, secondsBetween(nowDateTime, preDateTime).to!string);
+    assert(millisecondsBetween(nowDateTime, preDateTime) == 81_514_144_000, millisecondsBetween(nowDateTime, preDateTime).to!string);
+    assert(ticksBetween(nowDateTime, preDateTime) == 815_141_440_000_000, ticksBetween(nowDateTime, preDateTime).to!string);
+
+    // Time
+	auto preTime = Time(0, 0, 0);
+    auto nowTime = Time(19, 22, 7);
+    assert(yearsBetween(nowTime, preTime) == 0, yearsBetween(nowTime, preTime).to!string);
+    assert(monthsBetween(nowTime, preTime) == 0, monthsBetween(nowTime, preTime).to!string);
+    assert(daysBetween(nowTime, preTime) == 0, daysBetween(nowTime, preTime).to!string);
+    assert(hoursBetween(nowTime, preTime) == 19, hoursBetween(nowTime, preTime).to!string);
+    assert(minutesBetween(nowTime, preTime) == 1_162, minutesBetween(nowTime, preTime).to!string);
+    assert(secondsBetween(nowTime, preTime) == 69_727, secondsBetween(nowTime, preTime).to!string);
+    assert(millisecondsBetween(nowTime, preTime) == 69_727_000, millisecondsBetween(nowTime, preTime).to!string);
+    assert(ticksBetween(nowTime, preTime) == 697_270_000_000, ticksBetween(nowTime, preTime).to!string);
 }

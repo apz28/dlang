@@ -365,7 +365,7 @@ public:
             throw new FormatException(fmtSpec.errorMessage.idup);
         return sink;
     }
-    
+
     Time toUTC() const nothrow
     {
         auto dt = DateTime(Date.today, this);
@@ -556,7 +556,7 @@ public:
     {
         return data;
     }
-    
+
     /**
      * Returns the midnight Time value which is midnight time 00:00:00.000 AM
      * Same as zero
@@ -568,7 +568,7 @@ public:
      */
     alias zero = min;
 
-    
+
 public:
     // MinTimeTicks is the ticks for the midnight time 00:00:00.000 AM
     enum long minTicks = 0;
@@ -693,7 +693,7 @@ unittest // Time.opEquals
 unittest // Time.hour
 {
     import std.conv : to;
-    
+
     assert(Time.init.hour == 0);
     assert(Time(12, 0, 0).hour == 12);
 
@@ -715,7 +715,7 @@ unittest // Time.hour
 unittest // Time.minute
 {
     import std.conv : to;
-    
+
     assert(Time.init.minute == 0);
     assert(Time(0, 30, 0).minute == 30);
 
@@ -737,7 +737,7 @@ unittest // Time.minute
 unittest // Time.second
 {
     import std.conv : to;
-    
+
     assert(Time.init.second == 0);
     assert(Time(0, 0, 33).second == 33);
 
@@ -759,7 +759,7 @@ unittest // Time.second
 unittest // Time.millisecond
 {
     import std.conv : to;
-    
+
     assert(Time.init.millisecond == 0);
     assert(Time(0, 0, 0, 83).millisecond == 83);
 
@@ -839,27 +839,27 @@ unittest // Time.opBinary
 {
     import core.time : dur;
     import std.conv : to;
-    
+
     static string toString(ubyte decimals = 4)(const(double) n) nothrow pure
     {
         import std.conv : to;
         import std.format : format;
-        
+
         scope (failure) assert(0, "Assume nothrow");
-        
-        enum fmt = "%." ~ to!string(decimals) ~ "f";
+
+        enum fmt = "%." ~ decimals.to!string ~ "f";
         return format(fmt, n);
     }
-    
+
     static bool approxEqual(ubyte decimals = 4)(const(double) lhs, const(double) rhs) nothrow pure
     {
         import std.conv : to;
         import std.math.operations : isClose;
-        
-        enum maxRelDiff = to!double("1e-" ~ to!string(decimals));
+
+        enum maxRelDiff = ("1e-" ~ decimals.to!string).to!double;
         return isClose(lhs, rhs, maxRelDiff);
     }
-    
+
     assert((Time(7, 12, 52) - Time(12, 30, 33)).toDuration == dur!"seconds"(-19_061));
     assert((Time(12, 30, 33) - Time(7, 12, 52)).toDuration == dur!"seconds"(19_061));
     assert((Time(12, 30, 33) - Time(14, 30, 33)).toDuration == dur!"seconds"(-7200));
@@ -880,16 +880,16 @@ unittest // Time.opBinary
     assert((ctod - itod).toDuration == Duration.zero);
     assert((itod - tod).toDuration == Duration.zero);
     assert((itod - ctod).toDuration == Duration.zero);
-    assert((itod - itod).toDuration == Duration.zero);    
-    
+    assert((itod - itod).toDuration == Duration.zero);
+
 	auto preTime = Time(0, 0, 0);
     auto nowTime = Time(19, 22, 7);
     assert(approxEqual!15((nowTime - preTime).totalDays, 0.807025462962963), toString!15((nowTime - preTime).totalDays));
     assert(approxEqual!13((nowTime - preTime).totalHours, 19.3686111111111), toString!13((nowTime - preTime).totalHours));
     assert(approxEqual!11((nowTime - preTime).totalMinutes, 1_162.11666666667), toString!11((nowTime - preTime).totalMinutes));
-    assert((nowTime - preTime).totalSeconds == 69_727, to!string((nowTime - preTime).totalSeconds));
-    assert((nowTime - preTime).totalMilliseconds == 69_727_000, to!string((nowTime - preTime).totalMilliseconds));
-    assert((nowTime - preTime).totalTicks == 697_270_000_000, to!string((nowTime - preTime).totalTicks));  
+    assert((nowTime - preTime).totalSeconds == 69_727, (nowTime - preTime).totalSeconds.to!string);
+    assert((nowTime - preTime).totalMilliseconds == 69_727_000, (nowTime - preTime).totalMilliseconds.to!string);
+    assert((nowTime - preTime).totalTicks == 697_270_000_000, (nowTime - preTime).totalTicks.to!string);
 }
 
 unittest // Time.min
