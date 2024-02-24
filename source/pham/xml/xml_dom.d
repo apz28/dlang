@@ -156,6 +156,7 @@ public:
 public:
     this(XmlDocument!S document, XmlNodeType nodeType, const(C)[] name, Object context) pure
     {
+        this._document = document;
         this._nodeType = nodeType;
         this._name = name;
         this._localName = null;
@@ -167,6 +168,7 @@ public:
 
     this(XmlDocument!S document, XmlNodeType nodeType, const(C)[] localName, const(C)[] namespaceUri, Object context) pure
     {
+        this._document = document;
         this._nodeType = nodeType;
         this._name = null;
         this._localName = localName;
@@ -188,6 +190,11 @@ public:
     {
         return (_nodeType == node.nodeType) &&
             (_wildMatches.on(WildMatch.name) || equalName(_name, node.name));
+    }
+
+    @property final XmlDocument!S document() pure
+    {
+        return _document;
     }
 
     @property final const(C)[] localName() const pure
@@ -220,6 +227,7 @@ public:
     XmlDocument!S.EqualName equalName;
 
 protected:
+    XmlDocument!S _document;
     const(C)[] _localName;
     const(C)[] _name;
     const(C)[] _namespaceUri;
@@ -432,7 +440,7 @@ public:
             return first;
         }
 
-        debug (PhamXml) ++childVersion;
+        debug(PhamXml) ++childVersion;
 
         newChild._parent = this;
         return _children.insertEnd(newChild);
@@ -687,7 +695,7 @@ public:
             return first;
         }
 
-        debug (PhamXml) ++childVersion;
+        debug(PhamXml) ++childVersion;
 
         newChild._parent = this;
         return _children.insertAfter(refChild, newChild);
@@ -727,7 +735,7 @@ public:
             return first;
         }
 
-        debug (PhamXml) ++childVersion;
+        debug(PhamXml) ++childVersion;
 
         newChild._parent = this;
         return _children.insertAfter(refChild._prev, newChild);
@@ -787,7 +795,7 @@ public:
         if (_attributes.empty)
             return;
 
-        debug (PhamXml) ++attrbVersion;
+        debug(PhamXml) ++attrbVersion;
 
         while (!_attributes.empty)
         {
@@ -806,7 +814,7 @@ public:
         if (_children.empty)
             return;
 
-        debug (PhamXml) ++childVersion;
+        debug(PhamXml) ++childVersion;
 
         while (!_children.empty)
         {
@@ -829,7 +837,7 @@ public:
     {
         checkParent(removedChild, true, "removeChild()");
 
-        debug (PhamXml) ++childVersion;
+        debug(PhamXml) ++childVersion;
 
         removedChild._parent = null;
         return _children.remove(removedChild);
@@ -850,7 +858,7 @@ public:
         checkChild(newChild, "replaceChild()");
         checkParent(oldChild, true, "replaceChild()");
 
-        debug (PhamXml) ++childVersion;
+        debug(PhamXml) ++childVersion;
 
         auto pre = oldChild.previousSibling;
 
@@ -1222,7 +1230,7 @@ package:
                 p.removeAttributeImpl(newAttribute);
         }
 
-        debug (PhamXml) ++attrbVersion;
+        debug(PhamXml) ++attrbVersion;
 
         newAttribute._parent = this;
         return _attributes.insertEnd(newAttribute);
@@ -1339,7 +1347,7 @@ protected:
 
     final XmlAttribute!S removeAttributeImpl(XmlAttribute!S removedAttribute) nothrow
     {
-        debug (PhamXml) ++attrbVersion;
+        debug(PhamXml) ++attrbVersion;
 
         removedAttribute._parent = null;
         return _attributes.remove(removedAttribute);
@@ -1417,7 +1425,7 @@ protected:
     DLinkXmlNodeTypes.DLinkList _children;
     XmlNode!S _parent;
     XmlName!S _qualifiedName;
-    debug (PhamXml)
+    debug(PhamXml)
     {
         size_t attrbVersion;
         size_t childVersion;
@@ -1458,12 +1466,11 @@ public:
     {
         debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
-        auto filterContext = cast(XmlNodeFilterContext!S)context;
-
         this._orgParent = null;
         this._listType = XmlNodeListType.flat;
         this._onFilter = null;
-        this._context = filterContext !is null ? filterContext.context : context;
+        this._filterContext = cast(XmlNodeFilterContext!S)context;
+        this._context = this._filterContext !is null ? this._filterContext.context : context;
 
         reset2();
     }
@@ -1474,6 +1481,7 @@ public:
     this(XmlNode!S parent, XmlNodeListType listType, XmlNodeListFilterEvent onFilter, Object context)
     in
     {
+        assert(parent !is null);
         assert(listType != XmlNodeListType.flat);
     }
     do
@@ -1483,12 +1491,11 @@ public:
         if (listType == XmlNodeListType.flat)
             throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, "XmlNodeList", "this(listType = XmlNodeListType.flat)");
 
-        auto filterContext = cast(XmlNodeFilterContext!S)context;
-
         this._orgParent = parent;
         this._listType = listType;
         this._onFilter = onFilter;
-        this._context = filterContext !is null ? filterContext.context : context;
+        this._filterContext = cast(XmlNodeFilterContext!S)context;
+        this._context = this._filterContext !is null ? this._filterContext.context : context;
 
         if (listType == XmlNodeListType.childNodesDeep)
             _walkNodes.reserve(defaultXmlLevels);
@@ -1498,7 +1505,7 @@ public:
 
     /**
      * Notes:
-     *   this slow,  O(n), access, better use front & popFront
+     *   this slow, O(n), access, better use front & popFront
      */
     // Not implement because it is not obviously slow, use item() instead
     version(none)
@@ -1594,7 +1601,7 @@ public:
         if (_listType == XmlNodeListType.flat)
             return _flatList.length - _currentOffset;
 
-        debug (PhamXml) checkVersionChanged();
+        debug(PhamXml) checkVersionChanged();
 
         if (_length == unknownLength)
         {
@@ -1694,7 +1701,7 @@ public:
 
         reset2();
 
-        debug (PhamXml)
+        debug(PhamXml)
         {
             if (_listType == XmlNodeListType.Attributes)
                 _parentVersion = getVersionAttrb();
@@ -1806,7 +1813,7 @@ private:
     do
     {
         debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
-        debug (PhamXml) list.checkVersionChanged();
+        debug(PhamXml) list.checkVersionChanged();
 
         if (index == 0 || list._current is null)
             return list._current;
@@ -1845,7 +1852,7 @@ private:
     do
     {
         debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "(index=", index, ")");
-        debug (PhamXml) list.checkVersionChanged();
+        debug(PhamXml) list.checkVersionChanged();
 
         if (index == 0 || list._current is null)
             return list._current;
@@ -1871,7 +1878,7 @@ private:
     do
     {
         debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "(name=", name, ")");
-        debug (PhamXml) list.checkVersionChanged();
+        debug(PhamXml) list.checkVersionChanged();
 
         if (list._current is null)
             return null;
@@ -1880,7 +1887,9 @@ private:
         scope (exit)
             list = restore;
 
-        const equalName = list._current.document.equalName;
+        const equalName = list._filterContext !is null
+            ? list._filterContext.equalName
+            : list._current.document.equalName;
         while (list._current !is null)
         {
             auto nodeName = list._current.name;
@@ -1904,7 +1913,9 @@ private:
         if (list._currentOffset >= list._flatList.length)
             return null;
 
-        const equalName = list._flatList[list._currentOffset].document.equalName;
+        const equalName = list._filterContext !is null
+            ? list._filterContext.equalName
+            : list._flatList[list._currentOffset].document.equalName;
         foreach (i; list._currentOffset..list._flatList.length)
         {
             auto nodeName = list._flatList[i].name;
@@ -1923,7 +1934,7 @@ private:
     do
     {
         debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "(name=", name, ")");
-        debug (PhamXml) list.checkVersionChanged();
+        debug(PhamXml) list.checkVersionChanged();
 
         if (list._current is null)
             return null;
@@ -1932,7 +1943,9 @@ private:
         scope (exit)
             list = restore;
 
-        const equalName = list._current.document.equalName;
+        const equalName = list._filterContext !is null
+            ? list._filterContext.equalName
+            : list._current.document.equalName;
         while (list._current !is null)
         {
             auto nodeName = list._current.name;
@@ -1953,7 +1966,7 @@ private:
     do
     {
         debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "(list._current.name=", list._current.name, ")");
-        debug (PhamXml) list.checkVersionChanged();
+        debug(PhamXml) list.checkVersionChanged();
 
         popFrontDeepImpl(list);
         if (list.canDoFilter())
@@ -1970,7 +1983,7 @@ private:
     do
     {
         debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "(list._parent.name=", list._parent.name, ")");
-        debug (PhamXml) list.checkVersionChanged();
+        debug(PhamXml) list.checkVersionChanged();
 
         if (list._current.hasChildNodes)
         {
@@ -1983,7 +1996,7 @@ private:
 
             list._parent = list._current;
             list._current = list._current.firstChild;
-            debug (PhamXml) list._parentVersion = list.getVersionChild();
+            debug(PhamXml) list._parentVersion = list.getVersionChild();
         }
         else
         {
@@ -1993,7 +2006,7 @@ private:
                 const lastIndex = list._walkNodes.length - 1;
                 list._parent = list._walkNodes[lastIndex].parent;
                 list._current = list._walkNodes[lastIndex].next;
-                debug (PhamXml) list._parentVersion = list._walkNodes[lastIndex].parentVersion;
+                debug(PhamXml) list._parentVersion = list._walkNodes[lastIndex].parentVersion;
                 list._walkNodes.length = lastIndex;
             }
         }
@@ -2030,7 +2043,7 @@ private:
     do
     {
         debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
-        debug (PhamXml) list.checkVersionChanged();
+        debug(PhamXml) list.checkVersionChanged();
 
         popFrontSiblingImpl(list);
         if (list.canDoFilter())
@@ -2047,7 +2060,7 @@ private:
     do
     {
         debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
-        debug (PhamXml) list.checkVersionChanged();
+        debug(PhamXml) list.checkVersionChanged();
 
         list._current = list._current.nextSibling;
     }
@@ -2080,6 +2093,7 @@ private:
                 _doPopFront = &popFrontDeep;
                 break;
             case XmlNodeListType.flat:
+                _current = null;
                 _doGetIndexedItem = &getIndexedItemFlat;
                 _doGetNamedItem = &getNamedItemFlat;
                 _doPopFront = &popFrontFlat;
@@ -2087,7 +2101,7 @@ private:
         }
     }
 
-    debug (PhamXml)
+    debug(PhamXml)
     {
         pragma (inline, true)
         size_t getVersionAttrb() const nothrow
@@ -2127,29 +2141,33 @@ private:
     static struct WalkNode
     {
         XmlNode!S parent, next;
-        debug (PhamXml) size_t parentVersion;
+        debug(PhamXml) size_t parentVersion;
 
         this(XmlNode!S parent, XmlNode!S next)
         {
             this.parent = parent;
             this.next = next;
-            debug (PhamXml) this.parentVersion = parent.childVersion;
+            debug(PhamXml) this.parentVersion = parent.childVersion;
         }
     }
 
+    alias DoGetIndexedItem = XmlNode!S function(ref This, size_t) @safe;
+    alias DoGetNamedItem = XmlNode!S function(ref This, scope const(C)[]) @safe;
+    alias DoPopFront = void function(ref This) @safe;
     enum unknownLength = size_t.max;
 
-    XmlNode!S function(ref This, size_t) @safe _doGetIndexedItem;
-    XmlNode!S function(ref This, scope const(C)[]) @safe _doGetNamedItem;
-    void function(ref This) @safe _doPopFront;
+    DoGetIndexedItem _doGetIndexedItem;
+    DoGetNamedItem _doGetNamedItem;
+    DoPopFront _doPopFront;
     Object _context;
+    XmlNodeFilterContext!S _filterContext;
     XmlNode!S _orgParent, _parent, _current;
     XmlNode!S[] _flatList;
     WalkNode[] _walkNodes;
     XmlNodeListFilterEvent _onFilter;
     size_t _currentOffset;
     size_t _length = unknownLength;
-    debug (PhamXml) size_t _parentVersion;
+    debug(PhamXml) size_t _parentVersion;
     int _inFilter;
     XmlNodeListType _listType;
 }
@@ -4285,7 +4303,7 @@ protected:
     S _prefix;
 }
 
-debug (PhamXml)
+debug(PhamXml)
 unittest  // Display object sizeof
 {
     import std.stdio : writeln;
