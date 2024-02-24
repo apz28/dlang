@@ -2070,7 +2070,7 @@ private:
         debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
         _currentOffset = 0;
-        //_length = unknownLength; // Set in reset
+        _length = unknownLength;
         _parent = _orgParent;
         final switch (_listType)
         {
@@ -2166,7 +2166,7 @@ private:
     WalkNode[] _walkNodes;
     XmlNodeListFilterEvent _onFilter;
     size_t _currentOffset;
-    size_t _length = unknownLength;
+    size_t _length;
     debug(PhamXml) size_t _parentVersion;
     int _inFilter;
     XmlNodeListType _listType;
