@@ -19,7 +19,7 @@ debug(debug_pham_db_db_fbtype) import std.stdio : writeln;
 
 import pham.utl.utl_array : ShortStringBuffer;
 import pham.utl.utl_enum_set : toName;
-import pham.utl.utl_variant : Algebraic, Variant, VariantType;
+import pham.var.var_variant : Algebraic, Variant, VariantType;
 import pham.db.db_convert : toStringSafe;
 import pham.db.db_message;
 import pham.db.db_type;
