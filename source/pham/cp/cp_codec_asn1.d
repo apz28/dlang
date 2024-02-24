@@ -22,7 +22,7 @@ import pham.utl.utl_array : ShortStringBuffer;
 import pham.utl.utl_big_integer : BigInteger;
 import pham.utl.utl_object : toString;
 import pham.utl.utl_result : cmp, ResultStatus;
-import pham.utl.utl_variant : Variant;
+import pham.var.var_variant : Variant;
 import pham.cp.cp_cipher : CipherBuffer;
 
 nothrow @safe:
