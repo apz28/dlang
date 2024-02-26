@@ -422,7 +422,7 @@ public:
         // all types that can compare with null have to following properties:
         // if it's 'null' then it's equal to null, otherwise it's always greater
         // than 'null'
-        const nullLhs = !isNull ? 1 : 0;
+        const nullLhs = isNull ? 0 : 1;
         const nullRhs = nullTypeOf!T() == NullType.value ? 1 : 0;
 
         if (nullLhs == 0 || nullRhs == 0)
@@ -485,7 +485,7 @@ public:
         // all types that can compare with null have to following properties:
         // if it's 'null' then it's equal to null, otherwise it's always greater
         // than 'null'
-        const nullLhs = !isNull ? 1 : 0;
+        const nullLhs = isNull ? 0 : 1;
         const nullRhs = nullTypeOf!T() == NullType.value ? 1 : 0;
 
         if (nullLhs == 0 || nullRhs == 0)
@@ -531,7 +531,7 @@ public:
     }
 
     /// ditto
-    T opIndexAssign(T, I)(return T value, I indexOrKey) @trusted
+    T opIndexAssign(T, I)(return T value, I indexOrKey)
     {
         string errorMessage() nothrow pure
         {
