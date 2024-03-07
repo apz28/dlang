@@ -423,7 +423,7 @@ public:
         // This is because the AdjustmentRule DateStart & DateEnd are stored as
         // Date-only values {4/2/2006 - 10/28/2006} but actually represent the
         // time span {4/2/2006@00:00:00.00000 - 10/28/2006@23:59:59.99999}
-        const dateOnly = dateTimeIsUtc ? dateTime.addTicksSafe(baseUtcOffset).dateOnly : dateTime.dateOnly;
+        const dateOnly = dateTimeIsUtc ? dateTime.addTicksClamp(baseUtcOffset).dateOnly : dateTime.dateOnly;
 
         ptrdiff_t low = 0;
         ptrdiff_t high = cast(ptrdiff_t)(_adjustmentRules.length) - 1;
@@ -480,7 +480,7 @@ public:
         if (findAdjustmentRule(searchDateTime, true, rule, ruleIndex))
         {
             if (searchYear == int.min)
-                searchYear = utcDateTime.addTicksSafe(baseUtcOffset).year;
+                searchYear = utcDateTime.addTicksClamp(baseUtcOffset).year;
 
             if (rule.hasDaylightSaving)
             {
@@ -843,7 +843,9 @@ private:
         const long ticks = dateTime.sticks + Tick.durationToTicks(offset);
         return ticks > DateTime.maxTicks
             ? DateTime.max
-            : (ticks < DateTime.minTicks ? DateTime.min : DateTime(cast(ulong)ticks));
+            : (ticks < DateTime.minTicks 
+                ? DateTime.min 
+                : DateTime(TickData.createDateTime(ticks, dateTime.kind)));
     }
 
     static DateTime convertToDaylightUtc(scope const(DateTime) dateTime, scope const(Duration) baseUtcOffset,
@@ -853,7 +855,9 @@ private:
         const long ticks = dateTime.sticks - Tick.durationToTicks(offset);
         return ticks > DateTime.maxTicks
             ? DateTime.max
-            : (ticks < DateTime.minTicks ? DateTime.min : DateTime(cast(ulong)ticks));
+            : (ticks < DateTime.minTicks 
+                ? DateTime.min 
+                : DateTime(TickData.createDateTime(ticks, dateTime.kind)));
     }
 
     static DateTime convertUtcToTimeZone(long ticks, scope const(TimeZoneInfo) destinationTimeZone) @nogc nothrow pure
@@ -861,7 +865,9 @@ private:
         // used to calculate the UTC offset in the destinationTimeZone
         const(DateTime) utcConverted = ticks > DateTime.maxTicks
             ? DateTime.max
-            : (ticks < DateTime.minTicks ? DateTime.min : DateTime(cast(ulong)ticks));
+            : (ticks < DateTime.minTicks 
+                ? DateTime.min 
+                : DateTime(TickData.createDateTime(ticks, DateTimeZoneKind.unspecified)));
 
         // verify the time is between MinValue and MaxValue in the new time zone
         bool isDaylightSavings = void;
@@ -870,7 +876,9 @@ private:
 
         return ticks > DateTime.maxTicks
             ? DateTime.max
-            : (ticks < DateTime.minTicks ? DateTime.min : DateTime(cast(ulong)ticks));
+            : (ticks < DateTime.minTicks 
+                ? DateTime.min 
+                : DateTime(TickData.createDateTime(ticks, DateTimeZoneKind.unspecified)));
     }
 
     DaylightTimeInfo getDaylightTime(const(int) year, scope const(AdjustmentRule) rule, const(ptrdiff_t) ruleIndex) const @nogc nothrow pure scope
@@ -927,10 +935,10 @@ private:
             // DST to the end and ***includes*** the potentially overlapped times
             startTime = rule.isBeginDateMarkerForBeginningOfYear()
                 ? DateTime(daylightTime.beginTime.year, 1, 1, 0, 0, 0)
-                : daylightTime.beginTime.addTicksSafe(daylightTime.delta);
+                : daylightTime.beginTime.addTicksClamp(daylightTime.delta);
 
             endTime = rule.isEndDateMarkerForEndOfYear()
-                ? DateTime(daylightTime.endTime.year + 1, 1, 1, 0, 0, 0).addTicksSafe(-1)
+                ? DateTime(daylightTime.endTime.year + 1, 1, 1, 0, 0, 0).addTicksClamp(-1)
                 : daylightTime.endTime;
         }
         else
@@ -956,11 +964,11 @@ private:
 
             startTime = rule.isBeginDateMarkerForBeginningOfYear()
                 ? DateTime(daylightTime.beginTime.year, 1, 1, 0, 0, 0)
-                : daylightTime.beginTime.addTicksSafe(invalidAtStart ? rule.daylightDelta : rule.standardDelta);
+                : daylightTime.beginTime.addTicksClamp(invalidAtStart ? rule.daylightDelta : rule.standardDelta);
 
             endTime = rule.isEndDateMarkerForEndOfYear()
-                ? DateTime(daylightTime.endTime.year + 1, 1, 1, 0, 0, 0).addTicksSafe(-1)
-                : daylightTime.endTime.addTicksSafe(invalidAtStart ? -rule.daylightDelta : Duration.zero);
+                ? DateTime(daylightTime.endTime.year + 1, 1, 1, 0, 0, 0).addTicksClamp(-1)
+                : daylightTime.endTime.addTicksClamp(invalidAtStart ? -rule.daylightDelta : Duration.zero);
         }
 
         return checkIsDst(startTime, dateTime, endTime, false, rule);
@@ -995,19 +1003,19 @@ private:
             {
                 const previousDaylightTime = getDaylightTime(daylightTime.beginTime.year - 1, previousYearRule, previousYearRuleIndex);
                 //startTime = previousDaylightTime.beginTime - utc - previousYearRule.baseUtcOffsetDelta; TODO
-                startTime = previousDaylightTime.beginTime.addTicksSafe(-(utc + previousYearRule.baseUtcOffsetDelta));
+                startTime = previousDaylightTime.beginTime.addTicksClamp(-(utc + previousYearRule.baseUtcOffsetDelta));
                 ignoreYearAdjustment = true;
             }
             else
             {
                 //startTime = DateTime(daylightTime.beginTime.year, 1, 1, 0, 0, 0) - dstStartOffset; TODO
-                startTime = DateTime(daylightTime.beginTime.year, 1, 1, 0, 0, 0).addTicksSafe(-dstStartOffset);
+                startTime = DateTime(daylightTime.beginTime.year, 1, 1, 0, 0, 0).addTicksClamp(-dstStartOffset);
             }
         }
         else
         {
             //startTime = daylightTime.beginTime - dstStartOffset; TODO
-            startTime = daylightTime.beginTime.addTicksSafe(-dstStartOffset);
+            startTime = daylightTime.beginTime.addTicksClamp(-dstStartOffset);
         }
 
         const(Duration) dstEndOffset = getDaylightSavingsEndOffsetFromUtc(utc, rule, ruleIndex);
@@ -1023,26 +1031,26 @@ private:
                 {
                     // next year end with daylight saving on too
                     //endTime = DateTime(daylightTime.endTime.year + 1, 12, 31) - utc - nextYearRule.baseUtcOffsetDelta - nextYearRule.daylightDelta; TODO
-                    endTime = DateTime(daylightTime.endTime.year + 1, 12, 31).addTicksSafe(-(utc + nextYearRule.baseUtcOffsetDelta + nextYearRule.daylightDelta));
+                    endTime = DateTime(daylightTime.endTime.year + 1, 12, 31).addTicksClamp(-(utc + nextYearRule.baseUtcOffsetDelta + nextYearRule.daylightDelta));
                 }
                 else
                 {
                     const nextdaylightTime = getDaylightTime(daylightTime.endTime.year + 1, nextYearRule, nextYearRuleIndex);
                     //endTime = nextdaylightTime.endTime - utc - nextYearRule.baseUtcOffsetDelta - nextYearRule.daylightDelta; TODO
-                    endTime = nextdaylightTime.endTime.addTicksSafe(-(utc + nextYearRule.baseUtcOffsetDelta + nextYearRule.daylightDelta));
+                    endTime = nextdaylightTime.endTime.addTicksClamp(-(utc + nextYearRule.baseUtcOffsetDelta + nextYearRule.daylightDelta));
                 }
                 ignoreYearAdjustment = true;
             }
             else
             {
                 //endTime = DateTime(daylightTime.endTime.year + 1, 1, 1, 0, 0, 0).addTicks(-1) - dstEndOffset; TODO
-                endTime = DateTime(daylightTime.endTime.year + 1, 1, 1, 0, 0, 0).addTicksSafe(-1).addTicksSafe(-dstEndOffset);
+                endTime = DateTime(daylightTime.endTime.year + 1, 1, 1, 0, 0, 0).addTicksClamp(-1).addTicksClamp(-dstEndOffset);
             }
         }
         else
         {
             //endTime = daylightTime.endTime - dstEndOffset; TODO
-            endTime = daylightTime.endTime.addTicksSafe(-dstEndOffset);
+            endTime = daylightTime.endTime.addTicksClamp(-dstEndOffset);
         }
 
         return checkIsDst(startTime, utcDateTime, endTime, ignoreYearAdjustment, rule);

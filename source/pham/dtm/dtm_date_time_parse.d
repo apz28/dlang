@@ -934,7 +934,7 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
                 auto temp = DateTime(parser.year, parser.month, parser.day,
                                     parser.hour, parser.minute, parser.second,
                                     fromKind);
-                result = temp.addTicksSafe(parser.fraction);
+                result = temp.addTicksClamp(parser.fraction);
             }
             else
                 result = DateTime(parser.year, parser.month, parser.day,
@@ -948,7 +948,7 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
             {
                 auto utcDT = bias == Duration.zero
                     ? DateTime(result.sticks, DateTimeZoneKind.utc)
-                    : DateTime(result.addTicksSafe(-bias).sticks, DateTimeZoneKind.utc);
+                    : DateTime(result.addTicksClamp(-bias).sticks, DateTimeZoneKind.utc);
                 result = toKind == DateTimeZoneKind.utc
                     ? utcDT
                     : TimeZoneInfo.convertUtcToLocal(utcDT);
@@ -971,7 +971,7 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
             {
                 auto utcDT = bias == Duration.zero
                     ? DateTime(DateTime.utcNow.date, result.asUTC)
-                    : DateTime(DateTime.utcNow.date, result.asUTC).addTicksSafe(-bias);
+                    : DateTime(DateTime.utcNow.date, result.asUTC).addTicksClamp(-bias);
                 result = toKind == DateTimeZoneKind.utc
                     ? utcDT.time
                     : TimeZoneInfo.convertUtcToLocal(utcDT).time;
@@ -1182,7 +1182,7 @@ unittest // tryParse
 
     // Check convert to expected timezone
     auto ltz = TimeZoneInfo.localTimeZone;
-    if (ltz.baseUtcOffset == dur!"minutes"(-5))
+    if (ltz.baseUtcOffset == dur!"hours"(-5))
     {
         p.defaultKind = DateTimeZoneKind.local;
         p.patternText = "yyyy/mm/ddThh:nn:ss-hh:nn";

@@ -43,7 +43,7 @@ public:
     }
     do
     {
-        this.data = TickData.createTimeTick(cast(ulong)ticks, kind);
+        this.data = TickData.createTime(ticks, kind);
     }
 
     this(scope const(Duration) time,
@@ -68,7 +68,7 @@ public:
     }
     do
     {
-        this.data = TickData.createTimeTick(Tick.timeToTicks(hour, minute, second, millisecond), kind);
+        this.data = TickData.createTime(Tick.timeToTicks(hour, minute, second, millisecond), kind);
     }
 
     /**
@@ -82,7 +82,7 @@ public:
     }
     do
     {
-        this.data = TickData.createTimeTick(Tick.timeToTicks(hour, minute, second), kind);
+        this.data = TickData.createTime(Tick.timeToTicks(hour, minute, second), kind);
     }
 
     /**
@@ -96,12 +96,7 @@ public:
     }
     do
     {
-        this.data = TickData.createTimeTick(Tick.timeToTicks(hour, minute, 0), kind);
-    }
-
-    this(TickData data) @nogc nothrow pure
-    {
-        this.data = data;
+        this.data = TickData.createTime(Tick.timeToTicks(hour, minute, 0), kind);
     }
 
     Time opBinary(string op)(scope const(Duration) duration) const @nogc nothrow pure scope
@@ -119,7 +114,7 @@ public:
     TickSpan opBinary(string op)(scope const(Time) rhs) const @nogc nothrow pure scope
     if (op == "-")
     {
-        return TickSpan(this.sticks, rhs.sticks);
+        return TickSpan(this.sticks - rhs.sticks);
     }
 
     int opCmp(scope const(Time) rhs) const @nogc nothrow pure scope
@@ -140,7 +135,7 @@ public:
     }
     do
     {
-        return addMinutes(-biasSign * (biasHour * 60 + biasMinute));
+        return addMinutes(-biasSign * (biasHour * Tick.minutesPerHour + biasMinute));
     }
 
     /**
@@ -230,13 +225,21 @@ public:
     Time addTicks(const(long) ticks) const @nogc nothrow pure
     {
         const long newTicks = (data.sticks + Tick.ticksPerDay + (ticks % Tick.ticksPerDay)) % Tick.ticksPerDay;
-        return Time(cast(ulong)newTicks | data.internalKind);
+        final switch(isValidTicks(newTicks))
+        {
+            case ErrorOp.none:
+                return Time(TickData.createTime(newTicks, data.internalKind));
+            case ErrorOp.underflow:
+                return Time(TickData.createTime(maxTicks, data.internalKind));
+            case ErrorOp.overflow:
+                return Time(TickData.createTime(minTicks, data.internalKind));
+        }
     }
 
     Time addTicks(const(long) ticks, out int wrappedDays) const @nogc nothrow pure
     {
         wrappedDays = cast(int)(ticks / Tick.ticksPerDay);
-        long newTicks = data.sticks + ticks % Tick.ticksPerDay;
+        long newTicks = data.sticks + (ticks % Tick.ticksPerDay);
         if (newTicks < 0)
         {
             wrappedDays--;
@@ -247,7 +250,7 @@ public:
             wrappedDays++;
             newTicks -= Tick.ticksPerDay;
         }
-        return Time(cast(ulong)newTicks | data.internalKind);
+        return Time(TickData.createTime(newTicks, data.internalKind));
     }
 
     static Time createTime(long ticks,
@@ -255,7 +258,7 @@ public:
     {
         if (isValidTicks(ticks) != ErrorOp.none)
             throwOutOfRange!(ErrorPart.tick)(ticks);
-        return Time(ticks, kind);
+        return Time(TickData.createTime(ticks, kind));
     }
 
     static Time createTime(int hour, int minute, int second, int millisecond,
@@ -394,9 +397,7 @@ public:
      */
     @property int fraction() const @nogc nothrow pure
     {
-        const t = data.sticks;
-        const long totalSeconds = t / Tick.ticksPerSecond;
-        return cast(int)(t - (totalSeconds * Tick.ticksPerSecond));
+        return TickPart.fractionOf(data.sticks);
     }
 
     /**
@@ -404,7 +405,7 @@ public:
      */
     @property int hour() const @nogc nothrow pure
     {
-        return cast(int)((data.sticks / Tick.ticksPerHour) % 24);
+        return TickPart.hourOf(data.sticks);
     }
 
     /**
@@ -449,7 +450,7 @@ public:
      */
     @property int minute() const @nogc nothrow pure
     {
-        return cast(int)((data.sticks / Tick.ticksPerMinute) % 60);
+        return TickPart.minuteOf(data.sticks);
     }
 
     /**
@@ -457,7 +458,7 @@ public:
      */
     @property int second() const @nogc nothrow pure
     {
-        return cast(int)((data.sticks / Tick.ticksPerSecond) % 60);
+        return TickPart.secondOf(data.sticks);
     }
 
     /**
@@ -481,7 +482,7 @@ public:
      */
     @property static Time max() @nogc nothrow pure
     {
-        return Time(cast(ulong)maxTicks | TickData.kindUnspecified);
+        return Time(TickData.createTime(maxTicks, DateTimeZoneKind.unspecified));
     }
 
     /**
@@ -489,7 +490,7 @@ public:
      */
     @property static Time min() @nogc nothrow pure
     {
-        return Time(cast(ulong)minTicks | TickData.kindUnspecified);
+        return Time(TickData.createTime(minTicks, DateTimeZoneKind.unspecified));
     }
 
     /**
@@ -507,7 +508,7 @@ public:
     pragma(inline, true)
     @property long totalHours() const @nogc nothrow pure
     {
-        return cast(long)(data.sticks / Tick.ticksPerHour);
+        return TickSpan(data.sticks).totalHours!long();
     }
 
     /**
@@ -516,7 +517,7 @@ public:
     pragma(inline, true)
     @property long totalMinutes() const @nogc nothrow pure
     {
-        return cast(long)(data.sticks / Tick.ticksPerMinute);
+        return TickSpan(data.sticks).totalMinutes!long();
     }
 
     /**
@@ -525,7 +526,7 @@ public:
     pragma(inline, true)
     @property long totalSeconds() const @nogc nothrow pure
     {
-        return cast(long)(data.sticks / Tick.ticksPerSecond);
+        return TickSpan(data.sticks).totalSeconds!long();
     }
 
     /**
@@ -534,7 +535,7 @@ public:
     pragma(inline, true)
     @property long totalMilliseconds() const @nogc nothrow pure
     {
-        return cast(long)(data.sticks / Tick.ticksPerMillisecond);
+        return TickSpan(data.sticks).totalMilliseconds!long();
     }
 
     /**
@@ -578,9 +579,9 @@ public:
     enum long maxTicks = 863_999_999_999;
 
 package(pham.dtm):
-    this(ulong data) @nogc nothrow pure
+    this(const(TickData) data) @nogc nothrow pure
     {
-        this.data = TickData(data);
+        this.data = data;
     }
 
     void getDate(out int year, out int month, out int day) const @nogc nothrow pure
@@ -860,7 +861,8 @@ unittest // Time.opBinary
         return isClose(lhs, rhs, maxRelDiff);
     }
 
-    assert((Time(7, 12, 52) - Time(12, 30, 33)).toDuration == dur!"seconds"(-19_061));
+    auto d = Time(7, 12, 52) - Time(12, 30, 33);
+    assert(d.toDuration == dur!"seconds"(-19_061), d.toDuration.toString ~ " vs " ~ dur!"seconds"(-19_061).toString);
     assert((Time(12, 30, 33) - Time(7, 12, 52)).toDuration == dur!"seconds"(19_061));
     assert((Time(12, 30, 33) - Time(14, 30, 33)).toDuration == dur!"seconds"(-7200));
     assert((Time(14, 30, 33) - Time(12, 30, 33)).toDuration == dur!"seconds"(7200));
@@ -911,6 +913,30 @@ unittest // Time.max
     assert(Time.max > Time.min);
 }
 
+unittest // DateTime.addBias
+{
+    auto t = Time(11, 0, 0, 1);
+    assert(t.addBias(1, 1, 5) == Time(9, 55, 0, 1), t.addBias(1, 1, 5).toString());
+    assert(t.addBias(-1, 1, 5) == Time(12, 5, 0, 1), t.addBias(-1, 1, 5).toString());
+}
+
+unittest // Time.toDateTime
+{
+    assert(Time(11, 0, 0, 1).toDateTime() == DateTime(1, 1, 1, 11, 0, 0, 1));
+}
+
+unittest // Time.toDuration
+{
+    assert(Time(0, 0, 0, 0).toDuration() == Duration.zero);
+}
+
+unittest // Time.toHash
+{
+    import std.conv : to;
+    
+    assert(Time(0, 0, 0, 0).toHash() == 0, Time(0, 0, 0, 0).raw.data.to!string ~ "," ~ Time(0, 0, 0, 0).toHash().to!string);
+}
+
 unittest // Time.toString
 {
     assert(Time.max.toString() == "11:59:59 PM", Time.max.toString());
@@ -926,6 +952,18 @@ unittest // Time.toString
 
     immutable itod = Time(12, 30, 33);
     assert(itod.toString() == "12:30:33 PM", itod.toString());
+
+    auto fmt = "%G";
+    auto setting = DateTimeSetting.us;
+    assert(Time(12, 30, 33).toString(fmt) == "12:30:33 PM");
+    assert(Time(12, 30, 33).toString(fmt, setting) == "12:30:33 PM");
+    
+    import std.array : Appender;
+    import std.exception : assertThrown;
+    
+    Appender!(char[]) buffer;
+    assertThrown!FormatException(Time(12, 30, 33).toString(buffer, "%X"));
+    assertThrown!FormatException(Time(12, 30, 33).toString(buffer, "%X", DateTimeSetting.us));        
 }
 
 unittest // Time.createTime

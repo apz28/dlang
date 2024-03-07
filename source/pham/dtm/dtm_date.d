@@ -70,7 +70,7 @@ public:
     if (op == "+")
     {
         static if (op == "+")
-            return DateTime(this.sticks + time.sticks, time.kind);
+            return DateTime(TickData.createDateTime(this.uticks + time.uticks, time.kind));
         else
             static assert(0);
     }
@@ -78,7 +78,7 @@ public:
     TickSpan opBinary(string op)(scope const(Date) rhs) const @nogc nothrow pure scope
     if (op == "-")
     {
-        return TickSpan(this.sticks, rhs.sticks);
+        return TickSpan(this.sticks - rhs.sticks);
     }
 
     int opCmp(scope const(Date) rhs) const @nogc nothrow pure scope
@@ -115,13 +115,16 @@ public:
      * Same as addDays except it won't raise TimeException when the calculation
      * is out of bound. The result will be Date.min for underflow and Date.max for overflow
      */
-    Date addDaysSafe(const(int) days) const @nogc pure nothrow
+    Date addDaysClamp(const(int) days) const @nogc pure nothrow
     {
         Date result = void;
         long newDays = void;
         addDaysImpl(days, newDays, result);
         return result;
     }
+
+    deprecated("please use addDaysClamp")
+    alias addDaysSafe = addDaysClamp;
 
     /**
      * Adds the specified number of months to the value of this Date
@@ -235,7 +238,7 @@ public:
     pragma(inline, true)
     DateTime toDateTime() const @nogc nothrow pure
     {
-        return DateTime(uticks);
+        return DateTime(TickData.createDateTime(uticks, DateTimeZoneKind.unspecified));
     }
 
     /**
@@ -390,7 +393,7 @@ public:
     pragma(inline, true)
     @property long totalHours() const @nogc nothrow pure
     {
-        return cast(long)(sticks / Tick.ticksPerHour);
+        return TickSpan(sticks).totalHours!long();
     }
 
     /**
@@ -399,7 +402,7 @@ public:
     pragma(inline, true)
     @property long totalMinutes() const @nogc nothrow pure
     {
-        return cast(long)(sticks / Tick.ticksPerMinute);
+        return TickSpan(sticks).totalMinutes!long();
     }
 
     /**
@@ -408,7 +411,7 @@ public:
     pragma(inline, true)
     @property long totalSeconds() const @nogc nothrow pure
     {
-        return cast(long)(sticks / Tick.ticksPerSecond);
+        return TickSpan(sticks).totalSeconds!long();
     }
 
     /**
@@ -417,7 +420,7 @@ public:
     pragma(inline, true)
     @property long totalMilliseconds() const @nogc nothrow pure
     {
-        return cast(long)(sticks / Tick.ticksPerMillisecond);
+        return TickSpan(sticks).totalMilliseconds!long();
     }
 
     /**
@@ -487,7 +490,7 @@ public:
     alias daysInMonth366 = DateTime.daysInMonth366;
 
 package(pham.dtm):
-    this(uint data) @nogc nothrow pure
+    this(const(uint) data) @nogc nothrow pure
     {
         this.data = data;
     }
@@ -499,7 +502,7 @@ package(pham.dtm):
     }
     do
     {
-        return ErrorOp.underflow ? min : max;
+        return error == ErrorOp.underflow ? min : max;
     }
 
     void getTime(out int hour, out int minute, out int second, out int millisecond) const @nogc nothrow pure
@@ -543,12 +546,12 @@ public:
     }
     do
     {
-        this.data = TickData.createDateTimeTick(cast(ulong)ticks, kind);
+        this.data = TickData.createDateTime(ticks, kind);
     }
 
     this(scope const(Date) date, scope const(Time) time) @nogc nothrow pure
     {
-        this.data = TickData.createDateTimeTick(date.uticks + time.uticks, time.kind);
+        this.data = TickData.createDateTime(date.uticks + time.uticks, time.kind);
     }
 
     this(int year, int month, int day, int hour, int minute, int second, int millisecond,
@@ -564,7 +567,7 @@ public:
         {
             const ticks = dateToTicks(year, month, day) + Tick.timeToTicks(hour, minute, second, millisecond);
             assert(ticks <= maxTicks);
-            this.data = TickData.createDateTimeTick(ticks, kind);
+            this.data = TickData.createDateTime(ticks, kind);
         }
         else
         {
@@ -572,7 +575,7 @@ public:
             // consider it the last in the specified minute.
             const ticks = dateToTicks(year, month, day) + Tick.timeToTicks(hour, minute, 59, millisecond);
             assert(ticks <= maxTicks);
-            this.data = TickData.createDateTimeTick(ticks, kind);
+            this.data = TickData.createDateTime(ticks, kind);
         }
     }
 
@@ -588,14 +591,14 @@ public:
         if (second != 60 || !Tick.s_systemSupportsLeapSeconds)
         {
             const ticks = dateToTicks(year, month, day) + Tick.timeToTicks(hour, minute, second);
-            this.data = TickData.createDateTimeTick(ticks, kind);
+            this.data = TickData.createDateTime(ticks, kind);
         }
         else
         {
             // if we have a leap second, then we adjust it to 59 so that DateTime will
             // consider it the last in the specified minute.
             const ticks = dateToTicks(year, month, day) + Tick.timeToTicks(hour, minute, 59);
-            this.data = TickData.createDateTimeTick(ticks, kind);
+            this.data = TickData.createDateTime(ticks, kind);
         }
     }
 
@@ -608,7 +611,7 @@ public:
     }
     do
     {
-        this.data = TickData.createDateTimeTick(dateToTicks(year, month, day) + Tick.timeToTicks(hour, minute, 0), kind);
+        this.data = TickData.createDateTime(dateToTicks(year, month, day) + Tick.timeToTicks(hour, minute, 0), kind);
     }
 
     this(int year, int month, int day,
@@ -619,12 +622,7 @@ public:
     }
     do
     {
-        this.data = TickData.createDateTimeTick(dateToTicks(year, month, day), kind);
-    }
-
-    this(TickData data) @nogc nothrow pure
-    {
-        this.data = data;
+        this.data = TickData.createDateTime(dateToTicks(year, month, day), kind);
     }
 
     DateTime opBinary(string op)(scope const(Duration) duration) const pure scope
@@ -643,7 +641,7 @@ public:
     if (op == "+")
     {
         static if (op == "+")
-            return addTicks(cast(long)(time.ticks));
+            return addTicks(time.sticks);
         else
             static assert(0);
     }
@@ -651,7 +649,7 @@ public:
     TickSpan opBinary(string op)(scope const(DateTime) rhs) const @nogc nothrow pure scope
     if (op == "-")
     {
-        return TickSpan(this.sticks, rhs.sticks);
+        return TickSpan(this.sticks - rhs.sticks);
     }
 
     int opCmp(scope const(DateTime) rhs) const @nogc nothrow pure scope
@@ -672,7 +670,7 @@ public:
     }
     do
     {
-        return addMinutesSafe(-biasSign * (biasHour * 60 + biasMinute));
+        return addMinutesClamp(-biasSign * (biasHour * Tick.minutesPerHour + biasMinute));
     }
 
     /**
@@ -743,13 +741,16 @@ public:
      * Same as addMinutes except it won't raise TimeException when the calculation
      * is out of bound. The result will be DateTime.min for underflow and DateTime.max for overflow
      */
-    DateTime addMinutesSafe(const(int) minutes) const @nogc nothrow pure
+    DateTime addMinutesClamp(const(int) minutes) const @nogc nothrow pure
     {
         long newTicks = void;
         DateTime result = void;
         addImpl(toMilliSeconds(minutes, Tick.millisPerMinute), newTicks, result);
         return result;
     }
+
+    deprecated("please use addMinutesClamp")
+    alias addMinutesSafe = addMinutesClamp;
 
     /**
      * Returns the DateTime resulting from adding the given number of
@@ -770,7 +771,7 @@ public:
      */
     DateTime addMonths(const(int) months) const pure
     {
-        if (months < -120_000 || months > 120_000)
+        if (!Tick.isValidDiffMonth(months))
             throwOutOfRange!(ErrorPart.month)(months);
 
         int year = void, month = void, day = void;
@@ -797,7 +798,7 @@ public:
             d = days;
         const long n = yearToDays(cast(uint)y) + daysToMonth + cast(uint)d - 1;
         const newTicks = n * Tick.ticksPerDay + data.sticks % Tick.ticksPerDay;
-        return DateTime(cast(ulong)newTicks | data.internalKind);
+        return DateTime(TickData.createDateTime(newTicks, data.internalKind));
     }
 
     /**
@@ -820,13 +821,16 @@ public:
      * Same as addSeconds except it won't raise TimeException when the calculation
      * is out of bound. The result will be DateTime.min for underflow and DateTime.max for overflow
      */
-    DateTime addSecondsSafe(const(int) seconds) const @nogc nothrow pure
+    DateTime addSecondsClamp(const(int) seconds) const @nogc nothrow pure
     {
         long newTicks = void;
         DateTime result = void;
         addImpl(toMilliSeconds(seconds, Tick.millisPerSecond), newTicks, result);
         return result;
     }
+
+    deprecated("please use addSecondsClamp")
+    alias addSecondsSafe = addSecondsClamp;
 
     /**
      * Returns the DateTime resulting from adding the given number of
@@ -846,7 +850,7 @@ public:
      * Same as addTicks except it won't raise TimeException when the calculation
      * is out of bound. The result will be DateTime.min for underflow and DateTime.max for overflow
      */
-    DateTime addTicksSafe(const(long) ticks) const @nogc nothrow pure
+    DateTime addTicksClamp(const(long) ticks) const @nogc nothrow pure
     {
         long newTicks = void;
         DateTime result = void;
@@ -855,10 +859,13 @@ public:
     }
 
     ///
-    DateTime addTicksSafe(scope const(Duration) duration) const @nogc nothrow pure
+    DateTime addTicksClamp(scope const(Duration) duration) const @nogc nothrow pure
     {
-        return addTicksSafe(Tick.durationToTicks(duration));
+        return addTicksClamp(Tick.durationToTicks(duration));
     }
+
+    deprecated("please use addTicksClamp")
+    alias addTicksSafe = addTicksClamp;
 
     /**
      * Returns the DateTime resulting from adding the given number of
@@ -886,9 +893,21 @@ public:
     }
     do
     {
-        const centuryBase = utcNow.year - twoDigitYearCenturyWindow;
-        twoDigitYear += (centuryBase / 100) * 100;
-        if (twoDigitYearCenturyWindow > 0 && twoDigitYear < centuryBase)
+        return adjustTwoDigitYear(utcNow.year, twoDigitYear, twoDigitYearCenturyWindow);
+    }
+
+    static int adjustTwoDigitYear(const(int) currentYear, int twoDigitYear, const(int) twoDigitYearCenturyWindow) @nogc nothrow
+    in
+    {
+        assert(currentYear > 100);
+        assert(twoDigitYear >= 0 && twoDigitYear < 100);
+        assert(twoDigitYearCenturyWindow >= 0 && twoDigitYearCenturyWindow < 100);
+    }
+    do
+    {
+        const currentCentury = currentYear - twoDigitYearCenturyWindow;
+        twoDigitYear += (currentCentury / 100) * 100;
+        if (twoDigitYearCenturyWindow > 0 && twoDigitYear < currentCentury)
             twoDigitYear += 100;
         return twoDigitYear;
     }
@@ -929,7 +948,7 @@ public:
     {
         if (isValidTicks(ticks) != ErrorOp.none)
             throwOutOfRange!(ErrorPart.tick)(ticks);
-        return DateTime(ticks, kind);
+        return DateTime(TickData.createDateTime(ticks, kind));
     }
 
     static DateTime createDateTime(int year, int month, int day, int hour, int minute, int second, int millisecond,
@@ -1058,23 +1077,23 @@ public:
     void getTime(out int hour, out int minute, out int second) const @nogc nothrow pure
     {
         const long seconds = data.sticks / Tick.ticksPerSecond;
-        const long minutes = seconds / 60;
-        second = cast(int)(seconds - (minutes * 60));
-        const long hours = minutes / 60;
-        minute = cast(int)(minutes - (hours * 60));
-        hour = cast(int)(cast(uint)hours % 24);
+        const long minutes = seconds / Tick.secondsPerMinute;
+        second = cast(int)(seconds - (minutes * Tick.secondsPerMinute));
+        const long hours = minutes / Tick.minutesPerHour;
+        minute = cast(int)(minutes - (hours * Tick.minutesPerHour));
+        hour = cast(int)(cast(uint)hours % Tick.hoursPerDay);
     }
 
     void getTime(out int hour, out int minute, out int second, out int millisecond) const @nogc nothrow pure
     {
         const long totalMilliseconds = data.sticks / Tick.ticksPerMillisecond;
-        const long totalSeconds = totalMilliseconds / 1_000;
-        millisecond = cast(int)(totalMilliseconds - (totalSeconds * 1_000));
-        const long totalMinutes = totalSeconds / 60;
-        second = cast(int)(totalSeconds - (totalMinutes * 60));
-        const long totalHours = totalMinutes / 60;
-        minute = cast(int)(totalMinutes - (totalHours * 60));
-        hour = cast(int)(totalHours % 24);
+        const long totalSeconds = totalMilliseconds / Tick.millisPerSecond;
+        millisecond = cast(int)(totalMilliseconds - (totalSeconds * Tick.millisPerSecond));
+        const long totalMinutes = totalSeconds / Tick.secondsPerMinute;
+        second = cast(int)(totalSeconds - (totalMinutes * Tick.secondsPerMinute));
+        const long totalHours = totalMinutes / Tick.minutesPerHour;
+        minute = cast(int)(totalMinutes - (totalHours * Tick.minutesPerHour));
+        hour = cast(int)(totalHours % Tick.hoursPerDay);
     }
 
     void getTimePrecise(out int hour, out int minute, out int second, out int tick) const @nogc nothrow pure
@@ -1082,11 +1101,11 @@ public:
         const t = data.sticks;
         const long totalSeconds = t / Tick.ticksPerSecond;
         tick = cast(int)(t - (totalSeconds * Tick.ticksPerSecond));
-        const long totalMinutes = totalSeconds / 60;
-        second = cast(int)(totalSeconds - (totalMinutes * 60));
-        const long totalHours = totalMinutes / 60;
-        minute = cast(int)(totalMinutes - (totalHours * 60));
-        hour = cast(int)(totalHours % 24);
+        const long totalMinutes = totalSeconds / Tick.secondsPerMinute;
+        second = cast(int)(totalSeconds - (totalMinutes * Tick.secondsPerMinute));
+        const long totalHours = totalMinutes / Tick.minutesPerHour;
+        minute = cast(int)(totalMinutes - (totalHours * Tick.minutesPerHour));
+        hour = cast(int)(totalHours % Tick.hoursPerDay);
     }
 
     /**
@@ -1312,7 +1331,7 @@ public:
         }
         assert(ticks <= maxTicks);
 
-        result = DateTime(ticks, kind);
+        result = DateTime(TickData.createDateTime(ticks, kind));
         return true;
     }
 
@@ -1354,7 +1373,7 @@ public:
     @property DateTime dateOnly() const @nogc nothrow pure
     {
         const t = data.sticks;
-        return DateTime(cast(ulong)(t - t % Tick.ticksPerDay) | data.internalKind);
+        return DateTime(TickData.createDateTime(t - t % Tick.ticksPerDay, data.internalKind));
     }
 
     /**
@@ -1392,9 +1411,7 @@ public:
      */
     @property int fraction() const @nogc nothrow pure
     {
-        const t = data.sticks;
-        const long totalSeconds = t / Tick.ticksPerSecond;
-        return cast(int)(t - (totalSeconds * Tick.ticksPerSecond));
+        return TickPart.fractionOf(data.sticks);
     }
 
     /**
@@ -1403,7 +1420,7 @@ public:
      */
     @property int hour() const @nogc nothrow pure
     {
-        return cast(int)(cast(uint)(data.sticks / Tick.ticksPerHour) % 24);
+        return TickPart.hourOf(data.sticks);
     }
 
     /**
@@ -1447,7 +1464,7 @@ public:
      */
     @property int minute() const @nogc nothrow pure
     {
-        return cast(int)((data.sticks / Tick.ticksPerMinute) % 60);
+        return TickPart.minuteOf(data.sticks);
     }
 
     /**
@@ -1465,7 +1482,7 @@ public:
      */
     @property int second() const @nogc nothrow pure
     {
-        return cast(int)((data.sticks / Tick.ticksPerSecond) % 60);
+        return TickPart.secondOf(data.sticks);
     }
 
     /**
@@ -1474,7 +1491,7 @@ public:
      */
     @property Time time() const @nogc nothrow pure
     {
-        return Time(cast(ulong)(data.sticks % Tick.ticksPerDay) | data.internalKind);
+        return Time(TickData.createTime(TickPart.timeOf(data.sticks), data.internalKind));
     }
 
     /**
@@ -1483,7 +1500,7 @@ public:
     pragma(inline, true)
     @property int totalDays() const @nogc nothrow pure
     {
-        return cast(int)(data.sticks / Tick.ticksPerDay);
+        return TickSpan(data.sticks).totalDays!int();
     }
 
     /**
@@ -1492,7 +1509,7 @@ public:
     pragma(inline, true)
     @property long totalHours() const @nogc nothrow pure
     {
-        return cast(long)(data.sticks / Tick.ticksPerHour);
+        return TickSpan(data.sticks).totalHours!long();
     }
 
     /**
@@ -1501,7 +1518,7 @@ public:
     pragma(inline, true)
     @property long totalMinutes() const @nogc nothrow pure
     {
-        return cast(long)(data.sticks / Tick.ticksPerMinute);
+        return TickSpan(data.sticks).totalMinutes!long();
     }
 
     /**
@@ -1510,7 +1527,7 @@ public:
     pragma(inline, true)
     @property long totalSeconds() const @nogc nothrow pure
     {
-        return cast(long)(data.sticks / Tick.ticksPerSecond);
+        return TickSpan(data.sticks).totalSeconds!long();
     }
 
     /**
@@ -1519,7 +1536,7 @@ public:
     pragma(inline, true)
     @property long totalMilliseconds() const @nogc nothrow pure
     {
-        return cast(long)(data.sticks / Tick.ticksPerMillisecond);
+        return TickSpan(data.sticks).totalMilliseconds!long();
     }
 
     /**
@@ -1553,7 +1570,7 @@ public:
      */
     @property static DateTime max() @nogc nothrow pure
     {
-        return DateTime(cast(ulong)maxTicks | TickData.kindUtc);
+        return DateTime(TickData.createDateTime(maxTicks, DateTimeZoneKind.utc));
     }
 
     /**
@@ -1562,7 +1579,7 @@ public:
      */
     @property static DateTime min() @nogc nothrow pure
     {
-        return DateTime(cast(ulong)minTicks | TickData.kindUtc);
+        return DateTime(TickData.createDateTime(minTicks, DateTimeZoneKind.utc));
     }
 
     /**
@@ -1589,7 +1606,7 @@ public:
     @property static DateTime utcNow() @nogc nothrow
     {
         const ticks = Tick.currentSystemTicks();
-        return DateTime(cast(ulong)ticks | TickData.kindUtc);
+        return DateTime(TickData.createDateTime(ticks, DateTimeZoneKind.utc));
     }
 
     @property int utcBias() const nothrow
@@ -1621,9 +1638,9 @@ public:
     static immutable byte[] daysInMonth366 = [ 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 ];
 
 package(pham.dtm):
-    this(ulong data) @nogc nothrow pure
+    this(const(TickData) data) @nogc nothrow pure
     {
-        this.data = TickData(data);
+        this.data = data;
     }
 
     DateTime errorDateTime(const(ErrorOp) error) const @nogc nothrow pure scope
@@ -1634,8 +1651,8 @@ package(pham.dtm):
     do
     {
         return error == ErrorOp.underflow
-            ? DateTime(cast(ulong)minTicks | data.internalKind)
-            : DateTime(cast(ulong)maxTicks | data.internalKind);
+            ? DateTime(TickData.createDateTime(minTicks, data.internalKind))
+            : DateTime(TickData.createDateTime(maxTicks, data.internalKind));
     }
 
     ErrorOp errorResult(const(ErrorOp) error, out DateTime newDateTime) const @nogc nothrow pure scope
@@ -1652,9 +1669,9 @@ private:
     ErrorOp addImpl(const(long) milliseconds, out long newTicks, out DateTime newDateTime) const @nogc nothrow pure
     {
         //const long milliseconds = cast(long)(value * scale + (value >= 0 ? 0.5 : -0.5));
-        const error = milliseconds <= -maxMillis
+        const error = milliseconds < -maxMillis
             ? ErrorOp.underflow
-            : (milliseconds >= maxMillis ? ErrorOp.overflow : ErrorOp.none);
+            : (milliseconds > maxMillis ? ErrorOp.overflow : ErrorOp.none);
         return error == ErrorOp.none
             ? addTicksImpl(milliseconds * Tick.ticksPerMillisecond, newTicks, newDateTime)
             : errorResult(error, newDateTime);
@@ -1662,10 +1679,14 @@ private:
 
     ErrorOp addTicksImpl(const(long) ticks, out long newTicks, out DateTime newDateTime) const @nogc nothrow pure
     {
-        newTicks = data.sticks + ticks;
-        const result = isValidTicks(newTicks);
+        auto result = Tick.checkedAdd(data.sticks, ticks, newTicks);
+        if (result == ErrorOp.none)
+            result = isValidTicks(newTicks);
+
+        //if (!__ctfe) { import std.stdio : writeln; debug writeln("data.sticks=", data.sticks, ", ticks=", ticks, ", newTicks=", newTicks, ", result=", result); }
+
         newDateTime = result == ErrorOp.none
-            ? DateTime(cast(ulong)newTicks | data.internalKind)
+            ? DateTime(TickData.createDateTime(newTicks, data.internalKind))
             : errorDateTime(result);
         return result;
     }
@@ -1674,8 +1695,9 @@ private:
     {
         int year = void, month = void, day = void;
         getDate(year, month, day);
-        newYears = year + years;
-        const result = isValidYear(newYears);
+        auto result = Tick.checkedAdd(year, years, newYears);
+        if (result == ErrorOp.none)
+            result = isValidYear(newYears);
         if (result != ErrorOp.none)
         {
             newDateTime = errorDateTime(result);
@@ -1695,7 +1717,7 @@ private:
         }
         n += d;
         const newTicks = n * Tick.ticksPerDay + data.sticks % Tick.ticksPerDay;
-        newDateTime = DateTime(cast(ulong)newTicks | data.internalKind);
+        newDateTime = DateTime(TickData.createDateTime(newTicks, data.internalKind));
         return ErrorOp.none;
     }
 
@@ -1865,7 +1887,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
     static if (is(T == Time))
         return 0;
     else
-        return abs(cast(int)(now - then).totalYears(approxDaysPerYear));
+        return abs((now - then).totalYears!int(approxDaysPerYear));
 }
 
 /**
@@ -1879,7 +1901,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
     static if (is(T == Time))
         return 0;
     else
-        return abs(cast(int)(now - then).totalMonths(approxDaysPerMonth));
+        return abs((now - then).totalMonths!int(approxDaysPerMonth));
 }
 
 /**
@@ -1892,7 +1914,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
     static if (is(T == Time))
         return 0;
     else
-        return abs(cast(int)(now - then).totalWeeks);
+        return abs((now - then).totalWeeks!int);
 }
 
 /**
@@ -1905,7 +1927,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
     static if (is(T == Time))
         return 0;
     else
-        return abs(cast(int)(now - then).totalDays);
+        return abs((now - then).totalDays!int);
 }
 
 /**
@@ -1915,7 +1937,7 @@ pragma(inline, true)
 long hoursBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
 if (is(T == Date) || is(T == DateTime) || is(T == Time))
 {
-    return abs(cast(long)(now - then).totalHours);
+    return abs((now - then).totalHours!long);
 }
 
 /**
@@ -1925,7 +1947,7 @@ pragma(inline, true)
 long minutesBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
 if (is(T == Date) || is(T == DateTime) || is(T == Time))
 {
-    return abs(cast(long)(now - then).totalMinutes);
+    return abs((now - then).totalMinutes!long);
 }
 
 /**
@@ -1935,7 +1957,7 @@ pragma(inline, true)
 long secondsBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
 if (is(T == Date) || is(T == DateTime) || is(T == Time))
 {
-    return abs(cast(long)(now - then).totalSeconds);
+    return abs((now - then).totalSeconds!long);
 }
 
 /**
@@ -1945,7 +1967,7 @@ pragma(inline, true)
 long millisecondsBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
 if (is(T == Date) || is(T == DateTime) || is(T == Time))
 {
-    return abs(cast(long)(now - then).totalMilliseconds);
+    return abs((now - then).totalMilliseconds!long);
 }
 
 /**
@@ -2350,7 +2372,8 @@ unittest // DateTime.opBinary
         return isClose(lhs, rhs, maxRelDiff);
     }
 
-    assert((DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1998, 7, 6, 12, 30, 33)).toDuration == dur!"seconds"(31_536_000));
+    auto d = DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1998, 7, 6, 12, 30, 33);
+    assert(d.toDuration == dur!"seconds"(31_536_000), d.toDuration.toString ~ " vs " ~ dur!"seconds"(31_536_000).toString);
     assert((DateTime(1998, 7, 6, 12, 30, 33) - DateTime(1999, 7, 6, 12, 30, 33)).toDuration == dur!"seconds"(-31_536_000));
     assert((DateTime(1999, 8, 6, 12, 30, 33) - DateTime(1999, 7, 6, 12, 30, 33)).toDuration == dur!"seconds"(26_78_400));
     assert((DateTime(1999, 7, 6, 12, 30, 33) - DateTime(1999, 8, 6, 12, 30, 33)).toDuration == dur!"seconds"(-26_78_400));
@@ -2388,6 +2411,142 @@ unittest // DateTime.opBinary
     assert((nowDate - preDate).totalTicks == 815_141_440_000_000, (nowDate - preDate).totalTicks.to!string);
 }
 
+unittest // DateTime.addBias
+{
+    auto dt = DateTime(1999, 7, 6, 11, 0, 0, 1);
+    assert(dt.addBias(1, 1, 5) == DateTime(1999, 7, 6, 9, 55, 0, 1), dt.addBias(1, 1, 5).toString());
+    assert(dt.addBias(-1, 1, 5) == DateTime(1999, 7, 6, 12, 5, 0, 1), dt.addBias(-1, 1, 5).toString());
+}
+
+unittest // DateTime.addDays
+{
+    import std.exception : assertThrown;
+
+    assert(DateTime(1999, 7, 6).addDays(1) == DateTime(1999, 7, 7));
+    assertThrown!TimeException(DateTime.max.addDays(1));
+}
+
+unittest // DateTime.addHours
+{
+    import std.exception : assertThrown;
+
+    assert(DateTime(1999, 7, 6).addHours(1) == DateTime(1999, 7, 6, 1, 0, 0));
+    assertThrown!TimeException(DateTime.max.addHours(1));
+}
+
+unittest // DateTime.addMilliseconds
+{
+    import std.exception : assertThrown;
+
+    assert(DateTime(1999, 7, 6).addMilliseconds(1) == DateTime(1999, 7, 6, 0, 0, 0, 1));
+    assertThrown!TimeException(DateTime.max.addMilliseconds(10_000));
+}
+
+unittest // DateTime.addMinutes
+{
+    import std.exception : assertThrown;
+
+    assert(DateTime(1999, 7, 6).addMinutes(1) == DateTime(1999, 7, 6, 0, 1, 0));
+    assertThrown!TimeException(DateTime.max.addMinutes(1));
+}
+
+unittest // DateTime.addMonths
+{
+    import std.exception : assertThrown;
+
+    assert(DateTime(1999, 7, 6).addMonths(1) == DateTime(1999, 8, 6));
+    assert(DateTime(1999, 7, 6).addMonths(12) == DateTime(2000, 7, 6));
+    assertThrown!TimeException(DateTime.max.addMonths(1));
+    assertThrown!TimeException(DateTime.max.addMonths(-130_000));
+    assertThrown!TimeException(DateTime.max.addMonths(130_000));
+}
+
+unittest // DateTime.addSeconds
+{
+    import std.exception : assertThrown;
+
+    assert(DateTime(1999, 7, 6).addSeconds(1) == DateTime(1999, 7, 6, 0, 0, 1));
+    assertThrown!TimeException(DateTime.max.addSeconds(1));
+}
+
+unittest // DateTime.addSecondsClamp
+{
+    assert(DateTime.max.addSecondsClamp(1) == DateTime.max);
+    assert(DateTime.min.addSecondsClamp(-1) == DateTime.min);
+}
+
+unittest // DateTime.addTicks
+{
+    import std.exception : assertThrown;
+
+    assert(DateTime(1999, 7, 6).addTicks(Tick.ticksPerMillisecond) == DateTime(1999, 7, 6, 0, 0, 0, 1));
+    assertThrown!TimeException(DateTime.max.addTicks(10_000));
+}
+
+unittest // DateTime.addYears
+{
+    import std.exception : assertThrown;
+
+    assert(DateTime(1999, 7, 6).addYears(1) == DateTime(2000, 7, 6));
+    assert(DateTime(1999, 7, 6).addYears(-1) == DateTime(1998, 7, 6));
+    assertThrown!TimeException(DateTime.max.addYears(1));
+}
+
+unittest // DateTime.adjustTwoDigitYear
+{
+    assert(DateTime.adjustTwoDigitYear(2000, 90, 50) == 1990);
+    assert(DateTime.adjustTwoDigitYear(2000, 90, 0) == 2090);
+}
+
+unittest // DateTime.checkDateParts
+{
+    import std.exception : assertThrown;
+
+    assertThrown!TimeException(DateTime.checkDateParts(11_111, 1, 1));
+    assertThrown!TimeException(DateTime.checkDateParts(1, 13, 1));
+    assertThrown!TimeException(DateTime.checkDateParts(1, 1, 33));
+}
+
+unittest // DateTime.checkTimeParts
+{
+    import std.exception : assertThrown;
+
+    assertThrown!TimeException(DateTime.checkTimeParts(25, 1, 1, 1));
+    assertThrown!TimeException(DateTime.checkTimeParts(1, 61, 1, 1));
+    assertThrown!TimeException(DateTime.checkTimeParts(1, 1, 61, 1));
+    assertThrown!TimeException(DateTime.checkTimeParts(1, 1, 1, 1001));
+}
+
+unittest // DateTime.createDateTime
+{
+    import std.exception : assertThrown;
+
+    assert(DateTime.createDateTime(DateTime(1999, 7, 6).sticks) == DateTime(1999, 7, 6));
+    assert(DateTime.createDateTime(1999, 7, 6, 1, 1, 1, 1) == DateTime(1999, 7, 6, 1, 1, 1, 1));
+    assert(DateTime.createDateTime(1999, 7, 6, 1, 1, 1) == DateTime(1999, 7, 6, 1, 1, 1, 0));
+    assert(DateTime.createDateTime(1999, 7, 6, 1, 1) == DateTime(1999, 7, 6, 1, 1, 0, 0));
+    assert(DateTime.createDateTime(1999, 7, 6) == DateTime(1999, 7, 6, 0, 0, 0, 0));
+    assertThrown!TimeException(DateTime.createDateTime(long.max));
+}
+
+unittest // DateTime.getTime
+{
+    int hour, minute, second, millisecond;
+
+    hour = minute = second = millisecond = int.max;
+    DateTime(1999, 7, 6, 1, 2, 3, 4).getTime(hour, minute, second, millisecond);
+    assert(hour == 1);
+    assert(minute == 2);
+    assert(second == 3);
+    assert(millisecond == 4);
+
+    hour = minute = second = int.max;
+    DateTime(1999, 7, 6, 1, 2, 3).getTime(hour, minute, second);
+    assert(hour == 1);
+    assert(minute == 2);
+    assert(second == 3);
+}
+
 unittest // DateTime.toString
 {
     assert(DateTime.max.toString() == "12/31/9999 11:59:59 PM", DateTime.max.toString());
@@ -2400,6 +2559,13 @@ unittest // DateTime.toString
 
     immutable idt = DateTime(1999, 7, 6, 12, 30, 33);
     assert(idt.toString() == "07/06/1999 12:30:33 PM", idt.toString());
+
+    import std.array : Appender;
+    import std.exception : assertThrown;
+
+    Appender!(char[]) buffer;
+    assertThrown!FormatException(DateTime(1999, 7, 6).toString(buffer, "%X"));
+    assertThrown!FormatException(DateTime(1999, 7, 6).toString(buffer, "%X", DateTimeSetting.us));
 }
 
 unittest // DateTime.dayOfWeek
@@ -2456,6 +2622,99 @@ unittest // DateTime.endOfMonth
     assert(DateTime(1999, 11, 23, 11, 24, 37).endOfMonth == DateTime(Date(1999, 11, 30), Time.max));
     assert(DateTime(1999, 12, 24, 12, 25, 38).endOfMonth == DateTime(Date(1999, 12, 31), Time.max));
     assert(DateTime(1999, 12, 25, 12, 25, 38).endOfMonth.toString() == "12/31/1999 11:59:59 PM", DateTime(1999, 12, 25, 12, 25, 38).endOfMonth.toString());
+}
+
+unittest // DateTime.isValidMonth
+{
+    assert(DateTime.isValidMonth(-1) == ErrorOp.underflow);
+    assert(DateTime.isValidMonth(13) == ErrorOp.overflow);
+    assert(DateTime.isValidMonth(12) == ErrorOp.none);
+}
+
+unittest // DateTime.isValidTicks
+{
+    assert(DateTime.isValidTicks(-1) == ErrorOp.underflow);
+    assert(DateTime.isValidTicks(long.max) == ErrorOp.overflow);
+    assert(DateTime.isValidTicks(12) == ErrorOp.none);
+}
+
+unittest // DateTime.isValidYear
+{
+    assert(DateTime.isValidYear(-1) == ErrorOp.underflow);
+    assert(DateTime.isValidYear(int.max) == ErrorOp.overflow);
+    assert(DateTime.isValidYear(12) == ErrorOp.none);
+}
+
+unittest // DateTime.toHash
+{
+    assert(DateTime(1999, 7, 6, 12, 30, 33, 1).toHash() != 0);
+    assert(DateTime.min.toHash() != 0);
+}
+
+unittest // DateTime.toDuration
+{
+    assert(DateTime.min.toDuration() == Duration.zero);
+}
+
+unittest // DateTime.toUTC
+{
+    const utc = DateTime.utcNow;
+    assert(utc.toUTC() == utc);
+}
+
+unittest // DateTime.tryAddDays
+{
+    DateTime result;
+
+    assert(DateTime(1999, 7, 6, 12, 30, 33, 1).tryAddDays(1, result) == ErrorOp.none);
+    assert(result == DateTime(1999, 7, 7, 12, 30, 33, 1));
+
+    assert(DateTime(1999, 7, 6, 12, 30, 33, 1).tryAddDays(1_000_000_000, result) != ErrorOp.none);
+}
+
+unittest // DateTime.tryAddTicks
+{
+    import std.conv : to;
+
+    DateTime result;
+
+    assert(DateTime(1999, 7, 6, 12, 30, 33, 1).tryAddTicks(100, result) == ErrorOp.none);
+    assert(result >= DateTime(1999, 7, 6, 12, 30, 33, 1));
+
+    const r = DateTime.max.tryAddTicks(1_000, result);
+    assert(r != ErrorOp.none, r.to!string ~ ":" ~ result.toString());
+}
+
+unittest // DateTime.tryAddYears
+{
+    DateTime result;
+
+    assert(DateTime(1999, 7, 6, 12, 30, 33, 1).tryAddYears(1, result) == ErrorOp.none);
+    assert(result == DateTime(2000, 7, 6, 12, 30, 33, 1));
+
+    assert(DateTime(9999, 7, 6, 12, 30, 33, 1).tryAddYears(10, result) != ErrorOp.none);
+}
+
+unittest // DateTime.tryCreate
+{
+    DateTime result;
+
+    assert(DateTime.tryCreate(1999, 7, 6, 12, 30, 33, 1, result));
+    assert(result == DateTime(1999, 7, 6, 12, 30, 33, 1));
+
+    assert(!DateTime.tryCreate(111_111, 7, 6, 12, 30, 33, 1, result));
+}
+
+unittest // DateTime.asUTC
+{
+    assert(DateTime(2000, 7, 6, 12, 30, 33, 1).asUTC() == DateTime(2000, 7, 6, 12, 30, 33, 1, DateTimeZoneKind.utc));
+}
+
+unittest // DateTime.century
+{
+    import std.conv : to;
+
+    assert(DateTime(1999, 7, 6, 12, 30, 33, 1).century == 19, DateTime(1999, 7, 6, 12, 30, 33, 1).century.to!string);
 }
 
 unittest // Date.constructor
@@ -2641,6 +2900,48 @@ unittest // Date.opBinary
     assert((nowDate - preDate).totalTicks == 814_752_000_000_000);
 }
 
+unittest // Date.addDays
+{
+    import std.exception : assertThrown;
+
+    assert(Date(1999, 7, 6).addDays(1) == Date(1999, 7, 7));
+    assertThrown!TimeException(Date(1999, 7, 6).addDays(Date.maxDays));
+}
+
+unittest // Date.addDaysClamp
+{
+    assert(Date(1999, 7, 6).addDaysClamp(1) == Date(1999, 7, 7));
+    assert(Date(1999, 7, 6).addDaysClamp(Date.maxDays) == Date.max, Date(1999, 7, 6).addDaysClamp(Date.maxDays).toString());
+    assert(Date(1999, 7, 6).addDaysClamp(-Date.maxDays) == Date.min, Date(1999, 7, 6).addDaysClamp(-Date.maxDays).toString());
+}
+
+unittest // Date.createDate
+{
+    import std.exception : assertThrown;
+
+    assert(Date.createDate(Date(1999, 7, 6).totalDays) == Date(1999, 7, 6));
+    assert(Date.createDate(Date.maxDays) == Date.max);
+    assertThrown!TimeException(Date.createDate(Date.maxDays + 1));
+
+    assert(Date.createDate(1999, 7, 6) == Date(1999, 7, 6));
+    assertThrown!TimeException(Date.createDate(1999, 13, 6));
+}
+
+unittest // Date.toDateTime
+{
+    assert(Date(1999, 7, 6).toDateTime == DateTime(1999, 7, 6, 0, 0, 0));
+}
+
+unittest // Date.toDuration
+{
+    assert(Date(1999, 7, 6).toDuration > Duration.zero);
+}
+
+unittest // Date.toHash
+{
+    assert(Date.min.toHash == Date.minDays);
+}
+
 unittest // Date.toString
 {
     assert(Date.max.toString() == "12/31/9999", Date.max.toString());
@@ -2653,6 +2954,25 @@ unittest // Date.toString
 
     immutable idt = Date(1999, 7, 6);
     assert(idt.toString() == "07/06/1999", idt.toString());
+
+    import std.array : Appender;
+    import std.exception : assertThrown;
+
+    Appender!(char[]) buffer;
+    assertThrown!FormatException(Date(1999, 7, 6).toString(buffer, "%X"));
+    assertThrown!FormatException(Date(1999, 7, 6).toString(buffer, "%X", DateTimeSetting.us));
+}
+
+unittest // Date.tryAddDays
+{
+    Date newDate;
+    assert(Date(1999, 7, 6).tryAddDays(1, newDate) == ErrorOp.none);
+    assert(newDate == Date(1999, 7, 7));
+}
+
+unittest // Date.century
+{
+    assert(Date(1999, 7, 6).century == 19);
 }
 
 unittest // Date.dayOfWeek
@@ -2710,12 +3030,59 @@ unittest // Date.endOfMonth
     assert(Date(1999, 12, 23).endOfMonth == Date(1999, 12, 31));
 }
 
+unittest // Date.totalHours
+{
+    import std.conv : to;
+
+    assert(Date(1, 1, 2).totalHours == Tick.hoursPerDay, Date(1, 1, 1).totalHours.to!string());
+}
+
+unittest // Date.totalMinutes
+{
+    assert(Date(1, 1, 2).totalMinutes == Tick.minutesPerDay);
+}
+
+unittest // Date.totalSeconds
+{
+    assert(Date(1, 1, 2).totalSeconds == Tick.secondsPerDay);
+}
+
+unittest // Date.totalMilliseconds
+{
+    assert(Date(1, 1, 2).totalMilliseconds == Tick.millisPerDay);
+}
+
+unittest // Date.sticks & uticks
+{
+    assert(Date(1, 1, 2).sticks == Tick.ticksPerDay);
+    assert(Date(1, 1, 2).sticks == Date(1, 1, 2).uticks);
+}
+
+unittest // Date.getTime & getTimePrecise
+{
+    int hour, minute, second, millisecond, tick;
+
+    hour = minute = second = millisecond = 1;
+    Date(1, 1, 2).getTime(hour, minute, second, millisecond);
+    assert(hour == 0);
+    assert(minute == 0);
+    assert(second == 0);
+    assert(millisecond == 0);
+
+    hour = minute = second = tick = 1;
+    Date(1, 1, 2).getTimePrecise(hour, minute, second, tick);
+    assert(hour == 0);
+    assert(minute == 0);
+    assert(second == 0);
+    assert(tick == 0);
+}
+
 unittest // ...Between
 {
     import std.conv : to;
 
     // Date
-	auto preDate = Date(2021, 7, 15); //15 July 2021
+    auto preDate = Date(2021, 7, 15); //15 July 2021
     auto nowDate = Date(2024, 2, 13); //13 February 2024
     assert(yearsBetween(nowDate, preDate) == 2, yearsBetween(nowDate, preDate).to!string);
     assert(monthsBetween(nowDate, preDate) == 30, monthsBetween(nowDate, preDate).to!string);
@@ -2728,7 +3095,7 @@ unittest // ...Between
     assert(ticksBetween(nowDate, preDate) == 814_752_000_000_000);
 
     // DateTime
-	auto preDateTime = DateTime(2021, 7, 15, 0, 0, 0); //15 July 2021 00:00:00
+    auto preDateTime = DateTime(2021, 7, 15, 0, 0, 0); //15 July 2021 00:00:00
     auto nowDateTime = DateTime(2024, 2, 13, 10, 49, 4); //13 February 2024 10:49:04
     assert(yearsBetween(nowDateTime, preDateTime) == 2, yearsBetween(nowDateTime, preDateTime).to!string);
     assert(monthsBetween(nowDateTime, preDateTime) == 30, monthsBetween(nowDateTime, preDateTime).to!string);
@@ -2741,7 +3108,7 @@ unittest // ...Between
     assert(ticksBetween(nowDateTime, preDateTime) == 815_141_440_000_000, ticksBetween(nowDateTime, preDateTime).to!string);
 
     // Time
-	auto preTime = Time(0, 0, 0);
+    auto preTime = Time(0, 0, 0);
     auto nowTime = Time(19, 22, 7);
     assert(yearsBetween(nowTime, preTime) == 0, yearsBetween(nowTime, preTime).to!string);
     assert(monthsBetween(nowTime, preTime) == 0, monthsBetween(nowTime, preTime).to!string);

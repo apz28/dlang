@@ -178,6 +178,7 @@ struct Tick
     enum int minutesPerDay = minutesPerHour * hoursPerDay;
 
     enum int secondsPerMinute = 60;
+    enum int secondsPerHour = secondsPerMinute * minutesPerHour;
     enum int secondsPerDay = secondsPerMinute * minutesPerDay;
 
     // Number of milliseconds per time unit
@@ -214,6 +215,42 @@ struct Tick
 
     enum long unixEpochTicks = daysTo1970 * ticksPerDay;
 
+    static ErrorOp checkedAdd(R, P)(const(P) lhs, const(P) rhs, out R result)
+    if (R.sizeof >= P.sizeof && (is(R == int) || is(R == long)) && (is(P == int) || is(P == long)))
+    {
+        static if (is(P == int))
+        {
+            const long r = cast(long)lhs + cast(long)rhs;
+            if (r < R.min)
+            {
+                result = R.min;
+                return ErrorOp.underflow;
+            }
+            else if (r > R.max)
+            {
+                result = R.max;
+                return ErrorOp.overflow;
+            }
+        }
+        else
+        {
+            const long r = cast(ulong)lhs + cast(ulong)rhs;
+            if (lhs < 0 && rhs < 0 && r >= 0)
+            {
+                result = R.min;
+                return ErrorOp.underflow;
+            }
+            else if (lhs >= 0 && rhs >= 0 && r < 0)
+            {
+                result = R.max;
+                return ErrorOp.overflow;
+            }
+        }
+        
+        result = cast(R)r;
+        return ErrorOp.none;
+    }
+    
     static long currentSystemTicks(ClockType clockType = ClockType.normal)() @trusted
     if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType == ClockType.precise)
     {
@@ -243,19 +280,28 @@ struct Tick
         return duration.total!"hnsecs"();
     }
 
-    static bool isValidMicrosecond(const(int) microsecond) pure
+    pragma(inline, true)
+    static bool isValidDiffMicrosecond(const(int) microseconds) pure
     {
-        return microsecond >= -999_999 && microsecond <= 999_999;
+        return microseconds >= -999_999 && microseconds <= 999_999;
     }
 
-    static bool isValidMillisecond(const(int) millisecond) pure
+    pragma(inline, true)
+    static bool isValidDiffMillisecond(const(int) milliseconds) pure
     {
-        return millisecond >= -999 && millisecond <= 999;
+        return milliseconds >= -999 && milliseconds <= 999;
     }
 
-    static bool isValidTickPrecision(const(int) tick) pure
+    pragma(inline, true)
+    static bool isValidDiffMonth(const(int) months) pure
     {
-        return tick >= -9_999_999 && tick <= 9_999_999;
+        return months >= -120_000 && months <= 120_000;
+    }
+
+    pragma(inline, true)
+    static bool isValidDiffTickPrecision(const(int) ticks) pure
+    {
+        return ticks >= -9_999_999 && ticks <= 9_999_999;
     }
     
     static long round(const(double) d) pure
@@ -272,7 +318,7 @@ struct Tick
     }
     do
     {
-        const ulong totalSeconds = (cast(ulong)hour * 3_600) + (minute * 60) + second;
+        const ulong totalSeconds = (cast(ulong)hour * secondsPerHour) + (minute * secondsPerMinute) + second;
         return totalSeconds * ticksPerSecond;
     }
 
@@ -288,7 +334,7 @@ struct Tick
     }
 
     pragma(inline, true)
-    static size_t toHash(ulong ticks) pure
+    static size_t toHash(const(ulong) ticks) pure
     {
         static if (size_t.sizeof == ulong.sizeof)
         {
@@ -296,21 +342,26 @@ struct Tick
         }
         else
         {
-            // MurmurHash2
-            enum ulong m = 0xC6A4_A793_5BD1_E995UL;
-            enum ulong n = m * 16;
-            enum uint r = 47;
+            if (ticks == 0)
+                return 0u;
+            else
+            {
+                // MurmurHash2
+                enum ulong m = 0xC6A4_A793_5BD1_E995UL;
+                enum ulong n = m * 16;
+                enum uint r = 47;
 
-            ulong k = ticks;
-            k *= m;
-            k ^= k >> r;
-            k *= m;
+                ulong k = ticks;
+                k *= m;
+                k ^= k >> r;
+                k *= m;
 
-            ulong h = n;
-            h ^= k;
-            h *= m;
+                ulong h = n;
+                h ^= k;
+                h *= m;
 
-            return cast(size_t)h;
+                return cast(size_t)h;
+            }
         }
     }
 }
@@ -352,17 +403,39 @@ struct TickData
     }
 
     pragma(inline, true)
-    static TickData createDateTimeTick(ulong ticks, DateTimeZoneKind kind) pure
+    static TickData createDateTime(T)(const(T) ticks, const(DateTimeZoneKind) kind) pure
+    if (is(T == ulong) || is(T == long))
     {
-        return TickData((ticks & dateTimeTicksMask) | (cast(ulong)kind << kindShift));
+        return TickData((cast(const(ulong))ticks & dateTimeTicksMask) | internalKindOf(kind));
     }
 
     pragma(inline, true)
-    static TickData createTimeTick(ulong ticks, DateTimeZoneKind kind) pure
+    static TickData createDateTime(T)(const(T) ticks, const(ulong) internalKind) pure
+    if (is(T == ulong) || is(T == long))
     {
-        return TickData((ticks & timeTicksMask) | (cast(ulong)kind << kindShift));
+        return TickData((cast(const(ulong))ticks & dateTimeTicksMask) | (internalKind & flagsMask));
     }
 
+    deprecated("please use createDateTime")
+    alias createDateTimeTick = createDateTime;
+    
+    pragma(inline, true)
+    static TickData createTime(T)(const(T) ticks, const(DateTimeZoneKind) kind) pure
+    if (is(T == ulong) || is(T == long))
+    {
+        return TickData((cast(const(ulong))ticks & timeTicksMask) | internalKindOf(kind));
+    }
+
+    pragma(inline, true)
+    static TickData createTime(T)(const(T) ticks, const(ulong) internalKind) pure
+    if (is(T == ulong) || is(T == long))
+    {
+        return TickData((cast(const(ulong))ticks & timeTicksMask) | (internalKind & flagsMask));
+    }
+
+    deprecated("please use createTime")
+    alias createTimeTick = createTime;
+    
     pragma(inline, true)
     static bool isCompatibleKind(const(DateTimeZoneKind) lhs, const(DateTimeZoneKind) rhs) pure
     {
@@ -389,9 +462,9 @@ struct TickData
         return Tick.toHash(data);
     }
 
-    TickData toTickKind(DateTimeZoneKind kind) const pure scope
+    TickData toTickKind(const(DateTimeZoneKind) kind) const pure scope
     {
-        return TickData(uticks | (cast(ulong)kind << kindShift));
+        return TickData(uticks | internalKindOf(kind));
     }
 
     pragma(inline, true)
@@ -401,14 +474,27 @@ struct TickData
     }
 
     pragma(inline, true)
+    static ulong internalKindOf(const(DateTimeZoneKind) kind) pure
+    {
+        return cast(ulong)kind << kindShift;
+    }
+    
+    pragma(inline, true)
     @property DateTimeZoneKind kind() const pure scope
     {
-        const ik = internalKind;
-        return ik == kindUnspecified
-            ? DateTimeZoneKind.unspecified
-            : (ik == kindUtc ? DateTimeZoneKind.utc : DateTimeZoneKind.local);
+        return kindOf(internalKind);
     }
 
+    pragma(inline, true)
+    static DateTimeZoneKind kindOf(const(ulong) internalKind) pure
+    {
+        return internalKind == kindLocal
+            ? DateTimeZoneKind.local
+            : (internalKind == kindUtc 
+                ? DateTimeZoneKind.utc
+                : DateTimeZoneKind.unspecified);
+    }
+    
     pragma(inline, true)
     @property long sticks() const pure scope
     {
@@ -437,61 +523,92 @@ struct TickData
 
 struct TickPart
 {
-@nogc nothrow @safe:
+@nogc nothrow pure @safe:
 
     pragma(inline, true)
-    static int microsecondToTick(int microsecond) pure
-    in
+    static int fractionOf(const(long) ticks) 
     {
-        assert(Tick.isValidMicrosecond(microsecond));
-    }
-    do
-    {
-        return cast(int)(microsecond * Tick.ticksPerMicrosecond);
+        const long totalSeconds = ticks / Tick.ticksPerSecond;
+        return cast(int)(ticks - (totalSeconds * Tick.ticksPerSecond));
     }
 
     pragma(inline, true)
-    static int millisecondToMicrosecond(int millisecond) pure
-    in
+    static int hourOf(const(long) ticks) 
     {
-        assert(Tick.isValidMillisecond(millisecond));
-    }
-    do
-    {
-        return millisecond * 1_000;
+        return cast(int)((ticks / Tick.ticksPerHour) % Tick.hoursPerDay);
     }
 
     pragma(inline, true)
-    static int millisecondToTick(int millisecond) pure
-    in
+    static int minuteOf(const(long) ticks) 
     {
-        assert(Tick.isValidMillisecond(millisecond));
-    }
-    do
-    {
-        return cast(int)(millisecond * Tick.ticksPerMillisecond);
+        return cast(int)((ticks / Tick.ticksPerMinute) % Tick.minutesPerHour);
     }
 
     pragma(inline, true)
-    static int tickToMicrosecond(int tick) pure
-    in
+    static int secondOf(const(long) ticks) 
     {
-        assert(Tick.isValidTickPrecision(tick));
-    }
-    do
-    {
-        return tick / Tick.ticksPerMicrosecond;
+        return cast(int)((ticks / Tick.ticksPerSecond) % Tick.secondsPerMinute);
     }
 
     pragma(inline, true)
-    static int tickToMillisecond(int tick) pure
+    static long timeOf(const(long) ticks) 
+    {
+        return ticks % Tick.ticksPerDay;
+    }
+    
+    pragma(inline, true)
+    static int microsecondToTick(const(int) microseconds)
     in
     {
-        assert(Tick.isValidTickPrecision(tick));
+        assert(Tick.isValidDiffMicrosecond(microseconds));
     }
     do
     {
-        return tick / Tick.ticksPerMillisecond;
+        return cast(int)(microseconds * Tick.ticksPerMicrosecond);
+    }
+
+    pragma(inline, true)
+    static int millisecondToMicrosecond(const(int) milliseconds)
+    in
+    {
+        assert(Tick.isValidDiffMillisecond(milliseconds));
+    }
+    do
+    {
+        return milliseconds * 1_000;
+    }
+
+    pragma(inline, true)
+    static int millisecondToTick(const(int) milliseconds)
+    in
+    {
+        assert(Tick.isValidDiffMillisecond(milliseconds));
+    }
+    do
+    {
+        return cast(int)(milliseconds * Tick.ticksPerMillisecond);
+    }
+
+    pragma(inline, true)
+    static int tickToMicrosecond(const(int) ticks)
+    in
+    {
+        assert(Tick.isValidDiffTickPrecision(ticks));
+    }
+    do
+    {
+        return ticks / Tick.ticksPerMicrosecond;
+    }
+
+    pragma(inline, true)
+    static int tickToMillisecond(const(int) ticks)
+    in
+    {
+        assert(Tick.isValidDiffTickPrecision(ticks));
+    }
+    do
+    {
+        return ticks / Tick.ticksPerMillisecond;
     }
 }
 
@@ -507,11 +624,6 @@ struct TickSpan
         this.ticks = ticks;
     }
 
-    this(const(long) nowTicks, const(long) thenTicks) pure
-    {
-        this.ticks = nowTicks - thenTicks;
-    }
-    
     // Average over a 4 year span
     enum double approxDaysPerMonth4ys = 30.4375;
     enum double approxDaysPerYear4ys  = 365.25;
@@ -529,81 +641,90 @@ struct TickSpan
      * The total number of years
      */
     pragma(inline, true)
-    double totalYears(const(double) approxDaysPerYear = TickSpan.approxDaysPerYear4ys) const pure
+    T totalYears(T=double)(const(double) approxDaysPerYear = TickSpan.approxDaysPerYear4ys) const pure
+    if (is(T == int) || is(T == double))
     {
-        return totalTicks / (cast(double)Tick.ticksPerDay * approxDaysPerYear);
+        return cast(T)(totalTicks!double / cast(double)(Tick.ticksPerDay * approxDaysPerYear));
     }
 
     /**
      * The total number of months
      */   
     pragma(inline, true)
-    double totalMonths(const(double) approxDaysPerMonth = TickSpan.approxDaysPerMonth4ys) const pure
+    T totalMonths(T=double)(const(double) approxDaysPerMonth = TickSpan.approxDaysPerMonth4ys) const pure
+    if (is(T == int) || is(T == double))
     {
-        return totalTicks / (cast(double)Tick.ticksPerDay * approxDaysPerMonth);
+        return cast(T)(totalTicks!double / cast(double)(Tick.ticksPerDay * approxDaysPerMonth));
     }
 
     /**
      * The total number of weeks
      */    
     pragma(inline, true)
-    double totalWeeks() const pure
+    T totalWeeks(T=double)() const pure
+    if (is(T == int) || is(T == double))
     {
-        return totalTicks / cast(double)(Tick.ticksPerDay * Tick.daysPerWeek);
+        return cast(T)(totalTicks!double / cast(double)(Tick.ticksPerDay * Tick.daysPerWeek));
     }
 
     /**
      * The total number of days
      */
     pragma(inline, true)
-    double totalDays() const pure
+    T totalDays(T=double)() const pure
+    if (is(T == int) || is(T == double))
     {
-        return totalTicks / cast(double)Tick.ticksPerDay;
+        return cast(T)(totalTicks!double / cast(double)Tick.ticksPerDay);
     }
 
     /**
      * The total number of hours
      */
     pragma(inline, true)
-    double totalHours() const pure
+    T totalHours(T=double)() const pure
+    if (is(T == long) || is(T == double))
     {
-        return totalTicks / cast(double)Tick.ticksPerHour;
+        return cast(T)(totalTicks!double / cast(double)Tick.ticksPerHour);
     }
 
     /**
      * The total number of minutes
      */
     pragma(inline, true)
-    double totalMinutes() const pure
+    T totalMinutes(T=double)() const pure
+    if (is(T == long) || is(T == double))
     {
-        return totalTicks / cast(double)Tick.ticksPerMinute;
+        return cast(T)(totalTicks!double / cast(double)Tick.ticksPerMinute);
     }
 
     /**
      * The total number of seconds
      */
     pragma(inline, true)
-    double totalSeconds() const pure
+    T totalSeconds(T=double)() const pure
+    if (is(T == long) || is(T == double))
     {
-        return totalTicks / cast(double)Tick.ticksPerSecond;
+        return cast(T)(totalTicks!double / cast(double)Tick.ticksPerSecond);
     }
 
     /**
      * The total number of milliseconds
      */
     pragma(inline, true)
-    double totalMilliseconds() const pure
+    T totalMilliseconds(T=double)() const pure
+    if (is(T == long) || is(T == double))
     {
-        return totalTicks / cast(double)Tick.ticksPerMillisecond;
+        return cast(T)(totalTicks!double / cast(double)Tick.ticksPerMillisecond);
     }
 
     /**
      * The total number of ticks
      */
     pragma(inline, true)
-    double totalTicks() const pure
+    T totalTicks(T=double)() const pure
+    if (is(T == long) || is(T == double))
     {
-        return this.ticks;
+        return cast(T)this.ticks;
     }
 
     /**
@@ -1066,6 +1187,12 @@ unittest // Show duration precision
     debug writeln("999 msecs in nsecs:  ", d.total!"nsecs"().dgToStr());  // 999_000_000
 }
 
+unittest // DateTimeSetting.isValid
+{
+    assert(DateTimeSetting.us.isValid());
+    assert(!DateTimeSetting.init.isValid());
+}
+
 unittest // toDayOfWeekUS
 {
     assert(toDayOfWeekUS("sunday").value == DayOfWeek.sunday);
@@ -1112,4 +1239,177 @@ unittest // toMonthUS
     assert(!toMonthUS("0"));
     assert(!toMonthUS("-1"));
     assert(!toMonthUS("13"));
+}
+
+unittest // Tick.durationFromTicks & durationToTicks
+{
+    assert(Tick.durationToTicks(Tick.durationFromTicks(1)) == 1);
+}
+
+unittest // Tick.timeToTicks
+{
+    assert(Tick.timeToTicks(0, 0, 1) == Tick.ticksPerSecond);
+    assert(Tick.timeToTicks(0, 0, 0, 1) == Tick.ticksPerMillisecond);
+}
+
+unittest // Tick.durationFromSystemBias
+{
+    assert(Tick.durationFromSystemBias(0) == dur!"minutes"(0));
+    assert(Tick.durationFromSystemBias(5) == dur!"minutes"(-5));
+}
+
+unittest // Tick.checkedAdd
+{
+    int i;
+    assert(Tick.checkedAdd(1, 1, i) == ErrorOp.none);
+    assert(i == 2);
+    assert(Tick.checkedAdd(1, -1, i) == ErrorOp.none);
+    assert(i == 0);
+    assert(Tick.checkedAdd(int.min, -1, i) == ErrorOp.underflow);
+    assert(i == int.min);
+    assert(Tick.checkedAdd(int.max, 1, i) == ErrorOp.overflow);
+    assert(i == int.max);
+    
+    long l;
+    assert(Tick.checkedAdd(1L, 1L, l) == ErrorOp.none);
+    assert(l == 2);
+    assert(Tick.checkedAdd(1L, -1L, l) == ErrorOp.none);
+    assert(l == 0);
+    assert(Tick.checkedAdd(long.min, -1L, l) == ErrorOp.underflow);
+    assert(l == long.min);
+    assert(Tick.checkedAdd(long.max, 1L, l) == ErrorOp.overflow);
+    assert(l == long.max);
+}
+
+unittest // Tick.isValidDiffMicrosecond
+{
+    assert(Tick.isValidDiffMicrosecond(-999_999));
+    assert(Tick.isValidDiffMicrosecond(0));
+    assert(Tick.isValidDiffMicrosecond(999_999));
+    
+    assert(!Tick.isValidDiffMicrosecond(-1_000_000));
+    assert(!Tick.isValidDiffMicrosecond(1_000_000));
+}
+
+unittest // Tick.isValidDiffMillisecond
+{
+    assert(Tick.isValidDiffMillisecond(-999));
+    assert(Tick.isValidDiffMillisecond(0));
+    assert(Tick.isValidDiffMillisecond(999));
+    
+    assert(!Tick.isValidDiffMillisecond(-1_000));
+    assert(!Tick.isValidDiffMillisecond(1_000));
+}
+
+unittest // Tick.isValidDiffMonth
+{
+    assert(Tick.isValidDiffMonth(-120_000));
+    assert(Tick.isValidDiffMonth(0));
+    assert(Tick.isValidDiffMonth(120_000));
+
+    assert(!Tick.isValidDiffMonth(-120_001));
+    assert(!Tick.isValidDiffMonth(120_001));
+}
+
+unittest // Tick.isValidDiffTickPrecision
+{
+    assert(Tick.isValidDiffTickPrecision(-9_999_999));
+    assert(Tick.isValidDiffTickPrecision(0));
+    assert(Tick.isValidDiffTickPrecision(9_999_999));
+    
+    assert(!Tick.isValidDiffTickPrecision(-10_000_000));
+    assert(!Tick.isValidDiffTickPrecision(10_000_000));
+}
+
+unittest // TickData.opEquals
+{
+    assert(TickData(0).opEquals(TickData(0)));
+    assert(!TickData(0).opEquals(TickData(1)));
+}
+
+unittest // TickData.isCompatibleKind
+{
+    assert(TickData.isCompatibleKind(DateTimeZoneKind.local, DateTimeZoneKind.local));
+    assert(TickData.isCompatibleKind(DateTimeZoneKind.local, DateTimeZoneKind.unspecified));
+    assert(!TickData.isCompatibleKind(DateTimeZoneKind.local, DateTimeZoneKind.utc));
+    assert(!TickData.isCompatibleKind(DateTimeZoneKind.unspecified, DateTimeZoneKind.utc));
+
+    assert(TickData.isCompatibleKind(TickData.kindLocal, TickData.kindLocal));
+    assert(TickData.isCompatibleKind(TickData.kindLocal, TickData.kindUnspecified));
+    assert(!TickData.isCompatibleKind(TickData.kindLocal, TickData.kindUtc));
+    assert(!TickData.isCompatibleKind(TickData.kindUnspecified, TickData.kindUtc));
+}
+
+unittest // TickData.toHash
+{
+    assert(TickData(0).toHash() == 0);
+    assert(TickData(1).toHash() != 0);
+}
+
+unittest // TickData.internalKindOf
+{
+    assert(TickData.internalKindOf(DateTimeZoneKind.local) == TickData.kindLocal);
+    assert(TickData.internalKindOf(DateTimeZoneKind.unspecified) == TickData.kindUnspecified);
+    assert(TickData.internalKindOf(DateTimeZoneKind.utc) == TickData.kindUtc);
+}
+
+unittest // TickData.kindOf
+{
+    assert(TickData.kindOf(TickData.kindLocal) == DateTimeZoneKind.local);
+    assert(TickData.kindOf(TickData.kindUnspecified) == DateTimeZoneKind.unspecified);
+    assert(TickData.kindOf(TickData.kindUtc) == DateTimeZoneKind.utc);
+}
+
+unittest // TickData.sticks, TickData.uticks
+{
+    assert(TickData(0).sticks == TickData(0).uticks);
+    assert(TickData(0).sticks != TickData(1).uticks);
+}
+
+unittest // TickPart.fractionOf
+{
+    assert(TickPart.fractionOf(Tick.ticksPerMillisecond) == Tick.ticksPerMillisecond);
+}
+
+unittest // TickPart.hourOf
+{
+    assert(TickPart.hourOf(Tick.ticksPerHour) == 1);
+}
+
+unittest // TickPart.minuteOf
+{
+    assert(TickPart.minuteOf(Tick.ticksPerMinute) == 1);
+}
+
+unittest // TickPart.secondOf
+{
+    assert(TickPart.secondOf(Tick.ticksPerSecond) == 1);
+}
+
+unittest // TickPart.timeOf
+{
+    import std.conv : to;
+    
+    assert(TickPart.timeOf(Tick.ticksPerDay - 1) == Tick.ticksPerDay - 1, TickPart.timeOf(Tick.ticksPerDay - 1).to!string);
+    assert(TickPart.timeOf(Tick.ticksPerDay) == 0);
+}
+
+unittest // TickPart.microsecondToTick
+{
+    assert(TickPart.microsecondToTick(1) == Tick.ticksPerMicrosecond);
+}
+
+unittest // TickPart.millisecondToTick
+{
+    assert(TickPart.millisecondToTick(1) == Tick.ticksPerMillisecond);
+}
+
+unittest // TickPart.tickToMicrosecond
+{
+    assert(TickPart.tickToMicrosecond(Tick.ticksPerMicrosecond) == 1);
+}
+
+unittest // TickPart.tickToMillisecond
+{
+    assert(TickPart.tickToMillisecond(Tick.ticksPerMillisecond) == 1);
 }
