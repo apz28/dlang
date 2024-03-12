@@ -13,7 +13,8 @@ module pham.utl.utl_dynamic_library;
 
 import std.format : format;
 import std.string : toStringz;
-import std.typecons : Flag, No, Yes;
+import std.typecons : Flag;
+public import std.typecons : No, Yes;
 
 alias DllHandle = void*;
 alias DllProc = void*;
@@ -42,17 +43,17 @@ class DllException : Exception
     uint errorCode;
 
     this(string message, string libName,
-        Exception next = null)
+        Exception next = null, string file = __FILE__, uint line = __LINE__)
     {
-        this(message, getLastErrorString(), getLastErrorCode(), libName, next);
+        this(message, getLastErrorString(), getLastErrorCode(), libName, next, file, line);
     }
 
     this(string message, string lastErrorMessage, uint lastErrorCode, string libName,
-        Exception next = null)
+        Exception next = null, string file = __FILE__, uint line = __LINE__)
     {
         this.errorCode = lastErrorCode;
         this.libName = libName;
-        super(concateLineIf(message, lastErrorMessage), next);
+        super(concateLineIf(message, lastErrorMessage), file, line, next);
     }
 
     /**
@@ -272,23 +273,41 @@ private:
     DllHandle _libHandle;
 }
 
+unittest // concateLineIf
+{
+    assert(concateLineIf("", "") == "");
+    assert(concateLineIf("a", "") == "a");
+    assert(concateLineIf("", "bc") == "bc");
+    assert(concateLineIf("a", "bc") == "a\nbc");
+}
+
 unittest // DllLibrary
 {
+    import std.exception : assertThrown;
+    
     version(Windows)
     {
         // Use any library that is always installed
         auto lib = new DllLibrary("Ws2_32.dll");
+        assert(lib.libName == "Ws2_32.dll");
 
         lib.load();
         assert(lib.isLoaded);
         assert(lib.libHandle !is null);
 
         assert(lib.loadProc("connect") !is null);
+        
+        assert(lib.loadProc!(No.throwIfError)("what_is_this_function") is null);
+        assertThrown!DllException(lib.loadProc("what_is_this_function"));
 
         lib.unload();
         assert(!lib.isLoaded);
         assert(lib.libHandle is null);
 
         assert(lib.loadProc!(No.throwIfError)("connect") is null);
+        assertThrown!DllException(lib.loadProc("connect"));
+
+        auto unknownLib = new DllLibrary("what_is_this_function.dll");
+        assertThrown!DllException(unknownLib.load());
     }
 }

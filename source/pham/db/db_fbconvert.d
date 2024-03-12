@@ -63,7 +63,7 @@ uint8 boolEncode(bool value) @nogc pure
  */
 DbDate dateDecode(int32 fbDate) @nogc pure
 {
-    return epochDate.addDaysSafe(fbDate);
+    return epochDate.addDaysClamp(fbDate);
 
 	version(none)
     {

@@ -344,6 +344,9 @@ nothrow @safe unittest // simpleIndexOf
 {
     string s = "Hello World";
     assert(simpleIndexOf(s, "Wo") == 6);
+    assert(simpleIndexOf(s, null) == -1);
+    assert(simpleIndexOf(s, s ~ "?") == -1);
+    assert(simpleIndexOf(s, "Hello?") == -1);
     assert(simpleIndexOf(s, "zo") == -1);
     assert(simpleIndexOf(s, "wo") == -1);
 }

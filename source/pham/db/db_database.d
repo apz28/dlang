@@ -11,7 +11,7 @@
 
 module pham.db.db_database;
 
-import core.atomic : atomicFetchAdd, atomicFetchSub, atomicLoad, atomicStore;
+import core.atomic : atomicFetchAdd, atomicFetchSub, atomicLoad, atomicStore, cas;
 import core.sync.mutex : Mutex;
 public import core.time : Duration, dur;
 import std.array : Appender;
@@ -1964,8 +1964,8 @@ public:
     final DbConnection acquire(DbScheme scheme, string connectionString) @safe
     {
         auto raiiMutex = () @trusted { return RAIIMutex(_poolMutex); }();
+        
         const localMaxLength = maxLength;
-
         if (_acquiredLength >= localMaxLength)
         {
             auto msg = DbMessage.eInvalidConnectionPoolMaxUsed.fmtMessage(_acquiredLength, localMaxLength);
@@ -1978,7 +1978,7 @@ public:
         auto result = lst.acquire(created);
         atomicFetchAdd(_acquiredLength, 1);
         if (!created)
-            atomicFetchSub(_length, 1);
+            atomicFetchSub(_unusedLength, 1);
         return result;
     }
 
@@ -2011,13 +2011,16 @@ public:
         return singleton(_instance, &createInstance);
     }
 
-    final DbConnection release(DbConnection item) nothrow @safe
+    final DbConnection release(DbConnection item) nothrow @trusted
     in
     {
         assert(item !is null);
     }
     do
     {
+        if (cas(&_timerAdded, size_t(0), size_t(1)))
+            _secondTimer.addEvent(TimerEvent(timerName(), dur!"minutes"(1), &doTimer));
+    
         DbConnectionList poolList;
         final switch (DbConnectionList.canPoolConnection(null, this, item, poolList)) with (DbConnectionList.CanPool)
         {
@@ -2031,16 +2034,19 @@ public:
                 break;
         }
 
-        auto raiiMutex = () @trusted { return RAIIMutex(_poolMutex); }();
-        const localMaxLength = maxLength;
-
+        auto raiiMutex = RAIIMutex(_poolMutex);
+        
+        atomicFetchSub(_acquiredLength, 1);
+        
         // Over limit?
-        if (atomicLoad(_length) + 1 >= localMaxLength)
+        const localMaxLength = maxLength;
+        if (atomicFetchAdd(_unusedLength, 1) >= localMaxLength)
+        {
+            atomicFetchSub(_unusedLength, 1);
             return DbConnectionList.disposeConnection(item);
+        }
 
         poolList.doRelease(item);
-        atomicFetchSub(_acquiredLength, 1);
-        atomicFetchAdd(_length, 1);
 
         return null;
     }
@@ -2048,11 +2054,6 @@ public:
     @property final size_t acquiredLength() const nothrow @safe
     {
         return atomicLoad(_acquiredLength);
-    }
-
-    @property final size_t length() const nothrow pure @safe
-    {
-        return atomicLoad(_length);
     }
 
     @property final size_t maxLength() const nothrow pure @safe
@@ -2066,23 +2067,31 @@ public:
         return this;
     }
 
+    @property final size_t unusedLength() const nothrow pure @safe
+    {
+        return atomicLoad(_unusedLength);
+    }
+
 protected:
     static DbConnectionPool createInstance() nothrow pure @safe
     {
         return new DbConnectionPool();
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @trusted
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         scope (failure) assert(0, "Assume nothrow failed");
 
+        if (cas(&_timerAdded, size_t(1), size_t(0)) && _secondTimer !is null)
+            _secondTimer.removeEvent(timerName());
+
         foreach (_, lst; _schemeConnections)
             lst.dispose(disposingReason);
         _schemeConnections = null;
         _acquiredLength = 0;
-        _length = 0;
+        _unusedLength = 0;
     }
 
     final void doTimer(TimerEvent event)
@@ -2095,14 +2104,14 @@ protected:
         auto raiiMutex = () @trusted { return RAIIMutex(_poolMutex); }();
         const now = DateTime.utcNow;
         DbConnection[] result;
-        result.reserve(_length);
+        result.reserve(_unusedLength);
         foreach (_, lst; _schemeConnections)
         {
             auto inactives = lst.removeInactives(now, _maxInactiveTime);
             if (inactives.length)
             {
                 result ~= inactives;
-                atomicFetchSub(_length, inactives.length);
+                atomicFetchSub(_unusedLength, inactives.length);
             }
         }
         return result;
@@ -2121,10 +2130,17 @@ protected:
         }
     }
 
+    final string timerName() nothrow pure @trusted
+    {
+        scope (failure) assert(0, "Assume nothrow failed");
+        
+        return format("%s_%x", "DbConnectionPool", cast(void*)this);
+    }
+    
 private:
     DbConnectionList[DbIdentitier] _schemeConnections;
     Duration _maxInactiveTime;
-    size_t _acquiredLength, _length;
+    size_t _acquiredLength, _unusedLength, _timerAdded;
     shared size_t _maxLength;
     __gshared static DbConnectionPool _instance;
 }
@@ -4829,24 +4845,24 @@ mixin DLinkTypes!(DbTransaction) DLinkDbTransactionTypes;
 private:
 
 __gshared static Mutex _poolMutex;
-__gshared static TimerThread _secondTimer;
+__gshared static Timer _secondTimer;
 
 shared static this() nothrow @trusted
 {
+    debug(debug_pham_db_db_database) debug writeln("shared static this()");
+    
     _poolMutex = new Mutex();
-    _secondTimer = new TimerThread(dur!"seconds"(1));
-
-    // Add pool event to timer
-    auto pool = DbConnectionPool.instance;
-    _secondTimer.addEvent(TimerEvent("DbConnectionPool", dur!"minutes"(1), &pool.doTimer));
+    _secondTimer = new Timer(dur!"seconds"(1));
 }
 
 shared static ~this() nothrow @trusted
 {
+    debug(debug_pham_db_db_database) debug writeln("shared static ~this()");
+    
     // Timer must be destroyed first
     if (_secondTimer !is null)
     {
-        _secondTimer.terminate();
+        _secondTimer.enabled = false;
         _secondTimer.destroy();
         _secondTimer = null;
     }

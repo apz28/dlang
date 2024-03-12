@@ -214,7 +214,7 @@ if (isEnumSet!E)
  * Return order value of an enum, value
  * Ex:
  *  enum E {e1 = 1, e2 = 2, e3 = 10, ...}
- *  ord!E(e3) returns 2
+ *  ord!E(E.e3) returns 2
  */
 size_t ord(E)(E value) @nogc pure
 if (isEnumSet!E)
@@ -264,7 +264,7 @@ if (is(E Base == enum))
  *  a string for parameter value
  * Ex:
  *  enum E {e1 = 1, e2 = 2, e3 = 10, ...}
- *  toName!E(e3) returns "e3"
+ *  toName!E(E.e3) returns "e3"
  */
 string toName(E)(const(E) value) pure
 if (is(E Base == enum))
@@ -278,7 +278,7 @@ if (is(E Base == enum))
             return buffer.toString();
         }
     }
-    return null;
+    assert(0);
 }
 
 /**
@@ -402,7 +402,7 @@ public:
         return this;
     }
 
-    ref typeof(this) opAssign(V...)(V values) @nogc pure return
+    ref typeof(this) opAssign(V...)(scope V values) @nogc pure return
     if (allSatisfy!(isEnumSet, V))
     {
         this._values = 0;
@@ -478,7 +478,6 @@ public:
         return opOpAssign!"+"(value);
     }
 
-    pragma (inline, true)
     bool any(scope const(E)[] source) const @nogc pure
     {
         foreach (i; source)
@@ -551,7 +550,7 @@ public:
             --len;
 
         // Skip preceeding spaces
-        bool skipSpaces()
+        bool skipSpaces() @nogc nothrow
         {
             while (pos < len && isWhite(values[pos]))
                 pos++;
@@ -646,14 +645,15 @@ public:
     {
         return on(__traits(getMember, E, name));
     }
-        
+
     bool opDispatch(string name)(bool v) @nogc pure
     if (is(typeof(__traits(getMember, E, name))))
     {
         set(__traits(getMember, E, name), v);
         return v;
     }
-        
+
+    pragma(inline, true)
     @property bool empty() const @nogc pure
     {
         return _values == 0;
@@ -789,6 +789,21 @@ size_t maxBits() @nogc pure
     return ulong.sizeof * 8;
 }
 
+unittest // count
+{
+    enum E {e1, e2=4, e3}
+    assert(count!E() == 3);
+}
+
+unittest // ord
+{
+    enum E {e1 = 1, e2 = 10, e3 = 12}
+    assert(ord!E(E.e3) == 2);
+
+    enum E2 {e1, e2, e3}
+    assert(ord!E2(E2.e2) == 1);
+}
+
 nothrow @safe unittest // toEnum
 {
     enum EnumTestOrder
@@ -893,8 +908,9 @@ nothrow @safe unittest // EnumSet
         }
         assert(testFlags.toString() == "[]", testFlags.toString());
 
-        assert(testFlags.fromString(values) == 0);
+        assert(testFlags.fromString(" " ~ values ~ " ") == 0);
         assert(testFlags.toString() == values, testFlags.toString());
+        assert(testFlags.fromString(values ~ ", bc123?") != 0);
 
         EnumTestSet testFlag1s = EnumTestSet(E.one, E.three);
         EnumTestSet testFlag2s = EnumTestSet(E.two, E.three);
@@ -929,6 +945,60 @@ nothrow @safe unittest // EnumSet
     static assert(!isSequencedEnum!EnumTestOrder);
     Test!EnumTestOrder("[one,two,three]");
 
+    auto enumTestOrder = EnumSet!EnumTestOrder(EnumTestOrder.two);
+    assert(cast(bool)enumTestOrder);
+    assert(enumTestOrder.on(EnumTestOrder.two));
+    assert(enumTestOrder.off(EnumTestOrder.one));
+    enumTestOrder = EnumTestOrder.two;
+    assert(cast(bool)enumTestOrder);
+    assert(enumTestOrder.on(EnumTestOrder.two));
+    assert(enumTestOrder.off(EnumTestOrder.one));
+
+    enumTestOrder = EnumSet!EnumTestOrder([EnumTestOrder.two, EnumTestOrder.three]);
+    assert(enumTestOrder.on(EnumTestOrder.two));
+    assert(enumTestOrder.on(EnumTestOrder.three));
+    assert(enumTestOrder.off(EnumTestOrder.one));
+    assert(cast(bool)enumTestOrder);
+    enumTestOrder = [EnumTestOrder.two, EnumTestOrder.three];
+    assert(enumTestOrder.on(EnumTestOrder.two));
+    assert(enumTestOrder.on(EnumTestOrder.three));
+    assert(enumTestOrder.off(EnumTestOrder.one));
+    assert(cast(bool)enumTestOrder);
+
+    assert(cast(bool)EnumSet!EnumTestOrder.init == false);
+    assert(EnumSet!EnumTestOrder.init.hashOf() == 0);
+
+    enumTestOrder = EnumSet!EnumTestOrder.init;
+    enumTestOrder = enumTestOrder | EnumTestOrder.two;
+    assert(enumTestOrder.on(EnumTestOrder.two));
+    enumTestOrder = enumTestOrder + EnumTestOrder.three;
+    assert(enumTestOrder.on(EnumTestOrder.three));
+    enumTestOrder = enumTestOrder ^ EnumTestOrder.two;
+    assert(!enumTestOrder.on(EnumTestOrder.two));
+    enumTestOrder = enumTestOrder - EnumTestOrder.three;
+    assert(!enumTestOrder.on(EnumTestOrder.three));
+
+    enumTestOrder = EnumSet!EnumTestOrder([EnumTestOrder.one, EnumTestOrder.three]);
+    auto enumTestOrderRange = enumTestOrder[];
+    assert(!enumTestOrderRange.empty);
+    assert(enumTestOrderRange.front == EnumTestOrder.one);
+    enumTestOrderRange.popFront();
+    assert(enumTestOrderRange.front == EnumTestOrder.three);
+    enumTestOrderRange.popFront();
+    assert(enumTestOrderRange.empty);
+
+    enumTestOrder = EnumSet!EnumTestOrder(EnumTestOrder.one);
+    assert(enumTestOrder.any([EnumTestOrder.one, EnumTestOrder.three]));
+    assert(!enumTestOrder.any([EnumTestOrder.two, EnumTestOrder.three]));
+
+    enumTestOrder.reset();
+    assert(!cast(bool)enumTestOrder);
+
+    enumTestOrder.reset();
+    enumTestOrder.set(EnumTestOrder.two, true);
+    assert(cast(bool)enumTestOrder);
+    enumTestOrder.set(EnumTestOrder.two, false);
+    assert(!cast(bool)enumTestOrder);
 
     enum EnumTestSequence
     {
@@ -977,7 +1047,7 @@ nothrow @safe unittest // EnumSet
     static assert(isEnumSet!EnumTestLimit16);
     static assert(is(EnumSetStorage!EnumTestLimit16 == ushort));
 
-    
+
     enum EnumTestLimit32
     {
         b1, b2, b3, b4, b5, b6, b7, b8, b9, b0,
@@ -1041,6 +1111,7 @@ nothrow @safe unittest // EnumArray
         EnumTestInt.EnumArrayEntry(EnumTest.max, int.max)
     );
 
+    assert(testInt.length == 3);
     assert(testInt.one == 1);
     assert(testInt.two == 2);
     assert(testInt.max == int.max);
@@ -1049,6 +1120,7 @@ nothrow @safe unittest // EnumArray
     assert(testInt[EnumTest.two] == 2);
     assert(testInt[EnumTest.max] == int.max);
 
+    assert(testInt.exist(1));
     assert(testInt.get(1) == EnumTest.one);
     assert(testInt.get(2) == EnumTest.two);
     assert(testInt.get(int.max) == EnumTest.max);
@@ -1056,7 +1128,9 @@ nothrow @safe unittest // EnumArray
     // Unknown -> return default min
     assert(!testInt.exist(3));
     assert(testInt.get(3) == EnumTest.min);
-
+    testInt[EnumTest.one] = 3;
+    assert(testInt.exist(3));
+    assert(testInt.get(3) == EnumTest.one);
 
     alias EnumTestString = EnumArray!(EnumTest, string);
 

@@ -69,9 +69,10 @@ in
 do
 {
     // Move all items after index to the left
-    if (array.length > 1)
+    const lengthLess = array.length - 1;
+    if (lengthLess > 0)
     {
-        while (index < array.length - 1)
+        while (index < lengthLess)
         {
             array[index] = array[index + 1];
             ++index;
@@ -92,14 +93,11 @@ in
 }
 do
 {
-    // Safety check
-    if (length > array.length)
-        length = array.length;
-
     // Move all items after index to the left
-    if (length > 1)
+    const lengthLess = length - 1;
+    if (lengthLess > 0)
     {
-        while (index < length - 1)
+        while (index < lengthLess)
         {
             array[index] = array[index + 1];
             ++index;
@@ -109,9 +107,12 @@ do
     // Reset the value at array[index]
     static if (is(typeof(lvalueOf!T[0]) == char))
         array[index] = char.init;
+    else static if (is(typeof(lvalueOf!T[0]) == wchar))
+        array[index] = wchar.init;
     else
         array[index] = ElementType!T.init;
-    --length;
+        
+    length = lengthLess;
 }
 
 struct IndexedArray(T, ushort StaticSize)
@@ -495,13 +496,13 @@ public:
         _longData = _longData.dup;
     }
 
-    this(bool setShortLength) nothrow pure
+    this(bool shortLength) nothrow pure
     {
-        if (setShortLength)
+        if (shortLength)
             this._length = StaticSize;
     }
 
-    this(ushort shortLength) nothrow pure
+    this(const(ushort) shortLength) nothrow pure
     {
         if (shortLength)
         {
@@ -642,16 +643,26 @@ public:
             return clear();
 
         const newLength = _length - chopLength;
+                
+        //import std.stdio : writeln; debug writeln("_length=", _length, ", chopLength=", chopLength, ", newLength=", newLength, ", StaticSize=", StaticSize, ", _shortData.length=", _shortData.length);
+        
         if (useShortSize)
-            _shortData[0..newLength] = _shortData[chopLength.._length];
+        {
+            foreach (i; 0..newLength)
+                _shortData[i] = _shortData[i + chopLength];
+        }
         else
         {
             // Switch from long to short?
             if (useShortSize(newLength))
                 _shortData[0..newLength] = _longData[chopLength.._length];
             else
-                _longData[0..newLength] = _longData[chopLength.._length];
+            {
+                foreach (i; 0..newLength)
+                    _longData[i] = _longData[i + chopLength];
+            }
         }
+        
         _length = newLength;
         return this;
     }
@@ -662,21 +673,25 @@ public:
             return clear();
 
         const newLength = _length - chopLength;
+
+        //import std.stdio : writeln; debug writeln("_length=", _length, ", chopLength=", chopLength, ", newLength=", newLength, ", StaticSize=", StaticSize, ", _shortData.length=", _shortData.length);
+        
         // Switch from long to short?
         if (!useShortSize && useShortSize(newLength))
-            _shortData[0..newLength] = _longData[chopLength.._length];
+            _shortData[0..newLength] = _longData[0..newLength];
+            
         _length = newLength;
         return this;
     }
 
-    ref typeof(this) clear(bool setShortLength = false) nothrow pure return
+    ref typeof(this) clear(const(bool) shortLength = false) nothrow pure return
     {
-        if (setShortLength)
+        if (shortLength)
         {
             _shortData[] = 0;
             _longData[] = 0;
         }
-        _length = setShortLength ? StaticSize : 0;
+        _length = shortLength ? StaticSize : 0;
         return this;
     }
 
@@ -919,11 +934,17 @@ if (isSomeChar!T || isIntegral!T)
 // Any below codes are private
 private:
 
-nothrow @safe unittest // array.arrayOfChar
+nothrow @safe unittest // arrayOfChar
 {
     assert(arrayOfChar!char('0', 0) == []);
     assert(arrayOfChar!char('0', 1) == "0");
     assert(arrayOfChar!char('0', 10) == "0000000000");
+}
+
+unittest // indexOf
+{
+    assert("abcxyz".indexOf('c') == 2);
+    assert("abcxyz".indexOf('C') == -1);
 }
 
 nothrow @safe unittest // inplaceMoveToLeft
@@ -933,9 +954,48 @@ nothrow @safe unittest // inplaceMoveToLeft
     assert(bytes == "6789067890");
 }
 
-nothrow @safe unittest // array.IndexedArray
+unittest // removeAt
 {
-    auto a = IndexedArray!(int, 2)(0);
+    // Dynamic array
+    auto da = [0, 1, 2, 3, 4, 5];
+    removeAt(da, 2);
+    assert(da.length == 5);
+    assert(da == [0, 1, 3, 4, 5]);
+    removeAt(da, 4);
+    assert(da.length == 4);
+    assert(da == [0, 1, 3, 4]);
+    
+    // Static array
+    int[6] sa = [0, 1, 2, 3, 4, 5];
+    size_t sal = 6;
+    removeAt(sa, 2, sal);
+    assert(sal == 5);
+    assert(sa == [0, 1, 3, 4, 5, 0]);
+    assert(sa[0..sal] == [0, 1, 3, 4, 5]);
+    removeAt(sa, 4, sal);
+    assert(sal == 4);
+    assert(sa == [0, 1, 3, 4, 0, 0]);
+    assert(sa[0..sal] == [0, 1, 3, 4]);
+    
+    char[6] sca = [0, 1, 2, 3, 4, 5];
+    size_t scal = 6;
+    removeAt(sca, 2, scal);
+    assert(scal == 5);
+    assert(sca == [0, 1, 3, 4, 5, char.init]);
+    assert(sca[0..scal] == [0, 1, 3, 4, 5]);
+    
+    wchar[6] swa = [0, 1, 2, 3, 4, 5];
+    size_t swal = 6;
+    removeAt(swa, 2, swal);
+    assert(swal == 5);
+    assert(swa == [0, 1, 3, 4, 5, wchar.init]);
+    assert(swa[0..swal] == [0, 1, 3, 4, 5]);
+}
+
+nothrow @safe unittest // IndexedArray
+{
+    alias IndexedArray2 = IndexedArray!(int, 2);
+    auto a = IndexedArray2(0);
 
     // Check initial state
     assert(a.empty);
@@ -1030,6 +1090,26 @@ nothrow @safe unittest // array.IndexedArray
     a.fill(10);
     assert(a.length == 1);
     assert(a[0] == 10);
+    
+    a = IndexedArray2(3);
+    a.putBack(1);
+    a.putBack(2);
+    a.putBack(3);
+    assert(a.length == 3);
+    assert(!a.useStatic);
+    assert(a[0] == 1);
+    assert(a[1] == 2);
+    assert(a[2] == 3);
+    
+    a = [1, 2, 3];
+    assert(a[3..4] == []);
+    assert(a[0..2] == [1, 2]);
+    assert(a[] == IndexedArray2([1, 2, 3])[]);
+    a.fill(10);
+    assert(a[0..9] == [10, 10, 10]);
+    a.clear();
+    assert(a.empty);
+    assert(a.length == 0);
 }
 
 nothrow unittest // IndexedArray.reverse
@@ -1045,9 +1125,9 @@ nothrow unittest // IndexedArray.reverse
 
 @safe unittest // ShortStringBufferSize
 {
-    alias TestBuffer = ShortStringBufferSize!(char, 5);
-
-    TestBuffer s;
+    alias TestBuffer5 = ShortStringBufferSize!(char, 5);
+    TestBuffer5 s;
+    
     assert(s.length == 0);
     s.put('1');
     assert(s.length == 1);
@@ -1074,11 +1154,91 @@ nothrow unittest // IndexedArray.reverse
     assert(s.right(5) == "vxywz");
     assert(s.right(20) == "ghijklmnopqrstuvxywz");
 
-    TestBuffer s2;
+    TestBuffer5 s2;
     s2 ~= s[];
     assert(s2.length == 26);
     assert(s2.toString() == "abcdefghijklmnopqrstuvxywz");
     assert(s2[] == "abcdefghijklmnopqrstuvxywz");
+    
+    s = s2;
+    assert(s == s2);
+}
+
+@safe unittest // ShortStringBufferSize
+{
+    alias TestBuffer5 = ShortStringBufferSize!(char, 5);
+    TestBuffer5 s;
+    
+    assert(TestBuffer5(true).length == TestBuffer5(5).length);
+    assert(TestBuffer5("123") == "123");
+    assert(TestBuffer5("123") != "234");
+    assert(TestBuffer5("123456") == "123456");
+    assert(TestBuffer5("123456") == TestBuffer5("123456"));
+    assert(TestBuffer5("123456") != TestBuffer5("345678"));
+    
+    // Over short length
+    s = "12345678";
+    assert(s[] == "12345678");
+    assert(s[2] == '3');
+    assert(s[10..20] == []);
+    s[2] = '?';
+    assert(s == "12?45678");
+    s.chopTail(1);
+    assert(s == "12?4567");
+    s.chopFront(1);
+    assert(s == "2?4567");
+    s.chopTail(2);
+    assert(s == "2?45");
+    s.chopFront(100);
+    assert(s.length == 0);
+
+    s = "123456";
+    assert(s.consume() == "123456");
+    assert(s.length == 0);
+
+    s = "123456";
+    assert(s.consumeUnique() == "123456");
+    assert(s.length == 0);
+
+    s = "123456";
+    s.dispose();
+    assert(s.length == 0);
+
+    s = "123456";
+    assert(s.removeFront('1') == "23456");
+    assert(s.removeTail('5') == "23456");
+    assert(s.removeTail('6') == "2345");
+    
+    // Within short length
+    s = "123";
+    assert(s[] == "123");
+    assert(s[2] == '3');
+    assert(s[7..10] == []);
+    s[2] = '?';
+    assert(s == "12?");
+    s.chopTail(1);
+    assert(s == "12");
+    s.chopFront(1);
+    assert(s == "2");
+    s.chopTail(100);
+    assert(s.length == 0);    
+
+    s = "123";
+    assert(s.consume() == "123");
+    assert(s.length == 0);
+
+    s = "123";
+    assert(s.consumeUnique() == "123");
+    assert(s.length == 0);
+
+    s = "123";
+    s.dispose();
+    assert(s.length == 0);
+
+    s = "123";
+    assert(s.removeFront('1') == "23");
+    assert(s.removeTail('2') == "23");
+    assert(s.removeTail('3') == "2");
 }
 
 nothrow @safe unittest // ShortStringBufferSize.reverse

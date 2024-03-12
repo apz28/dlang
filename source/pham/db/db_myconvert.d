@@ -132,7 +132,7 @@ do
 		return DbDateTime(DateTime(year, month, day, hour, minute, second), 0);
 
 	const int microsecond = numericBitCast!int32(uintDecode!uint32(myDateTimeBytes[7..$]));
-	return DbDateTime(DateTime(year, month, day, hour, minute, second).addTicksSafe(TickPart.microsecondToTick(microsecond)), 0);
+	return DbDateTime(DateTime(year, month, day, hour, minute, second).addTicksClamp(TickPart.microsecondToTick(microsecond)), 0);
 }
 
 enum maxDateTimeBufferSize = 12;

@@ -16,7 +16,8 @@ import std.format : format;
 import std.range.primitives : ElementType, isInputRange, isOutputRange;
 import std.stdio : File;
 import std.traits : hasUDA, isArray, isBasicType, isSomeString;
-import std.typecons : Flag, No, Yes;
+import std.typecons : Flag;
+public import std.typecons : No, Yes;
 import std.uni : sicmp;
 
 import pham.utl.utl_array : removeAt;
@@ -52,9 +53,10 @@ nothrow @safe:
 
 class IniFileException : Exception
 {
-    this(string message, Exception next = null)
+    this(string message,
+        Exception next = null, string file = __FILE__, uint line = __LINE__)
     {
-        super(message, next);
+        super(message, file, line, next);
     }
 }
 
@@ -63,38 +65,38 @@ struct Ini
 nothrow @safe:
 
 public:
-	static Ini opCall(string msg)
+    static Ini opCall(string msg)
     {
         Ini v;
         v.msg = msg;
 
-		return v;
-	}
+        return v;
+    }
 
 public:
-	string msg;
+    string msg;
 }
 
 string getIni(T)() @trusted
 {
-	foreach (it; __traits(getAttributes, T))
+    foreach (it; __traits(getAttributes, T))
     {
-		if (hasUDA!(T, Ini))
-			return it.msg;
-	}
+        if (hasUDA!(T, Ini))
+            return it.msg;
+    }
 
-	assert(0);
+    assert(0);
 }
 
 string getIni(T, string member)() @trusted
 {
-	foreach (it; __traits(getAttributes, __traits(getMember, T, member)))
+    foreach (it; __traits(getAttributes, __traits(getMember, T, member)))
     {
-		if (hasUDA!(__traits(getMember, T, member), Ini))
-			return it.msg;
-	}
+        if (hasUDA!(__traits(getMember, T, member), Ini))
+            return it.msg;
+    }
 
-	assert(0, member);
+    assert(0, member);
 }
 
 class IniFile
@@ -524,12 +526,12 @@ public:
 
 public:
     pragma (inline, true)
-    static bool isSpace(dchar c) pure nothrow @safe
+    static bool isSpace(dchar c) nothrow pure @safe
     {
         return c == ' ' || c == '\t';
     }
 
-    static IniFileLineKind parseSection(Line line, out Line name) pure nothrow @safe
+    static IniFileLineKind parseSection(Line line, out Line name) nothrow pure @safe
     {
         enum notSet = -1;
 
@@ -543,21 +545,21 @@ public:
         }
 
         nb = ne = notSet;
-	    foreach (i, c; line)
+        foreach (i, c; line)
         {
-		    if (isSpace(c))
+            if (isSpace(c))
             {
                 if (lb && !rb && ne == notSet)
                     ne = i;
             }
-		    else if (c == '[')
+            else if (c == '[')
             {
                 if (!lb)
                     lb = true;
                 else
                     return emptySection(IniFileLineKind.invalidSection);
-		    }
-		    else if (c == ']')
+            }
+            else if (c == ']')
             {
                 if (!lb)
                     return emptySection(IniFileLineKind.notSection);
@@ -570,7 +572,7 @@ public:
                 }
                 else
                     return emptySection(IniFileLineKind.invalidSection);
-		    }
+            }
             else
             {
                 if (!lb)
@@ -592,7 +594,7 @@ public:
                 else
                     ne = notSet; // Reset
             }
-	    }
+        }
 
         if (lb && rb && nb >= 0 && ne > nb)
         {
@@ -632,9 +634,9 @@ public:
 
         kq = 0;
         kb = ke = e = vb = ve = notSet;
-	    foreach (i, c; line)
+        foreach (i, c; line)
         {
-		    if (isSpace(c))
+            if (isSpace(c))
             {
                 // Still in key range?
                 if (e == notSet)
@@ -650,12 +652,12 @@ public:
                         ve = i;
                 }
             }
-		    else if (c == '=' && e == notSet && kq != 1)
+            else if (c == '=' && e == notSet && kq != 1)
             {
                 e = i;
                 if (ke == notSet)
                     ke = i;
-		    }
+            }
             else
             {
                 // Allow quoted name
@@ -709,7 +711,7 @@ public:
                         ve = notSet; // Reset
                 }
             }
-	    }
+        }
 
         // Empty?
         if (kb == notSet)
@@ -808,19 +810,19 @@ private:
 
 string loadMember(T)() @safe
 {
-	import std.format : format;
+    import std.format : format;
 
     enum arrayValueFmt = "\ncase \"%s\": \nt.%s = to!(typeof(t.%s))(inifile.getValue(sectionName, name).split(','));\n++matchedCount;\nbreak;\n";
     enum basicValueFmt = "\ncase \"%s\": \nt.%s = to!(typeof(t.%s))(inifile.getValue(sectionName, name));\n++matchedCount;\nbreak;\n";
 
-	string res;
+    string res;
 
-	foreach (it; __traits(allMembers, T))
+    foreach (it; __traits(allMembers, T))
     {
-		if (hasUDA!(__traits(getMember, T, it), Ini))
+        if (hasUDA!(__traits(getMember, T, it), Ini))
         {
             if (isBasicType!(typeof(__traits(getMember, T, it)))
-			    || isSomeString!(typeof(__traits(getMember, T, it))))
+                || isSomeString!(typeof(__traits(getMember, T, it))))
             {
                 res ~= basicValueFmt.format(it, it, it);
             }
@@ -829,11 +831,11 @@ string loadMember(T)() @safe
                 res ~= arrayValueFmt.format(it, it, it);
             }
         }
-	}
+    }
 
     assert(res.length != 0);
 
-	return "switch (name)\n{" ~ res ~ "default: break;\n}";
+    return "switch (name)\n{" ~ res ~ "default: break;\n}";
 }
 
 size_t loadMembers(T)(IniFile inifile, IniFile.Line sectionName, ref T t)
@@ -858,7 +860,7 @@ size_t loadMembers(T)(IniFile inifile, IniFile.Line sectionName, ref T t)
 
 string saveMember(T)(T t)
 {
-	import std.format : format;
+    import std.format : format;
     import std.traits : fullyQualifiedName;
 
     static if (isBasicType!T || isSomeString!T)
@@ -866,13 +868,13 @@ string saveMember(T)(T t)
     else static if (isArray!T && (isBasicType!(ElementType!T) || isSomeString!(ElementType!T)))
     {
         string value;
-		foreach (it; t)
+        foreach (it; t)
         {
             if (value.length != 0)
                 value ~= format(",%s", it);
             else
                 value = format("%s", it);
-		}
+        }
         return value;
     }
     else
@@ -884,23 +886,23 @@ string saveMember(T)(T t)
 size_t saveMembers(T)(IniFile inifile, IniFile.Line sectionName, ref T t)
 {
     size_t matchedCount;
-	foreach (it; __traits(allMembers, T))
+    foreach (it; __traits(allMembers, T))
     {
-		if (hasUDA!(__traits(getMember, T, it), Ini))
+        if (hasUDA!(__traits(getMember, T, it), Ini))
         {
-			static if (isBasicType!(typeof(__traits(getMember, T, it)))
-			           || isSomeString!(typeof(__traits(getMember, T, it)))
+            static if (isBasicType!(typeof(__traits(getMember, T, it)))
+                       || isSomeString!(typeof(__traits(getMember, T, it)))
                        || isArray!(typeof(__traits(getMember, T, it))))
-			{
+            {
                 inifile.setValue(sectionName, it, saveMember(__traits(getMember, t, it)));
                 inifile.setValueComment(sectionName, it, getIni!(T, it)());
                 ++matchedCount;
-			}
-		}
-	}
+            }
+        }
+    }
 
     if (hasUDA!(T, Ini))
-		inifile.setSectionComment(sectionName, getIni!T());
+        inifile.setSectionComment(sectionName, getIni!T());
 
     return matchedCount;
 }
@@ -918,41 +920,41 @@ unittest // IniFile.parseSection
         return "'" ~ name.idup ~ "'";
     }
 
-	assert(IniFile.parseSection("[SectionName]", name) == IniFileLineKind.section);
+    assert(IniFile.parseSection("[SectionName]", name) == IniFileLineKind.section);
     assert(name == "SectionName", gName());
 
-	assert(IniFile.parseSection("[SectionName.WithDot]", name) == IniFileLineKind.section);
+    assert(IniFile.parseSection("[SectionName.WithDot]", name) == IniFileLineKind.section);
     assert(name == "SectionName.WithDot", gName());
 
-	assert(IniFile.parseSection(" [ SectionName]", name) == IniFileLineKind.section);
+    assert(IniFile.parseSection(" [ SectionName]", name) == IniFileLineKind.section);
     assert(name == "SectionName", gName());
 
-	assert(IniFile.parseSection(" [ SectionName.WithDot]", name) == IniFileLineKind.section);
+    assert(IniFile.parseSection(" [ SectionName.WithDot]", name) == IniFileLineKind.section);
     assert(name == "SectionName.WithDot", gName());
 
-	assert(IniFile.parseSection(" [ SectionName ] ", name) == IniFileLineKind.section);
+    assert(IniFile.parseSection(" [ SectionName ] ", name) == IniFileLineKind.section);
     assert(name == "SectionName", gName());
 
-	assert(IniFile.parseSection(" [ SectionName.WithDot ] ", name) == IniFileLineKind.section);
+    assert(IniFile.parseSection(" [ SectionName.WithDot ] ", name) == IniFileLineKind.section);
     assert(name == "SectionName.WithDot", gName());
 
-	assert(IniFile.parseSection("[]", name) == IniFileLineKind.invalidSection);
-	assert(IniFile.parseSection("[[]", name) == IniFileLineKind.invalidSection);
-	assert(IniFile.parseSection("[]]", name) == IniFileLineKind.invalidSection);
-	assert(IniFile.parseSection("[[]]", name) == IniFileLineKind.invalidSection);
+    assert(IniFile.parseSection("[]", name) == IniFileLineKind.invalidSection);
+    assert(IniFile.parseSection("[[]", name) == IniFileLineKind.invalidSection);
+    assert(IniFile.parseSection("[]]", name) == IniFileLineKind.invalidSection);
+    assert(IniFile.parseSection("[[]]", name) == IniFileLineKind.invalidSection);
 
-	assert(IniFile.parseSection("]", name) == IniFileLineKind.notSection);
-	assert(IniFile.parseSection("", name) == IniFileLineKind.notSection);
-	assert(IniFile.parseSection("abc", name) == IniFileLineKind.notSection);
-	assert(IniFile.parseSection("", name) == IniFileLineKind.notSection);
+    assert(IniFile.parseSection("]", name) == IniFileLineKind.notSection);
+    assert(IniFile.parseSection("", name) == IniFileLineKind.notSection);
+    assert(IniFile.parseSection("abc", name) == IniFileLineKind.notSection);
+    assert(IniFile.parseSection("", name) == IniFileLineKind.notSection);
 
-	assert(IniFile.parseSection(";[SectionName] ", name) == IniFileLineKind.comment);
+    assert(IniFile.parseSection(";[SectionName] ", name) == IniFileLineKind.comment);
     assert(name == ";[SectionName] ", gName());
 
-	assert(IniFile.parseSection(";[SectionName.WithDot] ", name) == IniFileLineKind.comment);
+    assert(IniFile.parseSection(";[SectionName.WithDot] ", name) == IniFileLineKind.comment);
     assert(name == ";[SectionName.WithDot] ", gName());
 
-	assert(IniFile.parseSection(" ;[SectionName.WithDot] ", name) == IniFileLineKind.comment);
+    assert(IniFile.parseSection(" ;[SectionName.WithDot] ", name) == IniFileLineKind.comment);
     assert(name == ";[SectionName.WithDot] ", gName());
 }
 
@@ -970,60 +972,60 @@ unittest // IniFile.parseNameValue
         return "'" ~ value.idup ~ "'";
     }
 
-	assert(IniFile.parseNameValue("", name, value) == IniFileLineKind.empty);
-	assert(IniFile.parseNameValue("  ", name, value) == IniFileLineKind.empty);
+    assert(IniFile.parseNameValue("", name, value) == IniFileLineKind.empty);
+    assert(IniFile.parseNameValue("  ", name, value) == IniFileLineKind.empty);
 
-	assert(IniFile.parseNameValue(";", name, value) == IniFileLineKind.comment);
+    assert(IniFile.parseNameValue(";", name, value) == IniFileLineKind.comment);
     assert(name == ";", gName());
 
-	assert(IniFile.parseNameValue(" ;comment=text", name, value) == IniFileLineKind.comment);
+    assert(IniFile.parseNameValue(" ;comment=text", name, value) == IniFileLineKind.comment);
     assert(name == ";comment=text", gName());
 
-	assert(IniFile.parseNameValue("key ", name, value) == IniFileLineKind.noValue);
+    assert(IniFile.parseNameValue("key ", name, value) == IniFileLineKind.noValue);
     assert(name == "key", gName());
     assert(value is null, gValue());
 
-	assert(IniFile.parseNameValue("key=", name, value) == IniFileLineKind.noValue);
+    assert(IniFile.parseNameValue("key=", name, value) == IniFileLineKind.noValue);
     assert(name == "key", gName());
     assert(value is null, gValue());
 
-	assert(IniFile.parseNameValue("key=value", name, value) == IniFileLineKind.nameValue);
+    assert(IniFile.parseNameValue("key=value", name, value) == IniFileLineKind.nameValue);
     assert(name == "key", gName());
     assert(value == "value", gValue());
 
-	assert(IniFile.parseNameValue(" key = value ", name, value) == IniFileLineKind.nameValue);
+    assert(IniFile.parseNameValue(" key = value ", name, value) == IniFileLineKind.nameValue);
     assert(name == "key", gName());
     assert(value == "value", gValue());
 
-	assert(IniFile.parseNameValue("key=\"=value\"", name, value) == IniFileLineKind.nameValue);
+    assert(IniFile.parseNameValue("key=\"=value\"", name, value) == IniFileLineKind.nameValue);
     assert(name == "key", gName());
     assert(value == "=value", gValue());
 
-	assert(IniFile.parseNameValue("key= value\" ", name, value) == IniFileLineKind.nameValue);
+    assert(IniFile.parseNameValue("key= value\" ", name, value) == IniFileLineKind.nameValue);
     assert(name == "key", gName());
     assert(value == "value\"", gValue());
 
-	assert(IniFile.parseNameValue("key = 123", name, value) == IniFileLineKind.nameValue);
+    assert(IniFile.parseNameValue("key = 123", name, value) == IniFileLineKind.nameValue);
     assert(name == "key", gName());
     assert(value == "123", gValue());
 
-	assert(IniFile.parseNameValue(" key = abc defg ", name, value) == IniFileLineKind.nameValue);
+    assert(IniFile.parseNameValue(" key = abc defg ", name, value) == IniFileLineKind.nameValue);
     assert(name == "key", gName());
     assert(value == "abc defg", gValue());
 
-	assert(IniFile.parseNameValue(" \"quoted=name\" = value=equal ", name, value) == IniFileLineKind.nameValue);
+    assert(IniFile.parseNameValue(" \"quoted=name\" = value=equal ", name, value) == IniFileLineKind.nameValue);
     assert(name == "quoted=name", gName());
     assert(value == "value=equal", gValue());
 
-	assert(IniFile.parseNameValue(" \" quoted = name \" = \" value = equal \" ", name, value) == IniFileLineKind.nameValue);
+    assert(IniFile.parseNameValue(" \" quoted = name \" = \" value = equal \" ", name, value) == IniFileLineKind.nameValue);
     assert(name == " quoted = name ", gName());
     assert(value == " value = equal ", gValue());
 
-	assert(IniFile.parseNameValue(" \"quoted=name ", name, value) == IniFileLineKind.noValue);
+    assert(IniFile.parseNameValue(" \"quoted=name ", name, value) == IniFileLineKind.noValue);
     assert(name == "\"quoted=name ", gName());
     assert(value is null, gValue());
 
-	assert(IniFile.parseNameValue(" \"quoted=name\" abc", name, value) == IniFileLineKind.invalidName);
+    assert(IniFile.parseNameValue(" \"quoted=name\" abc", name, value) == IniFileLineKind.invalidName);
     assert(name is null, gName());
     assert(value is null, gValue());
 }
@@ -1068,36 +1070,36 @@ version(unittest)
 @Ini("Foo struct")
 struct Foo
 {
-	@Ini("Foo name")
-	string name;
+    @Ini("Foo name")
+    string name;
 
-	@Ini("Foo weight")
-	float weight;
+    @Ini("Foo weight")
+    float weight;
 
-	@Ini("Foo age")
-	int age;
+    @Ini("Foo age")
+    int age;
 
-	@Ini("Foo alive")
-	bool alive;
+    @Ini("Foo alive")
+    bool alive;
 
-	@Ini("Foo string array")
+    @Ini("Foo string array")
     string[] words;
 
-	@Ini("Foo int array")
+    @Ini("Foo int array")
     int[] ints;
 
-	bool opEquals(scope const(Foo) rhs)
+    bool opEquals(scope const(Foo) rhs)
     {
-		import std.math : isClose, isNaN;
+        import std.math : isClose, isNaN;
         import std.algorithm.comparison : equal;
 
-		return this.name == rhs.name
+        return this.name == rhs.name
             && this.age == rhs.age
             && this.alive == rhs.alive
             && equal(this.words, rhs.words)
             && equal(this.ints, rhs.ints)
-			&& (isClose(this.weight, rhs.weight) || (isNaN(this.weight) && isNaN(rhs.weight)));
-	}
+            && (isClose(this.weight, rhs.weight) || (isNaN(this.weight) && isNaN(rhs.weight)));
+    }
 }
 
 unittest // saveMembers & loadMembers
@@ -1105,9 +1107,9 @@ unittest // saveMembers & loadMembers
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);
 
     Foo p1;
-	p1.name = "Foo";
-	p1.age = 37;
-	p1.weight = 153.0;
+    p1.name = "Foo";
+    p1.age = 37;
+    p1.weight = 153.0;
     p1.alive = true;
     p1.words = ["123", "asd"];
     p1.ints = [123, 0, int.max];

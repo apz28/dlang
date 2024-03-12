@@ -79,7 +79,7 @@ void dateDecode(int32 pgDate, out int year, out int month, out int day) pure
 
 DbDate dateDecode(int32 pgDate) @nogc pure
 {
-    return epochDate.addDaysSafe(pgDate);
+    return epochDate.addDaysClamp(pgDate);
 }
 
 int32 dateEncode(scope const(DbDate) value) @nogc pure
@@ -89,7 +89,7 @@ int32 dateEncode(scope const(DbDate) value) @nogc pure
 
 DbDateTime dateTimeDecode(int64 pgDateTime) @nogc pure
 {
-    auto dt = epochDateTime.addTicksSafe(timeToDuration(pgDateTime));
+    auto dt = epochDateTime.addTicksClamp(timeToDuration(pgDateTime));
     return DbDateTime(dt, 0);
 }
 
@@ -101,9 +101,9 @@ int64 dateTimeEncode(scope const(DbDateTime) value) @nogc pure
 
 DbDateTime dateTimeDecodeTZ(int64 pgDateTime, int32 pgZone)
 {
-	auto dt = epochDateTime.addTicksSafe(timeToDuration(pgDateTime));
+	auto dt = epochDateTime.addTicksClamp(timeToDuration(pgDateTime));
 	if (pgZone != 0)
-		dt = dt.addSecondsSafe(-pgZone);
+		dt = dt.addSecondsClamp(-pgZone);
 	return DbDateTime(TimeZoneInfo.convertUtcToLocal(dt.asUTC), 0);
 }
 
@@ -333,7 +333,7 @@ DbTime timeDecodeTZ(int64 pgTime, int32 pgZone)
 {
 	auto dt = DateTime(DateTime.utcNow.date, Time(timeToDuration(pgTime)));
 	if (pgZone != 0)
-		dt = dt.addSecondsSafe(-pgZone);
+		dt = dt.addSecondsClamp(-pgZone);
 	return DbTime(TimeZoneInfo.convertUtcToLocal(dt.asUTC).time, 0);
 }
 
