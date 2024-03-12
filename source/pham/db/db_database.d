@@ -2132,9 +2132,12 @@ protected:
 
     final string timerName() nothrow pure @trusted
     {
-        scope (failure) assert(0, "Assume nothrow failed");
+        import pham.utl.utl_object : toString;
         
-        return format("%s_%x", "DbConnectionPool", cast(void*)this);
+        Appender!string buffer;
+        buffer.reserve(17 + size_t.sizeof * 2);
+        buffer.put("DbConnectionPool_");
+        return toString!16(buffer, cast(size_t)(cast(void*)this)).data;
     }
     
 private:

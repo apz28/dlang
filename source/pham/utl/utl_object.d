@@ -295,7 +295,11 @@ if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
 
     char[bufSize] bufDigits;
     size_t bufIndex = bufSize;
-    const isNeg = radix == 10 && n < 0;
+    
+    static if (isUnsigned!N || radix != 10)
+        const isNeg = false;
+    else
+        const isNeg = n < 0;
 
     static if (radix == 10)
     {
@@ -325,7 +329,7 @@ if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
             enum shift = 4;
         }
         else
-            static assert(false);
+            static assert(0);
 
         const radixDigits = letterCase == LetterCase.upper ? upperHexDigits : lowerHexDigits;
         UN un = n;
@@ -433,6 +437,8 @@ private:
  */
 struct RAIIMutex
 {
+    import core.atomic : atomicFetchAdd, atomicFetchSub, atomicLoad;
+    
 @nogc nothrow @safe:
 
 public:
@@ -465,7 +471,7 @@ public:
      */
     void lock()
     {
-        if (_lockedCounter++ == 0 && _mutex !is null)
+        if (atomicFetchAdd(_lockedCounter, 1) == 0 && _mutex !is null)
             _mutex.lock_nothrow();
     }
 
@@ -474,7 +480,7 @@ public:
      */
     void unlock()
     {
-        if (--_lockedCounter == 0 && _mutex !is null)
+        if (atomicFetchSub(_lockedCounter, 1) == 1 && _mutex !is null)
             _mutex.unlock_nothrow();
     }
 
@@ -484,7 +490,7 @@ public:
     pragma(inline, true)
     @property bool isLocked() const pure
     {
-        return _lockedCounter > 0;
+        return atomicLoad(_lockedCounter) > 0;
     }
 
     /**
@@ -492,7 +498,7 @@ public:
      */
     @property int lockedCounter() const pure
     {
-        return _lockedCounter;
+        return atomicLoad(_lockedCounter);
     }
 
 private:
