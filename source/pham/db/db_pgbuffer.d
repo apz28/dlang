@@ -294,7 +294,6 @@ public:
         return _buffer.peekBytes();
     }
 
-    debug(debug_pham_db_db_pgbuffer)
     string traceString(char messageCode) const nothrow pure @trusted
     {
         import std.conv : to;
@@ -475,7 +474,7 @@ public:
         return dateTimeDecodeTZ(dt, z);
     }
 
-    D readDecimal(D)(scope const(DbBaseType) baseType)
+    D readDecimal(D)(scope const(DbBaseTypeInfo) baseType)
     if (isDecimal!D)
     {
         if (baseType.typeId == PgOIdType.money)
@@ -746,7 +745,7 @@ public:
         _writer.writeInt32(z);
     }
 
-    void writeDecimal(D)(scope const(D) v, scope const(DbBaseType) baseType) nothrow
+    void writeDecimal(D)(scope const(D) v, scope const(DbBaseTypeInfo) baseType) nothrow
     if (isDecimal!D)
     {
         if (baseType.typeId == PgOIdType.money)

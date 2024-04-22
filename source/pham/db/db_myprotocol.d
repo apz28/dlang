@@ -80,7 +80,7 @@ public:
                 ? AuthKind.cont
                 : (packageData.isAuthSwitch() ? AuthKind.change : AuthKind.ok);
             auto reader = MyXdrReader(connection, packageData.buffer);
-            final switch(kind)
+            final switch (kind)
             {
                 case AuthKind.ok:
                     return readOkResponse(reader);
@@ -458,7 +458,7 @@ public:
 
     final prepareCommandWrite(MyCommand command, scope const(char)[] sql)
     {
-        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(sql=", sql, ")");
 
         auto writer = MyXdrWriter(connection, maxSinglePackage);
         writer.beginPackage(0);
@@ -670,16 +670,16 @@ public:
                 return DbValue(reader.readTimeValue(readFieldLength), dbType); //TODO timezone
             case DbType.uuid:
                 return DbValue(reader.readUUIDValue(readFieldLength), dbType);
-            case DbType.fixedString:
-            case DbType.string:
+            case DbType.stringFixed:
+            case DbType.stringVary:
                 return DbValue(reader.readStringValue(readFieldLength), dbType);
             case DbType.json:
             case DbType.xml:
             case DbType.text:
                 auto textValue = reader.readStringValue(readFieldLength);
                 return textValue.length != 0 ? DbValue(textValue, dbType) : DbValue.dbNull(dbType);
-            case DbType.fixedBinary:
-            case DbType.binary:
+            case DbType.binaryFixed:
+            case DbType.binaryVary:
                 auto binaryValue = reader.readBytesValue(readFieldLength);
                 return binaryValue.length != 0 ? DbValue(binaryValue, dbType) : DbValue.dbNull(dbType);
             case DbType.record:
@@ -971,14 +971,14 @@ protected:
                 return writer.writeTimeString(value.get!DbTime());
             case DbType.uuid:
                 return writer.writeUUIDString(value.get!UUID());
-            case DbType.fixedString:
-            case DbType.string:
+            case DbType.stringFixed:
+            case DbType.stringVary:
             case DbType.json:
             case DbType.text:
             case DbType.xml:
                 return writer.writeStringString(value.get!string());
-            case DbType.fixedBinary:
-            case DbType.binary:
+            case DbType.binaryFixed:
+            case DbType.binaryVary:
                 return writer.writeBytesString(value.get!(const(ubyte)[])());
             case DbType.record:
             case DbType.unknown:
@@ -1085,10 +1085,10 @@ protected:
             case DbType.uuid:
                 writeType(MyTypeId.fixedVarChar, myTypeSignedValue);
                 return valueWriter.writeUUID(value.get!UUID());
-            case DbType.fixedString:
+            case DbType.stringFixed:
                 writeType(MyTypeId.fixedVarChar, myTypeSignedValue);
                 return valueWriter.writeString(value.get!string());
-            case DbType.string:
+            case DbType.stringVary:
                 writeType(MyTypeId.varChar, myTypeSignedValue);
                 return valueWriter.writeString(value.get!string());
             case DbType.json:
@@ -1098,8 +1098,8 @@ protected:
             case DbType.xml:
                 writeType(MyTypeId.longBlob, myTypeSignedValue);
                 return valueWriter.writeString(value.get!string());
-            case DbType.fixedBinary:
-            case DbType.binary:
+            case DbType.binaryFixed:
+            case DbType.binaryVary:
                 writeType(MyTypeId.longBlob, myTypeSignedValue);
                 return valueWriter.writeBytes(value.get!(const(ubyte)[])());
             case DbType.record:
@@ -1199,13 +1199,14 @@ protected:
         auto packageData = readPackageData();
         auto reader = MyXdrReader(connection, packageData.buffer);
 
-        if (reader.readUInt8() != 0)
-            throw new MyException(DbErrorCode.read, "Expected prepared statement marker");
+        const marker = reader.readUInt8();
+        if (marker != 0)
+            throw new MyException(DbErrorCode.read, "Expecting OK prepared statement marker [0]: " ~ marker.to!string);
 
         info.id = reader.readInt32();
         info.fieldCount = reader.readInt16();
         info.parameterCount = reader.readInt16();
-        reader.readUInt32!3(); //TODO: find out what this is needed for
+        reader.readUInt32!3(); //first byte=filler, next 2 bytes=warning
     }
 
     final void prepareCommandReadParameters(MyCommand command, ref MyCommandPreparedResponse info)
@@ -1268,7 +1269,7 @@ protected:
         reader.readUInt8(); // byte header
         auto bytes = reader.readBytes(cast(int32)nullBitmapBytes);
 
-        debug(debug_pham_db_db_myprotocol) debug writeln("\t", "fieldCount=", fieldCount, ", length=", nullBitmapBytes, ", bytes=", bytes.dgToHex());
+        debug(debug_pham_db_db_myprotocol) debug writeln("\t", "fieldCount=", fieldCount, ", length=", nullBitmapBytes, ", bytes=", bytes);
 
         return BitArrayImpl!ubyte(bytes);
     }
@@ -1285,6 +1286,9 @@ protected:
             auto errorResult = valueReader.readError();
             throw new MyException(errorResult);
         }
+        
+        debug(debug_pham_db_db_myprotocol) debug writeln("\t", "sequenceByte=", result.sequenceByte, ", packetLength=", result.packetLength);
+        
         return result;
     }
 

@@ -28,7 +28,7 @@ if (isDecimal!(D1, D2))
     const fx = fastDecode(x, cx, ex, sx);
     const fy = fastDecode(y, cy, ey, sy);
 
-    final switch(fx)
+    final switch (fx)
     {
         case FastClass.finite:
             if (fy == FastClass.finite)
@@ -67,7 +67,7 @@ if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
     U cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             bool sy;
@@ -239,7 +239,7 @@ if (isDecimal!(D1, D2))
     const fx = fastDecode(x, cx, ex, sx);
     const fy = fastDecode(y, cy, ey, sy);
 
-    final switch(fx)
+    final switch (fx)
     {
         case FastClass.finite:
             if (fy == FastClass.finite)
@@ -277,7 +277,7 @@ if (isDecimal!D && isIntegral!T)
     alias U = CommonStorage!(D, T);
 
     U cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             bool sy;

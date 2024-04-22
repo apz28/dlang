@@ -301,7 +301,7 @@ public:
 	    _writer.writeUInt16(cast(uint16)(length * 2));
     }
 
-    void writeColumn(scope const(DbBaseType) baseType, ref FbIscBlrDescriptor descriptor) nothrow
+    void writeColumn(scope const(DbBaseTypeInfo) baseType, ref FbIscBlrDescriptor descriptor) nothrow
     in
     {
         assert(baseType.size >= -1 && baseType.size <= uint16.max);
@@ -332,7 +332,7 @@ public:
 	    _writer.writeUInt8(FbIsc.blr_eoc);
     }
 
-    void writeType(FbBlrType blrType, scope const(DbBaseType) baseType, const(FbBlrWriteType) writeTypeFor,
+    void writeType(FbBlrType blrType, scope const(DbBaseTypeInfo) baseType, const(FbBlrWriteType) writeTypeFor,
         ref FbIscBlrDescriptor descriptor) nothrow
     in
     {
@@ -817,7 +817,7 @@ public:
         return dateTimeDecodeTZ(d, t, zId, zOffset);
     }
 
-    D readDecimal(D)(scope const(DbBaseType) baseType)
+    D readDecimal(D)(scope const(DbBaseTypeInfo) baseType)
     if (isDecimal!D)
     {
 		switch (FbIscFieldInfo.fbType(baseType.typeId))
@@ -844,14 +844,14 @@ public:
 		}
     }
 
-    char[] readFixedChars(scope const(DbBaseType) baseType) @trusted // @trusted=cast()
+    char[] readFixedChars(scope const(DbBaseTypeInfo) baseType) @trusted // @trusted=cast()
     {
         const charsCount = baseType.size / 4; // UTF8 to char
         auto result = cast(char[])readOpaqueBytes(baseType.size);
         return truncateEndIf(result, charsCount, ' ');
     }
 
-    string readFixedString(scope const(DbBaseType) baseType) @trusted // @trusted=cast()
+    string readFixedString(scope const(DbBaseTypeInfo) baseType) @trusted // @trusted=cast()
     {
         return cast(string)readFixedChars(baseType);
     }
@@ -1205,7 +1205,7 @@ public:
         writeInt16(zOffset);
     }
 
-    void writeDecimal(D)(scope const(D) v, scope const(DbBaseType) baseType)
+    void writeDecimal(D)(scope const(D) v, scope const(DbBaseTypeInfo) baseType)
     if (isDecimal!D)
     {
 		switch (FbIscFieldInfo.fbType(baseType.typeId))
@@ -1232,7 +1232,7 @@ public:
 		}
     }
 
-    void writeFixedChars(scope const(char)[] v, scope const(DbBaseType) baseType) nothrow
+    void writeFixedChars(scope const(char)[] v, scope const(DbBaseTypeInfo) baseType) nothrow
     in
     {
         assert(v.length < FbIscSize.maxPackageLength);

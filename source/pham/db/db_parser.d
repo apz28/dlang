@@ -654,9 +654,15 @@ do
  */
 ResultIf!(DbURL!S) parseDbURL(S)(S dbURL)
 {
+    import std.range.primitives : ElementEncodingType;
+    //import std.traits : Unqual;
+    
     import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
     import pham.utl.utl_text : NamedValue, parseFormEncodedValues, simpleIndexOf, simpleIndexOfAny, simpleSplitter;
 
+    //alias C = Unqual!(ElementEncodingType!S);
+    alias C = ElementEncodingType!S;
+    
     auto currentURL = dbURL;
     size_t currentOffset = 0;
     DbURL!S result;
@@ -707,6 +713,8 @@ ResultIf!(DbURL!S) parseDbURL(S)(S dbURL)
         }
 
         const i = currentURL.simpleIndexOf('@');
+        
+        // Identity is not specified
         if (i < 0)
             return true;
 
@@ -768,7 +776,7 @@ ResultIf!(DbURL!S) parseDbURL(S)(S dbURL)
             {
                 auto ps = hostPort.front;
                 hostPort.popFront();
-				if (parseIntegral!(S, ushort)(ps, p) != NumericParsedKind.ok)
+				if (parseIntegral!(C, ushort)(ps, p) != NumericParsedKind.ok)
                     return hostError("Invalid port: " ~ ps.idup ~ ".");
 			}
             if (!hostPort.empty)
@@ -817,11 +825,11 @@ ResultIf!(DbURL!S) parseDbURL(S)(S dbURL)
     if (!parseDatabase())
         return returnResult();
 
-    bool parsedOption(size_t index, ResultIf!S name, ResultIf!S value) nothrow @safe
+    bool parsedOption(size_t index, ResultIf!(C[]) name, ResultIf!(C[]) value) nothrow @safe
     {
         if (name && value)
         {
-            result.options ~= NamedValue!S(name, value);
+            result.options ~= NamedValue!S(name.dup, value.dup);
             return true;
         }
         else
@@ -836,7 +844,7 @@ ResultIf!(DbURL!S) parseDbURL(S)(S dbURL)
     }
 
     if (currentURL.length != 0)
-        parseFormEncodedValues(currentURL, &parsedOption);
+        parseFormEncodedValues!C(currentURL, &parsedOption);
 
     return returnResult();
 }

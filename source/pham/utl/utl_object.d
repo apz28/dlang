@@ -442,6 +442,7 @@ struct RAIIMutex
 @nogc nothrow @safe:
 
 public:
+    @disable this();
     @disable this(this);
     @disable void opAssign(typeof(this));
 
@@ -852,7 +853,7 @@ nothrow @safe unittest // bytesFromHexs & bytesToHexs
     r = bytesFromHexs("FFXY");
     assert(r == []);
 
-    enum testHexs = "43414137364546413943383943443734433130363737303145434232424332363635393136423946384145383143353537453543333044383939463236434443";
+    static immutable testHexs = "43414137364546413943383943443734433130363737303145434232424332363635393136423946384145383143353537453543333044383939463236434443";
     auto bytes = bytesFromHexs(testHexs);
     assert(bytesToHexs(bytes) == testHexs);
 }

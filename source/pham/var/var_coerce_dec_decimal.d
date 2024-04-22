@@ -15,9 +15,10 @@ module pham.var.var_coerce_dec_decimal;
 // All implement after this point must be private
 private:
 
-import std.traits : isFloatingPoint, isIntegral, isSomeChar;
+import std.traits : fullyQualifiedName, isFloatingPoint, isIntegral, isSomeChar;
 import std.meta : AliasSeq;
 
+debug(debug_pham_var_var_coerce_dec_decimal) import std.stdio : writeln;
 import pham.external.dec.dec_decimal : Decimal32, Decimal64, Decimal128, isDecimal;
 import pham.external.dec.dec_type;
 import pham.var.var_coerce;
@@ -26,6 +27,9 @@ import pham.var.var_coerce;
 bool doCoerceDecimal(S, D)(scope void* srcPtr, scope void* dstPtr) nothrow
 if ((isFloatingPoint!S || isIntegral!S || isSomeChar!S || isDecimal!S) && isDecimal!D)
 {
+    debug(debug_pham_var_var_coerce_dec_decimal) debug writeln(__FUNCTION__, "(S=", fullyQualifiedName!S, ", D=", fullyQualifiedName!D, ")");
+    static if (isDecimal!S) debug(debug_pham_var_var_coerce_dec_decimal) debug writeln("\t", "srcPtr=", (*cast(S*)srcPtr).toString());
+    
     const savedState = DecimalControl.clearState();
     scope (exit)
         DecimalControl.restoreState(savedState);
@@ -38,12 +42,18 @@ if ((isFloatingPoint!S || isIntegral!S || isSomeChar!S || isDecimal!S) && isDeci
         {
             // Ignore the ExceptionFlags.inexact for float
             if (DecimalControl.severe)
+            {
+                debug(debug_pham_var_var_coerce_dec_decimal) debug writeln("\t", "DecimalControl.severe=", DecimalControl.severe);
                 return false;
+            }
         }
         else
         {
             if (DecimalControl.flags)
+            {
+                debug(debug_pham_var_var_coerce_dec_decimal) debug writeln("\t", "DecimalControl.flags=", DecimalControl.flags);
                 return false;
+            }
         }
 
         *cast(D*)dstPtr = r;
@@ -51,6 +61,7 @@ if ((isFloatingPoint!S || isIntegral!S || isSomeChar!S || isDecimal!S) && isDeci
     }
     catch (Exception ex)
     {
+        debug(debug_pham_var_var_coerce_dec_decimal) debug writeln("\t", "ex.message=", ex.message);
         return false;
     }
 }
@@ -59,6 +70,8 @@ if ((isFloatingPoint!S || isIntegral!S || isSomeChar!S || isDecimal!S) && isDeci
 bool doCoerceDecimalToNumeric(S, D)(scope void* srcPtr, scope void* dstPtr) nothrow
 if (isDecimal!S && (isFloatingPoint!D || isIntegral!D || isSomeChar!D))
 {
+    debug(debug_pham_var_var_coerce_dec_decimal) debug writeln(__FUNCTION__, "(S=", fullyQualifiedName!S, ", D=", fullyQualifiedName!D, ")");
+    
     const savedState = DecimalControl.clearState();
     scope (exit)
         DecimalControl.restoreState(savedState);
@@ -71,12 +84,18 @@ if (isDecimal!S && (isFloatingPoint!D || isIntegral!D || isSomeChar!D))
         {
             // Ignore the ExceptionFlags.inexact for float
             if (DecimalControl.severe)
+            {
+                debug(debug_pham_var_var_coerce_dec_decimal) debug writeln("\t", "DecimalControl.severe=", DecimalControl.severe);
                 return false;
+            }
         }
         else
         {
             if (DecimalControl.flags)
+            {
+                debug(debug_pham_var_var_coerce_dec_decimal) debug writeln("\t", "DecimalControl.flags=", DecimalControl.flags);
                 return false;
+            }
         }
 
         *cast(D*)dstPtr = r;
@@ -84,6 +103,7 @@ if (isDecimal!S && (isFloatingPoint!D || isIntegral!D || isSomeChar!D))
     }
     catch (Exception ex)
     {
+        debug(debug_pham_var_var_coerce_dec_decimal) debug writeln("\t", "ex.message=", ex.message);
         return false;
     }
 }
@@ -104,6 +124,7 @@ shared static this() nothrow @safe
             // Inverse
             invHandler.doCoerce = &doCoerceDecimalToNumeric!(D, S);
             ConvertHandler.add!(D, S)(invHandler);
+            ConvertHandler.add!(const(D), S)(invHandler);
         }
     }
 
@@ -124,10 +145,12 @@ shared static this() nothrow @safe
             {
                 handler.doCoerce = &doCoerceDecimal!(S, D);
                 ConvertHandler.add!(S, D)(handler);
+                ConvertHandler.add!(const(S), D)(handler);
 
                 // Inverse
                 invHandler.doCoerce = &doCoerceDecimal!(D, S);
                 ConvertHandler.add!(D, S)(invHandler);
+                ConvertHandler.add!(const(D), S)(invHandler);
             }
         }
     }

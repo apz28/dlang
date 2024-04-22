@@ -20,9 +20,9 @@ version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 public import pham.var.var_variant : Variant, VariantType;
 import pham.var.var_variant : variantNoLengthMarker;
-//import pham.var.var_coerce;
-//import pham.var.var_coerce_dec_decimal;
-//import pham.var.var_coerce_pham_date_time;
+import pham.var.var_coerce;
+import pham.var.var_coerce_dec_decimal;
+import pham.var.var_coerce_pham_date_time;
 import pham.db.db_convert;
 import pham.db.db_type;
 
@@ -160,13 +160,14 @@ public:
         return this;
     }
 
-    @property Variant value() @safe
+    @property Variant value() nothrow @safe
     {
         return _value;
     }
+    
     alias value this;
 
-    @property void value(Variant value) @safe
+    @property void value(Variant value) nothrow @safe
     {
         doAssignVariant(value);
     }
@@ -313,7 +314,7 @@ private:
             static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
     }
 
-    void doAssignVariant(Variant rhs) @safe
+    void doAssignVariant(Variant rhs) nothrow @safe
     {
         this._value = rhs;
         
@@ -332,7 +333,7 @@ private:
                         break;
                     case VariantType.character:
                     // TODO convert to string
-                        this._type = DbType.fixedString;
+                        this._type = DbType.stringFixed;
                         break;
                     case VariantType.integer:
                         this._type = DbType.int32;
@@ -346,7 +347,7 @@ private:
                         this._type = DbType.int32;
                         break;
                     case VariantType.string:
-                        this._type = DbType.string;
+                        this._type = DbType.stringVary;
                     // TODO for wstring & dstring
                         break;
                     case VariantType.staticArray:
@@ -627,9 +628,9 @@ unittest // DbValue
     assert(vb.size == valueNoSizeMarker);
     assert(!vb.isNull);
 
-    DbValue vc = DbValue('x', DbType.fixedString);
+    DbValue vc = DbValue('x', DbType.stringFixed);
     assert(vc.value == "x");
-    assert(vc.type == DbType.fixedString);
+    assert(vc.type == DbType.stringFixed);
     assert(vc.size == 1);
     assert(!vc.isNull);
 
@@ -689,33 +690,33 @@ unittest // DbValue
     assert(vf64.size == valueNoSizeMarker);
     assert(!vf64.isNull);
 
-    DbValue vss = DbValue("this is a string", DbType.string);
+    DbValue vss = DbValue("this is a string", DbType.stringVary);
     assert(vss.value == "this is a string");
-    assert(vss.type == DbType.string);
+    assert(vss.type == DbType.stringVary);
     assert(vss.size == "this is a string".length);
     assert(!vss.isNull);
-    vss = DbValue("", DbType.string);
+    vss = DbValue("", DbType.stringVary);
     assert(vss.value == "");
-    assert(vss.type == DbType.string);
+    assert(vss.type == DbType.stringVary);
     assert(vss.size == 0);
     //assert(!vss.isNull); // TODO need to work out for this empty type?
 
-    DbValue vsw = DbValue("this is a wstring"w, DbType.string);
+    DbValue vsw = DbValue("this is a wstring"w, DbType.stringVary);
     assert(vsw.value == "this is a wstring");
-    assert(vsw.type == DbType.string);
+    assert(vsw.type == DbType.stringVary);
     assert(vsw.size == "this is a wstring".length);
     assert(!vsw.isNull);
 
-    DbValue vsd = DbValue("this is a dstring"d, DbType.string);
+    DbValue vsd = DbValue("this is a dstring"d, DbType.stringVary);
     assert(vsd.value == "this is a dstring");
-    assert(vsd.type == DbType.string);
+    assert(vsd.type == DbType.stringVary);
     assert(vsd.size == "this is a dstring".length);
     assert(!vsd.isNull);
 
     ubyte[] bi = [1,2,3];
-    DbValue vbi = DbValue(bi, DbType.binary);
+    DbValue vbi = DbValue(bi, DbType.binaryVary);
     assert(vbi.value == cast(ubyte[])[1,2,3]);
-    assert(vbi.type == DbType.binary);
+    assert(vbi.type == DbType.binaryVary);
     assert(vbi.size == [1,2,3].length);
     assert(!vbi.isNull);
 

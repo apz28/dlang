@@ -61,11 +61,13 @@ struct DbMessage
     static immutable eInvalidConnectionHostName = "Unable to resolve host '%s'";
     static immutable eInvalidConnectionFatal = "Cannot perform %s when connection to '%s' is in fatal state";
     static immutable eInvalidConnectionInactive = "Cannot perform %s when connection to '%s' is closed";
-    static immutable eInvalidConnectionName = "Connection element name '%s' is invalid";
     static immutable eInvalidConnectionStatus = "Connection status '%s' is invalid";
     //static immutable eInvalidConnectionString = "Connection-String is invalid";
     static immutable eInvalidConnectionRequiredEncryption = "Wire encryption to '%s' is required but not support";
-    static immutable eInvalidConnectionPoolMaxUsed = "All connections are in used: %d / %d";
+    static immutable eInvalidConnectionPoolMaxUsed = "All connections are in used: %d / %d"; // Second %d is the max value
+    static immutable eInvalidConnectionStringName = "Invalid %s connection element '%s'"; // First %s is scheme name
+    static immutable eInvalidConnectionStringNameDup = "Duplicate %s connection element '%s'"; // First %s is scheme name
+    static immutable eInvalidConnectionStringValue = "Invalid %s element %s value '%s'"; // First %s is scheme name
 
     static immutable eInvalidSQLDAFieldIndex = "Invalid/Unsupported SQLDA type %d. FieldIndex, %d, is invalid";
     static immutable eInvalidSQLDAIndex = "Invalid/Unsupported SQLDA type %d. Index is not set";

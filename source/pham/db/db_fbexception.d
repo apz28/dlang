@@ -20,28 +20,28 @@ class FbException : SkException
 
 public:
     this(uint errorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
     {
         super(errorCode, errorMessage, next, funcName, file, line);
     }
 
     this(uint errorCode, string errorMessage, string sqlState, uint socketCode, uint vendorCode,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
     {
         super(errorCode, errorMessage, sqlState, socketCode, vendorCode, next, funcName, file, line);
     }
 
-    this(FbIscStatues statues,
+    this(FbIscStatues status,
         Throwable next = null)
     {
         string statusMessage, statusState;
         int statusCode;
-        statues.buildMessage(statusMessage, statusCode, statusState);
+        status.buildMessage(statusMessage, statusCode, statusState);
 
-        super(statusCode, statusMessage, statusState, 0, statusCode, next, statues.funcName, statues.file, statues.line);
-        this.statues = statues;
+        super(statusCode, statusMessage, statusState, 0, statusCode, next, status.funcName, status.file, status.line);
+        this.status = status;
     }
 
 public:
-    FbIscStatues statues;
+    FbIscStatues status;
 }

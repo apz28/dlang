@@ -136,14 +136,14 @@ public:
                 return Variant(readArrayImpl!DbTime(arrayColumn));
             case DbType.uuid:
                 return Variant(readArrayImpl!UUID(arrayColumn));
-            case DbType.fixedString:
-            case DbType.string:
+            case DbType.stringFixed:
+            case DbType.stringVary:
             case DbType.json:
             case DbType.xml:
             case DbType.text:
                 return Variant(readArrayImpl!string(arrayColumn));
-            case DbType.fixedBinary:
-            case DbType.binary:
+            case DbType.binaryFixed:
+            case DbType.binaryVary:
                 return Variant(readArrayImpl!(ubyte[])(arrayColumn));
 
             case DbType.record:
@@ -296,15 +296,15 @@ public:
             case DbType.uuid:
                 encodedArrayValue = writeArrayImpl!UUID(writerBuffer, arrayColumn, arrayValue, elements).peekBytes();
                 break;
-            case DbType.fixedString:
-            case DbType.string:
+            case DbType.stringFixed:
+            case DbType.stringVary:
             case DbType.json:
             case DbType.xml:
             case DbType.text:
                 encodedArrayValue = writeArrayImpl!string(writerBuffer, arrayColumn, arrayValue, elements).peekBytes();
                 break;
-            case DbType.fixedBinary:
-            case DbType.binary:
+            case DbType.binaryFixed:
+            case DbType.binaryVary:
                 encodedArrayValue = writeArrayImpl!(ubyte[])(writerBuffer, arrayColumn, arrayValue, elements).peekBytes();
                 break;
 
@@ -896,6 +896,13 @@ class FbCancelCommandData : DbCancelCommandData
 {
 @safe:
 
+public:
+    this(FbConnection connection) nothrow
+    {
+        this.connectionHandle = connection.fbHandle;
+    }
+
+public:
     FbHandle connectionHandle;
 }
 
@@ -921,7 +928,14 @@ public:
         return FbCommandBatch(this, false, parametersCapacity);
     }
 
-	final override const(char)[] getExecutionPlan(uint vendorMode) @safe
+    final FbParameter[] fbInputParameters() nothrow @safe
+    {
+        return hasInputParameters
+            ? parameters.getParameterOfs!FbParameter(inputDirections())
+            : null;
+    }
+
+	final override string getExecutionPlan(uint vendorMode) @safe
 	{
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(vendorMode=", vendorMode, ")");
         
@@ -950,7 +964,7 @@ public:
             else
                 break;
         }
-        return info.plan;
+        return info.plan.idup;
 	}
 
     final override Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe
@@ -1002,19 +1016,9 @@ public:
         return cast(FbConnection)connection;
     }
 
-    @property final FbFieldList fbFields() nothrow @safe
-    {
-        return cast(FbFieldList)fields;
-    }
-
     @property final FbHandle fbHandle() const nothrow @safe
     {
         return handle.get!FbHandle();
-    }
-
-    @property final FbParameterList fbParameters() nothrow @safe
-    {
-        return cast(FbParameterList)parameters;
     }
 
     @property final FbTransaction fbTransaction() nothrow pure @safe
@@ -1040,13 +1044,6 @@ package(pham.db):
             default:
                 return false;
         }
-    }
-
-    final FbParameter[] fbInputParameters() nothrow @trusted //@trusted=cast()
-    {
-        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
-
-        return cast(FbParameter[])inputParameters();
     }
 
     pragma(inline, true)
@@ -1184,7 +1181,7 @@ protected:
             if (response.count > 0)
             {
                 auto row = readRow(true);
-                fetchedRows.enqueue(row);
+                _fetchedRows.enqueue(row);
                 if (hasParameters)
                     mergeOutputParams(row);
             }
@@ -1225,7 +1222,7 @@ protected:
             {
                 case DbFetchResultStatus.hasData:
                     auto row = readRow(isScalar);
-                    fetchedRows.enqueue(row);
+                    _fetchedRows.enqueue(row);
                     break;
 
                 case DbFetchResultStatus.completed:
@@ -1367,11 +1364,12 @@ protected:
 
         column.baseName = iscField.name.idup;
         column.baseOwner = iscField.owner.idup;
+        column.baseNumericDigits = iscField.numericDigits;
         column.baseNumericScale = iscField.numericScale;
         column.baseSize = iscField.size;
         column.baseSubTypeId = iscField.subType;
         column.baseTableName = iscField.tableName.idup;
-        column.baseTypeId = iscField.type;
+        column.baseTypeId = iscField.baseTypeId;
         column.allowNull = iscField.allowNull;
 
         if (isNew || column.type == DbType.unknown)
@@ -1437,6 +1435,7 @@ protected:
                 const localIsStoredProcedure = isStoredProcedure;
                 auto localParameters = localIsStoredProcedure ? parameters : null;
                 auto localFields = fields;
+                localFields.reserve(iscBindInfo.fields.length);
                 foreach (i, ref iscField; iscBindInfo.fields)
                 {
                     auto newField = localFields.createField(this, iscField.useName.idup);
@@ -1468,6 +1467,7 @@ protected:
                 debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "parameters");
 
                 auto localParameters = parameters;
+                localParameters.reserve(iscBindInfo.fields.length);
                 foreach (i, ref iscField; iscBindInfo.fields)
                 {
                     if (i >= localParameters.length)
@@ -1496,11 +1496,11 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = fbConnection.protocol;
-        auto result = protocol.readValues(this, fbFields);
+        auto result = protocol.readValues(this, cast(FbFieldList)fields);
         if (isScalar)
         {
             size_t i = 0;
-            foreach (field; fbFields)
+            foreach (field; fields)
             {
                 final switch (field.isValueIdType())
                 {
@@ -1706,13 +1706,13 @@ public:
         this._arrayManager = FbArrayManager(this);
     }
 
-    this(DbDatabase database, FbConnectionStringBuilder connectionString) nothrow @safe
+    this(FbDatabase database, FbConnectionStringBuilder connectionString) nothrow @safe
     {
         super(database, connectionString);
         this._arrayManager = FbArrayManager(this);
     }
 
-    this(DbDatabase database, DbURL!string connectionString) @safe
+    this(FbDatabase database, DbURL!string connectionString) @safe
     {
         super(database, connectionString);
         this._arrayManager = FbArrayManager(this);
@@ -1725,11 +1725,9 @@ public:
         return FbCommandBatch(command, true, parametersCapacity);
     }
 
-    final override DbCancelCommandData createCancelCommandData(DbCommand command = null) nothrow @safe
+    final override DbCancelCommandData createCancelCommandData(DbCommand command) nothrow @safe
     {
-        FbCancelCommandData result = new FbCancelCommandData();
-        result.connectionHandle = fbHandle;
-        return result;
+        return new FbCancelCommandData(this);
     }
 
     final void createDatabase(FbCreateDatabaseInfo createDatabaseInfo)
@@ -1790,7 +1788,7 @@ public:
         return DbScheme.fb;
     }
 
-    @property final override bool supportMultiReaders() const nothrow pure @safe
+    @property final override bool supportMultiReaders() nothrow @safe
     {
         return true;
     }
@@ -1957,12 +1955,12 @@ class FbConnectionStringBuilder : SkConnectionStringBuilder
 @safe:
 
 public:
-    this(DbDatabase database) nothrow
+    this(FbDatabase database) nothrow
     {
         super(database);
     }
 
-    this(DbDatabase database, string connectionString)
+    this(FbDatabase database, string connectionString)
     {
         super(database, connectionString);
     }
@@ -2042,17 +2040,18 @@ public:
 protected:
     final override string getDefault(string name) const nothrow
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-        
-        auto n = DbIdentitier(name);
-        auto result = fbDefaultConnectionParameterValues.get(n, null);
-        return result.ptr !is null ? result : super.getDefault(name);
+        auto k = name in fbDefaultConnectionParameterValues;
+        return k !is null && (*k).def.length != 0 ? (*k).def : super.getDefault(name);
     }
 
     final override void setDefaultIfs() nothrow
     {
-        foreach (dpv; fbDefaultConnectionParameterValues.byKeyValue)
-            putIf(dpv.key, dpv.value);
+        foreach (ref dpv; fbDefaultConnectionParameterValues.byKeyValue)
+        {
+            auto def = dpv.value.def;
+            if (def.length)
+                putIf(dpv.key, def);
+        }
         super.setDefaultIfs();
     }
 }
@@ -2437,6 +2436,18 @@ version(UnitTestFBDatabase)
         csb.compress = compress;
         csb.integratedSecurity = integratedSecurity;
 
+        assert(csb.serverName == "localhost");
+        assert(csb.serverPort == 3_050);
+        assert(csb.userName == "SYSDBA");
+        assert(csb.userPassword == "masterkey");
+        assert(csb.dialect == 3);
+        assert(csb.databaseName == "UNIT_TEST");
+        assert(csb.receiveTimeout == dur!"seconds"(40));
+        assert(csb.sendTimeout == dur!"seconds"(20));
+        assert(csb.encrypt == encrypt);
+        assert(csb.compress == compress);
+        assert(csb.integratedSecurity == integratedSecurity);
+
         return cast(FbConnection)result;
     }
 
@@ -2509,9 +2520,9 @@ unittest // FbConnectionStringBuilder
     auto db = DbDatabaseList.getDb(DbScheme.fb);
     assert(cast(FbDatabase)db !is null);
 
-    auto connectionStringBuiler = db.createConnectionStringBuilder(null);
-    assert(cast(FbConnectionStringBuilder)connectionStringBuiler !is null);
-    auto useCSB = cast(FbConnectionStringBuilder)connectionStringBuiler;
+    auto connectionStringBuilder = db.createConnectionStringBuilder(null);
+    assert(cast(FbConnectionStringBuilder)connectionStringBuilder !is null);
+    auto useCSB = cast(FbConnectionStringBuilder)connectionStringBuilder;
 
     assert(useCSB.serverName == "localhost");
     assert(useCSB.serverPort == 3050);
@@ -2527,7 +2538,7 @@ unittest // FbConnection
     scope (exit)
         connection.dispose();
     assert(connection.state == DbConnectionState.closed);
-
+    
     connection.open();
     assert(connection.state == DbConnectionState.opened);
 
@@ -2679,7 +2690,6 @@ unittest // FbTransaction.encrypt.compress
 version(UnitTestFBDatabase)
 unittest // FbCommand.DDL
 {
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -2696,14 +2706,11 @@ unittest // FbCommand.DDL
     debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(DROP TABLE)");
     command.commandDDL = "DROP TABLE create_then_drop";
     command.executeNonQuery();
-
-    failed = false;
 }
 
 version(UnitTestFBDatabase)
 unittest // FbCommand.DDL.encrypt.compress
 {
-    bool failed = true;
     auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
     scope (exit)
         connection.dispose();
@@ -2718,14 +2725,11 @@ unittest // FbCommand.DDL.encrypt.compress
 
     command.commandDDL = q"{DROP TABLE create_then_drop}";
     command.executeNonQuery();
-
-    failed = false;
 }
 
 version(UnitTestFBDatabase)
 unittest // FbCommand.getExecutionPlan
 {
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -2752,8 +2756,6 @@ Select Expression
     //traceUnitTest("'", planDetail, "'");
     //traceUnitTest("'", expectedDetail, "'");
     assert(planDetail == expectedDetail);
-
-    failed = false;
 }
 
 version(UnitTestFBDatabase)
@@ -2762,7 +2764,6 @@ unittest // FbCommand.DML.Types
     import std.conv;
     import pham.utl.utl_object;
 
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -3118,8 +3119,6 @@ unittest // FbCommand.DML.Types
 		v = command.executeScalar();
 		assert(v.get!DbTime() == DbTime(14, 0, 0, 0, DateTimeZoneKind.utc, 65059), v.get!DbTime().toString());
     }
-    
-    failed = false;
 }
 
 version(UnitTestFBDatabase)
@@ -3127,7 +3126,6 @@ unittest // FbCommand.DML
 {
     import std.math;
 
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -3170,11 +3168,11 @@ unittest // FbCommand.DML
         assert(reader.getValue(6) == Date(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == DbDate(2020, 5, 20));
 
-        assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1, 0));
+        assert(reader.getValue(7) == DbTime(1, 1, 1));
+        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
 
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0, 0), reader.getValue(8).toString());
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
+        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0), reader.getValue(8).toString());
+        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
 
         assert(reader.getValue(9) == "ABC       ");
         assert(reader.getValue("CHAR_FIELD") == "ABC       ");
@@ -3192,8 +3190,6 @@ unittest // FbCommand.DML
         assert(reader.getValue("BIGINT_FIELD") == 4_294_967_296);
     }
     assert(count == 1);
-
-    failed = false;
 }
 
 version(UnitTestFBDatabase)
@@ -3201,7 +3197,6 @@ unittest // FbCommand.DML.Parameter
 {
     import std.math;
 
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -3217,8 +3212,8 @@ unittest // FbCommand.DML.Parameter
     command.parameters.add("DECIMAL_FIELD", DbType.decimal64).value = Decimal64(6.5);
     command.parameters.add("DATE_FIELD", DbType.date).value = DbDate(2020, 5, 20);
     command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1, 0);
-    command.parameters.add("CHAR_FIELD", DbType.fixedString).value = "ABC       ";
-    command.parameters.add("VARCHAR_FIELD", DbType.string).value = "XYZ";
+    command.parameters.add("CHAR_FIELD", DbType.stringFixed).value = "ABC       ";
+    command.parameters.add("VARCHAR_FIELD", DbType.stringVary).value = "XYZ";
     auto reader = command.executeReader();
     scope (exit)
         reader.dispose();
@@ -3252,10 +3247,10 @@ unittest // FbCommand.DML.Parameter
         assert(reader.getValue("DATE_FIELD") == DbDate(2020, 5, 20));
 
         assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1, 0));
+        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
 
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
+        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0));
+        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
 
         assert(reader.getValue(9) == "ABC       ");
         assert(reader.getValue("CHAR_FIELD") == "ABC       ");
@@ -3273,8 +3268,6 @@ unittest // FbCommand.DML.Parameter
         assert(reader.getValue("BIGINT_FIELD") == 4_294_967_296);
     }
     assert(count == 1);
-
-    failed = false;
 }
 
 version(UnitTestFBDatabase)
@@ -3282,7 +3275,6 @@ unittest // FbCommand.DML.encrypt.compress
 {
     import std.math;
 
-    bool failed = true;
     auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
     scope (exit)
         connection.dispose();
@@ -3325,11 +3317,11 @@ unittest // FbCommand.DML.encrypt.compress
         assert(reader.getValue(6) == DbDate(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == DbDate(2020, 05, 20));
 
-        assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1, 0));
+        assert(reader.getValue(7) == DbTime(1, 1, 1));
+        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
 
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
+        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0));
+        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
 
         assert(reader.getValue(9) == "ABC       ");
         assert(reader.getValue("CHAR_FIELD") == "ABC       ");
@@ -3347,14 +3339,11 @@ unittest // FbCommand.DML.encrypt.compress
         assert(reader.getValue("BIGINT_FIELD") == 4_294_967_296);
     }
     assert(count == 1);
-
-    failed = false;
 }
 
 version(UnitTestFBDatabase)
 unittest // FbCommand.DML.FbArrayManager
 {
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -3369,8 +3358,6 @@ unittest // FbCommand.DML.FbArrayManager
     assert(descriptor.bounds[0].lower == 1);
     assert(descriptor.bounds[0].upper == 10);
     assert(descriptor.calculateSliceLength() == 40);
-
-    failed = false;
 }
 
 version(UnitTestFBDatabase)
@@ -3381,7 +3368,6 @@ unittest // FbCommand.DML.Array
         return [1,2,3,4,5,6,7,8,9,10];
     }
 
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -3429,8 +3415,6 @@ unittest // FbCommand.DML.Array
 
     setArrayValue();
     readArrayValue();
-
-    failed = false;
 }
 
 version(UnitTestFBDatabase)
@@ -3446,7 +3430,6 @@ unittest // FbCommand.DML.Array.Less
         return [1,2,3,4,5];
     }
 
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -3494,14 +3477,11 @@ unittest // FbCommand.DML.Array.Less
 
     setArrayValue();
     readArrayValue();
-
-    failed = false;
 }
 
 version(UnitTestFBDatabase)
 unittest // FbCommand.DML.StoredProcedure
 {
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -3539,8 +3519,6 @@ unittest // FbCommand.DML.StoredProcedure
         }
         assert(count == 1);
     }
-
-    failed = false;
 }
 
 version(UnitTestFBDatabase)
@@ -3585,7 +3563,6 @@ unittest // FbCommandBatch
     import pham.dtm.dtm_date;
     import pham.utl.utl_object : VersionString;
 
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -3692,7 +3669,7 @@ unittest // DbDatabaseList.createConnection
     import std.string : representation;
 
     auto connection = DbDatabaseList.createConnection("firebird:server=myServerAddress;database=myDataBase;" ~
-        "user=myUsername;password=myPassword;role=myRole;pooling=true;connectionTimeout=100;encrypt=enabled;" ~
+        "user=myUsername;password=myPassword;role=myRole;pooling=true;connectionTimeout=100seconds;encrypt=enabled;" ~
         "fetchRecordCount=50;integratedSecurity=legacy;cachePage=2000;cryptKey=QUIx;");
     scope (exit)
         connection.dispose();
@@ -3718,7 +3695,7 @@ unittest // DbDatabaseList.createConnectionByURL
     import std.string : representation;
 
     auto connection = DbDatabaseList.createConnectionByURL("firebird://myUsername:myPassword@myServerAddress/myDataBase?" ~
-        "role=myRole&pooling=true&connectionTimeout=100&encrypt=enabled&" ~
+        "role=myRole&pooling=true&connectionTimeout=100seconds&encrypt=enabled&" ~
         "fetchRecordCount=50&integratedSecurity=legacy&cachePage=2000&cryptKey=QUIx");
     scope (exit)
         connection.dispose();
@@ -3897,7 +3874,6 @@ unittest // FbConnection.createDatabase
         }
     }
 
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
     {

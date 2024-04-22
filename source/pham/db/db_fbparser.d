@@ -166,7 +166,7 @@ ResultIf!FbCreateDatabaseInfo parseCreateDatabase(string createDatabaseStatement
         bool valid = expectKind([DbTokenKind.literal], tokenMessage, sValue, optionalSeparatorLiteral);
         if (valid)
         {
-            valid = parseIntegral!(string, int)(sValue, value) == NumericParsedKind.ok;
+            valid = parseIntegral!(char, int)(sValue, value) == NumericParsedKind.ok;
             if (!valid)
                 result = ResultIf!FbCreateDatabaseInfo.error(DbErrorCode.parse, DbTokenErrorMessage.conversion(sqlKind, sValue, "int"));
         }

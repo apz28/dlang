@@ -621,7 +621,15 @@ package(pham.db):
 class PgCancelCommandData: DbCancelCommandData
 {
 @safe:
-
+    
+public:
+    this(PgConnection connection)
+    {
+        this.serverProcessId = connection.serverInfo[DbServerIdentifier.protocolProcessId].to!int32();
+        this.serverSecretKey = connection.serverInfo[DbServerIdentifier.protocolSecretKey].to!int32();
+    }
+    
+public:
     int32 serverProcessId;
     int32 serverSecretKey;
 }
@@ -639,7 +647,7 @@ public:
         super(connection, transaction, name);
     }
 
-	final override const(char)[] getExecutionPlan(uint vendorMode) @safe
+	final override string getExecutionPlan(uint vendorMode) @safe
 	{
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(vendorMode=", vendorMode, ")");
 
@@ -668,6 +676,13 @@ public:
             lines++;
         }
         return result.data;
+    }
+
+    final PgParameter[] pgInputParameters() nothrow @safe
+    {
+        return hasInputParameters
+            ? parameters.getParameterOfs!PgParameter(inputDirections())
+            : null;
     }
 
     final override Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe
@@ -707,24 +722,6 @@ public:
         return cast(PgConnection)connection;
     }
 
-    @property final PgFieldList pgFields() nothrow @safe
-    {
-        return cast(PgFieldList)fields;
-    }
-
-    @property final PgParameterList pgParameters() nothrow @safe
-    {
-        return cast(PgParameterList)parameters;
-    }
-
-package(pham.db):
-    final PgParameter[] pgInputParameters() nothrow @trusted //@trusted=cast()
-    {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
-
-        return cast(PgParameter[])inputParameters();
-    }
-
 protected:
     final override string buildParameterPlaceholder(string parameterName, uint32 ordinal) nothrow @safe
     {
@@ -743,12 +740,14 @@ protected:
             auto info = pgConnection.getStoredProcedureInfo(storedProcedureName);
             if (info !is null)
             {
+                auto localParameters = parameters;
+                localParameters.reserve(info.argumentTypes.length);
                 foreach (src; info.argumentTypes)
-                    parameters.addClone(src);
+                    localParameters.addClone(src);
             }
         }
 
-        auto params = inputParameters();
+        auto params = pgInputParameters();
         auto result = Appender!string();
         result.reserve(500);
         result.put("CALL ");
@@ -810,12 +809,12 @@ protected:
 
         if (isStoredProcedure)
         {
-            if (fcs == DbFetchResultStatus.ready && fetchedRows.empty)
+            if (fcs == DbFetchResultStatus.ready && _fetchedRows.empty)
                 doFetch(true);
 
-            if (fetchedRows && hasParameters)
+            if (_fetchedRows && hasParameters)
             {
-                auto row = fetchedRows.front;
+                auto row = _fetchedRows.front;
                 mergeOutputParams(row);
             }
         }
@@ -845,7 +844,7 @@ protected:
             // Defer subsequence row for fetch call
             case DbFetchResultStatus.hasData:
                 auto row = readRow(reader, type == DbCommandExecuteType.scalar);
-                fetchedRows.enqueue(row);
+                _fetchedRows.enqueue(row);
                 break;
 
             case DbFetchResultStatus.completed:
@@ -868,7 +867,7 @@ protected:
     }
     do
     {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ")");
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ", fetchRecordCount=", fetchRecordCount, ")");
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
@@ -877,8 +876,7 @@ protected:
 
         auto protocol = pgConnection.protocol;
         uint continueFetchingCount = isScalar ? 1 : fetchRecordCount;
-        bool continueFetching = true;
-        bool isSuspended = false;
+        bool continueFetching = true, isSuspended = false;
         while (continueFetching && continueFetchingCount)
         {
             PgReader reader; // Since it is package message, need reader to continue reading row values
@@ -886,9 +884,9 @@ protected:
             final switch (response.fetchStatus())
             {
                 case DbFetchResultStatus.hasData:
-                    continueFetchingCount--;
                     auto row = readRow(reader, isScalar);
-                    fetchedRows.enqueue(row);
+                    _fetchedRows.enqueue(row);
+                    continueFetchingCount--;
                     break;
 
                 case DbFetchResultStatus.completed:
@@ -902,9 +900,9 @@ protected:
                         final switch (doExecuteCommandFetch(DbCommandExecuteType.reader, true))
                         {
                             case DbFetchResultStatus.hasData:
-                                continueFetchingCount--;
                                 allRowsFetched = false;
                                 continueFetching = true;
+                                continueFetchingCount--;
                                 break;
 
                             case DbFetchResultStatus.completed:
@@ -957,12 +955,14 @@ protected:
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(oidField=", oidField.traceString(), ")");
 
         column.baseName = oidField.name;
+        column.baseNumericDigits = oidField.numericPrecision;
+        column.baseNumericScale = oidField.numericScale;
         column.baseSize = oidField.size;
         column.baseTableId = oidField.tableOid;
         column.baseTypeId = oidField.type;
         column.baseSubTypeId = oidField.modifier;
         column.allowNull = oidField.allowNull;
-        column.ordinal = oidField.index;
+        column.ordinal = oidField.ordinal;
 
         if (isNew || column.type == DbType.unknown)
         {
@@ -980,7 +980,10 @@ protected:
 
         const localIsStoredProcedure = isStoredProcedure;
         auto localParameters = localIsStoredProcedure ? parameters : null;
+        if (localIsStoredProcedure)
+            localParameters.reserve(oidFieldInfos.length);
         auto localFields = fields;
+        localFields.reserve(oidFieldInfos.length);
         foreach (i, ref oidField; oidFieldInfos)
         {
             auto newField = localFields.createField(this, oidField.name);
@@ -1013,7 +1016,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = pgConnection.protocol;
-        return protocol.readValues(reader, this, pgFields);
+        return protocol.readValues(reader, this, cast(PgFieldList)fields);
     }
 }
 
@@ -1032,24 +1035,21 @@ public:
         this._largeBlobManager = PgLargeBlobManager(this);
     }
 
-    this(DbDatabase database, PgConnectionStringBuilder connectionString) nothrow @safe
+    this(PgDatabase database, PgConnectionStringBuilder connectionString) nothrow @safe
     {
         super(database, connectionString);
         this._largeBlobManager = PgLargeBlobManager(this);
     }
 
-    this(DbDatabase database, DbURL!string connectionString) @safe
+    this(PgDatabase database, DbURL!string connectionString) @safe
     {
         super(database, connectionString);
         this._largeBlobManager = PgLargeBlobManager(this);
     }
 
-    final override DbCancelCommandData createCancelCommandData(DbCommand command = null) @safe
+    final override DbCancelCommandData createCancelCommandData(DbCommand command) @safe
     {
-        auto result = new PgCancelCommandData();
-        result.serverProcessId = serverInfo[DbServerIdentifier.protocolProcessId].to!int32();
-        result.serverSecretKey = serverInfo[DbServerIdentifier.protocolSecretKey].to!int32();
-        return result;
+        return new PgCancelCommandData(this);
     }
 
     @property final ref PgLargeBlobManager largeBlobManager() nothrow @safe
@@ -1075,7 +1075,7 @@ public:
         return DbScheme.pg;
     }
 
-    @property final override bool supportMultiReaders() const nothrow pure @safe
+    @property final override bool supportMultiReaders() nothrow @safe
     {
         return false;
     }
@@ -1243,7 +1243,7 @@ SELECT pronargs, prorettype, proargtypes, proargmodes, proargnames
 FROM pg_proc
 WHERE proname = @proname
 }";
-        command.parameters.add("proname", DbType.string).value = storedProcedureName;
+        command.parameters.add("proname", DbType.stringVary).value = storedProcedureName;
         auto reader = command.executeReader();
         if (reader.hasRows() && reader.read())
         {
@@ -1301,12 +1301,12 @@ class PgConnectionStringBuilder : SkConnectionStringBuilder
 @safe:
 
 public:
-    this(DbDatabase database) nothrow
+    this(PgDatabase database) nothrow
     {
         super(database);
     }
 
-    this(DbDatabase database, string connectionString)
+    this(PgDatabase database, string connectionString)
     {
         super(database, connectionString);
     }
@@ -1338,17 +1338,18 @@ public:
 protected:
     final override string getDefault(string name) const nothrow
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-        
-        auto n = DbIdentitier(name);
-        auto result = pgDefaultConnectionParameterValues.get(n, null);
-        return result.ptr !is null ? result : super.getDefault(name);
+        auto k = name in pgDefaultConnectionParameterValues;
+        return k !is null && (*k).def.length != 0 ? (*k).def : super.getDefault(name);
     }
 
     final override void setDefaultIfs() nothrow
     {
-        foreach (dpv; pgDefaultConnectionParameterValues.byKeyValue)
-            putIf(dpv.key, dpv.value);
+        foreach (ref dpv; pgDefaultConnectionParameterValues.byKeyValue)
+        {
+            auto def = dpv.value.def;
+            if (def.length)
+                putIf(dpv.key, def);
+        }
         super.setDefaultIfs();
     }
 }
@@ -1562,11 +1563,10 @@ protected:
     {
         foreach (ref pgType; pgNativeTypes)
         {
-            // Must use completed type check
             if (pgType.dbType == _type)
             {
                 baseSize = pgType.nativeSize;
-                baseTypeId = pgType.nativeId;
+                baseTypeId = pgType.dbId;
                 break;
             }
         }
@@ -1737,7 +1737,7 @@ version(UnitTestPGDatabase)
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
         DbCompressConnection compress = DbCompressConnection.disabled)
     {
-    import std.file : thisExePath;
+        import std.file : thisExePath;
 
         auto db = DbDatabaseList.getDb(DbScheme.pg);
         assert(cast(PgDatabase)db !is null);
@@ -1757,6 +1757,20 @@ version(UnitTestPGDatabase)
         csb.sslCert = "pg_client-cert.pem";
         csb.sslKey = "pg_client-key.pem";
 
+        assert(csb.serverName == "localhost");
+        assert(csb.serverPort == 5_432);
+        assert(csb.userName == "postgres");
+        assert(csb.databaseName == "test");
+        assert(csb.userPassword == "masterkey");
+        assert(csb.receiveTimeout == dur!"seconds"(20));
+        assert(csb.sendTimeout == dur!"seconds"(10));
+        assert(csb.encrypt == encrypt);
+        assert(csb.compress == compress);
+        assert(csb.sslCa == "pg_ca.pem");
+        assert(csb.sslCaDir == thisExePath());
+        assert(csb.sslCert == "pg_client-cert.pem");
+        assert(csb.sslKey == "pg_client-key.pem");
+        
         return cast(PgConnection)result;
     }
 
@@ -1870,7 +1884,6 @@ unittest // PgTransaction
 version(UnitTestPGDatabase)
 unittest // PgCommand.DDL
 {
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -1885,8 +1898,6 @@ unittest // PgCommand.DDL
 
     command.commandDDL = q"{DROP TABLE create_then_drop}";
     command.executeNonQuery();
-
-    failed = false;
 }
 
 version(UnitTestPGDatabase)
@@ -1894,7 +1905,6 @@ unittest // PgCommand.DML - Simple select
 {
     import std.math;
 
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -1914,7 +1924,7 @@ unittest // PgCommand.DML - Simple select
     while (reader.read())
     {
         count++;
-        debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
+        debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.db_pgdatabase.PgCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -1938,10 +1948,10 @@ unittest // PgCommand.DML - Simple select
         assert(reader.getValue("DATE_FIELD") == DbDate(2020, 5, 20));
 
         assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1, 0));
+        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
 
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
+        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0));
+        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
 
         assert(reader.getValue(9) == "ABC       ");
         assert(reader.getValue("CHAR_FIELD") == "ABC       ");
@@ -1959,8 +1969,6 @@ unittest // PgCommand.DML - Simple select
         assert(reader.getValue("BIGINT_FIELD") == 4_294_967_296);
     }
     assert(count == 1);
-
-    failed = false;
 }
 
 version(UnitTestPGDatabase)
@@ -1968,7 +1976,6 @@ unittest // PgCommand.DML - Parameter select
 {
     import std.math;
 
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -1983,9 +1990,9 @@ unittest // PgCommand.DML - Parameter select
     command.parameters.add("DOUBLE_FIELD", DbType.float64).value = 4.20;
     command.parameters.add("DECIMAL_FIELD", DbType.numeric).value = Numeric(6.5);
     command.parameters.add("DATE_FIELD", DbType.date).value = DbDate(2020, 5, 20);
-    command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1, 0);
-    command.parameters.add("CHAR_FIELD", DbType.fixedString).value = "ABC       ";
-    command.parameters.add("VARCHAR_FIELD", DbType.string).value = "XYZ";
+    command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1);
+    command.parameters.add("CHAR_FIELD", DbType.stringFixed).value = "ABC       ";
+    command.parameters.add("VARCHAR_FIELD", DbType.stringVary).value = "XYZ";
     auto reader = command.executeReader();
     scope (exit)
         reader.dispose();
@@ -2019,10 +2026,10 @@ unittest // PgCommand.DML - Parameter select
         assert(reader.getValue("DATE_FIELD") == DbDate(2020, 5, 20));
 
         assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1, 0));
+        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
 
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
+        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0));
+        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
 
         assert(reader.getValue(9) == "ABC       ");
         assert(reader.getValue("CHAR_FIELD") == "ABC       ");
@@ -2040,14 +2047,11 @@ unittest // PgCommand.DML - Parameter select
         assert(reader.getValue("BIGINT_FIELD") == 4_294_967_296);
     }
     assert(count == 1);
-
-    failed = false;
 }
 
 version(UnitTestPGDatabase)
 unittest // PgCommand.DML.pg_proc
 {
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -2084,20 +2088,17 @@ ORDER BY pg_proc.proname
             ", pronargs=", pronargs, ", proargnames=", proargnames, ", proargtypes=", proargtypes,
             ", proargmodes=", proargmodes, ", prorettype=", prorettype);
     }
-
-    failed = false;
 }
 
 version(UnitTestPGDatabase)
 unittest // PgLargeBlob
 {
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
 
-    enum ubyte[] testData = [1,2,3,4,5,6,7,8,9,10];
+    static immutable ubyte[] testData = [1,2,3,4,5,6,7,8,9,10];
 
     auto transaction = connection.createTransaction();
     transaction.start();
@@ -2135,8 +2136,6 @@ unittest // PgLargeBlob
 
     transaction.dispose();
     transaction = null;
-
-    failed = false;
 }
 
 version(UnitTestPGDatabase)
@@ -2147,7 +2146,6 @@ unittest // PgCommand.DML - Array
         return [1,2,3,4,5,6,7,8,9,10];
     }
 
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -2195,8 +2193,6 @@ unittest // PgCommand.DML - Array
 
     setArrayValue();
     readArrayValue();
-
-    failed = false;
 }
 
 version(UnitTestPGDatabase)
@@ -2226,7 +2222,6 @@ unittest // PgCommand.getExecutionPlan
         return s;
     }
 
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -2260,14 +2255,11 @@ Execution Time: 0.053 ms}";
     assert(startsWith(lines[0], "Seq Scan on test_select"));
     assert(startsWith(lines[3], "Planning Time:"));
     assert(startsWith(lines[4], "Execution Time:"));
-
-    failed = false;
 }
 
 version(UnitTestPGDatabase)
 unittest // PgCommand.DML.StoredProcedure
 {
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -2292,8 +2284,6 @@ unittest // PgCommand.DML.StoredProcedure
         command.executeNonQuery();
         assert(command.parameters.get("X").variant == 4);
     }
-
-    failed = false;
 }
 
 version(UnitTestPGDatabase)
@@ -2317,7 +2307,7 @@ unittest // PgConnection(SSL)
 unittest // DbDatabaseList.createConnection
 {
     auto connection = DbDatabaseList.createConnection("postgresql:server=myServerAddress;database=myDataBase;" ~
-        "user=myUsername;password=myPassword;role=myRole;pooling=true;connectionTimeout=100;encrypt=enabled;" ~
+        "user=myUsername;password=myPassword;role=myRole;pooling=true;connectionTimeout=100seconds;encrypt=enabled;" ~
         "fetchRecordCount=50;integratedSecurity=legacy;");
     scope (exit)
         connection.dispose();
@@ -2339,7 +2329,7 @@ unittest // DbDatabaseList.createConnection
 unittest // DbDatabaseList.createConnectionByURL
 {
     auto connection = DbDatabaseList.createConnectionByURL("postgresql://myUsername:myPassword@myServerAddress/myDataBase?" ~
-        "role=myRole&pooling=true&connectionTimeout=100&encrypt=enabled&" ~
+        "role=myRole&pooling=true&connectionTimeout=100seconds&encrypt=enabled&" ~
         "fetchRecordCount=50&integratedSecurity=legacy");
     scope (exit)
         connection.dispose();
@@ -2452,7 +2442,6 @@ version(UnitTestPerfPGDatabase)
             }
         }
 
-        bool failed = true;
         auto connection = createTestConnection();
         scope (exit)
             connection.dispose();
@@ -2480,7 +2469,6 @@ version(UnitTestPerfPGDatabase)
         }
         result.end();
         assert(result.count > 0);
-        failed = false;
         return result;
     }
 }

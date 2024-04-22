@@ -11,6 +11,8 @@
 
 module pham.utl.utl_text;
 
+import std.traits : isSomeChar;
+
 public import pham.utl.utl_result : ResultIf;
 
 nothrow @safe:
@@ -41,18 +43,20 @@ S valueOf(S)(NamedValue!S[] values, scope const(S) name, S notFound = S.init) pu
     return notFound;
 }
 
-ResultIf!S decodeFormValue(S)(S encodedFormValue, const(char) invalidReplacementChar) pure
+ResultIf!(Char[]) decodeFormValue(Char)(return Char[] encodedFormValue,
+    const(Char) invalidReplacementChar = '?') pure
+if (isSomeChar!Char)
 {
     import std.array : Appender;
     import pham.utl.utl_numeric_parser : NumericParsedKind, parseHexDigits;
 
     if (encodedFormValue.simpleIndexOfAny("%+") < 0)
-        return ResultIf!S.ok(encodedFormValue);
+        return ResultIf!(Char[]).ok(encodedFormValue);
 
-    S firstErrorText;
+    Char[] firstErrorText;
     ptrdiff_t firstErrorIndex = -1;
 
-    auto result = Appender!S();
+    auto result = Appender!(Char[])();
     result.reserve(encodedFormValue.length);
 
     size_t i = 0;
@@ -75,7 +79,7 @@ ResultIf!S decodeFormValue(S)(S encodedFormValue, const(char) invalidReplacement
                 else
                 {
                     ubyte h;
-                    if (parseHexDigits!(S, ubyte)(encodedFormValue[i..(i + 2)], h) == NumericParsedKind.ok)
+                    if (parseHexDigits!(Char, ubyte)(encodedFormValue[i..(i + 2)], h) == NumericParsedKind.ok)
                         result.put(cast(char)h);
                     else
                     {
@@ -100,8 +104,8 @@ ResultIf!S decodeFormValue(S)(S encodedFormValue, const(char) invalidReplacement
 		}
 	}
     return firstErrorIndex == -1
-        ? ResultIf!S.ok(result.data)
-        : ResultIf!S.error(result.data, cast(int)firstErrorIndex, "Invalid form-encoded character: " ~ firstErrorText.idup);
+        ? ResultIf!(Char[]).ok(result.data)
+        : ResultIf!(Char[]).error(result.data, cast(int)firstErrorIndex, "Invalid form-encoded character: " ~ firstErrorText.idup);
 }
 
 /**
@@ -130,26 +134,29 @@ bool isAllSimpleChar(scope const(char)[] chars) @nogc pure
     return true;
 }
 
-void parseFormEncodedValues(S)(S formEncodedValues, bool delegate(size_t index, ResultIf!S name, ResultIf!S value) nothrow @safe valueCallBack)
+void parseFormEncodedValues(Char)(return Char[] formEncodedValues,
+    bool delegate(size_t index, return ResultIf!(Char[]) name, return ResultIf!(Char[]) value) nothrow @safe valueCallBack,
+    const(Char) invalidReplacementChar = '?')
+if (isSomeChar!Char)
 {
-    enum invalidReplacementChar = '?';
     size_t counter;
-    ResultIf!S name, value;
     foreach (formEncodedValue; formEncodedValues.simpleSplitter("&;"))
     {
         const i = formEncodedValue.simpleIndexOf('=');
         if (i >= 0)
         {
-            name = decodeFormValue(formEncodedValue[0..i], invalidReplacementChar);
-            value = decodeFormValue(formEncodedValue[(i + 1)..$], invalidReplacementChar);
+            if (!valueCallBack(counter++,
+                    decodeFormValue!Char(formEncodedValue[0..i], invalidReplacementChar),
+                    decodeFormValue!Char(formEncodedValue[(i + 1)..$], invalidReplacementChar)))
+                break;
         }
         else
         {
-            name = decodeFormValue(formEncodedValue, invalidReplacementChar);
-            value = ResultIf!S.ok(null);
+            if (!valueCallBack(counter++,
+                    decodeFormValue!Char(formEncodedValue, invalidReplacementChar),
+                    ResultIf!(Char[]).ok(null)))
+                break;
         }
-        if (!valueCallBack(counter++, name, value))
-            break;
     }
 }
 
@@ -163,7 +170,8 @@ void parseFormEncodedValues(S)(S formEncodedValues, bool delegate(size_t index, 
  *   index of `c` in `str` if found
  *   -1 if not found
  */
-ptrdiff_t simpleIndexOf(C)(scope const(C)[] str, const(C) c) @nogc pure
+ptrdiff_t simpleIndexOf(Char)(scope const(Char)[] str, const(Char) c) @nogc pure
+if (isSomeChar!Char)
 {
 	foreach (i; 0..str.length)
     {
@@ -183,7 +191,8 @@ ptrdiff_t simpleIndexOf(C)(scope const(C)[] str, const(C) c) @nogc pure
  *   index of `subStr` in `str` if found
  *   -1 if not found
  */
-ptrdiff_t simpleIndexOf(C)(scope const(C)[] str, scope const(C)[] subStr) @nogc pure
+ptrdiff_t simpleIndexOf(Char)(scope const(Char)[] str, scope const(Char)[] subStr) @nogc pure
+if (isSomeChar!Char)
 {
     if (str.length < subStr.length || subStr.length == 0)
         return -1;
@@ -219,7 +228,8 @@ ptrdiff_t simpleIndexOf(C)(scope const(C)[] str, scope const(C)[] subStr) @nogc 
  *   index of any `chars` in `str`
  *   -1 if not found
  */
-ptrdiff_t simpleIndexOfAny(C)(scope const(C)[] str, scope const(C)[] chars) @nogc pure
+ptrdiff_t simpleIndexOfAny(Char)(scope const(Char)[] str, scope const(Char)[] chars) @nogc pure
+if (isSomeChar!Char)
 {
 	foreach (i; 0..str.length)
     {
@@ -231,8 +241,6 @@ ptrdiff_t simpleIndexOfAny(C)(scope const(C)[] str, scope const(C)[] chars) @nog
 
 auto simpleSplitter(S, Separator)(S str, Separator separator)
 {
-    import std.traits : isSomeChar;
-
     struct Result
     {
     nothrow @safe:
@@ -379,6 +387,9 @@ nothrow @safe unittest // decodeFormValue
 	assert(decodeFormValue("%c2%aE", '\0') == "®");
 	assert(decodeFormValue("This+is%20a+test", '\0') == "This is a test");
     assert(decodeFormValue("This~is%20a-test%21%0D%0AHello%2C%20W%C3%B6rld..%20", '\0') == "This~is a-test!\r\nHello, Wörld.. ");
+
+    assert(decodeFormValue("Hello+%x2orld", '?') == "Hello ?orld");
+    assert(decodeFormValue("Hello+Worl%", '?') == "Hello Worl?");
 }
 
 nothrow @safe unittest // parseFormEncodedValues
@@ -392,7 +403,7 @@ nothrow @safe unittest // parseFormEncodedValues
     }
 
     values = null;
-    parseFormEncodedValues("a=b;c;dee=asd&e=fgh&f=j%20l", &parsedValue);
+    parseFormEncodedValues!(immutable(char))("a=b;c;dee=asd&e=fgh&f=j%20l", &parsedValue);
     assert("a" in values && values["a"] == "b");
 	assert("c" in values && values["c"] == "");
 	assert("dee" in values && values["dee"] == "asd");

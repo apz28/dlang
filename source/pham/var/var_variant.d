@@ -1315,7 +1315,7 @@ public:
     this(TypeInfo source, TypeInfo target, string operation, Exception next = null) nothrow @safe
     {
         auto s = "Unsupport Variant." ~ operation ~
-            " with incompatible type " ~ source.toString() ~" and " ~ target.toString();
+            " with incompatible type from " ~ source.toString() ~ " to " ~ target.toString();
         if (next !is null)
             s ~= ".\n" ~ next.msg;
         super(s, next);

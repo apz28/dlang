@@ -252,10 +252,10 @@ if (isIntegral!I)
     return apiName ~ " - Error code: " ~ errorCodeToString(errorCode);
 }
 
-string getSystemErrorMessage(const(uint) errorNo) nothrow @trusted
+string getSystemErrorMessage(const(uint) errorCode) nothrow @trusted
 in
 {
-    assert(errorNo != 0);
+    assert(errorCode != 0);
 }
 do
 {
@@ -265,7 +265,7 @@ do
         import core.sys.windows.winnt : LANG_NEUTRAL;
 
         wchar[1_000] buf = void;
-        auto n = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, null, errorNo, LANG_NEUTRAL, buf.ptr, buf.length, null);
+        auto n = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, null, errorCode, LANG_NEUTRAL, buf.ptr, buf.length, null);
         return n > 0 ? osWCharToString(buf[0..n]) : null;
     }
     else version(Posix)
@@ -276,9 +276,12 @@ do
         const(char)* p;
 
         version(CRuntime_Glibc)
-            p = strerror_r(errorNo, buf.ptr, buf.length);
-        else if (!strerror_r(errorNo, buf.ptr, buf.length))
-            p = buf.ptr;
+            p = strerror_r(errorCode, buf.ptr, buf.length);
+        else 
+        {
+            if (!strerror_r(errorCode, buf.ptr, buf.length))
+                p = buf.ptr;
+        }
         return p !is null ? osCharToString(p[0..p.strlen]) : null;
     }
     else
@@ -310,6 +313,24 @@ ResultStatus lastSystemError(string apiName,
     auto code = lastSystemError();
     auto message = getSystemErrorMessage(code);
     return ResultStatus.error(code, message.length != 0 ? message : genericErrorMessage(apiName, code), funcName, file, line);
+}
+
+string osCharToString(scope const(char)[] v) nothrow pure
+{
+    auto length = v.length;
+    while (length != 0 && v[length - 1] <= ' ')
+        length--;
+    return v[0..length].idup;
+}
+
+string osWCharToString(scope const(wchar)[] v) nothrow pure
+{
+    scope (failure) assert(0, "Assume nothrow failed");
+    
+    auto length = v.length;
+    while (length != 0 && v[length - 1] <= ' ')
+        length--;
+    return v[0..length].to!string();
 }
 
 /**
@@ -456,7 +477,7 @@ public:
         this.status = status;
     }
 
-    bool opCast(C: bool)() const @nogc nothrow pure
+    bool opCast(C: bool)() const @nogc nothrow pure scope
     {
         return isOK;
     }
@@ -519,7 +540,7 @@ public:
      * Returns true if there is error-code or error-message
      */
     pragma(inline, true)
-    @property bool isError() const @nogc nothrow pure
+    @property bool isError() const @nogc nothrow pure scope
     {
         return status.isError;
     }
@@ -528,7 +549,7 @@ public:
      * Returns true if there is no error-code and error-message
      */
     pragma(inline, true)
-    @property bool isOK() const @nogc nothrow pure
+    @property bool isOK() const @nogc nothrow pure scope
     {
         return status.isOK;
     }
@@ -559,7 +580,7 @@ public:
         this.line = line;
     }
 
-    bool opCast(C: bool)() const @nogc nothrow pure
+    bool opCast(C: bool)() const @nogc nothrow pure scope
     {
         return isOK;
     }
@@ -708,7 +729,7 @@ public:
      * If errorCode != 0 or errorMessage.length != 0
      */
     pragma(inline, true)
-    @property bool isError() const @nogc nothrow pure
+    @property bool isError() const @nogc nothrow pure scope
     {
         return errorCode != 0 || errorMessage.length != 0;
     }
@@ -718,7 +739,7 @@ public:
      * If errorCode == 0 and errorMessage.length == 0
      */
     pragma(inline, true)
-    @property bool isOK() const @nogc nothrow pure
+    @property bool isOK() const @nogc nothrow pure scope
     {
         return errorCode == 0 && errorMessage.length == 0;
     }
@@ -729,29 +750,6 @@ public:
     string funcName;
     uint errorCode;
     uint line;
-}
-
-
-package(pham.utl):
-
-string osCharToString(scope const(char)[] v) nothrow pure
-{
-    scope (failure) assert(0, "Assume nothrow failed");
-    
-    auto result = v.to!string();
-    while (result.length && result[$ - 1] <= ' ')
-        result = result[0..$ - 1];
-    return result;
-}
-
-string osWCharToString(scope const(wchar)[] v) nothrow pure
-{
-    scope (failure) assert(0, "Assume nothrow failed");
-    
-    auto result = v.to!string();
-    while (result.length && result[$ - 1] <= ' ')
-        result = result[0..$ - 1];
-    return result;
 }
 
 

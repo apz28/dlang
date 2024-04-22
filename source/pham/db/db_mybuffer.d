@@ -694,7 +694,6 @@ public:
         return _buffer.peekBytes();
     }
 
-    debug(debug_pham_db_db_mybuffer)
     string traceString(ubyte sequenceByte) const nothrow pure @trusted
     {
         import std.conv : to;

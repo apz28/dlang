@@ -745,7 +745,7 @@ public:
 		if (command.isStoredProcedure && command.hasFields)
 		{
             auto pWriterBlr = FbBlrWriter(connection);
-            auto pFldBlr = describeBlrFields(pWriterBlr, command.fbFields);
+            auto pFldBlr = describeBlrFields(pWriterBlr, cast(FbFieldList)command.fields);
             writer.writeBytes(pFldBlr.data);
 			writer.writeInt32(0); // Output message number
 		}
@@ -836,10 +836,10 @@ public:
     }
     do
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(fetchRecordCount=", command.fetchRecordCount, ")");
 
         auto writerBlr = FbBlrWriter(connection);
-        auto pFldBlr = describeBlrFields(writerBlr, command.fbFields);
+        auto pFldBlr = describeBlrFields(writerBlr, cast(FbFieldList)command.fields);
 
         auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_fetch);
@@ -1132,15 +1132,15 @@ public:
                 return DbValue(reader.readTimeTZ(), dbType);
             case DbType.uuid:
                 return DbValue(reader.readUUID(), dbType);
-            case DbType.fixedString:
+            case DbType.stringFixed:
                 return DbValue(reader.readFixedString(column.baseType), dbType);
-            case DbType.string:
+            case DbType.stringVary:
                 return DbValue(reader.readString(), dbType);
             case DbType.json:
             case DbType.xml:
             case DbType.text:
-            case DbType.fixedBinary:
-            case DbType.binary:
+            case DbType.binaryFixed:
+            case DbType.binaryVary:
                 return DbValue.entity(reader.readId(), dbType);
 
             case DbType.record:
@@ -1911,15 +1911,15 @@ protected:
                 return writer.writeTimeTZ(value.get!DbTime());
             case DbType.uuid:
                 return writer.writeUUID(value.get!UUID());
-            case DbType.fixedString:
+            case DbType.stringFixed:
                 return writer.writeFixedChars(value.get!string(), column.baseType);
-            case DbType.string:
+            case DbType.stringVary:
                 return writer.writeChars(value.get!string());
             case DbType.text:
             case DbType.json:
             case DbType.xml:
-            case DbType.fixedBinary:
-            case DbType.binary:
+            case DbType.binaryFixed:
+            case DbType.binaryVary:
                 return writer.writeId(value.get!FbId());
 
             case DbType.record:

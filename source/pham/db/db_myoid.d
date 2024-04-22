@@ -242,7 +242,7 @@ enum MyTypeIdEx : ushort
     mediumText = myTypeIdExStart + mediumBlob, /// A text column with a maximum length of 16_777_215 (2^24 - 1) characters
     longText = myTypeIdExStart + longBlob, /// A text column with a maximum length of 4_294_967_295 or 4G (2^32 - 1) characters
     tinyVarBinary = myTypeIdExStart + tinyVarChar, /// Variable length binary string
-    fixedBinary = myTypeIdExStart + fixedVarChar, /// Fixed length binary
+    binaryFixed = myTypeIdExStart + fixedVarChar, /// Fixed length binary
     uuid = 854, /// A guid column
 }
 

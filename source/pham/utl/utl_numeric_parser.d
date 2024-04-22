@@ -11,10 +11,13 @@
 
 module pham.utl.utl_numeric_parser;
 
+import core.time : Duration, dur;
 public import std.ascii : LetterCase;
-import std.range.primitives : ElementEncodingType, ElementType, empty, front, popFront, put,
+import std.range.primitives : ElementEncodingType, empty, put,
     isInfinite, isInputRange, isOutputRange;
 import std.traits : isIntegral, isSigned, isSomeChar, isUnsigned, Unqual;
+
+debug(debug_pham_utl_utl_numeric_parser) import std.stdio : writeln;
 
 import pham.utl.utl_utf8;
 
@@ -314,50 +317,52 @@ enum NumericLexerFlag : uint
 struct NumericLexerOptions(Char)
 if (isSomeChar!Char)
 {
-nothrow @safe:
+@nogc nothrow pure @safe:
+
+    alias C = Unqual!Char;
 
     /// Skip these characters, set to null to if not used
-    Unqual!Char[] groupSeparators = ['_'];
+    C[] groupSeparators = ['_'];
     NumericLexerFlag flags = NumericLexerFlag.skipLeadingBlank | NumericLexerFlag.skipTrailingBlank;
-    Unqual!Char decimalChar = '.';
+    C decimalChar = '.';
 
     pragma(inline, true)
-    bool canContinueSkippingSpaces() const @nogc pure
+    bool canContinueSkippingSpaces() const scope
     {
         return (flags & (NumericLexerFlag.skipTrailingBlank | NumericLexerFlag.skipInnerBlank)) != 0;
     }
 
     pragma(inline, true)
-    bool canSkippingLeadingBlank() const @nogc pure
+    bool canSkippingLeadingBlank() const scope
     {
         return (flags & NumericLexerFlag.skipLeadingBlank) != 0;
     }
 
     pragma(inline, true)
-    bool canSkippingInnerBlank() const @nogc pure
+    bool canSkippingInnerBlank() const scope
     {
         return (flags & NumericLexerFlag.skipInnerBlank) != 0;
     }
 
     pragma(inline, true)
-    bool canSkippingTrailingBlank() const @nogc pure
+    bool canSkippingTrailingBlank() const scope
     {
         return (flags & NumericLexerFlag.skipTrailingBlank) != 0;
     }
 
     pragma(inline, true)
-    bool isContinueSkippingChar(const(Char) c) const @nogc pure
+    bool isContinueSkippingChar(const(C) c) const scope
     {
         return isGroupSeparator(c) || (canSkippingInnerBlank() && isSpaceChar(c));
     }
 
     pragma(inline, true)
-    bool isDecimalChar(const(Char) c) const @nogc pure
+    bool isDecimalChar(const(C) c) const scope
     {
         return c == decimalChar;
     }
 
-    bool isGroupSeparator(const(Char) c) const @nogc pure
+    bool isGroupSeparator(const(C) c) const scope
     {
         foreach (i; 0..groupSeparators.length)
         {
@@ -367,29 +372,58 @@ nothrow @safe:
         return false;
     }
 
-    static bool isHexDigitPrefix(scope const(Char)[] hexDigits) @nogc pure
+    pragma (inline, true)
+    static bool isHexDigitPrefix(scope const(C)[] hexDigits)
     {
         return hexDigits.length >= 2 && hexDigits[0] == '0' && (hexDigits[1] == 'x' || hexDigits[1] == 'X');
     }
 
     pragma (inline, true)
-    bool isSpaceChar(const(Char) c) const @nogc pure
+    bool isSpaceChar(const(C) c) const scope
+    {
+        return isSpaceCharOnly(c) || isGroupSeparator(c);
+    }
+
+    pragma (inline, true)
+    static bool isSpaceCharOnly(const(C) c)
     {
         return c == ' '
-                || c == '\r'
-                || c == '\n'
-                || c == '\f'
-                || c == '\t'
-                || c == '\v'
-                || isGroupSeparator(c);
+            || c == '\r'
+            || c == '\n'
+            || c == '\f'
+            || c == '\t'
+            || c == '\v';
     }
 }
 
+@property ref inout(T) front(T)(return scope inout(T)[] a) pure @nogc
+if (!is(T[] == void[]))
+in
+{
+    assert(a.length, "Attempting to fetch the front of an empty array of " ~ T.stringof);
+}
+do
+{
+    return a[0];
+}
+
+void popFront(T)(scope ref inout(T)[] a) pure @nogc
+if (!is(T[] == void[]))
+in
+{
+    assert(a.length, "Attempting to popFront() past the end of an array of " ~ T.stringof);
+}
+do
+{
+    a = a[1 .. $];
+}
+
+version(none)
 enum isConstCharArray(T) =
     (is(immutable(T) == immutable(C)[], C) && (is(C == char) || is(C == wchar) || is(C == dchar)))
     || (is(const(T) == const(C)[], C) && (is(C == char) || is(C == wchar) || is(C == dchar)));
 
-enum isNumericLexerRange(Range) = isInputRange!Range && isSomeChar!(ElementType!Range) && !isInfinite!Range;
+enum isNumericLexerRange(Range) = isInputRange!Range && !isInfinite!Range && isSomeChar!(ElementEncodingType!Range);
 
 struct Base64Lexer(Range, char map62th = Base64MappingChar.map62th, char map63th = Base64MappingChar.map63th)
 if (isNumericLexerRange!Range)
@@ -397,13 +431,13 @@ if (isNumericLexerRange!Range)
 nothrow @safe:
 
 public:
-    alias RangeElement = Unqual!(ElementType!Range);
+    alias RangeElement = Unqual!(ElementEncodingType!Range);
 
 public:
     @disable this(this);
     @disable void opAssign(typeof(this));
 
-    this(Range value, NumericLexerOptions!(const(ElementType!Range)) options) pure
+    this(Range value, NumericLexerOptions!(const(ElementEncodingType!Range)) options) pure
     {
         this.value = value;
         this.options = options;
@@ -417,7 +451,7 @@ public:
         return options.canContinueSkippingSpaces();
     }
 
-    size_t conditionSkipSpaces() pure
+    uint conditionSkipSpaces() pure
     {
         return options.canContinueSkippingSpaces() ? skipSpaces() : 0;
     }
@@ -479,9 +513,9 @@ public:
         }
     }
 
-    size_t skipPaddingChars() pure
+    uint skipPaddingChars() pure
     {
-        size_t result;
+        uint result;
         while (!empty && front == Base64MappingChar.padding)
         {
             result++;
@@ -490,9 +524,9 @@ public:
         return result;
     }
 
-    size_t skipSpaces() pure
+    uint skipSpaces() pure
     {
-        size_t result;
+        uint result;
         while (!empty && options.isSpaceChar(front))
         {
             result++;
@@ -530,7 +564,7 @@ public:
 
 public:
     Range value;
-    NumericLexerOptions!(const(ElementType!Range)) options;
+    NumericLexerOptions!(const(ElementEncodingType!Range)) options;
 
 private:
     void checkHasBase64Char() pure
@@ -575,7 +609,7 @@ if (isNumericLexerRange!Range)
 nothrow @safe:
 
 public:
-    alias RangeElement = Unqual!(ElementType!Range);
+    alias RangeElement = Unqual!(ElementEncodingType!Range);
 
 public:
     @disable this(this);
@@ -601,7 +635,7 @@ public:
         return options.canContinueSkippingSpaces();
     }
 
-    size_t conditionSkipSpaces() pure
+    uint conditionSkipSpaces() pure
     {
         return options.canContinueSkippingSpaces() ? skipSpaces() : 0;
     }
@@ -652,10 +686,21 @@ public:
         }
     }
 
-    size_t skipSpaces() pure
+    uint skipSpaces() pure
     {
-        size_t result;
+        uint result;
         while (!empty && options.isSpaceChar(front))
+        {
+            result++;
+            popFront();
+        }
+        return result;
+    }
+
+    uint skipSpaceOnlys() pure
+    {
+        uint result;
+        while (!empty && options.isSpaceCharOnly(front))
         {
             result++;
             popFront();
@@ -794,16 +839,14 @@ private:
     bool _hasDecimalChar, _hasNumericChar, _hasHexDigitPrefix, _hasSavedFront, _isHex, _neg;
 }
 
-struct NumericStringRange(S)
-if (isConstCharArray!S)
+struct NumericStringRange(Char)
+if (isSomeChar!Char)
 {
 @nogc nothrow pure @safe:
 
-public:
-    alias RangeElement = Unqual!(ElementEncodingType!S);
+    alias C = Unqual!Char;
 
-public:
-    this(S str) scope
+    this(const(C)[] str) scope
     {
         this._str = str;
         this._length = str.length;
@@ -834,12 +877,11 @@ public:
 
     typeof(this) save() const return
     {
-        typeof(this) result = this;
-        return result;
+        return typeof(this)(_i, _length, _str);
     }
 
     pragma(inline, true)
-    @property RangeElement back() const scope
+    @property C back() const scope
     in
     {
         assert(!empty);
@@ -856,7 +898,7 @@ public:
     }
 
     pragma(inline, true)
-    @property RangeElement front() const scope
+    @property C front() const scope
     in
     {
         assert(!empty);
@@ -873,8 +915,16 @@ public:
     }
 
 private:
+    this(size_t i, size_t length, const(C)[] str) scope
+    {
+        this._i = i;
+        this._length = length;
+        this._str = str;
+    }
+
+private:
     size_t _i, _length;
-    S _str;
+    const(C)[] _str;
 }
 
 enum NumericParsedKind : ubyte
@@ -882,6 +932,7 @@ enum NumericParsedKind : ubyte
     ok,
     invalid,
     overflow,
+    underflow,
 }
 
 NumericLexerOptions!(const(Char)) defaultParseBase64Options(Char)() pure
@@ -925,7 +976,7 @@ NumericLexerOptions!(const(Char)) defaultParseIntegralOptions(Char)() pure
 NumericParsedKind parseBase64(Range, Writer)(ref Writer sink, scope ref Range base64Text) pure
 if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 {
-    auto lexer = Base64Lexer!(Range)(base64Text, defaultParseBase64Options!(ElementType!Range)());
+    auto lexer = Base64Lexer!(Range)(base64Text, defaultParseBase64Options!(ElementEncodingType!Range)());
     if (!lexer.hasBase64Char)
         return NumericParsedKind.invalid;
 
@@ -983,10 +1034,10 @@ if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 }
 
 ///dito
-NumericParsedKind parseBase64(S, Writer)(ref Writer sink, scope S base64Text) pure
-if (isConstCharArray!S && isOutputRange!(Writer, ubyte))
+NumericParsedKind parseBase64(Char, Writer)(ref Writer sink, scope const(Char)[] base64Text) pure
+if (isSomeChar!Char && isOutputRange!(Writer, ubyte))
 {
-    auto inputRange = NumericStringRange!S(base64Text);
+    auto inputRange = NumericStringRange!Char(base64Text);
     return parseBase64(sink, inputRange);
 }
 
@@ -999,6 +1050,267 @@ size_t parseBase64Length(const(size_t) chars,
         : (chars / 4) * 3;
 }
 
+NumericParsedKind parseComputingSize(scope const(char)[] computingSizeText, const(ComputingSizeUnit) defaultUnit, out long target) pure
+{
+    return parseComputingSize!char(computingSizeText, computingSizeUnitNames[], defaultUnit, target);
+}
+
+NumericParsedKind parseComputingSize(Char)(scope const(Char)[] computingSizeText, scope const(const(Char)[])[] computingSizeUnitNames, const(ComputingSizeUnit) defaultUnit, out long target) pure
+if (isSomeChar!Char)
+{
+    target = 0;
+
+    long d;
+    int suffixIndex;
+    const result = parseIntegralSuffix!(Char, long)(computingSizeText, computingSizeUnitNames, d, suffixIndex);
+
+    debug(debug_pham_utl_utl_numeric_parser) debug writeln("result=", result, ", d=", d, ", suffixIndex=", suffixIndex);
+
+    if (result == NumericParsedKind.ok)
+    {
+        if (d == 0)
+            return result;
+
+        const u = suffixIndex < 0 ? defaultUnit : cast(ComputingSizeUnit)suffixIndex;
+
+        debug(debug_pham_utl_utl_numeric_parser) debug writeln("result=", result, ", d=", d, ", u=", u, ", umax=", computingSizeUnitMaxs[u]);
+
+        if (d > 0 && d > computingSizeUnitMaxs[u])
+            return NumericParsedKind.overflow;
+        if (d < 0 && d < -computingSizeUnitMaxs[u])
+            return NumericParsedKind.underflow;
+
+        target = d * computingSizeUnitValues[u];
+    }
+
+    return result;
+}
+
+enum ComputingSizeUnit : ubyte
+{
+    bytes,
+    kbytes,
+    mbytes,
+    gbytes,
+    tbytes,
+    pbytes,
+}
+
+static immutable string[ComputingSizeUnit.max + 1] computingSizeUnitNames = [
+    "Bytes",
+    "KB",
+    "MB",
+    "GB",
+    "TB",
+    "PB",
+    ];
+
+enum long computingSizeUnit1K = 1_024L;
+
+static immutable long[ComputingSizeUnit.max + 1] computingSizeUnitValues = [
+    1L,
+    computingSizeUnit1K,
+    computingSizeUnit1K * computingSizeUnit1K,
+    computingSizeUnit1K * computingSizeUnit1K * computingSizeUnit1K,
+    computingSizeUnit1K * computingSizeUnit1K * computingSizeUnit1K * computingSizeUnit1K,
+    computingSizeUnit1K * computingSizeUnit1K * computingSizeUnit1K * computingSizeUnit1K * computingSizeUnit1K,
+    ];
+
+static immutable long[ComputingSizeUnit.max + 1] computingSizeUnitMaxs = [
+    long.max,
+    long.max / computingSizeUnitValues[ComputingSizeUnit.kbytes],
+    long.max / computingSizeUnitValues[ComputingSizeUnit.mbytes],
+    long.max / computingSizeUnitValues[ComputingSizeUnit.gbytes],
+    long.max / computingSizeUnitValues[ComputingSizeUnit.tbytes],
+    long.max / computingSizeUnitValues[ComputingSizeUnit.pbytes],
+    ];
+
+NumericParsedKind parseDecimalSuffix(Char, Range)(scope ref Range decimalText, scope const(const(Char)[])[] expectedSuffixNames, out double target, out int suffixIndex) pure
+if (isSomeChar!Char && isNumericLexerRange!Range)
+{
+    import std.conv : to;
+    import std.uni : sicmp;
+
+    alias RangeElement = Unqual!(ElementEncodingType!Range);
+
+    target = 0.0;
+    suffixIndex = -1;
+
+    auto lexer = NumericLexer!(Range)(decimalText, defaultParseDecimalOptions!RangeElement());
+    if (!lexer.hasNumericChar)
+        return NumericParsedKind.invalid;
+
+    uint digitsCount;
+    RangeElement[50] number;
+    while (!lexer.empty && digitsCount < number.length)
+    {
+        const c = lexer.front;
+
+        if (isDigit(c))
+        {
+            number[digitsCount++] = c;
+            lexer.popFront();
+        }
+        else if (lexer.allowDecimalChar && lexer.options.isDecimalChar(c))
+        {
+            number[digitsCount++] = c;
+            lexer.popDecimalChar();
+        }
+        else
+            break;
+    }
+    if (digitsCount == 0)
+        return NumericParsedKind.invalid;
+
+    try
+    {
+        target = number[0..digitsCount].to!double();
+    }
+    catch (Exception)
+    {
+        return NumericParsedKind.invalid;
+    }
+
+    lexer.skipSpaces();
+    if (lexer.empty)
+        return NumericParsedKind.ok;
+
+    RangeElement[100] suffix;
+    uint suffixLength;
+    while (suffixLength < suffix.length && !lexer.empty)
+    {
+        const c = lexer.front;
+        if (lexer.options.isSpaceCharOnly(c))
+            break;
+        suffix[suffixLength++] = c;
+        lexer.popFront();
+    }
+
+    lexer.skipSpaceOnlys();
+    if (suffixLength == 0 || !lexer.empty)
+        return NumericParsedKind.invalid;
+
+    foreach (i, s; expectedSuffixNames)
+    {
+        if (sicmp(s, suffix[0..suffixLength]) == 0)
+        {
+            suffixIndex = cast(int)i;
+            return NumericParsedKind.ok;
+        }
+    }
+
+    return NumericParsedKind.invalid;
+}
+
+NumericParsedKind parseDecimalSuffix(Char)(scope const(Char)[] decimalText, scope const(const(Char)[])[] expectedSuffixNames, out double target, out int suffixIndex) pure
+if (isSomeChar!Char)
+{
+    auto range = NumericStringRange!Char(decimalText);
+    return parseDecimalSuffix(range, expectedSuffixNames, target, suffixIndex);
+}
+
+enum DurationUnit : ubyte
+{
+    nsecs,
+    hnsecs,
+    usecs,
+    msecs,
+    seconds,
+    minutes,
+    hours,
+    days,
+    weeks,
+}
+
+static immutable string[DurationUnit.max + 1] durationUnitNames = [
+    "nsecs",
+    "hnsecs",
+    "usecs",
+    "msecs",
+    "seconds",
+    "minutes",
+    "hours",
+    "days",
+    "weeks",
+    ];
+
+static immutable long[DurationUnit.max + 1] durationUnitMaxs = [
+    (Duration.max / 100).total!"nsecs",
+    Duration.max.total!"hnsecs",
+    Duration.max.total!"usecs",
+    Duration.max.total!"msecs",
+    Duration.max.total!"seconds",
+    Duration.max.total!"minutes",
+    Duration.max.total!"hours",
+    Duration.max.total!"days",
+    Duration.max.total!"weeks",
+    ];
+
+NumericParsedKind parseDuration(scope const(char)[] durationText, const(DurationUnit) defaultUnit, out Duration target) pure
+{
+    return parseDuration!char(durationText, durationUnitNames[], defaultUnit, target);
+}
+
+NumericParsedKind parseDuration(Char)(scope const(Char)[] durationText, scope const(const(Char)[])[] durationUnitNames, const(DurationUnit) defaultUnit, out Duration target) pure
+if (isSomeChar!Char)
+{
+    target = Duration.zero;
+
+    long d;
+    int suffixIndex;
+    const result = parseIntegralSuffix!(Char, long)(durationText, durationUnitNames, d, suffixIndex);
+
+    debug(debug_pham_utl_utl_numeric_parser) debug writeln("result=", result, ", d=", d, ", suffixIndex=", suffixIndex);
+
+    if (result == NumericParsedKind.ok)
+    {
+        if (d == 0)
+            return result;
+
+        const u = suffixIndex < 0 ? defaultUnit : cast(DurationUnit)suffixIndex;
+
+        debug(debug_pham_utl_utl_numeric_parser) debug writeln("result=", result, ", d=", d, ", u=", u, ", umax=", durationUnitMaxs[u]);
+
+        if (d > 0 && d > durationUnitMaxs[u])
+            return NumericParsedKind.overflow;
+        if (d < 0 && d < -durationUnitMaxs[u])
+            return NumericParsedKind.underflow;
+
+        final switch (u) with (DurationUnit)
+        {
+            case nsecs:
+                target = dur!"nsecs"(d);
+                break;
+            case hnsecs:
+                target = dur!"hnsecs"(d);
+                break;
+            case usecs:
+                target = dur!"usecs"(d);
+                break;
+            case msecs:
+                target = dur!"msecs"(d);
+                break;
+            case seconds:
+                target = dur!"seconds"(d);
+                break;
+            case minutes:
+                target = dur!"minutes"(d);
+                break;
+            case hours:
+                target = dur!"hours"(d);
+                break;
+            case days:
+                target = dur!"days"(d);
+                break;
+            case weeks:
+                target = dur!"weeks"(d);
+                break;
+        }
+    }
+
+    return result;
+}
+
 /**
  * Parse 'hexText' to integral value
  * Params:
@@ -1007,16 +1319,16 @@ size_t parseBase64Length(const(size_t) chars,
  * Returns:
  *  NumericParsedKind
  */
-NumericParsedKind parseHexDigits(Range, Target)(scope ref Range hexText, out Target v) pure
+NumericParsedKind parseHexDigits(Range, Target)(scope ref Range hexText, out Target target) pure
 if (isNumericLexerRange!Range && isIntegral!Target)
 {
-    v = 0;
+    target = 0;
 
-    auto lexer = NumericLexer!Range(hexText, defaultParseHexDigitOptions!(ElementType!Range)());
+    auto lexer = NumericLexer!Range(hexText, defaultParseHexDigitOptions!(ElementEncodingType!Range)());
     if (!lexer.hasNumericChar)
         return NumericParsedKind.invalid;
 
-    size_t count;
+    uint count;
     ubyte b;
     while (!lexer.empty)
     {
@@ -1025,7 +1337,7 @@ if (isNumericLexerRange!Range && isIntegral!Target)
             if (count == Target.sizeof*2)
                 return NumericParsedKind.overflow;
 
-            v = cast(Target)((v << 4) | b);
+            target = cast(Target)((target << 4) | b);
             count++;
 
             lexer.popFront();
@@ -1043,11 +1355,11 @@ if (isNumericLexerRange!Range && isIntegral!Target)
 }
 
 ///dito
-NumericParsedKind parseHexDigits(S, Target)(scope S hexText, out Target v) pure
-if (isConstCharArray!S && isIntegral!Target)
+NumericParsedKind parseHexDigits(Char, Target)(scope const(Char)[] hexText, out Target target) pure
+if (isSomeChar!Char && isIntegral!Target)
 {
-    auto range = NumericStringRange!S(hexText);
-    return parseHexDigits(range, v);
+    auto range = NumericStringRange!Char(hexText);
+    return parseHexDigits(range, target);
 }
 
 /**
@@ -1061,7 +1373,7 @@ if (isConstCharArray!S && isIntegral!Target)
 NumericParsedKind parseBase16(Range, Writer)(ref Writer sink, scope ref Range hexDigitText) pure
 if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 {
-    auto lexer = NumericLexer!Range(hexDigitText, defaultParseHexDigitOptions!(ElementType!Range)());
+    auto lexer = NumericLexer!Range(hexDigitText, defaultParseHexDigitOptions!(ElementEncodingType!Range)());
     if (!lexer.hasNumericChar)
         return NumericParsedKind.invalid;
 
@@ -1097,10 +1409,10 @@ if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 }
 
 ///dito
-NumericParsedKind parseBase16(S, Writer)(ref Writer sink, scope S hexDigitText) pure
-if (isConstCharArray!S && isOutputRange!(Writer, ubyte))
+NumericParsedKind parseBase16(Char, Writer)(ref Writer sink, scope const(Char)[] hexDigitText) pure
+if (isSomeChar!Char && isOutputRange!(Writer, ubyte))
 {
-    auto inputRange = NumericStringRange!S(hexDigitText);
+    auto inputRange = NumericStringRange!Char(hexDigitText);
     return parseBase16(sink, inputRange);
 }
 
@@ -1118,12 +1430,28 @@ size_t parseBase16Length(const(size_t) chars)
  * Returns:
  *  NumericParsedKind
  */
-NumericParsedKind parseIntegral(Range, Target)(scope ref Range integralText, out Target v) pure
+NumericParsedKind parseIntegral(Range, Target)(scope ref Range integralText, out Target target) pure
 if (isNumericLexerRange!Range && isIntegral!Target)
 {
-    v = 0;
+    uint digitsCount;
+    auto lexer = NumericLexer!Range(integralText, defaultParseIntegralOptions!(ElementEncodingType!Range)());
+    return parseIntegralImpl(lexer, target, digitsCount);
+}
 
-    auto lexer = NumericLexer!Range(integralText, defaultParseIntegralOptions!(ElementType!Range)());
+///dito
+NumericParsedKind parseIntegral(Char, Target)(scope const(Char)[] integralText, out Target target) pure
+if (isSomeChar!Char && isIntegral!Target)
+{
+    auto range = NumericStringRange!Char(integralText);
+    return parseIntegral(range, target);
+}
+
+private NumericParsedKind parseIntegralImpl(Lexer, Target)(scope ref Lexer lexer, out Target target, out uint digitsCount) pure
+if (isIntegral!Target)
+{
+    target = 0;
+    digitsCount = 0;
+
     if (!lexer.hasNumericChar)
         return NumericParsedKind.invalid;
 
@@ -1133,17 +1461,17 @@ if (isNumericLexerRange!Range && isIntegral!Target)
 
     if (lexer.hasHexDigitPrefix)
     {
-        size_t count;
+
         ubyte b;
         while (!lexer.empty)
         {
             if (cvtHexDigit(lexer.front, b))
             {
-                if (count == Target.sizeof*2)
-                    return NumericParsedKind.overflow;
+                if (digitsCount == Target.sizeof*2)
+                    return lexer.neg ? NumericParsedKind.underflow : NumericParsedKind.overflow;
 
-                v = cast(Target)((v << 4) | b);
-                count++;
+                target = cast(Target)((target << 4) | b);
+                digitsCount++;
 
                 lexer.popFront();
             }
@@ -1165,6 +1493,16 @@ if (isNumericLexerRange!Range && isIntegral!Target)
         else
             long vTemp = 0;
 
+        NumericParsedKind returnAs(const(NumericParsedKind) r) nothrow @safe
+        {
+            static if (isSigned!Target)
+            if (lexer.neg)
+                vTemp = -vTemp;
+
+            target = cast(Target)vTemp;
+            return r;
+        }
+
         ubyte b;
         while (!lexer.empty)
         {
@@ -1174,37 +1512,80 @@ if (isNumericLexerRange!Range && isIntegral!Target)
                 if (vTemp >= 0 && (vTemp < maxDiv10 || (vTemp == maxDiv10 && b <= maxLastDigit)))
                 {
                     vTemp = (vTemp * 10) + b;
+                    digitsCount++;
+
+                    debug(debug_pham_utl_utl_numeric_parser) debug writeln("vTemp=", vTemp, ", b=", b, ", digitsCount=", digitsCount);
 
                     lexer.popFront();
                 }
                 else
-                    return NumericParsedKind.overflow;
+                    return lexer.neg ? NumericParsedKind.underflow : NumericParsedKind.overflow;
             }
             else if (lexer.conditionSkipSpaces())
             {
                 if (lexer.isInvalidAfterContinueSkippingSpaces())
-                    return NumericParsedKind.invalid;
+                    return returnAs(NumericParsedKind.invalid);
             }
             else
-                return NumericParsedKind.invalid;
+                return returnAs(NumericParsedKind.invalid);
         }
 
-        static if (isSigned!Target)
-        if (lexer.neg)
-            vTemp = -vTemp;
-
-        v = cast(Target)vTemp;
+        return returnAs(NumericParsedKind.ok);
     }
 
     return NumericParsedKind.ok;
 }
 
-///dito
-NumericParsedKind parseIntegral(S, Target)(scope S integralText, out Target v) pure
-if (isConstCharArray!S && isIntegral!Target)
+NumericParsedKind parseIntegralSuffix(Char, Range, Target)(scope ref Range integralText, scope const(const(Char)[])[] expectedSuffixNames, out Target target, out int suffixIndex) pure
+if (isSomeChar!Char && isNumericLexerRange!Range && isIntegral!Target)
 {
-    auto range = NumericStringRange!S(integralText);
-    return parseIntegral(range, v);
+    import std.uni : sicmp;
+
+    alias RangeElement = Unqual!(ElementEncodingType!Range);
+
+    suffixIndex = -1;
+    uint digitsCount;
+    auto lexer = NumericLexer!Range(integralText, defaultParseIntegralOptions!(ElementEncodingType!Range)());
+    auto nk = parseIntegralImpl(lexer, target, digitsCount);
+
+    debug(debug_pham_utl_utl_numeric_parser) debug writeln("nk=", nk, ", target=", target, ", digitsCount=", digitsCount);
+
+    lexer.skipSpaces();
+    if (digitsCount == 0 || lexer.empty)
+        return nk;
+
+    RangeElement[100] suffix;
+    uint suffixLength;
+    while (suffixLength < suffix.length && !lexer.empty)
+    {
+        const c = lexer.front;
+        if (lexer.options.isSpaceCharOnly(c))
+            break;
+        suffix[suffixLength++] = c;
+        lexer.popFront();
+    }
+
+    lexer.skipSpaceOnlys();
+    if (suffixLength == 0 || !lexer.empty)
+        return NumericParsedKind.invalid;
+
+    foreach (i, s; expectedSuffixNames)
+    {
+        if (sicmp(s, suffix[0..suffixLength]) == 0)
+        {
+            suffixIndex = cast(int)i;
+            return NumericParsedKind.ok;
+        }
+    }
+
+    return NumericParsedKind.invalid;
+}
+
+NumericParsedKind parseIntegralSuffix(Char, Target)(scope const(Char)[] integralText, scope const(const(Char)[])[] expectedSuffixNames, out Target target, out int suffixIndex) pure
+if (isSomeChar!Char && isIntegral!Target)
+{
+    auto range = NumericStringRange!Char(integralText);
+    return parseIntegralSuffix(range, expectedSuffixNames, target, suffixIndex);
 }
 
 
@@ -1353,12 +1734,17 @@ nothrow @safe unittest // parseIntegral, parseHexDigits
 
     int i;
 
-    assert(parseIntegral("0", i) == NumericParsedKind.ok); assert(i == 0);
-    assert(parseIntegral("0123456789", i) == NumericParsedKind.ok); assert(i == 123456789);
+    assert(parseIntegral("0", i) == NumericParsedKind.ok);
+    assert(i == 0);
+    assert(parseIntegral("0123456789", i) == NumericParsedKind.ok);
+    assert(i == 123456789);
 
-    assert(parseIntegral("0x01fAc764", i) == NumericParsedKind.ok); assert(i == 0x1fAc764);
-    assert(parseHexDigits("0x01fAc764", i) == NumericParsedKind.ok); assert(i == 0x1fAc764);
-    assert(parseHexDigits("01fAc764", i) == NumericParsedKind.ok); assert(i == 0x1fAc764);
+    assert(parseIntegral("0x01fAc764", i) == NumericParsedKind.ok);
+    assert(i == 0x1fAc764);
+    assert(parseHexDigits("0x01fAc764", i) == NumericParsedKind.ok);
+    assert(i == 0x1fAc764);
+    assert(parseHexDigits("01fAc764", i) == NumericParsedKind.ok);
+    assert(i == 0x1fAc764);
 
     assert(parseIntegral("", i) == NumericParsedKind.invalid);
     assert(parseIntegral("0ab", i) == NumericParsedKind.invalid);
@@ -1368,7 +1754,7 @@ nothrow @safe unittest // parseIntegral, parseHexDigits
     assert(parseHexDigits("0x0 abc", i) == NumericParsedKind.invalid);
 
     assert(parseIntegral(to!string(long.max), i) == NumericParsedKind.overflow);
-    assert(parseIntegral(to!string(long.min), i) == NumericParsedKind.overflow);
+    assert(parseIntegral(to!string(long.min), i) == NumericParsedKind.underflow);
     assert(parseIntegral("0x1234567890", i) == NumericParsedKind.overflow);
     assert(parseHexDigits("0x1234567890", i) == NumericParsedKind.overflow);
 }
@@ -1384,14 +1770,19 @@ nothrow @safe unittest // parseIntegral
         {
             I i1;
 
-            assert(parseIntegral("0", i1) == NumericParsedKind.ok); assert(i1 == 0);
-            assert(parseIntegral(to!string(I.min), i1) == NumericParsedKind.ok); assert(i1 == I.min);
-            assert(parseIntegral(to!string(I.max), i1) == NumericParsedKind.ok); assert(i1 == I.max);
+            assert(parseIntegral("0", i1) == NumericParsedKind.ok);
+            assert(i1 == 0);
+            assert(parseIntegral(to!string(I.min), i1) == NumericParsedKind.ok);
+            assert(i1 == I.min);
+            assert(parseIntegral(to!string(I.max), i1) == NumericParsedKind.ok);
+            assert(i1 == I.max);
 
             static if (isSigned!I)
             {
-                assert(parseIntegral("+0", i1) == NumericParsedKind.ok); assert(i1 == 0);
-                assert(parseIntegral("-0", i1) == NumericParsedKind.ok); assert(i1 == 0);
+                assert(parseIntegral("+0", i1) == NumericParsedKind.ok);
+                assert(i1 == 0);
+                assert(parseIntegral("-0", i1) == NumericParsedKind.ok);
+                assert(i1 == 0);
             }
         }
 
@@ -1399,28 +1790,42 @@ nothrow @safe unittest // parseIntegral
         {{
             I i2;
 
-            assert(parseIntegral("6", i2) == NumericParsedKind.ok); assert(i2 == 6);
-            assert(parseIntegral("23", i2) == NumericParsedKind.ok); assert(i2 == 23);
-            assert(parseIntegral("68", i2) == NumericParsedKind.ok); assert(i2 == 68);
-            assert(parseIntegral("127", i2) == NumericParsedKind.ok); assert(i2 == 127);
+            assert(parseIntegral("6", i2) == NumericParsedKind.ok);
+            assert(i2 == 6);
+            assert(parseIntegral("23", i2) == NumericParsedKind.ok);
+            assert(i2 == 23);
+            assert(parseIntegral("68", i2) == NumericParsedKind.ok);
+            assert(i2 == 68);
+            assert(parseIntegral("127", i2) == NumericParsedKind.ok);
+            assert(i2 == 127);
 
             static if (isUnsigned!I)
             {
-                assert(parseIntegral("255", i2) == NumericParsedKind.ok); assert(i2 == 0xFF);
-                assert(parseIntegral("0xfF", i2) == NumericParsedKind.ok); assert(i2 == 0xFF);
+                assert(parseIntegral("255", i2) == NumericParsedKind.ok);
+                assert(i2 == 0xFF);
+                assert(parseIntegral("0xfF", i2) == NumericParsedKind.ok);
+                assert(i2 == 0xFF);
             }
 
             static if (isSigned!I)
             {
-                assert(parseIntegral("+6", i2) == NumericParsedKind.ok); assert(i2 == 6);
-                assert(parseIntegral("+23", i2) == NumericParsedKind.ok); assert(i2 == 23);
-                assert(parseIntegral("+68", i2) == NumericParsedKind.ok); assert(i2 == 68);
-                assert(parseIntegral("+127", i2) == NumericParsedKind.ok); assert(i2 == 127);
+                assert(parseIntegral("+6", i2) == NumericParsedKind.ok);
+                assert(i2 == 6);
+                assert(parseIntegral("+23", i2) == NumericParsedKind.ok);
+                assert(i2 == 23);
+                assert(parseIntegral("+68", i2) == NumericParsedKind.ok);
+                assert(i2 == 68);
+                assert(parseIntegral("+127", i2) == NumericParsedKind.ok);
+                assert(i2 == 127);
 
-                assert(parseIntegral("-6", i2) == NumericParsedKind.ok); assert(i2 == -6);
-                assert(parseIntegral("-23", i2) == NumericParsedKind.ok); assert(i2 == -23);
-                assert(parseIntegral("-68", i2) == NumericParsedKind.ok); assert(i2 == -68);
-                assert(parseIntegral("-128", i2) == NumericParsedKind.ok); assert(i2 == -128);
+                assert(parseIntegral("-6", i2) == NumericParsedKind.ok);
+                assert(i2 == -6);
+                assert(parseIntegral("-23", i2) == NumericParsedKind.ok);
+                assert(i2 == -23);
+                assert(parseIntegral("-68", i2) == NumericParsedKind.ok);
+                assert(i2 == -68);
+                assert(parseIntegral("-128", i2) == NumericParsedKind.ok);
+                assert(i2 == -128);
             }
         }}
 
@@ -1428,22 +1833,30 @@ nothrow @safe unittest // parseIntegral
         {{
             I i3;
 
-            assert(parseIntegral("468", i3) == NumericParsedKind.ok); assert(i3 == 468);
-            assert(parseIntegral("32767", i3) == NumericParsedKind.ok); assert(i3 == 32767);
+            assert(parseIntegral("468", i3) == NumericParsedKind.ok);
+            assert(i3 == 468);
+            assert(parseIntegral("32767", i3) == NumericParsedKind.ok);
+            assert(i3 == 32767);
 
             static if (isUnsigned!I)
             {
-                assert(parseIntegral("65535", i3) == NumericParsedKind.ok); assert(i3 == 0xFFFF);
-                assert(parseIntegral("0xFFFF", i3) == NumericParsedKind.ok); assert(i3 == 0xFFFF);
+                assert(parseIntegral("65535", i3) == NumericParsedKind.ok);
+                assert(i3 == 0xFFFF);
+                assert(parseIntegral("0xFFFF", i3) == NumericParsedKind.ok);
+                assert(i3 == 0xFFFF);
             }
 
             static if (isSigned!I)
             {
-                assert(parseIntegral("+468", i3) == NumericParsedKind.ok); assert(i3 == 468);
-                assert(parseIntegral("+32767", i3) == NumericParsedKind.ok); assert(i3 == 32767);
+                assert(parseIntegral("+468", i3) == NumericParsedKind.ok);
+                assert(i3 == 468);
+                assert(parseIntegral("+32767", i3) == NumericParsedKind.ok);
+                assert(i3 == 32767);
 
-                assert(parseIntegral("-468", i3) == NumericParsedKind.ok); assert(i3 == -468);
-                assert(parseIntegral("-32768", i3) == NumericParsedKind.ok); assert(i3 == -32768);
+                assert(parseIntegral("-468", i3) == NumericParsedKind.ok);
+                assert(i3 == -468);
+                assert(parseIntegral("-32768", i3) == NumericParsedKind.ok);
+                assert(i3 == -32768);
             }
         }}
 
@@ -1451,18 +1864,23 @@ nothrow @safe unittest // parseIntegral
         {{
             I i4;
 
-            assert(parseIntegral("2147483647", i4) == NumericParsedKind.ok); assert(i4 == 2147483647);
+            assert(parseIntegral("2147483647", i4) == NumericParsedKind.ok);
+            assert(i4 == 2147483647);
 
             static if (isUnsigned!I)
             {
-                assert(parseIntegral("4294967295", i4) == NumericParsedKind.ok); assert(i4 == 0xFFFFFFFF);
-                assert(parseIntegral("0xFFFFFFFF", i4) == NumericParsedKind.ok); assert(i4 == 0xFFFFFFFF);
+                assert(parseIntegral("4294967295", i4) == NumericParsedKind.ok);
+                assert(i4 == 0xFFFFFFFF);
+                assert(parseIntegral("0xFFFFFFFF", i4) == NumericParsedKind.ok);
+                assert(i4 == 0xFFFFFFFF);
             }
 
             static if (isSigned!I)
             {
-                assert(parseIntegral("+2147483647", i4) == NumericParsedKind.ok); assert(i4 == 2147483647);
-                assert(parseIntegral("-2147483648", i4) == NumericParsedKind.ok); assert(i4 == -2147483648);
+                assert(parseIntegral("+2147483647", i4) == NumericParsedKind.ok);
+                assert(i4 == 2147483647);
+                assert(parseIntegral("-2147483648", i4) == NumericParsedKind.ok);
+                assert(i4 == -2147483648);
             }
         }}
 
@@ -1470,23 +1888,121 @@ nothrow @safe unittest // parseIntegral
         {{
             I i5;
 
-            assert(parseIntegral("9223372036854775807", i5) == NumericParsedKind.ok); assert(i5 == 0x7FFFFFFFFFFFFFFF);
-            assert(parseIntegral("0x7FFFFFFFFFFFFFFF", i5) == NumericParsedKind.ok); assert(i5 == 0x7FFFFFFFFFFFFFFF);
+            assert(parseIntegral("9223372036854775807", i5) == NumericParsedKind.ok);
+            assert(i5 == 0x7FFFFFFFFFFFFFFF);
+            assert(parseIntegral("0x7FFFFFFFFFFFFFFF", i5) == NumericParsedKind.ok);
+            assert(i5 == 0x7FFFFFFFFFFFFFFF);
 
             static if (isUnsigned!I)
             {
-                assert(parseIntegral("18446744073709551615", i5) == NumericParsedKind.ok); assert(i5 == 0xFFFFFFFFFFFFFFFF);
-                assert(parseIntegral("0xFFFFFFFFFFFFFFFF", i5) == NumericParsedKind.ok); assert(i5 == 0xFFFFFFFFFFFFFFFF);
+                assert(parseIntegral("18446744073709551615", i5) == NumericParsedKind.ok);
+                assert(i5 == 0xFFFFFFFFFFFFFFFF);
+                assert(parseIntegral("0xFFFFFFFFFFFFFFFF", i5) == NumericParsedKind.ok);
+                assert(i5 == 0xFFFFFFFFFFFFFFFF);
             }
 
             static if (isSigned!I)
             {
-                assert(parseIntegral("+9223372036854775807", i5) == NumericParsedKind.ok); assert(i5 == 0x7FFFFFFFFFFFFFFF);
-                assert(parseIntegral("-9223372036854775808", i5) == NumericParsedKind.ok); assert(i5 == 0x8000000000000000);
+                assert(parseIntegral("+9223372036854775807", i5) == NumericParsedKind.ok);
+                assert(i5 == 0x7FFFFFFFFFFFFFFF);
+                assert(parseIntegral("-9223372036854775808", i5) == NumericParsedKind.ok);
+                assert(i5 == 0x8000000000000000);
 
-                assert(parseIntegral("0x7FFFFFFFFFFFFFFF", i5) == NumericParsedKind.ok); assert(i5 == 0x7FFFFFFFFFFFFFFF);
-                assert(parseIntegral("0x8000000000000000", i5) == NumericParsedKind.ok); assert(i5 == 0x8000000000000000);
+                assert(parseIntegral("0x7FFFFFFFFFFFFFFF", i5) == NumericParsedKind.ok);
+                assert(i5 == 0x7FFFFFFFFFFFFFFF);
+                assert(parseIntegral("0x8000000000000000", i5) == NumericParsedKind.ok);
+                assert(i5 == 0x8000000000000000);
             }
         }}
     }
+}
+
+unittest // parseDuration
+{
+    Duration v;
+
+    assert(parseDuration("2 nsecs", DurationUnit.nsecs, v) == NumericParsedKind.ok);
+    assert(v == dur!"nsecs"(2));
+    assert(parseDuration("2", DurationUnit.nsecs, v) == NumericParsedKind.ok);
+    assert(v == dur!"nsecs"(2));
+
+    assert(parseDuration("2 hnsecs", DurationUnit.hnsecs, v) == NumericParsedKind.ok);
+    assert(v == dur!"hnsecs"(2), v.toString() ~ " vs " ~ dur!"hnsecs"(2).toString());
+    assert(parseDuration("2", DurationUnit.hnsecs, v) == NumericParsedKind.ok);
+    assert(v == dur!"hnsecs"(2));
+
+    assert(parseDuration("2 usecs", DurationUnit.usecs, v) == NumericParsedKind.ok);
+    assert(v == dur!"usecs"(2));
+    assert(parseDuration("2", DurationUnit.usecs, v) == NumericParsedKind.ok);
+    assert(v == dur!"usecs"(2));
+
+    assert(parseDuration("2 msecs", DurationUnit.msecs, v) == NumericParsedKind.ok);
+    assert(v == dur!"msecs"(2));
+    assert(parseDuration("2", DurationUnit.msecs, v) == NumericParsedKind.ok);
+    assert(v == dur!"msecs"(2));
+
+    assert(parseDuration("2 seconds", DurationUnit.seconds, v) == NumericParsedKind.ok);
+    assert(v == dur!"seconds"(2));
+    assert(parseDuration("2", DurationUnit.seconds, v) == NumericParsedKind.ok);
+    assert(v == dur!"seconds"(2));
+
+    assert(parseDuration("2 minutes", DurationUnit.minutes, v) == NumericParsedKind.ok);
+    assert(v == dur!"minutes"(2));
+    assert(parseDuration("2", DurationUnit.minutes, v) == NumericParsedKind.ok);
+    assert(v == dur!"minutes"(2));
+
+    assert(parseDuration("2 hours", DurationUnit.hours, v) == NumericParsedKind.ok);
+    assert(v == dur!"hours"(2));
+    assert(parseDuration("2", DurationUnit.hours, v) == NumericParsedKind.ok);
+    assert(v == dur!"hours"(2));
+
+    assert(parseDuration("2 days", DurationUnit.days, v) == NumericParsedKind.ok);
+    assert(v == dur!"days"(2));
+    assert(parseDuration("2", DurationUnit.days, v) == NumericParsedKind.ok);
+    assert(v == dur!"days"(2));
+
+    assert(parseDuration("2 weeks", DurationUnit.weeks, v) == NumericParsedKind.ok);
+    assert(v == dur!"weeks"(2));
+    assert(parseDuration("2", DurationUnit.weeks, v) == NumericParsedKind.ok);
+    assert(v == dur!"weeks"(2));
+
+    assert(parseDuration("minutes", DurationUnit.minutes, v) == NumericParsedKind.invalid);
+    assert(parseDuration("2 minutes?", DurationUnit.minutes, v) == NumericParsedKind.invalid);
+    assert(parseDuration("9223372036854775807 minutes", DurationUnit.minutes, v) == NumericParsedKind.overflow);
+    assert(parseDuration("-9223372036854775807 minutes", DurationUnit.minutes, v) == NumericParsedKind.underflow);
+}
+
+unittest // parseComputingSize
+{
+    long v;
+
+    assert(parseComputingSize("2Bytes", ComputingSizeUnit.bytes, v) == NumericParsedKind.ok);
+    assert(v == computingSizeUnitValues[ComputingSizeUnit.bytes] * 2);
+    assert(parseComputingSize("2", ComputingSizeUnit.bytes, v) == NumericParsedKind.ok);
+    assert(v == computingSizeUnitValues[ComputingSizeUnit.bytes] * 2);
+
+    assert(parseComputingSize("2 KB", ComputingSizeUnit.kbytes, v) == NumericParsedKind.ok);
+    assert(v == computingSizeUnitValues[ComputingSizeUnit.kbytes] * 2);
+    assert(parseComputingSize("2", ComputingSizeUnit.kbytes, v) == NumericParsedKind.ok);
+    assert(v == computingSizeUnitValues[ComputingSizeUnit.kbytes] * 2);
+
+    assert(parseComputingSize("2 mb", ComputingSizeUnit.mbytes, v) == NumericParsedKind.ok);
+    assert(v == computingSizeUnitValues[ComputingSizeUnit.mbytes] * 2);
+    assert(parseComputingSize("2", ComputingSizeUnit.mbytes, v) == NumericParsedKind.ok);
+    assert(v == computingSizeUnitValues[ComputingSizeUnit.mbytes] * 2);
+
+    assert(parseComputingSize("2  Gb", ComputingSizeUnit.gbytes, v) == NumericParsedKind.ok);
+    assert(v == computingSizeUnitValues[ComputingSizeUnit.gbytes] * 2);
+    assert(parseComputingSize("2", ComputingSizeUnit.gbytes, v) == NumericParsedKind.ok);
+    assert(v == computingSizeUnitValues[ComputingSizeUnit.gbytes] * 2);
+
+    assert(parseComputingSize("2 TB", ComputingSizeUnit.tbytes, v) == NumericParsedKind.ok);
+    assert(v == computingSizeUnitValues[ComputingSizeUnit.tbytes] * 2);
+    assert(parseComputingSize("2", ComputingSizeUnit.tbytes, v) == NumericParsedKind.ok);
+    assert(v == computingSizeUnitValues[ComputingSizeUnit.tbytes] * 2);
+
+    assert(parseComputingSize("2PB", ComputingSizeUnit.pbytes, v) == NumericParsedKind.ok);
+    assert(v == computingSizeUnitValues[ComputingSizeUnit.pbytes] * 2);
+    assert(parseComputingSize("2", ComputingSizeUnit.pbytes, v) == NumericParsedKind.ok);
+    assert(v == computingSizeUnitValues[ComputingSizeUnit.pbytes] * 2);
 }

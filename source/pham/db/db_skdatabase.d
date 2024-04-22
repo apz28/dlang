@@ -47,7 +47,7 @@ import pham.db.db_type;
 import pham.db.db_util;
 import pham.db.db_value;
 
-static immutable string[string] skDefaultConnectionParameterValues;
+static immutable DbConnectionParameterInfo[string] skDefaultConnectionParameterValues;
 
 class SkCommand : DbCommand
 {
@@ -61,37 +61,6 @@ public:
     {
         super(connection, transaction, name);
     }
-
-    final override DbRowValue fetch(const(bool) isScalar) @safe
-    {
-        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ")");
-        version(profile) debug auto p = PerfFunction.create();
-
-        checkActive();
-
-        if (auto log = canTraceLog())
-            log.infof("%s.command.fetch()%s%s", forLogInfo(), newline, commandText);
-
-		if (isStoredProcedure)
-            return fetchedRows ? fetchedRows.dequeue() : DbRowValue(0);
-
-        if (fetchedRows.empty && !allRowsFetched && isSelectCommandType())
-            doFetch(isScalar);
-
-        return fetchedRows ? fetchedRows.dequeue() : DbRowValue(0);
-    }
-
-protected:
-    override void prepareExecuting(const(DbCommandExecuteType) type) @safe
-    {
-        fetchedRows.clear();
-        super.prepareExecuting(type);
-    }
-
-    abstract void doFetch(const(bool) isScalar) @safe;
-
-protected:
-	DbRowValueQueue fetchedRows;
 }
 
 abstract class SkConnection : DbConnection
@@ -731,23 +700,19 @@ public:
 protected:
     override string getDefault(string name) const nothrow
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
-        auto result = super.getDefault(name);
-        if (result.length == 0)
-        {
-            auto n = DbIdentitier(name);
-            result = skDefaultConnectionParameterValues.get(n, null);
-        }
-        return result;
+        auto k = name in skDefaultConnectionParameterValues;
+        return k !is null && (*k).def.length != 0 ? (*k).def : super.getDefault(name);
     }
 
     override void setDefaultIfs()
     {
+        foreach (ref dpv; skDefaultConnectionParameterValues.byKeyValue)
+        {
+            auto def = dpv.value.def;
+            if (def.length)
+                putIf(dpv.key, def);
+        }
         super.setDefaultIfs();
-        putIf(DbConnectionParameterIdentifier.socketBlocking, getDefault(DbConnectionParameterIdentifier.socketBlocking));
-        putIf(DbConnectionParameterIdentifier.socketNoDelay, getDefault(DbConnectionParameterIdentifier.socketNoDelay));
-        putIf(DbConnectionParameterIdentifier.socketSslVerificationMode, getDefault(DbConnectionParameterIdentifier.socketSslVerificationMode));
     }
 }
 
@@ -916,12 +881,12 @@ shared static this() nothrow @safe
 {
     skDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
-        return cast(immutable(string[string]))[
-            DbConnectionParameterIdentifier.packageSize : "16384", // In bytes - do not add underscore, to!int does not work
-            DbConnectionParameterIdentifier.socketBlocking : dbBoolTrue,
-            DbConnectionParameterIdentifier.socketNoDelay : dbBoolTrue,
-            DbConnectionParameterIdentifier.socketSslVerificationHost : dbBoolFalse,
-            DbConnectionParameterIdentifier.socketSslVerificationMode : "-1", // Ignore
+        return cast(immutable(DbConnectionParameterInfo[string]))[
+            DbConnectionParameterIdentifier.packageSize : DbConnectionParameterInfo(&isConnectionParameterComputingSize, "16_384", 4_096, 4_096*64),
+            DbConnectionParameterIdentifier.socketBlocking : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
+            DbConnectionParameterIdentifier.socketNoDelay : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
+            DbConnectionParameterIdentifier.socketSslVerificationHost : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolFalse, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
+            DbConnectionParameterIdentifier.socketSslVerificationMode : DbConnectionParameterInfo(&isConnectionParameterInt32, "-1", -1, 100), // -1=Ignore
         ];
     }();
 }

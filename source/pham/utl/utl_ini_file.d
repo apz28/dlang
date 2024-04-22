@@ -812,8 +812,8 @@ string loadMember(T)() @safe
 {
     import std.format : format;
 
-    enum arrayValueFmt = "\ncase \"%s\": \nt.%s = to!(typeof(t.%s))(inifile.getValue(sectionName, name).split(','));\n++matchedCount;\nbreak;\n";
-    enum basicValueFmt = "\ncase \"%s\": \nt.%s = to!(typeof(t.%s))(inifile.getValue(sectionName, name));\n++matchedCount;\nbreak;\n";
+    static immutable arrayValueFmt = "\ncase \"%s\": \nt.%s = to!(typeof(t.%s))(inifile.getValue(sectionName, name).split(','));\n++matchedCount;\nbreak;\n";
+    static immutable basicValueFmt = "\ncase \"%s\": \nt.%s = to!(typeof(t.%s))(inifile.getValue(sectionName, name));\n++matchedCount;\nbreak;\n";
 
     string res;
 

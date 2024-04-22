@@ -20,7 +20,6 @@ import std.traits : ParameterTypeTuple, Unqual;
 import std.uni : sicmp, toUpper;
 
 version(profile) import pham.utl.utl_test : PerfFunction;
-import pham.utl.utl_array : IndexedArray;
 import pham.utl.utl_disposable;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.utl.utl_object : shortClassName;
@@ -34,7 +33,7 @@ import pham.db.db_util;
 
 DbIdentitier[] toIdentifiers(const string[] strings) nothrow
 {
-    DbIdentitier[] result = new DbIdentitier[](strings.length);
+    auto result = new DbIdentitier[](strings.length);
     foreach (i, s; strings)
         result[i] = DbIdentitier(s);
     return result;
@@ -73,6 +72,12 @@ public:
             return *e;
         else
             return notFoundValue;
+    }
+
+    bool hasValue(string name, out string value) const nothrow
+    {
+        value = get(name, null);
+        return value.length != 0;
     }
 
     string put(string name, string value) nothrow pure
@@ -254,9 +259,6 @@ class DbNameObject : DbObject
 nothrow @safe:
 
 public:
-    alias List = DbNameObjectList!DbNameObject;
-
-public:
     final int opCmp(scope const(DbIdentitier) rhsName) const pure
     {
         return _name.opCmp(rhsName);
@@ -272,6 +274,7 @@ public:
         return _name.toHash();
     }
 
+    alias List = DbNameObjectList!DbNameObject;
     @property final List list() pure @trusted
     {
         return cast(List)_list;
@@ -366,32 +369,6 @@ public:
     }
 
 public:
-    // Does not work for infer type & attributes (nothrow @safe)
-    version(none)
-    int opApply(Dg)(scope Dg dg)
-    if (ParameterTypeTuple!Dg.length == 1)
-    {
-        foreach (i; 0..length)
-        {
-            if (auto r = dg(this[i]))
-                return r;
-        }
-        return 0;
-    }
-
-    // Does not work for infer type & attributes (nothrow @safe)
-    version(none)
-    int opApply(Dg)(scope Dg dg)
-    if (ParameterTypeTuple!Dg.length == 2)
-    {
-        foreach (i; 0..length)
-        {
-            if (auto r = dg(i, this[i]))
-                return r;
-        }
-        return 0;
-    }
-
     /**
      * Returns range interface
      */
@@ -442,11 +419,32 @@ public:
         addOrSet(item);
         return this;
     }
+    
+    final int apply(scope int delegate(T e) nothrow dg) nothrow
+    {
+        foreach (i; 0..length)
+        {
+            if (auto r = dg(this[i]))
+                return r;
+        }
+        return 0;
+    }
 
-    typeof(this) clear() nothrow pure @trusted
+    final int apply(scope int delegate(size_t index, T e) nothrow dg) nothrow
+    {
+        foreach (i; 0..length)
+        {
+            if (auto r = dg(i, this[i]))
+                return r;
+        }
+        return 0;
+    }
+
+    typeof(this) clear() nothrow @trusted
     {
         lookupItems.clear();
-        sequenceItems.clear();
+        sequenceItems.length = 0;
+        sequenceItems.assumeSafeAppend();
         flags.reset();
         return this;
     }
@@ -583,7 +581,7 @@ public:
         return remove(id);
     }
 
-    T remove(size_t index) nothrow @safe
+    T remove(size_t index) nothrow @trusted
     in
     {
         assert(index < length);
@@ -593,12 +591,23 @@ public:
         auto result = this[index];
         result._list = null;
         lookupItems.remove(result.name);
-        sequenceItems.removeAt(index);
+        sequenceItems = sequenceItems.remove(index);
+        sequenceItems.assumeSafeAppend();
         if (index < sequenceItems.length)
             flags += Flag.reIndex;
         return result;
     }
 
+    final typeof(this) reserve(const(size_t) capacity) nothrow @trusted
+    {
+        if (capacity > sequenceItems.length)
+        {
+            sequenceItems.reserve(capacity);
+            sequenceItems.assumeSafeAppend();
+        }
+        return this;
+    }
+    
     @property final size_t length() const nothrow pure @safe
     {
         return sequenceItems.length;
@@ -649,7 +658,7 @@ protected:
     }
 
     T[DbIdentitier] lookupItems;
-    IndexedArray!(T, 30) sequenceItems;
+    T[] sequenceItems;
     EnumSet!Flag flags;
 }
 
@@ -783,28 +792,6 @@ public:
     }
 
 public:
-    version(none)
-    int opApply(scope int delegate(ref Pair e) dg)
-    {
-        foreach (i; 0..length)
-        {
-            if (auto r = dg(this[i]))
-                return r;
-        }
-        return 0;
-    }
-
-    version(none)
-    int opApply(scope int delegate(size_t i, ref Pair e) dg)
-    {
-        foreach (i; 0..length)
-        {
-            if (auto r = dg(i, this[i]))
-                return r;
-        }
-        return 0;
-    }
-
     /**
      * Returns range interface
      */
@@ -839,6 +826,26 @@ public:
         addOrSet(item);
         return this;
     }
+    
+    final int apply(scope int delegate(scope const ref Pair e) nothrow @safe dg) nothrow
+    {
+        foreach (i; 0..length)
+        {
+            if (auto r = dg(this[i]))
+                return r;
+        }
+        return 0;
+    }
+
+    final int apply(scope int delegate(size_t index, scope const ref Pair e) nothrow @safe dg) nothrow
+    {
+        foreach (i; 0..length)
+        {
+            if (auto r = dg(i, this[i]))
+                return r;
+        }
+        return 0;
+    }
 
     /**
      * Removes all the elements from the array
@@ -846,7 +853,8 @@ public:
     typeof(this) clear() nothrow @trusted
     {
         lookupItems.clear();
-        sequenceNames.clear();
+        sequenceNames.length = 0;
+        sequenceNames.assumeSafeAppend();
         reIndex = false;
         return this;
     }
@@ -1001,7 +1009,7 @@ public:
         return putIf(id, value);
     }
 
-    Pair remove(size_t index) nothrow
+    Pair remove(size_t index) nothrow @trusted
     in
     {
         assert(index < length);
@@ -1011,8 +1019,10 @@ public:
         auto item = this[index];
         item._list = null;
         lookupItems.remove(item.name);
-        sequenceNames.removeAt(index);
-        reIndex = index < sequenceNames.length;
+        sequenceNames = sequenceNames.remove(index);
+        sequenceNames.assumeSafeAppend();
+        if (index < sequenceNames.length)
+            reIndex = true;
         return item;
     }
 
@@ -1036,7 +1046,17 @@ public:
         return remove(id);
     }
 
-    @property size_t length() const nothrow pure
+    final typeof(this) reserve(const(size_t) capacity) nothrow @trusted
+    {
+        if (capacity > sequenceNames.length)
+        {
+            sequenceNames.reserve(capacity);
+            sequenceNames.assumeSafeAppend();
+        }
+        return this;
+    }
+
+    @property final size_t length() const nothrow pure
     {
         return sequenceNames.length;
     }
@@ -1115,7 +1135,7 @@ protected:
 
 protected:
     Pair[DbIdentitier] lookupItems;
-    IndexedArray!(DbIdentitier, 30) sequenceNames;
+    DbIdentitier[] sequenceNames;
     bool reIndex;
 }
 

@@ -586,6 +586,7 @@ enum FbIscText
 	infoDbClassServerText = "SUPER SERVER",
 
 	filterCompressZipName = "zlib",
+    
     filterCryptChachaName = "ChaCha",
     filterCryptChacha64Name = "ChaCha64",
 	filterCryptArc4Name = "Arc4",

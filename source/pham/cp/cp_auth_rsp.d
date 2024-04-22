@@ -429,7 +429,6 @@ public:
             .finish(hashTemp));
     }
 
-    debug(debug_pham_cp_cp_auth_rsp)
     string traceString() const nothrow
     {
         return "Auth.N=" ~ _parameters.group.N.toString()

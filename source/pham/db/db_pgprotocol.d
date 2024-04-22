@@ -80,7 +80,7 @@ public:
                 {
                     result[i].name = reader.readCString();
                     result[i].tableOid = reader.readOId();
-                    result[i].index = reader.readInt16();
+                    result[i].ordinal = reader.readInt16();
                     result[i].type = reader.readOId();
                     result[i].size = reader.readInt16();
                     result[i].modifier = reader.readOId();
@@ -631,14 +631,14 @@ public:
                     return DbValue(readValueArray!DbTime(reader, command, column, valueLength), dbType);
                 case DbType.uuid:
                     return DbValue(readValueArray!UUID(reader, command, column, valueLength), dbType);
-                case DbType.fixedString:
-                case DbType.string:
+                case DbType.stringFixed:
+                case DbType.stringVary:
                 case DbType.json:
                 case DbType.xml:
                 case DbType.text:
                     return DbValue(readValueArray!string(reader, command, column, valueLength), dbType);
-                case DbType.fixedBinary:
-                case DbType.binary:
+                case DbType.binaryFixed:
+                case DbType.binaryVary:
                     return DbValue(readValueArray!(ubyte[])(reader, command, column, valueLength), dbType);
                 case DbType.record:
                 case DbType.unknown:
@@ -708,14 +708,14 @@ public:
                 return DbValue(checkValueLength(12).readTimeTZ(), dbType);
             case DbType.uuid:
                 return DbValue(checkValueLength(16).readUUID(), dbType);
-            case DbType.fixedString:
-            case DbType.string:
+            case DbType.stringFixed:
+            case DbType.stringVary:
             case DbType.json:
             case DbType.xml:
             case DbType.text:
                 return DbValue(checkValueLength(0).readString(valueLength), dbType);
-            case DbType.fixedBinary:
-            case DbType.binary:
+            case DbType.binaryFixed:
+            case DbType.binaryVary:
                 return DbValue(checkValueLength(0).readBytes(valueLength), dbType);
             case DbType.record:
             case DbType.unknown:
@@ -1003,9 +1003,9 @@ protected:
                     return describeValueArray!DbTime(writer, column, value, PgOIdType.timetz);
                 case DbType.uuid:
                     return describeValueArray!UUID(writer, column, value, PgOIdType.uuid);
-                case DbType.fixedString:
+                case DbType.stringFixed:
                     return describeValueArray!string(writer, column, value, PgOIdType.bpchar);
-                case DbType.string:
+                case DbType.stringVary:
                     return describeValueArray!string(writer, column, value, PgOIdType.varchar);
                 case DbType.json:
                     return describeValueArray!string(writer, column, value, PgOIdType.json);
@@ -1013,8 +1013,8 @@ protected:
                     return describeValueArray!string(writer, column, value, PgOIdType.xml);
                 case DbType.text:
                     return describeValueArray!string(writer, column, value, PgOIdType.text);
-                case DbType.fixedBinary:
-                case DbType.binary:
+                case DbType.binaryFixed:
+                case DbType.binaryVary:
                     return describeValueArray!(const(ubyte)[])(writer, column, value, PgOIdType.bytea);
                 case DbType.record:
                 case DbType.unknown:
@@ -1085,14 +1085,14 @@ protected:
                 return valueWriter.writeTimeTZ(value.get!DbTime());
             case DbType.uuid:
                 return valueWriter.writeUUID(value.get!UUID());
-            case DbType.fixedString:
-            case DbType.string:
+            case DbType.stringFixed:
+            case DbType.stringVary:
             case DbType.text:
             case DbType.json:
             case DbType.xml:
                 return valueWriter.writeChars(value.get!string());
-            case DbType.fixedBinary:
-            case DbType.binary:
+            case DbType.binaryFixed:
+            case DbType.binaryVary:
                 return valueWriter.writeBytes(value.get!(const(ubyte)[])());
             case DbType.record:
             case DbType.unknown:
@@ -1365,7 +1365,7 @@ protected:
 
     final void writeExecuteMessage(ref PgWriter writer, PgCommand command, const(DbCommandExecuteType) type)
 	{
-        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(fetchRecordCount=", command.fetchRecordCount, ")");
 
 		writer.beginMessage(PgOIdDescribeType.executeStatement);
         writer.writeCChars(command.name);

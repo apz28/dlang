@@ -225,7 +225,7 @@ public:
     Time addTicks(const(long) ticks) const @nogc nothrow pure
     {
         const long newTicks = (data.sticks + Tick.ticksPerDay + (ticks % Tick.ticksPerDay)) % Tick.ticksPerDay;
-        final switch(isValidTicks(newTicks))
+        final switch (isValidTicks(newTicks))
         {
             case ErrorOp.none:
                 return Time(TickData.createTime(newTicks, data.internalKind));
@@ -848,7 +848,7 @@ unittest // Time.opBinary
 
         scope (failure) assert(0, "Assume nothrow");
 
-        enum fmt = "%." ~ decimals.to!string ~ "f";
+        static immutable string fmt = "%." ~ decimals.to!string ~ "f";
         return format(fmt, n);
     }
 

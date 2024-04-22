@@ -104,7 +104,6 @@ public:
 		return decBytes;
     }
 
-	debug(debug_pham_external_dec_dec_codec)
 	static string traceString() nothrow @trusted
     {
 		import std.conv : to;

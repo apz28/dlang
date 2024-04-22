@@ -319,7 +319,7 @@ public:
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
                             
-            static if (D.sizeof <= T.sizeof)
+            static if (D.sizeof < T.sizeof)
             if (!__ctfe)
                 DecimalControl.raiseFlags(flags);
         }
@@ -361,7 +361,7 @@ public:
         {
             const flags = decimalToDecimal(value, this, PRECISION, mode);
             
-            static if (D.sizeof <= T.sizeof)
+            static if (D.sizeof < T.sizeof)
             if (!__ctfe)
                 DecimalControl.checkFlags(explicitModeTraps, flags);
         }
@@ -4248,7 +4248,7 @@ D frexp(D)(auto const ref D x, out int y)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
     Unqual!D result;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.signalingNaN:
             result.invalidPack(sx, cx);
@@ -7303,7 +7303,7 @@ ExceptionFlags decimalToDecimal(D1, D2)(auto const ref D1 source, out D2 target,
 if (isDecimal!(D1, D2))
 {
     DataType!(D1.sizeof) cx; int ex; bool sx;
-    final switch(fastDecode(source, cx, ex, sx))
+    final switch (fastDecode(source, cx, ex, sx))
     {
         case FastClass.finite:
             static if (D2.sizeof == D1.sizeof)
@@ -7781,7 +7781,7 @@ if (isFloatingPoint!F && isAnyUnsignedBit!T)
 
     U u = m;
 
-    final switch(mode)
+    final switch (mode)
     {
         case RoundingMode.tiesToAway:
             flags = exp2to10!(RoundingMode.tiesToAway)(u, ex, sx);
@@ -7862,21 +7862,21 @@ struct Constants(T)
     }
     else static if (is(T:uint128))
     {
-        enum uint128    c1_2π       = uint128("159154943091895335768883763372514362034");
+        static immutable uint128    c1_2π       = uint128("159154943091895335768883763372514362034");
         enum int        e1_2π       = -39;
-        enum uint128    c2π         = uint128("62831853071795864769252867665590057684");
+        static immutable uint128    c2π         = uint128("62831853071795864769252867665590057684");
         enum int        e2π         = -37;
-        enum uint128    c2_π        = uint128("63661977236758134307553505349005744814");
+        static immutable uint128    c2_π        = uint128("63661977236758134307553505349005744814");
         enum int        e2_π        = -38;
-        enum uint128    cπ_2        = uint128("157079632679489661923132169163975144210");
+        static immutable uint128    cπ_2        = uint128("157079632679489661923132169163975144210");
         enum int        eπ_2        = -38;
         enum uint128    chalf       = 5U;
         enum int        ehalf       = -1;
-        enum uint128    cthird      = uint128("333333333333333333333333333333333333333");
+        static immutable uint128    cthird      = uint128("333333333333333333333333333333333333333");
         enum int        ethird      = -39;
-        enum uint128    ce          = uint128("271828182845904523536028747135266249776");
+        static immutable uint128    ce          = uint128("271828182845904523536028747135266249776");
         enum int        ee          = -38;
-        enum uint128    cln10       = uint128("230258509299404568401799145468436420760");
+        static immutable uint128    cln10       = uint128("230258509299404568401799145468436420760");
         enum int        eln10       = -38;
 
         version(ShowEnumDecBytes)
@@ -7897,21 +7897,21 @@ struct Constants(T)
     }
     else static if (is(T:uint256))
     {
-        enum uint256    c1_2π       = uint256("15915494309189533576888376337251436203445964574045644874766734405889679763423");
+        static immutable uint256    c1_2π       = uint256("15915494309189533576888376337251436203445964574045644874766734405889679763423");
         enum int        e1_2π       = -77;
-        enum uint256    c2π         = uint256("62831853071795864769252867665590057683943387987502116419498891846156328125724");
+        static immutable uint256    c2π         = uint256("62831853071795864769252867665590057683943387987502116419498891846156328125724");
         enum int        e2π         = -76;
-        enum uint256    c2_π        = uint256("63661977236758134307553505349005744813783858296182579499066937623558719053691");
+        static immutable uint256    c2_π        = uint256("63661977236758134307553505349005744813783858296182579499066937623558719053691");
         enum int        e2_π        = -77;
-        enum uint256    cπ_2        = uint256("15707963267948966192313216916397514420985846996875529104874722961539082031431");
+        static immutable uint256    cπ_2        = uint256("15707963267948966192313216916397514420985846996875529104874722961539082031431");
         enum int        eπ_2        = -76;
         enum uint256    chalf       = 5U;
         enum int        ehalf       = -1;
-        enum uint256    cthird      = uint256("33333333333333333333333333333333333333333333333333333333333333333333333333333");
+        static immutable uint256    cthird      = uint256("33333333333333333333333333333333333333333333333333333333333333333333333333333");
         enum int        ethird      = -77;
-        enum uint256    ce          = uint256("27182818284590452353602874713526624977572470936999595749669676277240766303536");
+        static immutable uint256    ce          = uint256("27182818284590452353602874713526624977572470936999595749669676277240766303536");
         enum int        ee          = -76;
-        enum uint256    cln10       = uint256("23025850929940456840179914546843642076011014886287729760333279009675726096774");
+        static immutable uint256    cln10       = uint256("23025850929940456840179914546843642076011014886287729760333279009675726096774");
         enum int        eln10       = -76;
 
         version(ShowEnumDecBytes)
@@ -7938,108 +7938,108 @@ template SEnumBytes(int Bytes)
 {
     static if (Bytes == 4)
     {
-        enum s_E = cast(const(ubyte)[])[47, 169, 122, 74];
-        enum s_PI = cast(const(ubyte)[])[47, 175, 239, 217];
-        enum s_LN10 = cast(const(ubyte)[])[47, 163, 34, 121];
-        enum s_LOG2T = cast(const(ubyte)[])[47, 178, 176, 72];
-        enum s_LOG2E = cast(const(ubyte)[])[47, 150, 3, 135];
-        enum s_LOG2 = cast(const(ubyte)[])[47, 45, 238, 252];
-        enum s_LOG10E = cast(const(ubyte)[])[47, 66, 68, 161];
-        enum s_LN2 = cast(const(ubyte)[])[47, 105, 196, 16];
-        enum s_pi_2 = cast(const(ubyte)[])[47, 151, 247, 236];
-        enum s_pi_4 = cast(const(ubyte)[])[47, 119, 215, 158];
-        enum s_m_1_pi = cast(const(ubyte)[])[47, 48, 145, 251];
-        enum s_m_2_pi = cast(const(ubyte)[])[47, 97, 35, 246];
-        enum s_m_2_sqrtpi = cast(const(ubyte)[])[47, 145, 55, 187];
-        enum s_sqrt2 = cast(const(ubyte)[])[47, 149, 148, 70];
-        enum s_sqrt1_2 = cast(const(ubyte)[])[47, 107, 229, 92];
-        enum s_sqrt3 = cast(const(ubyte)[])[47, 154, 109, 211];
-        enum s_m_sqrt3 = cast(const(ubyte)[])[47, 88, 24, 191];
-        enum s_pi_3 = cast(const(ubyte)[])[47, 143, 250, 158];
-        enum s_pi_6 = cast(const(ubyte)[])[47, 79, 229, 20];
-        enum s_sqrt2_2 = cast(const(ubyte)[])[47, 107, 229, 92];
-        enum s_sqrt3_2 = cast(const(ubyte)[])[107, 196, 37, 30];
-        enum s_pi5_6 = cast(const(ubyte)[])[47, 167, 242, 138];
-        enum s_pi3_4 = cast(const(ubyte)[])[47, 163, 243, 226];
-        enum s_pi2_3 = cast(const(ubyte)[])[47, 159, 245, 59];
-        enum s_onethird = cast(const(ubyte)[])[47, 50, 220, 213];
-        enum s_twothirds = cast(const(ubyte)[])[47, 101, 185, 171];
-        enum s_n5_6 = cast(const(ubyte)[])[47, 127, 40, 21];
-        enum s_n1_6 = cast(const(ubyte)[])[47, 25, 110, 107];
-        enum s_m_1_2pi = cast(const(ubyte)[])[47, 24, 72, 253];
-        enum s_pi2 = cast(const(ubyte)[])[47, 223, 223, 177];
+        static immutable s_E = cast(const(ubyte)[])[47, 169, 122, 74];
+        static immutable s_PI = cast(const(ubyte)[])[47, 175, 239, 217];
+        static immutable s_LN10 = cast(const(ubyte)[])[47, 163, 34, 121];
+        static immutable s_LOG2T = cast(const(ubyte)[])[47, 178, 176, 72];
+        static immutable s_LOG2E = cast(const(ubyte)[])[47, 150, 3, 135];
+        static immutable s_LOG2 = cast(const(ubyte)[])[47, 45, 238, 252];
+        static immutable s_LOG10E = cast(const(ubyte)[])[47, 66, 68, 161];
+        static immutable s_LN2 = cast(const(ubyte)[])[47, 105, 196, 16];
+        static immutable s_pi_2 = cast(const(ubyte)[])[47, 151, 247, 236];
+        static immutable s_pi_4 = cast(const(ubyte)[])[47, 119, 215, 158];
+        static immutable s_m_1_pi = cast(const(ubyte)[])[47, 48, 145, 251];
+        static immutable s_m_2_pi = cast(const(ubyte)[])[47, 97, 35, 246];
+        static immutable s_m_2_sqrtpi = cast(const(ubyte)[])[47, 145, 55, 187];
+        static immutable s_sqrt2 = cast(const(ubyte)[])[47, 149, 148, 70];
+        static immutable s_sqrt1_2 = cast(const(ubyte)[])[47, 107, 229, 92];
+        static immutable s_sqrt3 = cast(const(ubyte)[])[47, 154, 109, 211];
+        static immutable s_m_sqrt3 = cast(const(ubyte)[])[47, 88, 24, 191];
+        static immutable s_pi_3 = cast(const(ubyte)[])[47, 143, 250, 158];
+        static immutable s_pi_6 = cast(const(ubyte)[])[47, 79, 229, 20];
+        static immutable s_sqrt2_2 = cast(const(ubyte)[])[47, 107, 229, 92];
+        static immutable s_sqrt3_2 = cast(const(ubyte)[])[107, 196, 37, 30];
+        static immutable s_pi5_6 = cast(const(ubyte)[])[47, 167, 242, 138];
+        static immutable s_pi3_4 = cast(const(ubyte)[])[47, 163, 243, 226];
+        static immutable s_pi2_3 = cast(const(ubyte)[])[47, 159, 245, 59];
+        static immutable s_onethird = cast(const(ubyte)[])[47, 50, 220, 213];
+        static immutable s_twothirds = cast(const(ubyte)[])[47, 101, 185, 171];
+        static immutable s_n5_6 = cast(const(ubyte)[])[47, 127, 40, 21];
+        static immutable s_n1_6 = cast(const(ubyte)[])[47, 25, 110, 107];
+        static immutable s_m_1_2pi = cast(const(ubyte)[])[47, 24, 72, 253];
+        static immutable s_pi2 = cast(const(ubyte)[])[47, 223, 223, 177];
     }
     else static if (Bytes == 8)
     {
-        enum s_E = cast(const(ubyte)[])[47, 233, 168, 67, 78, 200, 226, 37];
-        enum s_PI = cast(const(ubyte)[])[47, 235, 41, 67, 10, 37, 109, 33];
-        enum s_LN10 = cast(const(ubyte)[])[47, 232, 46, 48, 94, 136, 115, 254];
-        enum s_LOG2T = cast(const(ubyte)[])[47, 235, 205, 70, 168, 16, 173, 194];
-        enum s_LOG2E = cast(const(ubyte)[])[47, 229, 32, 31, 157, 110, 112, 131];
-        enum s_LOG2 = cast(const(ubyte)[])[47, 202, 177, 218, 19, 149, 56, 68];
-        enum s_LOG10E = cast(const(ubyte)[])[47, 207, 109, 226, 163, 55, 177, 198];
-        enum s_LN2 = cast(const(ubyte)[])[47, 216, 160, 35, 10, 190, 78, 221];
-        enum s_pi_2 = cast(const(ubyte)[])[47, 229, 148, 161, 133, 18, 182, 145];
-        enum s_pi_4 = cast(const(ubyte)[])[47, 219, 231, 39, 153, 93, 144, 211];
-        enum s_m_1_pi = cast(const(ubyte)[])[47, 203, 79, 2, 244, 241, 222, 83];
-        enum s_m_2_pi = cast(const(ubyte)[])[47, 214, 158, 5, 233, 227, 188, 165];
-        enum s_m_2_sqrtpi = cast(const(ubyte)[])[47, 228, 2, 65, 63, 109, 58, 217];
-        enum s_sqrt2 = cast(const(ubyte)[])[47, 229, 6, 56, 65, 5, 147, 231];
-        enum s_sqrt1_2 = cast(const(ubyte)[])[47, 217, 31, 25, 69, 27, 227, 131];
-        enum s_sqrt3 = cast(const(ubyte)[])[47, 230, 39, 74, 129, 30, 57, 237];
-        enum s_m_sqrt3 = cast(const(ubyte)[])[47, 212, 130, 248, 89, 15, 107, 194];
-        enum s_pi_3 = cast(const(ubyte)[])[47, 227, 184, 107, 174, 12, 121, 182];
-        enum s_pi_6 = cast(const(ubyte)[])[47, 210, 154, 26, 102, 62, 96, 141];
-        enum s_sqrt2_2 = cast(const(ubyte)[])[47, 217, 31, 25, 69, 27, 227, 131];
-        enum s_sqrt3_2 = cast(const(ubyte)[])[47, 222, 196, 116, 133, 151, 33, 162];
-        enum s_pi5_6 = cast(const(ubyte)[])[47, 233, 77, 13, 51, 31, 48, 70];
-        enum s_pi3_4 = cast(const(ubyte)[])[47, 232, 94, 242, 71, 156, 17, 217];
-        enum s_pi2_3 = cast(const(ubyte)[])[47, 231, 112, 215, 92, 24, 243, 107];
-        enum s_onethird = cast(const(ubyte)[])[47, 203, 215, 166, 37, 64, 85, 85];
-        enum s_twothirds = cast(const(ubyte)[])[47, 215, 175, 76, 74, 128, 170, 171];
-        enum s_n5_6 = cast(const(ubyte)[])[47, 221, 155, 31, 93, 32, 213, 85];
-        enum s_n1_6 = cast(const(ubyte)[])[47, 197, 235, 211, 18, 160, 42, 171];
-        enum s_m_1_2pi = cast(const(ubyte)[])[47, 197, 167, 129, 122, 120, 239, 41];
-        enum s_pi2 = cast(const(ubyte)[])[47, 246, 82, 134, 20, 74, 218, 66];
+        static immutable s_E = cast(const(ubyte)[])[47, 233, 168, 67, 78, 200, 226, 37];
+        static immutable s_PI = cast(const(ubyte)[])[47, 235, 41, 67, 10, 37, 109, 33];
+        static immutable s_LN10 = cast(const(ubyte)[])[47, 232, 46, 48, 94, 136, 115, 254];
+        static immutable s_LOG2T = cast(const(ubyte)[])[47, 235, 205, 70, 168, 16, 173, 194];
+        static immutable s_LOG2E = cast(const(ubyte)[])[47, 229, 32, 31, 157, 110, 112, 131];
+        static immutable s_LOG2 = cast(const(ubyte)[])[47, 202, 177, 218, 19, 149, 56, 68];
+        static immutable s_LOG10E = cast(const(ubyte)[])[47, 207, 109, 226, 163, 55, 177, 198];
+        static immutable s_LN2 = cast(const(ubyte)[])[47, 216, 160, 35, 10, 190, 78, 221];
+        static immutable s_pi_2 = cast(const(ubyte)[])[47, 229, 148, 161, 133, 18, 182, 145];
+        static immutable s_pi_4 = cast(const(ubyte)[])[47, 219, 231, 39, 153, 93, 144, 211];
+        static immutable s_m_1_pi = cast(const(ubyte)[])[47, 203, 79, 2, 244, 241, 222, 83];
+        static immutable s_m_2_pi = cast(const(ubyte)[])[47, 214, 158, 5, 233, 227, 188, 165];
+        static immutable s_m_2_sqrtpi = cast(const(ubyte)[])[47, 228, 2, 65, 63, 109, 58, 217];
+        static immutable s_sqrt2 = cast(const(ubyte)[])[47, 229, 6, 56, 65, 5, 147, 231];
+        static immutable s_sqrt1_2 = cast(const(ubyte)[])[47, 217, 31, 25, 69, 27, 227, 131];
+        static immutable s_sqrt3 = cast(const(ubyte)[])[47, 230, 39, 74, 129, 30, 57, 237];
+        static immutable s_m_sqrt3 = cast(const(ubyte)[])[47, 212, 130, 248, 89, 15, 107, 194];
+        static immutable s_pi_3 = cast(const(ubyte)[])[47, 227, 184, 107, 174, 12, 121, 182];
+        static immutable s_pi_6 = cast(const(ubyte)[])[47, 210, 154, 26, 102, 62, 96, 141];
+        static immutable s_sqrt2_2 = cast(const(ubyte)[])[47, 217, 31, 25, 69, 27, 227, 131];
+        static immutable s_sqrt3_2 = cast(const(ubyte)[])[47, 222, 196, 116, 133, 151, 33, 162];
+        static immutable s_pi5_6 = cast(const(ubyte)[])[47, 233, 77, 13, 51, 31, 48, 70];
+        static immutable s_pi3_4 = cast(const(ubyte)[])[47, 232, 94, 242, 71, 156, 17, 217];
+        static immutable s_pi2_3 = cast(const(ubyte)[])[47, 231, 112, 215, 92, 24, 243, 107];
+        static immutable s_onethird = cast(const(ubyte)[])[47, 203, 215, 166, 37, 64, 85, 85];
+        static immutable s_twothirds = cast(const(ubyte)[])[47, 215, 175, 76, 74, 128, 170, 171];
+        static immutable s_n5_6 = cast(const(ubyte)[])[47, 221, 155, 31, 93, 32, 213, 85];
+        static immutable s_n1_6 = cast(const(ubyte)[])[47, 197, 235, 211, 18, 160, 42, 171];
+        static immutable s_m_1_2pi = cast(const(ubyte)[])[47, 197, 167, 129, 122, 120, 239, 41];
+        static immutable s_pi2 = cast(const(ubyte)[])[47, 246, 82, 134, 20, 74, 218, 66];
     }
     else static if (Bytes == 16)
     {
-        enum s_E = cast(const(ubyte)[])[47, 254, 134, 5, 138, 75, 244, 222, 78, 144, 106, 204, 178, 106, 187, 86];
-        enum s_PI = cast(const(ubyte)[])[47, 254, 154, 228, 121, 87, 150, 167, 186, 190, 85, 100, 230, 243, 159, 143];
-        enum s_LN10 = cast(const(ubyte)[])[47, 254, 113, 134, 181, 179, 173, 164, 20, 77, 7, 155, 146, 117, 244, 204];
-        enum s_LOG2T = cast(const(ubyte)[])[47, 254, 163, 200, 160, 148, 98, 211, 143, 1, 212, 185, 207, 71, 18, 238];
-        enum s_LOG2E = cast(const(ubyte)[])[47, 254, 71, 33, 95, 23, 166, 85, 227, 137, 147, 211, 222, 131, 75, 164];
-        enum s_LOG2 = cast(const(ubyte)[])[47, 252, 148, 107, 83, 194, 26, 7, 50, 34, 162, 191, 204, 189, 135, 130];
-        enum s_LOG10E = cast(const(ubyte)[])[47, 252, 214, 31, 171, 139, 176, 250, 28, 107, 133, 185, 11, 217, 107, 227];
-        enum s_LN2 = cast(const(ubyte)[])[47, 253, 85, 191, 121, 86, 12, 191, 116, 131, 43, 138, 34, 255, 76, 6];
-        enum s_pi_2 = cast(const(ubyte)[])[47, 254, 77, 114, 60, 171, 203, 83, 221, 95, 42, 178, 115, 121, 207, 199];
-        enum s_pi_4 = cast(const(ubyte)[])[47, 253, 131, 59, 47, 90, 248, 163, 82, 219, 213, 124, 65, 97, 14, 229];
-        enum s_m_1_pi = cast(const(ubyte)[])[47, 252, 156, 240, 91, 34, 90, 23, 191, 203, 190, 12, 236, 151, 165, 175];
-        enum s_m_2_pi = cast(const(ubyte)[])[47, 253, 57, 224, 182, 68, 180, 47, 127, 151, 124, 25, 217, 47, 75, 94];
-        enum s_m_2_sqrtpi = cast(const(ubyte)[])[47, 254, 55, 162, 37, 186, 161, 80, 240, 9, 160, 153, 245, 193, 182, 137];
-        enum s_sqrt2 = cast(const(ubyte)[])[47, 254, 69, 185, 226, 120, 205, 248, 180, 62, 15, 15, 16, 20, 128, 34];
-        enum s_sqrt1_2 = cast(const(ubyte)[])[47, 253, 92, 161, 108, 92, 5, 219, 133, 54, 75, 75, 80, 102, 128, 170];
-        enum s_sqrt3 = cast(const(ubyte)[])[47, 254, 85, 101, 141, 255, 250, 80, 117, 24, 247, 247, 126, 151, 83, 80];
-        enum s_m_sqrt3 = cast(const(ubyte)[])[47, 253, 28, 167, 217, 85, 66, 97, 134, 83, 58, 142, 80, 163, 21, 182];
-        enum s_pi_3 = cast(const(ubyte)[])[47, 254, 51, 161, 125, 199, 220, 226, 147, 148, 199, 33, 162, 81, 53, 48];
-        enum s_pi_6 = cast(const(ubyte)[])[47, 253, 2, 39, 116, 231, 80, 108, 225, 231, 227, 168, 43, 150, 9, 238];
-        enum s_sqrt2_2 = cast(const(ubyte)[])[47, 253, 92, 161, 108, 92, 5, 219, 133, 54, 75, 75, 80, 102, 128, 170];
-        enum s_sqrt3_2 = cast(const(ubyte)[])[47, 253, 170, 251, 197, 255, 227, 146, 73, 124, 215, 213, 120, 244, 160, 145];
-        enum s_pi5_6 = cast(const(ubyte)[])[47, 254, 129, 19, 186, 115, 168, 54, 112, 243, 241, 212, 21, 203, 4, 247];
-        enum s_pi3_4 = cast(const(ubyte)[])[47, 254, 116, 43, 91, 1, 176, 253, 204, 14, 192, 11, 173, 54, 183, 171];
-        enum s_pi2_3 = cast(const(ubyte)[])[47, 254, 103, 66, 251, 143, 185, 197, 39, 41, 142, 67, 68, 162, 106, 95];
-        enum s_onethird = cast(const(ubyte)[])[47, 252, 164, 88, 148, 228, 130, 149, 103, 217, 218, 33, 85, 85, 85, 85];
-        enum s_twothirds = cast(const(ubyte)[])[47, 253, 72, 177, 41, 201, 5, 42, 207, 179, 180, 66, 170, 170, 170, 171];
-        enum s_n5_6 = cast(const(ubyte)[])[47, 253, 154, 221, 116, 59, 70, 117, 131, 160, 161, 83, 85, 85, 85, 85];
-        enum s_n1_6 = cast(const(ubyte)[])[47, 252, 82, 44, 74, 114, 65, 74, 179, 236, 237, 16, 170, 170, 170, 171];
-        enum s_m_1_2pi = cast(const(ubyte)[])[47, 252, 78, 120, 45, 145, 45, 11, 223, 229, 223, 6, 118, 75, 210, 216];
-        enum s_pi2 = cast(const(ubyte)[])[47, 255, 53, 200, 242, 175, 45, 79, 117, 124, 170, 201, 205, 231, 63, 30];
-        enum s_maxFloat128 = cast(const(ubyte)[])[48, 74, 167, 197, 171, 159, 85, 155, 61, 7, 200, 75, 93, 204, 99, 241];
-        enum s_minFloat128 = cast(const(ubyte)[])[47, 164, 69, 22, 223, 138, 22, 254, 99, 213, 183, 26, 180, 153, 54, 60];
-        enum s_maxDouble128 = cast(const(ubyte)[])[50, 102, 88, 162, 19, 204, 122, 79, 250, 224, 60, 72, 37, 21, 111, 179];
-        enum s_minDouble128 = cast(const(ubyte)[])[45, 118, 243, 151, 218, 3, 175, 6, 170, 131, 63, 210, 87, 21, 246, 229];
-        enum s_maxReal128 = cast(const(ubyte)[])[86, 134, 58, 168, 133, 203, 26, 108, 236, 243, 134, 52, 204, 240, 142, 58];
-        enum s_minReal128 = cast(const(ubyte)[])[9, 80, 179, 184, 226, 237, 169, 26, 35, 45, 217, 80, 16, 41, 120, 219];
+        static immutable s_E = cast(const(ubyte)[])[47, 254, 134, 5, 138, 75, 244, 222, 78, 144, 106, 204, 178, 106, 187, 86];
+        static immutable s_PI = cast(const(ubyte)[])[47, 254, 154, 228, 121, 87, 150, 167, 186, 190, 85, 100, 230, 243, 159, 143];
+        static immutable s_LN10 = cast(const(ubyte)[])[47, 254, 113, 134, 181, 179, 173, 164, 20, 77, 7, 155, 146, 117, 244, 204];
+        static immutable s_LOG2T = cast(const(ubyte)[])[47, 254, 163, 200, 160, 148, 98, 211, 143, 1, 212, 185, 207, 71, 18, 238];
+        static immutable s_LOG2E = cast(const(ubyte)[])[47, 254, 71, 33, 95, 23, 166, 85, 227, 137, 147, 211, 222, 131, 75, 164];
+        static immutable s_LOG2 = cast(const(ubyte)[])[47, 252, 148, 107, 83, 194, 26, 7, 50, 34, 162, 191, 204, 189, 135, 130];
+        static immutable s_LOG10E = cast(const(ubyte)[])[47, 252, 214, 31, 171, 139, 176, 250, 28, 107, 133, 185, 11, 217, 107, 227];
+        static immutable s_LN2 = cast(const(ubyte)[])[47, 253, 85, 191, 121, 86, 12, 191, 116, 131, 43, 138, 34, 255, 76, 6];
+        static immutable s_pi_2 = cast(const(ubyte)[])[47, 254, 77, 114, 60, 171, 203, 83, 221, 95, 42, 178, 115, 121, 207, 199];
+        static immutable s_pi_4 = cast(const(ubyte)[])[47, 253, 131, 59, 47, 90, 248, 163, 82, 219, 213, 124, 65, 97, 14, 229];
+        static immutable s_m_1_pi = cast(const(ubyte)[])[47, 252, 156, 240, 91, 34, 90, 23, 191, 203, 190, 12, 236, 151, 165, 175];
+        static immutable s_m_2_pi = cast(const(ubyte)[])[47, 253, 57, 224, 182, 68, 180, 47, 127, 151, 124, 25, 217, 47, 75, 94];
+        static immutable s_m_2_sqrtpi = cast(const(ubyte)[])[47, 254, 55, 162, 37, 186, 161, 80, 240, 9, 160, 153, 245, 193, 182, 137];
+        static immutable s_sqrt2 = cast(const(ubyte)[])[47, 254, 69, 185, 226, 120, 205, 248, 180, 62, 15, 15, 16, 20, 128, 34];
+        static immutable s_sqrt1_2 = cast(const(ubyte)[])[47, 253, 92, 161, 108, 92, 5, 219, 133, 54, 75, 75, 80, 102, 128, 170];
+        static immutable s_sqrt3 = cast(const(ubyte)[])[47, 254, 85, 101, 141, 255, 250, 80, 117, 24, 247, 247, 126, 151, 83, 80];
+        static immutable s_m_sqrt3 = cast(const(ubyte)[])[47, 253, 28, 167, 217, 85, 66, 97, 134, 83, 58, 142, 80, 163, 21, 182];
+        static immutable s_pi_3 = cast(const(ubyte)[])[47, 254, 51, 161, 125, 199, 220, 226, 147, 148, 199, 33, 162, 81, 53, 48];
+        static immutable s_pi_6 = cast(const(ubyte)[])[47, 253, 2, 39, 116, 231, 80, 108, 225, 231, 227, 168, 43, 150, 9, 238];
+        static immutable s_sqrt2_2 = cast(const(ubyte)[])[47, 253, 92, 161, 108, 92, 5, 219, 133, 54, 75, 75, 80, 102, 128, 170];
+        static immutable s_sqrt3_2 = cast(const(ubyte)[])[47, 253, 170, 251, 197, 255, 227, 146, 73, 124, 215, 213, 120, 244, 160, 145];
+        static immutable s_pi5_6 = cast(const(ubyte)[])[47, 254, 129, 19, 186, 115, 168, 54, 112, 243, 241, 212, 21, 203, 4, 247];
+        static immutable s_pi3_4 = cast(const(ubyte)[])[47, 254, 116, 43, 91, 1, 176, 253, 204, 14, 192, 11, 173, 54, 183, 171];
+        static immutable s_pi2_3 = cast(const(ubyte)[])[47, 254, 103, 66, 251, 143, 185, 197, 39, 41, 142, 67, 68, 162, 106, 95];
+        static immutable s_onethird = cast(const(ubyte)[])[47, 252, 164, 88, 148, 228, 130, 149, 103, 217, 218, 33, 85, 85, 85, 85];
+        static immutable s_twothirds = cast(const(ubyte)[])[47, 253, 72, 177, 41, 201, 5, 42, 207, 179, 180, 66, 170, 170, 170, 171];
+        static immutable s_n5_6 = cast(const(ubyte)[])[47, 253, 154, 221, 116, 59, 70, 117, 131, 160, 161, 83, 85, 85, 85, 85];
+        static immutable s_n1_6 = cast(const(ubyte)[])[47, 252, 82, 44, 74, 114, 65, 74, 179, 236, 237, 16, 170, 170, 170, 171];
+        static immutable s_m_1_2pi = cast(const(ubyte)[])[47, 252, 78, 120, 45, 145, 45, 11, 223, 229, 223, 6, 118, 75, 210, 216];
+        static immutable s_pi2 = cast(const(ubyte)[])[47, 255, 53, 200, 242, 175, 45, 79, 117, 124, 170, 201, 205, 231, 63, 30];
+        static immutable s_maxFloat128 = cast(const(ubyte)[])[48, 74, 167, 197, 171, 159, 85, 155, 61, 7, 200, 75, 93, 204, 99, 241];
+        static immutable s_minFloat128 = cast(const(ubyte)[])[47, 164, 69, 22, 223, 138, 22, 254, 99, 213, 183, 26, 180, 153, 54, 60];
+        static immutable s_maxDouble128 = cast(const(ubyte)[])[50, 102, 88, 162, 19, 204, 122, 79, 250, 224, 60, 72, 37, 21, 111, 179];
+        static immutable s_minDouble128 = cast(const(ubyte)[])[45, 118, 243, 151, 218, 3, 175, 6, 170, 131, 63, 210, 87, 21, 246, 229];
+        static immutable s_maxReal128 = cast(const(ubyte)[])[86, 134, 58, 168, 133, 203, 26, 108, 236, 243, 134, 52, 204, 240, 142, 58];
+        static immutable s_minReal128 = cast(const(ubyte)[])[9, 80, 179, 184, 226, 237, 169, 26, 35, 45, 217, 80, 16, 41, 120, 219];
     }
 }
 

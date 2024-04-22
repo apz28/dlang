@@ -485,7 +485,7 @@ public:
     private void doClear() nothrow @trusted
     {
         // Do not log or use any codes using string (GC data) since it can be called from destructor
-        final switch(_type)
+        final switch (_type)
         {
             case XPathDataType.empty:
             case XPathDataType.boolean:
@@ -521,7 +521,7 @@ public:
 
     @property XPathResultType resultType() const nothrow
     {
-        final switch(_type)
+        final switch (_type)
         {
             case XPathDataType.boolean:
                 return XPathResultType.boolean;

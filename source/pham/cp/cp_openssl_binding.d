@@ -39,7 +39,7 @@ else
 
 version(Windows)
 {
-    private enum loadLib = "LoadLibrary(&lib[0])";
+    private static immutable string loadLib = "LoadLibrary(&lib[0])";
 
     static immutable LibName[] libSslNames = libSslNamesImpl();
     private LibName[] libSslNamesImpl() pure @safe
@@ -61,7 +61,7 @@ version(Windows)
 }
 else version(OSX)
 {
-    private enum loadLib = "dlopen(lib.ptr, RTLD_LAZY)";
+    private static immutable loadLib = "dlopen(lib.ptr, RTLD_LAZY)";
 
     static immutable LibName[] libSslNames = [
         "libssl.46.dylib", "libssl.44.dylib", "libssl.43.dylib",
@@ -73,7 +73,7 @@ else version(OSX)
 }
 else version(Posix)
 {
-    private enum loadLib = "dlopen(lib.ptr, RTLD_LAZY)";
+    private static immutable loadLib = "dlopen(lib.ptr, RTLD_LAZY)";
 
     static immutable LibName[] libSslNames = ["libssl.so.3.0", "libssl.so.1.1"];
 

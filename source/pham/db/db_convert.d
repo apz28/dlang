@@ -163,7 +163,7 @@ if (is(I == int) || is(I == uint)
     } catch (Exception) return failedValue;
 }
 
-enum failedConvertedString = "?";
+static immutable string failedConvertedString = "?";
 
 /**
  * Convert a valid character, `validChar`, to string

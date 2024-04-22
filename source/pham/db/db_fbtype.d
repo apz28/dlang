@@ -58,7 +58,7 @@ enum FbIscCommandType : int32
 	savePoint = FbIsc.isc_info_sql_stmt_savepoint,
 }
 
-static immutable string[string] fbDefaultConnectionParameterValues;
+static immutable DbConnectionParameterInfo[string] fbDefaultConnectionParameterValues;
 
 static immutable string[] fbValidConnectionParameterNames = [
     // Primary
@@ -77,8 +77,8 @@ static immutable string[] fbValidConnectionParameterNames = [
     DbConnectionParameterIdentifier.commandTimeout,
     DbConnectionParameterIdentifier.connectionTimeout,
     DbConnectionParameterIdentifier.fetchRecordCount,
-    DbConnectionParameterIdentifier.pooling,
     DbConnectionParameterIdentifier.packageSize,
+    DbConnectionParameterIdentifier.pooling,
     DbConnectionParameterIdentifier.receiveTimeout,
     DbConnectionParameterIdentifier.sendTimeout,
     DbConnectionParameterIdentifier.socketBlocking,
@@ -93,33 +93,32 @@ static immutable string[] fbValidConnectionParameterNames = [
     ];
 
 static immutable DbTypeInfo[] fbNativeTypes = [
-    {dbName:"VARCHAR[?]", nativeName:"VARCHAR", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:FbIscType.sql_varying, dbType:DbType.string}, //varchar
-    {dbName:"CHAR[?]", nativeName:"CHAR", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:FbIscType.sql_text, dbType:DbType.fixedString}, //char[]
-    {dbName:"DOUBLE", nativeName:"DOUBLE PRECISION", displaySize:17, nativeSize:8, nativeId:FbIscType.sql_double, dbType:DbType.float64},
-    {dbName:"FLOAT", nativeName:"FLOAT", displaySize:17, nativeSize:4, nativeId:FbIscType.sql_float, dbType:DbType.float32},
-    {dbName:"INTEGER", nativeName:"INTEGER", displaySize:11, nativeSize:4, nativeId:FbIscType.sql_long, dbType:DbType.int32},
-    {dbName:"SMALLINT", nativeName:"SMALLINT", displaySize:6, nativeSize:2, nativeId:FbIscType.sql_short, dbType:DbType.int16},
-    {dbName:"TIMESTAMP", nativeName:"TIMESTAMP", displaySize:22, nativeSize:8, nativeId:FbIscType.sql_timestamp, dbType:DbType.datetime},
-    {dbName:"BLOB", nativeName:"BLOB", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:FbIscType.sql_blob, dbType:DbType.binary},
-    {dbName:"DOUBLE", nativeName:"DOUBLE PRECISION", displaySize:17, nativeSize:8, nativeId:FbIscType.sql_d_float, dbType:DbType.float64},
-    {dbName:"ARRAY[?,?]", nativeName:"ARRAY", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:FbIscType.sql_array, dbType:DbType.array},
-    {dbName:"BIGINT", nativeName:"QUAD", displaySize:20, nativeSize:8, nativeId:FbIscType.sql_quad, dbType:DbType.int64},
-    {dbName:"TIME", nativeName:"TIME", displaySize:11, nativeSize:4, nativeId:FbIscType.sql_time, dbType:DbType.time},
-    {dbName:"DATE", nativeName:"DATE", displaySize:10, nativeSize:4, nativeId:FbIscType.sql_date, dbType:DbType.date},
-    {dbName:"BIGINT", nativeName:"BIGINT", displaySize:20, nativeSize:8, nativeId:FbIscType.sql_int64, dbType:DbType.int64},
-    {dbName:"BOOLEAN", nativeName:"BOOLEAN", displaySize:5, nativeSize:1, nativeId:FbIscType.sql_boolean, dbType:DbType.boolean}, // fb3
-    {dbName:"INT128", nativeName:"INT128", displaySize:40, nativeSize:16, nativeId:FbIscType.sql_int128, dbType:DbType.int128}, // fb4
-    {dbName:"TIMESTAMPTZ", nativeName:"TIMESTAMP WITH TIMEZONE", displaySize:28, nativeSize:10, nativeId:FbIscType.sql_timestamp_tz, dbType:DbType.datetimeTZ}, // fb4
-    {dbName:"TIMESTAMPTZ", nativeName:"TIMESTAMP WITH OFFSET TIMEZONE", displaySize:28, nativeSize:10, nativeId:FbIscType.sql_timestamp_tz_ex, dbType:DbType.datetimeTZ}, // fb4
-    {dbName:"TIMETZ", nativeName:"TIME WITH TIMEZONE", displaySize:17, nativeSize:6, nativeId:FbIscType.sql_time_tz, dbType:DbType.timeTZ}, // fb4
-    {dbName:"TIMETZ", nativeName:"TIME WITH OFFSET TIMEZONE", displaySize:17, nativeSize:6, nativeId:FbIscType.sql_time_tz_ex, dbType:DbType.timeTZ}, // fb4
-    {dbName:"DECIMAL(16)", nativeName:"DECFLOAT(16)", displaySize:16, nativeSize:8, nativeId:FbIscType.sql_dec16, dbType:DbType.decimal64}, // fb4
-    {dbName:"DECIMAL(34)", nativeName:"DECFLOAT(34)", displaySize:34, nativeSize:16, nativeId:FbIscType.sql_dec34, dbType:DbType.decimal128}, // fb4
-    {dbName:"DECIMAL(34)", nativeName:"DECFLOAT", displaySize:34, nativeSize:16, nativeId:FbIscType.sql_dec34, dbType:DbType.decimal128}, // fb4 - Map to DECFLOAT(34) as document
-    {dbName:"", nativeName:"NULL", displaySize:4, nativeSize:0, nativeId:FbIscType.sql_null, dbType:DbType.unknown},
+    {dbName:"BIGINT", dbType:DbType.int64, dbId:FbIscType.sql_int64, nativeName:"int64", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
+    {dbName:"BLOB", dbType:DbType.binaryVary, dbId:FbIscType.sql_blob, nativeName:"ubyte[]", nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.binaryVary},
+    {dbName:"BOOLEAN", dbType:DbType.boolean, dbId:FbIscType.sql_boolean, nativeName:"bool", nativeSize:DbTypeSize.boolean, displaySize:DbTypeDisplaySize.boolean}, // fb3
+    {dbName:"CHAR(?)", dbType:DbType.stringFixed, dbId:FbIscType.sql_text, nativeName:"string", nativeSize:DbTypeSize.stringFixed, displaySize:DbTypeDisplaySize.stringFixed}, //char[]
+    {dbName:"DATE", dbType:DbType.date, dbId:FbIscType.sql_date, nativeName:"DbDate", nativeSize:DbTypeSize.date, displaySize:DbTypeDisplaySize.date},
+    {dbName:"DATETIME", dbType:DbType.datetime, dbId:FbIscType.sql_timestamp, nativeName:"DbDateTime", nativeSize:DbTypeSize.datetime, displaySize:DbTypeDisplaySize.datetime},
+    {dbName:"DECFLOAT(16)", dbType:DbType.decimal64, dbId:FbIscType.sql_dec16, nativeName:"Decimal64", nativeSize:DbTypeSize.decimal64, displaySize:DbTypeDisplaySize.decimal64}, // fb4
+    {dbName:"DECFLOAT(34)", dbType:DbType.decimal128, dbId:FbIscType.sql_dec34, nativeName:"Decimal128", nativeSize:DbTypeSize.decimal128, displaySize:DbTypeDisplaySize.decimal128}, // fb4
+    {dbName:"DOUBLE PRECISION", dbType:DbType.float64, dbId:FbIscType.sql_double, nativeName:"float64", nativeSize:DbTypeSize.float64, displaySize:DbTypeDisplaySize.float64},
+    {dbName:"DOUBLE PRECISION", dbType:DbType.float64, dbId:FbIscType.sql_d_float, nativeName:"float64", nativeSize:DbTypeSize.float64, displaySize:DbTypeDisplaySize.float64},
+    {dbName:"FLOAT", dbType:DbType.float32, dbId:FbIscType.sql_float, nativeName:"float32", nativeSize:DbTypeSize.float32, displaySize:DbTypeDisplaySize.float32},
+    {dbName:"INT128", dbType:DbType.int128, dbId:FbIscType.sql_int128, nativeName:"BigInteger", nativeSize:DbTypeSize.int128, displaySize:DbTypeDisplaySize.int128}, // fb4
+    {dbName:"INTEGER", dbType:DbType.int32, dbId:FbIscType.sql_long, nativeName:"int32", nativeSize:DbTypeSize.int32, displaySize:DbTypeDisplaySize.int32},
+    {dbName:"QUAD", dbType:DbType.int64, dbId:FbIscType.sql_quad, nativeName:"int64", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
+    {dbName:"SMALLINT", dbType:DbType.int16, dbId:FbIscType.sql_short, nativeName:"int16", nativeSize:DbTypeSize.int16, displaySize:DbTypeDisplaySize.int16},
+    {dbName:"TIME", dbType:DbType.time, dbId:FbIscType.sql_time, nativeName:"DbTime", nativeSize:DbTypeSize.time, displaySize:DbTypeDisplaySize.time},
+    {dbName:"TIME WITH OFFSET TIMEZONE", dbType:DbType.timeTZ, dbId:FbIscType.sql_time_tz_ex, nativeName:"DbTime", nativeSize:DbTypeSize.timeTZ, displaySize:DbTypeDisplaySize.timeTZ}, // fb4
+    {dbName:"TIME WITH TIMEZONE", dbType:DbType.timeTZ, dbId:FbIscType.sql_time_tz, nativeName:"DbTime", nativeSize:DbTypeSize.timeTZ, displaySize:DbTypeDisplaySize.timeTZ}, // fb4
+    {dbName:"TIMESTAMP WITH OFFSET TIMEZONE", dbType:DbType.datetimeTZ, dbId:FbIscType.sql_timestamp_tz_ex, nativeName:"DbDateTime", nativeSize:DbTypeSize.datetimeTZ, displaySize:DbTypeDisplaySize.datetimeTZ}, // fb4
+    {dbName:"TIMESTAMP WITH TIMEZONE", dbType:DbType.datetimeTZ, dbId:FbIscType.sql_timestamp_tz, nativeName:"DbDateTime", nativeSize:DbTypeSize.datetimeTZ, displaySize:DbTypeDisplaySize.datetimeTZ}, // fb4
+    {dbName:"VARCHAR(?)", dbType:DbType.stringVary, dbId:FbIscType.sql_varying, nativeName:"string", nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.stringVary},
+    {dbName:"ARRAY[?,?]", dbType:DbType.array, dbId:FbIscType.sql_array, nativeName:"?[?]", nativeSize:DbTypeSize.array, displaySize:DbTypeDisplaySize.array},
+    {dbName:"", dbType:DbType.unknown, dbId:FbIscType.sql_null, nativeName:"null", nativeSize:0, displaySize:4},
     ];
 
-static immutable DbTypeInfo*[int32] fbIscTypeToDbTypeInfos;
+static immutable DbTypeInfo*[int32] fbDbIdToDbTypeInfos;
 
 struct FbIscAcceptDataResponse
 {
@@ -342,7 +341,7 @@ public:
 
 			        case FbIsc.isc_info_sql_scale:
 			            const uint len = parseInt32!true(payload, posData, 2, typ);
-                        auto numericScale = parseInt32!true(payload, posData, len, typ);
+                        auto numericScale = cast(int16)parseInt32!true(payload, posData, len, typ);
 			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).numericScale = numericScale;
 			            break;
 
@@ -407,7 +406,6 @@ public:
         return this;
     }
 
-    debug(debug_pham_db_db_fbtype)
     string traceString(size_t index) const nothrow @trusted
     {
         import std.conv : to;
@@ -748,10 +746,21 @@ public:
         return this;
     }
 
-    pragma(inline, true)
-    DbBaseType baseType() const @nogc pure
+    DbBaseTypeInfo baseType() const @nogc pure
     {
-        return DbBaseType(numericScale, size, subType, type);
+        return DbBaseTypeInfo(fbType(type), subType, size, numericDigits, numericScale);
+    }
+
+    pragma(inline, true)
+    int32 baseTypeId() const @nogc pure
+    {
+        return type & ~0x1; // Exclude allow null indicator
+    }
+
+    pragma(inline, true)
+    static int32 baseTypeId(int32 type) @nogc pure
+    {
+        return type & ~0x1; // Exclude allow null indicator
     }
 
 	static FbIscType blrTypeToFbType(int32 blrType) @nogc pure
@@ -823,20 +832,14 @@ public:
         type = 0;
     }
 
-    pragma(inline, true)
     DbType dbType() const @nogc pure
     {
-        return dbType(type, subType, numericScale);
-    }
+        const t = fbType;
 
-    static DbType dbType(int32 iscType, int32 iscSubtype, int32 iscScale) @nogc pure
-    {
-        const t = fbType(iscType);
-
-        if (t == FbIscType.sql_blob && iscSubtype == textBlob)
+        if (t == FbIscType.sql_blob && subType == textBlob)
             return DbType.text;
 
-        if (iscScale != 0)
+        if (numericScale != 0)
         {
             switch (t) with (FbIscType)
             {
@@ -851,59 +854,71 @@ public:
             }
         }
 
-        if (auto e = t in fbIscTypeToDbTypeInfos)
+        if (auto e = t in fbDbIdToDbTypeInfos)
             return (*e).dbType;
 
         return DbType.unknown;
     }
 
-    pragma(inline, true)
     int32 dbTypeSize() const @nogc pure
     {
-        return dbTypeSize(dbType(), size);
-    }
-
-    static int32 dbTypeSize(DbType dbType, int32 iscSize) @nogc pure
-    {
-        if (auto e = dbType in dbTypeToDbTypeInfos)
+        if (size > 0)
+            return size;
+            
+        const t = fbType;
+        if (t != 0)
+        {
+            if (auto e = t in fbDbIdToDbTypeInfos)
+            {
+                const ns = (*e).nativeSize;
+                if (ns > 0)
+                    return ns;
+            }
+        }
+        
+        if (auto e = dbType() in dbTypeToDbTypeInfos)
         {
             const ns = (*e).nativeSize;
-            return ns > 0 ? ns : iscSize;
+            if (ns > 0)
+                return ns;
         }
+        
         return dynamicTypeSize;
     }
 
     int32 dbTypeDisplaySize() const @nogc pure
     {
-        return dbTypeDisplaySize(type, size);
-    }
-
-    static int32 dbTypeDisplaySize(int32 iscType, int32 iscSize) @nogc pure
-    {
-        if (auto e = fbType(iscType) in fbIscTypeToDbTypeInfos)
+        const t = fbType;
+        if (t != 0)
         {
-            const ds = (*e).displaySize;
-            return ds > 0 ? ds : iscSize;
+            if (auto e = t in fbDbIdToDbTypeInfos)
+            {
+                const ns = (*e).displaySize;
+                if (ns > 0)
+                    return ns;
+            }
         }
+        
+        if (auto e = dbType() in dbTypeToDbTypeInfos)
+        {
+            const ns = (*e).displaySize;
+            if (ns > 0)
+                return ns;
+        }
+        
         return dynamicTypeSize;
-    }
-
-    pragma(inline, true)
-    static bool fbAllowNull(int32 iscType) @nogc pure
-    {
-        return (iscType & 0x1) != 0;
     }
 
     pragma(inline, true)
     FbIscType fbType() const @nogc pure
     {
-        return fbType(type);
+        return cast(FbIscType)baseTypeId();
     }
 
     pragma(inline, true)
-    static FbIscType fbType(int32 iscType) @nogc pure
+    static FbIscType fbType(int32 type) @nogc pure
     {
-        return cast(FbIscType)(iscType & ~0x1); // Exclude allow null indicator
+        return cast(FbIscType)baseTypeId(type);
     }
 
     static FbBlrType fbTypeToBlrType(const(FbIscType) fbType) @nogc pure
@@ -965,63 +980,36 @@ public:
 
     string fbTypeName() const pure
     {
-        return fbTypeName(type);
-    }
-
-    static string fbTypeName(int32 iscType) pure
-    {
-        if (auto e = fbType(iscType) in fbIscTypeToDbTypeInfos)
+        if (auto e = fbType in fbDbIdToDbTypeInfos)
             return (*e).nativeName;
         else
             return null;
     }
 
-    pragma(inline, true)
     int32 fbTypeSize() const @nogc pure
     {
-        return fbTypeSize(type, size);
-    }
-
-    static int32 fbTypeSize(int32 iscType, int32 iscSize) @nogc pure
-    {
-        if (auto e = fbType(iscType) in fbIscTypeToDbTypeInfos)
+        if (size > 0)
+            return size;
+            
+        if (auto e = fbType in fbDbIdToDbTypeInfos)
         {
             const ns = (*e).nativeSize;
-            return ns > 0 ? ns : iscSize;
+            if (ns > 0)
+                return ns;
         }
+        
         return dynamicTypeSize;
     }
-
-    pragma(inline, true)
-    bool hasNumericScale() const @nogc pure
+    
+    static DbFieldIdType isValueIdType(int32 type, int32 iscSubType) @nogc pure
     {
-        return hasNumericScale(type, numericScale);
-    }
-
-    static bool hasNumericScale(int32 iscType, int32 iscScale) @nogc pure
-    {
-        const t = fbType(iscType);
-	    return (iscScale != 0) &&
-            (t == FbIscType.sql_short ||
-             t == FbIscType.sql_long ||
-             t == FbIscType.sql_quad ||
-             t == FbIscType.sql_int64 ||
-             //t == FbIscType.sql_dec_fixed ||
-             t == FbIscType.sql_dec16 ||
-             t == FbIscType.sql_dec34
-            );
-    }
-
-    static DbFieldIdType isValueIdType(int32 iscType, int32 iscSubType) @nogc pure
-    {
-        const t = fbType(iscType);
+        const t = fbType(type);
         return t == FbIscType.sql_blob
             ? (iscSubType != textBlob ? DbFieldIdType.blob : DbFieldIdType.clob)
             : (t == FbIscType.sql_array ? DbFieldIdType.array : DbFieldIdType.no);
     }
 
-    debug(debug_pham_db_db_fbtype)
-    string traceString() const nothrow @trusted
+    string traceString() const
     {
         import std.conv : to;
         import pham.utl.utl_enum_set : toName;
@@ -1045,7 +1033,7 @@ public:
     pragma(inline, true)
     @property bool allowNull() const @nogc pure
     {
-        return fbAllowNull(type);
+        return (type & 0x1) != 0;
     }
 
     @property ref typeof(this) allowNull(bool value) @nogc pure return
@@ -1057,6 +1045,45 @@ public:
         return this;
     }
 
+    pragma(inline, true)
+    @property bool hasNumericScale() const @nogc pure
+    {
+        const t = fbType;
+	    return (numericScale != 0) &&
+            (t == FbIscType.sql_short ||
+             t == FbIscType.sql_long ||
+             t == FbIscType.sql_quad ||
+             t == FbIscType.sql_int64 ||
+             //t == FbIscType.sql_dec_fixed ||
+             t == FbIscType.sql_dec16 ||
+             t == FbIscType.sql_dec34
+            );
+    }
+
+    @property int16 numericDigits() const @nogc pure
+    {
+        if (!hasNumericScale)
+            return 0;
+            
+        switch (fbType)
+        {
+            case FbIscType.sql_quad:
+            case FbIscType.sql_int64:
+                return 19;
+            case FbIscType.sql_long:
+                return 10;
+            case FbIscType.sql_short:
+                return 5;
+            //case FbIscType.sql_dec_fixed: 
+            case FbIscType.sql_dec34:
+                return 34;
+            case FbIscType.sql_dec16:
+                return 16;
+            default:
+                assert(0, "Need to handle all cases as in hasNumericScale");
+        }
+    }
+
 public:
     enum textBlob = 1;
 
@@ -1064,10 +1091,10 @@ public:
     const(char)[] name;
     const(char)[] owner;
     const(char)[] tableName;
-    int32 numericScale;
     int32 size;
     int32 subType;
     int32 type;
+    int16 numericScale;
 }
 
 struct FbIscGenericResponse
@@ -2139,26 +2166,22 @@ shared static this() nothrow @safe
 {
     fbDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
-        return cast(immutable(string[string]))[
-            DbConnectionParameterIdentifier.serverPort : "3050",
-            DbConnectionParameterIdentifier.userName : "SYSDBA",
-            DbConnectionParameterIdentifier.userPassword : "masterkey",
-            DbConnectionParameterIdentifier.integratedSecurity : toName(DbIntegratedSecurityConnection.srp256),
-            DbConnectionParameterIdentifier.fbCachePage : "0", // 0=Not used/set
-            DbConnectionParameterIdentifier.fbCryptAlgorithm : FbIscText.filterCryptDefault,
-            DbConnectionParameterIdentifier.fbDialect : toStringSafe(FbIscDefault.dialect),
-            DbConnectionParameterIdentifier.fbDatabaseTrigger : dbBoolTrue,
-            DbConnectionParameterIdentifier.fbDummyPacketInterval : "300",  // In seconds, 5 minutes
-            DbConnectionParameterIdentifier.fbGarbageCollect : dbBoolTrue,
+        return cast(immutable(DbConnectionParameterInfo[string]))[
+            DbConnectionParameterIdentifier.serverPort : DbConnectionParameterInfo(&isConnectionParameterInt32, "3_050", 0, uint16.max, DbScheme.fb),
+            DbConnectionParameterIdentifier.userName : DbConnectionParameterInfo(&isConnectionParameterString, "SYSDBA", 0, dbConnectionParameterMaxId, DbScheme.fb),
+            DbConnectionParameterIdentifier.userPassword : DbConnectionParameterInfo(&isConnectionParameterString, "masterkey", 0, dbConnectionParameterMaxId, DbScheme.fb),
+            DbConnectionParameterIdentifier.fbCryptAlgorithm : DbConnectionParameterInfo(&isConnectionParameterFBCryptAlgorithm, FbIscText.filterCryptDefault, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.fb),
         ];
     }();
 
-    fbIscTypeToDbTypeInfos = () nothrow pure @trusted
+    fbDbIdToDbTypeInfos = () nothrow pure @trusted
     {
         immutable(DbTypeInfo)*[int32] result;
-        foreach (ref e; fbNativeTypes)
+        foreach (i; 0..fbNativeTypes.length)
         {
-            result[e.nativeId] = &e;
+            const dbId = fbNativeTypes[i].dbId;
+            if (!(dbId in result))
+                result[dbId] = &fbNativeTypes[i];
         }
         return result;
     }();

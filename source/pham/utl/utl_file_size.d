@@ -12,60 +12,36 @@
 
 module pham.utl.utl_file_size;
 
-import std.algorithm.searching : countUntil;
-import std.conv : ConvException, convTo = to;
-import std.exception : enforce;
+import std.conv : ConvException;
 import std.format : format;
-import std.range.primitives : ElementType;
 import std.traits : isFloatingPoint, isIntegral, Unqual;
+import std.uni : sicmp;
 
-import pham.utl.utl_numeric_parser : defaultParseDecimalOptions, isDigit, isNumericLexerRange, NumericLexer,
-    NumericLexerFlag;
+debug(debug_pham_utl_utl_file_size) import std.stdio : writeln;
+
+import pham.utl.utl_numeric_parser : ComputingSizeUnit, computingSizeUnitNames, computingSizeUnit1K, 
+    computingSizeUnitValues, computingSizeUnitMaxs, isNumericLexerRange, parseDecimalSuffix;
+public import pham.utl.utl_numeric_parser : NumericParsedKind;
 import pham.utl.utl_result : cmp, sameSign;
 
 @safe:
 
-struct UnitSize
-{
-@safe nothrow:
-
-    string symbol;
-    long value;
-}
+alias FileSizeUnit = ComputingSizeUnit;
+alias fileSizeUnitNames = computingSizeUnitNames;
+alias fileSizeUnit1K = computingSizeUnit1K;
+alias fileSizeUnitValues = computingSizeUnitValues;
+alias fileSizeUnitMaxs = computingSizeUnitMaxs;
 
 struct FileSize
 {
 @safe:
 
 public:
-    static immutable string[] suffixes = ["Bytes", "KB", "MB", "GB", "TB", "PB"];
-
-    static immutable UnitSize[] unitSizes = [
-        {"Bytes", 1L},
-        {"KB", 1L << 10},
-        {"MB", 1L << 20},
-        {"GB", 1L << 30},
-        {"TB", 1L << 40},
-        {"PB", 1L << 50},
-        //{"EB", 1L << 60},
-        //{"ZB", 1L << 70},
-        //{"YB", 1L << 80},
-        ];
-
-    static ptrdiff_t suffixIndex(scope const(char)[] suffix) @nogc nothrow pure
-    {
-        auto result = suffixes.countUntil(suffix);
-        if (result < 0 && (suffix == "BYTES" || suffix == "bytes"))
-            return 0;
-        return result;
-    }
-
-public:
     this(string units, T)(T value) @nogc nothrow pure
     if (suffixIndex(units) >= 0 && (isIntegral!T || isFloatingPoint!T))
     {
         enum unitIndex = suffixIndex(units);
-        this._bytes = opSafe!"*"(value, unitSizes[unitIndex].value);
+        this._bytes = opSafe!"*"(value, fileSizeUnitValues[unitIndex]);
     }
 
     ref typeof(this) opOpAssign(string op, T)(T value) @nogc nothrow pure return
@@ -147,7 +123,7 @@ public:
     if (suffixIndex(units) >= 0)
     {
         enum unitIndex = suffixIndex(units);
-        return FileSize(opSafe!"*"(value, unitSizes[unitIndex].value));
+        return FileSize(opSafe!"*"(value, fileSizeUnitValues[unitIndex]));
     }
 
     version(none) // not able to set alias Bytes = ... if implemented
@@ -155,81 +131,84 @@ public:
     if (suffixIndex(units) >= 0)
     {
         enum unitIndex = suffixIndex(units);
-        return FileSize(opSafe!"*"(value, unitSizes[unitIndex].value));
+        return FileSize(opSafe!"*"(value, fileSizeUnitValues[unitIndex]));
     }
 
     static FileSize parse(Range)(Range range) pure
     if (isNumericLexerRange!Range)
     {
-        static immutable errorMessage = "Not a valid FileSize string";
-        alias RangeElement = Unqual!(ElementType!Range);
-
-        auto lexer = NumericLexer!(Range)(range, defaultParseDecimalOptions!RangeElement());
-        enforce!ConvException(lexer.hasNumericChar, errorMessage);
-
-        size_t nNumber = 0;
-        RangeElement[30] number;
-        while (!lexer.empty && nNumber < number.length)
+        FileSize result;
+        final switch (tryParse(range, result)) with (NumericParsedKind)
         {
-            const c = lexer.front;
+            case ok: return result;
+            case invalid: throw new ConvException("Invalid FileSize string");
+            case overflow: throw new ConvException("Overflow FileSize string");
+            case underflow: throw new ConvException("Underflow FileSize string");
+        }
+    }
 
-            if (isDigit(c))
+    static NumericParsedKind tryParse(Range)(Range range, out FileSize fileSize) nothrow pure
+    if (isNumericLexerRange!Range)
+    {
+        double n;
+        int unitIndex;
+        const result = parseDecimalSuffix(range, fileSizeUnitNames[], n, unitIndex);
+        if (result == NumericParsedKind.ok)
+        {
+            if (n < 0)
             {
-                number[nNumber++] = c;
-                lexer.popFront();
+                fileSize = FileSize.min;
+                return NumericParsedKind.underflow;
             }
-            else if (lexer.allowDecimalChar && lexer.options.isDecimalChar(c))
+
+            if (unitIndex < 0)
             {
-                number[nNumber++] = c;
-                lexer.popDecimalChar();
+                if (n > fileSizeUnitMaxs[FileSizeUnit.bytes])
+                {
+                    fileSize = FileSize.max;
+                    return NumericParsedKind.overflow;
+                }
+
+                fileSize = FileSize(cast(long)n);
             }
             else
-                break;
-        }
-
-        lexer.skipSpaces();
-        size_t nSuffix = 0;
-        RangeElement[20] suffix;
-        while (!lexer.empty && nSuffix < suffix.length)
-        {
-            const c = lexer.front;
-            if (lexer.options.isSpaceChar(c))
-                break;
-            suffix[nSuffix++] = lexer.toUpper(c);
-            lexer.popFront();
-        }
-
-        lexer.skipSpaces();
-        enforce!ConvException(lexer.empty && nNumber > 0, errorMessage);
-
-        long v;
-        const n = convTo!double(number[0..nNumber]);
-        if (nSuffix != 0)
-        {
-            const unitIndex = suffixIndex(convTo!string(suffix[0..nSuffix]));
-            enforce!ConvException(unitIndex >= 0, errorMessage);
-            v = cast(long)(n * unitSizes[unitIndex].value);
+            {
+                if (n > fileSizeUnitMaxs[unitIndex])
+                {
+                    fileSize = FileSize.max;
+                    return NumericParsedKind.overflow;
+                }
+                fileSize = FileSize(opSafe!"*"(fileSizeUnitValues[unitIndex], n));
+            }
         }
         else
-            v = cast(long)n;
+            fileSize = FileSize.zero;
+        return result;
+    }
 
-        return FileSize(lexer.neg ? -v : v);
+    static int suffixIndex(string units) @nogc nothrow pure
+    {
+        foreach (i, s; fileSizeUnitNames)
+        {
+            if (sicmp(s, units) == 0)
+                return cast(int)i;
+        }
+        return -1;
     }
 
     long to(string units)() const @nogc nothrow pure
     if (suffixIndex(units) >= 0)
     {
+        if (_bytes == 0)
+            return 0L;
+
         enum unitIndex = suffixIndex(units);
-        long result = _bytes;
-        int numberCounter = unitIndex;
-        while (numberCounter > 0)
-        {
-            result /= 1024;
-            numberCounter--;
-        }
-        if (unitIndex > 0 && (_bytes % unitSizes[unitIndex].value) >= unitSizes[unitIndex - 1].value)
-            result++;
-        return result;
+        enum unitValue = fileSizeUnitValues[unitIndex];
+        const long result = _bytes / unitValue;
+
+        debug(debug_pham_utl_utl_file_size) debug writeln("_bytes=", _bytes, ", result=", result, ", dif=", _bytes - result*unitValue, ", u=", fileSizeUnitValues[unitIndex]);
+
+        return unitIndex > 0 && (_bytes - result*unitValue) > fileSizeUnitValues[unitIndex - 1] ? result + 1 : result;
     }
 
     size_t toHash() const nothrow pure
@@ -237,14 +216,14 @@ public:
         return .hashOf(_bytes);
     }
 
-    string toString(string units)() const nothrow pure
+    string toString(string units = "KB")() const nothrow pure
     if (suffixIndex(units) >= 0)
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
         enum unitIndex = suffixIndex(units);
-        const number = to!units();
-        return format!"%d %s"(number, suffixes[unitIndex]);
+        const unitNumber = to!units();
+        return format!"%d %s"(unitNumber, fileSizeUnitNames[unitIndex]);
     }
 
     @property long bytes() const @nogc nothrow pure
@@ -270,7 +249,7 @@ public:
     }
 
 private:
-    this(long bytes) @nogc nothrow pure
+    this(const(long) bytes) @nogc nothrow pure
     {
         this._bytes = bytes;
     }
@@ -280,18 +259,21 @@ private:
         import core.checkedint : adds, subs, muls;
 
         static if (isFloatingPoint!RHS)
-            return cast(long)(mixin("lhs" ~ op ~ "rhs"));
+        {
+            const d = mixin("cast(double)lhs" ~ op ~ "cast(double)rhs");
+            return d >= long.max ? long.max : cast(long)d;
+        }
         else
         {
             long result;
             bool overflow;
 
             static if (op == "+")
-                result = adds(lhs, long(rhs), overflow);
+                result = adds(lhs, cast(long)rhs, overflow);
             else static if (op == "-")
-                result = subs(lhs, long(rhs), overflow);
+                result = subs(lhs, cast(long)rhs, overflow);
             else static if (op == "*")
-                result = muls(lhs, long(rhs), overflow);
+                result = muls(lhs, cast(long)rhs, overflow);
             else
                 static assert(0, op);
 
@@ -299,9 +281,9 @@ private:
                 return result;
 
             static if (op == "*")
-                return sameSign(lhs, rhs) ? long.max : long.min;
+                return sameSign(lhs, rhs) ? long.max : 0L;
             else
-                return sameSign(lhs, rhs) == 1 ? long.max : long.min;
+                return sameSign(lhs, rhs) == 1 ? long.max : 0L;
         }
     }
 
@@ -407,27 +389,29 @@ private:
 
 @safe nothrow unittest // FileSize.from
 {
+    import std.conv : to;
+
     assert(FileSize.from!"Bytes"(1).bytes == 1);
     assert(1.Bytes == FileSize(1));
 
-    assert(FileSize.from!"KB"(1).bytes == 1024);
-    assert(1.KBytes.bytes == 1024);
-    assert(FileSize.from!"KB"(1).to!"KB"() == 1);
+    assert(FileSize.from!"KB"(1).bytes == fileSizeUnitValues[FileSizeUnit.kbytes]);
+    assert(1.KBytes.bytes == fileSizeUnitValues[FileSizeUnit.kbytes]);
+    assert(FileSize.from!"KB"(1).to!"KB"() == 1, FileSize.from!"KB"(1).to!"KB"().to!string);
 
-    assert(FileSize.from!"MB"(1).bytes == 1024L * 1024);
-    assert(1.MBytes.bytes == 1024L * 1024);
-    assert(FileSize.from!"MB"(1).to!"MB"() == 1);
+    assert(FileSize.from!"MB"(1).bytes == fileSizeUnitValues[FileSizeUnit.mbytes]);
+    assert(1.MBytes.bytes == fileSizeUnitValues[FileSizeUnit.mbytes]);
+    assert(FileSize.from!"MB"(1).to!"MB"() == 1, FileSize.from!"MB"(1).to!"MB"().to!string);
 
-    assert(FileSize.from!"GB"(1).bytes == 1024L * 1024 * 1024);
-    assert(1.GBytes.bytes == 1024L * 1024 * 1024);
+    assert(FileSize.from!"GB"(1).bytes == fileSizeUnitValues[FileSizeUnit.gbytes]);
+    assert(1.GBytes.bytes == fileSizeUnitValues[FileSizeUnit.gbytes]);
     assert(FileSize.from!"GB"(1).to!"GB"() == 1);
 
-    assert(FileSize.from!"TB"(1).bytes == 1024L * 1024 * 1024 * 1024);
-    assert(1.TBytes.bytes == 1024L * 1024 * 1024 * 1024);
+    assert(FileSize.from!"TB"(1).bytes == fileSizeUnitValues[FileSizeUnit.tbytes]);
+    assert(1.TBytes.bytes == fileSizeUnitValues[FileSizeUnit.tbytes]);
     assert(FileSize.from!"TB"(1).to!"TB"() == 1);
 
-    assert(FileSize.from!"PB"(1).bytes == 1024L * 1024 * 1024 * 1024 * 1024);
-    assert(1.PBytes.bytes == 1024L * 1024 * 1024 * 1024 * 1024);
+    assert(FileSize.from!"PB"(1).bytes == fileSizeUnitValues[FileSizeUnit.pbytes]);
+    assert(1.PBytes.bytes == fileSizeUnitValues[FileSizeUnit.pbytes]);
     assert(FileSize.from!"PB"(1).to!"PB"() == 1);
 }
 
@@ -448,25 +432,22 @@ private:
     assert(f3 == FileSize(1_000));
 
     auto f4 = FileSize.parse("  2 KB");
-    assert(f4 == FileSize(1024L * 2));
+    assert(f4 == FileSize(fileSizeUnitValues[FileSizeUnit.kbytes] * 2));
 
     auto f5 = FileSize.parse("2 MB ");
-    assert(f5 == FileSize(1024L * 1024 * 2));
+    assert(f5 == FileSize(fileSizeUnitValues[FileSizeUnit.mbytes] * 2));
 
     auto f6 = FileSize.parse("2 gb");
-    assert(f6 == FileSize(1024L * 1024 * 1024 * 2));
+    assert(f6 == FileSize(fileSizeUnitValues[FileSizeUnit.gbytes] * 2));
 
     auto f7 = FileSize.parse("2 Tb");
-    assert(f7 == FileSize(1024L * 1024 * 1024 * 1024 * 2));
+    assert(f7 == FileSize(fileSizeUnitValues[FileSizeUnit.tbytes] * 2));
 
     auto f8 = FileSize.parse("2 PB");
-    assert(f8 == FileSize(1024L * 1024 * 1024 * 1024 * 1024 * 2));
+    assert(f8 == FileSize(fileSizeUnitValues[FileSizeUnit.pbytes] * 2));
 
-    auto f9 = FileSize.parse("1 PB");
-    assert(f9 == FileSize(1024L * 1024 * 1024 * 1024 * 1024));
-
-    auto f10 = FileSize.parse("234.7645 PB");
-    assert(f10 == FileSize(264_321_328_679_955_200L));
+    auto f10 = FileSize.parse("234.762 PB");
+    assert(f10 == FileSize(264_318_513_930_188_096L), f10.toString!"Bytes"());
 
     // Not acceptable cases
     assertThrown!ConvException(FileSize.parse("0x"d));
@@ -485,29 +466,17 @@ private:
     assert(FileSize(0).to!"PB"() == 0);
 
     assert(FileSize(1).to!"Bytes"() == 1);
-    assert(FileSize(1).to!"KB"() == 1);
+    assert(FileSize(1).to!"KB"() == 0);
     assert(FileSize(1).to!"MB"() == 0);
     assert(FileSize(1).to!"GB"() == 0);
     assert(FileSize(1).to!"TB"() == 0);
     assert(FileSize(1).to!"PB"() == 0);
 
-    assert(FileSize(1023).to!"KB"() == 1);
-    assert(FileSize(1023).to!"MB"() == 0);
-    assert(FileSize(1023).to!"GB"() == 0);
-    assert(FileSize(1023).to!"TB"() == 0);
-    assert(FileSize(1023).to!"PB"() == 0);
-
-    assert(FileSize(1024).to!"KB"() == 1);
-    assert(FileSize(1024).to!"MB"() == 1);
-    assert(FileSize(1024).to!"GB"() == 0);
-    assert(FileSize(1024).to!"TB"() == 0);
-    assert(FileSize(1024).to!"PB"() == 0);
-
-    assert(FileSize(1025).to!"KB"() == 2);
+    assert(FileSize(1000).to!"KB"() == 1);
     assert(FileSize(1025).to!"MB"() == 1);
-    assert(FileSize(1025).to!"GB"() == 0);
-    assert(FileSize(1025).to!"TB"() == 0);
-    assert(FileSize(1025).to!"PB"() == 0);
+    assert(FileSize(1001).to!"GB"() == 0);
+    assert(FileSize(1001).to!"TB"() == 0);
+    assert(FileSize(1001).to!"PB"() == 0);
 }
 
 @safe nothrow unittest // FileSize.toString
@@ -520,29 +489,29 @@ private:
     assert(FileSize(0).toString!"PB"() == "0 PB");
 
     assert(FileSize(1).toString!"Bytes"() == "1 Bytes");
-    assert(FileSize(1).toString!"KB"() == "1 KB");
+    assert(FileSize(1).toString!"KB"() == "0 KB");
     assert(FileSize(1).toString!"MB"() == "0 MB");
     assert(FileSize(1).toString!"GB"() == "0 GB");
     assert(FileSize(1).toString!"TB"() == "0 TB");
     assert(FileSize(1).toString!"PB"() == "0 PB");
 
-    assert(FileSize(1023).toString!"KB"() == "1 KB");
-    assert(FileSize(1023).toString!"MB"() == "0 MB");
-    assert(FileSize(1023).toString!"GB"() == "0 GB");
-    assert(FileSize(1023).toString!"TB"() == "0 TB");
-    assert(FileSize(1023).toString!"PB"() == "0 PB");
+    assert(FileSize(1000).toString!"KB"() == "1 KB");
+    assert(FileSize(1000).toString!"MB"() == "0 MB");
+    assert(FileSize(1000).toString!"GB"() == "0 GB");
+    assert(FileSize(1000).toString!"TB"() == "0 TB");
+    assert(FileSize(1000).toString!"PB"() == "0 PB");
 
-    assert(FileSize(1024).toString!"KB"() == "1 KB");
-    assert(FileSize(1024).toString!"MB"() == "1 MB");
-    assert(FileSize(1024).toString!"GB"() == "0 GB");
-    assert(FileSize(1024).toString!"TB"() == "0 TB");
-    assert(FileSize(1024).toString!"PB"() == "0 PB");
+    assert(FileSize(1000).toString!"KB"() == "1 KB");
+    assert(FileSize(1_000_000).toString!"MB"() == "1 MB");
+    assert(FileSize(1_000_000).toString!"GB"() == "0 GB");
+    assert(FileSize(1_000_000).toString!"TB"() == "0 TB");
+    assert(FileSize(1_000_000).toString!"PB"() == "0 PB");
 
-    assert(FileSize(1025).toString!"KB"() == "2 KB");
-    assert(FileSize(1025).toString!"MB"() == "1 MB");
-    assert(FileSize(1025).toString!"GB"() == "0 GB");
-    assert(FileSize(1025).toString!"TB"() == "0 TB");
-    assert(FileSize(1025).toString!"PB"() == "0 PB");
+    assert(FileSize(fileSizeUnit1K + 2).toString!"KB"() == "2 KB");
+    assert(FileSize(1_001_500).toString!"MB"() == "1 MB");
+    assert(FileSize(1_001_500).toString!"GB"() == "0 GB");
+    assert(FileSize(1_001_500).toString!"TB"() == "0 TB");
+    assert(FileSize(1_001_500).toString!"PB"() == "0 PB");
 }
 
 @safe nothrow unittest // FileSize overflow

@@ -41,6 +41,13 @@ class MyCancelCommandData : DbCancelCommandData
 {
 @safe:
 
+public:
+    this(MyConnection connection)
+    {
+        this.serverProcessId = connection.serverInfo[DbServerIdentifier.protocolProcessId].to!int32();
+    }
+
+public:
     int32 serverProcessId;
 }
 
@@ -57,7 +64,7 @@ public:
         super(connection, transaction, name);
     }
 
-    final override const(char)[] getExecutionPlan(uint vendorMode) @safe
+    final override string getExecutionPlan(uint vendorMode) @safe
 	{
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(vendorMode=", vendorMode, ")");
 
@@ -118,19 +125,9 @@ public:
         return cast(MyConnection)connection;
     }
 
-    @property final MyFieldList myFields() nothrow @safe
-    {
-        return cast(MyFieldList)fields;
-    }
-
     @property final MyCommandId myHandle() const nothrow @safe
     {
         return handle.get!MyCommandId();
-    }
-
-    @property final MyParameterList myParameters() nothrow @safe
-    {
-        return cast(MyParameterList)parameters;
     }
 
 protected:
@@ -146,8 +143,10 @@ protected:
             auto info = myConnection.getStoredProcedureInfo(storedProcedureName);
             if (info !is null)
             {
+                auto localParameters = parameters;
+                localParameters.reserve(info.argumentTypes.length);
                 foreach (src; info.argumentTypes)
-                    parameters.addClone(src);
+                    localParameters.addClone(src);
             }
         }
 
@@ -285,9 +284,9 @@ protected:
         if (lhasOutputParameters && type != DbCommandExecuteType.reader)
         {
             doFetch(true);
-            if (fetchedRows)
+            if (_fetchedRows)
             {
-                auto row = fetchedRows.front;
+                auto row = _fetchedRows.front;
                 mergeOutputParams(row);
             }
             if (lPrepared)
@@ -302,7 +301,7 @@ protected:
     }
     do
     {
-        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ")");
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ", fetchRecordCount=", fetchRecordCount, ")");
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
@@ -310,7 +309,10 @@ protected:
             : LogTimming.init;
 
         auto protocol = myConnection.protocol;
-        uint continueFetchingCount = fetchRecordCount;
+        const fetchRecordCountTemp = fetchRecordCount;
+        uint continueFetchingCount = fetchRecordCountTemp >= 0 && fetchRecordCountTemp < 2 
+            ? 2
+            : fetchRecordCountTemp;  // 2=record+eof package
         while (continueFetchingCount)
         {
             MyReader rowPackage;
@@ -321,9 +323,9 @@ protected:
                 break;
             }
 
-            continueFetchingCount--;
             auto row = readRow(rowPackage, isScalar);
-            fetchedRows.enqueue(row);
+            _fetchedRows.enqueue(row);
+            continueFetchingCount--;
         }
     }
 
@@ -365,6 +367,7 @@ protected:
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(myField=", myField.traceString(), ")");
 
         column.baseName = myField.useName();
+        column.baseNumericDigits = cast(int16)myField.precision;
         column.baseNumericScale = myField.scale;
         column.baseSize = myField.columnLength;
         column.baseSubTypeId = myField.typeFlags;
@@ -372,17 +375,17 @@ protected:
         column.baseTypeId = myField.typeId;
         column.allowNull = myField.allowNull;
 
+        if (isNew || column.type == DbType.unknown)
+        {
+            column.type = myField.dbType();
+            column.size = myField.dbTypeSize();
+        }
+
         auto f = cast(DbField)column;
         if (f !is null)
         {
             f.isKey = myField.isPrimaryKey;
             f.isUnique = myField.isUnique;
-        }
-
-        if (isNew || column.type == DbType.unknown)
-        {
-            column.type = myField.dbType();
-            column.size = myField.dbTypeSize();
         }
     }
 
@@ -413,6 +416,7 @@ protected:
 
             if (localFields.length == 0)
             {
+                localFields.reserve(response.fields.length);
                 foreach (ref myField; response.fields)
                 {
                     auto newName = myField.useName;
@@ -431,6 +435,7 @@ protected:
         if (response.parameters.length != 0)
         {
             auto localParameters = parameters;
+            localParameters.reserve(response.parameters.length);
             foreach (i, ref myParameter; response.parameters)
             {
                  if (i >= localParameters.length)
@@ -451,7 +456,10 @@ protected:
         {
             const localIsStoredProcedure = isStoredProcedure;
             auto localParameters = localIsStoredProcedure ? parameters : null;
+            if (localIsStoredProcedure)
+                localParameters.reserve(response.fields.length);
             auto localFields = fields;
+            localFields.reserve(response.fields.length);
             foreach (i, ref myField; response.fields)
             {
                 auto newField = localFields.createField(this, myField.useName);
@@ -506,7 +514,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = myConnection.protocol;
-        return protocol.readValues(rowPackage, this, myFields);
+        return protocol.readValues(rowPackage, this, cast(MyFieldList)fields);
     }
 
     override void removeReaderCompleted(const(bool) implicitTransaction) nothrow @safe
@@ -542,7 +550,6 @@ public:
 
         if (empty)
             return;
-
     }
 
     void reset()
@@ -596,16 +603,14 @@ public:
         super(database, connectionString);
     }
 
-    this(DbDatabase database, DbURL!string connectionString) @safe
+    this(MyDatabase database, DbURL!string connectionString) @safe
     {
         super(database, connectionString);
     }
 
-    final override DbCancelCommandData createCancelCommandData(DbCommand command = null) @safe
+    final override DbCancelCommandData createCancelCommandData(DbCommand command) @safe
     {
-        MyCancelCommandData result = new MyCancelCommandData();
-        result.serverProcessId = serverInfo[DbServerIdentifier.protocolProcessId].to!int32();
-        return result;
+        return new MyCancelCommandData(this);
     }
 
     @property final MyConnectionStringBuilder myConnectionStringBuilder() nothrow pure @safe
@@ -631,7 +636,7 @@ public:
         return _protocol !is null ? _protocol.connectionFlags : 0u;
     }
 
-    @property final override bool supportMultiReaders() const nothrow pure @safe
+    @property final override bool supportMultiReaders() nothrow @safe
     {
         return false;
     }
@@ -815,8 +820,8 @@ FROM INFORMATION_SCHEMA.PARAMETERS
 WHERE ROUTINE_TYPE = @ROUTINE_TYPE AND SPECIFIC_NAME = @SPECIFIC_NAME
 ORDER BY ORDINAL_POSITION
 }";
-        command.parameters.add("ROUTINE_TYPE", DbType.string).value = "PROCEDURE";
-        command.parameters.add("SPECIFIC_NAME", DbType.string).value = storedProcedureName;
+        command.parameters.add("ROUTINE_TYPE", DbType.stringVary).value = "PROCEDURE";
+        command.parameters.add("SPECIFIC_NAME", DbType.stringVary).value = storedProcedureName;
         auto reader = command.executeReader();
         if (reader.hasRows())
         {
@@ -830,7 +835,7 @@ ORDER BY ORDINAL_POSITION
                 const mode = reader.getValue!string(3);
                 const size = reader.getValue!int64(4);
                 const precision = reader.getValue!int32(5);
-                const scale = reader.getValue!int64(6);
+                const scale = reader.getValue!int64(6); // TODO why 64 bits
 
                 const isParameter = pos > 0; // Position zero is a return type info
                 const paramDirection = isParameter ? parameterModeToDirection(mode) : DbParameterDirection.returnValue;
@@ -843,7 +848,8 @@ ORDER BY ORDINAL_POSITION
                         paramDirection);
 
                     p.baseSize = cast(int32)size;
-                    p.baseNumericScale = cast(int32)scale;
+                    p.baseNumericDigits = cast(int16)precision;
+                    p.baseNumericScale = cast(int16)scale;
                 }
                 else
                 {
@@ -851,7 +857,8 @@ ORDER BY ORDINAL_POSITION
                     result.returnType.size = cast(int32)size;
 
                     result.returnType.baseSize = cast(int32)size;
-                    result.returnType.baseNumericScale = cast(int32)scale;
+                    result.returnType.baseNumericDigits = cast(int16)precision;
+                    result.returnType.baseNumericScale = cast(int16)scale;
                 }
             }
         }
@@ -883,12 +890,12 @@ class MyConnectionStringBuilder : SkConnectionStringBuilder
 @safe:
 
 public:
-    this(DbDatabase database) nothrow
+    this(MyDatabase database) nothrow
     {
         super(database);
     }
 
-    this(DbDatabase database, string connectionString)
+    this(MyDatabase database, string connectionString)
     {
         super(database, connectionString);
     }
@@ -933,17 +940,18 @@ public:
 protected:
     final override string getDefault(string name) const nothrow
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-        
-        auto n = DbIdentitier(name);
-        auto result = myDefaultConnectionParameterValues.get(n, null);
-        return result.ptr !is null ? result : super.getDefault(name);
+        auto k = name in myDefaultConnectionParameterValues;
+        return k !is null && (*k).def.length != 0 ? (*k).def : super.getDefault(name);
     }
 
     final override void setDefaultIfs() nothrow
     {
-        foreach (dpv; myDefaultConnectionParameterValues.byKeyValue)
-            putIf(dpv.key, dpv.value);
+        foreach (ref dpv; myDefaultConnectionParameterValues.byKeyValue)
+        {
+            auto def = dpv.value.def;
+            if (def.length)
+                putIf(dpv.key, def);
+        }
         super.setDefaultIfs();
     }
 }
@@ -1178,6 +1186,20 @@ public:
     {
         return MyFieldInfo.isValueIdType(baseTypeId, baseSubTypeId);
     }
+
+protected:
+    final override void reevaluateBaseType() nothrow @safe
+    {
+        foreach (ref myType; myNativeTypes)
+        {
+            if (myType.dbType == _type)
+            {
+                baseSize = myType.nativeSize;
+                baseTypeId = myType.dbId;
+                break;
+            }
+        }
+    }
 }
 
 class MyParameterList : DbParameterList
@@ -1360,6 +1382,20 @@ version(UnitTestMYDatabase)
         csb.sslCert = "my_client-cert.pem";
         csb.sslKey = "my_client-key.pem";
 
+        assert(csb.serverName == "localhost");
+        assert(csb.serverPort == 3_306);
+        assert(csb.userName == "root");
+        assert(csb.databaseName == "test");
+        assert(csb.userPassword == "masterkey");
+        assert(csb.receiveTimeout == dur!"seconds"(20));
+        assert(csb.sendTimeout == dur!"seconds"(10));
+        assert(csb.encrypt == encrypt);
+        assert(csb.compress == compress);
+        assert(csb.sslCa == "my_ca.pem");
+        assert(csb.sslCaDir == thisExePath());
+        assert(csb.sslCert == "my_client-cert.pem");
+        assert(csb.sslKey == "my_client-key.pem");
+
         return cast(MyConnection)result;
     }
 
@@ -1504,7 +1540,6 @@ unittest // MyTransaction
 version(UnitTestMYDatabase)
 unittest // MyCommand.DDL
 {
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -1519,8 +1554,6 @@ unittest // MyCommand.DDL
 
     command.commandDDL = q"{DROP TABLE create_then_drop}";
     command.executeNonQuery();
-
-    failed = false;
 }
 
 version(UnitTestMYDatabase)
@@ -1528,7 +1561,6 @@ unittest // MyCommand.DML - Simple select
 {
     import std.math;
 
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -1571,11 +1603,11 @@ unittest // MyCommand.DML - Simple select
         assert(reader.getValue(6) == DbDate(2020, 5, 20));
         assert(reader.getValue("DATE_FIELD") == DbDate(2020, 5, 20));
 
-        assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1, 0));
+        assert(reader.getValue(7) == DbTime(1, 1, 1));
+        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
 
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
+        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0));
+        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
 
         assert(reader.getValue(9) == "ABC");
         assert(reader.getValue("CHAR_FIELD") == "ABC");
@@ -1593,8 +1625,6 @@ unittest // MyCommand.DML - Simple select
         assert(reader.getValue("BIGINT_FIELD") == 4_294_967_296);
     }
     assert(count == 1);
-
-    failed = false;
 }
 
 version(UnitTestMYDatabase)
@@ -1602,7 +1632,6 @@ unittest // MyCommand.DML - Parameter select
 {
     import std.math;
 
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -1617,9 +1646,9 @@ unittest // MyCommand.DML - Parameter select
     command.parameters.add("DOUBLE_FIELD", DbType.float64).value = 4.20;
     command.parameters.add("DECIMAL_FIELD", DbType.numeric).value = Numeric(6.5);
     command.parameters.add("DATE_FIELD", DbType.date).value = DbDate(2020, 5, 20);
-    command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1, 0);
-    command.parameters.add("CHAR_FIELD", DbType.fixedString).value = "ABC";
-    command.parameters.add("VARCHAR_FIELD", DbType.string).value = "XYZ";
+    command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1);
+    command.parameters.add("CHAR_FIELD", DbType.stringFixed).value = "ABC";
+    command.parameters.add("VARCHAR_FIELD", DbType.stringVary).value = "XYZ";
     auto reader = command.executeReader();
     scope (exit)
         reader.dispose();
@@ -1653,10 +1682,10 @@ unittest // MyCommand.DML - Parameter select
         assert(reader.getValue("DATE_FIELD") == DbDate(2020, 5, 20));
 
         assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1, 0));
+        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
 
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0, 0));
+        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0));
+        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
 
         assert(reader.getValue(9) == "ABC");
         assert(reader.getValue("CHAR_FIELD") == "ABC");
@@ -1674,14 +1703,11 @@ unittest // MyCommand.DML - Parameter select
         assert(reader.getValue("BIGINT_FIELD") == 4_294_967_296);
     }
     assert(count == 1);
-
-    failed = false;
 }
 
 version(UnitTestMYDatabase)
 unittest // MyCommand.DML.StoredProcedure
 {
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -1725,14 +1751,11 @@ unittest // MyCommand.DML.StoredProcedure
         command.executeNonQuery();
         assert(command.parameters.get("Y").variant == 4);
     }
-
-    failed = false;
 }
 
 version(UnitTestMYDatabase)
 unittest // MyCommand.DML.Abort reader
 {
-    bool failed = true;
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -1777,8 +1800,6 @@ unittest // MyCommand.DML.Abort reader
         }
         assert(count == 1000);
     }
-
-    failed = false;
 }
 
 version(UnitTestMYDatabase)
@@ -1805,7 +1826,7 @@ unittest // MyConnection(SSL)
 unittest // DbDatabaseList.createConnection
 {
     auto connection = DbDatabaseList.createConnection("mysql:server=myServerAddress;database=myDataBase;" ~
-        "user=myUsername;password=myPassword;role=myRole;pooling=true;connectionTimeout=100;encrypt=enabled;" ~
+        "user=myUsername;password=myPassword;role=myRole;pooling=true;connectionTimeout=100seconds;encrypt=enabled;" ~
         "fetchRecordCount=50;integratedSecurity=legacy;");
     scope (exit)
         connection.dispose();
@@ -1827,7 +1848,7 @@ unittest // DbDatabaseList.createConnection
 unittest // DbDatabaseList.createConnectionByURL
 {
     auto connection = DbDatabaseList.createConnectionByURL("mysql://myUsername:myPassword@myServerAddress/myDataBase?" ~
-        "role=myRole&pooling=true&connectionTimeout=100&encrypt=enabled&" ~
+        "role=myRole&pooling=true&connectionTimeout=100seconds&encrypt=enabled&" ~
         "fetchRecordCount=50&integratedSecurity=legacy");
     scope (exit)
         connection.dispose();
@@ -1940,7 +1961,6 @@ version(UnitTestPerfMYDatabase)
             }
         }
 
-        bool failed = true;
         auto connection = createTestConnection();
         scope (exit)
             connection.dispose();
@@ -1968,7 +1988,6 @@ version(UnitTestPerfMYDatabase)
         }
         result.end();
         assert(result.count > 0);
-        failed = false;
         return result;
     }
 }

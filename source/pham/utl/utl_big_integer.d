@@ -151,7 +151,7 @@ public:
 
     this(scope const(char)[] hexOrDecimals, NumericLexerOptions!(const(char)) parseOptions = defaultParseBigIntegerOptions!char()) pure
     {
-        auto range = NumericStringRange!(const(char)[])(hexOrDecimals);
+        auto range = NumericStringRange!char(hexOrDecimals);
         this(range, parseOptions);
     }
 

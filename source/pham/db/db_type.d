@@ -12,11 +12,12 @@
 module pham.db.db_type;
 
 import core.internal.hash : hashOf;
-import std.format: FormatSpec, formatValue;
 import core.time : convert;
+import std.conv : to;
+import std.format: FormatSpec, formatValue;
 public import core.time : dur, Duration;
 import std.range.primitives : isOutputRange, put;
-import std.traits : isArray, isSomeChar, Unqual;
+import std.traits : fullyQualifiedName, isArray, isSomeChar, Unqual;
 import std.uni : sicmp;
 public import std.uuid : UUID;
 
@@ -31,7 +32,9 @@ import pham.dtm.dtm_time_zone_map : TimeZoneInfoMap;
 public import pham.external.dec.dec_decimal : Decimal32, Decimal64, Decimal128, isDecimal, Precision, RoundingMode;
 import pham.utl.utl_array : ShortStringBuffer;
 public import pham.utl.utl_big_integer : BigInteger;
-import pham.utl.utl_enum_set : toName;
+import pham.utl.utl_enum_set : EnumSet, toName;
+import pham.utl.utl_numeric_parser : ComputingSizeUnit, DurationUnit, NumericParsedKind,
+    parseBase64, parseComputingSize, parseDuration, parseIntegral;
 import pham.utl.utl_result : cmp;
 import pham.utl.utl_text : NamedValue;
 
@@ -150,6 +153,16 @@ enum DbConnectionType : ubyte
 enum DbDefaultSize
 {
     /**
+     * Default maximum number of connections being in pool
+     */
+    connectionPoolLength = 100,
+
+    /**
+     * Default maximum inactive time of a connection being in pool - value in seconds
+     */
+    connectionPoolInactiveTime = 360,
+    
+    /**
      * Sizes in bytes
      */
     socketReadBufferLength = 131_000, // 1_024 * 128 = 131_072
@@ -159,16 +172,6 @@ enum DbDefaultSize
      * Default transaction lock timeout - value in seconds
      */
     transactionLockTimeout = 60,
-
-    /**
-     * Default maximum number of connections being in pool
-     */
-    connectionPoolLength = 100,
-
-    /**
-     * Default maximum inactive time of a connection being in pool - value in seconds
-     */
-    connectionPoolInactiveTime = 360,
 }
 
 /**
@@ -191,6 +194,13 @@ enum DbFetchResultStatus : ubyte
     completed,
 }
 
+/**
+ * Describe the raw field value for database vendor data types
+ * $(DbFieldIdType.no) The database vendor does not support such mechanizm
+ * $(DbFieldIdType.array) Special handling for array field when retrieving & saving array data
+ * $(DbFieldIdType.blob) Special handling for array field when retrieving & saving blob/binary data
+ * $(DbFieldIdType.clob) Special handling for array field when retrieving & saving memo/text data
+ */
 enum DbFieldIdType : ubyte
 {
     no,
@@ -248,10 +258,10 @@ enum DbLockType : ubyte
 
 enum DbNameValueValidated : ubyte
 {
-    invalidName,
-    duplicateName,
-    invalidValue,
     ok,
+    duplicateName,
+    invalidName,
+    invalidValue,
 }
 
 /**
@@ -278,23 +288,23 @@ enum DbConnectionParameterIdentifier : string
                                /// When true, multiple SQL statements can be sent with one command execution.
                                /// Batch statements should be separated by the server-defined separator character.
     charset = "charset", /// string
-    commandTimeout = "commandTimeout", /// Duration in seconds
+    commandTimeout = "commandTimeout", /// Duration in milliseconds
                                        /// Sets the default value of the command timeout to be used.
     compress = "compress", /// DbCompressConnection
-    connectionTimeout = "connectionTimeout", /// Duration in seconds
+    connectionTimeout = "connectionTimeout", /// Duration in milliseconds
     databaseName = "database", /// string
-    databaseFile = "databaseFile", /// string
+    databaseFileName = "databaseFileName", /// string
     encrypt = "encrypt", /// DbEncryptedConnection
     fetchRecordCount = "fetchRecordCount", /// uint32
     integratedSecurity = "integratedSecurity", /// DbIntegratedSecurityConnection
-    maxPoolCount = "maxPoolCount", /// uint32
-    minPoolCount = "minPoolCount", /// uint32
     packageSize = "packageSize", /// uint32
     pooling = "pooling", /// bool
-    poolTimeout = "poolTimeout", /// Duration in seconds
-    receiveTimeout = "receiveTimeout", /// Duration in seconds
+    poolIdleTimeout = "poolIdleTimeout", /// Duration in milliseconds
+    poolMaxCount = "poolMaxCount", /// uint32
+    poolMinCount = "poolMinCount", /// uint32
+    receiveTimeout = "receiveTimeout", /// Duration in milliseconds
     roleName = "role", /// string
-    sendTimeout = "sendTimeout", /// Duration in seconds
+    sendTimeout = "sendTimeout", /// Duration in milliseconds
     serverName = "server", /// string
     serverPort = "port", // uint16
     userName = "user", /// string
@@ -348,6 +358,35 @@ enum DbConnectionParameterIdentifier : string
     pgService = "service",
     pgTargetSessionAttrs = "target_session_attrs"
     */
+
+    // Specific to MS SQL
+    // https://learn.microsoft.com/en-us/sql/relational-databases/native-client/applications/using-connection-string-keywords-with-sql-server-native-client?view=sql-server-ver15&viewFallbackFrom=sql-server-ver16
+    msAddress = "Address",  // string - or Addr
+    msApplicationName = "APP", // string - mapped to applicationName
+    msApplicationIntent = "ApplicationIntent", // string - possible values: ReadOnly, ReadWrite
+    msAttachDBFileName = "AttachDBFileName", // string - databaseFileName
+    msAutoTranslate = "AutoTranslate", // bool - possible values: no, yes
+    //msDatabase = "Database", // string - mapped-to/same-with databaseName
+    msDriver = "Driver", // string
+    msDSN = "DSN", // string
+    //msEncrypt = "Encrypt", // mapped-to/same-with encrypt - possible values: no, yes, strict
+    msFailoverPartner = "Failover_Partner", // string
+    msFileDSN = "FileDSN", // string
+    msLanguage = "Language", // string
+    msMARSConnection = "MARS_Connection", // bool - possible values: no, yes
+    msMultiSubnetFailover = "MultiSubnetFailover", // bool - possible values: no, yes
+    msNetwork = "Network", // string - or Net
+    msPWD = "PWD", // string - mapped to userPassword
+    msQueryLogOn = "QueryLog_On", // bool - possible values: no, yes
+    msQueryLogFile = "QueryLogFile", // string
+    msQueryLogTime = "QueryLogTime", // Duration in milliseconds
+    msQuotedId = "QuotedId", // bool - possible values: no, yes
+    msRegional = "Regional", // bool - possible values: no, yes
+    //msServer = "Server", // string - mapped-to/same-with serverName
+    msTrustedConnection = "Trusted_Connection", // bool - mapped to integratedSecurity - possible values: no, yes
+    msTrustServerCertificate = "TrustServerCertificate", // bool
+    msUID = "UID", // string - mapped to userName
+    msWSID = "WSID", // string - mapped to currentComputerName
 }
 
 enum DbConnectionCustomIdentifier : string
@@ -364,6 +403,7 @@ enum DbScheme : string
 {
     fb = "firebird",
     my = "mysql",
+    ms = "mssql", // Microsoft odbc
     pg = "postgresql",
     //sq = "sqlite",
 }
@@ -380,7 +420,7 @@ enum DbSchemaColumnFlag : ubyte
 enum DbServerIdentifier : string
 {
     capabilityFlag = "serverCapabilityFlag",         // mysql
-    dbVersion = "serverVersion",                       // firebird, postgresql
+    dbVersion = "serverVersion",                     // firebird, postgresql
     protocolAcceptType = "serverProtocolAcceptType", // firebird
     protocolArchitect = "serverProtocolArchitect",   // firebird
 	protocolCompressed = "serverProtocolCompressed", // firebird
@@ -423,10 +463,10 @@ enum DbTransactionState : ubyte
  * $(DbType.time) A type representing a time value
  * $(DbType.timeTZ) A type representing a time value with time zone awareness
  * $(DbType.chars) A simple fixed length type representing a utf8 character
- * $(DbType.string) A variable-length of utf8 characters
+ * $(DbType.stringVary) A variable-length of utf8 characters
  * $(DbType.json) A parsed representation of an JSON document
  * $(DbType.xml) A parsed representation of an XML document or fragment
- * $(DbType.binary) A variable-length stream of binary data
+ * $(DbType.binaryVary) A variable-length stream of binary data
  * $(DbType.text) A variable-length stream of text data
  * $(DbType.struct_) A type representing a struct/record
  * $(DbType.array) A type representing an array of value
@@ -453,18 +493,88 @@ enum DbType : int
     time,
     timeTZ,
     uuid,
-    fixedString,  // fixed length string - char[] (static length)
-    string, // variable length string - string (has length limit)
+    stringFixed,  // fixed length string - char[] (static length)
+    stringVary, // variable length string - string (has length limit)
     text,   // similar to string type but with special construct for each database (no length limit) - string
     json,   // string with json format - ubyte[]
     xml,    // string with xml format - ubyte[]
-    fixedBinary,
-    binary,
+    binaryFixed,
+    binaryVary,
     record,     // struct is reserved keyword
     array = 1 << 31,
 }
 
 enum DbTypeMask = 0x7FFF_FFFF; // Exclude array marker
+
+enum dynamicTypeSize = -1; // blob/text - no limit
+enum runtimeTypeSize = -2; // fixed/vary length string/array - limit
+enum unknownTypeSize = -3; // unknown or unsupport
+
+enum DbTypeDisplaySize : int
+{
+    unknown = unknownTypeSize,
+    boolean = 5, // true or false
+    int8 = 3+1, // a sign and 3 digits
+    int16 = 5+1, // a sign and 5 digits
+    int32 = 10+1, // a sign and 10 digits
+    int64 = 19+1, // a sign and 19 digits
+    int128 = 39+1,
+    decimal = 34+2, // The precision plus 2 (a sign, precision digits, and a decimal point)
+    decimal32 = 7+2,
+    decimal64 = 16+2,
+    decimal128 = 34+2,
+    numeric = 34+2, // Same as decimal
+    float32 = 14, // a sign, 7 digits, a decimal point, the letter E, a sign, and 2 digits
+    float64 = 24, // a sign, 15 digits, a decimal point, the letter E, a sign, and 3 digits
+    date = 10, // yyyy-mm-dd
+    datetime = 23, // yyyy-mm-dd hh:mm:ss.zzz
+    datetimeTZ = 23+6, // yyyy-mm-dd hh:mm:ss.zzz+hh:mm
+    time = 12, // hh:mm:ss.zzz
+    timeTZ = 12+6, // hh:mm:ss.zzz+hh:mm
+    uuid = 36, // xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    stringFixed = runtimeTypeSize, // fixed length string - char[] (static length)
+    stringVary = dynamicTypeSize, // variable length string - string (has length limit)
+    text = dynamicTypeSize, // similar to string type but with special construct for each database (no length limit) - string
+    json = dynamicTypeSize, // string with json format - ubyte[]
+    xml = dynamicTypeSize, // string with xml format - ubyte[]
+    binaryFixed = runtimeTypeSize,
+    binaryVary = dynamicTypeSize,
+    record = runtimeTypeSize, // struct is reserved keyword
+    array = dynamicTypeSize,
+}
+
+enum DbTypeSize : int
+{
+    unknown = unknownTypeSize,
+    boolean = bool.sizeof,
+    int8 = byte.sizeof,
+    int16 = short.sizeof,
+    int32 = int.sizeof,
+    int64 = long.sizeof,
+    int128 = BigInteger.sizeof+16,
+    decimal = Decimal128.sizeof,
+    decimal32 = Decimal32.sizeof,
+    decimal64 = Decimal64.sizeof,
+    decimal128 = Decimal128.sizeof,
+    numeric = Decimal128.sizeof,
+    float32 = float.sizeof,
+    float64 = double.sizeof,
+    date = DbDate.sizeof,
+    datetime = DbDateTime.sizeof,
+    datetimeTZ = DbDateTime.sizeof,
+    time = DbTime.sizeof,
+    timeTZ = DbTime.sizeof,
+    uuid = UUID.sizeof,
+    stringFixed = runtimeTypeSize,
+    stringVary = dynamicTypeSize,
+    text = dynamicTypeSize,
+    json = dynamicTypeSize,
+    xml = dynamicTypeSize,
+    binaryFixed = runtimeTypeSize,
+    binaryVary = dynamicTypeSize,
+    record = runtimeTypeSize,
+    array = dynamicTypeSize,
+}
 
 struct DbArrayBound
 {
@@ -475,15 +585,65 @@ public:
     int32 upper;
 }
 
-struct DbBaseType
+struct DbBaseTypeInfo
 {
 nothrow @safe:
 
 public:
-    int32 numericScale;
+    this(int32 typeId, int32 subTypeId, int32 size, int16 numericDigits = 0, int16 numericScale = 0) @nogc pure
+    {
+        this.typeId = typeId;
+        this.subTypeId = subTypeId;
+        this.size = size;
+        this.numericDigits = numericDigits;
+        this.numericScale = numericScale;
+    }
+    
+public:
     int32 size;
     int32 subTypeId;
     int32 typeId;
+    int16 numericDigits;
+    int16 numericScale;
+}
+
+enum dbConnectionParameterMaxFileName = 2_000;
+enum dbConnectionParameterMaxId = 200;
+enum dbConnectionParameterMaxName = 500;
+enum dbConnectionParameterNullDef = null;
+enum dbConnectionParameterNullMin = 0;
+enum dbConnectionParameterNullMax = 0;
+
+struct DbConnectionParameterInfo
+{
+nothrow @safe:
+
+public:
+    bool hasDef() const pure
+    {
+        return def.length != 0;
+    }
+
+    bool hasRange() const pure
+    {
+        return min != 0 || max != 0;
+    }
+
+    DbNameValueValidated isValidValue(string value) const
+    {
+        assert(isValidValueHandler !is null);
+
+        return isValidValueHandler(this, value);
+    }
+
+public:
+    alias IsValidValueHandler = DbNameValueValidated function(scope const(DbConnectionParameterInfo) info, string value) nothrow;
+
+    IsValidValueHandler isValidValueHandler;
+    string def;
+    int32 min;
+    int32 max;
+    string scheme; // Blank means for all
 }
 
 alias DbDate = Date;
@@ -507,6 +667,14 @@ public:
         uint16 zoneId = 0, int16 zoneOffset = 0) @nogc pure
     {
         this(DateTime(validYear, validMonth, validDay, validHour, validMinute, validSecond, validMillisecond, kind), zoneId, zoneOffset);
+    }
+
+    this(int32 validYear, int32 validMonth, int32 validDay,
+        int32 validHour, int32 validMinute, int32 validSecond,
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified,
+        uint16 zoneId = 0, int16 zoneOffset = 0) @nogc pure
+    {
+        this(DateTime(validYear, validMonth, validDay, validHour, validMinute, validSecond, kind), zoneId, zoneOffset);
     }
 
     int opCmp(scope const(DbDateTime) rhs) const @nogc pure
@@ -890,7 +1058,7 @@ public:
 public:
     DbGeoPoint[] points;
     bool open;
-    
+
 private:
     static float cmp(scope ref const(DbGeoPath) lhs, scope ref const(DbGeoPath) rhs) @nogc pure
     {
@@ -904,7 +1072,7 @@ private:
 
         const c = .cmp(lhs.points.length, rhs.points.length);
         return c == 0 ? .cmp(cast(byte)lhs.open, cast(byte)rhs.open) : c;
-    }        
+    }
 }
 
 struct DbGeoPolygon
@@ -962,7 +1130,7 @@ public:
 
 public:
     DbGeoPoint[] points;
-    
+
 private:
     static float cmp(scope ref const(DbGeoPolygon) lhs, scope ref const(DbGeoPolygon) rhs) @nogc pure
     {
@@ -1437,16 +1605,14 @@ public:
         DateTimeZoneKind kind = DateTimeZoneKind.unspecified,
         uint16 zoneId = 0, int16 zoneOffset = 0) @nogc pure
     {
-        auto timeDuration = Duration.zero;
-        if (validHour != 0)
-            timeDuration += dur!"hours"(validHour);
-        if (validMinute != 0)
-            timeDuration += dur!"minutes"(validMinute);
-        if (validSecond != 0)
-            timeDuration += dur!"seconds"(validSecond);
-        if (validMillisecond != 0)
-            timeDuration += dur!"msecs"(validMillisecond);
-        this(timeDuration, kind, zoneId, zoneOffset);
+        this(Time(validHour, validMinute, validSecond, validMillisecond, kind), zoneId, zoneOffset);
+    }
+
+    this(int32 validHour, int32 validMinute, int32 validSecond,
+        DateTimeZoneKind kind = DateTimeZoneKind.unspecified,
+        uint16 zoneId = 0, int16 zoneOffset = 0) @nogc pure
+    {
+        this(Time(validHour, validMinute, validSecond, kind), zoneId, zoneOffset);
     }
 
     int opCmp(scope const(DbTime) rhs) const @nogc pure
@@ -1718,11 +1884,11 @@ private:
 struct DbTypeInfo
 {
     string dbName;
-    string nativeName;
-    int32 displaySize;
-    int32 nativeSize;
-    int32 nativeId;
     DbType dbType;
+    int32 dbId;
+    string nativeName;
+    int32 nativeSize;
+    int32 displaySize;
 }
 
 struct DbHost(S)
@@ -1787,70 +1953,64 @@ public:
     S userPassword;
 }
 
-alias IsConnectionParameterValue = DbNameValueValidated function(string value) nothrow;
-
-static immutable string[string] dbDefaultConnectionParameterValues;
-static immutable IsConnectionParameterValue[string] dbIsConnectionParameterValues;
-
-enum dynamicTypeSize = -1; // blob/text - no limit
-enum runtimeTypeSize = -2; // fixed/vary length string/array - limit
-enum unknownTypeSize = -3; // unknown or unsupport
+static immutable DbConnectionParameterInfo[string] dbDefaultConnectionParameterValues;
 
 static immutable DbTypeInfo[] dbNativeTypes = [
     // Native & Standard
-    {dbName:"", nativeName:"bool", displaySize:5, nativeSize:bool.sizeof, nativeId:0, dbType:DbType.boolean},
-    {dbName:"", nativeName:"byte", displaySize:4, nativeSize:int8.sizeof, nativeId:0, dbType:DbType.int8},
-    {dbName:"", nativeName:"ubyte", displaySize:6, nativeSize:int16.sizeof, nativeId:0, dbType:DbType.int16},
-    {dbName:"", nativeName:"short", displaySize:6, nativeSize:int16.sizeof, nativeId:0, dbType:DbType.int16},
-    {dbName:"", nativeName:"ushort", displaySize:11, nativeSize:int32.sizeof, nativeId:0, dbType:DbType.int32},
-    {dbName:"", nativeName:"int", displaySize:11, nativeSize:int32.sizeof, nativeId:0, dbType:DbType.int32},
-    {dbName:"", nativeName:"uint", displaySize:20, nativeSize:int64.sizeof, nativeId:0, dbType:DbType.int64},
-    {dbName:"", nativeName:"long", displaySize:20, nativeSize:int64.sizeof, nativeId:0, dbType:DbType.int64},
-    {dbName:"", nativeName:"ulong", displaySize:20, nativeSize:int64.sizeof, nativeId:0, dbType:DbType.int64},
-    {dbName:"", nativeName:"float", displaySize:17, nativeSize:float32.sizeof, nativeId:0, dbType:DbType.float32},
-    {dbName:"", nativeName:"double", displaySize:21, nativeSize:float64.sizeof, nativeId:0, dbType:DbType.float64},
-    {dbName:"", nativeName:"real", displaySize:21, nativeSize:float64.sizeof, nativeId:0, dbType:DbType.float64},
-    {dbName:"", nativeName:"char", displaySize:1, nativeSize:1, nativeId:0, dbType:DbType.fixedString},
-    {dbName:"", nativeName:"wchar", displaySize:1, nativeSize:2, nativeId:0, dbType:DbType.fixedString},
-    {dbName:"", nativeName:"dchar", displaySize:1, nativeSize:4, nativeId:0, dbType:DbType.fixedString},
-    {dbName:"", nativeName:"string", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:0, dbType:DbType.string},
-    {dbName:"", nativeName:"wstring", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:0, dbType:DbType.string},
-    {dbName:"", nativeName:"dstring", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:0, dbType:DbType.string},
-    {dbName:"", nativeName:"ubyte[]", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:0, dbType:DbType.binary},
-    {dbName:"", nativeName:"Date", displaySize:10, nativeSize:Date.sizeof, nativeId:0, dbType:DbType.date},
-    {dbName:"", nativeName:"DateTime", displaySize:28, nativeSize:DbDateTime.sizeof, nativeId:0, dbType:DbType.datetime},
-    {dbName:"", nativeName:"Time", displaySize:11, nativeSize:DbTime.sizeof, nativeId:0, dbType:DbType.time},
-    {dbName:"", nativeName:"UUID", displaySize:32, nativeSize:UUID.sizeof, nativeId:0, dbType:DbType.uuid},
+    {dbName:"BOOLEAN", dbType:DbType.boolean, dbId:0, nativeName:"bool", nativeSize:DbTypeSize.boolean, displaySize:DbTypeDisplaySize.boolean},
+    {dbName:"TINYINT", dbType:DbType.int8, dbId:0, nativeName:"byte", nativeSize:DbTypeSize.int8, displaySize:DbTypeDisplaySize.int8},
+    {dbName:"TINYINT", dbType:DbType.int8, dbId:0, nativeName:"ubyte", nativeSize:DbTypeSize.int8, displaySize:DbTypeDisplaySize.int8},
+    {dbName:"SMALLINT", dbType:DbType.int16, dbId:0, nativeName:"short", nativeSize:DbTypeSize.int16, displaySize:DbTypeDisplaySize.int16},
+    {dbName:"SMALLINT", dbType:DbType.int16, dbId:0, nativeName:"ushort", nativeSize:DbTypeSize.int16, displaySize:DbTypeDisplaySize.int16},
+    {dbName:"INTEGER", dbType:DbType.int32, dbId:0, nativeName:"int", nativeSize:DbTypeSize.int32, displaySize:DbTypeDisplaySize.int32},
+    {dbName:"INTEGER", dbType:DbType.int32, dbId:0, nativeName:"uint", nativeSize:DbTypeSize.int32, displaySize:DbTypeDisplaySize.int32},
+    {dbName:"BIGINT", dbType:DbType.int64, dbId:0, nativeName:"long", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
+    {dbName:"BIGINT", dbType:DbType.int64, dbId:0, nativeName:"ulong", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
+    {dbName:"FLOAT", dbType:DbType.float32, dbId:0, nativeName:"float", nativeSize:DbTypeSize.float32, displaySize:DbTypeDisplaySize.float32},
+    {dbName:"DOUBLE", dbType:DbType.float64, dbId:0, nativeName:"double", nativeSize:DbTypeSize.float64, displaySize:DbTypeDisplaySize.float64},
+    {dbName:"DOUBLE", dbType:DbType.float64, dbId:0, nativeName:"real", nativeSize:DbTypeSize.float64, displaySize:DbTypeDisplaySize.float64},
+    {dbName:"VARCHAR(?)", dbType:DbType.stringVary, dbId:0, nativeName:"string", nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.stringVary},
+    {dbName:"VARCHAR(?)", dbType:DbType.stringVary, dbId:0, nativeName:"wstring", nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.stringVary},
+    {dbName:"VARCHAR(?)", dbType:DbType.stringVary, dbId:0, nativeName:"dstring", nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.stringVary},
+    {dbName:"CHAR(1)", dbType:DbType.stringFixed, dbId:0, nativeName:"char", nativeSize:char.sizeof, displaySize:1},
+    {dbName:"CHAR(2)", dbType:DbType.stringFixed, dbId:0, nativeName:"wchar", nativeSize:char.sizeof*2, displaySize:1},
+    {dbName:"CHAR(4)", dbType:DbType.stringFixed, dbId:0, nativeName:"dchar", nativeSize:char.sizeof*4, displaySize:1},
+    {dbName:"VARBINARY(?)", dbType:DbType.binaryVary, dbId:0, nativeName:"ubyte[]", nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.stringVary},
+    {dbName:"VARBINARY(?)", dbType:DbType.binaryVary, dbId:0, nativeName:"byte[]", nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.binaryVary},
+    {dbName:"DATE", dbType:DbType.date, dbId:0, nativeName:"DbDate", nativeSize:DbTypeSize.date, displaySize:DbTypeDisplaySize.date},
+    {dbName:"DATETIME", dbType:DbType.datetime, dbId:0, nativeName:"DbDateTime", nativeSize:DbTypeSize.datetime, displaySize:DbTypeDisplaySize.datetime},
+    {dbName:"TIME", dbType:DbType.time, dbId:0, nativeName:"DbTime", nativeSize:DbTypeSize.time, displaySize:DbTypeDisplaySize.time},
+    {dbName:"CHAR(32)", dbType:DbType.uuid, dbId:0, nativeName:"UUID", nativeSize:DbTypeSize.uuid, displaySize:DbTypeDisplaySize.uuid},
+    {dbName:"DECIMAL", dbType:DbType.decimal, dbId:0, nativeName:"Decimal", nativeSize:DbTypeSize.decimal, displaySize:DbTypeDisplaySize.decimal},
+    {dbName:"NUMERIC", dbType:DbType.numeric, dbId:0, nativeName:"Numeric", nativeSize:DbTypeSize.numeric, displaySize:DbTypeDisplaySize.decimal},
 
     // Library
-    {dbName:"", nativeName:"DbDateTime", displaySize:28, nativeSize:DbDateTime.sizeof, nativeId:0, dbType:DbType.datetime},
-    {dbName:"", nativeName:"DbTime", displaySize:11, nativeSize:DbTime.sizeof, nativeId:0, dbType:DbType.time},
-    {dbName:"", nativeName:"Decimal", displaySize:34, nativeSize:Decimal128.sizeof, nativeId:0, dbType:DbType.decimal},
-    {dbName:"", nativeName:"Decimal32", displaySize:17, nativeSize:Decimal32.sizeof, nativeId:0, dbType:DbType.decimal32},
-    {dbName:"", nativeName:"Decimal64", displaySize:21, nativeSize:Decimal64.sizeof, nativeId:0, dbType:DbType.decimal64},
-    {dbName:"", nativeName:"Decimal128", displaySize:34, nativeSize:Decimal128.sizeof, nativeId:0, dbType:DbType.decimal128},
-    {dbName:"", nativeName:"Numeric", displaySize:34, nativeSize:Decimal128.sizeof, nativeId:0, dbType:DbType.numeric},
-
-    {dbName:"", nativeName:Decimal32.stringof, displaySize:17, nativeSize:Decimal32.sizeof, nativeId:0, dbType:DbType.decimal32},
-    {dbName:"", nativeName:Decimal64.stringof, displaySize:21, nativeSize:Decimal64.sizeof, nativeId:0, dbType:DbType.decimal64},
-    {dbName:"", nativeName:Decimal128.stringof, displaySize:34, nativeSize:Decimal128.sizeof, nativeId:0, dbType:DbType.decimal128},
+    {dbName:"DECIMAL(7,5)", dbType:DbType.decimal32, dbId:0, nativeName:"Decimal32", nativeSize:DbTypeSize.decimal32, displaySize:17},
+    {dbName:"DECIMAL(7,5)", dbType:DbType.decimal32, dbId:0, nativeName:Decimal32.stringof, nativeSize:DbTypeSize.decimal32, displaySize:17},
+    {dbName:"DECIMAL(7,5)", dbType:DbType.decimal32, dbId:0, nativeName:fullyQualifiedName!Decimal32, nativeSize:DbTypeSize.decimal32, displaySize:17},
+    {dbName:"DECIMAL(16,9)", dbType:DbType.decimal64, dbId:0, nativeName:"Decimal64", nativeSize:DbTypeSize.decimal64, displaySize:21},
+    {dbName:"DECIMAL(16,9)", dbType:DbType.decimal64, dbId:0, nativeName:Decimal64.stringof, nativeSize:DbTypeSize.decimal64, displaySize:21},
+    {dbName:"DECIMAL(16,9)", dbType:DbType.decimal64, dbId:0, nativeName:fullyQualifiedName!Decimal64, nativeSize:DbTypeSize.decimal64, displaySize:21},
+    {dbName:"DECIMAL(34,18)", dbType:DbType.decimal128, dbId:0, nativeName:"Decimal128", nativeSize:DbTypeSize.decimal128, displaySize:DbTypeDisplaySize.decimal},
+    {dbName:"DECIMAL(34,18)", dbType:DbType.decimal128, dbId:0, nativeName:Decimal128.stringof, nativeSize:DbTypeSize.decimal128, displaySize:DbTypeDisplaySize.decimal},
+    {dbName:"DECIMAL(34,18)", dbType:DbType.decimal128, dbId:0, nativeName:fullyQualifiedName!Decimal128, nativeSize:DbTypeSize.decimal128, displaySize:DbTypeDisplaySize.decimal},
 
     // Alias
-    {dbName:"", nativeName:"int8", displaySize:4, nativeSize:int8.sizeof, nativeId:0, dbType:DbType.int8},
-    {dbName:"", nativeName:"uint8", displaySize:6, nativeSize:int16.sizeof, nativeId:0, dbType:DbType.int16},
-    {dbName:"", nativeName:"int16", displaySize:6, nativeSize:int16.sizeof, nativeId:0, dbType:DbType.int16},
-    {dbName:"", nativeName:"uint16", displaySize:11, nativeSize:int32.sizeof, nativeId:0, dbType:DbType.int32},
-    {dbName:"", nativeName:"int32", displaySize:11, nativeSize:int32.sizeof, nativeId:0, dbType:DbType.int32},
-    {dbName:"", nativeName:"uint32", displaySize:20, nativeSize:int64.sizeof, nativeId:0, dbType:DbType.int64},
-    {dbName:"", nativeName:"int64", displaySize:20, nativeSize:int64.sizeof, nativeId:0, dbType:DbType.int64},
-    {dbName:"", nativeName:"uint64", displaySize:20, nativeSize:int64.sizeof, nativeId:0, dbType:DbType.int64},
-    {dbName:"", nativeName:"int128", displaySize:41, nativeSize:BigInteger.sizeof, nativeId:0, dbType:DbType.int128},
-    {dbName:"", nativeName:"float32", displaySize:17, nativeSize:float32.sizeof, nativeId:0, dbType:DbType.float32},
-    {dbName:"", nativeName:"float64", displaySize:21, nativeSize:float64.sizeof, nativeId:0, dbType:DbType.float64},
-    {dbName:"", nativeName:"DateTimeTZ", displaySize:28, nativeSize:DbDateTime.sizeof, nativeId:0, dbType:DbType.datetimeTZ},
-    {dbName:"", nativeName:"DbDate", displaySize:10, nativeSize:Date.sizeof, nativeId:0, dbType:DbType.date},
-    {dbName:"", nativeName:"TimeOfDay", displaySize:11, nativeSize:DbTime.sizeof, nativeId:0, dbType:DbType.time},
-    {dbName:"", nativeName:"TimeTZ", displaySize:11, nativeSize:DbTime.sizeof, nativeId:0, dbType:DbType.timeTZ},
+    {dbName:"TINYINT", dbType:DbType.int8, dbId:0, nativeName:"int8", nativeSize:DbTypeSize.int8, displaySize:DbTypeDisplaySize.int8},
+    {dbName:"TINYINT", dbType:DbType.int8, dbId:0, nativeName:"uint8", nativeSize:DbTypeSize.int8, displaySize:DbTypeDisplaySize.int8},
+    {dbName:"SMALLINT", dbType:DbType.int16, dbId:0, nativeName:"int16", nativeSize:DbTypeSize.int16, displaySize:DbTypeDisplaySize.int16},
+    {dbName:"SMALLINT", dbType:DbType.int16, dbId:0, nativeName:"uint16", nativeSize:DbTypeSize.int16, displaySize:DbTypeDisplaySize.int16},
+    {dbName:"INTEGER", dbType:DbType.int32, dbId:0, nativeName:"int32", nativeSize:DbTypeSize.int32, displaySize:DbTypeDisplaySize.int32},
+    {dbName:"INTEGER", dbType:DbType.int32, dbId:0, nativeName:"uint32", nativeSize:DbTypeSize.int32, displaySize:DbTypeDisplaySize.int32},
+    {dbName:"BIGINT", dbType:DbType.int64, dbId:0, nativeName:"int64", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
+    {dbName:"BIGINT", dbType:DbType.int64, dbId:0, nativeName:"uint64", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
+    {dbName:"INT128?", dbType:DbType.int128, dbId:0, nativeName:"int128", nativeSize:DbTypeSize.int128, displaySize:DbTypeDisplaySize.int128},
+    {dbName:"FLOAT", dbType:DbType.float32, dbId:0, nativeName:"float32", nativeSize:DbTypeSize.float32, displaySize:DbTypeDisplaySize.float32},
+    {dbName:"DOUBLE", dbType:DbType.float64, dbId:0, nativeName:"float64", nativeSize:DbTypeSize.float64, displaySize:DbTypeDisplaySize.float64},
+    {dbName:"DATE", dbType:DbType.date, dbId:0, nativeName:fullyQualifiedName!DbDate, nativeSize:DbTypeSize.date, displaySize:DbTypeDisplaySize.date},
+    {dbName:"DATETIME", dbType:DbType.datetime, dbId:0, nativeName:fullyQualifiedName!DbDateTime, nativeSize:DbTypeSize.datetime, displaySize:DbTypeDisplaySize.datetime},
+    {dbName:"TIME", dbType:DbType.time, dbId:0, nativeName:fullyQualifiedName!DbTime, nativeSize:DbTypeSize.time, displaySize:DbTypeDisplaySize.time},
+    //{dbName:"TIME", dbType:DbType.time, dbId:0, nativeName:"TimeOfDay", nativeSize:DbTypeSize.time, displaySize:DbTypeDisplaySize.time},
     ];
 
 static immutable DbTypeInfo*[DbType] dbTypeToDbTypeInfos;
@@ -1874,7 +2034,9 @@ DbType dbTypeOf(T)() @nogc pure
         return (*e).dbType;
 
     static if (is(T == ubyte[]))
-        return DbType.binary;
+        return DbType.binaryVary;
+    else static if (is(T == Date)) // Handling alias
+        return DbType.date;
     else static if (is(T == struct))
         return DbType.record;
     else static if (isArray!T)
@@ -1883,21 +2045,35 @@ DbType dbTypeOf(T)() @nogc pure
         return DbType.unknown;
 }
 
+pragma(inline, true)
+EnumSet!DbParameterDirection inputDirections() @nogc pure
+{
+    return EnumSet!DbParameterDirection([DbParameterDirection.input, DbParameterDirection.inputOutput]);
+}
+
+pragma(inline, true)
+EnumSet!DbParameterDirection outputDirections(bool outputOnly) @nogc pure
+{
+    return outputOnly
+        ? EnumSet!DbParameterDirection([DbParameterDirection.output, DbParameterDirection.returnValue])
+        : EnumSet!DbParameterDirection([DbParameterDirection.inputOutput, DbParameterDirection.output, DbParameterDirection.returnValue]);
+}
+
 bool isDbScheme(string schemeStr, ref DbScheme scheme) @nogc pure
 {
     import std.traits : EnumMembers;
 
-    if (schemeStr.length)
+    if (schemeStr.length == 0)
+        return false;
+
+    foreach (e; EnumMembers!DbScheme)
     {
-        foreach (e; EnumMembers!DbScheme)
+        debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(e=", e, " ? ", cast(string)e, ")"); //output: fb ? firebird ... }
+
+        if (e == schemeStr)
         {
-            debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(e=", e, " ? ", cast(string)e); //output: fb ? firebird ... }
-            
-            if (e == schemeStr)
-            {
-                scheme = e;
-                return true;
-            }
+            scheme = e;
+            return true;
         }
     }
 
@@ -1908,13 +2084,13 @@ bool isDbTypeHasSize(DbType rawType) @nogc pure
 {
     switch (rawType)
     {
-        case DbType.fixedString:
-        case DbType.string:
+        case DbType.stringFixed:
+        case DbType.stringVary:
         case DbType.text:
         case DbType.json:
         case DbType.xml:
-        case DbType.fixedBinary:
-        case DbType.binary:
+        case DbType.binaryFixed:
+        case DbType.binaryVary:
         case DbType.record:
         case DbType.array:
             return true;
@@ -1930,8 +2106,8 @@ bool isDbTypeHasZeroSizeAsNull(DbType rawType) @nogc pure
         case DbType.text:
         case DbType.json:
         case DbType.xml:
-        case DbType.fixedBinary:
-        case DbType.binary:
+        case DbType.binaryFixed:
+        case DbType.binaryVary:
         case DbType.record:
         case DbType.array:
             return true;
@@ -1942,7 +2118,7 @@ bool isDbTypeHasZeroSizeAsNull(DbType rawType) @nogc pure
 
 bool isDbTypeString(DbType rawType) @nogc pure
 {
-    return rawType == DbType.string
+    return rawType == DbType.stringVary
         || rawType == DbType.text
         || rawType == DbType.json
         || rawType == rawType.xml;
@@ -1950,13 +2126,13 @@ bool isDbTypeString(DbType rawType) @nogc pure
 
 bool isDbFalse(scope const(char)[] s) @nogc pure
 {
-    if (s.length != 0)
+    if (s.length == 0)
+        return false;
+
+    foreach (f; boolFalses)
     {
-        foreach (f; boolFalses)
-        {
-            if (sicmp(s, f) == 0)
-                return true;
-        }
+        if (sicmp(s, f) == 0)
+            return true;
     }
 
     return false;
@@ -1964,16 +2140,22 @@ bool isDbFalse(scope const(char)[] s) @nogc pure
 
 bool isDbTrue(scope const(char)[] s) @nogc pure
 {
-    if (s.length != 0)
+    if (s.length == 0)
+        return false;
+
+    foreach (t; boolTrues)
     {
-        foreach (t; boolTrues)
-        {
-            if (sicmp(s, t) == 0)
-                return true;
-        }
+        if (sicmp(s, t) == 0)
+            return true;
     }
 
     return false;
+}
+
+bool isParameterOutputOnly(const(DbParameterDirection) direction) @nogc pure
+{
+    return direction == DbParameterDirection.output
+        || direction == DbParameterDirection.returnValue;
 }
 
 DbParameterDirection parameterModeToDirection(scope const(char)[] mode) @nogc pure
@@ -1987,298 +2169,357 @@ DbParameterDirection parameterModeToDirection(scope const(char)[] mode) @nogc pu
                 : DbParameterDirection.input));
 }
 
-
-// Any below codes are private
-private:
-
-DbNameValueValidated isConnectionParameter1K(string v)
+DbNameValueValidated cvtConnectionParameterBool(out bool cv, string v)
 {
-    return v.length != 0 && v.length <= 1_000
-        ? DbNameValueValidated.ok
-        : DbNameValueValidated.invalidValue;
+    if (isDbFalse(v))
+    {
+        cv = false;
+        return DbNameValueValidated.ok;
+    }
+    else if (isDbTrue(v))
+    {
+        cv = true;
+        return DbNameValueValidated.ok;
+    }
+    else
+    {
+        cv = false;
+        return DbNameValueValidated.invalidValue;
+    }
 }
 
-DbNameValueValidated isConnectionParameterAny(string v)
+DbNameValueValidated isConnectionParameterBool(scope const(DbConnectionParameterInfo) info, string v)
 {
-    return DbNameValueValidated.ok;
+    bool cv;
+    return cvtConnectionParameterBool(cv, v);
 }
 
-DbNameValueValidated isConnectionParameterAny200(string v)
-{
-    return v.length <= 200
-        ? DbNameValueValidated.ok
-        : DbNameValueValidated.invalidValue;
-}
-
-DbNameValueValidated isConnectionParameterAny1K(string v)
-{
-    return v.length <= 1_000
-        ? DbNameValueValidated.ok
-        : DbNameValueValidated.invalidValue;
-}
-
-DbNameValueValidated isConnectionParameterAny2K(string v)
-{
-    return v.length <= 2_000
-        ? DbNameValueValidated.ok
-        : DbNameValueValidated.invalidValue;
-}
-
-DbNameValueValidated isConnectionParameterLength(string v)
-{
-    return v.length != 0
-        ? DbNameValueValidated.ok
-        : DbNameValueValidated.invalidValue;
-}
-
-DbNameValueValidated isConnectionParameterBool(string v)
-{
-    return isDbFalse(v) || isDbTrue(v)
-        ? DbNameValueValidated.ok
-        : DbNameValueValidated.invalidValue;
-}
-
-DbNameValueValidated isConnectionParameterCharset(string v)
+DbNameValueValidated isConnectionParameterCharset(scope const(DbConnectionParameterInfo) info, string v)
 {
     return v == "UTF8" || v == "utf8"
         ? DbNameValueValidated.ok
         : DbNameValueValidated.invalidValue;
 }
 
-DbNameValueValidated isConnectionParameterDurationTimeout(string v)
+DbNameValueValidated cvtConnectionParameterCompress(out DbCompressConnection cv, string v)
 {
-    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
+    import std.traits : EnumMembers;
 
-    int32 vint;
-    if (parseIntegral!(string, int32)(v, vint) != NumericParsedKind.ok)
+    if (v.length == 0)
+    {
+        cv = DbCompressConnection.min;
+        return DbNameValueValidated.invalidValue;
+    }
+
+    foreach (e; EnumMembers!DbCompressConnection)
+    {
+        if (toName(e) == v)
+        {
+            cv = e;
+            return DbNameValueValidated.ok;
+        }
+    }
+
+    cv = DbCompressConnection.min;
+    return DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterCompress(scope const(DbConnectionParameterInfo) info, string v)
+{
+    DbCompressConnection cv;
+    return cvtConnectionParameterCompress(cv, v);
+}
+
+DbNameValueValidated cvtConnectionParameterComputingSize(out int32 cv, string v)
+{
+    long tcv;
+    if (v.length == 0)
+    {
+        cv = 0;
+        return DbNameValueValidated.invalidValue;
+    }
+    else if (parseComputingSize(v, ComputingSizeUnit.bytes, tcv) == NumericParsedKind.ok)
+    {
+        cv = tcv > int32.max ? int32.max : (tcv < int32.min ? int32.min : cast(int32)tcv);
+        return DbNameValueValidated.ok;
+    }
+    else
+        return DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterComputingSize(scope const(DbConnectionParameterInfo) info, string v)
+{
+    int32 cv;
+    if (cvtConnectionParameterComputingSize(cv, v) != DbNameValueValidated.ok)
         return DbNameValueValidated.invalidValue;
 
-    const vdur = dur!"seconds"(vint);
-    return vdur >= minTimeoutDuration && vdur <= maxTimeoutDuration
+    return cv >= info.min && cv <= info.max
         ? DbNameValueValidated.ok
         : DbNameValueValidated.invalidValue;
 }
 
-DbNameValueValidated isConnectionParameterCompress(string v)
+string cvtConnectionParameterDuration(scope const(Duration) v)
+{
+    const total = v.total!"msecs";
+    return total > int32.max ? int32.max.to!string : (total < int32.min ? int32.min.to!string : total.to!string);
+}
+
+DbNameValueValidated cvtConnectionParameterDuration(out Duration cv, string v)
+{
+    if (v.length == 0)
+    {
+        cv = Duration.zero;
+        return DbNameValueValidated.invalidValue;
+    }
+    else if (parseDuration(v, DurationUnit.msecs, cv) == NumericParsedKind.ok)
+        return DbNameValueValidated.ok;
+    else
+        return DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterDuration(scope const(DbConnectionParameterInfo) info, string v)
+{
+    Duration cv;
+    if (cvtConnectionParameterDuration(cv, v) != DbNameValueValidated.ok)
+        return DbNameValueValidated.invalidValue;
+
+    const minDur = dur!"msecs"(info.min);
+    const maxDur = dur!"msecs"(info.max);
+    return cv >= minDur && cv <= maxDur
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated cvtConnectionParameterEncrypt(out DbEncryptedConnection cv, string v)
 {
     import std.traits : EnumMembers;
-    import pham.utl.utl_enum_set : toName;
 
-    if (v.length)
+    if (v.length == 0)
     {
-        foreach (e; EnumMembers!DbCompressConnection)
+        cv = DbEncryptedConnection.min;
+        return DbNameValueValidated.invalidValue;
+    }
+
+    foreach (e; EnumMembers!DbEncryptedConnection)
+    {
+        if (toName(e) == v)
         {
-            if (toName(e) == v)
-                return DbNameValueValidated.ok;
+            cv = e;
+            return DbNameValueValidated.ok;
         }
     }
 
+    cv = DbEncryptedConnection.min;
     return DbNameValueValidated.invalidValue;
 }
 
-DbNameValueValidated isConnectionParameterEncrypt(string v)
+DbNameValueValidated isConnectionParameterEncrypt(scope const(DbConnectionParameterInfo) info, string v)
 {
-    import std.traits : EnumMembers;
-    import pham.utl.utl_enum_set : toName;
-
-    if (v.length)
-    {
-        foreach (e; EnumMembers!DbEncryptedConnection)
-        {
-            if (toName(e) == v)
-                return DbNameValueValidated.ok;
-        }
-    }
-
-    return DbNameValueValidated.invalidValue;
+    DbEncryptedConnection cv;
+    return cvtConnectionParameterEncrypt(cv, v);
 }
 
-DbNameValueValidated isConnectionParameterFBDialect(string v)
+DbNameValueValidated isConnectionParameterFBDialect(scope const(DbConnectionParameterInfo) info, string v)
 {
     return v == "3"
         ? DbNameValueValidated.ok
         : DbNameValueValidated.invalidValue;
 }
 
-DbNameValueValidated isConnectionParameterIntegratedSecurity(string v)
+DbNameValueValidated isConnectionParameterFBCryptAlgorithm(scope const(DbConnectionParameterInfo) info, string v)
+{
+    return (v == "ChaCha") || (v == "ChaCha64") || (v == "Arc4")
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated cvtConnectionParameterInt32(out int32 cv, string v)
+{
+    if (v.length == 0)
+    {
+        cv = 0;
+        return DbNameValueValidated.invalidValue;
+    }
+    else if (parseIntegral!(char, int32)(v, cv) == NumericParsedKind.ok)
+        return DbNameValueValidated.ok;
+    else
+        return DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterInt32(scope const(DbConnectionParameterInfo) info, string v)
+{
+    int32 cv;
+    if (cvtConnectionParameterInt32(cv, v) != DbNameValueValidated.ok)
+        return DbNameValueValidated.invalidValue;
+
+    return cv >= info.min && cv <= info.max
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated cvtConnectionParameterIntegratedSecurity(out DbIntegratedSecurityConnection cv, string v)
 {
     import std.traits : EnumMembers;
-    import pham.utl.utl_enum_set : toName;
 
-    if (v.length)
+    if (v.length == 0)
     {
-        foreach (e; EnumMembers!DbIntegratedSecurityConnection)
+        cv = DbIntegratedSecurityConnection.min;
+        return DbNameValueValidated.invalidValue;
+    }
+
+    foreach (e; EnumMembers!DbIntegratedSecurityConnection)
+    {
+        if (toName(e) == v)
         {
-            if (toName(e) == v)
-                return DbNameValueValidated.ok;
+            cv = e;
+            return DbNameValueValidated.ok;
         }
     }
 
+    cv = DbIntegratedSecurityConnection.min;
     return DbNameValueValidated.invalidValue;
 }
 
-DbNameValueValidated isConnectionParameterInt32Any(string v)
+DbNameValueValidated isConnectionParameterIntegratedSecurity(scope const(DbConnectionParameterInfo) info, string v)
 {
-    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
-
-    int32 vint;
-    if (parseIntegral!(string, int32)(v, vint) != NumericParsedKind.ok)
-        return DbNameValueValidated.invalidValue;
-
-    return DbNameValueValidated.ok;
+    DbIntegratedSecurityConnection cv;
+    return cvtConnectionParameterIntegratedSecurity(cv, v);
 }
 
-DbNameValueValidated isConnectionParameterInt32Pos(string v)
+DbNameValueValidated isConnectionParameterMSApplicationIntent(scope const(DbConnectionParameterInfo) info, string v)
 {
-    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
-
-    int32 vint;
-    if (parseIntegral!(string, int32)(v, vint) != NumericParsedKind.ok)
-        return DbNameValueValidated.invalidValue;
-
-    return vint >= 0
+    return sicmp(v, "ReadOnly") == 0 || sicmp(v, "ReadWrite") == 0
         ? DbNameValueValidated.ok
         : DbNameValueValidated.invalidValue;
 }
 
-DbNameValueValidated isConnectionParameterUBytesAny(string v)
+DbNameValueValidated isConnectionParameterMSEncrypt(scope const(DbConnectionParameterInfo) info, string v)
+{
+    return sicmp(v, "no") == 0 || sicmp(v, "yes") == 0 || sicmp(v, "strict") == 0
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterString(scope const(DbConnectionParameterInfo) info, string v)
+{
+    debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(v=", v, ", min=", min, ", max=", max, ")");
+
+    return v.length >= info.min && v.length <= info.max
+        ? DbNameValueValidated.ok
+        : DbNameValueValidated.invalidValue;
+}
+
+DbNameValueValidated isConnectionParameterUBytes(scope const(DbConnectionParameterInfo) info, string v)
 {
     import pham.utl.utl_array : ShortStringBuffer;
-    import pham.utl.utl_numeric_parser : NumericParsedKind, parseBase64;
     import pham.utl.utl_utf8 : NoDecodeInputRange;
 
     if (v.length == 0)
-        return DbNameValueValidated.ok;
+        return info.min == 0 ? DbNameValueValidated.ok : DbNameValueValidated.invalidValue;
 
+    ShortStringBuffer!ubyte va;
     NoDecodeInputRange!(v, char) inputRange;
-    ShortStringBuffer!ubyte result;
-    if (parseBase64(result, inputRange) != NumericParsedKind.ok)
+    if (parseBase64(va, inputRange) != NumericParsedKind.ok)
         return DbNameValueValidated.invalidValue;
 
-    return DbNameValueValidated.ok;
-}
-
-DbNameValueValidated isConnectionParameterUInt16Any(string v)
-{
-    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
-
-    uint16 vint;
-    if (parseIntegral!(string, uint16)(v, vint) != NumericParsedKind.ok)
-        return DbNameValueValidated.invalidValue;
-
-    return DbNameValueValidated.ok;
-}
-
-DbNameValueValidated isConnectionParameterUInt32Any(string v)
-{
-    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
-
-    uint32 vint;
-    if (parseIntegral!(string, uint32)(v, vint) != NumericParsedKind.ok)
-        return DbNameValueValidated.invalidValue;
-
-    return DbNameValueValidated.ok;
-}
-
-DbNameValueValidated isConnectionParameterUInt32_8K(string v)
-{
-    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
-
-    uint32 vint;
-    if (parseIntegral!(string, uint32)(v, vint) != NumericParsedKind.ok)
-        return DbNameValueValidated.invalidValue;
-
-    return vint > 0 && vint <= 8_000
+    return va.length >= info.min && va.length <= info.max
         ? DbNameValueValidated.ok
         : DbNameValueValidated.invalidValue;
 }
 
-DbNameValueValidated isConnectionParameterUInt32_256K(string v)
-{
-    import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
 
-    uint32 vint;
-    if (parseIntegral!(string, uint32)(v, vint) != NumericParsedKind.ok)
-        return DbNameValueValidated.invalidValue;
-
-    return vint > 0 && vint <= 256_000
-        ? DbNameValueValidated.ok
-        : DbNameValueValidated.invalidValue;
-}
+// Any below codes are private
+private:
 
 shared static this() nothrow @safe
 {
     dbDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
-        return cast(immutable(string[string]))[
-            DbConnectionParameterIdentifier.charset : "UTF8",
-            DbConnectionParameterIdentifier.compress : toName(DbCompressConnection.disabled),
-            DbConnectionParameterIdentifier.connectionTimeout : "10", // In seconds
-            DbConnectionParameterIdentifier.encrypt : toName(DbEncryptedConnection.disabled),
-            DbConnectionParameterIdentifier.fetchRecordCount : "200",
-            DbConnectionParameterIdentifier.integratedSecurity : toName(DbIntegratedSecurityConnection.srp256),
-            DbConnectionParameterIdentifier.maxPoolCount : "100",
-            DbConnectionParameterIdentifier.minPoolCount : "3",
-            DbConnectionParameterIdentifier.pooling : dbBoolTrue,
-            DbConnectionParameterIdentifier.poolTimeout : "30", // In seconds
-            DbConnectionParameterIdentifier.receiveTimeout : "0", // In seconds - no limit
-            DbConnectionParameterIdentifier.sendTimeout : "60", // In seconds
-            DbConnectionParameterIdentifier.serverName : "localhost"
-        ];
-    }();
+        return cast(immutable(DbConnectionParameterInfo[string]))[
+            DbConnectionParameterIdentifier.allowBatch : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
+            DbConnectionParameterIdentifier.charset : DbConnectionParameterInfo(&isConnectionParameterCharset, "UTF8", dbConnectionParameterNullMin, dbConnectionParameterNullMax),
+            DbConnectionParameterIdentifier.commandTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, dbConnectionParameterNullDef, 0, int32.max),
+            DbConnectionParameterIdentifier.compress : DbConnectionParameterInfo(&isConnectionParameterCompress, toName(DbCompressConnection.disabled), dbConnectionParameterNullMin, dbConnectionParameterNullMax),
+            DbConnectionParameterIdentifier.connectionTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, "10_000", 0, int32.max),
+            DbConnectionParameterIdentifier.databaseName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 1, dbConnectionParameterMaxName),
+            DbConnectionParameterIdentifier.databaseFileName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName),
+            DbConnectionParameterIdentifier.encrypt : DbConnectionParameterInfo(&isConnectionParameterEncrypt, toName(DbEncryptedConnection.disabled), dbConnectionParameterNullMin, dbConnectionParameterNullMax),
+            DbConnectionParameterIdentifier.fetchRecordCount : DbConnectionParameterInfo(&isConnectionParameterInt32, "200", -1, 65_000),
+            DbConnectionParameterIdentifier.integratedSecurity : DbConnectionParameterInfo(&isConnectionParameterIntegratedSecurity, toName(DbIntegratedSecurityConnection.srp256), dbConnectionParameterNullMin, dbConnectionParameterNullMax),
+            DbConnectionParameterIdentifier.packageSize : DbConnectionParameterInfo(&isConnectionParameterComputingSize, dbConnectionParameterNullDef, 4_096*2, 4_096*64),
+            DbConnectionParameterIdentifier.pooling : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolFalse, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
+            DbConnectionParameterIdentifier.poolIdleTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, "300_000", 1_000, 60*60*60*1000),
+            DbConnectionParameterIdentifier.poolMaxCount : DbConnectionParameterInfo(&isConnectionParameterInt32, "200", 1, 10_000),
+            DbConnectionParameterIdentifier.poolMinCount : DbConnectionParameterInfo(&isConnectionParameterInt32, "0", 0, 1_000),
+            DbConnectionParameterIdentifier.receiveTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, dbConnectionParameterNullDef, 0, int32.max),
+            DbConnectionParameterIdentifier.roleName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId),
+            DbConnectionParameterIdentifier.sendTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, "60_000", 0, int32.max),
+            DbConnectionParameterIdentifier.serverName : DbConnectionParameterInfo(&isConnectionParameterString, "localhost", 1, dbConnectionParameterMaxName),
+            DbConnectionParameterIdentifier.serverPort : DbConnectionParameterInfo(&isConnectionParameterInt32, dbConnectionParameterNullDef, 0, uint16.max),
+            DbConnectionParameterIdentifier.userName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId),
+            DbConnectionParameterIdentifier.userPassword : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId),
 
-    dbIsConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
-    {
-        return cast(immutable(IsConnectionParameterValue[string]))[
-            DbConnectionParameterIdentifier.allowBatch : &isConnectionParameterBool,
-            DbConnectionParameterIdentifier.charset : &isConnectionParameterCharset,
-            DbConnectionParameterIdentifier.commandTimeout : &isConnectionParameterDurationTimeout,
-            DbConnectionParameterIdentifier.compress : &isConnectionParameterCompress,
-            DbConnectionParameterIdentifier.connectionTimeout : &isConnectionParameterDurationTimeout,
-            DbConnectionParameterIdentifier.databaseName : &isConnectionParameterAny1K,
-            DbConnectionParameterIdentifier.databaseFile : &isConnectionParameterAny2K,
-            DbConnectionParameterIdentifier.encrypt : &isConnectionParameterEncrypt,
-            DbConnectionParameterIdentifier.fetchRecordCount : &isConnectionParameterUInt32_8K,
-            DbConnectionParameterIdentifier.integratedSecurity : &isConnectionParameterIntegratedSecurity,
-            DbConnectionParameterIdentifier.maxPoolCount : &isConnectionParameterUInt32Any,
-            DbConnectionParameterIdentifier.minPoolCount : &isConnectionParameterUInt32Any,
-            DbConnectionParameterIdentifier.packageSize : &isConnectionParameterUInt32_256K,
-            DbConnectionParameterIdentifier.pooling : &isConnectionParameterBool,
-            DbConnectionParameterIdentifier.poolTimeout : &isConnectionParameterDurationTimeout,
-            DbConnectionParameterIdentifier.receiveTimeout : &isConnectionParameterDurationTimeout,
-            DbConnectionParameterIdentifier.roleName : &isConnectionParameterAny200,
-            DbConnectionParameterIdentifier.sendTimeout : &isConnectionParameterDurationTimeout,
-            DbConnectionParameterIdentifier.serverName : &isConnectionParameterAny1K,
-            DbConnectionParameterIdentifier.serverPort : &isConnectionParameterUInt16Any,
-            DbConnectionParameterIdentifier.userName : &isConnectionParameterAny200,
-            DbConnectionParameterIdentifier.userPassword : &isConnectionParameterAny200,
-            DbConnectionParameterIdentifier.socketBlocking : &isConnectionParameterBool,
-            DbConnectionParameterIdentifier.socketNoDelay : &isConnectionParameterBool,
-            DbConnectionParameterIdentifier.socketSslCa : &isConnectionParameterAny2K,
-            DbConnectionParameterIdentifier.socketSslCaDir : &isConnectionParameterAny2K,
-            DbConnectionParameterIdentifier.socketSslCert : &isConnectionParameterAny2K,
-            DbConnectionParameterIdentifier.socketSslKey : &isConnectionParameterAny2K,
-            DbConnectionParameterIdentifier.socketSslKeyPassword : &isConnectionParameterAny200,
-            DbConnectionParameterIdentifier.socketSslVerificationHost : &isConnectionParameterBool,
-            DbConnectionParameterIdentifier.socketSslVerificationMode : &isConnectionParameterInt32Any,
-            DbConnectionParameterIdentifier.fbCachePage : &isConnectionParameterInt32Pos,
-            DbConnectionParameterIdentifier.fbCryptKey : &isConnectionParameterUBytesAny,
-            DbConnectionParameterIdentifier.fbDatabaseTrigger : &isConnectionParameterBool,
-            DbConnectionParameterIdentifier.fbDialect : &isConnectionParameterFBDialect,
-            DbConnectionParameterIdentifier.fbDummyPacketInterval : &isConnectionParameterDurationTimeout,
-            DbConnectionParameterIdentifier.fbGarbageCollect : &isConnectionParameterBool,
-            DbConnectionParameterIdentifier.myAllowUserVariables : &isConnectionParameterBool,
-            //DbConnectionParameterIdentifier. : &,
+            // Socket
+            DbConnectionParameterIdentifier.socketBlocking : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
+            DbConnectionParameterIdentifier.socketNoDelay : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
+            DbConnectionParameterIdentifier.socketSslCa : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName),
+            DbConnectionParameterIdentifier.socketSslCaDir : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName),
+            DbConnectionParameterIdentifier.socketSslCert : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName),
+            DbConnectionParameterIdentifier.socketSslKey : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName),
+            DbConnectionParameterIdentifier.socketSslKeyPassword : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId),
+            DbConnectionParameterIdentifier.socketSslVerificationHost : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
+            DbConnectionParameterIdentifier.socketSslVerificationMode : DbConnectionParameterInfo(&isConnectionParameterInt32, dbConnectionParameterNullDef, -1, uint16.max),
+
+            // Firebird
+            DbConnectionParameterIdentifier.fbCachePage : DbConnectionParameterInfo(&isConnectionParameterInt32, dbConnectionParameterNullDef, 0, int32.max, DbScheme.fb),
+            DbConnectionParameterIdentifier.fbCryptAlgorithm : DbConnectionParameterInfo(&isConnectionParameterFBCryptAlgorithm, "Arc4", dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.fb),
+            DbConnectionParameterIdentifier.fbCryptKey : DbConnectionParameterInfo(&isConnectionParameterUBytes, dbConnectionParameterNullDef, 0, uint16.max, DbScheme.fb),
+            DbConnectionParameterIdentifier.fbDatabaseTrigger : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.fb),
+            DbConnectionParameterIdentifier.fbDialect : DbConnectionParameterInfo(&isConnectionParameterFBDialect, "3", 1, 3, DbScheme.fb),
+            DbConnectionParameterIdentifier.fbDummyPacketInterval : DbConnectionParameterInfo(&isConnectionParameterDuration, "300_000", 1_000, int32.max, DbScheme.fb),
+            DbConnectionParameterIdentifier.fbGarbageCollect : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.fb),
+
+            // MySQL
+            DbConnectionParameterIdentifier.myAllowUserVariables : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.my),
+
+            // MSSQL
+            DbConnectionParameterIdentifier.msAddress : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms),
+            DbConnectionParameterIdentifier.msApplicationName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName, DbScheme.ms),
+            DbConnectionParameterIdentifier.msApplicationIntent : DbConnectionParameterInfo(&isConnectionParameterMSApplicationIntent, "ReadWrite", dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
+            DbConnectionParameterIdentifier.msAttachDBFileName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName, DbScheme.ms),
+            DbConnectionParameterIdentifier.msAutoTranslate : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
+            //DbConnectionParameterIdentifier.msDatabase : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms),
+            DbConnectionParameterIdentifier.msDriver : DbConnectionParameterInfo(&isConnectionParameterString, "{ODBC Driver 17 for SQL Server}", 0, dbConnectionParameterMaxName, DbScheme.ms),
+            DbConnectionParameterIdentifier.msDSN : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms),
+            //DbConnectionParameterIdentifier.msEncrypt : DbConnectionParameterInfo(&isConnectionParameterMSEncrypt, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
+            DbConnectionParameterIdentifier.msFailoverPartner : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms),
+            DbConnectionParameterIdentifier.msFileDSN : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName, DbScheme.ms),
+            DbConnectionParameterIdentifier.msLanguage : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId, DbScheme.ms),
+            DbConnectionParameterIdentifier.msMARSConnection : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
+            DbConnectionParameterIdentifier.msMultiSubnetFailover : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
+            DbConnectionParameterIdentifier.msNetwork : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms),
+            DbConnectionParameterIdentifier.msPWD : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId, DbScheme.ms),
+            DbConnectionParameterIdentifier.msQueryLogOn : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
+            DbConnectionParameterIdentifier.msQueryLogFile : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName, DbScheme.ms),
+            DbConnectionParameterIdentifier.msQueryLogTime : DbConnectionParameterInfo(&isConnectionParameterDuration, dbConnectionParameterNullDef, 0, int32.max, DbScheme.ms),
+            DbConnectionParameterIdentifier.msQuotedId : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolFalse, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
+            DbConnectionParameterIdentifier.msRegional : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
+            //DbConnectionParameterIdentifier.msServer : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms),
+            DbConnectionParameterIdentifier.msTrustedConnection : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
+            DbConnectionParameterIdentifier.msTrustServerCertificate : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
+            DbConnectionParameterIdentifier.msUID : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId, DbScheme.ms),
+            DbConnectionParameterIdentifier.msWSID : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms),
         ];
     }();
 
     dbTypeToDbTypeInfos = () nothrow pure @trusted
     {
         immutable(DbTypeInfo)*[DbType] result;
-        foreach (ref e; dbNativeTypes)
+        foreach (i; 0..dbNativeTypes.length)
         {
-            if (!(e.dbType in result))
-                result[e.dbType] = &e;
+            const dbType = dbNativeTypes[i].dbType;
+            if (!(dbType in result))
+                result[dbType] = &dbNativeTypes[i];
         }
         return result;
     }();
@@ -2286,10 +2527,11 @@ shared static this() nothrow @safe
     nativeNameToDbTypeInfos = () nothrow pure @trusted
     {
         immutable(DbTypeInfo)*[string] result;
-        foreach (ref e; dbNativeTypes)
+        foreach (i; 0..dbNativeTypes.length)
         {
-            if (!(e.nativeName in result))
-                result[e.nativeName] = &e;
+            const nativeName = dbNativeTypes[i].nativeName;
+            if (!(nativeName in result))
+                result[nativeName] = &dbNativeTypes[i];
         }
         return result;
     }();
@@ -2305,29 +2547,30 @@ unittest // dbTypeOf
     //pragma(msg, "Date: ", Date.sizeof); // 4
 
     assert(dbTypeOf!bool() == DbType.boolean);
-    assert(dbTypeOf!char() == DbType.fixedString);
-    assert(dbTypeOf!wchar() == DbType.fixedString);
-    assert(dbTypeOf!dchar() == DbType.fixedString);
+    assert(dbTypeOf!char() == DbType.stringFixed);
+    assert(dbTypeOf!wchar() == DbType.stringFixed);
+    assert(dbTypeOf!dchar() == DbType.stringFixed);
     assert(dbTypeOf!byte() == DbType.int8);
-    assert(dbTypeOf!ubyte() == DbType.int16);
+    assert(dbTypeOf!ubyte() == DbType.int8);
     assert(dbTypeOf!short() == DbType.int16);
-    assert(dbTypeOf!ushort() == DbType.int32);
+    assert(dbTypeOf!ushort() == DbType.int16);
     assert(dbTypeOf!int() == DbType.int32);
-    assert(dbTypeOf!uint() == DbType.int64);
+    assert(dbTypeOf!uint() == DbType.int32);
     assert(dbTypeOf!long() == DbType.int64);
     assert(dbTypeOf!ulong() == DbType.int64);
     assert(dbTypeOf!float() == DbType.float32);
     assert(dbTypeOf!double() == DbType.float64);
     assert(dbTypeOf!real() == DbType.float64);
-    assert(dbTypeOf!string() == DbType.string);
-    assert(dbTypeOf!wstring() == DbType.string);
-    assert(dbTypeOf!dstring() == DbType.string);
-    assert(dbTypeOf!Date() == DbType.date);
-    assert(dbTypeOf!DateTime() == DbType.datetime);
-    assert(dbTypeOf!Time() == DbType.time);
-    assert(dbTypeOf!DbTime() == DbType.time);
+    assert(dbTypeOf!string() == DbType.stringVary);
+    assert(dbTypeOf!wstring() == DbType.stringVary);
+    assert(dbTypeOf!dstring() == DbType.stringVary);
+    //assert(dbTypeOf!Date() == DbType.date);
+    //assert(dbTypeOf!DateTime() == DbType.datetime);
+    //assert(dbTypeOf!Time() == DbType.time);
+    assert(dbTypeOf!DbDate() == DbType.date);
     assert(dbTypeOf!DbDateTime() == DbType.datetime);
-    assert(dbTypeOf!(ubyte[])() == DbType.binary);
+    assert(dbTypeOf!DbTime() == DbType.time);
+    assert(dbTypeOf!(ubyte[])() == DbType.binaryVary);
     assert(dbTypeOf!UUID() == DbType.uuid);
     assert(dbTypeOf!Decimal32() == DbType.decimal32, toName(dbTypeOf!Decimal32()));
     assert(dbTypeOf!Decimal64() == DbType.decimal64, toName(dbTypeOf!Decimal64()));
@@ -2364,4 +2607,16 @@ unittest // DbTime
 {
     assert(DbTime(8, 0, 0, 0, DateTimeZoneKind.utc, 0, 65).toString() == "8:00:00 AM+01:05");
     assert(DbTime(8, 0, 0, 0, DateTimeZoneKind.utc, 0, -65).toString() == "8:00:00 AM-01:05");
+}
+
+unittest // DbConnectionParameterIdentifier & dbDefaultConnectionParameterValues
+{
+    import std.traits : EnumMembers;
+
+    // Make sure all members of DbConnectionParameterIdentifier added to dbDefaultConnectionParameterValues
+    foreach (e; EnumMembers!DbConnectionParameterIdentifier)
+    {
+        auto f = e in dbDefaultConnectionParameterValues;
+        assert(f !is null);
+    }
 }

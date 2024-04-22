@@ -108,7 +108,7 @@ if (isDecimal!D && isIntegral!T)
     alias U = CommonStorage!(D, T);
     alias X = DataType!(D.sizeof);
     U cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             if (!y)
@@ -340,7 +340,7 @@ ExceptionFlags coefficientAdd(T)(ref T cx, ref int ex, ref bool sx, const(T) cy,
 ExceptionFlags decimalAdjust(D)(ref D x, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             return x.adjustedPack(cx, ex, sx, precision, mode, ExceptionFlags.none);
@@ -439,9 +439,9 @@ ExceptionFlags decimalAcos(D)(ref D x, const(int) precision, const(RoundingMode)
 }
 
 //sqrt(D.max)/2
-private enum acoshmax32 = Decimal32.fromBigEndianBytes(cast(const(ubyte)[])[73, 24, 32, 82]); // Decimal32("1.581138e51");
-private enum acoshmax64 = Decimal64.fromBigEndianBytes(cast(const(ubyte)[])[71, 229, 158, 9, 146, 78, 200, 93]); // Decimal64("1.581138830084189e192");
-private enum acoshmax128 = Decimal128.fromBigEndianBytes(cast(const(ubyte)[])[71, 254, 77, 244, 199, 26, 0, 27, 93, 84, 221, 121, 204, 202, 242, 39]); // Decimal128("1.581138830084189665999446772216359e3072");
+private static immutable acoshmax32 = Decimal32.fromBigEndianBytes(cast(const(ubyte)[])[73, 24, 32, 82]); // Decimal32("1.581138e51");
+private static immutable acoshmax64 = Decimal64.fromBigEndianBytes(cast(const(ubyte)[])[71, 229, 158, 9, 146, 78, 200, 93]); // Decimal64("1.581138830084189e192");
+private static immutable acoshmax128 = Decimal128.fromBigEndianBytes(cast(const(ubyte)[])[71, 254, 77, 244, 199, 26, 0, 27, 93, 84, 221, 121, 204, 202, 242, 39]); // Decimal128("1.581138830084189665999446772216359e3072");
 ExceptionFlags decimalAcosh(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 {
     if (x.isSignalNaN)
@@ -603,9 +603,9 @@ ExceptionFlags decimalAsin(D)(ref D x, const(int) precision, const(RoundingMode)
 }
 
 //sqrt(D.max)/2
-private enum asinhmax32 = Decimal32.fromBigEndianBytes(cast(const(ubyte)[])[73, 24, 32, 82]); // Decimal32("1.581138e51");
-private enum asinhmax64 = Decimal64.fromBigEndianBytes(cast(const(ubyte)[])[71, 229, 158, 9, 146, 78, 200, 93]); // Decimal64("1.581138830084189e192");
-private enum asinhmax128 = Decimal128.fromBigEndianBytes(cast(const(ubyte)[])[71, 254, 77, 244, 199, 26, 0, 27, 93, 84, 221, 121, 204, 202, 242, 39]); // Decimal128("1.581138830084189665999446772216359e3072");
+private static immutable asinhmax32 = Decimal32.fromBigEndianBytes(cast(const(ubyte)[])[73, 24, 32, 82]); // Decimal32("1.581138e51");
+private static immutable asinhmax64 = Decimal64.fromBigEndianBytes(cast(const(ubyte)[])[71, 229, 158, 9, 146, 78, 200, 93]); // Decimal64("1.581138830084189e192");
+private static immutable asinhmax128 = Decimal128.fromBigEndianBytes(cast(const(ubyte)[])[71, 254, 77, 244, 199, 26, 0, 27, 93, 84, 221, 121, 204, 202, 242, 39]); // Decimal128("1.581138830084189665999446772216359e3072");
 ExceptionFlags decimalAsinh(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 {
     if (x.isSignalNaN)
@@ -989,7 +989,7 @@ ExceptionFlags decimalCbrt(D)(ref D x, const(int) precision, const(RoundingMode)
 if (isDecimal!D)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             const flags = coefficientCbrt(cx, ex);
@@ -1103,7 +1103,7 @@ ExceptionFlags decimalCos(D)(ref D x, const(int) precision, const(RoundingMode) 
 if (isDecimal!D)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    switch(fastDecode(x, cx, ex, sx))
+    switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.signalingNaN:
             return ExceptionFlags.invalidOperation;
@@ -1227,7 +1227,7 @@ ExceptionFlags coefficientCosQ(T)(ref T cx, ref int ex, ref bool sx) @safe pure 
 ExceptionFlags decimalDec(D)(ref D x, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             const flags = coefficientAdd(cx, ex, sx, DataType!(D.sizeof)(1U), 0, true, RoundingMode.implicit);
@@ -1748,12 +1748,12 @@ if (isDecimal!D)
     return result.adjustedPack(cvt!(DataType!(D.sizeof))(cr), er, sr, precision, mode, flags);
 }
 
-private enum lnmax32 = Decimal32.fromBigEndianBytes(cast(const(ubyte)[])[48, 162, 20, 163]);   // Decimal32("+223.3507");
-private enum lnmin32 = Decimal32.fromBigEndianBytes(cast(const(ubyte)[])[176, 163, 124, 106]); // Decimal32("-232.5610");
-private enum lnmax64 = Decimal64.fromBigEndianBytes(cast(const(ubyte)[])[48, 63, 126, 160, 159, 38, 241, 195]); // Decimal64("+886.4952608027075");
-private enum lnmin64 = Decimal64.fromBigEndianBytes(cast(const(ubyte)[])[236, 8, 142, 223, 58, 205, 41, 205]);  // Decimal64("-916.4288670116301");
-private enum lnmax128 = Decimal128.fromBigEndianBytes(cast(const(ubyte)[])[48, 6, 69, 195, 8, 255, 242, 196, 47, 205, 138, 242, 106, 65, 146, 117]); // Decimal128("+14149.38539644841072829055748903541");
-private enum lnmin128 = Decimal128.fromBigEndianBytes(cast(const(ubyte)[])[176, 6, 70, 29, 33, 42, 144, 236, 128, 221, 62, 115, 189, 252, 170, 7]);  // Decimal128("-14220.76553433122614449511522413063");
+private static immutable lnmax32 = Decimal32.fromBigEndianBytes(cast(const(ubyte)[])[48, 162, 20, 163]);   // Decimal32("+223.3507");
+private static immutable lnmin32 = Decimal32.fromBigEndianBytes(cast(const(ubyte)[])[176, 163, 124, 106]); // Decimal32("-232.5610");
+private static immutable lnmax64 = Decimal64.fromBigEndianBytes(cast(const(ubyte)[])[48, 63, 126, 160, 159, 38, 241, 195]); // Decimal64("+886.4952608027075");
+private static immutable lnmin64 = Decimal64.fromBigEndianBytes(cast(const(ubyte)[])[236, 8, 142, 223, 58, 205, 41, 205]);  // Decimal64("-916.4288670116301");
+private static immutable lnmax128 = Decimal128.fromBigEndianBytes(cast(const(ubyte)[])[48, 6, 69, 195, 8, 255, 242, 196, 47, 205, 138, 242, 106, 65, 146, 117]); // Decimal128("+14149.38539644841072829055748903541");
+private static immutable lnmin128 = Decimal128.fromBigEndianBytes(cast(const(ubyte)[])[176, 6, 70, 29, 33, 42, 144, 236, 128, 221, 62, 115, 189, 252, 170, 7]);  // Decimal128("-14220.76553433122614449511522413063");
 ExceptionFlags decimalExp(D)(ref D x, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D)
 {
@@ -2231,7 +2231,7 @@ ExceptionFlags coefficientHypot(T)(ref T cx, ref int ex, auto const ref T cy, co
 ExceptionFlags decimalInc(D)(ref D x, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             const flags = coefficientAdd(cx, ex, sx, DataType!(D.sizeof)(1U), 0, false, RoundingMode.implicit);
@@ -2252,7 +2252,7 @@ ExceptionFlags decimalLog(D)(auto const ref D x, out int y) @safe pure nothrow @
 if (isDecimal!D)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             y = prec(cx) + ex - 1;
@@ -3139,7 +3139,7 @@ if (isDecimal!D && isIntegral!T)
     U cx; int ex; bool sx;
     bool sy;
     U cy = unsign!U(y, sy);
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             if (!y)
@@ -3274,7 +3274,7 @@ ExceptionFlags decimalMulPow2(D)(ref D x, const(int) n, const(int) precision, co
 if (isDecimal!D)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             if (!n)
@@ -3282,7 +3282,7 @@ if (isDecimal!D)
             DataType!(D.sizeof) cy = 1U;
             int ey = n;
             ExceptionFlags flags;
-            final switch(mode)
+            final switch (mode)
             {
                 case RoundingMode.tiesToAway:
                     flags = exp2to10!(RoundingMode.tiesToAway)(cy, ey, false);
@@ -3316,7 +3316,7 @@ ExceptionFlags decimalNextDown(D)(ref D x) @safe pure nothrow @nogc
 if (isDecimal!D)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             coefficientExpand(cx, ex);
@@ -3344,7 +3344,7 @@ ExceptionFlags decimalNextUp(D)(ref D x) @safe pure nothrow @nogc
 if (isDecimal!D)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             coefficientExpand(cx, ex);
@@ -4020,7 +4020,7 @@ ExceptionFlags decimalRound(D)(ref D x, const(int) precision, const(RoundingMode
 if (isDecimal!D)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             const flags = coefficientAdjust(cx, ex, 0, D.EXP_MAX, D.COEF_MAX, sx, mode);
@@ -4051,7 +4051,7 @@ ExceptionFlags decimalScale(D)(ref D x, const(int) n, const(int) precision, cons
 if (isDecimal!D)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             if (!n)
@@ -4082,7 +4082,7 @@ ExceptionFlags decimalSin(D)(ref D x, const(int) precision, const(RoundingMode) 
 if (isDecimal!D)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    switch(fastDecode(x, cx, ex, sx))
+    switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.signalingNaN:
             unsignalize(x);
@@ -4241,7 +4241,7 @@ ExceptionFlags decimalRSqrt(D)(ref D x, const(int) precision, const(RoundingMode
 if (isDecimal!D)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             if (sx)
@@ -4289,7 +4289,7 @@ ExceptionFlags decimalSqr(D)(ref D x, const(int) precision, const(RoundingMode) 
 if (isDecimal!D)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             const flags = coefficientSqr(cx, ex, RoundingMode.implicit);
@@ -4312,7 +4312,7 @@ ExceptionFlags decimalSqrt(D)(ref D x, const(int) precision, const(RoundingMode)
 if (isDecimal!D)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             if (sx)
@@ -4675,7 +4675,7 @@ if (isDecimal!D && isIntegral!T)
     alias U = CommonStorage!(D, T);
     alias X = DataType!(D.sizeof);
     U cx; int ex; bool sx;
-    final switch(fastDecode(x, cx, ex, sx))
+    final switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.finite:
             if (!y)
@@ -4722,7 +4722,7 @@ ExceptionFlags decimalTan(D)(ref D x, const(int) precision, const(RoundingMode) 
 if (isDecimal!D)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
-    switch(fastDecode(x, cx, ex, sx))
+    switch (fastDecode(x, cx, ex, sx))
     {
         case FastClass.signalingNaN:
             return ExceptionFlags.invalidOperation;

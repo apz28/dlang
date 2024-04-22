@@ -463,7 +463,6 @@ public:
         return this;
     }
 
-    debug(debug_pham_db_db_buffer)
     final string traceString() const nothrow @trusted
     {
         import std.conv : to;

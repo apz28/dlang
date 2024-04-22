@@ -8,19 +8,19 @@ import pham.external.dec.dec_integral: clz, divrem, uint128;
 
 package(pham.external.dec):
 
-enum MAX_FLOAT_COEFFICIENT_34   = uint128(cast(const(ubyte)[])[167, 197, 171, 159, 85, 155, 61, 7, 200, 75, 93, 204, 99, 241]); // uint128("3402823466385288598117041834845169");
+static immutable MAX_FLOAT_COEFFICIENT_34   = uint128(cast(const(ubyte)[])[167, 197, 171, 159, 85, 155, 61, 7, 200, 75, 93, 204, 99, 241]); // uint128("3402823466385288598117041834845169");
 enum MAX_FLOAT_EXPONENT_34      = 5;
-enum MIN_FLOAT_COEFFICIENT_34   = uint128(cast(const(ubyte)[])[69, 22, 223, 138, 22, 254, 99, 213, 183, 26, 180, 153, 54, 60]); // uint128("1401298464324817070923729583289916");
+static immutable MIN_FLOAT_COEFFICIENT_34   = uint128(cast(const(ubyte)[])[69, 22, 223, 138, 22, 254, 99, 213, 183, 26, 180, 153, 54, 60]); // uint128("1401298464324817070923729583289916");
 enum MIN_FLOAT_EXPONENT_34      = -78;
 
-enum MAX_DOUBLE_COEFFICIENT_34  = uint128(cast(const(ubyte)[])[88, 162, 19, 204, 122, 79, 250, 224, 60, 72, 37, 21, 111, 179]); // uint128("1797693134862315708145274237317043");
+static immutable MAX_DOUBLE_COEFFICIENT_34  = uint128(cast(const(ubyte)[])[88, 162, 19, 204, 122, 79, 250, 224, 60, 72, 37, 21, 111, 179]); // uint128("1797693134862315708145274237317043");
 enum MAX_DOUBLE_EXPONENT_34     = 275;
-enum MIN_DOUBLE_COEFFICIENT_34  = uint128(cast(const(ubyte)[])[243, 151, 218, 3, 175, 6, 170, 131, 63, 210, 87, 21, 246, 229]); // uint128("4940656458412465441765687928682213");
+static immutable MIN_DOUBLE_COEFFICIENT_34  = uint128(cast(const(ubyte)[])[243, 151, 218, 3, 175, 6, 170, 131, 63, 210, 87, 21, 246, 229]); // uint128("4940656458412465441765687928682213");
 enum MIN_DOUBLE_EXPONENT_34     = -357;
 
-enum MAX_REAL_COEFFICIENT_34    = uint128(cast(const(ubyte)[])[58, 168, 133, 203, 26, 108, 236, 243, 134, 52, 204, 240, 142, 58]); // uint128("1189731495357231765021263853030970");
+static immutable MAX_REAL_COEFFICIENT_34    = uint128(cast(const(ubyte)[])[58, 168, 133, 203, 26, 108, 236, 243, 134, 52, 204, 240, 142, 58]); // uint128("1189731495357231765021263853030970");
 enum MAX_REAL_EXPONENT_34       = 4899;
-enum MIN_REAL_COEFFICIENT_34    = uint128(cast(const(ubyte)[])[179, 184, 226, 237, 169, 26, 35, 45, 217, 80, 16, 41, 120, 219]);   // uint128("3645199531882474602528405933619419");
+static immutable MIN_REAL_COEFFICIENT_34    = uint128(cast(const(ubyte)[])[179, 184, 226, 237, 169, 26, 35, 45, 217, 80, 16, 41, 120, 219]);   // uint128("3645199531882474602528405933619419");
 enum MIN_REAL_EXPONENT_34       = -4984;
 
 version(ShowEnumDecBytes)

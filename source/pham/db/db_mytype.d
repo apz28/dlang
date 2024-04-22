@@ -143,7 +143,7 @@ static immutable ubyte[] myDH2048_g = [
     0x05,
     ];
 
-static immutable string[string] myDefaultConnectionParameterValues;
+static immutable DbConnectionParameterInfo[string] myDefaultConnectionParameterValues;
 
 static immutable string[] myValidConnectionParameterNames = [
     // Primary
@@ -174,47 +174,44 @@ static immutable string[] myValidConnectionParameterNames = [
     ];
 
 static immutable DbTypeInfo[] myNativeTypes = [
-    {dbName:"DECIMAL", nativeName:"decimal", displaySize:34, nativeSize:Decimal.sizeof, nativeId:MyTypeId.decimal, dbType:DbType.decimal},
-    {dbName:"BYTE", nativeName:"tinyint", displaySize:4, nativeSize:1, nativeId:MyTypeId.int8, dbType:DbType.int8},
-    {dbName:"SMALLINT", nativeName:"smallint", displaySize:6, nativeSize:2, nativeId:MyTypeId.int16, dbType:DbType.int16},
-    {dbName:"INTEGER", nativeName:"int", displaySize:11, nativeSize:4, nativeId:MyTypeId.int32, dbType:DbType.int32},
-    {dbName:"INTEGER", nativeName:"int24", displaySize:11, nativeSize:4, nativeId:MyTypeId.int24, dbType:DbType.int32},
-    {dbName:"BIGINT", nativeName:"bigint", displaySize:20, nativeSize:8, nativeId:MyTypeId.int64, dbType:DbType.int64},
-    {dbName:"FLOAT", nativeName:"float", displaySize:17, nativeSize:4, nativeId:MyTypeId.float32, dbType:DbType.float32},
-    {dbName:"DOUBLE", nativeName:"double", displaySize:17, nativeSize:8, nativeId:MyTypeId.float64, dbType:DbType.float64},
-    {dbName:"TIMESTAMP", nativeName:"timestamp", displaySize:22, nativeSize:8, nativeId:MyTypeId.timestamp, dbType:DbType.datetime},
-    {dbName:"DATE", nativeName:"date", displaySize:10, nativeSize:4, nativeId:MyTypeId.date, dbType:DbType.date},
-    {dbName:"TIME", nativeName:"time", displaySize:11, nativeSize:8, nativeId:MyTypeId.time, dbType:DbType.time},
-    {dbName:"DATETIME", nativeName:"datetime", displaySize:22, nativeSize:8, nativeId:MyTypeId.datetime, dbType:DbType.datetime},
-    {dbName:"YEAR", nativeName:"year", displaySize:4, nativeSize:2, nativeId:MyTypeId.year, dbType:DbType.int16},
-    {dbName:"DATETIME", nativeName:"newdate", displaySize:22, nativeSize:8, nativeId:MyTypeId.newDate, dbType:DbType.datetime},
-    {dbName:"VARCHAR(?)", nativeName:"varchar(?)", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:MyTypeId.varChar, dbType:DbType.string},
-    {dbName:"BIT", nativeName:"bit", displaySize:dynamicTypeSize, nativeSize:8, nativeId:MyTypeId.bit, dbType:DbType.int64},
-    {dbName:"JSON", nativeName:"json", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:MyTypeId.json, dbType:DbType.json},
-    {dbName:"DECIMAL", nativeName:"decimal", displaySize:34, nativeSize:Decimal.sizeof, nativeId:MyTypeId.newDecimal, dbType:DbType.decimal},
-    {dbName:"ENUM", nativeName:"enum", displaySize:dynamicTypeSize, nativeSize:2, nativeId:MyTypeId.enum_, dbType:DbType.int16},
-    {dbName:"SET", nativeName:"set", displaySize:dynamicTypeSize, nativeSize:8, nativeId:MyTypeId.set, dbType:DbType.int64},
-    {dbName:"TINYBLOB,", nativeName:"tinyblob", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:MyTypeId.tinyBlob, dbType:DbType.binary},
-    {dbName:"MEDIUMBLOB", nativeName:"mediumblob", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:MyTypeId.mediumBlob, dbType:DbType.binary},
-    {dbName:"BLOB", nativeName:"longblob", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:MyTypeId.longBlob, dbType:DbType.binary},
-    {dbName:"VARBINARY(?)", nativeName:"varbinary(?)", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:MyTypeId.varBinary, dbType:DbType.binary},
-    {dbName:"VARCHAR(?)", nativeName:"tinyvarchar(?)", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:MyTypeId.tinyVarChar, dbType:DbType.string},
-    {dbName:"CHAR(?)", nativeName:"char(?)", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:MyTypeId.fixedVarChar, dbType:DbType.fixedString},
-    {dbName:"GEOMETRY", nativeName:"geometry", displaySize:dynamicTypeSize, nativeSize:runtimeTypeSize, nativeId:MyTypeId.geometry, dbType:DbType.record},
-
-    // Extra for dbType name
-    //{dbName:"BOOLEAN", nativeName:"TINYINT", displaySize:5, nativeSize:1, nativeId:MyTypeIdEx.boolean, dbType:DbType.boolean},
-    {dbName:"BINARY(?)", nativeName:"binary(?)", displaySize:runtimeTypeSize, nativeSize:runtimeTypeSize, nativeId:MyTypeIdEx.fixedBinary, dbType:DbType.binary},
-    {dbName:"TINYTEXT", nativeName:"tinytext", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:MyTypeIdEx.tinyText, dbType:DbType.text},
-    {dbName:"MEDIUMTEXT", nativeName:"mediumtext", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:MyTypeIdEx.mediumText, dbType:DbType.text},
-    {dbName:"TEXT", nativeName:"longtext", displaySize:dynamicTypeSize, nativeSize:dynamicTypeSize, nativeId:MyTypeIdEx.longText, dbType:DbType.text},
-    {dbName:"UUID", nativeName:"char(36)", displaySize:32, nativeSize:36, nativeId:MyTypeIdEx.uuid, dbType:DbType.uuid},
-    //{dbName:"", nativeName:"", displaySize:-1, nativeSize:-1, nativeId:MyTypeIdEx., dbType:DbType.},
+    {dbName:"bigint", dbType:DbType.int64, dbId:MyTypeId.int64, nativeName:"int64", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
+    {dbName:"binary(?)", dbType:DbType.binaryFixed, dbId:MyTypeIdEx.binaryFixed, nativeName:"ubyte[]", nativeSize:DbTypeSize.binaryFixed, displaySize:DbTypeDisplaySize.binaryFixed},
+    {dbName:"bit", dbType:DbType.int64, dbId:MyTypeId.bit, nativeName:"int64", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
+    {dbName:"char(32)", dbType:DbType.uuid, dbId:MyTypeIdEx.uuid, nativeName:"UUID", nativeSize:DbTypeSize.uuid, displaySize:DbTypeDisplaySize.uuid},
+    {dbName:"char(?)", dbType:DbType.stringFixed, dbId:MyTypeId.fixedVarChar, nativeName:"string", nativeSize:DbTypeSize.stringFixed, displaySize:DbTypeDisplaySize.stringFixed},
+    {dbName:"longblob", dbType:DbType.binaryVary, dbId:MyTypeId.longBlob, nativeName:"ubyte[]", nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.binaryVary},
+    {dbName:"float", dbType:DbType.float32, dbId:MyTypeId.float32, nativeName:"float32", nativeSize:DbTypeSize.float32, displaySize:DbTypeDisplaySize.float32},
+    {dbName:"date", dbType:DbType.date, dbId:MyTypeId.date, nativeName:"DbDate", nativeSize:DbTypeSize.date, displaySize:DbTypeDisplaySize.date},
+    {dbName:"newdate", dbType:DbType.datetime, dbId:MyTypeId.newDate, nativeName:"DbDateTime", nativeSize:DbTypeSize.datetime, displaySize:DbTypeDisplaySize.datetime},
+    {dbName:"datetime", dbType:DbType.datetime, dbId:MyTypeId.datetime, nativeName:"DbDateTime", nativeSize:DbTypeSize.datetime, displaySize:DbTypeDisplaySize.datetime},
+    {dbName:"decimal", dbType:DbType.decimal, dbId:MyTypeId.newDecimal, nativeName:"Decimal", nativeSize:DbTypeSize.decimal, displaySize:DbTypeDisplaySize.decimal},
+    {dbName:"decimal", dbType:DbType.decimal, dbId:MyTypeId.decimal, nativeName:"Decimal", nativeSize:DbTypeSize.decimal, displaySize:DbTypeDisplaySize.decimal},
+    {dbName:"double", dbType:DbType.float64, dbId:MyTypeId.float64, nativeName:"float64", nativeSize:DbTypeSize.float64, displaySize:DbTypeDisplaySize.float64},
+    {dbName:"enum", dbType:DbType.int16, dbId:MyTypeId.enum_, nativeName:"int16", nativeSize:DbTypeSize.int16, displaySize:DbTypeDisplaySize.int16},
+    {dbName:"geometry", dbType:DbType.record, dbId:MyTypeId.geometry, nativeName:"struct?", nativeSize:DbTypeSize.record, displaySize:DbTypeDisplaySize.record},
+    {dbName:"int", dbType:DbType.int32, dbId:MyTypeId.int32, nativeName:"int32", nativeSize:DbTypeSize.int32, displaySize:DbTypeDisplaySize.int32},
+    {dbName:"int24", dbType:DbType.int32, dbId:MyTypeId.int24, nativeName:"int32", nativeSize:DbTypeSize.int32, displaySize:DbTypeDisplaySize.int32},
+    {dbName:"json", dbType:DbType.json, dbId:MyTypeId.json, nativeName:"string", nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.json},
+    {dbName:"longtext", dbType:DbType.text, dbId:MyTypeIdEx.longText, nativeName:"string", nativeSize:DbTypeSize.text, displaySize:DbTypeDisplaySize.stringVary},
+    {dbName:"mediumblob", dbType:DbType.binaryVary, dbId:MyTypeId.mediumBlob, nativeName:"ubyte[]", nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.binaryVary},
+    {dbName:"mediumtext", dbType:DbType.text, dbId:MyTypeIdEx.mediumText, nativeName:"string", nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.text},
+    {dbName:"set", dbType:DbType.int64, dbId:MyTypeId.set, nativeName:"int64", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
+    {dbName:"smallint", dbType:DbType.int16, dbId:MyTypeId.int16, nativeName:"int16", nativeSize:DbTypeSize.int16, displaySize:DbTypeDisplaySize.int16},
+    {dbName:"time", dbType:DbType.time, dbId:MyTypeId.time, nativeName:"DbTime", nativeSize:DbTypeSize.time, displaySize:DbTypeDisplaySize.time},
+    {dbName:"timestamp", dbType:DbType.datetime, dbId:MyTypeId.timestamp, nativeName:"DbDateTime", nativeSize:DbTypeSize.datetime, displaySize:DbTypeDisplaySize.datetime},
+    {dbName:"tinyblob", dbType:DbType.binaryVary, dbId:MyTypeId.tinyBlob, nativeName:"ubyte[]", nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.binaryVary},
+    {dbName:"tinyint", dbType:DbType.int8, dbId:MyTypeId.int8, nativeName:"int8", nativeSize:DbTypeSize.int8, displaySize:DbTypeDisplaySize.int8},
+    {dbName:"tinyint(1)", dbType:DbType.boolean, dbId:MyTypeIdEx.int8, nativeName:"bool", nativeSize:DbTypeSize.boolean, displaySize:DbTypeDisplaySize.boolean},
+    {dbName:"tinytext", dbType:DbType.text, dbId:MyTypeIdEx.tinyText, nativeName:"string", nativeSize:DbTypeSize.text, displaySize:DbTypeDisplaySize.text},
+    {dbName:"tinyvarchar", dbType:DbType.stringVary, dbId:MyTypeId.tinyVarChar, nativeName:"string", nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.stringVary},
+    {dbName:"year", dbType:DbType.int16, dbId:MyTypeId.year, nativeName:"int16", nativeSize:DbTypeSize.int16, displaySize:DbTypeDisplaySize.int16},
+    {dbName:"varbinary(?)", dbType:DbType.binaryVary, dbId:MyTypeId.varBinary, nativeName:"ubyte[]", nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.binaryVary},
+    {dbName:"varchar(?)", dbType:DbType.stringVary, dbId:MyTypeId.varChar, nativeName:"string", nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.stringVary},
     ];
 
 static immutable DbType[string] mySimpleTypes;
 
-static immutable DbTypeInfo*[int32] myOIdTypeToDbTypeInfos;
+static immutable DbTypeInfo*[int32] myDbIdToDbTypeInfos;
 
 alias MyBlockHeader = Map32Bit;
 
@@ -263,11 +260,11 @@ public:
     }
 
 public:
-    int errorCode;
     string errorMessage;
-    string sqlState;
     string file;
     string funcName;
+    string sqlState;
+    int errorCode;
     uint line;
 }
 
@@ -279,12 +276,12 @@ public:
     DbType calculateDbType() const @nogc pure
     {
         DbType result = DbType.unknown;
-        if (auto e = typeId in myOIdTypeToDbTypeInfos)
+        if (auto e = typeId in myDbIdToDbTypeInfos)
         {
             result = (*e).dbType;
             if (result == DbType.decimal || result == DbType.numeric)
                 result = decimalDbType(result, precision);
-            else if ((result == DbType.binary || typeId == MyTypeId.enum_ || typeId == MyTypeId.set) && isText)
+            else if ((result == DbType.binaryVary || typeId == MyTypeId.enum_ || typeId == MyTypeId.set) && isText)
                 result = DbType.text;
         }
         return result;
@@ -363,11 +360,26 @@ public:
 
     int32 dbTypeSize() const @nogc pure
     {
+        if (columnLength > 0)
+            return columnLength;
+    
+        if (typeId != 0)
+        {
+            if (auto e = typeId in myDbIdToDbTypeInfos)
+            {
+                const ns = (*e).nativeSize;
+                if (ns > 0)
+                    return ns;
+            }
+        }
+        
         if (auto e = dbType() in dbTypeToDbTypeInfos)
         {
             const ns = (*e).nativeSize;
-            return ns > 0 ? ns : columnLength;
+            if (ns > 0)
+                return ns;
         }
+        
         return dynamicTypeSize;
     }
 
@@ -388,7 +400,6 @@ public:
         return decimalType;
     }
 
-    debug(debug_pham_db_db_mytype)
     string traceString() const nothrow @trusted
     {
         import std.conv : to;
@@ -404,7 +415,7 @@ public:
             ~ ", scale=" ~ scale.to!string()
             ~ ", dbType=" ~ toName!DbType(dbType())
             ~ ", characterSetIndex=" ~ characterSetIndex.to!string()
-            ~ ", typeFlags=" ~ typeFlags.dgToHex()
+            ~ ", typeFlags=" ~ typeFlags.to!string()
             ~ ", typeId=" ~ typeId.to!string()
             ~ ", isBlob=" ~ isBlob.to!string()
             ~ ", isText=" ~ isText.to!string();
@@ -588,21 +599,22 @@ shared static this() nothrow @safe
 {
     myDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
-        return cast(immutable(string[string]))[
-            DbConnectionParameterIdentifier.serverPort : "3306", // x_protocol=33060
-            DbConnectionParameterIdentifier.userName : "root",
-            DbConnectionParameterIdentifier.integratedSecurity : toName(DbIntegratedSecurityConnection.legacy),
-            DbConnectionParameterIdentifier.allowBatch : dbBoolTrue,
-            DbConnectionParameterIdentifier.myAllowUserVariables : dbBoolTrue,
+        return cast(immutable(DbConnectionParameterInfo[string]))[
+            DbConnectionParameterIdentifier.allowBatch : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.my),
+            DbConnectionParameterIdentifier.integratedSecurity : DbConnectionParameterInfo(&isConnectionParameterIntegratedSecurity, toName(DbIntegratedSecurityConnection.legacy), dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.my),
+            DbConnectionParameterIdentifier.serverPort : DbConnectionParameterInfo(&isConnectionParameterInt32, "3_306", 0, uint16.max, DbScheme.my), // x_protocol=33060
+            DbConnectionParameterIdentifier.userName : DbConnectionParameterInfo(&isConnectionParameterString, "root", 0, dbConnectionParameterMaxId, DbScheme.my),
         ];
     }();
 
-    myOIdTypeToDbTypeInfos = () nothrow pure @trusted
+    myDbIdToDbTypeInfos = () nothrow pure @trusted
     {
         immutable(DbTypeInfo)*[int32] result;
-        foreach (ref e; myNativeTypes)
+        foreach (i; 0..myNativeTypes.length)
         {
-            result[e.nativeId] = &e;
+            const dbId = myNativeTypes[i].dbId;
+            if (!(dbId in result))
+                result[dbId] = &myNativeTypes[i];
         }
         return result;
     }();
@@ -618,14 +630,14 @@ shared static this() nothrow @safe
         result["float"] = DbType.float32;
         result["double"] = DbType.float64;
         result["bit"] = DbType.int64;
-        result["char"] = DbType.fixedString;
-        result["varchar"] = DbType.string;
-        result["binary"] = DbType.fixedBinary;
-        result["varbinary"] = DbType.binary;
-        result["blob"] = DbType.binary;
-        result["tinyblob"] = DbType.binary;
-        result["mediumblob"] = DbType.binary;
-        result["longblob"] = DbType.binary;
+        result["char"] = DbType.stringFixed;
+        result["varchar"] = DbType.stringVary;
+        result["binary"] = DbType.binaryFixed;
+        result["varbinary"] = DbType.binaryVary;
+        result["blob"] = DbType.binaryVary;
+        result["tinyblob"] = DbType.binaryVary;
+        result["mediumblob"] = DbType.binaryVary;
+        result["longblob"] = DbType.binaryVary;
         result["text"] = DbType.text;
         result["tinytext"] = DbType.text;
         result["mediumtext"] = DbType.text;

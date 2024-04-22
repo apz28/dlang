@@ -248,12 +248,19 @@ if (isEnumSet!E)
  *  toEnum!E("e3") returns e3
  *  toEnum!E("", e2) returns e2
  */
-E toEnum(E)(string validEnumName, E emptyValue = E.init) pure
+E toEnum(E)(scope const(char)[] validEnumName, E emptyValue = E.init) pure
 if (is(E Base == enum))
 {
-    scope (failure) assert(0, "Assume nothrow failed");
+    if (validEnumName.length)
+    {
+        foreach (i, e; EnumMembers!E)
+        {
+            if (__traits(allMembers, E)[i] == validEnumName)
+                return e;
+        }
+    }
 
-    return validEnumName.length != 0 ? validEnumName.to!E() : emptyValue;
+    return emptyValue;
 }
 
 /**
@@ -278,7 +285,13 @@ if (is(E Base == enum))
             return buffer.toString();
         }
     }
-    assert(0);
+    
+    static if (__traits(isIntegral, E))
+    {
+        return (cast(long)value).to!string;
+    }
+    else
+        return "?";
 }
 
 /**

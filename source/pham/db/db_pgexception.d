@@ -12,7 +12,6 @@
 module pham.db.db_pgexception;
 
 import pham.db.db_exception;
-import pham.db.db_message : DbErrorCode;
 import pham.db.db_pgtype : PgGenericResponse;
 
 class PgException : SkException
@@ -21,13 +20,13 @@ class PgException : SkException
 
 public:
     this(uint errorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
     {
         super(errorCode, errorMessage, next, funcName, file, line);
     }
 
     this(uint errorCode, string errorMessage, string sqlState, uint socketCode, uint vendorCode,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
     {
         super(errorCode, errorMessage, sqlState, socketCode, vendorCode, next, funcName, file, line);
     }
@@ -35,10 +34,8 @@ public:
     this(PgGenericResponse status,
         Throwable next = null)
     {
-        auto statusErrorMessage = status.errorString();
-        auto statusSqlState = status.sqlState();
         auto statusErrorCode = status.errorCode();
-        super(statusErrorCode, statusErrorMessage, statusSqlState, 0, statusErrorCode, next, status.funcName, status.file, status.line);
+        super(statusErrorCode, status.errorString(), status.sqlState(), 0, statusErrorCode, next, status.funcName, status.file, status.line);
         this.status = status;
     }
 

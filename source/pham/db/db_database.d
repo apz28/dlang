@@ -92,6 +92,22 @@ private:
     bool _caseSensitive;
 }
 
+package(pham.db) enum BuildCommandTextState : ubyte
+{
+    prepare,
+    executingPlan,
+    execute,
+}
+
+package(pham.db) enum ResetStatementKind : ubyte
+{
+    unpreparing,
+    preparing,
+    executing,
+    fetching,
+    fetched,
+}
+
 abstract class DbCommand : DbDisposableObject
 {
 public:
@@ -127,10 +143,10 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        checkActive();
-
         if (auto log = canTraceLog())
             log.infof("%s.command.cancel()%s%s", forLogInfo(), newline, commandText);
+
+        checkActive();
 
         _connection.cancelCommand(this);
         return this;
@@ -143,15 +159,25 @@ public:
     }
 
     pragma(inline, true)
+    final Logger canTimeLog() nothrow @safe
+    {
+        return _connection !is null ? _connection.canTimeLog() : null;
+    }
+
+    pragma(inline, true)
     final Logger canTraceLog() nothrow @safe
     {
         return _connection !is null ? _connection.canTraceLog() : null;
     }
 
-    pragma(inline, true)
-    final Logger canTimeLog() nothrow @safe
+    final typeof(this) clearFields() nothrow @safe
     {
-        return _connection !is null ? _connection.canTimeLog() : null;
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
+
+        if (_fields !is null)
+            _fields.clear();
+
+        return this;
     }
 
     final typeof(this) clearParameters() nothrow @safe
@@ -168,15 +194,15 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        checkCommand(-1);
-
         if (auto log = canTraceLog())
             log.infof("%s.command.executeNonQuery()%s%s", forLogInfo(), newline, commandText);
+
+        checkCommand(-1);
 
         bool implicitTransactionCalled = false;
         bool unprepareCalled = false;
         const wasPrepared = prepared;
-        resetNewStatement(ResetStatementKind.execute);
+        resetNewStatement(ResetStatementKind.executing);
         const implicitTransaction = setImplicitTransactionIf();
 
         void resetImplicitTransaction(const(bool) isError) @safe
@@ -191,7 +217,7 @@ public:
             }
         }
 
-        void restStatement(const(bool) isError) @safe
+        void resetStatement(const(bool) isError) @safe
         {
             if (!unprepareCalled && !wasPrepared && prepared)
             {
@@ -203,12 +229,12 @@ public:
         scope (exit)
         {
             resetImplicitTransaction(false);
-            restStatement(false);
+            resetStatement(false);
         }
         scope (failure)
         {
             resetImplicitTransaction(true);
-            restStatement(true);
+            resetStatement(true);
         }
 
         doExecuteCommand(DbCommandExecuteType.nonQuery);
@@ -221,13 +247,13 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        checkCommand(DbCommandType.ddl);
-
         if (auto log = canTraceLog())
             log.infof("%s.command.executeReader()%s%s", forLogInfo(), newline, commandText);
 
+        checkCommand(DbCommandType.ddl);
+
         const wasPrepared = prepared;
-        resetNewStatement(ResetStatementKind.execute);
+        resetNewStatement(ResetStatementKind.executing);
         const implicitTransaction = setImplicitTransactionIf();
         scope (failure)
         {
@@ -248,15 +274,15 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        checkCommand(DbCommandType.ddl);
-
         if (auto log = canTraceLog())
             log.infof("%s.command.executeScalar()%s%s", forLogInfo(), newline, commandText);
+
+        checkCommand(DbCommandType.ddl);
 
         bool implicitTransactionCalled = false;
         bool unprepareCalled = false;
         const wasPrepared = prepared;
-        resetNewStatement(ResetStatementKind.execute);
+        resetNewStatement(ResetStatementKind.executing);
         const implicitTransaction = setImplicitTransactionIf();
 
         void resetImplicitTransaction(const(bool) isError) @safe
@@ -302,7 +328,30 @@ public:
      *  A row being requested. Incase of no result left to be returned,
      *  a DbRowValue with zero column-length being returned.
      */
-    abstract DbRowValue fetch(const(bool) isScalar) @safe;
+    final DbRowValue fetch(const(bool) isScalar) @safe
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ")");
+        version(profile) debug auto p = PerfFunction.create();
+
+        if (auto log = canTraceLog())
+            log.infof("%s.command.fetch()%s%s", forLogInfo(), newline, commandText);
+
+        checkActive();
+        
+		if (isStoredProcedure)
+            return _fetchedRows ? _fetchedRows.dequeue() : DbRowValue(0);
+
+        if (_fetchedRows.empty && !allRowsFetched && isSelectCommandType())
+        {
+            resetNewStatement(ResetStatementKind.fetching);
+            scope (exit)
+                resetNewStatement(ResetStatementKind.fetched);
+                
+            doFetch(isScalar);
+        }
+
+        return _fetchedRows ? _fetchedRows.dequeue() : DbRowValue(0);
+    }
 
     final string forErrorInfo() const nothrow @safe
     {
@@ -314,7 +363,7 @@ public:
         return _connection !is null ? _connection.forLogInfo() : null;
     }
 
-    abstract const(char)[] getExecutionPlan(uint vendorMode = 0) @safe;
+    abstract string getExecutionPlan(uint vendorMode = 0) @safe;
 
     final DbParameter[] inputParameters() nothrow @safe
     {
@@ -328,15 +377,15 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
         assert(!prepared, "command already prepared");
 
+        if (auto log = canTraceLog())
+            log.infof("%s.command.prepare()%s%s", forLogInfo(), newline, commandText);
+
         if (prepared)
             return this;
 
         checkCommand(-1);
 
-        if (auto log = canTraceLog())
-            log.infof("%s.command.prepare()%s%s", forLogInfo(), newline, commandText);
-
-        resetNewStatement(ResetStatementKind.prepare);
+        resetNewStatement(ResetStatementKind.preparing);
         const implicitTransaction = setImplicitTransactionIf();
 
         scope (failure)
@@ -376,9 +425,12 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
+        if (auto log = canTraceLog())
+            log.infof("%s.command.unprepare()%s%s", forLogInfo(), newline, commandText);
+
         void unprepareExit() @safe
         {
-            resetNewStatement(ResetStatementKind.unprepare);
+            resetNewStatement(ResetStatementKind.unpreparing);
 
             _executeCommandText = null;
             _lastInsertedId.reset();
@@ -396,9 +448,6 @@ public:
         }
 
         checkActiveReader();
-
-        if (auto log = canTraceLog())
-            log.infof("%s.command.unprepare()%s%s", forLogInfo(), newline, commandText);
 
         // Must reset regardless if error taken place
         // to avoid double errors when connection is shutting down
@@ -563,12 +612,12 @@ public:
         return _parameters !is null ? _parameters.length : 0;
     }
 
-    @property final size_t hasInputParameters() nothrow pure @safe
+    @property final size_t hasInputParameters() nothrow @safe
     {
         return _parameters !is null ? _parameters.inputCount() : 0;
     }
 
-    @property final size_t hasOutputParameters() nothrow pure @safe
+    @property final size_t hasOutputParameters() nothrow @safe
     {
         enum outputOnly = false;
         return _parameters !is null ? _parameters.outputCount(outputOnly) : 0;
@@ -702,13 +751,6 @@ package(pham.db):
     }
 
 protected:
-    enum BuildCommandTextState : ubyte
-    {
-        execute,
-        executingPlan,
-        prepare,
-    }
-
     final string buildExecuteCommandText(const(BuildCommandTextState) state) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(state=", state, ")");
@@ -748,11 +790,14 @@ protected:
         result.put(buildParameterPlaceholder(parameterName, ordinal));
 
         // Create parameter
+        auto localParameters = parameters;
+        if (localParameters.length == 0)
+            localParameters.reserve(20);
         DbParameter found;
         if (parameterName.length == 0)
-            found = parameters.add(format(anonymousParameterNameFmt, ordinal), DbType.unknown);
-        else if (!parameters.find(parameterName, found))
-            found = parameters.add(parameterName, DbType.unknown);
+            found = localParameters.add(format(anonymousParameterNameFmt, ordinal), DbType.unknown);
+        else if (!localParameters.find(parameterName, found))
+            found = localParameters.add(parameterName, DbType.unknown);
         found.ordinal = ordinal;
     }
 
@@ -887,6 +932,7 @@ protected:
         if (prepared)
             unprepare();
 
+        clearFields();
         clearParameters();
         _executeCommandText = null;
         _commandText = commandText;
@@ -951,7 +997,7 @@ protected:
             // Special try construct for grep
             try {
                 notifyMessage(this, notificationMessages);
-            } catch(Exception) {}
+            } catch (Exception) {}
         }
     }
 
@@ -993,12 +1039,10 @@ protected:
 
         _lastInsertedId.reset();
         _recordsAffected.reset();
+        _fetchedRows.clear();
         allRowsFetched(false);
 
         executeCommandText(BuildCommandTextState.execute); // Make sure _executeCommandText is initialized
-
-        if (hasParameters)
-            parameters.nullifyOutputParameters();
     }
 
     final void removeReader(ref DbReader value) nothrow @safe
@@ -1072,27 +1116,20 @@ protected:
         }
     }
 
-    enum ResetStatementKind : ubyte
-    {
-        unprepare,
-        prepare,
-        execute,
-    }
-
-    void resetNewStatement(const(ResetStatementKind) kind) @safe
+    void resetNewStatement(const(ResetStatementKind) kind) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(kind=", kind, ")");
 
         notificationMessages.length = 0;
         _flags.set(DbCommandFlag.cancelled, false);
-        if (kind < ResetStatementKind.execute)
-        {
+        if (kind < ResetStatementKind.executing)
             _executedCount = 0;
-            if (_fields !is null)
-                _fields.clear();
-        }
         else
             _executedCount++;
+        if (_fields !is null)
+            _fields.resetNewStatement(kind);
+        if (_parameters !is null)
+            _parameters.resetNewStatement(kind);
     }
 
     void setOutputParameters(ref DbRowValue values)
@@ -1133,6 +1170,7 @@ protected:
     }
 
     abstract void doExecuteCommand(const(DbCommandExecuteType) type) @safe;
+    abstract void doFetch(const(bool) isScalar) @safe;
     abstract void doPrepare() @safe;
     abstract void doUnprepare() @safe;
 
@@ -1158,6 +1196,7 @@ protected:
     DbRecordsAffected _lastInsertedId;
     DbRecordsAffected _recordsAffected;
     DbHandle _handle;
+ 	DbRowValueQueue _fetchedRows;
     Duration _commandTimeout;
     uint _executedCount; // Number of execute calls after prepare
     uint _fetchRecordCount;
@@ -1227,7 +1266,7 @@ public:
         this._connectionStringBuilder.setConnectionString(connectionString);
     }
 
-    final void cancelCommand(DbCommand command = null) @safe
+    final void cancelCommand(DbCommand command) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
@@ -1240,10 +1279,10 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        checkActive();
-
         if (auto log = canTraceLog())
             log.infof("%s.connection.cancelCommand()", forLogInfo());
+
+        checkActive();
 
         notificationMessages.length = 0;
         if (command !is null)
@@ -1277,20 +1316,15 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(state=", state, ")");
 
-        if (_poolList !is null)
-        {
-            if (auto log = canTraceLog())
-                log.infof("%s.connection.close()", forLogInfo());
+        if (auto log = canTraceLog())
+            log.infof("%s.connection.close()", forLogInfo());
 
+        if (_poolList !is null)
             return _poolList.release(this);
-        }
 
         const previousState = state;
         if (previousState == DbConnectionState.closed)
             return this;
-
-        if (auto log = canTraceLog())
-            log.infof("%s.connection.close()", forLogInfo());
 
         _state = DbConnectionState.closing;
         doBeginStateChange(DbConnectionState.closing);
@@ -1306,7 +1340,7 @@ public:
         return _commands[];
     }
 
-    abstract DbCancelCommandData createCancelCommandData(DbCommand command = null) @safe;
+    abstract DbCancelCommandData createCancelCommandData(DbCommand command) @safe;
 
     final DbCommand createCommand(string name = null) @safe
     {
@@ -1368,12 +1402,12 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(state=", state, ")");
 
+        if (auto log = canTraceLog())
+            log.infof("%s.connection.open()", forLogInfo());
+
         const previousState = state;
         if (previousState == DbConnectionState.opened)
             return this;
-
-        if (auto log = canTraceLog())
-            log.infof("%s.connection.open()", forLogInfo());
 
         reset();
         _state = DbConnectionState.opening;
@@ -1505,7 +1539,7 @@ public:
 
     @property abstract DbScheme scheme() const nothrow pure @safe;
 
-    @property abstract bool supportMultiReaders() const nothrow pure @safe;
+    @property abstract bool supportMultiReaders() nothrow @safe;
 
 package(pham.db):
     final DbCommand createNonTransactionCommand() @safe
@@ -1541,18 +1575,28 @@ package(pham.db):
         _handle.reset();
     }
 
-    final size_t nextCounter() nothrow @safe
-    {
-        return (++_nextCounter);
-    }
-
     void fatalError(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(funcName=", funcName, ")");
 
         _fatalError = true;
     }
+    
+    final size_t nextCounter() nothrow @safe
+    {
+        return (++_nextCounter);
+    }
 
+    @property final int readerCounter() const nothrow @safe
+    {
+        return _readerCounter;
+    }
+
+    @property final int activeTransactionCounter() const nothrow @safe
+    {
+        return _activeTransactionCounter;
+    }
+    
 protected:
     final void checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
@@ -1589,7 +1633,8 @@ protected:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         auto result = database.createTransaction(this, isolationLevel, defaultTransaction);
-        return _transactions.insertEnd(result);
+        _transactions.insertEnd(result);
+        return result;
     }
 
     void disposeCommands(const(DisposingReason) disposingReason) nothrow @safe
@@ -1657,7 +1702,7 @@ protected:
             // Special try construct for grep
             try {
                 notifyMessage(this, notificationMessages);
-            } catch(Exception) {}
+            } catch (Exception) {}
         }
         notificationMessages.length = 0;
     }
@@ -1699,7 +1744,7 @@ protected:
 
         _fatalError = false;
         _nextCounter = 0;
-        _readerCounter = 0;
+        _readerCounter = _activeTransactionCounter = 0;
         _inactiveTime = DateTime.zero;
         serverInfo.clear();
         notificationMessages.length = 0;
@@ -1758,7 +1803,7 @@ protected:
     DateTime _inactiveTime;
     DbHandle _handle;
     size_t _nextCounter;
-    int _readerCounter;
+    int _readerCounter, _activeTransactionCounter;
     DbConnectionState _state;
     DbConnectionType _type;
     bool _fatalError;
@@ -1964,7 +2009,7 @@ public:
     final DbConnection acquire(DbScheme scheme, string connectionString) @safe
     {
         auto raiiMutex = () @trusted { return RAIIMutex(_poolMutex); }();
-        
+
         const localMaxLength = maxLength;
         if (_acquiredLength >= localMaxLength)
         {
@@ -2020,7 +2065,7 @@ public:
     {
         if (cas(&_timerAdded, size_t(0), size_t(1)))
             _secondTimer.addEvent(TimerEvent(timerName(), dur!"minutes"(1), &doTimer));
-    
+
         DbConnectionList poolList;
         final switch (DbConnectionList.canPoolConnection(null, this, item, poolList)) with (DbConnectionList.CanPool)
         {
@@ -2035,9 +2080,9 @@ public:
         }
 
         auto raiiMutex = RAIIMutex(_poolMutex);
-        
+
         atomicFetchSub(_acquiredLength, 1);
-        
+
         // Over limit?
         const localMaxLength = maxLength;
         if (atomicFetchAdd(_unusedLength, 1) >= localMaxLength)
@@ -2133,13 +2178,13 @@ protected:
     final string timerName() nothrow pure @trusted
     {
         import pham.utl.utl_object : toString;
-        
+
         Appender!string buffer;
         buffer.reserve(17 + size_t.sizeof * 2);
         buffer.put("DbConnectionPool_");
         return toString!16(buffer, cast(size_t)(cast(void*)this)).data;
     }
-    
+
 private:
     DbConnectionList[DbIdentitier] _schemeConnections;
     Duration _maxInactiveTime;
@@ -2227,6 +2272,18 @@ public:
         return name.length != 0 && exist(name) ? getString(name) : null;
     }
 
+    final bool hasValue(string name, out string value) const nothrow
+    {
+        const id = DbIdentitier(name);
+        const r = find(id, value);
+        return r && value.length != 0;
+    }
+
+    final bool hasCustomValue(string name, out string value) const nothrow
+    {
+        return customAttributes.hasValue(name, value);
+    }
+
     override DbNameValueValidated isValid(const(DbIdentitier) name, string value) nothrow
     {
         const rs = super.isValid(name, value);
@@ -2237,8 +2294,11 @@ public:
         if (n is null)
             return DbNameValueValidated.invalidName;
 
-        const v = name in dbIsConnectionParameterValues;
-        if (v is null || (*v)(value) != DbNameValueValidated.ok)
+        const v = name in dbDefaultConnectionParameterValues;
+        if (v is null)
+            return DbNameValueValidated.invalidName;
+
+        if ((*v).isValidValue(value) != DbNameValueValidated.ok)
             return DbNameValueValidated.invalidValue;
 
         return DbNameValueValidated.ok;
@@ -2293,13 +2353,13 @@ public:
             final switch (super.isValid(o.name, o.value)) with (DbNameValueValidated)
             {
                 case invalidName:
-                    addLine(errorMessage, "Invalid name: " ~ o.name);
+                    addLine(errorMessage, format(DbMessage.eInvalidConnectionStringName, scheme, o.name));
                     break;
                 case duplicateName:
-                    addLine(errorMessage, "Duplicate name: " ~ o.name);
+                    addLine(errorMessage, format(DbMessage.eInvalidConnectionStringNameDup, scheme, o.name));
                     break;
                 case invalidValue:
-                    addLine(errorMessage, "Invalid value of " ~ o.name ~ ": " ~ o.value);
+                    addLine(errorMessage, format(DbMessage.eInvalidConnectionStringValue, scheme, o.name, o.value));
                     break;
                 case ok:
                     put(o.name, o.value);
@@ -2351,8 +2411,8 @@ public:
 
     @property final typeof(this) allowBatch(bool value) nothrow
     {
-        auto setValue = value ? dbBoolTrue : dbBoolFalse;
-        put(DbConnectionParameterIdentifier.allowBatch, setValue);
+        auto s = value ? dbBoolTrue : dbBoolFalse;
+        put(DbConnectionParameterIdentifier.allowBatch, s);
         return this;
     }
 
@@ -2361,10 +2421,15 @@ public:
         return customAttributes.get(DbConnectionCustomIdentifier.applicationName, null);
     }
 
-    @property final typeof(this) applicationName(string value) nothrow
+    @property final typeof(this) applicationName(string value)
     {
-        customAttributes.put(DbConnectionCustomIdentifier.applicationName, value);
-        return this;
+        if (customAttributeInfo.isValidValue(value) == DbNameValueValidated.ok)
+        {
+            customAttributes.put(DbConnectionCustomIdentifier.applicationName, value);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionCustomIdentifier.applicationName, value);
     }
 
     @property final string applicationVersion() const nothrow
@@ -2372,10 +2437,15 @@ public:
         return customAttributes.get(DbConnectionCustomIdentifier.applicationVersion, null);
     }
 
-    @property final typeof(this) applicationVersion(string value) nothrow
+    @property final typeof(this) applicationVersion(string value)
     {
-        customAttributes.put(DbConnectionCustomIdentifier.applicationVersion, value);
-        return this;
+        if (customAttributeInfo.isValidValue(value) == DbNameValueValidated.ok)
+        {
+            customAttributes.put(DbConnectionCustomIdentifier.applicationVersion, value);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionCustomIdentifier.applicationVersion, value);
     }
 
     @property final string charset() const nothrow
@@ -2383,40 +2453,55 @@ public:
         return getString(DbConnectionParameterIdentifier.charset);
     }
 
-    @property final typeof(this) charset(string value) nothrow
+    @property final typeof(this) charset(string value)
     {
-        if (value.length)
+        auto k = DbConnectionParameterIdentifier.charset in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(value) == DbNameValueValidated.ok)
+        {
             put(DbConnectionParameterIdentifier.charset, value);
-        return this;
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.charset, value);
     }
 
     /**
-     * Gets or sets the time (value based in seconds) to wait for a command to be executed completely.
+     * Gets or sets the time (value based in milliseconds) to wait for a command to be executed completely.
      * Set to zero to disable the setting.
      */
     @property final Duration commandTimeout() const nothrow
     {
-        return secondDigitsToDurationSafe(getString(DbConnectionParameterIdentifier.commandTimeout), Duration.zero);
+        Duration result;
+        cvtConnectionParameterDuration(result, getString(DbConnectionParameterIdentifier.commandTimeout));
+        return result;
     }
 
-    @property final typeof(this) commandTimeout(scope const(Duration) value) nothrow
+    @property final typeof(this) commandTimeout(scope const(Duration) value)
     {
-        // Optional value
-        auto secondValue = limitRangeTimeoutAsSecond(value).to!string();
-        put(DbConnectionParameterIdentifier.commandTimeout, secondValue);
-        return this;
+        auto s = cvtConnectionParameterDuration(value);
+        auto k = DbConnectionParameterIdentifier.commandTimeout in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
+        {
+            put(DbConnectionParameterIdentifier.commandTimeout, s);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.commandTimeout, value.toString());
     }
 
     @property final DbCompressConnection compress() const nothrow
     {
-        // Backward compatible with previous version(bool value)
         const s = getString(DbConnectionParameterIdentifier.compress);
-        if (s == dbBoolFalse)
-            return DbCompressConnection.disabled;
+        DbCompressConnection result;
+        if (cvtConnectionParameterCompress(result, s) == DbNameValueValidated.ok)
+            return result;
+        // Backward compatible with previous version(bool value)
         else if (s == dbBoolTrue)
             return DbCompressConnection.zip;
         else
-            return toEnum!DbCompressConnection(s);
+            return DbCompressConnection.disabled;
     }
 
     @property final typeof(this) compress(DbCompressConnection value) nothrow
@@ -2436,21 +2521,30 @@ public:
     }
 
     /**
-     * Gets or sets the time (value based in seconds) to wait for a connection to open.
+     * Gets or sets the time (value based in milliseconds) to wait for a connection to open.
      * The default value is 10 seconds.
      */
     @property final Duration connectionTimeout() const nothrow
     {
-        return secondDigitsToDurationSafe(getString(DbConnectionParameterIdentifier.connectionTimeout), Duration.zero);
+        Duration result;
+        cvtConnectionParameterDuration(result, getString(DbConnectionParameterIdentifier.connectionTimeout));
+        if (result == Duration.zero)
+            cvtConnectionParameterDuration(result, getDefault(DbConnectionParameterIdentifier.connectionTimeout));
+        return result;
     }
 
-    @property final typeof(this) connectionTimeout(scope const(Duration) value) nothrow
+    @property final typeof(this) connectionTimeout(scope const(Duration) value)
     {
-        // Required value
-        const convertingSecond = limitRangeTimeoutAsSecond(value);
-        auto setValue = convertingSecond != 0 ? convertingSecond.to!string() : getDefault(DbConnectionParameterIdentifier.connectionTimeout);
-        put(DbConnectionParameterIdentifier.connectionTimeout, setValue);
-        return this;
+        auto s = value != Duration.zero ? cvtConnectionParameterDuration(value) : getDefault(DbConnectionParameterIdentifier.connectionTimeout);
+        auto k = DbConnectionParameterIdentifier.connectionTimeout in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
+        {
+            put(DbConnectionParameterIdentifier.connectionTimeout, s);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.connectionTimeout, value.toString());
     }
 
     @property final DbDatabase database() nothrow pure
@@ -2466,24 +2560,40 @@ public:
         return DbIdentitier(getString(DbConnectionParameterIdentifier.databaseName));
     }
 
-    @property final typeof(this) databaseName(string value) nothrow
+    @property final typeof(this) databaseName(string value)
     {
-        put(DbConnectionParameterIdentifier.databaseName, value);
-        return this;
+        auto k = DbConnectionParameterIdentifier.databaseName in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(value) == DbNameValueValidated.ok)
+        {
+            debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(value=", value, ", min=", (*k).min, ", max=", (*k).max, ")");
+
+            put(DbConnectionParameterIdentifier.databaseName, value);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.databaseName, value);
     }
 
     /**
-     * The file-name of the database; value of "databaseFile"
+     * The file-name of the database; value of "databaseFileName"
      */
     @property final string databaseFileName() const nothrow
     {
-        return getString(DbConnectionParameterIdentifier.databaseFile);
+        return getString(DbConnectionParameterIdentifier.databaseFileName);
     }
 
-    @property final typeof(this) databaseFileName(string value) nothrow
+    @property final typeof(this) databaseFileName(string value)
     {
-        put(DbConnectionParameterIdentifier.databaseFile, value);
-        return this;
+        auto k = DbConnectionParameterIdentifier.databaseFileName in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(value) == DbNameValueValidated.ok)
+        {
+            put(DbConnectionParameterIdentifier.databaseFileName, value);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.databaseFileName, value);
     }
 
     @property final string elementSeparators() const nothrow
@@ -2493,7 +2603,9 @@ public:
 
     @property final DbEncryptedConnection encrypt() const nothrow
     {
-        return toEnum!DbEncryptedConnection(getString(DbConnectionParameterIdentifier.encrypt));
+        DbEncryptedConnection result;
+        cvtConnectionParameterEncrypt(result, getString(DbConnectionParameterIdentifier.encrypt));
+        return result;
     }
 
     @property final typeof(this) encrypt(DbEncryptedConnection value) nothrow
@@ -2504,24 +2616,35 @@ public:
 
     /**
      * Gets or sets number of records of each fetch call.
-     * Default value is 100
+     * Use -1 to fetch all
+     * Default value is 200
      */
-    @property final uint32 fetchRecordCount() const nothrow
+    @property final int32 fetchRecordCount() const nothrow
     {
-        return toIntegerSafe!uint32(getString(DbConnectionParameterIdentifier.fetchRecordCount), uint8.max);
+        int32 result;
+        cvtConnectionParameterInt32(result, getString(DbConnectionParameterIdentifier.fetchRecordCount));
+        return result;
     }
 
-    @property final typeof(this) fetchRecordCount(uint32 value) nothrow
+    @property final typeof(this) fetchRecordCount(int32 value)
     {
-        // Required value
-        auto setValue = value != 0 ? value.to!string() : getDefault(DbConnectionParameterIdentifier.fetchRecordCount);
-        put(DbConnectionParameterIdentifier.fetchRecordCount, setValue);
-        return this;
+        auto s = value != 0 ? value.to!string : getDefault(DbConnectionParameterIdentifier.fetchRecordCount);
+        auto k = DbConnectionParameterIdentifier.fetchRecordCount in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
+        {
+            put(DbConnectionParameterIdentifier.fetchRecordCount, s);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.fetchRecordCount, value.to!string);
     }
 
     @property final DbIntegratedSecurityConnection integratedSecurity() const nothrow
     {
-        return toEnum!DbIntegratedSecurityConnection(getString(DbConnectionParameterIdentifier.integratedSecurity));
+        DbIntegratedSecurityConnection result;
+        cvtConnectionParameterIntegratedSecurity(result, getString(DbConnectionParameterIdentifier.integratedSecurity));
+        return result;
     }
 
     @property final typeof(this) integratedSecurity(DbIntegratedSecurityConnection value) nothrow
@@ -2530,39 +2653,31 @@ public:
         return this;
     }
 
-    @property final uint32 maxPoolCount() const nothrow
-    {
-        return toIntegerSafe!uint32(getString(DbConnectionParameterIdentifier.maxPoolCount), uint8.max);
-    }
-
-    @property final typeof(this) maxPoolCount(uint32 value) nothrow
-    {
-        put(DbConnectionParameterIdentifier.maxPoolCount, value.to!string());
-        return this;
-    }
-
-    @property final uint32 minPoolCount() const nothrow
-    {
-        return toIntegerSafe!uint32(getString(DbConnectionParameterIdentifier.minPoolCount), 0);
-    }
-
-    @property final typeof(this) minPoolCount(uint32 value) nothrow
-    {
-        put(DbConnectionParameterIdentifier.minPoolCount, value.to!string());
-        return this;
-    }
-
+    /**
+     * Gets or sets transport package size in bytes.
+     * Default value is 8_192
+     */
     @property final uint32 packageSize() const nothrow
     {
-        return toIntegerSafe!uint32(getString(DbConnectionParameterIdentifier.packageSize), uint16.max);
+        int32 result;
+        cvtConnectionParameterComputingSize(result, getString(DbConnectionParameterIdentifier.packageSize));
+        if (result == 0)
+            cvtConnectionParameterComputingSize(result, getDefault(DbConnectionParameterIdentifier.packageSize));
+        return result;
     }
 
-    @property final typeof(this) packageSize(uint32 value) nothrow
+    @property final typeof(this) packageSize(uint32 value)
     {
-        // Required value
-        auto setValue = value != 0 ? value.to!string() : getDefault(DbConnectionParameterIdentifier.packageSize);
-        put(DbConnectionParameterIdentifier.packageSize, setValue);
-        return this;
+        auto s = value != 0 ? value.to!string : getDefault(DbConnectionParameterIdentifier.packageSize);
+        auto k = DbConnectionParameterIdentifier.packageSize in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
+        {
+            put(DbConnectionParameterIdentifier.packageSize, s);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.packageSize, value.to!string);
     }
 
     @property final bool pooling() const nothrow
@@ -2572,42 +2687,100 @@ public:
 
     @property final typeof(this) pooling(bool value) nothrow
     {
-        auto setValue = value ? dbBoolTrue : dbBoolFalse;
-        put(DbConnectionParameterIdentifier.pooling, setValue);
+        auto s = value ? dbBoolTrue : dbBoolFalse;
+        put(DbConnectionParameterIdentifier.pooling, s);
         return this;
     }
 
-    @property final Duration poolTimeout() const nothrow
+    @property final Duration poolIdleTimeout() const nothrow
     {
-        return secondDigitsToDurationSafe(getString(DbConnectionParameterIdentifier.poolTimeout), Duration.zero);
+        Duration result;
+        cvtConnectionParameterDuration(result, getString(DbConnectionParameterIdentifier.poolIdleTimeout));
+        return result;
     }
 
-    @property final typeof(this) poolTimeout(scope const(Duration) value) nothrow
+    @property final typeof(this) poolIdleTimeout(scope const(Duration) value)
     {
-        // Required value
-        const convertingSecond = limitRangeTimeoutAsSecond(value);
-        auto setValue = convertingSecond != 0 ? convertingSecond.to!string() : getDefault(DbConnectionParameterIdentifier.poolTimeout);
-        put(DbConnectionParameterIdentifier.poolTimeout, setValue);
-        return this;
+        auto s = cvtConnectionParameterDuration(value);
+        auto k = DbConnectionParameterIdentifier.poolIdleTimeout in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
+        {
+            put(DbConnectionParameterIdentifier.poolIdleTimeout, s);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.poolIdleTimeout, value.toString());
+    }
+
+    @property final uint32 poolMaxCount() const nothrow
+    {
+        int32 result;
+        cvtConnectionParameterInt32(result, getString(DbConnectionParameterIdentifier.poolMaxCount));
+        if (result == 0)
+            cvtConnectionParameterInt32(result, getDefault(DbConnectionParameterIdentifier.poolMaxCount));
+        return result;
+    }
+
+    @property final typeof(this) poolMaxCount(uint32 value)
+    {
+        auto s = value != 0 ? value.to!string : getDefault(DbConnectionParameterIdentifier.poolMaxCount);
+        auto k = DbConnectionParameterIdentifier.poolMaxCount in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
+        {
+            put(DbConnectionParameterIdentifier.poolMaxCount, s);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.poolMaxCount, value.to!string);
+    }
+
+    @property final uint32 poolMinCount() const nothrow
+    {
+        int32 result;
+        cvtConnectionParameterInt32(result, getString(DbConnectionParameterIdentifier.poolMinCount));
+        return result;
+    }
+
+    @property final typeof(this) poolMinCount(uint32 value)
+    {
+        auto s = value.to!string();
+        auto k = DbConnectionParameterIdentifier.poolMinCount in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
+        {
+            put(DbConnectionParameterIdentifier.poolMinCount, s);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.poolMinCount, value.to!string);
     }
 
     /**
-     * Gets or sets the time (value based in seconds) to wait for a server to send back request's result.
+     * Gets or sets the time (value based in milliseconds) to wait for a server to send back request's result.
      * The default value is 3_600 seconds (1 hour).
      * Set to zero to disable the setting.
      */
     @property final Duration receiveTimeout() const nothrow
     {
-        return secondDigitsToDurationSafe(getString(DbConnectionParameterIdentifier.receiveTimeout), Duration.zero);
+        Duration result;
+        cvtConnectionParameterDuration(result, getString(DbConnectionParameterIdentifier.receiveTimeout));
+        return result;
     }
 
-    @property final typeof(this) receiveTimeout(scope const(Duration) value) nothrow
+    @property final typeof(this) receiveTimeout(scope const(Duration) value)
     {
-        // Required value
-        const convertingSecond = limitRangeTimeoutAsSecond(value);
-        auto setValue = convertingSecond != 0 ? convertingSecond.to!string() : getDefault(DbConnectionParameterIdentifier.receiveTimeout);
-        put(DbConnectionParameterIdentifier.receiveTimeout, setValue);
-        return this;
+        auto s = cvtConnectionParameterDuration(value);
+        auto k = DbConnectionParameterIdentifier.receiveTimeout in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
+        {
+            put(DbConnectionParameterIdentifier.receiveTimeout, s);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.receiveTimeout, value.toString());
     }
 
     @property final string roleName() const nothrow
@@ -2615,31 +2788,45 @@ public:
         return getString(DbConnectionParameterIdentifier.roleName);
     }
 
-    @property final typeof(this) roleName(string value) nothrow
+    @property final typeof(this) roleName(string value)
     {
-        put(DbConnectionParameterIdentifier.roleName, value);
-        return this;
+        auto k = DbConnectionParameterIdentifier.roleName in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(value) == DbNameValueValidated.ok)
+        {
+            put(DbConnectionParameterIdentifier.roleName, value);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.roleName, value);
     }
 
     @property abstract DbScheme scheme() const nothrow pure;
 
     /**
-     * Gets or sets the time (value based in seconds) to wait for a request to completely send to server.
+     * Gets or sets the time (value based in milliseconds) to wait for a request to completely send to server.
      * The default value is 60 seconds.
      * Set to zero to disable the setting.
      */
     @property final Duration sendTimeout() const nothrow
     {
-        return secondDigitsToDurationSafe(getString(DbConnectionParameterIdentifier.sendTimeout), Duration.zero);
+        Duration result;
+        cvtConnectionParameterDuration(result, getString(DbConnectionParameterIdentifier.sendTimeout));
+        return result;
     }
 
-    @property final typeof(this) sendTimeout(scope const(Duration) value) nothrow
+    @property final typeof(this) sendTimeout(scope const(Duration) value)
     {
-        // Required value
-        const convertingSecond = limitRangeTimeoutAsSecond(value);
-        auto setValue = convertingSecond != 0 ? convertingSecond.to!string() : getDefault(DbConnectionParameterIdentifier.sendTimeout);
-        put(DbConnectionParameterIdentifier.sendTimeout, setValue);
-        return this;
+        auto s = cvtConnectionParameterDuration(value);
+        auto k = DbConnectionParameterIdentifier.sendTimeout in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
+        {
+            put(DbConnectionParameterIdentifier.sendTimeout, s);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.sendTimeout, value.toString());
     }
 
     /**
@@ -2650,23 +2837,38 @@ public:
         return getString(DbConnectionParameterIdentifier.serverName);
     }
 
-    @property final typeof(this) serverName(string value) nothrow
+    @property final typeof(this) serverName(string value)
     {
-        put(DbConnectionParameterIdentifier.serverName, value);
-        return this;
+        auto k = DbConnectionParameterIdentifier.serverName in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(value) == DbNameValueValidated.ok)
+        {
+            put(DbConnectionParameterIdentifier.serverName, value);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.serverName, value);
     }
 
     @property final uint16 serverPort() const nothrow
     {
-        const result = toIntegerSafe!uint16(getString(DbConnectionParameterIdentifier.serverPort), 0);
-        return result != 0 ? result : toIntegerSafe!uint16(getDefault(DbConnectionParameterIdentifier.serverPort), 0);
+        int32 result;
+        cvtConnectionParameterInt32(result, getString(DbConnectionParameterIdentifier.serverPort));
+        return cast(uint16)result;
     }
 
-    @property final typeof(this) serverPort(uint16 value) nothrow
+    @property final typeof(this) serverPort(uint16 value)
     {
-        auto setValue = value != 0 ? value.to!string() : getDefault(DbConnectionParameterIdentifier.serverPort);
-        put(DbConnectionParameterIdentifier.serverPort, setValue);
-        return this;
+        auto s = value != 0 ? value.to!string() : getDefault(DbConnectionParameterIdentifier.serverPort);
+        auto k = DbConnectionParameterIdentifier.serverPort in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
+        {
+            put(DbConnectionParameterIdentifier.serverPort, s);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.serverPort, value.to!string);
     }
 
     /**
@@ -2677,10 +2879,17 @@ public:
         return getString(DbConnectionParameterIdentifier.userName);
     }
 
-    @property final typeof(this) userName(string value) nothrow
+    @property final typeof(this) userName(string value)
     {
-        put(DbConnectionParameterIdentifier.userName, value);
-        return this;
+        auto k = DbConnectionParameterIdentifier.userName in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(value) == DbNameValueValidated.ok)
+        {
+            put(DbConnectionParameterIdentifier.userName, value);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.userName, value);
     }
 
     /**
@@ -2691,10 +2900,17 @@ public:
         return getString(DbConnectionParameterIdentifier.userPassword);
     }
 
-    @property final typeof(this) userPassword(string value) nothrow
+    @property final typeof(this) userPassword(string value)
     {
-        put(DbConnectionParameterIdentifier.userPassword, value);
-        return this;
+        auto k = DbConnectionParameterIdentifier.userPassword in dbDefaultConnectionParameterValues;
+        assert(k !is null);
+        if ((*k).isValidValue(value) == DbNameValueValidated.ok)
+        {
+            put(DbConnectionParameterIdentifier.userPassword, value);
+            return this;
+        }
+        else
+            throwInvalidPropertyValue(DbConnectionParameterIdentifier.userPassword, value);
     }
 
     @property final char valueSeparator() const nothrow
@@ -2703,12 +2919,16 @@ public:
     }
 
 protected:
+    enum customAttributeInfo = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, 200);
+
     string getDefault(string name) const nothrow
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
-        auto n = DbIdentitier(name);
-        return dbDefaultConnectionParameterValues.get(n, null);
+        auto k = name in dbDefaultConnectionParameterValues;
+        if (k is null)
+            return null;
+            
+        auto sch = (*k).scheme;
+        return sch.length == 0 || sch == scheme ? (*k).def : null;
     }
 
     final string getString(string name) const nothrow
@@ -2747,8 +2967,20 @@ protected:
 
     void setDefaultIfs() nothrow
     {
-        foreach (dpv; dbDefaultConnectionParameterValues.byKeyValue)
-            putIf(dpv.key, dpv.value);
+        foreach (ref dpv; dbDefaultConnectionParameterValues.byKeyValue)
+        {
+            auto def = dpv.value.def;
+            auto sch = dpv.value.scheme;
+            if (def.length && (sch.length == 0 || sch == scheme))
+                putIf(dpv.key, def);
+        }
+    }
+
+    final noreturn throwInvalidPropertyValue(string name, string value,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__)
+    {
+        throw new DbException(DbErrorCode.parse, format(DbMessage.eInvalidConnectionStringValue, scheme, name, value),
+            null, funcName, file, line);
     }
 
 public:
@@ -3080,7 +3312,6 @@ public:
      */
     abstract DbFieldIdType isValueIdType() const nothrow pure @safe;
 
-    debug(debug_pham_db_db_database)
     string traceString() const nothrow @trusted
     {
         import std.conv : to;
@@ -3165,12 +3396,26 @@ public:
     /**
      * Gets or sets provider-specific numeric scale of the column
      */
-    @property final int32 baseNumericScale() const nothrow pure @safe
+    @property final int16 baseNumericDigits() const nothrow pure @safe
+    {
+        return _baseType.numericDigits;
+    }
+
+    @property final typeof(this) baseNumericDigits(int16 value) nothrow pure @safe
+    {
+        _baseType.numericDigits = value;
+        return this;
+    }
+
+    /**
+     * Gets or sets provider-specific numeric scale of the column
+     */
+    @property final int16 baseNumericScale() const nothrow pure @safe
     {
         return _baseType.numericScale;
     }
 
-    @property final typeof(this) baseNumericScale(int value) nothrow pure @safe
+    @property final typeof(this) baseNumericScale(int16 value) nothrow pure @safe
     {
         _baseType.numericScale = value;
         return this;
@@ -3235,7 +3480,7 @@ public:
     /**
      * Gets or sets provider-specific data type of the column
      */
-    @property final DbBaseType baseType() const nothrow pure @safe
+    @property final DbBaseTypeInfo baseType() const nothrow pure @safe
     {
         return _baseType;
     }
@@ -3288,7 +3533,7 @@ public:
 
     /**
      * Gets or sets maximum size, in bytes of the parameter
-     * used for array, binary, fixedBinary, utf8String, fixedUtf8String
+     * used for array, binary, binaryFixed, utf8String, fixedUtf8String
      * json, and xml types.
      */
     pragma(inline, true)
@@ -3340,7 +3585,7 @@ protected:
             __traits(getMember, dest, m) = __traits(getMember, this, m);
         }
     }
-
+    
     void reevaluateBaseType() nothrow @safe
     {}
 
@@ -3351,7 +3596,7 @@ protected:
     string _baseTableName;
     int32 _baseId;
     int32 _baseTableId;
-    DbBaseType _baseType;
+    DbBaseTypeInfo _baseType;
     uint32 _ordinal; // 0=Unknown position
     int32 _size;
     DbType _type;
@@ -3523,6 +3768,14 @@ protected:
             _command = null;
     }
 
+    void resetNewStatement(const(ResetStatementKind) kind) nothrow @safe
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(kind=", kind, ")");
+
+        if (kind < ResetStatementKind.executing)
+            clear();
+    }
+    
 protected:
     DbCommand _command;
 
@@ -3569,15 +3822,17 @@ public:
 
     final bool isInput() const nothrow pure @safe
     {
-        return direction == DbParameterDirection.input
-            || direction == DbParameterDirection.inputOutput;
+        static immutable inputFlags = inputDirections();
+        
+        return inputFlags.on(direction);
     }
 
-    final bool isOutput(bool outputOnly) const nothrow pure @safe
+    final bool isOutput(const(bool) outputOnly) const nothrow pure @safe
     {
-        return (direction == DbParameterDirection.inputOutput && !outputOnly)
-            || direction == DbParameterDirection.output
-            || direction == DbParameterDirection.returnValue;
+        static immutable outputFlagsFalse = outputDirections(false);
+        static immutable outputFlagsTrue = outputDirections(true);
+        
+        return outputOnly ? outputFlagsTrue.on(direction) : outputFlagsFalse.on(direction);
     }
 
     final DbParameter updateEmptyName(DbIdentitier noneEmptyName) nothrow @safe
@@ -3612,12 +3867,12 @@ public:
             || (isDbTypeHasZeroSizeAsNull(type) && _dbValue.size <= 0);
     }
 
-    @property final Variant variant() @safe
+    @property final Variant variant() nothrow @safe
     {
         return _dbValue.value;
     }
 
-    @property final DbParameter variant(Variant variant) @safe
+    @property final DbParameter variant(Variant variant) nothrow @safe
     {
         this._dbValue.value = variant;
         this.valueAssigned();
@@ -3627,12 +3882,12 @@ public:
     /**
      * Gets or sets the value of the parameter
      */
-    @property final ref DbValue value() return @safe
+    @property final ref DbValue value() nothrow return @safe
     {
         return _dbValue;
     }
 
-    @property final DbParameter value(DbValue newValue) @safe
+    @property final DbParameter value(DbValue newValue) nothrow @safe
     {
         this._dbValue = newValue;
         this.valueAssigned();
@@ -3784,6 +4039,31 @@ public:
     {
         return generateUniqueName("parameter");
     }
+    
+    final size_t getParameterCountOfs(scope const(EnumSet!DbParameterDirection) directions) nothrow @safe
+    {
+        size_t result = 0;
+        foreach (parameter; this)
+        {
+            if (directions.on(parameter.direction))
+                result++;
+        }
+        return result;
+    }
+    
+    final T[] getParameterOfs(T : DbParameter)(scope const(EnumSet!DbParameterDirection) directions) nothrow @safe
+    {
+        T[] result;
+        result.reserve(length);
+        foreach (parameter; this)
+        {
+            if (parameter.baseTypeId == 0)
+                parameter.reevaluateBaseType();
+            if (directions.on(parameter.direction))
+                result ~= cast(T)parameter;
+        }
+        return result;
+    }
 
     final DbParameter hasOutputParameter(string name, size_t outputIndex) nothrow @safe
     {
@@ -3808,40 +4088,17 @@ public:
         return null;
     }
 
-    final size_t inputCount() nothrow pure @safe
+    final size_t inputCount() nothrow @safe
     {
-        size_t result = 0;
-        foreach (i; 0..length)
-        {
-            if (this[i].isInput())
-                result++;
-        }
-        return result;
+        return getParameterCountOfs(inputDirections());
     }
 
     final DbParameter[] inputParameters() nothrow @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
-
-        const count = inputCount();
-        if (count == 0)
-            return null;
-
-        size_t i = 0;
-        auto result = new DbParameter[](count);
-        foreach (parameter; this)
-        {
-            if (parameter.isInput())
-            {
-                if (parameter.baseTypeId == 0)
-                    parameter.reevaluateBaseType();
-                result[i++] = parameter;
-            }
-        }
-        return result;
+        return getParameterOfs!DbParameter(inputDirections());
     }
 
-    final typeof(this) nullifyOutputParameters() nothrow @safe
+    final void nullifyOutputParameters() nothrow @safe
     {
         foreach (parameter; this)
         {
@@ -3849,18 +4106,16 @@ public:
             if (parameter.isOutput(outputOnly))
                 parameter.nullifyValue();
         }
-        return this;
     }
 
-    final size_t outputCount(bool outputOnly) nothrow pure @safe
+    final size_t outputCount(bool outputOnly) nothrow @safe
     {
-        size_t result = 0;
-        foreach (i; 0..length)
-        {
-            if (this[i].isOutput(outputOnly))
-                result++;
-        }
-        return result;
+        return getParameterCountOfs(outputDirections(outputOnly));
+    }
+
+    final DbParameter[] outputParameters(bool outputOnly) nothrow @safe
+    {
+        return getParameterOfs!DbParameter(outputDirections(outputOnly));
     }
 
     /*
@@ -3938,6 +4193,14 @@ protected:
         clear();
         if (isDisposing(disposingReason))
             _database = null;
+    }
+
+    void resetNewStatement(const(ResetStatementKind) kind) nothrow @safe
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(kind=", kind, ")");
+
+        if (kind == ResetStatementKind.executing)   
+            nullifyOutputParameters();
     }
 
 protected:
@@ -4409,12 +4672,12 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
+        if (auto log = canTraceLog())
+            log.infof("%s.transaction.commit(isolationLevel=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel));
+
         scope (failure)
             resetState(DbTransactionState.error);
         checkState(DbTransactionState.active);
-
-        if (auto log = canTraceLog())
-            log.infof("%s.transaction.commit(isolationLevel=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel));
 
         doCommit(isDisposing(lastDisposingReason));
         if (!handle)
@@ -4436,11 +4699,11 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        checkSavePointState();
-        _savePointNames.length = checkSavePointName(savePointName);
-
         if (auto log = canTraceLog())
             log.infof("%s.transaction.commit(isolationLevel=%s, savePointName=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel), savePointName);
+
+        checkSavePointState();
+        _savePointNames.length = checkSavePointName(savePointName);
 
         doSavePoint(savePointName, "RELEASE SAVEPOINT " ~ savePointName);
         return this;
@@ -4479,15 +4742,15 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
+        if (auto log = canTraceLog())
+            log.infof("%s.transaction.rollback(isolationLevel=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel));
+
         if (state != DbTransactionState.active)
             return this;
 
         scope (failure)
             resetState(DbTransactionState.error);
         checkState(DbTransactionState.active);
-
-        if (auto log = canTraceLog())
-            log.infof("%s.transaction.rollback(isolationLevel=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel));
 
         doRollback(isDisposing(lastDisposingReason));
         if (!handle)
@@ -4509,11 +4772,11 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        checkSavePointState();
-        _savePointNames.length = checkSavePointName(savePointName);
-
         if (auto log = canTraceLog())
             log.infof("%s.transaction.rollback(isolationLevel=%s, savePointName=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel), savePointName);
+
+        checkSavePointState();
+        _savePointNames.length = checkSavePointName(savePointName);
 
         doSavePoint(savePointName, "ROLLBACK TO SAVEPOINT " ~ savePointName);
         return this;
@@ -4523,15 +4786,19 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(autoCommit=", autoCommit, ", isolationLevel=", isolationLevel, ", isRetaining=", isRetaining, ")");
 
+        if (auto log = canTraceLog())
+            log.infof("%s.transaction.start(isolationLevel=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel));
+
         checkState(DbTransactionState.inactive);
         scope (failure)
             resetState(DbTransactionState.error);
 
-        if (auto log = canTraceLog())
-            log.infof("%s.transaction.start(isolationLevel=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel));
-
         doStart();
+        
         _state = DbTransactionState.active;
+        if (_connection !is null)
+            _connection._activeTransactionCounter++;
+            
         return this;
     }
 
@@ -4546,12 +4813,12 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
+        if (auto log = canTraceLog())
+            log.infof("%s.transaction.start(isolationLevel=%s, savePointName=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel), savePointName);
+
         checkSavePointState();
         if (savePointName.length == 0)
             savePointName = "SAVEPOINT_" ~ _connection.nextCounter().to!string();
-
-        if (auto log = canTraceLog())
-            log.infof("%s.transaction.start(isolationLevel=%s, savePointName=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel), savePointName);
 
         doSavePoint(savePointName, "SAVEPOINT " ~ savePointName);
         _savePointNames ~= savePointName;
@@ -4813,6 +5080,9 @@ protected:
 
     void resetState(const(DbTransactionState) toState) nothrow @safe
     {
+        if (_state == DbTransactionState.active && toState != DbTransactionState.active && _connection !is null)
+            _connection._activeTransactionCounter--;
+    
         _savePointNames = null;
         _state = toState;
         _handle.reset();
@@ -4853,7 +5123,7 @@ __gshared static Timer _secondTimer;
 shared static this() nothrow @trusted
 {
     debug(debug_pham_db_db_database) debug writeln("shared static this()");
-    
+
     _poolMutex = new Mutex();
     _secondTimer = new Timer(dur!"seconds"(1));
 }
@@ -4861,7 +5131,7 @@ shared static this() nothrow @trusted
 shared static ~this() nothrow @trusted
 {
     debug(debug_pham_db_db_database) debug writeln("shared static ~this()");
-    
+
     // Timer must be destroyed first
     if (_secondTimer !is null)
     {
