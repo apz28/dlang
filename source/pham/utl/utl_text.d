@@ -56,7 +56,7 @@ if (isSomeChar!Char)
     Char[] firstErrorText;
     ptrdiff_t firstErrorIndex = -1;
 
-    auto result = Appender!(Char[])();
+    Appender!(Char[]) result;
     result.reserve(encodedFormValue.length);
 
     size_t i = 0;

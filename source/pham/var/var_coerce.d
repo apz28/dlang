@@ -17,6 +17,14 @@ import std.traits : fullyQualifiedName,
     isFloatingPoint, isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned,
     Unqual;
 
+debug(debug_pham_var_var_coerce) import std.stdio : writeln;
+
+enum ConvertHandlerFlag : uint
+{
+    none = 0,
+    implicit = 1,
+}
+
 alias ConvertFunction = bool function(scope void* srcPtr, scope void* dstPtr) nothrow;
 
 struct ConvertHandlerKey
@@ -56,11 +64,15 @@ public:
 
     static void add(string srcQualifiedName, string dstQualifiedName, ConvertHandler handler)
     {
+        debug(debug_pham_var_var_coerce) debug writeln(__FUNCTION__, "(from=", srcQualifiedName, ", to=", dstQualifiedName, ")");
+    
         add(ConvertHandlerKey(srcQualifiedName, dstQualifiedName), handler);
     }
 
     static void add(S, D)(ConvertHandler handler)
     {
+        debug(debug_pham_var_var_coerce) debug writeln(__FUNCTION__, "(from=", fullyQualifiedName!S, ", to=", fullyQualifiedName!D, ")");
+    
         add(ConvertHandlerKey(fullyQualifiedName!S, fullyQualifiedName!D), handler);
     }
 
@@ -122,10 +134,29 @@ public:
     {
         return findCoerce(fullyQualifiedName!S, fullyQualifiedName!D, doCoerce);
     }
+    
+    pragma(inline, true)
+    @property bool canCast() const @nogc pure
+    {
+        return doCast !is null;
+    }
+    
+    pragma(inline, true)
+    @property bool canCoerce() const @nogc pure
+    {
+        return doCoerce !is null;
+    }
+    
+    pragma(inline, true)
+    @property bool canImplicit() const @nogc pure
+    {
+        return (flags & ConvertHandlerFlag.implicit) != 0 && canCoerce;
+    }
 
 public:
     ConvertFunction doCast;
     ConvertFunction doCoerce;
+    uint flags;
 }
 
 
@@ -254,7 +285,7 @@ if ((isFloatingPoint!S || isIntegral!S || isSomeChar!S) && isFloatingPoint!D)
 bool doCastIntegral(S, D)(scope void* srcPtr, scope void* dstPtr) nothrow
 if ((isFloatingPoint!S || isIntegral!S || isSomeChar!S) && (isIntegral!D || isSomeChar!D))
 {
-import std.math : lround;
+    import std.math : lround;
 
     const s = *cast(S*)srcPtr;
 
@@ -269,7 +300,7 @@ import std.math : lround;
 bool doCoerceIntegral(S, D)(scope void* srcPtr, scope void* dstPtr) nothrow
 if ((isFloatingPoint!S || isIntegral!S || isSomeChar!S) && (isIntegral!D || isSomeChar!D))
 {
-import std.math : lround;
+    import std.math : lround;
 
     const s = *cast(S*)srcPtr;
 
@@ -368,6 +399,7 @@ shared static this() nothrow @safe
         {
             handler.doCast = &doCastIntegral!(S, D);
             handler.doCoerce = &doCoerceIntegral!(S, D);
+            handler.flags = ConvertHandlerFlag.implicit;
             ConvertHandler.add!(S, D)(handler);
         }
     }
@@ -379,6 +411,7 @@ shared static this() nothrow @safe
         {
             handler.doCast = &doCastFloat!(S, D);
             handler.doCoerce = &doCoerceFloat!(S, D);
+            handler.flags = ConvertHandlerFlag.implicit;
             ConvertHandler.add!(S, D)(handler);
         }
     }
@@ -388,6 +421,7 @@ shared static this() nothrow @safe
     {
         handler.doCast = &doCastBool!(S, bool);
         handler.doCoerce = null;
+        handler.flags = ConvertHandlerFlag.implicit;
         ConvertHandler.add!(S, bool)(handler);
     }
 
@@ -395,6 +429,7 @@ shared static this() nothrow @safe
     {
         handler.doCast = null;
         handler.doCoerce = &doCoerceBool!(bool, S);
+        handler.flags = ConvertHandlerFlag.implicit;
         ConvertHandler.add!(bool, S)(handler);
     }
 
@@ -402,6 +437,7 @@ shared static this() nothrow @safe
     static foreach (S; AliasSeq!(char, wchar, dchar))
     {
         handler.doCast = null;
+        handler.flags = ConvertHandlerFlag.implicit;
 
         // to immutable(S)[]
         handler.doCoerce = &doCoerceString!(StringOfChar!S, StringOfChar!S);
@@ -436,6 +472,7 @@ shared static this() nothrow @safe
             static if (!is(S == D))
             {
                 handler.doCast = null;
+                handler.flags = ConvertHandlerFlag.none;
 
                 handler.doCoerce = &doCoerceStringEx!(StringOfChar!S, StringOfChar!D);
                 ConvertHandler.add!(StringOfChar!S, StringOfChar!D)(handler);

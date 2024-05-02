@@ -1088,7 +1088,7 @@ struct Foo
     @Ini("Foo int array")
     int[] ints;
 
-    bool opEquals(scope const(Foo) rhs)
+    bool opEquals(scope const(Foo) rhs) const nothrow
     {
         import std.math : isClose, isNaN;
         import std.algorithm.comparison : equal;

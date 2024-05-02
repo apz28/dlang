@@ -62,7 +62,7 @@ public:
         return this;
     }
 
-    bool opEquals(const DbValue rhs) @safe
+    bool opEquals(const DbValue rhs) const @safe
     {
         return _type == rhs._type && _value == rhs._value;
     }

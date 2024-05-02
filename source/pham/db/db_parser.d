@@ -576,7 +576,7 @@ do
 
     size_t prevP, beginP;
     uint32 parameterNumber; // Based 1 value
-    auto result = Appender!S();
+    Appender!S result;
     auto tokenizer = DbTokenizer!S(sql);
     while (!tokenizer.empty)
     {

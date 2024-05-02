@@ -21,15 +21,16 @@ import std.traits : fullyQualifiedName, isArray, isSomeChar, Unqual;
 import std.uni : sicmp;
 public import std.uuid : UUID;
 
-debug(debug_pham_db_db_type) import std.stdio : writeln;
-
+debug(debug_pham_db_db_type) import pham.db.db_debug;
 public import pham.dtm.dtm_date : Date, DateTime;
 public import pham.dtm.dtm_tick : DateTimeZoneKind;
 import pham.dtm.dtm_tick : ErrorOp, Tick;
 public import pham.dtm.dtm_time : Time;
 import pham.dtm.dtm_time_zone : TimeZoneInfo;
 import pham.dtm.dtm_time_zone_map : TimeZoneInfoMap;
-public import pham.external.dec.dec_decimal : Decimal32, Decimal64, Decimal128, isDecimal, Precision, RoundingMode;
+public import pham.external.dec.dec_decimal : Decimal32, Decimal64, Decimal128, isDecimal,
+    Precision, RoundingMode;
+import pham.var.var_coerce;
 import pham.utl.utl_array : ShortStringBuffer;
 public import pham.utl.utl_big_integer : BigInteger;
 import pham.utl.utl_enum_set : EnumSet, toName;
@@ -75,6 +76,7 @@ static immutable string dbBoolTrue = "True";
 
 enum DbCommandExecuteType : ubyte
 {
+    prepare,
     nonQuery,
     reader,
     scalar,
@@ -84,6 +86,7 @@ enum DbCommandFlag : ubyte
 {
     allRowsFetched,
     batched,
+    getExecutionPlanning,
     implicitTransaction,
     implicitTransactionStarted,
     parametersCheck,
@@ -161,7 +164,7 @@ enum DbDefaultSize
      * Default maximum inactive time of a connection being in pool - value in seconds
      */
     connectionPoolInactiveTime = 360,
-    
+
     /**
      * Sizes in bytes
      */
@@ -598,7 +601,7 @@ public:
         this.numericDigits = numericDigits;
         this.numericScale = numericScale;
     }
-    
+
 public:
     int32 size;
     int32 subTypeId;
@@ -2010,7 +2013,6 @@ static immutable DbTypeInfo[] dbNativeTypes = [
     {dbName:"DATE", dbType:DbType.date, dbId:0, nativeName:fullyQualifiedName!DbDate, nativeSize:DbTypeSize.date, displaySize:DbTypeDisplaySize.date},
     {dbName:"DATETIME", dbType:DbType.datetime, dbId:0, nativeName:fullyQualifiedName!DbDateTime, nativeSize:DbTypeSize.datetime, displaySize:DbTypeDisplaySize.datetime},
     {dbName:"TIME", dbType:DbType.time, dbId:0, nativeName:fullyQualifiedName!DbTime, nativeSize:DbTypeSize.time, displaySize:DbTypeDisplaySize.time},
-    //{dbName:"TIME", dbType:DbType.time, dbId:0, nativeName:"TimeOfDay", nativeSize:DbTypeSize.time, displaySize:DbTypeDisplaySize.time},
     ];
 
 static immutable DbTypeInfo*[DbType] dbTypeToDbTypeInfos;
@@ -2046,17 +2048,19 @@ DbType dbTypeOf(T)() @nogc pure
 }
 
 pragma(inline, true)
-EnumSet!DbParameterDirection inputDirections() @nogc pure
+EnumSet!DbParameterDirection inputDirections(const(bool) inputOnly) @nogc pure
 {
-    return EnumSet!DbParameterDirection([DbParameterDirection.input, DbParameterDirection.inputOutput]);
+    return inputOnly
+        ? EnumSet!DbParameterDirection([DbParameterDirection.input])
+        : EnumSet!DbParameterDirection([DbParameterDirection.input, DbParameterDirection.inputOutput]);
 }
 
 pragma(inline, true)
-EnumSet!DbParameterDirection outputDirections(bool outputOnly) @nogc pure
+EnumSet!DbParameterDirection outputDirections(const(bool) outputOnly) @nogc pure
 {
     return outputOnly
         ? EnumSet!DbParameterDirection([DbParameterDirection.output, DbParameterDirection.returnValue])
-        : EnumSet!DbParameterDirection([DbParameterDirection.inputOutput, DbParameterDirection.output, DbParameterDirection.returnValue]);
+        : EnumSet!DbParameterDirection([DbParameterDirection.output, DbParameterDirection.returnValue, DbParameterDirection.inputOutput]);
 }
 
 bool isDbScheme(string schemeStr, ref DbScheme scheme) @nogc pure
@@ -2152,19 +2156,45 @@ bool isDbTrue(scope const(char)[] s) @nogc pure
     return false;
 }
 
-bool isParameterOutputOnly(const(DbParameterDirection) direction) @nogc pure
+bool isParameterInput(const(DbParameterDirection) direction, const(bool) inputOnly = false) @nogc pure
 {
-    return direction == DbParameterDirection.output
-        || direction == DbParameterDirection.returnValue;
+    static immutable inputFlags = [inputDirections(false), inputDirections(true)];
+
+    return inputFlags[inputOnly].on(direction);
+}
+
+bool isParameterOutput(const(DbParameterDirection) direction, const(bool) outputOnly = false) @nogc pure
+{
+    static immutable outputFlags = [outputDirections(false), outputDirections(true)];
+
+    return outputFlags[outputOnly].on(direction);
+}
+
+pragma(inline, true)
+bool isInMode(scope const(char)[] mode) @nogc pure
+{
+    return mode == "IN" || mode == "in" || mode == "INPUT" || mode == "input";
+}
+
+pragma(inline, true)
+bool isInOutMode(scope const(char)[] mode) @nogc pure
+{
+    return mode == "INOUT" || mode == "inout" || mode == "INOUTPUT" || mode == "inoutput";
+}
+
+pragma(inline, true)
+bool isOutMode(scope const(char)[] mode) @nogc pure
+{
+    return mode == "OUT" || mode == "out" || mode == "OUTPUT" || mode == "output";
 }
 
 DbParameterDirection parameterModeToDirection(scope const(char)[] mode) @nogc pure
 {
-    return mode == "IN" || mode == "in"
+    return isInMode(mode)
         ? DbParameterDirection.input
-        : (mode == "OUT" || mode == "out"
+        : (isOutMode(mode)
             ? DbParameterDirection.output
-            : (mode == "INOUT" || mode == "inout"
+            : (isInOutMode(mode)
                 ? DbParameterDirection.inputOutput
                 : DbParameterDirection.input));
 }
@@ -2261,7 +2291,9 @@ DbNameValueValidated isConnectionParameterComputingSize(scope const(DbConnection
 string cvtConnectionParameterDuration(scope const(Duration) v)
 {
     const total = v.total!"msecs";
-    return total > int32.max ? int32.max.to!string : (total < int32.min ? int32.min.to!string : total.to!string);
+    return total > int32.max
+        ? int32.max.to!string
+        : (total < int32.min ? int32.min.to!string : total.to!string);
 }
 
 DbNameValueValidated cvtConnectionParameterDuration(out Duration cv, string v)
@@ -2440,7 +2472,7 @@ shared static this() nothrow @safe
             DbConnectionParameterIdentifier.charset : DbConnectionParameterInfo(&isConnectionParameterCharset, "UTF8", dbConnectionParameterNullMin, dbConnectionParameterNullMax),
             DbConnectionParameterIdentifier.commandTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, dbConnectionParameterNullDef, 0, int32.max),
             DbConnectionParameterIdentifier.compress : DbConnectionParameterInfo(&isConnectionParameterCompress, toName(DbCompressConnection.disabled), dbConnectionParameterNullMin, dbConnectionParameterNullMax),
-            DbConnectionParameterIdentifier.connectionTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, "10_000", 0, int32.max),
+            DbConnectionParameterIdentifier.connectionTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, "10_000 msecs", 0, int32.max),
             DbConnectionParameterIdentifier.databaseName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 1, dbConnectionParameterMaxName),
             DbConnectionParameterIdentifier.databaseFileName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName),
             DbConnectionParameterIdentifier.encrypt : DbConnectionParameterInfo(&isConnectionParameterEncrypt, toName(DbEncryptedConnection.disabled), dbConnectionParameterNullMin, dbConnectionParameterNullMax),
@@ -2448,12 +2480,12 @@ shared static this() nothrow @safe
             DbConnectionParameterIdentifier.integratedSecurity : DbConnectionParameterInfo(&isConnectionParameterIntegratedSecurity, toName(DbIntegratedSecurityConnection.srp256), dbConnectionParameterNullMin, dbConnectionParameterNullMax),
             DbConnectionParameterIdentifier.packageSize : DbConnectionParameterInfo(&isConnectionParameterComputingSize, dbConnectionParameterNullDef, 4_096*2, 4_096*64),
             DbConnectionParameterIdentifier.pooling : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolFalse, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
-            DbConnectionParameterIdentifier.poolIdleTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, "300_000", 1_000, 60*60*60*1000),
+            DbConnectionParameterIdentifier.poolIdleTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, "300_000 msecs", 1_000, 60*60*60*1000),
             DbConnectionParameterIdentifier.poolMaxCount : DbConnectionParameterInfo(&isConnectionParameterInt32, "200", 1, 10_000),
             DbConnectionParameterIdentifier.poolMinCount : DbConnectionParameterInfo(&isConnectionParameterInt32, "0", 0, 1_000),
             DbConnectionParameterIdentifier.receiveTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, dbConnectionParameterNullDef, 0, int32.max),
             DbConnectionParameterIdentifier.roleName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId),
-            DbConnectionParameterIdentifier.sendTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, "60_000", 0, int32.max),
+            DbConnectionParameterIdentifier.sendTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, "60_000 msecs", 0, int32.max),
             DbConnectionParameterIdentifier.serverName : DbConnectionParameterInfo(&isConnectionParameterString, "localhost", 1, dbConnectionParameterMaxName),
             DbConnectionParameterIdentifier.serverPort : DbConnectionParameterInfo(&isConnectionParameterInt32, dbConnectionParameterNullDef, 0, uint16.max),
             DbConnectionParameterIdentifier.userName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId),
@@ -2476,7 +2508,7 @@ shared static this() nothrow @safe
             DbConnectionParameterIdentifier.fbCryptKey : DbConnectionParameterInfo(&isConnectionParameterUBytes, dbConnectionParameterNullDef, 0, uint16.max, DbScheme.fb),
             DbConnectionParameterIdentifier.fbDatabaseTrigger : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.fb),
             DbConnectionParameterIdentifier.fbDialect : DbConnectionParameterInfo(&isConnectionParameterFBDialect, "3", 1, 3, DbScheme.fb),
-            DbConnectionParameterIdentifier.fbDummyPacketInterval : DbConnectionParameterInfo(&isConnectionParameterDuration, "300_000", 1_000, int32.max, DbScheme.fb),
+            DbConnectionParameterIdentifier.fbDummyPacketInterval : DbConnectionParameterInfo(&isConnectionParameterDuration, "300_000 msecs", 1_000, int32.max, DbScheme.fb),
             DbConnectionParameterIdentifier.fbGarbageCollect : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.fb),
 
             // MySQL

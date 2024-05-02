@@ -11,18 +11,20 @@
 
 module pham.db.db_object;
 
+import core.sync.mutex : Mutex;
 import std.algorithm : remove;
 import std.algorithm.comparison : min;
 import std.array : Appender;
 import std.ascii : isWhite;
 import std.conv : to;
-import std.traits : ParameterTypeTuple, Unqual;
+import std.traits : isIntegral, isSomeString, ParameterTypeTuple, Unqual;
 import std.uni : sicmp, toUpper;
 
 version(profile) import pham.utl.utl_test : PerfFunction;
+import pham.dtm.dtm_date : DateTime;
 import pham.utl.utl_disposable;
 import pham.utl.utl_enum_set : EnumSet;
-import pham.utl.utl_object : shortClassName;
+import pham.utl.utl_object : RAIIMutex, shortClassName;
 import pham.utl.utl_result : addLine, ResultIf;
 import pham.utl.utl_utf8 : nextUTF8Char;
 import pham.db.db_exception;
@@ -31,12 +33,255 @@ import pham.db.db_parser;
 import pham.db.db_type;
 import pham.db.db_util;
 
+
 DbIdentitier[] toIdentifiers(const string[] strings) nothrow
 {
     auto result = new DbIdentitier[](strings.length);
     foreach (i, s; strings)
         result[i] = DbIdentitier(s);
     return result;
+}
+
+enum DbExpirationKind : ubyte
+{
+    created,
+    lastTouched,
+}
+
+struct DbExpiration
+{
+nothrow @safe:
+
+public:
+    this(uint maxAge, DbExpirationKind kind)
+    {
+        this.maxAge = maxAge;
+        this.kind = kind;
+        this.created = this.lastTouched = DateTime.now;
+    }
+
+    bool canEvicted() const
+    {
+        if (maxAge == 0)
+            return false;
+            
+        return kind == DbExpirationKind.created
+            ? ((DateTime.now - created).totalMinutes > maxAge)
+            : ((DateTime.now - lastTouched).totalMinutes > maxAge);
+    }
+    
+    void touch()
+    {
+        this.lastTouched = DateTime.now;
+    }
+
+public:
+    DateTime created;
+    DateTime lastTouched;
+    uint maxAge;
+    DbExpirationKind kind;
+}
+
+struct DbCacheItem(K)
+if (isIntegral!K || isSomeString!K)
+{
+nothrow @safe:
+
+public:
+    this(K key, Object item, uint maxAge, DbExpirationKind kind)
+    {
+        this._key = key;
+        this._expiration = DbExpiration(maxAge, kind);
+        this.item = item;
+    }
+    
+    bool opEqual(scope const(DbCacheItem) rhs) const
+    {
+        return rhs._key == this._key;
+    }
+
+    size_t toHash() const
+    {
+        return hashOf(_key);
+    }
+
+    bool canEvicted() const
+    {
+        return _expiration.canEvicted();
+    }
+    
+    V touch(V : Object)()
+    {
+        this._expiration.touch();
+        return cast(V)item;
+    }
+
+    V touch(V : Object)(V item, uint maxAge, DbExpirationKind kind)
+    {
+        this._expiration = DbExpiration(maxAge, kind);
+        this.item = item;
+        return item;
+    }
+
+    @property DateTime created() const
+    {
+        return _expiration.created;
+    }
+
+    @property K key() const
+    {
+        return _key;
+    }
+
+    @property DateTime lastTouched() const
+    {
+        return _expiration.lastTouched;
+    }
+
+    /**
+     * Max number of minutes a cached item can be kept
+     * The value of zero is unlimit
+     * default is 4 hours
+     */
+    @property uint maxAge() const
+    {
+        return _expiration.maxAge;
+    }
+public:
+    Object item;
+
+private:
+    K _key;
+    DbExpiration _expiration;
+}
+
+class DbCache(K) : DbDisposableObject
+if (isIntegral!K || isSomeString!K)
+{
+nothrow @safe:
+
+    enum defaultAge = 60 * 4; // 4 hours in minutes
+    enum defaultKind = DbExpirationKind.created;
+    
+public:
+    this()
+    {
+        this.mutex = new Mutex();
+    }
+
+    final bool add(V : Object)(K key, V item,
+        uint maxAge = defaultAge,
+        DbExpirationKind kind = defaultKind)
+    {
+        auto raiiMutex = RAIIMutex(mutex);
+        
+        if (auto e = key in items)
+        {
+            if (!(*e).canEvicted())
+                return false;
+                
+            (*e).touch!V(item, maxAge, kind);
+            return true;
+        }
+            
+        items[key] = DbCacheItem!K(key, item, maxAge, kind);
+        return true;
+    }
+
+    final V addOrReplace(V : Object)(K key, V item,
+        uint maxAge = defaultAge,
+        DbExpirationKind kind = defaultKind)
+    {
+        auto raiiMutex = RAIIMutex(mutex);
+        
+        if (auto e = key in items)
+            (*e).touch!V(item, maxAge, kind);
+        else    
+            items[key] = DbCacheItem!K(key, item, maxAge, kind);
+        return item;
+    }
+    
+    final bool find(V : Object)(K key, ref V found)
+    {
+        auto raiiMutex = RAIIMutex(mutex);
+        
+        return findImpl!V(key, found) == FindResult.found;
+    }
+    
+    final void remove(K key)
+    {
+        auto raiiMutex = RAIIMutex(mutex);
+        
+        items.remove(key);
+    }
+    
+    final bool remove(V : Object)(K key, ref V found)
+    {
+        auto raiiMutex = RAIIMutex(mutex);
+        
+        final switch (findImpl!V(key, found))
+        {
+            case FindResult.found:
+                items.remove(key);
+                return true;
+            case FindResult.unfound:
+                return false;
+            case FindResult.expired:
+                items.remove(key);
+                return false;
+        }
+    }
+
+    @property K[] keys()
+    {
+        auto raiiMutex = RAIIMutex(mutex);
+        
+        return items.keys;
+    }
+
+    @property size_t length()
+    {
+        auto raiiMutex = RAIIMutex(mutex);
+        
+        return items.length;
+    }
+    
+protected:
+    override void doDispose(const(DisposingReason) disposingReason) nothrow @trusted
+    {
+        items.clear();
+        
+        if (mutex !is null)
+        {
+            mutex.destroy();
+            mutex = null;
+        }
+    }
+    
+    enum FindResult : ubyte
+    {
+        found,
+        unfound,
+        expired,
+    }
+    
+    final FindResult findImpl(V : Object)(K key, ref V found)
+    {
+        if (auto e = key in items)
+        {
+            if ((*e).canEvicted())
+                return FindResult.expired;
+                
+            found = (*e).touch!V();
+            return FindResult.found;
+        }
+        else
+            return FindResult.unfound;
+    }
+
+private:
+    Mutex mutex;
+    DbCacheItem!K[K] items;
 }
 
 struct DbCustomAttributeList
@@ -237,7 +482,7 @@ public:
         if (!_lastDisposingReason.canDispose(disposingReason))
             return;
 
-        _lastDisposingReason.value = disposingReason;
+        _lastDisposingReason = disposingReason;
         doDispose(disposingReason);
     }
 
@@ -419,7 +664,7 @@ public:
         addOrSet(item);
         return this;
     }
-    
+
     final int apply(scope int delegate(T e) nothrow dg) nothrow
     {
         foreach (i; 0..length)
@@ -607,7 +852,7 @@ public:
         }
         return this;
     }
-    
+
     @property final size_t length() const nothrow pure @safe
     {
         return sequenceItems.length;
@@ -826,7 +1071,7 @@ public:
         addOrSet(item);
         return this;
     }
-    
+
     final int apply(scope int delegate(scope const ref Pair e) nothrow @safe dg) nothrow
     {
         foreach (i; 0..length)
@@ -1150,28 +1395,28 @@ protected:
  *      string of all elements
  */
 string getDelimiterText(T)(DbIdentitierValueList!T list,
-    char elementSeparator = ',',
-    char valueSeparator = '=') nothrow @safe
+    const(char) elementSeparator = ',',
+    const(char) valueSeparator = '=') nothrow @safe
 if (is(T == const(char)[]) || is(T == string))
 {
     scope (failure) assert(0, "Assume nothrow failed");
 
     if (list.length == 0)
-        return "";
+        return null;
 
-    auto buffer = Appender!string();
-    buffer.reserve(min(list.length * 50, 16_000));
+    Appender!string result;
+    result.reserve(min(list.length * 50, 16_000));
     size_t i;
     foreach (ref e; list[])
     {
         if (i++ != 0)
-            buffer.put(elementSeparator);
+            result.put(elementSeparator);
 
-        buffer.put(e.name.value);
-        buffer.put(valueSeparator);
-        buffer.put(e.value);
+        result.put(e.name.value);
+        result.put(valueSeparator);
+        result.put(e.value);
     }
-    return buffer.data;
+    return result.data;
 }
 
 /**
@@ -1212,7 +1457,7 @@ do
         }
         return false;
     }
-    
+
     string readName()
     {
         const begin = p;
@@ -1281,7 +1526,7 @@ do
         // Last element separator?
         if (name.length == 0 && value.length == 0 && p >= values.length)
             break;
-            
+
         final switch (list.isValid(name, value)) with (DbNameValueValidated)
         {
             case invalidName:
@@ -1421,4 +1666,51 @@ unittest // DbCustomAttributeList
     v["name1"] = null;
     assert(v.length == 0);
     assert(v.empty);
+}
+
+unittest // DbCache
+{
+    import pham.utl.utl_array : indexOf;
+    
+    auto cache = new DbCache!int();
+    scope (exit)
+        cache.dispose();
+        
+    cache.add(1, new Object());
+    cache.add(2, new Object());
+    cache.add(3, new Object());
+    cache.add(4, new Object());
+    cache.add(5, new Object());
+    
+    const keys1 = cache.keys;
+    assert(cache.length == 5);
+    assert(keys1.indexOf(1) >= 0);
+    assert(keys1.indexOf(2) >= 0);
+    assert(keys1.indexOf(3) >= 0);
+    assert(keys1.indexOf(4) >= 0);
+    assert(keys1.indexOf(5) >= 0);
+    
+    Object found;
+    assert(cache.find(1, found));
+    assert(found !is null);
+    assert(cache.find(2, found));
+    assert(cache.find(3, found));
+    assert(cache.find(4, found));
+    assert(cache.find(5, found));
+    assert(!cache.find(6, found));
+    
+    auto obj = new Object();
+    cache.addOrReplace(5, obj);
+    found = null;
+    assert(cache.find(5, found));
+    assert(found is obj);
+    
+    cache.remove(1);
+    cache.remove(2);
+    cache.remove(3);
+    found = null;
+    cache.remove(5, found);
+    assert(found is obj);
+    assert(cache.length == 1);
+    assert(cache.keys == [4]);
 }

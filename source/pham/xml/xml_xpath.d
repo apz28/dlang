@@ -432,14 +432,14 @@ public:
         }
     }
 
-	bool opEquals(const ref typeof(this) other) nothrow
+	bool opEquals(const ref typeof(this) other) const nothrow
 	{
         debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(this=", this, ", other=", other, ")");
 
         return opCmp(other) == 0;
 	}
 
-	int opCmp(const ref typeof(this) other) nothrow
+	int opCmp(const ref typeof(this) other) const nothrow
     {
         import std.math : cmp;
         import std.uni : sicmp;
@@ -1639,7 +1639,7 @@ public:
         this._value = value;
     }
 
-    override T get(T)(ref XPathContext!S inputContext)
+    T get(T)(ref XPathContext!S inputContext)
     if (is(T == S) || is(T == double) || is(T == bool))
     {
         static if (is(T == bool))

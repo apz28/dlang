@@ -29,15 +29,15 @@ if ((isFloatingPoint!S || isIntegral!S || isSomeChar!S || isDecimal!S) && isDeci
 {
     debug(debug_pham_var_var_coerce_dec_decimal) debug writeln(__FUNCTION__, "(S=", fullyQualifiedName!S, ", D=", fullyQualifiedName!D, ")");
     static if (isDecimal!S) debug(debug_pham_var_var_coerce_dec_decimal) debug writeln("\t", "srcPtr=", (*cast(S*)srcPtr).toString());
-    
+
     const savedState = DecimalControl.clearState();
     scope (exit)
         DecimalControl.restoreState(savedState);
-    
+
     try
     {
         auto r = D(*cast(S*)srcPtr);
-        
+
         static if (isFloatingPoint!S)
         {
             // Ignore the ExceptionFlags.inexact for float
@@ -71,15 +71,15 @@ bool doCoerceDecimalToNumeric(S, D)(scope void* srcPtr, scope void* dstPtr) noth
 if (isDecimal!S && (isFloatingPoint!D || isIntegral!D || isSomeChar!D))
 {
     debug(debug_pham_var_var_coerce_dec_decimal) debug writeln(__FUNCTION__, "(S=", fullyQualifiedName!S, ", D=", fullyQualifiedName!D, ")");
-    
+
     const savedState = DecimalControl.clearState();
     scope (exit)
         DecimalControl.restoreState(savedState);
-    
+
     try
     {
         auto r = (*cast(S*)srcPtr).opCast!D();
-        
+
         static if (isFloatingPoint!D)
         {
             // Ignore the ExceptionFlags.inexact for float
@@ -119,10 +119,12 @@ shared static this() nothrow @safe
         static foreach (D; AliasSeq!(Decimal32, Decimal64, Decimal128))
         {
             handler.doCoerce = &doCoerceDecimal!(S, D);
+            handler.flags = ConvertHandlerFlag.implicit;
             ConvertHandler.add!(S, D)(handler);
 
             // Inverse
             invHandler.doCoerce = &doCoerceDecimalToNumeric!(D, S);
+            invHandler.flags = ConvertHandlerFlag.implicit;
             ConvertHandler.add!(D, S)(invHandler);
             ConvertHandler.add!(const(D), S)(invHandler);
         }
@@ -133,6 +135,7 @@ shared static this() nothrow @safe
         static foreach (D; AliasSeq!(Decimal32, Decimal64, Decimal128))
         {
             handler.doCoerce = &doCoerceDecimal!(S, D);
+            handler.flags = ConvertHandlerFlag.none;
             ConvertHandler.add!(S, D)(handler);
         }
     }
@@ -143,12 +146,16 @@ shared static this() nothrow @safe
         {
             static if (S.sizeof != D.sizeof)
             {
+                debug(debug_pham_var_var_coerce_dec_decimal) debug writeln("register coerce from ", S.stringof, " to ", D.stringof);
+                
                 handler.doCoerce = &doCoerceDecimal!(S, D);
+                handler.flags = ConvertHandlerFlag.implicit;
                 ConvertHandler.add!(S, D)(handler);
                 ConvertHandler.add!(const(S), D)(handler);
 
                 // Inverse
                 invHandler.doCoerce = &doCoerceDecimal!(D, S);
+                invHandler.flags = ConvertHandlerFlag.implicit;
                 ConvertHandler.add!(D, S)(invHandler);
                 ConvertHandler.add!(const(D), S)(invHandler);
             }
@@ -209,7 +216,7 @@ unittest
                     else
                         enum S checkMin = -999_9999;
                 }
-                
+
                 D d = 1;
                 S s = checkMin;
                 f = handler.doCoerce(&s, &d);
@@ -242,7 +249,7 @@ unittest
                 assert(f, D.stringof ~ " to " ~ S.stringof);
                 assert(s == checkMax, D.stringof ~ " to " ~ S.stringof);
             }}
-            
+
             // Not convertable
             static if (S.sizeof >= D.sizeof)
             {{
@@ -253,7 +260,7 @@ unittest
                 D d;
                 S s = S.max;
                 assert(!handler.doCoerce(&s, &d));
-                
+
                 static if (isSigned!S)
                 {
                     s = S.min;
@@ -278,7 +285,7 @@ unittest
 
                 enum S checkMin = cast(S)-281638.80;
                 enum S checkMax = cast(S)735376.60;
-                
+
                 D d = 1;
                 S s = checkMin;
                 f = handler.doCoerce(&s, &d);
@@ -311,7 +318,7 @@ unittest
                 assert(f, D.stringof ~ " to " ~ S.stringof);
                 assert(isClose(s, checkMax), D.stringof ~ " to " ~ S.stringof ~ " for " ~ format("%f", s) ~ " vs " ~ format("%f", checkMax));
             }}
-            
+
             // Not convertable
             static if (S.sizeof > D.sizeof)
             {{
@@ -322,7 +329,7 @@ unittest
                 D d;
                 S s = S.max;
                 assert(!handler.doCoerce(&s, &d));
-                
+
                 s = -S.max;
                 assert(!handler.doCoerce(&s, &d));
             }}

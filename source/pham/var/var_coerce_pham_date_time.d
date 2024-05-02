@@ -102,31 +102,42 @@ shared static this() nothrow @safe
 {
     // Support Variant.coerce
     ConvertHandler handler;
-    handler.doCast = null;
+    handler.doCast = null;    
 
     // Date
     handler.doCoerce = &doCoerceStringToDate;
+    handler.flags = ConvertHandlerFlag.none;
     ConvertHandler.add!(string, Date)(handler);
 
     handler.doCoerce = &doCoerceDateTimeToDate;
+    handler.flags = ConvertHandlerFlag.none;
     ConvertHandler.add!(DateTime, Date)(handler);
+    ConvertHandler.add!(const(DateTime), Date)(handler);
 
     // DateTime
     handler.doCoerce = &doCoerceStringToDateTime;
+    handler.flags = ConvertHandlerFlag.none;
     ConvertHandler.add!(string, DateTime)(handler);
 
     handler.doCoerce = &doCoerceDateToDateTime;
+    handler.flags = ConvertHandlerFlag.implicit;
     ConvertHandler.add!(Date, DateTime)(handler);
+    ConvertHandler.add!(const(Date), DateTime)(handler);
 
     handler.doCoerce = &doCoerceTimeToDateTime;
+    handler.flags = ConvertHandlerFlag.implicit;
     ConvertHandler.add!(Time, DateTime)(handler);
+    ConvertHandler.add!(const(Time), DateTime)(handler);
 
     // Time
     handler.doCoerce = &doCoerceStringToTime;
+    handler.flags = ConvertHandlerFlag.none;
     ConvertHandler.add!(string, Time)(handler);
 
     handler.doCoerce = &doCoerceDateTimeToTime;
+    handler.flags = ConvertHandlerFlag.none;
     ConvertHandler.add!(DateTime, Time)(handler);
+    ConvertHandler.add!(const(DateTime), Time)(handler);
 }
 
 unittest // variant_coerce

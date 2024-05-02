@@ -15,8 +15,7 @@ import std.array : Appender;
 import std.conv : text, to;
 import std.system : Endian;
 
-debug(debug_pham_db_db_pgdatabase) import std.stdio : writeln;
-
+debug(debug_pham_db_db_pgdatabase) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
@@ -555,7 +554,7 @@ private:
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(functionName=", functionName, ")");
 
-        auto commandText = Appender!string();
+        Appender!string commandText;
         commandText.reserve(500);
         commandText.put("SELECT * FROM ");
         commandText.put(functionName);
@@ -621,14 +620,14 @@ package(pham.db):
 class PgCancelCommandData: DbCancelCommandData
 {
 @safe:
-    
+
 public:
     this(PgConnection connection)
     {
         this.serverProcessId = connection.serverInfo[DbServerIdentifier.protocolProcessId].to!int32();
         this.serverSecretKey = connection.serverInfo[DbServerIdentifier.protocolSecretKey].to!int32();
     }
-    
+
 public:
     int32 serverProcessId;
     int32 serverSecretKey;
@@ -654,35 +653,34 @@ public:
         if (auto log = canTraceLog())
             log.infof("%s.command.getExecutionPlan(vendorMode=%d)%s%s", forLogInfo(), vendorMode, newline, commandText);
 
-        auto explainQuery = pgConnection.createCommand();
-        scope (exit)
-            explainQuery.dispose();
-
-        explainQuery.commandText = vendorMode == 0
+        auto planCommandText = vendorMode == 0
             ? "EXPLAIN " ~ buildExecuteCommandText(BuildCommandTextState.executingPlan)
             : "EXPLAIN (ANALYZE, BUFFERS) " ~ buildExecuteCommandText(BuildCommandTextState.executingPlan);
-        auto explainReader = explainQuery.executeReader();
+        auto planCommand = pgConnection.createNonTransactionCommand(true);
         scope (exit)
-            explainReader.dispose();
+            planCommand.dispose();
+
+        planCommand.commandText = planCommandText;
+        auto planReader = planCommand.executeReader();
+        scope (exit)
+            planReader.dispose();
 
         size_t lines = 0;
-        auto result = Appender!string();
+        Appender!string result;
         result.reserve(1_000);
-        while (explainReader.read())
+        while (planReader.read())
         {
             if (lines)
                 result.put('\n');
-            result.put(explainReader.getValue!string(0));
+            result.put(planReader.getValue!string(0));
             lines++;
         }
         return result.data;
     }
 
-    final PgParameter[] pgInputParameters() nothrow @safe
+    final PgParameter[] pgInputParameters(const(bool) inputOnly = false) nothrow @safe
     {
-        return hasInputParameters
-            ? parameters.getParameterOfs!PgParameter(inputDirections())
-            : null;
+        return inputParameters!PgParameter(inputOnly);
     }
 
     final override Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe
@@ -715,8 +713,6 @@ public:
         return DbValue(blob.pgId, blobColumn.type);
     }
 
-    /* Properties */
-
     @property final PgConnection pgConnection() nothrow pure @safe
     {
         return cast(PgConnection)connection;
@@ -747,17 +743,26 @@ protected:
             }
         }
 
-        auto params = pgInputParameters();
-        auto result = Appender!string();
+        Appender!string result;
         result.reserve(500);
         result.put("CALL ");
         result.put(storedProcedureName);
         result.put('(');
-        foreach (i, param; params)
+        if (hasParameters)
         {
-            if (i)
-                result.put(',');
-			result.put(buildParameterPlaceholder(param.name, cast(uint32)(i + 1)));
+            auto params = parameters();
+            foreach (i; 0..params.length)
+            {
+                auto param = params[i];
+                if (i)
+                    result.put(',');
+                // Note
+                // <= v12 do not support output direction
+                if (param.direction == DbParameterDirection.output)
+                    result.put("NULL");
+                else
+                    result.put(buildParameterPlaceholder(param.name, cast(uint32)(i + 1)));
+            }
         }
         result.put(')');
 
@@ -793,9 +798,6 @@ protected:
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(type=", type, ")");
         version(profile) debug auto p = PerfFunction.create();
 
-        if (!prepared)
-            prepare();
-
         auto logTimming = canTimeLog() !is null
             ? LogTimming(canTimeLog(), text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
@@ -818,6 +820,11 @@ protected:
                 mergeOutputParams(row);
             }
         }
+    }
+
+    final override bool doExecuteCommandNeedPrepare(const(DbCommandExecuteType) type) nothrow @safe
+    {
+        return true; // Need to do directExecute in order to return false
     }
 
     final DbFetchResultStatus doExecuteCommandFetch(const(DbCommandExecuteType) type, const(bool) fetchAgain) @safe
@@ -986,16 +993,16 @@ protected:
         localFields.reserve(oidFieldInfos.length);
         foreach (i, ref oidField; oidFieldInfos)
         {
-            auto newField = localFields.createField(this, oidField.name);
+            auto newField = localFields.create(this, oidField.name);
             fillNamedColumn(newField, oidField, true);
             localFields.put(newField);
 
             if (localIsStoredProcedure)
             {
-                auto foundParameter = localParameters.hasOutputParameter(newField.name, i);
+                auto foundParameter = localParameters.hasOutput(newField.name, i);
                 if (foundParameter is null)
                 {
-                    auto newParameter = localParameters.createParameter(newField.name);
+                    auto newParameter = localParameters.create(newField.name);
                     newParameter.direction = DbParameterDirection.output;
                     fillNamedColumn(newParameter, oidField, true);
                     localParameters.put(newParameter);
@@ -1155,7 +1162,7 @@ protected:
     final override void doClose(bool failedOpen) @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(failedOpen=", failedOpen, ", socketActive=", socketActive, ")");
-        
+
         scope (exit)
             disposeProtocol(DisposingReason.other);
 
@@ -1216,7 +1223,8 @@ protected:
             command.dispose();
 
         // Ex: 12.4
-        command.commandText = "SHOW server_version as VARCHAR(120)";
+        command.commandText = "SHOW server_version";
+        command.parametersCheck = false;
         auto v = command.executeScalar();
         return v.isNull() ? null : v.get!string();
     }
@@ -1228,52 +1236,61 @@ protected:
     }
     do
     {
-        //TODO cache this result
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ")");
 
+        PgStoredProcedureInfo result;
+        
+        const cacheKey = DbDatabase.generateCacheKeyStoredProcedure(storedProcedureName, this.forCacheKey);
+        if (database.cache.find!PgStoredProcedureInfo(cacheKey, result))
+            return result;
+        
         auto command = createNonTransactionCommand();
         scope (exit)
-            command.dispose();
-
-        PgStoredProcedureInfo result;
+            command.dispose();        
 
         command.parametersCheck = true;
         command.commandText = q"{
-SELECT pronargs, prorettype, proargtypes, proargmodes, proargnames
+SELECT pronargs, prorettype, proallargtypes, proargmodes, proargnames
 FROM pg_proc
-WHERE proname = @proname
+WHERE proname = @proname AND prokind = 'p'
+ORDER BY oid
 }";
         command.parameters.add("proname", DbType.stringVary).value = storedProcedureName;
         auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+
         if (reader.hasRows() && reader.read())
         {
             PgOIdFieldInfo info;
 
             result = new PgStoredProcedureInfo(cast(PgDatabase)database, storedProcedureName);
 
-            const numberArgs = reader.getValue(0).get!int32();
+            //const numberInputArgs = reader.getValue(0).get!int32();
             const returnType = reader.getValue(1).get!PgOId();
-            PgOId[] typeArgs = numberArgs && !reader.isNull(2) ? reader.getValue(2).get!(PgOId[])() : null;
-            string[] modeArgs = numberArgs && !reader.isNull(3) ? reader.getValue(3).get!(string[])() : null;
-            string[] nameArgs = numberArgs && !reader.isNull(4) ? reader.getValue(4).get!(string[])() : null;
+            PgOId[] typeArgs = !reader.isNull(2) ? reader.getValue(2).get!(PgOId[])() : null;
+            string[] modeArgs = !reader.isNull(3) ? reader.getValue(3).get!(string[])() : null;
+            string[] nameArgs = !reader.isNull(4) ? reader.getValue(4).get!(string[])() : null;
+
+            debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "nameArgs=", nameArgs, ", typeArgs=", typeArgs, ", modeArgs=", modeArgs, ", returnType=", returnType);
 
             // Arguments
-            foreach (i; 0..numberArgs)
+            foreach (i; 0..nameArgs.length)
             {
-                if (i >= typeArgs.length)
+                if (i >= typeArgs.length || i >= modeArgs.length)
                 {
-                    //todo throw error
+                    //todo throw error?
                     break;
                 }
 
                 const paramType = typeArgs[i];
-                const paramName = i < nameArgs.length ? nameArgs[i] : null;
-                const mode = i < modeArgs.length ? modeArgs[i] : null;
+                const paramName = nameArgs[i];
+                const mode = modeArgs[i];
                 const paramDirection = pgParameterModeToDirection(mode);
 
                 info.type = paramType;
                 result.argumentTypes.add(
-                    paramName.length ? paramName : result.argumentTypes.generateParameterName(),
+                    paramName.length ? paramName : result.argumentTypes.generateName(),
                     info.dbType(),
                     0,
                     paramDirection).baseTypeId = paramType;
@@ -1284,7 +1301,8 @@ WHERE proname = @proname
             result.returnType.baseTypeId = returnType;
             result.returnType.type = info.dbType();
         }
-        reader.dispose();
+        
+        database.cache.addOrReplace(cacheKey, result);
         return result;
     }
 
@@ -1359,8 +1377,9 @@ class PgDatabase : DbDatabase
 @safe:
 
 public:
-    this() nothrow pure
+    this() nothrow
     {
+        super();
         this._name = DbIdentitier(DbScheme.pg);
         this._identifierQuoteChar = '"';
         this._stringQuoteChar = '\'';
@@ -1525,23 +1544,24 @@ public:
         super(command);
     }
 
-    final override DbField createField(DbCommand command, DbIdentitier name) nothrow
+    final override DbField create(DbCommand command, DbIdentitier name) nothrow @safe
     {
         return database !is null
             ? database.createField(cast(PgCommand)command, name)
             : new PgField(cast(PgCommand)command, name);
     }
 
-    final override DbFieldList createSelf(DbCommand command) nothrow
+    @property final PgCommand pgCommand() nothrow pure @safe
+    {
+        return cast(PgCommand)_command;
+    }
+
+protected:
+    final override DbFieldList createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
             ? database.createFieldList(cast(PgCommand)command)
             : new PgFieldList(cast(PgCommand)command);
-    }
-
-    @property final PgCommand pgCommand() nothrow pure @safe
-    {
-        return cast(PgCommand)_command;
     }
 }
 
@@ -1770,8 +1790,25 @@ version(UnitTestPGDatabase)
         assert(csb.sslCaDir == thisExePath());
         assert(csb.sslCert == "pg_client-cert.pem");
         assert(csb.sslKey == "pg_client-key.pem");
-        
+
         return cast(PgConnection)result;
+    }
+
+    string testStoredProcedureScheme() nothrow pure @safe
+    {
+        return q"{
+CREATE PROCEDURE public.multiple_by(
+  IN X integer,
+  INOUT Y integer,
+  OUT Z double precision)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  Y  = (X * 2);
+  Z  = (Y * 2);
+END;
+$$
+}";
     }
 
     string testTableSchema() nothrow pure @safe
@@ -1849,6 +1886,18 @@ unittest // PgConnection
 }
 
 version(UnitTestPGDatabase)
+unittest // PgConnection.serverVersion
+{
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    debug(debug_pham_db_db_pgdatabase) debug writeln("PgConnection.serverVersion=", connection.serverVersion);
+    assert(connection.serverVersion.length > 0);
+}
+
+version(UnitTestPGDatabase)
 unittest // PgTransaction
 {
     auto connection = createTestConnection();
@@ -1879,6 +1928,26 @@ unittest // PgTransaction
     transaction = connection.defaultTransaction();
     transaction.start();
     transaction.rollback();
+}
+
+version(UnitTestPGDatabase)
+unittest // PgTransaction.savePoint
+{
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto transaction = connection.createTransaction(DbIsolationLevel.readUncommitted);
+    transaction.start();        
+    if (transaction.canSavePoint())
+    {
+        auto commit1 = transaction.start("commit1");
+        auto rollback2 = transaction.start("rollback2");
+        rollback2.rollback("rollback2");
+        commit1.commit("commit1");
+    }
+    transaction.commit();
 }
 
 version(UnitTestPGDatabase)
@@ -2002,7 +2071,7 @@ unittest // PgCommand.DML - Parameter select
     while (reader.read())
     {
         count++;
-        debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
+        debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.db_pgdatabase.PgCommand.DML.checking - count: ", count);
 
         assert(reader.getValue(0) == 1);
         assert(reader.getValue("INT_FIELD") == 1);
@@ -2076,7 +2145,7 @@ ORDER BY pg_proc.proname
     while (reader.read())
     {
         count++;
-        debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.pgdatabase.PgCommand.DML.checking - count: ", count);
+        debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.db_pgdatabase.PgCommand.DML.checking - count: ", count);
 
         auto proname = reader.getValue("proname").toString();
         auto pronargs = reader.getValue("pronargs").toString();
@@ -2084,7 +2153,7 @@ ORDER BY pg_proc.proname
         auto proargtypes = reader.getValue("proargtypes").toString();
         auto proargmodes = reader.getValue("proargmodes").toString();
         auto prorettype = reader.getValue("prorettype").toString();
-        debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.pgdatabase.PgCommand.DML.proname=", proname,
+        debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.db_pgdatabase.PgCommand.DML.proname=", proname,
             ", pronargs=", pronargs, ", proargnames=", proargnames, ", proargtypes=", proargtypes,
             ", proargmodes=", proargmodes, ", prorettype=", prorettype);
     }
@@ -2233,20 +2302,22 @@ unittest // PgCommand.getExecutionPlan
 
     command.commandText = simpleSelectCommandText();
 
-    auto expectedDefault =
+    // General plan
+    auto planDefault = command.getExecutionPlan();
+    static immutable expectedDefault =
 q"{Seq Scan on test_select  (cost=0.00..13.50 rows=1 width=260)
   Filter: (int_field = 1)}";
-    auto planDefault = command.getExecutionPlan();
     //traceUnitTest("'", removePText(planDefault), "' vs ", "'", removePText(expectedDefault), "'");
     assert(removePText(planDefault) == removePText(expectedDefault));
 
-    auto expectedDetail =
+    // Detail plan
+    auto planDetail = command.getExecutionPlan(1);
+    static immutable expectedDetail =
 q"{Seq Scan on test_select  (cost=0.00..13.50 rows=1 width=260) (actual time=0.031..0.032 rows=1 loops=1)
   Filter: (int_field = 1)
   Buffers: shared hit=1
 Planning Time: 0.062 ms
 Execution Time: 0.053 ms}";
-    auto planDetail = command.getExecutionPlan(1);
     //traceUnitTest("'", planDetail, "'");
     //traceUnitTest("'", expectedDetail, "'");
     // Can't check for exact because time change for each run
@@ -2260,6 +2331,8 @@ Execution Time: 0.053 ms}";
 version(UnitTestPGDatabase)
 unittest // PgCommand.DML.StoredProcedure
 {
+    import std.conv : to;
+
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -2267,22 +2340,32 @@ unittest // PgCommand.DML.StoredProcedure
 
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln("Get information");
-        
-        auto info = connection.getStoredProcedureInfo("multiple_by2");
+
+        auto info = connection.getStoredProcedureInfo("multiple_by");
         assert(info !is null);
-        assert(info.argumentTypes.length == 1);
+        assert(info.argumentTypes.length == 3, info.argumentTypes.length.to!string);
         assert(info.argumentTypes[0].name == "X");
+        assert(info.argumentTypes[0].direction == DbParameterDirection.input);
+        assert(info.argumentTypes[1].name == "Y");
+        assert(info.argumentTypes[1].direction == DbParameterDirection.inputOutput);
+        assert(info.argumentTypes[2].name == "Z");
+        assert(info.argumentTypes[2].direction == DbParameterDirection.output);
     }
 
     {
+        debug(debug_pham_db_db_pgdatabase) debug writeln("Execute procedure");
+
         auto command = connection.createCommand();
         scope (exit)
             command.dispose();
 
-        command.commandStoredProcedure = "multiple_by2";
-        command.parameters.add("X", DbType.int32, DbParameterDirection.inputOutput).value = 2;
+        command.commandStoredProcedure = "multiple_by";
+        command.parameters.add("X", DbType.int32, DbParameterDirection.input).value = 2;
+        command.parameters.add("Y", DbType.int32, DbParameterDirection.inputOutput).value = 100;
+        command.parameters.add("Z", DbType.float64, DbParameterDirection.output);
         command.executeNonQuery();
-        assert(command.parameters.get("X").variant == 4);
+        assert(command.parameters.get("Y").variant == 4);
+        assert(command.parameters.get("Z").variant == 8.0);
     }
 }
 

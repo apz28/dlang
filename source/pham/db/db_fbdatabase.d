@@ -18,8 +18,7 @@ import std.math : abs;
 import std.string : indexOf;
 import std.system : Endian;
 
-debug(debug_pham_db_db_fbdatabase) import std.stdio : writeln;
-
+debug(debug_pham_db_db_fbdatabase) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
 import pham.utl.utl_enum_set : toName;
@@ -460,7 +459,7 @@ public:
     FbIscArrayDescriptor getDescriptor(string tableName, string fieldName)
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(tableName=", tableName, ", fieldName=", fieldName, ")");
-    
+
         FbIscArrayDescriptor result;
         result.fieldInfo.tableName = tableName;
         result.fieldInfo.name = fieldName;
@@ -666,7 +665,7 @@ public:
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
-        
+
         doClose(disposingReason);
         if (isDisposing(disposingReason))
             _command = null;
@@ -726,7 +725,7 @@ public:
             return null;
 
         size_t readLength = 0;
-        auto result = Appender!(ubyte[])();
+        Appender!(ubyte[]) result;
         result.reserve(blobLength);
         auto protocol = fbConnection.protocol;
         while (readLength < blobLength)
@@ -928,17 +927,15 @@ public:
         return FbCommandBatch(this, false, parametersCapacity);
     }
 
-    final FbParameter[] fbInputParameters() nothrow @safe
+    final FbParameter[] fbInputParameters(const(bool) inputOnly = false) nothrow @safe
     {
-        return hasInputParameters
-            ? parameters.getParameterOfs!FbParameter(inputDirections())
-            : null;
+        return inputParameters!FbParameter(inputOnly);
     }
 
 	final override string getExecutionPlan(uint vendorMode) @safe
 	{
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(vendorMode=", vendorMode, ")");
-        
+
         if (auto log = canTraceLog())
             log.infof("%s.command.getExecutionPlan(vendorMode=%d)%s%s", forLogInfo(), vendorMode, newline, commandText);
 
@@ -1152,16 +1149,12 @@ protected:
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(type=", type, ")");
         version(profile) debug auto p = PerfFunction.create();
 
-        // Firebird always need to do repare
-        if (!prepared)
-            prepare();
-        
         auto logTimming = canTimeLog() !is null
             ? LogTimming(canTimeLog(), text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
         prepareExecuting(type);
-        
+
         auto protocol = fbConnection.protocol;
 
         if (executedCount > 1 && type != DbCommandExecuteType.nonQuery)
@@ -1195,6 +1188,11 @@ protected:
 
             debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "_recordsAffected=", _recordsAffected);
         }
+    }
+
+    final override bool doExecuteCommandNeedPrepare(const(DbCommandExecuteType) type) nothrow @safe
+    {
+        return true; // Need to do directExecute in order to return false
     }
 
     final override void doFetch(const(bool) isScalar) @safe
@@ -1266,7 +1264,7 @@ protected:
 
                 writer.flush();
             }
-            
+
             foreach (ref requestResponse; requestResponses)
                 requestResponse();
         }
@@ -1438,17 +1436,17 @@ protected:
                 localFields.reserve(iscBindInfo.fields.length);
                 foreach (i, ref iscField; iscBindInfo.fields)
                 {
-                    auto newField = localFields.createField(this, iscField.useName.idup);
+                    auto newField = localFields.create(this, iscField.useName.idup);
                     newField.isAlias = iscField.aliasName.length != 0;
                     fillNamedColumn(newField, iscField, true);
                     localFields.put(newField);
 
                     if (localIsStoredProcedure)
                     {
-                        auto foundParameter = localParameters.hasOutputParameter(newField.name, i);
+                        auto foundParameter = localParameters.hasOutput(newField.name, i);
                         if (foundParameter is null)
                         {
-                            auto newParameter = localParameters.createParameter(newField.name);
+                            auto newParameter = localParameters.create(newField.name);
                             newParameter.direction = DbParameterDirection.output;
                             fillNamedColumn(newParameter, iscField, true);
                             localParameters.put(newParameter);
@@ -1474,8 +1472,8 @@ protected:
                     {
                         auto newName = iscField.useName.idup;
                         if (localParameters.exist(newName))
-                            newName = localParameters.generateParameterName();
-                        auto newParameter = localParameters.createParameter(newName);
+                            newName = localParameters.generateName();
+                        auto newParameter = localParameters.create(newName);
                         fillNamedColumn(newParameter, iscField, true);
                         localParameters.put(newParameter);
                     }
@@ -1937,6 +1935,7 @@ protected:
 
         // ex: "3.0.7"
         command.commandText = "SELECT rdb$get_context('SYSTEM', 'ENGINE_VERSION') FROM rdb$database";
+        command.parametersCheck = false;
         auto v = command.executeScalar();
         return v.isNull() ? null : v.get!string();
     }
@@ -2061,8 +2060,9 @@ class FbDatabase : DbDatabase
 @safe:
 
 public:
-    this() nothrow pure
+    this() nothrow
     {
+        super();
         this._name = DbIdentitier(DbScheme.fb);
         this._identifierQuoteChar = '"';
         this._stringQuoteChar = '\'';
@@ -2228,23 +2228,24 @@ public:
         super(command);
     }
 
-    final override DbField createField(DbCommand command, DbIdentitier name) nothrow
+    final override DbField create(DbCommand command, DbIdentitier name) nothrow @safe
     {
         return database !is null
             ? database.createField(cast(FbCommand)command, name)
             : new FbField(cast(FbCommand)command, name);
     }
 
-    final override DbFieldList createSelf(DbCommand command) nothrow
+    @property final FbCommand fbCommand() nothrow pure @safe
+    {
+        return cast(FbCommand)_command;
+    }
+
+protected:
+    final override DbFieldList createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
             ? database.createFieldList(cast(FbCommand)command)
             : new FbFieldList(cast(FbCommand)command);
-    }
-
-    @property final FbCommand fbCommand() nothrow pure @safe
-    {
-        return cast(FbCommand)_command;
     }
 }
 
@@ -2453,7 +2454,28 @@ version(UnitTestFBDatabase)
 
     string testCreateDatabaseFileName()
     {
-        return "C:\\Development\\Projects\\DLang\\FirebirdSQL\\TEST_CREATE.FDB";
+        return "C:\\Development\\Projects\\FirebirdSQL\\TEST_CREATE.FDB";
+    }
+
+    string testStoredProcedureSchema() nothrow pure @safe
+    {
+        return q"{
+CREATE PROCEDURE MULTIPLE_BY
+(
+  X INTEGER
+)
+RETURNS
+(
+  Y INTEGER,
+  Z DOUBLE PRECISION
+)
+AS
+BEGIN
+    y = x * 2;
+    z = y * 2;
+    SUSPEND;
+END;
+}";
     }
 
     string testTableSchema() nothrow pure @safe
@@ -2538,12 +2560,24 @@ unittest // FbConnection
     scope (exit)
         connection.dispose();
     assert(connection.state == DbConnectionState.closed);
-    
+
     connection.open();
     assert(connection.state == DbConnectionState.opened);
 
     connection.close();
     assert(connection.state == DbConnectionState.closed);
+}
+
+version(UnitTestFBDatabase)
+unittest // FbConnection.serverVersion
+{
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    debug(debug_pham_db_db_fbdatabase) debug writeln("FbConnection.serverVersion=", connection.serverVersion);
+    assert(connection.serverVersion.length > 0);
 }
 
 version(UnitTestFBDatabase)
@@ -2672,6 +2706,26 @@ unittest // FbTransaction
     transaction = connection.defaultTransaction();
     transaction.start();
     transaction.rollback();
+}
+
+version(UnitTestFBDatabase)
+unittest // FbTransaction.savePoint
+{
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto transaction = connection.createTransaction(DbIsolationLevel.readUncommitted);
+    transaction.start();        
+    if (transaction.canSavePoint())
+    {
+        auto commit1 = transaction.start("commit1");
+        auto rollback2 = transaction.start("rollback2");
+        rollback2.rollback("rollback2");
+        commit1.commit("commit1");
+    }
+    transaction.commit();
 }
 
 version(UnitTestFBDatabase)
@@ -3102,19 +3156,19 @@ unittest // FbCommand.DML.Types
 		command.commandText = "select cast(null as timestamp with time zone) from rdb$database";
 		auto v = command.executeScalar();
 		assert(v.isNull());
-    
+
 		command.commandText = "select cast('2020-08-27 10:00 Europe/Prague' as timestamp with time zone) from rdb$database";
 		v = command.executeScalar();
 		assert(v.get!DbDateTime() == DbDateTime(2020, 8, 27, 8, 0, 0, 0, DateTimeZoneKind.utc, 65059), v.get!DbDateTime().toString());
     }
-    
+
     // time with time zone
     if (dbVersion >= "4.0")
     {
 		command.commandText = "select cast(null as time with time zone) from rdb$database";
 		auto v = command.executeScalar();
 		assert(v.isNull());
-    
+
 		command.commandText = "select cast('15:00 Europe/Prague' as time with time zone) from rdb$database";
 		v = command.executeScalar();
 		assert(v.get!DbTime() == DbTime(14, 0, 0, 0, DateTimeZoneKind.utc, 65059), v.get!DbTime().toString());
@@ -3492,10 +3546,13 @@ unittest // FbCommand.DML.StoredProcedure
         scope (exit)
             command.dispose();
 
-        command.commandStoredProcedure = "MULTIPLE_BY2";
+        command.commandStoredProcedure = "MULTIPLE_BY";
         command.parameters.add("X", DbType.int32).value = 2;
+        command.parameters.add("Y", DbType.int32, DbParameterDirection.output);
+        command.parameters.add("Z", DbType.float64, DbParameterDirection.output);
         command.executeNonQuery();
         assert(command.parameters.get("Y").variant == 4);
+        assert(command.parameters.get("Z").variant == 8.0);
     }
 
     {
@@ -3503,7 +3560,7 @@ unittest // FbCommand.DML.StoredProcedure
         scope (exit)
             command.dispose();
 
-        command.commandText = "select * from MULTIPLE_BY2(2)";
+        command.commandText = "select * from MULTIPLE_BY(2)";
         auto reader = command.executeReader();
         scope (exit)
             reader.dispose();
@@ -3516,6 +3573,8 @@ unittest // FbCommand.DML.StoredProcedure
 
             assert(reader.getValue(0) == 4);
             assert(reader.getValue("Y") == 4);
+            assert(reader.getValue(1) == 8.0);
+            assert(reader.getValue("Z") == 8.0);
         }
         assert(count == 1);
     }

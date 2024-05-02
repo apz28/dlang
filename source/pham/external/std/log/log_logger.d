@@ -4041,7 +4041,7 @@ package(pham.external.std.log)
             this.msg = payload.message;
             this.exceptionMessage = payload.header.exception !is null ? payload.header.exception.msg : null;
 
-            auto buffer = Appender!string();
+            Appender!string buffer;
             buffer.reserve(500);
             auto writer = LogOutputWriter(this);
             writer.write(buffer, payload);
@@ -5118,7 +5118,7 @@ unittest // RollingFileLogger
 
     foreach (i; 0..1_000)
     {
-        auto s = Appender!string();
+        Appender!string s;
         s.reserve(2_000);
         foreach (j; 50..100)
         {

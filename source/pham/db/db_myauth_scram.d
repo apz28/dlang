@@ -139,7 +139,7 @@ public:
 
     static string normalize(scope const(char)[] str)
     {
-        auto buffer = Appender!string();
+        Appender!string buffer;
         buffer.reserve(str.length);
 
         foreach (char c; str)

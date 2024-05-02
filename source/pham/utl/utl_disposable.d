@@ -47,6 +47,12 @@ interface IDisposable
 struct LastDisposingReason
 {
 public:
+    ref typeof(this) opAssign(const(DisposingReason) disposingReason) @nogc nothrow return @safe
+    {
+        this.value = disposingReason;
+        return this;
+    }
+    
     pragma(inline, true)
     bool canDispose(const(DisposingReason) disposingReason) const @nogc nothrow @safe
     {
@@ -54,6 +60,7 @@ public:
     }
 
     DisposingReason value;
+    alias this = value;
 }
 
 /**

@@ -27,6 +27,8 @@ import std.traits : ConstOf, fullyQualifiedName,
     ImplicitConversionTargets = AllImplicitConversionTargets;
 import std.typecons : ReplaceTypeUnless, Tuple;
 
+debug(debug_pham_var_var_variant) import std.stdio : writeln;
+
 import pham.utl.utl_result : cmp;
 import pham.var.var_coerce;
 
@@ -614,11 +616,11 @@ public:
             if (ConvertHandler.find(handler.qualifiedName(), fullyQualifiedName!T, cvh))
             {
                 T result;
-                if (cvh.doCoerce !is null && cvh.doCoerce(handler.valuePointer(size, pointer), &result))
+                if (cvh.canCoerce && cvh.doCoerce(handler.valuePointer(size, pointer), &result))
                     return result;
 
                 static if (is(T == bool))
-                if (cvh.doCast !is null && cvh.doCast(handler.valuePointer(size, pointer), &result))
+                if (cvh.canCast && cvh.doCast(handler.valuePointer(size, pointer), &result))
                     return result;
             }
 
@@ -662,6 +664,19 @@ public:
                 // Value type will invoke destructor with garbage -> access violation
                 static if (hasElaborateDestructor!T)
                 memset(cast(void*)&result, 0, T.sizeof);
+                
+                // Implicit conversion?
+                if (!isNull)
+                {
+                    debug(debug_pham_var_var_variant) debug writeln(__FUNCTION__, "(from=", handler.qualifiedName(), ", to=", fullyQualifiedName!T, ")");
+                    
+                    ConvertHandler cvh;
+                    if (ConvertHandler.find(handler.qualifiedName(), fullyQualifiedName!T, cvh))
+                    {
+                        if (cvh.canImplicit && cvh.doCoerce(handler.valuePointer(size, pointer), cast(void*)&result))
+                            return result;
+                    }
+                }
 
                 throw new VariantException(typeInfo, typeid(T), "get()");
             }

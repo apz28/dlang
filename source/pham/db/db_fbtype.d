@@ -15,8 +15,7 @@ import std.array : Appender, replace;
 import std.conv : to;
 import std.traits : EnumMembers, Unqual;
 
-debug(debug_pham_db_db_fbtype) import std.stdio : writeln;
-
+debug(debug_pham_db_db_fbtype) import pham.db.db_debug;
 import pham.utl.utl_array : ShortStringBuffer;
 import pham.utl.utl_enum_set : toName;
 import pham.var.var_variant : Algebraic, Variant, VariantType;
@@ -1422,13 +1421,13 @@ public:
         return result;
     }
 
-    const(char)[] toString() nothrow
+    const(char)[] toString() const nothrow
     {
         return asString();
     }
 
 private:
-    bool asBool() nothrow
+    bool asBool() const nothrow
     {
         switch (value.variantType)
         {
@@ -1445,7 +1444,7 @@ private:
         }
     }
 
-    int asInt()
+    int asInt() const
     {
         switch (value.variantType)
         {
@@ -1470,7 +1469,7 @@ private:
         }
     }
 
-    const(char)[] asString() nothrow
+    const(char)[] asString() const nothrow
     {
         switch (value.variantType)
         {
@@ -1704,10 +1703,14 @@ public:
                     break;
             }
         }
+        
+        debug(debug_pham_db_db_fbtype) debug writeln("\t", "code=", code, ", state=", state, ", message=", message);
     }
 
     int getWarn(ref DbNotificationMessage[] messages)
     {
+        debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "()");
+        
         string warnMessage;
         int32 warnCode;
 
@@ -1748,6 +1751,9 @@ public:
         }
         if (warnMessage.length != 0)
             addWarnMessage();
+            
+        debug(debug_pham_db_db_fbtype) debug writeln("\t", "warnCode=", warnCode, ", warnMessage=", warnMessage); 
+        
         return result;
     }
 

@@ -15,8 +15,7 @@ import std.array : Appender;
 import std.conv : text, to;
 import std.system : Endian;
 
-debug(debug_pham_db_db_mydatabase) import std.stdio : writeln;
-
+debug(debug_pham_db_db_mydatabase) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
@@ -82,23 +81,25 @@ public:
             }
         }
 
-        auto explainQuery = myConnection.createCommand();
+        auto planCommandText = "EXPLAIN ANALYZE " ~ explainFormat()
+            ~ buildExecuteCommandText(BuildCommandTextState.executingPlan);
+        auto planCommand = myConnection.createNonTransactionCommand(true);
         scope (exit)
-            explainQuery.dispose();
+            planCommand.dispose();
 
-        explainQuery.commandText = "EXPLAIN ANALYZE " ~ explainFormat() ~ buildExecuteCommandText(BuildCommandTextState.executingPlan);
-        auto explainReader = explainQuery.executeReader();
+        planCommand.commandText = planCommandText;
+        auto planReader = planCommand.executeReader();
         scope (exit)
-            explainReader.dispose();
+            planReader.dispose();
 
         size_t lines = 0;
-        auto result = Appender!string();
+        Appender!string result;
         result.reserve(1_000);
-        while (explainReader.read())
+        while (planReader.read())
         {
             if (lines)
                 result.put('\n');
-            result.put(explainReader.getValue!string(0));
+            result.put(planReader.getValue!string(0));
             lines++;
         }
         return result.data;
@@ -150,8 +151,7 @@ protected:
             }
         }
 
-        size_t resulti;
-        auto result = Appender!string();
+        Appender!string result;
         result.reserve(500);
         result.put("CALL ");
         result.put('`');
@@ -159,69 +159,68 @@ protected:
         result.put('`');
         result.put('(');
 
+        size_t addPlaceHolderCount;
+        void addPlaceHolder() nothrow @safe
+        {
+            if (addPlaceHolderCount)
+                result.put(',');
+            result.put('?');
+            addPlaceHolderCount++;
+        }
+
+        size_t addInputNameCount;
+        void addInputName(string name) nothrow @safe
+        {
+            if (addInputNameCount)
+                result.put(',');
+            result.put('@');
+            result.put(name);
+            addInputNameCount++;
+        }
+
+        Appender!string outputNames;
+        size_t addOutputNameCount;
+        void addOutputName(string name) nothrow @safe
+        {
+            if (addOutputNameCount)
+                outputNames.put(',');
+            outputNames.put('@');
+            outputNames.put(name);
+            addOutputNameCount++;
+        }
+
         if (state == BuildCommandTextState.prepare)
         {
             if (hasParameters)
             {
                 foreach (param; parameters)
-                {
-                    if (resulti)
-                        result.put(',');
-                    result.put('?');
-                    resulti++;
-                }
+                    addPlaceHolder();
             }
-
             result.put(')');
         }
         else
         {
-            size_t outi;
-            auto output = Appender!string();
-            output.reserve(300);
+            outputNames.reserve(300);
 
             if (hasParameters)
             {
                 foreach (param; parameters)
                 {
-                    static immutable char inputPrefix = '@';
-                    static immutable string outputPrefix = "@_cnet_param_";
-                    enum outputOnly = false;
-                    const isOutput = param.isOutput(outputOnly);
-
-                    if (resulti)
-                        result.put(',');
-
-                    if (isOutput)
-                    {
-                        result.put(outputPrefix);
-                        result.put(param.name.value);
-
-                        if (outi)
-                            output.put(',');
-                        output.put(outputPrefix);
-                        output.put(param.name.value);
-                        outi++;
-                    }
-                    else
-                    {
-                        result.put(inputPrefix);
-                        result.put(param.name.value);
-                    }
-
-                    resulti++;
+                    addInputName(param.name);
+                    if (param.isOutput(false))
+                        addOutputName(param.name);
                 }
             }
 
             result.put(')');
-            if (outi)
+            if (addOutputNameCount)
             {
                 result.put(";SELECT ");
-                result.put(output.data);
+                result.put(outputNames.data);
             }
         }
 
-        debug(debug_pham_db_db_mydatabase) debug writeln("\t", "storedProcedureName=", storedProcedureName, ", result=", result.data);
+        debug(debug_pham_db_db_mydatabase) debug writeln("\t", "result=", result.data);
 
         return result.data;
     }
@@ -249,9 +248,6 @@ protected:
     {
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(type=", type, ")");
         version(profile) debug auto p = PerfFunction.create();
-
-        if (!prepared && hasParameters && parametersCheck)
-            prepare();
 
         auto logTimming = canTimeLog() !is null
             ? LogTimming(canTimeLog(), text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
@@ -294,6 +290,14 @@ protected:
         }
     }
 
+    final override bool doExecuteCommandNeedPrepare(const(DbCommandExecuteType) type) nothrow @safe
+    {
+        static immutable inOutFlags = EnumSet!DbParameterDirection([DbParameterDirection.inputOutput]);
+
+        // Need prepare for storedProcedure with inputOutput parameter(s)
+        return super.doExecuteCommandNeedPrepare(type) || hasParameters(inOutFlags) || (!hasParameters && isStoredProcedure);
+    }
+
     final override void doFetch(const(bool) isScalar) @safe
     in
     {
@@ -310,7 +314,7 @@ protected:
 
         auto protocol = myConnection.protocol;
         const fetchRecordCountTemp = fetchRecordCount;
-        uint continueFetchingCount = fetchRecordCountTemp >= 0 && fetchRecordCountTemp < 2 
+        uint continueFetchingCount = fetchRecordCountTemp >= 0 && fetchRecordCountTemp < 2
             ? 2
             : fetchRecordCountTemp;  // 2=record+eof package
         while (continueFetchingCount)
@@ -420,7 +424,7 @@ protected:
                 foreach (ref myField; response.fields)
                 {
                     auto newName = myField.useName;
-                    auto newField = localFields.createField(this, newName);
+                    auto newField = localFields.create(this, newName);
                     fillNamedColumn(newField, myField, true);
                     localFields.put(newField);
                 }
@@ -442,8 +446,8 @@ protected:
                 {
                     auto newName = myParameter.useName;
                     if (localParameters.exist(newName))
-                        newName = localParameters.generateParameterName();
-                    auto newParameter = localParameters.createParameter(newName);
+                        newName = localParameters.generateName();
+                    auto newParameter = localParameters.create(newName);
                     fillNamedColumn(newParameter, myParameter, true);
                     localParameters.put(newParameter);
                 }
@@ -462,17 +466,17 @@ protected:
             localFields.reserve(response.fields.length);
             foreach (i, ref myField; response.fields)
             {
-                auto newField = localFields.createField(this, myField.useName);
+                auto newField = localFields.create(this, myField.useName);
                 newField.isAlias = myField.isAlias;
                 fillNamedColumn(newField, myField, true);
                 localFields.put(newField);
 
                 if (localIsStoredProcedure)
                 {
-                    auto foundParameter = localParameters.hasOutputParameter(newField.name, i);
+                    auto foundParameter = localParameters.hasOutput(newField.name, i);
                     if (foundParameter is null)
                     {
-                        auto newParameter = localParameters.createParameter(newField.name);
+                        auto newParameter = localParameters.create(newField.name);
                         newParameter.direction = DbParameterDirection.output;
                         fillNamedColumn(newParameter, myField, true);
                         localParameters.put(newParameter);
@@ -789,6 +793,7 @@ protected:
         // Variable_name, Value
         // 'version', '8.0.27'
         command.commandText = "SHOW VARIABLES LIKE 'version'";
+        command.parametersCheck = false;
         auto reader = command.executeReader();
         scope (exit)
             reader.dispose();
@@ -803,15 +808,17 @@ protected:
     }
     do
     {
-        //TODO cache this result
-        
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ")");
+
+        MyStoredProcedureInfo result;
+        
+        const cacheKey = DbDatabase.generateCacheKeyStoredProcedure(storedProcedureName, this.forCacheKey);
+        if (database.cache.find!MyStoredProcedureInfo(cacheKey, result))
+            return result;
 
         auto command = createNonTransactionCommand();
         scope (exit)
             command.dispose();
-
-        MyStoredProcedureInfo result;
 
         command.parametersCheck = true;
         command.commandText = q"{
@@ -823,6 +830,9 @@ ORDER BY ORDINAL_POSITION
         command.parameters.add("ROUTINE_TYPE", DbType.stringVary).value = "PROCEDURE";
         command.parameters.add("SPECIFIC_NAME", DbType.stringVary).value = storedProcedureName;
         auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+            
         if (reader.hasRows())
         {
             result = new MyStoredProcedureInfo(cast(MyDatabase)database, storedProcedureName);
@@ -862,7 +872,8 @@ ORDER BY ORDINAL_POSITION
                 }
             }
         }
-        reader.dispose();
+        
+        database.cache.addOrReplace(cacheKey, result);
         return result;
     }
 
@@ -961,8 +972,9 @@ class MyDatabase : DbDatabase
 @safe:
 
 public:
-    this() nothrow pure
+    this() nothrow
     {
+        super();
         this._name = DbIdentitier(DbScheme.my);
         this._identifierQuoteChar = '`';
         this._stringQuoteChar = '\'';
@@ -1154,23 +1166,24 @@ public:
         super(command);
     }
 
-    final override DbField createField(DbCommand command, DbIdentitier name) nothrow
+    final override DbField create(DbCommand command, DbIdentitier name) nothrow @safe
     {
         return database !is null
             ? database.createField(cast(MyCommand)command, name)
             : new MyField(cast(MyCommand)command, name);
     }
 
-    final override DbFieldList createSelf(DbCommand command) nothrow
+    @property final MyCommand myCommand() nothrow pure @safe
+    {
+        return cast(MyCommand)_command;
+    }
+
+protected:
+    final override DbFieldList createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
             ? database.createFieldList(cast(MyCommand)command)
             : new MyFieldList(cast(MyCommand)command);
-    }
-
-    @property final MyCommand myCommand() nothrow pure @safe
-    {
-        return cast(MyCommand)_command;
     }
 }
 
@@ -1362,7 +1375,7 @@ version(UnitTestMYDatabase)
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
         DbCompressConnection compress = DbCompressConnection.disabled)
     {
-    import std.file : thisExePath;
+        import std.file : thisExePath;
 
         auto db = DbDatabaseList.getDb(DbScheme.my);
         assert(cast(MyDatabase)db !is null);
@@ -1397,6 +1410,17 @@ version(UnitTestMYDatabase)
         assert(csb.sslKey == "my_client-key.pem");
 
         return cast(MyConnection)result;
+    }
+
+    string testStoredProcedureSchema() nothrow pure @safe
+    {
+        return q"{
+CREATE PROCEDURE MULTIPLE_BY(IN X INTEGER, INOUT Y INTEGER, OUT Z DOUBLE)
+BEGIN
+  SET Y = X * 2;
+  SET Z = Y * 2;
+END
+}";
     }
 
     string testTableSchema() nothrow pure @safe
@@ -1476,6 +1500,18 @@ unittest // MyConnection
 }
 
 version(UnitTestMYDatabase)
+unittest // MyConnection.serverVersion
+{
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    debug(debug_pham_db_db_mydatabase) debug writeln("MyConnection.serverVersion=", connection.serverVersion);
+    assert(connection.serverVersion.length > 0);
+}
+
+version(UnitTestMYDatabase)
 unittest // MyConnection(myAuthSha2Caching)
 {
     auto connection = createTestConnection();
@@ -1535,6 +1571,26 @@ unittest // MyTransaction
     transaction = connection.defaultTransaction();
     transaction.start();
     transaction.rollback();
+}
+
+version(UnitTestMYDatabase)
+unittest // MyTransaction.savePoint
+{
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto transaction = connection.createTransaction(DbIsolationLevel.readUncommitted);
+    transaction.start();        
+    if (transaction.canSavePoint())
+    {
+        auto commit1 = transaction.start("commit1");
+        auto rollback2 = transaction.start("rollback2");
+        rollback2.rollback("rollback2");
+        commit1.commit("commit1");
+    }
+    transaction.commit();
 }
 
 version(UnitTestMYDatabase)
@@ -1713,18 +1769,20 @@ unittest // MyCommand.DML.StoredProcedure
         connection.dispose();
     connection.open();
 
+    debug(debug_pham_db_db_mydatabase) debug writeln("Get information");
     {
-        debug(debug_pham_db_db_mydatabase) debug writeln("Get information");
-        
-        auto info = connection.getStoredProcedureInfo("MULTIPLE_BY2");
-        assert(info.argumentTypes.length == 2);
+        auto info = connection.getStoredProcedureInfo("MULTIPLE_BY");
+        assert(info.argumentTypes.length == 3);
         assert(info.argumentTypes[0].name == "X");
+        assert(info.argumentTypes[0].direction == DbParameterDirection.input);
         assert(info.argumentTypes[1].name == "Y");
+        assert(info.argumentTypes[1].direction == DbParameterDirection.inputOutput);
+        assert(info.argumentTypes[2].name == "Z");
+        assert(info.argumentTypes[2].direction == DbParameterDirection.output);
     }
 
+    debug(debug_pham_db_db_mydatabase) debug writeln("Without prepare");
     {
-        debug(debug_pham_db_db_mydatabase) debug writeln("Without prepare");
-
         auto command = connection.createCommand();
         scope (exit)
             command.dispose();
@@ -1732,14 +1790,28 @@ unittest // MyCommand.DML.StoredProcedure
         command.parametersCheck = false;
         command.commandStoredProcedure = "MULTIPLE_BY2";
         command.parameters.add("X", DbType.int32, DbParameterDirection.input).value = 2;
-        command.parameters.add("Y", DbType.int32, DbParameterDirection.output);
+        command.parameters.add("Y", DbType.float64, DbParameterDirection.output);
         command.executeNonQuery();
         assert(command.parameters.get("Y").variant == 4);
     }
 
     {
-        debug(debug_pham_db_db_mydatabase) debug writeln("With prepare");
+        auto command = connection.createCommand();
+        scope (exit)
+            command.dispose();
 
+        command.parametersCheck = false;
+        command.commandStoredProcedure = "MULTIPLE_BY";
+        command.parameters.add("X", DbType.int32, DbParameterDirection.input).value = 2;
+        command.parameters.add("Y", DbType.int32, DbParameterDirection.inputOutput).value = 100;
+        command.parameters.add("Z", DbType.float64, DbParameterDirection.output);
+        command.executeNonQuery();
+        assert(command.parameters.get("Y").variant == 4);
+        assert(command.parameters.get("Z").variant == 8.0);
+    }
+
+    debug(debug_pham_db_db_mydatabase) debug writeln("With prepare");
+    {
         auto command = connection.createCommand();
         scope (exit)
             command.dispose();
@@ -1747,9 +1819,24 @@ unittest // MyCommand.DML.StoredProcedure
         command.parametersCheck = true;
         command.commandStoredProcedure = "MULTIPLE_BY2";
         command.parameters.add("X", DbType.int32, DbParameterDirection.input).value = 2;
-        command.parameters.add("Y", DbType.int32, DbParameterDirection.output);
+        command.parameters.add("Y", DbType.float64, DbParameterDirection.output);
         command.executeNonQuery();
         assert(command.parameters.get("Y").variant == 4);
+    }
+
+    {
+        auto command = connection.createCommand();
+        scope (exit)
+            command.dispose();
+
+        command.parametersCheck = true;
+        command.commandStoredProcedure = "MULTIPLE_BY";
+        command.parameters.add("X", DbType.int32, DbParameterDirection.input).value = 2;
+        command.parameters.add("Y", DbType.int32, DbParameterDirection.inputOutput).value = 100;
+        command.parameters.add("Z", DbType.float64, DbParameterDirection.output);
+        command.executeNonQuery();
+        assert(command.parameters.get("Y").variant == 4);
+        assert(command.parameters.get("Z").variant == 8.0);
     }
 }
 
@@ -1768,7 +1855,7 @@ unittest // MyCommand.DML.Abort reader
     command.commandText = "select * from foo limit 1000";
 
     {
-        debug(debug_pham_db_db_mydatabase) debug writeln("Aborting case");
+        debug(debug_pham_db_db_mydatabase) debug writeln("Read some - Abort reader case");
 
         auto reader = command.executeReader();
         scope (exit)
@@ -1786,7 +1873,7 @@ unittest // MyCommand.DML.Abort reader
     }
 
     {
-        debug(debug_pham_db_db_mydatabase) debug writeln("Read all after abort case");
+        debug(debug_pham_db_db_mydatabase) debug writeln("Read all - Abort reader case");
 
         auto reader = command.executeReader();
         scope (exit)
