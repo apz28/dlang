@@ -31,7 +31,7 @@ import pham.utl.utl_disposable;
 import pham.utl.utl_object : RAIIMutex, singleton;
 import pham.utl.utl_system : currentComputerName, currentProcessId, currentProcessName, currentUserName;
 import pham.utl.utl_timer;
-import pham.utl.utl_utf8 : nextUTF8Char;
+import pham.utl.utl_utf8 : encodeUTF8, encodeUTF8MaxLength, nextUTF8Char;
 import pham.db.db_convert;
 public import pham.db.db_exception;
 import pham.db.db_message;
@@ -1490,6 +1490,12 @@ public:
         return null;
     }
 
+    final void removeCachedStoredProcedure(string storedProcedureName) nothrow @safe
+    {
+        const cacheKey = DbDatabase.generateCacheKeyStoredProcedure(storedProcedureName, this.forCacheKey);
+        database.cache.remove(cacheKey);
+    }
+    
     final string serverVersion() @safe
     {
         if (auto e = DbServerIdentifier.dbVersion in serverInfo.values)
@@ -1928,7 +1934,7 @@ public:
         }
     }
 
-    final DbConnection[] removeInactives(scope const(DateTime) now, scope const(Duration) maxInactiveTime) nothrow @safe
+    final DbConnection[] removeInactives(scope const(DateTime) utcNow, scope const(Duration) maxInactiveTime) nothrow @safe
     {
         DbConnection[] result;
         result.reserve(length);
@@ -1936,7 +1942,7 @@ public:
         // Iterate and get inactive connections
         foreach (connection; this)
         {
-            const elapsed = now - connection._inactiveTime;
+            const elapsed = utcNow - connection._inactiveTime;
             if (elapsed.toDuration > maxInactiveTime)
                 result ~= connection;
         }
@@ -2051,17 +2057,22 @@ protected:
 
 class DbConnectionPool : DbDisposableObject
 {
+@safe:
+
 public:
-    this(size_t maxLength = DbDefaultSize.connectionPoolLength,
-         uint maxInactiveTimeInSeconds = DbDefaultSize.connectionPoolInactiveTime) nothrow pure @safe
+    this(Timer secondTimer,
+        size_t maxLength = DbDefaultSize.connectionPoolLength,
+        uint maxInactiveTimeInSeconds = DbDefaultSize.connectionPoolInactiveTime) nothrow
     {
+        this._secondTimer = secondTimer;
+        this._mutex = new Mutex();
         this._maxLength = maxLength;
         this._maxInactiveTime = dur!"seconds"(maxInactiveTimeInSeconds);
     }
 
-    final DbConnection acquire(DbScheme scheme, string connectionString) @safe
+    final DbConnection acquire(DbScheme scheme, string connectionString)
     {
-        auto raiiMutex = () @trusted { return RAIIMutex(_poolMutex); }();
+        auto raiiMutex = () @trusted { return RAIIMutex(_mutex); }();
 
         const localMaxLength = maxLength;
         if (_acquiredLength >= localMaxLength)
@@ -2080,7 +2091,7 @@ public:
         return result;
     }
 
-    final DbConnection acquire(DbConnectionStringBuilder connectionStringBuilder) @safe
+    final DbConnection acquire(DbConnectionStringBuilder connectionStringBuilder)
     {
         return acquire(connectionStringBuilder.scheme, connectionStringBuilder.connectionString);
     }
@@ -2094,13 +2105,13 @@ public:
         }
     }
 
-    final size_t cleanupInactives() @safe
+    final size_t cleanupInactives()
     {
         auto inactives = removeInactives();
+        
         foreach (inactive; inactives)
-        {
             inactive.dispose();
-        }
+        
         return inactives.length;
     }
 
@@ -2116,8 +2127,7 @@ public:
     }
     do
     {
-        if (cas(&_timerAdded, size_t(0), size_t(1)))
-            _secondTimer.addEvent(TimerEvent(timerName(), dur!"minutes"(1), &doTimer));
+        registerWithTimer();
 
         DbConnectionList poolList;
         final switch (DbConnectionList.canPoolConnection(null, this, item, poolList)) with (DbConnectionList.CanPool)
@@ -2132,7 +2142,7 @@ public:
                 break;
         }
 
-        auto raiiMutex = RAIIMutex(_poolMutex);
+        auto raiiMutex = RAIIMutex(_mutex);
 
         atomicFetchSub(_acquiredLength, 1);
 
@@ -2149,31 +2159,31 @@ public:
         return null;
     }
 
-    @property final size_t acquiredLength() const nothrow @safe
+    @property final size_t acquiredLength() const nothrow
     {
         return atomicLoad(_acquiredLength);
     }
 
-    @property final size_t maxLength() const nothrow pure @safe
+    @property final size_t maxLength() const nothrow pure
     {
         return atomicLoad(_maxLength);
     }
 
-    @property final typeof(this) maxLength(size_t value) nothrow pure @safe
+    @property final typeof(this) maxLength(size_t value) nothrow pure
     {
         atomicStore(_maxLength, value);
         return this;
     }
 
-    @property final size_t unusedLength() const nothrow pure @safe
+    @property final size_t unusedLength() const nothrow pure
     {
         return atomicLoad(_unusedLength);
     }
 
 protected:
-    static DbConnectionPool createInstance() nothrow pure @safe
+    static DbConnectionPool createInstance() nothrow @trusted
     {
-        return new DbConnectionPool();
+        return new DbConnectionPool(._secondTimer);
     }
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @trusted
@@ -2182,14 +2192,21 @@ protected:
 
         scope (failure) assert(0, "Assume nothrow failed");
 
-        if (cas(&_timerAdded, size_t(1), size_t(0)) && _secondTimer !is null)
-            _secondTimer.removeEvent(timerName());
+        unregisterWithTimer();
+        _secondTimer = null;
 
         foreach (_, lst; _schemeConnections)
             lst.dispose(disposingReason);
+
         _schemeConnections = null;
         _acquiredLength = 0;
         _unusedLength = 0;
+
+        if (_mutex !is null)
+        {
+            _mutex.destroy();
+            _mutex = null;
+        }
     }
 
     final void doTimer(TimerEvent event)
@@ -2197,15 +2214,21 @@ protected:
         cleanupInactives();
     }
 
-    final DbConnection[] removeInactives() @safe
+    final void registerWithTimer() nothrow
     {
-        auto raiiMutex = () @trusted { return RAIIMutex(_poolMutex); }();
-        const now = DateTime.utcNow;
+        if (cas(&_timerAdded, false, true) && _secondTimer !is null)
+            _secondTimer.addEvent(TimerEvent(timerName(), dur!"minutes"(1), &doTimer));
+    }
+    
+    final DbConnection[] removeInactives()
+    {
+        auto raiiMutex = () @trusted { return RAIIMutex(_mutex); }();
+        const utcNow = DateTime.utcNow;
         DbConnection[] result;
         result.reserve(_unusedLength);
         foreach (_, lst; _schemeConnections)
         {
-            auto inactives = lst.removeInactives(now, _maxInactiveTime);
+            auto inactives = lst.removeInactives(utcNow, _maxInactiveTime);
             if (inactives.length)
             {
                 result ~= inactives;
@@ -2215,7 +2238,7 @@ protected:
         return result;
     }
 
-    final DbConnectionList schemeConnections(DbDatabase database, string connectionString) @safe
+    final DbConnectionList schemeConnections(DbDatabase database, string connectionString)
     {
         auto id = DbIdentitier(database.scheme ~ dbSchemeSeparator ~ connectionString);
         if (auto e = id in _schemeConnections)
@@ -2232,18 +2255,28 @@ protected:
     {
         import pham.utl.utl_object : toString;
 
+        static immutable string prefix = "DbConnectionPool_";
         Appender!string buffer;
-        buffer.reserve(17 + size_t.sizeof * 2);
-        buffer.put("DbConnectionPool_");
+        buffer.reserve(prefix.length + size_t.sizeof * 2);
+        buffer.put(prefix);
         return toString!16(buffer, cast(size_t)(cast(void*)this)).data;
     }
 
+    final void unregisterWithTimer() nothrow
+    {
+        if (cas(&_timerAdded, true, false) && _secondTimer !is null)
+            _secondTimer.removeEvent(timerName());
+    }
+    
 private:
+    Mutex _mutex;
     DbConnectionList[DbIdentitier] _schemeConnections;
     Duration _maxInactiveTime;
-    size_t _acquiredLength, _unusedLength, _timerAdded;
-    shared size_t _maxLength;
+    size_t _acquiredLength, _unusedLength, _maxLength;
+    Timer _secondTimer;
+    bool _timerAdded;
     __gshared static DbConnectionPool _instance;
+    
 }
 
 abstract class DbConnectionStringBuilder : DbIdentitierValueList!string
@@ -3094,11 +3127,11 @@ public:
     }
 
 public:
-    this() nothrow
+    this() nothrow @trusted
     {
-        _cache = new DbCache!string();
+        _cache = new DbCache!string(._secondTimer);
     }
-    
+
     abstract const(string[]) connectionStringParameterNames() const nothrow pure;
     abstract DbCommand createCommand(DbConnection connection,
         string name = null) nothrow;
@@ -3136,13 +3169,14 @@ public:
             return CharClass.any;
     }
 
-    final const(char)[] escapeIdentifier(return const(char)[] value) pure
+    final const(char)[] escapeIdentifier(return const(char)[] value) nothrow pure
     {
         if (value.length == 0)
             return value;
 
         size_t p;
         dchar cCode;
+        char[encodeUTF8MaxLength] cCodeBuffer;
         ubyte cCount;
 
         // Find the first quote char
@@ -3168,23 +3202,25 @@ public:
 
             const cc = charClass(cCode);
             if (cc == CharClass.quote)
-                result.put(cCode);
+                result.put(encodeUTF8(cCodeBuffer, cCode));
             else if (cc == CharClass.backslash)
                 result.put('\\');
-            result.put(cCode);
+                
+            result.put(encodeUTF8(cCodeBuffer, cCode));
 
             p += cCount;
         }
         return result.data;
     }
 
-    final const(char)[] escapeString(return const(char)[] value) pure
+    final const(char)[] escapeString(return const(char)[] value) nothrow pure
     {
         if (value.length == 0)
             return value;
 
         size_t p;
         dchar cCode;
+        char[encodeUTF8MaxLength] cCodeBuffer;
         ubyte cCount;
 
         // Find the first quote char
@@ -3210,18 +3246,19 @@ public:
 
             if (charClass(cCode) != CharClass.any)
                 result.put('\\');
-            result.put(cCode);
+                
+            result.put(encodeUTF8(cCodeBuffer, cCode));
 
             p += cCount;
         }
         return result.data;
     }
 
-    static string generateCacheKeyStoredProcedure(string storedProcedureName, string databaseCacheKey)
+    static string generateCacheKeyStoredProcedure(string storedProcedureName, string databaseCacheKey) nothrow pure
     {
         return storedProcedureName ~ ".StoredProcedure." ~ databaseCacheKey;
     }
-    
+
     final const(char)[] quoteIdentifier(scope const(char)[] value) pure
     {
         return identifierQuoteChar ~ escapeIdentifier(value) ~ identifierQuoteChar;
@@ -3236,7 +3273,7 @@ public:
     {
         return _cache;
     }
-    
+
     /**
      * For logging various message & trace
      * Central place to assign to newly created DbConnection
@@ -5306,35 +5343,28 @@ mixin DLinkTypes!(DbTransaction) DLinkDbTransactionTypes;
 // Any below codes are private
 private:
 
-__gshared static Mutex _poolMutex;
 __gshared static Timer _secondTimer;
 
-shared static this() nothrow @trusted
+shared static this() nothrow
 {
     debug(debug_pham_db_db_database) debug writeln("shared static this()");
 
-    _poolMutex = new Mutex();
     _secondTimer = new Timer(dur!"seconds"(1));
 }
 
-shared static ~this() nothrow @trusted
+shared static ~this() nothrow
 {
     debug(debug_pham_db_db_database) debug writeln("shared static ~this()");
 
-    // Timer must be destroyed first
     if (_secondTimer !is null)
-    {
         _secondTimer.enabled = false;
-        _secondTimer.destroy();
-        _secondTimer = null;
-    }
 
     DbConnectionPool.cleanup();
     DbDatabaseList.cleanup();
 
-    if (_poolMutex !is null)
+    if (_secondTimer !is null)
     {
-        _poolMutex.destroy();
-        _poolMutex = null;
+        _secondTimer.destroy();
+        _secondTimer = null;
     }
 }

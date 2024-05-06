@@ -18,6 +18,63 @@ import std.traits : isSomeChar;
 
 nothrow @safe:
 
+enum encodeUTF8MaxLength = 4;
+char[] encodeUTF8(return ref char[encodeUTF8MaxLength] buffer, const(dchar) c) @nogc pure
+{
+    if (c <= 0x7F)
+    {
+        buffer[0] = cast(char)c;
+        return buffer[0..1];
+    }
+    else if (c <= 0x7FF)
+    {
+        buffer[0] = cast(char)(0xC0 | (c >> 6));
+        buffer[1] = cast(char)(0x80 | (c & 0x3F));
+        return buffer[0..2];
+    }
+    else if (c <= 0xFFFF)
+    {
+        if (0xD800 <= c && c <= 0xDFFF)
+            return null;
+
+        buffer[0] = cast(char)(0xE0 | (c >> 12));
+        buffer[1] = cast(char)(0x80 | ((c >> 6) & 0x3F));
+        buffer[2] = cast(char)(0x80 | (c & 0x3F));
+        return buffer[0..3];
+    }
+    else if (c <= 0x10FFFF)
+    {
+        buffer[0] = cast(char)(0xF0 | (c >> 18));
+        buffer[1] = cast(char)(0x80 | ((c >> 12) & 0x3F));
+        buffer[2] = cast(char)(0x80 | ((c >> 6) & 0x3F));
+        buffer[3] = cast(char)(0x80 | (c & 0x3F));
+        return buffer[0..4];
+    }
+    else
+        return null;
+}
+
+enum encodeUTF16MaxLength = 2;
+wchar[] encodeUTF16(return ref wchar[encodeUTF16MaxLength] buffer, const(dchar) c) @nogc pure
+{
+    if (c <= 0xFFFF)
+    {
+        if (0xD800 <= c && c <= 0xDFFF)
+            return null;
+
+        buffer[0] = cast(wchar) c;
+        return buffer[0..1];
+    }
+    
+    if (c <= 0x10FFFF)
+    {
+        buffer[0] = cast(wchar)((((c - 0x10000) >> 10) & 0x3FF) + 0xD800);
+        buffer[1] = cast(wchar)(((c - 0x10000) & 0x3FF) + 0xDC00);
+        return buffer[0..2];
+    }
+
+    return null;
+}
 
 bool nextUTF8Char(scope const(ubyte)[] str, size_t pos, out dchar cCode, out ubyte cCount) @nogc pure
 {

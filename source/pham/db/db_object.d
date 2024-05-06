@@ -11,7 +11,9 @@
 
 module pham.db.db_object;
 
+import core.atomic : cas;
 import core.sync.mutex : Mutex;
+import core.time : Duration, dur;
 import std.algorithm : remove;
 import std.algorithm.comparison : min;
 import std.array : Appender;
@@ -26,6 +28,7 @@ import pham.utl.utl_disposable;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.utl.utl_object : RAIIMutex, shortClassName;
 import pham.utl.utl_result : addLine, ResultIf;
+import pham.utl.utl_timer;
 import pham.utl.utl_utf8 : nextUTF8Char;
 import pham.db.db_exception;
 import pham.db.db_message;
@@ -42,9 +45,16 @@ DbIdentitier[] toIdentifiers(const string[] strings) nothrow
     return result;
 }
 
+/**
+ * Determine which based time to be used for checking to remove 
+ * a object from cache
+ */
 enum DbExpirationKind : ubyte
 {
+    /// Based on creation time
     created,
+    
+    /// Based on the last used
     lastTouched,
 }
 
@@ -53,32 +63,38 @@ struct DbExpiration
 nothrow @safe:
 
 public:
-    this(uint maxAge, DbExpirationKind kind)
+    this(Duration maxAge, DbExpirationKind kind)
     {
         this.maxAge = maxAge;
         this.kind = kind;
-        this.created = this.lastTouched = DateTime.now;
+        this.created = this.lastTouched = DateTime.utcNow;
     }
 
-    bool canEvicted() const
+    /**
+     * Return true if this cache object can be removed
+     */
+    bool canEvicted(scope const(DateTime) utcNow) const
     {
-        if (maxAge == 0)
+        if (maxAge <= Duration.zero)
             return false;
             
         return kind == DbExpirationKind.created
-            ? ((DateTime.now - created).totalMinutes > maxAge)
-            : ((DateTime.now - lastTouched).totalMinutes > maxAge);
+            ? ((utcNow - created).totalMinutes > maxAge.total!"minutes")
+            : ((utcNow - lastTouched).totalMinutes > maxAge.total!"minutes");
     }
     
+    /**
+     * Update last used time to current time
+     */
     void touch()
     {
-        this.lastTouched = DateTime.now;
+        this.lastTouched = DateTime.utcNow;
     }
 
 public:
     DateTime created;
     DateTime lastTouched;
-    uint maxAge;
+    Duration maxAge;
     DbExpirationKind kind;
 }
 
@@ -88,7 +104,15 @@ if (isIntegral!K || isSomeString!K)
 nothrow @safe:
 
 public:
-    this(K key, Object item, uint maxAge, DbExpirationKind kind)
+    /**
+     * Construct a cache object
+     *  key = a cached key
+     *  item = a cached object
+     *  maxAge = the maximum duration a cached object stayed in cache
+     *           a zero/nagetive value is unlimit
+     *  kind = which based time (created or last used) being used for checking cache lifetime
+     */
+    this(K key, Object item, Duration maxAge, DbExpirationKind kind)
     {
         this._key = key;
         this._expiration = DbExpiration(maxAge, kind);
@@ -105,49 +129,76 @@ public:
         return hashOf(_key);
     }
 
-    bool canEvicted() const
+    /**
+     * Return true if this cache object can be removed
+     */
+    pragma(inline, true)
+    bool canEvicted(scope const(DateTime) utcNow) const
     {
-        return _expiration.canEvicted();
+        return _expiration.canEvicted(utcNow);
     }
     
+    /**
+     * Update last used time to current time
+     */
+    pragma(inline, true)
     V touch(V : Object)()
     {
         this._expiration.touch();
         return cast(V)item;
     }
 
-    V touch(V : Object)(V item, uint maxAge, DbExpirationKind kind)
+    /**
+     * Update this cache item with new cached object
+     * Params:
+     *  item = an object being cached
+     *  maxAge = the maximum duration a cached object stayed in cache
+     *           a zero/nagetive value is unlimit
+     *  kind = which based time (created or last used) being used for checking cache lifetime
+     */
+    V touch(V : Object)(V item, Duration maxAge, DbExpirationKind kind)
     {
         this._expiration = DbExpiration(maxAge, kind);
         this.item = item;
         return item;
     }
 
+    /**
+     * Time of a object put into cache
+     */
     @property DateTime created() const
     {
         return _expiration.created;
     }
 
+    /**
+     * Cached key
+     */
     @property K key() const
     {
         return _key;
     }
 
+    /**
+     * Last time of cached object being used
+     */
     @property DateTime lastTouched() const
     {
         return _expiration.lastTouched;
     }
 
     /**
-     * Max number of minutes a cached item can be kept
-     * The value of zero is unlimit
-     * default is 4 hours
+     * Maximum duration a cached object stayed in cache
+     * The value of zero/negative is unlimit
      */
-    @property uint maxAge() const
+    @property Duration maxAge() const
     {
         return _expiration.maxAge;
     }
 public:
+    /**
+     * Cached object
+     */
     Object item;
 
 private:
@@ -160,24 +211,27 @@ if (isIntegral!K || isSomeString!K)
 {
 nothrow @safe:
 
-    enum defaultAge = 60 * 4; // 4 hours in minutes
+    enum defaultAge = dur!"hours"(8);
     enum defaultKind = DbExpirationKind.created;
     
 public:
-    this()
+    this(Timer secondTimer)
     {
+        this.secondTimer = secondTimer;
         this.mutex = new Mutex();
     }
 
     final bool add(V : Object)(K key, V item,
-        uint maxAge = defaultAge,
+        Duration maxAge = defaultAge,
         DbExpirationKind kind = defaultKind)
     {
+        registerWithTimer();
+
         auto raiiMutex = RAIIMutex(mutex);
         
         if (auto e = key in items)
         {
-            if (!(*e).canEvicted())
+            if (!(*e).canEvicted(DateTime.utcNow))
                 return false;
                 
             (*e).touch!V(item, maxAge, kind);
@@ -189,9 +243,11 @@ public:
     }
 
     final V addOrReplace(V : Object)(K key, V item,
-        uint maxAge = defaultAge,
+        Duration maxAge = defaultAge,
         DbExpirationKind kind = defaultKind)
     {
+        registerWithTimer();
+
         auto raiiMutex = RAIIMutex(mutex);
         
         if (auto e = key in items)
@@ -199,6 +255,17 @@ public:
         else    
             items[key] = DbCacheItem!K(key, item, maxAge, kind);
         return item;
+    }
+
+    final size_t cleanupInactives() @safe
+    {
+        auto inactives = removeInactives();
+        
+        version(none)
+        foreach (inactive; inactives)
+            inactive.dispose();
+        
+        return inactives.length;
     }
     
     final bool find(V : Object)(K key, ref V found)
@@ -231,15 +298,15 @@ public:
                 return false;
         }
     }
-
-    @property K[] keys()
+    
+    @property final K[] keys()
     {
         auto raiiMutex = RAIIMutex(mutex);
         
         return items.keys;
     }
 
-    @property size_t length()
+    @property final size_t length()
     {
         auto raiiMutex = RAIIMutex(mutex);
         
@@ -249,6 +316,9 @@ public:
 protected:
     override void doDispose(const(DisposingReason) disposingReason) nothrow @trusted
     {
+        unregisterWithTimer();
+        secondTimer = null;
+
         items.clear();
         
         if (mutex !is null)
@@ -258,6 +328,11 @@ protected:
         }
     }
     
+    final void doTimer(TimerEvent event)
+    {
+        cleanupInactives();
+    }
+        
     enum FindResult : ubyte
     {
         found,
@@ -269,7 +344,7 @@ protected:
     {
         if (auto e = key in items)
         {
-            if ((*e).canEvicted())
+            if ((*e).canEvicted(DateTime.utcNow))
                 return FindResult.expired;
                 
             found = (*e).touch!V();
@@ -279,9 +354,56 @@ protected:
             return FindResult.unfound;
     }
 
+    final void registerWithTimer()
+    {
+        if (cas(&timerAdded, false, true) && secondTimer !is null)
+            secondTimer.addEvent(TimerEvent(timerName(), dur!"minutes"(1), &doTimer));
+    }
+    
+    final DbCacheItem!K[] removeInactives()
+    {
+        auto raiiMutex = () @trusted { return RAIIMutex(mutex); }();
+        
+        const utcNow = DateTime.utcNow;
+        DbCacheItem!K[] result;
+        result.reserve(items.length / 2);
+        
+        // Get all inactive ones
+        foreach (ref item; items.byValue)
+        {
+            if (item.canEvicted(utcNow))
+                result ~= item;
+        }
+        
+        // Remove from cache list
+        foreach (ref item; result)
+            items.remove(item.key);
+            
+        return result;
+    }
+
+    final string timerName() nothrow pure @trusted
+    {
+        import pham.utl.utl_object : toString;
+
+        static immutable string prefix = "DbCache_";
+        Appender!string buffer;
+        buffer.reserve(prefix.length + size_t.sizeof * 2);
+        buffer.put(prefix);
+        return toString!16(buffer, cast(size_t)(cast(void*)this)).data;
+    }
+
+    final unregisterWithTimer()
+    {
+        if (cas(&timerAdded, true, false) && secondTimer !is null)
+            secondTimer.removeEvent(timerName());
+    }
+
 private:
     Mutex mutex;
     DbCacheItem!K[K] items;
+    Timer secondTimer;
+    bool timerAdded;
 }
 
 struct DbCustomAttributeList
@@ -1672,7 +1794,7 @@ unittest // DbCache
 {
     import pham.utl.utl_array : indexOf;
     
-    auto cache = new DbCache!int();
+    auto cache = new DbCache!int(null);
     scope (exit)
         cache.dispose();
         

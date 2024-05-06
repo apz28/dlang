@@ -234,7 +234,7 @@ FormatSpec!char simpleIntegerFmt(int width = 0) nothrow pure @safe
  * Returns:
  *   parameter `v`
  */
-T singleton(T)(ref T v, T function() nothrow pure @safe initiate) nothrow pure @trusted //@trusted=cast(T)null
+T singleton(T)(ref T v, T function() nothrow @safe initiate) nothrow @trusted //@trusted=cast(T)null
 if (is(T == class))
 {
     import core.atomic : cas;
