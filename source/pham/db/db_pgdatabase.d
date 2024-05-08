@@ -1239,14 +1239,14 @@ protected:
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ")");
 
         PgStoredProcedureInfo result;
-        
+
         const cacheKey = DbDatabase.generateCacheKeyStoredProcedure(storedProcedureName, this.forCacheKey);
         if (database.cache.find!PgStoredProcedureInfo(cacheKey, result))
             return result;
-        
+
         auto command = createNonTransactionCommand();
         scope (exit)
-            command.dispose();        
+            command.dispose();
 
         command.parametersCheck = true;
         command.commandText = q"{
@@ -1301,7 +1301,7 @@ ORDER BY oid
             result.returnType.baseTypeId = returnType;
             result.returnType.type = info.dbType();
         }
-        
+
         database.cache.addOrReplace(cacheKey, result);
         return result;
     }
@@ -1868,6 +1868,63 @@ WHERE INT_FIELD = @INT_FIELD
 	AND VARCHAR_FIELD = @VARCHAR_FIELD
 }";
     }
+
+    // DbReader is a non-assignable struct so ref storage
+    void validateSelectCommandTextReader(ref DbReader reader)
+    {
+        import std.math : isClose;
+
+        int count;
+        assert(reader.hasRows());
+        while (reader.read())
+        {
+            count++;
+            debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.db_pgdatabase.PgCommand.DML.checking - count: ", count);
+
+            assert(reader.getValue(0) == 1);
+            assert(reader.getValue("INT_FIELD") == 1);
+
+            assert(reader.getValue(1) == 2);
+            assert(reader.getValue("SMALLINT_FIELD") == 2);
+
+            assert(isClose(reader.getValue(2).get!float(), 3.10f));
+            assert(isClose(reader.getValue("FLOAT_FIELD").get!float(), 3.10f));
+
+            assert(isClose(reader.getValue(3).get!double(), 4.20));
+            assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
+
+            assert(reader.getValue(4).get!Decimal64() == Decimal64.money(5.4, 2));
+            assert(reader.getValue("NUMERIC_FIELD").get!Decimal64() == Decimal64.money(5.4, 2));
+
+            assert(reader.getValue(5).get!Decimal64() == Decimal64.money(6.5, 2));
+            assert(reader.getValue("DECIMAL_FIELD").get!Decimal64() == Decimal64.money(6.5, 2));
+
+            assert(reader.getValue(6) == Date(2020, 5, 20));
+            assert(reader.getValue("DATE_FIELD") == DbDate(2020, 5, 20));
+
+            assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
+            assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
+
+            assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0));
+            assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
+
+            assert(reader.getValue(9) == "ABC       ");
+            assert(reader.getValue("CHAR_FIELD") == "ABC       ");
+
+            assert(reader.getValue(10) == "XYZ");
+            assert(reader.getValue("VARCHAR_FIELD") == "XYZ");
+
+            assert(reader.isNull(11));
+            assert(reader.isNull("BLOB_FIELD"));
+
+            assert(reader.getValue(12) == "TEXT");
+            assert(reader.getValue("TEXT_FIELD") == "TEXT");
+
+            assert(reader.getValue(13) == 4_294_967_296);
+            assert(reader.getValue("BIGINT_FIELD") == 4_294_967_296);
+        }
+        assert(count == 1);
+    }
 }
 
 version(UnitTestPGDatabase)
@@ -1939,7 +1996,7 @@ unittest // PgTransaction.savePoint
     connection.open();
 
     auto transaction = connection.createTransaction(DbIsolationLevel.readUncommitted);
-    transaction.start();        
+    transaction.start();
     if (transaction.canSavePoint())
     {
         auto commit1 = transaction.start("commit1");
@@ -1987,64 +2044,12 @@ unittest // PgCommand.DML - Simple select
     auto reader = command.executeReader();
     scope (exit)
         reader.dispose();
-
-    int count;
-    assert(reader.hasRows());
-    while (reader.read())
-    {
-        count++;
-        debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.db_pgdatabase.PgCommand.DML.checking - count: ", count);
-
-        assert(reader.getValue(0) == 1);
-        assert(reader.getValue("INT_FIELD") == 1);
-
-        assert(reader.getValue(1) == 2);
-        assert(reader.getValue("SMALLINT_FIELD") == 2);
-
-        assert(isClose(reader.getValue(2).get!float(), 3.10f));
-        assert(isClose(reader.getValue("FLOAT_FIELD").get!float(), 3.10f));
-
-        assert(isClose(reader.getValue(3).get!double(), 4.20));
-        assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
-
-        assert(reader.getValue(4).get!Decimal64() == Decimal64.money(5.4, 2));
-        assert(reader.getValue("NUMERIC_FIELD").get!Decimal64() == Decimal64.money(5.4, 2));
-
-        assert(reader.getValue(5).get!Decimal64() == Decimal64.money(6.5, 2));
-        assert(reader.getValue("DECIMAL_FIELD").get!Decimal64() == Decimal64.money(6.5, 2));
-
-        assert(reader.getValue(6) == Date(2020, 5, 20));
-        assert(reader.getValue("DATE_FIELD") == DbDate(2020, 5, 20));
-
-        assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
-
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0));
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
-
-        assert(reader.getValue(9) == "ABC       ");
-        assert(reader.getValue("CHAR_FIELD") == "ABC       ");
-
-        assert(reader.getValue(10) == "XYZ");
-        assert(reader.getValue("VARCHAR_FIELD") == "XYZ");
-
-        assert(reader.isNull(11));
-        assert(reader.isNull("BLOB_FIELD"));
-
-        assert(reader.getValue(12) == "TEXT");
-        assert(reader.getValue("TEXT_FIELD") == "TEXT");
-
-        assert(reader.getValue(13) == 4_294_967_296);
-        assert(reader.getValue("BIGINT_FIELD") == 4_294_967_296);
-    }
-    assert(count == 1);
+    validateSelectCommandTextReader(reader);
 }
 
 version(UnitTestPGDatabase)
 unittest // PgCommand.DML - Parameter select
 {
-    import std.math;
-
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -2065,57 +2070,7 @@ unittest // PgCommand.DML - Parameter select
     auto reader = command.executeReader();
     scope (exit)
         reader.dispose();
-
-    int count;
-    assert(reader.hasRows());
-    while (reader.read())
-    {
-        count++;
-        debug(debug_pham_db_db_pgdatabase) debug writeln("unittest pham.db.db_pgdatabase.PgCommand.DML.checking - count: ", count);
-
-        assert(reader.getValue(0) == 1);
-        assert(reader.getValue("INT_FIELD") == 1);
-
-        assert(reader.getValue(1) == 2);
-        assert(reader.getValue("SMALLINT_FIELD") == 2);
-
-        assert(isClose(reader.getValue(2).get!float(), 3.10f));
-        assert(isClose(reader.getValue("FLOAT_FIELD").get!float(), 3.10f));
-
-        assert(isClose(reader.getValue(3).get!double(), 4.20));
-        assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
-
-        assert(reader.getValue(4).get!Decimal64() == Decimal64.money(5.4, 2));
-        assert(reader.getValue("NUMERIC_FIELD").get!Decimal64() == Decimal64.money(5.4, 2));
-
-        assert(reader.getValue(5).get!Decimal64() == Decimal64.money(6.5, 2));
-        assert(reader.getValue("DECIMAL_FIELD").get!Decimal64() == Decimal64.money(6.5, 2));
-
-        assert(reader.getValue(6) == DbDate(2020, 5, 20));
-        assert(reader.getValue("DATE_FIELD") == DbDate(2020, 5, 20));
-
-        assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
-
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0));
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
-
-        assert(reader.getValue(9) == "ABC       ");
-        assert(reader.getValue("CHAR_FIELD") == "ABC       ");
-
-        assert(reader.getValue(10) == "XYZ");
-        assert(reader.getValue("VARCHAR_FIELD") == "XYZ");
-
-        assert(reader.isNull(11));
-        assert(reader.isNull("BLOB_FIELD"));
-
-        assert(reader.getValue(12) == "TEXT");
-        assert(reader.getValue("TEXT_FIELD") == "TEXT");
-
-        assert(reader.getValue(13) == 4_294_967_296);
-        assert(reader.getValue("BIGINT_FIELD") == 4_294_967_296);
-    }
-    assert(count == 1);
+    validateSelectCommandTextReader(reader);
 }
 
 version(UnitTestPGDatabase)
@@ -2370,6 +2325,40 @@ unittest // PgCommand.DML.StoredProcedure
 }
 
 version(UnitTestPGDatabase)
+unittest // PgCommand.DML.StoredProcedure & Parameter select
+{
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto command = connection.createCommand();
+    scope (exit)
+        command.dispose();
+
+    command.commandStoredProcedure = "multiple_by";
+    command.parameters.add("X", DbType.int32, DbParameterDirection.input).value = 2;
+    command.parameters.add("Y", DbType.int32, DbParameterDirection.inputOutput).value = 100;
+    command.parameters.add("Z", DbType.float64, DbParameterDirection.output);
+    command.executeNonQuery();
+    assert(command.parameters.get("Y").variant == 4);
+    assert(command.parameters.get("Z").variant == 8.0);
+
+    command.commandText = parameterSelectCommandText();
+    command.parameters.add("INT_FIELD", DbType.int32).value = 1;
+    command.parameters.add("DOUBLE_FIELD", DbType.float64).value = 4.20;
+    command.parameters.add("DECIMAL_FIELD", DbType.numeric).value = Numeric(6.5);
+    command.parameters.add("DATE_FIELD", DbType.date).value = DbDate(2020, 5, 20);
+    command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1);
+    command.parameters.add("CHAR_FIELD", DbType.stringFixed).value = "ABC       ";
+    command.parameters.add("VARCHAR_FIELD", DbType.stringVary).value = "XYZ";
+    auto reader = command.executeReader();
+    scope (exit)
+        reader.dispose();
+    validateSelectCommandTextReader(reader);
+}
+
+version(UnitTestPGDatabase)
 unittest // PgConnection(SSL)
 {
     auto connection = createTestConnection();
@@ -2563,4 +2552,21 @@ unittest // PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
 
     const perfResult = unitTestPerfPGDatabase();
     dgWriteln("PG-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
+}
+
+version(UnitTestPGDatabase)
+unittest // PgConnection.DML.execute...
+{
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto INT_FIELD = connection.executeScalar(simpleSelectCommandText());
+    assert(INT_FIELD.get!int() == 1); // First field
+
+    auto reader = connection.executeReader(simpleSelectCommandText());
+    scope (exit)
+        reader.dispose();
+    validateSelectCommandTextReader(reader);
 }

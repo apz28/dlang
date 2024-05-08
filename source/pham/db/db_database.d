@@ -218,26 +218,9 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        if (auto log = canTraceLog())
-            log.infof("%s.command.executeReader()%s%s", forLogInfo(), newline, commandText);
-
-        checkCommand(DbCommandType.ddl);
-        resetNewStatement(ResetStatementKind.executing);
-
-        auto executePrep = ExecutePrep(this, DbCommandExecuteType.reader);
-        executePrep.resetTransaction = setImplicitTransactionIf(DbCommandExecuteType.reader);
-        executePrep.resetPrepare = setImplicitPrepareIf(DbCommandExecuteType.reader);
-        scope (exit)
-            doNotifyMessage();
-        scope (failure)
-            executePrep.reset(true);
-
-        doExecuteCommand(DbCommandExecuteType.reader);
-        connection._readerCounter++;
-        _activeReader = true;
-        return DbReader(this, executePrep.resetTransaction);
+        return executeReaderImpl(false);
     }
-
+    
     final DbValue executeScalar() @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
@@ -289,7 +272,10 @@ public:
         {
             resetNewStatement(ResetStatementKind.fetching);
             scope (exit)
+            {
+                _fetchedCount++;
                 resetNewStatement(ResetStatementKind.fetched);
+            }
 
             doFetch(isScalar);
         }
@@ -689,6 +675,30 @@ public:
     Duration logTimmingWarningDur = dur!"seconds"(60);
 
 package(pham.db):
+    final DbReader executeReaderImpl(const(bool) ownCommand) @safe
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(ownCommand=", ownCommand, ")");
+
+        if (auto log = canTraceLog())
+            log.infof("%s.command.executeReader()%s%s", forLogInfo(), newline, commandText);
+        
+        checkCommand(DbCommandType.ddl);
+        resetNewStatement(ResetStatementKind.executing);
+
+        auto executePrep = ExecutePrep(this, DbCommandExecuteType.reader);
+        executePrep.resetTransaction = setImplicitTransactionIf(DbCommandExecuteType.reader);
+        executePrep.resetPrepare = setImplicitPrepareIf(DbCommandExecuteType.reader);
+        scope (exit)
+            doNotifyMessage();
+        scope (failure)
+            executePrep.reset(true);
+
+        doExecuteCommand(DbCommandExecuteType.reader);
+        connection._readerCounter++;
+        _activeReader = true;
+        return DbReader(this, executePrep.resetTransaction, ownCommand);
+    }
+    
     @property final void allRowsFetched(bool value) nothrow pure @safe
     {
         _flags.set(DbCommandFlag.allRowsFetched, value);
@@ -1001,6 +1011,7 @@ protected:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(type=", type, ")");
 
+        _fetchedCount = 0;
         _lastInsertedId.reset();
         _recordsAffected.reset();
         _fetchedRows.clear();
@@ -1225,6 +1236,7 @@ protected:
  	DbRowValueQueue _fetchedRows;
     Duration _commandTimeout;
     uint _executedCount; // Number of execute calls after prepare
+    uint _fetchedCount; // Number of fetch calls
     uint _fetchRecordCount;
     int _baseCommandType;
     EnumSet!DbCommandFlag _flags;
@@ -1426,7 +1438,30 @@ public:
         command.parametersCheck = false;
         return command.executeNonQuery();
     }
+    
+    final DbReader executeReader(string commandText) @safe
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
+        checkActive();
+        auto command = createCommandText(commandText);
+        command.parametersCheck = false;
+        return command.executeReaderImpl(true);
+    }
+
+    final DbValue executeScalar(string commandText) @safe
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
+
+        checkActive();
+        auto command = createCommandText(commandText);
+        scope (exit)
+            command.dispose();
+
+        command.parametersCheck = false;
+        return command.executeScalar();
+    }
+    
     final string forCacheKey() const nothrow @safe
     {
         return _connectionStringBuilder.forCacheKey();
@@ -2062,12 +2097,12 @@ class DbConnectionPool : DbDisposableObject
 public:
     this(Timer secondTimer,
         size_t maxLength = DbDefaultSize.connectionPoolLength,
-        uint maxInactiveTimeInSeconds = DbDefaultSize.connectionPoolInactiveTime) nothrow
+        Duration maxInactiveTime = dur!"seconds"(DbDefaultSize.connectionPoolInactiveTime)) nothrow
     {
         this._secondTimer = secondTimer;
         this._mutex = new Mutex();
         this._maxLength = maxLength;
-        this._maxInactiveTime = dur!"seconds"(maxInactiveTimeInSeconds);
+        this._maxInactiveTime = maxInactiveTime;
     }
 
     final DbConnection acquire(DbScheme scheme, string connectionString)
@@ -2223,6 +2258,10 @@ protected:
     final DbConnection[] removeInactives()
     {
         auto raiiMutex = () @trusted { return RAIIMutex(_mutex); }();
+        
+        if (_unusedLength == 0)
+            return null;
+            
         const utcNow = DateTime.utcNow;
         DbConnection[] result;
         result.reserve(_unusedLength);
@@ -4452,15 +4491,17 @@ private:
 struct DbReader
 {
 public:
+    @disable this();
     @disable this(this);
     @disable void opAssign(typeof(this));
 
-    this(DbCommand command, bool implicitTransaction) nothrow @safe
+    this(DbCommand command, bool implicitTransaction, bool ownCommand) nothrow @safe
     {
         this._command = command;
         this._fields = command.fields;
         this._hasRows = HasRows.unknown;
         this._flags.set(Flag.implicitTransaction, implicitTransaction);
+        this._flags.set(Flag.ownCommand, ownCommand);
     }
 
     ~this() @safe
@@ -4679,12 +4720,17 @@ public:
         return _flags.on(Flag.implicitTransaction);
     }
 
+    @property bool ownCommand() const nothrow pure @safe
+    {
+        return _flags.on(Flag.ownCommand);
+    }
 private:
     enum Flag : ubyte
     {
         allRowsFetched,
         cacheResult,
         implicitTransaction,
+        ownCommand,
         skipFetchNext,
     }
 
@@ -4695,12 +4741,19 @@ private:
         yes,
     }
 
-    void doDetach(bool disposing) nothrow @safe
+    void doDetach(const(bool) disposing) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         _command.removeReader(this);
-        _command = null;
+        scope (exit)
+        {
+            _command = null;
+            _flags.set(Flag.implicitTransaction, false);
+            _flags.set(Flag.ownCommand, false);
+        }
+        if (ownCommand)
+            _command.dispose(DisposingReason.dispose);
     }
 
     bool fetchFirst(const(bool) checking) @safe

@@ -1367,9 +1367,12 @@ protected:
 	{
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(fetchRecordCount=", command.fetchRecordCount, ")");
 
+        const fetchRecordCount = type == DbCommandExecuteType.reader
+            ? 0
+            : (type == DbCommandExecuteType.scalar ? 1 : command.fetchRecordCount);
 		writer.beginMessage(PgOIdDescribeType.executeStatement);
         writer.writeCChars(command.name);
-        writer.writeInt32(type == DbCommandExecuteType.reader ? 0 : command.fetchRecordCount);
+        writer.writeInt32(fetchRecordCount);
         writer.endMessage();
     }
 

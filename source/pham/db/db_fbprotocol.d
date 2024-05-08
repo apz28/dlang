@@ -829,7 +829,7 @@ public:
         }
     }
 
-    final void fetchCommandWrite(FbCommand command)
+    final void fetchCommandWrite(FbCommand command, const(bool) isScalar)
     in
     {
         assert(command.hasFields);
@@ -846,7 +846,7 @@ public:
 		writer.writeHandle(command.fbHandle);
 		writer.writeBytes(pFldBlr.data);
 		writer.writeInt32(0); // p_sqldata_message_number
-		writer.writeInt32(command.fetchRecordCount); // p_sqldata_messages
+		writer.writeInt32(isScalar ? 1 : command.fetchRecordCount); // p_sqldata_messages
 		writer.flush();
     }
 

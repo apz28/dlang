@@ -1210,7 +1210,7 @@ protected:
             : LogTimming.init;
 
         auto protocol = fbConnection.protocol;
-        protocol.fetchCommandWrite(this);
+        protocol.fetchCommandWrite(this, isScalar);
 
         bool continueFetching = true;
         while (continueFetching)
@@ -1232,6 +1232,25 @@ protected:
                 // Wait for next fetch call
                 case DbFetchResultStatus.ready:
                     continueFetching = false;
+                    break;
+            }
+        }
+        
+        if (isScalar && _fetchedRows.length)
+        {
+            auto field = fields[0];
+            final switch (field.isValueIdType())
+            {
+                case DbFieldIdType.no:
+                    break;
+                case DbFieldIdType.array:
+                    _fetchedRows.front[0].value = readArray(field, _fetchedRows.front[0]);
+                    break;
+                case DbFieldIdType.blob:
+                    _fetchedRows.front[0].value = Variant(readBlob(field, _fetchedRows.front[0]));
+                    break;
+                case DbFieldIdType.clob:
+                    _fetchedRows.front[0].value = Variant(readClob(field, _fetchedRows.front[0]));
                     break;
             }
         }
@@ -1494,30 +1513,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = fbConnection.protocol;
-        auto result = protocol.readValues(this, cast(FbFieldList)fields);
-        if (isScalar)
-        {
-            size_t i = 0;
-            foreach (field; fields)
-            {
-                final switch (field.isValueIdType())
-                {
-                    case DbFieldIdType.no:
-                        break;
-                    case DbFieldIdType.array:
-                        result[i].value = readArray(field, result[i]);
-                        break;
-                    case DbFieldIdType.blob:
-                        result[i].value = Variant(readBlob(field, result[i]));
-                        break;
-                    case DbFieldIdType.clob:
-                        result[i].value = Variant(readClob(field, result[i]));
-                        break;
-                }
-                i++;
-            }
-        }
-        return result;
+        return protocol.readValues(this, cast(FbFieldList)fields);
     }
 
     final void removeBatch(ref FbCommandBatch commandBatch) @safe
@@ -2535,6 +2531,63 @@ WHERE INT_FIELD = @INT_FIELD
 	AND VARCHAR_FIELD = @VARCHAR_FIELD
 }";
     }
+
+    // DbReader is a non-assignable struct so ref storage
+    void validateSelectCommandTextReader(ref DbReader reader)
+    {
+        import std.math : isClose;
+
+        int count;
+        assert(reader.hasRows());
+        while (reader.read())
+        {
+            count++;
+            debug(debug_pham_db_db_fbdatabase) debug writeln("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
+
+            assert(reader.getValue(0) == 1);
+            assert(reader.getValue("INT_FIELD") == 1);
+
+            assert(reader.getValue(1) == 2);
+            assert(reader.getValue("SMALLINT_FIELD") == 2);
+
+            assert(isClose(reader.getValue(2).get!float(), 3.10f));
+            assert(isClose(reader.getValue("FLOAT_FIELD").get!float(), 3.10f));
+
+            assert(isClose(reader.getValue(3).get!double(), 4.20));
+            assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
+
+            assert(reader.getValue(4).get!Decimal64() == Decimal64.money(5.4, 2));
+            assert(reader.getValue("NUMERIC_FIELD").get!Decimal64() == Decimal64.money(5.4, 2));
+
+            assert(reader.getValue(5).get!Decimal64() == Decimal64.money(6.5, 2));
+            assert(reader.getValue("DECIMAL_FIELD").get!Decimal64() == Decimal64.money(6.5, 2));
+
+            assert(reader.getValue(6) == Date(2020, 5, 20));
+            assert(reader.getValue("DATE_FIELD") == DbDate(2020, 5, 20));
+
+            assert(reader.getValue(7) == DbTime(1, 1, 1));
+            assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
+
+            assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0), reader.getValue(8).toString());
+            assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
+
+            assert(reader.getValue(9) == "ABC       ");
+            assert(reader.getValue("CHAR_FIELD") == "ABC       ");
+
+            assert(reader.getValue(10) == "XYZ");
+            assert(reader.getValue("VARCHAR_FIELD") == "XYZ");
+
+            assert(reader.isNull(11));
+            assert(reader.isNull("BLOB_FIELD"));
+
+            assert(reader.getValue(12) == "TEXT");
+            assert(reader.getValue("TEXT_FIELD") == "TEXT");
+
+            assert(reader.getValue(13) == 4_294_967_296);
+            assert(reader.getValue("BIGINT_FIELD") == 4_294_967_296);
+        }
+        assert(count == 1);
+    }
 }
 
 unittest // FbConnectionStringBuilder
@@ -2717,7 +2770,7 @@ unittest // FbTransaction.savePoint
     connection.open();
 
     auto transaction = connection.createTransaction(DbIsolationLevel.readUncommitted);
-    transaction.start();        
+    transaction.start();
     if (transaction.canSavePoint())
     {
         auto commit1 = transaction.start("commit1");
@@ -3176,10 +3229,8 @@ unittest // FbCommand.DML.Types
 }
 
 version(UnitTestFBDatabase)
-unittest // FbCommand.DML
+unittest // FbCommand.DML - Simple select
 {
-    import std.math;
-
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -3193,64 +3244,12 @@ unittest // FbCommand.DML
     auto reader = command.executeReader();
     scope (exit)
         reader.dispose();
-
-    int count;
-    assert(reader.hasRows());
-    while (reader.read())
-    {
-        count++;
-        debug(debug_pham_db_db_fbdatabase) debug writeln("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
-
-        assert(reader.getValue(0) == 1);
-        assert(reader.getValue("INT_FIELD") == 1);
-
-        assert(reader.getValue(1) == 2);
-        assert(reader.getValue("SMALLINT_FIELD") == 2);
-
-        assert(isClose(reader.getValue(2).get!float(), 3.10f));
-        assert(isClose(reader.getValue("FLOAT_FIELD").get!float(), 3.10f));
-
-        assert(isClose(reader.getValue(3).get!double(), 4.20));
-        assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
-
-        assert(reader.getValue(4).get!Decimal64() == Decimal64.money(5.4, 2));
-        assert(reader.getValue("NUMERIC_FIELD").get!Decimal64() == Decimal64.money(5.4, 2));
-
-        assert(reader.getValue(5).get!Decimal64() == Decimal64.money(6.5, 2));
-        assert(reader.getValue("DECIMAL_FIELD").get!Decimal64() == Decimal64.money(6.5, 2));
-
-        assert(reader.getValue(6) == Date(2020, 5, 20));
-        assert(reader.getValue("DATE_FIELD") == DbDate(2020, 5, 20));
-
-        assert(reader.getValue(7) == DbTime(1, 1, 1));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
-
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0), reader.getValue(8).toString());
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
-
-        assert(reader.getValue(9) == "ABC       ");
-        assert(reader.getValue("CHAR_FIELD") == "ABC       ");
-
-        assert(reader.getValue(10) == "XYZ");
-        assert(reader.getValue("VARCHAR_FIELD") == "XYZ");
-
-        assert(reader.isNull(11));
-        assert(reader.isNull("BLOB_FIELD"));
-
-        assert(reader.getValue(12) == "TEXT");
-        assert(reader.getValue("TEXT_FIELD") == "TEXT");
-
-        assert(reader.getValue(13) == 4_294_967_296);
-        assert(reader.getValue("BIGINT_FIELD") == 4_294_967_296);
-    }
-    assert(count == 1);
+    validateSelectCommandTextReader(reader);
 }
 
 version(UnitTestFBDatabase)
-unittest // FbCommand.DML.Parameter
+unittest // FbCommand.DML - Parameter select
 {
-    import std.math;
-
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -3271,57 +3270,7 @@ unittest // FbCommand.DML.Parameter
     auto reader = command.executeReader();
     scope (exit)
         reader.dispose();
-
-    int count;
-    assert(reader.hasRows());
-    while (reader.read())
-    {
-        count++;
-        debug(debug_pham_db_db_fbdatabase) debug writeln("unittest pham.db.fbdatabase.FbCommand.DML.checking - count: ", count);
-
-        assert(reader.getValue(0) == 1);
-        assert(reader.getValue("INT_FIELD") == 1);
-
-        assert(reader.getValue(1) == 2);
-        assert(reader.getValue("SMALLINT_FIELD") == 2);
-
-        assert(isClose(reader.getValue(2).get!float(), 3.10f));
-        assert(isClose(reader.getValue("FLOAT_FIELD").get!float(), 3.10f));
-
-        assert(isClose(reader.getValue(3).get!double(), 4.20));
-        assert(isClose(reader.getValue("DOUBLE_FIELD").get!double(), 4.20));
-
-        assert(reader.getValue(4).get!Decimal64() == Decimal64.money(5.4, 2));
-        assert(reader.getValue("NUMERIC_FIELD").get!Decimal64() == Decimal64.money(5.4, 2));
-
-        assert(reader.getValue(5).get!Decimal64() == Decimal64.money(6.5, 2));
-        assert(reader.getValue("DECIMAL_FIELD").get!Decimal64() == Decimal64.money(6.5, 2));
-
-        assert(reader.getValue(6) == Date(2020, 5, 20));
-        assert(reader.getValue("DATE_FIELD") == DbDate(2020, 5, 20));
-
-        assert(reader.getValue(7) == DbTime(1, 1, 1, 0));
-        assert(reader.getValue("TIME_FIELD") == DbTime(1, 1, 1));
-
-        assert(reader.getValue(8) == DbDateTime(2020, 5, 20, 7, 31, 0));
-        assert(reader.getValue("TIMESTAMP_FIELD") == DbDateTime(2020, 5, 20, 7, 31, 0));
-
-        assert(reader.getValue(9) == "ABC       ");
-        assert(reader.getValue("CHAR_FIELD") == "ABC       ");
-
-        assert(reader.getValue(10) == "XYZ");
-        assert(reader.getValue("VARCHAR_FIELD") == "XYZ");
-
-        assert(reader.isNull(11));
-        assert(reader.isNull("BLOB_FIELD"));
-
-        assert(reader.getValue(12) == "TEXT");
-        assert(reader.getValue("TEXT_FIELD") == "TEXT");
-
-        assert(reader.getValue(13) == 4_294_967_296);
-        assert(reader.getValue("BIGINT_FIELD") == 4_294_967_296);
-    }
-    assert(count == 1);
+    validateSelectCommandTextReader(reader);
 }
 
 version(UnitTestFBDatabase)
@@ -3578,6 +3527,40 @@ unittest // FbCommand.DML.StoredProcedure
         }
         assert(count == 1);
     }
+}
+
+version(UnitTestFBDatabase)
+unittest // FbCommand.DML.StoredProcedure & Parameter select
+{
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto command = connection.createCommand();
+    scope (exit)
+        command.dispose();
+
+    command.commandStoredProcedure = "MULTIPLE_BY";
+    command.parameters.add("X", DbType.int32).value = 2;
+    command.parameters.add("Y", DbType.int32, DbParameterDirection.output);
+    command.parameters.add("Z", DbType.float64, DbParameterDirection.output);
+    command.executeNonQuery();
+    assert(command.parameters.get("Y").variant == 4);
+    assert(command.parameters.get("Z").variant == 8.0);
+
+    command.commandText = parameterSelectCommandText();
+    command.parameters.add("INT_FIELD", DbType.int32).value = 1;
+    command.parameters.add("DOUBLE_FIELD", DbType.float64).value = 4.20;
+    command.parameters.add("DECIMAL_FIELD", DbType.decimal64).value = Decimal64(6.5);
+    command.parameters.add("DATE_FIELD", DbType.date).value = DbDate(2020, 5, 20);
+    command.parameters.add("TIME_FIELD", DbType.time).value = DbTime(1, 1, 1, 0);
+    command.parameters.add("CHAR_FIELD", DbType.stringFixed).value = "ABC       ";
+    command.parameters.add("VARCHAR_FIELD", DbType.stringVary).value = "XYZ";
+    auto reader = command.executeReader();
+    scope (exit)
+        reader.dispose();
+    validateSelectCommandTextReader(reader);
 }
 
 version(UnitTestFBDatabase)
@@ -3952,4 +3935,21 @@ unittest // FbConnection.createDatabase
         connection.close();
         deleteTestCreateDatabaseFile();
     }
+}
+
+version(UnitTestFBDatabase)
+unittest // FbConnection.DML.execute...
+{
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto INT_FIELD = connection.executeScalar(simpleSelectCommandText());
+    assert(INT_FIELD.get!int() == 1); // First field
+
+    auto reader = connection.executeReader(simpleSelectCommandText());
+    scope (exit)
+        reader.dispose();
+    validateSelectCommandTextReader(reader);
 }

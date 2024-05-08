@@ -702,7 +702,7 @@ version (Unicode)
     //alias SQLSetConnectAttr   = SQLSetConnectAttrW;
     alias SQLSetCursorName    = SQLSetCursorNameW;
     alias SQLSetDescField     = SQLSetDescFieldW;
-    alias SQLSetStmtAttr      = SQLSetStmtAttrW;
+    //alias SQLSetStmtAttr      = SQLSetStmtAttrW;
     alias SQLGetStmtAttr      = SQLGetStmtAttrW;
     alias SQLColumns          = SQLColumnsW;
     alias SQLGetConnectOption = SQLGetConnectOptionW;

@@ -18,6 +18,10 @@ import std.traits : isSomeChar;
 
 nothrow @safe:
 
+/**
+ * Encodes dchar `c` into the static char array, `buffer`, and returns a slice
+ * of the encoded characters. When `c` is invalid, it will return empty slice
+ */
 enum encodeUTF8MaxLength = 4;
 char[] encodeUTF8(return ref char[encodeUTF8MaxLength] buffer, const(dchar) c) @nogc pure
 {
@@ -54,6 +58,10 @@ char[] encodeUTF8(return ref char[encodeUTF8MaxLength] buffer, const(dchar) c) @
         return null;
 }
 
+/**
+ * Encodes dchar `c` into the static wchar array, `buffer`, and returns a slice
+ * of the encoded characters. When `c` is invalid, it will return empty slice
+ */
 enum encodeUTF16MaxLength = 2;
 wchar[] encodeUTF16(return ref wchar[encodeUTF16MaxLength] buffer, const(dchar) c) @nogc pure
 {

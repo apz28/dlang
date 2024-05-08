@@ -211,7 +211,7 @@ if (isIntegral!K || isSomeString!K)
 {
 nothrow @safe:
 
-    enum defaultAge = dur!"hours"(8);
+    enum defaultMaxAge = dur!"hours"(8);
     enum defaultKind = DbExpirationKind.created;
     
 public:
@@ -222,7 +222,7 @@ public:
     }
 
     final bool add(V : Object)(K key, V item,
-        Duration maxAge = defaultAge,
+        Duration maxAge = defaultMaxAge,
         DbExpirationKind kind = defaultKind)
     {
         registerWithTimer();
@@ -243,7 +243,7 @@ public:
     }
 
     final V addOrReplace(V : Object)(K key, V item,
-        Duration maxAge = defaultAge,
+        Duration maxAge = defaultMaxAge,
         DbExpirationKind kind = defaultKind)
     {
         registerWithTimer();
@@ -364,6 +364,9 @@ protected:
     {
         auto raiiMutex = () @trusted { return RAIIMutex(mutex); }();
         
+        if (items.length == 0)
+            return null;
+            
         const utcNow = DateTime.utcNow;
         DbCacheItem!K[] result;
         result.reserve(items.length / 2);
