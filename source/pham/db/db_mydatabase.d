@@ -2087,7 +2087,9 @@ unittest // MyConnection.DML.execute...
     assert(INT_FIELD.get!int() == 1); // First field
 
     auto reader = connection.executeReader(simpleSelectCommandText());
-    scope (exit)
-        reader.dispose();
     validateSelectCommandTextReader(reader);
+    reader.dispose();
+    
+    auto TEXT_FIELD = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = 1");
+    assert(TEXT_FIELD.get!string() == "TEXT");
 }

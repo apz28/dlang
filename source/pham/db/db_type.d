@@ -30,7 +30,6 @@ import pham.dtm.dtm_time_zone : TimeZoneInfo;
 import pham.dtm.dtm_time_zone_map : TimeZoneInfoMap;
 public import pham.external.dec.dec_decimal : Decimal32, Decimal64, Decimal128, isDecimal,
     Precision, RoundingMode;
-import pham.var.var_coerce;
 import pham.utl.utl_array : ShortStringBuffer;
 public import pham.utl.utl_big_integer : BigInteger;
 import pham.utl.utl_enum_set : EnumSet, toName;
@@ -38,6 +37,7 @@ import pham.utl.utl_numeric_parser : ComputingSizeUnit, DurationUnit, NumericPar
     parseBase64, parseComputingSize, parseDuration, parseIntegral;
 import pham.utl.utl_result : cmp;
 import pham.utl.utl_text : NamedValue;
+import pham.var.var_coerce;
 
 alias float32 = float;
 alias float64 = double;
@@ -662,6 +662,13 @@ public:
         this._value = datetime;
         this._zoneId = zoneId;
         this._zoneOffset = zoneOffset;
+    }
+
+    this(DbDate date, DbTime time) @nogc pure
+    {
+        this._value = DateTime(date, time.value);
+        this._zoneId = time.zoneId;
+        this._zoneOffset = time.zoneOffset;
     }
 
     this(int32 validYear, int32 validMonth, int32 validDay,
@@ -2463,6 +2470,57 @@ DbNameValueValidated isConnectionParameterUBytes(scope const(DbConnectionParamet
 // Any below codes are private
 private:
 
+// Support Variant.coerce DbDate to DbDateTime
+bool doCoerceDbDateToDbDateTime(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
+{
+    *cast(DbDateTime*)dstPtr = DbDateTime(*cast(DbDate*)srcPtr, DbTime.min);
+    return true;
+}
+
+// Support Variant.coerce Date to DbDateTime
+version(none) // Currently DbDate is same as Date
+bool doCoerceDateToDbDateTime(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
+{
+    *cast(DbDateTime*)dstPtr = DbDateTime(*cast(Date*)srcPtr, DbTime.min);
+    return true;
+}
+
+// Support Variant.coerce DbDateTime to DbDate
+bool doCoerceDbDateTimeToDbDate(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
+{
+    *cast(DbDate*)dstPtr = (*cast(DbDateTime*)srcPtr).date;
+    return true;
+}
+
+// Support Variant.coerce DbDateTime to DbTime
+bool doCoerceDbDateTimeToDbTime(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
+{
+    const s = *cast(DbDateTime*)srcPtr;
+    *cast(DbTime*)dstPtr = DbTime(s.time, s.zoneId, s.zoneOffset);
+    return true;
+}
+
+// Support Variant.coerce DateTime to DbDateTime
+bool doCoerceDateTimeToDbDateTime(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
+{
+    *cast(DbDateTime*)dstPtr = DbDateTime(*cast(DateTime*)srcPtr);
+    return true;
+}
+
+// Support Variant.coerce DbTime to DbDateTime
+bool doCoerceDbTimeToDbDateTime(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
+{
+    *cast(DbDateTime*)dstPtr = DbDateTime(DbDate.min, *cast(DbTime*)srcPtr);
+    return true;
+}
+
+// Support Variant.coerce Time to DbTime
+bool doCoerceTimeToDbTime(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
+{
+    *cast(DbTime*)dstPtr = DbTime(*cast(Time*)srcPtr);
+    return true;
+}
+
 shared static this() nothrow @safe
 {
     dbDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
@@ -2567,6 +2625,43 @@ shared static this() nothrow @safe
         }
         return result;
     }();
+
+    // Support Variant.coerce
+    ConvertHandler handler;
+    handler.doCast = null;
+
+    // DbDate
+    handler.doCoerce = &doCoerceDbDateTimeToDbDate;
+    handler.flags = ConvertHandlerFlag.none;
+    ConvertHandler.add!(DbDateTime, DbDate)(handler);
+    ConvertHandler.add!(const(DbDateTime), DbDate)(handler);
+
+    // DbDateTime
+    handler.doCoerce = &doCoerceDbDateToDbDateTime;
+    handler.flags = ConvertHandlerFlag.implicit;
+    ConvertHandler.add!(DbDate, DbDateTime)(handler);
+    ConvertHandler.add!(const(DbDate), DbDateTime)(handler);
+
+    handler.doCoerce = &doCoerceDbTimeToDbDateTime;
+    handler.flags = ConvertHandlerFlag.implicit;
+    ConvertHandler.add!(DbTime, DbDateTime)(handler);
+    ConvertHandler.add!(const(DbTime), DbDateTime)(handler);
+
+    handler.doCoerce = &doCoerceDateTimeToDbDateTime;
+    handler.flags = ConvertHandlerFlag.implicit;
+    ConvertHandler.add!(DateTime, DbDateTime)(handler);
+    ConvertHandler.add!(const(DateTime), DbDateTime)(handler);
+
+    // DbTime
+    handler.doCoerce = &doCoerceDbDateTimeToDbTime;
+    handler.flags = ConvertHandlerFlag.none;
+    ConvertHandler.add!(DbDateTime, DbTime)(handler);
+    ConvertHandler.add!(const(DbDateTime), DbTime)(handler);
+
+    handler.doCoerce = &doCoerceTimeToDbTime;
+    handler.flags = ConvertHandlerFlag.implicit;
+    ConvertHandler.add!(Time, DbTime)(handler);
+    ConvertHandler.add!(const(Time), DbTime)(handler);
 }
 
 unittest // dbTypeOf

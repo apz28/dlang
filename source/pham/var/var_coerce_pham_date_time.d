@@ -21,40 +21,36 @@ import pham.dtm.dtm_tick : dateTimeSetting;
 import pham.dtm.dtm_time : Time;
 import pham.var.var_coerce;
 
-// Support Variant.coerce
-bool doCoerceDateToDateTime(scope void* srcPtr, scope void* dstPtr) nothrow
+// Support Variant.coerce Date to DateTime
+bool doCoerceDateToDateTime(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
 {
-    const s = *cast(Date*)srcPtr;
-    *cast(DateTime*)dstPtr = s.toDateTime();
+    *cast(DateTime*)dstPtr = (*cast(Date*)srcPtr).toDateTime();
     return true;
 }
 
-// Support Variant.coerce
-bool doCoerceDateTimeToDate(scope void* srcPtr, scope void* dstPtr) nothrow
+// Support Variant.coerce DateTime to Date
+bool doCoerceDateTimeToDate(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
 {
-    const s = *cast(DateTime*)srcPtr;
-    *cast(Date*)dstPtr = s.date;
+    *cast(Date*)dstPtr = (*cast(DateTime*)srcPtr).date;
     return true;
 }
 
-// Support Variant.coerce
-bool doCoerceDateTimeToTime(scope void* srcPtr, scope void* dstPtr) nothrow
+// Support Variant.coerce DateTime to Time
+bool doCoerceDateTimeToTime(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
 {
-    const s = *cast(DateTime*)srcPtr;
-    *cast(Time*)dstPtr = s.time;
+    *cast(Time*)dstPtr = (*cast(DateTime*)srcPtr).time;
     return true;
 }
 
-// Support Variant.coerce
-bool doCoerceTimeToDateTime(scope void* srcPtr, scope void* dstPtr) nothrow
+// Support Variant.coerce Time to DateTime
+bool doCoerceTimeToDateTime(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
 {
-    const s = *cast(Time*)srcPtr;
-    *cast(DateTime*)dstPtr = s.toDateTime();
+    *cast(DateTime*)dstPtr = (*cast(Time*)srcPtr).toDateTime();
     return true;
 }
 
-// Support Variant.coerce
-bool doCoerceStringToDate(scope void* srcPtr, scope void* dstPtr) nothrow
+// Support Variant.coerce string to Date
+bool doCoerceStringToDate(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
 {
     Date d;
     auto s = *cast(string*)srcPtr;
@@ -68,8 +64,8 @@ bool doCoerceStringToDate(scope void* srcPtr, scope void* dstPtr) nothrow
         return false;
 }
 
-// Support Variant.coerce
-bool doCoerceStringToDateTime(scope void* srcPtr, scope void* dstPtr) nothrow
+// Support Variant.coerce string to DateTime
+bool doCoerceStringToDateTime(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
 {
     DateTime dt;
     auto s = *cast(string*)srcPtr;
@@ -83,8 +79,8 @@ bool doCoerceStringToDateTime(scope void* srcPtr, scope void* dstPtr) nothrow
         return false;
 }
 
-// Support Variant.coerce
-bool doCoerceStringToTime(scope void* srcPtr, scope void* dstPtr) nothrow
+// Support Variant.coerce string to Time
+bool doCoerceStringToTime(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
 {
     Time t;
     auto s = *cast(string*)srcPtr;

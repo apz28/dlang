@@ -1925,14 +1925,8 @@ protected:
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
-        auto command = createCommand();
-        scope (exit)
-            command.dispose();
-
         // ex: "3.0.7"
-        command.commandText = "SELECT rdb$get_context('SYSTEM', 'ENGINE_VERSION') FROM rdb$database";
-        command.parametersCheck = false;
-        auto v = command.executeScalar();
+        auto v = this.executeScalar("SELECT rdb$get_context('SYSTEM', 'ENGINE_VERSION') FROM rdb$database");
         return v.isNull() ? null : v.get!string();
     }
 
@@ -3949,7 +3943,9 @@ unittest // FbConnection.DML.execute...
     assert(INT_FIELD.get!int() == 1); // First field
 
     auto reader = connection.executeReader(simpleSelectCommandText());
-    scope (exit)
-        reader.dispose();
     validateSelectCommandTextReader(reader);
+    reader.dispose();
+    
+    auto TEXT_FIELD = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = 1");
+    assert(TEXT_FIELD.get!string() == "TEXT");
 }

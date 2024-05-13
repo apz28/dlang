@@ -58,7 +58,6 @@ enum lowestLogLevel = LogLevel.trace;
 enum defaultGlobalLogLevel = lowestLogLevel; // No restriction
 enum defaultLogLevel = LogLevel.warn;
 enum defaultRequestLogLevel = LogLevel.info;
-enum defaultSharedLogLevel = LogLevel.warn;
 
 ptrdiff_t lastModuleSeparatorIndex(string moduleName) @nogc nothrow pure @safe
 {
@@ -383,7 +382,7 @@ nothrow @safe:
 /**
  * This function logs data.
  * In order for the data to be processed the `LogLevel` of the
- * `sharedLog` must be greater or equal to the `defaultLogLevel`.
+ * `sharedLog` must be lesser or equal to the `defaultRequestLogLevel`.
  * Params:
  *  args = The data that should be logged.
  * Example:
@@ -407,8 +406,8 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(
 /**
  * This function logs data.
  * In order for the data to be processed the `LogLevel` of the
- * `sharedLog` must be greater or equal to the `defaultLogLevel`
- * add the condition passed must be `true`.
+ * `sharedLog` must be lesser or equal to the `defaultRequestLogLevel`
+ * and the condition passed must be `true`.
  * Params:
  *  condition = The condition must be `true` for the data to be logged.
  *  args = The data that should be logged.
@@ -456,8 +455,8 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
 /**
  * This function logs data.
  * In order for the data to be processed, the `LogLevel` of the log call must
- * be greater or equal to the `LogLevel` of the `sharedLog` and the
- * `defaultLogLevel`; additionally the condition passed must be `true`.
+ * be greater or equal to the `LogLevel` of the `sharedLog` and
+ * the condition passed must be `true`.
  * Params:
  *  ll = The `LogLevel` used by this log call.
  *  condition = The condition must be `true` for the data to be logged.
@@ -478,8 +477,8 @@ void log(Args...)(const(LogLevel) ll, lazy bool condition, lazy Args args,
 
 /**
  * This function logs data in a `printf`-style manner.
- * In order for the data to be processed the `LogLevel` of the log call must
- * be greater or equal to the `defaultLogLevel`.
+ * In order for the data to be processed the `LogLevel` of the
+ * `sharedLog` must be lesser or equal to the `defaultRequestLogLevel`
  * Params:
  *  fmt = The `printf`-style string.
  *  args = The data that should be logged.
@@ -503,9 +502,9 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(
 
 /**
  * This function logs data in a `printf`-style manner.
- * In order for the data to be processed the `LogLevel` of the log call must
- * be greater or equal to the `defaultLogLevel` additionally the condition
- * passed must be `true`.
+ * In order for the data to be processed the `LogLevel` of the
+ * `sharedLog` must be lesser or equal to the `defaultRequestLogLevel`
+ * and the condition passed must be `true`.
  * Params:
  *  condition = The condition must be `true` for the data to be logged.
  *  fmt = The `printf`-style string.
@@ -530,8 +529,7 @@ void logf(Args...)(lazy bool condition, lazy string fmt, lazy Args args,
 /**
  * This function logs data in a `printf`-style manner.
  * In order for the data to be processed the `LogLevel` of the log call must
- * be greater or equal to the `LogLevel` of the `sharedLog` and the
- * `defaultLogLevel`.
+ * be greater or equal to the `LogLevel` of the `sharedLog`
  * Params:
  *  ll = The `LogLevel` used by this log call.
  *  fmt = The `printf`-style string.
@@ -555,8 +553,8 @@ void logf(Args...)(const(LogLevel) ll, lazy string fmt, lazy Args args,
 /**
  * This function logs data in a `printf`-style manner.
  * In order for the data to be processed the `LogLevel` of the log call must
- * be greater or equal to the `LogLevel` of the `sharedLog` and the
- * `defaultLogLevel` additionally the condition passed must be `true`.
+ * be greater or equal to the `LogLevel` of the `sharedLog` and
+ * the condition passed must be `true`.
  * Params:
  *  ll = The `LogLevel` used by this log call.
  *  condition = The condition must be `true` for the data to be logged.
@@ -581,8 +579,7 @@ void logf(Args...)(const(LogLevel) ll, lazy bool condition, lazy string fmt, laz
 /**
  * This template provides the global log functions with the `LogLevel`
  * is encoded in the function name.
- * The aliases following this template create the public names of these log
- * functions.
+ * The aliases following this template create the public names of these log functions.
  */
 template defaultLogFunction(LogLevel ll)
 {
@@ -656,8 +653,7 @@ alias logFatal = defaultLogFunction!(LogLevel.fatal);
 /**
  * This template provides the global `printf`-style log functions with
  * the `LogLevel` is encoded in the function name.
- * The aliases following this template create the public names of the log
- * functions.
+ * The aliases following this template create the public names of the log functions.
  */
 template defaultLogFunctionf(LogLevel ll)
 {
@@ -2406,7 +2402,7 @@ protected:
             const v = i >= 0 ? s[i + 1..$] : null;
             return v.length == dtLength ? LogOutputPatternParser.safeToInt!ulong(v) : 0u;
         }
-        catch (Exception) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); return 0u; }
+        catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); return 0u; }
     }
 
     final string nextBackupFile()
@@ -3519,14 +3515,17 @@ SysTime currentTime() nothrow @safe
     // If we have set up our own logger use that
     if (auto logger = atomicLoad(_sharedLog))
         return logger;
-
-    auto result = sharedLogImpl; // Otherwise resort to the default logger
-    result.logLevel = atomicLoad(_sharedLogLevel);
-    return result;
+    else
+        return sharedLogImpl; // Otherwise resort to the default logger
 }
 
 /// Ditto
 @property Logger sharedLog(Logger logger) nothrow @trusted
+in
+{
+    assert(logger !is null);
+}
+do
 {
     return atomicExchange(&_sharedLog, logger);
 }
@@ -3558,27 +3557,29 @@ SysTime currentTime() nothrow @safe
 @property Logger threadLog() nothrow @safe
 {
     // If we have set up our own logger use that
-    if (auto logger = _threadLog)
+    if (auto logger = _threadForwardLog)
         return logger;
     else
-        return threadLogImpl; // Otherwise resort to the default logger
+        return threadForwardLogImpl; // Otherwise resort to the default logger
 }
 
 /// Ditto
 @property Logger threadLog(Logger logger) nothrow @safe
+in
 {
-    auto result = _threadLog;
-    _threadLog = logger;
-    return result;
+    assert(logger !is null);
+}
+do
+{
+    return atomicExchange(&_threadForwardLog, logger);
 }
 
-
-private string osCharToString(scope const(char)[] v) nothrow @trusted
+private string osCharToString(scope const(char)[] v) nothrow
 {
     import std.conv : to;
     scope (failure) assert(0, "Assume nothrow failed");
 
-    auto result = v.ptr.to!string();
+    auto result = v.to!string();
     while (result.length && result[$ - 1] <= ' ')
         result = result[0..$ - 1];
     return result;
@@ -3633,10 +3634,10 @@ string currentUserName() nothrow @trusted
 
 private:
 
-Logger _threadLog;
+Logger _threadForwardLog;
 __gshared Logger _sharedLog;
 __gshared ModuleLoggerOptions _moduleOptions;
-__gshared LogLevel _sharedLogLevel = defaultSharedLogLevel;
+__gshared LogLevel _sharedLogLevel = defaultLogLevel;
 __gshared LogLevel _globalLogLevel = defaultGlobalLogLevel;
 
 class SharedLogger : FileLogger
@@ -3651,7 +3652,7 @@ public:
 
     static LoggerOption defaultOption() nothrow @safe
     {
-        return LoggerOption(defaultLogLevel, "SharedLogger", defaultOutputPattern, 5);
+        return LoggerOption(sharedLogLevel, "SharedLogger", defaultOutputPattern, 5);
     }
 }
 
@@ -3706,16 +3707,16 @@ protected:
 /*
  * This method returns the thread local default Logger for sharedLog.
  */
-align(__traits(classInstanceAlignment, ForwardSharedLogger)) void[__traits(classInstanceSize, ForwardSharedLogger)] _threadLogBuffer;
-ForwardSharedLogger _threadLogDefault;
-Logger threadLogImpl() nothrow @trusted
+align(__traits(classInstanceAlignment, ForwardSharedLogger)) void[__traits(classInstanceSize, ForwardSharedLogger)] _threadForwardLogBuffer;
+ForwardSharedLogger _threadForwardLogDefault;
+Logger threadForwardLogImpl() nothrow @trusted
 {
-    if (_threadLogDefault is null)
+    if (_threadForwardLogDefault is null)
     {
-        auto buffer = cast(ubyte[])_threadLogBuffer;
-        _threadLogDefault = emplace!ForwardSharedLogger(buffer, ForwardSharedLogger.defaultOption());
+        auto buffer = cast(ubyte[])_threadForwardLogBuffer;
+        _threadForwardLogDefault = emplace!ForwardSharedLogger(buffer, ForwardSharedLogger.defaultOption());
     }
-    return _threadLogDefault;
+    return _threadForwardLogDefault;
 }
 
 shared static this() nothrow @trusted
@@ -3752,7 +3753,7 @@ unittest // moduleParentOf
 
 @safe unittest
 {
-    assert(sharedLogLevel == defaultSharedLogLevel);
+    assert(sharedLogLevel == defaultLogLevel);
 
     auto dl = sharedLog;
     assert(dl !is null);
@@ -5130,6 +5131,58 @@ unittest // RollingFileLogger
     }
     auto bf = lg.getBackupFileNames();
     assert(bf.length == 1, bf.length.to!string());
+}
+
+unittest // default LogLevel
+{
+    static class TestLogger : MemLogger
+    {
+    nothrow @safe:
+    
+        string[] allMessages;
+
+    protected:
+        final override void writeLog(ref Logger.LogEntry payload)
+        {
+            if (allMessages.length)
+                allMessages ~= "\n";
+            allMessages ~= payload.message;
+        }
+    }
+
+    const saveLogLevelShare = sharedLog.logLevel;
+    const saveLogLevelThread = threadLog.logLevel;
+    scope (exit)
+        sharedLog.logLevel = saveLogLevelShare;
+    scope (exit)
+        threadLog.logLevel = saveLogLevelThread;
+    
+    auto testLogger = new TestLogger();
+    testLogger.logLevel = sharedLogLevel;
+    auto restore = LogRestore(testLogger);
+    
+    // Since this is just a forward to shareLog and shareLog.logLevel is still equal to 'warn'
+    // hence only capture warn, error & critical messages
+    threadLog.logLevel = lowestLogLevel;
+    threadLog.log("log");
+    threadLog.trace("trace");
+    threadLog.info("info");
+    threadLog.warn("warn");
+    threadLog.error("error");
+    threadLog.critical("critical");
+    assert(testLogger.allMessages == "warn\nerror\ncritical", testLogger.allMessages);
+    testLogger.allMessages = null;
+    
+    sharedLog.logLevel = lowestLogLevel;
+    sharedLog.log("log");
+    sharedLog.trace("trace");
+    sharedLog.info("info");
+    sharedLog.warn("warn");
+    sharedLog.error("error");
+    sharedLog.critical("critical");    
+    assert(testLogger.allMessages == "log\ntrace\ninfo\nwarn\nerror\ncritical", testLogger.allMessages);
+    
+    restore.restore();
 }
 
 /* Sample D predefined variable

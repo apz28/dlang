@@ -1218,14 +1218,8 @@ protected:
         // Ex: SELECT version()="PostgreSQL 12.4, compiled by Visual C++ build 1914, 64-bit"
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
-        auto command = createNonTransactionCommand();
-        scope (exit)
-            command.dispose();
-
         // Ex: 12.4
-        command.commandText = "SHOW server_version";
-        command.parametersCheck = false;
-        auto v = command.executeScalar();
+        auto v = this.executeScalar("SHOW server_version");
         return v.isNull() ? null : v.get!string();
     }
 
@@ -2566,7 +2560,9 @@ unittest // PgConnection.DML.execute...
     assert(INT_FIELD.get!int() == 1); // First field
 
     auto reader = connection.executeReader(simpleSelectCommandText());
-    scope (exit)
-        reader.dispose();
     validateSelectCommandTextReader(reader);
+    reader.dispose();
+    
+    auto TEXT_FIELD = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = 1");
+    assert(TEXT_FIELD.get!string() == "TEXT");
 }
