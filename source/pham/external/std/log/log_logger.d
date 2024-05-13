@@ -3388,31 +3388,23 @@ struct LogRestore
 nothrow @safe:
 
 public:
-    this(Logger toSharedLog)
+    this(Logger toSharedLog, Logger toThreadLog = null)
     in
     {
         assert(toSharedLog !is null);
     }
     do
     {
-        this(toSharedLog, toSharedLog);
-    }
-
-    this(Logger toSharedLog, Logger toThreadLog)
-    in
-    {
-        assert(toSharedLog !is null);
-        assert(toThreadLog !is null);
-    }
-    do
-    {
+        const setThreadLog = toThreadLog !is null;
+        
         this.done = false;
-        this.save();
+        this.save(setThreadLog);
 
         sharedLog = toSharedLog;
         sharedLogLevel = toSharedLog.logLevel;
 
-        threadLog = toThreadLog;
+        if (setThreadLog)
+            threadLog = toThreadLog;
     }
 
     ~this()
@@ -3425,8 +3417,11 @@ public:
     {
         if (!done)
         {
-            savedThreadLog.logLevel = savedThreadLog_Level;
-            threadLog = savedThreadLog;
+            if (savedThreadLog !is null)
+            {
+                savedThreadLog.logLevel = savedThreadLog_Level;
+                threadLog = savedThreadLog;
+            }
 
             savedSharedLog.logLevel = savedSharedLog_Level;
             sharedLog = savedSharedLog;
@@ -3438,15 +3433,18 @@ public:
     }
 
 private:
-    void save()
+    void save(const(bool) setThreadLog)
     {
         savedSharedLogLevel = sharedLogLevel;
 
         savedSharedLog = sharedLog;
         savedSharedLog_Level = savedSharedLog.logLevel;
 
-        savedThreadLog = threadLog;
-        savedThreadLog_Level = savedThreadLog.logLevel;
+        if (setThreadLog)
+        {
+            savedThreadLog = threadLog;
+            savedThreadLog_Level = savedThreadLog.logLevel;
+        }
     }
 
     Logger savedSharedLog, savedThreadLog;
@@ -4113,7 +4111,7 @@ void testFuncNames(Logger logger) @safe
     tl1.log(LogLevel.info, false, "");
     assert(tl1.line == line);
 
-    auto logRestore = LogRestore(tl1);
+    auto logRestore = LogRestore(tl1, tl1);
 
     log(to!string(__LINE__)); line = __LINE__;
     assert(tl1.line == line, tl1.debugString(line, sharedLogLevel));
@@ -4198,7 +4196,7 @@ void testFuncNames(Logger logger) @safe
     assert(l.line == lineNumber);
     assert(l.logLevel == defaultUnitTestLogLevel);
 
-    auto logRestore = LogRestore(l);
+    auto logRestore = LogRestore(l, l);
 
     assert(sharedLog.logLevel == defaultUnitTestLogLevel);
 
@@ -4266,7 +4264,7 @@ void testFuncNames(Logger logger) @safe
 
     auto mem = new TestLogger();
     auto memS = new TestLogger();
-    auto logRestore = LogRestore(memS);
+    auto logRestore = LogRestore(memS, memS);
 
     const levels = [LogLevel.trace, LogLevel.debug_,
         LogLevel.info, LogLevel.warn, LogLevel.error,
@@ -4387,7 +4385,7 @@ void testFuncNames(Logger logger) @safe
 @safe unittest
 {
     auto mem = new TestLogger();
-    auto logRestore = LogRestore(mem);
+    auto logRestore = LogRestore(mem, mem);
 
     const levels = [LogLevel.trace, LogLevel.debug_,
         LogLevel.info, LogLevel.warn, LogLevel.error,
@@ -4583,7 +4581,7 @@ void testFuncNames(Logger logger) @safe
     import std.string : indexOf;
 
     auto tl = new TestLogger(LoggerOption(LogLevel.info, "Test", defaultOutputPattern, 0));
-    auto logRestore = LogRestore(tl);
+    auto logRestore = LogRestore(tl, tl);
 
     logTrace("trace");
     assert(tl.msg.indexOf("trace") == -1);
@@ -4598,7 +4596,7 @@ void testFuncNames(Logger logger) @safe
     auto logger = new MultiLogger(LoggerOption(LogLevel.error, "Multi", defaultOutputPattern, 0));
     auto tl = new TestLogger(LoggerOption(LogLevel.info, "Test", defaultOutputPattern, 0));
     logger.insertLogger("required", tl);
-    auto logRestore = LogRestore(logger);
+    auto logRestore = LogRestore(logger, logger);
 
     logTrace("trace");
     assert(tl.msg.indexOf("trace") == -1, tl.msg);
@@ -4668,7 +4666,8 @@ void testFuncNames(Logger logger) @safe
         }
     }
 
-    auto logRestore = LogRestore(new IgnoredLog);
+    auto ignore = new IgnoredLog;
+    auto logRestore = LogRestore(ignore, ignore);
 
     Thread[] spawned;
     foreach (i; 0 .. 4)
@@ -4815,7 +4814,7 @@ void testFuncNames(Logger logger) @safe
         scope (exit)
             fl.file.close();
 
-        auto logRestore = LogRestore(fl);
+        auto logRestore = LogRestore(fl, fl);
 
         foreach (t; ts)
         {
@@ -4927,7 +4926,7 @@ void testFuncNames(Logger logger) @safe
         remove(filename);
     }
 
-    auto logRestore = LogRestore(lg);
+    auto logRestore = LogRestore(lg, lg);
     sharedLogLevel = LogLevel.critical;
     assert(sharedLogLevel == LogLevel.critical);
 
@@ -4963,7 +4962,7 @@ void testFuncNames(Logger logger) @safe
     scope (exit)
         remove(filename);
     l.logLevel = LogLevel.critical;
-    auto logRestore = LogRestore(l);
+    auto logRestore = LogRestore(l, l);
 
     log(LogLevel.error, false, notWritten);
     log(LogLevel.critical, true, written);
@@ -5135,6 +5134,9 @@ unittest // RollingFileLogger
 
 unittest // default LogLevel
 {
+    import std.conv : to;
+    import std.stdio : writeln;
+    
     static class TestLogger : MemLogger
     {
     nothrow @safe:
@@ -5144,8 +5146,8 @@ unittest // default LogLevel
     protected:
         final override void writeLog(ref Logger.LogEntry payload)
         {
-            if (allMessages.length)
-                allMessages ~= "\n";
+            //debug writeln("logLevel=", logLevel, ", payload.logLevel=", payload.header.logLevel);
+            
             allMessages ~= payload.message;
         }
     }
@@ -5159,7 +5161,9 @@ unittest // default LogLevel
     
     auto testLogger = new TestLogger();
     testLogger.logLevel = sharedLogLevel;
-    auto restore = LogRestore(testLogger);
+    auto restore = LogRestore(testLogger, null);
+    
+    //debug writeln("sharedLogLevel=", sharedLogLevel, ", testLogger.logLevel=", testLogger.logLevel, ", sharedLog.logLevel=", sharedLog.logLevel);
     
     // Since this is just a forward to shareLog and shareLog.logLevel is still equal to 'warn'
     // hence only capture warn, error & critical messages
@@ -5170,7 +5174,7 @@ unittest // default LogLevel
     threadLog.warn("warn");
     threadLog.error("error");
     threadLog.critical("critical");
-    assert(testLogger.allMessages == "warn\nerror\ncritical", testLogger.allMessages);
+    assert(testLogger.allMessages == ["warn", "error", "critical"], testLogger.allMessages.to!string);
     testLogger.allMessages = null;
     
     sharedLog.logLevel = lowestLogLevel;
@@ -5180,7 +5184,7 @@ unittest // default LogLevel
     sharedLog.warn("warn");
     sharedLog.error("error");
     sharedLog.critical("critical");    
-    assert(testLogger.allMessages == "log\ntrace\ninfo\nwarn\nerror\ncritical", testLogger.allMessages);
+    assert(testLogger.allMessages == ["log", "trace", "info", "warn", "error", "critical"], testLogger.allMessages.to!string);
     
     restore.restore();
 }
