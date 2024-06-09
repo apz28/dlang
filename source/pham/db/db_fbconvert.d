@@ -137,7 +137,7 @@ int32 dateEncode(scope const(DbDate) value) @nogc pure
 DbDateTime dateTimeDecode(int32 fbDate, int32 fbTime) @nogc pure
 {
 	auto dt = DateTime(dateDecode(fbDate), Time(timeToDuration(fbTime)));
-	return DbDateTime(dt, 0, 0);
+	return DbDateTime(dt);
 }
 
 void dateTimeEncode(scope const(DbDateTime) value, out int32 fbDate, out int32 fbTime) @nogc pure
@@ -149,7 +149,7 @@ void dateTimeEncode(scope const(DbDateTime) value, out int32 fbDate, out int32 f
 DbDateTime dateTimeDecodeTZ(int32 fbDate, int32 fbTime, uint16 fbZoneId, int16 fbZoneOffset)
 {
 	auto dt = DateTime(dateDecode(fbDate), Time(timeToDuration(fbTime), DateTimeZoneKind.utc));
-	return DbDateTime(dt, fbZoneId, fbZoneOffset);
+	return DbDateTime(dt, fbZoneId, ZoneOffset(fbZoneOffset));
 }
 
 void dateTimeEncodeTZ(scope const(DbDateTime) value, out int32 fbDate, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)
@@ -258,7 +258,7 @@ int32 timeEncode(scope const(DbTime) value) @nogc pure
 DbTime timeDecodeTZ(int32 fbTime, uint16 fbZoneId, int16 fbZoneOffset)
 {
 	auto dt = DateTime(DateTime.utcNow.date, Time(timeToDuration(fbTime), DateTimeZoneKind.utc));
-	return DbTime(dt.time, fbZoneId, fbZoneOffset);
+	return DbTime(dt.time, fbZoneId, ZoneOffset(fbZoneOffset));
 }
 
 void timeEncodeTZ(scope const(DbTime) value, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)

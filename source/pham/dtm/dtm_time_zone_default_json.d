@@ -19,8 +19,8 @@ import std.uni : sicmp;
 import pham.utl.utl_result : ResultIf;
 import pham.dtm.dtm_date : DayOfWeek, DateTime;
 import pham.dtm.dtm_date_time_parse;
-import pham.dtm.dtm_tick : DateTimeZoneKind, Tick, toDayOfWeekUS;
-import pham.dtm.dtm_time_zone : AdjustmentRule, TimeZoneInfo, TransitionTime;
+import pham.dtm.dtm_tick : DateTimeZoneKind, ErrorOp, Tick, toDayOfWeekUS;
+import pham.dtm.dtm_time_zone : AdjustmentRule, TimeZoneInfo, TransitionTime, ZoneOffset;
 
 nothrow @safe:
 
@@ -113,14 +113,14 @@ ResultIf!AdjustmentRule toRule(ref JSONValue v) @trusted
     try {
         const db = toDateTime(v["dateBegin"].str);
         const de = toDateTime(v["dateEnd"].str);
-        const bdelta = toDeltaMinutes(v["baseUtcOffsetDelta"].integer);
-        const ddelta = toDeltaMinutes(v["daylightDelta"].integer);
-        const sdelta = toDeltaMinutes(v["standardDelta"].integer);
+        const bdelta = ZoneOffset(toDeltaMinutes(v["baseUtcOffsetDelta"].integer));
+        const ddelta = ZoneOffset(toDeltaMinutes(v["daylightDelta"].integer));
+        const sdelta = ZoneOffset(toDeltaMinutes(v["standardDelta"].integer));
         const tb = toTransition(v["daylightTransitionBegin"].object);
         const te = toTransition(v["daylightTransitionEnd"].object);
         const nt = v["noDaylightTransitions"].boolean;
 
-        return db && de && bdelta && ddelta && sdelta && tb && te
+        return db && de && bdelta.isValid() == ErrorOp.none && ddelta.isValid() == ErrorOp.none && sdelta.isValid() == ErrorOp.none && tb && te
             ? ResultIf!AdjustmentRule.ok(AdjustmentRule(db, de, bdelta, ddelta, sdelta, tb, te, nt))
             : ResultIf!AdjustmentRule.error(1, "Invalid datetime rule");
     } catch (Exception) return ResultIf!AdjustmentRule.error(1, "Invalid datetime rule");
@@ -151,7 +151,7 @@ ResultIf!TimeZoneInfo toZone(ref JSONValue v) @trusted
         const displayName = v["displayName"].str;
         const standardName = v["standardName"].str;
         const daylightName = v["daylightName"].str;
-        const baseUtcOffset = toDeltaMinutes(v["baseUtcOffset"].integer);
+        const baseUtcOffset = ZoneOffset(toDeltaMinutes(v["baseUtcOffset"].integer));
         const supportsDaylightSavingTime = v["supportsDaylightSavingTime"].boolean;
 
         if (id.length == 0 || !baseUtcOffset)
@@ -294,7 +294,7 @@ JSON";
     assert(r[0].daylightName == "Afghanistan Daylight Time");
     assert(r[0].displayName == "(UTC\u002B04:30) Kabul");
     assert(r[0].standardName == "Afghanistan Standard Time");
-    assert(r[0].baseUtcOffset == dur!"minutes"(270));
+    assert(r[0].baseUtcOffset.toMinutes() == 270);
     assert(r[0].supportsDaylightSavingTime == false);
     assert(r[0].adjustmentRules.length == 0);
 
@@ -302,14 +302,14 @@ JSON";
     assert(r[1].daylightName == "Alaskan Daylight Time");
     assert(r[1].displayName == "(UTC-09:00) Alaska");
     assert(r[1].standardName == "Alaskan Standard Time");
-    assert(r[1].baseUtcOffset == dur!"minutes"(-540));
+    assert(r[1].baseUtcOffset.toMinutes() == -540);
     assert(r[1].supportsDaylightSavingTime == true);
     assert(r[1].adjustmentRules.length == 2);
     assert(r[1].adjustmentRules[0].dateBegin == DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeZoneKind.unspecified));
     assert(r[1].adjustmentRules[0].dateEnd == DateTime(2006, 12, 31, 0, 0, 0, 0, DateTimeZoneKind.unspecified));
-    assert(r[1].adjustmentRules[0].baseUtcOffsetDelta == Duration.zero);
-    assert(r[1].adjustmentRules[0].daylightDelta == dur!"minutes"(60));
-    assert(r[1].adjustmentRules[0].standardDelta == Duration.zero);
+    assert(r[1].adjustmentRules[0].baseUtcOffsetDelta.toMinutes() == 0);
+    assert(r[1].adjustmentRules[0].daylightDelta.toMinutes() == 60);
+    assert(r[1].adjustmentRules[0].standardDelta.toMinutes() == 0);
     assert(r[1].adjustmentRules[0].daylightTransitionBegin.day == 1);
     assert(r[1].adjustmentRules[0].daylightTransitionBegin.dayOfWeek == DayOfWeek.sunday);
     assert(r[1].adjustmentRules[0].daylightTransitionBegin.isFixedDateRule == false);
@@ -325,9 +325,9 @@ JSON";
     assert(r[1].adjustmentRules[0].noDaylightTransitions == true);
     assert(r[1].adjustmentRules[1].dateBegin == DateTime(2007, 1, 1, 0, 0, 0, 0, DateTimeZoneKind.unspecified));
     assert(r[1].adjustmentRules[1].dateEnd == DateTime(9999, 12, 31, 0, 0, 0, 0, DateTimeZoneKind.unspecified));
-    assert(r[1].adjustmentRules[1].baseUtcOffsetDelta == Duration.zero);
-    assert(r[1].adjustmentRules[1].daylightDelta == dur!"minutes"(60));
-    assert(r[1].adjustmentRules[1].standardDelta == Duration.zero);
+    assert(r[1].adjustmentRules[1].baseUtcOffsetDelta.toMinutes() == 0);
+    assert(r[1].adjustmentRules[1].daylightDelta.toMinutes() == 60);
+    assert(r[1].adjustmentRules[1].standardDelta.toMinutes() == 0);
     assert(r[1].adjustmentRules[1].daylightTransitionBegin.day == 1);
     assert(r[1].adjustmentRules[1].daylightTransitionBegin.dayOfWeek == DayOfWeek.sunday);
     assert(r[1].adjustmentRules[1].daylightTransitionBegin.isFixedDateRule == false);

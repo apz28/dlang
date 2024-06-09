@@ -88,16 +88,15 @@ string moduleParentOf(string moduleName) @nogc nothrow pure @safe
  *   false otherwise
  */
 pragma(inline, true)
-bool isLoggingEnabled(const(LogLevel) ll, const(LogLevel) moduleLL, const(LogLevel) loggerLL, const(LogLevel) globalLL) @nogc nothrow pure @safe
+bool isLoggingEnabled(const(LogLevel) ll, const(LogLevel) moduleLL, const(LogLevel) loggerLL) @nogc nothrow pure @safe
 {
-    debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(ll=", ll, ", moduleLL=", moduleLL, ", loggerLL=", loggerLL, ", globalLL=", globalLL, ")");
+    debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(ll=", ll, ", moduleLL=", moduleLL, ", loggerLL=", loggerLL, ")");
 
     version(DisableLogger)
         return false;
     else
     {
-        return (ll != LogLevel.off)
-            && ((ll >= loggerLL || ll >= moduleLL) && ll >= globalLL);
+        return (ll != LogLevel.off) && (ll >= loggerLL || ll >= moduleLL);
     }
 }
 
@@ -785,10 +784,9 @@ public:
             debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
             bool isFatal = false;
-            const llGlobalLogLevel = lowestLogLevel;
             const llModuleLevel = ModuleLoggerOptions.logLevelModule(payload.header.location.moduleName);
             const llLogLevel = this.logLevel;
-            if (isLoggingEnabled(payload.header.logLevel, llModuleLevel, llLogLevel, llGlobalLogLevel))
+            if (isLoggingEnabled(payload.header.logLevel, llModuleLevel, llLogLevel))
             {
                 isFatal = payload.header.logLevel == LogLevel.fatal;
                 auto locked = LogRAIIMutex(_mutex);
@@ -907,9 +905,8 @@ public:
         final bool isImpl2(out LogLevel llModuleLevel, in string moduleName = __MODULE__) const nothrow @trusted
         {
             llModuleLevel = ModuleLoggerOptions.logLevelModule(moduleName);
-            const llGlobalLogLevel = globalLogLevel;
             const llLogLevel = this.logLevel;
-            return isLoggingEnabled(ll, llModuleLevel, llLogLevel, llGlobalLogLevel);
+            return isLoggingEnabled(ll, llModuleLevel, llLogLevel);
         }
     }
 
@@ -3464,27 +3461,16 @@ SysTime currentTime() nothrow @safe
     return Clock.currTime;
 }
 
-/**
- * This methods get and set the `LogLevel` of globalLogLevel.
- * Every log message with a `LogLevel` lower as the `LogLevel` of globalLogLevel
- * will be discarded before it reaches `writeLog` method of any `Logger`.
- * It is simple and globally controls output of log messages
- */
+deprecated("No longer used - please use logLevel of logger instance")
 @property LogLevel globalLogLevel() @nogc nothrow @trusted
 {
-    /*
-     * Implementation note:
-     * For any public logging call, the global log level shall only be queried once on
-     * entry. Otherwise when another threads changes the level, we would work with
-     * different levels at different spots in the code.
-     */
-    return atomicLoad(_globalLogLevel);
+    return defaultGlobalLogLevel;
 }
 
-/// Ditto
+deprecated("No longer used - please set logLevel of logger instance")
 @property LogLevel globalLogLevel(LogLevel ll) nothrow @trusted
 {
-    return atomicExchange(&_globalLogLevel, ll);
+    return defaultGlobalLogLevel;
 }
 
 /**
@@ -3636,7 +3622,6 @@ Logger _threadForwardLog;
 __gshared Logger _sharedLog;
 __gshared ModuleLoggerOptions _moduleOptions;
 __gshared LogLevel _sharedLogLevel = defaultLogLevel;
-__gshared LogLevel _globalLogLevel = defaultGlobalLogLevel;
 
 class SharedLogger : FileLogger
 {
@@ -3687,7 +3672,7 @@ public:
 
     static LoggerOption defaultOption() nothrow @safe
     {
-        return LoggerOption(sharedLogLevel, "ForwardSharedLogger", defaultOutputPattern, 0);
+        return LoggerOption(lowestLogLevel, "ForwardSharedLogger", defaultOutputPattern, 0);
     }
 
 protected:
@@ -3759,7 +3744,7 @@ unittest // moduleParentOf
 
     auto tl = threadLog;
     assert(tl !is null);
-    assert(tl.logLevel == defaultLogLevel, tl.logLevel.to!string());
+    assert(tl.logLevel == lowestLogLevel, tl.logLevel.to!string());
 }
 
 @safe unittest // create NullLogger

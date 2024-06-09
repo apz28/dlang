@@ -14,6 +14,7 @@ module pham.utl.utl_array;
 import std.range.primitives : ElementType;
 import std.traits : isDynamicArray, isIntegral, isSomeChar, isStaticArray, lvalueOf;
 
+debug(pham_utl_utl_array) import std.stdio : writeln;
 import pham.utl.utl_disposable : DisposingReason;
 
 nothrow @safe:
@@ -34,11 +35,41 @@ if (is(C == char) || is(C == byte) || is(C == ubyte))
 
 ptrdiff_t indexOf(T)(scope const(T)[] items, const(T) item) @trusted
 {
-    scope (failure) assert(0, "Assume nothrow failed");
+    //scope (failure) assert(0, "Assume nothrow failed");
     
     foreach (i; 0..items.length)
     {
         if (items[i] == item)
+            return i;
+    }
+    return -1;
+}
+
+ptrdiff_t indexOf(T)(scope const(T)[] item, scope const(T)[] subItem) @nogc pure
+if (isSomeChar!T)
+{
+    const subLength = subItem.length;
+    if (subLength == 0 || subLength > item.length)
+        return -1;
+        
+    const first = subItem[0];
+    
+    foreach (i; 0..item.length - (subLength - 1))
+    {
+        if (item[i] != first)
+            continue;
+        
+        bool found = true;
+        foreach (j; 1..subLength)
+        {
+            if (item[i + j] != subItem[j])
+            {
+                found = false;
+                break;
+            }
+        }
+        
+        if (found)
             return i;
     }
     return -1;
@@ -943,8 +974,20 @@ nothrow @safe unittest // arrayOfChar
 
 unittest // indexOf
 {
+    //debug(pham_utl_utl_array) debug writeln(__MODULE__ ~ ".indexOf - begin");
+    
     assert("abcxyz".indexOf('c') == 2);
     assert("abcxyz".indexOf('C') == -1);
+
+    assert("abcxyz".indexOf("cx") == 2);
+    assert("abcxyz".indexOf("ab") == 0);
+    assert("abcxyz".indexOf("yz") == 4);
+    assert("abcxyz".indexOf("cx12") == -1);
+    assert("abcxyz".indexOf("abcxyz1") == -1);
+    assert("".indexOf("") == -1);
+    assert("abcxyz".indexOf("") == -1);
+    
+    //debug(pham_utl_utl_array) debug writeln(__MODULE__ ~ ".indexOf - end");
 }
 
 nothrow @safe unittest // inplaceMoveToLeft

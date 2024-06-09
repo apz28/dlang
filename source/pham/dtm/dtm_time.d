@@ -21,7 +21,9 @@ import pham.utl.utl_array : ShortStringBuffer;
 import pham.dtm.dtm_date : Date, DateTime, DayOfWeek, JulianDate;
 import pham.dtm.dtm_date_time_format;
 import pham.dtm.dtm_tick;
-public import pham.dtm.dtm_tick : CustomFormatSpecifier, DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind;
+public import pham.dtm.dtm_tick : CustomFormatSpecifier, DateTimeKind, DateTimeSetting,
+    dateTimeSetting, DateTimeZoneKind;
+public import pham.dtm.dtm_time_zone : ZoneOffset;
 
 @safe:
 
@@ -547,7 +549,7 @@ public:
         return DateTime.utcNow.time;
     }
 
-    @property int utcBias() const nothrow
+    @property ZoneOffset utcBias() const nothrow
     {
         auto dt = DateTime(Date.today, this);
         return dt.utcBias;

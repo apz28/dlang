@@ -79,7 +79,7 @@ if (isSomeChar!Char)
                 else
                 {
                     ubyte h;
-                    if (parseHexDigits!(Char, ubyte)(encodedFormValue[i..(i + 2)], h) == NumericParsedKind.ok)
+                    if (parseHexDigits(encodedFormValue[i..(i + 2)], h) == NumericParsedKind.ok)
                         result.put(cast(char)h);
                     else
                     {

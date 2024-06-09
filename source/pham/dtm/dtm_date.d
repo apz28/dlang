@@ -23,7 +23,7 @@ public import pham.dtm.dtm_tick : CustomFormatSpecifier, DayOfWeek, DateTimeKind
     DateTimeSetting, dateTimeSetting, DateTimeZoneKind,
     firstDayOfMonth, firstDayOfWeek;
 public import pham.dtm.dtm_time : Time;
-import pham.dtm.dtm_time_zone : TimeZoneInfo;
+public import pham.dtm.dtm_time_zone : TimeZoneInfo, ZoneOffset;
 
 @safe:
 
@@ -83,12 +83,12 @@ public:
 
     int opCmp(scope const(Date) rhs) const @nogc nothrow pure scope
     {
-        return cmp(data, rhs.data);
+        return cmp(this.data, rhs.data);
     }
 
     bool opEquals(scope const(Date) rhs) const @nogc nothrow pure scope
     {
-        return opCmp(rhs) == 0;
+        return this.data == rhs.data;
     }
 
     /**
@@ -151,11 +151,11 @@ public:
     /**
      * Returns the first day in the month that this Date is in
      */
-    Date beginOfMonth() const nothrow pure @safe
+    Date beginOfMonth() const @nogc nothrow pure
     {
         int y = void, m = void, d = void;
         getDate(y, m, d);
-        return Date(y, m, 1);
+        return Date(y, m, firstDayOfMonth);
     }
 
     /**
@@ -191,10 +191,12 @@ public:
         return Date(year, month, day);
     }
 
+    alias daysInMonth = DateTime.daysInMonth;
+
     /**
      * Returns the last day in the month that this Date is in
      */
-    Date endOfMonth() const @nogc nothrow pure @safe
+    Date endOfMonth() const @nogc nothrow pure
     {
         int y = void, m = void, d = void;
         getDate(y, m, d);
@@ -214,6 +216,39 @@ public:
     }
 
     /**
+     * Returns the nth week day in the month that this Date is in
+     * Params:
+     *  dayOfWeek = day of the week
+     *  nthDayOfMonth = Nth day of month [1..31]
+     */
+    Date getWeekOf(const(DayOfWeek) dayOfWeek, int nthDayOfMonth) const @nogc nothrow pure
+    {
+        if (nthDayOfMonth <= firstDayOfMonth)
+            return firstWeekOf(dayOfWeek);
+            
+        if (nthDayOfMonth >= 31-6)
+            return lastWeekOf(dayOfWeek);
+        
+        int y = void, m = void, d = void;
+        getDate(y, m, d);
+        auto result = Date(y, m, nthDayOfMonth);
+        result.data += daysDiff(result.dayOfWeek, dayOfWeek, true);
+        return result.month == m ? result : lastWeekOf(dayOfWeek);
+    }
+
+    /**
+     * Returns the first week day in the month that this Date is in
+     * Params:
+     *  dayOfWeek = day of the week
+     */
+    Date firstWeekOf(const(DayOfWeek) dayOfWeek) const @nogc nothrow pure
+    {
+        auto result = beginOfMonth();
+        result.data += daysDiff(result.dayOfWeek, dayOfWeek, true);
+        return result;
+    }
+
+    /**
      * Query if days is in valid days range
      * Params:
      *   days = number of days to be checked
@@ -229,6 +264,18 @@ public:
 
     alias isValidMonth = DateTime.isValidMonth;
     alias isValidYear = DateTime.isValidMonth;
+
+    /**
+     * Returns the last week day in the month that this Date is in
+     * Params:
+     *  dayOfWeek = day of the week
+     */
+    Date lastWeekOf(const(DayOfWeek) dayOfWeek) const @nogc nothrow pure
+    {
+        auto result = endOfMonth();
+        result.data -= daysDiff(dayOfWeek, result.dayOfWeek, false);
+        return result;
+    }
 
     /**
      * Returns the equivalent DateTime of this Date. The resulting value
@@ -351,7 +398,7 @@ public:
      */
     @property DayOfWeek dayOfWeek() const @nogc nothrow pure
     {
-        return toDateTime().dayOfWeek;
+        return Tick.dayOfWeek(sticks);
     }
 
     /**
@@ -691,6 +738,21 @@ public:
 
     /**
      * Returns the DateTime resulting from adding a fractional number of
+     * days to this DateTime. The result is computed by rounding the
+     * fractional number of days given by value to the nearest
+     * millisecond, and adding that interval to this DateTime. The
+     * value argument is permitted to be negative.
+     */
+    DateTime addDaysClamp(const(double) days) const @nogc nothrow pure
+    {
+        long newTicks = void;
+        DateTime result = void;
+        addImpl(toMilliSeconds(days, Tick.millisPerDay), newTicks, result);
+        return result;
+    }
+
+    /**
+     * Returns the DateTime resulting from adding a fractional number of
      * hours to this DateTime. The result is computed by rounding the
      * fractional number of hours given by value to the nearest
      * millisecond, and adding that interval to this DateTime. The
@@ -920,7 +982,7 @@ public:
     {
         int y = void, m = void, d = void;
         getDate(y, m, d);
-        return DateTime(y, m, 1, kind);
+        return DateTime(y, m, firstDayOfMonth, kind);
     }
 
     static void checkDateParts(int year, int month, int day) pure
@@ -1013,7 +1075,7 @@ public:
     static int daysInMonth(const(int) year, const(int) month) @nogc nothrow pure
     in
     {
-        assert(isValidDateParts(year, month, 1) == ErrorPart.none);
+        assert(isValidDateParts(year, month, firstDayOfMonth) == ErrorPart.none);
     }
     do
     {
@@ -1147,7 +1209,7 @@ public:
         else if (isValidMonth(month) != ErrorOp.none)
             return ErrorPart.month;
         // Check for "day > 28" to avoid circular call in pre-condition of daysInMonth
-        else if (day < 1 || (day > 28 && day > daysInMonth(year, month)))
+        else if (day < firstDayOfMonth || (day > 28 && day > daysInMonth(year, month)))
             return ErrorPart.day;
         else
             return ErrorPart.none;
@@ -1393,7 +1455,7 @@ public:
      */
     @property DayOfWeek dayOfWeek() const @nogc nothrow pure
     {
-        return cast(DayOfWeek)((cast(uint)(data.sticks / Tick.ticksPerDay) + 1) % 7);
+        return Tick.dayOfWeek(sticks);
     }
 
     /**
@@ -1609,12 +1671,11 @@ public:
         return DateTime(TickData.createDateTime(ticks, DateTimeZoneKind.utc));
     }
 
-    @property int utcBias() const nothrow
+    @property ZoneOffset utcBias() const nothrow
     {
-        if (kind == DateTimeZoneKind.utc)
-            return 0;
-
-        return cast(int)(totalMinutes - toUTC().totalMinutes);
+        return kind == DateTimeZoneKind.utc
+            ? ZoneOffset.init
+            : ZoneOffset(cast(int)(totalMinutes - toUTC().totalMinutes));
     }
 
     @property TickData raw() const @nogc nothrow pure
@@ -3075,6 +3136,28 @@ unittest // Date.getTime & getTimePrecise
     assert(minute == 0);
     assert(second == 0);
     assert(tick == 0);
+}
+
+unittest // Date.firstWeekOf
+{
+    assert(Date(2024, 5, 31).firstWeekOf(DayOfWeek.sunday) == Date(2024, 5, 5), Date(2024, 5, 31).firstWeekOf(DayOfWeek.sunday).toString);
+    assert(Date(2024, 2, 25).firstWeekOf(DayOfWeek.thursday) == Date(2024, 2, 1), Date(2024, 2, 25).firstWeekOf(DayOfWeek.thursday).toString);
+    assert(Date(2024, 12, 15).firstWeekOf(DayOfWeek.monday) == Date(2024, 12, 2), Date(2024, 12, 15).firstWeekOf(DayOfWeek.monday).toString);
+}
+
+unittest // Date.lastWeekOf
+{
+    assert(Date(2024, 5, 1).lastWeekOf(DayOfWeek.sunday) == Date(2024, 5, 26), Date(2024, 5, 1).lastWeekOf(DayOfWeek.sunday).toString);
+    assert(Date(2024, 2, 10).lastWeekOf(DayOfWeek.thursday) == Date(2024, 2, 29), Date(2024, 2, 10).lastWeekOf(DayOfWeek.thursday).toString);
+    assert(Date(2024, 12, 20).lastWeekOf(DayOfWeek.monday) == Date(2024, 12, 30), Date(2024, 12, 20).lastWeekOf(DayOfWeek.monday).toString);
+}
+
+unittest // Date.getWeekOf
+{
+    assert(Date(2024, 5, 1).getWeekOf(DayOfWeek.sunday, 2) == Date(2024, 5, 5), Date(2024, 5, 1).getWeekOf(DayOfWeek.sunday, 1).toString);
+    assert(Date(2024, 2, 10).getWeekOf(DayOfWeek.thursday, 10) == Date(2024, 2, 15), Date(2024, 2, 10).getWeekOf(DayOfWeek.thursday, 10).toString);
+    assert(Date(2024, 12, 20).getWeekOf(DayOfWeek.monday, 20) == Date(2024, 12, 23), Date(2024, 12, 20).getWeekOf(DayOfWeek.monday, 20).toString);
+    assert(Date(2024, 12, 23).getWeekOf(DayOfWeek.monday, 23) == Date(2024, 12, 23), Date(2024, 12, 23).getWeekOf(DayOfWeek.monday, 23).toString);
 }
 
 unittest // ...Between

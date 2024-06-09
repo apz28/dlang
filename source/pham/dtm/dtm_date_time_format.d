@@ -19,7 +19,7 @@ import pham.utl.utl_object : toString;
 import pham.dtm.dtm_date : Date, DateTime, DayOfWeek, firstDayOfMonth, firstDayOfWeek, JulianDate;
 import pham.dtm.dtm_tick;
 import pham.dtm.dtm_time : Time;
-import pham.dtm.dtm_time_zone : TimeZoneInfo;
+import pham.dtm.dtm_time_zone : TimeZoneInfo, ZoneOffset;
 
 @safe:
 
@@ -73,7 +73,7 @@ public:
         dateTime.getDate(_year, _month, _day);
         dateTime.getTimePrecise(_hour, _minute, _second, _tick);
         this._millisecond = TickPart.tickToMillisecond(_tick);
-        TimeZoneInfo.offsetToISOPart(dateTime.utcBias, _utcBiasHour, _utcBiasMinute);
+        this._utcBias = dateTime.utcBias;
     }
 
     this(in Time time)
@@ -82,7 +82,7 @@ public:
         this.time = time;
         time.getTimePrecise(_hour, _minute, _second, _tick);
         this._millisecond = TickPart.tickToMillisecond(_tick);
-        TimeZoneInfo.offsetToISOPart(time.utcBias, _utcBiasHour, _utcBiasMinute);
+        this._utcBias = time.utcBias;
     }
 
     string amPM(scope const ref DateTimeSetting setting) const pure
@@ -193,17 +193,12 @@ public:
     {
         return _year;
     }
-
-    @property byte utcBiasMinute() const @nogc pure
+    
+    @property ZoneOffset utcBias() const @nogc pure
     {
-        return _utcBiasMinute;
+        return _utcBias;
     }
-
-    @property byte utcBiasHour() const @nogc pure
-    {
-        return _utcBiasHour;
-    }
-
+    
 private:
     union
     {
@@ -212,7 +207,7 @@ private:
         Time time;
     }
     int _year, _month, _day, _hour, _minute, _second, _millisecond, _tick;
-    byte _utcBiasHour, _utcBiasMinute;
+    ZoneOffset _utcBias;
     DateTimeKind _kind;
 }
 
@@ -847,10 +842,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     toString(sink, fmtValue.second, 2);
                     put(sink, '.');
                     toString(sink, fmtValue.tick, Tick.ticksMaxPrecision);
-                    put(sink, fmtValue.utcBiasHour < 0 ? '-' : '+');
-                    toString(sink, abs(fmtValue.utcBiasHour), 2);
-                    put(sink, ':');
-                    toString(sink, fmtValue.utcBiasMinute, 2);
+                    fmtValue.utcBias.toString(sink);
                 }
                 break;
             default:

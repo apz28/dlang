@@ -15,10 +15,9 @@ import core.time : Duration, dur;
 public import std.ascii : LetterCase;
 import std.range.primitives : ElementEncodingType, empty, put,
     isInfinite, isInputRange, isOutputRange;
-import std.traits : isIntegral, isSigned, isSomeChar, isUnsigned, Unqual;
+import std.traits : isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned, Unqual;
 
 debug(debug_pham_utl_utl_numeric_parser) import std.stdio : writeln;
-
 import pham.utl.utl_utf8;
 
 nothrow @safe:
@@ -966,6 +965,66 @@ NumericLexerOptions!(const(Char)) defaultParseIntegralOptions(Char)() pure
 }
 
 /**
+ * Parse 'hexText' to ubyte[] sink
+ * Params:
+ *  hexText = character range to be converted
+ *  sink = sink to hold ubytes
+ * Returns:
+ *  NumericParsedKind
+ */
+NumericParsedKind parseBase16(Range, Writer)(ref Writer sink, scope ref Range hexDigitText) pure
+if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
+{
+    auto lexer = NumericLexer!Range(hexDigitText, defaultParseHexDigitOptions!(ElementEncodingType!Range)());
+    if (!lexer.hasNumericChar)
+        return NumericParsedKind.invalid;
+
+    bool bc;
+    ubyte b, bv;
+    while (!lexer.empty)
+    {
+        if (cvtHexDigit(lexer.front, b))
+        {
+            bv = cast(ubyte)((bv << 4) | b);
+            if (bc)
+            {
+                put(sink, bv);
+                bv = 0;
+                bc = false;
+            }
+            else
+                bc = true;
+
+            lexer.popFront();
+        }
+        else if (lexer.conditionSkipSpaces())
+        {
+            if (lexer.isInvalidAfterContinueSkippingSpaces())
+                return NumericParsedKind.invalid;
+        }
+        else
+            return NumericParsedKind.invalid;
+    }
+    if (bc)
+        put(sink, bv);
+    return NumericParsedKind.ok;
+}
+
+///dito
+NumericParsedKind parseBase16(String, Writer)(ref Writer sink, scope String hexDigitText) pure
+if (isSomeString!String && isOutputRange!(Writer, ubyte))
+{
+    auto inputRange = NumericStringRange!(Unqual!(ElementEncodingType!String))(hexDigitText);
+    return parseBase16(sink, inputRange);
+}
+
+pragma(inline, true)
+size_t parseBase16Length(const(size_t) chars) @nogc pure
+{
+    return chars / 2;
+}
+
+/**
  * Parse 'base64Text' to ubyte[] sink
  * Params:
  *  base64Text = character range to be converted
@@ -1034,10 +1093,10 @@ if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 }
 
 ///dito
-NumericParsedKind parseBase64(Char, Writer)(ref Writer sink, scope const(Char)[] base64Text) pure
-if (isSomeChar!Char && isOutputRange!(Writer, ubyte))
+NumericParsedKind parseBase64(String, Writer)(ref Writer sink, scope String base64Text) pure
+if (isSomeString!String && isOutputRange!(Writer, ubyte))
 {
-    auto inputRange = NumericStringRange!Char(base64Text);
+    auto inputRange = NumericStringRange!(Unqual!(ElementEncodingType!String))(base64Text);
     return parseBase64(sink, inputRange);
 }
 
@@ -1048,42 +1107,6 @@ size_t parseBase64Length(const(size_t) chars,
     return padding == Base64MappingChar.noPadding
         ? (chars / 4) * 3 + (chars % 4 < 2 ? 0 : (chars % 4 == 2 ? 1 : 2))
         : (chars / 4) * 3;
-}
-
-NumericParsedKind parseComputingSize(scope const(char)[] computingSizeText, const(ComputingSizeUnit) defaultUnit, out long target) pure
-{
-    return parseComputingSize!char(computingSizeText, computingSizeUnitNames[], defaultUnit, target);
-}
-
-NumericParsedKind parseComputingSize(Char)(scope const(Char)[] computingSizeText, scope const(const(Char)[])[] computingSizeUnitNames, const(ComputingSizeUnit) defaultUnit, out long target) pure
-if (isSomeChar!Char)
-{
-    target = 0;
-
-    long d;
-    int suffixIndex;
-    const result = parseIntegralSuffix!(Char, long)(computingSizeText, computingSizeUnitNames, d, suffixIndex);
-
-    debug(debug_pham_utl_utl_numeric_parser) debug writeln("result=", result, ", d=", d, ", suffixIndex=", suffixIndex);
-
-    if (result == NumericParsedKind.ok)
-    {
-        if (d == 0)
-            return result;
-
-        const u = suffixIndex < 0 ? defaultUnit : cast(ComputingSizeUnit)suffixIndex;
-
-        debug(debug_pham_utl_utl_numeric_parser) debug writeln("result=", result, ", d=", d, ", u=", u, ", umax=", computingSizeUnitMaxs[u]);
-
-        if (d > 0 && d > computingSizeUnitMaxs[u])
-            return NumericParsedKind.overflow;
-        if (d < 0 && d < -computingSizeUnitMaxs[u])
-            return NumericParsedKind.underflow;
-
-        target = d * computingSizeUnitValues[u];
-    }
-
-    return result;
 }
 
 enum ComputingSizeUnit : ubyte
@@ -1125,8 +1148,44 @@ static immutable long[ComputingSizeUnit.max + 1] computingSizeUnitMaxs = [
     long.max / computingSizeUnitValues[ComputingSizeUnit.pbytes],
     ];
 
-NumericParsedKind parseDecimalSuffix(Char, Range)(scope ref Range decimalText, scope const(const(Char)[])[] expectedSuffixNames, out double target, out int suffixIndex) pure
-if (isSomeChar!Char && isNumericLexerRange!Range)
+NumericParsedKind parseComputingSize(scope const(char)[] computingSizeText, const(ComputingSizeUnit) defaultUnit, out long target) pure
+{
+    return parseComputingSize(computingSizeText, cast(const(const(char)[])[])(computingSizeUnitNames[]), defaultUnit, target);
+}
+
+NumericParsedKind parseComputingSize(String)(scope String computingSizeText, scope const(String)[] computingSizeUnitNames, const(ComputingSizeUnit) defaultUnit, out long target) pure
+if (isSomeString!String)
+{
+    target = 0;
+
+    long d;
+    int suffixIndex;
+    const result = parseIntegralSuffix(computingSizeText, computingSizeUnitNames, d, suffixIndex);
+
+    debug(debug_pham_utl_utl_numeric_parser) debug writeln("result=", result, ", d=", d, ", suffixIndex=", suffixIndex);
+
+    if (result == NumericParsedKind.ok)
+    {
+        if (d == 0)
+            return result;
+
+        const u = suffixIndex < 0 ? defaultUnit : cast(ComputingSizeUnit)suffixIndex;
+
+        debug(debug_pham_utl_utl_numeric_parser) debug writeln("result=", result, ", d=", d, ", u=", u, ", umax=", computingSizeUnitMaxs[u]);
+
+        if (d > 0 && d > computingSizeUnitMaxs[u])
+            return NumericParsedKind.overflow;
+        if (d < 0 && d < -computingSizeUnitMaxs[u])
+            return NumericParsedKind.underflow;
+
+        target = d * computingSizeUnitValues[u];
+    }
+
+    return result;
+}
+
+NumericParsedKind parseDecimalSuffix(String, Range)(scope ref Range decimalText, scope const(String)[] expectedSuffixNames, out double target, out int suffixIndex) pure
+if (isSomeString!String && isNumericLexerRange!Range)
 {
     import std.conv : to;
     import std.uni : sicmp;
@@ -1202,10 +1261,10 @@ if (isSomeChar!Char && isNumericLexerRange!Range)
     return NumericParsedKind.invalid;
 }
 
-NumericParsedKind parseDecimalSuffix(Char)(scope const(Char)[] decimalText, scope const(const(Char)[])[] expectedSuffixNames, out double target, out int suffixIndex) pure
-if (isSomeChar!Char)
+NumericParsedKind parseDecimalSuffix(String)(scope String decimalText, scope const(String)[] expectedSuffixNames, out double target, out int suffixIndex) pure
+if (isSomeString!String)
 {
-    auto range = NumericStringRange!Char(decimalText);
+    auto range = NumericStringRange!(Unqual!(ElementEncodingType!String))(decimalText);
     return parseDecimalSuffix(range, expectedSuffixNames, target, suffixIndex);
 }
 
@@ -1248,17 +1307,17 @@ static immutable long[DurationUnit.max + 1] durationUnitMaxs = [
 
 NumericParsedKind parseDuration(scope const(char)[] durationText, const(DurationUnit) defaultUnit, out Duration target) pure
 {
-    return parseDuration!char(durationText, durationUnitNames[], defaultUnit, target);
+    return parseDuration(durationText, cast(const(const(char)[])[])(durationUnitNames[]), defaultUnit, target);
 }
 
-NumericParsedKind parseDuration(Char)(scope const(Char)[] durationText, scope const(const(Char)[])[] durationUnitNames, const(DurationUnit) defaultUnit, out Duration target) pure
-if (isSomeChar!Char)
+NumericParsedKind parseDuration(String)(scope String durationText, scope const(String)[] durationUnitNames, const(DurationUnit) defaultUnit, out Duration target) pure
+if (isSomeString!String)
 {
     target = Duration.zero;
 
     long d;
     int suffixIndex;
-    const result = parseIntegralSuffix!(Char, long)(durationText, durationUnitNames, d, suffixIndex);
+    const result = parseIntegralSuffix(durationText, durationUnitNames, d, suffixIndex);
 
     debug(debug_pham_utl_utl_numeric_parser) debug writeln("result=", result, ", d=", d, ", suffixIndex=", suffixIndex);
 
@@ -1355,78 +1414,18 @@ if (isNumericLexerRange!Range && isIntegral!Target)
 }
 
 ///dito
-NumericParsedKind parseHexDigits(Char, Target)(scope const(Char)[] hexText, out Target target) pure
-if (isSomeChar!Char && isIntegral!Target)
+NumericParsedKind parseHexDigits(String, Target)(scope String hexText, out Target target) pure
+if (isSomeString!String && isIntegral!Target)
 {
-    auto range = NumericStringRange!Char(hexText);
+    auto range = NumericStringRange!(Unqual!(ElementEncodingType!String))(hexText);
     return parseHexDigits(range, target);
-}
-
-/**
- * Parse 'hexText' to ubyte[] sink
- * Params:
- *  hexText = character range to be converted
- *  sink = sink to hold ubytes
- * Returns:
- *  NumericParsedKind
- */
-NumericParsedKind parseBase16(Range, Writer)(ref Writer sink, scope ref Range hexDigitText) pure
-if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
-{
-    auto lexer = NumericLexer!Range(hexDigitText, defaultParseHexDigitOptions!(ElementEncodingType!Range)());
-    if (!lexer.hasNumericChar)
-        return NumericParsedKind.invalid;
-
-    bool bc;
-    ubyte b, bv;
-    while (!lexer.empty)
-    {
-        if (cvtHexDigit(lexer.front, b))
-        {
-            bv = cast(ubyte)((bv << 4) | b);
-            if (bc)
-            {
-                put(sink, bv);
-                bv = 0;
-                bc = false;
-            }
-            else
-                bc = true;
-
-            lexer.popFront();
-        }
-        else if (lexer.conditionSkipSpaces())
-        {
-            if (lexer.isInvalidAfterContinueSkippingSpaces())
-                return NumericParsedKind.invalid;
-        }
-        else
-            return NumericParsedKind.invalid;
-    }
-    if (bc)
-        put(sink, bv);
-    return NumericParsedKind.ok;
-}
-
-///dito
-NumericParsedKind parseBase16(Char, Writer)(ref Writer sink, scope const(Char)[] hexDigitText) pure
-if (isSomeChar!Char && isOutputRange!(Writer, ubyte))
-{
-    auto inputRange = NumericStringRange!Char(hexDigitText);
-    return parseBase16(sink, inputRange);
-}
-
-pragma(inline, true)
-size_t parseBase16Length(const(size_t) chars)
-{
-    return chars / 2;
 }
 
 /**
  * Parse 'integralText' to integral value
  * Params:
  *  integralText = character range to be converted
- *  v = integral presentation of integralText
+ *  target = integral presentation of integralText
  * Returns:
  *  NumericParsedKind
  */
@@ -1434,15 +1433,15 @@ NumericParsedKind parseIntegral(Range, Target)(scope ref Range integralText, out
 if (isNumericLexerRange!Range && isIntegral!Target)
 {
     uint digitsCount;
-    auto lexer = NumericLexer!Range(integralText, defaultParseIntegralOptions!(ElementEncodingType!Range)());
+    auto lexer = NumericLexer!Range(integralText, defaultParseIntegralOptions!(Unqual!(ElementEncodingType!Range))());
     return parseIntegralImpl(lexer, target, digitsCount);
 }
 
 ///dito
-NumericParsedKind parseIntegral(Char, Target)(scope const(Char)[] integralText, out Target target) pure
-if (isSomeChar!Char && isIntegral!Target)
+NumericParsedKind parseIntegral(String, Target)(scope String integralText, out Target target) pure
+if (isSomeString!String && isIntegral!Target)
 {
-    auto range = NumericStringRange!Char(integralText);
+    auto range = NumericStringRange!(Unqual!(ElementEncodingType!String))(integralText);
     return parseIntegral(range, target);
 }
 
@@ -1536,8 +1535,8 @@ if (isIntegral!Target)
     return NumericParsedKind.ok;
 }
 
-NumericParsedKind parseIntegralSuffix(Char, Range, Target)(scope ref Range integralText, scope const(const(Char)[])[] expectedSuffixNames, out Target target, out int suffixIndex) pure
-if (isSomeChar!Char && isNumericLexerRange!Range && isIntegral!Target)
+NumericParsedKind parseIntegralSuffix(String, Range, Target)(scope ref Range integralText, scope const(String)[] expectedSuffixNames, out Target target, out int suffixIndex) pure
+if (isSomeString!String && isNumericLexerRange!Range && isIntegral!Target)
 {
     import std.uni : sicmp;
 
@@ -1581,10 +1580,10 @@ if (isSomeChar!Char && isNumericLexerRange!Range && isIntegral!Target)
     return NumericParsedKind.invalid;
 }
 
-NumericParsedKind parseIntegralSuffix(Char, Target)(scope const(Char)[] integralText, scope const(const(Char)[])[] expectedSuffixNames, out Target target, out int suffixIndex) pure
-if (isSomeChar!Char && isIntegral!Target)
+NumericParsedKind parseIntegralSuffix(String, Target)(scope String integralText, scope const(String)[] expectedSuffixNames, out Target target, out int suffixIndex) pure
+if (isSomeChar!String && isIntegral!Target)
 {
-    auto range = NumericStringRange!Char(integralText);
+    auto range = NumericStringRange!(Unqual!(ElementEncodingType!String))(integralText);
     return parseIntegralSuffix(range, expectedSuffixNames, target, suffixIndex);
 }
 
@@ -1733,11 +1732,19 @@ nothrow @safe unittest // parseIntegral, parseHexDigits
     import std.conv : to;
 
     int i;
+    string s;
 
     assert(parseIntegral("0", i) == NumericParsedKind.ok);
     assert(i == 0);
+    s = "1";
+    assert(parseIntegral(s, i) == NumericParsedKind.ok);
+    assert(i == 1);
+    
     assert(parseIntegral("0123456789", i) == NumericParsedKind.ok);
     assert(i == 123456789);
+    s = "12345";
+    assert(parseIntegral(s, i) == NumericParsedKind.ok);
+    assert(i == 12345);
 
     assert(parseIntegral("0x01fAc764", i) == NumericParsedKind.ok);
     assert(i == 0x1fAc764);

@@ -62,6 +62,7 @@ public:
 
     /*
      * Params:
+     *  data = ubyte array to be padded
      *  blockSize = Must be greater zero and less-equal to 255
      */
     ubyte[] pad(ubyte[] data, const(size_t) blockSize = minPaddingBlockSize)
@@ -85,9 +86,11 @@ public:
 
     /*
      * Params:
+     *  data = ubyte buffer to be padded
      *  blockSize = Must be greater zero and less-equal to 255
      */
-    ref CipherBuffer!ubyte pad(return ref CipherBuffer!ubyte data, const(size_t) blockSize = minPaddingBlockSize)
+    ref CipherBuffer!ubyte pad(return ref CipherBuffer!ubyte data,
+        const(size_t) blockSize = minPaddingBlockSize)
     in
     {
         assert(isValidBlockSize(blockSize), "Invalid block size, which must be a multiple of 8 and less-equal to 255.");
@@ -253,7 +256,8 @@ public:
         }
     }
 
-    static ref CipherBuffer!ubyte unpad(return ref CipherBuffer!ubyte data, const(size_t) blockSize = minPaddingBlockSize)
+    static ref CipherBuffer!ubyte unpad(return ref CipherBuffer!ubyte data,
+        const(size_t) blockSize = minPaddingBlockSize)
     in
     {
         assert(isValidBlockSize(blockSize), "Invalid block size, which must be a multiple of 8 and less-equal to 255.");
@@ -456,7 +460,8 @@ struct CipherPadding
 {
 nothrow @safe:
 
-    static ubyte[] pad(ubyte[] data, const(CipherPaddingMode) paddingMode, const(size_t) blockSize = minPaddingBlockSize)
+    static ubyte[] pad(ubyte[] data, const(CipherPaddingMode) paddingMode,
+        const(size_t) blockSize = minPaddingBlockSize)
     {
         final switch (paddingMode)
         {
@@ -494,7 +499,8 @@ nothrow @safe:
         }
     }
 
-    static ref CipherBuffer!ubyte pad(return ref CipherBuffer!ubyte data, const(CipherPaddingMode) paddingMode, const(size_t) blockSize = minPaddingBlockSize)
+    static ref CipherBuffer!ubyte pad(return ref CipherBuffer!ubyte data, const(CipherPaddingMode) paddingMode,
+        const(size_t) blockSize = minPaddingBlockSize)
     {
         final switch (paddingMode)
         {
@@ -532,7 +538,8 @@ nothrow @safe:
         }
     }
 
-    static ubyte[] unpad(ubyte[] data, const(CipherPaddingMode) paddingMode, const(size_t) blockSize = minPaddingBlockSize) pure
+    static ubyte[] unpad(ubyte[] data, const(CipherPaddingMode) paddingMode,
+        const(size_t) blockSize = minPaddingBlockSize) pure
     {
         final switch (paddingMode)
         {
@@ -562,7 +569,8 @@ nothrow @safe:
         }
     }
 
-    static ref CipherBuffer!ubyte unpad(return ref CipherBuffer!ubyte data, const(CipherPaddingMode) paddingMode, const(size_t) blockSize = minPaddingBlockSize) pure
+    static ref CipherBuffer!ubyte unpad(return ref CipherBuffer!ubyte data, const(CipherPaddingMode) paddingMode,
+        const(size_t) blockSize = minPaddingBlockSize) pure
     {
         final switch (paddingMode)
         {

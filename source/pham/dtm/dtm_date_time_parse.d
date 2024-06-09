@@ -19,10 +19,11 @@ debug(debug_pham_dtm_dtm_date_time_parse) import std.stdio : writeln;
 
 import pham.utl.utl_object : RAIIMutex;
 import pham.dtm.dtm_tick;
-public import pham.dtm.dtm_tick : DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind, CustomFormatSpecifier;
+public import pham.dtm.dtm_tick : DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind,
+    CustomFormatSpecifier;
 import pham.dtm.dtm_date : Date, DateTime;
 import pham.dtm.dtm_time : Time;
-import pham.dtm.dtm_time_zone : TimeZoneInfo;
+import pham.dtm.dtm_time_zone : TimeZoneInfo, ZoneOffset;
 
 @safe:
 
@@ -485,18 +486,18 @@ public:
 
     DateTimeZoneKind constructTimeKind(scope const ref DateTimePattern pattern) const @nogc pure
     {
-        return zoneAdjustment
+        return zoneAdjustmentSign
             ? (zoneAdjustmentBias ? DateTimeZoneKind.unspecified : DateTimeZoneKind.utc)
             : pattern.defaultKind;
     }
 
-    DateTimeZoneKind convertTimeKind(scope const ref DateTimePattern pattern, ref Duration bias) const @nogc pure
+    DateTimeZoneKind convertTimeKind(scope const ref DateTimePattern pattern, ref ZoneOffset bias) const @nogc pure
     {
         if (pattern.defaultKind == DateTimeZoneKind.unspecified)
             return DateTimeZoneKind.unspecified;
 
         bias = zoneAdjustmentBias;
-        return zoneAdjustment ? pattern.defaultKind : DateTimeZoneKind.unspecified;
+        return zoneAdjustmentSign ? pattern.defaultKind : DateTimeZoneKind.unspecified;
     }
 
     static DateTimePatternInfo getPatternInfo(DateTimeKind parseType, string patternText) @trusted
@@ -606,7 +607,7 @@ public:
                         return currentP;
                     break;
                 case PatternKind.hour:
-                    if (zoneAdjustment == 0)
+                    if (zoneAdjustmentSign == 0)
                     {
                         if (!scanNumber(dateTimeText, pattern, patternInfo.hourDigitLimit(e.length), hourDigitCount, hour))
                             return currentP;
@@ -619,7 +620,7 @@ public:
                     }
                     break;
                 case PatternKind.minute:
-                    if (zoneAdjustment == 0)
+                    if (zoneAdjustmentSign == 0)
                     {
                         if (!scanNumber(dateTimeText, pattern, patternInfo.minuteDigitLimit(e.length), dummyCount, minute))
                             return currentP;
@@ -643,9 +644,9 @@ public:
                     break;
                 case PatternKind.timeZone:
                     if (scanChar(dateTimeText, pattern, '+'))
-                        zoneAdjustment = 1;
+                        zoneAdjustmentSign = 1;
                     else if (scanChar(dateTimeText, pattern, '-'))
-                        zoneAdjustment = -1;
+                        zoneAdjustmentSign = -1;
                     else
                         return currentP;
                     break;
@@ -672,8 +673,8 @@ public:
                     if (scanLiteral(dateTimeText, pattern, e.marker, literalMarker))
                     {
                         const literal = literalMarker.slice(dateTimeText);
-                        if (zoneAdjustment == 0 && p >= endP && (literal == "Z" || literal == "z"))
-                            zoneAdjustment = 1;
+                        if (zoneAdjustmentSign == 0 && p >= endP && (literal == "Z" || literal == "z"))
+                            zoneAdjustmentSign = 1;
                     }
                     break;
             }
@@ -708,21 +709,21 @@ public:
                     || DateTime.isValidDateParts(year, month, day) != ErrorPart.none
                     || isValidTimeParts(hour, minute, second, millisecond) != ErrorPart.none)
                     return invalidText;
-                if (zoneAdjustment && isValidTimeParts(zoneAdjustmentHour, zoneAdjustmentMinute, 0, 0) != ErrorPart.none)
+                if (zoneAdjustmentSign && ZoneOffset.isValid(zoneAdjustmentHour * zoneAdjustmentSign, zoneAdjustmentMinute) != ErrorOp.none)
                     return invalidText;
                 break;
             case DateTimeKind.time:
                 if (!hasTime
                     || isValidTimeParts(hour, minute, second, millisecond) != ErrorPart.none)
                     return invalidText;
-                if (zoneAdjustment && isValidTimeParts(zoneAdjustmentHour, zoneAdjustmentMinute, 0, 0) != ErrorPart.none)
+                if (zoneAdjustmentSign && ZoneOffset.isValid(zoneAdjustmentHour * zoneAdjustmentSign, zoneAdjustmentMinute) != ErrorOp.none)
                     return invalidText;
                 break;
         }
 
         debug(debug_pham_dtm_dtm_date_time_parse) debug writeln("\t", "year=", year, ", month=", month, ", day=", day
             , ", hour=", hour, ", minute=", minute, ", second=", second
-            , ", zoneAdjustment=", zoneAdjustment, ", zoneAdjustmentHour=", zoneAdjustmentHour, ", zoneAdjustmentMinute=", zoneAdjustmentMinute
+            , ", zoneAdjustmentSign=", zoneAdjustmentSign, ", zoneAdjustmentHour=", zoneAdjustmentHour, ", zoneAdjustmentMinute=", zoneAdjustmentMinute
             , ", dateTimeText=", dateTimeText, ", patternText=", pattern.patternText);
 
         return noError;
@@ -733,7 +734,7 @@ public:
         hasTime = false;
         p = endP = fractionDigitCount = hourDigitCount = yearDigitCount = 0;
         year = month = day = 0;
-        hour = minute = second = fraction = hourAdjustment = zoneAdjustment = zoneAdjustmentHour = zoneAdjustmentMinute = 0;
+        hour = minute = second = fraction = hourAdjustment = zoneAdjustmentSign = zoneAdjustmentHour = zoneAdjustmentMinute = 0;
     }
 
     bool scanAlpha(return scope const(char)[] dateTimeText, scope const ref DateTimePattern pattern,
@@ -757,7 +758,8 @@ public:
         if (pattern.skipBlanks & SkipBlank.inner)
             skipLeadingBlank(dateTimeText);
 
-        debug(debug_pham_dtm_dtm_date_time_parse) debug writeln(__FUNCTION__, "(p=", p, ", dateTimeText=", dateTimeText[p..endP], ", c=", c, ")");
+        debug(debug_pham_dtm_dtm_date_time_parse) debug writeln(__FUNCTION__, "(p=", p, ", dateTimeText=",
+            dateTimeText[p..endP], ", c=", c, ")");
 
         const result = p < endP && dateTimeText[p] == c;
         if (result)
@@ -768,7 +770,8 @@ public:
     bool scanLiteral(return scope const(char)[] dateTimeText, scope const ref DateTimePattern pattern,
         scope const ref PatternMarker marker, out PatternMarker result) @nogc pure
     {
-        debug(debug_pham_dtm_dtm_date_time_parse) debug writeln(__FUNCTION__, "(p=", p, ", dateTimeText=", dateTimeText[p..endP], ", length=", marker.end - marker.begin, ")");
+        debug(debug_pham_dtm_dtm_date_time_parse) debug writeln(__FUNCTION__, "(p=", p, ", dateTimeText=",
+            dateTimeText[p..endP], ", length=", marker.end - marker.begin, ")");
 
         result.begin = p;
         size_t m = marker.begin;
@@ -861,11 +864,11 @@ public:
         return isFraction ? TickPart.tickToMillisecond(fraction) : fraction;
     }
 
-    @property Duration zoneAdjustmentBias() const @nogc pure
+    @property ZoneOffset zoneAdjustmentBias() const @nogc pure
     {
-        return zoneAdjustment
-            ? dur!"minutes"((zoneAdjustmentHour * 60 + zoneAdjustmentMinute) * zoneAdjustment)
-            : Duration.zero;
+        return zoneAdjustmentSign
+            ? ZoneOffset(zoneAdjustmentHour * zoneAdjustmentSign, zoneAdjustmentMinute)
+            : ZoneOffset.init;
     }
 
 public:
@@ -878,8 +881,8 @@ public:
     size_t p, endP, fractionDigitCount, hourDigitCount, yearDigitCount;
     int year, month, day;
     int hour, minute, second, fraction, hourAdjustment;
-    // Available zoneAdjustment value: -1, 0, 1
-    int zoneAdjustment, zoneAdjustmentHour, zoneAdjustmentMinute;
+    // Available zoneAdjustmentSign value: -1, 0=Not used, 1
+    int zoneAdjustmentSign, zoneAdjustmentHour, zoneAdjustmentMinute;
     DateTimeKind parseType;
     bool hasTime;
 }
@@ -942,13 +945,13 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
                                     fromKind);
 
             // Convert to expected timezone?
-            Duration bias;
+            ZoneOffset bias;
             const toKind = parser.convertTimeKind(pattern, bias);
             if (toKind != DateTimeZoneKind.unspecified && toKind != fromKind)
             {
-                auto utcDT = bias == Duration.zero
-                    ? DateTime(result.sticks, DateTimeZoneKind.utc)
-                    : DateTime(result.addTicksClamp(-bias).sticks, DateTimeZoneKind.utc);
+                auto utcDT = bias.hasOffset()
+                    ? DateTime(result.addTicksClamp(-(bias.toTicks())).sticks, DateTimeZoneKind.utc)
+                    : DateTime(result.sticks, DateTimeZoneKind.utc);
                 result = toKind == DateTimeZoneKind.utc
                     ? utcDT
                     : TimeZoneInfo.convertUtcToLocal(utcDT);
@@ -965,13 +968,13 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
                 result = Time(parser.hour, parser.minute, parser.second, parser.millisecond);
 
             // Convert to expected timezone?
-            Duration bias;
+            ZoneOffset bias;
             const toKind = parser.convertTimeKind(pattern, bias);
             if (toKind != DateTimeZoneKind.unspecified && toKind != parser.constructTimeKind(pattern))
             {
-                auto utcDT = bias == Duration.zero
-                    ? DateTime(DateTime.utcNow.date, result.asUTC)
-                    : DateTime(DateTime.utcNow.date, result.asUTC).addTicksClamp(-bias);
+                auto utcDT = bias.hasOffset()
+                    ? DateTime(DateTime.utcNow.date, result.asUTC).addTicksClamp(-(bias.toTicks()))
+                    : DateTime(DateTime.utcNow.date, result.asUTC);
                 result = toKind == DateTimeZoneKind.utc
                     ? utcDT.time
                     : TimeZoneInfo.convertUtcToLocal(utcDT).time;
@@ -1182,7 +1185,7 @@ unittest // tryParse
 
     // Check convert to expected timezone
     auto ltz = TimeZoneInfo.localTimeZone;
-    if (ltz.baseUtcOffset == dur!"hours"(-5))
+    if (ltz.baseUtcOffset.hour == -5)
     {
         p.defaultKind = DateTimeZoneKind.local;
         p.patternText = "yyyy/mm/ddThh:nn:ss-hh:nn";

@@ -776,7 +776,7 @@ ResultIf!(DbURL!S) parseDbURL(S)(S dbURL)
             {
                 auto ps = hostPort.front;
                 hostPort.popFront();
-				if (parseIntegral!(C, ushort)(ps, p) != NumericParsedKind.ok)
+				if (parseIntegral(ps, p) != NumericParsedKind.ok)
                     return hostError("Invalid port: " ~ ps.idup ~ ".");
 			}
             if (!hostPort.empty)

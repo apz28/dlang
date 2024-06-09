@@ -12,10 +12,11 @@
 module pham.dtm.dtm_time_zone;
 
 import std.conv : to;
+import std.math.algebraic : abs;
 import std.uni : sicmp;
 
 debug(debug_pham_dtm_dtm_time_zone) import std.stdio : writeln;
-
+import pham.utl.utl_result : cmp;
 import pham.dtm.dtm_date;
 import pham.dtm.dtm_tick;
 import pham.dtm.dtm_time;
@@ -29,9 +30,9 @@ struct AdjustmentRule
 public:
     this(in DateTime dateBegin,
         in DateTime dateEnd,
-        in Duration baseUtcOffsetDelta,
-        in Duration daylightDelta,
-        in Duration standardDelta,
+        in ZoneOffset baseUtcOffsetDelta,
+        in ZoneOffset daylightDelta,
+        in ZoneOffset standardDelta,
         in TransitionTime daylightTransitionBegin,
         in TransitionTime daylightTransitionEnd,
         bool noDaylightTransitions) @nogc nothrow pure
@@ -70,9 +71,9 @@ public:
     {
         enum minPlus = DateTime.min.addMilliseconds(1);
 
-        return daylightDelta != Duration.zero ||
-            (daylightTransitionBegin != TransitionTime.init && daylightTransitionBegin.timeOfDay != DateTime.min) ||
-            (daylightTransitionEnd != TransitionTime.init && daylightTransitionEnd.timeOfDay != minPlus);
+        return daylightDelta.hasOffset
+            || (daylightTransitionBegin != TransitionTime.init && daylightTransitionBegin.timeOfDay != DateTime.min)
+            || (daylightTransitionEnd != TransitionTime.init && daylightTransitionEnd.timeOfDay != minPlus);
     }
 
     /**
@@ -114,8 +115,8 @@ public:
     static AdjustmentRuleError isValidAdjustmentRule(
         scope const(DateTime) dateBegin,
         scope const(DateTime) dateEnd,
-        scope const(Duration) daylightDelta,
-        scope const(Duration) standardDelta,
+        scope const(ZoneOffset) daylightDelta,
+        scope const(ZoneOffset) standardDelta,
         scope const(TransitionTime) daylightTransitionBegin,
         scope const(TransitionTime) daylightTransitionEnd,
         bool noDaylightTransitions) @nogc nothrow pure
@@ -138,19 +139,27 @@ public:
         if (dateEnd != DateTime.max && dateEnd.kind == DateTimeZoneKind.unspecified && dateEnd.time != Time.zero)
             return AdjustmentRuleError.endTimeOfDay;
 
-        if (Tick.durationToTicks(daylightDelta) % Tick.ticksPerMinute != 0)
+        if (daylightDelta.toTicks() % Tick.ticksPerMinute != 0)
+        {
+            import std.stdio : writeln; debug writeln("isValidAdjustmentRule.daylightDelta=", daylightDelta.toString, ", ticks=", daylightDelta.toTicks());
             return AdjustmentRuleError.daylightDelta;
+        }
 
         // This cannot use UtcOffsetOutOfRange to account for the scenario where Samoa moved across the International Date Line,
         // which caused their current BaseUtcOffset to be +13. But on the other side of the line it was UTC-11 (+1 for daylight).
         // So when trying to describe DaylightDeltas for those times, the DaylightDelta needs
         // to be -23 (what it takes to go from UTC+13 to UTC-10)
-        const daylightDeltaTotalHours = daylightDelta.total!"hours"();
-        if (daylightDeltaTotalHours < -23.0 || daylightDeltaTotalHours > 14.0)
+        if (daylightDelta.isValid() != ErrorOp.none)
+        {
+            import std.stdio : writeln; debug writeln("isValidAdjustmentRule.daylightDelta=", daylightDelta.toString);
             return AdjustmentRuleError.daylightDeltaOutOfRange;
+        }
 
-        if (Tick.durationToTicks(standardDelta) % Tick.ticksPerMinute != 0)
+        if (standardDelta.toTicks() % Tick.ticksPerMinute != 0)
+        {
+            import std.stdio : writeln; debug writeln("isValidAdjustmentRule.standardDelta=", standardDelta.toString, ", ticks=", standardDelta.toTicks());
             return AdjustmentRuleError.standardDelta;
+        }
 
         return AdjustmentRuleError.none;
     }
@@ -158,8 +167,8 @@ public:
     static void validateAdjustmentRule(
         scope const(DateTime) dateBegin,
         scope const(DateTime) dateEnd,
-        scope const(Duration) daylightDelta,
-        scope const(Duration) standardDelta,
+        scope const(ZoneOffset) daylightDelta,
+        scope const(ZoneOffset) standardDelta,
         scope const(TransitionTime) daylightTransitionBegin,
         scope const(TransitionTime) daylightTransitionEnd,
         bool noDaylightTransitions) pure
@@ -184,8 +193,7 @@ public:
             case AdjustmentRuleError.daylightDelta:
                 throw new TimeException("daylightDelta has seconds");
             case AdjustmentRuleError.daylightDeltaOutOfRange:
-                const daylightDeltaTotalHours = daylightDelta.total!"hours"();
-                throwOutOfRange!(ErrorPart.hour)(daylightDeltaTotalHours);
+                throwOutOfRange!(ErrorPart.hour)(daylightDelta.hour);
                 break;
             case AdjustmentRuleError.standardDelta:
                 throw new TimeException("standardDelta has seconds");
@@ -195,7 +203,7 @@ public:
     /**
      * The time difference with the base UTC offset for the time zone during the adjustment-rule period
      */
-    @property Duration baseUtcOffsetDelta() const @nogc nothrow pure scope
+    @property ZoneOffset baseUtcOffsetDelta() const @nogc nothrow pure scope
     {
         return _baseUtcOffsetDelta;
     }
@@ -205,7 +213,7 @@ public:
      * time. This amount of time is added to the time zone's offset from Coordinated
      * Universal Time (UTC).
      */
-    @property Duration daylightDelta() const @nogc nothrow pure scope
+    @property ZoneOffset daylightDelta() const @nogc nothrow pure scope
     {
         return _daylightDelta;
     }
@@ -256,23 +264,19 @@ public:
      * time. This amount of time is added to the time zone's offset from Coordinated
      * Universal Time (UTC).
      */
-    @property Duration standardDelta() const @nogc nothrow pure scope
+    @property ZoneOffset standardDelta() const @nogc nothrow pure scope
     {
         return _standardDelta;
     }
 
-public:
-    enum Duration daylightDeltaAdjustment = dur!"hours"(24);
-    enum Duration maxDaylightDelta = dur!"hours"(12);
-
 private:
     DateTime _dateBegin;
     DateTime _dateEnd;
-    Duration _baseUtcOffsetDelta;
-    Duration _daylightDelta;
+    ZoneOffset _baseUtcOffsetDelta;
+    ZoneOffset _daylightDelta;
     TransitionTime _daylightTransitionBegin;
     TransitionTime _daylightTransitionEnd;
-    Duration _standardDelta;
+    ZoneOffset _standardDelta;
     bool _noDaylightTransitions;
 }
 
@@ -282,7 +286,7 @@ struct TimeZoneInfo
 
 public:
     this(string id, string displayName, string standardName, string daylightName,
-        Duration baseUtcOffset, bool supportsDaylightSavingTime) @nogc nothrow pure
+        ZoneOffset baseUtcOffset, bool supportsDaylightSavingTime) @nogc nothrow pure
     in
     {
         assert(isValidTimeZoneInfo(id, baseUtcOffset, null) == ValidatedTimeZoneError.none);
@@ -298,7 +302,7 @@ public:
     }
 
     this(string id, string displayName, string standardName, string daylightName,
-        Duration baseUtcOffset, bool supportsDaylightSavingTime,
+        ZoneOffset baseUtcOffset, bool supportsDaylightSavingTime,
         AdjustmentRule[] adjustmentRules) @nogc nothrow pure
     in
     {
@@ -349,19 +353,19 @@ public:
         // performance for the normal case at the expense of the 'ArgumentException'
         // case and Loss-less Local special cases.
         //
-        Duration sourceOffset = baseUtcOffset;
+        ZoneOffset sourceOffset = baseUtcOffset;
         AdjustmentRule sourceRule = void;
         ptrdiff_t sourceRuleIndex = void;
         if (findAdjustmentRule(dateTime, false, sourceRule, sourceRuleIndex))
         {
-            sourceOffset += sourceRule.baseUtcOffsetDelta;
+            sourceOffset = ZoneOffset(sourceOffset.toMinutes() + sourceRule.baseUtcOffsetDelta.toMinutes());
             if (sourceRule.hasDaylightSaving)
             {
                 const DaylightTimeInfo sourceDaylightTime = getDaylightTime(dateTime.year, sourceRule, sourceRuleIndex);
                 const bool sourceIsDaylightSavings = getIsDaylightSavings(dateTime, sourceRule, sourceDaylightTime);
 
                 // adjust the sourceOffset according to the Adjustment Rule / Daylight Saving Rule
-                sourceOffset += (sourceIsDaylightSavings ? sourceRule.daylightDelta : sourceRule.standardDelta);
+                sourceOffset = ZoneOffset(sourceOffset.toMinutes() + (sourceIsDaylightSavings ? sourceRule.daylightDelta.toMinutes() : sourceRule.standardDelta.toMinutes()));
             }
         }
 
@@ -371,7 +375,7 @@ public:
         if (dateTime.kind != DateTimeZoneKind.unspecified && sourceKind != DateTimeZoneKind.unspecified && sourceKind == targetKind)
             return dateTime;
 
-        const long utcTicks = dateTime.sticks - Tick.durationToTicks(sourceOffset);
+        const long utcTicks = dateTime.sticks - sourceOffset.toTicks();
 
         // handle the normal case by converting from 'source' to UTC and then to 'target'
         const(DateTime) targetConverted = convertUtcToTimeZone(utcTicks, destinationTimeZone);
@@ -403,7 +407,7 @@ public:
     {
         bool isDaylightSavings = void;
         const loffset = localTimeZone.getUtcOffsetFromUtc(utcDateTime, isDaylightSavings);
-        const lticks = utcDateTime.sticks + Tick.durationToTicks(loffset);
+        const lticks = utcDateTime.sticks + loffset.toTicks();
         return lticks < DateTime.minTicks
             ? DateTime(DateTime.minTicks, DateTimeZoneKind.local)
             : (lticks > DateTime.maxTicks ? DateTime(DateTime.maxTicks, DateTimeZoneKind.local) : DateTime(lticks, DateTimeZoneKind.local));
@@ -423,7 +427,7 @@ public:
         // This is because the AdjustmentRule DateStart & DateEnd are stored as
         // Date-only values {4/2/2006 - 10/28/2006} but actually represent the
         // time span {4/2/2006@00:00:00.00000 - 10/28/2006@23:59:59.99999}
-        const dateOnly = dateTimeIsUtc ? dateTime.addTicksClamp(baseUtcOffset).dateOnly : dateTime.dateOnly;
+        const dateOnly = dateTimeIsUtc ? dateTime.addTicksClamp(baseUtcOffset.toTicks()).dateOnly : dateTime.dateOnly;
 
         ptrdiff_t low = 0;
         ptrdiff_t high = cast(ptrdiff_t)(_adjustmentRules.length) - 1;
@@ -454,7 +458,7 @@ public:
         return false;
     }
 
-    Duration getUtcOffsetFromUtc(scope const(DateTime) utcDateTime, out bool isDaylightSavings) const @nogc nothrow pure scope
+    ZoneOffset getUtcOffsetFromUtc(scope const(DateTime) utcDateTime, out bool isDaylightSavings) const @nogc nothrow pure scope
     {
         DateTime searchDateTime = void;
         int searchYear = void;
@@ -480,12 +484,14 @@ public:
         if (findAdjustmentRule(searchDateTime, true, rule, ruleIndex))
         {
             if (searchYear == int.min)
-                searchYear = utcDateTime.addTicksClamp(baseUtcOffset).year;
+                searchYear = utcDateTime.addTicksClamp(baseUtcOffset.toTicks()).year;
 
             if (rule.hasDaylightSaving)
             {
                 isDaylightSavings = getIsDaylightSavingsFromUtc(utcDateTime, searchYear, baseUtcOffset, rule, ruleIndex);
-                return baseUtcOffset + rule.baseUtcOffsetDelta + (isDaylightSavings ? rule.daylightDelta : rule.standardDelta);
+                return ZoneOffset(baseUtcOffset.toMinutes() 
+                    + rule.baseUtcOffsetDelta.toMinutes() 
+                    + (isDaylightSavings ? rule.daylightDelta.toMinutes() : rule.standardDelta.toMinutes()));
             }
         }
 
@@ -543,15 +549,10 @@ public:
         return getIsDaylightSavings(adjustedTime, rule, daylightTime);
     }
 
-    static bool isValidAdjustmentRuleOffset(scope const(Duration) baseUtcOffset, scope const(AdjustmentRule) rule) @nogc nothrow pure
+    static bool isValidAdjustmentRuleOffset(scope const(ZoneOffset) baseUtcOffset, scope const(AdjustmentRule) rule) @nogc nothrow pure
     {
         const utcOffset = getUtcOffset(baseUtcOffset, rule);
-        return !isUtcOffsetOutOfRange(utcOffset);
-    }
-
-    static bool isUtcOffsetOutOfRange(scope const(Duration) offset) @nogc nothrow pure
-    {
-        return offset < minOffset || offset > maxOffset;
+        return utcOffset.isValid() == ErrorOp.none;
     }
 
     DateTimeZoneKind kind() const @nogc nothrow pure scope
@@ -559,32 +560,6 @@ public:
         return _id == localId
             ? DateTimeZoneKind.local
             : (_id == utcId || _id == utcId2 ? DateTimeZoneKind.utc : DateTimeZoneKind.unspecified);
-    }
-
-    pragma(inline, true)
-    static int offsetFromISOPart(const(byte) validOffsetHour, const(byte) validOffsetMinute) @nogc nothrow pure scope
-    in
-    {
-        assert(validOffsetHour >= -14 && validOffsetHour <= 14);
-        assert(validOffsetMinute >= 0 && validOffsetMinute < 60);
-    }
-    do
-    {
-        return (cast(int)validOffsetHour * 60) + validOffsetMinute;
-    }
-
-    pragma(inline, true)
-    static void offsetToISOPart(const(int) validOffsetMinute, out byte hour, out byte minute) @nogc nothrow pure scope
-    in
-    {
-        assert(validOffsetMinute >= (-14 * 60) && validOffsetMinute <= (14 * 60));
-    }
-    do
-    {
-        import std.math.algebraic : abs;
-
-        hour = cast(byte)(validOffsetMinute / 60);
-        minute = cast(byte)(abs(validOffsetMinute) - (cast(int)abs(hour) * 60));
     }
 
     size_t toHash() const @nogc nothrow pure scope
@@ -602,15 +577,15 @@ public:
         ruleOrder,
     }
 
-    static ValidatedTimeZoneError isValidTimeZoneInfo(string id, scope const(Duration) baseUtcOffset, scope const(AdjustmentRule)[] adjustmentRules) @nogc nothrow pure
+    static ValidatedTimeZoneError isValidTimeZoneInfo(string id, scope const(ZoneOffset) baseUtcOffset, scope const(AdjustmentRule)[] adjustmentRules) @nogc nothrow pure
     {
         if (id.length == 0)
             return ValidatedTimeZoneError.id;
 
-        if (isUtcOffsetOutOfRange(baseUtcOffset))
+        if (baseUtcOffset.isValid() != ErrorOp.none)
             return ValidatedTimeZoneError.offsetRange;
 
-        if (Tick.durationToTicks(baseUtcOffset) % Tick.ticksPerMinute != 0)
+        if (baseUtcOffset.toTicks() % Tick.ticksPerMinute != 0)
             return ValidatedTimeZoneError.offsetTick;
 
         // "adjustmentRules" can either be null or a valid array of AdjustmentRule objects.
@@ -637,11 +612,11 @@ public:
         utcTZ._displayName = utcDisplayName;
         utcTZ._standardName = utcStandardName;
         utcTZ._daylightName = utcStandardName;
-        utcTZ._baseUtcOffset = Duration.zero;
+        utcTZ._baseUtcOffset = ZoneOffset.init;
         utcTZ._supportsDaylightSavingTime = false;
     }
 
-    static void validateTimeZoneInfo(string id, scope const(Duration) baseUtcOffset, scope const(AdjustmentRule)[] adjustmentRules) pure
+    static void validateTimeZoneInfo(string id, scope const(ZoneOffset) baseUtcOffset, scope const(AdjustmentRule)[] adjustmentRules) pure
     {
         final switch (isValidTimeZoneInfo(id, baseUtcOffset, adjustmentRules))
         {
@@ -650,7 +625,7 @@ public:
             case ValidatedTimeZoneError.id:
                 throw new TimeException("TimeZone.id is empty");
             case ValidatedTimeZoneError.offsetRange:
-                throwOutOfRange!(ErrorPart.tick)(Tick.durationToTicks(baseUtcOffset));
+                throwOutOfRange!(ErrorPart.tick)(baseUtcOffset.toTicks());
                 break;
             case ValidatedTimeZoneError.offsetTick:
                 throw new TimeException("baseUtcOffset has seconds");
@@ -695,7 +670,7 @@ public:
         return utcTZ;
     }
 
-    @property Duration baseUtcOffset() const @nogc nothrow pure scope
+    @property ZoneOffset baseUtcOffset() const @nogc nothrow pure scope
     {
         return _baseUtcOffset;
     }
@@ -734,9 +709,6 @@ public:
     enum utcId2Int = 2;
     static immutable string utcStandardName = "Coordinated Universal Time";
     static immutable string utcDisplayName = "(UTC) Coordinated Universal Time";
-
-    enum Duration maxOffset = dur!"hours"(14);
-    enum Duration minOffset = -maxOffset;
 
 package(pham.dtm):
     void addRule(AdjustmentRule rule) nothrow pure
@@ -836,27 +808,27 @@ private:
         return isBeforeEnd ? 0 : -1;
     }
 
-    static DateTime convertFromDaylightUtc(scope const(DateTime) dateTime, scope const(Duration) baseUtcOffset,
+    static DateTime convertFromDaylightUtc(scope const(DateTime) dateTime, scope const(ZoneOffset) baseUtcOffset,
         scope const(AdjustmentRule) rule) @nogc nothrow pure
     {
-        const offset = baseUtcOffset + rule.daylightDelta;
-        const long ticks = dateTime.sticks + Tick.durationToTicks(offset);
+        const offsetTicks = baseUtcOffset.toTicks() + rule.daylightDelta.toTicks();
+        const long ticks = dateTime.sticks + offsetTicks;
         return ticks > DateTime.maxTicks
             ? DateTime.max
-            : (ticks < DateTime.minTicks 
-                ? DateTime.min 
+            : (ticks < DateTime.minTicks
+                ? DateTime.min
                 : DateTime(TickData.createDateTime(ticks, dateTime.kind)));
     }
 
-    static DateTime convertToDaylightUtc(scope const(DateTime) dateTime, scope const(Duration) baseUtcOffset,
+    static DateTime convertToDaylightUtc(scope const(DateTime) dateTime, scope const(ZoneOffset) baseUtcOffset,
         scope const(AdjustmentRule) rule) @nogc nothrow pure
     {
-        const offset = baseUtcOffset + rule.daylightDelta;
-        const long ticks = dateTime.sticks - Tick.durationToTicks(offset);
+        const offsetTicks = baseUtcOffset.toTicks() + rule.daylightDelta.toTicks();
+        const long ticks = dateTime.sticks - offsetTicks;
         return ticks > DateTime.maxTicks
             ? DateTime.max
-            : (ticks < DateTime.minTicks 
-                ? DateTime.min 
+            : (ticks < DateTime.minTicks
+                ? DateTime.min
                 : DateTime(TickData.createDateTime(ticks, dateTime.kind)));
     }
 
@@ -865,19 +837,19 @@ private:
         // used to calculate the UTC offset in the destinationTimeZone
         const(DateTime) utcConverted = ticks > DateTime.maxTicks
             ? DateTime.max
-            : (ticks < DateTime.minTicks 
-                ? DateTime.min 
+            : (ticks < DateTime.minTicks
+                ? DateTime.min
                 : DateTime(TickData.createDateTime(ticks, DateTimeZoneKind.unspecified)));
 
         // verify the time is between MinValue and MaxValue in the new time zone
         bool isDaylightSavings = void;
-        const(Duration) offset = destinationTimeZone.getUtcOffsetFromUtc(utcConverted, isDaylightSavings);
-        ticks += Tick.durationToTicks(offset);
+        const offset = destinationTimeZone.getUtcOffsetFromUtc(utcConverted, isDaylightSavings);
+        ticks += offset.toTicks();
 
         return ticks > DateTime.maxTicks
             ? DateTime.max
-            : (ticks < DateTime.minTicks 
-                ? DateTime.min 
+            : (ticks < DateTime.minTicks
+                ? DateTime.min
                 : DateTime(TickData.createDateTime(ticks, DateTimeZoneKind.unspecified)));
     }
 
@@ -904,26 +876,26 @@ private:
         return result;
     }
 
-    Duration getDaylightSavingsBeginOffsetFromUtc(scope const(Duration) baseUtcOffset,
+    ZoneOffset getDaylightSavingsBeginOffsetFromUtc(scope const(ZoneOffset) baseUtcOffset,
         scope const(AdjustmentRule) rule, const(ptrdiff_t) ruleIndex) const @nogc nothrow pure scope
     {
         if (rule.noDaylightTransitions)
         {
             // use the previous rule to calculate the startTime, since the DST change happens w.r.t. the previous rule
             const previousRule = ruleIndex > 0 ? _adjustmentRules[ruleIndex - 1] : rule;
-            return baseUtcOffset + previousRule.baseUtcOffsetDelta + previousRule.daylightDelta;
+            return ZoneOffset(baseUtcOffset.toMinutes() + previousRule.baseUtcOffsetDelta.toMinutes() + previousRule.daylightDelta.toMinutes());
         }
         else
         {
-            return baseUtcOffset + rule.baseUtcOffsetDelta + rule.standardDelta;
+            return ZoneOffset(baseUtcOffset.toMinutes() + rule.baseUtcOffsetDelta.toMinutes() + rule.standardDelta.toMinutes());
         }
     }
 
-    Duration getDaylightSavingsEndOffsetFromUtc(scope const(Duration) baseUtcOffset,
+    ZoneOffset getDaylightSavingsEndOffsetFromUtc(scope const(ZoneOffset) baseUtcOffset,
         scope const(AdjustmentRule) rule, const(ptrdiff_t) ruleIndex) const @nogc nothrow pure scope
     {
         // NOTE: even rule.noDaylightTransitions rules use this logic since DST ends w.r.t. the current rule
-        return baseUtcOffset + rule.baseUtcOffsetDelta + rule.daylightDelta; /* FUTURE: + rule.StandardDelta; */
+        return ZoneOffset(baseUtcOffset.toMinutes() + rule.baseUtcOffsetDelta.toMinutes() + rule.daylightDelta.toMinutes()); /* FUTURE: + rule.StandardDelta; */
     }
 
     static bool getIsDaylightSavings(scope const(DateTime) dateTime, scope const(AdjustmentRule) rule, scope const(DaylightTimeInfo) daylightTime) @nogc nothrow pure
@@ -935,7 +907,7 @@ private:
             // DST to the end and ***includes*** the potentially overlapped times
             startTime = rule.isBeginDateMarkerForBeginningOfYear()
                 ? DateTime(daylightTime.beginTime.year, 1, 1, 0, 0, 0)
-                : daylightTime.beginTime.addTicksClamp(daylightTime.delta);
+                : daylightTime.beginTime.addTicksClamp(daylightTime.delta.toTicks());
 
             endTime = rule.isEndDateMarkerForEndOfYear()
                 ? DateTime(daylightTime.endTime.year + 1, 1, 1, 0, 0, 0).addTicksClamp(-1)
@@ -960,21 +932,21 @@ private:
             // | <ambiguous time> |                      |  <invalid time>  |
             //                    [======== DST ========>)
             //
-            const bool invalidAtStart = rule.daylightDelta > Duration.zero;
+            const bool invalidAtStart = rule.daylightDelta.toMinutes() > 0;
 
             startTime = rule.isBeginDateMarkerForBeginningOfYear()
                 ? DateTime(daylightTime.beginTime.year, 1, 1, 0, 0, 0)
-                : daylightTime.beginTime.addTicksClamp(invalidAtStart ? rule.daylightDelta : rule.standardDelta);
+                : daylightTime.beginTime.addTicksClamp(invalidAtStart ? rule.daylightDelta.toTicks() : rule.standardDelta.toTicks());
 
             endTime = rule.isEndDateMarkerForEndOfYear()
                 ? DateTime(daylightTime.endTime.year + 1, 1, 1, 0, 0, 0).addTicksClamp(-1)
-                : daylightTime.endTime.addTicksClamp(invalidAtStart ? -rule.daylightDelta : Duration.zero);
+                : daylightTime.endTime.addTicksClamp(invalidAtStart ? -rule.daylightDelta.toTicks() : 0);
         }
 
         return checkIsDst(startTime, dateTime, endTime, false, rule);
     }
 
-    bool getIsDaylightSavingsFromUtc(scope const(DateTime) utcDateTime, const(int) year, scope const(Duration) utc,
+    bool getIsDaylightSavingsFromUtc(scope const(DateTime) utcDateTime, const(int) year, scope const(ZoneOffset) utc,
         scope const(AdjustmentRule) rule, const(ptrdiff_t) ruleIndex) const @nogc nothrow pure scope
     {
         // Get the daylight changes for the year of the specified time.
@@ -992,7 +964,7 @@ private:
         // Note we handle the similar case when rule year start with daylight saving and previous year end with daylight saving.
 
         bool ignoreYearAdjustment = false;
-        const(Duration) dstStartOffset = getDaylightSavingsBeginOffsetFromUtc(utc, rule, ruleIndex);
+        const dstStartOffset = getDaylightSavingsBeginOffsetFromUtc(utc, rule, ruleIndex);
         DateTime startTime;
         if (rule.isBeginDateMarkerForBeginningOfYear() && daylightTime.beginTime.year > DateTime.minYear)
         {
@@ -1003,22 +975,22 @@ private:
             {
                 const previousDaylightTime = getDaylightTime(daylightTime.beginTime.year - 1, previousYearRule, previousYearRuleIndex);
                 //startTime = previousDaylightTime.beginTime - utc - previousYearRule.baseUtcOffsetDelta; TODO
-                startTime = previousDaylightTime.beginTime.addTicksClamp(-(utc + previousYearRule.baseUtcOffsetDelta));
+                startTime = previousDaylightTime.beginTime.addTicksClamp(-(utc.toTicks() + previousYearRule.baseUtcOffsetDelta.toTicks()));
                 ignoreYearAdjustment = true;
             }
             else
             {
                 //startTime = DateTime(daylightTime.beginTime.year, 1, 1, 0, 0, 0) - dstStartOffset; TODO
-                startTime = DateTime(daylightTime.beginTime.year, 1, 1, 0, 0, 0).addTicksClamp(-dstStartOffset);
+                startTime = DateTime(daylightTime.beginTime.year, 1, 1, 0, 0, 0).addTicksClamp(-dstStartOffset.toTicks());
             }
         }
         else
         {
             //startTime = daylightTime.beginTime - dstStartOffset; TODO
-            startTime = daylightTime.beginTime.addTicksClamp(-dstStartOffset);
+            startTime = daylightTime.beginTime.addTicksClamp(-dstStartOffset.toTicks());
         }
 
-        const(Duration) dstEndOffset = getDaylightSavingsEndOffsetFromUtc(utc, rule, ruleIndex);
+        const dstEndOffset = getDaylightSavingsEndOffsetFromUtc(utc, rule, ruleIndex);
         DateTime endTime;
         if (rule.isEndDateMarkerForEndOfYear() && daylightTime.endTime.year < DateTime.maxYear)
         {
@@ -1031,36 +1003,36 @@ private:
                 {
                     // next year end with daylight saving on too
                     //endTime = DateTime(daylightTime.endTime.year + 1, 12, 31) - utc - nextYearRule.baseUtcOffsetDelta - nextYearRule.daylightDelta; TODO
-                    endTime = DateTime(daylightTime.endTime.year + 1, 12, 31).addTicksClamp(-(utc + nextYearRule.baseUtcOffsetDelta + nextYearRule.daylightDelta));
+                    endTime = DateTime(daylightTime.endTime.year + 1, 12, 31).addTicksClamp(-(utc.toTicks() + nextYearRule.baseUtcOffsetDelta.toTicks() + nextYearRule.daylightDelta.toTicks()));
                 }
                 else
                 {
                     const nextdaylightTime = getDaylightTime(daylightTime.endTime.year + 1, nextYearRule, nextYearRuleIndex);
                     //endTime = nextdaylightTime.endTime - utc - nextYearRule.baseUtcOffsetDelta - nextYearRule.daylightDelta; TODO
-                    endTime = nextdaylightTime.endTime.addTicksClamp(-(utc + nextYearRule.baseUtcOffsetDelta + nextYearRule.daylightDelta));
+                    endTime = nextdaylightTime.endTime.addTicksClamp(-(utc.toTicks() + nextYearRule.baseUtcOffsetDelta.toTicks() + nextYearRule.daylightDelta.toTicks()));
                 }
                 ignoreYearAdjustment = true;
             }
             else
             {
                 //endTime = DateTime(daylightTime.endTime.year + 1, 1, 1, 0, 0, 0).addTicks(-1) - dstEndOffset; TODO
-                endTime = DateTime(daylightTime.endTime.year + 1, 1, 1, 0, 0, 0).addTicksClamp(-1).addTicksClamp(-dstEndOffset);
+                endTime = DateTime(daylightTime.endTime.year + 1, 1, 1, 0, 0, 0).addTicksClamp(-1).addTicksClamp(-dstEndOffset.toTicks());
             }
         }
         else
         {
             //endTime = daylightTime.endTime - dstEndOffset; TODO
-            endTime = daylightTime.endTime.addTicksClamp(-dstEndOffset);
+            endTime = daylightTime.endTime.addTicksClamp(-dstEndOffset.toTicks());
         }
 
         return checkIsDst(startTime, utcDateTime, endTime, ignoreYearAdjustment, rule);
     }
 
-    static Duration getUtcOffset(scope const(Duration) baseUtcOffset, scope const(AdjustmentRule) rule) @nogc nothrow pure
+    static ZoneOffset getUtcOffset(scope const(ZoneOffset) baseUtcOffset, scope const(AdjustmentRule) rule) @nogc nothrow pure
     {
-        return baseUtcOffset
-            + rule.baseUtcOffsetDelta
-            + (rule.hasDaylightSaving ? rule.daylightDelta : rule.standardDelta);
+        return ZoneOffset(baseUtcOffset.toMinutes()
+            + rule.baseUtcOffsetDelta.toMinutes()
+            + (rule.hasDaylightSaving ? rule.daylightDelta.toMinutes() : rule.standardDelta.toMinutes()));
     }
 
     static DateTime transitionTimeToDateTime(const(int) year, scope const(TransitionTime) transitionTime) @nogc nothrow pure
@@ -1137,10 +1109,10 @@ private:
     string _displayName;
     string _standardName;
     string _daylightName;
-    Duration _baseUtcOffset;
     AdjustmentRule[] _adjustmentRules;
     // As we support IANA and Windows Ids, it is possible we create equivalent zone objects which differ only in the Ids.
     TimeZoneInfo[] _equivalentZones;
+    ZoneOffset _baseUtcOffset;
     bool _supportsDaylightSavingTime;
 }
 
@@ -1181,7 +1153,8 @@ public:
     }
     do
     {
-        return TransitionTime(timeOfDay, month, 1, day, DayOfWeek.sunday, true /*isFixedDateRule*/);
+        enum isFixedDateRule = true;
+        return TransitionTime(timeOfDay, month, 1, day, DayOfWeek.sunday, isFixedDateRule);
     }
 
     static TransitionTime createFloatingDateRule(in DateTime timeOfDay, int month, int week, DayOfWeek dayOfWeek) @nogc nothrow pure
@@ -1191,7 +1164,8 @@ public:
     }
     do
     {
-        return TransitionTime(timeOfDay, month, week, 1, dayOfWeek, false /*isFixedDateRule*/);
+        enum isFixedDateRule = false;
+        return TransitionTime(timeOfDay, month, week, 1, dayOfWeek, isFixedDateRule);
     }
 
     static ErrorPart isValidTransitionTime(scope const(DateTime) timeOfDay, int month, int week, int day, DayOfWeek dayOfWeek) @nogc nothrow pure
@@ -1296,6 +1270,194 @@ private:
     bool _isFixedDateRule;
 }
 
+struct ZoneOffset
+{
+nothrow @safe:
+
+    this(const(int) hour, const(int) minute) @nogc pure
+    in
+    {
+        assert(isValid(hour, minute) == ErrorOp.none);
+    }
+    do
+    {
+        this.hour = cast(byte)hour;
+        this.minute = cast(byte)minute;
+    }
+
+    this(const(int) minutes) @nogc pure
+    in
+    {
+        assert(isValid(minutes) == ErrorOp.none);
+    }
+    do
+    {
+        this.hour = cast(byte)(minutes / Tick.minutesPerHour);
+        this.minute = this.hour == 0 ? cast(byte)(minutes % Tick.minutesPerHour) : cast(byte)(abs(minutes) % Tick.minutesPerHour);
+    }
+
+    this(scope const(Duration) minutes) @nogc pure
+    {
+        this(cast(int)minutes.total!"minutes"());
+    }
+
+    ref typeof(this) opAssign(const(int) minutes) @nogc pure return
+    in
+    {
+        assert(isValid(minutes) == ErrorOp.none);
+    }
+    do
+    {
+        this.hour = cast(byte)(minutes / Tick.minutesPerHour);
+        this.minute = this.hour == 0 ? cast(byte)(minutes % Tick.minutesPerHour) : cast(byte)(abs(minutes) % Tick.minutesPerHour);
+        return this;
+    }
+
+    ref typeof(this) opAssign(scope const(Duration) minutes) @nogc pure return
+    {
+        return opAssign(cast(int)minutes.total!"minutes"());
+    }
+
+    bool opCast(C: bool)() const @nogc
+    {
+        return hasOffset;
+    }
+
+    int opCmp(scope const(ZoneOffset) rhs) const @nogc pure scope
+    {
+        const result = cmp(this.hour, rhs.hour);
+        return result == 0 ? cmp(this.minute, rhs.minute) : result;
+    }
+
+    bool opEquals(scope const(ZoneOffset) rhs) const @nogc pure scope
+    {
+        return this.hour == rhs.hour && this.minute == rhs.minute;
+    }
+
+    pragma(inline, true)
+    static ZoneOffset fromSystemBias(const(int) biasMinute) pure
+    {
+        return biasMinute != 0 ? ZoneOffset(-biasMinute) : ZoneOffset(0);
+    }
+
+    pragma(inline, true)
+    ErrorOp isValid() const @nogc pure scope
+    {
+        return ZoneOffset.isValid(this.hour, this.minute);
+    }
+    
+    static ErrorOp isValid(const(int) hour, const(int) minute) @nogc pure
+    {
+        return isValid(toMinutes(hour, minute));
+    }
+
+    static ErrorOp isValid(const(int) minutes) @nogc pure
+    {
+        return minutes < minOffsetInMinutes
+            ? ErrorOp.underflow
+            : (minutes > maxOffsetInMinutes ? ErrorOp.overflow : ErrorOp.none);
+    }
+
+    void reset() @nogc pure
+    {
+        hour = minute = 0;
+    }
+
+    Duration toDuration() const @nogc pure scope
+    {
+        return dur!"minutes"(toMinutes());
+    }
+
+    pragma(inline, true)
+    size_t toHash() const @nogc pure scope
+    {
+        return (cast(ubyte)hour << 8) || cast(ubyte)minute;
+    }
+
+    int toMinutes() const @nogc pure scope
+    {
+        return toMinutes(hour, minute);
+    }
+
+    pragma(inline, true)
+    static int toMinutes(const(int) hour, const(int) minute) @nogc pure
+    /* Skip pre-condition because using by isValid
+    in
+    {
+        assert(hour > -Tick.hoursPerDay && hour < Tick.hoursPerDay);
+        assert(minute > -Tick.minutesPerHour && minute < Tick.minutesPerHour);
+        assert(minute >= 0 || hour != 0); // minute cann't be negative if hour != 0
+    }
+    do
+    */
+    {
+        return hour < 0 || minute < 0
+            ? -(abs(hour)*Tick.minutesPerHour + abs(minute))
+            : (hour*Tick.minutesPerHour + minute);
+    }
+
+    string toString() const scope
+    {
+        import std.array : Appender;
+
+        Appender!string buffer;
+        buffer.reserve(6);
+        return toString(buffer).data;
+    }
+
+    ref Writer toString(Writer)(return ref Writer sink) const scope
+    {
+        import std.format : sformat;
+
+        scope (failure) assert(0, "Assume nothrow failed");
+
+        char[4] buffer;
+
+        if (hour < 0 || minute < 0)
+            sink.put('-');
+        else
+            sink.put('+');
+        sink.put(sformat(buffer[], "%.2d", abs(hour)));
+        sink.put(':');
+        sink.put(sformat(buffer[], "%.2d", abs(minute)));
+        return sink;
+    }
+
+    pragma(inline, true)
+    long toTicks() const @nogc pure scope
+    {
+        return toMinutes() * Tick.ticksPerMinute;
+    }
+    
+    pragma(inline, true)
+    @property bool hasOffset() const @nogc pure scope
+    {
+        return hour != 0 || minute != 0;
+    }
+    
+    static @property ZoneOffset max() @nogc pure
+    {
+        return ZoneOffset(maxOffsetInHours, Tick.minutesPerHour-1);
+    }
+
+    static @property ZoneOffset min() @nogc pure
+    {
+        return ZoneOffset(minOffsetInHours, Tick.minutesPerHour-1);
+    }
+
+    byte hour;
+    byte minute;
+
+private:
+    // https://en.wikipedia.org/wiki/Time_zone
+    // +/-1 for day light saving
+    enum maxOffsetInHours = 14 + 1;    
+    enum maxOffsetInMinutes = toMinutes(maxOffsetInHours, Tick.minutesPerHour-1);
+    //enum minOffsetInHours = -12 - 1;
+    enum minOffsetInHours = -23; // -23 = see comment in isValidAdjustmentRule
+    enum minOffsetInMinutes = toMinutes(minOffsetInHours, Tick.minutesPerHour-1);
+}
+
 package(pham.dtm):
 
 struct CacheTimeZoneInfo
@@ -1317,7 +1479,7 @@ struct DaylightTimeInfo
 
     DateTime beginTime;
     DateTime endTime;
-    Duration delta;
+    ZoneOffset delta;
 }
 
 TimeZoneInfo notFoundLocalTimeZone(string useId) @nogc nothrow pure
@@ -1327,7 +1489,7 @@ TimeZoneInfo notFoundLocalTimeZone(string useId) @nogc nothrow pure
     result._displayName = TimeZoneInfo.localId;
     result._standardName = TimeZoneInfo.localId;
     result._daylightName = TimeZoneInfo.localId;
-    result._baseUtcOffset = Duration.zero;
+    result._baseUtcOffset = ZoneOffset.init;
     result._supportsDaylightSavingTime = false;
     return result;
 }
@@ -1368,7 +1530,7 @@ version(Windows)
             result._displayName = standardName;
             result._standardName = standardName;
             result._daylightName = daylightName;
-            result._baseUtcOffset = Tick.durationFromSystemBias(tzInfo.Bias);
+            result._baseUtcOffset = ZoneOffset.fromSystemBias(tzInfo.Bias);
 
             TransitionTime transitionBegin = void, transitionEnd = void;
             result._supportsDaylightSavingTime = isSupportsDaylightSavingTime(tzInfo, transitionBegin, transitionEnd);
@@ -1376,9 +1538,9 @@ version(Windows)
             {
                 auto adjustmentRule = AdjustmentRule(DateTime.min.dateOnly,
                     DateTime.max.dateOnly,
-                    Duration.zero, //Tick.durationFromSystemBias(tzInfo.Bias - tzInfo.Bias),
-                    Tick.durationFromSystemBias(tzInfo.DaylightBias),
-                    Tick.durationFromSystemBias(tzInfo.StandardBias),
+                    ZoneOffset.fromSystemBias(0), //Tick.durationFromSystemBias(tzInfo.Bias - tzInfo.Bias),
+                    ZoneOffset.fromSystemBias(tzInfo.DaylightBias),
+                    ZoneOffset.fromSystemBias(tzInfo.StandardBias),
                     transitionBegin,
                     transitionEnd,
                     false /* noDaylightTransitions */);
@@ -1700,6 +1862,39 @@ else version(Posix)
 else
     pragma(msg, "Unsupport system for " ~ __MODULE__);
 
+unittest // ZoneOffset
+{
+    //import std.stdio : writeln;
+    //writeln("ZoneOffset.min=", ZoneOffset.min.toString()); // -23:00
+    //writeln("ZoneOffset.max=", ZoneOffset.max.toString()); // +14:00
+
+    auto zone = ZoneOffset(1, 10);
+    assert(zone.toString() == "+01:10");
+
+    zone = ZoneOffset(-1, 5);
+    assert(zone.toString() == "-01:05");
+
+    assert(ZoneOffset(1, 10) == ZoneOffset(1, 10));
+    assert(ZoneOffset(1, 10) != ZoneOffset(-1, 10));
+
+    zone = ZoneOffset(70);
+    assert(zone.toString() == "+01:10");
+    assert(zone == ZoneOffset(1, 10));
+
+    zone = ZoneOffset(-65);
+    assert(zone.toString() == "-01:05");
+    assert(zone == ZoneOffset(-1, 5));
+
+    assert(ZoneOffset(1, 10) > ZoneOffset(-1, 5));
+    assert(ZoneOffset(-1, 5) < ZoneOffset(1, 10));
+    assert(ZoneOffset.min < ZoneOffset.max);
+    
+    assert(ZoneOffset.fromSystemBias(0).toMinutes() == 0);
+    assert(ZoneOffset.fromSystemBias(0).toString() == "+00:00");
+    assert(ZoneOffset.fromSystemBias(5).toMinutes() == -5);
+    assert(ZoneOffset.fromSystemBias(5).toString() == "-00:05");
+}
+
 unittest // TimeZoneInfo.localTimeZone
 {
     auto ltz = TimeZoneInfo.localTimeZone();
@@ -1711,19 +1906,4 @@ unittest // TimeZoneInfo.localTimeZone
               ", ltz.id=", ltz.id,
               ", ltz.standardName=", ltz.standardName,
               ", ltz.supportsDaylightSavingTime=", ltz.supportsDaylightSavingTime);
-}
-
-unittest // TimeZoneInfo.offsetFromISOPart & offsetToISOPart
-{
-    assert(TimeZoneInfo.offsetFromISOPart(1, 5) == 65);
-    assert(TimeZoneInfo.offsetFromISOPart(-5, 0) == -5 * 60);
-
-    byte h, m;
-    TimeZoneInfo.offsetToISOPart(65, h, m);
-    assert(h == 1);
-    assert(m == 5);
-
-    TimeZoneInfo.offsetToISOPart(-5 * 60, h, m);
-    assert(h == -5);
-    assert(m == 0);
 }

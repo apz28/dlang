@@ -45,6 +45,24 @@ alias AmPmTexts = string[2];
 alias DayOfWeekNames = string[7];
 alias MonthNames = string[12];
 
+enum MonthOfYear : ubyte
+{
+    january = 1,
+    february,
+    march,
+    april,
+    may,
+    june,
+    july,
+    august,
+    september,
+    october,
+    november,
+    december,
+}
+
+enum firstDayOfMonth = 1;
+
 enum DayOfWeek : ubyte
 {
     sunday = 0,
@@ -55,8 +73,6 @@ enum DayOfWeek : ubyte
     friday,
     saturday,
 }
-
-enum firstDayOfMonth = 1;
 
 enum firstDayOfWeek = DayOfWeek.sunday;
 
@@ -190,25 +206,25 @@ struct Tick
 
     // Number of days in a non-leap year
     enum long daysPerYear = 365;
-    
+
     // Number of days in 4 years
     enum long daysPer4Years = daysPerYear * 4 + 1;       // 1_461
-    
+
     // Number of days in 100 years
     enum long daysPer100Years = daysPer4Years * 25 - 1;  // 36_524
-    
+
     // Number of days in 400 years
     enum long daysPer400Years = daysPer100Years * 4 + 1; // 146_097
 
     // Number of days from 1/1/0001 to 12/31/1600
     enum long daysTo1601 = daysPer400Years * 4;          // 584_388
-    
+
     // Number of days from 1/1/0001 to 12/30/1899
     enum long daysTo1899 = daysPer400Years * 4 + daysPer100Years * 3 - 367;
-    
+
     // Number of days from 1/1/0001 to 12/31/1969
     enum long daysTo1970 = daysPer400Years * 4 + daysPer100Years * 3 + daysPer4Years * 17 + daysPerYear; // 719_162
-    
+
     // Number of days from 1/1/0001 to 12/31/9999
     // The value calculated from "DateTime(12/31/9999).ticks / ticksPerDay"
     enum long daysTo10000 = daysPer400Years * 25 - 366;  // 3_652_059
@@ -246,11 +262,11 @@ struct Tick
                 return ErrorOp.overflow;
             }
         }
-        
+
         result = cast(R)r;
         return ErrorOp.none;
     }
-    
+
     static long currentSystemTicks(ClockType clockType = ClockType.normal)() @trusted
     if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType == ClockType.precise)
     {
@@ -262,10 +278,9 @@ struct Tick
             static assert(0, "Unsupport system for " ~ __FUNCTION__);
     }
 
-    pragma(inline, true)
-    static Duration durationFromSystemBias(long biasMinute) pure
+    static DayOfWeek dayOfWeek(const(long) ticks) pure
     {
-        return biasMinute != 0 ? dur!"minutes"(-biasMinute) : Duration.zero;
+        return cast(DayOfWeek)((cast(uint)(ticks / ticksPerDay) + 1) % 7);
     }
 
     pragma(inline, true)
@@ -303,7 +318,7 @@ struct Tick
     {
         return ticks >= -9_999_999 && ticks <= 9_999_999;
     }
-    
+
     static long round(const(double) d) pure
     {
         const r = d >= 0.0 ? 0.5 : -0.5;
@@ -373,6 +388,11 @@ struct TickData
 {
 @nogc nothrow @safe:
 
+    bool opCast(C: bool)() const
+    {
+        return data != 0;
+    }
+
     int opCmp(scope const(TickData) rhs) const pure scope
     {
         version(RelaxCompareTime)
@@ -418,7 +438,7 @@ struct TickData
 
     deprecated("please use createDateTime")
     alias createDateTimeTick = createDateTime;
-    
+
     pragma(inline, true)
     static TickData createTime(T)(const(T) ticks, const(DateTimeZoneKind) kind) pure
     if (is(T == ulong) || is(T == long))
@@ -435,7 +455,7 @@ struct TickData
 
     deprecated("please use createTime")
     alias createTimeTick = createTime;
-    
+
     pragma(inline, true)
     static bool isCompatibleKind(const(DateTimeZoneKind) lhs, const(DateTimeZoneKind) rhs) pure
     {
@@ -478,7 +498,7 @@ struct TickData
     {
         return cast(ulong)kind << kindShift;
     }
-    
+
     pragma(inline, true)
     @property DateTimeZoneKind kind() const pure scope
     {
@@ -490,11 +510,11 @@ struct TickData
     {
         return internalKind == kindLocal
             ? DateTimeZoneKind.local
-            : (internalKind == kindUtc 
+            : (internalKind == kindUtc
                 ? DateTimeZoneKind.utc
                 : DateTimeZoneKind.unspecified);
     }
-    
+
     pragma(inline, true)
     @property long sticks() const pure scope
     {
@@ -526,36 +546,36 @@ struct TickPart
 @nogc nothrow pure @safe:
 
     pragma(inline, true)
-    static int fractionOf(const(long) ticks) 
+    static int fractionOf(const(long) ticks)
     {
         const long totalSeconds = ticks / Tick.ticksPerSecond;
         return cast(int)(ticks - (totalSeconds * Tick.ticksPerSecond));
     }
 
     pragma(inline, true)
-    static int hourOf(const(long) ticks) 
+    static int hourOf(const(long) ticks)
     {
         return cast(int)((ticks / Tick.ticksPerHour) % Tick.hoursPerDay);
     }
 
     pragma(inline, true)
-    static int minuteOf(const(long) ticks) 
+    static int minuteOf(const(long) ticks)
     {
         return cast(int)((ticks / Tick.ticksPerMinute) % Tick.minutesPerHour);
     }
 
     pragma(inline, true)
-    static int secondOf(const(long) ticks) 
+    static int secondOf(const(long) ticks)
     {
         return cast(int)((ticks / Tick.ticksPerSecond) % Tick.secondsPerMinute);
     }
 
     pragma(inline, true)
-    static long timeOf(const(long) ticks) 
+    static long timeOf(const(long) ticks)
     {
         return ticks % Tick.ticksPerDay;
     }
-    
+
     pragma(inline, true)
     static int microsecondToTick(const(int) microseconds)
     in
@@ -627,7 +647,7 @@ struct TickSpan
     // Average over a 4 year span
     enum double approxDaysPerMonth4ys = 30.4375;
     enum double approxDaysPerYear4ys  = 365.25;
-     
+
     /**
      * The above are the average days per month/year over a normal 4 year period.
      * We use these approximations because they are more accurate for the next
@@ -635,7 +655,7 @@ struct TickSpan
      * approximations...
      */
     enum double approxDaysPerMonth400ys = 30.436875;
-    enum double approxDaysPerYear400ys  = 365.2425;     
+    enum double approxDaysPerYear400ys  = 365.2425;
 
     /**
      * The total number of years
@@ -649,7 +669,7 @@ struct TickSpan
 
     /**
      * The total number of months
-     */   
+     */
     pragma(inline, true)
     T totalMonths(T=double)(const(double) approxDaysPerMonth = TickSpan.approxDaysPerMonth4ys) const pure
     if (is(T == int) || is(T == double))
@@ -659,7 +679,7 @@ struct TickSpan
 
     /**
      * The total number of weeks
-     */    
+     */
     pragma(inline, true)
     T totalWeeks(T=double)() const pure
     if (is(T == int) || is(T == double))
@@ -735,7 +755,7 @@ struct TickSpan
     {
         return Tick.durationFromTicks(this.ticks);
     }
-    
+
     long ticks;
 }
 
@@ -784,6 +804,36 @@ void checkTimeParts(int hour, int minute, int second, int millisecond) pure
     else if (e == ErrorPart.millisecond)
         throwOutOfRange!(ErrorPart.millisecond)(millisecond);
 }
+
+/**
+ * Returns number of days between two week days exclusive
+ * sunday - saturday - true = 6 days
+ * sunday - sunday - true = 0 day
+ */
+int daysDiff(DayOfWeek dow1, DayOfWeek dow2, const(bool) forward) @nogc nothrow pure
+{
+    int result = 0;
+    if (forward)
+    {
+        while (dow1 != dow2)
+        {
+            result++;
+            dow1 = dow1 == DayOfWeek.saturday ? DayOfWeek.sunday : cast(DayOfWeek)(dow1 + 1);
+            //import std.stdio : writeln; debug writeln("forward-result=", result, ", dow1=", dow1, ", dow2=", dow2);
+        }
+    }
+    else
+    {
+        while (dow1 != dow2)
+        {
+            result++;
+            dow2 = dow2 == DayOfWeek.sunday ? DayOfWeek.saturday : cast(DayOfWeek)(dow2 - 1);
+            //import std.stdio : writeln; debug writeln("backward-result=", result, ", dow1=", dow1, ", dow2=", dow2);
+        }
+    }
+    return result;
+}
+
 
 //pragma(inline, true)
 ErrorPart isValidTimeParts(const(int) hour, const(int) minute, const(int) second, const(int) millisecond) @nogc nothrow pure
@@ -956,7 +1006,7 @@ static immutable MonthNames usShortMonthNames = [
  * Returns:
  *   ResultIf!int
  */
-ResultIf!int toMonth(string monthName, scope const(MonthNames) shortMonthNames, scope const(MonthNames) fullMonthNames) @nogc nothrow pure
+ResultIf!byte toMonth(string monthName, scope const(MonthNames) shortMonthNames, scope const(MonthNames) fullMonthNames) @nogc nothrow pure
 {
     import std.uni : sicmp;
 
@@ -965,17 +1015,17 @@ ResultIf!int toMonth(string monthName, scope const(MonthNames) shortMonthNames, 
         foreach (i; 0..shortMonthNames.length)
         {
             if (sicmp(shortMonthNames[i], monthName) == 0)
-                return ResultIf!int.ok(cast(int)i + 1);
+                return ResultIf!byte.ok(cast(byte)(i + 1));
         }
 
         foreach (i; 0..fullMonthNames.length)
         {
             if (sicmp(fullMonthNames[i], monthName) == 0)
-                return ResultIf!int.ok(cast(int)i + 1);
+                return ResultIf!byte.ok(cast(byte)(i + 1));
         }
     }
 
-    return ResultIf!int.error(1, monthName);
+    return ResultIf!byte.error(1, monthName);
 }
 
 /**
@@ -983,9 +1033,9 @@ ResultIf!int toMonth(string monthName, scope const(MonthNames) shortMonthNames, 
  * Params:
  *   monthName = month name to be converted
  * Returns:
- *   ResultIf!int
+ *   ResultIf!byte
  */
-ResultIf!int toMonthUS(string monthName) @nogc nothrow pure
+ResultIf!byte toMonthUS(string monthName) @nogc nothrow pure
 {
     return toMonth(monthName, usShortMonthNames, usFullMonthNames);
 }
@@ -1252,12 +1302,6 @@ unittest // Tick.timeToTicks
     assert(Tick.timeToTicks(0, 0, 0, 1) == Tick.ticksPerMillisecond);
 }
 
-unittest // Tick.durationFromSystemBias
-{
-    assert(Tick.durationFromSystemBias(0) == dur!"minutes"(0));
-    assert(Tick.durationFromSystemBias(5) == dur!"minutes"(-5));
-}
-
 unittest // Tick.checkedAdd
 {
     int i;
@@ -1269,7 +1313,7 @@ unittest // Tick.checkedAdd
     assert(i == int.min);
     assert(Tick.checkedAdd(int.max, 1, i) == ErrorOp.overflow);
     assert(i == int.max);
-    
+
     long l;
     assert(Tick.checkedAdd(1L, 1L, l) == ErrorOp.none);
     assert(l == 2);
@@ -1286,7 +1330,7 @@ unittest // Tick.isValidDiffMicrosecond
     assert(Tick.isValidDiffMicrosecond(-999_999));
     assert(Tick.isValidDiffMicrosecond(0));
     assert(Tick.isValidDiffMicrosecond(999_999));
-    
+
     assert(!Tick.isValidDiffMicrosecond(-1_000_000));
     assert(!Tick.isValidDiffMicrosecond(1_000_000));
 }
@@ -1296,7 +1340,7 @@ unittest // Tick.isValidDiffMillisecond
     assert(Tick.isValidDiffMillisecond(-999));
     assert(Tick.isValidDiffMillisecond(0));
     assert(Tick.isValidDiffMillisecond(999));
-    
+
     assert(!Tick.isValidDiffMillisecond(-1_000));
     assert(!Tick.isValidDiffMillisecond(1_000));
 }
@@ -1316,7 +1360,7 @@ unittest // Tick.isValidDiffTickPrecision
     assert(Tick.isValidDiffTickPrecision(-9_999_999));
     assert(Tick.isValidDiffTickPrecision(0));
     assert(Tick.isValidDiffTickPrecision(9_999_999));
-    
+
     assert(!Tick.isValidDiffTickPrecision(-10_000_000));
     assert(!Tick.isValidDiffTickPrecision(10_000_000));
 }
@@ -1389,7 +1433,7 @@ unittest // TickPart.secondOf
 unittest // TickPart.timeOf
 {
     import std.conv : to;
-    
+
     assert(TickPart.timeOf(Tick.ticksPerDay - 1) == Tick.ticksPerDay - 1, TickPart.timeOf(Tick.ticksPerDay - 1).to!string);
     assert(TickPart.timeOf(Tick.ticksPerDay) == 0);
 }
@@ -1412,4 +1456,19 @@ unittest // TickPart.tickToMicrosecond
 unittest // TickPart.tickToMillisecond
 {
     assert(TickPart.tickToMillisecond(Tick.ticksPerMillisecond) == 1);
+}
+
+unittest
+{
+    import std.conv : to;
+
+    assert(daysDiff(DayOfWeek.sunday, DayOfWeek.sunday, true) == 0, daysDiff(DayOfWeek.sunday, DayOfWeek.sunday, true).to!string);
+    assert(daysDiff(DayOfWeek.sunday, DayOfWeek.sunday, false) == 0, daysDiff(DayOfWeek.sunday, DayOfWeek.sunday, false).to!string);
+
+    assert(daysDiff(DayOfWeek.sunday, DayOfWeek.saturday, true) == 6, daysDiff(DayOfWeek.sunday, DayOfWeek.saturday, true).to!string);
+    assert(daysDiff(DayOfWeek.sunday, DayOfWeek.saturday, false) == 6, daysDiff(DayOfWeek.sunday, DayOfWeek.saturday, false).to!string);
+    assert(daysDiff(DayOfWeek.saturday, DayOfWeek.sunday, true) == 1, daysDiff(DayOfWeek.saturday, DayOfWeek.sunday, true).to!string);
+
+    assert(daysDiff(DayOfWeek.wednesday, DayOfWeek.sunday, true) == 4, daysDiff(DayOfWeek.wednesday, DayOfWeek.sunday, true).to!string);
+    assert(daysDiff(DayOfWeek.sunday, DayOfWeek.wednesday, false) == 3, daysDiff(DayOfWeek.wednesday, DayOfWeek.sunday, false).to!string);
 }
