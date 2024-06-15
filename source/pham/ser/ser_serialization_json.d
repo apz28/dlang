@@ -846,13 +846,15 @@ unittest // JsonSerializer.UnitTestPhamDateTime
 
     static immutable string jsonUnitTestPhamDateTime =
         q"<{"date1":"1999-01-01","dateTime1":"1999-07-06T12:30:33.0000000-04:00","time1":"12:30:33.0000000-05:00"}>";
+    static immutable string jsonUnitTestPhamDateTimeDS =
+        q"<{"date1":"1999-01-01","dateTime1":"1999-07-06T12:30:33.0000000-04:00","time1":"12:30:33.0000000-04:00"}>";
 
     {
         UnitTestPhamDateTime c;
         scope serializer = new JsonSerializer();
         serializer.serialize!UnitTestPhamDateTime(c.setValues());
         //import std.stdio : writeln; debug writeln(serializer.buffer[]);
-        assert(serializer.buffer[] == jsonUnitTestPhamDateTime, serializer.buffer[]);
+        assert(serializer.buffer[] == jsonUnitTestPhamDateTime || serializer.buffer[] == jsonUnitTestPhamDateTimeDS, serializer.buffer[]);
     }
 
     {

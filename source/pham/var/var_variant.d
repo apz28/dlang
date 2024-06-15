@@ -787,7 +787,15 @@ public:
     }
 
     /**
-     * Returns true if VariantN held value of type void or null
+     * Constructs and returns instance Variant with Unassign value
+     */
+    static Variant varUnassign() nothrow @safe
+    {
+        return Variant(Unassign.init);
+    }
+
+    /**
+     * Returns true if `VariantN` held value of type void or null
      */
     @property bool isNull() const nothrow pure @safe
     {
@@ -795,11 +803,19 @@ public:
     }
 
     /**
-     * Returns true if VariantN held value of type void
+     * Returns true if `VariantN` held value of type void
      */
     @property bool isVoid() const nothrow pure @safe
     {
         return handler.nullType(size, pointer) == NullType.void_;
+    }
+
+    /**
+     * Returns true if `VariantN` held value of type Unassign
+     */
+    @property bool isUnassign() const nothrow pure @safe
+    {
+        return typeInfo is typeid(Unassign);
     }
 
     /**
@@ -2040,6 +2056,33 @@ template isAlgebraic(Type)
 template MutableOf(T)
 {
     alias MutableOf = Unqual!T;
+}
+
+struct Unassign
+{
+nothrow @safe:
+
+    int opCmp(scope const(Unassign) rhs) const
+    {
+        return 0;
+    }
+    
+    bool opEqual(scope const(Unassign) rhs) const
+    {
+        return true;
+    }
+    
+    size_t toHash() const pure
+    {
+        return 1;
+    }
+
+    string toString() const pure
+    {
+        return "Variant.Unassign";
+    }
+    
+    byte dummy;
 }
 
 auto visitImpl(bool Strict, VariantType, Handlers...)(VariantType variant)
@@ -5587,9 +5630,23 @@ version(unittest) // mapArguments & isVariant
 
 unittest // mapArguments & isVariant
 {
-    
     assert(mapArgumentFoo(123, 456) == Variant(123 + 456));
     assert(mapArgumentFoo(123.6, 456.0) == Variant(123.6 + 456.0));
 
     assert(mapArgumentFoo(Variant(123), Variant(456)) == Variant(123 + 456));
+}
+
+unittest // Unassign
+{
+    auto v = Variant.varUnassign();
+    assert(v.isUnassign);
+    assert(!v.isNull);
+    
+    v = Variant.varNull();
+    assert(v.isNull);
+    assert(!v.isUnassign);
+    
+    v = Variant(1);
+    assert(!v.isUnassign);
+    assert(!v.isNull);
 }

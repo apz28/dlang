@@ -517,8 +517,7 @@ private:
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
-        auto result = fbConnection.createCommand();
-        result.commandText = commandText;
+        auto result = fbConnection.createCommandText(commandText);
         return cast(FbCommand)result.prepare();
     }
 

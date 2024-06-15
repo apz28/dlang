@@ -123,9 +123,6 @@ public:
         return result;
     }
 
-    deprecated("please use addDaysClamp")
-    alias addDaysSafe = addDaysClamp;
-
     /**
      * Adds the specified number of months to the value of this Date
      * and returns new Date whose value is the sum of the date represented by this Date
@@ -225,10 +222,10 @@ public:
     {
         if (nthDayOfMonth <= firstDayOfMonth)
             return firstWeekOf(dayOfWeek);
-            
+
         if (nthDayOfMonth >= 31-6)
             return lastWeekOf(dayOfWeek);
-        
+
         int y = void, m = void, d = void;
         getDate(y, m, d);
         auto result = Date(y, m, nthDayOfMonth);
@@ -575,6 +572,12 @@ private:
     uint data;
 }
 
+deprecated("please use Date.addDaysClamp")
+Date addDaysSafe(scope const(Date) date, const(int) days) @nogc pure nothrow
+{
+    return date.addDaysClamp(days);
+}
+
 struct DateTime
 {
 @safe:
@@ -811,9 +814,6 @@ public:
         return result;
     }
 
-    deprecated("please use addMinutesClamp")
-    alias addMinutesSafe = addMinutesClamp;
-
     /**
      * Returns the DateTime resulting from adding the given number of
      * months to this DateTime. The result is computed by incrementing
@@ -891,9 +891,6 @@ public:
         return result;
     }
 
-    deprecated("please use addSecondsClamp")
-    alias addSecondsSafe = addSecondsClamp;
-
     /**
      * Returns the DateTime resulting from adding the given number of
      * 100-nanosecond ticks to this DateTime. The value argument
@@ -925,9 +922,6 @@ public:
     {
         return addTicksClamp(Tick.durationToTicks(duration));
     }
-
-    deprecated("please use addTicksClamp")
-    alias addTicksSafe = addTicksClamp;
 
     /**
      * Returns the DateTime resulting from adding the given number of
@@ -1875,6 +1869,24 @@ private:
     TickData data;
 }
 
+deprecated("please use DateTime.addMinutesClamp")
+DateTime addMinutesSafe(scope const(DateTime) dateTime, const(int) minutes) @nogc nothrow pure
+{
+    return dateTime.addMinutesClamp(minutes);
+}
+
+deprecated("please use DateTime.addSecondsClamp")
+DateTime addSecondsSafe(scope const(DateTime) dateTime, const(int) seconds) @nogc nothrow pure
+{
+    return dateTime.addSecondsClamp(seconds);
+}
+
+deprecated("please use DateTime.addTicksClamp")
+DateTime addTicksSafe(scope const(DateTime) dateTime, const(long) ticks) @nogc nothrow pure
+{
+    return dateTime.addTicksClamp(ticks);
+}
+
 struct JulianDate
 {
 @nogc nothrow @safe:
@@ -1883,7 +1895,7 @@ struct JulianDate
     {
         julian,
         gregorian,
-        outofrange,
+        outOfRange,
     }
 
     static CalendarKind calendarKind(const(int) year, const(int) month, const(int) day) pure
@@ -1910,7 +1922,7 @@ struct JulianDate
                 else
                     // Any date in the range 10/5/1582 to 10/14/1582 is invalid
                     // This date is not valid as it does not exist in either the Julian or the Gregorian calendars
-                    return CalendarKind.outofrange;
+                    return CalendarKind.outOfRange;
             }
         }
     }
@@ -1920,11 +1932,12 @@ struct JulianDate
      * If date (year, month, day) is not a valid Julian/Gregorian calendar, the return value is NaN
      * The $(HTTP en.wikipedia.org/wiki/Julian_day)
      */
-    static double toJulianDay(const(int) year, const(int) month, const(int) day, const(int) hour, const(int) minute, const(int) second, const(int) millisecond) pure
+    static double toJulianDay(const(int) year, const(int) month, const(int) day,
+        const(int) hour, const(int) minute, const(int) second, const(int) millisecond) pure
     {
         // Determine correct calendar based on date
         const ck = calendarKind(year, month, day);
-        if (ck == CalendarKind.outofrange)
+        if (ck == CalendarKind.outOfRange)
             return double.nan;
 
         const int Y = month > 2 ? year : year - 1;
@@ -1944,7 +1957,6 @@ int yearsBetween(T)(scope const(T) now, scope const(T) then,
     const(double) approxDaysPerYear = TickSpan.approxDaysPerYear4ys) @nogc nothrow pure
 if (is(T == Date) || is(T == DateTime) || is(T == Time))
 {
-
     static if (is(T == Time))
         return 0;
     else

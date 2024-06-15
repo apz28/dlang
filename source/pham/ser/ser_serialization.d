@@ -504,7 +504,7 @@ IsFloatLiteral isFloatLiteral(scope const(char)[] text) @nogc nothrow pure
 }
 
 template isCallableWithTypes(alias func, Args...)
-{    
+{
     private alias funcParams = Parameters!func;
     private bool sameParamTypes()
     {
@@ -794,24 +794,26 @@ public:
 
     static if (isSerializerAggregateType!T)
     {
-        private enum aliasedFieldNames = __traits(getAliasThis, T);
-        static if (aliasedFieldNames.length == 0)
+        private enum aliasedThisNames = __traits(getAliasThis, T);
+
+        static if (aliasedThisNames.length == 0)
         {
             alias SerializerMemberList = Filter!(isSerializerMember, staticMap!(createSerializerField, allMembers!T));
         }
-        else static if (aliasedFieldNames.length == 1)
+        else static if (aliasedThisNames.length == 1)
         {
-            private enum aliasedFieldMembers = __traits(getMember, T, aliasedFieldNames);
+            private enum aliasedThisMembers = __traits(getMember, T, aliasedThisNames);
+
             // Ignore alias to function
-            static if (isSomeFunction!(aliasedFieldMembers))
+            static if (isSomeFunction!(aliasedThisMembers))
             {
                 alias SerializerMemberList = Filter!(isSerializerMember, staticMap!(createSerializerField, allMembers!T));
             }
             else
             {
-                private enum baseFields = Erase!(aliasedFieldNames, allMembers!T);
+                private enum baseFields = Erase!(aliasedThisNames, allMembers!T);
                 static assert(baseFields.length == allMembers!(T).length - 1);
-                private alias allFields = AliasSeq!(staticMap!(createSerializerField, baseFields), SerializerMemberList!(typeof(aliasedFieldMembers)));
+                private alias allFields = AliasSeq!(staticMap!(createSerializerField, baseFields), SerializerMemberList!(typeof(aliasedThisMembers)));
                 alias SerializerMemberList = Filter!(isSerializerMember, allFields);
             }
         }
@@ -1471,7 +1473,7 @@ public:
         {
             static if (hasCallableWithTypes!(V, "dsDeserializeBegin", Deserializer, ptrdiff_t, Serializable))
                 v.dsDeserializeBegin(this, readLength, attribute);
-                
+
             deserializedLength = v.dsDeserialize(this, memberOptions, readLength, attribute);
         }
         else
@@ -2569,26 +2571,26 @@ unittest // isCallableWithTypes
         {
             return 0;
         }
-        
+
         ptrdiff_t serialize(Serializer serializer, SerializableMemberOptions memberOptions, scope ref Serializable attribute) @safe
         {
             return 1;
         }
     }
-    
+
     ptrdiff_t deserialize(Deserializer deserializer, SerializableMemberOptions memberOptions, ptrdiff_t readLength, scope ref Serializable attribute) @safe
     {
         return 0;
     }
-    
+
     ptrdiff_t serialize(Serializer serializer, SerializableMemberOptions memberOptions, scope ref Serializable attribute) @safe
     {
         return 1;
     }
-    
+
     static assert (isCallableWithTypes!(deserialize, Deserializer, SerializableMemberOptions, size_t, Serializable));
     static assert (isCallableWithTypes!(serialize, Serializer, SerializableMemberOptions, Serializable));
-    
+
     alias deserializeMember = __traits(getMember, S, "deserialize");
     static assert (isCallableWithTypes!(deserializeMember, Deserializer, SerializableMemberOptions, size_t, Serializable));
     alias serializeMember = __traits(getMember, S, "serialize");

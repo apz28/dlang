@@ -60,7 +60,7 @@ void deserialize(Deserializer deserializer, scope ref DateTime value, scope ref 
             value = dateTimeParse!(DateTime, DeserializerException)(text, isop);
             return;
         case SerializerDataFormat.binary:
-            auto binary = TickData(cast(ulong)deserializer.readLong());
+            auto binary = deserializer.readLong();
             value = DateTime(binary);
             return;
     }
@@ -75,7 +75,7 @@ void serialize(Serializer serializer, scope ref DateTime value, scope ref Serial
             serializer.write(value.toString(buffer, "%U")[]); // %U=utcSortableDateTimeZ
             return;
         case SerializerDataFormat.binary:
-            serializer.write(cast(long)value.raw.data);
+            serializer.write(value.sticks);
             return;
     }
 }
@@ -90,7 +90,7 @@ void deserialize(Deserializer deserializer, scope ref Time value, scope ref Seri
             value = dateTimeParse!(Time, DeserializerException)(text, isop);
             return;
         case SerializerDataFormat.binary:
-            auto binary = TickData(cast(ulong)deserializer.readLong());
+            auto binary = deserializer.readLong();
             value = Time(binary);
             return;
     }
@@ -105,7 +105,7 @@ void serialize(Serializer serializer, scope ref Time value, scope ref Serializab
             serializer.write(value.toString(buffer, "%U")[]); // %U=utcSortableDateTimeZ
             return;
         case SerializerDataFormat.binary:
-            serializer.write(cast(long)value.raw.data);
+            serializer.write(value.sticks);
             return;
     }
 }
@@ -132,8 +132,8 @@ package(pham.ser):
         void assertValues()
         {
             assert(date1 == Date(1999, 1, 1));
-            assert(dateTime1 == DateTime(1999, 7, 6, 12, 30, 33));
-            assert(time1 == Time(12, 30, 33));
+            assert(dateTime1 == DateTime(1999, 7, 6, 12, 30, 33), dateTime1.toString());
+            assert(time1 == Time(12, 30, 33) || time1 == Time(13, 30, 33), time1.toString()); // Time(13, 30, 33) for US DTS
         }
     }
     

@@ -568,8 +568,7 @@ private:
         }
         commandText.put(')');
 
-        auto result = pgConnection.createCommand();
-        result.commandText = commandText.data;
+        auto result = pgConnection.createCommandText(commandText.data);
         PgOIdFieldInfo info;
         foreach (ref argument; arguments)
         {
