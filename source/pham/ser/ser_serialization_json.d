@@ -12,9 +12,14 @@
 module pham.ser.ser_serialization_json;
 
 import std.array : Appender, appender;
-import std.json : JSONOptions, JSONType, JSONValue, parseJSON;
 import std.conv : to;
+import std.json : JSONOptions, JSONType, JSONValue, parseJSON;
 import std.traits : isDynamicArray, isFloatingPoint, isIntegral;
+
+import pham.dtm.dtm_date : Date, DateTime;
+import pham.dtm.dtm_date_time_parse : DateTimePattern, dateTimeParse=parse;
+import pham.dtm.dtm_tick : DateTimeZoneKind;
+import pham.dtm.dtm_time : Time;
 import pham.ser.ser_serialization;
 
 class JsonDeserializer : Deserializer
@@ -87,6 +92,27 @@ public:
         return s.length ? s[0] : '\0';
     }
 
+    final override Date readDate()
+    {
+        auto isop = DateTimePattern.iso8601Date();
+        auto text = readScopeChars(DataKind.date);
+        return dateTimeParse!(Date, DeserializerException)(text, isop);
+    }
+
+    final override DateTime readDateTime()
+    {
+        auto isop = DateTimePattern.iso8601DateTime();
+        auto text = readScopeChars(DataKind.dateTime);
+        return dateTimeParse!(DateTime, DeserializerException)(text, isop);
+    }
+
+    final override Time readTime()
+    {
+        auto isop = DateTimePattern.iso8601Time();
+        auto text = readScopeChars(DataKind.time);
+        return dateTimeParse!(Time, DeserializerException)(text, isop);
+    }
+
     final override byte readByte()
     {
         return readInt!byte();
@@ -97,12 +123,12 @@ public:
         return readInt!short();
     }
 
-    final override int readInt()
+    final override int readInt(const(DataKind) kind = DataKind.integral)
     {
         return readInt!int();
     }
 
-    final override long readLong()
+    final override long readLong(const(DataKind) kind = DataKind.integral)
     {
         return readInt!long();
     }
@@ -117,12 +143,12 @@ public:
         return v;
     }
 
-    final override float readFloat(const(FloatFormat) floatFormat)
+    final override float readFloat(const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
     {
         return readFloat!float();
     }
 
-    final override double readDouble(const(FloatFormat) floatFormat)
+    final override double readDouble(const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
     {
         return readFloat!double();
     }
@@ -160,7 +186,7 @@ public:
         return v;
     }
 
-    final override string readChars()
+    final override string readChars(const(DataKind) kind = DataKind.character)
     {
         static immutable JSONType[2] checkTypes = [JSONType.string, JSONType.null_];
         const t = checkDataType(checkTypes[]);
@@ -169,32 +195,32 @@ public:
         return v;
     }
 
-    final override wstring readWChars()
+    final override wstring readWChars(const(DataKind) kind = DataKind.character)
     {
-        auto chars = readChars();
+        auto chars = readChars(kind);
         return chars.length != 0 ? chars.to!wstring : null;
     }
 
-    final override dstring readDChars()
+    final override dstring readDChars(const(DataKind) kind = DataKind.character)
     {
-        auto chars = readChars();
+        auto chars = readChars(kind);
         return chars.length != 0 ? chars.to!dstring : null;
     }
 
-    final override const(char)[] readScopeChars()
+    final override const(char)[] readScopeChars(const(DataKind) kind = DataKind.character)
     {
-        return readChars();
+        return readChars(kind);
     }
 
-    final override ubyte[] readBytes(const(BinaryFormat) binaryFormat)
+    final override ubyte[] readBytes(const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary)
     {
-        const s = readChars();
+        const s = readChars(kind);
         return s.length ? binaryFromString!DeserializerException(s, binaryFormat) : null;
     }
 
-    final override const(ubyte)[] readScopeBytes(const(BinaryFormat) binaryFormat)
+    final override const(ubyte)[] readScopeBytes(const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary)
     {
-        return readBytes(binaryFormat);
+        return readBytes(binaryFormat, kind);
     }
 
     final override string readKey()
@@ -474,6 +500,32 @@ public:
         write(s[]);
     }
 
+    final override void write(scope const(Date) v)
+    {
+        StaticBuffer!(char, 50) text;
+        buffer.put('"');
+        buffer.put(v.toString(text, "%s")[]); // %s=yyyy-mm-dd
+        buffer.put('"');
+    }
+
+    final override void write(scope const(DateTime) v)
+    {
+        StaticBuffer!(char, 50) text;
+        const fmt = v.kind == DateTimeZoneKind.utc ? "%u" : "%s"; // %s=yyyy-mm-ddThh:nn:ss.zzzzzzz, %u=yyyy-mm-ddThh:nn:ss.zzzzzzzZ
+        buffer.put('"');
+        buffer.put(v.toString(text, fmt)[]);
+        buffer.put('"');
+    }
+
+    final override void write(scope const(Time) v)
+    {
+        StaticBuffer!(char, 50) text;
+        const fmt = v.kind == DateTimeZoneKind.utc ? "%u" : "%s"; // %s=hh:nn:ss.zzzzzzz, %u=hh:nn:ss.zzzzzzzZ
+        buffer.put('"');
+        buffer.put(v.toString(text, fmt)[]);
+        buffer.put('"');
+    }
+
     final override void write(byte v)
     {
         writeImpl(v);
@@ -484,27 +536,27 @@ public:
         writeImpl(v);
     }
 
-    final override void write(int v)
+    final override void write(int v, const(DataKind) kind = DataKind.integral)
     {
         writeImpl(v);
     }
 
-    final override void write(long v)
+    final override void write(long v, const(DataKind) kind = DataKind.integral)
     {
         writeImpl(v);
     }
 
-    final override void write(float v, const(FloatFormat) floatFormat)
+    final override void write(float v, const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
     {
         writeImpl(v, floatFormat);
     }
 
-    final override void write(double v, const(FloatFormat) floatFormat)
+    final override void write(double v, const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
     {
         writeImpl(v, floatFormat);
     }
 
-    final override void write(scope const(char)[] v)
+    final override void write(scope const(char)[] v, const(DataKind) kind = DataKind.character)
     {
         if (v is null)
         {
@@ -517,7 +569,7 @@ public:
         buffer.put('"');
     }
 
-    final override void write(scope const(wchar)[] v)
+    final override void write(scope const(wchar)[] v, const(DataKind) kind = DataKind.character)
     {
         if (v is null)
         {
@@ -531,7 +583,7 @@ public:
         buffer.put('"');
     }
 
-    final override void write(scope const(dchar)[] v)
+    final override void write(scope const(dchar)[] v, const(DataKind) kind = DataKind.character)
     {
         if (v is null)
         {
@@ -545,7 +597,7 @@ public:
         buffer.put('"');
     }
 
-    final override void write(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat)
+    final override void write(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary)
     {
         if (v is null)
         {
@@ -743,7 +795,7 @@ unittest // JsonSerializer.UnitTestAllTypes
         //import std.stdio : writeln; debug writeln(serializer.buffer[]);
         assert(serializer.buffer[] == jsonUnitTestAllTypes, serializer.buffer[]);
     }
-    
+
     {
         scope deserializer = new JsonDeserializer(jsonUnitTestAllTypes);
         auto c = deserializer.deserialize!UnitTestAllTypes();
@@ -779,7 +831,7 @@ unittest // JsonSerializer.UnitTestStdDateTime
     import pham.ser.ser_std_date_time;
 
     static immutable string jsonUnitTestStdDateTime =
-        q"<{"date1":"1999-01-01","dateTime1":"1999-07-06T12:30:33","sysTime1":"0001-01-01T00:00:33.0000502Z","timeOfDay1":"12:30:33"}>";
+        q"<{"date1":"1999-01-01","dateTime1":"1999-07-06T12:30:33.0000000","sysTime1":"0001-01-01T00:00:33.0000502Z","timeOfDay1":"12:30:33.0000000"}>";
 
     {
         UnitTestStdDateTime c;
@@ -842,19 +894,15 @@ unittest // JsonSerializer.UnitTestPhamBigInteger
 
 unittest // JsonSerializer.UnitTestPhamDateTime
 {
-    import pham.ser.ser_pham_date_time;
-
     static immutable string jsonUnitTestPhamDateTime =
-        q"<{"date1":"1999-01-01","dateTime1":"1999-07-06T12:30:33.0000000-04:00","time1":"12:30:33.0000000-05:00"}>";
-    static immutable string jsonUnitTestPhamDateTimeDS =
-        q"<{"date1":"1999-01-01","dateTime1":"1999-07-06T12:30:33.0000000-04:00","time1":"12:30:33.0000000-04:00"}>";
+        q"<{"date1":"1999-01-01","dateTime1":"1999-07-06T12:30:33.0000000Z","time1":"12:30:33.0000000Z"}>";
 
     {
         UnitTestPhamDateTime c;
         scope serializer = new JsonSerializer();
         serializer.serialize!UnitTestPhamDateTime(c.setValues());
         //import std.stdio : writeln; debug writeln(serializer.buffer[]);
-        assert(serializer.buffer[] == jsonUnitTestPhamDateTime || serializer.buffer[] == jsonUnitTestPhamDateTimeDS, serializer.buffer[]);
+        assert(serializer.buffer[] == jsonUnitTestPhamDateTime, serializer.buffer[]);
     }
 
     {
@@ -870,7 +918,7 @@ unittest // JsonSerializer.UnitTestDecDecimal
 
     static immutable string jsonUnitTestDecDecimal =
         q"<{"decimalNaN":"nan","decimalInfinity":"-inf","decimal32":"-7145.0","decimal64":"714583645.4","decimal128":"294574120484.87"}>";
-        
+
     {
         UnitTestDecDecimal c;
         scope serializer = new JsonSerializer();
@@ -889,7 +937,7 @@ unittest // JsonSerializer.UnitTestDecDecimal
 unittest // JsonSerializer+JsonDeserializer.UnitTestCustomS1
 {
     string jsonCustom;
-    
+
     {
         UnitTestCustomS1 c;
         scope serializer = new JsonSerializer();
@@ -897,7 +945,7 @@ unittest // JsonSerializer+JsonDeserializer.UnitTestCustomS1
         jsonCustom = serializer.buffer[];
         //import std.stdio : writeln; debug writeln("\n", jsonCustom);
     }
-    
+
     {
         scope deserializer = new JsonDeserializer(jsonCustom);
         auto c2 = deserializer.deserialize!UnitTestCustomS1();

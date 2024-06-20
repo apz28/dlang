@@ -239,6 +239,7 @@ nothrow @safe:
         third.dateSeparator = '-';
         third.timeSeparator = ':';
         third.patternText = fmt ~ precision ~ "Z";
+        third.defaultKind = DateTimeZoneKind.utc;
         
         return [first, second, third];
     }
@@ -262,6 +263,7 @@ nothrow @safe:
         third.dateSeparator = '-';
         third.timeSeparator = ':';
         third.patternText = fmt ~ precision ~ "Z";
+        third.defaultKind = DateTimeZoneKind.utc;
         
         return [first, second, third];
     }
@@ -336,9 +338,9 @@ public:
                 if (this.elementl >= maxElementLength)
                     return false;
 
+                this.elements[this.elementl].kind = toKind;
+                this.elements[this.elementl].marker.begin = p;
                 this.elementl++;
-                this.elements[this.elementl - 1].kind = toKind;
-                this.elements[this.elementl - 1].marker.begin = p;
 
                 if (toKind == PatternKind.separatorDate)
                     this.separatorDateCount++;
@@ -935,14 +937,12 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
             if (parser.isFraction)
             {
                 auto temp = DateTime(parser.year, parser.month, parser.day,
-                                    parser.hour, parser.minute, parser.second,
-                                    fromKind);
+                                    parser.hour, parser.minute, parser.second, fromKind);
                 result = temp.addTicksClamp(parser.fraction);
             }
             else
                 result = DateTime(parser.year, parser.month, parser.day,
-                                    parser.hour, parser.minute, parser.second, parser.millisecond,
-                                    fromKind);
+                                    parser.hour, parser.minute, parser.second, parser.millisecond, fromKind);
 
             // Convert to expected timezone?
             ZoneOffset bias;
@@ -959,18 +959,19 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
         }
         else static if (parseType == DateTimeKind.time)
         {
+            const fromKind = parser.constructTimeKind(pattern);
             if (parser.isFraction)
             {
-                auto temp = Time(parser.hour, parser.minute, parser.second);
-                result = temp.addTicks(parser.fraction);
+                auto temp = Time(parser.hour, parser.minute, parser.second, fromKind);
+                result = temp.addTicksClamp(parser.fraction);
             }
             else
-                result = Time(parser.hour, parser.minute, parser.second, parser.millisecond);
+                result = Time(parser.hour, parser.minute, parser.second, parser.millisecond, fromKind);
 
             // Convert to expected timezone?
             ZoneOffset bias;
             const toKind = parser.convertTimeKind(pattern, bias);
-            if (toKind != DateTimeZoneKind.unspecified && toKind != parser.constructTimeKind(pattern))
+            if (toKind != DateTimeZoneKind.unspecified && toKind != fromKind)
             {
                 auto utcDT = bias.hasOffset()
                     ? DateTime(DateTime.utcNow.date, result.asUTC).addTicksClamp(-(bias.toTicks()))
@@ -1228,6 +1229,18 @@ unittest // tryParse
     assert(dt.second == 30);
     assert(dt.fraction == 1);
 
+    isopdt = DateTimePattern.iso8601DateTime;
+    r = tryParse!DateTime("0001-01-01T00:00:33.0000502Z", isopdt, dt);
+    assert(r == DateTimeParser.noError);
+    assert(dt.year == 1);
+    assert(dt.month == 1);
+    assert(dt.day == 1);
+    assert(dt.hour == 0);
+    assert(dt.minute == 0);
+    assert(dt.second == 33);
+    assert(dt.fraction == 502);
+    assert(dt.kind == DateTimeZoneKind.utc);
+
     auto isopt = DateTimePattern.iso8601Time;
     r = tryParse!Time("13:45:30.0000001", isopt, t);
     assert(r == DateTimeParser.noError);
@@ -1235,4 +1248,13 @@ unittest // tryParse
     assert(t.minute == 45);
     assert(t.second == 30);
     assert(t.fraction == 1);
+
+    isopt = DateTimePattern.iso8601Time;
+    r = tryParse!Time("00:00:33.0000502Z", isopt, t);
+    assert(r == DateTimeParser.noError);
+    assert(t.hour == 0);
+    assert(t.minute == 0);
+    assert(t.second == 33);
+    assert(t.fraction == 502);
+    assert(t.kind == DateTimeZoneKind.utc);
 }

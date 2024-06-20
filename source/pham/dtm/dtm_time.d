@@ -100,6 +100,11 @@ public:
     {
         this.data = TickData.createTime(Tick.timeToTicks(hour, minute, 0), kind);
     }
+    
+    this(const(TickData) data) @nogc nothrow pure
+    {
+        this.data = data;
+    }
 
     Time opBinary(string op)(scope const(Duration) duration) const @nogc nothrow pure scope
     if (op == "+" || op == "-")
@@ -255,6 +260,12 @@ public:
         return Time(TickData.createTime(newTicks, data.internalKind));
     }
 
+    Time addTicksClamp(const(long) ticks) const @nogc nothrow pure
+    {
+        int wrappedDays = void;
+        return addTicks(ticks, wrappedDays);
+    }
+    
     static Time createTime(long ticks,
         DateTimeZoneKind kind = DateTimeZoneKind.unspecified) pure
     {
@@ -540,6 +551,12 @@ public:
         return TickSpan(data.sticks).totalMilliseconds!long();
     }
 
+    @property ZoneOffset utcBias() const nothrow
+    {
+        auto dt = DateTime(Date.today, this);
+        return dt.utcBias;
+    }
+
     /**
      * Returns a Time object that is set to the current time on this
      * computer, expressed as the Coordinated Universal Time (UTC)
@@ -547,12 +564,6 @@ public:
     @property static Time utcNow() @nogc nothrow
     {
         return DateTime.utcNow.time;
-    }
-
-    @property ZoneOffset utcBias() const nothrow
-    {
-        auto dt = DateTime(Date.today, this);
-        return dt.utcBias;
     }
 
     @property TickData raw() const @nogc nothrow pure
@@ -581,11 +592,6 @@ public:
     enum long maxTicks = 863_999_999_999;
 
 package(pham.dtm):
-    this(const(TickData) data) @nogc nothrow pure
-    {
-        this.data = data;
-    }
-
     void getDate(out int year, out int month, out int day) const @nogc nothrow pure
     {
         year = month = day = 0;

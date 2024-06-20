@@ -12,7 +12,8 @@
 module pham.ser.ser_std_uuid;
 
 import std.uuid : parseUUID, UUID;
-import pham.ser.ser_serialization : asciiCaseInplace, Deserializer, DSeserializer, Serializable, Serializer,
+import pham.ser.ser_serialization : asciiCaseInplace, DataKind,
+    Deserializer, DSeserializer, Serializable, Serializer,
     SerializerDataFormat;
 
 @safe:
@@ -22,11 +23,11 @@ void deserialize(Deserializer deserializer, scope ref UUID value, scope ref Seri
     final switch (deserializer.dataFormat)
     {
         case SerializerDataFormat.text:
-            auto text = deserializer.readScopeChars();
+            auto text = deserializer.readScopeChars(DataKind.uuid);
             value = parseUUID(text);
             return;
         case SerializerDataFormat.binary:
-            auto binary = deserializer.readScopeBytes(attribute.binaryFormat);
+            auto binary = deserializer.readScopeBytes(attribute.binaryFormat, DataKind.uuid);
             value = UUID(binary[0..16]);
             return;
     }
@@ -37,12 +38,12 @@ void serialize(Serializer serializer, scope ref UUID value, scope ref Serializab
     final switch (serializer.dataFormat)
     {
         case SerializerDataFormat.text:
-            char[36] buffer = void;
-            value.toString(buffer[]);
-            serializer.write(asciiCaseInplace(buffer[], attribute.binaryFormat.characterCaseFormat)[]);
+            char[36] text = void;
+            value.toString(text[]);
+            serializer.write(asciiCaseInplace(text[], attribute.binaryFormat.characterCaseFormat)[], DataKind.uuid);
             return;
         case SerializerDataFormat.binary:
-            serializer.write(value.data[], attribute.binaryFormat);
+            serializer.write(value.data[], attribute.binaryFormat, DataKind.uuid);
             return;
     }
 }

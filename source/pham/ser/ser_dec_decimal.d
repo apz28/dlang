@@ -12,7 +12,8 @@
 module pham.ser.ser_dec_decimal;
 
 import pham.external.dec.dec_decimal : Decimal32, Decimal64, Decimal128, isDecimal;
-import pham.ser.ser_serialization : Deserializer, DSeserializer, Serializable, Serializer,
+import pham.ser.ser_serialization : DataKind,
+    Deserializer, DSeserializer, Serializable, Serializer,
     SerializerDataFormat, StaticBuffer;
 
 @safe:
@@ -93,11 +94,11 @@ if (isDecimal!D)
     final switch (deserializer.dataFormat)
     {
         case SerializerDataFormat.text:
-            auto text = deserializer.readScopeChars();
+            auto text = deserializer.readScopeChars(DataKind.decimal);
             value = D(text);
             return;
         case SerializerDataFormat.binary:
-            auto binary = deserializer.readScopeBytes(attribute.binaryFormat);
+            auto binary = deserializer.readScopeBytes(attribute.binaryFormat, DataKind.decimal);
             value = D.fromBigEndianBytes(binary);
             return;
     }
@@ -110,11 +111,11 @@ if (isDecimal!D)
     {
         case SerializerDataFormat.text:
             StaticBuffer!(char, 350) textBuffer;
-            serializer.write(value.toString!(StaticBuffer!(char, 350), char)(textBuffer)[]);
+            serializer.write(value.toString!(StaticBuffer!(char, 350), char)(textBuffer)[], DataKind.decimal);
             return;
         case SerializerDataFormat.binary:
             ubyte[D.sizeof] binaryBuffer;
-            serializer.write(value.toBigEndianBytes(binaryBuffer[]), attribute.binaryFormat);
+            serializer.write(value.toBigEndianBytes(binaryBuffer[]), attribute.binaryFormat, DataKind.decimal);
             return;
     }
 }

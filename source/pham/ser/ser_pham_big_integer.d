@@ -12,7 +12,8 @@
 module pham.ser.ser_pham_big_integer;
 
 import pham.utl.utl_big_integer : BigInteger;
-import pham.ser.ser_serialization : Deserializer, DSeserializer, Serializable, Serializer,
+import pham.ser.ser_serialization : DataKind,
+    Deserializer, DSeserializer, Serializable, Serializer,
     SerializerDataFormat;
 
 @safe:
@@ -22,11 +23,11 @@ void deserialize(Deserializer deserializer, scope ref BigInteger value, scope re
     final switch (deserializer.dataFormat)
     {
         case SerializerDataFormat.text:
-            auto text = deserializer.readScopeChars();
+            auto text = deserializer.readScopeChars(DataKind.integral);
             value = BigInteger(text);
             return;
         case SerializerDataFormat.binary:
-            auto binary = deserializer.readScopeBytes(attribute.binaryFormat);
+            auto binary = deserializer.readScopeBytes(attribute.binaryFormat, DataKind.integral);
             value = BigInteger(binary);
             return;
     }
@@ -37,10 +38,10 @@ void serialize(Serializer serializer, scope ref BigInteger value, scope ref Seri
     final switch (serializer.dataFormat)
     {
         case SerializerDataFormat.text:
-            serializer.write(value.toString());
+            serializer.write(value.toString(), DataKind.integral);
             return;
         case SerializerDataFormat.binary:
-            serializer.write(value.toBytes(), attribute.binaryFormat);
+            serializer.write(value.toBytes(), attribute.binaryFormat, DataKind.integral);
             return;
     }
 }

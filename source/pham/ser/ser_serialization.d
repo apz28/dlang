@@ -19,6 +19,10 @@ import std.traits : BaseClassesTuple, BaseTypeTuple, EnumMembers, fullyQualified
     isAggregateType, isCallable, isDynamicArray, isFloatingPoint, isFunction, isIntegral, isSomeChar, isSomeFunction,
     isStaticArray, Parameters, ReturnType, Unqual;
 
+import pham.dtm.dtm_date : Date, DateTime;
+import pham.dtm.dtm_tick : DateTimeZoneKind;
+import pham.dtm.dtm_time : Time;
+
 @safe:
 
 enum Condition : ubyte
@@ -35,6 +39,19 @@ enum CharacterCaseFormat : ubyte
     normal,
     upper,
     lower,
+}
+
+enum DataKind : ubyte
+{
+    binary,
+    character,
+    enumerate,
+    integral,
+    decimal,
+    date,
+    dateTime,
+    time,
+    uuid,
 }
 
 enum EnumFormat : ubyte
@@ -853,6 +870,9 @@ enum SerializerDataType : ubyte
     unknown,
     null_,
     bool_,
+    date,
+    dateTime,
+    time,
     int1,
     int2,
     int4,
@@ -1165,18 +1185,21 @@ public:
     abstract Null readNull();
     abstract bool readBool();
     abstract char readChar();
+    abstract Date readDate();
+    abstract DateTime readDateTime();
+    abstract Time readTime();
     abstract byte readByte();
     abstract short readShort();
-    abstract int readInt();
-    abstract long readLong();
-    abstract float readFloat(const(FloatFormat) floatFormat);
-    abstract double readDouble(const(FloatFormat) floatFormat);
-    abstract string readChars();
-    abstract wstring readWChars();
-    abstract dstring readDChars();
-    abstract const(char)[] readScopeChars();
-    abstract ubyte[] readBytes(const(BinaryFormat) binaryFormat);
-    abstract const(ubyte)[] readScopeBytes(const(BinaryFormat) binaryFormat);
+    abstract int readInt(const(DataKind) kind = DataKind.integral);
+    abstract long readLong(const(DataKind) kind = DataKind.integral);
+    abstract float readFloat(const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal);
+    abstract double readDouble(const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal);
+    abstract string readChars(const(DataKind) kind = DataKind.character);
+    abstract wstring readWChars(const(DataKind) kind = DataKind.character);
+    abstract dstring readDChars(const(DataKind) kind = DataKind.character);
+    abstract const(char)[] readScopeChars(const(DataKind) kind = DataKind.character);
+    abstract ubyte[] readBytes(const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary);
+    abstract const(ubyte)[] readScopeBytes(const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary);
     abstract string readKey();
     abstract ptrdiff_t readLength();
 
@@ -1199,6 +1222,24 @@ public:
     if (is(V == char) && !is(V == enum))
     {
         v = readChar();
+    }
+
+    // Date
+    final void deserialize(ref Date v, scope ref Serializable attribute)
+    {
+        v = readDate();
+    }
+
+    // DateTime
+    final void deserialize(ref DateTime v, scope ref Serializable attribute)
+    {
+        v = readDateTime();
+    }
+
+    // Time
+    final void deserialize(ref Time v, scope ref Serializable attribute)
+    {
+        v = readTime();
     }
 
     // Integral
@@ -1227,7 +1268,10 @@ public:
         static if (V.sizeof == 4)
             v = readFloat(floatFormat);
         else //static if (V.sizeof == 8)
+        {
+            static assert (V.sizeof == 8);
             v = readDouble(floatFormat);
+        }
     }
 
     // Enum
@@ -1239,14 +1283,14 @@ public:
             static if (is(V Base == enum) && isIntegral!Base)
             {
                 static if (Base.max <= int.max)
-                    v = cast(V)readInt();
+                    v = cast(V)readInt(DataKind.enumerate);
                 else
-                    v = cast(V)readLong();
+                    v = cast(V)readLong(DataKind.enumerate);
                 return;
             }
         }
 
-        const s = readChars();
+        const s = readChars(DataKind.enumerate);
         v = s.to!V();
     }
 
@@ -1678,16 +1722,19 @@ public:
     abstract void write(Null v);
     abstract void writeBool(bool v); // Different name - D is not good of distinguish between bool/byte|int
     abstract void writeChar(char v); // Different name - D is not good of distinguish between char/byte|int
+    abstract void write(scope const(Date) v);
+    abstract void write(scope const(DateTime) v);
+    abstract void write(scope const(Time) v);
     abstract void write(byte v);
     abstract void write(short v);
-    abstract void write(int v);
-    abstract void write(long v);
-    abstract void write(float v, const(FloatFormat) floatFormat);
-    abstract void write(double v, const(FloatFormat) floatFormat);
-    abstract void write(scope const(char)[] v); // String value
-    abstract void write(scope const(wchar)[] v); // WString value
-    abstract void write(scope const(dchar)[] v); // DString value
-    abstract void write(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat); // Binary value
+    abstract void write(int v, const(DataKind) kind = DataKind.integral);
+    abstract void write(long v, const(DataKind) kind = DataKind.integral);
+    abstract void write(float v, const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal);
+    abstract void write(double v, const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal);
+    abstract void write(scope const(char)[] v, const(DataKind) kind = DataKind.character); // String value
+    abstract void write(scope const(wchar)[] v, const(DataKind) kind = DataKind.character); // WString value
+    abstract void write(scope const(dchar)[] v, const(DataKind) kind = DataKind.character); // DString value
+    abstract void write(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary); // Binary value
     abstract Serializer writeKey(scope const(char)[] key);
     abstract Serializer writeKeyId(scope const(char)[] key);
 
@@ -1710,6 +1757,24 @@ public:
     if (is(V == char) && !is(V == enum))
     {
         writeChar(v);
+    }
+
+    // Date
+    final void serialize(scope const(Date) v, scope ref Serializable attribute)
+    {
+        write(v);
+    }
+
+    // DateTime
+    final void serialize(scope const(DateTime) v, scope ref Serializable attribute)
+    {
+        write(v);
+    }
+
+    // Time
+    final void serialize(scope const(Time) v, scope ref Serializable attribute)
+    {
+        write(v);
     }
 
     // Integral
@@ -1738,15 +1803,15 @@ public:
             static if (is(V Base == enum) && isIntegral!Base)
             {
                 static if (Base.max <= int.max)
-                    write(cast(int)v);
+                    write(cast(int)v, DataKind.enumerate);
                 else
-                    write(cast(long)v);
+                    write(cast(long)v, DataKind.enumerate);
                 return;
             }
         }
 
         const vStr = v.to!string();
-        write(vStr);
+        write(vStr, DataKind.enumerate);
     }
 
     // Chars/String
@@ -2027,11 +2092,11 @@ public:
     }
 }
 
-struct StaticBuffer(T, size_t capacity)
+struct StaticBuffer(T, size_t Capacity)
 {
 nothrow @safe:
 
-    T[capacity] data = 0; // 0=Make its struct to be zero initializer
+    T[Capacity] data = 0; // 0=Make its struct to be zero initializer
     size_t length;
 
     T[] opSlice() @nogc return
@@ -2043,7 +2108,7 @@ nothrow @safe:
     void put(T c) @nogc
     in
     {
-        assert(length < capacity);
+        assert(this.length < Capacity);
     }
     do
     {
@@ -2053,13 +2118,13 @@ nothrow @safe:
     void put(scope const(T)[] s) @nogc
     in
     {
-        assert(length + s.length <= capacity);
+        assert(this.length + s.length <= Capacity);
     }
     do
     {
-        const nl = length + s.length;
-        data[length..nl] = s[0..$];
-        length = nl;
+        const nl = this.length + s.length;
+        data[this.length..nl] = s[0..$];
+        this.length = nl;
     }
 
     ref typeof(this) reset() @nogc return
@@ -2702,4 +2767,34 @@ unittest // SerializableMemberOptions - Change options
     const serializerMembers2 = getSerializerMembers!(UnitTestC2, options)();
     assert(serializerMembers2.length == 2, serializerMembers2.length.to!string() ~ "." ~ serializerMembers2.to!string());
     assert(serializerMembers2 == expectAttributeOnly, serializerMembers2.to!string());
+}
+
+version(unittest)
+{
+package(pham.ser):
+
+    static struct UnitTestPhamDateTime
+    {
+        Date date1;
+        DateTime dateTime1;
+        Time time1;
+
+        ref typeof(this) setValues() return
+        {
+            date1 = Date(1999, 1, 1);
+            dateTime1 = DateTime(1999, 7, 6, 12, 30, 33, DateTimeZoneKind.utc);
+            time1 = Time(12, 30, 33, DateTimeZoneKind.utc);
+            return this;
+        }
+
+        void assertValues()
+        {
+            assert(date1 == Date(1999, 1, 1));
+            assert(dateTime1 == DateTime(1999, 7, 6, 12, 30, 33, DateTimeZoneKind.utc), dateTime1.toString());
+            assert(time1 == Time(12, 30, 33, DateTimeZoneKind.utc), time1.toString());
+        }
+    }
+
+    //import pham.ser.ser_serialization : SerializerMemberList;
+    //pragma(msg, SerializerMemberList!UnitTestPhamDateTime);
 }

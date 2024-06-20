@@ -172,6 +172,12 @@ enum DateTimeZoneKind : ubyte
     local = 2,
 }
 
+/**
+ * Order of magnitude of time
+ * 10-3   millisecond   ms   One thousandth of one second
+ * 10-6   microsecond   μs   One millionth of one second
+ * 10-9   nanosecond    ns   One billionth of one second
+ */
 struct Tick
 {
 @nogc nothrow @safe:
@@ -278,6 +284,7 @@ struct Tick
             static assert(0, "Unsupport system for " ~ __FUNCTION__);
     }
 
+    pragma(inline, true)
     static DayOfWeek dayOfWeek(const(long) ticks) pure
     {
         return cast(DayOfWeek)((cast(uint)(ticks / ticksPerDay) + 1) % 7);
@@ -319,6 +326,7 @@ struct Tick
         return ticks >= -9_999_999 && ticks <= 9_999_999;
     }
 
+    pragma(inline, true)
     static long round(const(double) d) pure
     {
         const r = d >= 0.0 ? 0.5 : -0.5;

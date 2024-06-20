@@ -12,7 +12,8 @@
 module pham.ser.ser_std_bigint;
 
 import std.bigint : BigInt;
-import pham.ser.ser_serialization : Deserializer, DSeserializer, Serializable, Serializer,
+import pham.ser.ser_serialization : DataKind,
+    Deserializer, DSeserializer, Serializable, Serializer,
     StaticBuffer;
 
 @safe:
@@ -20,7 +21,7 @@ import pham.ser.ser_serialization : Deserializer, DSeserializer, Serializable, S
 void deserialize(Deserializer deserializer, scope ref BigInt value, scope ref Serializable attribute)
 {
     // There is no binary output from BigInt
-    auto text = deserializer.readScopeChars();
+    auto text = deserializer.readScopeChars(DataKind.integral);
     value = BigInt(text);
 }
 
@@ -31,9 +32,9 @@ void serialize(Serializer serializer, scope ref BigInt value, scope ref Serializ
     // There is no binary output from BigInt
     FormatSpec!char fmt;
     fmt.spec = 'd';
-    StaticBuffer!(char, 80) buffer;
-    value.toString(buffer, fmt);
-    serializer.write(buffer[]);
+    StaticBuffer!(char, 80) text;
+    value.toString(text, fmt);
+    serializer.write(text[], DataKind.integral);
 }
 
 

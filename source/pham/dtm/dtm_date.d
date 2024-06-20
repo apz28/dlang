@@ -675,6 +675,11 @@ public:
         this.data = TickData.createDateTime(dateToTicks(year, month, day), kind);
     }
 
+    this(const(TickData) data) @nogc nothrow pure
+    {
+        this.data = data;
+    }
+
     DateTime opBinary(string op)(scope const(Duration) duration) const pure scope
     if (op == "+" || op == "-")
     {
@@ -1674,7 +1679,7 @@ public:
 
     @property TickData raw() const @nogc nothrow pure
     {
-        return data;
+        return this.data;
     }
 
     alias zero = min;
@@ -1693,11 +1698,6 @@ public:
     static immutable byte[] daysInMonth366 = [ 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 ];
 
 package(pham.dtm):
-    this(const(TickData) data) @nogc nothrow pure
-    {
-        this.data = data;
-    }
-
     DateTime errorDateTime(const(ErrorOp) error) const @nogc nothrow pure scope
     in
     {

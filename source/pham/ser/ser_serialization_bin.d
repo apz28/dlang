@@ -15,6 +15,10 @@ import std.array : Appender, appender;
 import std.bitmanip : bigEndianToNative, nativeToBigEndian;
 import std.conv : to;
 import std.traits : isFloatingPoint, isIntegral, Unsigned;
+
+import pham.dtm.dtm_date : Date, DateTime;
+import pham.dtm.dtm_tick : TickData;
+import pham.dtm.dtm_time : Time;
 import pham.ser.ser_serialization;
 
 alias BinaryLengthType = long;  // so that 32 bit client can interact with 64 bit server
@@ -174,6 +178,35 @@ public:
         return cast(char)data[offset++];
     }
 
+    final override Date readDate()
+    {
+        static immutable SerializerDataType[1] checkTypes = [SerializerDataType.date];
+
+        checkDataType(checkTypes, 2);
+        const days = BinaryIntCoder.decodeInt!int(data, offset);
+        return Date(days);
+    }
+
+    final override DateTime readDateTime()
+    {
+        static assert(TickData.data.sizeof == ulong.sizeof);
+        static immutable SerializerDataType[1] checkTypes = [SerializerDataType.dateTime];
+
+        checkDataType(checkTypes, 2);
+        const raw = BinaryIntCoder.decodeInt!ulong(data, offset);
+        return DateTime(TickData(raw));
+    }
+
+    final override Time readTime()
+    {
+        static assert(TickData.data.sizeof == ulong.sizeof);
+        static immutable SerializerDataType[1] checkTypes = [SerializerDataType.time];
+
+        checkDataType(checkTypes, 2);
+        const raw = BinaryIntCoder.decodeInt!ulong(data, offset);
+        return Time(TickData(raw));
+    }
+
     final override byte readByte()
     {
         return readInt!byte();
@@ -184,12 +217,12 @@ public:
         return readInt!short();
     }
 
-    final override int readInt()
+    final override int readInt(const(DataKind) kind = DataKind.integral)
     {
         return readInt!int();
     }
 
-    final override long readLong()
+    final override long readLong(const(DataKind) kind = DataKind.integral)
     {
         return readInt!long();
     }
@@ -215,25 +248,25 @@ public:
         static if (V.sizeof >= 8)
         if (t == SerializerDataType.int8)
             return BinaryIntCoder.decodeInt!long(data, offset);
-            
+
         static if (V.sizeof >= 4)
         if (t == SerializerDataType.int4)
             return BinaryIntCoder.decodeInt!int(data, offset);
-            
+
         static if (V.sizeof >= 2)
         if (t == SerializerDataType.int2)
             return BinaryIntCoder.decodeInt!short(data, offset);
-            
+
         assert(t == SerializerDataType.int1);
         return cast(byte)data[offset++];
     }
-    
-    final override float readFloat(const(FloatFormat) floatFormat)
+
+    final override float readFloat(const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
     {
         return readFloat!float();
     }
 
-    final override double readDouble(const(FloatFormat) floatFormat)
+    final override double readDouble(const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
     {
         return readFloat!double();
     }
@@ -245,9 +278,9 @@ public:
             static immutable SerializerDataType[6] checkTypes = [SerializerDataType.float8, SerializerDataType.float4, SerializerDataType.int8, SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1];
         else //static if (V.sizeof == 4)
             static immutable SerializerDataType[4] checkTypes = [SerializerDataType.float4, SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1];
-    
+
         const t = checkDataType(checkTypes, 2);
-        
+
         static if (V.sizeof >= 8)
             return t == SerializerDataType.float8
                 ? BinaryIntCoder.decodeFloat!double(data, offset)
@@ -259,40 +292,40 @@ public:
                 ? BinaryIntCoder.decodeFloat!float(data, offset)
                 : cast(V)readInt!int(t);
     }
-    
-    final override string readChars()
+
+    final override string readChars(const(DataKind) kind = DataKind.character)
     {
-        auto chars = readScopeChars();
+        auto chars = readScopeChars(kind);
         return chars.length ? cast(string)chars.idup : null;
     }
 
-    final override wstring readWChars()
+    final override wstring readWChars(const(DataKind) kind = DataKind.character)
     {
         static immutable SerializerDataType[3] checkTypes = [SerializerDataType.wchars, SerializerDataType.chars, SerializerDataType.null_];
         auto chars = cast(const(char)[])readScopeBytes(checkTypes[]);
         return chars.length ? chars.to!wstring : null;
     }
 
-    final override dstring readDChars()
+    final override dstring readDChars(const(DataKind) kind = DataKind.character)
     {
         static immutable SerializerDataType[4] checkTypes = [SerializerDataType.dchars, SerializerDataType.wchars, SerializerDataType.chars, SerializerDataType.null_];
         auto chars = cast(const(char)[])readScopeBytes(checkTypes[]);
         return chars.length ? chars.to!dstring : null;
     }
 
-    final override const(char)[] readScopeChars()
+    final override const(char)[] readScopeChars(const(DataKind) kind = DataKind.character)
     {
         static immutable SerializerDataType[2] checkTypes = [SerializerDataType.chars, SerializerDataType.null_];
         return cast(const(char)[])readScopeBytes(checkTypes[]);
     }
 
-    final override ubyte[] readBytes(const(BinaryFormat) binaryFormat)
+    final override ubyte[] readBytes(const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary)
     {
         auto bytes = readScopeBytes(binaryFormat);
         return bytes.length ? bytes.dup : null;
     }
 
-    final override const(ubyte)[] readScopeBytes(const(BinaryFormat) binaryFormat)
+    final override const(ubyte)[] readScopeBytes(const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary)
     {
         static immutable SerializerDataType[2] checkTypes = [SerializerDataType.bytes, SerializerDataType.null_];
         return readScopeBytes(checkTypes[]);
@@ -460,6 +493,28 @@ public:
         buffer.put(cast(ubyte)v);
     }
 
+    final override void write(scope const(Date) v)
+    {
+        buffer.put(SerializerDataType.date);
+        BinaryIntCoder.encodeInt!int(buffer, v.days);
+    }
+
+    final override void write(scope const(DateTime) v)
+    {
+        static assert(TickData.data.sizeof == ulong.sizeof);
+
+        buffer.put(SerializerDataType.dateTime);
+        BinaryIntCoder.encodeInt!ulong(buffer, v.raw.data);
+    }
+
+    final override void write(scope const(Time) v)
+    {
+        static assert(TickData.data.sizeof == ulong.sizeof);
+
+        buffer.put(SerializerDataType.time);
+        BinaryIntCoder.encodeInt!ulong(buffer, v.raw.data);
+    }
+
     final override void write(byte v)
     {
         buffer.put(SerializerDataType.int1);
@@ -472,31 +527,31 @@ public:
         BinaryIntCoder.encodeInt!short(buffer, v);
     }
 
-    final override void write(int v)
+    final override void write(int v, const(DataKind) kind = DataKind.integral)
     {
         buffer.put(SerializerDataType.int4);
         BinaryIntCoder.encodeInt!int(buffer, v);
     }
 
-    final override void write(long v)
+    final override void write(long v, const(DataKind) kind = DataKind.integral)
     {
         buffer.put(SerializerDataType.int8);
         BinaryIntCoder.encodeInt!long(buffer, v);
     }
 
-    final override void write(float v, const(FloatFormat) floatFormat)
+    final override void write(float v, const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
     {
         buffer.put(SerializerDataType.float4);
         BinaryIntCoder.encodeFloat!float(buffer, v);
     }
 
-    final override void write(double v, const(FloatFormat) floatFormat)
+    final override void write(double v, const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
     {
         buffer.put(SerializerDataType.float8);
         BinaryIntCoder.encodeFloat!double(buffer, v);
     }
 
-    final override void write(scope const(char)[] v) @trusted
+    final override void write(scope const(char)[] v, const(DataKind) kind = DataKind.character) @trusted
     {
         const vlength = v.length;
         buffer.put(SerializerDataType.chars);
@@ -505,7 +560,7 @@ public:
             buffer.put(cast(const(ubyte)[])v);
     }
 
-    final override void write(scope const(wchar)[] v)
+    final override void write(scope const(wchar)[] v, const(DataKind) kind = DataKind.character)
     {
         buffer.put(SerializerDataType.wchars);
         if (v.length)
@@ -518,7 +573,7 @@ public:
             BinaryIntCoder.encodeInt!BinaryLengthType(buffer, 0U);
     }
 
-    final override void write(scope const(dchar)[] v)
+    final override void write(scope const(dchar)[] v, const(DataKind) kind = DataKind.character)
     {
         buffer.put(SerializerDataType.dchars);
         if (v.length)
@@ -531,7 +586,7 @@ public:
             BinaryIntCoder.encodeInt!BinaryLengthType(buffer, 0U);
     }
 
-    final override void write(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat)
+    final override void write(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary)
     {
         const vlength = v.length;
         buffer.put(SerializerDataType.bytes);
@@ -636,16 +691,18 @@ unittest // BinaryIntCoder.encodeFloat & decodeFloat
 
 unittest // BinarySerializer.UnitTestC2
 {
+    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
-    
+
     static immutable string binUnitTestC2 =
-        "5048414D000113400F03496E74051E0F0C7075626C696353747275637413400F097075626C6963496E7405140F0C7075626C69634765745365740501140F0647657453657405010F097075626C69635374720E104332207075626C696320737472696E6714";
+        "5048414D000116401203496E74081E120C7075626C6963537472756374164012097075626C6963496E740814120C7075626C69634765745365740801171206476574536574080112097075626C696353747211104332207075626C696320737472696E6717";
 
     {
         auto c = new UnitTestC2();
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestC2(cast(UnitTestC2)(c.setValues()));
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
+        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestC2, bytesToHexs(serializer.buffer[]));
     }
 
@@ -659,16 +716,18 @@ unittest // BinarySerializer.UnitTestC2
 
 unittest // BinarySerializer.UnitTestAllTypes
 {
+    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
 
     static immutable string binUnitTestAllTypes =
-        "5048414D000113400F05656E756D310E0574686972640F05626F6F6C3102010F05627974653103650F0675627974653103000F0673686F72743104EA0F0F077573686F72743104873E0F04696E743105FCDA2E0F0575696E7431059987E3030F056C6F6E673106CBC9A5F8020F06756C6F6E6731068AB9BC8F020F06666C6F61743109979C99AC090F08666C6F61744E614E09808080FC0F0F07646F75626C65310A9FB8EFF2B790DB8485030F09646F75626C65496E660A80808080808080F0FF010F07737472696E67310E0E7465737420737472696E67206F660F096368617241727261790E0F77696C6C207468697320776F726B3F0F0762696E6172793112052518CC652B0F08696E744172726179150605870205A90E058D3A05BC2F0581D90405BC05160F0C696E7441727261794E756C6C1500160F06696E74496E7413020F013205A0EE020F02313105B0EC0D140F0A696E74496E744E756C6C1300140F08656E756D456E756D13020F05666F7274680E0573697874680F0574686972640E067365636F6E64140F0673747253747213030F046B6579310E0A6B6579312076616C75650F046B6579320E0A6B6579322076616C75650F046B6579330E00140F077374727563743113400F097075626C6963496E7405140F0C7075626C69634765745365740501140F06636C6173733113400F03496E74051E0F0C7075626C696353747275637413400F097075626C6963496E7405140F0C7075626C69634765745365740501140F064765745365740501140F0A636C617373314E756C6C13001414";
+        "5048414D000116401205656E756D31110574686972641205626F6F6C31020112056279746531066512067562797465310600120673686F72743107EA0F12077573686F72743107873E1204696E743108FCDA2E120575696E7431089987E30312056C6F6E673109CBC9A5F8021206756C6F6E6731098AB9BC8F021206666C6F6174310C979C99AC091208666C6F61744E614E0C808080FC0F1207646F75626C65310D9FB8EFF2B790DB8485031209646F75626C65496E660D80808080808080F0FF011207737472696E6731110E7465737420737472696E67206F661209636861724172726179110F77696C6C207468697320776F726B3F120762696E6172793115052518CC652B1208696E744172726179180608870208A90E088D3A08BC2F0881D90408BC0519120C696E7441727261794E756C6C1800191206696E74496E74160212013208A0EE021202313108B0EC0D17120A696E74496E744E756C6C1600171208656E756D456E756D16021205666F727468110573697874681205746869726411067365636F6E64171206737472537472160312046B657931110A6B6579312076616C756512046B657932110A6B6579322076616C756512046B657933110017120773747275637431164012097075626C6963496E740814120C7075626C69634765745365740801171206636C6173733116401203496E74081E120C7075626C6963537472756374164012097075626C6963496E740814120C7075626C69634765745365740801171206476574536574080117120A636C617373314E756C6C16001717";
 
     {
         auto c = new UnitTestAllTypes();
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestAllTypes(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
+        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestAllTypes, bytesToHexs(serializer.buffer[]));
     }
 
@@ -682,17 +741,19 @@ unittest // BinarySerializer.UnitTestAllTypes
 
 unittest // BinarySerializer.UnitTestStdBigInt
 {
+    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
     import pham.ser.ser_std_bigint;
 
     static immutable string binUnitTestStdBigInt =
-        "5048414D000113400F07626967496E74310E212D373134353932363634313636393331363033363235343537383837383136303014";
+        "5048414D000116401207626967496E743111212D373134353932363634313636393331363033363235343537383837383136303017";
 
     {
         UnitTestStdBigInt c;
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestStdBigInt(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
+        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestStdBigInt, bytesToHexs(serializer.buffer[]));
     }
 
@@ -705,17 +766,19 @@ unittest // BinarySerializer.UnitTestStdBigInt
 
 unittest // BinarySerializer.UnitTestStdDateTime
 {
+    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
     import pham.ser.ser_std_date_time;
 
     static immutable string binUnitTestStdDateTime =
-        "5048414D000113400F0564617465310E0A313939392D30312D30310F096461746554696D65310E13313939392D30372D30365431323A33303A33330F0873797354696D653106B6A1DBBA020F0A74696D654F66446179310E0831323A33303A333314";
+        "5048414D0001164012056461746531039A8A5912096461746554696D65310480EAAB9BCFF0CAC011120873797354696D653104B6A1DBBA828080808001120A74696D654F66446179310580EA939C9B1A17";
 
     {
         UnitTestStdDateTime c;
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestStdDateTime(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
+        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestStdDateTime, bytesToHexs(serializer.buffer[]));
     }
 
@@ -728,17 +791,19 @@ unittest // BinarySerializer.UnitTestStdDateTime
 
 unittest // BinarySerializer.UnitTestStdUuid
 {
+    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
     import pham.ser.ser_std_uuid;
 
     static immutable string binUnitTestStdUuid =
-        "5048414D000113400F05757569643112108AB3060E2CBA4F23B74CB52DB3DBFB4614";
+        "5048414D000116401205757569643115108AB3060E2CBA4F23B74CB52DB3DBFB4617";
 
     {
         UnitTestStdUuid c;
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestStdUuid(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
+        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestStdUuid, bytesToHexs(serializer.buffer[]));
     }
 
@@ -751,17 +816,19 @@ unittest // BinarySerializer.UnitTestStdUuid
 
 unittest // BinarySerializer.UnitTestPhamBigInteger
 {
+    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
     import pham.ser.ser_pham_big_integer;
 
     static immutable string binUnitTestPhamBigInteger =
-        "5048414D000113400F07626967496E7431120EE07B47572A79980A9C3BA80E7AFC14";
+        "5048414D000116401207626967496E7431150EE07B47572A79980A9C3BA80E7AFC17";
 
     {
         UnitTestPhamBigInteger c;
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestPhamBigInteger(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
+        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestPhamBigInteger, bytesToHexs(serializer.buffer[]));
     }
 
@@ -774,17 +841,18 @@ unittest // BinarySerializer.UnitTestPhamBigInteger
 
 unittest // BinarySerializer.UnitTestPhamDateTime
 {
+    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
-    import pham.ser.ser_pham_date_time;
 
     static immutable string binUnitTestPhamDateTime =
-        "5048414D000113400F056461746531059A8A590F096461746554696D65310680EAAB9BCFF0CAC0110F0574696D65310680EA939C9B1A14";
+        "5048414D0001164012056461746531039A8A5912096461746554696D65310480EAAB9BCFF0CAC09101120574696D65310580EA939C9B9A8080800117";
 
     {
         UnitTestPhamDateTime c;
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestPhamDateTime(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
+        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestPhamDateTime, bytesToHexs(serializer.buffer[]));
     }
 
@@ -797,17 +865,19 @@ unittest // BinarySerializer.UnitTestPhamDateTime
 
 unittest // BinarySerializer.UnitTestDecDecimal
 {
+    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
     import pham.ser.ser_dec_decimal;
 
     static immutable string binUnitTestDecDecimal =
-        "5048414D000113400F0A646563696D616C4E614E12047C0000000F0F646563696D616C496E66696E6974791204F80000000F09646563696D616C33321204B2801BE90F09646563696D616C3634120831800010A3401C7C0F0A646563696D616C3132381210303C00000000000000001ACA9694C66714";
+        "5048414D00011640120A646563696D616C4E614E15047C000000120F646563696D616C496E66696E6974791504F80000001209646563696D616C33321504B2801BE91209646563696D616C3634150831800010A3401C7C120A646563696D616C3132381510303C00000000000000001ACA9694C66717";
 
     {
         UnitTestDecDecimal c;
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestDecDecimal(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
+        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestDecDecimal, bytesToHexs(serializer.buffer[]));
     }
 
@@ -820,18 +890,20 @@ unittest // BinarySerializer.UnitTestDecDecimal
 
 unittest // BinarySerializer+BinaryDeserializer.UnitTestCustomS1
 {
+    import std.digest : toHexString;
     import pham.utl.utl_object : bytesToHexs;
 
     const(ubyte)[] binCustom;
-    
+
     {
         UnitTestCustomS1 c;
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestCustomS1(c.setValues());
         binCustom = serializer.buffer[];
         //import std.stdio : writeln; debug writeln(bytesToHexs(binCustom));
+        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
     }
-    
+
     {
         scope deserializer = new BinaryDeserializer(binCustom);
         auto c2 = deserializer.deserialize!UnitTestCustomS1();

@@ -1629,12 +1629,12 @@ public:
     @property abstract bool supportMultiReaders() nothrow @safe;
 
 package(pham.db):
-    final DbCommand createNonTransactionCommand(bool getExecutionPlanning = false) @safe
+    final DbCommand createNonTransactionCommand(const(bool) getExecutionPlanning = false) @safe
     {
         auto result = createCommand();
         result.getExecutionPlanning = getExecutionPlanning;
         result.parametersCheck = !getExecutionPlanning;
-        result.returnRecordsAffected = false;
+        result.returnRecordsAffected = !getExecutionPlanning;
         result.transactionRequired = false;
         return result;
     }
