@@ -94,11 +94,11 @@ if (isDecimal!D)
     final switch (deserializer.dataFormat)
     {
         case SerializerDataFormat.text:
-            auto text = deserializer.readScopeChars(DataKind.decimal);
+            auto text = deserializer.readScopeChars(attribute, DataKind.decimal);
             value = D(text);
             return;
         case SerializerDataFormat.binary:
-            auto binary = deserializer.readScopeBytes(attribute.binaryFormat, DataKind.decimal);
+            auto binary = deserializer.readScopeBytes(attribute, DataKind.decimal);
             value = D.fromBigEndianBytes(binary);
             return;
     }
@@ -111,11 +111,11 @@ if (isDecimal!D)
     {
         case SerializerDataFormat.text:
             StaticBuffer!(char, 350) textBuffer;
-            serializer.write(value.toString!(StaticBuffer!(char, 350), char)(textBuffer)[], DataKind.decimal);
+            serializer.write(value.toString!(StaticBuffer!(char, 350), char)(textBuffer)[], attribute, DataKind.decimal);
             return;
         case SerializerDataFormat.binary:
             ubyte[D.sizeof] binaryBuffer;
-            serializer.write(value.toBigEndianBytes(binaryBuffer[]), attribute.binaryFormat, DataKind.decimal);
+            serializer.write(value.toBigEndianBytes(binaryBuffer[]), attribute, DataKind.decimal);
             return;
     }
 }

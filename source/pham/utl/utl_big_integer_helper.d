@@ -31,7 +31,7 @@ struct BigIntegerHelper
 {
 @nogc nothrow pure @safe:
 
-    pragma (inline, true)
+    pragma(inline, true)
     static void getDoubleParts(double dbl, out int sign, out int exp, out ulong man, out bool fFinite)
     {
         DoubleUlong du;
@@ -61,7 +61,7 @@ struct BigIntegerHelper
         }
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static double getDoubleFromParts(int sign, int exp, ulong man)
     {
         DoubleUlong du;
@@ -116,13 +116,13 @@ struct BigIntegerHelper
         return du.f;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static ulong makeUlong(uint uHi, uint uLo)
     {
         return (cast(ulong)uHi << kcbitUint) | uLo;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static uint abs(int a)
     {
         const mask = cast(uint)(a >> 31);
@@ -130,31 +130,31 @@ struct BigIntegerHelper
     }
 
     static if (size_t.sizeof > 4)
-    pragma (inline, true)
+    pragma(inline, true)
     static uint combineHash(uint u1, uint u2)
     {
         return ((u1 << 7) | (u1 >> 25)) ^ u2;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static int combineHash(int n1, int n2)
     {
         return cast(int)combineHash(cast(uint)n1, cast(uint)n2);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static size_t combineHash(size_t u1, size_t u2)
     {
         return ((u1 << 7) | (u1 >> 25)) ^ u2;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static int compare(long left, long right)
     {
         return .cmp(left, right);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static int compare(ulong left, ulong right)
     {
         return .cmp(left, right);
@@ -191,7 +191,7 @@ struct BigIntegerHelper
         return cbit;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static int cbitHighZero(ulong uu)
     {
         if ((uu & 0xFFFFFFFF00000000) == 0)

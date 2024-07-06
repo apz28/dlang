@@ -196,21 +196,7 @@ nothrow @safe:
         result.patternText = patternText;
         return result;
     }
-    
-    static immutable string[Tick.ticksMaxPrecision + 1] millisecondFormats = [
-        "", "z", "zz", "zzz", "zzzz", "zzzzz", "zzzzzz", "zzzzzzz"
-    ];
-    
-    static string millisecondFormat(const(int) millisecondPrecision = Tick.ticksMaxPrecision) pure
-    {
-        if (millisecondPrecision <= 0)
-            return null;
-        else if (millisecondPrecision > Tick.ticksMaxPrecision)
-            return "." ~ millisecondFormats[Tick.ticksMaxPrecision];
-        else
-            return "." ~ millisecondFormats[millisecondPrecision];
-    }
-        
+
     static DateTimePattern iso8601Date() @nogc pure
     {
         auto result = usShortDate;
@@ -222,49 +208,49 @@ nothrow @safe:
 
     static DateTimePattern[] iso8601DateTime(const(int) millisecondPrecision = Tick.ticksMaxPrecision) pure
     {
-        const precision = millisecondFormat(millisecondPrecision);
+        const precision = Tick.millisecondFormat(millisecondPrecision);
         static immutable string fmt = "yyyy/mm/ddThh:nn:ss";
 
         auto first = usShortDateTime;
         first.dateSeparator = '-';
         first.timeSeparator = ':';
         first.patternText = fmt ~ precision;
-        
+
         auto second = usShortDateTime;
         second.dateSeparator = '-';
         second.timeSeparator = ':';
         second.patternText = fmt ~ precision ~ "+hh:nn";
-        
+
         auto third = usShortDateTime;
         third.dateSeparator = '-';
         third.timeSeparator = ':';
         third.patternText = fmt ~ precision ~ "Z";
         third.defaultKind = DateTimeZoneKind.utc;
-        
+
         return [first, second, third];
     }
 
     static DateTimePattern[] iso8601Time(const(int) millisecondPrecision = Tick.ticksMaxPrecision) pure
     {
-        const precision = millisecondFormat(millisecondPrecision);
+        const precision = Tick.millisecondFormat(millisecondPrecision);
         static immutable string fmt = "hh:nn:ss";
-        
+
         auto first = usShortTime;
         first.dateSeparator = '-';
         first.timeSeparator = ':';
         first.patternText = fmt ~ precision;
-        
+
         auto second = usShortTime;
         second.dateSeparator = '-';
         second.timeSeparator = ':';
         second.patternText = fmt ~ precision ~ "+hh:nn";
-        
+
         auto third = usShortTime;
         third.dateSeparator = '-';
         third.timeSeparator = ':';
         third.patternText = fmt ~ precision ~ "Z";
         third.defaultKind = DateTimeZoneKind.utc;
-        
+
         return [first, second, third];
     }
 

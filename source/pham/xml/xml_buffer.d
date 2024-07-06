@@ -339,7 +339,7 @@ public:
      * Params:
      *  c = character to be appended at the end
      */
-    pragma (inline, true)
+    pragma(inline, true)
     final void put(C c) nothrow
     {
         reserve(1);
@@ -449,7 +449,7 @@ public:
     }
 
 protected:
-    pragma (inline, true)
+    pragma(inline, true)
     final void reserve(size_t count)
     {
         auto c = length + count;
@@ -495,7 +495,7 @@ public:
         list.insertEnd(b.clear());
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     final S getAndRelease(XmlBufferElement b) nothrow
     {
         auto result = b.value();

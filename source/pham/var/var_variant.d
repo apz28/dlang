@@ -167,12 +167,16 @@ public:
 
         static if (Parameters!Dg.length == 2)
         {
-            alias E = P[1];
             alias K = P[0];
+            alias E = P[1];
 
             // Construct foreach for associative-array
             // double[string] aa; E=double, K=string
             // foreach (string s, double d; v)
+            
+            // Construct foreach with indexed
+            // double[] a; E=double, K=size_t
+            // foreach (i, e; v)
         }
         else
             alias E = P[0];
@@ -181,43 +185,75 @@ public:
         {
             case VariantType.staticArray:
                 static if (P.length == 1)
-                if ((cast(TypeInfo_StaticArray)typeInfo).value is typeid(E))
                 {
-                    auto ar = (cast(E*)handler.valuePointer(size, pointer))[0..length];
-                    foreach (ref e; ar)
+                    if ((cast(TypeInfo_StaticArray)typeInfo).value is typeid(E))
                     {
-                        if (auto r = dg(e))
-                            return r;
+                        auto ar = (cast(E*)handler.valuePointer(size, pointer))[0..length];
+                        foreach (ref e; ar)
+                        {
+                            if (auto r = dg(e))
+                                return r;
+                        }
+                        return 0;
                     }
-                    return 0;
+                }
+                else static if (P.length == 2 && typeid(K) is size_t)
+                {
+                    if ((cast(TypeInfo_StaticArray)typeInfo).value is typeid(E))
+                    {
+                        auto ar = (cast(E*)handler.valuePointer(size, pointer))[0..length];
+                        foreach (i, ref e; ar)
+                        {
+                            if (auto r = dg(i, e))
+                                return r;
+                        }
+                        return 0;
+                    }
                 }
                 break;
 
             case VariantType.dynamicArray:
                 static if (P.length == 1)
-                if (typeInfo is typeid(E[]))
                 {
-                    auto ar = doGet!(E[])();
-                    foreach (ref e; ar)
+                    if (typeInfo is typeid(E[]))
                     {
-                        if (auto r = dg(e))
-                            return r;
+                        auto ar = doGet!(E[])();
+                        foreach (ref e; ar)
+                        {
+                            if (auto r = dg(e))
+                                return r;
+                        }
+                        return 0;
                     }
-                    return 0;
+                }
+                else static if (P.length == 2 && typeid(K) is size_t)
+                {
+                    if (typeInfo is typeid(E[]))
+                    {
+                        auto ar = doGet!(E[])();
+                        foreach (i, ref e; ar)
+                        {
+                            if (auto r = dg(i, e))
+                                return r;
+                        }
+                        return 0;
+                    }
                 }
                 break;
 
             case VariantType.associativeArray:
                 static if (P.length == 2)
-                if (typeInfo is typeid(E[K]))
                 {
-                    auto aa = doGet!(E[K])();
-                    foreach (K k, ref E v; aa)
+                    if (typeInfo is typeid(E[K]))
                     {
-                        if (auto r = dg(k, v))
-                            return r;
+                        auto aa = doGet!(E[K])();
+                        foreach (K k, ref E v; aa)
+                        {
+                            if (auto r = dg(k, v))
+                                return r;
+                        }
+                        return 0;
                     }
-                    return 0;
                 }
                 break;
 
@@ -512,7 +548,6 @@ public:
         }
 
         inout(Variant) result;
-
         switch (variantType)
         {
             case VariantType.dynamicArray:
@@ -520,16 +555,20 @@ public:
                 static if (isIntegral!I)
                 if (handler.indexAR(size, pointer, cast(size_t)indexOrKey, cast(void*)&result))
                     return result;
-                goto default;
+                    
+                break; // break for error
 
             case VariantType.associativeArray:
                 if (handler.indexAA(size, pointer, &indexOrKey, typeid(I), cast(void*)&result))
                     return result;
-                goto default;
+                    
+                break; // break for error
 
             default:
-                throw new VariantException(typeInfo, errorMessage());
+                break; // break for error
         }
+
+        throw new VariantException(typeInfo, errorMessage());
     }
 
     /// ditto
@@ -560,7 +599,8 @@ public:
                     if (handler.indexAssignAR(size, pointer, &assignValue, cast(size_t)indexOrKey))
                         return value;
                 }
-                break;
+                
+                break; // break for error
 
             case VariantType.associativeArray:
                 static if (is(I == Variant))
@@ -570,10 +610,11 @@ public:
 
                 if (handler.indexAssignAA(size, pointer, &assignValue, &assignKey))
                     return value;
-                break;
+                    
+                break; // break for error
 
             default:
-                break;
+                break; // break for error
         }
 
         throw new VariantException(typeInfo, errorMessage());
@@ -693,7 +734,7 @@ public:
                 return get!T();
         }
 
-        assert(0);
+        throw new VariantException(typeInfo, "Cannot get value for type at indexed " ~ allowTypeIndex.to!string);
     }
 
     /**
@@ -3357,10 +3398,12 @@ nothrow @safe unittest // Variant.peek
     assert(vU.peek!U && *vU.peek!U == u);
     assert(!vU.peek!S);
 
-    static class C { long d; }
+    static class C { long d = 1; }
     C c = new C();
     Variant vC = c;
     assert(vC.peek!C && (*vC.peek!C).d == c.d);
+
+    static class C2 { string s = "x"; }
 
     interface I { void f(); }
     I i;
@@ -3383,6 +3426,20 @@ nothrow @safe unittest // Variant.peek
     Variant vFct = f;
     assert(vFct.peek!(int function()) && *vFct.peek!(int function()) == f);
     assert(!vFct.peek!(int delegate()));
+    
+    Variant[] mixedC;
+    mixedC ~= new C();
+    mixedC ~= new C2();
+    size_t foundCount;
+    foreach (v; mixedC)
+    {
+        if (auto c = v.peek!C)
+        {
+            foundCount++;
+            assert((*c).d == 1);
+        }
+    }
+    assert(foundCount == 1);
 }
 
 @safe unittest // Variant.get
@@ -4693,13 +4750,12 @@ unittest // Variant.coerce(object)
     {
         int[10] arr = [1,2,3,4,5,6,7,8,9,10];
         Variant v1 = arr;
-        Variant v2;
-        v2 = arr;
+        Variant v2 = arr;
         assert(v1 == arr);
         assert(v2 == arr);
-        foreach (i, e; arr)
+        foreach (i, e; v1)
         {
-            assert(v1[i] == e);
+            assert(arr[i] == e);
             assert(v2[i] == e);
         }
     }
@@ -4709,10 +4765,10 @@ unittest // Variant.coerce(object)
         int[5] arr = [1,2,3,4,5];
         Variant v = arr;
         int j = 0;
-        foreach (ref int i; v)
+        foreach (ref int e; v)
         {
-            assert(i == ++j);
-            i = i * 2;
+            assert(e == ++j);
+            e = e * 2;
         }
         assert(j == 5);
         assert(v[0] == 2);
@@ -4727,9 +4783,9 @@ unittest // Variant.coerce(object)
         int[] arr = [1,2,3,4];
         Variant v = arr;
         auto j = 0;
-        foreach (ref int i; v)
+        foreach (ref int e; v)
         {
-            assert(i == ++j);
+            assert(e == ++j);
         }
         assert(j == 4);
         assert(v[0] == 1);
@@ -4741,10 +4797,10 @@ unittest // Variant.coerce(object)
         int[] arr = [1,2,3,4];
         Variant v = arr;
         auto j = 0;
-        foreach (ref int i; v)
+        foreach (ref int e; v)
         {
-            assert(i == ++j);
-            i = i * 2;
+            assert(e == ++j);
+            e = e * 2;
         }
         assert(j == 4);
         assert(v[0] == 2);

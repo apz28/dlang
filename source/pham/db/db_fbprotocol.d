@@ -742,7 +742,7 @@ public:
 			writer.writeInt32(0);
 		}
 
-		if (command.isStoredProcedure && command.hasFields)
+		if (command.fieldCount != 0 && command.isStoredProcedure)
 		{
             auto pWriterBlr = FbBlrWriter(connection);
             auto pFldBlr = describeBlrFields(pWriterBlr, cast(FbFieldList)command.fields);
@@ -832,7 +832,7 @@ public:
     final void fetchCommandWrite(FbCommand command, const(bool) isScalar)
     in
     {
-        assert(command.hasFields);
+        assert(command.fieldCount != 0);
     }
     do
     {

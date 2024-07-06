@@ -120,7 +120,7 @@ if (isDLink!T)
          * Returns:
          *  true if checkNode has a next node, false otherwise
          */
-        pragma (inline, true)
+        pragma(inline, true)
         bool hasNext(scope T checkNode) @nogc pure
         {
             return checkNode !is null && checkNode !is checkNode._next;
@@ -133,7 +133,7 @@ if (isDLink!T)
          * Returns:
          *  true if checkNode has a previous node, false otherwise
          */
-        pragma (inline, true)
+        pragma(inline, true)
         bool hasPrev(scope T checkNode) pure
         {
             return checkNode !is null && checkNode !is checkNode._prev;
@@ -208,7 +208,7 @@ if (isDLink!T)
          * Returns:
          *  next node of currentNode if any, null otherwise
          */
-        pragma (inline, true)
+        pragma(inline, true)
         T next(scope T currentNode) pure
         {
             return currentNode !is currentNode._next ? cast(T)(currentNode._next) : null;
@@ -222,7 +222,7 @@ if (isDLink!T)
          * Returns:
          *  previous node of currentNode if any, null otherwise
          */
-        pragma (inline, true)
+        pragma(inline, true)
         T prev(scope T currentNode) pure
         {
             return currentNode !is currentNode._prev ? cast(T)(currentNode._prev) : null;

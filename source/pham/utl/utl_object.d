@@ -107,7 +107,7 @@ char[] bytesToHexs(scope const(ubyte)[] bytes) nothrow pure @safe
  * Params:
  *   object = the object to get the class-name from
  */
-string className(Object object) nothrow pure @safe
+string className(const(Object) object) nothrow pure @safe
 {
     if (object is null)
         return "null";
@@ -175,7 +175,7 @@ if (isSomeString!S && isSomeChar!C && is(Unqual!(typeof(S.init[0])) == C))
  * Params:
  *   object = the object to get the class-name from
  */
-string shortClassName(Object object) nothrow pure @safe
+string shortClassName(const(Object) object) nothrow pure @safe
 {
     return object is null ? "null" : shortenTypeName(typeid(object).name);
 }

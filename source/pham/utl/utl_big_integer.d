@@ -1700,7 +1700,7 @@ private:
         size_t curByte = 0;
         foreach (dword; dwords)
         {
-            for (int j = 0; j < 4; j++)
+            foreach (j; 0..4)
             {
                 bytes[curByte++] = cast(ubyte)(dword & 0xff);
                 dword >>= 8;

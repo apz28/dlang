@@ -23,11 +23,11 @@ void deserialize(Deserializer deserializer, scope ref UUID value, scope ref Seri
     final switch (deserializer.dataFormat)
     {
         case SerializerDataFormat.text:
-            auto text = deserializer.readScopeChars(DataKind.uuid);
+            auto text = deserializer.readScopeChars(attribute, DataKind.uuid);
             value = parseUUID(text);
             return;
         case SerializerDataFormat.binary:
-            auto binary = deserializer.readScopeBytes(attribute.binaryFormat, DataKind.uuid);
+            auto binary = deserializer.readScopeBytes(attribute, DataKind.uuid);
             value = UUID(binary[0..16]);
             return;
     }
@@ -38,12 +38,13 @@ void serialize(Serializer serializer, scope ref UUID value, scope ref Serializab
     final switch (serializer.dataFormat)
     {
         case SerializerDataFormat.text:
+            const characterCaseFormat = serializer.binaryFormat(attribute).characterCaseFormat;
             char[36] text = void;
             value.toString(text[]);
-            serializer.write(asciiCaseInplace(text[], attribute.binaryFormat.characterCaseFormat)[], DataKind.uuid);
+            serializer.write(asciiCaseInplace(text[], characterCaseFormat)[], attribute, DataKind.uuid);
             return;
         case SerializerDataFormat.binary:
-            serializer.write(value.data[], attribute.binaryFormat, DataKind.uuid);
+            serializer.write(value.data[], attribute, DataKind.uuid);
             return;
     }
 }

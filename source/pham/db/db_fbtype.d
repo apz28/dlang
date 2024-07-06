@@ -2170,6 +2170,8 @@ private:
 
 shared static this() nothrow @safe
 {
+    debug(debug_pham_db_db_fbtype) debug writeln("shared static this(", __MODULE__, ")");
+
     fbDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(DbConnectionParameterInfo[string]))[

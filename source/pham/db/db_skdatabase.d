@@ -30,8 +30,7 @@ else
     import pham.utl.utl_text : simpleIndexOf;
 }
 
-debug(debug_pham_db_db_skdatabase) import std.stdio : writeln;
-
+debug(debug_pham_db_db_skdatabase) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.cp.cp_openssl;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
@@ -334,7 +333,7 @@ package(pham.db):
     }
 
 protected:
-    final bool canWriteDisconnectMessage() const nothrow pure @safe
+    final bool canWriteDisconnectMessage() const nothrow @safe
     {
         return !isFatalError && socketActive;
     }
@@ -573,7 +572,7 @@ public:
     }
 
     static if (!usePhamIOSocket)
-    final Address toConnectAddress() const
+    final Address toConnectAddress() const 
     {
         const sn = serverName;
         return (sn.simpleIndexOf(':') >= 0 || (sn.length && sn[0] == '['))

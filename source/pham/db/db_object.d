@@ -22,8 +22,10 @@ import std.conv : to;
 import std.traits : isIntegral, isSomeString, ParameterTypeTuple, Unqual;
 import std.uni : sicmp, toUpper;
 
+debug(debug_pham_db_db_object) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.dtm.dtm_date : DateTime;
+import pham.utl.utl_array : removeAt;
 import pham.utl.utl_disposable;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.utl.utl_object : RAIIMutex, shortClassName;
@@ -36,7 +38,6 @@ import pham.db.db_parser;
 import pham.db.db_type;
 import pham.db.db_util;
 
-
 DbIdentitier[] toIdentifiers(const string[] strings) nothrow
 {
     auto result = new DbIdentitier[](strings.length);
@@ -46,14 +47,14 @@ DbIdentitier[] toIdentifiers(const string[] strings) nothrow
 }
 
 /**
- * Determine which based time to be used for checking to remove 
+ * Determine which based time to be used for checking to remove
  * a object from cache
  */
 enum DbExpirationKind : ubyte
 {
     /// Based on creation time
     created,
-    
+
     /// Based on the last used
     lastTouched,
 }
@@ -77,12 +78,12 @@ public:
     {
         if (maxAge <= Duration.zero)
             return false;
-            
+
         return kind == DbExpirationKind.created
             ? ((utcNow - created).totalMinutes > maxAge.total!"minutes")
             : ((utcNow - lastTouched).totalMinutes > maxAge.total!"minutes");
     }
-    
+
     /**
      * Update last used time to current time
      */
@@ -118,7 +119,7 @@ public:
         this._expiration = DbExpiration(maxAge, kind);
         this.item = item;
     }
-    
+
     bool opEqual(scope const(DbCacheItem) rhs) const
     {
         return rhs._key == this._key;
@@ -137,7 +138,7 @@ public:
     {
         return _expiration.canEvicted(utcNow);
     }
-    
+
     /**
      * Update last used time to current time
      */
@@ -213,7 +214,7 @@ nothrow @safe:
 
     enum defaultMaxAge = dur!"hours"(8);
     enum defaultKind = DbExpirationKind.created;
-    
+
 public:
     this(Timer secondTimer)
     {
@@ -228,16 +229,16 @@ public:
         registerWithTimer();
 
         auto raiiMutex = RAIIMutex(mutex);
-        
+
         if (auto e = key in items)
         {
             if (!(*e).canEvicted(DateTime.utcNow))
                 return false;
-                
+
             (*e).touch!V(item, maxAge, kind);
             return true;
         }
-            
+
         items[key] = DbCacheItem!K(key, item, maxAge, kind);
         return true;
     }
@@ -249,10 +250,10 @@ public:
         registerWithTimer();
 
         auto raiiMutex = RAIIMutex(mutex);
-        
+
         if (auto e = key in items)
             (*e).touch!V(item, maxAge, kind);
-        else    
+        else
             items[key] = DbCacheItem!K(key, item, maxAge, kind);
         return item;
     }
@@ -260,32 +261,32 @@ public:
     final size_t cleanupInactives() @safe
     {
         auto inactives = removeInactives();
-        
+
         version(none)
         foreach (inactive; inactives)
             inactive.dispose();
-        
+
         return inactives.length;
     }
-    
+
     final bool find(V : Object)(K key, ref V found)
     {
         auto raiiMutex = RAIIMutex(mutex);
-        
+
         return findImpl!V(key, found) == FindResult.found;
     }
-    
+
     final void remove(K key)
     {
         auto raiiMutex = RAIIMutex(mutex);
-        
+
         items.remove(key);
     }
-    
+
     final bool remove(V : Object)(K key, ref V found)
     {
         auto raiiMutex = RAIIMutex(mutex);
-        
+
         final switch (findImpl!V(key, found))
         {
             case FindResult.found:
@@ -298,21 +299,21 @@ public:
                 return false;
         }
     }
-    
+
     @property final K[] keys()
     {
         auto raiiMutex = RAIIMutex(mutex);
-        
+
         return items.keys;
     }
 
     @property final size_t length()
     {
         auto raiiMutex = RAIIMutex(mutex);
-        
+
         return items.length;
     }
-    
+
 protected:
     override void doDispose(const(DisposingReason) disposingReason) nothrow @trusted
     {
@@ -320,33 +321,33 @@ protected:
         secondTimer = null;
 
         items.clear();
-        
+
         if (mutex !is null)
         {
             mutex.destroy();
             mutex = null;
         }
     }
-    
+
     final void doTimer(TimerEvent event)
     {
         cleanupInactives();
     }
-        
+
     enum FindResult : ubyte
     {
         found,
         unfound,
         expired,
     }
-    
+
     final FindResult findImpl(V : Object)(K key, ref V found)
     {
         if (auto e = key in items)
         {
             if ((*e).canEvicted(DateTime.utcNow))
                 return FindResult.expired;
-                
+
             found = (*e).touch!V();
             return FindResult.found;
         }
@@ -359,29 +360,29 @@ protected:
         if (cas(&timerAdded, false, true) && secondTimer !is null)
             secondTimer.addEvent(TimerEvent(timerName(), dur!"minutes"(1), &doTimer));
     }
-    
+
     final DbCacheItem!K[] removeInactives()
     {
         auto raiiMutex = () @trusted { return RAIIMutex(mutex); }();
-        
+
         if (items.length == 0)
             return null;
-            
+
         const utcNow = DateTime.utcNow;
         DbCacheItem!K[] result;
         result.reserve(items.length / 2);
-        
+
         // Get all inactive ones
         foreach (ref item; items.byValue)
         {
             if (item.canEvicted(utcNow))
                 result ~= item;
         }
-        
+
         // Remove from cache list
         foreach (ref item; result)
             items.remove(item.key);
-            
+
         return result;
     }
 
@@ -414,24 +415,24 @@ struct DbCustomAttributeList
 @safe:
 
 public:
-    string opIndex(string name) const @nogc nothrow pure
+    string opIndex(string name) const @nogc nothrow
     {
         return get(name, null);
     }
 
-    ref typeof(this) opIndexAssign(string value, string name) nothrow pure return
+    ref typeof(this) opIndexAssign(string value, string name) nothrow return
     {
         put(name, value);
         return this;
     }
 
-    ref typeof(this) clear() nothrow pure return @trusted
+    ref typeof(this) clear() nothrow return @trusted
     {
         _values.clear();
         return this;
     }
 
-    string get(string name, string notFoundValue) const @nogc nothrow pure
+    string get(string name, string notFoundValue) const @nogc nothrow
     in
     {
         assert(name.length != 0);
@@ -450,7 +451,7 @@ public:
         return value.length != 0;
     }
 
-    string put(string name, string value) nothrow pure
+    string put(string name, string value) nothrow
     in
     {
         assert(name.length != 0);
@@ -464,17 +465,17 @@ public:
         return value;
     }
 
-    @property bool empty() const nothrow pure
+    @property bool empty() const nothrow
     {
         return _values.length == 0;
     }
 
-    @property size_t length() const nothrow pure
+    @property size_t length() const nothrow
     {
         return _values.length;
     }
 
-    @property const(string[string]) values() const nothrow pure
+    @property const(string[string]) values() const nothrow
     {
         return _values;
     }
@@ -490,10 +491,10 @@ nothrow @safe:
 public:
     this(string value) pure
     {
-        this(value, -1);
+        this._s = value;
     }
 
-    auto ref opOpAssign(string op)(in DbIdentitier value) return
+    auto ref opOpAssign(string op)(DbIdentitier value) return
     if (op == "~" || op == "+")
     {
         _s ~= value.s;
@@ -514,7 +515,7 @@ public:
         return this;
     }
 
-    bool opCast(B: bool)() const pure
+    bool opCast(B: bool)() const
     {
         return _s.length != 0;
     }
@@ -526,49 +527,49 @@ public:
         return this;
     }
 
-    int opCmp(scope const(DbIdentitier) rhs) const pure
+    int opCmp(scope const(DbIdentitier) rhs) const
     {
         return sicmp(_s, rhs._s);
     }
 
-    int opCmp(scope const(char)[] rhs) const pure
+    int opCmp(scope const(char)[] rhs) const
     {
         return sicmp(_s, rhs);
     }
 
-    bool opEquals(scope const(DbIdentitier) rhs) const pure
+    bool opEquals(scope const(DbIdentitier) rhs) const
     {
         return opCmp(rhs) == 0;
     }
 
-    bool opEquals(scope const(char)[] rhs) const pure
+    bool opEquals(scope const(char)[] rhs) const
     {
         return opCmp(rhs) == 0;
     }
 
-    size_t toHash() const pure
+    size_t toHash() const
     {
         return hashOf(ivalue);
     }
 
-    string toString() const pure
+    string toString() const
     {
         return _s;
     }
 
-    @property string ivalue() const pure
+    @property string ivalue() const
     {
 	    scope (failure) assert(0, "Assume nothrow failed");
 
         return toUpper(_s);
     }
 
-    @property size_t length() const pure
+    @property size_t length() const
     {
         return _s.length;
     }
 
-    @property string value() const pure
+    @property string value() const
     {
         return _s;
     }
@@ -576,15 +577,7 @@ public:
     alias value this;
 
 private:
-    this(string value, ptrdiff_t index) pure
-    {
-        this._s = value;
-        this._index = index;
-    }
-
-private:
     string _s;
-    ptrdiff_t _index;
 }
 
 abstract class DbObject
@@ -629,12 +622,12 @@ class DbNameObject : DbObject
 nothrow @safe:
 
 public:
-    final int opCmp(scope const(DbIdentitier) rhsName) const pure
+    final int opCmp(scope const(DbIdentitier) rhsName) const
     {
         return _name.opCmp(rhsName);
     }
 
-    final bool opEquals(scope const(DbIdentitier) rhsName) const pure
+    final bool opEquals(scope const(DbIdentitier) rhsName) const
     {
         return opCmp(rhsName) == 0;
     }
@@ -644,34 +637,39 @@ public:
         return _name.toHash();
     }
 
+    final void updateName(DbIdentitier newName)
+    {
+        updateNameImpl(newName);
+    }
+
+    final void updateName(string newName)
+    {
+        updateNameImpl(DbIdentitier(newName));
+    }
+
     alias List = DbNameObjectList!DbNameObject;
     @property final List list() pure @trusted
     {
         return cast(List)_list;
     }
 
-    @property final DbIdentitier name() const pure
+    @property final DbIdentitier name() const
     {
         return _name;
     }
 
 protected:
-    final void updateName(DbIdentitier newName)
+    //pragma(inline, true)
+    final void updateNameImpl(DbIdentitier newName)
     {
-        if (this._name != newName)
+        if (_name != newName)
         {
-            auto oldName = this._name;
-            this._name._s = newName._s;
+            auto oldName = _name;
+            _name._s = newName._s;
 
-            if (list !is null)
-                list.nameChanged(this, oldName);
+            if (auto lst = list)
+                lst.nameChanged(this, oldName);
         }
-    }
-
-    final void updateName(string newName)
-    {
-        const id = DbIdentitier(newName, _name._index);
-        updateName(id);
     }
 
 protected:
@@ -712,7 +710,7 @@ public:
         }
 
         pragma(inline, true)
-        @property bool empty() const pure
+        @property bool empty() const
         {
             return _index >= _list.length;
         }
@@ -728,7 +726,7 @@ public:
             return _list[_index];
         }
 
-        @property size_t index() const pure
+        @property size_t index() const
         {
             return _index;
         }
@@ -739,108 +737,127 @@ public:
     }
 
 public:
+    alias opApply = opApplyImpl!(int delegate(T));
+    alias opApply = opApplyImpl!(int delegate(size_t, T));
+
+    int opApplyImpl(CallBack)(scope CallBack callBack)
+    if (is(CallBack : int delegate(T))
+        || is(CallBack : int delegate(size_t, T)))
+    {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "()");
+
+        static if (is(CallBack : int delegate(T)))
+        {
+            foreach (ref e; sequenceItems)
+            {
+                const r = callBack(e.item);
+                if (r)
+                    return r;
+            }
+        }
+		else
+        {
+            foreach (i; 0..sequenceItems.length)
+            {
+                const r = callBack(i, sequenceItems[i].item);
+                if (r)
+                    return r;
+            }
+        }
+        return 0;
+    }
+
     /**
      * Returns range interface
      */
     Range opIndex() nothrow @safe
     {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "()");
+
         return Range(this);
     }
 
     /**
      * Returns item at index
      */
-    final T opIndex(size_t index) nothrow @safe
+    final T opIndex(size_t index) const nothrow @trusted
     in
     {
-        assert(index < length);
+        assert(index < sequenceItems.length);
     }
     do
     {
-        return sequenceItems[index];
+        return cast()sequenceItems[index].item;
     }
 
     /**
      * Returns item with matching name
      */
-    final T opIndex(scope const(DbIdentitier) name) nothrow @safe
+    final T opIndex(scope const(DbIdentitier) name) const nothrow @safe
     {
-        version(profile) debug auto p = PerfFunction.create();
-
-        auto e = name in lookupItems;
-        return e ? *e : null;
+        return opIndexImpl(name);
     }
 
-    ///
-    final T opIndex(string name) nothrow @safe
+    final T opIndex(string name) const nothrow @safe
     {
-        const id = DbIdentitier(name);
-        return opIndex(id);
+        return opIndexImpl(DbIdentitier(name));
     }
 
-    version(none)
-    final typeof(this) opIndexAssign(T item) nothrow @safe
-    in
+    pragma(inline, true)
+    private final T opIndexImpl(scope const(DbIdentitier) name) const nothrow @trusted
     {
-        assert(item.name.length != 0);
-    }
-    do
-    {
-        addOrSet(item);
-        return this;
-    }
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(name=", name, ")");
 
-    final int apply(scope int delegate(T e) nothrow dg) nothrow
-    {
-        foreach (i; 0..length)
-        {
-            if (auto r = dg(this[i]))
-                return r;
-        }
-        return 0;
-    }
-
-    final int apply(scope int delegate(size_t index, T e) nothrow dg) nothrow
-    {
-        foreach (i; 0..length)
-        {
-            if (auto r = dg(i, this[i]))
-                return r;
-        }
-        return 0;
+        const i = indexOf(name);
+        return i >= 0 ? cast()sequenceItems[i].item : null;
     }
 
     typeof(this) clear() nothrow @trusted
     {
-        lookupItems.clear();
+        lookupNames.clear();
         sequenceItems.length = 0;
         sequenceItems.assumeSafeAppend();
-        flags.reset();
         return this;
     }
 
-    final bool exist(scope const(DbIdentitier) name) const nothrow pure @safe
+    final bool exist(scope const(DbIdentitier) name) const nothrow @safe
     {
-        version(profile) debug auto p = PerfFunction.create();
+        return existImpl(name);
+    }
 
-        const e = name in lookupItems;
+    final bool exist(string name) const nothrow @safe
+    {
+        return existImpl(DbIdentitier(name));
+    }
+
+    pragma(inline, true)
+    private final bool existImpl(scope const(DbIdentitier) name) const nothrow @safe
+    {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(name=", name, ")");
+
+        const e = name in lookupNames;
         return e !is null;
     }
 
-    final bool exist(string name) const nothrow pure @safe
+    final bool find(scope const(DbIdentitier) name, out T item) const nothrow @safe
     {
-        const id = DbIdentitier(name);
-        return exist(id);
+        return findImpl(name, item);
     }
 
-    final bool find(scope const(DbIdentitier) name, out T item) nothrow @safe
+    final bool find(string name, out T item) const nothrow @safe
     {
-        version(profile) debug auto p = PerfFunction.create();
+        return findImpl(DbIdentitier(name), item);
+    }
 
-        auto e = name in lookupItems;
-        if (e !is null)
+    pragma(inline, true)
+    private final bool findImpl(scope const(DbIdentitier) name, out T item) const nothrow @trusted
+    {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(name=", name, ")");
+
+        const i = indexOf(name);
+        if (i >= 0)
         {
-            item = *e;
+            item = cast()sequenceItems[i].item;
             return true;
         }
         else
@@ -850,29 +867,32 @@ public:
         }
     }
 
-    final bool find(string name, out T item) nothrow @safe
+    final DbIdentitier generateUniqueName(string prefix) const nothrow @safe
     {
-        const id = DbIdentitier(name);
-        return find(id, item);
-    }
-
-    final DbIdentitier generateUniqueName(string prefix) const nothrow pure @safe
-    {
-        DbIdentitier res;
+        DbIdentitier result;
         size_t n = length;
         do
         {
             ++n;
-            res = DbIdentitier(prefix ~ "_" ~ n.to!string());
+            result = DbIdentitier(prefix ~ "_" ~ n.to!string());
         }
-        while (exist(res));
-        return res;
+        while (exist(result));
+        return result;
     }
 
-    final T get(const(DbIdentitier) name) @safe
+    final T get(const(DbIdentitier) name) const @safe
     {
-        version(profile) debug auto p = PerfFunction.create();
+        return getImpl(name);
+    }
 
+    final T get(string name) const @safe
+    {
+        return getImpl(DbIdentitier(name));
+    }
+
+    //pragma(inline, true)
+    private final T getImpl(const(DbIdentitier) name) const @safe
+    {
         T result;
         if (!find(name, result))
         {
@@ -882,33 +902,41 @@ public:
         return result;
     }
 
-    final T get(string name) @safe
+    final ptrdiff_t indexOf(scope const(DbIdentitier) name) const nothrow @safe
     {
-        const id = DbIdentitier(name);
-        return get(id);
+        return indexOfImpl(name);
     }
 
-    final ptrdiff_t indexOf(scope const(DbIdentitier) name) nothrow pure @safe
+    final ptrdiff_t indexOf(string name) const nothrow @safe
     {
-        version(profile) debug auto p = PerfFunction.create();
-
-        if (flags.on(Flag.reIndex))
-            reIndexItems();
-
-        auto e = name in lookupItems;
-        if (e !is null)
-            return (*e)._name._index;
-        else
-            return -1;
+        return indexOfImpl(DbIdentitier(name));
     }
 
-    final ptrdiff_t indexOf(string name) nothrow pure @safe
+    pragma(inline, true)
+    private final ptrdiff_t indexOfImpl(scope const(DbIdentitier) name) const nothrow @safe
     {
-        const id = DbIdentitier(name);
-        return indexOf(id);
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(name=", name, ")");
+
+        const e = name in lookupNames;
+        const ptrdiff_t result = e !is null ? (*e) : -1;
+
+        debug(debug_pham_db_db_object) debug writeln("\t", "result=", result, ", length=", length);
+
+        return result;
     }
 
-    final ptrdiff_t indexOfSafe(const(DbIdentitier) name) @safe
+    final ptrdiff_t indexOfSafe(const(DbIdentitier) name) const @safe
+    {
+        return indexOfSafeImpl(name);
+    }
+
+    final ptrdiff_t indexOfSafe(string name) const @safe
+    {
+        return indexOfSafeImpl(DbIdentitier(name));
+    }
+
+    //pragma(inline, true)
+    private final ptrdiff_t indexOfSafeImpl(const(DbIdentitier) name) const @safe
     {
         const result = indexOf(name);
         if (result < 0)
@@ -917,12 +945,6 @@ public:
             throw new DbException(0, msg);
         }
         return result;
-    }
-
-    final ptrdiff_t indexOfSafe(string name) @safe
-    {
-        const id = DbIdentitier(name);
-        return indexOfSafe(id);
     }
 
     final typeof(this) put(T item) nothrow @safe
@@ -936,36 +958,40 @@ public:
         return this;
     }
 
+    T remove(const(size_t) index) nothrow @trusted
+    in
+    {
+        assert(index < sequenceItems.length);
+    }
+    do
+    {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(index=", index, ")");
+
+        auto result = sequenceItems[index];
+        result.item._list = null;
+        lookupNames.remove(result.item.name);
+        sequenceItems.removeAt(index);
+        sequenceItems.assumeSafeAppend();
+        if (index < sequenceItems.length)
+            reIndexItems(index);
+        return result.item;
+    }
+
     final T remove(scope const(DbIdentitier) name) nothrow @safe
     {
-        const i = indexOf(name);
-        if (i >= 0)
-            return remove(i);
-        else
-            return T.init;
+        return removeImpl(name);
     }
 
     final T remove(string name) nothrow @safe
     {
-        const id = DbIdentitier(name);
-        return remove(id);
+        return removeImpl(DbIdentitier(name));
     }
 
-    T remove(size_t index) nothrow @trusted
-    in
+    pragma(inline, true)
+    private final T removeImpl(scope const(DbIdentitier) name) nothrow @safe
     {
-        assert(index < length);
-    }
-    do
-    {
-        auto result = this[index];
-        result._list = null;
-        lookupItems.remove(result.name);
-        sequenceItems = sequenceItems.remove(index);
-        sequenceItems.assumeSafeAppend();
-        if (index < sequenceItems.length)
-            flags += Flag.reIndex;
-        return result;
+        const i = indexOf(name);
+        return i >= 0 ? remove(i) : null;
     }
 
     final typeof(this) reserve(const(size_t) capacity) nothrow @trusted
@@ -978,20 +1004,26 @@ public:
         return this;
     }
 
-    @property final size_t length() const nothrow pure @safe
+    @property final size_t length() const nothrow @safe
     {
         return sequenceItems.length;
     }
 
 protected:
-    //alias List = DbNameObjectList!DbNameObject;
+    struct SequenceItem
+    {
+        T item;
+        ptrdiff_t index;
+    }
 
     void add(T item) nothrow @trusted
     {
+        const lastIndex = sequenceItems.length;
         item._list = cast(void*)this;
-        item._name._index = length;
-        lookupItems[item.name] = item;
-        sequenceItems ~= item;
+        lookupNames[item.name] = lastIndex;
+        sequenceItems ~= SequenceItem(item, lastIndex);
+
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(item._name=", item._name, ", index=", lastIndex, ", length=", length, ")");
     }
 
     void addOrSet(T item) nothrow @trusted
@@ -999,9 +1031,11 @@ protected:
         const i = indexOf(item.name);
         if (i >= 0)
         {
+            debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(item._name=", item._name, ", index=", i, ", length=", length, ")");
+
             item._list = cast(void*)this;
-            lookupItems[item.name] = item;
-            sequenceItems[i] = item;
+            //lookupNames[item.name] = i;
+            sequenceItems[i] = SequenceItem(item, i);
         }
         else
             add(item);
@@ -1009,27 +1043,34 @@ protected:
 
     void nameChanged(T item, scope const(DbIdentitier) oldName) nothrow @safe
     {
-        lookupItems.remove(oldName);
-        lookupItems[item.name] = item;
+        const oldIndex = indexOf(oldName);
+        lookupNames.remove(oldName);
+        lookupNames[item.name] = oldIndex;
     }
 
-    final void reIndexItems() nothrow pure @safe
+    final void reIndexItems(const(size_t) beginIndex) nothrow @safe
+    in
     {
-        foreach (i, e; sequenceItems)
+        assert(beginIndex <= sequenceItems.length);
+    }
+    do
+    {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(beginIndex=", beginIndex,
+            ", sequenceItems.length=", sequenceItems.length, ")");
+
+        foreach (i, ref e; sequenceItems[beginIndex..$])
         {
-            e._name._index = i;
+            const newIndex = beginIndex + i;
+            e.index = newIndex;
+            lookupNames[e.item.name] = newIndex;
+            
+            debug(debug_pham_db_db_object) debug writeln("\t", "e.item.name=", e.item.name, ", newIndex=", newIndex);            
         }
     }
 
 protected:
-    enum Flag : ubyte
-    {
-        reIndex
-    }
-
-    T[DbIdentitier] lookupItems;
-    T[] sequenceItems;
-    EnumSet!Flag flags;
+    size_t[DbIdentitier] lookupNames;
+    SequenceItem[] sequenceItems;
 }
 
 struct DbIdentitierValue(T)
@@ -1059,8 +1100,8 @@ public:
     }
     do
     {
-        DbIdentitier id = DbIdentitier(name);
-        this(id, value);
+        this._name = DbIdentitier(name);
+        this.value = value;
     }
 
     int opCmp(scope const(DbIdentitier) rhsName) const
@@ -1096,6 +1137,7 @@ public:
 private:
     List _list;
     DbIdentitier _name;
+    ptrdiff_t _index; // Since it is a struct, index can be declared here
 }
 
 class DbIdentitierValueList(T) : DbObject
@@ -1103,7 +1145,7 @@ class DbIdentitierValueList(T) : DbObject
 @safe:
 
 public:
-    alias Pair = DbIdentitierValue!T;
+    alias DbIdentitierValuePair = DbIdentitierValue!T;
 
 public:
     /**
@@ -1124,24 +1166,24 @@ public:
         }
 
         pragma(inline, true)
-        void popFront() pure
+        void popFront()
         {
             ++_index;
         }
 
-        auto save() nothrow
+        auto save()
         {
             return this;
         }
 
         pragma(inline, true)
-        @property bool empty() const pure
+        @property bool empty() const
         {
             return _index >= _list.length;
         }
 
         pragma(inline, true)
-        @property ref Pair front() pure
+        @property DbIdentitierValuePair front()
         in
         {
             assert(_index < _list.length);
@@ -1151,7 +1193,7 @@ public:
             return _list[_index];
         }
 
-        @property size_t index() const pure
+        @property size_t index() const
         {
             return _index;
         }
@@ -1162,59 +1204,57 @@ public:
     }
 
 public:
+    alias opApply = opApplyImpl!(int delegate(DbIdentitierValuePair));
+    alias opApply = opApplyImpl!(int delegate(size_t, DbIdentitierValuePair));
+
+    int opApplyImpl(CallBack)(scope CallBack callBack)
+    if (is(CallBack : int delegate(DbIdentitierValuePair))
+        || is(CallBack : int delegate(size_t, DbIdentitierValuePair)))
+    {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "()");
+
+        static if (is(CallBack : int delegate(DbIdentitierValuePair)))
+        {
+            foreach (ref e; sequenceItems)
+            {
+                const r = callBack(e);
+                if (r)
+                    return r;
+            }
+        }
+		else
+        {
+            foreach (i; 0..sequenceItems.length)
+            {
+                const r = callBack(i, sequenceItems[i]);
+                if (r)
+                    return r;
+            }
+        }
+        return 0;
+    }
+
     /**
      * Returns range interface
      */
     Range opIndex() nothrow
     {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "()");
+
         return Range(this);
     }
 
     /**
      * Returns item at index
      */
-    final ref Pair opIndex(size_t index) nothrow
+    final DbIdentitierValuePair opIndex(size_t index) const nothrow @trusted
     in
     {
         assert(index < length);
     }
     do
     {
-        auto name = sequenceNames[index];
-        assert(exist(name));
-        auto e = name in lookupItems;
-        return *e;
-    }
-
-    final typeof(this) opIndexAssign(Pair item) nothrow
-    in
-    {
-        assert(item.name.length != 0);
-    }
-    do
-    {
-        addOrSet(item);
-        return this;
-    }
-
-    final int apply(scope int delegate(scope const ref Pair e) nothrow @safe dg) nothrow
-    {
-        foreach (i; 0..length)
-        {
-            if (auto r = dg(this[i]))
-                return r;
-        }
-        return 0;
-    }
-
-    final int apply(scope int delegate(size_t index, scope const ref Pair e) nothrow @safe dg) nothrow
-    {
-        foreach (i; 0..length)
-        {
-            if (auto r = dg(i, this[i]))
-                return r;
-        }
-        return 0;
+        return cast()sequenceItems[index];
     }
 
     /**
@@ -1222,10 +1262,9 @@ public:
      */
     typeof(this) clear() nothrow @trusted
     {
-        lookupItems.clear();
-        sequenceNames.length = 0;
-        sequenceNames.assumeSafeAppend();
-        reIndex = false;
+        lookupNames.clear();
+        sequenceItems.length = 0;
+        sequenceItems.assumeSafeAppend();
         return this;
     }
 
@@ -1234,23 +1273,44 @@ public:
      *  Params:
      *      name = a name to be search for
      */
-    final bool exist(in DbIdentitier name) const nothrow
+    final bool exist(scope const(DbIdentitier) name) const nothrow
     {
-        auto e = name in lookupItems;
-        return e !is null;
+        return existImpl(name);
     }
 
     final bool exist(string name) const nothrow
     {
-        const id = DbIdentitier(name);
-        return exist(id);
+        return existImpl(DbIdentitier(name));
+    }
+
+    pragma(inline, true)
+    private final bool existImpl(scope const(DbIdentitier) name) const nothrow
+    {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(name=", name, ")");
+
+        const e = name in lookupNames;
+        return e !is null;
     }
 
     final bool find(scope const(DbIdentitier) name, out T item) const nothrow
     {
-        if (auto e = name in lookupItems)
+        return findImpl(name, item);
+    }
+
+    final bool find(string name, out T item) const nothrow
+    {
+        return findImpl(DbIdentitier(name), item);
+    }
+
+    pragma(inline, true)
+    private final bool findImpl(scope const(DbIdentitier) name, out T item) const nothrow
+    {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(name=", name, ")");
+
+        const i = indexOf(name);
+        if (i >= 0)
         {
-            item = (*e).value;
+            item = sequenceItems[i].value;
             return true;
         }
         else
@@ -1260,23 +1320,17 @@ public:
         }
     }
 
-    final bool find(string name, out T item) const nothrow
-    {
-        const id = DbIdentitier(name);
-        return find(id, item);
-    }
-
     final DbIdentitier generateUniqueName(string prefix) const nothrow
     {
-        DbIdentitier res;
+        DbIdentitier result;
         size_t n = length;
         do
         {
             ++n;
-            res = DbIdentitier(prefix ~ "_" ~ n.to!string());
+            result = DbIdentitier(prefix ~ "_" ~ n.to!string());
         }
-        while (exist(res));
-        return res;
+        while (exist(result));
+        return result;
     }
 
     /**
@@ -1286,8 +1340,21 @@ public:
      *  Returns:
      *      string value of name
      */
-    final T get(const(DbIdentitier) name)
+    final T get(const(DbIdentitier) name) const
     {
+        return getImpl(name);
+    }
+
+    final T get(string name) const
+    {
+        return getImpl(DbIdentitier(name));
+    }
+
+    //pragma(inline, true)
+    private final T getImpl(const(DbIdentitier) name) const
+    {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(name=", name, ")");
+
         T result;
         if (!find(name, result))
         {
@@ -1297,42 +1364,44 @@ public:
         return result;
     }
 
-    final T get(string name)
+    final ptrdiff_t indexOf(scope const(DbIdentitier) name) const nothrow
     {
-        const id = DbIdentitier(name);
-        return get(id);
+        return indexOfImpl(name);
     }
 
-    final ptrdiff_t indexOf(scope const(DbIdentitier) name) nothrow
+    final ptrdiff_t indexOf(string name) const nothrow
     {
-        if (reIndex)
-        {
-            reIndexItems();
-            reIndex = false;
-        }
-
-        auto e = name in lookupItems;
-        if (e !is null)
-            return (*e)._name._index;
-        else
-            return -1;
+        return indexOfImpl(DbIdentitier(name));
     }
 
-    final ptrdiff_t indexOf(string name) nothrow
+    pragma(inline, true)
+    private final ptrdiff_t indexOfImpl(scope const(DbIdentitier) name) const nothrow
     {
-        const id = DbIdentitier(name);
-        return indexOf(id);
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(name=", name, ")");
+
+        const e = name in lookupNames;
+        const ptrdiff_t result = e !is null ? (*e) : -1;
+
+        debug(debug_pham_db_db_object) debug writeln("\t", "r=", result, ", length=", length);
+
+        return result;
     }
 
-    DbNameValueValidated isValid(const(DbIdentitier) name, T value) nothrow
+    final DbNameValueValidated isValid(const(DbIdentitier) name, T value) const nothrow
     {
+        return isValidImpl(name, value);
+    }
+
+    final DbNameValueValidated isValid(string name, T value) const nothrow
+    {
+        return isValidImpl(DbIdentitier(name), value);
+    }
+
+    protected DbNameValueValidated isValidImpl(const(DbIdentitier) name, T value) const nothrow
+    {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(name=", name, ")");
+
         return name.length != 0 ? DbNameValueValidated.ok : DbNameValueValidated.invalidName;
-    }
-
-    final DbNameValueValidated isValid(string name, T value) nothrow
-    {
-        const id = DbIdentitier(name);
-        return isValid(id, value);
     }
 
     final typeof(this) put(DbIdentitier name, T value) nothrow
@@ -1342,9 +1411,7 @@ public:
     }
     do
     {
-        auto item = Pair(name, value);
-        addOrSet(item);
-        return this;
+        return putImpl(name, value);
     }
 
     final typeof(this) put(string name, T value) nothrow
@@ -1354,45 +1421,68 @@ public:
     }
     do
     {
-        auto id = DbIdentitier(name, length);
-        return put(id, value);
+        return putImpl(DbIdentitier(name), value);
+    }
+
+    pragma(inline, true)
+    private final typeof(this) putImpl(DbIdentitier name, T value) nothrow
+    in
+    {
+        assert(name.length != 0);
+    }
+    do
+    {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(name=", name, ")");
+
+        auto item = DbIdentitierValuePair(name, value);
+        addOrSet(item);
+        return this;
     }
 
     final DbNameValueValidated putIf(DbIdentitier name, T value) nothrow
     {
+        return putIfImpl(name, value);
+    }
+
+    final DbNameValueValidated putIf(string name, T value) nothrow
+    {
+        return putIfImpl(DbIdentitier(name), value);
+    }
+
+    pragma(inline, true)
+    private final DbNameValueValidated putIfImpl(DbIdentitier name, T value) nothrow
+    {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(name=", name, ")");
+
         auto result = isValid(name, value);
         if (result == DbNameValueValidated.ok && exist(name))
             result = DbNameValueValidated.duplicateName;
 
         if (result == DbNameValueValidated.ok)
         {
-            auto item = Pair(name, value);
+            auto item = DbIdentitierValuePair(name, value);
             add(item);
         }
 
         return result;
     }
 
-    final DbNameValueValidated putIf(string name, T value) nothrow
-    {
-        auto id = DbIdentitier(name, length);
-        return putIf(id, value);
-    }
-
-    Pair remove(size_t index) nothrow @trusted
+    DbIdentitierValuePair remove(const(size_t) index) nothrow @trusted
     in
     {
-        assert(index < length);
+        assert(index < sequenceItems.length);
     }
     do
     {
-        auto item = this[index];
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(index=", index, ")");
+
+        auto item = sequenceItems[index];
         item._list = null;
-        lookupItems.remove(item.name);
-        sequenceNames = sequenceNames.remove(index);
-        sequenceNames.assumeSafeAppend();
-        if (index < sequenceNames.length)
-            reIndex = true;
+        lookupNames.remove(item.name);
+        sequenceItems.removeAt(index);
+        sequenceItems.assumeSafeAppend();
+        if (index < sequenceItems.length)
+            reIndexItems(index);
         return item;
     }
 
@@ -1401,40 +1491,44 @@ public:
      * Params:
      *  name = is the name
      */
-    final Pair remove(in DbIdentitier name) nothrow
+    final DbIdentitierValuePair remove(scope const(DbIdentitier) name) nothrow
     {
-        const i = indexOf(name);
-        if (i >= 0)
-            return remove(i);
-        else
-            return Pair.init;
+        return removeImpl(name);
     }
 
-    final Pair remove(string name) nothrow
+    final DbIdentitierValuePair remove(string name) nothrow
     {
-        const id = DbIdentitier(name);
-        return remove(id);
+        return removeImpl(DbIdentitier(name));
+    }
+
+    pragma(inline, true)
+    private final DbIdentitierValuePair removeImpl(scope const(DbIdentitier) name) nothrow
+    {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(name=", name, ")");
+
+        const i = indexOf(name);
+        return i >= 0 ? remove(i) : DbIdentitierValuePair.init;
     }
 
     final typeof(this) reserve(const(size_t) capacity) nothrow @trusted
     {
-        if (capacity > sequenceNames.length)
+        if (capacity > sequenceItems.length)
         {
-            sequenceNames.reserve(capacity);
-            sequenceNames.assumeSafeAppend();
+            sequenceItems.reserve(capacity);
+            sequenceItems.assumeSafeAppend();
         }
         return this;
     }
 
-    @property final size_t length() const nothrow pure
+    @property final size_t length() const nothrow
     {
-        return sequenceNames.length;
+        return sequenceItems.length;
     }
 
     /**
      * Returns value of name
      */
-    @property final T value(const(DbIdentitier) name)
+    @property final T value(const(DbIdentitier) name) const
     {
         return get(name);
     }
@@ -1442,10 +1536,9 @@ public:
     /**
      * Returns value of name
      */
-    @property final T value(string name)
+    @property final T value(string name) const
     {
-        const id = DbIdentitier(name);
-        return value(id);
+        return get(name);
     }
 
     @property final typeof(this) value(DbIdentitier name, T value)
@@ -1455,58 +1548,67 @@ public:
 
     @property final typeof(this) value(string name, T value)
     {
-        DbIdentitier id = DbIdentitier(name);
-        return put(id, value);
+        return put(name, value);
     }
 
 protected:
-    void add(ref Pair item) nothrow
+    void add(ref DbIdentitierValuePair item) nothrow
     {
+        const lastIndex = sequenceItems.length;
         item._list = this;
-        item._name._index = length;
-        lookupItems[item.name] = item;
-        sequenceNames ~= item.name;
+        item._index = lastIndex;
+        lookupNames[item.name] = lastIndex;
+        sequenceItems ~= item;
+
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(item._name=", item._name, ", index=", lastIndex, ", length=", length, ")");
     }
 
-    void addOrSet(ref Pair item) nothrow
+    void addOrSet(ref DbIdentitierValuePair item) nothrow
     {
-        if (exist(item.name))
+        const i = indexOf(item.name);
+        if (i >= 0)
         {
+            debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(item._name=", item._name, ", index=", i, ", length=", length, ")");
+
             item._list = this;
-            lookupItems[item.name] = item;
+            item._index = i;
+            //lookupNames[item.name] = i;
+            sequenceItems[i] = item;
         }
         else
             add(item);
     }
 
-    void nameChanged(ref Pair item, scope const(DbIdentitier) oldName) nothrow
+    version(none)
+    void nameChanged(ref DbIdentitierValuePair item, scope const(DbIdentitier) oldName) nothrow
     {
-        lookupItems.remove(oldName);
-        lookupItems[item.name] = item;
-
-        foreach (i, e; sequenceNames)
-        {
-            if (e == oldName)
-            {
-                sequenceNames[i] = item.name;
-                break;
-            }
-        }
+        lookupNames.remove(oldName);
+        lookupNames[item.name] = item.index;
     }
 
-    void reIndexItems() nothrow
+    final void reIndexItems(const(size_t) beginIndex) nothrow
+    in
     {
-        foreach (i, n; sequenceNames)
+        assert(beginIndex <= sequenceItems.length);
+    }
+    do
+    {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(beginIndex=", beginIndex,
+            ", sequenceItems.length=", sequenceItems.length, ")");
+
+        foreach (i, ref e; sequenceItems[beginIndex..$])
         {
-            auto e = n in lookupItems;
-            (*e)._name._index = i;
+            const newIndex = beginIndex + i;
+            e._index = newIndex;
+            lookupNames[e.name] = newIndex;
+            
+            debug(debug_pham_db_db_object) debug writeln("\t", "e.name=", e.name, ", newIndex=", newIndex);            
         }
     }
 
 protected:
-    Pair[DbIdentitier] lookupItems;
-    DbIdentitier[] sequenceNames;
-    bool reIndex;
+    size_t[DbIdentitier] lookupNames;
+    DbIdentitierValuePair[] sequenceItems;
 }
 
 /**
@@ -1531,10 +1633,9 @@ if (is(T == const(char)[]) || is(T == string))
 
     Appender!string result;
     result.reserve(min(list.length * 50, 16_000));
-    size_t i;
-    foreach (ref e; list[])
+    foreach (i, e; list)
     {
-        if (i++ != 0)
+        if (i != 0)
             result.put(elementSeparator);
 
         result.put(e.name.value);
@@ -1683,6 +1784,8 @@ unittest // DbIdentitierValueList
     import std.conv : to;
     import std.string : indexOf;
 
+    debug(debug_pham_db_db_object) debug writeln("unittest.DbIdentitierValueList");
+
     auto list = new DbIdentitierValueList!string();
     list.put("a", "1");
     list.put("bcd", "2");
@@ -1742,6 +1845,8 @@ unittest // DbNameObjectList
 {
     import std.string : indexOf;
 
+    debug(debug_pham_db_db_object) debug writeln("unittest.DbNameObjectList");
+
     static class DbNameObjectTest : DbNameObject
     {
     public:
@@ -1780,6 +1885,8 @@ unittest // DbNameObjectList
 
 unittest // DbCustomAttributeList
 {
+    debug(debug_pham_db_db_object) debug writeln("unittest.DbCustomAttributeList");
+
     DbCustomAttributeList v;
 
     v["name1"] = "value1";
@@ -1796,17 +1903,19 @@ unittest // DbCustomAttributeList
 unittest // DbCache
 {
     import pham.utl.utl_array : indexOf;
-    
+
+    debug(debug_pham_db_db_object) debug writeln("unittest.DbCache");
+
     auto cache = new DbCache!int(null);
     scope (exit)
         cache.dispose();
-        
+
     cache.add(1, new Object());
     cache.add(2, new Object());
     cache.add(3, new Object());
     cache.add(4, new Object());
     cache.add(5, new Object());
-    
+
     const keys1 = cache.keys;
     assert(cache.length == 5);
     assert(keys1.indexOf(1) >= 0);
@@ -1814,7 +1923,7 @@ unittest // DbCache
     assert(keys1.indexOf(3) >= 0);
     assert(keys1.indexOf(4) >= 0);
     assert(keys1.indexOf(5) >= 0);
-    
+
     Object found;
     assert(cache.find(1, found));
     assert(found !is null);
@@ -1823,13 +1932,13 @@ unittest // DbCache
     assert(cache.find(4, found));
     assert(cache.find(5, found));
     assert(!cache.find(6, found));
-    
+
     auto obj = new Object();
     cache.addOrReplace(5, obj);
     found = null;
     assert(cache.find(5, found));
     assert(found is obj);
-    
+
     cache.remove(1);
     cache.remove(2);
     cache.remove(3);

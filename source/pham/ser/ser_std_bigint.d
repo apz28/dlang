@@ -21,7 +21,7 @@ import pham.ser.ser_serialization : DataKind,
 void deserialize(Deserializer deserializer, scope ref BigInt value, scope ref Serializable attribute)
 {
     // There is no binary output from BigInt
-    auto text = deserializer.readScopeChars(DataKind.integral);
+    auto text = deserializer.readScopeChars(attribute, DataKind.integral);
     value = BigInt(text);
 }
 
@@ -34,7 +34,7 @@ void serialize(Serializer serializer, scope ref BigInt value, scope ref Serializ
     fmt.spec = 'd';
     StaticBuffer!(char, 80) text;
     value.toString(text, fmt);
-    serializer.write(text[], DataKind.integral);
+    serializer.write(text[], attribute, DataKind.integral);
 }
 
 

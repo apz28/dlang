@@ -14,7 +14,7 @@ module pham.utl.utl_array;
 import std.range.primitives : ElementType;
 import std.traits : isDynamicArray, isIntegral, isSomeChar, isStaticArray, lvalueOf;
 
-debug(pham_utl_utl_array) import std.stdio : writeln;
+debug(debug_pham_utl_utl_array) import std.stdio : writeln;
 import pham.utl.utl_disposable : DisposingReason;
 
 nothrow @safe:
@@ -36,7 +36,7 @@ if (is(C == char) || is(C == byte) || is(C == ubyte))
 ptrdiff_t indexOf(T)(scope const(T)[] items, const(T) item) @trusted
 {
     //scope (failure) assert(0, "Assume nothrow failed");
-    
+
     foreach (i; 0..items.length)
     {
         if (items[i] == item)
@@ -51,14 +51,14 @@ if (isSomeChar!T)
     const subLength = subItem.length;
     if (subLength == 0 || subLength > item.length)
         return -1;
-        
+
     const first = subItem[0];
-    
+
     foreach (i; 0..item.length - (subLength - 1))
     {
         if (item[i] != first)
             continue;
-        
+
         bool found = true;
         foreach (j; 1..subLength)
         {
@@ -68,7 +68,7 @@ if (isSomeChar!T)
                 break;
             }
         }
-        
+
         if (found)
             return i;
     }
@@ -142,7 +142,7 @@ do
         array[index] = wchar.init;
     else
         array[index] = ElementType!T.init;
-        
+
     length = lengthLess;
 }
 
@@ -172,6 +172,36 @@ public:
                 _dynamicItems[0..valueLength] = values[0..valueLength];
             }
         }
+    }
+
+    alias opApply = opApplyImpl!(int delegate(T));
+    alias opApply = opApplyImpl!(int delegate(size_t, T));
+
+    int opApplyImpl(CallBack)(scope CallBack callBack)
+    if (is(CallBack : int delegate(T)) || is(CallBack : int delegate(size_t, T)))
+    {
+        debug(debug_pham_utl_utl_array) if (!__ctfe) debug writeln(__FUNCTION__, "()");
+
+        auto list = useStatic ? _staticItems[0..length] : _dynamicItems;
+        static if (is(CallBack : int delegate(T)))
+        {
+            foreach (ref e; list)
+            {
+                const r = callBack(e);
+                if (r)
+                    return r;
+            }
+        }
+		else
+        {
+            foreach (i; 0..list.length)
+            {
+                const r = callBack(i, list[i]);
+                if (r)
+                    return r;
+            }
+        }
+        return 0;
     }
 
     ref typeof(this) opAssign()(inout(T)[] values) nothrow return
@@ -206,27 +236,28 @@ public:
         return this;
     }
 
-    size_t opDollar() const @nogc nothrow pure
+    size_t opDollar() const @nogc nothrow
     {
         return length;
     }
 
-    bool opCast(B: bool)() const nothrow pure
+    bool opCast(B: bool)() const nothrow
     {
         return !empty;
     }
 
     /** Returns range interface
     */
-    inout(T)[] opIndex() inout nothrow pure return
+    inout(T)[] opIndex() inout nothrow return
     {
-        const len = length;
-        return len != 0 ? (useStatic ? _staticItems[0..len] : _dynamicItems) : [];
+        debug(debug_pham_utl_utl_array) if (!__ctfe) debug writeln(__FUNCTION__, "()");
+
+        return useStatic ? _staticItems[0..length] : _dynamicItems;
     }
 
     /** Returns range interface
     */
-    T opIndex(const(size_t) index) nothrow
+    T opIndex(size_t index) nothrow
     in
     {
         assert(index < length);
@@ -256,7 +287,7 @@ public:
     }
 
     static if (isIntegral!T)
-    ref typeof(this) opIndexOpAssign(string op)(T item, const(size_t) index) @nogc nothrow pure
+    ref typeof(this) opIndexOpAssign(string op)(T item, const(size_t) index) @nogc nothrow
     if (op == "&" || op == "|" || op == "^")
     in
     {
@@ -273,7 +304,7 @@ public:
 
     /** Returns range interface
     */
-    inout(T)[] opSlice(const(size_t) beginIndex, const(size_t) endIndex) inout nothrow pure return
+    inout(T)[] opSlice(const(size_t) beginIndex, const(size_t) endIndex) inout nothrow return
     in
     {
         assert(beginIndex <= endIndex);
@@ -289,7 +320,7 @@ public:
             : (useStatic ? _staticItems[beginIndex..endIndex] : _dynamicItems[beginIndex..endIndex]);
     }
 
-    ref typeof(this) clear(const(size_t) capacity = 0) nothrow pure return
+    ref typeof(this) clear(const(size_t) capacity = 0) nothrow return
     {
         if (_staticLength)
         {
@@ -333,7 +364,7 @@ public:
     }
 
     pragma(inline, true)
-    T* ptr(const(size_t) index) nothrow pure return
+    T* ptr(const(size_t) index) nothrow return
     in
     {
         assert(index < length);
@@ -385,24 +416,18 @@ public:
     T remove(in T item)
     {
         const i = indexOf(item);
-        if (i >= 0)
-            return doRemove(i);
-        else
-            return T.init;
+        return i >= 0 ? doRemove(i) : T.init;
     }
 
     T removeAt(const(size_t) index) nothrow
     {
-        if (index < length)
-            return doRemove(index);
-        else
-            return T.init;
+        return index < length ? doRemove(index) : T.init;
     }
 
-    ref typeof(this) reverse() @nogc nothrow pure
+    ref typeof(this) reverse() @nogc nothrow
     {
         import std.algorithm.mutation : swapAt;
-        
+
         if (const len = length)
         {
             const last = len - 1;
@@ -421,19 +446,19 @@ public:
         return this;
     }
 
-    pragma (inline, true)
-    @property bool empty() const @nogc nothrow pure
+    pragma(inline, true)
+    @property bool empty() const @nogc nothrow
     {
         return length == 0;
     }
 
     pragma(inline, true)
-    @property size_t length() const @nogc nothrow pure
+    @property size_t length() const @nogc nothrow
     {
         return useStatic ? _staticLength : _dynamicItems.length;
     }
 
-    @property size_t length(const(size_t) newLength) nothrow pure
+    @property size_t length(const(size_t) newLength) nothrow
     {
         if (length != newLength)
         {
@@ -451,15 +476,15 @@ public:
         return StaticSize;
     }
 
-    pragma (inline, true)
-    @property bool useStatic() const @nogc nothrow pure
+    pragma(inline, true)
+    @property bool useStatic() const @nogc nothrow
     {
         assert(_dynamicItems.ptr !is null || useStatic(_staticLength));
 
         return _dynamicItems.ptr is null;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     @property bool useStatic(const(size_t) checkLength) const @nogc nothrow pure
     {
         return checkLength <= StaticSize;
@@ -473,6 +498,8 @@ private:
     }
     do
     {
+        debug(debug_pham_utl_utl_array) debug writeln(__FUNCTION__, "()");
+
         if (useStatic)
         {
             auto res = _staticItems[index];
@@ -487,8 +514,10 @@ private:
         }
     }
 
-    void switchToDynamicItems(const(size_t) newLength, bool mustSet) nothrow pure @trusted
+    void switchToDynamicItems(const(size_t) newLength, bool mustSet) nothrow @trusted
     {
+        debug(debug_pham_utl_utl_array) debug writeln(__FUNCTION__, "()");
+
         if (useStatic)
         {
             const setLength = mustSet ? newLength : _staticLength;
@@ -674,9 +703,9 @@ public:
             return clear();
 
         const newLength = _length - chopLength;
-                
+
         //import std.stdio : writeln; debug writeln("_length=", _length, ", chopLength=", chopLength, ", newLength=", newLength, ", StaticSize=", StaticSize, ", _shortData.length=", _shortData.length);
-        
+
         if (useShortSize)
         {
             foreach (i; 0..newLength)
@@ -693,7 +722,7 @@ public:
                     _longData[i] = _longData[i + chopLength];
             }
         }
-        
+
         _length = newLength;
         return this;
     }
@@ -706,11 +735,11 @@ public:
         const newLength = _length - chopLength;
 
         //import std.stdio : writeln; debug writeln("_length=", _length, ", chopLength=", chopLength, ", newLength=", newLength, ", StaticSize=", StaticSize, ", _shortData.length=", _shortData.length);
-        
+
         // Switch from long to short?
         if (!useShortSize && useShortSize(newLength))
             _shortData[0..newLength] = _longData[0..newLength];
-            
+
         _length = newLength;
         return this;
     }
@@ -880,7 +909,7 @@ public:
         return sink;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     @property bool empty() const @nogc nothrow pure
     {
         return _length == 0;
@@ -898,7 +927,7 @@ public:
         return StaticSize;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     @property bool useShortSize() const @nogc nothrow pure
     {
         return _length <= StaticSize;
@@ -974,8 +1003,8 @@ nothrow @safe unittest // arrayOfChar
 
 unittest // indexOf
 {
-    //debug(pham_utl_utl_array) debug writeln(__MODULE__ ~ ".indexOf - begin");
-    
+    //debug(debug_pham_utl_utl_array) debug writeln(__MODULE__ ~ ".indexOf - begin");
+
     assert("abcxyz".indexOf('c') == 2);
     assert("abcxyz".indexOf('C') == -1);
 
@@ -986,8 +1015,8 @@ unittest // indexOf
     assert("abcxyz".indexOf("abcxyz1") == -1);
     assert("".indexOf("") == -1);
     assert("abcxyz".indexOf("") == -1);
-    
-    //debug(pham_utl_utl_array) debug writeln(__MODULE__ ~ ".indexOf - end");
+
+    //debug(debug_pham_utl_utl_array) debug writeln(__MODULE__ ~ ".indexOf - end");
 }
 
 nothrow @safe unittest // inplaceMoveToLeft
@@ -1007,7 +1036,7 @@ unittest // removeAt
     removeAt(da, 4);
     assert(da.length == 4);
     assert(da == [0, 1, 3, 4]);
-    
+
     // Static array
     int[6] sa = [0, 1, 2, 3, 4, 5];
     size_t sal = 6;
@@ -1019,14 +1048,14 @@ unittest // removeAt
     assert(sal == 4);
     assert(sa == [0, 1, 3, 4, 0, 0]);
     assert(sa[0..sal] == [0, 1, 3, 4]);
-    
+
     char[6] sca = [0, 1, 2, 3, 4, 5];
     size_t scal = 6;
     removeAt(sca, 2, scal);
     assert(scal == 5);
     assert(sca == [0, 1, 3, 4, 5, char.init]);
     assert(sca[0..scal] == [0, 1, 3, 4, 5]);
-    
+
     wchar[6] swa = [0, 1, 2, 3, 4, 5];
     size_t swal = 6;
     removeAt(swa, 2, swal);
@@ -1133,7 +1162,7 @@ nothrow @safe unittest // IndexedArray
     a.fill(10);
     assert(a.length == 1);
     assert(a[0] == 10);
-    
+
     a = IndexedArray2(3);
     a.putBack(1);
     a.putBack(2);
@@ -1143,7 +1172,7 @@ nothrow @safe unittest // IndexedArray
     assert(a[0] == 1);
     assert(a[1] == 2);
     assert(a[2] == 3);
-    
+
     a = [1, 2, 3];
     assert(a[3..4] == []);
     assert(a[0..2] == [1, 2]);
@@ -1170,7 +1199,7 @@ nothrow unittest // IndexedArray.reverse
 {
     alias TestBuffer5 = ShortStringBufferSize!(char, 5);
     TestBuffer5 s;
-    
+
     assert(s.length == 0);
     s.put('1');
     assert(s.length == 1);
@@ -1202,7 +1231,7 @@ nothrow unittest // IndexedArray.reverse
     assert(s2.length == 26);
     assert(s2.toString() == "abcdefghijklmnopqrstuvxywz");
     assert(s2[] == "abcdefghijklmnopqrstuvxywz");
-    
+
     s = s2;
     assert(s == s2);
 }
@@ -1211,14 +1240,14 @@ nothrow unittest // IndexedArray.reverse
 {
     alias TestBuffer5 = ShortStringBufferSize!(char, 5);
     TestBuffer5 s;
-    
+
     assert(TestBuffer5(true).length == TestBuffer5(5).length);
     assert(TestBuffer5("123") == "123");
     assert(TestBuffer5("123") != "234");
     assert(TestBuffer5("123456") == "123456");
     assert(TestBuffer5("123456") == TestBuffer5("123456"));
     assert(TestBuffer5("123456") != TestBuffer5("345678"));
-    
+
     // Over short length
     s = "12345678";
     assert(s[] == "12345678");
@@ -1251,7 +1280,7 @@ nothrow unittest // IndexedArray.reverse
     assert(s.removeFront('1') == "23456");
     assert(s.removeTail('5') == "23456");
     assert(s.removeTail('6') == "2345");
-    
+
     // Within short length
     s = "123";
     assert(s[] == "123");
@@ -1264,7 +1293,7 @@ nothrow unittest // IndexedArray.reverse
     s.chopFront(1);
     assert(s == "2");
     s.chopTail(100);
-    assert(s.length == 0);    
+    assert(s.length == 0);
 
     s = "123";
     assert(s.consume() == "123");

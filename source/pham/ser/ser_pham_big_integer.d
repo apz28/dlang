@@ -23,11 +23,11 @@ void deserialize(Deserializer deserializer, scope ref BigInteger value, scope re
     final switch (deserializer.dataFormat)
     {
         case SerializerDataFormat.text:
-            auto text = deserializer.readScopeChars(DataKind.integral);
+            auto text = deserializer.readScopeChars(attribute, DataKind.integral);
             value = BigInteger(text);
             return;
         case SerializerDataFormat.binary:
-            auto binary = deserializer.readScopeBytes(attribute.binaryFormat, DataKind.integral);
+            auto binary = deserializer.readScopeBytes(attribute, DataKind.integral);
             value = BigInteger(binary);
             return;
     }
@@ -38,10 +38,10 @@ void serialize(Serializer serializer, scope ref BigInteger value, scope ref Seri
     final switch (serializer.dataFormat)
     {
         case SerializerDataFormat.text:
-            serializer.write(value.toString(), DataKind.integral);
+            serializer.write(value.toString(), attribute, DataKind.integral);
             return;
         case SerializerDataFormat.binary:
-            serializer.write(value.toBytes(), attribute.binaryFormat, DataKind.integral);
+            serializer.write(value.toBytes(), attribute, DataKind.integral);
             return;
     }
 }

@@ -265,7 +265,7 @@ public:
     /**
      * empty property of InputRange
      */
-    pragma (inline, true)
+    pragma(inline, true)
     @property final bool empty() const @nogc nothrow pure
     {
         return _empty;
@@ -274,7 +274,7 @@ public:
     /*
      * front property of InputRange
      */
-    pragma (inline, true)
+    pragma(inline, true)
     @property final dchar front() const @nogc nothrow pure
     {
         return currentChar;
@@ -283,32 +283,32 @@ public:
     /*
      * Returns current position (line & column) of processing input
      */
-    pragma (inline, true)
+    pragma(inline, true)
     @property final XmlLoc sourceLoc() const @nogc nothrow pure
     {
         return loc;
     }
 
 package:
-    pragma (inline, true)
+    pragma(inline, true)
     final bool isAnyFrontBut(const(dchar) c) const nothrow pure
     {
         return !empty && front != c;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     final bool isDeclarationNameStart() const nothrow pure
     {
         return !isDeclarationAttributeNameSeparator(front) && isNameStartC(front);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     final bool isElementAttributeNameStart() const nothrow pure
     {
         return !isElementAttributeNameSeparator(front) && isNameStartC(front);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     final bool isElementTextStart() const nothrow pure
     {
         return !isElementSeparator(front);
@@ -586,21 +586,21 @@ protected:
             loc.column += 1;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static bool isDocumentTypeAttributeListChoice(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>' || c == '|' || c == '(' || c == ')'
             || isSpace(c);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static bool isDeclarationAttributeNameSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>' || c == '?' || c == '='
             || isSpace(c);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static bool isDocumentTypeElementChoice(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>' || c == ']' || c == '*' || c == '+'
@@ -608,47 +608,47 @@ protected:
             || isSpace(c);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static bool isElementAttributeNameSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>' || c == '/' || c == '='
             || isSpace(c);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static bool isElementENameSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>' || c == '!' || c == '['
             || isSpace(c);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static bool isElementPNameSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>' || c == '?'
             || isSpace(c);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static bool isElementXNameSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>' || c == '/'
             || isSpace(c);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static bool isElementSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>';
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static bool isElementTextSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<';
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static bool isNameSeparator(const(dchar) c) nothrow pure
     {
         return c == 0 || c == '<' || c == '>'

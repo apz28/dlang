@@ -203,7 +203,7 @@ public:
         return sink;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     @property bool empty() const @nogc nothrow pure
     {
         return _length == 0;

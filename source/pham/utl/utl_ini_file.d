@@ -525,7 +525,7 @@ public:
     }
 
 public:
-    pragma (inline, true)
+    pragma(inline, true)
     static bool isSpace(dchar c) nothrow pure @safe
     {
         return c == ' ' || c == '\t';

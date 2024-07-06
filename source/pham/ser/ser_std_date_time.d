@@ -24,7 +24,7 @@ import pham.ser.ser_serialization : Deserializer, DSeserializer, Serializable, S
 
 void deserialize(Deserializer deserializer, scope ref Date value, scope ref Serializable attribute)
 {
-    const phamDate = deserializer.readDate();
+    const phamDate = deserializer.readDate(attribute);
     int year=void, month=void, day=void;
     phamDate.getDate(year, month, day);
     value = Date(year, month, day);
@@ -33,12 +33,12 @@ void deserialize(Deserializer deserializer, scope ref Date value, scope ref Seri
 void serialize(Serializer serializer, scope ref Date value, scope ref Serializable attribute)
 {
     auto phamDate = PhamDate(value.year, value.month, value.day);
-    serializer.write(phamDate);
+    serializer.write(phamDate, attribute);
 }
 
 void deserialize(Deserializer deserializer, scope ref DateTime value, scope ref Serializable attribute)
 {
-    const phamDateTime = deserializer.readDateTime();
+    const phamDateTime = deserializer.readDateTime(attribute);
     int year=void, month=void, day=void, hour=void, minute=void, second=void;
     phamDateTime.getDate(year, month, day);
     phamDateTime.getTime(hour, minute, second);
@@ -48,12 +48,12 @@ void deserialize(Deserializer deserializer, scope ref DateTime value, scope ref 
 void serialize(Serializer serializer, scope ref DateTime value, scope ref Serializable attribute)
 {
     auto phamDateTime = PhamDateTime(value.year, value.month, value.day, value.hour, value.minute, value.second);
-    serializer.write(phamDateTime);
+    serializer.write(phamDateTime, attribute);
 }
 
 void deserialize(Deserializer deserializer, scope ref SysTime value, scope ref Serializable attribute)
 {
-    const phamDateTime = deserializer.readDateTime();
+    const phamDateTime = deserializer.readDateTime(attribute);
     int year=void, month=void, day=void, hour=void, minute=void, second=void, fractionIn100ns=void;
     phamDateTime.getDate(year, month, day);
     phamDateTime.getTimePrecise(hour, minute, second, fractionIn100ns);
@@ -73,12 +73,12 @@ void serialize(Serializer serializer, scope ref SysTime value, scope ref Seriali
 
     const dtValue = cast(DateTime)value;
     auto phamDateTime = PhamDateTime(dtValue.year, dtValue.month, dtValue.day, dtValue.hour, dtValue.minute, dtValue.second, kind).addTicksClamp(value.fracSecs);
-    serializer.write(phamDateTime);
+    serializer.write(phamDateTime, attribute);
 }
 
 void deserialize(Deserializer deserializer, scope ref TimeOfDay value, scope ref Serializable attribute)
 {
-    const phamTime = deserializer.readTime();
+    const phamTime = deserializer.readTime(attribute);
     int hour=void, minute=void, second=void, milliSecond=void;
     phamTime.getTime(hour, minute, second, milliSecond);
     value = TimeOfDay(hour, minute, second);
@@ -87,7 +87,7 @@ void deserialize(Deserializer deserializer, scope ref TimeOfDay value, scope ref
 void serialize(Serializer serializer, scope ref TimeOfDay value, scope ref Serializable attribute)
 {
     auto phamTime = PhamTime(value.hour, value.minute, value.second);
-    serializer.write(phamTime);
+    serializer.write(phamTime, attribute);
 }
 
 

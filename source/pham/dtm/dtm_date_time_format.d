@@ -742,9 +742,9 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 if (fmtValue.kind != DateTimeKind.time)
                 {
                     toString(sink, fmtValue.year, 4);
-                    put(sink, '-');
+                    put(sink, setting.dateSeparator);
                     toString(sink, fmtValue.month, 2);
-                    put(sink, '-');
+                    put(sink, setting.dateSeparator);
                     toString(sink, fmtValue.day, 2);
 
                     // Has time?
@@ -756,9 +756,9 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 if (fmtValue.kind != DateTimeKind.date)
                 {
                     toString(sink, fmtValue.hour, 2);
-                    put(sink, ':');
+                    put(sink, setting.timeSeparator);
                     toString(sink, fmtValue.minute, 2);
-                    put(sink, ':');
+                    put(sink, setting.timeSeparator);
                     toString(sink, fmtValue.second, 2);
                     put(sink, '.');
                     toString(sink, fmtValue.tick, Tick.ticksMaxPrecision);
@@ -769,9 +769,9 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 if (fmtValue.kind != DateTimeKind.time)
                 {
                     toString(sink, fmtValue.year, 4);
-                    put(sink, '-');
+                    put(sink, setting.dateSeparator);
                     toString(sink, fmtValue.month, 2);
-                    put(sink, '-');
+                    put(sink, setting.dateSeparator);
                     toString(sink, fmtValue.day, 2);
 
                     // Has time?
@@ -783,9 +783,9 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 if (fmtValue.kind != DateTimeKind.date)
                 {
                     toString(sink, fmtValue.hour, 2);
-                    put(sink, ':');
+                    put(sink, setting.timeSeparator);
                     toString(sink, fmtValue.minute, 2);
-                    put(sink, ':');
+                    put(sink, setting.timeSeparator);
                     toString(sink, fmtValue.second, 2);
                 }
                 break;
@@ -794,9 +794,9 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 if (fmtValue.kind != DateTimeKind.time)
                 {
                     toString(sink, fmtValue.year, 4);
-                    put(sink, '-');
+                    put(sink, setting.dateSeparator);
                     toString(sink, fmtValue.month, 2);
-                    put(sink, '-');
+                    put(sink, setting.dateSeparator);
                     toString(sink, fmtValue.day, 2);
 
                     // Has time?
@@ -808,9 +808,9 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 if (fmtValue.kind != DateTimeKind.date)
                 {
                     toString(sink, fmtValue.hour, 2);
-                    put(sink, ':');
+                    put(sink, setting.timeSeparator);
                     toString(sink, fmtValue.minute, 2);
-                    put(sink, ':');
+                    put(sink, setting.timeSeparator);
                     toString(sink, fmtValue.second, 2);
                     put(sink, '.');
                     toString(sink, fmtValue.tick, Tick.ticksMaxPrecision);
@@ -822,9 +822,9 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 if (fmtValue.kind != DateTimeKind.time)
                 {
                     toString(sink, fmtValue.year, 4);
-                    put(sink, '-');
+                    put(sink, setting.dateSeparator);
                     toString(sink, fmtValue.month, 2);
-                    put(sink, '-');
+                    put(sink, setting.dateSeparator);
                     toString(sink, fmtValue.day, 2);
 
                     // Has time?
@@ -836,9 +836,9 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 if (fmtValue.kind != DateTimeKind.date)
                 {
                     toString(sink, fmtValue.hour, 2);
-                    put(sink, ':');
+                    put(sink, setting.timeSeparator);
                     toString(sink, fmtValue.minute, 2);
-                    put(sink, ':');
+                    put(sink, setting.timeSeparator);
                     toString(sink, fmtValue.second, 2);
                     put(sink, '.');
                     toString(sink, fmtValue.tick, Tick.ticksMaxPrecision);
@@ -985,17 +985,28 @@ private:
 {
     string s;
 
-    s = DateTime(2009, 06, 15, 13, 45, 30).toString("%s");
-    assert(s == "2009-06-15T13:45:30.0000000", s);
-    s = DateTime(2009, 06, 15, 13, 45, 30).toString("%s");
-    assert(s == "2009-06-15T13:45:30.0000000", s);
-    s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%s");
-    assert(s == "2009-06-15T13:45:30.0000001", s);
-
+    // Date
     s = Date(2009, 06, 15).toString("%s");
-    assert(s == "2009-06-15", s);
+    assert(s == "2009/06/15", s);
 
+    // DateTime
+    s = DateTime(2009, 06, 15, 13, 45, 30).toString("%s");
+    assert(s == "2009/06/15T13:45:30.0000000", s);
+    s = DateTime(2009, 06, 15, 13, 45, 30).toString("%s");
+    assert(s == "2009/06/15T13:45:30.0000000", s);
+    s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%s");
+    assert(s == "2009/06/15T13:45:30.0000001", s);
+
+    // Time
     s = Time(13, 45, 30).toString("%s");
+    assert(s == "13:45:30.0000000", s);
+        
+    auto setting = DateTimeSetting.iso8601;
+    s = Date(2009, 06, 15).toString("%s", setting);
+    assert(s == "2009-06-15", s);
+    s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%s", setting);
+    assert(s == "2009-06-15T13:45:30.0000001", s);
+    s = Time(13, 45, 30).toString("%s", setting);
     assert(s == "13:45:30.0000000", s);
 }
 
@@ -1004,10 +1015,14 @@ private:
     string s;
 
     s = DateTime(2009, 06, 15, 13, 45, 30).toString("%S");
-    assert(s == "2009-06-15T13:45:30", s);
+    assert(s == "2009/06/15T13:45:30", s);
     s = DateTime(2009, 06, 15, 13, 45, 30).toString("%S");
-    assert(s == "2009-06-15T13:45:30", s);
+    assert(s == "2009/06/15T13:45:30", s);
     s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%S");
+    assert(s == "2009/06/15T13:45:30", s);
+    
+    auto setting = DateTimeSetting.iso8601;
+    s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%S", setting);
     assert(s == "2009-06-15T13:45:30", s);
 }
 
@@ -1016,6 +1031,10 @@ private:
     string s;
 
     s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%u");
+    assert(s == "2009/06/15T13:45:30.0000001Z", s);
+    
+    auto setting = DateTimeSetting.iso8601Utc;
+    s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%u", setting);
     assert(s == "2009-06-15T13:45:30.0000001Z", s);
 }
 
@@ -1024,10 +1043,13 @@ private:
     string s;
 
     s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%U");
-    assert(s == "2009-06-15T13:45:30.0000001-04:00", s);
-
+    assert(s == "2009/06/15T13:45:30.0000001-04:00", s);
     s = DateTime(2009, 06, 15, 13, 45, 30, DateTimeZoneKind.utc).addTicks(1).toString("%U");
-    assert(s == "2009-06-15T13:45:30.0000001+00:00", s);
+    assert(s == "2009/06/15T13:45:30.0000001+00:00", s);
+
+    auto setting = DateTimeSetting.iso8601Utc;
+    s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%U", setting);
+    assert(s == "2009-06-15T13:45:30.0000001-04:00", s);
 }
 
 @safe unittest // FormatDateTimeSpecifier.custom, FormatDateTimeSpecifier.dateSeparator, FormatDateTimeSpecifier.timeSeparator - %custom....

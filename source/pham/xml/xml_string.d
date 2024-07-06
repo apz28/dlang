@@ -128,14 +128,14 @@ private:
 }
 
 version(none)
-pragma (inline, true)
+pragma(inline, true)
 XmlString!S toXmlString(S, Flag!"CheckEncoded" CheckEncoded)(XmlBuffer!(S, CheckEncoded) buffer)
 {
     auto m = buffer.decodeOrEncodeResultMode;
     return XmlString!S(buffer.value(), m);
 }
 
-pragma (inline, true)
+pragma(inline, true)
 XmlString!S toXmlStringAndClear(S, Flag!"CheckEncoded" CheckEncoded)(XmlBuffer!(S, CheckEncoded) buffer)
 {
     auto m = buffer.decodeOrEncodeResultMode;

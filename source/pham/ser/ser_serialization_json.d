@@ -18,9 +18,27 @@ import std.traits : isDynamicArray, isFloatingPoint, isIntegral;
 
 import pham.dtm.dtm_date : Date, DateTime;
 import pham.dtm.dtm_date_time_parse : DateTimePattern, dateTimeParse=parse;
-import pham.dtm.dtm_tick : DateTimeZoneKind;
+import pham.dtm.dtm_tick : DateTimeSetting, DateTimeZoneKind;
 import pham.dtm.dtm_time : Time;
+import pham.utl.utl_enum_set : EnumSet;
 import pham.ser.ser_serialization;
+
+// Redeclare to fix deprecate members such as JSONType.NULL=JSONType.null_ ...
+// to be used with EnumSet
+enum JSONTypeChecked : byte
+{
+    null_,
+    string,
+    integer,
+    uinteger,
+    float_,
+    array,
+    object,
+    true_,
+    false_,
+}
+static assert(cast(int)JSONTypeChecked.null_ == cast(int)JSONType.null_);
+static assert(cast(int)JSONTypeChecked.false_ == cast(int)JSONType.false_);
 
 class JsonDeserializer : Deserializer
 {
@@ -50,8 +68,8 @@ public:
 
     override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
     {
-        static immutable JSONType[2] checkTypes = [JSONType.object, JSONType.null_];
-        checkDataType(checkTypes[]);
+        static immutable EnumSet!JSONTypeChecked checkTypes = EnumSet!JSONTypeChecked([JSONTypeChecked.object, JSONTypeChecked.null_]);
+        checkDataType(checkTypes);
         super.aggregateBegin(typeName, attribute);
         const len = readLength();
         popFront(); // Navigate into member(s)
@@ -60,75 +78,75 @@ public:
 
     override ptrdiff_t arrayBegin(string elemTypeName, scope ref Serializable attribute)
     {
-        static immutable JSONType[2] checkTypes = [JSONType.array, JSONType.null_];
-        checkDataType(checkTypes[]);
+        static immutable EnumSet!JSONTypeChecked checkTypes = EnumSet!JSONTypeChecked([JSONTypeChecked.array, JSONTypeChecked.null_]);
+        checkDataType(checkTypes);
         super.arrayBegin(elemTypeName, attribute);
         const len = readLength();
         popFront(); // Navigate into member(s)
         return len;
     }
 
-    final override Null readNull()
+    final override Null readNull(scope ref Serializable)
     {
         checkDataType(JSONType.null_);
         popFront();
         return null;
     }
 
-    final override bool readBool()
+    final override bool readBool(scope ref Serializable)
     {
-        static immutable JSONType[2] checkTypes = [JSONType.false_, JSONType.true_];
-        const t = checkDataType(checkTypes[]);
+        static immutable EnumSet!JSONTypeChecked checkTypes = EnumSet!JSONTypeChecked([JSONTypeChecked.false_, JSONTypeChecked.true_]);
+        const t = checkDataType(checkTypes);
         //const v = currents[$-1].value.boolean;
         popFront();
         //return v;
         return t == JSONType.true_;
     }
 
-    final override char readChar()
+    final override char readChar(scope ref Serializable attribute)
     {
-        const s = readChars();
+        const s = readChars(attribute);
         assert(s.length == 1);
         return s.length ? s[0] : '\0';
     }
 
-    final override Date readDate()
+    final override Date readDate(scope ref Serializable attribute)
     {
         auto isop = DateTimePattern.iso8601Date();
-        auto text = readScopeChars(DataKind.date);
+        auto text = readScopeChars(attribute, DataKind.date);
         return dateTimeParse!(Date, DeserializerException)(text, isop);
     }
 
-    final override DateTime readDateTime()
+    final override DateTime readDateTime(scope ref Serializable attribute)
     {
         auto isop = DateTimePattern.iso8601DateTime();
-        auto text = readScopeChars(DataKind.dateTime);
+        auto text = readScopeChars(attribute, DataKind.dateTime);
         return dateTimeParse!(DateTime, DeserializerException)(text, isop);
     }
 
-    final override Time readTime()
+    final override Time readTime(scope ref Serializable attribute)
     {
         auto isop = DateTimePattern.iso8601Time();
-        auto text = readScopeChars(DataKind.time);
+        auto text = readScopeChars(attribute, DataKind.time);
         return dateTimeParse!(Time, DeserializerException)(text, isop);
     }
 
-    final override byte readByte()
+    final override byte readByte(scope ref Serializable)
     {
         return readInt!byte();
     }
 
-    final override short readShort()
+    final override short readShort(scope ref Serializable)
     {
         return readInt!short();
     }
 
-    final override int readInt(const(DataKind) kind = DataKind.integral)
+    final override int readInt(scope ref Serializable, const(DataKind) kind = DataKind.integral)
     {
         return readInt!int();
     }
 
-    final override long readLong(const(DataKind) kind = DataKind.integral)
+    final override long readLong(scope ref Serializable, const(DataKind) kind = DataKind.integral)
     {
         return readInt!long();
     }
@@ -136,19 +154,19 @@ public:
     final V readInt(V)()
     if (isIntegral!V)
     {
-        static immutable JSONType[2] checkTypes = [JSONType.integer, JSONType.uinteger];
-        const t = checkDataType(checkTypes[]);
+        static immutable EnumSet!JSONTypeChecked checkTypes = EnumSet!JSONTypeChecked([JSONTypeChecked.integer, JSONTypeChecked.uinteger]);
+        const t = checkDataType(checkTypes);
         const v = t == JSONType.integer ? cast(V)currents[$-1].value.integer : cast(V)currents[$-1].value.uinteger;
         popFront();
         return v;
     }
 
-    final override float readFloat(const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
+    final override float readFloat(scope ref Serializable, const(DataKind) kind = DataKind.decimal)
     {
         return readFloat!float();
     }
 
-    final override double readDouble(const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
+    final override double readDouble(scope ref Serializable, const(DataKind) kind = DataKind.decimal)
     {
         return readFloat!double();
     }
@@ -157,8 +175,8 @@ public:
     if (isFloatingPoint!V)
     {
         //import std.stdio : writeln; debug writeln("readFloat().currents.length=", currents.length, ", current.type=", currents[$-1].type, ", current.value=",  currents[$-1].value.toString(JSONOptions.specialFloatLiterals));
-        static immutable JSONType[4] checkTypes = [JSONType.float_, JSONType.integer, JSONType.uinteger, JSONType.string];
-        const t = checkDataType(checkTypes[]);
+        static immutable EnumSet!JSONTypeChecked checkTypes = EnumSet!JSONTypeChecked([JSONTypeChecked.float_, JSONTypeChecked.integer, JSONTypeChecked.uinteger, JSONTypeChecked.string]);
+        const t = checkDataType(checkTypes);
         auto p = &currents[$-1];
 
         V readFloatLiteral()
@@ -186,49 +204,49 @@ public:
         return v;
     }
 
-    final override string readChars(const(DataKind) kind = DataKind.character)
+    final override string readChars(scope ref Serializable, const(DataKind) kind = DataKind.character)
     {
-        static immutable JSONType[2] checkTypes = [JSONType.string, JSONType.null_];
-        const t = checkDataType(checkTypes[]);
+        static immutable EnumSet!JSONTypeChecked checkTypes = EnumSet!JSONTypeChecked([JSONTypeChecked.string, JSONTypeChecked.null_]);
+        const t = checkDataType(checkTypes);
         const v = t == JSONType.string ? currents[$-1].value.str : null;
         popFront();
         return v;
     }
 
-    final override wstring readWChars(const(DataKind) kind = DataKind.character)
+    final override wstring readWChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
     {
-        auto chars = readChars(kind);
+        auto chars = readChars(attribute, kind);
         return chars.length != 0 ? chars.to!wstring : null;
     }
 
-    final override dstring readDChars(const(DataKind) kind = DataKind.character)
+    final override dstring readDChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
     {
-        auto chars = readChars(kind);
+        auto chars = readChars(attribute, kind);
         return chars.length != 0 ? chars.to!dstring : null;
     }
 
-    final override const(char)[] readScopeChars(const(DataKind) kind = DataKind.character)
+    final override const(char)[] readScopeChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
     {
-        return readChars(kind);
+        return readChars(attribute, kind);
     }
 
-    final override ubyte[] readBytes(const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary)
+    final override ubyte[] readBytes(scope ref Serializable attribute, const(DataKind) kind = DataKind.binary)
     {
-        const s = readChars(kind);
-        return s.length ? binaryFromString!DeserializerException(s, binaryFormat) : null;
+        const s = readChars(attribute, kind);
+        return s.length ? binaryFromString!DeserializerException(s, binaryFormat(attribute)) : null;
     }
 
-    final override const(ubyte)[] readScopeBytes(const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary)
+    final override const(ubyte)[] readScopeBytes(scope ref Serializable attribute, const(DataKind) kind = DataKind.binary)
     {
-        return readBytes(binaryFormat, kind);
+        return readBytes(attribute, kind);
     }
 
-    final override string readKey()
+    final override string readKey(size_t)
     {
         return currents[$-1].name;
     }
 
-    final override ptrdiff_t readLength()
+    final ptrdiff_t readLength() const nothrow
     {
         return currents[$-1].childLength;
     }
@@ -247,7 +265,7 @@ public:
         return t;
     }
 
-    final JSONType checkDataType(scope const(JSONType)[] dataTypes)
+    final JSONType checkDataType(scope const(EnumSet!JSONTypeChecked) dataTypes)
     {
         if (currents.length == 0)
             throw new DeserializerException("EOS");
@@ -255,51 +273,9 @@ public:
         //import std.stdio : writeln; debug writeln("\tcheckDataType().currents.length=", currents.length, ", current.type=", currents[$-1].type, ", current.name=", currents[$-1].name);
 
         const t = currents[$-1].type;
-        bool found = false;
-        foreach (const dataType; dataTypes)
-        {
-            if (t == dataType)
-            {
-                found = true;
-                break;
-            }
-        }
-        if (!found)
-            throw new DeserializerException("Expect one of datatypes " ~ dataTypes.to!string ~ " but found " ~ t.to!string ~ " (name: " ~ currents[$-1].name ~ ")");
+        if (!dataTypes.on(cast(JSONTypeChecked)t))
+            throw new DeserializerException("Expect one of datatypes " ~ dataTypes.toString() ~ " but found " ~ t.to!string ~ " (name: " ~ currents[$-1].name ~ ")");
         return t;
-    }
-
-    final override bool empty() nothrow
-    {
-        return currents.length == 0;
-    }
-
-    final override SerializerDataType frontDataType() nothrow
-    in
-    {
-        assert(!empty());
-    }
-    do
-    {
-        final switch (currents[$-1].type)
-        {
-            case JSONType.null_:
-                return SerializerDataType.null_;
-            case JSONType.string:
-                return SerializerDataType.chars;
-            case JSONType.integer:
-            case JSONType.uinteger:
-                return SerializerDataType.int8;
-            case JSONType.float_:
-                return SerializerDataType.float8;
-            case JSONType.true_:
-            case JSONType.false_:
-                return SerializerDataType.bool_;
-            case JSONType.array:
-                return SerializerDataType.arrayBegin;
-            case JSONType.object:
-                return SerializerDataType.aggregateBegin;
-        }
     }
 
     final override bool hasArrayEle(size_t i, ptrdiff_t len) nothrow
@@ -315,11 +291,6 @@ public:
     }
 
     final void popFront()
-    in
-    {
-        assert(!empty());
-    }
-    do
     {
         //import std.stdio : writeln; debug writeln("\tpopFront().currents.length=", currents.length, ", current.type=", currents[$-1].type, ", current.name=", currents[$-1].name);
         //import std.stdio : writeln; debug writeln("\t           childLength=", currents[$-1].childLength, ", index=", currents[$-1].index, ", parentLength=", currents[$-1].parentLength);
@@ -368,7 +339,10 @@ public:
     {
     @safe:
 
-        this(JSONValue* value, ptrdiff_t index = 0, ptrdiff_t parentLength = -1, string name = null) @trusted
+        this(JSONValue* value,
+            ptrdiff_t index = 0,
+            ptrdiff_t parentLength = DSeserializer.unknownLength,
+            string name = null) @trusted
         in
         {
             assert(value !is null);
@@ -387,18 +361,18 @@ public:
             }
             else if (this.type == JSONType.array)
             {
-                this.childLength = value.array.length;
                 //this.childNames = null;
+                this.childLength = value.array.length;
             }
             else if (this.type == JSONType.null_)
             {
-                this.childLength = 0;
                 //this.childNames = null;
+                //this.childLength = 0;
             }
             else
             {
-                this.childLength = -1;
                 //this.childNames = null;
+                this.childLength = DSeserializer.unknownLength;
             }
             //import std.stdio : writeln; debug writeln("\tNode().name=", name, ", index=", index, ", childNames=", childNames);
         }
@@ -483,80 +457,86 @@ public:
         return super.arrayItem(index);
     }
 
-    final override void write(Null)
+    final override void write(Null, scope ref Serializable)
     {
         buffer.put("null");
     }
 
     static immutable string[2] boolValues = ["false", "true"];
-    final override void writeBool(bool v)
+    final override void writeBool(bool v, scope ref Serializable)
     {
         buffer.put(boolValues[v]);
     }
 
-    final override void writeChar(char v)
+    final override void writeChar(char v, scope ref Serializable attribute)
     {
         char[1] s = [v];
-        write(s[]);
+        write(s[], attribute);
     }
 
-    final override void write(scope const(Date) v)
+    final override void write(scope const(Date) v, scope ref Serializable)
     {
+        auto setting = DateTimeSetting.iso8601;
+
         StaticBuffer!(char, 50) text;
         buffer.put('"');
-        buffer.put(v.toString(text, "%s")[]); // %s=yyyy-mm-dd
+        buffer.put(v.toString(text, DateTimeSetting.iso8601Fmt, setting)[]);
         buffer.put('"');
     }
 
-    final override void write(scope const(DateTime) v)
+    final override void write(scope const(DateTime) v, scope ref Serializable)
     {
         StaticBuffer!(char, 50) text;
-        const fmt = v.kind == DateTimeZoneKind.utc ? "%u" : "%s"; // %s=yyyy-mm-ddThh:nn:ss.zzzzzzz, %u=yyyy-mm-ddThh:nn:ss.zzzzzzzZ
+        auto setting = v.kind == DateTimeZoneKind.utc ? DateTimeSetting.iso8601Utc : DateTimeSetting.iso8601;
+        const fmt = v.kind == DateTimeZoneKind.utc ? DateTimeSetting.iso8601FmtUtc : DateTimeSetting.iso8601Fmt;
+
         buffer.put('"');
-        buffer.put(v.toString(text, fmt)[]);
+        buffer.put(v.toString(text, fmt, setting)[]);
         buffer.put('"');
     }
 
-    final override void write(scope const(Time) v)
+    final override void write(scope const(Time) v, scope ref Serializable)
     {
         StaticBuffer!(char, 50) text;
-        const fmt = v.kind == DateTimeZoneKind.utc ? "%u" : "%s"; // %s=hh:nn:ss.zzzzzzz, %u=hh:nn:ss.zzzzzzzZ
+        auto setting = v.kind == DateTimeZoneKind.utc ? DateTimeSetting.iso8601Utc : DateTimeSetting.iso8601;
+        const fmt = v.kind == DateTimeZoneKind.utc ? DateTimeSetting.iso8601FmtUtc : DateTimeSetting.iso8601Fmt;
+
         buffer.put('"');
-        buffer.put(v.toString(text, fmt)[]);
+        buffer.put(v.toString(text, fmt, setting)[]);
         buffer.put('"');
     }
 
-    final override void write(byte v)
+    final override void write(byte v, scope ref Serializable)
     {
         writeImpl(v);
     }
 
-    final override void write(short v)
+    final override void write(short v, scope ref Serializable)
     {
         writeImpl(v);
     }
 
-    final override void write(int v, const(DataKind) kind = DataKind.integral)
+    final override void write(int v, scope ref Serializable, const(DataKind) kind = DataKind.integral)
     {
         writeImpl(v);
     }
 
-    final override void write(long v, const(DataKind) kind = DataKind.integral)
+    final override void write(long v, scope ref Serializable, const(DataKind) kind = DataKind.integral)
     {
         writeImpl(v);
     }
 
-    final override void write(float v, const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
+    final override void write(float v, scope ref Serializable attribute, const(DataKind) kind = DataKind.decimal)
     {
-        writeImpl(v, floatFormat);
+        writeImpl(v, attribute);
     }
 
-    final override void write(double v, const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
+    final override void write(double v, scope ref Serializable attribute, const(DataKind) kind = DataKind.decimal)
     {
-        writeImpl(v, floatFormat);
+        writeImpl(v, attribute);
     }
 
-    final override void write(scope const(char)[] v, const(DataKind) kind = DataKind.character)
+    final override void write(scope const(char)[] v, scope ref Serializable, const(DataKind) kind = DataKind.character)
     {
         if (v is null)
         {
@@ -569,7 +549,7 @@ public:
         buffer.put('"');
     }
 
-    final override void write(scope const(wchar)[] v, const(DataKind) kind = DataKind.character)
+    final override void write(scope const(wchar)[] v, scope ref Serializable, const(DataKind) kind = DataKind.character)
     {
         if (v is null)
         {
@@ -583,7 +563,7 @@ public:
         buffer.put('"');
     }
 
-    final override void write(scope const(dchar)[] v, const(DataKind) kind = DataKind.character)
+    final override void write(scope const(dchar)[] v, scope ref Serializable, const(DataKind) kind = DataKind.character)
     {
         if (v is null)
         {
@@ -597,7 +577,7 @@ public:
         buffer.put('"');
     }
 
-    final override void write(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary)
+    final override void write(scope const(ubyte)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.binary)
     {
         if (v is null)
         {
@@ -606,11 +586,11 @@ public:
         }
 
         buffer.put('"');
-        buffer.put(binaryToString(v, binaryFormat));
+        buffer.put(binaryToString(v, binaryFormat(attribute)));
         buffer.put('"');
     }
 
-    final override Serializer writeKey(scope const(char)[] key)
+    final override Serializer writeKey(scope const(char)[] key, scope ref Serializable)
     {
         buffer.put('"');
         escapeString(buffer, key);
@@ -619,7 +599,7 @@ public:
         return this;
     }
 
-    final override Serializer writeKeyId(scope const(char)[] key)
+    final override Serializer writeKeyId(scope const(char)[] key, scope ref Serializable)
     {
         buffer.put('"');
         buffer.put(key);
@@ -702,11 +682,11 @@ public:
         buffer.put(intToString(vBuffer[], v));
     }
 
-    final void writeImpl(V)(V v, const(FloatFormat) floatFormat)
+    final void writeImpl(V)(V v, scope ref Serializable attribute)
     if (isFloatingPoint!V)
     {
         char[350] textBuffer = void;
-        buffer.put(floatToString(textBuffer[], v, floatFormat));
+        buffer.put(floatToString(textBuffer[], v, floatFormat(attribute)));
     }
 
     @property final override SerializerDataFormat dataFormat() const @nogc nothrow pure
@@ -727,8 +707,10 @@ unittest // JsonSerializer
     Serializable serializableAggregate, serializableAggregateMember, serializableArray;
     Serializable serializableByName = Serializable(null, EnumFormat.name);
     Serializable serializableByIntegral = Serializable(null, EnumFormat.integral);
-    FloatFormat floatFormat = FloatFormat(4, true);
-    BinaryFormat binaryFormat;
+    Serializable anyAttribute;
+    Serializable binaryAttribute;
+    Serializable floatAttribute;
+    floatAttribute.floatFormat = FloatFormat(4, true);
 
     ref Serializable aggregateMember(string name)
     {
@@ -740,20 +722,20 @@ unittest // JsonSerializer
     scope serializer = new JsonSerializer();
     serializer.begin();
     serializer.aggregateBegin(null, -1, serializableAggregate);
-    serializer.aggregateItem(0, aggregateMember("b1")).writeBool(true);
-    serializer.aggregateItem(1, aggregateMember("b2")).writeBool(false);
-    serializer.aggregateItem(2, aggregateMember("n1")).write(null);
-    serializer.aggregateItem(3, aggregateMember("f1")).write(1.5, floatFormat);
-    serializer.aggregateItem(4, aggregateMember("d1")).write(100);
-    serializer.aggregateItem(5, aggregateMember("c1")).writeChar('c');
-    serializer.aggregateItem(6, aggregateMember("s1")).write("This is a string /\\");
+    serializer.aggregateItem(0, aggregateMember("b1")).writeBool(true, anyAttribute);
+    serializer.aggregateItem(1, aggregateMember("b2")).writeBool(false, anyAttribute);
+    serializer.aggregateItem(2, aggregateMember("n1")).write(null, anyAttribute);
+    serializer.aggregateItem(3, aggregateMember("f1")).write(1.5, floatAttribute);
+    serializer.aggregateItem(4, aggregateMember("d1")).write(100, anyAttribute);
+    serializer.aggregateItem(5, aggregateMember("c1")).writeChar('c', anyAttribute);
+    serializer.aggregateItem(6, aggregateMember("s1")).write("This is a string /\\", anyAttribute);
     serializer.aggregateItem(7, aggregateMember("e1")); serializer.serialize(UnitTestEnum.second, serializableByName);
     serializer.aggregateItem(8, aggregateMember("e2")); serializer.serialize(UnitTestEnum.forth, serializableByIntegral);
-    serializer.aggregateItem(9, aggregateMember("bin1")).write([100, 101], binaryFormat);
+    serializer.aggregateItem(9, aggregateMember("bin1")).write(cast(const(ubyte)[])[100, 101], binaryAttribute);
     serializer.aggregateItem(10, aggregateMember("arr1"));
     serializer.arrayBegin(null, 2, serializableArray);
-    serializer.arrayItem(0).write(200);
-    serializer.arrayItem(1).write(201);
+    serializer.arrayItem(0).write(200, anyAttribute);
+    serializer.arrayItem(1).write(201, anyAttribute);
     serializer.arrayEnd(null, 2, serializableArray);
     serializer.aggregateEnd(null, 11, serializableAggregate);
     serializer.end();
@@ -934,7 +916,7 @@ unittest // JsonSerializer.UnitTestDecDecimal
     }
 }
 
-unittest // JsonSerializer+JsonDeserializer.UnitTestCustomS1
+unittest // JsonSerializer.UnitTestCustomS1
 {
     string jsonCustom;
 

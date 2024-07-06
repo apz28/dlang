@@ -146,7 +146,7 @@ private:
         return c;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     XmlNode!S peekNode()
     in
     {
@@ -157,7 +157,7 @@ private:
         return nodeStack.back;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     XmlNode!S popNode()
     in
     {

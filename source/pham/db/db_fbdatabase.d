@@ -670,12 +670,12 @@ public:
             _command = null;
     }
 
-    final string forErrorInfo() const nothrow @safe
+    final string forErrorInfo() nothrow @safe
     {
         return _command !is null ? _command.forErrorInfo() : null;
     }
 
-    final string forLogInfo() const nothrow @safe
+    final string forLogInfo() nothrow @safe
     {
         return _command !is null ? _command.forLogInfo() : null;
     }
@@ -910,7 +910,7 @@ public:
     this(FbConnection connection, string name = null) nothrow @safe
     {
         super(connection, name);
-        this._flags.set(DbCommandFlag.transactionRequired, true);
+        this._flags.include(DbCommandFlag.transactionRequired);
     }
 
     this(FbConnection connection, FbTransaction transaction, string name = null) nothrow @safe
@@ -1043,7 +1043,7 @@ package(pham.db):
     }
 
     pragma(inline, true)
-    final @property bool isFbHandle() const nothrow pure @safe
+    final @property bool isFbHandle() const nothrow @safe
     {
         static if (fbDeferredProtocol)
         {
@@ -1359,7 +1359,7 @@ protected:
             protocol.messageCommandBatchWrite(writer, commandBatch);
             protocol.executeCommandBatchWrite(writer, commandBatch);
 
-            debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "data=", writer.peekBytes().dgToHex());
+            debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "data=", writer.peekBytes().dgToString());
 
             writer.flush();
         }
@@ -1614,12 +1614,12 @@ public:
         return _command.executeNonQueryBatch(this);
     }
 
-    final string forErrorInfo() const nothrow @safe
+    final string forErrorInfo() nothrow @safe
     {
         return _command !is null ? _command.forErrorInfo() : null;
     }
 
-    final string forLogInfo() const nothrow @safe
+    final string forLogInfo() nothrow @safe
     {
         return _command !is null ? _command.forLogInfo() : null;
     }
@@ -1781,7 +1781,7 @@ public:
         return DbScheme.fb;
     }
 
-    @property final override bool supportMultiReaders() nothrow @safe
+    @property final override bool supportMultiReaders() const nothrow @safe
     {
         return true;
     }
@@ -1973,12 +1973,12 @@ public:
         return fbValidConnectionParameterNames;
     }
 
-    @property final uint32 cachePages() nothrow
+    @property final uint32 cachePages() const nothrow
     {
         return toIntegerSafe!uint32(getString(DbConnectionParameterIdentifier.fbCachePage), uint16.max);
     }
 
-    @property final string cryptAlgorithm() nothrow
+    @property final string cryptAlgorithm() const nothrow
     {
         return getString(DbConnectionParameterIdentifier.fbCryptAlgorithm);
     }
@@ -1989,7 +1989,7 @@ public:
         return this;
     }
 
-    @property final ubyte[] cryptKey() nothrow
+    @property final ubyte[] cryptKey() const nothrow
     {
         return bytesFromBase64s(getString(DbConnectionParameterIdentifier.fbCryptKey));
     }
@@ -2000,22 +2000,22 @@ public:
         return this;
     }
 
-    @property final bool databaseTrigger() nothrow
+    @property final bool databaseTrigger() const nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.fbDatabaseTrigger));
     }
 
-    @property final int16 dialect() nothrow
+    @property final int16 dialect() const nothrow
     {
         return toIntegerSafe!int16(getString(DbConnectionParameterIdentifier.fbDialect), FbIscDefault.dialect);
     }
 
-    @property final Duration dummyPackageInterval() nothrow
+    @property final Duration dummyPackageInterval() const nothrow
     {
         return secondDigitsToDurationSafe(getString(DbConnectionParameterIdentifier.fbDummyPacketInterval), Duration.zero);
     }
 
-    @property final bool garbageCollect() nothrow
+    @property final bool garbageCollect() const nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.fbGarbageCollect));
     }
@@ -2028,12 +2028,18 @@ public:
 protected:
     final override string getDefault(string name) const nothrow
     {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(name=", name, ")");
+        debug(debug_pham_db_db_fbdatabase) scope(exit) debug writeln("\t", "end");
+        
         auto k = name in fbDefaultConnectionParameterValues;
         return k !is null && (*k).def.length != 0 ? (*k).def : super.getDefault(name);
     }
 
     final override void setDefaultIfs() nothrow
     {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(begin)");
+        debug(debug_pham_db_db_fbdatabase) scope(exit) debug writeln(__FUNCTION__, "(end)");
+        
         foreach (ref dpv; fbDefaultConnectionParameterValues.byKeyValue)
         {
             auto def = dpv.value.def;
@@ -2198,7 +2204,7 @@ public:
             : new FbField(cast(FbCommand)command, name);
     }
 
-    final override DbFieldIdType isValueIdType() const nothrow pure @safe
+    final override DbFieldIdType isValueIdType() const nothrow @safe
     {
         return FbIscFieldInfo.isValueIdType(baseTypeId, baseSubTypeId);
     }
@@ -2246,7 +2252,7 @@ public:
         super(database, name);
     }
 
-    final override DbFieldIdType isValueIdType() const nothrow pure @safe
+    final override DbFieldIdType isValueIdType() const nothrow @safe
     {
         return FbIscFieldInfo.isValueIdType(baseTypeId, baseSubTypeId);
     }
@@ -2401,6 +2407,8 @@ private:
 
 shared static this() nothrow @safe
 {
+    debug(debug_pham_db_db_fbdatabase) debug writeln("shared static this(", __MODULE__, ")");
+
     auto db = new FbDatabase();
     DbDatabaseList.registerDb(db);
 }
@@ -2585,13 +2593,14 @@ WHERE INT_FIELD = @INT_FIELD
 
 unittest // FbConnectionStringBuilder
 {
+    import std.stdio : writeln; writeln("UnitTestFBDatabase.FbConnectionStringBuilder"); // For first unittest
+
     auto db = DbDatabaseList.getDb(DbScheme.fb);
     assert(cast(FbDatabase)db !is null);
 
     auto connectionStringBuilder = db.createConnectionStringBuilder(null);
-    assert(cast(FbConnectionStringBuilder)connectionStringBuilder !is null);
     auto useCSB = cast(FbConnectionStringBuilder)connectionStringBuilder;
-
+    assert(useCSB !is null);
     assert(useCSB.serverName == "localhost");
     assert(useCSB.serverPort == 3050);
     assert(useCSB.userName == "SYSDBA");
@@ -3947,4 +3956,11 @@ unittest // FbConnection.DML.execute...
     
     auto TEXT_FIELD = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = 1");
     assert(TEXT_FIELD.get!string() == "TEXT");
+}
+
+version(UnitTestFBDatabase)
+unittest
+{
+    import std.stdio : writeln;
+    writeln("UnitTestFBDatabase done");
 }

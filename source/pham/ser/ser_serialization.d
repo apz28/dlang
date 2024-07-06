@@ -923,19 +923,44 @@ public:
     enum unknownLength = -1;
 
 public:
-    size_t decDepth() nothrow
+    BinaryFormat binaryFormat(scope ref Serializable attribute) const nothrow
+    {
+        return attribute.binaryFormat;
+    }
+
+    FloatFormat floatFormat(scope ref Serializable attribute) const nothrow
+    {
+        return attribute.floatFormat.isFloatPrecision() ? attribute.floatFormat : options.floatFormat;
+    }
+
+    size_t decArrayDepth() nothrow
     in
     {
-        assert(_depth > 0);
+        assert(_arrayDepth > 0);
     }
     do
     {
-        return --_depth;
+        return --_arrayDepth;
     }
 
-    size_t incDepth() nothrow
+    size_t decMemberDepth() nothrow
+    in
     {
-        return ++_depth;
+        assert(_memberDepth > 0);
+    }
+    do
+    {
+        return --_memberDepth;
+    }
+
+    size_t incArrayDepth() nothrow
+    {
+        return ++_arrayDepth;
+    }
+
+    size_t incMemberDepth() nothrow
+    {
+        return ++_memberDepth;
     }
 
     static DSeserializerFunctions register(T)(SerializerFunction serialize, DeserializerFunction deserialize) nothrow
@@ -983,12 +1008,18 @@ public:
     }
 
     pragma(inline, true)
-    @property final size_t depth() const @nogc nothrow
+    @property final size_t arrayDepth() const @nogc nothrow
     {
-        return _depth;
+        return _arrayDepth;
     }
 
     @property abstract SerializerDataFormat dataFormat() const @nogc nothrow pure;
+
+    pragma(inline, true)
+    @property final size_t memberDepth() const @nogc nothrow
+    {
+        return _memberDepth;
+    }
 
 public:
     SerializerOptions options;
@@ -1127,7 +1158,8 @@ public:
     }
 
 protected:
-    size_t _depth;
+    size_t _arrayDepth;
+    size_t _memberDepth;
     static __gshared DSeserializerFunctions[string] customDSeserializedFunctions;
 }
 
@@ -1138,7 +1170,7 @@ class Deserializer : DSeserializer
 public:
     Deserializer begin()
     {
-        _depth = 0;
+        _arrayDepth = _memberDepth = 0;
         return this;
     }
 
@@ -1153,13 +1185,13 @@ public:
      */
     ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
     {
-        incDepth();
+        incMemberDepth();
         return unknownLength;
     }
 
     void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable attribute)
     {
-        decDepth();
+        decMemberDepth();
     }
 
     /*
@@ -1168,109 +1200,111 @@ public:
      */
     ptrdiff_t arrayBegin(string elemTypeName, scope ref Serializable attribute)
     {
-        incDepth();
+        incArrayDepth();
         return unknownLength;
     }
 
     void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
     {
-        decDepth();
+        decArrayDepth();
     }
 
-    abstract bool empty() nothrow;
-    abstract SerializerDataType frontDataType() nothrow;
     abstract bool hasAggregateEle(size_t i, ptrdiff_t len) nothrow;
     abstract bool hasArrayEle(size_t i, ptrdiff_t len) nothrow;
 
-    abstract Null readNull();
-    abstract bool readBool();
-    abstract char readChar();
-    abstract Date readDate();
-    abstract DateTime readDateTime();
-    abstract Time readTime();
-    abstract byte readByte();
-    abstract short readShort();
-    abstract int readInt(const(DataKind) kind = DataKind.integral);
-    abstract long readLong(const(DataKind) kind = DataKind.integral);
-    abstract float readFloat(const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal);
-    abstract double readDouble(const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal);
-    abstract string readChars(const(DataKind) kind = DataKind.character);
-    abstract wstring readWChars(const(DataKind) kind = DataKind.character);
-    abstract dstring readDChars(const(DataKind) kind = DataKind.character);
-    abstract const(char)[] readScopeChars(const(DataKind) kind = DataKind.character);
-    abstract ubyte[] readBytes(const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary);
-    abstract const(ubyte)[] readScopeBytes(const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary);
-    abstract string readKey();
-    abstract ptrdiff_t readLength();
+    abstract Null readNull(scope ref Serializable attribute);
+    abstract bool readBool(scope ref Serializable attribute);
+    abstract char readChar(scope ref Serializable attribute);
+    abstract Date readDate(scope ref Serializable attribute);
+    abstract DateTime readDateTime(scope ref Serializable attribute);
+    abstract Time readTime(scope ref Serializable attribute);
+    abstract byte readByte(scope ref Serializable attribute);
+    abstract short readShort(scope ref Serializable attribute);
+    abstract int readInt(scope ref Serializable attribute, const(DataKind) kind = DataKind.integral);
+    abstract long readLong(scope ref Serializable attribute, const(DataKind) kind = DataKind.integral);
+    abstract float readFloat(scope ref Serializable attribute, const(DataKind) kind = DataKind.decimal);
+    abstract double readDouble(scope ref Serializable attribute, const(DataKind) kind = DataKind.decimal);
+    abstract string readChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character);
+    abstract wstring readWChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character);
+    abstract dstring readDChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character);
+    abstract const(char)[] readScopeChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character);
+    abstract ubyte[] readBytes(scope ref Serializable attribute, const(DataKind) kind = DataKind.binary);
+    abstract const(ubyte)[] readScopeBytes(scope ref Serializable attribute, const(DataKind) kind = DataKind.binary);
+    abstract string readKey(size_t i);
 
 public:
     // null
+    pragma(inline, true)
     final void deserialize(V : Null)(V, scope ref Serializable attribute)
     {
-        readNull();
+        readNull(attribute);
     }
 
     // Boolean
+    pragma(inline, true)
     final void deserialize(V : bool)(ref V v, scope ref Serializable attribute)
     if (is(V == bool) && !is(V == enum))
     {
-        v = readBool();
+        v = readBool(attribute);
     }
 
     // Char
+    pragma(inline, true)
     final void deserialize(V : char)(ref V v, scope ref Serializable attribute)
     if (is(V == char) && !is(V == enum))
     {
-        v = readChar();
+        v = readChar(attribute);
     }
 
     // Date
+    pragma(inline, true)
     final void deserialize(ref Date v, scope ref Serializable attribute)
     {
-        v = readDate();
+        v = readDate(attribute);
     }
 
     // DateTime
+    pragma(inline, true)
     final void deserialize(ref DateTime v, scope ref Serializable attribute)
     {
-        v = readDateTime();
+        v = readDateTime(attribute);
     }
 
     // Time
+    pragma(inline, true)
     final void deserialize(ref Time v, scope ref Serializable attribute)
     {
-        v = readTime();
+        v = readTime(attribute);
     }
 
     // Integral
+    pragma(inline, true)
     final void deserialize(V)(ref V v, scope ref Serializable attribute)
     if (isIntegral!V && !is(V == enum))
     {
         static if (V.sizeof == 4)
-            v = readInt();
+            v = readInt(attribute);
         else static if (V.sizeof == 8)
-            v = readLong();
+            v = readLong(attribute);
         else static if (V.sizeof == 2)
-            v = readShort();
+            v = readShort(attribute);
         else static if (V.sizeof == 1)
-            v = readByte();
+            v = readByte(attribute);
         else
             static assert(0, "Unsupported integral size: " ~ V.sizeof.stringof);
     }
 
     // Float
+    pragma(inline, true)
     final void deserialize(V)(ref V v, scope ref Serializable attribute)
     if (isFloatingPoint!V)
     {
-        const floatFormat = attribute.floatFormat.isFloatPrecision()
-            ? attribute.floatFormat
-            : options.floatFormat;
         static if (V.sizeof == 4)
-            v = readFloat(floatFormat);
+            v = readFloat(attribute);
         else //static if (V.sizeof == 8)
         {
             static assert (V.sizeof == 8);
-            v = readDouble(floatFormat);
+            v = readDouble(attribute);
         }
     }
 
@@ -1283,58 +1317,65 @@ public:
             static if (is(V Base == enum) && isIntegral!Base)
             {
                 static if (Base.max <= int.max)
-                    v = cast(V)readInt(DataKind.enumerate);
+                    v = cast(V)readInt(attribute, DataKind.enumerate);
                 else
-                    v = cast(V)readLong(DataKind.enumerate);
+                    v = cast(V)readLong(attribute, DataKind.enumerate);
                 return;
             }
         }
 
-        const s = readChars(DataKind.enumerate);
+        const s = readChars(attribute, DataKind.enumerate);
         v = s.to!V();
     }
 
     // Chars/String
+    pragma(inline, true)
     final void deserialize(ref char[] v, scope ref Serializable attribute)
     {
-        v = readChars().dup;
+        v = readChars(attribute).dup;
     }
 
     // String
+    pragma(inline, true)
     final void deserialize(ref string v, scope ref Serializable attribute)
     {
-        v = readChars();
+        v = readChars(attribute);
     }
 
     // WChars/WString
+    pragma(inline, true)
     final void deserialize(ref wchar[] v, scope ref Serializable attribute)
     {
-        v = readWChars().dup;
+        v = readWChars(attribute).dup;
     }
 
     // WString
+    pragma(inline, true)
     final void deserialize(ref wstring v, scope ref Serializable attribute)
     {
-        v = readWChars();
+        v = readWChars(attribute);
     }
 
     // DChars/DString
+    pragma(inline, true)
     final void deserialize(ref dchar[] v, scope ref Serializable attribute)
     {
-        v = readDChars().dup;
+        v = readDChars(attribute).dup;
     }
 
     // WString
+    pragma(inline, true)
     final void deserialize(ref dstring v, scope ref Serializable attribute)
     {
-        v = readDChars();
+        v = readDChars(attribute);
     }
 
     // Bytes/Binary
+    pragma(inline, true)
     final void deserialize(ref ubyte[] v, scope ref Serializable attribute)
     {
         //import std.stdio : writeln; debug writeln("ubyte[].");
-        v = readBytes(attribute.binaryFormat);
+        v = readBytes(attribute);
     }
 
     // Array
@@ -1360,8 +1401,8 @@ public:
 
         while (hasArrayEle(length, readLength))
         {
-            if (length == v.length)
-                v.length = length+1;
+            if (v.length == length)
+                v.length = length + 1;
             deserialize(v[length], attribute);
             length++;
         }
@@ -1387,7 +1428,7 @@ public:
         Serializable memberAttribute = attribute;
         while (hasAggregateEle(length, readLength))
         {
-            const keyStr = readKey();
+            const keyStr = readKey(length);
             memberAttribute.name = keyStr;
             V e;
             deserialize(e, memberAttribute);
@@ -1417,7 +1458,7 @@ public:
         Serializable memberAttribute = attribute;
         while (hasAggregateEle(length, readLength))
         {
-            const keyStr = readKey();
+            const keyStr = readKey(length);
             const key = keyStr.to!K();
             memberAttribute.name = keyStr;
             T e;
@@ -1448,7 +1489,7 @@ public:
         Serializable memberAttribute = attribute;
         while (hasAggregateEle(length, readLength))
         {
-            const keyStr = readKey();
+            const keyStr = readKey(length);
             K key;
             if (memberAttribute.enumFormat == EnumFormat.integral)
             {
@@ -1469,17 +1510,6 @@ public:
     }
 
     // Aggregate (class, struct)
-    final V deserialize(V)()
-    if (isSerializerAggregateType!V)
-    {
-        V v;
-        Serializable attribute;
-        begin();
-        deserialize(v, attribute);
-        end();
-        return v;
-    }
-
     final void deserialize(V)(ref V v, scope ref Serializable attribute)
     if (isSerializerAggregateType!V)
     {
@@ -1528,7 +1558,7 @@ public:
             while (hasAggregateEle(i, readLength))
             {
                 MemberMatched memberMatched = MemberMatched.none;
-                const memberName = readKey();
+                const memberName = readKey(i);
                 //import std.stdio : writeln; debug writeln("i=", i, ", memberName=", memberName);
 
                 static foreach (member; members)
@@ -1643,6 +1673,19 @@ public:
         }
     }
 
+    // Aggregate (class, struct)
+    final V deserialize(V)()
+    if (isSerializerAggregateType!V)
+    {
+        V v;
+        Serializable attribute;
+        begin();
+        deserialize(v, attribute);
+        end();
+        return v;
+    }
+
+    pragma(inline, true)
     final void deserializeAny(V)(ref V v, scope ref Serializable attribute)
     {
         if (!deserializeCustom!V(v, attribute))
@@ -1671,7 +1714,7 @@ class Serializer : DSeserializer
 public:
     Serializer begin()
     {
-        _depth = 0;
+        _arrayDepth = _memberDepth = 0;
         return this;
     }
 
@@ -1682,12 +1725,12 @@ public:
 
     void aggregateBegin(string typeName, ptrdiff_t length, scope ref Serializable attribute)
     {
-        incDepth();
+        incMemberDepth();
     }
 
     void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable attribute)
     {
-        decDepth();
+        decMemberDepth();
     }
 
     Serializer aggregateItem(ptrdiff_t index, scope ref Serializable attribute)
@@ -1698,20 +1741,20 @@ public:
     do
     {
         if (attribute.symbolName)
-            writeKeyId(attribute.name);
+            writeKeyId(attribute.name, attribute);
         else
-            writeKey(attribute.name);
+            writeKey(attribute.name, attribute);
         return this;
     }
 
     void arrayBegin(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
     {
-        incDepth();
+        incArrayDepth();
     }
 
     void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
     {
-        decDepth();
+        decArrayDepth();
     }
 
     Serializer arrayItem(ptrdiff_t index)
@@ -1719,79 +1762,84 @@ public:
         return this;
     }
 
-    abstract void write(Null v);
-    abstract void writeBool(bool v); // Different name - D is not good of distinguish between bool/byte|int
-    abstract void writeChar(char v); // Different name - D is not good of distinguish between char/byte|int
-    abstract void write(scope const(Date) v);
-    abstract void write(scope const(DateTime) v);
-    abstract void write(scope const(Time) v);
-    abstract void write(byte v);
-    abstract void write(short v);
-    abstract void write(int v, const(DataKind) kind = DataKind.integral);
-    abstract void write(long v, const(DataKind) kind = DataKind.integral);
-    abstract void write(float v, const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal);
-    abstract void write(double v, const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal);
-    abstract void write(scope const(char)[] v, const(DataKind) kind = DataKind.character); // String value
-    abstract void write(scope const(wchar)[] v, const(DataKind) kind = DataKind.character); // WString value
-    abstract void write(scope const(dchar)[] v, const(DataKind) kind = DataKind.character); // DString value
-    abstract void write(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary); // Binary value
-    abstract Serializer writeKey(scope const(char)[] key);
-    abstract Serializer writeKeyId(scope const(char)[] key);
+    abstract void write(Null v, scope ref Serializable attribute);
+    abstract void writeBool(bool v, scope ref Serializable attribute); // Different name - D is not good of distinguish between bool/byte|int
+    abstract void writeChar(char v, scope ref Serializable attribute); // Different name - D is not good of distinguish between char/byte|int
+    abstract void write(scope const(Date) v, scope ref Serializable attribute);
+    abstract void write(scope const(DateTime) v, scope ref Serializable attribute);
+    abstract void write(scope const(Time) v, scope ref Serializable attribute);
+    abstract void write(byte v, scope ref Serializable attribute);
+    abstract void write(short v, scope ref Serializable attribute);
+    abstract void write(int v, scope ref Serializable attribute, const(DataKind) kind = DataKind.integral);
+    abstract void write(long v, scope ref Serializable attribute, const(DataKind) kind = DataKind.integral);
+    abstract void write(float v, scope ref Serializable attribute, const(DataKind) kind = DataKind.decimal);
+    abstract void write(double v, scope ref Serializable attribute, const(DataKind) kind = DataKind.decimal);
+    abstract void write(scope const(char)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.character); // String value
+    abstract void write(scope const(wchar)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.character); // WString value
+    abstract void write(scope const(dchar)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.character); // DString value
+    abstract void write(scope const(ubyte)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.binary); // Binary value
+    abstract Serializer writeKey(scope const(char)[] key, scope ref Serializable attribute);
+    abstract Serializer writeKeyId(scope const(char)[] key, scope ref Serializable attribute);
 
 public:
     // null
+    pragma(inline, true)
     final void serialize(Null, scope ref Serializable attribute)
     {
-        write(null);
+        write(null, attribute);
     }
 
     // Boolean
+    pragma(inline, true)
     final void serialize(V : bool)(const(V) v, scope ref Serializable attribute)
     if (is(V == bool) && !is(V == enum))
     {
-        writeBool(v);
+        writeBool(v, attribute);
     }
 
     // Char
+    pragma(inline, true)
     final void serialize(V : char)(const(V) v, scope ref Serializable attribute)
     if (is(V == char) && !is(V == enum))
     {
-        writeChar(v);
+        writeChar(v, attribute);
     }
 
     // Date
+    pragma(inline, true)
     final void serialize(scope const(Date) v, scope ref Serializable attribute)
     {
-        write(v);
+        write(v, attribute);
     }
 
     // DateTime
+    pragma(inline, true)
     final void serialize(scope const(DateTime) v, scope ref Serializable attribute)
     {
-        write(v);
+        write(v, attribute);
     }
 
     // Time
+    pragma(inline, true)
     final void serialize(scope const(Time) v, scope ref Serializable attribute)
     {
-        write(v);
+        write(v, attribute);
     }
 
     // Integral
+    pragma(inline, true)
     final void serialize(V)(const(V) v, scope ref Serializable attribute)
     if (isIntegral!V && !is(V == enum))
     {
-        write(v);
+        write(v, attribute);
     }
 
     // Float
+    pragma(inline, true)
     final void serialize(V)(const(V) v, scope ref Serializable attribute)
     if (isFloatingPoint!V)
     {
-        const floatFormat = attribute.floatFormat.isFloatPrecision()
-            ? attribute.floatFormat
-            : options.floatFormat;
-        return write(v, floatFormat);
+        return write(v, attribute);
     }
 
     // Enum
@@ -1803,57 +1851,64 @@ public:
             static if (is(V Base == enum) && isIntegral!Base)
             {
                 static if (Base.max <= int.max)
-                    write(cast(int)v, DataKind.enumerate);
+                    write(cast(int)v, attribute, DataKind.enumerate);
                 else
-                    write(cast(long)v, DataKind.enumerate);
+                    write(cast(long)v, attribute, DataKind.enumerate);
                 return;
             }
         }
 
         const vStr = v.to!string();
-        write(vStr, DataKind.enumerate);
+        write(vStr, attribute, DataKind.enumerate);
     }
 
     // Chars/String
+    pragma(inline, true)
     final void serialize(scope const(char)[] v, scope ref Serializable attribute)
     {
-        write(v);
+        write(v, attribute);
     }
 
     // String
+    pragma(inline, true)
     final void serialize(string v, scope ref Serializable attribute)
     {
-        write(v);
+        write(v, attribute);
     }
 
     // WChars/WString
+    pragma(inline, true)
     final void serialize(scope const(wchar)[] v, scope ref Serializable attribute)
     {
-        write(v);
+        write(v, attribute);
     }
 
     // WString
+    pragma(inline, true)
     final void serialize(wstring v, scope ref Serializable attribute)
     {
-        write(v);
+        write(v, attribute);
     }
 
     // DChars/DString
+    pragma(inline, true)
     final void serialize(scope const(dchar)[] v, scope ref Serializable attribute)
     {
-        write(v);
+        write(v, attribute);
     }
 
     // DString
+    pragma(inline, true)
     final void serialize(dstring v, scope ref Serializable attribute)
     {
-        write(v);
+        write(v, attribute);
     }
 
     // Bytes/Binary
+    pragma(inline, true)
     final void serialize(scope const(ubyte)[] v, scope ref Serializable attribute)
     {
-        write(v, attribute.binaryFormat);
+        write(v, attribute);
     }
 
     // Array
@@ -2072,6 +2127,7 @@ public:
         }
     }
 
+    pragma(inline, true)
     final void serializeAny(V)(auto ref V v, scope ref Serializable attribute)
     {
         if (!serializeCustom!V(v, attribute))
@@ -2515,7 +2571,7 @@ package(pham.ser):
             size_t i;
             while (deserializer.hasAggregateEle(i, readLength))
             {
-                const n = deserializer.readKey();
+                const n = deserializer.readKey(i);
                 if (deserializer.sameName(n, "s1"))
                     deserializer.deserialize(s1, setMemberAttribute(n));
                 else if (deserializer.sameName(n, "ds"))

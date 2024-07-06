@@ -481,16 +481,6 @@ public:
         return EnumSetRange(this);
     }
 
-    ref typeof(this) exclude(E value) @nogc pure return
-    {
-        return opOpAssign!"-"(value);
-    }
-
-    ref typeof(this) include(E value) @nogc pure return
-    {
-        return opOpAssign!"+"(value);
-    }
-
     bool any(scope const(E)[] source) const @nogc pure
     {
         foreach (i; source)
@@ -512,13 +502,25 @@ public:
         return false;
     }
 
-    pragma (inline, true)
+    //pragma(inline, true)
+    ref typeof(this) exclude(E value) @nogc pure return
+    {
+        return opOpAssign!"-"(value);
+    }
+
+    //pragma(inline, true)
+    ref typeof(this) include(E value) @nogc pure return
+    {
+        return opOpAssign!"+"(value);
+    }
+
+    pragma(inline, true)
     bool off(E value) const @nogc pure
     {
         return _values == 0 || (_values & bit(value)) == 0;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     bool on(E value) const @nogc pure
     {
         return _values != 0 && (_values & bit(value)) != 0;

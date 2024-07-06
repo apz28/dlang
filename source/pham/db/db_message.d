@@ -99,7 +99,7 @@ string addMessageLine(ref string messages, string messageLine) nothrow pure
     return messages;
 }
 
-package(pham.db) string fmtMessage(Args...)(string fmt, Args args) nothrow pure
+package(pham.db) string fmtMessage(Args...)(string fmt, Args args) nothrow
 {
     import std.format : format;
     

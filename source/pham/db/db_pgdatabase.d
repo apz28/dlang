@@ -133,7 +133,7 @@ public:
             _connection = null;
     }
 
-    string forLogInfo() const nothrow @safe
+    string forLogInfo() nothrow @safe
     {
         return _connection !is null ? _connection.forLogInfo() : null;
     }
@@ -291,17 +291,17 @@ public:
         return _connection;
     }
 
-    @property PgDescriptorId pgDescriptorId() const nothrow pure @safe
+    @property PgDescriptorId pgDescriptorId() const nothrow @safe
     {
         return _descriptorId.get!PgDescriptorId();
     }
 
-    @property PgOId pgId() const nothrow pure @safe
+    @property PgOId pgId() const nothrow @safe
     {
         return _id.get!PgOId();
     }
 
-    @property bool isOpen() const nothrow pure @safe
+    @property bool isOpen() const nothrow @safe
     {
         return _descriptorId.isValid();
     }
@@ -311,12 +311,12 @@ public:
         return _connection !is null ? _connection.logger : null;
     }
 
-    @property OpenMode mode() const nothrow pure @safe
+    @property OpenMode mode() const nothrow @safe
     {
         return _mode;
     }
 
-    @property int64 offset() const nothrow pure @safe
+    @property int64 offset() const nothrow @safe
     {
         return _offset;
     }
@@ -367,13 +367,13 @@ package(pham.db):
         }
     }
 
-    void reset() nothrow pure @safe
+    void reset() nothrow @safe
     {
         resetClose();
         _id.reset();
     }
 
-    void resetClose() nothrow pure @safe
+    void resetClose() nothrow @safe
     {
         _descriptorId.reset();
         _length = -1;
@@ -1081,7 +1081,7 @@ public:
         return DbScheme.pg;
     }
 
-    @property final override bool supportMultiReaders() nothrow @safe
+    @property final override bool supportMultiReaders() const nothrow @safe
     {
         return false;
     }
@@ -1518,7 +1518,7 @@ public:
             : new PgField(cast(PgCommand)command, name);
     }
 
-    final override DbFieldIdType isValueIdType() const nothrow pure @safe
+    final override DbFieldIdType isValueIdType() const nothrow @safe
     {
         return PgOIdFieldInfo.isValueIdType(baseTypeId, baseSubTypeId);
     }
@@ -1566,7 +1566,7 @@ public:
         super(database, name);
     }
 
-    final override DbFieldIdType isValueIdType() const nothrow pure @safe
+    final override DbFieldIdType isValueIdType() const nothrow @safe
     {
         return PgOIdFieldInfo.isValueIdType(baseTypeId, baseSubTypeId);
     }
@@ -1598,7 +1598,7 @@ public:
 class PgStoredProcedureInfo
 {
 public:
-    this(PgDatabase database, string name) nothrow pure @safe
+    this(PgDatabase database, string name) nothrow @safe
     {
         this._name = name;
         this._argumentTypes = new PgParameterList(database);
@@ -1606,22 +1606,22 @@ public:
         this._returnType.direction = DbParameterDirection.returnValue;
     }
 
-    @property final PgParameterList argumentTypes() nothrow pure @safe
+    @property final PgParameterList argumentTypes() nothrow @safe
     {
         return _argumentTypes;
     }
 
-    @property final bool hasReturnType() const nothrow pure @safe
+    @property final bool hasReturnType() const nothrow @safe
     {
         return _returnType.type != DbType.unknown;
     }
 
-    @property final string name() const nothrow pure @safe
+    @property final string name() const nothrow @safe
     {
         return _name;
     }
 
-    @property final PgParameter returnType() nothrow pure @safe
+    @property final PgParameter returnType() nothrow @safe
     {
         return _returnType;
     }
@@ -1654,12 +1654,12 @@ public:
     /**
      * Allows application to customize the transaction request
      */
-    @property final string transactionCommandText() nothrow pure @safe
+    @property final string transactionCommandText() nothrow @safe
     {
         return _transactionCommandText;
     }
 
-    @property final typeof(this) transactionCommandText(string value) nothrow pure @safe
+    @property final typeof(this) transactionCommandText(string value) nothrow @safe
     in
     {
         assert(state == DbTransactionState.inactive);
@@ -1923,6 +1923,8 @@ WHERE INT_FIELD = @INT_FIELD
 version(UnitTestPGDatabase)
 unittest // PgConnection
 {
+    import std.stdio : writeln; writeln("UnitTestPGDatabase.PgConnection"); // For first unittest
+    
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
@@ -2561,7 +2563,14 @@ unittest // PgConnection.DML.execute...
     auto reader = connection.executeReader(simpleSelectCommandText());
     validateSelectCommandTextReader(reader);
     reader.dispose();
-    
+
     auto TEXT_FIELD = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = 1");
     assert(TEXT_FIELD.get!string() == "TEXT");
+}
+
+version(UnitTestPGDatabase)
+unittest
+{
+    import std.stdio : writeln;
+    writeln("UnitTestPGDatabase done");
 }

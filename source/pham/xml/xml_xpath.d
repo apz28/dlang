@@ -235,7 +235,7 @@ static immutable ToResultTypeTable toResultTypeTable = ToResultTypeTable(
     ToResultTypeTable.EnumArrayEntry(XPathFunctionType.userDefined, XPathResultType.any)
     );
 
-pragma (inline, true)
+pragma(inline, true)
 XPathResultType toResultType(XPathFunctionType functionType) nothrow pure
 {
     return toResultTypeTable[functionType];
@@ -261,7 +261,7 @@ static immutable InvertedOpTable invertedOpTable = InvertedOpTable(
     InvertedOpTable.EnumArrayEntry(XPathOp.union_, XPathOp.error)
     );
 
-pragma (inline, true)
+pragma(inline, true)
 XPathOp invertedOp(XPathOp op) nothrow pure
 {
     return invertedOpTable[op];
@@ -282,7 +282,7 @@ static immutable ToXmlNodeTypeTable toXmlNodeTypeTable = ToXmlNodeTypeTable(
     ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.whitespace, XmlNodeType.whitespace)
     );
 
-pragma (inline, true)
+pragma(inline, true)
 XmlNodeType toXmlNodeType(XPathNodeType nodeType) nothrow pure
 {
     return toXmlNodeTypeTable[nodeType];
@@ -2774,7 +2774,7 @@ private:
         }
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     void checkAndSkipToken(C t)
     {
         debug(debug_pham_xml_xml_xpath)
@@ -2784,7 +2784,7 @@ private:
         nextLex();
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     void checkNodeSet(XPathResultType t)
     {
         debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - ", indentString());
@@ -2793,7 +2793,7 @@ private:
             throw new XmlParserException(XmlMessage.eNodeSetExpectedAtOf, scanner.currentIndex + 1, sourceText);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     void checkToken(C t)
     {
         debug(debug_pham_xml_xml_xpath)debug writeln(__FUNCTION__, "(t=", t, ")"); 
@@ -2814,7 +2814,7 @@ private:
         return axis;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     bool isOp(scope const(C)[] opName)
     {
         debug(debug_pham_xml_xml_xpath)debug writeln(__FUNCTION__, "(opName=", opName, ")"); 
@@ -2824,7 +2824,7 @@ private:
             scanner.name == opName;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     void nextLex()
     {
         scanner.nextLex();

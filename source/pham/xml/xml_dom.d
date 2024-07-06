@@ -58,7 +58,7 @@ public:
 @safe:
 
 public:
-    pragma (inline, true)
+    pragma(inline, true)
     @property bool preserveWhitespace() const nothrow
     {
         return flags.on(XmlParseOptionFlag.preserveWhitespace);
@@ -69,7 +69,7 @@ public:
         flags.set(XmlParseOptionFlag.preserveWhitespace, value);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     @property bool validate() const nothrow
     {
         return flags.on(XmlParseOptionFlag.validate);
@@ -2103,13 +2103,13 @@ private:
 
     debug(PhamXml)
     {
-        pragma (inline, true)
+        pragma(inline, true)
         size_t getVersionAttrb() const nothrow
         {
             return _parent.attrbVersion;
         }
 
-        pragma (inline, true)
+        pragma(inline, true)
         size_t getVersionChild() const nothrow
         {
             return _parent.childVersion;
@@ -2127,7 +2127,7 @@ private:
                 throw new XmlException(Message.EChildListChanged);
         }
 
-        pragma (inline, true)
+        pragma(inline, true)
         void checkVersionChanged() const
         {
             if (_listType == XmlNodeListType.Attributes)
@@ -2897,7 +2897,7 @@ public:
     }
 
 package:
-    pragma (inline, true)
+    pragma(inline, true)
     final S addSymbol(S symbol) nothrow
     in
     {
@@ -2908,7 +2908,7 @@ package:
         return _symbolTable.put(symbol);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     final S addSymbolIf(S symbol) nothrow
     {
         if (symbol.length == 0 || !useSymbolTable)
@@ -2917,13 +2917,13 @@ package:
             return addSymbol(symbol);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     final XmlName!S createName(S qualifiedName)
     {
         return new XmlName!S(this, qualifiedName);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     final XmlName!S createName(S prefix, S localName, S namespaceUri)
     {
         return new XmlName!S(this, prefix, localName, namespaceUri);
@@ -3000,7 +3000,7 @@ package:
     }
 
 protected:
-    pragma (inline, true)
+    pragma(inline, true)
     final XmlBuffer!(S, No.CheckEncoded) acquireBuffer(XmlNodeType fromNodeType,
         size_t capacity = 0) nothrow
     {
@@ -3018,7 +3018,7 @@ protected:
         return new XmlName!S(XmlConst!S.documentTagName);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     final S getAndReleaseBuffer(XmlBuffer!(S, No.CheckEncoded) b) nothrow
     {
         return _buffers.getAndRelease(b);
@@ -3057,7 +3057,7 @@ protected:
         return _loading != 0;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     final void releaseBuffer(XmlBuffer!(S, No.CheckEncoded) b) nothrow
     {
         _buffers.release(b);

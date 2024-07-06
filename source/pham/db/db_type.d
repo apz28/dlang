@@ -2427,7 +2427,7 @@ DbNameValueValidated isConnectionParameterMSEncrypt(scope const(DbConnectionPara
 
 DbNameValueValidated isConnectionParameterString(scope const(DbConnectionParameterInfo) info, string v)
 {
-    debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(v=", v, ", min=", min, ", max=", max, ")");
+    debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(v=", v, ", info.min=", info.min, ", info.max=", info.max, ")");
 
     return v.length >= info.min && v.length <= info.max
         ? DbNameValueValidated.ok
@@ -2509,6 +2509,8 @@ bool doCoerceTimeToDbTime(scope void* srcPtr, scope void* dstPtr) nothrow @trust
 
 shared static this() nothrow @safe
 {
+    debug(debug_pham_db_db_type) debug writeln("shared static this(", __MODULE__, ")");
+
     dbDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         return cast(immutable(DbConnectionParameterInfo[string]))[

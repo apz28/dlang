@@ -74,7 +74,7 @@ public:
         return this;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     final void putIndent()
     {
         put(indentString());
@@ -415,7 +415,7 @@ public:
     }
 
 protected:
-    pragma (inline, true)
+    pragma(inline, true)
     final S indentString() nothrow
     {
         return stringOfChar!S(' ', _nodeLevel << 1);

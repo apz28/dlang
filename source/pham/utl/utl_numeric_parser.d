@@ -371,19 +371,19 @@ if (isSomeChar!Char)
         return false;
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static bool isHexDigitPrefix(scope const(C)[] hexDigits)
     {
         return hexDigits.length >= 2 && hexDigits[0] == '0' && (hexDigits[1] == 'x' || hexDigits[1] == 'X');
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     bool isSpaceChar(const(C) c) const scope
     {
         return isSpaceCharOnly(c) || isGroupSeparator(c);
     }
 
-    pragma (inline, true)
+    pragma(inline, true)
     static bool isSpaceCharOnly(const(C) c)
     {
         return c == ' '

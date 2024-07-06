@@ -482,7 +482,7 @@ public:
     final PgOIdFetchResult fetchCommandRead(PgCommand command, ref bool isSuspended, out PgReader reader)
     in
     {
-        assert(command.hasFields);
+        assert(command.fieldCount != 0);
     }
     do
     {
@@ -1391,7 +1391,7 @@ protected:
             {
                 debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "parameter.name=", parameter.name, ", baseName=", parameter.baseName,
                     ", baseTypeId=", parameter.baseTypeId);
-                    
+
                 writer.writeInt32(parameter.baseTypeId); // OIDType
             }
         }

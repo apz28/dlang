@@ -1053,7 +1053,7 @@ public:
     }
 
 private:
-    pragma (inline, true)
+    pragma(inline, true)
     void readPad(const(ptrdiff_t) nBytes)
     {
         const paddingNBytes = (4 - nBytes) & 3;

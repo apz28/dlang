@@ -90,7 +90,7 @@ if (isXmlStringEx!S)
         localName if prefix.length is zero
         otherwise prefix ":" localName
 */
-pragma (inline, true)
+pragma(inline, true)
 S combineName(S)(S prefix, S localName) nothrow pure
 if (isXmlString!S)
 {
@@ -257,7 +257,7 @@ if (isIntegral!N)
     Params:
         c = the character to be tested
 */
-pragma (inline, true)
+pragma(inline, true)
 bool isBaseChar(const(dchar) c) nothrow pure
 {
     return lookup(baseCharTable, c);
@@ -270,7 +270,7 @@ bool isBaseChar(const(dchar) c) nothrow pure
     Params:
         c = the character to be tested
 */
-pragma (inline, true)
+pragma(inline, true)
 bool isChar(const(dchar) c) nothrow pure
 {
     return (c >= 0x20 && c <= 0xD7FF)
@@ -285,7 +285,7 @@ bool isChar(const(dchar) c) nothrow pure
     Params:
         c = the character to be tested
 */
-pragma (inline, true)
+pragma(inline, true)
 bool isCombiningChar(const(dchar) c) nothrow pure
 {
     return lookup(combiningCharTable, c);
@@ -298,7 +298,7 @@ bool isCombiningChar(const(dchar) c) nothrow pure
     Params:
         c = the character to be tested
 */
-pragma (inline, true)
+pragma(inline, true)
 bool isDigit(const(dchar) c) nothrow pure
 {
     return (c >= 0x30 && c <= 0x39) || lookup(digitTable, c);
@@ -306,7 +306,7 @@ bool isDigit(const(dchar) c) nothrow pure
 
 /** A overloaded isDigit
 */
-pragma (inline, true)
+pragma(inline, true)
 bool isDigit(const(char) c) nothrow pure
 {
     return c >= 0x30 && c <= 0x39;
@@ -319,7 +319,7 @@ bool isDigit(const(char) c) nothrow pure
     Params:
         c = the character to be tested
 */
-pragma (inline, true)
+pragma(inline, true)
 bool isExtender(const(dchar) c) nothrow pure
 {
     return lookup(extenderTable, c);
@@ -332,7 +332,7 @@ bool isExtender(const(dchar) c) nothrow pure
     Params:
         c = the character to be tested
 */
-pragma (inline, true)
+pragma(inline, true)
 bool isIdeographic(const(dchar) c) nothrow pure
 {
     return (c == 0x3007) || (c >= 0x3021 && c <= 0x3029) || (c >= 0x4E00 && c <= 0x9FA5);
@@ -345,7 +345,7 @@ bool isIdeographic(const(dchar) c) nothrow pure
     Params:
         c = the character to be tested
 */
-pragma (inline, true)
+pragma(inline, true)
 bool isLetter(const(dchar) c) nothrow pure
 {
     return isIdeographic(c) || isBaseChar(c);
@@ -358,7 +358,7 @@ bool isLetter(const(dchar) c) nothrow pure
     Params:
         c = the character to be tested
 */
-pragma (inline, true)
+pragma(inline, true)
 bool isNameStartC(const(dchar) c) nothrow pure
 {
     return c == '_' || c == ':' || isLetter(c);
@@ -371,7 +371,7 @@ bool isNameStartC(const(dchar) c) nothrow pure
     Params:
         c = the character to be tested
 */
-pragma (inline, true)
+pragma(inline, true)
 bool isNameInC(const(dchar) c) nothrow pure
 {
     return c == '_' || c == ':' || c == '-' || c == '.' ||
@@ -416,7 +416,7 @@ if (isXmlStringEx!S)
     Params:
         c = the character to be tested
 */
-pragma (inline, true)
+pragma(inline, true)
 bool isSpace(const(dchar) c) nothrow pure
 {
     return c == 0x09 || c == 0x0A || c == 0x0D || c == 0x20;
@@ -487,7 +487,7 @@ if (isXmlStringEx!S)
         s = the string to be sliced
         count = how many characters that the function returns
 */
-pragma (inline, true)
+pragma(inline, true)
 S leftString(S)(S s, const(size_t) count) nothrow pure
 if (isXmlStringEx!S)
 {
@@ -543,7 +543,7 @@ if (isXmlString!fromS && isXmlString!toS)
         s = the string to be sliced
         count = how many characters that the function returns
 */
-pragma (inline, true)
+pragma(inline, true)
 S rightString(S)(S s, size_t count) nothrow pure
 if (isXmlStringEx!S)
 {

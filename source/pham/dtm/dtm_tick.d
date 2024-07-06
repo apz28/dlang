@@ -102,6 +102,42 @@ nothrow @safe:
             && dateSeparator != 0 && timeSeparator != 0;
     }
 
+    static DateTimeSetting iso8601() pure
+    {
+        auto result = us();
+        result.dateSeparator = '-';
+        result.timeSeparator = ':';
+        result.generalLongFormat.date = result.generalShortFormat.date = result.longFormat.date = result.shortFormat.date = "yyyy/mm/dd";
+        result.generalLongFormat.dateTime = result.longFormat.dateTime = "yyyy/mm/ddThh:nn:ss" ~ Tick.millisecondFormats[Tick.ticksMaxPrecision];
+        result.generalShortFormat.dateTime = result.shortFormat.dateTime = "yyyy/mm/ddThh:nn:ss";
+        result.generalLongFormat.time = result.longFormat.time = "hh:nn:ss" ~ Tick.millisecondFormats[Tick.ticksMaxPrecision];
+        result.generalShortFormat.time = result.shortFormat.time = "hh:nn:ss";
+        return result;
+    }
+
+    static DateTimeSetting iso8601Utc() pure
+    {
+        auto result = us();
+        result.dateSeparator = '-';
+        result.timeSeparator = ':';
+        result.generalLongFormat.date = result.generalShortFormat.date = result.longFormat.date = result.shortFormat.date = "yyyy/mm/dd";
+        result.generalLongFormat.dateTime = result.longFormat.dateTime = "yyyy/mm/ddThh:nn:ss" ~ Tick.millisecondFormats[Tick.ticksMaxPrecision] ~ "Z";
+        result.generalShortFormat.dateTime = result.shortFormat.dateTime = "yyyy/mm/ddThh:nn:ssZ";
+        result.generalLongFormat.time = result.longFormat.time = "hh:nn:ss" ~ Tick.millisecondFormats[Tick.ticksMaxPrecision] ~ "Z";
+        result.generalShortFormat.time = result.shortFormat.time = "hh:nn:ssZ";
+        return result;
+    }
+
+    static string iso8601Fmt() @nogc pure
+    {
+        return "%s";
+    }
+
+    static string iso8601FmtUtc() @nogc pure
+    {
+        return "%u";
+    }
+
     /**
      * Default DateTimeSetting for US
      */
@@ -324,6 +360,19 @@ struct Tick
     static bool isValidDiffTickPrecision(const(int) ticks) pure
     {
         return ticks >= -9_999_999 && ticks <= 9_999_999;
+    }
+
+    static immutable string[Tick.ticksMaxPrecision + 1] millisecondFormats = [
+        "", ".z", ".zz", ".zzz", ".zzzz", ".zzzzz", ".zzzzzz", ".zzzzzzz"
+    ];
+    static string millisecondFormat(const(int) millisecondPrecision = ticksMaxPrecision) pure
+    {
+        if (millisecondPrecision <= 0)
+            return null;
+        else if (millisecondPrecision > ticksMaxPrecision)
+            return millisecondFormats[ticksMaxPrecision];
+        else
+            return millisecondFormats[millisecondPrecision];
     }
 
     pragma(inline, true)
