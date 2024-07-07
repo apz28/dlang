@@ -15,7 +15,8 @@ import std.array : Appender, appender;
 import std.conv : to;
 import std.traits : isDynamicArray, isFloatingPoint, isIntegral;
 
-import pham.db.db_database : DbCommand, DbReader;
+import pham.db.db_database : DbCommand, DbFieldList, DbReader;
+import pham.db.db_value : DbRowValue, DbValue;
 import pham.dtm.dtm_date : Date, DateTime;
 import pham.dtm.dtm_date_time_parse : DateTimePattern;
 import pham.dtm.dtm_tick : DateTimeZoneKind;
@@ -58,102 +59,102 @@ public:
         return currentRow.length;
     }
 
-    final override Null readNull()
+    final override Null readNull(scope ref Serializable)
     {
         const i = popFront();
         assert(currentRow[i].isNull);
         return null;
     }
 
-    final override bool readBool()
+    final override bool readBool(scope ref Serializable)
     {
         return currentRow[popFront()].value.coerce!bool();
     }
 
-    final override char readChar()
+    final override char readChar(scope ref Serializable attribute)
     {
-        const s = readChars();
+        const s = readChars(attribute);
         assert(s.length == 1);
         return s.length ? s[0] : '\0';
     }
 
-    final override Date readDate()
+    final override Date readDate(scope ref Serializable)
     {
         return currentRow[popFront()].value.coerce!Date();
     }
 
-    final override DateTime readDateTime()
+    final override DateTime readDateTime(scope ref Serializable)
     {
         return currentRow[popFront()].value.coerce!DateTime();
     }
 
-    final override Time readTime()
+    final override Time readTime(scope ref Serializable)
     {
         return currentRow[popFront()].value.coerce!Time();
     }
 
-    final override byte readByte()
+    final override byte readByte(scope ref Serializable)
     {
         return currentRow[popFront()].value.coerce!byte();
     }
 
-    final override short readShort()
+    final override short readShort(scope ref Serializable)
     {
         return currentRow[popFront()].value.coerce!short();
     }
 
-    final override int readInt(const(DataKind) kind = DataKind.integral)
+    final override int readInt(scope ref Serializable, const(DataKind) kind = DataKind.integral)
     {
         return currentRow[popFront()].value.coerce!int();
     }
 
-    final override long readLong(const(DataKind) kind = DataKind.integral)
+    final override long readLong(scope ref Serializable, const(DataKind) kind = DataKind.integral)
     {
         return currentRow[popFront()].value.coerce!long();
     }
 
-    final override float readFloat(const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
+    final override float readFloat(scope ref Serializable, const(DataKind) kind = DataKind.decimal)
     {
         return currentRow[popFront()].value.coerce!float();
     }
 
-    final override double readDouble(const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
+    final override double readDouble(scope ref Serializable, const(DataKind) kind = DataKind.decimal)
     {
         return currentRow[popFront()].value.coerce!double();
     }
 
-    final override string readChars(const(DataKind) kind = DataKind.character)
+    final override string readChars(scope ref Serializable, const(DataKind) kind = DataKind.character)
     {
         const i = popFront();
         return currentRow[i].isNull ? null : currentRow[i].value.coerce!string();
     }
 
-    final override wstring readWChars(const(DataKind) kind = DataKind.character)
+    final override wstring readWChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
     {
-        auto chars = readChars(kind);
+        auto chars = readChars(attribute, kind);
         return chars.length != 0 ? chars.to!wstring : null;
     }
 
-    final override dstring readDChars(const(DataKind) kind = DataKind.character)
+    final override dstring readDChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
     {
-        auto chars = readChars(kind);
+        auto chars = readChars(attribute, kind);
         return chars.length != 0 ? chars.to!dstring : null;
     }
 
-    final override const(char)[] readScopeChars(const(DataKind) kind = DataKind.character)
+    final override const(char)[] readScopeChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
     {
-        return readChars(kind);
+        return readChars(attribute, kind);
     }
 
-    final override ubyte[] readBytes(const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary)
+    final override ubyte[] readBytes(scope ref Serializable, const(DataKind) kind = DataKind.binary)
     {
         const i = popFront();
         return currentRow[i].isNull ? null : currentRow[i].value.coerce!(ubyte[])();
     }
 
-    final override const(ubyte)[] readScopeBytes(const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary)
+    final override const(ubyte)[] readScopeBytes(scope ref Serializable attribute, const(DataKind) kind = DataKind.binary)
     {
-        return readBytes(binaryFormat, kind);
+        return readBytes(attribute, kind);
     }
 
     final override string readKey(size_t)
@@ -488,6 +489,10 @@ private:
 
 version(UnitTestFBDatabase)
 {
+    import pham.db.db_database : DbConnection, DbDatabaseList;
+    import pham.db.db_type;
+    import pham.db.db_fbdatabase;
+    
     DbConnection createTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
         DbCompressConnection compress = DbCompressConnection.disabled,

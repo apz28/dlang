@@ -197,7 +197,7 @@ public:
                         return 0;
                     }
                 }
-                else static if (P.length == 2 && typeid(K) is size_t)
+                else static if (P.length == 2 && typeid(K) is typeid(size_t))
                 {
                     if ((cast(TypeInfo_StaticArray)typeInfo).value is typeid(E))
                     {
@@ -226,7 +226,7 @@ public:
                         return 0;
                     }
                 }
-                else static if (P.length == 2 && typeid(K) is size_t)
+                else static if (P.length == 2 && typeid(K) is typeid(size_t))
                 {
                     if (typeInfo is typeid(E[]))
                     {
@@ -3428,15 +3428,15 @@ nothrow @safe unittest // Variant.peek
     assert(!vFct.peek!(int delegate()));
     
     Variant[] mixedC;
-    mixedC ~= new C();
-    mixedC ~= new C2();
+    mixedC ~= Variant(new C());
+    mixedC ~= Variant(new C2());
     size_t foundCount;
     foreach (v; mixedC)
     {
-        if (auto c = v.peek!C)
+        if (auto cp = v.peek!C)
         {
             foundCount++;
-            assert((*c).d == 1);
+            assert((*cp).d == 1);
         }
     }
     assert(foundCount == 1);
@@ -4753,7 +4753,7 @@ unittest // Variant.coerce(object)
         Variant v2 = arr;
         assert(v1 == arr);
         assert(v2 == arr);
-        foreach (i, e; v1)
+        foreach (size_t i, int e; v1)
         {
             assert(arr[i] == e);
             assert(v2[i] == e);

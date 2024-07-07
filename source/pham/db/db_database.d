@@ -132,7 +132,7 @@ public:
         assert(connection !is null);
     }
     do
-    
+    {
         this(connection, name);
         this._transaction = transaction;
         this._flags.set(DbCommandFlag.implicitTransaction, transaction is null);
