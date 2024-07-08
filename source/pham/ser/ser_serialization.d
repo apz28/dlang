@@ -18,6 +18,9 @@ import std.range : ElementType, isInputRange;
 import std.traits : BaseClassesTuple, BaseTypeTuple, EnumMembers, fullyQualifiedName, FunctionAttribute, functionAttributes,
     isAggregateType, isCallable, isDynamicArray, isFloatingPoint, isFunction, isIntegral, isSomeChar, isSomeFunction,
     isStaticArray, Parameters, ReturnType, Unqual;
+import std.uni : sicmp;
+
+debug(pham_ser_ser_serialization) import std.stdio : writeln;
 
 import pham.dtm.dtm_date : Date, DateTime;
 import pham.dtm.dtm_tick : DateTimeZoneKind;
@@ -857,6 +860,7 @@ public:
     string floatNaN = "NaN";
     string floatNegInf = "-Infinity";
     string floatPosInf = "+Infinity";
+    bool caseSensitiveName;
 }
 
 enum SerializerDataFormat : ubyte
@@ -1002,9 +1006,10 @@ public:
         return result;
     }
 
-    bool sameName(scope const(char)[] s1, scope const(char)[] s2) const @nogc nothrow
+    pragma(inline, true)
+    final bool sameName(scope const(char)[] s1, scope const(char)[] s2) const @nogc nothrow
     {
-        return s1 == s2;
+        return options.caseSensitiveName ? (s1 == s2) : (sicmp(s1, s2) == 0);
     }
 
     pragma(inline, true)
@@ -1181,10 +1186,12 @@ public:
 
     /*
      * Returns number of members/fields of an aggregate type.
-     * If unknown, returns -1
+     * If unknown, returns unknownLength
      */
     ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
     {
+        debug(pham_ser_ser_serialization) debug writeln(__FUNCTION__, "(typeName=", typeName, ", memberDepth=", memberDepth, ")");
+
         incMemberDepth();
         return unknownLength;
     }
@@ -1196,10 +1203,12 @@ public:
 
     /*
      * Returns number of elements in an array.
-     * If unknown, returns -1
+     * If unknown, returns unknownLength
      */
     ptrdiff_t arrayBegin(string elemTypeName, scope ref Serializable attribute)
     {
+        debug(pham_ser_ser_serialization) debug writeln(__FUNCTION__, "(elemTypeName=", elemTypeName, ", arrayDepth=", arrayDepth, ")");
+
         incArrayDepth();
         return unknownLength;
     }
@@ -1209,8 +1218,8 @@ public:
         decArrayDepth();
     }
 
-    abstract bool hasAggregateEle(size_t i, ptrdiff_t len) nothrow;
-    abstract bool hasArrayEle(size_t i, ptrdiff_t len) nothrow;
+    abstract bool hasAggregateEle(size_t i, ptrdiff_t len);
+    abstract bool hasArrayEle(size_t i, ptrdiff_t len);
 
     abstract Null readNull(scope ref Serializable attribute);
     abstract bool readBool(scope ref Serializable attribute);
@@ -1374,7 +1383,8 @@ public:
     pragma(inline, true)
     final void deserialize(ref ubyte[] v, scope ref Serializable attribute)
     {
-        //import std.stdio : writeln; debug writeln("ubyte[].");
+        debug(pham_ser_ser_serialization) debug writeln(__FUNCTION__, "()");
+
         v = readBytes(attribute);
     }
 
@@ -1382,7 +1392,7 @@ public:
     final void deserialize(V)(ref V[] v, scope ref Serializable attribute)
     if (!isSomeChar!V && !is(V == ubyte) && !is(V == byte))
     {
-        //import std.stdio : writeln; debug writeln(fullyQualifiedName!V, ".", len);
+        debug(pham_ser_ser_serialization) debug writeln(__FUNCTION__, "(V=", fullyQualifiedName!V, ")");
 
         static immutable elemTypeName = fullyQualifiedName!V;
         size_t length;
@@ -1441,7 +1451,7 @@ public:
     final void deserialize(V : T[K], T, K)(ref V v, scope ref Serializable attribute)
     if (isIntegral!K && !is(K == enum))
     {
-        //import std.stdio : writeln; debug writeln(fullyQualifiedName!V, ".", len);
+        debug(pham_ser_ser_serialization) debug writeln(__FUNCTION__, "(V=", fullyQualifiedName!V, ")");
 
         static immutable typeName = fullyQualifiedName!V;
         size_t length;
@@ -1472,7 +1482,7 @@ public:
     final void deserialize(V : T[K], T, K)(ref V v, scope ref Serializable attribute)
     if (is(K == enum))
     {
-        //import std.stdio : writeln; debug writeln(fullyQualifiedName!V, ".", len);
+        debug(pham_ser_ser_serialization) debug writeln(__FUNCTION__, "(V=", fullyQualifiedName!V, ")");
 
         static immutable typeName = fullyQualifiedName!V;
         size_t length;
@@ -1513,8 +1523,9 @@ public:
     final void deserialize(V)(ref V v, scope ref Serializable attribute)
     if (isSerializerAggregateType!V)
     {
+        debug(pham_ser_ser_serialization) debug writeln(__FUNCTION__, "(V=", fullyQualifiedName!V, ")");
         //pragma(msg, "\ndeserialize()", fullyQualifiedName!V);
-        //import std.stdio : writeln; debug writeln(fullyQualifiedName!V);
+
         static immutable typeName = fullyQualifiedName!V;
         enum SerializableMemberOptions memberOptions = getSerializableMemberOptions!V();
         ptrdiff_t deserializedLength;
@@ -1673,18 +1684,6 @@ public:
         }
     }
 
-    // Aggregate (class, struct)
-    final V deserialize(V)()
-    if (isSerializerAggregateType!V)
-    {
-        V v;
-        Serializable attribute;
-        begin();
-        deserialize(v, attribute);
-        end();
-        return v;
-    }
-
     pragma(inline, true)
     final void deserializeAny(V)(ref V v, scope ref Serializable attribute)
     {
@@ -1704,6 +1703,30 @@ public:
         }
 
         return false;
+    }
+
+    // Aggregate (class, struct)
+    final V deserialize(V)()
+    if (isSerializerAggregateType!V)
+    {
+        V v;
+        Serializable attribute;
+        begin();
+        deserialize(v, attribute);
+        end();
+        return v;
+    }
+
+    // Array
+    final V deserialize(V)()
+    if (isDynamicArray!V)
+    {
+        V v;
+        Serializable attribute;
+        begin();
+        deserialize(v, attribute);
+        end();
+        return v;
     }
 }
 
@@ -2034,15 +2057,6 @@ public:
     }
 
     // Aggregate (class, struct)
-    final void serialize(V)(auto ref V v)
-    if (isSerializerAggregateType!V)
-    {
-        Serializable attribute;
-        begin();
-        serialize(v, attribute);
-        end();
-    }
-
     final void serialize(V)(auto ref V v, scope ref Serializable attribute) @trusted // opEqual
     if (isSerializerAggregateType!V)
     {
@@ -2145,6 +2159,26 @@ public:
         }
 
         return false;
+    }
+
+    // Aggregate (class, struct)
+    final void serialize(V)(auto ref V v)
+    if (isSerializerAggregateType!V)
+    {
+        Serializable attribute;
+        begin();
+        serialize(v, attribute);
+        end();
+    }
+
+    // Array
+    final void serialize(V)(auto ref V v)
+    if (isDynamicArray!V)
+    {
+        Serializable attribute;
+        begin();
+        serialize(v, attribute);
+        end();
     }
 }
 
@@ -2275,10 +2309,20 @@ package(pham.ser):
 
         void assertValues()
         {
-            assert(_publicGetSet == 1, _publicGetSet.to!string);
+            assert(publicGetSet == 1, _publicGetSet.to!string);
             assert(_protectedGetSet == 3, _protectedGetSet.to!string);
             assert(_privateGetSet == 5, _privateGetSet.to!string);
             assert(publicInt == 20, publicInt.to!string);
+            assert(protectedInt == 0, protectedInt.to!string);
+            assert(privateInt == 0, privateInt.to!string);
+        }
+
+        void assertValuesArray(size_t index)
+        {
+            assert(publicGetSet == 1+index, publicGetSet.to!string);
+            assert(_protectedGetSet == 3, _protectedGetSet.to!string);
+            assert(_privateGetSet == 5, _privateGetSet.to!string);
+            assert(publicInt == 20+index, publicInt.to!string);
             assert(protectedInt == 0, protectedInt.to!string);
             assert(privateInt == 0, privateInt.to!string);
         }

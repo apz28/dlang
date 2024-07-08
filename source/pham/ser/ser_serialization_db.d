@@ -15,6 +15,8 @@ import std.array : Appender, appender;
 import std.conv : to;
 import std.traits : isDynamicArray, isFloatingPoint, isIntegral;
 
+debug(pham_ser_ser_serialization_db) import std.stdio : writeln;
+
 import pham.db.db_database : DbCommand, DbFieldList, DbReader;
 import pham.db.db_value : DbRowValue, DbValue;
 import pham.dtm.dtm_date : Date, DateTime;
@@ -54,6 +56,8 @@ public:
 
     override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
     {
+        debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(typeName=", typeName, ", memberDepth=", memberDepth, ")");
+
         currentCol = 0;
         super.aggregateBegin(typeName, attribute);
         return currentRow.length;
@@ -163,15 +167,22 @@ public:
     }
 
 public:
-    final override bool hasArrayEle(size_t i, ptrdiff_t len) nothrow
+    final override bool hasArrayEle(size_t i, ptrdiff_t len)
     {
-        //import std.stdio : writeln; debug writeln("hasArrayEle().i=", i, ", len=", len);
-        return len > 0 && len > i && currentRow.length != 0;
+        debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(i=", i, ", len=", len,
+            ", arrayDepth=", arrayDepth, ", currentRow.length=", currentRow.length, ")");
+
+        if (i != 0 && currentRow.length != 0)
+        {
+            currentCol = 0;
+            currentRow = readRowReader();
+        }
+
+        return currentRow.length != 0;
     }
 
-    final override bool hasAggregateEle(size_t i, ptrdiff_t len) nothrow
+    final override bool hasAggregateEle(size_t i, ptrdiff_t len)
     {
-        //import std.stdio : writeln; debug writeln("hasAggregateEle().i=", i, ", len=", len);
         return len > 0 && len > i && currentRow.length != 0;
     }
 
@@ -180,10 +191,10 @@ public:
     {
         return currentCol++;
     }
-    
+
     final DbRowValue readRowReader()
     {
-        return reader.read() ? reader.currentRow : DbRowValue.init;
+        return (*reader).read() ? reader.currentRow : DbRowValue.init;
     }
 
     @property final override SerializerDataFormat dataFormat() const @nogc nothrow pure
@@ -492,7 +503,7 @@ version(UnitTestFBDatabase)
     import pham.db.db_database : DbConnection, DbDatabaseList;
     import pham.db.db_type;
     import pham.db.db_fbdatabase;
-    
+
     DbConnection createTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
         DbCompressConnection compress = DbCompressConnection.disabled,
@@ -514,16 +525,18 @@ version(UnitTestFBDatabase)
 version(UnitTestFBDatabase)
 unittest // DbSerializer.UnitTestS1
 {
+    import std.conv : to;
+
     auto connection = createTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
 
-    connection.executeNonQuery("CREATE TABLE UnitTestS1(publicInt INTEGER, publicGetSet INTEGEDR)");
+    connection.executeNonQuery("CREATE TABLE UnitTestS1(publicInt INTEGER, publicGetSet INTEGER)");
     scope (exit)
-        connection.executeNonQuery("DROP TABLE UnitTestS1");    
+        connection.executeNonQuery("DROP TABLE UnitTestS1");
     connection.executeNonQuery("INSERT INTO UnitTestS1 (publicInt, publicGetSet) VALUES (20, 1)");
-    
+
     version(none)
     {
         auto c = new UnitTestC2();
@@ -533,11 +546,23 @@ unittest // DbSerializer.UnitTestS1
         assert(serializer.buffer[] == jsonUnitTestC2, serializer.buffer[]);
     }
 
+    // One struct
     {
-        auto reader = connection.executeReader("SELECT publicInt, publicGetSet FROM UnitTestS1");        
+        auto reader = connection.executeReader("SELECT publicInt, publicGetSet FROM UnitTestS1");
         scope deserializer = new DbDeserializer(&reader);
         auto c = deserializer.deserialize!UnitTestS1();
         c.assertValues();
+    }
+
+    // Array of structs
+    {
+        connection.executeNonQuery("INSERT INTO UnitTestS1 (publicInt, publicGetSet) VALUES (21, 2)");
+        auto reader = connection.executeReader("SELECT publicInt, publicGetSet FROM UnitTestS1 ORDER BY publicInt");
+        scope deserializer = new DbDeserializer(&reader);
+        auto cs = deserializer.deserialize!(UnitTestS1[])();
+        assert(cs.length == 2, cs.length.to!string);
+        foreach(i; 0..cs.length)
+            cs[i].assertValuesArray(i);
     }
 }
 
@@ -570,7 +595,7 @@ unittest // DbSerializer.UnitTestStdBigInt
 
     static immutable string jsonUnitTestStdBigInt =
         q"<{"bigInt1":"-71459266416693160362545788781600"}>";
-    
+
     {
         UnitTestStdBigInt c;
         scope serializer = new JsonSerializer();
@@ -593,7 +618,7 @@ unittest // DbSerializer.UnitTestStdDateTime
 
     static immutable string jsonUnitTestStdDateTime =
         q"<{"date1":"1999-01-01","dateTime1":"1999-07-06T12:30:33.0000000","sysTime1":"0001-01-01T00:00:33.0000502Z","timeOfDay1":"12:30:33.0000000"}>";
-    
+
     {
         UnitTestStdDateTime c;
         scope serializer = new JsonSerializer();
@@ -616,7 +641,7 @@ unittest // DbSerializer.UnitTestStdUuid
 
     static immutable string jsonUnitTestStdUuid =
         q"<{"uuid1":"8ab3060e-2cba-4f23-b74c-b52db3dbfb46"}>";
-    
+
     {
         UnitTestStdUuid c;
         scope serializer = new JsonSerializer();
@@ -639,7 +664,7 @@ unittest // DbSerializer.UnitTestPhamBigInteger
 
     static immutable string jsonUnitTestPhamBigInteger =
         q"<{"bigInt1":"-71459266416693160362545788781600"}>";
-    
+
     {
         UnitTestPhamBigInteger c;
         scope serializer = new JsonSerializer();
@@ -660,7 +685,7 @@ unittest // DbSerializer.UnitTestPhamDateTime
 {
     static immutable string jsonUnitTestPhamDateTime =
         q"<{"date1":"1999-01-01","dateTime1":"1999-07-06T12:30:33.0000000Z","time1":"12:30:33.0000000Z"}>";
-    
+
     {
         UnitTestPhamDateTime c;
         scope serializer = new JsonSerializer();
@@ -683,7 +708,7 @@ unittest // DbSerializer.UnitTestDecDecimal
 
     static immutable string jsonUnitTestDecDecimal =
         q"<{"decimalNaN":"nan","decimalInfinity":"-inf","decimal32":"-7145.0","decimal64":"714583645.4","decimal128":"294574120484.87"}>";
-    
+
     {
         UnitTestDecDecimal c;
         scope serializer = new JsonSerializer();
@@ -703,7 +728,7 @@ version(none)
 unittest // DbSerializer.UnitTestCustomS1
 {
     string jsonCustom;
-    
+
     {
         UnitTestCustomS1 c;
         scope serializer = new JsonSerializer();

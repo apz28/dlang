@@ -4734,10 +4734,12 @@ public:
     }
 
     @property DbRowValue currentRow() @safe
+    in
     {
-        if (_flags.on(Flag.checkRows))
-            read();
-
+        assert(_flags.off(Flag.checkRows));
+    }
+    do
+    {
         return _currentRow;
     }
 

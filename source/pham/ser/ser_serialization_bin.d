@@ -387,12 +387,12 @@ public:
         return t;
     }
 
-    final override bool hasArrayEle(size_t i, ptrdiff_t len) nothrow
+    final override bool hasArrayEle(size_t i, ptrdiff_t len)
     {
         return offset < data.length && data[offset] != SerializerDataType.arrayEnd;
     }
 
-    final override bool hasAggregateEle(size_t i, ptrdiff_t len) nothrow
+    final override bool hasAggregateEle(size_t i, ptrdiff_t len)
     {
         return offset < data.length && data[offset] != SerializerDataType.aggregateEnd;
     }
