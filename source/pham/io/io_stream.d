@@ -26,7 +26,7 @@ else
 
 @safe:
 
-class Stream
+abstract class Stream
 {
 @safe:
 

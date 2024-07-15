@@ -918,7 +918,7 @@ struct DSeserializerFunctions
     SerializerFunction serialize;
 }
 
-class DSeserializer
+abstract class DSeserializer
 {
 @safe:
 
