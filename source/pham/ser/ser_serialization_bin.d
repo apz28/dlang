@@ -124,7 +124,7 @@ public:
 
         checkDataLength(binaryIndicator.length);
         if (data[0..binaryIndicator.length] != binaryIndicator)
-            throw new DeserializerException("Not a binary data stream");
+            throw new DeserializerException("Not a binary serialization stream");
         offset += binaryIndicator.length;
 
         checkDataLength(ushort.sizeof);
@@ -227,13 +227,15 @@ public:
     final V readInt(V)()
     if (isIntegral!V)
     {
-        static if (V.sizeof == 8)
+        static assert(V.sizeof <= long.sizeof);
+        
+        static if (V.sizeof == long.sizeof)
             static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.int8, SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1]);
-        else static if (V.sizeof == 4)
+        else static if (V.sizeof == int.sizeof)
             static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1]);
-        else static if (V.sizeof == 2)
+        else static if (V.sizeof == short.sizeof)
             static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.int2, SerializerDataType.int1]);
-        else //static if (V.sizeof == 1)
+        else //static if (V.sizeof == byte.sizeof)
             static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.int1]);
 
         return readInt!V(checkDataType(checkTypes, 2));
@@ -242,15 +244,17 @@ public:
     private final V readInt(V)(const(SerializerDataType) t)
     if (isIntegral!V)
     {
-        static if (V.sizeof >= 8)
+        static assert(V.sizeof <= long.sizeof);
+        
+        static if (V.sizeof >= long.sizeof)
         if (t == SerializerDataType.int8)
             return BinaryIntCoder.decodeInt!long(data, offset);
 
-        static if (V.sizeof >= 4)
+        static if (V.sizeof >= int.sizeof)
         if (t == SerializerDataType.int4)
             return BinaryIntCoder.decodeInt!int(data, offset);
 
-        static if (V.sizeof >= 2)
+        static if (V.sizeof >= short.sizeof)
         if (t == SerializerDataType.int2)
             return BinaryIntCoder.decodeInt!short(data, offset);
 
@@ -271,23 +275,27 @@ public:
     final V readFloat(V)()
     if (isFloatingPoint!V)
     {
-        static if (V.sizeof == 8)
+        static if (V.sizeof == long.sizeof)
             static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.float8, SerializerDataType.float4, SerializerDataType.int8, SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1]);
-        else //static if (V.sizeof == 4)
+        else static if (V.sizeof == int.sizeof)
             static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.float4, SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1]);
+        else
+            static assert(0, "Unsupport float type " ~ V.stringof);
 
         const t = checkDataType(checkTypes, 2);
 
-        static if (V.sizeof >= 8)
+        static if (V.sizeof == long.sizeof)
             return t == SerializerDataType.float8
                 ? BinaryIntCoder.decodeFloat!double(data, offset)
                 : (t == SerializerDataType.float4
                     ? BinaryIntCoder.decodeFloat!float(data, offset)
                     : cast(V)readInt!long(t));
-        else
+        else static if (V.sizeof == int.sizeof)
             return t == SerializerDataType.float4
                 ? BinaryIntCoder.decodeFloat!float(data, offset)
                 : cast(V)readInt!int(t);
+        else
+            static assert(0, "Unsupport float type " ~ V.stringof);
     }
 
     final override string readChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
@@ -673,7 +681,7 @@ unittest // BinarySerializer.UnitTestC2
     {
         auto c = new UnitTestC2();
         scope serializer = new BinarySerializer();
-        serializer.serialize!UnitTestC2(cast(UnitTestC2)(c.setValues()));
+        serializer.serialize!UnitTestC2(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestC2, bytesToHexs(serializer.buffer[]));

@@ -11,10 +11,12 @@
 
 module pham.ser.ser_std_date_time;
 
+import core.time : Duration;
 import std.datetime.date : Date, DateTime, TimeOfDay;
 import std.datetime.systime : SysTime;
-import std.datetime.timezone : LocalTime, UTC;
+import std.datetime.timezone : LocalTime, SimpleTimeZone, UTC;
 
+debug(pham_ser_ser_std_date_time) import std.stdio : writeln;
 import pham.dtm.dtm_date : PhamDate=Date, PhamDateTime=DateTime;
 import pham.dtm.dtm_tick : DateTimeZoneKind, Tick;
 import pham.dtm.dtm_time : PhamTime=Time;
@@ -53,13 +55,17 @@ void serialize(Serializer serializer, scope ref DateTime value, scope ref Serial
 
 void deserialize(Deserializer deserializer, scope ref SysTime value, scope ref Serializable attribute)
 {
+    static immutable unspecifiedTZ = new immutable SimpleTimeZone(Duration.zero);
     const phamDateTime = deserializer.readDateTime(attribute);
     int year=void, month=void, day=void, hour=void, minute=void, second=void, fractionIn100ns=void;
     phamDateTime.getDate(year, month, day);
     phamDateTime.getTimePrecise(hour, minute, second, fractionIn100ns);
-    value = SysTime(DateTime(year, month, day, hour, minute, second),
-        Tick.durationFromTicks(fractionIn100ns),
-        phamDateTime.kind == DateTimeZoneKind.utc ? UTC() : null);
+    auto timeZone = phamDateTime.kind == DateTimeZoneKind.utc
+        ? UTC()
+        : (phamDateTime.kind == DateTimeZoneKind.local ? LocalTime() : unspecifiedTZ);
+    debug(pham_ser_ser_std_date_time) debug writeln(__FUNCTION__, "(year=", year, ", month=", month, ", day=", day,
+        ", hour=", hour, ", minute=", minute, ", second=", second, ", fractionIn100ns=", fractionIn100ns, ", kind=", phamDateTime.kind, ")");
+    value = SysTime(DateTime(year, month, day, hour, minute, second), Tick.durationFromTicks(fractionIn100ns), timeZone);
 }
 
 void serialize(Serializer serializer, scope ref SysTime value, scope ref Serializable attribute)
@@ -97,6 +103,8 @@ package(pham.ser):
 
     static struct UnitTestStdDateTime
     {
+        import core.time : days, seconds;
+
         Date date1;
         DateTime dateTime1;
         SysTime sysTime1;
@@ -117,6 +125,15 @@ package(pham.ser):
             assert(dateTime1 == DateTime(1999, 7, 6, 12, 30, 33), dateTime1.toString());
             assert(sysTime1 == SysTime(330_000_502L, UTC()), sysTime1.toString() ~ " ? " ~ SysTime(330_000_502L, UTC()).toString());
             assert(timeOfDay1 == TimeOfDay(12, 30, 33), timeOfDay1.toString());
+        }
+
+        // Some database does not support 'Z' or 7 digits precision
+        void assertValuesArray(int i)
+        {
+            assert(date1 == Date(1999, 1, 1)+days(i), date1.toString());
+            assert(dateTime1 == DateTime(1999, 7, 6, 12, 30, 33)+days(i), dateTime1.toString());
+            assert(sysTime1 == SysTime(330_000_000L)+days(i), sysTime1.toString() ~ " ? " ~ (SysTime(330_000_000L)+days(i)).toString());
+            assert(timeOfDay1 == TimeOfDay(12, 30, 33)+seconds(i), timeOfDay1.toString());
         }
     }
 

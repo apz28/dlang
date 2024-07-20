@@ -49,8 +49,7 @@ public:
 
     override Deserializer end()
     {
-        currentCol = 0;
-        currentRow = DbRowValue.init;
+        currentCol = currentRow = 0;
         return super.end();
     }
 
@@ -60,19 +59,19 @@ public:
 
         currentCol = 0;
         super.aggregateBegin(typeName, attribute);
-        return currentRow.length;
+        return currentRow;
     }
 
     final override Null readNull(scope ref Serializable)
     {
         const i = popFront();
-        assert(currentRow[i].isNull);
+        assert(reader.isNull(i));
         return null;
     }
 
     final override bool readBool(scope ref Serializable)
     {
-        return currentRow[popFront()].value.coerce!bool();
+        return reader.getValue(popFront()).coerce!bool();
     }
 
     final override char readChar(scope ref Serializable attribute)
@@ -84,53 +83,53 @@ public:
 
     final override Date readDate(scope ref Serializable)
     {
-        return currentRow[popFront()].value.coerce!Date();
+        return reader.getValue(popFront()).coerce!Date();
     }
 
     final override DateTime readDateTime(scope ref Serializable)
     {
-        return currentRow[popFront()].value.coerce!DateTime();
+        return reader.getValue(popFront()).coerce!DateTime();
     }
 
     final override Time readTime(scope ref Serializable)
     {
-        return currentRow[popFront()].value.coerce!Time();
+        return reader.getValue(popFront()).coerce!Time();
     }
 
     final override byte readByte(scope ref Serializable)
     {
-        return currentRow[popFront()].value.coerce!byte();
+        return reader.getValue(popFront()).coerce!byte();
     }
 
     final override short readShort(scope ref Serializable)
     {
-        return currentRow[popFront()].value.coerce!short();
+        return reader.getValue(popFront()).coerce!short();
     }
 
     final override int readInt(scope ref Serializable, const(DataKind) kind = DataKind.integral)
     {
-        return currentRow[popFront()].value.coerce!int();
+        return reader.getValue(popFront()).coerce!int();
     }
 
     final override long readLong(scope ref Serializable, const(DataKind) kind = DataKind.integral)
     {
-        return currentRow[popFront()].value.coerce!long();
+        return reader.getValue(popFront()).coerce!long();
     }
 
     final override float readFloat(scope ref Serializable, const(DataKind) kind = DataKind.decimal)
     {
-        return currentRow[popFront()].value.coerce!float();
+        return reader.getValue(popFront()).coerce!float();
     }
 
     final override double readDouble(scope ref Serializable, const(DataKind) kind = DataKind.decimal)
     {
-        return currentRow[popFront()].value.coerce!double();
+        return reader.getValue(popFront()).coerce!double();
     }
 
     final override string readChars(scope ref Serializable, const(DataKind) kind = DataKind.character)
     {
         const i = popFront();
-        return currentRow[i].isNull ? null : currentRow[i].value.coerce!string();
+        return reader.isNull(i) ? null : reader.getValue(i).coerce!string();
     }
 
     final override wstring readWChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
@@ -153,7 +152,7 @@ public:
     final override ubyte[] readBytes(scope ref Serializable, const(DataKind) kind = DataKind.binary)
     {
         const i = popFront();
-        return currentRow[i].isNull ? null : currentRow[i].value.coerce!(ubyte[])();
+        return reader.isNull(i) ? null : reader.getValue(i).coerce!(ubyte[])();
     }
 
     final override const(ubyte)[] readScopeBytes(scope ref Serializable attribute, const(DataKind) kind = DataKind.binary)
@@ -170,20 +169,20 @@ public:
     final override bool hasArrayEle(size_t i, ptrdiff_t len)
     {
         debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(i=", i, ", len=", len,
-            ", arrayDepth=", arrayDepth, ", currentRow.length=", currentRow.length, ")");
+            ", arrayDepth=", arrayDepth, ", currentRow=", currentRow, ")");
 
-        if (i != 0 && currentRow.length != 0)
+        if (i != 0 && currentRow != 0)
         {
             currentCol = 0;
             currentRow = readRowReader();
         }
 
-        return currentRow.length != 0;
+        return currentRow != 0;
     }
 
     final override bool hasAggregateEle(size_t i, ptrdiff_t len)
     {
-        return len > 0 && len > i && currentRow.length != 0;
+        return len > 0 && len > i && currentRow != 0;
     }
 
     pragma(inline, true)
@@ -192,9 +191,9 @@ public:
         return currentCol++;
     }
 
-    final DbRowValue readRowReader()
+    final size_t readRowReader()
     {
-        return (*reader).read() ? reader.currentRow : DbRowValue.init;
+        return reader.read() ? reader.colCount : 0u;
     }
 
     @property final override SerializerDataFormat dataFormat() const @nogc nothrow pure
@@ -205,8 +204,7 @@ public:
 public:
     DbReader* reader;
     DbFieldList fields;
-    DbRowValue currentRow;
-    size_t currentCol;
+    size_t currentCol, currentRow;
 }
 
 version(none)
@@ -535,13 +533,14 @@ unittest // DbSerializer.UnitTestS1
     connection.executeNonQuery("CREATE TABLE UnitTestS1(publicInt INTEGER, publicGetSet INTEGER)");
     scope (exit)
         connection.executeNonQuery("DROP TABLE UnitTestS1");
-    connection.executeNonQuery("INSERT INTO UnitTestS1 (publicInt, publicGetSet) VALUES (20, 1)");
+    connection.executeNonQuery("INSERT INTO UnitTestS1(publicInt, publicGetSet)" ~
+        " VALUES(20, 1)");
 
     version(none)
     {
         auto c = new UnitTestC2();
-        scope serializer = new JsonSerializer();
-        serializer.serialize!UnitTestC2(cast(UnitTestC2)(c.setValues()));
+        scope serializer = new DbSerializer();
+        serializer.serialize!UnitTestC2(c.setValues());
         //import std.stdio : writeln; debug writeln(serializer.buffer[]);
         assert(serializer.buffer[] == jsonUnitTestC2, serializer.buffer[]);
     }
@@ -556,7 +555,7 @@ unittest // DbSerializer.UnitTestS1
 
     // Array of structs
     {
-        connection.executeNonQuery("INSERT INTO UnitTestS1 (publicInt, publicGetSet) VALUES (21, 2)");
+        connection.executeNonQuery("INSERT INTO UnitTestS1(publicInt, publicGetSet) VALUES(21, 2)");
         auto reader = connection.executeReader("SELECT publicInt, publicGetSet FROM UnitTestS1 ORDER BY publicInt");
         scope deserializer = new DbDeserializer(&reader);
         auto cs = deserializer.deserialize!(UnitTestS1[])();
@@ -566,59 +565,135 @@ unittest // DbSerializer.UnitTestS1
     }
 }
 
-version(none)
-unittest // DbSerializer.UnitTestAllTypes
+version(UnitTestFBDatabase)
+unittest // DbSerializer.UnitTestAllTypesLess
 {
-    static immutable string jsonUnitTestAllTypes =
-        q"<{"enum1":"third","bool1":true,"byte1":101,"ubyte1":0,"short1":-1003,"ushort1":3975,"int1":-382653,"uint1":3957209,"long1":-394572364,"ulong1":284659274,"float1":6394763.5,"floatNaN":"NaN","double1":-2846627456445.7651,"doubleInf":"-Infinity","string1":"test string of","charArray":"will this work?","binary1":"JRjMZSs=","intArray":[135,937,3725,3068,38465,380],"intArrayNull":[],"intInt":{"2":23456,"11":113456},"intIntNull":null,"enumEnum":{"forth":"sixth","third":"second"},"strStr":{"key1":"key1 value","key2":"key2 value","key3":null},"struct1":{"publicInt":20,"publicGetSet":1},"class1":{"Int":30,"publicStruct":{"publicInt":20,"publicGetSet":1},"GetSet":1},"class1Null":null}>";
+    import std.conv : to;
 
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    connection.executeNonQuery("CREATE TABLE UnitTestAllTypesLess(enum1 VARCHAR(20), bool1 BOOLEAN, byte1 SMALLINT" ~
+        ", ubyte1 SMALLINT, short1 SMALLINT, ushort1 SMALLINT, int1 INTEGER, uint1 INTEGER" ~
+        ", long1 BIGINT, ulong1 BIGINT, float1 FLOAT, double1 DOUBLE PRECISION" ~
+        ", string1 VARCHAR(1000), charArray VARCHAR(1000), binary1 BLOB)");
+    scope (exit)
+        connection.executeNonQuery("DROP TABLE UnitTestAllTypesLess");
+    connection.executeNonQuery("INSERT INTO UnitTestAllTypesLess(enum1, bool1, byte1" ~
+        ", ubyte1, short1, ushort1, int1, uint1" ~
+        ", long1, ulong1, float1, double1" ~
+        ", string1, charArray, binary1)" ~
+        " VALUES('third', true, 101" ~
+        ", 0, -1003, 3975, -382653, 3957209" ~
+        ", -394572364, 284659274, 6394763.5, -2846627456445.7651" ~
+        ", 'test string of', 'will this work?', base64_decode('JRjMZSs='))");
+
+    version(none)
     {
-        auto c = new UnitTestAllTypes();
-        scope serializer = new JsonSerializer();
-        serializer.serialize!UnitTestAllTypes(c.setValues());
+        auto c = new UnitTestAllTypesLess();
+        scope serializer = new DbSerializer();
+        serializer.serialize!UnitTestAllTypesLess(c.setValues());
         //import std.stdio : writeln; debug writeln(serializer.buffer[]);
         assert(serializer.buffer[] == jsonUnitTestAllTypes, serializer.buffer[]);
     }
 
+    // One class
     {
-        scope deserializer = new JsonDeserializer(jsonUnitTestAllTypes);
-        auto c = deserializer.deserialize!UnitTestAllTypes();
+        auto reader = connection.executeReader("SELECT enum1, bool1, byte1, ubyte1, short1, ushort1, int1, uint1, long1, ulong1, float1, double1, string1, charArray, binary1 FROM UnitTestAllTypesLess");
+        scope deserializer = new DbDeserializer(&reader);
+        auto c = deserializer.deserialize!UnitTestAllTypesLess();
         assert(c !is null);
         c.assertValues();
     }
+    
+    // Array of classes
+    {
+        connection.executeNonQuery("INSERT INTO UnitTestAllTypesLess(enum1, bool1, byte1" ~
+            ", ubyte1, short1, ushort1, int1, uint1" ~
+            ", long1, ulong1, float1, double1" ~
+            ", string1, charArray, binary1)" ~
+            " VALUES('third', true, 102" ~
+            ", 1, -1002, 3976, -382652, 3957210" ~
+            ", -394572363, 284659275, 6394764.5, -2846627456444.7651" ~
+            ", 'test string of', 'will this work?', base64_decode('JRjMZSs='))");
+        auto reader = connection.executeReader("SELECT enum1, bool1, byte1, ubyte1, short1, ushort1, int1, uint1, long1, ulong1, float1, double1, string1, charArray, binary1 FROM UnitTestAllTypesLess ORDER BY byte1");
+        scope deserializer = new DbDeserializer(&reader);
+        auto cs = deserializer.deserialize!(UnitTestAllTypesLess[])();
+        assert(cs.length == 2, cs.length.to!string);
+        foreach(i; 0..cs.length)
+        {
+            //import std.stdio : writeln; debug writeln("i=", i);
+            assert(cs[i] !is null);
+            cs[i].assertValuesArray(i);
+        }
+    }
 }
 
-version(none)
+version(UnitTestFBDatabase)
 unittest // DbSerializer.UnitTestStdBigInt
 {
+    import std.conv : to;
     import pham.ser.ser_std_bigint;
 
-    static immutable string jsonUnitTestStdBigInt =
-        q"<{"bigInt1":"-71459266416693160362545788781600"}>";
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
 
+    connection.executeNonQuery("CREATE TABLE UnitTestStdBigInt(i INTEGER, bigInt1 VARCHAR(200))");
+    scope (exit)
+        connection.executeNonQuery("DROP TABLE UnitTestStdBigInt");
+    connection.executeNonQuery("INSERT INTO UnitTestStdBigInt(i, bigInt1) VALUES(0, '-71459266416693160362545788781600')");
+
+    version(none)
     {
         UnitTestStdBigInt c;
-        scope serializer = new JsonSerializer();
+        scope serializer = new DbSerializer();
         serializer.serialize!UnitTestStdBigInt(c.setValues());
         //import std.stdio : writeln; debug writeln(serializer.buffer[]);
         assert(serializer.buffer[] == jsonUnitTestStdBigInt, serializer.buffer[]);
     }
 
+    // One struct
     {
-        scope deserializer = new JsonDeserializer(jsonUnitTestStdBigInt);
+        auto reader = connection.executeReader("SELECT bigInt1 FROM UnitTestStdBigInt");
+        scope deserializer = new DbDeserializer(&reader);
         auto c = deserializer.deserialize!UnitTestStdBigInt();
         c.assertValues();
     }
+
+    // Array of structs
+    {
+        connection.executeNonQuery("INSERT INTO UnitTestStdBigInt(i, bigInt1) VALUES(1, '-71459266416693160362545788781599')");
+        auto reader = connection.executeReader("SELECT bigInt1 FROM UnitTestStdBigInt ORDER BY i");
+        scope deserializer = new DbDeserializer(&reader);
+        auto cs = deserializer.deserialize!(UnitTestStdBigInt[])();
+        assert(cs.length == 2, cs.length.to!string);
+        foreach(i; 0..cs.length)
+            cs[i].assertValuesArray(i);
+    }
 }
 
-version(none)
+version(UnitTestFBDatabase)
 unittest // DbSerializer.UnitTestStdDateTime
 {
+    import std.conv : to;
     import pham.ser.ser_std_date_time;
 
-    static immutable string jsonUnitTestStdDateTime =
-        q"<{"date1":"1999-01-01","dateTime1":"1999-07-06T12:30:33.0000000","sysTime1":"0001-01-01T00:00:33.0000502Z","timeOfDay1":"12:30:33.0000000"}>";
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
 
+    connection.executeNonQuery("CREATE TABLE UnitTestStdDateTime(date1 DATE, dateTime1 TIMESTAMP, sysTime1 TIMESTAMP, timeOfDay1 TIME)");
+    scope (exit)
+        connection.executeNonQuery("DROP TABLE UnitTestStdDateTime");
+    connection.executeNonQuery("INSERT INTO UnitTestStdDateTime(date1, dateTime1, sysTime1, timeOfDay1)" ~
+        " VALUES('1999-01-01', '1999-07-06 12:30:33', '0001-01-01 00:00:33', '12:30:33')");
+
+    version(none)
     {
         UnitTestStdDateTime c;
         scope serializer = new JsonSerializer();
@@ -627,21 +702,44 @@ unittest // DbSerializer.UnitTestStdDateTime
         assert(serializer.buffer[] == jsonUnitTestStdDateTime, serializer.buffer[]);
     }
 
+    // One struct
     {
-        scope deserializer = new JsonDeserializer(jsonUnitTestStdDateTime);
+        auto reader = connection.executeReader("SELECT date1, dateTime1, sysTime1, timeOfDay1 FROM UnitTestStdDateTime");
+        scope deserializer = new DbDeserializer(&reader);
         auto c = deserializer.deserialize!UnitTestStdDateTime();
-        c.assertValues();
+        c.assertValuesArray(0);
+    }
+
+    // Array of structs
+    {
+        connection.executeNonQuery("INSERT INTO UnitTestStdDateTime(date1, dateTime1, sysTime1, timeOfDay1)" ~
+            " VALUES('1999-01-02', '1999-07-07 12:30:33', '0001-01-02 00:00:33', '12:30:34')");
+        auto reader = connection.executeReader("SELECT date1, dateTime1, sysTime1, timeOfDay1 FROM UnitTestStdDateTime ORDER BY date1");
+        scope deserializer = new DbDeserializer(&reader);
+        auto cs = deserializer.deserialize!(UnitTestStdDateTime[])();
+        assert(cs.length == 2, cs.length.to!string);
+        foreach(i; 0..cs.length)
+            cs[i].assertValuesArray(i);
     }
 }
 
-version(none)
+version(UnitTestFBDatabase)
 unittest // DbSerializer.UnitTestStdUuid
 {
+    import std.conv : to;
     import pham.ser.ser_std_uuid;
 
-    static immutable string jsonUnitTestStdUuid =
-        q"<{"uuid1":"8ab3060e-2cba-4f23-b74c-b52db3dbfb46"}>";
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
 
+    connection.executeNonQuery("CREATE TABLE UnitTestStdUuid(uuid1 VARCHAR(36))");
+    scope (exit)
+        connection.executeNonQuery("DROP TABLE UnitTestStdUuid");
+    connection.executeNonQuery("INSERT INTO UnitTestStdUuid(uuid1) VALUES('8ab3060e-2cba-4f23-b74c-b52db3dbfb46')");
+
+    version(none)
     {
         UnitTestStdUuid c;
         scope serializer = new JsonSerializer();
@@ -650,42 +748,87 @@ unittest // DbSerializer.UnitTestStdUuid
         assert(serializer.buffer[] == jsonUnitTestStdUuid, serializer.buffer[]);
     }
 
+    // One struct
     {
-        scope deserializer = new JsonDeserializer(jsonUnitTestStdUuid);
+        auto reader = connection.executeReader("SELECT uuid1 FROM UnitTestStdUuid");
+        scope deserializer = new DbDeserializer(&reader);
         auto c = deserializer.deserialize!UnitTestStdUuid();
         c.assertValues();
     }
+
+    // Array of structs
+    {
+        connection.executeNonQuery("INSERT INTO UnitTestStdUuid(uuid1) VALUES('8ab3060e-2cba-4f23-b74c-b52db3dbfb46')");
+        auto reader = connection.executeReader("SELECT uuid1 FROM UnitTestStdUuid ORDER BY uuid1");
+        scope deserializer = new DbDeserializer(&reader);
+        auto cs = deserializer.deserialize!(UnitTestStdUuid[])();
+        assert(cs.length == 2, cs.length.to!string);
+        foreach(i; 0..cs.length)
+            cs[i].assertValues();
+    }
 }
 
-version(none)
+version(UnitTestFBDatabase)
 unittest // DbSerializer.UnitTestPhamBigInteger
 {
+    import std.conv : to;
     import pham.ser.ser_pham_big_integer;
 
-    static immutable string jsonUnitTestPhamBigInteger =
-        q"<{"bigInt1":"-71459266416693160362545788781600"}>";
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
 
+    connection.executeNonQuery("CREATE TABLE UnitTestPhamBigInteger(i INTEGER, bigInt1 VARCHAR(200))");
+    scope (exit)
+        connection.executeNonQuery("DROP TABLE UnitTestPhamBigInteger");
+    connection.executeNonQuery("INSERT INTO UnitTestPhamBigInteger(i, bigInt1) VALUES(0, '-71459266416693160362545788781600')");
+
+    version(none)
     {
         UnitTestPhamBigInteger c;
-        scope serializer = new JsonSerializer();
+        scope serializer = new DbSerializer();
         serializer.serialize!UnitTestPhamBigInteger(c.setValues());
         //import std.stdio : writeln; debug writeln(serializer.buffer[]);
-        assert(serializer.buffer[] == jsonUnitTestPhamBigInteger, serializer.buffer[]);
+        assert(serializer.buffer[] == jsonUnitTestStdBigInt, serializer.buffer[]);
     }
 
+    // One struct
     {
-        scope deserializer = new JsonDeserializer(jsonUnitTestPhamBigInteger);
+        auto reader = connection.executeReader("SELECT bigInt1 FROM UnitTestPhamBigInteger");
+        scope deserializer = new DbDeserializer(&reader);
         auto c = deserializer.deserialize!UnitTestPhamBigInteger();
         c.assertValues();
     }
+
+    // Array of structs
+    {
+        connection.executeNonQuery("INSERT INTO UnitTestPhamBigInteger(i, bigInt1) VALUES(1, '-71459266416693160362545788781599')");
+        auto reader = connection.executeReader("SELECT bigInt1 FROM UnitTestPhamBigInteger ORDER BY i");
+        scope deserializer = new DbDeserializer(&reader);
+        auto cs = deserializer.deserialize!(UnitTestPhamBigInteger[])();
+        assert(cs.length == 2, cs.length.to!string);
+        foreach(i; 0..cs.length)
+            cs[i].assertValuesArray(i);
+    }
 }
 
-version(none)
+version(UnitTestFBDatabase)
 unittest // DbSerializer.UnitTestPhamDateTime
 {
-    static immutable string jsonUnitTestPhamDateTime =
-        q"<{"date1":"1999-01-01","dateTime1":"1999-07-06T12:30:33.0000000Z","time1":"12:30:33.0000000Z"}>";
+    import std.conv : to;
 
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    connection.executeNonQuery("CREATE TABLE UnitTestPhamDateTime(date1 DATE, dateTime1 TIMESTAMP, time1 TIME)");
+    scope (exit)
+        connection.executeNonQuery("DROP TABLE UnitTestPhamDateTime");
+    connection.executeNonQuery("INSERT INTO UnitTestPhamDateTime(date1, dateTime1, time1) VALUES('1999-01-01', '1999-07-06 12:30:33', '12:30:33')");
+
+    version(none)
     {
         UnitTestPhamDateTime c;
         scope serializer = new JsonSerializer();
@@ -694,21 +837,44 @@ unittest // DbSerializer.UnitTestPhamDateTime
         assert(serializer.buffer[] == jsonUnitTestPhamDateTime, serializer.buffer[]);
     }
 
+    // One struct
     {
-        scope deserializer = new JsonDeserializer(jsonUnitTestPhamDateTime);
+        auto reader = connection.executeReader("SELECT date1, dateTime1, time1 FROM UnitTestPhamDateTime");
+        scope deserializer = new DbDeserializer(&reader);
         auto c = deserializer.deserialize!UnitTestPhamDateTime();
-        c.assertValues();
+        c.assertValuesArray(0);
+    }
+
+    // Array of structs
+    {
+        connection.executeNonQuery("INSERT INTO UnitTestPhamDateTime(date1, dateTime1, time1) VALUES('1999-01-02', '1999-07-07 12:30:33', '12:30:34')");
+        auto reader = connection.executeReader("SELECT date1, dateTime1, time1 FROM UnitTestPhamDateTime ORDER BY date1");
+        scope deserializer = new DbDeserializer(&reader);
+        auto cs = deserializer.deserialize!(UnitTestPhamDateTime[])();
+        assert(cs.length == 2, cs.length.to!string);
+        foreach(i; 0..cs.length)
+            cs[i].assertValuesArray(i);
     }
 }
 
-version(none)
+version(UnitTestFBDatabase)
 unittest // DbSerializer.UnitTestDecDecimal
 {
+    import std.conv : to;
     import pham.ser.ser_dec_decimal;
 
-    static immutable string jsonUnitTestDecDecimal =
-        q"<{"decimalNaN":"nan","decimalInfinity":"-inf","decimal32":"-7145.0","decimal64":"714583645.4","decimal128":"294574120484.87"}>";
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
 
+    //connection.executeNonQuery("CREATE TABLE UnitTestDecDecimal(decimal32 DECIMAL(7, 2), decimal64 DECIMAL(15, 2), decimal128 decfloat(34))");
+    connection.executeNonQuery("CREATE TABLE UnitTestDecDecimal(decimal32 DECIMAL(7, 2), decimal64 DECIMAL(15, 2), decimal128 DECIMAL(18, 2))");
+    scope (exit)
+        connection.executeNonQuery("DROP TABLE UnitTestDecDecimal");
+    connection.executeNonQuery("INSERT INTO UnitTestDecDecimal(decimal32, decimal64, decimal128) VALUES(-7145.0, 714583645.4, 294574120484.87)");
+
+    version(none)
     {
         UnitTestDecDecimal c;
         scope serializer = new JsonSerializer();
@@ -717,18 +883,43 @@ unittest // DbSerializer.UnitTestDecDecimal
         assert(serializer.buffer[] == jsonUnitTestDecDecimal, serializer.buffer[]);
     }
 
+    // One struct
     {
-        scope deserializer = new JsonDeserializer(jsonUnitTestDecDecimal);
+        auto reader = connection.executeReader("SELECT decimal32, decimal64, decimal128 FROM UnitTestDecDecimal");
+        scope deserializer = new DbDeserializer(&reader);
         auto c = deserializer.deserialize!UnitTestDecDecimal();
-        c.assertValues();
+        c.assertValuesArray(0);
+    }
+
+    // Array of structs
+    {
+        connection.executeNonQuery("INSERT INTO UnitTestDecDecimal(decimal32, decimal64, decimal128) VALUES(-7144.0, 714583646.4, 294574120485.87)");
+        auto reader = connection.executeReader("SELECT decimal32, decimal64, decimal128 FROM UnitTestDecDecimal ORDER BY decimal32");
+        scope deserializer = new DbDeserializer(&reader);
+        auto cs = deserializer.deserialize!(UnitTestDecDecimal[])();
+        assert(cs.length == 2, cs.length.to!string);
+        foreach(i; 0..cs.length)
+            cs[i].assertValuesArray(i);
     }
 }
 
 version(none)
 unittest // DbSerializer.UnitTestCustomS1
 {
-    string jsonCustom;
+    import std.conv : to;
 
+    auto connection = createTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    connection.executeNonQuery("CREATE TABLE UnitTestS1(publicInt INTEGER, publicGetSet INTEGER)");
+    scope (exit)
+        connection.executeNonQuery("DROP TABLE UnitTestS1");
+    connection.executeNonQuery("INSERT INTO UnitTestS1(publicInt, publicGetSet)" ~
+        " VALUES(20, 1)");
+
+    version(none)
     {
         UnitTestCustomS1 c;
         scope serializer = new JsonSerializer();

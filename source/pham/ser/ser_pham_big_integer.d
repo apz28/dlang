@@ -65,6 +65,11 @@ package(pham.ser):
         {
             assert(bigInt1 == BigInteger("-71459266416693160362545788781600"));
         }
+        
+        void assertValuesArray(int i)
+        {
+            assert(bigInt1 == BigInteger("-71459266416693160362545788781600")+i);
+        }
     }
     
     //import pham.ser.ser_serialization : SerializerMemberList;

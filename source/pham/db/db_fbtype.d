@@ -97,7 +97,7 @@ static immutable DbTypeInfo[] fbNativeTypes = [
     {dbName:"BOOLEAN", dbType:DbType.boolean, dbId:FbIscType.sql_boolean, nativeName:"bool", nativeSize:DbTypeSize.boolean, displaySize:DbTypeDisplaySize.boolean}, // fb3
     {dbName:"CHAR(?)", dbType:DbType.stringFixed, dbId:FbIscType.sql_text, nativeName:"string", nativeSize:DbTypeSize.stringFixed, displaySize:DbTypeDisplaySize.stringFixed}, //char[]
     {dbName:"DATE", dbType:DbType.date, dbId:FbIscType.sql_date, nativeName:"DbDate", nativeSize:DbTypeSize.date, displaySize:DbTypeDisplaySize.date},
-    {dbName:"DATETIME", dbType:DbType.datetime, dbId:FbIscType.sql_timestamp, nativeName:"DbDateTime", nativeSize:DbTypeSize.datetime, displaySize:DbTypeDisplaySize.datetime},
+    {dbName:"TIMESTAMP", dbType:DbType.datetime, dbId:FbIscType.sql_timestamp, nativeName:"DbDateTime", nativeSize:DbTypeSize.datetime, displaySize:DbTypeDisplaySize.datetime},
     {dbName:"DECFLOAT(16)", dbType:DbType.decimal64, dbId:FbIscType.sql_dec16, nativeName:"Decimal64", nativeSize:DbTypeSize.decimal64, displaySize:DbTypeDisplaySize.decimal64}, // fb4
     {dbName:"DECFLOAT(34)", dbType:DbType.decimal128, dbId:FbIscType.sql_dec34, nativeName:"Decimal128", nativeSize:DbTypeSize.decimal128, displaySize:DbTypeDisplaySize.decimal128}, // fb4
     {dbName:"DOUBLE PRECISION", dbType:DbType.float64, dbId:FbIscType.sql_double, nativeName:"float64", nativeSize:DbTypeSize.float64, displaySize:DbTypeDisplaySize.float64},

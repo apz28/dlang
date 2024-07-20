@@ -79,6 +79,13 @@ package(pham.ser):
             assert(decimal64 == Decimal64("714583645.40"));
             assert(decimal128 == Decimal128("294574120484.87"));
         }
+        
+        void assertValuesArray(int i)
+        {
+            assert(decimal32 == Decimal32("-7145")+i);
+            assert(decimal64 == Decimal64("714583645.40")+i);
+            assert(decimal128 == Decimal128("294574120484.87")+i);
+        }
     }
     
     //import pham.ser.ser_serialization : SerializerMemberList;
@@ -110,8 +117,9 @@ if (isDecimal!D)
     final switch (serializer.dataFormat)
     {
         case SerializerDataFormat.text:
-            StaticBuffer!(char, 350) textBuffer;
-            serializer.write(value.toString!(StaticBuffer!(char, 350), char)(textBuffer)[], attribute, DataKind.decimal);
+            enum textSize = 200;
+            StaticBuffer!(char, textSize) textBuffer;
+            serializer.write(value.toString!(StaticBuffer!(char, textSize), char)(textBuffer)[], attribute, DataKind.decimal);
             return;
         case SerializerDataFormat.binary:
             ubyte[D.sizeof] binaryBuffer;

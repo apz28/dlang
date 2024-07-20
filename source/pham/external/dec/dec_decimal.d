@@ -836,7 +836,8 @@ public:
         }
     }
 
-    version(D_BetterC) {}
+    version(D_BetterC)
+    {}
     else
     {
         static immutable char defaultFmtSpec = 'f';
@@ -1175,8 +1176,7 @@ package(pham.external.dec):
 
     ExceptionFlags infinityPack(const(bool) isNegative) @nogc nothrow pure @safe
     {
-        data = isNegative ? (MASK_INF | MASK_SGN) : MASK_INF;
-        return ExceptionFlags.none;
+        return maskPack(MASK_INF, isNegative);
     }
 
     //packs $(B NaN)
@@ -1184,6 +1184,12 @@ package(pham.external.dec):
     {
         data = isNegative ? (MASK_QNAN | (payload & MASK_PAYL) | MASK_SGN) : (MASK_QNAN | (payload & MASK_PAYL));
         return ExceptionFlags.invalidOperation;
+    }
+
+    ExceptionFlags maskPack(U mask, const(bool) isNegative) @nogc nothrow pure @safe
+    {
+        data = isNegative ? (mask | MASK_SGN) : mask;
+        return ExceptionFlags.none;
     }
 
     //packs valid components
@@ -1378,6 +1384,11 @@ package(pham.external.dec):
         enum minReal    = fromBigEndianBytes(SEnumBytes!Bytes.s_minReal128); // buildin(s_minReal128);
     }
 
+    enum MASK_INF       = U(0b01111000U) << (Bytes * 8 - 8);
+    enum MASK_QNAN      = U(0b01111100U) << (Bytes * 8 - 8);
+    enum MASK_SNAN      = U(0b01111110U) << (Bytes * 8 - 8);
+    enum MASK_ZERO      = U(cast(uint)EXP_BIAS) << SHIFT_EXP1;
+
 private:
     enum expBits        = Bytes * 8 / 16 + 6;                 //8, 10, 14
     enum trailingBits   = Bytes * 8 - expBits - 1;            //23, 53, 113
@@ -1385,10 +1396,7 @@ private:
     enum SHIFT_EXP1     = trailingBits;                  //23, 53, 113
     enum SHIFT_EXP2     = trailingBits - 2;              //21, 51, 111
 
-    enum MASK_QNAN      = U(0b01111100U) << (Bytes * 8 - 8);
-    enum MASK_SNAN      = U(0b01111110U) << (Bytes * 8 - 8);
     enum MASK_SNANBIT   = U(0b00000010U) << (Bytes * 8 - 8);
-    enum MASK_INF       = U(0b01111000U) << (Bytes * 8 - 8);
     enum MASK_SGN       = U(0b10000000U) << (Bytes * 8 - 8);
     enum MASK_EXT       = U(0b01100000U) << (Bytes * 8 - 8);
     enum MASK_EXP1      = ((U(1U) << expBits) - 1U) << SHIFT_EXP1;
@@ -1396,7 +1404,6 @@ private:
     enum MASK_COE1      = ~(MASK_SGN | MASK_EXP1);
     enum MASK_COE2      = ~(MASK_SGN | MASK_EXP2 | MASK_EXT);
     enum MASK_COEX      = U(1U) << trailingBits;
-    enum MASK_ZERO      = U(cast(uint)EXP_BIAS) << SHIFT_EXP1;
     enum MASK_PAYL      = (U(1U) << (trailingBits - 3)) - 1U;
     enum MASK_NONE      = U(0U);
 

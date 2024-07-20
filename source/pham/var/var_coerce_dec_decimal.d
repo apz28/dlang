@@ -15,15 +15,16 @@ module pham.var.var_coerce_dec_decimal;
 // All implement after this point must be private
 private:
 
-import std.traits : fullyQualifiedName, isFloatingPoint, isIntegral, isSomeChar;
+import std.traits : fullyQualifiedName, isFloatingPoint, isIntegral, isSomeChar, isSomeString;
 import std.meta : AliasSeq;
 
 debug(debug_pham_var_var_coerce_dec_decimal) import std.stdio : writeln;
 import pham.external.dec.dec_decimal : Decimal32, Decimal64, Decimal128, isDecimal;
+import pham.external.dec.dec_parse : parse;
 import pham.external.dec.dec_type;
 import pham.var.var_coerce;
 
-// Support Variant.coerce
+// Support Variant.coerce native integral/float/Decimal... to Decimal...
 bool doCoerceDecimal(S, D)(scope void* srcPtr, scope void* dstPtr) nothrow
 if ((isFloatingPoint!S || isIntegral!S || isSomeChar!S || isDecimal!S) && isDecimal!D)
 {
@@ -66,7 +67,7 @@ if ((isFloatingPoint!S || isIntegral!S || isSomeChar!S || isDecimal!S) && isDeci
     }
 }
 
-// Support Variant.coerce
+// Support Variant.coerce from Decimal... to native integral/float
 bool doCoerceDecimalToNumeric(S, D)(scope void* srcPtr, scope void* dstPtr) nothrow
 if (isDecimal!S && (isFloatingPoint!D || isIntegral!D || isSomeChar!D))
 {
@@ -106,6 +107,34 @@ if (isDecimal!S && (isFloatingPoint!D || isIntegral!D || isSomeChar!D))
         debug(debug_pham_var_var_coerce_dec_decimal) debug writeln("\t", "ex.message=", ex.message);
         return false;
     }
+}
+
+// Support Variant.coerce string to Decimal...
+bool doCoerceStringToDecimal(S, D)(scope void* srcPtr, scope void* dstPtr) nothrow
+if (isSomeString!S && isDecimal!D)
+{
+    debug(debug_pham_var_var_coerce_dec_decimal) debug writeln(__FUNCTION__, "(S=", fullyQualifiedName!S, ", D=", fullyQualifiedName!D, ")");
+
+    S src = *cast(S*)srcPtr;
+    D dst;
+    ExceptionFlags flags;
+    if (parse(src, dst, flags, DecimalControl.precision, DecimalControl.rounding))
+    {
+        *cast(D*)dstPtr = dst;
+        return true;
+    }
+    else
+        return false;
+}
+
+// Support Variant.coerce Decimal... to string
+bool doCoerceDecimalToString(S, D)(scope void* srcPtr, scope void* dstPtr) nothrow
+if (isDecimal!S && isSomeString!D)
+{
+    debug(debug_pham_var_var_coerce_dec_decimal) debug writeln(__FUNCTION__, "(S=", fullyQualifiedName!S, ", D=", fullyQualifiedName!D, ")");
+
+    *cast(D*)dstPtr = (*cast(S*)srcPtr).toString();
+    return true;
 }
 
 shared static this() nothrow @safe
@@ -160,6 +189,22 @@ shared static this() nothrow @safe
                 ConvertHandler.add!(const(D), S)(invHandler);
             }
         }
+    }
+    
+    static foreach (D; AliasSeq!(Decimal32, Decimal64, Decimal128))
+    {
+        handler.doCoerce = &doCoerceStringToDecimal!(string, D);
+        handler.flags = ConvertHandlerFlag.none;
+        ConvertHandler.add!(string, D)(handler);
+
+        // Inverse
+        invHandler.doCoerce = &doCoerceDecimalToString!(D, string);
+        invHandler.flags = ConvertHandlerFlag.none;
+        ConvertHandler.add!(D, string)(invHandler);
+
+        handler.doCoerce = &doCoerceStringToDecimal!(const(char)[], D);
+        handler.flags = ConvertHandlerFlag.none;
+        ConvertHandler.add!(const(char)[], D)(handler);
     }
 }
 

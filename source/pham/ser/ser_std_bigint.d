@@ -32,7 +32,7 @@ void serialize(Serializer serializer, scope ref BigInt value, scope ref Serializ
     // There is no binary output from BigInt
     FormatSpec!char fmt;
     fmt.spec = 'd';
-    StaticBuffer!(char, 80) text;
+    StaticBuffer!(char, 200) text;
     value.toString(text, fmt);
     serializer.write(text[], attribute, DataKind.integral);
 }
@@ -44,6 +44,8 @@ package(pham.ser):
 
     static struct UnitTestStdBigInt
     {
+        import std.format : format;
+        
         BigInt bigInt1;
 
         ref typeof(this) setValues() return
@@ -54,7 +56,14 @@ package(pham.ser):
         
         void assertValues()
         {
-            assert(bigInt1 == BigInt("-71459266416693160362545788781600"));
+            assert(bigInt1 == BigInt("-71459266416693160362545788781600"), format("%d", bigInt1));
+        }
+        
+        void assertValuesArray(int i)
+        {
+            //import std.stdio : writeln; writeln(format("%d", BigInt("-71459266416693160362545788781600")+i));
+            
+            assert(bigInt1 == BigInt("-71459266416693160362545788781600")+i, format("%d %d", i, bigInt1));
         }
     }
     

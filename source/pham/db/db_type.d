@@ -2486,6 +2486,13 @@ bool doCoerceDbDateTimeToDbTime(scope void* srcPtr, scope void* dstPtr) nothrow 
     return true;
 }
 
+// Support Variant.coerce DbDateTime to DateTime
+bool doCoerceDbDateTimeToDateTime(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
+{
+    *cast(DateTime*)dstPtr = (*cast(DbDateTime*)srcPtr).value;
+    return true;
+}
+
 // Support Variant.coerce DateTime to DbDateTime
 bool doCoerceDateTimeToDbDateTime(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
 {
@@ -2497,6 +2504,13 @@ bool doCoerceDateTimeToDbDateTime(scope void* srcPtr, scope void* dstPtr) nothro
 bool doCoerceDbTimeToDbDateTime(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
 {
     *cast(DbDateTime*)dstPtr = DbDateTime(DbDate.min, *cast(DbTime*)srcPtr);
+    return true;
+}
+
+// Support Variant.coerce DbTime to Time
+bool doCoerceDbTimeToTime(scope void* srcPtr, scope void* dstPtr) nothrow @trusted
+{
+    *cast(Time*)dstPtr = (*cast(DbTime*)srcPtr).value;
     return true;
 }
 
@@ -2635,6 +2649,11 @@ shared static this() nothrow @safe
     ConvertHandler.add!(DbTime, DbDateTime)(handler);
     ConvertHandler.add!(const(DbTime), DbDateTime)(handler);
 
+    handler.doCoerce = &doCoerceDbDateTimeToDateTime;
+    handler.flags = ConvertHandlerFlag.implicit;
+    ConvertHandler.add!(DbDateTime, DateTime)(handler);
+    ConvertHandler.add!(const(DbDateTime), DateTime)(handler);
+
     handler.doCoerce = &doCoerceDateTimeToDbDateTime;
     handler.flags = ConvertHandlerFlag.implicit;
     ConvertHandler.add!(DateTime, DbDateTime)(handler);
@@ -2645,6 +2664,11 @@ shared static this() nothrow @safe
     handler.flags = ConvertHandlerFlag.none;
     ConvertHandler.add!(DbDateTime, DbTime)(handler);
     ConvertHandler.add!(const(DbDateTime), DbTime)(handler);
+
+    handler.doCoerce = &doCoerceDbTimeToTime;
+    handler.flags = ConvertHandlerFlag.implicit;
+    ConvertHandler.add!(DbTime, Time)(handler);
+    ConvertHandler.add!(const(DbTime), Time)(handler);
 
     handler.doCoerce = &doCoerceTimeToDbTime;
     handler.flags = ConvertHandlerFlag.implicit;

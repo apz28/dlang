@@ -4728,19 +4728,19 @@ public:
 
     /* Properties */
 
-    @property DbCommand command() nothrow pure @safe
-    {
-        return _command;
-    }
-
-    @property DbRowValue currentRow() @safe
+    @property size_t colCount() @safe
     in
     {
         assert(_flags.off(Flag.checkRows));
     }
     do
     {
-        return _currentRow;
+        return _currentRow.length;
+    }
+
+    @property DbCommand command() nothrow pure @safe
+    {
+        return _command;
     }
 
     @property DbDatabase database() nothrow pure @safe

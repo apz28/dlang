@@ -752,7 +752,7 @@ unittest // JsonSerializer.UnitTestC2
     {
         auto c = new UnitTestC2();
         scope serializer = new JsonSerializer();
-        serializer.serialize!UnitTestC2(cast(UnitTestC2)(c.setValues()));
+        serializer.serialize!UnitTestC2(c.setValues());
         //import std.stdio : writeln; debug writeln(serializer.buffer[]);
         assert(serializer.buffer[] == jsonUnitTestC2, serializer.buffer[]);
     }

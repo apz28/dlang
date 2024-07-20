@@ -11,7 +11,6 @@ import pham.external.dec.dec_range;
 import pham.external.dec.dec_type;
 
 nothrow @safe:
-package(pham.external.dec):
 
 D parse(D, R)(ref R range)
 if (isDecimal!D && isInputRange!R && isSomeChar!(ElementType!R))
@@ -31,56 +30,51 @@ if (isDecimal!D && isInputRange!R && isSomeChar!(ElementType!R))
     }
 }
 
-bool parse(D, R)(ref R range, out D decimal, out ExceptionFlags flags, const(int) precision, const(RoundingMode) mode)
+bool parse(D, R)(ref R range, out D decimal, out ExceptionFlags flags, const(int) precision, const(RoundingMode) mode) nothrow
 if (isDecimal!D && isInputRange!R && isSomeChar!(ElementType!R))
 {
+    enum coefficientZero = DataType!(D.sizeof).init;
     DataType!(D.sizeof) coefficient;
     int exponent;
-    bool isinf, isnan, signaling, signed;
+    bool isINF, isNAN, isNegative, signaling, wasHex;
     
-    if (!parseDecimal(range, coefficient, exponent, flags, isinf, isnan, signaling, isnegative))
+    if (!parseDecimal(range, coefficient, exponent, flags, isINF, isNAN, signaling, isNegative, wasHex))
     {
-        decimal.invalidPack(isnegative);
+        decimal.invalidPack(isNegative);
         return false;
     }
 
     if (flags & ExceptionFlags.invalidOperation)
     {
-        decimal.invalidPack(isnegative, coefficient);
-        return true;
+        decimal.invalidPack(isNegative, coefficient);
+        return false;
     }
 
     if (signaling)
-        decimal.data = D.MASK_SNAN;
-    else if (isnan)
-        decimal.data = D.MASK_QNAN;
-    else if (isinf)
-        decimal.data = D.MASK_INF;
-    else if (coefficient == 0)
-        decimal.data = D.MASK_ZERO;
+        decimal.maskPack(D.MASK_SNAN, isNegative);
+    else if (isNAN)
+        decimal.maskPack(D.MASK_QNAN, isNegative);
+    else if (isINF)
+        decimal.maskPack(D.MASK_INF, isNegative);
+    else if (coefficient == coefficientZero)
+        decimal.maskPack(D.MASK_ZERO, isNegative);
     else
     {
-        flags |= coefficientAdjust(coefficient, exponent, D.EXP_MIN, D.EXP_MAX, D.COEF_MAX, isnegative, mode);
-        flags |= coefficientAdjust(coefficient, exponent, D.EXP_MIN, D.EXP_MAX, precision, isnegative, mode);
+        flags |= coefficientAdjust(coefficient, exponent, D.EXP_MIN, D.EXP_MAX, D.COEF_MAX, isNegative, mode);
+        flags |= coefficientAdjust(coefficient, exponent, D.EXP_MIN, D.EXP_MAX, precision, isNegative, mode);
         if (flags & ExceptionFlags.overflow)
-            decimal.data = D.MASK_INF;
-        else if ((flags & ExceptionFlags.underflow) || coefficient == 0)
-            decimal.data = D.MASK_ZERO;
+            decimal.maskPack(D.MASK_INF, isNegative);
+        else if ((flags & ExceptionFlags.underflow) || coefficient == coefficientZero)
+            decimal.maskPack(D.MASK_ZERO, isNegative);
         else
-        {
-            flags |= decimal.pack(coefficient, exponent, isnegative);
-            if (flags & ExceptionFlags.overflow)
-                decimal.data = D.MASK_INF;
-            else if ((flags & ExceptionFlags.underflow) || coefficient == 0)
-                decimal.data = D.MASK_ZERO;
-        }
+            decimal.pack(coefficient, exponent, isNegative);
     }
-
-    if (isNegative)
-        decimal.data |= D.MASK_SGN;
         
     return true;
 }
+
+
+package(pham.external.dec):
 
 bool parseDecimal(R, T)(ref R range, out T coefficient, out int exponent, ExceptionFlags flags,
     out bool isinf, out bool isnan, out bool signaling, out bool signed, out bool wasHex) nothrow pure @safe

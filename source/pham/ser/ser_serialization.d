@@ -21,7 +21,6 @@ import std.traits : BaseClassesTuple, BaseTypeTuple, EnumMembers, fullyQualified
 import std.uni : sicmp;
 
 debug(pham_ser_ser_serialization) import std.stdio : writeln;
-
 import pham.dtm.dtm_date : Date, DateTime;
 import pham.dtm.dtm_tick : DateTimeZoneKind;
 import pham.dtm.dtm_time : Time;
@@ -2317,7 +2316,7 @@ package(pham.ser):
             assert(privateInt == 0, privateInt.to!string);
         }
 
-        void assertValuesArray(size_t index)
+        void assertValuesArray(int index)
         {
             assert(publicGetSet == 1+index, publicGetSet.to!string);
             assert(_protectedGetSet == 3, _protectedGetSet.to!string);
@@ -2562,6 +2561,81 @@ package(pham.ser):
             assert(class1 !is null);
             class1.assertValues();
             assert(class1Null is null);
+        }
+    }
+
+    class UnitTestAllTypesLess
+    {
+    public:
+        UnitTestEnum enum1;
+        bool bool1;
+        byte byte1;
+        ubyte ubyte1;
+        short short1;
+        ushort ushort1;
+        int int1;
+        uint uint1;
+        long long1;
+        ulong ulong1;
+        float float1;
+        double double1;
+        string string1;
+        char[] charArray;
+        ubyte[] binary1;
+
+        typeof(this) setValues()
+        {
+            enum1 = UnitTestEnum.third;
+            bool1 = true;
+            byte1 = 101;
+            short1 = -1003;
+            ushort1 = 3975;
+            int1 = -382653;
+            uint1 = 3957209;
+            long1 = -394572364;
+            ulong1 = 284659274;
+            float1 = 6394763.5;
+            double1 = -2846627456445.765;
+            string1 = "test string of";
+            charArray = "will this work?".dup;
+            binary1 = [37,24,204,101,43];
+            return this;
+        }
+
+        void assertValues()
+        {
+            assert(enum1 == UnitTestEnum.third, enum1.to!string);
+            assert(bool1 == true, bool1.to!string);
+            assert(byte1 == 101, byte1.to!string);
+            assert(short1 == -1003, short1.to!string);
+            assert(ushort1 == 3975, ushort1.to!string);
+            assert(int1 == -382653, int1.to!string);
+            assert(uint1 == 3957209, uint1.to!string);
+            assert(long1 == -394572364, long1.to!string);
+            assert(ulong1 == 284659274, ulong1.to!string);
+            assert(float1 == 6394763.5, float1.to!string);
+            assert(double1 == -2846627456445.765, double1.to!string);
+            assert(string1 == "test string of", string1);
+            assert(charArray == "will this work?", charArray);
+            assert(binary1 == [37,24,204,101,43], binary1.to!string);
+        }
+
+        void assertValuesArray(int index)
+        {
+            assert(enum1 == UnitTestEnum.third, enum1.to!string);
+            assert(bool1 == true, bool1.to!string);
+            assert(byte1 == 101+index, (byte1+index).to!string);
+            assert(short1 == -1003+index, (short1+index).to!string);
+            assert(ushort1 == 3975+index, (ushort1+index).to!string);
+            assert(int1 == -382653+index, (int1+index).to!string);
+            assert(uint1 == 3957209+index, (uint1+index).to!string);
+            assert(long1 == -394572364+index, (long1+index).to!string);
+            assert(ulong1 == 284659274+index, (ulong1+index).to!string);
+            assert(float1 == 6394763.5+index, (float1+index).to!string);
+            assert(double1 == -2846627456445.765+index, (double1+index).to!string);
+            assert(string1 == "test string of", string1);
+            assert(charArray == "will this work?", charArray);
+            assert(binary1 == [37,24,204,101,43], binary1.to!string);
         }
     }
 
@@ -2892,6 +2966,13 @@ package(pham.ser):
             assert(date1 == Date(1999, 1, 1));
             assert(dateTime1 == DateTime(1999, 7, 6, 12, 30, 33, DateTimeZoneKind.utc), dateTime1.toString());
             assert(time1 == Time(12, 30, 33, DateTimeZoneKind.utc), time1.toString());
+        }
+
+        void assertValuesArray(int i)
+        {
+            assert(date1 == Date(1999, 1, 1).addDays(i));
+            assert(dateTime1 == DateTime(1999, 7, 6, 12, 30, 33).addDays(i), dateTime1.toString());
+            assert(time1 == Time(12, 30, 33).addSeconds(i), time1.toString());
         }
     }
 
