@@ -317,7 +317,7 @@ public:
             {
                 foreach (e; EnumMembers!E)
                 {
-                    if (values.on(e))
+                    if (values.isOn(e))
                         this._values[this._length++] = e;
                 }
             }
@@ -428,9 +428,9 @@ public:
     if (op == "^" || op == "-" || op == "|" || op == "+")
     {
         static if (op == "^" || op == "-")
-            _values &= ~bit(value);
+            this._values &= ~bit(value);
         else static if (op == "|" || op == "+")
-            _values |= bit(value);
+            this._values |= bit(value);
         else
             static assert(0);
 
@@ -441,11 +441,11 @@ public:
     if (op == "^" || op == "-" || op == "|" || op == "+" || op == "&" || op == "*")
     {
         static if (op == "^" || op == "-")
-            _values &= ~source.values;
+            this._values &= ~source.values;
         else static if (op == "|" || op == "+")
-            _values |= source.values;
+            this._values |= source.values;
         else static if (op == "&" || op == "*")
-            _values &= source.values;
+            this._values &= source.values;
         else
             static assert(0);
 
@@ -468,7 +468,7 @@ public:
 
     bool opBinaryRight(string op : "in")(E value) const @nogc pure
     {
-        return on(value);
+        return isOn(value);
     }
 
     bool opEquals()(auto const ref EnumSet!E source) const @nogc pure
@@ -481,27 +481,30 @@ public:
         return EnumSetRange(this);
     }
 
-    bool any(scope const(E)[] source) const @nogc pure
+    bool isAny(scope const(E)[] source) const @nogc pure
     {
         foreach (i; source)
         {
-            if (on(i))
+            if (isOn(i))
                 return true;
         }
         return false;
     }
 
-    bool any(V...)(scope V source) const @nogc pure
+    bool isAny(V...)(scope V source) const @nogc pure
     if (allSatisfy!(isEnumSet, V))
     {
         foreach (e; source)
         {
-            if (on(e))
+            if (isOn(e))
                 return true;
         }
         return false;
     }
 
+    deprecated("please use isAny")
+    alias any = isAny;
+    
     //pragma(inline, true)
     ref typeof(this) exclude(E value) @nogc pure return
     {
@@ -515,17 +518,23 @@ public:
     }
 
     pragma(inline, true)
-    bool off(E value) const @nogc pure
+    bool isOff(E value) const @nogc pure
     {
-        return _values == 0 || (_values & bit(value)) == 0;
+        return this._values == 0 || (this._values & bit(value)) == 0;
     }
 
+    deprecated("please use isOff")
+    alias off = isOff;
+    
     pragma(inline, true)
-    bool on(E value) const @nogc pure
+    bool isOn(E value) const @nogc pure
     {
-        return _values != 0 && (_values & bit(value)) != 0;
+        return this._values != 0 && (this._values & bit(value)) != 0;
     }
 
+    deprecated("please use isOn")
+    alias on = isOn;
+    
     ref typeof(this) reset() @nogc pure return
     {
         _values = 0;
@@ -643,7 +652,7 @@ public:
         put(sink, '[');
         foreach (e; EnumMembers!E)
         {
-            if (on(e))
+            if (isOn(e))
             {
                 if (count++ != 0)
                     put(sink, ',');
@@ -655,13 +664,13 @@ public:
         return sink;
     }
 
-    bool opDispatch(string name)() const @nogc pure
+    @property bool opDispatch(string name)() const @nogc pure
     if (is(typeof(__traits(getMember, E, name))))
     {
-        return on(__traits(getMember, E, name));
+        return isOn(__traits(getMember, E, name));
     }
 
-    bool opDispatch(string name)(bool v) @nogc pure
+    @property bool opDispatch(string name)(bool v) @nogc pure
     if (is(typeof(__traits(getMember, E, name))))
     {
         set(__traits(getMember, E, name), v);
@@ -873,53 +882,53 @@ nothrow @safe unittest // EnumSet
         assert(testFlags.values == 0);
         foreach (i; EnumMembers!E)
         {
-            assert(testFlags.off(i));
-            assert(!testFlags.on(i));
+            assert(testFlags.isOff(i));
+            assert(!testFlags.isOn(i));
             assert(!(i in testFlags));
         }
 
         testFlags.include(E.one);
-        assert(testFlags.on(E.one));
-        assert(testFlags.off(E.two));
-        assert(testFlags.off(E.three));
+        assert(testFlags.isOn(E.one));
+        assert(testFlags.isOff(E.two));
+        assert(testFlags.isOff(E.three));
 
         testFlags.include(E.two);
-        assert(testFlags.on(E.two));
-        assert(testFlags.on(E.one));
-        assert(testFlags.off(E.three));
+        assert(testFlags.isOn(E.two));
+        assert(testFlags.isOn(E.one));
+        assert(testFlags.isOff(E.three));
 
         testFlags.include(E.three);
-        assert(testFlags.on(E.three));
+        assert(testFlags.isOn(E.three));
 
         assert(testFlags.values != 0);
         foreach (i; EnumMembers!E)
         {
-            assert(!testFlags.off(i));
-            assert(testFlags.on(i));
+            assert(!testFlags.isOff(i));
+            assert(testFlags.isOn(i));
         }
         assert(testFlags.toString() == values, testFlags.toString());
 
         testFlags.exclude(E.one);
-        assert(testFlags.off(E.one));
-        assert(!testFlags.one);
-        assert(testFlags.on(E.two));
-        assert(testFlags.two);
-        assert(testFlags.on(E.three));
-        assert(testFlags.three);
+        assert(testFlags.isOff(E.one));
+        assert(!testFlags.one); // opDispatch
+        assert(testFlags.isOn(E.two));
+        assert(testFlags.two); // opDispatch
+        assert(testFlags.isOn(E.three));
+        assert(testFlags.three); // opDispatch
 
         testFlags.exclude(E.two);
-        assert(testFlags.off(E.two));
-        assert(testFlags.off(E.two));
-        assert(testFlags.on(E.three));
+        assert(testFlags.isOff(E.two));
+        assert(testFlags.isOff(E.two));
+        assert(testFlags.isOn(E.three));
 
         testFlags.exclude(E.three);
-        assert(testFlags.off(E.three));
+        assert(testFlags.isOff(E.three));
 
         assert(testFlags.values == 0);
         foreach (i; EnumMembers!E)
         {
-            assert(testFlags.off(i));
-            assert(!testFlags.on(i));
+            assert(testFlags.isOff(i));
+            assert(!testFlags.isOn(i));
         }
         assert(testFlags.toString() == "[]", testFlags.toString());
 
@@ -962,22 +971,22 @@ nothrow @safe unittest // EnumSet
 
     auto enumTestOrder = EnumSet!EnumTestOrder(EnumTestOrder.two);
     assert(cast(bool)enumTestOrder);
-    assert(enumTestOrder.on(EnumTestOrder.two));
-    assert(enumTestOrder.off(EnumTestOrder.one));
+    assert(enumTestOrder.isOn(EnumTestOrder.two));
+    assert(enumTestOrder.isOff(EnumTestOrder.one));
     enumTestOrder = EnumTestOrder.two;
     assert(cast(bool)enumTestOrder);
-    assert(enumTestOrder.on(EnumTestOrder.two));
-    assert(enumTestOrder.off(EnumTestOrder.one));
+    assert(enumTestOrder.isOn(EnumTestOrder.two));
+    assert(enumTestOrder.isOff(EnumTestOrder.one));
 
     enumTestOrder = EnumSet!EnumTestOrder([EnumTestOrder.two, EnumTestOrder.three]);
-    assert(enumTestOrder.on(EnumTestOrder.two));
-    assert(enumTestOrder.on(EnumTestOrder.three));
-    assert(enumTestOrder.off(EnumTestOrder.one));
+    assert(enumTestOrder.isOn(EnumTestOrder.two));
+    assert(enumTestOrder.isOn(EnumTestOrder.three));
+    assert(enumTestOrder.isOff(EnumTestOrder.one));
     assert(cast(bool)enumTestOrder);
     enumTestOrder = [EnumTestOrder.two, EnumTestOrder.three];
-    assert(enumTestOrder.on(EnumTestOrder.two));
-    assert(enumTestOrder.on(EnumTestOrder.three));
-    assert(enumTestOrder.off(EnumTestOrder.one));
+    assert(enumTestOrder.isOn(EnumTestOrder.two));
+    assert(enumTestOrder.isOn(EnumTestOrder.three));
+    assert(enumTestOrder.isOff(EnumTestOrder.one));
     assert(cast(bool)enumTestOrder);
 
     assert(cast(bool)EnumSet!EnumTestOrder.init == false);
@@ -985,13 +994,13 @@ nothrow @safe unittest // EnumSet
 
     enumTestOrder = EnumSet!EnumTestOrder.init;
     enumTestOrder = enumTestOrder | EnumTestOrder.two;
-    assert(enumTestOrder.on(EnumTestOrder.two));
+    assert(enumTestOrder.isOn(EnumTestOrder.two));
     enumTestOrder = enumTestOrder + EnumTestOrder.three;
-    assert(enumTestOrder.on(EnumTestOrder.three));
+    assert(enumTestOrder.isOn(EnumTestOrder.three));
     enumTestOrder = enumTestOrder ^ EnumTestOrder.two;
-    assert(!enumTestOrder.on(EnumTestOrder.two));
+    assert(!enumTestOrder.isOn(EnumTestOrder.two));
     enumTestOrder = enumTestOrder - EnumTestOrder.three;
-    assert(!enumTestOrder.on(EnumTestOrder.three));
+    assert(!enumTestOrder.isOn(EnumTestOrder.three));
 
     enumTestOrder = EnumSet!EnumTestOrder([EnumTestOrder.one, EnumTestOrder.three]);
     auto enumTestOrderRange = enumTestOrder[];
@@ -1003,8 +1012,8 @@ nothrow @safe unittest // EnumSet
     assert(enumTestOrderRange.empty);
 
     enumTestOrder = EnumSet!EnumTestOrder(EnumTestOrder.one);
-    assert(enumTestOrder.any([EnumTestOrder.one, EnumTestOrder.three]));
-    assert(!enumTestOrder.any([EnumTestOrder.two, EnumTestOrder.three]));
+    assert(enumTestOrder.isAny([EnumTestOrder.one, EnumTestOrder.three]));
+    assert(!enumTestOrder.isAny([EnumTestOrder.two, EnumTestOrder.three]));
 
     enumTestOrder.reset();
     assert(!cast(bool)enumTestOrder);

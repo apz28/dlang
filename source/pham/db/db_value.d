@@ -18,11 +18,11 @@ import std.traits : isArrayT = isArray, Unqual;
 
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
-public import pham.var.var_variant : Variant, VariantType;
-import pham.var.var_variant : variantNoLengthMarker;
 import pham.var.var_coerce;
 import pham.var.var_coerce_dec_decimal;
 import pham.var.var_coerce_pham_date_time;
+import pham.var.var_variant : variantNoLengthMarker;
+public import pham.var.var_variant : Variant, VariantType;
 import pham.db.db_convert;
 import pham.db.db_type;
 

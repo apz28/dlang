@@ -273,7 +273,7 @@ public:
         //import std.stdio : writeln; debug writeln("\tcheckDataType().currents.length=", currents.length, ", current.type=", currents[$-1].type, ", current.name=", currents[$-1].name);
 
         const t = currents[$-1].type;
-        if (!dataTypes.on(cast(JSONTypeChecked)t))
+        if (dataTypes.isOff(cast(JSONTypeChecked)t))
             throw new DeserializerException("Expect one of datatypes " ~ dataTypes.toString() ~ " but found " ~ t.to!string ~ " (name: " ~ currents[$-1].name ~ ")");
         return t;
     }
@@ -590,7 +590,7 @@ public:
         buffer.put('"');
     }
 
-    final override Serializer writeKey(scope const(char)[] key, scope ref Serializable)
+    final override Serializer writeKey(string key, scope ref Serializable)
     {
         buffer.put('"');
         escapeString(buffer, key);
@@ -599,7 +599,7 @@ public:
         return this;
     }
 
-    final override Serializer writeKeyId(scope const(char)[] key, scope ref Serializable)
+    final override Serializer writeKeyId(string key, scope ref Serializable)
     {
         buffer.put('"');
         buffer.put(key);

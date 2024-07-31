@@ -121,9 +121,9 @@ public:
         this._name = name;
         this._commandTimeout = connection.connectionStringBuilder.commandTimeout;
         this._fetchRecordCount = connection.connectionStringBuilder.fetchRecordCount;
-        this.notifyMessage = connection.notifyMessage;
         this._flags.include(DbCommandFlag.parametersCheck);
         this._flags.include(DbCommandFlag.returnRecordsAffected);
+        this.notifyMessage = connection.notifyMessage;
     }
 
     this(DbConnection connection, DbTransaction transaction, string name = null) nothrow @safe
@@ -412,7 +412,7 @@ public:
 
     @property final bool allRowsFetched() const nothrow @safe
     {
-        return _flags.on(DbCommandFlag.allRowsFetched);
+        return _flags.allRowsFetched;
     }
 
     @property final int baseCommandType() const nothrow @safe
@@ -422,7 +422,7 @@ public:
 
     @property final bool batched() const nothrow @safe
     {
-        return _flags.on(DbCommandFlag.batched);
+        return _flags.batched;
     }
 
     @property final DbCommandState commandState() const nothrow @safe
@@ -538,7 +538,7 @@ public:
 
     @property final bool getExecutionPlanning() const nothrow @safe
     {
-        return _flags.on(DbCommandFlag.getExecutionPlanning);
+        return _flags.getExecutionPlanning;
     }
 
     @property final DbHandle handle() const nothrow @safe
@@ -613,7 +613,7 @@ public:
      */
     @property final bool parametersCheck() const nothrow @safe
     {
-        return _flags.on(DbCommandFlag.parametersCheck);
+        return _flags.parametersCheck;
     }
 
     @property final typeof(this) parametersCheck(bool value) nothrow @safe
@@ -627,7 +627,7 @@ public:
      */
     @property final bool prepared() const nothrow @safe
     {
-        return _flags.on(DbCommandFlag.prepared);
+        return _flags.prepared;
     }
 
     /**
@@ -640,7 +640,7 @@ public:
 
     @property final bool returnRecordsAffected() const nothrow @safe
     {
-        return _flags.on(DbCommandFlag.returnRecordsAffected);
+        return _flags.returnRecordsAffected;
     }
 
     @property final typeof(this) returnRecordsAffected(bool value) nothrow @safe
@@ -670,7 +670,7 @@ public:
 
     @property final bool transactionRequired() const nothrow @safe
     {
-        return _flags.on(DbCommandFlag.transactionRequired);
+        return _flags.transactionRequired;
     }
 
 public:
@@ -1116,19 +1116,19 @@ protected:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(flags=", flags, ")");
 
-        auto t = _transaction;
+        auto t = this._transaction;
 
-        const implicitTransaction = _flags.on(DbCommandFlag.implicitTransaction);
+        const implicitTransaction = this._flags.implicitTransaction;
         if (implicitTransaction)
         {
-            _flags.exclude(DbCommandFlag.implicitTransaction);
-            _transaction = null;
+            this._flags.implicitTransaction = false;
+            this._transaction = null;
         }
 
         bool commitOrRollback = false;
-        if (_flags.on(DbCommandFlag.implicitTransactionStarted))
+        if (this._flags.implicitTransactionStarted)
         {
-            _flags.exclude(DbCommandFlag.implicitTransactionStarted);
+            this._flags.implicitTransactionStarted = false;
             commitOrRollback = true;
         }
 
@@ -3526,12 +3526,12 @@ public:
      */
     @property final bool allowNull() const nothrow @safe
     {
-        return _flags.on(DbSchemaColumnFlag.allowNull);
+        return _flags.allowNull;
     }
 
     @property final typeof(this) allowNull(bool value) nothrow @safe
     {
-        _flags.set(DbSchemaColumnFlag.allowNull, value);
+        _flags.allowNull = value;
         return this;
     }
 
@@ -3836,12 +3836,12 @@ public:
     */
     @property final bool isAlias() const nothrow @safe
     {
-        return _flags.on(DbSchemaColumnFlag.isAlias);
+        return _flags.isAlias;
     }
 
     @property final typeof(this) isAlias(bool value) nothrow @safe
     {
-        _flags.set(DbSchemaColumnFlag.isAlias, value);
+        _flags.isAlias = value;
         return this;
     }
 
@@ -3850,12 +3850,12 @@ public:
      */
     @property final bool isExpression() const nothrow @safe
     {
-        return _flags.on(DbSchemaColumnFlag.isExpression);
+        return _flags.isExpression;
     }
 
     @property final typeof(this) isExpression(bool value) nothrow @safe
     {
-        _flags.set(DbSchemaColumnFlag.isExpression, value);
+        _flags.isExpression = value;
         return this;
     }
 
@@ -3864,12 +3864,12 @@ public:
      */
     @property final bool isKey() const nothrow @safe
     {
-        return _flags.on(DbSchemaColumnFlag.isKey);
+        return _flags.isKey;
     }
 
     @property final typeof(this) isKey(bool value) nothrow @safe
     {
-        _flags.set(DbSchemaColumnFlag.isKey, value);
+        _flags.isKey = value;
         return this;
     }
 
@@ -3878,12 +3878,12 @@ public:
      */
     @property final bool isUnique() const nothrow @safe
     {
-        return _flags.on(DbSchemaColumnFlag.isUnique);
+        return _flags.isUnique;
     }
 
     @property final typeof(this) isUnique(bool value) nothrow @safe
     {
-        _flags.set(DbSchemaColumnFlag.isUnique, value);
+        _flags.isUnique = value;
         return this;
     }
 
@@ -4023,14 +4023,14 @@ public:
     {
         static immutable inputFlags = [inputDirections(false), inputDirections(true)];
 
-        return inputFlags[inputOnly].on(direction);
+        return inputFlags[inputOnly].isOn(direction);
     }
 
     final bool isOutput(const(bool) outputOnly = false) const nothrow @safe
     {
         static immutable outputFlags = [outputDirections(false), outputDirections(true)];
 
-        return outputFlags[outputOnly].on(direction);
+        return outputFlags[outputOnly].isOn(direction);
     }
 
     final DbParameter updateEmptyName(DbIdentitier noneEmptyName) nothrow @safe
@@ -4305,7 +4305,7 @@ public:
         size_t result = 0;
         foreach (item; cast()this)
         {
-            if (directions.on(item.direction))
+            if (directions.isOn(item.direction))
                 result++;
         }
         return result;
@@ -4315,7 +4315,7 @@ public:
     {
         foreach (item; cast()this)
         {
-            if (directions.on(item.direction))
+            if (directions.isOn(item.direction))
                 return true;
         }
         return false;
@@ -4329,7 +4329,7 @@ public:
         {
             if (parameter.baseTypeId == 0)
                 parameter.reevaluateBaseType();
-            if (directions.on(parameter.direction))
+            if (directions.isOn(parameter.direction))
                 result ~= cast(T)parameter;
         }
         return result;
@@ -4539,7 +4539,7 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        if (_flags.on(Flag.cacheResult) && _fields !is null)
+        if (_flags.cacheResult && _fields !is null)
         {
             // If already cloned, skip
             if (_fields.command !is null)
@@ -4554,8 +4554,8 @@ public:
         if (_command !is null)
             doDetach(false);
 
-        _flags.include(Flag.allRowsFetched); // No longer able to fetch after detached
-        _flags.exclude(Flag.checkRows);
+        _flags.allRowsFetched = true; // No longer able to fetch after detached
+        _flags.checkRows = false;
 
         return this;
     }
@@ -4580,7 +4580,7 @@ public:
     DbValue getDbValue(const(size_t) colIndex) @safe
     in
     {
-        assert(_flags.off(Flag.checkRows));
+        assert(!_flags.checkRows);
         assert(colIndex < _currentRow.length);
     }
     do
@@ -4594,7 +4594,7 @@ public:
     DbValue getDbValue(string colName) @safe
     in
     {
-        assert(_flags.off(Flag.checkRows));
+        assert(!_flags.checkRows);
         assert(fields.indexOfSafe(colName) >= 0);
     }
     do
@@ -4635,7 +4635,7 @@ public:
     Variant getValue(const(size_t) colIndex) @safe
     in
     {
-        assert(_flags.off(Flag.checkRows));
+        assert(!_flags.checkRows);
         assert(colIndex < _currentRow.length);
     }
     do
@@ -4646,7 +4646,7 @@ public:
     T getValue(T)(const(size_t) colIndex) @safe
     in
     {
-        assert(_flags.off(Flag.checkRows));
+        assert(!_flags.checkRows);
         assert(colIndex < _currentRow.length);
     }
     do
@@ -4660,7 +4660,7 @@ public:
     Variant getValue(string colName) @safe
     in
     {
-        assert(_flags.off(Flag.checkRows));
+        assert(!_flags.checkRows);
         assert(fields.indexOfSafe(colName) >= 0);
     }
     do
@@ -4671,7 +4671,7 @@ public:
     bool isNull(const(size_t) colIndex) @safe
     in
     {
-        assert(_flags.off(Flag.checkRows));
+        assert(!_flags.checkRows);
         assert(colIndex < _currentRow.length);
     }
     do
@@ -4685,7 +4685,7 @@ public:
     bool isNull(string colName) @safe
     in
     {
-        assert(_flags.off(Flag.checkRows));
+        assert(!_flags.checkRows);
         assert(fields.indexOfSafe(colName) >= 0);
     }
     do
@@ -4696,7 +4696,7 @@ public:
     void popFront() @safe
     {
         // Initialize the first row?
-        if (_flags.on(Flag.checkRows))
+        if (_flags.checkRows)
         {
             if (read())
                 read();
@@ -4713,17 +4713,17 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(_fetchedCount=", _fetchedCount, ")");
         version(profile) debug auto p = PerfFunction.create();
 
-        if (_flags.on(Flag.checkRows))
+        if (_flags.checkRows)
             return fetchFirst(false);
 
-        if (_flags.off(Flag.allRowsFetched))
+        if (!_flags.allRowsFetched)
         {
-            if (_flags.off(Flag.skipFetchNext))
+            if (!_flags.skipFetchNext)
                 fetchNext();
-            _flags.exclude(Flag.skipFetchNext);
+            _flags.skipFetchNext = false;
         }
 
-        return _flags.off(Flag.allRowsFetched);
+        return !_flags.allRowsFetched;
     }
 
     /* Properties */
@@ -4731,7 +4731,7 @@ public:
     @property size_t colCount() @safe
     in
     {
-        assert(_flags.off(Flag.checkRows));
+        assert(!_flags.checkRows);
     }
     do
     {
@@ -4750,7 +4750,7 @@ public:
 
     @property bool empty() @safe
     {
-        return hasRows ? _flags.on(Flag.allRowsFetched) : true;
+        return hasRows ? _flags.allRowsFetched : true;
     }
 
     /**
@@ -4771,7 +4771,7 @@ public:
      */
     @property bool hasRows() @safe
     {
-        if (_flags.on(Flag.checkRows))
+        if (_flags.checkRows)
             fetchFirst(true);
 
         return _fetchedCount != 0;
@@ -4779,12 +4779,12 @@ public:
 
     @property bool implicitTransaction() const nothrow @safe
     {
-        return _flags.on(Flag.implicitTransaction);
+        return _flags.implicitTransaction;
     }
 
     @property bool ownCommand() const nothrow @safe
     {
-        return _flags.on(Flag.ownCommand);
+        return _flags.ownCommand;
     }
 
 private:
@@ -4817,7 +4817,7 @@ private:
     bool fetchFirst(const(bool) checking) @safe
     in
     {
-         assert(_flags.on(Flag.checkRows));
+         assert(_flags.checkRows);
     }
     do
     {
@@ -4845,7 +4845,7 @@ private:
     void fetchNext() @safe
     in
     {
-         assert(_flags.off(Flag.checkRows));
+         assert(!_flags.checkRows);
     }
     do
     {
@@ -5102,7 +5102,7 @@ public:
      */
     @property final bool autoCommit() const nothrow @safe
     {
-        return _flags.on(DbTransactionFlag.autoCommit);
+        return _flags.autoCommit;
     }
 
     @property final typeof(this) autoCommit(bool value) nothrow @safe
@@ -5114,7 +5114,7 @@ public:
     {
         if (autoCommit != value)
         {
-            _flags.set(DbTransactionFlag.autoCommit, value);
+            _flags.autoCommit = value;
             doOptionChanged("autoCommit");
         }
         return this;
@@ -5161,7 +5161,7 @@ public:
 
     @property final bool isRetaining() const nothrow @safe
     {
-        return _flags.on(DbTransactionFlag.retaining);
+        return _flags.retaining;
     }
 
     @property final string lastPointName() const nothrow @safe
@@ -5209,7 +5209,7 @@ public:
      */
     @property final bool readOnly() const nothrow @safe
     {
-        return _flags.on(DbTransactionFlag.readOnly);
+        return _flags.readOnly;
     }
 
     @property final typeof(this) readOnly(bool value) nothrow @safe
@@ -5221,7 +5221,7 @@ public:
     {
         if (readOnly != value)
         {
-            _flags.set(DbTransactionFlag.readOnly, value);
+            _flags.readOnly = value;
             doOptionChanged("readOnly");
         }
         return this;

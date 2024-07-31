@@ -389,7 +389,7 @@ public:
         checkDataLength(bytes);
 
         const t = cast(SerializerDataType)data[offset];
-        if (!dataTypes.on(t))
+        if (dataTypes.isOff(t))
             throw new DeserializerException("Expect one of datatypes " ~ dataTypes.toString() ~ " but found " ~ t.to!string);
         offset++; // Skip type
         return t;
@@ -576,7 +576,7 @@ public:
             buffer.put(v);
     }
 
-    final override Serializer writeKey(scope const(char)[] key, scope ref Serializable) @trusted
+    final override Serializer writeKey(string key, scope ref Serializable) @trusted
     {
         buffer.put(SerializerDataType.charsKey);
         BinaryIntCoder.encodeInt!BinaryLengthType(buffer, key.length);
@@ -585,7 +585,7 @@ public:
         return this;
     }
 
-    final override Serializer writeKeyId(scope const(char)[] key, scope ref Serializable attribute)
+    final override Serializer writeKeyId(string key, scope ref Serializable attribute)
     {
         return writeKey(key, attribute);
     }

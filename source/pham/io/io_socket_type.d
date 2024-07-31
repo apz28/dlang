@@ -248,34 +248,34 @@ public:
 
     @property bool blocking() const @nogc
     {
-        return flags.on(Flags.blocking);
+        return flags.blocking;
     }
 
     @property ref BindInfo blocking(bool state) @nogc return
     {
-        flags.set(Flags.blocking, state);
+        flags.blocking = state;
         return this;
     }
 
     @property bool debug_() const @nogc
     {
-        return flags.on(Flags.debug_);
+        return flags.debug_;
     }
 
     @property ref BindInfo debug_(bool state) @nogc return
     {
-        flags.set(Flags.debug_, state);
+        flags.debug_ = state;
         return this;
     }
 
     @property bool dontRoute() const @nogc
     {
-        return flags.on(Flags.dontRoute);
+        return flags.dontRoute;
     }
 
     @property ref BindInfo dontRoute(bool state) @nogc return
     {
-        flags.set(Flags.dontRoute, state);
+        flags.dontRoute = state;
         return this;
     }
 
@@ -287,12 +287,12 @@ public:
 
     @property bool ipv6Only() const @nogc
     {
-        return flags.on(Flags.ipv6Only);
+        return flags.ipv6Only;
     }
 
     @property ref BindInfo ipv6Only(bool state) @nogc return
     {
-        flags.set(Flags.ipv6Only, state);
+        flags.ipv6Only = state;
         return this;
     }
 
@@ -304,23 +304,23 @@ public:
 
     @property bool noDelay() const @nogc
     {
-        return flags.on(Flags.noDelay);
+        return flags.noDelay;
     }
 
     @property ref BindInfo noDelay(bool state) @nogc return
     {
-        flags.set(Flags.noDelay, state);
+        flags.noDelay = state;
         return this;
     }
 
     @property bool reuseAddress() const @nogc
     {
-        return flags.on(Flags.reuseAddress);
+        return flags.reuseAddress;
     }
 
     @property ref BindInfo reuseAddress(bool state) @nogc return
     {
-        flags.set(Flags.reuseAddress, state);
+        flags.reuseAddress = state;
         return this;
     }
 
@@ -331,12 +331,12 @@ public:
 
     @property bool useLoopback() const @nogc
     {
-        return flags.on(Flags.useLoopback);
+        return flags.useLoopback;
     }
 
     @property ref BindInfo useLoopback(bool state) @nogc return
     {
-        flags.set(Flags.useLoopback, state);
+        flags.useLoopback = state;
         return this;
     }
 
@@ -431,34 +431,34 @@ public:
     // Default is true
     @property bool blocking() const @nogc
     {
-        return flags.on(Flags.blocking);
+        return flags.blocking;
     }
 
     @property ref ConnectInfo blocking(bool state) @nogc return
     {
-        flags.set(Flags.blocking, state);
+        flags.blocking = state;
         return this;
     }
 
     @property bool debug_() const @nogc
     {
-        return flags.on(Flags.debug_);
+        return flags.debug_;
     }
 
     @property ref ConnectInfo debug_(bool state) @nogc return
     {
-        flags.set(Flags.debug_, state);
+        flags.debug_ = state;
         return this;
     }
 
     @property bool dontRoute() const @nogc
     {
-        return flags.on(Flags.dontRoute);
+        return flags.dontRoute;
     }
 
     @property ref ConnectInfo dontRoute(bool state) @nogc return
     {
-        flags.set(Flags.dontRoute, state);
+        flags.dontRoute = state;
         return this;
     }
 
@@ -470,23 +470,23 @@ public:
 
     @property bool ipv6Only() const @nogc
     {
-        return flags.on(Flags.ipv6Only);
+        return flags.ipv6Only;
     }
 
     @property ref ConnectInfo ipv6Only(bool state) @nogc return
     {
-        flags.set(Flags.ipv6Only, state);
+        flags.ipv6Only = state;
         return this;
     }
 
     @property bool keepAlive() const @nogc
     {
-        return flags.on(Flags.keepAlive);
+        return flags.keepAlive;
     }
 
     @property ref ConnectInfo keepAlive(bool state) @nogc return
     {
-        flags.set(Flags.keepAlive, state);
+        flags.keepAlive = state;
         return this;
     }
 
@@ -499,12 +499,12 @@ public:
     // Default is true
     @property bool noDelay() const @nogc
     {
-        return flags.on(Flags.noDelay);
+        return flags.noDelay;
     }
 
     @property ref ConnectInfo noDelay(bool state) @nogc return
     {
-        flags.set(Flags.noDelay, state);
+        flags.noDelay = state;
         return this;
     }
 
@@ -515,12 +515,12 @@ public:
 
     @property bool useLoopback() const @nogc
     {
-        return flags.on(Flags.useLoopback);
+        return flags.useLoopback;
     }
 
     @property ref ConnectInfo useLoopback(bool state) @nogc return
     {
-        flags.set(Flags.useLoopback, state);
+        flags.useLoopback = state;
         return this;
     }
 

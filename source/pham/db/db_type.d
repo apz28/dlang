@@ -2153,14 +2153,14 @@ bool isParameterInput(const(DbParameterDirection) direction, const(bool) inputOn
 {
     static immutable inputFlags = [inputDirections(false), inputDirections(true)];
 
-    return inputFlags[inputOnly].on(direction);
+    return inputFlags[inputOnly].isOn(direction);
 }
 
 bool isParameterOutput(const(DbParameterDirection) direction, const(bool) outputOnly = false) @nogc pure
 {
     static immutable outputFlags = [outputDirections(false), outputDirections(true)];
 
-    return outputFlags[outputOnly].on(direction);
+    return outputFlags[outputOnly].isOn(direction);
 }
 
 pragma(inline, true)

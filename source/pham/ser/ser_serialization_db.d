@@ -17,7 +17,8 @@ import std.traits : isDynamicArray, isFloatingPoint, isIntegral;
 
 debug(pham_ser_ser_serialization_db) import std.stdio : writeln;
 
-import pham.db.db_database : DbCommand, DbFieldList, DbReader;
+import pham.db.db_database : DbCommand, DbFieldList, DbParameter, DbParameterList, DbReader;
+import pham.db.db_type : DbType;
 import pham.db.db_value : DbRowValue, DbValue;
 import pham.dtm.dtm_date : Date, DateTime;
 import pham.dtm.dtm_date_time_parse : DateTimePattern;
@@ -26,7 +27,7 @@ import pham.dtm.dtm_time : Time;
 import pham.var.var_coerce;
 import pham.var.var_coerce_dec_decimal;
 import pham.var.var_coerce_pham_date_time;
-import pham.var.var_variant;
+import pham.var.var_variant : Variant;
 import pham.ser.ser_serialization;
 
 class DbDeserializer : Deserializer
@@ -207,290 +208,215 @@ public:
     size_t currentCol, currentRow;
 }
 
-version(none)
 class DbSerializer : Serializer
 {
 @safe:
 
 public:
+    this(DbConnection connection) nothrow
+    {
+        this.connection = connection;
+    }
+
     override Serializer begin()
     {
-        buffer = appender!string();
-        buffer.reserve(bufferCapacity);
+        param = null;
+        commandParams = connection.database.createParameterList();
+        commandText = appender!string();
+        commandText.reserve(bufferCapacity);
         return super.begin();
+    }
+
+    override Serializer end()
+    {
+        param = null;
+
+        return super.end();
     }
 
     override void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable serializable)
     {
-        if (length)
-            buffer.put('}');
-        else
-            buffer.put("null");
         super.aggregateEnd(typeName, length, serializable);
     }
 
     final override Serializer aggregateItem(ptrdiff_t index, scope ref Serializable serializable)
     {
-        if (index)
-            buffer.put(',');
-        else
-            buffer.put('{');
         return super.aggregateItem(index, serializable);
     }
 
     override void arrayBegin(string elemTypeName, ptrdiff_t length, scope ref Serializable serializable)
     {
-        buffer.put('[');
         super.arrayBegin(elemTypeName, length, serializable);
     }
 
     override void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable serializable)
     {
-        buffer.put(']');
         super.arrayEnd(elemTypeName, length, serializable);
     }
 
     final override Serializer arrayItem(ptrdiff_t index)
     {
-        if (index)
-            buffer.put(',');
         return super.arrayItem(index);
     }
 
-    final override void write(Null)
+    final override void write(Null, scope ref Serializable attribute)
     {
-        buffer.put("null");
+        if (param is null)
+            param = commandParams.add(attribute.name, DbType.unknown);
+        param.variant = Variant(null);
     }
 
-    static immutable string[2] boolValues = ["false", "true"];
-    final override void writeBool(bool v)
+    final override void writeBool(bool v, scope ref Serializable attribute)
     {
-        buffer.put(boolValues[v]);
+        if (param is null)
+            param = commandParams.add(attribute.name, DbType.boolean);
+        else
+            param.type = DbType.boolean;
+        param.variant = Variant(v);
     }
 
-    final override void writeChar(char v)
+    final override void writeChar(char v, scope ref Serializable attribute)
     {
-        char[1] s = [v];
-        write(s[]);
-    }
-
-    final override void write(scope const(Date) v)
-    {
-        StaticBuffer!(char, 50) text;
-        buffer.put('"');
-        buffer.put(v.toString(text, "%s")[]); // %s=yyyy-mm-dd
-        buffer.put('"');
-    }
-
-    final override void write(scope const(DateTime) v)
-    {
-        StaticBuffer!(char, 50) text;
-        const fmt = v.kind == DateTimeZoneKind.utc ? "%u" : "%s"; // %s=yyyy-mm-ddThh:nn:ss.zzzzzzz, %u=yyyy-mm-ddThh:nn:ss.zzzzzzzZ
-        buffer.put('"');
-        buffer.put(v.toString(text, fmt)[]);
-        buffer.put('"');
-    }
-
-    final override void write(scope const(Time) v)
-    {
-        StaticBuffer!(char, 50) text;
-        const fmt = v.kind == DateTimeZoneKind.utc ? "%u" : "%s"; // %s=hh:nn:ss.zzzzzzz, %u=hh:nn:ss.zzzzzzzZ
-        buffer.put('"');
-        buffer.put(v.toString(text, fmt)[]);
-        buffer.put('"');
-    }
-
-    final override void write(byte v)
-    {
-        writeImpl(v);
-    }
-
-    final override void write(short v)
-    {
-        writeImpl(v);
-    }
-
-    final override void write(int v, const(DataKind) kind = DataKind.integral)
-    {
-        writeImpl(v);
-    }
-
-    final override void write(long v, const(DataKind) kind = DataKind.integral)
-    {
-        writeImpl(v);
-    }
-
-    final override void write(float v, const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
-    {
-        writeImpl(v, floatFormat);
-    }
-
-    final override void write(double v, const(FloatFormat) floatFormat, const(DataKind) kind = DataKind.decimal)
-    {
-        writeImpl(v, floatFormat);
-    }
-
-    final override void write(scope const(char)[] v, const(DataKind) kind = DataKind.character)
-    {
-        if (v is null)
-        {
-            buffer.put("null");
-            return;
-        }
-
-        buffer.put('"');
-        escapeString(buffer, v);
-        buffer.put('"');
-    }
-
-    final override void write(scope const(wchar)[] v, const(DataKind) kind = DataKind.character)
-    {
-        if (v is null)
-        {
-            buffer.put("null");
-            return;
-        }
-
         auto v2 = v.to!string;
-        buffer.put('"');
-        escapeString(buffer, v2);
-        buffer.put('"');
+        write(v2, attribute);
     }
 
-    final override void write(scope const(dchar)[] v, const(DataKind) kind = DataKind.character)
+    final override void write(scope const(Date) v, scope ref Serializable attribute)
     {
-        if (v is null)
-        {
-            buffer.put("null");
-            return;
-        }
+        if (param is null)
+            param = commandParams.add(attribute.name, DbType.date);
+        else
+            param.type = DbType.date;
+        param.variant = Variant(v);
+    }
 
+    final override void write(scope const(DateTime) v, scope ref Serializable attribute)
+    {
+        const type = v.kind == DateTimeZoneKind.utc ? DbType.timeTZ : DbType.time;
+        if (param is null)
+            param = commandParams.add(attribute.name, type);
+        else
+            param.type = type;
+        param.variant = Variant(v);
+    }
+
+    final override void write(scope const(Time) v, scope ref Serializable attribute)
+    {
+        const type = v.kind == DateTimeZoneKind.utc ? DbType.timeTZ : DbType.time;
+        if (param is null)
+            param = commandParams.add(attribute.name, type);
+        else
+            param.type = type;
+        param.variant = Variant(v);
+    }
+
+    final override void write(byte v, scope ref Serializable attribute)
+    {
+        if (param is null)
+            param = commandParams.add(attribute.name, DbType.int8);
+        else
+            param.type = DbType.int8;
+        param.variant = Variant(v);
+    }
+
+    final override void write(short v, scope ref Serializable attribute)
+    {
+        if (param is null)
+            param = commandParams.add(attribute.name, DbType.int16);
+        else
+            param.type = DbType.int16;
+        param.variant = Variant(v);
+    }
+
+    final override void write(int v, scope ref Serializable attribute, const(DataKind) kind = DataKind.integral)
+    {
+        if (param is null)
+            param = commandParams.add(attribute.name, DbType.int32);
+        else
+            param.type = DbType.int32;
+        param.variant = Variant(v);
+    }
+
+    final override void write(long v, scope ref Serializable attribute, const(DataKind) kind = DataKind.integral)
+    {
+        if (param is null)
+            param = commandParams.add(attribute.name, DbType.int64);
+        else
+            param.type = DbType.int64;
+        param.variant = Variant(v);
+    }
+
+    final override void write(float v, scope ref Serializable attribute, const(DataKind) kind = DataKind.decimal)
+    {
+        if (param is null)
+            param = commandParams.add(attribute.name, DbType.float32);
+        else
+            param.type = DbType.float32;
+        param.variant = Variant(v);
+    }
+
+    final override void write(double v, scope ref Serializable attribute, const(DataKind) kind = DataKind.decimal)
+    {
+        if (param is null)
+            param = commandParams.add(attribute.name, DbType.float64);
+        else
+            param.type = DbType.float64;
+        param.variant = Variant(v);
+    }
+
+    final override void write(scope const(char)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
+    {
+        if (param is null)
+            param = commandParams.add(attribute.name, DbType.stringVary);
+        else
+            param.type = DbType.stringVary;
+        param.variant = Variant(v);
+    }
+
+    final override void write(scope const(wchar)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
+    {
         auto v2 = v.to!string;
-        buffer.put('"');
-        escapeString(buffer, v2);
-        buffer.put('"');
+        write(v2, attribute, kind);
     }
 
-    final override void write(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat, const(DataKind) kind = DataKind.binary)
+    final override void write(scope const(dchar)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
     {
-        if (v is null)
-        {
-            buffer.put("null");
-            return;
-        }
-
-        buffer.put('"');
-        buffer.put(binaryToString(v, binaryFormat));
-        buffer.put('"');
+        auto v2 = v.to!string;
+        write(v2, attribute, kind);
     }
 
-    final override Serializer writeKey(scope const(char)[] key)
+    final override void write(scope const(ubyte)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.binary)
     {
-        buffer.put('"');
-        escapeString(buffer, key);
-        buffer.put('"');
-        buffer.put(':');
+        if (param is null)
+            param = commandParams.add(attribute.name, DbType.binaryVary);
+        else
+            param.type = DbType.binaryVary;
+        param.variant = Variant(v);
+    }
+
+    final override Serializer writeKey(string key, scope ref Serializable attribute)
+    {
+        param = commandParams.add(key, DbType.unknown);
         return this;
     }
 
-    final override Serializer writeKeyId(scope const(char)[] key)
+    final override Serializer writeKeyId(string key, scope ref Serializable attribute)
     {
-        buffer.put('"');
-        buffer.put(key);
-        buffer.put('"');
-        buffer.put(':');
-        return this;
+        return writeKey(key, attribute);
     }
 
 public:
-    static T escapeString(T)(return scope T s) nothrow pure
-    if (isDynamicArray!T)
-    {
-        Appender!T buffer;
-        buffer.reserve(s.length + (s.length / 4));
-        escapeString(buffer, s);
-        return buffer[];
-    }
-
-    static void escapeString(Writer, T)(scope ref Writer sink, scope T s)
-    if (isDynamicArray!T)
-    {
-        size_t i;
-        while (i < s.length && !isEscapedChar(s[i]))
-            i++;
-        if (i == s.length)
-        {
-            sink.put(s);
-            return;
-        }
-        sink.put(s[0..i]);
-        while (i < s.length)
-        {
-            const c = s[i];
-            if (const cs = isEscapedChar(c))
-            {
-                sink.put('\\');
-                sink.put(cs);
-            }
-            else
-                sink.put(c);
-            i++;
-        }
-    }
-
-    // std.json is special handling as json string datatype - not as special number format
-    final override const(char)[] floatLiteral(return scope char[] vBuffer, scope const(char)[] literal, const(bool) floatConversion) @nogc nothrow pure
-    {
-        if (floatConversion)
-        {
-            vBuffer[0] = '"';
-            vBuffer[1..literal.length+1] = literal;
-            vBuffer[literal.length+1] = '"';
-            return vBuffer[0..literal.length+2];
-        }
-
-        return super.floatLiteral(vBuffer, literal, floatConversion);
-    }
-
-    // https://stackoverflow.com/questions/19176024/how-to-escape-special-characters-in-building-a-json-string
-    static char isEscapedChar(const(char) c) @nogc nothrow pure
-    {
-        switch (c)
-        {
-            case '"': return '"';
-            case '\\': return '\\';
-            case '/': return '/';
-            case '\b': return 'b';
-            case '\f': return 'f';
-            case '\n': return 'n';
-            case '\r': return 'r';
-            case '\t': return 't';
-            default: return '\0';
-        }
-    }
-
-    final void writeImpl(V)(V v)
-    if (isIntegral!V)
-    {
-        char[50] vBuffer = void;
-        buffer.put(intToString(vBuffer[], v));
-    }
-
-    final void writeImpl(V)(V v, const(FloatFormat) floatFormat)
-    if (isFloatingPoint!V)
-    {
-        char[350] textBuffer = void;
-        buffer.put(floatToString(textBuffer[], v, floatFormat));
-    }
-
     @property final override SerializerDataFormat dataFormat() const @nogc nothrow pure
     {
         return SerializerDataFormat.text;
     }
 
 public:
-    Appender!string buffer;
-    size_t bufferCapacity = 1_000 * 16;
+    DbConnection connection;
+    DbParameterList commandParams;
+    Appender!string commandText;
+    DbParameter param;
+    size_t bufferCapacity = 1_000;
 }
 
 
@@ -607,7 +533,7 @@ unittest // DbSerializer.UnitTestAllTypesLess
         assert(c !is null);
         c.assertValues();
     }
-    
+
     // Array of classes
     {
         connection.executeNonQuery("INSERT INTO UnitTestAllTypesLess(enum1, bool1, byte1" ~
@@ -913,10 +839,10 @@ unittest // DbSerializer.UnitTestCustomS1
         connection.dispose();
     connection.open();
 
-    connection.executeNonQuery("CREATE TABLE UnitTestS1(publicInt INTEGER, publicGetSet INTEGER)");
+    connection.executeNonQuery("CREATE TABLE UnitTestCustomS1(publicInt INTEGER, publicGetSet INTEGER)");
     scope (exit)
-        connection.executeNonQuery("DROP TABLE UnitTestS1");
-    connection.executeNonQuery("INSERT INTO UnitTestS1(publicInt, publicGetSet)" ~
+        connection.executeNonQuery("DROP TABLE UnitTestCustomS1");
+    connection.executeNonQuery("INSERT INTO UnitTestCustomS1(publicInt, publicGetSet)" ~
         " VALUES(20, 1)");
 
     version(none)

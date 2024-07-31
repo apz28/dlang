@@ -569,7 +569,7 @@ public:
 
     @property bool empty() const nothrow @safe
     {
-        return _flags.on(Flag.done);
+        return _flags.done;
     }
 
     @property size_t rowCount() const nothrow @safe

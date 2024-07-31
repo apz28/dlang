@@ -175,7 +175,7 @@ public:
     BinaryFormat binaryFormat;
     EnumFormat enumFormat;
     FloatFormat floatFormat = FloatFormat(ubyte.max, false);
-    bool symbolName;
+    bool symbolId;
 }
 
 enum SerializableMemberFlag : ubyte
@@ -207,7 +207,6 @@ public:
 
     bool isDeserializer(alias serializerMember)() const
     {
-        //scope (failure) assert(0);
         //import std.stdio; writeln; debug writeln(serializerMember.memberName, "=", serializerMember.memberScope, "/", this.scopes, ", ", serializerMember.flags, "/", this.flags);
 
         if (serializerMember.attribute.condition == Condition.ignored)
@@ -742,7 +741,7 @@ template SerializerMember(alias T, string name)
         }
         else
         {
-            enum Serializable attribute = Serializable(memberName, Condition.required);
+            enum Serializable attribute = Serializable(memberName, memberName, Condition.required);
             enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.implicitUDA
                 | SerializableMemberFlag.isGetSet;
         }
@@ -772,7 +771,7 @@ template SerializerMember(alias T, string name)
         }
         else
         {
-            enum Serializable attribute = Serializable(memberName, Condition.required);
+            enum Serializable attribute = Serializable(memberName, memberName, Condition.required);
             enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.implicitUDA;
         }
     }
@@ -782,7 +781,7 @@ template SerializerMember(alias T, string name)
         alias memberSet = void;
         alias memberType = void;
         enum SerializableMemberScope memberScope = SerializableMemberScope.none;
-        enum Serializable attribute = Serializable(memberName, Condition.ignored);
+        enum Serializable attribute = Serializable(memberName, memberName, Condition.ignored);
         enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.none;
     }
     else
@@ -800,7 +799,7 @@ template SerializerMember(alias T, string name)
         }
         else
         {
-            enum Serializable attribute = Serializable(memberName, Condition.ignored);
+            enum Serializable attribute = Serializable(memberName, memberName, Condition.ignored);
             enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.none;
         }
     }
@@ -1762,11 +1761,9 @@ public:
     }
     do
     {
-        if (attribute.symbolName)
-            writeKeyId(attribute.name, attribute);
-        else
-            writeKey(attribute.name, attribute);
-        return this;
+        return attribute.symbolId
+            ? writeKeyId(attribute.name, attribute)
+            : writeKey(attribute.name, attribute);
     }
 
     void arrayBegin(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
@@ -1800,8 +1797,8 @@ public:
     abstract void write(scope const(wchar)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.character); // WString value
     abstract void write(scope const(dchar)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.character); // DString value
     abstract void write(scope const(ubyte)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.binary); // Binary value
-    abstract Serializer writeKey(scope const(char)[] key, scope ref Serializable attribute);
-    abstract Serializer writeKeyId(scope const(char)[] key, scope ref Serializable attribute);
+    abstract Serializer writeKey(string key, scope ref Serializable attribute);
+    abstract Serializer writeKeyId(string key, scope ref Serializable attribute);
 
 public:
     // null
@@ -1981,7 +1978,7 @@ public:
 
         size_t index;
         Serializable memberAttribute = attribute;
-        memberAttribute.symbolName = false;
+        memberAttribute.symbolId = false;
         foreach (key, ref val; v)
         {
             memberAttribute.name = key;
@@ -2009,11 +2006,11 @@ public:
         size_t index;
         char[50] keyBuffer = void;
         Serializable memberAttribute = attribute;
-        memberAttribute.symbolName = true;
+        memberAttribute.symbolId = true;
         foreach (key, ref val; v)
         {
             const keyStr = sformat(keyBuffer[], "%d", key);
-            memberAttribute.name = cast(string)keyStr;
+            memberAttribute.name = keyStr.idup;
             aggregateItem(index, memberAttribute);
             serialize(val, memberAttribute);
             index++;
@@ -2036,7 +2033,7 @@ public:
         string keyStr;
         size_t index;
         Serializable memberAttribute = attribute;
-        memberAttribute.symbolName = true;
+        memberAttribute.symbolId = true;
         foreach (key, ref val; v)
         {
             if (memberAttribute.enumFormat == EnumFormat.integral)
@@ -2106,7 +2103,7 @@ public:
 
                     auto memberValue = __traits(child, v, member.memberGet);
                     Serializable memberAttribute = member.attribute;
-                    memberAttribute.symbolName = false;
+                    memberAttribute.symbolId = false;
 
                     if (memberAttribute.condition == Condition.ignoredNull)
                     {
