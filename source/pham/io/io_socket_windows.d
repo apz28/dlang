@@ -31,6 +31,12 @@ alias SocketHandle = SOCKET;
 enum invalidSocketHandle = INVALID_SOCKET;
 enum AI_V4MAPPED = 0x0800; // https://learn.microsoft.com/en-us/windows/win32/api/ws2def/ns-ws2def-addrinfoex4
 
+struct WSAStartupResult
+{
+    WSADATA wsaData;
+    int wsaErrorCode;
+}
+
 pragma(inline, true)
 SocketHandle acceptSocket(SocketHandle handle, scope sockaddr* nameVal, scope int* nameLen) nothrow @trusted
 in
@@ -369,24 +375,26 @@ do
         : ((r & SelectMode.error) == SelectMode.error ? resultError : resultOK);
 }
 
+shared immutable WSAStartupResult wsaStartupResult;
 
 // Any below codes are private
 private:
 
-static immutable int _WSAStartupResult;
+import core.attribute : standalone;
 
+@standalone
 shared static this() nothrow @trusted
 {
-    WSADATA wsaData;
     ushort wsaVersion = MAKEWORD(2, 2);
-    _WSAStartupResult = WSAStartup(wsaVersion, &wsaData);
-    
+    wsaStartupResult.wsaErrorCode = WSAStartup(wsaVersion, &cast()wsaStartupResult.wsaData);
+
     //import std.stdio : writeln;
-    //debug writeln("WSAStartup=", _WSAStartupResult, ", wsaVersion=", wsaVersion);
+    //debug writeln("WSAStartup=", _wsaStartupResult, ", wsaVersion=", wsaVersion);
 }
 
+@standalone
 shared static ~this() nothrow @safe
 {
-    if (_WSAStartupResult == 0)
+    if (wsaStartupResult.wsaErrorCode == 0)
         WSACleanup();
 }

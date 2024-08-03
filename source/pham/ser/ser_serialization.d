@@ -1171,13 +1171,13 @@ class Deserializer : DSeserializer
 @safe:
 
 public:
-    Deserializer begin()
+    Deserializer begin(scope ref Serializable attribute)
     {
         _arrayDepth = _memberDepth = 0;
         return this;
     }
 
-    Deserializer end()
+    Deserializer end(scope ref Serializable attribute)
     {
         return this;
     }
@@ -1707,11 +1707,20 @@ public:
     final V deserialize(V)()
     if (isSerializerAggregateType!V)
     {
+        static if (hasUDA!(V, Serializable))
+            Serializable attribute = getUDA!(V, Serializable);
+        else
+            Serializable attribute = Serializable.init;
+        return deserializeWith!V(attribute);
+    }
+
+    final V deserializeWith(V)(Serializable attribute)
+    if (isSerializerAggregateType!V)
+    {
         V v;
-        Serializable attribute;
-        begin();
+        begin(attribute);
         deserialize(v, attribute);
-        end();
+        end(attribute);
         return v;
     }
 
@@ -1719,11 +1728,20 @@ public:
     final V deserialize(V)()
     if (isDynamicArray!V)
     {
+        static if (hasUDA!(V, Serializable))
+            Serializable attribute = getUDA!(V, Serializable);
+        else
+            Serializable attribute = Serializable.init;
+        return deserializeWith!V(attribute);
+    }
+
+    final V deserializeWith(V)(Serializable attribute)
+    if (isDynamicArray!V)
+    {
         V v;
-        Serializable attribute;
-        begin();
+        begin(attribute);
         deserialize(v, attribute);
-        end();
+        end(attribute);
         return v;
     }
 }
@@ -1733,13 +1751,13 @@ class Serializer : DSeserializer
 @safe:
 
 public:
-    Serializer begin()
+    Serializer begin(scope ref Serializable attribute)
     {
         _arrayDepth = _memberDepth = 0;
         return this;
     }
 
-    Serializer end()
+    Serializer end(scope ref Serializable attribute)
     {
         return this;
     }
@@ -2161,20 +2179,38 @@ public:
     final void serialize(V)(auto ref V v)
     if (isSerializerAggregateType!V)
     {
-        Serializable attribute;
-        begin();
+        static if (hasUDA!(V, Serializable))
+            Serializable attribute = getUDA!(V, Serializable);
+        else
+            Serializable attribute = Serializable.init;
+        serializeWith!V(v, attribute);
+    }
+
+    final void serializeWith(V)(auto ref V v, Serializable attribute)
+    if (isSerializerAggregateType!V)
+    {
+        begin(attribute);
         serialize(v, attribute);
-        end();
+        end(attribute);
     }
 
     // Array
     final void serialize(V)(auto ref V v)
     if (isDynamicArray!V)
     {
-        Serializable attribute;
-        begin();
+        static if (hasUDA!(V, Serializable))
+            Serializable attribute = getUDA!(V, Serializable);
+        else
+            Serializable attribute = Serializable.init;
+        serializeWith!V(v, attribute);
+    }
+
+    final void serializeWith(V)(auto ref V v, Serializable attribute)
+    if (isDynamicArray!V)
+    {
+        begin(attribute);
         serialize(v, attribute);
-        end();
+        end(attribute);
     }
 }
 

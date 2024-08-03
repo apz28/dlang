@@ -41,17 +41,17 @@ public:
         this.fields = reader.fields;
     }
 
-    override Deserializer begin()
+    override Deserializer begin(scope ref Serializable attribute)
     {
         currentCol = 0;
         currentRow = readRowReader();
-        return super.begin();
+        return super.begin(attribute);
     }
 
-    override Deserializer end()
+    override Deserializer end(scope ref Serializable attribute)
     {
         currentCol = currentRow = 0;
-        return super.end();
+        return super.end(attribute);
     }
 
     override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
@@ -218,20 +218,20 @@ public:
         this.connection = connection;
     }
 
-    override Serializer begin()
+    override Serializer begin(scope ref Serializable attribute)
     {
         param = null;
         commandParams = connection.database.createParameterList();
         commandText = appender!string();
         commandText.reserve(bufferCapacity);
-        return super.begin();
+        return super.begin(attribute);
     }
 
-    override Serializer end()
+    override Serializer end(scope ref Serializable attribute)
     {
         param = null;
 
-        return super.end();
+        return super.end(attribute);
     }
 
     override void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable serializable)

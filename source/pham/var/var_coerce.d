@@ -388,6 +388,9 @@ if (isSomeString!S && isConstString!D && is(CharOfString!S == CharOfString!D))
 
 __gshared ConvertHandler[ConvertHandlerKey] convertHandlers;
 
+import core.attribute : standalone;
+
+@standalone
 shared static this() nothrow @safe
 {
     ConvertHandler handler;

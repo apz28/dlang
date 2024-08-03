@@ -1778,24 +1778,28 @@ public:
 		this.MaxChainLength = maxChainLength;
 		this.Flavor = flavor;
 	}
+}
 
 private:
-	shared static this() nothrow @trusted
-	{
-		Tables = [
-			new Config(0, 0, 0, 0, DeflateFlavor.store),
-			new Config(4, 4, 8, 4, DeflateFlavor.fast),
-			new Config(4, 5, 16, 8, DeflateFlavor.fast),
-			new Config(4, 6, 32, 32, DeflateFlavor.fast),
 
-			new Config(4, 4, 16, 16, DeflateFlavor.slow),
-			new Config(8, 16, 32, 32, DeflateFlavor.slow),
-			new Config(8, 16, 128, 128, DeflateFlavor.slow),
-			new Config(8, 32, 128, 256, DeflateFlavor.slow),
-			new Config(32, 128, 258, 1024, DeflateFlavor.slow),
-			new Config(32, 258, 258, 4096, DeflateFlavor.slow),
-		];
-	}
+__gshared Config[] Tables;
 
-	__gshared Config[] Tables;
+import core.attribute : standalone;
+
+@standalone
+shared static this() nothrow @trusted
+{
+	Tables = [
+		new Config(0, 0, 0, 0, DeflateFlavor.store),
+		new Config(4, 4, 8, 4, DeflateFlavor.fast),
+		new Config(4, 5, 16, 8, DeflateFlavor.fast),
+		new Config(4, 6, 32, 32, DeflateFlavor.fast),
+
+		new Config(4, 4, 16, 16, DeflateFlavor.slow),
+		new Config(8, 16, 32, 32, DeflateFlavor.slow),
+		new Config(8, 16, 128, 128, DeflateFlavor.slow),
+		new Config(8, 32, 128, 256, DeflateFlavor.slow),
+		new Config(32, 128, 258, 1024, DeflateFlavor.slow),
+		new Config(32, 258, 258, 4096, DeflateFlavor.slow),
+	];
 }

@@ -13,7 +13,7 @@ module pham.cp.cp_codec_asn1;
 
 import std.string : representation;
 import std.traits : isIntegral, isSigned, Unqual;
-        
+
 import pham.dtm.dtm_date : Date, DateTime;
 import pham.dtm.dtm_date_time_parse : DateTimeParser, DateTimePattern, tryParse;
 import pham.dtm.dtm_tick : DateTimeZoneKind;
@@ -1903,6 +1903,9 @@ struct ASN1Value
 
 private:
 
+import core.attribute : standalone;
+
+@standalone
 shared static this() nothrow @safe
 {
     ASN1OId.initializeDefaults();
@@ -1929,7 +1932,7 @@ unittest // ASN1BitString.rightAlign
 {
     import std.conv : to;
     import pham.utl.utl_object : bytesToHexs;
-    
+
     static void test(scope const(ASN1BitString) v, scope const(ubyte)[] expectedValue, int line = __LINE__) @safe
     {
         assert(v.rightAlign() == expectedValue, "Failed from line# " ~ line.to!string() ~ ": " ~ v.rightAlign().bytesToHexs() ~ " vs " ~ expectedValue.bytesToHexs());

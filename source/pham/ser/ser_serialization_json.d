@@ -53,17 +53,17 @@ public:
         //import std.stdio : writeln; debug writeln("\n'", this.root.toString(JSONOptions.specialFloatLiterals), "'\n");
     }
 
-    override Deserializer begin()
+    override Deserializer begin(scope ref Serializable attribute)
     {
         currents = [Node(&root)];
-        return super.begin();
+        return super.begin(attribute);
     }
 
-    override Deserializer end()
+    override Deserializer end(scope ref Serializable attribute)
     {
         currents = null;
         //root = JSONValue.init;
-        return super.end();
+        return super.end(attribute);
     }
 
     override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
@@ -413,11 +413,11 @@ class JsonSerializer : Serializer
 @safe:
 
 public:
-    override Serializer begin()
+    override Serializer begin(scope ref Serializable attribute)
     {
         buffer = appender!string();
         buffer.reserve(bufferCapacity);
-        return super.begin();
+        return super.begin(attribute);
     }
 
     override void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable serializable)
@@ -719,8 +719,9 @@ unittest // JsonSerializer
         return serializableAggregateMember;
     }
 
+    Serializable emptyAttribute;
     scope serializer = new JsonSerializer();
-    serializer.begin();
+    serializer.begin(emptyAttribute);
     serializer.aggregateBegin(null, -1, serializableAggregate);
     serializer.aggregateItem(0, aggregateMember("b1")).writeBool(true, anyAttribute);
     serializer.aggregateItem(1, aggregateMember("b2")).writeBool(false, anyAttribute);
@@ -738,7 +739,7 @@ unittest // JsonSerializer
     serializer.arrayItem(1).write(201, anyAttribute);
     serializer.arrayEnd(null, 2, serializableArray);
     serializer.aggregateEnd(null, 11, serializableAggregate);
-    serializer.end();
+    serializer.end(emptyAttribute);
 
     //import std.stdio : writeln; debug writeln(serializer.buffer[]);
     assert(serializer.buffer[] == q"<{"b1":true,"b2":false,"n1":null,"f1":1.5,"d1":100,"c1":"c","s1":"This is a string \/\\","e1":"second","e2":3,"bin1":"ZGU=","arr1":[200,201]}>", serializer.buffer[]);

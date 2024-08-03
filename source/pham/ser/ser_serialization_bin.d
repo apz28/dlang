@@ -117,7 +117,7 @@ public:
         this.data = data;
     }
 
-    override Deserializer begin()
+    override Deserializer begin(scope ref Serializable attribute)
     {
         offset = 0;
         version_ = 0;
@@ -132,7 +132,7 @@ public:
         version_ = bigEndianToNative!(ushort, ushort.sizeof)(v);
         offset += ushort.sizeof;
 
-        return super.begin();
+        return super.begin(attribute);
     }
 
     override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
@@ -421,14 +421,14 @@ class BinarySerializer : Serializer
 @safe:
 
 public:
-    override Serializer begin()
+    override Serializer begin(scope ref Serializable attribute)
     {
         const v = nativeToBigEndian(binaryVersion);
         buffer = appender!(ubyte[])();
         buffer.reserve(bufferCapacity);
         buffer.put(binaryIndicator[]);
         buffer.put(v[]);
-        return super.begin();
+        return super.begin(attribute);
     }
 
     override void aggregateBegin(string typeName, ptrdiff_t length, scope ref Serializable serializable)

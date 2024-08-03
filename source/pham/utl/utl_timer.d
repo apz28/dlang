@@ -16,7 +16,6 @@ import core.sync.mutex : Mutex;
 public import core.time : Duration, dur;
 
 debug(debug_pham_utl_utl_timer) import std.stdio : writeln;
-
 import pham.utl.utl_object : RAIIMutex;
 
 version(Windows)

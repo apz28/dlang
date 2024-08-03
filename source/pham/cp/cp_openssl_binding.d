@@ -1134,6 +1134,9 @@ static immutable OpenSSLApi opensslApi;
 
 private:
 
+import core.attribute : standalone;
+
+@standalone
 shared static this() nothrow @trusted
 {
     foreach (lib; libSslNames)
@@ -1324,6 +1327,7 @@ shared static this() nothrow @trusted
     opensslApi.initLib();
 }
 
+@standalone
 shared static ~this() nothrow @trusted
 {
     if (opensslApi._libCrypto !is null)
