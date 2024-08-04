@@ -16,7 +16,6 @@ import std.conv : to;
 import std.traits : isDynamicArray, isFloatingPoint, isIntegral;
 
 debug(pham_ser_ser_serialization_db) import std.stdio : writeln;
-
 import pham.db.db_database : DbCommand, DbFieldList, DbParameter, DbParameterList, DbReader;
 import pham.db.db_type : DbType;
 import pham.db.db_value : DbRowValue, DbValue;
@@ -29,6 +28,7 @@ import pham.var.var_coerce_dec_decimal;
 import pham.var.var_coerce_pham_date_time;
 import pham.var.var_variant : Variant;
 import pham.ser.ser_serialization;
+import pham.ser.ser_serialization_json; // Use for supporting hierachy - aggregated member
 
 class DbDeserializer : Deserializer
 {

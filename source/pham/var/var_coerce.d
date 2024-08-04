@@ -391,7 +391,7 @@ __gshared ConvertHandler[ConvertHandlerKey] convertHandlers;
 import core.attribute : standalone;
 
 @standalone
-shared static this() nothrow @safe
+shared static this() nothrow @trusted
 {
     ConvertHandler handler;
 

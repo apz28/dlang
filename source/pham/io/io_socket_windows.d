@@ -393,7 +393,7 @@ shared static this() nothrow @trusted
 }
 
 @standalone
-shared static ~this() nothrow @safe
+shared static ~this() nothrow @trusted
 {
     if (wsaStartupResult.wsaErrorCode == 0)
         WSACleanup();
