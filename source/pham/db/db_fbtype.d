@@ -11,7 +11,7 @@
 
 module pham.db.db_fbtype;
 
-import std.array : Appender, replace;
+import std.array : replace;
 import std.conv : to;
 import std.traits : EnumMembers, Unqual;
 
@@ -1101,7 +1101,7 @@ struct FbIscGenericResponse
 nothrow @safe:
 
 public:
-    this(FbHandle handle, FbId id, ubyte[] data, FbIscStatues statues) pure
+    this(FbHandle handle, FbId id, ubyte[] data, FbIscStatues statues)
     {
         this.handle = handle;
         this.id = id;
@@ -1109,7 +1109,7 @@ public:
         this.statues = statues;
     }
 
-    FbIscObject getIscObject() const pure
+    FbIscObject getIscObject() const
     {
         return FbIscObject(handle, id);
     }
@@ -1127,17 +1127,18 @@ struct FbIscInfo
 
 public:
     this(T)(T value) nothrow
-    if (is(T == bool) || is(T == int) || is(T == string) || is(T == const(char)[]))
+    if (is(Unqual!T == bool) || is(Unqual!T == int) || is(T == string) || is(T == const(char)[]))
     {
         this.value = value;
     }
 
     T get(T)()
-    if (is(T == bool) || is(T == int) || is(T == string) || is(T == const(char)[]))
+    if (is(Unqual!T == bool) || is(Unqual!T == int) || is(T == string) || is(T == const(char)[]))
     {
-        static if (is(T == bool))
+        alias UT = Unqual!T;
+        static if (is(UT == bool))
             return asBool();
-        else static if (is(T == int))
+        else static if (is(UT == int))
             return asInt();
         else static if (is(T == string) || is(T == const(char)[]))
             return asString();
@@ -1493,53 +1494,56 @@ private:
 
 struct FbIscObject
 {
-nothrow @safe:
+@nogc nothrow @safe:
 
 public:
-    this(FbHandle handle, FbId id) pure
+    this(FbHandle handle, FbId id)
     {
         this._handleStorage = handle;
         this._idStorage = id;
     }
 
-    void reset() pure
+    ref FbIscObject reset() return
     {
         _handleStorage.reset();
         _idStorage.reset();
+        return this;
     }
 
-    void resetHandle() pure
+    ref FbIscObject resetHandle() return
     {
         _handleStorage.reset();
+        return this;
     }
 
-    void resetId() pure
+    ref FbIscObject resetId() return
     {
         _idStorage.reset();
+        return this;
     }
 
-    @property bool hasHandle() const pure
+    @property bool hasHandle() const
     {
         return _handleStorage.isValid;
     }
 
-    @property FbHandle handle() const pure
+    @property FbHandle handle() const
     {
         return _handleStorage.get!FbHandle();
     }
 
-    @property ref FbIscObject handle(const(FbHandle) newValue) pure return
+    @property ref FbIscObject handle(const(FbHandle) newValue) return
     {
         _handleStorage = newValue;
         return this;
     }
 
-    @property FbId id() const pure
+    @property FbId id() const
     {
         return _idStorage.get!FbId();
     }
 
-    @property ref FbIscObject id(const(FbId) newValue) pure return
+    @property ref FbIscObject id(const(FbId) newValue) return
     {
         _idStorage = newValue;
         return this;

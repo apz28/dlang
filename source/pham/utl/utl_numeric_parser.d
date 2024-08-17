@@ -43,13 +43,12 @@ char[] cvtBytesBase64(bool lineBreak = false)(scope const(ubyte)[] bytes,
     const(char) padding = Base64MappingChar.padding,
     const(uint) lineBreakLength = 80) pure
 {
-    import std.array : Appender;
+    import pham.utl.utl_array : Appender;
 
     if (bytes.length == 0)
         return null;
 
-    Appender!(char[]) buffer;
-    buffer.reserve(cvtBytesBase64Length(bytes.length, lineBreak, lineBreakLength, padding));
+    auto buffer = Appender!(char[])(cvtBytesBase64Length(bytes.length, lineBreak, lineBreakLength, padding));
     return cvtBytesBase64!(Appender!(char[]), lineBreak)(buffer, bytes, padding, lineBreakLength)[];
 }
 
@@ -140,13 +139,12 @@ char[] cvtBytesBase16(bool lineBreak = false)(scope const(ubyte)[] bytes,
     const(LetterCase) letterCase = LetterCase.upper,
     const(uint) lineBreakLength = 80) pure
 {
-    import std.array : Appender;
+    import pham.utl.utl_array : Appender;
 
     if (bytes.length == 0)
         return null;
 
-    Appender!(char[]) buffer;
-    buffer.reserve(cvtBytesBase16Length(bytes.length, lineBreak, lineBreakLength));
+    auto buffer = Appender!(char[])(cvtBytesBase16Length(bytes.length, lineBreak, lineBreakLength));
     return cvtBytesBase16!(Appender!(char[]), lineBreak)(buffer, bytes, letterCase, lineBreakLength)[];
 }
 

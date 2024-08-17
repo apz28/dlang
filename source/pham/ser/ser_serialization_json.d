@@ -11,7 +11,6 @@
 
 module pham.ser.ser_serialization_json;
 
-import std.array : Appender, appender;
 import std.conv : to;
 import std.json : JSONOptions, JSONType, JSONValue, parseJSON;
 import std.traits : isDynamicArray, isFloatingPoint, isIntegral;
@@ -20,6 +19,7 @@ import pham.dtm.dtm_date : Date, DateTime;
 import pham.dtm.dtm_date_time_parse : DateTimePattern, dateTimeParse=parse;
 import pham.dtm.dtm_tick : DateTimeSetting, DateTimeZoneKind;
 import pham.dtm.dtm_time : Time;
+import pham.utl.utl_array : Appender;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.ser.ser_serialization;
 
@@ -47,10 +47,7 @@ class JsonDeserializer : Deserializer
 public:
     this(scope const(char)[] data)
     {
-        //import std.stdio : writeln; writeln("\n'", data, "'\n");
         this.root = parseJSON(data);
-        //import std.stdio : writeln; debug writeln("root.type=", root.type);
-        //import std.stdio : writeln; debug writeln("\n'", this.root.toString(JSONOptions.specialFloatLiterals), "'\n");
     }
 
     override Deserializer begin(scope ref Serializable attribute)
@@ -66,7 +63,7 @@ public:
         return super.end(attribute);
     }
 
-    override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
+    final override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
     {
         static immutable EnumSet!JSONTypeChecked checkTypes = EnumSet!JSONTypeChecked([JSONTypeChecked.object, JSONTypeChecked.null_]);
         checkDataType(checkTypes);
@@ -76,7 +73,7 @@ public:
         return len;
     }
 
-    override ptrdiff_t arrayBegin(string elemTypeName, scope ref Serializable attribute)
+    final override ptrdiff_t arrayBegin(string elemTypeName, scope ref Serializable attribute)
     {
         static immutable EnumSet!JSONTypeChecked checkTypes = EnumSet!JSONTypeChecked([JSONTypeChecked.array, JSONTypeChecked.null_]);
         checkDataType(checkTypes);
@@ -341,7 +338,7 @@ public:
 
         this(JSONValue* value,
             ptrdiff_t index = 0,
-            ptrdiff_t parentLength = DSeserializer.unknownLength,
+            ptrdiff_t parentLength = DSSerializer.unknownLength,
             string name = null) @trusted
         in
         {
@@ -372,7 +369,7 @@ public:
             else
             {
                 //this.childNames = null;
-                this.childLength = DSeserializer.unknownLength;
+                this.childLength = DSSerializer.unknownLength;
             }
             //import std.stdio : writeln; debug writeln("\tNode().name=", name, ", index=", index, ", childNames=", childNames);
         }
@@ -413,48 +410,49 @@ class JsonSerializer : Serializer
 @safe:
 
 public:
-    override Serializer begin(scope ref Serializable attribute)
+    override JsonSerializer begin(scope ref Serializable attribute)
     {
-        buffer = appender!string();
-        buffer.reserve(bufferCapacity);
-        return super.begin(attribute);
+        buffer.clear();
+        buffer.capacity = bufferCapacity;
+        super.begin(attribute);
+        return this;
     }
 
-    override void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable serializable)
+    override JsonSerializer end(scope ref Serializable attribute)
     {
-        if (length)
-            buffer.put('}');
-        else
-            buffer.put("null");
-        super.aggregateEnd(typeName, length, serializable);
+        super.end(attribute);
+        return this;
     }
 
-    final override Serializer aggregateItem(ptrdiff_t index, scope ref Serializable serializable)
+    final override void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable attribute)
     {
-        if (index)
-            buffer.put(',');
-        else
-            buffer.put('{');
-        return super.aggregateItem(index, serializable);
+        buffer.put(length ? "}" : "null");
+        super.aggregateEnd(typeName, length, attribute);
     }
 
-    override void arrayBegin(string elemTypeName, ptrdiff_t length, scope ref Serializable serializable)
+    final override Serializer aggregateItem(ptrdiff_t index, scope ref Serializable attribute)
+    {
+        buffer.put(index ? ',' : '{');
+        return super.aggregateItem(index, attribute);
+    }
+
+    final override void arrayBegin(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
     {
         buffer.put('[');
-        super.arrayBegin(elemTypeName, length, serializable);
+        super.arrayBegin(elemTypeName, length, attribute);
     }
 
-    override void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable serializable)
+    final override void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
     {
         buffer.put(']');
-        super.arrayEnd(elemTypeName, length, serializable);
+        super.arrayEnd(elemTypeName, length, attribute);
     }
 
-    final override Serializer arrayItem(ptrdiff_t index)
+    final override Serializer arrayItem(ptrdiff_t index, scope ref Serializable attribute)
     {
         if (index)
             buffer.put(',');
-        return super.arrayItem(index);
+        return super.arrayItem(index, attribute);
     }
 
     final override void write(Null, scope ref Serializable)
@@ -590,8 +588,9 @@ public:
         buffer.put('"');
     }
 
-    final override Serializer writeKey(string key, scope ref Serializable)
+    final override Serializer writeKey(scope ref Serializable attribute)
     {
+        auto key = attribute.name;
         buffer.put('"');
         escapeString(buffer, key);
         buffer.put('"');
@@ -599,8 +598,9 @@ public:
         return this;
     }
 
-    final override Serializer writeKeyId(string key, scope ref Serializable)
+    final override Serializer writeKeyId(scope ref Serializable attribute)
     {
+        auto key = attribute.name;
         buffer.put('"');
         buffer.put(key);
         buffer.put('"');
@@ -612,8 +612,7 @@ public:
     static T escapeString(T)(return scope T s) nothrow pure
     if (isDynamicArray!T)
     {
-        Appender!T buffer;
-        buffer.reserve(s.length + (s.length / 4));
+        auto buffer = Appender!T(s.length + (s.length / 4));
         escapeString(buffer, s);
         return buffer[];
     }
@@ -685,8 +684,8 @@ public:
     final void writeImpl(V)(V v, scope ref Serializable attribute)
     if (isFloatingPoint!V)
     {
-        char[350] textBuffer = void;
-        buffer.put(floatToString(textBuffer[], v, floatFormat(attribute)));
+        char[350] vBuffer = void;
+        buffer.put(floatToString(vBuffer[], v, floatFormat(attribute)));
     }
 
     @property final override SerializerDataFormat dataFormat() const @nogc nothrow pure
@@ -695,7 +694,7 @@ public:
     }
 
 public:
-    Appender!string buffer;
+    Appender!(char[]) buffer;
     size_t bufferCapacity = 1_000 * 16;
 }
 
@@ -735,8 +734,8 @@ unittest // JsonSerializer
     serializer.aggregateItem(9, aggregateMember("bin1")).write(cast(const(ubyte)[])[100, 101], binaryAttribute);
     serializer.aggregateItem(10, aggregateMember("arr1"));
     serializer.arrayBegin(null, 2, serializableArray);
-    serializer.arrayItem(0).write(200, anyAttribute);
-    serializer.arrayItem(1).write(201, anyAttribute);
+    serializer.arrayItem(0, anyAttribute).write(200, anyAttribute);
+    serializer.arrayItem(1, anyAttribute).write(201, anyAttribute);
     serializer.arrayEnd(null, 2, serializableArray);
     serializer.aggregateEnd(null, 11, serializableAggregate);
     serializer.end(emptyAttribute);
@@ -925,7 +924,7 @@ unittest // JsonSerializer.UnitTestCustomS1
         UnitTestCustomS1 c;
         scope serializer = new JsonSerializer();
         serializer.serialize!UnitTestCustomS1(c.setValues());
-        jsonCustom = serializer.buffer[];
+        jsonCustom = serializer.buffer[].idup;
         //import std.stdio : writeln; debug writeln("\n", jsonCustom);
     }
 

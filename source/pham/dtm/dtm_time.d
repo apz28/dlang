@@ -966,7 +966,7 @@ unittest // Time.toString
     assert(Time(12, 30, 33).toString(fmt) == "12:30:33 PM");
     assert(Time(12, 30, 33).toString(fmt, setting) == "12:30:33 PM");
     
-    import std.array : Appender;
+    import pham.utl.utl_array : Appender;
     import std.exception : assertThrown;
     
     Appender!(char[]) buffer;

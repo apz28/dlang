@@ -15,9 +15,9 @@ import core.time : dur;
 import std.algorithm : startsWith;
 import std.array : split;
 import std.conv : to;
+import std.traits : Unqual;
 
 debug(debug_pham_db_db_pgtype) import std.stdio : writeln;
-
 import pham.cp.cp_cipher : CipherHelper;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_enum_set : toName;

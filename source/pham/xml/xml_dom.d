@@ -11,12 +11,12 @@
 
 module pham.xml.xml_dom;
 
-import std.array : Appender, split;
+import std.array : split;
 import std.typecons : Flag;
 public import std.typecons : No, Yes;
 
 debug(debug_pham_xml_xml_dom) import std.stdio : writeln;
-
+import pham.utl.utl_array : Appender;
 import pham.utl.utl_dlink_list;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.utl.utl_object : shortClassName, singleton;
@@ -61,23 +61,23 @@ public:
     pragma(inline, true)
     @property bool preserveWhitespace() const nothrow
     {
-        return flags.on(XmlParseOptionFlag.preserveWhitespace);
+        return flags.preserveWhitespace;
     }
 
     @property void preserveWhitespace(bool value) nothrow
     {
-        flags.set(XmlParseOptionFlag.preserveWhitespace, value);
+        flags.preserveWhitespace = value;
     }
 
     pragma(inline, true)
     @property bool validate() const nothrow
     {
-        return flags.on(XmlParseOptionFlag.validate);
+        return flags.validate;
     }
 
     @property void validate(bool value) nothrow
     {
-        flags.set(XmlParseOptionFlag.validate, value);
+        flags.validate = value;
     }
 
 public:
@@ -163,7 +163,7 @@ public:
         this._namespaceUri = null;
         this.context = context;
         this.equalName = document.equalName;
-        this._wildMatches.set(WildMatch.name, name == wildMatchText);
+        this._wildMatches.name = name == wildMatchText;
     }
 
     this(XmlDocument!S document, XmlNodeType nodeType, const(C)[] localName, const(C)[] namespaceUri, Object context) pure
@@ -175,21 +175,21 @@ public:
         this._namespaceUri = namespaceUri;
         this.context = context;
         this.equalName = document.equalName;
-        this._wildMatches.set(WildMatch.localName, localName == wildMatchText);
-        this._wildMatches.set(WildMatch.namespaceUri, namespaceUri == wildMatchText);
+        this._wildMatches.localName = localName == wildMatchText;
+        this._wildMatches.namespaceUri = namespaceUri == wildMatchText;
     }
 
     final bool matchByLocalNameUri(Object context, XmlNode!S node) const
     {
         return (_nodeType == node.nodeType) &&
-            (_wildMatches.on(WildMatch.localName) || equalName(_localName, node.localName)) &&
-            (_wildMatches.on(WildMatch.namespaceUri) || equalName(_namespaceUri, node.namespaceUri));
+            (_wildMatches.localName || equalName(_localName, node.localName)) &&
+            (_wildMatches.namespaceUri || equalName(_namespaceUri, node.namespaceUri));
     }
 
     final bool matchByName(Object context, XmlNode!S node) const
     {
         return (_nodeType == node.nodeType) &&
-            (_wildMatches.on(WildMatch.name) || equalName(_name, node.name));
+            (_wildMatches.name || equalName(_name, node.name));
     }
 
     @property final XmlDocument!S document() pure
@@ -4094,8 +4094,7 @@ public:
     {
         if (!isSpaces!S(newValue))
         {
-            Appender!S buffer;
-            buffer.reserve(newValue.length);
+            auto buffer = Appender!S(newValue.length);
             foreach (i; 0..newValue.length)
             {
                 const c = newValue[i];

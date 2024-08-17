@@ -16,7 +16,6 @@ import core.sync.mutex : Mutex;
 import core.time : Duration, dur;
 import std.algorithm : remove;
 import std.algorithm.comparison : min;
-import std.array : Appender;
 import std.ascii : isWhite;
 import std.conv : to;
 import std.traits : isIntegral, isSomeString, ParameterTypeTuple, Unqual;
@@ -25,7 +24,7 @@ import std.uni : sicmp, toUpper;
 debug(debug_pham_db_db_object) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.dtm.dtm_date : DateTime;
-import pham.utl.utl_array : removeAt;
+import pham.utl.utl_array : Appender, removeAt;
 import pham.utl.utl_disposable;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.utl.utl_object : RAIIMutex, shortClassName;
@@ -391,8 +390,7 @@ protected:
         import pham.utl.utl_object : toString;
 
         static immutable string prefix = "DbCache_";
-        Appender!string buffer;
-        buffer.reserve(prefix.length + size_t.sizeof * 2);
+        auto buffer = Appender!string(prefix.length + size_t.sizeof * 2);
         buffer.put(prefix);
         return toString!16(buffer, cast(size_t)(cast(void*)this)).data;
     }
@@ -1631,11 +1629,10 @@ if (is(T == const(char)[]) || is(T == string))
     if (list.length == 0)
         return null;
 
-    Appender!string result;
-    result.reserve(min(list.length * 50, 16_000));
-    foreach (i, e; list)
+    auto result = Appender!string(min(list.length * 50, 16_000));
+    foreach (e; list)
     {
-        if (i != 0)
+        if (result.length)
             result.put(elementSeparator);
 
         result.put(e.name.value);

@@ -78,7 +78,7 @@ public:
     }
 
     static DbValue entity(T)(T value, DbType type) nothrow
-    if (is(T == int) || is(T == uint) || is(T == long) || is(T == ulong))
+    if (is(Unqual!T == int) || is(Unqual!T == uint) || is(Unqual!T == long) || is(Unqual!T == ulong))
     {
         return DbValue(value, type);
     }
@@ -92,7 +92,7 @@ public:
     }
 
     void setEntity(T)(T value, DbType type) nothrow
-    if (is(T == int) || is(T == uint) || is(T == long) || is(T == ulong))
+    if (is(Unqual!T == int) || is(Unqual!T == uint) || is(Unqual!T == long) || is(Unqual!T == ulong))
     {
         this._value = value;
         this._type = type;
@@ -302,7 +302,7 @@ private:
             this._value = rhs._value;
             this._type = rhs._type;
         }
-        else static if (is(T == struct))
+        else static if (is(UT == struct))
         {
             this._value = rhs;
         }

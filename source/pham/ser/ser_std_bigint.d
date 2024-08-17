@@ -13,7 +13,7 @@ module pham.ser.ser_std_bigint;
 
 import std.bigint : BigInt;
 import pham.ser.ser_serialization : DataKind,
-    Deserializer, DSeserializer, Serializable, Serializer,
+    Deserializer, DSSerializer, Serializable, Serializer,
     StaticBuffer;
 
 @safe:
@@ -76,7 +76,7 @@ private:
 
 shared static this() nothrow @safe
 {
-    DSeserializer.register!BigInt(&serializeBigInt, &deserializeBigInt);
+    DSSerializer.register!BigInt(&serializeBigInt, &deserializeBigInt);
 }
 
 void deserializeBigInt(Deserializer deserializer, scope void* value, scope ref Serializable attribute) @trusted

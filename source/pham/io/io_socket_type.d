@@ -977,8 +977,8 @@ private:
 
 struct IPv4AddressHelper
 {
-    import std.array : Appender;
     import std.ascii : isDigit;
+    import pham.utl.utl_array : Appender;
 
 @safe:
 
@@ -1191,8 +1191,7 @@ public:
 
     static string toString(scope const(ubyte)[] ipv4Address, ushort port) nothrow pure
     {
-        Appender!string buffer;
-        buffer.reserve(IPAddress.maxIPv4StringLength + (port ? 6+1: 0));
+        auto buffer = Appender!string(IPAddress.maxIPv4StringLength + (port ? 6+1: 0));
         return toString(buffer, ipv4Address, port)[];
     }
 
@@ -1210,8 +1209,8 @@ public:
 
 struct IPv6AddressHelper
 {
-    import std.array : Appender;
     import std.ascii : LetterCase;
+    import pham.utl.utl_array : Appender;
 
 @safe:
     enum maxIPv6AddressShorts = IPAddress.maxIPv6AddressBytes / 2;
@@ -1502,8 +1501,7 @@ public:
 
     static string toString(scope const(ubyte)[] ipv6Address, uint scopeId, ushort port) nothrow pure
     {
-        Appender!string buffer;
-        buffer.reserve(IPAddress.maxIPv6StringLength + (port ? 6+3: 0));
+        auto buffer = Appender!string(IPAddress.maxIPv6StringLength + (port ? 6+3: 0));
         return toString(buffer, ipv6Address, scopeId, port)[];
     }
 

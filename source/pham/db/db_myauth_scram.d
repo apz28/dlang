@@ -12,7 +12,7 @@
 module pham.db.db_myauth_scram;
 
 import std.algorithm.searching : startsWith;
-import std.array : Appender, split;
+import std.array : split;
 import std.base64 : Base64, Base64Impl;
 import std.conv : to;
 import std.string : representation;
@@ -22,7 +22,7 @@ debug(debug_pham_db_db_myauth_scram) import std.stdio : writeln;
 import pham.cp.cp_cipher : CipherHelper;
 import pham.cp.cp_cipher_digest : Digester, DigestId, DigestResult, HMACS;
 import pham.cp.cp_random : CipherRandomGenerator;
-import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_array : Appender, ShortStringBuffer;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_numeric_parser : NumericParsedKind, parseBase16, parseIntegral;
 import pham.db.db_auth;
@@ -139,8 +139,7 @@ public:
 
     static string normalize(scope const(char)[] str)
     {
-        Appender!string buffer;
-        buffer.reserve(str.length);
+        auto buffer = Appender!string(str.length + 20);
 
         foreach (char c; str)
         {

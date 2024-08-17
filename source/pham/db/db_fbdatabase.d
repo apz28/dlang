@@ -12,15 +12,16 @@
 module pham.db.db_fbdatabase;
 
 import std.algorithm.comparison : max;
-import std.array : Appender;
 import std.conv : text, to;
 import std.math : abs;
 import std.string : indexOf;
 import std.system : Endian;
+import std.traits : Unqual;
 
 debug(debug_pham_db_db_fbdatabase) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
+import pham.utl.utl_array : Appender;
 import pham.utl.utl_enum_set : toName;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_object : bytesFromBase64s, bytesToBase64s, functionName, VersionString;
@@ -160,6 +161,8 @@ public:
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
+        alias UT = Unqual!T;
+        
         auto baseType = descriptor.fieldInfo.baseType;
         auto response = readArrayRaw(arrayColumn);
         auto reader = FbXdrReader(fbConnection, response.data);
@@ -169,27 +172,27 @@ public:
             if (reader.empty)
                 break;
 
-            static if (is(T == bool))
+            static if (is(UT == bool))
                 result[i] = reader.readBool();
-            else static if (is(T == int8))
+            else static if (is(UT == int8))
                 result[i] = cast(int8)reader.readInt16();
-            else static if (is(T == int16))
+            else static if (is(UT == int16))
                 result[i] = reader.readInt16();
-            else static if (is(T == int32))
+            else static if (is(UT == int32))
                 result[i] = reader.readInt32();
-            else static if (is(T == int64))
+            else static if (is(UT == int64))
                 result[i] = reader.readInt64();
-            else static if (is(T == BigInteger))
+            else static if (is(UT == BigInteger))
                 result[i] = reader.readInt64();
-            else static if (is(T == Decimal32) || is(T == Decimal64) || is(T == Decimal128))
+            else static if (is(UT == Decimal32) || is(UT == Decimal64) || is(UT == Decimal128))
                 result[i] = reader.readDecimal!T(baseType);
-            else static if (is(T == float32))
+            else static if (is(UT == float32))
                 result[i] = reader.readFloat32();
-            else static if (is(T == float64))
+            else static if (is(UT == float64))
                 result[i] = reader.readFloat64();
-            else static if (is(T == Date))
+            else static if (is(UT == Date))
                 result[i] = reader.readDate();
-            else static if (is(T == DbDateTime))
+            else static if (is(UT == DbDateTime))
             {
                 if (baseType.typeId == FbIscType.sql_timestamp_tz)
                     result[i] = reader.readDateTimeTZ();
@@ -198,7 +201,7 @@ public:
                 else
                     result[i] = reader.readDateTime();
             }
-            else static if (is(T == DbTime))
+            else static if (is(UT == DbTime))
             {
                 if (baseType.typeId == FbIscType.sql_time_tz)
                     result[i] = reader.readTimeTZ();
@@ -207,7 +210,7 @@ public:
                 else
                     result[i] = reader.readTime();
             }
-            else static if (is(T == UUID))
+            else static if (is(UT == UUID))
                 result[i] = reader.readUUID();
             else static if (is(T == string))
             {
@@ -216,7 +219,7 @@ public:
                 else
                     result[i] = reader.readString();
             }
-            else static if (is(T == ubyte[]))
+            else static if (is(UT == ubyte[]))
                 result[i] = reader.readBytes();
             else
                 static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
@@ -300,11 +303,11 @@ public:
             case DbType.json:
             case DbType.xml:
             case DbType.text:
-                encodedArrayValue = writeArrayImpl!string(writerBuffer, arrayColumn, arrayValue, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!(const(char)[])(writerBuffer, arrayColumn, arrayValue, elements).peekBytes();
                 break;
             case DbType.binaryFixed:
             case DbType.binaryVary:
-                encodedArrayValue = writeArrayImpl!(ubyte[])(writerBuffer, arrayColumn, arrayValue, elements).peekBytes();
+                encodedArrayValue = writeArrayImpl!(const(ubyte)[])(writerBuffer, arrayColumn, arrayValue, elements).peekBytes();
                 break;
 
             case DbType.record:
@@ -370,14 +373,14 @@ public:
             }
             else static if (is(T == UUID))
                 writer.writeUUID(value);
-            else static if (is(T == string))
+            else static if (is(T == string) || is(T == const(char)[]))
             {
                 if (baseType.typeId == FbIscType.sql_text)
                     writer.writeFixedChars(value, baseType);
                 else
                     writer.writeChars(value);
             }
-            else static if (is(T == ubyte[]))
+            else static if (is(T == ubyte[]) || is(T == const(ubyte)[]))
                 writer.writeBytes(value);
             else
                 static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
@@ -566,7 +569,7 @@ public:
         this._command = command;
     }
 
-    this(FbCommand command, FbId id) nothrow pure
+    this(FbCommand command, FbId id) nothrow
     {
         this._command = command;
         this._info.id = id;
@@ -724,8 +727,7 @@ public:
             return null;
 
         size_t readLength = 0;
-        Appender!(ubyte[]) result;
-        result.reserve(blobLength);
+        auto result = Appender!(ubyte[])(blobLength);
         auto protocol = fbConnection.protocol;
         while (readLength < blobLength)
         {
@@ -1025,7 +1027,8 @@ public:
 package(pham.db):
     final bool canReturnRecordsAffected() const nothrow @safe
     {
-        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(returnRecordsAffected=", returnRecordsAffected,
+            ", baseCommandType=", baseCommandType, ", commandType=", commandType, ")");
 
         if (!returnRecordsAffected || commandType == DbCommandType.ddl)
             return false;
@@ -1387,12 +1390,8 @@ protected:
         column.baseTableName = iscField.tableName.idup;
         column.baseTypeId = iscField.baseTypeId;
         column.allowNull = iscField.allowNull;
-
-        if (isNew || column.type == DbType.unknown)
-        {
-            column.type = iscField.dbType();
-            column.size = iscField.dbTypeSize();
-        }
+        column.type = iscField.dbType();
+        column.size = iscField.dbTypeSize();
     }
 
     final DbRecordsAffected getRecordsAffected() @safe
@@ -1401,7 +1400,7 @@ protected:
 
         auto protocol = fbConnection.protocol;
         protocol.recordsAffectedCommandWrite(this);
-        return protocol.recordsAffectedCommandRead();
+        return protocol.recordsAffectedCommandRead(DbRecordsAffectedAggregateResult.changingOnly);
 	}
 
 	final void getStatementTypeRead() @safe
@@ -1512,7 +1511,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = fbConnection.protocol;
-        return protocol.readValues(this, cast(FbFieldList)fields);
+        return protocol.readValues(this, cast(FbColumnList)fields);
     }
 
     final void removeBatch(ref FbCommandBatch commandBatch) @safe
@@ -2074,6 +2073,26 @@ public:
         return fbValidConnectionParameterNames;
     }
 
+    override DbColumn createColumn(DbCommand command, DbIdentitier name) nothrow
+    in
+    {
+        assert((cast(FbCommand)command) !is null);
+    }
+    do
+    {
+        return new FbColumn(cast(FbCommand)command, name);
+    }
+
+    override DbColumnList createColumnList(DbCommand command) nothrow
+    in
+    {
+        assert(cast(FbCommand)command !is null);
+    }
+    do
+    {
+        return new FbColumnList(cast(FbCommand)command);
+    }
+
     override DbCommand createCommand(DbConnection connection,
         string name = null) nothrow
     in
@@ -2141,26 +2160,6 @@ public:
         return new FbConnectionStringBuilder(this, connectionString);
     }
 
-    override DbField createField(DbCommand command, DbIdentitier name) nothrow
-    in
-    {
-        assert((cast(FbCommand)command) !is null);
-    }
-    do
-    {
-        return new FbField(cast(FbCommand)command, name);
-    }
-
-    override DbFieldList createFieldList(DbCommand command) nothrow
-    in
-    {
-        assert(cast(FbCommand)command !is null);
-    }
-    do
-    {
-        return new FbFieldList(cast(FbCommand)command);
-    }
-
     override DbParameter createParameter(DbIdentitier name) nothrow
     {
         return new FbParameter(this, name);
@@ -2189,7 +2188,7 @@ public:
     }
 }
 
-class FbField : DbField
+class FbColumn : DbColumn
 {
 public:
     this(FbCommand command, DbIdentitier name) nothrow pure @safe
@@ -2197,11 +2196,11 @@ public:
         super(command, name);
     }
 
-    final override DbField createSelf(DbCommand command) nothrow @safe
+    final override DbColumn createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
-            ? database.createField(cast(FbCommand)command, name)
-            : new FbField(cast(FbCommand)command, name);
+            ? database.createColumn(cast(FbCommand)command, name)
+            : new FbColumn(cast(FbCommand)command, name);
     }
 
     final override DbFieldIdType isValueIdType() const nothrow @safe
@@ -2215,7 +2214,7 @@ public:
     }
 }
 
-class FbFieldList: DbFieldList
+class FbColumnList: DbColumnList
 {
 public:
     this(FbCommand command) nothrow pure @safe
@@ -2223,11 +2222,11 @@ public:
         super(command);
     }
 
-    final override DbField create(DbCommand command, DbIdentitier name) nothrow @safe
+    final override DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe
     {
         return database !is null
-            ? database.createField(cast(FbCommand)command, name)
-            : new FbField(cast(FbCommand)command, name);
+            ? database.createColumn(cast(FbCommand)command, name)
+            : new FbColumn(cast(FbCommand)command, name);
     }
 
     @property final FbCommand fbCommand() nothrow pure @safe
@@ -2236,11 +2235,11 @@ public:
     }
 
 protected:
-    final override DbFieldList createSelf(DbCommand command) nothrow @safe
+    final override DbColumnList createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
-            ? database.createFieldList(cast(FbCommand)command)
-            : new FbFieldList(cast(FbCommand)command);
+            ? database.createColumnList(cast(FbCommand)command)
+            : new FbColumnList(cast(FbCommand)command);
     }
 }
 
@@ -3389,7 +3388,7 @@ unittest // FbCommand.DML.Array
             " WHERE INT_FIELD = 1";
         command.parameters.add("INTEGER_ARRAY", dbArrayOf(DbType.int32)).value = arrayValue();
         auto r = command.executeNonQuery();
-        assert(r == 1);
+        assert(r == 1, r.to!string);
     }
 
     void readArrayValue()

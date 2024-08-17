@@ -13,7 +13,7 @@ module pham.ser.ser_dec_decimal;
 
 import pham.external.dec.dec_decimal : Decimal32, Decimal64, Decimal128, isDecimal;
 import pham.ser.ser_serialization : DataKind,
-    Deserializer, DSeserializer, Serializable, Serializer,
+    Deserializer, DSSerializer, Serializable, Serializer,
     SerializerDataFormat, StaticBuffer;
 
 @safe:
@@ -130,9 +130,9 @@ if (isDecimal!D)
 
 shared static this() nothrow @safe
 {
-    DSeserializer.register!Decimal32(&serializeDecimal32, &deserializeDecimal32);
-    DSeserializer.register!Decimal64(&serializeDecimal64, &deserializeDecimal64);
-    DSeserializer.register!Decimal128(&serializeDecimal128, &deserializeDecimal128);
+    DSSerializer.register!Decimal32(&serializeDecimal32, &deserializeDecimal32);
+    DSSerializer.register!Decimal64(&serializeDecimal64, &deserializeDecimal64);
+    DSSerializer.register!Decimal128(&serializeDecimal128, &deserializeDecimal128);
 }
 
 void deserializeDecimal32(Deserializer deserializer, scope void* value, scope ref Serializable attribute) @trusted

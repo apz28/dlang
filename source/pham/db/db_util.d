@@ -63,17 +63,16 @@ string makeCommandName(void* command, uint counter)
 */
 string toSeparatedString(scope const(int)[] values, const(char)[] separator) pure
 {
-    import std.array : Appender;
     import std.conv : to;
+    import pham.utl.utl_array : Appender;
 
     if (values.length == 0)
         return null;
 
-    Appender!string result;
-    result.reserve(values.length * 9);
-    foreach (i, v; values)
+    auto result = Appender!string(values.length * 9);
+    foreach (v; values)
     {
-        if (i)
+        if (result.length)
             result.put(separator);
         result.put(to!string(v));
     }

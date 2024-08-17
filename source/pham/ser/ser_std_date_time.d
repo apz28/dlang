@@ -20,7 +20,7 @@ debug(pham_ser_ser_std_date_time) import std.stdio : writeln;
 import pham.dtm.dtm_date : PhamDate=Date, PhamDateTime=DateTime;
 import pham.dtm.dtm_tick : DateTimeZoneKind, Tick;
 import pham.dtm.dtm_time : PhamTime=Time;
-import pham.ser.ser_serialization : Deserializer, DSeserializer, Serializable, Serializer;
+import pham.ser.ser_serialization : Deserializer, DSSerializer, Serializable, Serializer;
 
 @safe:
 
@@ -146,10 +146,10 @@ private:
 
 shared static this() nothrow @safe
 {
-    DSeserializer.register!Date(&serializeDate, &deserializeDate);
-    DSeserializer.register!DateTime(&serializeDateTime, &deserializeDateTime);
-    DSeserializer.register!SysTime(&serializeSysTime, &deserializeSysTime);
-    DSeserializer.register!TimeOfDay(&serializeTimeOfDay, &deserializeTimeOfDay);
+    DSSerializer.register!Date(&serializeDate, &deserializeDate);
+    DSSerializer.register!DateTime(&serializeDateTime, &deserializeDateTime);
+    DSSerializer.register!SysTime(&serializeSysTime, &deserializeSysTime);
+    DSSerializer.register!TimeOfDay(&serializeTimeOfDay, &deserializeTimeOfDay);
 }
 
 void deserializeDate(Deserializer deserializer, scope void* value, scope ref Serializable attribute) @trusted

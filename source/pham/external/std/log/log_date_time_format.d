@@ -13,7 +13,6 @@ module pham.external.std.log.log_date_time_format;
 
 import core.time : Duration, msecs, usecs;
 import std.conv : to;
-import std.array : Appender, appender;
 import std.datetime.date : Date, DateTime, DayOfWeek, Month, TimeOfDay;
 import std.datetime.systime : SysTime;
 import std.exception : enforce;

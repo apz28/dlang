@@ -11,11 +11,10 @@
 
 module pham.db.db_parser;
 
-import std.array : Appender;
 import std.uni : isAlphaNum, isSpace;
 
 debug(debug_pham_db_db_parser) import std.stdio : writeln;
-
+import pham.utl.utl_array : Appender;
 import pham.utl.utl_enum_set : toEnum;
 import pham.utl.utl_result : addLine;
 import pham.utl.utl_utf8 : nextUTF8Char;
@@ -574,9 +573,9 @@ do
     if (sql.length == 0)
         return sql;
 
+    Appender!S result;
     size_t prevP, beginP;
     uint32 parameterNumber; // Based 1 value
-    Appender!S result;
     auto tokenizer = DbTokenizer!S(sql);
     while (!tokenizer.empty)
     {
@@ -586,6 +585,9 @@ do
         {
             case DbTokenKind.parameterNamed:
             case DbTokenKind.parameterUnnamed:
+                if (result.length == 0)
+                    result.capacity = sql.length;
+                    
                 // Leading text before parameter?
                 if (beginP < prevP)
                 {
@@ -624,18 +626,16 @@ do
     
     if (parameterNumber == 0)
         return sql;
-    else
+        
+    // Remaining text?
+    if (beginP < sql.length)
     {
-        // Remaining text?
-        if (beginP < sql.length)
-        {
-            debug(debug_pham_db_db_parser) debug writeln("\t", "sql[beginP..$]=", sql[beginP..$]);
+        debug(debug_pham_db_db_parser) debug writeln("\t", "sql[beginP..$]=", sql[beginP..$]);
 
-            result.put(sql[beginP..$]);
-        }
-
-        return result.data;
+        result.put(sql[beginP..$]);
     }
+
+    return result.data;
 }
 
 /**

@@ -12,12 +12,11 @@
 module pham.db.db_myprotocol;
 
 import std.algorithm.comparison : max;
-import std.array : Appender;
 import std.conv : to;
 
 debug(debug_pham_db_db_myprotocol) import std.stdio : writeln;
-
 version(profile) import pham.utl.utl_test : PerfFunction;
+import pham.utl.utl_array : Appender;
 import pham.utl.utl_bit : bitLengthToElement;
 import pham.utl.utl_bit_array : BitArrayImpl;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
@@ -172,8 +171,7 @@ public:
         // When the flag is turned on, must send even if it is empty
         if ((stateInfo.connectionFlags & MyCapabilityFlags.connectAttrs) != 0)
         {
-            Appender!string connectionAttrs;
-            connectionAttrs.reserve(1_000);
+            auto connectionAttrs = Appender!string(1_000);
             foreach (name, value; useCSB.customAttributes.values)
             {
                 connectionAttrs.put(cast(char)truncate(name.length, ubyte.max));
@@ -695,7 +693,7 @@ public:
         assert(0, toName!DbType(dbType));
     }
 
-    final DbRowValue readValues(ref MyReader rowPackage, MyCommand command, MyFieldList fields)
+    final DbRowValue readValues(ref MyReader rowPackage, MyCommand command, MyColumnList fields)
     {
         debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(fieldCount=", fields.length, ")");
         version(profile) debug auto p = PerfFunction.create();
@@ -976,7 +974,7 @@ protected:
             case DbType.json:
             case DbType.text:
             case DbType.xml:
-                return writer.writeStringString(value.get!string());
+                return writer.writeStringString(value.get!(const(char)[])());
             case DbType.binaryFixed:
             case DbType.binaryVary:
                 return writer.writeBytesString(value.get!(const(ubyte)[])());
@@ -1087,17 +1085,17 @@ protected:
                 return valueWriter.writeUUID(value.get!UUID());
             case DbType.stringFixed:
                 writeType(MyTypeId.fixedVarChar, myTypeSignedValue);
-                return valueWriter.writeString(value.get!string());
+                return valueWriter.writeString(value.get!(const(char)[])());
             case DbType.stringVary:
                 writeType(MyTypeId.varChar, myTypeSignedValue);
-                return valueWriter.writeString(value.get!string());
+                return valueWriter.writeString(value.get!(const(char)[])());
             case DbType.json:
                 writeType(MyTypeId.json, myTypeSignedValue);
-                return valueWriter.writeString(value.get!string());
+                return valueWriter.writeString(value.get!(const(char)[])());
             case DbType.text:
             case DbType.xml:
                 writeType(MyTypeId.longBlob, myTypeSignedValue);
-                return valueWriter.writeString(value.get!string());
+                return valueWriter.writeString(value.get!(const(char)[])());
             case DbType.binaryFixed:
             case DbType.binaryVary:
                 writeType(MyTypeId.longBlob, myTypeSignedValue);

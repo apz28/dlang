@@ -11,13 +11,13 @@
 
 module pham.db.db_pgdatabase;
 
-import std.array : Appender;
 import std.conv : text, to;
 import std.system : Endian;
 
 debug(debug_pham_db_db_pgdatabase) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
+import pham.utl.utl_array : Appender;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_object : VersionString;
 import pham.db.db_buffer;
@@ -554,8 +554,7 @@ private:
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(functionName=", functionName, ")");
 
-        Appender!string commandText;
-        commandText.reserve(500);
+        auto commandText = Appender!string(500);
         commandText.put("SELECT * FROM ");
         commandText.put(functionName);
         commandText.put('(');
@@ -664,15 +663,12 @@ public:
         scope (exit)
             planReader.dispose();
 
-        size_t lines = 0;
-        Appender!string result;
-        result.reserve(1_000);
+        auto result = Appender!string(1_000);
         while (planReader.read())
         {
-            if (lines)
+            if (result.length)
                 result.put('\n');
             result.put(planReader.getValue!string(0));
-            lines++;
         }
         return result.data;
     }
@@ -742,8 +738,7 @@ protected:
             }
         }
 
-        Appender!string result;
-        result.reserve(500);
+        auto result = Appender!string(500);
         result.put("CALL ");
         result.put(storedProcedureName);
         result.put('(');
@@ -969,12 +964,8 @@ protected:
         column.baseSubTypeId = oidField.modifier;
         column.allowNull = oidField.allowNull;
         column.ordinal = oidField.ordinal;
-
-        if (isNew || column.type == DbType.unknown)
-        {
-            column.type = oidField.dbType();
-            column.size = oidField.dbTypeSize();
-        }
+        column.type = oidField.dbType();
+        column.size = oidField.dbTypeSize();
     }
 
     final void processBindResponse(scope PgOIdFieldInfo[] oidFieldInfos) @safe
@@ -1022,7 +1013,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = pgConnection.protocol;
-        return protocol.readValues(reader, this, cast(PgFieldList)fields);
+        return protocol.readValues(reader, this, cast(PgColumnList)fields);
     }
 }
 
@@ -1389,6 +1380,26 @@ public:
         return pgValidConnectionParameterNames;
     }
 
+    override DbColumn createColumn(DbCommand command, DbIdentitier name) nothrow
+    in
+    {
+        assert((cast(PgCommand)command) !is null);
+    }
+    do
+    {
+        return new PgColumn(cast(PgCommand)command, name);
+    }
+
+    override DbColumnList createColumnList(DbCommand command) nothrow
+    in
+    {
+        assert(cast(PgCommand)command !is null);
+    }
+    do
+    {
+        return new PgColumnList(cast(PgCommand)command);
+    }
+
     override DbCommand createCommand(DbConnection connection,
         string name = null) nothrow
     in
@@ -1456,26 +1467,6 @@ public:
         return new PgConnectionStringBuilder(this, connectionString);
     }
 
-    override DbField createField(DbCommand command, DbIdentitier name) nothrow
-    in
-    {
-        assert((cast(PgCommand)command) !is null);
-    }
-    do
-    {
-        return new PgField(cast(PgCommand)command, name);
-    }
-
-    override DbFieldList createFieldList(DbCommand command) nothrow
-    in
-    {
-        assert(cast(PgCommand)command !is null);
-    }
-    do
-    {
-        return new PgFieldList(cast(PgCommand)command);
-    }
-
     override DbParameter createParameter(DbIdentitier name) nothrow
     {
         return new PgParameter(this, name);
@@ -1503,7 +1494,7 @@ public:
     }
 }
 
-class PgField : DbField
+class PgColumn : DbColumn
 {
 public:
     this(PgCommand command, DbIdentitier name) nothrow pure @safe
@@ -1511,11 +1502,11 @@ public:
         super(command, name);
     }
 
-    final override DbField createSelf(DbCommand command) nothrow @safe
+    final override DbColumn createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
-            ? database.createField(cast(PgCommand)command, name)
-            : new PgField(cast(PgCommand)command, name);
+            ? database.createColumn(cast(PgCommand)command, name)
+            : new PgColumn(cast(PgCommand)command, name);
     }
 
     final override DbFieldIdType isValueIdType() const nothrow @safe
@@ -1529,7 +1520,7 @@ public:
     }
 }
 
-class PgFieldList: DbFieldList
+class PgColumnList: DbColumnList
 {
 public:
     this(PgCommand command) nothrow pure @safe
@@ -1537,11 +1528,11 @@ public:
         super(command);
     }
 
-    final override DbField create(DbCommand command, DbIdentitier name) nothrow @safe
+    final override DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe
     {
         return database !is null
-            ? database.createField(cast(PgCommand)command, name)
-            : new PgField(cast(PgCommand)command, name);
+            ? database.createColumn(cast(PgCommand)command, name)
+            : new PgColumn(cast(PgCommand)command, name);
     }
 
     @property final PgCommand pgCommand() nothrow pure @safe
@@ -1550,11 +1541,11 @@ public:
     }
 
 protected:
-    final override DbFieldList createSelf(DbCommand command) nothrow @safe
+    final override DbColumnList createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
-            ? database.createFieldList(cast(PgCommand)command)
-            : new PgFieldList(cast(PgCommand)command);
+            ? database.createColumnList(cast(PgCommand)command)
+            : new PgColumnList(cast(PgCommand)command);
     }
 }
 

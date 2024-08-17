@@ -12,14 +12,14 @@
 module pham.dtm.dtm_time_zone_default_tzdata;
 
 import core.time : dur, Duration;
-import std.array : Appender, split;
+import std.array : split;
 import std.ascii : isWhite;
 import std.conv : to;
 import std.string : splitLines;
 import std.uni : sicmp;
 
 debug(pham_dtm_dtm_time_zone_default_tzdata) import std.stdio : writeln;
-import pham.utl.utl_array : indexOf;
+import pham.utl.utl_array : Appender, indexOf;
 import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
 import pham.utl.utl_result : ResultIf;
 import pham.dtm.dtm_date : DayOfWeek, Date, DateTime;
@@ -555,7 +555,7 @@ nothrow @safe:
 
     string toString() const
     {
-        Appender!string result;
+        auto result = Appender!string(length * 10);
         result.put('[');
         foreach (i; 0..length)
         {
@@ -596,8 +596,7 @@ string normalizeWhite(string line) pure
         return line;
 
     enum useResult = -1;
-    Appender!string result;
-    result.reserve(lineLength);
+    auto result = Appender!string(lineLength);
     ptrdiff_t leadingChars;
     bool wasSpace;
 

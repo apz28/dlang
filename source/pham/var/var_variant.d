@@ -5434,7 +5434,7 @@ nothrow @safe unittest // Algebraic
 
 @system unittest // https://issues.dlang.org/show_bug.cgi?id=13300
 {
-    import std.array;
+    import pham.utl.utl_array : Appender, appender;
 
     static struct S
     {

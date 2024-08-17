@@ -13,7 +13,7 @@ module pham.dtm.dtm_date;
 
 import std.math.algebraic : abs;
 import std.range.primitives : isOutputRange;
-import std.traits : isSomeChar;
+import std.traits : isSomeChar, Unqual;
 
 import pham.utl.utl_array : ShortStringBuffer;
 import pham.utl.utl_result : cmp;
@@ -1955,9 +1955,10 @@ struct JulianDate
 pragma(inline, true)
 int yearsBetween(T)(scope const(T) now, scope const(T) then,
     const(double) approxDaysPerYear = TickSpan.approxDaysPerYear4ys) @nogc nothrow pure
-if (is(T == Date) || is(T == DateTime) || is(T == Time))
+if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
 {
-    static if (is(T == Time))
+    alias UT = Unqual!T;
+    static if (is(UT == Time))
         return 0;
     else
         return abs((now - then).totalYears!int(approxDaysPerYear));
@@ -1969,9 +1970,10 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
 pragma(inline, true)
 int monthsBetween(T)(scope const(T) now, scope const(T) then,
     const(double) approxDaysPerMonth = TickSpan.approxDaysPerMonth4ys) @nogc nothrow pure
-if (is(T == Date) || is(T == DateTime) || is(T == Time))
+if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
 {
-    static if (is(T == Time))
+    alias UT = Unqual!T;
+    static if (is(UT == Time))
         return 0;
     else
         return abs((now - then).totalMonths!int(approxDaysPerMonth));
@@ -1982,9 +1984,10 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
  */
 pragma(inline, true)
 int weeksBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
-if (is(T == Date) || is(T == DateTime) || is(T == Time))
+if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
 {
-    static if (is(T == Time))
+    alias UT = Unqual!T;
+    static if (is(UT == Time))
         return 0;
     else
         return abs((now - then).totalWeeks!int);
@@ -1995,9 +1998,10 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
  */
 pragma(inline, true)
 int daysBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
-if (is(T == Date) || is(T == DateTime) || is(T == Time))
+if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
 {
-    static if (is(T == Time))
+    alias UT = Unqual!T;
+    static if (is(UT == Time))
         return 0;
     else
         return abs((now - then).totalDays!int);
@@ -2008,7 +2012,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
  */
 pragma(inline, true)
 long hoursBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
-if (is(T == Date) || is(T == DateTime) || is(T == Time))
+if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
 {
     return abs((now - then).totalHours!long);
 }
@@ -2018,7 +2022,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
  */
 pragma(inline, true)
 long minutesBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
-if (is(T == Date) || is(T == DateTime) || is(T == Time))
+if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
 {
     return abs((now - then).totalMinutes!long);
 }
@@ -2028,7 +2032,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
  */
 pragma(inline, true)
 long secondsBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
-if (is(T == Date) || is(T == DateTime) || is(T == Time))
+if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
 {
     return abs((now - then).totalSeconds!long);
 }
@@ -2038,7 +2042,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
  */
 pragma(inline, true)
 long millisecondsBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
-if (is(T == Date) || is(T == DateTime) || is(T == Time))
+if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
 {
     return abs((now - then).totalMilliseconds!long);
 }
@@ -2048,7 +2052,7 @@ if (is(T == Date) || is(T == DateTime) || is(T == Time))
  */
 pragma(inline, true)
 long ticksBetween(T)(scope const(T) now, scope const(T) then) @nogc nothrow pure
-if (is(T == Date) || is(T == DateTime) || is(T == Time))
+if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
 {
     return abs((now - then).ticks);
 }
@@ -2633,7 +2637,7 @@ unittest // DateTime.toString
     immutable idt = DateTime(1999, 7, 6, 12, 30, 33);
     assert(idt.toString() == "07/06/1999 12:30:33 PM", idt.toString());
 
-    import std.array : Appender;
+    import pham.utl.utl_array : Appender;
     import std.exception : assertThrown;
 
     Appender!(char[]) buffer;
@@ -3028,7 +3032,7 @@ unittest // Date.toString
     immutable idt = Date(1999, 7, 6);
     assert(idt.toString() == "07/06/1999", idt.toString());
 
-    import std.array : Appender;
+    import pham.utl.utl_array : Appender;
     import std.exception : assertThrown;
 
     Appender!(char[]) buffer;

@@ -12,14 +12,13 @@
 module pham.db.db_fbprotocol;
 
 import std.algorithm.comparison : max, min;
-import std.array : Appender;
 import std.conv : to;
 import std.range.primitives : isOutputRange, put;
 import std.typecons : Flag, No, Yes;
 
-debug(debug_pham_db_db_fbprotocol) import std.stdio : writeln;
-
+debug(debug_pham_db_db_fbprotocol) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
+import pham.utl.utl_array : Appender;
 import pham.utl.utl_bit : bitLengthToElement, hostToNetworkOrder;
 import pham.utl.utl_bit_array : BitArrayImpl;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
@@ -69,6 +68,8 @@ if (isOutputRange!(W, ubyte))
 
 DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
 {
+    debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+    
     DbRecordsAffectedAggregate result;
 
     if (data.length <= 2)
@@ -86,22 +87,27 @@ DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
                 break;
 
 			const len = parseInt32!true(data, pos, 2, typ);
+            const count = parseInt32!true(data, pos, len, typ);
 			switch (typ)
 			{
 				case FbIsc.isc_info_req_select_count:
-					result.selectCount += parseInt32!true(data, pos, len, typ);
+                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "selectCount=", count);
+					result.selectCount += count;
 					break;
 
 				case FbIsc.isc_info_req_insert_count:
-					result.insertCount += parseInt32!true(data, pos, len, typ);
+                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "insertCount=", count);
+					result.insertCount += count;
 					break;
 
 				case FbIsc.isc_info_req_update_count:
-					result.updateCount += parseInt32!true(data, pos, len, typ);
+                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "updateCount=", count);
+					result.updateCount += count;
 					break;
 
 				case FbIsc.isc_info_req_delete_count:
-					result.deleteCount += parseInt32!true(data, pos, len, typ);
+                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "deleteCount=", count);
+					result.deleteCount += count;
 					break;
 
                 default:
@@ -602,7 +608,7 @@ public:
 		if (commandBatch.multiErrors)
 			batchWriter.writeInt32(FbIscBatchType.tag_multierror, 1);
 		batchWriter.writeInt32(FbIscBatchType.tag_buffer_bytes_size, commandBatch.maxBatchBufferLength);
-        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "maxBatchBufferLength=", commandBatch.maxBatchBufferLength, ", data=", batchWriter.peekBytes().dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "maxBatchBufferLength=", commandBatch.maxBatchBufferLength, ", data=", batchWriter.peekBytes().dgToString());
 
 		writer.writeOperation(FbIsc.op_batch_create);
         writer.writeHandle(commandBatch.fbCommand.fbHandle);
@@ -745,7 +751,7 @@ public:
 		if (command.fieldCount != 0 && command.isStoredProcedure)
 		{
             auto pWriterBlr = FbBlrWriter(connection);
-            auto pFldBlr = describeBlrFields(pWriterBlr, cast(FbFieldList)command.fields);
+            auto pFldBlr = describeBlrFields(pWriterBlr, cast(FbColumnList)command.fields);
             writer.writeBytes(pFldBlr.data);
 			writer.writeInt32(0); // Output message number
 		}
@@ -839,7 +845,7 @@ public:
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(fetchRecordCount=", command.fetchRecordCount, ")");
 
         auto writerBlr = FbBlrWriter(connection);
-        auto pFldBlr = describeBlrFields(writerBlr, cast(FbFieldList)command.fields);
+        auto pFldBlr = describeBlrFields(writerBlr, cast(FbColumnList)command.fields);
 
         auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_fetch);
@@ -960,24 +966,18 @@ public:
 		writer.writeInt32(FbIscSize.prepareInfoBufferLength);
     }
 
-    final DbRecordsAffected recordsAffectedCommandRead()
+    final DbRecordsAffected recordsAffectedCommandRead(const(DbRecordsAffectedAggregateResult) kind)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        DbRecordsAffected result;
         auto r = readGenericResponse();
         //r.statues.getWarn(command.notificationMessages);
 		if (r.data.length)
 		{
             const counts = parseRecordsAffected(r.data);
-            if (counts.deleteCount)
-                result += counts.deleteCount;
-            if (counts.insertCount)
-                result += counts.insertCount;
-            if (counts.updateCount)
-                result += counts.updateCount;
+            return counts.toCount(kind);
         }
-        return result;
+        return DbRecordsAffected.init;
     }
 
     final void recordsAffectedCommandWrite(FbCommand command)
@@ -1166,7 +1166,7 @@ public:
         assert(0, toName!DbType(dbType));
     }
 
-    final DbRowValue readValues(FbCommand command, FbFieldList fields)
+    final DbRowValue readValues(FbCommand command, FbColumnList fields)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
         version(profile) debug auto p = PerfFunction.create();
@@ -1546,7 +1546,7 @@ protected:
 		writer.writeInt32(FbIsc.isc_dpb_utf8_filename, 1); // This is weirdess - must be last or fail to authenticate
 
         auto result = writer.peekBytes();
-        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "dpbValue.length=", result.length, ", dpbValue=", result.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "dpbValue.length=", result.length, ", dpbValue=", result.dgToString());
         return result;
     }
 
@@ -1584,7 +1584,7 @@ protected:
 		writer.writeInt32(FbIsc.isc_dpb_utf8_filename, 1); // This is weirdess - must be last or fail to authenticate
 
         auto result = writer.peekBytes();
-        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "dpbValue.length=", result.length, ", dpbValue=", result.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "dpbValue.length=", result.length, ", dpbValue=", result.dgToString());
         return result;
     }
 
@@ -1605,11 +1605,11 @@ protected:
 		writer.writeInt32(FbIsc.isc_dpb_utf8_filename, 1); // This is weirdess - must be last or fail to authenticate
 
         auto result = writer.peekBytes();
-        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "dpbValue.length=", result.length, ", dpbValue=", result.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "dpbValue.length=", result.length, ", dpbValue=", result.dgToString());
         return result;
     }
 
-    final FbIscBlrDescriptor describeBlrFields(return ref FbBlrWriter writer, FbFieldList fields) nothrow
+    final FbIscBlrDescriptor describeBlrFields(return ref FbBlrWriter writer, FbColumnList fields) nothrow
     in
     {
         assert(fields !is null);
@@ -1627,7 +1627,7 @@ protected:
         writer.writeEnd(fields.length);
 
         result.data = writer.peekBytes();
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(size=", result.size, ", data=", result.data.dgToHex(), ")");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(size=", result.size, ", data=", result.data.dgToString(), ")");
         return result;
     }
 
@@ -1649,7 +1649,7 @@ protected:
         writer.writeEnd(parameters.length);
 
         result.data = writer.peekBytes();
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(size=", result.size, ", data=", result.data.dgToHex(), ")");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(size=", result.size, ", data=", result.data.dgToString(), ")");
         return result;
     }
 
@@ -1856,7 +1856,7 @@ protected:
         }
 
         auto result = writer.peekBytes();
-        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "result=", result.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "result=", result.dgToString());
         return result;
     }
 
@@ -1867,6 +1867,8 @@ protected:
     }
     do
     {
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(column=", column.name, ", type=", column.type, ")");
+
         if (column.isArray)
             return writer.writeId(value.get!FbId());
 
@@ -1912,9 +1914,9 @@ protected:
             case DbType.uuid:
                 return writer.writeUUID(value.get!UUID());
             case DbType.stringFixed:
-                return writer.writeFixedChars(value.get!string(), column.baseType);
+                return writer.writeFixedChars(value.coerce!(const(char)[])(), column.baseType);
             case DbType.stringVary:
-                return writer.writeChars(value.get!string());
+                return writer.writeChars(value.coerce!(const(char)[])());
             case DbType.text:
             case DbType.json:
             case DbType.xml:
@@ -1988,8 +1990,8 @@ protected:
         auto authenticated = reader.readInt32();
         auto authKey = reader.readBytes();
 
-        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "authenticated=", authenticated, ", authData=", authData.dgToHex(),
-            ", authKey=", authKey.dgToHex(), ", authName=", authName);
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "authenticated=", authenticated, ", authData=", authData.dgToString(),
+            ", authKey=", authKey.dgToString(), ", authName=", authName);
 
         return FbIscAcceptDataResponse(version_, architecture, acceptType, authData, authName, authenticated, authKey);
     }
@@ -2023,8 +2025,7 @@ protected:
 
         if (descriptor.blrType == FbBlrType.blr_varying || descriptor.blrType == FbBlrType.blr_varying2)
         {
-            Appender!(ubyte[]) tempResult;
-            tempResult.reserve(result.sliceLength);
+            auto tempResult = Appender!(ubyte[])(result.sliceLength);
             foreach (i; 0..result.elements)
             {
                 const l = reader.readInt32();
@@ -2049,8 +2050,8 @@ protected:
         auto rList = reader.readBytes();
         auto rKey = reader.readBytes();
 
-        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "rName=", rName, ", rData=", rData.dgToHex(),
-            ", rKey=", rKey.dgToHex(), ", rList=", rList.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "rName=", rName, ", rData=", rData.dgToString(),
+            ", rKey=", rKey.dgToString(), ", rList=", rList.dgToString());
 
         return FbIscCondAuthResponse(rData, rName, rList, rKey);
     }
@@ -2099,7 +2100,7 @@ protected:
         auto rData = reader.readBytes();
         auto rSize = serverVersion > FbIsc.protocol_version13 ? reader.readInt32() : int32.min; // Use min to indicate not used - zero may be false positive
 
-        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "rSize=", rSize, ", rData=", rData.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "rSize=", rSize, ", rData=", rData.dgToString());
 
         return FbIscCryptKeyCallbackResponse(rData, rSize);
     }
@@ -2139,7 +2140,7 @@ protected:
         auto rData = reader.readBytes();
         auto rStatues = reader.readStatuses();
 
-        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "rHandle=", rHandle, ", rId=", rId, ", rData=", rData.dgToHex());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "rHandle=", rHandle, ", rId=", rId, ", rData=", rData.dgToString());
 
         if (rStatues.isError)
         {

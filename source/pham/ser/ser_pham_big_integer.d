@@ -13,7 +13,7 @@ module pham.ser.ser_pham_big_integer;
 
 import pham.utl.utl_big_integer : BigInteger;
 import pham.ser.ser_serialization : DataKind,
-    Deserializer, DSeserializer, Serializable, Serializer,
+    Deserializer, DSSerializer, Serializable, Serializer,
     SerializerDataFormat;
 
 @safe:
@@ -81,7 +81,7 @@ private:
 
 shared static this() nothrow @safe
 {
-    DSeserializer.register!BigInteger(&serializeBigInteger, &deserializeBigInteger);
+    DSSerializer.register!BigInteger(&serializeBigInteger, &deserializeBigInteger);
 }
 
 void deserializeBigInteger(Deserializer deserializer, scope void* value, scope ref Serializable attribute) @trusted

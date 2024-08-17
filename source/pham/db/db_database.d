@@ -14,16 +14,17 @@ module pham.db.db_database;
 import core.atomic : atomicFetchAdd, atomicFetchSub, atomicLoad, atomicStore, cas;
 import core.sync.mutex : Mutex;
 public import core.time : Duration, dur;
-import std.array : Appender;
 public import std.ascii : newline;
 import std.conv : to;
 import std.format : format;
+import std.range.primitives : isOutputRange;
 import std.traits : FieldNameTuple;
 import std.typecons : Flag, No, Yes;
 
 debug(debug_pham_db_db_database) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel;
+import pham.utl.utl_array : Appender;
 import pham.utl.utl_delegate_list;
 import pham.utl.utl_dlink_list;
 import pham.utl.utl_enum_set : EnumSet, toEnum, toName;
@@ -370,8 +371,8 @@ public:
             resetNewStatement(ResetStatementKind.unpreparing);
 
             _executeCommandText = null;
-            _lastInsertedId.reset();
-            _recordsAffected.reset();
+            //_lastInsertedId.reset(); // The value is needed to return to caller, so do not reset here
+            //_recordsAffected.reset(); // The value is needed to return to caller, so do not reset here
             _handle.reset();
             _baseCommandType = 0;
             _flags.exclude(DbCommandFlag.prepared);
@@ -526,12 +527,12 @@ public:
     }
 
     /**
-     * Gets DbFieldList of this DbCommand
+     * Gets DbColumnList of this DbCommand
      */
-    @property final DbFieldList fields() nothrow @safe
+    @property final DbColumnList fields() nothrow @safe
     {
         if (_fields is null)
-            _fields = database.createFieldList(this);
+            _fields = database.createColumnList(this);
 
         return _fields;
     }
@@ -840,8 +841,7 @@ protected:
             return null;
 
         auto params = inputParameters!DbParameter();
-        Appender!string result;
-        result.reserve(500);
+        auto result = Appender!string(500);
         result.put("EXECUTE PROCEDURE ");
         result.put(storedProcedureName);
         result.put('(');
@@ -1236,7 +1236,7 @@ protected:
 
 protected:
     DbConnection _connection;
-    DbFieldList _fields;
+    DbColumnList _fields;
     DbParameterList _parameters;
     DbTransaction _transaction;
     string _commandText, _executeCommandText;
@@ -1437,7 +1437,7 @@ public:
         return _defaultTransaction;
     }
 
-    final DbRecordsAffected executeNonQuery(string commandText) @safe
+    final DbRecordsAffected executeNonQuery(string commandText, DbParameterList commandParameters = null) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
@@ -1446,7 +1446,10 @@ public:
         scope (exit)
             command.dispose();
 
-        command.parametersCheck = false;
+        command.parametersCheck = commandParameters !is null;
+        if (commandParameters !is null)
+            command.parameters.assign(commandParameters);
+            
         return command.executeNonQuery();
     }
 
@@ -2311,8 +2314,7 @@ protected:
         import pham.utl.utl_object : toString;
 
         static immutable string prefix = "DbConnectionPool_";
-        Appender!string buffer;
-        buffer.reserve(prefix.length + size_t.sizeof * 2);
+        auto buffer = Appender!string(prefix.length + size_t.sizeof * 2);
         buffer.put(prefix);
         return toString!16(buffer, cast(size_t)(cast(void*)this)).data;
     }
@@ -2657,8 +2659,7 @@ public:
         const vs = valueSeparator;
         const names = parameterNames();
 
-        Appender!string result;
-        result.reserve(names.length * 50);
+        auto result = Appender!string(names.length * 50);
         string v;
         size_t count;
         foreach (name; names)
@@ -2720,7 +2721,7 @@ public:
         assert(k !is null);
         if ((*k).isValidValue(value) == DbNameValueValidated.ok)
         {
-            debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(value=", value, ", min=", (*k).min, ", max=", (*k).max, ")");
+            debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(value=", value, ", min=", (*k).min, ", max=", (*k).max, ")");
 
             put(DbConnectionParameterIdentifier.databaseName, value);
             return this;
@@ -3194,6 +3195,8 @@ public:
     }
 
     abstract const(string[]) connectionStringParameterNames() const nothrow pure;
+    abstract DbColumn createColumn(DbCommand command, DbIdentitier name) nothrow;
+    abstract DbColumnList createColumnList(DbCommand command) nothrow;
     abstract DbCommand createCommand(DbConnection connection,
         string name = null) nothrow;
     abstract DbCommand createCommand(DbConnection connection, DbTransaction transaction,
@@ -3203,17 +3206,21 @@ public:
     abstract DbConnection createConnection(DbURL!string connectionString);
     abstract DbConnectionStringBuilder createConnectionStringBuilder() nothrow;
     abstract DbConnectionStringBuilder createConnectionStringBuilder(string connectionString);
-    abstract DbField createField(DbCommand command, DbIdentitier name) nothrow;
-    abstract DbFieldList createFieldList(DbCommand command) nothrow;
     abstract DbParameter createParameter(DbIdentitier name) nothrow;
     abstract DbParameterList createParameterList() nothrow;
     abstract DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel,
         bool defaultTransaction = false) nothrow;
 
-    final DbField createField(DbCommand command, string name) nothrow
+    deprecated("please use createColumn")
+    alias createField = createColumn;
+
+    deprecated("please use createColumnList")
+    alias createFieldList = createColumnList;
+    
+    final DbColumn createColumn(DbCommand command, string name) nothrow
     {
         DbIdentitier id = DbIdentitier(name);
-        return createField(command, id);
+        return createColumn(command, id);
     }
 
     final DbParameter createParameter(string name) nothrow
@@ -3252,8 +3259,7 @@ public:
         if (p >= value.length)
             return value;
 
-        Appender!string result;
-        result.reserve(value.length + 100);
+        auto result = Appender!string(value.length + 100);
         if (p)
             result.put(value[0..p]);
         while (p < value.length)
@@ -3296,8 +3302,7 @@ public:
         if (p >= value.length)
             return value;
 
-        Appender!string result;
-        result.reserve(value.length + 100);
+        auto result = Appender!string(value.length + 100);
         if (p)
             result.put(value[0..p]);
         while (p < value.length)
@@ -3508,7 +3513,10 @@ public:
     /*
      * Indicates if field value is an external resource id which needs special loading/saving
      */
-    abstract DbFieldIdType isValueIdType() const nothrow @safe;
+    DbFieldIdType isValueIdType() const nothrow @safe
+    {
+        return DbFieldIdType.no;
+    }
 
     string traceString() const nothrow @trusted
     {
@@ -3716,6 +3724,20 @@ public:
     }
 
     /**
+     * Gets or sets whether this column is a key for the dataset
+     */
+    @property final bool isKey() const nothrow @safe
+    {
+        return _flags.isKey;
+    }
+
+    @property final typeof(this) isKey(bool value) nothrow @safe
+    {
+        _flags.isKey = value;
+        return this;
+    }
+
+    /**
      * Gets or sets the ordinal of the column, based 1 value
      */
     @property final uint32 ordinal() const nothrow @safe
@@ -3803,7 +3825,7 @@ protected:
     //DbCharset _charset;
 }
 
-class DbField : DbNameColumn
+class DbColumn : DbNameColumn
 {
 public:
     this(DbCommand command, DbIdentitier name) nothrow pure @safe
@@ -3820,7 +3842,7 @@ public:
         return result;
     }
 
-    abstract DbField createSelf(DbCommand command) nothrow @safe;
+    abstract DbColumn createSelf(DbCommand command) nothrow @safe;
 
     @property final DbCommand command() nothrow pure @safe
     {
@@ -3860,20 +3882,6 @@ public:
     }
 
     /**
-     * Gets or sets whether this column is a key for the dataset
-     */
-    @property final bool isKey() const nothrow @safe
-    {
-        return _flags.isKey;
-    }
-
-    @property final typeof(this) isKey(bool value) nothrow @safe
-    {
-        _flags.isKey = value;
-        return this;
-    }
-
-    /**
      * Gets or sets whether a unique constraint applies to this column
      */
     @property final bool isUnique() const nothrow @safe
@@ -3891,7 +3899,10 @@ protected:
     DbCommand _command;
 }
 
-class DbFieldList : DbNameObjectList!DbField, IDisposable
+deprecated("please use DbColumn")
+alias DbField = DbColumn;
+
+class DbColumnList : DbNameObjectList!DbColumn, IDisposable
 {
 public:
     this(DbCommand command) nothrow pure @safe
@@ -3907,9 +3918,9 @@ public:
         return result;
     }
 
-    abstract DbField create(DbCommand command, DbIdentitier name) nothrow @safe;
+    abstract DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe;
 
-    final DbField create(DbCommand command, string name) nothrow @safe
+    final DbColumn create(DbCommand command, string name) nothrow @safe
     {
         DbIdentitier id = DbIdentitier(name);
         return create(command, id);
@@ -3952,13 +3963,13 @@ public:
     }
 
 protected:
-    override void add(DbField item) nothrow
+    override void add(DbColumn item) nothrow
     {
         super.add(item);
         item._ordinal = cast(uint32)length;
     }
 
-    abstract DbFieldList createSelf(DbCommand command) nothrow @safe;
+    abstract DbColumnList createSelf(DbCommand command) nothrow @safe;
 
     void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
@@ -3981,6 +3992,9 @@ protected:
 private:
     LastDisposingReason _lastDisposingReason;
 }
+
+deprecated("please use DbColumnList")
+alias DbFieldList = DbColumnList;
 
 class DbParameter : DbNameColumn
 {
@@ -4099,8 +4113,8 @@ protected:
         auto destP = cast(DbParameter)dest;
         if (destP)
         {
-            destP._direction = _direction;
-            destP._dbValue = _dbValue;
+            destP._direction = this._direction;
+            destP._dbValue = this._dbValue;
         }
     }
 
@@ -4145,7 +4159,7 @@ public:
     }
     do
     {
-        auto result = database.createParameter(name);
+        auto result = create(name);
         result.type = type;
         result.size = size;
         result.direction = direction;
@@ -4195,21 +4209,43 @@ public:
     }
 
     final DbParameter addClone(DbParameter source) @safe
+    in
+    {
+        assert(source !is null);
+    }
+    do
     {
         auto result = add(source.name, source.type, source.direction, source.size);
         source.assignTo(result);
         return result;
     }
 
+    final DbParameterList assign(DbParameterList source) @safe
+    {
+        clear();
+        if (source is null)
+            return this;
+
+        sequenceItems.reserve(source.length);
+        foreach (e; source)
+            addClone(e);
+        
+        return this;
+    }
+    
     final DbParameter create(DbIdentitier name) nothrow @safe
     {
-        return database.createParameter(name);
+        return database !is null
+            ? database.createParameter(name)
+            : new DbParameter(null, name);
     }
 
     final DbParameter create(string name) nothrow @safe
     {
         auto id = DbIdentitier(name);
-        return database.createParameter(id);
+        return database !is null
+            ? database.createParameter(id)
+            : new DbParameter(null, id);
     }
 
     /**
@@ -4425,6 +4461,89 @@ protected:
 
 private:
     LastDisposingReason _lastDisposingReason;
+}
+
+ref Writer columnNameString(Writer, List)(return ref Writer writer, List names, const(char)[] separator = ",")
+if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
+{
+    foreach(i, e; names)
+    {
+        if (i)
+            writer.put(separator);
+        writer.put(e.name.value);
+    }
+    return writer;
+}
+
+ref Writer parameterNameString(Writer, List)(return ref Writer writer, List names, const(char)[] separator = ",")
+if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
+{
+    foreach(i, e; names)
+    {
+        if (i)
+            writer.put(separator);
+        writer.put('@');
+        writer.put(e.name.value);
+    }
+    return writer;
+}
+
+ref Writer parameterConditionString(Writer, List)(return ref Writer writer, List names, const(char)[] separator = ",")
+if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
+{
+    uint count;
+    foreach(e; names)
+    {
+        if (!e.isKey)
+            continue;
+            
+        if (count)
+            writer.put(separator);
+        writer.put(e.name.value);
+        writer.put("=@");
+        writer.put(e.name.value);
+        count++;
+    }
+    return writer;
+}
+
+ref Writer parameterUpdateString(Writer, List)(return ref Writer writer, List names, const(char)[] separator = ",")
+if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
+{
+    static if (is(List : DbParameterList))
+        alias DbItem = DbParameter;
+    else
+        alias DbItem = DbColumn;
+    
+    size_t[] keyIndexes;
+    uint count;
+    foreach(i, e; names)
+    {
+        if (e.isKey)
+        {
+            keyIndexes ~= i;
+            continue;
+        }
+            
+        if (count)
+            writer.put(separator);
+        writer.put(e.name.value);
+        writer.put("=@");
+        writer.put(e.name.value);
+        count++;
+    }
+    
+    if (keyIndexes.length)
+    {
+        DbItem[] keyItems;
+        keyItems.reserve(keyIndexes.length);
+        for (auto i = keyIndexes.length; i != 0; i--)
+            keyItems ~= names.remove(keyIndexes[i - 1]);
+        for (auto i = keyItems.length; i != 0; i--)
+            names.put(keyItems[i - 1]);
+    }
+    
+    return writer;
 }
 
 struct DbRAIITransaction
@@ -4761,7 +4880,7 @@ public:
         return _fields !is null ? _fields.length : 0;
     }
 
-    @property DbFieldList fields() nothrow pure @safe
+    @property DbColumnList fields() nothrow pure @safe
     {
         return _fields;
     }
@@ -4882,7 +5001,7 @@ private:
 
 private:
     DbCommand _command;
-    DbFieldList _fields;
+    DbColumnList _fields;
     DbRowValue _currentRow;
     size_t _fetchedCount;
     EnumSet!Flag _flags;
@@ -5477,4 +5596,58 @@ shared static ~this() nothrow
         _secondTimer.destroy();
         _secondTimer = null;
     }
+}
+
+unittest // columnNameString
+{
+    import pham.utl.utl_array : Appender;
+    
+    auto parameters = new DbParameterList(null);
+    parameters.add("colum1", DbType.int32);
+    parameters.add("colum2", DbType.int32);
+    
+    auto buffer = Appender!string(20);
+    auto text = buffer.columnNameString(parameters)[];
+    assert(text == "colum1,colum2", text);    
+}
+
+unittest // parameterNameString
+{
+    import pham.utl.utl_array : Appender;
+    
+    auto parameters = new DbParameterList(null);
+    parameters.add("colum1", DbType.int32);
+    parameters.add("colum2", DbType.int32);
+    
+    auto buffer = Appender!string(20);
+    auto text = buffer.parameterNameString(parameters)[];
+    assert(text == "@colum1,@colum2", text);
+}
+
+unittest // parameterConditionString
+{
+    import pham.utl.utl_array : Appender;
+    
+    auto parameters = new DbParameterList(null);
+    parameters.add("colum1", DbType.int32);
+    parameters.add("colum2", DbType.int32);
+    parameters.add("colum3", DbType.int32).isKey = true;
+    
+    auto buffer = Appender!string(20);
+    auto text = buffer.parameterConditionString(parameters)[];
+    assert(text == "colum3=@colum3", text);
+}
+
+unittest // parameterUpdateString
+{
+    import pham.utl.utl_array : Appender;
+    
+    auto parameters = new DbParameterList(null);
+    parameters.add("colum1", DbType.int32);
+    parameters.add("colum2", DbType.int32);
+    parameters.add("colum3", DbType.int32).isKey = true;
+    
+    auto buffer = Appender!string(20);
+    auto text = buffer.parameterUpdateString(parameters)[];
+    assert(text == "colum1=@colum1,colum2=@colum2", text);
 }

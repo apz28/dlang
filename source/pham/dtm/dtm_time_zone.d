@@ -1398,10 +1398,9 @@ nothrow @safe:
 
     string toString() const scope
     {
-        import std.array : Appender;
+        import pham.utl.utl_array : Appender;
 
-        Appender!string buffer;
-        buffer.reserve(6);
+        auto buffer = Appender!string(10);
         return toString(buffer).data;
     }
 

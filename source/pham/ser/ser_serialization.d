@@ -11,7 +11,6 @@
 
 module pham.ser.ser_serialization;
 
-import std.array : Appender, appender;
 import std.conv : to;
 import std.meta : AliasSeq, aliasSeqOf, Filter, NoDuplicates, staticMap;
 import std.range : ElementType, isInputRange;
@@ -24,6 +23,8 @@ debug(pham_ser_ser_serialization) import std.stdio : writeln;
 import pham.dtm.dtm_date : Date, DateTime;
 import pham.dtm.dtm_tick : DateTimeZoneKind;
 import pham.dtm.dtm_time : Time;
+import pham.utl.utl_array : Appender;
+import pham.utl.utl_enum_set : EnumSet;
 
 @safe:
 
@@ -36,7 +37,7 @@ enum Condition : ubyte
     ignoredNull,
 }
 
-enum CharacterCaseFormat : ubyte
+enum CharacterCase : ubyte
 {
     normal,
     upper,
@@ -56,24 +57,41 @@ enum DataKind : ubyte
     uuid,
 }
 
+enum DbKey : ubyte
+{
+    none,
+    index,
+    foreign,
+    primary,
+}
+
+enum EncodedFormat : ubyte
+{
+    base64,
+    base16,
+}
+
 enum EnumFormat : ubyte
 {
     name,
     integral,
 }
 
-enum BinaryDataFormat : ubyte
-{
-    base64,
-    base16,
-}
-
 struct BinaryFormat
 {
 @nogc nothrow @safe:
 
-    BinaryDataFormat dataFormat;
-    CharacterCaseFormat characterCaseFormat;
+    EncodedFormat encodedFormat;
+    CharacterCase characterCase;
+}
+
+struct DbEntity
+{
+@nogc nothrow @safe:
+
+public:
+    string name;
+    DbKey dbKey;
 }
 
 struct FloatFormat
@@ -97,15 +115,29 @@ public:
     this(string name,
         Condition condition = Condition.required) @nogc pure
     {
-        this(name, null, condition);
+        this(name, null, DbEntity.init, condition);
     }
 
     this(string name, string memberName,
         Condition condition = Condition.required) @nogc pure
     {
+        this(name, memberName, DbEntity.init, condition);
+    }
+
+    this(string name, DbEntity dbEntity,
+        Condition condition = Condition.required) @nogc pure
+    {
+        this(name, null, dbEntity, condition);
+    }
+
+    this(string name, string memberName, DbEntity dbEntity,
+        Condition condition = Condition.required) @nogc pure
+    {
         this.name = name;
-        this.memberName = memberName;
+        this._memberName = memberName;
+        this.dbEntity = dbEntity;
         this.condition = condition;
+        this.flags = EnumSet!Flag.init;
     }
 
     this(string name, BinaryFormat binaryFormat,
@@ -117,10 +149,8 @@ public:
     this(string name, string memberName, BinaryFormat binaryFormat,
         Condition condition = Condition.required) @nogc pure
     {
-        this.name = name;
-        this.memberName = memberName;
+        this(name, memberName, DbEntity.init, condition);
         this.binaryFormat = binaryFormat;
-        this.condition = condition;
     }
 
     this(string name, EnumFormat enumFormat,
@@ -132,10 +162,8 @@ public:
     this(string name, string memberName, EnumFormat enumFormat,
         Condition condition = Condition.required) @nogc pure
     {
-        this.name = name;
-        this.memberName = memberName;
+        this(name, memberName, DbEntity.init, condition);
         this.enumFormat = enumFormat;
-        this.condition = condition;
     }
 
     this(string name, FloatFormat floatFormat,
@@ -147,10 +175,8 @@ public:
     this(string name, string memberName, FloatFormat floatFormat,
         Condition condition = Condition.required) @nogc pure
     {
-        this.name = name;
-        this.memberName = memberName;
+        this(name, memberName, DbEntity.init, condition);
         this.floatFormat = floatFormat;
-        this.condition = condition;
     }
 
     this(Serializable other, string memberName) @nogc pure
@@ -160,22 +186,78 @@ public:
     }
     do
     {
-        this.name = other.name.length ? other.name : memberName;
-        this.memberName = memberName;
-        this.condition = other.condition;
+        this(other.name.length != 0 ? other.name : memberName, memberName, other.condition);
+        this.dbEntity = other.dbEntity;
         this.binaryFormat = other.binaryFormat;
         this.enumFormat = other.enumFormat;
         this.floatFormat = other.floatFormat;
+        this.flags = other.flags;
+    }
+
+    pragma(inline, true)
+    bool sameName(scope const(char)[] rhs, const(bool) caseSensitiveName) const @nogc
+    {
+        return caseSensitiveName
+            ? ((name == rhs) || (hasDbName && dbEntity.name == rhs))
+            : ((sicmp(name, rhs) == 0) || (hasDbName && sicmp(dbEntity.name, rhs) == 0));
+    }
+
+    pragma(inline, true)
+    @property bool hasDbName() const @nogc
+    {
+        return dbEntity.name.length != 0;
+    }
+
+    @property DbKey dbKey() const @nogc
+    {
+        return dbEntity.dbKey;
+    }
+
+    @property ref Serializable dbKey(DbKey value) @nogc return
+    {
+        dbEntity.dbKey = value;
+        return this;
+    }
+
+    // Used for table or column name
+    pragma(inline, true)
+    @property string dbName() const @nogc
+    {
+        return dbEntity.name.length ? dbEntity.name : name;
+    }
+
+    @property ref Serializable dbName(string value) @nogc return
+    {
+        dbEntity.name = value;
+        return this;
+    }
+
+    pragma(inline, true)
+    @property string memberName() const @nogc
+    {
+        return _memberName.length ? _memberName : name;
+    }
+
+    @property ref Serializable memberName(string value) @nogc return
+    {
+        this._memberName = value;
+        return this;
+    }
+
+    enum Flag: ubyte
+    {
+        symbolId,
     }
 
 public:
     string name;
-    string memberName;
+    string _memberName;
+    DbEntity dbEntity; // Used for table or column name
     Condition condition;
     BinaryFormat binaryFormat;
     EnumFormat enumFormat;
     FloatFormat floatFormat = FloatFormat(ubyte.max, false);
-    bool symbolId;
+    EnumSet!Flag flags;
 }
 
 enum SerializableMemberFlag : ubyte
@@ -661,7 +743,7 @@ string[] getSerializerMembers(T, alias attribute)() nothrow pure
     return result;
 }
 
-class DSerializerException : Exception
+class DSSerializerException : Exception
 {
 @safe:
 
@@ -677,7 +759,7 @@ public:
     string funcName;
 }
 
-class DeserializerException : DSerializerException
+class DeserializerException : DSSerializerException
 {
 @safe:
 
@@ -689,7 +771,7 @@ public:
     }
 }
 
-class SerializerException : DSerializerException
+class SerializerException : DSSerializerException
 {
 @safe:
 
@@ -910,13 +992,13 @@ bool isNullableDataType(const(SerializerDataType) dataType) @nogc nothrow pure @
 alias DeserializerFunction = void function(Deserializer deserializer, scope void* value, scope ref Serializable attribute) @safe;
 alias SerializerFunction = void function(Serializer serializer, scope void* value, scope ref Serializable attribute) @safe;
 
-struct DSeserializerFunctions
+struct DSSerializerFunctions
 {
     DeserializerFunction deserialize;
     SerializerFunction serialize;
 }
 
-abstract class DSeserializer
+abstract class DSSerializer
 {
 @safe:
 
@@ -965,7 +1047,7 @@ public:
         return ++_memberDepth;
     }
 
-    static DSeserializerFunctions register(T)(SerializerFunction serialize, DeserializerFunction deserialize) nothrow
+    static DSSerializerFunctions register(T)(SerializerFunction serialize, DeserializerFunction deserialize) nothrow
     in
     {
         assert(serialize !is null);
@@ -973,10 +1055,10 @@ public:
     }
     do
     {
-        return register(fullyQualifiedName!T, DSeserializerFunctions(deserialize, serialize));
+        return register(fullyQualifiedName!T, DSSerializerFunctions(deserialize, serialize));
     }
 
-    static DSeserializerFunctions register(string type, SerializerFunction serialize, DeserializerFunction deserialize) nothrow
+    static DSSerializerFunctions register(string type, SerializerFunction serialize, DeserializerFunction deserialize) nothrow
     in
     {
         assert(type.length > 0);
@@ -985,29 +1067,35 @@ public:
     }
     do
     {
-        return register(type, DSeserializerFunctions(deserialize, serialize));
+        return register(type, DSSerializerFunctions(deserialize, serialize));
     }
 
-    static DSeserializerFunctions register(string type, DSeserializerFunctions dserializes) nothrow @trusted // access __gshared customDSeserializedFunctions
+    static DSSerializerFunctions register(string type, DSSerializerFunctions serializers) nothrow @trusted // access __gshared customDSeserializedFunctions
     in
     {
         assert(type.length > 0);
-        assert(dserializes.serialize !is null);
-        assert(dserializes.deserialize !is null);
+        assert(serializers.serialize !is null);
+        assert(serializers.deserialize !is null);
     }
     do
     {
-        DSeserializerFunctions result;
-        if (auto f = type in customDSeserializedFunctions)
+        DSSerializerFunctions result;
+        if (auto f = type in customDSSerializedFunctions)
             result = *f;
-        customDSeserializedFunctions[type] = dserializes;
+        customDSSerializedFunctions[type] = serializers;
         return result;
     }
 
     pragma(inline, true)
-    final bool sameName(scope const(char)[] s1, scope const(char)[] s2) const @nogc nothrow
+    final bool sameName(scope const(char)[] lhs, scope const(char)[] rhs) const @nogc nothrow
     {
-        return options.caseSensitiveName ? (s1 == s2) : (sicmp(s1, s2) == 0);
+        return this.options.caseSensitiveName ? (lhs == rhs) : (sicmp(lhs, rhs) == 0);
+    }
+
+    pragma(inline, true)
+    final bool sameName(scope ref Serializable lhs, scope const(char)[] rhs) const @nogc nothrow
+    {
+        return lhs.sameName(rhs, this.options.caseSensitiveName);
     }
 
     pragma(inline, true)
@@ -1045,21 +1133,20 @@ public:
         if (v.length == 0)
             return null;
 
-        Appender!(ubyte[]) buffer;
-        final switch (binaryFormat.dataFormat)
+        final switch (binaryFormat.encodedFormat)
         {
-            case BinaryDataFormat.base64:
-                buffer.reserve(parseBase64Length(v.length));
-                if (parseBase64(buffer, v) == NumericParsedKind.ok)
-                    return buffer[];
+            case EncodedFormat.base64:
+                auto buffer64 = Appender!(ubyte[])(parseBase64Length(v.length));
+                if (parseBase64(buffer64, v) == NumericParsedKind.ok)
+                    return buffer64[];
                 static if (is(ExceptionClass == void))
                     return null;
                 else
                     throw new ExceptionClass("Unable to convert base64 string to binary: " ~ sampleV());
-            case BinaryDataFormat.base16:
-                buffer.reserve(parseBase16Length(v.length));
-                if (parseBase16(buffer, v) == NumericParsedKind.ok)
-                    return buffer[];
+            case EncodedFormat.base16:
+                auto buffer16 = Appender!(ubyte[])(parseBase16Length(v.length));
+                if (parseBase16(buffer16, v) == NumericParsedKind.ok)
+                    return buffer16[];
                 static if (is(ExceptionClass == void))
                     return null;
                 else
@@ -1075,19 +1162,18 @@ public:
         if (v.length == 0)
             return null;
 
-        Appender!string buffer;
-        final switch (binaryFormat.dataFormat)
+        final switch (binaryFormat.encodedFormat)
         {
-            case BinaryDataFormat.base64:
-                buffer.reserve(cvtBytesBase64Length(v.length, false, 0));
-                return cvtBytesBase64(buffer, v)[];
-            case BinaryDataFormat.base16:
-                buffer.reserve(cvtBytesBase16Length(v.length, false, 0));
-                return binaryFormat.characterCaseFormat == CharacterCaseFormat.lower
-                    ? cvtBytesBase16(buffer, v, LetterCase.lower)[]
-                    : binaryFormat.characterCaseFormat == CharacterCaseFormat.upper
-                        ? cvtBytesBase16(buffer, v, LetterCase.upper)[]
-                        : cvtBytesBase16(buffer, v)[];
+            case EncodedFormat.base64:
+                auto buffer64 = Appender!string(cvtBytesBase64Length(v.length, false, 0));
+                return cvtBytesBase64(buffer64, v)[];
+            case EncodedFormat.base16:
+                auto buffer16 = Appender!string(cvtBytesBase16Length(v.length, false, 0));
+                return binaryFormat.characterCase == CharacterCase.lower
+                    ? cvtBytesBase16(buffer16, v, LetterCase.lower)[]
+                    : binaryFormat.characterCase == CharacterCase.upper
+                        ? cvtBytesBase16(buffer16, v, LetterCase.upper)[]
+                        : cvtBytesBase16(buffer16, v)[];
         }
     }
 
@@ -1163,12 +1249,55 @@ public:
 protected:
     size_t _arrayDepth;
     size_t _memberDepth;
-    static __gshared DSeserializerFunctions[string] customDSeserializedFunctions;
+    static __gshared DSSerializerFunctions[string] customDSSerializedFunctions;
 }
 
-class Deserializer : DSeserializer
+class Deserializer : DSSerializer
 {
 @safe:
+
+public:
+    // Aggregate (class, struct)
+    final V deserialize(V)()
+    if (isSerializerAggregateType!V)
+    {
+        static if (hasUDA!(V, Serializable))
+            Serializable attribute = getUDA!(V, Serializable);
+        else
+            Serializable attribute = Serializable(V.stringof);
+        return deserializeWith!V(attribute);
+    }
+
+    final V deserializeWith(V)(Serializable attribute)
+    if (isSerializerAggregateType!V)
+    {
+        V v;
+        begin(attribute);
+        deserialize(v, attribute);
+        end(attribute);
+        return v;
+    }
+
+    // Array
+    final V deserialize(V)()
+    if (isDynamicArray!V)
+    {
+        static if (hasUDA!(V, Serializable))
+            Serializable attribute = getUDA!(V, Serializable);
+        else
+            Serializable attribute = Serializable((ElementType!V).stringof);
+        return deserializeWith!V(attribute);
+    }
+
+    final V deserializeWith(V)(Serializable attribute)
+    if (isDynamicArray!V)
+    {
+        V v;
+        begin(attribute);
+        deserialize(v, attribute);
+        end(attribute);
+        return v;
+    }
 
 public:
     Deserializer begin(scope ref Serializable attribute)
@@ -1567,12 +1696,12 @@ public:
             while (hasAggregateEle(i, readLength))
             {
                 MemberMatched memberMatched = MemberMatched.none;
-                const memberName = readKey(i);
-                //import std.stdio : writeln; debug writeln("i=", i, ", memberName=", memberName);
+                const key = readKey(i);
+                //import std.stdio : writeln; debug writeln("i=", i, ", key=", key);
 
                 static foreach (member; members)
                 {
-                    if (this.sameName(member.attribute.name, memberName))
+                    if (member.attribute.sameName(key, this.options.caseSensitiveName))
                     {
                         //import std.stdio : writeln; debug writeln(V.stringof, "[", typeof(member.memberSet).stringof, ".", member.memberType.stringof, "] v.", member.memberName, ".", member.attribute.name, " vs ", memberName);
                         //pragma(msg, V.stringof ~ "." ~ member.memberName);
@@ -1628,9 +1757,9 @@ public:
                 }
 
                 if (memberMatched == MemberMatched.none)
-                    throw new DeserializerException(fullyQualifiedName!V ~ "." ~ memberName ~ " not found");
+                    throw new DeserializerException(fullyQualifiedName!V ~ "." ~ key ~ " not found");
                 else if (memberMatched == MemberMatched.deserialize)
-                    throw new DeserializerException(fullyQualifiedName!V ~ "." ~ memberName ~ " not able to deserialize");
+                    throw new DeserializerException(fullyQualifiedName!V ~ "." ~ key ~ " not able to deserialize");
 
                 i++;
             }
@@ -1658,7 +1787,7 @@ public:
                         v.deserializeBegin(this, readLength, attribute);
                 }
 
-                const memberName = readKey();
+                const key = readKey();
                 Serializable memberAttribute = member.attribute;
                 static if (member.flags.isSet(SerializableMemberFlag.isGetSet))
                 {
@@ -1694,7 +1823,7 @@ public:
     {
         //pragma(msg, "deserializeCustom()", fullyQualifiedName!V);
         alias UV = Unqual!V;
-        if (auto f = fullyQualifiedName!V in customDSeserializedFunctions)
+        if (auto f = fullyQualifiedName!V in customDSSerializedFunctions)
         {
             (*f).deserialize(this, cast(UV*)&v, attribute);
             return true;
@@ -1702,53 +1831,50 @@ public:
 
         return false;
     }
+}
 
+class Serializer : DSSerializer
+{
+@safe:
+
+public:
     // Aggregate (class, struct)
-    final V deserialize(V)()
+    final Serializer serialize(V)(auto ref V v)
     if (isSerializerAggregateType!V)
     {
         static if (hasUDA!(V, Serializable))
             Serializable attribute = getUDA!(V, Serializable);
         else
-            Serializable attribute = Serializable.init;
-        return deserializeWith!V(attribute);
+            Serializable attribute = Serializable(V.stringof);
+        return serializeWith!V(v, attribute);
     }
 
-    final V deserializeWith(V)(Serializable attribute)
+    final Serializer serializeWith(V)(auto ref V v, Serializable attribute)
     if (isSerializerAggregateType!V)
     {
-        V v;
         begin(attribute);
-        deserialize(v, attribute);
-        end(attribute);
-        return v;
+        serialize(v, attribute);
+        return end(attribute);
     }
 
     // Array
-    final V deserialize(V)()
+    final Serializer serialize(V)(auto ref V v)
     if (isDynamicArray!V)
     {
         static if (hasUDA!(V, Serializable))
             Serializable attribute = getUDA!(V, Serializable);
         else
-            Serializable attribute = Serializable.init;
-        return deserializeWith!V(attribute);
+            Serializable attribute = Serializable((ElementType!V).stringof);
+        return serializeWith!V(v, attribute);
     }
 
-    final V deserializeWith(V)(Serializable attribute)
+    final Serializer serializeWith(V)(auto ref V v, Serializable attribute)
     if (isDynamicArray!V)
     {
-        V v;
         begin(attribute);
-        deserialize(v, attribute);
-        end(attribute);
-        return v;
+        serialize(v, attribute);
+        return end(attribute);
     }
-}
-
-class Serializer : DSeserializer
-{
-@safe:
 
 public:
     Serializer begin(scope ref Serializable attribute)
@@ -1779,9 +1905,7 @@ public:
     }
     do
     {
-        return attribute.symbolId
-            ? writeKeyId(attribute.name, attribute)
-            : writeKey(attribute.name, attribute);
+        return attribute.flags.symbolId ? writeKeyId(attribute) : writeKey(attribute);
     }
 
     void arrayBegin(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
@@ -1794,7 +1918,7 @@ public:
         decArrayDepth();
     }
 
-    Serializer arrayItem(ptrdiff_t index)
+    Serializer arrayItem(ptrdiff_t index, scope ref Serializable attribute)
     {
         return this;
     }
@@ -1815,8 +1939,8 @@ public:
     abstract void write(scope const(wchar)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.character); // WString value
     abstract void write(scope const(dchar)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.character); // DString value
     abstract void write(scope const(ubyte)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.binary); // Binary value
-    abstract Serializer writeKey(string key, scope ref Serializable attribute);
-    abstract Serializer writeKeyId(string key, scope ref Serializable attribute);
+    abstract Serializer writeKey(scope ref Serializable attribute);
+    abstract Serializer writeKeyId(scope ref Serializable attribute);
 
 public:
     // null
@@ -1959,7 +2083,7 @@ public:
 
         foreach (i, ref e; v)
         {
-            arrayItem(i);
+            arrayItem(i, attribute);
             serialize(e, attribute);
         }
     }
@@ -1976,7 +2100,7 @@ public:
 
         foreach (ref e; v)
         {
-            arrayItem(length);
+            arrayItem(length, attribute);
             serialize(e, attribute);
             length++;
         }
@@ -1996,7 +2120,7 @@ public:
 
         size_t index;
         Serializable memberAttribute = attribute;
-        memberAttribute.symbolId = false;
+        memberAttribute.flags.symbolId = false;
         foreach (key, ref val; v)
         {
             memberAttribute.name = key;
@@ -2024,7 +2148,7 @@ public:
         size_t index;
         char[50] keyBuffer = void;
         Serializable memberAttribute = attribute;
-        memberAttribute.symbolId = true;
+        memberAttribute.flags.symbolId = true;
         foreach (key, ref val; v)
         {
             const keyStr = sformat(keyBuffer[], "%d", key);
@@ -2051,7 +2175,7 @@ public:
         string keyStr;
         size_t index;
         Serializable memberAttribute = attribute;
-        memberAttribute.symbolId = true;
+        memberAttribute.flags.symbolId = true;
         foreach (key, ref val; v)
         {
             if (memberAttribute.enumFormat == EnumFormat.integral)
@@ -2074,6 +2198,8 @@ public:
     final void serialize(V)(auto ref V v, scope ref Serializable attribute) @trusted // opEqual
     if (isSerializerAggregateType!V)
     {
+        debug(pham_ser_ser_serialization) debug writeln(__FUNCTION__, "(V=", V.stringof, ", name=", attribute.name, ")");
+        
         bool vIsNull() nothrow @safe
         {
             static if (is(V == class))
@@ -2117,11 +2243,11 @@ public:
 
                 static if (__traits(compiles, __traits(child, v, member.memberGet)))
                 {
-                    //import std.stdio : writeln; debug writeln(V.stringof, ".", member.memberName, ".", member.attribute.name);
+                    debug(pham_ser_ser_serialization) debug writeln("\t", "name=", member.attribute.name);
 
                     auto memberValue = __traits(child, v, member.memberGet);
                     Serializable memberAttribute = member.attribute;
-                    memberAttribute.symbolId = false;
+                    memberAttribute.flags.symbolId = false;
 
                     if (memberAttribute.condition == Condition.ignoredNull)
                     {
@@ -2166,51 +2292,13 @@ public:
     final bool serializeCustom(V)(auto ref V v, scope ref Serializable attribute) @trusted // parameter address & access __gshared customDSeserializedFunctions
     {
         alias UV = Unqual!V;
-        if (auto f = fullyQualifiedName!V in customDSeserializedFunctions)
+        if (auto f = fullyQualifiedName!V in customDSSerializedFunctions)
         {
             (*f).serialize(this, cast(UV*)&v, attribute);
             return true;
         }
 
         return false;
-    }
-
-    // Aggregate (class, struct)
-    final void serialize(V)(auto ref V v)
-    if (isSerializerAggregateType!V)
-    {
-        static if (hasUDA!(V, Serializable))
-            Serializable attribute = getUDA!(V, Serializable);
-        else
-            Serializable attribute = Serializable.init;
-        serializeWith!V(v, attribute);
-    }
-
-    final void serializeWith(V)(auto ref V v, Serializable attribute)
-    if (isSerializerAggregateType!V)
-    {
-        begin(attribute);
-        serialize(v, attribute);
-        end(attribute);
-    }
-
-    // Array
-    final void serialize(V)(auto ref V v)
-    if (isDynamicArray!V)
-    {
-        static if (hasUDA!(V, Serializable))
-            Serializable attribute = getUDA!(V, Serializable);
-        else
-            Serializable attribute = Serializable.init;
-        serializeWith!V(v, attribute);
-    }
-
-    final void serializeWith(V)(auto ref V v, Serializable attribute)
-    if (isDynamicArray!V)
-    {
-        begin(attribute);
-        serialize(v, attribute);
-        end(attribute);
     }
 }
 
@@ -2256,23 +2344,23 @@ nothrow @safe:
     }
 }
 
-T asciiCaseInplace(T)(return scope T s, const(CharacterCaseFormat) characterCaseFormat) nothrow pure
+T asciiCaseInplace(T)(return scope T s, const(CharacterCase) characterCase) nothrow pure
 if (isDynamicArray!T)
 {
     import std.ascii : isLower, isUpper;
 
-    final switch (characterCaseFormat)
+    final switch (characterCase)
     {
-        case CharacterCaseFormat.normal:
+        case CharacterCase.normal:
             return s;
-        case CharacterCaseFormat.upper:
+        case CharacterCase.upper:
             foreach (ref c; s)
             {
                 if (isLower(c))
                     c = cast(char)(c - ('a' - 'A'));
             }
             return s;
-        case CharacterCaseFormat.lower:
+        case CharacterCase.lower:
             foreach (ref c; s)
             {
                 if (isUpper(c))
@@ -2305,10 +2393,13 @@ package(pham.ser):
         sixth,
     }
 
+    @Serializable(null, null, DbEntity("UnitTestS1"))
     static struct UnitTestS1
     {
     public:
+        @Serializable("publicInt", null, DbEntity("publicInt", DbKey.primary))
         int publicInt;
+        
         private int _publicGetSet;
 
         int publicGetSet()
@@ -2722,15 +2813,15 @@ package(pham.ser):
             size_t i;
             while (deserializer.hasAggregateEle(i, readLength))
             {
-                const n = deserializer.readKey(i);
-                if (deserializer.sameName(n, "s1"))
-                    deserializer.deserialize(s1, setMemberAttribute(n));
-                else if (deserializer.sameName(n, "ds"))
-                    deserializer.deserialize(ds, setMemberAttribute(n));
-                else if (deserializer.sameName(n, "ws"))
-                    deserializer.deserialize(ws, setMemberAttribute(n));
-                else if (deserializer.sameName(n, "c1"))
-                    deserializer.deserialize(c1, setMemberAttribute(n));
+                const key = deserializer.readKey(i);
+                if (deserializer.sameName(setMemberAttribute("s1"), key))
+                    deserializer.deserialize(s1, memberAttribute);
+                else if (deserializer.sameName(setMemberAttribute("ds"), key))
+                    deserializer.deserialize(ds, memberAttribute);
+                else if (deserializer.sameName(setMemberAttribute("ws"), key))
+                    deserializer.deserialize(ws, memberAttribute);
+                else if (deserializer.sameName(setMemberAttribute("c1"), key))
+                    deserializer.deserialize(c1, memberAttribute);
                 else
                     assert(0);
                 i++;
@@ -2781,6 +2872,7 @@ package(pham.ser):
         }
     }
 }
+
 
 private:
 
@@ -2883,10 +2975,10 @@ unittest // StaticBuffer
 unittest // asciiCaseInplace
 {
     char[] buffer = "1abCDefG2".dup;
-    assert(asciiCaseInplace(buffer, CharacterCaseFormat.normal) == "1abCDefG2");
-    assert(asciiCaseInplace(buffer, CharacterCaseFormat.upper) == "1ABCDEFG2");
+    assert(asciiCaseInplace(buffer, CharacterCase.normal) == "1abCDefG2");
+    assert(asciiCaseInplace(buffer, CharacterCase.upper) == "1ABCDEFG2");
     buffer = "1abCDefG2".dup;
-    assert(asciiCaseInplace(buffer, CharacterCaseFormat.lower) == "1abcdefg2");
+    assert(asciiCaseInplace(buffer, CharacterCase.lower) == "1abcdefg2");
 }
 
 unittest // SerializerMemberList

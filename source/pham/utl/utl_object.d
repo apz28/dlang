@@ -940,13 +940,13 @@ nothrow @safe unittest // stringOfChar
 
 @safe unittest // toString
 {
-    import std.array : Appender;
     import std.conv : to;
+    import pham.utl.utl_array : Appender;
 
     void testCheck(uint radix = 10, N)(N n, const(ubyte) pad, string expected,
         uint line = __LINE__)
     {
-        Appender!string buffer;
+        auto buffer = Appender!string(50);
         toString!(radix, N)(buffer, n, pad);
         assert(buffer.data == expected, line.to!string() ~ ": " ~ buffer.data ~ " vs " ~ expected);
     }
@@ -972,7 +972,7 @@ nothrow @safe unittest // stringOfChar
     testCheck!(16)(255U, 4, "00FF");
 
     // Test default call
-    Appender!string buffer;
+    auto buffer = Appender!string(10);
     assert(toString(buffer, 10).data == "10");
 }
 

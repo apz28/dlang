@@ -17,7 +17,6 @@ import core.sync.mutex : Mutex;
 import core.thread : ThreadID;
 import core.time : dur;
 public import core.time : Duration;
-import std.array : Appender;
 import std.conv : emplace, to;
 import std.datetime.date : DateTime;
 import std.datetime.systime : Clock, SysTime;
@@ -31,7 +30,7 @@ public import std.typecons : No, Yes;
 import std.utf : encode;
 
 debug(debug_pham_external_std_log_log_logger) import std.stdio : writeln;
-
+import pham.utl.utl_array : Appender;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.external.std.log.log_date_time_format;
 
@@ -1721,7 +1720,7 @@ private:
 }
 
 /**
- * The default implementation will use an `std.array.appender`
+ * The default implementation will use an `pham.utl.utl_Appender`
  * internally to construct the message string. This means dynamic,
  * GC memory allocation.
  * A logger can avoid this allocation by
@@ -1775,8 +1774,7 @@ protected:
     {
         debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
-        msgBuffer = Appender!string();
-        msgBuffer.reserve(1_000);
+        msgBuffer.capacity = 500;
         logEntry = Logger.LogEntry(this, header, null);
     }
 
@@ -1792,19 +1790,19 @@ protected:
         debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
         this.logEntry.header = header;
-        this.logEntry.message = msgBuffer.data;
+        this.logEntry.message = msgBuffer.data.idup;
         this.writeLog(logEntry);
 
         // Reset to release its memory
         this.logEntry = Logger.LogEntry.init;
-        this.msgBuffer = Appender!string();
+        this.msgBuffer.clear();
     }
 
     override void writeLog(ref Logger.LogEntry payload)
     {}
 
 protected:
-    Appender!string msgBuffer;
+    Appender!(char[]) msgBuffer;
     Logger.LogEntry logEntry;
 }
 
@@ -2785,8 +2783,7 @@ private:
         if (element.pattern[0] != OutputPatternMarker.format)
             return;
 
-        Appender!string fmtBuffer;
-        fmtBuffer.reserve(element.pattern.length);
+        auto fmtBuffer = Appender!string(element.pattern.length);
         size_t i = 1;
         while (i < element.pattern.length)
         {
@@ -4025,8 +4022,7 @@ package(pham.external.std.log)
             this.msg = payload.message;
             this.exceptionMessage = payload.header.exception !is null ? payload.header.exception.msg : null;
 
-            Appender!string buffer;
-            buffer.reserve(500);
+            auto buffer = Appender!string(500);
             auto writer = LogOutputWriter(this);
             writer.write(buffer, payload);
             this.outputMessage = buffer.data;
@@ -4979,7 +4975,6 @@ void testFuncNames(Logger logger) @safe
 
 @safe unittest // LogOutputWriter
 {
-    import std.array : Appender;
     import std.conv : to;
     import std.stdio : writeln;
 
@@ -5103,8 +5098,7 @@ unittest // RollingFileLogger
 
     foreach (i; 0..1_000)
     {
-        Appender!string s;
-        s.reserve(2_000);
+        auto s = Appender!string(2_000);
         foreach (j; 50..100)
         {
             if (j > 50)

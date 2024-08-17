@@ -651,12 +651,11 @@ in
 }
 do
 {
-    import std.array : Appender;
+    import pham.utl.utl_array : Appender;
 
     if (count != 0)
     {
-        Appender!(XmlChar!S[]) buffer;
-        buffer.reserve(count);
+        auto buffer = Appender!(XmlChar!S[])(count);
         for (; count != 0; --count)
             buffer.put(c);
         return buffer.data.idup;
@@ -826,8 +825,8 @@ static immutable ideographicTable = [
 
 string formatGroup(const(char)[] v, in FormatGroupSpec spec = FormatGroupSpec.init) nothrow pure
 {
+    import std.range : walkLength;
     import std.uni : byGrapheme;
-    import std.range : Appender, appender, walkLength;
 
     char[250] buffer;
     ptrdiff_t bLen;

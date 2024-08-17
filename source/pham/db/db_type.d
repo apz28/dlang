@@ -451,7 +451,7 @@ enum DbTransactionState : ubyte
 }
 
 /**
- * Describes data type of a DbField or a DbParameter
+ * Describes data type of a DbColumn or a DbParameter
  * $(DbType.unknown) A unknown type
  * $(DbType.boolean) A simple type representing boolean values of true or false
  * $(DbType.int8) An integral type representing signed 8-bit integers with values between -128 and 127
@@ -1218,7 +1218,8 @@ public:
     enum notSetValue = ulong.max;
     enum dummyValue = ulong.max - 1;
 
-    enum bool isHandleValue(T) = is(T == ulong) || is(T == long) || is(T == uint) || is(T == int);
+    enum bool isHandleValue(T) = is(Unqual!T == ulong) || is(Unqual!T == long)
+        || is(Unqual!T == uint) || is(Unqual!T == int);
 
     static union DbHandleStorage
     {
@@ -1231,16 +1232,17 @@ public:
     static void set(T)(ref DbHandleStorage storage, const(T) value) pure
     if (isHandleValue!T)
     {
-        static if (is(T == ulong))
+        alias UT = Unqual!T;
+        static if (is(UT == ulong))
             storage.u64 = value;
-        else static if (is(T == long))
+        else static if (is(UT == long))
             storage.i64 = value;
-        else static if (is(T == uint))
+        else static if (is(UT == uint))
         {
             storage.u64 = 0U; // Must clear it first
             storage.u32 = value;
         }
-        else static if (is(T == int))
+        else static if (is(UT == int))
         {
             storage.u64 = 0U; // Must clear it first
             storage.i32 = value;
@@ -1340,7 +1342,8 @@ public:
     enum notSetValue = ulong(0U);
     enum dummyValue = ulong.max;
 
-    enum bool isIdValue(T) = is(T == ulong) || is(T == long) || is(T == uint) || is(T == int);
+    enum bool isIdValue(T) = is(Unqual!T == ulong) || is(Unqual!T == long)
+        || is(Unqual!T == uint) || is(Unqual!T == int);
 
     static union DbIdStorage
     {
@@ -1353,16 +1356,17 @@ public:
     static void set(T)(ref DbIdStorage storage, const(T) value) pure
     if (isIdValue!T)
     {
-        static if (is(T == ulong))
+        alias UT = Unqual!T;
+        static if (is(UT == ulong))
             storage.u64 = value;
-        else static if (is(T == long))
+        else static if (is(UT == long))
             storage.i64 = value;
-        else static if (is(T == uint))
+        else static if (is(UT == uint))
         {
             storage.u64 = 0U; // Must clear it first
             storage.u32 = value;
         }
-        else static if (is(T == int))
+        else static if (is(UT == int))
         {
             storage.u64 = 0U; // Must clear it first
             storage.i32 = value;
@@ -1429,18 +1433,20 @@ public:
             static assert(0);
     }
 
-    void reset() pure
+    ref DbId reset() return
     {
         value.u64 = notSetValue;
+        return this;
     }
 
-    void setDummy() pure
+    ref DbId setDummy() return
     {
         value.u64 = dummyValue;
+        return this;
     }
 
     pragma(inline, true)
-    @property bool isValid() const pure
+    @property bool isValid() const
     {
         return value.u64 != notSetValue;
     }
@@ -1495,9 +1501,13 @@ public:
 
 public:
     ref typeof(this) opAssign(T)(T rhs) pure return
-    if (is(T == int) || is(T == long) || is(Unqual!T == DbRecordsAffected))
+    if (is(Unqual!T == int) || is(Unqual!T == long) || is(Unqual!T == DbRecordsAffected))
     {
-        static if (is(T == int) || is(T == long))
+        debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(rhs=", rhs, ")");
+        
+        alias UT = Unqual!T;
+        
+        static if (is(UT == int) || is(UT == long))
             this.value = rhs;
         else
             this.value = rhs.value;
@@ -1505,9 +1515,13 @@ public:
     }
 
     ref typeof(this) opOpAssign(string op, T)(T rhs) pure return
-    if (op == "+" && (is(T == int) || is(T == long) || is(Unqual!T == DbRecordsAffected)))
+    if (op == "+" && (is(Unqual!T == int) || is(Unqual!T == long) || is(Unqual!T == DbRecordsAffected)))
     {
-        static if (is(T == int) || is(T == long))
+        debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(rhs=", rhs, ")");
+        
+        alias UT = Unqual!T;
+        
+        static if (is(UT == int) || is(UT == long))
         {
             if (rhs >= 0)
             {
@@ -1542,9 +1556,10 @@ public:
         return this;
     }
 
-    void reset() pure
+    ref DbRecordsAffected reset() return
     {
         value = notSetValue;
+        return this;
     }
 
     @property bool hasCount() const pure
@@ -1558,12 +1573,19 @@ public:
     int64 value = notSetValue;
 }
 
+enum DbRecordsAffectedAggregateResult
+{
+    changingOnly,
+    queryingOnly,
+    both,
+}
+
 struct DbRecordsAffectedAggregate
 {
 @nogc nothrow @safe:
 
 public:
-    bool opCast(C: bool)() const pure
+    bool opCast(C: bool)() const
     {
         return hasCounts;
     }
@@ -1575,26 +1597,56 @@ public:
         return this;
     }
 
-    void reset() pure
+    ref DbRecordsAffectedAggregate reset() return
     {
         deleteCount.reset();
         insertCount.reset();
-        lastInsertedId.reset();
         selectCount.reset();
         updateCount.reset();
+        lastInsertedId.reset();
+        return this;
     }
 
-    @property bool hasCounts() const pure
+    DbRecordsAffected toCount(const(DbRecordsAffectedAggregateResult) kind) const
     {
-        return deleteCount || insertCount || selectCount || updateCount;
+        DbRecordsAffected changingCount() const nothrow @safe
+        {
+            DbRecordsAffected result;
+            if (deleteCount.hasCount)
+                result += deleteCount;
+            if (insertCount.hasCount)
+                result += insertCount;
+            if (updateCount.hasCount)
+                result += updateCount;
+            return result;
+        }
+        
+        final switch(kind)
+        {
+            case DbRecordsAffectedAggregateResult.changingOnly:
+                return changingCount();
+            case DbRecordsAffectedAggregateResult.queryingOnly:
+                return selectCount;
+            case DbRecordsAffectedAggregateResult.both:
+                DbRecordsAffected both = changingCount();
+                if (selectCount.hasCount)
+                    both += selectCount;
+                return both;
+        }
+    }
+    
+    @property bool hasCounts() const
+    {
+        return deleteCount.hasCount || insertCount.hasCount || updateCount.hasCount
+            || selectCount.hasCount;
     }
 
 public:
 	DbRecordsAffected deleteCount;
 	DbRecordsAffected insertCount;
-    DbRecordsAffected lastInsertedId;
 	DbRecordsAffected selectCount;
 	DbRecordsAffected updateCount;
+    DbId lastInsertedId;
 }
 
 struct DbTime
@@ -2025,14 +2077,16 @@ do
 
 DbType dbTypeOf(T)() @nogc pure
 {
-    if (auto e = T.stringof in nativeNameToDbTypeInfos)
+    alias UT = Unqual!T;
+    
+    if (auto e = UT.stringof in nativeNameToDbTypeInfos)
         return (*e).dbType;
 
-    static if (is(T == ubyte[]))
+    static if (is(UT == ubyte[]))
         return DbType.binaryVary;
-    else static if (is(T == Date)) // Handling alias
+    else static if (is(UT == Date)) // Handling alias
         return DbType.date;
-    else static if (is(T == struct))
+    else static if (is(UT == struct))
         return DbType.record;
     else static if (isArray!T)
         return DbType.array;

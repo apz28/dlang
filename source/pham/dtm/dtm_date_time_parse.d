@@ -16,7 +16,6 @@ import std.traits : Unqual;
 import std.uni : sicmp;
 
 debug(debug_pham_dtm_dtm_date_time_parse) import std.stdio : writeln;
-
 import pham.utl.utl_object : RAIIMutex;
 import pham.dtm.dtm_tick;
 public import pham.dtm.dtm_tick : DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind,
@@ -1102,6 +1101,8 @@ unittest // DateTimePatternInfo
 
 unittest // tryParse
 {
+    import std.conv : to;
+    
     ptrdiff_t r;
     auto p = DateTimePattern.usShortDateTime;
 
@@ -1243,4 +1244,14 @@ unittest // tryParse
     assert(t.second == 33);
     assert(t.fraction == 502);
     assert(t.kind == DateTimeZoneKind.utc);
+
+    isopdt = DateTimePattern.iso8601DateTime;
+    r = tryParse!DateTime("0001-01-01T00:00:33.12345678", isopdt, dt);
+    debug(debug_pham_dtm_dtm_date_time_parse) debug writeln("0001-01-01T00:00:33.12345678 parsedResult=", r);
+    assert(r != DateTimeParser.noError, r.to!string);
+
+    isopt = DateTimePattern.iso8601Time;
+    r = tryParse!Time("13:45:30.12345678", isopt, t);
+    debug(debug_pham_dtm_dtm_date_time_parse) debug writeln("13:45:30.12345678 parsedResult=", r);
+    assert(r != DateTimeParser.noError, r.to!string);
 }

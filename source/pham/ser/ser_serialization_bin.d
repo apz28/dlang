@@ -11,7 +11,6 @@
 
 module pham.ser.ser_serialization_bin;
 
-import std.array : Appender, appender;
 import std.bitmanip : bigEndianToNative, nativeToBigEndian;
 import std.conv : to;
 import std.traits : isFloatingPoint, isIntegral, Unsigned;
@@ -19,6 +18,7 @@ import std.traits : isFloatingPoint, isIntegral, Unsigned;
 import pham.dtm.dtm_date : Date, DateTime;
 import pham.dtm.dtm_tick : TickData;
 import pham.dtm.dtm_time : Time;
+import pham.utl.utl_array : Appender;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.ser.ser_serialization;
 
@@ -135,27 +135,27 @@ public:
         return super.begin(attribute);
     }
 
-    override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
+    final override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
     {
         checkDataType(SerializerDataType.aggregateBegin, 2);
         super.aggregateBegin(typeName, attribute);
         return readLength();
     }
 
-    override void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable attribute)
+    final override void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable attribute)
     {
         checkDataType(SerializerDataType.aggregateEnd, 1);
         super.aggregateEnd(typeName, length, attribute);
     }
 
-    override ptrdiff_t arrayBegin(string elemTypeName, scope ref Serializable attribute)
+    final override ptrdiff_t arrayBegin(string elemTypeName, scope ref Serializable attribute)
     {
         checkDataType(SerializerDataType.arrayBegin, 2);
         super.arrayBegin(elemTypeName, attribute);
         return readLength();
     }
 
-    override void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
+    final override void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
     {
         checkDataType(SerializerDataType.arrayEnd, 1);
         super.arrayEnd(elemTypeName, length, attribute);
@@ -421,40 +421,47 @@ class BinarySerializer : Serializer
 @safe:
 
 public:
-    override Serializer begin(scope ref Serializable attribute)
+    override BinarySerializer begin(scope ref Serializable attribute)
     {
         const v = nativeToBigEndian(binaryVersion);
-        buffer = appender!(ubyte[])();
-        buffer.reserve(bufferCapacity);
+        buffer.clear();
+        buffer.capacity = bufferCapacity;
         buffer.put(binaryIndicator[]);
         buffer.put(v[]);
-        return super.begin(attribute);
+        super.begin(attribute);
+        return this;
     }
 
-    override void aggregateBegin(string typeName, ptrdiff_t length, scope ref Serializable serializable)
+    override BinarySerializer end(scope ref Serializable attribute)
+    {
+        super.end(attribute);
+        return this;
+    }
+
+    final override void aggregateBegin(string typeName, ptrdiff_t length, scope ref Serializable attribute)
     {
         buffer.put(SerializerDataType.aggregateBegin);
         BinaryIntCoder.encodeInt!BinaryLengthType(buffer, length);
-        super.aggregateBegin(typeName, length, serializable);
+        super.aggregateBegin(typeName, length, attribute);
     }
 
-    override void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable serializable)
+    final override void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable attribute)
     {
         buffer.put(SerializerDataType.aggregateEnd);
-        super.aggregateEnd(typeName, length, serializable);
+        super.aggregateEnd(typeName, length, attribute);
     }
 
-    override void arrayBegin(string elemTypeName, ptrdiff_t length, scope ref Serializable serializable)
+    final override void arrayBegin(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
     {
         buffer.put(SerializerDataType.arrayBegin);
         BinaryIntCoder.encodeInt!BinaryLengthType(buffer, length);
-        super.arrayBegin(elemTypeName, length, serializable);
+        super.arrayBegin(elemTypeName, length, attribute);
     }
 
-    override void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable serializable)
+    final override void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
     {
         buffer.put(SerializerDataType.arrayEnd);
-        super.arrayEnd(elemTypeName, length, serializable);
+        super.arrayEnd(elemTypeName, length, attribute);
     }
 
     final override void write(Null, scope ref Serializable)
@@ -576,8 +583,9 @@ public:
             buffer.put(v);
     }
 
-    final override Serializer writeKey(string key, scope ref Serializable) @trusted
+    final override Serializer writeKey(scope ref Serializable attribute) @trusted
     {
+        auto key = attribute.name;
         buffer.put(SerializerDataType.charsKey);
         BinaryIntCoder.encodeInt!BinaryLengthType(buffer, key.length);
         if (key.length)
@@ -585,9 +593,9 @@ public:
         return this;
     }
 
-    final override Serializer writeKeyId(string key, scope ref Serializable attribute)
+    final override Serializer writeKeyId(scope ref Serializable attribute)
     {
-        return writeKey(key, attribute);
+        return writeKey(attribute);
     }
 
 public:

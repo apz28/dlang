@@ -11,13 +11,13 @@
 
 module pham.db.db_mydatabase;
 
-import std.array : Appender;
 import std.conv : text, to;
 import std.system : Endian;
 
 debug(debug_pham_db_db_mydatabase) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
+import pham.utl.utl_array : Appender;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_enum_set;
 import pham.utl.utl_object : VersionString;
@@ -92,15 +92,12 @@ public:
         scope (exit)
             planReader.dispose();
 
-        size_t lines = 0;
-        Appender!string result;
-        result.reserve(1_000);
+        auto result = Appender!string(1_000);
         while (planReader.read())
         {
-            if (lines)
+            if (result.length)
                 result.put('\n');
             result.put(planReader.getValue!string(0));
-            lines++;
         }
         return result.data;
     }
@@ -151,8 +148,7 @@ protected:
             }
         }
 
-        Appender!string result;
-        result.reserve(500);
+        auto result = Appender!string(500);
         result.put("CALL ");
         result.put('`');
         result.put(storedProcedureName);
@@ -178,7 +174,8 @@ protected:
             addInputNameCount++;
         }
 
-        Appender!string outputNames;
+        auto outputNames = Appender!string(500);
+        
         size_t addOutputNameCount;
         void addOutputName(string name) nothrow @safe
         {
@@ -200,8 +197,6 @@ protected:
         }
         else
         {
-            outputNames.reserve(300);
-
             if (hasParameters)
             {
                 foreach (param; parameters)
@@ -378,14 +373,10 @@ protected:
         column.baseTableName = myField.useTableName();
         column.baseTypeId = myField.typeId;
         column.allowNull = myField.allowNull;
+        column.type = myField.dbType();
+        column.size = myField.dbTypeSize();
 
-        if (isNew || column.type == DbType.unknown)
-        {
-            column.type = myField.dbType();
-            column.size = myField.dbTypeSize();
-        }
-
-        auto f = cast(DbField)column;
+        auto f = cast(DbColumn)column;
         if (f !is null)
         {
             f.isKey = myField.isPrimaryKey;
@@ -518,7 +509,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = myConnection.protocol;
-        return protocol.readValues(rowPackage, this, cast(MyFieldList)fields);
+        return protocol.readValues(rowPackage, this, cast(MyColumnList)fields);
     }
 
     override void removeReaderCompleted(const(bool) implicitTransaction) nothrow @safe
@@ -1018,6 +1009,26 @@ public:
         return myValidConnectionParameterNames;
     }
 
+    override DbColumn createColumn(DbCommand command, DbIdentitier name) nothrow
+    in
+    {
+        assert((cast(MyCommand)command) !is null);
+    }
+    do
+    {
+        return new MyColumn(cast(MyCommand)command, name);
+    }
+
+    override DbColumnList createColumnList(DbCommand command) nothrow
+    in
+    {
+        assert(cast(MyCommand)command !is null);
+    }
+    do
+    {
+        return new MyColumnList(cast(MyCommand)command);
+    }
+
     override DbCommand createCommand(DbConnection connection,
         string name = null) nothrow
     in
@@ -1085,26 +1096,6 @@ public:
         return new MyConnectionStringBuilder(this, connectionString);
     }
 
-    override DbField createField(DbCommand command, DbIdentitier name) nothrow
-    in
-    {
-        assert((cast(MyCommand)command) !is null);
-    }
-    do
-    {
-        return new MyField(cast(MyCommand)command, name);
-    }
-
-    override DbFieldList createFieldList(DbCommand command) nothrow
-    in
-    {
-        assert(cast(MyCommand)command !is null);
-    }
-    do
-    {
-        return new MyFieldList(cast(MyCommand)command);
-    }
-
     override DbParameter createParameter(DbIdentitier name) nothrow
     {
         return new MyParameter(this, name);
@@ -1132,7 +1123,7 @@ public:
     }
 }
 
-class MyField : DbField
+class MyColumn : DbColumn
 {
 public:
     this(MyCommand command, DbIdentitier name) nothrow pure @safe
@@ -1140,11 +1131,11 @@ public:
         super(command, name);
     }
 
-    final override DbField createSelf(DbCommand command) nothrow @safe
+    final override DbColumn createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
-            ? database.createField(cast(MyCommand)command, name)
-            : new MyField(cast(MyCommand)command, name);
+            ? database.createColumn(cast(MyCommand)command, name)
+            : new MyColumn(cast(MyCommand)command, name);
     }
 
     final override DbFieldIdType isValueIdType() const nothrow @safe
@@ -1158,7 +1149,7 @@ public:
     }
 }
 
-class MyFieldList: DbFieldList
+class MyColumnList: DbColumnList
 {
 public:
     this(MyCommand command) nothrow pure @safe
@@ -1166,11 +1157,11 @@ public:
         super(command);
     }
 
-    final override DbField create(DbCommand command, DbIdentitier name) nothrow @safe
+    final override DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe
     {
         return database !is null
-            ? database.createField(cast(MyCommand)command, name)
-            : new MyField(cast(MyCommand)command, name);
+            ? database.createColumn(cast(MyCommand)command, name)
+            : new MyColumn(cast(MyCommand)command, name);
     }
 
     @property final MyCommand myCommand() nothrow pure @safe
@@ -1179,11 +1170,11 @@ public:
     }
 
 protected:
-    final override DbFieldList createSelf(DbCommand command) nothrow @safe
+    final override DbColumnList createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
-            ? database.createFieldList(cast(MyCommand)command)
-            : new MyFieldList(cast(MyCommand)command);
+            ? database.createColumnList(cast(MyCommand)command)
+            : new MyColumnList(cast(MyCommand)command);
     }
 }
 

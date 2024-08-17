@@ -47,7 +47,7 @@ ResultIf!(Char[]) decodeFormValue(Char)(return Char[] encodedFormValue,
     const(Char) invalidReplacementChar = '?') pure
 if (isSomeChar!Char)
 {
-    import std.array : Appender;
+    import pham.utl.utl_array : Appender;
     import pham.utl.utl_numeric_parser : NumericParsedKind, parseHexDigits;
 
     if (encodedFormValue.simpleIndexOfAny("%+") < 0)
@@ -56,8 +56,7 @@ if (isSomeChar!Char)
     Char[] firstErrorText;
     ptrdiff_t firstErrorIndex = -1;
 
-    Appender!(Char[]) result;
-    result.reserve(encodedFormValue.length);
+    auto result = Appender!(Char[])(encodedFormValue.length);
 
     size_t i = 0;
     while (i < encodedFormValue.length)

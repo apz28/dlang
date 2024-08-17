@@ -11,12 +11,11 @@
 
 module pham.xml.xml_writer;
 
-import std.array : Appender;
 import std.range.primitives : back, empty, front, popFront;
 import std.typecons : Flag, No, Yes;
 
 debug(debug_pham_xml_xml_writer) import std.stdio : writeln;
-
+import pham.utl.utl_array : Appender;
 import pham.xml.xml_buffer;
 import pham.xml.xml_message;
 import pham.xml.xml_object;
@@ -474,9 +473,9 @@ public:
     {
         this._prettyOutput = prettyOutput;
         this._maxBufferSize = 1024 * max(bufferKSize, 8);
-        _buffer.reserve(_maxBufferSize);
+        this._buffer.reserve(_maxBufferSize);
         this._fileName = fileName;
-        fileHandle.open(fileName, "wb");
+        this.fileHandle.open(fileName, "wb");
     }
 
     ~this()

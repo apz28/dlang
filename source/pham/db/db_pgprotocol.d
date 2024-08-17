@@ -16,9 +16,9 @@ import std.ascii : LetterCase;
 import std.conv : to;
 import std.string : indexOf, lastIndexOf, representation;
 import std.system : Endian;
+import std.traits : Unqual;
 
 debug(debug_pham_db_db_pgprotocol) import std.stdio : writeln;
-
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_enum_set : toName;
@@ -745,7 +745,7 @@ public:
         assert(0, toName!DbType(dbType));
     }
 
-    final DbRowValue readValues(ref PgReader reader, PgCommand command, PgFieldList fields)
+    final DbRowValue readValues(ref PgReader reader, PgCommand command, PgColumnList fields)
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
         version(profile) debug auto p = PerfFunction.create();
@@ -1004,15 +1004,15 @@ protected:
                 case DbType.uuid:
                     return describeValueArray!UUID(writer, column, value, PgOIdType.uuid);
                 case DbType.stringFixed:
-                    return describeValueArray!string(writer, column, value, PgOIdType.bpchar);
+                    return describeValueArray!(const(char)[])(writer, column, value, PgOIdType.bpchar);
                 case DbType.stringVary:
-                    return describeValueArray!string(writer, column, value, PgOIdType.varchar);
+                    return describeValueArray!(const(char)[])(writer, column, value, PgOIdType.varchar);
                 case DbType.json:
-                    return describeValueArray!string(writer, column, value, PgOIdType.json);
+                    return describeValueArray!(const(char)[])(writer, column, value, PgOIdType.json);
                 case DbType.xml:
-                    return describeValueArray!string(writer, column, value, PgOIdType.xml);
+                    return describeValueArray!(const(char)[])(writer, column, value, PgOIdType.xml);
                 case DbType.text:
-                    return describeValueArray!string(writer, column, value, PgOIdType.text);
+                    return describeValueArray!(const(char)[])(writer, column, value, PgOIdType.text);
                 case DbType.binaryFixed:
                 case DbType.binaryVary:
                     return describeValueArray!(const(ubyte)[])(writer, column, value, PgOIdType.bytea);
@@ -1090,7 +1090,7 @@ protected:
             case DbType.text:
             case DbType.json:
             case DbType.xml:
-                return valueWriter.writeChars(value.get!string());
+                return valueWriter.writeChars(value.get!(const(char)[])());
             case DbType.binaryFixed:
             case DbType.binaryVary:
                 return valueWriter.writeBytes(value.get!(const(ubyte)[])());
@@ -1127,6 +1127,8 @@ protected:
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(column.name=", column.name, ", elementOid=", elementOid, ")");
 
+        alias UT = Unqual!T;
+        
         auto values = value.get!(T[])();
         const int32 length = cast(int32)values.length;
         auto valueWriter = PgXdrWriter(connection, writer.buffer);
@@ -1141,55 +1143,55 @@ protected:
 
         foreach (i; 0..length)
         {
-            static if (is(T == bool))
+            static if (is(UT == bool))
                 valueWriter.writeBool(values[i]);
-            else static if (is(T == int8))
+            else static if (is(UT == int8))
                 valueWriter.writeInt16(values[i]);
-            else static if (is(T == int16))
+            else static if (is(UT == int16))
                 valueWriter.writeInt16(values[i]);
-            else static if (is(T == int32))
+            else static if (is(UT == int32))
                 valueWriter.writeInt32(values[i]);
-            else static if (is(T == int64))
+            else static if (is(UT == int64))
                 valueWriter.writeInt64(values[i]);
-            else static if (is(T == Decimal32) || is(T == Decimal64) || is(T == Decimal128))
+            else static if (is(UT == Decimal32) || is(UT == Decimal64) || is(UT == Decimal128))
                 valueWriter.writeDecimal!T(values[i], column.baseType);
-            else static if (is(T == float32))
+            else static if (is(UT == float32))
                 valueWriter.writeFloat32(values[i]);
-            else static if (is(T == float64))
+            else static if (is(UT == float64))
                 valueWriter.writeFloat64(values[i]);
-            else static if (is(T == Date))
+            else static if (is(UT == Date))
                 valueWriter.writeDate(values[i]);
-            else static if (is(T == DbDateTime))
+            else static if (is(UT == DbDateTime))
             {
                 if (elementOid == PgOIdType.timestamptz)
                     valueWriter.writeDateTimeTZ(values[i]);
                 else
                     valueWriter.writeDateTime(values[i]);
             }
-            else static if (is(T == DbTime))
+            else static if (is(UT == DbTime))
             {
                 if (elementOid == PgOIdType.timetz)
                     valueWriter.writeTimeTZ(values[i]);
                 else
                     valueWriter.writeTime(values[i]);
             }
-            else static if (is(T == UUID))
+            else static if (is(UT == UUID))
                 valueWriter.writeUUID(values[i]);
-            else static if (is(T == string))
+            else static if (is(UT == string) || is(T == const(char)[]))
                 valueWriter.writeChars(values[i]);
-            else static if (is(T == ubyte[]) || is(T == const(ubyte)[]))
+            else static if (is(UT == ubyte[]) || is(T == const(ubyte)[]))
                 valueWriter.writeBytes(values[i]);
-            else static if (is(T == PgOIdInterval))
+            else static if (is(UT == PgOIdInterval))
                 valueWriter.writeInterval(values[i]);
-            else static if (is(T == DbGeoBox))
+            else static if (is(UT == DbGeoBox))
                 valueWriter.writeGeoBox(values[i]);
-            else static if (is(T == DbGeoCircle))
+            else static if (is(UT == DbGeoCircle))
                 valueWriter.writeGeoCircle(values[i]);
-            else static if (is(T == DbGeoPath))
+            else static if (is(UT == DbGeoPath))
                 valueWriter.writeGeoPath(values[i]);
-            else static if (is(T == DbGeoPolygon))
+            else static if (is(UT == DbGeoPolygon))
                 valueWriter.writeGeoPolygon(values[i]);
-            else static if (is(T == DbGeoPoint))
+            else static if (is(UT == DbGeoPoint))
                 valueWriter.writeGeoPoint(values[i]);
             else
                 static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);

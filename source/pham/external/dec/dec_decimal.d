@@ -6072,7 +6072,7 @@ do
 
 D scaleFrom(T, D)(auto const ref T value, const(int) scale,
     const(RoundingMode) roundingMode = RoundingMode.banking) pure @safe
-if (isDecimal!D && (is(T == short) || is(T == int) || is(T == long)))
+if (isDecimal!D && (is(Unqual!T == short) || is(Unqual!T == int) || is(Unqual!T == long)))
 in
 {
     assert(isValidScale!D(scale));
@@ -7818,9 +7818,10 @@ if (isFloatingPoint!F && isAnyUnsignedBit!T)
 
 int realFloatPrecision(F)(const(int) precision) @nogc nothrow pure @safe
 {
-    static if (is(F == float))
+    alias UF = Unqual!F;
+    static if (is(UF == float))
         return precision == 0 ? 9 : (precision > 9 ? 9 : precision);
-    else static if (is(F == double))
+    else static if (is(UF == double))
         return precision == 0 ? 17 : (precision > 17 ? 17 : precision);
     else
         return precision == 0 ? 21 : (precision > 21 ? 21 : precision);

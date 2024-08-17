@@ -13,7 +13,7 @@ module pham.ser.ser_std_uuid;
 
 import std.uuid : parseUUID, UUID;
 import pham.ser.ser_serialization : asciiCaseInplace, DataKind,
-    Deserializer, DSeserializer, Serializable, Serializer,
+    Deserializer, DSSerializer, Serializable, Serializer,
     SerializerDataFormat;
 
 @safe:
@@ -38,10 +38,10 @@ void serialize(Serializer serializer, scope ref UUID value, scope ref Serializab
     final switch (serializer.dataFormat)
     {
         case SerializerDataFormat.text:
-            const characterCaseFormat = serializer.binaryFormat(attribute).characterCaseFormat;
+            const characterCase = serializer.binaryFormat(attribute).characterCase;
             char[36] text = void;
             value.toString(text[]);
-            serializer.write(asciiCaseInplace(text[], characterCaseFormat)[], attribute, DataKind.uuid);
+            serializer.write(asciiCaseInplace(text[], characterCase)[], attribute, DataKind.uuid);
             return;
         case SerializerDataFormat.binary:
             serializer.write(value.data[], attribute, DataKind.uuid);
@@ -78,7 +78,7 @@ private:
 
 shared static this() nothrow @safe
 {
-    DSeserializer.register!UUID(&serializeUUID, &deserializeUUID);
+    DSSerializer.register!UUID(&serializeUUID, &deserializeUUID);
 }
 
 void deserializeUUID(Deserializer deserializer, scope void* value, scope ref Serializable attribute) @trusted
