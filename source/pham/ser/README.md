@@ -1,5 +1,5 @@
 Samples
-
+```D
     enum UnitTestEnum
     {
         first,
@@ -458,3 +458,4 @@ Database
         foreach(i; 0..cs.length)
             cs[i].assertValuesArray(i);
     }
+```
