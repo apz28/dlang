@@ -309,12 +309,12 @@ public:
     }
     do
     {
-        const fbType = FbIscFieldInfo.fbType(baseType.typeId);
+        const fbType = FbIscColumnInfo.fbType(baseType.typeId);
         const writeTypeFor = fbType == FbIscType.sql_null
             ? FbBlrWriteType.null_
             : (fbType == FbIscType.sql_array ? FbBlrWriteType.array : FbBlrWriteType.base);
 
-        writeType(FbIscFieldInfo.fbTypeToBlrType(fbType), baseType, writeTypeFor, descriptor);
+        writeType(FbIscColumnInfo.fbTypeToBlrType(fbType), baseType, writeTypeFor, descriptor);
 
 	    _writer.writeUInt8(FbBlrType.blr_short);
 	    _writer.writeUInt8(0);
@@ -820,7 +820,7 @@ public:
     D readDecimal(D)(scope const(DbBaseTypeInfo) baseType)
     if (isDecimal!D)
     {
-		switch (FbIscFieldInfo.fbType(baseType.typeId))
+		switch (FbIscColumnInfo.fbType(baseType.typeId))
 		{
 			case FbIscType.sql_short:
 				return scaleFrom!(int16, D)(readInt16(), baseType.numericScale);
@@ -1208,7 +1208,7 @@ public:
     void writeDecimal(D)(scope const(D) v, scope const(DbBaseTypeInfo) baseType)
     if (isDecimal!D)
     {
-		switch (FbIscFieldInfo.fbType(baseType.typeId))
+		switch (FbIscColumnInfo.fbType(baseType.typeId))
 		{
 			case FbIscType.sql_short:
 				return writeInt16(scaleTo!(D, int16)(v, baseType.numericScale));

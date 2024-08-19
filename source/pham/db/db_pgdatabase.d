@@ -568,7 +568,7 @@ private:
         commandText.put(')');
 
         auto result = pgConnection.createCommandText(commandText.data);
-        PgOIdFieldInfo info;
+        PgOIdColumnInfo info;
         foreach (ref argument; arguments)
         {
             info.type = argument.type;
@@ -583,7 +583,7 @@ private:
 
         auto result = pgConnection.createCommand(storedProcedureName);
         result.commandStoredProcedure = storedProcedureName;
-        PgOIdFieldInfo info;
+        PgOIdColumnInfo info;
         foreach (ref argument; arguments)
         {
             info.type = argument.type;
@@ -951,57 +951,57 @@ protected:
             deallocateHandle();
     }
 
-    static void fillNamedColumn(DbNameColumn column, const ref PgOIdFieldInfo oidField, const(bool) isNew) nothrow @safe
+    static void fillNamedColumn(DbNameColumn column, const ref PgOIdColumnInfo oidColumn, const(bool) isNew) nothrow @safe
     {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(oidField=", oidField.traceString(), ")");
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(oidColumn=", oidColumn.traceString(), ")");
 
-        column.baseName = oidField.name;
-        column.baseNumericDigits = oidField.numericPrecision;
-        column.baseNumericScale = oidField.numericScale;
-        column.baseSize = oidField.size;
-        column.baseTableId = oidField.tableOid;
-        column.baseTypeId = oidField.type;
-        column.baseSubTypeId = oidField.modifier;
-        column.allowNull = oidField.allowNull;
-        column.ordinal = oidField.ordinal;
-        column.type = oidField.dbType();
-        column.size = oidField.dbTypeSize();
+        column.baseName = oidColumn.name;
+        column.baseNumericDigits = oidColumn.numericPrecision;
+        column.baseNumericScale = oidColumn.numericScale;
+        column.baseSize = oidColumn.size;
+        column.baseTableId = oidColumn.tableOid;
+        column.baseTypeId = oidColumn.type;
+        column.baseSubTypeId = oidColumn.modifier;
+        column.allowNull = oidColumn.allowNull;
+        column.ordinal = oidColumn.ordinal;
+        column.type = oidColumn.dbType();
+        column.size = oidColumn.dbTypeSize();
     }
 
-    final void processBindResponse(scope PgOIdFieldInfo[] oidFieldInfos) @safe
+    final void processBindResponse(scope PgOIdColumnInfo[] oidColumnInfos) @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
-        if (oidFieldInfos.length == 0)
+        if (oidColumnInfos.length == 0)
             return;
 
         const localIsStoredProcedure = isStoredProcedure;
         auto localParameters = localIsStoredProcedure ? parameters : null;
         if (localIsStoredProcedure)
-            localParameters.reserve(oidFieldInfos.length);
-        auto localFields = fields;
-        localFields.reserve(oidFieldInfos.length);
-        foreach (i, ref oidField; oidFieldInfos)
+            localParameters.reserve(oidColumnInfos.length);
+        auto localColumns = columns;
+        localColumns.reserve(oidColumnInfos.length);
+        foreach (i, ref oidColumn; oidColumnInfos)
         {
-            auto newField = localFields.create(this, oidField.name);
-            fillNamedColumn(newField, oidField, true);
-            localFields.put(newField);
+            auto newColumn = localColumns.create(this, oidColumn.name);
+            fillNamedColumn(newColumn, oidColumn, true);
+            localColumns.put(newColumn);
 
             if (localIsStoredProcedure)
             {
-                auto foundParameter = localParameters.hasOutput(newField.name, i);
+                auto foundParameter = localParameters.hasOutput(newColumn.name, i);
                 if (foundParameter is null)
                 {
-                    auto newParameter = localParameters.create(newField.name);
+                    auto newParameter = localParameters.create(newColumn.name);
                     newParameter.direction = DbParameterDirection.output;
-                    fillNamedColumn(newParameter, oidField, true);
+                    fillNamedColumn(newParameter, oidColumn, true);
                     localParameters.put(newParameter);
                 }
                 else
                 {
-                    if (foundParameter.name.length == 0 && newField.name.length != 0)
-                        foundParameter.updateEmptyName(newField.name);
-                    fillNamedColumn(foundParameter, oidField, false);
+                    if (foundParameter.name.length == 0 && newColumn.name.length != 0)
+                        foundParameter.updateEmptyName(newColumn.name);
+                    fillNamedColumn(foundParameter, oidColumn, false);
                 }
             }
         }
@@ -1013,7 +1013,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = pgConnection.protocol;
-        return protocol.readValues(reader, this, cast(PgColumnList)fields);
+        return protocol.readValues(reader, this, cast(PgColumnList)columns);
     }
 }
 
@@ -1246,7 +1246,7 @@ ORDER BY oid
 
         if (reader.hasRows() && reader.read())
         {
-            PgOIdFieldInfo info;
+            PgOIdColumnInfo info;
 
             result = new PgStoredProcedureInfo(cast(PgDatabase)database, storedProcedureName);
 
@@ -1509,9 +1509,9 @@ public:
             : new PgColumn(cast(PgCommand)command, name);
     }
 
-    final override DbFieldIdType isValueIdType() const nothrow @safe
+    final override DbColumnIdType isValueIdType() const nothrow @safe
     {
-        return PgOIdFieldInfo.isValueIdType(baseTypeId, baseSubTypeId);
+        return PgOIdColumnInfo.isValueIdType(baseTypeId, baseSubTypeId);
     }
 
     @property final PgCommand pgCommand() nothrow pure @safe
@@ -1557,9 +1557,9 @@ public:
         super(database, name);
     }
 
-    final override DbFieldIdType isValueIdType() const nothrow @safe
+    final override DbColumnIdType isValueIdType() const nothrow @safe
     {
-        return PgOIdFieldInfo.isValueIdType(baseTypeId, baseSubTypeId);
+        return PgOIdColumnInfo.isValueIdType(baseTypeId, baseSubTypeId);
     }
 
 protected:
@@ -1737,7 +1737,7 @@ shared static this() nothrow @safe
 
 version(UnitTestPGDatabase)
 {
-    PgConnection createTestConnection(
+    PgConnection createUnitTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
         DbCompressConnection compress = DbCompressConnection.disabled)
     {
@@ -1916,7 +1916,7 @@ unittest // PgConnection
 {
     import std.stdio : writeln; writeln("UnitTestPGDatabase.PgConnection"); // For first unittest
     
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     assert(connection.state == DbConnectionState.closed);
@@ -1931,7 +1931,7 @@ unittest // PgConnection
 version(UnitTestPGDatabase)
 unittest // PgConnection.serverVersion
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -1943,7 +1943,7 @@ unittest // PgConnection.serverVersion
 version(UnitTestPGDatabase)
 unittest // PgTransaction
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -1976,7 +1976,7 @@ unittest // PgTransaction
 version(UnitTestPGDatabase)
 unittest // PgTransaction.savePoint
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -1996,7 +1996,7 @@ unittest // PgTransaction.savePoint
 version(UnitTestPGDatabase)
 unittest // PgCommand.DDL
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2017,7 +2017,7 @@ unittest // PgCommand.DML - Simple select
 {
     import std.math;
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2036,7 +2036,7 @@ unittest // PgCommand.DML - Simple select
 version(UnitTestPGDatabase)
 unittest // PgCommand.DML - Parameter select
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2062,7 +2062,7 @@ unittest // PgCommand.DML - Parameter select
 version(UnitTestPGDatabase)
 unittest // PgCommand.DML.pg_proc
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2103,7 +2103,7 @@ ORDER BY pg_proc.proname
 version(UnitTestPGDatabase)
 unittest // PgLargeBlob
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2156,7 +2156,7 @@ unittest // PgCommand.DML - Array
         return [1,2,3,4,5,6,7,8,9,10];
     }
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2232,7 +2232,7 @@ unittest // PgCommand.getExecutionPlan
         return s;
     }
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2274,7 +2274,7 @@ unittest // PgCommand.DML.StoredProcedure
 {
     import std.conv : to;
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2313,7 +2313,7 @@ unittest // PgCommand.DML.StoredProcedure
 version(UnitTestPGDatabase)
 unittest // PgCommand.DML.StoredProcedure & Parameter select
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2347,7 +2347,7 @@ unittest // PgCommand.DML.StoredProcedure & Parameter select
 version(UnitTestPGDatabase)
 unittest // PgConnection(SSL)
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     assert(connection.state == DbConnectionState.closed);
@@ -2500,7 +2500,7 @@ version(UnitTestPerfPGDatabase)
             }
         }
 
-        auto connection = createTestConnection();
+        auto connection = createUnitTestConnection();
         scope (exit)
             connection.dispose();
         connection.open();
@@ -2543,7 +2543,7 @@ unittest // PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
 version(UnitTestPGDatabase)
 unittest // PgConnection.DML.execute...
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();

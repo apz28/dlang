@@ -18,7 +18,7 @@ public import std.ascii : newline;
 import std.conv : to;
 import std.format : format;
 import std.range.primitives : isOutputRange;
-import std.traits : FieldNameTuple;
+import std.traits : FieldNameTuple, Unqual;
 import std.typecons : Flag, No, Yes;
 
 debug(debug_pham_db_db_database) import pham.db.db_debug;
@@ -170,15 +170,18 @@ public:
         return _connection !is null ? _connection.canTraceLog() : null;
     }
 
-    final typeof(this) clearFields() nothrow @safe
+    final typeof(this) clearColumns() nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        if (_fields !is null)
-            _fields.clear();
+        if (_columns !is null)
+            _columns.clear();
 
         return this;
     }
+
+    deprecated("please use clearColumns")
+    alias clearFields = clearColumns;
 
     final typeof(this) clearParameters() nothrow @safe
     {
@@ -251,7 +254,7 @@ public:
     /**
      * Fetch and return a row for executed statement or stored procedure
      * Params:
-     *  isScalar = When true, all fields must resolved to actual data (not its underline id)
+     *  isScalar = When true, all columns must resolved to actual data (not its underline id)
      * Returns:
      *  A row being requested. Incase of no result left to be returned,
      *  a DbRowValue with zero column-length being returned.
@@ -519,23 +522,29 @@ public:
     }
 
     /**
-     * Returns number of defining fields of this DbCommand
+     * Returns number of defining columns of this DbCommand
      */
-    @property final size_t fieldCount() const nothrow @safe
+    @property final size_t columnCount() const nothrow @safe
     {
-        return _fields !is null ? _fields.length : 0;
+        return _columns !is null ? _columns.length : 0;
     }
+
+    deprecated("please use columnCount")
+    alias fieldCount = columnCount;
 
     /**
      * Gets DbColumnList of this DbCommand
      */
-    @property final DbColumnList fields() nothrow @safe
+    @property final DbColumnList columns() nothrow @safe
     {
-        if (_fields is null)
-            _fields = database.createColumnList(this);
+        if (_columns is null)
+            _columns = database.createColumnList(this);
 
-        return _fields;
+        return _columns;
     }
+
+    deprecated("please use columns")
+    alias fields = columns;
 
     @property final bool getExecutionPlanning() const nothrow @safe
     {
@@ -926,10 +935,10 @@ protected:
                 log.errorf("%s.command.doDispose() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
         }
 
-        if (_fields !is null)
+        if (_columns !is null)
         {
-            version(none) _fields.dispose(disposingReason);
-            _fields = null;
+            version(none) _columns.dispose(disposingReason);
+            _columns = null;
         }
 
         if (_parameters !is null)
@@ -992,7 +1001,7 @@ protected:
 
     bool isSelectCommandType() const nothrow @safe
     {
-        return fieldCount != 0 && !isStoredProcedure;
+        return columnCount != 0 && !isStoredProcedure;
     }
 
     final void mergeOutputParams(ref DbRowValue values) @safe
@@ -1158,8 +1167,8 @@ protected:
             _executedCount = 0;
         else
             _executedCount++;
-        if (_fields !is null)
-            _fields.resetNewStatement(kind);
+        if (_columns !is null)
+            _columns.resetNewStatement(kind);
         if (_parameters !is null)
             _parameters.resetNewStatement(kind);
     }
@@ -1171,7 +1180,7 @@ protected:
         if (prepared)
             unprepare();
 
-        clearFields();
+        clearColumns();
         clearParameters();
         _executeCommandText = null;
         _commandText = commandText;
@@ -1235,8 +1244,8 @@ protected:
     abstract void doUnprepare() @safe;
 
 protected:
+    DbColumnList _columns;
     DbConnection _connection;
-    DbColumnList _fields;
     DbParameterList _parameters;
     DbTransaction _transaction;
     string _commandText, _executeCommandText;
@@ -1419,6 +1428,23 @@ public:
         return result;
     }
 
+    /// Returns true if create, false otherwise
+    final bool createTableOrEmpty(string tableName, string createCommandText, string schema = null) @safe
+    {
+        if (existTable(tableName, schema))
+        {
+            executeNonQuery("delete from " ~ combineSymbol(schema, tableName));
+            return false;
+        }
+
+        auto command = createCommandDDL(createCommandText);
+        scope (exit)
+            command.dispose();
+
+        command.executeNonQuery();
+        return true;
+    }
+
     final DbTransaction createTransaction(DbIsolationLevel isolationLevel = DbIsolationLevel.readCommitted) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
@@ -1442,38 +1468,121 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
         checkActive();
+
         auto command = createCommandText(commandText);
         scope (exit)
             command.dispose();
 
-        command.parametersCheck = commandParameters !is null;
-        if (commandParameters !is null)
+        const isParameters = commandParameters !is null && commandParameters.length != 0;
+        command.parametersCheck = isParameters;
+        if (isParameters)
             command.parameters.assign(commandParameters);
-            
+
         return command.executeNonQuery();
     }
 
-    final DbReader executeReader(string commandText) @safe
+    final DbReader executeReader(string commandText, DbParameterList commandParameters = null) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
         checkActive();
+
         auto command = createCommandText(commandText);
-        command.parametersCheck = false;
+
+        const isParameters = commandParameters !is null && commandParameters.length != 0;
+        command.parametersCheck = isParameters;
+        if (isParameters)
+            command.parameters.assign(commandParameters);
+
         return command.executeReaderImpl(true);
     }
 
-    final DbValue executeScalar(string commandText) @safe
+    final DbValue executeScalar(string commandText, DbParameterList commandParameters = null) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
         checkActive();
+
         auto command = createCommandText(commandText);
         scope (exit)
             command.dispose();
 
-        command.parametersCheck = false;
+        const isParameters = commandParameters !is null && commandParameters.length != 0;
+        command.parametersCheck = isParameters;
+        if (isParameters)
+            command.parameters.assign(commandParameters);
+
         return command.executeScalar();
+    }
+
+    final bool existFunction(string functionName, string schema = null) @safe
+    {
+        return existRoutine(functionName, "FUNCTION", schema);
+    }
+
+    /**
+     * Params:
+     *   routineName = a function or stored-procedure name
+     *   type = FUNCTION or PROCEDURE
+     */
+    bool existRoutine(string routineName, string type, string schema = null) @safe
+    {
+        static immutable string SQL = "select 1" ~
+            " from INFORMATION_SCHEMA.ROUTINES" ~
+            " where ROUTINE_NAME = @routineName and ROUTINE_TYPE = @type";
+        static immutable string SQLSchema = "select 1" ~
+            " from INFORMATION_SCHEMA.ROUTINES" ~
+            " where ROUTINE_NAME = @routineName and ROUTINE_TYPE = @type and ROUTINE_SCHEMA = @schema";
+
+        auto parameters = database.createParameterList();
+        parameters.add("routineName", DbType.stringVary, Variant(routineName));
+        parameters.add("type", DbType.stringVary, Variant(type));
+        if (schema.length)
+            parameters.add("schema", DbType.stringVary, Variant(schema));
+
+        auto r = executeScalar(schema.length ? SQLSchema : SQL, parameters);
+        return !r.isNull && r.value == 1;
+    }
+
+    final bool existStoredProcedure(string storedProcedureName, string schema = null) @safe
+    {
+        return existRoutine(storedProcedureName, "PROCEDURE", schema);
+    }
+
+    bool existTable(string tableName, string schema = null) @safe
+    {
+        static immutable string SQL = "select 1" ~
+            " from INFORMATION_SCHEMA.TABLES" ~
+            " where TABLE_NAME = @tableName";
+        static immutable string SQLSchema = "select 1" ~
+            " from INFORMATION_SCHEMA.TABLES" ~
+            " where TABLE_NAME = @tableName and TABLE_SCHEMA = @schema";
+
+        auto parameters = database.createParameterList();
+        parameters.add("tableName", DbType.stringVary, Variant(tableName));
+        if (schema.length)
+            parameters.add("schema", DbType.stringVary, Variant(schema));
+
+        auto r = executeScalar(schema.length ? SQLSchema : SQL, parameters);
+        return !r.isNull && r.value == 1;
+    }
+
+    bool existView(string viewName, string schema = null) @safe
+    {
+        static immutable string SQL = "select 1" ~
+            " from INFORMATION_SCHEMA.VIEWS" ~
+            " where TABLE_NAME = @viewName";
+        static immutable string SQLSchema = "select 1" ~
+            " from INFORMATION_SCHEMA.VIEWS" ~
+            " where TABLE_NAME = @viewName and TABLE_SCHEMA = @schema";
+
+        auto parameters = database.createParameterList();
+        parameters.add("viewName", DbType.stringVary, Variant(viewName));
+        if (schema.length)
+            parameters.add("schema", DbType.stringVary, Variant(schema));
+
+        auto r = executeScalar(schema.length ? SQLSchema : SQL, parameters);
+        return !r.isNull && r.value == 1;
     }
 
     final string forCacheKey() const nothrow @safe
@@ -3216,7 +3325,7 @@ public:
 
     deprecated("please use createColumnList")
     alias createFieldList = createColumnList;
-    
+
     final DbColumn createColumn(DbCommand command, string name) nothrow
     {
         DbIdentitier id = DbIdentitier(name);
@@ -3237,87 +3346,105 @@ public:
             return CharClass.any;
     }
 
-    final const(char)[] escapeIdentifier(return const(char)[] value) nothrow pure
+    final T[] escapeIdentifier(T)(return T[] value) nothrow pure
+    if (is(Unqual!T == char))
     {
         if (value.length == 0)
             return value;
 
-        size_t p;
-        dchar cCode;
-        char[encodeUTF8MaxLength] cCodeBuffer;
-        ubyte cCount;
-
         // Find the first quote char
-        while (p < value.length && nextUTF8Char(value, p, cCode, cCount))
-        {
-            if (charClass(cCode) != CharClass.any)
-                break;
-            p += cCount;
-        }
+        const p = escapeStartIndex(value);
 
         // No quote char found?
         if (p >= value.length)
             return value;
 
-        auto result = Appender!string(value.length + 100);
-        if (p)
-            result.put(value[0..p]);
-        while (p < value.length)
+        auto result = Appender!(T[])(value.length + 10);
+        escapeIdentifierImpl(result, value, p);
+        return result.data;
+    }
+
+    private void escapeIdentifierImpl(Writer)(ref Writer writer, scope const(char)[] value, size_t startIndex) nothrow pure
+    {
+        char[encodeUTF8MaxLength] cCodeBuffer;
+        dchar cCode;
+        ubyte cCount;
+
+        if (startIndex)
+            writer.put(value[0..startIndex]);
+
+        while (startIndex < value.length)
         {
-            if (!nextUTF8Char(value, p, cCode, cCount))
+            if (!nextUTF8Char(value, startIndex, cCode, cCount))
                 cCode = replacementChar;
 
             const cc = charClass(cCode);
             if (cc == CharClass.quote)
-                result.put(encodeUTF8(cCodeBuffer, cCode));
+                writer.put(encodeUTF8(cCodeBuffer, cCode));
             else if (cc == CharClass.backslash)
-                result.put('\\');
+                writer.put('\\');
 
-            result.put(encodeUTF8(cCodeBuffer, cCode));
+            writer.put(encodeUTF8(cCodeBuffer, cCode));
 
-            p += cCount;
+            startIndex += cCount;
         }
-        return result.data;
     }
 
-    final const(char)[] escapeString(return const(char)[] value) nothrow pure
+    final T[] escapeString(T)(return T[] value) nothrow pure
+    if (is(Unqual!T == char))
     {
         if (value.length == 0)
             return value;
 
-        size_t p;
-        dchar cCode;
-        char[encodeUTF8MaxLength] cCodeBuffer;
-        ubyte cCount;
-
         // Find the first quote char
-        while (p < value.length && nextUTF8Char(value, p, cCode, cCount))
-        {
-            if (charClass(cCode) != CharClass.any)
-                break;
-            p += cCount;
-        }
+        const p = escapeStartIndex(value);
 
         // No quote char found?
         if (p >= value.length)
             return value;
 
-        auto result = Appender!string(value.length + 100);
-        if (p)
-            result.put(value[0..p]);
-        while (p < value.length)
+        auto result = Appender!(T[])(value.length + 50);
+        escapeStringImpl(result, value, p);
+        return result.data;
+    }
+
+    private void escapeStringImpl(Writer)(ref Writer writer, scope const(char)[] value, size_t startIndex) nothrow pure
+    {
+        char[encodeUTF8MaxLength] cCodeBuffer;
+        dchar cCode;
+        ubyte cCount;
+
+        if (startIndex)
+            writer.put(value[0..startIndex]);
+
+        while (startIndex < value.length)
         {
-            if (!nextUTF8Char(value, p, cCode, cCount))
+            if (!nextUTF8Char(value, startIndex, cCode, cCount))
                 cCode = replacementChar;
 
             if (charClass(cCode) != CharClass.any)
-                result.put('\\');
+                writer.put('\\');
 
-            result.put(encodeUTF8(cCodeBuffer, cCode));
+            writer.put(encodeUTF8(cCodeBuffer, cCode));
 
-            p += cCount;
+            startIndex += cCount;
         }
-        return result.data;
+    }
+
+    private size_t escapeStartIndex(scope const(char)[] value) nothrow pure
+    {
+        char[encodeUTF8MaxLength] cCodeBuffer;
+        dchar cCode;
+        ubyte cCount;
+
+        size_t result;
+        while (result < value.length && nextUTF8Char(value, result, cCode, cCount))
+        {
+            if (charClass(cCode) != CharClass.any)
+                break;
+            result += cCount;
+        }
+        return result;
     }
 
     static string generateCacheKeyStoredProcedure(string storedProcedureName, string databaseCacheKey) nothrow pure
@@ -3325,14 +3452,22 @@ public:
         return storedProcedureName ~ ".StoredProcedure." ~ databaseCacheKey;
     }
 
-    final const(char)[] quoteIdentifier(scope const(char)[] value) pure
+    final string quoteIdentifier(T)(scope const(char)[] value) nothrow pure
     {
-        return identifierQuoteChar ~ escapeIdentifier(value) ~ identifierQuoteChar;
+        auto result = Appender!string(value.length + 10);
+        result.put(identifierQuoteChar);
+        escapeIdentifier(result, value, escapeStartIndex(value));
+        result.put(identifierQuoteChar);
+        return result.data;
     }
 
-    final const(char)[] quoteString(scope const(char)[] value) pure
+    final string quoteString(scope const(char)[] value) nothrow pure
     {
-        return stringQuoteChar ~ escapeString(value) ~ stringQuoteChar;
+        auto result = Appender!string(value.length + 50);
+        result.put(stringQuoteChar);
+        escapeStringImpl(result, value, escapeStartIndex(value));
+        result.put(stringQuoteChar);
+        return result.data;
     }
 
     @property final DbCache!string cache() nothrow pure
@@ -3511,11 +3646,11 @@ class DbNameColumn : DbNameObject
 {
 public:
     /*
-     * Indicates if field value is an external resource id which needs special loading/saving
+     * Indicates if column value is an external resource id which needs special loading/saving
      */
-    DbFieldIdType isValueIdType() const nothrow @safe
+    DbColumnIdType isValueIdType() const nothrow @safe
     {
-        return DbFieldIdType.no;
+        return DbColumnIdType.no;
     }
 
     string traceString() const nothrow @trusted
@@ -3913,8 +4048,8 @@ public:
     final typeof(this) clone(DbCommand command) nothrow @safe
     {
         auto result = createSelf(command);
-        foreach (field; this)
-            result.add(field.clone(command));
+        foreach (column; this)
+            result.add(column.clone(command));
         return result;
     }
 
@@ -4229,10 +4364,10 @@ public:
         sequenceItems.reserve(source.length);
         foreach (e; source)
             addClone(e);
-        
+
         return this;
     }
-    
+
     final DbParameter create(DbIdentitier name) nothrow @safe
     {
         return database !is null
@@ -4463,89 +4598,6 @@ private:
     LastDisposingReason _lastDisposingReason;
 }
 
-ref Writer columnNameString(Writer, List)(return ref Writer writer, List names, const(char)[] separator = ",")
-if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
-{
-    foreach(i, e; names)
-    {
-        if (i)
-            writer.put(separator);
-        writer.put(e.name.value);
-    }
-    return writer;
-}
-
-ref Writer parameterNameString(Writer, List)(return ref Writer writer, List names, const(char)[] separator = ",")
-if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
-{
-    foreach(i, e; names)
-    {
-        if (i)
-            writer.put(separator);
-        writer.put('@');
-        writer.put(e.name.value);
-    }
-    return writer;
-}
-
-ref Writer parameterConditionString(Writer, List)(return ref Writer writer, List names, const(char)[] separator = ",")
-if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
-{
-    uint count;
-    foreach(e; names)
-    {
-        if (!e.isKey)
-            continue;
-            
-        if (count)
-            writer.put(separator);
-        writer.put(e.name.value);
-        writer.put("=@");
-        writer.put(e.name.value);
-        count++;
-    }
-    return writer;
-}
-
-ref Writer parameterUpdateString(Writer, List)(return ref Writer writer, List names, const(char)[] separator = ",")
-if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
-{
-    static if (is(List : DbParameterList))
-        alias DbItem = DbParameter;
-    else
-        alias DbItem = DbColumn;
-    
-    size_t[] keyIndexes;
-    uint count;
-    foreach(i, e; names)
-    {
-        if (e.isKey)
-        {
-            keyIndexes ~= i;
-            continue;
-        }
-            
-        if (count)
-            writer.put(separator);
-        writer.put(e.name.value);
-        writer.put("=@");
-        writer.put(e.name.value);
-        count++;
-    }
-    
-    if (keyIndexes.length)
-    {
-        DbItem[] keyItems;
-        keyItems.reserve(keyIndexes.length);
-        for (auto i = keyIndexes.length; i != 0; i--)
-            keyItems ~= names.remove(keyIndexes[i - 1]);
-        for (auto i = keyItems.length; i != 0; i--)
-            names.put(keyItems[i - 1]);
-    }
-    
-    return writer;
-}
-
 struct DbRAIITransaction
 {
 @safe:
@@ -4638,7 +4690,7 @@ public:
     this(DbCommand command, bool implicitTransaction, bool ownCommand) nothrow @safe
     {
         this._command = command;
-        this._fields = command.fields;
+        this._columns = command.columns;
         this._flags.include(Flag.checkRows);
         this._flags.set(Flag.implicitTransaction, implicitTransaction);
         this._flags.set(Flag.ownCommand, ownCommand);
@@ -4658,15 +4710,15 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        if (_flags.cacheResult && _fields !is null)
+        if (_flags.cacheResult && _columns !is null)
         {
             // If already cloned, skip
-            if (_fields.command !is null)
-                _fields = _fields.clone(null);
+            if (_columns.command !is null)
+                _columns = _columns.clone(null);
         }
         else
         {
-            _fields = null;
+            _columns = null;
             _currentRow.nullify();
         }
 
@@ -4686,7 +4738,7 @@ public:
         if (_command !is null)
             doDetach(isDisposing(disposingReason));
 
-        _fields = null;
+        _columns = null;
         _fetchedCount = 0;
         _flags.include(Flag.allRowsFetched);
         _flags.exclude(Flag.checkRows);
@@ -4714,11 +4766,11 @@ public:
     in
     {
         assert(!_flags.checkRows);
-        assert(fields.indexOfSafe(colName) >= 0);
+        assert(columns.indexOfSafe(colName) >= 0);
     }
     do
     {
-        return getDbValue(fields.indexOfSafe(colName));
+        return getDbValue(columns.indexOfSafe(colName));
     }
 
     /**
@@ -4726,13 +4778,13 @@ public:
      */
     ptrdiff_t getIndex(scope const(DbIdentitier) colName) nothrow @safe
     {
-        return fields.indexOf(colName);
+        return columns.indexOf(colName);
     }
 
     ptrdiff_t getIndex(string colName) nothrow @safe
     {
         auto id = DbIdentitier(colName);
-        return fields.indexOf(id);
+        return columns.indexOf(id);
     }
 
     /**
@@ -4741,11 +4793,11 @@ public:
     string getName(const(size_t) colIndex) nothrow @safe
     in
     {
-        assert(colIndex < fields.length);
+        assert(colIndex < columns.length);
     }
     do
     {
-        return fields[colIndex].name;
+        return columns[colIndex].name;
     }
 
     /**
@@ -4780,11 +4832,11 @@ public:
     in
     {
         assert(!_flags.checkRows);
-        assert(fields.indexOfSafe(colName) >= 0);
+        assert(columns.indexOfSafe(colName) >= 0);
     }
     do
     {
-        return getValue(fields.indexOfSafe(colName));
+        return getValue(columns.indexOfSafe(colName));
     }
 
     bool isNull(const(size_t) colIndex) @safe
@@ -4805,11 +4857,11 @@ public:
     in
     {
         assert(!_flags.checkRows);
-        assert(fields.indexOfSafe(colName) >= 0);
+        assert(columns.indexOfSafe(colName) >= 0);
     }
     do
     {
-        return isNull(fields.indexOfSafe(colName));
+        return isNull(columns.indexOfSafe(colName));
     }
 
     void popFront() @safe
@@ -4873,17 +4925,23 @@ public:
     }
 
     /**
-     * Returns number of defining fields of this DbReader
+     * Returns number of defining columns of this DbReader
      */
-    @property size_t fieldCount() const nothrow @safe
+    @property size_t columnCount() const nothrow @safe
     {
-        return _fields !is null ? _fields.length : 0;
+        return _columns !is null ? _columns.length : 0;
     }
 
-    @property DbColumnList fields() nothrow pure @safe
+    deprecated("please use columnCount")
+    alias fieldCount = columnCount;
+
+    @property DbColumnList columns() nothrow pure @safe
     {
-        return _fields;
+        return _columns;
     }
+
+    deprecated("please use columns")
+    alias fields = columns;
 
     /**
      * Gets a value that indicates whether this DbReader contains one or more rows
@@ -4985,23 +5043,23 @@ private:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(colIndex=", colIndex, ")");
         version(profile) debug auto p = PerfFunction.create();
 
-        auto field = fields[colIndex];
-        final switch (field.isValueIdType())
+        auto column = columns[colIndex];
+        final switch (column.isValueIdType())
         {
-            case DbFieldIdType.no:
+            case DbColumnIdType.no:
                 return _currentRow[colIndex].value;
-            case DbFieldIdType.array:
-                return command.readArray(field, _currentRow[colIndex]);
-            case DbFieldIdType.blob:
-                return Variant(command.readBlob(field, _currentRow[colIndex]));
-            case DbFieldIdType.clob:
-                return Variant(command.readClob(field, _currentRow[colIndex]));
+            case DbColumnIdType.array:
+                return command.readArray(column, _currentRow[colIndex]);
+            case DbColumnIdType.blob:
+                return Variant(command.readBlob(column, _currentRow[colIndex]));
+            case DbColumnIdType.clob:
+                return Variant(command.readClob(column, _currentRow[colIndex]));
         }
     }
 
 private:
     DbCommand _command;
-    DbColumnList _fields;
+    DbColumnList _columns;
     DbRowValue _currentRow;
     size_t _fetchedCount;
     EnumSet!Flag _flags;
@@ -5568,6 +5626,108 @@ private:
 
 mixin DLinkTypes!(DbTransaction) DLinkDbTransactionTypes;
 
+string combineSymbol(string schemaOrTable, string symbol) nothrow pure @safe
+{
+    return schemaOrTable.length ? (schemaOrTable ~ "." ~ symbol) : symbol;
+}
+
+version(none)
+char isQuoted(scope const(char)[] symbol) @nogc nothrow pure @safe
+{
+    if (symbol.length < 2)
+        return '\0';
+
+    const first = symbol[0];
+    return first == symbol[$-1] && (first = '\'' || first = '"') ? first : '\0';
+}
+
+ref Writer columnNameString(Writer, List)(return ref Writer writer, List names,
+    const(char)[] separator = ",")
+if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
+{
+    foreach(i, e; names)
+    {
+        if (i)
+            writer.put(separator);
+        writer.put(e.name.value);
+    }
+    return writer;
+}
+
+ref Writer parameterNameString(Writer, List)(return ref Writer writer, List names,
+    const(char)[] separator = ",")
+if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
+{
+    foreach(i, e; names)
+    {
+        if (i)
+            writer.put(separator);
+        writer.put('@');
+        writer.put(e.name.value);
+    }
+    return writer;
+}
+
+ref Writer parameterConditionString(Writer, List)(return ref Writer writer, List names,
+    const(bool) all = false,
+    const(char)[] separator = ",")
+if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
+{
+    uint count;
+    foreach(e; names)
+    {
+        if (all || e.isKey)
+        {
+            if (count)
+                writer.put(separator);
+            writer.put(e.name.value);
+            writer.put("=@");
+            writer.put(e.name.value);
+            count++;
+        }
+    }
+    return writer;
+}
+
+ref Writer parameterUpdateString(Writer, List)(return ref Writer writer, List names, const(char)[] separator = ",")
+if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
+{
+    static if (is(List : DbParameterList))
+        alias DbItem = DbParameter;
+    else
+        alias DbItem = DbColumn;
+
+    size_t[] keyIndexes;
+    uint count;
+    foreach(i, e; names)
+    {
+        if (e.isKey)
+        {
+            keyIndexes ~= i;
+            continue;
+        }
+
+        if (count)
+            writer.put(separator);
+        writer.put(e.name.value);
+        writer.put("=@");
+        writer.put(e.name.value);
+        count++;
+    }
+
+    if (keyIndexes.length)
+    {
+        DbItem[] keyItems;
+        keyItems.reserve(keyIndexes.length);
+        for (auto i = keyIndexes.length; i != 0; i--)
+            keyItems ~= names.remove(keyIndexes[i - 1]);
+        for (auto i = keyItems.length; i != 0; i--)
+            names.put(keyItems[i - 1]);
+    }
+
+    return writer;
+}
+
 
 // Any below codes are private
 private:
@@ -5601,24 +5761,24 @@ shared static ~this() nothrow
 unittest // columnNameString
 {
     import pham.utl.utl_array : Appender;
-    
+
     auto parameters = new DbParameterList(null);
     parameters.add("colum1", DbType.int32);
     parameters.add("colum2", DbType.int32);
-    
+
     auto buffer = Appender!string(20);
     auto text = buffer.columnNameString(parameters)[];
-    assert(text == "colum1,colum2", text);    
+    assert(text == "colum1,colum2", text);
 }
 
 unittest // parameterNameString
 {
     import pham.utl.utl_array : Appender;
-    
+
     auto parameters = new DbParameterList(null);
     parameters.add("colum1", DbType.int32);
     parameters.add("colum2", DbType.int32);
-    
+
     auto buffer = Appender!string(20);
     auto text = buffer.parameterNameString(parameters)[];
     assert(text == "@colum1,@colum2", text);
@@ -5627,12 +5787,12 @@ unittest // parameterNameString
 unittest // parameterConditionString
 {
     import pham.utl.utl_array : Appender;
-    
+
     auto parameters = new DbParameterList(null);
     parameters.add("colum1", DbType.int32);
     parameters.add("colum2", DbType.int32);
     parameters.add("colum3", DbType.int32).isKey = true;
-    
+
     auto buffer = Appender!string(20);
     auto text = buffer.parameterConditionString(parameters)[];
     assert(text == "colum3=@colum3", text);
@@ -5641,12 +5801,12 @@ unittest // parameterConditionString
 unittest // parameterUpdateString
 {
     import pham.utl.utl_array : Appender;
-    
+
     auto parameters = new DbParameterList(null);
     parameters.add("colum1", DbType.int32);
     parameters.add("colum2", DbType.int32);
     parameters.add("colum3", DbType.int32).isKey = true;
-    
+
     auto buffer = Appender!string(20);
     auto text = buffer.parameterUpdateString(parameters)[];
     assert(text == "colum1=@colum1,colum2=@colum2", text);

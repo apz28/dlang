@@ -449,8 +449,8 @@ public:
         prepareCommandReadHeader(command, result);
         if (result.parameterCount > 0)
             prepareCommandReadParameters(command, result);
-        if (result.fieldCount > 0)
-            prepareCommandReadFields(command, result);
+        if (result.columnCount > 0)
+            prepareCommandReadColumns(command, result);
         return result;
     }
 
@@ -509,17 +509,17 @@ public:
 
         MyCommandResultResponse result;
 
-        result.fieldCount = cast(int32)reader.readLength();
-        if (result.fieldCount == -1)
+        result.columnCount = cast(int32)reader.readLength();
+        if (result.columnCount == -1)
         {
             // Upload local file data....
             //TODO
         }
-        else if (result.fieldCount == 0)
+        else if (result.columnCount == 0)
             result.okResponse = readOkResponse(reader);
         else
         {
-            readCommandResultReadFields(command, result);
+            readCommandResultReadColumns(command, result);
             readEOF();
         }
 
@@ -616,9 +616,9 @@ public:
         return !rowPackage.isEOF();
     }
 
-    final DbValue readValue(ref MyXdrReader reader, MyCommand command, DbNameColumn column, const(bool) readFieldLength)
+    final DbValue readValue(ref MyXdrReader reader, MyCommand command, DbNameColumn column, const(bool) readColumnLength)
     {
-        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(column=", column.traceString(), ", readFieldLength=", readFieldLength, ")");
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(column=", column.traceString(), ", readColumnLength=", readColumnLength, ")");
         version(profile) debug auto p = PerfFunction.create();
 
         DbValue unsupportDataError()
@@ -631,59 +631,59 @@ public:
         final switch (dbType)
         {
             case DbType.boolean:
-                return DbValue(reader.readBoolValue(readFieldLength), dbType);
+                return DbValue(reader.readBoolValue(readColumnLength), dbType);
             case DbType.int8:
-                return DbValue(reader.readInt8Value(readFieldLength), dbType);
+                return DbValue(reader.readInt8Value(readColumnLength), dbType);
             case DbType.int16:
-                return DbValue(reader.readInt16Value(readFieldLength), dbType);
+                return DbValue(reader.readInt16Value(readColumnLength), dbType);
             case DbType.int32:
-                return DbValue(reader.readInt32Value(readFieldLength), dbType);
+                return DbValue(reader.readInt32Value(readColumnLength), dbType);
             case DbType.int64:
-                return DbValue(reader.readInt64Value(readFieldLength), dbType);
+                return DbValue(reader.readInt64Value(readColumnLength), dbType);
             case DbType.int128:
                 return unsupportDataError();
             case DbType.decimal:
-                return DbValue(reader.readDecimalValue!Decimal(readFieldLength), dbType);
+                return DbValue(reader.readDecimalValue!Decimal(readColumnLength), dbType);
             case DbType.decimal32:
-                return DbValue(reader.readDecimalValue!Decimal32(readFieldLength), dbType);
+                return DbValue(reader.readDecimalValue!Decimal32(readColumnLength), dbType);
             case DbType.decimal64:
-                return DbValue(reader.readDecimalValue!Decimal64(readFieldLength), dbType);
+                return DbValue(reader.readDecimalValue!Decimal64(readColumnLength), dbType);
             case DbType.decimal128:
-                return DbValue(reader.readDecimalValue!Decimal128(readFieldLength), dbType);
+                return DbValue(reader.readDecimalValue!Decimal128(readColumnLength), dbType);
             case DbType.numeric:
-                return DbValue(reader.readDecimalValue!Numeric(readFieldLength), dbType);
+                return DbValue(reader.readDecimalValue!Numeric(readColumnLength), dbType);
             case DbType.float32:
-                return DbValue(reader.readFloat32Value(readFieldLength), dbType);
+                return DbValue(reader.readFloat32Value(readColumnLength), dbType);
             case DbType.float64:
-                return DbValue(reader.readFloat64Value(readFieldLength), dbType);
+                return DbValue(reader.readFloat64Value(readColumnLength), dbType);
             case DbType.date:
-                return DbValue(reader.readDateValue(readFieldLength), dbType);
+                return DbValue(reader.readDateValue(readColumnLength), dbType);
             case DbType.datetime:
-                return DbValue(reader.readDateTimeValue(readFieldLength), dbType);
+                return DbValue(reader.readDateTimeValue(readColumnLength), dbType);
             case DbType.datetimeTZ:
-                return DbValue(reader.readDateTimeValue(readFieldLength), dbType); //TODO timezone
+                return DbValue(reader.readDateTimeValue(readColumnLength), dbType); //TODO timezone
             case DbType.time:
-                return DbValue(reader.readTimeValue(readFieldLength), dbType);
+                return DbValue(reader.readTimeValue(readColumnLength), dbType);
             case DbType.timeTZ:
-                return DbValue(reader.readTimeValue(readFieldLength), dbType); //TODO timezone
+                return DbValue(reader.readTimeValue(readColumnLength), dbType); //TODO timezone
             case DbType.uuid:
-                return DbValue(reader.readUUIDValue(readFieldLength), dbType);
+                return DbValue(reader.readUUIDValue(readColumnLength), dbType);
             case DbType.stringFixed:
             case DbType.stringVary:
-                return DbValue(reader.readStringValue(readFieldLength), dbType);
+                return DbValue(reader.readStringValue(readColumnLength), dbType);
             case DbType.json:
             case DbType.xml:
             case DbType.text:
-                auto textValue = reader.readStringValue(readFieldLength);
+                auto textValue = reader.readStringValue(readColumnLength);
                 return textValue.length != 0 ? DbValue(textValue, dbType) : DbValue.dbNull(dbType);
             case DbType.binaryFixed:
             case DbType.binaryVary:
-                auto binaryValue = reader.readBytesValue(readFieldLength);
+                auto binaryValue = reader.readBytesValue(readColumnLength);
                 return binaryValue.length != 0 ? DbValue(binaryValue, dbType) : DbValue.dbNull(dbType);
             case DbType.record:
             case DbType.unknown:
                 if (column.baseTypeId == MyTypeId.geometry)
-                    return DbValue(reader.readGeometryValue(readFieldLength), dbType);
+                    return DbValue(reader.readGeometryValue(readColumnLength), dbType);
                 return unsupportDataError();
             case DbType.array:
                 return unsupportDataError();
@@ -693,20 +693,20 @@ public:
         assert(0, toName!DbType(dbType));
     }
 
-    final DbRowValue readValues(ref MyReader rowPackage, MyCommand command, MyColumnList fields)
+    final DbRowValue readValues(ref MyReader rowPackage, MyCommand command, MyColumnList columns)
     {
-        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(fieldCount=", fields.length, ")");
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(columnCount=", columns.length, ")");
         version(profile) debug auto p = PerfFunction.create();
 
         const hasNullBitmapBytes = command.prepared;
         auto reader = MyXdrReader(connection, rowPackage.buffer);
 
-        const nullBitmap = hasNullBitmapBytes ? readNullBitmaps(reader, fields.length) : BitArrayImpl!ubyte(0);
+        const nullBitmap = hasNullBitmapBytes ? readNullBitmaps(reader, columns.length) : BitArrayImpl!ubyte(0);
 
-        auto result = DbRowValue(fields.length);
+        auto result = DbRowValue(columns.length);
 
-        const readFieldLength = !hasNullBitmapBytes;
-        foreach (i; 0..fields.length)
+        const readColumnLength = !hasNullBitmapBytes;
+        foreach (i; 0..columns.length)
         {
             if (hasNullBitmapBytes && nullBitmap[i + 2])
             {
@@ -714,7 +714,7 @@ public:
                 continue;
             }
 
-            result[i] = readValue(reader, command, fields[i], readFieldLength);
+            result[i] = readValue(reader, command, columns[i], readColumnLength);
         }
 
         return result;
@@ -1180,13 +1180,13 @@ protected:
         return MyOkResponse.init;
     }
 
-    final void prepareCommandReadFields(MyCommand command, ref MyCommandPreparedResponse info)
+    final void prepareCommandReadColumns(MyCommand command, ref MyCommandPreparedResponse info)
     {
-        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(info.fieldCount=", info.fieldCount, ")");
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(info.columnCount=", info.columnCount, ")");
 
-        info.fields.reserve(info.fieldCount);
-        foreach (i; 0..info.fieldCount)
-            info.fields ~= readFieldInfo(command, i, false);
+        info.columns.reserve(info.columnCount);
+        foreach (i; 0..info.columnCount)
+            info.columns ~= readColumnInfo(command, i, false);
         readEOF();
     }
 
@@ -1202,7 +1202,7 @@ protected:
             throw new MyException(DbErrorCode.read, "Expecting OK prepared statement marker [0]: " ~ marker.to!string);
 
         info.id = reader.readInt32();
-        info.fieldCount = reader.readInt16();
+        info.columnCount = reader.readInt16();
         info.parameterCount = reader.readInt16();
         reader.readUInt32!3(); //first byte=filler, next 2 bytes=warning
     }
@@ -1213,27 +1213,27 @@ protected:
 
         info.parameters.reserve(info.parameterCount);
         foreach (i; 0..info.parameterCount)
-            info.parameters ~= readFieldInfo(command, i, true);
+            info.parameters ~= readColumnInfo(command, i, true);
         readEOF();
     }
 
-    final void readCommandResultReadFields(MyCommand command, ref MyCommandResultResponse info)
+    final void readCommandResultReadColumns(MyCommand command, ref MyCommandResultResponse info)
     {
-        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(info.fieldCount=", info.fieldCount, ")");
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(info.columnCount=", info.columnCount, ")");
 
-        info.fields.reserve(info.fieldCount);
-        foreach (i; 0..info.fieldCount)
-            info.fields ~= readFieldInfo(command, i, false);
+        info.columns.reserve(info.columnCount);
+        foreach (i; 0..info.columnCount)
+            info.columns ~= readColumnInfo(command, i, false);
     }
 
-    final MyFieldInfo readFieldInfo(MyCommand command, size_t index, bool isParameter)
+    final MyColumnInfo readColumnInfo(MyCommand command, size_t index, bool isParameter)
     {
         debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(index=", index, ", isParameter=", isParameter, ")");
 
         auto packageData = readPackageData();
         auto reader = MyXdrReader(connection, packageData.buffer);
 
-        MyFieldInfo result;
+        MyColumnInfo result;
         result.catalogName = reader.readString();
         result.databaseName = reader.readString();
         result.tableName = reader.readString();
@@ -1253,21 +1253,21 @@ protected:
         if (!reader.empty)
             reader.readInt16(); // reserved
 
-        result.calculateOtherInfo(connection.fieldTypeMaps);
+        result.calculateOtherInfo(connection.columnTypeMaps);
 
         return result;
     }
 
-    final BitArrayImpl!ubyte readNullBitmaps(ref MyXdrReader reader, size_t fieldCount)
+    final BitArrayImpl!ubyte readNullBitmaps(ref MyXdrReader reader, size_t columnCount)
     {
-        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(fieldCount=", fieldCount, ")");
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(columnCount=", columnCount, ")");
 
-        const nullBitmapBytes = bitLengthToElement!ubyte(fieldCount + 2);
+        const nullBitmapBytes = bitLengthToElement!ubyte(columnCount + 2);
 
         reader.readUInt8(); // byte header
         auto bytes = reader.readBytes(cast(int32)nullBitmapBytes);
 
-        debug(debug_pham_db_db_myprotocol) debug writeln("\t", "fieldCount=", fieldCount, ", length=", nullBitmapBytes, ", bytes=", bytes);
+        debug(debug_pham_db_db_myprotocol) debug writeln("\t", "columnCount=", columnCount, ", length=", nullBitmapBytes, ", bytes=", bytes);
 
         return BitArrayImpl!ubyte(bytes);
     }

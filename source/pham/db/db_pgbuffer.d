@@ -103,7 +103,7 @@ public:
     }
 
     pragma(inline, true)
-    int16 readFieldCount()
+    int16 readColumnCount()
     {
         return _reader.readInt16();
     }

@@ -340,7 +340,7 @@ public:
 }
 
 // https://www.postgresql.org/docs/current/protocol-message-formats.html
-struct PgOIdFieldInfo
+struct PgOIdColumnInfo
 {
 nothrow @safe:
 
@@ -351,8 +351,8 @@ public:
     }
 
     // Temporary hack until bug http://d.puremagic.com/issues/show_bug.cgi?id=5747 is fixed.
-    PgOidFieldInfo opCast(T)() const
-    if (is(Unqual!T == PgOidFieldInfo))
+    PgOIdColumnInfo opCast(T)() const
+    if (is(Unqual!T == PgOIdColumnInfo))
     {
         return this;
     }
@@ -411,9 +411,9 @@ public:
         return dynamicTypeSize;
     }
 
-    static DbFieldIdType isValueIdType(int32 oIdType, int32 oIdSubType) @nogc pure
+    static DbColumnIdType isValueIdType(int32 oIdType, int32 oIdSubType) @nogc pure
     {
-        return DbFieldIdType.no; //oIdType == PgOIdType.oid;
+        return DbColumnIdType.no; //oIdType == PgOIdType.oid;
     }
 
     string traceString() const
@@ -480,16 +480,19 @@ public:
     string name;
     /// The type modifier (see pg_attribute.atttypmod). The meaning of the modifier is type-specific.
     PgOId modifier;
-    /// If the field can be identified as a column of a specific table, the object ID of the table; otherwise zero.
+    /// If the column can be identified as a column of a specific table, the object ID of the table; otherwise zero.
     PgOId tableOid;
-    /// The object ID of the field's data type.
+    /// The object ID of the column's data type.
     PgOId type;
     int16 formatCode;
-    /// If the field can be identified as a column of a specific table, the attribute number of the column; otherwise zero.
+    /// If the column can be identified as a column of a specific table, the attribute number of the column; otherwise zero.
     int16 ordinal;
     /// The data type size (see pg_type.typlen). Note that negative values denote variable-width types.
     int16 size;
 }
+
+deprecated("please use PgOIdColumnInfo")
+alias PgOIdFieldInfo = PgOIdColumnInfo;
 
 struct PgOIdInterval
 {

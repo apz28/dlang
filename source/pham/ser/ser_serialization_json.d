@@ -50,17 +50,17 @@ public:
         this.root = parseJSON(data);
     }
 
-    override Deserializer begin(scope ref Serializable attribute)
+    override JsonDeserializer begin(scope ref Serializable attribute)
     {
         currents = [Node(&root)];
-        return super.begin(attribute);
+        return cast(JsonDeserializer)super.begin(attribute);
     }
 
-    override Deserializer end(scope ref Serializable attribute)
+    override JsonDeserializer end(scope ref Serializable attribute)
     {
         currents = null;
         //root = JSONValue.init;
-        return super.end(attribute);
+        return cast(JsonDeserializer)super.end(attribute);
     }
 
     final override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
@@ -414,14 +414,12 @@ public:
     {
         buffer.clear();
         buffer.capacity = bufferCapacity;
-        super.begin(attribute);
-        return this;
+        return cast(JsonSerializer)super.begin(attribute);
     }
 
     override JsonSerializer end(scope ref Serializable attribute)
     {
-        super.end(attribute);
-        return this;
+        return cast(JsonSerializer)super.end(attribute);
     }
 
     final override void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable attribute)
@@ -430,10 +428,10 @@ public:
         super.aggregateEnd(typeName, length, attribute);
     }
 
-    final override Serializer aggregateItem(ptrdiff_t index, scope ref Serializable attribute)
+    final override JsonSerializer aggregateItem(ptrdiff_t index, scope ref Serializable attribute)
     {
         buffer.put(index ? ',' : '{');
-        return super.aggregateItem(index, attribute);
+        return cast(JsonSerializer)super.aggregateItem(index, attribute);
     }
 
     final override void arrayBegin(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
@@ -448,11 +446,11 @@ public:
         super.arrayEnd(elemTypeName, length, attribute);
     }
 
-    final override Serializer arrayItem(ptrdiff_t index, scope ref Serializable attribute)
+    final override JsonSerializer arrayItem(ptrdiff_t index, scope ref Serializable attribute)
     {
         if (index)
             buffer.put(',');
-        return super.arrayItem(index, attribute);
+        return cast(JsonSerializer)super.arrayItem(index, attribute);
     }
 
     final override void write(Null, scope ref Serializable)

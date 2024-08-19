@@ -29,22 +29,30 @@ public import pham.utl.utl_array : Appender;
 import pham.var.var_coerce;
 import pham.var.var_coerce_dec_decimal;
 import pham.var.var_coerce_pham_date_time;
-import pham.var.var_variant : Variant;
+public import pham.var.var_variant : Variant;
 import pham.ser.ser_serialization;
 import pham.ser.ser_serialization_json; // Use for supporting hierachy - aggregated member
 
-enum DbCommandQuery : ubyte
+enum DbSerializerCommandQuery : ubyte
 {
-    select,
-    update,
     insert,
+    update,
 }
 
-//alias DbDeserializerConstructSQL = bool delegate(DbDeserializer serializer, scope ref Serializable attribute,
-    //DbParameterList commandParameters, ref Appender!string commandText, DbCommandQuery commandQuery) @safe;
+enum DbSubSerializerKind : ubyte
+{
+    none,
+    aggregate,
+    array,
+}
 
-//alias DbDeserializerSelectSQL = bool delegate(DbDeserializer serializer, scope ref Serializable attribute,
-    //DbParameterList commandParameters, ref Appender!string commandText, DbCommandQuery commandQuery) @safe;
+alias DbDeserializerConstructSQL = bool delegate(DbDeserializer serializer, scope const(Serializable)[] columns,
+    ref Appender!string commandText, DbParameterList conditionParameters,
+    scope ref Serializable attribute) @safe;
+
+alias DbDeserializerSelectSQL = DbReader delegate(DbDeserializer serializer,
+    ref Appender!string commandText, DbParameterList conditionParameters,
+    scope ref Serializable attribute) @safe;
 
 class DbDeserializer : Deserializer
 {
@@ -54,31 +62,179 @@ public:
     this(DbReader* reader) nothrow
     {
         this.reader = reader;
-        this.fields = reader.fields;
+        this.columns = reader.columns;
     }
 
-    override Deserializer begin(scope ref Serializable attribute)
+    this(DbConnection connection) nothrow
     {
+        this.connection = connection;
+    }
+
+    // Aggregate (class, struct)
+    final V select(V)(Variant[string] conditionParameters)
+    if (isSerializerAggregateType!V)
+    {
+        auto parameters = connection.database.createParameterList();
+        foreach (k, v; conditionParameters)
+            parameters.put(k, DbType.unknown, v);
+        return select!V(parameters);
+    }
+
+    final V select(V)(DbParameterList conditionParameters)
+    if (isSerializerAggregateType!V)
+    {
+        static if (hasUDA!(V, Serializable))
+            Serializable attribute = getUDA!(V, Serializable);
+        else
+            Serializable attribute = Serializable(V.stringof);
+        return selectWith!V(attribute);
+    }
+
+    final V selectWith(V)(DbParameterList conditionParameters, Serializable attribute)
+    if (isSerializerAggregateType!V)
+    in
+    {
+        assert(attribute.dbName.length != 0);
+    }
+    do
+    {
+        const deserializerMembers = getDeserializerMembers!V();
+        if (!constructSQL(deserializerMembers, conditionParameters, attribute))
+            return V.init;
+
+        auto selectReader = selectSQL(conditionParameters, attribute);
+        if (selectReader.empty)
+            return V.init;
+
+        this.reader = &selectReader;
+        this.columns = selectReader.columns;
+        scope (exit)
+        {
+            this.columns = null;
+            this.reader = null;
+        }
+
+        V v;
+        begin(attribute);
+        deserialize(v, attribute);
+        end(attribute);
+        return v;
+    }
+
+public:
+    override DbDeserializer begin(scope ref Serializable attribute)
+    {
+        subKind = DbSubSerializerKind.none;
+        subDeserializer = null;
         currentCol = 0;
         currentRow = readRowReader();
-        return super.begin(attribute);
+        return cast(DbDeserializer)super.begin(attribute);
     }
 
-    override Deserializer end(scope ref Serializable attribute)
+    override DbDeserializer end(scope ref Serializable attribute)
     {
+        subKind = DbSubSerializerKind.none;
+        subDeserializer = null;
         currentCol = currentRow = 0;
-        return super.end(attribute);
+        return cast(DbDeserializer)super.end(attribute);
     }
 
-    override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
+    final override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
     {
-        debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(typeName=", typeName, ", memberDepth=", memberDepth, ")");
-
-        currentCol = 0;
-        super.aggregateBegin(typeName, attribute);
-        return currentRow;
+        debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(typeName=", typeName, ", name=", attribute.name, ", memberDepth=", memberDepth, ")");
+        
+        if (subDeserializer is null)
+        {
+            const needSub = memberDepth == 1;
+            currentCol = 0;
+            super.aggregateBegin(typeName, attribute);
+            if (needSub)
+            {
+                auto json = readChars(attribute);
+                if (json.length == 0)
+                    return 0;
+                    
+                subKind = DbSubSerializerKind.aggregate;
+                subDeserializer = new JsonDeserializer(json);
+                subDeserializer.begin(attribute);
+                return subDeserializer.aggregateBegin(typeName, attribute);
+            }
+            else
+            {
+                return currentRow;
+            }
+        }
+        else
+            return subDeserializer.aggregateBegin(typeName, attribute);        
     }
 
+    final override void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable attribute)
+    {
+        debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(typeName=", typeName, ", name=", attribute.name, ", memberDepth=", memberDepth, ")");
+
+        const isSub = subDeserializer !is null;
+        
+        if (!isSub || (memberDepth == 2 && subKind == DbSubSerializerKind.aggregate))
+            super.aggregateEnd(typeName, length, attribute);
+
+        if (isSub)
+        {
+            subDeserializer.aggregateEnd(typeName, length, attribute);
+            if (memberDepth == 1 && subKind == DbSubSerializerKind.aggregate)
+            {
+                subDeserializer.end(attribute);
+                subDeserializer = null;
+                subKind = DbSubSerializerKind.none;
+            }
+        }
+    }
+
+    final override ptrdiff_t arrayBegin(string elemTypeName, scope ref Serializable attribute)
+    {
+        debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(name=", attribute.name, ", arrayDepth=", arrayDepth, ")");
+
+        if (subDeserializer is null)
+        {
+            const needSub = arrayDepth == (rootKind == RootKind.array ? 1 : 0);
+            const sa = super.arrayBegin(elemTypeName, attribute);
+            if (needSub)
+            {
+                auto json = readChars(attribute);
+                if (json.length == 0)
+                    return 0;
+            
+                subKind = DbSubSerializerKind.array;
+                subDeserializer = new JsonDeserializer(json);
+                subDeserializer.begin(attribute);
+                return subDeserializer.arrayBegin(elemTypeName, attribute);
+            }
+            return sa;
+        }
+        else
+            return subDeserializer.arrayBegin(elemTypeName, attribute);
+    }
+    
+    final override void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
+    {
+        debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(name=", attribute.name, ", arrayDepth=", arrayDepth, ")");
+
+        const isSub = subDeserializer !is null;
+
+        if (!isSub || (arrayDepth == (rootKind == RootKind.array ? 2 : 1) && subKind == DbSubSerializerKind.array))
+            super.arrayEnd(elemTypeName, length, attribute);
+
+        if (isSub)
+        {
+            subDeserializer.arrayEnd(elemTypeName, length, attribute);
+            if (arrayDepth == (rootKind == RootKind.array ? 1 : 0) && subKind == DbSubSerializerKind.array)
+            {
+                subDeserializer.end(attribute);
+                subDeserializer = null;
+                subKind = DbSubSerializerKind.none;
+            }
+        }
+    }
+    
     final override Null readNull(scope ref Serializable)
     {
         const i = popFront();
@@ -179,10 +335,47 @@ public:
 
     final override string readKey(size_t)
     {
-        return fields !is null ? fields[currentCol].name : null;
+        return columns !is null ? columns[currentCol].name : null;
     }
 
 public:
+    final bool constructSQL(scope const(Serializable)[] columns, DbParameterList conditionParameters, scope ref Serializable attribute)
+    {
+        commandText.clear();
+        commandText.capacity = 1_000;
+        if (onConstructSQL !is null)
+            return onConstructSQL(this, columns, commandText, conditionParameters, attribute);
+
+        commandText.put("select ");
+        if (columns.length)
+        {
+            foreach (i, column; columns)
+            {
+                if (i)
+                    commandText.put(',');
+                commandText.put(column.dbName);
+            }
+        }
+        else
+            commandText.put('*');
+        commandText.put(" from ");
+        commandText.put(attribute.dbName);
+        if (conditionParameters && conditionParameters.length)
+        {
+            commandText.put(" where ");
+            parameterConditionString(commandText, conditionParameters, true);
+        }
+
+        return true;
+    }
+
+    final DbReader selectSQL(DbParameterList conditionParameters, scope ref Serializable attribute)
+    {
+        return onSelectSQL !is null
+            ? onSelectSQL(this, commandText, conditionParameters, attribute)
+            : connection.executeReader(commandText[], conditionParameters);
+    }
+
     final override bool hasArrayEle(size_t i, ptrdiff_t len)
     {
         debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(i=", i, ", len=", len,
@@ -219,16 +412,24 @@ public:
     }
 
 public:
-    DbReader* reader;
-    DbColumnList fields;
+    Appender!string commandText;
+    DbConnection connection;
     size_t currentCol, currentRow;
+    DbColumnList columns;
+    DbReader* reader;
+    DbDeserializerConstructSQL onConstructSQL;
+    DbDeserializerSelectSQL onSelectSQL;
+    JsonDeserializer subDeserializer;
+    DbSubSerializerKind subKind;
 }
 
-alias DbSerializerConstructSQL = bool delegate(DbSerializer serializer, scope ref Serializable attribute,
-    DbParameterList commandParameters, ref Appender!string commandText, DbCommandQuery commandQuery) @safe;
+alias DbSerializerConstructSQL = bool delegate(DbSerializer serializer,
+    DbSerializerCommandQuery commandQuery, ref Appender!string commandText, DbParameterList commandParameters,
+    scope ref Serializable attribute) @safe;
 
-alias DbSerializerExecuteSQL = DbRecordsAffected delegate(DbSerializer serializer, scope ref Serializable attribute,
-    DbParameterList commandParameters, ref Appender!string commandText, DbCommandQuery commandQuery) @safe;
+alias DbSerializerExecuteSQL = DbRecordsAffected delegate(DbSerializer serializer,
+    DbSerializerCommandQuery commandQuery, ref Appender!string commandText, DbParameterList commandParameters,
+    scope ref Serializable attribute) @safe;
 
 class DbSerializer : Serializer
 {
@@ -240,6 +441,7 @@ public:
         this.connection = connection;
     }
 
+    // Aggregate (class, struct)
     final DbRecordsAffected insert(V)(auto ref V v)
     if (isSerializerAggregateType!V)
     {
@@ -261,14 +463,15 @@ public:
         begin(attribute);
         serialize(v, attribute);
         end(attribute);
-        const result = constructSQL(attribute, DbCommandQuery.insert)
-            ? executeSQL(attribute, DbCommandQuery.insert)
+        const result = constructSQL(DbSerializerCommandQuery.insert, attribute)
+            ? executeSQL(DbSerializerCommandQuery.insert, attribute)
             : DbRecordsAffected.init;
         commandParameters.clear();
         commandText.clear();
         return result;
     }
 
+    // Aggregate (class, struct)
     final DbRecordsAffected update(V)(auto ref V v)
     if (isSerializerAggregateType!V)
     {
@@ -290,8 +493,8 @@ public:
         begin(attribute);
         serialize(v, attribute);
         end(attribute);
-        const result = constructSQL(attribute, DbCommandQuery.update)
-            ? executeSQL(attribute, DbCommandQuery.update)
+        const result = constructSQL(DbSerializerCommandQuery.update, attribute)
+            ? executeSQL(DbSerializerCommandQuery.update, attribute)
             : DbRecordsAffected.init;
         commandParameters.clear();
         commandText.clear();
@@ -302,23 +505,22 @@ public:
     override DbSerializer begin(scope ref Serializable attribute)
     {
         parameter = null;
+        subKind = DbSubSerializerKind.none;
         subSerializer = null;
-        subKind = SubSerializerKind.none;
         commandTextSize = attribute.dbName.length + 10; // update ...(field, field) values(:field, :field);
         if (commandParameters is null)
             commandParameters = connection.database.createParameterList();
         else
             commandParameters.clear();
-        super.begin(attribute);
-        return this;
+        return cast(DbSerializer)super.begin(attribute);
     }
 
     override DbSerializer end(scope ref Serializable attribute)
     {
         parameter = null;
+        subKind = DbSubSerializerKind.none;
         subSerializer = null;
-        super.end(attribute);
-        return this;
+        return cast(DbSerializer)super.end(attribute);
     }
 
     final override void aggregateBegin(string typeName, ptrdiff_t length, scope ref Serializable attribute)
@@ -331,7 +533,7 @@ public:
             super.aggregateBegin(typeName, length, attribute);
             if (needSub)
             {
-                subKind = SubSerializerKind.aggregate;
+                subKind = DbSubSerializerKind.aggregate;
                 subSerializer = new JsonSerializer();
                 subSerializer.begin(attribute);
                 subSerializer.aggregateBegin(typeName, length, attribute);
@@ -347,24 +549,24 @@ public:
 
         const isSub = subSerializer !is null;
 
-        if (!isSub || (memberDepth == 2 && subKind == SubSerializerKind.aggregate))
+        if (!isSub || (memberDepth == 2 && subKind == DbSubSerializerKind.aggregate))
             super.aggregateEnd(typeName, length, attribute);
 
         if (isSub)
         {
             subSerializer.aggregateEnd(typeName, length, attribute);
-            if (memberDepth == 1 && subKind == SubSerializerKind.aggregate)
+            if (memberDepth == 1 && subKind == DbSubSerializerKind.aggregate)
             {
                 subSerializer.end(attribute);
                 scope (exit)
                 {
                     subSerializer = null;
-                    subKind = SubSerializerKind.none;
+                    subKind = DbSubSerializerKind.none;
                 }
 
                 auto json = subSerializer.buffer[];
                 debug(pham_ser_ser_serialization_db) debug writeln("\t", "json=", json);
-                touchParameter(attribute, DbType.json).variant = Variant(json.idup);
+                touchParameter(DbType.json, attribute).variant = Variant(json.idup);
             }
         }
     }
@@ -389,11 +591,11 @@ public:
 
         if (subSerializer is null)
         {
-            const needSub = arrayDepth == 0;
+            const needSub = arrayDepth == (rootKind == RootKind.array ? 1 : 0);
             super.arrayBegin(elemTypeName, length, attribute);
             if (needSub)
             {
-                subKind = SubSerializerKind.array;
+                subKind = DbSubSerializerKind.array;
                 subSerializer = new JsonSerializer();
                 subSerializer.begin(attribute);
                 subSerializer.arrayBegin(elemTypeName, length, attribute);
@@ -409,24 +611,24 @@ public:
 
         const isSub = subSerializer !is null;
 
-        if (!isSub || (arrayDepth == 1 && subKind == SubSerializerKind.array))
+        if (!isSub || (arrayDepth == (rootKind == RootKind.array ? 2 : 1) && subKind == DbSubSerializerKind.array))
             super.arrayEnd(elemTypeName, length, attribute);
 
         if (isSub)
         {
             subSerializer.arrayEnd(elemTypeName, length, attribute);
-            if (arrayDepth == 0 && subKind == SubSerializerKind.array)
+            if (arrayDepth == (rootKind == RootKind.array ? 1 : 0) && subKind == DbSubSerializerKind.array)
             {
                 subSerializer.end(attribute);
                 scope (exit)
                 {
                     subSerializer = null;
-                    subKind = SubSerializerKind.none;
+                    subKind = DbSubSerializerKind.none;
                 }
 
                 auto json = subSerializer.buffer[];
                 debug(pham_ser_ser_serialization_db) debug writeln("\t", "json=", json);
-                touchParameter(attribute, DbType.json).variant = Variant(json.idup);
+                touchParameter(DbType.json, attribute).variant = Variant(json.idup);
             }
         }
     }
@@ -443,7 +645,7 @@ public:
     final override void write(Null, scope ref Serializable attribute)
     {
         if (subSerializer is null)
-            touchParameter(attribute, DbType.unknown).variant = Variant(null);
+            touchParameter(DbType.unknown, attribute).variant = Variant(null);
         else
             subSerializer.write(null, attribute);
     }
@@ -451,7 +653,7 @@ public:
     final override void writeBool(bool v, scope ref Serializable attribute)
     {
         if (subSerializer is null)
-            touchParameter(attribute, DbType.boolean).variant = Variant(v);
+            touchParameter(DbType.boolean, attribute).variant = Variant(v);
         else
             subSerializer.writeBool(v, attribute);
     }
@@ -470,7 +672,7 @@ public:
     final override void write(scope const(Date) v, scope ref Serializable attribute)
     {
         if (subSerializer is null)
-            touchParameter(attribute, DbType.date).variant = Variant(v);
+            touchParameter(DbType.date, attribute).variant = Variant(v);
         else
             subSerializer.write(v, attribute);
     }
@@ -480,7 +682,7 @@ public:
         if (subSerializer is null)
         {
             const type = v.kind == DateTimeZoneKind.utc ? DbType.timeTZ : DbType.time;
-            touchParameter(attribute, type).variant = Variant(v);
+            touchParameter(type, attribute).variant = Variant(v);
         }
         else
             subSerializer.write(v, attribute);
@@ -491,7 +693,7 @@ public:
         if (subSerializer is null)
         {
             const type = v.kind == DateTimeZoneKind.utc ? DbType.timeTZ : DbType.time;
-            touchParameter(attribute, type).variant = Variant(v);
+            touchParameter(type, attribute).variant = Variant(v);
         }
         else
             subSerializer.write(v, attribute);
@@ -500,7 +702,7 @@ public:
     final override void write(byte v, scope ref Serializable attribute)
     {
         if (subSerializer is null)
-            touchParameter(attribute, DbType.int8).variant = Variant(v);
+            touchParameter(DbType.int8, attribute).variant = Variant(v);
         else
             subSerializer.write(v, attribute);
     }
@@ -508,7 +710,7 @@ public:
     final override void write(short v, scope ref Serializable attribute)
     {
         if (subSerializer is null)
-            touchParameter(attribute, DbType.int16).variant = Variant(v);
+            touchParameter(DbType.int16, attribute).variant = Variant(v);
         else
             subSerializer.write(v, attribute);
     }
@@ -516,7 +718,7 @@ public:
     final override void write(int v, scope ref Serializable attribute, const(DataKind) kind = DataKind.integral)
     {
         if (subSerializer is null)
-            touchParameter(attribute, DbType.int32).variant = Variant(v);
+            touchParameter(DbType.int32, attribute).variant = Variant(v);
         else
             subSerializer.write(v, attribute, kind);
     }
@@ -524,7 +726,7 @@ public:
     final override void write(long v, scope ref Serializable attribute, const(DataKind) kind = DataKind.integral)
     {
         if (subSerializer is null)
-            touchParameter(attribute, DbType.int64).variant = Variant(v);
+            touchParameter(DbType.int64, attribute).variant = Variant(v);
         else
             subSerializer.write(v, attribute, kind);
     }
@@ -532,7 +734,7 @@ public:
     final override void write(float v, scope ref Serializable attribute, const(DataKind) kind = DataKind.decimal)
     {
         if (subSerializer is null)
-            touchParameter(attribute, DbType.float32).variant = Variant(v);
+            touchParameter(DbType.float32, attribute).variant = Variant(v);
         else
             subSerializer.write(v, attribute, kind);
     }
@@ -540,7 +742,7 @@ public:
     final override void write(double v, scope ref Serializable attribute, const(DataKind) kind = DataKind.decimal)
     {
         if (subSerializer is null)
-            touchParameter(attribute, DbType.float64).variant = Variant(v);
+            touchParameter(DbType.float64, attribute).variant = Variant(v);
         else
             subSerializer.write(v, attribute, kind);
     }
@@ -548,7 +750,7 @@ public:
     final override void write(scope const(char)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
     {
         if (subSerializer is null)
-            touchParameter(attribute, DbType.stringVary).variant = Variant(v);
+            touchParameter(DbType.stringVary, attribute).variant = Variant(v);
         else
             subSerializer.write(v, attribute, kind);
     }
@@ -578,7 +780,7 @@ public:
     final override void write(scope const(ubyte)[] v, scope ref Serializable attribute, const(DataKind) kind = DataKind.binary)
     {
         if (subSerializer is null)
-            touchParameter(attribute, DbType.binaryVary).variant = Variant(v);
+            touchParameter(DbType.binaryVary, attribute).variant = Variant(v);
         else
             subSerializer.write(v, attribute, kind);
     }
@@ -588,7 +790,7 @@ public:
         if (subSerializer is null)
         {
             parameter = null;
-            touchParameter(attribute, DbType.unknown);
+            touchParameter(DbType.unknown, attribute);
             return this;
         }
         else
@@ -604,19 +806,14 @@ public:
     }
 
 public:
-    final bool constructSQL(scope ref Serializable attribute, DbCommandQuery commandQuery)
-    in
-    {
-        assert(commandQuery == DbCommandQuery.update || commandQuery == DbCommandQuery.insert);
-    }
-    do
+    final bool constructSQL(DbSerializerCommandQuery commandQuery, scope ref Serializable attribute)
     {
         commandText.clear();
         commandText.capacity = commandTextSize;
         if (onConstructSQL !is null)
-            return onConstructSQL(this, attribute, commandParameters, commandText, commandQuery);
+            return onConstructSQL(this, commandQuery, commandText, commandParameters, attribute);
 
-        return commandQuery == DbCommandQuery.update
+        return commandQuery == DbSerializerCommandQuery.update
             ? constructUpdateSQL(attribute)
             : constructInsertSQL(attribute);
     }
@@ -644,19 +841,14 @@ public:
         return true;
     }
 
-    final DbRecordsAffected executeSQL(scope ref Serializable attribute, DbCommandQuery commandQuery)
-    in
-    {
-        assert(commandQuery == DbCommandQuery.update || commandQuery == DbCommandQuery.insert);
-    }
-    do
+    final DbRecordsAffected executeSQL(DbSerializerCommandQuery commandQuery, scope ref Serializable attribute)
     {
         return onExecuteSQL !is null
-            ? onExecuteSQL(this, attribute, commandParameters, commandText, commandQuery)
+            ? onExecuteSQL(this, commandQuery, commandText, commandParameters, attribute)
             : connection.executeNonQuery(commandText[], commandParameters);
     }
 
-    final DbParameter touchParameter(scope ref Serializable attribute, DbType type) nothrow
+    final DbParameter touchParameter(DbType type, scope ref Serializable attribute) nothrow
     {
         if (parameter is null)
         {
@@ -676,22 +868,15 @@ public:
     }
 
 public:
-    DbConnection connection;
     DbParameterList commandParameters;
     Appender!string commandText;
     size_t commandTextSize;
+    DbConnection connection;
     DbParameter parameter;
     DbSerializerConstructSQL onConstructSQL;
     DbSerializerExecuteSQL onExecuteSQL;
-
-    enum SubSerializerKind : ubyte
-    {
-        none,
-        aggregate,
-        array,
-    }
     JsonSerializer subSerializer;
-    SubSerializerKind subKind;
+    DbSubSerializerKind subKind;
 }
 
 
@@ -703,7 +888,7 @@ version(UnitTestFBDatabase)
     import pham.db.db_type;
     import pham.db.db_fbdatabase;
 
-    DbConnection createTestConnection(
+    DbConnection createUnitTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
         DbCompressConnection compress = DbCompressConnection.disabled,
         DbIntegratedSecurityConnection integratedSecurity = DbIntegratedSecurityConnection.srp256)
@@ -723,22 +908,36 @@ version(UnitTestFBDatabase)
     struct UnitTestCaptureSQL
     {
         string commandText;
-        DbCommandQuery commandQuery;
         DbRecordsAffected commandResult;
+        DbSerializerCommandQuery commandQuery;
         bool logOnly;
 
-        DbRecordsAffected execute(DbSerializer serializer, scope ref Serializable attribute,
-            DbParameterList commandParameters, ref Appender!string commandText, DbCommandQuery commandQuery) @safe
+        DbRecordsAffected execute(DbSerializer serializer,
+            DbSerializerCommandQuery commandQuery, ref Appender!string commandText, DbParameterList commandParameters,
+            scope ref Serializable attribute) @safe
         {
-            this.commandText = commandText[];
             this.commandQuery = commandQuery;
-            
+            this.commandText = commandText[];
+
             debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(commandQuery=", commandQuery, ", commandText=", commandText, ")");
-            
+
             this.commandResult = logOnly
                 ? DbRecordsAffected.init
                 : serializer.connection.executeNonQuery(this.commandText, commandParameters);
             return this.commandResult;
+        }
+
+        DbReader select(DbDeserializer serializer,
+            ref Appender!string commandText, DbParameterList conditionParameters,
+            scope ref Serializable attribute) @safe
+        {
+            this.commandText = commandText[];
+
+            debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
+
+            return logOnly
+                ? DbReader.init
+                : serializer.connection.executeReader(this.commandText, conditionParameters);
         }
     }
 }
@@ -749,12 +948,13 @@ unittest // DbSerializer.UnitTestS1
     import std.conv : to;
 
     UnitTestCaptureSQL captureSQL;
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
 
-    connection.executeNonQuery("CREATE TABLE UnitTestS1(publicInt INTEGER NOT NULL PRIMARY KEY, publicGetSet INTEGER)");
+    connection.createTableOrEmpty("UnitTestS1",
+        "CREATE TABLE UnitTestS1(publicInt INTEGER NOT NULL PRIMARY KEY, publicGetSet INTEGER)");
     scope (exit)
         connection.executeNonQuery("DROP TABLE UnitTestS1");
 
@@ -874,12 +1074,12 @@ unittest // Sub aggregate & array
     }
 
     UnitTestCaptureSQL captureSQL;
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
 
-    connection.executeNonQuery("CREATE TABLE UnitTestSub(intVar INTEGER NOT NULL PRIMARY KEY, stringVar VARCHAR(100), boolVar BOOLEAN" ~
+    connection.createTableOrEmpty("UnitTestSub", "CREATE TABLE UnitTestSub(intVar INTEGER NOT NULL PRIMARY KEY, stringVar VARCHAR(100), boolVar BOOLEAN" ~
         ", subsVar VARCHAR(1000), longArr VARCHAR(1000), subsArr VARCHAR(1000), shortVar SMALLINT)");
     scope (exit)
         connection.executeNonQuery("DROP TABLE UnitTestSub");
@@ -933,12 +1133,13 @@ unittest // DbSerializer.UnitTestAllTypesLess
 {
     import std.conv : to;
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
 
-    connection.executeNonQuery("CREATE TABLE UnitTestAllTypesLess(enum1 VARCHAR(20), bool1 BOOLEAN, byte1 SMALLINT" ~
+    connection.createTableOrEmpty("UnitTestAllTypesLess",
+        "CREATE TABLE UnitTestAllTypesLess(enum1 VARCHAR(20), bool1 BOOLEAN, byte1 SMALLINT" ~
         ", ubyte1 SMALLINT, short1 SMALLINT, ushort1 SMALLINT, int1 INTEGER, uint1 INTEGER" ~
         ", long1 BIGINT, ulong1 BIGINT, float1 FLOAT, double1 DOUBLE PRECISION" ~
         ", string1 VARCHAR(1000), charArray VARCHAR(1000), binary1 BLOB)");
@@ -1000,12 +1201,13 @@ unittest // DbSerializer.UnitTestStdBigInt
     import std.conv : to;
     import pham.ser.ser_std_bigint;
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
 
-    connection.executeNonQuery("CREATE TABLE UnitTestStdBigInt(i INTEGER, bigInt1 VARCHAR(200))");
+    connection.createTableOrEmpty("UnitTestStdBigInt",
+        "CREATE TABLE UnitTestStdBigInt(i INTEGER, bigInt1 VARCHAR(200))");
     scope (exit)
         connection.executeNonQuery("DROP TABLE UnitTestStdBigInt");
     connection.executeNonQuery("INSERT INTO UnitTestStdBigInt(i, bigInt1) VALUES(0, '-71459266416693160362545788781600')");
@@ -1045,12 +1247,13 @@ unittest // DbSerializer.UnitTestStdDateTime
     import std.conv : to;
     import pham.ser.ser_std_date_time;
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
 
-    connection.executeNonQuery("CREATE TABLE UnitTestStdDateTime(date1 DATE, dateTime1 TIMESTAMP, sysTime1 TIMESTAMP, timeOfDay1 TIME)");
+    connection.createTableOrEmpty("UnitTestStdDateTime",
+        "CREATE TABLE UnitTestStdDateTime(date1 DATE, dateTime1 TIMESTAMP, sysTime1 TIMESTAMP, timeOfDay1 TIME)");
     scope (exit)
         connection.executeNonQuery("DROP TABLE UnitTestStdDateTime");
     connection.executeNonQuery("INSERT INTO UnitTestStdDateTime(date1, dateTime1, sysTime1, timeOfDay1)" ~
@@ -1092,12 +1295,13 @@ unittest // DbSerializer.UnitTestStdUuid
     import std.conv : to;
     import pham.ser.ser_std_uuid;
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
 
-    connection.executeNonQuery("CREATE TABLE UnitTestStdUuid(uuid1 VARCHAR(36))");
+    connection.createTableOrEmpty("UnitTestStdUuid",
+        "CREATE TABLE UnitTestStdUuid(uuid1 VARCHAR(36))");
     scope (exit)
         connection.executeNonQuery("DROP TABLE UnitTestStdUuid");
     connection.executeNonQuery("INSERT INTO UnitTestStdUuid(uuid1) VALUES('8ab3060e-2cba-4f23-b74c-b52db3dbfb46')");
@@ -1137,12 +1341,13 @@ unittest // DbSerializer.UnitTestPhamBigInteger
     import std.conv : to;
     import pham.ser.ser_pham_big_integer;
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
 
-    connection.executeNonQuery("CREATE TABLE UnitTestPhamBigInteger(i INTEGER, bigInt1 VARCHAR(200))");
+    connection.createTableOrEmpty("UnitTestPhamBigInteger",
+        "CREATE TABLE UnitTestPhamBigInteger(i INTEGER, bigInt1 VARCHAR(200))");
     scope (exit)
         connection.executeNonQuery("DROP TABLE UnitTestPhamBigInteger");
     connection.executeNonQuery("INSERT INTO UnitTestPhamBigInteger(i, bigInt1) VALUES(0, '-71459266416693160362545788781600')");
@@ -1181,12 +1386,13 @@ unittest // DbSerializer.UnitTestPhamDateTime
 {
     import std.conv : to;
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
 
-    connection.executeNonQuery("CREATE TABLE UnitTestPhamDateTime(date1 DATE, dateTime1 TIMESTAMP, time1 TIME)");
+    connection.createTableOrEmpty("UnitTestPhamDateTime",
+        "CREATE TABLE UnitTestPhamDateTime(date1 DATE, dateTime1 TIMESTAMP, time1 TIME)");
     scope (exit)
         connection.executeNonQuery("DROP TABLE UnitTestPhamDateTime");
     connection.executeNonQuery("INSERT INTO UnitTestPhamDateTime(date1, dateTime1, time1) VALUES('1999-01-01', '1999-07-06 12:30:33', '12:30:33')");
@@ -1226,13 +1432,14 @@ unittest // DbSerializer.UnitTestDecDecimal
     import std.conv : to;
     import pham.ser.ser_dec_decimal;
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
 
-    //connection.executeNonQuery("CREATE TABLE UnitTestDecDecimal(decimal32 DECIMAL(7, 2), decimal64 DECIMAL(15, 2), decimal128 decfloat(34))");
-    connection.executeNonQuery("CREATE TABLE UnitTestDecDecimal(decimal32 DECIMAL(7, 2), decimal64 DECIMAL(15, 2), decimal128 DECIMAL(18, 2))");
+    //connection.createTableOrEmpty("CREATE TABLE UnitTestDecDecimal(decimal32 DECIMAL(7, 2), decimal64 DECIMAL(15, 2), decimal128 decfloat(34))");
+    connection.createTableOrEmpty("UnitTestDecDecimal",
+        "CREATE TABLE UnitTestDecDecimal(decimal32 DECIMAL(7, 2), decimal64 DECIMAL(15, 2), decimal128 DECIMAL(18, 2))");
     scope (exit)
         connection.executeNonQuery("DROP TABLE UnitTestDecDecimal");
     connection.executeNonQuery("INSERT INTO UnitTestDecDecimal(decimal32, decimal64, decimal128) VALUES(-7145.0, 714583645.4, 294574120484.87)");
@@ -1271,12 +1478,13 @@ unittest // DbSerializer.UnitTestCustomS1
 {
     import std.conv : to;
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
 
-    connection.executeNonQuery("CREATE TABLE UnitTestCustomS1(publicInt INTEGER, publicGetSet INTEGER)");
+    connection.createTableOrEmpty("UnitTestCustomS1",
+        "CREATE TABLE UnitTestCustomS1(publicInt INTEGER, publicGetSet INTEGER)");
     scope (exit)
         connection.executeNonQuery("DROP TABLE UnitTestCustomS1");
     connection.executeNonQuery("INSERT INTO UnitTestCustomS1(publicInt, publicGetSet)" ~

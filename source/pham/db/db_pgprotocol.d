@@ -61,7 +61,7 @@ public:
         this._connection = connection;
     }
 
-    final PgOIdFieldInfo[] bindCommandParameterRead(PgCommand command)
+    final PgOIdColumnInfo[] bindCommandParameterRead(PgCommand command)
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
 
@@ -75,7 +75,7 @@ public:
 
             case 'T': // RowDescription (response to Describe)
                 const count = reader.readInt16();
-                PgOIdFieldInfo[] result = new PgOIdFieldInfo[](count);
+                PgOIdColumnInfo[] result = new PgOIdColumnInfo[](count);
                 foreach (i; 0..count)
                 {
                     result[i].name = reader.readCString();
@@ -482,7 +482,7 @@ public:
     final PgOIdFetchResult fetchCommandRead(PgCommand command, ref bool isSuspended, out PgReader reader)
     in
     {
-        assert(command.fieldCount != 0);
+        assert(command.columnCount != 0);
     }
     do
     {
@@ -745,26 +745,26 @@ public:
         assert(0, toName!DbType(dbType));
     }
 
-    final DbRowValue readValues(ref PgReader reader, PgCommand command, PgColumnList fields)
+    final DbRowValue readValues(ref PgReader reader, PgCommand command, PgColumnList columns)
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
         version(profile) debug auto p = PerfFunction.create();
 
-        const fieldCount = reader.readFieldCount();
-        const resultFieldCount = max(fieldCount, fields.length);
-        const readFieldCount = min(fieldCount, fields.length);
+        const columnCount = reader.readColumnCount();
+        const resultColumnCount = max(columnCount, columns.length);
+        const readColumnCount = min(columnCount, columns.length);
 
-        debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "fieldCount=", fieldCount, ", fields.length=", fields.length);
+        debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "columnCount=", columnCount, ", columns.length=", columns.length);
 
-        auto result = DbRowValue(resultFieldCount);
+        auto result = DbRowValue(resultColumnCount);
 
-        if (readFieldCount < resultFieldCount)
+        if (readColumnCount < resultColumnCount)
         {
-            foreach (i; readFieldCount..resultFieldCount)
+            foreach (i; readColumnCount..resultColumnCount)
                 result[i].nullify();
         }
 
-        foreach (i; 0..readFieldCount)
+        foreach (i; 0..readColumnCount)
         {
             const valueLength = reader.readValueLength();
             if (valueLength == pgNullValueLength)
@@ -773,7 +773,7 @@ public:
                 continue;
             }
 
-            result[i] = readValue(reader, command, fields[i], valueLength);
+            result[i] = readValue(reader, command, columns[i], valueLength);
         }
 
         return result;

@@ -199,19 +199,22 @@ enum DbFetchResultStatus : ubyte
 }
 
 /**
- * Describe the raw field value for database vendor data types
- * $(DbFieldIdType.no) The database vendor does not support such mechanizm
- * $(DbFieldIdType.array) Special handling for array field when retrieving & saving array data
- * $(DbFieldIdType.blob) Special handling for array field when retrieving & saving blob/binary data
- * $(DbFieldIdType.clob) Special handling for array field when retrieving & saving memo/text data
+ * Describe the raw column value for database vendor data types
+ * $(DbColumnIdType.no) The database vendor does not support such mechanizm
+ * $(DbColumnIdType.array) Special handling for array column when retrieving & saving array data
+ * $(DbColumnIdType.blob) Special handling for array column when retrieving & saving blob/binary data
+ * $(DbColumnIdType.clob) Special handling for array column when retrieving & saving memo/text data
  */
-enum DbFieldIdType : ubyte
+enum DbColumnIdType : ubyte
 {
     no,
     array,
     blob,
     clob,
 }
+
+deprecated("please use DbColumnIdType")
+alias DbFieldIdType = DbColumnIdType;
 
 /**
  * Describes how to client send authenticated data to server

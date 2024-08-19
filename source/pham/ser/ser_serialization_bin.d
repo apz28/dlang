@@ -117,7 +117,7 @@ public:
         this.data = data;
     }
 
-    override Deserializer begin(scope ref Serializable attribute)
+    override BinaryDeserializer begin(scope ref Serializable attribute)
     {
         offset = 0;
         version_ = 0;
@@ -132,9 +132,14 @@ public:
         version_ = bigEndianToNative!(ushort, ushort.sizeof)(v);
         offset += ushort.sizeof;
 
-        return super.begin(attribute);
+        return cast(BinaryDeserializer)super.begin(attribute);
     }
 
+    override BinaryDeserializer end(scope ref Serializable attribute)
+    {
+        return cast(BinaryDeserializer)super.end(attribute);
+    }
+    
     final override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
     {
         checkDataType(SerializerDataType.aggregateBegin, 2);
@@ -428,14 +433,12 @@ public:
         buffer.capacity = bufferCapacity;
         buffer.put(binaryIndicator[]);
         buffer.put(v[]);
-        super.begin(attribute);
-        return this;
+        return cast(BinarySerializer)super.begin(attribute);
     }
 
     override BinarySerializer end(scope ref Serializable attribute)
     {
-        super.end(attribute);
-        return this;
+        return cast(BinarySerializer)super.end(attribute);
     }
 
     final override void aggregateBegin(string typeName, ptrdiff_t length, scope ref Serializable attribute)

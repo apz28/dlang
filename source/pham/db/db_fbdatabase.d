@@ -70,7 +70,7 @@ public:
         this._id = id;
     }
 
-    this(FbCommand command, string tableName, string fieldName, FbId id) @safe
+    this(FbCommand command, string tableName, string columnName, FbId id) @safe
     in
     {
         assert(command !is null);
@@ -79,7 +79,7 @@ public:
     {
         this._command = command;
         this._id = id;
-        this._descriptor = fbConnection.arrayManager.getDescriptor(tableName, fieldName);
+        this._descriptor = fbConnection.arrayManager.getDescriptor(tableName, columnName);
     }
 
     ~this() @safe
@@ -98,7 +98,7 @@ public:
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
-        final switch (descriptor.fieldInfo.dbType)
+        final switch (descriptor.columnInfo.dbType)
         {
             case DbType.boolean:
                 return Variant(readArrayImpl!bool(arrayColumn));
@@ -149,7 +149,7 @@ public:
             case DbType.record:
             case DbType.array:
             case DbType.unknown:
-                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(descriptor.fieldInfo.dbType));
+                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(descriptor.columnInfo.dbType));
                 throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_net_read_err);
         }
 
@@ -163,7 +163,7 @@ public:
 
         alias UT = Unqual!T;
         
-        auto baseType = descriptor.fieldInfo.baseType;
+        auto baseType = descriptor.columnInfo.baseType;
         auto response = readArrayRaw(arrayColumn);
         auto reader = FbXdrReader(fbConnection, response.data);
         T[] result = new T[](descriptor.calculateElements());
@@ -243,7 +243,7 @@ public:
         auto writerBuffer = new DbWriteBuffer(4_000);
         uint elements;
         ubyte[] encodedArrayValue;
-        final switch (descriptor.fieldInfo.dbType)
+        final switch (descriptor.columnInfo.dbType)
         {
             case DbType.boolean:
                 encodedArrayValue = writeArrayImpl!bool(writerBuffer, arrayColumn, arrayValue, elements).peekBytes();
@@ -313,7 +313,7 @@ public:
             case DbType.record:
             case DbType.array:
             case DbType.unknown:
-                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(descriptor.fieldInfo.dbType));
+                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(descriptor.columnInfo.dbType));
                 throw new FbException(DbErrorCode.write, msg, null, 0, FbIscResultCode.isc_net_write_err);
         }
 
@@ -327,7 +327,7 @@ public:
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
-        auto baseType = descriptor.fieldInfo.baseType;
+        auto baseType = descriptor.columnInfo.baseType;
         auto values = arrayValue.get!(T[])();
         elements = cast(uint)values.length;
         auto writer = FbXdrWriter(fbConnection, writerBuffer);
@@ -459,18 +459,18 @@ public:
         doClose(disposingReason);
     }
 
-    FbIscArrayDescriptor getDescriptor(string tableName, string fieldName)
+    FbIscArrayDescriptor getDescriptor(string tableName, string columnName)
     {
-        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(tableName=", tableName, ", fieldName=", fieldName, ")");
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(tableName=", tableName, ", columnName=", columnName, ")");
 
         FbIscArrayDescriptor result;
-        result.fieldInfo.tableName = tableName;
-        result.fieldInfo.name = fieldName;
+        result.columnInfo.tableName = tableName;
+        result.columnInfo.name = columnName;
 
         if (_arrayType is null)
             _arrayType = createCommand(arrayTypeCommand);
         _arrayType.parameters.get("tableName").value = tableName;
-        _arrayType.parameters.get("fieldName").value = fieldName;
+        _arrayType.parameters.get("fieldName").value = columnName;
         auto reader = _arrayType.executeReader();
         scope (exit)
             reader.dispose();
@@ -478,11 +478,11 @@ public:
         if (reader.read())
         {
             result.blrType = reader.getValue("RDB$FIELD_TYPE").get!int16();
-            result.fieldInfo.type = FbIscFieldInfo.blrTypeToFbType(result.blrType);
-            result.fieldInfo.numericScale = reader.getValue("RDB$FIELD_SCALE").get!int16();
-            result.fieldInfo.size = reader.getValue("RDB$FIELD_LENGTH").get!int16();
-            result.fieldInfo.subType = reader.getValue("RDB$FIELD_SUB_TYPE").get!int16();
-            result.fieldInfo.owner = reader.getValue("RDB$OWNER_NAME").get!string();
+            result.columnInfo.type = FbIscColumnInfo.blrTypeToFbType(result.blrType);
+            result.columnInfo.numericScale = reader.getValue("RDB$FIELD_SCALE").get!int16();
+            result.columnInfo.size = reader.getValue("RDB$FIELD_LENGTH").get!int16();
+            result.columnInfo.subType = reader.getValue("RDB$FIELD_SUB_TYPE").get!int16();
+            result.columnInfo.owner = reader.getValue("RDB$OWNER_NAME").get!string();
             const dimensions = reader.getValue("RDB$DIMENSIONS").get!int16();
             assert(dimensions > 0);
             result.bounds.length = dimensions;
@@ -1240,19 +1240,19 @@ protected:
         
         if (isScalar && _fetchedRows.length)
         {
-            auto field = fields[0];
-            final switch (field.isValueIdType())
+            auto column = columns[0];
+            final switch (column.isValueIdType())
             {
-                case DbFieldIdType.no:
+                case DbColumnIdType.no:
                     break;
-                case DbFieldIdType.array:
-                    _fetchedRows.front[0].value = readArray(field, _fetchedRows.front[0]);
+                case DbColumnIdType.array:
+                    _fetchedRows.front[0].value = readArray(column, _fetchedRows.front[0]);
                     break;
-                case DbFieldIdType.blob:
-                    _fetchedRows.front[0].value = Variant(readBlob(field, _fetchedRows.front[0]));
+                case DbColumnIdType.blob:
+                    _fetchedRows.front[0].value = Variant(readBlob(column, _fetchedRows.front[0]));
                     break;
-                case DbFieldIdType.clob:
-                    _fetchedRows.front[0].value = Variant(readClob(field, _fetchedRows.front[0]));
+                case DbColumnIdType.clob:
+                    _fetchedRows.front[0].value = Variant(readClob(column, _fetchedRows.front[0]));
                     break;
             }
         }
@@ -1377,21 +1377,21 @@ protected:
         return response.toCommandBatchResult();
     }
 
-    static void fillNamedColumn(DbNameColumn column, const ref FbIscFieldInfo iscField, const(bool) isNew) nothrow @safe
+    static void fillNamedColumn(DbNameColumn column, const ref FbIscColumnInfo iscColumn, const(bool) isNew) nothrow @safe
     {
-        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(iscField=", iscField.traceString(), ")");
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(iscColumn=", iscColumn.traceString(), ")");
 
-        column.baseName = iscField.name.idup;
-        column.baseOwner = iscField.owner.idup;
-        column.baseNumericDigits = iscField.numericDigits;
-        column.baseNumericScale = iscField.numericScale;
-        column.baseSize = iscField.size;
-        column.baseSubTypeId = iscField.subType;
-        column.baseTableName = iscField.tableName.idup;
-        column.baseTypeId = iscField.baseTypeId;
-        column.allowNull = iscField.allowNull;
-        column.type = iscField.dbType();
-        column.size = iscField.dbTypeSize();
+        column.baseName = iscColumn.name.idup;
+        column.baseOwner = iscColumn.owner.idup;
+        column.baseNumericDigits = iscColumn.numericDigits;
+        column.baseNumericScale = iscColumn.numericScale;
+        column.baseSize = iscColumn.size;
+        column.baseSubTypeId = iscColumn.subType;
+        column.baseTableName = iscColumn.tableName.idup;
+        column.baseTypeId = iscColumn.baseTypeId;
+        column.allowNull = iscColumn.allowNull;
+        column.type = iscColumn.dbType();
+        column.size = iscColumn.dbTypeSize();
     }
 
     final DbRecordsAffected getRecordsAffected() @safe
@@ -1445,34 +1445,34 @@ protected:
         {
             if (iscBindInfo.selectOrBind == FbIsc.isc_info_sql_select)
             {
-                debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "fields");
+                debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "columns");
 
                 const localIsStoredProcedure = isStoredProcedure;
                 auto localParameters = localIsStoredProcedure ? parameters : null;
-                auto localFields = fields;
-                localFields.reserve(iscBindInfo.fields.length);
-                foreach (i, ref iscField; iscBindInfo.fields)
+                auto localColumns = columns;
+                localColumns.reserve(iscBindInfo.columns.length);
+                foreach (i, ref iscColumn; iscBindInfo.columns)
                 {
-                    auto newField = localFields.create(this, iscField.useName.idup);
-                    newField.isAlias = iscField.aliasName.length != 0;
-                    fillNamedColumn(newField, iscField, true);
-                    localFields.put(newField);
+                    auto newColumn = localColumns.create(this, iscColumn.useName.idup);
+                    newColumn.isAlias = iscColumn.aliasName.length != 0;
+                    fillNamedColumn(newColumn, iscColumn, true);
+                    localColumns.put(newColumn);
 
                     if (localIsStoredProcedure)
                     {
-                        auto foundParameter = localParameters.hasOutput(newField.name, i);
+                        auto foundParameter = localParameters.hasOutput(newColumn.name, i);
                         if (foundParameter is null)
                         {
-                            auto newParameter = localParameters.create(newField.name);
+                            auto newParameter = localParameters.create(newColumn.name);
                             newParameter.direction = DbParameterDirection.output;
-                            fillNamedColumn(newParameter, iscField, true);
+                            fillNamedColumn(newParameter, iscColumn, true);
                             localParameters.put(newParameter);
                         }
                         else
                         {
-                            if (foundParameter.name.length == 0 && newField.name.length != 0)
-                                foundParameter.updateEmptyName(newField.name);
-                            fillNamedColumn(foundParameter, iscField, false);
+                            if (foundParameter.name.length == 0 && newColumn.name.length != 0)
+                                foundParameter.updateEmptyName(newColumn.name);
+                            fillNamedColumn(foundParameter, iscColumn, false);
                         }
                     }
                 }
@@ -1482,20 +1482,20 @@ protected:
                 debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "parameters");
 
                 auto localParameters = parameters;
-                localParameters.reserve(iscBindInfo.fields.length);
-                foreach (i, ref iscField; iscBindInfo.fields)
+                localParameters.reserve(iscBindInfo.columns.length);
+                foreach (i, ref iscColumn; iscBindInfo.columns)
                 {
                     if (i >= localParameters.length)
                     {
-                        auto newName = iscField.useName.idup;
+                        auto newName = iscColumn.useName.idup;
                         if (localParameters.exist(newName))
                             newName = localParameters.generateName();
                         auto newParameter = localParameters.create(newName);
-                        fillNamedColumn(newParameter, iscField, true);
+                        fillNamedColumn(newParameter, iscColumn, true);
                         localParameters.put(newParameter);
                     }
                     else
-                        fillNamedColumn(localParameters[i], iscField, false);
+                        fillNamedColumn(localParameters[i], iscColumn, false);
                 }
             }
             else
@@ -1511,7 +1511,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = fbConnection.protocol;
-        return protocol.readValues(this, cast(FbColumnList)fields);
+        return protocol.readValues(this, cast(FbColumnList)columns);
     }
 
     final void removeBatch(ref FbCommandBatch commandBatch) @safe
@@ -1746,7 +1746,46 @@ public:
             close();
         }
     }
+    
+    override bool existRoutine(string routineName, string type, string schema = null) @safe
+    {
+        static immutable string SQL = "select 1" ~
+            " from RDB$PROCEDURES" ~
+            " where RDB$PROCEDURE_NAME = UPPER(@routineName)";
 
+        auto parameters = database.createParameterList();
+        parameters.add("routineName", DbType.stringVary, Variant(routineName));
+
+        auto r = executeScalar(SQL, parameters);
+        return !r.isNull && r.value == 1;
+    }
+
+    override bool existTable(string tableName, string schema = null) @safe
+    {
+        static immutable string SQL = "select 1" ~
+            " from RDB$RELATIONS" ~
+            " where RDB$RELATION_NAME = UPPER(@tableName) and RDB$RELATION_TYPE = 0";
+
+        auto parameters = database.createParameterList();
+        parameters.add("tableName", DbType.stringVary, Variant(tableName));
+
+        auto r = executeScalar(SQL, parameters);
+        return !r.isNull && r.value == 1;
+    }
+    
+    override bool existView(string viewName, string schema = null) @safe
+    {
+        static immutable string SQL = "select 1" ~
+            " from RDB$RELATIONS" ~
+            " where RDB$RELATION_NAME = UPPER(@viewName) and RDB$RELATION_TYPE = 1";
+
+        auto parameters = database.createParameterList();
+        parameters.add("viewName", DbType.stringVary, Variant(viewName));
+
+        auto r = executeScalar(SQL, parameters);
+        return !r.isNull && r.value == 1;
+    }
+    
     @property final ref FbArrayManager arrayManager() nothrow @safe
     {
         return _arrayManager;
@@ -2203,9 +2242,9 @@ public:
             : new FbColumn(cast(FbCommand)command, name);
     }
 
-    final override DbFieldIdType isValueIdType() const nothrow @safe
+    final override DbColumnIdType isValueIdType() const nothrow @safe
     {
-        return FbIscFieldInfo.isValueIdType(baseTypeId, baseSubTypeId);
+        return FbIscColumnInfo.isValueIdType(baseTypeId, baseSubTypeId);
     }
 
     @property final FbCommand fbCommand() nothrow pure @safe
@@ -2251,9 +2290,9 @@ public:
         super(database, name);
     }
 
-    final override DbFieldIdType isValueIdType() const nothrow @safe
+    final override DbColumnIdType isValueIdType() const nothrow @safe
     {
-        return FbIscFieldInfo.isValueIdType(baseTypeId, baseSubTypeId);
+        return FbIscColumnInfo.isValueIdType(baseTypeId, baseSubTypeId);
     }
 
 package(pham.db):
@@ -2266,18 +2305,18 @@ package(pham.db):
 
         final switch (isValueIdType)
         {
-            case DbFieldIdType.no:
+            case DbColumnIdType.no:
                 break;
-            case DbFieldIdType.array:
+            case DbColumnIdType.array:
                 auto arrayId = command.writeArray(this, value);
                 value.setEntity(arrayId.get!FbId(), type);
                 break;
-            case DbFieldIdType.blob:
+            case DbColumnIdType.blob:
                 auto blob = value.get!(const(ubyte)[])();
                 auto blobId = command.writeBlob(this, blob);
                 value.setEntity(blobId.get!FbId(), type);
                 break;
-            case DbFieldIdType.clob:
+            case DbColumnIdType.clob:
                 auto clob = value.get!(const(char)[])();
                 auto clobId = command.writeClob(this, clob);
                 value.setEntity(clobId.get!FbId(), type);
@@ -2414,7 +2453,7 @@ shared static this() nothrow @safe
 
 version(UnitTestFBDatabase)
 {
-    FbConnection createTestConnection(
+    FbConnection createUnitTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
         DbCompressConnection compress = DbCompressConnection.disabled,
         DbIntegratedSecurityConnection integratedSecurity = DbIntegratedSecurityConnection.srp256)
@@ -2610,7 +2649,7 @@ unittest // FbConnectionStringBuilder
 version(UnitTestFBDatabase)
 unittest // FbConnection
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     assert(connection.state == DbConnectionState.closed);
@@ -2625,7 +2664,7 @@ unittest // FbConnection
 version(UnitTestFBDatabase)
 unittest // FbConnection.serverVersion
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2638,7 +2677,7 @@ version(UnitTestFBDatabase)
 unittest // FbConnection.encrypt
 {
     {
-        auto connection = createTestConnection(DbEncryptedConnection.enabled);
+        auto connection = createUnitTestConnection(DbEncryptedConnection.enabled);
         scope (exit)
             connection.dispose();
         assert(connection.state == DbConnectionState.closed);
@@ -2652,7 +2691,7 @@ unittest // FbConnection.encrypt
 
     // Encryption connection Arc4
     {
-        auto connection = createTestConnection(DbEncryptedConnection.required);
+        auto connection = createUnitTestConnection(DbEncryptedConnection.required);
         connection.fbConnectionStringBuilder.cryptAlgorithm = FbIscText.filterCryptArc4Name;
         scope (exit)
             connection.dispose();
@@ -2667,7 +2706,7 @@ unittest // FbConnection.encrypt
 
     // Encryption connection chacha
     {
-        auto connection = createTestConnection(DbEncryptedConnection.required);
+        auto connection = createUnitTestConnection(DbEncryptedConnection.required);
         connection.fbConnectionStringBuilder.cryptAlgorithm = FbIscText.filterCryptChachaName;
         scope (exit)
             connection.dispose();
@@ -2682,7 +2721,7 @@ unittest // FbConnection.encrypt
 
     // Encryption connection chacha64
     {
-        auto connection = createTestConnection(DbEncryptedConnection.required);
+        auto connection = createUnitTestConnection(DbEncryptedConnection.required);
         connection.fbConnectionStringBuilder.cryptAlgorithm = FbIscText.filterCryptChacha64Name;
         scope (exit)
             connection.dispose();
@@ -2701,7 +2740,7 @@ unittest // FbConnection.integratedSecurity
 {
     version(Windows)
     {
-        auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.disabled, DbIntegratedSecurityConnection.srp256);
+        auto connection = createUnitTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.disabled, DbIntegratedSecurityConnection.srp256);
         scope (exit)
             connection.dispose();
         assert(connection.state == DbConnectionState.closed);
@@ -2717,7 +2756,7 @@ unittest // FbConnection.integratedSecurity
 version(UnitTestFBDatabase)
 unittest // FbConnection.encrypt.compress
 {
-    auto connection = createTestConnection(DbEncryptedConnection.required, DbCompressConnection.zip);
+    auto connection = createUnitTestConnection(DbEncryptedConnection.required, DbCompressConnection.zip);
     scope (exit)
         connection.dispose();
     assert(connection.state == DbConnectionState.closed);
@@ -2732,7 +2771,7 @@ unittest // FbConnection.encrypt.compress
 version(UnitTestFBDatabase)
 unittest // FbTransaction
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2765,7 +2804,7 @@ unittest // FbTransaction
 version(UnitTestFBDatabase)
 unittest // FbTransaction.savePoint
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2785,7 +2824,7 @@ unittest // FbTransaction.savePoint
 version(UnitTestFBDatabase)
 unittest // FbTransaction.encrypt.compress
 {
-    auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
+    auto connection = createUnitTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2798,7 +2837,7 @@ unittest // FbTransaction.encrypt.compress
 version(UnitTestFBDatabase)
 unittest // FbCommand.DDL
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2819,7 +2858,7 @@ unittest // FbCommand.DDL
 version(UnitTestFBDatabase)
 unittest // FbCommand.DDL.encrypt.compress
 {
-    auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
+    auto connection = createUnitTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2838,7 +2877,7 @@ unittest // FbCommand.DDL.encrypt.compress
 version(UnitTestFBDatabase)
 unittest // FbCommand.getExecutionPlan
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -2872,7 +2911,7 @@ unittest // FbCommand.DML.Types
     import std.conv;
     import pham.utl.utl_object;
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -3232,7 +3271,7 @@ unittest // FbCommand.DML.Types
 version(UnitTestFBDatabase)
 unittest // FbCommand.DML - Simple select
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -3251,7 +3290,7 @@ unittest // FbCommand.DML - Simple select
 version(UnitTestFBDatabase)
 unittest // FbCommand.DML - Parameter select
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -3279,7 +3318,7 @@ unittest // FbCommand.DML.encrypt.compress
 {
     import std.math;
 
-    auto connection = createTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
+    auto connection = createUnitTestConnection(DbEncryptedConnection.enabled, DbCompressConnection.zip);
     scope (exit)
         connection.dispose();
     connection.open();
@@ -3348,16 +3387,16 @@ unittest // FbCommand.DML.encrypt.compress
 version(UnitTestFBDatabase)
 unittest // FbCommand.DML.FbArrayManager
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
 
     FbIscArrayDescriptor descriptor = connection.arrayManager.getDescriptor("TEST_SELECT", "INTEGER_ARRAY");
     assert(descriptor.blrType == 8);
-    assert(descriptor.fieldInfo.numericScale == 0);
-    assert(descriptor.fieldInfo.size == 4);
-    assert(descriptor.fieldInfo.subType == 0);
+    assert(descriptor.columnInfo.numericScale == 0);
+    assert(descriptor.columnInfo.size == 4);
+    assert(descriptor.columnInfo.subType == 0);
     assert(descriptor.bounds.length == 1);
     assert(descriptor.bounds[0].lower == 1);
     assert(descriptor.bounds[0].upper == 10);
@@ -3372,7 +3411,7 @@ unittest // FbCommand.DML.Array
         return [1,2,3,4,5,6,7,8,9,10];
     }
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -3434,7 +3473,7 @@ unittest // FbCommand.DML.Array.Less
         return [1,2,3,4,5];
     }
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -3486,7 +3525,7 @@ unittest // FbCommand.DML.Array.Less
 version(UnitTestFBDatabase)
 unittest // FbCommand.DML.StoredProcedure
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -3533,7 +3572,7 @@ unittest // FbCommand.DML.StoredProcedure
 version(UnitTestFBDatabase)
 unittest // FbCommand.DML.StoredProcedure & Parameter select
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -3571,7 +3610,7 @@ unittest // DbRAIITransaction
     import pham.db.db_exception : DbException;
 
     bool commit = false;
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -3606,7 +3645,7 @@ unittest // FbCommandBatch
     import pham.dtm.dtm_date;
     import pham.utl.utl_object : VersionString;
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -3854,7 +3893,7 @@ version(UnitTestPerfFBDatabase)
         }
 
         bool failed = true;
-        auto connection = createTestConnection();
+        auto connection = createUnitTestConnection();
         scope (exit)
             connection.dispose();
         connection.open();
@@ -3917,7 +3956,7 @@ unittest // FbConnection.createDatabase
         }
     }
 
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
     {
         connection.dispose();
@@ -3941,7 +3980,7 @@ unittest // FbConnection.createDatabase
 version(UnitTestFBDatabase)
 unittest // FbConnection.DML.execute...
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();

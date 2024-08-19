@@ -748,10 +748,10 @@ public:
 			writer.writeInt32(0);
 		}
 
-		if (command.fieldCount != 0 && command.isStoredProcedure)
+		if (command.columnCount != 0 && command.isStoredProcedure)
 		{
             auto pWriterBlr = FbBlrWriter(connection);
-            auto pFldBlr = describeBlrFields(pWriterBlr, cast(FbColumnList)command.fields);
+            auto pFldBlr = describeBlrColumns(pWriterBlr, cast(FbColumnList)command.columns);
             writer.writeBytes(pFldBlr.data);
 			writer.writeInt32(0); // Output message number
 		}
@@ -838,14 +838,14 @@ public:
     final void fetchCommandWrite(FbCommand command, const(bool) isScalar)
     in
     {
-        assert(command.fieldCount != 0);
+        assert(command.columnCount != 0);
     }
     do
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(fetchRecordCount=", command.fetchRecordCount, ")");
 
         auto writerBlr = FbBlrWriter(connection);
-        auto pFldBlr = describeBlrFields(writerBlr, cast(FbColumnList)command.fields);
+        auto pFldBlr = describeBlrColumns(writerBlr, cast(FbColumnList)command.columns);
 
         auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_fetch);
@@ -900,11 +900,11 @@ public:
 
         FbIscBindInfo[] bindResults;
         ptrdiff_t previousBindIndex = -1; // Start with unknown value
-        ptrdiff_t previousFieldIndex = 0;
+        ptrdiff_t previousColumnIndex = 0;
 
-        while (!FbIscBindInfo.parse(r.data, bindResults, previousBindIndex, previousFieldIndex))
+        while (!FbIscBindInfo.parse(r.data, bindResults, previousBindIndex, previousColumnIndex))
         {
-            debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "previousBindIndex=", previousBindIndex, ", previousFieldIndex=", previousFieldIndex);
+            debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "previousBindIndex=", previousBindIndex, ", previousColumnIndex=", previousColumnIndex);
 
             enum bindBlocks = 2;
             auto bindItems = describeStatementInfoAndBindInfoItems;
@@ -917,13 +917,13 @@ public:
                 {
                     newBindBlock = false;
 
-					auto processedFieldCount = truncateBindIndex <= previousBindIndex
+					auto processedColumnCount = truncateBindIndex <= previousBindIndex
                         ? bindResults[truncateBindIndex].length
                         : 0;
                     truncateBindItems[i++] = FbIsc.isc_info_sql_sqlda_start;
                     truncateBindItems[i++] = 2;
-					truncateBindItems[i++] = cast(ubyte)((truncateBindIndex == previousBindIndex ? previousFieldIndex : processedFieldCount) & 255);
-					truncateBindItems[i++] = cast(ubyte)((truncateBindIndex == previousBindIndex ? previousFieldIndex : processedFieldCount) >> 8);
+					truncateBindItems[i++] = cast(ubyte)((truncateBindIndex == previousBindIndex ? previousColumnIndex : processedColumnCount) & 255);
+					truncateBindItems[i++] = cast(ubyte)((truncateBindIndex == previousBindIndex ? previousColumnIndex : processedColumnCount) >> 8);
                 }
 
                 truncateBindItems[i++] = bindItem;
@@ -1166,24 +1166,23 @@ public:
         assert(0, toName!DbType(dbType));
     }
 
-    final DbRowValue readValues(FbCommand command, FbColumnList fields)
+    final DbRowValue readValues(FbCommand command, FbColumnList columns)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
         version(profile) debug auto p = PerfFunction.create();
 
         auto reader = FbXdrReader(connection);
 
-        const nullBitmapBytes = bitLengthToElement!ubyte(fields.length);
+        const nullBitmapBytes = bitLengthToElement!ubyte(columns.length);
 		const nullBitmap = BitArrayImpl!ubyte(reader.readOpaqueBytes(nullBitmapBytes));
 
-        auto result = DbRowValue(fields.length);
-        size_t i = 0;
-        foreach (field; fields)
+        auto result = DbRowValue(columns.length);
+        foreach (i, column; columns)
         {
             if (nullBitmap[i])
-                result[i++].nullify();
+                result[i].nullify();
             else
-                result[i++] = readValue(reader, command, field);
+                result[i] = readValue(reader, command, column);
         }
         return result;
     }
@@ -1458,11 +1457,11 @@ protected:
         { // Type
             auto typeWriter = FbBlrWriter(writer.buffer);
             FbIscBlrDescriptor descriptor;
-            typeWriter.writeType(cast(FbBlrType)array.descriptor.blrType, array.descriptor.fieldInfo.baseType(), FbBlrWriteType.base, descriptor);
+            typeWriter.writeType(cast(FbBlrType)array.descriptor.blrType, array.descriptor.columnInfo.baseType(), FbBlrWriteType.base, descriptor);
         }
 
-        writer.writeName(FbIsc.isc_sdl_relation, array.descriptor.fieldInfo.tableName);
-        writer.writeName(FbIsc.isc_sdl_field, array.descriptor.fieldInfo.name);
+        writer.writeName(FbIsc.isc_sdl_relation, array.descriptor.columnInfo.tableName);
+        writer.writeName(FbIsc.isc_sdl_field, array.descriptor.columnInfo.name);
 
         version(fbMultiDimensions)
         {
@@ -1609,22 +1608,22 @@ protected:
         return result;
     }
 
-    final FbIscBlrDescriptor describeBlrFields(return ref FbBlrWriter writer, FbColumnList fields) nothrow
+    final FbIscBlrDescriptor describeBlrColumns(return ref FbBlrWriter writer, FbColumnList columns) nothrow
     in
     {
-        assert(fields !is null);
-        assert(fields.length != 0 && fields.length <= ushort.max / 2);
+        assert(columns !is null);
+        assert(columns.length != 0 && columns.length <= ushort.max / 2);
     }
     do
     {
         FbIscBlrDescriptor result;
 
-        writer.writeBegin(fields.length);
-        foreach (field; fields)
+        writer.writeBegin(columns.length);
+        foreach (column; columns)
         {
-            writer.writeColumn(field.baseType, result);
+            writer.writeColumn(column.baseType, result);
         }
-        writer.writeEnd(fields.length);
+        writer.writeEnd(columns.length);
 
         result.data = writer.peekBytes();
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(size=", result.size, ", data=", result.data.dgToString(), ")");
@@ -2006,18 +2005,18 @@ protected:
 		switch (descriptor.blrType)
 		{
 			case FbBlrType.blr_short:
-				result.sliceLength = result.sliceLength * descriptor.fieldInfo.size;
+				result.sliceLength = result.sliceLength * descriptor.columnInfo.size;
 				break;
 			case FbBlrType.blr_text:
 			case FbBlrType.blr_text2:
 			case FbBlrType.blr_cstring:
 			case FbBlrType.blr_cstring2:
-				result.elements = result.sliceLength / descriptor.fieldInfo.size;
-				result.sliceLength += result.elements * ((4 - descriptor.fieldInfo.size) & 3);
+				result.elements = result.sliceLength / descriptor.columnInfo.size;
+				result.sliceLength += result.elements * ((4 - descriptor.columnInfo.size) & 3);
 				break;
 			case FbBlrType.blr_varying:
 			case FbBlrType.blr_varying2:
-				result.elements = result.sliceLength / descriptor.fieldInfo.size;
+				result.elements = result.sliceLength / descriptor.columnInfo.size;
 				break;
             default:
                 break;

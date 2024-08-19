@@ -209,14 +209,14 @@ public:
 	{
         if (elements == 0)
             elements = calculateElements();
-		uint32 result = elements * fieldInfo.size;
-	    if (fieldInfo.fbType() == FbIscType.sql_varying)
+		uint32 result = elements * columnInfo.size;
+	    if (columnInfo.fbType() == FbIscType.sql_varying)
             result += (elements * 2);
         return result;
 	}
 
 public:
-    FbIscFieldInfo fieldInfo;
+    FbIscColumnInfo columnInfo;
     DbArrayBound[] bounds;
     int16 blrType;
 }
@@ -236,9 +236,9 @@ struct FbIscBindInfo
 @safe:
 
 public:
-    this(size_t fieldCount) nothrow pure
+    this(size_t columnCount) nothrow pure
     {
-        this._fields = new FbIscFieldInfo[fieldCount];
+        this._columns = new FbIscColumnInfo[columnCount];
     }
 
     bool opCast(To: bool)() const nothrow
@@ -251,22 +251,22 @@ public:
      *  false if truncate otherwise true
      */
     static bool parse(const(ubyte)[] payload, ref FbIscBindInfo[] bindResults,
-        ref ptrdiff_t previousBindIndex, ref ptrdiff_t previousFieldIndex)
+        ref ptrdiff_t previousBindIndex, ref ptrdiff_t previousColumnIndex)
     {
         debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(payload.length=", payload.length, ")");
 
         size_t posData;
-        ptrdiff_t fieldIndex = previousFieldIndex;
+        ptrdiff_t columnIndex = previousColumnIndex;
         ptrdiff_t bindIndex = -1; // Always start with unknown value until isc_info_sql_select or isc_info_sql_bind
 
-        size_t checkFieldIndex(ubyte typ) @safe
+        size_t checkColumnIndex(ubyte typ) @safe
         {
-            if (fieldIndex < 0)
+            if (columnIndex < 0)
             {
-                auto msg = DbMessage.eInvalidSQLDAFieldIndex.fmtMessage(typ, fieldIndex);
+                auto msg = DbMessage.eInvalidSQLDAColumnIndex.fmtMessage(typ, columnIndex);
                 throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
             }
-            return fieldIndex;
+            return columnIndex;
         }
 
         size_t checkBindIndex(ubyte typ) @safe
@@ -297,18 +297,18 @@ public:
 
 			            if (payload[posData++] == FbIsc.isc_info_truncated)
                         {
-                            fieldIndex = 0; // Reset for new block
+                            columnIndex = 0; // Reset for new block
                             goto case FbIsc.isc_info_truncated;
                         }
 
 			            const uint len = parseInt32!true(payload, posData, 2, typ);
-                        const uint fieldLen = parseInt32!true(payload, posData, len, typ);
+                        const uint columnLen = parseInt32!true(payload, posData, len, typ);
 
                         if (bindIndex == bindResults.length)
                         {
-                            bindResults ~= FbIscBindInfo(fieldLen);
+                            bindResults ~= FbIscBindInfo(columnLen);
                             bindResults[bindIndex].selectOrBind = typ;
-                            if (fieldLen == 0)
+                            if (columnLen == 0)
                                 goto doneItem;
                         }
 
@@ -316,11 +316,11 @@ public:
 
 			        case FbIsc.isc_info_sql_sqlda_seq:
 			            const uint len = parseInt32!true(payload, posData, 2, typ);
-			            fieldIndex = parseInt32!true(payload, posData, len, typ) - 1;
+			            columnIndex = parseInt32!true(payload, posData, len, typ) - 1;
 
-                        if (checkFieldIndex(typ) >= bindResults[checkBindIndex(typ)].length)
+                        if (checkColumnIndex(typ) >= bindResults[checkBindIndex(typ)].length)
                         {
-                            auto msg = DbMessage.eInvalidSQLDAFieldIndex.fmtMessage(typ, fieldIndex);
+                            auto msg = DbMessage.eInvalidSQLDAColumnIndex.fmtMessage(typ, columnIndex);
                             throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
                         }
 
@@ -329,54 +329,54 @@ public:
 			        case FbIsc.isc_info_sql_type:
 			            const uint len = parseInt32!true(payload, posData, 2, typ);
                         auto dataType = parseInt32!true(payload, posData, len, typ);
-			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).type = dataType;
+			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).type = dataType;
 			            break;
 
 			        case FbIsc.isc_info_sql_sub_type:
 			            const uint len = parseInt32!true(payload, posData, 2, typ);
                         auto dataSubType = parseInt32!true(payload, posData, len, typ);
-			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).subType = dataSubType;
+			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).subType = dataSubType;
 			            break;
 
 			        case FbIsc.isc_info_sql_scale:
 			            const uint len = parseInt32!true(payload, posData, 2, typ);
                         auto numericScale = cast(int16)parseInt32!true(payload, posData, len, typ);
-			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).numericScale = numericScale;
+			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).numericScale = numericScale;
 			            break;
 
 			        case FbIsc.isc_info_sql_length:
 			            const uint len = parseInt32!true(payload, posData, 2, typ);
                         auto dataSize = parseInt32!true(payload, posData, len, typ);
-			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).size = dataSize;
+			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).size = dataSize;
 			            break;
 
 			        case FbIsc.isc_info_sql_field:
 			            const uint len = parseInt32!true(payload, posData, 2, typ);
-                        auto fieldName = parseString!true(payload, posData, len, typ);
-			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).name = fieldName;
+                        auto columnName = parseString!true(payload, posData, len, typ);
+			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).name = columnName;
 			            break;
 
 			        case FbIsc.isc_info_sql_relation:
 			            const uint len = parseInt32!true(payload, posData, 2, typ);
                         auto tableName = parseString!true(payload, posData, len, typ);
-			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).tableName = tableName;
+			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).tableName = tableName;
 			            break;
 
 			        case FbIsc.isc_info_sql_owner:
 			            const uint len = parseInt32!true(payload, posData, 2, typ);
                         auto owner = parseString!true(payload, posData, len, typ);
-			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).owner = owner;
+			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).owner = owner;
 			            break;
 
 			        case FbIsc.isc_info_sql_alias:
 			            const uint len = parseInt32!true(payload, posData, 2, typ);
                         auto aliasName = parseString!true(payload, posData, len, typ);
-			            bindResults[checkBindIndex(typ)].field(checkFieldIndex(typ)).aliasName = aliasName;
+			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).aliasName = aliasName;
 			            break;
 
                     case FbIsc.isc_info_truncated:
                         previousBindIndex = bindIndex;
-                        previousFieldIndex = fieldIndex;
+                        previousColumnIndex = columnIndex;
                         return false;
 
 			        default:
@@ -401,46 +401,50 @@ public:
     ref typeof(this) reset() nothrow return
     {
         selectOrBind = 0;
-        _fields = null;
+        _columns = null;
         return this;
     }
 
     string traceString(size_t index) const nothrow @trusted
     {
         import std.conv : to;
+        import pham.utl.utl_array : Appender;
 
-        string fieldsTraceString;
-        foreach (ref field; _fields)
+        auto result = Appender!string(1_000);
+        result.put("bindResult=");
+        result.put(index.to!string);
+        result.put(", length=");
+        result.put(length.to!string);
+        result.put(", selectOrBind=");
+        result.put(selectOrBind.to!string);
+        foreach (ref column; _columns)
         {
-            fieldsTraceString ~= "\n" ~ field.traceString();
+            result.put('\n');
+            result.put(column.traceString());
         }
-
-        return "bindResult=" ~ index.to!string()
-            ~ ", length=" ~ length.to!string()
-            ~ ", selectOrBind=" ~ selectOrBind.to!string()
-            ~ fieldsTraceString;
+        return result[];
     }
 
-    @property ref FbIscFieldInfo field(size_t index) nothrow return
+    @property ref FbIscColumnInfo column(size_t index) nothrow return
     {
-        return _fields[index];
+        return _columns[index];
     }
 
-    @property FbIscFieldInfo[] fields() nothrow return
+    @property FbIscColumnInfo[] columns() nothrow return
     {
-        return _fields;
+        return _columns;
     }
 
     @property size_t length() const nothrow
     {
-        return _fields.length;
+        return _columns.length;
     }
 
 public:
     int32 selectOrBind; // FbIsc.isc_info_sql_select or FbIsc.isc_info_sql_bind
 
 private:
-    FbIscFieldInfo[] _fields;
+    FbIscColumnInfo[] _columns;
 }
 
 struct FbIscBlobSize
@@ -728,7 +732,7 @@ public:
     int32 status;
 }
 
-struct FbIscFieldInfo
+struct FbIscColumnInfo
 {
 nothrow @safe:
 
@@ -739,8 +743,8 @@ public:
     }
 
     // Temporary hack until bug http://d.puremagic.com/issues/show_bug.cgi?id=5747 is fixed.
-    FbIscFieldInfo opCast(T)() const
-    if (is(Unqual!T == FbIscFieldInfo))
+    FbIscColumnInfo opCast(T)() const
+    if (is(Unqual!T == FbIscColumnInfo))
     {
         return this;
     }
@@ -1000,12 +1004,12 @@ public:
         return dynamicTypeSize;
     }
     
-    static DbFieldIdType isValueIdType(int32 type, int32 iscSubType) @nogc pure
+    static DbColumnIdType isValueIdType(int32 type, int32 iscSubType) @nogc pure
     {
         const t = fbType(type);
         return t == FbIscType.sql_blob
-            ? (iscSubType != textBlob ? DbFieldIdType.blob : DbFieldIdType.clob)
-            : (t == FbIscType.sql_array ? DbFieldIdType.array : DbFieldIdType.no);
+            ? (iscSubType != textBlob ? DbColumnIdType.blob : DbColumnIdType.clob)
+            : (t == FbIscType.sql_array ? DbColumnIdType.array : DbColumnIdType.no);
     }
 
     string traceString() const
@@ -1095,6 +1099,9 @@ public:
     int32 type;
     int16 numericScale;
 }
+
+deprecated("please use FbIscColumnInfo")
+alias FbIscFieldInfo = FbIscColumnInfo;
 
 struct FbIscGenericResponse
 {
@@ -2219,40 +2226,40 @@ unittest // FbIscBindInfo
 
     FbIscBindInfo[] bindResults;
     ptrdiff_t previousBindIndex = -1;
-    ptrdiff_t previousFieldIndex;
+    ptrdiff_t previousColumnIndex;
     auto info = bytesFromHexs("040704000D000000090400010000000B0400F00100000C0400000000000E0400040000000D040000000000100900494E545F4649454C44110B00544553545F53454C454354130900494E545F4649454C4408090400020000000B0400F50100000C0400000000000E0400020000000D040000000000100E00534D414C4C494E545F4649454C44110B00544553545F53454C454354130E00534D414C4C494E545F4649454C4408090400030000000B0400E30100000C0400000000000E0400040000000D040000000000100B00464C4F41545F4649454C44110B00544553545F53454C454354130B00464C4F41545F4649454C4408090400040000000B0400E10100000C0400000000000E0400080000000D040000000000100C00444F55424C455F4649454C44110B00544553545F53454C454354130C00444F55424C455F4649454C4408090400050000000B0400450200000C0400010000000E0400080000000D0400FEFFFFFF100D004E554D455249435F4649454C44110B00544553545F53454C454354130D004E554D455249435F4649454C4408090400060000000B0400450200000C0400020000000E0400080000000D0400FEFFFFFF100D00444543494D414C5F4649454C44110B00544553545F53454C454354130D00444543494D414C5F4649454C4408090400070000000B04003B0200000C0400000000000E0400040000000D040000000000100A00444154455F4649454C44110B00544553545F53454C454354130A00444154455F4649454C4408090400080000000B0400310200000C0400000000000E0400040000000D040000000000100A0054494D455F4649454C44110B00544553545F53454C454354130A0054494D455F4649454C4408090400090000000B0400FF0100000C0400000000000E0400080000000D040000000000100F0054494D455354414D505F4649454C44110B00544553545F53454C454354130F0054494D455354414D505F4649454C44080904000A0000000B0400C50100000C0400040000000E0400280000000D040000000000100A00434841525F4649454C44110B00544553545F53454C454354130A00434841525F4649454C44080904000B0000000B0400C10100000C0400040000000E0400280000000D040000000000100D00564152434841525F4649454C44110B00544553545F53454C454354130D00564152434841525F4649454C44080904000C0000000B0400090200000C0400000000000E0400080000000D040000000000100A00424C4F425F4649454C44110B00544553545F53454C454354130A00424C4F425F4649454C44080904000D0000000B0400090200000C0400010000000E0400080000000D040004000000100A00544558545F4649454C44110B00544553545F53454C454354130A00544558545F4649454C4408050704000000000001");
-    auto parsed = FbIscBindInfo.parse(info, bindResults, previousBindIndex, previousFieldIndex);
+    auto parsed = FbIscBindInfo.parse(info, bindResults, previousBindIndex, previousColumnIndex);
     assert(parsed == true);
     assert(bindResults.length == 2);
 
     assert(bindResults[0].selectOrBind == FbIsc.isc_info_sql_select);
     assert(bindResults[0].length == 13);
-    auto field = bindResults[0].field(0);
-    assert(field.name == "INT_FIELD" && field.type == 496 && field.subType == 0 && field.numericScale == 0 && field.size == 4 && field.tableName == "TEST_SELECT" && field.aliasName == "INT_FIELD");
-    field = bindResults[0].field(1);
-    assert(field.name == "SMALLINT_FIELD" && field.type == 501 && field.subType == 0 && field.numericScale == 0 && field.size == 2 && field.tableName == "TEST_SELECT" && field.aliasName == "SMALLINT_FIELD");
-    field = bindResults[0].field(2);
-    assert(field.name == "FLOAT_FIELD" && field.type == 483 && field.subType == 0 && field.numericScale == 0 && field.size == 4 && field.tableName == "TEST_SELECT" && field.aliasName == "FLOAT_FIELD");
-    field = bindResults[0].field(3);
-    assert(field.name == "DOUBLE_FIELD" && field.type == 481 && field.subType == 0 && field.numericScale == 0 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "DOUBLE_FIELD");
-    field = bindResults[0].field(4);
-    assert(field.name == "NUMERIC_FIELD" && field.type == 581 && field.subType == 1 && field.numericScale == -2 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "NUMERIC_FIELD");
-    field = bindResults[0].field(5);
-    assert(field.name == "DECIMAL_FIELD" && field.type == 581 && field.subType == 2 && field.numericScale == -2 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "DECIMAL_FIELD");
-    field = bindResults[0].field(6);
-    assert(field.name == "DATE_FIELD" && field.type == 571 && field.subType == 0 && field.numericScale == 0 && field.size == 4 && field.tableName == "TEST_SELECT" && field.aliasName == "DATE_FIELD");
-    field = bindResults[0].field(7);
-    assert(field.name == "TIME_FIELD" && field.type == 561 && field.subType == 0 && field.numericScale == 0 && field.size == 4 && field.tableName == "TEST_SELECT" && field.aliasName == "TIME_FIELD");
-    field = bindResults[0].field(8);
-    assert(field.name == "TIMESTAMP_FIELD" && field.type == 511 && field.subType == 0 && field.numericScale == 0 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "TIMESTAMP_FIELD");
-    field = bindResults[0].field(9);
-    assert(field.name == "CHAR_FIELD" && field.type == 453 && field.subType == 4 && field.numericScale == 0 && field.size == 40 && field.tableName == "TEST_SELECT" && field.aliasName == "CHAR_FIELD");
-    field = bindResults[0].field(10);
-    assert(field.name == "VARCHAR_FIELD" && field.type == 449 && field.subType == 4 && field.numericScale == 0 && field.size == 40 && field.tableName == "TEST_SELECT" && field.aliasName == "VARCHAR_FIELD");
-    field = bindResults[0].field(11);
-    assert(field.name == "BLOB_FIELD" && field.type == 521 && field.subType == 0 && field.numericScale == 0 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "BLOB_FIELD");
-    field = bindResults[0].field(12);
-    assert(field.name == "TEXT_FIELD" && field.type == 521 && field.subType == 1 && field.numericScale == 4 && field.size == 8 && field.tableName == "TEST_SELECT" && field.aliasName == "TEXT_FIELD");
+    auto column = bindResults[0].column(0);
+    assert(column.name == "INT_FIELD" && column.type == 496 && column.subType == 0 && column.numericScale == 0 && column.size == 4 && column.tableName == "TEST_SELECT" && column.aliasName == "INT_FIELD");
+    column = bindResults[0].column(1);
+    assert(column.name == "SMALLINT_FIELD" && column.type == 501 && column.subType == 0 && column.numericScale == 0 && column.size == 2 && column.tableName == "TEST_SELECT" && column.aliasName == "SMALLINT_FIELD");
+    column = bindResults[0].column(2);
+    assert(column.name == "FLOAT_FIELD" && column.type == 483 && column.subType == 0 && column.numericScale == 0 && column.size == 4 && column.tableName == "TEST_SELECT" && column.aliasName == "FLOAT_FIELD");
+    column = bindResults[0].column(3);
+    assert(column.name == "DOUBLE_FIELD" && column.type == 481 && column.subType == 0 && column.numericScale == 0 && column.size == 8 && column.tableName == "TEST_SELECT" && column.aliasName == "DOUBLE_FIELD");
+    column = bindResults[0].column(4);
+    assert(column.name == "NUMERIC_FIELD" && column.type == 581 && column.subType == 1 && column.numericScale == -2 && column.size == 8 && column.tableName == "TEST_SELECT" && column.aliasName == "NUMERIC_FIELD");
+    column = bindResults[0].column(5);
+    assert(column.name == "DECIMAL_FIELD" && column.type == 581 && column.subType == 2 && column.numericScale == -2 && column.size == 8 && column.tableName == "TEST_SELECT" && column.aliasName == "DECIMAL_FIELD");
+    column = bindResults[0].column(6);
+    assert(column.name == "DATE_FIELD" && column.type == 571 && column.subType == 0 && column.numericScale == 0 && column.size == 4 && column.tableName == "TEST_SELECT" && column.aliasName == "DATE_FIELD");
+    column = bindResults[0].column(7);
+    assert(column.name == "TIME_FIELD" && column.type == 561 && column.subType == 0 && column.numericScale == 0 && column.size == 4 && column.tableName == "TEST_SELECT" && column.aliasName == "TIME_FIELD");
+    column = bindResults[0].column(8);
+    assert(column.name == "TIMESTAMP_FIELD" && column.type == 511 && column.subType == 0 && column.numericScale == 0 && column.size == 8 && column.tableName == "TEST_SELECT" && column.aliasName == "TIMESTAMP_FIELD");
+    column = bindResults[0].column(9);
+    assert(column.name == "CHAR_FIELD" && column.type == 453 && column.subType == 4 && column.numericScale == 0 && column.size == 40 && column.tableName == "TEST_SELECT" && column.aliasName == "CHAR_FIELD");
+    column = bindResults[0].column(10);
+    assert(column.name == "VARCHAR_FIELD" && column.type == 449 && column.subType == 4 && column.numericScale == 0 && column.size == 40 && column.tableName == "TEST_SELECT" && column.aliasName == "VARCHAR_FIELD");
+    column = bindResults[0].column(11);
+    assert(column.name == "BLOB_FIELD" && column.type == 521 && column.subType == 0 && column.numericScale == 0 && column.size == 8 && column.tableName == "TEST_SELECT" && column.aliasName == "BLOB_FIELD");
+    column = bindResults[0].column(12);
+    assert(column.name == "TEXT_FIELD" && column.type == 521 && column.subType == 1 && column.numericScale == 4 && column.size == 8 && column.tableName == "TEST_SELECT" && column.aliasName == "TEXT_FIELD");
 
     assert(bindResults[1].selectOrBind == FbIsc.isc_info_sql_bind);
     assert(bindResults[1].length == 0);

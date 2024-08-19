@@ -679,6 +679,7 @@ template isSerializerMember(alias member)
         && member.attribute.condition != Condition.ignored;
 }
 
+version(none)
 bool isDeserializerMember(T, alias member)() nothrow pure
 {
     enum SerializableMemberOptions attribute = getSerializableMemberOptions!T();
@@ -690,6 +691,7 @@ bool isDeserializerMember(alias attribute, alias member)() nothrow pure
     return attribute.isDeserializer!member();
 }
 
+version(none)
 bool isSerializerMember(T, alias member)() nothrow pure
 {
     enum SerializableMemberOptions attribute = getSerializableMemberOptions!T();
@@ -701,44 +703,44 @@ bool isSerializerMember(alias attribute, alias member)() nothrow pure
     return attribute.isSerializer!member();
 }
 
-string[] getDeserializerMembers(T)() nothrow pure
+Serializable[] getDeserializerMembers(T)() nothrow pure
 {
-    enum SerializableMemberOptions attribute = getSerializableMemberOptions!T();
-    return getDeserializerMembers!(T, attribute)();
+    enum SerializableMemberOptions attributeT = getSerializableMemberOptions!T();
+    return getDeserializerMembers!(T, attributeT)();
 }
 
-string[] getDeserializerMembers(T, alias attribute)() nothrow pure
+Serializable[] getDeserializerMembers(T, alias attributeT)() nothrow pure
 {
     alias members = SerializerMemberList!T;
-    string[] result;
+    Serializable[] result;
     result.reserve(members.length);
     foreach (member; members)
     {
-        if (!attribute.isDeserializer!member())
+        if (!attributeT.isDeserializer!member())
             continue;
 
-        result ~= member.memberName;
+        result ~= member.attribute;
     }
     return result;
 }
 
-string[] getSerializerMembers(T)() nothrow pure
+Serializable[] getSerializerMembers(T)() nothrow pure
 {
-    enum SerializableMemberOptions attribute = getSerializableMemberOptions!T();
-    return getSerializerMembers!(T, attribute)();
+    enum SerializableMemberOptions attributeT = getSerializableMemberOptions!T();
+    return getSerializerMembers!(T, attributeT)();
 }
 
-string[] getSerializerMembers(T, alias attribute)() nothrow pure
+Serializable[] getSerializerMembers(T, alias attributeT)() nothrow pure
 {
     alias members = SerializerMemberList!T;
-    string[] result;
+    Serializable[] result;
     result.reserve(members.length);
     foreach (member; members)
     {
-        if (!attribute.isSerializer!member())
+        if (!attributeT.isSerializer!member())
             continue;
 
-        result ~= member.memberName;
+        result ~= member.attribute;
     }
     return result;
 }
@@ -1115,6 +1117,14 @@ public:
 public:
     SerializerOptions options;
 
+    enum RootKind : ubyte
+    {
+        any,
+        aggregate,
+        array,
+    }
+    RootKind rootKind;
+
 public:
     static ubyte[] binaryFromString(ExceptionClass)(scope const(char)[] v, const(BinaryFormat) binaryFormat)
     {
@@ -1271,6 +1281,10 @@ public:
     final V deserializeWith(V)(Serializable attribute)
     if (isSerializerAggregateType!V)
     {
+        rootKind = RootKind.aggregate;
+        scope (exit)
+            rootKind = RootKind.any;
+
         V v;
         begin(attribute);
         deserialize(v, attribute);
@@ -1292,6 +1306,10 @@ public:
     final V deserializeWith(V)(Serializable attribute)
     if (isDynamicArray!V)
     {
+        rootKind = RootKind.array;
+        scope (exit)
+            rootKind = RootKind.any;
+
         V v;
         begin(attribute);
         deserialize(v, attribute);
@@ -1690,7 +1708,13 @@ public:
         }
         else
         {
-            enum MemberMatched {none, deserialize, ok }
+            enum MemberMatched : ubyte
+            {
+                none,
+                deserialize,
+                ok,
+            }
+
             alias members = SerializerMemberList!V;
             size_t i;
             while (hasAggregateEle(i, readLength))
@@ -1852,6 +1876,10 @@ public:
     final Serializer serializeWith(V)(auto ref V v, Serializable attribute)
     if (isSerializerAggregateType!V)
     {
+        rootKind = RootKind.aggregate;
+        scope (exit)
+            rootKind = RootKind.any;
+
         begin(attribute);
         serialize(v, attribute);
         return end(attribute);
@@ -1871,6 +1899,10 @@ public:
     final Serializer serializeWith(V)(auto ref V v, Serializable attribute)
     if (isDynamicArray!V)
     {
+        rootKind = RootKind.array;
+        scope (exit)
+            rootKind = RootKind.any;
+
         begin(attribute);
         serialize(v, attribute);
         return end(attribute);
@@ -2199,7 +2231,7 @@ public:
     if (isSerializerAggregateType!V)
     {
         debug(pham_ser_ser_serialization) debug writeln(__FUNCTION__, "(V=", V.stringof, ", name=", attribute.name, ")");
-        
+
         bool vIsNull() nothrow @safe
         {
             static if (is(V == class))
@@ -2399,7 +2431,7 @@ package(pham.ser):
     public:
         @Serializable("publicInt", null, DbEntity("publicInt", DbKey.primary))
         int publicInt;
-        
+
         private int _publicGetSet;
 
         int publicGetSet()
@@ -3024,48 +3056,63 @@ unittest // SerializerMemberList
 
 unittest // SerializableMemberOptions - Default
 {
+    import std.algorithm.iteration : each;
     import std.conv : to;
 
     SerializableMemberOptions options;
 
+    string[] deserializerNames;
     const deserializerMembers = getDeserializerMembers!(UnitTestS1, options)();
-    assert(deserializerMembers.length == 2, deserializerMembers.length.to!string() ~ "." ~ deserializerMembers.to!string());
-    assert(deserializerMembers == ["publicInt", "publicGetSet"]);
+    deserializerMembers.each!(e => deserializerNames ~= e.memberName);
+    assert(deserializerMembers.length == 2, deserializerMembers.length.to!string() ~ "." ~ deserializerNames.to!string());
+    assert(deserializerNames == ["publicInt", "publicGetSet"], deserializerNames.to!string);
 
+    string[] serializerNames;
     const serializerMembers = getSerializerMembers!(UnitTestS1, options)();
+    serializerMembers.each!(e => serializerNames ~= e.memberName);
     assert(serializerMembers.length == 2, serializerMembers.length.to!string() ~ "." ~ serializerMembers.to!string());
-    assert(serializerMembers == ["publicInt", "publicGetSet"]);
+    assert(serializerNames == ["publicInt", "publicGetSet"], serializerNames.to!string);
 }
 
 unittest // SerializableMemberOptions - Change options
 {
+    import std.algorithm.iteration : each;
     import std.conv : to;
     SerializableMemberOptions options;
 
     // All scopes
     options.scopes = SerializableMemberScope.public_ | SerializableMemberScope.protected_ | SerializableMemberScope.private_;
-    static immutable expectAllScopes = ["publicInt", "_publicGetSet", "publicStruct", "publicGetSet", "protectedInt", "_protectedGetSet", "protectedGetSet", "privateInt", "_privateGetSet", "privateGetSet", "publicStr"];
+    static immutable expectAllScopes = ["publicInt", "_publicGetSet", "publicStruct", "publicGetSet", "protectedInt",
+        "_protectedGetSet", "protectedGetSet", "privateInt", "_privateGetSet", "privateGetSet", "publicStr"];
 
+    string[] deserializerNames;
     const deserializerMembers = getDeserializerMembers!(UnitTestC2, options)();
-    //import std.stdio; writeln; debug writeln(deserializerMembers); debug writeln(expectAllScopes);
-    assert(deserializerMembers.length == 11, deserializerMembers.length.to!string() ~ "." ~ deserializerMembers.to!string());
-    assert(deserializerMembers == expectAllScopes, deserializerMembers.to!string());
+    deserializerMembers.each!(e => deserializerNames ~= e.memberName);
+    assert(deserializerMembers.length == 11, deserializerMembers.length.to!string() ~ "." ~ deserializerNames.to!string());
+    assert(deserializerNames == expectAllScopes, deserializerNames.to!string());
+
+    string[] serializerNames;
     const serializerMembers = getSerializerMembers!(UnitTestC2, options)();
-    assert(serializerMembers.length == 11, serializerMembers.length.to!string() ~ "." ~ serializerMembers.to!string());
-    assert(serializerMembers == expectAllScopes, serializerMembers.to!string());
+    serializerMembers.each!(e => serializerNames ~= e.memberName);
+    assert(serializerMembers.length == 11, serializerMembers.length.to!string() ~ "." ~ serializerNames.to!string());
+    assert(serializerNames == expectAllScopes, serializerNames.to!string());
 
     // With attribute only
     options.scopes = SerializableMemberScope.public_ | SerializableMemberScope.protected_ | SerializableMemberScope.private_;
     options.flags = SerializableMemberFlag.isGetSet | SerializableMemberFlag.explicitUDA;
     static immutable expectAttributeOnly = ["publicInt", "publicGetSet"];
 
+    deserializerNames = null;
     const deserializerMembers2 = getDeserializerMembers!(UnitTestC2, options)();
-    //import std.stdio; writeln; debug writeln(deserializerMembers2); debug writeln(expectAttributeOnly);
-    assert(deserializerMembers2.length == 2, deserializerMembers2.length.to!string() ~ "." ~ deserializerMembers2.to!string());
-    assert(deserializerMembers2 == expectAttributeOnly, deserializerMembers2.to!string());
+    deserializerMembers2.each!(e => deserializerNames ~= e.memberName);
+    assert(deserializerMembers2.length == 2, deserializerMembers2.length.to!string() ~ "." ~ deserializerNames.to!string());
+    assert(deserializerNames == expectAttributeOnly, deserializerNames.to!string());
+
+    serializerNames = null;
     const serializerMembers2 = getSerializerMembers!(UnitTestC2, options)();
-    assert(serializerMembers2.length == 2, serializerMembers2.length.to!string() ~ "." ~ serializerMembers2.to!string());
-    assert(serializerMembers2 == expectAttributeOnly, serializerMembers2.to!string());
+    serializerMembers2.each!(e => serializerNames ~= e.memberName);
+    assert(serializerMembers2.length == 2, serializerMembers2.length.to!string() ~ "." ~ serializerNames.to!string());
+    assert(serializerNames == expectAttributeOnly, serializerNames.to!string());
 }
 
 version(unittest)

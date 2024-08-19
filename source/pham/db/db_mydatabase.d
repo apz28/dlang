@@ -361,33 +361,33 @@ protected:
         }
     }
 
-    static void fillNamedColumn(DbNameColumn column, const ref MyFieldInfo myField, const(bool) isNew) nothrow @safe
+    static void fillNamedColumn(DbNameColumn column, const ref MyColumnInfo myColumn, const(bool) isNew) nothrow @safe
     {
-        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(myField=", myField.traceString(), ")");
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(myColumn=", myColumn.traceString(), ")");
 
-        column.baseName = myField.useName();
-        column.baseNumericDigits = cast(int16)myField.precision;
-        column.baseNumericScale = myField.scale;
-        column.baseSize = myField.columnLength;
-        column.baseSubTypeId = myField.typeFlags;
-        column.baseTableName = myField.useTableName();
-        column.baseTypeId = myField.typeId;
-        column.allowNull = myField.allowNull;
-        column.type = myField.dbType();
-        column.size = myField.dbTypeSize();
+        column.baseName = myColumn.useName();
+        column.baseNumericDigits = cast(int16)myColumn.precision;
+        column.baseNumericScale = myColumn.scale;
+        column.baseSize = myColumn.columnLength;
+        column.baseSubTypeId = myColumn.typeFlags;
+        column.baseTableName = myColumn.useTableName();
+        column.baseTypeId = myColumn.typeId;
+        column.allowNull = myColumn.allowNull;
+        column.type = myColumn.dbType();
+        column.size = myColumn.dbTypeSize();
 
         auto f = cast(DbColumn)column;
         if (f !is null)
         {
-            f.isKey = myField.isPrimaryKey;
-            f.isUnique = myField.isUnique;
+            f.isKey = myColumn.isPrimaryKey;
+            f.isUnique = myColumn.isUnique;
         }
     }
 
     final void processExecuteResponse(ref MyCommandResultResponse response, const(int) counter) @safe
     {
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(response.okResponse.lastInsertId=", response.okResponse.lastInsertId,
-            ", response.okResponse.affectedRows=", response.okResponse.affectedRows, ", response.fields.length=", response.fields.length, ")");
+            ", response.okResponse.affectedRows=", response.okResponse.affectedRows, ", response.columns.length=", response.columns.length, ")");
 
         if (counter == 1)
         {
@@ -395,29 +395,29 @@ protected:
             _recordsAffected = response.okResponse.affectedRows;
         }
 
-        if (response.fields.length != 0)
+        if (response.columns.length != 0)
         {
-            auto localFields = fields;
+            auto localColumns = columns;
 
             if (prepared)
             {
-                if (localFields.length != response.fields.length)
-                    localFields.clear();
+                if (localColumns.length != response.columns.length)
+                    localColumns.clear();
             }
             else
             {
-                localFields.clear();
+                localColumns.clear();
             }
 
-            if (localFields.length == 0)
+            if (localColumns.length == 0)
             {
-                localFields.reserve(response.fields.length);
-                foreach (ref myField; response.fields)
+                localColumns.reserve(response.columns.length);
+                foreach (ref myColumn; response.columns)
                 {
-                    auto newName = myField.useName;
-                    auto newField = localFields.create(this, newName);
-                    fillNamedColumn(newField, myField, true);
-                    localFields.put(newField);
+                    auto newName = myColumn.useName;
+                    auto newColumn = localColumns.create(this, newName);
+                    fillNamedColumn(newColumn, myColumn, true);
+                    localColumns.put(newColumn);
                 }
             }
         }
@@ -447,36 +447,36 @@ protected:
             }
         }
 
-        if (response.fields.length != 0)
+        if (response.columns.length != 0)
         {
             const localIsStoredProcedure = isStoredProcedure;
             auto localParameters = localIsStoredProcedure ? parameters : null;
             if (localIsStoredProcedure)
-                localParameters.reserve(response.fields.length);
-            auto localFields = fields;
-            localFields.reserve(response.fields.length);
-            foreach (i, ref myField; response.fields)
+                localParameters.reserve(response.columns.length);
+            auto localColumns = columns;
+            localColumns.reserve(response.columns.length);
+            foreach (i, ref myColumn; response.columns)
             {
-                auto newField = localFields.create(this, myField.useName);
-                newField.isAlias = myField.isAlias;
-                fillNamedColumn(newField, myField, true);
-                localFields.put(newField);
+                auto newColumn = localColumns.create(this, myColumn.useName);
+                newColumn.isAlias = myColumn.isAlias;
+                fillNamedColumn(newColumn, myColumn, true);
+                localColumns.put(newColumn);
 
                 if (localIsStoredProcedure)
                 {
-                    auto foundParameter = localParameters.hasOutput(newField.name, i);
+                    auto foundParameter = localParameters.hasOutput(newColumn.name, i);
                     if (foundParameter is null)
                     {
-                        auto newParameter = localParameters.create(newField.name);
+                        auto newParameter = localParameters.create(newColumn.name);
                         newParameter.direction = DbParameterDirection.output;
-                        fillNamedColumn(newParameter, myField, true);
+                        fillNamedColumn(newParameter, myColumn, true);
                         localParameters.put(newParameter);
                     }
                     else
                     {
-                        if (foundParameter.name.length == 0 && newField.name.length != 0)
-                            foundParameter.updateEmptyName(newField.name);
-                        fillNamedColumn(foundParameter, myField, false);
+                        if (foundParameter.name.length == 0 && newColumn.name.length != 0)
+                            foundParameter.updateEmptyName(newColumn.name);
+                        fillNamedColumn(foundParameter, myColumn, false);
                     }
                 }
             }
@@ -509,7 +509,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = myConnection.protocol;
-        return protocol.readValues(rowPackage, this, cast(MyColumnList)fields);
+        return protocol.readValues(rowPackage, this, cast(MyColumnList)columns);
     }
 
     override void removeReaderCompleted(const(bool) implicitTransaction) nothrow @safe
@@ -877,7 +877,10 @@ ORDER BY ORDINAL_POSITION
     }
 
 public:
-    MyFieldTypeMap fieldTypeMaps;
+    MyColumnTypeMap columnTypeMaps;
+    
+    deprecated("please use columnTypeMaps")
+    alias fieldTypeMaps = columnTypeMaps;
 
 protected:
     MyProtocol _protocol;
@@ -1138,9 +1141,9 @@ public:
             : new MyColumn(cast(MyCommand)command, name);
     }
 
-    final override DbFieldIdType isValueIdType() const nothrow @safe
+    final override DbColumnIdType isValueIdType() const nothrow @safe
     {
-        return MyFieldInfo.isValueIdType(baseTypeId, baseSubTypeId);
+        return MyColumnInfo.isValueIdType(baseTypeId, baseSubTypeId);
     }
 
     @property final MyCommand myCommand() nothrow pure @safe
@@ -1186,9 +1189,9 @@ public:
         super(database, name);
     }
 
-    final override DbFieldIdType isValueIdType() const nothrow @safe
+    final override DbColumnIdType isValueIdType() const nothrow @safe
     {
-        return MyFieldInfo.isValueIdType(baseTypeId, baseSubTypeId);
+        return MyColumnInfo.isValueIdType(baseTypeId, baseSubTypeId);
     }
 
 protected:
@@ -1362,7 +1365,7 @@ shared static this() nothrow @safe
 
 version(UnitTestMYDatabase)
 {
-    MyConnection createTestConnection(
+    MyConnection createUnitTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
         DbCompressConnection compress = DbCompressConnection.disabled)
     {
@@ -1537,7 +1540,7 @@ unittest // MyConnection
 {
     import std.stdio : writeln; writeln("UnitTestMYDatabase.MyConnection"); // For first unittest
     
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     assert(connection.state == DbConnectionState.closed);
@@ -1552,7 +1555,7 @@ unittest // MyConnection
 version(UnitTestMYDatabase)
 unittest // MyConnection.serverVersion
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -1564,7 +1567,7 @@ unittest // MyConnection.serverVersion
 version(UnitTestMYDatabase)
 unittest // MyConnection(myAuthSha2Caching)
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     assert(connection.state == DbConnectionState.closed);
@@ -1591,7 +1594,7 @@ unittest // MyConnection(myAuthSha2Caching)
 version(UnitTestMYDatabase)
 unittest // MyTransaction
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
     {
         connection.dispose();
@@ -1626,7 +1629,7 @@ unittest // MyTransaction
 version(UnitTestMYDatabase)
 unittest // MyTransaction.savePoint
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -1646,7 +1649,7 @@ unittest // MyTransaction.savePoint
 version(UnitTestMYDatabase)
 unittest // MyCommand.DDL
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -1665,7 +1668,7 @@ unittest // MyCommand.DDL
 version(UnitTestMYDatabase)
 unittest // MyCommand.DML - Simple select
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -1684,7 +1687,7 @@ unittest // MyCommand.DML - Simple select
 version(UnitTestMYDatabase)
 unittest // MyCommand.DML - Parameter select
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -1710,7 +1713,7 @@ unittest // MyCommand.DML - Parameter select
 version(UnitTestMYDatabase)
 unittest // MyCommand.DML.StoredProcedure
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -1789,7 +1792,7 @@ unittest // MyCommand.DML.StoredProcedure
 version(UnitTestMYDatabase)
 unittest // MyCommand.DML.StoredProcedure & Parameter select
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -1823,7 +1826,7 @@ unittest // MyCommand.DML.StoredProcedure & Parameter select
 version(UnitTestMYDatabase)
 unittest // MyCommand.DML.Abort reader
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
@@ -1872,7 +1875,7 @@ unittest // MyCommand.DML.Abort reader
 version(UnitTestMYDatabase)
 unittest // MyConnection(SSL)
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     assert(connection.state == DbConnectionState.closed);
@@ -2028,7 +2031,7 @@ version(UnitTestPerfMYDatabase)
             }
         }
 
-        auto connection = createTestConnection();
+        auto connection = createUnitTestConnection();
         scope (exit)
             connection.dispose();
         connection.open();
@@ -2071,7 +2074,7 @@ unittest // MyCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
 version(UnitTestMYDatabase)
 unittest // MyConnection.DML.execute...
 {
-    auto connection = createTestConnection();
+    auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();

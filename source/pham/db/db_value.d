@@ -64,7 +64,7 @@ public:
 
     bool opEquals(const DbValue rhs) const @safe
     {
-        return _type == rhs._type && _value == rhs._value;
+        return this._type == rhs._type && this._value == rhs._value;
     }
 
     static DbValue dbNull(DbType dbType = DbType.unknown) nothrow @safe

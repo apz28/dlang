@@ -69,7 +69,7 @@ struct DbMessage
     static immutable eInvalidConnectionStringNameDup = "Duplicate %s connection element '%s'"; // First %s is scheme name
     static immutable eInvalidConnectionStringValue = "Invalid %s element %s value '%s'"; // First %s is scheme name
 
-    static immutable eInvalidSQLDAFieldIndex = "Invalid/Unsupported SQLDA type %d. FieldIndex, %d, is invalid";
+    static immutable eInvalidSQLDAColumnIndex = "Invalid/Unsupported SQLDA type %d. ColumnIndex, %d, is invalid";
     static immutable eInvalidSQLDAIndex = "Invalid/Unsupported SQLDA type %d. Index is not set";
     static immutable eInvalidSQLDANotEnoughData = "Invalid/Unsupported SQLDA type %d. Not enough data for reading %d bytes";
     static immutable eInvalidSQLDAType = "Invalid/Unsupported SQLDA type %d";

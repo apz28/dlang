@@ -219,10 +219,10 @@ struct MyCommandPreparedResponse
 {
 nothrow @safe:
 
-    MyFieldInfo[] fields;
-    MyFieldInfo[] parameters;
+    MyColumnInfo[] columns;
+    MyColumnInfo[] parameters;
     MyCommandId id;
-    int16 fieldCount;
+    int16 columnCount;
     int16 parameterCount;
 }
 
@@ -230,9 +230,9 @@ struct MyCommandResultResponse
 {
 nothrow @safe:
 
-    MyFieldInfo[] fields;
+    MyColumnInfo[] columns;
     MyOkResponse okResponse;
-    int32 fieldCount;
+    int32 columnCount;
 }
 
 struct MyEOFResponse
@@ -268,7 +268,7 @@ public:
     uint line;
 }
 
-struct MyFieldInfo
+struct MyColumnInfo
 {
 nothrow @safe:
 
@@ -287,7 +287,7 @@ public:
         return result;
     }
 
-    void calculateOtherInfo(const ref MyFieldTypeMap fieldTypeMaps) pure
+    void calculateOtherInfo(const ref MyColumnTypeMap columnTypeMaps) pure
     {
         if (typeId == MyTypeId.decimal || typeId == MyTypeId.newDecimal)
         {
@@ -327,10 +327,10 @@ public:
             characterSetLength = 4;
         }
 
-        const kind = fieldTypeMaps.get(useName);
-        if (kind != MyFieldTypeMapKind.unknown)
+        const kind = columnTypeMaps.get(useName);
+        if (kind != MyColumnTypeMapKind.unknown)
         {
-            final switch (kind) with (MyFieldTypeMapKind)
+            final switch (kind) with (MyColumnTypeMapKind)
             {
                 case unknown:
                     assert(0);
@@ -421,9 +421,9 @@ public:
             ~ ", isText=" ~ isText.to!string();
     }
 
-    static DbFieldIdType isValueIdType(int32 mIdType, int32 mIdSubType) @nogc pure
+    static DbColumnIdType isValueIdType(int32 mIdType, int32 mIdSubType) @nogc pure
     {
-        return DbFieldIdType.no;
+        return DbColumnIdType.no;
     }
 
     pragma(inline, true)
@@ -510,6 +510,9 @@ public:
     int8 scale;
 }
 
+deprecated("please use MyColumnInfo")
+alias MyFieldInfo = MyColumnInfo;
+
 struct MyOkResponse
 {
 nothrow @safe:
@@ -537,7 +540,7 @@ nothrow @safe:
     MySessionTrackType trackType;
 }
 
-enum MyFieldTypeMapKind : ubyte
+enum MyColumnTypeMapKind : ubyte
 {
     unknown,
     boolean,
@@ -547,26 +550,35 @@ enum MyFieldTypeMapKind : ubyte
     uuid,
 }
 
-struct MyFieldTypeMap
+deprecated("please use MyColumnTypeMapKind")
+alias MyFieldTypeMapKind = MyColumnTypeMapKind;
+ 
+deprecated("please use MyColumnTypeMap")
+alias MyFieldTypeMap = MyColumnTypeMap;
+
+struct MyColumnTypeMap
 {
 nothrow @safe:
 
 public:
-    MyFieldTypeMapKind get(string fieldName) const @nogc pure
+    MyColumnTypeMapKind get(string columnName) const @nogc pure
     {
-        if (auto e = fieldName in fieldNames)
+        if (auto e = columnName in columnNames)
             return *e;
         else
-            return MyFieldTypeMapKind.unknown;
+            return MyColumnTypeMapKind.unknown;
     }
 
-    void set(string fieldName, MyFieldTypeMapKind kind) pure
+    void set(string columnName, MyColumnTypeMapKind kind) pure
     {
-        fieldNames[fieldName] = kind;
+        columnNames[columnName] = kind;
     }
 
 public:
-    MyFieldTypeMapKind[string] fieldNames;
+    MyColumnTypeMapKind[string] columnNames;
+    
+    deprecated("please use columnNames")
+    alias fieldNames = columnNames;
 }
 
 struct MyGeometry
@@ -585,7 +597,7 @@ DbType myParameterTypeToDbType(scope const(char)[] myTypeName, const(int32) prec
         DbType result = *e;
         return result != DbType.decimal
             ? result
-            : MyFieldInfo.decimalDbType(result, precision);
+            : MyColumnInfo.decimalDbType(result, precision);
     }
     else
         return DbType.unknown;

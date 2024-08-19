@@ -198,9 +198,9 @@ public:
     }
 
     pragma(inline, true)
-    bool readBoolValue(const(bool) readFieldLength)
+    bool readBoolValue(const(bool) readColumnLength)
     {
-        return readInt8Value(readFieldLength) != 0;
+        return readInt8Value(readColumnLength) != 0;
     }
 
     pragma(inline, true)
@@ -217,7 +217,7 @@ public:
     }
 
     pragma(inline, true)
-    ubyte[] readBytesValue(const(bool) readFieldLength)
+    ubyte[] readBytesValue(const(bool) readColumnLength)
     {
         const len = readLength();
         return readBytes(cast(int32)len);
@@ -248,9 +248,9 @@ public:
         return cast(string)readCChars(allIfNotTerminated);
     }
 
-    DbDate readDateValue(const(bool) readFieldLength)
+    DbDate readDateValue(const(bool) readColumnLength)
     {
-        const len = readFieldLength ? readLength() : -1;
+        const len = readColumnLength ? readLength() : -1;
         if (len == -1)
         {
             const nBytes = cast(size_t)readUInt8();
@@ -272,9 +272,9 @@ public:
         }
     }
 
-    DbDateTime readDateTimeValue(const(bool) readFieldLength)
+    DbDateTime readDateTimeValue(const(bool) readColumnLength)
     {
-        const len = readFieldLength ? readLength() : -1;
+        const len = readColumnLength ? readLength() : -1;
         if (len == -1)
         {
             const nBytes = cast(size_t)readUInt8();
@@ -296,7 +296,7 @@ public:
         }
     }
 
-    D readDecimalValue(D)(const(bool) readFieldLength)
+    D readDecimalValue(D)(const(bool) readColumnLength)
     if (isDecimal!D)
     {
         const len = readLength();
@@ -322,23 +322,23 @@ public:
         return result;
     }
 
-    float32 readFloat32Value(const(bool) readFieldLength)
+    float32 readFloat32Value(const(bool) readColumnLength)
     {
-        const len = readFieldLength ? readLength() : -1;
+        const len = readColumnLength ? readLength() : -1;
         return len == -1
             ? numericBitCast!float32(readUInt32!4())
             : (len > 0 ? consumeChars(len).to!float32() : 0);
     }
 
-    float64 readFloat64Value(const(bool) readFieldLength)
+    float64 readFloat64Value(const(bool) readColumnLength)
     {
-        const len = readFieldLength ? readLength() : -1;
+        const len = readColumnLength ? readLength() : -1;
         return len == -1
             ? numericBitCast!float64(readUInt64!8())
             : (len > 0 ? consumeChars(len).to!float64() : 0);
     }
 
-    MyGeometry readGeometryValue(const(bool) readFieldLength)
+    MyGeometry readGeometryValue(const(bool) readColumnLength)
     {
         const len = readLength();
         return len > 0 ? geometryDecode(consumeBytes(len)) : MyGeometry.init;
@@ -350,9 +350,9 @@ public:
         return _reader.readInt8();
     }
 
-    int8 readInt8Value(const(bool) readFieldLength) // TINYINT
+    int8 readInt8Value(const(bool) readColumnLength) // TINYINT
     {
-        const len = readFieldLength ? readLength() : -1;
+        const len = readColumnLength ? readLength() : -1;
         return len == -1
             ? _reader.readInt8()
             : (len > 0 ? consumeChars(len).to!int8() : 0);
@@ -364,9 +364,9 @@ public:
         return numericBitCast!int16(readUInt16());
     }
 
-    int16 readInt16Value(const(bool) readFieldLength)
+    int16 readInt16Value(const(bool) readColumnLength)
     {
-        const len = readFieldLength ? readLength() : -1;
+        const len = readColumnLength ? readLength() : -1;
         return len == -1
             ? readInt16()
             : (len > 0 ? consumeChars(len).to!int16() : 0);
@@ -384,9 +384,9 @@ public:
         return numericBitCast!int32(readUInt32!4());
     }
 
-    int32 readInt32Value(const(bool) readFieldLength)
+    int32 readInt32Value(const(bool) readColumnLength)
     {
-        const len = readFieldLength ? readLength() : -1;
+        const len = readColumnLength ? readLength() : -1;
         return len == -1
             ? readInt32()
             : (len > 0 ? consumeChars(len).to!int32() : 0);
@@ -398,9 +398,9 @@ public:
         return numericBitCast!int64(readUInt64!8());
     }
 
-    int64 readInt64Value(const(bool) readFieldLength)
+    int64 readInt64Value(const(bool) readColumnLength)
     {
-        const len = readFieldLength ? readLength() : -1;
+        const len = readColumnLength ? readLength() : -1;
         return len == -1
             ? readInt64()
             : (len > 0 ? consumeChars(len).to!int64() : 0);
@@ -485,20 +485,20 @@ public:
     }
 
     pragma(inline, true)
-    string readStringValue(const(bool) readFieldLength) @trusted
+    string readStringValue(const(bool) readColumnLength) @trusted
     {
-        return cast(string)readBytesValue(readFieldLength);
+        return cast(string)readBytesValue(readColumnLength);
     }
 
-    DbTime readTimeValue(const(bool) readFieldLength)
+    DbTime readTimeValue(const(bool) readColumnLength)
     {
-        auto ts = readTimeSpanValue(readFieldLength);
+        auto ts = readTimeSpanValue(readColumnLength);
         return DbTime(ts.time);
     }
 
-    DbTimeSpan readTimeSpanValue(const(bool) readFieldLength)
+    DbTimeSpan readTimeSpanValue(const(bool) readColumnLength)
     {
-        const len = readFieldLength ? readLength() : -1;
+        const len = readColumnLength ? readLength() : -1;
         if (len == -1)
         {
             const nBytes = cast(size_t)readUInt8();
@@ -570,7 +570,7 @@ public:
     }
 
     // "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-    UUID readUUIDValue(const(bool) readFieldLength)
+    UUID readUUIDValue(const(bool) readColumnLength)
     {
         const len = readLength();
         return len > 0 ? UUID(consumeChars(len)) : UUID.init;
