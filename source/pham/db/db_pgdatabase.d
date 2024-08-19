@@ -1022,25 +1022,25 @@ class PgConnection : SkConnection
 public:
     this(PgDatabase database) nothrow @safe
     {
-        super(database);
+        super(database !is null ? database : pgDB);
         this._largeBlobManager = PgLargeBlobManager(this);
     }
 
     this(PgDatabase database, string connectionString) @safe
     {
-        super(database, connectionString);
+        super(database !is null ? database : pgDB, connectionString);
         this._largeBlobManager = PgLargeBlobManager(this);
     }
 
     this(PgDatabase database, PgConnectionStringBuilder connectionString) nothrow @safe
     {
-        super(database, connectionString);
+        super(database !is null ? database : pgDB, connectionString);
         this._largeBlobManager = PgLargeBlobManager(this);
     }
 
     this(PgDatabase database, DbURL!string connectionString) @safe
     {
-        super(database, connectionString);
+        super(database !is null ? database : pgDB, connectionString);
         this._largeBlobManager = PgLargeBlobManager(this);
     }
 
@@ -1305,12 +1305,12 @@ class PgConnectionStringBuilder : SkConnectionStringBuilder
 public:
     this(PgDatabase database) nothrow
     {
-        super(database);
+        super(database !is null ? database : pgDB);
     }
 
     this(PgDatabase database, string connectionString)
     {
-        super(database, connectionString);
+        super(database !is null ? database : pgDB, connectionString);
     }
 
     final string integratedSecurityName() const nothrow
@@ -1552,9 +1552,9 @@ protected:
 class PgParameter : DbParameter
 {
 public:
-    this(PgDatabase database, DbIdentitier name) nothrow pure @safe
+    this(PgDatabase database, DbIdentitier name) nothrow @safe
     {
-        super(database, name);
+        super(database !is null ? database : pgDB, name);
     }
 
     final override DbColumnIdType isValueIdType() const nothrow @safe
@@ -1580,9 +1580,9 @@ protected:
 class PgParameterList : DbParameterList
 {
 public:
-    this(PgDatabase database) nothrow pure @safe
+    this(PgDatabase database) nothrow @safe
     {
-        super(database);
+        super(database !is null ? database : pgDB);
     }
 }
 
@@ -1729,10 +1729,22 @@ private:
 // Any below codes are private
 private:
 
-shared static this() nothrow @safe
+__gshared PgDatabase _pgDB;
+shared static this() nothrow @trusted
 {
-    auto db = new PgDatabase();
-    DbDatabaseList.registerDb(db);
+    _pgDB = new PgDatabase();
+    DbDatabaseList.registerDb(_pgDB);
+}
+
+shared static ~this() nothrow
+{
+    _pgDB = null;
+}
+
+pragma(inline, true)
+@property PgDatabase pgDB() nothrow @trusted
+{
+    return _pgDB;
 }
 
 version(UnitTestPGDatabase)

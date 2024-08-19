@@ -585,22 +585,22 @@ class MyConnection : SkConnection
 public:
     this(MyDatabase database) nothrow @safe
     {
-        super(database);
+        super(database !is null ? database : myDB);
     }
 
     this(MyDatabase database, string connectionString) @safe
     {
-        super(database, connectionString);
+        super(database !is null ? database : myDB, connectionString);
     }
 
     this(MyDatabase database, MyConnectionStringBuilder connectionString) nothrow @safe
     {
-        super(database, connectionString);
+        super(database !is null ? database : myDB, connectionString);
     }
 
     this(MyDatabase database, DbURL!string connectionString) @safe
     {
-        super(database, connectionString);
+        super(database !is null ? database : myDB, connectionString);
     }
 
     final override DbCancelCommandData createCancelCommandData(DbCommand command) @safe
@@ -897,12 +897,12 @@ class MyConnectionStringBuilder : SkConnectionStringBuilder
 public:
     this(MyDatabase database) nothrow
     {
-        super(database);
+        super(database !is null ? database : myDB);
     }
 
     this(MyDatabase database, string connectionString)
     {
-        super(database, connectionString);
+        super(database !is null ? database : myDB, connectionString);
     }
 
     final string integratedSecurityName() const nothrow
@@ -1184,9 +1184,9 @@ protected:
 class MyParameter : DbParameter
 {
 public:
-    this(MyDatabase database, DbIdentitier name) nothrow pure @safe
+    this(MyDatabase database, DbIdentitier name) nothrow @safe
     {
-        super(database, name);
+        super(database !is null ? database : myDB, name);
     }
 
     final override DbColumnIdType isValueIdType() const nothrow @safe
@@ -1212,9 +1212,9 @@ protected:
 class MyParameterList : DbParameterList
 {
 public:
-    this(MyDatabase database) nothrow pure @safe
+    this(MyDatabase database) nothrow @safe
     {
-        super(database);
+        super(database !is null ? database : myDB);
     }
 }
 
@@ -1357,10 +1357,22 @@ private:
 // Any below codes are private
 private:
 
-shared static this() nothrow @safe
+__gshared MyDatabase _myDB;
+shared static this() nothrow @trusted
 {
-    auto db = new MyDatabase();
-    DbDatabaseList.registerDb(db);
+    _myDB = new MyDatabase();
+    DbDatabaseList.registerDb(_myDB);
+}
+
+shared static ~this() nothrow
+{
+    _myDB = null;
+}
+
+pragma(inline, true)
+@property MyDatabase myDB() nothrow @trusted
+{
+    return _myDB;
 }
 
 version(UnitTestMYDatabase)

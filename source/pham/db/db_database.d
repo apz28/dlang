@@ -4134,7 +4134,7 @@ alias DbFieldList = DbColumnList;
 class DbParameter : DbNameColumn
 {
 public:
-    this(DbDatabase database, DbIdentitier name) nothrow pure @safe
+    this(DbDatabase database, DbIdentitier name) nothrow @safe
     {
         this._name = name;
         this._flags.include(DbSchemaColumnFlag.allowNull);
@@ -4281,7 +4281,7 @@ protected:
 class DbParameterList : DbNameObjectList!DbParameter, IDisposable
 {
 public:
-    this(DbDatabase database) nothrow pure @safe
+    this(DbDatabase database) nothrow @safe
     {
         this._database = database;
     }

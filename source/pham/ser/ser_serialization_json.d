@@ -275,15 +275,15 @@ public:
         return t;
     }
 
-    final override bool hasArrayEle(size_t i, ptrdiff_t len)
-    {
-        //import std.stdio : writeln; debug writeln("hasArrayEle().i=", i, ", len=", len);
-        return len > 0 && len > i && currents.length != 0;
-    }
-
     final override bool hasAggregateEle(size_t i, ptrdiff_t len)
     {
         //import std.stdio : writeln; debug writeln("hasAggregateEle().i=", i, ", len=", len);
+        return len > 0 && len > i && currents.length != 0;
+    }
+
+    final override bool hasArrayEle(size_t i, ptrdiff_t len)
+    {
+        //import std.stdio : writeln; debug writeln("hasArrayEle().i=", i, ", len=", len);
         return len > 0 && len > i && currents.length != 0;
     }
 

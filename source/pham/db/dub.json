@@ -1,6 +1,6 @@
 {
 	"name": "pham_db",
-	"description": "Database drivers.",
+	"description": "Database drivers; Firebird, MySQL, PostgreSQL & Commercial ODBC MS-SQL.",
 	"authors": [
 		"An Pham"
 	],

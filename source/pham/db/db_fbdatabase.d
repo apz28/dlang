@@ -1688,25 +1688,25 @@ class FbConnection : SkConnection
 public:
     this(FbDatabase database) nothrow @safe
     {
-        super(database);
+        super(database !is null ? database : fbDB);
         this._arrayManager = FbArrayManager(this);
     }
 
     this(FbDatabase database, string connectionString) @safe
     {
-        super(database, connectionString);
+        super(database !is null ? database : fbDB, connectionString);
         this._arrayManager = FbArrayManager(this);
     }
 
     this(FbDatabase database, FbConnectionStringBuilder connectionString) nothrow @safe
     {
-        super(database, connectionString);
+        super(database !is null ? database : fbDB, connectionString);
         this._arrayManager = FbArrayManager(this);
     }
 
     this(FbDatabase database, DbURL!string connectionString) @safe
     {
-        super(database, connectionString);
+        super(database !is null ? database : fbDB, connectionString);
         this._arrayManager = FbArrayManager(this);
     }
 
@@ -1983,12 +1983,12 @@ class FbConnectionStringBuilder : SkConnectionStringBuilder
 public:
     this(FbDatabase database) nothrow
     {
-        super(database);
+        super(database !is null ? database : fbDB);
     }
 
     this(FbDatabase database, string connectionString)
     {
-        super(database, connectionString);
+        super(database !is null ? database : fbDB, connectionString);
     }
 
     final string integratedSecurityName() const nothrow
@@ -2285,9 +2285,9 @@ protected:
 class FbParameter : DbParameter
 {
 public:
-    this(FbDatabase database, DbIdentitier name) nothrow pure @safe
+    this(FbDatabase database, DbIdentitier name) nothrow @safe
     {
-        super(database, name);
+        super(database !is null ? database : fbDB, name);
     }
 
     final override DbColumnIdType isValueIdType() const nothrow @safe
@@ -2328,9 +2328,9 @@ package(pham.db):
 class FbParameterList : DbParameterList
 {
 public:
-    this(FbDatabase database) nothrow pure @safe
+    this(FbDatabase database) nothrow @safe
     {
-        super(database);
+        super(database !is null ? database : fbDB);
     }
 }
 
@@ -2443,12 +2443,24 @@ private:
 // Any below codes are private
 private:
 
-shared static this() nothrow @safe
+__gshared FbDatabase _fbDB;
+shared static this() nothrow @trusted
 {
     debug(debug_pham_db_db_fbdatabase) debug writeln("shared static this(", __MODULE__, ")");
 
-    auto db = new FbDatabase();
-    DbDatabaseList.registerDb(db);
+    _fbDB = new FbDatabase();
+    DbDatabaseList.registerDb(_fbDB);
+}
+
+shared static ~this() nothrow
+{
+    _fbDB = null;
+}
+
+pragma(inline, true)
+@property FbDatabase fbDB() nothrow @trusted
+{
+    return _fbDB;
 }
 
 version(UnitTestFBDatabase)

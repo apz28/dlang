@@ -76,7 +76,7 @@ public:
     {
         auto parameters = connection.database.createParameterList();
         foreach (k, v; conditionParameters)
-            parameters.put(k, DbType.unknown, v);
+            parameters.add(k, DbType.unknown, v);
         return select!V(parameters);
     }
 
@@ -87,10 +87,10 @@ public:
             Serializable attribute = getUDA!(V, Serializable);
         else
             Serializable attribute = Serializable(V.stringof);
-        return selectWith!V(attribute);
+        return selectWith!V(conditionParameters, attribute);
     }
 
-    final V selectWith(V)(DbParameterList conditionParameters, Serializable attribute)
+    final V selectWith(V)(DbParameterList conditionParameters, Serializable attribute) @trusted // this.reader = &selectReader
     if (isSerializerAggregateType!V)
     in
     {
@@ -141,19 +141,18 @@ public:
 
     final override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
     {
-        debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(typeName=", typeName, ", name=", attribute.name, ", memberDepth=", memberDepth, ")");
-        
+        debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(currentCol=", currentCol, ", name=", attribute.name, ", memberDepth=", memberDepth, ")");
+
         if (subDeserializer is null)
         {
             const needSub = memberDepth == 1;
-            currentCol = 0;
             super.aggregateBegin(typeName, attribute);
             if (needSub)
             {
                 auto json = readChars(attribute);
                 if (json.length == 0)
                     return 0;
-                    
+
                 subKind = DbSubSerializerKind.aggregate;
                 subDeserializer = new JsonDeserializer(json);
                 subDeserializer.begin(attribute);
@@ -161,19 +160,20 @@ public:
             }
             else
             {
+                currentCol = 0;
                 return currentRow;
             }
         }
         else
-            return subDeserializer.aggregateBegin(typeName, attribute);        
+            return subDeserializer.aggregateBegin(typeName, attribute);
     }
 
     final override void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable attribute)
     {
-        debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(typeName=", typeName, ", name=", attribute.name, ", memberDepth=", memberDepth, ")");
+        debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(currentCol=", currentCol, ", name=", attribute.name, ", memberDepth=", memberDepth, ")");
 
         const isSub = subDeserializer !is null;
-        
+
         if (!isSub || (memberDepth == 2 && subKind == DbSubSerializerKind.aggregate))
             super.aggregateEnd(typeName, length, attribute);
 
@@ -191,7 +191,7 @@ public:
 
     final override ptrdiff_t arrayBegin(string elemTypeName, scope ref Serializable attribute)
     {
-        debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(name=", attribute.name, ", arrayDepth=", arrayDepth, ")");
+        debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(currentCol=", currentCol, ", name=", attribute.name, ", arrayDepth=", arrayDepth, ")");
 
         if (subDeserializer is null)
         {
@@ -202,7 +202,7 @@ public:
                 auto json = readChars(attribute);
                 if (json.length == 0)
                     return 0;
-            
+
                 subKind = DbSubSerializerKind.array;
                 subDeserializer = new JsonDeserializer(json);
                 subDeserializer.begin(attribute);
@@ -213,10 +213,10 @@ public:
         else
             return subDeserializer.arrayBegin(elemTypeName, attribute);
     }
-    
+
     final override void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
     {
-        debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(name=", attribute.name, ", arrayDepth=", arrayDepth, ")");
+        debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(currentCol=", currentCol, ", name=", attribute.name, ", arrayDepth=", arrayDepth, ")");
 
         const isSub = subDeserializer !is null;
 
@@ -234,17 +234,24 @@ public:
             }
         }
     }
-    
-    final override Null readNull(scope ref Serializable)
+
+    final override Null readNull(scope ref Serializable attribute)
     {
-        const i = popFront();
-        assert(reader.isNull(i));
-        return null;
+        if (subDeserializer is null)
+        {
+            const i = popFront();
+            assert(reader.isNull(i));
+            return null;
+        }
+        else
+            return subDeserializer.readNull(attribute);
     }
 
-    final override bool readBool(scope ref Serializable)
+    final override bool readBool(scope ref Serializable attribute)
     {
-        return reader.getValue(popFront()).coerce!bool();
+        return subDeserializer is null
+            ? reader.getValue(popFront()).coerce!bool()
+            : subDeserializer.readBool(attribute);
     }
 
     final override char readChar(scope ref Serializable attribute)
@@ -254,55 +261,81 @@ public:
         return s.length ? s[0] : '\0';
     }
 
-    final override Date readDate(scope ref Serializable)
+    final override Date readDate(scope ref Serializable attribute)
     {
-        return reader.getValue(popFront()).coerce!Date();
+        return subDeserializer is null
+            ? reader.getValue(popFront()).coerce!Date()
+            : subDeserializer.readDate(attribute);
     }
 
-    final override DateTime readDateTime(scope ref Serializable)
+    final override DateTime readDateTime(scope ref Serializable attribute)
     {
-        return reader.getValue(popFront()).coerce!DateTime();
+        return subDeserializer is null
+            ? reader.getValue(popFront()).coerce!DateTime()
+            : subDeserializer.readDateTime(attribute);
     }
 
-    final override Time readTime(scope ref Serializable)
+    final override Time readTime(scope ref Serializable attribute)
     {
-        return reader.getValue(popFront()).coerce!Time();
+        return subDeserializer is null
+            ? reader.getValue(popFront()).coerce!Time()
+            : subDeserializer.readTime(attribute);
     }
 
-    final override byte readByte(scope ref Serializable)
+    final override byte readByte(scope ref Serializable attribute)
     {
-        return reader.getValue(popFront()).coerce!byte();
+        return subDeserializer is null
+            ? reader.getValue(popFront()).coerce!byte()
+            : subDeserializer.readByte(attribute);
     }
 
-    final override short readShort(scope ref Serializable)
+    final override short readShort(scope ref Serializable attribute)
     {
-        return reader.getValue(popFront()).coerce!short();
+        return subDeserializer is null
+            ? reader.getValue(popFront()).coerce!short()
+            : subDeserializer.readShort(attribute);
     }
 
-    final override int readInt(scope ref Serializable, const(DataKind) kind = DataKind.integral)
+    final override int readInt(scope ref Serializable attribute, const(DataKind) kind = DataKind.integral)
     {
-        return reader.getValue(popFront()).coerce!int();
+        return subDeserializer is null
+            ? reader.getValue(popFront()).coerce!int()
+            : subDeserializer.readInt(attribute, kind);
     }
 
-    final override long readLong(scope ref Serializable, const(DataKind) kind = DataKind.integral)
+    final override long readLong(scope ref Serializable attribute, const(DataKind) kind = DataKind.integral)
     {
-        return reader.getValue(popFront()).coerce!long();
+        return subDeserializer is null
+            ? reader.getValue(popFront()).coerce!long()
+            : subDeserializer.readLong(attribute, kind);
     }
 
-    final override float readFloat(scope ref Serializable, const(DataKind) kind = DataKind.decimal)
+    final override float readFloat(scope ref Serializable attribute, const(DataKind) kind = DataKind.decimal)
     {
-        return reader.getValue(popFront()).coerce!float();
+        return subDeserializer is null
+            ? reader.getValue(popFront()).coerce!float()
+            : subDeserializer.readFloat(attribute, kind);
     }
 
-    final override double readDouble(scope ref Serializable, const(DataKind) kind = DataKind.decimal)
+    final override double readDouble(scope ref Serializable attribute, const(DataKind) kind = DataKind.decimal)
     {
-        return reader.getValue(popFront()).coerce!double();
+        return subDeserializer is null
+            ? reader.getValue(popFront()).coerce!double()
+            : subDeserializer.readDouble(attribute, kind);
     }
 
-    final override string readChars(scope ref Serializable, const(DataKind) kind = DataKind.character)
+    final override string readChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
     {
-        const i = popFront();
-        return reader.isNull(i) ? null : reader.getValue(i).coerce!string();
+        if (subDeserializer is null)
+        {
+            const i = popFront();
+            debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(i=", i, ", name=", attribute.name, ")");
+            return reader.isNull(i)
+                ? null
+                : reader.getValue(i).coerce!string();
+        }
+        else
+            return subDeserializer.readChars(attribute, kind);
     }
 
     final override wstring readWChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
@@ -319,23 +352,37 @@ public:
 
     final override const(char)[] readScopeChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
     {
-        return readChars(attribute, kind);
+        return subDeserializer is null
+            ? readChars(attribute, kind)
+            : subDeserializer.readScopeChars(attribute, kind);
     }
 
-    final override ubyte[] readBytes(scope ref Serializable, const(DataKind) kind = DataKind.binary)
+    final override ubyte[] readBytes(scope ref Serializable attribute, const(DataKind) kind = DataKind.binary)
     {
-        const i = popFront();
-        return reader.isNull(i) ? null : reader.getValue(i).coerce!(ubyte[])();
+        if (subDeserializer is null)
+        {
+            const i = popFront();
+            debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(i=", i, ", name=", attribute.name, ")");
+            return reader.isNull(i)
+                ? null
+                : reader.getValue(i).coerce!(ubyte[])();
+        }
+        else
+            return subDeserializer.readBytes(attribute, kind);
     }
 
     final override const(ubyte)[] readScopeBytes(scope ref Serializable attribute, const(DataKind) kind = DataKind.binary)
     {
-        return readBytes(attribute, kind);
+        return subDeserializer is null
+            ? readBytes(attribute, kind)
+            : subDeserializer.readScopeBytes(attribute, kind);
     }
 
-    final override string readKey(size_t)
+    final override string readKey(size_t i)
     {
-        return columns !is null ? columns[currentCol].name : null;
+        return subDeserializer is null
+            ? (columns !is null ? columns[currentCol].name : null)
+            : subDeserializer.readKey(i);
     }
 
 public:
@@ -376,23 +423,30 @@ public:
             : connection.executeReader(commandText[], conditionParameters);
     }
 
+    final override bool hasAggregateEle(size_t i, ptrdiff_t len)
+    {
+        return subDeserializer is null
+            ? (len > 0 && len > i && currentRow != 0)
+            : subDeserializer.hasAggregateEle(i, len);
+    }
+
     final override bool hasArrayEle(size_t i, ptrdiff_t len)
     {
         debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(i=", i, ", len=", len,
             ", arrayDepth=", arrayDepth, ", currentRow=", currentRow, ")");
 
-        if (i != 0 && currentRow != 0)
+        if (subDeserializer is null)
         {
-            currentCol = 0;
-            currentRow = readRowReader();
+            if (i != 0 && currentRow != 0)
+            {
+                currentCol = 0;
+                currentRow = readRowReader();
+            }
+
+            return currentRow != 0;
         }
-
-        return currentRow != 0;
-    }
-
-    final override bool hasAggregateEle(size_t i, ptrdiff_t len)
-    {
-        return len > 0 && len > i && currentRow != 0;
+        else
+            return subDeserializer.hasArrayEle(i, len);
     }
 
     pragma(inline, true)
@@ -978,11 +1032,18 @@ unittest // DbSerializer.UnitTestS1
         assert(captureSQL.logOnly || captureSQL.commandResult >= 0); // If INSERT not in tranaction, it mays not updating any record
     }
 
-    // One struct
+    // One struct with manual sql reader
     {
         auto reader = connection.executeReader("SELECT publicInt, publicGetSet FROM UnitTestS1");
         scope deserializer = new DbDeserializer(&reader);
         auto c = deserializer.deserialize!UnitTestS1();
+        c.assertValues();
+    }
+
+    // One struct with sql select
+    {
+        scope deserializer = new DbDeserializer(connection);
+        auto c = deserializer.select!UnitTestS1(["publicInt":Variant(20)]);
         c.assertValues();
     }
 
@@ -1106,25 +1167,20 @@ unittest // Sub aggregate & array
         assert(captureSQL.logOnly || captureSQL.commandResult >= 0); // If INSERT not in tranaction, it mays not updating any record
     }
 
-    // One struct
-    version(none)
+    // One struct with manual sql reader
     {
-        auto reader = connection.executeReader("SELECT publicInt, publicGetSet FROM UnitTestSub");
+        auto reader = connection.executeReader("SELECT intVar, stringVar, boolVar, subsVar, longArr, subsArr, shortVar FROM UnitTestSub");
         scope deserializer = new DbDeserializer(&reader);
-        auto c = deserializer.deserialize!UnitTestSub();
+        auto c = deserializer.deserialize!UnitTestSubC();
         c.assertValues();
     }
 
-    // Array of structs
-    version(none)
+    // One struct with sql select
     {
-        connection.executeNonQuery("INSERT INTO UnitTestSub(publicInt, publicGetSet) VALUES(21, 2)");
-        auto reader = connection.executeReader("SELECT publicInt, publicGetSet FROM UnitTestSub ORDER BY publicInt");
-        scope deserializer = new DbDeserializer(&reader);
-        auto cs = deserializer.deserialize!(UnitTestSub[])();
-        assert(cs.length == 2, cs.length.to!string);
-        foreach(i; 0..cs.length)
-            cs[i].assertValuesArray(i);
+        scope deserializer = new DbDeserializer(connection);
+        deserializer.onSelectSQL = &captureSQL.select;
+        auto c = deserializer.select!UnitTestSubC(["intVar":Variant(1001)]);
+        c.assertValues();
     }
 }
 
@@ -1159,7 +1215,6 @@ unittest // DbSerializer.UnitTestAllTypesLess
         auto c = new UnitTestAllTypesLess();
         scope serializer = new DbSerializer();
         serializer.serialize!UnitTestAllTypesLess(c.setValues());
-        //import std.stdio : writeln; debug writeln(serializer.buffer[]);
         assert(serializer.buffer[] == jsonUnitTestAllTypes, serializer.buffer[]);
     }
 
