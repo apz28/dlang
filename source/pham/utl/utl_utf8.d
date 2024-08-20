@@ -18,6 +18,13 @@ import std.traits : isSomeChar;
 
 nothrow @safe:
 
+struct UTF8Iterator
+{
+    char[encodeUTF8MaxLength] codeBuffer = 0;
+    dchar code = 0;
+    ubyte count;
+}
+
 /**
  * Encodes dchar `c` into the static char array, `buffer`, and returns a slice
  * of the encoded characters. When `c` is invalid, it will return empty slice
@@ -58,6 +65,13 @@ char[] encodeUTF8(return ref char[encodeUTF8MaxLength] buffer, const(dchar) c) @
         return null;
 }
 
+struct UTF16Iterator
+{
+    wchar[encodeUTF16MaxLength] codeBuffer = 0;
+    dchar code = 0;
+    ubyte count;
+}
+
 /**
  * Encodes dchar `c` into the static wchar array, `buffer`, and returns a slice
  * of the encoded characters. When `c` is invalid, it will return empty slice
@@ -70,7 +84,7 @@ wchar[] encodeUTF16(return ref wchar[encodeUTF16MaxLength] buffer, const(dchar) 
         if (0xD800 <= c && c <= 0xDFFF)
             return null;
 
-        buffer[0] = cast(wchar) c;
+        buffer[0] = cast(wchar)c;
         return buffer[0..1];
     }
     

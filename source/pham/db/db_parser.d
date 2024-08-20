@@ -17,7 +17,7 @@ debug(debug_pham_db_db_parser) import std.stdio : writeln;
 import pham.utl.utl_array : Appender;
 import pham.utl.utl_enum_set : toEnum;
 import pham.utl.utl_result : addLine;
-import pham.utl.utl_utf8 : nextUTF8Char;
+import pham.utl.utl_utf8 : nextUTF8Char, UTF8Iterator;
 public import pham.utl.utl_result : ResultIf;
 import pham.utl.utl_text : NamedValue;
 import pham.db.db_message;
@@ -374,12 +374,11 @@ private:
     pragma(inline, true)
     dchar readChar() @nogc pure
     {
-        dchar cCode;
-        ubyte cCount;
-        if (!nextUTF8Char(_sql, _p, cCode, cCount))
-            cCode = replacementChar;
-        _p += cCount;
-        return cCode;
+        UTF8Iterator iterator;
+        if (!nextUTF8Char(_sql, _p, iterator.code, iterator.count))
+            iterator.code = replacementChar;
+        _p += iterator.count;
+        return iterator.code;
     }
 
     S readCommentMulti() pure

@@ -181,18 +181,17 @@ ResultStatus ASN1IsPrintableString(scope const(ubyte)[] x) @nogc pure
 
 ResultStatus ASN1IsUTF8String(scope const(ubyte)[] x) @nogc pure
 {
-    import pham.utl.utl_utf8 : nextUTF8Char;
+    import pham.utl.utl_utf8 : nextUTF8Char, UTF8Iterator;
 
+    UTF8Iterator interator;
     size_t p;
-    dchar cCode;
-    ubyte cCount;
     while (p < x.length)
     {
-        if (!nextUTF8Char(x, p, cCode, cCount))
-            return p + cCount > x.length
+        if (!nextUTF8Char(x, p, interator.code, interator.count))
+            return p + interator.count > x.length
                 ? ResultStatus.error(truncatedError, "UTF8-string is truncated")
                 : ResultStatus.error(invalidError, "Invalid UTF8-string");
-        p += cCount;
+        p += interator.count;
     }
     return ResultStatus.ok();
 }

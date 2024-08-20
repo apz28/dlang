@@ -32,7 +32,7 @@ import pham.utl.utl_disposable;
 import pham.utl.utl_object : RAIIMutex, singleton;
 import pham.utl.utl_system : currentComputerName, currentProcessId, currentProcessName, currentUserName;
 import pham.utl.utl_timer;
-import pham.utl.utl_utf8 : encodeUTF8, encodeUTF8MaxLength, nextUTF8Char;
+import pham.utl.utl_utf8 : encodeUTF8, nextUTF8Char, UTF8Iterator;
 import pham.db.db_convert;
 public import pham.db.db_exception;
 import pham.db.db_message;
@@ -3366,25 +3366,22 @@ public:
 
     private void escapeIdentifierImpl(Writer)(ref Writer writer, scope const(char)[] value, size_t startIndex) nothrow pure
     {
-        char[encodeUTF8MaxLength] cCodeBuffer;
-        dchar cCode;
-        ubyte cCount;
-
         if (startIndex)
             writer.put(value[0..startIndex]);
 
+        UTF8Iterator iterator;
         while (startIndex < value.length)
         {
-            if (!nextUTF8Char(value, startIndex, cCode, cCount))
-                cCode = replacementChar;
+            if (!nextUTF8Char(value, startIndex, iterator.code, iterator.count))
+                iterator.code = replacementChar;
 
-            const cc = charClass(cCode);
+            const cc = charClass(iterator.code);
             if (cc == CharClass.quote)
-                writer.put(encodeUTF8(cCodeBuffer, cCode));
+                writer.put(encodeUTF8(iterator.codeBuffer, iterator.code));
             else if (cc == CharClass.backslash)
                 writer.put('\\');
 
-            writer.put(encodeUTF8(cCodeBuffer, cCode));
+            writer.put(encodeUTF8(iterator.codeBuffer, iterator.code));
 
             startIndex += cCount;
         }
@@ -3410,39 +3407,33 @@ public:
 
     private void escapeStringImpl(Writer)(ref Writer writer, scope const(char)[] value, size_t startIndex) nothrow pure
     {
-        char[encodeUTF8MaxLength] cCodeBuffer;
-        dchar cCode;
-        ubyte cCount;
-
         if (startIndex)
             writer.put(value[0..startIndex]);
 
+        UTF8Iterator iterator;
         while (startIndex < value.length)
         {
-            if (!nextUTF8Char(value, startIndex, cCode, cCount))
-                cCode = replacementChar;
+            if (!nextUTF8Char(value, startIndex, iterator.code, iterator.count))
+                iterator.code = replacementChar;
 
-            if (charClass(cCode) != CharClass.any)
+            if (charClass(iterator.code) != CharClass.any)
                 writer.put('\\');
 
-            writer.put(encodeUTF8(cCodeBuffer, cCode));
+            writer.put(encodeUTF8(iterator.codeBuffer, iterator.code));
 
-            startIndex += cCount;
+            startIndex += iterator.count;
         }
     }
 
     private size_t escapeStartIndex(scope const(char)[] value) nothrow pure
     {
-        char[encodeUTF8MaxLength] cCodeBuffer;
-        dchar cCode;
-        ubyte cCount;
-
         size_t result;
-        while (result < value.length && nextUTF8Char(value, result, cCode, cCount))
+        UTF8Iterator iterator;
+        while (result < value.length && nextUTF8Char(value, result, iterator.code, iterator.count))
         {
-            if (charClass(cCode) != CharClass.any)
+            if (charClass(iterator.code) != CharClass.any)
                 break;
-            result += cCount;
+            result += iterator.count;
         }
         return result;
     }

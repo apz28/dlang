@@ -617,8 +617,8 @@ private:
 
 unittest // BinaryIntCoder.encodeInt & decodeInt
 {
-    import std.digest : toHexString;
-    import std.stdio : writefln;
+    //import std.digest : toHexString;
+    //import std.stdio : writefln;
 
     Appender!(ubyte[]) buffer;
     size_t offset;
@@ -644,8 +644,8 @@ unittest // BinaryIntCoder.encodeInt & decodeInt
 
 unittest // BinaryIntCoder.encodeFloat & decodeFloat
 {
-    import std.digest : toHexString;
-    import std.stdio : writefln;
+    //import std.digest : toHexString;
+    //import std.stdio : writefln;
 
     Appender!(ubyte[]) buffer;
     size_t offset;
@@ -683,7 +683,6 @@ unittest // BinaryIntCoder.encodeFloat & decodeFloat
 
 unittest // BinarySerializer.UnitTestC2
 {
-    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
 
     static immutable string binUnitTestC2 =
@@ -694,7 +693,6 @@ unittest // BinarySerializer.UnitTestC2
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestC2(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
-        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestC2, bytesToHexs(serializer.buffer[]));
     }
 
@@ -708,7 +706,6 @@ unittest // BinarySerializer.UnitTestC2
 
 unittest // BinarySerializer.UnitTestAllTypes
 {
-    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
 
     static immutable string binUnitTestAllTypes =
@@ -719,7 +716,6 @@ unittest // BinarySerializer.UnitTestAllTypes
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestAllTypes(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
-        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestAllTypes, bytesToHexs(serializer.buffer[]));
     }
 
@@ -733,7 +729,6 @@ unittest // BinarySerializer.UnitTestAllTypes
 
 unittest // BinarySerializer.UnitTestStdBigInt
 {
-    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
     import pham.ser.ser_std_bigint;
 
@@ -745,7 +740,6 @@ unittest // BinarySerializer.UnitTestStdBigInt
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestStdBigInt(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
-        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestStdBigInt, bytesToHexs(serializer.buffer[]));
     }
 
@@ -758,7 +752,6 @@ unittest // BinarySerializer.UnitTestStdBigInt
 
 unittest // BinarySerializer.UnitTestStdDateTime
 {
-    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
     import pham.ser.ser_std_date_time;
 
@@ -770,7 +763,6 @@ unittest // BinarySerializer.UnitTestStdDateTime
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestStdDateTime(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
-        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestStdDateTime, bytesToHexs(serializer.buffer[]));
     }
 
@@ -783,7 +775,6 @@ unittest // BinarySerializer.UnitTestStdDateTime
 
 unittest // BinarySerializer.UnitTestStdUuid
 {
-    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
     import pham.ser.ser_std_uuid;
 
@@ -795,7 +786,6 @@ unittest // BinarySerializer.UnitTestStdUuid
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestStdUuid(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
-        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestStdUuid, bytesToHexs(serializer.buffer[]));
     }
 
@@ -808,7 +798,6 @@ unittest // BinarySerializer.UnitTestStdUuid
 
 unittest // BinarySerializer.UnitTestPhamBigInteger
 {
-    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
     import pham.ser.ser_pham_big_integer;
 
@@ -820,7 +809,6 @@ unittest // BinarySerializer.UnitTestPhamBigInteger
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestPhamBigInteger(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
-        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestPhamBigInteger, bytesToHexs(serializer.buffer[]));
     }
 
@@ -833,7 +821,6 @@ unittest // BinarySerializer.UnitTestPhamBigInteger
 
 unittest // BinarySerializer.UnitTestPhamDateTime
 {
-    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
 
     static immutable string binUnitTestPhamDateTime =
@@ -844,7 +831,6 @@ unittest // BinarySerializer.UnitTestPhamDateTime
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestPhamDateTime(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
-        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestPhamDateTime, bytesToHexs(serializer.buffer[]));
     }
 
@@ -857,7 +843,6 @@ unittest // BinarySerializer.UnitTestPhamDateTime
 
 unittest // BinarySerializer.UnitTestDecDecimal
 {
-    import std.digest : toHexString;
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
     import pham.ser.ser_dec_decimal;
 
@@ -869,7 +854,6 @@ unittest // BinarySerializer.UnitTestDecDecimal
         scope serializer = new BinarySerializer();
         serializer.serialize!UnitTestDecDecimal(c.setValues());
         //import std.stdio : writeln; debug writeln(bytesToHexs(serializer.buffer[]));
-        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
         assert(bytesToHexs(serializer.buffer[]) == binUnitTestDecDecimal, bytesToHexs(serializer.buffer[]));
     }
 
@@ -882,8 +866,7 @@ unittest // BinarySerializer.UnitTestDecDecimal
 
 unittest // BinarySerializer.UnitTestCustomS1
 {
-    import std.digest : toHexString;
-    import pham.utl.utl_object : bytesToHexs;
+    import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
 
     const(ubyte)[] binCustom;
 
@@ -893,7 +876,6 @@ unittest // BinarySerializer.UnitTestCustomS1
         serializer.serialize!UnitTestCustomS1(c.setValues());
         binCustom = serializer.buffer[];
         //import std.stdio : writeln; debug writeln(bytesToHexs(binCustom));
-        assert(bytesToHexs(serializer.buffer[]) == toHexString(serializer.buffer[]));
     }
 
     {

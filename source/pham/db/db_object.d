@@ -30,7 +30,7 @@ import pham.utl.utl_enum_set : EnumSet;
 import pham.utl.utl_object : RAIIMutex, shortClassName;
 import pham.utl.utl_result : addLine, ResultIf;
 import pham.utl.utl_timer;
-import pham.utl.utl_utf8 : nextUTF8Char;
+import pham.utl.utl_utf8 : nextUTF8Char, UTF8Iterator;
 import pham.db.db_exception;
 import pham.db.db_message;
 import pham.db.db_parser;
@@ -1668,8 +1668,6 @@ do
 
     string errorMessage;
     size_t p;
-    dchar cCode;
-    ubyte cCount;
 
     bool isElementSeparator(const(dchar) c) nothrow @safe
     {
@@ -1683,21 +1681,22 @@ do
 
     string readName()
     {
+        UTF8Iterator interator;
         const begin = p;
         size_t end = values.length, lastSpace;
-        while (p < values.length && nextUTF8Char(values, p, cCode, cCount))
+        while (p < values.length && nextUTF8Char(values, p, interator.code, interator.count))
         {
-            if (isElementSeparator(cCode) || cCode == valueSeparator)
+            if (interator.code == valueSeparator || isElementSeparator(interator.code))
             {
                 end = p;
-                p += cCount;
+                p += interator.count;
                 break;
             }
-            else if (isWhite(cCode))
+            else if (isWhite(interator.code))
                 lastSpace = p;
             else
                 lastSpace = 0;
-            p += cCount;
+            p += interator.count;
         }
 
         return lastSpace != 0 ? values[begin..lastSpace] : values[begin..end];
@@ -1705,21 +1704,22 @@ do
 
     string readValue()
     {
+        UTF8Iterator interator;
         const begin = p;
         size_t end = values.length, lastSpace;
-        while (p < values.length && nextUTF8Char(values, p, cCode, cCount))
+        while (p < values.length && nextUTF8Char(values, p, interator.code, interator.count))
         {
-            if (isElementSeparator(cCode))
+            if (isElementSeparator(interator.code))
             {
                 end = p;
-                p += cCount;
+                p += interator.count;
                 break;
             }
-            else if (isWhite(cCode))
+            else if (isWhite(interator.code))
                 lastSpace = p;
             else
                 lastSpace = 0;
-            p += cCount;
+            p += interator.count;
         }
 
         return lastSpace != 0 ? values[begin..lastSpace] : values[begin..end];
@@ -1727,14 +1727,15 @@ do
 
     bool skipSpaces()
     {
+        UTF8Iterator interator;
         while (p < values.length)
         {
-            if (nextUTF8Char(values, p, cCode, cCount))
+            if (nextUTF8Char(values, p, interator.code, interator.count))
             {
-                if (!isWhite(cCode))
+                if (!isWhite(interator.code))
                     break;
             }
-            p += cCount;
+            p += interator.count;
         }
         return p < values.length;
     }
