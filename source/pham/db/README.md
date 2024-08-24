@@ -28,8 +28,13 @@ Create command and execute
     // PgCommand [DbCommand\SkCommand\PgCommand]
     auto command = connection.createCommandText("...");
     auto rowAffected = command.executeNonQuery(); // Execute a command without returning a result set
-    command.executeReader(); // Execute a command and returning a result set
     auto firstColumnValue = command.executeScalar(); // Execute a command and returning the first row & column from result set
+    auto reader = command.executeReader(); // Execute a command and returning a result set    
+    while (reader.read())
+    {
+        auto v = reader.getValue(0);
+	...
+    }    
 ```
 
 Prefer to simple execution from a connection
