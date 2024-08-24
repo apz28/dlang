@@ -407,7 +407,7 @@ public:
         return this;
     }
 
-    ref typeof(this) opAssign(const(E)[] values) @nogc pure return
+    ref typeof(this) opAssign(scope const(E)[] values) @nogc pure return
     {
         this._values = 0;
         foreach (e; values)
@@ -481,18 +481,63 @@ public:
         return EnumSetRange(this);
     }
 
+    bool isAll(scope const(E)[] source) const @nogc pure
+    {
+        if (source.length == 0)
+            return this.empty;
+            
+        foreach (e; source)
+        {
+            if (!isOn(e))
+                return false;
+        }
+        return true;
+    }
+
+    bool isAll(Vs...)(scope Vs source) const @nogc pure
+    if (allSatisfy!(isEnumSet, Vs))
+    {
+        if (source.length == 0)
+            return this.empty;
+            
+        foreach (e; source)
+        {
+            if (!isOn(e))
+                return false;
+        }        
+        return true;
+    }
+
+    bool isAll(scope const(typeof(this)) source) const @nogc pure
+    {
+        if (source.empty)
+            return this.empty;
+            
+        return (this.values & source.values) == source.values;
+    }
+
     bool isAny(scope const(E)[] source) const @nogc pure
     {
-        foreach (i; source)
+        foreach (i; 0..source.length)
         {
-            if (isOn(i))
+            if (isOn(source[i]))
                 return true;
         }
         return false;
     }
 
-    bool isAny(V...)(scope V source) const @nogc pure
-    if (allSatisfy!(isEnumSet, V))
+    bool isAny(Vs...)(scope Vs source) const @nogc pure
+    if (allSatisfy!(isEnumSet, Vs))
+    {
+        foreach (e; source)
+        {
+            if (isOn(e))
+                return true;
+        }
+        return false;
+    }
+
+    bool isAny(scope typeof(this) source) const @nogc pure
     {
         foreach (e; source)
         {
@@ -683,6 +728,7 @@ public:
         return _values == 0;
     }
 
+    pragma(inline, true)
     @property EnumSetStorage!E values() const @nogc pure
     {
         return _values;

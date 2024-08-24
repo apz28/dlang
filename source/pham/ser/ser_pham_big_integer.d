@@ -60,18 +60,18 @@ package(pham.ser):
             bigInt1 = BigInteger("-71459266416693160362545788781600");
             return this;
         }
-        
+
         void assertValues()
         {
             assert(bigInt1 == BigInteger("-71459266416693160362545788781600"));
         }
-        
-        void assertValuesArray(int i)
+
+        void assertValuesArray(ptrdiff_t index)
         {
-            assert(bigInt1 == BigInteger("-71459266416693160362545788781600")+i);
+            assert(bigInt1 == BigInteger("-71459266416693160362545788781600")+index);
         }
     }
-    
+
     //import pham.ser.ser_serialization : SerializerMemberList;
     //pragma(msg, SerializerMemberList!UnitTestPhamBigInteger);
 }

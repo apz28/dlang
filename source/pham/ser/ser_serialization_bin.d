@@ -28,6 +28,50 @@ static immutable ubyte[4] binaryIndicator = ['P', 'H', 'A', 'M'];
 static immutable ushort binaryVersion = 1;
 static immutable ubyte[2] binaryBoolValues = [0, 1];
 
+// When expand, need to add to the end for backward compatible with existing data
+enum BinaryDataType : ubyte
+{
+    unknown,
+    null_,
+    bool_,
+    date,
+    dateTime,
+    time,
+    int1,
+    int2,
+    int4,
+    int8,
+    int16_Reserved,
+    int32_Reserved,
+    float4,
+    float8,
+    float16_Reserved,
+    float32_Reserved,
+    char_,
+    chars,
+    charsKey,
+    wchars,
+    dchars,
+    bytes,
+    aggregateBegin,
+    aggregateEnd,
+    arrayBegin,
+    arrayEnd,
+}
+
+version(none)
+{
+pragma(inline, true)
+bool isNullableDataType(const(BinaryDataType) dataType) @nogc nothrow pure @safe
+{
+    return dataType == BinaryDataType.null_
+        || dataType == BinaryDataType.chars
+        || dataType == BinaryDataType.wchars
+        || dataType == BinaryDataType.dchars
+        || dataType == BinaryDataType.bytes;
+}
+}
+
 struct BinaryIntCoder
 {
     enum firstBits = 6;
@@ -142,51 +186,51 @@ public:
     
     final override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
     {
-        checkDataType(SerializerDataType.aggregateBegin, 2);
+        checkDataType(BinaryDataType.aggregateBegin, 2);
         super.aggregateBegin(typeName, attribute);
         return readLength();
     }
 
     final override void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable attribute)
     {
-        checkDataType(SerializerDataType.aggregateEnd, 1);
+        checkDataType(BinaryDataType.aggregateEnd, 1);
         super.aggregateEnd(typeName, length, attribute);
     }
 
     final override ptrdiff_t arrayBegin(string elemTypeName, scope ref Serializable attribute)
     {
-        checkDataType(SerializerDataType.arrayBegin, 2);
+        checkDataType(BinaryDataType.arrayBegin, 2);
         super.arrayBegin(elemTypeName, attribute);
         return readLength();
     }
 
     final override void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
     {
-        checkDataType(SerializerDataType.arrayEnd, 1);
+        checkDataType(BinaryDataType.arrayEnd, 1);
         super.arrayEnd(elemTypeName, length, attribute);
     }
 
     final override Null readNull(scope ref Serializable)
     {
-        checkDataType(SerializerDataType.null_, 1);
+        checkDataType(BinaryDataType.null_, 1);
         return null;
     }
 
     final override bool readBool(scope ref Serializable)
     {
-        checkDataType(SerializerDataType.bool_, 2);
+        checkDataType(BinaryDataType.bool_, 2);
         return data[offset++] == binaryBoolValues[true];
     }
 
     final override char readChar(scope ref Serializable)
     {
-        checkDataType(SerializerDataType.char_, 2);
+        checkDataType(BinaryDataType.char_, 2);
         return cast(char)data[offset++];
     }
 
     final override Date readDate(scope ref Serializable)
     {
-        checkDataType(SerializerDataType.date, 2);
+        checkDataType(BinaryDataType.date, 2);
         const days = BinaryIntCoder.decodeInt!int(data, offset);
         return Date(days);
     }
@@ -195,7 +239,7 @@ public:
     {
         static assert(TickData.data.sizeof == ulong.sizeof);
 
-        checkDataType(SerializerDataType.dateTime, 2);
+        checkDataType(BinaryDataType.dateTime, 2);
         const raw = BinaryIntCoder.decodeInt!ulong(data, offset);
         return DateTime(TickData(raw));
     }
@@ -204,7 +248,7 @@ public:
     {
         static assert(TickData.data.sizeof == ulong.sizeof);
 
-        checkDataType(SerializerDataType.time, 2);
+        checkDataType(BinaryDataType.time, 2);
         const raw = BinaryIntCoder.decodeInt!ulong(data, offset);
         return Time(TickData(raw));
     }
@@ -235,35 +279,35 @@ public:
         static assert(V.sizeof <= long.sizeof);
         
         static if (V.sizeof == long.sizeof)
-            static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.int8, SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1]);
+            static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType([BinaryDataType.int8, BinaryDataType.int4, BinaryDataType.int2, BinaryDataType.int1]);
         else static if (V.sizeof == int.sizeof)
-            static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1]);
+            static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType([BinaryDataType.int4, BinaryDataType.int2, BinaryDataType.int1]);
         else static if (V.sizeof == short.sizeof)
-            static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.int2, SerializerDataType.int1]);
+            static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType([BinaryDataType.int2, BinaryDataType.int1]);
         else //static if (V.sizeof == byte.sizeof)
-            static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.int1]);
+            static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType([BinaryDataType.int1]);
 
         return readInt!V(checkDataType(checkTypes, 2));
     }
 
-    private final V readInt(V)(const(SerializerDataType) t)
+    private final V readInt(V)(const(BinaryDataType) t)
     if (isIntegral!V)
     {
         static assert(V.sizeof <= long.sizeof);
         
         static if (V.sizeof >= long.sizeof)
-        if (t == SerializerDataType.int8)
+        if (t == BinaryDataType.int8)
             return BinaryIntCoder.decodeInt!long(data, offset);
 
         static if (V.sizeof >= int.sizeof)
-        if (t == SerializerDataType.int4)
+        if (t == BinaryDataType.int4)
             return BinaryIntCoder.decodeInt!int(data, offset);
 
         static if (V.sizeof >= short.sizeof)
-        if (t == SerializerDataType.int2)
+        if (t == BinaryDataType.int2)
             return BinaryIntCoder.decodeInt!short(data, offset);
 
-        assert(t == SerializerDataType.int1);
+        assert(t == BinaryDataType.int1);
         return cast(byte)data[offset++];
     }
 
@@ -281,22 +325,22 @@ public:
     if (isFloatingPoint!V)
     {
         static if (V.sizeof == long.sizeof)
-            static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.float8, SerializerDataType.float4, SerializerDataType.int8, SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1]);
+            static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType([BinaryDataType.float8, BinaryDataType.float4, BinaryDataType.int8, BinaryDataType.int4, BinaryDataType.int2, BinaryDataType.int1]);
         else static if (V.sizeof == int.sizeof)
-            static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.float4, SerializerDataType.int4, SerializerDataType.int2, SerializerDataType.int1]);
+            static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType([BinaryDataType.float4, BinaryDataType.int4, BinaryDataType.int2, BinaryDataType.int1]);
         else
             static assert(0, "Unsupport float type " ~ V.stringof);
 
         const t = checkDataType(checkTypes, 2);
 
         static if (V.sizeof == long.sizeof)
-            return t == SerializerDataType.float8
+            return t == BinaryDataType.float8
                 ? BinaryIntCoder.decodeFloat!double(data, offset)
-                : (t == SerializerDataType.float4
+                : (t == BinaryDataType.float4
                     ? BinaryIntCoder.decodeFloat!float(data, offset)
                     : cast(V)readInt!long(t));
         else static if (V.sizeof == int.sizeof)
-            return t == SerializerDataType.float4
+            return t == BinaryDataType.float4
                 ? BinaryIntCoder.decodeFloat!float(data, offset)
                 : cast(V)readInt!int(t);
         else
@@ -311,21 +355,21 @@ public:
 
     final override wstring readWChars(scope ref Serializable, const(DataKind) kind = DataKind.character)
     {
-        static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.wchars, SerializerDataType.chars, SerializerDataType.null_]);
+        static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType([BinaryDataType.wchars, BinaryDataType.chars, BinaryDataType.null_]);
         auto chars = cast(const(char)[])readScopeBytes(checkTypes);
         return chars.length ? chars.to!wstring : null;
     }
 
     final override dstring readDChars(scope ref Serializable, const(DataKind) kind = DataKind.character)
     {
-        static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.dchars, SerializerDataType.wchars, SerializerDataType.chars, SerializerDataType.null_]);
+        static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType([BinaryDataType.dchars, BinaryDataType.wchars, BinaryDataType.chars, BinaryDataType.null_]);
         auto chars = cast(const(char)[])readScopeBytes(checkTypes);
         return chars.length ? chars.to!dstring : null;
     }
 
     final override const(char)[] readScopeChars(scope ref Serializable, const(DataKind) kind = DataKind.character)
     {
-        static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.chars, SerializerDataType.null_]);
+        static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType([BinaryDataType.chars, BinaryDataType.null_]);
         return cast(const(char)[])readScopeBytes(checkTypes);
     }
 
@@ -337,14 +381,14 @@ public:
 
     final override const(ubyte)[] readScopeBytes(scope ref Serializable, const(DataKind) kind = DataKind.binary)
     {
-        static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType([SerializerDataType.bytes, SerializerDataType.null_]);
+        static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType([BinaryDataType.bytes, BinaryDataType.null_]);
         return readScopeBytes(checkTypes);
     }
 
-    final const(ubyte)[] readScopeBytes(scope const(EnumSet!SerializerDataType) dataTypes)
+    final const(ubyte)[] readScopeBytes(scope const(EnumSet!BinaryDataType) dataTypes)
     {
         const t = checkDataType(dataTypes, 2);
-        if (t == SerializerDataType.null_)
+        if (t == BinaryDataType.null_)
             return null;
 
         if (const len = readLength())
@@ -360,7 +404,7 @@ public:
 
     final override string readKey(size_t)
     {
-        static immutable EnumSet!SerializerDataType checkTypes = EnumSet!SerializerDataType(SerializerDataType.charsKey);
+        static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType(BinaryDataType.charsKey);
         return (cast(const(char)[])readScopeBytes(checkTypes)).idup;
     }
 
@@ -378,22 +422,22 @@ public:
             throw new DeserializerException("EOS - expect length " ~ bytes.to!string ~ " at offset " ~ offset.to!string ~ " with size " ~ data.length.to!string);
     }
 
-    final SerializerDataType checkDataType(const(SerializerDataType) dataType, const(size_t) bytes)
+    final BinaryDataType checkDataType(const(BinaryDataType) dataType, const(size_t) bytes)
     {
         checkDataLength(bytes);
 
-        const t = cast(SerializerDataType)data[offset];
+        const t = cast(BinaryDataType)data[offset];
         if (t != dataType)
             throw new DeserializerException("Expect datatype " ~ dataType.to!string ~ " but found " ~ t.to!string);
         offset++; // Skip type
         return t;
     }
 
-    final SerializerDataType checkDataType(scope const(EnumSet!SerializerDataType) dataTypes, const(size_t) bytes)
+    final BinaryDataType checkDataType(scope const(EnumSet!BinaryDataType) dataTypes, const(size_t) bytes)
     {
         checkDataLength(bytes);
 
-        const t = cast(SerializerDataType)data[offset];
+        const t = cast(BinaryDataType)data[offset];
         if (dataTypes.isOff(t))
             throw new DeserializerException("Expect one of datatypes " ~ dataTypes.toString() ~ " but found " ~ t.to!string);
         offset++; // Skip type
@@ -402,12 +446,12 @@ public:
 
     final override bool hasAggregateEle(size_t i, ptrdiff_t len)
     {
-        return offset < data.length && data[offset] != SerializerDataType.aggregateEnd;
+        return offset < data.length && data[offset] != BinaryDataType.aggregateEnd;
     }
 
     final override bool hasArrayEle(size_t i, ptrdiff_t len)
     {
-        return offset < data.length && data[offset] != SerializerDataType.arrayEnd;
+        return offset < data.length && data[offset] != BinaryDataType.arrayEnd;
     }
 
     @property final override SerializerDataFormat dataFormat() const @nogc nothrow pure
@@ -443,50 +487,50 @@ public:
 
     final override void aggregateBegin(string typeName, ptrdiff_t length, scope ref Serializable attribute)
     {
-        buffer.put(SerializerDataType.aggregateBegin);
+        buffer.put(BinaryDataType.aggregateBegin);
         BinaryIntCoder.encodeInt!BinaryLengthType(buffer, length);
         super.aggregateBegin(typeName, length, attribute);
     }
 
     final override void aggregateEnd(string typeName, ptrdiff_t length, scope ref Serializable attribute)
     {
-        buffer.put(SerializerDataType.aggregateEnd);
+        buffer.put(BinaryDataType.aggregateEnd);
         super.aggregateEnd(typeName, length, attribute);
     }
 
     final override void arrayBegin(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
     {
-        buffer.put(SerializerDataType.arrayBegin);
+        buffer.put(BinaryDataType.arrayBegin);
         BinaryIntCoder.encodeInt!BinaryLengthType(buffer, length);
         super.arrayBegin(elemTypeName, length, attribute);
     }
 
     final override void arrayEnd(string elemTypeName, ptrdiff_t length, scope ref Serializable attribute)
     {
-        buffer.put(SerializerDataType.arrayEnd);
+        buffer.put(BinaryDataType.arrayEnd);
         super.arrayEnd(elemTypeName, length, attribute);
     }
 
     final override void write(Null, scope ref Serializable)
     {
-        buffer.put(SerializerDataType.null_);
+        buffer.put(BinaryDataType.null_);
     }
 
     final override void writeBool(bool v, scope ref Serializable)
     {
-        buffer.put(SerializerDataType.bool_);
+        buffer.put(BinaryDataType.bool_);
         buffer.put(binaryBoolValues[v]);
     }
 
     final override void writeChar(char v, scope ref Serializable)
     {
-        buffer.put(SerializerDataType.char_);
+        buffer.put(BinaryDataType.char_);
         buffer.put(cast(ubyte)v);
     }
 
     final override void write(scope const(Date) v, scope ref Serializable)
     {
-        buffer.put(SerializerDataType.date);
+        buffer.put(BinaryDataType.date);
         BinaryIntCoder.encodeInt!int(buffer, v.days);
     }
 
@@ -494,7 +538,7 @@ public:
     {
         static assert(TickData.data.sizeof == ulong.sizeof);
 
-        buffer.put(SerializerDataType.dateTime);
+        buffer.put(BinaryDataType.dateTime);
         BinaryIntCoder.encodeInt!ulong(buffer, v.raw.data);
     }
 
@@ -502,50 +546,50 @@ public:
     {
         static assert(TickData.data.sizeof == ulong.sizeof);
 
-        buffer.put(SerializerDataType.time);
+        buffer.put(BinaryDataType.time);
         BinaryIntCoder.encodeInt!ulong(buffer, v.raw.data);
     }
 
     final override void write(byte v, scope ref Serializable)
     {
-        buffer.put(SerializerDataType.int1);
+        buffer.put(BinaryDataType.int1);
         buffer.put(cast(ubyte)v);
     }
 
     final override void write(short v, scope ref Serializable)
     {
-        buffer.put(SerializerDataType.int2);
+        buffer.put(BinaryDataType.int2);
         BinaryIntCoder.encodeInt!short(buffer, v);
     }
 
     final override void write(int v, scope ref Serializable, const(DataKind) kind = DataKind.integral)
     {
-        buffer.put(SerializerDataType.int4);
+        buffer.put(BinaryDataType.int4);
         BinaryIntCoder.encodeInt!int(buffer, v);
     }
 
     final override void write(long v, scope ref Serializable, const(DataKind) kind = DataKind.integral)
     {
-        buffer.put(SerializerDataType.int8);
+        buffer.put(BinaryDataType.int8);
         BinaryIntCoder.encodeInt!long(buffer, v);
     }
 
     final override void write(float v, scope ref Serializable, const(DataKind) kind = DataKind.decimal)
     {
-        buffer.put(SerializerDataType.float4);
+        buffer.put(BinaryDataType.float4);
         BinaryIntCoder.encodeFloat!float(buffer, v);
     }
 
     final override void write(double v, scope ref Serializable, const(DataKind) kind = DataKind.decimal)
     {
-        buffer.put(SerializerDataType.float8);
+        buffer.put(BinaryDataType.float8);
         BinaryIntCoder.encodeFloat!double(buffer, v);
     }
 
     final override void write(scope const(char)[] v, scope ref Serializable, const(DataKind) kind = DataKind.character) @trusted
     {
         const vlength = v.length;
-        buffer.put(SerializerDataType.chars);
+        buffer.put(BinaryDataType.chars);
         BinaryIntCoder.encodeInt!BinaryLengthType(buffer, vlength);
         if (vlength)
             buffer.put(cast(const(ubyte)[])v);
@@ -553,7 +597,7 @@ public:
 
     final override void write(scope const(wchar)[] v, scope ref Serializable, const(DataKind) kind = DataKind.character)
     {
-        buffer.put(SerializerDataType.wchars);
+        buffer.put(BinaryDataType.wchars);
         if (v.length)
         {
             auto v2 = v.to!string;
@@ -566,7 +610,7 @@ public:
 
     final override void write(scope const(dchar)[] v, scope ref Serializable, const(DataKind) kind = DataKind.character)
     {
-        buffer.put(SerializerDataType.dchars);
+        buffer.put(BinaryDataType.dchars);
         if (v.length)
         {
             auto v2 = v.to!string;
@@ -580,7 +624,7 @@ public:
     final override void write(scope const(ubyte)[] v, scope ref Serializable, const(DataKind) kind = DataKind.binary)
     {
         const vlength = v.length;
-        buffer.put(SerializerDataType.bytes);
+        buffer.put(BinaryDataType.bytes);
         BinaryIntCoder.encodeInt!BinaryLengthType(buffer, vlength);
         if (vlength)
             buffer.put(v);
@@ -589,7 +633,7 @@ public:
     final override Serializer writeKey(scope ref Serializable attribute) @trusted
     {
         auto key = attribute.name;
-        buffer.put(SerializerDataType.charsKey);
+        buffer.put(BinaryDataType.charsKey);
         BinaryIntCoder.encodeInt!BinaryLengthType(buffer, key.length);
         if (key.length)
             buffer.put(cast(const(ubyte)[])key);

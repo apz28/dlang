@@ -128,12 +128,12 @@ package(pham.ser):
         }
 
         // Some database does not support 'Z' or 7 digits precision
-        void assertValuesArray(int i)
+        void assertValuesArray(ptrdiff_t index)
         {
-            assert(date1 == Date(1999, 1, 1)+days(i), date1.toString());
-            assert(dateTime1 == DateTime(1999, 7, 6, 12, 30, 33)+days(i), dateTime1.toString());
-            assert(sysTime1 == SysTime(330_000_000L)+days(i), sysTime1.toString() ~ " ? " ~ (SysTime(330_000_000L)+days(i)).toString());
-            assert(timeOfDay1 == TimeOfDay(12, 30, 33)+seconds(i), timeOfDay1.toString());
+            assert(date1 == Date(1999, 1, 1)+days(index), date1.toString());
+            assert(dateTime1 == DateTime(1999, 7, 6, 12, 30, 33)+days(index), dateTime1.toString());
+            assert(sysTime1 == SysTime(330_000_000L)+days(index), sysTime1.toString() ~ " ? " ~ (SysTime(330_000_000L)+days(index)).toString());
+            assert(timeOfDay1 == TimeOfDay(12, 30, 33)+seconds(index), timeOfDay1.toString());
         }
     }
 

@@ -1055,7 +1055,7 @@ unittest // DbSerializer.UnitTestS1
         auto cs = deserializer.deserialize!(UnitTestS1[])();
         assert(cs.length == 2, cs.length.to!string);
         foreach(i; 0..cs.length)
-            cs[i].assertValuesArray(cast(int)i);
+            cs[i].assertValuesArray(i);
     }
 }
 
@@ -1245,7 +1245,7 @@ unittest // DbSerializer.UnitTestAllTypesLess
         {
             //import std.stdio : writeln; debug writeln("i=", i);
             assert(cs[i] !is null);
-            cs[i].assertValuesArray(cast(int)i);
+            cs[i].assertValuesArray(i);
         }
     }
 }
@@ -1292,7 +1292,7 @@ unittest // DbSerializer.UnitTestStdBigInt
         auto cs = deserializer.deserialize!(UnitTestStdBigInt[])();
         assert(cs.length == 2, cs.length.to!string);
         foreach(i; 0..cs.length)
-            cs[i].assertValuesArray(cast(int)i);
+            cs[i].assertValuesArray(i);
     }
 }
 
@@ -1340,7 +1340,7 @@ unittest // DbSerializer.UnitTestStdDateTime
         auto cs = deserializer.deserialize!(UnitTestStdDateTime[])();
         assert(cs.length == 2, cs.length.to!string);
         foreach(i; 0..cs.length)
-            cs[i].assertValuesArray(cast(int)i);
+            cs[i].assertValuesArray(i);
     }
 }
 
@@ -1432,7 +1432,7 @@ unittest // DbSerializer.UnitTestPhamBigInteger
         auto cs = deserializer.deserialize!(UnitTestPhamBigInteger[])();
         assert(cs.length == 2, cs.length.to!string);
         foreach(i; 0..cs.length)
-            cs[i].assertValuesArray(cast(int)i);
+            cs[i].assertValuesArray(i);
     }
 }
 
@@ -1477,7 +1477,7 @@ unittest // DbSerializer.UnitTestPhamDateTime
         auto cs = deserializer.deserialize!(UnitTestPhamDateTime[])();
         assert(cs.length == 2, cs.length.to!string);
         foreach(i; 0..cs.length)
-            cs[i].assertValuesArray(cast(int)i);
+            cs[i].assertValuesArray(i);
     }
 }
 
@@ -1524,7 +1524,7 @@ unittest // DbSerializer.UnitTestDecDecimal
         auto cs = deserializer.deserialize!(UnitTestDecDecimal[])();
         assert(cs.length == 2, cs.length.to!string);
         foreach(i; 0..cs.length)
-            cs[i].assertValuesArray(cast(int)i);
+            cs[i].assertValuesArray(i);
     }
 }
 

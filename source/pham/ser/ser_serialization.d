@@ -281,7 +281,7 @@ struct SerializableMemberOptions
 nothrow @safe:
 
 public:
-    this(EnumBitSet!SerializableMemberFlag flags, EnumBitSet!SerializableMemberScope scopes) @nogc pure
+    this(EnumSet!SerializableMemberFlag flags, EnumSet!SerializableMemberScope scopes) @nogc pure
     {
         this.flags = flags;
         this.scopes = scopes;
@@ -294,10 +294,10 @@ public:
         if (serializerMember.attribute.condition == Condition.ignored)
             return false;
 
-        if (!this.scopes.isSet(serializerMember.memberScope))
+        if (!this.scopes.isOn(serializerMember.memberScope))
             return false;
 
-        if (!this.flags.isSet(serializerMember.flags))
+        if (!this.flags.isAll(serializerMember.flags))
             return false;
 
         return true;
@@ -310,20 +310,20 @@ public:
         if (serializerMember.attribute.condition == Condition.ignored)
             return false;
 
-        if (!this.scopes.isSet(serializerMember.memberScope))
+        if (!this.scopes.isOn(serializerMember.memberScope))
             return false;
 
-        if (!this.flags.isSet(serializerMember.flags))
+        if (!this.flags.isAll(serializerMember.flags))
             return false;
 
         return true;
     }
 
 public:
-    EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.isGetSet
-        | SerializableMemberFlag.implicitUDA
-        | SerializableMemberFlag.explicitUDA;
-    EnumBitSet!SerializableMemberScope scopes = SerializableMemberScope.public_;
+    EnumSet!SerializableMemberFlag flags = EnumSet!SerializableMemberFlag([SerializableMemberFlag.isGetSet
+        , SerializableMemberFlag.implicitUDA
+        , SerializableMemberFlag.explicitUDA]);
+    EnumSet!SerializableMemberScope scopes = SerializableMemberScope.public_;
 }
 
 SerializableMemberOptions getSerializableMemberOptions(T)() nothrow pure
@@ -376,80 +376,6 @@ if (isFloatingPoint!T)
         alias UnsignedFloat = ulong;
     else
         static assert(0, "Unsupported float type: " ~ T.stringof);
-}
-
-struct EnumBitSet(E)
-if (is(E Base == enum) && isIntegral!Base && E.init == 0)
-{
-@nogc nothrow @safe:
-
-public:
-    this(E e) pure
-    {
-        this.values = e;
-    }
-
-    this(scope const(E)[] es) pure
-    {
-        foreach (const e; es)
-            inc(e);
-    }
-
-    this(const(size_t) es) pure
-    {
-        foreach (const e; EnumMembers!E)
-        {
-            if ((e & es))
-                inc(e);
-        }
-    }
-
-    ref typeof(this) opAssign(scope const(E)[] es) pure return
-    {
-        this.values = E.init;
-        foreach (const e; es)
-            inc(e);
-        return this;
-    }
-
-    ref typeof(this) opAssign(const(size_t) es) pure return
-    {
-        this.values = E.init;
-        foreach (const e; EnumMembers!E)
-        {
-            if ((e & es))
-                inc(e);
-        }
-        return this;
-    }
-
-    ref typeof(this) exc(const(E) e) pure return
-    {
-        values = cast(E)(values & ~e);
-        return this;
-    }
-
-    ref typeof(this) inc(const(E) e) pure return
-    {
-        values = cast(E)(values | e);
-        return this;
-    }
-
-    pragma(inline, true)
-    bool isAny(const(E) e) const pure
-    {
-        return e != 0 && (values & e) != 0;
-    }
-
-    pragma(inline, true)
-    bool isSet(const(E) e) const pure
-    {
-        return e != 0 && (values & e) == e;
-    }
-
-public:
-    E values;
-    alias values this;
 }
 
 template getGetterSetterFunctions(symbols...)
@@ -606,6 +532,7 @@ IsFloatLiteral isFloatLiteral(scope const(char)[] text) @nogc nothrow pure
 template isCallableWithTypes(alias func, Args...)
 {
     private alias funcParams = Parameters!func;
+    
     private bool sameParamTypes()
     {
         bool result = true;
@@ -616,6 +543,7 @@ template isCallableWithTypes(alias func, Args...)
         }
         return result;
     }
+    
     static if (isCallable!func && funcParams.length == Args.length)
         enum bool isCallableWithTypes = sameParamTypes();
     else
@@ -675,7 +603,7 @@ if (isSerializerAggregateType!T)
 template isSerializerMember(alias member)
 {
     //pragma(msg, member.memberName ~ ", " ~ member.flags.stringof ~ ", " ~ member.attribute.condition.stringof);
-    enum bool isSerializerMember = member.flags != SerializableMemberFlag.none
+    enum bool isSerializerMember = member.flags.isOff(SerializableMemberFlag.none)
         && member.attribute.condition != Condition.ignored;
 }
 
@@ -814,20 +742,20 @@ template SerializerMember(alias T, string name)
         static if (hasUDA!(memberGet, Serializable))
         {
             enum Serializable attribute = Serializable(getUDA!(memberGet, Serializable), memberName);
-            enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.explicitUDA
-                | SerializableMemberFlag.isGetSet;
+            enum EnumSet!SerializableMemberFlag flags = EnumSet!SerializableMemberFlag(SerializableMemberFlag.explicitUDA
+                , SerializableMemberFlag.isGetSet);
         }
         else static if (hasUDA!(memberSet, Serializable))
         {
             enum Serializable attribute = Serializable(getUDA!(memberSet, Serializable), memberName);
-            enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.explicitUDA
-                | SerializableMemberFlag.isGetSet;
+            enum EnumSet!SerializableMemberFlag flags = EnumSet!SerializableMemberFlag(SerializableMemberFlag.explicitUDA
+                , SerializableMemberFlag.isGetSet);
         }
         else
         {
             enum Serializable attribute = Serializable(memberName, memberName, Condition.required);
-            enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.implicitUDA
-                | SerializableMemberFlag.isGetSet;
+            enum EnumSet!SerializableMemberFlag flags = EnumSet!SerializableMemberFlag(SerializableMemberFlag.implicitUDA
+                , SerializableMemberFlag.isGetSet);
         }
     }
     // Plain field
@@ -851,12 +779,12 @@ template SerializerMember(alias T, string name)
         static if (hasUDA!(member, Serializable))
         {
             enum Serializable attribute = Serializable(getUDA!(member, Serializable), memberName);
-            enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.explicitUDA;
+            enum EnumSet!SerializableMemberFlag flags = SerializableMemberFlag.explicitUDA;
         }
         else
         {
             enum Serializable attribute = Serializable(memberName, memberName, Condition.required);
-            enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.implicitUDA;
+            enum EnumSet!SerializableMemberFlag flags = SerializableMemberFlag.implicitUDA;
         }
     }
     else static if (overloads.length == 0 || isTemplateMember || !__traits(compiles, getReturnType!memberGet))
@@ -866,7 +794,7 @@ template SerializerMember(alias T, string name)
         alias memberType = void;
         enum SerializableMemberScope memberScope = SerializableMemberScope.none;
         enum Serializable attribute = Serializable(memberName, memberName, Condition.ignored);
-        enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.none;
+        enum EnumSet!SerializableMemberFlag flags = SerializableMemberFlag.none;
     }
     else
     {
@@ -879,12 +807,12 @@ template SerializerMember(alias T, string name)
         static if (hasUDA!(memberGet, Serializable))
         {
             enum Serializable attribute = Serializable(getUDA!(memberGet, Serializable), memberName);
-            enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.explicitUDA;
+            enum EnumSet!SerializableMemberFlag flags = SerializableMemberFlag.explicitUDA;
         }
         else
         {
             enum Serializable attribute = Serializable(memberName, memberName, Condition.ignored);
-            enum EnumBitSet!SerializableMemberFlag flags = SerializableMemberFlag.none;
+            enum EnumSet!SerializableMemberFlag flags = SerializableMemberFlag.none;
         }
     }
 }
@@ -949,46 +877,6 @@ enum SerializerDataFormat : ubyte
 {
     text,
     binary,
-}
-
-enum SerializerDataType : ubyte
-{
-    unknown,
-    null_,
-    bool_,
-    date,
-    dateTime,
-    time,
-    int1,
-    int2,
-    int4,
-    int8,
-    int16_Reserved,
-    int32_Reserved,
-    float4,
-    float8,
-    float16_Reserved,
-    float32_Reserved,
-    char_,
-    chars,
-    charsKey,
-    wchars,
-    dchars,
-    bytes,
-    aggregateBegin,
-    aggregateEnd,
-    arrayBegin,
-    arrayEnd,
-}
-
-pragma(inline, true)
-bool isNullableDataType(const(SerializerDataType) dataType) @nogc nothrow pure @safe
-{
-    return dataType == SerializerDataType.null_
-        || dataType == SerializerDataType.chars
-        || dataType == SerializerDataType.wchars
-        || dataType == SerializerDataType.dchars
-        || dataType == SerializerDataType.bytes;
 }
 
 alias DeserializerFunction = void function(Deserializer deserializer, scope void* value, scope ref Serializable attribute) @safe;
@@ -1748,7 +1636,7 @@ public:
                             }
 
                             Serializable memberAttribute = member.attribute;
-                            static if (member.flags.isSet(SerializableMemberFlag.isGetSet))
+                            static if (member.flags.isOn(SerializableMemberFlag.isGetSet))
                             {
                                 member.memberType memberValue;
                                 if (!deserializeCustom!(member.memberType)(memberValue, memberAttribute))
@@ -1813,7 +1701,7 @@ public:
 
                 const key = readKey();
                 Serializable memberAttribute = member.attribute;
-                static if (member.flags.isSet(SerializableMemberFlag.isGetSet))
+                static if (member.flags.isOn(SerializableMemberFlag.isGetSet))
                 {
                     member.memberType memberValue;
                     if (!deserializeCustom!(member.memberType)(memberValue, memberAttribute))
@@ -2472,7 +2360,7 @@ package(pham.ser):
             assert(privateInt == 0, privateInt.to!string);
         }
 
-        void assertValuesArray(int index)
+        void assertValuesArray(ptrdiff_t index)
         {
             assert(publicGetSet == 1+index, publicGetSet.to!string);
             assert(_protectedGetSet == 3, _protectedGetSet.to!string);
@@ -2776,7 +2664,7 @@ package(pham.ser):
             assert(binary1 == [37,24,204,101,43], binary1.to!string);
         }
 
-        void assertValuesArray(int index)
+        void assertValuesArray(ptrdiff_t index)
         {
             assert(enum1 == UnitTestEnum.third, enum1.to!string);
             assert(bool1 == true, bool1.to!string);
@@ -3081,7 +2969,7 @@ unittest // SerializableMemberOptions - Change options
     SerializableMemberOptions options;
 
     // All scopes
-    options.scopes = SerializableMemberScope.public_ | SerializableMemberScope.protected_ | SerializableMemberScope.private_;
+    options.scopes = [SerializableMemberScope.public_, SerializableMemberScope.protected_, SerializableMemberScope.private_];
     static immutable expectAllScopes = ["publicInt", "_publicGetSet", "publicStruct", "publicGetSet", "protectedInt",
         "_protectedGetSet", "protectedGetSet", "privateInt", "_privateGetSet", "privateGetSet", "publicStr"];
 
@@ -3098,8 +2986,8 @@ unittest // SerializableMemberOptions - Change options
     assert(serializerNames == expectAllScopes, serializerNames.to!string());
 
     // With attribute only
-    options.scopes = SerializableMemberScope.public_ | SerializableMemberScope.protected_ | SerializableMemberScope.private_;
-    options.flags = SerializableMemberFlag.isGetSet | SerializableMemberFlag.explicitUDA;
+    options.scopes = [SerializableMemberScope.public_, SerializableMemberScope.protected_, SerializableMemberScope.private_];
+    options.flags = [SerializableMemberFlag.isGetSet, SerializableMemberFlag.explicitUDA];
     static immutable expectAttributeOnly = ["publicInt", "publicGetSet"];
 
     deserializerNames = null;
@@ -3140,11 +3028,11 @@ package(pham.ser):
             assert(time1 == Time(12, 30, 33, DateTimeZoneKind.utc), time1.toString());
         }
 
-        void assertValuesArray(int i)
+        void assertValuesArray(ptrdiff_t index)
         {
-            assert(date1 == Date(1999, 1, 1).addDays(i));
-            assert(dateTime1 == DateTime(1999, 7, 6, 12, 30, 33).addDays(i), dateTime1.toString());
-            assert(time1 == Time(12, 30, 33).addSeconds(i), time1.toString());
+            assert(date1 == Date(1999, 1, 1).addDays(cast(int)index));
+            assert(dateTime1 == DateTime(1999, 7, 6, 12, 30, 33).addDays(cast(int)index), dateTime1.toString());
+            assert(time1 == Time(12, 30, 33).addSeconds(index), time1.toString());
         }
     }
 

@@ -80,11 +80,11 @@ package(pham.ser):
             assert(decimal128 == Decimal128("294574120484.87"));
         }
         
-        void assertValuesArray(int i)
+        void assertValuesArray(ptrdiff_t index)
         {
-            assert(decimal32 == Decimal32("-7145")+i);
-            assert(decimal64 == Decimal64("714583645.40")+i);
-            assert(decimal128 == Decimal128("294574120484.87")+i);
+            assert(decimal32 == Decimal32("-7145")+index);
+            assert(decimal64 == Decimal64("714583645.40")+index);
+            assert(decimal128 == Decimal128("294574120484.87")+index);
         }
     }
     

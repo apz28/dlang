@@ -36,6 +36,29 @@ if (is(C == char) || is(C == byte) || is(C == ubyte))
         return null;
 }
 
+/**
+ * Calculates an efficient growth scheme based on the old capacity
+ * of data, and the minimum requested capacity.
+ *
+ * Params:
+ *   sizeOfT = The size of T in bytes
+ *   curCapacity = The current capacity
+ *   reqLen = The length as requested by the user
+ */
+static size_t calCapacity(const(size_t) sizeOfT, const(size_t) curCapacity, const(size_t) reqLen) @nogc nothrow pure @safe
+{
+    import core.bitop : bsr;
+    import std.algorithm.comparison : max, min;
+
+    if (curCapacity == 0)
+        return max(reqLen, 8);
+
+    // limit to doubling the length, we don't want to grow too much
+    const ulong mult = min(100 + 1_000UL / (bsr(curCapacity * sizeOfT) + 1), 200);
+    const sugCapacity = cast(size_t)((curCapacity * mult + 99) / 100);
+    return max(reqLen, sugCapacity);
+}
+
 ptrdiff_t indexOf(T)(scope const(T)[] items, const(T) item) nothrow @trusted
 {
     //scope (failure) assert(0, "Assume nothrow failed");
@@ -540,29 +563,6 @@ private:
     }
 
     /**
-     * Calculates an efficient growth scheme based on the old capacity
-     * of data, and the minimum requested capacity.
-     *
-     * Params:
-     *   TSizeOf = The size of T in bytes
-     *   curLen = The current length
-     *   reqLen = The length as requested by the user
-     */
-    static size_t calCapacity(const(size_t) sizeOfT, const(size_t) curCapacity, const(size_t) reqLen) @nogc nothrow pure @safe
-    {
-        import core.bitop : bsr;
-        import std.algorithm.comparison : max, min;
-
-        if (curCapacity == 0)
-            return max(reqLen, 8);
-
-        // limit to doubling the length, we don't want to grow too much
-        const ulong mult = min(100 + 1000UL / (bsr(curCapacity * sizeOfT) + 1), 200);
-        const sugCapacity = cast(size_t)((curCapacity * mult + 99) / 100);
-        return max(reqLen, sugCapacity);
-    }
-
-    /**
      * ensure we can add nElems elements, resizing as necessary
      * Returns the current length
      */
@@ -610,7 +610,6 @@ private:
             }
             _data.value = _data.value[0..len];
             _data.capacity = reqLen;
-            return _data.length;
         }
         else
         {
@@ -627,7 +626,7 @@ private:
                 {
                     // extend worked, update the capacity
                     _data.capacity = u / T.sizeof;
-                    return _data.value.length;
+                    return len;
                 }
             }
 
@@ -644,9 +643,10 @@ private:
                 () @trusted { memcpy(bi.base, _data.value.ptr, len * T.sizeof); }();
             _data.value = (() @trusted => (cast(UT*)bi.base)[0..len])();
             _data.tryExtendBlock = true;
-            return _data.length;
             // leave the old data, for safety reasons
         }
+        
+        return len;
     }
 
     struct Data

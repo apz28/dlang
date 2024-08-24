@@ -59,11 +59,11 @@ package(pham.ser):
             assert(bigInt1 == BigInt("-71459266416693160362545788781600"), format("%d", bigInt1));
         }
         
-        void assertValuesArray(int i)
+        void assertValuesArray(ptrdiff_t index)
         {
-            //import std.stdio : writeln; writeln(format("%d", BigInt("-71459266416693160362545788781600")+i));
+            //import std.stdio : writeln; writeln(format("%d", BigInt("-71459266416693160362545788781600")+index));
             
-            assert(bigInt1 == BigInt("-71459266416693160362545788781600")+i, format("%d %d", i, bigInt1));
+            assert(bigInt1 == BigInt("-71459266416693160362545788781600")+index, format("%d %d", index, bigInt1));
         }
     }
     
