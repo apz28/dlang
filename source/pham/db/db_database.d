@@ -4334,6 +4334,14 @@ public:
         return result;
     }
 
+    final DbParameterList add(Variant[string] values) @safe
+    {
+        foreach (k, v; values)
+            add(k, DbType.unknown, v);
+        
+        return this;
+    }
+
     final DbParameter addClone(DbParameter source) @safe
     in
     {
@@ -5661,7 +5669,7 @@ if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbC
 
 ref Writer parameterConditionString(Writer, List)(return ref Writer writer, List names,
     const(bool) all = false,
-    const(char)[] separator = ",")
+    const(char)[] logicalOp = "and")
 if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
 {
     uint count;
@@ -5670,7 +5678,11 @@ if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbC
         if (all || e.isKey)
         {
             if (count)
-                writer.put(separator);
+            {
+                writer.put(" ");
+                writer.put(logicalOp);
+                writer.put(" ");
+            }
             writer.put(e.name.value);
             writer.put("=@");
             writer.put(e.name.value);
@@ -5680,7 +5692,8 @@ if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbC
     return writer;
 }
 
-ref Writer parameterUpdateString(Writer, List)(return ref Writer writer, List names, const(char)[] separator = ",")
+ref Writer parameterUpdateString(Writer, List)(return ref Writer writer, List names,
+    const(char)[] separator = ",")
 if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
 {
     static if (is(List : DbParameterList))
@@ -5780,13 +5793,13 @@ unittest // parameterConditionString
     import pham.utl.utl_array : Appender;
 
     auto parameters = new DbParameterList(null);
-    parameters.add("colum1", DbType.int32);
+    parameters.add("colum1", DbType.int32).isKey = true;
     parameters.add("colum2", DbType.int32);
     parameters.add("colum3", DbType.int32).isKey = true;
 
-    auto buffer = Appender!string(20);
+    auto buffer = Appender!string(50);
     auto text = buffer.parameterConditionString(parameters)[];
-    assert(text == "colum3=@colum3", text);
+    assert(text == "colum1=@colum1 and colum3=@colum3", text);
 }
 
 unittest // parameterUpdateString

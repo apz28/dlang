@@ -12,6 +12,7 @@
 module pham.ser.ser_serialization_db;
 
 import std.conv : to;
+import std.range.primitives : isOutputRange;
 import std.traits : isDynamicArray, isFloatingPoint, isIntegral;
 
 debug(pham_ser_ser_serialization_db) import std.stdio : writeln;
@@ -74,9 +75,7 @@ public:
     final V select(V)(Variant[string] conditionParameters)
     if (isSerializerAggregateType!V)
     {
-        auto parameters = connection.database.createParameterList();
-        foreach (k, v; conditionParameters)
-            parameters.add(k, DbType.unknown, v);
+        auto parameters = connection.database.createParameterList().add(conditionParameters);
         return select!V(parameters);
     }
 
@@ -394,17 +393,7 @@ public:
             return onConstructSQL(this, columns, commandText, conditionParameters, attribute);
 
         commandText.put("select ");
-        if (columns.length)
-        {
-            foreach (i, column; columns)
-            {
-                if (i)
-                    commandText.put(',');
-                commandText.put(column.dbName);
-            }
-        }
-        else
-            commandText.put('*');
+        selectNames(commandText, columns);
         commandText.put(" from ");
         commandText.put(attribute.dbName);
         if (conditionParameters && conditionParameters.length)
@@ -414,6 +403,24 @@ public:
         }
 
         return true;
+    }
+
+    static ref Writer selectNames(Writer)(return ref Writer writer, scope const(Serializable)[] columns)
+    if (isOutputRange!(Writer, char))
+    {
+        if (columns.length == 0)
+        {
+            writer.put('*');
+            return writer;
+        }
+            
+        foreach (i, column; columns)
+        {
+            if (i)
+                writer.put(',');
+            writer.put(column.dbName);
+        }
+        return writer;
     }
 
     final DbReader selectSQL(DbParameterList conditionParameters, scope ref Serializable attribute)
@@ -517,12 +524,15 @@ public:
         begin(attribute);
         serialize(v, attribute);
         end(attribute);
-        const result = constructSQL(DbSerializerCommandQuery.insert, attribute)
+        
+        scope (success)
+        {
+            commandParameters.clear();
+            commandText.clear();
+        }        
+        return constructSQL(DbSerializerCommandQuery.insert, attribute)
             ? executeSQL(DbSerializerCommandQuery.insert, attribute)
             : DbRecordsAffected.init;
-        commandParameters.clear();
-        commandText.clear();
-        return result;
     }
 
     // Aggregate (class, struct)
@@ -547,12 +557,15 @@ public:
         begin(attribute);
         serialize(v, attribute);
         end(attribute);
-        const result = constructSQL(DbSerializerCommandQuery.update, attribute)
+        
+        scope (success)
+        {
+            commandParameters.clear();
+            commandText.clear();
+        }
+        return constructSQL(DbSerializerCommandQuery.update, attribute)
             ? executeSQL(DbSerializerCommandQuery.update, attribute)
             : DbRecordsAffected.init;
-        commandParameters.clear();
-        commandText.clear();
-        return result;
     }
 
 public:

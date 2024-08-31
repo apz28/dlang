@@ -370,10 +370,11 @@ if (is(T == class))
 template UnsignedFloat(T)
 if (isFloatingPoint!T)
 {
-    static if (is(T == float))
-        alias UnsignedFloat = uint;
-    else static if (is(T == double))
+    alias UT = Unqual!T;
+    static if (is(UT == double))
         alias UnsignedFloat = ulong;
+    else static if (is(UT == float))
+        alias UnsignedFloat = uint;
     else
         static assert(0, "Unsupported float type: " ~ T.stringof);
 }
@@ -1636,7 +1637,7 @@ public:
                             }
 
                             Serializable memberAttribute = member.attribute;
-                            static if (member.flags.isOn(SerializableMemberFlag.isGetSet))
+                            static if (member.flags.isGetSet)
                             {
                                 member.memberType memberValue;
                                 if (!deserializeCustom!(member.memberType)(memberValue, memberAttribute))
@@ -1701,7 +1702,7 @@ public:
 
                 const key = readKey();
                 Serializable memberAttribute = member.attribute;
-                static if (member.flags.isOn(SerializableMemberFlag.isGetSet))
+                static if (member.flags.isGetSet)
                 {
                     member.memberType memberValue;
                     if (!deserializeCustom!(member.memberType)(memberValue, memberAttribute))

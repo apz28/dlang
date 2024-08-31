@@ -17,15 +17,22 @@ public import core.time : Duration, dur;
 
 debug(debug_pham_utl_utl_timer) import std.stdio : writeln;
 import pham.utl.utl_object : RAIIMutex;
-
-version(Windows)
+version(Posix)
 {
-    version = WindowsCreateTimerQueue;
-    //version = WindowsSetTimer; // Application must have a message loop for it to work
+    import pham.utl.utl_timer_engine_posix;
+}
+else version(Windows)
+{
+    import pham.utl.utl_timer_engine_windows;
+}
+else
+{
+    pragma(msg, "Unsupported system for " ~ __MODULE__);
+    static assert(0);
 }
 
-alias TimerDelegate = void delegate(TimerEvent event);
-alias TimerFunction = void function(TimerEvent event);
+alias TimerDelegate = void delegate(TimerEvent event) @safe;
+alias TimerFunction = void function(TimerEvent event) @safe;
 
 struct TimerEvent
 {
@@ -90,7 +97,7 @@ public:
     size_t tag;
 
 private:
-    void notify() nothrow
+    void notify() nothrow @safe
     {
         debug(debug_pham_utl_utl_timer) debug writeln("TimerEvent.notify(name=", name, ", counter=", counter, ")");
 
@@ -104,23 +111,23 @@ private:
         {}
     }
 
-    static void doNotifyDlgHandler(ref TimerEvent event)
+    static void doNotifyDlgHandler(ref TimerEvent event) @safe
     {
         assert(event._dlgHandler !is null);
         event._dlgHandler(event);
     }
 
-    static void doNotifyFctHandler(ref TimerEvent event)
+    static void doNotifyFctHandler(ref TimerEvent event) @safe
     {
         assert(event._fctHandler !is null);
         event._fctHandler(event);
     }
 
-    static void doNotifyNothingHandler(ref TimerEvent event)
+    static void doNotifyNothingHandler(ref TimerEvent event) @safe
     {}
 
 private:
-    alias DoNotify = void function(ref TimerEvent event);
+    alias DoNotify = void function(ref TimerEvent event) @safe;
     DoNotify _doHandler;
     TimerDelegate _dlgHandler;
     TimerFunction _fctHandler;
@@ -134,15 +141,9 @@ class Timer
 public:
     this(Duration resolutionInterval = dur!"msecs"(10)) nothrow @safe
     {
-        version(WindowsSetTimer)
-            // 10=https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-settimer
-            enum minResolutionInterval = dur!"msecs"(10);
-        else
-            enum minResolutionInterval = dur!"msecs"(1);
-
         this._resolutionInterval = resolutionInterval >= minResolutionInterval ? resolutionInterval : minResolutionInterval;
         this._mutex = new Mutex();
-        this._engine = TimerEngine(this);
+        this._engine = TimerEngine(&notifyElapsed, null);
     }
 
     ~this() nothrow @trusted
@@ -224,6 +225,42 @@ public:
         return _resolutionInterval;
     }
 
+package(pham.utl):
+    final void notifyElapsed(void* data) nothrow @safe
+    {
+        const canNotifyElapsed = atomicFetchAdd(_inNotifyElapsed, 1) == 0;
+        scope (exit)
+            atomicFetchSub(_inNotifyElapsed, 1);
+
+        if (!canNotifyElapsed)
+            return;
+
+        debug(debug_pham_utl_utl_timer) debug writeln("Timer.notifyElapsed(canProcess=", canProcess(), ")");
+
+        if (!canProcess())
+            return;
+
+        auto elapsedEvents = getElapsedEvents();
+        if (!canProcess())
+            return;
+
+        foreach (ref elapsedEvent; elapsedEvents)
+        {
+            elapsedEvent.notify();
+            if (!canProcess())
+                return;
+        }
+    }
+    
+    final void resetNotifierElapsed() nothrow @safe
+    {
+        debug(debug_pham_utl_utl_timer) debug writeln("Timer.resetNotifierElapseds()");
+
+        auto raiiMutex = RAIIMutex(_mutex);
+        foreach (ref notifier; _notifiers)
+            notifier.elapsed = Duration.zero;
+    }
+    
 protected:
     final bool canProcess() const nothrow @safe
     {
@@ -256,266 +293,31 @@ protected:
         return _notifyEvents[0..resultCount];
     }
 
-    final void resetNotifierElapsed() nothrow @safe
-    {
-        debug(debug_pham_utl_utl_timer) debug writeln("Timer.resetNotifierElapseds()");
-
-        auto raiiMutex = RAIIMutex(_mutex);
-        foreach (ref notifier; _notifiers)
-            notifier.elapsed = Duration.zero;
-    }
-
-    final void notifyElapsed() nothrow
-    {
-        const canNotifyElapsed = atomicFetchAdd(_inNotifyElapsed, 1) == 0;
-        scope (exit)
-            atomicFetchSub(_inNotifyElapsed, 1);
-
-        if (!canNotifyElapsed)
-            return;
-
-        debug(debug_pham_utl_utl_timer) debug writeln("Timer.notifyElapsed(canProcess=", canProcess(), ")");
-
-        if (!canProcess())
-            return;
-
-        auto elapsedEvents = getElapsedEvents();
-        if (!canProcess())
-            return;
-
-        foreach (ref elapsedEvent; elapsedEvents)
-        {
-            elapsedEvent.notify();
-            if (!canProcess())
-                return;
-        }
-    }
-
     final void startEngine() nothrow @safe
     {
         if (atomicExchange(&_disabled, 2) != 2)
         {
             if (!_engine.isRunning)
-                _engine.start();
+            {
+                resetNotifierElapsed();
+                _engine.start(_resolutionInterval);
+            }
             atomicStore(_disabled, _engine.isRunning ? 0 : 1);
         }
     }
 
+package(pham.utl):
+    TimerEngine _engine;
+
 private:
     Mutex _mutex;
-    TimerEngine _engine;
     TimerEvent[] _notifyEvents;
     TimerNotifier[] _notifiers;
     Duration _resolutionInterval;
     size_t _disabled, _inNotifyElapsed;
 }
 
-
-private:
-
-struct TimerEngine
-{
-    import core.thread.osthread : Thread;
-    version(WindowsSetTimer)
-    {
-        import core.sys.windows.basetsd : UINT_PTR;
-        import core.sys.windows.windef : DWORD, HWND, UINT;
-        import core.sys.windows.winuser : KillTimer, SetTimer;
-        pragma(lib, "user32");
-    }
-    else version(WindowsCreateTimerQueue)
-    {
-        import core.sys.windows.basetsd : HANDLE;
-        import core.sys.windows.winbase : CreateTimerQueue, CreateTimerQueueTimer, DeleteTimerQueue, DeleteTimerQueueTimer;
-        import core.sys.windows.winnt : BOOLEAN, PVOID;
-    }
-
-public:
-    this(Timer timer) nothrow @safe
-    {
-        this.timer = timer;
-    }
-
-    void start() nothrow @trusted
-    {
-        debug(debug_pham_utl_utl_timer) debug writeln("TimerEngine.start()");
-
-        atomicStore(state, State.start);
-
-        timer.resetNotifierElapsed();
-
-        version(WindowsSetTimer)
-        {
-            auto tid = SetTimer(null, cast(UINT_PTR)(cast(void*)timer), cast(uint)timer.resolutionInterval.total!"msecs", &timerRun);
-            if (tid == UINT_PTR.init)
-            {
-                atomicStore(state, State.initial);
-                return;
-            }
-            
-            atomicStore(timerId, tid);
-        }
-        else version(WindowsCreateTimerQueue)
-        {
-            auto hQueueTemp = CreateTimerQueue();
-            if (hQueueTemp is null)
-            {
-                atomicStore(state, State.initial);
-                return;
-            }
-            
-            if (!CreateTimerQueueTimer(&hTimer, hQueueTemp, &timerRun, cast(void*)timer, 0, cast(uint)timer.resolutionInterval.total!"msecs", 0))
-            {
-                DeleteTimerQueue(hQueueTemp);
-                atomicStore(state, State.initial);
-                return;
-            }
-            
-            atomicStore(hQueue, hQueueTemp);
-        }
-        else
-        {
-            auto t =  new Thread(&timerRun).start();
-            atomicStore(thread, t);
-            Thread.yield();
-        }
-    }
-
-    void stop(const(bool) destroying) nothrow @trusted
-    {
-        debug(debug_pham_utl_utl_timer) debug writeln("TimerEngine.stop()");
-
-        atomicStore(state, State.stop1);
-
-        version(WindowsSetTimer)
-        {
-            auto tid = atomicExchange(&timerId, UINT_PTR.init);
-            if (tid != UINT_PTR.init)
-                KillTimer(null, tid);
-        }
-        else version(WindowsCreateTimerQueue)
-        {
-            auto th = atomicExchange(&hTimer, null);
-            if (th !is null)
-                DeleteTimerQueueTimer(hQueue, th, null);
-
-            th = atomicExchange(&hQueue, null);
-            if (th !is null)
-                DeleteTimerQueue(th);
-        }
-        else
-        {
-            auto tth = atomicExchange(&thread, null);
-            if (tth !is null)
-            {
-                Thread.yield();
-
-                enum waitUnit = dur!"msecs"(1_000);
-                auto waitFor = waitUnit * 5;
-                while (waitFor > Duration.zero && atomicLoad(state) == State.stop1)
-                {
-                    Thread.sleep(waitUnit);
-                    waitFor -= waitUnit;
-                }
-
-                tth.destroy();
-            }
-        }
-
-        atomicStore(state, State.initial);
-    }
-
-    @property bool isRunning() const @nogc nothrow @safe
-    {
-        version(WindowsSetTimer)
-            return atomicLoad(state) == State.start || atomicLoad(timerId) != UINT_PTR.init;
-        else version(WindowsCreateTimerQueue)
-            return atomicLoad(state) == State.start || atomicLoad(hQueue) !is null;
-        else
-            return atomicLoad(state) == State.start || atomicLoad(thread) !is null;
-    }
-
-private:
-    enum State : size_t
-    {
-        initial,
-        start,
-        stop1,
-        stop2,
-    }
-
-    State state;
-    Timer timer;
-
-private:
-    void notifyElapsedIf() nothrow
-    {
-        if (atomicLoad(state) == State.start)
-            timer.notifyElapsed();
-    }
-
-    version(WindowsSetTimer)
-    {
-        UINT_PTR timerId;
-
-        extern (Windows) static void timerRun(HWND, UINT, UINT_PTR ptr, DWORD) nothrow
-        {
-            debug(debug_pham_utl_utl_timer) debug writeln("TimerEngine.timerRun(begin)");
-
-            assert(ptr != 0);
-
-            auto timer = cast(Timer)(cast(void*)ptr);
-            timer._engine.notifyElapsedIf();
-            timer._engine.setCompleteStopIf();
-
-            debug(debug_pham_utl_utl_timer) debug writeln("TimerEngine.timerRun(end)");
-        }
-    }
-    else version(WindowsCreateTimerQueue)
-    {
-        HANDLE hQueue;
-        HANDLE hTimer;
-
-        extern (Windows) static void timerRun(PVOID lpParam, BOOLEAN) nothrow
-        {
-            debug(debug_pham_utl_utl_timer) debug writeln("TimerEngine.timerRun(begin)");
-
-            assert(lpParam !is null);
-
-            auto timer = cast(Timer)lpParam;
-            timer._engine.notifyElapsedIf();
-            timer._engine.setCompleteStopIf();
-
-            debug(debug_pham_utl_utl_timer) debug writeln("TimerEngine.timerRun(end)");
-        }
-    }
-    else
-    {
-        Thread thread;
-
-        void timerRun() nothrow
-        {
-            debug(debug_pham_utl_utl_timer) debug writeln("TimerEngine.timerRun(begin)");
-
-            while (atomicLoad(state) == State.start)
-            {
-                Thread.sleep(timer.resolutionInterval);
-                notifyElapsedIf();
-            }
-
-            setCompleteStopIf();
-
-            debug(debug_pham_utl_utl_timer) debug writeln("TimerEngine.timerRun(end)");
-        }
-    }
-
-    void setCompleteStopIf() nothrow
-    {
-        if (atomicLoad(state) == State.stop1)
-            atomicStore(state, State.stop2);
-    }
-}
-
+package(pham.utl)
 struct TimerNotifier
 {
 nothrow @safe:
@@ -538,13 +340,16 @@ public:
     TimerEvent event;
 }
 
+
+private:
+
 unittest
 {
     import core.thread.osthread : Thread;
     import std.stdio : writeln;
 
     size_t eventDelegateCounter;
-    void eventDelegate(TimerEvent event)
+    void eventDelegate(TimerEvent event) @safe
     {
         //debug writeln("eventDelegate(event.name=", event.name, ")");
         assert(event.counter != 0);
@@ -555,7 +360,7 @@ unittest
     }
 
     static __gshared size_t eventFunctionCounter;
-    static void eventFunction(TimerEvent event)
+    static void eventFunction(TimerEvent event) @trusted
     {
         //debug writeln("eventFunction(event.name=", event.name, ")");
         assert(event.counter != 0);

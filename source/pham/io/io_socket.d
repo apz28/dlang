@@ -29,7 +29,10 @@ else version(Windows)
     import pham.io.io_socket_windows;
 }
 else
+{
     pragma(msg, "Unsupported system for " ~ __MODULE__);
+    static assert(0);
+}
 
 @safe:
 
@@ -262,7 +265,7 @@ public:
     {
         if (active && port != 0)
             return lastError.setError(EISCONN, " already active");
-            
+
         foreach (ref a; addresses)
         {
             auto connectInfo = ConnectInfo(a, port);
@@ -297,17 +300,17 @@ public:
     {
         if (active)
             return lastError.setError(EISCONN, " already active");
-    
+
         this._address = IPAddress.init;
         this._port = 0;
-        version(Windows) this._blocking = true; // Default in windows  
+        version(Windows) this._blocking = true; // Default in windows
         this._handle = createSocket(family, type, protocol);
         if (this._handle == invalidSocketHandle)
             return lastError.setSystemError("socket", lastSocketError());
-            
+
         return resultOK;
     }
-    
+
     final bool isAlive() nothrow
     {
         int type;
@@ -576,7 +579,7 @@ protected:
         version(Windows) this._blocking = bindInfo.isBlocking();
         this._address = bindInfo.address;
         this._port = bindInfo.port;
-        
+
         if (this._handle == invalidSocketHandle)
         {
             this._handle = createSocket(bindInfo.family, bindInfo.type, bindInfo.protocol);
@@ -643,7 +646,7 @@ protected:
         version(Windows) this._blocking = connectInfo.isBlocking();
         this._address = connectInfo.address;
         this._port = connectInfo.port;
-                
+
         if (this._handle == invalidSocketHandle)
         {
             this._handle = createSocket(connectInfo.family, connectInfo.type, connectInfo.protocol);
@@ -711,7 +714,7 @@ protected:
     final int connectWithoutTimeout(ConnectInfo connectInfo) nothrow
     {
         //import std.stdio : writeln; debug writeln("connectWithoutTimeout: ", connectInfo.port);
-        
+
         auto sa = connectInfo.address.toSocketAddress(connectInfo.port);
         const r = connectSocket(_handle, sa.sval, sa.slen, connectInfo.isBlocking());
         return r == resultOK || r == EINPROGRESS
@@ -939,17 +942,17 @@ private:
 unittest // getComputerName
 {
     //import std.stdio : writeln;
-    
+
     const r = getComputerName();
     assert(r.length > 0);
-    
+
     //debug writeln("getComputerName=", r);
 }
 
 unittest // getAddressInfo
 {
     //import std.stdio : writeln;
-    
+
     const r1 = getAddressInfo(getComputerName(), null, AddressInfo.connectHints(0));
     assert(r1.isOK);
     assert(r1.value.length > 0);
