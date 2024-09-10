@@ -597,7 +597,9 @@ struct DbBaseTypeInfo
 nothrow @safe:
 
 public:
-    this(int32 typeId, int32 subTypeId, int32 size, int16 numericDigits = 0, int16 numericScale = 0) @nogc pure
+    this(int32 typeId, int32 subTypeId, int32 size,
+        int16 numericDigits = 0,
+        int16 numericScale = 0) @nogc pure
     {
         this.typeId = typeId;
         this.subTypeId = subTypeId;
@@ -749,7 +751,7 @@ public:
             _zoneOffset.toString(sink);
         else if (kind == DateTimeZoneKind.utc)
             put(sink, 'Z');
-            
+
         return sink;
     }
 
@@ -1507,9 +1509,9 @@ public:
     if (is(Unqual!T == int) || is(Unqual!T == long) || is(Unqual!T == DbRecordsAffected))
     {
         debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(rhs=", rhs, ")");
-        
+
         alias UT = Unqual!T;
-        
+
         static if (is(UT == int) || is(UT == long))
             this.value = rhs;
         else
@@ -1521,9 +1523,9 @@ public:
     if (op == "+" && (is(Unqual!T == int) || is(Unqual!T == long) || is(Unqual!T == DbRecordsAffected)))
     {
         debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(rhs=", rhs, ")");
-        
+
         alias UT = Unqual!T;
-        
+
         static if (is(UT == int) || is(UT == long))
         {
             if (rhs >= 0)
@@ -1623,7 +1625,7 @@ public:
                 result += updateCount;
             return result;
         }
-        
+
         final switch(kind)
         {
             case DbRecordsAffectedAggregateResult.changingOnly:
@@ -1637,7 +1639,7 @@ public:
                 return both;
         }
     }
-    
+
     @property bool hasCounts() const
     {
         return deleteCount.hasCount || insertCount.hasCount || updateCount.hasCount
@@ -2081,7 +2083,7 @@ do
 DbType dbTypeOf(T)() @nogc pure
 {
     alias UT = Unqual!T;
-    
+
     if (auto e = UT.stringof in nativeNameToDbTypeInfos)
         return (*e).dbType;
 

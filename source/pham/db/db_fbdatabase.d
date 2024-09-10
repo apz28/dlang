@@ -933,7 +933,7 @@ public:
         return inputParameters!FbParameter(inputOnly);
     }
 
-	final override string getExecutionPlan(uint vendorMode) @safe
+	final override string getExecutionPlan(uint vendorMode = 0) @safe
 	{
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(vendorMode=", vendorMode, ")");
 
@@ -2097,8 +2097,6 @@ public:
     {
         super();
         this._name = DbIdentitier(DbScheme.fb);
-        this._identifierQuoteChar = '"';
-        this._stringQuoteChar = '\'';
 
         this._charClasses['"'] = CharClass.quote;
         this._charClasses['\''] = CharClass.quote;
@@ -2219,6 +2217,26 @@ public:
     {
         const isRetaining = defaultTransaction;
         return new FbTransaction(cast(FbConnection)connection, isolationLevel, isRetaining);
+    }
+    
+    // https://www.firebirdsql.org/refdocs/langrefupd20-select.html
+    // ROWS <m> [TO <n>]
+    // Row numbers are 1-based
+    final override string limitClause(int rows, uint offset = 0) nothrow pure
+    {
+        import std.format : sformat;
+        scope (failure) assert(0, "Assume nothrow failed");
+        
+        // No restriction
+        if (rows < 0)
+            return null;
+            
+        // Returns empty
+        if (rows == 0)
+            return "ROWS 0";
+            
+        char[35] buffer;
+        return sformat(buffer[], "ROWS %d TO %d", offset + 1, offset + rows).idup;
     }
 
     @property final override DbScheme scheme() const nothrow pure
@@ -2641,6 +2659,14 @@ WHERE INT_FIELD = @INT_FIELD
     }
 }
 
+unittest // FbDatabase.limitClause
+{
+    assert(fbDB.limitClause(-1, 1) == "");
+    assert(fbDB.limitClause(0, 1) == "ROWS 0");
+    assert(fbDB.limitClause(2, 1) == "ROWS 2 TO 3");
+    assert(fbDB.limitClause(2) == "ROWS 1 TO 2");
+}
+
 unittest // FbConnectionStringBuilder
 {
     import std.stdio : writeln; writeln("UnitTestFBDatabase.FbConnectionStringBuilder"); // For first unittest
@@ -2900,21 +2926,22 @@ unittest // FbCommand.getExecutionPlan
 
     command.commandText = simpleSelectCommandText();
 
+
     auto expectedDefault = q"{
-PLAN (TEST_SELECT NATURAL)}";
-    auto planDefault = command.getExecutionPlan();
+Select Expression
+    -> Filter
+        -> Table "TEST_SELECT" Full Scan}";
+    auto planDefault = command.getExecutionPlan(0);
     //traceUnitTest("'", planDefault, "'");
     //traceUnitTest("'", expectedDefault, "'");
     assert(planDefault == expectedDefault);
 
-    auto expectedDetail = q"{
-Select Expression
-    -> Filter
-        -> Table "TEST_SELECT" Full Scan}";
-    auto planDetail = command.getExecutionPlan(1);
-    //traceUnitTest("'", planDetail, "'");
-    //traceUnitTest("'", expectedDetail, "'");
-    assert(planDetail == expectedDetail);
+    auto expectedPlan1 = q"{
+PLAN (TEST_SELECT NATURAL)}";
+    auto plan1 = command.getExecutionPlan(1);
+    //traceUnitTest("'", plan1, "'");
+    //traceUnitTest("'", expectedPlan1, "'");
+    assert(plan1 == expectedPlan1);
 }
 
 version(UnitTestFBDatabase)

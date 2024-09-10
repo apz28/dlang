@@ -107,7 +107,8 @@ public:
         if (s.length <= 1)
             return s;
 
-        return s[0] == s[$ - 1] && (s[0] == '"' || s[0] == '`' || s[0] == '\'')
+        const first = s[0];
+        return first == s[$ - 1] && (first == '"' || first == '\'' || first == '`')
             ? s[1..$ - 1]
             : s;
     }

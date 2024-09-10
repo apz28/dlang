@@ -63,7 +63,7 @@ public:
         super(connection, transaction, name);
     }
 
-    final override string getExecutionPlan(uint vendorMode) @safe
+    final override string getExecutionPlan(uint vendorMode = 0) @safe
 	{
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(vendorMode=", vendorMode, ")");
 
@@ -74,9 +74,8 @@ public:
         {
             switch (vendorMode)
             {
-                case 0: return "";
+                case 0: return "FORMAT = TREE ";
                 case 1: return "FORMAT = JSON ";
-                case 2: return "FORMAT = TREE ";
                 default: return "";
             }
         }
@@ -971,7 +970,7 @@ public:
         super();
         this._name = DbIdentitier(DbScheme.my);
         this._identifierQuoteChar = '`';
-        this._stringQuoteChar = '\'';
+        this._stringConcatenatedOp = null;
 
         this._charClasses['\u0022'] = CharClass.quote;
         this._charClasses['\u0027'] = CharClass.quote;
@@ -1118,6 +1117,26 @@ public:
     do
     {
         return new MyTransaction(cast(MyConnection)connection, isolationLevel);
+    }
+    
+    // https://dev.mysql.com/doc/refman/8.4/en/select.html
+    // [LIMIT {[offset,] row_count | row_count OFFSET offset}]
+    // The offset of the initial row is 0 (not 1)
+    final override string limitClause(int rows, uint offset = 0) nothrow pure
+    {
+        import std.format : sformat;
+        scope (failure) assert(0, "Assume nothrow failed");
+        
+        // No restriction
+        if (rows < 0)
+            return null;
+            
+        // Returns empty
+        if (rows == 0)
+            return "LIMIT 0 OFFSET 0";
+            
+        char[35] buffer;
+        return sformat(buffer[], "LIMIT %d OFFSET %d", rows, offset).idup;
     }
 
     @property final override DbScheme scheme() const nothrow pure
@@ -1547,6 +1566,14 @@ WHERE INT_FIELD = @INT_FIELD
     }
 }
 
+unittest // MyDatabase.limitClause
+{
+    assert(myDB.limitClause(-1, 1) == "");
+    assert(myDB.limitClause(0, 1) == "LIMIT 0 OFFSET 0");
+    assert(myDB.limitClause(2, 1) == "LIMIT 2 OFFSET 1");
+    assert(myDB.limitClause(2) == "LIMIT 2 OFFSET 0");
+}
+
 version(UnitTestMYDatabase)
 unittest // MyConnection
 {
@@ -1833,6 +1860,33 @@ unittest // MyCommand.DML.StoredProcedure & Parameter select
     scope (exit)
         reader.dispose();
     validateSelectCommandTextReader(reader);
+}
+
+version(UnitTestMYDatabase)
+unittest // MyCommand.getExecutionPlan
+{
+    //import std.stdio : writeln;
+    import std.string : indexOf;
+    
+    auto connection = createUnitTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto command = connection.createCommand();
+    scope (exit)
+        command.dispose();
+
+    command.commandText = simpleSelectCommandText();
+
+    auto planDefault = command.getExecutionPlan(0);
+    //writeln("planDefault=", planDefault);
+    assert(planDefault.indexOf("actual time") > 0);
+    assert(planDefault.indexOf("Table scan on") > 0);
+
+    // JSON is not support
+    //auto plan1 = command.getExecutionPlan(1);
+    //writeln("plan1=", plan1);
 }
 
 version(UnitTestMYDatabase)

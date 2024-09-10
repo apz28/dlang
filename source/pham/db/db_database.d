@@ -122,8 +122,8 @@ public:
         this._name = name;
         this._commandTimeout = connection.connectionStringBuilder.commandTimeout;
         this._fetchRecordCount = connection.connectionStringBuilder.fetchRecordCount;
-        this._flags.include(DbCommandFlag.parametersCheck);
-        this._flags.include(DbCommandFlag.returnRecordsAffected);
+        this._flags.parametersCheck = true;
+        this._flags.returnRecordsAffected = true;
         this.notifyMessage = connection.notifyMessage;
     }
 
@@ -341,7 +341,7 @@ public:
         {
             doPrepare();
             _commandState = DbCommandState.prepared;
-            _flags.include(DbCommandFlag.prepared);
+            _flags.prepared = true;
         }
         catch (Exception e)
         {
@@ -378,7 +378,7 @@ public:
             //_recordsAffected.reset(); // The value is needed to return to caller, so do not reset here
             _handle.reset();
             _baseCommandType = 0;
-            _flags.exclude(DbCommandFlag.prepared);
+            _flags.prepared = false;
             _commandState = DbCommandState.unprepared;
         }
 
@@ -546,6 +546,7 @@ public:
     deprecated("please use columns")
     alias fields = columns;
 
+    pragma(inline, true)
     @property final bool getExecutionPlanning() const nothrow @safe
     {
         return _flags.getExecutionPlanning;
@@ -621,6 +622,7 @@ public:
      * Returns true if DbParameterList is needed to parse commandText for parameters.
      * Default value is true
      */
+    pragma(inline, true)
     @property final bool parametersCheck() const nothrow @safe
     {
         return _flags.parametersCheck;
@@ -635,6 +637,7 @@ public:
     /**
      * Returns true if DbParameterList is in prepared state
      */
+    pragma(inline, true)
     @property final bool prepared() const nothrow @safe
     {
         return _flags.prepared;
@@ -648,6 +651,7 @@ public:
         return _recordsAffected;
     }
 
+    pragma(inline, true)
     @property final bool returnRecordsAffected() const nothrow @safe
     {
         return _flags.returnRecordsAffected;
@@ -674,10 +678,11 @@ public:
             checkInactive();
 
         _transaction = value;
-        _flags.exclude(DbCommandFlag.implicitTransaction);
+        _flags.implicitTransaction = false;
         return this;
     }
 
+    pragma(inline, true)
     @property final bool transactionRequired() const nothrow @safe
     {
         return _flags.transactionRequired;
@@ -1162,7 +1167,7 @@ protected:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(kind=", kind, ")");
 
         notificationMessages.length = 0;
-        _flags.exclude(DbCommandFlag.cancelled);
+        _flags.cancelled = false;
         if (kind < ResetStatementKind.executing)
             _executedCount = 0;
         else
@@ -1208,12 +1213,12 @@ protected:
         if (transactionRequired && (_transaction is null || _transaction.state == DbTransactionState.disposed))
         {
             _transaction = connection.defaultTransaction();
-            _flags.include(DbCommandFlag.implicitTransaction);
+            _flags.implicitTransaction = true;
 
             if (_transaction.state == DbTransactionState.inactive)
             {
                 _transaction.start();
-                _flags.include(DbCommandFlag.implicitTransactionStarted);
+                _flags.implicitTransactionStarted = true;
             }
 
             return true;
@@ -1344,7 +1349,7 @@ public:
 
         notificationMessages.length = 0;
         if (command !is null)
-            command._flags.include(DbCommandFlag.cancelled);
+            command._flags.cancelled = true;
         scope (exit)
             doNotifyMessage();
 
@@ -1458,16 +1463,16 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         checkActive();
+
         if (_defaultTransaction is null)
             _defaultTransaction = createTransactionImpl(isolationLevel, true);
+
         return _defaultTransaction;
     }
 
     final DbRecordsAffected executeNonQuery(string commandText, DbParameterList commandParameters = null) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
-
-        checkActive();
 
         auto command = createCommandText(commandText);
         scope (exit)
@@ -1485,10 +1490,7 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
-        checkActive();
-
         auto command = createCommandText(commandText);
-
         const isParameters = commandParameters !is null && commandParameters.length != 0;
         command.parametersCheck = isParameters;
         if (isParameters)
@@ -1500,8 +1502,6 @@ public:
     final DbValue executeScalar(string commandText, DbParameterList commandParameters = null) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
-
-        checkActive();
 
         auto command = createCommandText(commandText);
         scope (exit)
@@ -1534,6 +1534,8 @@ public:
             " from INFORMATION_SCHEMA.ROUTINES" ~
             " where ROUTINE_NAME = @routineName and ROUTINE_TYPE = @type and ROUTINE_SCHEMA = @schema";
 
+        checkActive();
+
         auto parameters = database.createParameterList();
         parameters.add("routineName", DbType.stringVary, Variant(routineName));
         parameters.add("type", DbType.stringVary, Variant(type));
@@ -1558,6 +1560,8 @@ public:
             " from INFORMATION_SCHEMA.TABLES" ~
             " where TABLE_NAME = @tableName and TABLE_SCHEMA = @schema";
 
+        checkActive();
+
         auto parameters = database.createParameterList();
         parameters.add("tableName", DbType.stringVary, Variant(tableName));
         if (schema.length)
@@ -1575,6 +1579,8 @@ public:
         static immutable string SQLSchema = "select 1" ~
             " from INFORMATION_SCHEMA.VIEWS" ~
             " where TABLE_NAME = @viewName and TABLE_SCHEMA = @schema";
+
+        checkActive();
 
         auto parameters = database.createParameterList();
         parameters.add("viewName", DbType.stringVary, Variant(viewName));
@@ -1787,12 +1793,14 @@ package(pham.db):
         }
     }
 
-    final DbCommand createNonTransactionCommand(const(bool) getExecutionPlanning = false) @safe
+    final DbCommand createNonTransactionCommand(const(bool) getExecutionPlanning = false,
+        const(bool) parametersCheck = false,
+        const(bool) returnRecordsAffected = false) @safe
     {
         auto result = createCommand();
         result.getExecutionPlanning = getExecutionPlanning;
-        result.parametersCheck = !getExecutionPlanning;
-        result.returnRecordsAffected = !getExecutionPlanning;
+        result.parametersCheck = parametersCheck && !getExecutionPlanning;
+        result.returnRecordsAffected = returnRecordsAffected && !getExecutionPlanning;
         result.transactionRequired = false;
         return result;
     }
@@ -3301,6 +3309,9 @@ public:
     this() nothrow @trusted
     {
         _cache = new DbCache!string(._secondTimer);
+        _identifierQuoteChar = '"';
+        _stringQuoteChar = '\'';
+        _stringConcatenatedOp = "||";
     }
 
     abstract const(string[]) connectionStringParameterNames() const nothrow pure;
@@ -3443,6 +3454,8 @@ public:
         return storedProcedureName ~ ".StoredProcedure." ~ databaseCacheKey;
     }
 
+    abstract string limitClause(int rows, uint offset = 0) nothrow pure;
+
     final string quoteIdentifier(T)(scope const(char)[] value) nothrow pure
     {
         auto result = Appender!string(value.length + 10);
@@ -3494,6 +3507,12 @@ public:
     }
 
     pragma(inline, true)
+    @property final string stringConcatenatedOp() const @nogc nothrow pure
+    {
+        return _stringConcatenatedOp;
+    }
+
+    pragma(inline, true)
     @property final char stringQuoteChar() const @nogc nothrow pure
     {
         return _stringQuoteChar;
@@ -3511,6 +3530,7 @@ protected:
     DbCache!string _cache;
     bool[string] _validParamNameChecks;
     CharClass[dchar] _charClasses;
+    string _stringConcatenatedOp;
     char _identifierQuoteChar;
     char _stringQuoteChar;
 
@@ -3958,7 +3978,7 @@ public:
     {
         this._command = command;
         this._name = name;
-        this._flags.include(DbSchemaColumnFlag.allowNull);
+        this._flags.allowNull = true;
     }
 
     final typeof(this) clone(DbCommand command) nothrow @safe
@@ -4128,7 +4148,7 @@ public:
     this(DbDatabase database, DbIdentitier name) nothrow @safe
     {
         this._name = name;
-        this._flags.include(DbSchemaColumnFlag.allowNull);
+        this._flags.allowNull = true;
     }
 
     final DbParameter cloneMetaInfo(DbParameter source) nothrow @safe
@@ -4338,7 +4358,7 @@ public:
     {
         foreach (k, v; values)
             add(k, DbType.unknown, v);
-        
+
         return this;
     }
 
@@ -4690,7 +4710,7 @@ public:
     {
         this._command = command;
         this._columns = command.columns;
-        this._flags.include(Flag.checkRows);
+        this._flags.checkRows = true;
         this._flags.set(Flag.implicitTransaction, implicitTransaction);
         this._flags.set(Flag.ownCommand, ownCommand);
     }
@@ -4718,11 +4738,11 @@ public:
         else
         {
             _columns = null;
-            _currentRow.nullify();
+            _currentRow.dispose(DisposingReason.dispose);
         }
 
         if (_command !is null)
-            doDetach(false);
+            doDetach(DisposingReason.dispose);
 
         _flags.allRowsFetched = true; // No longer able to fetch after detached
         _flags.checkRows = false;
@@ -4735,13 +4755,13 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         if (_command !is null)
-            doDetach(isDisposing(disposingReason));
+            doDetach(disposingReason);
 
         _columns = null;
         _fetchedCount = 0;
-        _flags.include(Flag.allRowsFetched);
-        _flags.exclude(Flag.checkRows);
-        _currentRow.nullify();
+        _flags.allRowsFetched = true;
+        _flags.checkRows = false;
+        _currentRow.dispose(disposingReason);
     }
 
     /**
@@ -4974,7 +4994,7 @@ private:
         skipFetchNext,
     }
 
-    void doDetach(const(bool) disposing) nothrow @safe
+    void doDetach(const(DisposingReason) disposingReason) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposing=", disposing, ")");
 
@@ -4982,12 +5002,12 @@ private:
         scope (exit)
         {
             _command = null;
-            _flags.exclude(Flag.checkRows);
-            _flags.exclude(Flag.implicitTransaction);
-            _flags.exclude(Flag.ownCommand);
+            _flags.checkRows = false;
+            _flags.implicitTransaction = false;
+            _flags.ownCommand = false;
         }
         if (ownCommand)
-            _command.dispose(DisposingReason.dispose);
+            _command.dispose(disposingReason);
     }
 
     bool fetchFirst(const(bool) checking) @safe
@@ -5005,13 +5025,13 @@ private:
         {
             _fetchedCount++;
             if (checking)
-                _flags.include(Flag.skipFetchNext);
+                _flags.skipFetchNext = true;
         }
         else
         {
-            _flags.include(Flag.allRowsFetched);
+            _flags.allRowsFetched = true;
         }
-        _flags.exclude(Flag.checkRows);
+        _flags.checkRows = false;
 
         debug(debug_pham_db_db_database) debug writeln("\t", "_fetchedCount=", _fetchedCount, ", hasRow=", hasRow);
 
@@ -5032,7 +5052,7 @@ private:
         if (hasRow)
             _fetchedCount++;
         else
-            _flags.include(Flag.allRowsFetched);
+            _flags.allRowsFetched = true;
 
         debug(debug_pham_db_db_database) debug writeln("\t", "_fetchedCount=", _fetchedCount, ", hasRow=", hasRow);
     }
@@ -5625,6 +5645,31 @@ private:
 
 mixin DLinkTypes!(DbTransaction) DLinkDbTransactionTypes;
 
+int breakSymbol(string fullSymbol, out string schemaOrTable, out string symbol) nothrow pure @safe
+{
+    import pham.utl.utl_array : indexOf;
+
+    if (fullSymbol.length == 0)
+    {
+        schemaOrTable = symbol = null;
+        return 0;
+    }
+
+    const i = fullSymbol.indexOf('.');
+    if (i >= 0)
+    {
+        schemaOrTable = fullSymbol[0..i];
+        symbol = fullSymbol[i+1..$];
+        return 2;
+    }
+    else
+    {
+        schemaOrTable = null;
+        symbol = fullSymbol;
+        return 1;
+    }
+}
+
 string combineSymbol(string schemaOrTable, string symbol) nothrow pure @safe
 {
     return schemaOrTable.length ? (schemaOrTable ~ "." ~ symbol) : symbol;
@@ -5633,15 +5678,17 @@ string combineSymbol(string schemaOrTable, string symbol) nothrow pure @safe
 version(none)
 char isQuoted(scope const(char)[] symbol) @nogc nothrow pure @safe
 {
-    if (symbol.length < 2)
+    if (symbol.length <= 1)
         return '\0';
 
     const first = symbol[0];
-    return first == symbol[$-1] && (first = '\'' || first = '"') ? first : '\0';
+    return first == symbol[$-1] && (first = '"' || first = '\'' || first == '`')
+        ? first
+        : '\0';
 }
 
 ref Writer columnNameString(Writer, List)(return ref Writer writer, List names,
-    const(char)[] separator = ",")
+    const(char)[] separator = ",") nothrow @safe
 if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
 {
     foreach(i, e; names)
@@ -5654,7 +5701,7 @@ if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbC
 }
 
 ref Writer parameterNameString(Writer, List)(return ref Writer writer, List names,
-    const(char)[] separator = ",")
+    const(char)[] separator = ",") nothrow @safe
 if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
 {
     foreach(i, e; names)
@@ -5669,7 +5716,7 @@ if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbC
 
 ref Writer parameterConditionString(Writer, List)(return ref Writer writer, List names,
     const(bool) all = false,
-    const(char)[] logicalOp = "and")
+    const(char)[] logicalOp = "and") nothrow @safe
 if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
 {
     uint count;
@@ -5693,7 +5740,7 @@ if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbC
 }
 
 ref Writer parameterUpdateString(Writer, List)(return ref Writer writer, List names,
-    const(char)[] separator = ",")
+    const(char)[] separator = ",") nothrow @safe
 if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
 {
     static if (is(List : DbParameterList))
@@ -5760,6 +5807,33 @@ shared static ~this() nothrow
         _secondTimer.destroy();
         _secondTimer = null;
     }
+}
+
+unittest // combineSymbol
+{
+    assert(combineSymbol(null, "xyz") == "xyz");
+    assert(combineSymbol("ABC", "xyz") == "ABC.xyz");
+}
+
+unittest // breakSymbol
+{
+    string s1, s2;
+
+    assert(breakSymbol(null, s1, s2) == 0);
+    assert(s1.length == 0);
+    assert(s2.length == 0);
+
+    assert(breakSymbol("xyz", s1, s2) == 1);
+    assert(s1.length == 0);
+    assert(s2 == "xyz");
+
+    assert(breakSymbol("ABC.", s1, s2) == 2);
+    assert(s1 == "ABC");
+    assert(s2.length == 0);
+
+    assert(breakSymbol("ABC.xyz", s1, s2) == 2);
+    assert(s1 == "ABC");
+    assert(s2 == "xyz");
 }
 
 unittest // columnNameString

@@ -809,8 +809,8 @@ public:
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto describeItems = mode == 0
-            ? describeStatementPlanInfoItems
-            : describeStatementExplaindPlanInfoItems;
+            ? describeStatementExplaindPlanInfoItems
+            : describeStatementPlanInfoItems;
         commandInfoWrite(command, describeItems, bufferLength);
     }
 

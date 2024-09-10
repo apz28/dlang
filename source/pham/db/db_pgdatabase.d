@@ -644,7 +644,7 @@ public:
         super(connection, transaction, name);
     }
 
-	final override string getExecutionPlan(uint vendorMode) @safe
+	final override string getExecutionPlan(uint vendorMode = 0) @safe
 	{
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(vendorMode=", vendorMode, ")");
 
@@ -652,8 +652,8 @@ public:
             log.infof("%s.command.getExecutionPlan(vendorMode=%d)%s%s", forLogInfo(), vendorMode, newline, commandText);
 
         auto planCommandText = vendorMode == 0
-            ? "EXPLAIN " ~ buildExecuteCommandText(BuildCommandTextState.executingPlan)
-            : "EXPLAIN (ANALYZE, BUFFERS) " ~ buildExecuteCommandText(BuildCommandTextState.executingPlan);
+            ? "EXPLAIN (ANALYZE, BUFFERS) " ~ buildExecuteCommandText(BuildCommandTextState.executingPlan)
+            : "EXPLAIN " ~ buildExecuteCommandText(BuildCommandTextState.executingPlan);
         auto planCommand = pgConnection.createNonTransactionCommand(true);
         scope (exit)
             planCommand.dispose();
@@ -1365,8 +1365,6 @@ public:
     {
         super();
         this._name = DbIdentitier(DbScheme.pg);
-        this._identifierQuoteChar = '"';
-        this._stringQuoteChar = '\'';
 
         this._charClasses['"'] = CharClass.quote;
         this._charClasses['\''] = CharClass.quote;
@@ -1486,6 +1484,25 @@ public:
     do
     {
         return new PgTransaction(cast(PgConnection)connection, isolationLevel);
+    }
+
+    // https://www.postgresql.org/docs/13/sql-select.html#SQL-LIMIT
+    // LIMIT { count | ALL } OFFSET start
+    final override string limitClause(int rows, uint offset = 0) nothrow pure
+    {
+        import std.format : sformat;
+        scope (failure) assert(0, "Assume nothrow failed");
+        
+        // No restriction
+        if (rows < 0)
+            return null;
+            
+        // Returns empty
+        if (rows == 0)
+            return "LIMIT 0 OFFSET 0";
+            
+        char[35] buffer;
+        return sformat(buffer[], "LIMIT %d OFFSET %d", rows, offset).idup;
     }
 
     @property final override DbScheme scheme() const nothrow pure
@@ -1923,6 +1940,14 @@ WHERE INT_FIELD = @INT_FIELD
     }
 }
 
+unittest // PgDatabase.limitClause
+{
+    assert(pgDB.limitClause(-1, 1) == "");
+    assert(pgDB.limitClause(0, 1) == "LIMIT 0 OFFSET 0");
+    assert(pgDB.limitClause(2, 1) == "LIMIT 2 OFFSET 1");
+    assert(pgDB.limitClause(2) == "LIMIT 2 OFFSET 0");
+}
+
 version(UnitTestPGDatabase)
 unittest // PgConnection
 {
@@ -2220,8 +2245,8 @@ unittest // PgCommand.DML - Array
 version(UnitTestPGDatabase)
 unittest // PgCommand.getExecutionPlan
 {
-    import std.algorithm.searching : startsWith;
     import std.array : split;
+    //import std.stdio : writeln;
     import std.string : indexOf;
 
     static const(char)[] removePText(const(char)[] s)
@@ -2255,30 +2280,27 @@ unittest // PgCommand.getExecutionPlan
 
     command.commandText = simpleSelectCommandText();
 
-    // General plan
-    auto planDefault = command.getExecutionPlan();
+    auto planDefault = command.getExecutionPlan(0);
     static immutable expectedDefault =
-q"{Seq Scan on test_select  (cost=0.00..13.50 rows=1 width=260)
-  Filter: (int_field = 1)}";
-    //traceUnitTest("'", removePText(planDefault), "' vs ", "'", removePText(expectedDefault), "'");
-    assert(removePText(planDefault) == removePText(expectedDefault));
-
-    // Detail plan
-    auto planDetail = command.getExecutionPlan(1);
-    static immutable expectedDetail =
 q"{Seq Scan on test_select  (cost=0.00..13.50 rows=1 width=260) (actual time=0.031..0.032 rows=1 loops=1)
   Filter: (int_field = 1)
   Buffers: shared hit=1
 Planning Time: 0.062 ms
 Execution Time: 0.053 ms}";
-    //traceUnitTest("'", planDetail, "'");
-    //traceUnitTest("'", expectedDetail, "'");
+    //writeln("planDefault=", planDefault);
     // Can't check for exact because time change for each run
-    auto lines = planDetail.split("\n");
-    assert(lines.length == 5);
-    assert(startsWith(lines[0], "Seq Scan on test_select"));
-    assert(startsWith(lines[3], "Planning Time:"));
-    assert(startsWith(lines[4], "Execution Time:"));
+    auto lines = planDefault.split("\n");
+    assert(lines.length >= 5);
+    assert(planDefault.indexOf("Seq Scan on test_select") == 0);
+    assert(planDefault.indexOf("Planning Time:") >= 3);
+    assert(planDefault.indexOf("Execution Time:") >= 4);
+
+    auto plan1 = command.getExecutionPlan(1);
+    static immutable expectedPlan1 =
+q"{Seq Scan on test_select  (cost=0.00..13.50 rows=1 width=260)
+  Filter: (int_field = 1)}";
+    //writeln("plan1=", plan1);
+    assert(removePText(plan1) == removePText(expectedPlan1));
 }
 
 version(UnitTestPGDatabase)

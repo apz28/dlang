@@ -97,6 +97,10 @@ public:
     }
     do
     {
+        rootKind = RootKind.aggregate;
+        scope (exit)
+            rootKind = RootKind.any;
+    
         const deserializerMembers = getDeserializerMembers!V();
         if (!constructSQL(deserializerMembers, conditionParameters, attribute))
             return V.init;
@@ -401,11 +405,21 @@ public:
             commandText.put(" where ");
             parameterConditionString(commandText, conditionParameters, true);
         }
+        
+        if (rootKind == RootKind.aggregate && connection.database !is null)
+        {
+            const limit = connection.database.limitClause(1);
+            if (limit.length)
+            {
+                commandText.put(" ");
+                commandText.put(limit);
+            }
+        }
 
         return true;
     }
 
-    static ref Writer selectNames(Writer)(return ref Writer writer, scope const(Serializable)[] columns)
+    static ref Writer selectNames(Writer)(return ref Writer writer, scope const(Serializable)[] columns) nothrow
     if (isOutputRange!(Writer, char))
     {
         if (columns.length == 0)
@@ -524,6 +538,10 @@ public:
         begin(attribute);
         serialize(v, attribute);
         end(attribute);
+
+        rootKind = RootKind.aggregate;
+        scope (exit)
+            rootKind = RootKind.any;
         
         scope (success)
         {
@@ -558,6 +576,10 @@ public:
         serialize(v, attribute);
         end(attribute);
         
+        rootKind = RootKind.aggregate;
+        scope (exit)
+            rootKind = RootKind.any;
+
         scope (success)
         {
             commandParameters.clear();
@@ -574,7 +596,7 @@ public:
         parameter = null;
         subKind = DbSubSerializerKind.none;
         subSerializer = null;
-        commandTextSize = attribute.dbName.length + 10; // update ...(field, field) values(:field, :field);
+        commandTextSize = attribute.dbName.length + 10; // update dbName...(field, field) values(:field, :field);
         if (commandParameters is null)
             commandParameters = connection.database.createParameterList();
         else
@@ -920,7 +942,7 @@ public:
         if (parameter is null)
         {
             const name = attribute.dbName;
-            commandTextSize += (name.length * 2) + 5; // update ...(field, field) values(:field, :field);
+            commandTextSize += (name.length * 2) + 5; // update ...(dbName..., field) values(:dbName..., :field);
             parameter = commandParameters.add(name, type);
         }
         else if (type != DbType.unknown)
