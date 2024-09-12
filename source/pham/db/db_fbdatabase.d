@@ -162,7 +162,7 @@ public:
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         alias UT = Unqual!T;
-        
+
         auto baseType = descriptor.columnInfo.baseType;
         auto response = readArrayRaw(arrayColumn);
         auto reader = FbXdrReader(fbConnection, response.data);
@@ -1237,7 +1237,7 @@ protected:
                     break;
             }
         }
-        
+
         if (isScalar && _fetchedRows.length)
         {
             auto column = columns[0];
@@ -1746,7 +1746,7 @@ public:
             close();
         }
     }
-    
+
     override bool existRoutine(string routineName, string type, string schema = null) @safe
     {
         static immutable string SQL = "select 1" ~
@@ -1772,7 +1772,7 @@ public:
         auto r = executeScalar(SQL, parameters);
         return !r.isNull && r.value == 1;
     }
-    
+
     override bool existView(string viewName, string schema = null) @safe
     {
         static immutable string SQL = "select 1" ~
@@ -1785,7 +1785,7 @@ public:
         auto r = executeScalar(SQL, parameters);
         return !r.isNull && r.value == 1;
     }
-    
+
     @property final ref FbArrayManager arrayManager() nothrow @safe
     {
         return _arrayManager;
@@ -2068,7 +2068,7 @@ protected:
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(name=", name, ")");
         debug(debug_pham_db_db_fbdatabase) scope(exit) debug writeln("\t", "end");
-        
+
         auto k = name in fbDefaultConnectionParameterValues;
         return k !is null && (*k).def.length != 0 ? (*k).def : super.getDefault(name);
     }
@@ -2077,7 +2077,7 @@ protected:
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(begin)");
         debug(debug_pham_db_db_fbdatabase) scope(exit) debug writeln(__FUNCTION__, "(end)");
-        
+
         foreach (ref dpv; fbDefaultConnectionParameterValues.byKeyValue)
         {
             auto def = dpv.value.def;
@@ -2096,13 +2096,12 @@ public:
     this() nothrow
     {
         super();
-        this._name = DbIdentitier(DbScheme.fb);
+        _name = DbIdentitier(DbScheme.fb);
 
-        this._charClasses['"'] = CharClass.quote;
-        this._charClasses['\''] = CharClass.quote;
-        this._charClasses['\\'] = CharClass.backslash;
+        _charClasses['"'] = CharClass.idenfifierQuote;
+        _charClasses['\''] = CharClass.stringQuote;
 
-        this.populateValidParamNameChecks();
+        populateValidParamNameChecks();
     }
 
     final override const(string[]) connectionStringParameterNames() const nothrow pure
@@ -2218,25 +2217,35 @@ public:
         const isRetaining = defaultTransaction;
         return new FbTransaction(cast(FbConnection)connection, isolationLevel, isRetaining);
     }
-    
+
     // https://www.firebirdsql.org/refdocs/langrefupd20-select.html
     // ROWS <m> [TO <n>]
     // Row numbers are 1-based
-    final override string limitClause(int rows, uint offset = 0) nothrow pure
+    final override string limitClause(int rows, uint offset = 0) const nothrow pure @safe
     {
         import std.format : sformat;
         scope (failure) assert(0, "Assume nothrow failed");
-        
+
         // No restriction
         if (rows < 0)
             return null;
-            
+
         // Returns empty
         if (rows == 0)
             return "ROWS 0";
-            
-        char[35] buffer;
+
+        char[50] buffer;
         return sformat(buffer[], "ROWS %d TO %d", offset + 1, offset + rows).idup;
+    }
+
+    // select FIRST(?) ... from ...
+    final override string topClause(int rows) const nothrow pure @safe
+    {
+        import std.format : sformat;
+        scope (failure) assert(0, "Assume nothrow failed");
+
+        char[50] buffer;
+        return rows < 0 ? null : sformat(buffer[], "FIRST(%d)", rows).idup;
     }
 
     @property final override DbScheme scheme() const nothrow pure
@@ -2665,6 +2674,48 @@ unittest // FbDatabase.limitClause
     assert(fbDB.limitClause(0, 1) == "ROWS 0");
     assert(fbDB.limitClause(2, 1) == "ROWS 2 TO 3");
     assert(fbDB.limitClause(2) == "ROWS 1 TO 2");
+
+    assert(fbDB.topClause(-1) == "");
+    assert(fbDB.topClause(0) == "FIRST(0)");
+    assert(fbDB.topClause(10) == "FIRST(10)");
+}
+
+unittest // FbDatabase.concate
+{
+    assert(fbDB.concate(["''", "''"]) == "'' || ''");
+    assert(fbDB.concate(["abc", "'123'", "xyz"]) == "abc || '123' || xyz");
+}
+
+unittest // FbDatabase.escapeIdentifier
+{
+    assert(fbDB.escapeIdentifier("") == "");
+    assert(fbDB.escapeIdentifier("'\"\"'") == "'\"\"\"\"'");
+    assert(fbDB.escapeIdentifier("abc 123") == "abc 123");
+    assert(fbDB.escapeIdentifier("\"abc 123\"") == "\"\"abc 123\"\"");
+}
+
+unittest // FbDatabase.quoteIdentifier
+{
+    assert(fbDB.quoteIdentifier("") == "\"\"");
+    assert(fbDB.quoteIdentifier("'\"\"'") == "\"'\"\"\"\"'\"");
+    assert(fbDB.quoteIdentifier("abc 123") == "\"abc 123\"");
+    assert(fbDB.quoteIdentifier("\"abc 123\"") == "\"\"\"abc 123\"\"\"");
+}
+
+unittest // FbDatabase.escapeString
+{
+    assert(fbDB.escapeString("") == "");
+    assert(fbDB.escapeString("\"''\"") == "\"''''\"");
+    assert(fbDB.escapeString("abc 123") == "abc 123");
+    assert(fbDB.escapeString("'abc 123'") == "''abc 123''");
+}
+
+unittest // FbDatabase.quoteString
+{
+    assert(fbDB.quoteString("") == "''");
+    assert(fbDB.quoteString("\"''\"") == "'\"''''\"'");
+    assert(fbDB.quoteString("abc 123") == "'abc 123'");
+    assert(fbDB.quoteString("'abc 123'") == "'''abc 123'''");
 }
 
 unittest // FbConnectionStringBuilder
@@ -3319,11 +3370,48 @@ unittest // FbCommand.DML - Simple select
     scope (exit)
         command.dispose();
 
-    command.commandText = simpleSelectCommandText();
-    auto reader = command.executeReader();
-    scope (exit)
-        reader.dispose();
-    validateSelectCommandTextReader(reader);
+    {
+        command.commandText = simpleSelectCommandText();
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        validateSelectCommandTextReader(reader);
+    }
+
+    // Try again to make sure it is working
+    {
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        validateSelectCommandTextReader(reader);
+    }
+
+    {
+        command.commandText = simpleSelectCommandText()
+            ~ " " ~ connection.limitClause(1);
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        validateSelectCommandTextReader(reader);
+    }
+
+    {
+        command.commandText = simpleSelectCommandText()
+            ~ " " ~ connection.limitClause(0);
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        assert(!reader.hasRows);
+    }
+
+    {
+        command.commandText = simpleSelectCommandText()
+            ~ " " ~ connection.limitClause(1, 1);
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        assert(!reader.hasRows);
+    }
 }
 
 version(UnitTestFBDatabase)
@@ -4030,7 +4118,7 @@ unittest // FbConnection.DML.execute...
     auto reader = connection.executeReader(simpleSelectCommandText());
     validateSelectCommandTextReader(reader);
     reader.dispose();
-    
+
     auto TEXT_FIELD = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = 1");
     assert(TEXT_FIELD.get!string() == "TEXT");
 }

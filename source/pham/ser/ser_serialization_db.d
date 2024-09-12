@@ -396,7 +396,15 @@ public:
         if (onConstructSQL !is null)
             return onConstructSQL(this, columns, commandText, conditionParameters, attribute);
 
+        const canLimit = rootKind == RootKind.aggregate;
+        const topLimit = canLimit ? connection.topClause(1) : null;
+        
         commandText.put("select ");
+        if (topLimit.length)
+        {
+            commandText.put(topLimit);
+            commandText.put(" ");
+        }
         selectNames(commandText, columns);
         commandText.put(" from ");
         commandText.put(attribute.dbName);
@@ -406,9 +414,10 @@ public:
             parameterConditionString(commandText, conditionParameters, true);
         }
         
-        if (rootKind == RootKind.aggregate && connection.database !is null)
+        // For MSSQL, it requires order-by clause so do not add here
+        if (canLimit && topLimit.length == 0)
         {
-            const limit = connection.database.limitClause(1);
+            const limit = connection.limitClause(1);
             if (limit.length)
             {
                 commandText.put(" ");

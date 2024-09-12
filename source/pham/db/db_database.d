@@ -1608,6 +1608,16 @@ public:
         return _connectionStringBuilder.forLogInfo();
     }
 
+    final string limitClause(int rows, uint offset = 0) const nothrow pure @safe
+    in
+    {
+        assert(_database !is null);
+    }
+    do
+    {
+        return _database.limitClause(rows, offset);
+    }
+    
     final typeof(this) open() @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(state=", state, ")");
@@ -1671,6 +1681,16 @@ public:
     final override size_t toHash() nothrow @safe
     {
         return connectionStringBuilder.toHash().hashOf(hashOf(scheme));
+    }
+
+    final string topClause(int rows) const nothrow pure @safe
+    in
+    {
+        assert(_database !is null);
+    }
+    do
+    {
+        return _database.topClause(rows);
     }
 
     final DLinkDbTransactionTypes.DLinkRange transactions()
@@ -3301,8 +3321,9 @@ public:
     enum CharClass : ubyte
     {
         any,
-        quote,
-        backslash,
+        idenfifierQuote,
+        stringQuote,
+        backslashSequence,
     }
 
 public:
@@ -3311,9 +3332,56 @@ public:
         _cache = new DbCache!string(._secondTimer);
         _identifierQuoteChar = '"';
         _stringQuoteChar = '\'';
-        _stringConcatenatedOp = "||";
+        _stringConcatOp = "||";
     }
 
+    final string concate(scope const(char)[][] strings) const nothrow pure
+    in
+    {
+        assert(strings.length >= 2);
+    }
+    do
+    {
+        size_t resultLength = _stringConcatOp.length
+            ? strings[0].length
+            : ("concat()".length + strings[0].length);
+        foreach (s; strings[1..$])
+        {
+            resultLength += _stringConcatOp.length
+                ? (s.length + _stringConcatOp.length + 2)
+                : (s.length + 2);
+        }
+        auto result = Appender!string(resultLength);
+        return concate(result, strings).data;
+    }
+    
+    final ref Writer concate(Writer)(return ref Writer writer, scope const(char)[][] strings) const nothrow pure
+    in
+    {
+        assert(strings.length >= 2);
+    }
+    do
+    {
+        if (_stringConcatOp.length == 0)
+            writer.put("concat(");
+        writer.put(strings[0]);
+        foreach (s; strings[1..$])
+        {
+            if (_stringConcatOp.length == 0)
+                writer.put(", ");
+            else
+            {
+                writer.put(" ");
+                writer.put(_stringConcatOp);
+                writer.put(" ");
+            }
+            writer.put(s);
+        }
+        if (_stringConcatOp.length == 0)
+            writer.put(")");
+        return writer;
+    }
+    
     abstract const(string[]) connectionStringParameterNames() const nothrow pure;
     abstract DbColumn createColumn(DbCommand command, DbIdentitier name) nothrow;
     abstract DbColumnList createColumnList(DbCommand command) nothrow;
@@ -3357,14 +3425,14 @@ public:
             return CharClass.any;
     }
 
-    final T[] escapeIdentifier(T)(return T[] value) nothrow pure
+    final T[] escapeIdentifier(T)(return T[] value) const nothrow pure
     if (is(Unqual!T == char))
     {
         if (value.length == 0)
             return value;
 
         // Find the first quote char
-        const p = escapeStartIndex(value);
+        const p = escapeStartIndex(value, CharClass.idenfifierQuote);
 
         // No quote char found?
         if (p >= value.length)
@@ -3375,7 +3443,7 @@ public:
         return result.data;
     }
 
-    private void escapeIdentifierImpl(Writer)(ref Writer writer, scope const(char)[] value, size_t startIndex) nothrow pure
+    private void escapeIdentifierImpl(Writer)(ref Writer writer, scope const(char)[] value, size_t startIndex) const nothrow pure
     {
         if (startIndex)
             writer.put(value[0..startIndex]);
@@ -3386,26 +3454,44 @@ public:
             if (!nextUTF8Char(value, startIndex, iterator.code, iterator.count))
                 iterator.code = replacementChar;
 
-            const cc = charClass(iterator.code);
-            if (cc == CharClass.quote)
-                writer.put(encodeUTF8(iterator.codeBuffer, iterator.code));
-            else if (cc == CharClass.backslash)
-                writer.put('\\');
+            final switch (charClass(iterator.code))
+            {
+                case CharClass.any:
+                case CharClass.stringQuote:
+                    writer.put(encodeUTF8(iterator.codeBuffer, iterator.code));
+                    break;
+                case CharClass.idenfifierQuote:
+                    const encodedQuote = encodeUTF8(iterator.codeBuffer, iterator.code);
+                    writer.put(encodedQuote);
+                    writer.put(encodedQuote);
+                    break;
+                case CharClass.backslashSequence:
+                    const encodedBackslash = encodeUTF8(iterator.codeBuffer, iterator.code);
+                    writer.put(encodedBackslash);
+                    startIndex += iterator.count;
+                    if (startIndex < value.length)
+                    {
+                        if (!nextUTF8Char(value, startIndex, iterator.code, iterator.count))
+                            iterator.code = replacementChar;
+                        writer.put(encodeUTF8(iterator.codeBuffer, iterator.code));
+                    }
+                    else
+                        writer.put(encodedBackslash);
+                    break;
+            }
 
-            writer.put(encodeUTF8(iterator.codeBuffer, iterator.code));
-
-            startIndex += cCount;
+            startIndex += iterator.count;
         }
     }
 
-    final T[] escapeString(T)(return T[] value) nothrow pure
+    final T[] escapeString(T)(return T[] value) const nothrow pure
     if (is(Unqual!T == char))
     {
         if (value.length == 0)
             return value;
 
         // Find the first quote char
-        const p = escapeStartIndex(value);
+        const p = escapeStartIndex(value, CharClass.stringQuote);
 
         // No quote char found?
         if (p >= value.length)
@@ -3416,7 +3502,7 @@ public:
         return result.data;
     }
 
-    private void escapeStringImpl(Writer)(ref Writer writer, scope const(char)[] value, size_t startIndex) nothrow pure
+    private void escapeStringImpl(Writer)(ref Writer writer, scope const(char)[] value, size_t startIndex) const nothrow pure
     {
         if (startIndex)
             writer.put(value[0..startIndex]);
@@ -3427,22 +3513,44 @@ public:
             if (!nextUTF8Char(value, startIndex, iterator.code, iterator.count))
                 iterator.code = replacementChar;
 
-            if (charClass(iterator.code) != CharClass.any)
-                writer.put('\\');
-
-            writer.put(encodeUTF8(iterator.codeBuffer, iterator.code));
+            final switch (charClass(iterator.code))
+            {
+                case CharClass.any:
+                case CharClass.idenfifierQuote:
+                    writer.put(encodeUTF8(iterator.codeBuffer, iterator.code));
+                    break;
+                case CharClass.stringQuote:
+                    const encodedQuote = encodeUTF8(iterator.codeBuffer, iterator.code);
+                    writer.put(encodedQuote);
+                    writer.put(encodedQuote);
+                    break;
+                case CharClass.backslashSequence:
+                    const encodedBackslash = encodeUTF8(iterator.codeBuffer, iterator.code);
+                    writer.put(encodedBackslash);
+                    startIndex += iterator.count;
+                    if (startIndex < value.length)
+                    {
+                        if (!nextUTF8Char(value, startIndex, iterator.code, iterator.count))
+                            iterator.code = replacementChar;
+                        writer.put(encodeUTF8(iterator.codeBuffer, iterator.code));
+                    }
+                    else
+                        writer.put(encodedBackslash);
+                    break;
+            }
 
             startIndex += iterator.count;
         }
     }
 
-    private size_t escapeStartIndex(scope const(char)[] value) nothrow pure
+    private size_t escapeStartIndex(scope const(char)[] value, const(CharClass) forCharClass) const nothrow pure
     {
         size_t result;
         UTF8Iterator iterator;
         while (result < value.length && nextUTF8Char(value, result, iterator.code, iterator.count))
         {
-            if (charClass(iterator.code) != CharClass.any)
+            const cc = charClass(iterator.code);
+            if (cc == forCharClass || cc == CharClass.backslashSequence)
                 break;
             result += iterator.count;
         }
@@ -3454,25 +3562,27 @@ public:
         return storedProcedureName ~ ".StoredProcedure." ~ databaseCacheKey;
     }
 
-    abstract string limitClause(int rows, uint offset = 0) nothrow pure;
+    abstract string limitClause(int rows, uint offset = 0) const nothrow pure;
 
-    final string quoteIdentifier(T)(scope const(char)[] value) nothrow pure
+    final string quoteIdentifier(scope const(char)[] value) const nothrow pure
     {
         auto result = Appender!string(value.length + 10);
         result.put(identifierQuoteChar);
-        escapeIdentifier(result, value, escapeStartIndex(value));
+        escapeIdentifierImpl(result, value, escapeStartIndex(value, CharClass.idenfifierQuote));
         result.put(identifierQuoteChar);
         return result.data;
     }
 
-    final string quoteString(scope const(char)[] value) nothrow pure
+    final string quoteString(scope const(char)[] value) const nothrow pure
     {
         auto result = Appender!string(value.length + 50);
         result.put(stringQuoteChar);
-        escapeStringImpl(result, value, escapeStartIndex(value));
+        escapeStringImpl(result, value, escapeStartIndex(value, CharClass.stringQuote));
         result.put(stringQuoteChar);
         return result.data;
     }
+
+    abstract string topClause(int rows) const nothrow pure;
 
     @property final DbCache!string cache() nothrow pure
     {
@@ -3507,9 +3617,9 @@ public:
     }
 
     pragma(inline, true)
-    @property final string stringConcatenatedOp() const @nogc nothrow pure
+    @property final string stringConcatOp() const @nogc nothrow pure
     {
-        return _stringConcatenatedOp;
+        return _stringConcatOp;
     }
 
     pragma(inline, true)
@@ -3528,9 +3638,9 @@ protected:
 
 protected:
     DbCache!string _cache;
-    bool[string] _validParamNameChecks;
     CharClass[dchar] _charClasses;
-    string _stringConcatenatedOp;
+    bool[string] _validParamNameChecks;
+    string _stringConcatOp;
     char _identifierQuoteChar;
     char _stringQuoteChar;
 

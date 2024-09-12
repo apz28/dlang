@@ -174,7 +174,7 @@ protected:
         }
 
         auto outputNames = Appender!string(500);
-        
+
         size_t addOutputNameCount;
         void addOutputName(string name) nothrow @safe
         {
@@ -877,7 +877,7 @@ ORDER BY ORDINAL_POSITION
 
 public:
     MyColumnTypeMap columnTypeMaps;
-    
+
     deprecated("please use columnTypeMaps")
     alias fieldTypeMaps = columnTypeMaps;
 
@@ -968,42 +968,47 @@ public:
     this() nothrow
     {
         super();
-        this._name = DbIdentitier(DbScheme.my);
-        this._identifierQuoteChar = '`';
-        this._stringConcatenatedOp = null;
+        _name = DbIdentitier(DbScheme.my);
+        _identifierQuoteChar = '`';
+        _stringConcatOp = null;
 
-        this._charClasses['\u0022'] = CharClass.quote;
-        this._charClasses['\u0027'] = CharClass.quote;
-        this._charClasses['\u0060'] = CharClass.quote;
-        this._charClasses['\u00b4'] = CharClass.quote;
-        this._charClasses['\u02b9'] = CharClass.quote;
-        this._charClasses['\u02ba'] = CharClass.quote;
-        this._charClasses['\u02bb'] = CharClass.quote;
-        this._charClasses['\u02bc'] = CharClass.quote;
-        this._charClasses['\u02c8'] = CharClass.quote;
-        this._charClasses['\u02ca'] = CharClass.quote;
-        this._charClasses['\u02cb'] = CharClass.quote;
-        this._charClasses['\u02d9'] = CharClass.quote;
-        this._charClasses['\u0300'] = CharClass.quote;
-        this._charClasses['\u0301'] = CharClass.quote;
-        this._charClasses['\u2018'] = CharClass.quote;
-        this._charClasses['\u2019'] = CharClass.quote;
-        this._charClasses['\u201a'] = CharClass.quote;
-        this._charClasses['\u2032'] = CharClass.quote;
-        this._charClasses['\u2035'] = CharClass.quote;
-        this._charClasses['\u275b'] = CharClass.quote;
-        this._charClasses['\u275c'] = CharClass.quote;
-        this._charClasses['\uff07'] = CharClass.quote;
+        _charClasses['`'] = CharClass.idenfifierQuote;
+        _charClasses['\''] = CharClass.stringQuote;
+        _charClasses['"'] = CharClass.stringQuote;
+        _charClasses['\\'] = CharClass.backslashSequence;
 
-        this._charClasses['\u005c'] = CharClass.backslash;
-        this._charClasses['\u00a5'] = CharClass.backslash;
-        this._charClasses['\u0160'] = CharClass.backslash;
-        this._charClasses['\u20a9'] = CharClass.backslash;
-        this._charClasses['\u2216'] = CharClass.backslash;
-        this._charClasses['\ufe68'] = CharClass.backslash;
-        this._charClasses['\uff3c'] = CharClass.backslash;
+        //_charClasses['\u0022'] = CharClass.quote;
+        //_charClasses['\u0027'] = CharClass.quote;
+        //_charClasses['\u0060'] = CharClass.quote;
+        //_charClasses['\u00b4'] = CharClass.quote;
+        //_charClasses['\u02b9'] = CharClass.quote;
+        //_charClasses['\u02ba'] = CharClass.quote;
+        //_charClasses['\u02bb'] = CharClass.quote;
+        //_charClasses['\u02bc'] = CharClass.quote;
+        //_charClasses['\u02c8'] = CharClass.quote;
+        //_charClasses['\u02ca'] = CharClass.quote;
+        //_charClasses['\u02cb'] = CharClass.quote;
+        //_charClasses['\u02d9'] = CharClass.quote;
+        //_charClasses['\u0300'] = CharClass.quote;
+        //_charClasses['\u0301'] = CharClass.quote;
+        //_charClasses['\u2018'] = CharClass.quote;
+        //_charClasses['\u2019'] = CharClass.quote;
+        //_charClasses['\u201a'] = CharClass.quote;
+        //_charClasses['\u2032'] = CharClass.quote;
+        //_charClasses['\u2035'] = CharClass.quote;
+        //_charClasses['\u275b'] = CharClass.quote;
+        //_charClasses['\u275c'] = CharClass.quote;
+        //_charClasses['\uff07'] = CharClass.quote;
 
-        this.populateValidParamNameChecks();
+        //_charClasses['\u005c'] = CharClass.backslash;
+        //_charClasses['\u00a5'] = CharClass.backslash;
+        //_charClasses['\u0160'] = CharClass.backslash;
+        //_charClasses['\u20a9'] = CharClass.backslash;
+        //_charClasses['\u2216'] = CharClass.backslash;
+        //_charClasses['\ufe68'] = CharClass.backslash;
+        //_charClasses['\uff3c'] = CharClass.backslash;
+
+        populateValidParamNameChecks();
     }
 
     final override const(string[]) connectionStringParameterNames() const nothrow pure
@@ -1118,25 +1123,32 @@ public:
     {
         return new MyTransaction(cast(MyConnection)connection, isolationLevel);
     }
-    
+
     // https://dev.mysql.com/doc/refman/8.4/en/select.html
     // [LIMIT {[offset,] row_count | row_count OFFSET offset}]
     // The offset of the initial row is 0 (not 1)
-    final override string limitClause(int rows, uint offset = 0) nothrow pure
+    final override string limitClause(int rows, uint offset = 0) const nothrow pure @safe
     {
         import std.format : sformat;
         scope (failure) assert(0, "Assume nothrow failed");
-        
+
         // No restriction
         if (rows < 0)
             return null;
-            
+
         // Returns empty
         if (rows == 0)
             return "LIMIT 0 OFFSET 0";
-            
-        char[35] buffer;
+
+        char[50] buffer;
         return sformat(buffer[], "LIMIT %d OFFSET %d", rows, offset).idup;
+    }
+
+    // Does not support this contruct
+    // select TOP(?) ... from ...
+    final override string topClause(int rows) const nothrow pure @safe
+    {
+        return null;
     }
 
     @property final override DbScheme scheme() const nothrow pure
@@ -1572,13 +1584,55 @@ unittest // MyDatabase.limitClause
     assert(myDB.limitClause(0, 1) == "LIMIT 0 OFFSET 0");
     assert(myDB.limitClause(2, 1) == "LIMIT 2 OFFSET 1");
     assert(myDB.limitClause(2) == "LIMIT 2 OFFSET 0");
+
+    assert(myDB.topClause(-1) == "");
+    assert(myDB.topClause(0) == "");
+    assert(myDB.topClause(10) == "");
+}
+
+unittest // MyDatabase.concate
+{
+    assert(myDB.concate(["''", "''"]) == "concat('', '')");
+    assert(myDB.concate(["abc", "'123'", "xyz"]) == "concat(abc, '123', xyz)");
+}
+
+unittest // MyDatabase.escapeIdentifier
+{
+    assert(myDB.escapeIdentifier("") == "");
+    assert(myDB.escapeIdentifier("'\"\"'") == "'\"\"'");
+    assert(myDB.escapeIdentifier("abc 123") == "abc 123");
+    assert(myDB.escapeIdentifier("``abc 123`") == "````abc 123``");
+}
+
+unittest // MyDatabase.quoteIdentifier
+{
+    assert(myDB.quoteIdentifier("") == "``");
+    assert(myDB.quoteIdentifier("'`'") == "`'``'`");
+    assert(myDB.quoteIdentifier("abc 123") == "`abc 123`");
+    assert(myDB.quoteIdentifier("`abc 123`") == "```abc 123```");
+}
+
+unittest // MyDatabase.escapeString
+{
+    assert(myDB.escapeString("") == "");
+    assert(myDB.escapeString("\"''\"") == "\"\"''''\"\"");
+    assert(myDB.escapeString("abc 123") == "abc 123");
+    assert(myDB.escapeString("'abc 123'") == "''abc 123''");
+}
+
+unittest // MyDatabase.quoteString
+{
+    assert(myDB.quoteString("") == "''");
+    assert(myDB.quoteString("\"''\"") == "'\"\"''''\"\"'");
+    assert(myDB.quoteString("abc 123") == "'abc 123'");
+    assert(myDB.quoteString("'abc 123'") == "'''abc 123'''");
 }
 
 version(UnitTestMYDatabase)
 unittest // MyConnection
 {
     import std.stdio : writeln; writeln("UnitTestMYDatabase.MyConnection"); // For first unittest
-    
+
     auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
@@ -1716,11 +1770,48 @@ unittest // MyCommand.DML - Simple select
     scope (exit)
         command.dispose();
 
-    command.commandText = simpleSelectCommandText();
-    auto reader = command.executeReader();
-    scope (exit)
-        reader.dispose();
-    validateSelectCommandTextReader(reader);
+    {
+        command.commandText = simpleSelectCommandText();
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        validateSelectCommandTextReader(reader);
+    }
+
+    // Try again to make sure it is working
+    {
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        validateSelectCommandTextReader(reader);
+    }
+
+    {
+        command.commandText = simpleSelectCommandText()
+            ~ " " ~ connection.limitClause(1);
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        validateSelectCommandTextReader(reader);
+    }
+
+    {
+        command.commandText = simpleSelectCommandText()
+            ~ " " ~ connection.limitClause(0);
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        assert(!reader.hasRows);
+    }
+
+    {
+        command.commandText = simpleSelectCommandText()
+            ~ " " ~ connection.limitClause(1, 1);
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        assert(!reader.hasRows);
+    }
 }
 
 version(UnitTestMYDatabase)
@@ -1867,7 +1958,7 @@ unittest // MyCommand.getExecutionPlan
 {
     //import std.stdio : writeln;
     import std.string : indexOf;
-    
+
     auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();

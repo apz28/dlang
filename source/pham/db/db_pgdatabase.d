@@ -1364,13 +1364,13 @@ public:
     this() nothrow
     {
         super();
-        this._name = DbIdentitier(DbScheme.pg);
+        _name = DbIdentitier(DbScheme.pg);
 
-        this._charClasses['"'] = CharClass.quote;
-        this._charClasses['\''] = CharClass.quote;
-        this._charClasses['\\'] = CharClass.backslash;
+        _charClasses['"'] = CharClass.idenfifierQuote;
+        _charClasses['\''] = CharClass.stringQuote;
+        _charClasses['\\'] = CharClass.backslashSequence;
 
-        this.populateValidParamNameChecks();
+        populateValidParamNameChecks();
     }
 
     final override const(string[]) connectionStringParameterNames() const nothrow pure
@@ -1488,21 +1488,28 @@ public:
 
     // https://www.postgresql.org/docs/13/sql-select.html#SQL-LIMIT
     // LIMIT { count | ALL } OFFSET start
-    final override string limitClause(int rows, uint offset = 0) nothrow pure
+    final override string limitClause(int rows, uint offset = 0) const nothrow pure @safe
     {
         import std.format : sformat;
         scope (failure) assert(0, "Assume nothrow failed");
-        
+
         // No restriction
         if (rows < 0)
             return null;
-            
+
         // Returns empty
         if (rows == 0)
             return "LIMIT 0 OFFSET 0";
-            
-        char[35] buffer;
+
+        char[50] buffer;
         return sformat(buffer[], "LIMIT %d OFFSET %d", rows, offset).idup;
+    }
+
+    // Does not support this contruct
+    // select TOP(?) ... from ...
+    final override string topClause(int rows) const nothrow pure @safe
+    {
+        return null;
     }
 
     @property final override DbScheme scheme() const nothrow pure
@@ -1946,13 +1953,55 @@ unittest // PgDatabase.limitClause
     assert(pgDB.limitClause(0, 1) == "LIMIT 0 OFFSET 0");
     assert(pgDB.limitClause(2, 1) == "LIMIT 2 OFFSET 1");
     assert(pgDB.limitClause(2) == "LIMIT 2 OFFSET 0");
+
+    assert(pgDB.topClause(-1) == "");
+    assert(pgDB.topClause(0) == "");
+    assert(pgDB.topClause(10) == "");
+}
+
+unittest // PgDatabase.concate
+{
+    assert(pgDB.concate(["''", "''"]) == "'' || ''");
+    assert(pgDB.concate(["abc", "'123'", "xyz"]) == "abc || '123' || xyz");
+}
+
+unittest // PgDatabase.escapeIdentifier
+{
+    assert(pgDB.escapeIdentifier("") == "");
+    assert(pgDB.escapeIdentifier("'\"\"'") == "'\"\"\"\"'");
+    assert(pgDB.escapeIdentifier("abc 123") == "abc 123");
+    assert(pgDB.escapeIdentifier("\"abc 123\"") == "\"\"abc 123\"\"");
+}
+
+unittest // PgDatabase.quoteIdentifier
+{
+    assert(pgDB.quoteIdentifier("") == "\"\"");
+    assert(pgDB.quoteIdentifier("'\"\"'") == "\"'\"\"\"\"'\"");
+    assert(pgDB.quoteIdentifier("abc 123") == "\"abc 123\"");
+    assert(pgDB.quoteIdentifier("\"abc 123\"") == "\"\"\"abc 123\"\"\"");
+}
+
+unittest // PgDatabase.escapeString
+{
+    assert(pgDB.escapeString("") == "");
+    assert(pgDB.escapeString("\"''\"") == "\"''''\"");
+    assert(pgDB.escapeString("abc 123") == "abc 123");
+    assert(pgDB.escapeString("'abc 123'") == "''abc 123''");
+}
+
+unittest // PgDatabase.quoteString
+{
+    assert(pgDB.quoteString("") == "''");
+    assert(pgDB.quoteString("\"''\"") == "'\"''''\"'");
+    assert(pgDB.quoteString("abc 123") == "'abc 123'");
+    assert(pgDB.quoteString("'abc 123'") == "'''abc 123'''");
 }
 
 version(UnitTestPGDatabase)
 unittest // PgConnection
 {
     import std.stdio : writeln; writeln("UnitTestPGDatabase.PgConnection"); // For first unittest
-    
+
     auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
@@ -2063,11 +2112,48 @@ unittest // PgCommand.DML - Simple select
     scope (exit)
         command.dispose();
 
-    command.commandText = simpleSelectCommandText();
-    auto reader = command.executeReader();
-    scope (exit)
-        reader.dispose();
-    validateSelectCommandTextReader(reader);
+    {
+        command.commandText = simpleSelectCommandText();
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        validateSelectCommandTextReader(reader);
+    }
+
+    // Try again to make sure it is working
+    {
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        validateSelectCommandTextReader(reader);
+    }
+
+    {
+        command.commandText = simpleSelectCommandText()
+            ~ " " ~ connection.limitClause(1);
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        validateSelectCommandTextReader(reader);
+    }
+
+    {
+        command.commandText = simpleSelectCommandText()
+            ~ " " ~ connection.limitClause(0);
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        assert(!reader.hasRows);
+    }
+
+    {
+        command.commandText = simpleSelectCommandText()
+            ~ " " ~ connection.limitClause(1, 1);
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        assert(!reader.hasRows);
+    }
 }
 
 version(UnitTestPGDatabase)
