@@ -474,31 +474,28 @@ public:
     {
         auto setting = DateTimeSetting.iso8601;
 
-        StaticBuffer!(char, 50) text;
         buffer.put('"');
-        buffer.put(v.toString(text, DateTimeSetting.iso8601Fmt, setting)[]);
+        v.toString(buffer, DateTimeSetting.iso8601Fmt, setting);
         buffer.put('"');
     }
 
     final override void write(scope const(DateTime) v, scope ref Serializable)
     {
-        StaticBuffer!(char, 50) text;
         auto setting = v.kind == DateTimeZoneKind.utc ? DateTimeSetting.iso8601Utc : DateTimeSetting.iso8601;
         const fmt = v.kind == DateTimeZoneKind.utc ? DateTimeSetting.iso8601FmtUtc : DateTimeSetting.iso8601Fmt;
 
         buffer.put('"');
-        buffer.put(v.toString(text, fmt, setting)[]);
+        v.toString(buffer, fmt, setting);
         buffer.put('"');
     }
 
     final override void write(scope const(Time) v, scope ref Serializable)
     {
-        StaticBuffer!(char, 50) text;
         auto setting = v.kind == DateTimeZoneKind.utc ? DateTimeSetting.iso8601Utc : DateTimeSetting.iso8601;
         const fmt = v.kind == DateTimeZoneKind.utc ? DateTimeSetting.iso8601FmtUtc : DateTimeSetting.iso8601Fmt;
 
         buffer.put('"');
-        buffer.put(v.toString(text, fmt, setting)[]);
+        v.toString(buffer, fmt, setting);
         buffer.put('"');
     }
 
@@ -582,7 +579,7 @@ public:
         }
 
         buffer.put('"');
-        buffer.put(binaryToString(v, binaryFormat(attribute)));
+        binaryToString(buffer, v, binaryFormat(attribute));
         buffer.put('"');
     }
 
@@ -607,15 +604,14 @@ public:
     }
 
 public:
-    static T escapeString(T)(return scope T s) nothrow pure
+    static T escapeString(T)(scope T s) nothrow pure
     if (isDynamicArray!T)
     {
         auto buffer = Appender!T(s.length + (s.length / 4));
-        escapeString(buffer, s);
-        return buffer[];
+        return escapeString(buffer, s).data;
     }
 
-    static void escapeString(Writer, T)(scope ref Writer sink, scope T s)
+    static ref Writer escapeString(T, Writer)(return ref Writer sink, scope T s)
     if (isDynamicArray!T)
     {
         size_t i;
@@ -624,7 +620,7 @@ public:
         if (i == s.length)
         {
             sink.put(s);
-            return;
+            return sink;
         }
         sink.put(s[0..i]);
         while (i < s.length)
@@ -639,6 +635,7 @@ public:
                 sink.put(c);
             i++;
         }
+        return sink;
     }
 
     // std.json is special handling as json string datatype - not as special number format
@@ -675,8 +672,9 @@ public:
     final void writeImpl(V)(V v)
     if (isIntegral!V)
     {
-        char[50] vBuffer = void;
-        buffer.put(intToString(vBuffer[], v));
+        import pham.utl.utl_object : toString;
+        
+        toString(buffer, v);
     }
 
     final void writeImpl(V)(V v, scope ref Serializable attribute)

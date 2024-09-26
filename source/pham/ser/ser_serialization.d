@@ -14,9 +14,9 @@ module pham.ser.ser_serialization;
 import std.conv : to;
 import std.meta : AliasSeq, aliasSeqOf, Filter, NoDuplicates, staticMap;
 import std.range : ElementType, isInputRange;
-import std.traits : BaseClassesTuple, BaseTypeTuple, EnumMembers, fullyQualifiedName, FunctionAttribute, functionAttributes,
-    isAggregateType, isCallable, isDynamicArray, isFloatingPoint, isFunction, isIntegral, isSomeChar, isSomeFunction,
-    isStaticArray, Parameters, ReturnType, Unqual;
+import std.traits : BaseClassesTuple, BaseTypeTuple, EnumMembers, fullyQualifiedName,
+    isAggregateType, isCallable, isDynamicArray, isFloatingPoint, isIntegral, isSomeChar, isSomeFunction,
+    isStaticArray, Unqual;
 import std.uni : sicmp;
 
 debug(pham_ser_ser_serialization) import std.stdio : writeln;
@@ -25,6 +25,7 @@ import pham.dtm.dtm_tick : DateTimeZoneKind;
 import pham.dtm.dtm_time : Time;
 import pham.utl.utl_array : Appender;
 import pham.utl.utl_enum_set : EnumSet;
+import pham.utl.utl_trait;
 
 @safe:
 
@@ -87,7 +88,7 @@ struct BinaryFormat
 
 struct DbEntity
 {
-@nogc nothrow @safe:
+nothrow @safe:
 
 public:
     string name;
@@ -394,11 +395,6 @@ template getGetterSetterFunctions(symbols...)
         alias getGetterSetterFunctions = AliasSeq!();
 }
 
-template getParamType(alias functionSymbol, size_t i)
-{
-    alias getParamType = Parameters!functionSymbol[i];
-}
-
 template getOverloads(alias T, string name)
 {
     private alias overloads = __traits(getOverloads, T, name);
@@ -427,33 +423,6 @@ template getOverloads(alias T, string name)
         alias getOverloads = overloads;
 }
 
-template getReturnType(alias getFunctionSymbol)
-{
-    static if (isPropertyFunction!getFunctionSymbol)
-        alias getReturnType = typeof(getFunctionSymbol);
-    else
-        alias getReturnType = ReturnType!(typeof(getFunctionSymbol));
-}
-
-template getUDAs(alias symbol, alias attribute)
-{
-    static if (__traits(compiles, __traits(getAttributes, symbol)))
-        alias getUDAs = Filter!(isDesiredUDA!attribute, __traits(getAttributes, symbol));
-    else
-        alias getUDAs = AliasSeq!();
-}
-
-template getUDA(alias symbol, alias attribute)
-{
-    private alias allAttributes = getUDAs!(symbol, attribute);
-    static if (allAttributes.length != 1)
-        static assert(0, "Exactly one " ~ fullyQualifiedName!attribute ~ " attribute is allowed, got " ~ allAttributes.length.stringof ~ " for " ~ fullyQualifiedName!symbol);
-    else static if (is(typeof(allAttributes[0])))
-        enum getUDA = allAttributes[0];
-    else
-        alias getUDA = allAttributes[0];
-}
-
 template hasTypeOfSymbol(symbols...)
 if (symbols.length > 1)
 {
@@ -466,11 +435,6 @@ template hasTypeOfSymbol(alias symbol)
         enum bool hasTypeOfSymbol = true;
     else
         enum bool hasTypeOfSymbol = false;
-}
-
-template hasUDA(alias symbol, alias attribute)
-{
-    enum bool hasUDA = getUDAs!(symbol, attribute).length != 0;
 }
 
 bool isExcludedBuildinMember(const(string) memberName) @nogc nothrow pure
@@ -496,110 +460,17 @@ enum IsFloatLiteral : ubyte
     ninf,
 }
 
-struct FloatLiteral
-{
-    string text;
-    IsFloatLiteral kind;
-}
-
-static immutable FloatLiteral[13] floatLiterals = [
-    // Standard texts first
-    FloatLiteral("NaN", IsFloatLiteral.nan),
-    FloatLiteral("Infinity", IsFloatLiteral.pinf),
-    FloatLiteral("-Infinity", IsFloatLiteral.ninf),
-    // Other support texts
-    FloatLiteral("nan", IsFloatLiteral.nan),
-    FloatLiteral("NAN", IsFloatLiteral.nan),
-    FloatLiteral("inf", IsFloatLiteral.pinf),
-    FloatLiteral("+inf", IsFloatLiteral.pinf),
-    FloatLiteral("-inf", IsFloatLiteral.ninf),
-    FloatLiteral("infinity", IsFloatLiteral.pinf),
-    FloatLiteral("+infinity", IsFloatLiteral.pinf),
-    FloatLiteral("-infinity", IsFloatLiteral.ninf),
-    FloatLiteral("Infinite", IsFloatLiteral.pinf), // dlang.std.json
-    FloatLiteral("-Infinite", IsFloatLiteral.ninf), // dlang.std.json
-];
+static immutable IsFloatLiteral[const(char)[]] floatLiterals;
 
 IsFloatLiteral isFloatLiteral(scope const(char)[] text) @nogc nothrow pure
 {
-    foreach(ref f; floatLiterals)
-    {
-        if (f.text == text)
-            return f.kind;
-    }
+    if (auto f = text in floatLiterals)
+        return *f;
     return IsFloatLiteral.none;
-}
-
-template isCallableWithTypes(alias func, Args...)
-{
-    private alias funcParams = Parameters!func;
-    
-    private bool sameParamTypes()
-    {
-        bool result = true;
-        static foreach (i; 0..funcParams.length)
-        {
-            static if (!is(Args[i] : funcParams[i]))
-                result = false;
-        }
-        return result;
-    }
-    
-    static if (isCallable!func && funcParams.length == Args.length)
-        enum bool isCallableWithTypes = sameParamTypes();
-    else
-        enum bool isCallableWithTypes = false;
-}
-
-template isGetterFunction(alias symbol)
-{
-    static if (isFunction!symbol)
-        enum bool isGetterFunction = !is(ReturnType!symbol == void) && ((Parameters!symbol).length == 0);
-    else
-        enum bool isGetterFunction = false;
-}
-
-template isPropertyFunction(alias symbol)
-{
-    static if (isFunction!symbol)
-        enum bool isPropertyFunction = (functionAttributes!symbol & FunctionAttribute.property) != 0;
-    else
-        enum bool isPropertyFunction = false;
-}
-
-template isSetterFunction(alias symbol)
-{
-    static if (isFunction!symbol)
-        enum bool isSetterFunction = (Parameters!symbol).length == 1;
-    else
-        enum bool isSetterFunction = false;
-}
-
-template isTemplateSymbol(symbols...)
-if (symbols.length > 1)
-{
-    enum bool isTemplateSymbol = false;
-}
-
-template isTemplateSymbol(alias symbol)
-{
-    static if (__traits(compiles, __traits(isTemplate, symbol)))
-        enum bool isTemplateSymbol = __traits(isTemplate, symbol);
-    else
-        enum bool isTemplateSymbol = false;
 }
 
 //if (isAggregateType!V && !isInputRange!V)
 enum bool isSerializerAggregateType(T) = (is(T == struct) || is(T == class)) && !isInputRange!T;
-
-template hasCallableWithTypes(T, string memberName, Args...)
-if (isSerializerAggregateType!T)
-{
-    static if (__traits(hasMember, T, memberName))
-        enum bool hasCallableWithTypes = isCallableWithTypes!(__traits(getMember, T, memberName), Args);
-    else
-        enum bool hasCallableWithTypes = false;
-}
 
 template isSerializerMember(alias member)
 {
@@ -1053,26 +924,24 @@ public:
         }
     }
 
-    static string binaryToString(scope const(ubyte)[] v, const(BinaryFormat) binaryFormat)
+    static ref Writer binaryToString(Writer)(return ref Writer sink, scope const(ubyte)[] v, const(BinaryFormat) binaryFormat)
     {
         import std.ascii : LetterCase;
         import pham.utl.utl_numeric_parser : cvtBytesBase64, cvtBytesBase64Length, cvtBytesBase16, cvtBytesBase16Length;
 
         if (v.length == 0)
-            return null;
+            return sink;
 
         final switch (binaryFormat.encodedFormat)
         {
             case EncodedFormat.base64:
-                auto buffer64 = Appender!string(cvtBytesBase64Length(v.length, false, 0));
-                return cvtBytesBase64(buffer64, v)[];
+                return cvtBytesBase64(sink, v);
             case EncodedFormat.base16:
-                auto buffer16 = Appender!string(cvtBytesBase16Length(v.length, false, 0));
                 return binaryFormat.characterCase == CharacterCase.lower
-                    ? cvtBytesBase16(buffer16, v, LetterCase.lower)[]
+                    ? cvtBytesBase16(sink, v, LetterCase.lower)
                     : binaryFormat.characterCase == CharacterCase.upper
-                        ? cvtBytesBase16(buffer16, v, LetterCase.upper)[]
-                        : cvtBytesBase16(buffer16, v)[];
+                        ? cvtBytesBase16(sink, v, LetterCase.upper)
+                        : cvtBytesBase16(sink, v);
         }
     }
 
@@ -1130,19 +999,6 @@ public:
             len++;
 
         return v[0..len];
-    }
-
-    static const(char)[] intToString(V)(return scope char[] vBuffer, V v) pure
-    if (isIntegral!V)
-    in
-    {
-        assert(vBuffer.length >= 20);
-    }
-    do
-    {
-        import std.format : sformat;
-
-        return sformat(vBuffer, "%d", v);
     }
 
 protected:
@@ -1584,13 +1440,13 @@ public:
 
         scope (success)
         {
-            static if (hasCallableWithTypes!(V, "dsDeserializeEnd", Deserializer, ptrdiff_t, Serializable))
+            static if (hasCallableWithParameterTypes!(V, "dsDeserializeEnd", Deserializer, ptrdiff_t, Serializable))
                 v.dsDeserializeEnd(this, deserializedLength, attribute);
         }
 
-        static if (hasCallableWithTypes!(V, "dsDeserialize", Deserializer, SerializableMemberOptions, ptrdiff_t, Serializable))
+        static if (hasCallableWithParameterTypes!(V, "dsDeserialize", Deserializer, SerializableMemberOptions, ptrdiff_t, Serializable))
         {
-            static if (hasCallableWithTypes!(V, "dsDeserializeBegin", Deserializer, ptrdiff_t, Serializable))
+            static if (hasCallableWithParameterTypes!(V, "dsDeserializeBegin", Deserializer, ptrdiff_t, Serializable))
                 v.dsDeserializeBegin(this, readLength, attribute);
 
             deserializedLength = v.dsDeserialize(this, memberOptions, readLength, attribute);
@@ -1632,7 +1488,7 @@ public:
 
                             if (deserializedLength++ == 0)
                             {
-                                static if (hasCallableWithTypes!(V, "dsDeserializeBegin", Deserializer, ptrdiff_t, Serializable))
+                                static if (hasCallableWithParameterTypes!(V, "dsDeserializeBegin", Deserializer, ptrdiff_t, Serializable))
                                     v.dsDeserializeBegin(this, readLength, attribute);
                             }
 
@@ -2142,13 +1998,13 @@ public:
 
         scope (success)
         {
-            static if (hasCallableWithTypes!(V, "dsSerializeEnd", Serializer, size_t, Serializable))
+            static if (hasCallableWithParameterTypes!(V, "dsSerializeEnd", Serializer, size_t, Serializable))
                 v.dsSerializeEnd(this, serializeredLength, attribute);
         }
 
-        static if (hasCallableWithTypes!(V, "dsSerialize", Serializer, SerializableMemberOptions, Serializable))
+        static if (hasCallableWithParameterTypes!(V, "dsSerialize", Serializer, SerializableMemberOptions, Serializable))
         {
-            static if (hasCallableWithTypes!(V, "dsSerializeBegin", Serializer, size_t, Serializable))
+            static if (hasCallableWithParameterTypes!(V, "dsSerializeBegin", Serializer, size_t, Serializable))
                 v.dsSerializeBegin(this, members.length, attribute);
 
             serializeredLength = v.dsSerialize(this, memberOptions, attribute);
@@ -2189,7 +2045,7 @@ public:
                     // First member?
                     if (serializeredLength == 0)
                     {
-                        static if (hasCallableWithTypes!(V, "dsSerializeBegin", Serializer, size_t, Serializable))
+                        static if (hasCallableWithParameterTypes!(V, "dsSerializeBegin", Serializer, size_t, Serializable))
                             v.dsSerializeBegin(this, members.length, attribute);
                     }
 
@@ -2795,6 +2651,7 @@ package(pham.ser):
 }
 
 
+// Any below codes are private
 private:
 
 static immutable excludedBuildinMembers = [
@@ -2823,63 +2680,28 @@ string[] filterMembers(string[] allMembers) nothrow pure
     return result;
 }
 
-template isDesiredUDA(alias attribute)
+shared static this() nothrow
 {
-    template isDesiredUDA(alias toCheck)
+    floatLiterals = () nothrow pure @trusted // @trusted=cast()
     {
-        static if (is(typeof(attribute)) && !__traits(isTemplate, attribute))
-        {
-            static if (__traits(compiles, toCheck == attribute))
-                enum isDesiredUDA = toCheck == attribute;
-            else
-                enum isDesiredUDA = false;
-        }
-        else static if (is(typeof(toCheck)))
-        {
-            static if (__traits(isTemplate, attribute))
-                enum isDesiredUDA =  isInstanceOf!(attribute, typeof(toCheck));
-            else
-                enum isDesiredUDA = is(typeof(toCheck) == attribute);
-        }
-        else static if (__traits(isTemplate, attribute))
-            enum isDesiredUDA = isInstanceOf!(attribute, toCheck);
-        else
-            enum isDesiredUDA = is(toCheck == attribute);
-    }
-}
-
-unittest // isCallableWithTypes
-{
-    static struct S
-    {
-        ptrdiff_t deserialize(Deserializer deserializer, SerializableMemberOptions memberOptions, ptrdiff_t readLength, scope ref Serializable attribute) @safe
-        {
-            return 0;
-        }
-
-        ptrdiff_t serialize(Serializer serializer, SerializableMemberOptions memberOptions, scope ref Serializable attribute) @safe
-        {
-            return 1;
-        }
-    }
-
-    ptrdiff_t deserialize(Deserializer deserializer, SerializableMemberOptions memberOptions, ptrdiff_t readLength, scope ref Serializable attribute) @safe
-    {
-        return 0;
-    }
-
-    ptrdiff_t serialize(Serializer serializer, SerializableMemberOptions memberOptions, scope ref Serializable attribute) @safe
-    {
-        return 1;
-    }
-
-    static assert (isCallableWithTypes!(deserialize, Deserializer, SerializableMemberOptions, size_t, Serializable));
-    static assert (isCallableWithTypes!(serialize, Serializer, SerializableMemberOptions, Serializable));
-
-    alias deserializeMember = __traits(getMember, S, "deserialize");
-    static assert (isCallableWithTypes!(deserializeMember, Deserializer, SerializableMemberOptions, size_t, Serializable));
-    alias serializeMember = __traits(getMember, S, "serialize");
-    static assert (isCallableWithTypes!(serializeMember, Serializer, SerializableMemberOptions, Serializable));
+        return cast(immutable(IsFloatLiteral[const(char)[]]))[
+            // Standard texts
+            "NaN" : IsFloatLiteral.nan,
+            "Infinity" : IsFloatLiteral.pinf,
+            "-Infinity" : IsFloatLiteral.ninf,
+            // Other support texts
+            "nan" : IsFloatLiteral.nan,
+            "NAN" : IsFloatLiteral.nan,
+            "inf" : IsFloatLiteral.pinf,
+            "+inf" : IsFloatLiteral.pinf,
+            "-inf" : IsFloatLiteral.ninf,
+            "infinity" : IsFloatLiteral.pinf,
+            "+infinity" : IsFloatLiteral.pinf,
+            "-infinity" : IsFloatLiteral.ninf,
+            "Infinite" : IsFloatLiteral.pinf, // dlang.std.json
+            "-Infinite" : IsFloatLiteral.ninf, // dlang.std.json
+        ];
+    }();
 }
 
 unittest // StaticBuffer

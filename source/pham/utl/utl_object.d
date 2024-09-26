@@ -291,7 +291,7 @@ if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
     import std.ascii : lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
 
     alias UN = Unqual!N;
-    enum bufSize = 300;
+    enum bufSize = N.sizeof * 8;
 
     char[bufSize] bufDigits;
     size_t bufIndex = bufSize;
@@ -306,10 +306,10 @@ if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
         UN un = isNeg ? cast(N)-n : n;
         while (un >= 10)
         {
-            bufDigits[--bufIndex] = decimalDigits[un % 10];
+            bufDigits[--bufIndex] = decimalDigits[cast(ubyte)(un % 10)];
             un /= 10;
         }
-        bufDigits[--bufIndex] = decimalDigits[un];
+        bufDigits[--bufIndex] = decimalDigits[cast(ubyte)un];
     }
     else
     {
@@ -340,19 +340,19 @@ if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
         while (un >>>= shift);
     }
 
+    if (isNeg)
+        put(sink, '-');
+
     if (paddingSize)
     {
         size_t cn = isNeg ? (bufSize - bufIndex + 1) : (bufSize - bufIndex);
-        while (paddingSize > cn)
+        while (cn < paddingSize)
         {
-            bufDigits[--bufIndex] = paddingChar;
+            put(sink, paddingChar);
             cn++;
         }
     }
-
-    if (isNeg)
-        bufDigits[--bufIndex] = '-';
-
+    
     put(sink, bufDigits[bufIndex..bufSize]);
     return sink;
 }
@@ -946,8 +946,8 @@ nothrow @safe unittest // stringOfChar
     void testCheck(uint radix = 10, N)(N n, const(ubyte) pad, string expected,
         uint line = __LINE__)
     {
-        auto buffer = Appender!string(50);
-        toString!(radix, N)(buffer, n, pad);
+        auto buffer = Appender!string(64);
+        toString!radix(buffer, n, pad);
         assert(buffer.data == expected, line.to!string() ~ ": " ~ buffer.data ~ " vs " ~ expected);
     }
 
@@ -965,11 +965,13 @@ nothrow @safe unittest // stringOfChar
     testCheck(-8_000_000, 0, "-8000000");
     testCheck(-8_000_000, 9, "-08000000");
 
-    testCheck!(2)(2U, 0, "10");
-    testCheck!(2)(2U, 4, "0010");
+    testCheck!2(2U, 0, "10");
+    testCheck!2(2U, 4, "0010");
+    testCheck!2(cast(int)-456, 32, "11111111111111111111111000111000");
 
-    testCheck!(16)(255U, 0, "FF");
-    testCheck!(16)(255U, 4, "00FF");
+    testCheck!16(255U, 0, "FF");
+    testCheck!16(255U, 4, "00FF");
+    testCheck!16(cast(int)-456, 8, "FFFFFE38");
 
     // Test default call
     auto buffer = Appender!string(10);

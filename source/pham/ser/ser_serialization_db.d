@@ -16,8 +16,9 @@ import std.range.primitives : isOutputRange;
 import std.traits : isDynamicArray, isFloatingPoint, isIntegral;
 
 debug(pham_ser_ser_serialization_db) import std.stdio : writeln;
-import pham.db.db_database : DbColumnList,
-    columnNameString, parameterNameString, parameterConditionString, parameterUpdateString;
+import pham.db.db_builder;
+import pham.db.db_database : DbColumnList;
+public import pham.db.db_builder;
 public import pham.db.db_database : DbConnection, DbCommand, DbParameter, DbParameterList, DbReader;
 import pham.db.db_type : DbType;
 public import pham.db.db_type : DbRecordsAffected;
@@ -27,6 +28,7 @@ import pham.dtm.dtm_date_time_parse : DateTimePattern;
 import pham.dtm.dtm_tick : DateTimeZoneKind;
 import pham.dtm.dtm_time : Time;
 public import pham.utl.utl_array : Appender;
+import pham.utl.utl_trait : getUDA, hasUDA;
 import pham.var.var_coerce;
 import pham.var.var_coerce_dec_decimal;
 import pham.var.var_coerce_pham_date_time;
@@ -392,7 +394,7 @@ public:
     final bool constructSQL(scope const(Serializable)[] columns, DbParameterList conditionParameters, scope ref Serializable attribute)
     {
         commandText.clear();
-        commandText.capacity = 1_000;
+        commandText.capacity = 500;
         if (onConstructSQL !is null)
             return onConstructSQL(this, columns, commandText, conditionParameters, attribute);
 

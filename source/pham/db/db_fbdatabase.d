@@ -1448,8 +1448,8 @@ protected:
                 debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "columns");
 
                 const localIsStoredProcedure = isStoredProcedure;
-                auto localParameters = localIsStoredProcedure ? parameters : null;
-                auto localColumns = columns;
+                auto params = localIsStoredProcedure ? parameters : null; // Use local var to avoid function call
+                auto localColumns = columns; // Use local var to avoid function call
                 localColumns.reserve(iscBindInfo.columns.length);
                 foreach (i, ref iscColumn; iscBindInfo.columns)
                 {
@@ -1460,13 +1460,13 @@ protected:
 
                     if (localIsStoredProcedure)
                     {
-                        auto foundParameter = localParameters.hasOutput(newColumn.name, i);
+                        auto foundParameter = params.hasOutput(newColumn.name, i);
                         if (foundParameter is null)
                         {
-                            auto newParameter = localParameters.create(newColumn.name);
+                            auto newParameter = params.create(newColumn.name);
                             newParameter.direction = DbParameterDirection.output;
                             fillNamedColumn(newParameter, iscColumn, true);
-                            localParameters.put(newParameter);
+                            params.put(newParameter);
                         }
                         else
                         {
@@ -1481,21 +1481,21 @@ protected:
             {
                 debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "parameters");
 
-                auto localParameters = parameters;
-                localParameters.reserve(iscBindInfo.columns.length);
+                auto params = parameters; // Use local var to avoid function call
+                params.reserve(iscBindInfo.columns.length);
                 foreach (i, ref iscColumn; iscBindInfo.columns)
                 {
-                    if (i >= localParameters.length)
+                    if (i >= params.length)
                     {
                         auto newName = iscColumn.useName.idup;
-                        if (localParameters.exist(newName))
-                            newName = localParameters.generateName();
-                        auto newParameter = localParameters.create(newName);
+                        if (params.exist(newName))
+                            newName = params.generateName();
+                        auto newParameter = params.create(newName);
                         fillNamedColumn(newParameter, iscColumn, true);
-                        localParameters.put(newParameter);
+                        params.put(newParameter);
                     }
                     else
-                        fillNamedColumn(localParameters[i], iscColumn, false);
+                        fillNamedColumn(params[i], iscColumn, false);
                 }
             }
             else
@@ -1711,7 +1711,8 @@ public:
     }
 
     // Firebird >= v4.0
-    final FbCommandBatch createCommandBatch(string commandText, size_t parametersCapacity = 0) @safe
+    final FbCommandBatch createCommandBatch(string commandText,
+        size_t parametersCapacity = 0) @safe
     {
         auto command = cast(FbCommand)createCommandText(commandText);
         return FbCommandBatch(command, true, parametersCapacity);
@@ -1747,7 +1748,8 @@ public:
         }
     }
 
-    override bool existRoutine(string routineName, string type, string schema = null) @safe
+    override bool existRoutine(string routineName, string type,
+        string schema = null) @safe
     {
         static immutable string SQL = "select 1" ~
             " from RDB$PROCEDURES" ~
@@ -1760,7 +1762,8 @@ public:
         return !r.isNull && r.value == 1;
     }
 
-    override bool existTable(string tableName, string schema = null) @safe
+    override bool existTable(string tableName,
+        string schema = null) @safe
     {
         static immutable string SQL = "select 1" ~
             " from RDB$RELATIONS" ~
@@ -1773,7 +1776,8 @@ public:
         return !r.isNull && r.value == 1;
     }
 
-    override bool existView(string viewName, string schema = null) @safe
+    override bool existView(string viewName,
+        string schema = null) @safe
     {
         static immutable string SQL = "select 1" ~
             " from RDB$RELATIONS" ~
@@ -2221,10 +2225,10 @@ public:
     // https://www.firebirdsql.org/refdocs/langrefupd20-select.html
     // ROWS <m> [TO <n>]
     // Row numbers are 1-based
-    final override string limitClause(int rows, uint offset = 0) const nothrow pure @safe
+    final override string limitClause(int32 rows, uint32 offset = 0) const nothrow pure @safe
     {
-        import std.format : sformat;
-        scope (failure) assert(0, "Assume nothrow failed");
+        import pham.utl.utl_array : Appender;
+        import pham.utl.utl_object : nToString = toString;
 
         // No restriction
         if (rows < 0)
@@ -2234,18 +2238,28 @@ public:
         if (rows == 0)
             return "ROWS 0";
 
-        char[50] buffer;
-        return sformat(buffer[], "ROWS %d TO %d", offset + 1, offset + rows).idup;
+        auto buffer = Appender!string(50);
+        return buffer.put("ROWS ")
+            .nToString(offset + 1)
+            .put(" TO ")
+            .nToString(offset + rows)
+            .data;
     }
 
     // select FIRST(?) ... from ...
     final override string topClause(int rows) const nothrow pure @safe
     {
-        import std.format : sformat;
-        scope (failure) assert(0, "Assume nothrow failed");
+        import pham.utl.utl_array : Appender;
+        import pham.utl.utl_object : nToString = toString;
 
-        char[50] buffer;
-        return rows < 0 ? null : sformat(buffer[], "FIRST(%d)", rows).idup;
+        if (rows < 0)
+            return null;
+            
+        auto buffer = Appender!string(20);
+        return buffer.put("FIRST(")
+            .nToString(rows)
+            .put(')')
+            .data;
     }
 
     @property final override DbScheme scheme() const nothrow pure

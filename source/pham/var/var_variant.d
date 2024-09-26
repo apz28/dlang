@@ -14,6 +14,7 @@ module pham.var.var_variant;
 import core.lifetime : copyEmplace, emplace;
 import core.stdc.string : memcpy, memset;
 import std.algorithm.comparison : max;
+import std.algorithm.searching : canFind;
 import std.conv : to;
 import std.math.traits : isNaN;
 import std.meta : AliasSeq, allSatisfy, anySatisfy, staticIndexOf;
@@ -23,16 +24,16 @@ import std.traits : ConstOf, fullyQualifiedName,
     isArray, isAssociativeArray, isBasicType, isBoolean, isDelegate, isDynamicArray,
     isFloatingPoint, isFunctionPointer, isInstanceOf, isIntegral, isPointer,
     isSigned, isSomeChar, isSomeFunction, isSomeString, isStaticArray, isUnsigned,
-    Parameters, staticMap, SharedConstOf, SharedOf, Unqual,
+    Parameters, ReturnType, staticMap, SharedConstOf, SharedOf, Unqual,
     ImplicitConversionTargets = AllImplicitConversionTargets;
 import std.typecons : ReplaceTypeUnless, Tuple;
 
 debug(debug_pham_var_var_variant) import std.stdio : writeln;
-
 import pham.utl.utl_result : cmp;
+import pham.utl.utl_trait : isDelegateWith, isTypeOf;
 import pham.var.var_coerce;
 
-struct This;
+struct AnonymousStruct;
 
 enum variantNoLengthMarker = -1;
 
@@ -93,7 +94,7 @@ public:
 
     /**
      * Tells whether a type `T` is statically allowed for
-     * storage inside a `VariantN` object by looking `T` up in `AllowedTypes`.
+     * storage inside a `Variant` object by looking `T` up in `AllowedTypes`.
      */
     template allowed(T)
     {
@@ -116,7 +117,7 @@ public:
 
 public:
     /**
-     * Constructs a `VariantN` value given an argument of a generic type.
+     * Constructs a `Variant` value given an argument of a generic type.
      * Statically rejects disallowed types.
      */
     this(T)(T value) nothrow
@@ -151,17 +152,17 @@ public:
         if (handler)
         {
             handler.destruct(size, pointer);
-            handler = &voidHandler;
+            handler = Handler!void.getHandler();
         }
     }
 
     /**
-     * If the `VariantN` contains an array, applies `dg` to each
-     * element of the array in turn; if `dg` result evaluates to true, it will stop.
+     * If the `Variant` contains an array, applies `dg` to each
+     * element of the array in turn; if `dg` result evaluates to non-zero-value, it will stop.
      * Otherwise, throw VariantException.
      */
     int opApply(Dg)(scope Dg dg)
-    if (is(Dg == delegate) && Parameters!Dg.length != 0)
+    if (is(Dg == delegate) && [1, 2].canFind(Parameters!Dg.length))
     {
         alias P = Parameters!Dg;
 
@@ -191,20 +192,20 @@ public:
                         auto ar = (cast(E*)handler.valuePointer(size, pointer))[0..length];
                         foreach (ref e; ar)
                         {
-                            if (auto r = dg(e))
+                            if (const r = dg(e))
                                 return r;
                         }
                         return 0;
                     }
                 }
-                else static if (P.length == 2 && typeid(K) is typeid(size_t))
+                else static if (P.length == 2 && isTypeOf!(K, size_t))
                 {
                     if ((cast(TypeInfo_StaticArray)typeInfo).value is typeid(E))
                     {
                         auto ar = (cast(E*)handler.valuePointer(size, pointer))[0..length];
                         foreach (i, ref e; ar)
                         {
-                            if (auto r = dg(i, e))
+                            if (const r = dg(i, e))
                                 return r;
                         }
                         return 0;
@@ -220,20 +221,20 @@ public:
                         auto ar = doGet!(E[])();
                         foreach (ref e; ar)
                         {
-                            if (auto r = dg(e))
+                            if (const r = dg(e))
                                 return r;
                         }
                         return 0;
                     }
                 }
-                else static if (P.length == 2 && typeid(K) is typeid(size_t))
+                else static if (P.length == 2 && isTypeOf!(K, size_t))
                 {
                     if (typeInfo is typeid(E[]))
                     {
                         auto ar = doGet!(E[])();
                         foreach (i, ref e; ar)
                         {
-                            if (auto r = dg(i, e))
+                            if (const r = dg(i, e))
                                 return r;
                         }
                         return 0;
@@ -249,7 +250,7 @@ public:
                         auto aa = doGet!(E[K])();
                         foreach (K k, ref E v; aa)
                         {
-                            if (auto r = dg(k, v))
+                            if (const r = dg(k, v))
                                 return r;
                         }
                         return 0;
@@ -263,9 +264,9 @@ public:
 
         throw new VariantException(typeInfo, typeInfo.toString() ~ " not supported opApply() for delegate " ~ fullyQualifiedName!Dg);
     }
-
+    
     /**
-     * Assigns a `VariantN` value given an argument of a generic type.
+     * Assigns a `Variant` value given an argument of a generic type.
      * Statically rejects disallowed types.
      */
     ref VariantN opAssign(T)(T rhs) nothrow return
@@ -327,8 +328,8 @@ public:
     }
 
     /**
-     * Arithmetic between `VariantN` objects and numeric
-     * values. All arithmetic operations return a `VariantN`
+     * Arithmetic between `Variant` objects and numeric
+     * values. All arithmetic operations return a `Variant`
      * object typed depending on the types of both values
      * involved. The conversion rules mimic D's built-in rules for
      * arithmetic conversions.
@@ -389,7 +390,7 @@ public:
     }
 
     /**
-     * Implements casting to bool type if VariantN contains a value or not
+     * Implements casting to bool type if Variant contains a value or not
      * For class/pointer type, return true if it is not null
      */
     bool opCast(C: bool)() const nothrow pure @safe
@@ -467,7 +468,7 @@ public:
             return .cmp(nullLhs, nullRhs);
 
         version(assert)
-            assert(0, "Cannot do VariantN(" ~ typeInfo.toString() ~ ") opCmp() with " ~ fullyQualifiedName!T);
+            assert(0, "Cannot do Variant(" ~ typeInfo.toString() ~ ") opCmp() with " ~ fullyQualifiedName!T);
         else
             return float.nan;
     }
@@ -530,23 +531,18 @@ public:
             return nullLhs == nullRhs;
 
         version(assert)
-            assert(0, "Cannot do VariantN(" ~ typeInfo.toString() ~ ") opEquals() with " ~ fullyQualifiedName!T);
+            assert(0, "Cannot do Variant(" ~ typeInfo.toString() ~ ") opEquals() with " ~ fullyQualifiedName!T);
         else
             return false;
     }
 
     /**
-     * Array and associative array operations. If a $(D VariantN)
+     * Array and associative array operations. If a $(D Variant)
      * contains an (associative) array, it can be indexed
      * into. Otherwise, a VariantException is thrown.
      */
     inout(Variant) opIndex(I)(I indexOrKey) inout return
     {
-        string errorMessage() nothrow pure
-        {
-            return "Cannot get type " ~ fullyQualifiedName!Variant ~ " from type " ~ fullyQualifiedName!VariantN ~ " with indexed type " ~ fullyQualifiedName!I;
-        }
-
         inout(Variant) result;
         switch (variantType)
         {
@@ -568,6 +564,12 @@ public:
                 break; // break for error
         }
 
+        string errorMessage() nothrow pure
+        {
+            return "Cannot get type " ~ fullyQualifiedName!Variant
+                ~ " from type " ~ fullyQualifiedName!VariantN 
+                ~ " with indexed type " ~ fullyQualifiedName!I;
+        }
         throw new VariantException(typeInfo, errorMessage());
     }
 
@@ -576,7 +578,9 @@ public:
     {
         string errorMessage() nothrow pure
         {
-            return "Cannot assign value type " ~ fullyQualifiedName!T ~ " to " ~ fullyQualifiedName!VariantN ~ " with indexed type " ~ fullyQualifiedName!I;
+            return "Cannot assign value type " ~ fullyQualifiedName!T
+                ~ " to " ~ fullyQualifiedName!VariantN
+                ~ " with indexed type " ~ fullyQualifiedName!I;
         }
 
         static if (AllowedTypes.length && !isInstanceOf!(.VariantN, T))
@@ -627,7 +631,7 @@ public:
     }
 
     /**
-     * Returns `true` if and only if the `VariantN`
+     * Returns `true` if and only if the `Variant`
      * object holds an object implicitly convertible to type `T`.
      * Implicit convertibility is defined as per
      * $(REF_ALTTEXT ImplicitConversionTargets, ImplicitConversionTargets, std.traits).
@@ -638,10 +642,10 @@ public:
     }
 
     /**
-     * Returns the value stored in the `VariantN` object,
+     * Returns the value stored in the `Variant` object,
      * explicitly converted (coerced) to the requested type $(D T).
      * If `T` is a string type, the value is formatted as
-     * a string. If the `VariantN` object is a string, a
+     * a string. If the `Variant` object is a string, a
      * parse of the string to type `T` is attempted. If an
      * implicit conversion is not possible, throws a `VariantException`.
      */
@@ -673,8 +677,22 @@ public:
         throw new VariantException(typeInfo, typeid(T), "coerce()");
     }
 
+    int each(Dg)(scope Dg dg, scope void* context)
+    //if (is(Dg == int delegate(size_t, Variant, Variant, scope void*)))
+    if (isDelegateWith!(Dg, int, size_t, Variant, Variant, void*))
+    {
+        return handler.eachAA(size, pointer, dg, context);
+    }
+
+    int each(Dg)(scope Dg dg, scope void* context)
+    //if (is(Dg == int delegate(size_t, Variant, scope void*)))
+    if (isDelegateWith!(Dg, int, size_t, Variant, void*))
+    {
+        return handler.eachAR(size, pointer, dg, context);
+    }
+
     /**
-     * Returns the value stored in the `VariantN` object, either by specifying the
+     * Returns the value stored in the `Variant` object, either by specifying the
      * needed type or the index in the list of allowed types. The latter overload
      * only applies to bounded variants (e.g. $(LREF Algebraic)).
      *
@@ -686,7 +704,7 @@ public:
      */
     inout(T) get(T)() inout @trusted
     {
-        static if (is(T == Variant))
+        static if (is(T == VariantN))
             return this;
         else
         {
@@ -743,13 +761,13 @@ public:
     ref VariantN nullify() nothrow return @safe
     {
         handler.destruct(size, pointer);
-        () nothrow @trusted { handler = &voidHandler; } ();
+        () nothrow @trusted { handler = Handler!void.getHandler(); } ();
 
         return this;
     }
 
     /**
-     * If the `VariantN` object holds a value of the $(I exact) type `T`,
+     * If the `Variant` object holds a value of the $(I exact) type `T`,
      * returns a pointer to that value. Otherwise, returns `null`.
      * In cases where `T` is statically disallowed, $(D peek) will not compile.
      */
@@ -787,7 +805,7 @@ public:
     }
 
     /**
-     * Returns true if the value stored in the `VariantN` object can assign to value parameter,
+     * Returns true if the value stored in the `Variant` object can assign to value parameter,
      * either by specifying the needed type or the index in the list of allowed types.
      * The latter overload only applies to bounded variants (e.g. $(LREF Algebraic)).
      * Will return false if implicit conversion is not possible.
@@ -836,7 +854,7 @@ public:
     }
 
     /**
-     * Returns true if `VariantN` held value of type void or null
+     * Returns true if `Variant` held value of type void or null
      */
     @property bool isNull() const nothrow pure @safe
     {
@@ -844,7 +862,7 @@ public:
     }
 
     /**
-     * Returns true if `VariantN` held value of type void
+     * Returns true if `Variant` held value of type void
      */
     @property bool isVoid() const nothrow pure @safe
     {
@@ -852,7 +870,7 @@ public:
     }
 
     /**
-     * Returns true if `VariantN` held value of type Unassign
+     * Returns true if `Variant` held value of type Unassign
      */
     @property bool isUnassign() const nothrow pure @safe
     {
@@ -860,7 +878,7 @@ public:
     }
 
     /**
-     * If the `VariantN` contains an array or associativeArray,
+     * If the `Variant` contains an array or associativeArray,
      * returns its' length. Otherwise, return variantNoLengthMarker (-1)
      */
     @property ptrdiff_t length() const nothrow pure @safe
@@ -952,11 +970,11 @@ private:
                 return VariantN(mixin("doGet!real() " ~ op ~ " rhs"));
         }
 
-        assert(0, "Cannot do VariantN(" ~ AllowedTypes.stringof ~ ") " ~ op ~ " " ~ fullyQualifiedName!T);
+        assert(0, "Cannot do Variant(" ~ AllowedTypes.stringof ~ ") " ~ op ~ " " ~ fullyQualifiedName!T);
     }
 
     /**
-     * Assigns a `VariantN` from a generic argument.
+     * Assigns a `Variant` from a generic argument.
      * Statically rejects disallowed types.
      */
     void doAssign(T, bool Assign)(T rhs) nothrow @trusted
@@ -967,7 +985,7 @@ private:
             static if (Assign)
             handler.destruct(size, pointer);
 
-            handler = &voidHandler;
+            handler = Handler!void.getHandler();
         }
         else static if (is(T : VariantN))
         {
@@ -985,14 +1003,14 @@ private:
             }
         }
         else static if (is(T : const(VariantN)))
-            static assert(false, "Unsupport assigning `VariantN` from `const VariantN`");
+            static assert(false, "Unsupport assigning `Variant` from `const Variant`");
         else
         {
             // Assignment must destruct previous value
             static if (Assign)
             {
                 handler.destruct(size, pointer);
-                handler = &voidHandler; // In case of failed initialization
+                handler = Handler!void.getHandler(); // In case of failed initialization
             }
 
             static if (T.sizeof <= size)
@@ -1062,7 +1080,7 @@ private:
                 return VariantN(mixin("doGet!long() " ~ op ~ " rhs"));
         }
 
-        assert(0, "Cannot do VariantN(" ~ AllowedTypes.stringof ~ ") " ~ op ~ " " ~ fullyQualifiedName!T);
+        assert(0, "Cannot do Variant(" ~ AllowedTypes.stringof ~ ") " ~ op ~ " " ~ fullyQualifiedName!T);
     }
 
     VariantN doUnary(string op)() nothrow @safe
@@ -1118,7 +1136,7 @@ private:
             return this;
         }
 
-        assert(0, "Cannot do unary " ~ op ~ "VariantN(" ~ AllowedTypes.stringof ~ ")");
+        assert(0, "Cannot do unary " ~ op ~ "Variant(" ~ AllowedTypes.stringof ~ ")");
     }
 
     VariantN doUnary(string op)() nothrow @safe
@@ -1174,7 +1192,7 @@ private:
             return this;
         }
 
-        assert(0, "Cannot do unary " ~ op ~ "VariantN(" ~ AllowedTypes.stringof ~ ")");
+        assert(0, "Cannot do unary " ~ op ~ "Variant(" ~ AllowedTypes.stringof ~ ")");
     }
 
     @property void* pointer() const nothrow pure return @trusted
@@ -1200,20 +1218,20 @@ private:
         void*[size / (void*).sizeof] dummy;
     }
 
-    Handler!void* handler = &voidHandler;
+    Handler!void* handler = Handler!void.getHandler();
 }
 
 /**
- * Alias for $(LREF VariantN) instantiated with the largest size of `long`, `real`,
+ * Alias for $(LREF Variant) instantiated with the largest size of `long`, `real`,
  * `char[]`, `double[2]`, `void delegate()`.
  * This ensures that `Variant` is large enough to hold all of D's predefined types unboxed,
  * including all numeric types, pointers, delegates, and class references. You may want to use
- * `VariantN` directly with a different maximum size either for
+ * `Variant` directly with a different maximum size either for
  * storing larger types unboxed, or for saving memory.
  */
 alias Variant = VariantN!(maxSize!(long, real, char[], void delegate(), double[2]));
 
-enum isVariant(T) = is(T == Variant);
+enum isVariant(T) = is(T == Variant) || is(Unqual!T == Variant);
 
 /**
  * Returns an array of variants constructed from `args`.
@@ -1296,7 +1314,7 @@ template mapArguments(alias T)
 
 /**
  * Algebraic data type restricted to a closed set of possible
- * types. It's an alias for $(LREF VariantN) with an
+ * types. It's an alias for $(LREF Variant) with an
  * appropriately-constructed maximum size. `Algebraic` is
  * useful when it is desirable to restrict what a discriminated type
  * could hold to the end of defining simpler and more efficient
@@ -1492,12 +1510,10 @@ T* valuePointerOf(T)(size_t storedSize, return void* storedPointer) nothrow @tru
 struct Handler(T)
 {
 public:
+    pragma(inline, true)
     static Handler!T* getHandler() nothrow @trusted
     {
-        static if (is(T == void))
-            return &voidHandler;
-        else
-            return cast(Handler!T*)&hHandler;
+        return cast(Handler!T*)&hHandler;
     }
     private static shared Handler!T hHandler;
 
@@ -1518,6 +1534,10 @@ public:
         destruct = &hDestruct;
     bool function(size_t lhsSize, scope void* lhsStore, size_t rhsSize, scope void* rhsStore) nothrow @safe
         equals = &hEquals;
+    int function(size_t size, scope void* store, scope int delegate(size_t, Variant, Variant, scope void*), scope void*)
+        eachAA = &hEachAA;
+    int function(size_t size, scope void* store, scope int delegate(size_t, Variant, scope void*), scope void*)
+        eachAR = &hEachAR;
     bool function(size_t size, scope void* store, scope void* key, scope TypeInfo keyTypeInfo, void* value) nothrow @trusted
         indexAA = &hIndexAA;
     bool function(size_t size, scope void* store, size_t index, void* value) nothrow @trusted
@@ -1749,15 +1769,51 @@ private:
         }
     }
 
+    static int hEachAA(size_t size, scope void* store,
+        scope int delegate(size_t, Variant, Variant, scope void*) dg, scope void* context)
+    {
+        auto vAA = hValuePointer(size, store);
+        static if (isAssociativeArray!T && is(typeof((*vAA)[T.init.keys[0]] = T.init.values[0])))
+        {
+            size_t i;
+            foreach (k, v; *vAA)
+            {
+                if (const r = dg(i, Variant(k), Variant(v), context))
+                    return r;
+                i++;
+            }
+            return 0;
+        }
+        else
+            return variantNoLengthMarker;
+    }        
+
+    static int hEachAR(size_t size, scope void* store,
+        scope int delegate(size_t, Variant, scope void*) dg, scope void* context)
+    {
+        static if (isArray!T && !is(Unqual!(typeof(T.init[0])) == void))
+        {
+            auto vAR = hValuePointer(size, store);
+            foreach (i, e; *vAR)
+            {
+                if (const r = dg(i, Variant(e), context))
+                    return r;
+            }
+            return 0;
+        }
+        else
+            return variantNoLengthMarker;
+    }        
+
     static bool hIndexAA(size_t size, scope void* store,
         scope void* key, scope TypeInfo keyTypeInfo, void* value) nothrow @trusted
     {
-        auto v = hValuePointer(size, store);
-        static if (isAssociativeArray!T && is(typeof((*v)[T.init.keys[0]] = T.init.values[0])))
+        auto vAA = hValuePointer(size, store);
+        static if (isAssociativeArray!T && is(typeof((*vAA)[T.init.keys[0]] = T.init.values[0])))
         {
             if (typeid(T).key is keyTypeInfo)
             {
-                *(cast(Variant*)value) = (*v)[*(cast(typeof(T.init.keys[0])*)key)];
+                *(cast(Variant*)value) = (*vAA)[*(cast(typeof(T.init.keys[0])*)key)];
                 return true;
             }
             else
@@ -1772,8 +1828,8 @@ private:
     {
         static if (isArray!T && !is(Unqual!(typeof(T.init[0])) == void))
         {
-            auto v = hValuePointer(size, store);
-            *(cast(Variant*)value) = Variant((*v)[index]);
+            auto vAR = hValuePointer(size, store);
+            *(cast(Variant*)value) = Variant((*vAR)[index]);
             return true;
         }
         else
@@ -1881,7 +1937,12 @@ private:
             if (hNullType(size, store) != NullType.value)
                 return false;
 
-            static if (__traits(compiles, { T v; string _ = v.toString(); }))
+            static if (is(T == string))
+            {
+                result = *hValuePointer(size, store);
+                return true;
+            }
+            else static if (__traits(compiles, { T v; string _ = v.toString(); }))
             {
                 result = (*hValuePointer(size, store)).toString();
                 return true;
@@ -2046,8 +2107,6 @@ private:
         } catch (Exception) return false;
     }
 }
-
-__gshared Handler!void voidHandler;
 
 template AssignableTypes(T)
 {
@@ -2278,7 +2337,7 @@ if (isAlgebraic!VariantType && Handlers.length > 0)
     assert(0);
 }
 
-alias This2Variant(V, T...) = AliasSeq!(ReplaceTypeUnless!(isAlgebraic, This, V, T));
+alias This2Variant(V, T...) = AliasSeq!(ReplaceTypeUnless!(isAlgebraic, AnonymousStruct, V, T));
 
 nothrow @safe unittest // maxAlignment
 {
@@ -2309,17 +2368,11 @@ nothrow @safe version(unittest)
     {
         return Handler!string.getHandler();
     }
-
-    auto globalHVoid() @trusted
-    {
-        return &voidHandler;
-    }
 }
 
 nothrow @safe unittest // Handler.getHandler
 {
     auto hVoid = Handler!void.getHandler();
-    assert(hVoid is globalHVoid);
     assert(hVoid.typeInfo(true) is typeid(void));
     assert(hVoid.variantType() == VariantType.null_);
 
@@ -4556,6 +4609,7 @@ nothrow @safe unittest // Variant.opCast!bool
     v = Variant(42); assert(v.toString() == "42");
     v = Variant(42.22); assert(v.toString() == "42.22");
     v = "Hello World!"; assert(v.toString() == "Hello World!");
+    //import std.stdio : writeln; writeln("Variant.toString=", v.toString());
     v = S(); assert(v.toString() == "Hello World!");
     v = new C(); assert(v.toString() == "Hello World!");
     v = 'c'; assert(v.toString() == "c");
@@ -4813,9 +4867,9 @@ unittest // Variant.coerce(object)
     double[string] aa; // key type is string, value type is double
     aa["a"] = 1;
     aa["b"] = 1.4;
-
-    int count = 0;
     Variant va = aa;
+
+    int count;
     foreach (string k, double v; va)
     {
         count++;
@@ -4826,6 +4880,75 @@ unittest // Variant.coerce(object)
             assert(v == 1.4);
     }
     assert(count == 2);
+}
+
+unittest // Variant.each - static array
+{
+    import std.algorithm.iteration : each;
+    import std.conv : to;
+    
+    int[10] arr = [1,2,3,4,5,6,7,8,9,10];
+    Variant v1 = arr;
+    
+    int s1;
+    int sumS1(size_t, Variant e, scope void*)
+    {
+        s1 += e.get!int();
+        return 0;
+    }
+    //pragma(msg, (Parameters!sumS1).stringof);
+    v1.each(&sumS1, null);
+    int s2;
+    arr.each!(n => s2 += n);
+    assert(s1 == s2, s1.to!string ~ " ? " ~ s2.to!string);
+}
+
+unittest // Variant.each - dynamic array
+{
+    import std.algorithm.iteration : each;
+    import std.conv : to;
+    
+    int[] arr = [1,2,3,4,5,6,7,8,9,10];
+    Variant v1 = arr;
+    
+    int s1;
+    int sumS1(size_t, Variant e, scope void*)
+    {
+        s1 += e.get!int();
+        return 0;
+    }
+    //pragma(msg, (Parameters!sumS1).stringof);
+    v1.each(&sumS1, null);
+    int s2;
+    arr.each!(n => s2 += n);
+    assert(s1 == s2, s1.to!string ~ " ? " ~ s2.to!string);
+}
+
+unittest // Variant.each - associative array
+{
+    import std.conv : to;
+    import std.math.operations : isClose;
+
+    double[string] aa; // key type is string, value type is double
+    aa["a"] = 1.2;
+    aa["b"] = 1.4;
+    Variant va = aa;
+    
+    int count;
+    string sk;
+    double sv = 0;
+    int sumS1(size_t, Variant k, Variant v, scope void*)
+    {
+        count++;
+        sk ~= k.get!string();
+        sv += v.get!double();
+        return 0;
+    }
+    //pragma(msg, (Parameters!sumS1).stringof);
+    va.each(&sumS1, null);
+    assert(count == 2);
+    assert(sk == "ab", sk);
+    assert(isClose(sv, 1.2+1.4, 0.01), sv.to!string ~ " ? " ~ (1.2+1.4).to!string);
 }
 
 @system unittest // Algebraic
@@ -4849,7 +4972,7 @@ unittest // Variant.coerce(object)
     }
 
     {
-        alias W1 = This2Variant!(char, int, This[int]);
+        alias W1 = This2Variant!(char, int, AnonymousStruct[int]);
         alias W2 = AliasSeq!(int, char[int]);
         static assert(is(W1 == W2));
 
@@ -4858,7 +4981,7 @@ unittest // Variant.coerce(object)
     }
 
     {
-         alias A = Algebraic!(real, This[], This[int], This[This]);
+         alias A = Algebraic!(real, AnonymousStruct[], AnonymousStruct[int], AnonymousStruct[AnonymousStruct]);
          A v1, v2, v3;
          v2 = 5.0L;
          v3 = 42.0L;
@@ -5385,7 +5508,7 @@ nothrow @safe unittest // Algebraic
 
 @system unittest // https://issues.dlang.org/show_bug.cgi?id=14233
 {
-    alias Atom = Algebraic!(string, This[]);
+    alias Atom = Algebraic!(string, AnonymousStruct[]);
     Atom[] values = [];
     auto a = Atom(values);
 }
@@ -5475,8 +5598,8 @@ nothrow @safe unittest // Algebraic
 
 @safe unittest // https://issues.dlang.org/show_bug.cgi?id=19994
 {
-    alias Inner = Algebraic!(This*);
-    alias Outer = Algebraic!(Inner, This*);
+    alias Inner = Algebraic!(AnonymousStruct*);
+    alias Outer = Algebraic!(Inner, AnonymousStruct*);
 
     static assert(is(Outer.AllowedTypes == AliasSeq!(Inner, Outer*)));
 }
@@ -5535,7 +5658,7 @@ nothrow @safe unittest // Algebraic
     import std.typecons;
 
     alias IntTypedef = Typedef!int;
-    alias V = Algebraic!(int, IntTypedef, This[]);
+    alias V = Algebraic!(int, IntTypedef, AnonymousStruct[]);
 
     V obj = 1;
     obj.visit!(

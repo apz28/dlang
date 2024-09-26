@@ -18,7 +18,7 @@ import std.traits : EnumMembers, Unqual;
 debug(debug_pham_db_db_fbtype) import pham.db.db_debug;
 import pham.utl.utl_array : ShortStringBuffer;
 import pham.utl.utl_enum_set : toName;
-import pham.var.var_variant : Algebraic, Variant, VariantType;
+import pham.var.var_variant : Algebraic, VariantType;
 import pham.db.db_convert : toStringSafe;
 import pham.db.db_message;
 import pham.db.db_type;

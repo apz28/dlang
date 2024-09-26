@@ -16,7 +16,7 @@ import core.time : convert;
 import std.conv : to;
 import std.format: FormatSpec, formatValue;
 public import core.time : dur, Duration;
-import std.range.primitives : isOutputRange, put;
+import std.range.primitives : ElementType, isOutputRange, put;
 import std.traits : fullyQualifiedName, isArray, isSomeChar, Unqual;
 import std.uni : sicmp;
 public import std.uuid : UUID;
@@ -57,7 +57,7 @@ alias Numeric = Decimal128;
 
 nothrow @safe:
 
-static immutable string anonymousParameterNameFmt = "_parameter%d";
+static immutable string anonymousParameterNamePrefix = "_parameter";
 static immutable string returnParameterName = "return";
 
 enum hnsecsPerDay = convert!("hours", "hnsecs")(24);
@@ -85,6 +85,7 @@ enum DbCommandExecuteType : ubyte
 
 enum DbCommandFlag : ubyte
 {
+    activeReader,
     allRowsFetched,
     batched,
     getExecutionPlanning,
@@ -469,7 +470,7 @@ enum DbTransactionState : ubyte
  * $(DbType.datetimeTZ) A type representing a date and time value with time zone awareness
  * $(DbType.time) A type representing a time value
  * $(DbType.timeTZ) A type representing a time value with time zone awareness
- * $(DbType.chars) A simple fixed length type representing a utf8 character
+ * $(DbType.stringFixed) A simple fixed length type representing a utf8 character
  * $(DbType.stringVary) A variable-length of utf8 characters
  * $(DbType.json) A parsed representation of an JSON document
  * $(DbType.xml) A parsed representation of an XML document or fragment
@@ -2070,14 +2071,16 @@ static immutable DbTypeInfo*[string] nativeNameToDbTypeInfos;
 
 static immutable char dbSchemeSeparator = ':';
 
+pragma(inline, true)
 DbType dbArrayOf(DbType elementType) @nogc pure
-in
-{
-    assert(elementType != DbType.array);
-}
-do
 {
     return (DbType.array | elementType);
+}
+
+pragma(inline, true)
+DbType dbArrayElementOf(DbType arrayType) @nogc pure
+{
+    return (~DbType.array & arrayType);
 }
 
 DbType dbTypeOf(T)() @nogc pure
@@ -2094,7 +2097,7 @@ DbType dbTypeOf(T)() @nogc pure
     else static if (is(UT == struct))
         return DbType.record;
     else static if (isArray!T)
-        return DbType.array;
+        return dbArrayOf(dbTypeOf!(ElementType!UT)());
     else
         return DbType.unknown;
 }
@@ -2136,7 +2139,7 @@ bool isDbScheme(string schemeStr, ref DbScheme scheme) @nogc pure
     return false;
 }
 
-bool isDbTypeHasSize(DbType rawType) @nogc pure
+bool isDbTypeHasSize(const(DbType) rawType) @nogc pure
 {
     switch (rawType)
     {
@@ -2155,14 +2158,13 @@ bool isDbTypeHasSize(DbType rawType) @nogc pure
     }
 }
 
-bool isDbTypeHasZeroSizeAsNull(DbType rawType) @nogc pure
+bool isDbTypeHasZeroSizeAsNull(const(DbType) rawType) @nogc pure
 {
     switch (rawType)
     {
         case DbType.text:
         case DbType.json:
         case DbType.xml:
-        case DbType.binaryFixed:
         case DbType.binaryVary:
         case DbType.record:
         case DbType.array:
@@ -2172,9 +2174,21 @@ bool isDbTypeHasZeroSizeAsNull(DbType rawType) @nogc pure
     }
 }
 
-bool isDbTypeString(DbType rawType) @nogc pure
+bool isDbTypeQuoted(const(DbType) rawType) @nogc pure
+{
+    return isDbTypeString(rawType)
+        || rawType == DbType.date
+        || rawType == DbType.datetime
+        || rawType == DbType.datetimeTZ
+        || rawType == DbType.time
+        || rawType == DbType.timeTZ
+        || rawType == rawType.uuid;
+}
+
+bool isDbTypeString(const(DbType) rawType) @nogc pure
 {
     return rawType == DbType.stringVary
+        || rawType == DbType.stringFixed
         || rawType == DbType.text
         || rawType == DbType.json
         || rawType == rawType.xml;
@@ -2733,6 +2747,19 @@ shared static this() nothrow @safe
     handler.flags = ConvertHandlerFlag.implicit;
     ConvertHandler.add!(Time, DbTime)(handler);
     ConvertHandler.add!(const(Time), DbTime)(handler);
+}
+
+unittest // dbArrayOf
+{
+    assert(dbArrayOf(DbType.boolean) == (DbType.array|DbType.boolean));
+    assert(dbArrayOf(DbType.stringVary) == (DbType.array|DbType.stringVary));
+}
+
+unittest // dbArrayElementOf
+{
+    assert(dbArrayElementOf(dbArrayOf(DbType.boolean)) == DbType.boolean);
+    assert(dbArrayElementOf(dbArrayOf(DbType.stringVary)) == DbType.stringVary);
+    assert(dbArrayElementOf(dbArrayOf(DbType.float64)) == DbType.float64);
 }
 
 unittest // dbTypeOf

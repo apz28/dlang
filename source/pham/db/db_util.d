@@ -11,9 +11,37 @@
 
 module pham.db.db_util;
 
-import pham.db.db_type;
-
 nothrow @safe:
+
+int breakSymbol(string fullSymbol, out string schemaOrTable, out string symbol) nothrow pure
+{
+    import pham.utl.utl_array : indexOf;
+
+    if (fullSymbol.length == 0)
+    {
+        schemaOrTable = symbol = null;
+        return 0;
+    }
+
+    const i = fullSymbol.indexOf('.');
+    if (i >= 0)
+    {
+        schemaOrTable = fullSymbol[0..i];
+        symbol = fullSymbol[i+1..$];
+        return 2;
+    }
+    else
+    {
+        schemaOrTable = null;
+        symbol = fullSymbol;
+        return 1;
+    }
+}
+
+string combineSymbol(string schemaOrTable, string symbol) nothrow pure
+{
+    return schemaOrTable.length ? (schemaOrTable ~ "." ~ symbol) : symbol;
+}
 
 version(none)
 string dictionaryGet(ref const(string[string]) values, string name, string notFoundValue) pure
@@ -44,13 +72,29 @@ do
     return value;
 }
 
-string makeCommandName(void* command, uint counter)
+version(none)
+char isQuoted(scope const(char)[] symbol) @nogc nothrow pure
 {
-    import std.format : format;
+    if (symbol.length <= 1)
+        return '\0';
 
-    scope (failure) assert(0, "Assume nothrow failed");
+    const first = symbol[0];
+    return first == symbol[$-1] && (first == '"' || first == '\'' || first == '`')
+        ? first
+        : '\0';
+}
 
-    return format("%X_%u", command, counter);
+string makeCommandName(const(void*) command, uint counter)
+{
+    import pham.utl.utl_array : Appender;
+    import pham.utl.utl_object : nToString = toString;
+
+    auto result = Appender!string((size_t.sizeof * 2) + 10 + 2);
+    return result.put('x') // Name must start with a character, so pick one
+        .nToString!16(cast(size_t)command)
+        .put('_')
+        .nToString(counter)
+        .data;
 }
 
 /** Returns a string of all integers into its concatenated string separated by separator
@@ -63,18 +107,18 @@ string makeCommandName(void* command, uint counter)
 */
 string toSeparatedString(scope const(int)[] values, const(char)[] separator) pure
 {
-    import std.conv : to;
     import pham.utl.utl_array : Appender;
+    import pham.utl.utl_object : nToString = toString;
 
     if (values.length == 0)
         return null;
 
-    auto result = Appender!string(values.length * 9);
+    auto result = Appender!string(values.length * 10);
     foreach (v; values)
     {
         if (result.length)
             result.put(separator);
-        result.put(to!string(v));
+        result.nToString(v);
     }
     return result.data;
 }
@@ -128,6 +172,33 @@ if (is(A == const(char)[]) || is(A == char[]))
 // Any below codes are private
 private:
 
+unittest // combineSymbol
+{
+    assert(combineSymbol(null, "xyz") == "xyz");
+    assert(combineSymbol("ABC", "xyz") == "ABC.xyz");
+}
+
+unittest // breakSymbol
+{
+    string s1, s2;
+
+    assert(breakSymbol(null, s1, s2) == 0);
+    assert(s1.length == 0);
+    assert(s2.length == 0);
+
+    assert(breakSymbol("xyz", s1, s2) == 1);
+    assert(s1.length == 0);
+    assert(s2 == "xyz");
+
+    assert(breakSymbol("ABC.", s1, s2) == 2);
+    assert(s1 == "ABC");
+    assert(s2.length == 0);
+
+    assert(breakSymbol("ABC.xyz", s1, s2) == 2);
+    assert(s1 == "ABC");
+    assert(s2 == "xyz");
+}
+
 unittest // truncate
 {
     assert(truncate("", 2) == "");
@@ -140,4 +211,10 @@ unittest // versionString
     assert(toVersionString([]) == "");
     assert(toVersionString([1]) == "1");
     assert(toVersionString([1, 2, 3]) == "1.2.3");
+}
+
+@trusted unittest // makeCommandName
+{
+    assert(makeCommandName(null, 20) == "x0_20");
+    assert(makeCommandName(cast(void*)0x1234Abc, 20) == "x1234ABC_20");
 }

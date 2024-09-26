@@ -17,7 +17,6 @@ public import core.time : Duration, dur;
 public import std.ascii : newline;
 import std.conv : to;
 import std.format : format;
-import std.range.primitives : isOutputRange;
 import std.traits : FieldNameTuple, Unqual;
 import std.typecons : Flag, No, Yes;
 
@@ -111,7 +110,8 @@ package(pham.db) enum ResetStatementKind : ubyte
 abstract class DbCommand : DbDisposableObject
 {
 public:
-    this(DbConnection connection, string name = null) nothrow @safe
+    this(DbConnection connection,
+        string name = null) nothrow @safe
     in
     {
         assert(connection !is null);
@@ -127,7 +127,8 @@ public:
         this.notifyMessage = connection.notifyMessage;
     }
 
-    this(DbConnection connection, DbTransaction transaction, string name = null) nothrow @safe
+    this(DbConnection connection, DbTransaction transaction,
+        string name = null) nothrow @safe
     in
     {
         assert(connection !is null);
@@ -378,6 +379,7 @@ public:
             //_recordsAffected.reset(); // The value is needed to return to caller, so do not reset here
             _handle.reset();
             _baseCommandType = 0;
+            _flags.activeReader = false;
             _flags.prepared = false;
             _commandState = DbCommandState.unprepared;
         }
@@ -411,7 +413,7 @@ public:
 
     @property final bool activeReader() const nothrow @safe
     {
-        return _activeReader;
+        return _flags.activeReader;
     }
 
     @property final bool allRowsFetched() const nothrow @safe
@@ -718,7 +720,7 @@ package(pham.db):
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(funcName=", funcName, ")");
 
-        if (_activeReader)
+        if (_flags.activeReader)
             throw new DbException(0, DbMessage.eInvalidCommandActiveReader, null, funcName, file, line);
 
         if (_connection is null)
@@ -761,7 +763,7 @@ package(pham.db):
 
         doExecuteCommand(DbCommandExecuteType.reader);
         connection._readerCounter++;
-        _activeReader = true;
+        _flags.activeReader = true;
         return DbReader(this, executePrep.resetTransaction, ownCommand);
     }
 
@@ -825,26 +827,20 @@ protected:
     final void buildParameterNameCallback(ref Appender!string result, string parameterName, uint32 ordinal) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(parameterName=", parameterName, ", ordinal=", ordinal, ")");
-        scope (failure) assert(0, "Assume nothrow failed");
 
         // Construct sql
-        result.put(buildParameterPlaceholder(parameterName, ordinal));
+        result.put(database.parameterPlaceholder(parameterName, ordinal));
 
         // Create parameter
-        auto localParameters = parameters;
-        if (localParameters.length == 0)
-            localParameters.reserve(20);
+        auto params = parameters; // Use local var to avoid function call
+        if (params.length == 0)
+            params.reserve(20);
         DbParameter found;
         if (parameterName.length == 0)
-            found = localParameters.add(format(anonymousParameterNameFmt, ordinal), DbType.unknown);
-        else if (!localParameters.find(parameterName, found))
-            found = localParameters.add(parameterName, DbType.unknown);
+            found = params.add(DbParameter.generateName(ordinal), DbType.unknown);
+        else if (!params.find(parameterName, found))
+            found = params.add(parameterName, DbType.unknown);
         found.ordinal = ordinal;
-    }
-
-    string buildParameterPlaceholder(string parameterName, uint32 ordinal) nothrow @safe
-    {
-        return "?";
     }
 
     string buildStoredProcedureSql(string storedProcedureName, const(BuildCommandTextState) state) @safe
@@ -863,7 +859,7 @@ protected:
         {
             if (i)
                 result.put(',');
-			result.put(buildParameterPlaceholder(param.name, cast(uint32)(i + 1)));
+			result.put(database.parameterPlaceholder(param.name, cast(uint32)(i + 1)));
         }
         result.put(')');
 
@@ -1013,13 +1009,13 @@ protected:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        auto localParameters = parameters;
+        auto params = parameters; // Use local var to avoid function call
         size_t i;
         foreach (ref value; values[])
         {
-            while (i < localParameters.length)
+            while (i < params.length)
             {
-                auto param = localParameters[i++];
+                auto param = params[i++];
                 enum outputOnly = false;
                 if (param.isOutput(outputOnly))
                 {
@@ -1027,7 +1023,7 @@ protected:
                     break;
                 }
             }
-            if (i >= localParameters.length)
+            if (i >= params.length)
                 break;
         }
     }
@@ -1049,10 +1045,10 @@ protected:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        if (_activeReader && value.command is this)
+        if (_flags.activeReader && value.command is this)
         {
+            _flags.activeReader = false;
             connection._readerCounter--;
-            _activeReader = false;
             removeReaderCompleted(value.implicitTransaction);
         }
     }
@@ -1267,7 +1263,6 @@ protected:
     EnumSet!DbCommandFlag _flags;
     DbCommandState _commandState;
     DbCommandType _commandType;
-    bool _activeReader;
 
 private:
     DbCommand _next;
@@ -1415,7 +1410,8 @@ public:
         return _commands.insertEnd(database.createCommand(this, name));
     }
 
-    final DbCommand createCommandDDL(string commandDDL, string name = null) @safe
+    final DbCommand createCommandDDL(string commandDDL,
+        string name = null) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
@@ -1424,7 +1420,8 @@ public:
         return result;
     }
 
-    final DbCommand createCommandText(string commandText, string name = null) @safe
+    final DbCommand createCommandText(string commandText,
+        string name = null) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
@@ -1434,7 +1431,8 @@ public:
     }
 
     /// Returns true if create, false otherwise
-    final bool createTableOrEmpty(string tableName, string createCommandText, string schema = null) @safe
+    final bool createTableOrEmpty(string tableName, string createCommandText,
+        string schema = null) @safe
     {
         if (existTable(tableName, schema))
         {
@@ -1470,7 +1468,8 @@ public:
         return _defaultTransaction;
     }
 
-    final DbRecordsAffected executeNonQuery(string commandText, DbParameterList commandParameters = null) @safe
+    final DbRecordsAffected executeNonQuery(string commandText,
+        DbParameterList commandParameters = null) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
@@ -1486,7 +1485,8 @@ public:
         return command.executeNonQuery();
     }
 
-    final DbReader executeReader(string commandText, DbParameterList commandParameters = null) @safe
+    final DbReader executeReader(string commandText,
+        DbParameterList commandParameters = null) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
@@ -1499,7 +1499,8 @@ public:
         return command.executeReaderImpl(true);
     }
 
-    final DbValue executeScalar(string commandText, DbParameterList commandParameters = null) @safe
+    final DbValue executeScalar(string commandText,
+        DbParameterList commandParameters = null) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
@@ -1515,7 +1516,8 @@ public:
         return command.executeScalar();
     }
 
-    final bool existFunction(string functionName, string schema = null) @safe
+    final bool existFunction(string functionName,
+        string schema = null) @safe
     {
         return existRoutine(functionName, "FUNCTION", schema);
     }
@@ -1525,7 +1527,8 @@ public:
      *   routineName = a function or stored-procedure name
      *   type = FUNCTION or PROCEDURE
      */
-    bool existRoutine(string routineName, string type, string schema = null) @safe
+    bool existRoutine(string routineName, string type,
+        string schema = null) @safe
     {
         static immutable string SQL = "select 1" ~
             " from INFORMATION_SCHEMA.ROUTINES" ~
@@ -1546,12 +1549,14 @@ public:
         return !r.isNull && r.value == 1;
     }
 
-    final bool existStoredProcedure(string storedProcedureName, string schema = null) @safe
+    final bool existStoredProcedure(string storedProcedureName,
+        string schema = null) @safe
     {
         return existRoutine(storedProcedureName, "PROCEDURE", schema);
     }
 
-    bool existTable(string tableName, string schema = null) @safe
+    bool existTable(string tableName,
+        string schema = null) @safe
     {
         static immutable string SQL = "select 1" ~
             " from INFORMATION_SCHEMA.TABLES" ~
@@ -1571,7 +1576,8 @@ public:
         return !r.isNull && r.value == 1;
     }
 
-    bool existView(string viewName, string schema = null) @safe
+    bool existView(string viewName,
+        string schema = null) @safe
     {
         static immutable string SQL = "select 1" ~
             " from INFORMATION_SCHEMA.VIEWS" ~
@@ -1608,7 +1614,7 @@ public:
         return _connectionStringBuilder.forLogInfo();
     }
 
-    final string limitClause(int rows, uint offset = 0) const nothrow pure @safe
+    final string limitClause(int32 rows, uint32 offset = 0) const nothrow pure @safe
     in
     {
         assert(_database !is null);
@@ -1617,7 +1623,7 @@ public:
     {
         return _database.limitClause(rows, offset);
     }
-    
+
     final typeof(this) open() @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(state=", state, ")");
@@ -3335,53 +3341,44 @@ public:
         _stringConcatOp = "||";
     }
 
-    final string concate(scope const(char)[][] strings) const nothrow pure
+    final string concate(scope const(char)[][] terms) const nothrow pure
     in
     {
-        assert(strings.length >= 2);
+        assert(terms.length >= 2);
     }
     do
     {
         size_t resultLength = _stringConcatOp.length
-            ? strings[0].length
-            : ("concat()".length + strings[0].length);
-        foreach (s; strings[1..$])
-        {
-            resultLength += _stringConcatOp.length
-                ? (s.length + _stringConcatOp.length + 2)
-                : (s.length + 2);
-        }
+            ? terms[0].length
+            : ("concat()".length + terms[0].length);
+        const sepLength = _stringConcatOp.length ? (_stringConcatOp.length + 2) : 2;
+        foreach (s; terms[1..$])
+            resultLength += sepLength + s.length;
         auto result = Appender!string(resultLength);
-        return concate(result, strings).data;
+        return concate(result, terms).data;
     }
-    
-    final ref Writer concate(Writer)(return ref Writer writer, scope const(char)[][] strings) const nothrow pure
+
+    final ref Writer concate(Writer)(return ref Writer writer, scope const(char)[][] terms) const nothrow pure
     in
     {
-        assert(strings.length >= 2);
+        assert(terms.length >= 2);
     }
     do
     {
         if (_stringConcatOp.length == 0)
             writer.put("concat(");
-        writer.put(strings[0]);
-        foreach (s; strings[1..$])
+        writer.put(terms[0]);
+        const sep = _stringConcatOp.length ? (" " ~ _stringConcatOp ~ " ") : ", ";
+        foreach (s; terms[1..$])
         {
-            if (_stringConcatOp.length == 0)
-                writer.put(", ");
-            else
-            {
-                writer.put(" ");
-                writer.put(_stringConcatOp);
-                writer.put(" ");
-            }
+            writer.put(sep);
             writer.put(s);
         }
         if (_stringConcatOp.length == 0)
             writer.put(")");
         return writer;
     }
-    
+
     abstract const(string[]) connectionStringParameterNames() const nothrow pure;
     abstract DbColumn createColumn(DbCommand command, DbIdentitier name) nothrow;
     abstract DbColumnList createColumnList(DbCommand command) nothrow;
@@ -3562,27 +3559,64 @@ public:
         return storedProcedureName ~ ".StoredProcedure." ~ databaseCacheKey;
     }
 
-    abstract string limitClause(int rows, uint offset = 0) const nothrow pure;
+
+    /**
+     * Return a contruct to limits the rows returned in a query result set to a specified number of rows
+     * witch the OFFSET clause.
+     * However, MS-SQL engine requires there is an ORDER BY clause
+     * Params:
+     *   rows = specified number of rows to return
+     *          < 0 - returns empty
+     *          database engine specific limit keyword ...(1...)
+     *   offset = specified number of rows to be skipped
+     * SELECT column... FROM table... [ORDER BY...] specific limit keyword 1... specific offset keyword 0...
+     */
+    abstract string limitClause(int32 rows, uint32 offset = 0) const nothrow pure;
+
+    string parameterPlaceholder(string parameterName, uint32 ordinal) const nothrow pure @safe
+    {
+        return "?";
+    }
 
     final string quoteIdentifier(scope const(char)[] value) const nothrow pure
     {
         auto result = Appender!string(value.length + 10);
-        result.put(identifierQuoteChar);
-        escapeIdentifierImpl(result, value, escapeStartIndex(value, CharClass.idenfifierQuote));
-        result.put(identifierQuoteChar);
-        return result.data;
+        return quoteIdentifier(result, value).data;
+    }
+
+    final ref Writer quoteIdentifier(Writer)(return ref Writer writer, scope const(char)[] value) const nothrow pure
+    {
+        writer.put(identifierQuoteChar);
+        escapeIdentifierImpl(writer, value, escapeStartIndex(value, CharClass.idenfifierQuote));
+        writer.put(identifierQuoteChar);
+        return writer;
     }
 
     final string quoteString(scope const(char)[] value) const nothrow pure
     {
         auto result = Appender!string(value.length + 50);
-        result.put(stringQuoteChar);
-        escapeStringImpl(result, value, escapeStartIndex(value, CharClass.stringQuote));
-        result.put(stringQuoteChar);
-        return result.data;
+        return quoteString(result, value).data;
     }
 
-    abstract string topClause(int rows) const nothrow pure;
+    final ref Writer quoteString(Writer)(return ref Writer writer, scope const(char)[] value) const nothrow pure
+    {
+        writer.put(stringQuoteChar);
+        escapeStringImpl(writer, value, escapeStartIndex(value, CharClass.stringQuote));
+        writer.put(stringQuoteChar);
+        return writer;
+    }
+
+    /**
+     * Return a contruct to limits the rows returned in a query result set to a specified number of rows.
+     * However, not all database engines support this contruct. If the rows is greater than 0,
+     * it is better to use `limitClause` instead. Only Firebird & MS-SQL support it.
+     * Params:
+     *   rows = specified number of rows to return
+     *          < 0 - returns empty
+     *          database engine specific top keyword...(1...)
+     * SELECT topClause(1...) column... FROM table...
+     */
+    abstract string topClause(int32 rows) const nothrow pure;
 
     @property final DbCache!string cache() nothrow pure
     {
@@ -4282,6 +4316,17 @@ public:
         this._flags = source._flags;
         this._direction = source._direction;
         return this;
+    }
+
+    static string generateName(uint32 ordinal) nothrow pure @safe
+    {
+        import pham.utl.utl_array : Appender;
+        import pham.utl.utl_object : nToString = toString;
+
+        auto buffer = Appender!string(anonymousParameterNamePrefix.length + 10);
+        return buffer.put(anonymousParameterNamePrefix)
+            .nToString(ordinal)
+            .data;
     }
 
     final bool hasInputValue() const nothrow @safe
@@ -5755,140 +5800,6 @@ private:
 
 mixin DLinkTypes!(DbTransaction) DLinkDbTransactionTypes;
 
-int breakSymbol(string fullSymbol, out string schemaOrTable, out string symbol) nothrow pure @safe
-{
-    import pham.utl.utl_array : indexOf;
-
-    if (fullSymbol.length == 0)
-    {
-        schemaOrTable = symbol = null;
-        return 0;
-    }
-
-    const i = fullSymbol.indexOf('.');
-    if (i >= 0)
-    {
-        schemaOrTable = fullSymbol[0..i];
-        symbol = fullSymbol[i+1..$];
-        return 2;
-    }
-    else
-    {
-        schemaOrTable = null;
-        symbol = fullSymbol;
-        return 1;
-    }
-}
-
-string combineSymbol(string schemaOrTable, string symbol) nothrow pure @safe
-{
-    return schemaOrTable.length ? (schemaOrTable ~ "." ~ symbol) : symbol;
-}
-
-version(none)
-char isQuoted(scope const(char)[] symbol) @nogc nothrow pure @safe
-{
-    if (symbol.length <= 1)
-        return '\0';
-
-    const first = symbol[0];
-    return first == symbol[$-1] && (first = '"' || first = '\'' || first == '`')
-        ? first
-        : '\0';
-}
-
-ref Writer columnNameString(Writer, List)(return ref Writer writer, List names,
-    const(char)[] separator = ",") nothrow @safe
-if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
-{
-    foreach(i, e; names)
-    {
-        if (i)
-            writer.put(separator);
-        writer.put(e.name.value);
-    }
-    return writer;
-}
-
-ref Writer parameterNameString(Writer, List)(return ref Writer writer, List names,
-    const(char)[] separator = ",") nothrow @safe
-if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
-{
-    foreach(i, e; names)
-    {
-        if (i)
-            writer.put(separator);
-        writer.put('@');
-        writer.put(e.name.value);
-    }
-    return writer;
-}
-
-ref Writer parameterConditionString(Writer, List)(return ref Writer writer, List names,
-    const(bool) all = false,
-    const(char)[] logicalOp = "and") nothrow @safe
-if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
-{
-    uint count;
-    foreach(e; names)
-    {
-        if (all || e.isKey)
-        {
-            if (count)
-            {
-                writer.put(" ");
-                writer.put(logicalOp);
-                writer.put(" ");
-            }
-            writer.put(e.name.value);
-            writer.put("=@");
-            writer.put(e.name.value);
-            count++;
-        }
-    }
-    return writer;
-}
-
-ref Writer parameterUpdateString(Writer, List)(return ref Writer writer, List names,
-    const(char)[] separator = ",") nothrow @safe
-if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
-{
-    static if (is(List : DbParameterList))
-        alias DbItem = DbParameter;
-    else
-        alias DbItem = DbColumn;
-
-    size_t[] keyIndexes;
-    uint count;
-    foreach(i, e; names)
-    {
-        if (e.isKey)
-        {
-            keyIndexes ~= i;
-            continue;
-        }
-
-        if (count)
-            writer.put(separator);
-        writer.put(e.name.value);
-        writer.put("=@");
-        writer.put(e.name.value);
-        count++;
-    }
-
-    if (keyIndexes.length)
-    {
-        DbItem[] keyItems;
-        keyItems.reserve(keyIndexes.length);
-        for (auto i = keyIndexes.length; i != 0; i--)
-            keyItems ~= names.remove(keyIndexes[i - 1]);
-        for (auto i = keyItems.length; i != 0; i--)
-            names.put(keyItems[i - 1]);
-    }
-
-    return writer;
-}
-
 
 // Any below codes are private
 private:
@@ -5917,85 +5828,4 @@ shared static ~this() nothrow
         _secondTimer.destroy();
         _secondTimer = null;
     }
-}
-
-unittest // combineSymbol
-{
-    assert(combineSymbol(null, "xyz") == "xyz");
-    assert(combineSymbol("ABC", "xyz") == "ABC.xyz");
-}
-
-unittest // breakSymbol
-{
-    string s1, s2;
-
-    assert(breakSymbol(null, s1, s2) == 0);
-    assert(s1.length == 0);
-    assert(s2.length == 0);
-
-    assert(breakSymbol("xyz", s1, s2) == 1);
-    assert(s1.length == 0);
-    assert(s2 == "xyz");
-
-    assert(breakSymbol("ABC.", s1, s2) == 2);
-    assert(s1 == "ABC");
-    assert(s2.length == 0);
-
-    assert(breakSymbol("ABC.xyz", s1, s2) == 2);
-    assert(s1 == "ABC");
-    assert(s2 == "xyz");
-}
-
-unittest // columnNameString
-{
-    import pham.utl.utl_array : Appender;
-
-    auto parameters = new DbParameterList(null);
-    parameters.add("colum1", DbType.int32);
-    parameters.add("colum2", DbType.int32);
-
-    auto buffer = Appender!string(20);
-    auto text = buffer.columnNameString(parameters)[];
-    assert(text == "colum1,colum2", text);
-}
-
-unittest // parameterNameString
-{
-    import pham.utl.utl_array : Appender;
-
-    auto parameters = new DbParameterList(null);
-    parameters.add("colum1", DbType.int32);
-    parameters.add("colum2", DbType.int32);
-
-    auto buffer = Appender!string(20);
-    auto text = buffer.parameterNameString(parameters)[];
-    assert(text == "@colum1,@colum2", text);
-}
-
-unittest // parameterConditionString
-{
-    import pham.utl.utl_array : Appender;
-
-    auto parameters = new DbParameterList(null);
-    parameters.add("colum1", DbType.int32).isKey = true;
-    parameters.add("colum2", DbType.int32);
-    parameters.add("colum3", DbType.int32).isKey = true;
-
-    auto buffer = Appender!string(50);
-    auto text = buffer.parameterConditionString(parameters)[];
-    assert(text == "colum1=@colum1 and colum3=@colum3", text);
-}
-
-unittest // parameterUpdateString
-{
-    import pham.utl.utl_array : Appender;
-
-    auto parameters = new DbParameterList(null);
-    parameters.add("colum1", DbType.int32);
-    parameters.add("colum2", DbType.int32);
-    parameters.add("colum3", DbType.int32).isKey = true;
-
-    auto buffer = Appender!string(20);
-    auto text = buffer.parameterUpdateString(parameters)[];
-    assert(text == "colum1=@colum1,colum2=@colum2", text);
 }

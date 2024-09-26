@@ -714,11 +714,6 @@ public:
     }
 
 protected:
-    final override string buildParameterPlaceholder(string parameterName, uint32 ordinal) nothrow @safe
-    {
-        return "$" ~ ordinal.to!string();
-    }
-
     override string buildStoredProcedureSql(string storedProcedureName, const(BuildCommandTextState) state) @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ", state=", state, ")");
@@ -731,10 +726,10 @@ protected:
             auto info = pgConnection.getStoredProcedureInfo(storedProcedureName);
             if (info !is null)
             {
-                auto localParameters = parameters;
-                localParameters.reserve(info.argumentTypes.length);
+                auto params = parameters; // Use local var to avoid function call
+                params.reserve(info.argumentTypes.length);
                 foreach (src; info.argumentTypes)
-                    localParameters.addClone(src);
+                    params.addClone(src);
             }
         }
 
@@ -755,7 +750,7 @@ protected:
                 if (param.direction == DbParameterDirection.output)
                     result.put("NULL");
                 else
-                    result.put(buildParameterPlaceholder(param.name, cast(uint32)(i + 1)));
+                    result.put(database.parameterPlaceholder(param.name, cast(uint32)(i + 1)));
             }
         }
         result.put(')');
@@ -976,10 +971,10 @@ protected:
             return;
 
         const localIsStoredProcedure = isStoredProcedure;
-        auto localParameters = localIsStoredProcedure ? parameters : null;
+        auto params = localIsStoredProcedure ? parameters : null; // Use local var to avoid function call
         if (localIsStoredProcedure)
-            localParameters.reserve(oidColumnInfos.length);
-        auto localColumns = columns;
+            params.reserve(oidColumnInfos.length);
+        auto localColumns = columns; // Use local var to avoid function call
         localColumns.reserve(oidColumnInfos.length);
         foreach (i, ref oidColumn; oidColumnInfos)
         {
@@ -989,13 +984,13 @@ protected:
 
             if (localIsStoredProcedure)
             {
-                auto foundParameter = localParameters.hasOutput(newColumn.name, i);
+                auto foundParameter = params.hasOutput(newColumn.name, i);
                 if (foundParameter is null)
                 {
-                    auto newParameter = localParameters.create(newColumn.name);
+                    auto newParameter = params.create(newColumn.name);
                     newParameter.direction = DbParameterDirection.output;
                     fillNamedColumn(newParameter, oidColumn, true);
-                    localParameters.put(newParameter);
+                    params.put(newParameter);
                 }
                 else
                 {
@@ -1488,10 +1483,10 @@ public:
 
     // https://www.postgresql.org/docs/13/sql-select.html#SQL-LIMIT
     // LIMIT { count | ALL } OFFSET start
-    final override string limitClause(int rows, uint offset = 0) const nothrow pure @safe
+    final override string limitClause(int32 rows, uint32 offset = 0) const nothrow pure @safe
     {
-        import std.format : sformat;
-        scope (failure) assert(0, "Assume nothrow failed");
+        import pham.utl.utl_array : Appender;
+        import pham.utl.utl_object : nToString = toString;
 
         // No restriction
         if (rows < 0)
@@ -1501,13 +1496,28 @@ public:
         if (rows == 0)
             return "LIMIT 0 OFFSET 0";
 
-        char[50] buffer;
-        return sformat(buffer[], "LIMIT %d OFFSET %d", rows, offset).idup;
+        auto buffer = Appender!string(50);
+        return buffer.put("LIMIT ")
+            .nToString(rows)
+            .put(" OFFSET ")
+            .nToString(offset)
+            .data;
+    }
+
+    final override string parameterPlaceholder(string parameterName, uint32 ordinal) const nothrow pure @safe
+    {
+        import pham.utl.utl_array : Appender;
+        import pham.utl.utl_object : nToString = toString;
+        
+        auto buffer = Appender!string(1 + 10);
+        return buffer.put('$')
+            .nToString(ordinal)
+            .data;
     }
 
     // Does not support this contruct
     // select TOP(?) ... from ...
-    final override string topClause(int rows) const nothrow pure @safe
+    final override string topClause(int32 rows) const nothrow pure @safe
     {
         return null;
     }
@@ -1686,9 +1696,9 @@ public:
     }
 
 protected:
-    final string buildTransactionCommandText() nothrow @safe
+    final string buildTransactionCommandText() const nothrow @safe
     {
-        string writeOrReadMode() nothrow @safe
+        string writeOrReadMode() const nothrow @safe
         {
             return readOnly ? "READ ONLY" : "READ WRITE";
         }

@@ -16,7 +16,6 @@ import std.math : isNaN;
 import std.typecons : Flag, No, Yes;
 
 debug(debug_pham_xml_xml_xpath) import std.stdio : writeln;
-
 import pham.utl.utl_object : className, shortClassName, singleton;
 import pham.utl.utl_enum_set : EnumArray;
 import pham.xml.xml_buffer;

@@ -140,10 +140,10 @@ protected:
             auto info = myConnection.getStoredProcedureInfo(storedProcedureName);
             if (info !is null)
             {
-                auto localParameters = parameters;
-                localParameters.reserve(info.argumentTypes.length);
+                auto params = parameters; // Use local var to avoid function call
+                params.reserve(info.argumentTypes.length);
                 foreach (src; info.argumentTypes)
-                    localParameters.addClone(src);
+                    params.addClone(src);
             }
         }
 
@@ -428,31 +428,31 @@ protected:
 
         if (response.parameters.length != 0)
         {
-            auto localParameters = parameters;
-            localParameters.reserve(response.parameters.length);
+            auto params = parameters; // Use local var to avoid function call
+            params.reserve(response.parameters.length);
             foreach (i, ref myParameter; response.parameters)
             {
-                 if (i >= localParameters.length)
+                 if (i >= params.length)
                 {
                     auto newName = myParameter.useName;
-                    if (localParameters.exist(newName))
-                        newName = localParameters.generateName();
-                    auto newParameter = localParameters.create(newName);
+                    if (params.exist(newName))
+                        newName = params.generateName();
+                    auto newParameter = params.create(newName);
                     fillNamedColumn(newParameter, myParameter, true);
-                    localParameters.put(newParameter);
+                    params.put(newParameter);
                 }
                 else
-                    fillNamedColumn(localParameters[i], myParameter, false);
+                    fillNamedColumn(params[i], myParameter, false);
             }
         }
 
         if (response.columns.length != 0)
         {
             const localIsStoredProcedure = isStoredProcedure;
-            auto localParameters = localIsStoredProcedure ? parameters : null;
+            auto params = localIsStoredProcedure ? parameters : null; // Use local var to avoid function call
             if (localIsStoredProcedure)
-                localParameters.reserve(response.columns.length);
-            auto localColumns = columns;
+                params.reserve(response.columns.length);
+            auto localColumns = columns; // Use local var to avoid function call
             localColumns.reserve(response.columns.length);
             foreach (i, ref myColumn; response.columns)
             {
@@ -463,13 +463,13 @@ protected:
 
                 if (localIsStoredProcedure)
                 {
-                    auto foundParameter = localParameters.hasOutput(newColumn.name, i);
+                    auto foundParameter = params.hasOutput(newColumn.name, i);
                     if (foundParameter is null)
                     {
-                        auto newParameter = localParameters.create(newColumn.name);
+                        auto newParameter = params.create(newColumn.name);
                         newParameter.direction = DbParameterDirection.output;
                         fillNamedColumn(newParameter, myColumn, true);
-                        localParameters.put(newParameter);
+                        params.put(newParameter);
                     }
                     else
                     {
@@ -1127,10 +1127,10 @@ public:
     // https://dev.mysql.com/doc/refman/8.4/en/select.html
     // [LIMIT {[offset,] row_count | row_count OFFSET offset}]
     // The offset of the initial row is 0 (not 1)
-    final override string limitClause(int rows, uint offset = 0) const nothrow pure @safe
+    final override string limitClause(int32 rows, uint32 offset = 0) const nothrow pure @safe
     {
-        import std.format : sformat;
-        scope (failure) assert(0, "Assume nothrow failed");
+        import pham.utl.utl_array : Appender;
+        import pham.utl.utl_object : nToString = toString;
 
         // No restriction
         if (rows < 0)
@@ -1140,13 +1140,17 @@ public:
         if (rows == 0)
             return "LIMIT 0 OFFSET 0";
 
-        char[50] buffer;
-        return sformat(buffer[], "LIMIT %d OFFSET %d", rows, offset).idup;
+        auto buffer = Appender!string(50);
+        return buffer.put("LIMIT ")
+            .nToString(rows)
+            .put(" OFFSET ")
+            .nToString(offset)
+            .data;
     }
 
     // Does not support this contruct
     // select TOP(?) ... from ...
-    final override string topClause(int rows) const nothrow pure @safe
+    final override string topClause(int32 rows) const nothrow pure @safe
     {
         return null;
     }
@@ -1325,7 +1329,7 @@ public:
     }
 
 protected:
-    final string buildTransactionCommandText() nothrow @safe
+    final string buildTransactionCommandText() const nothrow @safe
     {
         final switch (isolationLevel) with (DbIsolationLevel)
         {
