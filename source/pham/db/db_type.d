@@ -57,8 +57,8 @@ alias Numeric = Decimal128;
 
 nothrow @safe:
 
-static immutable string anonymousParameterNamePrefix = "_parameter";
-static immutable string returnParameterName = "return";
+static immutable string anonymousParameterNamePrefix = "_param";
+static immutable string returnParameterName = "_return";
 
 enum hnsecsPerDay = convert!("hours", "hnsecs")(24);
 //enum hnsecsPerHour = convert!("hours", "hnsecs")(1);

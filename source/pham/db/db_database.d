@@ -91,6 +91,171 @@ private:
     bool _caseSensitive;
 }
 
+class DbColumn : DbNameColumn
+{
+public:
+    this(DbCommand command, DbIdentitier name) nothrow pure @safe
+    {
+        this._command = command;
+        this._name = name;
+        this._flags.allowNull = true;
+    }
+
+    final typeof(this) clone(DbCommand command) nothrow @safe
+    {
+        auto result = createSelf(command);
+        assignTo(result);
+        return result;
+    }
+
+    abstract DbColumn createSelf(DbCommand command) nothrow @safe;
+
+    @property final DbCommand command() nothrow pure @safe
+    {
+        return _command;
+    }
+
+    @property final DbDatabase database() nothrow pure @safe
+    {
+        return _command !is null ? _command.database : null;
+    }
+
+    /** Gets or sets whether this column is aliased
+    */
+    @property final bool isAlias() const nothrow @safe
+    {
+        return _flags.isAlias;
+    }
+
+    @property final typeof(this) isAlias(bool value) nothrow @safe
+    {
+        _flags.isAlias = value;
+        return this;
+    }
+
+    /**
+     * Gets or sets whether this column is an expression
+     */
+    @property final bool isExpression() const nothrow @safe
+    {
+        return _flags.isExpression;
+    }
+
+    @property final typeof(this) isExpression(bool value) nothrow @safe
+    {
+        _flags.isExpression = value;
+        return this;
+    }
+
+    /**
+     * Gets or sets whether a unique constraint applies to this column
+     */
+    @property final bool isUnique() const nothrow @safe
+    {
+        return _flags.isUnique;
+    }
+
+    @property final typeof(this) isUnique(bool value) nothrow @safe
+    {
+        _flags.isUnique = value;
+        return this;
+    }
+
+protected:
+    DbCommand _command;
+}
+
+class DbColumnList : DbNameObjectList!DbColumn, IDisposable
+{
+public:
+    this(DbCommand command) nothrow pure @safe
+    {
+        this._command = command;
+    }
+
+    final typeof(this) clone(DbCommand command) nothrow @safe
+    {
+        auto result = createSelf(command);
+        foreach (column; this)
+            result.add(column.clone(command));
+        return result;
+    }
+
+    abstract DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe;
+
+    final DbColumn create(DbCommand command, string name) nothrow @safe
+    {
+        DbIdentitier id = DbIdentitier(name);
+        return create(command, id);
+    }
+
+    /**
+     * Implement IDisposable.dispose
+     * Will do nothing if called more than one
+     */
+    final void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
+
+        if (!_lastDisposingReason.canDispose(disposingReason))
+            return;
+
+        _lastDisposingReason.value = disposingReason;
+        doDispose(disposingReason);
+    }
+
+    @property final DbCommand command() nothrow pure @safe
+    {
+        return _command;
+    }
+
+    @property final DbDatabase database() nothrow pure @safe
+    {
+        return _command !is null ? _command.database : null;
+    }
+
+    pragma(inline, true)
+    @property final override DisposingReason lastDisposingReason() const @nogc nothrow @safe
+    {
+        return _lastDisposingReason.value;
+    }
+
+protected:
+    override void add(DbColumn item) nothrow
+    {
+        super.add(item);
+        item._ordinal = cast(uint32)length;
+    }
+
+    abstract DbColumnList createSelf(DbCommand command) nothrow @safe;
+
+    void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    {
+        clear();
+        if (isDisposing(disposingReason))
+            _command = null;
+    }
+
+    void resetNewStatement(const(ResetStatementKind) kind) nothrow @safe
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(kind=", kind, ")");
+
+        if (kind < ResetStatementKind.executing)
+            clear();
+    }
+
+protected:
+    DbCommand _command;
+
+private:
+    LastDisposingReason _lastDisposingReason;
+}
+
 package(pham.db) enum BuildCommandTextState : ubyte
 {
     prepare,
@@ -3662,6 +3827,11 @@ public:
         return _stringQuoteChar;
     }
 
+    /**
+     * Returns a separated list of hint keywords if supported
+     */
+    @property abstract string tableHint() const nothrow pure;
+    
 protected:
     final void populateValidParamNameChecks() nothrow @safe
     {
@@ -4115,173 +4285,8 @@ protected:
     //DbCharset _charset;
 }
 
-class DbColumn : DbNameColumn
-{
-public:
-    this(DbCommand command, DbIdentitier name) nothrow pure @safe
-    {
-        this._command = command;
-        this._name = name;
-        this._flags.allowNull = true;
-    }
-
-    final typeof(this) clone(DbCommand command) nothrow @safe
-    {
-        auto result = createSelf(command);
-        assignTo(result);
-        return result;
-    }
-
-    abstract DbColumn createSelf(DbCommand command) nothrow @safe;
-
-    @property final DbCommand command() nothrow pure @safe
-    {
-        return _command;
-    }
-
-    @property final DbDatabase database() nothrow pure @safe
-    {
-        return _command !is null ? _command.database : null;
-    }
-
-    /** Gets or sets whether this column is aliased
-    */
-    @property final bool isAlias() const nothrow @safe
-    {
-        return _flags.isAlias;
-    }
-
-    @property final typeof(this) isAlias(bool value) nothrow @safe
-    {
-        _flags.isAlias = value;
-        return this;
-    }
-
-    /**
-     * Gets or sets whether this column is an expression
-     */
-    @property final bool isExpression() const nothrow @safe
-    {
-        return _flags.isExpression;
-    }
-
-    @property final typeof(this) isExpression(bool value) nothrow @safe
-    {
-        _flags.isExpression = value;
-        return this;
-    }
-
-    /**
-     * Gets or sets whether a unique constraint applies to this column
-     */
-    @property final bool isUnique() const nothrow @safe
-    {
-        return _flags.isUnique;
-    }
-
-    @property final typeof(this) isUnique(bool value) nothrow @safe
-    {
-        _flags.isUnique = value;
-        return this;
-    }
-
-protected:
-    DbCommand _command;
-}
-
 deprecated("please use DbColumn")
 alias DbField = DbColumn;
-
-class DbColumnList : DbNameObjectList!DbColumn, IDisposable
-{
-public:
-    this(DbCommand command) nothrow pure @safe
-    {
-        this._command = command;
-    }
-
-    final typeof(this) clone(DbCommand command) nothrow @safe
-    {
-        auto result = createSelf(command);
-        foreach (column; this)
-            result.add(column.clone(command));
-        return result;
-    }
-
-    abstract DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe;
-
-    final DbColumn create(DbCommand command, string name) nothrow @safe
-    {
-        DbIdentitier id = DbIdentitier(name);
-        return create(command, id);
-    }
-
-    /**
-     * Implement IDisposable.dispose
-     * Will do nothing if called more than one
-     */
-    final void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
-    in
-    {
-        assert(disposingReason != DisposingReason.none);
-    }
-    do
-    {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
-
-        if (!_lastDisposingReason.canDispose(disposingReason))
-            return;
-
-        _lastDisposingReason.value = disposingReason;
-        doDispose(disposingReason);
-    }
-
-    @property final DbCommand command() nothrow pure @safe
-    {
-        return _command;
-    }
-
-    @property final DbDatabase database() nothrow pure @safe
-    {
-        return _command !is null ? _command.database : null;
-    }
-
-    pragma(inline, true)
-    @property final override DisposingReason lastDisposingReason() const @nogc nothrow @safe
-    {
-        return _lastDisposingReason.value;
-    }
-
-protected:
-    override void add(DbColumn item) nothrow
-    {
-        super.add(item);
-        item._ordinal = cast(uint32)length;
-    }
-
-    abstract DbColumnList createSelf(DbCommand command) nothrow @safe;
-
-    void doDispose(const(DisposingReason) disposingReason) nothrow @safe
-    {
-        clear();
-        if (isDisposing(disposingReason))
-            _command = null;
-    }
-
-    void resetNewStatement(const(ResetStatementKind) kind) nothrow @safe
-    {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(kind=", kind, ")");
-
-        if (kind < ResetStatementKind.executing)
-            clear();
-    }
-
-protected:
-    DbCommand _command;
-
-private:
-    LastDisposingReason _lastDisposingReason;
-}
 
 deprecated("please use DbColumnList")
 alias DbFieldList = DbColumnList;
@@ -4577,9 +4582,9 @@ public:
         doDispose(disposingReason);
     }
 
-    final DbIdentitier generateName() nothrow @safe
+    final string generateName() nothrow @safe
     {
-        return generateUniqueName("parameter");
+        return DbParameter.generateName(cast(uint)(length + 1));
     }
 
     final bool hasInput(const(bool) inputOnly = false) const nothrow @safe

@@ -631,6 +631,61 @@ public:
     int32 serverSecretKey;
 }
 
+class PgColumn : DbColumn
+{
+public:
+    this(PgCommand command, DbIdentitier name) nothrow pure @safe
+    {
+        super(command, name);
+    }
+
+    final override DbColumn createSelf(DbCommand command) nothrow @safe
+    {
+        return database !is null
+            ? database.createColumn(cast(PgCommand)command, name)
+            : new PgColumn(cast(PgCommand)command, name);
+    }
+
+    final override DbColumnIdType isValueIdType() const nothrow @safe
+    {
+        return PgOIdColumnInfo.isValueIdType(baseTypeId, baseSubTypeId);
+    }
+
+    @property final PgCommand pgCommand() nothrow pure @safe
+    {
+        return cast(PgCommand)_command;
+    }
+}
+
+class PgColumnList: DbColumnList
+{
+public:
+    this(PgCommand command) nothrow pure @safe
+    {
+        super(command);
+    }
+
+    final override DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe
+    {
+        return database !is null
+            ? database.createColumn(cast(PgCommand)command, name)
+            : new PgColumn(cast(PgCommand)command, name);
+    }
+
+    @property final PgCommand pgCommand() nothrow pure @safe
+    {
+        return cast(PgCommand)_command;
+    }
+
+protected:
+    final override DbColumnList createSelf(DbCommand command) nothrow @safe
+    {
+        return database !is null
+            ? database.createColumnList(cast(PgCommand)command)
+            : new PgColumnList(cast(PgCommand)command);
+    }
+}
+
 class PgCommand : SkCommand
 {
 public:
@@ -1526,60 +1581,10 @@ public:
     {
         return DbScheme.pg;
     }
-}
 
-class PgColumn : DbColumn
-{
-public:
-    this(PgCommand command, DbIdentitier name) nothrow pure @safe
+    @property final override string tableHint() const nothrow pure
     {
-        super(command, name);
-    }
-
-    final override DbColumn createSelf(DbCommand command) nothrow @safe
-    {
-        return database !is null
-            ? database.createColumn(cast(PgCommand)command, name)
-            : new PgColumn(cast(PgCommand)command, name);
-    }
-
-    final override DbColumnIdType isValueIdType() const nothrow @safe
-    {
-        return PgOIdColumnInfo.isValueIdType(baseTypeId, baseSubTypeId);
-    }
-
-    @property final PgCommand pgCommand() nothrow pure @safe
-    {
-        return cast(PgCommand)_command;
-    }
-}
-
-class PgColumnList: DbColumnList
-{
-public:
-    this(PgCommand command) nothrow pure @safe
-    {
-        super(command);
-    }
-
-    final override DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe
-    {
-        return database !is null
-            ? database.createColumn(cast(PgCommand)command, name)
-            : new PgColumn(cast(PgCommand)command, name);
-    }
-
-    @property final PgCommand pgCommand() nothrow pure @safe
-    {
-        return cast(PgCommand)_command;
-    }
-
-protected:
-    final override DbColumnList createSelf(DbCommand command) nothrow @safe
-    {
-        return database !is null
-            ? database.createColumnList(cast(PgCommand)command)
-            : new PgColumnList(cast(PgCommand)command);
+        return null;
     }
 }
 

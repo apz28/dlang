@@ -906,6 +906,61 @@ public:
     FbHandle connectionHandle;
 }
 
+class FbColumn : DbColumn
+{
+public:
+    this(FbCommand command, DbIdentitier name) nothrow pure @safe
+    {
+        super(command, name);
+    }
+
+    final override DbColumn createSelf(DbCommand command) nothrow @safe
+    {
+        return database !is null
+            ? database.createColumn(cast(FbCommand)command, name)
+            : new FbColumn(cast(FbCommand)command, name);
+    }
+
+    final override DbColumnIdType isValueIdType() const nothrow @safe
+    {
+        return FbIscColumnInfo.isValueIdType(baseTypeId, baseSubTypeId);
+    }
+
+    @property final FbCommand fbCommand() nothrow pure @safe
+    {
+        return cast(FbCommand)_command;
+    }
+}
+
+class FbColumnList: DbColumnList
+{
+public:
+    this(FbCommand command) nothrow pure @safe
+    {
+        super(command);
+    }
+
+    final override DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe
+    {
+        return database !is null
+            ? database.createColumn(cast(FbCommand)command, name)
+            : new FbColumn(cast(FbCommand)command, name);
+    }
+
+    @property final FbCommand fbCommand() nothrow pure @safe
+    {
+        return cast(FbCommand)_command;
+    }
+
+protected:
+    final override DbColumnList createSelf(DbCommand command) nothrow @safe
+    {
+        return database !is null
+            ? database.createColumnList(cast(FbCommand)command)
+            : new FbColumnList(cast(FbCommand)command);
+    }
+}
+
 class FbCommand : SkCommand
 {
 public:
@@ -2266,60 +2321,10 @@ public:
     {
         return DbScheme.fb;
     }
-}
 
-class FbColumn : DbColumn
-{
-public:
-    this(FbCommand command, DbIdentitier name) nothrow pure @safe
+    @property final override string tableHint() const nothrow pure
     {
-        super(command, name);
-    }
-
-    final override DbColumn createSelf(DbCommand command) nothrow @safe
-    {
-        return database !is null
-            ? database.createColumn(cast(FbCommand)command, name)
-            : new FbColumn(cast(FbCommand)command, name);
-    }
-
-    final override DbColumnIdType isValueIdType() const nothrow @safe
-    {
-        return FbIscColumnInfo.isValueIdType(baseTypeId, baseSubTypeId);
-    }
-
-    @property final FbCommand fbCommand() nothrow pure @safe
-    {
-        return cast(FbCommand)_command;
-    }
-}
-
-class FbColumnList: DbColumnList
-{
-public:
-    this(FbCommand command) nothrow pure @safe
-    {
-        super(command);
-    }
-
-    final override DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe
-    {
-        return database !is null
-            ? database.createColumn(cast(FbCommand)command, name)
-            : new FbColumn(cast(FbCommand)command, name);
-    }
-
-    @property final FbCommand fbCommand() nothrow pure @safe
-    {
-        return cast(FbCommand)_command;
-    }
-
-protected:
-    final override DbColumnList createSelf(DbCommand command) nothrow @safe
-    {
-        return database !is null
-            ? database.createColumnList(cast(FbCommand)command)
-            : new FbColumnList(cast(FbCommand)command);
+        return null;
     }
 }
 

@@ -50,6 +50,61 @@ public:
     int32 serverProcessId;
 }
 
+class MyColumn : DbColumn
+{
+public:
+    this(MyCommand command, DbIdentitier name) nothrow pure @safe
+    {
+        super(command, name);
+    }
+
+    final override DbColumn createSelf(DbCommand command) nothrow @safe
+    {
+        return database !is null
+            ? database.createColumn(cast(MyCommand)command, name)
+            : new MyColumn(cast(MyCommand)command, name);
+    }
+
+    final override DbColumnIdType isValueIdType() const nothrow @safe
+    {
+        return MyColumnInfo.isValueIdType(baseTypeId, baseSubTypeId);
+    }
+
+    @property final MyCommand myCommand() nothrow pure @safe
+    {
+        return cast(MyCommand)_command;
+    }
+}
+
+class MyColumnList: DbColumnList
+{
+public:
+    this(MyCommand command) nothrow pure @safe
+    {
+        super(command);
+    }
+
+    final override DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe
+    {
+        return database !is null
+            ? database.createColumn(cast(MyCommand)command, name)
+            : new MyColumn(cast(MyCommand)command, name);
+    }
+
+    @property final MyCommand myCommand() nothrow pure @safe
+    {
+        return cast(MyCommand)_command;
+    }
+
+protected:
+    final override DbColumnList createSelf(DbCommand command) nothrow @safe
+    {
+        return database !is null
+            ? database.createColumnList(cast(MyCommand)command)
+            : new MyColumnList(cast(MyCommand)command);
+    }
+}
+
 class MyCommand : SkCommand
 {
 public:
@@ -1159,60 +1214,10 @@ public:
     {
         return DbScheme.my;
     }
-}
 
-class MyColumn : DbColumn
-{
-public:
-    this(MyCommand command, DbIdentitier name) nothrow pure @safe
+    @property final override string tableHint() const nothrow pure
     {
-        super(command, name);
-    }
-
-    final override DbColumn createSelf(DbCommand command) nothrow @safe
-    {
-        return database !is null
-            ? database.createColumn(cast(MyCommand)command, name)
-            : new MyColumn(cast(MyCommand)command, name);
-    }
-
-    final override DbColumnIdType isValueIdType() const nothrow @safe
-    {
-        return MyColumnInfo.isValueIdType(baseTypeId, baseSubTypeId);
-    }
-
-    @property final MyCommand myCommand() nothrow pure @safe
-    {
-        return cast(MyCommand)_command;
-    }
-}
-
-class MyColumnList: DbColumnList
-{
-public:
-    this(MyCommand command) nothrow pure @safe
-    {
-        super(command);
-    }
-
-    final override DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe
-    {
-        return database !is null
-            ? database.createColumn(cast(MyCommand)command, name)
-            : new MyColumn(cast(MyCommand)command, name);
-    }
-
-    @property final MyCommand myCommand() nothrow pure @safe
-    {
-        return cast(MyCommand)_command;
-    }
-
-protected:
-    final override DbColumnList createSelf(DbCommand command) nothrow @safe
-    {
-        return database !is null
-            ? database.createColumnList(cast(MyCommand)command)
-            : new MyColumnList(cast(MyCommand)command);
+        return null;
     }
 }
 
