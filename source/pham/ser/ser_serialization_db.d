@@ -939,7 +939,7 @@ public:
         SqlBuilder builder;
         builder.putStatementOp(StatementOp.update)
             .putTable(attribute.dbName)
-            .parameterUpdateString(commandParameters.reorderKeys())
+            .parameterUpdateColumn(commandParameters.moveBackKeys())
             .parameterConditionStringIf(commandParameters, false)
             .sql(commandText, connection.database, commandParameters);
 

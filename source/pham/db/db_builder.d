@@ -135,11 +135,6 @@ struct GroupBeginTerm
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
@@ -155,11 +150,6 @@ struct GroupEndTerm
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
@@ -172,12 +162,6 @@ struct ColumnTerm
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        aliasOrTable = name = alias_ = null;
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
@@ -264,13 +248,6 @@ struct LimitTerm
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        rows = -1; // -1=no limit
-        offset = 0;
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
@@ -291,12 +268,6 @@ struct LogicalOpTerm
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        logicalOp = LogicalOp.and;
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
@@ -312,13 +283,6 @@ struct ConditionOpTerm
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        customOp = null;
-        conditionOp = ConditionOp.equal;
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
@@ -338,11 +302,6 @@ struct OrderByLiteralTerm
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
@@ -361,12 +320,6 @@ struct OrderByOpTerm
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        orderByOp = OrderByOp.def;
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
@@ -384,12 +337,6 @@ struct ParameterPlaceholderTerm
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        name = null;
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) nothrow
     if (isOutputRange!(Writer, char))
     {
@@ -415,12 +362,6 @@ struct StatementOpTerm
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        statementOp = StatementOp.select;
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
@@ -448,13 +389,6 @@ struct TableTerm
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        nameOrCommand = alias_ = null;
-        join = TableJoin.none;
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
@@ -506,12 +440,6 @@ struct TableHintTerm
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        hint = null;
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
@@ -529,12 +457,6 @@ struct TopTerm
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        rows = -1;
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
@@ -553,14 +475,6 @@ struct ValueTerm
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        parameterName = null;
-        type = DbType.unknown;
-        value.nullify();
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context)
     if (isOutputRange!(Writer, char))
     {
@@ -683,11 +597,6 @@ struct WhereLiteralTerm
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
@@ -796,59 +705,6 @@ public:
         this.tableHint = tableHint;
     }
 
-    ref typeof(this) clear() nothrow return @trusted
-    {
-        final switch (kind)
-        {
-            case TermKind.logicalOp:
-                logicalOp.clear();
-                break;
-            case TermKind.column:
-                column.clear();
-                break;
-            case TermKind.conditionOp:
-                conditionOp.clear();
-                break;
-            case TermKind.value:
-                value.clear();
-                break;
-            case TermKind.parameterPlaceholder:
-                parameterPlaceholder.clear();
-                break;
-            case TermKind.groupBegin:
-                groupBegin.clear();
-                break;
-            case TermKind.groupEnd:
-                groupEnd.clear();
-                break;
-            case TermKind.table:
-                table.clear();
-                break;
-            case TermKind.orderByLiteral:
-                orderByLiteral.clear();
-                break;
-            case TermKind.orderByOp:
-                orderByOp.clear();
-                break;
-            case TermKind.whereLiteral:
-                whereLiteral.clear();
-                break;
-            case TermKind.limit:
-                limit.clear();
-                break;
-            case TermKind.top:
-                top.clear();
-                break;
-            case TermKind.statementOp:
-                statementOp.clear();
-                break;
-            case TermKind.tableHint:
-                tableHint.clear();
-                break;
-        }
-        return this;
-    }
-
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) @trusted
     {
         //import std.stdio : writeln; debug writeln(__FUNCTION__, "(kind=", kind, ")");
@@ -945,12 +801,6 @@ struct SqlBuilder
 @safe:
 
 public:
-    ref typeof(this) clear() nothrow return
-    {
-        terms = [];
-        return this;
-    }
-
     ref typeof(this) put(SqlTerm term) nothrow return
     {
         terms ~= term;
@@ -1237,7 +1087,7 @@ if (is(List : DbParameterList) || is(List : DbColumnList))
     return writer;
 }
 
-ref Writer parameterUpdateString(Writer, List)(return ref Writer writer, List names) nothrow
+ref Writer parameterUpdateColumn(Writer, List)(return ref Writer writer, List names) nothrow
 if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
 {
     uint count;
@@ -1256,7 +1106,7 @@ if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbC
     return writer;
 }
 
-ref SqlBuilder parameterUpdateString(List)(return ref SqlBuilder writer, List names) nothrow
+ref SqlBuilder parameterUpdateColumn(List)(return ref SqlBuilder writer, List names) nothrow
 if (is(List : DbParameterList) || is(List : DbColumnList))
 {
     foreach(e; names)
@@ -1270,7 +1120,7 @@ if (is(List : DbParameterList) || is(List : DbColumnList))
     return writer;
 }
 
-List reorderKeys(List)(List names) nothrow
+List moveBackKeys(List)(List names) nothrow
 if (is(List : DbParameterList) || is(List : DbColumnList))
 {
     static if (is(List : DbParameterList))
@@ -1279,13 +1129,16 @@ if (is(List : DbParameterList) || is(List : DbColumnList))
         alias DbItem = DbColumn;
 
     size_t[] keyIndexes;
+    bool needMove; // Track if all keys are already at the end
     foreach(i, e; names)
     {
         if (e.isKey)
             keyIndexes ~= i;
+        else if (keyIndexes.length)
+            needMove = true;
     }
 
-    if (keyIndexes.length)
+    if (needMove && keyIndexes.length)
     {
         DbItem[] keyItems;
         keyItems.reserve(keyIndexes.length);
@@ -1342,7 +1195,7 @@ unittest // parameterConditionString
     assert(text == "colum1 = @colum1 AND colum3 = @colum3", text);
 }
 
-unittest // parameterUpdateString
+unittest // parameterUpdateColumn
 {
     import pham.utl.utl_array : Appender;
 
@@ -1352,7 +1205,7 @@ unittest // parameterUpdateString
     parameters.add("colum3", DbType.int32).isKey = true;
 
     auto buffer = Appender!string(20);
-    auto text = buffer.parameterUpdateString(parameters)[];
+    auto text = buffer.parameterUpdateColumn(parameters)[];
     assert(text == "colum1 = @colum1, colum2 = @colum2", text);
 }
 
