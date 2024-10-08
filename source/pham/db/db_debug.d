@@ -26,3 +26,23 @@ if (isIntegral!T)
     import std.conv : to;
     debug return n.to!string;
 }
+
+struct DgMarker
+{
+nothrow @safe:
+
+    static immutable string sep = "----------";
+    
+    this(string marker)
+    {
+        this.marker = marker;
+        debug writeln("\nBEG", sep, "\n", marker, "\n", sep, "---\n");
+    }
+    
+    ~this()
+    {
+        debug writeln("\n", sep, "---\n", marker, "\nEND", sep, "\n");
+    }
+    
+    string marker;
+}

@@ -993,7 +993,7 @@ protected:
         _handle.setDummy();
     }
 
-    final override void doUnprepare() @safe
+    final override void doUnprepare(const(bool) isPreparedError) @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 

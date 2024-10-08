@@ -400,11 +400,12 @@ protected:
         processPrepareResponse(response);
     }
 
-    final override void doUnprepare() @safe
+    final override void doUnprepare(const(bool) isPreparedError) @safe
     {
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
 
-        purgePendingRows();
+        if (!isPreparedError)
+            purgePendingRows();
 
         if (_handle)
         {

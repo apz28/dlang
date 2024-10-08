@@ -843,7 +843,10 @@ package(pham.db):
         static if (fbDeferredProtocol)
             protocol.deferredResponses ~= &protocol.blobEndRead;
         else
-            protocol.blobEndRead();
+        {
+            auto deferredInfo = FbDeferredInfo(false);
+            protocol.blobEndRead(deferredInfo);
+        }
     }
 
     void doClose(const(DisposingReason) disposingReason) nothrow
@@ -875,7 +878,10 @@ package(pham.db):
             static if (fbDeferredProtocol)
                 protocol.deferredResponses ~= &protocol.blobEndRead;
             else
-                protocol.blobEndRead();
+            {
+                auto deferredInfo = FbDeferredInfo(false);
+                protocol.blobEndRead(deferredInfo);
+            }
         }
         catch (Exception e)
         {
@@ -1113,20 +1119,22 @@ package(pham.db):
     }
 
 protected:
-    final void allocateHandleRead() @safe
-    {
-        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
-
-        auto protocol = fbConnection.protocol;
-        _handle = protocol.allocateCommandRead(this).handle;
-    }
-
-    final void allocateHandleWrite() @safe
+    final void allocateHandleRead(ref FbDeferredInfo deferredInfo) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         static if (fbDeferredProtocol)
-            _handle = fbCommandDeferredHandle;
+            _handle.reset();
+            
+        auto protocol = fbConnection.protocol;
+        _handle = protocol.allocateCommandRead(this, deferredInfo).handle;
+    }
+
+    static if (!fbDeferredProtocol)
+    final void allocateHandleWrite() @safe
+    {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
+
         auto protocol = fbConnection.protocol;
         protocol.allocateCommandWrite();
     }
@@ -1138,6 +1146,7 @@ protected:
 
         static if (fbDeferredProtocol)
             _handle = fbCommandDeferredHandle;
+            
         auto protocol = fbConnection.protocol;
         protocol.allocateCommandWrite(writer);
         return &allocateHandleRead;
@@ -1161,7 +1170,6 @@ protected:
         {
             batched = false;
             _handle.reset();
-            debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "fbHandle=", fbHandle);
         }
 
         try
@@ -1184,14 +1192,16 @@ protected:
             }
             else
             {
+                auto deferredInfo = FbDeferredInfo(false);
+                
                 if (batched)
                 {
                     protocol.releaseCommandBatchWrite(this);
-                    protocol.releaseCommandBatchRead();
+                    protocol.releaseCommandBatchRead(deferredInfo);
                 }
 
                 protocol.deallocateCommandWrite(this);
-                protocol.deallocateCommandRead();
+                protocol.deallocateCommandRead(deferredInfo);
             }
         }
         catch (Exception e)
@@ -1326,53 +1336,60 @@ protected:
 
         static if (fbDeferredProtocol)
         {
-            FbDeferredResponse[] requestResponses;
+            FbDeferredResponse[] deferredResponses;
+            
             { // Scope
                 auto writer = FbXdrWriter(fbConnection);
 
                 if (!isFbHandle)
-                    requestResponses ~= allocateHandleWrite(writer);
+                    deferredResponses ~= allocateHandleWrite(writer);
 
-                requestResponses ~= doPrepareWrite(writer, sql);
+                deferredResponses ~= doPrepareWrite(writer, sql);
 
                 if (commandType != DbCommandType.ddl)
-                    requestResponses ~= getStatementTypeWrite(writer);
+                    deferredResponses ~= getStatementTypeWrite(writer);
 
                 writer.flush();
             }
 
-            foreach (ref requestResponse; requestResponses)
-                requestResponse();
+            auto deferredInfo = FbDeferredInfo(true);
+            foreach (deferredResponse; deferredResponses)
+                deferredResponse(deferredInfo);
+            if (deferredInfo.hasError)
+                throw deferredInfo.toException();
         }
         else
         {
+            auto deferredInfo = FbDeferredInfo(false);
+            
             if (!isFbHandle)
             {
                 allocateHandleWrite();
-                allocateHandleRead();
+                allocateHandleRead(deferredInfo);
             }
 
             doPrepareWrite(sql);
-            doPrepareRead();
+            doPrepareRead(deferredInfo);
 
             if (commandType != DbCommandType.ddl)
             {
                 getStatementTypeWrite();
-                getStatementTypeRead();
+                getStatementTypeRead(deferredInfo);
             }
         }
 
         debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "fbHandle=", fbHandle, ", baseCommandType=", _baseCommandType);
     }
 
-    final void doPrepareRead() @safe
+    final void doPrepareRead(ref FbDeferredInfo deferredInfo) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
-        processPrepareResponse(protocol.prepareCommandRead(this));
+        processPrepareResponse(protocol.prepareCommandRead(this, deferredInfo));
     }
 
+    static if (!fbDeferredProtocol)
     final void doPrepareWrite(scope const(char)[] sql) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
@@ -1391,7 +1408,7 @@ protected:
         return &doPrepareRead;
     }
 
-    final override void doUnprepare() @safe
+    final override void doUnprepare(const(bool) isPreparedError) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
@@ -1458,14 +1475,15 @@ protected:
         return protocol.recordsAffectedCommandRead(DbRecordsAffectedAggregateResult.changingOnly);
 	}
 
-	final void getStatementTypeRead() @safe
+	final void getStatementTypeRead(ref FbDeferredInfo deferredInfo) @safe
 	{
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         auto protocol = fbConnection.protocol;
-        _baseCommandType = protocol.typeCommandRead(this);
+        _baseCommandType = protocol.typeCommandRead(this, deferredInfo);
 	}
 
+    static if (!fbDeferredProtocol)
 	final void getStatementTypeWrite() @safe
 	{
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");

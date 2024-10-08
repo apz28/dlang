@@ -1120,6 +1120,11 @@ public:
     {
         return FbIscObject(handle, id);
     }
+    
+    @property bool isError() const
+    {
+        return statues.isError;
+    }
 
 public:
     ubyte[] data;
@@ -1675,7 +1680,7 @@ nothrow @safe:
 
 public:
     this(FbIscError[] errors, int32 sqlCode,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc pure
     {
         this.errors = errors;
         this.sqlCode = sqlCode;
@@ -1768,7 +1773,7 @@ public:
         return result;
     }
 
-    int32 errorCode() const pure
+    int32 errorCode() const
     {
         foreach (ref error; errors)
         {
@@ -1778,7 +1783,7 @@ public:
         return 0;
     }
 
-    void put(FbIscError error) pure
+    void put(FbIscError error)
     {
         if (errors.length == 0)
             errors.reserve(FbIscSize.iscStatusLength);
@@ -1795,7 +1800,7 @@ public:
         return FbSqlStates.get(errorCode);
     }
 
-	@property bool hasWarn() const pure
+	@property bool hasWarn() const
 	{
         foreach (ref error; errors)
         {
@@ -1805,7 +1810,7 @@ public:
         return false;
 	}
 
-	@property bool isError() const pure
+	@property bool isError() const
 	{
         return errorCode() != 0;
 	}

@@ -361,7 +361,7 @@ public:
 
     final DbRecordsAffected executeNonQuery() @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_database) auto dgMarker = DgMarker(__FUNCTION__ ~ "(" ~ commandText ~ ")");
 
         if (auto log = canTraceLog())
             log.infof("%s.command.executeNonQuery()%s%s", forLogInfo(), newline, commandText);
@@ -386,14 +386,12 @@ public:
 
     final DbReader executeReader() @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
-
         return executeReaderImpl(false);
     }
 
     final DbValue executeScalar() @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_database) auto dgMarker = DgMarker(__FUNCTION__ ~ "(" ~ commandText ~ ")");
 
         if (auto log = canTraceLog())
             log.infof("%s.command.executeScalar()%s%s", forLogInfo(), newline, commandText);
@@ -561,7 +559,7 @@ public:
         // to avoid double errors when connection is shutting down
         scope (exit)
             unprepareExit();
-        doUnprepare();
+        doUnprepare(false);
         return this;
     }
 
@@ -910,7 +908,7 @@ package(pham.db):
 
     final DbReader executeReaderImpl(const(bool) ownCommand) @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(ownCommand=", ownCommand, ")");
+        debug(debug_pham_db_db_database) auto dgMarker = DgMarker(__FUNCTION__ ~ "(" ~ commandText ~ ")");
 
         if (auto log = canTraceLog())
             log.infof("%s.command.executeReader()%s%s", forLogInfo(), newline, commandText);
@@ -1269,11 +1267,14 @@ protected:
                     command.resetImplicitTransactionIf(flags);
             }
 
-            if (resetPrepare)
+            const isPreparedError = isError && type == DbCommandExecuteType.prepare;
+            if (resetPrepare || isPreparedError)
             {
                 resetPrepare = false;
-                if (isError && !wasPrepared && command.prepared)
+                if (wasPrepared)
                     command.unprepare();
+                else
+                    command.doUnprepare(isPreparedError);
             }
 
             command = null;
@@ -1407,7 +1408,7 @@ protected:
     abstract void doExecuteCommand(const(DbCommandExecuteType) type) @safe;
     abstract void doFetch(const(bool) isScalar) @safe;
     abstract void doPrepare() @safe;
-    abstract void doUnprepare() @safe;
+    abstract void doUnprepare(const(bool) isPreparedError) @safe;
 
 protected:
     DbColumnList _columns;
@@ -3738,7 +3739,7 @@ public:
      */
     abstract string limitClause(int32 rows, uint32 offset = 0) const nothrow pure;
 
-    string parameterPlaceholder(string parameterName, uint32 ordinal) const nothrow pure @safe
+    string parameterPlaceholder(string parameterName, uint32 ordinal) const nothrow pure
     {
         return "?";
     }
@@ -3754,6 +3755,18 @@ public:
         writer.put(identifierQuoteChar);
         escapeIdentifierImpl(writer, value, escapeStartIndex(value, CharClass.idenfifierQuote));
         writer.put(identifierQuoteChar);
+        return writer;
+    }
+
+    final ref Writer quoteIdentifierIf(Writer)(return ref Writer writer, scope const(char)[] value) const nothrow pure
+    {
+        const i = escapeStartIndex(value, CharClass.idenfifierQuote);
+        const needQuote = i < value.length;
+        if (needQuote)
+            writer.put(identifierQuoteChar);
+        escapeIdentifierImpl(writer, value, i);
+        if (needQuote)
+            writer.put(identifierQuoteChar);
         return writer;
     }
 
@@ -3833,7 +3846,7 @@ public:
     @property abstract string tableHint() const nothrow pure;
     
 protected:
-    final void populateValidParamNameChecks() nothrow @safe
+    final void populateValidParamNameChecks() nothrow
     {
         const names = connectionStringParameterNames();
         foreach (n; names)
@@ -4461,7 +4474,7 @@ public:
     in
     {
         assert(name.length != 0);
-        assert(!exist(name));
+        assert(!exist(name), name.value);
     }
     do
     {
@@ -4478,7 +4491,7 @@ public:
     in
     {
         assert(name.length != 0);
-        assert(!exist(name));
+        assert(!exist(name), name);
     }
     do
     {
@@ -4492,7 +4505,7 @@ public:
     in
     {
         assert(name.length != 0);
-        assert(!exist(name));
+        assert(!exist(name), name);
     }
     do
     {
@@ -5156,7 +5169,7 @@ private:
 
     void doDetach(const(DisposingReason) disposingReason) nothrow @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposing=", disposing, ")");
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         _command.removeReader(this);
         scope (exit)

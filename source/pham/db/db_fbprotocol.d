@@ -156,7 +156,45 @@ nothrow @safe:
     DbConnectionType connectionType;
 }
 
-alias FbDeferredResponse = void delegate() @safe;
+struct FbDeferredInfo
+{
+nothrow @safe:
+
+    this(bool isDeferred)
+    {
+        this.isDeferred = isDeferred;
+        this.errorStatues = null;
+    }
+    
+    FbException toException()
+    in
+    {
+        assert(hasError());
+    }
+    do
+    {
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(errorStatues.length=", errorStatues.length, ")"); 
+        
+        FbException result;
+        auto i = errorStatues.length;
+        while (i)
+        {
+            result = new FbException(errorStatues[i - 1], result);
+            i--;
+        }
+        return result;
+    }
+    
+	@property bool hasError() const
+	{
+        return errorStatues.length != 0;
+	}
+    
+    FbIscStatues[] errorStatues;
+    bool isDeferred;
+}
+
+alias FbDeferredResponse = void delegate(ref FbDeferredInfo deferredInfo) @safe;
 
 class FbProtocol : DbDisposableObject
 {
@@ -168,11 +206,11 @@ public:
         this._connection = connection;
     }
 
-    final FbIscObject allocateCommandRead(FbCommand command)
+    final FbIscObject allocateCommandRead(FbCommand command, ref FbDeferredInfo deferredInfo)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto r = readGenericResponse(deferredInfo);
         r.statues.getWarn(command.notificationMessages);
         return r.getIscObject();
     }
@@ -224,7 +262,8 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto deferredInfo = FbDeferredInfo(false);
+        auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(command.notificationMessages);
         return r.getIscObject();
     }
@@ -250,7 +289,8 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto deferredInfo = FbDeferredInfo(false);
+        auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(command.notificationMessages);
         return r.getIscObject();
     }
@@ -266,11 +306,11 @@ public:
         writer.flush();
     }
 
-    final void blobEndRead()
+    final void blobEndRead(ref FbDeferredInfo deferredInfo)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(command.notificationMessages);
     }
 
@@ -295,7 +335,8 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto deferredInfo = FbDeferredInfo(false);
+        auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(command.notificationMessages);
         return r;
     }
@@ -318,7 +359,8 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto deferredInfo = FbDeferredInfo(false);
+        auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(command.notificationMessages);
     }
 
@@ -337,7 +379,8 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto deferredInfo = FbDeferredInfo(false);
+        auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(command.notificationMessages);
 		if (r.data.length)
             return FbIscBlobSize(r.data);
@@ -363,11 +406,11 @@ public:
         cancelRequestWrite(handle, FbIsc.op_cancel_raise);
     }
 
-    final void closeCursorCommandRead()
+    final void closeCursorCommandRead(ref FbDeferredInfo deferredInfo)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
-
-        auto r = readGenericResponse();
+    
+        auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(command.notificationMessages);
     }
 
@@ -396,7 +439,8 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto deferredInfo = FbDeferredInfo(false);
+        auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(connection.notificationMessages);
     }
 
@@ -414,7 +458,8 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto deferredInfo = FbDeferredInfo(false);
+        auto r = readGenericResponse(deferredInfo);
         r.statues.getWarn(connection.notificationMessages);
         return r.getIscObject();
     }
@@ -535,7 +580,8 @@ public:
                 return;
 
             case FbIsc.op_response:
-                auto r = readGenericResponseImpl(reader);
+                auto deferredInfo = FbDeferredInfo(false);
+                auto r = readGenericResponseImpl(reader, deferredInfo);
                 r.statues.getWarn(connection.notificationMessages);
                 goto default;
 
@@ -580,7 +626,8 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto deferredInfo = FbDeferredInfo(false);
+        auto r = readGenericResponse(deferredInfo);
         r.statues.getWarn(commandBatch.fbCommand.notificationMessages);
     }
 
@@ -621,7 +668,8 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto deferredInfo = FbDeferredInfo(false);
+        auto r = readGenericResponse(deferredInfo);
     }
 
     final void createDatabaseWrite(FbCreateDatabaseInfo createDatabaseInfo)
@@ -638,11 +686,11 @@ public:
         writer.flush();
     }
 
-    final void deallocateCommandRead()
+    final void deallocateCommandRead(ref FbDeferredInfo deferredInfo)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(command.notificationMessages);
     }
 
@@ -712,7 +760,8 @@ public:
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         // Nothing to process - just need acknowledge
-        auto r = readGenericResponse();
+        auto deferredInfo = FbDeferredInfo(false);
+        auto r = readGenericResponse(deferredInfo);
         r.statues.getWarn(command.notificationMessages);
     }
 
@@ -774,7 +823,8 @@ public:
             ? FbIsc.isc_info_sql_get_plan
             : FbIsc.isc_info_sql_explain_plan;
 
-        auto r = readGenericResponse();
+        auto deferredInfo = FbDeferredInfo(false);
+        auto r = readGenericResponse(deferredInfo);
         r.statues.getWarn(command.notificationMessages);
 
         FbCommandPlanInfo.Kind kind;
@@ -822,7 +872,8 @@ public:
         const op = readOperation(reader, 0);
         if (op == FbIsc.op_response)
         {
-            auto r = readGenericResponseImpl(reader);
+            auto deferredInfo = FbDeferredInfo(false);
+            auto r = readGenericResponseImpl(reader, deferredInfo);
             r.statues.getWarn(command.notificationMessages);
             return FbIscFetchResponse(0, 0);
         }
@@ -861,7 +912,8 @@ public:
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         // Nothing to process - just need acknowledge
-        auto r = readGenericResponse();
+        auto deferredInfo = FbDeferredInfo(false);
+        auto r = readGenericResponse(deferredInfo);
         r.statues.getWarn(commandBatch.fbCommand.notificationMessages);
     }
 
@@ -891,11 +943,11 @@ public:
 		}
     }
 
-    final FbIscBindInfo[] prepareCommandRead(FbCommand command)
+    final FbIscBindInfo[] prepareCommandRead(FbCommand command, ref FbDeferredInfo deferredInfo)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto r = readGenericResponse(deferredInfo);
         r.statues.getWarn(command.notificationMessages);
 
         FbIscBindInfo[] bindResults;
@@ -935,7 +987,7 @@ public:
             }
 
             commandInfoWrite(command, truncateBindItems, FbIscSize.prepareInfoBufferLength);
-            r = readGenericResponse();
+            r = readGenericResponse(deferredInfo);
             r.statues.getWarn(command.notificationMessages);
         }
 
@@ -970,7 +1022,8 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto deferredInfo = FbDeferredInfo(false);
+        auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(command.notificationMessages);
 		if (r.data.length)
 		{
@@ -1001,7 +1054,8 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto deferredInfo = FbDeferredInfo(false);
+        auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(connection.notificationMessages);
     }
 
@@ -1019,7 +1073,8 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto deferredInfo = FbDeferredInfo(false);
+        auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(connection.notificationMessages);
         return r.getIscObject();
     }
@@ -1038,11 +1093,11 @@ public:
         writer.flush();
     }
 
-    final int typeCommandRead(FbCommand command)
+    final int typeCommandRead(FbCommand command, ref FbDeferredInfo deferredInfo)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto r = readGenericResponse(deferredInfo);
         r.statues.getWarn(command.notificationMessages);
 		if (r.data.length)
             return parseCommandType(r.data);
@@ -1064,13 +1119,13 @@ public:
         commandInfoWrite(writer, command, describeStatementTypeInfoItems, FbIscSize.statementTypeBufferLength);
     }
 
-    final FbIscGenericResponse readGenericResponse()
+    final FbIscGenericResponse readGenericResponse(ref FbDeferredInfo deferredInfo)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         FbXdrReader reader;
         const op = readOperation(reader, FbIsc.op_response);
-        return readGenericResponseImpl(reader);
+        return readGenericResponseImpl(reader, deferredInfo);
     }
 
     final FbIscSqlResponse readSqlResponse()
@@ -1187,11 +1242,11 @@ public:
         return result;
     }
 
-    final void releaseCommandBatchRead()
+    final void releaseCommandBatchRead(ref FbDeferredInfo deferredInfo)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto r = readGenericResponse();
+        auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(command.notificationMessages);
     }
 
@@ -1301,7 +1356,8 @@ protected:
         switch (op)
         {
             case FbIsc.op_response:
-                auto r = readGenericResponseImpl(reader);
+                auto deferredInfo = FbDeferredInfo(false);
+                auto r = readGenericResponseImpl(reader, deferredInfo);
                 r.statues.getWarn(connection.notificationMessages);
                 stateInfo.serverAuthKey = r.data;
                 stateInfo.serverAuthKeys = FbIscServerKey.parse(r.data);
@@ -1383,7 +1439,8 @@ protected:
                 break;
 
             case FbIsc.op_response:
-                auto r = readGenericResponseImpl(reader);
+                auto deferredInfo = FbDeferredInfo(false);
+                auto r = readGenericResponseImpl(reader, deferredInfo);
                 r.statues.getWarn(connection.notificationMessages);
                 break;
 
@@ -2130,7 +2187,7 @@ protected:
         return FbIscFetchResponse(rStatus, rCount);
     }
 
-    final FbIscGenericResponse readGenericResponseImpl(ref FbXdrReader reader)
+    final FbIscGenericResponse readGenericResponseImpl(ref FbXdrReader reader, ref FbDeferredInfo deferredInfo)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
@@ -2139,13 +2196,15 @@ protected:
         auto rData = reader.readBytes();
         auto rStatues = reader.readStatuses();
 
-        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "rHandle=", rHandle, ", rId=", rId, ", rData=", rData.dgToString());
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "rHandle=", rHandle, ", rId=", rId, ", rData=", rData.dgToString(),
+            ", isError=", rStatues.isError,  ", errorCode=", rStatues.errorCode());
 
         if (rStatues.isError)
         {
-            debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "errorCode=", rStatues.errorCode());
-
-            throw new FbException(rStatues);
+            if (deferredInfo.isDeferred)
+                deferredInfo.errorStatues ~= rStatues;
+            else
+                throw new FbException(rStatues);
         }
 
         return FbIscGenericResponse(rHandle, rId, rData, rStatues);
@@ -2157,10 +2216,15 @@ protected:
 
         if (deferredResponses.length != 0)
         {
-            auto responses = deferredResponses;
-            deferredResponses = [];
-            foreach (response; responses)
-                response();
+            // Must use temp to avoid stack overflow
+            auto deferreds = deferredResponses;
+            deferredResponses = null;
+            
+            auto deferredInfo = FbDeferredInfo(true);
+            foreach (deferred; deferreds)
+                deferred(deferredInfo);
+            if (deferredInfo.hasError)
+                throw deferredInfo.toException();
         }
 
         scope (failure)

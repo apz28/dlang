@@ -117,6 +117,7 @@ enum TermKind : ubyte
     column,
     conditionOp,
     value,
+    parameterPlaceholder,
     groupBegin,
     groupEnd,
     table,
@@ -124,6 +125,7 @@ enum TermKind : ubyte
     orderByOp,
     whereLiteral,
     limit,
+    top,
     statementOp,
     tableHint,
 }
@@ -182,7 +184,7 @@ public:
         //import std.stdio : writeln; debug writeln(__FUNCTION__, "(context.lastStatementOp=", context.lastStatementOp, ", context.sectionTerm=", context.sectionTerm, ")");
 
         scope (exit)
-            context.columnCount++;
+            context.sectionColumnCount++;
 
         switch (context.lastStatementOp)
         {
@@ -213,7 +215,7 @@ private:
 
     ref Writer sqlInsert(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     {
-        if (context.columnCount == 0)
+        if (context.sectionColumnCount == 0)
             writer.put('(');
         else
             sqlSeparator(writer, context);
@@ -227,7 +229,7 @@ private:
     {
         //import std.stdio : writeln; debug writeln(__FUNCTION__, "(name=", name, ")");
 
-        writer.put(context.columnCount == 0 ? " " : ", ");
+        writer.put(context.sectionColumnCount == 0 ? " " : ", ");
 
         if (aliasOrTable.length)
             writer.put(aliasOrTable).put('.');
@@ -272,8 +274,11 @@ public:
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
-        auto limit = context.db.limitClause(rows, offset);
-        return limit.length ? writer.put(' ').put(limit) : writer;
+        // Can't have both TOP & LIMIT; TOP has higher priority + it's took place first
+        auto limitClause = context.referredTopClause.length == 0
+            ? context.db.limitClause(rows, offset)
+            : null;
+        return limitClause.length ? writer.put(' ').put(limitClause) : writer;
     }
 
 public:
@@ -341,7 +346,7 @@ public:
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
-        context.columnCount = 0;
+        context.sectionColumnCount = 0;
         context.sectionTerm = TermKind.orderByLiteral;
 
         if (context.lastTerm != ubyte.max)
@@ -374,6 +379,33 @@ public:
     OrderByOp orderByOp;
 }
 
+struct ParameterPlaceholderTerm
+{
+@safe:
+
+public:
+    ref typeof(this) clear() nothrow return
+    {
+        name = null;
+        return this;
+    }
+
+    ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) nothrow
+    if (isOutputRange!(Writer, char))
+    {
+        scope (exit)
+            context.parameterCount++;
+
+        if (name.length == 0)
+            name = DbParameter.generateName(context.parameterCount + 1);
+
+        return writer.put(" @").put(name);
+    }
+
+public:
+    string name;
+}
+
 // select column_name ... from table_name [join table_name on ...] [where ...] [order by ...]
 // insert into table_name(column_name, ...) values(...)
 // update table_name set column_name=... [where ...]
@@ -392,8 +424,9 @@ public:
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
-        context.columnCount = 0;
+        context.sectionColumnCount = 0;
         context.sectionTerm = TermKind.statementOp;
+        context.referredTopClause = null;
 
         scope (exit)
             context.lastStatementOp = statementOp;
@@ -425,7 +458,7 @@ public:
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
-        context.columnCount = 0;
+        context.sectionColumnCount = 0;
         context.sectionTerm = TermKind.table;
 
         if (context.lastTerm != ubyte.max)
@@ -482,11 +515,37 @@ public:
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
-        return context.db.tableHint.length ? writer.put(' ').put(hint) : writer;
+        return context.db.tableHint.length
+            ? writer.put(' ').put(hint)
+            : writer;
     }
 
 public:
     string hint;
+}
+
+struct TopTerm
+{
+@safe:
+
+public:
+    ref typeof(this) clear() nothrow return
+    {
+        rows = -1;
+        return this;
+    }
+
+    ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
+    if (isOutputRange!(Writer, char))
+    {
+        context.referredTopClause = context.db.topClause(rows);
+        return context.referredTopClause.length
+            ? writer.put(' ').put(context.referredTopClause)
+            : writer;
+    }
+
+public:
+    int32 rows;
 }
 
 struct ValueTerm
@@ -497,8 +556,8 @@ public:
     ref typeof(this) clear() nothrow return
     {
         parameterName = null;
-        value.nullify();
         type = DbType.unknown;
+        value.nullify();
         return this;
     }
 
@@ -543,7 +602,7 @@ private:
 
     ref Writer sqlInsert(Writer)(return ref Writer writer, ref SqlBuilderContext context)
     {
-        if (context.columnCount == 0)
+        if (context.sectionColumnCount == 0)
             writer.put(") VALUES(");
         else
             writer.put(", ");
@@ -561,7 +620,12 @@ private:
     {
         if (asParam)
         {
-            auto pn = parameterName.length != 0 ? parameterName : context.parameters.generateName();
+            scope (exit)
+                context.parameterCount++;
+
+            auto pn = parameterName.length != 0
+                ? parameterName
+                : DbParameter.generateName(context.parameterCount + 1);
 
             writer.put('@').put(pn);
             auto parameter = context.parameters.add(pn, type);
@@ -627,7 +691,7 @@ public:
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
-        context.columnCount = 0;
+        context.sectionColumnCount = 0;
         context.sectionTerm = TermKind.whereLiteral;
 
         if (context.lastTerm != ubyte.max)
@@ -696,6 +760,12 @@ public:
         this.orderByOp = OrderByOpTerm(orderByOp);
     }
 
+    this(ParameterPlaceholderTerm parameterPlaceholder) nothrow @trusted
+    {
+        this.kind = TermKind.parameterPlaceholder;
+        this.parameterPlaceholder = parameterPlaceholder;
+    }
+
     this(WhereLiteralTerm whereLiteral) nothrow @trusted
     {
         this.kind = TermKind.whereLiteral;
@@ -706,6 +776,12 @@ public:
     {
         this.kind = TermKind.limit;
         this.limit = LimitTerm(limitRows, limitOffset);
+    }
+
+    this(TopTerm top) nothrow @trusted
+    {
+        this.kind = TermKind.top;
+        this.top = top;
     }
 
     this(StatementOp statementOp) nothrow @trusted
@@ -736,6 +812,9 @@ public:
             case TermKind.value:
                 value.clear();
                 break;
+            case TermKind.parameterPlaceholder:
+                parameterPlaceholder.clear();
+                break;
             case TermKind.groupBegin:
                 groupBegin.clear();
                 break;
@@ -756,6 +835,9 @@ public:
                 break;
             case TermKind.limit:
                 limit.clear();
+                break;
+            case TermKind.top:
+                top.clear();
                 break;
             case TermKind.statementOp:
                 statementOp.clear();
@@ -784,6 +866,8 @@ public:
                 return conditionOp.sql(writer, context);
             case TermKind.value:
                 return value.sql(writer, context);
+            case TermKind.parameterPlaceholder:
+                return parameterPlaceholder.sql(writer, context);
             case TermKind.groupBegin:
                 return groupBegin.sql(writer, context);
             case TermKind.groupEnd:
@@ -798,6 +882,8 @@ public:
                 return whereLiteral.sql(writer, context);
             case TermKind.limit:
                 return limit.sql(writer, context);
+            case TermKind.top:
+                return top.sql(writer, context);
             case TermKind.statementOp:
                 return statementOp.sql(writer, context);
             case TermKind.tableHint:
@@ -816,9 +902,11 @@ public:
         ConditionOpTerm conditionOp;
         OrderByLiteralTerm orderByLiteral;
         OrderByOpTerm orderByOp;
+        ParameterPlaceholderTerm parameterPlaceholder;
         StatementOpTerm statementOp;
         TableTerm table;
         TableHintTerm tableHint;
+        TopTerm top;
         ValueTerm value;
         WhereLiteralTerm whereLiteral;
     }
@@ -834,14 +922,17 @@ public:
     {
         this.db = db;
         this.parameters = parameters;
-        //this.columnCount = 0;
+        //this.sectionColumnCount = this.parameterCount = 0;
+        //this.referredTopClause = null;
         this.lastConditionOp = this.lastStatementOp = this.lastTerm = this.sectionTerm = ubyte.max;
     }
 
 public:
     DbDatabase db;
     DbParameterList parameters;
-    uint columnCount;
+    string referredTopClause;
+    uint sectionColumnCount;
+    uint parameterCount;
     uint valueCount;
     ubyte lastConditionOp;
     ubyte lastStatementOp;
@@ -926,6 +1017,11 @@ public:
         return put(SqlTerm(limitRows, limitOffset));
     }
 
+    ref typeof(this) putLimitIf(bool ifTrue, int32 limitRows, uint32 limitOffset = 0) nothrow return
+    {
+        return ifTrue ? put(SqlTerm(limitRows, limitOffset)) : this;
+    }
+
     ref typeof(this) putOrderByLiteral() nothrow return
     {
         return put(SqlTerm(OrderByLiteralTerm.init));
@@ -934,6 +1030,11 @@ public:
     ref typeof(this) putOrderByOp(OrderByOp orderByOp) nothrow return
     {
         return put(SqlTerm(orderByOp));
+    }
+
+    ref typeof(this) putParameterPlaceholder(string parameterName) nothrow return
+    {
+        return put(SqlTerm(ParameterPlaceholderTerm(parameterName)));
     }
 
     ref typeof(this) putStatementOp(StatementOp statementOp) nothrow return
@@ -951,6 +1052,16 @@ public:
     ref typeof(this) putTableHint(string hint) nothrow return
     {
         return put(SqlTerm(TableHintTerm(hint)));
+    }
+
+    ref typeof(this) putTop(int32 limitRows) nothrow return
+    {
+        return put(SqlTerm(TopTerm(limitRows)));
+    }
+
+    ref typeof(this) putTopIf(bool ifTrue, int32 limitRows) nothrow return
+    {
+        return ifTrue ? put(SqlTerm(TopTerm(limitRows))) : this;
     }
 
     ref typeof(this) putValue(string parameterName, Variant value,
@@ -987,6 +1098,8 @@ private:
     {
         if (context.valueCount == 0)
         {
+            const populateParameters = context.parameters.length == 0;
+
             auto i = 0;
             writer.put(") VALUES(");
             foreach (ref term; terms)
@@ -999,7 +1112,9 @@ private:
 
                 auto pn = term.column.name;
                 writer.put('@').put(pn);
-                context.parameters.add(pn, DbType.unknown);
+
+                if (populateParameters)
+                    context.parameters.add(pn, DbType.unknown);
 
                 i++;
             }
@@ -1022,6 +1137,14 @@ if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbC
             writer.put(separator);
         writer.put(e.name.value);
     }
+    return writer;
+}
+
+ref SqlBuilder columnNameString(List)(return ref SqlBuilder writer, List names) nothrow
+if (is(List : DbParameterList) || is(List : DbColumnList))
+{
+    foreach(e; names)
+        writer.putColumn(e.name.value);
     return writer;
 }
 
@@ -1055,8 +1178,59 @@ if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbC
                 writer.put(" ");
             }
             writer.put(e.name.value);
-            writer.put("=@");
+            writer.put(" = @");
             writer.put(e.name.value);
+            count++;
+        }
+    }
+    return writer;
+}
+
+ref SqlBuilder parameterConditionString(List)(return ref SqlBuilder writer, List names,
+    const(bool) all = false,
+    const(LogicalOp) logicalOp = LogicalOp.and) nothrow
+if (is(List : DbParameterList) || is(List : DbColumnList))
+{
+    uint count;
+    foreach(e; names)
+    {
+        if (all || e.isKey)
+        {
+            if (count)
+                writer.putLogical(logicalOp);
+
+            writer.putColumn(e.name.value)
+                .putCondition(ConditionOp.equal)
+                .putParameterPlaceholder(e.name.value);
+
+            count++;
+        }
+    }
+    return writer;
+}
+
+ref SqlBuilder parameterConditionStringIf(List)(return ref SqlBuilder writer, List names,
+    const(bool) all = false,
+    const(LogicalOp) logicalOp = LogicalOp.and) nothrow
+if (is(List : DbParameterList) || is(List : DbColumnList))
+{
+    if (names is null || names.length == 0)
+        return writer;
+
+    uint count;
+    foreach(e; names)
+    {
+        if (all || e.isKey)
+        {
+            if (count == 0)
+                writer.putWhereLiteral();
+            else
+                writer.putLogical(logicalOp);
+
+            writer.putColumn(e.name.value)
+                .putCondition(ConditionOp.equal)
+                .putParameterPlaceholder(e.name.value);
+
             count++;
         }
     }
@@ -1066,27 +1240,49 @@ if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbC
 ref Writer parameterUpdateString(Writer, List)(return ref Writer writer, List names) nothrow
 if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbColumnList)))
 {
+    uint count;
+    foreach(i, e; names)
+    {
+        if (e.isKey)
+            continue;
+
+        if (count)
+            writer.put(", ");
+        writer.put(e.name.value);
+        writer.put(" = @");
+        writer.put(e.name.value);
+        count++;
+    }
+    return writer;
+}
+
+ref SqlBuilder parameterUpdateString(List)(return ref SqlBuilder writer, List names) nothrow
+if (is(List : DbParameterList) || is(List : DbColumnList))
+{
+    foreach(e; names)
+    {
+        if (e.isKey)
+            continue;
+
+        writer.putColumn(e.name.value)
+            .putParameterPlaceholder(e.name.value);
+    }
+    return writer;
+}
+
+List reorderKeys(List)(List names) nothrow
+if (is(List : DbParameterList) || is(List : DbColumnList))
+{
     static if (is(List : DbParameterList))
         alias DbItem = DbParameter;
     else
         alias DbItem = DbColumn;
 
     size_t[] keyIndexes;
-    uint count;
     foreach(i, e; names)
     {
         if (e.isKey)
-        {
             keyIndexes ~= i;
-            continue;
-        }
-
-        if (count)
-            writer.put(", ");
-        writer.put(e.name.value);
-        writer.put("=@");
-        writer.put(e.name.value);
-        count++;
     }
 
     if (keyIndexes.length)
@@ -1099,7 +1295,7 @@ if (isOutputRange!(Writer, char) && (is(List : DbParameterList) || is(List : DbC
             names.put(keyItems[i - 1]);
     }
 
-    return writer;
+    return names;
 }
 
 
@@ -1143,7 +1339,7 @@ unittest // parameterConditionString
 
     auto buffer = Appender!string(50);
     auto text = buffer.parameterConditionString(parameters)[];
-    assert(text == "colum1=@colum1 AND colum3=@colum3", text);
+    assert(text == "colum1 = @colum1 AND colum3 = @colum3", text);
 }
 
 unittest // parameterUpdateString
@@ -1157,7 +1353,7 @@ unittest // parameterUpdateString
 
     auto buffer = Appender!string(20);
     auto text = buffer.parameterUpdateString(parameters)[];
-    assert(text == "colum1=@colum1, colum2=@colum2", text);
+    assert(text == "colum1 = @colum1, colum2 = @colum2", text);
 }
 
 unittest // SqlBuilder

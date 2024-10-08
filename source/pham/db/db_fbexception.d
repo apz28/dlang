@@ -32,7 +32,7 @@ public:
     }
 
     this(FbIscStatues status,
-        Throwable next = null)
+        Throwable next = null) nothrow
     {
         string statusMessage, statusState;
         int statusCode;

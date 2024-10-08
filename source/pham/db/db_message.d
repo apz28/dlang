@@ -88,15 +88,15 @@ struct DbMessage
     static immutable eInvalidSchemeName = "Database scheme name '%s' not found";
 }
 
-string addMessageLine(ref string messages, string messageLine) nothrow pure
+string addMessageLine(ref string messageLines, string messageLine) nothrow pure
 {
     import std.ascii : newline;
     
-    if (messages.length == 0)
-        messages = messageLine;
+    if (messageLines.length == 0)
+        messageLines = messageLine;
     else
-        messages ~= newline ~ messageLine;
-    return messages;
+        messageLines ~= newline ~ messageLine;
+    return messageLines;
 }
 
 package(pham.db) string fmtMessage(Args...)(string fmt, Args args) nothrow
