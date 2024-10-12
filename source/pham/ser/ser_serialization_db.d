@@ -50,11 +50,12 @@ enum DbSubSerializerKind : ubyte
 }
 
 alias DbDeserializerConstructSQL = bool delegate(DbDeserializer serializer,
-    ref Appender!string commandText, DbParameterList conditionParameters, scope const(Serializable)[] columns,    
+    scope const(Serializable)[] columns, SqlBuilder conditions,
+    ref Appender!string commandText, ref DbParameterList commandParameters,
     scope ref Serializable attribute) @safe;
 
 alias DbDeserializerSelectSQL = DbReader delegate(DbDeserializer serializer,
-    ref Appender!string commandText, DbParameterList conditionParameters,
+    Appender!string commandText, DbParameterList commandParameters,
     scope ref Serializable attribute) @safe;
 
 class DbDeserializer : Deserializer
@@ -77,21 +78,33 @@ public:
     final V select(V)(Variant[string] conditionParameters)
     if (isSerializerAggregateType!V)
     {
-        auto parameters = connection.database.createParameterList().add(conditionParameters);
-        return select!V(parameters);
+        uint i;
+        SqlBuilder conditions;
+        conditions.putWhereLiteral();
+        foreach (k, v; conditionParameters)
+        {
+            if (i)
+                conditions.putLogical(LogicalOp.and);
+            conditions.putColumn(k)
+                .putCondition(ConditionOp.equal)
+                .putValue(k, v);
+            i++;
+        }
+
+        return select!V(conditions);
     }
 
-    final V select(V)(DbParameterList conditionParameters)
+    final V select(V)(SqlBuilder conditions)
     if (isSerializerAggregateType!V)
     {
         static if (hasUDA!(V, Serializable))
             Serializable attribute = getUDA!(V, Serializable);
         else
             Serializable attribute = Serializable(V.stringof);
-        return selectWith!V(conditionParameters, attribute);
+        return selectWith!V(conditions, attribute);
     }
 
-    final V selectWith(V)(DbParameterList conditionParameters, Serializable attribute) @trusted // this.reader = &selectReader
+    final V selectWith(V)(SqlBuilder conditions, Serializable attribute) @trusted // this.reader = &selectReader
     if (isSerializerAggregateType!V)
     in
     {
@@ -105,10 +118,11 @@ public:
 
         const deserializerMembers = getDeserializerMembers!V();
         Appender!string commandText;
-        if (!constructSQL(commandText, conditionParameters, deserializerMembers, attribute))
+        DbParameterList commandParameters;        
+        if (!constructSQL(deserializerMembers, conditions, commandText, commandParameters, attribute))
             return V.init;
 
-        auto selectReader = selectSQL(commandText, conditionParameters, attribute);
+        auto selectReader = selectSQL(commandText, commandParameters, attribute);
         if (selectReader.empty)
             return V.init;
 
@@ -125,6 +139,39 @@ public:
         deserialize(v, attribute);
         end(attribute);
         return v;
+    }
+    
+    final bool constructSQL(scope const(Serializable)[] columns, SqlBuilder conditions,
+        out Appender!string commandText, out DbParameterList commandParameters,
+        scope ref Serializable attribute)
+    {
+        commandText.clear();
+        commandText.capacity = 500;
+        commandParameters = connection.database.createParameterList();
+        if (onConstructSQL !is null)
+            return onConstructSQL(this, columns, conditions, commandText, commandParameters, attribute);
+
+        const canLimit = rootKind == RootKind.aggregate;
+        SqlBuilder builder;
+        builder.putStatementOp(StatementOp.select)
+            .putTopIf(canLimit, 1)
+            .selectSQLNames(columns)
+            .putTable(attribute.dbName)
+            .putWhereCondition(conditions)
+            .putLimit(canLimit, 1)
+            .sql(commandText, connection.database, commandParameters);
+
+        //import std.stdio : writeln; debug writeln("constructSQL=", commandText.data, ", commandParameters.length=", commandParameters.length);
+
+        return true;
+    }
+
+    final DbReader selectSQL(Appender!string commandText, DbParameterList commandParameters,
+        scope ref Serializable attribute)
+    {
+        return onSelectSQL !is null
+            ? onSelectSQL(this, commandText, commandParameters, attribute)
+            : connection.executeReader(commandText.data, commandParameters);
     }
 
 public:
@@ -392,37 +439,6 @@ public:
     }
 
 public:
-    final bool constructSQL(ref Appender!string commandText, DbParameterList conditionParameters, scope const(Serializable)[] columns,
-        scope ref Serializable attribute)
-    {
-        commandText.clear();
-        commandText.capacity = 500;
-        if (onConstructSQL !is null)
-            return onConstructSQL(this, commandText, conditionParameters, columns, attribute);
-
-        const canLimit = rootKind == RootKind.aggregate;
-        SqlBuilder builder;
-        builder.putStatementOp(StatementOp.select)
-            .putTopIf(canLimit, 1)
-            .selectSQLNames(columns)
-            .putTable(attribute.dbName)
-            .parameterConditionStringIf(conditionParameters, true)
-            .putLimit(canLimit, 1)
-            .sql(commandText, connection.database, conditionParameters);
-
-        //import std.stdio : writeln; debug writeln("constructSQL=", commandText.data, ", conditionParameters.length=", conditionParameters.length);
-
-        return true;
-    }
-
-    final DbReader selectSQL(ref Appender!string commandText, DbParameterList conditionParameters,
-        scope ref Serializable attribute)
-    {
-        return onSelectSQL !is null
-            ? onSelectSQL(this, commandText, conditionParameters, attribute)
-            : connection.executeReader(commandText.data, conditionParameters);
-    }
-
     final override bool hasAggregateEle(size_t i, ptrdiff_t len)
     {
         return subDeserializer is null
@@ -514,11 +530,11 @@ ref SqlBuilder selectSQLNames(return ref SqlBuilder writer, scope const(Serializ
 }
 
 alias DbSerializerConstructSQL = bool delegate(DbSerializer serializer, DbSerializerCommandQuery commandQuery,
-    ref Appender!string commandText, DbParameterList commandParameters,
+    ref Appender!string commandText, ref DbParameterList commandParameters,
     scope ref Serializable attribute) @safe;
 
 alias DbSerializerExecuteSQL = DbRecordsAffected delegate(DbSerializer serializer, DbSerializerCommandQuery commandQuery,
-    ref Appender!string commandText, DbParameterList commandParameters,
+    Appender!string commandText, DbParameterList commandParameters,
     scope ref Serializable attribute) @safe;
 
 class DbSerializer : Serializer
@@ -560,7 +576,7 @@ public:
 
         scope (success)
             commandParameters.clear();
-        
+
         Appender!string commandText;
         return constructSQL(DbSerializerCommandQuery.insert, commandText, attribute)
             ? executeSQL(DbSerializerCommandQuery.insert, commandText, attribute)
@@ -601,6 +617,53 @@ public:
         return constructSQL(DbSerializerCommandQuery.update, commandText, attribute)
             ? executeSQL(DbSerializerCommandQuery.update, commandText, attribute)
             : DbRecordsAffected.init;
+    }
+    
+    final bool constructSQL(const(DbSerializerCommandQuery) commandQuery, out Appender!string commandText,
+        scope ref Serializable attribute)
+    {
+        commandText.clear();
+        commandText.capacity = commandTextSize ? commandTextSize : 500;
+        if (onConstructSQL !is null)
+            return onConstructSQL(this, commandQuery, commandText, commandParameters, attribute);
+
+        return commandQuery == DbSerializerCommandQuery.update
+            ? constructUpdateSQL(commandText, attribute)
+            : constructInsertSQL(commandText, attribute);
+    }
+
+    final bool constructInsertSQL(ref Appender!string commandText, scope ref Serializable attribute)
+    {
+        SqlBuilder builder;
+        builder.putStatementOp(StatementOp.insert)
+            .putTable(attribute.dbName)
+            .columnNameString(commandParameters)
+            .sql(commandText, connection.database, commandParameters);
+
+        //import std.stdio : writeln; debug writeln("constructInsertSQL=", commandText.data, ", commandParameters.length=", commandParameters.length);
+
+        return true;
+    }
+
+    final bool constructUpdateSQL(ref Appender!string commandText, scope ref Serializable attribute)
+    {
+        SqlBuilder builder;
+        builder.putStatementOp(StatementOp.update)
+            .putTable(attribute.dbName)
+            .parameterUpdateColumn(commandParameters.moveBackKeys())
+            .parameterConditionStringIf(commandParameters, false)
+            .sql(commandText, connection.database, commandParameters);
+
+        //import std.stdio : writeln; debug writeln("constructUpdateSQL=", commandText.data, ", commandParameters.length=", commandParameters.length);
+
+        return true;
+    }
+
+    final DbRecordsAffected executeSQL(DbSerializerCommandQuery commandQuery, Appender!string commandText, scope ref Serializable attribute)
+    {
+        return onExecuteSQL !is null
+            ? onExecuteSQL(this, commandQuery, commandText, commandParameters, attribute)
+            : connection.executeNonQuery(commandText.data, commandParameters);
     }
 
 public:
@@ -908,53 +971,6 @@ public:
     }
 
 public:
-    final bool constructSQL(const(DbSerializerCommandQuery) commandQuery, ref Appender!string commandText,
-        scope ref Serializable attribute)
-    {
-        commandText.clear();
-        commandText.capacity = commandTextSize ? commandTextSize : 500;
-        if (onConstructSQL !is null)
-            return onConstructSQL(this, commandQuery, commandText, commandParameters, attribute);
-
-        return commandQuery == DbSerializerCommandQuery.update
-            ? constructUpdateSQL(commandText, attribute)
-            : constructInsertSQL(commandText, attribute);
-    }
-
-    final bool constructInsertSQL(ref Appender!string commandText, scope ref Serializable attribute)
-    {
-        SqlBuilder builder;
-        builder.putStatementOp(StatementOp.insert)
-            .putTable(attribute.dbName)
-            .columnNameString(commandParameters)
-            .sql(commandText, connection.database, commandParameters);
-
-        //import std.stdio : writeln; debug writeln("constructInsertSQL=", commandText.data, ", commandParameters.length=", commandParameters.length);
-
-        return true;
-    }
-
-    final bool constructUpdateSQL(ref Appender!string commandText, scope ref Serializable attribute)
-    {
-        SqlBuilder builder;
-        builder.putStatementOp(StatementOp.update)
-            .putTable(attribute.dbName)
-            .parameterUpdateColumn(commandParameters.moveBackKeys())
-            .parameterConditionStringIf(commandParameters, false)
-            .sql(commandText, connection.database, commandParameters);
-
-        //import std.stdio : writeln; debug writeln("constructUpdateSQL=", commandText.data, ", commandParameters.length=", commandParameters.length);
-
-        return true;
-    }
-
-    final DbRecordsAffected executeSQL(DbSerializerCommandQuery commandQuery, Appender!string commandText, scope ref Serializable attribute)
-    {
-        return onExecuteSQL !is null
-            ? onExecuteSQL(this, commandQuery, commandText, commandParameters, attribute)
-            : connection.executeNonQuery(commandText.data, commandParameters);
-    }
-
     final DbParameter touchParameter(DbType type, scope ref Serializable attribute) nothrow
     {
         if (parameter is null)
@@ -1019,11 +1035,11 @@ version(UnitTestSerFBDatabase)
         bool logOnly;
 
         DbRecordsAffected execute(DbSerializer serializer,
-            DbSerializerCommandQuery commandQuery, ref Appender!string commandText, DbParameterList commandParameters,
+            DbSerializerCommandQuery commandQuery, Appender!string commandText, DbParameterList commandParameters,
             scope ref Serializable attribute) @safe
         {
             this.commandQuery = commandQuery;
-            this.commandText = commandText[];
+            this.commandText = commandText.data;
 
             debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(commandQuery=", commandQuery, ", commandText=", commandText, ")");
 
@@ -1034,16 +1050,16 @@ version(UnitTestSerFBDatabase)
         }
 
         DbReader select(DbDeserializer serializer,
-            ref Appender!string commandText, DbParameterList conditionParameters,
+            Appender!string commandText, DbParameterList commandParameters,
             scope ref Serializable attribute) @safe
         {
-            this.commandText = commandText[];
+            this.commandText = commandText.data;
 
             debug(pham_ser_ser_serialization_db) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
             return logOnly
                 ? DbReader.init
-                : serializer.connection.executeReader(this.commandText, conditionParameters);
+                : serializer.connection.executeReader(this.commandText, commandParameters);
         }
     }
 }

@@ -217,7 +217,7 @@ private:
 
         if (aliasOrTable.length)
             writer.put(aliasOrTable).put('.');
-        return writer.put(name).put('=');
+        return writer.put(name).put(" =");
     }
 
     void sqlSeparator(Writer)(ref Writer writer, ref SqlBuilderContext context) const nothrow
@@ -509,7 +509,6 @@ private:
                 sqlNameOrValue(writer, context, false);
                 return writer.put(')');
             default:
-                writer.put(' ');
                 return sqlNameOrValue(writer, context, true);
         }
     }
@@ -519,7 +518,7 @@ private:
         if (context.sectionColumnCount == 0)
             writer.put(") VALUES(");
         else
-            writer.put(", ");
+            writer.put(",");
         return sqlNameOrValue(writer, context, true);
     }
 
@@ -541,7 +540,7 @@ private:
                 ? parameterName
                 : DbParameter.generateName(context.parameterCount + 1);
 
-            writer.put('@').put(pn);
+            writer.put(" @").put(pn);
             auto parameter = context.parameters.add(pn, type);
             parameter.variant = value;
             return writer;
@@ -580,6 +579,7 @@ private:
         }
         else
         {
+            writer.put(' ');
             auto s = value.toString();
             //import std.stdio : writeln; debug writeln("value.toString()=", s);
             return needQuoted ? context.db.quoteString(writer, s) : writer.put(s);
@@ -924,6 +924,23 @@ public:
     {
         //import std.stdio : writeln; debug writeln("T=", T.stringof);
         return put(SqlTerm(parameterName, Variant(value), dbTypeOf!T()));
+    }
+
+    ref typeof(this) putWhereCondition(SqlBuilder conditions) nothrow return
+    {
+        if (conditions.terms.length == 0)
+            return this;
+
+        const isWhereLiteral = conditions.terms[0].kind == TermKind.whereLiteral;
+
+        if (isWhereLiteral && conditions.terms.length == 1)
+            return this;
+
+        if (!isWhereLiteral)
+            putWhereLiteral();
+            
+        terms ~= conditions.terms;
+        return this;
     }
 
     ref typeof(this) putWhereLiteral() nothrow return
@@ -1359,7 +1376,7 @@ unittest // SqlBuilder
                 .putCondition(ConditionOp.greater)
                 .putValue("cw2", 2)
             .sql(sql, db, params);
-        assert(sql.data == "UPDATE tbl SET c1=@c1, c2=@c2 WHERE cw1 = @cw1 AND cw2 > @cw2", sql.data);
+        assert(sql.data == "UPDATE tbl SET c1 = @c1, c2 = @c2 WHERE cw1 = @cw1 AND cw2 > @cw2", sql.data);
         assert(params.length == 4);
         assert(params.get("c1").variant == 100);
         assert(params.get("c2").variant == 101);
