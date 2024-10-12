@@ -2095,10 +2095,11 @@ unittest // DateTime.now
     assert(now.year == sysDateTime.year);
     assert(now.month == sysDateTime.month);
     assert(now.day == sysDateTime.day);
-
+    
     assert(now.hour == sysDateTime.hour);
     assert(now.minute == sysDateTime.minute);
-    assert(now.second == sysDateTime.second);
+    const sd = cast(int)now.second - cast(int)sysDateTime.second;
+    assert(sd == 0 || sd == 1 || sd == -1); // Tick elapsed between calls
 }
 
 unittest // DateTime.constructor

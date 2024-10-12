@@ -35,10 +35,10 @@ int lastSocketError() @nogc nothrow @trusted
     }
 }
 
-ResultStatus lastSocketError(string apiName,
+ResultStatus lastSocketError(string apiName, string defaultMessage = null,
     string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
 {
-    auto code = lastSocketError();
-    auto message = getSystemErrorMessage(code);
+    const code = lastSocketError();
+    const message = code != 0 ? getSystemErrorMessage(code) : defaultMessage;
     return ResultStatus.error(code, message.length != 0 ? message : genericErrorMessage(apiName, code), funcName, file, line);
 }

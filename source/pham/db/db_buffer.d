@@ -107,7 +107,7 @@ public:
             fill(nBytes, false);
             if ((_offset + nBytes) > _maxLength)
             {
-                auto msg = DbMessage.eNotEnoughData.fmtMessage(nBytes, length);
+                auto msg = DbMessage.eNoReadingDataRemaining.fmtMessage(nBytes, length);
                 throw new DbException(DbErrorCode.read, msg);
             }
         }

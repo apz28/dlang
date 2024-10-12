@@ -425,7 +425,8 @@ public:
      */
     final DbRowValue fetch(const(bool) isScalar) @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ")");
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ", columnCount=", columnCount,
+            ", isStoredProcedure=", isStoredProcedure, ", isSelectCommandType=", isSelectCommandType(), ")");
         version(profile) debug auto p = PerfFunction.create();
 
         if (auto log = canTraceLog())
@@ -433,7 +434,7 @@ public:
 
         checkActive();
 
-		if (isStoredProcedure)
+		if (hasStoredProcedureFetched())
             return _fetchedRows ? _fetchedRows.dequeue() : DbRowValue(0);
 
         if (_fetchedRows.empty && !allRowsFetched && isSelectCommandType())
@@ -930,6 +931,11 @@ package(pham.db):
         return DbReader(this, executePrep.resetTransaction, ownCommand);
     }
 
+    final bool hasStoredProcedureFetched() nothrow @safe
+    {
+        return isStoredProcedure || (columnCount != 0 && !isSelectCommandType());
+    }
+    
     @property final void allRowsFetched(bool value) nothrow @safe
     {
         _flags.set(DbCommandFlag.allRowsFetched, value);

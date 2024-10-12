@@ -189,7 +189,12 @@ package(pham.db):
             {
                 const rs = _socket.receive(data);
                 if ((rs < 0) || (rs == 0 && data.length != 0))
-                    throwReadDataError(_socket.lastError.errorCode, _socket.lastError.errorMessage);
+                {
+                    auto msg = _socket.lastError.errorMessage;
+                    if (msg.length == 0)
+                        msg = DbMessage.eNoReadingData.fmtMessage(cast(int)data.length);
+                    throwReadDataError(_socket.lastError.errorCode, msg);
+                }
                 result = cast(size_t)(rs);
             }
             else
@@ -197,7 +202,7 @@ package(pham.db):
                 result = _socket.receive(data);
                 if ((result == Socket.ERROR) || (result == 0 && data.length != 0))
                 {
-                    auto status = lastSocketError("receive");
+                    auto status = lastSocketError("receive", DbMessage.eNoReadingData.fmtMessage(cast(int)data.length));
                     throwReadDataError(status.errorCode, status.errorMessage);
                 }
             }
@@ -274,7 +279,12 @@ package(pham.db):
             {
                 const rs = _socket.send(sendingData);
                 if (rs < 0 || rs != sendingData.length)
-                    throwWriteDataError(_socket.lastError.errorCode, _socket.lastError.errorMessage);
+                {
+                    auto msg = _socket.lastError.errorMessage;
+                    if (msg.length == 0)
+                        msg = DbMessage.eNoSendingData.fmtMessage(cast(int)sendingData.length);
+                    throwWriteDataError(_socket.lastError.errorCode, msg);
+                }
                 result = cast(size_t)(rs);
             }
             else
@@ -282,7 +292,7 @@ package(pham.db):
                 result = _socket.send(sendingData);
                 if (result == Socket.ERROR || result != sendingData.length)
                 {
-                    auto status = lastSocketError("send");
+                    auto status = lastSocketError("send", DbMessage.eNoSendingData.fmtMessage(cast(int)sendingData.length));
                     throwWriteDataError(status.errorCode, status.errorMessage);
                 }
             }
@@ -754,7 +764,7 @@ public:
 
         if (mustSatisfied && (!hasReadData || n < additionalBytes))
         {
-            auto msg = DbMessage.eNotEnoughData.fmtMessage(additionalBytes, hasReadData ? n : 0);
+            auto msg = DbMessage.eNoReadingDataRemaining.fmtMessage(additionalBytes, hasReadData ? n : 0);
             connection.throwReadDataError(0, msg);
         }
     }

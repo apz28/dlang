@@ -770,7 +770,7 @@ public:
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(type=", type, ")");
 
         auto writer = FbXdrWriter(connection);
-        writer.writeOperation(command.isStoredProcedure ? FbIsc.op_execute2 : FbIsc.op_execute);
+        writer.writeOperation(command.hasStoredProcedureFetched() ? FbIsc.op_execute2 : FbIsc.op_execute);
 		writer.writeHandle(command.fbHandle);
 		writer.writeHandle(command.fbTransaction.fbHandle);
 
@@ -797,7 +797,7 @@ public:
 			writer.writeInt32(0);
 		}
 
-		if (command.columnCount != 0 && command.isStoredProcedure)
+		if (command.columnCount != 0 && command.hasStoredProcedureFetched())
 		{
             auto pWriterBlr = FbBlrWriter(connection);
             auto pFldBlr = describeBlrColumns(pWriterBlr, cast(FbColumnList)command.columns);

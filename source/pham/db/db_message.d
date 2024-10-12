@@ -30,7 +30,9 @@ struct DbMessage
     static immutable eErrorHint = "Hint";
     static immutable eErrorSqlState = "SQL state: %s";
 
-    static immutable eNotEnoughData = "Not enough data for reading %d bytes; remainding %d bytes";
+    static immutable eNoReadingData = "No data for reading %d bytes";
+    static immutable eNoReadingDataRemaining = "Not enough data for reading %d bytes; remainding %d bytes";
+    static immutable eNoSendingData = "Unable to send data for %d bytes";
 
     static immutable eConnect = "Unable to connect to '%s'\n%s";
     static immutable eConnectTimeoutRaw = "Connection timeout";
