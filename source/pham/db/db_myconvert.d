@@ -15,8 +15,7 @@ import core.time : dur;
 import std.format : FormatSpec, formatValue;
 import std.traits: isUnsigned, Unqual;
 
-debug(debug_pham_db_db_myconvert) import std.stdio : writeln;
-
+debug(debug_pham_db_db_myconvert) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.dtm.dtm_date_time_parse;
 import pham.dtm.dtm_tick : Tick, TickPart;
@@ -131,8 +130,9 @@ do
 	if (myDateTimeBytes.length == 7)
 		return DbDateTime(DateTime(year, month, day, hour, minute, second), 0);
 
-	const int microsecond = numericBitCast!int32(uintDecode!uint32(myDateTimeBytes[7..$]));
-	return DbDateTime(DateTime(year, month, day, hour, minute, second).addTicksClamp(TickPart.microsecondToTick(microsecond)), 0);
+	const int microSecond = numericBitCast!int32(uintDecode!uint32(myDateTimeBytes[7..$]));
+	debug(debug_pham_db_db_myconvert) debug writeln(__FUNCTION__, "(microSecond=", microSecond, ")");
+	return DbDateTime(DateTime(year, month, day, hour, minute, second).addTicksClamp(TickPart.microsecondToTick(microSecond)), 0);
 }
 
 enum maxDateTimeBufferSize = 12;
@@ -393,7 +393,7 @@ do
 		result |= cast(T)(v[7]) << shift;
     }
 
-	debug(debug_pham_db_db_myconvert) debug writeln(__FUNCTION__, "(uintDecode.result=", result, ", bytes=", v.dgToHex(), ")");
+	debug(debug_pham_db_db_myconvert) debug writeln(__FUNCTION__, "(uintDecode.result=", result, ", bytes=", v.dgToString(), ")");
 
     return result;
 }

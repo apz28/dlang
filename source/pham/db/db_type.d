@@ -57,6 +57,7 @@ alias Numeric = Decimal128;
 
 nothrow @safe:
 
+static immutable string anonymousColumnNamePrefix = "_column";
 static immutable string anonymousParameterNamePrefix = "_param";
 static immutable string returnParameterName = "_return";
 

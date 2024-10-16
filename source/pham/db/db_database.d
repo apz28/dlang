@@ -110,6 +110,16 @@ public:
 
     abstract DbColumn createSelf(DbCommand command) nothrow @safe;
 
+    static string generateName(uint32 ordinal) nothrow pure @safe
+    {
+        import pham.utl.utl_object : nToString = toString;
+
+        auto buffer = Appender!string(anonymousColumnNamePrefix.length + 10);
+        return buffer.put(anonymousColumnNamePrefix)
+            .nToString(ordinal)
+            .data;
+    }
+
     @property final DbCommand command() nothrow pure @safe
     {
         return _command;
@@ -935,7 +945,7 @@ package(pham.db):
     {
         return isStoredProcedure || (columnCount != 0 && !isSelectCommandType());
     }
-    
+
     @property final void allRowsFetched(bool value) nothrow @safe
     {
         _flags.set(DbCommandFlag.allRowsFetched, value);
@@ -1626,6 +1636,12 @@ public:
 
         checkActive();
         return createTransactionImpl(isolationLevel, false);
+    }
+
+    DbValue currentTimeStamp(const(uint) precision) @safe
+    {
+        auto commandText = "SELECT " ~ database.currentTimeStamp(precision);
+        return executeScalar(commandText);
     }
 
     final DbTransaction defaultTransaction(DbIsolationLevel isolationLevel = DbIsolationLevel.readCommitted) @safe
@@ -3594,6 +3610,23 @@ public:
             return CharClass.any;
     }
 
+    string currentTimeStamp(const(uint) precision) const nothrow pure
+    {
+        static immutable string[7] currentTimeStamps = [
+            "CURRENT_TIMESTAMP(0)",
+            "CURRENT_TIMESTAMP(1)",
+            "CURRENT_TIMESTAMP(2)",
+            "CURRENT_TIMESTAMP(3)",
+            "CURRENT_TIMESTAMP(4)",
+            "CURRENT_TIMESTAMP(5)",
+            "CURRENT_TIMESTAMP(6)",
+            ];
+
+        return precision >= currentTimeStamps.length
+            ? currentTimeStamps[$-1]
+            : currentTimeStamps[precision];
+    }
+
     final T[] escapeIdentifier(T)(return T[] value) const nothrow pure
     if (is(Unqual!T == char))
     {
@@ -3850,7 +3883,7 @@ public:
      * Returns a separated list of hint keywords if supported
      */
     @property abstract string tableHint() const nothrow pure;
-    
+
 protected:
     final void populateValidParamNameChecks() nothrow
     {
@@ -4344,7 +4377,6 @@ public:
 
     static string generateName(uint32 ordinal) nothrow pure @safe
     {
-        import pham.utl.utl_array : Appender;
         import pham.utl.utl_object : nToString = toString;
 
         auto buffer = Appender!string(anonymousParameterNamePrefix.length + 10);

@@ -210,9 +210,9 @@ enum DateTimeZoneKind : ubyte
 
 /**
  * Order of magnitude of time
- * 10-3   millisecond   ms   One thousandth of one second
- * 10-6   microsecond   μs   One millionth of one second
- * 10-9   nanosecond    ns   One billionth of one second
+ * 10-3   millisecond   ms   One thousandth of one second (scale of 3)
+ * 10-6   microsecond   μs   One millionth of one second (scale of 6)
+ * 10-9   nanosecond    ns   One billionth of one second (scale of 9)
  */
 struct Tick
 {
@@ -229,6 +229,8 @@ struct Tick
     enum long ticksPerDay = ticksPerHour * 24;              // 864,000,000,000
     enum int  ticksMaxPrecision = 7;                        // 999 * ticksPerMillisecond = 7 digits
 
+    enum int microsecondsMaxPrecision = 6;
+    
     enum int daysPerWeek = 7;
     enum int hoursPerDay = 24;
 

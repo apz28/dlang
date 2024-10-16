@@ -1563,7 +1563,7 @@ public:
     {
         import pham.utl.utl_array : Appender;
         import pham.utl.utl_object : nToString = toString;
-        
+
         auto buffer = Appender!string(1 + 10);
         return buffer.put('$')
             .nToString(ordinal)
@@ -2692,6 +2692,60 @@ unittest // PgConnection.DML.execute...
 
     auto TEXT_FIELD = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = 1");
     assert(TEXT_FIELD.get!string() == "TEXT");
+}
+
+version(UnitTestPGDatabase)
+unittest // PgDatabase.currentTimeStamp...
+{
+    import pham.dtm.dtm_date : DateTime;
+    
+    void countZero(string s, uint leastCount)
+    {
+        import std.format : format;
+
+        //import std.stdio : writeln; debug writeln("s=", s, ", leastCount=", leastCount);
+
+        uint count;
+        size_t left = s.length;
+        while (left && s[left-1] == '0')
+        {
+            count++;
+            left--;
+        }
+        assert(count >= leastCount, format("%s - %d vs %d", s, count, leastCount));
+    }
+
+    auto connection = createUnitTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto s = "SELECT to_char(" ~ connection.database.currentTimeStamp(0) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')";
+    //import std.stdio : writeln; debug writeln("s=", s);
+    auto v = connection.executeScalar(s);
+    countZero(v.value.toString(), 6);
+
+    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(1) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
+    countZero(v.value.toString(), 5);
+
+    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(2) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
+    countZero(v.value.toString(), 4);
+
+    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(3) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
+    countZero(v.value.toString(), 3);
+
+    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(4) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
+    countZero(v.value.toString(), 2);
+
+    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(5) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
+    countZero(v.value.toString(), 1);
+
+    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(6) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
+    countZero(v.value.toString(), 0);
+    
+    auto n = DateTime.now;
+    auto t = connection.currentTimeStamp(6);
+    assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));
 }
 
 version(UnitTestPGDatabase)

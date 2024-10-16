@@ -1821,6 +1821,12 @@ public:
         }
     }
 
+    final override DbValue currentTimeStamp(const(uint) precision) @safe
+    {
+        auto commandText = "SELECT " ~ database.currentTimeStamp(precision) ~ " FROM RDB$DATABASE";
+        return executeScalar(commandText);
+    }
+
     override bool existRoutine(string routineName, string type,
         string schema = null) @safe
     {
@@ -2295,6 +2301,14 @@ public:
         return new FbTransaction(cast(FbConnection)connection, isolationLevel, isRetaining);
     }
 
+    // https://www.firebirdsql.org/file/documentation/chunk/en/refdocs/fblangref40/fblangref40-contextvars-current-timestamp.html
+    final override string currentTimeStamp(const(uint) precision) const nothrow pure
+    {
+        return precision >= 3
+            ? super.currentTimeStamp(3)
+            : super.currentTimeStamp(precision);
+    }
+
     // https://www.firebirdsql.org/refdocs/langrefupd20-select.html
     // ROWS <m> [TO <n>]
     // Row numbers are 1-based
@@ -2322,7 +2336,6 @@ public:
     // select FIRST(?) ... from ...
     final override string topClause(int rows) const nothrow pure @safe
     {
-        import pham.utl.utl_array : Appender;
         import pham.utl.utl_object : nToString = toString;
 
         if (rows < 0)
@@ -4164,7 +4177,7 @@ version(UnitTestFBDatabase)
 unittest // FbConnection.DML.returning...
 {
     import std.conv : to;
-    
+
     auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
@@ -4189,6 +4202,58 @@ unittest // FbConnection.DML.returning...
 
     auto i = connection.executeScalar("UPDATE UnitTestReturning SET i = 1000 WHERE pk = " ~ pk.to!string() ~ " RETURNING i");
     assert(i.value == 1000);
+}
+
+version(UnitTestFBDatabase)
+unittest // FbDatabase.currentTimeStamp...
+{
+    import pham.dtm.dtm_date : DateTime;
+    
+    void countZero(string s, uint leastCount)
+    {
+        import std.format : format;
+
+        //import std.stdio : writeln; debug writeln("s=", s, ", leastCount=", leastCount);
+
+        uint count;
+        size_t left = s.length;
+        while (left && s[left-1] == '0')
+        {
+            count++;
+            left--;
+        }
+        assert(count >= leastCount, format("%s - %d vs %d", s, count, leastCount));
+    }
+
+    auto connection = createUnitTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto v = connection.executeScalar("SELECT left(cast(" ~ connection.database.currentTimeStamp(0) ~ " as VARCHAR(50)), 24) FROM rdb$database");
+    countZero(v.value.toString(), 4);
+
+    v = connection.executeScalar("SELECT left(cast(" ~ connection.database.currentTimeStamp(1) ~ " as VARCHAR(50)), 24) FROM rdb$database");
+    countZero(v.value.toString(), 3);
+
+    v = connection.executeScalar("SELECT left(cast(" ~ connection.database.currentTimeStamp(2) ~ " as VARCHAR(50)), 24) FROM rdb$database");
+    countZero(v.value.toString(), 2);
+
+    v = connection.executeScalar("SELECT left(cast(" ~ connection.database.currentTimeStamp(3) ~ " as VARCHAR(50)), 24) FROM rdb$database");
+    countZero(v.value.toString(), 1);
+
+    v = connection.executeScalar("SELECT left(cast(" ~ connection.database.currentTimeStamp(4) ~ " as VARCHAR(50)), 24) FROM rdb$database");
+    countZero(v.value.toString(), 1);
+
+    v = connection.executeScalar("SELECT left(cast(" ~ connection.database.currentTimeStamp(5) ~ " as VARCHAR(50)), 24) FROM rdb$database");
+    countZero(v.value.toString(), 1);
+
+    v = connection.executeScalar("SELECT left(cast(" ~ connection.database.currentTimeStamp(6) ~ " as VARCHAR(50)), 24) FROM rdb$database");
+    countZero(v.value.toString(), 1);
+    
+    auto n = DateTime.now;
+    auto t = connection.currentTimeStamp(6);
+    assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));
 }
 
 version(UnitTestFBDatabase)

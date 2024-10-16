@@ -99,24 +99,17 @@ int64 dateTimeEncode(scope const(DbDateTime) value) @nogc pure
     return durationToTime(d);
 }
 
-DbDateTime dateTimeDecodeTZ(int64 pgDateTime, int32 pgZone)
+DbDateTime dateTimeDecodeTZ(int64 pgDateTime)
 {
 	auto dt = epochDateTime.addTicksClamp(timeToDuration(pgDateTime));
-	if (pgZone != 0)
-		dt = dt.addSecondsClamp(-pgZone);
 	return DbDateTime(TimeZoneInfo.convertUtcToLocal(dt.asUTC), 0);
 }
 
-void dateTimeEncodeTZ(scope const(DbDateTime) value, out int64 pgTime, out int32 pgZone)
+int64 dateTimeEncodeTZ(scope const(DbDateTime) value)
 {
-    pgZone = 0;
-	if (value.kind == DateTimeZoneKind.utc)
-		pgTime = dateTimeEncode(value);
-	else
-    {
-		auto utc = value.toUTC();
-		pgTime = dateTimeEncode(utc);
-    }
+	return value.kind == DateTimeZoneKind.utc
+		? dateTimeEncode(value)
+        : dateTimeEncode(value.toUTC());
 }
 
 D numericDecode(D)(scope const(PgOIdNumeric) pgNumeric)

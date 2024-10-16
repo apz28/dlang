@@ -2258,6 +2258,55 @@ unittest // MyConnection.DML.execute...
 }
 
 version(UnitTestMYDatabase)
+unittest // MyDatabase.currentTimeStamp...
+{
+    import pham.dtm.dtm_date : DateTime;
+    
+    void countZero(string s, uint expectedLength)
+    {
+        import std.format : format;
+
+        //import std.stdio : writeln; debug writeln("s=", s, ", expectedLength=", expectedLength);
+
+        assert(s.length == expectedLength, format("%s - %d", s, expectedLength));
+    }
+
+    // 2024-10-14 12:06:39
+    // 2024-10-14 12:06:39.xxxxxx
+    enum baseLength = "2024-10-14 12:06:39".length;
+
+    auto connection = createUnitTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(0) ~ " as CHAR)");
+    countZero(v.value.toString(), baseLength);
+
+    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(1) ~ " as CHAR)");
+    countZero(v.value.toString(), baseLength+1+1);
+
+    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(2) ~ " as CHAR)");
+    countZero(v.value.toString(), baseLength+1+2);
+
+    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(3) ~ " as CHAR)");
+    countZero(v.value.toString(), baseLength+1+3);
+
+    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(4) ~ " as CHAR)");
+    countZero(v.value.toString(), baseLength+1+4);
+
+    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(5) ~ " as CHAR)");
+    countZero(v.value.toString(), baseLength+1+5);
+
+    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(6) ~ " as CHAR)");
+    countZero(v.value.toString(), baseLength+1+6);
+    
+    auto n = DateTime.now;
+    auto t = connection.currentTimeStamp(6);
+    assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));
+}
+
+version(UnitTestMYDatabase)
 unittest
 {
     import std.stdio : writeln;

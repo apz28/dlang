@@ -848,7 +848,16 @@ public:
 
     @property int millisecond() const @nogc pure
     {
-        return isFraction ? TickPart.tickToMillisecond(fraction) : fraction;
+        return TickPart.tickToMillisecond(tickFraction);
+    }
+
+    @property int tickFraction() const @nogc pure
+    {
+        return fractionDigitCount <= Tick.millisMaxPrecision
+            ? TickPart.millisecondToTick(fraction)
+            : (fractionDigitCount <= Tick.microsecondsMaxPrecision
+                ? TickPart.microsecondToTick(fraction)
+                : fraction);
     }
 
     @property ZoneOffset zoneAdjustmentBias() const @nogc pure
@@ -923,7 +932,7 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
             {
                 auto temp = DateTime(parser.year, parser.month, parser.day,
                                     parser.hour, parser.minute, parser.second, fromKind);
-                result = temp.addTicksClamp(parser.fraction);
+                result = temp.addTicksClamp(parser.tickFraction);
             }
             else
                 result = DateTime(parser.year, parser.month, parser.day,
@@ -948,7 +957,7 @@ if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == Time))
             if (parser.isFraction)
             {
                 auto temp = Time(parser.hour, parser.minute, parser.second, fromKind);
-                result = temp.addTicksClamp(parser.fraction);
+                result = temp.addTicksClamp(parser.tickFraction);
             }
             else
                 result = Time(parser.hour, parser.minute, parser.second, parser.millisecond, fromKind);

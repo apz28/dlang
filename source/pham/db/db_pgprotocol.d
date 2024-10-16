@@ -701,7 +701,7 @@ public:
             case DbType.datetime:
                 return DbValue(checkValueLength(8).readDateTime(), dbType);
             case DbType.datetimeTZ:
-                return DbValue(checkValueLength(12).readDateTimeTZ(), dbType);
+                return DbValue(checkValueLength(8).readDateTimeTZ(), dbType);
             case DbType.time:
                 return DbValue(checkValueLength(8).readTime(), dbType);
             case DbType.timeTZ:

@@ -468,10 +468,7 @@ public:
 
     DbDateTime readDateTimeTZ()
     {
-        // Do not try to inline function calls, D does not honor right sequence from left to right
-        auto dt = _reader.readInt64();
-        auto z = _reader.readInt32();
-        return dateTimeDecodeTZ(dt, z);
+        return dateTimeDecodeTZ(readInt64());
     }
 
     D readDecimal(D)(scope const(DbBaseTypeInfo) baseType)
@@ -736,13 +733,7 @@ public:
 
     void writeDateTimeTZ(scope const(DbDateTime) v) nothrow
     {
-        int64 dt = void;
-        int32 z = void;
-        dateTimeEncodeTZ(v, dt, z);
-
-        _writer.writeInt32(12);
-        _writer.writeInt64(dt);
-        _writer.writeInt32(z);
+        writeInt64(dateTimeEncodeTZ(v));
     }
 
     void writeDecimal(D)(scope const(D) v, scope const(DbBaseTypeInfo) baseType) nothrow
@@ -1018,7 +1009,7 @@ unittest // PgXdrReader & PgXdrWriter
     assert(readLength() == chars.length); assert(reader.readChars(valueLength) == chars);
     assert(readLength() == 4); assert(reader.readDate() == DbDate(1, 2, 3));
     assert(readLength() == 8); assert(reader.readDateTime() == DbDateTime(DateTime(1,2,3,4,5,6), 0));
-    assert(readLength() == 12); assert(reader.readDateTimeTZ() == DbDateTime(DateTime(1,2,3,4,5,6), 0));
+    assert(readLength() == 8); assert(reader.readDateTimeTZ() == DbDateTime(DateTime(1,2,3,4,5,6), 0));
     //assert(reader.readDecimal() == );
     assert(readLength() == 4); assert(reader.readFloat32() == float.min_normal);
     assert(readLength() == 4); assert(reader.readFloat32() == cast(float)32.32);
