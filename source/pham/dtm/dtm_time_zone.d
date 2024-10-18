@@ -1436,12 +1436,12 @@ nothrow @safe:
     
     static @property ZoneOffset max() @nogc pure
     {
-        return ZoneOffset(maxOffsetInHours, Tick.minutesPerHour-1);
+        return ZoneOffset(maxOffsetInHours - 1, Tick.minutesPerHour - 1);
     }
 
     static @property ZoneOffset min() @nogc pure
     {
-        return ZoneOffset(minOffsetInHours, Tick.minutesPerHour-1);
+        return ZoneOffset(minOffsetInHours + 1, Tick.minutesPerHour - 1);
     }
 
     byte hour;
@@ -1451,10 +1451,10 @@ private:
     // https://en.wikipedia.org/wiki/Time_zone
     // +/-1 for day light saving
     enum maxOffsetInHours = 14 + 1;    
-    enum maxOffsetInMinutes = toMinutes(maxOffsetInHours, Tick.minutesPerHour-1);
-    //enum minOffsetInHours = -12 - 1;
+    enum maxOffsetInMinutes = toMinutes(maxOffsetInHours - 1, Tick.minutesPerHour - 1);
+    //enum minOffsetInHours = -14 - 1;
     enum minOffsetInHours = -23; // -23 = see comment in isValidAdjustmentRule
-    enum minOffsetInMinutes = toMinutes(minOffsetInHours, Tick.minutesPerHour-1);
+    enum minOffsetInMinutes = toMinutes(minOffsetInHours + 1, Tick.minutesPerHour - 1);
 }
 
 package(pham.dtm):
