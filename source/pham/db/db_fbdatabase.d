@@ -2314,7 +2314,6 @@ public:
     // Row numbers are 1-based
     final override string limitClause(int32 rows, uint32 offset = 0) const nothrow pure @safe
     {
-        import pham.utl.utl_array : Appender;
         import pham.utl.utl_object : nToString = toString;
 
         // No restriction
@@ -2333,6 +2332,7 @@ public:
             .data;
     }
 
+    
     // select FIRST(?) ... from ...
     final override string topClause(int rows) const nothrow pure @safe
     {
@@ -2348,6 +2348,11 @@ public:
             .data;
     }
 
+    @property final override bool returningClause() const nothrow pure
+    {
+        return true;
+    }
+    
     @property final override DbScheme scheme() const nothrow pure
     {
         return DbScheme.fb;

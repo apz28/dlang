@@ -1185,7 +1185,6 @@ public:
     // The offset of the initial row is 0 (not 1)
     final override string limitClause(int32 rows, uint32 offset = 0) const nothrow pure @safe
     {
-        import pham.utl.utl_array : Appender;
         import pham.utl.utl_object : nToString = toString;
 
         // No restriction
@@ -1209,6 +1208,11 @@ public:
     final override string topClause(int32 rows) const nothrow pure @safe
     {
         return null;
+    }
+
+    @property final override bool returningClause() const nothrow pure
+    {
+        return false;
     }
 
     @property final override DbScheme scheme() const nothrow pure

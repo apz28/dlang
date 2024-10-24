@@ -3825,8 +3825,8 @@ public:
 
     /**
      * Return a contruct to limits the rows returned in a query result set to a specified number of rows.
-     * However, not all database engines support this contruct. If the rows is greater than 0,
-     * it is better to use `limitClause` instead. Only Firebird & MS-SQL support it.
+     * However, not all database engines support this contruct. an empty string is returned.
+     * If the rows is greater than 0, it is better to use `limitClause` instead. Only Firebird & MS-SQL support it.
      * Params:
      *   rows = specified number of rows to return
      *          < 0 - returns empty
@@ -3880,7 +3880,13 @@ public:
     }
 
     /**
-     * Returns a separated list of hint keywords if supported
+     * Returns true if database supports RETURNING clause, otherwise false
+     */
+    @property abstract bool returningClause() const nothrow pure;
+
+    /**
+     * Returns a separated list of hint keywords if database supports,
+     * otherwise an empty string
      */
     @property abstract string tableHint() const nothrow pure;
 

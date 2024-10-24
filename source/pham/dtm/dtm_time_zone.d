@@ -1406,19 +1406,12 @@ nothrow @safe:
 
     ref Writer toString(Writer)(return ref Writer sink) const scope
     {
-        import std.format : sformat;
+        import pham.utl.utl_object : nToString = toString;
 
-        scope (failure) assert(0, "Assume nothrow failed");
-
-        char[4] buffer;
-
-        if (hour < 0 || minute < 0)
-            sink.put('-');
-        else
-            sink.put('+');
-        sink.put(sformat(buffer[], "%.2d", abs(hour)));
+        sink.put(hour < 0 || minute < 0 ? '-' : '+');
+        sink.nToString(abs(hour), 2);
         sink.put(':');
-        sink.put(sformat(buffer[], "%.2d", abs(minute)));
+        sink.nToString(abs(minute), 2);
         return sink;
     }
 

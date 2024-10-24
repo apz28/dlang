@@ -12,7 +12,7 @@
 module pham.db.db_builder;
 
 import std.range.primitives : isOutputRange;
-import std.traits : isIntegral, isFloatingPoint;
+import std.traits : isIntegral, isFloatingPoint, Unqual;
 
 public import pham.utl.utl_array : Appender;
 public import pham.var.var_variant : Variant, VariantType;
@@ -64,14 +64,14 @@ static immutable string[LogicalOp.max + 1] logicalOps = [
     "OR"
     ];
 
-enum OrderByOp : ubyte
+enum OrderBySortedKind : ubyte
 {
     def,
     asc,
     dsc,
 }
 
-static immutable string[OrderByOp.max + 1] orderByOps = [
+static immutable string[OrderBySortedKind.max + 1] orderBySortedKinds = [
     null,  // No need to specify (default as asc)
     "ASC",
     "DESC"
@@ -113,48 +113,22 @@ static immutable string[TableJoin.max + 1] tableJoins = [
 
 enum TermKind : ubyte
 {
+    groupBegin,
+    groupEnd,
     logicalOp,
     column,
     conditionOp,
     value,
     parameterPlaceholder,
-    groupBegin,
-    groupEnd,
     table,
     orderByLiteral,
-    orderByOp,
+    orderBySortedKind,
     whereLiteral,
     limit,
-    top,
+    returningLiteral,
     statementOp,
+    top,
     tableHint,
-}
-
-struct GroupBeginTerm
-{
-@safe:
-
-public:
-    ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
-    if (isOutputRange!(Writer, char))
-    {
-        if (context.lastTerm != ubyte.max)
-            writer.put(' ');
-
-        return writer.put('(');
-    }
-}
-
-struct GroupEndTerm
-{
-@safe:
-
-public:
-    ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
-    if (isOutputRange!(Writer, char))
-    {
-        return writer.put(')');
-    }
 }
 
 struct ColumnTerm
@@ -165,7 +139,7 @@ public:
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
-        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(context.lastStatementOp=", context.lastStatementOp, ", context.sectionTerm=", context.sectionTerm, ")");
+        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(context.lastStatementOp=", context.lastStatementOp, ", context.lastSectionTerm=", context.lastSectionTerm, ")");
 
         scope (exit)
             context.sectionColumnCount++;
@@ -177,7 +151,7 @@ public:
             case StatementOp.insert:
                 return sqlInsert(writer, context);
             case StatementOp.update:
-                return context.sectionTerm == TermKind.table
+                return context.lastSectionTerm == TermKind.table
                     ? sqlUpdate(writer, context)
                     : sqlCondition(writer, context);
         }
@@ -225,7 +199,7 @@ private:
         switch (context.lastTerm)
         {
             case TermKind.column:
-            case TermKind.orderByOp:
+            case TermKind.orderBySortedKind:
                 writer.put(", ");
                 break;
             case TermKind.groupBegin:
@@ -241,6 +215,33 @@ public:
     string aliasOrTable;
     string name;
     string alias_;
+}
+
+struct GroupBeginTerm
+{
+@safe:
+
+public:
+    ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
+    if (isOutputRange!(Writer, char))
+    {
+        if (context.lastTerm != ubyte.max)
+            writer.put(' ');
+
+        return writer.put('(');
+    }
+}
+
+struct GroupEndTerm
+{
+@safe:
+
+public:
+    ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
+    if (isOutputRange!(Writer, char))
+    {
+        return writer.put(')');
+    }
 }
 
 struct LimitTerm
@@ -271,6 +272,9 @@ public:
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
+        scope (exit)
+            context.lastConditionOp = ubyte.max;
+        
         return writer.put(' ').put(logicalOps[logicalOp]);
     }
 
@@ -306,7 +310,7 @@ public:
     if (isOutputRange!(Writer, char))
     {
         context.sectionColumnCount = 0;
-        context.sectionTerm = TermKind.orderByLiteral;
+        context.lastSectionTerm = TermKind.orderByLiteral;
 
         if (context.lastTerm != ubyte.max)
             writer.put(' ');
@@ -315,7 +319,7 @@ public:
     }
 }
 
-struct OrderByOpTerm
+struct OrderBySortedKindTerm
 {
 @safe:
 
@@ -323,13 +327,13 @@ public:
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
     if (isOutputRange!(Writer, char))
     {
-        if (orderByOps[orderByOp].length)
-            writer.put(' ').put(orderByOps[orderByOp]);
+        if (orderBySortedKinds[orderBySortedKind].length)
+            writer.put(' ').put(orderBySortedKinds[orderBySortedKind]);
         return writer;
     }
 
 public:
-    OrderByOp orderByOp;
+    OrderBySortedKind orderBySortedKind;
 }
 
 struct ParameterPlaceholderTerm
@@ -353,6 +357,24 @@ public:
     string name;
 }
 
+struct ReturningLiteralTerm
+{
+@safe:
+
+public:
+    ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
+    if (isOutputRange!(Writer, char))
+    {
+        context.sectionColumnCount = 0;
+        context.lastSectionTerm = TermKind.returningLiteral;
+
+        if (context.lastTerm != ubyte.max)
+            writer.put(' ');
+
+        return writer.put("RETURNING");
+    }
+}
+
 // select column_name ... from table_name [join table_name on ...] [where ...] [order by ...]
 // insert into table_name(column_name, ...) values(...)
 // update table_name set column_name=... [where ...]
@@ -366,7 +388,7 @@ public:
     if (isOutputRange!(Writer, char))
     {
         context.sectionColumnCount = 0;
-        context.sectionTerm = TermKind.statementOp;
+        context.lastSectionTerm = TermKind.statementOp;
         context.referredTopClause = null;
 
         scope (exit)
@@ -393,7 +415,7 @@ public:
     if (isOutputRange!(Writer, char))
     {
         context.sectionColumnCount = 0;
-        context.sectionTerm = TermKind.table;
+        context.lastSectionTerm = TermKind.table;
 
         if (context.lastTerm != ubyte.max)
             writer.put(' ');
@@ -478,7 +500,7 @@ public:
     ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context)
     if (isOutputRange!(Writer, char))
     {
-        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(context.lastStatementOp=", context.lastStatementOp, ", context.sectionTerm=", context.sectionTerm, ")");
+        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(context.lastStatementOp=", context.lastStatementOp, ", context.lastSectionTerm=", context.lastSectionTerm, ")");
 
         scope (exit)
             context.valueCount++;
@@ -490,7 +512,7 @@ public:
             case StatementOp.insert:
                 return sqlInsert(writer, context);
             case StatementOp.update:
-                return context.sectionTerm == TermKind.table
+                return context.lastSectionTerm == TermKind.table
                     ? sqlUpdate(writer, context)
                     : sqlCondition(writer, context);
         }
@@ -529,9 +551,9 @@ private:
         return sqlNameOrValue(writer, context, true);
     }
 
-    ref Writer sqlNameOrValue(Writer)(return ref Writer writer, ref SqlBuilderContext context, const(bool) asParam)
+    ref Writer sqlNameOrValue(Writer)(return ref Writer writer, ref SqlBuilderContext context, const(bool) referAsParam)
     {
-        if (asParam)
+        if (parameterName.length != 0 || (!sqlLiteral && referAsParam))
         {
             scope (exit)
                 context.parameterCount++;
@@ -551,7 +573,8 @@ private:
 
     ref Writer sqlValueString(Writer)(return ref Writer writer, ref SqlBuilderContext context) @trusted
     {
-        const needQuoted = (context.lastConditionOp != ConditionOp.custom)
+        const needQuoted = !sqlLiteral
+            && (context.lastConditionOp != ConditionOp.custom)
             && (context.lastConditionOp == ConditionOp.like || isDbTypeQuoted(dbArrayElementOf(type)));
 
         const vt = value.variantType;
@@ -590,6 +613,7 @@ public:
     string parameterName;
     Variant value;
     DbType type;
+    bool sqlLiteral;
 }
 
 struct WhereLiteralTerm
@@ -601,7 +625,7 @@ public:
     if (isOutputRange!(Writer, char))
     {
         context.sectionColumnCount = 0;
-        context.sectionTerm = TermKind.whereLiteral;
+        context.lastSectionTerm = TermKind.whereLiteral;
 
         if (context.lastTerm != ubyte.max)
             writer.put(' ');
@@ -633,10 +657,10 @@ public:
         this.conditionOp = ConditionOpTerm(customOp, conditionOp);
     }
 
-    this(string parameterName, Variant value, DbType type) nothrow @trusted
+    this(string parameterName, Variant value, DbType type, bool sqlLiteral) nothrow @trusted
     {
         this.kind = TermKind.value;
-        this.value = ValueTerm(parameterName, value, type);
+        this.value = ValueTerm(parameterName, value, type, sqlLiteral);
     }
 
     this(GroupBeginTerm begin) nothrow @trusted
@@ -663,10 +687,10 @@ public:
         this.orderByLiteral = orderByLiteral;
     }
 
-    this(OrderByOp orderByOp) nothrow @trusted
+    this(OrderBySortedKind orderBySortedKind) nothrow @trusted
     {
-        this.kind = TermKind.orderByOp;
-        this.orderByOp = OrderByOpTerm(orderByOp);
+        this.kind = TermKind.orderBySortedKind;
+        this.orderBySortedKind = OrderBySortedKindTerm(orderBySortedKind);
     }
 
     this(ParameterPlaceholderTerm parameterPlaceholder) nothrow @trusted
@@ -685,6 +709,12 @@ public:
     {
         this.kind = TermKind.limit;
         this.limit = LimitTerm(limitRows, limitOffset);
+    }
+
+    this(ReturningLiteralTerm returningLiteral) nothrow @trusted
+    {
+        this.kind = TermKind.returningLiteral;
+        this.returningLiteral = returningLiteral;
     }
 
     this(TopTerm top) nothrow @trusted
@@ -732,16 +762,18 @@ public:
                 return table.sql(writer, context);
             case TermKind.orderByLiteral:
                 return orderByLiteral.sql(writer, context);
-            case TermKind.orderByOp:
-                return orderByOp.sql(writer, context);
+            case TermKind.orderBySortedKind:
+                return orderBySortedKind.sql(writer, context);
             case TermKind.whereLiteral:
                 return whereLiteral.sql(writer, context);
             case TermKind.limit:
                 return limit.sql(writer, context);
-            case TermKind.top:
-                return top.sql(writer, context);
+            case TermKind.returningLiteral:
+                return returningLiteral.sql(writer, context);
             case TermKind.statementOp:
                 return statementOp.sql(writer, context);
+            case TermKind.top:
+                return top.sql(writer, context);
             case TermKind.tableHint:
                 return tableHint.sql(writer, context);
         }
@@ -757,8 +789,9 @@ public:
         LogicalOpTerm logicalOp;
         ConditionOpTerm conditionOp;
         OrderByLiteralTerm orderByLiteral;
-        OrderByOpTerm orderByOp;
+        OrderBySortedKindTerm orderBySortedKind;
         ParameterPlaceholderTerm parameterPlaceholder;
+        ReturningLiteralTerm returningLiteral;
         StatementOpTerm statementOp;
         TableTerm table;
         TableHintTerm tableHint;
@@ -780,7 +813,7 @@ public:
         this.parameters = parameters;
         //this.sectionColumnCount = this.parameterCount = 0;
         //this.referredTopClause = null;
-        this.lastConditionOp = this.lastStatementOp = this.lastTerm = this.sectionTerm = ubyte.max;
+        this.lastConditionOp = this.lastStatementOp = this.lastTerm = this.lastSectionTerm = ubyte.max;
     }
 
 public:
@@ -791,9 +824,9 @@ public:
     uint parameterCount;
     uint valueCount;
     ubyte lastConditionOp;
+    ubyte lastSectionTerm;
     ubyte lastStatementOp;
     ubyte lastTerm;
-    ubyte sectionTerm;
 }
 
 struct SqlBuilder
@@ -877,14 +910,19 @@ public:
         return put(SqlTerm(OrderByLiteralTerm.init));
     }
 
-    ref typeof(this) putOrderByOp(OrderByOp orderByOp) nothrow return
+    ref typeof(this) putOrderBySortedKind(OrderBySortedKind orderBySortedKind) nothrow return
     {
-        return put(SqlTerm(orderByOp));
+        return put(SqlTerm(orderBySortedKind));
     }
 
     ref typeof(this) putParameterPlaceholder(string parameterName) nothrow return
     {
         return put(SqlTerm(ParameterPlaceholderTerm(parameterName)));
+    }
+
+    ref typeof(this) putReturningLiteral() nothrow return
+    {
+        return put(SqlTerm(ReturningLiteralTerm.init));
     }
 
     ref typeof(this) putStatementOp(StatementOp statementOp) nothrow return
@@ -917,13 +955,18 @@ public:
     ref typeof(this) putValue(string parameterName, Variant value,
         DbType type = DbType.unknown) nothrow return
     {
-        return put(SqlTerm(parameterName, value, type));
+        return put(SqlTerm(parameterName, value, type, false));
     }
 
     ref typeof(this) putValue(T)(string parameterName, T value) nothrow return
+    if (!is(Unqual!T == Variant))
     {
-        //import std.stdio : writeln; debug writeln("T=", T.stringof);
-        return put(SqlTerm(parameterName, Variant(value), dbTypeOf!T()));
+        return put(SqlTerm(parameterName, Variant(value), dbTypeOf!T(), false));
+    }
+
+    ref typeof(this) putValueLiteral(string value) nothrow return
+    {
+        return put(SqlTerm(null, Variant(value), DbType.unknown, true));
     }
 
     ref typeof(this) putWhereCondition(SqlBuilder conditions) nothrow return
@@ -964,32 +1007,36 @@ private:
     ref Writer sqlInsert(Writer)(return ref Writer writer, ref SqlBuilderContext context) nothrow @trusted
     {
         if (context.valueCount == 0)
-        {
-            const populateParameters = context.parameters.length == 0;
-
-            auto i = 0;
-            writer.put(") VALUES(");
-            foreach (ref term; terms)
-            {
-                if (term.kind != TermKind.column)
-                    continue;
-
-                if (i)
-                    writer.put(", ");
-
-                auto pn = term.column.name;
-                writer.put('@').put(pn);
-
-                if (populateParameters)
-                    context.parameters.add(pn, DbType.unknown);
-
-                i++;
-            }
-        }
+            sqlInsertValues(writer, context);
 
         return writer.put(')');
     }
 
+    ref Writer sqlInsertValues(Writer)(return ref Writer writer, ref SqlBuilderContext context) nothrow @trusted
+    {
+        const populateParameters = context.parameters.length == 0;
+        auto i = 0;
+        writer.put(") VALUES(");
+        foreach (ref term; terms)
+        {
+            if (term.kind != TermKind.column)
+                continue;
+
+            if (i)
+                writer.put(", ");
+
+            auto pn = term.column.name;
+            writer.put('@').put(pn);
+
+            if (populateParameters)
+                context.parameters.add(pn, DbType.unknown);
+
+            i++;
+        }
+        
+        return writer;
+    }
+    
 public:
     SqlTerm[] terms;
 }
@@ -1325,7 +1372,7 @@ unittest // SqlBuilder
                 .putValue(null, "string1")
             .putOrderByLiteral()
                 .putColumn("co1")
-                .putOrderByOp(OrderByOp.dsc)
+                .putOrderBySortedKind(OrderBySortedKind.dsc)
                 .putColumn("t", "co2")
             .putLimit(1, 2)
             .sql(sql, db, params);
@@ -1403,5 +1450,24 @@ unittest // SqlBuilder
         assert(params.length == 2);
         assert(params.get("cw1").variant == "string1");
         assert(params.get("cw2").variant == 2);
+    }
+
+    { // Delete+putValueLiteral
+        auto params = new DbParameterList(db);
+        auto sql = Appender!string(200);
+        SqlBuilder builder;
+        builder.putStatementOp(StatementOp.delete_)
+            .putTable("tbl")
+            .putWhereLiteral()
+                .putColumn("cw1")
+                .putCondition(ConditionOp.equal)
+                .putValueLiteral("CURRENT_TIMESTAMP(2)")
+                .putLogical(LogicalOp.and)
+                .putColumn("cw2")
+                .putCondition(ConditionOp.greater)
+                .putValueLiteral("NOW")
+            .sql(sql, db, params);
+        assert(sql.data == "DELETE FROM tbl WHERE cw1 = CURRENT_TIMESTAMP(2) AND cw2 > NOW", sql.data);
+        assert(params.length == 0);
     }
 }
