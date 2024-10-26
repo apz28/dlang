@@ -1202,12 +1202,12 @@ private:
 
 private:
     // Compute the largest practical storage size from MaxDataSize
-    struct SizeChecker
+    static struct SizeChecker
     {
-        void* handler;
         ubyte[MaxDataSize] store;
+        Handler!void* handler;
     }
-    enum size = SizeChecker.sizeof - (void*).sizeof;
+    enum size = SizeChecker.sizeof - (Handler!void*).sizeof;
 
     union
     {

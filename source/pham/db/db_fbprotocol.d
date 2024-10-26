@@ -1591,6 +1591,9 @@ protected:
 		writer.writeInt32(FbIsc.isc_dpb_process_id, currentProcessId());
 		writer.writeChars(FbIsc.isc_dpb_process_name, currentProcessName());
 		writer.writeCharsIf(FbIsc.isc_dpb_client_version, useCSB.applicationVersion);
+		writer.writeChars(FbIsc.isc_dpb_host_name, currentComputerName());
+		writer.writeChars(FbIsc.isc_dpb_os_user, currentUserName());
+        
 		if (stateInfo.authData.length)
 		    writer.writeBytes(FbIsc.isc_dpb_specific_auth_data, stateInfo.authData[]);
 		if (useCSB.cachePages)
@@ -1628,8 +1631,11 @@ protected:
 	    writer.writeCharsIf(FbIsc.isc_dpb_sql_role_name, useRoleName);
 		writer.writeInt32(FbIsc.isc_dpb_connect_timeout, useCSB.connectionTimeout.limitRangeTimeoutAsSecond());
 		writer.writeInt32(FbIsc.isc_dpb_process_id, currentProcessId());
-		writer.writeChars(FbIsc.isc_dpb_process_name, currentProcessName());
+		writer.writeChars(FbIsc.isc_dpb_process_name, currentProcessName());        
 		writer.writeCharsIf(FbIsc.isc_dpb_client_version, useCSB.applicationVersion);
+		writer.writeChars(FbIsc.isc_dpb_host_name, currentComputerName());
+		writer.writeChars(FbIsc.isc_dpb_os_user, currentUserName());
+        
 		if (stateInfo.authData.length)
 		    writer.writeBytes(FbIsc.isc_dpb_specific_auth_data, stateInfo.authData[]);
         writer.writeCharsIf(FbIsc.isc_dpb_set_db_charset, createDatabaseInfo.defaultCharacterSet);

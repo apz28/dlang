@@ -780,8 +780,23 @@ public:
     }
 
 public:
+    private static size_t maxTermSize() nothrow @nogc pure
+    {
+        size_t result;
+        static foreach (n; [
+            ColumnTerm.sizeof, GroupBeginTerm.sizeof, GroupEndTerm.sizeof, LimitTerm.sizeof, LogicalOpTerm.sizeof, ConditionOpTerm.sizeof, 
+            OrderByLiteralTerm.sizeof, OrderBySortedKindTerm.sizeof, ParameterPlaceholderTerm.sizeof, ReturningLiteralTerm.sizeof,
+            StatementOpTerm.sizeof, TableTerm.sizeof, TableHintTerm.sizeof, TopTerm.sizeof, ValueTerm.sizeof, WhereLiteralTerm.sizeof])
+        {
+            if (result < n)
+                result = n;
+        }
+        return result;
+    }
+    
     union
     {
+        ubyte[maxTermSize] _zeroInitializer;
         ColumnTerm column;
         GroupBeginTerm groupBegin;
         GroupEndTerm groupEnd;
@@ -836,6 +851,9 @@ struct SqlBuilder
 public:
     ref typeof(this) put(SqlTerm term) nothrow return
     {
+        if (terms.length == 0 && terms.capacity == 0)
+            terms.reserve(100);
+            
         terms ~= term;
         return this;
     }
@@ -991,6 +1009,13 @@ public:
         return put(SqlTerm(WhereLiteralTerm.init));
     }
 
+    ref typeof(this) reserve(const(size_t) capacity) nothrow return
+    {
+        if (terms.length < capacity)
+            terms.reserve(capacity);
+        return this;
+    }
+    
     ref Writer sql(Writer)(return ref Writer writer, DbDatabase db, DbParameterList parameters)
     {
         auto context = SqlBuilderContext(db, parameters);

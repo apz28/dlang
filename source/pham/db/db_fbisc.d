@@ -255,6 +255,8 @@ enum FbIsc
 	isc_dpb_password_enc = 30,
 	isc_dpb_lc_ctype = 48,
 	isc_dpb_overwrite = 54,
+    isc_dpb_sec_attach = 55,
+    isc_dpb_disable_wal = 56,
 	isc_dpb_connect_timeout = 57,
 	isc_dpb_dummy_packet_interval = 58,
 	isc_dpb_sql_role_name = 60,
@@ -268,7 +270,18 @@ enum FbIsc
 	isc_dpb_org_filename = 76,
 	isc_dpb_utf8_filename = 77,
 	isc_dpb_client_version = 80,
+    isc_dpb_host_name = 82,
+    isc_dpb_os_user = 83,
 	isc_dpb_specific_auth_data = 84,
+    isc_dpb_auth_plugin_list = 85,
+    isc_dpb_auth_plugin_name = 86,
+    isc_dpb_session_time_zone = 91,
+    isc_dpb_set_db_replica = 92,
+    isc_dpb_set_bind = 93,
+    isc_dpb_decfloat_round = 94,
+    isc_dpb_decfloat_traps = 95,
+    isc_dpb_parallel_workers = 100,
+    
 
 	// backup
 	isc_spb_bkp_file = 5,
