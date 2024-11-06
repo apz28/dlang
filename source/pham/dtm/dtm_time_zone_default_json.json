@@ -1,6 +1,276 @@
 {
   "zones": [
     {
+      "id": "UTC",
+      "displayName": "(UTC) Coordinated Universal Time",
+      "standardName": "Coordinated Universal Time",
+      "daylightName": "Coordinated Universal Time",
+      "baseUtcOffset": 0,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "GMT",
+      "displayName": "(GMT) Coordinated Universal Time",
+      "standardName": "Greenwich Mean Time",
+      "daylightName": "Greenwich Mean Time",
+      "baseUtcOffset": 0,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC+01",
+      "displayName": "(UTC+01:00) Coordinated Universal Time+01",
+      "standardName": "UTC+01",
+      "daylightName": "UTC+01",
+      "baseUtcOffset": 60,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC+02",
+      "displayName": "(UTC+02:00) Coordinated Universal Time+02",
+      "standardName": "UTC+02",
+      "daylightName": "UTC+02",
+      "baseUtcOffset": 120,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC+03",
+      "displayName": "(UTC+03:00) Coordinated Universal Time+03",
+      "standardName": "UTC+03",
+      "daylightName": "UTC+03",
+      "baseUtcOffset": 180,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC+04",
+      "displayName": "(UTC+04:00) Coordinated Universal Time+04",
+      "standardName": "UTC+04",
+      "daylightName": "UTC+04",
+      "baseUtcOffset": 240,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC+05",
+      "displayName": "(UTC+05:00) Coordinated Universal Time+05",
+      "standardName": "UTC+05",
+      "daylightName": "UTC+05",
+      "baseUtcOffset": 300,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC+06",
+      "displayName": "(UTC+06:00) Coordinated Universal Time+06",
+      "standardName": "UTC+06",
+      "daylightName": "UTC+06",
+      "baseUtcOffset": 360,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC+07",
+      "displayName": "(UTC+07:00) Coordinated Universal Time+07",
+      "standardName": "UTC+07",
+      "daylightName": "UTC+07",
+      "baseUtcOffset": 420,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC+08",
+      "displayName": "(UTC+08:00) Coordinated Universal Time+08",
+      "standardName": "UTC+08",
+      "daylightName": "UTC+08",
+      "baseUtcOffset": 480,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC+09",
+      "displayName": "(UTC+09:00) Coordinated Universal Time+09",
+      "standardName": "UTC+09",
+      "daylightName": "UTC+09",
+      "baseUtcOffset": 540,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC+10",
+      "displayName": "(UTC+10:00) Coordinated Universal Time+10",
+      "standardName": "UTC+10",
+      "daylightName": "UTC+10",
+      "baseUtcOffset": 600,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC+11",
+      "displayName": "(UTC+11:00) Coordinated Universal Time+11",
+      "standardName": "UTC+11",
+      "daylightName": "UTC+11",
+      "baseUtcOffset": 660,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC+12",
+      "displayName": "(UTC+12:00) Coordinated Universal Time+12",
+      "standardName": "UTC+12",
+      "daylightName": "UTC+12",
+      "baseUtcOffset": 720,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC+13",
+      "displayName": "(UTC+13:00) Coordinated Universal Time+13",
+      "standardName": "UTC+13",
+      "daylightName": "UTC+13",
+      "baseUtcOffset": 780,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC-01",
+      "displayName": "(UTC-01:00) Coordinated Universal Time-01",
+      "standardName": "UTC-01",
+      "daylightName": "UTC-01",
+      "baseUtcOffset": -60,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC-02",
+      "displayName": "(UTC-02:00) Coordinated Universal Time-02",
+      "standardName": "UTC-02",
+      "daylightName": "UTC-02",
+      "baseUtcOffset": -120,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC-03",
+      "displayName": "(UTC-03:00) Coordinated Universal Time-03",
+      "standardName": "UTC-03",
+      "daylightName": "UTC-03",
+      "baseUtcOffset": -180,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC-03:30",
+      "displayName": "(UTC-03:30) Coordinated Universal Time-03:30",
+      "standardName": "UTC-03:30",
+      "daylightName": "UTC-03:30",
+      "baseUtcOffset": -210,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC-04",
+      "displayName": "(UTC-04:00) Coordinated Universal Time-04",
+      "standardName": "UTC-04",
+      "daylightName": "UTC-04",
+      "baseUtcOffset": -240,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC-05",
+      "displayName": "(UTC-05:00) Coordinated Universal Time-05",
+      "standardName": "UTC-05",
+      "daylightName": "UTC-05",
+      "baseUtcOffset": -300,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC-06",
+      "displayName": "(UTC-06:00) Coordinated Universal Time-06",
+      "standardName": "UTC-06",
+      "daylightName": "UTC-06",
+      "baseUtcOffset": -360,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC-07",
+      "displayName": "(UTC-07:00) Coordinated Universal Time-07",
+      "standardName": "UTC-07",
+      "daylightName": "UTC-07",
+      "baseUtcOffset": -420,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC-08",
+      "displayName": "(UTC-08:00) Coordinated Universal Time-08",
+      "standardName": "UTC-08",
+      "daylightName": "UTC-08",
+      "baseUtcOffset": -480,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC-09",
+      "displayName": "(UTC-09:00) Coordinated Universal Time-09",
+      "standardName": "UTC-09",
+      "daylightName": "UTC-09",
+      "baseUtcOffset": -540,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC-10",
+      "displayName": "(UTC-10:00) Coordinated Universal Time-10",
+      "standardName": "UTC-10",
+      "daylightName": "UTC-10",
+      "baseUtcOffset": -600,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC-11",
+      "displayName": "(UTC-11:00) Coordinated Universal Time-11",
+      "standardName": "UTC-11",
+      "daylightName": "UTC-11",
+      "baseUtcOffset": -660,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC-12",
+      "displayName": "(UTC-12:00) Coordinated Universal Time-12",
+      "standardName": "UTC-12",
+      "daylightName": "UTC-12",
+      "baseUtcOffset": -720,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC-13",
+      "displayName": "(UTC-13:00) Coordinated Universal Time-13",
+      "standardName": "UTC-13",
+      "daylightName": "UTC-13",
+      "baseUtcOffset": -780,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
+      "id": "UTC-14",
+      "displayName": "(UTC-14:00) Coordinated Universal Time-14",
+      "standardName": "UTC-14",
+      "daylightName": "UTC-14",
+      "baseUtcOffset": -840,
+      "supportsDaylightSavingTime": false,
+      "adjustmentRules": []
+    },
+    {
       "id": "Afghanistan Standard Time",
       "displayName": "(UTC\u002B04:30) Kabul",
       "standardName": "Afghanistan Standard Time",
@@ -12296,69 +12566,6 @@
       "standardName": "US Mountain Standard Time",
       "daylightName": "US Mountain Daylight Time",
       "baseUtcOffset": -420,
-      "supportsDaylightSavingTime": false,
-      "adjustmentRules": []
-    },
-    {
-      "id": "UTC",
-      "displayName": "(UTC) Coordinated Universal Time",
-      "standardName": "Coordinated Universal Time",
-      "daylightName": "Coordinated Universal Time",
-      "baseUtcOffset": 0,
-      "supportsDaylightSavingTime": false,
-      "adjustmentRules": []
-    },
-    {
-      "id": "UTC\u002B12",
-      "displayName": "(UTC\u002B12:00) Coordinated Universal Time\u002B12",
-      "standardName": "UTC\u002B12",
-      "daylightName": "UTC\u002B12",
-      "baseUtcOffset": 720,
-      "supportsDaylightSavingTime": false,
-      "adjustmentRules": []
-    },
-    {
-      "id": "UTC\u002B13",
-      "displayName": "(UTC\u002B13:00) Coordinated Universal Time\u002B13",
-      "standardName": "UTC\u002B13",
-      "daylightName": "UTC\u002B13",
-      "baseUtcOffset": 780,
-      "supportsDaylightSavingTime": false,
-      "adjustmentRules": []
-    },
-    {
-      "id": "UTC-02",
-      "displayName": "(UTC-02:00) Coordinated Universal Time-02",
-      "standardName": "UTC-02",
-      "daylightName": "UTC-02",
-      "baseUtcOffset": -120,
-      "supportsDaylightSavingTime": false,
-      "adjustmentRules": []
-    },
-    {
-      "id": "UTC-08",
-      "displayName": "(UTC-08:00) Coordinated Universal Time-08",
-      "standardName": "UTC-08",
-      "daylightName": "UTC-08",
-      "baseUtcOffset": -480,
-      "supportsDaylightSavingTime": false,
-      "adjustmentRules": []
-    },
-    {
-      "id": "UTC-09",
-      "displayName": "(UTC-09:00) Coordinated Universal Time-09",
-      "standardName": "UTC-09",
-      "daylightName": "UTC-09",
-      "baseUtcOffset": -540,
-      "supportsDaylightSavingTime": false,
-      "adjustmentRules": []
-    },
-    {
-      "id": "UTC-11",
-      "displayName": "(UTC-11:00) Coordinated Universal Time-11",
-      "standardName": "UTC-11",
-      "daylightName": "UTC-11",
-      "baseUtcOffset": -660,
       "supportsDaylightSavingTime": false,
       "adjustmentRules": []
     },

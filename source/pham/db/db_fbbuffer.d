@@ -18,7 +18,6 @@ import std.system : Endian;
 import std.typecons : Flag, No, Yes;
 
 debug(debug_pham_db_db_fbbuffer) import std.stdio : writeln;
-
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.dec.dec_decimal : scaleFrom, scaleTo;
 import pham.utl.utl_array : ShortStringBuffer;
@@ -1454,8 +1453,8 @@ unittest // FbXdrWriter & FbXdrReader
     writer.writeChars(chars);
     writer.writeDate(DbDate(1, 2, 3));
     writer.writeDateTime(DbDateTime(DateTime(1,2,3,4,5,6)));
-    writer.writeDateTimeTZ(DbDateTime(DateTime(1,2,3,4,5,6,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
-    writer.writeDateTimeTZEx(DbDateTime(DateTime(1,2,3,4,5,6,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
+    writer.writeDateTimeTZ(DbDateTime(DateTime(1,2,3,4,5,6,0,DateTimeZoneKind.utc)));
+    writer.writeDateTimeTZEx(DbDateTime(DateTime(1,2,3,4,5,6,0,DateTimeZoneKind.utc)));
     //writer.writeDecimal();
     //writer.writeFixedChars();
     writer.writeFloat32(float.min_normal);
@@ -1478,8 +1477,8 @@ unittest // FbXdrWriter & FbXdrReader
     writer.writeOpaqueBytes(bytes, bytes.length);
     writer.writeOperation(5);
     writer.writeTime(DbTime(Time(1,2,3)));
-    writer.writeTimeTZ(DbTime(Time(1,2,3,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
-    writer.writeTimeTZEx(DbTime(Time(1,2,3,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
+    writer.writeTimeTZ(DbTime(Time(1,2,3,0,DateTimeZoneKind.utc)));
+    writer.writeTimeTZEx(DbTime(Time(1,2,3,0,DateTimeZoneKind.utc)));
     writer.writeUInt16(100);
     writer.writeUUID(uuid);
 
@@ -1490,8 +1489,8 @@ unittest // FbXdrWriter & FbXdrReader
     assert(reader.readChars() == chars);
     assert(reader.readDate() == DbDate(1, 2, 3));
     assert(reader.readDateTime() == DbDateTime(DateTime(1,2,3,4,5,6)));
-    assert(reader.readDateTimeTZ() == DbDateTime(DateTime(1,2,3,4,5,6,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
-    assert(reader.readDateTimeTZEx() == DbDateTime(DateTime(1,2,3,4,5,6,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
+    assert(reader.readDateTimeTZ() == DbDateTime(DateTime(1,2,3,4,5,6,0,DateTimeZoneKind.utc)));
+    assert(reader.readDateTimeTZEx() == DbDateTime(DateTime(1,2,3,4,5,6,0,DateTimeZoneKind.utc)));
     //assert(reader.readDecimal() == );
     //assert(reader.readFixedChars() == );
     assert(reader.readFloat32() == float.min_normal);
@@ -1514,8 +1513,8 @@ unittest // FbXdrWriter & FbXdrReader
     assert(reader.readOpaqueBytes(bytes.length) == bytes);
     assert(reader.readOperation() == 5);
     assert(reader.readTime() == DbTime(Time(1,2,3)));
-    assert(reader.readTimeTZ() == DbTime(Time(1,2,3,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
-    assert(reader.readTimeTZEx() == DbTime(Time(1,2,3,0,DateTimeZoneKind.utc), FbIscDefault.gmt_zoneId));
+    assert(reader.readTimeTZ() == DbTime(Time(1,2,3,0,DateTimeZoneKind.utc)));
+    assert(reader.readTimeTZEx() == DbTime(Time(1,2,3,0,DateTimeZoneKind.utc)));
     assert(reader.readUInt16() == 100);
     assert(reader.readUUID() == uuid);
 }

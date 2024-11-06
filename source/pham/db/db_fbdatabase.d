@@ -2128,7 +2128,7 @@ public:
 
     @property final int16 dialect() const nothrow
     {
-        return toIntegerSafe!int16(getString(DbConnectionParameterIdentifier.fbDialect), FbIscDefault.dialect);
+        return toIntegerSafe!int16(getString(DbConnectionParameterIdentifier.fbDialect), FbIscDefaultInt.dialect);
     }
 
     @property final Duration dummyPackageInterval() const nothrow
@@ -3055,6 +3055,7 @@ unittest // FbCommand.DML.Types
 {
     import std.conv;
     import pham.utl.utl_object;
+    import pham.db.db_fbtime_zone;
 
     auto connection = createUnitTestConnection();
     scope (exit)
@@ -3395,9 +3396,10 @@ unittest // FbCommand.DML.Types
 		auto v = command.executeScalar();
 		assert(v.isNull());
 
+        auto zoneOffset = FbTimeZone.timeZoneBaseUtcOffset("Europe/Prague");
 		command.commandText = "select cast('2020-08-27 10:00 Europe/Prague' as timestamp with time zone) from rdb$database";
 		v = command.executeScalar();
-		assert(v.get!DbDateTime() == DbDateTime(2020, 8, 27, 8, 0, 0, 0, DateTimeZoneKind.utc, 65059), v.get!DbDateTime().toString());
+		assert(v.get!DbDateTime() == DbDateTime(2020, 8, 27, 8, 0, 0, 0, DateTimeZoneKind.utc, zoneOffset), v.get!DbDateTime().toString());
     }
 
     // time with time zone
@@ -3407,9 +3409,10 @@ unittest // FbCommand.DML.Types
 		auto v = command.executeScalar();
 		assert(v.isNull());
 
+        auto zoneOffset = FbTimeZone.timeZoneBaseUtcOffset("Europe/Prague");
 		command.commandText = "select cast('15:00 Europe/Prague' as time with time zone) from rdb$database";
 		v = command.executeScalar();
-		assert(v.get!DbTime() == DbTime(14, 0, 0, 0, DateTimeZoneKind.utc, 65059), v.get!DbTime().toString());
+		assert(v.get!DbTime() == DbTime(14, 0, 0, 0, DateTimeZoneKind.utc, zoneOffset), v.get!DbTime().toString());
     }
 }
 

@@ -149,12 +149,15 @@ void dateTimeEncode(scope const(DbDateTime) value, out int32 fbDate, out int32 f
 DbDateTime dateTimeDecodeTZ(int32 fbDate, int32 fbTime, uint16 fbZoneId, int16 fbZoneOffset)
 {
 	auto dt = DateTime(dateDecode(fbDate), Time(timeToDuration(fbTime), DateTimeZoneKind.utc));
-	return DbDateTime(dt, fbZoneId, ZoneOffset(fbZoneOffset));
+    auto dtOffset = fbZoneOffset == 0 && fbZoneId != 0
+        ? ZoneOffset(FbTimeZone.timeZoneBaseUtcOffset(fbZoneId).toMinutes())
+        : ZoneOffset(fbZoneOffset);
+	return DbDateTime(dt, dtOffset);
 }
 
 void dateTimeEncodeTZ(scope const(DbDateTime) value, out int32 fbDate, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)
 {
-	fbZoneId = FbIscDefault.gmt_zoneId;
+	fbZoneId = FbIscDefaultInt.gmt_zoneId;
 	fbZoneOffset = 0; // Already in UTC so set it to zero
 	if (value.kind == DateTimeZoneKind.utc)
 		dateTimeEncode(value, fbDate, fbTime);
@@ -258,12 +261,15 @@ int32 timeEncode(scope const(DbTime) value) @nogc pure
 DbTime timeDecodeTZ(int32 fbTime, uint16 fbZoneId, int16 fbZoneOffset)
 {
 	auto dt = DateTime(DateTime.utcNow.date, Time(timeToDuration(fbTime), DateTimeZoneKind.utc));
-	return DbTime(dt.time, fbZoneId, ZoneOffset(fbZoneOffset));
+    auto dtOffset = fbZoneOffset == 0 && fbZoneId != 0
+        ? ZoneOffset(FbTimeZone.timeZoneBaseUtcOffset(fbZoneId).toMinutes())
+        : ZoneOffset(fbZoneOffset);
+	return DbTime(dt.time, dtOffset);
 }
 
 void timeEncodeTZ(scope const(DbTime) value, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)
 {
-	fbZoneId = FbIscDefault.gmt_zoneId;
+	fbZoneId = FbIscDefaultInt.gmt_zoneId;
 	fbZoneOffset = 0; // Already in UTC so set it to zero
 	fbTime = value.kind == DateTimeZoneKind.utc
 		? timeEncode(value)

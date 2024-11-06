@@ -375,7 +375,7 @@ do
         : ((r & SelectMode.error) == SelectMode.error ? resultError : resultOK);
 }
 
-shared immutable WSAStartupResult wsaStartupResult;
+static immutable WSAStartupResult wsaStartupResult;
 
 // Any below codes are private
 private:
@@ -386,7 +386,9 @@ import core.attribute : standalone;
 shared static this() nothrow @trusted
 {
     ushort wsaVersion = MAKEWORD(2, 2);
-    wsaStartupResult.wsaErrorCode = WSAStartup(wsaVersion, &cast()wsaStartupResult.wsaData);
+    WSADATA wsaData;
+    wsaStartupResult.wsaErrorCode = WSAStartup(wsaVersion, &wsaData);
+    wsaStartupResult.wsaData = cast(immutable)wsaData;
 
     //import std.stdio : writeln;
     //debug writeln("WSAStartup=", _wsaStartupResult, ", wsaVersion=", wsaVersion);

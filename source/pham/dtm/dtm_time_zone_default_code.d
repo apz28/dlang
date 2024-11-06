@@ -20,8 +20,99 @@ nothrow @safe:
 TimeZoneInfo[] getDefaultTimeZoneInfosByCode() pure
 {
     TimeZoneInfo[] result;
-    result.reserve(141);
+    result.reserve(328);
     TimeZoneInfo zone;
+
+    // Generic must be first to have stable sequence number/id
+    zone = TimeZoneInfo("UTC", "(UTC) Coordinated Universal Time", "Coordinated Universal Time", "Coordinated Universal Time", ZoneOffset(0), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("GMT", "(GMT) Coordinated Universal Time", "Greenwich Mean Time", "Greenwich Mean Time", ZoneOffset(0), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC+01", "(UTC+01:00) Coordinated Universal Time+01", "UTC+01", "UTC+01", ZoneOffset(60), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC+02", "(UTC+02:00) Coordinated Universal Time+02", "UTC+02", "UTC+02", ZoneOffset(120), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC+03", "(UTC+03:00) Coordinated Universal Time+03", "UTC+03", "UTC+03", ZoneOffset(180), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC+04", "(UTC+04:00) Coordinated Universal Time+04", "UTC+04", "UTC+04", ZoneOffset(240), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC+05", "(UTC+05:00) Coordinated Universal Time+05", "UTC+05", "UTC+05", ZoneOffset(300), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC+06", "(UTC+06:00) Coordinated Universal Time+06", "UTC+06", "UTC+06", ZoneOffset(360), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC+07", "(UTC+07:00) Coordinated Universal Time+07", "UTC+07", "UTC+07", ZoneOffset(420), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC+08", "(UTC+08:00) Coordinated Universal Time+08", "UTC+08", "UTC+08", ZoneOffset(480), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC+09", "(UTC+09:00) Coordinated Universal Time+09", "UTC+09", "UTC+09", ZoneOffset(540), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC+10", "(UTC+10:00) Coordinated Universal Time+10", "UTC+10", "UTC+10", ZoneOffset(600), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC+11", "(UTC+11:00) Coordinated Universal Time+11", "UTC+11", "UTC+11", ZoneOffset(660), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC+12", "(UTC+12:00) Coordinated Universal Time+12", "UTC+12", "UTC+12", ZoneOffset(720), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC+13", "(UTC+13:00) Coordinated Universal Time+13", "UTC+13", "UTC+13", ZoneOffset(780), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC-01", "(UTC-01:00) Coordinated Universal Time-01", "UTC-01", "UTC-01", ZoneOffset(-60), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC-02", "(UTC-02:00) Coordinated Universal Time-02", "UTC-02", "UTC-02", ZoneOffset(-120), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC-03", "(UTC-03:00) Coordinated Universal Time-03", "UTC-03", "UTC-03", ZoneOffset(-180), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC-03:30", "(UTC-03:30) Coordinated Universal Time-03:30", "UTC-03:30", "UTC-03:30", ZoneOffset(-210), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC-04", "(UTC-04:00) Coordinated Universal Time-04", "UTC-04", "UTC-04", ZoneOffset(-240), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC-05", "(UTC-05:00) Coordinated Universal Time-05", "UTC-05", "UTC-05", ZoneOffset(-300), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC-06", "(UTC-06:00) Coordinated Universal Time-06", "UTC-06", "UTC-06", ZoneOffset(-360), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC-07", "(UTC-07:00) Coordinated Universal Time-07", "UTC-07", "UTC-07", ZoneOffset(-420), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC-08", "(UTC-08:00) Coordinated Universal Time-08", "UTC-08", "UTC-08", ZoneOffset(-480), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC-09", "(UTC-09:00) Coordinated Universal Time-09", "UTC-09", "UTC-09", ZoneOffset(-540), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC-10", "(UTC-10:00) Coordinated Universal Time-10", "UTC-10", "UTC-10", ZoneOffset(-600), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC-11", "(UTC-11:00) Coordinated Universal Time-11", "UTC-11", "UTC-11", ZoneOffset(-660), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC-12", "(UTC-12:00) Coordinated Universal Time-12", "UTC-12", "UTC-12", ZoneOffset(-720), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC-13", "(UTC-13:00) Coordinated Universal Time-13", "UTC-13", "UTC-13", ZoneOffset(-780), false);
+    result ~= zone;
+
+    zone = TimeZoneInfo("UTC-14", "(UTC-14:00) Coordinated Universal Time-14", "UTC-14", "UTC-14", ZoneOffset(-840), false);
+    result ~= zone;
 
     zone = TimeZoneInfo("Afghanistan Standard Time", "(UTC+04:30) Kabul", "Afghanistan Standard Time", "Afghanistan Daylight Time", ZoneOffset(270), false);
     result ~= zone;
@@ -2703,28 +2794,7 @@ TimeZoneInfo[] getDefaultTimeZoneInfosByCode() pure
 
     zone = TimeZoneInfo("US Mountain Standard Time", "(UTC-07:00) Arizona", "US Mountain Standard Time", "US Mountain Daylight Time", ZoneOffset(-420), false);
     result ~= zone;
-
-    zone = TimeZoneInfo("UTC", "(UTC) Coordinated Universal Time", "Coordinated Universal Time", "Coordinated Universal Time", ZoneOffset(0), false);
-    result ~= zone;
-
-    zone = TimeZoneInfo("UTC+12", "(UTC+12:00) Coordinated Universal Time+12", "UTC+12", "UTC+12", ZoneOffset(720), false);
-    result ~= zone;
-
-    zone = TimeZoneInfo("UTC+13", "(UTC+13:00) Coordinated Universal Time+13", "UTC+13", "UTC+13", ZoneOffset(780), false);
-    result ~= zone;
-
-    zone = TimeZoneInfo("UTC-02", "(UTC-02:00) Coordinated Universal Time-02", "UTC-02", "UTC-02", ZoneOffset(-120), false);
-    result ~= zone;
-
-    zone = TimeZoneInfo("UTC-08", "(UTC-08:00) Coordinated Universal Time-08", "UTC-08", "UTC-08", ZoneOffset(-480), false);
-    result ~= zone;
-
-    zone = TimeZoneInfo("UTC-09", "(UTC-09:00) Coordinated Universal Time-09", "UTC-09", "UTC-09", ZoneOffset(-540), false);
-    result ~= zone;
-
-    zone = TimeZoneInfo("UTC-11", "(UTC-11:00) Coordinated Universal Time-11", "UTC-11", "UTC-11", ZoneOffset(-660), false);
-    result ~= zone;
-
+    
     zone = TimeZoneInfo("Venezuela Standard Time", "(UTC-04:00) Caracas", "Venezuela Standard Time", "Venezuela Daylight Time", ZoneOffset(-240), true);
     zone.addRule(AdjustmentRule(DateTime(2007, 1, 1, 0, 0, 0, 0, DateTimeZoneKind.unspecified), DateTime(2007, 12, 31, 0, 0, 0, 0, DateTimeZoneKind.unspecified),
         ZoneOffset.init, ZoneOffset(30), ZoneOffset.init,

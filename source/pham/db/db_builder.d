@@ -124,6 +124,7 @@ enum TermKind : ubyte
     orderByLiteral,
     orderBySortedKind,
     whereLiteral,
+    groupByLiteral,
     limit,
     returningLiteral,
     statementOp,
@@ -244,6 +245,24 @@ public:
     }
 }
 
+struct GroupByLiteralTerm
+{
+@safe:
+
+public:
+    ref Writer sql(Writer)(return ref Writer writer, ref SqlBuilderContext context) const nothrow
+    if (isOutputRange!(Writer, char))
+    {
+        context.sectionColumnCount = 0;
+        context.lastSectionTerm = TermKind.groupByLiteral;
+
+        if (context.lastTerm != ubyte.max)
+            writer.put(' ');
+
+        return writer.put("GROUP BY");
+    }
+}
+
 struct LimitTerm
 {
 @safe:
@@ -274,7 +293,7 @@ public:
     {
         scope (exit)
             context.lastConditionOp = ubyte.max;
-        
+
         return writer.put(' ').put(logicalOps[logicalOp]);
     }
 
@@ -675,6 +694,12 @@ public:
         this.groupEnd = end;
     }
 
+    this(GroupByLiteralTerm groupByLiteral) nothrow @trusted
+    {
+        this.kind = TermKind.groupByLiteral;
+        this.groupByLiteral = groupByLiteral;
+    }
+
     this(string tableNameOrCommand, string tableAlias, TableJoin tableJoin) nothrow @trusted
     {
         this.kind = TermKind.table;
@@ -766,6 +791,8 @@ public:
                 return orderBySortedKind.sql(writer, context);
             case TermKind.whereLiteral:
                 return whereLiteral.sql(writer, context);
+            case TermKind.groupByLiteral:
+                return groupByLiteral.sql(writer, context);
             case TermKind.limit:
                 return limit.sql(writer, context);
             case TermKind.returningLiteral:
@@ -784,22 +811,27 @@ public:
     {
         size_t result;
         static foreach (n; [
-            ColumnTerm.sizeof, GroupBeginTerm.sizeof, GroupEndTerm.sizeof, LimitTerm.sizeof, LogicalOpTerm.sizeof, ConditionOpTerm.sizeof, 
-            OrderByLiteralTerm.sizeof, OrderBySortedKindTerm.sizeof, ParameterPlaceholderTerm.sizeof, ReturningLiteralTerm.sizeof,
-            StatementOpTerm.sizeof, TableTerm.sizeof, TableHintTerm.sizeof, TopTerm.sizeof, ValueTerm.sizeof, WhereLiteralTerm.sizeof])
+            ColumnTerm.sizeof, ConditionOpTerm.sizeof,
+            GroupBeginTerm.sizeof, GroupEndTerm.sizeof, GroupByLiteralTerm.sizeof,
+            LimitTerm.sizeof, LogicalOpTerm.sizeof,
+            OrderByLiteralTerm.sizeof, OrderBySortedKindTerm.sizeof,
+            ParameterPlaceholderTerm.sizeof, ReturningLiteralTerm.sizeof,
+            StatementOpTerm.sizeof, TableTerm.sizeof, TableHintTerm.sizeof, TopTerm.sizeof,
+            ValueTerm.sizeof, WhereLiteralTerm.sizeof])
         {
             if (result < n)
                 result = n;
         }
         return result;
     }
-    
+
     union
     {
         ubyte[maxTermSize] _zeroInitializer;
         ColumnTerm column;
         GroupBeginTerm groupBegin;
         GroupEndTerm groupEnd;
+        GroupByLiteralTerm groupByLiteral;
         LimitTerm limit;
         LogicalOpTerm logicalOp;
         ConditionOpTerm conditionOp;
@@ -853,7 +885,7 @@ public:
     {
         if (terms.length == 0 && terms.capacity == 0)
             terms.reserve(100);
-            
+
         terms ~= term;
         return this;
     }
@@ -911,6 +943,11 @@ public:
     ref typeof(this) putGroupEnd() nothrow return
     {
         return put(SqlTerm(GroupEndTerm.init));
+    }
+
+    ref typeof(this) putGroupByLiteral() nothrow return
+    {
+        return put(SqlTerm(GroupByLiteralTerm.init));
     }
 
     ref typeof(this) putLimit(int32 limitRows, uint32 limitOffset = 0) nothrow return
@@ -999,7 +1036,7 @@ public:
 
         if (!isWhereLiteral)
             putWhereLiteral();
-            
+
         terms ~= conditions.terms;
         return this;
     }
@@ -1015,7 +1052,7 @@ public:
             terms.reserve(capacity);
         return this;
     }
-    
+
     ref Writer sql(Writer)(return ref Writer writer, DbDatabase db, DbParameterList parameters)
     {
         auto context = SqlBuilderContext(db, parameters);
@@ -1058,10 +1095,10 @@ private:
 
             i++;
         }
-        
+
         return writer;
     }
-    
+
 public:
     SqlTerm[] terms;
 }
@@ -1412,6 +1449,30 @@ unittest // SqlBuilder
         assert(params.length == 1);
         assert(params[0].variant == "string1");
         assert(params.get("_param1").variant == "string1");
+    }
+
+    { // Select
+        auto sql = Appender!string(200);
+        SqlBuilder builder;
+        builder.putStatementOp(StatementOp.select)
+                .putColumn("c1")
+                .putColumn("c2")
+                .putColumn("SUM(x)")
+                .putColumn("COUNT(y)")
+            .putTable("tbl")
+            .putGroupByLiteral()
+                .putColumn("c1")
+                .putColumn("c2")
+            .putOrderByLiteral()
+                .putColumn("c1")
+                .putColumn("c2")
+            .sql(sql, db, null);
+        //import std.stdio : writeln; debug writeln("sql=", sql.data);
+        assert(sql.data == "SELECT c1, c2, SUM(x), COUNT(y)"
+            ~ " FROM tbl"
+            ~ " GROUP BY c1, c2"
+            ~ " ORDER BY c1, c2"
+            , sql.data);
     }
 
     { // Insert

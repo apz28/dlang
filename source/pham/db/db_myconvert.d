@@ -121,18 +121,18 @@ do
 	const day = cast(int)myDateTimeBytes[3];
 
 	if (myDateTimeBytes.length == 4)
-		return DbDateTime(DateTime(year, month, day), 0);
+		return DbDateTime(DateTime(year, month, day));
 
 	const hour = cast(int)myDateTimeBytes[4];
 	const minute = cast(int)myDateTimeBytes[5];
 	const second = cast(int)myDateTimeBytes[6];
 
 	if (myDateTimeBytes.length == 7)
-		return DbDateTime(DateTime(year, month, day, hour, minute, second), 0);
+		return DbDateTime(DateTime(year, month, day, hour, minute, second));
 
 	const int microSecond = numericBitCast!int32(uintDecode!uint32(myDateTimeBytes[7..$]));
 	debug(debug_pham_db_db_myconvert) debug writeln(__FUNCTION__, "(microSecond=", microSecond, ")");
-	return DbDateTime(DateTime(year, month, day, hour, minute, second).addTicksClamp(TickPart.microsecondToTick(microSecond)), 0);
+	return DbDateTime(DateTime(year, month, day, hour, minute, second).addTicksClamp(TickPart.microsecondToTick(microSecond)));
 }
 
 enum maxDateTimeBufferSize = 12;
@@ -177,7 +177,7 @@ bool dateTimeDecodeString(scope const(char)[] myDateTimeString, ref DbDateTime d
 	DateTime dt = void;
 	if (tryParse!DateTime(myDateTimeString, dateTimePatterns, dt) == DateTimeParser.noError)
     {
-		dbDateTime = DbDateTime(dt, 0);
+		dbDateTime = DbDateTime(dt);
 		return true;
     }
 	else

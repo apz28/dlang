@@ -612,7 +612,7 @@ public:
         utcTZ._displayName = utcDisplayName;
         utcTZ._standardName = utcStandardName;
         utcTZ._daylightName = utcStandardName;
-        utcTZ._baseUtcOffset = ZoneOffset.init;
+        utcTZ._baseUtcOffset = ZoneOffset(0);
         utcTZ._supportsDaylightSavingTime = false;
     }
 
@@ -704,11 +704,9 @@ public:
     // constants for TimeZone.local and TimeZone.utc
     static immutable string localId = "Local";
     static immutable string utcId = "UTC";
-    enum utcIdInt = 1;
-    static immutable string utcId2 = "GMT";
-    enum utcId2Int = 2;
-    static immutable string utcStandardName = "Coordinated Universal Time";
     static immutable string utcDisplayName = "(UTC) Coordinated Universal Time";
+    static immutable string utcStandardName = "Coordinated Universal Time";
+    static immutable string utcId2 = "GMT";
 
 package(pham.dtm):
     void addRule(AdjustmentRule rule) nothrow pure

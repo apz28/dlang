@@ -547,10 +547,15 @@ enum FbIsc
 	op_batch_cancel = 109, // FB4
 }
 
-enum FbIscDefault
+enum FbIscDefaultInt
 {
 	dialect = 3,
 	gmt_zoneId = 65_535,
+}
+
+enum FbIscDefaultStr
+{
+    gmt_zoneName = "GMT",
 }
 
 enum FbIscSize

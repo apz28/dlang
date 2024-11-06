@@ -11,9 +11,11 @@
 
 module pham.db.db_fbtime_zone;
 
+import pham.dtm.dtm_time_zone : ZoneOffset;
+import pham.dtm.dtm_time_zone_map : TimeZoneInfoMap;
 import pham.utl.utl_object : singleton;
 import pham.db.db_type : uint16;
-import pham.db.db_fbisc : FbIscDefault;
+import pham.db.db_fbisc : FbIscDefaultInt, FbIscDefaultStr;
 
 nothrow @safe:
 
@@ -30,22 +32,66 @@ public:
 
     bool opEquals(scope const(FbTimeZone) rhs) const @nogc pure
     {
-        return this._id == rhs._id || this._name == rhs._name;
+        return this._id == rhs._id && this._name == rhs._name;
     }
 
+    pragma(inline, true)
 	bool isValid() const @nogc pure
     {
 		return _id != 0 && _name.length != 0;
     }
 
+    /*
+     * Params:
+     *   id = Firebird numeric zone id
+     */
     static immutable(FbTimeZone) timeZone(uint16 id)
     {
 		return FbTimeZoneList.instance().timeZone(id);
     }
 
+    /*
+     * Params:
+     *   name = Firebird zone name
+     */
     static immutable(FbTimeZone) timeZone(string name)
     {
 		return FbTimeZoneList.instance().timeZone(name);
+    }    
+
+    /*
+     * Params:
+     *   id = Firebird numeric zone id
+     */
+    static ZoneOffset timeZoneBaseUtcOffset(uint16 id)
+    {
+        return timeZoneMap(id).zoneBaseUtcOffset;
+    }
+    
+    /*
+     * Params:
+     *   name = Firebird zone name
+     */
+    static ZoneOffset timeZoneBaseUtcOffset(string name)
+    {
+        return timeZoneMap(name).zoneBaseUtcOffset;
+    }
+    
+    /*
+     * Params:
+     *   id = Firebird numeric zone id
+     */
+    static TimeZoneInfoMap timeZoneMap(uint16 id)
+    {
+        const nameMap = timeZone(id);
+        return nameMap.isValid()
+            ? timeZoneMap(nameMap.name)
+            : TimeZoneInfoMap.init;
+    }
+
+    static TimeZoneInfoMap timeZoneMap(string zoneIdOrName)
+    {
+        return TimeZoneInfoMap.timeZoneMap(zoneIdOrName);
     }
 
     size_t toHash() const @nogc pure
@@ -67,9 +113,6 @@ public:
     {
         return _name;
     }
-
-public:
-	static immutable string gmt_zoneName = "GMT";
 
 private:
     string _name;
@@ -97,7 +140,7 @@ public:
         if (auto p = id in ids)
             return **p;
         else
-            return FbTimeZone(null, 0);
+            return FbTimeZone.init;
     }
 
     final immutable(FbTimeZone) timeZone(string name) pure
@@ -105,22 +148,22 @@ public:
         if (auto p = name in names)
             return **p;
         else
-            return FbTimeZone(null, 0);
+            return FbTimeZone.init;
     }
 
 	static immutable(FbTimeZone)*[string] nameDict() pure @trusted
     {
 		immutable(FbTimeZone)*[string] result;
-        foreach (ref z; timeZones)
-            result[z.name] = &z;
+        foreach (i; 0..timeZones.length)
+            result[timeZones[i].name] = &timeZones[i];
 		return result;
     }
 
 	static immutable(FbTimeZone)*[uint16] idDict() pure @trusted
     {
 		immutable(FbTimeZone)*[uint16] result;
-        foreach (ref z; timeZones)
-            result[z.id] = &z;
+        foreach (i; 0..timeZones.length)
+            result[timeZones[i].id] = &timeZones[i];
 		return result;
     }
 
@@ -139,7 +182,7 @@ private:
 }
 
 static immutable FbTimeZone[] timeZones = [
-	FbTimeZone(FbTimeZone.gmt_zoneName, FbIscDefault.gmt_zoneId),
+	FbTimeZone(FbIscDefaultStr.gmt_zoneName, FbIscDefaultInt.gmt_zoneId),
 	FbTimeZone("ACT", 65534),
 	FbTimeZone("AET", 65533),
 	FbTimeZone("AGT", 65532),
@@ -240,6 +283,7 @@ static immutable FbTimeZone[] timeZones = [
 	FbTimeZone("America/Cayman", 65437),
 	FbTimeZone("America/Chicago", 65436),
 	FbTimeZone("America/Chihuahua", 65435),
+    FbTimeZone("America/Ciudad_Juarez", 64899),
 	FbTimeZone("America/Coral_Harbour", 65434),
 	FbTimeZone("America/Cordoba", 65433),
 	FbTimeZone("America/Costa_Rica", 65432),
@@ -320,6 +364,7 @@ static immutable FbTimeZone[] timeZones = [
 	FbTimeZone("America/North_Dakota/Beulah", 65357),
 	FbTimeZone("America/North_Dakota/Center", 65356),
 	FbTimeZone("America/North_Dakota/New_Salem", 65355),
+	FbTimeZone("America/Nuuk", 64903),
 	FbTimeZone("America/Ojinaga", 65354),
 	FbTimeZone("America/Panama", 65353),
 	FbTimeZone("America/Pangnirtung", 65352),
@@ -446,6 +491,7 @@ static immutable FbTimeZone[] timeZones = [
 	FbTimeZone("Asia/Pontianak", 65231),
 	FbTimeZone("Asia/Pyongyang", 65230),
 	FbTimeZone("Asia/Qatar", 65229),
+	FbTimeZone("Asia/Qostanay", 64902),
 	FbTimeZone("Asia/Qyzylorda", 65228),
 	FbTimeZone("Asia/Rangoon", 65227),
 	FbTimeZone("Asia/Riyadh", 65226),
@@ -601,6 +647,7 @@ static immutable FbTimeZone[] timeZones = [
 	FbTimeZone("Europe/Kaliningrad", 65076),
 	FbTimeZone("Europe/Kiev", 65075),
 	FbTimeZone("Europe/Kirov", 65074),
+    FbTimeZone("Europe/Kyiv", 64900),
 	FbTimeZone("Europe/Lisbon", 65073),
 	FbTimeZone("Europe/Ljubljana", 65072),
 	FbTimeZone("Europe/London", 65071),
@@ -707,6 +754,7 @@ static immutable FbTimeZone[] timeZones = [
 	FbTimeZone("Pacific/Johnston", 64970),
 	FbTimeZone("Pacific/Kiritimati", 64969),
 	FbTimeZone("Pacific/Kosrae", 64968),
+    FbTimeZone("Pacific/Kanton", 64901),
 	FbTimeZone("Pacific/Kwajalein", 64967),
 	FbTimeZone("Pacific/Majuro", 64966),
 	FbTimeZone("Pacific/Marquesas", 64965),
@@ -771,6 +819,4 @@ static immutable FbTimeZone[] timeZones = [
 	FbTimeZone("W-SU", 64906),
 	FbTimeZone("WET", 64905),
 	FbTimeZone("Zulu", 64904),
-	FbTimeZone("America/Nuuk", 64903),
-	FbTimeZone("Asia/Qostanay", 64902)
 	];

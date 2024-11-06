@@ -952,8 +952,8 @@ unittest // PgXdrReader & PgXdrWriter
     writer.writeBytes(bytes);
     writer.writeChars(chars);
     writer.writeDate(DbDate(1, 2, 3));
-    writer.writeDateTime(DbDateTime(DateTime(1,2,3,4,5,6), 0));
-    writer.writeDateTimeTZ(DbDateTime(DateTime(1,2,3,4,5,6), 0));
+    writer.writeDateTime(DbDateTime(DateTime(1,2,3,4,5,6)));
+    writer.writeDateTimeTZ(DbDateTime(DateTime(1,2,3,4,5,6)));
     //writer.writeDecimal();
     writer.writeFloat32(float.min_normal);
     writer.writeFloat32(32.32);
@@ -1008,8 +1008,8 @@ unittest // PgXdrReader & PgXdrWriter
     assert(readLength() == bytes.length); assert(reader.readBytes(valueLength) == bytes);
     assert(readLength() == chars.length); assert(reader.readChars(valueLength) == chars);
     assert(readLength() == 4); assert(reader.readDate() == DbDate(1, 2, 3));
-    assert(readLength() == 8); assert(reader.readDateTime() == DbDateTime(DateTime(1,2,3,4,5,6), 0));
-    assert(readLength() == 8); assert(reader.readDateTimeTZ() == DbDateTime(DateTime(1,2,3,4,5,6), 0));
+    assert(readLength() == 8); assert(reader.readDateTime() == DbDateTime(DateTime(1,2,3,4,5,6)));
+    assert(readLength() == 8); assert(reader.readDateTimeTZ() == DbDateTime(DateTime(1,2,3,4,5,6)));
     //assert(reader.readDecimal() == );
     assert(readLength() == 4); assert(reader.readFloat32() == float.min_normal);
     assert(readLength() == 4); assert(reader.readFloat32() == cast(float)32.32);

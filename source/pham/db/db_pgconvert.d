@@ -90,7 +90,7 @@ int32 dateEncode(scope const(DbDate) value) @nogc pure
 DbDateTime dateTimeDecode(int64 pgDateTime) @nogc pure
 {
     auto dt = epochDateTime.addTicksClamp(timeToDuration(pgDateTime));
-    return DbDateTime(dt, 0);
+    return DbDateTime(dt);
 }
 
 int64 dateTimeEncode(scope const(DbDateTime) value) @nogc pure
@@ -102,7 +102,7 @@ int64 dateTimeEncode(scope const(DbDateTime) value) @nogc pure
 DbDateTime dateTimeDecodeTZ(int64 pgDateTime)
 {
 	auto dt = epochDateTime.addTicksClamp(timeToDuration(pgDateTime));
-	return DbDateTime(TimeZoneInfo.convertUtcToLocal(dt.asUTC), 0);
+	return DbDateTime(TimeZoneInfo.convertUtcToLocal(dt.asUTC));
 }
 
 int64 dateTimeEncodeTZ(scope const(DbDateTime) value)
@@ -314,7 +314,7 @@ if (isDecimal!D)
 
 DbTime timeDecode(int64 pgTime) @nogc pure
 {
-    return DbTime(timeToDuration(pgTime), DateTimeZoneKind.unspecified, 0);
+    return DbTime(timeToDuration(pgTime), DateTimeZoneKind.unspecified);
 }
 
 int64 timeEncode(scope const(DbTime) value) @nogc pure
@@ -327,7 +327,7 @@ DbTime timeDecodeTZ(int64 pgTime, int32 pgZone)
 	auto dt = DateTime(DateTime.utcNow.date, Time(timeToDuration(pgTime)));
 	if (pgZone != 0)
 		dt = dt.addSecondsClamp(-pgZone);
-	return DbTime(TimeZoneInfo.convertUtcToLocal(dt.asUTC).time, 0);
+	return DbTime(TimeZoneInfo.convertUtcToLocal(dt.asUTC).time);
 }
 
 void timeEncodeTZ(scope const(DbTime) value, out int64 pgTime, out int32 pgZone)

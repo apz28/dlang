@@ -12,7 +12,8 @@
 module pham.dtm.dtm_time_zone_default;
 
 version = dtm_time_zone_default_code;
-import pham.dtm.dtm_time_zone_map : TimeZoneInfoMapList;
+import pham.dtm.dtm_time_zone : TimeZoneInfo;
+import pham.dtm.dtm_time_zone_map : timeZoneNameMaps, TimeZoneInfoMapList;
 
 nothrow @safe:
 
@@ -27,7 +28,7 @@ TimeZoneInfoMapList getDefaultTimeZoneInfoMaps() @trusted
             import pham.dtm.dtm_time_zone_default_code;
 
             auto zones = getDefaultTimeZoneInfosByCode();
-            return new TimeZoneInfoMapList(zones);
+            return new TimeZoneInfoMapList(cast(immutable(TimeZoneInfo)[])zones, timeZoneNameMaps);
         }
         else
         {
@@ -40,17 +41,17 @@ TimeZoneInfoMapList getDefaultTimeZoneInfoMaps() @trusted
             {
                 auto json = readText(defaultTimeZoneDataFileName);
                 auto zones = getDefaultTimeZoneInfosByJson(json);
-                return new TimeZoneInfoMapList(zones);
+                return new TimeZoneInfoMapList(cast(immutable(TimeZoneInfo)[])zones, timeZoneNameMaps);
             }
             else if (sameLast(defaultTimeZoneDataFileName, "tzdata")
                      || sameLast(defaultTimeZoneDataFileName, ".tzdata"))
             {
                 auto tzdata = readText(defaultTimeZoneDataFileName);
                 auto zones = getDefaultTimeZoneInfosByTZData(tzdata);
-                return new TimeZoneInfoMapList(zones);
+                return new TimeZoneInfoMapList(cast(immutable(TimeZoneInfo)[])zones, timeZoneNameMaps);
             }
             else
-                return new TimeZoneInfoMapList(null);
+                return new TimeZoneInfoMapList(null, null);
         }
-    } catch (Exception) return new TimeZoneInfoMapList(null);
+    } catch (Exception) return new TimeZoneInfoMapList(null, null);
 }
