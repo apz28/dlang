@@ -1237,9 +1237,10 @@ public:
         return .isValidTimeParts(hour, minute, second, millisecond);
     }
 
-    static ErrorOp isValidTimeWithLeapSeconds(int year, int month, int day, int hour, int minute, DateTimeZoneKind kind) @nogc nothrow pure
+    static ErrorPart isValidTimeWithLeapSeconds(const(int) year, const(int) month, const(int) day, const(int) hour, const(int) minute, const(DateTimeZoneKind) kind) @nogc nothrow pure
     {
-        return ErrorOp.none; //todo
+        // Forward call to tick.isValidTimeParts
+        return .isValidTimeParts(hour, minute, 0, 0); //todo
     }
 
     pragma(inline, true)
@@ -1376,7 +1377,7 @@ public:
         {
             ticks += Tick.timeToTicks(hour, minute, second) + (cast(uint)millisecond * cast(uint)Tick.ticksPerMillisecond);
         }
-        else if (second == 60 && Tick.s_systemSupportsLeapSeconds && isValidTimeWithLeapSeconds(year, month, day, hour, minute, DateTimeZoneKind.unspecified))
+        else if (second == 60 && Tick.s_systemSupportsLeapSeconds && isValidTimeWithLeapSeconds(year, month, day, hour, minute, DateTimeZoneKind.unspecified) == ErrorPart.none)
         {
             // if we have leap second (second = 60) then we'll need to check if it is valid time.
             // if it is valid, then we adjust the second to 59 so DateTime will consider this second is last second
@@ -1842,8 +1843,7 @@ private:
 
     void validateLeapSecond() pure
     {
-        version(none)
-        if (!isValidTimeWithLeapSeconds(year, month, day, hour, minute, kind))
+        if (isValidTimeWithLeapSeconds(year, month, day, hour, minute, kind) != ErrorPart.none)
             throwOutOfRange!(ErrorPart.second)(second);
     }
 

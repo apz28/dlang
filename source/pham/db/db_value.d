@@ -164,7 +164,7 @@ public:
     {
         return _value;
     }
-    
+
     alias value this;
 
     @property void value(Variant value) nothrow @safe
@@ -317,13 +317,14 @@ private:
     void doAssignVariant(Variant rhs) nothrow @safe
     {
         this._value = rhs;
-        
+
         version(DbValueTypeSet)
         {
             if (rhsTypeIf != DbType.unknown)
                 this._type = rhsTypeIf;
             else
             {
+                const variantTypeSize = rhs.typeSize;
                 final switch (rhs.variantType)
                 {
                     case VariantType.null_:
@@ -335,19 +336,21 @@ private:
                         this._type = DbType.stringFixed;
                         break;
                     case VariantType.integer:
-                        this._type = DbType.int32;
-                    // TODO for int16, int64 ....
+                        this._type = variantTypeSize == 2
+                            ? DbType.int16
+                            : (variantTypeSize == 4 ? DbType.int32 : DbType.int64);
                         break;
                     case VariantType.float_:
-                        this._type = DbType.float64;
-                    // TODO for float32, real ....
+                        this._type = variantTypeSize == 4
+                            ? DbType.float32
+                            : DbType.float64;
                         break;
                     case VariantType.enum_:
                         this._type = DbType.int32;
                         break;
                     case VariantType.string:
                         this._type = DbType.stringVary;
-                    // TODO for wstring & dstring
+                    // TODO convert wstring & dstring to string?
                         break;
                     case VariantType.staticArray:
                     case VariantType.dynamicArray:

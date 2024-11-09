@@ -891,7 +891,7 @@ ORDER BY ORDINAL_POSITION
                 const mode = reader.getValue!string(3);
                 const size = reader.getValue!int64(4);
                 const precision = reader.getValue!int32(5);
-                const scale = reader.getValue!int64(6); // TODO why 64 bits
+                const scale = reader.getValue!int64(6); // TODO investigate why 64 bits
 
                 const isParameter = pos > 0; // Position zero is a return type info
                 const paramDirection = isParameter ? parameterModeToDirection(mode) : DbParameterDirection.returnValue;

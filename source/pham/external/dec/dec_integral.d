@@ -85,7 +85,7 @@ unittest // chopRightSlice
     assert(a.length == 0);
 }
 
-struct UnsignedBit(int Bytes)
+struct UnsignedBit(uint Bytes)
 if (Bytes >= 16 && (Bytes & (Bytes - 1)) == 0)
 {
 @nogc nothrow @safe:
@@ -707,7 +707,7 @@ template isUnsignedBit(Ts...)
     }();
 }
 
-template makeUnsignedBit(int Bytes)
+template makeUnsignedBit(uint Bytes)
 {
     static if (Bytes >= 16)
         alias makeUnsignedBit = UnsignedBit!Bytes;

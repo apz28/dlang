@@ -1069,14 +1069,12 @@ protected:
                 return valueWriter.writeDateTime(value.get!DbDateTime());
             case DbType.datetimeTZ:
                 writeType(MyTypeId.datetime, myTypeSignedValue);
-                // TODO convert timezone
                 return valueWriter.writeDateTime(value.get!DbDateTime());
             case DbType.time:
                 writeType(MyTypeId.time, myTypeSignedValue);
                 return valueWriter.writeTime(value.get!DbTime());
             case DbType.timeTZ:
                 writeType(MyTypeId.time, myTypeSignedValue);
-                // TODO convert timezone
                 return valueWriter.writeTime(value.get!DbTime());
             case DbType.uuid:
                 writeType(MyTypeId.fixedVarChar, myTypeSignedValue);
