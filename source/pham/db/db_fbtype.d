@@ -1610,7 +1610,10 @@ public:
 
             const typ = data[pos++];
             if (typ != FbIscServerKeyType.tag_key_plugins)
-                throw new Exception("Unexpected tag type: TODO ");
+            {
+                auto msg = DbMessage.eUnexpectValue.fmtMessage(FbIscServerKey.stringof ~ ".parse", "tag type", typ.to!string, (cast(int)FbIscServerKeyType.tag_key_plugins).to!string);
+                throw new FbException(DbErrorCode.read, msg);
+            }
 
 			const uint len2 = parseInt32!true(data, pos, 1, FbIscServerKeyType.tag_key_plugins);
             auto pluginNames = parseString!true(data, pos, len2, FbIscServerKeyType.tag_key_plugins).idup;

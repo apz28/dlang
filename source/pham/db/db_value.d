@@ -332,7 +332,6 @@ private:
                         this._type = DbType.boolean;
                         break;
                     case VariantType.character:
-                    // TODO convert to string
                         this._type = DbType.stringFixed;
                         break;
                     case VariantType.integer:

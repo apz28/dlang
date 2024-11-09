@@ -972,19 +972,16 @@ private:
             if (isPreviousYearRule && previousYearRule.isEndDateMarkerForEndOfYear())
             {
                 const previousDaylightTime = getDaylightTime(daylightTime.beginTime.year - 1, previousYearRule, previousYearRuleIndex);
-                //startTime = previousDaylightTime.beginTime - utc - previousYearRule.baseUtcOffsetDelta; TODO
                 startTime = previousDaylightTime.beginTime.addTicksClamp(-(utc.toTicks() + previousYearRule.baseUtcOffsetDelta.toTicks()));
                 ignoreYearAdjustment = true;
             }
             else
             {
-                //startTime = DateTime(daylightTime.beginTime.year, 1, 1, 0, 0, 0) - dstStartOffset; TODO
                 startTime = DateTime(daylightTime.beginTime.year, 1, 1, 0, 0, 0).addTicksClamp(-dstStartOffset.toTicks());
             }
         }
         else
         {
-            //startTime = daylightTime.beginTime - dstStartOffset; TODO
             startTime = daylightTime.beginTime.addTicksClamp(-dstStartOffset.toTicks());
         }
 
@@ -1000,26 +997,22 @@ private:
                 if (nextYearRule.isEndDateMarkerForEndOfYear())
                 {
                     // next year end with daylight saving on too
-                    //endTime = DateTime(daylightTime.endTime.year + 1, 12, 31) - utc - nextYearRule.baseUtcOffsetDelta - nextYearRule.daylightDelta; TODO
                     endTime = DateTime(daylightTime.endTime.year + 1, 12, 31).addTicksClamp(-(utc.toTicks() + nextYearRule.baseUtcOffsetDelta.toTicks() + nextYearRule.daylightDelta.toTicks()));
                 }
                 else
                 {
                     const nextdaylightTime = getDaylightTime(daylightTime.endTime.year + 1, nextYearRule, nextYearRuleIndex);
-                    //endTime = nextdaylightTime.endTime - utc - nextYearRule.baseUtcOffsetDelta - nextYearRule.daylightDelta; TODO
                     endTime = nextdaylightTime.endTime.addTicksClamp(-(utc.toTicks() + nextYearRule.baseUtcOffsetDelta.toTicks() + nextYearRule.daylightDelta.toTicks()));
                 }
                 ignoreYearAdjustment = true;
             }
             else
             {
-                //endTime = DateTime(daylightTime.endTime.year + 1, 1, 1, 0, 0, 0).addTicks(-1) - dstEndOffset; TODO
                 endTime = DateTime(daylightTime.endTime.year + 1, 1, 1, 0, 0, 0).addTicksClamp(-1).addTicksClamp(-dstEndOffset.toTicks());
             }
         }
         else
         {
-            //endTime = daylightTime.endTime - dstEndOffset; TODO
             endTime = daylightTime.endTime.addTicksClamp(-dstEndOffset.toTicks());
         }
 

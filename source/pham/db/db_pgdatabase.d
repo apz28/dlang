@@ -1313,7 +1313,8 @@ ORDER BY oid
             {
                 if (i >= typeArgs.length || i >= modeArgs.length)
                 {
-                    //todo throw error?
+                    if (auto log = canErrorLog())
+                        log.errorf("%s.connection.getStoredProcedureInfo() - argument out of bound: %d %d %d", forLogInfo(), cast(int)nameArgs.length, cast(int)typeArgs.length, cast(int)modeArgs.length);
                     break;
                 }
 

@@ -208,6 +208,7 @@ public:
         return dataBlock;
     }
 
+    version(none)
     static void generateKey(out CipherKey privateKey, out CipherKey publicKey, uint keySize,
         ushort primeTestIterations = 20)
     in

@@ -931,6 +931,7 @@ public:
         }
     }
 
+    version(none)
     static bool isProbablyPrime(const(BigInteger) n, const(ushort) testIterations = 20)
     {
         /* TODO

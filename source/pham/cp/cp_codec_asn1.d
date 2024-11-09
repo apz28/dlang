@@ -23,7 +23,7 @@ import pham.utl.utl_big_integer : BigInteger;
 import pham.utl.utl_object : toString;
 import pham.utl.utl_result : cmp, ResultStatus;
 import pham.var.var_variant : Variant;
-import pham.cp.cp_cipher : CipherBuffer;
+import pham.cp.cp_cipher_buffer : CipherBuffer;
 
 nothrow @safe:
 
@@ -41,13 +41,13 @@ enum ASN1Class : ubyte
 	contextSpecific = 2,
 	private_        = 3,
     eoc             = 4,
-    undefined       = 0xFF, // Only used while decoding
+    undefined       = ubyte.max, // Only used while decoding
 }
 
 /**
  * ASN.1 Type Tags
  */
-enum ASN1Tag : int
+enum ASN1Tag : ubyte
 {
     eoc                  = 0x00,
     boolean              = 0x01,
@@ -74,7 +74,7 @@ enum ASN1Tag : int
     date                 = 0x1F,
     //dateTime             = 0x21,
     //duration             = 0x22,
-    undefined            = int.max, // Only used while decoding
+    undefined            = ubyte.max, // Only used while decoding
 }
 
 ResultStatus ASN1IsBMPString(scope const(ubyte)[] x) @nogc pure
@@ -1250,8 +1250,7 @@ public:
     static void writeBoolean(ref CipherBuffer!ubyte destination, const(bool) x,
         const(ASN1Tag) tag = ASN1Tag.boolean) pure
     {
-        //todo destination.put(tag);
-        destination.put(0x01);
+        destination.put(tag);
         destination.put(x ? 0xff : 0x00);
     }
 
@@ -1287,7 +1286,7 @@ public:
     static void writeNull(ref CipherBuffer!ubyte destination,
         const(ASN1Tag) tag = ASN1Tag.null_) pure
     {
-        //todo destination.put(tag);
+        destination.put(tag);
         destination.put(0x00);
     }
 
@@ -1321,7 +1320,7 @@ public:
         foreach (x; xs)
             totalLength += x.length;
 
-        //todo destination.put(tag);
+        destination.put(tag);
         writeLength(destination, totalLength);
         foreach (x; xs)
             destination.put(x.representation);
@@ -1335,7 +1334,7 @@ public:
 
     static void writeTagValue(ref CipherBuffer!ubyte destination, const(ASN1Tag) tag, scope const(ubyte)[] x) pure
     {
-        //todo destination.put(tag);
+        destination.put(tag);
         writeLength(destination, x.length);
         destination.put(x);
     }
@@ -1344,7 +1343,7 @@ public:
     static void writeVisibleString(ref CipherBuffer!ubyte destination, scope const(char)[] x,
         const(ASN1Tag) tag = ASN1Tag.visibleString) pure
     {
-        //todo destination.put(tag);
+        destination.put(tag);
         writeLength(destination, x.length + 1);
         destination.put(x.representation);
         destination.put(' ');

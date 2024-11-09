@@ -23,6 +23,8 @@ import pham.cp.cp_openssl_binding;
 
 @safe:
 
+enum int sslOKStatus = 1;
+
 struct OpenSSLKeyInfo
 {
 nothrow @safe:
@@ -187,19 +189,19 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void close() @trusted
+    ResultStatus close() @trusted
     {
+        auto rs = ResultStatus.ok();
+        
         if (_connected && _ssl)
         {
             opensslApi.SSL_set_quiet_shutdown(_ssl, 1);
-            if (1 != opensslApi.SSL_shutdown(_ssl))
-            {
-                //TODO log the error message
-                //auto error = currentError("SSL_shutdown");
-            }
+            if (sslOKStatus != opensslApi.SSL_shutdown(_ssl))
+                rs = currentError("SSL_shutdown");
         }
 
         _connected = false;
+        return rs;
     }
 
     ResultStatus connect(int socketHandle) @trusted
@@ -211,17 +213,17 @@ public:
     {
         //opensslApi.SSL_set_ex_data(_ssl, sslDataIndex(), &this);
 
-        if (1 != opensslApi.SSL_set_fd(_ssl, socketHandle))
+        if (sslOKStatus != opensslApi.SSL_set_fd(_ssl, socketHandle))
             return currentError("SSL_set_fd");
 
         int r = opensslApi.SSL_connect(_ssl);
-        if (1 != r)
+        if (sslOKStatus != r)
             return r < 0 ? currentSSLError(_ssl, r, "SSL_connect") : currentError("SSL_connect");
 
         while (true)
         {
             r = opensslApi.SSL_accept(_ssl);
-            if (r == 1)
+            if (r == sslOKStatus)
                 break;
             else if (r <= 0)
                 return r < 0 ? currentSSLError(_ssl, r, "SSL_accept") : currentError("SSL_accept");
@@ -428,9 +430,9 @@ public:
         if (verificationHost.length)
         {
             auto verificationHostz = toStringz(verificationHost);
-            if (1 != opensslApi.X509_check_ip(x509, verificationHostz, verificationHost.length, 0))
+            if (sslOKStatus != opensslApi.X509_check_ip(x509, verificationHostz, verificationHost.length, 0))
             {
-                if (1 != opensslApi.X509_check_host(x509, verificationHostz, verificationHost.length, 0, null))
+                if (sslOKStatus != opensslApi.X509_check_host(x509, verificationHostz, verificationHost.length, 0, null))
                     return currentError("X509_check_host");
             }
         }
@@ -441,7 +443,7 @@ public:
     version(none)
     static int verifyCallback(int preverify_ok, X509_STORE_CTX* sctx)
     {
-        return 1; //1=OK
+        return sslOKStatus; //1=OK
 
         version(none)
         {
@@ -569,7 +571,7 @@ private:
         {
             auto cs = ciphers.join(":");
             auto csz = toStringz(cs);
-            if (1 != opensslApi.SSL_CTX_set_cipher_list(_ctx, csz))
+            if (sslOKStatus != opensslApi.SSL_CTX_set_cipher_list(_ctx, csz))
                 return initializeError("SSL_CTX_set_cipher_list");
         }
 
@@ -591,12 +593,12 @@ private:
             auto useSslCertz = toStringz(useSslCert);
             if (sslCertType == 0)
             {
-                if (1 != opensslApi.SSL_CTX_use_certificate_chain_file(_ctx, useSslCertz))
+                if (sslOKStatus != opensslApi.SSL_CTX_use_certificate_chain_file(_ctx, useSslCertz))
                     return initializeError("SSL_CTX_use_certificate_chain_file");
             }
             else
             {
-                if (1 != opensslApi.SSL_CTX_use_certificate_file(_ctx, useSslCertz, sslCertType))
+                if (sslOKStatus != opensslApi.SSL_CTX_use_certificate_file(_ctx, useSslCertz, sslCertType))
                     return initializeError("SSL_CTX_use_certificate_file");
             }
         }
@@ -618,7 +620,7 @@ private:
             }
 
             auto useSslKeyz = toStringz(useSslKey);
-            if (1 != opensslApi.SSL_CTX_use_PrivateKey_file(_ctx, useSslKeyz, sslKeyType))
+            if (sslOKStatus != opensslApi.SSL_CTX_use_PrivateKey_file(_ctx, useSslKeyz, sslKeyType))
                 return initializeError("SSL_CTX_use_PrivateKey_file");
         }
 
@@ -626,10 +628,10 @@ private:
         {
             auto sslCaz = sslCa.length ? toStringz(sslCa) : null;
             auto sslCaDirz = sslCaDir.length ? toStringz(sslCaDir) : null;
-            if (1 != opensslApi.SSL_CTX_load_verify_locations(_ctx, sslCaz, sslCaDirz))
+            if (sslOKStatus != opensslApi.SSL_CTX_load_verify_locations(_ctx, sslCaz, sslCaDirz))
                 return initializeError("SSL_CTX_load_verify_locations");
         }
-        else if (1 != opensslApi.SSL_CTX_set_default_verify_paths(_ctx))
+        else if (sslOKStatus != opensslApi.SSL_CTX_set_default_verify_paths(_ctx))
             return initializeError("SSL_CTX_set_default_verify_paths");
 
         if (verificationDepth > 0)
@@ -640,7 +642,7 @@ private:
 
         if (sslCert.length && sslKey.length)
         {
-            if (1 != opensslApi.SSL_CTX_check_private_key(_ctx))
+            if (sslOKStatus != opensslApi.SSL_CTX_check_private_key(_ctx))
                 return initializeError("SSL_CTX_check_private_key");
         }
 
@@ -654,9 +656,9 @@ private:
              * (not valid IP address), call X509_VERIFY_PARAM_set1_host().
              */
             auto verificationHostz = toStringz(verificationHost);
-            if (1 != opensslApi.X509_VERIFY_PARAM_set1_ip_asc(param, verificationHostz))
+            if (sslOKStatus != opensslApi.X509_VERIFY_PARAM_set1_ip_asc(param, verificationHostz))
             {
-                if (1 != opensslApi.X509_VERIFY_PARAM_set1_host(param, verificationHostz, verificationHost.length))
+                if (sslOKStatus != opensslApi.X509_VERIFY_PARAM_set1_host(param, verificationHostz, verificationHost.length))
                     return initializeError("X509_VERIFY_PARAM_set1_host");
             }
         }
@@ -816,14 +818,14 @@ public:
         if (isEncrypted)
         {
             tempLength = 0;
-            if (1 != opensslApi.EVP_EncryptUpdate(_ctx, &output[0], &tempLength, &input[0], cast(int)input.length))
+            if (sslOKStatus != opensslApi.EVP_EncryptUpdate(_ctx, &output[0], &tempLength, &input[0], cast(int)input.length))
                 return currentError("EVP_EncryptUpdate");
             outputLength = tempLength;
 
             if (finalBlock)
             {
                 tempLength = 0;
-                if (1 != opensslApi.EVP_EncryptFinal_ex(_ctx, &output[outputLength], &tempLength))
+                if (sslOKStatus != opensslApi.EVP_EncryptFinal_ex(_ctx, &output[outputLength], &tempLength))
                     return currentError("EVP_EncryptFinal_ex");
                 outputLength += tempLength;
             }
@@ -831,14 +833,14 @@ public:
         else
         {
             tempLength = 0;
-            if (1 != opensslApi.EVP_DecryptUpdate(_ctx, &output[0], &tempLength, &input[0], cast(int)input.length))
+            if (sslOKStatus != opensslApi.EVP_DecryptUpdate(_ctx, &output[0], &tempLength, &input[0], cast(int)input.length))
                 return currentError("EVP_DecryptUpdate");
             outputLength = tempLength;
 
             if (finalBlock)
             {
                 tempLength = 0;
-                if (1 != opensslApi.EVP_DecryptFinal_ex(_ctx, &output[outputLength], &tempLength))
+                if (sslOKStatus != opensslApi.EVP_DecryptFinal_ex(_ctx, &output[outputLength], &tempLength))
                     return currentError("EVP_DecryptFinal_ex");
                 outputLength += tempLength;
             }
@@ -935,7 +937,7 @@ public:
 
         if (p is null
             || g is null
-            || 1 != opensslApi.DH_set0_pqg(result, p, q, g))
+            || sslOKStatus != opensslApi.DH_set0_pqg(result, p, q, g))
         {
             if (p !is null)
                 opensslApi.BN_free(p);
@@ -973,14 +975,14 @@ public:
 	    bn = opensslApi.BN_new();
         if (bn is null)
             return currentError("BN_new");
-        if (1 != opensslApi.BN_set_word(bn, cast(c_ulong)bn | 1))
+        if (sslOKStatus != opensslApi.BN_set_word(bn, cast(c_ulong)bn | 1))
             return currentError("BN_set_word");
 
         rsa = opensslApi.RSA_new();
         if (rsa is null)
             return currentError("RSA_new");
 
-	    if (1 != opensslApi.RSA_generate_key_ex(rsa, keyBitLength, bn, null))
+	    if (sslOKStatus != opensslApi.RSA_generate_key_ex(rsa, keyBitLength, bn, null))
             return currentError("RSA_generate_key_ex");
 
         bio = opensslApi.BIO_new(opensslApi.BIO_s_mem());
@@ -988,14 +990,14 @@ public:
             return currentError("BIO_new");
 
         //opensslApi.BIO_reset(bio); // Just created, no need to reset
-        if (1 != opensslApi.PEM_write_bio_RSAPrivateKey(bio, rsa, null, null, 0, null, null))
+        if (sslOKStatus != opensslApi.PEM_write_bio_RSAPrivateKey(bio, rsa, null, null, 0, null, null))
             return currentError("PEM_write_bio_RSAPrivateKey");
         ResultStatus rs = readAll(bio, pemPrivateKey);
         if (rs.isError)
             return rs;
 
         opensslApi.BIO_reset(bio);
-        if (1 != opensslApi.PEM_write_bio_RSA_PUBKEY(bio, rsa))
+        if (sslOKStatus != opensslApi.PEM_write_bio_RSA_PUBKEY(bio, rsa))
             return currentError("PEM_write_bio_RSA_PUBKEY");
         rs = readAll(bio, pemPublicKey);
         if (rs.isError)
@@ -1042,7 +1044,7 @@ public:
         if (bn is null)
             return currentError("BN_new");
 
-        if (1 != opensslApi.BN_generate_prime_ex(bn, cast(int)bitLength, safe ? 1 : 0, bnAdd, null, null))
+        if (sslOKStatus != opensslApi.BN_generate_prime_ex(bn, cast(int)bitLength, safe ? 1 : 0, bnAdd, null, null))
             return currentError("BN_generate_prime_ex");
 
         bnHex = opensslApi.BN_bn2hex(bn);
@@ -1523,7 +1525,7 @@ version(unittest)
 
 unittest // OpenSSLExt.generateKeyPair
 {
-    import std.file : write;
+    //import std.file : write;
 
     if (isOpenSSLIntalled())
     {

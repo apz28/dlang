@@ -659,13 +659,11 @@ public:
             case DbType.date:
                 return DbValue(reader.readDateValue(readColumnLength), dbType);
             case DbType.datetime:
+            case DbType.datetimeTZ: // MySQL does not support timezone
                 return DbValue(reader.readDateTimeValue(readColumnLength), dbType);
-            case DbType.datetimeTZ:
-                return DbValue(reader.readDateTimeValue(readColumnLength), dbType); //TODO timezone
             case DbType.time:
+            case DbType.timeTZ: // MySQL does not support timezone
                 return DbValue(reader.readTimeValue(readColumnLength), dbType);
-            case DbType.timeTZ:
-                return DbValue(reader.readTimeValue(readColumnLength), dbType); //TODO timezone
             case DbType.uuid:
                 return DbValue(reader.readUUIDValue(readColumnLength), dbType);
             case DbType.stringFixed:

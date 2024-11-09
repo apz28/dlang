@@ -976,7 +976,8 @@ protected:
                 case DbType.int64:
                     return describeValueArray!int64(writer, column, value, PgOIdType.int8);
                 case DbType.int128:
-                    return describeValueArray!int64(writer, column, value, PgOIdType.unknown); //TODO they do not have this type
+                    //return describeValueArray!int64(writer, column, value, PgOIdType.unknown);
+                    return unsupportDataError();
                 case DbType.decimal:
                     return describeValueArray!Decimal(writer, column, value, PgOIdType.numeric);
                 case DbType.decimal32:

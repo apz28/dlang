@@ -572,8 +572,7 @@ public:
 
     BigInteger readInt128()
     {
-        assert(0, "database does not support Int128");
-        //TODO
+        assert(0, "PostgreSQL database does not support Int128");
     }
 
     PgOIdInterval readInterval()
@@ -834,11 +833,9 @@ public:
         _writer.writeInt64(v);
     }
 
-    //TODO
     void writeInt128(scope const(BigInteger) v) nothrow
     {
-        assert(0, "database does not support Int128");
-        //TODO
+        assert(0, "PostgreSQL database does not support Int128");
     }
 
     void writeInterval(scope const(PgOIdInterval) v) nothrow
