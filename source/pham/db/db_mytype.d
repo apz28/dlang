@@ -362,7 +362,7 @@ public:
     {
         if (columnLength > 0)
             return columnLength;
-    
+
         if (typeId != 0)
         {
             if (auto e = typeId in myDbIdToDbTypeInfos)
@@ -372,32 +372,15 @@ public:
                     return ns;
             }
         }
-        
+
         if (auto e = dbType() in dbTypeToDbTypeInfos)
         {
             const ns = (*e).nativeSize;
             if (ns > 0)
                 return ns;
         }
-        
-        return dynamicTypeSize;
-    }
 
-    static DbType decimalDbType(const(DbType) decimalType, const(int32) precision) @nogc pure
-    in
-    {
-        assert(decimalType == DbType.decimal || decimalType == DbType.numeric);
-    }
-    do
-    {
-        if (precision > 0)
-        {
-            if (precision <= Decimal32.PRECISION)
-                return DbType.decimal32;
-            else if (precision <= Decimal64.PRECISION)
-                return DbType.decimal64;
-        }
-        return decimalType;
+        return dynamicTypeSize;
     }
 
     string traceString() const nothrow @trusted
@@ -552,7 +535,7 @@ enum MyColumnTypeMapKind : ubyte
 
 deprecated("please use MyColumnTypeMapKind")
 alias MyFieldTypeMapKind = MyColumnTypeMapKind;
- 
+
 deprecated("please use MyColumnTypeMap")
 alias MyFieldTypeMap = MyColumnTypeMap;
 
@@ -576,7 +559,7 @@ public:
 
 public:
     MyColumnTypeMapKind[string] columnNames;
-    
+
     deprecated("please use columnNames")
     alias fieldNames = columnNames;
 }
@@ -590,14 +573,14 @@ public:
     int32 srid;
 }
 
-DbType myParameterTypeToDbType(scope const(char)[] myTypeName, const(int32) precision) pure
+DbType myParameterTypeToDbType(scope const(char)[] myTypeName, const(int32) precision) @nogc nothrow pure @safe
 {
     if (auto e = myTypeName in mySimpleTypes)
     {
-        DbType result = *e;
-        return result != DbType.decimal
-            ? result
-            : MyColumnInfo.decimalDbType(result, precision);
+        const result = *e;
+        return result == DbType.decimal || result == DbType.numeric
+            ? decimalDbType(result, precision)
+            : result;
     }
     else
         return DbType.unknown;

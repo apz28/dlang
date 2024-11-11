@@ -1232,6 +1232,76 @@ protected:
         disposeProtocol(disposingReason);
     }
 
+    final override DbRoutineInfo doGetStoredProcedureInfo(string storedProcedureName, string schema) @safe
+    in
+    {
+        assert(storedProcedureName.length != 0);
+    }
+    do
+    {
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ")");
+
+        auto command = createNonTransactionCommand();
+        scope (exit)
+            command.dispose();
+
+        command.parametersCheck = true;
+        command.commandText = q"{
+SELECT pronargs, prorettype, proallargtypes, proargmodes, proargnames
+FROM pg_proc
+WHERE proname = @proname AND prokind = 'p'
+ORDER BY oid
+}";
+        command.parameters.add("proname", DbType.stringVary).value = storedProcedureName;
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+
+        if (reader.hasRows() && reader.read())
+        {
+            auto result = new PgStoredProcedureInfo(cast(PgDatabase)database, storedProcedureName);
+
+            //const numberInputArgs = reader.getValue(0).get!int32();
+            const returnType = reader.getValue(1).get!PgOId();
+            PgOId[] typeArgs = !reader.isNull(2) ? reader.getValue(2).get!(PgOId[])() : null;
+            string[] modeArgs = !reader.isNull(3) ? reader.getValue(3).get!(string[])() : null;
+            string[] nameArgs = !reader.isNull(4) ? reader.getValue(4).get!(string[])() : null;
+
+            debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "nameArgs=", nameArgs, ", typeArgs=", typeArgs, ", modeArgs=", modeArgs, ", returnType=", returnType);
+
+            // Arguments
+            PgOIdColumnInfo info;
+            foreach (i; 0..nameArgs.length)
+            {
+                if (i >= typeArgs.length || i >= modeArgs.length)
+                {
+                    if (auto log = canErrorLog())
+                        log.errorf("%s.connection.getStoredProcedureInfo() - argument out of bound: %d %d %d", forLogInfo(), cast(int)nameArgs.length, cast(int)typeArgs.length, cast(int)modeArgs.length);
+                    break;
+                }
+
+                const dataType = typeArgs[i];
+                const name = nameArgs[i];
+                const mode = modeArgs[i];
+                const paramDirection = pgParameterModeToDirection(mode);
+                const paramName = name.length ? name : result.argumentTypes.generateName();
+
+                info.type = dataType;
+                auto p = result.argumentTypes.add(paramName, info.dbType(), 0, paramDirection);
+                p.baseTypeId = dataType;
+            }
+
+            // Return value type
+            info.type = returnType;
+            result.returnType.baseTypeId = returnType;
+            result.returnType.type = info.dbType();
+            
+            return result;
+        }
+
+        return null;
+    }
+
     final override void doOpen() @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
@@ -1261,84 +1331,6 @@ protected:
         // Ex: 12.4
         auto v = this.executeScalar("SHOW server_version");
         return v.isNull() ? null : v.get!string();
-    }
-
-    final PgStoredProcedureInfo getStoredProcedureInfo(string storedProcedureName) @safe
-    in
-    {
-        assert(storedProcedureName.length != 0);
-    }
-    do
-    {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ")");
-
-        PgStoredProcedureInfo result;
-
-        const cacheKey = DbDatabase.generateCacheKeyStoredProcedure(storedProcedureName, this.forCacheKey);
-        if (database.cache.find!PgStoredProcedureInfo(cacheKey, result))
-            return result;
-
-        auto command = createNonTransactionCommand();
-        scope (exit)
-            command.dispose();
-
-        command.parametersCheck = true;
-        command.commandText = q"{
-SELECT pronargs, prorettype, proallargtypes, proargmodes, proargnames
-FROM pg_proc
-WHERE proname = @proname AND prokind = 'p'
-ORDER BY oid
-}";
-        command.parameters.add("proname", DbType.stringVary).value = storedProcedureName;
-        auto reader = command.executeReader();
-        scope (exit)
-            reader.dispose();
-
-        if (reader.hasRows() && reader.read())
-        {
-            PgOIdColumnInfo info;
-
-            result = new PgStoredProcedureInfo(cast(PgDatabase)database, storedProcedureName);
-
-            //const numberInputArgs = reader.getValue(0).get!int32();
-            const returnType = reader.getValue(1).get!PgOId();
-            PgOId[] typeArgs = !reader.isNull(2) ? reader.getValue(2).get!(PgOId[])() : null;
-            string[] modeArgs = !reader.isNull(3) ? reader.getValue(3).get!(string[])() : null;
-            string[] nameArgs = !reader.isNull(4) ? reader.getValue(4).get!(string[])() : null;
-
-            debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "nameArgs=", nameArgs, ", typeArgs=", typeArgs, ", modeArgs=", modeArgs, ", returnType=", returnType);
-
-            // Arguments
-            foreach (i; 0..nameArgs.length)
-            {
-                if (i >= typeArgs.length || i >= modeArgs.length)
-                {
-                    if (auto log = canErrorLog())
-                        log.errorf("%s.connection.getStoredProcedureInfo() - argument out of bound: %d %d %d", forLogInfo(), cast(int)nameArgs.length, cast(int)typeArgs.length, cast(int)modeArgs.length);
-                    break;
-                }
-
-                const paramType = typeArgs[i];
-                const paramName = nameArgs[i];
-                const mode = modeArgs[i];
-                const paramDirection = pgParameterModeToDirection(mode);
-
-                info.type = paramType;
-                result.argumentTypes.add(
-                    paramName.length ? paramName : result.argumentTypes.generateName(),
-                    info.dbType(),
-                    0,
-                    paramDirection).baseTypeId = paramType;
-            }
-
-            // Return value type
-            info.type = returnType;
-            result.returnType.baseTypeId = returnType;
-            result.returnType.type = info.dbType();
-        }
-
-        database.cache.addOrReplace(cacheKey, result);
-        return result;
     }
 
 protected:
@@ -1629,41 +1621,25 @@ public:
     }
 }
 
-class PgStoredProcedureInfo
+class PgStoredProcedureInfo : DbRoutineInfo
 {
+@safe:
+
 public:
-    this(PgDatabase database, string name) nothrow @safe
+    this(PgDatabase database, string name) nothrow
     {
-        this._name = name;
-        this._argumentTypes = new PgParameterList(database);
-        this._returnType = new PgParameter(database, DbIdentitier(returnParameterName));
-        this._returnType.direction = DbParameterDirection.returnValue;
+        super(database, name, DbRoutineType.storedProcedure);
     }
 
-    @property final PgParameterList argumentTypes() nothrow @safe
+    @property final PgParameterList pgArgumentTypes() nothrow
     {
-        return _argumentTypes;
+        return cast(PgParameterList)_argumentTypes;
     }
 
-    @property final bool hasReturnType() const nothrow @safe
+    @property final PgParameter pgReturnType() nothrow
     {
-        return _returnType.type != DbType.unknown;
+        return cast(PgParameter)_returnType;
     }
-
-    @property final string name() const nothrow @safe
-    {
-        return _name;
-    }
-
-    @property final PgParameter returnType() nothrow @safe
-    {
-        return _returnType;
-    }
-
-private:
-    string _name;
-    PgParameter _returnType;
-    PgParameterList _argumentTypes;
 }
 
 class PgTransaction : DbTransaction
@@ -2424,11 +2400,11 @@ unittest // PgCommand.DML.StoredProcedure
         auto info = connection.getStoredProcedureInfo("multiple_by");
         assert(info !is null);
         assert(info.argumentTypes.length == 3, info.argumentTypes.length.to!string);
-        assert(info.argumentTypes[0].name == "X");
+        assert(info.argumentTypes[0].name == "X", info.argumentTypes[0].name);
         assert(info.argumentTypes[0].direction == DbParameterDirection.input);
-        assert(info.argumentTypes[1].name == "Y");
+        assert(info.argumentTypes[1].name == "Y", info.argumentTypes[1].name);
         assert(info.argumentTypes[1].direction == DbParameterDirection.inputOutput);
-        assert(info.argumentTypes[2].name == "Z");
+        assert(info.argumentTypes[2].name == "Z", info.argumentTypes[2].name);
         assert(info.argumentTypes[2].direction == DbParameterDirection.output);
     }
 
@@ -2733,7 +2709,7 @@ version(UnitTestPGDatabase)
 unittest // PgDatabase.currentTimeStamp...
 {
     import pham.dtm.dtm_date : DateTime;
-    
+
     void countZero(string s, uint leastCount)
     {
         import std.format : format;
@@ -2777,7 +2753,7 @@ unittest // PgDatabase.currentTimeStamp...
 
     v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(6) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
     countZero(v.value.toString(), 0);
-    
+
     auto n = DateTime.now;
     auto t = connection.currentTimeStamp(6);
     assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));

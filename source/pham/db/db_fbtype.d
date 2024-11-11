@@ -2029,6 +2029,13 @@ private:
     FbOperation _operation;
 }
 
+DbParameterDirection fbParameterModeToDirection(const(int16) mode)
+{
+    return mode == 0
+        ? DbParameterDirection.input
+        : (mode == 1 ? DbParameterDirection.output : DbParameterDirection.inputOutput);
+}
+
 bool parseBool(bool Advance)(scope const(ubyte)[] data, size_t index, int type) pure
 if (Advance == false)
 {

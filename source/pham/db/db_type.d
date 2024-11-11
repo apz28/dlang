@@ -743,7 +743,7 @@ public:
     if (isOutputRange!(Writer, Char))
     {
         _value.toString(sink);
-        
+
         if (_value.kind == DateTimeZoneKind.utc)
             put(sink, 'Z');
         else if (_zoneOffset.hasOffset)
@@ -1720,7 +1720,7 @@ public:
     if (isOutputRange!(Writer, Char))
     {
         _value.toString(sink);
-        
+
         if (kind == DateTimeZoneKind.utc)
             put(sink, 'Z');
         else if (_zoneOffset.hasOffset)
@@ -2064,6 +2064,23 @@ DbType dbTypeOf(T)() @nogc pure
         return dbArrayOf(dbTypeOf!(ElementType!UT)());
     else
         return DbType.unknown;
+}
+
+DbType decimalDbType(const(DbType) decimalType, const(int32) precision) @nogc pure
+in
+{
+    assert(decimalType == DbType.decimal || decimalType == DbType.numeric);
+}
+do
+{
+    if (precision > 0)
+    {
+        if (precision <= Decimal32.PRECISION)
+            return DbType.decimal32;
+        else if (precision <= Decimal64.PRECISION)
+            return DbType.decimal64;
+    }
+    return decimalType;
 }
 
 pragma(inline, true)

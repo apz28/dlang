@@ -806,6 +806,84 @@ protected:
         disposeProtocol(disposingReason);
     }
 
+    final override DbRoutineInfo doGetStoredProcedureInfo(string storedProcedureName, string schema) @safe
+    in
+    {
+        assert(storedProcedureName.length != 0);
+    }
+    do
+    {
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ")");
+
+        auto command = createNonTransactionCommand();
+        scope (exit)
+            command.dispose();
+
+        static immutable withSchema = q"{
+SELECT ORDINAL_POSITION, PARAMETER_NAME, DATA_TYPE, PARAMETER_MODE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE
+FROM INFORMATION_SCHEMA.PARAMETERS
+WHERE ROUTINE_TYPE = @ROUTINE_TYPE AND SPECIFIC_NAME = @SPECIFIC_NAME AND SPECIFIC_SCHEMA = @SPECIFIC_SCHEMA
+ORDER BY ORDINAL_POSITION
+}";
+
+        static immutable withoutSchema = q"{
+SELECT ORDINAL_POSITION, PARAMETER_NAME, DATA_TYPE, PARAMETER_MODE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE
+FROM INFORMATION_SCHEMA.PARAMETERS
+WHERE ROUTINE_TYPE = @ROUTINE_TYPE AND SPECIFIC_NAME = @SPECIFIC_NAME
+ORDER BY ORDINAL_POSITION
+}";
+
+        command.parametersCheck = true;
+        command.commandText = schema.length != 0 ? withSchema : withoutSchema;
+        command.parameters.add("ROUTINE_TYPE", DbType.stringVary).value = DbRoutineType.storedProcedure;
+        command.parameters.add("SPECIFIC_NAME", DbType.stringVary).value = storedProcedureName;
+        if (schema.length != 0)
+            command.parameters.add("SPECIFIC_SCHEMA", DbType.stringVary).value = schema;
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+
+        if (reader.hasRows())
+        {
+            auto result = new MyStoredProcedureInfo(cast(MyDatabase)database, storedProcedureName);
+            while (reader.read())
+            {
+                // pos=0 is a return type one
+                const pos = reader.getValue!int64(0);
+                const name = reader.getValue!string(1);
+                const dataType = reader.getValue!string(2);
+                const mode = reader.getValue!string(3);
+                const size = reader.getValue!int64(4);
+                const precision = reader.getValue!int32(5);
+                const scale = reader.getValue!int64(6);
+
+                debug(debug_pham_db_db_mydatabase) debug writeln("\t", "name=", name, ", dataType=", dataType, ", size=", size, ", mode=", mode);
+
+                const isParameter = pos > 0; // Position zero is a return type info
+                const paramDirection = isParameter ? parameterModeToDirection(mode) : DbParameterDirection.returnValue;
+                auto paramType = myParameterTypeToDbType(dataType, precision);
+                if (isParameter)
+                {
+                    auto p = result.argumentTypes.add(name, paramType, cast(int32)size, paramDirection);
+                    p.baseSize = cast(int32)size;
+                    p.baseNumericDigits = cast(int16)precision;
+                    p.baseNumericScale = cast(int16)scale;
+                }
+                else
+                {
+                    result.returnType.type = paramType;
+                    result.returnType.size = cast(int32)size;
+                    result.returnType.baseSize = cast(int32)size;
+                    result.returnType.baseNumericDigits = cast(int16)precision;
+                    result.returnType.baseNumericScale = cast(int16)scale;
+                }
+            }
+            return result;
+        }
+
+        return null;
+    }
+
     final override void doOpen() @safe
     {
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
@@ -845,82 +923,6 @@ protected:
             reader.dispose();
 
         return reader.read() ? reader.getValue!string(1) : null;
-    }
-
-    final MyStoredProcedureInfo getStoredProcedureInfo(string storedProcedureName) @safe
-    in
-    {
-        assert(storedProcedureName.length != 0);
-    }
-    do
-    {
-        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ")");
-
-        MyStoredProcedureInfo result;
-
-        const cacheKey = DbDatabase.generateCacheKeyStoredProcedure(storedProcedureName, this.forCacheKey);
-        if (database.cache.find!MyStoredProcedureInfo(cacheKey, result))
-            return result;
-
-        auto command = createNonTransactionCommand();
-        scope (exit)
-            command.dispose();
-
-        command.parametersCheck = true;
-        command.commandText = q"{
-SELECT ORDINAL_POSITION, PARAMETER_NAME, DATA_TYPE, PARAMETER_MODE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE
-FROM INFORMATION_SCHEMA.PARAMETERS
-WHERE ROUTINE_TYPE = @ROUTINE_TYPE AND SPECIFIC_NAME = @SPECIFIC_NAME
-ORDER BY ORDINAL_POSITION
-}";
-        command.parameters.add("ROUTINE_TYPE", DbType.stringVary).value = "PROCEDURE";
-        command.parameters.add("SPECIFIC_NAME", DbType.stringVary).value = storedProcedureName;
-        auto reader = command.executeReader();
-        scope (exit)
-            reader.dispose();
-
-        if (reader.hasRows())
-        {
-            result = new MyStoredProcedureInfo(cast(MyDatabase)database, storedProcedureName);
-            while (reader.read())
-            {
-                // pos=0 is a return type one
-                const pos = reader.getValue!int64(0);
-                const name = reader.getValue!string(1);
-                const dataType = reader.getValue!string(2);
-                const mode = reader.getValue!string(3);
-                const size = reader.getValue!int64(4);
-                const precision = reader.getValue!int32(5);
-                const scale = reader.getValue!int64(6); // TODO investigate why 64 bits
-
-                const isParameter = pos > 0; // Position zero is a return type info
-                const paramDirection = isParameter ? parameterModeToDirection(mode) : DbParameterDirection.returnValue;
-                if (isParameter)
-                {
-                    auto p = result.argumentTypes.add(
-                        name,
-                        myParameterTypeToDbType(dataType, precision),
-                        cast(int32)size,
-                        paramDirection);
-
-                    p.baseSize = cast(int32)size;
-                    p.baseNumericDigits = cast(int16)precision;
-                    p.baseNumericScale = cast(int16)scale;
-                }
-                else
-                {
-                    result.returnType.type = myParameterTypeToDbType(dataType, precision);
-                    result.returnType.size = cast(int32)size;
-
-                    result.returnType.baseSize = cast(int32)size;
-                    result.returnType.baseNumericDigits = cast(int16)precision;
-                    result.returnType.baseNumericScale = cast(int16)scale;
-                }
-            }
-        }
-
-        database.cache.addOrReplace(cacheKey, result);
-        return result;
     }
 
     override void setSSLSocketOptions()
@@ -1263,41 +1265,25 @@ public:
     }
 }
 
-class MyStoredProcedureInfo
+class MyStoredProcedureInfo : DbRoutineInfo
 {
+@safe:
+
 public:
-    this(MyDatabase database, string name) nothrow @safe
+    this(MyDatabase database, string name) nothrow
     {
-        this._name = name;
-        this._argumentTypes = new MyParameterList(database);
-        this._returnType = new MyParameter(database, DbIdentitier(returnParameterName));
-        this._returnType.direction = DbParameterDirection.returnValue;
+        super(database, name, DbRoutineType.storedProcedure);
     }
 
-    @property final MyParameterList argumentTypes() nothrow @safe
+    @property final MyParameterList myArgumentTypes() nothrow
     {
-        return _argumentTypes;
+        return cast(MyParameterList)_argumentTypes;
     }
 
-    @property final bool hasReturnType() const nothrow @safe
+    @property final MyParameter myReturnType() nothrow
     {
-        return _returnType.type != DbType.unknown;
+        return cast(MyParameter)_returnType;
     }
-
-    @property final string name() const nothrow @safe
-    {
-        return _name;
-    }
-
-    @property final MyParameter returnType() nothrow @safe
-    {
-        return _returnType;
-    }
-
-private:
-    string _name;
-    MyParameter _returnType;
-    MyParameterList _argumentTypes;
 }
 
 class MyTransaction : DbTransaction
@@ -2265,7 +2251,7 @@ version(UnitTestMYDatabase)
 unittest // MyDatabase.currentTimeStamp...
 {
     import pham.dtm.dtm_date : DateTime;
-    
+
     void countZero(string s, uint expectedLength)
     {
         import std.format : format;
@@ -2304,7 +2290,7 @@ unittest // MyDatabase.currentTimeStamp...
 
     v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(6) ~ " as CHAR)");
     countZero(v.value.toString(), baseLength+1+6);
-    
+
     auto n = DateTime.now;
     auto t = connection.currentTimeStamp(6);
     assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));

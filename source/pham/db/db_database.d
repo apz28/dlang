@@ -1707,7 +1707,7 @@ public:
     final bool existFunction(string functionName,
         string schema = null) @safe
     {
-        return existRoutine(functionName, "FUNCTION", schema);
+        return existRoutine(functionName, DbRoutineType.storedFunction, schema);
     }
 
     /**
@@ -1727,6 +1727,9 @@ public:
 
         checkActive();
 
+        if (routineName.length == 0)
+            return false;
+
         auto parameters = database.createParameterList();
         parameters.add("routineName", DbType.stringVary, Variant(routineName));
         parameters.add("type", DbType.stringVary, Variant(type));
@@ -1740,7 +1743,7 @@ public:
     final bool existStoredProcedure(string storedProcedureName,
         string schema = null) @safe
     {
-        return existRoutine(storedProcedureName, "PROCEDURE", schema);
+        return existRoutine(storedProcedureName, DbRoutineType.storedProcedure, schema);
     }
 
     bool existTable(string tableName,
@@ -1754,6 +1757,9 @@ public:
             " where TABLE_NAME = @tableName and TABLE_SCHEMA = @schema";
 
         checkActive();
+
+        if (tableName.length == 0)
+            return false;
 
         auto parameters = database.createParameterList();
         parameters.add("tableName", DbType.stringVary, Variant(tableName));
@@ -1800,6 +1806,27 @@ public:
     final string forLogInfo() const nothrow @safe
     {
         return _connectionStringBuilder.forLogInfo();
+    }
+
+    final DbRoutineInfo getStoredProcedureInfo(string storedProcedureName,
+        string schema = null) @safe
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ")");
+
+        if (storedProcedureName.length == 0)
+            return null;
+
+        DbRoutineInfo result;
+
+        const cacheKey = DbDatabase.generateCacheKeyStoredProcedure(storedProcedureName, this.forCacheKey, schema);
+        if (database.cache.find!DbRoutineInfo(cacheKey, result))
+            return result;
+
+        result = doGetStoredProcedureInfo(storedProcedureName, schema);
+        if (result !is null)
+            database.cache.addOrReplace(cacheKey, result);
+
+        return result;
     }
 
     final string limitClause(int32 rows, uint32 offset = 0) const nothrow pure @safe
@@ -1858,9 +1885,10 @@ public:
         return null;
     }
 
-    final void removeCachedStoredProcedure(string storedProcedureName) nothrow @safe
+    final void removeCachedStoredProcedure(string storedProcedureName,
+        string schema = null) nothrow @safe
     {
-        const cacheKey = DbDatabase.generateCacheKeyStoredProcedure(storedProcedureName, this.forCacheKey);
+        const cacheKey = DbDatabase.generateCacheKeyStoredProcedure(storedProcedureName, this.forCacheKey, schema);
         database.cache.remove(cacheKey);
     }
 
@@ -2129,6 +2157,8 @@ protected:
             _poolList = null;
         }
     }
+
+    abstract DbRoutineInfo doGetStoredProcedureInfo(string storedProcedureName, string schema) @safe;
 
     final void doNotifyMessage() nothrow @safe
     {
@@ -3759,11 +3789,19 @@ public:
         return result;
     }
 
-    static string generateCacheKeyStoredProcedure(string storedProcedureName, string databaseCacheKey) nothrow pure
+    static string generateCacheKey(string name, string nameCategory, string databaseCacheKey,
+        string schema = null) nothrow pure
     {
-        return storedProcedureName ~ ".StoredProcedure." ~ databaseCacheKey;
+        return schema.length == 0
+            ? name ~ "." ~ nameCategory  ~ "." ~ databaseCacheKey
+            : schema ~ "." ~ name ~ "." ~ nameCategory  ~ "." ~ databaseCacheKey;
     }
 
+    static string generateCacheKeyStoredProcedure(string storedProcedureName, string databaseCacheKey,
+        string schema = null) nothrow pure
+    {
+        return generateCacheKey(storedProcedureName, "StoredProcedure", databaseCacheKey, schema);
+    }
 
     /**
      * Return a contruct to limits the rows returned in a query result set to a specified number of rows
@@ -5299,6 +5337,73 @@ private:
     DbRowValue _currentRow;
     size_t _fetchedCount;
     EnumSet!Flag _flags;
+}
+
+enum DbRoutineType : string
+{
+    storedFunction = "FUNCTION",
+    storedProcedure = "PROCEDURE",
+}
+
+class DbRoutineInfo
+{
+@safe:
+
+public:
+    this(DbDatabase database, string name, DbRoutineType type) nothrow
+    in
+    {
+        assert(database !is null);
+        assert(name.length != 0);
+    }
+    do
+    {
+        this._database = database;
+        this._name = name;
+        this._type = type;
+        this._argumentTypes = database.createParameterList();
+        this._returnType = database.createParameter(DbIdentitier(returnParameterName));
+        this._returnType.direction = DbParameterDirection.returnValue;
+    }
+
+    @property final DbParameterList argumentTypes() nothrow
+    {
+        return _argumentTypes;
+    }
+
+    @property final DbDatabase database() nothrow pure
+    {
+        return _database;
+    }
+
+    @property final bool hasReturnType() const nothrow
+    {
+        return _returnType.type != DbType.unknown;
+    }
+
+    @property final string name() const nothrow
+    {
+        return _name;
+    }
+
+    @property final DbParameter returnType() nothrow
+    {
+        return _returnType;
+    }
+
+    @property final DbRoutineType type() const nothrow
+    {
+        return _type;
+    }
+
+protected:
+    DbParameterList _argumentTypes;
+    DbParameter _returnType;
+
+private:
+    DbDatabase _database;
+    string _name;
+    DbRoutineType _type;
 }
 
 abstract class DbTransaction : DbDisposableObject

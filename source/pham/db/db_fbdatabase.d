@@ -1830,9 +1830,11 @@ public:
     override bool existRoutine(string routineName, string type,
         string schema = null) @safe
     {
-        static immutable string SQL = "select 1" ~
-            " from RDB$PROCEDURES" ~
-            " where RDB$PROCEDURE_NAME = UPPER(@routineName)";
+        static immutable string SQL = q"{
+SELECT 1
+FROM RDB$PROCEDURES
+WHERE RDB$PROCEDURE_NAME = UPPER(@routineName)
+}";
 
         auto parameters = database.createParameterList();
         parameters.add("routineName", DbType.stringVary, Variant(routineName));
@@ -1844,9 +1846,11 @@ public:
     override bool existTable(string tableName,
         string schema = null) @safe
     {
-        static immutable string SQL = "select 1" ~
-            " from RDB$RELATIONS" ~
-            " where RDB$RELATION_NAME = UPPER(@tableName) and RDB$RELATION_TYPE = 0";
+        static immutable string SQL = q"{
+SELECT 1
+FROM RDB$RELATIONS
+WHERE RDB$RELATION_NAME = UPPER(@tableName) and RDB$RELATION_TYPE = 0
+}";
 
         auto parameters = database.createParameterList();
         parameters.add("tableName", DbType.stringVary, Variant(tableName));
@@ -1858,9 +1862,11 @@ public:
     override bool existView(string viewName,
         string schema = null) @safe
     {
-        static immutable string SQL = "select 1" ~
-            " from RDB$RELATIONS" ~
-            " where RDB$RELATION_NAME = UPPER(@viewName) and RDB$RELATION_TYPE = 1";
+        static immutable string SQL = q"{
+SELECT 1
+FROM RDB$RELATIONS
+WHERE RDB$RELATION_NAME = UPPER(@viewName) and RDB$RELATION_TYPE = 1
+}";
 
         auto parameters = database.createParameterList();
         parameters.add("viewName", DbType.stringVary, Variant(viewName));
@@ -2010,6 +2016,66 @@ protected:
         }
 
         super.doClose(failedOpen);
+    }
+
+    final override DbRoutineInfo doGetStoredProcedureInfo(string storedProcedureName, string schema) @safe
+    in
+    {
+        assert(storedProcedureName.length != 0);
+    }
+    do
+    {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ")");
+
+        auto command = createNonTransactionCommand();
+        scope (exit)
+            command.dispose();
+
+        static immutable withoutSchema = q"{
+SELECT p.RDB$PARAMETER_NUMBER, p.RDB$PARAMETER_NAME, t.RDB$FIELD_TYPE, t.RDB$FIELD_SUB_TYPE, p.RDB$PARAMETER_TYPE, t.RDB$CHARACTER_LENGTH, t.RDB$FIELD_PRECISION, t.RDB$FIELD_SCALE
+FROM RDB$PROCEDURE_PARAMETERS p
+JOIN RDB$FIELDS t ON t.B$FIELD_NAME = p.RDB$FIELD_SOURCE
+WHERE p.RDB$PROCEDURE_NAME = UPPER(@PROCEDURE_NAME)
+ORDER BY p.RDB$PARAMETER_NUMBER
+}";
+
+        command.parametersCheck = true;
+        command.commandText = withoutSchema;
+        command.parameters.add("PROCEDURE_NAME", DbType.stringVary).value = storedProcedureName;
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+
+        if (reader.hasRows())
+        {
+            FbIscColumnInfo info;
+            auto result = new FbStoredProcedureInfo(cast(FbDatabase)database, storedProcedureName);
+            while (reader.read())
+            {
+                //const pos = reader.getValue!int16(0);
+                const name = reader.getValue!string(1);
+                const dataType = reader.getValue!int16(2);
+                const subDataType = reader.getValue!int16(3);
+                const mode = reader.getValue!int16(4);
+                const size = reader.getValue!int16(5);
+                const precision = reader.getValue!int16(6);
+                const scale = reader.getValue!int16(7);
+
+                const paramDirection = fbParameterModeToDirection(mode);
+                info.size = size;
+                info.subType = subDataType;
+                info.type = dataType;
+                info.numericScale = scale;
+
+                auto p = result.argumentTypes.add(name, info.dbType(), size, paramDirection);
+                p.baseSize = size;
+                p.baseNumericDigits = precision;
+                p.baseNumericScale = scale;
+            }
+            return result;
+        }
+
+        return null;
     }
 
     final override void doOpen() @safe
@@ -2332,7 +2398,7 @@ public:
             .data;
     }
 
-    
+
     // select FIRST(?) ... from ...
     final override string topClause(int rows) const nothrow pure @safe
     {
@@ -2352,7 +2418,7 @@ public:
     {
         return true;
     }
-    
+
     @property final override DbScheme scheme() const nothrow pure
     {
         return DbScheme.fb;
@@ -2413,6 +2479,27 @@ public:
     this(FbDatabase database) nothrow @safe
     {
         super(database !is null ? database : fbDB);
+    }
+}
+
+class FbStoredProcedureInfo : DbRoutineInfo
+{
+@safe:
+
+public:
+    this(FbDatabase database, string name) nothrow
+    {
+        super(database, name, DbRoutineType.storedProcedure);
+    }
+
+    @property final FbParameterList fbArgumentTypes() nothrow
+    {
+        return cast(FbParameterList)_argumentTypes;
+    }
+
+    @property final FbParameter fbReturnType() nothrow
+    {
+        return cast(FbParameter)_returnType;
     }
 }
 
@@ -4216,7 +4303,7 @@ version(UnitTestFBDatabase)
 unittest // FbDatabase.currentTimeStamp...
 {
     import pham.dtm.dtm_date : DateTime;
-    
+
     void countZero(string s, uint leastCount)
     {
         import std.format : format;
@@ -4258,7 +4345,7 @@ unittest // FbDatabase.currentTimeStamp...
 
     v = connection.executeScalar("SELECT left(cast(" ~ connection.database.currentTimeStamp(6) ~ " as VARCHAR(50)), 24) FROM rdb$database");
     countZero(v.value.toString(), 1);
-    
+
     auto n = DateTime.now;
     auto t = connection.currentTimeStamp(6);
     assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));
