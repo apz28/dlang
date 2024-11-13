@@ -293,7 +293,7 @@ public:
             auto unqualItem = (() @trusted => &cast()item)();
             (() @trusted => emplace(&bigData[len], *unqualItem))();
 
-            // We do this at the end, in case of exceptions
+            // We do this at the end, in case of exception
             _data.value = bigData;
         }
 
@@ -526,7 +526,7 @@ public:
 private:
     import core.checkedint : mulu;
     import core.memory : GC;
-    import core.stdc.string : memcpy;
+    import core.stdc.string : memcpy, memset;
 
     template blockAttribute(U)
     {
@@ -617,15 +617,19 @@ private:
             // We need to almost duplicate what's in druntime, except we
             // have better access to the capacity field.
             const newLen = calCapacity(T.sizeof, _data.capacity, reqLen);
-
+            const extendSize = (newLen - len) * T.sizeof;
+            const endSize = len * T.sizeof;
+            
             // first, try extending the current block
             if (_data.tryExtendBlock)
             {
-                const u = (() @trusted => GC.extend(_data.value.ptr, nElems * T.sizeof, (newLen - len) * T.sizeof))();
+                const minSize = nElems * T.sizeof;
+                const u = (() @trusted => GC.extend(_data.value.ptr, minSize, extendSize))();
+                // extend worked?
                 if (u)
                 {
-                    // extend worked, update the capacity
-                    _data.capacity = u / T.sizeof;
+                    () @trusted { memset((cast(void*)_data.value.ptr)+endSize, 0, extendSize); }(); // clear out previous garbage
+                    _data.capacity = u / T.sizeof; // update the capacity
                     return len;
                 }
             }
@@ -639,6 +643,7 @@ private:
             auto bi = (() @trusted => GC.qalloc(nBytes, blockAttribute!T))();
             _data.capacity = bi.size / T.sizeof;
 
+            () @trusted { memset(bi.base+endSize, 0, extendSize); }(); // clear out previous garbage
             if (len)
                 () @trusted { memcpy(bi.base, _data.value.ptr, len * T.sizeof); }();
             _data.value = (() @trusted => (cast(UT*)bi.base)[0..len])();
