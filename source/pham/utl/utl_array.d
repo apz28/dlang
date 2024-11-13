@@ -288,7 +288,7 @@ public:
         {
             import core.lifetime : emplace;
 
-            const len = ensureAddable(1);
+            const len = ensureAddable(1, true);
             auto bigData = (() @trusted => _data.value.ptr[0..len + 1])();
             auto unqualItem = (() @trusted => &cast()item)();
             (() @trusted => emplace(&bigData[len], *unqualItem))();
@@ -343,7 +343,7 @@ public:
             // make sure we have enough space, then add the items
             auto bigDataFun(const(size_t) extra)
             {
-                const len = ensureAddable(extra);
+                const len = ensureAddable(extra, true);
                 return (() @trusted => _data.value.ptr[0..len + extra])();
             }
 
@@ -407,7 +407,7 @@ public:
     {
         const currentCapacity = this.capacity;
         if (newCapacity > currentCapacity)
-            ensureAddable(newCapacity - currentCapacity);
+            ensureAddable(newCapacity - currentCapacity, false);
         return this;
     }
 
@@ -459,7 +459,7 @@ public:
     {
         auto spec = singleSpec("%s");
 
-        // different reserve lengths because each element in a
+        // Different reserve lengths because each element in a
         // non-string-like array uses two extra characters for `, `.
         static if (isSomeString!A)
         {
@@ -563,11 +563,11 @@ private:
     }
 
     /**
-     * ensure we can add nElems elements, resizing as necessary
+     * Ensure we can add nElems elements, resizing as necessary
      * Returns the current length
      */
     pragma(inline, true)
-    size_t ensureAddable(const(size_t) nElems)
+    size_t ensureAddable(const(size_t) nElems, const(bool) nAdding)
     in
     {
         assert(nElems > 0);
@@ -579,10 +579,10 @@ private:
 
         const len = _data.length;
         const reqLen = len + nElems;
-        return _data.capacity >= reqLen ? len : ensureAddableImpl(nElems, reqLen);
+        return _data.capacity >= reqLen ? len : ensureAddableImpl(nElems, nAdding, reqLen);
     }
     
-    size_t ensureAddableImpl(const(size_t) nElems, const(size_t) reqLen)
+    size_t ensureAddableImpl(const(size_t) nElems, const(bool) nAdding, const(size_t) reqLen)
     in
     {
         assert(nElems > 0);
@@ -593,7 +593,7 @@ private:
     {        
         const len = _data.length;
         
-        // need to increase capacity
+        // Need to increase capacity
         if (__ctfe)
         {
             static if (__traits(compiles, new UT[1]))
@@ -620,21 +620,26 @@ private:
             const extendSize = (newLen - len) * T.sizeof;
             const endSize = len * T.sizeof;
             
-            // first, try extending the current block
+            // Try extending the current block
             if (_data.tryExtendBlock)
             {
                 const minSize = nElems * T.sizeof;
                 const u = (() @trusted => GC.extend(_data.value.ptr, minSize, extendSize))();
-                // extend worked?
+                // Extend worked?
                 if (u)
                 {
-                    () @trusted { memset((cast(void*)_data.value.ptr)+endSize, 0, extendSize); }(); // clear out previous garbage
-                    _data.capacity = u / T.sizeof; // update the capacity
+                    // Clear out previous garbage?
+                    if (!nAdding)
+                        () @trusted { memset((cast(void*)_data.value.ptr)+endSize, 0, extendSize); }(); 
+                        
+                    // Update the capacity
+                    _data.capacity = u / T.sizeof; 
+                    
                     return len;
                 }
             }
 
-            // didn't work, must reallocate
+            // Extend failed, must reallocate
             bool overflow;
             const nBytes = mulu(newLen, T.sizeof, overflow);
             if (overflow)
@@ -643,12 +648,18 @@ private:
             auto bi = (() @trusted => GC.qalloc(nBytes, blockAttribute!T))();
             _data.capacity = bi.size / T.sizeof;
 
-            () @trusted { memset(bi.base+endSize, 0, extendSize); }(); // clear out previous garbage
+            // Clear out previous garbage?
+            if (!nAdding)
+                () @trusted { memset(bi.base+endSize, 0, extendSize); }(); 
+                
+            // Copy old data over new memory block
             if (len)
                 () @trusted { memcpy(bi.base, _data.value.ptr, len * T.sizeof); }();
+                
             _data.value = (() @trusted => (cast(UT*)bi.base)[0..len])();
             _data.tryExtendBlock = true;
-            // leave the old data, for safety reasons
+            
+            // Leave the old data, for safety reasons
         }
         
         return len;
