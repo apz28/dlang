@@ -16,7 +16,6 @@ import core.sync.mutex : Mutex;
 public import core.time : Duration, dur;
 public import std.ascii : newline;
 import std.conv : to;
-import std.format : format;
 import std.traits : FieldNameTuple, Unqual;
 import std.typecons : Flag, No, Yes;
 
@@ -2845,13 +2844,13 @@ public:
             final switch (super.isValid(o.name, o.value)) with (DbNameValueValidated)
             {
                 case invalidName:
-                    addLine(errorMessage, format(DbMessage.eInvalidConnectionStringName, scheme, o.name));
+                    addLine(errorMessage, DbMessage.eInvalidConnectionStringName.fmtMessage(scheme, o.name));
                     break;
                 case duplicateName:
-                    addLine(errorMessage, format(DbMessage.eInvalidConnectionStringNameDup, scheme, o.name));
+                    addLine(errorMessage, DbMessage.eInvalidConnectionStringNameDup.fmtMessage(scheme, o.name));
                     break;
                 case invalidValue:
-                    addLine(errorMessage, format(DbMessage.eInvalidConnectionStringValue, scheme, o.name, o.value));
+                    addLine(errorMessage, DbMessage.eInvalidConnectionStringValue.fmtMessage(scheme, o.name, o.value));
                     break;
                 case ok:
                     put(o.name, o.value);
@@ -3519,8 +3518,8 @@ protected:
     final noreturn throwInvalidPropertyValue(string name, string value,
         string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__)
     {
-        throw new DbException(DbErrorCode.parse, format(DbMessage.eInvalidConnectionStringValue, scheme, name, value),
-            null, funcName, file, line);
+        auto msg = DbMessage.eInvalidConnectionStringValue.fmtMessage(scheme, name, value);
+        throw new DbException(DbErrorCode.parse, msg, null, funcName, file, line);
     }
 
 public:

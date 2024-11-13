@@ -1751,6 +1751,8 @@ private:
 __gshared PgDatabase _pgDB;
 shared static this() nothrow @trusted
 {
+    debug(debug_pham_db_db_pgdatabase) debug writeln("shared static this(", __MODULE__, ")");
+
     _pgDB = new PgDatabase();
     DbDatabaseList.registerDb(_pgDB);
 }

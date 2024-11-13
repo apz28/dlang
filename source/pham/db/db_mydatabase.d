@@ -1391,6 +1391,8 @@ private:
 __gshared MyDatabase _myDB;
 shared static this() nothrow @trusted
 {
+    debug(debug_pham_db_db_mydatabase) debug writeln("shared static this(", __MODULE__, ")");
+
     _myDB = new MyDatabase();
     DbDatabaseList.registerDb(_myDB);
 }
