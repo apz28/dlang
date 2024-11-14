@@ -53,7 +53,7 @@ static size_t calCapacity(const(size_t) sizeOfT, const(size_t) curCapacity, cons
     if (curCapacity == 0)
         return max(reqLen, 8);
 
-    // limit to doubling the length, we don't want to grow too much
+    // Limit to doubling the length, we don't want to grow too much
     const ulong mult = min(100 + 1_000UL / (bsr(curCapacity * sizeOfT) + 1), 200);
     const sugCapacity = cast(size_t)((curCapacity * mult + 99) / 100);
     return max(reqLen, sugCapacity);
@@ -205,7 +205,7 @@ public:
         this._data = null;
         this.reserve(capacity);
     }
-    
+
     /**
      * Appends to the managed array.
      * See_Also: $(LREF Appender.put)
@@ -242,24 +242,10 @@ public:
      * Clears the managed array. This allows the elements of the array to be reused
      * for appending.
      */
-    ref typeof(this) clear() nothrow pure return
+    ref typeof(this) clear() nothrow return
     {
         if (_data)
-        {
-            if (__ctfe)
-                _data = null;
-            else
-            {
-                _data.value = _data.value[0..0];
-
-                // only allow overwriting data on non-immutable and non-const data
-                static if (!isMutable!T)
-                {
-                    _data.capacity = 0;
-                    _data.tryExtendBlock = false;
-                }
-            }
-        }
+            _data.clear();
 
         return this;
     }
@@ -288,10 +274,10 @@ public:
         {
             import core.lifetime : emplace;
 
-            const len = ensureAddable(1, true);
+            const len = ensureAddable(1, 1);
             auto bigData = (() @trusted => _data.value.ptr[0..len + 1])();
             auto unqualItem = (() @trusted => &cast()item)();
-            (() @trusted => emplace(&bigData[len], *unqualItem))();
+            () @trusted { emplace(&bigData[len], *unqualItem); }();
 
             // We do this at the end, in case of exception
             _data.value = bigData;
@@ -324,10 +310,10 @@ public:
             && is(typeof(items.length) == size_t))
         {
             const itemsLength = items.length;
-            
+
             if (itemsLength == 0)
                 return this;
-                
+
             // optimization -- if this type is something other than a string,
             // and we are adding exactly one element, call the version for one
             // element.
@@ -339,11 +325,11 @@ public:
                     return this;
                 }
             }
-            
+
             // make sure we have enough space, then add the items
             auto bigDataFun(const(size_t) extra)
             {
-                const len = ensureAddable(extra, true);
+                const len = ensureAddable(extra, extra);
                 return (() @trusted => _data.value.ptr[0..len + extra])();
             }
 
@@ -363,7 +349,7 @@ public:
 
                 foreach (ref it; bigData[len..newLen])
                 {
-                    emplaceRef!T(it, items.front);
+                    () @trusted { emplaceRef!T(it, items.front); }();
                     items.popFront();
                 }
             }
@@ -407,7 +393,7 @@ public:
     {
         const currentCapacity = this.capacity;
         if (newCapacity > currentCapacity)
-            ensureAddable(newCapacity - currentCapacity, false);
+            ensureAddable(newCapacity - currentCapacity, 0);
         return this;
     }
 
@@ -416,7 +402,7 @@ public:
      *
      * Throws: `Exception` if newLength is greater than the managed array length.
      */
-    ref typeof(this) shrinkTo(size_t newLength) pure return
+    ref typeof(this) shrinkTo(const(size_t) newLength) return
     {
         if (newLength == 0)
             return clear();
@@ -425,21 +411,7 @@ public:
         enforce(newLength <= currentLength, "Attempting to shrink Appender with newLength > length");
 
         if (_data && newLength != currentLength)
-        {
-            static if (isMutable!T)
-                _data.value = _data.value[0..newLength];
-            else
-            {
-                if (__ctfe)
-                    _data.value = _data.value[0..newLength].dup;
-                else
-                    _data.value = _data.value[0..newLength];
-
-                // only allow overwriting data on non-immutable and non-const data
-                _data.capacity = newLength;
-                _data.tryExtendBlock = false;
-            }
-        }
+            _data.shrinkTo(newLength);
 
         return this;
     }
@@ -530,7 +502,7 @@ private:
 
     template blockAttribute(U)
     {
-        static if (hasIndirections!(U) || is(U == void))
+        static if (hasIndirections!U || is(U == void))
         {
             enum blockAttribute = 0;
         }
@@ -567,7 +539,7 @@ private:
      * Returns the current length
      */
     pragma(inline, true)
-    size_t ensureAddable(const(size_t) nElems, const(bool) nAdding)
+    size_t ensureAddable(const(size_t) nElems, const(size_t) aElems)
     in
     {
         assert(nElems > 0);
@@ -579,97 +551,164 @@ private:
 
         const len = _data.length;
         const reqLen = len + nElems;
-        return _data.capacity >= reqLen ? len : ensureAddableImpl(nElems, nAdding, reqLen);
+        return _data.capacity >= reqLen ? len : ensureAddableImpl(nElems, aElems, reqLen);
     }
-    
-    size_t ensureAddableImpl(const(size_t) nElems, const(bool) nAdding, const(size_t) reqLen)
+
+    size_t ensureAddableImpl(const(size_t) nElems, const(size_t) aElems, const(size_t) requiredLen)
     in
     {
         assert(nElems > 0);
-        assert(reqLen >= nElems);
+        assert(requiredLen >= nElems);
         assert(_data !is null);
     }
     do
-    {        
-        const len = _data.length;
-        
+    {
+        const curLen = _data.length;
+
         // Need to increase capacity
         if (__ctfe)
         {
             static if (__traits(compiles, new UT[1]))
             {
-                _data.value.length = reqLen;
+                _data.value.length = requiredLen;
             }
             else
             {
-                // avoid restriction of @disable this()
+                // Avoid restriction of @disable this()
                 const cap = _data.capacity;
                 _data.value = _data.value[0..cap];
-                foreach (i; cap..reqLen)
+                foreach (i; cap..requiredLen)
                     _data.value ~= UT.init;
             }
-            _data.value = _data.value[0..len];
-            _data.capacity = reqLen;
+            _data.value = _data.value[0..curLen];
+            _data.capacity = requiredLen;
         }
         else
         {
             // Time to reallocate.
             // We need to almost duplicate what's in druntime, except we
             // have better access to the capacity field.
-            const newLen = calCapacity(T.sizeof, _data.capacity, reqLen);
-            const extendSize = (newLen - len) * T.sizeof;
-            const endSize = len * T.sizeof;
-            
+            const allocCapacity = calCapacity(T.sizeof, _data.capacity, requiredLen);
+            const extendSize = (allocCapacity - curLen) * T.sizeof;
+
             // Try extending the current block
             if (_data.tryExtendBlock)
             {
-                const minSize = nElems * T.sizeof;
-                const u = (() @trusted => GC.extend(_data.value.ptr, minSize, extendSize))();
+                const u = (() @trusted => GC.extend(_data.value.ptr, nElems * T.sizeof, extendSize))();
                 // Extend worked?
                 if (u)
                 {
-                    // Clear out previous garbage?
-                    if (!nAdding)
-                        () @trusted { memset((cast(void*)_data.value.ptr)+endSize, 0, extendSize); }(); 
-                        
                     // Update the capacity
-                    _data.capacity = u / T.sizeof; 
+                    _data.capacity = u / T.sizeof;
                     
-                    return len;
+                    // Clear out previous garbage to avoid runtime pinned memory?
+                    static if (hasIndirections!T)
+                    {
+                        const endSize = (curLen + aElems) * T.sizeof;
+                        const fillSize = extendSize - (aElems * T.sizeof);
+                        if (fillSize)
+                            () @trusted { memset((cast(void*)_data.value.ptr)+endSize, 0, fillSize); }();
+                    }
+
+                    return curLen;
                 }
             }
 
             // Extend failed, must reallocate
             bool overflow;
-            const nBytes = mulu(newLen, T.sizeof, overflow);
+            const allocSize = mulu(allocCapacity, T.sizeof, overflow);
             if (overflow)
                 assert(0, "the reallocation would exceed the available pointer range");
 
-            auto bi = (() @trusted => GC.qalloc(nBytes, blockAttribute!T))();
+            auto bi = (() @trusted => GC.qalloc(allocSize, blockAttribute!T))();
             _data.capacity = bi.size / T.sizeof;
 
-            // Clear out previous garbage?
-            if (!nAdding)
-                () @trusted { memset(bi.base+endSize, 0, extendSize); }(); 
-                
+            // Clear out previous garbage to avoid runtime pinned memory?
+            static if (hasIndirections!T)
+            {
+                const endSize = (curLen + aElems) * T.sizeof;
+                const fillSize = extendSize - (aElems * T.sizeof);
+                if (fillSize)
+                    () @trusted { memset(bi.base+endSize, 0, fillSize); }();
+            }
+
             // Copy old data over new memory block
-            if (len)
-                () @trusted { memcpy(bi.base, _data.value.ptr, len * T.sizeof); }();
-                
-            _data.value = (() @trusted => (cast(UT*)bi.base)[0..len])();
+            if (curLen)
+                () @trusted { memcpy(bi.base, _data.value.ptr, curLen * T.sizeof); }();
+
+            _data.value = (() @trusted => (cast(UT*)bi.base)[0..curLen])();
             _data.tryExtendBlock = true;
-            
+
             // Leave the old data, for safety reasons
         }
-        
-        return len;
+
+        return curLen;
     }
 
-    struct Data
+    static struct Data
     {
         size_t capacity;
         UT[] value;
         bool tryExtendBlock;
+
+        void clear()()
+        {
+            if (__ctfe)
+            {
+                reset();
+            }
+            else
+            {
+                // Avoid runtime pinned memory
+                static if (hasIndirections!T && isMutable!T && __traits(compiles, { T a; a = T.init; }))
+                {
+                    if (value.length)
+                        value[0..$] = T.init;
+                }
+
+                value = value[0..0];
+
+                // Only allow overwriting data on non-immutable and non-const data
+                static if (!isMutable!T)
+                {
+                    capacity = 0;
+                    tryExtendBlock = false;
+                }
+            }
+        }
+
+        void reset() nothrow pure @safe
+        {
+            value = null;
+            capacity = 0;
+            tryExtendBlock = false;
+        }
+
+        void shrinkTo()(const(size_t) newLength)
+        in
+        {
+            assert(newLength < value.length);
+        }
+        do
+        {
+            // Avoid runtime pinned memory
+            static if (hasIndirections!T && isMutable!T && __traits(compiles, { T a; a = T.init; }))
+                value[newLength..$] = T.init;
+
+            static if (isMutable!T)
+                value = value[0..newLength];
+            else
+            {
+                if (__ctfe)
+                    value = value[0..newLength].dup;
+                else
+                    value = value[0..newLength];
+
+                // only allow overwriting data on non-immutable and non-const data
+                capacity = newLength;
+                tryExtendBlock = false;
+            }
+        }
 
         pragma(inline, true)
         @property size_t length() const nothrow @safe
@@ -855,8 +894,9 @@ public:
         return this;
     }
 
-    /** Returns range interface
-    */
+    /** 
+     * Returns range interface
+     */
     inout(T)[] opSlice(const(size_t) beginIndex, const(size_t) endIndex) inout nothrow return
     in
     {
@@ -913,7 +953,7 @@ public:
 
     ptrdiff_t indexOf(in T item) @trusted
     {
-        return length == 0 ? -1 : .indexOf(this[], item);
+        return length ? .indexOf(this[], item) : -1;
     }
 
     pragma(inline, true)
@@ -981,7 +1021,8 @@ public:
     {
         import std.algorithm.mutation : swapAt;
 
-        if (const len = length)
+        const len = length;
+        if (len > 1)
         {
             const last = len - 1;
             const steps = len / 2;
@@ -1093,8 +1134,8 @@ private:
     }
 
 private:
-    size_t _staticLength;
     T[] _dynamicItems;
+    size_t _staticLength;
     T[StaticSize] _staticItems;
 }
 
@@ -2158,7 +2199,7 @@ nothrow pure @safe unittest // Appender
     }
     catch (Exception) assert(0);
 
-    struct N
+    static struct N
     {
         int payload;
         alias payload this;
@@ -2166,7 +2207,7 @@ nothrow pure @safe unittest // Appender
     w.put(N(1));
     w.put([N(2)]);
 
-    struct S(T)
+    static struct S(T)
     {
         @property bool empty() { return true; }
         @property T front() { return T.init; }
@@ -2181,10 +2222,10 @@ nothrow pure @safe unittest // Appender
     import std.range;
 
     //Coverage for put(Range)
-    struct S1
+    static struct S1
     {
     }
-    struct S2
+    static struct S2
     {
         void opAssign(S2){}
     }
@@ -2197,13 +2238,14 @@ nothrow pure @safe unittest // Appender
     au1.put(sc1.repeat().take(10));
 }
 
-pure @system unittest // Appender
+@system unittest // Appender
 {
     import std.range;
 
-    struct S2
+    static struct S2
     {
-        void opAssign(S2){}
+        void opAssign(S2)
+        {}
     }
     auto au2 = Appender!(const(S2)[])();
     auto sc2 = const(S2)();
@@ -2212,7 +2254,7 @@ pure @system unittest // Appender
 
 nothrow pure @system unittest // Appender
 {
-    struct S
+    static struct S
     {
         int* p;
     }
@@ -2430,7 +2472,7 @@ nothrow pure @safe unittest // Appender
     put(appS, 'w');
     s ~= 'a'; //Clobbers here?
     assert(appS[] == "hellow", appS[]);
-    
+
     char[] a = "hello".dup;
     auto appA = appender(a);
     put(appA, 'w');

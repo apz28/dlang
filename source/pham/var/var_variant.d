@@ -174,7 +174,7 @@ public:
             // Construct foreach for associative-array
             // double[string] aa; E=double, K=string
             // foreach (string s, double d; v)
-            
+
             // Construct foreach with indexed
             // double[] a; E=double, K=size_t
             // foreach (i, e; v)
@@ -264,7 +264,7 @@ public:
 
         throw new VariantException(typeInfo, typeInfo.toString() ~ " not supported opApply() for delegate " ~ fullyQualifiedName!Dg);
     }
-    
+
     /**
      * Assigns a `Variant` value given an argument of a generic type.
      * Statically rejects disallowed types.
@@ -551,13 +551,13 @@ public:
                 static if (isIntegral!I)
                 if (handler.indexAR(size, pointer, cast(size_t)indexOrKey, cast(void*)&result))
                     return result;
-                    
+
                 break; // break for error
 
             case VariantType.associativeArray:
                 if (handler.indexAA(size, pointer, &indexOrKey, typeid(I), cast(void*)&result))
                     return result;
-                    
+
                 break; // break for error
 
             default:
@@ -567,7 +567,7 @@ public:
         string errorMessage() nothrow pure
         {
             return "Cannot get type " ~ fullyQualifiedName!Variant
-                ~ " from type " ~ fullyQualifiedName!VariantN 
+                ~ " from type " ~ fullyQualifiedName!VariantN
                 ~ " with indexed type " ~ fullyQualifiedName!I;
         }
         throw new VariantException(typeInfo, errorMessage());
@@ -603,7 +603,7 @@ public:
                     if (handler.indexAssignAR(size, pointer, &assignValue, cast(size_t)indexOrKey))
                         return value;
                 }
-                
+
                 break; // break for error
 
             case VariantType.associativeArray:
@@ -614,7 +614,7 @@ public:
 
                 if (handler.indexAssignAA(size, pointer, &assignValue, &assignKey))
                     return value;
-                    
+
                 break; // break for error
 
             default:
@@ -723,12 +723,12 @@ public:
                 // Value type will invoke destructor with garbage -> access violation
                 static if (hasElaborateDestructor!T)
                 memset(cast(void*)&result, 0, T.sizeof);
-                
+
                 // Implicit conversion?
                 if (!isNull)
                 {
                     debug(debug_pham_var_var_variant) debug writeln(__FUNCTION__, "(from=", handler.qualifiedName(), ", to=", fullyQualifiedName!T, ")");
-                    
+
                     ConvertHandler cvh;
                     if (ConvertHandler.find(handler.qualifiedName(), fullyQualifiedName!T, cvh))
                     {
@@ -1735,12 +1735,11 @@ private:
     static void hDestruct(size_t size, scope void* store) nothrow @trusted
     {
         static if (hasElaborateDestructor!T)
-        {
-            hValuePointer(size, store).__xdtor();
+        hValuePointer(size, store).__xdtor();
 
-            // Prevent double calls with dangling data/pointer
-            memset(store, 0, size);
-        }
+        // Prevent double calls with dangling data/pointer
+        // Second reason is to avoid false runtime pinned memory
+        memset(store, 0, size);
     }
 
     static bool hEquals(size_t lhsSize, scope void* lhsStore,
@@ -1786,7 +1785,7 @@ private:
         }
         else
             return variantNoLengthMarker;
-    }        
+    }
 
     static int hEachAR(size_t size, scope void* store,
         scope int delegate(size_t, Variant, scope void*) dg, scope void* context)
@@ -1803,7 +1802,7 @@ private:
         }
         else
             return variantNoLengthMarker;
-    }        
+    }
 
     static bool hIndexAA(size_t size, scope void* store,
         scope void* key, scope TypeInfo keyTypeInfo, void* value) nothrow @trusted
@@ -2166,12 +2165,12 @@ nothrow @safe:
     {
         return 0;
     }
-    
+
     bool opEqual(scope const(Unassign) rhs) const
     {
         return true;
     }
-    
+
     size_t toHash() const pure
     {
         return 1;
@@ -2181,7 +2180,7 @@ nothrow @safe:
     {
         return "Variant.Unassign";
     }
-    
+
     byte dummy;
 }
 
@@ -3479,7 +3478,7 @@ nothrow @safe unittest // Variant.peek
     Variant vFct = f;
     assert(vFct.peek!(int function()) && *vFct.peek!(int function()) == f);
     assert(!vFct.peek!(int delegate()));
-    
+
     Variant[] mixedC;
     mixedC ~= Variant(new C());
     mixedC ~= Variant(new C2());
@@ -4886,10 +4885,10 @@ unittest // Variant.each - static array
 {
     import std.algorithm.iteration : each;
     import std.conv : to;
-    
+
     int[10] arr = [1,2,3,4,5,6,7,8,9,10];
     Variant v1 = arr;
-    
+
     int s1;
     int sumS1(size_t, Variant e, scope void*)
     {
@@ -4907,10 +4906,10 @@ unittest // Variant.each - dynamic array
 {
     import std.algorithm.iteration : each;
     import std.conv : to;
-    
+
     int[] arr = [1,2,3,4,5,6,7,8,9,10];
     Variant v1 = arr;
-    
+
     int s1;
     int sumS1(size_t, Variant e, scope void*)
     {
@@ -4933,7 +4932,7 @@ unittest // Variant.each - associative array
     aa["a"] = 1.2;
     aa["b"] = 1.4;
     Variant va = aa;
-    
+
     int count;
     string sk;
     double sv = 0;
@@ -5222,7 +5221,7 @@ nothrow @safe unittest // Algebraic
 @safe unittest // https://issues.dlang.org/show_bug.cgi?id=10194
 {
     import std.conv : to;
-    
+
     // Also test for elaborate copying
     static struct S
     {
@@ -5804,7 +5803,7 @@ version(unittest) // mapArguments & isVariant
     if (!allSatisfy!(isVariant, Args))
     {
         return mapArgumentFoo(mapArguments!Variant(args).expand);
-    }    
+    }
 }
 
 unittest // mapArguments & isVariant
@@ -5820,11 +5819,11 @@ unittest // Unassign
     auto v = Variant.varUnassign();
     assert(v.isUnassign);
     assert(!v.isNull);
-    
+
     v = Variant.varNull();
     assert(v.isNull);
     assert(!v.isUnassign);
-    
+
     v = Variant(1);
     assert(!v.isUnassign);
     assert(!v.isNull);
