@@ -539,7 +539,7 @@ private:
      * Returns the current length
      */
     pragma(inline, true)
-    size_t ensureAddable(const(size_t) nElems, const(size_t) aElems)
+    size_t ensureAddable(const(size_t) nElems, const(size_t) aElems) nothrow @safe
     in
     {
         assert(nElems > 0);
@@ -554,7 +554,11 @@ private:
         return _data.capacity >= reqLen ? len : ensureAddableImpl(nElems, aElems, reqLen);
     }
 
-    size_t ensureAddableImpl(const(size_t) nElems, const(size_t) aElems, const(size_t) requiredLen)
+    /**
+     * Ensure we can add nElems elements, resizing as necessary
+     * Returns the current length
+     */
+    size_t ensureAddableImpl(const(size_t) nElems, const(size_t) aElems, const(size_t) requiredLen) nothrow @trusted
     in
     {
         assert(nElems > 0);
@@ -589,14 +593,12 @@ private:
             // We need to almost duplicate what's in druntime, except we
             // have better access to the capacity field.
             const allocCapacity = calCapacity(T.sizeof, _data.capacity, requiredLen);
-            const extendSize = (allocCapacity - curLen) * T.sizeof;
 
             // Try extending the current block
             if (_data.tryExtendBlock)
             {
-                const u = (() @trusted => GC.extend(_data.value.ptr, nElems * T.sizeof, extendSize))();
                 // Extend worked?
-                if (u)
+                if (const u = GC.extend(_data.value.ptr, nElems * T.sizeof, (allocCapacity - curLen) * T.sizeof))
                 {
                     // Update the capacity
                     _data.capacity = u / T.sizeof;
@@ -605,9 +607,8 @@ private:
                     static if (hasIndirections!T)
                     {
                         const endSize = (curLen + aElems) * T.sizeof;
-                        const fillSize = extendSize - (aElems * T.sizeof);
-                        if (fillSize)
-                            () @trusted { memset((cast(void*)_data.value.ptr)+endSize, 0, fillSize); }();
+                        if (u > endSize)
+                            memset((cast(void*)_data.value.ptr)+endSize, 0, u - endSize);
                     }
 
                     return curLen;
@@ -620,23 +621,22 @@ private:
             if (overflow)
                 assert(0, "the reallocation would exceed the available pointer range");
 
-            auto bi = (() @trusted => GC.qalloc(allocSize, blockAttribute!T))();
+            auto bi = GC.qalloc(allocSize, blockAttribute!T);
             _data.capacity = bi.size / T.sizeof;
 
             // Clear out previous garbage to avoid runtime pinned memory?
             static if (hasIndirections!T)
             {
                 const endSize = (curLen + aElems) * T.sizeof;
-                const fillSize = extendSize - (aElems * T.sizeof);
-                if (fillSize)
-                    () @trusted { memset(bi.base+endSize, 0, fillSize); }();
+                if (bi.size > endSize)
+                    memset(bi.base+endSize, 0, bi.size - endSize);
             }
 
             // Copy old data over new memory block
             if (curLen)
-                () @trusted { memcpy(bi.base, _data.value.ptr, curLen * T.sizeof); }();
+                memcpy(bi.base, _data.value.ptr, curLen * T.sizeof);
 
-            _data.value = (() @trusted => (cast(UT*)bi.base)[0..curLen])();
+            _data.value = (cast(UT*)bi.base)[0..curLen];
             _data.tryExtendBlock = true;
 
             // Leave the old data, for safety reasons
@@ -651,7 +651,7 @@ private:
         UT[] value;
         bool tryExtendBlock;
 
-        void clear()()
+        void clear() nothrow @trusted
         {
             if (__ctfe)
             {
@@ -684,7 +684,7 @@ private:
             tryExtendBlock = false;
         }
 
-        void shrinkTo()(const(size_t) newLength)
+        void shrinkTo(const(size_t) newLength) nothrow @trusted
         in
         {
             assert(newLength < value.length);
