@@ -191,8 +191,10 @@ public:
                     throwError();
             }
 
-            const resultLength = (hexDigits.length / 2) + (hexDigits.length % 2);
-            auto resultBits = UByteTempArray(resultLength);
+            const resultBitMax = (hexDigits.length / 2) + (hexDigits.length % 2) + 1;
+            auto resultBits = UByteTempArray(resultBitMax);
+            resultBits.length = resultBitMax;
+            
             size_t bitIndex = 0;
             bool shift = false;
 
@@ -221,6 +223,7 @@ public:
             else
                 resultBits[bitIndex] = isNegative ? cast(ubyte)(b | 0xF0) : b;
 
+            resultBits.length = bitIndex + 1;
             setBytes(resultBits[], isNegative ? No.unsigned : Yes.unsigned);
         }
         else
@@ -310,27 +313,32 @@ public:
                 setInt(cast(long)_sign * rhs._sign);
             else if (trivialLeft)
             {
-                auto resultBits = BigIntegerCalculator.multiply(rhs._bits, BigIntegerHelper.abs(_sign));
+                UIntTempArray resultBits;
+                BigIntegerCalculator.multiply(resultBits, rhs._bits, BigIntegerHelper.abs(_sign));
                 setNegInts(resultBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
             }
             else if (trivialRight)
             {
-                auto resultBits = BigIntegerCalculator.multiply(_bits, BigIntegerHelper.abs(rhs._sign));
+                UIntTempArray resultBits;
+                BigIntegerCalculator.multiply(resultBits, _bits, BigIntegerHelper.abs(rhs._sign));
                 setNegInts(resultBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
             }
             else if (_bits == rhs._bits)
             {
-                auto resultBits = BigIntegerCalculator.square(_bits);
+                UIntTempArray resultBits;
+                BigIntegerCalculator.square(resultBits, _bits);
                 setNegInts(resultBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
             }
             else if (_bits.length < rhs._bits.length)
             {
-                auto resultBits = BigIntegerCalculator.multiply(rhs._bits, _bits);
+                UIntTempArray resultBits;
+                BigIntegerCalculator.multiply(resultBits, rhs._bits, _bits);
                 setNegInts(resultBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
             }
             else
             {
-                auto resultBits = BigIntegerCalculator.multiply(_bits, rhs._bits);
+                UIntTempArray resultBits;
+                BigIntegerCalculator.multiply(resultBits, _bits, rhs._bits);
                 setNegInts(resultBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
             }
 
@@ -350,15 +358,17 @@ public:
                 setZero();
             else if (trivialDivisor)
             {
-                auto resultBits = BigIntegerCalculator.divide(_bits, BigIntegerHelper.abs(rhs._sign));
-                setNegInts(resultBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
+                UIntTempArray quotientBits;
+                BigIntegerCalculator.divide(quotientBits, _bits, BigIntegerHelper.abs(rhs._sign));
+                setNegInts(quotientBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
             }
             else if (_bits.length < rhs._bits.length)
                 setZero();
             else
             {
-                auto resultBits = BigIntegerCalculator.divide(_bits, rhs._bits);
-                setNegInts(resultBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
+                UIntTempArray quotientBits;
+                BigIntegerCalculator.divide(quotientBits, _bits, rhs._bits);
+                setNegInts(quotientBits[], toNegativeFlag((_sign < 0) ^ (rhs._sign < 0)));
             }
 
             return this;
@@ -389,8 +399,8 @@ public:
             }
             else
             {
-                auto resultBits = BigIntegerCalculator.remainder(_bits, rhs._bits);
-                setNegInts(resultBits[], toNegativeFlag(_sign < 0));
+                UIntTempArray resultBits;
+                setNegInts(BigIntegerCalculator.remainder(resultBits, _bits, rhs._bits)[], toNegativeFlag(_sign < 0));
             }
 
             return this;
@@ -664,10 +674,11 @@ public:
                     }
                 }
 
-                auto resultBits = trivialValue
-                    ? BigIntegerCalculator.pow(BigIntegerHelper.abs(_sign), BigIntegerHelper.abs(exponent))
-                    : BigIntegerCalculator.pow(_bits, BigIntegerHelper.abs(exponent));
-
+                UIntTempArray resultBits;
+                if (trivialValue)
+                    BigIntegerCalculator.pow(resultBits, BigIntegerHelper.abs(_sign), BigIntegerHelper.abs(exponent));
+                else
+                    BigIntegerCalculator.pow(resultBits, _bits, BigIntegerHelper.abs(exponent));
                 setNegInts(resultBits[], toNegativeFlag(_sign < 0 && (exponent & 1) != 0));
             }
 
@@ -1127,7 +1138,7 @@ public:
     {
         UByteTempArray tempResult;
         getUBytesLittleEndian(tempResult, includeSign);
-        return tempResult.dup;
+        return tempResult[].dup;
     }
 
     ref Writer toBytes(Writer)(return ref Writer sink, const(Flag!"includeSign") includeSign = Yes.includeSign) const nothrow pure @safe scope
@@ -1152,7 +1163,7 @@ public:
     {
         UIntTempArray result;
         toInts(result, includeSign);
-        return result.dup;
+        return result[].dup;
     }
 
     /**
@@ -1196,8 +1207,8 @@ public:
     }
     do
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
+        scope (failure) assert(0, "Assume nothrow failed"); // formatValue
+        
         const ptrdiff_t cuSrc = _bits.length;
 
         if (cuSrc == 0)
@@ -1210,8 +1221,9 @@ public:
         const uint kuBase = 1_000_000_000; // 10^9
         const int kcchBase = 9;
 
-        const size_t cuMax = cuSrc * 10 / 9 + 2;
-        auto rguDst = UIntTempArray(cuMax);
+        const rguDstMax = cuSrc * 10 / 9 + 2 + 1;
+        auto rguDst = UIntTempArray(rguDstMax);
+        rguDst.length = rguDstMax;
         ptrdiff_t cuDst = 0;
 
         for (ptrdiff_t iuSrc = cuSrc; --iuSrc >= 0;)
@@ -1220,6 +1232,7 @@ public:
             for (size_t iuDst = 0; iuDst < cuDst; iuDst++)
             {
                 assert(rguDst[iuDst] < kuBase);
+                
                 const ulong uuRes = BigIntegerHelper.makeUlong(rguDst[iuDst], uCarry);
                 rguDst[iuDst] = cast(uint)(uuRes % kuBase);
                 uCarry = cast(uint)(uuRes / kuBase);
@@ -1232,6 +1245,8 @@ public:
                     rguDst[cuDst++] = uCarry;
             }
         }
+        
+        rguDst.length = cuDst;
 
         // Each uint contributes at most 9 digits to the decimal representation.
         // Leave an extra slot for a minus sign.
@@ -1239,6 +1254,7 @@ public:
         const size_t cchMax = cuDst * kcchBase + (signChar != 0 ? 1 : 0);
         ptrdiff_t ichDst = cchMax;
         auto rgch = CharTempArray(cchMax);
+        rgch.length = cchMax;
         for (ptrdiff_t iuDst = 0; iuDst < cuDst - 1; iuDst++)
         {
             uint uDig = rguDst[iuDst];
@@ -1308,16 +1324,17 @@ public:
     }
     do
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
         const isUpper = f.spec == 'X';
         const hexDigitSources = isUpper ? upperHexDigits : lowerHexDigits;
+        const separatorChar = cast(Char)f.separatorChar;
 
         UByteTempArray bytesHolder;
         getUBytesLittleEndian(bytesHolder, includeSign);
         auto bytes = bytesHolder[];
 
-        auto hexDigits = CharTempArray(bytes.length * 2);
+        const hexDigitMax = bytes.length * 2 + 2;
+        auto hexDigits = CharTempArray(hexDigitMax);
+        hexDigits.length = hexDigitMax;
 
         size_t charsPos = 0;
         ptrdiff_t cur = cast(ptrdiff_t)(bytes.length) - 1;
@@ -1354,6 +1371,8 @@ public:
             hexDigits[charsPos++] = hexDigitSources[b >> 4];
             hexDigits[charsPos++] = hexDigitSources[b & 0xF];
         }
+        
+        hexDigits.length = charsPos;
 
         ptrdiff_t resultLength = charsPos;
         while (resultLength < f.width)
@@ -1368,7 +1387,7 @@ public:
             for (size_t j = 0; j < len; ++j)
             {
                 if (j != 0 && (len - j) % f.separators == 0)
-                    put(sink, f.separatorChar);
+                    put(sink, separatorChar);
                 put(sink, hexDigits[j]);
             }
         }
@@ -1385,14 +1404,16 @@ public:
         return toString(buffer, fmtSpec).toString();
     }
 
-    string toString(scope const(char)[] fmt) const pure @safe scope
+    string toString(scope const(char)[] fmt) const nothrow pure @safe scope
     {
         ShortStringBuffer!char buffer;
         return toString!(ShortStringBuffer!char, char)(buffer, fmt).toString();
     }
 
-    string toString(scope const(char)[] fmt, char separatorChar) const pure @safe scope
+    string toString(scope const(char)[] fmt, char separatorChar) const nothrow pure @safe scope
     {
+        scope (failure) assert(0, "Assume nothrow failed"); // writeUpToNextSpec
+        
         ShortStringBuffer!char buffer;
 
         auto f = FormatSpec!char(fmt);
@@ -1403,9 +1424,11 @@ public:
         return toString(buffer, f).toString();
     }
 
-    ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt) const pure @safe
+    ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt) const nothrow pure @safe
     if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
+        scope (failure) assert(0, "Assume nothrow failed"); // writeUpToNextSpec
+        
         auto f = FormatSpec!Char(fmt);
         f.writeUpToNextSpec(sink);
         return toString(sink, f);
@@ -1565,23 +1588,23 @@ private:
             setInt(cast(long)_sign + rightSign);
         else if (trivialLeft)
         {
-            auto resultBits = BigIntegerCalculator.add(rightBits, BigIntegerHelper.abs(_sign));
-            setNegInts(resultBits[], toNegativeFlag(_sign < 0));
+            UIntTempArray resultBits;
+            setNegInts(BigIntegerCalculator.add(resultBits, rightBits, BigIntegerHelper.abs(_sign))[], toNegativeFlag(_sign < 0));
         }
         else if (trivialRight)
         {
-            auto resultBits = BigIntegerCalculator.add(_bits, BigIntegerHelper.abs(rightSign));
-            setNegInts(resultBits[], toNegativeFlag(_sign < 0));
+            UIntTempArray resultBits;
+            setNegInts(BigIntegerCalculator.add(resultBits, _bits, BigIntegerHelper.abs(rightSign))[], toNegativeFlag(_sign < 0));
         }
         else if (_bits.length < rightBits.length)
         {
-            auto resultBits = BigIntegerCalculator.add(rightBits, _bits);
-            setNegInts(resultBits[], toNegativeFlag(_sign < 0));
+            UIntTempArray resultBits;
+            setNegInts(BigIntegerCalculator.add(resultBits, rightBits, _bits)[], toNegativeFlag(_sign < 0));
         }
         else
         {
-            auto resultBits = BigIntegerCalculator.add(_bits, rightBits);
-            setNegInts(resultBits[], toNegativeFlag(_sign < 0));
+            UIntTempArray resultBits;
+            setNegInts(BigIntegerCalculator.add(resultBits, _bits, rightBits)[], toNegativeFlag(_sign < 0));
         }
 
         return this;
@@ -1595,13 +1618,13 @@ private:
         throw new ConvException(msg);
     }
 
-    void cloneForConvert(I)(ref UIntTempArray result, out I highMark) const
+    void cloneForConvert(I)(ref UIntTempArray result, out I highMark) const nothrow
     if (isUnsigned!I)
     {
         if (_bits.length == 0)
         {
             highMark = _sign < 0 ? I.max : 0;
-            result.clear(1);
+            result.length = 1;
             result[0] = cast(uint)_sign;
         }
         else if (_sign < 0)
@@ -1680,7 +1703,7 @@ private:
         }
         else
         {
-            xd = UIntTempArray(x._bits);
+            xd = x._bits;
         }
 
         xl = len == 0 ? 1 : cast(int)len;
@@ -1696,7 +1719,7 @@ private:
         ubyte highByte;
         UIntTempArray dwords;
         cloneForConvert!ubyte(dwords, highByte);
-        bytes.clear(4 * dwords.length);
+        bytes.length = 4 * dwords.length;
         size_t curByte = 0;
         foreach (dword; dwords)
         {
@@ -1906,7 +1929,7 @@ private:
             else
             {
                 _sign = +1;
-                _bits = val.dup();
+                _bits = val[].dup;
             }
         }
 
@@ -1963,7 +1986,8 @@ private:
         }
 
         // Finally handle the more complex cases where we must transform the input into sign magnitude
-        auto clonedValue = UIntTempArray(value);
+        UIntTempArray clonedValue;
+        clonedValue = value;
         BigIntegerCalculator.makeTwosComplement(clonedValue);
 
         // Pack _bits to remove any wasted space after the twos complement
@@ -2217,23 +2241,23 @@ private:
             setInt(cast(long)_sign - rightSign);
         else if (trivialLeft)
         {
-            auto resultBits = BigIntegerCalculator.subtract(rightBits, BigIntegerHelper.abs(_sign));
-            setNegInts(resultBits[], toNegativeFlag(_sign >= 0));
+            UIntTempArray resultBits;
+            setNegInts(BigIntegerCalculator.subtract(resultBits, rightBits, BigIntegerHelper.abs(_sign))[], toNegativeFlag(_sign >= 0));
         }
         else if (trivialRight)
         {
-            auto resultBits = BigIntegerCalculator.subtract(_bits, BigIntegerHelper.abs(rightSign));
-            setNegInts(resultBits[], toNegativeFlag(_sign < 0));
+            UIntTempArray resultBits;
+            setNegInts(BigIntegerCalculator.subtract(resultBits, _bits, BigIntegerHelper.abs(rightSign))[], toNegativeFlag(_sign < 0));
         }
         else if (BigIntegerCalculator.compare(_bits, rightBits) < 0)
         {
-            auto resultBits = BigIntegerCalculator.subtract(rightBits, _bits);
-            setNegInts(resultBits[], toNegativeFlag(_sign >= 0));
+            UIntTempArray resultBits;
+            setNegInts(BigIntegerCalculator.subtract(resultBits, rightBits, _bits)[], toNegativeFlag(_sign >= 0));
         }
         else
         {
-            auto resultBits = BigIntegerCalculator.subtract(_bits, rightBits);
-            setNegInts(resultBits[], toNegativeFlag(_sign < 0));
+            UIntTempArray resultBits;
+            setNegInts(BigIntegerCalculator.subtract(resultBits, _bits, rightBits)[], toNegativeFlag(_sign < 0));
         }
 
         return this;
@@ -2321,8 +2345,9 @@ do
     if (trivialDivisor)
     {
         uint rest;
-        auto resultBits = BigIntegerCalculator.divide(dividend._bits, BigIntegerHelper.abs(divisor._sign), rest);
-        auto quotient = BigInteger(resultBits[], toNegativeFlag((dividend._sign < 0) ^ (divisor._sign < 0)));
+        UIntTempArray quotientBits;
+        BigIntegerCalculator.divide(quotientBits, dividend._bits, BigIntegerHelper.abs(divisor._sign), rest);
+        auto quotient = BigInteger(quotientBits[], toNegativeFlag((dividend._sign < 0) ^ (divisor._sign < 0)));
         remainder = BigInteger(dividend._sign < 0 ? -1 * rest : rest);
         return quotient;
     }
@@ -2334,9 +2359,9 @@ do
     }
     else
     {
-        UIntTempArray rest;
-        auto resultBits = BigIntegerCalculator.divide(dividend._bits, divisor._bits, rest);
-        auto quotient = BigInteger(resultBits[], toNegativeFlag((dividend._sign < 0) ^ (divisor._sign < 0)));
+        UIntTempArray quotientBits, rest;
+        BigIntegerCalculator.divide(quotientBits, dividend._bits, divisor._bits, rest);
+        auto quotient = BigInteger(quotientBits[], toNegativeFlag((dividend._sign < 0) ^ (divisor._sign < 0)));
         remainder = BigInteger(rest[], toNegativeFlag(dividend._sign < 0));
         return quotient;
     }
@@ -2437,13 +2462,15 @@ do
     }
     else
     {
-        auto resultBits = trivialValue && trivialExponent
-            ? BigIntegerCalculator.pow(BigIntegerHelper.abs(value._sign), BigIntegerHelper.abs(exponent._sign), modulus._bits)
-            : (trivialValue
-               ? BigIntegerCalculator.pow(BigIntegerHelper.abs(value._sign), exponent._bits, modulus._bits)
-               : (trivialExponent
-                  ? BigIntegerCalculator.pow(value._bits, BigIntegerHelper.abs(exponent._sign), modulus._bits)
-                  : BigIntegerCalculator.pow(value._bits, exponent._bits, modulus._bits)));
+        UIntTempArray resultBits;
+        if (trivialValue && trivialExponent)
+            BigIntegerCalculator.pow(resultBits, BigIntegerHelper.abs(value._sign), BigIntegerHelper.abs(exponent._sign), modulus._bits);
+        else if (trivialValue)
+            BigIntegerCalculator.pow(resultBits, BigIntegerHelper.abs(value._sign), exponent._bits, modulus._bits);
+        else if (trivialExponent)
+            BigIntegerCalculator.pow(resultBits, value._bits, BigIntegerHelper.abs(exponent._sign), modulus._bits);
+        else
+            BigIntegerCalculator.pow(resultBits, value._bits, exponent._bits, modulus._bits);
 
         return BigInteger(resultBits[], toNegativeFlag(value._sign < 0 && !exponent.isEven));
     }
@@ -2632,7 +2659,8 @@ BigInteger greatestCommonDivisor(const(uint)[] leftBits, const(uint)[] rightBits
 
     if (rightBits.length == 2)
     {
-        auto tempBits = BigIntegerCalculator.remainder(leftBits, rightBits);
+        UIntTempArray tempBits;
+        BigIntegerCalculator.remainder(tempBits, leftBits, rightBits);
 
         ulong lhs = (cast(ulong)rightBits[1] << 32) | rightBits[0];
         ulong rhs = (cast(ulong)tempBits[1] << 32) | tempBits[0];
@@ -2640,8 +2668,8 @@ BigInteger greatestCommonDivisor(const(uint)[] leftBits, const(uint)[] rightBits
         return BigInteger(BigIntegerCalculator.gcd(lhs, rhs));
     }
 
-    auto resultBits = BigIntegerCalculator.gcd(leftBits, rightBits);
-    return BigInteger(resultBits[], No.negative);
+    UIntTempArray resultBits;
+    return BigInteger(BigIntegerCalculator.gcd(resultBits, leftBits, rightBits)[], No.negative);
 }
 
 // probablyPrimeMillerRabin reports whether n passes testIterations rounds of the
@@ -2938,9 +2966,9 @@ string toStringSafe(const(BigInteger) n,
     string format = null,
     char separator = '_') nothrow @safe
 {
-    scope (failure) assert(0, "Assume nothrow failed");
-
-    return format.length ? n.toString(format, separator) : n.toString();
+    debug return format.length
+        ? n.toString(format, separator)
+        : n.toString();
 }
 
 nothrow unittest // BigInteger.toString('%d')

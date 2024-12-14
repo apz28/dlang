@@ -17,7 +17,7 @@ import std.system : Endian;
 debug(debug_pham_db_db_pgdatabase) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
-import pham.utl.utl_array : Appender;
+import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_object : VersionString;
 import pham.db.db_buffer;

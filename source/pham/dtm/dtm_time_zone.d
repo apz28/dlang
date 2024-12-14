@@ -1389,7 +1389,7 @@ nothrow @safe:
 
     string toString() const scope
     {
-        import pham.utl.utl_array : Appender;
+        import pham.utl.utl_array_append : Appender;
 
         auto buffer = Appender!string(10);
         return toString(buffer).data;

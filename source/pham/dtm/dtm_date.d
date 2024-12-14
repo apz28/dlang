@@ -2638,7 +2638,7 @@ unittest // DateTime.toString
     immutable idt = DateTime(1999, 7, 6, 12, 30, 33);
     assert(idt.toString() == "07/06/1999 12:30:33 PM", idt.toString());
 
-    import pham.utl.utl_array : Appender;
+    import pham.utl.utl_array_append : Appender;
     import std.exception : assertThrown;
 
     Appender!(char[]) buffer;
@@ -3033,7 +3033,7 @@ unittest // Date.toString
     immutable idt = Date(1999, 7, 6);
     assert(idt.toString() == "07/06/1999", idt.toString());
 
-    import pham.utl.utl_array : Appender;
+    import pham.utl.utl_array_append : Appender;
     import std.exception : assertThrown;
 
     Appender!(char[]) buffer;

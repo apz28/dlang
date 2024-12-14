@@ -11,19 +11,16 @@
 
 module pham.utl.utl_array;
 
-import std.range.primitives : ElementEncodingType, ElementType,
-    isInputRange, isOutputRange;
-import std.traits : hasElaborateAssign, hasIndirections,
-    isAssignable, isCopyable, isDynamicArray, isIntegral, isMutable, isSomeChar, isSomeString, isStaticArray,
-    lvalueOf, Unqual;
+import std.traits : hasElaborateDestructor, isDynamicArray, isIntegral, isSomeChar, isStaticArray;
 
 debug(debug_pham_utl_utl_array) import std.stdio : writeln;
-import pham.utl.utl_disposable : DisposingReason;
+public import pham.utl.utl_array_static;
 
 @safe:
 
+//private version = customArrayGCFree;
 
-C[] arrayOfChar(C)(C c, size_t count) nothrow
+C[] arrayOfChar(C)(C c, size_t count) nothrow pure
 if (is(C == char) || is(C == byte) || is(C == ubyte))
 {
     if (count)
@@ -41,22 +38,247 @@ if (is(C == char) || is(C == byte) || is(C == ubyte))
  * of data, and the minimum requested capacity.
  *
  * Params:
- *   sizeOfT = The size of T in bytes
- *   curCapacity = The current capacity
- *   reqLen = The length as requested by the user
+ *   currentLength = current length/capacity
+ *   additionalLength = additional count
+ *   sizeOfT = size of T in bytes
  */
-static size_t calCapacity(const(size_t) sizeOfT, const(size_t) curCapacity, const(size_t) reqLen) @nogc nothrow pure @safe
+pragma(inline, true);
+static size_t arrayCalcCapacity(const(size_t) currentLength, const(size_t) additionalLength, const(size_t) sizeOfT) @nogc nothrow pure @safe
+in
 {
-    import core.bitop : bsr;
-    import std.algorithm.comparison : max, min;
+    assert(sizeOfT > 0);
+}
+do
+{
+    const increment = currentLength != 0
+        ? (currentLength / 2)
+        : (sizeOfT == 1 ? 32 : (sizeOfT == 2 ? 16 : 8));
+    return currentLength + (increment > additionalLength ? increment : additionalLength);
+}
 
-    if (curCapacity == 0)
-        return max(reqLen, 8);
+void arrayDestroy(T)(T[] array, bool zeroInit)
+if (hasElaborateDestructor!T)
+{
+    foreach (ref e; array)
+        e.__xdtor();
 
-    // Limit to doubling the length, we don't want to grow too much
-    const ulong mult = min(100 + 1_000UL / (bsr(curCapacity * sizeOfT) + 1), 200);
-    const sugCapacity = cast(size_t)((curCapacity * mult + 99) / 100);
-    return max(reqLen, sugCapacity);
+    if (zeroInit)
+        arrayZeroInit!T(array);
+}
+
+void arrayFree(T)(ref T[] array) nothrow pure @trusted
+{
+    import core.memory : GC;
+
+    if (!__ctfe && array.ptr !is null)
+        GC.free(array.ptr);
+
+    array = [];
+}
+
+pragma(inline, false);
+void arrayGrow(T)(ref T[] array, ref bool tryExtendBlock, const(size_t) additionalLength, const(size_t) usingLength, bool zeroInit) nothrow pure @trusted
+in
+{
+    assert(usingLength <= additionalLength);
+}
+do
+{
+    import core.checkedint : mulu;
+    import core.memory : GC;
+    import core.stdc.string : memcpy, memset;
+    import std.traits : hasElaborateDestructor, hasIndirections;
+
+    const currentLength = array.length;
+    const allocCapacity = arrayCalcCapacity(currentLength, additionalLength, T.sizeof);
+
+    if (__ctfe)
+    {
+        static if (__traits(compiles, new T[](1)))
+        {
+            array.reserve(allocCapacity);
+            array.length = currentLength + additionalLength;
+        }
+        else
+        {
+            // Avoid restriction of @disable this()
+            foreach (i; 0..additionalLength)
+                array ~= T.init;
+        }
+        tryExtendBlock = false;
+    }
+    else
+    {
+        // Clear out previous garbage to avoid runtime pinned memory?
+        static if (hasIndirections!T || hasElaborateDestructor!T)
+            zeroInit = true;
+
+        auto blockAttribute() @nogc nothrow pure @safe
+        {
+            static if (hasIndirections!T || is(T == void))
+                return GC.BlkAttr.NONE;
+            else
+                return GC.BlkAttr.NO_SCAN;
+        }
+
+        bool overflow;
+        const allocSize = mulu(allocCapacity, T.sizeof, overflow);
+        if (overflow)
+            assert(0, "The allocation would exceed the available pointer range");
+
+        // Try extending the current block
+        if (tryExtendBlock)
+        {
+            // Extend worked?
+            if (const extendSize = GC.extend(array.ptr, additionalLength * T.sizeof, (allocCapacity - currentLength) * T.sizeof))
+            {
+                debug(debug_pham_utl_utl_array) debug writeln(__FUNCTION__, "(currentLength=", currentLength, ", allocCapacity=", allocCapacity
+                    , ", allocSize=", allocSize, ", extendSize=", extendSize, ", T.sizeof=", T.sizeof, ")");
+
+                if (zeroInit)
+                {
+                    const endSize = (currentLength + usingLength) * T.sizeof;
+                    if (extendSize > endSize)
+                        memset(array.ptr + endSize, 0, extendSize - endSize);
+                }
+
+                array = (cast(T*)array.ptr)[0..extendSize / T.sizeof];
+                return;
+            }
+        }
+
+        auto bi = GC.qalloc(allocSize, blockAttribute);
+        debug(debug_pham_utl_utl_array) debug writeln(__FUNCTION__, "(currentLength=", currentLength, ", allocCapacity=", allocCapacity
+            , ", allocSize=", allocSize, ", bi.size=", bi.size, ", T.sizeof=", T.sizeof, ")");
+
+        // Clear out previous garbage to avoid runtime pinned memory?
+        if (zeroInit)
+        {
+            const endSize = (currentLength + usingLength) * T.sizeof;
+            if (bi.size > endSize)
+                memset(bi.base + endSize, 0, bi.size - endSize);
+        }
+
+        // Copy existing data to new array
+        if (currentLength)
+        {
+            memcpy(bi.base, array.ptr, currentLength * T.sizeof);
+
+            // Avoid double destructor
+            static if (hasIndirections!T || hasElaborateDestructor!T)
+                arrayZeroInit!T(array[0..currentLength]);
+        }
+
+        version(customArrayGCFree) auto oldArray = array;
+        array = (cast(T*)bi.base)[0..bi.size / T.sizeof];
+        tryExtendBlock = true;
+        version(customArrayGCFree) arrayFree!T(oldArray);
+    }
+}
+
+void arrayShiftLeft(T)(ref T[] array, const(size_t) currentLength, const(size_t) beginIndex, const(size_t) shiftLength) @trusted
+in
+{
+    assert(array.length >= currentLength);
+    assert(beginIndex < currentLength);
+    assert(beginIndex + shiftLength <= currentLength);
+}
+do
+{
+    import core.stdc.string : memmove;
+    import std.traits : hasElaborateDestructor;
+
+    static if (hasElaborateDestructor!T)
+        arrayDestroy!T(array[beginIndex..beginIndex + shiftLength], false);
+
+    const afterLength = currentLength - beginIndex - shiftLength;
+    if (afterLength)
+        memmove(array.ptr + beginIndex, array.ptr + beginIndex + shiftLength, afterLength * T.sizeof);
+
+    arrayZeroInit!T(array[currentLength-shiftLength..currentLength]);
+}
+
+void arrayShrink(T)(ref T[] array, ref size_t currentLength, ref bool tryExtendBlock, const(size_t) newLength) @trusted
+in
+{
+    assert(array.length >= currentLength);
+    assert(currentLength > 0);
+    assert(newLength < currentLength);
+}
+do
+{
+    import core.memory : GC;
+    import core.stdc.string : memcpy, memset;
+    import std.traits : hasElaborateDestructor, hasIndirections;
+
+    if (__ctfe)
+    {
+        array = array[0..newLength];
+        currentLength = newLength;
+        tryExtendBlock = false;
+    }
+    else
+    {
+        auto blockAttribute() @nogc nothrow pure @safe
+        {
+            static if (hasIndirections!T || is(T == void))
+                return GC.BlkAttr.NONE;
+            else
+                return GC.BlkAttr.NO_SCAN;
+        }
+
+        static if (hasElaborateDestructor!T)
+            arrayDestroy!T(array[newLength..currentLength], true);
+        else static if (hasIndirections!T)
+            arrayZeroInit(array[newLength..currentLength]);
+
+        if (newLength >= 8 && newLength < currentLength / 2)
+        {
+            const allocSize = newLength * T.sizeof;
+            auto bi = GC.qalloc(allocSize, blockAttribute);
+            static if (hasIndirections!T || hasElaborateDestructor!T)
+            {
+                if (bi.size > allocSize)
+                    memset(bi.base + allocSize, 0, bi.size - allocSize);
+            }
+            memcpy(bi.base, array.ptr, allocSize);
+            static if (hasIndirections!T || hasElaborateDestructor!T)
+                arrayZeroInit(array[0..newLength]);
+
+            version(customArrayGCFree) auto oldArray = array;
+            currentLength = newLength;
+            tryExtendBlock = true;
+            version(customArrayGCFree) arrayFree!T(oldArray);
+
+            return;
+        }
+
+        currentLength = newLength;
+    }
+}
+
+void arrayZeroInit(T)(T[] array) @nogc nothrow pure @trusted
+{
+    import core.stdc.string : memset;
+
+    if (__ctfe)
+    {
+        auto ptr = cast(void*)array.ptr;
+        auto byteLength = array.length * T.sizeof;
+        while (byteLength >= size_t.sizeof)
+        {
+            *cast(size_t*)ptr = size_t(0);
+            ptr += T.sizeof;
+            byteLength -= T.sizeof;
+        }
+        while (byteLength)
+        {
+            *cast(ubyte*)ptr = ubyte(0);
+            byteLength--;
+        }
+    }
+    else
+        memset(array.ptr, 0, array.length * T.sizeof);
 }
 
 ptrdiff_t indexOf(T)(scope const(T)[] items, const(T) item) nothrow @trusted
@@ -116,7 +338,7 @@ do
     memmove(data.ptr + toIndex, data.ptr + fromIndex, nBytes);
 }
 
-void removeAt(T)(ref T array, size_t index) nothrow pure
+void removeAt(T)(ref T array, size_t index) nothrow
 if (isDynamicArray!T)
 in
 {
@@ -125,23 +347,12 @@ in
 }
 do
 {
-    // Move all items after index to the left
-    const lengthLess = array.length - 1;
-    if (lengthLess > 0)
-    {
-        while (index < lengthLess)
-        {
-            array[index] = array[index + 1];
-            ++index;
-        }
-    }
-
-    // Shrink the array length
-    // It will set the array[index] to default value when length is reduced
-    array.length = array.length - 1;
+    const length = array.length;
+    arrayShiftLeft(array, length, index, 1);
+    array.length = length - 1;
 }
 
-void removeAt(T)(ref T array, size_t index, ref size_t length) nothrow pure
+void removeAt(T)(ref T array, size_t index, ref size_t length) nothrow
 if (isStaticArray!T)
 in
 {
@@ -150,6 +361,9 @@ in
 }
 do
 {
+    import std.range.primitives : ElementType;
+    import std.traits : lvalueOf;
+
     // Move all items after index to the left
     const lengthLess = length - 1;
     if (lengthLess > 0)
@@ -170,1417 +384,6 @@ do
         array[index] = ElementType!T.init;
 
     length = lengthLess;
-}
-
-struct Appender(A)
-if (isDynamicArray!A)
-{
-    import std.exception : enforce;
-    import std.format.spec : FormatSpec, singleSpec;
-    import std.range.primitives : empty, front, popFront;
-
-    alias T = ElementEncodingType!A;
-    alias UT = Unqual!T;
-
-public:
-    /**
-     * Constructs an `Appender` with a given array. Note that this does not copy the
-     * data. If the array has a larger capacity as determined by `value.capacity`,
-     * it will be used by the appender. After initializing an appender on an array,
-     * appending to the original array will reallocate.
-     */
-    this(A value) @trusted
-    {
-        this._data = new Data;
-        this._data.value = cast(UT[])value; //trusted
-        this._data.capacity = value.length;
-        this._data.tryExtendBlock = false;
-    }
-
-    /**
-     * Constructs an `Appender` with a given capacity elements for appending.
-     */
-    this(size_t capacity)
-    {
-        this._data = null;
-        this.reserve(capacity);
-    }
-
-    /**
-     * Appends to the managed array.
-     * See_Also: $(LREF Appender.put)
-     */
-    alias opOpAssign(string op : "~") = put;
-
-    alias opDollar = length;
-
-    /**
-     * Returns: The managed array item at index.
-     */
-    static if (!is(T == void) && isCopyable!T)
-    inout(T) opIndex(size_t index) inout nothrow @trusted
-    in
-    {
-        assert(_data && _data.length != 0);
-    }
-    do
-    {
-        // @trusted operation: casting Unqual!T to inout(T)
-        return cast(typeof(return))(_data.value[index]);
-    }
-
-    /**
-     * Returns: The managed array.
-     */
-    inout(T)[] opSlice() inout nothrow @trusted
-    {
-        // @trusted operation: casting Unqual!T[] to inout(T)[]
-        return cast(typeof(return))(_data ? _data.value : null);
-    }
-
-    /**
-     * Clears the managed array. This allows the elements of the array to be reused
-     * for appending.
-     */
-    ref typeof(this) clear() nothrow return
-    {
-        if (_data)
-            _data.clear();
-
-        return this;
-    }
-
-    /**
-     * Appends `item` to the managed array. Performs encoding for
-     * `char` types if `A` is a differently typed `char` array.
-     *
-     * Params:
-     *     item = the single item to append
-     */
-    ref typeof(this) put(U)(U item) return
-    if (canPutItem!U)
-    {
-        static if (isSomeChar!T && isSomeChar!U && T.sizeof < U.sizeof)
-        {
-            // may throwable operation: std.utf.encode
-            // must do some transcoding around here
-            import std.utf : encode;
-
-            UT[T.sizeof == 1 ? 4 : 2] encoded;
-            const len = encode(encoded, item);
-            put(encoded[0..len]);
-        }
-        else
-        {
-            import core.lifetime : emplace;
-
-            const len = ensureAddable(1, 1);
-            auto bigData = (() @trusted => _data.value.ptr[0..len + 1])();
-            auto unqualItem = (() @trusted => &cast()item)();
-            () @trusted { emplace(&bigData[len], *unqualItem); }();
-
-            // We do this at the end, in case of exception
-            _data.value = bigData;
-        }
-
-        return this;
-    }
-
-    // Const fixing hack.
-    ref typeof(this) put(R)(R items) return
-    if (canPutConstRange!R)
-    {
-        alias p = put!(Unqual!R);
-        return p(items);
-    }
-
-    /**
-     * Appends an entire range to the managed array. Performs encoding for
-     * `char` elements if `A` is a differently typed `char` array.
-     *
-     * Params:
-     *     items = the range of items to append
-     */
-    ref typeof(this) put(R)(R items) return
-    if (canPutRange!R)
-    {
-        // note, we disable this branch for appending one type of char to
-        // another because we can't trust the length portion.
-        static if (!(isSomeChar!T && isSomeChar!(ElementType!R) && !is(immutable R == immutable T[]))
-            && is(typeof(items.length) == size_t))
-        {
-            const itemsLength = items.length;
-
-            if (itemsLength == 0)
-                return this;
-
-            // optimization -- if this type is something other than a string,
-            // and we are adding exactly one element, call the version for one
-            // element.
-            static if (!isSomeChar!T)
-            {
-                if (itemsLength == 1)
-                {
-                    put(items.front);
-                    return this;
-                }
-            }
-
-            // make sure we have enough space, then add the items
-            auto bigDataFun(const(size_t) extra)
-            {
-                const len = ensureAddable(extra, extra);
-                return (() @trusted => _data.value.ptr[0..len + extra])();
-            }
-
-            auto bigData = bigDataFun(itemsLength);
-            const newLen = bigData.length;
-            const len = this.length;
-
-            static if (is(typeof(_data.value[] = items[]))
-                && !hasElaborateAssign!UT
-                && isAssignable!(UT, ElementEncodingType!R))
-            {
-                bigData[len..newLen] = items[];
-            }
-            else
-            {
-                import core.internal.lifetime : emplaceRef;
-
-                foreach (ref it; bigData[len..newLen])
-                {
-                    () @trusted { emplaceRef!T(it, items.front); }();
-                    items.popFront();
-                }
-            }
-
-            // We do this at the end, in case of exceptions
-            _data.value = bigData;
-        }
-        else static if (isSomeChar!T && isSomeChar!(ElementType!R)
-            && !is(immutable T == immutable ElementType!R))
-        {
-            // need to decode and encode
-            import std.utf : decodeFront;
-
-            while (!items.empty)
-            {
-                auto c = items.decodeFront;
-                put(c);
-            }
-        }
-        else
-        {
-            // Generic input range
-            for (; !items.empty; items.popFront())
-            {
-                put(items.front);
-            }
-        }
-
-        return this;
-    }
-
-    /**
-     * Reserve at least newCapacity elements for appending. Note that more elements
-     * may be reserved than requested. If `newCapacity <= capacity`, then nothing is
-     * done.
-     *
-     * Params:
-     *     newCapacity = the capacity the `Appender` should have
-     */
-    ref typeof(this) reserve(size_t newCapacity) nothrow return
-    {
-        const currentCapacity = this.capacity;
-        if (newCapacity > currentCapacity)
-            ensureAddable(newCapacity - currentCapacity, 0);
-        return this;
-    }
-
-    /**
-     * Shrinks the managed array to the given length.
-     *
-     * Throws: `Exception` if newLength is greater than the managed array length.
-     */
-    ref typeof(this) shrinkTo(const(size_t) newLength) return
-    {
-        if (newLength == 0)
-            return clear();
-
-        const currentLength = this.length;
-        enforce(newLength <= currentLength, "Attempting to shrink Appender with newLength > length");
-
-        if (_data && newLength != currentLength)
-            _data.shrinkTo(newLength);
-
-        return this;
-    }
-
-    /**
-     * Gives a string in the form of `Appender!(A)(data)`.
-     *
-     * Params:
-     *     w = A `char` accepting
-     *     $(REF_ALTTEXT output range, isOutputRange, std, range, primitives).
-     *     fmt = A $(REF FormatSpec, std, format) which controls how the array
-     *     is formatted.
-     * Returns:
-     *     A `string` if `writer` is not set; `void` otherwise.
-     */
-    string toString()() const
-    {
-        auto spec = singleSpec("%s");
-
-        // Different reserve lengths because each element in a
-        // non-string-like array uses two extra characters for `, `.
-        static if (isSomeString!A)
-        {
-            const cap = this.length + 25;
-        }
-        else
-        {
-            // Multiplying by three is a very conservative estimate of
-            // length, as it assumes each element is only one char
-            const cap = (this.length * 3) + 25;
-        }
-        auto buffer = Appender!string(cap);
-        return toString(buffer, spec).data;
-    }
-
-    /// ditto
-    ref Writer toString(Writer)(return ref Writer writer, scope const ref FormatSpec!char fmt) const
-    if (isOutputRange!(Writer, char))
-    {
-        import std.format.write : formatValue;
-        import std.range.primitives : formatPut = put;
-
-        formatPut(writer, Unqual!(typeof(this)).stringof);
-        formatPut(writer, '(');
-        formatValue(writer, data, fmt);
-        formatPut(writer, ')');
-
-        return writer;
-    }
-
-    /**
-     * Returns: the capacity of the array (the maximum number of elements the
-     * managed array can accommodate before triggering a reallocation). If any
-     * appending will reallocate, `0` will be returned.
-     */
-    pragma(inline, true)
-    @property size_t capacity() const @nogc nothrow
-    {
-        return _data ? _data.capacity : 0;
-    }
-
-    @property ref typeof(this) capacity(size_t newCapacity) nothrow return
-    {
-        return reserve(newCapacity);
-    }
-
-    /**
-     * Returns: The managed array.
-     */
-    @property inout(T)[] data() inout nothrow @trusted
-    {
-        return this[];
-    }
-
-    /**
-     * Returns: the length of the array
-     */
-    pragma(inline, true)
-    @property size_t length() const @nogc nothrow
-    {
-        return _data ? _data.length : 0;
-    }
-
-private:
-    import core.checkedint : mulu;
-    import core.memory : GC;
-    import core.stdc.string : memcpy, memset;
-
-    template blockAttribute(U)
-    {
-        static if (hasIndirections!U || is(U == void))
-        {
-            enum blockAttribute = 0;
-        }
-        else
-        {
-            enum blockAttribute = GC.BlkAttr.NO_SCAN;
-        }
-    }
-
-    template canPutItem(U)
-    {
-        enum bool canPutItem =
-            is(Unqual!U : UT)
-            || (isSomeChar!U && isSomeChar!T);
-    }
-
-    template canPutConstRange(R)
-    {
-        enum bool canPutConstRange =
-            isInputRange!(Unqual!R)
-            && canPutItem!(ElementType!R)
-            && !isInputRange!R;
-    }
-
-    template canPutRange(R)
-    {
-        enum bool canPutRange =
-            isInputRange!R
-            && canPutItem!(ElementType!R);
-    }
-
-    /**
-     * Ensure we can add nElems elements, resizing as necessary
-     * Returns the current length
-     */
-    pragma(inline, true)
-    size_t ensureAddable(const(size_t) nElems, const(size_t) aElems) nothrow @safe
-    in
-    {
-        assert(nElems > 0);
-    }
-    do
-    {
-        if (!_data)
-            _data = new Data;
-
-        const len = _data.length;
-        const reqLen = len + nElems;
-        return _data.capacity >= reqLen ? len : ensureAddableImpl(nElems, aElems, reqLen);
-    }
-
-    /**
-     * Ensure we can add nElems elements, resizing as necessary
-     * Returns the current length
-     */
-    size_t ensureAddableImpl(const(size_t) nElems, const(size_t) aElems, const(size_t) requiredLen) nothrow @trusted
-    in
-    {
-        assert(nElems > 0);
-        assert(requiredLen >= nElems);
-        assert(_data !is null);
-    }
-    do
-    {
-        const curLen = _data.length;
-
-        // Need to increase capacity
-        if (__ctfe)
-        {
-            static if (__traits(compiles, new UT[1]))
-            {
-                _data.value.length = requiredLen;
-            }
-            else
-            {
-                // Avoid restriction of @disable this()
-                const cap = _data.capacity;
-                _data.value = _data.value[0..cap];
-                foreach (i; cap..requiredLen)
-                    _data.value ~= UT.init;
-            }
-            _data.value = _data.value[0..curLen];
-            _data.capacity = requiredLen;
-        }
-        else
-        {
-            // Time to reallocate.
-            // We need to almost duplicate what's in druntime, except we
-            // have better access to the capacity field.
-            const allocCapacity = calCapacity(T.sizeof, _data.capacity, requiredLen);
-
-            // Try extending the current block
-            if (_data.tryExtendBlock)
-            {
-                // Extend worked?
-                if (const u = GC.extend(_data.value.ptr, nElems * T.sizeof, (allocCapacity - curLen) * T.sizeof))
-                {
-                    // Update the capacity
-                    _data.capacity = u / T.sizeof;
-                    
-                    // Clear out previous garbage to avoid runtime pinned memory?
-                    static if (hasIndirections!T)
-                    {
-                        const endSize = (curLen + aElems) * T.sizeof;
-                        if (u > endSize)
-                            memset((cast(void*)_data.value.ptr)+endSize, 0, u - endSize);
-                    }
-
-                    return curLen;
-                }
-            }
-
-            // Extend failed, must reallocate
-            bool overflow;
-            const allocSize = mulu(allocCapacity, T.sizeof, overflow);
-            if (overflow)
-                assert(0, "the reallocation would exceed the available pointer range");
-
-            auto bi = GC.qalloc(allocSize, blockAttribute!T);
-            _data.capacity = bi.size / T.sizeof;
-
-            // Clear out previous garbage to avoid runtime pinned memory?
-            static if (hasIndirections!T)
-            {
-                const endSize = (curLen + aElems) * T.sizeof;
-                if (bi.size > endSize)
-                    memset(bi.base+endSize, 0, bi.size - endSize);
-            }
-
-            // Copy old data over new memory block
-            if (curLen)
-                memcpy(bi.base, _data.value.ptr, curLen * T.sizeof);
-
-            _data.value = (cast(UT*)bi.base)[0..curLen];
-            _data.tryExtendBlock = true;
-
-            // Leave the old data, for safety reasons
-        }
-
-        return curLen;
-    }
-
-    static struct Data
-    {
-        size_t capacity;
-        UT[] value;
-        bool tryExtendBlock;
-
-        void clear() nothrow @trusted
-        {
-            if (__ctfe)
-            {
-                reset();
-            }
-            else
-            {
-                // Avoid runtime pinned memory
-                static if (hasIndirections!T && isMutable!T && __traits(compiles, { T a; a = T.init; }))
-                {
-                    if (value.length)
-                        value[0..$] = T.init;
-                }
-
-                value = value[0..0];
-
-                // Only allow overwriting data on non-immutable and non-const data
-                static if (!isMutable!T)
-                {
-                    capacity = 0;
-                    tryExtendBlock = false;
-                }
-            }
-        }
-
-        void reset() nothrow pure @safe
-        {
-            value = null;
-            capacity = 0;
-            tryExtendBlock = false;
-        }
-
-        void shrinkTo(const(size_t) newLength) nothrow @trusted
-        in
-        {
-            assert(newLength < value.length);
-        }
-        do
-        {
-            // Avoid runtime pinned memory
-            static if (hasIndirections!T && isMutable!T && __traits(compiles, { T a; a = T.init; }))
-                value[newLength..$] = T.init;
-
-            static if (isMutable!T)
-                value = value[0..newLength];
-            else
-            {
-                if (__ctfe)
-                    value = value[0..newLength].dup;
-                else
-                    value = value[0..newLength];
-
-                // only allow overwriting data on non-immutable and non-const data
-                capacity = newLength;
-                tryExtendBlock = false;
-            }
-        }
-
-        pragma(inline, true)
-        @property size_t length() const nothrow @safe
-        {
-            return value.length;
-        }
-    }
-
-    Data* _data;
-}
-
-/**
- * Convenience function that returns an $(LREF Appender) instance,
- * optionally initialized with `array`.
- */
-Appender!(E[]) appender(A : E[], E)(auto ref A value)
-{
-    static assert(!isStaticArray!A || __traits(isRef, value), "Cannot create Appender from an rvalue static array");
-
-    return Appender!(E[])(value);
-}
-
-///dito
-Appender!A appender(A)(size_t capacity = 0)
-if (isDynamicArray!A)
-{
-    return Appender!A(capacity);
-}
-
-struct IndexedArray(T, ushort StaticSize)
-{
-public:
-    this(size_t capacity) nothrow pure @safe
-    {
-        if (capacity > StaticSize)
-            _dynamicItems.reserve(capacity);
-    }
-
-    this()(scope inout(T)[] values) nothrow
-    {
-        const valueLength = values.length;
-        this(valueLength);
-        if (valueLength)
-        {
-            if (useStatic(valueLength))
-            {
-                _staticLength = valueLength;
-                _staticItems[0..valueLength] = values[0..valueLength];
-            }
-            else
-            {
-                _dynamicItems.length = valueLength;
-                _dynamicItems[0..valueLength] = values[0..valueLength];
-            }
-        }
-    }
-
-    alias opApply = opApplyImpl!(int delegate(T));
-    alias opApply = opApplyImpl!(int delegate(size_t, T));
-
-    int opApplyImpl(CallBack)(scope CallBack callBack)
-    if (is(CallBack : int delegate(T)) || is(CallBack : int delegate(size_t, T)))
-    {
-        debug(debug_pham_utl_utl_array) if (!__ctfe) debug writeln(__FUNCTION__, "()");
-
-        auto list = useStatic ? _staticItems[0..length] : _dynamicItems;
-        static if (is(CallBack : int delegate(T)))
-        {
-            foreach (ref e; list)
-            {
-                const r = callBack(e);
-                if (r)
-                    return r;
-            }
-        }
-		else
-        {
-            foreach (i; 0..list.length)
-            {
-                const r = callBack(i, list[i]);
-                if (r)
-                    return r;
-            }
-        }
-        return 0;
-    }
-
-    ref typeof(this) opAssign()(inout(T)[] values) nothrow return
-    {
-        const valueLength = values.length;
-        clear(valueLength);
-        if (valueLength)
-        {
-            if (useStatic(valueLength))
-            {
-                _staticLength = valueLength;
-                _staticItems[0..valueLength] = values[0..valueLength];
-            }
-            else
-            {
-                _dynamicItems.length = valueLength;
-                _dynamicItems[0..valueLength] = values[0..valueLength];
-            }
-        }
-        return this;
-    }
-
-    ref typeof(this) opOpAssign(string op)(T item) nothrow return
-    if (op == "~" || op == "+" || op == "-")
-    {
-        static if (op == "~" || op == "+")
-            putBack(item);
-        else static if (op == "-")
-            remove(item);
-        else
-            static assert(0);
-        return this;
-    }
-
-    size_t opDollar() const @nogc nothrow
-    {
-        return length;
-    }
-
-    bool opCast(B: bool)() const nothrow
-    {
-        return !empty;
-    }
-
-    /** Returns range interface
-    */
-    inout(T)[] opIndex() inout nothrow return
-    {
-        debug(debug_pham_utl_utl_array) if (!__ctfe) debug writeln(__FUNCTION__, "()");
-
-        return useStatic ? _staticItems[0..length] : _dynamicItems;
-    }
-
-    /** Returns range interface
-    */
-    T opIndex(size_t index) nothrow
-    in
-    {
-        assert(index < length);
-    }
-    do
-    {
-        return useStatic ? _staticItems[index] : _dynamicItems[index];
-    }
-
-    ref typeof(this) opIndexAssign(T item, const(size_t) index) nothrow return
-    {
-        const atLength = index + 1;
-        if (!useStatic(atLength) || !useStatic)
-        {
-            switchToDynamicItems(atLength, atLength > length);
-            _dynamicItems[index] = item;
-        }
-        else
-        {
-            assert(useStatic(atLength));
-            _staticItems[index] = item;
-            if (_staticLength < atLength)
-                _staticLength = atLength;
-        }
-        assert(atLength <= length);
-        return this;
-    }
-
-    static if (isIntegral!T)
-    ref typeof(this) opIndexOpAssign(string op)(T item, const(size_t) index) @nogc nothrow
-    if (op == "&" || op == "|" || op == "^")
-    in
-    {
-        assert(index < length);
-    }
-    do
-    {
-        if (useStatic)
-            mixin("_staticItems[index] " ~ op ~ "= item;");
-        else
-            mixin("_dynamicItems[index] " ~ op ~ "= item;");
-        return this;
-    }
-
-    /** 
-     * Returns range interface
-     */
-    inout(T)[] opSlice(const(size_t) beginIndex, const(size_t) endIndex) inout nothrow return
-    in
-    {
-        assert(beginIndex <= endIndex);
-    }
-    do
-    {
-        const len = length;
-        if (beginIndex >= len)
-            return [];
-
-        return endIndex > len
-            ? (useStatic ? _staticItems[beginIndex..len] : _dynamicItems[beginIndex..len])
-            : (useStatic ? _staticItems[beginIndex..endIndex] : _dynamicItems[beginIndex..endIndex]);
-    }
-
-    ref typeof(this) clear(const(size_t) capacity = 0) nothrow return
-    {
-        if (_staticLength)
-        {
-            _staticItems[0.._staticLength] = T.init;
-            _staticLength = 0;
-        }
-
-        if (capacity > StaticSize)
-        {
-            _dynamicItems.length = 0;
-            _dynamicItems.reserve(capacity);
-        }
-        else
-            _dynamicItems = null;
-
-        return this;
-    }
-
-    T[] dup() nothrow
-    {
-        return this[].dup;
-    }
-
-    ref typeof(this) fill(T item, const(size_t) beginIndex = 0) nothrow return
-    in
-    {
-        assert(beginIndex < length);
-    }
-    do
-    {
-        if (useStatic)
-            _staticItems[beginIndex..length] = item;
-        else
-            _dynamicItems[beginIndex..length] = item;
-        return this;
-    }
-
-    ptrdiff_t indexOf(in T item) @trusted
-    {
-        return length ? .indexOf(this[], item) : -1;
-    }
-
-    pragma(inline, true)
-    T* ptr(const(size_t) index) nothrow return
-    in
-    {
-        assert(index < length);
-    }
-    do
-    {
-        return useStatic ? &_staticItems[index] : &_dynamicItems[index];
-    }
-
-    alias put = putBack;
-
-    ref typeof(this) put()(scope inout(T)[] items, const(size_t) beginIndex) nothrow return
-    {
-        const atLength = beginIndex + items.length;
-        if (!useStatic(atLength) || !useStatic)
-        {
-            switchToDynamicItems(atLength, atLength > length);
-            _dynamicItems[beginIndex..beginIndex + items.length] = items[0..items.length];
-        }
-        else
-        {
-            assert(useStatic(atLength));
-            _staticItems[beginIndex..beginIndex + items.length] = items[0..items.length];
-            if (_staticLength < atLength)
-                _staticLength = atLength;
-        }
-        assert(atLength <= length);
-        return this;
-    }
-
-    T putBack(T item) nothrow
-    {
-        const newLength = length + 1;
-        if (!useStatic(newLength) || !useStatic)
-        {
-            switchToDynamicItems(newLength, true);
-            _dynamicItems[newLength - 1] = item;
-        }
-        else
-        {
-            assert(useStatic(newLength));
-            _staticItems[_staticLength++] = item;
-        }
-        assert(length == newLength);
-
-        return item;
-    }
-
-    T remove(in T item)
-    {
-        const i = indexOf(item);
-        return i >= 0 ? doRemove(i) : T.init;
-    }
-
-    T removeAt(const(size_t) index) nothrow
-    {
-        return index < length ? doRemove(index) : T.init;
-    }
-
-    ref typeof(this) reverse() @nogc nothrow
-    {
-        import std.algorithm.mutation : swapAt;
-
-        const len = length;
-        if (len > 1)
-        {
-            const last = len - 1;
-            const steps = len / 2;
-            if (useStatic)
-            {
-                for (size_t i = 0; i < steps; i++)
-                    _staticItems.swapAt(i, last - i);
-            }
-            else
-            {
-                for (size_t i = 0; i < steps; i++)
-                    _dynamicItems.swapAt(i, last - i);
-            }
-        }
-        return this;
-    }
-
-    pragma(inline, true)
-    @property bool empty() const @nogc nothrow
-    {
-        return length == 0;
-    }
-
-    pragma(inline, true)
-    @property size_t length() const @nogc nothrow
-    {
-        return useStatic ? _staticLength : _dynamicItems.length;
-    }
-
-    @property size_t length(const(size_t) newLength) nothrow
-    {
-        if (length != newLength)
-        {
-            if (useStatic(newLength) && useStatic)
-                _staticLength = newLength;
-            else
-                switchToDynamicItems(newLength, true);
-        }
-        return newLength;
-    }
-
-    pragma(inline, true)
-    @property static size_t staticSize() @nogc nothrow pure
-    {
-        return StaticSize;
-    }
-
-    pragma(inline, true)
-    @property bool useStatic() const @nogc nothrow
-    {
-        assert(_dynamicItems.ptr !is null || useStatic(_staticLength));
-
-        return _dynamicItems.ptr is null;
-    }
-
-    pragma(inline, true)
-    @property bool useStatic(const(size_t) checkLength) const @nogc nothrow pure
-    {
-        return checkLength <= StaticSize;
-    }
-
-private:
-    T doRemove(const(size_t) index) nothrow @trusted
-    in
-    {
-        assert(index < length);
-    }
-    do
-    {
-        debug(debug_pham_utl_utl_array) debug writeln(__FUNCTION__, "()");
-
-        if (useStatic)
-        {
-            auto res = _staticItems[index];
-            .removeAt(_staticItems, index, _staticLength);
-            return res;
-        }
-        else
-        {
-            auto res = _dynamicItems[index];
-            .removeAt(_dynamicItems, index);
-            return res;
-        }
-    }
-
-    void switchToDynamicItems(const(size_t) newLength, bool mustSet) nothrow @trusted
-    {
-        debug(debug_pham_utl_utl_array) debug writeln(__FUNCTION__, "()");
-
-        if (useStatic)
-        {
-            const setLength = mustSet ? newLength : _staticLength;
-            const copyLength = _staticLength > setLength ? setLength : _staticLength;
-            _dynamicItems.reserve(setLength + (setLength / 2));
-
-            _dynamicItems.length = setLength;
-            _dynamicItems[0..copyLength] = _staticItems[0..copyLength];
-
-            _staticLength = 0;
-            _staticItems[] = T.init;
-        }
-        else
-        {
-            if (newLength > _dynamicItems.capacity)
-                _dynamicItems.reserve(newLength + (newLength / 2));
-            if (mustSet || _dynamicItems.length < newLength)
-                _dynamicItems.length = newLength;
-        }
-    }
-
-private:
-    T[] _dynamicItems;
-    size_t _staticLength;
-    T[StaticSize] _staticItems;
-}
-
-struct ShortStringBufferSize(T, ushort StaticSize)
-if (StaticSize > 0 && (isSomeChar!T || isIntegral!T))
-{
-@safe:
-
-public:
-    this(this) nothrow pure
-    {
-        _longData = _longData.dup;
-    }
-
-    this(bool shortLength) nothrow pure
-    {
-        this(shortLength ? StaticSize : cast(ushort)0);
-    }
-
-    this(const(ushort) shortLength) nothrow pure
-    {
-        if (shortLength)
-        {
-            this._length = shortLength;
-            if (shortLength > StaticSize)
-                this._longData.length = shortLength;
-        }
-    }
-
-    this(scope const(T)[] values) nothrow pure
-    {
-        setData(values);
-    }
-
-    ref typeof(this) opAssign(scope const(T)[] values) nothrow return
-    {
-        setData(values);
-        return this;
-    }
-
-    ref typeof(this) opOpAssign(string op)(T c) nothrow pure return
-    if (op == "~" || op == "+")
-    {
-        return put(c);
-    }
-
-    ref typeof(this) opOpAssign(string op)(scope const(T)[] s) nothrow pure return
-    if (op == "~" || op == "+")
-    {
-        return put(s);
-    }
-
-    static if (isIntegral!T)
-    ref typeof(this) opOpAssign(string op)(scope const(T)[] rhs) @nogc nothrow pure
-    if (op == "&" || op == "|" || op == "^")
-    {
-        const len = _length > rhs.length ? rhs.length : _length;
-        if (useShortSize)
-        {
-            foreach (i; 0..len)
-                mixin("_shortData[i] " ~ op ~ "= rhs[i];");
-
-            static if (op == "&")
-            if (len < _length)
-                _shortData[len.._length] = 0;
-        }
-        else
-        {
-            foreach (i; 0..len)
-                mixin("_longData[i] " ~ op ~ "= rhs[i];");
-
-            static if (op == "&")
-            if (len < _length)
-                _longData[len.._length] = 0;
-        }
-        return this;
-    }
-
-    size_t opDollar() const @nogc nothrow pure
-    {
-        return _length;
-    }
-
-    bool opEquals(scope const(typeof(this)) rhs) const @nogc nothrow pure
-    {
-        scope const rhsd = rhs.useShortSize ? rhs._shortData[0..rhs._length] : rhs._longData[0..rhs._length];
-        return useShortSize ? (_shortData[0.._length] == rhsd) : (_longData[0.._length] == rhsd);
-    }
-
-    bool opEquals(scope const(T)[] rhs) const @nogc nothrow pure
-    {
-        return useShortSize ? (_shortData[0.._length] == rhs) : (_longData[0.._length] == rhs);
-    }
-
-    inout(T)[] opIndex() inout nothrow pure return
-    {
-        return useShortSize ? _shortData[0.._length] : _longData[0.._length];
-    }
-
-    T opIndex(const(size_t) index) const @nogc nothrow pure
-    in
-    {
-        assert(index < length);
-    }
-    do
-    {
-        return useShortSize ? _shortData[index] : _longData[index];
-    }
-
-    inout(T)[] opSlice(const(size_t) beginIndex, const(size_t) endIndex) inout nothrow pure return
-    in
-    {
-        assert(beginIndex <= endIndex);
-    }
-    do
-    {
-        if (beginIndex >= _length)
-            return [];
-        else
-            return endIndex > _length
-                ? (useShortSize ? _shortData[beginIndex.._length] : _longData[beginIndex.._length])
-                : (useShortSize ? _shortData[beginIndex..endIndex] : _longData[beginIndex..endIndex]);
-    }
-
-    ref typeof(this) opIndexAssign(T c, const(size_t) index) @nogc nothrow return
-    in
-    {
-        assert(index < length);
-    }
-    do
-    {
-        if (useShortSize)
-            _shortData[index] = c;
-        else
-            _longData[index] = c;
-        return this;
-    }
-
-    static if (isIntegral!T)
-    ref typeof(this) opIndexOpAssign(string op)(T c, const(size_t) index) @nogc nothrow pure
-    if (op == "&" || op == "|" || op == "^")
-    in
-    {
-        assert(index < length);
-    }
-    do
-    {
-        if (useShortSize)
-            mixin("_shortData[index] " ~ op ~ "= c;");
-        else
-            mixin("_longData[index] " ~ op ~ "= c;");
-        return this;
-    }
-
-    ref typeof(this) chopFront(const(size_t) chopLength) nothrow pure return
-    {
-        if (chopLength >= _length)
-            return clear();
-
-        const newLength = _length - chopLength;
-
-        //import std.stdio : writeln; debug writeln("_length=", _length, ", chopLength=", chopLength, ", newLength=", newLength, ", StaticSize=", StaticSize, ", _shortData.length=", _shortData.length);
-
-        if (useShortSize)
-        {
-            foreach (i; 0..newLength)
-                _shortData[i] = _shortData[i + chopLength];
-        }
-        else
-        {
-            // Switch from long to short?
-            if (useShortSize(newLength))
-                _shortData[0..newLength] = _longData[chopLength.._length];
-            else
-            {
-                foreach (i; 0..newLength)
-                    _longData[i] = _longData[i + chopLength];
-            }
-        }
-
-        _length = newLength;
-        return this;
-    }
-
-    ref typeof(this) chopTail(const(size_t) chopLength) nothrow pure return
-    {
-        if (chopLength >= _length)
-            return clear();
-
-        const newLength = _length - chopLength;
-
-        //import std.stdio : writeln; debug writeln("_length=", _length, ", chopLength=", chopLength, ", newLength=", newLength, ", StaticSize=", StaticSize, ", _shortData.length=", _shortData.length);
-
-        // Switch from long to short?
-        if (!useShortSize && useShortSize(newLength))
-            _shortData[0..newLength] = _longData[0..newLength];
-
-        _length = newLength;
-        return this;
-    }
-
-    ref typeof(this) clear(const(bool) shortLength = false) nothrow pure return
-    {
-        if (shortLength)
-        {
-            _shortData[] = 0;
-            _longData[] = 0;
-        }
-        _length = shortLength ? StaticSize : 0;
-        return this;
-    }
-
-    T[] consume() nothrow pure
-    {
-        T[] result = _length != 0
-            ? (useShortSize ? _shortData[0.._length].dup : _longData[0.._length])
-            : [];
-
-        _shortData[] = 0;
-        _longData = null;
-        _length = 0;
-
-        return result;
-    }
-
-    immutable(T)[] consumeUnique() nothrow pure @trusted
-    {
-        T[] result = _length != 0
-            ? (useShortSize ? _shortData[0.._length].dup : _longData[0.._length])
-            : [];
-
-        _shortData[] = 0;
-        _longData = null;
-        _length = 0;
-
-        return cast(immutable(T)[])(result);
-    }
-
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
-    {
-        _shortData[] = 0;
-        _longData[] = 0;
-        _longData = null;
-        _length = 0;
-    }
-
-    inout(T)[] left(size_t len) inout nothrow pure return
-    {
-        if (len >= _length)
-            return opIndex();
-        else
-            return opIndex()[0..len];
-    }
-
-    ref typeof(this) removeFront(const(T) removingValue) nothrow pure return
-    {
-        while (_length && opIndex(0) == removingValue)
-            chopFront(1);
-        return this;
-    }
-
-    ref typeof(this) removeTail(const(T) removingValue) nothrow pure return
-    {
-        while (_length && opIndex(_length - 1) == removingValue)
-            chopTail(1);
-        return this;
-    }
-
-    ref typeof(this) put(T c) nothrow pure return
-    {
-         const newLength = _length + 1;
-        // Still in short?
-        if (useShortSize(newLength))
-            _shortData[_length++] = c;
-        else
-        {
-            if (useShortSize)
-                switchToLongData(1);
-            else if (_longData.length < newLength)
-                _longData.length = alignAddtionalLength(newLength);
-            _longData[_length++] = c;
-        }
-        return this;
-    }
-
-    ref typeof(this) put(scope const(T)[] s) nothrow pure return
-    {
-        if (!s.length)
-            return this;
-
-        const newLength = _length + s.length;
-        // Still in short?
-        if (useShortSize(newLength))
-        {
-            _shortData[_length..newLength] = s[0..$];
-        }
-        else
-        {
-            if (useShortSize)
-                switchToLongData(s.length);
-            else if (_longData.length < newLength)
-                _longData.length = alignAddtionalLength(newLength);
-            _longData[_length..newLength] = s[0..$];
-        }
-        _length = newLength;
-        return this;
-    }
-
-    static if (is(T == char))
-    ref typeof(this) put(dchar c) nothrow pure return
-    {
-        import std.typecons : Yes;
-        import std.utf : encode, UseReplacementDchar;
-
-        char[4] buffer;
-        const len = encode!(Yes.useReplacementDchar)(buffer, c);
-        return put(buffer[0..len]);
-    }
-
-    ref typeof(this) reverse() @nogc nothrow pure
-    {
-        import std.algorithm.mutation : swapAt;
-
-        const len = length;
-        if (len > 1)
-        {
-            const last = len - 1;
-            const steps = len / 2;
-            if (useShortSize)
-            {
-                foreach (i; 0..steps)
-                    _shortData.swapAt(i, last - i);
-            }
-            else
-            {
-                foreach (i; 0..steps)
-                    _longData.swapAt(i, last - i);
-            }
-        }
-        return this;
-    }
-
-    inout(T)[] right(size_t len) inout nothrow pure return
-    {
-        if (len >= _length)
-            return opIndex();
-        else
-            return opIndex()[_length - len.._length];
-    }
-
-    static if (isSomeChar!T)
-    immutable(T)[] toString() const nothrow pure
-    {
-        return _length != 0
-            ? (useShortSize ? _shortData[0.._length].idup : _longData[0.._length].idup)
-            : [];
-    }
-
-    static if (isSomeChar!T)
-    ref Writer toString(Writer)(return ref Writer sink) const pure
-    {
-        if (_length)
-            put(sink, opIndex());
-        return sink;
-    }
-
-    pragma(inline, true)
-    @property bool empty() const @nogc nothrow pure
-    {
-        return _length == 0;
-    }
-
-    pragma(inline, true)
-    @property size_t length() const @nogc nothrow pure
-    {
-        return _length;
-    }
-
-    pragma(inline, true)
-    @property static size_t shortSize() @nogc nothrow pure
-    {
-        return StaticSize;
-    }
-
-    pragma(inline, true)
-    @property bool useShortSize() const @nogc nothrow pure
-    {
-        return _length <= StaticSize;
-    }
-
-    pragma(inline, true)
-    @property bool useShortSize(const(size_t) checkLength) const @nogc nothrow pure
-    {
-        return checkLength <= StaticSize;
-    }
-
-private:
-    pragma(inline, true)
-    size_t alignAddtionalLength(const(size_t) additionalLength) @nogc nothrow pure
-    {
-        if (additionalLength <= overReservedLength)
-            return overReservedLength;
-        else
-            return ((additionalLength + overReservedLength - 1) / overReservedLength) * overReservedLength;
-    }
-
-    void setData(scope const(T)[] values) nothrow pure
-    {
-        _length = values.length;
-        if (_length)
-        {
-            if (useShortSize)
-            {
-                _shortData[0.._length] = values[0.._length];
-            }
-            else
-            {
-                if (_longData.length < _length)
-                    _longData.length = _length;
-                _longData[0.._length] = values[0.._length];
-            }
-        }
-    }
-
-    void switchToLongData(const(size_t) additionalLength) nothrow pure
-    {
-        const capacity = alignAddtionalLength(_length + additionalLength);
-        if (_longData.length < capacity)
-            _longData.length = capacity;
-        if (_length)
-            _longData[0.._length] = _shortData[0.._length];
-    }
-
-private:
-    enum overReservedLength = 1_000u;
-    size_t _length;
-    T[] _longData;
-    T[StaticSize] _shortData = 0;
-}
-
-template ShortStringBuffer(T)
-if (isSomeChar!T || isIntegral!T)
-{
-    private enum overheadSize = ShortStringBufferSize!(T, 1u).sizeof;
-    alias ShortStringBuffer = ShortStringBufferSize!(T, 256u - overheadSize);
 }
 
 
@@ -1655,827 +458,4 @@ unittest // removeAt
     assert(swal == 5);
     assert(swa == [0, 1, 3, 4, 5, wchar.init]);
     assert(swa[0..swal] == [0, 1, 3, 4, 5]);
-}
-
-nothrow @safe unittest // IndexedArray
-{
-    alias IndexedArray2 = IndexedArray!(int, 2);
-    auto a = IndexedArray2(0);
-
-    // Check initial state
-    assert(a.empty);
-    assert(a.length == 0);
-    assert(a.remove(1) == 0);
-    assert(a.removeAt(1) == 0);
-    assert(a.useStatic);
-
-    // Append element
-    a.putBack(1);
-    assert(!a.empty);
-    assert(a.length == 1);
-    assert(a.indexOf(1) == 0);
-    assert(a[0] == 1);
-    assert(a.useStatic);
-
-    // Append second element
-    a += 2;
-    assert(a.length == 2);
-    assert(a.indexOf(2) == 1);
-    assert(a[1] == 2);
-    assert(a.useStatic);
-
-    // Append element & remove
-    a += 10;
-    assert(a.length == 3);
-    assert(a.indexOf(10) == 2);
-    assert(a[2] == 10);
-    assert(!a.useStatic);
-
-    a -= 10;
-    assert(a.indexOf(10) == -1);
-    assert(a.length == 2);
-    assert(a.indexOf(2) == 1);
-    assert(a[1] == 2);
-    assert(!a.useStatic);
-
-    // Check duplicate
-    assert(a.dup == [1, 2]);
-
-    // Set new element at index (which is at the end for this case)
-    a[2] = 3;
-    assert(a.length == 3);
-    assert(a.indexOf(3) == 2);
-    assert(a[2] == 3);
-
-    // Replace element at index
-    a[1] = -1;
-    assert(a.length == 3);
-    assert(a.indexOf(-1) == 1);
-    assert(a[1] == -1);
-
-    // Check duplicate
-    assert(a.dup == [1, -1, 3]);
-
-    // Remove element
-    auto r = a.remove(-1);
-    assert(r == -1);
-    assert(a.length == 2);
-    assert(a.indexOf(-1) == -1);
-    assert(!a.useStatic);
-
-    // Remove element at
-    r = a.removeAt(0);
-    assert(r == 1);
-    assert(a.length == 1);
-    assert(a.indexOf(1) == -1);
-    assert(a[0] == 3);
-    assert(!a.useStatic);
-
-    // Clear all elements
-    a.clear();
-    assert(a.empty);
-    assert(a.length == 0);
-    assert(a.remove(1) == 0);
-    assert(a.removeAt(1) == 0);
-    assert(a.useStatic);
-
-    a[0] = 1;
-    assert(!a.empty);
-    assert(a.length == 1);
-    assert(a.useStatic);
-
-    a.clear();
-    assert(a.empty);
-    assert(a.length == 0);
-    assert(a.remove(1) == 0);
-    assert(a.removeAt(1) == 0);
-    assert(a.useStatic);
-
-    a.putBack(1);
-    a.fill(10);
-    assert(a.length == 1);
-    assert(a[0] == 10);
-
-    a = IndexedArray2(3);
-    a.putBack(1);
-    a.putBack(2);
-    a.putBack(3);
-    assert(a.length == 3);
-    assert(!a.useStatic);
-    assert(a[0] == 1);
-    assert(a[1] == 2);
-    assert(a[2] == 3);
-
-    a = [1, 2, 3];
-    assert(a[3..4] == []);
-    assert(a[0..2] == [1, 2]);
-    assert(a[] == IndexedArray2([1, 2, 3])[]);
-    a.fill(10);
-    assert(a[0..9] == [10, 10, 10]);
-    a.clear();
-    assert(a.empty);
-    assert(a.length == 0);
-}
-
-nothrow unittest // IndexedArray.reverse
-{
-    auto a = IndexedArray!(int, 3)(0);
-
-    a.clear().put([1, 2], 0);
-    assert(a.reverse()[] == [2, 1]);
-
-    a.clear().put([1, 2, 3, 4, 5], 0);
-    assert(a.reverse()[] == [5, 4, 3, 2, 1]);
-}
-
-@safe unittest // ShortStringBufferSize
-{
-    alias TestBuffer5 = ShortStringBufferSize!(char, 5);
-    TestBuffer5 s;
-
-    assert(s.length == 0);
-    s.put('1');
-    assert(s.length == 1);
-    s.put("234");
-    assert(s.length == 4);
-    assert(s.toString() == "1234");
-    assert(s[] == "1234");
-    s.clear();
-    assert(s.length == 0);
-    s.put("abc");
-    assert(s.length == 3);
-    assert(s.toString() == "abc");
-    assert(s[] == "abc");
-    assert(s.left(1) == "a");
-    assert(s.left(10) == "abc");
-    assert(s.right(2) == "bc");
-    assert(s.right(10) == "abc");
-    s.put("defghijklmnopqrstuvxywz");
-    assert(s.length == 26);
-    assert(s.toString() == "abcdefghijklmnopqrstuvxywz");
-    assert(s[] == "abcdefghijklmnopqrstuvxywz");
-    assert(s.left(5) == "abcde");
-    assert(s.left(20) == "abcdefghijklmnopqrst");
-    assert(s.right(5) == "vxywz");
-    assert(s.right(20) == "ghijklmnopqrstuvxywz");
-
-    TestBuffer5 s2;
-    s2 ~= s[];
-    assert(s2.length == 26);
-    assert(s2.toString() == "abcdefghijklmnopqrstuvxywz");
-    assert(s2[] == "abcdefghijklmnopqrstuvxywz");
-
-    s = s2;
-    assert(s == s2);
-}
-
-@safe unittest // ShortStringBufferSize
-{
-    alias TestBuffer5 = ShortStringBufferSize!(char, 5);
-    TestBuffer5 s;
-
-    assert(TestBuffer5(true).length == TestBuffer5(5).length);
-    assert(TestBuffer5("123") == "123");
-    assert(TestBuffer5("123") != "234");
-    assert(TestBuffer5("123456") == "123456");
-    assert(TestBuffer5("123456") == TestBuffer5("123456"));
-    assert(TestBuffer5("123456") != TestBuffer5("345678"));
-
-    // Over short length
-    s = "12345678";
-    assert(s[] == "12345678");
-    assert(s[2] == '3');
-    assert(s[10..20] == []);
-    s[2] = '?';
-    assert(s == "12?45678");
-    s.chopTail(1);
-    assert(s == "12?4567");
-    s.chopFront(1);
-    assert(s == "2?4567");
-    s.chopTail(2);
-    assert(s == "2?45");
-    s.chopFront(100);
-    assert(s.length == 0);
-
-    s = "123456";
-    assert(s.consume() == "123456");
-    assert(s.length == 0);
-
-    s = "123456";
-    assert(s.consumeUnique() == "123456");
-    assert(s.length == 0);
-
-    s = "123456";
-    s.dispose();
-    assert(s.length == 0);
-
-    s = "123456";
-    assert(s.removeFront('1') == "23456");
-    assert(s.removeTail('5') == "23456");
-    assert(s.removeTail('6') == "2345");
-
-    // Within short length
-    s = "123";
-    assert(s[] == "123");
-    assert(s[2] == '3');
-    assert(s[7..10] == []);
-    s[2] = '?';
-    assert(s == "12?");
-    s.chopTail(1);
-    assert(s == "12");
-    s.chopFront(1);
-    assert(s == "2");
-    s.chopTail(100);
-    assert(s.length == 0);
-
-    s = "123";
-    assert(s.consume() == "123");
-    assert(s.length == 0);
-
-    s = "123";
-    assert(s.consumeUnique() == "123");
-    assert(s.length == 0);
-
-    s = "123";
-    s.dispose();
-    assert(s.length == 0);
-
-    s = "123";
-    assert(s.removeFront('1') == "23");
-    assert(s.removeTail('2') == "23");
-    assert(s.removeTail('3') == "2");
-}
-
-nothrow @safe unittest // ShortStringBufferSize.reverse
-{
-    ShortStringBufferSize!(int, 3) a;
-
-    a.clear().put([1, 2]);
-    assert(a.reverse()[] == [2, 1]);
-
-    a.clear().put([1, 2, 3, 4, 5]);
-    assert(a.reverse()[] == [5, 4, 3, 2, 1]);
-}
-
-nothrow pure @safe unittest // Appender
-{
-    {
-        Appender!string app;
-        string b = "abcdefg";
-        foreach (char c; b)
-            app.put(c);
-        assert(app[] == "abcdefg");
-        assert(app[0] == 'a');
-        assert(app[$-1] == 'g');
-        assert(app.length == 7);
-    }
-
-    {
-        int[] a = [1, 2];
-        auto app2 = appender(a);
-        assert(app2.length == 2);
-        app2.put(3);
-        app2.put([4, 5, 6]);
-        assert(app2[] == [1, 2, 3, 4, 5, 6]);
-        assert(app2[0] == 1);
-        assert(app2[$-1] == 6);
-        assert(app2.length == 6);
-    }
-}
-
-pure @safe unittest // Appender
-{
-    import std.format : format;
-    import std.format.spec : singleSpec;
-
-    Appender!(int[]) app;
-    app.put(1);
-    app.put(2);
-    app.put(3);
-    assert("%s".format(app) == "Appender!(int[])(%s)".format([1,2,3]));
-
-    Appender!string app2;
-    auto spec = singleSpec("%s");
-    app.toString(app2, spec);
-    assert(app2[] == "Appender!(int[])([1, 2, 3])");
-
-    Appender!string app3;
-    spec = singleSpec("%(%04d, %)");
-    app.toString(app3, spec);
-    assert(app3[] == "Appender!(int[])(0001, 0002, 0003)");
-}
-
-// https://issues.dlang.org/show_bug.cgi?id=17251
-nothrow pure @safe unittest // Appender
-{
-    static struct R
-    {
-        int front() const { return 0; }
-        bool empty() const { return true; }
-        void popFront() {}
-    }
-
-    auto app = appender!(R[]);
-    const(R)[1] r;
-    app.put(r[0]);
-    app.put(r[]);
-}
-
-// https://issues.dlang.org/show_bug.cgi?id=19572
-nothrow pure @safe unittest // Appender
-{
-    static struct Struct
-    {
-        int value;
-
-        int fun() const { return 23; }
-        alias fun this;
-    }
-
-    Appender!(Struct[]) appender;
-    appender.put(const(Struct)(42));
-    auto result = appender[][0];
-    assert(result.value != 23);
-}
-
-pure @safe unittest // Appender
-{
-    import std.conv : to;
-    import std.utf : byCodeUnit;
-
-    auto str = "ウェブサイト";
-    auto wstr = appender!wstring();
-    wstr.put(str.byCodeUnit);
-    assert(wstr.data == str.to!wstring);
-}
-
-// https://issues.dlang.org/show_bug.cgi?id=21256
-pure @safe unittest // Appender
-{
-    Appender!string app1;
-    app1.toString();
-
-    Appender!(int[]) app2;
-    app2.toString();
-}
-
-nothrow pure @safe unittest // Appender
-{
-    auto app = appender!(char[])();
-    string b = "abcdefg";
-    foreach (char c; b)
-        app.put(c);
-    assert(app[] == "abcdefg");
-}
-
-nothrow pure @safe unittest // Appender
-{
-    auto app = appender!(char[])();
-    string b = "abcdefg";
-    foreach (char c; b)
-        app ~= c;
-    assert(app[] == "abcdefg");
-}
-
-nothrow pure @safe unittest // Appender
-{
-    int[] a = [1, 2];
-    auto app2 = appender(a);
-    assert(app2[] == [1, 2]);
-    app2.put(3);
-    app2.put([ 4, 5, 6 ][]);
-    assert(app2[] == [1, 2, 3, 4, 5, 6]);
-    app2.put([7]);
-    assert(app2[] == [1, 2, 3, 4, 5, 6, 7]);
-}
-
-nothrow pure @safe unittest // Appender
-{
-    auto app4 = appender([]);
-    try // shrinkTo may throw
-    {
-        app4.shrinkTo(0);
-    }
-    catch (Exception) assert(0);
-}
-
-// https://issues.dlang.org/show_bug.cgi?id=5663
-// https://issues.dlang.org/show_bug.cgi?id=9725
-nothrow pure @safe unittest // Appender
-{
-    import std.exception : assertNotThrown;
-    import std.meta : AliasSeq;
-
-    static foreach (S; AliasSeq!(char[], const(char)[], string))
-    {
-        {
-            Appender!S app5663i;
-            assertNotThrown(app5663i.put("\xE3"));
-            assert(app5663i[] == "\xE3");
-
-            Appender!S app5663c;
-            assertNotThrown(app5663c.put(cast(const(char)[])"\xE3"));
-            assert(app5663c[] == "\xE3");
-
-            Appender!S app5663m;
-            assertNotThrown(app5663m.put("\xE3".dup));
-            assert(app5663m[] == "\xE3");
-        }
-
-        // ditto for ~=
-        {
-            Appender!S app5663i;
-            assertNotThrown(app5663i ~= "\xE3");
-            assert(app5663i[] == "\xE3");
-
-            Appender!S app5663c;
-            assertNotThrown(app5663c ~= cast(const(char)[])"\xE3");
-            assert(app5663c[] == "\xE3");
-
-            Appender!S app5663m;
-            assertNotThrown(app5663m ~= "\xE3".dup);
-            assert(app5663m[] == "\xE3");
-        }
-    }
-}
-
-// https://issues.dlang.org/show_bug.cgi?id=10122
-nothrow pure @safe unittest // Appender
-{
-    static void assertCTFEable(alias dg)()
-    {
-        static assert({ cast(void) dg(); return true; }());
-        cast(void) dg();
-    }
-
-    static struct S10122
-    {
-        int val;
-
-        @disable this();
-        this(int v) @safe pure nothrow { val = v; }
-    }
-
-    assertCTFEable!(
-    {
-        auto w = appender!(S10122[])();
-        w.put(S10122(1));
-        assert(w[].length == 1 && w[][0].val == 1);
-    });
-}
-
-nothrow pure @safe unittest // Appender
-{
-    import std.exception : assertThrown;
-
-    int[] a = [1, 2];
-    auto app2 = appender(a);
-    assert(app2[] == [ 1, 2 ]);
-    app2 ~= 3;
-    app2 ~= [4, 5, 6][];
-    assert(app2[] == [1, 2, 3, 4, 5, 6]);
-    app2 ~= [7];
-    assert(app2[] == [1, 2, 3, 4, 5, 6, 7]);
-
-    app2.capacity = 5;
-    assert(app2.capacity >= 5);
-
-    try // shrinkTo may throw
-    {
-        app2.shrinkTo(3);
-    }
-    catch (Exception) assert(0);
-    assert(app2[] == [1, 2, 3]);
-    assertThrown(app2.shrinkTo(5));
-
-    const app3 = app2;
-    assert(app3.capacity >= 3);
-    assert(app3[] == [1, 2, 3]);
-}
-
-nothrow pure @safe unittest // Appender
-{
-    // pre-allocate space for at least 10 elements (this avoids costly reallocations)
-    auto w = appender!string(10);
-    assert(w.capacity >= 10);
-
-    w.put('a'); // single elements
-    w.put("bc"); // multiple elements
-
-    // use the append syntax
-    w ~= 'd';
-    w ~= "ef";
-
-    assert(w[] == "abcdef");
-}
-
-nothrow pure @safe unittest // Appender
-{
-    auto w = appender!string(4);
-    cast(void) w.capacity;
-    cast(void) w[];
-    try
-    {
-        wchar wc = 'a';
-        dchar dc = 'a';
-        w.put(wc);    // decoding may throw
-        w.put(dc);    // decoding may throw
-    }
-    catch (Exception) assert(0);
-}
-
-nothrow pure @safe unittest // Appender
-{
-    auto w = appender!(int[])();
-    w.capacity = 4;
-    cast(void) w.capacity;
-    cast(void) w[];
-    w.put(10);
-    w.put([10]);
-    w.clear();
-    try
-    {
-        w.shrinkTo(0);
-    }
-    catch (Exception) assert(0);
-
-    static struct N
-    {
-        int payload;
-        alias payload this;
-    }
-    w.put(N(1));
-    w.put([N(2)]);
-
-    static struct S(T)
-    {
-        @property bool empty() { return true; }
-        @property T front() { return T.init; }
-        void popFront() {}
-    }
-    S!int r;
-    w.put(r);
-}
-
-nothrow pure @safe unittest // Appender
-{
-    import std.range;
-
-    //Coverage for put(Range)
-    static struct S1
-    {
-    }
-    static struct S2
-    {
-        void opAssign(S2){}
-    }
-    auto a1 = Appender!(S1[])();
-    auto a2 = Appender!(S2[])();
-    auto au1 = Appender!(const(S1)[])();
-    a1.put(S1().repeat().take(10));
-    a2.put(S2().repeat().take(10));
-    auto sc1 = const(S1)();
-    au1.put(sc1.repeat().take(10));
-}
-
-@system unittest // Appender
-{
-    import std.range;
-
-    static struct S2
-    {
-        void opAssign(S2)
-        {}
-    }
-    auto au2 = Appender!(const(S2)[])();
-    auto sc2 = const(S2)();
-    au2.put(sc2.repeat().take(10));
-}
-
-nothrow pure @system unittest // Appender
-{
-    static struct S
-    {
-        int* p;
-    }
-
-    auto a0 = Appender!(S[])();
-    auto a1 = Appender!(const(S)[])();
-    auto a2 = Appender!(immutable(S)[])();
-    auto s0 = S(null);
-    auto s1 = const(S)(null);
-    auto s2 = immutable(S)(null);
-    a1.put(s0);
-    a1.put(s1);
-    a1.put(s2);
-    a1.put([s0]);
-    a1.put([s1]);
-    a1.put([s2]);
-    a0.put(s0);
-    static assert(!is(typeof(a0.put(a1))));
-    static assert(!is(typeof(a0.put(a2))));
-    a0.put([s0]);
-    static assert(!is(typeof(a0.put([a1]))));
-    static assert(!is(typeof(a0.put([a2]))));
-    static assert(!is(typeof(a2.put(a0))));
-    static assert(!is(typeof(a2.put(a1))));
-    a2.put(s2);
-    static assert(!is(typeof(a2.put([a0]))));
-    static assert(!is(typeof(a2.put([a1]))));
-    a2.put([s2]);
-}
-
-// https://issues.dlang.org/show_bug.cgi?id=9528
-nothrow pure @safe unittest // Appender
-{
-    const(E)[] fastCopy(E)(E[] src)
-    {
-        auto app = appender!(const(E)[])();
-        foreach (i, e; src)
-            app.put(e);
-        return app[];
-    }
-
-    static class C {}
-    static struct S { const(C) c; }
-    S[] s = [S(new C)];
-
-    auto t = fastCopy(s); // Does not compile
-    assert(t.length == 1);
-}
-
-nothrow pure @safe unittest // Appender
-{
-    import std.algorithm.comparison : equal;
-
-    //New appender signature tests
-    alias mutARR = int[];
-    alias conARR = const(int)[];
-    alias immARR = immutable(int)[];
-
-    mutARR mut;
-    conARR con;
-    immARR imm;
-
-    auto app1 = Appender!mutARR(mut);                //Always worked. Should work. Should not create a warning.
-    app1.put(7);
-    assert(equal(app1[], [7]));
-    static assert(!is(typeof(Appender!mutARR(con)))); //Never worked.  Should not work.
-    static assert(!is(typeof(Appender!mutARR(imm)))); //Never worked.  Should not work.
-
-    auto app2 = Appender!conARR(mut); //Always worked. Should work. Should not create a warning.
-    app2.put(7);
-    assert(equal(app2[], [7]));
-    auto app3 = Appender!conARR(con); //Didn't work.   Now works.   Should not create a warning.
-    app3.put(7);
-    assert(equal(app3[], [7]));
-    auto app4 = Appender!conARR(imm); //Didn't work.   Now works.   Should not create a warning.
-    app4.put(7);
-    assert(equal(app4[], [7]));
-
-    //{auto app = Appender!immARR(mut);}                //Worked. Will cease to work. Creates warning.
-    //static assert(!is(typeof(Appender!immARR(mut)))); //Worked. Will cease to work. Uncomment me after full deprecation.
-    static assert(!is(typeof(Appender!immARR(con))));   //Never worked. Should not work.
-    auto app5 = Appender!immARR(imm);                  //Didn't work.  Now works. Should not create a warning.
-    app5.put(7);
-    assert(equal(app5[], [7]));
-
-    //Deprecated. Please uncomment and make sure this doesn't work:
-    //char[] cc;
-    //static assert(!is(typeof(Appender!string(cc))));
-
-    //This should always work:
-    auto app6 = appender!string(null);
-    assert(app6[] == null);
-    auto app7 = appender!(const(char)[])(null);
-    assert(app7[] == null);
-    auto app8 = appender!(char[])(null);
-    assert(app8[] == null);
-}
-
-nothrow pure @safe unittest // Appender
-{
-    // Test large allocations (for GC.extend)
-    import std.algorithm.comparison : equal;
-    import std.range;
-
-    //cover reserve on non-initialized
-    auto app = Appender!(char[])(1);
-    foreach (_; 0..100_000)
-        app.put('a');
-    assert(equal(app[], 'a'.repeat(100_000)));
-}
-
-nothrow pure @safe unittest // Appender
-{
-    auto reference = new ubyte[](2048 + 1); //a number big enough to have a full page (EG: the GC extends)
-    auto arr = reference.dup;
-    auto app = appender(arr[0..0]);
-    app.capacity = 1; //This should not trigger a call to extend
-    app.put(ubyte(1)); //Don't clobber arr
-    assert(reference[] == arr[]);
-}
-
-nothrow pure @safe unittest // Appender
-{
-    auto app = Appender!string(10);
-    app.put("foo");
-    const foo = app[];
-    assert(foo == "foo");
-
-    app.clear();
-    app.put("foo2");
-    const foo2 = app[];
-    assert(foo2 == "foo2");
-    assert(foo == "foo");
-
-    try
-    {
-        app.shrinkTo(1);
-    }
-    catch (Exception) assert(0);
-    const foo1 = app[];
-    assert(foo1 == "f");
-    assert(foo2 == "foo2");
-    assert(foo == "foo");
-
-    app.put("oo3");
-    assert(app[] == "foo3");
-    assert(foo1 == "f");
-    assert(foo2 == "foo2");
-    assert(foo == "foo");
-}
-
-nothrow pure @safe unittest // Appender
-{
-    static struct D //dynamic
-    {
-        int[] i;
-        alias i this;
-    }
-    static struct S //static
-    {
-        int[5] i;
-        alias i this;
-    }
-    static assert(!is(Appender!(char[5])));
-    static assert(!is(Appender!D));
-    static assert(!is(Appender!S));
-
-    enum int[5] a = [];
-    int[5] b;
-    D d;
-    S s;
-    int[5] foo() { return a; }
-
-    static assert(!is(typeof(appender(a))));
-    static assert( is(typeof(appender(b))));
-    static assert( is(typeof(appender(d))));
-    static assert( is(typeof(appender(s))));
-    static assert(!is(typeof(appender(foo()))));
-}
-
-// https://issues.dlang.org/show_bug.cgi?id=13077
-@system unittest // Appender
-{
-    static class A {}
-
-    // reduced case
-    auto w = appender!(shared(A)[])();
-    w.put(new shared A());
-
-    // original case
-    import std.range;
-    InputRange!(shared A) foo()
-    {
-        return [new shared A].inputRangeObject;
-    }
-    auto res = foo.array;
-    assert(res.length == 1);
-}
-
-nothrow pure @safe unittest // Appender
-{
-    Appender!(int[]) app;
-    short[] range = [1, 2, 3];
-    app.put(range);
-    assert(app[] == [1, 2, 3]);
-}
-
-nothrow pure @safe unittest // Appender
-{
-    import std.range.primitives : put;
-    import std.stdio : writeln;
-
-    string s = "hello".idup;
-    auto appS = appender(s);
-    put(appS, 'w');
-    s ~= 'a'; //Clobbers here?
-    assert(appS[] == "hellow", appS[]);
-
-    char[] a = "hello".dup;
-    auto appA = appender(a);
-    put(appA, 'w');
-    a ~= 'a'; //Clobbers here?
-    assert(appA[] == "hellow", appA[]);
 }

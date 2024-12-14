@@ -281,7 +281,7 @@ debug
 			f.seek(0, SEEK_END);
 			auto size = cast(size_t)f.tell();
 			f.seek(0, SEEK_SET);
-			auto result = new ubyte[size];
+			auto result = new ubyte[](size);
 			f.rawRead(result);
 			return result;
 		}

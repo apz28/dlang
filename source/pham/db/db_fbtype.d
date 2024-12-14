@@ -408,7 +408,7 @@ public:
     string traceString(size_t index) const nothrow @trusted
     {
         import std.conv : to;
-        import pham.utl.utl_array : Appender;
+        import pham.utl.utl_array_append : Appender;
 
         auto result = Appender!string(1_000);
         result.put("bindResult=");

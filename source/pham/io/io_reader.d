@@ -191,7 +191,7 @@ public:
 
     char[] readNullTerminatedChars()
     {
-        import pham.utl.utl_array : Appender;
+        import pham.utl.utl_array_append : Appender;
 
         auto buffer = Appender!(char[])(1_000);
         while (const c = readBuffer())

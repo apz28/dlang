@@ -37,7 +37,7 @@ public:
         if (status.isError)
             return status;
 
-        authData = crypt3(userPassword, salt).chopFront(2); // Exclude the 2 leading salt chars
+        crypt3(authData, userPassword, salt).chopFront(2); // 2=Exclude the 2 leading salt chars
         return ResultStatus.ok();
     }
 

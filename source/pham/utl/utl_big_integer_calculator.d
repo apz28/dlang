@@ -13,18 +13,16 @@
 
 module pham.utl.utl_big_integer_calculator;
 
-import std.algorithm : swap;
-
-import pham.utl.utl_array : IndexedArray;
+import pham.utl.utl_array : StaticArray;
 
 nothrow @safe:
 
 // Threadhold if we can use stack memory for speed
 enum allocationThreshold = 250;
 
-alias CharTempArray = IndexedArray!(char, allocationThreshold * uint.sizeof);
-alias UByteTempArray = IndexedArray!(ubyte, allocationThreshold * uint.sizeof);
-alias UIntTempArray = IndexedArray!(uint, allocationThreshold);
+alias CharTempArray = StaticArray!(char, allocationThreshold * uint.sizeof);
+alias UByteTempArray = StaticArray!(ubyte, allocationThreshold * uint.sizeof);
+alias UIntTempArray = StaticArray!(uint, allocationThreshold);
 
 package(pham.utl):
 
@@ -59,7 +57,7 @@ public:
         _bits.length = size;
         _length = BigIntegerCalculator.actualLength(value, value.length);
         if (_length)
-            _bits.put(value[0.._length], 0);
+            _bits[0] = value[0.._length];
     }
 
     this(size_t size, UIntTempArray value) pure
@@ -199,6 +197,18 @@ public:
         _length = BigIntegerCalculator.actualLength(_bits, maxLength);
     }
 
+    ref typeof(this) swap(ref typeof(this) other) @nogc nothrow pure return @trusted
+    {
+        const thisLength = this._length;
+        
+        this._length = other._length;
+        this._bits.swap(other._bits);
+        
+        other._length = thisLength;
+        
+        return this;
+    }
+    
     private void apply(ref BitsBuffer temp, size_t maxLength) pure
     in
     {
@@ -211,7 +221,7 @@ public:
         // The caller assumed an empty temp, the next will too.
 
         _bits.fill(0);
-        swap(temp._bits, _bits);
+        _bits.swap(temp._bits);
         _length = BigIntegerCalculator.actualLength(_bits, maxLength);
     }
 
@@ -251,8 +261,8 @@ public:
         r[r.length - 1] = 1;
 
         // Let mu = 4^k / m
-        _mu = BigIntegerCalculator.divide(r[], modulus);
-        _modulus = UIntTempArray(modulus);
+         BigIntegerCalculator.divide(_mu, r[], modulus);
+        _modulus = modulus;
 
         // Allocate memory for quotients once
         _q1.length = dModulusLen + 2;
@@ -414,7 +424,7 @@ nothrow @safe:
         return log(number) / log(logBase);
     }
 
-    static UIntTempArray add(scope const(uint)[] left, uint right) pure
+    static ref UIntTempArray add(return ref UIntTempArray result, scope const(uint)[] left, uint right) pure
     in
     {
         assert(left.length >= 1);
@@ -425,7 +435,6 @@ nothrow @safe:
         // Thus, we've similar code than below, but there is no loop for
         // processing the 32-bit integer, since it's a single element.
 
-        auto result = UIntTempArray(0);
         result.length = left.length + 1;
 
         long digit = cast(long)left[0] + right;
@@ -443,7 +452,7 @@ nothrow @safe:
         return result;
     }
 
-    static UIntTempArray add(scope const(uint)[] left, scope const(uint)[] right) pure
+    static ref UIntTempArray add(return ref UIntTempArray result, scope const(uint)[] left, scope const(uint)[] right) pure
     in
     {
         assert(left.length >= right.length);
@@ -453,7 +462,6 @@ nothrow @safe:
         // Switching to unsafe pointers helps sparing
         // some nasty index calculations...
 
-        auto result = UIntTempArray(0);
         result.length = left.length + 1;
         add(&left[0], left.length, &right[0], right.length, result.ptr(0), result.length);
         return result;
@@ -525,7 +533,7 @@ nothrow @safe:
         assert(carry == 0);
     }
 
-    static UIntTempArray subtract(scope const(uint)[] left, uint right) pure
+    static ref UIntTempArray subtract(return ref UIntTempArray result, scope const(uint)[] left, uint right) pure
     in
     {
         assert(left.length >= 1);
@@ -537,7 +545,6 @@ nothrow @safe:
         // Thus, we've similar code than below, but there is no loop for
         // processing the 32-bit integer, since it's a single element.
 
-        auto result = UIntTempArray(0);
         result.length = left.length;
 
         long digit = cast(long)left[0] - right;
@@ -554,7 +561,7 @@ nothrow @safe:
         return result;
     }
 
-    static UIntTempArray subtract(scope const(uint)[] left, scope const(uint)[] right) pure
+    static ref UIntTempArray subtract(return ref UIntTempArray result, scope const(uint)[] left, scope const(uint)[] right) pure
     in
     {
         assert(left.length >= right.length);
@@ -565,7 +572,6 @@ nothrow @safe:
         // Switching to unsafe pointers helps sparing
         // some nasty index calculations...
 
-        auto result = UIntTempArray(0);
         result.length = left.length;
         subtract(&left[0], left.length, &right[0], right.length, result.ptr(0), result.length);
         return result;
@@ -677,7 +683,7 @@ nothrow @safe:
         return 0;
     }
 
-    static UIntTempArray divide(scope const(uint)[] left, uint right, out uint remainder) pure
+    static ref UIntTempArray divide(return ref UIntTempArray quotient, scope const(uint)[] left, uint right, out uint remainder) pure
     in
     {
         assert(left.length >= 1);
@@ -688,7 +694,6 @@ nothrow @safe:
         // Thus, we've similar code than below, but there is no loop for
         // processing the 32-bit integer, since it's a single element.
 
-        auto quotient = UIntTempArray(0);
         quotient.length = left.length;
 
         ulong carry = 0UL;
@@ -704,7 +709,7 @@ nothrow @safe:
         return quotient;
     }
 
-    static UIntTempArray divide(scope const(uint)[] left, uint right) pure
+    static ref UIntTempArray divide(return ref UIntTempArray quotient, scope const(uint)[] left, uint right) pure
     in
     {
         assert(left.length >= 1);
@@ -714,10 +719,10 @@ nothrow @safe:
         // Same as above, but only computing the quotient.
 
         uint remainder = void;
-        return divide(left, right, remainder);
+        return divide(quotient, left, right, remainder);
     }
 
-    static UIntTempArray divide(scope const(uint)[] left, scope const(uint)[] right,
+    static ref UIntTempArray divide(return ref UIntTempArray quotient, scope const(uint)[] left, scope const(uint)[] right,
         out UIntTempArray remainder) pure
     in
     {
@@ -732,14 +737,13 @@ nothrow @safe:
 
         // NOTE: left will get overwritten, we need a local copy
 
-        remainder = UIntTempArray(left);
-        auto quotient = UIntTempArray(0);
+        remainder = left;
         quotient.length = left.length - right.length + 1;
         divide(remainder.ptr(0), remainder.length, &right[0], right.length, quotient.ptr(0), quotient.length);
         return quotient;
     }
 
-    static UIntTempArray divide(scope const(uint)[] left, scope const(uint)[] right) pure
+    static ref UIntTempArray divide(return ref UIntTempArray quotient, scope const(uint)[] left, scope const(uint)[] right) pure
     in
     {
         assert(left.length >= 1);
@@ -751,7 +755,7 @@ nothrow @safe:
         // Same as above, but only returning the quotient.
 
         UIntTempArray remainder;
-        return divide(left, right, remainder);
+        return divide(quotient, left, right, remainder);
     }
 
     private static void divide(scope uint* left, size_t leftLength,
@@ -860,7 +864,7 @@ nothrow @safe:
         return cast(uint)carry;
     }
 
-    static UIntTempArray remainder(scope const(uint)[] left, scope const(uint)[] right) pure
+    static ref UIntTempArray remainder(return ref UIntTempArray result, scope const(uint)[] left, scope const(uint)[] right) pure
     in
     {
         assert(left.length >= 1);
@@ -873,7 +877,7 @@ nothrow @safe:
 
         // NOTE: left will get overwritten, we need a local copy
 
-        auto result = UIntTempArray(left);
+        result = left;
         divide(result.ptr(0), result.length, &right[0], right.length, null, 0);
         return result;
     }
@@ -996,12 +1000,11 @@ nothrow @safe:
         return count;
     }
 
-    static UIntTempArray square(scope const(uint)[] value) pure
+    static ref UIntTempArray square(return ref UIntTempArray result, scope const(uint)[] value) pure
     {
         // Switching to unsafe pointers helps sparing
         // some nasty index calculations...
 
-        auto result = UIntTempArray(0);
         result.length = value.length + value.length;
         square(&value[0], value.length, result.ptr(0), result.length);
         return result;
@@ -1113,14 +1116,13 @@ nothrow @safe:
         }
     }
 
-    static UIntTempArray multiply(scope const(uint)[] left, uint right) pure
+    static ref UIntTempArray multiply(return ref UIntTempArray result, scope const(uint)[] left, uint right) pure
     {
         // Executes the multiplication for one big and one 32-bit integer.
         // Since every step holds the already slightly familiar equation
         // a_i * b + c <= 2^32 - 1 + (2^32 - 1)^2 < 2^64 - 1,
         // we are safe regarding to overflows.
 
-        auto result = UIntTempArray(0);
         result.length = left.length + 1;
 
         ulong carry = 0UL;
@@ -1136,7 +1138,7 @@ nothrow @safe:
         return result;
     }
 
-    static UIntTempArray multiply(scope const(uint)[] left, scope const(uint)[] right) pure
+    static ref UIntTempArray multiply(return ref UIntTempArray result, scope const(uint)[] left, scope const(uint)[] right) pure
     in
     {
         assert(left.length >= right.length);
@@ -1146,7 +1148,6 @@ nothrow @safe:
         // Switching to unsafe pointers helps sparing
         // some nasty index calculations...
 
-        auto result = UIntTempArray(0);
         result.length = left.length + right.length;
         multiply(&left[0], left.length, &right[0], right.length, result.ptr(0), result.length);
         return result;
@@ -1354,7 +1355,7 @@ nothrow @safe:
         return gcd(right, temp);
     }
 
-    static UIntTempArray gcd(scope const(uint)[] left, scope const(uint)[] right) pure
+    static ref UIntTempArray gcd(return ref UIntTempArray result, scope const(uint)[] left, scope const(uint)[] right) pure
     in
     {
         assert(left.length >= 2);
@@ -1366,7 +1367,8 @@ nothrow @safe:
         auto leftBuffer = BitsBuffer(left.length, left);
         auto rightBuffer = BitsBuffer(right.length, right);
         gcd(leftBuffer, rightBuffer);
-        return UIntTempArray(leftBuffer[]);
+        result = leftBuffer[];
+        return result;
     }
 
     private static void gcd(ref BitsBuffer left, ref BitsBuffer right) pure
@@ -1450,8 +1452,7 @@ nothrow @safe:
             {
                 // Euclid's step
                 left.reduce(right);
-
-                swap(left, right);
+                left.swap(right);
             }
             else
             {
@@ -1459,10 +1460,8 @@ nothrow @safe:
                 lehmerCore(left, right, a, b, c, d);
 
                 if (iteration % 2 == 1)
-                {
                     // Ensure left is larger than right
-                    swap(left, right);
-                }
+                    left.swap(right);
             }
         }
 
@@ -1578,7 +1577,7 @@ nothrow @safe:
 
     // https://en.wikipedia.org/wiki/Exponentiation_by_squaring
 
-    static UIntTempArray pow(uint value, uint power) pure
+    static ref UIntTempArray pow(return ref UIntTempArray result, uint value, uint power) pure
     {
         // The basic pow method for a 32-bit integer.
         // To spare memory allocations we first roughly
@@ -1586,10 +1585,10 @@ nothrow @safe:
 
         const size = powBound(power, 1, 1);
         auto v = BitsBuffer(size, value);
-        return powCore(power, v);
+        return powCore(result, power, v);
     }
 
-    static UIntTempArray pow(scope const(uint)[] value, uint power) pure
+    static ref UIntTempArray pow(return ref UIntTempArray result, scope const(uint)[] value, uint power) pure
     {
         // The basic pow method for a big integer.
         // To spare memory allocations we first roughly
@@ -1597,18 +1596,19 @@ nothrow @safe:
 
         const size = powBound(power, value.length, 1);
         auto v = BitsBuffer(size, value);
-        return powCore(power, v);
+        return powCore(result, power, v);
     }
 
-    private static UIntTempArray powCore(uint power, ref BitsBuffer value) pure
+    private static ref UIntTempArray powCore(return ref UIntTempArray result, uint power, ref BitsBuffer value) pure
     {
         // Executes the basic pow algorithm.
 
         const size = value.size;
         auto temp = BitsBuffer(size, 0);
-        auto result = BitsBuffer(size, 1);
-        powCore(power, value, result, temp);
-        return UIntTempArray(result[]);
+        auto resultTemp = BitsBuffer(size, 1);
+        powCore(power, value, resultTemp, temp);
+        result = resultTemp[];
+        return result;
     }
 
     private static size_t powBound(uint power, size_t valueLength, size_t resultLength) pure
@@ -1718,93 +1718,97 @@ nothrow @safe:
         return cast(uint)(result % modulus);
     }
 
-    static UIntTempArray pow(uint value, uint power, scope const(uint)[] modulus) pure
+    static ref UIntTempArray pow(return ref UIntTempArray result, uint value, uint power, scope const(uint)[] modulus) pure
     {
         // The big modulus pow method for a 32-bit integer
         // raised by a 32-bit integer...
 
         const size = modulus.length + modulus.length;
         auto v = BitsBuffer(size, value);
-        return powCore(power, modulus, v);
+        return powCore(result, power, modulus, v);
     }
 
-    static UIntTempArray pow(scope const(uint)[] value, uint power, scope const(uint)[] modulus) pure
+    static ref UIntTempArray pow(return ref UIntTempArray result, scope const(uint)[] value, uint power, scope const(uint)[] modulus) pure
     {
         // The big modulus pow method for a big integer
         // raised by a 32-bit integer...
 
         const size = modulus.length + modulus.length;
+        UIntTempArray remainderResult;
         auto v = value.length > modulus.length
-            ? BitsBuffer(size, remainder(value, modulus))
+            ? BitsBuffer(size, remainder(remainderResult, value, modulus))
             : BitsBuffer(size, value);
-        return powCore(power, modulus, v);
+        return powCore(result, power, modulus, v);
     }
 
-    static UIntTempArray pow(uint value, scope const(uint)[] power, scope const(uint)[] modulus) pure
+    static ref UIntTempArray pow(return ref UIntTempArray result, uint value, scope const(uint)[] power, scope const(uint)[] modulus) pure
     {
         // The big modulus pow method for a 32-bit integer
         // raised by a big integer...
 
         const size = modulus.length + modulus.length;
         auto v = BitsBuffer(size, value);
-        return powCore(power, modulus, v);
+        return powCore(result, power, modulus, v);
     }
 
-    static UIntTempArray pow(scope const(uint)[] value, scope const(uint)[] power, scope const(uint)[] modulus) pure
+    static ref UIntTempArray pow(return ref UIntTempArray result, scope const(uint)[] value, scope const(uint)[] power, scope const(uint)[] modulus) pure
     {
         // The big modulus pow method for a big integer
         // raised by a big integer...
 
         const size = modulus.length + modulus.length;
+        UIntTempArray remainderResult;
         auto v = value.length > modulus.length
-            ? BitsBuffer(size, remainder(value, modulus))
+            ? BitsBuffer(size, remainder(remainderResult, value, modulus))
             : BitsBuffer(size, value);
-        return powCore(power, modulus, v);
+        return powCore(result, power, modulus, v);
     }
 
     // Mutable for unit testing...
     private static enum reducerThreshold = 32;
 
-    private static UIntTempArray powCore(scope const(uint)[] power, scope const(uint)[] modulus, ref BitsBuffer value) pure
+    private static ref UIntTempArray powCore(return ref UIntTempArray result, scope const(uint)[] power, scope const(uint)[] modulus, ref BitsBuffer value) pure
     {
         // Executes the big pow algorithm.
 
         const size = value.size;
         auto temp = BitsBuffer(size, 0);
-        auto result = BitsBuffer(size, 1);
+        auto resultBits = BitsBuffer(size, 1);
 
         if (modulus.length < reducerThreshold)
         {
-            powCore(power, modulus, value, result, temp);
+            powCore(power, modulus, value, resultBits, temp);
         }
         else
         {
             auto reducer = FastReducer(modulus);
-            powCore(power, reducer, value, result, temp);
+            powCore(power, reducer, value, resultBits, temp);
         }
 
-        return UIntTempArray(result[]);
+        result = resultBits[];
+        return result;
     }
 
-    private static UIntTempArray powCore(uint power, scope const(uint)[] modulus, ref BitsBuffer value) pure
+    private static ref UIntTempArray powCore(return ref UIntTempArray result, uint power, scope const(uint)[] modulus, ref BitsBuffer value) pure
     {
         // Executes the big pow algorithm.
 
         const size = value.size;
         auto temp = BitsBuffer(size, 0);
-        auto result = BitsBuffer(size, 1);
+        auto resultBits = BitsBuffer(size, 1);
 
         if (modulus.length < reducerThreshold)
         {
-            powCore(power, modulus, value, result, temp);
+            powCore(power, modulus, value, resultBits, temp);
         }
         else
         {
             auto reducer = FastReducer(modulus);
-            powCore(power, reducer, value, result, temp);
+            powCore(power, reducer, value, resultBits, temp);
         }
 
-        return UIntTempArray(result[]);
+        result = resultBits[];
+        return result;
     }
 
     private static void powCore(scope const(uint)[] power, scope const(uint)[] modulus,

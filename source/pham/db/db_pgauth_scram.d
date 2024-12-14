@@ -49,7 +49,7 @@ public:
         auto firstMessage = PgOIdScramSHA256FirstMessage(serverAuthData);
         if (!firstMessage.isValid() || !firstMessage.nonce.startsWith(this.nonce))
             return ResultStatus.error(_nextState + 1, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid state: " ~ _nextState.to!string()));
-        authData = calculateProof(userName, userPassword, firstMessage);
+        calculateProof(authData, userName, userPassword, firstMessage);
         return ResultStatus.ok();
     }
 
@@ -65,7 +65,7 @@ public:
 
         if (state == 0)
         {
-            authData = initialRequest();
+            initialRequest(authData);
             return ResultStatus.ok();
         }
         else if (state == 1)
@@ -74,16 +74,16 @@ public:
         {
             if (!verifyServerSignature(serverAuthData))
                 return ResultStatus.error(state + 1, DbMessage.eInvalidConnectionAuthVerificationFailed.fmtMessage(name));
-            authData = CipherBuffer!ubyte.init;
+            authData.clear();
             return ResultStatus.ok();
         }
         else
             assert(0);
     }
 
-    final CipherBuffer!ubyte initialRequest() const pure scope
+    final void initialRequest(ref CipherBuffer!ubyte authData) const pure scope
     {
-        return CipherBuffer!ubyte((_cbindFlag ~ ",,n=,r=" ~ _nonce).representation());
+        authData = (_cbindFlag ~ ",,n=,r=" ~ _nonce).representation();
     }
 
     final typeof(this) reset()
@@ -125,7 +125,7 @@ public:
     }
 
 protected:
-    final CipherBuffer!ubyte calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
+    final void calculateProof(ref CipherBuffer!ubyte authData, scope const(char)[] userName, scope const(char)[] userPassword,
         const ref PgOIdScramSHA256FirstMessage firstMessage)
     {
         debug(debug_pham_db_db_pgauth_scram) debug writeln(__FUNCTION__, "(userName=", userName, ")");
@@ -163,14 +163,12 @@ protected:
             .digest(clientFinalMessageWithoutProof.representation())
             .finish(_serverSignature);
 
-        auto result = CipherBuffer!ubyte((clientFinalMessageWithoutProof ~ ",p=" ~ clientProof).representation());
+        authData = (clientFinalMessageWithoutProof ~ ",p=" ~ clientProof).representation();
 
         debug(debug_pham_db_db_pgauth_scram) debug writeln("\t", "clientKey=", clientKey[].dgToHex(),
             ", clientProofBytes=", clientProofBytes[],
             ", clientProofBytes.length=", clientProofBytes.length,
-            ", result.length=", result.length, ", result=", cast(const(char)[])(result[]));
-
-        return result;
+            ", authData.length=", authData.length, ", authData=", cast(const(char)[])(authData[]));
     }
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe

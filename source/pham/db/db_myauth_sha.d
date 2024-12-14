@@ -29,13 +29,16 @@ abstract class MyAuthSha : MyAuth
 nothrow @safe:
 
 public:
-    final CipherBuffer!ubyte calculateAuth(scope const(char)[] userName, scope const(char)[] userPassword,
+    final ref CipherBuffer!ubyte calculateAuth(return ref CipherBuffer!ubyte calResult, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] nonce)
     {
         debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(userName=", userName, ", nonce=", nonce.dgToHex(), ")");
 
         if (userPassword.length == 0)
-            return CipherBuffer!ubyte.init;
+        {
+            calResult.clear();
+            return calResult;
+        }
 
         auto digester = Digester(DigestId.sha256);
 
@@ -48,7 +51,7 @@ public:
         DigestResult thirdHash = void;
         digester.begin().digest(secondHash[]).digest(nonce).finish(thirdHash);
 
-        return xor(firstHash[], thirdHash[]);
+        return xor(calResult, firstHash[], thirdHash[]);
     }
 
     final override ResultStatus getPassword(scope const(char)[] userName, scope const(char)[] userPassword,
@@ -75,12 +78,12 @@ protected:
         bool leadingIndicator, ref CipherBuffer!ubyte authData)
     {
         if (userPassword.length == 0)
-            authData = CipherBuffer!ubyte([0x00]);
+            authData = [0x00];
         else
         {
-            auto auth = calculateAuth(userName, userPassword, serverSalt);
-            authData = leadingIndicator ? CipherBuffer!ubyte([0x20]) : CipherBuffer!ubyte([]);
-            authData.put(auth[]);
+            authData = leadingIndicator ? cast(ubyte[])[0x20] : [];
+            CipherBuffer!ubyte calData;
+            authData.put(calculateAuth(calData, userName, userPassword, serverSalt)[]);
         }
 
         debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(userName=", userName, ", leadingIndicator=", leadingIndicator, ", result=", authData[].dgToHex(), ")");
@@ -88,35 +91,37 @@ protected:
         return ResultStatus.ok();
     }
 
-    static CipherBuffer!ubyte xor(scope const(ubyte)[] left, scope const(ubyte)[] right) pure
+    static ref CipherBuffer!ubyte xor(return ref CipherBuffer!ubyte xorResult, scope const(ubyte)[] left, scope const(ubyte)[] right) pure
     {
+        xorResult.clear();
+        
         const len = left.length;
         if (len == 0 || len != right.length)
-            return CipherBuffer!ubyte.init;
+            return xorResult;
 
-        CipherBuffer!ubyte result;
         foreach (i; 0..len)
         {
-            result.put(left[i] ^ right[i]);
+            xorResult.put(left[i] ^ right[i]);
         }
 
-        debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(left=", left.dgToHex(), ", right=", right.dgToHex(), ", result=", result[].dgToHex(), ")");
+        debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(left=", left.dgToHex(), ", right=", right.dgToHex(), ", xorResult=", xorResult[].dgToHex(), ")");
 
-        return result;
+        return xorResult;
     }
 
-    static CipherBuffer!ubyte xorNonce(scope const(ubyte)[] src, scope const(ubyte)[] nonce) pure
+    static ref CipherBuffer!ubyte xorNonce(return ref CipherBuffer!ubyte xorResult, scope const(ubyte)[] src, scope const(ubyte)[] nonce) pure
     {
-        CipherBuffer!ubyte result;
+        xorResult.clear();
+        
         foreach (i; 0..src.length)
         {
-            result.put(src[i] ^ nonce[i % nonce.length]);
+            xorResult.put(src[i] ^ nonce[i % nonce.length]);
         }
-        result.put(0x00 ^ nonce[src.length % nonce.length]); // null terminated
+        xorResult.put(0x00 ^ nonce[src.length % nonce.length]); // null terminated
 
-        debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(src=", src.dgToHex(), ", nonce=", nonce.dgToHex(), ", result=", result[].dgToHex(), ")");
+        debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(src=", src.dgToHex(), ", nonce=", nonce.dgToHex(), ", xorResult=", xorResult[].dgToHex(), ")");
 
-        return result;
+        return xorResult;
     }
 }
 
@@ -129,7 +134,7 @@ public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
-        authData = CipherBuffer!ubyte.init;
+        authData.clear();
         return ResultStatus.ok();
     }
 
@@ -165,7 +170,7 @@ public:
             return getPasswordEx(userName, userPassword, false, authData);
         }
         else if (serverAuthData.length && serverAuthData[0] == 3)
-            authData = CipherBuffer!ubyte.init;
+            authData.clear();
         else
             return getAuthDataPassword2(userName, userPassword, serverAuthData, authData);
         return ResultStatus.ok();
@@ -191,31 +196,32 @@ protected:
         // Send as clear text since the channel is already encrypted?
         if (isSSLConnection)
         {
-            authData = CipherBuffer!ubyte(userPassword.representation());
+            authData = userPassword.representation();
             authData.put(0x00);
             return ResultStatus.ok();
         }
 
         if (serverAuthData.length && serverAuthData[0] == 4)
         {
-            authData = CipherBuffer!ubyte([0x02]);
+            authData = cast(ubyte[])[0x02];
             return ResultStatus.ok();
         }
 
         if (userPassword.length == 0)
         {
-            authData = CipherBuffer!ubyte([0x00]);
+            authData = cast(ubyte[])[0x00];
             return ResultStatus.ok();
         }
 
         if (serverAuthData.length == 0)
         {
-            authData = CipherBuffer!ubyte.init;
+            authData.clear();
             return ResultStatus.ok();
         }
 
         // Obfuscate the plain text password with the session scramble.
-        auto obfuscatedUserPassword = xorNonce(userPassword.representation(), serverSalt);
+        CipherBuffer!ubyte obfuscatedUserPassword;
+        xorNonce(obfuscatedUserPassword, userPassword.representation(), serverSalt);
 
         debug(debug_pham_db_db_myauth_sha) debug writeln("\t", "obfuscatedUserPassword=", obfuscatedUserPassword.toString());
 
@@ -237,7 +243,7 @@ protected:
         if (status.isError)
             return ResultStatus.error(status.errorCode, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, status.errorMessage));
 
-        authData = CipherBuffer!ubyte(output[0..outputLength]);
+        authData = output[0..outputLength];
         return ResultStatus.ok();
     }
 }
@@ -260,7 +266,8 @@ unittest // myauth_sha.MyAuthSha2Caching
 {
     import pham.utl.utl_object : bytesFromHexs;
     
-    auto obfuscated = MyAuthSha.xorNonce("masterkey".representation(), bytesFromHexs("773529605513697D2E3F02211E41096D1E4F5E40"));
+    CipherBuffer!ubyte obfuscated;
+    MyAuthSha.xorNonce(obfuscated, "masterkey".representation(), bytesFromHexs("773529605513697D2E3F02211E41096D1E4F5E40"));
     assert(obfuscated[] == bytesFromHexs("1A545A1430610218573F"), obfuscated.toString());
 
     {

@@ -978,7 +978,7 @@ private:
 struct IPv4AddressHelper
 {
     import std.ascii : isDigit;
-    import pham.utl.utl_array : Appender;
+    import pham.utl.utl_array_append : Appender;
 
 @safe:
 
@@ -1210,7 +1210,7 @@ public:
 struct IPv6AddressHelper
 {
     import std.ascii : LetterCase;
-    import pham.utl.utl_array : Appender;
+    import pham.utl.utl_array_append : Appender;
 
 @safe:
     enum maxIPv6AddressShorts = IPAddress.maxIPv6AddressBytes / 2;

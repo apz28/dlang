@@ -18,7 +18,7 @@ import std.traits : isFloatingPoint, isIntegral, Unsigned;
 import pham.dtm.dtm_date : Date, DateTime;
 import pham.dtm.dtm_tick : TickData;
 import pham.dtm.dtm_time : Time;
-import pham.utl.utl_array : Appender;
+import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.ser.ser_serialization;
 

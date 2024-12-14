@@ -18,11 +18,11 @@ import std.conv : to;
 import std.string : representation;
 
 debug(debug_pham_db_db_myauth_scram) import std.stdio : writeln;
-
 import pham.cp.cp_cipher : CipherHelper;
 import pham.cp.cp_cipher_digest : Digester, DigestId, DigestResult, HMACS;
 import pham.cp.cp_random : CipherRandomGenerator;
-import pham.utl.utl_array : Appender, ShortStringBuffer;
+import pham.utl.utl_array_append : Appender;
+import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_numeric_parser : NumericParsedKind, parseBase16, parseIntegral;
 import pham.db.db_auth;
@@ -74,7 +74,7 @@ public:
 
         enum padding = false;
         auto result = withoutProof ~ ",p=" ~ CipherHelper.base64Encode!padding(ckey[]);
-        authData = CipherBuffer!ubyte(result.representation());
+        authData = result.representation();
         return ResultStatus.ok();
     }
 
@@ -89,21 +89,21 @@ public:
 
         if (state == 0)
         {
-            authData = getInitial(userName, userPassword);
+            getInitial(authData, userName, userPassword);
             return ResultStatus.ok();
         }
         else if (state == 1)
             return calculateProof(userName, userPassword, serverAuthData, authData);
         else if (state == 2)
         {
-            authData = CipherBuffer!ubyte.init;
+            authData.clear();
             return isValidSignature(serverAuthData);
         }
         else
             assert(0);
     }
 
-    final CipherBuffer!ubyte getInitial(scope const(char)[] userName, scope const(char)[] userPassword)
+    final void getInitial(ref CipherBuffer!ubyte authData, scope const(char)[] userName, scope const(char)[] userPassword)
     {
         if (this.cnonce.length == 0)
         {
@@ -112,7 +112,7 @@ public:
             this.cnonce = generator.nextAlphaNumCharacters(buffer, 32)[].dup;
         }
         this.client = "n=" ~ normalize(userName) ~ ",r=" ~ this.cnonce;
-        return CipherBuffer!ubyte(("n,a=" ~ normalize(userName) ~ "," ~ this.client).representation());
+        authData = ("n,a=" ~ normalize(userName) ~ "," ~ this.client).representation();
     }
 
     final ResultStatus isValidSignature(scope const(ubyte)[] serverAuthData)

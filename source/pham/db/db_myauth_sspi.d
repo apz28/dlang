@@ -47,7 +47,7 @@ public:
         RequestSecResult errorStatus;
         if (!_secClient.init(secPackage, remotePrincipal, errorStatus, result))
             return ResultStatus.error(errorStatus.status, DbMessage.eInvalidConnectionAuthClientData.fmtMessage(name, errorStatus.message));
-        authData = CipherBuffer!ubyte(result);
+        authData = result;
         return ResultStatus.ok();
     }
 
@@ -60,7 +60,7 @@ public:
         RequestSecResult errorStatus;
         if (!_secClient.authenticate(remotePrincipal, serverAuthData, errorStatus, result))
             return ResultStatus.error(errorStatus.status, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, errorStatus.message));
-        authData = CipherBuffer!ubyte(result);
+        authData = result;
         return ResultStatus.ok();
     }
 

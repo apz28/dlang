@@ -28,7 +28,7 @@ import pham.db.db_type : DbScheme;
 import pham.db.db_fbauth;
 import pham.db.db_fbisc : FbIscText;
 
-nothrow @safe:
+@safe:
 
 abstract class FbAuthSrp : FbAuth
 {
@@ -69,7 +69,7 @@ public:
 
         _premasterKey = _authClient.calculatePremasterKey(normalizedUserName, userPassword, serverSalt, serverPublicKeyInt);
         _proof = calculateProof(normalizedUserName, userPassword, serverSalt, serverPublicKeyInt);
-        authData = CipherBuffer!ubyte(bytesToHexs(_proof).representation());
+        authData = bytesToHexs(_proof).representation();
         return ResultStatus.ok();
     }
 
@@ -85,7 +85,7 @@ public:
 
         if (state == 0)
         {
-            authData = CipherBuffer!ubyte(publicKey());
+            authData = publicKey();
             return ResultStatus.ok();
         }
         else if (state == 1)
@@ -306,7 +306,7 @@ protected:
 // Any below codes are private
 private:
 
-shared static this() nothrow @safe
+shared static this() nothrow
 {
     DbAuth.registerAuthMap(DbAuthMap(FbIscText.authSrp1Name, DbScheme.fb, &createAuthSrpSHA1));
     DbAuth.registerAuthMap(DbAuthMap(FbIscText.authSrp256Name, DbScheme.fb, &createAuthSrpSHA256));
@@ -314,29 +314,29 @@ shared static this() nothrow @safe
     DbAuth.registerAuthMap(DbAuthMap(FbIscText.authSrp512Name, DbScheme.fb, &createAuthSrpSHA512));
 }
 
-DbAuth createAuthSrpSHA1()
+DbAuth createAuthSrpSHA1() nothrow
 {
     return new FbAuthSrpSHA1();
 }
 
-DbAuth createAuthSrpSHA256()
+DbAuth createAuthSrpSHA256() nothrow
 {
     return new FbAuthSrpSHA256();
 }
 
-DbAuth createAuthSrpSHA384()
+DbAuth createAuthSrpSHA384() nothrow
 {
     return new FbAuthSrpSHA384();
 }
 
-DbAuth createAuthSrpSHA512()
+DbAuth createAuthSrpSHA512() nothrow
 {
     return new FbAuthSrpSHA512();
 }
 
 static immutable PrimeGroup fbPrime;
 
-shared static this() nothrow @safe
+shared static this() nothrow
 {
     fbPrime = immutable PrimeGroup(
         2,
@@ -348,7 +348,7 @@ shared static this() nothrow @safe
         FbAuthSrp.keyLength);
 }
 
-nothrow @safe unittest // PrimeGroup
+@safe unittest // PrimeGroup
 {
     assert(fbPrime.N.toString() == FbAuthSrp.N);
     assert(fbPrime.g.toString() == "2");
@@ -394,7 +394,7 @@ version(unittest)
     }
 }
 
-nothrow @safe unittest // FbAuthSrpSHA1
+@safe unittest // FbAuthSrpSHA1
 {
     testCheckSHA1(
         /*digitPrivateKey*/ "264905762513559650080771073972109248903",

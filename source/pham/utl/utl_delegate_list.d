@@ -11,7 +11,7 @@
 
 module pham.utl.utl_delegate_list;
 
-import pham.utl.utl_array : IndexedArray;
+import pham.utl.utl_array : StaticArray;
 
 struct DelegateList(Args...)
 {
@@ -19,11 +19,19 @@ public:
     alias DelegateHandler = void delegate(Args args) @safe;
 
 public:
+    @disable this(this);
+    
+    ref typeof(this) opAssign(ref typeof(this) rhs) nothrow return @safe
+    {
+        items.opAssign(rhs.items);
+        return this;
+    }
+    
     void opOpAssign(string op)(DelegateHandler handler) nothrow pure @safe
     if (op == "~" || op == "+" || op == "-")
     {
         static if (op == "~" || op == "+")
-            items.putBack(handler);
+            items.put(handler);
         else static if (op == "-")
             items.remove(handler);
         else
@@ -37,7 +45,7 @@ public:
             // Always make a copy to avoid skip/misbehavior if handler removes
             // any from the list that means the lifetime of the caller instance
             // must be out lived while notifying
-            auto foreachItems = items.dup();
+            auto foreachItems = items[].dup;
             foreach (i; foreachItems)
                 i(args);
         }
@@ -57,17 +65,15 @@ public:
         return this;
     }
 
-    alias put = putBack;
-
     /**
      * Appends element, handler, into end of this instant
      * Params:
      *  handler = element to be appended
      */
-    ref typeof(this) putBack(DelegateHandler handler) nothrow pure return @safe
+    ref typeof(this) put(DelegateHandler handler) nothrow pure return @safe
     {
         if (handler !is null)
-            items.putBack(handler);
+            items.put(handler);
         return this;
     }
 
@@ -89,7 +95,7 @@ public:
     }
 
 private:
-    IndexedArray!(DelegateHandler, 10) items;
+    StaticArray!(DelegateHandler, 4) items;
 }
 
 
@@ -112,20 +118,24 @@ unittest // DelegateList
 
     DelegateList!(string, int) list;
     assert(!list);
+    assert(list.length == 0);
 
     auto s1 = S1(100);
     list += &s1.accumulate;
-    assert(list && list.length == 1);
+    assert(list);
+    assert(list.length == 1);
 
     list += (string name, int value) { eName = name; eValue = value; };
-    assert(list && list.length == 2);
+    assert(list);
+    assert(list.length == 2);
 
     list("1", 1);
     assert(eName == "1" && eValue == 1);
     assert(s1.a == 101);
 
     list -= &s1.accumulate;
-    assert(list && list.length == 1);
+    assert(list);
+    assert(list.length == 1);
     list("2", 2);
     assert(eName == "2" && eValue == 2);
     assert(s1.a == 101);

@@ -30,7 +30,7 @@ public import std.typecons : No, Yes;
 import std.utf : encode;
 
 debug(debug_pham_external_std_log_log_logger) import std.stdio : writeln;
-import pham.utl.utl_array : Appender;
+import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.external.std.log.log_date_time_format;
 

@@ -23,7 +23,7 @@ debug(pham_ser_ser_serialization) import std.stdio : writeln;
 import pham.dtm.dtm_date : Date, DateTime;
 import pham.dtm.dtm_tick : DateTimeZoneKind;
 import pham.dtm.dtm_time : Time;
-import pham.utl.utl_array : Appender;
+import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.utl.utl_trait;
 

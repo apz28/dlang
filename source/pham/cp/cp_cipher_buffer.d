@@ -11,7 +11,7 @@
 
 module pham.cp.cp_cipher_buffer;
 
-import pham.utl.utl_array : ShortStringBufferSize;
+import pham.utl.utl_array : StaticStringBuffer;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_object : bytesToHexs;
 
@@ -24,6 +24,8 @@ if (is(T == ubyte) || is(T == byte) || is(T == char))
 @safe:
 
 public:
+    @disable this(this);
+    
     this(scope const(T)[] values) nothrow pure
     {
         this.data.opAssign(values);
@@ -34,29 +36,35 @@ public:
         dispose(DisposingReason.destructor);
     }
 
+    ref typeof(this) opAssign(ref typeof(this) rhs) nothrow pure return
+    {
+        data.opAssign(rhs.data);
+        return this;
+    }
+
     ref typeof(this) opAssign(scope const(T)[] values) nothrow pure return
     {
         data.opAssign(values);
         return this;
     }
 
-    pragma(inline, true)
+    //pragma(inline, true)
     ref typeof(this) chopFront(const(size_t) chopLength) nothrow pure return
     {
         data.chopFront(chopLength);
         return this;
     }
 
-    pragma(inline, true)
+    //pragma(inline, true)
     ref typeof(this) chopTail(const(size_t) chopLength) nothrow pure return
     {
         data.chopTail(chopLength);
         return this;
     }
 
-    ref typeof(this) clear(bool setShortLength = false) nothrow pure return
+    ref typeof(this) clear() nothrow pure return
     {
-        data.clear(setShortLength);
+        data.clear(0);
         return this;
     }
 
@@ -110,8 +118,8 @@ public:
     }
 
 public:
-    private enum overheadSize = ShortStringBufferSize!(T, 1u).sizeof;
-    ShortStringBufferSize!(T, 1_024u - overheadSize) data;
+    private enum overheadSize = StaticStringBuffer!(T, 1u).sizeof;
+    StaticStringBuffer!(T, 1_024u - overheadSize) data;
     alias data this;
 }
 

@@ -18,7 +18,7 @@ import std.typecons : Flag, No, Yes;
 
 debug(debug_pham_db_db_fbprotocol) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
-import pham.utl.utl_array : Appender;
+import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_bit : bitLengthToElement, hostToNetworkOrder;
 import pham.utl.utl_bit_array : BitArrayImpl;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;

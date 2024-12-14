@@ -34,7 +34,7 @@ public:
     {
         debug(debug_pham_db_db_myauth) debug writeln(__FUNCTION__, "(userName=", userName, ")");
 
-        authData = CipherBuffer!ubyte.init;
+        authData.clear();
         return ResultStatus.ok();
     }
 

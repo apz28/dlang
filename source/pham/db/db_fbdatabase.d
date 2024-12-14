@@ -21,7 +21,7 @@ import std.traits : Unqual;
 debug(debug_pham_db_db_fbdatabase) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
-import pham.utl.utl_array : Appender;
+import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_enum_set : toName;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_object : bytesFromBase64s, bytesToBase64s, functionName, VersionString;

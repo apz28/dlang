@@ -43,7 +43,7 @@ public:
         }
         else
         {
-            authData = CipherBuffer!ubyte.init;
+            authData.clear();
             return ResultStatus.ok();
         }
     }
@@ -55,7 +55,7 @@ public:
 
         if (userPassword.length == 0)
         {
-            authData = CipherBuffer!ubyte.init;
+            authData.clear();
             return ResultStatus.ok();
         }
 
@@ -76,7 +76,7 @@ public:
         finalHash.buffer[1..finalHash.length] = thirdHash[];
         foreach (i; 1..finalHash.length)
             finalHash.buffer[i] = cast(ubyte)(finalHash.buffer[i] ^ firstHash.buffer[i - 1]);
-        authData = CipherBuffer!ubyte(finalHash[]);
+        authData = finalHash[];
         return ResultStatus.ok();
     }
 

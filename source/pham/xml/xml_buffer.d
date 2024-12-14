@@ -14,7 +14,7 @@ module pham.xml.xml_buffer;
 import std.typecons : Flag, No, Yes;
 
 debug(debug_pham_xml_xml_buffer) import std.stdio : writeln;
-import pham.utl.utl_array : Appender;
+import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_dlink_list;
 import pham.xml.xml_entity_table;
 import pham.xml.xml_exception;

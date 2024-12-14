@@ -16,7 +16,7 @@ import std.typecons : Flag;
 public import std.typecons : No, Yes;
 
 debug(debug_pham_xml_xml_dom) import std.stdio : writeln;
-import pham.utl.utl_array : Appender;
+import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_dlink_list;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.utl.utl_object : shortClassName, singleton;

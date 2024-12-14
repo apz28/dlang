@@ -54,7 +54,7 @@ public:
         char[3 + 32] result;
         result[0..3] = "md5";
         result[3..$] = MD5toHex(md5Password, serverAuthData);
-        authData = CipherBuffer!ubyte(result[].representation());
+        authData = result[].representation();
         return ResultStatus.ok();
     }
 

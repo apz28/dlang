@@ -19,7 +19,8 @@ import std.string : splitLines;
 import std.uni : sicmp;
 
 debug(pham_dtm_dtm_time_zone_default_tzdata) import std.stdio : writeln;
-import pham.utl.utl_array : Appender, indexOf;
+import pham.utl.utl_array : indexOf;
+import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
 import pham.utl.utl_result : ResultIf;
 import pham.dtm.dtm_date : DayOfWeek, Date, DateTime;

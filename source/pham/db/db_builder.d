@@ -14,7 +14,7 @@ module pham.db.db_builder;
 import std.range.primitives : isOutputRange;
 import std.traits : isIntegral, isFloatingPoint, Unqual;
 
-public import pham.utl.utl_array : Appender;
+public import pham.utl.utl_array_append : Appender;
 public import pham.var.var_variant : Variant, VariantType;
 import pham.db.db_database : DbColumn, DbColumnList, DbDatabase, DbParameter, DbParameterList;
 import pham.db.db_type : DbType, dbArrayElementOf, dbTypeOf, isDbTypeQuoted,
@@ -1283,7 +1283,7 @@ private:
 
 unittest // columnNameString
 {
-    import pham.utl.utl_array : Appender;
+    import pham.utl.utl_array_append : Appender;
 
     auto parameters = new DbParameterList(null);
     parameters.add("colum1", DbType.int32);
@@ -1296,7 +1296,7 @@ unittest // columnNameString
 
 unittest // parameterNameString
 {
-    import pham.utl.utl_array : Appender;
+    import pham.utl.utl_array_append : Appender;
 
     auto parameters = new DbParameterList(null);
     parameters.add("colum1", DbType.int32);
@@ -1309,7 +1309,7 @@ unittest // parameterNameString
 
 unittest // parameterConditionString
 {
-    import pham.utl.utl_array : Appender;
+    import pham.utl.utl_array_append : Appender;
 
     auto parameters = new DbParameterList(null);
     parameters.add("colum1", DbType.int32).isKey = true;
@@ -1323,7 +1323,7 @@ unittest // parameterConditionString
 
 unittest // parameterUpdateColumn
 {
-    import pham.utl.utl_array : Appender;
+    import pham.utl.utl_array_append : Appender;
 
     auto parameters = new DbParameterList(null);
     parameters.add("colum1", DbType.int32);

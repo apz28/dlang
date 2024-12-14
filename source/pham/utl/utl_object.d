@@ -262,7 +262,7 @@ if (is(T == class))
 auto stringOfChar(C = char)(size_t count, C c) nothrow pure @trusted
 if (is(Unqual!C == char) || is(Unqual!C == wchar) || is(Unqual!C == dchar))
 {
-    auto result = new Unqual!C[count];
+    auto result = new Unqual!C[](count);
     result[] = c;
     static if (is(Unqual!C == char))
         return cast(string)result;
@@ -941,7 +941,7 @@ nothrow @safe unittest // stringOfChar
 @safe unittest // toString
 {
     import std.conv : to;
-    import pham.utl.utl_array : Appender;
+    import pham.utl.utl_array_append : Appender;
 
     void testCheck(uint radix = 10, N)(N n, const(ubyte) pad, string expected,
         uint line = __LINE__)

@@ -47,7 +47,7 @@ ResultIf!(Char[]) decodeFormValue(Char)(return Char[] encodedFormValue,
     const(Char) invalidReplacementChar = '?') pure
 if (isSomeChar!Char)
 {
-    import pham.utl.utl_array : Appender;
+    import pham.utl.utl_array_append : Appender;
     import pham.utl.utl_numeric_parser : NumericParsedKind, parseHexDigits;
 
     if (encodedFormValue.simpleIndexOfAny("%+") < 0)

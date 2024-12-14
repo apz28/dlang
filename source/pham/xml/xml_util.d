@@ -643,7 +643,7 @@ do
         c = the character that be repeated
         count = number of times c to be repeated
 */
-S stringOfChar(S)(const(XmlChar!S) c, size_t count)
+S stringOfChar(S)(const(XmlChar!S) c, size_t count) nothrow pure @safe
 if (isXmlString!S)
 in
 {
@@ -651,14 +651,14 @@ in
 }
 do
 {
-    import pham.utl.utl_array : Appender;
+    import pham.utl.utl_array_append : Appender;
 
     if (count != 0)
     {
-        auto buffer = Appender!(XmlChar!S[])(count);
+        auto buffer = Appender!S(count);
         for (; count != 0; --count)
             buffer.put(c);
-        return buffer.data.idup;
+        return buffer.data;
     }
     else
         return "";

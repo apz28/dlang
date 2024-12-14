@@ -18,7 +18,7 @@ debug(debug_pham_db_db_pgconvert) import std.stdio : writeln;
 
 import pham.dtm.dtm_tick : Tick;
 import pham.dtm.dtm_time_zone : TimeZoneInfo;
-import pham.utl.utl_array : ShortStringBuffer, ShortStringBufferSize;
+import pham.utl.utl_array : ShortStringBuffer, StaticStringBuffer;
 import pham.db.db_convert : toDecimalSafe;
 import pham.db.db_type;
 import pham.db.db_pgtype;
@@ -115,8 +115,6 @@ int64 dateTimeEncodeTZ(scope const(DbDateTime) value)
 D numericDecode(D)(scope const(PgOIdNumeric) pgNumeric)
 if (isDecimal!D)
 {
-	scope (failure) assert(0, "Assume nothrow failed");
-
     debug(debug_pham_db_db_pgconvert) debug writeln(__FUNCTION__, "(pgNumeric=", pgNumeric.traceString(), ")");
 
     if (pgNumeric.isNaN)
@@ -205,10 +203,12 @@ if (isDecimal!D)
 
     debug(debug_pham_db_db_pgconvert) debug writeln("\t", "value=", value[]);
 
-	if (pgNumeric.dscale > 0)
-		return D(value[], RoundingMode.banking);
-	else
-		return D(value[]);
+    try {
+        if (pgNumeric.dscale > 0)
+            return D(value[], RoundingMode.banking);
+        else
+            return D(value[]);
+    } catch (Exception e) { debug(debug_pham_db_db_pgconvert) debug writeln("\t", "message=", e.message); assert(0, "Assume nothrow failed: " ~ e.message); }        
 }
 
 PgOIdNumeric numericEncode(D)(scope const(D) value)
@@ -219,8 +219,8 @@ if (isDecimal!D)
 	if (value.isNaN)
 		return PgOIdNumeric.NaN;
 
-	ShortStringBufferSize!(char, maxDigits) sBuffer;
-	value.toString!(ShortStringBufferSize!(char, maxDigits), char)(sBuffer);
+	StaticStringBuffer!(char, maxDigits) sBuffer;
+	value.toString!(StaticStringBuffer!(char, maxDigits), char)(sBuffer);
 	auto sValue = sBuffer[];
 	size_t sLength = sValue.length;
 	while (sLength > 1 && sValue[sLength - 1] == '0')
@@ -234,7 +234,8 @@ if (isDecimal!D)
 
 	//ubyte[] ddigits = new ubyte[]((sLength - sIndex) + PgOIdNumeric.digitPerBase * 2);
 	//ddigits[] = 0; // Set all to zero
-	auto ddigits = ShortStringBufferSize!(ubyte, maxDigits)(true);
+	auto ddigits = StaticStringBuffer!(ubyte, maxDigits)(maxDigits);
+    ddigits.length = maxDigits;
 	int dInd = PgOIdNumeric.digitPerBase;
 	int dweight = -1;
 	bool haveDP = false;

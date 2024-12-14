@@ -22,7 +22,7 @@ import std.typecons : Flag, No, Yes;
 debug(debug_pham_db_db_database) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel;
-import pham.utl.utl_array : Appender;
+import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_delegate_list;
 import pham.utl.utl_dlink_list;
 import pham.utl.utl_enum_set : EnumSet, toEnum, toName;
@@ -298,7 +298,7 @@ public:
         this._fetchRecordCount = connection.connectionStringBuilder.fetchRecordCount;
         this._flags.parametersCheck = true;
         this._flags.returnRecordsAffected = true;
-        this.notifyMessage = connection.notifyMessage;
+        this.notifyMessage.opAssign(connection.notifyMessage);
     }
 
     this(DbConnection connection, DbTransaction transaction,

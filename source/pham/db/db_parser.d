@@ -14,7 +14,7 @@ module pham.db.db_parser;
 import std.uni : isAlphaNum, isSpace;
 
 debug(debug_pham_db_db_parser) import std.stdio : writeln;
-import pham.utl.utl_array : Appender;
+import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_enum_set : toEnum;
 import pham.utl.utl_result : addLine;
 import pham.utl.utl_utf8 : nextUTF8Char, UTF8Iterator;

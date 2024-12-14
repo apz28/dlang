@@ -28,7 +28,7 @@ nothrow @safe:
 * Returns:     string containing the salt concatenated
 *              on to the encrypted results. Same as stored in passwd file.
 **************************************************************************/
-CipherBuffer!ubyte crypt3(scope const(char)[] pw, scope const(char)[2] salt)
+ref CipherBuffer!ubyte crypt3(return ref CipherBuffer!ubyte cryptResult, scope const(char)[] pw, scope const(char)[2] salt)
 in
 {
     assert(pw.length > 0);
@@ -111,8 +111,10 @@ do
             iobuf[i + 2] = c;
         }
 
-        return CipherBuffer!ubyte(iobuf[0..i + 2]);
+        cryptResult = iobuf[0..i + 2];
     }
+    
+    return cryptResult;
 }
 
 
@@ -438,12 +440,13 @@ struct Crypt3Key
 {
     import std.string : representation;
 
-    auto e = crypt3("test", "PQ");
-    assert(e == "PQl1.p7BcJRuM".representation(), "PQl1.p7BcJRuM ? '" ~ cast(const(char)[])(e[]) ~ "'");
+    CipherBuffer!ubyte e;
+    auto er = crypt3(e, "test", "PQ")[];
+    assert(er == "PQl1.p7BcJRuM".representation(), "PQl1.p7BcJRuM ? '" ~ cast(const(char)[])er ~ "'");
 
-    e = crypt3("much longer password here", "xx");
-    assert(e == "xxtHrOGVa3182".representation(), "xxtHrOGVa3182 ? '" ~ cast(const(char)[])(e[]) ~ "'");
+    er = crypt3(e, "much longer password here", "xx")[];
+    assert(er == "xxtHrOGVa3182".representation(), "xxtHrOGVa3182 ? '" ~ cast(const(char)[])er ~ "'");
 
-    e = crypt3("testtest", "es");
-    assert(e == "esDRYJnY4VaGM".representation(), "esDRYJnY4VaGM ? '" ~ cast(const(char)[])(e[]) ~ "'");
+    er = crypt3(e, "testtest", "es")[];
+    assert(er == "esDRYJnY4VaGM".representation(), "esDRYJnY4VaGM ? '" ~ cast(const(char)[])er ~ "'");
 }

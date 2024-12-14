@@ -429,7 +429,7 @@ public:
             .finish(hashTemp));
     }
 
-    string traceString() const nothrow
+    string traceString() const
     {
         return "Auth.N=" ~ _parameters.group.N.toString()
 		    ~ ", g=" ~ _parameters.group.g.toString()
@@ -874,7 +874,7 @@ shared static this() nothrow @safe
         48);
 }
 
-nothrow @safe unittest // Auth.bytesToBigInteger
+@safe unittest // Auth.bytesToBigInteger
 {
     import pham.utl.utl_object : bytesFromHexs;
 

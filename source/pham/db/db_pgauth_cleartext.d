@@ -39,7 +39,7 @@ public:
         if (status.isError)
             return status;
 
-        authData = CipherBuffer!ubyte(userPassword.representation());
+        authData = userPassword.representation();
         return ResultStatus.ok();
     }
 

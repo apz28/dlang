@@ -43,7 +43,7 @@ char[] cvtBytesBase64(bool lineBreak = false)(scope const(ubyte)[] bytes,
     const(char) padding = Base64MappingChar.padding,
     const(uint) lineBreakLength = 80) pure
 {
-    import pham.utl.utl_array : Appender;
+    import pham.utl.utl_array_append : Appender;
 
     if (bytes.length == 0)
         return null;
@@ -139,7 +139,7 @@ char[] cvtBytesBase16(bool lineBreak = false)(scope const(ubyte)[] bytes,
     const(LetterCase) letterCase = LetterCase.upper,
     const(uint) lineBreakLength = 80) pure
 {
-    import pham.utl.utl_array : Appender;
+    import pham.utl.utl_array_append : Appender;
 
     if (bytes.length == 0)
         return null;
