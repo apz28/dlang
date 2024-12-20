@@ -64,7 +64,7 @@ public:
 
     ref typeof(this) clear() nothrow pure return
     {
-        data.clear(0);
+        data.clear();
         return this;
     }
 

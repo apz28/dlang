@@ -14,7 +14,8 @@ module pham.utl.utl_array_static;
 import std.traits : isIntegral, isSomeChar;
 
 debug(debug_pham_utl_utl_array_static) import std.stdio : writeln;
-import pham.utl.utl_array : arrayDestroy, arrayGrow, arrayShiftLeft, arrayShrink, arrayZeroInit;
+import pham.utl.utl_array : arrayClear, arrayDestroy, arrayGrow, arrayShiftLeft, arrayShrink,
+    arrayZeroInit, arrayZeroNeeded;
 import pham.utl.utl_disposable : DisposingReason;
 
 enum supportInnerPointer = false; // DMD does not support inner pointer for struct
@@ -38,36 +39,54 @@ public:
     static if (!supportInnerPointer)
     @disable this(this);
 
-    this(ref typeof(this) rhs) nothrow
+    /**
+     * A copy constructor of StaticArray
+     */
+    this(ref typeof(this) other) nothrow
     {
-        if (const rhsLength = rhs.length)
+        if (const otherLength = other.length)
         {
-            reserveImpl(rhsLength, rhsLength, false);
-            this._items[0..rhsLength] = rhs._items[0..rhsLength];
-            this._length = rhsLength;
+            reserveImpl(otherLength, otherLength, false);
+            this._items[0..otherLength] = other._items[0..otherLength];
+            this._length = otherLength;
         }
     }
 
-    this(const(size_t) capacity) nothrow pure @safe
-    {
-        if (capacity > StaticSize)
-            reserve(capacity, 0, false);
-    }
-
+    /**
+     * Constructs a StaticArray with a given items.
+     * Params:
+     *  items = array of elements for appending.
+     */
     this()(scope inout(T)[] items) nothrow
     {
         opAssign(items);
     }
 
+    /**
+     * Constructs a StaticArray with a given capacity elements for appending.
+     * Avoid reallocate memory while populating the StaticArray instant
+     * Params:
+     *  capacity = reserved number of elements for appending.
+     */
+    this(size_t capacity) nothrow pure @safe
+    {
+        if (capacity > StaticSize)
+            reserve(capacity, 0, false);
+    }
+
+    /**
+     * Supports build-in foreach operator
+     */
     alias opApply = opApplyImpl!(int delegate(T));
     alias opApply = opApplyImpl!(int delegate(size_t, T));
 
     int opApplyImpl(CallBack)(scope CallBack callBack)
-    if (is(CallBack : int delegate(T)) || is(CallBack : int delegate(size_t, T)))
+    if (is(CallBack : int delegate(T)) || is(CallBack : int delegate(ref T))
+        || is(CallBack : int delegate(size_t, T)) || is(CallBack : int delegate(size_t, ref T)))
     {
         debug(debug_pham_utl_utl_array_static) if (!__ctfe) debug writeln(__FUNCTION__, "()");
 
-        static if (is(CallBack : int delegate(T)))
+        static if (is(CallBack : int delegate(T)) || is(CallBack : int delegate(ref T)))
         {
             foreach (ref e; _items[0.._length])
             {
@@ -87,9 +106,14 @@ public:
         return 0;
     }
 
+    /**
+     * Reset this StaticArray instant from an other StaticArray
+     * Params:
+     *  rhs = source data from an other StaticArray
+     */
     ref typeof(this) opAssign(ref typeof(this) rhs) nothrow return
     {
-        clear(0);
+        clear();
         this._tryExtendBlock = false;
         this._staticItems = rhs._staticItems;
         this._length = rhs._length;
@@ -97,17 +121,30 @@ public:
         return this;
     }
 
-    ref typeof(this) opAssign()(scope inout(T)[] items) nothrow return
+    /**
+     * Reset this StaticArray with a given rhs.
+     * Params:
+     *  rhs = source array data for copying
+     */
+    ref typeof(this) opAssign()(scope inout(T)[] rhs) nothrow return
     {
-        const newLength = items.length;
-        clear(newLength);
+        const newLength = rhs.length;
         if (newLength)
-            this._items[0..newLength] = items[0..newLength];
-        this._length = newLength;
+        {
+            this.length = newLength;
+            this._items[0..newLength] = rhs[0..newLength];
+        }
+        else    
+            clear();
         return this;
     }
 
-    ref typeof(this) opOpAssign(string op)(T item) nothrow return
+    /**
+     * Append or remove a given item; append operators '~', '+', removing operator '-'
+     * Params:
+     *  item = an element to be appended or removed
+     */
+    ref typeof(this) opOpAssign(string op)(auto ref T item) nothrow return
     if (op == "~" || op == "+" || op == "-")
     {
         static if (op == "~" || op == "+")
@@ -119,18 +156,16 @@ public:
         return this;
     }
 
-    size_t opDollar() const @nogc nothrow
-    {
-        return _length;
-    }
+    alias opDollar = length;
 
     bool opCast(B: bool)() const nothrow
     {
         return !empty;
     }
 
-    /** Returns range interface
-    */
+    /**
+     * Returns range interface
+     */
     inout(T)[] opIndex() inout nothrow return
     {
         debug(debug_pham_utl_utl_array_static) if (!__ctfe) debug writeln(__FUNCTION__, "()");
@@ -138,45 +173,62 @@ public:
         return _items[0.._length];
     }
 
-    /** Returns range interface
-    */
-    T opIndex(size_t index) nothrow
+    /**
+     * Returns the item at given index
+     */
+    inout(T) opIndex(size_t index) inout nothrow
     in
     {
         assert(index < length);
     }
     do
     {
-        return _items[index];
+        return cast(typeof(return))(_items[index]);
     }
 
-    ref typeof(this) opIndexAssign(inout(T) item, const(size_t) index) nothrow return
+    /**
+     * Replace the item at given index
+     * Params:
+     *  rhs = a source item
+     *  index = the index of item to be replaced
+     */
+    ref typeof(this) opIndexAssign()(auto ref inout(T) rhs, size_t index) nothrow return
     in
     {
         assert(index < length);
     }
     do
     {
-        this._items[index] = item;
-        return this;
-    }
-
-    ref typeof(this) opIndexAssign(scope inout(T)[] items, const(size_t) index) nothrow return
-    in
-    {
-        assert(index < length);
-        assert(index + items.length <= length);
-    }
-    do
-    {
-        this._items[index..index + items.length] = items[0..$];
+        this._items[index] = rhs;
         return this;
     }
 
     /**
-     * Returns range interface
+     * Replace the items at beginning index
+     * Params:
+     *  rhs = a source array of items
+     *  beginIndex = the beginning index of items to be replaced
      */
-    inout(T)[] opSlice(const(size_t) beginRange, const(size_t) endRange) inout nothrow return
+    ref typeof(this) opIndexAssign(scope inout(T)[] rhs, size_t beginIndex) nothrow return
+    in
+    {
+        assert(beginIndex < length);
+        assert(beginIndex + rhs.length <= length);
+    }
+    do
+    {
+        this._items[beginIndex..beginIndex + rhs.length] = rhs[0..$];
+        return this;
+    }
+
+    /**
+     * Returns range interface.
+     * if beginRange is greater/equal with this StaticArray length, an empty range is returned 
+     * Params:
+     *  beginRange = starting index of element range
+     *  endRange = exclusive index of element range
+     */
+    inout(T)[] opSlice(size_t beginRange, size_t endRange) inout nothrow return
     in
     {
         assert(beginRange < endRange);
@@ -192,47 +244,49 @@ public:
             : _items[beginRange..endRange];
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    /**
+     * Removes all elements from the StaticArray.
+     * This allows the elements of the array to be reused for appending
+     */
+    ref typeof(this) clear() nothrow return
     {
         if (_length)
         {
-            static if (hasElaborateDestructor!T)
-                arrayDestroy!T(_items[0.._length], true);
-            else
-                arrayZeroInit!T(_items[0.._length]);
-        }
-        _items = [];
-        _length = 0;
-        _tryExtendBlock = false;
-    }
-
-    ref typeof(this) clear(const(size_t) capacity = 0) nothrow return @trusted
-    {
-        const resetLength = _length < capacity ? _length : capacity;
-        if (_length != capacity)
-            changeLength(capacity);
-        if (_length)
-        {
-            if (resetLength)
-            {
-                static if (hasElaborateDestructor!T)
-                    arrayDestroy!T(_items[0..resetLength], true);
-                else
-                    arrayZeroInit!T(_items[0..resetLength]);
-            }
+            arrayClear(_items[0.._length]);
             _length = 0;
         }
         return this;
     }
 
-    ref typeof(this) expand(const(size_t) minLength) nothrow return
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    {
+        if (_length)
+            arrayClear!T(_items[0.._length]);
+        arrayZeroInit(_staticItems[]);
+        _items = [];
+        _length = 0;
+        _tryExtendBlock = false;
+    }
+
+    /**
+     * Ensures StaticArray has minimum minLength
+     * Params:
+     *  minLength = minimum length
+     */
+    ref typeof(this) expand(size_t minLength) nothrow return
     {
         if (_length < minLength)
             changeLength(minLength);
         return this;
     }
 
-    ref typeof(this) fill(T item, const(size_t) beginIndex = 0) nothrow return
+    /**
+     * Fills StaticArray with same value, item, starting at beginIndex
+     * Params:
+     *  item = the value to be used for filling
+     *  beginIndex = the from index to the end
+     */
+    ref typeof(this) fill()(auto ref T item, size_t beginIndex = 0) nothrow return
     in
     {
         assert(beginIndex < length);
@@ -243,6 +297,10 @@ public:
         return this;
     }
 
+    /**
+     * Returns the index of item.
+     * If item is not found/existed, -1 is returned
+     */
     ptrdiff_t indexOf(in T item) @trusted
     {
         import pham.utl.utl_array : indexOfImp = indexOf;
@@ -250,8 +308,11 @@ public:
         return length ? indexOfImp(this[], item) : -1;
     }
 
+    /**
+     * Returns the pointer at index element
+     */
     pragma(inline, true)
-    T* ptr(const(size_t) index) nothrow return
+    T* ptr(size_t index) nothrow return
     in
     {
         assert(index < length);
@@ -262,60 +323,109 @@ public:
     }
 
     version(none)
-    ref typeof(this) put()(const(size_t) index, scope inout(T) item) nothrow return
+    ref typeof(this) put()(size_t index, auto ref inout(T) item) nothrow return
     {
         const reqLength = index + 1;
-        if (reqLength > this._length)
-            reserve(1, 1, false);
+        if (reqLength > _length)
+            reserve(1, 1, true);
         this._items[index] = item;
-        if (this._length < reqLength)
-            this._length = reqLength;
+        if (_length < reqLength)
+            _length = reqLength;
         return this;
     }
 
     version(none)
-    ref typeof(this) put()(const(size_t) beginIndex, scope inout(T)[] items) nothrow return
+    ref typeof(this) put()(size_t beginIndex, scope inout(T)[] items) nothrow return
     {
         if (const len = items.length)
         {
             const reqLength = beginIndex + len;
             if (reqLength > this._length)
             {
-                const addLen = reqLength - this._length;
-                reserve(addLen, addLen, false);
+                const addLen = reqLength - _length;
+                reserve(addLen, addLen, true);
             }
             this._items[beginIndex..reqLength] = items[0..len];
-            if (this._length < reqLength)
-                this._length = reqLength;
+            if (_length < reqLength)
+                _length = reqLength;
         }
         return this;
     }
 
-    ref typeof(this) put()(inout(T) item) nothrow return
+    /**
+     * Appending the item to this StaticArray
+     * Params:
+     *  item = a single item to be appended
+     */
+    ref typeof(this) put()(auto ref inout(T) item) nothrow return
     {
+        import core.internal.lifetime : emplaceRef;
+
         reserve(1, 1, false);
-        this._items[_length++] = item;
+        if (is(T == struct))
+        {
+            () @trusted
+            {
+                auto unqualItem = &cast()item;
+                emplaceRef(this._items[_length], *unqualItem);
+                _length++;
+            }();
+        }
+        else
+        {
+            this._items[_length++] = item;
+        }
         return this;
     }
 
+    /**
+     * Appending the items to this StaticArray
+     * Params:
+     *  items = an array of items to be appended
+     */
     ref typeof(this) put()(scope inout(T)[] items) nothrow return
     {
+        import core.internal.lifetime : emplaceRef;
+
         if (const len = items.length)
         {
             reserve(len, len, false);
-            const newLength = this._length + len;
-            this._items[this._length..newLength] = items[0..len];
-            this._length = newLength;
+            if (is(T == struct))
+            {
+                foreach (i; 0..len)
+                {
+                    () @trusted
+                    {
+                        auto unqualItem = &cast()items[i];
+                        emplaceRef(this._items[_length], *unqualItem);
+                        _length++;
+                    }();
+                }
+            }
+            else
+            {
+                const newLength = _length + len;
+                this._items[_length..newLength] = items[0..len];
+                _length = newLength;
+            }
         }
         return this;
     }
 
+    /**
+     * Removes the item from this StaticArray.
+     * If the item is not found/existed, a default value is returned
+     */
     T remove(in T item)
     {
         return removeAt(indexOf(item));
     }
 
-    T removeAt(const(size_t) index) nothrow
+    /**
+     * Removes the item at index from this StaticArray.
+     * If index is out of range, a default value is returned
+     */
+    T removeAt(size_t index) nothrow
     {
         if (index < _length)
         {
@@ -328,6 +438,9 @@ public:
             return T.init;
     }
 
+    /**
+     * Reverses items inplace using swap, the front item became last and last became first
+     */
     ref typeof(this) reverse() @nogc nothrow return @trusted
     {
         import std.algorithm : swapE = swap;
@@ -343,67 +456,60 @@ public:
         return this;
     }
 
-    ref typeof(this) swap(ref typeof(this) other) @nogc nothrow return @trusted
+    /**
+     * Exchanges this StaticArray elements with other StaticArray elements
+     */
+    ref typeof(this) swap(ref typeof(this) other) @nogc nothrow return
     {
-        import core.stdc.string : memcpy;
-
         if (this._items.ptr is other._items.ptr)
             return this;
 
         const thisLength = this._length;
         const otherLength = other._length;
-        T[StaticSize] staticCopy = void;
+        T[StaticSize] staticTemp = void;
 
         if (this.staticUsed && other.staticUsed)
         {
-            memcpy(staticCopy.ptr, this._staticItems.ptr, StaticSize * T.sizeof);
+            moveTo(this._staticItems, staticTemp, thisLength);
 
-            memcpy(this._staticItems.ptr, other._staticItems.ptr, StaticSize * T.sizeof);
+            moveTo(other._staticItems, this._staticItems, otherLength);
             this._length = otherLength;
 
-            memcpy(other._staticItems.ptr, staticCopy.ptr, StaticSize * T.sizeof);
+            moveTo(staticTemp, other._staticItems, thisLength);
             other._length = thisLength;
 
-            static if (hasElaborateDestructor!T)
-                arrayZeroInit!T(staticCopy[]);
             return this;
         }
 
         if (this.staticUsed && !other.staticUsed)
         {
-            memcpy(staticCopy.ptr, this._staticItems.ptr, StaticSize * T.sizeof);
+            moveTo(this._staticItems, staticTemp, thisLength);
 
-            arrayZeroInit!T(this._staticItems[]);
             this._length = otherLength;
             this._items = other._items;
             this._tryExtendBlock = other._tryExtendBlock;
 
-            memcpy(other._staticItems.ptr, staticCopy.ptr, StaticSize * T.sizeof);
+            moveTo(staticTemp, other._staticItems, thisLength);
             other._length = thisLength;
             other._items = other._staticItems[];
             other._tryExtendBlock = false;
 
-            static if (hasElaborateDestructor!T)
-                arrayZeroInit!T(staticCopy[]);
             return this;
         }
 
         if (!this.staticUsed && other.staticUsed)
         {
-            memcpy(staticCopy.ptr, other._staticItems.ptr, StaticSize * T.sizeof);
+            moveTo(other._staticItems, staticTemp, otherLength);
 
-            arrayZeroInit!T(other._staticItems[]);
             other._length = thisLength;
             other._items = this._items;
             other._tryExtendBlock = this._tryExtendBlock;
 
-            memcpy(this._staticItems.ptr, staticCopy.ptr, StaticSize * T.sizeof);
+            moveTo(staticTemp, this._staticItems, otherLength);
             this._length = otherLength;
             this._items = this._staticItems[];
             this._tryExtendBlock = false;
 
-            static if (hasElaborateDestructor!T)
-                arrayZeroInit!T(staticCopy[]);
             return this;
         }
 
@@ -422,31 +528,45 @@ public:
         return this;
     }
 
+    /**
+     * Returns true if this StaticArray has length = 0
+     */
     pragma(inline, true)
     @property bool empty() const @nogc nothrow
     {
         return _length == 0;
     }
 
+    /**
+     * Returns current length of this StaticArray
+     */
     pragma(inline, true)
     @property size_t length() const @nogc nothrow
     {
         return _length;
     }
 
-    @property size_t length(const(size_t) newLength) nothrow @safe
+    /**
+     * Set this StaticArray length to newLength
+     * Params:
+     *  newLength = the length of this StaticArray will have
+     */
+    @property ref typeof(this) length(size_t newLength) nothrow return @safe
     {
         if (_length != newLength)
             changeLength(newLength);
-        return _length;
+        return this;
     }
 
+    /**
+     * Returns the stack size of this StaticArray type
+     */
     pragma(inline, true)
-    @property static size_t staticSize() @nogc nothrow pure
-    {
-        return StaticSize;
-    }
+    @property enum size_t staticSize = StaticSize;
 
+    /**
+     * Returns true if this StaticArray is using stack storage
+     */
     pragma(inline, true)
     @property bool staticUsed() const @nogc nothrow
     {
@@ -471,10 +591,7 @@ private:
             // Switch to static?
             if (newLength <= StaticSize)
             {
-                static if (hasElaborateDestructor!T)
-                    arrayDestroy!T(_items[newLength.._length], true);
-                else
-                    arrayZeroInit!T(_items[newLength.._length]);
+                arrayClear!T(_items[newLength.._length]);
 
                 if (!staticUsed)
                     switchToStatic(newLength);
@@ -488,7 +605,8 @@ private:
     pragma(inline, true)
     void reserve(const(size_t) additionalLength, const(size_t) usingLength, bool zeroInit) nothrow
     {
-        debug(debug_pham_utl_utl_array_static) if (!__ctfe) debug writeln(__FUNCTION__, "(_length=", _length, ", _items.length=", _items.length, ", additionalLength=", additionalLength, ")");
+        debug(debug_pham_utl_utl_array_static) if (!__ctfe) debug writeln(__FUNCTION__, "(_length=", _length,
+            ", _items.length=", _items.length, ", additionalLength=", additionalLength, ")");
 
         if (_length + additionalLength > _items.length)
             reserveImpl(additionalLength, usingLength, zeroInit);
@@ -510,14 +628,63 @@ private:
         arrayGrow!T(_items, _tryExtendBlock, additionalLength, usingLength, zeroInit);
     }
 
-    void switchToStatic(const(size_t) newLength) nothrow @trusted
+    void switchToStatic(const(size_t) newLength) nothrow
     {
-        import core.stdc.string : memcpy;
-
-        memcpy(_staticItems.ptr, _items.ptr, newLength * T.sizeof);
-        arrayZeroInit!T(_items[0..newLength]);
+        moveTo(_items, _staticItems, newLength);
         _items = _staticItems[];
         _tryExtendBlock = false;
+    }
+
+    static void moveTo(T[] sources, ref T[StaticSize] destinations, const(size_t) length) nothrow @trusted
+    in
+    {
+        assert(length <= sources.length);
+        assert(length <= destinations.length);
+    }
+    do
+    {
+        import core.internal.traits : hasElaborateMove;
+        import core.lifetime : moveEmplace;
+        import core.stdc.string : memcpy;
+
+        static if (hasElaborateMove!T)
+        {
+            foreach (i; 0..length)
+                moveEmplace(sources[i], destinations[i]);
+        }
+        else
+        {
+            memcpy(destinations.ptr, sources.ptr, length * T.sizeof);
+        }
+
+        static if (arrayZeroNeeded!T)
+            arrayZeroInit!T(sources[0..length]);
+    }
+
+    static void moveTo(ref T[StaticSize] sources, ref T[StaticSize] destinations, const(size_t) length) nothrow @trusted
+    in
+    {
+        assert(length <= sources.length);
+        assert(length <= destinations.length);
+    }
+    do
+    {
+        import core.internal.traits : hasElaborateMove;
+        import core.lifetime : moveEmplace;
+        import core.stdc.string : memcpy;
+
+        static if (hasElaborateMove!T)
+        {
+            foreach (i; 0..length)
+                moveEmplace(sources[i], destinations[i]);
+        }
+        else
+        {
+            memcpy(destinations.ptr, sources.ptr, length * T.sizeof);
+        }
+
+        static if (arrayZeroNeeded!T)
+            arrayZeroInit!T(sources[]); // Make sure all are zero
     }
 
 private:
@@ -546,6 +713,9 @@ public:
     static if(!supportInnerPointer)
     @disable this(this);
 
+    /**
+     * A copy constructor of StaticStringBuffer
+     */
     this(ref typeof(this) rhs) nothrow pure
     {
         if (const rhsLength = rhs.length)
@@ -556,20 +726,36 @@ public:
         }
     }
 
+    /**
+     * Constructs a StaticStringBuffer with a given items.
+     * Params:
+     *  items = array of elements for appending.
+     */
+    this(scope const(T)[] items) nothrow pure
+    {
+        opAssign(items);
+    }
+    
+    /**
+     * Constructs a StaticStringBuffer with a given capacity elements for appending.
+     * Avoid reallocate memory while populating the StaticStringBuffer instant
+     * Params:
+     *  capacity = reserved number of elements for appending.
+     */
     this(const(size_t) capacity) nothrow pure
     {
         if (capacity > StaticSize)
             reserve(capacity, 0, false);
     }
 
-    this(scope const(T)[] items) nothrow pure
-    {
-        opAssign(items);
-    }
-
+    /**
+     * Reset this StaticStringBuffer instant from an other StaticStringBuffer
+     * Params:
+     *  rhs = source data from an other StaticStringBuffer
+     */
     ref typeof(this) opAssign(ref typeof(this) rhs) nothrow return
     {
-        clear(0);
+        clear();
         this._tryExtendBlock = false;
         this._staticItems = rhs._staticItems;
         this._length = rhs._length;
@@ -577,27 +763,50 @@ public:
         return this;
     }
 
-    ref typeof(this) opAssign(scope const(T)[] items) nothrow return
+    /**
+     * Reset this StaticStringBuffer with a given rhs.
+     * Params:
+     *  rhs = source array data for copying
+     */
+    ref typeof(this) opAssign(scope const(T)[] rhs) nothrow return
     {
-        const newLength = items.length;
+        const newLength = rhs.length;
         this.length = newLength;
         if (newLength)
-            this._items[0..newLength] = items[0..newLength];
+            this._items[0..newLength] = rhs[0..newLength];
         return this;
     }
 
+    /**
+     * Append a given item; append operators '~', '+'
+     * Also see 'put'
+     * Params:
+     *  item = an element to be appended
+     */
     ref typeof(this) opOpAssign(string op)(T item) nothrow pure return
     if (op == "~" || op == "+")
     {
         return put(item);
     }
 
+    /**
+     * Append given array of itema; append operators '~', '+'
+     * Also see 'put'
+     * Params:
+     *  items = array of elements to be appended
+     */
     ref typeof(this) opOpAssign(string op)(scope const(T)[] items) nothrow pure return
     if (op == "~" || op == "+")
     {
         return put(items);
     }
 
+    /**
+     * Applies inplace logical operators of this StaticStringBuffer with rhs elements
+     * if the array element type is an integral
+     * Params:
+     *  rhs = an integral array of elements to applied logical operator with
+     */
     static if (isIntegral!T)
     ref typeof(this) opOpAssign(string op)(scope const(T)[] rhs) @nogc nothrow pure
     if (op == "&" || op == "|" || op == "^")
@@ -614,27 +823,40 @@ public:
         return this;
     }
 
-    size_t opDollar() const @nogc nothrow pure
-    {
-        return _length;
-    }
+    alias opDollar = length;
 
+    /**
+     * Returns true if this StaticStringBuffer has same length & content with rhs StaticStringBuffer
+     * Params:
+     *  rhs = other StaticStringBuffer to be checked for equality
+     */
     bool opEquals(const ref typeof(this) rhs) const @nogc nothrow pure
     {
         return this._length == rhs._length && this._items[0.._length] == rhs._items[0..rhs._length];
     }
 
+    /**
+     * Returns true if this StaticStringBuffer has same length & content with rhs array
+     * Params:
+     *  rhs = array of elements to be checked for equality
+     */
     bool opEquals(scope const(T)[] rhs) const @nogc nothrow pure
     {
         return this._length == rhs.length && this._items[0.._length] == rhs;
     }
 
+    /**
+     * Returns range interface
+     */
     inout(T)[] opIndex() inout nothrow pure return
     {
         return _items[0.._length];
     }
 
-    T opIndex(const(size_t) index) const @nogc nothrow pure
+    /**
+     * Returns the item at given index
+     */
+    T opIndex(size_t index) const @nogc nothrow pure
     in
     {
         assert(index < length);
@@ -644,31 +866,50 @@ public:
         return _items[index];
     }
 
-    ref typeof(this) opIndexAssign(T item, const(size_t) index) @nogc nothrow return
+    /**
+     * Replace the item at given index
+     * Params:
+     *  rhs = a source item
+     *  index = the index of item to be replaced
+     */
+    ref typeof(this) opIndexAssign(T rhs, size_t index) @nogc nothrow return
     in
     {
         assert(index < length);
     }
     do
     {
-        this._items[index] = item;
+        this._items[index] = rhs;
         return this;
     }
 
-    ref typeof(this) opIndexAssign(scope const(T)[] items, const(size_t) index) nothrow return
+    /**
+     * Replace the items at beginning index
+     * Params:
+     *  rhs = a source array of items
+     *  beginIndex = the beginning index of items to be replaced
+     */
+    ref typeof(this) opIndexAssign(scope const(T)[] rhs, size_t beginning) nothrow return
     in
     {
-        assert(index < length);
-        assert(index + items.length <= length);
+        assert(beginning < length);
+        assert(beginning + rhs.length <= length);
     }
     do
     {
-        this._items[index..index + items.length] = items[0..$];
+        this._items[beginning..beginning + rhs.length] = rhs[0..$];
         return this;
     }
 
+    /**
+     * Applies inplace logical operators of this StaticStringBuffer with rhs element
+     * if the array element type is an integral
+     * Params:
+     *  rhs = an integral element to applied logical operator with
+     *  index = the index of element to be applied to
+     */
     static if (isIntegral!T)
-    ref typeof(this) opIndexOpAssign(string op)(T rhs, const(size_t) index) @nogc nothrow pure
+    ref typeof(this) opIndexOpAssign(string op)(T rhs, size_t index) @nogc nothrow pure
     if (op == "&" || op == "|" || op == "^")
     in
     {
@@ -680,7 +921,14 @@ public:
         return this;
     }
 
-    inout(T)[] opSlice(const(size_t) beginRange, const(size_t) endRange) inout nothrow pure return
+    /**
+     * Returns range interface
+     * if beginRange is greater/equal with this StaticStringBuffer length, an empty range is returned 
+     * Params:
+     *  beginRange = starting index of element range
+     *  endRange = exclusive index of element range
+     */
+    inout(T)[] opSlice(size_t beginRange, size_t endRange) inout nothrow pure return
     in
     {
         assert(beginRange < endRange);
@@ -695,7 +943,7 @@ public:
                 : _items[beginRange..endRange];
     }
 
-    ref typeof(this) chopFront(const(size_t) chopLength) nothrow pure return
+    ref typeof(this) chopFront(size_t chopLength) nothrow pure return
     {
         if (_length > chopLength)
         {
@@ -707,7 +955,7 @@ public:
             return clear();
     }
 
-    ref typeof(this) chopTail(const(size_t) chopLength) nothrow pure return
+    ref typeof(this) chopTail(size_t chopLength) nothrow pure return
     {
         const newLength = chopLength < _length ? _length - chopLength : 0;
         if (newLength != _length)
@@ -715,24 +963,20 @@ public:
         return this;
     }
 
-    ref typeof(this) clear(const(size_t) capacity = 0) nothrow pure return
+    /**
+     * Removes all elements from the StaticStringBuffer.
+     * This allows the elements of the array to be reused for appending
+     */
+    ref typeof(this) clear() nothrow pure return
     {
-        const resetLength = _length < capacity ? _length : capacity;
-        if (_length != capacity)
-            changeLength(capacity);
-        if (_length)
-        {
-            if (resetLength)
-                _items[0..resetLength] = 0;
-            _length = 0;
-        }
+        _items = [];
+        _length = 0;
         return this;
     }
 
     T[] consume() nothrow pure
     {
         auto result = _items[0.._length].dup;
-        _items[0.._length] = 0;
         _items = [];
         _length = 0;
         _tryExtendBlock = false;
@@ -742,7 +986,6 @@ public:
     immutable(T)[] consumeUnique() nothrow pure
     {
         auto result = _items[0.._length].idup;
-        _items[0.._length] = 0;
         _items = [];
         _length = 0;
         _tryExtendBlock = false;
@@ -753,25 +996,36 @@ public:
     {
         if (_length)
             _items[0.._length] = 0;
+        _staticItems[] = 0;
         _items = [];
         _length = 0;
         _tryExtendBlock = false;
     }
 
-    ref typeof(this) expand(const(size_t) minLength) nothrow return
+    /**
+     * Ensures StaticStringBuffer has minimum minLength
+     * Params:
+     *  minLength = minimum length
+     */
+    ref typeof(this) expand(size_t minLength) nothrow return
     {
         if (_length < minLength)
             changeLength(minLength);
         return this;
     }
 
-    inout(T)[] left(const(size_t) len) inout nothrow pure return
+    inout(T)[] left(size_t len) inout nothrow pure return
     {
         return len >= _length
             ? opIndex()
             : opIndex()[0..len];
     }
 
+    /**
+     * Appending the item to this StaticStringBuffer
+     * Params:
+     *  item = a single item to be appended
+     */
     ref typeof(this) put(T item) nothrow pure return
     {
         reserve(1, 1, false);
@@ -779,6 +1033,11 @@ public:
         return this;
     }
 
+    /**
+     * Appending the items to this StaticStringBuffer
+     * Params:
+     *  items = an array of items to be appended
+     */
     ref typeof(this) put(scope const(T)[] items) nothrow pure return
     {
         if (const len = items.length)
@@ -816,6 +1075,9 @@ public:
         return this;
     }
 
+    /**
+     * Reverses items inplace using swap, the front item became last and last became first
+     */
     ref typeof(this) reverse() @nogc nothrow pure
     {
         import std.algorithm.mutation : swap;
@@ -838,6 +1100,9 @@ public:
             : opIndex()[_length - len.._length];
     }
 
+    /**
+     * Exchanges this StaticStringBuffer elements with other StaticStringBuffer elements
+     */
     ref typeof(this) swap(ref typeof(this) other) @nogc nothrow return @trusted
     {
         if (this._items.ptr is other._items.ptr)
@@ -925,31 +1190,45 @@ public:
         return sink;
     }
 
+    /**
+     * Returns true if this StaticStringBuffer has length = 0
+     */
     pragma(inline, true)
     @property bool empty() const @nogc nothrow pure
     {
         return _length == 0;
     }
 
+    /**
+     * Returns current length of this StaticStringBuffer
+     */
     pragma(inline, true)
     @property size_t length() const @nogc nothrow pure
     {
         return _length;
     }
 
-    @property size_t length(const(size_t) newLength) nothrow
+    /**
+     * Set this StaticStringBuffer length to newLength
+     * Params:
+     *  newLength = the length of this StaticStringBuffer will have
+     */
+    @property size_t length(size_t newLength) nothrow
     {
         if (_length != newLength)
             changeLength(newLength);
         return _length;
     }
 
+    /**
+     * Returns the stack size of this StaticStringBuffer type
+     */
     pragma(inline, true)
-    @property static size_t staticSize() @nogc nothrow pure
-    {
-        return StaticSize;
-    }
+    @property enum size_t staticSize = StaticSize;
 
+    /**
+     * Returns true if this StaticStringBuffer is using stack storage
+     */
     pragma(inline, true)
     @property bool staticUsed() const @nogc nothrow
     {
@@ -974,9 +1253,7 @@ private:
             // Switch to static?
             if (newLength <= StaticSize)
             {
-                if (staticUsed)
-                    _staticItems[newLength.._length] = 0;
-                else
+                if (!staticUsed)
                     switchToStatic(newLength);
             }
             else
@@ -1121,7 +1398,7 @@ nothrow @safe unittest // StaticArray
     assert(a.length == 1);
     assert(a[0] == 10);
 
-    a.clear(3);
+    a.clear();
     a.put(1);
     a.put(2);
     a.put(3);
@@ -1136,7 +1413,7 @@ nothrow @safe unittest // StaticArray
     assert(a[] == [1, 2, 3]);
     a.fill(10);
     assert(a[0..9] == [10, 10, 10]);
-    
+
     a.clear();
     assert(a.empty);
     assert(a.length == 0);

@@ -11,7 +11,8 @@
 
 module pham.utl.utl_array;
 
-import std.traits : hasElaborateDestructor, isDynamicArray, isIntegral, isSomeChar, isStaticArray;
+import std.traits : hasElaborateDestructor, hasIndirections,
+    isDynamicArray, isIntegral, isSomeChar, isStaticArray;
 
 debug(debug_pham_utl_utl_array) import std.stdio : writeln;
 public import pham.utl.utl_array_static;
@@ -56,6 +57,14 @@ do
     return currentLength + (increment > additionalLength ? increment : additionalLength);
 }
 
+void arrayClear(T)(T[] array)
+{
+    static if (hasElaborateDestructor!T)
+        arrayDestroy!T(array, true);
+    else
+        arrayZeroInit!T(array);
+}
+
 void arrayDestroy(T)(T[] array, bool zeroInit)
 if (hasElaborateDestructor!T)
 {
@@ -87,7 +96,7 @@ do
     import core.checkedint : mulu;
     import core.memory : GC;
     import core.stdc.string : memcpy, memset;
-    import std.traits : hasElaborateDestructor, hasIndirections;
+    import std.traits : hasIndirections;
 
     const currentLength = array.length;
     const allocCapacity = arrayCalcCapacity(currentLength, additionalLength, T.sizeof);
@@ -110,7 +119,7 @@ do
     else
     {
         // Clear out previous garbage to avoid runtime pinned memory?
-        static if (hasIndirections!T || hasElaborateDestructor!T)
+        static if (arrayZeroNeeded!T)
             zeroInit = true;
 
         auto blockAttribute() @nogc nothrow pure @safe
@@ -165,7 +174,7 @@ do
             memcpy(bi.base, array.ptr, currentLength * T.sizeof);
 
             // Avoid double destructor
-            static if (hasIndirections!T || hasElaborateDestructor!T)
+            static if (arrayZeroNeeded!T)
                 arrayZeroInit!T(array[0..currentLength]);
         }
 
@@ -209,7 +218,7 @@ do
 {
     import core.memory : GC;
     import core.stdc.string : memcpy, memset;
-    import std.traits : hasElaborateDestructor, hasIndirections;
+    import std.traits : hasIndirections;
 
     if (__ctfe)
     {
@@ -227,22 +236,20 @@ do
                 return GC.BlkAttr.NO_SCAN;
         }
 
-        static if (hasElaborateDestructor!T)
-            arrayDestroy!T(array[newLength..currentLength], true);
-        else static if (hasIndirections!T)
-            arrayZeroInit(array[newLength..currentLength]);
+        static if (arrayZeroNeeded!T)
+            arrayClear!T(array[newLength..currentLength]);
 
         if (newLength >= 8 && newLength < currentLength / 2)
         {
             const allocSize = newLength * T.sizeof;
             auto bi = GC.qalloc(allocSize, blockAttribute);
-            static if (hasIndirections!T || hasElaborateDestructor!T)
+            static if (arrayZeroNeeded!T)
             {
                 if (bi.size > allocSize)
                     memset(bi.base + allocSize, 0, bi.size - allocSize);
             }
             memcpy(bi.base, array.ptr, allocSize);
-            static if (hasIndirections!T || hasElaborateDestructor!T)
+            static if (arrayZeroNeeded!T)
                 arrayZeroInit(array[0..newLength]);
 
             version(customArrayGCFree) auto oldArray = array;
@@ -280,6 +287,8 @@ void arrayZeroInit(T)(T[] array) @nogc nothrow pure @trusted
     else
         memset(array.ptr, 0, array.length * T.sizeof);
 }
+
+enum bool arrayZeroNeeded(T) = hasElaborateDestructor!T || hasIndirections!T;
 
 ptrdiff_t indexOf(T)(scope const(T)[] items, const(T) item) nothrow @trusted
 {

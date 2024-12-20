@@ -13,13 +13,14 @@ module pham.utl.utl_array_dictionary;
 
 import core.exception : RangeError;
 import core.memory : GC;
-import std.algorithm : min, max;
-import std.array : array;
-import std.traits : isIntegral;
 
 version = usePrimeFirstSlot;
 
-debug(debug_pham_utl_utl_array_dictionary) import std.stdio : writeln;
+debug(debug_pham_utl_utl_array_dictionary)
+{
+    import std.stdio : writeln;
+    import std.traits : isIntegral;
+}
 import pham.utl.utl_array : arrayFree, arrayZeroInit, removeAt;
 version(usePrimeFirstSlot) import pham.utl.utl_prime;
 //import pham.utl.utl_array_append : Appender;
@@ -60,7 +61,7 @@ public:
     }
 
     /**
-     * Constructs an Dictionary with a given capacity elements for appending.
+     * Constructs a Dictionary with a given capacity elements for appending.
      * Avoid reallocate memory while populating the Dictionary instant
      * Params:
      *  capacity = reserved number of elements for appending.
@@ -71,19 +72,20 @@ public:
     }
 
     /**
-     * Supports build in foreach operator
+     * Supports build-in foreach operator
      */
     alias opApply = opApplyImpl!(int delegate(V));
     alias opApply = opApplyImpl!(int delegate(const(K), V));
 
     int opApplyImpl(CallBack)(scope CallBack callBack)
-    if (is(CallBack : int delegate(V)) || is(CallBack : int delegate(const(K), V)))
+    if (is(CallBack : int delegate(V)) || is(CallBack : int delegate(ref V)) 
+        || is(CallBack : int delegate(const(K), V)) || is(CallBack : int delegate(const(K), ref V)))
     {
         debug(debug_pham_utl_utl_array_static) if (!__ctfe) debug writeln(__FUNCTION__, "()");
 
         if (length)
         {
-            static if (is(CallBack : int delegate(V)))
+            static if (is(CallBack : int delegate(V)) || is(CallBack : int delegate(ref V)))
             {
                 foreach (ref e; aa.entries)
                 {
@@ -129,7 +131,7 @@ public:
      * Reset this Dictionary instant from an other Dictionary with similar types
      * Params:
      *  rhs = source data from an other Dictionary with similar types
-     *        if rhs type is exact with the dictionary, it will only set the internal implementation
+     *        if rhs type is exact with the Dictionary, it will only set the internal implementation
      *        which behaves like class/object assignment (no data copy taken place)
      */
     ref typeof(this) opAssign(OK, OV)(Dictionary!(OK, OV) rhs) nothrow return
@@ -141,13 +143,16 @@ public:
         }
         else
         {
-            // build manually
+            // Build manually
             const ol = rhs.length;
             if (ol)
             {
                 this.aa = new Impl(ol);
                 foreach (ref e; rhs.aa.entries)
-                    this.aa.add(e.key, e.value);
+                {
+                    auto ee = Entry(e.hash, 0, e._key, e.value);
+                    this.aa.add(ee);
+                }
             }
             else
                 this.aa = null;
@@ -221,7 +226,7 @@ public:
      * Returns:
      *  The value being added
      */
-    ref V opIndexAssign(V value, K key) return
+    ref V opIndexAssign()(auto ref V value, K key) return
     {
         if (!aa)
             aa = new Impl(0);
@@ -246,7 +251,7 @@ public:
     }
 
     /**
-     * Returns a duplicate of the dictionary
+     * Returns a duplicate of the Dictionary
      */
     typeof(this) dup()
     {
@@ -284,9 +289,9 @@ public:
     }
 
     /**
-     * Reorganizes the dictionary in place so that lookups are more efficient.
+     * Reorganizes the Dictionary in place so that lookups are more efficient.
      * Rehash is effective when there were a lot of removed keys
-     * Returns a reference to the dictionary.
+     * Returns a reference to the Dictionary.
      */
     ref typeof(this) rehash() nothrow pure return @safe
     {
@@ -297,7 +302,7 @@ public:
     }
 
     /**
-     * Removes the value with the specified key from the dictionary.
+     * Removes the value with the specified key from the Dictionary.
      * Returns true if the key if found, false otherwise
      * Params:
      *  key = the key of the element to remove
@@ -308,7 +313,7 @@ public:
     }
 
     /**
-     * Removes the value with the specified index from the dictionary.
+     * Removes the value with the specified index from the Dictionary.
      * Returns true if the index is within range, false otherwise
      * Params:
      *  index = the index of the element to remove
@@ -319,7 +324,7 @@ public:
     }
 
     /**
-     * Looks up key; if it exists returns corresponding value else evaluates value, adds it to the dictionary and returns it
+     * Looks up key; if it exists returns corresponding value else evaluates value, adds it to the Dictionary and returns it
      * Params:
      *  key = the key of the element to lookup/add
      *  value = the value being added if key is not found
@@ -333,7 +338,7 @@ public:
     }
 
     /**
-     * Returns a hash value of the dictionary
+     * Returns a hash value of the Dictionary
      */
     size_t toHash() const nothrow scope
     {
@@ -341,7 +346,7 @@ public:
     }
 
     /**
-     * Looks up key; if it exists applies the update delegate else evaluates the create delegate and adds it to the dictionary
+     * Looks up key; if it exists applies the update delegate else evaluates the create delegate and adds it to the Dictionary
      * Params:
      *  key = the key of the element to lookup/add
      *  createVal = a delegate to create new value if the key is not found
@@ -357,7 +362,7 @@ public:
     }
 
     /**
-     * Returns a forward range suitable for use as a foreach which will iterate over the keys of the dictionary
+     * Returns a forward range suitable for use as a foreach which will iterate over the keys of the Dictionary
      */
     @property auto byKey() @nogc nothrow pure
     {
@@ -365,7 +370,7 @@ public:
     }
 
     /**
-     * Returns a forward range suitable for use as a foreach which will iterate over the keys & values of the dictionary
+     * Returns a forward range suitable for use as a foreach which will iterate over the keys & values of the Dictionary
      */
     @property auto byKeyValue() @nogc nothrow pure
     {
@@ -373,7 +378,7 @@ public:
     }
 
     /**
-     * Returns a forward range suitable for use as a foreach which will iterate over the values of the dictionary
+     * Returns a forward range suitable for use as a foreach which will iterate over the values of the Dictionary
      */
     @property auto byValue() @nogc nothrow pure
     {
@@ -381,7 +386,7 @@ public:
     }
 
     /**
-     * The current capacity that the dictionary can hold entries
+     * The current capacity that the Dictionary can hold entries
      */
     @property size_t capacity() const @nogc nothrow pure @safe
     {
@@ -389,7 +394,7 @@ public:
     }
 
     /**
-     * The maximum collision count that a lookup needs to travel to find a key
+     * The maximum collision count that a lookup needs to travel to find a key (hash collision)
      */
     @property size_t collision() const @nogc nothrow pure @safe
     {
@@ -401,11 +406,13 @@ public:
      */
     @property const(K)[] keys() nothrow
     {
+        import std.array : array;
+        
         return this.byKey.array;
     }
 
     /**
-     * Returns number of values in the dictionary
+     * Returns number of elements in the Dictionary
      */
     pragma(inline, true)
     @property size_t length() const @nogc nothrow pure @safe
@@ -418,6 +425,8 @@ public:
      */
     @property V[] values() nothrow
     {
+        import std.array : array;
+        
         return this.byValue.array;
     }
 
@@ -1387,7 +1396,7 @@ nothrow pure unittest // Dictionary testByKey4()
     // Test forward range capabilities of byValue
     {
         size_t[string] aa;
-        foreach (i; 0 .. keys.length)
+        foreach (i; 0..keys.length)
         {
             aa[keys[i]] = i;
         }
@@ -1738,7 +1747,7 @@ unittest // Dictionary issue20440()
 ///
 unittest // Dictionary issue21442()
 {
-    import core.memory;
+    import core.memory : GC;
 
     Dictionary!(size_t, size_t) glob;
 
@@ -1749,13 +1758,13 @@ unittest // Dictionary issue21442()
         this (size_t entries) @safe
         {
             this.count = entries;
-            foreach (idx; 0 .. entries)
+            foreach (idx; 0..entries)
                 glob[idx] = idx;
         }
 
         ~this () @safe
         {
-            foreach (idx; 0 .. this.count)
+            foreach (idx; 0..this.count)
                 glob.remove(idx);
         }
     }
@@ -1908,14 +1917,14 @@ unittest // Dictionary testZeroSizedValue()
 unittest // Dictionary testTombstonePurging()
 {
     Dictionary!(int, int) aa;
-    foreach (i; 0 .. 6)
+    foreach (i; 0..6)
         aa[i] = i;
-    foreach (i; 0 .. 6)
+    foreach (i; 0..6)
         assert(aa.remove(i));
-    foreach (i; 6 .. 10)
+    foreach (i; 6..10)
         aa[i] = i;
     assert(aa.length == 4);
-    foreach (i; 6 .. 10)
+    foreach (i; 6..10)
         assert(i in aa);
 }
 
@@ -1923,7 +1932,7 @@ unittest // Dictionary testClear()
 {
     Dictionary!(int, int) aa;
     assert(aa.length == 0);
-    foreach (i; 0 .. 100)
+    foreach (i; 0..100)
         aa[i] = i * 2;
     assert(aa.length == 100);
     auto aa2 = aa;

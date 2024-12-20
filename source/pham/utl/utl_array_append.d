@@ -46,7 +46,7 @@ public:
     }
 
     /**
-     * Constructs an `Appender` with a given capacity elements for appending.
+     * Constructs an Appender with a given capacity elements for appending.
      */
     this(size_t capacity)
     {
@@ -106,7 +106,7 @@ public:
      * Params:
      *     item = the single item to append
      */
-    ref typeof(this) put(U)(U item) return
+    ref typeof(this) put(U)(auto ref U item) return
     if (canPutItem!U)
     {
         static if (isSomeChar!ET && isSomeChar!U && ET.sizeof < U.sizeof)
@@ -126,8 +126,11 @@ public:
         
             const endLength = ensureAddable(1, 1);
             auto bigData = _data.values[endLength..endLength + 1];
-            auto unqualItem = (() @trusted => &cast()item)();
-            () @trusted { emplace(&bigData[0], *unqualItem); }();
+            () @trusted
+            { 
+                auto unqualItem = &cast()item;
+                emplace(&bigData[0], *unqualItem); 
+            }();
             _data.length += 1;
         }
 
@@ -241,7 +244,7 @@ public:
      *
      * Throws: `Exception` if newLength is greater than the managed array length.
      */
-    ref typeof(this) shrinkTo(const(size_t) newLength) return
+    ref typeof(this) shrinkTo(size_t newLength) return
     {
         if (newLength == 0)
             return clear();

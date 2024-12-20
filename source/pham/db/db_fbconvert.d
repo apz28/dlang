@@ -235,7 +235,7 @@ bool int128Encode(ref ubyte[int128ByteLength] bigEndianBytes, scope const(BigInt
 	// Pad?
 	if (b.length < int128ByteLength)
     {
-		const ubyte padValue = value.sign == -1 ? 255u : 0u;
+		ubyte padValue = value.sign == -1 ? 255u : 0u;
 		const oldLength = b.length;
 		b.length = int128ByteLength;
 		b.fill(padValue, oldLength);
