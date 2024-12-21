@@ -18,27 +18,12 @@ import pham.utl.utl_array : arrayClear, arrayDestroy, arrayGrow, arrayShiftLeft,
     arrayZeroInit, arrayZeroNeeded;
 import pham.utl.utl_disposable : DisposingReason;
 
-enum supportInnerPointer = false; // DMD does not support inner pointer for struct
-
 struct StaticArray(T, ushort StaticSize)
 if (StaticSize != 0)
 {
     import std.traits : hasElaborateDestructor;
 
 public:
-    static if (supportInnerPointer)
-    this(this) nothrow pure
-    {
-        if (_length <= StaticSize)
-        {
-            _items = _staticItems[];
-            _tryExtendBlock = false;
-        }
-    }
-
-    static if (!supportInnerPointer)
-    @disable this(this);
-
     /**
      * A copy constructor of StaticArray
      */
@@ -134,7 +119,7 @@ public:
             this.length = newLength;
             this._items[0..newLength] = rhs[0..newLength];
         }
-        else    
+        else
             clear();
         return this;
     }
@@ -156,12 +141,12 @@ public:
         return this;
     }
 
-    alias opDollar = length;
-
     bool opCast(B: bool)() const nothrow
     {
         return !empty;
     }
+
+    alias opDollar = length;
 
     /**
      * Returns range interface
@@ -221,9 +206,15 @@ public:
         return this;
     }
 
+    void opPostMove(const ref typeof(this) old) @nogc nothrow @safe
+    {
+        if (_length <= StaticSize && !staticUsed)
+            setStaticReference();
+    }
+
     /**
      * Returns range interface.
-     * if beginRange is greater/equal with this StaticArray length, an empty range is returned 
+     * if beginRange is greater/equal with this StaticArray length, an empty range is returned
      * Params:
      *  beginRange = starting index of element range
      *  endRange = exclusive index of element range
@@ -618,10 +609,7 @@ private:
         if (_length + additionalLength <= StaticSize)
         {
             if (_items.length == 0)
-            {
-                _items = _staticItems[];
-                _tryExtendBlock = false;
-            }
+                setStaticReference();
             return;
         }
 
@@ -631,8 +619,7 @@ private:
     void switchToStatic(const(size_t) newLength) nothrow
     {
         moveTo(_items, _staticItems, newLength);
-        _items = _staticItems[];
-        _tryExtendBlock = false;
+        setStaticReference();
     }
 
     static void moveTo(T[] sources, ref T[StaticSize] destinations, const(size_t) length) nothrow @trusted
@@ -687,6 +674,13 @@ private:
             arrayZeroInit!T(sources[]); // Make sure all are zero
     }
 
+    pragma(inline, true)
+    void setStaticReference() @nogc nothrow pure @safe
+    {
+        _items = _staticItems[];
+        _tryExtendBlock = false;
+    }
+
 private:
     size_t _length;
     T[] _items;
@@ -700,19 +694,6 @@ if (StaticSize != 0 && (isSomeChar!T || isIntegral!T))
 @safe:
 
 public:
-    static if(supportInnerPointer)
-    this(this) nothrow pure
-    {
-        if (_length <= StaticSize)
-        {
-            _items = _staticItems[];
-            _tryExtendBlock = false;
-        }
-    }
-
-    static if(!supportInnerPointer)
-    @disable this(this);
-
     /**
      * A copy constructor of StaticStringBuffer
      */
@@ -735,7 +716,7 @@ public:
     {
         opAssign(items);
     }
-    
+
     /**
      * Constructs a StaticStringBuffer with a given capacity elements for appending.
      * Avoid reallocate memory while populating the StaticStringBuffer instant
@@ -921,9 +902,15 @@ public:
         return this;
     }
 
+    void opPostMove(const ref typeof(this) old) @nogc nothrow @safe
+    {
+        if (_length <= StaticSize && !staticUsed)
+            setStaticReference();
+    }
+
     /**
      * Returns range interface
-     * if beginRange is greater/equal with this StaticStringBuffer length, an empty range is returned 
+     * if beginRange is greater/equal with this StaticStringBuffer length, an empty range is returned
      * Params:
      *  beginRange = starting index of element range
      *  endRange = exclusive index of element range
@@ -1277,10 +1264,7 @@ private:
         if (_length + additionalLength <= StaticSize)
         {
             if (_items.length == 0)
-            {
-                _items = _staticItems[];
-                _tryExtendBlock = false;
-            }
+                setStaticReference();
             return;
         }
 
@@ -1290,6 +1274,12 @@ private:
     void switchToStatic(const(size_t) newLength) nothrow
     {
         _staticItems[0..newLength] = _items[0..newLength];
+        setStaticReference();
+    }
+
+    pragma(inline, true)
+    void setStaticReference() @nogc nothrow pure @safe
+    {
         _items = _staticItems[];
         _tryExtendBlock = false;
     }
