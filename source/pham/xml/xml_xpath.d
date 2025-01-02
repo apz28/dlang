@@ -16,6 +16,7 @@ import std.math : isNaN;
 import std.typecons : Flag, No, Yes;
 
 debug(debug_pham_xml_xml_xpath) import std.stdio : writeln;
+import pham.utl.utl_array_dictionary;
 import pham.utl.utl_object : className, shortClassName, singleton;
 import pham.utl.utl_enum_set : EnumArray;
 import pham.xml.xml_buffer;
@@ -330,7 +331,7 @@ public:
 
     this(const typeof(this) source) nothrow @trusted
 	{
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
+        //debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
         this._type = source.type;
         final switch (source.type)
@@ -474,8 +475,7 @@ public:
 
     void clear() nothrow
     {
-        debug(debug_pham_xml_xml_xpath)
-        outputXmlTraceXPathParserF("XPathValue.clear(value[%d]: %s)", _type, toString());
+        //debug(debug_pham_xml_xml_xpath) outputXmlTraceXPathParserF("XPathValue.clear(value[%d]: %s)", _type, toString());
 
         if (_type != XPathDataType.empty)
             doClear();
@@ -811,8 +811,7 @@ public:
 
     this(XPathNode!S parent, XPathAxisType axisType, XPathNode!S input) nothrow
     {
-        debug(debug_pham_xml_xml_xpath)
-        outputXmlTraceXPathParserF("%s.this(axisType: %s, input: %s)", shortClassName(this), axisType, shortClassName(input));
+        //debug(debug_pham_xml_xml_xpath) outputXmlTraceXPathParserF("%s.this(axisType: %s, input: %s)", shortClassName(this), axisType, shortClassName(input));
 
         this(parent, axisType, input, XPathNodeType.all, null, null);
         this._abbreviated = true;
@@ -1375,8 +1374,6 @@ protected:
         defaultFunctions[to!S(XPathFunctionType.text)] = &fctText!S;
         defaultFunctions[to!S(XPathFunctionType.translate)] = &fctTranslate!S;
         //defaultFunctions[to!S(XPathFunctionType.)] = &fct!S;
-
-        (() @trusted => defaultFunctions.rehash())();
     }
 
 protected:
@@ -1954,8 +1951,7 @@ class XPathRoot(S = string) : XPathNode!S
 public:
     this(XPathNode!S parent) nothrow
     {
-        debug(debug_pham_xml_xml_xpath)
-        outputXmlTraceXPathParser(shortClassName(this), ".this()");
+        //debug(debug_pham_xml_xml_xpath) outputXmlTraceXPathParser(shortClassName(this), ".this()");
 
         this._parent = parent;
     }
@@ -2097,8 +2093,6 @@ protected:
         data["preceding"] = XPathAxisType.preceding;
         data["preceding-sibling"] = XPathAxisType.precedingSibling;
         data["self"] = XPathAxisType.self;
-
-        (() @trusted => data.rehash())();
     }
 
 private:
@@ -2157,18 +2151,16 @@ class XPathFunctionParamInfoTable(S = string) : XmlObject!S
 public:
     this() nothrow
     {
-        initDefault();
+        this.data = initDefault();
     }
 
-    static const(XPathFunctionParamInfoTable!S) defaultFunctionParamInfoTable() nothrow @trusted
+    static XPathFunctionParamInfoTable!S defaultFunctionParamInfoTable() nothrow @trusted
     {
         return singleton!(XPathFunctionParamInfoTable!S)(_defaultFunctionParamInfoTable, &createDefaultFunctionParamInfoTable);
     }
 
-    final const(XPathParamInfo!S) find(scope const(C)[] name) const nothrow
+    final const(XPathParamInfo!S) find(scope const(C)[] name) nothrow
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
         if (auto e = name in data)
             return *e;
         else
@@ -2176,7 +2168,7 @@ public:
     }
 
 public:
-    XPathParamInfo!S[S] data;
+    Dictionary!(S, XPathParamInfo!S) data;
 
 protected:
     static XPathFunctionParamInfoTable!S createDefaultFunctionParamInfoTable() nothrow
@@ -2184,47 +2176,52 @@ protected:
         return new XPathFunctionParamInfoTable!S();
     }
 
-    final void initDefault() nothrow
+    static Dictionary!(S, XPathParamInfo!S) initDefault() nothrow
     {
         static immutable XPathResultType[] paramTypeEmpty = [];
-        static immutable XPathResultType[] paramType1NodeSet = [XPathResultType.nodeSet];
         static immutable XPathResultType[] paramType1Any = [XPathResultType.any];
-        static immutable XPathResultType[] paramType1Text = [XPathResultType.text];
-        static immutable XPathResultType[] paramType2Text = [XPathResultType.text, XPathResultType.text];
-        static immutable XPathResultType[] paramType1Text2Number = [XPathResultType.text, XPathResultType.number, XPathResultType.number];
-        static immutable XPathResultType[] paramType3Text = [XPathResultType.text, XPathResultType.text, XPathResultType.text];
         static immutable XPathResultType[] paramType1Boolean = [XPathResultType.boolean];
+        static immutable XPathResultType[] paramType1NodeSet = [XPathResultType.nodeSet];
         static immutable XPathResultType[] paramType1Number = [XPathResultType.number];
+        static immutable XPathResultType[] paramType1Text = [XPathResultType.text];
+        static immutable XPathResultType[] paramType1Text2Number = [XPathResultType.text, XPathResultType.number, XPathResultType.number];
+        static immutable XPathResultType[] paramType2Text = [XPathResultType.text, XPathResultType.text];
+        static immutable XPathResultType[] paramType3Text = [XPathResultType.text, XPathResultType.text, XPathResultType.text];
 
-        data["last"] = new XPathParamInfo!S(XPathFunctionType.last, 0, 0, paramTypeEmpty);
-        data["position"] = new XPathParamInfo!S(XPathFunctionType.position, 0, 0, paramTypeEmpty);
-        data["name"] = new XPathParamInfo!S(XPathFunctionType.name, 0, 1, paramType1NodeSet);
-        data["namespace-uri"] = new XPathParamInfo!S(XPathFunctionType.namespaceUri, 0, 1, paramType1NodeSet);
-        data["local-name"] = new XPathParamInfo!S(XPathFunctionType.localName, 0, 1, paramType1NodeSet);
-        data["count"] = new XPathParamInfo!S(XPathFunctionType.count, 1, 1, paramType1NodeSet);
-        data["id"] = new XPathParamInfo!S(XPathFunctionType.id, 1, 1, paramType1Any);
-        data["string"] = new XPathParamInfo!S(XPathFunctionType.text, 0, 1, paramType1Any);
-        data["concat"] = new XPathParamInfo!S(XPathFunctionType.concat, 2, size_t.max, paramType1Text);
-        data["starts-with"] = new XPathParamInfo!S(XPathFunctionType.startsWith, 2, 2, paramType2Text);
-        data["contains"] = new XPathParamInfo!S(XPathFunctionType.contains, 2, 2, paramType2Text);
-        data["substring-before"] = new XPathParamInfo!S(XPathFunctionType.substringBefore, 2, 2, paramType2Text);
-        data["substring-after"] = new XPathParamInfo!S(XPathFunctionType.substringAfter, 2, 2, paramType2Text);
-        data["substring"] = new XPathParamInfo!S(XPathFunctionType.substring, 2, 3, paramType1Text2Number);
-        data["string-length"] = new XPathParamInfo!S(XPathFunctionType.stringLength, 0, 1, paramType1Text);
-        data["normalize-space"] = new XPathParamInfo!S(XPathFunctionType.normalize, 0, 1, paramType1Text);
-        data["translate"] = new XPathParamInfo!S(XPathFunctionType.translate, 3, 3, paramType3Text);
-        data["boolean"] = new XPathParamInfo!S(XPathFunctionType.boolean, 1, 1, paramType1Any);
-        data["not"] = new XPathParamInfo!S(XPathFunctionType.not, 1, 1, paramType1Boolean);
-        data["true"] = new XPathParamInfo!S(XPathFunctionType.true_, 0, 0, paramType1Boolean);
-        data["false"] = new XPathParamInfo!S(XPathFunctionType.false_, 0, 0, paramType1Boolean);
-        data["lang"] = new XPathParamInfo!S(XPathFunctionType.lang, 1, 1, paramType1Text);
-        data["number"] = new XPathParamInfo!S(XPathFunctionType.number, 0, 1, paramType1Any);
-        data["sum"] = new XPathParamInfo!S(XPathFunctionType.sum, 1, 1, paramType1NodeSet);
-        data["floor"] = new XPathParamInfo!S(XPathFunctionType.floor, 1, 1, paramType1Number);
-        data["ceiling"] = new XPathParamInfo!S(XPathFunctionType.ceiling, 1, 1, paramType1Number);
-        data["round"] = new XPathParamInfo!S(XPathFunctionType.round, 1, 1, paramType1Number);
+        auto result = Dictionary!(S, XPathParamInfo!S)(40, 30, DictionaryHashMix.none);
 
-        (() @trusted => data.rehash())();
+        result["boolean"] = new XPathParamInfo!S(XPathFunctionType.boolean, 1, 1, paramType1Any);
+        result["ceiling"] = new XPathParamInfo!S(XPathFunctionType.ceiling, 1, 1, paramType1Number);
+        result["concat"] = new XPathParamInfo!S(XPathFunctionType.concat, 2, size_t.max, paramType1Text);
+        result["contains"] = new XPathParamInfo!S(XPathFunctionType.contains, 2, 2, paramType2Text);
+        result["count"] = new XPathParamInfo!S(XPathFunctionType.count, 1, 1, paramType1NodeSet);
+        result["false"] = new XPathParamInfo!S(XPathFunctionType.false_, 0, 0, paramType1Boolean);
+        result["floor"] = new XPathParamInfo!S(XPathFunctionType.floor, 1, 1, paramType1Number);
+        result["id"] = new XPathParamInfo!S(XPathFunctionType.id, 1, 1, paramType1Any);
+        result["lang"] = new XPathParamInfo!S(XPathFunctionType.lang, 1, 1, paramType1Text);
+        result["last"] = new XPathParamInfo!S(XPathFunctionType.last, 0, 0, paramTypeEmpty);
+        result["local-name"] = new XPathParamInfo!S(XPathFunctionType.localName, 0, 1, paramType1NodeSet);
+        result["name"] = new XPathParamInfo!S(XPathFunctionType.name, 0, 1, paramType1NodeSet);
+        result["namespace-uri"] = new XPathParamInfo!S(XPathFunctionType.namespaceUri, 0, 1, paramType1NodeSet);
+        result["normalize-space"] = new XPathParamInfo!S(XPathFunctionType.normalize, 0, 1, paramType1Text);
+        result["not"] = new XPathParamInfo!S(XPathFunctionType.not, 1, 1, paramType1Boolean);
+        result["number"] = new XPathParamInfo!S(XPathFunctionType.number, 0, 1, paramType1Any);
+        result["position"] = new XPathParamInfo!S(XPathFunctionType.position, 0, 0, paramTypeEmpty);
+        result["round"] = new XPathParamInfo!S(XPathFunctionType.round, 1, 1, paramType1Number);
+        result["starts-with"] = new XPathParamInfo!S(XPathFunctionType.startsWith, 2, 2, paramType2Text);
+        result["string"] = new XPathParamInfo!S(XPathFunctionType.text, 0, 1, paramType1Any);
+        result["string-length"] = new XPathParamInfo!S(XPathFunctionType.stringLength, 0, 1, paramType1Text);
+        result["substring"] = new XPathParamInfo!S(XPathFunctionType.substring, 2, 3, paramType1Text2Number);
+        result["substring-after"] = new XPathParamInfo!S(XPathFunctionType.substringAfter, 2, 2, paramType2Text);
+        result["substring-before"] = new XPathParamInfo!S(XPathFunctionType.substringBefore, 2, 2, paramType2Text);
+        result["sum"] = new XPathParamInfo!S(XPathFunctionType.sum, 1, 1, paramType1NodeSet);
+        result["translate"] = new XPathParamInfo!S(XPathFunctionType.translate, 3, 3, paramType3Text);
+        result["true"] = new XPathParamInfo!S(XPathFunctionType.true_, 0, 0, paramType1Boolean);
+
+        debug(debug_pham_xml_xml_xpath) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return result;
     }
 
 private:
@@ -2776,8 +2773,7 @@ private:
     pragma(inline, true)
     void checkAndSkipToken(C t)
     {
-        debug(debug_pham_xml_xml_xpath)
-        outputXmlTraceXPathParserF("%spassToken('%c') ? '%c'", indentString(), t, scanner.kind);
+        //debug(debug_pham_xml_xml_xpath) outputXmlTraceXPathParserF("%spassToken('%c') ? '%c'", indentString(), t, scanner.kind);
 
         checkToken(t);
         nextLex();
@@ -2795,7 +2791,7 @@ private:
     pragma(inline, true)
     void checkToken(C t)
     {
-        debug(debug_pham_xml_xml_xpath)debug writeln(__FUNCTION__, "(t=", t, ")"); 
+        debug(debug_pham_xml_xml_xpath)debug writeln(__FUNCTION__, "(t=", t, ")");
 
         if (scanner.kind != t)
             throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar,
@@ -2816,7 +2812,7 @@ private:
     pragma(inline, true)
     bool isOp(scope const(C)[] opName)
     {
-        debug(debug_pham_xml_xml_xpath)debug writeln(__FUNCTION__, "(opName=", opName, ")"); 
+        debug(debug_pham_xml_xml_xpath)debug writeln(__FUNCTION__, "(opName=", opName, ")");
 
         return scanner.kind == XPathScannerLexKind.name &&
             scanner.prefix.length == 0 &&
@@ -3659,7 +3655,6 @@ private:
 // Any below codes are private
 private:
 
-
 void opCompare(string Op, S)(XPathOperator!S opNode, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     auto outputContext1 = inputContext.createOutputContext();
@@ -4248,7 +4243,7 @@ if (isXmlString!S)
     import std.math : isInfinity, signbit;
 
     scope (failure) assert(0, "Assume nothrow failed");
-    
+
     if (isNaN(value))
         return "NaN";
     else if (isInfinity(value))

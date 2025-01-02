@@ -18,6 +18,7 @@ import std.traits : fullyQualifiedName,
     Unqual;
 
 debug(debug_pham_var_var_coerce) import std.stdio : writeln;
+import pham.utl.utl_array_dictionary;
 
 enum ConvertHandlerFlag : uint
 {
@@ -65,14 +66,14 @@ public:
     static void add(string srcQualifiedName, string dstQualifiedName, ConvertHandler handler)
     {
         debug(debug_pham_var_var_coerce) debug writeln(__FUNCTION__, "(from=", srcQualifiedName, ", to=", dstQualifiedName, ")");
-    
+
         add(ConvertHandlerKey(srcQualifiedName, dstQualifiedName), handler);
     }
 
     static void add(S, D)(ConvertHandler handler)
     {
         debug(debug_pham_var_var_coerce) debug writeln(__FUNCTION__, "(from=", fullyQualifiedName!S, ", to=", fullyQualifiedName!D, ")");
-    
+
         add(ConvertHandlerKey(fullyQualifiedName!S, fullyQualifiedName!D), handler);
     }
 
@@ -134,19 +135,19 @@ public:
     {
         return findCoerce(fullyQualifiedName!S, fullyQualifiedName!D, doCoerce);
     }
-    
+
     pragma(inline, true)
     @property bool canCast() const @nogc pure
     {
         return doCast !is null;
     }
-    
+
     pragma(inline, true)
     @property bool canCoerce() const @nogc pure
     {
         return doCoerce !is null;
     }
-    
+
     pragma(inline, true)
     @property bool canImplicit() const @nogc pure
     {
@@ -386,13 +387,15 @@ if (isSomeString!S && isConstString!D && is(CharOfString!S == CharOfString!D))
     return true;
 }
 
-__gshared ConvertHandler[ConvertHandlerKey] convertHandlers;
+__gshared Dictionary!(ConvertHandlerKey, ConvertHandler) convertHandlers;
 
 import core.attribute : standalone;
 
 @standalone
 shared static this() nothrow @trusted
 {
+    convertHandlers = Dictionary!(ConvertHandlerKey, ConvertHandler)(1_500, 1_000, DictionaryHashMix.none);
+
     ConvertHandler handler;
 
     // To integral type
@@ -488,6 +491,9 @@ shared static this() nothrow @trusted
             }
         }
     }
+
+    debug(debug_pham_var_var_coerce) if (convertHandlers.maxCollision) debug writeln(__FUNCTION__, "(convertHandlers.maxCollision=", convertHandlers.maxCollision,
+        ", convertHandlers.collisionCount=", convertHandlers.collisionCount, ", convertHandlers.capacity=", convertHandlers.capacity, ", convertHandlers.length=", convertHandlers.length, ")");
 }
 
 version(unittest)

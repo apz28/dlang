@@ -11,6 +11,8 @@
 
 module pham.xml.xml_entity_table;
 
+debug(debug_pham_xml_xml_entity_table) import std.stdio : writeln;
+import pham.utl.utl_array_dictionary;
 import pham.utl.utl_object : singleton;
 import pham.xml.xml_message;
 import pham.xml.xml_object;
@@ -26,10 +28,10 @@ class XmlEntityTable(S = string) : XmlObject!S
 public:
     this() nothrow pure
     {
-        initDefault();
+        this.data = initDefault();
     }
 
-    static const(XmlEntityTable!S) defaultEntityTable() nothrow @trusted
+    static XmlEntityTable!S defaultEntityTable() nothrow @trusted
     {
         return singleton!(XmlEntityTable!S)(_defaultEntityTable, &createDefaultEntityTable);
     }
@@ -42,8 +44,10 @@ public:
             true if encodedValue found in the table
             false otherwise
     */
-    final bool find(scope const(C)[] encodedValue, ref S decodedValue) const nothrow
+    final bool find(scope const(C)[] encodedValue, ref S decodedValue) nothrow
     {
+        //pragma(msg, "S=" ~ S.stringof ~ ", C=" ~ C.stringof);
+
         if (auto e = encodedValue in data)
         {
             decodedValue = *e;
@@ -57,13 +61,12 @@ public:
     */
     final typeof(this) reset() nothrow
     {
-        data = null;
-        initDefault();
+        data = initDefault();
         return this;
     }
 
 public:
-    S[S] data;
+    Dictionary!(S, S) data;
 
 protected:
     static XmlEntityTable!S createDefaultEntityTable() nothrow pure
@@ -71,15 +74,20 @@ protected:
         return new XmlEntityTable!S();
     }
 
-    final void initDefault() nothrow pure
+    static Dictionary!(S, S) initDefault() nothrow pure
     {
-        data["&amp;"] = "&";
-        data["&apos;"] = "'";
-        data["&gt;"] = ">";
-        data["&lt;"] = "<";
-        data["&quot;"] = "\"";
+        auto result = Dictionary!(S, S)(6, 6, DictionaryHashMix.murmurHash3);
 
-        (() @trusted => data.rehash())();
+        result["&amp;"] = "&";
+        result["&apos;"] = "'";
+        result["&gt;"] = ">";
+        result["&lt;"] = "<";
+        result["&quot;"] = "\"";
+
+        debug(debug_pham_xml_xml_entity_table) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return result;
     }
 
 private:

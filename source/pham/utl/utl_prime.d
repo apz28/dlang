@@ -56,14 +56,12 @@ size_t expandPrimeLength(const(size_t) oldLength) @nogc nothrow pure
  * Params:
  *  max = maximum posititive number that the result must be satisfied
  */
-size_t getMaxPrime(size_t max) @nogc nothrow pure
+size_t getMaxPrime(const(size_t) max) @nogc nothrow pure
 {
-    while (max != 0)
+    for (size_t i = (max-1 | 1); i > 3; i -= 2)
     {
-        if (isPrime(max) && ((max - 1) % hashPrime != 0))
-            return max;
-            
-        max--;
+        if (isPrime(i) && ((i - 1) % hashPrime != 0))
+            return i;
     }
         
     return 3;
@@ -101,7 +99,6 @@ size_t getPrimeLength(const(size_t) min) @nogc nothrow pure
     return getPrime(min);
 }
 
-
 /**
  * Returns true if candidate is a prime number
  * Params:
@@ -129,4 +126,10 @@ unittest
     import std.stdio : writeln;
 
     debug writeln("Largest prime number less than ", uint.max.stringof, " is ", getMaxPrime(uint.max - 1));
+}
+
+unittest // getPrimeLength
+{
+    assert(getPrimeLength(1) == 11);
+    assert(getPrimeLength(1_450) == 1_597);
 }

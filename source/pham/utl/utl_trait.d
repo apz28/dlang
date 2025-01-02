@@ -17,6 +17,20 @@ import std.traits : BaseClassesTuple, BaseTypeTuple, fullyQualifiedName, Functio
 
 @safe:
 
+template ElementTypeOf(R)
+{
+    import std.range.primitives : ElementType;
+
+    static if (is(R == string) || is(R == const(char)[]) || is(R == char[]))
+        alias ElementTypeOf = char;
+    else static if (is(R == wstring) || is(R == const(wchar)[]) || is(R == wchar[]))
+        alias ElementTypeOf = wchar;
+    else static if (is(R == dstring) || is(R == const(dchar)[]) || is(R == dchar[]))
+        alias ElementTypeOf = dchar;
+    else
+        alias ElementTypeOf = Unqual!(ElementType!R);
+}
+
 template getParamType(alias functionSymbol, size_t i)
 {
     alias getParamType = Parameters!functionSymbol[i];
@@ -176,42 +190,42 @@ unittest // isTypeOf
 {
     static struct S {}
     static class C {}
-    
+
     static assert(isTypeOf!(int, int));
     static assert(isTypeOf!(const(int), int));
     static assert(isTypeOf!(immutable(int), int));
     static assert(isTypeOf!(shared int, int));
-    
+
     static assert(isTypeOf!(S, S));
     static assert(isTypeOf!(const(S), S));
     static assert(isTypeOf!(immutable(S), S));
     static assert(isTypeOf!(shared S, S));
-    
+
     static assert(isTypeOf!(C, C));
     static assert(isTypeOf!(const(C), C));
     static assert(isTypeOf!(immutable(C), C));
     static assert(isTypeOf!(shared C, C));
-    
+
     static assert(isTypeOf!(string, string));
     static assert(isTypeOf!(const(string), string));
     static assert(isTypeOf!(immutable(string), string));
-    static assert(isTypeOf!(shared string, string));    
+    static assert(isTypeOf!(shared string, string));
 }
 
 unittest // isCallableWithParameterTypes
 {
     static struct Serializable
     {}
-    
+
     static struct SerializableMemberOptions
     {}
-    
+
     static struct Deserializer
     {}
-    
+
     static struct Serializer
     {}
-    
+
     static struct S
     {
         ptrdiff_t deserialize(Deserializer deserializer, SerializableMemberOptions memberOptions, ptrdiff_t readLength, scope ref Serializable attribute) @safe

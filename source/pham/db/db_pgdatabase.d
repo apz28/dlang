@@ -2652,9 +2652,10 @@ version(UnitTestPerfPGDatabase)
 unittest // PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/953
 {
     import std.format : format;
+    import pham.db.db_debug;
 
     const perfResult = unitTestPerfPGDatabase();
-    dgWriteln("PG-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
+    debug writeln("PG-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
 }
 
 version(UnitTestPGDatabase)

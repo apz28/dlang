@@ -15,8 +15,8 @@ import std.bitmanip : swapEndian;
 import std.string : representation;
 import std.system : Endian;
 
-debug(debug_pham_db_db_buffer) import std.stdio : writeln;
-
+debug(debug_pham_db_db_buffer) import pham.db.db_debug;
+version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_array : inplaceMoveToLeft;
 import pham.utl.utl_bit : numericBitCast;
 import pham.utl.utl_dlink_list;

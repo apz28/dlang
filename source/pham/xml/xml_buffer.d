@@ -113,7 +113,7 @@ public:
         Example:
             writeln(decode("a &gt; b")); // writes "a > b"
     */
-    final S decode(XmlDecodeMode DecodeMode = XmlDecodeMode.strict)(S s, in XmlEntityTable!S entityTable)
+    final S decode(XmlDecodeMode DecodeMode = XmlDecodeMode.strict)(S s, XmlEntityTable!S entityTable)
     {
         import std.string : startsWith;
 

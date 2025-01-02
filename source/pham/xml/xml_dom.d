@@ -2929,7 +2929,7 @@ package:
         return new XmlName!S(this, prefix, localName, namespaceUri);
     }
 
-    final const(XmlEntityTable!S) decodeEntityTable()
+    final XmlEntityTable!S decodeEntityTable()
     {
         if (_entityTable is null)
             return XmlEntityTable!S.defaultEntityTable();

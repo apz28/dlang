@@ -56,7 +56,7 @@ public:
         return data;
     }
 
-    S decodedText(XmlDecodeMode DecodeMode = XmlDecodeMode.strict)(XmlBuffer!(S, No.CheckEncoded) buffer, in XmlEntityTable!S entityTable)
+    S decodedText(XmlDecodeMode DecodeMode = XmlDecodeMode.strict)(XmlBuffer!(S, No.CheckEncoded) buffer, XmlEntityTable!S entityTable)
     in
     {
         assert(buffer !is null);

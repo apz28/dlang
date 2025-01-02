@@ -363,7 +363,7 @@ protected:
 
     final DbCacheItem!K[] removeInactives()
     {
-        auto raiiMutex = () @trusted { return RAIIMutex(mutex); }();
+        auto raiiMutex = RAIIMutex(mutex);
 
         if (items.length == 0)
             return null;

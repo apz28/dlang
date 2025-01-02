@@ -2475,8 +2475,8 @@ class DbConnectionPool : DbDisposableObject
 
 public:
     this(Timer secondTimer,
-        size_t maxLength = DbDefaultSize.connectionPoolLength,
-        Duration maxInactiveTime = dur!"seconds"(DbDefaultSize.connectionPoolInactiveTime)) nothrow
+        size_t maxLength = DbDefault.connectionPoolLength,
+        Duration maxInactiveTime = dur!"seconds"(DbDefault.connectionPoolInactiveTime)) nothrow
     {
         this._secondTimer = secondTimer;
         this._mutex = new Mutex();
@@ -2486,7 +2486,7 @@ public:
 
     final DbConnection acquire(DbScheme scheme, string connectionString)
     {
-        auto raiiMutex = () @trusted { return RAIIMutex(_mutex); }();
+        auto raiiMutex = RAIIMutex(_mutex);
 
         const localMaxLength = maxLength;
         if (_acquiredLength >= localMaxLength)
@@ -2636,7 +2636,7 @@ protected:
 
     final DbConnection[] removeInactives()
     {
-        auto raiiMutex = () @trusted { return RAIIMutex(_mutex); }();
+        auto raiiMutex = RAIIMutex(_mutex);
 
         if (_unusedLength == 0)
             return null;
@@ -5413,7 +5413,7 @@ public:
         this._connection = connection;
         this._database = connection.database;
         this._isolationLevel = isolationLevel;
-        this._lockTimeout = dur!"seconds"(DbDefaultSize.transactionLockTimeout);
+        this._lockTimeout = dur!"seconds"(DbDefault.transactionLockTimeout);
         this._state = DbTransactionState.inactive;
     }
 

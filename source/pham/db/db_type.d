@@ -156,7 +156,7 @@ enum DbConnectionType : ubyte
     create,
 }
 
-enum DbDefaultSize
+enum DbDefault
 {
     /**
      * Default maximum number of connections being in pool

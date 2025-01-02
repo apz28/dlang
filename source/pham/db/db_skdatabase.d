@@ -126,7 +126,7 @@ public:
     }
 
 package(pham.db):
-    final DbReadBuffer acquireSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
+    final DbReadBuffer acquireSocketReadBuffer(size_t capacity = DbDefault.socketReadBufferLength) nothrow @safe
     {
         debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(capacity=", capacity, ")");
 
@@ -135,7 +135,7 @@ package(pham.db):
         return _socketReadBuffer;
     }
 
-    final DbWriteBuffer acquireSocketWriteBuffer(size_t capacity = DbDefaultSize.socketWriteBufferLength) nothrow @safe
+    final DbWriteBuffer acquireSocketWriteBuffer(size_t capacity = DbDefault.socketWriteBufferLength) nothrow @safe
     {
         debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(capacity=", capacity, ")");
 
@@ -366,12 +366,12 @@ protected:
         return new SkException(DbErrorCode.write, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
-    DbReadBuffer createSocketReadBuffer(size_t capacity = DbDefaultSize.socketReadBufferLength) nothrow @safe
+    DbReadBuffer createSocketReadBuffer(size_t capacity = DbDefault.socketReadBufferLength) nothrow @safe
     {
         return new SkReadBuffer(this, capacity);
     }
 
-    DbWriteBuffer createSocketWriteBuffer(size_t capacity = DbDefaultSize.socketWriteBufferLength) nothrow @safe
+    DbWriteBuffer createSocketWriteBuffer(size_t capacity = DbDefault.socketWriteBufferLength) nothrow @safe
     {
         return new SkWriteBuffer(this, capacity);
     }
