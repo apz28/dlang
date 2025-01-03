@@ -12,11 +12,11 @@
 module pham.utl.utl_array_dictionary;
 
 import core.exception : RangeError;
+import std.traits : fullyQualifiedName, isAssignable;
 
 debug(debug_pham_utl_utl_array_dictionary)
 {
     import std.stdio : writeln;
-    import std.traits : isIntegral;
     int aaCanLog;
 }
 import pham.utl.utl_array : arrayFree, arrayZeroInit;
@@ -183,13 +183,15 @@ public:
      * Params:
      *  key = the key of the value to get
      */
-    V* opBinaryRight(string op : "in")(scope const(K) key) nothrow return
+    V* opBinaryRight(string op)(scope const(K) key) nothrow return
+    if (op == "in")
     {
         return length != 0 ? aa.find(key) : null;
     }
 
     static if (is(K == string) || is(K == wstring) || is(K == dstring))
-    V* opBinaryRight(string op : "in")(scope const(KE)[] key) nothrow return
+    V* opBinaryRight(string op)(scope const(KE)[] key) nothrow return
+    if (op == "in")
     {
         return length != 0 ? aa.find(key) : null;
     }
@@ -201,7 +203,6 @@ public:
     bool opEquals(OK, OV)(scope const(Dictionary!(OK, OV)) rhs) const nothrow
     if (is(OK : K) && is(OV : V))
     {
-        //debug(debug_pham_utl_utl_array_dictionary) static if (isIntegral!K) debug writeln(__FUNCTION__, "(this.length=", this.length, ", rhs.length=", rhs.length, ")");
         //pragma(msg, "opEquals(OK, OV)(" ~ OK.stringof ~ " vs " ~ K.stringof ~ ")");
         //pragma(msg, "opEquals(OK, OV)(" ~ OV.stringof ~ " vs " ~ V.stringof ~ ")");
 
@@ -328,6 +329,7 @@ public:
      * Params:
      *  key = the key of the element to remove
      */
+    static if (isAssignable!K && isAssignable!V)
     bool remove(const(K) key)
     {
         return length != 0 ? aa.remove(key) : false;
@@ -339,6 +341,7 @@ public:
      * Params:
      *  index = the index of the element to remove
      */
+    static if (isAssignable!K && isAssignable!V)
     bool removeAt(size_t index)
     {
         return index < length ? aa.removeAt(index) : false;
@@ -352,6 +355,7 @@ public:
      *  key = the key of the element to replace
      *  value = the value of the element to replace
      */
+    static if (isAssignable!K && isAssignable!V)
     bool replaceAt(size_t index, K key, V value)
     {
         return index < length ? aa.replaceAt(index, key, value) : false;
@@ -398,25 +402,25 @@ public:
     /**
      * Returns a forward range suitable for use as a foreach which will iterate over the keys of the Dictionary
      */
-    @property auto byKey() @nogc nothrow pure
+    @property auto byKey() inout @nogc nothrow pure @trusted
     {
-        return Range!(RangeKind.key)(aa, 0);
+        return Range!(RangeKind.key)(cast(Impl*)aa, 0);
     }
 
     /**
      * Returns a forward range suitable for use as a foreach which will iterate over the keys & values of the Dictionary
      */
-    @property auto byKeyValue() @nogc nothrow pure
+    @property auto byKeyValue() inout @nogc nothrow pure @trusted
     {
-        return Range!(RangeKind.keyValue)(aa, 0);
+        return Range!(RangeKind.keyValue)(cast(Impl*)aa, 0);
     }
 
     /**
      * Returns a forward range suitable for use as a foreach which will iterate over the values of the Dictionary
      */
-    @property auto byValue() @nogc nothrow pure
+    @property auto byValue() inout @nogc nothrow pure @trusted
     {
-        return Range!(RangeKind.value)(aa, 0);
+        return Range!(RangeKind.value)(cast(Impl*)aa, 0);
     }
 
     /**
@@ -460,7 +464,7 @@ public:
     /**
      * Returns the key array
      */
-    @property const(K)[] keys() nothrow
+    @property const(K)[] keys() inout nothrow
     {
         import std.array : array;
 
@@ -487,7 +491,7 @@ public:
     /**
      * Returns the value array
      */
-    @property V[] values() nothrow
+    @property V[] values() inout nothrow
     {
         import std.array : array;
 
@@ -640,7 +644,7 @@ private:
         }
 
         // find the first slot to insert a value with hash
-        Index findSlotInsert(const(size_t) hash, out size_t keyCollision) inout @nogc nothrow pure @safe
+        Index findSlotInsert(const(size_t) hash, out size_t keyCollision) const @nogc nothrow pure @safe
         {
             keyCollision = 0;
             const bucket = hash % buckets.length;
@@ -704,7 +708,7 @@ private:
         }
 
         //pragma(inline, true)
-        bool isIndexedKey(ref Index index, const(size_t) hash, ref const(K) key, ref size_t keyCollision) inout @nogc nothrow pure @safe
+        bool isIndexedKey(ref Index index, const(size_t) hash, ref const(K) key, ref size_t keyCollision) const @nogc nothrow pure @safe
         {
             do
             {
@@ -725,7 +729,7 @@ private:
         static if (is(K == string) || is(K == wstring) || is(K == dstring))
         {
             //pragma(inline, true)
-            bool isIndexedKey(ref Index index, const(size_t) hash, scope const(KE)[] key, ref size_t keyCollision) const inout @nogc nothrow pure @safe
+            bool isIndexedKey(ref Index index, const(size_t) hash, scope const(KE)[] key, ref size_t keyCollision) const @nogc nothrow pure @safe
             {
                 do
                 {
@@ -752,8 +756,13 @@ private:
             auto entry = findSlotLookup(h, key, index, bucket, keyCollision);
             if (entry)
             {
-                entry.value = value;
-                return entry.value;
+                static if (isAssignable!V)
+                {
+                    entry.value = value;
+                    return entry.value;
+                }
+                else
+                    assert(0, fullyQualifiedName!V ~ " is not assignable");
             }
             else
             {
@@ -779,7 +788,7 @@ private:
 
         void rehash() nothrow pure @safe
         {
-            //debug(debug_pham_utl_utl_array_dictionary) static if (isIntegral!K) if (!__ctfe) debug writeln(__FUNCTION__, "()");
+            //debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "()");
 
             const newDim = calcDim(entries.length + collisionCount, 0);
             if (newDim != buckets.length)
@@ -793,6 +802,7 @@ private:
             }
         }
 
+        static if (isAssignable!K && isAssignable!V)
         bool remove(ref const(K) key)
         {
             debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "(key=", key, ")");
@@ -805,6 +815,7 @@ private:
                 : false;
         }
 
+        static if (isAssignable!K && isAssignable!V)
         bool removeAt(const(Index) index)
         {
             import core.memory : GC;
@@ -813,6 +824,7 @@ private:
                 ", bucket=", entries[index].hash % buckets.length, ", entryPos=", index + 1, ")");
 
             // Hookup next entry
+            // Must do this action before updating entries's index
             removeEntryFromBucket(index);
 
             // Update tail entries's index
@@ -826,20 +838,16 @@ private:
             entries.length = entries.length - 1;
 
             // Shrink if too many have been removed
-            bool canShink;
-            fakePure({
-                canShink = (entries.length < buckets.length / 3) && !GC.inFinalizer;                    
-            });
-            if (canShink)
+            if (fakePure({ return (entries.length < buckets.length / 3) && !GC.inFinalizer; }))
                 shrink();
 
             return true;
         }
 
-        static void fakePure(F)(scope F fun) nothrow pure @trusted
+        static auto ref fakePure(F)(scope F fun) nothrow pure @trusted
         {
             mixin("alias PureFun = " ~ F.stringof ~ " pure;");
-            (cast(PureFun)fun)();
+            return (cast(PureFun)fun)();
         }
 
         void removeEntryFromBucket(const(Index) index) nothrow @safe
@@ -872,6 +880,7 @@ private:
             }
         }
 
+        static if (isAssignable!K && isAssignable!V)
         bool replaceAt(const(Index) index, ref K key, ref V value)
         {
             auto entry = &entries[index];
@@ -917,7 +926,7 @@ private:
         void resize(const(size_t) newDim) nothrow pure @safe
         {
             debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe) debug writeln(__FUNCTION__, "(buckets.length=", buckets.length, ", newDim=", newDim, ")");
-        
+
             auto oldBuckets = buckets;
 
             buckets = allocBuckets(newDim);
@@ -929,7 +938,7 @@ private:
 
         void shrink()
         {
-            //debug(debug_pham_utl_utl_array_dictionary) static if (isIntegral!K) if (!__ctfe) debug writeln(__FUNCTION__, "()");
+            //debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "()");
 
             const newDim = calcDim(entries.length, 0);
             if (newDim < buckets.length)
@@ -1243,7 +1252,6 @@ unittest // Dictionary
     assert(utaa[Foo(1, 2.0)] == 5);
 }
 
-version(none)
 unittest // Dictionary
 {
     immutable(string)[string] iaa0 = ["l" : "left"];
@@ -1702,7 +1710,8 @@ pure unittest // Dictionary issue8583()
 version(none)
 nothrow pure unittest // Dictionary issue9052()
 {
-    static struct Json {
+    static struct Json
+    {
         Dictionary!(string, Json) aa;
         void opAssign(Json) {}
         size_t length() const { return aa.length; }
@@ -1833,7 +1842,6 @@ unittest // Dictionary issue14104()
     assert(key in aa);
 }
 
-version(none)
 unittest // Dictionary issue14626()
 {
     static struct S
@@ -1850,6 +1858,7 @@ unittest // Dictionary issue14626()
     assert(s.keyval().key == "a");
     assert(s.keyval().value == "b");
 
+    version(none)
     void testInoutKeyVal(inout(string) key)
     {
         Dictionary!(typeof(key), inout(string)) aa;

@@ -24,6 +24,7 @@ import pham.dtm.dtm_date : Date, DateTime;
 import pham.dtm.dtm_tick : DateTimeZoneKind;
 import pham.dtm.dtm_time : Time;
 import pham.utl.utl_array_append : Appender;
+import pham.utl.utl_array_dictionary;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.utl.utl_trait;
 
@@ -460,9 +461,9 @@ enum IsFloatLiteral : ubyte
     ninf,
 }
 
-static immutable IsFloatLiteral[const(char)[]] floatLiterals;
+static __gshared Dictionary!(string, IsFloatLiteral) floatLiterals;
 
-IsFloatLiteral isFloatLiteral(scope const(char)[] text) @nogc nothrow pure
+IsFloatLiteral isFloatLiteral(scope const(char)[] text) @nogc nothrow @trusted
 {
     if (auto f = text in floatLiterals)
         return *f;
@@ -841,10 +842,17 @@ public:
     }
     do
     {
+        if (customDSSerializedFunctions.length == 0)
+            customDSSerializedFunctions = Dictionary!(string, DSSerializerFunctions)(200, 100, DictionaryHashMix.none);
+
         DSSerializerFunctions result;
         if (auto f = type in customDSSerializedFunctions)
             result = *f;
         customDSSerializedFunctions[type] = serializers;
+
+        debug(pham_ser_ser_serialization) if (customDSSerializedFunctions.maxCollision) debug writeln(__FUNCTION__, "(customDSSerializedFunctions.maxCollision=", customDSSerializedFunctions.maxCollision,
+            ", customDSSerializedFunctions.collisionCount=", customDSSerializedFunctions.collisionCount, ", customDSSerializedFunctions.capacity=", customDSSerializedFunctions.capacity, ", customDSSerializedFunctions.length=", customDSSerializedFunctions.length, ")");
+
         return result;
     }
 
@@ -1004,7 +1012,7 @@ public:
 protected:
     size_t _arrayDepth;
     size_t _memberDepth;
-    static __gshared DSSerializerFunctions[string] customDSSerializedFunctions;
+    static __gshared Dictionary!(string, DSSerializerFunctions) customDSSerializedFunctions;
 }
 
 class Deserializer : DSSerializer
@@ -2680,27 +2688,33 @@ string[] filterMembers(string[] allMembers) nothrow pure
     return result;
 }
 
-shared static this() nothrow
+shared static this() nothrow @trusted
 {
-    floatLiterals = () nothrow pure @trusted // @trusted=cast()
+    floatLiterals = () nothrow
     {
-        return cast(immutable(IsFloatLiteral[const(char)[]]))[
-            // Standard texts
-            "NaN" : IsFloatLiteral.nan,
-            "Infinity" : IsFloatLiteral.pinf,
-            "-Infinity" : IsFloatLiteral.ninf,
-            // Other support texts
-            "nan" : IsFloatLiteral.nan,
-            "NAN" : IsFloatLiteral.nan,
-            "inf" : IsFloatLiteral.pinf,
-            "+inf" : IsFloatLiteral.pinf,
-            "-inf" : IsFloatLiteral.ninf,
-            "infinity" : IsFloatLiteral.pinf,
-            "+infinity" : IsFloatLiteral.pinf,
-            "-infinity" : IsFloatLiteral.ninf,
-            "Infinite" : IsFloatLiteral.pinf, // dlang.std.json
-            "-Infinite" : IsFloatLiteral.ninf, // dlang.std.json
-        ];
+        auto result = Dictionary!(string, IsFloatLiteral)(20, 15, DictionaryHashMix.murmurHash3);
+
+        // Standard texts
+        result["NaN"] = IsFloatLiteral.nan;
+        result["Infinity"] = IsFloatLiteral.pinf;
+        result["-Infinity"] = IsFloatLiteral.ninf;
+
+        // Other support texts
+        result["nan"] = IsFloatLiteral.nan;
+        result["NAN"] = IsFloatLiteral.nan;
+        result["inf"] = IsFloatLiteral.pinf;
+        result["+inf"] = IsFloatLiteral.pinf;
+        result["-inf"] = IsFloatLiteral.ninf;
+        result["infinity"] = IsFloatLiteral.pinf;
+        result["+infinity"] = IsFloatLiteral.pinf;
+        result["-infinity"] = IsFloatLiteral.ninf;
+        result["Infinite"] = IsFloatLiteral.pinf; // dlang.std.json
+        result["-Infinite"] = IsFloatLiteral.ninf; // dlang.std.json
+
+        debug(pham_ser_ser_serialization) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return result;
     }();
 }
 
