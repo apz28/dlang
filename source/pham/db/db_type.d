@@ -32,6 +32,7 @@ import pham.dtm.dtm_time_zone_map : TimeZoneInfoMap;
 public import pham.external.dec.dec_decimal : Decimal32, Decimal64, Decimal128, isDecimal,
     Precision, RoundingMode;
 import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_array_dictionary;
 public import pham.utl.utl_big_integer : BigInteger;
 import pham.utl.utl_enum_set : EnumSet, toName;
 import pham.utl.utl_numeric_parser : ComputingSizeUnit, DurationUnit, NumericParsedKind,
@@ -1971,7 +1972,8 @@ public:
     S userPassword;
 }
 
-static immutable DbConnectionParameterInfo[string] dbDefaultConnectionParameterValues;
+alias DbDefaultConnectionParameterValues = Dictionary!(string, DbConnectionParameterInfo);
+static immutable DbDefaultConnectionParameterValues dbDefaultConnectionParameterValues;
 
 static immutable DbTypeInfo[] dbNativeTypes = [
     // Native & Standard
@@ -2030,8 +2032,11 @@ static immutable DbTypeInfo[] dbNativeTypes = [
     {dbName:"TIME", dbType:DbType.time, dbId:0, nativeName:fullyQualifiedName!DbTime, nativeSize:DbTypeSize.time, displaySize:DbTypeDisplaySize.time},
     ];
 
-static immutable DbTypeInfo*[DbType] dbTypeToDbTypeInfos;
-static immutable DbTypeInfo*[string] nativeNameToDbTypeInfos;
+alias DbTypeToDbTypeInfos = Dictionary!(DbType, immutable(DbTypeInfo)*);
+static immutable DbTypeToDbTypeInfos dbTypeToDbTypeInfos;
+
+alias NativeNameToDbTypeInfos = Dictionary!(string, immutable(DbTypeInfo)*);
+static immutable NativeNameToDbTypeInfos nativeNameToDbTypeInfos;
 
 static immutable char dbSchemeSeparator = ':';
 
@@ -2579,107 +2584,124 @@ shared static this() nothrow @safe
 {
     debug(debug_pham_db_db_type) debug writeln("shared static this(", __MODULE__, ")");
 
-    dbDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
+    dbDefaultConnectionParameterValues = () nothrow pure @trusted
     {
-        return cast(immutable(DbConnectionParameterInfo[string]))[
-            DbConnectionParameterIdentifier.allowBatch : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
-            DbConnectionParameterIdentifier.charset : DbConnectionParameterInfo(&isConnectionParameterCharset, "UTF8", dbConnectionParameterNullMin, dbConnectionParameterNullMax),
-            DbConnectionParameterIdentifier.commandTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, dbConnectionParameterNullDef, 0, int32.max),
-            DbConnectionParameterIdentifier.compress : DbConnectionParameterInfo(&isConnectionParameterCompress, toName(DbCompressConnection.disabled), dbConnectionParameterNullMin, dbConnectionParameterNullMax),
-            DbConnectionParameterIdentifier.connectionTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, "10_000 msecs", 0, int32.max),
-            DbConnectionParameterIdentifier.databaseName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 1, dbConnectionParameterMaxName),
-            DbConnectionParameterIdentifier.databaseFileName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName),
-            DbConnectionParameterIdentifier.encrypt : DbConnectionParameterInfo(&isConnectionParameterEncrypt, toName(DbEncryptedConnection.disabled), dbConnectionParameterNullMin, dbConnectionParameterNullMax),
-            DbConnectionParameterIdentifier.fetchRecordCount : DbConnectionParameterInfo(&isConnectionParameterInt32, "200", -1, 65_000),
-            DbConnectionParameterIdentifier.integratedSecurity : DbConnectionParameterInfo(&isConnectionParameterIntegratedSecurity, toName(DbIntegratedSecurityConnection.srp256), dbConnectionParameterNullMin, dbConnectionParameterNullMax),
-            DbConnectionParameterIdentifier.packageSize : DbConnectionParameterInfo(&isConnectionParameterComputingSize, dbConnectionParameterNullDef, 4_096*2, 4_096*64),
-            DbConnectionParameterIdentifier.pooling : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolFalse, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
-            DbConnectionParameterIdentifier.poolIdleTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, "300_000 msecs", 1_000, 60*60*60*1000),
-            DbConnectionParameterIdentifier.poolMaxCount : DbConnectionParameterInfo(&isConnectionParameterInt32, "200", 1, 10_000),
-            DbConnectionParameterIdentifier.poolMinCount : DbConnectionParameterInfo(&isConnectionParameterInt32, "0", 0, 1_000),
-            DbConnectionParameterIdentifier.receiveTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, dbConnectionParameterNullDef, 0, int32.max),
-            DbConnectionParameterIdentifier.roleName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId),
-            DbConnectionParameterIdentifier.sendTimeout : DbConnectionParameterInfo(&isConnectionParameterDuration, "60_000 msecs", 0, int32.max),
-            DbConnectionParameterIdentifier.serverName : DbConnectionParameterInfo(&isConnectionParameterString, "localhost", 1, dbConnectionParameterMaxName),
-            DbConnectionParameterIdentifier.serverPort : DbConnectionParameterInfo(&isConnectionParameterInt32, dbConnectionParameterNullDef, 0, uint16.max),
-            DbConnectionParameterIdentifier.userName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId),
-            DbConnectionParameterIdentifier.userPassword : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId),
+        auto result = DbDefaultConnectionParameterValues(100, 75);
 
-            // Socket
-            DbConnectionParameterIdentifier.socketBlocking : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
-            DbConnectionParameterIdentifier.socketNoDelay : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
-            DbConnectionParameterIdentifier.socketSslCa : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName),
-            DbConnectionParameterIdentifier.socketSslCaDir : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName),
-            DbConnectionParameterIdentifier.socketSslCert : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName),
-            DbConnectionParameterIdentifier.socketSslKey : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName),
-            DbConnectionParameterIdentifier.socketSslKeyPassword : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId),
-            DbConnectionParameterIdentifier.socketSslVerificationHost : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
-            DbConnectionParameterIdentifier.socketSslVerificationMode : DbConnectionParameterInfo(&isConnectionParameterInt32, dbConnectionParameterNullDef, -1, uint16.max),
+        result[DbConnectionParameterIdentifier.allowBatch] = DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
+        result[DbConnectionParameterIdentifier.charset] = DbConnectionParameterInfo(&isConnectionParameterCharset, "UTF8", dbConnectionParameterNullMin, dbConnectionParameterNullMax),
+        result[DbConnectionParameterIdentifier.commandTimeout] = DbConnectionParameterInfo(&isConnectionParameterDuration, dbConnectionParameterNullDef, 0, int32.max);
+        result[DbConnectionParameterIdentifier.compress] = DbConnectionParameterInfo(&isConnectionParameterCompress, toName(DbCompressConnection.disabled), dbConnectionParameterNullMin, dbConnectionParameterNullMax);
+        result[DbConnectionParameterIdentifier.connectionTimeout] = DbConnectionParameterInfo(&isConnectionParameterDuration, "10_000 msecs", 0, int32.max);
+        result[DbConnectionParameterIdentifier.databaseName] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 1, dbConnectionParameterMaxName);
+        result[DbConnectionParameterIdentifier.databaseFileName] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName);
+        result[DbConnectionParameterIdentifier.encrypt] = DbConnectionParameterInfo(&isConnectionParameterEncrypt, toName(DbEncryptedConnection.disabled), dbConnectionParameterNullMin, dbConnectionParameterNullMax);
+        result[DbConnectionParameterIdentifier.fetchRecordCount] = DbConnectionParameterInfo(&isConnectionParameterInt32, "200", -1, 65_000);
+        result[DbConnectionParameterIdentifier.integratedSecurity] = DbConnectionParameterInfo(&isConnectionParameterIntegratedSecurity, toName(DbIntegratedSecurityConnection.srp256), dbConnectionParameterNullMin, dbConnectionParameterNullMax);
+        result[DbConnectionParameterIdentifier.packageSize] = DbConnectionParameterInfo(&isConnectionParameterComputingSize, dbConnectionParameterNullDef, 4_096*2, 4_096*64);
+        result[DbConnectionParameterIdentifier.pooling] = DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolFalse, dbConnectionParameterNullMin, dbConnectionParameterNullMax);
+        result[DbConnectionParameterIdentifier.poolIdleTimeout] = DbConnectionParameterInfo(&isConnectionParameterDuration, "300_000 msecs", 1_000, 60*60*60*1000);
+        result[DbConnectionParameterIdentifier.poolMaxCount] = DbConnectionParameterInfo(&isConnectionParameterInt32, "200", 1, 10_000);
+        result[DbConnectionParameterIdentifier.poolMinCount] = DbConnectionParameterInfo(&isConnectionParameterInt32, "0", 0, 1_000);
+        result[DbConnectionParameterIdentifier.receiveTimeout] = DbConnectionParameterInfo(&isConnectionParameterDuration, dbConnectionParameterNullDef, 0, int32.max);
+        result[DbConnectionParameterIdentifier.roleName] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId);
+        result[DbConnectionParameterIdentifier.sendTimeout] = DbConnectionParameterInfo(&isConnectionParameterDuration, "60_000 msecs", 0, int32.max);
+        result[DbConnectionParameterIdentifier.serverName] = DbConnectionParameterInfo(&isConnectionParameterString, "localhost", 1, dbConnectionParameterMaxName);
+        result[DbConnectionParameterIdentifier.serverPort] = DbConnectionParameterInfo(&isConnectionParameterInt32, dbConnectionParameterNullDef, 0, uint16.max);
+        result[DbConnectionParameterIdentifier.userName] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId);
+        result[DbConnectionParameterIdentifier.userPassword] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId);
 
-            // Firebird
-            DbConnectionParameterIdentifier.fbCachePage : DbConnectionParameterInfo(&isConnectionParameterInt32, dbConnectionParameterNullDef, 0, int32.max, DbScheme.fb),
-            DbConnectionParameterIdentifier.fbCryptAlgorithm : DbConnectionParameterInfo(&isConnectionParameterFBCryptAlgorithm, "Arc4", dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.fb),
-            DbConnectionParameterIdentifier.fbCryptKey : DbConnectionParameterInfo(&isConnectionParameterUBytes, dbConnectionParameterNullDef, 0, uint16.max, DbScheme.fb),
-            DbConnectionParameterIdentifier.fbDatabaseTrigger : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.fb),
-            DbConnectionParameterIdentifier.fbDialect : DbConnectionParameterInfo(&isConnectionParameterFBDialect, "3", 1, 3, DbScheme.fb),
-            DbConnectionParameterIdentifier.fbDummyPacketInterval : DbConnectionParameterInfo(&isConnectionParameterDuration, "300_000 msecs", 1_000, int32.max, DbScheme.fb),
-            DbConnectionParameterIdentifier.fbGarbageCollect : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.fb),
+        // Socket
+        result[DbConnectionParameterIdentifier.socketBlocking] = DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax);
+        result[DbConnectionParameterIdentifier.socketNoDelay] = DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax);
+        result[DbConnectionParameterIdentifier.socketSslCa] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName);
+        result[DbConnectionParameterIdentifier.socketSslCaDir] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName);
+        result[DbConnectionParameterIdentifier.socketSslCert] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName);
+        result[DbConnectionParameterIdentifier.socketSslKey] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName);
+        result[DbConnectionParameterIdentifier.socketSslKeyPassword] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId);
+        result[DbConnectionParameterIdentifier.socketSslVerificationHost] = DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax);
+        result[DbConnectionParameterIdentifier.socketSslVerificationMode] = DbConnectionParameterInfo(&isConnectionParameterInt32, dbConnectionParameterNullDef, -1, uint16.max);
 
-            // MySQL
-            DbConnectionParameterIdentifier.myAllowUserVariables : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.my),
+        // Firebird
+        result[DbConnectionParameterIdentifier.fbCachePage] = DbConnectionParameterInfo(&isConnectionParameterInt32, dbConnectionParameterNullDef, 0, int32.max, DbScheme.fb);
+        result[DbConnectionParameterIdentifier.fbCryptAlgorithm] = DbConnectionParameterInfo(&isConnectionParameterFBCryptAlgorithm, "Arc4", dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.fb);
+        result[DbConnectionParameterIdentifier.fbCryptKey] = DbConnectionParameterInfo(&isConnectionParameterUBytes, dbConnectionParameterNullDef, 0, uint16.max, DbScheme.fb);
+        result[DbConnectionParameterIdentifier.fbDatabaseTrigger] = DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.fb);
+        result[DbConnectionParameterIdentifier.fbDialect] = DbConnectionParameterInfo(&isConnectionParameterFBDialect, "3", 1, 3, DbScheme.fb);
+        result[DbConnectionParameterIdentifier.fbDummyPacketInterval] = DbConnectionParameterInfo(&isConnectionParameterDuration, "300_000 msecs", 1_000, int32.max, DbScheme.fb);
+        result[DbConnectionParameterIdentifier.fbGarbageCollect] = DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.fb);
 
-            // MSSQL
-            DbConnectionParameterIdentifier.msAddress : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms),
-            DbConnectionParameterIdentifier.msApplicationName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName, DbScheme.ms),
-            DbConnectionParameterIdentifier.msApplicationIntent : DbConnectionParameterInfo(&isConnectionParameterMSApplicationIntent, "ReadWrite", dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
-            DbConnectionParameterIdentifier.msAttachDBFileName : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName, DbScheme.ms),
-            DbConnectionParameterIdentifier.msAutoTranslate : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
-            //DbConnectionParameterIdentifier.msDatabase : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms),
-            DbConnectionParameterIdentifier.msDriver : DbConnectionParameterInfo(&isConnectionParameterString, "{ODBC Driver 17 for SQL Server}", 0, dbConnectionParameterMaxName, DbScheme.ms),
-            DbConnectionParameterIdentifier.msDSN : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms),
-            //DbConnectionParameterIdentifier.msEncrypt : DbConnectionParameterInfo(&isConnectionParameterMSEncrypt, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
-            DbConnectionParameterIdentifier.msFailoverPartner : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms),
-            DbConnectionParameterIdentifier.msFileDSN : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName, DbScheme.ms),
-            DbConnectionParameterIdentifier.msLanguage : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId, DbScheme.ms),
-            DbConnectionParameterIdentifier.msMARSConnection : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
-            DbConnectionParameterIdentifier.msMultiSubnetFailover : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
-            DbConnectionParameterIdentifier.msNetwork : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms),
-            DbConnectionParameterIdentifier.msPWD : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId, DbScheme.ms),
-            DbConnectionParameterIdentifier.msQueryLogOn : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
-            DbConnectionParameterIdentifier.msQueryLogFile : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName, DbScheme.ms),
-            DbConnectionParameterIdentifier.msQueryLogTime : DbConnectionParameterInfo(&isConnectionParameterDuration, dbConnectionParameterNullDef, 0, int32.max, DbScheme.ms),
-            DbConnectionParameterIdentifier.msQuotedId : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolFalse, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
-            DbConnectionParameterIdentifier.msRegional : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
-            //DbConnectionParameterIdentifier.msServer : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms),
-            DbConnectionParameterIdentifier.msTrustedConnection : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
-            DbConnectionParameterIdentifier.msTrustServerCertificate : DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms),
-            DbConnectionParameterIdentifier.msUID : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId, DbScheme.ms),
-            DbConnectionParameterIdentifier.msWSID : DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms),
-        ];
+        // MySQL
+        result[DbConnectionParameterIdentifier.myAllowUserVariables] = DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.my);
+
+        // MSSQL
+        result[DbConnectionParameterIdentifier.msAddress] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msApplicationName] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msApplicationIntent] = DbConnectionParameterInfo(&isConnectionParameterMSApplicationIntent, "ReadWrite", dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msAttachDBFileName] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msAutoTranslate] = DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms);
+        //result[DbConnectionParameterIdentifier.msDatabase] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msDriver] = DbConnectionParameterInfo(&isConnectionParameterString, "{ODBC Driver 17 for SQL Server}", 0, dbConnectionParameterMaxName, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msDSN] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms);
+        //result[DbConnectionParameterIdentifier.msEncrypt] = DbConnectionParameterInfo(&isConnectionParameterMSEncrypt, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msFailoverPartner] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msFileDSN] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msLanguage] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msMARSConnection] = DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msMultiSubnetFailover] = DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msNetwork] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msPWD] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msQueryLogOn] = DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msQueryLogFile] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxFileName, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msQueryLogTime] = DbConnectionParameterInfo(&isConnectionParameterDuration, dbConnectionParameterNullDef, 0, int32.max, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msQuotedId] = DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolFalse, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msRegional] = DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms);
+        //result[DbConnectionParameterIdentifier.msServer] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msTrustedConnection] = DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msTrustServerCertificate] = DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msUID] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId, DbScheme.ms);
+        result[DbConnectionParameterIdentifier.msWSID] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms);
+
+        debug(debug_pham_db_db_type) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return cast(immutable(DbDefaultConnectionParameterValues))result;
     }();
 
     dbTypeToDbTypeInfos = () nothrow pure @trusted
     {
-        immutable(DbTypeInfo)*[DbType] result;
+        auto result = DbTypeToDbTypeInfos(dbNativeTypes.length + 1, dbNativeTypes.length, DictionaryHashMix.murmurHash3);
+        //pragma(msg, DbTypeToDbTypeInfos.stringof);
+
         foreach (i; 0..dbNativeTypes.length)
         {
             const dbType = dbNativeTypes[i].dbType;
             if (!(dbType in result))
                 result[dbType] = &dbNativeTypes[i];
         }
-        return result;
+
+        debug(debug_pham_db_db_type) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return cast(immutable(DbTypeToDbTypeInfos))result;
     }();
 
     nativeNameToDbTypeInfos = () nothrow pure @trusted
     {
-        immutable(DbTypeInfo)*[string] result;
+        auto result = NativeNameToDbTypeInfos(dbNativeTypes.length + 1, dbNativeTypes.length);
+        //pragma(msg, NativeNameToDbTypeInfos.stringof);
+
         foreach (i; 0..dbNativeTypes.length)
         {
             const nativeName = dbNativeTypes[i].nativeName;
             if (!(nativeName in result))
                 result[nativeName] = &dbNativeTypes[i];
         }
-        return result;
+
+        debug(debug_pham_db_db_type) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return cast(immutable(NativeNameToDbTypeInfos))result;
     }();
 
     // Support Variant.coerce

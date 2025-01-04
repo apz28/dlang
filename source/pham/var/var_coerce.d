@@ -394,7 +394,7 @@ import core.attribute : standalone;
 @standalone
 shared static this() nothrow @trusted
 {
-    convertHandlers = Dictionary!(ConvertHandlerKey, ConvertHandler)(1_500, 1_000, DictionaryHashMix.none);
+    convertHandlers = Dictionary!(ConvertHandlerKey, ConvertHandler)(1_500, 1_000);
 
     ConvertHandler handler;
 

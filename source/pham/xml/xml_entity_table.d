@@ -76,7 +76,7 @@ protected:
 
     static Dictionary!(S, S) initDefault() nothrow pure
     {
-        auto result = Dictionary!(S, S)(6, 6, DictionaryHashMix.murmurHash3);
+        auto result = Dictionary!(S, S)(7, 6);
 
         result["&amp;"] = "&";
         result["&apos;"] = "'";

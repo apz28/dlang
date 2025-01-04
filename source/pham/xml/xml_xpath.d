@@ -2188,7 +2188,7 @@ protected:
         static immutable XPathResultType[] paramType2Text = [XPathResultType.text, XPathResultType.text];
         static immutable XPathResultType[] paramType3Text = [XPathResultType.text, XPathResultType.text, XPathResultType.text];
 
-        auto result = Dictionary!(S, XPathParamInfo!S)(40, 30, DictionaryHashMix.none);
+        auto result = Dictionary!(S, XPathParamInfo!S)(50, 30);
 
         result["boolean"] = new XPathParamInfo!S(XPathFunctionType.boolean, 1, 1, paramType1Any);
         result["ceiling"] = new XPathParamInfo!S(XPathFunctionType.ceiling, 1, 1, paramType1Number);

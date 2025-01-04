@@ -461,13 +461,14 @@ enum IsFloatLiteral : ubyte
     ninf,
 }
 
-static __gshared Dictionary!(string, IsFloatLiteral) floatLiterals;
+static immutable Dictionary!(string, IsFloatLiteral) floatLiterals;
 
-IsFloatLiteral isFloatLiteral(scope const(char)[] text) @nogc nothrow @trusted
+IsFloatLiteral isFloatLiteral(scope const(char)[] text) @nogc nothrow pure @trusted
 {
     if (auto f = text in floatLiterals)
         return *f;
-    return IsFloatLiteral.none;
+    else
+        return IsFloatLiteral.none;
 }
 
 //if (isAggregateType!V && !isInputRange!V)
@@ -843,7 +844,7 @@ public:
     do
     {
         if (customDSSerializedFunctions.length == 0)
-            customDSSerializedFunctions = Dictionary!(string, DSSerializerFunctions)(200, 100, DictionaryHashMix.none);
+            customDSSerializedFunctions = Dictionary!(string, DSSerializerFunctions)(200, 100);
 
         DSSerializerFunctions result;
         if (auto f = type in customDSSerializedFunctions)
@@ -2692,7 +2693,7 @@ shared static this() nothrow @trusted
 {
     floatLiterals = () nothrow
     {
-        auto result = Dictionary!(string, IsFloatLiteral)(20, 15, DictionaryHashMix.murmurHash3);
+        auto result = Dictionary!(string, IsFloatLiteral)(25, 15);
 
         // Standard texts
         result["NaN"] = IsFloatLiteral.nan;

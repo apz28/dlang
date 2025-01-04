@@ -21,6 +21,7 @@ import std.uni : sicmp;
 debug(pham_dtm_dtm_time_zone_default_tzdata) import std.stdio : writeln;
 import pham.utl.utl_array : indexOf;
 import pham.utl.utl_array_append : Appender;
+import pham.utl.utl_array_dictionary;
 import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
 import pham.utl.utl_result : ResultIf;
 import pham.dtm.dtm_date : DayOfWeek, Date, DateTime;
@@ -71,7 +72,7 @@ static immutable string onlyDate = "only";
 
 enum notUsedInt = -1;
 
-enum NotUsedAs
+enum NotUsedAs : ubyte
 {
     min,
     max,
@@ -440,16 +441,25 @@ nothrow @safe:
 
     void addLink(ref LinkInfo link)
     {
+        if (this.links.length == 0)
+            this.links = Dictionary!(string, LinkInfo)(500, 250);
+        
         this.links[link.aliasName] = link;
     }
 
     void addRules(ref RuleInfoSet rules)
     {
+        if (this.rules.length == 0)
+            this.rules = Dictionary!(string, RuleInfoSet)(500, 250);
+        
         this.rules[rules.name] = rules;
     }
 
     void addZones(ref ZoneInfoSet zones)
     {
+        if (this.zones.length == 0)
+            this.zones = Dictionary!(string, ZoneInfoSet)(500, 250);
+        
         this.zones[zones.name] = zones;
     }
 
@@ -468,9 +478,9 @@ nothrow @safe:
             return false;
     }
 
-    LinkInfo[string] links;
-    RuleInfoSet[string] rules;
-    ZoneInfoSet[string] zones;
+    Dictionary!(string, LinkInfo) links;
+    Dictionary!(string, RuleInfoSet) rules;
+    Dictionary!(string, ZoneInfoSet) zones;
 }
 
 struct TZLine
@@ -1033,7 +1043,7 @@ TimeZoneInfo[] toTimeZoneInfo(ref TZDatabase tzDatabase)
     TimeZoneInfo[] result;
     result.reserve(200);
 
-    foreach (name, ref zoneInfoSet; tzDatabase.zones)
+    foreach (name, zoneInfoSet; tzDatabase.zones)
     {
         auto firstZone = zoneInfoSet.zones[0];
 
@@ -1085,8 +1095,7 @@ TransitionTime
 
         foreach (ref zoneInfo; zoneInfoSet.zones[1..$])
         {
-            supportsDaylightSavingTime = zoneInfo.supportsDaylightSavingTime();
-               
+            supportsDaylightSavingTime = zoneInfo.supportsDaylightSavingTime();               
         }
         //todo result ~= TimeZoneInfo(id, displayName, standardName, daylightName, baseUtcOffset,
         //    supportsDaylightSavingTime, adjRules);

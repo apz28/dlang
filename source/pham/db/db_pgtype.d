@@ -19,6 +19,7 @@ import std.traits : Unqual;
 
 debug(debug_pham_db_db_pgtype) import std.stdio : writeln;
 import pham.cp.cp_cipher : CipherHelper;
+import pham.utl.utl_array_dictionary;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_enum_set : toName;
 import pham.utl.utl_result : cmp;
@@ -38,7 +39,8 @@ static immutable string pgAuthClearTextName = "ClearText";
 static immutable string pgAuthMD5Name = "MD5";
 static immutable string pgAuthScram256Name = "SCRAM-SHA-256";
 
-static immutable DbConnectionParameterInfo[string] pgDefaultConnectionParameterValues;
+alias PgDefaultConnectionParameterValues = Dictionary!(string, DbConnectionParameterInfo);
+static immutable PgDefaultConnectionParameterValues pgDefaultConnectionParameterValues;
 
 static immutable string[] pgValidConnectionParameterNames = [
     // Primary
@@ -87,7 +89,8 @@ static immutable string[] pgValidConnectionParameterNames = [
     ];
 
 // https://www.postgresql.org/docs/12/libpq-connect.html#LIBPQ-PARAMKEYWORDS
-static immutable string[string] pgMappedParameterNames;
+alias PgMappedParameterNames = Dictionary!(string, string);
+static immutable PgMappedParameterNames pgMappedParameterNames;
 
 static immutable DbTypeInfo[] pgNativeTypes = [
     {dbName:"bigint", dbType:DbType.int64, dbId:PgOIdType.int8, nativeName:"int64", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
@@ -141,9 +144,10 @@ static immutable DbTypeInfo[] pgNativeTypes = [
     {dbName:"", dbType:DbType.unknown, dbId:PgOIdType.void_, nativeName:"void", nativeSize:0, displaySize:4},
     ];
 
-static immutable DbTypeInfo*[int32] pgDbIdToDbTypeInfos;
+alias PgDbIdToDbTypeInfos = Dictionary!(int32, immutable(DbTypeInfo)*);
+static immutable PgDbIdToDbTypeInfos pgDbIdToDbTypeInfos;
 
-enum CanSendParameter
+enum CanSendParameter : ubyte
 {
     no,
     yes,
@@ -390,7 +394,7 @@ public:
     {
         if (size > 0)
             return size;
-            
+
         if (type != 0)
         {
             if (auto e = type in pgDbIdToDbTypeInfos)
@@ -400,14 +404,14 @@ public:
                     return ns;
             }
         }
-        
+
         if (auto e = dbType() in dbTypeToDbTypeInfos)
         {
             const ns = (*e).nativeSize;
             if (ns > 0)
                 return ns;
         }
-        
+
         return dynamicTypeSize;
     }
 
@@ -682,7 +686,7 @@ public:
     this(scope const(ubyte)[] payload) pure @trusted
     {
         debug(debug_pham_db_db_pgtype) debug writeln(__FUNCTION__, "(payload=", payload, ")");
-        
+
         foreach (scope part; (cast(string)payload).split(","))
         {
             if (part.startsWith("r="))
@@ -937,74 +941,89 @@ shared static this() nothrow @safe
 {
     pgDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
-        return cast(immutable(DbConnectionParameterInfo[string]))[
-            DbConnectionParameterIdentifier.serverPort : DbConnectionParameterInfo(&isConnectionParameterInt32, "5_432", 0, uint16.max, DbScheme.pg),
-            DbConnectionParameterIdentifier.userName : DbConnectionParameterInfo(&isConnectionParameterString, "postgres", 0, dbConnectionParameterMaxId, DbScheme.pg),
-            ];
+        auto result = PgDefaultConnectionParameterValues(3, 2);
+
+        result[DbConnectionParameterIdentifier.serverPort] = DbConnectionParameterInfo(&isConnectionParameterInt32, "5_432", 0, uint16.max, DbScheme.pg);
+        result[DbConnectionParameterIdentifier.userName] = DbConnectionParameterInfo(&isConnectionParameterString, "postgres", 0, dbConnectionParameterMaxId, DbScheme.pg);
+
+        debug(debug_pham_db_db_pgtype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return cast(immutable(PgDefaultConnectionParameterValues))result;
     }();
 
     // https://www.postgresql.org/docs/12/libpq-connect.html#LIBPQ-PARAMKEYWORDS
     pgMappedParameterNames = () nothrow pure @trusted // @trusted=cast()
     {
+        auto result = PgMappedParameterNames(30, 22);
+
         // Map to blank - skip sending over
         // Map to leading '?' - need special conversion
-        return cast(immutable(string[string]))[
-            DbConnectionParameterIdentifier.charset : "client_encoding",
-            DbConnectionParameterIdentifier.compress : "",
-            DbConnectionParameterIdentifier.connectionTimeout : "",
-            DbConnectionParameterIdentifier.databaseName : "database",
-            DbConnectionParameterIdentifier.databaseFileName : "",
-            DbConnectionParameterIdentifier.encrypt : "",
-            DbConnectionParameterIdentifier.fetchRecordCount : "",
-            DbConnectionParameterIdentifier.integratedSecurity : "",
-            DbConnectionParameterIdentifier.packageSize : "",
-            DbConnectionParameterIdentifier.pooling : "",
-            DbConnectionParameterIdentifier.poolIdleTimeout : "",
-            DbConnectionParameterIdentifier.poolMaxCount : "",
-            DbConnectionParameterIdentifier.poolMinCount : "",
-            DbConnectionParameterIdentifier.receiveTimeout : "",
-            DbConnectionParameterIdentifier.roleName : "",
-            DbConnectionParameterIdentifier.sendTimeout : "",
-            DbConnectionParameterIdentifier.serverName : "", // host - ignore sending over
-            DbConnectionParameterIdentifier.serverPort : "", // port - ignore sending over
-            DbConnectionParameterIdentifier.userName : "user",
-            DbConnectionParameterIdentifier.userPassword : "", // password - special handling
-            DbConnectionParameterIdentifier.socketBlocking : "",
-            DbConnectionParameterIdentifier.socketNoDelay : "",
-            /*
-            DbConnectionParameterIdentifier.pgOptions : DbConnectionParameterIdentifier.pgOptions,
-            DbConnectionParameterIdentifier.pgPassFile : DbConnectionParameterIdentifier.pgPassFile,
-            DbConnectionParameterIdentifier.pgFallbackApplicationName : DbConnectionParameterIdentifier.pgFallbackApplicationName,
-            DbConnectionParameterIdentifier.pgKeepAlives : DbConnectionParameterIdentifier.pgKeepAlives,
-            DbConnectionParameterIdentifier.pgKeepalivesIdle : DbConnectionParameterIdentifier.pgKeepalivesIdle,
-            DbConnectionParameterIdentifier.pgKeepalivesInterval : DbConnectionParameterIdentifier.pgKeepalivesInterval,
-            DbConnectionParameterIdentifier.pgKeepalivesCount : DbConnectionParameterIdentifier.pgKeepalivesCount,
-            DbConnectionParameterIdentifier.pgTty : DbConnectionParameterIdentifier.pgTty,
-            DbConnectionParameterIdentifier.pgReplication : DbConnectionParameterIdentifier.pgReplication,
-            DbConnectionParameterIdentifier.pgGSSEncMode : DbConnectionParameterIdentifier.pgGSSEncMode,
-            DbConnectionParameterIdentifier.pgSSLCert : DbConnectionParameterIdentifier.pgSSLCert,
-            DbConnectionParameterIdentifier.pgSSLKey : DbConnectionParameterIdentifier.pgSSLKey,
-            DbConnectionParameterIdentifier.pgSSLRootCert : DbConnectionParameterIdentifier.pgSSLRootCert,
-            DbConnectionParameterIdentifier.pgSSLCrl : DbConnectionParameterIdentifier.pgSSLCrl,
-            DbConnectionParameterIdentifier.pgRequirePeer : DbConnectionParameterIdentifier.pgRequirePeer,
-            DbConnectionParameterIdentifier.pgKRBSrvName : DbConnectionParameterIdentifier.pgKRBSrvName,
-            DbConnectionParameterIdentifier.pgGSSLibib : DbConnectionParameterIdentifier.pgGSSLibib,
-            DbConnectionParameterIdentifier.pgService : DbConnectionParameterIdentifier.pgService,
-            DbConnectionParameterIdentifier.pgTargetSessionAttrs : DbConnectionParameterIdentifier.pgTargetSessionAttrs,
-            */
-            ];
+        result[DbConnectionParameterIdentifier.charset] = "client_encoding",
+        result[DbConnectionParameterIdentifier.compress] = "",
+        result[DbConnectionParameterIdentifier.connectionTimeout] = "",
+        result[DbConnectionParameterIdentifier.databaseName] = "database",
+        result[DbConnectionParameterIdentifier.databaseFileName] = "";
+        result[DbConnectionParameterIdentifier.encrypt] = "";
+        result[DbConnectionParameterIdentifier.fetchRecordCount] = "";
+        result[DbConnectionParameterIdentifier.integratedSecurity] = "";
+        result[DbConnectionParameterIdentifier.packageSize] = "";
+        result[DbConnectionParameterIdentifier.pooling] = "";
+        result[DbConnectionParameterIdentifier.poolIdleTimeout] = "";
+        result[DbConnectionParameterIdentifier.poolMaxCount] = "";
+        result[DbConnectionParameterIdentifier.poolMinCount] = "";
+        result[DbConnectionParameterIdentifier.receiveTimeout] = "";
+        result[DbConnectionParameterIdentifier.roleName] = "";
+        result[DbConnectionParameterIdentifier.sendTimeout] = "";
+        result[DbConnectionParameterIdentifier.serverName] = ""; // host - ignore sending over
+        result[DbConnectionParameterIdentifier.serverPort] = ""; // port - ignore sending over
+        result[DbConnectionParameterIdentifier.userName] = "user";
+        result[DbConnectionParameterIdentifier.userPassword] = ""; // password - special handling
+        result[DbConnectionParameterIdentifier.socketBlocking] = "";
+        result[DbConnectionParameterIdentifier.socketNoDelay] = "";
+        /*
+        result[DbConnectionParameterIdentifier.pgOptions] = DbConnectionParameterIdentifier.pgOptions,
+        result[DbConnectionParameterIdentifier.pgPassFile] = DbConnectionParameterIdentifier.pgPassFile,
+        result[DbConnectionParameterIdentifier.pgFallbackApplicationName] = DbConnectionParameterIdentifier.pgFallbackApplicationName,
+        result[DbConnectionParameterIdentifier.pgKeepAlives] = DbConnectionParameterIdentifier.pgKeepAlives,
+        result[DbConnectionParameterIdentifier.pgKeepalivesIdle] = DbConnectionParameterIdentifier.pgKeepalivesIdle,
+        result[DbConnectionParameterIdentifier.pgKeepalivesInterval] = DbConnectionParameterIdentifier.pgKeepalivesInterval,
+        result[DbConnectionParameterIdentifier.pgKeepalivesCount] = DbConnectionParameterIdentifier.pgKeepalivesCount,
+        result[DbConnectionParameterIdentifier.pgTty] = DbConnectionParameterIdentifier.pgTty,
+        result[DbConnectionParameterIdentifier.pgReplication] = DbConnectionParameterIdentifier.pgReplication,
+        result[DbConnectionParameterIdentifier.pgGSSEncMode] = DbConnectionParameterIdentifier.pgGSSEncMode,
+        result[DbConnectionParameterIdentifier.pgSSLCert] = DbConnectionParameterIdentifier.pgSSLCert,
+        result[DbConnectionParameterIdentifier.pgSSLKey] = DbConnectionParameterIdentifier.pgSSLKey,
+        result[DbConnectionParameterIdentifier.pgSSLRootCert] = DbConnectionParameterIdentifier.pgSSLRootCert,
+        result[DbConnectionParameterIdentifier.pgSSLCrl] = DbConnectionParameterIdentifier.pgSSLCrl,
+        result[DbConnectionParameterIdentifier.pgRequirePeer] = DbConnectionParameterIdentifier.pgRequirePeer,
+        result[DbConnectionParameterIdentifier.pgKRBSrvName] = DbConnectionParameterIdentifier.pgKRBSrvName,
+        result[DbConnectionParameterIdentifier.pgGSSLibib] = DbConnectionParameterIdentifier.pgGSSLibib,
+        result[DbConnectionParameterIdentifier.pgService] = DbConnectionParameterIdentifier.pgService,
+        result[DbConnectionParameterIdentifier.pgTargetSessionAttrs] = DbConnectionParameterIdentifier.pgTargetSessionAttrs,
+        */
+
+        debug(debug_pham_db_db_pgtype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return cast(immutable(PgMappedParameterNames))result;
     }();
 
     pgDbIdToDbTypeInfos = () nothrow pure @trusted
     {
-        immutable(DbTypeInfo)*[int32] result;
+        auto result = PgDbIdToDbTypeInfos(pgNativeTypes.length + 1, pgNativeTypes.length, DictionaryHashMix.murmurHash3);
+
         foreach (i; 0..pgNativeTypes.length)
         {
             const dbId = pgNativeTypes[i].dbId;
             if (!(dbId in result))
                 result[dbId] = &pgNativeTypes[i];
         }
-        return result;
+
+        debug(debug_pham_db_db_pgtype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return cast(immutable(PgDbIdToDbTypeInfos))result;
     }();
 }
 
@@ -1021,7 +1040,7 @@ unittest // canSendParameter
 unittest // PgOIdScramSHA256FirstMessage
 {
     import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
-    
+
     auto r = PgOIdScramSHA256FirstMessage(bytesFromHexs("723D307131356635454831642F682F313258634E4F485A2B3731524F4149563643492F322B35786344516B56534E317A6E6C2C733D456E5261337A47685830462F464A62616279685655513D3D2C693D34303936"));
     assert(r.iteration == 4096);
     assert(r.nonce == "0q15f5EH1d/h/12XcNOHZ+71ROAIV6CI/2+5xcDQkVSN1znl");

@@ -2982,7 +2982,7 @@ private:
 
 Dictionary!(int, string) createDictionary() nothrow pure @safe
 {
-    return Dictionary!(int, string)(1500, 1_450, DictionaryHashMix.none);
+    return Dictionary!(int, string)(1500, 1_450, DictionaryHashMix.murmurHash3);
 }
 
 @safe unittest // FbMessages

@@ -41,8 +41,13 @@ struct Dictionary(K, V)
         import pham.utl.utl_trait : ElementTypeOf;
 
         alias KE = ElementTypeOf!K;
-
         //pragma(msg, "K=" ~ K.stringof ~ ", KE=" ~ KE.stringof);
+
+        alias CustomHashOf = size_t function(scope const(KE)[]) @nogc nothrow pure @safe;
+    }
+    else
+    {
+        alias CustomHashOf = size_t function(ref const(K)) @nogc nothrow pure @safe;
     }
 
 public:
@@ -51,13 +56,15 @@ public:
      * Params:
      *  other = source data from a build-in associated array
      */
-    this(OK, OV)(OV[OK] other)
+    this(OK, OV)(OV[OK] other,
+        DictionaryHashMix hashMix = DictionaryHashMix.none,
+        CustomHashOf customHashOf = null)
     if (is(OK : K) && is(OV : V))
     {
         //pragma(msg, "this(OK, OV)(buildin." ~ OK.stringof ~ " vs " ~ K.stringof ~ ")");
         //pragma(msg, "this(OK, OV)(buildin." ~ OV.stringof ~ " vs " ~ V.stringof ~ ")");
 
-        opAssign(other);
+        opAssignImpl(other, hashMix, customHashOf);
     }
 
     /**
@@ -82,9 +89,11 @@ public:
      *  entryCapacity = reserved number of elements for appending
      *  hashMix = final hash mix for added/lookuped hash-key
      */
-    this(size_t bucketCapacity, size_t entryCapacity, DictionaryHashMix hashMix = DictionaryHashMix.murmurHash3) nothrow @safe
+    this(size_t bucketCapacity, size_t entryCapacity,
+        DictionaryHashMix hashMix = DictionaryHashMix.none,
+        CustomHashOf customHashOf = null) nothrow @safe
     {
-        this.aa = createAA(bucketCapacity, entryCapacity, hashMix);
+        this.aa = createAA(bucketCapacity, entryCapacity, hashMix, customHashOf);
     }
 
     /**
@@ -130,17 +139,24 @@ public:
     ref typeof(this) opAssign(OK, OV)(OV[OK] rhs) return
     if (is(OK : K) && is(OV : V))
     {
+        opAssignImpl(rhs);
+        return this;
+    }
+
+    private void opAssignImpl(OK, OV)(OV[OK] rhs,
+        DictionaryHashMix hashMix = DictionaryHashMix.none,
+        CustomHashOf customHashOf = null)
+    if (is(OK : K) && is(OV : V))
+    {
         const ol = rhs.length;
         if (ol)
         {
-            this.aa = createAA(ol, ol);
+            this.aa = createAA(ol + 1, ol, hashMix, customHashOf);
             foreach (k, v; rhs)
                 this.aa.add(k, v);
         }
         else
             this.aa = null;
-
-        return this;
     }
 
     /**
@@ -153,7 +169,7 @@ public:
     ref typeof(this) opAssign(OK, OV)(Dictionary!(OK, OV) rhs) nothrow return
     if (is(OK : K) && is(OV : V))
     {
-        static if(is(OK == K) && is(OV == V))
+        static if (is(OK == K) && is(OV == V))
         {
             this.aa = rhs.aa;
         }
@@ -163,7 +179,7 @@ public:
             const ol = rhs.length;
             if (ol)
             {
-                this.aa = createAA(ol, ol, rhs.hashMix);
+                this.aa = createAA(ol + 1, ol, rhs.aa.hashMix, rhs.aa.customHashOf);
                 foreach (ref e; rhs.aa.entries)
                 {
                     auto ee = Entry(-1, e.hash, e._key, e.value);
@@ -183,14 +199,14 @@ public:
      * Params:
      *  key = the key of the value to get
      */
-    V* opBinaryRight(string op)(scope const(K) key) nothrow return
+    inout(V)* opBinaryRight(string op)(scope const(K) key) inout nothrow return
     if (op == "in")
     {
         return length != 0 ? aa.find(key) : null;
     }
 
     static if (is(K == string) || is(K == wstring) || is(K == dstring))
-    V* opBinaryRight(string op)(scope const(KE)[] key) nothrow return
+    inout(V)* opBinaryRight(string op)(scope const(KE)[] key) inout nothrow return
     if (op == "in")
     {
         return length != 0 ? aa.find(key) : null;
@@ -278,14 +294,15 @@ public:
      */
     typeof(this) dup()
     {
-        auto result = typeof(this)(length, length);
-        if (length)
+        const len = length;
+        if (len == 0)
+            return typeof(this).init;
+
+        auto result = typeof(this)(len + 1, len, this.aa.hashMix, this.aa.customHashOf);
+        foreach (ref e; this.aa.entries)
         {
-            foreach (ref e; this.aa.entries)
-            {
-                auto ee = Entry(-1, e.hash, e._key, e.value);
-                result.aa.add(ee);
-            }
+            auto ee = Entry(-1, e.hash, e._key, e.value);
+            result.aa.add(ee);
         }
         return result;
     }
@@ -520,9 +537,11 @@ private:
 
     static struct Impl
     {
-        this(const(size_t) bucketCapacity, const(size_t) entryCapacity, DictionaryHashMix hashMix) nothrow
+        this(const(size_t) bucketCapacity, const(size_t) entryCapacity,
+            DictionaryHashMix hashMix, CustomHashOf customHashOf) nothrow
         {
             this._hashMix = hashMix;
+            this.customHashOf = customHashOf;
             this.buckets = allocBuckets(calcDim(bucketCapacity, 0));
             if (entryCapacity)
                 this.entries.reserve(entryCapacity);
@@ -592,8 +611,13 @@ private:
         pragma(inline, true)
         size_t calcHash(ref const(K) key) const nothrow pure @safe
         {
-            const size_t hash = hashOf(key);
-            return hash != 0 ? calcHashFinal(hash) : calcHashFinal(1u);
+            if (customHashOf)
+                return customHashOf(key);
+            else
+            {
+                const size_t hash = hashOf(key);
+                return hash != 0 ? calcHashFinal(hash) : calcHashFinal(1u);
+            }
         }
 
         static if (is(K == string) || is(K == wstring) || is(K == dstring))
@@ -601,8 +625,13 @@ private:
             pragma(inline, true)
             size_t calcHash(scope const(KE)[] key) const nothrow pure @safe
             {
-                const size_t hash = hashOf(key);
-                return hash != 0 ? calcHashFinal(hash) : calcHashFinal(1u);
+                if (customHashOf)
+                    return customHashOf(key);
+                else
+                {
+                    const size_t hash = hashOf(key);
+                    return hash != 0 ? calcHashFinal(hash) : calcHashFinal(1u);
+                }
             }
         }
 
@@ -1021,6 +1050,7 @@ private:
         Bucket[] buckets; // Based 1 index
         Entry[] entries;
         size_t collisionCount, maxCollision;
+        CustomHashOf customHashOf;
         DictionaryHashMix _hashMix;
     }
 
@@ -1123,9 +1153,11 @@ private:
                 : getPrimeLength(requiredLength);
     }
 
-    Impl* createAA(size_t bucketCapacity, size_t entryCapacity, DictionaryHashMix hashMix = DictionaryHashMix.murmurHash3) nothrow @safe
+    Impl* createAA(size_t bucketCapacity, size_t entryCapacity,
+        DictionaryHashMix hashMix = DictionaryHashMix.none,
+        CustomHashOf customHashOf = null) nothrow @safe
     {
-        return new Impl(bucketCapacity, entryCapacity, hashMix);
+        return new Impl(bucketCapacity, entryCapacity, hashMix, customHashOf);
     }
 
 private:

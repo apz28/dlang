@@ -17,6 +17,7 @@ import std.traits : EnumMembers, Unqual;
 
 debug(debug_pham_db_db_fbtype) import pham.db.db_debug;
 import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_array_dictionary;
 import pham.utl.utl_enum_set : toName;
 import pham.var.var_variant : Algebraic, VariantType;
 import pham.db.db_convert : toStringSafe;
@@ -57,7 +58,8 @@ enum FbIscCommandType : int32
 	savePoint = FbIsc.isc_info_sql_stmt_savepoint,
 }
 
-static immutable DbConnectionParameterInfo[string] fbDefaultConnectionParameterValues;
+alias FbDefaultConnectionParameterValues = Dictionary!(string, DbConnectionParameterInfo);
+static immutable FbDefaultConnectionParameterValues fbDefaultConnectionParameterValues;
 
 static immutable string[] fbValidConnectionParameterNames = [
     // Primary
@@ -117,7 +119,8 @@ static immutable DbTypeInfo[] fbNativeTypes = [
     {dbName:"", dbType:DbType.unknown, dbId:FbIscType.sql_null, nativeName:"null", nativeSize:0, displaySize:4},
     ];
 
-static immutable DbTypeInfo*[int32] fbDbIdToDbTypeInfos;
+alias FbDbIdToDbTypeInfos = Dictionary!(int32, immutable(DbTypeInfo)*);
+static immutable FbDbIdToDbTypeInfos fbDbIdToDbTypeInfos;
 
 struct FbIscAcceptDataResponse
 {
@@ -867,7 +870,7 @@ public:
     {
         if (size > 0)
             return size;
-            
+
         const t = fbType;
         if (t != 0)
         {
@@ -878,14 +881,14 @@ public:
                     return ns;
             }
         }
-        
+
         if (auto e = dbType() in dbTypeToDbTypeInfos)
         {
             const ns = (*e).nativeSize;
             if (ns > 0)
                 return ns;
         }
-        
+
         return dynamicTypeSize;
     }
 
@@ -901,14 +904,14 @@ public:
                     return ns;
             }
         }
-        
+
         if (auto e = dbType() in dbTypeToDbTypeInfos)
         {
             const ns = (*e).displaySize;
             if (ns > 0)
                 return ns;
         }
-        
+
         return dynamicTypeSize;
     }
 
@@ -993,17 +996,17 @@ public:
     {
         if (size > 0)
             return size;
-            
+
         if (auto e = fbType in fbDbIdToDbTypeInfos)
         {
             const ns = (*e).nativeSize;
             if (ns > 0)
                 return ns;
         }
-        
+
         return dynamicTypeSize;
     }
-    
+
     static DbColumnIdType isValueIdType(int32 type, int32 iscSubType) @nogc pure
     {
         const t = fbType(type);
@@ -1067,7 +1070,7 @@ public:
     {
         if (!hasNumericScale)
             return 0;
-            
+
         switch (fbType)
         {
             case FbIscType.sql_quad:
@@ -1077,7 +1080,7 @@ public:
                 return 10;
             case FbIscType.sql_short:
                 return 5;
-            //case FbIscType.sql_dec_fixed: 
+            //case FbIscType.sql_dec_fixed:
             case FbIscType.sql_dec34:
                 return 34;
             case FbIscType.sql_dec16:
@@ -1120,7 +1123,7 @@ public:
     {
         return FbIscObject(handle, id);
     }
-    
+
     @property bool isError() const
     {
         return statues.isError;
@@ -1722,14 +1725,14 @@ public:
                     break;
             }
         }
-        
+
         debug(debug_pham_db_db_fbtype) debug writeln("\t", "code=", code, ", state=", state, ", message=", message);
     }
 
     int getWarn(ref DbNotificationMessage[] messages)
     {
         debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "()");
-        
+
         string warnMessage;
         int32 warnCode;
 
@@ -1770,9 +1773,9 @@ public:
         }
         if (warnMessage.length != 0)
             addWarnMessage();
-            
-        debug(debug_pham_db_db_fbtype) debug writeln("\t", "warnCode=", warnCode, ", warnMessage=", warnMessage); 
-        
+
+        debug(debug_pham_db_db_fbtype) debug writeln("\t", "warnCode=", warnCode, ", warnMessage=", warnMessage);
+
         return result;
     }
 
@@ -2200,24 +2203,34 @@ shared static this() nothrow @safe
 
     fbDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
-        return cast(immutable(DbConnectionParameterInfo[string]))[
-            DbConnectionParameterIdentifier.serverPort : DbConnectionParameterInfo(&isConnectionParameterInt32, "3_050", 0, uint16.max, DbScheme.fb),
-            DbConnectionParameterIdentifier.userName : DbConnectionParameterInfo(&isConnectionParameterString, "SYSDBA", 0, dbConnectionParameterMaxId, DbScheme.fb),
-            DbConnectionParameterIdentifier.userPassword : DbConnectionParameterInfo(&isConnectionParameterString, "masterkey", 0, dbConnectionParameterMaxId, DbScheme.fb),
-            DbConnectionParameterIdentifier.fbCryptAlgorithm : DbConnectionParameterInfo(&isConnectionParameterFBCryptAlgorithm, FbIscText.filterCryptDefault, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.fb),
-        ];
+        auto result = FbDefaultConnectionParameterValues(5, 4);
+
+        result[DbConnectionParameterIdentifier.serverPort] = DbConnectionParameterInfo(&isConnectionParameterInt32, "3_050", 0, uint16.max, DbScheme.fb);
+        result[DbConnectionParameterIdentifier.userName] = DbConnectionParameterInfo(&isConnectionParameterString, "SYSDBA", 0, dbConnectionParameterMaxId, DbScheme.fb);
+        result[DbConnectionParameterIdentifier.userPassword] = DbConnectionParameterInfo(&isConnectionParameterString, "masterkey", 0, dbConnectionParameterMaxId, DbScheme.fb);
+        result[DbConnectionParameterIdentifier.fbCryptAlgorithm] = DbConnectionParameterInfo(&isConnectionParameterFBCryptAlgorithm, FbIscText.filterCryptDefault, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.fb);
+
+        debug(debug_pham_db_db_fbtype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return cast(immutable(FbDefaultConnectionParameterValues))result;
     }();
 
     fbDbIdToDbTypeInfos = () nothrow pure @trusted
     {
-        immutable(DbTypeInfo)*[int32] result;
+        auto result = FbDbIdToDbTypeInfos(fbNativeTypes.length + 1, fbNativeTypes.length, DictionaryHashMix.murmurHash3);
+
         foreach (i; 0..fbNativeTypes.length)
         {
             const dbId = fbNativeTypes[i].dbId;
             if (!(dbId in result))
                 result[dbId] = &fbNativeTypes[i];
         }
-        return result;
+
+        debug(debug_pham_db_db_fbtype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return cast(immutable(FbDbIdToDbTypeInfos))result;
     }();
 }
 

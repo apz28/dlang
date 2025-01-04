@@ -13,6 +13,8 @@ module pham.dtm.dtm_time_zone_map;
 
 import std.uni : sicmp;
 
+debug(debug_pham_dtm_dtm_time_zone_map) import std.stdio : writeln;
+import pham.utl.utl_array_dictionary;
 import pham.utl.utl_object : singleton;
 import pham.utl.utl_result;
 import pham.dtm.dtm_time_zone : TimeZoneInfo, ZoneOffset;
@@ -309,6 +311,9 @@ protected:
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
+        _toIanas = Dictionary!(string, IanaWindowNameMap*[])(_items.length + 1, _items.length);
+        _toWindows = Dictionary!(string, IanaWindowNameMap*[])(_items.length + 1, _items.length);
+        
         foreach (i; 0.._items.length)
         {
             const windowName = _items[i].window.toUpper();
@@ -327,8 +332,8 @@ protected:
 
 private:
     IanaWindowNameMap[] _items;
-    IanaWindowNameMap*[][string] _toIanas;
-    IanaWindowNameMap*[][string] _toWindows;
+    Dictionary!(string, IanaWindowNameMap*[]) _toIanas;
+    Dictionary!(string, IanaWindowNameMap*[]) _toWindows;
 }
 
 alias MapId = ushort;
@@ -468,7 +473,11 @@ private:
         assert(_zoneInfos.length != 0);
     }
     do
-    {
+    {        
+        const zlen = _zoneInfos.length;
+        ids = Dictionary!(MapId, TimeZoneInfoMap)(zlen * 2, zlen + zlen / 2);
+        zoneIdOrNames = Dictionary!(string, TimeZoneInfoMap)(zlen * 8, zlen * 7);
+        
         foreach (i; 0.._zoneInfos.length)
         {
             add(cast(MapId)(i + 1), &_zoneInfos[i]);
@@ -488,11 +497,17 @@ private:
 
             addIf((*mapInfo).id, tzZoneId.tzName, (*mapInfo).zoneInfo);
         }
+         
+        debug(debug_pham_dtm_dtm_time_zone_map) debug writeln(__FUNCTION__, "(_zoneInfos.length=", _zoneInfos.length, ")");
+        debug(debug_pham_dtm_dtm_time_zone_map) if (ids.maxCollision) debug writeln(__FUNCTION__, "(ids.maxCollision=", ids.maxCollision,
+            ", ids.collisionCount=", ids.collisionCount, ", ids.capacity=", ids.capacity, ", ids.length=", ids.length, ")");            
+        debug(debug_pham_dtm_dtm_time_zone_map) if (zoneIdOrNames.maxCollision) debug writeln(__FUNCTION__, "(zoneIdOrNames.maxCollision=", zoneIdOrNames.maxCollision,
+            ", zoneIdOrNames.collisionCount=", zoneIdOrNames.collisionCount, ", zoneIdOrNames.capacity=", zoneIdOrNames.capacity, ", zoneIdOrNames.length=", zoneIdOrNames.length, ")");        
     }
 
 private:
-    TimeZoneInfoMap[MapId] ids;
-    TimeZoneInfoMap[string] zoneIdOrNames;
+    Dictionary!(MapId, TimeZoneInfoMap) ids;
+    Dictionary!(string, TimeZoneInfoMap) zoneIdOrNames;
     immutable(TimeZoneInfo)[] _zoneInfos;
 }
 
@@ -587,16 +602,21 @@ public:
             return TimeZoneNameMap.init;
     }
 
-	static immutable(TimeZoneNameMap)*[string] tzNameDict() pure @trusted
+	static Dictionary!(string, immutable(TimeZoneNameMap)*) tzNameDict() pure @trusted
     {
-		immutable(TimeZoneNameMap)*[string] result;
+		auto result = Dictionary!(string, immutable(TimeZoneNameMap)*)(timeZoneNameMaps.length + 1, timeZoneNameMaps.length);
+        
         foreach (i; 0..timeZoneNameMaps.length)
             result[timeZoneNameMaps[i].tzName] = &timeZoneNameMaps[i];
+            
+        debug(debug_pham_dtm_dtm_time_zone_map) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+            
 		return result;
     }
 
 public:
-    immutable(TimeZoneNameMap)*[string] tzNames;
+    Dictionary!(string, immutable(TimeZoneNameMap)*) tzNames;
 
 protected:
     static typeof(this) createInstance() pure

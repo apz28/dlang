@@ -12,8 +12,8 @@
 module pham.db.db_mytype;
 
 debug(debug_pham_db_db_mytype) import std.stdio : writeln;
-
 import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_array_dictionary;
 import pham.utl.utl_bit : Map32Bit;
 import pham.utl.utl_enum_set : toName;
 import pham.db.db_message;
@@ -143,7 +143,8 @@ static immutable ubyte[] myDH2048_g = [
     0x05,
     ];
 
-static immutable DbConnectionParameterInfo[string] myDefaultConnectionParameterValues;
+alias MyDefaultConnectionParameterValues = Dictionary!(string, DbConnectionParameterInfo);
+static immutable MyDefaultConnectionParameterValues myDefaultConnectionParameterValues;
 
 static immutable string[] myValidConnectionParameterNames = [
     // Primary
@@ -209,9 +210,11 @@ static immutable DbTypeInfo[] myNativeTypes = [
     {dbName:"varchar(?)", dbType:DbType.stringVary, dbId:MyTypeId.varChar, nativeName:"string", nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.stringVary},
     ];
 
-static immutable DbType[string] mySimpleTypes;
+alias MySimpleTypes = Dictionary!(string, DbType);
+static immutable MySimpleTypes mySimpleTypes;
 
-static immutable DbTypeInfo*[int32] myDbIdToDbTypeInfos;
+alias MyDbIdToDbTypeInfos = Dictionary!(int32, immutable(DbTypeInfo)*);
+static immutable MyDbIdToDbTypeInfos myDbIdToDbTypeInfos;
 
 alias MyBlockHeader = Map32Bit;
 
@@ -594,29 +597,40 @@ shared static this() nothrow @safe
 {
     myDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
-        return cast(immutable(DbConnectionParameterInfo[string]))[
-            DbConnectionParameterIdentifier.allowBatch : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.my),
-            DbConnectionParameterIdentifier.integratedSecurity : DbConnectionParameterInfo(&isConnectionParameterIntegratedSecurity, toName(DbIntegratedSecurityConnection.legacy), dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.my),
-            DbConnectionParameterIdentifier.serverPort : DbConnectionParameterInfo(&isConnectionParameterInt32, "3_306", 0, uint16.max, DbScheme.my), // x_protocol=33060
-            DbConnectionParameterIdentifier.userName : DbConnectionParameterInfo(&isConnectionParameterString, "root", 0, dbConnectionParameterMaxId, DbScheme.my),
-        ];
+        auto result = MyDefaultConnectionParameterValues(7, 4);
+
+        result[DbConnectionParameterIdentifier.allowBatch] = DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.my);
+        result[DbConnectionParameterIdentifier.integratedSecurity] = DbConnectionParameterInfo(&isConnectionParameterIntegratedSecurity, toName(DbIntegratedSecurityConnection.legacy), dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.my);
+        result[DbConnectionParameterIdentifier.serverPort] = DbConnectionParameterInfo(&isConnectionParameterInt32, "3_306", 0, uint16.max, DbScheme.my); // x_protocol=33060
+        result[DbConnectionParameterIdentifier.userName] = DbConnectionParameterInfo(&isConnectionParameterString, "root", 0, dbConnectionParameterMaxId, DbScheme.my);
+
+        debug(debug_pham_db_db_mytype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return cast(immutable(MyDefaultConnectionParameterValues))result;
     }();
 
     myDbIdToDbTypeInfos = () nothrow pure @trusted
     {
-        immutable(DbTypeInfo)*[int32] result;
+        auto result = MyDbIdToDbTypeInfos(myNativeTypes.length + 1, myNativeTypes.length, DictionaryHashMix.murmurHash3);
+
         foreach (i; 0..myNativeTypes.length)
         {
             const dbId = myNativeTypes[i].dbId;
             if (!(dbId in result))
                 result[dbId] = &myNativeTypes[i];
         }
-        return result;
+
+        debug(debug_pham_db_db_mytype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return cast(immutable(MyDbIdToDbTypeInfos))result;
     }();
 
-    mySimpleTypes = () nothrow pure
+    mySimpleTypes = () nothrow pure @trusted
     {
-        DbType[string] result;
+        auto result = MySimpleTypes(38, 37);
+
         result["tinyint"] = DbType.int8;
         result["mediumint"] = DbType.int16;
         result["int"] = DbType.int32;
@@ -654,6 +668,10 @@ shared static this() nothrow @safe
         //result["multipolygon"] = DbType.;
         result["json"] = DbType.json;
         //result[""] = DbType.;
-        return result;
+
+        debug(debug_pham_db_db_mytype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return cast(immutable(MySimpleTypes))result;
     }();
 }
