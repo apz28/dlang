@@ -1043,7 +1043,7 @@ TimeZoneInfo[] toTimeZoneInfo(ref TZDatabase tzDatabase)
     TimeZoneInfo[] result;
     result.reserve(200);
 
-    foreach (name, zoneInfoSet; tzDatabase.zones)
+    foreach (name, ref zoneInfoSet; tzDatabase.zones)
     {
         auto firstZone = zoneInfoSet.zones[0];
 

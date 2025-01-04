@@ -99,8 +99,8 @@ public:
     /**
      * Supports build-in foreach operator
      */
-    alias opApply = opApplyImpl!(int delegate(V));
-    alias opApply = opApplyImpl!(int delegate(const(K), V));
+    alias opApply = opApplyImpl!(int delegate(ref V));
+    alias opApply = opApplyImpl!(int delegate(const(K), ref V));
 
     int opApplyImpl(CallBack)(scope CallBack callBack)
     if (is(CallBack : int delegate(V)) || is(CallBack : int delegate(ref V))
@@ -2083,9 +2083,13 @@ pure unittest // Dictionary miscTests1()
 unittest // Dictionary miscTests2()
 {
     Dictionary!(int, int) aa;
+    foreach (v; aa)
+        assert(false);
+    foreach (ref v; aa)
+        assert(false);
     foreach (k, v; aa)
         assert(false);
-    foreach (v; aa)
+    foreach (k, ref v; aa)
         assert(false);
     assert(aa.byKey.empty);
     assert(aa.byValue.empty);
