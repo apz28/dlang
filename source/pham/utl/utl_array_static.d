@@ -62,8 +62,16 @@ public:
     /**
      * Supports build-in foreach operator
      */
-    alias opApply = opApplyImpl!(int delegate(T));
-    alias opApply = opApplyImpl!(int delegate(size_t, T));
+    static if (T.sizeof <= size_t.sizeof)
+    {
+        alias opApply = opApplyImpl!(int delegate(T));
+        alias opApply = opApplyImpl!(int delegate(size_t, T));
+    }
+    else
+    {
+        alias opApply = opApplyImpl!(int delegate(ref T));
+        alias opApply = opApplyImpl!(int delegate(size_t, ref T));
+    }
 
     int opApplyImpl(CallBack)(scope CallBack callBack)
     if (is(CallBack : int delegate(T)) || is(CallBack : int delegate(ref T))
@@ -1298,6 +1306,8 @@ if (isSomeChar!T || isIntegral!T)
     alias ShortStringBuffer = StaticStringBuffer!(T, 256u - overheadSize);
 }
 
+
+private:
 
 nothrow @safe unittest // StaticArray
 {

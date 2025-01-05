@@ -99,8 +99,16 @@ public:
     /**
      * Supports build-in foreach operator
      */
-    alias opApply = opApplyImpl!(int delegate(ref V));
-    alias opApply = opApplyImpl!(int delegate(const(K), ref V));
+    static if (V.sizeof <= size_t.sizeof)
+    {
+        alias opApply = opApplyImpl!(int delegate(V));
+        alias opApply = opApplyImpl!(int delegate(const(K), V));
+    }
+    else
+    {
+        alias opApply = opApplyImpl!(int delegate(ref V));
+        alias opApply = opApplyImpl!(int delegate(const(K), ref V));
+    }
 
     int opApplyImpl(CallBack)(scope CallBack callBack)
     if (is(CallBack : int delegate(V)) || is(CallBack : int delegate(ref V))
@@ -2080,17 +2088,30 @@ pure unittest // Dictionary miscTests1()
     assert(aa1[key2a] == 200);
 }
 
+unittest // Dictionary foreach
+{
+    Dictionary!(int, int) aa1;
+    foreach (v; aa1)
+        assert(false);
+    foreach (k, v; aa1)
+        assert(false);
+
+    static struct S
+    {
+        size_t a;
+        size_t b;
+    }
+
+    Dictionary!(int, S) aa2;
+    foreach (ref v; aa2)
+        assert(false);
+    foreach (k, ref v; aa2)
+        assert(false);
+}
+
 unittest // Dictionary miscTests2()
 {
     Dictionary!(int, int) aa;
-    foreach (v; aa)
-        assert(false);
-    foreach (ref v; aa)
-        assert(false);
-    foreach (k, v; aa)
-        assert(false);
-    foreach (k, ref v; aa)
-        assert(false);
     assert(aa.byKey.empty);
     assert(aa.byValue.empty);
     assert(aa.byKeyValue.empty);

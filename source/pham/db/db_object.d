@@ -740,8 +740,7 @@ public:
     alias opApply = opApplyImpl!(int delegate(size_t, T));
 
     int opApplyImpl(CallBack)(scope CallBack callBack)
-    if (is(CallBack : int delegate(T))
-        || is(CallBack : int delegate(size_t, T)))
+    if (is(CallBack : int delegate(T)) || is(CallBack : int delegate(size_t, T)))
     {
         debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "()");
 
@@ -749,8 +748,7 @@ public:
         {
             foreach (ref e; sequenceItems)
             {
-                const r = callBack(e.item);
-                if (r)
+                if (const r = callBack(e.item))
                     return r;
             }
         }
@@ -758,8 +756,7 @@ public:
         {
             foreach (i; 0..sequenceItems.length)
             {
-                const r = callBack(i, sequenceItems[i].item);
-                if (r)
+                if (const r = callBack(i, sequenceItems[i].item))
                     return r;
             }
         }
@@ -1203,21 +1200,19 @@ public:
     }
 
 public:
-    alias opApply = opApplyImpl!(int delegate(DbIdentitierValuePair));
-    alias opApply = opApplyImpl!(int delegate(size_t, DbIdentitierValuePair));
+    alias opApply = opApplyImpl!(int delegate(ref DbIdentitierValuePair));
+    alias opApply = opApplyImpl!(int delegate(size_t, ref DbIdentitierValuePair));
 
     int opApplyImpl(CallBack)(scope CallBack callBack)
-    if (is(CallBack : int delegate(DbIdentitierValuePair))
-        || is(CallBack : int delegate(size_t, DbIdentitierValuePair)))
+    if (is(CallBack : int delegate(ref DbIdentitierValuePair)) || is(CallBack : int delegate(size_t, ref DbIdentitierValuePair)))
     {
         debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "()");
 
-        static if (is(CallBack : int delegate(DbIdentitierValuePair)))
+        static if (is(CallBack : int delegate(ref DbIdentitierValuePair)))
         {
             foreach (ref e; sequenceItems)
             {
-                const r = callBack(e);
-                if (r)
+                if (const r = callBack(e))
                     return r;
             }
         }
@@ -1225,8 +1220,7 @@ public:
         {
             foreach (i; 0..sequenceItems.length)
             {
-                const r = callBack(i, sequenceItems[i]);
-                if (r)
+                if (const r = callBack(i, sequenceItems[i]))
                     return r;
             }
         }
