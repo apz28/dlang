@@ -617,6 +617,12 @@ private:
         }
 
         pragma(inline, true)
+        size_t calcBucket(const(size_t) hash) const @nogc nothrow pure @safe
+        {
+            return hash % buckets.length;
+        }
+        
+        pragma(inline, true)
         size_t calcHash(ref const(K) key) const nothrow pure @safe
         {
             if (customHashOf)
@@ -644,7 +650,7 @@ private:
         }
 
         pragma(inline, true)
-        size_t calcHashFinal(const(size_t) hash) const nothrow pure @safe
+        size_t calcHashFinal(const(size_t) hash) const @nogc nothrow pure @safe
         {
             return _hashMix == DictionaryHashMix.none
                 ? hash
@@ -665,8 +671,7 @@ private:
         {
             Index index, bucket;
             size_t keyCollision;
-            const h = calcHash(key);
-            auto entry = findSlotLookup(h, key, index, bucket, keyCollision);
+            auto entry = findSlotLookup(calcHash(key), key, index, bucket, keyCollision);
             return entry ? &entry.value : null;
         }
 
@@ -675,8 +680,7 @@ private:
         {
             Index index, bucket;
             size_t keyCollision;
-            const h = calcHash(key);
-            auto entry = findSlotLookup(h, key, index, bucket, keyCollision);
+            auto entry = findSlotLookup(calcHash(key), key, index, bucket, keyCollision);
             return entry ? &entry.value : null;
         }
 
@@ -684,7 +688,7 @@ private:
         Index findSlotInsert(const(size_t) hash, out size_t keyCollision) const @nogc nothrow pure @safe
         {
             keyCollision = 0;
-            const bucket = hash % buckets.length;
+            const bucket = calcBucket(hash);
             if (buckets[bucket] != 0)
             {
                 auto index = buckets[bucket] - 1;
@@ -701,7 +705,7 @@ private:
         inout(Entry)* findSlotLookup(const(size_t) hash, ref const(K) key, out Index index, out Index bucket, out size_t keyCollision) inout @nogc nothrow pure @safe
         {
             keyCollision = 0;
-            bucket = hash % buckets.length;
+            bucket = calcBucket(hash);
             index = buckets[bucket] - 1;
 
             debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "(key=", key,
@@ -718,7 +722,7 @@ private:
         inout(Entry)* findSlotLookup(const(size_t) hash, scope const(KE)[] key, out Index index, out Index bucket, out size_t keyCollision) inout @nogc nothrow pure @safe
         {
             keyCollision = 0;
-            bucket = hash % buckets.length;
+            bucket = calcBucket(hash);
             index = buckets[bucket] - 1;
 
             debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "(key=", key,
@@ -858,7 +862,7 @@ private:
             import core.memory : GC;
 
             debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "(key=", entries[index].key,
-                ", bucket=", entries[index].hash % buckets.length, ", entryPos=", index + 1, ")");
+                ", bucket=", calcBucket(entries[index].hash), ", entryPos=", index + 1, ")");
 
             // Hookup next entry
             // Must do this action before updating entries's index
@@ -890,7 +894,7 @@ private:
         void removeEntryFromBucket(const(Index) index) nothrow @safe
         {
             const entry = &entries[index];
-            const bucket = entry.hash % buckets.length;
+            const bucket = calcBucket(entry.hash);
 
             if (buckets[bucket] == index + 1)
                 buckets[bucket] = entry.next + 1;
@@ -1017,7 +1021,7 @@ private:
         void updateBucketIndex(const(Index) index, const(int) shiftCount) nothrow @safe
         {
             const entry = &entries[index];
-            const bucket = entry.hash % buckets.length;
+            const bucket = calcBucket(entry.hash);
 
             if (buckets[bucket] == index + 1)
                 buckets[bucket] += shiftCount;
