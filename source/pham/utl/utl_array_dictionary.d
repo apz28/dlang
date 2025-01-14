@@ -36,6 +36,8 @@ enum DictionaryHashMix : ubyte
  */
 struct Dictionary(K, V)
 {
+    enum bool isAssignableKV = isAssignable!K && isAssignable!V;
+    
     static if (is(K == string) || is(K == wstring) || is(K == dstring))
     {
         import pham.utl.utl_trait : ElementTypeOf;
@@ -55,6 +57,8 @@ public:
      * Construct a Dictionary from a build-in associated array
      * Params:
      *  other = source data from a build-in associated array
+     *  hashMix = optionally mix hash value with specific logic
+     *  customHashOf = a customized function to calculate hash value from key
      */
     this(OK, OV)(OV[OK] other,
         DictionaryHashMix hashMix = DictionaryHashMix.none,
@@ -72,13 +76,15 @@ public:
      * Params:
      *  other = source data from an other Dictionary with similar types
      */
-    this(OK, OV)(Dictionary!(OK, OV) other) nothrow
+    this(OK, OV)(Dictionary!(OK, OV) other,
+        DictionaryHashMix hashMix = DictionaryHashMix.none,
+        CustomHashOf customHashOf = null) nothrow
     if (is(OK : K) && is(OV : V))
     {
         //pragma(msg, "this(OK, OV)(Dictionary." ~ OK.stringof ~ " vs " ~ K.stringof ~ ")");
         //pragma(msg, "this(OK, OV)(Dictionary." ~ OV.stringof ~ " vs " ~ V.stringof ~ ")");
 
-        opAssign(other);
+        opAssignImpl(other, hashMix, customHashOf);
     }
 
     /**
@@ -87,7 +93,8 @@ public:
      * Params:
      *  bucketCapacity = reserved number of buckets for appending
      *  entryCapacity = reserved number of elements for appending
-     *  hashMix = final hash mix for added/lookuped hash-key
+     *  hashMix = optionally mix hash value with specific logic
+     *  customHashOf = a customized function to calculate hash value from key
      */
     this(size_t bucketCapacity, size_t entryCapacity,
         DictionaryHashMix hashMix = DictionaryHashMix.none,
@@ -157,9 +164,9 @@ public:
     if (is(OK : K) && is(OV : V))
     {
         const ol = rhs.length;
-        if (ol)
+        if (ol || hashMix != DictionaryHashMix.none || customHashOf !is null)
         {
-            this.aa = createAA(ol + 1, ol, hashMix, customHashOf);
+            this.aa = createAA(ol != 0 ? (ol + 5) : 0, ol, hashMix, customHashOf);
             foreach (k, v; rhs)
                 this.aa.add(k, v);
         }
@@ -177,28 +184,33 @@ public:
     ref typeof(this) opAssign(OK, OV)(Dictionary!(OK, OV) rhs) nothrow return
     if (is(OK : K) && is(OV : V))
     {
+        opAssignImpl(rhs);
+        return this;
+    }    
+    
+    private void opAssignImpl(OK, OV)(Dictionary!(OK, OV) rhs,
+        DictionaryHashMix hashMix = DictionaryHashMix.none,
+        CustomHashOf customHashOf = null) nothrow
+    {
         static if (is(OK == K) && is(OV == V))
         {
-            this.aa = rhs.aa;
+            if (rhs.aa && rhs.aa.hashMix == hashMix && rhs.aa.customHashOf is customHashOf)
+            {
+                this.aa = rhs.aa;
+                return;
+            }
+        }
+        
+        // Build manually
+        const ol = rhs.length;
+        if (ol || hashMix != DictionaryHashMix.none || customHashOf !is null)
+        {
+            this.aa = createAA(ol != 0 ? (ol + rhs.collisionCount + 5) : 0, ol, hashMix, customHashOf);
+            foreach (ref e; rhs.aa.entries)
+                this.aa.add(e._key, e.value);
         }
         else
-        {
-            // Build manually
-            const ol = rhs.length;
-            if (ol)
-            {
-                this.aa = createAA(ol + 1, ol, rhs.aa.hashMix, rhs.aa.customHashOf);
-                foreach (ref e; rhs.aa.entries)
-                {
-                    auto ee = Entry(-1, e.hash, e._key, e.value);
-                    this.aa.add(ee);
-                }
-            }
-            else
-                this.aa = null;
-        }
-
-        return this;
+            this.aa = null;
     }
 
     /**
@@ -306,12 +318,9 @@ public:
         if (len == 0)
             return typeof(this).init;
 
-        auto result = typeof(this)(len + 1, len, this.aa.hashMix, this.aa.customHashOf);
+        auto result = typeof(this)(len + collisionCount + 5, len, this.aa.hashMix, this.aa.customHashOf);
         foreach (ref e; this.aa.entries)
-        {
-            auto ee = Entry(-1, e.hash, e._key, e.value);
-            result.aa.add(ee);
-        }
+            result.aa.add(e.hash, e._key, e.value);
         return result;
     }
 
@@ -354,7 +363,7 @@ public:
      * Params:
      *  key = the key of the element to remove
      */
-    static if (isAssignable!K && isAssignable!V)
+    static if (isAssignableKV)
     bool remove(const(K) key)
     {
         return length != 0 ? aa.remove(key) : false;
@@ -366,7 +375,7 @@ public:
      * Params:
      *  index = the index of the element to remove
      */
-    static if (isAssignable!K && isAssignable!V)
+    static if (isAssignableKV)
     bool removeAt(size_t index)
     {
         return index < length ? aa.removeAt(index) : false;
@@ -380,7 +389,7 @@ public:
      *  key = the key of the element to replace
      *  value = the value of the element to replace
      */
-    static if (isAssignable!K && isAssignable!V)
+    static if (isAssignableKV)
     bool replaceAt(size_t index, K key, V value)
     {
         return index < length ? aa.replaceAt(index, key, value) : false;
@@ -459,7 +468,7 @@ public:
     /**
      * The number of keys that have collision
      */
-    @property size_t collisionCount() const @nogc nothrow pure @safe
+    @property uint collisionCount() const @nogc nothrow pure @safe
     {
         return aa ? aa.collisionCount : 0;
     }
@@ -508,7 +517,7 @@ public:
     /**
      * The maximum collision that a lookup needs to travel to find a key (hash collision)
      */
-    @property size_t maxCollision() const @nogc nothrow pure @safe
+    @property uint maxCollision() const @nogc nothrow pure @safe
     {
         return aa ? aa.maxCollision : 0;
     }
@@ -530,7 +539,7 @@ private:
     static struct Entry
     {
     private:
-        Index next; // Next Entry index of collision chain; -1 is end of chain
+        Index nextCollision; // Next Entry index of collision chain; -1 is end of chain
         size_t hash; // Hash value of _key
         K _key;
 
@@ -559,27 +568,20 @@ private:
         // valid for the given value type.
         void add(ref K key, ref V value)
         {
-            size_t keyCollision;
-            const h = calcHash(key);
-            auto bucket = findSlotInsert(h, keyCollision);
-            if (grow())
-                bucket = findSlotInsert(h, keyCollision);
-
-            const entryPos = addEntry(h, key, value);
-            attachEntryToBucket(bucket, entryPos, keyCollision);
+            add(calcHash(key), key, value);
         }
 
-        void add(ref Entry entry)
+        void add(const(size_t) hash, ref K key, ref V value)
         {
-            assert(entry.hash != 0);
-
-            size_t keyCollision;
-            auto bucket = findSlotInsert(entry.hash, keyCollision);
+            assert(hash != 0);
+            
+            uint keyCollision;
+            auto bucket = findSlotInsert(hash, keyCollision);
             if (grow())
-                bucket = findSlotInsert(entry.hash, keyCollision);
+                bucket = findSlotInsert(hash, keyCollision);
 
-            entries ~= entry;
-            attachEntryToBucket(bucket, entries.length, keyCollision);
+            const entryPos = addEntry(hash, key, value);
+            attachEntryToBucket(bucket, entryPos, keyCollision);
         }
 
         pragma(inline, true)
@@ -590,7 +592,7 @@ private:
         }
 
         pragma(inline, true)
-        void attachEntryToBucket(const(Index) bucket, const(Index) entryPos, const(size_t) collision) nothrow pure @safe
+        void attachEntryToBucket(const(Index) bucket, const(Index) entryPos, const(uint) collision) nothrow pure @safe
         in
         {
             assert(entries[entryPos - 1].hash != 0);
@@ -600,7 +602,7 @@ private:
             debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "(key=", entries[entryPos - 1].key,
                 ", bucket=", bucket, ", entryPos=", entryPos, ")");
 
-            entries[entryPos - 1].next = buckets[bucket] - 1;
+            entries[entryPos - 1].nextCollision = buckets[bucket] - 1;
             buckets[bucket] = entryPos;
 
             if (collision)
@@ -621,7 +623,7 @@ private:
         {
             return hash % buckets.length;
         }
-        
+
         pragma(inline, true)
         size_t calcHash(ref const(K) key) const nothrow pure @safe
         {
@@ -670,7 +672,7 @@ private:
         inout(V)* find(ref const(K) key) inout return
         {
             Index index, bucket;
-            size_t keyCollision;
+            uint keyCollision;
             auto entry = findSlotLookup(calcHash(key), key, index, bucket, keyCollision);
             return entry ? &entry.value : null;
         }
@@ -679,13 +681,13 @@ private:
         inout(V)* find(scope const(KE)[] key) inout return
         {
             Index index, bucket;
-            size_t keyCollision;
+            uint keyCollision;
             auto entry = findSlotLookup(calcHash(key), key, index, bucket, keyCollision);
             return entry ? &entry.value : null;
         }
 
         // find the first slot to insert a value with hash
-        Index findSlotInsert(const(size_t) hash, out size_t keyCollision) const @nogc nothrow pure @safe
+        Index findSlotInsert(const(size_t) hash, out uint keyCollision) const @nogc nothrow pure @safe
         {
             keyCollision = 0;
             const bucket = calcBucket(hash);
@@ -695,14 +697,14 @@ private:
                 while (index >= 0)
                 {
                     keyCollision++;
-                    index = entries[index].next;
+                    index = entries[index].nextCollision;
                 }
             }
             return bucket;
         }
 
         // lookup a key
-        inout(Entry)* findSlotLookup(const(size_t) hash, ref const(K) key, out Index index, out Index bucket, out size_t keyCollision) inout @nogc nothrow pure @safe
+        inout(Entry)* findSlotLookup(const(size_t) hash, ref const(K) key, out Index index, out Index bucket, out uint keyCollision) inout @nogc nothrow pure @safe
         {
             keyCollision = 0;
             bucket = calcBucket(hash);
@@ -719,7 +721,7 @@ private:
         }
 
         static if (is(K == string) || is(K == wstring) || is(K == dstring))
-        inout(Entry)* findSlotLookup(const(size_t) hash, scope const(KE)[] key, out Index index, out Index bucket, out size_t keyCollision) inout @nogc nothrow pure @safe
+        inout(Entry)* findSlotLookup(const(size_t) hash, scope const(KE)[] key, out Index index, out Index bucket, out uint keyCollision) inout @nogc nothrow pure @safe
         {
             keyCollision = 0;
             bucket = calcBucket(hash);
@@ -749,7 +751,7 @@ private:
         }
 
         //pragma(inline, true)
-        bool isIndexedKey(ref Index index, const(size_t) hash, ref const(K) key, ref size_t keyCollision) const @nogc nothrow pure @safe
+        bool isIndexedKey(ref Index index, const(size_t) hash, ref const(K) key, ref uint keyCollision) const @nogc nothrow pure @safe
         {
             do
             {
@@ -758,7 +760,7 @@ private:
                     return true;
 
                 keyCollision++;
-                index = e.next;
+                index = e.nextCollision;
 
                 debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "(key=", key,
                     ", entryPos=", index + 1, ", entries.length=", entries.length, ")");
@@ -770,7 +772,7 @@ private:
         static if (is(K == string) || is(K == wstring) || is(K == dstring))
         {
             //pragma(inline, true)
-            bool isIndexedKey(ref Index index, const(size_t) hash, scope const(KE)[] key, ref size_t keyCollision) const @nogc nothrow pure @safe
+            bool isIndexedKey(ref Index index, const(size_t) hash, scope const(KE)[] key, ref uint keyCollision) const @nogc nothrow pure @safe
             {
                 do
                 {
@@ -779,7 +781,7 @@ private:
                         return true;
 
                     keyCollision++;
-                    index = e.next;
+                    index = e.nextCollision;
 
                     debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "(key=", key,
                         ", entryPos=", index + 1, ", entries.length=", entries.length, ")");
@@ -792,7 +794,7 @@ private:
         ref V put(ref K key, ref V value) return
         {
             Index index, bucket;
-            size_t keyCollision;
+            uint keyCollision;
             const h = calcHash(key);
             auto entry = findSlotLookup(h, key, index, bucket, keyCollision);
             if (entry)
@@ -803,7 +805,7 @@ private:
                     return entry.value;
                 }
                 else
-                    assert(0, fullyQualifiedName!V ~ " is not assignable");
+                    assert(0, fullyQualifiedName!V ~ " is not assignable"); // Runtime error only
             }
             else
             {
@@ -821,7 +823,7 @@ private:
             collisionCount = maxCollision = 0;
             foreach (ei, ref e; entries)
             {
-                size_t keyCollision;
+                uint keyCollision;
                 const bucket = findSlotInsert(e.hash, keyCollision);
                 attachEntryToBucket(bucket, ei + 1, keyCollision);
             }
@@ -843,20 +845,20 @@ private:
             }
         }
 
-        static if (isAssignable!K && isAssignable!V)
+        static if (isAssignableKV)
         bool remove(ref const(K) key)
         {
             debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "(key=", key, ")");
 
             Index index, bucket;
-            size_t keyCollision;
+            uint keyCollision;
             auto entry = findSlotLookup(calcHash(key), key, index, bucket, keyCollision);
             return entry !is null
                 ? removeAt(index)
                 : false;
         }
 
-        static if (isAssignable!K && isAssignable!V)
+        static if (isAssignableKV)
         bool removeAt(const(Index) index)
         {
             import core.memory : GC;
@@ -896,32 +898,34 @@ private:
             const entry = &entries[index];
             const bucket = calcBucket(entry.hash);
 
+            // Match head, just re-attach next as head
             if (buckets[bucket] == index + 1)
-                buckets[bucket] = entry.next + 1;
-            else
             {
-                debug size_t count;
-                auto i = buckets[bucket] - 1;
-                while (true)
-                {
-                    auto e = &entries[i];
-                    if (e.next == index)
-                    {
-                        e.next = entry.next;
-                        return;
-                    }
-                    i = e.next;
+                buckets[bucket] = entry.nextCollision + 1;
+                return;
+            }
 
-                    debug
-                    {
-                        if (++count > entries.length)
-                            assert(0, "Concurrent use");
-                    }
+            debug size_t count;
+            auto i = buckets[bucket] - 1;
+            while (true)
+            {
+                auto e = &entries[i];
+                if (e.nextCollision == index)
+                {
+                    e.nextCollision = entry.nextCollision;
+                    return;
+                }
+                i = e.nextCollision;
+
+                debug
+                {
+                    if (++count > entries.length)
+                        assert(0, "Concurrent use");
                 }
             }
         }
 
-        static if (isAssignable!K && isAssignable!V)
+        static if (isAssignableKV)
         bool replaceAt(const(Index) index, ref K key, ref V value)
         {
             auto entry = &entries[index];
@@ -929,7 +933,7 @@ private:
             if (entry._key != key)
             {
                 Index indexDup, bucket;
-                size_t keyCollision;
+                uint keyCollision;
                 const h = calcHash(key);
                 // Duplicate?
                 if (findSlotLookup(h, key, indexDup, bucket, keyCollision) !is null)
@@ -948,7 +952,7 @@ private:
         ref V require(ref K key, lazy V value) return
         {
             Index index, bucket;
-            size_t keyCollision;
+            uint keyCollision;
             const h = calcHash(key);
             auto entry = findSlotLookup(h, key, index, bucket, keyCollision);
             if (entry is null)
@@ -966,7 +970,8 @@ private:
 
         void resize(const(size_t) newDim) nothrow pure @safe
         {
-            debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe) debug writeln(__FUNCTION__, "(buckets.length=", buckets.length, ", newDim=", newDim, ")");
+            debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe) debug writeln(__FUNCTION__, "(buckets.length=",
+                buckets.length, ", newDim=", newDim, ")");
 
             auto oldBuckets = buckets;
 
@@ -999,7 +1004,7 @@ private:
         ref V update(C, U)(ref K key, scope C createVal, scope U updateVal) return
         {
             Index index, bucket;
-            size_t keyCollision;
+            uint keyCollision;
             const h = calcHash(key);
             auto entry = findSlotLookup(h, key, index, bucket, keyCollision);
             if (entry is null)
@@ -1024,26 +1029,28 @@ private:
             const bucket = calcBucket(entry.hash);
 
             if (buckets[bucket] == index + 1)
-                buckets[bucket] += shiftCount;
-            else
             {
-                debug size_t count;
-                auto i = buckets[bucket] - 1;
-                while (true)
-                {
-                    auto e = &entries[i];
-                    if (e.next == index)
-                    {
-                        e.next += shiftCount;
-                        return;
-                    }
-                    i = e.next;
+                buckets[bucket] += shiftCount;
+                return;
+            }
 
-                    debug
-                    {
-                        if (++count > entries.length)
-                            assert(0, "Concurrent use");
-                    }
+            // Iterate to find the index for adjustment
+            debug size_t count;
+            auto i = buckets[bucket] - 1;
+            while (true)
+            {
+                auto e = &entries[i];
+                if (e.nextCollision == index)
+                {
+                    e.nextCollision += shiftCount;
+                    return;
+                }
+                i = e.nextCollision;
+
+                debug
+                {
+                    if (++count > entries.length)
+                        assert(0, "Concurrent use");
                 }
             }
         }
@@ -1061,8 +1068,8 @@ private:
 
         Bucket[] buckets; // Based 1 index
         Entry[] entries;
-        size_t collisionCount, maxCollision;
         CustomHashOf customHashOf;
+        uint collisionCount, maxCollision;
         DictionaryHashMix _hashMix;
     }
 
@@ -1160,9 +1167,7 @@ private:
     {
         return bucketLength > requiredLength
             ? bucketLength
-            : requiredLength == 0
-                ? getPrimeLength(6)
-                : getPrimeLength(requiredLength);
+            : getPrimeLength(requiredLength != 0 ? requiredLength : 6);
     }
 
     Impl* createAA(size_t bucketCapacity, size_t entryCapacity,
@@ -1176,13 +1181,17 @@ private:
     Impl* aa;
 }
 
-auto asAA(K, V)(Dictionary!(K, V) aa) @trusted
+/**
+ * Constructs a build-in associated array from a Dictionary
+ * Params:
+ *  dictionary = a source Dictionary
+ */
+auto asAA(K, V)(Dictionary!(K, V) dictionary)
 {
-    if (aa.length)
+    if (dictionary.length)
     {
-        // need to build the AA from the hash
         V[K] result;
-        foreach (e; aa[])
+        foreach (ref e; dictionary[])
         {
             result[e.key] = e.value;
         }
@@ -1190,6 +1199,20 @@ auto asAA(K, V)(Dictionary!(K, V) aa) @trusted
     }
 
     return V[K].init;
+}
+
+/**
+ * Constructs a Dictionary from a build-in associated array
+ * Params:
+ *  aa = a source build-in associated array
+ *  hashMix = optionally mix hash value with specific logic
+ *  customHashOf = a customized function to calculate hash value from key
+ */
+auto asAA(K, V)(V[K] aa,
+    DictionaryHashMix hashMix = DictionaryHashMix.none,
+    Dictionary!(K, V).CustomHashOf customHashOf = null)
+{
+    return Dictionary!(K, V)(aa, hashMix, customHashOf);
 }
 
 // Final mix of MurmurHash2
@@ -2260,4 +2283,24 @@ unittest // Dictionary removeAt()
     assert(aa.length == 0);
     assert(aa.keys == []);
     assert(aa.values == []);
+}
+
+unittest // asAA
+{
+    auto srcAA = ["1":1, "3":3, "9":9];
+
+    // To Dictionary
+    auto dstAA1 = srcAA.asAA();
+    assert(dstAA1.length == 3);
+    assert(dstAA1.capacity == 11);
+    assert(dstAA1["9"] == 9);
+
+    auto dstAA2 = srcAA.asAA();
+    assert(dstAA2 == dstAA1);
+    assert(dstAA2.keys == dstAA1.keys);
+
+    // To build-in associated array
+    auto dstAA = dstAA1.asAA();
+    assert(dstAA.length == 3);
+    assert(dstAA["9"] == 9);
 }
