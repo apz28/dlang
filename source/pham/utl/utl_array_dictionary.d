@@ -57,7 +57,7 @@ public:
      * Construct a Dictionary from a build-in associated array
      * Params:
      *  other = source data from a build-in associated array
-     *  hashMix = optionally mix hash value with specific logic
+     *  hashMix = optionally mixing hash value logic
      *  customHashOf = a customized function to calculate hash value from key
      */
     this(OK, OV)(OV[OK] other,
@@ -75,7 +75,7 @@ public:
      * Construct a Dictionary from an other Dictionary with similar types
      * Params:
      *  other = source data from an other Dictionary with similar types
-     *  hashMix = optionally mix hash value with specific logic
+     *  hashMix = optionally mixing hash value logic
      *  customHashOf = a customized function to calculate hash value from key
      */
     this(OK, OV)(Dictionary!(OK, OV) other,
@@ -95,7 +95,7 @@ public:
      * Params:
      *  bucketCapacity = reserved number of buckets for appending
      *  entryCapacity = reserved number of elements for appending
-     *  hashMix = optionally mix hash value with specific logic
+     *  hashMix = optionally mixing hash value logic
      *  customHashOf = a customized function to calculate hash value from key
      */
     this(size_t bucketCapacity, size_t entryCapacity,
@@ -470,7 +470,7 @@ public:
      */
     @property size_t capacity() const @nogc nothrow pure @safe
     {
-        return aa ? aa.buckets.length : 0;
+        return aa ? aa.capacity : 0;
     }
 
     /**
@@ -481,16 +481,28 @@ public:
         return aa ? aa.collisionCount : 0;
     }
 
+    /**
+     * Returns true if Dictionary has no elements, otherwise false
+     */
     @property bool empty() const @nogc nothrow pure @safe
     {
         return aa is null || aa.length == 0;
     }
 
+    /**
+     * Returns current mixing hash value logic
+     */
     @property DictionaryHashMix hashMix() const @nogc nothrow pure @safe
     {
         return aa ? aa.hashMix : DictionaryHashMix.none;
     }
 
+    /**
+     * Changes the mixing hash value logic
+     * Only valid operation if the Dictionary has no elements
+     * Params:
+     *  newHashMix = new mixing hash value logic
+     */
     @property ref typeof(this) hashMix(DictionaryHashMix newHashMix) nothrow @safe
     in
     {
@@ -502,7 +514,7 @@ public:
         {
             if (aa)
                 aa.hashMix = newHashMix;
-            else
+            else if (newHashMix != DictionaryHashMix.none)
                 aa = createAA(0, 0, newHashMix);
         }
         return this;
@@ -524,7 +536,7 @@ public:
     pragma(inline, true)
     @property size_t length() const @nogc nothrow pure @safe
     {
-        return aa ? aa.entries.length : 0;
+        return aa ? aa.length : 0;
     }
 
     /**
@@ -1069,6 +1081,12 @@ private:
             }
         }
 
+        pragma(inline, true)
+        @property size_t capacity() const @nogc nothrow pure @safe
+        {
+            return buckets.length;
+        }
+
         @property DictionaryHashMix hashMix() const @nogc nothrow pure @safe
         {
             return _hashMix;
@@ -1078,6 +1096,12 @@ private:
         {
             if (entries.length == 0)
                 _hashMix = newHashMix;
+        }
+
+        pragma(inline, true)
+        @property size_t length() const @nogc nothrow pure @safe
+        {
+            return entries.length;
         }
 
         Bucket[] buckets; // Based 1 index
@@ -2317,4 +2341,25 @@ unittest // asAA
     auto dstAA = dstAA1.asAA();
     assert(dstAA.length == 3);
     assert(dstAA["9"] == 9);
+}
+
+unittest // Create/Clone from empty
+{
+    int[int] aa;
+    Dictionary!(int, int) dd;
+
+    auto dd1 = Dictionary!(int, int)(aa);
+    auto dd2 = Dictionary!(int, int)(dd);
+    assert(dd1.empty == dd2.empty);
+    assert(dd1.length == dd2.length);
+
+    dd1 = aa;
+    dd2 = dd;
+    assert(dd1.empty == dd2.empty);
+    assert(dd1.length == dd2.length);
+
+    dd1 = dd.dup();
+    dd2 = dd.dup();
+    assert(dd1.empty == dd2.empty);
+    assert(dd1.length == dd2.length);
 }
