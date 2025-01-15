@@ -37,7 +37,7 @@ enum DictionaryHashMix : ubyte
 struct Dictionary(K, V)
 {
     enum bool isAssignableKV = isAssignable!K && isAssignable!V;
-    
+
     static if (is(K == string) || is(K == wstring) || is(K == dstring))
     {
         import pham.utl.utl_trait : ElementTypeOf;
@@ -75,6 +75,8 @@ public:
      * Construct a Dictionary from an other Dictionary with similar types
      * Params:
      *  other = source data from an other Dictionary with similar types
+     *  hashMix = optionally mix hash value with specific logic
+     *  customHashOf = a customized function to calculate hash value from key
      */
     this(OK, OV)(Dictionary!(OK, OV) other,
         DictionaryHashMix hashMix = DictionaryHashMix.none,
@@ -167,8 +169,11 @@ public:
         if (ol || hashMix != DictionaryHashMix.none || customHashOf !is null)
         {
             this.aa = createAA(ol != 0 ? (ol + 5) : 0, ol, hashMix, customHashOf);
-            foreach (k, v; rhs)
-                this.aa.add(k, v);
+            if (ol)
+            {
+                foreach (k, v; rhs)
+                    this.aa.add(k, v);
+            }
         }
         else
             this.aa = null;
@@ -186,8 +191,8 @@ public:
     {
         opAssignImpl(rhs);
         return this;
-    }    
-    
+    }
+
     private void opAssignImpl(OK, OV)(Dictionary!(OK, OV) rhs,
         DictionaryHashMix hashMix = DictionaryHashMix.none,
         CustomHashOf customHashOf = null) nothrow
@@ -200,14 +205,17 @@ public:
                 return;
             }
         }
-        
+
         // Build manually
         const ol = rhs.length;
         if (ol || hashMix != DictionaryHashMix.none || customHashOf !is null)
         {
             this.aa = createAA(ol != 0 ? (ol + rhs.collisionCount + 5) : 0, ol, hashMix, customHashOf);
-            foreach (ref e; rhs.aa.entries)
-                this.aa.add(e._key, e.value);
+            if (ol)
+            {
+                foreach (ref e; rhs.aa.entries)
+                    this.aa.add(e._key, e.value);
+            }
         }
         else
             this.aa = null;
@@ -473,6 +481,11 @@ public:
         return aa ? aa.collisionCount : 0;
     }
 
+    @property bool empty() const @nogc nothrow pure @safe
+    {
+        return aa is null || aa.length == 0;
+    }
+
     @property DictionaryHashMix hashMix() const @nogc nothrow pure @safe
     {
         return aa ? aa.hashMix : DictionaryHashMix.none;
@@ -566,6 +579,7 @@ private:
 
         // only called from building an empty AA, works even when assignment isn't
         // valid for the given value type.
+        pragma(inline, true)
         void add(ref K key, ref V value)
         {
             add(calcHash(key), key, value);
@@ -574,7 +588,7 @@ private:
         void add(const(size_t) hash, ref K key, ref V value)
         {
             assert(hash != 0);
-            
+
             uint keyCollision;
             auto bucket = findSlotInsert(hash, keyCollision);
             if (grow())
