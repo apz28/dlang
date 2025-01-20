@@ -36,7 +36,8 @@ enum DictionaryHashMix : ubyte
  */
 struct Dictionary(K, V)
 {
-    enum bool isAssignableKV = isAssignable!K && isAssignable!V;
+    private enum bool isAssignableKV = isAssignable!K && isAssignable!V;
+    private enum ushort bucketInflated = 5;
 
     static if (is(K == string) || is(K == wstring) || is(K == dstring))
     {
@@ -168,7 +169,7 @@ public:
         const ol = rhs.length;
         if (ol || hashMix != DictionaryHashMix.none || customHashOf !is null)
         {
-            this.aa = createAA(ol != 0 ? (ol + 5) : 0, ol, hashMix, customHashOf);
+            this.aa = createAA(ol != 0 ? (ol + bucketInflated) : 0, ol, hashMix, customHashOf);
             if (ol)
             {
                 foreach (k, v; rhs)
@@ -210,7 +211,7 @@ public:
         const ol = rhs.length;
         if (ol || hashMix != DictionaryHashMix.none || customHashOf !is null)
         {
-            this.aa = createAA(ol != 0 ? (ol + rhs.collisionCount + 5) : 0, ol, hashMix, customHashOf);
+            this.aa = createAA(ol != 0 ? (ol + rhs.collisionCount + bucketInflated) : 0, ol, hashMix, customHashOf);
             if (ol)
             {
                 foreach (ref e; rhs.aa.entries)
@@ -326,7 +327,7 @@ public:
         if (len == 0)
             return typeof(this).init;
 
-        auto result = typeof(this)(len + collisionCount + 5, len, this.aa.hashMix, this.aa.customHashOf);
+        auto result = typeof(this)(len + collisionCount + bucketInflated, len, this.aa.hashMix, this.aa.customHashOf);
         foreach (ref e; this.aa.entries)
             result.aa.add(e.hash, e._key, e.value);
         return result;
@@ -339,17 +340,17 @@ public:
      *  key = the key of the value to get
      *  defaultValue = the default value being returned if the key is not found
      */
-    V get(const(K) key, lazy V defaultValue = V.init)
+    V get(const(K) key, lazy V defaultValue = V.init) nothrow // lazy does not infer nothrow
     {
+        scope (failure) assert(0, "Assume nothrow failed");
+
         if (length != 0)
         {
             if (auto f = aa.find(key))
                 return *f;
-            else
-                return defaultValue;
         }
-        else
-            return defaultValue;
+
+        return defaultValue;
     }
 
     /**
@@ -407,14 +408,16 @@ public:
      * Looks up key; if it exists returns corresponding value else evaluates value, adds it to the Dictionary and returns it
      * Params:
      *  key = the key of the element to lookup/add
-     *  value = the value being added if key is not found
+     *  createValue = the value being added if key is not found
      */
-    ref V require(K key, lazy V value = V.init) return
+    ref V require(K key, lazy V createValue = V.init) nothrow return // lazy does not infer nothrow
     {
+        scope (failure) assert(0, "Assume nothrow failed");
+
         if (!aa)
             aa = createAA(0, 0);
 
-        return aa.require(key, value);
+        return aa.require(key, createValue);
     }
 
     /**
@@ -433,7 +436,8 @@ public:
      *  updateVal = a delegate being called when the key is found
      */
     ref V update(C, U)(K key, scope C createVal, scope U updateVal) return
-    if (is(C : V delegate()) && is(U : void delegate(ref V)))
+    if ((is(C : V delegate()) || is(C : V function()))
+        && (is(U : void delegate(ref V)) || is(U : void function(ref V))))
     {
         if (!aa)
             aa = createAA(0, 0);
@@ -766,7 +770,7 @@ private:
         pragma(inline, true)
         bool grow()
         {
-            const newDim = calcDim(entries.length + 1, buckets.length);
+            const newDim = calcDim(entries.length + collisionCount + bucketInflated, buckets.length);
             if (newDim > buckets.length)
             {
                 resize(newDim);
@@ -859,7 +863,7 @@ private:
         {
             //debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "()");
 
-            const newDim = calcDim(entries.length + collisionCount, 0);
+            const newDim = calcDim(entries.length + collisionCount + bucketInflated, 0);
             if (newDim != buckets.length)
             {
                 resize(newDim);
@@ -975,7 +979,7 @@ private:
             return true;
         }
 
-        ref V require(ref K key, lazy V value) return
+        ref V require(ref K key, lazy V createValue) return
         {
             Index index, bucket;
             uint keyCollision;
@@ -986,7 +990,7 @@ private:
                 if (grow())
                     bucket = findSlotInsert(h, keyCollision);
 
-                entries ~= Entry(-1, h, key, value);
+                entries ~= Entry(-1, h, key, createValue);
                 attachEntryToBucket(bucket, entries.length, keyCollision);
                 return entries[$ - 1].value;
             }
@@ -1012,7 +1016,7 @@ private:
         {
             //debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "()");
 
-            const newDim = calcDim(entries.length, 0);
+            const newDim = calcDim(entries.length + collisionCount + bucketInflated, 0);
             if (newDim < buckets.length)
                 resize(newDim);
         }
@@ -1027,7 +1031,7 @@ private:
             return result;
         }
 
-        ref V update(C, U)(ref K key, scope C createVal, scope U updateVal) return
+        ref V update(C, U)(ref K key, scope C createValue, scope U updateValue) return
         {
             Index index, bucket;
             uint keyCollision;
@@ -1038,13 +1042,13 @@ private:
                 if (grow())
                     bucket = findSlotInsert(h, keyCollision);
 
-                entries ~= Entry(-1, h, key, createVal());
+                entries ~= Entry(-1, h, key, createValue());
                 attachEntryToBucket(bucket, entries.length, keyCollision);
                 return entries[$ - 1].value;
             }
             else
             {
-                updateVal(entry.value);
+                updateValue(entry.value);
                 return entry.value;
             }
         }
@@ -1205,7 +1209,9 @@ private:
     {
         return bucketLength > requiredLength
             ? bucketLength
-            : getPrimeLength(requiredLength != 0 ? requiredLength : 6);
+            : bucketLength == 0
+                ? getPrimeLength(requiredLength != 0 ? requiredLength : 8)
+                : expandPrimeLength(bucketLength);
     }
 
     Impl* createAA(size_t bucketCapacity, size_t entryCapacity,

@@ -26,6 +26,7 @@ version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.dtm.dtm_date : DateTime;
 import pham.utl.utl_array : removeAt;
 import pham.utl.utl_array_append : Appender;
+import pham.utl.utl_array_dictionary;
 import pham.utl.utl_disposable;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.utl.utl_object : RAIIMutex, shortClassName;
@@ -276,11 +277,11 @@ public:
         return findImpl!V(key, found) == FindResult.found;
     }
 
-    final void remove(K key)
+    final bool remove(K key)
     {
         auto raiiMutex = RAIIMutex(mutex);
 
-        items.remove(key);
+        return items.remove(key);
     }
 
     final bool remove(V : Object)(K key, ref V found)
@@ -290,8 +291,7 @@ public:
         final switch (findImpl!V(key, found))
         {
             case FindResult.found:
-                items.remove(key);
-                return true;
+                return items.remove(key);
             case FindResult.unfound:
                 return false;
             case FindResult.expired:
@@ -300,7 +300,7 @@ public:
         }
     }
 
-    @property final K[] keys()
+    @property final const(K)[] keys()
     {
         auto raiiMutex = RAIIMutex(mutex);
 
@@ -404,53 +404,34 @@ protected:
 
 private:
     Mutex mutex;
-    DbCacheItem!K[K] items;
+    Dictionary!(K, DbCacheItem!K) items;
     Timer secondTimer;
     bool timerAdded;
 }
 
 struct DbCustomAttributeList
 {
-@safe:
+nothrow @safe:
 
 public:
-    string opIndex(string name) const @nogc nothrow
+    string opIndex(string name)
     {
-        return get(name, null);
+        return values.get(name);
     }
 
-    ref typeof(this) opIndexAssign(string value, string name) nothrow return
+    ref typeof(this) opIndexAssign(string value, string name) return
     {
-        put(name, value);
+        this.put(name, value);
         return this;
     }
 
-    ref typeof(this) clear() nothrow return @trusted
+    bool hasValue(string name, out string value)
     {
-        _values.clear();
-        return this;
-    }
-
-    string get(string name, string notFoundValue) const @nogc nothrow
-    in
-    {
-        assert(name.length != 0);
-    }
-    do
-    {
-        if (auto e = name in _values)
-            return *e;
-        else
-            return notFoundValue;
-    }
-
-    bool hasValue(string name, out string value) const nothrow
-    {
-        value = get(name, null);
+        value = values.get(name);
         return value.length != 0;
     }
 
-    string put(string name, string value) nothrow
+    string put(string name, string value)
     in
     {
         assert(name.length != 0);
@@ -458,29 +439,24 @@ public:
     do
     {
         if (value.length)
-            _values[name] = value;
+            values[name] = value;
         else
-            _values.remove(name);
+            values.remove(name);
         return value;
     }
 
     @property bool empty() const nothrow
     {
-        return _values.length == 0;
+        return values.empty;
     }
 
     @property size_t length() const nothrow
     {
-        return _values.length;
+        return values.length;
     }
 
-    @property const(string[string]) values() const nothrow
-    {
-        return _values;
-    }
-
-private:
-    string[string] _values;
+    Dictionary!(string, string) values;
+    alias values this;
 }
 
 struct DbIdentitier

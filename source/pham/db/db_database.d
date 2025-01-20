@@ -1893,10 +1893,7 @@ public:
 
     final string serverVersion() @safe
     {
-        if (auto e = DbServerIdentifier.dbVersion in serverInfo.values)
-            return *e;
-        else
-            return serverInfo.put(DbServerIdentifier.dbVersion, getServerVersion());
+        return serverInfo.require(DbServerIdentifier.dbVersion, getServerVersion());
     }
 
     final override size_t toHash() nothrow @safe
@@ -2787,7 +2784,7 @@ public:
         return r && value.length != 0;
     }
 
-    final bool hasCustomValue(string name, out string value) const nothrow
+    final bool hasCustomValue(string name, out string value)
     {
         return customAttributes.hasValue(name, value);
     }
@@ -2914,9 +2911,9 @@ public:
         return this;
     }
 
-    @property final string applicationName() const nothrow
+    @property final string applicationName()
     {
-        return customAttributes.get(DbConnectionCustomIdentifier.applicationName, null);
+        return customAttributes.get(DbConnectionCustomIdentifier.applicationName);
     }
 
     @property final typeof(this) applicationName(string value)
@@ -2930,9 +2927,9 @@ public:
             throwInvalidPropertyValue(DbConnectionCustomIdentifier.applicationName, value);
     }
 
-    @property final string applicationVersion() const nothrow
+    @property final string applicationVersion()
     {
-        return customAttributes.get(DbConnectionCustomIdentifier.applicationVersion, null);
+        return customAttributes.get(DbConnectionCustomIdentifier.applicationVersion);
     }
 
     @property final typeof(this) applicationVersion(string value)
