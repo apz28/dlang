@@ -277,7 +277,7 @@ public:
      * Params:
      *  key = the key of the value to get
      */
-    ref V opIndex(const(K) key,
+    ref V opIndex(scope const(K) key,
         string file = __FILE__, uint line = __LINE__) return
     {
         if (auto v = key in this)
@@ -319,6 +319,37 @@ public:
     }
 
     /**
+     * Returns true if the given key is in the Dictionary. Otherwise, it returns false
+     * Params:
+     *  key = the key of the value to find
+     */
+    bool containKey(scope const(K) key) const nothrow
+    {
+        return length != 0 && aa.find(key) !is null;
+    }
+
+    /**
+     * Returns true if the given key is in the Dictionary and provides its value in Value. Otherwise, it returns false
+     * Params:
+     *  key = the key of the value to find
+     *  value = the variable to hold the found key's value
+     */
+    static if (isAssignableKV)
+    bool containKey(scope const(K) key, ref V value) nothrow
+    {
+        if (length != 0)
+        {
+            if (auto f = aa.find(key))
+            {
+                value = *f;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Returns a duplicate of the Dictionary
      */
     typeof(this) dup()
@@ -340,7 +371,7 @@ public:
      *  key = the key of the value to get
      *  defaultValue = the default value being returned if the key is not found
      */
-    V get(const(K) key, lazy V defaultValue = V.init) nothrow // lazy does not infer nothrow
+    V get(scope const(K) key, lazy V defaultValue = V.init) nothrow // lazy does not infer nothrow
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
@@ -351,6 +382,33 @@ public:
         }
 
         return defaultValue;
+    }
+
+    /**
+     * Returns the value at index.
+     * If the index is out of bound, defaultValue is returned
+     * Params:
+     *  index = the location of key-value pair
+     *  defaultValue = the default value being returned if the index is out of bound
+     */
+    V getAt(size_t index, lazy V defaultValue = V.init) nothrow // lazy does not infer nothrow
+    {
+        scope (failure) assert(0, "Assume nothrow failed");
+
+        if (index < length)
+            return aa.entries[index].value;
+
+        return defaultValue;
+    }
+
+    /**
+     * Returns the index location if the Dictionary contains an value with the specified key; otherwise, -1
+     * Params:
+     *  key = the key of the value to locate
+     */
+    ptrdiff_t indexOf(scope const(K) key) const nothrow pure
+    {
+        return length != 0 ? aa.indexOf(key) : -1;
     }
 
     /**
@@ -367,19 +425,32 @@ public:
     }
 
     /**
-     * Removes the value with the specified key from the Dictionary.
+     * Removes the key-value pair with the specified key from the Dictionary.
      * Returns true if the key if found, false otherwise
      * Params:
      *  key = the key of the element to remove
      */
     static if (isAssignableKV)
-    bool remove(const(K) key)
+    bool remove(scope const(K) key)
     {
         return length != 0 ? aa.remove(key) : false;
     }
 
     /**
-     * Removes the value with the specified index from the Dictionary.
+     * Removes the key-value pair with the specified key from the Dictionary and assign it to value.
+     * Returns true if the key if found, false otherwise
+     * Params:
+     *  key = the key of the value to remove
+     *  value = the variable to hold the removed key's value
+     */
+    static if (isAssignableKV)
+    bool remove(scope const(K) key, ref V value)
+    {
+        return length != 0 ? aa.remove(key, value) : false;
+    }
+
+    /**
+     * Removes the key-value pair with the specified index from the Dictionary.
      * Returns true if index is within range, false otherwise
      * Params:
      *  index = the index of the element to remove
@@ -391,7 +462,20 @@ public:
     }
 
     /**
-     * Replaces the key & value with the specified index from the Dictionary.
+     * Removes the key-value pair with the specified index from the Dictionary and assign it to value.
+     * Returns true if index is within range, false otherwise
+     * Params:
+     *  index = the index of the element to remove
+     *  value = the variable to hold the removed key's element
+     */
+    static if (isAssignableKV)
+    bool removeAt(size_t index, ref V value)
+    {
+        return index < length ? aa.removeAt(index, value) : false;
+    }
+
+    /**
+     * Replaces the key-value pair with the specified index from the Dictionary.
      * Returns true if index is within range and key is not duplicate, false otherwise
      * Params:
      *  index = the index of the element to replace
@@ -780,6 +864,15 @@ private:
                 return false;
         }
 
+        ptrdiff_t indexOf(ref const(K) key) const nothrow pure
+        {
+            Index index, bucket;
+            uint keyCollision;
+            return findSlotLookup(calcHash(key), key, index, bucket, keyCollision) !is null
+                ? index
+                : -1;
+        }
+
         //pragma(inline, true)
         bool isIndexedKey(ref Index index, const(size_t) hash, ref const(K) key, ref uint keyCollision) const @nogc nothrow pure @safe
         {
@@ -889,6 +982,19 @@ private:
         }
 
         static if (isAssignableKV)
+        bool remove(ref const(K) key, ref V value)
+        {
+            debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "(key=", key, ")");
+
+            Index index, bucket;
+            uint keyCollision;
+            auto entry = findSlotLookup(calcHash(key), key, index, bucket, keyCollision);
+            return entry !is null
+                ? removeAt(index, value)
+                : false;
+        }
+
+        static if (isAssignableKV)
         bool removeAt(const(Index) index)
         {
             import core.memory : GC;
@@ -915,6 +1021,13 @@ private:
                 shrink();
 
             return true;
+        }
+
+        static if (isAssignableKV)
+        bool removeAt(const(Index) index, ref V value)
+        {
+            value = entries[index].value;
+            return removeAt(index);
         }
 
         static auto ref fakePure(F)(scope F fun) nothrow pure @trusted
@@ -2272,7 +2385,7 @@ unittest // Dictionary testTombstonePurging()
         assert(i in aa);
 }
 
-unittest // Dictionary clear()
+unittest // Dictionary clear
 {
     Dictionary!(int, int) aa;
     assert(aa.length == 0);
@@ -2290,7 +2403,7 @@ unittest // Dictionary clear()
     assert(aa[5] == 6);
 }
 
-unittest // Dictionary replaceAt()
+unittest // Dictionary replaceAt
 {
     Dictionary!(int, string) aa;
 
@@ -2305,7 +2418,7 @@ unittest // Dictionary replaceAt()
     assert(aa.values == ["1", "20", "3"]);
 }
 
-unittest // Dictionary removeAt()
+unittest // Dictionary removeAt
 {
     Dictionary!(int, string) aa;
 
@@ -2368,4 +2481,29 @@ unittest // Create/Clone from empty
     dd2 = dd.dup();
     assert(dd1.empty == dd2.empty);
     assert(dd1.length == dd2.length);
+}
+
+unittest // Dictionary indexOf
+{
+    Dictionary!(int, int) aa;
+    assert(aa.indexOf(1) == -1);
+    aa[2] = 1;
+    assert(aa.indexOf(2) == 0);
+    assert(aa.indexOf(1) == -1);
+}
+
+unittest // Dictionary containKey
+{
+    int v = 100;
+    Dictionary!(int, int) aa;
+    assert(!aa.containKey(1));
+    assert(!aa.containKey(1, v));
+    assert(v == 100); // still stay the same
+    aa[2] = 1;
+    assert(aa.containKey(2));
+    assert(aa.containKey(2, v));
+    assert(v == 1);
+    assert(!aa.containKey(1));
+    assert(!aa.containKey(1, v));
+    assert(v == 1); // still stay the same
 }

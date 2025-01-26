@@ -576,13 +576,13 @@ public:
         super(database, connectionString);
     }
 
-    final bool hasSSL() const nothrow
+    final bool hasSSL() nothrow
     {
         return (sslCert.length || sslKey.length) && (sslCa.length || sslCaDir.length);
     }
 
     static if (!usePhamIOSocket)
-    final Address toConnectAddress() const 
+    final Address toConnectAddress()
     {
         const sn = serverName;
         return (sn.simpleIndexOf(':') >= 0 || (sn.length && sn[0] == '['))
@@ -591,7 +591,7 @@ public:
     }
 
     static if (usePhamIOSocket)
-    final ConnectInfo toConnectInfo() const nothrow
+    final ConnectInfo toConnectInfo() nothrow
     {
         auto result = ConnectInfo(serverName, serverPort);
         result.blocking = blocking;
@@ -603,7 +603,7 @@ public:
         return result;
     }
 
-    @property final bool blocking() const nothrow
+    @property final bool blocking() nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.socketBlocking));
     }
@@ -615,7 +615,7 @@ public:
         return this;
     }
 
-    @property final bool noDelay() const nothrow
+    @property final bool noDelay() nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.socketNoDelay));
     }
@@ -627,7 +627,7 @@ public:
         return this;
     }
 
-    @property final string sslCa() const nothrow
+    @property final string sslCa() nothrow
     {
         return getString(DbConnectionParameterIdentifier.socketSslCa);
     }
@@ -638,7 +638,7 @@ public:
         return this;
     }
 
-    @property final string sslCaDir() const nothrow
+    @property final string sslCaDir() nothrow
     {
         return getString(DbConnectionParameterIdentifier.socketSslCaDir);
     }
@@ -649,7 +649,7 @@ public:
         return this;
     }
 
-    @property final string sslCert() const nothrow
+    @property final string sslCert() nothrow
     {
         return getString(DbConnectionParameterIdentifier.socketSslCert);
     }
@@ -660,7 +660,7 @@ public:
         return this;
     }
 
-    @property final string sslKey() const nothrow
+    @property final string sslKey() nothrow
     {
         return getString(DbConnectionParameterIdentifier.socketSslKey);
     }
@@ -671,7 +671,7 @@ public:
         return this;
     }
 
-    @property final string sslKeyPassword() const nothrow
+    @property final string sslKeyPassword() nothrow
     {
         return getString(DbConnectionParameterIdentifier.socketSslKeyPassword);
     }
@@ -682,7 +682,7 @@ public:
         return this;
     }
 
-    @property final bool sslVerificationHost() const nothrow
+    @property final bool sslVerificationHost() nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.socketSslVerificationHost));
     }
@@ -694,7 +694,7 @@ public:
         return this;
     }
 
-    @property final int sslVerificationMode() const nothrow
+    @property final int sslVerificationMode() nothrow
     {
         return toIntegerSafe!int(getString(DbConnectionParameterIdentifier.socketSslVerificationMode), -1);
     }

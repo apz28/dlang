@@ -23,6 +23,7 @@ debug(debug_pham_db_db_database) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel;
 import pham.utl.utl_array_append : Appender;
+import pham.utl.utl_array_dictionary;
 import pham.utl.utl_delegate_list;
 import pham.utl.utl_dlink_list;
 import pham.utl.utl_enum_set : EnumSet, toEnum, toName;
@@ -235,7 +236,7 @@ public:
     }
 
 protected:
-    override void add(DbColumn item) nothrow
+    override void add(DbColumn item) nothrow @safe
     {
         super.add(item);
         item._ordinal = cast(uint32)length;
@@ -461,12 +462,12 @@ public:
         return _fetchedRows ? _fetchedRows.dequeue() : DbRowValue(0);
     }
 
-    final string forErrorInfo() const nothrow @safe
+    final string forErrorInfo() nothrow @safe
     {
         return _connection !is null ? _connection.forErrorInfo() : null;
     }
 
-    final string forLogInfo() const nothrow @safe
+    final string forLogInfo() nothrow @safe
     {
         return _connection !is null ? _connection.forLogInfo() : null;
     }
@@ -1790,19 +1791,19 @@ public:
         return !r.isNull && r.value == 1;
     }
 
-    final string forCacheKey() const nothrow @safe
+    final string forCacheKey() nothrow @safe
     {
         return _connectionStringBuilder.forCacheKey();
     }
 
     pragma(inline, true)
-    final string forErrorInfo() const nothrow @safe
+    final string forErrorInfo() nothrow @safe
     {
         return _connectionStringBuilder.forErrorInfo();
     }
 
     pragma(inline, true)
-    final string forLogInfo() const nothrow @safe
+    final string forLogInfo() nothrow @safe
     {
         return _connectionStringBuilder.forLogInfo();
     }
@@ -1919,7 +1920,7 @@ public:
     /**
      * Gets or sets the connection string used to establish the initial connection.
      */
-    @property final string connectionString() const @safe
+    @property final string connectionString() @safe
     {
         return _connectionStringBuilder.connectionString;
     }
@@ -2001,7 +2002,7 @@ public:
     @property abstract bool supportMultiReaders() const nothrow @safe;
 
 package(pham.db):
-    final void checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) const @safe
+    final void checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(funcName=", funcName, ")");
 
@@ -2020,7 +2021,7 @@ package(pham.db):
             throw new DbException(0, DbMessage.eInvalidConnectionActiveReader, null, funcName, file, line);
     }
 
-    final void checkInactive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) const @safe
+    final void checkInactive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(funcName=", funcName, ")");
 
@@ -2748,7 +2749,7 @@ public:
         return this;
     }
 
-    final string forCacheKey() const nothrow
+    final string forCacheKey() nothrow
     {
         return databaseName ~ "." ~ serverName;
     }
@@ -2756,7 +2757,7 @@ public:
     /**
      * Returns a text about database for constructing error/exception message
      */
-    final string forErrorInfo() const nothrow
+    final string forErrorInfo() nothrow
     {
         return forErrorInfoCustom.length != 0
             ? forErrorInfoCustom
@@ -2766,7 +2767,7 @@ public:
     /**
      * Returns a text about database for logging
      */
-    final string forLogInfo() const nothrow
+    final string forLogInfo() nothrow
     {
         return forLogInfoCustom.length != 0
             ? forLogInfoCustom
@@ -2778,7 +2779,7 @@ public:
         return name.length != 0 && exist(name) ? getString(name) : null;
     }
 
-    final bool hasValue(string name, out string value) const nothrow
+    final bool hasValue(string name, out string value) nothrow
     {
         const r = find(name, value);
         return r && value.length != 0;
@@ -2899,7 +2900,7 @@ public:
         return getDelimiterText(cast()this, elementSeparators[0], valueSeparator);
     }
 
-    @property final bool allowBatch() const nothrow
+    @property final bool allowBatch() nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.allowBatch));
     }
@@ -2943,7 +2944,7 @@ public:
             throwInvalidPropertyValue(DbConnectionCustomIdentifier.applicationVersion, value);
     }
 
-    @property final string charset() const nothrow
+    @property final string charset() nothrow
     {
         return getString(DbConnectionParameterIdentifier.charset);
     }
@@ -2965,7 +2966,7 @@ public:
      * Gets or sets the time (value based in milliseconds) to wait for a command to be executed completely.
      * Set to zero to disable the setting.
      */
-    @property final Duration commandTimeout() const nothrow
+    @property final Duration commandTimeout() nothrow
     {
         Duration result;
         cvtConnectionParameterDuration(result, getString(DbConnectionParameterIdentifier.commandTimeout));
@@ -2986,7 +2987,7 @@ public:
             throwInvalidPropertyValue(DbConnectionParameterIdentifier.commandTimeout, value.toString());
     }
 
-    @property final DbCompressConnection compress() const nothrow
+    @property final DbCompressConnection compress() nothrow
     {
         const s = getString(DbConnectionParameterIdentifier.compress);
         DbCompressConnection result;
@@ -3008,7 +3009,7 @@ public:
     /**
      * The connection string used to establish the initial connection.
      */
-    @property final string connectionString() const nothrow
+    @property final string connectionString() nothrow
     {
         assert(elementSeparators.length != 0);
 
@@ -3038,7 +3039,7 @@ public:
      * Gets or sets the time (value based in milliseconds) to wait for a connection to open.
      * The default value is 10 seconds.
      */
-    @property final Duration connectionTimeout() const nothrow
+    @property final Duration connectionTimeout() nothrow
     {
         Duration result;
         cvtConnectionParameterDuration(result, getString(DbConnectionParameterIdentifier.connectionTimeout));
@@ -3067,7 +3068,7 @@ public:
     /**
      * The name of the database; value of "database"
      */
-    @property final DbIdentitier databaseName() const nothrow
+    @property final DbIdentitier databaseName() nothrow
     {
         return DbIdentitier(getString(DbConnectionParameterIdentifier.databaseName));
     }
@@ -3090,7 +3091,7 @@ public:
     /**
      * The file-name of the database; value of "databaseFileName"
      */
-    @property final string databaseFileName() const nothrow
+    @property final string databaseFileName() nothrow
     {
         return getString(DbConnectionParameterIdentifier.databaseFileName);
     }
@@ -3113,7 +3114,7 @@ public:
         return _elementSeparators;
     }
 
-    @property final DbEncryptedConnection encrypt() const nothrow
+    @property final DbEncryptedConnection encrypt() nothrow
     {
         DbEncryptedConnection result;
         cvtConnectionParameterEncrypt(result, getString(DbConnectionParameterIdentifier.encrypt));
@@ -3131,7 +3132,7 @@ public:
      * Use -1 to fetch all
      * Default value is 200
      */
-    @property final int32 fetchRecordCount() const nothrow
+    @property final int32 fetchRecordCount() nothrow
     {
         int32 result;
         cvtConnectionParameterInt32(result, getString(DbConnectionParameterIdentifier.fetchRecordCount));
@@ -3152,7 +3153,7 @@ public:
             throwInvalidPropertyValue(DbConnectionParameterIdentifier.fetchRecordCount, value.to!string);
     }
 
-    @property final DbIntegratedSecurityConnection integratedSecurity() const nothrow
+    @property final DbIntegratedSecurityConnection integratedSecurity() nothrow
     {
         DbIntegratedSecurityConnection result;
         cvtConnectionParameterIntegratedSecurity(result, getString(DbConnectionParameterIdentifier.integratedSecurity));
@@ -3169,7 +3170,7 @@ public:
      * Gets or sets transport package size in bytes.
      * Default value is 8_192
      */
-    @property final uint32 packageSize() const nothrow
+    @property final uint32 packageSize() nothrow
     {
         int32 result;
         cvtConnectionParameterComputingSize(result, getString(DbConnectionParameterIdentifier.packageSize));
@@ -3190,7 +3191,7 @@ public:
             throwInvalidPropertyValue(DbConnectionParameterIdentifier.packageSize, value.to!string);
     }
 
-    @property final bool pooling() const nothrow
+    @property final bool pooling() nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.pooling));
     }
@@ -3202,7 +3203,7 @@ public:
         return this;
     }
 
-    @property final Duration poolIdleTimeout() const nothrow
+    @property final Duration poolIdleTimeout() nothrow
     {
         Duration result;
         cvtConnectionParameterDuration(result, getString(DbConnectionParameterIdentifier.poolIdleTimeout));
@@ -3223,7 +3224,7 @@ public:
             throwInvalidPropertyValue(DbConnectionParameterIdentifier.poolIdleTimeout, value.toString());
     }
 
-    @property final uint32 poolMaxCount() const nothrow
+    @property final uint32 poolMaxCount() nothrow
     {
         int32 result;
         cvtConnectionParameterInt32(result, getString(DbConnectionParameterIdentifier.poolMaxCount));
@@ -3246,7 +3247,7 @@ public:
             throwInvalidPropertyValue(DbConnectionParameterIdentifier.poolMaxCount, value.to!string);
     }
 
-    @property final uint32 poolMinCount() const nothrow
+    @property final uint32 poolMinCount() nothrow
     {
         int32 result;
         cvtConnectionParameterInt32(result, getString(DbConnectionParameterIdentifier.poolMinCount));
@@ -3272,7 +3273,7 @@ public:
      * The default value is 3_600 seconds (1 hour).
      * Set to zero to disable the setting.
      */
-    @property final Duration receiveTimeout() const nothrow
+    @property final Duration receiveTimeout() nothrow
     {
         Duration result;
         cvtConnectionParameterDuration(result, getString(DbConnectionParameterIdentifier.receiveTimeout));
@@ -3293,7 +3294,7 @@ public:
             throwInvalidPropertyValue(DbConnectionParameterIdentifier.receiveTimeout, value.toString());
     }
 
-    @property final string roleName() const nothrow
+    @property final string roleName() nothrow
     {
         return getString(DbConnectionParameterIdentifier.roleName);
     }
@@ -3318,7 +3319,7 @@ public:
      * The default value is 60 seconds.
      * Set to zero to disable the setting.
      */
-    @property final Duration sendTimeout() const nothrow
+    @property final Duration sendTimeout() nothrow
     {
         Duration result;
         cvtConnectionParameterDuration(result, getString(DbConnectionParameterIdentifier.sendTimeout));
@@ -3342,7 +3343,7 @@ public:
     /**
      * The name of the database server; value of "server"
      */
-    @property final string serverName() const nothrow
+    @property final string serverName() nothrow
     {
         return getString(DbConnectionParameterIdentifier.serverName);
     }
@@ -3360,7 +3361,7 @@ public:
             throwInvalidPropertyValue(DbConnectionParameterIdentifier.serverName, value);
     }
 
-    @property final uint16 serverPort() const nothrow
+    @property final uint16 serverPort() nothrow
     {
         int32 result;
         cvtConnectionParameterInt32(result, getString(DbConnectionParameterIdentifier.serverPort));
@@ -3384,7 +3385,7 @@ public:
     /**
      * Returns value of "user"
      */
-    @property final string userName() const nothrow
+    @property final string userName() nothrow
     {
         return getString(DbConnectionParameterIdentifier.userName);
     }
@@ -3405,7 +3406,7 @@ public:
     /**
      * Returns value of "password"
      */
-    @property final string userPassword() const nothrow
+    @property final string userPassword() nothrow
     {
         return getString(DbConnectionParameterIdentifier.userPassword);
     }
@@ -3444,7 +3445,7 @@ protected:
         return sch.length == 0 || sch == scheme ? (*k).def : null;
     }
 
-    final string getString(string name) const nothrow
+    final string getString(string name) nothrow
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(name=", name, ")");
         debug(debug_pham_db_db_database) scope(exit) debug writeln("\t", "end");
@@ -3459,16 +3460,14 @@ protected:
     final void initValidParamNameChecks() nothrow
     {
         if (_database !is null)
-            _validParamNameChecks = _database._validParamNameChecks;
-        else
-        {
-            const names = parameterNames();
-            foreach (n; names)
-                _validParamNameChecks[n] = true;
-        }
+            _validParamNameChecks = _database._validParamNameChecks.dup;
+
+        const names = parameterNames();
+        foreach (n; names)
+            _validParamNameChecks[n] = true;
     }
 
-    override DbNameValueValidated isValidImpl(const(DbIdentitier) name, string value) const nothrow
+    override DbNameValueValidated isValidImpl(scope const(DbIdentitier) name, string value) const nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(name=", name, ")");
 
@@ -3526,7 +3525,7 @@ public:
 
 protected:
     DbDatabase _database;
-    bool[string] _validParamNameChecks;
+    Dictionary!(string, bool) _validParamNameChecks;
     string _elementSeparators = ";";
     char _valueSeparator = '=';
 }
@@ -3934,8 +3933,8 @@ protected:
 
 protected:
     DbCache!string _cache;
-    CharClass[dchar] _charClasses;
-    bool[string] _validParamNameChecks;
+    Dictionary!(dchar, CharClass) _charClasses;
+    Dictionary!(string, bool) _validParamNameChecks;
     string _stringConcatOp;
     char _identifierQuoteChar;
     char _stringQuoteChar;
@@ -4631,7 +4630,7 @@ public:
         if (source is null)
             return this;
 
-        sequenceItems.reserve(source.length);
+        reserve(source.length);
         foreach (e; source)
             addClone(e);
 
@@ -5492,12 +5491,12 @@ public:
         return this;
     }
 
-    final string forErrorInfo() const nothrow @safe
+    final string forErrorInfo() nothrow @safe
     {
         return _connection !is null ? _connection.forErrorInfo() : null;
     }
 
-    final string forLogInfo() const nothrow @safe
+    final string forLogInfo() nothrow @safe
     {
         return _connection !is null ? _connection.forLogInfo() : null;
     }

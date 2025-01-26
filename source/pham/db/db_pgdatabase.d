@@ -1295,7 +1295,7 @@ ORDER BY oid
             info.type = returnType;
             result.returnType.baseTypeId = returnType;
             result.returnType.type = info.dbType();
-            
+
             return result;
         }
 
@@ -1356,7 +1356,7 @@ public:
         super(database !is null ? database : pgDB, connectionString);
     }
 
-    final string integratedSecurityName() const nothrow
+    final string integratedSecurityName() nothrow
     {
         final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
         {

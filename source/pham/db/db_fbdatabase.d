@@ -2140,7 +2140,7 @@ public:
         super(database !is null ? database : fbDB, connectionString);
     }
 
-    final string integratedSecurityName() const nothrow
+    final string integratedSecurityName() nothrow
     {
         final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
         {
@@ -2160,12 +2160,12 @@ public:
         return fbValidConnectionParameterNames;
     }
 
-    @property final uint32 cachePages() const nothrow
+    @property final uint32 cachePages() nothrow
     {
         return toIntegerSafe!uint32(getString(DbConnectionParameterIdentifier.fbCachePage), uint16.max);
     }
 
-    @property final string cryptAlgorithm() const nothrow
+    @property final string cryptAlgorithm() nothrow
     {
         return getString(DbConnectionParameterIdentifier.fbCryptAlgorithm);
     }
@@ -2176,7 +2176,7 @@ public:
         return this;
     }
 
-    @property final ubyte[] cryptKey() const nothrow
+    @property final ubyte[] cryptKey() nothrow
     {
         return bytesFromBase64s(getString(DbConnectionParameterIdentifier.fbCryptKey));
     }
@@ -2187,22 +2187,22 @@ public:
         return this;
     }
 
-    @property final bool databaseTrigger() const nothrow
+    @property final bool databaseTrigger() nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.fbDatabaseTrigger));
     }
 
-    @property final int16 dialect() const nothrow
+    @property final int16 dialect() nothrow
     {
         return toIntegerSafe!int16(getString(DbConnectionParameterIdentifier.fbDialect), FbIscDefaultInt.dialect);
     }
 
-    @property final Duration dummyPackageInterval() const nothrow
+    @property final Duration dummyPackageInterval() nothrow
     {
         return secondDigitsToDurationSafe(getString(DbConnectionParameterIdentifier.fbDummyPacketInterval), Duration.zero);
     }
 
-    @property final bool garbageCollect() const nothrow
+    @property final bool garbageCollect() nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.fbGarbageCollect));
     }

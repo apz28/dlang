@@ -962,7 +962,7 @@ public:
         super(database !is null ? database : myDB, connectionString);
     }
 
-    final string integratedSecurityName() const nothrow
+    final string integratedSecurityName() nothrow
     {
         final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
         {
@@ -982,7 +982,7 @@ public:
         return myValidConnectionParameterNames;
     }
 
-    @property final bool allowUserVariables() const nothrow
+    @property final bool allowUserVariables() nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.myAllowUserVariables));
     }
