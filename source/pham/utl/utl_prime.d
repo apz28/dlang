@@ -38,7 +38,10 @@ static immutable uint[] primeLengths = [
  */
 size_t expandPrimeLength(const(size_t) oldLength) @nogc nothrow pure
 {
-    const size_t newLength = oldLength <= 1_000 ? (oldLength * 2) : (oldLength + (oldLength / 2));
+    const increment = oldLength > 1_000
+        ? (oldLength / 2)
+        : (oldLength != 0 ? oldLength : 8);
+    const newLength = oldLength + increment;
 
     if (newLength > maxPrimeLength4B)
     {
@@ -63,7 +66,7 @@ size_t getMaxPrime(const(size_t) max) @nogc nothrow pure
         if (isPrime(i) && ((i - 1) % hashPrime != 0))
             return i;
     }
-        
+
     return 3;
 }
 

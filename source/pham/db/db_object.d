@@ -648,7 +648,7 @@ protected:
     }
 
 protected:
-    void* _list;
+    Object _list;
     DbIdentitier _name;
 }
 
@@ -874,7 +874,7 @@ public:
 protected:
     void add(T item) nothrow @safe
     {
-        item._list = () @trusted { return cast(void*)this; }();
+        item._list = this;
         items[item.name] = item;
     }
 
@@ -886,7 +886,7 @@ protected:
 
         if (i >= 0)
         {
-            item._list = () @trusted { return cast(void*)this; }();
+            item._list = this;
             const r = items.replaceAt(i, item.name, item);
             assert(r, "replaceAt failed");
         }
@@ -901,7 +901,7 @@ protected:
         debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(item._name=", item._name, ", index=", i, ", length=", length, ", oldName=", oldName, ")");
         assert(i >= 0);
 
-        item._list = () @trusted { return cast(void*)this; }();
+        item._list = this;
         const r = items.replaceAt(i, item.name, item);
         assert(r, "replaceAt failed");
     }

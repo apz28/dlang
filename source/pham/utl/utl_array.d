@@ -51,9 +51,9 @@ in
 }
 do
 {
-    const increment = currentLength != 0
+    const increment = currentLength > 1_000
         ? (currentLength / 2)
-        : (sizeOfT == 1 ? 32 : (sizeOfT == 2 ? 16 : 8));
+        : (currentLength != 0 ? currentLength : (sizeOfT == 1 ? 32 : (sizeOfT == 2 ? 16 : 8)));
     return currentLength + (increment > additionalLength ? increment : additionalLength);
 }
 
