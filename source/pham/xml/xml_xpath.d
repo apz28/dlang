@@ -495,7 +495,7 @@ public:
                 break;
         }
         _type = XPathDataType.empty;
-        _ = 0;
+        _dummy = 0;
     }
 
     S toString() const nothrow
@@ -549,9 +549,9 @@ public:
 
     union
     {
-        long _ = 0;     // 8 bytes - dummy declare so that it has zero intialized value
+        long _dummy = 0;     // 8 bytes - dummy declare so that it has zero intialized value
         double number;  // 8 bytes
-        S _text;        // 4 or 8 bytes depending on pointer
+        S _text;        // 8 or 16 bytes depending on pointer
         bool boolean;   // 1 byte
     }
 
@@ -645,7 +645,7 @@ public:
     XPathValue!S resValue;
 
     XmlNodeList!S filterNodes;
-    XPathValue!S[S] variables;
+    Dictionary!(S, XPathValue!S) variables;
 
 package:
     debug(debug_pham_xml_xml_xpath)
@@ -1346,6 +1346,7 @@ protected:
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
+        defaultFunctions.reserve(35, 30);
         defaultFunctions[to!S(XPathFunctionType.boolean)] = &fctBoolean!S;
         defaultFunctions[to!S(XPathFunctionType.ceiling)] = &fctCeiling!S;
         defaultFunctions[to!S(XPathFunctionType.concat)] = &fctConcat!S;
@@ -1377,7 +1378,7 @@ protected:
     }
 
 protected:
-    XPathFunctionEvaluate[S] defaultFunctions;
+    Dictionary!(S, XPathFunctionEvaluate) defaultFunctions;
 
 private:
     __gshared static XPathFunctionTable!S _defaultFunctionTable;
@@ -2070,7 +2071,7 @@ public:
     }
 
 public:
-    XPathAxisType[S] data;
+    Dictionary!(S, XPathAxisType) data;
 
 protected:
     static XPathAxisTypeTable!S createDefaultAxisTypeTable() nothrow
@@ -2080,6 +2081,7 @@ protected:
 
     final void initDefault() nothrow
     {
+        data.reserve(20, 15);
         data["ancestor"] = XPathAxisType.ancestor;
         data["ancestor-or-self"] = XPathAxisType.ancestorOrSelf;
         data["attribute"] = XPathAxisType.attribute;
@@ -3512,15 +3514,15 @@ private:
                     {
                         switch (scanner.kind)
                         {
-                        case XPathScannerLexKind.slash:
-                            nextLex();
-                            break;
-                        case XPathScannerLexKind.slashSlash:
-                            nextLex();
-                            result = new XPathAxis!S(aInput, XPathAxisType.descendantOrSelf, result);
-                            break;
-                        default:
-                            return result;
+                            case XPathScannerLexKind.slash:
+                                nextLex();
+                                break;
+                            case XPathScannerLexKind.slashSlash:
+                                nextLex();
+                                result = new XPathAxis!S(aInput, XPathAxisType.descendantOrSelf, result);
+                                break;
+                            default:
+                                return result;
                         }
                     }
                 }

@@ -13,6 +13,7 @@ module pham.xml.xml_object;
 
 import std.format : format;
 
+import pham.utl.utl_array_dictionary;
 import pham.xml.xml_message;
 import pham.xml.xml_type;
 
@@ -30,7 +31,7 @@ public:
     alias C = XmlChar!S;
 
 public:
-    S[S] items;
+    Dictionary!(S, S) items;
 
     /**
      * Returns true if name, n, is existed in table; otherwise false
@@ -87,7 +88,7 @@ public:
         this.line = line;
         this.column = column;
     }
-
+    
     bool isSpecified() const
     {
         return line != 0 || column != 0;

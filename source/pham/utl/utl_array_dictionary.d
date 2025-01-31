@@ -91,11 +91,11 @@ public:
     }
 
     /**
-     * Constructs a Dictionary with a given capacity buckets & elements for appending.
+     * Constructs a Dictionary with a given capacity buckets & key-value pairs for appending.
      * Avoid reallocate memory while populating the Dictionary instant
      * Params:
      *  bucketCapacity = reserved number of buckets for appending
-     *  entryCapacity = reserved number of elements for appending
+     *  entryCapacity = reserved number of key-value pairs for appending
      *  hashMix = optionally mixing hash value logic
      *  customHashOf = a customized function to calculate hash value from key
      */
@@ -371,7 +371,7 @@ public:
      *  key = the key of the value to get
      *  defaultValue = the default value being returned if the key is not found
      */
-    V get(scope const(K) key, lazy V defaultValue = V.init) nothrow // lazy does not infer nothrow
+    inout(V) get(scope const(K) key, lazy inout(V) defaultValue = V.init) inout nothrow // lazy does not infer nothrow
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
@@ -391,7 +391,7 @@ public:
      *  index = the location of key-value pair
      *  defaultValue = the default value being returned if the index is out of bound
      */
-    V getAt(size_t index, lazy V defaultValue = V.init) nothrow // lazy does not infer nothrow
+    inout(V) getAt(size_t index, lazy inout(V) defaultValue = V.init) inout nothrow // lazy does not infer nothrow
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
@@ -502,6 +502,21 @@ public:
             aa = createAA(0, 0);
 
         return aa.require(key, createValue);
+    }
+
+    /**
+     * Reserve a Dictionary with a given capacity buckets & key-value pairs for appending.
+     * Avoid reallocate memory while populating the Dictionary instant
+     * Params:
+     *  bucketCapacity = reserved number of buckets for appending
+     *  entryCapacity = reserved number of key-value pairs for appending
+     */
+    void reserve(size_t bucketCapacity, size_t entryCapacity) nothrow @safe
+    {
+        if (aa)
+            aa.reserve(bucketCapacity, entryCapacity);
+        else
+            aa = createAA(bucketCapacity, entryCapacity);
     }
 
     /**
@@ -1109,6 +1124,15 @@ private:
             }
             else
                 return entry.value;
+        }
+
+        void reserve(size_t bucketCapacity, size_t entryCapacity)
+        {
+            bucketCapacity = calcDim(bucketCapacity, 0);
+            if (buckets.length < bucketCapacity)
+                resize(bucketCapacity);
+            if (entries.capacity < entryCapacity)
+                entries.reserve(entryCapacity);
         }
 
         void resize(const(size_t) newDim) nothrow pure @safe
@@ -2506,4 +2530,22 @@ unittest // Dictionary containKey
     assert(!aa.containKey(1));
     assert(!aa.containKey(1, v));
     assert(v == 1); // still stay the same
+}
+
+unittest // Dictionary reserve
+{
+    int v;
+    Dictionary!(int, int) aa;
+    aa[2] = 5;
+    aa[3] = 6;
+    aa.reserve(100, 90);
+    aa[4] = 7;
+    assert(aa.length == 3);
+    assert(aa.containKey(2, v));
+    assert(v == 5);
+    assert(aa.containKey(3, v));
+    assert(v == 6);
+    assert(aa.containKey(4, v));
+    assert(v == 7);
+    assert(aa.keys == [2, 3, 4]);
 }

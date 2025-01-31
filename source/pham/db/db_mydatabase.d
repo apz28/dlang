@@ -962,7 +962,7 @@ public:
         super(database !is null ? database : myDB, connectionString);
     }
 
-    final string integratedSecurityName() nothrow
+    final string integratedSecurityName() const nothrow
     {
         final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
         {
@@ -982,7 +982,7 @@ public:
         return myValidConnectionParameterNames;
     }
 
-    @property final bool allowUserVariables() nothrow
+    @property final bool allowUserVariables() const nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.myAllowUserVariables));
     }
@@ -1197,7 +1197,7 @@ public:
         if (rows == 0)
             return "LIMIT 0 OFFSET 0";
 
-        auto buffer = Appender!string(50);
+        auto buffer = Appender!string(40);
         return buffer.put("LIMIT ")
             .nToString(rows)
             .put(" OFFSET ")

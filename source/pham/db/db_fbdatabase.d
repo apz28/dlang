@@ -673,12 +673,12 @@ public:
             _command = null;
     }
 
-    final string forErrorInfo() nothrow @safe
+    final string forErrorInfo() const nothrow @safe
     {
         return _command !is null ? _command.forErrorInfo() : null;
     }
 
-    final string forLogInfo() nothrow @safe
+    final string forLogInfo() const nothrow @safe
     {
         return _command !is null ? _command.forLogInfo() : null;
     }
@@ -1686,12 +1686,12 @@ public:
         return _command.executeNonQueryBatch(this);
     }
 
-    final string forErrorInfo() nothrow @safe
+    final string forErrorInfo() const nothrow @safe
     {
         return _command !is null ? _command.forErrorInfo() : null;
     }
 
-    final string forLogInfo() nothrow @safe
+    final string forLogInfo() const nothrow @safe
     {
         return _command !is null ? _command.forLogInfo() : null;
     }
@@ -2160,12 +2160,12 @@ public:
         return fbValidConnectionParameterNames;
     }
 
-    @property final uint32 cachePages() nothrow
+    @property final uint32 cachePages() const nothrow
     {
         return toIntegerSafe!uint32(getString(DbConnectionParameterIdentifier.fbCachePage), uint16.max);
     }
 
-    @property final string cryptAlgorithm() nothrow
+    @property final string cryptAlgorithm() const nothrow
     {
         return getString(DbConnectionParameterIdentifier.fbCryptAlgorithm);
     }
@@ -2176,7 +2176,7 @@ public:
         return this;
     }
 
-    @property final ubyte[] cryptKey() nothrow
+    @property final ubyte[] cryptKey() const nothrow
     {
         return bytesFromBase64s(getString(DbConnectionParameterIdentifier.fbCryptKey));
     }
@@ -2187,22 +2187,22 @@ public:
         return this;
     }
 
-    @property final bool databaseTrigger() nothrow
+    @property final bool databaseTrigger() const nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.fbDatabaseTrigger));
     }
 
-    @property final int16 dialect() nothrow
+    @property final int16 dialect() const nothrow
     {
         return toIntegerSafe!int16(getString(DbConnectionParameterIdentifier.fbDialect), FbIscDefaultInt.dialect);
     }
 
-    @property final Duration dummyPackageInterval() nothrow
+    @property final Duration dummyPackageInterval() const nothrow
     {
         return secondDigitsToDurationSafe(getString(DbConnectionParameterIdentifier.fbDummyPacketInterval), Duration.zero);
     }
 
-    @property final bool garbageCollect() nothrow
+    @property final bool garbageCollect() const nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.fbGarbageCollect));
     }
@@ -2390,7 +2390,7 @@ public:
         if (rows == 0)
             return "ROWS 0";
 
-        auto buffer = Appender!string(50);
+        auto buffer = Appender!string(30);
         return buffer.put("ROWS ")
             .nToString(offset + 1)
             .put(" TO ")

@@ -257,7 +257,7 @@ public:
                     break;
 
                 case CanSendParameter.yes:
-                    auto yv = useCSB.getCustomValue(n);
+                    auto yv = useCSB.getValue(n);
                     if (yv.length)
                     {
                         writer.writeCChars(mappedName);
@@ -266,7 +266,7 @@ public:
                     break;
 
                 case CanSendParameter.yesConvert:
-                    auto cv = useCSB.getCustomValue(n);
+                    auto cv = useCSB.getValue(n);
                     //if (cv.length)
                     //    cv = convertConnectionParameter(n, cv);
                     if (cv.length)
@@ -1129,7 +1129,7 @@ protected:
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(column.name=", column.name, ", elementOid=", elementOid, ")");
 
         alias UT = Unqual!T;
-        
+
         auto values = value.get!(T[])();
         const int32 length = cast(int32)values.length;
         auto valueWriter = PgXdrWriter(connection, writer.buffer);

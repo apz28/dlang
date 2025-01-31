@@ -425,7 +425,7 @@ public:
         return this;
     }
 
-    bool hasValue(string name, out string value)
+    bool hasValue(string name, out string value) const
     {
         value = values.get(name);
         return value.length != 0;
@@ -445,12 +445,12 @@ public:
         return value;
     }
 
-    @property bool empty() const nothrow
+    @property bool empty() const
     {
         return values.empty;
     }
 
-    @property size_t length() const nothrow
+    @property size_t length() const
     {
         return values.length;
     }
@@ -686,7 +686,7 @@ public:
     /**
      * Returns item at index
      */
-    final T opIndex(size_t index) nothrow @safe
+    final inout(T) opIndex(size_t index) inout nothrow @safe
     in
     {
         assert(index < items.length);
@@ -699,14 +699,14 @@ public:
     /**
      * Returns item with matching name
      */
-    final T opIndex(scope const(DbIdentitier) name) nothrow @safe
+    final inout(T) opIndex(scope const(DbIdentitier) name) inout nothrow @safe
     {
         return items.get(name);
     }
 
-    final T opIndex(string name) nothrow @safe
+    final inout(T) opIndex(string name) inout nothrow @safe
     {
-        return items.get(DbIdentitier(name), null);
+        return items.get(DbIdentitier(name));
     }
 
     typeof(this) clear() nothrow @safe
@@ -727,25 +727,14 @@ public:
         return e !is null;
     }
 
-    final bool find(scope const(DbIdentitier) name, out T item) nothrow @safe
+    final bool find(scope const(DbIdentitier) name, ref T item) nothrow @safe
     {
-        return findImpl(name, item);
+        return items.containKey(name, item);
     }
 
-    final bool find(string name, out T item) nothrow @safe
+    final bool find(string name, ref T item) nothrow @safe
     {
-        return findImpl(DbIdentitier(name), item);
-    }
-
-    pragma(inline, true)
-    private final bool findImpl(scope const(DbIdentitier) name, out T item) nothrow @safe
-    {
-        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(name=", name, ")");
-
-        const result = items.containKey(name, item);
-        if (!result)
-            item = null;
-        return result;
+        return items.containKey(DbIdentitier(name), item);
     }
 
     final DbIdentitier generateUniqueName(string prefix) const nothrow @safe
@@ -761,25 +750,28 @@ public:
         return result;
     }
 
-    final T get(const(DbIdentitier) name) @safe
+    final inout(T) get(const(DbIdentitier) name) inout @safe
     {
         return getImpl(name);
     }
 
-    final T get(string name) @safe
+    final inout(T) get(string name) inout @safe
     {
         return getImpl(DbIdentitier(name));
     }
 
-    private final T getImpl(const(DbIdentitier) name) @safe
+    private final inout(T) getImpl(const(DbIdentitier) name) inout @safe
     {
-        T result;
-        if (!find(name, result))
-        {
-            auto msg = DbMessage.eInvalidName.fmtMessage(name, shortClassName(this));
-            throw new DbException(0, msg);
-        }
-        return result;
+        if (auto e = name in items)
+            return *e;
+
+        auto msg = DbMessage.eInvalidName.fmtMessage(name, shortClassName(this));
+        throw new DbException(0, msg);
+    }
+
+    final inout(T) getAt(size_t index) inout @safe
+    {
+        return items.getAt(index);
     }
 
     final ptrdiff_t indexOf(scope const(DbIdentitier) name) const nothrow @safe
@@ -859,10 +851,9 @@ public:
         return result;
     }
 
-    final typeof(this) reserve(const(size_t) capacity) nothrow @safe
+    final typeof(this) reserve(size_t capacity) nothrow @safe
     {
-        if (items.capacity != capacity && items.length == 0)
-            items = Dictionary!(DbIdentitier, T)(capacity + 1, capacity);
+        items.reserve(capacity + 5, capacity);
         return this;
     }
 
@@ -1017,7 +1008,7 @@ public:
     /**
      * Returns item at index
      */
-    final DbIdentitierValuePair opIndex(size_t index) nothrow
+    final inout(DbIdentitierValuePair) opIndex(size_t index) inout nothrow
     in
     {
         assert(index < items.length);
@@ -1053,25 +1044,27 @@ public:
         return e !is null;
     }
 
-    final bool find(scope const(DbIdentitier) name, out T item) nothrow
+    final bool find(scope const(DbIdentitier) name, ref T item) const nothrow
     {
         return findImpl(name, item);
     }
 
-    final bool find(string name, out T item) nothrow
+    final bool find(string name, ref T item) const nothrow
     {
         return findImpl(DbIdentitier(name), item);
     }
 
-    pragma(inline, true)
-    private final bool findImpl(scope const(DbIdentitier) name, out T item) nothrow
+    private final bool findImpl(scope const(DbIdentitier) name, ref T item) const nothrow
     {
         debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(name=", name, ")");
 
-        DbIdentitierValuePair p;
-        const result = items.containKey(name, p);
-        item = p.value;
-        return result;
+        if (auto e = name in items)
+        {
+            item = (*e).value;
+            return true;
+        }
+
+        return false;
     }
 
     final DbIdentitier generateUniqueName(string prefix) const nothrow
@@ -1094,27 +1087,30 @@ public:
      *  Returns:
      *      string value of name
      */
-    final T get(const(DbIdentitier) name)
+    final inout(T) get(const(DbIdentitier) name) inout
     {
         return getImpl(name);
     }
 
-    final T get(string name)
+    final inout(T) get(string name) inout
     {
         return getImpl(DbIdentitier(name));
     }
 
-    private final T getImpl(const(DbIdentitier) name)
+    private final inout(T) getImpl(const(DbIdentitier) name) inout
     {
         debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(name=", name, ")");
 
-        T result;
-        if (!find(name, result))
-        {
-            auto msg = DbMessage.eInvalidName.fmtMessage(name, shortClassName(this));
-            throw new DbException(0, msg);
-        }
-        return result;
+        if (auto e = name in items)
+            return (*e).value;
+
+        auto msg = DbMessage.eInvalidName.fmtMessage(name, shortClassName(this));
+        throw new DbException(0, msg);
+    }
+
+    final inout(T) getAt(size_t index) inout nothrow
+    {
+        return items.getAt(index).value;
     }
 
     final ptrdiff_t indexOf(scope const(DbIdentitier) name) const nothrow
@@ -1250,8 +1246,7 @@ public:
 
     final typeof(this) reserve(size_t capacity) nothrow
     {
-        if (items.capacity != capacity && items.length == 0)
-            items = Dictionary!(DbIdentitier, DbIdentitierValuePair)(capacity + 1, capacity);
+        items.reserve(capacity + 5, capacity);
         return this;
     }
 

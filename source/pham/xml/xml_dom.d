@@ -1507,7 +1507,7 @@ public:
      * Notes:
      *   this slow, O(n), access, better use front & popFront
      */
-    // Not implement because it is not obviously slow, use item() instead
+    // Not implement because it is obviously slow, use item() instead
     version(none)
     XmlNode!S opIndex(size_t index)
     {
