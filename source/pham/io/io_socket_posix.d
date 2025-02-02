@@ -70,11 +70,6 @@ do
     return close(handle);
 }
 
-string closeSocketAPI() @nogc nothrow pure @safe
-{
-    return "close";
-}
-
 pragma(inline, true)
 int connectSocket(SocketHandle handle, scope const(sockaddr)* nameVal, int nameLen, bool blocking) nothrow @trusted
 in
@@ -112,11 +107,6 @@ do
     return r == 0 ? result : r;
 }
 
-string getAvailableBytesSocketAPI() @nogc nothrow pure @safe
-{
-    return "ioctl";
-}
-
 pragma(inline, true)
 int getBlockingSocket(SocketHandle handle) nothrow @trusted
 in
@@ -127,11 +117,6 @@ do
 {
     const r = fcntl(handle, F_GETFL, 0);
     return r < 0 ? r : ((r & O_NONBLOCK) == O_NONBLOCK ? 0 : 1);
-}
-
-string getBlockingSocketAPI() @nogc nothrow pure @safe
-{
-    return "fcntl";
 }
 
 uint getComputerNameOS(scope return char[] buffer) @nogc nothrow @trusted
@@ -151,7 +136,7 @@ do
                 return cast(uint)i;
         }
     }
-    
+
     return 0;
 }
 
@@ -220,7 +205,8 @@ do
     int r, limit;
     do
     {
-        r = recv(handle, &bytes[0], cast(int)bytes.length, flags);
+        const len = cast(int)bytes.length;
+        r = recv(handle, len ? &bytes[0] : null, len, flags);
     }
     while (r < 0 && errno == EINTR && limit++ < limitEINTR);
     return r;
@@ -288,11 +274,6 @@ do
     return result;
 }
 
-string selectSocketAPI() @nogc nothrow pure @safe
-{
-    return "select";
-}
-
 pragma(inline, true)
 int sendSocket(SocketHandle handle, scope const(ubyte)[] bytes, int flags) nothrow @trusted
 in
@@ -305,7 +286,8 @@ do
     int r, limit;
     do
     {
-        r = send(handle, &bytes[0], cast(int)bytes.length, flags);
+        const len = cast(int)bytes.length;
+        r = send(handle, len ? &bytes[0] : null, len, flags);
     }
     while (r < 0 && errno == EINTR && limit++ < limitEINTR);
     return r;
@@ -319,7 +301,7 @@ in
 }
 do
 {
-    auto n = fcntl(handle, F_GETFL, 0);
+    int n = fcntl(handle, F_GETFL, 0);
     if (n == -1)
         return n;
     if (state)
@@ -327,11 +309,6 @@ do
     else
         n |= O_NONBLOCK;
     return fcntl(handle, F_SETFL, n);
-}
-
-string setBlockingSocketAPI() @nogc nothrow pure @safe
-{
-    return "fcntl";
 }
 
 pragma(inline, true)
@@ -345,11 +322,6 @@ do
     return setsockopt(handle, optLevel, optName, &optVal, T.sizeof);
 }
 
-string setIntOptionSocketAPI() @nogc nothrow pure @safe
-{
-    return "setsockopt";
-}
-
 pragma(inline, true)
 int setLingerSocket(SocketHandle handle, Linger linger) nothrow @trusted
 in
@@ -359,11 +331,6 @@ in
 do
 {
     return setsockopt(handle, SOL_SOCKET, SO_LINGER, &linger, Linger.sizeof);
-}
-
-string setLingerSocketAPI() @nogc nothrow pure @safe
-{
-    return "setsockopt";
 }
 
 pragma(inline, true)
@@ -386,11 +353,6 @@ in
 do
 {
     return setsockopt(handle, SOL_SOCKET, optionName, &timeout, timeout.sizeof);
-}
-
-string setTimeoutSocketAPI() @nogc nothrow pure @safe
-{
-    return "setsockopt";
 }
 
 pragma(inline, true)

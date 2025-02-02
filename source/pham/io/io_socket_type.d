@@ -199,10 +199,10 @@ public:
         this.protocol = protocol;
         this.type = type;
         this.backLog = 100;
-        this.flags = EnumSet!Flags([Flags.blocking, Flags.reuseAddress]);
+        this.flags = EnumSet!Flags([Flags.blocking, Flags.noDelay, Flags.reuseAddress]);
     }
-    
-    this(string hostName, ushort port,        
+
+    this(string hostName, ushort port,
         AddressFamily family = AddressFamily.ipv4,
         SocketType type = SocketType.stream,
         Protocol protocol = Protocol.tcp) pure
@@ -213,13 +213,13 @@ public:
         this.type = type;
         this.address = IPAddress(family);
         this.backLog = 100;
-        this.flags = EnumSet!Flags([Flags.blocking, Flags.reuseAddress]);
+        this.flags = EnumSet!Flags([Flags.blocking, Flags.noDelay, Flags.reuseAddress]);
         this.resolveHostHints = AddressInfo.bindHints(port, family, type, protocol);
     }
-    
+
     bool isBlocking() const @nogc
     {
-        return blocking && (type == SocketType.stream || type == SocketType.seqPacket);
+        return blocking && (type == SocketType.stream || type == SocketType.seqPacket || type == SocketType.unspecified);
     }
 
     string resolveHostName() const
@@ -383,7 +383,7 @@ public:
         this.connectTimeout = 5.seconds;
         this.flags = EnumSet!Flags([Flags.blocking, Flags.noDelay]);
     }
-    
+
     this(string hostName, ushort port,
         AddressFamily family = AddressFamily.ipv4,
         SocketType type = SocketType.stream,
@@ -398,10 +398,10 @@ public:
         this.flags = EnumSet!Flags([Flags.blocking, Flags.noDelay]);
         this.resolveHostHints = AddressInfo.connectHints(port, family, type, protocol);
     }
-    
+
     bool isBlocking() const @nogc
     {
-        return blocking && (type == SocketType.stream || type == SocketType.seqPacket);
+        return blocking && (type == SocketType.stream || type == SocketType.seqPacket || type == SocketType.unspecified);
     }
 
     string resolveHostName() const
@@ -624,7 +624,7 @@ public:
     {
         this._family = family;
     }
-    
+
     int opCmp(scope const(IPAddress) rhs) const @nogc nothrow pure scope
     {
         int result = cmp(this.isIPv6 ? 2 : (this.isIPv4 ? 1 : 0), rhs.isIPv6 ? 2 : (rhs.isIPv4 ? 1 : 0));

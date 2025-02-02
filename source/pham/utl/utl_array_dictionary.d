@@ -102,6 +102,11 @@ public:
     this(size_t bucketCapacity, size_t entryCapacity,
         DictionaryHashMix hashMix = DictionaryHashMix.none,
         CustomHashOf customHashOf = null) nothrow @safe
+    in
+    {
+        assert(bucketCapacity >= entryCapacity);
+    }
+    do
     {
         this.aa = createAA(bucketCapacity, entryCapacity, hashMix, customHashOf);
     }
@@ -512,6 +517,11 @@ public:
      *  entryCapacity = reserved number of key-value pairs for appending
      */
     void reserve(size_t bucketCapacity, size_t entryCapacity) nothrow @safe
+    in
+    {
+        assert(bucketCapacity >= entryCapacity);
+    }
+    do
     {
         if (aa)
             aa.reserve(bucketCapacity, entryCapacity);
@@ -1351,9 +1361,14 @@ private:
                 : expandPrimeLength(bucketLength);
     }
 
-    Impl* createAA(size_t bucketCapacity, size_t entryCapacity,
+    Impl* createAA(const(size_t) bucketCapacity, const(size_t) entryCapacity,
         DictionaryHashMix hashMix = DictionaryHashMix.none,
         CustomHashOf customHashOf = null) nothrow @safe
+    in
+    {
+        assert(bucketCapacity >= entryCapacity);
+    }
+    do
     {
         return new Impl(bucketCapacity, entryCapacity, hashMix, customHashOf);
     }

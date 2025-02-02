@@ -70,11 +70,6 @@ do
     return closesocket(handle);
 }
 
-string closeSocketAPI() @nogc nothrow pure @safe
-{
-    return "closesocket";
-}
-
 pragma(inline, true)
 int connectSocket(SocketHandle handle, scope const(sockaddr)* nameVal, int nameLen, bool blocking) nothrow @trusted
 in
@@ -107,11 +102,6 @@ do
     uint result;
     const r = ioctlsocket(handle, FIONREAD, &result);
     return r == 0 ? cast(int)result : r;
-}
-
-string getAvailableBytesSocketAPI() @nogc nothrow pure @safe
-{
-    return "ioctlsocket";
 }
 
 uint getComputerNameOS(scope return char[] buffer) @nogc nothrow @trusted
@@ -190,7 +180,8 @@ in
 }
 do
 {
-    return recv(handle, &bytes[0], cast(int)bytes.length, flags);
+    const len = cast(int)bytes.length;
+    return recv(handle, len ? &bytes[0] : null, len, flags);
 }
 
 int selectSocket(SocketHandle handle, SelectMode modes, TimeVal timeout) nothrow @trusted
@@ -247,11 +238,6 @@ do
     return result;
 }
 
-string selectSocketAPI() @nogc nothrow pure @safe
-{
-    return "select";
-}
-
 pragma(inline, true)
 int sendSocket(SocketHandle handle, scope const(ubyte)[] bytes, int flags) nothrow @trusted
 in
@@ -261,7 +247,8 @@ in
 }
 do
 {
-    return send(handle, &bytes[0], cast(int)bytes.length, flags);
+    const len = cast(int)bytes.length;
+    return send(handle, len ? &bytes[0] : null, len, flags);
 }
 
 pragma(inline, true)
@@ -273,12 +260,7 @@ in
 do
 {
     uint n = state ? 0 : 1;
-    return ioctlsocket(handle, FIONBIO, &n);
-}
-
-string setBlockingSocketAPI() @nogc nothrow pure @safe
-{
-    return "ioctlsocket";
+    return ioctlsocket(handle, FIONBIO, &n); // FIONBIO = input/output non-blocking
 }
 
 pragma(inline, true)
@@ -292,11 +274,6 @@ do
     return setsockopt(handle, optLevel, optName, &optVal, T.sizeof);
 }
 
-string setIntOptionSocketAPI() @nogc nothrow pure @safe
-{
-    return "setsockopt";
-}
-
 pragma(inline, true)
 int setLingerSocket(SocketHandle handle, Linger linger) nothrow @trusted
 in
@@ -306,11 +283,6 @@ in
 do
 {
     return setsockopt(handle, SOL_SOCKET, SO_LINGER, &linger, Linger.sizeof);
-}
-
-string setLingerSocketAPI() @nogc nothrow pure @safe
-{
-    return "setsockopt";
 }
 
 pragma(inline, true)
@@ -333,11 +305,6 @@ in
 do
 {
     return setsockopt(handle, SOL_SOCKET, optionName, &timeout, timeout.sizeof);
-}
-
-string setTimeoutSocketAPI() @nogc nothrow pure @safe
-{
-    return "setsockopt";
 }
 
 pragma(inline, true)
@@ -376,6 +343,7 @@ do
 }
 
 static immutable WSAStartupResult wsaStartupResult;
+
 
 // Any below codes are private
 private:
