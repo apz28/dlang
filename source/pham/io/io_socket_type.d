@@ -14,7 +14,7 @@ module pham.io.io_socket_type;
 import core.time : Duration;
 import std.system : Endian;
 
-import pham.utl.utl_bit : fromBytes, hostToNetworkOrder, Map32Bit, nativeToBytes, networkToHostOrder, toBytes;
+import pham.utl.utl_bit : fromBytes, Map32Bit, nativeToBytes, toBytes;
 import pham.utl.utl_enum_set : EnumSet, toName;
 import pham.utl.utl_numeric_parser : cvtDigit, cvtHexDigit, NumericParsedKind, parseIntegral;
 import pham.utl.utl_object : toString;
@@ -96,27 +96,6 @@ enum SelectMode : int
     waitforConnect = write | error,
 }
 
-enum SocketOption : int
-{
-    acceptConnection = SO_ACCEPTCONN, /// get whether socket is accepting connections
-    broadcast = SO_BROADCAST, /// broadcast for datagram sockets
-    debug_ = SO_DEBUG, /// enable socket debugging
-    dontRoute = SO_DONTROUTE, /// send only to directly connected hosts
-    error = SO_ERROR, /// get pending socket errors
-    keepAlive = SO_KEEPALIVE, /// enable keep-alive messages on connection-based sockets
-    linger = SO_LINGER, /// linger option
-    oobInline = SO_OOBINLINE, /// inline receive out-of-band data
-    receiveBufferSize = SO_RCVBUF, /// get or set receive buffer size
-    rcvLowat = SO_RCVLOWAT, /// min number of input bytes to process
-    receiveTimeout = SO_RCVTIMEO, /// receiving timeout
-    reuseAddress = SO_REUSEADDR, /// reuse bind address
-    sendBufferSize = SO_SNDBUF, /// get or set send buffer size
-    sndLowat = SO_SNDLOWAT, /// min number of output bytes to process
-    sendTimeout = SO_SNDTIMEO, /// sending timeout
-    type = SO_TYPE, /// get socket type
-    useLoopBack = SO_USELOOPBACK, /// Use the local loopback address when sending data from this socket. This option should only be used when all data sent will also be received locally
-}
-
 enum SocketType : int
 {
     unspecified = 0, /// unspecified socket type, mostly as resolve hint
@@ -139,7 +118,7 @@ nothrow @safe:
 
 public:
     static AddressInfo bindHints(ushort port,
-        AddressFamily family = AddressFamily.unspecified,
+        AddressFamily family = AddressFamily.ipv4,
         SocketType type = SocketType.stream,
         Protocol protocol = Protocol.tcp) pure
     {
@@ -153,7 +132,7 @@ public:
     }
 
     static AddressInfo connectHints(ushort port,
-        AddressFamily family = AddressFamily.unspecified,
+        AddressFamily family = AddressFamily.ipv4,
         SocketType type = SocketType.stream,
         Protocol protocol = Protocol.tcp) pure
     {
@@ -169,15 +148,15 @@ public:
     string toString() const pure
     {
         return address.isIPv4
-            ? IPv4AddressHelper.toString(address._ipvNumbers[0..IPAddress.maxIPv4AddressBytes], port)
+            ? IPv4AddressHelper.toString(address._ipvNumbers[0..IPSocketAddress.maxIPv4AddressBytes], port)
             : (address.isIPv6
-                ? IPv6AddressHelper.toString(address._ipvNumbers[0..IPAddress.maxIPv6AddressBytes], address.scopeId, port)
+                ? IPv6AddressHelper.toString(address._ipvNumbers[0..IPSocketAddress.maxIPv6AddressBytes], address.scopeId, port)
                 : null);
     }
 
 public:
     string canonName;
-    IPAddress address;
+    IPSocketAddress address;
     AddressFamily family;
     SocketType type;
     Protocol protocol;
@@ -190,7 +169,7 @@ struct BindInfo
 nothrow @safe:
 
 public:
-    this(IPAddress address, ushort port,
+    this(IPSocketAddress address, ushort port,
         SocketType type = SocketType.stream,
         Protocol protocol = Protocol.tcp) pure
     {
@@ -198,7 +177,7 @@ public:
         this.port = port;
         this.protocol = protocol;
         this.type = type;
-        this.backLog = 100;
+        this.backLog = 1;
         this.flags = EnumSet!Flags([Flags.blocking, Flags.noDelay, Flags.reuseAddress]);
     }
 
@@ -211,15 +190,15 @@ public:
         this.port = port;
         this.protocol = protocol;
         this.type = type;
-        this.address = IPAddress(family);
-        this.backLog = 100;
+        this.address = IPSocketAddress(family);
+        this.backLog = 1;
         this.flags = EnumSet!Flags([Flags.blocking, Flags.noDelay, Flags.reuseAddress]);
         this.resolveHostHints = AddressInfo.bindHints(port, family, type, protocol);
     }
 
     bool isBlocking() const @nogc
     {
-        return blocking && (type == SocketType.stream || type == SocketType.seqPacket || type == SocketType.unspecified);
+        return blocking && canBlockingSocketType(type);
     }
 
     string resolveHostName() const
@@ -341,7 +320,7 @@ public:
     }
 
 public:
-    IPAddress address;
+    IPSocketAddress address;
     SocketType type;
     Protocol protocol;
     ushort port;
@@ -372,7 +351,7 @@ struct ConnectInfo
 nothrow @safe:
 
 public:
-    this(IPAddress address, ushort port,
+    this(IPSocketAddress address, ushort port,
         SocketType type = SocketType.stream,
         Protocol protocol = Protocol.tcp) pure
     {
@@ -393,7 +372,7 @@ public:
         this.port = port;
         this.protocol = protocol;
         this.type = type;
-        this.address = IPAddress(family);
+        this.address = IPSocketAddress(family);
         this.connectTimeout = 5.seconds;
         this.flags = EnumSet!Flags([Flags.blocking, Flags.noDelay]);
         this.resolveHostHints = AddressInfo.connectHints(port, family, type, protocol);
@@ -401,7 +380,7 @@ public:
 
     bool isBlocking() const @nogc
     {
-        return blocking && (type == SocketType.stream || type == SocketType.seqPacket || type == SocketType.unspecified);
+        return blocking && canBlockingSocketType(type);
     }
 
     string resolveHostName() const
@@ -525,7 +504,7 @@ public:
     }
 
 public:
-    IPAddress address;
+    IPSocketAddress address;
     SocketType type;
     Protocol protocol;
     ushort port;
@@ -553,44 +532,44 @@ private:
     }
 }
 
-struct IPAddress
+struct IPSocketAddress
 {
 @safe:
 
 public:
     /**
-     * Initializes a new IPAddress struct with an IPv4 address.
-     * The uint value is assumed to be in network byte order.
+     * Initializes a new IPSocketAddress struct with an IPv4 address.
+     * The ipv4SocketAddress value is assumed to be in network byte order.
      */
-    this(uint ipv4Address) nothrow pure
+    this(uint ipv4SocketAddress) nothrow pure
     {
         this._family = AddressFamily.ipv4;
-        this._ipvNumbers[0..maxIPv4AddressBytes] = .toBytes(ipv4Address);
+        this._ipvNumbers[0..maxIPv4AddressBytes] = .toBytes(ipv4SocketAddress);
         this._scopeId = 0;
     }
 
     /**
-     * Initializes a new IPAddress struct with an IPv4 or IPv6 address depending on the length of address.
+     * Initializes a new IPSocketAddress struct with an IPv4 or IPv6 address depending on the length of socketAddress.
      * For IPv6, the scopeid will be 0 (zero).
-     * The Byte array is assumed to be in network byte order with the most significant byte first in index position 0.
+     * The socketAddress array-value is assumed to be in network byte order with the most significant byte first in index position 0.
      */
-    this(scope const(ubyte)[] address) nothrow pure
+    this(scope const(ubyte)[] socketAddress) nothrow pure
     in
     {
-        assert(address.length == maxIPv4AddressBytes || address.length == maxIPv6AddressBytes);
+        assert(socketAddress.length == maxIPv4AddressBytes || socketAddress.length == maxIPv6AddressBytes);
     }
     do
     {
-        if (address.length == maxIPv4AddressBytes)
+        if (socketAddress.length == maxIPv4AddressBytes)
         {
             this._family = AddressFamily.ipv4;
-            this._ipvNumbers[0..maxIPv4AddressBytes] = address[];
+            this._ipvNumbers[0..maxIPv4AddressBytes] = socketAddress[];
             this._scopeId = 0;
         }
-        else if (address.length == maxIPv6AddressBytes)
+        else if (socketAddress.length == maxIPv6AddressBytes)
         {
             this._family = AddressFamily.ipv6;
-            this._ipvNumbers[0..maxIPv6AddressBytes] = address[];
+            this._ipvNumbers[0..maxIPv6AddressBytes] = socketAddress[];
             this._scopeId = 0;
         }
         else
@@ -598,22 +577,22 @@ public:
     }
 
     /**
-     * Initializes a new IPAddress struct with an IPv6 address.
+     * Initializes a new IPSocketAddress struct with an IPv6 address.
      * The scopeid identifies a network interface in the case of a link-local address.
      * The scope is valid only for link-local and site-local addresses.
-     * The Byte array is assumed to be in network byte order with the most significant byte first in index position 0.
+     * The ipv6SocketAddress array-value is assumed to be in network byte order with the most significant byte first in index position 0.
      */
-    this(scope const(ubyte)[] ipv6Address, uint scopeId) nothrow pure
+    this(scope const(ubyte)[] ipv6SocketAddress, uint scopeId) nothrow pure
     in
     {
-        assert(ipv6Address.length == maxIPv6AddressBytes);
+        assert(ipv6SocketAddress.length == maxIPv6AddressBytes);
     }
     do
     {
-        if (ipv6Address.length == maxIPv6AddressBytes)
+        if (ipv6SocketAddress.length == maxIPv6AddressBytes)
         {
             this._family = AddressFamily.ipv6;
-            this._ipvNumbers[0..maxIPv6AddressBytes] = ipv6Address[];
+            this._ipvNumbers[0..maxIPv6AddressBytes] = ipv6SocketAddress[];
             this._scopeId = scopeId;
         }
         else
@@ -625,7 +604,7 @@ public:
         this._family = family;
     }
 
-    int opCmp(scope const(IPAddress) rhs) const @nogc nothrow pure scope
+    int opCmp(scope const(IPSocketAddress) rhs) const @nogc nothrow pure scope
     {
         int result = cmp(this.isIPv6 ? 2 : (this.isIPv4 ? 1 : 0), rhs.isIPv6 ? 2 : (rhs.isIPv4 ? 1 : 0));
         if (result == 0)
@@ -637,43 +616,43 @@ public:
         return result;
     }
 
-    bool opEquals(scope const(IPAddress) rhs) const @nogc nothrow pure scope
+    bool opEquals(scope const(IPSocketAddress) rhs) const @nogc nothrow pure scope
     {
         return opCmp(rhs) == 0;
     }
 
     /**
-     * Maps the IPAddress struct to an IPv4 address
+     * Maps the IPSocketAddress struct to an IPv4 address
      */
-    IPAddress mapToIPv4() nothrow
+    IPSocketAddress mapToIPv4() nothrow
     {
         if (isIPv6)
         {
             ubyte[maxIPvBytes] ipv4Numbers = 0;
             ipv4Numbers[0..maxIPv4AddressBytes] = _ipvNumbers[maxIPv6AddressBytes-maxIPv4AddressBytes..maxIPv6AddressBytes];
-            return IPAddress(ipv4Numbers, 0, AddressFamily.ipv4);
+            return IPSocketAddress(ipv4Numbers, 0, AddressFamily.ipv4);
         }
         else
             return this;
     }
 
     /**
-     * Maps the IPAddress struct to an IPv6 address
+     * Maps the IPSocketAddress struct to an IPv6 address
      */
-    IPAddress mapToIPv6() nothrow
+    IPSocketAddress mapToIPv6() nothrow
     {
         if (isIPv4)
         {
             ubyte[maxIPvBytes] ipv6Numbers = 0;
             ipv6Numbers[12..maxIPv6AddressBytes] = _ipvNumbers[0..maxIPv4AddressBytes];
             ipv6Numbers[10..12] = 0xff;
-            return IPAddress(ipv6Numbers, 0, AddressFamily.ipv6);
+            return IPSocketAddress(ipv6Numbers, 0, AddressFamily.ipv6);
         }
         else
             return this;
     }
 
-    static ResultIf!IPAddress parse(scope const(char)[] address) nothrow
+    static ResultIf!IPSocketAddress parse(scope const(char)[] address) nothrow
     {
         if (address.simpleIndexOf(':') >= 0 || (address.length && address[0] == '['))
             return IPv6AddressHelper.parse(address);
@@ -681,12 +660,12 @@ public:
             return IPv4AddressHelper.parse(address);
     }
 
-    static ResultIf!IPAddress parseIPv4(scope const(char)[] address) nothrow pure
+    static ResultIf!IPSocketAddress parseIPv4(scope const(char)[] address) nothrow pure
     {
         return IPv4AddressHelper.parse(address);
     }
 
-    static ResultIf!IPAddress parseIPv6(scope const(char)[] address) nothrow
+    static ResultIf!IPSocketAddress parseIPv6(scope const(char)[] address) nothrow
     {
         return IPv6AddressHelper.parse(address);
     }
@@ -759,15 +738,15 @@ public:
 
     alias maxIPvBytes = maxIPv6AddressBytes;
 
-    static immutable IPAddress ipv4Any = IPAddress([0, 0, 0, 0]);
-    static immutable IPAddress ipv4Loopback = IPAddress([127, 0, 0, 1]);
-    static immutable IPAddress ipv4Broadcast = IPAddress([255, 255, 255, 255]);
+    static immutable IPSocketAddress ipv4Any = IPSocketAddress([0, 0, 0, 0]);
+    static immutable IPSocketAddress ipv4Loopback = IPSocketAddress([127, 0, 0, 1]);
+    static immutable IPSocketAddress ipv4Broadcast = IPSocketAddress([255, 255, 255, 255]);
     alias ipv4None = ipv4Broadcast;
 
-    static immutable IPAddress ipv6Any = IPAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0);
-    static immutable IPAddress ipv6Loopback = IPAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 0);
+    static immutable IPSocketAddress ipv6Any = IPSocketAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0);
+    static immutable IPSocketAddress ipv6Loopback = IPSocketAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 0);
     alias ipv6None = ipv6Any;
-    static immutable IPAddress ipv4LoopbackMappedToIPv6 = IPAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 127, 0, 0, 1], 0);
+    static immutable IPSocketAddress ipv4LoopbackMappedToIPv6 = IPSocketAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 127, 0, 0, 1], 0);
 
 private:
     this(ubyte[maxIPvBytes] ipvNumbers, uint scopeId, AddressFamily family) nothrow pure
@@ -798,19 +777,19 @@ struct SocketAddress
 nothrow @safe:
 
 public:
-    this(scope const(IPAddress) address, const(ushort) port) @nogc pure
+    this(scope const(IPSocketAddress) address, const(ushort) port) @nogc pure
     {
         if (address.isIPv4)
         {
             this._slen = _sin.sizeof;
             this._sin.sin_addr.s_addr = fromBytes!uint(address.toBytes());
-            this._sin.sin_port = hostToNetworkOrder(port);
+            this._sin.sin_port = htons(port);
         }
         else if (address.isIPv6)
         {
             this._slen = _sin6.sizeof;
             this._sin6.sin6_addr.s6_addr[] = address.toBytes();
-            this._sin6.sin6_port = hostToNetworkOrder(port);
+            this._sin6.sin6_port = htons(port);
             this._sin6.sin6_scope_id = address.scopeId;
         }
         else
@@ -860,20 +839,20 @@ public:
         return opCmp(rhs) == 0;
     }
 
-    IPAddress toIPAddress() const nothrow pure
+    IPSocketAddress toIPAddress() const nothrow pure
     {
         return isIPv4
-            ? IPAddress(_sin.sin_addr.s_addr)
-            : (isIPv6 ? IPAddress(_sin6.sin6_addr.s6_addr[], scopeId) : IPAddress.init);
+            ? IPSocketAddress(_sin.sin_addr.s_addr)
+            : (isIPv6 ? IPSocketAddress(_sin6.sin6_addr.s6_addr[], scopeId) : IPSocketAddress.init);
     }
 
     string toString() const nothrow pure
     {
         auto address = toIPAddress();
         return address.isIPv4
-            ? IPv4AddressHelper.toString(address._ipvNumbers[0..IPAddress.maxIPv4AddressBytes], port)
+            ? IPv4AddressHelper.toString(address._ipvNumbers[0..IPSocketAddress.maxIPv4AddressBytes], port)
             : (address.isIPv6
-                ? IPv6AddressHelper.toString(address._ipvNumbers[0..IPAddress.maxIPv6AddressBytes], address.scopeId, port)
+                ? IPv6AddressHelper.toString(address._ipvNumbers[0..IPSocketAddress.maxIPv6AddressBytes], address.scopeId, port)
                 : null);
     }
 
@@ -909,8 +888,8 @@ public:
     @property ushort port() const @nogc nothrow pure
     {
         return isIPv4
-            ? networkToHostOrder(_sin.sin_port)
-            : (isIPv6 ? networkToHostOrder(_sin6.sin6_port) : 0);
+            ? ntohs(_sin.sin_port)
+            : (isIPv6 ? ntohs(_sin6.sin6_port) : 0);
     }
 
     @property uint scopeId() const @nogc nothrow pure
@@ -941,8 +920,45 @@ private:
     size_t _slen;
 }
 
+struct SocketOptionItem
+{
+    int level;
+    int name;
+}
+
+enum SocketOptionItems : SocketOptionItem
+{
+    acceptConnection = SocketOptionItem(SOL_SOCKET, SO_ACCEPTCONN), /// get whether socket is accepting connections
+    broadcast = SocketOptionItem(SOL_SOCKET, SO_BROADCAST), /// broadcast for datagram sockets
+    debug_ = SocketOptionItem(SOL_SOCKET, SO_DEBUG), /// enable socket debugging
+    dontRoute = SocketOptionItem(SOL_SOCKET, SO_DONTROUTE), /// send only to directly connected hosts
+    error = SocketOptionItem(SOL_SOCKET, SO_ERROR), /// get pending socket errors
+    ipv6Only = SocketOptionItem(IPPROTO_IPV6, IPV6_V6ONLY),
+    keepAlive = SocketOptionItem(SOL_SOCKET, SO_KEEPALIVE), /// enable keep-alive messages on connection-based sockets
+    linger = SocketOptionItem(SOL_SOCKET, SO_LINGER), /// linger option
+    noDelay = SocketOptionItem(IPPROTO_TCP, TCP_NODELAY),
+    oobInline = SocketOptionItem(SOL_SOCKET, SO_OOBINLINE), /// inline receive out-of-band data
+    rcvLowat = SocketOptionItem(SOL_SOCKET, SO_RCVLOWAT), /// min number of input bytes to process
+    receiveBufferSize = SocketOptionItem(SOL_SOCKET, SO_RCVBUF), /// get or set receive buffer size
+    receiveTimeout = SocketOptionItem(SOL_SOCKET, SO_RCVTIMEO), /// receiving timeout
+    reuseAddress = SocketOptionItem(SOL_SOCKET, SO_REUSEADDR), /// reuse bind address
+    sendBufferSize = SocketOptionItem(SOL_SOCKET, SO_SNDBUF), /// get or set send buffer size
+    sendTimeout = SocketOptionItem(SOL_SOCKET, SO_SNDTIMEO), /// sending timeout
+    sndLowat = SocketOptionItem(SOL_SOCKET, SO_SNDLOWAT), /// min number of output bytes to process
+    type = SocketOptionItem(SOL_SOCKET, SO_TYPE), /// get socket type
+    useLoopBack = SocketOptionItem(SOL_SOCKET, SO_USELOOPBACK), /// Use the local loopback address when sending data from this socket. This option should only be used when all data sent will also be received locally
+}
+
+
 //pragma(msg, sockaddr_in.sizeof); // 16
 //pragma(msg, sockaddr_in6.sizeof); // 28
+
+bool canBlockingSocketType(SocketType type) @nogc nothrow pure
+{
+    return type == SocketType.stream
+        || type == SocketType.seqPacket
+        || type == SocketType.unspecified;
+}
 
 string toErrorInfo(AddressFamily family, SocketType type, Protocol protocol) nothrow pure
 {
@@ -961,10 +977,10 @@ Linger toSocketLinger(scope const(Duration) duration) @nogc nothrow pure
     return result;
 }
 
-TimeVal toSocketTimeVal(scope const(Duration) duration) @nogc nothrow pure
+TimeVal toSocketTimeVal(scope const(Duration) timeout) @nogc nothrow pure
 {
     enum msecsPerSecond = 1_000;
-    const r = duration.total!"msecs"();
+    const r = timeout.total!"msecs"();
     const vr = r <= 0 ? 0 : (r > int.max ? int.max : cast(int)r); // value in valid range
     TimeVal result;
     result.tv_sec = vr / msecsPerSecond; // seconds
@@ -972,6 +988,12 @@ TimeVal toSocketTimeVal(scope const(Duration) duration) @nogc nothrow pure
     return result;
 }
 
+uint toSocketTimeMSecs(scope const(TimeVal) timeout) @nogc nothrow pure
+{
+    enum msecsPerSecond = 1_000;    
+    return (timeout.tv_sec * msecsPerSecond) // seconds
+        + (timeout.tv_usec / 1_000); // microseconds
+}
 
 private:
 
@@ -994,15 +1016,15 @@ public:
         .toString(destination, ipv4Address[3]);
     }
 
-    static ResultIf!IPAddress parse(scope const(char)[] address, const(bool) notImplicitFile = true) nothrow pure
+    static ResultIf!IPSocketAddress parse(scope const(char)[] address, const(bool) notImplicitFile = true) nothrow pure
     {
-        ResultIf!IPAddress error(size_t index) nothrow pure
+        ResultIf!IPSocketAddress error(size_t index) nothrow pure
         {
             import std.conv : to;
 
             return index != size_t.max
-                ? ResultIf!IPAddress.error(0, "Invalid IPv4 address: " ~ address.idup ~ " at position " ~ index.to!string())
-                : ResultIf!IPAddress.error(0, "Invalid IPv4 address: " ~ address.idup);
+                ? ResultIf!IPSocketAddress.error(0, "Invalid IPv4 address: " ~ address.idup ~ " at position " ~ index.to!string())
+                : ResultIf!IPSocketAddress.error(0, "Invalid IPv4 address: " ~ address.idup);
         }
 
         if (address.length == 0)
@@ -1110,18 +1132,18 @@ public:
 
         parts[dotCount] = currentValue;
 
-        ResultIf!IPAddress ok(DotParts dotParts) nothrow pure
+        ResultIf!IPSocketAddress ok(DotParts dotParts) nothrow pure
         {
             final switch (dotParts)
             {
                 case DotParts.p0: // 0xFFFFFFFF
-                    return ResultIf!IPAddress.ok(IPAddress(hostToNetworkOrder(cast(uint)parts[0])));
+                    return ResultIf!IPSocketAddress.ok(IPSocketAddress(htonl(cast(uint)parts[0])));
                 case DotParts.p1: // 0xFF.0xFFFFFF
-                    return ResultIf!IPAddress.ok(IPAddress(hostToNetworkOrder(cast(uint)((parts[0] << 24) | (parts[1] & 0xffffff)))));
+                    return ResultIf!IPSocketAddress.ok(IPSocketAddress(htonl(cast(uint)((parts[0] << 24) | (parts[1] & 0xffffff)))));
                 case DotParts.p2: // 0xFF.0xFF.0xFFFF
-                    return ResultIf!IPAddress.ok(IPAddress([cast(ubyte)parts[0], cast(ubyte)parts[1], cast(ubyte)((parts[2] >> 8) & 0xff), cast(ubyte)(parts[2] & 0xff)]));
+                    return ResultIf!IPSocketAddress.ok(IPSocketAddress([cast(ubyte)parts[0], cast(ubyte)parts[1], cast(ubyte)((parts[2] >> 8) & 0xff), cast(ubyte)(parts[2] & 0xff)]));
                 case DotParts.p3: // 0xFF.0xFF.0xFF.0xFF
-                    return ResultIf!IPAddress.ok(IPAddress([cast(ubyte)parts[0], cast(ubyte)parts[1], cast(ubyte)parts[2], cast(ubyte)parts[3]]));
+                    return ResultIf!IPSocketAddress.ok(IPSocketAddress([cast(ubyte)parts[0], cast(ubyte)parts[1], cast(ubyte)parts[2], cast(ubyte)parts[3]]));
             }
         }
 
@@ -1149,23 +1171,23 @@ public:
         }
     }
 
-    static ResultIf!(ubyte[IPAddress.maxIPv4AddressBytes]) parseHostNumber(scope const(char)[] address) nothrow pure
+    static ResultIf!(ubyte[IPSocketAddress.maxIPv4AddressBytes]) parseHostNumber(scope const(char)[] address) nothrow pure
     {
-        ResultIf!(ubyte[IPAddress.maxIPv4AddressBytes]) error(size_t index) nothrow pure
+        ResultIf!(ubyte[IPSocketAddress.maxIPv4AddressBytes]) error(size_t index) nothrow pure
         {
             import std.conv : to;
 
             return index != size_t.max
-                ? ResultIf!(ubyte[IPAddress.maxIPv4AddressBytes]).error(0, "Invalid IPv4 address: " ~ address.idup ~ " at position " ~ index.to!string())
-                : ResultIf!(ubyte[IPAddress.maxIPv4AddressBytes]).error(0, "Invalid IPv4 address: " ~ address.idup);
+                ? ResultIf!(ubyte[IPSocketAddress.maxIPv4AddressBytes]).error(0, "Invalid IPv4 address: " ~ address.idup ~ " at position " ~ index.to!string())
+                : ResultIf!(ubyte[IPSocketAddress.maxIPv4AddressBytes]).error(0, "Invalid IPv4 address: " ~ address.idup);
         }
 
-        ubyte[IPAddress.maxIPv4AddressBytes] result;
+        ubyte[IPSocketAddress.maxIPv4AddressBytes] result;
 
         size_t c, i;
         while (c < address.length)
         {
-            if (i == IPAddress.maxIPv4AddressBytes)
+            if (i == IPSocketAddress.maxIPv4AddressBytes)
                 return error(c);
 
             const c2 = c;
@@ -1183,15 +1205,15 @@ public:
             c++;
         }
 
-        if (i != IPAddress.maxIPv4AddressBytes)
+        if (i != IPSocketAddress.maxIPv4AddressBytes)
             return error(size_t.max);
 
-        return ResultIf!(ubyte[IPAddress.maxIPv4AddressBytes]).ok(result);
+        return ResultIf!(ubyte[IPSocketAddress.maxIPv4AddressBytes]).ok(result);
     }
 
     static string toString(scope const(ubyte)[] ipv4Address, ushort port) nothrow pure
     {
-        auto buffer = Appender!string(IPAddress.maxIPv4StringLength + (port ? 6+1: 0));
+        auto buffer = Appender!string(IPSocketAddress.maxIPv4StringLength + (port ? 6+1: 0));
         return toString(buffer, ipv4Address, port)[];
     }
 
@@ -1213,7 +1235,7 @@ struct IPv6AddressHelper
     import pham.utl.utl_array_append : Appender;
 
 @safe:
-    enum maxIPv6AddressShorts = IPAddress.maxIPv6AddressBytes / 2;
+    enum maxIPv6AddressShorts = IPSocketAddress.maxIPv6AddressBytes / 2;
 
 public:
     // Appends each of the numbers in address in indexed range [fromInclusive, toExclusive),
@@ -1233,7 +1255,7 @@ public:
             {
                 if (needsColon)
                     destination.put(':');
-                .toString!16(destination, networkToHostOrder(ipv6Address[i]), 0, '0', LetterCase.lower);
+                .toString!16(destination, ntohs(ipv6Address[i]), 0, '0', LetterCase.lower);
                 needsColon = true;
             }
 
@@ -1247,7 +1269,7 @@ public:
         {
             if (needsColon)
                 destination.put(':');
-            .toString!16(destination, networkToHostOrder(ipv6Address[i]), 0, '0', LetterCase.lower);
+            .toString!16(destination, ntohs(ipv6Address[i]), 0, '0', LetterCase.lower);
             needsColon = true;
         }
     }
@@ -1286,15 +1308,15 @@ public:
             : [-1, 0];
     }
 
-    static ResultIf!IPAddress parse(scope const(char)[] address) nothrow
+    static ResultIf!IPSocketAddress parse(scope const(char)[] address) nothrow
     {
-        ResultIf!IPAddress error(size_t index) nothrow pure
+        ResultIf!IPSocketAddress error(size_t index) nothrow pure
         {
             import std.conv : to;
 
             return index != size_t.max
-                ? ResultIf!IPAddress.error(0, "Invalid IPv6 address: " ~ address.idup ~ " at position " ~ index.to!string())
-                : ResultIf!IPAddress.error(0, "Invalid IPv6 address: " ~ address.idup);
+                ? ResultIf!IPSocketAddress.error(0, "Invalid IPv6 address: " ~ address.idup ~ " at position " ~ index.to!string())
+                : ResultIf!IPSocketAddress.error(0, "Invalid IPv6 address: " ~ address.idup);
         }
 
         if (address.length == 0)
@@ -1310,7 +1332,7 @@ public:
         {
             if (index < numbers.length)
             {
-                numbers[index++] = hostToNetworkOrder(cast(ushort)number);
+                numbers[index++] = htons(cast(ushort)number);
                 number = 0;
                 numberIsValid = false;
                 return true;
@@ -1453,12 +1475,12 @@ public:
         {
             auto sc = parseScopeId(scopeId);
             if (sc)
-                return ResultIf!IPAddress.ok(IPAddress(cast(const(ubyte)[])numbers, sc.value));
+                return ResultIf!IPSocketAddress.ok(IPSocketAddress(cast(const(ubyte)[])numbers, sc.value));
             else
                 return error(size_t.max);
         }
         else
-            return ResultIf!IPAddress.ok(IPAddress(cast(const(ubyte)[])numbers, 0));
+            return ResultIf!IPSocketAddress.ok(IPSocketAddress(cast(const(ubyte)[])numbers, 0));
     }
 
     static ResultIf!uint parseScopeId(scope const(char)[] scopeId) nothrow
@@ -1501,7 +1523,7 @@ public:
 
     static string toString(scope const(ubyte)[] ipv6Address, uint scopeId, ushort port) nothrow pure
     {
-        auto buffer = Appender!string(IPAddress.maxIPv6StringLength + (port ? 6+3: 0));
+        auto buffer = Appender!string(IPSocketAddress.maxIPv6StringLength + (port ? 6+3: 0));
         return toString(buffer, ipv6Address, scopeId, port)[];
     }
 
@@ -1540,41 +1562,41 @@ public:
     }
 }
 
-unittest // IPAddress
+unittest // IPSocketAddress
 {
-    auto ipv41a = IPAddress(0x0100A8C0u);
+    auto ipv41a = IPSocketAddress(0x0100A8C0u);
     assert(ipv41a.toString() == "192.168.0.1", ipv41a.toString());
-    auto ipv41b = IPAddress([0xC0,0xA8,0x00,0x01]);
+    auto ipv41b = IPSocketAddress([0xC0,0xA8,0x00,0x01]);
     assert(ipv41b.toString() == "192.168.0.1");
     assert(ipv41a.toBytes() == ipv41b.toBytes());
     assert(ipv41a == ipv41b);
     assert(ipv41a.mapToIPv6().toBytes() == [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,0xC0,0xA8,0x00,0x01]);
 
-    auto ipv6 = IPAddress([0x20,0x01,0x0D,0xB8,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0x00,0x00,0x42,0x83,0x29], 4);
+    auto ipv6 = IPSocketAddress([0x20,0x01,0x0D,0xB8,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0x00,0x00,0x42,0x83,0x29], 4);
     assert(ipv6.toString() == "2001:db8::ff00:42:8329%4");
 
     // Embedded IPv4
-    ipv6 = IPAddress([0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,0xC0,0x00,0x02,0x80]);
+    ipv6 = IPSocketAddress([0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,0xC0,0x00,0x02,0x80]);
     assert(ipv6.toString() == "::ffff:192.0.2.128", ipv6.toString());
     assert(ipv6.mapToIPv4().toBytes() == [0xC0,0x00,0x02,0x80]);
 }
 
-unittest // IPAddress.parse
+unittest // IPSocketAddress.parse
 {
-    auto ipv4 = IPAddress.parseIPv4("192.168.0.1");
+    auto ipv4 = IPSocketAddress.parseIPv4("192.168.0.1");
     assert(ipv4.isOK);
     assert(ipv4.toBytes() == [0xC0,0xA8,0x00,0x01]);
-    auto ipv4b = IPAddress.parse("192.168.0.1");
+    auto ipv4b = IPSocketAddress.parse("192.168.0.1");
     assert(ipv4.value == ipv4b.value);
 
-    auto ipv6 = IPAddress.parseIPv6("2001:db8::ff00:42:8329%4");
+    auto ipv6 = IPSocketAddress.parseIPv6("2001:db8::ff00:42:8329%4");
     assert(ipv6.isOK, ipv6.errorMessage());
     assert(ipv6.toBytes() == [0x20,0x01,0x0D,0xB8,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0x00,0x00,0x42,0x83,0x29]);
     assert(ipv6.scopeId == 4);
-    auto ipv6b = IPAddress.parse("2001:db8::ff00:42:8329%4");
+    auto ipv6b = IPSocketAddress.parse("2001:db8::ff00:42:8329%4");
     assert(ipv6.value == ipv6b.value);
 
-    ipv6 = IPAddress.parseIPv6("::ffff:192.0.2.128");
+    ipv6 = IPSocketAddress.parseIPv6("::ffff:192.0.2.128");
     assert(ipv6.isOK, ipv6.errorMessage());
     assert(ipv6.toBytes() == [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,0xC0,0x00,0x02,0x80]);
     assert(ipv6.scopeId == 0);
@@ -1582,9 +1604,9 @@ unittest // IPAddress.parse
 
 unittest // SocketAddress
 {
-    auto ipv4 = SocketAddress(IPAddress.parseIPv4("192.168.0.1"), 99);
+    auto ipv4 = SocketAddress(IPSocketAddress.parseIPv4("192.168.0.1"), 99);
     assert(ipv4.toString() == "192.168.0.1:99");
 
-    auto ipv6 = SocketAddress(IPAddress.parseIPv6("2001:db8::ff00:42:8329%4"), 99);
+    auto ipv6 = SocketAddress(IPSocketAddress.parseIPv6("2001:db8::ff00:42:8329%4"), 99);
     assert(ipv6.toString() == "[2001:db8::ff00:42:8329%4]:99");
 }

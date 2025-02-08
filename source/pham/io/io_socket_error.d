@@ -86,7 +86,6 @@ shared static this() nothrow @trusted
         names["setIntOptionSocket"] = "setsockopt";
         names["setLingerSocket"] = "setsockopt";
         names["setReadTimeoutSocket"] = "setsockopt";
-        names["setTimeoutSocket"] = "setsockopt";
         names["setWriteTimeoutSocket"] = "setsockopt";
         names["shutdownSocket"] = "shutdown";
         names["waitForConnectSocket"] = "selectSocket";
@@ -117,7 +116,6 @@ shared static this() nothrow @trusted
         names["setIntOptionSocket"] = "setsockopt";
         names["setLingerSocket"] = "setsockopt";
         names["setReadTimeoutSocket"] = "setsockopt";
-        names["setTimeoutSocket"] = "setsockopt";
         names["setWriteTimeoutSocket"] = "setsockopt";
         names["shutdownSocket"] = "shutdown";
         names["waitForConnectSocket"] = "selectSocket";

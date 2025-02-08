@@ -23,7 +23,7 @@ public import core.sys.posix.sys.time : TimeVal = timeval;
 import core.sys.posix.unistd : close, gethostname;
 
 import pham.utl.utl_result : resultError, resultOK;
-import pham.io.io_socket_type : SelectMode;
+import pham.io.io_socket_type : SelectMode, SocketOptionItem, SocketOptionItems;
 
 enum IPV6_V6ONLY = 27;
 alias SocketHandle = int;
@@ -148,7 +148,7 @@ in
 do
 {
     int optVal;
-    const r = getIntOptionSocket!int(handle, SOL_SOCKET, SO_ERROR, optVal);
+    const r = getIntOptionSocket!int(handle, SocketOptionItems.error, optVal);
     if (r < 0)
         return r;
 
@@ -157,7 +157,7 @@ do
 }
 
 pragma(inline, true)
-int getIntOptionSocket(T)(SocketHandle handle, int optLevel, int optName, out T optVal) nothrow @trusted
+int getIntOptionSocket(T)(SocketHandle handle, scope const(SocketOptionItem) optInd, out T optVal) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -166,7 +166,7 @@ do
 {
     optVal = 0;
     int optLen = T.sizeof;
-    return getsockopt(handle, optLevel, optName, &optVal, &optLen);
+    return getsockopt(handle, optInd.level, optInd.name, &optVal, &optLen);
 }
 
 uint interfaceNameToIndex(scope const(char)[] scopeId) nothrow @trusted
@@ -246,7 +246,11 @@ do
             FD_SET(handle, &errorSet);
         }
 
-        r = select(handle+1, isRead ? &readSet : null, isWrite ? &writeSet : null, isError ? &errorSet : null, &selectTimeout);
+        r = select(handle+1,
+            isRead ? &readSet : null,
+            isWrite ? &writeSet : null,
+            isError ? &errorSet : null,
+            &selectTimeout);
     }
     while (r < 0 && errno == EINTR && limit++ < limitEINTR);
 
@@ -312,14 +316,14 @@ do
 }
 
 pragma(inline, true)
-int setIntOptionSocket(T)(SocketHandle handle, int optLevel, int optName, T optVal) nothrow @trusted
+int setIntOptionSocket(T)(SocketHandle handle, scope const(SocketOptionItem) optInd, T optVal) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
 }
 do
 {
-    return setsockopt(handle, optLevel, optName, &optVal, T.sizeof);
+    return setsockopt(handle, optInd.level, optInd.name, &optVal, T.sizeof);
 }
 
 pragma(inline, true)
@@ -341,18 +345,8 @@ in
 }
 do
 {
-    return setTimeoutSocket(handle, timeout, SO_RCVTIMEO);
-}
-
-pragma(inline, true)
-private int setTimeoutSocket(SocketHandle handle, TimeVal timeout, int optionName) nothrow @trusted
-in
-{
-    assert(handle != invalidSocketHandle);
-}
-do
-{
-    return setsockopt(handle, SOL_SOCKET, optionName, &timeout, timeout.sizeof);
+    auto optInd = SocketOptionItems.receiveTimeout;
+    return setsockopt(handle, optInd.level, optInd.name, &timeout, TimeVal.sizeof);
 }
 
 pragma(inline, true)
@@ -363,7 +357,8 @@ in
 }
 do
 {
-    return setTimeoutSocket(handle, timeout, SO_SNDTIMEO);
+    auto optInd = SocketOptionItems.sendTimeout;
+    return setTimeoutSocket(handle, optInd.level, optInd.name, &timeout, TimeVal.sizeof);
 }
 
 pragma(inline, true)

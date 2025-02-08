@@ -25,7 +25,7 @@ extern (Windows) DWORD if_nametoindex(scope const char*) @nogc nothrow @trusted;
 extern (Windows) void WSASetLastError(int) @nogc nothrow @trusted;
 
 import pham.utl.utl_result : resultOK, resultError;
-import pham.io.io_socket_type : SelectMode;
+import pham.io.io_socket_type : SelectMode, SocketOptionItem, SocketOptionItems, toSocketTimeMSecs;
 
 alias SocketHandle = SOCKET;
 enum invalidSocketHandle = INVALID_SOCKET;
@@ -126,7 +126,7 @@ in
 do
 {
     int optVal;
-    const r = getIntOptionSocket!int(handle, SOL_SOCKET, SO_ERROR, optVal);
+    const r = getIntOptionSocket!int(handle, SocketOptionItems.error, optVal);
     if (r < 0)
         return r;
 
@@ -135,7 +135,7 @@ do
 }
 
 pragma(inline, true)
-int getIntOptionSocket(T)(SocketHandle handle, int optLevel, int optName, out T optVal) nothrow @trusted
+int getIntOptionSocket(T)(SocketHandle handle, scope const(SocketOptionItem) optInd, out T optVal) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -144,7 +144,7 @@ do
 {
     optVal = 0;
     int optLen = T.sizeof;
-    return getsockopt(handle, optLevel, optName, &optVal, &optLen);
+    return getsockopt(handle, optInd.level, optInd.name, &optVal, &optLen);
 }
 
 uint interfaceNameToIndex(scope const(char)[] scopeId) nothrow @trusted
@@ -212,7 +212,11 @@ do
         FD_SET(handle, &errorSet);
     }
 
-    const r = select(0 /*Not used*/, isRead ? &readSet : null, isWrite ? &writeSet : null, isError ? &errorSet : null, &timeout);
+    const r = select(0 /*Not used*/,
+        isRead ? &readSet : null,
+        isWrite ? &writeSet : null,
+        isError ? &errorSet : null,
+        &timeout);
 
     if (r <= 0)
     {
@@ -264,14 +268,14 @@ do
 }
 
 pragma(inline, true)
-int setIntOptionSocket(T)(SocketHandle handle, int optLevel, int optName, T optVal) nothrow @trusted
+int setIntOptionSocket(T)(SocketHandle handle, scope const(SocketOptionItem) optInd, T optVal) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
 }
 do
 {
-    return setsockopt(handle, optLevel, optName, &optVal, T.sizeof);
+    return setsockopt(handle, optInd.level, optInd.name, &optVal, T.sizeof);
 }
 
 pragma(inline, true)
@@ -293,18 +297,7 @@ in
 }
 do
 {
-    return setTimeoutSocket(handle, timeout, SO_RCVTIMEO);
-}
-
-pragma(inline, true)
-private int setTimeoutSocket(SocketHandle handle, TimeVal timeout, int optionName) nothrow @trusted
-in
-{
-    assert(handle != invalidSocketHandle);
-}
-do
-{
-    return setsockopt(handle, SOL_SOCKET, optionName, &timeout, timeout.sizeof);
+    return setIntOptionSocket(handle, SocketOptionItems.receiveTimeout, toSocketTimeMSecs(timeout));
 }
 
 pragma(inline, true)
@@ -315,7 +308,7 @@ in
 }
 do
 {
-    return setTimeoutSocket(handle, timeout, SO_SNDTIMEO);
+    return setIntOptionSocket(handle, SocketOptionItems.sendTimeout, toSocketTimeMSecs(timeout));
 }
 
 pragma(inline, true)
