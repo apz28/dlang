@@ -2711,45 +2711,45 @@ shared static this() nothrow @safe
     // DbDate
     handler.doCoerce = &doCoerceDbDateTimeToDbDate;
     handler.flags = ConvertHandlerFlag.none;
-    ConvertHandler.add!(DbDateTime, DbDate)(handler);
-    ConvertHandler.add!(const(DbDateTime), DbDate)(handler);
+    ConvertHandler.register!(DbDateTime, DbDate)(handler);
+    ConvertHandler.register!(const(DbDateTime), DbDate)(handler);
 
     // DbDateTime
     handler.doCoerce = &doCoerceDbDateToDbDateTime;
     handler.flags = ConvertHandlerFlag.implicit;
-    ConvertHandler.add!(DbDate, DbDateTime)(handler);
-    ConvertHandler.add!(const(DbDate), DbDateTime)(handler);
+    ConvertHandler.register!(DbDate, DbDateTime)(handler);
+    ConvertHandler.register!(const(DbDate), DbDateTime)(handler);
 
     handler.doCoerce = &doCoerceDbTimeToDbDateTime;
     handler.flags = ConvertHandlerFlag.implicit;
-    ConvertHandler.add!(DbTime, DbDateTime)(handler);
-    ConvertHandler.add!(const(DbTime), DbDateTime)(handler);
+    ConvertHandler.register!(DbTime, DbDateTime)(handler);
+    ConvertHandler.register!(const(DbTime), DbDateTime)(handler);
 
     handler.doCoerce = &doCoerceDbDateTimeToDateTime;
     handler.flags = ConvertHandlerFlag.implicit;
-    ConvertHandler.add!(DbDateTime, DateTime)(handler);
-    ConvertHandler.add!(const(DbDateTime), DateTime)(handler);
+    ConvertHandler.register!(DbDateTime, DateTime)(handler);
+    ConvertHandler.register!(const(DbDateTime), DateTime)(handler);
 
     handler.doCoerce = &doCoerceDateTimeToDbDateTime;
     handler.flags = ConvertHandlerFlag.implicit;
-    ConvertHandler.add!(DateTime, DbDateTime)(handler);
-    ConvertHandler.add!(const(DateTime), DbDateTime)(handler);
+    ConvertHandler.register!(DateTime, DbDateTime)(handler);
+    ConvertHandler.register!(const(DateTime), DbDateTime)(handler);
 
     // DbTime
     handler.doCoerce = &doCoerceDbDateTimeToDbTime;
     handler.flags = ConvertHandlerFlag.none;
-    ConvertHandler.add!(DbDateTime, DbTime)(handler);
-    ConvertHandler.add!(const(DbDateTime), DbTime)(handler);
+    ConvertHandler.register!(DbDateTime, DbTime)(handler);
+    ConvertHandler.register!(const(DbDateTime), DbTime)(handler);
 
     handler.doCoerce = &doCoerceDbTimeToTime;
     handler.flags = ConvertHandlerFlag.implicit;
-    ConvertHandler.add!(DbTime, Time)(handler);
-    ConvertHandler.add!(const(DbTime), Time)(handler);
+    ConvertHandler.register!(DbTime, Time)(handler);
+    ConvertHandler.register!(const(DbTime), Time)(handler);
 
     handler.doCoerce = &doCoerceTimeToDbTime;
     handler.flags = ConvertHandlerFlag.implicit;
-    ConvertHandler.add!(Time, DbTime)(handler);
-    ConvertHandler.add!(const(Time), DbTime)(handler);
+    ConvertHandler.register!(Time, DbTime)(handler);
+    ConvertHandler.register!(const(Time), DbTime)(handler);
 }
 
 unittest // dbArrayOf

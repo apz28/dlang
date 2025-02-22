@@ -12,7 +12,7 @@
 module pham.utl.utl_array_dictionary;
 
 import core.exception : RangeError;
-import std.traits : fullyQualifiedName, isAssignable;
+import std.traits : fullyQualifiedName, isAssignable, Unqual;
 
 debug(debug_pham_utl_utl_array_dictionary)
 {
@@ -36,6 +36,8 @@ enum DictionaryHashMix : ubyte
  */
 struct Dictionary(K, V)
 {
+    private alias UK = Unqual!K;
+    private alias UV = Unqual!V;
     private enum bool isAssignableKV = isAssignable!K && isAssignable!V;
     private enum ushort bucketInflated = 5;
 
@@ -339,7 +341,7 @@ public:
      *  key = the key of the value to find
      *  value = the variable to hold the found key's value
      */
-    static if (isAssignableKV)
+    static if (isAssignable!V)
     bool containKey(scope const(K) key, ref V value) nothrow
     {
         if (length != 0)
@@ -679,7 +681,7 @@ private:
     private:
         Index nextCollision; // Next Entry index of collision chain; -1 is end of chain
         size_t hash; // Hash value of _key
-        K _key;
+        UK _key;
 
     public:
         @property const(K) key() const nothrow @safe
@@ -1173,7 +1175,7 @@ private:
             size_t result;
             foreach (ref entry; entries)
             {
-                result += hashOf(hashOf(entry.value), hashOf(entry.key));
+                result += hashOf(hashOf(entry.value), hashOf(entry._key));
             }
             return result;
         }
@@ -1389,7 +1391,7 @@ auto asAA(K, V)(Dictionary!(K, V) dictionary)
         V[K] result;
         foreach (ref e; dictionary[])
         {
-            result[e.key] = e.value;
+            result[e._key] = e.value;
         }
         return result;
     }

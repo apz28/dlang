@@ -811,6 +811,14 @@ public:
         return ++_memberDepth;
     }
 
+    /**
+     * Registers deserialize & serialize functions for a type
+     * It should be called only on startup function (shared static this()) because no-lock -> it is not thread safe
+     * Params:
+     *  T = a template of a type
+     *  serialize = a function pointer, SerializerFunction, to do serialize
+     *  deserialize = a function pointer, DeserializerFunction, to do deserialize
+     */
     static DSSerializerFunctions register(T)(SerializerFunction serialize, DeserializerFunction deserialize) nothrow
     in
     {
@@ -822,6 +830,14 @@ public:
         return register(fullyQualifiedName!T, DSSerializerFunctions(deserialize, serialize));
     }
 
+    /**
+     * Registers deserialize & serialize functions for a type
+     * It should be called only on startup function (shared static this()) because no-lock -> it is not thread safe
+     * Params:
+     *  type = a fully qualified name of a type
+     *  serialize = a function pointer, SerializerFunction, to do serialize
+     *  deserialize = a function pointer, DeserializerFunction, to do deserialize
+     */
     static DSSerializerFunctions register(string type, SerializerFunction serialize, DeserializerFunction deserialize) nothrow
     in
     {
@@ -834,6 +850,13 @@ public:
         return register(type, DSSerializerFunctions(deserialize, serialize));
     }
 
+    /**
+     * Registers deserialize & serialize functions for a type
+     * It should be called only on startup function (shared static this()) because no-lock -> it is not thread safe
+     * Params:
+     *  type = a fully qualified name of a type
+     *  serializers = a struct to hold function pointers, DeserializerFunction & SerializerFunction, to do deserialize & serialize
+     */
     static DSSerializerFunctions register(string type, DSSerializerFunctions serializers) nothrow @trusted // access __gshared customDSeserializedFunctions
     in
     {
@@ -875,6 +898,9 @@ public:
         return _arrayDepth;
     }
 
+    /**
+     * Returns data format that DSSerializer will produce (binary, text ...)
+     */
     @property abstract SerializerDataFormat dataFormat() const @nogc nothrow pure;
 
     pragma(inline, true)
@@ -885,6 +911,7 @@ public:
 
 public:
     SerializerOptions options;
+    void* callerContext;
 
     enum RootKind : ubyte
     {

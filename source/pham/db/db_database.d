@@ -3989,21 +3989,44 @@ public:
         return database.createConnection(cfg);
     }
 
+    /**
+     * Finds a registered DbDatabase instance if matching scheme,
+     * return true if there is a matching otherwise false.
+     * It is thread safe if add/remove DbDatabase is called only in startup (shared static this())
+     * Params:
+     *  scheme = a scheme value to look for
+     *  database = hold the found registered DbDatabase object
+     */
     static bool findDb(DbScheme scheme, ref DbDatabase database) nothrow @safe
     {
         auto lst = instance();
         return lst.find(scheme, database);
     }
 
+    /**
+     * Finds a registered DbDatabase instance if matching scheme in string form,
+     * return true if there is a matching otherwise false.
+     * It is thread safe if add/remove DbDatabase is called only in startup (shared static this())
+     * Params:
+     *  scheme = a scheme value to look for
+     *  database = hold the found registered DbDatabase object
+     */
     static bool findDb(string scheme, ref DbDatabase database) nothrow @safe
     {
         DbScheme dbScheme;
         if (!isDbScheme(scheme, dbScheme))
             return false;
-        else
-            return findDb(dbScheme, database);
+        
+        return findDb(dbScheme, database);
     }
 
+    /**
+     * Returns a registered DbDatabase instance if matching scheme,
+     * will throw DbException if there is no matching.
+     * It is thread safe if add/remove DbDatabase is called only in startup (shared static this())
+     * Params:
+     *  scheme = a scheme value to look for
+     */
     static DbDatabase getDb(DbScheme scheme) @safe
     {
         DbDatabase result;
@@ -4014,6 +4037,13 @@ public:
         throw new DbException(0, msg);
     }
 
+    /**
+     * Returns a registered DbDatabase instance if matching scheme in string form,
+     * will throw DbException if there is no matching.
+     * It is thread safe if add/remove DbDatabase is called only in startup (shared static this())
+     * Params:
+     *  scheme = a scheme value to look for
+     */
     static DbDatabase getDb(string scheme) @safe
     {
         DbDatabase result;
@@ -4024,11 +4054,18 @@ public:
         throw new DbException(0, msg);
     }
 
+    /**
+     * Returns a singular instance of DbDatabaseList 
+     */
     static DbDatabaseList instance() nothrow @trusted
     {
         return singleton(_instance, &createInstance);
     }
 
+    /**
+     * Registers an instance of vendor specific database object.
+     * It should be called only on startup function (shared static this()) because it is not thread safe
+     */
     static void registerDb(DbDatabase database) nothrow @safe
     in
     {

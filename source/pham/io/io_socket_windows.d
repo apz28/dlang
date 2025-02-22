@@ -21,8 +21,38 @@ public import core.sys.windows.winsock2 : Linger = linger, TimeVal = timeval;
 pragma(lib, "Iphlpapi.lib");
 pragma(lib, "Ws2_32.lib");
 
-extern (Windows) DWORD if_nametoindex(scope const char*) @nogc nothrow @trusted;
-extern (Windows) void WSASetLastError(int) @nogc nothrow @trusted;
+// Not found in core.sys.windows.winsock2, so declare it here
+// https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsapoll
+// events
+enum POLLPRI    = 0x0400;
+enum POLLRDBAND = 0x0200;
+enum POLLRDNORM = 0x0100;
+enum POLLWRBAND = 0x0020;
+enum POLLWRNORM = 0x0010;
+enum POLLIN = POLLRDNORM | POLLRDBAND;
+enum POLLOUT = POLLWRNORM | POLLWRBAND;
+
+// revents
+enum POLLERR  = 0x0001;
+enum POLLHUP  = 0x0002;
+enum POLLNVAL = 0x0004;
+//enum POLLPRI    = 0x0400;
+//enum POLLRDBAND = 0x0200;
+//enum POLLRDNORM = 0x0100;
+//enum POLLWRBAND = 0x0020;
+//enum POLLWRNORM = 0x0010;
+
+struct pollfd
+{
+    SOCKET fd;
+    short events; // query status mask
+    short revents; // result status mask
+}
+
+extern (Windows) DWORD if_nametoindex(scope const char* interfaceName) @nogc nothrow; // Iphlpapi.lib
+extern (Windows) int WSAPoll(pollfd* fdArray, uint fds, int timeout) @nogc nothrow; // Ws2_32.lib
+    // timeout = "> 0"=The time, in milliseconds, to wait; "= 0"=Return immediately; "< 0"= wait indefinitely
+extern (Windows) void WSASetLastError(int iError) @nogc nothrow; // Ws2_32.lib
 
 import pham.utl.utl_result : resultOK, resultError;
 import pham.io.io_socket_type : SelectMode, SocketOptionItem, SocketOptionItems, toSocketTimeMSecs;

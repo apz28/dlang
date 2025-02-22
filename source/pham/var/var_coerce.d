@@ -12,7 +12,6 @@
 module pham.var.var_coerce;
 
 import std.math.traits : isNaN;
-import std.meta : AliasSeq;
 import std.traits : fullyQualifiedName,
     isFloatingPoint, isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned,
     Unqual;
@@ -58,25 +57,58 @@ struct ConvertHandler
 nothrow @safe:
 
 public:
-    static void add(ConvertHandlerKey key, ConvertHandler handler) @trusted
+    deprecated("please use register")
+    alias add = register;
+
+    /**
+     * Registers a conversion function from one type to other type
+     * It should be called only on startup function (shared static this()) because no-lock -> it is not thread safe
+     * Params:
+     *  key = a struct to hold the from fully qualified name types from & to
+     *  handler = function pointer, ConvertFunction, to do the conversion
+     */
+    static void register(ConvertHandlerKey key, ConvertHandler handler) @trusted
     {
         convertHandlers[key] = handler;
     }
 
-    static void add(string srcQualifiedName, string dstQualifiedName, ConvertHandler handler)
+    /**
+     * Registers a conversion function from one type to other type
+     * It should be called only on startup function (shared static this()) because no-lock -> it is not thread safe
+     * Params:
+     *  srcQualifiedName = a fully qualified type source name
+     *  dstQualifiedName = a fully qualified type destination name
+     *  handler = function pointer, ConvertFunction, to do the conversion
+     */
+    static void register(string srcQualifiedName, string dstQualifiedName, ConvertHandler handler)
     {
         debug(debug_pham_var_var_coerce) debug writeln(__FUNCTION__, "(from=", srcQualifiedName, ", to=", dstQualifiedName, ")");
 
-        add(ConvertHandlerKey(srcQualifiedName, dstQualifiedName), handler);
+        register(ConvertHandlerKey(srcQualifiedName, dstQualifiedName), handler);
     }
 
-    static void add(S, D)(ConvertHandler handler)
+    /**
+     * Registers a conversion function from one type to other type
+     * It should be called only on startup function (shared static this()) because no-lock -> it is not thread safe
+     * Params:
+     *  S = a template source type
+     *  D = a template destination type
+     *  handler = function pointer, ConvertFunction, to do the conversion
+     */
+    static void register(S, D)(ConvertHandler handler)
     {
         debug(debug_pham_var_var_coerce) debug writeln(__FUNCTION__, "(from=", fullyQualifiedName!S, ", to=", fullyQualifiedName!D, ")");
 
-        add(ConvertHandlerKey(fullyQualifiedName!S, fullyQualifiedName!D), handler);
+        register(ConvertHandlerKey(fullyQualifiedName!S, fullyQualifiedName!D), handler);
     }
 
+    /**
+     * Finds a registered conversion function from one type to other type
+     * It is thread safe if add/remove ConvertHandler is called only in startup (shared static this())
+     * Params:
+     *  key = a struct to hold the from fully qualified name types from & to
+     *  handler = variable to hold a function pointer, ConvertFunction, to do the conversion
+     */
     static bool find(ConvertHandlerKey key, ref ConvertHandler handler) @trusted
     {
         if (auto e = key in convertHandlers)
@@ -88,22 +120,46 @@ public:
             return false;
     }
 
+    /**
+     * Finds a registered conversion function from one type to other type
+     * It is thread safe if add/remove ConvertHandler is called only in startup (shared static this())
+     * Params:
+     *  srcQualifiedName = a fully qualified type source name
+     *  dstQualifiedName = a fully qualified type destination name
+     *  handler = variable to hold a function pointer, ConvertFunction, to do the conversion
+     */
     static bool find(string srcQualifiedName, string dstQualifiedName, ref ConvertHandler handler)
     {
         return find(ConvertHandlerKey(srcQualifiedName, dstQualifiedName), handler);
     }
 
+    /**
+     * Finds a registered conversion function from one type to other type
+     * It is thread safe if add/remove ConvertHandler is called only in startup (shared static this())
+     * Params:
+     *  S = a template source type
+     *  D = a template destination type
+     *  handler = variable to hold a function pointer, ConvertFunction, to do the conversion
+     */
     static bool find(S, D)(ref ConvertHandler handler)
     {
         return find(ConvertHandlerKey(fullyQualifiedName!S, fullyQualifiedName!D), handler);
     }
 
+    /**
+     * Finds a registered cast function from one type to other type
+     * It is thread safe if add/remove ConvertHandler is called only in startup (shared static this())
+     * Params:
+     *  srcQualifiedName = a fully qualified type source name
+     *  dstQualifiedName = a fully qualified type destination name
+     *  doCast = variable to hold a function pointer, ConvertFunction, to do the cast
+     */
     static bool findCast(string srcQualifiedName, string dstQualifiedName, ref ConvertFunction doCast)
     {
         ConvertHandler handler;
         if (find(srcQualifiedName, dstQualifiedName, handler))
         {
-            if (handler.doCast !is null)
+            if (handler.canCast)
             {
                 doCast = handler.doCast;
                 return true;
@@ -112,17 +168,33 @@ public:
         return false;
     }
 
+    /**
+     * Finds a registered cast function from one type to other type
+     * It is thread safe if add/remove ConvertHandler is called only in startup (shared static this())
+     * Params:
+     *  S = a template source type
+     *  D = a template destination type
+     *  doCast = variable to hold a function pointer, ConvertFunction, to do the cast
+     */
     static bool findCast(S, D)(ref ConvertFunction doCast)
     {
         return findCast(fullyQualifiedName!S, fullyQualifiedName!D, doCast);
     }
 
+    /**
+     * Finds a registered coerce function from one type to other type
+     * It is thread safe if add/remove ConvertHandler is called only in startup (shared static this())
+     * Params:
+     *  srcQualifiedName = a fully qualified type source name
+     *  dstQualifiedName = a fully qualified type destination name
+     *  doCoerce = variable to hold a function pointer, ConvertFunction, to do the coerce
+     */
     static bool findCoerce(string srcQualifiedName, string dstQualifiedName, ref ConvertFunction doCoerce)
     {
         ConvertHandler handler;
         if (find(srcQualifiedName, dstQualifiedName, handler))
         {
-            if (handler.doCoerce !is null)
+            if (handler.canCoerce)
             {
                 doCoerce = handler.doCoerce;
                 return true;
@@ -131,6 +203,14 @@ public:
         return false;
     }
 
+    /**
+     * Finds a registered coerce function from one type to other type
+     * It is thread safe if add/remove ConvertHandler is called only in startup (shared static this())
+     * Params:
+     *  S = a template source type
+     *  D = a template destination type
+     *  doCoerce = variable to hold a function pointer, ConvertFunction, to do the coerce
+     */
     static bool findCoerce(S, D)(ref ConvertFunction doCoerce)
     {
         return findCoerce(fullyQualifiedName!S, fullyQualifiedName!D, doCoerce);
@@ -394,8 +474,9 @@ import core.attribute : standalone;
 @standalone
 shared static this() nothrow @trusted
 {
-    convertHandlers = Dictionary!(ConvertHandlerKey, ConvertHandler)(1_500, 1_000);
+    import std.meta : AliasSeq;
 
+    convertHandlers = Dictionary!(ConvertHandlerKey, ConvertHandler)(1_500, 1_000);
     ConvertHandler handler;
 
     // To integral type
@@ -406,7 +487,7 @@ shared static this() nothrow @trusted
             handler.doCast = &doCastIntegral!(S, D);
             handler.doCoerce = &doCoerceIntegral!(S, D);
             handler.flags = ConvertHandlerFlag.implicit;
-            ConvertHandler.add!(S, D)(handler);
+            ConvertHandler.register!(S, D)(handler);
         }
     }
 
@@ -418,7 +499,7 @@ shared static this() nothrow @trusted
             handler.doCast = &doCastFloat!(S, D);
             handler.doCoerce = &doCoerceFloat!(S, D);
             handler.flags = ConvertHandlerFlag.implicit;
-            ConvertHandler.add!(S, D)(handler);
+            ConvertHandler.register!(S, D)(handler);
         }
     }
 
@@ -428,7 +509,7 @@ shared static this() nothrow @trusted
         handler.doCast = &doCastBool!(S, bool);
         handler.doCoerce = null;
         handler.flags = ConvertHandlerFlag.implicit;
-        ConvertHandler.add!(S, bool)(handler);
+        ConvertHandler.register!(S, bool)(handler);
     }
 
     static foreach (S; AliasSeq!(byte, ubyte, short, ushort, int, uint, long, ulong, float, double, real, bool))
@@ -436,7 +517,7 @@ shared static this() nothrow @trusted
         handler.doCast = null;
         handler.doCoerce = &doCoerceBool!(bool, S);
         handler.flags = ConvertHandlerFlag.implicit;
-        ConvertHandler.add!(bool, S)(handler);
+        ConvertHandler.register!(bool, S)(handler);
     }
 
     // To same string type
@@ -447,27 +528,27 @@ shared static this() nothrow @trusted
 
         // to immutable(S)[]
         handler.doCoerce = &doCoerceString!(StringOfChar!S, StringOfChar!S);
-        ConvertHandler.add!(StringOfChar!S, StringOfChar!S)(handler);
+        ConvertHandler.register!(StringOfChar!S, StringOfChar!S)(handler);
 
         handler.doCoerce = &doCoerceString!(S[], StringOfChar!S);
-        ConvertHandler.add!(S[], StringOfChar!S)(handler);
+        ConvertHandler.register!(S[], StringOfChar!S)(handler);
 
         handler.doCoerce = &doCoerceString!(const(S)[], StringOfChar!S);
-        ConvertHandler.add!(const(S)[], StringOfChar!S)(handler);
+        ConvertHandler.register!(const(S)[], StringOfChar!S)(handler);
 
         // to const(S)[]
         handler.doCoerce = &doCoerceConstString!(StringOfChar!S, ConstStringOfChar!S);
-        ConvertHandler.add!(StringOfChar!S, ConstStringOfChar!S)(handler);
+        ConvertHandler.register!(StringOfChar!S, ConstStringOfChar!S)(handler);
 
         handler.doCoerce = &doCoerceConstString!(S[], ConstStringOfChar!S);
-        ConvertHandler.add!(S[], ConstStringOfChar!S)(handler);
+        ConvertHandler.register!(S[], ConstStringOfChar!S)(handler);
 
         handler.doCoerce = &doCoerceConstString!(const(S)[], ConstStringOfChar!S);
-        ConvertHandler.add!(const(S)[], ConstStringOfChar!S)(handler);
+        ConvertHandler.register!(const(S)[], ConstStringOfChar!S)(handler);
 
         // S to immutable(S)[]
         handler.doCoerce = &doCoerceCharToString!(S, StringOfChar!S);
-        ConvertHandler.add!(S, StringOfChar!S)(handler);
+        ConvertHandler.register!(S, StringOfChar!S)(handler);
     }
 
     // To different string type
@@ -481,13 +562,13 @@ shared static this() nothrow @trusted
                 handler.flags = ConvertHandlerFlag.none;
 
                 handler.doCoerce = &doCoerceStringEx!(StringOfChar!S, StringOfChar!D);
-                ConvertHandler.add!(StringOfChar!S, StringOfChar!D)(handler);
+                ConvertHandler.register!(StringOfChar!S, StringOfChar!D)(handler);
 
                 handler.doCoerce = &doCoerceStringEx!(S[], StringOfChar!D);
-                ConvertHandler.add!(S[], StringOfChar!D)(handler);
+                ConvertHandler.register!(S[], StringOfChar!D)(handler);
 
                 handler.doCoerce = &doCoerceStringEx!(const(S)[], StringOfChar!D);
-                ConvertHandler.add!(const(S)[], StringOfChar!D)(handler);
+                ConvertHandler.register!(const(S)[], StringOfChar!D)(handler);
             }
         }
     }
@@ -521,6 +602,7 @@ if ((isIntegral!L || isFloatingPoint!L || isSomeChar!L)
 nothrow unittest // ConvertHandler.Integral
 {
     import std.math : lround;
+    import std.meta : AliasSeq;
 
     ConvertHandler handler;
     bool f;
@@ -663,6 +745,8 @@ nothrow unittest // ConvertHandler.Integral
 
 nothrow unittest // ConvertHandler.Float
 {
+    import std.meta : AliasSeq;
+
     ConvertHandler handler;
     bool f;
 
@@ -734,6 +818,8 @@ nothrow unittest // ConvertHandler.Float
 
 nothrow unittest // ConvertHandler.cast(bool)
 {
+    import std.meta : AliasSeq;
+
     ConvertHandler handler;
     bool f;
 
@@ -780,6 +866,7 @@ nothrow unittest // ConvertHandler.cast(bool)
 nothrow unittest // ConvertHandler.coerce(string)
 {
     import std.conv : to;
+    import std.meta : AliasSeq;
 
     ConvertHandler handler;
     bool f;

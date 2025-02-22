@@ -103,37 +103,37 @@ shared static this() nothrow @safe
     // Date
     handler.doCoerce = &doCoerceStringToDate;
     handler.flags = ConvertHandlerFlag.none;
-    ConvertHandler.add!(string, Date)(handler);
+    ConvertHandler.register!(string, Date)(handler);
 
     handler.doCoerce = &doCoerceDateTimeToDate;
     handler.flags = ConvertHandlerFlag.none;
-    ConvertHandler.add!(DateTime, Date)(handler);
-    ConvertHandler.add!(const(DateTime), Date)(handler);
+    ConvertHandler.register!(DateTime, Date)(handler);
+    ConvertHandler.register!(const(DateTime), Date)(handler);
 
     // DateTime
     handler.doCoerce = &doCoerceStringToDateTime;
     handler.flags = ConvertHandlerFlag.none;
-    ConvertHandler.add!(string, DateTime)(handler);
+    ConvertHandler.register!(string, DateTime)(handler);
 
     handler.doCoerce = &doCoerceDateToDateTime;
     handler.flags = ConvertHandlerFlag.implicit;
-    ConvertHandler.add!(Date, DateTime)(handler);
-    ConvertHandler.add!(const(Date), DateTime)(handler);
+    ConvertHandler.register!(Date, DateTime)(handler);
+    ConvertHandler.register!(const(Date), DateTime)(handler);
 
     handler.doCoerce = &doCoerceTimeToDateTime;
     handler.flags = ConvertHandlerFlag.implicit;
-    ConvertHandler.add!(Time, DateTime)(handler);
-    ConvertHandler.add!(const(Time), DateTime)(handler);
+    ConvertHandler.register!(Time, DateTime)(handler);
+    ConvertHandler.register!(const(Time), DateTime)(handler);
 
     // Time
     handler.doCoerce = &doCoerceStringToTime;
     handler.flags = ConvertHandlerFlag.none;
-    ConvertHandler.add!(string, Time)(handler);
+    ConvertHandler.register!(string, Time)(handler);
 
     handler.doCoerce = &doCoerceDateTimeToTime;
     handler.flags = ConvertHandlerFlag.none;
-    ConvertHandler.add!(DateTime, Time)(handler);
-    ConvertHandler.add!(const(DateTime), Time)(handler);
+    ConvertHandler.register!(DateTime, Time)(handler);
+    ConvertHandler.register!(const(DateTime), Time)(handler);
 }
 
 unittest // variant_coerce

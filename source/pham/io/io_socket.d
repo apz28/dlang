@@ -328,14 +328,6 @@ public:
         int type;
         return active && getIntOptionSocket(_handle, SocketOptionItems.type, type) == resultOK;
     }
-    
-    pragma(inline, true)
-    static bool isError(SelectMode r) nothrow pure
-    {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(r=", r, ")"); debug stdout.flush(); }
-        
-        return r == SelectMode.none;
-    }
 
     pragma(inline, true)
     static bool isErrorResult(int r) nothrow pure
@@ -352,7 +344,7 @@ public:
         
         return r < 0;
     }
-
+    
     static bool isSupport(AddressFamily family) nothrow
     {
         auto h = createSocket(family, SocketType.dgram, Protocol.ip);
@@ -442,7 +434,8 @@ public:
         debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(modes=", modes, ", timeout=", timeout, ")"); debug stdout.flush(); }
 
         const r = selectSocket(_handle, modes, toSocketTimeVal(timeout));
-        if (r <= 0 || (r & SelectMode.error) == SelectMode.error)
+        // If result is an error-call or error-status is queried
+        if (isErrorResult(r) || (r & SelectMode.error) == SelectMode.error)
             lastError.setSystemError(getSocketAPIName("selectSocket"), lastSocketError());
         return r <= 0 ? SelectMode.none : cast(SelectMode)r;
     }
@@ -911,12 +904,10 @@ protected:
             const remaining = bytes.length - offset;
             const rn = remaining >= int.max ? int.max : remaining;
             const rr = receiveSocket(_handle, bytes[offset..offset+rn], flags);
-            if (rr == 0)
-                break;
-            else if (isErrorResult(rr))
+            if (isErrorResult(rr))
                 return lastError.setSystemError(getSocketAPIName("receiveSocket"), lastSocketError());
             offset += rr;
-            if (remaining != int.max)
+            if (rr == 0 || remaining != int.max)
                 break;
         }
 
@@ -946,15 +937,11 @@ protected:
             const remaining = bytes.length - offset;
             const wn = remaining >= int.max ? int.max : remaining;
             const wr = sendSocket(_handle, bytes[offset..offset+wn], flags);
+            if (isErrorResult(wr))
+                return lastError.setSystemError(getSocketAPIName("sendSocket"), lastSocketError());
+            offset += wr;
             if (wr == 0)
                 break;
-            else if (isErrorResult(wr))
-            {
-                if (offset != 0)
-                    break;
-                return lastError.setSystemError(getSocketAPIName("sendSocket"), lastSocketError());
-            }
-            offset += wr;
         }
 
         debug(debug_pham_io_io_socket) { debug writeln("\t", "send.length=", offset); debug stdout.flush(); }

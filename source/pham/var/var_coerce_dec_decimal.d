@@ -149,13 +149,13 @@ shared static this() nothrow @safe
         {
             handler.doCoerce = &doCoerceDecimal!(S, D);
             handler.flags = ConvertHandlerFlag.implicit;
-            ConvertHandler.add!(S, D)(handler);
+            ConvertHandler.register!(S, D)(handler);
 
             // Inverse
             invHandler.doCoerce = &doCoerceDecimalToNumeric!(D, S);
             invHandler.flags = ConvertHandlerFlag.implicit;
-            ConvertHandler.add!(D, S)(invHandler);
-            ConvertHandler.add!(const(D), S)(invHandler);
+            ConvertHandler.register!(D, S)(invHandler);
+            ConvertHandler.register!(const(D), S)(invHandler);
         }
     }
 
@@ -165,7 +165,7 @@ shared static this() nothrow @safe
         {
             handler.doCoerce = &doCoerceDecimal!(S, D);
             handler.flags = ConvertHandlerFlag.none;
-            ConvertHandler.add!(S, D)(handler);
+            ConvertHandler.register!(S, D)(handler);
         }
     }
 
@@ -179,14 +179,14 @@ shared static this() nothrow @safe
                 
                 handler.doCoerce = &doCoerceDecimal!(S, D);
                 handler.flags = ConvertHandlerFlag.implicit;
-                ConvertHandler.add!(S, D)(handler);
-                ConvertHandler.add!(const(S), D)(handler);
+                ConvertHandler.register!(S, D)(handler);
+                ConvertHandler.register!(const(S), D)(handler);
 
                 // Inverse
                 invHandler.doCoerce = &doCoerceDecimal!(D, S);
                 invHandler.flags = ConvertHandlerFlag.implicit;
-                ConvertHandler.add!(D, S)(invHandler);
-                ConvertHandler.add!(const(D), S)(invHandler);
+                ConvertHandler.register!(D, S)(invHandler);
+                ConvertHandler.register!(const(D), S)(invHandler);
             }
         }
     }
@@ -195,16 +195,16 @@ shared static this() nothrow @safe
     {
         handler.doCoerce = &doCoerceStringToDecimal!(string, D);
         handler.flags = ConvertHandlerFlag.none;
-        ConvertHandler.add!(string, D)(handler);
+        ConvertHandler.register!(string, D)(handler);
 
         // Inverse
         invHandler.doCoerce = &doCoerceDecimalToString!(D, string);
         invHandler.flags = ConvertHandlerFlag.none;
-        ConvertHandler.add!(D, string)(invHandler);
+        ConvertHandler.register!(D, string)(invHandler);
 
         handler.doCoerce = &doCoerceStringToDecimal!(const(char)[], D);
         handler.flags = ConvertHandlerFlag.none;
-        ConvertHandler.add!(const(char)[], D)(handler);
+        ConvertHandler.register!(const(char)[], D)(handler);
     }
 }
 
