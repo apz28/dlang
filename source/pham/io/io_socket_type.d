@@ -11,7 +11,7 @@
 
 module pham.io.io_socket_type;
 
-import core.time : Duration;
+import core.time : Duration, dur;
 import std.system : Endian;
 
 import pham.utl.utl_bit : fromBytes, Map32Bit, nativeToBytes, toBytes;
@@ -22,6 +22,8 @@ import pham.utl.utl_result;
 import pham.utl.utl_text : simpleIndexOf;
 version(Posix)
 {
+    import core.sys.posix.sys.poll;
+    import core.sys.posix.sys.select;
     import core.sys.posix.sys.socket;
     import pham.io.io_socket_posix;
 }
@@ -87,7 +89,7 @@ enum Protocol : int
  */
 enum SelectMode : int
 {
-    none = 0, /// Poll result status which is an error indicator
+    none = 0, /// Poll no result
     read = 1, /// Poll the read status of a socket
     write = 2, /// Poll the write status of a socket
     error = 4, /// Poll the error status of a socket
@@ -772,6 +774,178 @@ private:
     AddressFamily _family;
 }
 
+struct PollResult
+{
+nothrow @safe:
+
+public:
+    bool isError() const
+    {
+        return isSelectMode(modes, SelectMode.error);
+    }
+
+public:
+    SelectMode modes;
+    int errorCode;
+}
+
+struct PollFDSet
+{
+nothrow @safe:
+
+public:
+    /**
+     * Add a socket with checking modes (read & write)
+     * Params:
+     *  handle = a valid socket handle to be checked
+     *  modes = combination of statuses to be checked for
+     */
+    ref PollFDSet add(SocketHandle handle, SelectMode modes) return
+    {
+        pollFDs ~= pollfd(handle, pollEventOf(modes), 0);
+        return this;
+    }
+
+    /**
+     * Set all members into initial state
+     */
+    ref PollFDSet clear() return
+    {
+        pollFDs = [];
+        pollResults = [];
+        return this;
+    }
+
+    /**
+     * Returns number of checking sockets
+     */
+    int length() const
+    {
+        return cast(int)pollFDs.length;
+    }
+
+    /**
+     * Prepare state vars for a 'poll' api call
+     */
+    ref PollFDSet reset() return
+    {
+        foreach (ref fd; pollFDs)
+            fd.revents = 0;
+        pollResults = [];
+        return this;
+    }
+
+public:
+    pollfd[] pollFDs;
+    PollResult[] pollResults;
+}
+
+struct SelectFDSet
+{
+nothrow @safe:
+
+    static struct selectfd
+    {
+        SocketHandle handle;
+        SelectMode modes;
+    }
+
+public:
+    /**
+     * Add a socket with checking modes (read, write & error)
+     * Params:
+     *  handle = a valid socket handle to be checked
+     *  modes = combination of statuses to be checked for
+     */
+    ref SelectFDSet add(SocketHandle handle, SelectMode modes) return @trusted
+    {
+        if (set(handle, modes))
+        {
+            pollFDs ~= selectfd(handle, modes);
+            version(Posix)
+            {
+                if (nfds < handle)
+                    nfds = handle;
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Set all members into initial state
+     */
+    ref SelectFDSet clear() return @trusted
+    {
+        FD_ZERO(&readSet);
+        FD_ZERO(&writeSet);
+        FD_ZERO(&errorSet);
+        readSetCount = writeSetCount = errorSetCount = 0;
+        version(Posix) nfds = 0;
+        pollFDs = [];
+        pollResults = [];
+        return this;
+    }
+
+    /**
+     * Returns number of checking sockets
+     */
+    int length() const
+    {
+        return cast(int)pollFDs.length;
+    }
+
+    /**
+     * Prepare state vars for a 'select' api call
+     */
+    ref SelectFDSet reset() return @trusted
+    {
+        FD_ZERO(&readSet);
+        FD_ZERO(&writeSet);
+        FD_ZERO(&errorSet);
+        readSetCount = writeSetCount = errorSetCount = 0;
+        pollResults = [];
+        foreach (ref fd; pollFDs)
+            set(fd.handle, fd.modes);
+        return this;
+    }
+
+public:
+    selectfd[] pollFDs;
+    version(Posix) SocketHandle nfds;
+    fd_set readSet, writeSet, errorSet;
+    uint readSetCount, writeSetCount, errorSetCount;
+    PollResult[] pollResults;
+
+private:
+    bool set(SocketHandle handle, const(SelectMode) modes) @trusted
+    {
+        bool result = false;
+
+        if (isSelectMode(modes, SelectMode.read))
+        {
+            FD_SET(handle, &readSet);
+            readSetCount++;
+            result = true;
+        }
+
+        if (isSelectMode(modes, SelectMode.write))
+        {
+            FD_SET(handle, &writeSet);
+            writeSetCount++;
+            result = true;
+        }
+
+        if (isSelectMode(modes, SelectMode.error))
+        {
+            FD_SET(handle, &errorSet);
+            errorSetCount++;
+            result = true;
+        }
+
+        return result;
+    }
+}
+
 struct SocketAddress
 {
 nothrow @safe:
@@ -949,15 +1123,21 @@ enum SocketOptionItems : SocketOptionItem
     useLoopBack = SocketOptionItem(SOL_SOCKET, SO_USELOOPBACK), /// Use the local loopback address when sending data from this socket. This option should only be used when all data sent will also be received locally
 }
 
-
 //pragma(msg, sockaddr_in.sizeof); // 16
 //pragma(msg, sockaddr_in6.sizeof); // 28
 
+pragma(inline, true)
 bool canBlockingSocketType(SocketType type) @nogc nothrow pure
 {
     return type == SocketType.stream
         || type == SocketType.seqPacket
         || type == SocketType.unspecified;
+}
+
+pragma(inline, true)
+bool isSelectMode(SelectMode modes, SelectMode mode) @nogc nothrow pure
+{
+    return (modes & mode) != 0;
 }
 
 string toErrorInfo(AddressFamily family, SocketType type, Protocol protocol) nothrow pure
@@ -967,33 +1147,43 @@ string toErrorInfo(AddressFamily family, SocketType type, Protocol protocol) not
 
 Linger toSocketLinger(scope const(Duration) duration) @nogc nothrow pure
 {
-    enum msecsPerSecond = 1_000;
-    const r = duration.total!"msecs"();
-    const vr = r <= 0 ? 0 : (r > int.max ? int.max : cast(int)r); // value in valid range
-    const vs = (vr / msecsPerSecond) + (vr % msecsPerSecond != 0); // value in seconds
+    const r = toSocketTimeClamp(duration.total!"seconds"(), 0, ushort.max);
     Linger result;
-    result.l_linger = vs > ushort.max ? ushort.max : cast(ushort)vs; // seconds
-    result.l_onoff = vr != 0;
+    result.l_linger = cast(ushort)r; // seconds
+    result.l_onoff = r != 0;
     return result;
 }
 
-TimeVal toSocketTimeVal(scope const(Duration) timeout) @nogc nothrow pure
+int toSocketTimeClamp(const(long) n, const(int) min = -1, const(int) max = int.max) @nogc nothrow pure
+{
+    return n < min ? min : (n > max ? max : cast(int)n);
+}
+
+Duration toSocketTimeDur(scope const(TimeVal) timeVal) @nogc nothrow pure
+{
+    return dur!"msecs"(toSocketTimeMSecs(timeVal));
+}
+
+int toSocketTimeMSecs(scope const(TimeVal) timeVal) @nogc nothrow pure
+{
+    return toSocketTimeClamp((cast(long)timeVal.tv_sec * 1_000) /* seconds */ + (timeVal.tv_usec / 1_000) /* microseconds */);
+}
+
+TimeVal toSocketTimeVal(scope const(Duration) timeDur) @nogc nothrow pure
+{
+    return toSocketTimeVal(timeDur.total!"msecs"());
+}
+
+TimeVal toSocketTimeVal(long timeMSecs) @nogc nothrow pure
 {
     enum msecsPerSecond = 1_000;
-    const r = timeout.total!"msecs"();
-    const vr = r <= 0 ? 0 : (r > int.max ? int.max : cast(int)r); // value in valid range
+    const r = toSocketTimeClamp(timeMSecs);
     TimeVal result;
-    result.tv_sec = vr / msecsPerSecond; // seconds
-    result.tv_usec = (vr % msecsPerSecond) * 1_000; // microseconds
+    result.tv_sec = r / msecsPerSecond; // seconds
+    result.tv_usec = (r % msecsPerSecond) * 1_000; // microseconds
     return result;
 }
 
-uint toSocketTimeMSecs(scope const(TimeVal) timeout) @nogc nothrow pure
-{
-    enum msecsPerSecond = 1_000;    
-    return (timeout.tv_sec * msecsPerSecond) // seconds
-        + (timeout.tv_usec / 1_000); // microseconds
-}
 
 private:
 
@@ -1560,6 +1750,39 @@ public:
 
         return destination;
     }
+}
+
+unittest // toSocketTimeClamp
+{
+    assert(toSocketTimeClamp(-100) == -1);
+    assert(toSocketTimeClamp(100) == 100);
+    assert(toSocketTimeClamp(long.max) == int.max);
+}
+
+unittest // toSocketTimeDur
+{
+    assert(toSocketTimeDur(TimeVal(0, -1_000)) == dur!"msecs"(-1), toSocketTimeDur(TimeVal(0, -1_000)).toString ~ " / " ~ dur!"msecs"(-1).toString);
+    assert(toSocketTimeDur(TimeVal(0, 0)) == dur!"msecs"(0));
+    assert(toSocketTimeDur(TimeVal(100, 0)) == dur!"msecs"(100 * 1_000));
+}
+
+unittest // toSocketTimeMSecs
+{
+    assert(toSocketTimeMSecs(TimeVal(-1, 0)) == -1);
+    assert(toSocketTimeMSecs(TimeVal(0, -1_000)) == -1);
+    assert(toSocketTimeMSecs(TimeVal(0, 0)) == 0);
+    assert(toSocketTimeMSecs(TimeVal(100, 0)) == 100 * 1_000);
+}
+
+unittest // toSocketTimeVal
+{
+    assert(toSocketTimeVal(dur!"msecs"(-1)) == TimeVal(0, -1_000));
+    assert(toSocketTimeVal(dur!"seconds"(0)) == TimeVal(0, 0));
+    assert(toSocketTimeVal(dur!"seconds"(100)) == TimeVal(100, 0));
+
+    assert(toSocketTimeVal(-1_000) == TimeVal(0, -1_000));
+    assert(toSocketTimeVal(100 * 1_000) == TimeVal(100, 0));
+    assert(toSocketTimeVal(0) == TimeVal(0, 0));
 }
 
 unittest // IPSocketAddress

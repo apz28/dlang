@@ -16,6 +16,7 @@ version(Posix):
 import core.sys.posix.fcntl : errno;
 import core.sys.posix.net.if_;
 import core.sys.posix.sys.ioctl;
+import core.sys.posix.sys.poll;
 import core.sys.posix.sys.select;
 import core.sys.posix.sys.socket;
 public import core.sys.posix.sys.socket : Linger = linger;
@@ -23,12 +24,20 @@ public import core.sys.posix.sys.time : TimeVal = timeval;
 import core.sys.posix.unistd : close, gethostname;
 
 import pham.utl.utl_result : resultError, resultOK;
-import pham.io.io_socket_type : SelectMode, SocketOptionItem, SocketOptionItems;
+import pham.io.io_socket_type : isSelectMode, PollFDSet, PollResult,
+    SelectFDSet, SelectMode, SocketOptionItem, SocketOptionItems;
 
-enum IPV6_V6ONLY = 27;
 alias SocketHandle = int;
+
+enum errorSocketResult = -1;
 enum invalidSocketHandle = -1;
-private enum limitEINTR = 5;
+enum IPV6_V6ONLY = 27;
+enum POLLRead = POLLRDNORM | POLLRDBAND;
+enum POLLWrite = POLLWRNORM | POLLWRBAND;
+
+enum eHandleReset = 10054;
+enum eInvalidHandle = 6;
+enum eTimeout = 10060;
 
 pragma(inline, true)
 SocketHandle acceptSocket(SocketHandle handle, scope sockaddr* nameVal, scope int* nameLen) nothrow @trusted
@@ -44,7 +53,7 @@ do
     {
         result = accept(handle, nameVal, nameLen);
     }
-    while (result == invalidSocketHandle && errno == EINTR && limit++ < limitEINTR);
+    while (canRetry(result, limit));
     return result;
 }
 
@@ -57,6 +66,13 @@ in
 do
 {
     return bind(handle, nameVal, nameLen);
+}
+
+private enum limitEINTR = 5;
+pragma(inline, true)
+bool canRetry(int apiResult, ref int limit) @nogc nothrow pure
+{
+    return apiResult == errorSocketResult && errno == EINTR && limit++ < limitEINTR;
 }
 
 pragma(inline, true)
@@ -103,7 +119,7 @@ do
     {
         r = ioctl(fd, FIONREAD, &result);
     }
-    while (r < 0 && errno == EINTR && limit++ < limitEINTR);
+    while (canRetry(r, limit));
     return r == 0 ? result : r;
 }
 
@@ -140,24 +156,8 @@ do
     return 0;
 }
 
-int getErrorSocket(SocketHandle handle) nothrow @trusted
-in
-{
-    assert(handle != invalidSocketHandle);
-}
-do
-{
-    int optVal;
-    const r = getIntOptionSocket!int(handle, SocketOptionItems.error, optVal);
-    if (r < 0)
-        return r;
-
-    errno = optVal;
-    return optVal ? resultOK : resultError;
-}
-
 pragma(inline, true)
-int getIntOptionSocket(T)(SocketHandle handle, scope const(SocketOptionItem) optInd, out T optVal) nothrow @trusted
+int getOptionSocket(T)(SocketHandle handle, scope const(SocketOptionItem) optInd, out T optVal) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -167,6 +167,16 @@ do
     optVal = 0;
     int optLen = T.sizeof;
     return getsockopt(handle, optInd.level, optInd.name, &optVal, &optLen);
+}
+
+int getReadTimeoutSocket(SocketHandle handle, out TimeVal timeout) nothrow @trusted
+{
+    return getOptionSocket!TimeVal(handle, SocketOptionItems.receiveTimeout, timeout);
+}
+
+int getWriteTimeoutSocket(SocketHandle handle, out TimeVal timeout) nothrow @trusted
+{
+    return getOptionSocket!TimeVal(handle, SocketOptionItems.sendTimeout, timeout);
 }
 
 uint interfaceNameToIndex(scope const(char)[] scopeId) nothrow @trusted
@@ -184,6 +194,25 @@ int lastSocketError() nothrow @trusted
 }
 
 pragma(inline, true)
+int lastSocketError(int errorCode) nothrow @trusted
+{
+    errno = errorCode;
+    return errorCode;
+}
+
+int lastSocketErrorOf(SocketHandle handle) nothrow @trusted
+in
+{
+    assert(handle != invalidSocketHandle);
+}
+do
+{
+    int optVal;
+    const r = getOptionSocket!int(handle, SocketOptionItems.error, optVal);
+    return r != errorSocketResult ? optVal : errno;
+}
+
+pragma(inline, true)
 int listenSocket(SocketHandle handle, int backLog) nothrow @trusted
 in
 {
@@ -192,6 +221,78 @@ in
 do
 {
     return listen(handle, backLog);
+}
+
+pragma(inline, true)
+short pollEventOf(const(SelectMode) modes) @nogc nothrow pure @safe
+{
+    short result = 0;
+    if (isSelectMode(modes, SelectMode.read))
+        result |= POLLRead;
+    if (isSelectMode(modes, SelectMode.write))
+        result |= POLLWrite;
+    return result;
+}
+
+int pollSocket(ref PollFDSet pollSets, TimeVal timeout) nothrow @trusted
+{
+    const length = pollSets.length;
+    int r, limit;
+    do
+    {
+        r = poll(&pollSets.pollFDs[0], length, toSocketTimeMSecs(timeout));
+    }
+    while (canRetry(r, limit));
+    
+    pollSets.pollResults.length = length;
+    if (r > 0)
+    {
+        foreach (i; 0..length)
+        {
+            const revents = pollSets.pollFDs[i].revents;
+            if (revents & POLLERR)
+                pollSets.pollResults[i] = PollResult(SelectMode.error, lastSocketErrorOf(pollSets.pollFDs[i].fd));
+            else if (revents & POLLHUP)
+                pollSets.pollResults[i] = PollResult(SelectMode.error, eHandleReset);
+            else if (revents & POLLNVAL)
+                pollSets.pollResults[i] = PollResult(SelectMode.error, eInvalidHandle);
+            else
+            {
+                SelectMode resultModes = SelectMode.none;
+                if (revents & (POLLRead | POLLPRI))
+                    resultModes |= SelectMode.read;
+                if (revents & POLLWrite)
+                    resultModes |= SelectMode.write;
+                pollSets.pollResults[i] = PollResult(resultModes, 0);
+            }
+        }  
+    }
+    else if (r == 0)
+        pollSets.pollResults[] = PollResult(SelectMode.error, eTimeout);
+    else
+        pollSets.pollResults[] = PollResult(SelectMode.error, lastSocketError());
+        
+    return r;
+}
+
+int pollSocket(SocketHandle handle, SelectMode queryModes, TimeVal timeout, out SelectMode resultModes) nothrow
+in
+{
+    assert(handle != invalidSocketHandle);
+}
+do
+{
+    PollFDSet pollSets;
+    pollSets.add(handle, queryModes);
+    pollSocket(pollSets, timeout);
+    resultModes = pollSets.pollResults[0].modes;
+    if (isSelectMode(resultModes, SelectMode.error))
+    {
+        lastSocketError(pollSets.pollResults[0].errorCode);
+        return resultError;
+    }
+    else
+        return resultOK;
 }
 
 pragma(inline, true)
@@ -208,74 +309,68 @@ do
         const len = cast(int)bytes.length;
         r = recv(handle, len ? &bytes[0] : null, len, flags);
     }
-    while (r < 0 && errno == EINTR && limit++ < limitEINTR);
+    while (canRetry(r, limit));
     return r;
 }
 
-int selectSocket(SocketHandle handle, SelectMode modes, TimeVal timeout) nothrow @trusted
+int selectSocket(ref SelectFDSet selectSets, TimeVal timeout) nothrow @trusted
+{
+    int r, limit;
+    do
+    {
+        r = select(selectSets.nfds + 1,
+            selectSets.readSetCount ? &selectSets.readSet : null,
+            selectSets.writeSetCount ? &selectSets.writeSet : null,
+            selectSets.errorSetCount ? &selectSets.errorSet : null,
+            &timeout);
+    }
+    while (canRetry(r, limit));
+
+    selectSets.pollResults.length = selectSets.length;
+    if (r > 0)
+    {
+        foreach (i, ref fd; selectSets.pollFDs)
+        {
+            SelectMode resultModes = SelectMode.none;
+            int resultErrorCode = 0;
+            if (isSelectMode(fd.modes, SelectMode.read) && FD_ISSET(fd.handle, &selectSets.readSet))
+                resultModes |= SelectMode.read;
+            if (isSelectMode(fd.modes, SelectMode.write) && FD_ISSET(fd.handle, &selectSets.writeSet))
+                resultModes |= SelectMode.write;
+            if (isSelectMode(fd.modes, SelectMode.error) && FD_ISSET(fd.handle, &selectSets.errorSet))
+            {
+                resultModes |= SelectMode.error;
+                resultErrorCode = lastSocketErrorOf(fd.handle);
+            }
+            selectSets.pollResults[i] = PollResult(resultModes, resultErrorCode);
+        }
+    }
+    else if (r == 0)
+        selectSets.pollResults[] = PollResult(SelectMode.error, eTimeout);
+    else
+        selectSets.pollResults[] = PollResult(SelectMode.error, lastSocketError());
+    
+    return r;
+}
+
+int selectSocket(SocketHandle handle, SelectMode queryModes, TimeVal timeout, out SelectMode resultModes) nothrow @safe
 in
 {
     assert(handle != invalidSocketHandle);
 }
 do
 {
-    const isRead = (modes & SelectMode.read) == SelectMode.read;
-    const isWrite = (modes & SelectMode.write) == SelectMode.write;
-    const isError = (modes & SelectMode.error) == SelectMode.error;
-
-    TimeVal selectTimeout;
-    fd_set readSet, writeSet, errorSet;
-    int r, limit;
-    do
+    SelectFDSet selectSets;
+    selectSets.add(handle, queryModes);
+    selectSocket(selectSets, timeout);
+    resultModes = selectSets.pollResults[0].mode;
+    if (isSelectMode(resultModes, SelectMode.error))
     {
-        selectTimeout = timeout;
-
-        if (isRead)
-        {
-            FD_ZERO(&readSet);
-            FD_SET(handle, &readSet);
-        }
-        if (isWrite)
-        {
-            FD_ZERO(&writeSet);
-            FD_SET(handle, &writeSet);
-        }
-        if (isError)
-        {
-            FD_ZERO(&errorSet);
-            FD_SET(handle, &errorSet);
-        }
-
-        r = select(handle+1,
-            isRead ? &readSet : null,
-            isWrite ? &writeSet : null,
-            isError ? &errorSet : null,
-            &selectTimeout);
-    }
-    while (r < 0 && errno == EINTR && limit++ < limitEINTR);
-
-    if (r <= 0)
-    {
-        if (r == 0)
-            errno = ETIMEDOUT;
+        lastSocketError(selectSets.pollResults[0].errorCode);
         return resultError;
     }
-
-    int result = 0;
-
-    if (isRead && FD_ISSET(handle, &readSet))
-        result |= SelectMode.read;
-
-    if (isWrite && FD_ISSET(handle, &writeSet))
-        result |= SelectMode.write;
-
-    if (isError && FD_ISSET(handle, &errorSet))
-    {
-        result |= SelectMode.error;
-        getErrorSocket(handle);
-    }
-
-    return result;
+    else
+        return resultOK;
 }
 
 pragma(inline, true)
@@ -293,7 +388,7 @@ do
         const len = cast(int)bytes.length;
         r = send(handle, len ? &bytes[0] : null, len, flags);
     }
-    while (r < 0 && errno == EINTR && limit++ < limitEINTR);
+    while (canRetry(r, limit));
     return r;
 }
 
@@ -306,7 +401,7 @@ in
 do
 {
     int n = fcntl(handle, F_GETFL, 0);
-    if (n == -1)
+    if (n == errorSocketResult)
         return n;
     if (state)
         n &= ~O_NONBLOCK;
@@ -316,7 +411,7 @@ do
 }
 
 pragma(inline, true)
-int setIntOptionSocket(T)(SocketHandle handle, scope const(SocketOptionItem) optInd, T optVal) nothrow @trusted
+int setOptionSocket(T)(SocketHandle handle, scope const(SocketOptionItem) optInd, T optVal) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -372,15 +467,14 @@ do
     return shutdown(handle, reason);
 }
 
-int waitForConnectSocket(SocketHandle handle, TimeVal timeout) nothrow @trusted
+int waitForConnectSocket(SocketHandle handle, TimeVal timeout) nothrow @safe
 in
 {
     assert(handle != invalidSocketHandle);
 }
 do
 {
-    const r = selectSocket(handle, SelectMode.waitforConnect, timeout);
-    return r <= 0
-        ? resultError
-        : ((r & SelectMode.error) == SelectMode.error ? resultError : resultOK);
+    SelectMode resultModes;
+    selectSocket(handle, SelectMode.waitforConnect, timeout, resultModes);
+    return resultModes & SelectMode.error ? resultError : resultOK;
 }

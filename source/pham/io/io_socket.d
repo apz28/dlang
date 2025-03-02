@@ -11,7 +11,7 @@
 
 module pham.io.io_socket;
 
-import core.time : Duration;
+import core.time : Duration, dur;
 
 debug(debug_pham_io_io_socket) import std.stdio : stdout, writeln;
 import pham.utl.utl_result : resultError, resultOK;
@@ -326,14 +326,14 @@ public:
     final bool isAlive() nothrow
     {
         int type;
-        return active && getIntOptionSocket(_handle, SocketOptionItems.type, type) == resultOK;
+        return active && getOptionSocket(_handle, SocketOptionItems.type, type) == resultOK;
     }
 
     pragma(inline, true)
     static bool isErrorResult(int r) nothrow pure
     {
         debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(r=", r, ")"); debug stdout.flush(); }
-        
+
         return r < 0;
     }
 
@@ -341,10 +341,10 @@ public:
     static bool isErrorResult(long r) nothrow pure
     {
         debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(r=", r, ")"); debug stdout.flush(); }
-        
+
         return r < 0;
     }
-    
+
     static bool isSupport(AddressFamily family) nothrow
     {
         auto h = createSocket(family, SocketType.dgram, Protocol.ip);
@@ -433,11 +433,11 @@ public:
     {
         debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(modes=", modes, ", timeout=", timeout, ")"); debug stdout.flush(); }
 
-        const r = selectSocket(_handle, modes, toSocketTimeVal(timeout));
-        // If result is an error-call or error-status is queried
-        if (isErrorResult(r) || (r & SelectMode.error) == SelectMode.error)
+        SelectMode resultModes;
+        selectSocket(_handle, modes, toSocketTimeVal(timeout), resultModes);
+        if (resultModes & SelectMode.error)
             lastError.setSystemError(getSocketAPIName("selectSocket"), lastSocketError());
-        return r <= 0 ? SelectMode.none : cast(SelectMode)r;
+        return resultModes;
     }
 
     final long send(scope const(ubyte)[] bytes, int flags = 0) nothrow
@@ -466,37 +466,37 @@ public:
     final int setDebug(bool state) nothrow
     {
         uint v = state ? 1 : 0;
-        const r = setIntOptionSocket(_handle, SocketOptionItems.debug_, v);
+        const r = setOptionSocket(_handle, SocketOptionItems.debug_, v);
         return r == resultOK
             ? resultOK
-            : lastError.setSystemError(getSocketAPIName("setIntOptionSocket"), lastSocketError(), " debug");
+            : lastError.setSystemError(getSocketAPIName("setOptionSocket"), lastSocketError(), " debug");
     }
 
     final int setDontRoute(bool state) nothrow
     {
         uint v = state ? 1 : 0;
-        const r = setIntOptionSocket(_handle, SocketOptionItems.dontRoute, v);
+        const r = setOptionSocket(_handle, SocketOptionItems.dontRoute, v);
         return r == resultOK
             ? resultOK
-            : lastError.setSystemError(getSocketAPIName("setIntOptionSocket"), lastSocketError(), " dontRoute");
+            : lastError.setSystemError(getSocketAPIName("setOptionSocket"), lastSocketError(), " dontRoute");
     }
 
     final int setIPv6Only(bool state) nothrow
     {
         uint v = state ? 1 : 0;
-        const r = setIntOptionSocket(_handle, SocketOptionItems.ipv6Only, v);
+        const r = setOptionSocket(_handle, SocketOptionItems.ipv6Only, v);
         return r == resultOK
             ? resultOK
-            : lastError.setSystemError(getSocketAPIName("setIntOptionSocket"), lastSocketError(), " ipv6Only");
+            : lastError.setSystemError(getSocketAPIName("setOptionSocket"), lastSocketError(), " ipv6Only");
     }
 
     final int setKeepAlive(bool state) nothrow
     {
         uint v = state ? 1 : 0;
-        const r = setIntOptionSocket(_handle, SocketOptionItems.keepAlive, v);
+        const r = setOptionSocket(_handle, SocketOptionItems.keepAlive, v);
         return r == resultOK
             ? resultOK
-            : lastError.setSystemError(getSocketAPIName("setIntOptionSocket"), lastSocketError(), " keepAlive");
+            : lastError.setSystemError(getSocketAPIName("setOptionSocket"), lastSocketError(), " keepAlive");
     }
 
     final int setLinger(Linger linger) nothrow
@@ -512,10 +512,10 @@ public:
         debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(state=", state, ")"); debug stdout.flush(); }
 
         uint v = state ? 1 : 0;
-        const r = setIntOptionSocket(_handle, SocketOptionItems.noDelay, v);
+        const r = setOptionSocket(_handle, SocketOptionItems.noDelay, v);
         return r == resultOK
             ? resultOK
-            : lastError.setSystemError(getSocketAPIName("setIntOptionSocket"), lastSocketError(), " noDelay");
+            : lastError.setSystemError(getSocketAPIName("setOptionSocket"), lastSocketError(), " noDelay");
     }
 
     final int setReadTimeout(Duration duration) nothrow
@@ -530,36 +530,36 @@ public:
 
     final int setReceiveBufferSize(uint bytes) nothrow
     {
-        const r = setIntOptionSocket(_handle, SocketOptionItems.receiveBufferSize, bytes);
+        const r = setOptionSocket(_handle, SocketOptionItems.receiveBufferSize, bytes);
         return r == resultOK
             ? resultOK
-            : lastError.setSystemError(getSocketAPIName("setIntOptionSocket"), lastSocketError(), " receiveBufferSize");
+            : lastError.setSystemError(getSocketAPIName("setOptionSocket"), lastSocketError(), " receiveBufferSize");
     }
 
     final int setReuseAddress(bool state) nothrow
     {
         uint v = state ? 1 : 0;
-        const r = setIntOptionSocket(_handle, SocketOptionItems.reuseAddress, v);
+        const r = setOptionSocket(_handle, SocketOptionItems.reuseAddress, v);
         return r == resultOK
             ? resultOK
-            : lastError.setSystemError(getSocketAPIName("setIntOptionSocket"), lastSocketError(), " reuseAddress");
+            : lastError.setSystemError(getSocketAPIName("setOptionSocket"), lastSocketError(), " reuseAddress");
     }
 
     final int setSendBufferSize(uint bytes) nothrow
     {
-        const r = setIntOptionSocket(_handle, SocketOptionItems.sendBufferSize, bytes);
+        const r = setOptionSocket(_handle, SocketOptionItems.sendBufferSize, bytes);
         return r == resultOK
             ? resultOK
-            : lastError.setSystemError(getSocketAPIName("setIntOptionSocket"), lastSocketError(), " sendBufferSize");
+            : lastError.setSystemError(getSocketAPIName("setOptionSocket"), lastSocketError(), " sendBufferSize");
     }
 
     final int setUseLoopback(bool state) nothrow
     {
         uint v = state ? 1 : 0;
-        const r = setIntOptionSocket(_handle, SocketOptionItems.useLoopBack, v);
+        const r = setOptionSocket(_handle, SocketOptionItems.useLoopBack, v);
         return r == resultOK
             ? resultOK
-            : lastError.setSystemError(getSocketAPIName("setIntOptionSocket"), lastSocketError(), " useLoopback");
+            : lastError.setSystemError(getSocketAPIName("setOptionSocket"), lastSocketError(), " useLoopback");
     }
 
     final int setWriteTimeout(Duration duration) nothrow
@@ -618,6 +618,26 @@ public:
     @property final ushort port() const @nogc nothrow
     {
         return _port;
+    }
+
+    @property final Duration readTimeout() nothrow
+    {
+        TimeVal timeout;
+        if (getReadTimeoutSocket(_handle, timeout) == resultOK)
+            return toSocketTimeDur(timeout);
+
+        lastError.setSystemError(getSocketAPIName("getReadTimeoutSocket"), lastSocketError(), " readTimeout");
+        return dur!"msecs"(-1);
+    }
+
+    @property final Duration writeTimeout() nothrow
+    {
+        TimeVal timeout;
+        if (getWriteTimeoutSocket(_handle, timeout) == resultOK)
+            return toSocketTimeDur(timeout);
+
+        lastError.setSystemError(getSocketAPIName("getWriteTimeoutSocket"), lastSocketError(), " writeTimeout");
+        return dur!"msecs"(-1);
     }
 
 public:
@@ -717,7 +737,7 @@ protected:
     final int checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
     {
         debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(active=", active, ")"); debug stdout.flush(); }
-        
+
         // WSAENOTCONN=10057=Socket is not connected
         return active
             ? lastError.reset()
@@ -892,9 +912,9 @@ protected:
             const rr = receiveSocket(_handle, bytes, flags);
             if (isErrorResult(rr))
                 return lastError.setSystemError(getSocketAPIName("receiveSocket"), lastSocketError());
-                
+
             debug(debug_pham_io_io_socket) { debug writeln("\t", "receiveCheck.length=", rr); debug stdout.flush(); }
-            
+
             return rr;
         }
 
@@ -925,9 +945,9 @@ protected:
             const wr = sendSocket(_handle, bytes, flags);
             if (isErrorResult(wr))
                 return lastError.setSystemError(getSocketAPIName("sendSocket"), lastSocketError());
-                
+
             debug(debug_pham_io_io_socket) { debug writeln("\t", "sendCheck.length=", wr); debug stdout.flush(); }
-            
+
             return wr;
         }
 
@@ -961,13 +981,17 @@ class SocketStream : Stream
 @safe:
 
 public:
-    this(Socket socket) nothrow pure
+    this(Socket socket) nothrow
     {
         this._socket = socket;
+        this._readTimeout = socket.readTimeout;
+        this._writeTimeout = socket.writeTimeout;
     }
 
     this(ConnectInfo connectInfo) nothrow
     {
+        this._readTimeout = connectInfo.readTimeout;
+        this._writeTimeout = connectInfo.writeTimeout;
         this._socket = new Socket();
         if (this._socket.connect(connectInfo) != resultOK)
             this.lastError = this._socket.lastError;

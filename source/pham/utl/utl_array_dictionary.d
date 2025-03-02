@@ -11,7 +11,6 @@
 
 module pham.utl.utl_array_dictionary;
 
-import core.exception : RangeError;
 import std.traits : fullyQualifiedName, isAssignable, Unqual;
 
 debug(debug_pham_utl_utl_array_dictionary)
@@ -36,6 +35,7 @@ enum DictionaryHashMix : ubyte
  */
 struct Dictionary(K, V)
 {
+    import core.exception : RangeError;
     private alias UK = Unqual!K;
     private alias UV = Unqual!V;
     private enum bool isAssignableKV = isAssignable!K && isAssignable!V;

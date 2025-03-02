@@ -21,16 +21,22 @@ public import core.sys.windows.winsock2 : Linger = linger, TimeVal = timeval;
 pragma(lib, "Iphlpapi.lib");
 pragma(lib, "Ws2_32.lib");
 
+enum eHandleReset = WSAECONNRESET; // 10054
+enum eInvalidHandle = 6; // WSA_INVALID_HANDLE=6
+enum eTimeout = ETIMEDOUT; // 10060
+
 // Not found in core.sys.windows.winsock2, so declare it here
 // https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsapoll
 // events
 enum POLLPRI    = 0x0400;
 enum POLLRDBAND = 0x0200;
 enum POLLRDNORM = 0x0100;
+enum POLLIN     = POLLRDNORM | POLLRDBAND;
 enum POLLWRBAND = 0x0020;
 enum POLLWRNORM = 0x0010;
-enum POLLIN = POLLRDNORM | POLLRDBAND;
-enum POLLOUT = POLLWRNORM | POLLWRBAND;
+enum POLLOUT    = POLLWRNORM;
+enum POLLRead   = POLLRDNORM | POLLRDBAND;
+enum POLLWrite  = POLLWRNORM | POLLWRBAND;
 
 // revents
 enum POLLERR  = 0x0001;
@@ -55,9 +61,12 @@ extern (Windows) int WSAPoll(pollfd* fdArray, uint fds, int timeout) @nogc nothr
 extern (Windows) void WSASetLastError(int iError) @nogc nothrow; // Ws2_32.lib
 
 import pham.utl.utl_result : resultOK, resultError;
-import pham.io.io_socket_type : SelectMode, SocketOptionItem, SocketOptionItems, toSocketTimeMSecs;
+import pham.io.io_socket_type : isSelectMode, PollFDSet, PollResult,
+    SelectFDSet, SelectMode, SocketOptionItem, SocketOptionItems, toSocketTimeMSecs, toSocketTimeVal;
 
 alias SocketHandle = SOCKET;
+
+enum errorSocketResult = SOCKET_ERROR;
 enum invalidSocketHandle = INVALID_SOCKET;
 enum AI_V4MAPPED = 0x0800; // https://learn.microsoft.com/en-us/windows/win32/api/ws2def/ns-ws2def-addrinfoex4
 
@@ -148,24 +157,8 @@ do
     return 0;
 }
 
-int getErrorSocket(SocketHandle handle) nothrow @trusted
-in
-{
-    assert(handle != invalidSocketHandle);
-}
-do
-{
-    int optVal;
-    const r = getIntOptionSocket!int(handle, SocketOptionItems.error, optVal);
-    if (r < 0)
-        return r;
-
-    WSASetLastError(optVal);
-    return optVal ? resultOK : resultError;
-}
-
 pragma(inline, true)
-int getIntOptionSocket(T)(SocketHandle handle, scope const(SocketOptionItem) optInd, out T optVal) nothrow @trusted
+int getOptionSocket(T)(SocketHandle handle, scope const(SocketOptionItem) optInd, out T optVal) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -175,6 +168,22 @@ do
     optVal = 0;
     int optLen = T.sizeof;
     return getsockopt(handle, optInd.level, optInd.name, &optVal, &optLen);
+}
+
+int getReadTimeoutSocket(SocketHandle handle, out TimeVal timeout) nothrow @trusted
+{
+    int msecs;
+    const r = getOptionSocket!int(handle, SocketOptionItems.receiveTimeout, msecs);
+    timeout = r != errorSocketResult ? toSocketTimeVal(cast(uint)msecs) : TimeVal.init;
+    return r;
+}
+
+int getWriteTimeoutSocket(SocketHandle handle, out TimeVal timeout) nothrow @trusted
+{
+    int msecs;
+    const r = getOptionSocket!int(handle, SocketOptionItems.sendTimeout, msecs);
+    timeout = r != errorSocketResult ? toSocketTimeVal(cast(uint)msecs) : TimeVal.init;
+    return r;
 }
 
 uint interfaceNameToIndex(scope const(char)[] scopeId) nothrow @trusted
@@ -192,6 +201,25 @@ int lastSocketError() nothrow @trusted
 }
 
 pragma(inline, true)
+int lastSocketError(int errorCode) nothrow @trusted
+{
+    WSASetLastError(errorCode);
+    return errorCode;
+}
+
+int lastSocketErrorOf(SocketHandle handle) nothrow @trusted
+in
+{
+    assert(handle != invalidSocketHandle);
+}
+do
+{
+    int optVal;
+    const r = getOptionSocket!int(handle, SocketOptionItems.error, optVal);
+    return r != errorSocketResult ? optVal : WSAGetLastError();
+}
+
+pragma(inline, true)
 int listenSocket(SocketHandle handle, int backLog) nothrow @trusted
 in
 {
@@ -200,6 +228,72 @@ in
 do
 {
     return listen(handle, backLog);
+}
+
+pragma(inline, true)
+short pollEventOf(const(SelectMode) modes) @nogc nothrow pure @safe
+{
+    short result = 0;
+    if (isSelectMode(modes, SelectMode.read))
+        result |= POLLRead;
+    if (isSelectMode(modes, SelectMode.write))
+        result |= POLLWrite;
+    return result;
+}
+
+int pollSocket(ref PollFDSet pollSets, TimeVal timeout) nothrow @trusted
+{
+    const length = pollSets.length;
+    const r = WSAPoll(&pollSets.pollFDs[0], length, toSocketTimeMSecs(timeout));
+    pollSets.pollResults.length = length;
+    if (r > 0)
+    {
+        foreach (i; 0..length)
+        {
+            const revents = pollSets.pollFDs[i].revents;
+            if (revents & POLLERR)
+                pollSets.pollResults[i] = PollResult(SelectMode.error, lastSocketErrorOf(pollSets.pollFDs[i].fd));
+            else if (revents & POLLHUP)
+                pollSets.pollResults[i] = PollResult(SelectMode.error, eHandleReset);
+            else if (revents & POLLNVAL)
+                pollSets.pollResults[i] = PollResult(SelectMode.error, eInvalidHandle);
+            else
+            {
+                SelectMode resultModes = SelectMode.none;
+                if (revents & (POLLRead | POLLPRI))
+                    resultModes |= SelectMode.read;
+                if (revents & POLLWrite)
+                    resultModes |= SelectMode.write;
+                pollSets.pollResults[i] = PollResult(resultModes, 0);
+            }
+        }
+    }
+    else if (r == 0)
+        pollSets.pollResults[] = PollResult(SelectMode.error, eTimeout);
+    else
+        pollSets.pollResults[] = PollResult(SelectMode.error, lastSocketError());
+
+    return r;
+}
+
+int pollSocket(SocketHandle handle, SelectMode queryModes, TimeVal timeout, out SelectMode resultModes) nothrow
+in
+{
+    assert(handle != invalidSocketHandle);
+}
+do
+{
+    PollFDSet pollSets;
+    pollSets.add(handle, queryModes);
+    pollSocket(pollSets, timeout);
+    resultModes = pollSets.pollResults[0].modes;
+    if (isSelectMode(resultModes, SelectMode.error))
+    {
+        lastSocketError(pollSets.pollResults[0].errorCode);
+        return resultError;
+    }
+    else
+        return resultOK;
 }
 
 pragma(inline, true)
@@ -214,62 +308,58 @@ do
     return recv(handle, len ? &bytes[0] : null, len, flags);
 }
 
-int selectSocket(SocketHandle handle, SelectMode modes, TimeVal timeout) nothrow @trusted
+int selectSocket(ref SelectFDSet selectSets, TimeVal timeout) nothrow @trusted
+{
+    const r = select(0 /*Not used*/,
+        selectSets.readSetCount ? &selectSets.readSet : null,
+        selectSets.writeSetCount ? &selectSets.writeSet : null,
+        selectSets.errorSetCount ? &selectSets.errorSet : null,
+        &timeout);
+    selectSets.pollResults.length = selectSets.length;
+    if (r > 0)
+    {
+        foreach (i, ref fd; selectSets.pollFDs)
+        {
+            SelectMode resultModes = SelectMode.none;
+            int resultErrorCode = 0;
+            if (isSelectMode(fd.modes, SelectMode.read) && FD_ISSET(fd.handle, &selectSets.readSet))
+                resultModes |= SelectMode.read;
+            if (isSelectMode(fd.modes, SelectMode.write) && FD_ISSET(fd.handle, &selectSets.writeSet))
+                resultModes |= SelectMode.write;
+            if (isSelectMode(fd.modes, SelectMode.error) && FD_ISSET(fd.handle, &selectSets.errorSet))
+            {
+                resultModes |= SelectMode.error;
+                resultErrorCode = lastSocketErrorOf(fd.handle);
+            }
+            selectSets.pollResults[i] = PollResult(resultModes, resultErrorCode);
+        }
+    }
+    else if (r == 0)
+        selectSets.pollResults[] = PollResult(SelectMode.error, eTimeout);
+    else
+        selectSets.pollResults[] = PollResult(SelectMode.error, lastSocketError());
+
+    return r;
+}
+
+int selectSocket(SocketHandle handle, SelectMode queryModes, TimeVal timeout, out SelectMode resultModes) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
 }
 do
 {
-    const isRead = (modes & SelectMode.read) == SelectMode.read;
-    const isWrite = (modes & SelectMode.write) == SelectMode.write;
-    const isError = (modes & SelectMode.error) == SelectMode.error;
-
-    fd_set readSet, writeSet, errorSet;
-    if (isRead)
+    SelectFDSet selectSets;
+    selectSets.add(handle, queryModes);
+    selectSocket(selectSets, timeout);
+    resultModes = selectSets.pollResults[0].modes;
+    if (isSelectMode(resultModes, SelectMode.error))
     {
-        FD_ZERO(&readSet);
-        FD_SET(handle, &readSet);
-    }
-    if (isWrite)
-    {
-        FD_ZERO(&writeSet);
-        FD_SET(handle, &writeSet);
-    }
-    if (isError)
-    {
-        FD_ZERO(&errorSet);
-        FD_SET(handle, &errorSet);
-    }
-
-    const r = select(0 /*Not used*/,
-        isRead ? &readSet : null,
-        isWrite ? &writeSet : null,
-        isError ? &errorSet : null,
-        &timeout);
-
-    if (r <= 0)
-    {
-        if (r == 0)
-            WSASetLastError(ETIMEDOUT);
+        lastSocketError(selectSets.pollResults[0].errorCode);
         return resultError;
     }
-
-    int result = 0;
-
-    if (isRead && FD_ISSET(handle, &readSet))
-        result |= SelectMode.read;
-
-    if (isWrite && FD_ISSET(handle, &writeSet))
-        result |= SelectMode.write;
-
-    if (isError && FD_ISSET(handle, &errorSet))
-    {
-        result |= SelectMode.error;
-        getErrorSocket(handle);
-    }
-
-    return result;
+    else
+        return resultOK;
 }
 
 pragma(inline, true)
@@ -298,7 +388,7 @@ do
 }
 
 pragma(inline, true)
-int setIntOptionSocket(T)(SocketHandle handle, scope const(SocketOptionItem) optInd, T optVal) nothrow @trusted
+int setOptionSocket(T)(SocketHandle handle, scope const(SocketOptionItem) optInd, T optVal) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -327,7 +417,7 @@ in
 }
 do
 {
-    return setIntOptionSocket(handle, SocketOptionItems.receiveTimeout, toSocketTimeMSecs(timeout));
+    return setOptionSocket(handle, SocketOptionItems.receiveTimeout, toSocketTimeMSecs(timeout));
 }
 
 pragma(inline, true)
@@ -338,7 +428,7 @@ in
 }
 do
 {
-    return setIntOptionSocket(handle, SocketOptionItems.sendTimeout, toSocketTimeMSecs(timeout));
+    return setOptionSocket(handle, SocketOptionItems.sendTimeout, toSocketTimeMSecs(timeout));
 }
 
 pragma(inline, true)
@@ -352,17 +442,16 @@ do
     return shutdown(handle, reason);
 }
 
-int waitForConnectSocket(SocketHandle handle, TimeVal timeout) nothrow @trusted
+int waitForConnectSocket(SocketHandle handle, TimeVal timeout) nothrow @safe
 in
 {
     assert(handle != invalidSocketHandle);
 }
 do
 {
-    const r = selectSocket(handle, SelectMode.waitforConnect, timeout);
-    return r <= 0
-        ? resultError
-        : ((r & SelectMode.error) == SelectMode.error ? resultError : resultOK);
+    SelectMode resultModes;
+    selectSocket(handle, SelectMode.waitforConnect, timeout, resultModes);
+    return resultModes & SelectMode.error ? resultError : resultOK;
 }
 
 static immutable WSAStartupResult wsaStartupResult;

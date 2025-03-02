@@ -11,13 +11,11 @@
 
 module pham.db.db_skdatabase;
 
-version(pham_io_socket)
-    enum usePhamIOSocket = true;
-else
-    enum usePhamIOSocket = false;
+version = pham_io_socket;
 
 import std.conv : to;
-static if (usePhamIOSocket)
+
+version(pham_io_socket)
 {
     import pham.io.io_socket;
 }
@@ -33,6 +31,7 @@ else
 debug(debug_pham_db_db_skdatabase) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.cp.cp_openssl;
+import pham.utl.utl_array_dictionary;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.db.db_buffer;
 import pham.db.db_buffer_filter;
@@ -46,7 +45,7 @@ import pham.db.db_type;
 import pham.db.db_util;
 import pham.db.db_value;
 
-static immutable DbConnectionParameterInfo[string] skDefaultConnectionParameterValues;
+static immutable DbDefaultConnectionParameterValues skDefaultConnectionParameterValues;
 
 class SkCommand : DbCommand
 {
@@ -113,7 +112,7 @@ public:
     pragma(inline, true)
     @property final bool socketActive() const nothrow pure @safe
     {
-        static if (usePhamIOSocket)
+        version(pham_io_socket)
             return _socket !is null && _socket.active;
         else
             return _socket !is null && _socket.handle != socket_t.init;
@@ -185,7 +184,7 @@ package(pham.db):
         }
         else
         {
-            static if (usePhamIOSocket)
+            version(pham_io_socket)
             {
                 const rs = _socket.receive(data);
                 if ((rs < 0) || (rs == 0 && data.length != 0))
@@ -275,7 +274,7 @@ package(pham.db):
         }
         else
         {
-            static if (usePhamIOSocket)
+            version(pham_io_socket)
             {
                 const rs = _socket.send(sendingData);
                 if (rs < 0 || rs != sendingData.length)
@@ -384,7 +383,7 @@ protected:
         _sslSocket.dispose(disposingReason);
         if (_socket !is null)
         {
-            static if (usePhamIOSocket)
+            version(pham_io_socket)
             {
                 if (_socket.active)
                 {
@@ -462,7 +461,7 @@ protected:
         if (useCSB.encrypt != DbEncryptedConnection.disabled)
             setSSLSocketOptions();
 
-        static if (usePhamIOSocket)
+        version(pham_io_socket)
         {
             _socket = new Socket(useCSB.toConnectInfo());
             if (_socket.lastError.isError)
@@ -501,40 +500,43 @@ protected:
         assert(_socket.isAlive());
     }
 
-    static if (!usePhamIOSocket)
-    void doConnectSocket(Socket socket, ref Address address) @safe
+    version(pham_io_socket)
+    {}
+    else
     {
-        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "()");
-
-        auto useCSB = skConnectionStringBuilder;
-        if (auto n = useCSB.connectionTimeout)
+        void doConnectSocket(Socket socket, ref Address address) @safe
         {
-            auto writeSet = new SocketSet();
-            writeSet.add(socket.handle);
-            socket.blocking = false;
-            socket.connect(address);
-            const r = socket.select(null, writeSet, null, n);
-            socket.blocking = useCSB.blocking;
-            if (r != 1 || !writeSet.isSet(socket.handle))
-                throwConnectError(0, DbMessage.eConnectTimeoutRaw);
+            debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "()");
+
+            auto useCSB = skConnectionStringBuilder;
+            if (auto n = useCSB.connectionTimeout)
+            {
+                auto writeSet = new SocketSet();
+                writeSet.add(socket.handle);
+                socket.blocking = false;
+                socket.connect(address);
+                const r = socket.select(null, writeSet, null, n);
+                socket.blocking = useCSB.blocking;
+                if (r != 1 || !writeSet.isSet(socket.handle))
+                    throwConnectError(0, DbMessage.eConnectTimeoutRaw);
+            }
+            else
+                socket.connect(address);
         }
-        else
-            socket.connect(address);
-    }
+        
+        void setSocketOptions(Socket socket) @safe
+        {
+            debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "()");
 
-    static if (!usePhamIOSocket)
-    void setSocketOptions(Socket socket) @safe
-    {
-        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "()");
+            auto useCSB = skConnectionStringBuilder;
 
-        auto useCSB = skConnectionStringBuilder;
-
-        socket.blocking = useCSB.blocking;
-        socket.setOption(SocketOptionLevel.SOCKET, SocketOption.TCP_NODELAY, useCSB.noDelay ? 1 : 0);
-        if (auto n = useCSB.receiveTimeout)
-            socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, n);
-        if (auto n = useCSB.sendTimeout)
-            socket.setOption(SocketOptionLevel.SOCKET, SocketOption.SNDTIMEO, n);
+            socket.blocking = useCSB.blocking;
+            socket.setOption(SocketOptionLevel.SOCKET, SocketOption.TCP_NODELAY, useCSB.noDelay ? 1 : 0);
+            if (auto n = useCSB.receiveTimeout)
+                socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, n);
+            if (auto n = useCSB.sendTimeout)
+                socket.setOption(SocketOptionLevel.SOCKET, SocketOption.SNDTIMEO, n);
+        }
     }
 
     void setSSLSocketOptions() @safe
@@ -576,34 +578,37 @@ public:
         super(database, connectionString);
     }
 
-    final bool hasSSL() nothrow
+    final bool hasSSL() const nothrow
     {
         return (sslCert.length || sslKey.length) && (sslCa.length || sslCaDir.length);
     }
 
-    static if (!usePhamIOSocket)
-    final Address toConnectAddress()
+    version(pham_io_socket)
     {
-        const sn = serverName;
-        return (sn.simpleIndexOf(':') >= 0 || (sn.length && sn[0] == '['))
-            ? new Internet6Address(sn, serverPort)
-            : new InternetAddress(sn, serverPort);
+        final ConnectInfo toConnectInfo() nothrow
+        {
+            auto result = ConnectInfo(serverName, serverPort);
+            result.blocking = blocking;
+            result.noDelay = noDelay;
+            result.connectTimeout = connectionTimeout;
+            result.readTimeout = receiveTimeout;
+            result.writeTimeout = sendTimeout;
+
+            return result;
+        }
+    }
+    else
+    {
+        final Address toConnectAddress()
+        {
+            const sn = serverName;
+            return (sn.simpleIndexOf(':') >= 0 || (sn.length && sn[0] == '['))
+                ? new Internet6Address(sn, serverPort)
+                : new InternetAddress(sn, serverPort);
+        }
     }
 
-    static if (usePhamIOSocket)
-    final ConnectInfo toConnectInfo() nothrow
-    {
-        auto result = ConnectInfo(serverName, serverPort);
-        result.blocking = blocking;
-        result.noDelay = noDelay;
-        result.connectTimeout = connectionTimeout;
-        result.readTimeout = receiveTimeout;
-        result.writeTimeout = sendTimeout;
-
-        return result;
-    }
-
-    @property final bool blocking() nothrow
+    @property final bool blocking() const nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.socketBlocking));
     }
@@ -615,7 +620,7 @@ public:
         return this;
     }
 
-    @property final bool noDelay() nothrow
+    @property final bool noDelay() const nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.socketNoDelay));
     }
@@ -627,7 +632,7 @@ public:
         return this;
     }
 
-    @property final string sslCa() nothrow
+    @property final string sslCa() const nothrow
     {
         return getString(DbConnectionParameterIdentifier.socketSslCa);
     }
@@ -638,7 +643,7 @@ public:
         return this;
     }
 
-    @property final string sslCaDir() nothrow
+    @property final string sslCaDir() const nothrow
     {
         return getString(DbConnectionParameterIdentifier.socketSslCaDir);
     }
@@ -649,7 +654,7 @@ public:
         return this;
     }
 
-    @property final string sslCert() nothrow
+    @property final string sslCert() const nothrow
     {
         return getString(DbConnectionParameterIdentifier.socketSslCert);
     }
@@ -660,7 +665,7 @@ public:
         return this;
     }
 
-    @property final string sslKey() nothrow
+    @property final string sslKey() const nothrow
     {
         return getString(DbConnectionParameterIdentifier.socketSslKey);
     }
@@ -671,7 +676,7 @@ public:
         return this;
     }
 
-    @property final string sslKeyPassword() nothrow
+    @property final string sslKeyPassword() const nothrow
     {
         return getString(DbConnectionParameterIdentifier.socketSslKeyPassword);
     }
@@ -682,7 +687,7 @@ public:
         return this;
     }
 
-    @property final bool sslVerificationHost() nothrow
+    @property final bool sslVerificationHost() const nothrow
     {
         return isDbTrue(getString(DbConnectionParameterIdentifier.socketSslVerificationHost));
     }
@@ -694,7 +699,7 @@ public:
         return this;
     }
 
-    @property final int sslVerificationMode() nothrow
+    @property final int sslVerificationMode() const nothrow
     {
         return toIntegerSafe!int(getString(DbConnectionParameterIdentifier.socketSslVerificationMode), -1);
     }
@@ -890,12 +895,17 @@ shared static this() nothrow @safe
 {
     skDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
-        return cast(immutable(DbConnectionParameterInfo[string]))[
-            DbConnectionParameterIdentifier.packageSize : DbConnectionParameterInfo(&isConnectionParameterComputingSize, "16_384", 4_096, 4_096*64),
-            DbConnectionParameterIdentifier.socketBlocking : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
-            DbConnectionParameterIdentifier.socketNoDelay : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
-            DbConnectionParameterIdentifier.socketSslVerificationHost : DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolFalse, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
-            DbConnectionParameterIdentifier.socketSslVerificationMode : DbConnectionParameterInfo(&isConnectionParameterInt32, "-1", -1, 100), // -1=Ignore
-        ];
+        auto result = DbDefaultConnectionParameterValues(10, 5);
+        
+        result[DbConnectionParameterIdentifier.packageSize] = DbConnectionParameterInfo(&isConnectionParameterComputingSize, "16_384", 4_096, 4_096*64);
+        result[DbConnectionParameterIdentifier.socketBlocking] = DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax);
+        result[DbConnectionParameterIdentifier.socketNoDelay] = DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax);
+        result[DbConnectionParameterIdentifier.socketSslVerificationHost] = DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolFalse, dbConnectionParameterNullMin, dbConnectionParameterNullMax);
+        result[DbConnectionParameterIdentifier.socketSslVerificationMode] = DbConnectionParameterInfo(&isConnectionParameterInt32, "-1", -1, 100); // -1=Ignore
+
+        debug(debug_pham_db_db_skdatabase) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return cast(immutable(DbDefaultConnectionParameterValues))result;
     }();
 }

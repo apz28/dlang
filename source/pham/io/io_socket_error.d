@@ -73,22 +73,24 @@ shared static this() nothrow @trusted
         names["connectSocket"] = "connect";
         names["createSocket"] = "socket";
         names["getAvailableBytesSocket"] = "ioctlsocket";
-        names["getComputerNameOS"] = "GetComputerNameA";
-        names["getErrorSocket"] = "getsockopt";
-        names["getIntOptionSocket"] = "getsockopt";
+        names["getComputerNameOS"] = "gethostname";
+        names["getOptionSocket"] = "getsockopt";
+        names["getReadTimeoutSocket"] = "getsockopt";
+        names["getWriteTimeoutSocket"] = "getsockopt";
         names["interfaceNameToIndex"] = "if_nametoindex";
-        names["lastSocketError"] = "WSAGetLastError";
+        names["lastSocketErrorOf"] = "getsockopt";
         names["listenSocket"] = "listen";
+        names["pollSocket"] = "poll";
         names["receiveSocket"] = "recv";
         names["selectSocket"] = "select";
         names["sendSocket"] = "send";
         names["setBlockingSocket"] = "ioctlsocket";
-        names["setIntOptionSocket"] = "setsockopt";
+        names["setOptionSocket"] = "setsockopt";
         names["setLingerSocket"] = "setsockopt";
         names["setReadTimeoutSocket"] = "setsockopt";
         names["setWriteTimeoutSocket"] = "setsockopt";
         names["shutdownSocket"] = "shutdown";
-        names["waitForConnectSocket"] = "selectSocket";
+        names["waitForConnectSocket"] = "select";
 
         mapSocketAPINames = cast(immutable)names;
     }
@@ -102,23 +104,25 @@ shared static this() nothrow @trusted
         names["connectSocket"] = "connect";
         names["createSocket"] = "socket";
         names["getAvailableBytesSocket"] = "ioctl";
-        names["getBlockingSocket"] = "fcntl"; //TODO
-        names["getComputerNameOS"] = "gethostname";
-        names["getErrorSocket"] = "getsockopt";
-        names["getIntOptionSocket"] = "getsockopt";
+        names["getBlockingSocket"] = "?";
+        names["getComputerNameOS"] = "GetComputerNameA";
+        names["getOptionSocket"] = "getsockopt";
+        names["getReadTimeoutSocket"] = "getsockopt";
+        names["getWriteTimeoutSocket"] = "getsockopt";
         names["interfaceNameToIndex"] = "if_nametoindex";
-        names["lastSocketError"] = "errno";
+        names["lastSocketErrorOf"] = "getsockopt";
         names["listenSocket"] = "listen";
+        names["pollSocket"] = "WSAPoll";
         names["receiveSocket"] = "recv";
         names["selectSocket"] = "select";
         names["sendSocket"] = "send";
         names["setBlockingSocket"] = "fcntl";
-        names["setIntOptionSocket"] = "setsockopt";
+        names["setOptionSocket"] = "setsockopt";
         names["setLingerSocket"] = "setsockopt";
         names["setReadTimeoutSocket"] = "setsockopt";
         names["setWriteTimeoutSocket"] = "setsockopt";
         names["shutdownSocket"] = "shutdown";
-        names["waitForConnectSocket"] = "selectSocket";
+        names["waitForConnectSocket"] = "select";
 
         mapSocketAPINames = cast(immutable)names;
     }

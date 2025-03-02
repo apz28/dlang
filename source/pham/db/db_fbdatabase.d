@@ -2140,7 +2140,7 @@ public:
         super(database !is null ? database : fbDB, connectionString);
     }
 
-    final string integratedSecurityName() nothrow
+    final string integratedSecurityName() const nothrow
     {
         final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
         {
