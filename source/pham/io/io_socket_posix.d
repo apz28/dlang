@@ -19,15 +19,18 @@ import core.sys.posix.sys.ioctl;
 import core.sys.posix.sys.poll;
 import core.sys.posix.sys.select;
 import core.sys.posix.sys.socket;
-public import core.sys.posix.sys.socket : Linger = linger;
-public import core.sys.posix.sys.time : TimeVal = timeval;
+import core.sys.posix.sys.time : timeval;
 import core.sys.posix.unistd : close, gethostname;
 
 import pham.utl.utl_result : resultError, resultOK;
 import pham.io.io_socket_type : isSelectMode, PollFDSet, PollResult,
     SelectFDSet, SelectMode, SocketOptionItem, SocketOptionItems;
 
+alias FDSet = fd_set;
+alias Linger = linger;
+alias PollFD = pollfd;
 alias SocketHandle = int;
+alias TimeVal = timeval;
 
 enum errorSocketResult = -1;
 enum invalidSocketHandle = -1;
@@ -243,7 +246,7 @@ int pollSocket(ref PollFDSet pollSets, TimeVal timeout) nothrow @trusted
         r = poll(&pollSets.pollFDs[0], length, toSocketTimeMSecs(timeout));
     }
     while (canRetry(r, limit));
-    
+
     pollSets.pollResults.length = length;
     if (r > 0)
     {
@@ -265,13 +268,13 @@ int pollSocket(ref PollFDSet pollSets, TimeVal timeout) nothrow @trusted
                     resultModes |= SelectMode.write;
                 pollSets.pollResults[i] = PollResult(resultModes, 0);
             }
-        }  
+        }
     }
     else if (r == 0)
         pollSets.pollResults[] = PollResult(SelectMode.error, eTimeout);
     else
         pollSets.pollResults[] = PollResult(SelectMode.error, lastSocketError());
-        
+
     return r;
 }
 
@@ -349,7 +352,7 @@ int selectSocket(ref SelectFDSet selectSets, TimeVal timeout) nothrow @trusted
         selectSets.pollResults[] = PollResult(SelectMode.error, eTimeout);
     else
         selectSets.pollResults[] = PollResult(SelectMode.error, lastSocketError());
-    
+
     return r;
 }
 

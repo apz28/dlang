@@ -13,62 +13,135 @@ module pham.io.io_socket_windows;
 
 version(Windows):
 
-import core.sys.windows.winbase : GetComputerNameA;
-import core.sys.windows.windef : DWORD, MAKEWORD;
+import core.sys.windows.winbase : GetComputerNameA, WAIT_FAILED, WAIT_OBJECT_0;
+import core.sys.windows.windef : BOOL, HANDLE, DWORD, MAKEWORD;
+import core.sys.windows.winerror : ERROR_INVALID_HANDLE, WAIT_TIMEOUT;
 import core.sys.windows.winsock2;
-public import core.sys.windows.winsock2 : Linger = linger, TimeVal = timeval;
 
 pragma(lib, "Iphlpapi.lib");
 pragma(lib, "Ws2_32.lib");
 
-enum eHandleReset = WSAECONNRESET; // 10054
-enum eInvalidHandle = 6; // WSA_INVALID_HANDLE=6
-enum eTimeout = ETIMEDOUT; // 10060
-
-// Not found in core.sys.windows.winsock2, so declare it here
-// https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsapoll
-// events
-enum POLLPRI    = 0x0400;
-enum POLLRDBAND = 0x0200;
-enum POLLRDNORM = 0x0100;
-enum POLLIN     = POLLRDNORM | POLLRDBAND;
-enum POLLWRBAND = 0x0020;
-enum POLLWRNORM = 0x0010;
-enum POLLOUT    = POLLWRNORM;
-enum POLLRead   = POLLRDNORM | POLLRDBAND;
-enum POLLWrite  = POLLWRNORM | POLLWRBAND;
-
-// revents
-enum POLLERR  = 0x0001;
-enum POLLHUP  = 0x0002;
-enum POLLNVAL = 0x0004;
-//enum POLLPRI    = 0x0400;
-//enum POLLRDBAND = 0x0200;
-//enum POLLRDNORM = 0x0100;
-//enum POLLWRBAND = 0x0020;
-//enum POLLWRNORM = 0x0010;
-
-struct pollfd
+extern(Windows)
 {
-    SOCKET fd;
-    short events; // query status mask
-    short revents; // result status mask
+@nogc nothrow:
+
+    enum AI_V4MAPPED = 0x0800; // https://learn.microsoft.com/en-us/windows/win32/api/ws2def/ns-ws2def-addrinfoex4
+
+    // Not found in core.sys.windows.winsock2, so declare it here
+    // https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsapoll
+    // events
+    enum // POLL_XXX
+    {
+        // events
+        POLLPRI    = 0x0400,
+        POLLRDBAND = 0x0200,
+        POLLRDNORM = 0x0100,
+        POLLIN     = POLLRDNORM | POLLRDBAND,
+        POLLWRBAND = 0x0020,
+        POLLWRNORM = 0x0010,
+        POLLOUT    = POLLWRNORM,
+        POLLRead   = POLLRDNORM | POLLRDBAND,
+        POLLWrite  = POLLWRNORM | POLLWRBAND,
+
+        // revents
+        POLLERR  = 0x0001,
+        POLLHUP  = 0x0002,
+        POLLNVAL = 0x0004,
+        // POLLPRI    = 0x0400,
+        // POLLRDBAND = 0x0200,
+        // POLLRDNORM = 0x0100,
+        // POLLWRBAND = 0x0020,
+        // POLLWRNORM = 0x0010,
+    }
+
+    struct WSAPOLLFD
+    {
+        SOCKET fd;
+        short events; // query status mask
+        short revents; // result status mask
+    }
+    alias LPWSAPOLLFD = WSAPOLLFD*;    
+    
+    alias WSAEVENT = HANDLE;
+    enum WSA_WAIT_EVENT_0 = WAIT_OBJECT_0;
+    enum WSA_WAIT_FAILED = WAIT_FAILED;
+    enum WSA_WAIT_TIMEOUT = WAIT_TIMEOUT;
+    enum WSA_INVALID_EVENT = cast(WSAEVENT)(0);
+    enum WSA_INVALID_HANDLE = ERROR_INVALID_HANDLE;
+    
+    enum // FD_XXX network events
+    {
+        FD_READ_BIT = 0,
+        FD_READ = (1 << FD_READ_BIT),
+
+        FD_WRITE_BIT = 1,
+        FD_WRITE = (1 << FD_WRITE_BIT),
+
+        FD_OOB_BIT = 2,
+        FD_OOB = (1 << FD_OOB_BIT),
+
+        FD_ACCEPT_BIT = 3,
+        FD_ACCEPT = (1 << FD_ACCEPT_BIT),
+
+        FD_CONNECT_BIT = 4,
+        FD_CONNECT = (1 << FD_CONNECT_BIT),
+
+        FD_CLOSE_BIT = 5,
+        FD_CLOSE = (1 << FD_CLOSE_BIT),
+
+        FD_QOS_BIT = 6,
+        FD_QOS = (1 << FD_QOS_BIT),
+
+        FD_GROUP_QOS_BIT = 7,
+        FD_GROUP_QOS = (1 << FD_GROUP_QOS_BIT),
+
+        FD_ROUTING_INTERFACE_CHANGE_BIT = 8,
+        FD_ROUTING_INTERFACE_CHANGE = (1 << FD_ROUTING_INTERFACE_CHANGE_BIT),
+
+        FD_ADDRESS_LIST_CHANGE_BIT = 9,
+        FD_ADDRESS_LIST_CHANGE = (1 << FD_ADDRESS_LIST_CHANGE_BIT),
+
+        FD_MAX_EVENTS = 10,
+        FD_ALL_EVENTS = ((1 << FD_MAX_EVENTS) - 1),
+    }
+    
+    struct WSANETWORKEVENTS
+    {
+       int lNetworkEvents;
+       int[FD_MAX_EVENTS] iErrorCode;
+    }
+    alias LPWSANETWORKEVENTS = WSANETWORKEVENTS*;
+    
+    DWORD if_nametoindex(scope const char* interfaceName); // Iphlpapi.lib
+    
+    BOOL WSACloseEvent(WSAEVENT hEvent); // Ws2_32.lib 
+    WSAEVENT WSACreateEvent(); // Ws2_32.lib
+    int WSAEnumNetworkEvents(SOCKET s, WSAEVENT hEventObject, LPWSANETWORKEVENTS lpNetworkEvents); // Ws2_32.lib
+    int WSAEventSelect(SOCKET s, WSAEVENT hEventObject, int lNetworkEvents); // Ws2_32.lib    
+    int WSAPoll(LPWSAPOLLFD fdArray, uint fds, int timeout); // Ws2_32.lib
+                                                             // in milliseconds; timeout = "> 0"=The time to wait; 
+                                                             // "= 0"=Return immediately; "< 0"= wait indefinitely
+    void WSASetLastError(int iError); // Ws2_32.lib
+    DWORD WSAWaitForMultipleEvents(DWORD cEvents, const WSAEVENT* lphEvents, BOOL fWaitAll, DWORD dwTimeout, BOOL fAlertable); // Ws2_32.lib
+    
 }
 
-extern (Windows) DWORD if_nametoindex(scope const char* interfaceName) @nogc nothrow; // Iphlpapi.lib
-extern (Windows) int WSAPoll(pollfd* fdArray, uint fds, int timeout) @nogc nothrow; // Ws2_32.lib
-    // timeout = "> 0"=The time, in milliseconds, to wait; "= 0"=Return immediately; "< 0"= wait indefinitely
-extern (Windows) void WSASetLastError(int iError) @nogc nothrow; // Ws2_32.lib
+enum eHandleReset = WSAECONNRESET; // 10054
+enum eInvalidHandle = WSA_INVALID_HANDLE; // 6
+enum eTimeout = ETIMEDOUT; // 10060
+
+alias FDSet = fd_set;
+alias Linger = linger;
+alias PollFD = WSAPOLLFD;
+alias SocketHandle = SOCKET;
+alias TimeVal = timeval;
+
+enum errorSocketResult = SOCKET_ERROR;
+enum invalidSocketHandle = INVALID_SOCKET;
 
 import pham.utl.utl_result : resultOK, resultError;
 import pham.io.io_socket_type : isSelectMode, PollFDSet, PollResult,
     SelectFDSet, SelectMode, SocketOptionItem, SocketOptionItems, toSocketTimeMSecs, toSocketTimeVal;
-
-alias SocketHandle = SOCKET;
-
-enum errorSocketResult = SOCKET_ERROR;
-enum invalidSocketHandle = INVALID_SOCKET;
-enum AI_V4MAPPED = 0x0800; // https://learn.microsoft.com/en-us/windows/win32/api/ws2def/ns-ws2def-addrinfoex4
 
 struct WSAStartupResult
 {
@@ -172,17 +245,17 @@ do
 
 int getReadTimeoutSocket(SocketHandle handle, out TimeVal timeout) nothrow @trusted
 {
-    int msecs;
-    const r = getOptionSocket!int(handle, SocketOptionItems.receiveTimeout, msecs);
-    timeout = r != errorSocketResult ? toSocketTimeVal(cast(uint)msecs) : TimeVal.init;
+    uint msecs;
+    const r = getOptionSocket!uint(handle, SocketOptionItems.receiveTimeout, msecs);
+    timeout = r != errorSocketResult ? toSocketTimeVal(msecs) : TimeVal.init;
     return r;
 }
 
 int getWriteTimeoutSocket(SocketHandle handle, out TimeVal timeout) nothrow @trusted
 {
-    int msecs;
-    const r = getOptionSocket!int(handle, SocketOptionItems.sendTimeout, msecs);
-    timeout = r != errorSocketResult ? toSocketTimeVal(cast(uint)msecs) : TimeVal.init;
+    uint msecs;
+    const r = getOptionSocket!uint(handle, SocketOptionItems.sendTimeout, msecs);
+    timeout = r != errorSocketResult ? toSocketTimeVal(msecs) : TimeVal.init;
     return r;
 }
 

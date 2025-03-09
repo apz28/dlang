@@ -20,17 +20,17 @@ import pham.utl.utl_numeric_parser : cvtDigit, cvtHexDigit, NumericParsedKind, p
 import pham.utl.utl_object : toString;
 import pham.utl.utl_result;
 import pham.utl.utl_text : simpleIndexOf;
+
 version(Posix)
 {
-    import core.sys.posix.sys.poll;
     import core.sys.posix.sys.select;
     import core.sys.posix.sys.socket;
-    import pham.io.io_socket_posix;
+    public import pham.io.io_socket_posix;
 }
 else version(Windows)
 {
     import core.sys.windows.winsock2;
-    import pham.io.io_socket_windows;
+    public import pham.io.io_socket_windows;
 }
 else
     pragma(msg, "Unsupported system for " ~ __MODULE__);
@@ -802,7 +802,7 @@ public:
      */
     ref PollFDSet add(SocketHandle handle, SelectMode modes) return
     {
-        pollFDs ~= pollfd(handle, pollEventOf(modes), 0);
+        pollFDs ~= PollFD(handle, pollEventOf(modes), 0);
         return this;
     }
 
@@ -836,7 +836,7 @@ public:
     }
 
 public:
-    pollfd[] pollFDs;
+    PollFD[] pollFDs;
     PollResult[] pollResults;
 }
 
@@ -844,7 +844,7 @@ struct SelectFDSet
 {
 nothrow @safe:
 
-    static struct selectfd
+    static struct SelectFD
     {
         SocketHandle handle;
         SelectMode modes;
@@ -861,7 +861,7 @@ public:
     {
         if (set(handle, modes))
         {
-            pollFDs ~= selectfd(handle, modes);
+            pollFDs ~= SelectFD(handle, modes);
             version(Posix)
             {
                 if (nfds < handle)
@@ -910,9 +910,9 @@ public:
     }
 
 public:
-    selectfd[] pollFDs;
+    SelectFD[] pollFDs;
     version(Posix) SocketHandle nfds;
-    fd_set readSet, writeSet, errorSet;
+    FDSet readSet, writeSet, errorSet;
     uint readSetCount, writeSetCount, errorSetCount;
     PollResult[] pollResults;
 
