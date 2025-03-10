@@ -16,6 +16,7 @@ import core.time : msecs;
 
 import pham.utl.utl_result : lastSystemError, resultError, resultOK;
 public import pham.utl.utl_result : ResultIf, ResultStatus;
+import pham.io.io_error;
 public import pham.io.io_type;
 version(Posix)
     import pham.io.io_posix;
@@ -360,6 +361,8 @@ protected:
 
 class MemoryStream : Stream
 {
+    import std.conv : to;
+    
 @safe:
 
 public:
@@ -407,8 +410,6 @@ public:
 
     final override long setLength(long value) nothrow
     {
-        import std.conv : to;
-
         if (value > maxLength)
             return lastError.setError(0, " with over limit " ~ value.to!string());
 
@@ -427,8 +428,6 @@ public:
     pragma(inline, true)
     final override int writeUByte(ubyte byte_) nothrow
     {
-        import std.conv : to;
-
         const newPos = this._position + 1;
         if (newPos > maxLength)
             return lastError.setError(0, " with over limit " ~ newPos.to!string());
@@ -532,8 +531,6 @@ protected:
 
     final override long seekImpl(long offset, SeekOrigin origin) nothrow
     {
-        import std.conv : to;
-
         final switch (origin)
         {
             case SeekOrigin.begin:
@@ -580,6 +577,8 @@ private:
 
 class ReadonlyStream : Stream
 {
+    import std.conv : to;
+    
 @safe:
 
 public:
@@ -726,8 +725,6 @@ protected:
 
     final override long seekImpl(long offset, SeekOrigin origin) nothrow
     {
-        import std.conv : to;
-
         const len = this._data.length;
         final switch (origin)
         {
@@ -786,7 +783,7 @@ public:
         if (closeFile(_handle) == resultOK)
             return resultOK;
 
-        return lastError.setSystemError(closeFileAPI(), lastSystemError());
+        return lastError.setSystemError(getIOAPIName("closeFile"), lastSystemError());
     }
 
     pragma(inline, true)
@@ -828,7 +825,7 @@ protected:
             const rn = remaining >= int.max ? int.max : remaining;
             const rr = readFile(_handle, bytes[offset..offset+rn]);
             if (rr < 0)
-                return lastError.setSystemError(readFileAPI(), lastSystemError());
+                return lastError.setSystemError(getIOAPIName("readFile"), lastSystemError());
             else if (rr == 0)
                 break;
             offset += rr;
@@ -844,7 +841,7 @@ protected:
 
         const result = seekFile(_handle, offset, origin);
         if (result < 0)
-            return lastError.setSystemError(seekFileAPI(), lastSystemError());
+            return lastError.setSystemError(getIOAPIName("seekFile"), lastSystemError());
 
         this._position = result;
         return result;
@@ -859,7 +856,7 @@ protected:
             const wn = remaining >= int.max ? int.max : remaining;
             const wr = writeFile(_handle, bytes[offset..offset+wn]);
             if (wr < 0)
-                return lastError.setSystemError(writeFileAPI(), lastSystemError());
+                return lastError.setSystemError(getIOAPIName("writeFile"), lastSystemError());
             else if (wr == 0)
                 break;
             offset += wr;
@@ -902,7 +899,7 @@ public:
         auto h = openFile(fileName, openInfo);
         super(h, fileName, openInfo.mode);
         if (h == invalidFileHandle)
-            this.lastError.setSystemError(openFileAPI(), lastSystemError(), " file-name: " ~ fileName);
+            this.lastError.setSystemError(getIOAPIName("openFile"), lastSystemError(), " file-name: " ~ fileName);
     }
 
     /**
@@ -921,7 +918,7 @@ public:
 
         return flushFile(_handle) == resultOK
             ? resultOK
-            : lastError.setSystemError(flushFileAPI(), lastSystemError());
+            : lastError.setSystemError(getIOAPIName("flushFile"), lastSystemError());
     }
 
     final override long setLength(long value) nothrow
@@ -931,15 +928,15 @@ public:
 
         const curPosition = seekFile(_handle, 0, SeekOrigin.current);
         if (curPosition < 0)
-            return lastError.setSystemError(seekFileAPI(), lastSystemError());
+            return lastError.setSystemError(getIOAPIName("seekFile"), lastSystemError());
 
         if (seekFile(_handle, value, SeekOrigin.begin) < 0)
-            return lastError.setSystemError(seekFileAPI(), lastSystemError());
+            return lastError.setSystemError(getIOAPIName("seekFile"), lastSystemError());
         scope (success)
             seekFile(handle, curPosition > value ? value : curPosition, SeekOrigin.begin);
 
         if (setLengthFile(_handle, value) < 0)
-            return lastError.setSystemError(setLengthFileAPI(), lastSystemError());
+            return lastError.setSystemError(getIOAPIName("setLengthFile"), lastSystemError());
 
         return value;
     }
@@ -979,7 +976,7 @@ public:
             return r;
 
         const result = getLengthFile(_handle);
-        return result >= 0 ? result : lastError.setSystemError(getLengthFileAPI(), lastSystemError());
+        return result >= 0 ? result : lastError.setSystemError(getIOAPIName("getLengthFile"), lastSystemError());
     }
 }
 
@@ -1055,7 +1052,7 @@ public:
 
         return flushFile(_handle) == resultOK
             ? resultOK
-            : lastError.setSystemError(flushFileAPI(), lastSystemError());
+            : lastError.setSystemError(getIOAPIName("flushFile"), lastSystemError());
     }
 
     final override long setLength(long value) nothrow
@@ -1105,7 +1102,7 @@ ResultStatus createPipeStreams(const(bool) asInput, out InputPipeStream inputStr
     {
         inputStream = null;
         outputStream = null;
-        return ResultStatus.systemError(createFilePipesAPI(), lastSystemError());
+        return ResultStatus.systemError(getIOAPIName("createFilePipes"), lastSystemError());
     }
     else
     {

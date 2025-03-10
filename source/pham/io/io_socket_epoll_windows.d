@@ -13,6 +13,7 @@ module pham.io.io_socket_epoll_windows;
 
 version(Windows):
 
+import core.sys.windows.winerror : ERROR_ALREADY_EXISTS;
 import core.sys.windows.winsock2;
 import std.algorithm : remove;
 import pham.utl.utl_result : resultOK, resultError;
@@ -112,7 +113,7 @@ int epoll_ctl(int epfd, int op, SocketHandle fd, epoll_event* event) nothrow
 {
     if (event is null && (op == EPOLL_CTL_ADD || op == EPOLL_CTL_MOD || op == EPOLL_CTL_LER))
     {
-        lastSocketError(EINVAL);
+        lastSocketError(WSAEINVAL);
         return resultError;
     }
 
@@ -132,7 +133,7 @@ int epoll_ctl(int epfd, int op, SocketHandle fd, epoll_event* event) nothrow
             return epoll_ctl_ex(epfd, op, fd, *event);
 
         default:
-            lastSocketError(EINVAL);
+            lastSocketError(WSAEINVAL);
             return resultError;
     }
 }
@@ -144,7 +145,7 @@ int epoll_ctl_ex(int epfd, int op, SocketHandle fd, ref EPollEvent event) nothro
 {
     if (fd == invalidSocketHandle)
     {
-        lastSocketError(EBADF);
+        lastSocketError(WSAEBADF);
         return resultError;
     }
 
@@ -167,12 +168,12 @@ int epoll_ctl_ex(int epfd, int op, SocketHandle fd, ref EPollEvent event) nothro
                 return data.getLastErrorNumber(fd, event);
 
             default:
-                lastSocketError(EINVAL);
+                lastSocketError(WSAEINVAL);
                 return resultError;
         }
     }
 
-    lastSocketError(EBADF);
+    lastSocketError(WSAEBADF);
     return resultError;
 }
 
@@ -194,7 +195,7 @@ int epoll_wait(int epfd, epoll_event* events, int maxEvents, int timeout) nothro
 {
     if (events is null || maxEvents < 1)
     {
-        lastSocketError(EINVAL);
+        lastSocketError(WSAEINVAL);
         return resultError;
     }
 
@@ -229,7 +230,7 @@ int epoll_wait_ex(int epfd, ref EPollEventEx[] events, int timeout) nothrow @tru
             data.prepareWaitEvent(waitEvents, waitHandles);
         else
         {
-            lastSocketError(EBADF);
+            lastSocketError(WSAEBADF);
             return resultError;
         }
     }
@@ -302,7 +303,7 @@ int epoll_close(int epfd) nothrow @trusted
         return resultOK;
     }
 
-    lastSocketError(EBADF);
+    lastSocketError(WSAEBADF);
     return resultError;
 }
 
@@ -478,7 +479,7 @@ struct EPollInternalFD
     {
         if (indexOfSocket(fd) >= 0)
         {
-            lastSocketError(EEXIST);
+            lastSocketError(ERROR_ALREADY_EXISTS);
             return resultError;
         }
 
@@ -497,7 +498,7 @@ struct EPollInternalFD
         const i = indexOfSocket(fd);
         if (i < 0)
         {
-            lastSocketError(EBADF);
+            lastSocketError(WSAEBADF);
             return resultError;
         }
 
@@ -518,7 +519,7 @@ struct EPollInternalFD
         const i = indexOfSocket(fd);
         if (i < 0)
         {
-            lastSocketError(EBADF);
+            lastSocketError(WSAEBADF);
             return resultError;
         }
 
@@ -532,7 +533,7 @@ struct EPollInternalFD
         const i = indexOfSocket(fd);
         if (i < 0)
         {
-            lastSocketError(EBADF);
+            lastSocketError(WSAEBADF);
             return resultError;
         }
 
@@ -600,11 +601,6 @@ shared static ~this() nothrow @trusted
     }
 }
 
-enum EINVAL = 22; // Invalid argument
-enum ENFILE = 23; // File table overflow
-enum EBADF = 9; // Bad file number
-enum EEXIST = 17; // File exists
-
 int epollCreate(int size, int flags) nothrow @trusted
 {
     auto lock = RAIIMutex(mutex);
@@ -612,7 +608,7 @@ int epollCreate(int size, int flags) nothrow @trusted
     // maintaining error condition for compatibility
     if (size < 0)
     {
-        lastSocketError(EINVAL);
+        lastSocketError(WSAEINVAL);
         return resultError;
     }
 
@@ -633,7 +629,7 @@ int epollCreate(int size, int flags) nothrow @trusted
     // two billion fds
     if (epfdNextId < 0)
     {
-        lastSocketError(ENFILE);
+        lastSocketError(WSAEMFILE);
         return resultError;
     }
 

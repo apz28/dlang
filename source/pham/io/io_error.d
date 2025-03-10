@@ -11,6 +11,7 @@
 
 module pham.io.io_error;
 
+import pham.utl.utl_array_dictionary;
 import pham.utl.utl_result : addLine, errorCodeToString;
 
 @safe:
@@ -86,4 +87,61 @@ public:
     {
         super(errorCode, errorMessage, next, funcName, file, line);
     }
+}
+
+string getIOAPIName(scope const(char)[] mapFunctionName) nothrow pure
+{
+    if (auto e = mapFunctionName in mapIOAPINames)
+        return *e;
+
+    assert(0, "Invalid mapFunctionName: " ~ mapFunctionName);
+}
+
+static immutable Dictionary!(string, string) mapIOAPINames;
+
+
+private:
+
+import core.attribute : standalone;
+
+@standalone
+shared static this() nothrow @trusted
+{
+    version(Posix)
+    {
+        auto names = Dictionary!(string, string)(15, 10);
+
+        names["openFile"] = "open";
+        names["readFile"] = "read";
+        names["removeFile"] = "remove";
+        names["flushFile"] = "fsync";
+        names["getLengthFile"] = "lseek64";
+        names["closeFile"] = "close";
+        names["createFilePipes"] = "pipe";
+        names["seekFile"] = "lseek64";
+        names["setLengthFile"] = "ftruncate64";
+        names["writeFile"] = "write";
+
+        mapIOAPINames = cast(immutable)names;
+    }
+    else version(Windows)
+    {
+        auto names = Dictionary!(string, string)(15, 10);
+
+        names["openFile"] = "CreateFileW";
+        names["readFile"] = "ReadFile";
+        names["removeFile"] = "DeleteFileW";
+        names["flushFile"] = "FlushFileBuffers";
+        names["getLengthFile"] = "GetFileSizeEx";
+        names["closeFile"] = "CloseHandle";
+        names["createFilePipes"] = "CreatePipe";
+        names["seekFile"] = "SetFilePointer";
+        names["setLengthFile"] = "SetEndOfFile";
+        names["writeFile"] = "WriteFile";
+        //names[""] = "";
+
+        mapIOAPINames = cast(immutable)names;
+    }
+    else
+        pragma(msg, "Unsupported system for " ~ __MODULE__);
 }

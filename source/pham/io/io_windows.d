@@ -43,11 +43,6 @@ do
     return CloseHandle(handle) ? resultOK : resultError;
 }
 
-string closeFileAPI() @nogc nothrow pure @safe
-{
-    return "CloseHandle";
-}
-
 /// Follow Posix return convention = -1=error, 0=success
 int createFilePipes(const(bool) asInput, out FileHandle inputHandle, out FileHandle outputHandle,
     uint bufferSize = 0) nothrow @trusted
@@ -84,11 +79,6 @@ int createFilePipes(const(bool) asInput, out FileHandle inputHandle, out FileHan
     return result;
 }
 
-string createFilePipesAPI() @nogc nothrow pure @safe
-{
-    return "CreatePipe";
-}
-
 /// Follow Posix return convention = -1=error, 0=success
 pragma(inline, true)
 int flushFile(FileHandle handle) nothrow @trusted
@@ -99,11 +89,6 @@ in
 do
 {
     return FlushFileBuffers(handle) ? resultOK : resultError;
-}
-
-string flushFileAPI() @nogc nothrow pure @safe
-{
-    return "FlushFileBuffers";
 }
 
 /// Follow Posix return convention = -1=error, >=0=success with its length
@@ -117,11 +102,6 @@ do
 {
     LARGE_INTEGER li;
     return GetFileSizeEx(handle, &li) ? li.QuadPart : resultError;
-}
-
-string getLengthFileAPI() @nogc nothrow pure @safe
-{
-    return "GetFileSizeEx";
 }
 
 FileHandle openFile(scope const(char)[] fileName, scope const(StreamOpenInfo) openInfo) nothrow @trusted
@@ -138,11 +118,6 @@ FileHandle openFile(scope const(char)[] fileName, scope const(StreamOpenInfo) op
         openInfo.toFlagsAndAttributes(), // dwFlagsAndAttributes,
         null //hTemplateFile
         );
-}
-
-string openFileAPI() @nogc nothrow pure @safe
-{
-    return "CreateFileW";
 }
 
 /// Follow Posix return convention = -1=error, >=0=success with its read length
@@ -162,11 +137,6 @@ do
         : resultError;
 }
 
-string readFileAPI() @nogc nothrow pure @safe
-{
-    return "ReadFile";
-}
-
 /// Follow Posix return convention = -1=error, 0=success
 int removeFile(scope const(char)[] fileName) nothrow @trusted
 {
@@ -174,11 +144,6 @@ int removeFile(scope const(char)[] fileName) nothrow @trusted
 
     auto lpFileName = fileName.tempCStringW();
     return DeleteFileW(lpFileName) ? resultOK : resultError;
-}
-
-string removeFileAPI() @nogc nothrow pure @safe
-{
-    return "DeleteFileW";
 }
 
 /// Follow Posix return convention = -1=error, >=0=success with its seek position
@@ -198,11 +163,6 @@ do
         : li.QuadPart;
 }
 
-string seekFileAPI() @nogc nothrow pure @safe
-{
-    return "SetFilePointer";
-}
-
 /// Follow Posix return convention = -1=error, >=0=success with its file length
 pragma(inline, true)
 int setLengthFile(FileHandle handle, long length) nothrow @trusted
@@ -213,11 +173,6 @@ in
 do
 {
     return SetEndOfFile(handle) ? resultOK : resultError;
-}
-
-string setLengthFileAPI() @nogc nothrow pure @safe
-{
-    return "SetEndOfFile";
 }
 
 /// Follow Posix return convention = -1=error, >=0=success with its written length
@@ -235,9 +190,4 @@ do
     return WriteFile(handle, cast(void*)bytes.ptr, cast(uint)bytes.length, &result, null)
         ? cast(int)result
         : resultError;
-}
-
-string writeFileAPI() @nogc nothrow pure @safe
-{
-    return "WriteFile";
 }
