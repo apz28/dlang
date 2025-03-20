@@ -53,6 +53,57 @@ ResultStatus lastSocketError(string apiName, string defaultMessage = null,
     return ResultStatus.error(code, message.length != 0 ? message : genericErrorMessage(apiName, code), funcName, file, line);
 }
 
+bool needResetSocket(int errorCode) @nogc nothrow pure @safe
+{
+    version(Windows)
+    {
+        import core.sys.windows.winsock2;
+
+        // https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-recv
+        // https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-send
+        switch (errorCode)
+        {
+            case WSAENETDOWN:
+            case WSAENETRESET:
+            case WSAENOTSOCK:
+            case WSAESHUTDOWN:
+            case WSAECONNABORTED:
+            case WSAECONNRESET:
+            // Addition from send
+            case WSAENOTCONN:
+            case WSAEHOSTUNREACH:
+                return true;
+            default:
+                return false;
+        }
+    }
+    else version(Posix)
+    {
+        import core.sys.posix.sys.socket;
+
+        // https://linux.die.net/man/2/recv
+        // https://linux.die.net/man/2/send
+        switch (errorCode)
+        {
+            case EBADF:
+            case ECONNREFUSED:
+            case ENOTCONN:
+            case ENOTSOCK:
+            // Addition from send
+            case ECONNRESET:
+            case EDESTADDRREQ:
+            case EPIPE:
+                return true;
+            default:
+                return false;
+        }
+    }
+    else
+    {
+        static assert(0, "Unsupported system for " ~ __FUNCTION__);
+    }
+}
+
 static immutable Dictionary!(string, string) mapSocketAPINames;
 
 

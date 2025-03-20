@@ -5789,6 +5789,7 @@ unittest // https://issues.dlang.org/show_bug.cgi?id=23809
 {
     Variant v = Variant(["one": Variant(1)]);
     v["two"] = Variant(4); // Segfault
+    assert(v["two"] == Variant(4));
 }
 
 version(unittest) // mapArguments & isVariant

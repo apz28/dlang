@@ -16,7 +16,7 @@ import core.time : Duration, dur;
 debug(debug_pham_io_io_socket) import std.stdio : stdout, writeln;
 import pham.utl.utl_result : resultError, resultOK;
 public import pham.utl.utl_result : ResultIf, ResultStatus;
-import pham.io.io_socket_error : getSocketAPIName;
+import pham.io.io_socket_error : getSocketAPIName, needResetSocket;
 public import pham.io.io_socket_type;
 import pham.io.io_stream : Stream;
 public import pham.io.io_type;
@@ -345,6 +345,12 @@ public:
         return r < 0;
     }
 
+    pragma(inline, true)
+    final bool isResetLastError() const nothrow
+    {
+        return needResetSocket(lastError.errorCode);
+    }
+
     static bool isSupport(AddressFamily family) nothrow
     {
         auto h = createSocket(family, SocketType.dgram, Protocol.ip);
@@ -392,13 +398,11 @@ public:
         ubyte[SocketAddress.sizeof] addrBuffer;
         int addrLength = SocketAddress.sizeof;
         const r = getsockname(_handle, cast(sockaddr*)&addrBuffer[0], &addrLength);
-        if (r != resultOK)
-        {
-            lastError.setSystemError("getsockname", lastSocketError());
-            return SocketAddress.init;
-        }
-
-        return SocketAddress(addrBuffer[0..addrLength]);
+        if (r == resultOK)
+            return SocketAddress(addrBuffer[0..addrLength]);
+        
+        lastError.setSystemError("getsockname", lastSocketError());
+        return SocketAddress.init;
     }
 
     final SocketAddress remoteAddress() nothrow @trusted
@@ -412,13 +416,11 @@ public:
         ubyte[SocketAddress.sizeof] addrBuffer;
         int addrLength = SocketAddress.sizeof;
         const r = getpeername(_handle, cast(sockaddr*)&addrBuffer[0], &addrLength);
-        if (r != resultOK)
-        {
-            lastError.setSystemError("getpeername", lastSocketError());
-            return SocketAddress.init;
-        }
-
-        return SocketAddress(addrBuffer[0..addrLength]);
+        if (r == resultOK)
+            return SocketAddress(addrBuffer[0..addrLength]);
+        
+        lastError.setSystemError("getpeername", lastSocketError());
+        return SocketAddress.init;
     }
 
     final long receive(scope ubyte[] bytes, int flags = 0) nothrow
@@ -639,7 +641,7 @@ public:
         lastError.setSystemError(getSocketAPIName("getWriteTimeoutSocket"), lastSocketError(), " writeTimeout");
         return dur!"msecs"(-1);
     }
-
+    
 public:
     ResultStatus lastError;
 

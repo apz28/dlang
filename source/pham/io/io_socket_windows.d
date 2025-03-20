@@ -60,15 +60,15 @@ extern(Windows)
         short events; // query status mask
         short revents; // result status mask
     }
-    alias LPWSAPOLLFD = WSAPOLLFD*;    
-    
+    alias LPWSAPOLLFD = WSAPOLLFD*;
+
     alias WSAEVENT = HANDLE;
     enum WSA_WAIT_EVENT_0 = WAIT_OBJECT_0;
     enum WSA_WAIT_FAILED = WAIT_FAILED;
     enum WSA_WAIT_TIMEOUT = WAIT_TIMEOUT;
     enum WSA_INVALID_EVENT = cast(WSAEVENT)(0);
     enum WSA_INVALID_HANDLE = ERROR_INVALID_HANDLE;
-    
+
     enum // FD_XXX network events
     {
         FD_READ_BIT = 0,
@@ -104,26 +104,26 @@ extern(Windows)
         FD_MAX_EVENTS = 10,
         FD_ALL_EVENTS = ((1 << FD_MAX_EVENTS) - 1),
     }
-    
+
     struct WSANETWORKEVENTS
     {
        int lNetworkEvents;
        int[FD_MAX_EVENTS] iErrorCode;
     }
     alias LPWSANETWORKEVENTS = WSANETWORKEVENTS*;
-    
+
     DWORD if_nametoindex(scope const char* interfaceName); // Iphlpapi.lib
-    
-    BOOL WSACloseEvent(WSAEVENT hEvent); // Ws2_32.lib 
+
+    BOOL WSACloseEvent(WSAEVENT hEvent); // Ws2_32.lib
     WSAEVENT WSACreateEvent(); // Ws2_32.lib
     int WSAEnumNetworkEvents(SOCKET s, WSAEVENT hEventObject, LPWSANETWORKEVENTS lpNetworkEvents); // Ws2_32.lib
-    int WSAEventSelect(SOCKET s, WSAEVENT hEventObject, int lNetworkEvents); // Ws2_32.lib    
+    int WSAEventSelect(SOCKET s, WSAEVENT hEventObject, int lNetworkEvents); // Ws2_32.lib
     int WSAPoll(LPWSAPOLLFD fdArray, uint fds, int timeout); // Ws2_32.lib
-                                                             // in milliseconds; timeout = "> 0"=The time to wait; 
+                                                             // in milliseconds; timeout = "> 0"=The time to wait;
                                                              // "= 0"=Return immediately; "< 0"= wait indefinitely
     void WSASetLastError(int iError); // Ws2_32.lib
     DWORD WSAWaitForMultipleEvents(DWORD cEvents, const WSAEVENT* lphEvents, BOOL fWaitAll, DWORD dwTimeout, BOOL fAlertable); // Ws2_32.lib
-    
+
 }
 
 enum eHandleReset = WSAECONNRESET; // 10054

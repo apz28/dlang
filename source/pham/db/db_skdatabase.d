@@ -18,6 +18,7 @@ import std.conv : to;
 version(pham_io_socket)
 {
     import pham.io.io_socket;
+    import pham.io.io_socket_error : needResetSocket;
 }
 else
 {
@@ -302,43 +303,51 @@ package(pham.db):
         return result;
     }
 
-    final noreturn throwConnectError(int errorRawCode, string errorRawMessage,
+    final noreturn throwConnectError(const(int) rawErrorCode, string rawErrorMessage,
         Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(errorRawCode=", errorRawCode,
-            ", errorRawMessage=", errorRawMessage, ", funcName=", funcName, ")");
+        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(rawErrorCode=", rawErrorCode,
+            ", rawErrorMessage=", rawErrorMessage, ", funcName=", funcName, ")");
 
         if (auto log = canErrorLog())
-            log.errorf("%s.%s() - %s", forLogInfo(), funcName, errorRawMessage);
+            log.errorf("%s.%s() - %s", forLogInfo(), funcName, rawErrorMessage);
 
-        auto msg = DbMessage.eConnect.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
-        throw createConnectError(errorRawCode, msg, next, funcName, file, line);
+        auto msg = DbMessage.eConnect.fmtMessage(connectionStringBuilder.forErrorInfo(), rawErrorMessage);
+        throw createConnectError(rawErrorCode, msg, next, funcName, file, line);
     }
 
-    final noreturn throwReadDataError(int errorRawCode, string errorRawMessage,
+    final noreturn throwReadDataError(const(int) rawErrorCode, string rawErrorMessage,
         Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(errorRawCode=", errorRawCode,
-            ", errorRawMessage=", errorRawMessage, ", funcName=", funcName, ")");
+        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(rawErrorCode=", rawErrorCode,
+            ", rawErrorMessage=", rawErrorMessage, ", funcName=", funcName, ")");
 
         if (auto log = canErrorLog())
-            log.errorf("%s.%s() - %s", forLogInfo(), funcName, errorRawMessage);
+            log.errorf("%s.%s() - %s", forLogInfo(), funcName, rawErrorMessage);
 
-        auto msg = DbMessage.eReadData.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
-        throw createReadDataError(errorRawCode, msg, next, funcName, file, line);
+        auto msg = DbMessage.eReadData.fmtMessage(connectionStringBuilder.forErrorInfo(), rawErrorMessage);
+
+        if (needResetSocket(rawErrorCode))
+            fatalError();
+
+        throw createReadDataError(rawErrorCode, msg, next, funcName, file, line);
     }
 
-    final noreturn throwWriteDataError(int errorRawCode, string errorRawMessage,
+    final noreturn throwWriteDataError(const(int) rawErrorCode, string rawErrorMessage,
         Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
-        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(errorRawCode=", errorRawCode,
-            ", errorRawMessage=", errorRawMessage, ", funcName=", funcName, ")");
+        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(rawErrorCode=", rawErrorCode,
+            ", rawErrorMessage=", rawErrorMessage, ", funcName=", funcName, ")");
 
         if (auto log = canErrorLog())
-            log.errorf("%s.%s() - %s", forLogInfo(), funcName, errorRawMessage);
+            log.errorf("%s.%s() - %s", forLogInfo(), funcName, rawErrorMessage);
 
-        auto msg = DbMessage.eWriteData.fmtMessage(connectionStringBuilder.forErrorInfo(), errorRawMessage);
-        throw createWriteDataError(errorRawCode, msg, next, funcName, file, line);
+        auto msg = DbMessage.eWriteData.fmtMessage(connectionStringBuilder.forErrorInfo(), rawErrorMessage);
+
+        if (needResetSocket(rawErrorCode))
+            fatalError();
+
+        throw createWriteDataError(rawErrorCode, msg, next, funcName, file, line);
     }
 
 protected:
@@ -523,7 +532,7 @@ protected:
             else
                 socket.connect(address);
         }
-        
+
         void setSocketOptions(Socket socket) @safe
         {
             debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "()");
@@ -896,7 +905,7 @@ shared static this() nothrow @safe
     skDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
         auto result = DbDefaultConnectionParameterValues(10, 5);
-        
+
         result[DbConnectionParameterIdentifier.packageSize] = DbConnectionParameterInfo(&isConnectionParameterComputingSize, "16_384", 4_096, 4_096*64);
         result[DbConnectionParameterIdentifier.socketBlocking] = DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax);
         result[DbConnectionParameterIdentifier.socketNoDelay] = DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax);

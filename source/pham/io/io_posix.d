@@ -20,8 +20,15 @@ import core.stdc.stdio : remove;
 import pham.io.io_type : SeekOrigin, StreamOpenInfo;
 
 alias FileHandle = int;
+enum errorIOResult = -1;
 enum invalidFileHandle = -1;
+
 private enum limitEINTR = 5;
+pragma(inline, true)
+bool canRetry(int apiResult, ref int limit) @nogc nothrow pure
+{
+    return apiResult == errorIOResult && errno == EINTR && limit++ < limitEINTR;
+}
 
 pragma(inline, true)
 int closeFile(FileHandle handle) nothrow @trusted
@@ -43,7 +50,7 @@ int createFilePipes(const(bool) asInput, out FileHandle inputHandle, out FileHan
     {
         result = pipe(handles);
     }
-    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
+    while (canRetry(result, limit));
     inputHandle = handles[0];
     outputHandle = handles[1];
     return result;
@@ -62,7 +69,7 @@ do
     {
         result = fsync(handle);
     }
-    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
+    while (canRetry(result, limit));
     return result;
 }
 
@@ -94,7 +101,7 @@ FileHandle openFile(scope const(char)[] fileName, scope const(StreamOpenInfo) op
     {
         result = open(lpFileName, openInfo.mode, openInfo.flag);
     }
-    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
+    while (canRetry(result, limit));
     return result;
 }
 
@@ -113,7 +120,7 @@ do
     {
         result = read(handle, bytes.ptr, cast(uint)bytes.length);
     }
-    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
+    while (canRetry(result, limit));
     return result;
 }
 
@@ -127,7 +134,7 @@ int removeFile(scope const(char)[] fileName) nothrow @trusted
     {
         result = remove(lpFileName);
     }
-    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
+    while (canRetry(result, limit));
     return result;
 }
 
@@ -145,7 +152,7 @@ do
     {
         result = lseek64(handle, offset, origin);
     }
-    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
+    while (canRetry(result, limit));
     return result;
 }
 
@@ -162,7 +169,7 @@ do
     {
         result = ftruncate64(handle, length);
     }
-    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
+    while (canRetry(result, limit));
     return result;
 }
 
@@ -181,6 +188,6 @@ do
     {
         result = write(handle, bytes.ptr, cast(uint)bytes.length);
     }
-    while (result < 0 && errno == EINTR && limit++ < limitEINTR);
+    while (canRetry(result, limit));
     return result;
 }

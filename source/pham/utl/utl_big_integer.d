@@ -3694,3 +3694,28 @@ unittest // BigInteger.divRem vs / & %
     assert(d == BigInteger(1));
     assert(r == BigInteger(-3));
 }
+
+// https://issues.dlang.org/show_bug.cgi?id=10565
+@safe unittest
+{
+    // Test cases from the issue
+    BigInteger a = BigInteger("0");
+    BigInteger b = BigInteger("-0");
+    BigInteger c = BigInteger("0") * -1;
+    BigInteger d = BigInteger("0") * -42;
+    BigInteger e = BigInteger("0"); e *= -1;
+    BigInteger f = BigInteger(c);
+    BigInteger g = BigInteger("0") * cast(byte)-1;
+    BigInteger h = BigInteger("0"); h *= BigInteger("-1");
+    BigInteger i = BigInteger("0"); i -= 2 * i;
+    BigInteger j = BigInteger("0"); j = -j;
+ 
+    // All of these should be zero and not negative
+    auto values = [a, b, c, d, e, f, g, h, i, j];
+    foreach (ref val; values)
+    {
+        assert(val == 0, "BigInteger value should be equal to zero");
+        assert(!(val < 0), "BigInteger zero should not be negative");
+        assert(val.toString() == "0");
+    }
+}

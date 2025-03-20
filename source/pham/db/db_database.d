@@ -1857,8 +1857,8 @@ public:
             doNotifyMessage();
         scope (failure)
         {
-            _fatalError = true;
             _state = DbConnectionState.failing;
+            fatalError();
             doClose(DbConnectionState.failing);
             doEndStateChange(previousState);
             _state = DbConnectionState.failed;
@@ -2007,7 +2007,7 @@ package(pham.db):
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(funcName=", funcName, ")");
 
         if (!isActive)
-                {
+        {
             auto msg = _fatalError
                 ? DbMessage.eInvalidConnectionFatal.fmtMessage(funcName, _connectionStringBuilder.forErrorInfo())
                 : DbMessage.eInvalidConnectionInactive.fmtMessage(funcName, _connectionStringBuilder.forErrorInfo());
