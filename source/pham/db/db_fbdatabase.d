@@ -1164,14 +1164,6 @@ protected:
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(fbHandle=", fbHandle, ")");
 
-        // Must reset regardless if error taken place
-        // to avoid double errors when connection is shutting down
-        scope (exit)
-        {
-            batched = false;
-            _handle.reset();
-        }
-
         try
         {
             auto protocol = fbConnection.protocol;
@@ -1234,6 +1226,18 @@ protected:
         }
 
         protocol.executeCommandWrite(this, type);
+
+        version(UnitTestSocketFailure)
+        {
+            import core.thread : Thread;
+            import core.time : dur;
+            import std.stdio : writeln;
+            if (unitTestSocketFailure)
+            {
+                debug writeln("\t", "UnitTestSocketFailure - Need to shutdown FB database service in 15 seconds");
+                debug Thread.sleep(dur!"seconds"(15));
+            }
+        }
 
         if (hasStoredProcedureFetched())
         {
@@ -1410,9 +1414,17 @@ protected:
 
     final override void doUnprepare(const(bool) isPreparedError) @safe
     {
-        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(isPreparedError=", isPreparedError, ")");
 
-        if (isFbHandle)
+        // Must reset regardless if error taken place
+        // to avoid double errors when connection is shutting down
+        scope (exit)
+        {
+            batched = false;
+            _handle.reset();
+        }
+
+        if (isFbHandle && !connection.isFatalError)
             deallocateHandle();
     }
 
@@ -1986,7 +1998,7 @@ protected:
         disposeProtocol(disposingReason);
     }
 
-    final override void doCancelCommand(DbCancelCommandData data) @safe
+    final override void doCancelCommandImpl(DbCancelCommandData data) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
@@ -1994,28 +2006,30 @@ protected:
         _protocol.cancelRequestWrite(fbData.connectionHandle);
     }
 
-    final override void doClose(bool failedOpen) @safe
+    final override void doCloseImpl(const(DbConnectionState) reasonState) nothrow @safe
     {
-        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(failedOpen=", failedOpen, ", socketActive=", socketActive, ")");
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(reasonState=", reasonState, ", socketActive=", socketActive, ")");
+
+        const isFailing = isFatalError || reasonState == DbConnectionState.failing;
 
         scope (exit)
             disposeProtocol(DisposingReason.other);
 
-        if (!failedOpen)
-            _arrayManager.doClose(DisposingReason.other);
-
         try
         {
-            if (!failedOpen && _protocol !is null && canWriteDisconnectMessage())
+            if (!isFailing)
+                _arrayManager.doClose(DisposingReason.other);
+
+            if (!isFailing && _protocol !is null && canWriteDisconnectMessage())
                 _protocol.disconnectWrite();
         }
         catch (Exception e)
         {
             if (auto log = canErrorLog())
-                log.error("%s.batch.doClose() - %s", forLogInfo(), e.msg, e);
+                log.error("%s.batch.doCloseImpl() - %s", forLogInfo(), e.msg, e);
         }
 
-        super.doClose(failedOpen);
+        super.doCloseImpl(reasonState);
     }
 
     final override DbRoutineInfo doGetStoredProcedureInfo(string storedProcedureName, string schema) @safe
@@ -2078,7 +2092,7 @@ ORDER BY p.RDB$PARAMETER_NUMBER
         return null;
     }
 
-    final override void doOpen() @safe
+    final override void doOpenImpl() @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
@@ -2107,7 +2121,7 @@ ORDER BY p.RDB$PARAMETER_NUMBER
         _protocol.connectAuthenticationRead(stateInfo);
     }
 
-    final override string getServerVersion() @safe
+    final override string getServerVersionImpl() @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
@@ -4350,6 +4364,28 @@ unittest // FbDatabase.currentTimeStamp...
     auto n = DateTime.now;
     auto t = connection.currentTimeStamp(6);
     assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));
+}
+
+version(UnitTestFBDatabase) version(UnitTestSocketFailure)
+unittest
+{
+    auto connection = createUnitTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    unitTestSocketFailure++;
+    scope (exit)
+        unitTestSocketFailure--;
+        
+    bool failedAssert = true;
+    try
+    {
+        connection.executeScalar("SELECT (cast(100 as INTEGER)) FROM rdb$database");
+    }
+    catch (FbException)
+        failedAssert = false;
+    assert(!failedAssert);        
 }
 
 version(UnitTestFBDatabase)

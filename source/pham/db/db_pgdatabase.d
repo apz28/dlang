@@ -819,11 +819,6 @@ protected:
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
-        // Must reset regardless if error taken place
-        // to avoid double errors when connection is shutting down
-        scope (exit)
-            _handle.reset();
-
         try
         {
             auto protocol = pgConnection.protocol;
@@ -995,9 +990,14 @@ protected:
 
     final override void doUnprepare(const(bool) isPreparedError) @safe
     {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(isPreparedError=", isPreparedError, ")");
 
-        if (_handle)
+        // Must reset regardless if error taken place
+        // to avoid double errors when connection is shutting down
+        scope (exit)
+            _handle.reset();
+
+        if (_handle && !connection.isFatalError)
             deallocateHandle();
     }
 
@@ -1191,7 +1191,7 @@ protected:
         }
     }
 
-    final override void doCancelCommand(DbCancelCommandData data) @safe
+    final override void doCancelCommandImpl(DbCancelCommandData data) @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
@@ -1199,28 +1199,30 @@ protected:
         _protocol.cancelRequestWrite(pgData.serverProcessId, pgData.serverSecretKey);
     }
 
-    final override void doClose(bool failedOpen) @safe
+    final override void doCloseImpl(const(DbConnectionState) reasonState) nothrow @safe
     {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(failedOpen=", failedOpen, ", socketActive=", socketActive, ")");
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(reasonState=", reasonState, ", socketActive=", socketActive, ")");
+
+        const isFailing = isFatalError || reasonState == DbConnectionState.failing;
 
         scope (exit)
             disposeProtocol(DisposingReason.other);
 
-        if (!failedOpen)
-            _largeBlobManager.doClose(DisposingReason.other);
-
         try
         {
-            if (!failedOpen && _protocol !is null && canWriteDisconnectMessage())
+            if (!isFailing)
+                _largeBlobManager.doClose(DisposingReason.other);
+
+            if (!isFailing && _protocol !is null && canWriteDisconnectMessage())
                 _protocol.disconnectWrite();
         }
         catch (Exception e)
         {
             if (auto log = canErrorLog())
-                log.errorf("%s.connection.doClose() - %s", forLogInfo(), e.msg, e);
+                log.errorf("%s.connection.doCloseImpl() - %s", forLogInfo(), e.msg, e);
         }
 
-        super.doClose(failedOpen);
+        super.doCloseImpl(reasonState);
     }
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
@@ -1302,7 +1304,7 @@ ORDER BY oid
         return null;
     }
 
-    final override void doOpen() @safe
+    final override void doOpenImpl() @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
@@ -1323,7 +1325,7 @@ ORDER BY oid
         _protocol.connectAuthenticationRead(stateInfo);
     }
 
-    final override string getServerVersion() @safe
+    final override string getServerVersionImpl() @safe
     {
         // Ex: SELECT version()="PostgreSQL 12.4, compiled by Visual C++ build 1914, 64-bit"
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");

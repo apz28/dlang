@@ -57,6 +57,7 @@ bool needResetSocket(int errorCode) @nogc nothrow pure @safe
 {
     version(Windows)
     {
+        //import core.sys.windows.winerror;
         import core.sys.windows.winsock2;
 
         // https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-recv
@@ -79,6 +80,7 @@ bool needResetSocket(int errorCode) @nogc nothrow pure @safe
     }
     else version(Posix)
     {
+        //import core.stdc.errno;
         import core.sys.posix.sys.socket;
 
         // https://linux.die.net/man/2/recv

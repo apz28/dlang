@@ -328,7 +328,7 @@ package(pham.db):
         auto msg = DbMessage.eReadData.fmtMessage(connectionStringBuilder.forErrorInfo(), rawErrorMessage);
 
         if (needResetSocket(rawErrorCode))
-            fatalError();
+            fatalError(FatalErrorReason.readData, state);
 
         throw createReadDataError(rawErrorCode, msg, next, funcName, file, line);
     }
@@ -345,7 +345,7 @@ package(pham.db):
         auto msg = DbMessage.eWriteData.fmtMessage(connectionStringBuilder.forErrorInfo(), rawErrorMessage);
 
         if (needResetSocket(rawErrorCode))
-            fatalError();
+            fatalError(FatalErrorReason.writeData, state);
 
         throw createWriteDataError(rawErrorCode, msg, next, funcName, file, line);
     }
@@ -384,7 +384,7 @@ protected:
         return new SkWriteBuffer(this, capacity);
     }
 
-    final void disposeSocket(const(DisposingReason) disposingReason, bool includeShutdown) nothrow @safe
+    final void disposeSocket(const(DisposingReason) disposingReason, const(bool) includeShutdown) nothrow @safe
     {
         disposeSocketBufferFilters(disposingReason);
         disposeSocketReadBuffer(disposingReason);
@@ -446,11 +446,13 @@ protected:
             _socketWriteBuffers.remove(_socketWriteBuffers.last).dispose(disposingReason);
     }
 
-    override void doClose(bool failedOpen) @safe
+    override void doCloseImpl(const(DbConnectionState) reasonState) nothrow @safe
     {
-        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(failedOpen=", failedOpen, ")");
+        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(reasonState=", reasonState, ", socketActive=", socketActive, ")");
 
-        disposeSocket(DisposingReason.other, !failedOpen);
+        const isFailing = isFatalError || reasonState == DbConnectionState.failing;
+        
+        disposeSocket(DisposingReason.other, !isFailing);
     }
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
@@ -894,6 +896,11 @@ private:
     DbWriteBuffer _buffer;
     SkConnection _connection;
     bool _needBuffer;
+}
+
+version(UnitTestSocketFailure)
+{
+    int unitTestSocketFailure;
 }
 
 

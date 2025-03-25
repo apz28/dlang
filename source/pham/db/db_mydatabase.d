@@ -278,9 +278,6 @@ protected:
     {
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
 
-        scope (exit)
-            _handle.reset();
-
         try
         {
             auto protocol = myConnection.protocol;
@@ -402,12 +399,15 @@ protected:
 
     final override void doUnprepare(const(bool) isPreparedError) @safe
     {
-        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(isPreparedError=", isPreparedError, ")");
 
-        if (!isPreparedError)
+        scope (exit)
+            _handle.reset();
+
+        if (!isPreparedError && !connection.isFatalError)
             purgePendingRows();
 
-        if (_handle)
+        if (_handle && !connection.isFatalError)
         {
             if (_handle.isDummy)
                 _handle.reset();
@@ -758,7 +758,7 @@ protected:
         }
     }
 
-    final override void doCancelCommand(DbCancelCommandData data) @safe
+    final override void doCancelCommandImpl(DbCancelCommandData data) @safe
     {
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
 
@@ -776,25 +776,27 @@ protected:
         command.executeNonQuery();
     }
 
-    final override void doClose(bool failedOpen) @safe
+    final override void doCloseImpl(const(DbConnectionState) reasonState) @safe
     {
-        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(failedOpen=", failedOpen, ", socketActive=", socketActive, ")");
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(reasonState=", reasonState, ", socketActive=", socketActive, ")");
 
+        const isFailing = isFatalError || reasonState == DbConnectionState.failing;
+        
         scope (exit)
             disposeProtocol(DisposingReason.other);
 
         try
         {
-            if (!failedOpen && _protocol !is null && canWriteDisconnectMessage())
+            if (!isFailing && _protocol !is null && canWriteDisconnectMessage())
                 _protocol.disconnectWrite();
         }
         catch (Exception e)
         {
             if (auto log = canErrorLog())
-                log.errorf("%s.connection.doClose() - %s", forLogInfo(), e.msg, e);
+                log.errorf("%s.connection.doCloseImpl() - %s", forLogInfo(), e.msg, e);
         }
 
-        super.doClose(failedOpen);
+        super.doCloseImpl(reasonState);
     }
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
@@ -884,7 +886,7 @@ ORDER BY ORDINAL_POSITION
         return null;
     }
 
-    final override void doOpen() @safe
+    final override void doOpenImpl() @safe
     {
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
 
@@ -905,7 +907,7 @@ ORDER BY ORDINAL_POSITION
         _protocol.connectAuthenticationRead(stateInfo);
     }
 
-    final override string getServerVersion() @safe
+    final override string getServerVersionImpl() @safe
     {
         // Use this command "SHOW VARIABLES LIKE 'version'" or "SHOW VARIABLES LIKE '%version%'"
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");

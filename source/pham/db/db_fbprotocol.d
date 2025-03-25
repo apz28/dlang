@@ -2234,7 +2234,7 @@ protected:
         }
 
         scope (failure)
-            connection.fatalError();
+            connection.fatalError(FbConnection.FatalErrorReason.readData, connection.state);
 
         reader = FbXdrReader(connection);
         auto result = reader.readOperation();

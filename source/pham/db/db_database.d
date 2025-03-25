@@ -1530,7 +1530,7 @@ public:
         scope (exit)
             doNotifyMessage();
 
-        doCancelCommand(data);
+        doCancelCommandImpl(data);
     }
 
     pragma(inline, true)
@@ -1561,17 +1561,16 @@ public:
         if (auto log = canTraceLog())
             log.infof("%s.connection.close()", forLogInfo());
 
-        if (_poolList !is null)
-            return _poolList.release(this);
-
         const previousState = state;
         if (previousState == DbConnectionState.closed)
             return this;
 
         _state = DbConnectionState.closing;
+        scope (exit)
+            _state = DbConnectionState.closed;
+
         doBeginStateChange(DbConnectionState.closing);
         doClose(DbConnectionState.closing);
-        _state = DbConnectionState.closed;
         doEndStateChange(previousState);
 
         return this;
@@ -1846,26 +1845,28 @@ public:
         if (auto log = canTraceLog())
             log.infof("%s.connection.open()", forLogInfo());
 
+        if (_poolList !is null)
+            return _poolList.release(this);
+
         const previousState = state;
         if (previousState == DbConnectionState.opened)
             return this;
 
         reset();
+
         _state = DbConnectionState.opening;
-        doBeginStateChange(DbConnectionState.opening);
         scope (exit)
-            doNotifyMessage();
-        scope (failure)
         {
-            _state = DbConnectionState.failing;
-            fatalError();
-            doClose(DbConnectionState.failing);
-            doEndStateChange(previousState);
-            _state = DbConnectionState.failed;
+            if (_state == DbConnectionState.opening)
+                _state = DbConnectionState.opened;
+            doNotifyMessage();
         }
 
-        doOpen();
-        _state = DbConnectionState.opened;
+        scope (failure)
+            fatalError(FatalErrorReason.open, previousState);
+
+        doBeginStateChange(DbConnectionState.opening);
+        doOpenImpl();
         doEndStateChange(previousState);
 
         return this;
@@ -1894,7 +1895,7 @@ public:
 
     final string serverVersion() @safe
     {
-        return serverInfo.require(DbServerIdentifier.dbVersion, getServerVersion());
+        return serverInfo.require(DbServerIdentifier.dbVersion, getServerVersionImpl());
     }
 
     final override size_t toHash() nothrow @safe
@@ -1974,7 +1975,7 @@ public:
      */
     @property final bool isFatalError() const nothrow @safe
     {
-        return _fatalError;
+        return _fatalError != FatalErrorReason.none;
     }
 
     @property final DbTransaction lastTransaction(bool excludeDefaultTransaction) nothrow @safe
@@ -2008,7 +2009,7 @@ package(pham.db):
 
         if (!isActive)
         {
-            auto msg = _fatalError
+            auto msg = isFatalError 
                 ? DbMessage.eInvalidConnectionFatal.fmtMessage(funcName, _connectionStringBuilder.forErrorInfo())
                 : DbMessage.eInvalidConnectionInactive.fmtMessage(funcName, _connectionStringBuilder.forErrorInfo());
             throw new DbException(DbErrorCode.connect, msg, null, funcName, file, line);
@@ -2048,16 +2049,17 @@ package(pham.db):
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(reasonState=", reasonState, ")");
 
-        const isClosing = reasonState == DbConnectionState.closing;
         const isFailing = isFatalError || reasonState == DbConnectionState.failing;
 
         try
         {
             if (!isFailing)
                 rollbackTransactions();
+
             disposeTransactions(DisposingReason.other);
             disposeCommands(DisposingReason.other);
-            doClose(isFailing);
+
+            doCloseImpl(reasonState);
         }
         catch (Exception e)
         {
@@ -2068,11 +2070,33 @@ package(pham.db):
         _handle.reset();
     }
 
-    void fatalError(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    enum FatalErrorReason : ubyte
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(funcName=", funcName, ")");
+        none,
+        open,
+        readData,
+        writeData,
+    }
+    
+    void fatalError(const(FatalErrorReason) fatalError, const(DbConnectionState) previousState,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    in
+    {
+        assert(fatalError != FatalErrorReason.none);
+    }
+    do
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(fatalError=", fatalError, ", previousState=", previousState, ", funcName=", funcName, ")");
 
-        _fatalError = true;
+        this._fatalError = fatalError;
+        _state = DbConnectionState.failing;
+        scope (exit)
+            _state = DbConnectionState.failed;
+
+        if (fatalError != FatalErrorReason.open)
+            doBeginStateChange(DbConnectionState.failing);
+        doCloseImpl(DbConnectionState.failing); //todo
+        doEndStateChange(previousState);
     }
 
     final size_t nextCounter() nothrow @safe
@@ -2213,7 +2237,7 @@ protected:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        _fatalError = false;
+        _fatalError = FatalErrorReason.none;
         _nextCounter = 0;
         _readerCounter = _activeTransactionCounter = 0;
         _inactiveTime = DateTime.zero;
@@ -2231,10 +2255,10 @@ protected:
             t.rollback();
     }
 
-    abstract void doCancelCommand(DbCancelCommandData data) @safe;
-    abstract void doClose(bool failedOpen) @safe;
-    abstract void doOpen() @safe;
-    abstract string getServerVersion() @safe;
+    abstract void doCancelCommandImpl(DbCancelCommandData data) @safe;
+    abstract void doCloseImpl(const(DbConnectionState) reasonState) nothrow @safe;
+    abstract void doOpenImpl() @safe;
+    abstract string getServerVersionImpl() @safe;
 
 public:
     /**
@@ -2278,7 +2302,7 @@ protected:
     int _readerCounter, _activeTransactionCounter;
     DbConnectionState _state;
     DbConnectionType _type;
-    bool _fatalError;
+    FatalErrorReason _fatalError;
 
 private:
     DLinkDbCommandTypes.DLinkList _commands;
@@ -4016,7 +4040,7 @@ public:
         DbScheme dbScheme;
         if (!isDbScheme(scheme, dbScheme))
             return false;
-        
+
         return findDb(dbScheme, database);
     }
 
@@ -4055,7 +4079,7 @@ public:
     }
 
     /**
-     * Returns a singular instance of DbDatabaseList 
+     * Returns a singular instance of DbDatabaseList
      */
     static DbDatabaseList instance() nothrow @trusted
     {
